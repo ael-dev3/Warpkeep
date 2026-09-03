@@ -403,6 +403,7 @@ const SHA256 = /^[0-9a-f]{64}$/
 const COMMIT = /^[0-9a-f]{40}$/
 const G001_DATABASE = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
 const HISTORICAL_DIGEST = '5a9629c7ee695abc2b2369921274dcaa9c618b747387b90f9444429ab8e81d63'
+const RECOVERY_SOURCE_CLOSURE_PROFILE = 'warpkeep-0.4.0-recovery-source-closure-v1'
 
 function requireString(payload: RecoveryJsonObject, key: string): string {
   const value = payload[key]
@@ -437,14 +438,21 @@ function requireBoolean(payload: RecoveryJsonObject, key: string, expected: bool
   if (payload[key] !== expected) fail('RECOVERY_JWS_PAYLOAD_INVALID')
 }
 
+function requireDistinctWorkflowRuns(payload: RecoveryJsonObject): void {
+  if (requireString(payload, 'pagesRunId') === requireString(payload, 'sourceVerifyRunId')) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+}
+
 function assertAuthorizationFields(payload: RecoveryJsonObject): void {
   for (const key of ['requestId', 'jti'] as const) requireUuid(payload, key)
   for (const key of ['repositoryId', 'repositoryOwnerId', 'pagesRunId', 'pagesRunAttempt', 'sourceVerifyRunId', 'sourceVerifyRunAttempt', 'artifactId'] as const) requireDecimal(payload, key)
   for (const key of ['workflowSha', 'predecessorCommit', 'candidateCommit', 'candidateTree'] as const) requireCommit(payload, key)
   for (const key of ['sourceClosureSha256', 'recoveryAuthorizationCoreSha256', 'githubArtifactArchiveSha256', 'innerArtifactTarSha256', 'contentManifestSha256', 'deploymentAttestationSha256', 'g001BaselineAbiSha256', 'issuanceEvidenceSnapshotDigest', 'liveInvariantDigest'] as const) requireSha(payload, key)
   if (payload.repository !== 'ael-dev3/Warpkeep' || payload.repositoryId !== '1273513252' || payload.repositoryOwnerId !== '183124839' || payload.ref !== 'refs/heads/main' || payload.workflowRef !== 'ael-dev3/Warpkeep/.github/workflows/deploy-pages.yml@refs/heads/main' || payload.environment !== 'github-pages' || payload.eventName !== 'workflow_run' || payload.releaseVersion !== '0.4.0' || payload.operation !== 'github-pages-production-deploy' || payload.canonicalOrigin !== 'https://warpkeep.com' || payload.authWorker !== 'warpkeep-auth-bridge' || payload.genesis001Database !== G001_DATABASE || payload.historicalGenesis001ReceiptStatus !== 'unavailable' || payload.historicalGenesis001ReceiptExpectedSha256 !== HISTORICAL_DIGEST || payload.g001ReleaseVersion !== '0.3.43') fail('RECOVERY_JWS_PAYLOAD_INVALID')
-  if (!SHA256.test(requireString(payload, 'genesis002Database')) || !SHA256.test(requireString(payload, 'ptrDatabase')) || requireString(payload, 'genesis002Database') === G001_DATABASE || requireString(payload, 'ptrDatabase') === G001_DATABASE) fail('RECOVERY_JWS_PAYLOAD_INVALID')
-  if (requireString(payload, 'sourceClosureProfile').length === 0 || requireString(payload, 'artifactName') !== `github-pages-recovery-${payload.pagesRunId}-${payload.pagesRunAttempt}`) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+  const genesis002Database = requireString(payload, 'genesis002Database')
+  const ptrDatabase = requireString(payload, 'ptrDatabase')
+  if (!SHA256.test(genesis002Database) || !SHA256.test(ptrDatabase) || genesis002Database === G001_DATABASE || ptrDatabase === G001_DATABASE || genesis002Database === ptrDatabase) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+  if (payload.workflowSha !== payload.candidateCommit || requireString(payload, 'sourceClosureProfile') !== RECOVERY_SOURCE_CLOSURE_PROFILE || requireString(payload, 'artifactName') !== `github-pages-recovery-${payload.pagesRunId}-${payload.pagesRunAttempt}`) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+  requireDistinctWorkflowRuns(payload)
   requireBoolean(payload, 'g001PlayerAccessEnabled', true)
   requireBoolean(payload, 'g001AdmissionStateMutationsEnabled', false)
   requireBoolean(payload, 'g001AccessRequestSubmissionsEnabled', false)
@@ -453,7 +461,7 @@ function assertAuthorizationFields(payload: RecoveryJsonObject): void {
   const observedFrom = requireNonNegative(payload, 'observedFrom')
   const observedThrough = requireNonNegative(payload, 'observedThrough')
   const issuedAt = payload.iat
-  if (!isSafeJsonNumber(issuedAt) || observedThrough < observedFrom || observedThrough > issuedAt) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+  if (!isSafeJsonNumber(issuedAt) || observedThrough < observedFrom || observedThrough > issuedAt || issuedAt - observedThrough > 120) fail('RECOVERY_JWS_PAYLOAD_INVALID')
 }
 
 function assertClaimFields(payload: RecoveryJsonObject): void {
@@ -463,7 +471,8 @@ function assertClaimFields(payload: RecoveryJsonObject): void {
   for (const key of ['authorizationJwsSha256', 'githubArtifactArchiveSha256', 'innerArtifactTarSha256', 'contentManifestSha256', 'deploymentAttestationSha256'] as const) requireSha(payload, key)
   const claimedAt = requireNonNegative(payload, 'claimedAt')
   const claimDeadline = requireNonNegative(payload, 'claimDeadline')
-  if (payload.operation !== 'github-pages-production-deploy' || payload.canonicalOrigin !== 'https://warpkeep.com' || requireString(payload, 'artifactName') !== `github-pages-recovery-${payload.pagesRunId}-${payload.pagesRunAttempt}` || !isPositiveSafeInteger(payload.claimSequence) || claimDeadline < claimedAt) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+  if (payload.operation !== 'github-pages-production-deploy' || payload.canonicalOrigin !== 'https://warpkeep.com' || requireString(payload, 'artifactName') !== `github-pages-recovery-${payload.pagesRunId}-${payload.pagesRunAttempt}` || !isPositiveSafeInteger(payload.claimSequence) || claimDeadline !== claimedAt + 1_200) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+  requireDistinctWorkflowRuns(payload)
 }
 
 function assertTerminalFields(payload: RecoveryJsonObject): void {
@@ -472,6 +481,7 @@ function assertTerminalFields(payload: RecoveryJsonObject): void {
   for (const key of ['candidateCommit', 'candidateTree'] as const) requireCommit(payload, key)
   for (const key of ['authorizationJwsSha256', 'githubArtifactArchiveSha256', 'innerArtifactTarSha256', 'contentManifestSha256', 'deploymentAttestationSha256'] as const) requireSha(payload, key)
   if (payload.operation !== 'github-pages-production-deploy' || payload.canonicalOrigin !== 'https://warpkeep.com' || requireString(payload, 'artifactName') !== `github-pages-recovery-${payload.pagesRunId}-${payload.pagesRunAttempt}` || !isSafeJsonNumber(payload.completedAt) || payload.completedAt < 0 || (payload.outcome !== 'completed' && payload.outcome !== 'not-deployed')) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+  requireDistinctWorkflowRuns(payload)
 }
 
 function assertPayloadConstraints(kind: RecoverySignedKind, payload: RecoveryJsonObject): void {
