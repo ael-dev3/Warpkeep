@@ -1,0 +1,16 @@
+{
+  "name": "@warpkeep/release-recovery",
+  "private": true,
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "packageManager": "npm@10.9.8",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "engines": {
+    "node": ">=22.13 <23",
+    "npm": ">=10.9.8 <11"
+  }
+}
