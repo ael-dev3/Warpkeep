@@ -547,6 +547,7 @@ function validateGitHubMetadataBinding(
     || metadata.pagesRunId !== payloadField(payload, 'pagesRunId')
     || metadata.pagesRunAttempt !== identity.pagesRunAttempt
     || metadata.pagesRunAttempt !== payloadField(payload, 'pagesRunAttempt')
+    || metadata.artifactDigest !== `sha256:${metadata.githubArtifactArchiveSha256}`
     || metadata.githubArtifactArchiveSha256 !== payloadField(
       payload,
       'githubArtifactArchiveSha256',

@@ -4,7 +4,10 @@ import { describe, expect, it } from 'vitest'
 
 import type { RecoveryArmingTuple } from '../src/config.js'
 import type { RecoveryAuthorizationPayload } from '../src/crypto.js'
-import type { GitHubEvidenceMetadata } from '../src/githubEvidenceMetadata.js'
+import {
+  githubEvidenceMetadataSha256,
+  type GitHubEvidenceMetadata,
+} from '../src/githubEvidenceMetadata.js'
 import type { GitHubWorkflowIdentity } from '../src/githubOidc.js'
 import {
   RECOVERY_CLAIM_DEADLINE_SECONDS_V2,
@@ -44,7 +47,8 @@ const G001 = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
 const G002 = '1'.repeat(64)
 const PTR = '2'.repeat(64)
 const NOW = 10_000
-const GITHUB_METADATA_SHA256 = '51411025c5494a9c86acb64a31dc794242542ac83eeb1b58f7f798957652e3bf'
+const GITHUB_METADATA_SHA256 = '51367acb7096af207397bf8abdd214bd81ba8db7bb27098d455bce2a5bd8a886'
+const CONTRADICTORY_GITHUB_METADATA_SHA256 = '51411025c5494a9c86acb64a31dc794242542ac83eeb1b58f7f798957652e3bf'
 const encoder = new TextEncoder()
 
 const githubMetadata: GitHubEvidenceMetadata = {
@@ -60,7 +64,7 @@ const githubMetadata: GitHubEvidenceMetadata = {
   pagesRunId: '123',
   pagesRunAttempt: '1',
   artifactSize: 1,
-  artifactDigest: 'sha256:' + 'e'.repeat(64),
+  artifactDigest: 'sha256:' + 'f'.repeat(64),
   artifactUrl: 'https://api.github.com/artifact',
   artifactArchiveUrl: 'https://api.github.com/archive',
   artifactNodeId: 'node',
@@ -397,6 +401,20 @@ describe('recovery ledger v2 metadata binding', () => {
     }))).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
   })
 
+  it('rejects committed metadata whose artifact digest contradicts its archive SHA-256', async () => {
+    const control = enabledControl()
+    const state = armed(arming(), control)
+    const contradictoryMetadata = {
+      ...githubMetadata,
+      artifactDigest: 'sha256:' + 'e'.repeat(64),
+    }
+    await expect(applyLedgerV2Event(state, reserveEvent(control, {
+      githubMetadata: contradictoryMetadata,
+      githubMetadataSha256: CONTRADICTORY_GITHUB_METADATA_SHA256,
+    }))).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    expect(state).toMatchObject({ state: 'armed', revision: 0, lastTransitionAt: null })
+  })
+
   it('binds every duplicated GitHub coordinate to the request, workflow, payload, and metadata snapshots', async () => {
     const control = enabledControl()
     const state = armed(arming(), control)
@@ -447,6 +465,160 @@ describe('recovery ledger v2 metadata binding', () => {
 })
 
 describe('recovery ledger v2 lifecycle and signer projection', () => {
+  it('rejects reserve retries with altered committed metadata, its hash, or the payload', async () => {
+    const value = await issuing()
+    const changedMetadata = { ...githubMetadata, artifactSize: 2 }
+    const changedMetadataSha256 = await githubEvidenceMetadataSha256(changedMetadata)
+
+    await expect(applyLedgerV2Event(value.record, reserveEvent(value.control, {
+      githubMetadata: changedMetadata,
+      githubMetadataSha256: changedMetadataSha256,
+    }))).rejects.toThrow('RECOVERY_LEDGER_ISSUE_MISMATCH')
+    await expect(applyLedgerV2Event(value.record, reserveEvent(value.control, {
+      githubMetadataSha256: '0'.repeat(64),
+    }))).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    await expect(applyLedgerV2Event(value.record, reserveEvent(value.control, {
+      payload: payload({ jti: '123e4567-e89b-42d3-a456-426614174097' }),
+    }))).rejects.toThrow('RECOVERY_LEDGER_ISSUE_MISMATCH')
+  })
+
+  it('denies reservation and claim after the matching control is disabled or epoch-cancelled', async () => {
+    const control = enabledControl()
+    const state = armed(arming(), control)
+    const disabled = reconcileLedgerV2Control(control, {
+      enabled: false,
+      authorizationEpoch: control.authorizationEpoch,
+    })
+    const cancelled = reconcileLedgerV2Control(control, {
+      enabled: false,
+      authorizationEpoch: control.authorizationEpoch + 1,
+    })
+
+    await expect(applyLedgerV2Event(state, reserveEvent(disabled)))
+      .rejects.toThrow('RECOVERY_LEDGER_CONTROL_DISABLED')
+    await expect(applyLedgerV2Event(state, reserveEvent(cancelled)))
+      .rejects.toThrow('RECOVERY_LEDGER_CONTROL_DISABLED')
+    expect(state).toMatchObject({ state: 'armed', revision: 0 })
+
+    const issuance = await issued()
+    await expect(applyLedgerV2Event(issuance.record, claimEvent(disabled)))
+      .rejects.toThrow('RECOVERY_LEDGER_CONTROL_DISABLED')
+  })
+
+  it('enforces the exact issuing, authorization, and claim deadline boundaries', async () => {
+    const reservation = await issuing()
+    await expect(applyLedgerV2Event(reservation.record, { type: 'alarm', now: NOW + 119 }))
+      .rejects.toThrow('RECOVERY_LEDGER_ALARM_NOT_DUE')
+    await expect(applyLedgerV2Event(reservation.record, { type: 'alarm', now: NOW + 120 }))
+      .resolves.toMatchObject({
+        state: 'expired-unused',
+        expiredAt: NOW + RECOVERY_ISSUING_TIMEOUT_SECONDS_V2,
+        expirationSource: 'issuing',
+      })
+
+    const issuance = await issued()
+    await expect(applyLedgerV2Event(issuance.record, claimEvent(issuance.control, {
+      now: NOW + 899,
+    }))).resolves.toMatchObject({ state: 'claimed' })
+    const expired = await applyLedgerV2Event(issuance.record, claimEvent(issuance.control, {
+      now: NOW + 900,
+    }))
+    expect(expired).toMatchObject({
+      state: 'expired-unused', expiredAt: NOW + 900, expirationSource: 'issued',
+    })
+    expect(JSON.stringify(expired)).not.toContain(JWS)
+
+    const consumption = await claimed()
+    const claimDeadline = NOW + 2 + RECOVERY_CLAIM_DEADLINE_SECONDS_V2
+    await expect(applyLedgerV2Event(consumption.record, {
+      type: 'complete', proof: completedProof(consumption.record), now: claimDeadline,
+    })).rejects.toThrow('RECOVERY_LEDGER_CLAIM_DEADLINE_REACHED')
+    await expect(applyLedgerV2Event(consumption.record, {
+      type: 'alarm', now: claimDeadline - 1,
+    })).rejects.toThrow('RECOVERY_LEDGER_ALARM_NOT_DUE')
+    await expect(applyLedgerV2Event(consumption.record, {
+      type: 'alarm', now: claimDeadline,
+    })).resolves.toMatchObject({
+      state: 'reconciliation-required',
+      reconciliationAttempts: 0,
+      nextReconcileAt: claimDeadline,
+    })
+  })
+
+  it('rejects malformed, payload-substituted, digest-substituted, and claim-substituted JWS input', async () => {
+    const reservation = await issuing()
+    const malformedJws = 'header.payload.signature'
+    await expect(applyLedgerV2Event(reservation.record, finalizeEvent(reservation.control, {
+      authorizationJws: malformedJws,
+      authorizationJwsSha256: rawSha256(malformedJws),
+    }))).rejects.toThrow('RECOVERY_LEDGER_JWS_INVALID')
+
+    const substitutedPayloadJws = compactAuthorizationJws(payload({ candidateTree: '9'.repeat(40) }))
+    await expect(applyLedgerV2Event(reservation.record, finalizeEvent(reservation.control, {
+      authorizationJws: substitutedPayloadJws,
+      authorizationJwsSha256: rawSha256(substitutedPayloadJws),
+    }))).rejects.toThrow('RECOVERY_LEDGER_JWS_PAYLOAD_MISMATCH')
+    await expect(applyLedgerV2Event(reservation.record, finalizeEvent(reservation.control, {
+      authorizationJwsSha256: '6'.repeat(64),
+    }))).rejects.toThrow('RECOVERY_LEDGER_JWS_DIGEST_MISMATCH')
+
+    const issuance = await issued()
+    await expect(applyLedgerV2Event(issuance.record, claimEvent(issuance.control, {
+      authorizationJws: 'wrong',
+    }))).rejects.toThrow('RECOVERY_LEDGER_JWS_MISMATCH')
+  })
+
+  it('rejects completion and not-deployed proofs carrying another claimed row digest', async () => {
+    const first = await claimed()
+    const secondIssuance = await issued()
+    const second = await applyLedgerV2Event(
+      secondIssuance.record,
+      claimEvent(secondIssuance.control, { claimSnapshotDigest: '8'.repeat(64) }),
+    )
+    const secondDigest = ledgerV2RowBindingDigest(second)
+    expect(secondDigest).not.toBe(ledgerV2RowBindingDigest(first.record))
+
+    await expect(applyLedgerV2Event(first.record, {
+      type: 'complete',
+      proof: completedProof(first.record, { rowBindingDigest: secondDigest }),
+      now: NOW + 3,
+    })).rejects.toThrow('RECOVERY_LEDGER_ROW_BINDING_MISMATCH')
+
+    const deadline = ledgerV2AlarmDeadline(first.record) as number
+    const reconciling = await applyLedgerV2Event(first.record, { type: 'alarm', now: deadline })
+    await expect(applyLedgerV2Event(reconciling, {
+      type: 'reconcile',
+      proof: notDeployedProof(reconciling, { rowBindingDigest: secondDigest }),
+      now: deadline,
+    })).rejects.toThrow('RECOVERY_LEDGER_ROW_BINDING_MISMATCH')
+  })
+
+  it('rejects early reconciliation and refuses retries after the bounded schedule is exhausted', async () => {
+    const value = await claimed()
+    const deadline = ledgerV2AlarmDeadline(value.record) as number
+    let record = await applyLedgerV2Event(value.record, { type: 'alarm', now: deadline })
+    record = await applyLedgerV2Event(record, {
+      type: 'reconcile', proof: { outcome: 'ambiguous' }, now: deadline,
+    })
+    await expect(applyLedgerV2Event(record, {
+      type: 'reconcile', proof: { outcome: 'ambiguous' }, now: deadline + 59,
+    })).rejects.toThrow('RECOVERY_LEDGER_RECONCILIATION_NOT_DUE')
+
+    for (let index = 0; index < RECOVERY_RECONCILIATION_RETRY_DELAYS_SECONDS_V2.length; index += 1) {
+      record = await applyLedgerV2Event(record, {
+        type: 'reconcile',
+        proof: { outcome: 'ambiguous' },
+        now: ledgerV2AlarmDeadline(record) as number,
+      })
+    }
+    expect(record).toMatchObject({
+      state: 'reconciliation-required', reconciliationAttempts: 5, nextReconcileAt: null,
+    })
+    await expect(applyLedgerV2Event(record, {
+      type: 'reconcile', proof: { outcome: 'ambiguous' }, now: record.lastTransitionAt! + 1,
+    })).rejects.toThrow('RECOVERY_LEDGER_RECONCILIATION_EXHAUSTED')
+  })
+
   it('preserves v1 control, issue, and fixed-deadline state transitions under v2-only names', async () => {
     const control = enabledControl()
     const installed = armed(arming(), control)
