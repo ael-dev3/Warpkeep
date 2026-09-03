@@ -9,6 +9,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
+  "dependencies": {
+    "fflate": "0.8.3"
+  },
   "engines": {
     "node": ">=22.13 <23",
     "npm": ">=10.9.8 <11"
