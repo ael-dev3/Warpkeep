@@ -167,6 +167,11 @@ describe('recovery ES256 signatures', () => {
       .resolves.toMatch(/^[^.]+\.[^.]+\.[^.]+$/)
   })
 
+  it('rejects an authorization observation interval whose start follows its end', async () => {
+    await expect(signRecoveryAuthorizationJws({ ...authorizationPayload, observedFrom: 1_002, observedThrough: 1_001 }, TEST_ONLY_PRIVATE_JWK))
+      .rejects.toThrowError('RECOVERY_JWS_PAYLOAD_INVALID')
+  })
+
   it('rejects an authorization whose workflow SHA differs from its candidate commit', async () => {
     await expect(signRecoveryAuthorizationJws({ ...authorizationPayload, workflowSha: 'b'.repeat(40) }, TEST_ONLY_PRIVATE_JWK))
       .rejects.toThrowError('RECOVERY_JWS_PAYLOAD_INVALID')

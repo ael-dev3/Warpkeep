@@ -144,6 +144,17 @@ The arbitrary-key verifier is a test-only Vitest module injection outside
 - `services/release-recovery/test/cryptoFixture.ts`
 - `.superpowers/sdd/2026-09-03-warpkeep-0.4.0-recovery-service/task-1-report.md`
 
+## Review fix round 3
+
+### Scope and evidence
+
+Added the direct named authorization observation-interval regression only; no
+production behavior changed. To prove it exercises the guard, a temporary local
+removal of `observedThrough < observedFrom` made
+`npm --prefix services/release-recovery test -- --run test/crypto.test.ts -t "observation interval whose start follows its end"`
+fail because signing resolved instead of rejecting. After restoring the guard,
+the same focused command passed (1 passed, 36 skipped).
+
 ### Commit
 
 Fix commit message: `harden recovery authorization protocol kernel`.
