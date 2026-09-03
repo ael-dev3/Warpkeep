@@ -519,15 +519,26 @@ function validateActivationDelta(
 }
 
 function decodeCanonicalBase64(value: unknown): Uint8Array {
-  if (typeof value !== 'string' || value.length < 1 || value.length > Math.ceil(MAX_BLOB_BYTES / 3) * 4 + 4) {
+  const maximumEncodedLength = Math.ceil(MAX_BLOB_BYTES / 3) * 4
+  const maximumWireLength = maximumEncodedLength + Math.ceil(maximumEncodedLength / 60)
+  if (typeof value !== 'string' || value.length < 2 || value.length > maximumWireLength || !value.endsWith('\n')) {
     githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   }
-  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(value)) {
+  const lines = value.slice(0, -1).split('\n')
+  if (
+    lines.length < 1
+    || lines.some((line, index) => line.length < 1 || line.length > 60 || (index < lines.length - 1 && line.length !== 60))
+  ) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  const encoded = lines.join('')
+  if (
+    encoded.length > maximumEncodedLength
+    || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(encoded)
+  ) {
     githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   }
   try {
-    const result = Uint8Array.from(atob(value), character => character.charCodeAt(0))
-    if (btoa(String.fromCharCode(...result)) !== value || result.length > MAX_BLOB_BYTES) {
+    const result = Uint8Array.from(atob(encoded), character => character.charCodeAt(0))
+    if (btoa(String.fromCharCode(...result)) !== encoded || result.length > MAX_BLOB_BYTES) {
       githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     }
     return result

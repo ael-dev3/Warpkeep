@@ -52,6 +52,7 @@ class StrictGitHubJsonParser {
   constructor(
     private readonly source: string,
     private readonly integerFields: ReadonlySet<string>,
+    private readonly nullableIntegerFields: ReadonlySet<string>,
     private readonly code: string,
   ) {}
 
@@ -95,9 +96,11 @@ class StrictGitHubJsonParser {
       this.#index += 1
       this.skipWhitespace()
       const valuePath = [...path, name]
-      result[name] = this.isIntegerField(name, valuePath)
+      result[name] = this.isConfiguredField(this.integerFields, name, valuePath)
         ? this.parsePositiveIntegerLexeme()
-        : this.parseValue(depth, valuePath)
+        : this.isConfiguredField(this.nullableIntegerFields, name, valuePath)
+          ? this.parseNullableNonnegativeIntegerLexeme()
+          : this.parseValue(depth, valuePath)
       this.skipWhitespace()
       const separator = this.source[this.#index]
       if (separator === '}') {
@@ -183,6 +186,18 @@ class StrictGitHubJsonParser {
     return match[0]
   }
 
+  private parseNullableNonnegativeIntegerLexeme(): string | null {
+    if (this.consume('null')) {
+      if (!this.atValueBoundary()) this.fail()
+      return null
+    }
+    const match = /^(?:0|[1-9][0-9]*)/u.exec(this.source.slice(this.#index))
+    if (match === null) this.fail()
+    this.#index += match[0].length
+    if (!this.atValueBoundary()) this.fail()
+    return match[0]
+  }
+
   private parseSafeNumber(): number {
     const match = /^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/u.exec(
       this.source.slice(this.#index),
@@ -218,9 +233,9 @@ class StrictGitHubJsonParser {
     return value !== null && typeof value === 'object' && !Array.isArray(value)
   }
 
-  private isIntegerField(name: string, path: readonly string[]): boolean {
-    if (this.integerFields.has(name)) return true
-    return this.integerFields.has(`/${path.join('/')}`)
+  private isConfiguredField(fields: ReadonlySet<string>, name: string, path: readonly string[]): boolean {
+    if (fields.has(name)) return true
+    return fields.has(`/${path.join('/')}`)
   }
 
   private fail(): never {
@@ -232,14 +247,23 @@ export function parseGitHubJsonObject(
   bytes: Uint8Array,
   code: string,
   integerFields: readonly string[],
+  nullableIntegerFields: readonly string[] = [],
 ): GitHubJsonObject {
   try {
     if (
       new Set(integerFields).size !== integerFields.length
       || integerFields.some(field => typeof field !== 'string' || field.length === 0)
+      || new Set(nullableIntegerFields).size !== nullableIntegerFields.length
+      || nullableIntegerFields.some(field => typeof field !== 'string' || field.length === 0)
+      || nullableIntegerFields.some(field => integerFields.includes(field))
     ) githubFail(code)
     const source = utf8.decode(bytes)
-    return new StrictGitHubJsonParser(source, new Set(integerFields), code)
+    return new StrictGitHubJsonParser(
+      source,
+      new Set(integerFields),
+      new Set(nullableIntegerFields),
+      code,
+    )
       .parseObjectDocument()
   } catch {
     githubFail(code)
@@ -378,6 +402,7 @@ export async function jsonWithMetadata(
   expectedStatus = 200,
   integerFields: readonly string[] = [],
   byteLimit = MAX_GITHUB_JSON_BYTES,
+  nullableIntegerFields: readonly string[] = [],
 ): Promise<GitHubJsonResponse> {
   if (!Number.isSafeInteger(byteLimit) || byteLimit < 1 || byteLimit > 8 * 1024 * 1024) githubFail(code)
   let response: Response
@@ -410,7 +435,7 @@ export async function jsonWithMetadata(
 
   const bytes = await boundedBody(body, headers, byteLimit, code)
   return Object.freeze({
-    value: parseGitHubJsonObject(bytes, code, integerFields),
+    value: parseGitHubJsonObject(bytes, code, integerFields, nullableIntegerFields),
     bytes: Uint8Array.from(bytes),
     etag: boundedHeader(headers, 'etag', code),
     link: boundedHeader(headers, 'link', code),
@@ -425,6 +450,7 @@ export async function json(
   expectedStatus = 200,
   integerFields: readonly string[] = [],
   byteLimit = MAX_GITHUB_JSON_BYTES,
+  nullableIntegerFields: readonly string[] = [],
 ): Promise<GitHubJsonObject> {
   return (await jsonWithMetadata(
     fetchImplementation,
@@ -434,6 +460,7 @@ export async function json(
     expectedStatus,
     integerFields,
     byteLimit,
+    nullableIntegerFields,
   )).value
 }
 

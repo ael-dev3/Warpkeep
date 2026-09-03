@@ -56,6 +56,8 @@ function tarHeader(path: string, size: number, options: Readonly<{
   uname?: string
   gname?: string
   mtime?: number
+  deviceMajor?: number | 'nul'
+  deviceMinor?: number | 'nul'
 }> = {}): Uint8Array {
   const header = new Uint8Array(512)
   header.set(encoder.encode(path), 0)
@@ -71,8 +73,8 @@ function tarHeader(path: string, size: number, options: Readonly<{
   header.set(encoder.encode(options.format === 'gnu' ? ' \0' : '00'), 263)
   if (options.uname !== undefined) header.set(encoder.encode(options.uname), 265)
   if (options.gname !== undefined) header.set(encoder.encode(options.gname), 297)
-  header.set(octal(0, 8), 329)
-  header.set(octal(0, 8), 337)
+  if (options.deviceMajor !== 'nul') header.set(octal(options.deviceMajor ?? 0, 8), 329)
+  if (options.deviceMinor !== 'nul') header.set(octal(options.deviceMinor ?? 0, 8), 337)
   let checksum = 0
   for (const byte of header) checksum += byte
   const checksumText = encoder.encode(`${checksum.toString(8).padStart(6, '0')}\0 `)
@@ -179,7 +181,15 @@ async function makeGnuTar(): Promise<Uint8Array> {
     files.push({ path, bytes: encoder.encode(`chunk ${index}\n`) })
   }
   const attestation = await attestationBytes(files)
-  const common = { format: 'gnu' as const, uid: 1000, gid: 1000, uname: 'snapmeter', gname: 'snapmeter' }
+  const common = {
+    format: 'gnu' as const,
+    uid: 1000,
+    gid: 1000,
+    uname: 'snapmeter',
+    gname: 'snapmeter',
+    deviceMajor: 'nul' as const,
+    deviceMinor: 'nul' as const,
+  }
   const parts = [
     tarDirectory('./', common),
     tarDirectory('./assets/', common),
@@ -218,6 +228,9 @@ type ZipOptions = Readonly<{
   comment?: Uint8Array
   trailing?: Uint8Array
   mutateCompressed?: (bytes: Uint8Array) => void
+  localVersionNeeded?: number
+  centralVersionMadeBy?: number
+  centralExternalAttributes?: number
 }>
 
 function makeZip(tar: Uint8Array, options: ZipOptions = {}): Uint8Array {
@@ -232,7 +245,7 @@ function makeZip(tar: Uint8Array, options: ZipOptions = {}): Uint8Array {
   const local = new Uint8Array(30 + localName.length)
   const localView = new DataView(local.buffer)
   localView.setUint32(0, 0x04034b50, true)
-  localView.setUint16(4, method === 8 ? 20 : 10, true)
+  localView.setUint16(4, options.localVersionNeeded ?? (method === 8 ? 20 : 10), true)
   localView.setUint16(6, options.localFlags ?? flags, true)
   localView.setUint16(8, options.localMethod ?? method, true)
   localView.setUint16(10, 0x1234, true)
@@ -259,8 +272,8 @@ function makeZip(tar: Uint8Array, options: ZipOptions = {}): Uint8Array {
   const central = new Uint8Array(46 + centralName.length)
   const centralView = new DataView(central.buffer)
   centralView.setUint32(0, 0x02014b50, true)
-  centralView.setUint16(4, 0x0314, true)
-  centralView.setUint16(6, method === 8 ? 20 : 10, true)
+  centralView.setUint16(4, options.centralVersionMadeBy ?? 0x032d, true)
+  centralView.setUint16(6, options.localVersionNeeded ?? (method === 8 ? 20 : 10), true)
   centralView.setUint16(8, options.centralFlags ?? flags, true)
   centralView.setUint16(10, options.centralMethod ?? method, true)
   centralView.setUint16(12, 0x1234, true)
@@ -269,7 +282,7 @@ function makeZip(tar: Uint8Array, options: ZipOptions = {}): Uint8Array {
   centralView.setUint32(20, options.centralCompressed ?? compressed.length, true)
   centralView.setUint32(24, options.centralUncompressed ?? tar.length, true)
   centralView.setUint16(28, centralName.length, true)
-  centralView.setUint32(38, 0x81a40000, true)
+  centralView.setUint32(38, options.centralExternalAttributes ?? 0x81a40020, true)
   centralView.setUint32(42, 0, true)
   central.set(centralName, 46)
   const comment = options.comment ?? new Uint8Array()
@@ -332,6 +345,32 @@ describe('Pages recovery archive validator', () => {
     })
   })
 
+  it('accepts the byte-exact pinned uploader ZIP and GNU TAR wire tuple', async () => {
+    const tar = await makeGnuTar()
+    const zipBytes = makeZip(tar, { method: 8, bit3: true })
+    const local = new DataView(zipBytes.buffer, zipBytes.byteOffset, zipBytes.byteLength)
+    const centralOffset = 30 + ARTIFACT_NAME.length + deflateSync(tar).length + 16
+    expect(local.getUint16(4, true)).toBe(20)
+    expect(local.getUint16(6, true)).toBe(0x0008)
+    expect(local.getUint16(8, true)).toBe(8)
+    expect(local.getUint16(centralOffset + 4, true)).toBe(0x032d)
+    expect(local.getUint32(centralOffset + 38, true)).toBe(0x81a40020)
+    await expect(inspectPagesArtifact(responseAt(zipBytes, 137), expected)).resolves.toMatchObject({
+      githubArtifactArchiveSha256: await sha256(zipBytes),
+      innerArtifactTarSha256: await sha256(tar),
+    })
+  })
+
+  it.each([
+    ['neighboring creator version', { centralVersionMadeBy: 0x032c }],
+    ['old creator version', { centralVersionMadeBy: 0x0314 }],
+    ['missing DOS archive bit', { centralExternalAttributes: 0x81a40000 }],
+    ['neighboring external attributes', { centralExternalAttributes: 0x81a40021 }],
+  ] as const)('rejects pinned uploader ZIP metadata with %s', async (_name, zipOptions) => {
+    await expect(inspect(await makeGnuTar(), { method: 8, bit3: true, ...zipOptions }))
+      .rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
+  })
+
   it('accepts adversarial one-byte chunking without full-body methods', async () => {
     const tar = await makeTar()
     await expect(inspect(tar, { method: 8, bit3: true }, 1)).resolves.toMatchObject({
@@ -339,9 +378,13 @@ describe('Pages recovery archive validator', () => {
     })
   })
 
-  it.each([0, 6] as const)('accepts a standard fflate ZIP at compression level %i', async level => {
+  it.each([0, 6] as const)('accepts a standard fflate stream with sanctioned outer metadata at compression level %i', async level => {
     const tar = await makeTar()
     const bytes = zipSync({ 'artifact.tar': tar }, { level })
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    const centralOffset = view.getUint32(bytes.length - 22 + 16, true)
+    view.setUint16(centralOffset + 4, 0x032d, true)
+    view.setUint32(centralOffset + 38, 0x81a40020, true)
     await expect(inspectPagesArtifact(responseAt(bytes, 31), expected)).resolves.toBeDefined()
   })
 
@@ -681,6 +724,20 @@ describe('Pages recovery archive validator', () => {
     for (const tar of invalid) await expect(inspect(tar)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
   })
 
+  it('accepts all-NUL GNU device fields and rejects mixed or nonzero device identities', async () => {
+    await expect(inspect(await makeGnuTar(), { method: 8, bit3: true })).resolves.toBeDefined()
+    for (const device of [
+      Uint8Array.of(0x30, 0, 0, 0, 0, 0, 0, 0),
+      octal(1, 8),
+    ]) {
+      const tar = await makeTar({ mutateTar: bytes => {
+        bytes.set(device, 329)
+        refreshTarChecksum(bytes)
+      } })
+      await expect(inspect(tar)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
+    }
+  })
+
   it('rejects dot traversal, hidden authority, duplicate, case, and non-ASCII collisions', async () => {
     for (const path of ['../x', 'a/../x', './x', '.git/config', '.env', '.well-known/evil.json', 'é.txt']) {
       const tar = concat(tarFile(path, encoder.encode('x')), new Uint8Array(1024))
@@ -796,5 +853,22 @@ describe('Pages recovery archive validator', () => {
     const files = [{ path: 'large.bin', bytes: new Uint8Array(16 * 1024 * 1024) }]
     const zipBytes = makeZip(await makeTar({ files }), { method: 8 })
     await expect(inspectPagesArtifact(responseAt(zipBytes, 4096), expected)).resolves.toBeDefined()
+  })
+
+  it('copies stored payloads in bounded windows without a 1KiB read loop', async () => {
+    const files = [{ path: 'large.bin', bytes: new Uint8Array(4 * 1024 * 1024) }]
+    const zipBytes = makeZip(await makeTar({ files }), { method: 0 })
+    const original = Uint8Array.from.bind(Uint8Array)
+    let oneKiBCopies = 0
+    const copySpy = vi.spyOn(Uint8Array, 'from').mockImplementation(((value: ArrayLike<number>) => {
+      if (value instanceof Uint8Array && value.length === 1024) oneKiBCopies += 1
+      return original(value)
+    }) as typeof Uint8Array.from)
+    try {
+      await expect(inspectPagesArtifact(responseAt(zipBytes, 256 * 1024), expected)).resolves.toBeDefined()
+      expect(oneKiBCopies).toBeLessThan(64)
+    } finally {
+      copySpy.mockRestore()
+    }
   })
 })

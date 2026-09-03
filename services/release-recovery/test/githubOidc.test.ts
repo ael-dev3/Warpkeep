@@ -126,16 +126,17 @@ function defaultJwks(): Record<string, unknown> {
   }
 }
 
-function defaultCheckRun(checkUrl: string): Record<string, unknown> {
+function defaultCheckRun(checkUrl: string, runId: string, checkRunId: string): Record<string, unknown> {
+  const jobUrl = `https://github.com/${repository}/actions/runs/${runId}/job/${checkRunId}`
   return {
-    id: 91,
+    id: Number(checkRunId),
     node_id: 'CR_kwDOfixture',
     name: 'deploy-recovery',
     head_sha: candidateCommit,
     external_id: 'pages-deploy-recovery',
     url: checkUrl,
-    html_url: 'https://github.com/ael-dev3/Warpkeep/runs/91',
-    details_url: 'https://github.com/ael-dev3/Warpkeep/actions/runs/41/job/91',
+    html_url: jobUrl,
+    details_url: jobUrl,
     status: 'in_progress',
     conclusion: null,
     started_at: '2026-09-03T00:00:00Z',
@@ -147,15 +148,7 @@ function defaultCheckRun(checkUrl: string): Record<string, unknown> {
       annotations_count: 0,
       annotations_url: `${checkUrl}/annotations`,
     },
-    check_suite: {
-      id: 77,
-      head_branch: 'main',
-      head_sha: candidateCommit,
-      status: 'in_progress',
-      conclusion: null,
-      url: `https://api.github.com/repos/${repository}/check-suites/77`,
-      pull_requests: [],
-    },
+    check_suite: { id: 77 },
     app: {
       id: 15368,
       slug: 'github-actions',
@@ -214,14 +207,15 @@ function defaultRunAttempt(runId: string, runAttempt: string): Record<string, un
 }
 
 function defaultJobs(runId: string, runAttempt: string, checkUrl: string): Record<string, unknown> {
+  const runUrl = `https://api.github.com/repos/${repository}/actions/runs/${runId}`
   return {
-    total_count: 1,
+    total_count: 2,
     jobs: [{
       id: 91,
       run_id: Number(runId),
       workflow_name: 'Deploy GitHub Pages',
       head_branch: 'main',
-      run_url: `https://api.github.com/repos/${repository}/actions/runs/${runId}`,
+      run_url: runUrl,
       run_attempt: Number(runAttempt),
       node_id: 'CR_kwDOfixture',
       head_sha: candidateCommit,
@@ -245,8 +239,32 @@ function defaultJobs(runId: string, runAttempt: string, checkUrl: string): Recor
       labels: ['ubuntu-latest'],
       runner_id: 1001,
       runner_name: 'GitHub Actions 1',
-      runner_group_id: 1,
+      runner_group_id: 0,
       runner_group_name: 'GitHub Actions',
+    }, {
+      id: 92,
+      run_id: Number(runId),
+      workflow_name: 'Deploy GitHub Pages',
+      head_branch: 'main',
+      run_url: runUrl,
+      run_attempt: Number(runAttempt),
+      node_id: 'CR_kwDOskipped',
+      head_sha: candidateCommit,
+      url: `https://api.github.com/repos/${repository}/actions/jobs/92`,
+      html_url: `https://github.com/${repository}/actions/runs/${runId}/job/92`,
+      status: 'completed',
+      conclusion: 'skipped',
+      created_at: '2026-09-03T00:00:00Z',
+      started_at: null,
+      completed_at: '2026-09-03T00:00:01Z',
+      name: 'build-skipped',
+      steps: [],
+      check_run_url: `https://api.github.com/repos/${repository}/check-runs/92`,
+      labels: ['ubuntu-latest'],
+      runner_id: null,
+      runner_name: null,
+      runner_group_id: null,
+      runner_group_name: null,
     }],
   }
 }
@@ -262,6 +280,7 @@ type FixtureOptions = Readonly<{
   checkRunText?: (checkRun: Record<string, unknown>) => string
   mutateRunAttempt?: (runAttempt: Record<string, unknown>) => void
   mutateJobs?: (jobs: Record<string, unknown>) => void
+  jobsText?: (jobs: Record<string, unknown>) => string
   mutateInstallation?: (response: Record<string, unknown>) => void
   mutateSignature?: (signature: string) => string
 }>
@@ -299,7 +318,7 @@ async function signedFixture(options: FixtureOptions = {}) {
   options.mutateDiscovery?.(discovery)
   const jwks = defaultJwks()
   options.mutateJwks?.(jwks)
-  const checkRun = defaultCheckRun(checkUrl)
+  const checkRun = defaultCheckRun(checkUrl, runId, checkRunId)
   options.mutateCheckRun?.(checkRun)
   const run = defaultRunAttempt(runId, runAttempt)
   options.mutateRunAttempt?.(run)
@@ -350,7 +369,7 @@ async function signedFixture(options: FixtureOptions = {}) {
       return responseAt(url, options.checkRunText?.(checkRun) ?? JSON.stringify(checkRun))
     }
     if (url === runAttemptUrl) return responseAt(url, JSON.stringify(run))
-    if (url === jobsUrl) return responseAt(url, JSON.stringify(jobs))
+    if (url === jobsUrl) return responseAt(url, options.jobsText?.(jobs) ?? JSON.stringify(jobs))
     throw new Error(`unexpected fake transport: ${url}`)
   }) as typeof globalThis.fetch
 
@@ -388,6 +407,10 @@ describe('GitHub recovery OIDC identity', () => {
       checkRunId: '91',
       oidcJti: '123e4567-e89b-42d3-a456-426614174000',
     })
+  })
+
+  it('accepts a sparse check suite and a skipped sibling with null runner assignment', async () => {
+    await expect(verify()).resolves.toMatchObject({ pagesRunId: '41', checkRunId: '91' })
   })
 
   it.each([
@@ -695,6 +718,8 @@ describe('GitHub recovery OIDC identity', () => {
     ['job name', (checkRun: Record<string, unknown>) => { checkRun.name = 'build' }],
     ['candidate SHA', (checkRun: Record<string, unknown>) => { checkRun.head_sha = 'b'.repeat(40) }],
     ['API URL', (checkRun: Record<string, unknown>) => { checkRun.url = 'https://api.github.com/repos/ael-dev3/Warpkeep/check-runs/92' }],
+    ['HTML URL', (checkRun: Record<string, unknown>) => { checkRun.html_url = 'https://github.com/ael-dev3/Warpkeep/runs/91' }],
+    ['details URL', (checkRun: Record<string, unknown>) => { checkRun.details_url = 'https://github.com/ael-dev3/Warpkeep/actions/runs/42/job/91' }],
     ['completed state at issuance', (checkRun: Record<string, unknown>) => { checkRun.status = 'completed'; checkRun.conclusion = 'success' }],
     ['check-suite candidate', (checkRun: Record<string, unknown>) => { (checkRun.check_suite as Record<string, unknown>).head_sha = 'b'.repeat(40) }],
     ['check-suite branch', (checkRun: Record<string, unknown>) => { (checkRun.check_suite as Record<string, unknown>).head_branch = 'release' }],
@@ -719,6 +744,7 @@ describe('GitHub recovery OIDC identity', () => {
     ['jobs URL', (run: Record<string, unknown>) => { run.jobs_url = 'https://api.github.com/repos/ael-dev3/Warpkeep/actions/runs/41/jobs' }],
     ['workflow URL', (run: Record<string, unknown>) => { run.workflow_url = 'https://api.github.com/repos/ael-dev3/Warpkeep/actions/workflows/20' }],
     ['check-suite ID', (run: Record<string, unknown>) => { run.check_suite_id = 78 }],
+    ['check-suite URL', (run: Record<string, unknown>) => { run.check_suite_url = 'https://api.github.com/repos/ael-dev3/Warpkeep/check-suites/78' }],
     ['head commit', (run: Record<string, unknown>) => { (run.head_commit as Record<string, unknown>).id = 'b'.repeat(40) }],
     ['repository name', (run: Record<string, unknown>) => { (run.repository as Record<string, unknown>).full_name = 'attacker/fork' }],
     ['repository ID', (run: Record<string, unknown>) => { (run.repository as Record<string, unknown>).id = 1 }],
@@ -742,7 +768,7 @@ describe('GitHub recovery OIDC identity', () => {
       mutateJobs: jobs => {
         const entries = jobs.jobs as Array<Record<string, unknown>>
         entries.push({ ...entries[0], id: 92 })
-        jobs.total_count = 2
+        jobs.total_count = entries.length
       },
     })
   })
@@ -763,10 +789,31 @@ describe('GitHub recovery OIDC identity', () => {
     ['runner label', (job: Record<string, unknown>) => { job.labels = ['self-hosted'] }],
     ['runner name', (job: Record<string, unknown>) => { job.runner_name = 'self-hosted-1' }],
     ['runner group', (job: Record<string, unknown>) => { job.runner_group_name = 'Default' }],
+    ['runner group ID', (job: Record<string, unknown>) => { job.runner_group_id = 1 }],
+    ['null selected runner ID', (job: Record<string, unknown>) => { job.runner_id = null }],
+    ['null selected runner group ID', (job: Record<string, unknown>) => { job.runner_group_id = null }],
   ])('rejects mismatched deploy-recovery job %s metadata', async (_name, mutateJob) => {
     await invalidOidc({
       mutateJobs: jobs => mutateJob((jobs.jobs as Array<Record<string, unknown>>)[0]!),
     })
+  })
+
+  it('rejects a partially null runner assignment on a non-selected sibling', async () => {
+    await invalidOidc({
+      mutateJobs: jobs => {
+        const sibling = (jobs.jobs as Array<Record<string, unknown>>)[1]!
+        sibling.runner_name = 'GitHub Actions 2'
+      },
+    })
+  })
+
+  it.each([
+    ['exponent runner ID', (body: string) => body.replace('"runner_id":1001', '"runner_id":1e3')],
+    ['leading-zero group ID', (body: string) => body.replace('"runner_group_id":0', '"runner_group_id":00')],
+    ['fractional group ID', (body: string) => body.replace('"runner_group_id":0', '"runner_group_id":0.0')],
+    ['negative runner ID', (body: string) => body.replace('"runner_id":1001', '"runner_id":-1')],
+  ])('rejects malformed nullable job identity with %s', async (_name, mutate) => {
+    await invalidOidc({ jobsText: jobs => mutate(JSON.stringify(jobs)) })
   })
 
   it('rejects an accessor input with the stable OIDC code', async () => {

@@ -33,6 +33,7 @@ const MAX_QUEUE_BYTES = 1024 * 1024
 const MAX_INFLATER_PENDING_BYTES = 256 * 1024
 const MAX_INFLATE_CHUNK_BYTES = 1024
 const MAX_INFLATE_OUTPUT_CHUNK_BYTES = 2 * 1024 * 1024
+const MAX_STORED_CHUNK_BYTES = 64 * 1024
 const MAX_TAR_ENTRIES = 20_000
 const MAX_TAR_FILE_BYTES = 64 * 1024 * 1024
 const MAX_ATTESTATION_BYTES = 16 * 1024
@@ -420,6 +421,10 @@ function octal(field: Uint8Array, maximum: number): number {
   return value
 }
 
+function tarDeviceNumber(field: Uint8Array): number {
+  return field.every(byte => byte === 0) ? 0 : octal(field, 0x1f_ffff)
+}
+
 function normalizedTarPath(value: string, directory: boolean): string | undefined {
   if (value.startsWith('./')) value = value.slice(2)
   if (directory && value.endsWith('/')) value = value.slice(0, -1)
@@ -589,8 +594,8 @@ class TarStream {
     const gid = octal(header.subarray(116, 124), 0x1f_ffff)
     const size = octal(header.subarray(124, 136), MAX_TAR_FILE_BYTES)
     octal(header.subarray(136, 148), Number.MAX_SAFE_INTEGER)
-    const deviceMajor = octal(header.subarray(329, 337), 0x1f_ffff)
-    const deviceMinor = octal(header.subarray(337, 345), 0x1f_ffff)
+    const deviceMajor = tarDeviceNumber(header.subarray(329, 337))
+    const deviceMinor = tarDeviceNumber(header.subarray(337, 345))
     const type = header[156]
     const posix = String.fromCharCode(...header.subarray(257, 263)) === 'ustar\0'
       && String.fromCharCode(...header.subarray(263, 265)) === '00'
@@ -798,7 +803,7 @@ function validateDosTime(time: number, date: number): void {
 async function streamStored(source: ArchiveSource, tar: TarStream, size: number): Promise<void> {
   let remaining = size
   while (remaining > 0) {
-    const part = await source.readSome(Math.min(MAX_INFLATE_CHUNK_BYTES, remaining))
+    const part = await source.readSome(Math.min(MAX_STORED_CHUNK_BYTES, remaining))
     if (part.length === 0) githubFail(CODE)
     tar.push(part)
     remaining -= part.length
@@ -967,7 +972,7 @@ export async function inspectPagesArtifact(
     const centralExtraLength = u16(central, 30)
     const centralCommentLength = u16(central, 32)
     if (
-      (u16(central, 4) !== 0x0014 && u16(central, 4) !== 0x0314)
+      u16(central, 4) !== 0x032d
       || u16(central, 6) !== versionNeeded
       || u16(central, 8) !== flags
       || u16(central, 10) !== method
@@ -981,9 +986,7 @@ export async function inspectPagesArtifact(
       || centralCommentLength !== 0
       || u16(central, 34) !== 0
       || u16(central, 36) !== 0
-      || (u16(central, 4) === 0x0014
-        ? u32(central, 38) !== 0
-        : u32(central, 38) !== 0x81a4_0000)
+      || u32(central, 38) !== 0x81a4_0020
       || u32(central, 42) !== localOffset
       || u32(central, 20) === 0xffff_ffff
       || u32(central, 24) === 0xffff_ffff

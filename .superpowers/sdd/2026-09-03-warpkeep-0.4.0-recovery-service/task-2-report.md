@@ -13,6 +13,66 @@ No GitHub, Cloudflare, SpacetimeDB, deployment, workflow-dispatch, provisioning,
 push, or other remote operation was performed. All network behavior was exercised
 through deterministic local fakes with generated test-only keys.
 
+## Review fix round 3
+
+Round 3 started from `2334a4d` and corrected the last captured-wire differences
+for the exact pinned Pages uploader, GitHub blob content, and Actions check/job
+responses. No schema-2, attestation, digest, or metadata-only-recheck contract
+changed.
+
+- Archive RED: `npm --prefix services/release-recovery test -- --run
+  test/archive.test.ts` produced 22 positive-path failures and 60 passes after
+  replacing the synthetic ZIP/GNU fixture with captured metadata. Four handled-
+  later rejection warnings were timer-test fallout from those early positive
+  failures and disappeared at GREEN. Archive GREEN is 82/82.
+- Blob RED: focused `githubEvidence.test.ts` produced 7 positive evidence-chain
+  failures and 98 passes because the old decoder rejected LF-wrapped content.
+  Evidence GREEN is 105/105.
+- Check/job RED: focused `githubOidc.test.ts` produced 9 positive identity
+  failures and 148 passes because the old integer parser rejected null sibling
+  runner fields before filtering. OIDC GREEN is 157/157.
+- Final focused GREEN is 377/377 across HTTP, OIDC, evidence, and archive tests;
+  final full-service GREEN is 428/428 across 6 files.
+
+Round-3 decisions are pinned as follows:
+
+- The sanctioned uploader ZIP central record is exactly version-made-by
+  `0x032d` with external attributes `0x81a40020`. The captured production form
+  is local version 20, flags `0x0008`, DEFLATE method 8, no extra fields, and a
+  signed descriptor. Stored and known-size DEFLATE test variants retain the
+  same exact sanctioned central metadata; neighboring creator/attribute values
+  fail closed. Signatureless descriptor support remains unambiguous and bounded.
+- GNU TAR device-major and device-minor accept either strict zero octal or an
+  entirely NUL field as zero. This exception is confined to those two fields;
+  mixed and nonzero fields fail. The end-to-end fixture includes `./`, directory
+  records, runner ownership, GNU LongLink, NUL devices, record padding, signed
+  bit-3 descriptor, and the exact central tuple.
+- Stored TAR bytes are copied in bounded 64 KiB windows, separate from the 1 KiB
+  raw-DEFLATE feed. A 4 MiB instrumentation regression proves the stored path no
+  longer performs thousands of 1 KiB copies without increasing queue or
+  inflater memory limits.
+- GitHub blob `content` must be canonical base64 wrapped at exactly 60 columns,
+  with a nonempty final line and exactly one final LF. Only those validated LFs
+  are stripped before canonical decode/re-encode, decoded-size, declared-size,
+  and Git blob SHA-1 checks. CR, whitespace, blank/irregular lines, missing or
+  extra final LF, misplaced separators, and noncanonical padding fail closed.
+- The check-run suite projection is exactly its positive ID. That ID is tied to
+  `run.check_suite_id`, and `run.check_suite_url` is synthesized from the fixed
+  repository and suite ID. Check `html_url` and `details_url` both equal the
+  exact run/job page derived from signed run and check IDs.
+- The strict JSON reader now has separately configured nullable/nonnegative
+  integer paths. It returns only `null` or canonical decimal strings, preserving
+  precision and rejecting signs, fractions, exponents, and leading zeros. This
+  applies only to job runner IDs. Every listed job is checked for fixed run,
+  workflow, candidate, API/web URL, node, label, lifecycle, and internally
+  consistent all-null or all-assigned runner metadata before selecting exactly
+  one `deploy-recovery` job. The selected job still requires positive runner ID,
+  runner-group ID exactly `0`, group `GitHub Actions`, and exact hosted labels.
+
+Round 3 modified only `src/{archive,githubEvidence,githubOidc,http}.ts`, their
+three directly affected tests, and this report. No dependency or lock file was
+changed.
+
 ## Review fix round 2
 
 Round 2 started from `c2a7856` and addressed the real GitHub and pinned
@@ -199,7 +259,8 @@ cleanup fix produced archive 68/68. Final verification results are recorded belo
 - OIDC is exact RS256 with canonical base64url, strict header/claim allowlists,
   fixed issuer/audience/subject/repository/ref/workflow/environment/event/runner,
   documented bounded pre-issue `nbf` skew and strict lifetime bounds, canonical JTI, and authenticated App
-  correlation across check run, Pages attempt, and in-progress deploy job.
+  correlation across sparse check suite, Pages attempt, in-progress hosted
+  deploy job, and safely nullable unassigned sibling jobs.
 - Discovery accepts only validated additive standard fields and the fixed GitHub
   JWKS URI. JWKS accepts bounded standard `x5c`, `x5t`, and `x5t#S256` metadata,
   but imports only canonical RSA `n`/`e` plus fixed `kty`/`alg`/`use`; duplicate
@@ -212,7 +273,7 @@ cleanup fix produced archive 68/68. Final verification results are recorded belo
 - Candidate evidence reauthenticates fixed repository/owner IDs, protected main,
   linear commit ancestry, actual recursive trees, exact three-blob delta with
   only necessary ancestor-tree SHA changes, stable Git blobs
-  with ETag/body/base64/size/Git-SHA-1 checks, schema-2 binding, protected workflow
+  with ETag/body/canonical 60-column LF-wrapped base64/size/Git-SHA-1 checks, schema-2 binding, protected workflow
   structure, distinct successful source Verify attempt, and exactly one named
   unexpired Pages artifact with stable metadata and recorded `sha256:` digest.
 - Metadata-only recheck uses a canonical stored projection/digest, reloads current
@@ -221,7 +282,8 @@ cleanup fix produced archive 68/68. Final verification results are recorded belo
 - ZIP processing is incremental and permits one exact ASCII `artifact.tar` entry,
   stored or raw DEFLATE, including unambiguous signed/signatureless bit-3 data
   descriptors. It verifies local/central/EOCD consistency, CRC32, sizes, limits,
-  ratio, offsets, and EOF without scanning for descriptor magic.
+  ratio, offsets, exact `0x032d`/`0x81a40020` producer metadata, and EOF without
+  scanning for descriptor magic.
 - TAR processing incrementally verifies checksums, bounded POSIX/GNU identity
   fields, safe modes, normalized directories/LongLink, path/type/size/count and
   path-metadata bounds, zero padding, at least two terminal zero blocks plus only
@@ -247,10 +309,10 @@ service's npm scripts and the repository's existing installed toolchain.
 
 ## Final verification
 
-- `npm --prefix services/release-recovery run typecheck` — exit 0.
-- Full service tests — 6 files, 400 tests passed.
-- Focused archive/evidence/OIDC/HTTP tests — 4 files, 349 tests passed.
-- `git diff --check c2a7856` — no output, exit 0.
+- Node `v22.23.2`: `npm --prefix services/release-recovery run typecheck` — exit 0.
+- Full service tests — 6 files, 428 tests passed.
+- Focused archive/evidence/OIDC/HTTP tests — 4 files, 377 tests passed.
+- `git diff --check 2334a4d` — no output, exit 0.
 - Targeted coercion/full-body/mock/error-leak greps — no production GitHub ID
   `Number` coercion, no archive-response `arrayBuffer()`/`text()` use, no temporary archive
   inspector mock/seam, and no upstream token/body/error interpolation.

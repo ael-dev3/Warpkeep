@@ -308,20 +308,20 @@ function githubHeaders(token: string): HeadersInit {
 
 type CorrelatedCheck = Readonly<{
   nodeId: string
-  detailsUrl: string
   suiteId: string
-  suiteUrl: string
 }>
 
 function validateCheckRun(
   check: GitHubJsonObject,
   checkRunId: string,
+  runId: string,
   candidateCommit: string,
   checkUrl: string,
 ): CorrelatedCheck {
   const code = 'RECOVERY_GITHUB_OIDC_INVALID'
   const suite = objectValue(check.check_suite, code)
   const app = objectValue(check.app, code)
+  const jobHtmlUrl = `https://github.com/${GITHUB_REPOSITORY}/actions/runs/${runId}/job/${checkRunId}`
   if (
     check.id !== checkRunId
     || check.name !== 'deploy-recovery'
@@ -330,27 +330,20 @@ function validateCheckRun(
     || typeof check.node_id !== 'string'
     || !/^[A-Za-z0-9_-]{1,256}$/u.test(check.node_id)
     || !boundedString(check.html_url, 2_048)
-    || check.html_url !== `https://github.com/${GITHUB_REPOSITORY}/runs/${checkRunId}`
+    || check.html_url !== jobHtmlUrl
     || !boundedString(check.details_url, 2_048)
-    || check.details_url.length < 1
+    || check.details_url !== jobHtmlUrl
     || check.status !== 'in_progress'
     || check.conclusion !== null
+    || !exactKeys(suite, ['id'])
     || !positive(suite.id)
-    || suite.head_branch !== 'main'
-    || suite.head_sha !== candidateCommit
-    || suite.status !== 'in_progress'
-    || suite.conclusion !== null
-    || !boundedString(suite.url, 2_048)
-    || suite.url !== `https://api.github.com/repos/${GITHUB_REPOSITORY}/check-suites/${suite.id}`
     || app.slug !== 'github-actions'
     || app.name !== 'GitHub Actions'
     || app.id !== '15368'
   ) githubFail(code)
   return Object.freeze({
     nodeId: check.node_id,
-    detailsUrl: check.details_url,
     suiteId: suite.id,
-    suiteUrl: suite.url,
   })
 }
 
@@ -379,7 +372,7 @@ function validatePagesRunAttempt(
     || run.jobs_url !== `${runUrl}/attempts/${claims.run_attempt}/jobs`
     || run.workflow_url !== `https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/${run.workflow_id}`
     || run.check_suite_id !== check.suiteId
-    || run.check_suite_url !== check.suiteUrl
+    || run.check_suite_url !== `https://api.github.com/repos/${GITHUB_REPOSITORY}/check-suites/${check.suiteId}`
     || headCommit.id !== candidateCommit
     || !githubIdentifier(run.workflow_id)
     || !githubIdentifier(objectValue(run.actor, code).id)
@@ -414,12 +407,47 @@ function validateDeployRecoveryJob(
     || !Array.isArray(jobs)
     || jobs.length !== jobsResponse.total_count
   ) githubFail(code)
-  const namedJobs = jobs
-    .map(value => objectValue(value, code))
-    .filter(job => job.name === 'deploy-recovery')
+  const validatedJobs = jobs.map(value => {
+    const job = objectValue(value, code)
+    const labels = stringArray(job.labels, code, 64, 256)
+    const runnerFields = [job.runner_id, job.runner_group_id, job.runner_name, job.runner_group_name]
+    const unassigned = runnerFields.every(value => value === null)
+    const partlyAssigned = runnerFields.some(value => value === null)
+    if (
+      !positive(job.id)
+      || job.run_id !== claims.run_id
+      || job.run_attempt !== claims.run_attempt
+      || job.workflow_name !== GITHUB_WORKFLOW_NAME
+      || job.head_branch !== 'main'
+      || job.head_sha !== candidateCommit
+      || job.run_url !== runUrl
+      || job.check_run_url !== `https://api.github.com/repos/${GITHUB_REPOSITORY}/check-runs/${job.id}`
+      || job.url !== `https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/jobs/${job.id}`
+      || job.html_url !== `https://github.com/${GITHUB_REPOSITORY}/actions/runs/${claims.run_id}/job/${job.id}`
+      || typeof job.node_id !== 'string'
+      || !/^[A-Za-z0-9_-]{1,256}$/u.test(job.node_id)
+      || !boundedString(job.name, 256)
+      || job.name.length < 1
+      || (job.status !== 'queued' && job.status !== 'in_progress' && job.status !== 'completed')
+      || (job.conclusion !== null && !boundedString(job.conclusion, 64))
+      || (!unassigned && (
+        partlyAssigned
+        || !positive(job.runner_id)
+        || typeof job.runner_group_id !== 'string'
+        || !/^(?:0|[1-9][0-9]*)$/u.test(job.runner_group_id)
+        || !boundedString(job.runner_name, 256)
+        || job.runner_name.length < 1
+        || !boundedString(job.runner_group_name, 256)
+        || job.runner_group_name.length < 1
+      ))
+      || (unassigned && job.name === 'deploy-recovery')
+    ) githubFail(code)
+    return Object.freeze({ job, labels, unassigned })
+  })
+  if (new Set(validatedJobs.map(value => value.job.id)).size !== validatedJobs.length) githubFail(code)
+  const namedJobs = validatedJobs.filter(value => value.job.name === 'deploy-recovery')
   if (namedJobs.length !== 1) githubFail(code)
-  const job = namedJobs[0]!
-  const labels = stringArray(job.labels, code, 64, 256)
+  const { job, labels, unassigned } = namedJobs[0]!
   if (
     job.id !== claims.check_run_id
     || job.run_id !== claims.run_id
@@ -431,13 +459,14 @@ function validateDeployRecoveryJob(
     || job.check_run_url !== checkUrl
     || job.url !== `https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/jobs/${claims.check_run_id}`
     || job.node_id !== check.nodeId
-    || job.html_url !== check.detailsUrl
+    || job.html_url !== `https://github.com/${GITHUB_REPOSITORY}/actions/runs/${claims.run_id}/job/${claims.check_run_id}`
     || job.status !== 'in_progress'
     || job.conclusion !== null
-    || !labels.includes('ubuntu-latest')
-    || labels.includes('self-hosted')
+    || labels.length !== 1
+    || labels[0] !== 'ubuntu-latest'
+    || unassigned
     || !githubIdentifier(job.runner_id)
-    || !githubIdentifier(job.runner_group_id)
+    || job.runner_group_id !== '0'
     || typeof job.runner_name !== 'string'
     || !/^GitHub Actions [A-Za-z0-9 ._-]{1,128}$/u.test(job.runner_name)
     || job.runner_group_name !== 'GitHub Actions'
@@ -646,14 +675,15 @@ export async function verifyGitHubWorkflowIdentity(input: Readonly<{
         '/jobs/*/id',
         '/jobs/*/run_id',
         '/jobs/*/run_attempt',
-        '/jobs/*/runner_id',
-        '/jobs/*/runner_group_id',
       ],
+      undefined,
+      ['/jobs/*/runner_id', '/jobs/*/runner_group_id'],
     ),
   ])
   const correlatedCheck = validateCheckRun(
     checkResponse,
     checkRunId,
+    runId,
     candidateCommit,
     checkUrl,
   )

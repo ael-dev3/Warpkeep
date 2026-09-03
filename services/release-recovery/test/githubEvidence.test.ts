@@ -93,6 +93,10 @@ function base64(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes))
 }
 
+function githubBlobBase64(bytes: Uint8Array): string {
+  return `${base64(bytes).match(/.{1,60}/gu)!.join('\n')}\n`
+}
+
 function octal(value: number, length: number): Uint8Array {
   return encoder.encode(`${value.toString(8).padStart(length - 1, '0')}\0`)
 }
@@ -142,7 +146,7 @@ function zip(body: Uint8Array): Uint8Array {
   const central = new Uint8Array(46 + name.length)
   const centralView = new DataView(central.buffer)
   centralView.setUint32(0, 0x02014b50, true)
-  centralView.setUint16(4, 0x0314, true)
+  centralView.setUint16(4, 0x032d, true)
   centralView.setUint16(6, 10, true)
   centralView.setUint16(12, 0x1234, true)
   centralView.setUint16(14, 0x5678, true)
@@ -150,7 +154,7 @@ function zip(body: Uint8Array): Uint8Array {
   centralView.setUint32(20, body.length, true)
   centralView.setUint32(24, body.length, true)
   centralView.setUint16(28, name.length, true)
-  centralView.setUint32(38, 0x81a40000, true)
+  centralView.setUint32(38, 0x81a40020, true)
   central.set(name, 46)
   const eocd = new Uint8Array(22)
   const eocdView = new DataView(eocd.buffer)
@@ -405,7 +409,7 @@ async function makeFixture(): Promise<Readonly<{
       else throw new Error(`unexpected blob ${sha}`)
       const content = count === 2 && state.blobSecondContentOverride !== undefined
         ? state.blobSecondContentOverride
-        : state.blobContentOverride ?? base64(bytes)
+        : state.blobContentOverride ?? githubBlobBase64(bytes)
       const etag = count === 2 ? state.blobSecondEtag ?? '"blob-etag"' : '"blob-etag"'
       return jsonResponse(url, {
         content,
@@ -607,11 +611,38 @@ describe('GitHub candidate evidence', () => {
 
   it.each([
     ['wrong returned blob sha', (state: State) => { state.blobShaOverride = 'f'.repeat(40) }],
-    ['noncanonical base64', (state: State) => { state.blobContentOverride = 'AA' }],
+    ['noncanonical base64', (state: State) => { state.blobContentOverride = 'AA\n' }],
     ['wrong encoding', (state: State) => { state.blobEncodingOverride = 'utf-8' }],
-    ['changed second body', (state: State) => { state.blobSecondContentOverride = 'AAAA' }],
+    ['changed second body', (state: State) => { state.blobSecondContentOverride = 'AAAA\n' }],
     ['changed second ETag', (state: State) => { state.blobSecondEtag = '"changed"' }],
   ])('rejects blob evidence with %s', async (_name, mutate) => rejects(({ state }) => mutate(state)))
+
+  it('accepts literal GitHub 60-column LF wrapping for both authoritative blobs', async () => {
+    const fixture = await makeFixture()
+    const bindingWire = githubBlobBase64(fixture.state.bindingBytes)
+    const workflowWire = githubBlobBase64(fixture.state.workflowBytes)
+    expect(bindingWire.slice(0, 122)).toMatch(/^[A-Za-z0-9+/]{60}\n[A-Za-z0-9+/]{60}\n/u)
+    expect(workflowWire.slice(0, 122)).toMatch(/^[A-Za-z0-9+/]{60}\n[A-Za-z0-9+/]{60}\n/u)
+    await expect(loadGitHubCandidateEvidence(fixture.input)).resolves.toMatchObject({
+      recoveryBindingBytes: fixture.state.bindingBytes,
+      protectedWorkflowBytes: fixture.state.workflowBytes,
+    })
+  })
+
+  it.each([
+    ['CRLF', (wire: string) => wire.replace('\n', '\r\n')],
+    ['space', (wire: string) => `${wire.slice(0, 10)} ${wire.slice(11)}`],
+    ['blank line', (wire: string) => wire.replace('\n', '\n\n')],
+    ['irregular nonfinal width', (wire: string) => `${wire.replace(/\n/gu, '').slice(0, 59)}\n${wire.replace(/\n/gu, '').slice(59)}\n`],
+    ['missing final LF', (wire: string) => wire.slice(0, -1)],
+    ['extra final LF', (wire: string) => `${wire}\n`],
+    ['misplaced LF', (wire: string) => `${wire.slice(0, 30)}\n${wire.slice(30)}`],
+    ['noncanonical padding', (_wire: string) => 'AB==\n'],
+  ])('rejects GitHub blob content with %s', async (_name, mutate) => {
+    await rejects(fixture => {
+      fixture.state.blobContentOverride = mutate(githubBlobBase64(fixture.state.bindingBytes))
+    })
+  })
 
   it.each([
     ['schemaVersion', 1],
