@@ -1,8 +1,10 @@
+import { createPrivateKey } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import {
   RECOVERY_BINDING_KEYS_V2,
   RECOVERY_RECEIPT_COMMITMENT_DIGESTS,
   loadGitHubCandidateEvidence,
+  mintGitHubInstallationToken,
   recheckGitHubEvidenceMetadata,
   type GitHubCandidateEvidence,
 } from '../src/githubEvidence.js'
@@ -229,7 +231,18 @@ jobs:
   deploy-recovery:
     runs-on: ubuntu-latest
     steps:
+      - name: Acquire exact recovery identity
+        id: recovery-oidc
+        shell: bash
+        env:
+          OIDC_AUDIENCE: warpkeep-release-recovery
+        run: |
+          test "$OIDC_AUDIENCE" = warpkeep-release-recovery
+          curl --fail-with-body --silent --show-error \\
+            --header "Authorization: bearer \${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \\
+            "\${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=\${OIDC_AUDIENCE}"
       - name: Upload exact recovery artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
         with:
           name: github-pages-recovery-\${{ github.run_id }}-\${{ github.run_attempt }}
 `)
@@ -239,6 +252,7 @@ async function makeFixture(): Promise<Readonly<{
   state: State
   input: Parameters<typeof loadGitHubCandidateEvidence>[0]
   calls: string[]
+  requestInits: RequestInit[]
 }>> {
   const binding = await validBinding()
   const workflow = workflowBytes()
@@ -256,14 +270,26 @@ async function makeFixture(): Promise<Readonly<{
     path, mode: '100644', type: 'blob', sha, size, url: `${API}/git/blobs/${sha}`,
   })
   const candidateTree = [
+    entry('.github', '1'.repeat(40), 0),
+    entry('.github/workflows', '2'.repeat(40), 0),
     entry('.github/workflows/deploy-pages.yml', workflowSha, workflow.length),
+    entry('config', '3'.repeat(40), 0),
+    entry('config/releases', '4'.repeat(40), 0),
     entry(BINDING_PATH, bindingSha, binding.bytes.length),
     entry('README.md', readmeSha, readmeBytes.length),
     entry('package-lock.json', lockSha, lockBytes.length),
     entry('package.json', packageSha, packageBytes.length),
   ]
+  candidateTree[0]!.type = 'tree'; candidateTree[0]!.mode = '040000'; delete candidateTree[0]!.size
+  candidateTree[1]!.type = 'tree'; candidateTree[1]!.mode = '040000'; delete candidateTree[1]!.size
+  candidateTree[3]!.type = 'tree'; candidateTree[3]!.mode = '040000'; delete candidateTree[3]!.size
+  candidateTree[4]!.type = 'tree'; candidateTree[4]!.mode = '040000'; delete candidateTree[4]!.size
   const preparationTree = [
+    { ...candidateTree[0] },
+    { ...candidateTree[1] },
     entry('.github/workflows/deploy-pages.yml', workflowSha, workflow.length),
+    { ...candidateTree[3], sha: '5'.repeat(40) },
+    { ...candidateTree[4], sha: '6'.repeat(40) },
     entry(BINDING_PATH, oldBindingSha, oldBindingBytes.length),
     entry('README.md', readmeSha, readmeBytes.length),
     entry('package-lock.json', oldLockSha, oldLockBytes.length),
@@ -321,8 +347,10 @@ async function makeFixture(): Promise<Readonly<{
     bindingBytes: binding.bytes,
     workflowBytes: workflow,
     source: {
-      id: SOURCE_RUN_ID, run_attempt: 1, name: 'Verify', path: '.github/workflows/verify.yml',
+      id: SOURCE_RUN_ID, run_attempt: 1, name: 'Verify', path: '.github/workflows/verify.yml@main',
       event: 'push', status: 'completed', conclusion: 'success', head_branch: 'main', head_sha: CANDIDATE,
+      workflow_id: 17,
+      workflow_url: `${API}/actions/workflows/17`,
       repository: { id: REPOSITORY_ID, full_name: REPOSITORY, owner: { id: OWNER_ID } },
       head_repository: { id: REPOSITORY_ID },
     },
@@ -337,14 +365,25 @@ async function makeFixture(): Promise<Readonly<{
   const calls: string[] = []
   const blobCalls = new Map<string, number>()
   let artifactCalls = 0
-  const fetchImplementation = (async (request: string | URL | Request) => {
+  const requestInits: RequestInit[] = []
+  const fetchImplementation = (async (request: string | URL | Request, init?: RequestInit) => {
     const url = String(request)
     calls.push(url)
+    requestInits.push(init ?? {})
     if (url.includes('/access_tokens')) {
       return jsonResponse(url, {
         expires_at: new Date(Math.floor(Date.now() / 1000) * 1000 + 3_000_000).toISOString(),
         permissions: { actions: 'read', checks: 'read', contents: 'read', deployments: 'read', metadata: 'read', pages: 'read' },
-        repositories: [{ full_name: REPOSITORY, id: REPOSITORY_ID }],
+        repository_selection: 'selected',
+        repositories_url: 'https://api.github.com/installation/repositories',
+        has_multiple_single_files: false,
+        single_file: null,
+        single_file_paths: [],
+        token_last_eight: 'on-token',
+        repositories: [{
+          full_name: REPOSITORY, id: REPOSITORY_ID, name: 'Warpkeep', private: false,
+          node_id: 'R_kgDOL5fixture', owner: { login: 'ael-dev3', id: OWNER_ID },
+        }],
         token: 'installation-token',
       }, 201)
     }
@@ -392,9 +431,9 @@ async function makeFixture(): Promise<Readonly<{
     }
     if (url === `${API}/actions/artifacts/${ARTIFACT_ID}/zip`) {
       if (state.forbidArchive) throw new Error('archive download forbidden')
-      return withUrl(url, new Response(null, { status: 302, headers: { location: 'https://artifact-cdn.example.test/recovery.zip' } }))
+      return withUrl(url, new Response(null, { status: 302, headers: { location: 'https://objects.githubusercontent.com/recovery.zip' } }))
     }
-    if (url === 'https://artifact-cdn.example.test/recovery.zip') {
+    if (url === 'https://objects.githubusercontent.com/recovery.zip') {
       if (state.forbidArchive) throw new Error('archive download forbidden')
       return withUrl(url, new Response(Uint8Array.from(state.archive).buffer, {
         headers: { 'content-length': state.archiveLengthOverride ?? String(state.archive.length), 'content-type': 'application/zip' },
@@ -454,7 +493,7 @@ async function makeFixture(): Promise<Readonly<{
     environment: { GITHUB_APP_ID: '1', GITHUB_APP_INSTALLATION_ID: '2', GITHUB_APP_PRIVATE_KEY_PEM: privateKeyPem },
     fetch: fetchImplementation,
   }
-  return { state, input, calls }
+  return { state, input, calls, requestInits }
 }
 
 async function replaceBinding(fixture: Awaited<ReturnType<typeof makeFixture>>, mutate: (value: JsonObject) => void): Promise<void> {
@@ -481,8 +520,8 @@ describe('GitHub candidate evidence', () => {
       ['sign', 'verify'],
     )
     const bytes = new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey))
-    const body = btoa(String.fromCharCode(...bytes)).match(/.{1,64}/gu)?.join('\n') ?? ''
-    privateKeyPem = `-----BEGIN PRIVATE KEY-----\n${body}\n-----END PRIVATE KEY-----`
+    privateKeyPem = createPrivateKey({ key: Buffer.from(bytes), format: 'der', type: 'pkcs8' })
+      .export({ format: 'pem', type: 'pkcs1' }).toString()
   })
 
   it('loads a realistic authenticated GitHub evidence chain and returns copied bytes and actual tree', async () => {
@@ -500,6 +539,29 @@ describe('GitHub candidate evidence', () => {
     expect(evidence.protectedWorkflowBytes).toEqual(fixture.state.workflowBytes)
     fixture.state.bindingBytes.fill(0)
     expect(evidence.recoveryBindingBytes[0]).not.toBe(0)
+    const tokenIndex = fixture.calls.findIndex(url => url.includes('/access_tokens'))
+    expect(fixture.requestInits[tokenIndex]?.method).toBe('POST')
+    expect(fixture.requestInits[tokenIndex]?.body).toBe(JSON.stringify({
+      permissions: { actions: 'read', checks: 'read', contents: 'read', deployments: 'read', metadata: 'read', pages: 'read' },
+      repositories: ['Warpkeep'],
+    }))
+    const tokenHeaders = new Headers(fixture.requestInits[tokenIndex]?.headers)
+    expect(tokenHeaders.get('accept')).toBe('application/vnd.github+json')
+    expect(tokenHeaders.get('content-type')).toBe('application/json')
+    expect(tokenHeaders.get('x-github-api-version')).toBe('2022-11-28')
+    expect(tokenHeaders.get('authorization')).toMatch(/^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u)
+  })
+
+  it('rejects malformed and oversized PKCS#1 app keys with a stable evidence error', async () => {
+    const fixture = await makeFixture()
+    for (const pem of [
+      '-----BEGIN RSA PRIVATE KEY-----\nAAAA\n-----END RSA PRIVATE KEY-----',
+      `-----BEGIN RSA PRIVATE KEY-----\n${'A'.repeat(32_769)}\n-----END RSA PRIVATE KEY-----`,
+      `${privateKeyPem}-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----`,
+    ]) {
+      await expect(mintGitHubInstallationToken({ ...fixture.input.environment, GITHUB_APP_PRIVATE_KEY_PEM: pem }, fixture.input.fetch, 1_788_200_000))
+        .rejects.toThrowError('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    }
   })
 
   it.each([
@@ -520,6 +582,28 @@ describe('GitHub candidate evidence', () => {
     ['a changed type', (state: State) => { state.candidateTree.find(value => value.path === 'package.json')!.type = 'tree' }],
     ['a changed workflow blob', (state: State) => { state.preparationTree.find(value => value.path === WORKFLOW_PATH)!.sha = 'f'.repeat(40) }],
   ])('rejects activation delta with %s', async (_name, mutate) => rejects(({ state }) => mutate(state)))
+
+  it('permits recursive ancestor tree SHA changes but rejects unrelated tree SHA changes', async () => {
+    await expect(loadGitHubCandidateEvidence((await makeFixture()).input)).resolves.toBeDefined()
+    await rejects(({ state }) => {
+      state.candidateTree.find(value => value.path === '.github')!.sha = '9'.repeat(40)
+    })
+  })
+
+  it('accepts a bounded realistic 2,419-entry recursive tree response over the generic JSON cap', async () => {
+    const fixture = await makeFixture()
+    const needed = 2_419 - fixture.state.candidateTree.length
+    for (let index = 0; index < needed; index += 1) {
+      const path = `dist/assets/generated-${index.toString().padStart(4, '0')}-${'x'.repeat(96)}.js`
+      const entry = {
+        path, mode: '100644', type: 'blob', sha: '9'.repeat(40), size: 12,
+        url: `${API}/git/blobs/${'9'.repeat(40)}`,
+      }
+      fixture.state.candidateTree.push(entry)
+      fixture.state.preparationTree.push({ ...entry })
+    }
+    await expect(loadGitHubCandidateEvidence(fixture.input)).resolves.toBeDefined()
+  })
 
   it.each([
     ['wrong returned blob sha', (state: State) => { state.blobShaOverride = 'f'.repeat(40) }],
@@ -600,6 +684,11 @@ describe('GitHub candidate evidence', () => {
     ['workflow name', (source: string) => source.replace('Deploy GitHub Pages', 'Other')],
     ['recovery job', (source: string) => source.replace('deploy-recovery:', 'deploy:')],
     ['artifact convention', (source: string) => source.replace('github-pages-recovery-', 'pages-')],
+    ['OIDC audience', (source: string) => source.replace('warpkeep-release-recovery', 'attacker-audience')],
+    ['OIDC request URL', (source: string) => source.replace('ACTIONS_ID_TOKEN_REQUEST_URL', 'ATTACKER_URL')],
+    ['artifact action input', (source: string) => source.replace('name: github-pages-recovery-', 'artifact-name: github-pages-recovery-')],
+    ['display-name-only spoof', (source: string) => source.replace('uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9', 'run: echo upload-pages-artifact')],
+    ['wrong pinned artifact action', (source: string) => source.replace('fc324d3547104276b827a68afc52ff2a11cc49c9', '0000000000000000000000000000000000000000')],
   ])('rejects a changed protected %s', async (_name, mutate) => rejects(async ({ state }) => {
     state.workflowBytes = encoder.encode(mutate(new TextDecoder().decode(state.workflowBytes)))
     const sha = await blobSha(state.workflowBytes)
@@ -612,10 +701,17 @@ describe('GitHub candidate evidence', () => {
 
   it.each([
     ['id', PAGES_RUN_ID], ['run_attempt', 2], ['name', 'Other'],
-    ['path', '.github/workflows/other.yml'], ['event', 'workflow_dispatch'],
+    ['path', '.github/workflows/other.yml@main'], ['path', '.github/workflows/verify.yml@release'],
+    ['workflow_id', 18], ['workflow_url', `${API}/actions/workflows/18`], ['event', 'workflow_dispatch'],
     ['status', 'in_progress'], ['conclusion', 'failure'], ['head_branch', 'other'],
     ['head_sha', PREPARATION],
   ])('rejects wrong source Verify %s', async (key, value) => rejects(({ state }) => { state.source[key] = value }))
+
+  it('accepts the exact bare source Verify workflow path returned by GitHub', async () => {
+    const fixture = await makeFixture()
+    fixture.state.source.path = '.github/workflows/verify.yml'
+    await expect(loadGitHubCandidateEvidence(fixture.input)).resolves.toBeDefined()
+  })
 
   it('rejects wrong source Verify repository, owner, and head repository IDs', async () => {
     await rejects(({ state }) => { (state.source.repository as JsonObject).id = 1 })

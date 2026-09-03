@@ -13,6 +13,87 @@ No GitHub, Cloudflare, SpacetimeDB, deployment, workflow-dispatch, provisioning,
 push, or other remote operation was performed. All network behavior was exercised
 through deterministic local fakes with generated test-only keys.
 
+## Review fix round 2
+
+Round 2 started from `c2a7856` and addressed the real GitHub and pinned
+`actions/upload-pages-artifact` compatibility findings without changing the
+schema-2 binding, attestation, four-digest, or metadata-only-recheck contracts.
+
+- Aggregate RED command: `npm --prefix services/release-recovery test -- --run
+  test/http.test.ts test/githubOidc.test.ts test/githubEvidence.test.ts
+  test/archive.test.ts`.
+- Aggregate RED result: 4 files, 332 tests, 31 intended failures and 301 passes.
+  The failures covered hostile HTTP response access/cancellation and reserved
+  redirects; additive App envelopes, PKCS#1, JOSE `x5t`, `nbf` skew, and real
+  run-attempt shapes; recursive-tree sizing/ancestor semantics and protected
+  workflow structure; and GNU TAR, LongLink, descriptor collision, inflater
+  peak, timeout, and cleanup behavior. Three asynchronous warnings came from
+  the first fake-timer harness and were corrected before judging GREEN.
+- Two final focused RED regressions proved that the fetch and inspector could
+  receive separate five-minute budgets (HTTP 32 passed / 1 failed) and that a
+  redundant GNU LongLink could encode a short path (archive 74 skipped / 1
+  failed). The minimal fixes share the fetch-start deadline and require a
+  LongLink target to exceed the 100-byte header name field.
+- Focused GREEN: the same four files pass 349/349.
+- Full GREEN: all 6 service files pass 400/400.
+
+Round-2 design decisions are pinned as follows:
+
+- GitHub App PEM accepts canonical bounded PKCS#8 and GitHub's downloaded
+  PKCS#1 `RSA PRIVATE KEY` form. PKCS#1 is deterministically wrapped in a
+  PKCS#8 `PrivateKeyInfo` before WebCrypto import; malformed DER, extra PEM
+  blocks, noncanonical base64, and oversized keys fail closed.
+- The installation-token request body and six read-only permissions remain
+  exact. The parser now accepts the documented bounded additive response
+  envelope and rich repository objects while projecting and requiring the
+  fixed repository ID/name, selected-repository authority, exact permission
+  set, token, and expiry.
+- OIDC accepts canonical optional header `x5t` only when it equals the selected
+  JWKS key's validated `x5t`; it remains metadata rather than key authority.
+  Minimal RSA JWKS keys and `x5c`/`x5t` keys without `x5t#S256` are supported.
+  `nbf` is bounded to `iat - 600 <= nbf <= iat`; all other issue, expiry,
+  freshness, and lifetime checks remain strict. `issuer_scope` is the sole new
+  bounded, ignored optional claim; arbitrary extra claims still fail closed.
+- Pages and source Verify accept only the two exact GitHub path shapes (bare
+  `.github/workflows/<file>.yml` or the same path with `@main`). Workflow URLs
+  must use the positive numeric workflow ID, and Pages `jobs_url` must be the
+  exact run-attempt URL.
+- Recursive-tree responses use a dedicated 7 MiB transport cap and a 20,000
+  entry semantic cap. The activation comparison requires identical path,
+  mode, and type sets and exactly three changed blobs. Tree SHA changes are
+  allowed only for strict ancestors of those blobs; unrelated subtree changes
+  fail closed. The positive regression uses 2,419 entries and real ancestor
+  tree records.
+- Protected workflow bytes are parsed with exact `yaml@2.9.0`, duplicate-key
+  and alias expansion rejection, then structurally bind the `deploy-recovery`
+  job, Actions OIDC token-request variables and exact audience, pinned
+  `actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9`,
+  and exact recovery artifact-name expression. Broader workflow permissions
+  and ordering remain Task 4.
+- The archive reader uses a monotonic five-minute total deadline plus a
+  resettable 30-second idle deadline. Test-only timing values may only shorten
+  those production maxima. Archive fetch and inspection share one absolute
+  five-minute deadline measured from the start of the redirected archive fetch.
+  Cleanup cancels the exact captured body/reader once, never awaits untrusted
+  cancellation, and always emits the stable archive/HTTP code.
+- Raw DEFLATE is fed in at most 1 KiB slices; each callback is capped at 2 MiB,
+  cumulative output/ratio is checked before downstream processing, and fflate
+  pending state is checked before and after every push. The 16 MiB zero-input
+  regression exercises the highly-compressible path without full-body reads.
+- TAR accepts the exact GNU class emitted by the pinned action: `./` root,
+  normalized directory records, bounded ownership names/IDs, GNU or POSIX
+  magic/version, safe file/directory modes, narrowly validated one-shot GNU
+  LongLink for a following file or directory, at least two end blocks, and
+  zero 10 KiB record padding. The realistic fixture contains 340 files and 66
+  LongLink records. A LongLink is canonical only when its resolved raw path is
+  longer than the 100-byte TAR name field. Directories/LongLink records stay out of the manifest;
+  unsafe hidden directories, PAX/general GNU extensions, links/devices,
+  traversal, collisions, dangling names, and nonzero trailing data are rejected.
+- Signatureless bit-3 DEFLATE descriptors are disambiguated from a CRC equal to
+  `0x08074b50` by evaluating bounded signed/unsigned candidates against the
+  already computed CRC/sizes and following central signature. Stored bit-3
+  remains rejected because it is not self-delimiting.
+
 ## RED / GREEN evidence
 
 The fixes were developed as bounded RED-to-GREEN slices.
@@ -117,17 +198,20 @@ cleanup fix produced archive 68/68. Final verification results are recorded belo
   work. Upstream bodies, tokens, PEMs, and exception messages never enter errors.
 - OIDC is exact RS256 with canonical base64url, strict header/claim allowlists,
   fixed issuer/audience/subject/repository/ref/workflow/environment/event/runner,
-  exact time ordering and lifetime bounds, canonical JTI, and authenticated App
+  documented bounded pre-issue `nbf` skew and strict lifetime bounds, canonical JTI, and authenticated App
   correlation across check run, Pages attempt, and in-progress deploy job.
 - Discovery accepts only validated additive standard fields and the fixed GitHub
   JWKS URI. JWKS accepts bounded standard `x5c`, `x5t`, and `x5t#S256` metadata,
   but imports only canonical RSA `n`/`e` plus fixed `kty`/`alg`/`use`; duplicate
   key IDs and authority aliases fail closed.
 - GitHub App permissions are exactly read-only Actions, Checks, Contents,
-  Deployments, Metadata, and Pages for the fixed repository. App inputs and all
-  caller projections reject accessors/proxies.
+  Deployments, Metadata, and Pages for the fixed repository. Canonical bounded
+  PKCS#1 and PKCS#8 keys are supported; additive response metadata cannot alter
+  the fixed authority projection. App inputs and all caller projections reject
+  accessors/proxies.
 - Candidate evidence reauthenticates fixed repository/owner IDs, protected main,
-  linear commit ancestry, actual trees, exact three-file delta, stable Git blobs
+  linear commit ancestry, actual recursive trees, exact three-blob delta with
+  only necessary ancestor-tree SHA changes, stable Git blobs
   with ETag/body/base64/size/Git-SHA-1 checks, schema-2 binding, protected workflow
   structure, distinct successful source Verify attempt, and exactly one named
   unexpired Pages artifact with stable metadata and recorded `sha256:` digest.
@@ -138,18 +222,20 @@ cleanup fix produced archive 68/68. Final verification results are recorded belo
   stored or raw DEFLATE, including unambiguous signed/signatureless bit-3 data
   descriptors. It verifies local/central/EOCD consistency, CRC32, sizes, limits,
   ratio, offsets, and EOF without scanning for descriptor magic.
-- TAR processing incrementally verifies checksums, exact ustar fields, safe modes,
-  path/type/size/count/aggregate bounds, zero padding, exactly two terminal zero
-  blocks, and collision/authority-file rules. It retains only bounded metadata
+- TAR processing incrementally verifies checksums, bounded POSIX/GNU identity
+  fields, safe modes, normalized directories/LongLink, path/type/size/count and
+  path-metadata bounds, zero padding, at least two terminal zero blocks plus only
+  zero GNU record padding, and collision/authority-file rules. It retains only bounded metadata
   and the small attestation body; ordinary file bodies are streamed and discarded.
 - Outer archive SHA-256, inner TAR SHA-256, content-manifest SHA-256, and exact
   attestation SHA-256 are recomputed locally and returned with defensive copies.
 
 ## Tooling and dependency decision
 
-The service now declares exact production dependency `fflate: 0.8.3`. That exact
-version was already present in the repository root lock/runtime; neither the root
-`package-lock.json` nor any root package manifest was modified. The raw-inflater
+The service declares exact production dependencies `fflate: 0.8.3` and
+`yaml: 2.9.0`. Both exact versions were already present in the repository root
+lock/runtime; neither the root `package-lock.json` nor any root package manifest
+was modified. The raw-inflater
 adapter intentionally reads the pinned 0.8.3 cursor needed to delimit a bit-3 raw
 DEFLATE stream without descriptor scanning. Standard fflate stored/DEFLATE ZIPs,
 bit-3 variants, one-byte chunks, invalid streams, progress/size bounds, and the
@@ -162,17 +248,16 @@ service's npm scripts and the repository's existing installed toolchain.
 ## Final verification
 
 - `npm --prefix services/release-recovery run typecheck` — exit 0.
-- Full service tests — 6 files, 345 tests passed.
-- Focused archive/evidence/OIDC/HTTP tests — 4 files, 294 tests passed.
-- `git diff --check 11f01de` — no output, exit 0.
+- Full service tests — 6 files, 400 tests passed.
+- Focused archive/evidence/OIDC/HTTP tests — 4 files, 349 tests passed.
+- `git diff --check c2a7856` — no output, exit 0.
 - Targeted coercion/full-body/mock/error-leak greps — no production GitHub ID
-  `Number` coercion, no archive `arrayBuffer()`/`text()` use, no temporary archive
+  `Number` coercion, no archive-response `arrayBuffer()`/`text()` use, no temporary archive
   inspector mock/seam, and no upstream token/body/error interpolation.
 
 ## Files
 
 - `services/release-recovery/package.json`
-- `services/release-recovery/src/config.ts`
 - `services/release-recovery/src/http.ts`
 - `services/release-recovery/src/archive.ts`
 - `services/release-recovery/src/githubOidc.ts`

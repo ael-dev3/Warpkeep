@@ -26,6 +26,7 @@ import {
   type JsonValue,
 } from './protocol.js'
 import { RECOVERY_KEY_ID, RECOVERY_KEY_THUMBPRINT } from './recoveryPublicKey.js'
+import { parseDocument } from 'yaml'
 
 export { type GitHubAppEnvironment, type RecoveryArmingTuple } from './config.js'
 
@@ -42,6 +43,7 @@ const AUTHORIZATION_PROFILE = 'warpkeep-0.4.0-recovery-authorization-v1'
 const AUTHORIZATION_MODE = 'recovery-authorization-v1'
 const G001_DATABASE = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
 const MAX_TREE_ENTRIES = 20_000
+const MAX_TREE_JSON_BYTES = 7 * 1024 * 1024
 const MAX_BLOB_BYTES = 1024 * 1024
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
 const text = new TextEncoder()
@@ -227,9 +229,10 @@ function objectValue(value: GitHubJsonValue | undefined): GitHubJsonObject {
   return value as GitHubJsonObject
 }
 
-function exactKeys(value: GitHubJsonObject, keys: readonly string[]): boolean {
+function exactKeys(value: GitHubJsonObject, keys: readonly string[], optional: readonly string[] = []): boolean {
   const actual = Object.keys(value)
-  return actual.length === keys.length && keys.every(key => Object.hasOwn(value, key))
+  const allowed = new Set([...keys, ...optional])
+  return keys.every(key => Object.hasOwn(value, key)) && actual.every(key => allowed.has(key))
 }
 
 function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
@@ -256,16 +259,49 @@ function environment(value: GitHubAppEnvironment): GitHubAppEnvironment {
   })
 }
 
-function pkcs8(pem: string): Uint8Array {
-  const match = /^-----BEGIN PRIVATE KEY-----\r?\n([A-Za-z0-9+/=\r\n]+)\r?\n-----END PRIVATE KEY-----$/u.exec(pem)
-  if (match === null) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+function derLength(length: number): Uint8Array {
+  if (!Number.isSafeInteger(length) || length < 0 || length > 32_768) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  if (length < 128) return new Uint8Array([length])
+  const bytes: number[] = []
+  for (let remaining = length; remaining > 0; remaining = Math.floor(remaining / 256)) bytes.unshift(remaining & 0xff)
+  return new Uint8Array([0x80 | bytes.length, ...bytes])
+}
+
+function derElement(tag: number, body: Uint8Array): Uint8Array {
+  const length = derLength(body.length)
+  const result = new Uint8Array(1 + length.length + body.length)
+  result[0] = tag
+  result.set(length, 1)
+  result.set(body, 1 + length.length)
+  return result
+}
+
+function decodePem(pem: string, label: 'PRIVATE KEY' | 'RSA PRIVATE KEY'): Uint8Array | undefined {
+  const match = new RegExp(`^-----BEGIN ${label}-----\\r?\\n([A-Za-z0-9+/=\\r\\n]+)\\r?\\n-----END ${label}-----\\r?\\n?$`, 'u').exec(pem)
+  if (match === null) return undefined
   try {
-    const value = Uint8Array.from(atob(match[1]!.replace(/[\r\n]/gu, '')), item => item.charCodeAt(0))
-    if (value.length < 128) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const encoded = match[1]!.replace(/[\r\n]/gu, '')
+    if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(encoded)) return undefined
+    const value = Uint8Array.from(atob(encoded), item => item.charCodeAt(0))
+    let binary = ''
+    for (const byte of value) binary += String.fromCharCode(byte)
+    if (btoa(binary) !== encoded || value.length < 128 || value.length > 24_576) return undefined
     return value
   } catch {
-    githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    return undefined
   }
+}
+
+function pkcs8(pem: string): Uint8Array {
+  const direct = decodePem(pem, 'PRIVATE KEY')
+  if (direct !== undefined) return direct
+  const pkcs1 = decodePem(pem, 'RSA PRIVATE KEY')
+  if (pkcs1 === undefined) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  const version = new Uint8Array([0x02, 0x01, 0x00])
+  const rsaAlgorithm = new Uint8Array([
+    0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00,
+  ])
+  return derElement(0x30, new Uint8Array([...version, ...rsaAlgorithm, ...derElement(0x04, pkcs1)]))
 }
 
 async function signedAppJwt(env: GitHubAppEnvironment, now: number): Promise<string> {
@@ -305,27 +341,45 @@ export async function mintGitHubInstallationToken(
     },
     'RECOVERY_GITHUB_EVIDENCE_INVALID', 201, ['/repositories/*/id'],
   )
-  if (!exactKeys(response, ['expires_at', 'permissions', 'repositories', 'token'])) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  if (!exactKeys(
+    response,
+    ['expires_at', 'permissions', 'repositories', 'repository_selection', 'token'],
+    ['repositories_url', 'has_multiple_single_files', 'single_file', 'single_file_paths', 'token_last_eight'],
+  )) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   const permissions = objectValue(response.permissions)
   const repositories = response.repositories
+  const singleFilePaths = response.single_file_paths
   if (
     !exactKeys(permissions, PERMISSION_KEYS)
     || PERMISSION_KEYS.some(key => permissions[key] !== 'read')
     || !Array.isArray(repositories)
     || repositories.length !== 1
+    || (response.repositories_url !== undefined && response.repositories_url !== 'https://api.github.com/installation/repositories')
+    || (response.has_multiple_single_files !== undefined && typeof response.has_multiple_single_files !== 'boolean')
+    || (response.single_file !== undefined && response.single_file !== null && typeof response.single_file !== 'string')
+    || (singleFilePaths !== undefined && (
+      !Array.isArray(singleFilePaths)
+      || singleFilePaths.length > 100
+      || singleFilePaths.some(path => typeof path !== 'string' || path.length > 1_024)
+    ))
+    || (response.token_last_eight !== undefined && (
+      typeof response.token_last_eight !== 'string'
+      || response.token_last_eight.length !== 8
+    ))
   ) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   const repository = objectValue(repositories[0])
   if (
-    !exactKeys(repository, ['full_name', 'id'])
-    || typeof response.token !== 'string'
+    typeof response.token !== 'string'
     || response.token.length < 1
-    || response.token.length > 4_096
+    || response.token.length > 32_768
     || typeof response.expires_at !== 'string'
+    || response.repository_selection !== 'selected'
+    || (typeof response.token_last_eight === 'string' && !response.token.endsWith(response.token_last_eight))
     || repository.full_name !== GITHUB_REPOSITORY
     || repository.id !== REPOSITORY_ID
   ) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   const expiry = Date.parse(response.expires_at) / 1_000
-  if (!Number.isSafeInteger(expiry) || expiry <= nowSeconds || expiry > nowSeconds + 3_600) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  if (!Number.isSafeInteger(expiry) || expiry <= nowSeconds || expiry > nowSeconds + 3_660) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   return response.token
 }
 
@@ -396,6 +450,10 @@ function treeMap(value: GitHubJsonObject, expectedTree: string): ReadonlyMap<str
       || result.has(entry.path)
       || (entry.size !== undefined && (!Number.isSafeInteger(entry.size) || (entry.size as number) < 0))
     ) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const validKind = (entry.mode === '040000' && entry.type === 'tree' && entry.size === undefined)
+      || ((entry.mode === '100644' || entry.mode === '100755' || entry.mode === '120000') && entry.type === 'blob' && entry.size !== undefined)
+      || (entry.mode === '160000' && entry.type === 'commit' && entry.size === undefined)
+    if (!validKind) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     result.set(entry.path, Object.freeze({
       path: entry.path,
       mode: entry.mode,
@@ -412,19 +470,28 @@ function validateActivationDelta(
   preparation: ReadonlyMap<string, TreeEntry>,
 ): void {
   if (candidate.size !== preparation.size) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
-  const changed = new Set<string>()
+  const changedBlobs = new Set<string>()
+  const changedTrees = new Set<string>()
   for (const [path, candidateEntry] of candidate) {
     const preparationEntry = preparation.get(path)
     if (preparationEntry === undefined) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
-    if (
-      candidateEntry.mode !== preparationEntry.mode
-      || candidateEntry.type !== preparationEntry.type
-      || candidateEntry.size !== preparationEntry.size
-      || candidateEntry.sha !== preparationEntry.sha
-    ) changed.add(path)
+    if (candidateEntry.mode !== preparationEntry.mode || candidateEntry.type !== preparationEntry.type) {
+      githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    }
+    if (candidateEntry.type === 'blob' && candidateEntry.size !== preparationEntry.size) changedBlobs.add(path)
+    if (candidateEntry.sha !== preparationEntry.sha) {
+      if (candidateEntry.type === 'tree') changedTrees.add(path)
+      else changedBlobs.add(path)
+    }
   }
   const expected = new Set([BINDING_PATH, 'package.json', 'package-lock.json'])
-  if (changed.size !== expected.size || [...expected].some(path => !changed.has(path))) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  if (changedBlobs.size !== expected.size || [...expected].some(path => !changedBlobs.has(path))) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  const expectedTrees = new Set<string>()
+  for (const path of expected) {
+    const parts = path.split('/')
+    for (let index = 1; index < parts.length; index += 1) expectedTrees.add(parts.slice(0, index).join('/'))
+  }
+  if ([...changedTrees].some(path => !expectedTrees.has(path))) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   for (const path of expected) {
     const before = preparation.get(path)
     const after = candidate.get(path)
@@ -606,29 +673,44 @@ function validateWorkflow(bytes: Uint8Array): void {
   if (/\t|\r(?!\n)|[\0\x08\x0b\x0c\x0e-\x1f\x7f]/u.test(source)) {
     githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   }
-  const lines = source.replace(/\r\n/gu, '\n').split('\n')
-  const exactLine = (line: string): number[] => lines.flatMap((value, index) => value === line ? [index] : [])
-  const names = exactLine('name: Deploy GitHub Pages')
-  const jobs = exactLine('jobs:')
-  const recoveryJobs = exactLine('  deploy-recovery:')
-  if (names.length !== 1 || jobs.length !== 1 || recoveryJobs.length !== 1 || recoveryJobs[0]! <= jobs[0]!) {
-    githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
-  }
-  const recoveryIndex = recoveryJobs[0]!
-  if (lines.slice(jobs[0]! + 1, recoveryIndex).some(line => /^(?:\S| [^ ])/.test(line) && !/^\s*#/u.test(line))) {
-    githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
-  }
-  let recoveryEnd = lines.length
-  for (let index = recoveryIndex + 1; index < lines.length; index += 1) {
-    if (/^(?:\S|  [^ #][^:]*:)\s*/u.test(lines[index] ?? '')) {
-      recoveryEnd = index
-      break
+  try {
+    const document = parseDocument(source, {
+      schema: 'core', strict: true, uniqueKeys: true, prettyErrors: false,
+    })
+    if (document.errors.length !== 0 || document.warnings.length !== 0) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const root = document.toJS({ maxAliasCount: 0 }) as unknown
+    if (root === null || typeof root !== 'object' || Array.isArray(root)) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const rootObject = root as Record<string, unknown>
+    const jobs = rootObject.jobs
+    if (rootObject.name !== 'Deploy GitHub Pages' || jobs === null || typeof jobs !== 'object' || Array.isArray(jobs)) {
+      githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     }
+    const recovery = (jobs as Record<string, unknown>)['deploy-recovery']
+    if (recovery === null || typeof recovery !== 'object' || Array.isArray(recovery)) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const steps = (recovery as Record<string, unknown>).steps
+    if (!Array.isArray(steps) || steps.length < 1 || steps.length > 100) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const objects = steps.filter(step => step !== null && typeof step === 'object' && !Array.isArray(step)) as Record<string, unknown>[]
+    const audienceSteps = objects.filter(step => {
+      const environment = step.env
+      return environment !== null && typeof environment === 'object' && !Array.isArray(environment)
+        && (environment as Record<string, unknown>).OIDC_AUDIENCE === 'warpkeep-release-recovery'
+        && typeof step.run === 'string'
+        && step.run.includes('$OIDC_AUDIENCE')
+        && step.run.includes('ACTIONS_ID_TOKEN_REQUEST_URL')
+        && step.run.includes('ACTIONS_ID_TOKEN_REQUEST_TOKEN')
+        && step.run.includes('audience=${OIDC_AUDIENCE}')
+    })
+    const artifactSteps = objects.filter(step => {
+      const withValue = step.with
+      return typeof step.uses === 'string'
+        && step.uses === 'actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9'
+        && withValue !== null && typeof withValue === 'object' && !Array.isArray(withValue)
+        && (withValue as Record<string, unknown>).name === 'github-pages-recovery-${{ github.run_id }}-${{ github.run_attempt }}'
+    })
+    if (audienceSteps.length !== 1 || artifactSteps.length !== 1) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  } catch {
+    githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   }
-  const artifactLines = lines.slice(recoveryIndex + 1, recoveryEnd).filter(line => (
-    /^\s{6,}name: github-pages-recovery-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}$/u.test(line)
-  ))
-  if (artifactLines.length !== 1) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
 }
 
 function validateSourceVerify(
@@ -646,7 +728,9 @@ function validateSourceVerify(
     || source.id !== runId
     || source.run_attempt !== runAttempt
     || source.name !== 'Verify'
-    || source.path !== VERIFY_WORKFLOW_PATH
+    || (source.path !== VERIFY_WORKFLOW_PATH && source.path !== `${VERIFY_WORKFLOW_PATH}@main`)
+    || !positive(source.workflow_id)
+    || source.workflow_url !== `${API}/actions/workflows/${source.workflow_id}`
     || source.event !== 'push'
     || source.status !== 'completed'
     || source.conclusion !== 'success'
@@ -902,8 +986,8 @@ export async function loadGitHubCandidateEvidence(input: Readonly<{
     const preparationValue = await json(fetchImplementation, `${API}/git/commits/${armed.preparationCommit as string}`, init, 'RECOVERY_GITHUB_EVIDENCE_INVALID')
     const preparation = validateCommit(preparationValue, armed.preparationCommit as string)
     if (preparation.tree !== armed.preparationTree) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
-    const candidateTreeValue = await json(fetchImplementation, `${API}/git/trees/${candidate.tree}?recursive=1`, init, 'RECOVERY_GITHUB_EVIDENCE_INVALID')
-    const preparationTreeValue = await json(fetchImplementation, `${API}/git/trees/${preparation.tree}?recursive=1`, init, 'RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const candidateTreeValue = await json(fetchImplementation, `${API}/git/trees/${candidate.tree}?recursive=1`, init, 'RECOVERY_GITHUB_EVIDENCE_INVALID', 200, [], MAX_TREE_JSON_BYTES)
+    const preparationTreeValue = await json(fetchImplementation, `${API}/git/trees/${preparation.tree}?recursive=1`, init, 'RECOVERY_GITHUB_EVIDENCE_INVALID', 200, [], MAX_TREE_JSON_BYTES)
     const candidateTree = treeMap(candidateTreeValue, candidate.tree)
     const preparationTree = treeMap(preparationTreeValue, preparation.tree)
     validateActivationDelta(candidateTree, preparationTree)
@@ -919,7 +1003,7 @@ export async function loadGitHubCandidateEvidence(input: Readonly<{
       `${API}/actions/runs/${sourceVerifyRunId}/attempts/${sourceVerifyRunAttempt}`,
       init,
       'RECOVERY_GITHUB_EVIDENCE_INVALID', 200,
-      ['id', 'run_attempt', '/repository/id', '/repository/owner/id', '/head_repository/id'],
+      ['id', 'run_attempt', 'workflow_id', '/repository/id', '/repository/owner/id', '/head_repository/id'],
     )
     validateSourceVerify(source, sourceVerifyRunId, sourceVerifyRunAttempt, candidateCommit, identity.pagesRunId as string)
 
@@ -945,7 +1029,8 @@ export async function loadGitHubCandidateEvidence(input: Readonly<{
     }
     if (archiveLength !== String(direct.projection.size)) {
       try {
-        await archiveResponse.body?.cancel()
+        const cancellation = archiveResponse.body?.cancel()
+        void Promise.resolve(cancellation).catch(() => undefined)
       } catch {
         // The stable evidence error is selected below.
       }

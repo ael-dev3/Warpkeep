@@ -173,13 +173,13 @@ function defaultRunAttempt(runId: string, runAttempt: string): Record<string, un
     node_id: 'WFR_kwDOfixture',
     head_branch: 'main',
     head_sha: candidateCommit,
-    path: '.github/workflows/deploy-pages.yml',
+    path: '.github/workflows/deploy-pages.yml@main',
     display_title: 'Deploy GitHub Pages',
     run_number: 300,
     event: 'workflow_run',
     status: 'in_progress',
     conclusion: null,
-    workflow_id: 19,
+    workflow_id: 309643090,
     check_suite_id: 77,
     check_suite_node_id: 'CS_kwDOfixture',
     url: runUrl,
@@ -192,14 +192,14 @@ function defaultRunAttempt(runId: string, runAttempt: string): Record<string, un
     run_attempt: Number(runAttempt),
     referenced_workflows: [],
     run_started_at: '2026-09-03T00:00:00Z',
-    jobs_url: `${runUrl}/jobs`,
+    jobs_url: `${runUrl}/attempts/${runAttempt}/jobs`,
     logs_url: `${runUrl}/logs`,
     check_suite_url: `https://api.github.com/repos/${repository}/check-suites/77`,
     artifacts_url: `${runUrl}/artifacts`,
     cancel_url: `${runUrl}/cancel`,
     rerun_url: `${runUrl}/rerun`,
     previous_attempt_url: null,
-    workflow_url: `https://api.github.com/repos/${repository}/actions/workflows/deploy-pages.yml`,
+    workflow_url: `https://api.github.com/repos/${repository}/actions/workflows/309643090`,
     head_commit: {
       id: candidateCommit,
       tree_id: 'b'.repeat(40),
@@ -262,11 +262,17 @@ type FixtureOptions = Readonly<{
   checkRunText?: (checkRun: Record<string, unknown>) => string
   mutateRunAttempt?: (runAttempt: Record<string, unknown>) => void
   mutateJobs?: (jobs: Record<string, unknown>) => void
+  mutateInstallation?: (response: Record<string, unknown>) => void
   mutateSignature?: (signature: string) => string
 }>
 
 async function signedFixture(options: FixtureOptions = {}) {
-  const header: Record<string, unknown> = { alg: 'RS256', kid: 'fixture', typ: 'JWT' }
+  const header: Record<string, unknown> = {
+    alg: 'RS256',
+    kid: 'fixture',
+    typ: 'JWT',
+    x5t: canonicalX5t(20, 1),
+  }
   options.mutateHeader?.(header)
   const claims = defaultClaims()
   options.mutateClaims?.(claims)
@@ -309,7 +315,7 @@ async function signedFixture(options: FixtureOptions = {}) {
       if (init?.method !== 'POST' || !authorization.startsWith('Bearer ey')) {
         return responseAt(url, '{"message":"denied"}', { status: 401 })
       }
-      return responseAt(url, JSON.stringify({
+      const installation: Record<string, unknown> = {
         expires_at: new Date((now + 3_600) * 1_000).toISOString(),
         permissions: {
           actions: 'read',
@@ -319,9 +325,24 @@ async function signedFixture(options: FixtureOptions = {}) {
           metadata: 'read',
           pages: 'read',
         },
-        repositories: [{ full_name: repository, id: 1273513252 }],
+        repository_selection: 'selected',
+        repositories_url: 'https://api.github.com/installation/repositories',
+        has_multiple_single_files: false,
+        single_file: null,
+        single_file_paths: [],
+        token_last_eight: 'on-token',
+        repositories: [{
+          full_name: repository,
+          id: 1273513252,
+          node_id: 'R_kgDOL5fixture',
+          name: 'Warpkeep',
+          private: false,
+          owner: { login: 'ael-dev3', id: 183124839 },
+        }],
         token: 'installation-token',
-      }), { status: 201 })
+      }
+      options.mutateInstallation?.(installation)
+      return responseAt(url, JSON.stringify(installation), { status: 201 })
     }
     const authenticated = new Headers(init?.headers).get('authorization') === 'Bearer installation-token'
     if (!authenticated) return responseAt(url, '{"message":"denied"}', { status: 401 })
@@ -369,12 +390,31 @@ describe('GitHub recovery OIDC identity', () => {
     })
   })
 
+  it.each([
+    ['extra permission', (value: Record<string, unknown>) => { (value.permissions as Record<string, unknown>).issues = 'read' }],
+    ['write permission', (value: Record<string, unknown>) => { (value.permissions as Record<string, unknown>).contents = 'write' }],
+    ['all repositories', (value: Record<string, unknown>) => { value.repository_selection = 'all' }],
+    ['wrong repository', (value: Record<string, unknown>) => { ((value.repositories as Record<string, unknown>[])[0]!).full_name = 'attacker/fork' }],
+    ['second repository', (value: Record<string, unknown>) => { (value.repositories as Record<string, unknown>[]).push({ ...(value.repositories as Record<string, unknown>[])[0]! }) }],
+  ])('rejects additive installation-token response with %s', async (_name, mutateInstallation) => {
+    await invalidOidc({ mutateInstallation })
+  })
+
   it('accepts bounded additive claim names advertised by GitHub discovery', async () => {
     await expect(verify({
       mutateDiscovery: discovery => {
         (discovery.claims_supported as string[]).push('future_github_claim')
       },
     })).resolves.toMatchObject({ checkRunId: '91' })
+  })
+
+  it('accepts the known bounded non-authoritative issuer_scope claim', async () => {
+    await expect(verify({ mutateClaims: claims => { claims.issuer_scope = 'repo:ael-dev3/Warpkeep' } }))
+      .resolves.toMatchObject({ pagesRunId: '41' })
+  })
+
+  it.each(['', 'x'.repeat(257), { hostile: true }])('rejects invalid issuer_scope claim %j', async issuerScope => {
+    await invalidOidc({ mutateClaims: claims => { claims.issuer_scope = issuerScope } })
   })
 
   it('rejects a redirected discovery response before selecting a foreign JWKS', async () => {
@@ -428,7 +468,8 @@ describe('GitHub recovery OIDC identity', () => {
     ['future not-before', { iat: now, nbf: now + 1, exp: now + 60 }],
     ['expired token', { iat: now - 60, nbf: now - 60, exp: now }],
     ['stale token', { iat: now - 601, nbf: now - 601, exp: now + 1 }],
-    ['reversed issue/not-before', { iat: now - 5, nbf: now - 6, exp: now + 1 }],
+    ['not-before after issue time', { iat: now - 5, nbf: now - 4, exp: now + 1 }],
+    ['not-before more than ten minutes before issue', { iat: now - 5, nbf: now - 606, exp: now + 1 }],
     ['nonpositive issue time', { iat: 0, nbf: 0, exp: 1 }],
     ['lifetime over ten minutes', { iat: now - 1, nbf: now - 1, exp: now + 600 }],
   ])('rejects a %s', async (_name, times) => {
@@ -441,6 +482,16 @@ describe('GitHub recovery OIDC identity', () => {
         iat: now,
         nbf: now,
         exp: now + 600,
+      }),
+    })).resolves.toMatchObject({ pagesRunId: '41' })
+  })
+
+  it('accepts the documented ten-minute not-before skew boundary', async () => {
+    await expect(verify({
+      mutateClaims: claims => Object.assign(claims, {
+        iat: now,
+        nbf: now - 600,
+        exp: now + 60,
       }),
     })).resolves.toMatchObject({ pagesRunId: '41' })
   })
@@ -504,6 +555,36 @@ describe('GitHub recovery OIDC identity', () => {
         '"kid":"attacker","kid":"fixture"',
       ),
     })
+  })
+
+  it.each([
+    ['noncanonical x5t', 'not-base64url='],
+    ['wrong-length x5t', canonicalX5t(19, 1)],
+  ])('rejects a protected header with %s', async (_name, x5t) => {
+    await invalidOidc({ mutateHeader: header => { header.x5t = x5t } })
+  })
+
+  it('rejects a protected-header x5t that differs from the selected JWKS key', async () => {
+    await invalidOidc({ mutateHeader: header => { header.x5t = canonicalX5t(20, 9) } })
+  })
+
+  it('rejects a protected-header x5t when the selected key has no matching x5t metadata', async () => {
+    await invalidOidc({ mutateJwks: jwks => { delete (jwks.keys as Record<string, unknown>[])[0]!.x5t } })
+  })
+
+  it('accepts a current minimal RSA JWKS key without certificate metadata', async () => {
+    await expect(verify({
+      mutateHeader: header => { delete header.x5t },
+      mutateJwks: jwks => {
+        const key = (jwks.keys as Record<string, unknown>[])[0]!
+        delete key.x5c; delete key.x5t; delete key['x5t#S256']
+      },
+    })).resolves.toMatchObject({ checkRunId: '91' })
+  })
+
+  it('accepts an x5c/x5t JWKS key without x5t#S256', async () => {
+    await expect(verify({ mutateJwks: jwks => { delete (jwks.keys as Record<string, unknown>[])[0]!['x5t#S256'] } }))
+      .resolves.toMatchObject({ checkRunId: '91' })
   })
 
   it.each([
@@ -629,13 +710,14 @@ describe('GitHub recovery OIDC identity', () => {
     ['run ID', (run: Record<string, unknown>) => { run.id = 42 }],
     ['run attempt', (run: Record<string, unknown>) => { run.run_attempt = 3 }],
     ['workflow name', (run: Record<string, unknown>) => { run.name = 'Other workflow' }],
-    ['workflow path', (run: Record<string, unknown>) => { run.path = '.github/workflows/other.yml' }],
+    ['workflow path', (run: Record<string, unknown>) => { run.path = '.github/workflows/other.yml@main' }],
+    ['workflow path ref', (run: Record<string, unknown>) => { run.path = '.github/workflows/deploy-pages.yml@release' }],
     ['event', (run: Record<string, unknown>) => { run.event = 'push' }],
     ['branch', (run: Record<string, unknown>) => { run.head_branch = 'release' }],
     ['candidate SHA', (run: Record<string, unknown>) => { run.head_sha = 'b'.repeat(40) }],
     ['API URL', (run: Record<string, unknown>) => { run.url = 'https://api.github.com/repos/ael-dev3/Warpkeep/actions/runs/42' }],
-    ['jobs URL', (run: Record<string, unknown>) => { run.jobs_url = 'https://api.github.com/repos/ael-dev3/Warpkeep/actions/runs/42/jobs' }],
-    ['workflow URL', (run: Record<string, unknown>) => { run.workflow_url = 'https://api.github.com/repos/ael-dev3/Warpkeep/actions/workflows/other.yml' }],
+    ['jobs URL', (run: Record<string, unknown>) => { run.jobs_url = 'https://api.github.com/repos/ael-dev3/Warpkeep/actions/runs/41/jobs' }],
+    ['workflow URL', (run: Record<string, unknown>) => { run.workflow_url = 'https://api.github.com/repos/ael-dev3/Warpkeep/actions/workflows/20' }],
     ['check-suite ID', (run: Record<string, unknown>) => { run.check_suite_id = 78 }],
     ['head commit', (run: Record<string, unknown>) => { (run.head_commit as Record<string, unknown>).id = 'b'.repeat(40) }],
     ['repository name', (run: Record<string, unknown>) => { (run.repository as Record<string, unknown>).full_name = 'attacker/fork' }],
@@ -644,6 +726,11 @@ describe('GitHub recovery OIDC identity', () => {
     ['completed state at issuance', (run: Record<string, unknown>) => { run.status = 'completed'; run.conclusion = 'success' }],
   ])('rejects mismatched Pages run-attempt %s metadata', async (_name, mutateRunAttempt) => {
     await invalidOidc({ mutateRunAttempt })
+  })
+
+  it('accepts the exact bare workflow path shape returned by live run-attempt responses', async () => {
+    await expect(verify({ mutateRunAttempt: run => { run.path = '.github/workflows/deploy-pages.yml' } }))
+      .resolves.toMatchObject({ pagesRunId: '41' })
   })
 
   it('rejects a Pages attempt with no deploy-recovery job', async () => {

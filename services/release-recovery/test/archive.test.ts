@@ -50,19 +50,27 @@ function tarHeader(path: string, size: number, options: Readonly<{
   mode?: number
   type?: number
   linkName?: string
+  format?: 'posix' | 'gnu'
+  uid?: number
+  gid?: number
+  uname?: string
+  gname?: string
+  mtime?: number
 }> = {}): Uint8Array {
   const header = new Uint8Array(512)
   header.set(encoder.encode(path), 0)
   header.set(octal(options.mode ?? 0o644, 8), 100)
-  header.set(octal(0, 8), 108)
-  header.set(octal(0, 8), 116)
+  header.set(octal(options.uid ?? 0, 8), 108)
+  header.set(octal(options.gid ?? 0, 8), 116)
   header.set(octal(size, 12), 124)
-  header.set(octal(0, 12), 136)
+  header.set(octal(options.mtime ?? 0, 12), 136)
   header.fill(0x20, 148, 156)
   header[156] = options.type ?? 0x30
   if (options.linkName !== undefined) header.set(encoder.encode(options.linkName), 157)
-  header.set(encoder.encode('ustar\0'), 257)
-  header.set(encoder.encode('00'), 263)
+  header.set(encoder.encode(options.format === 'gnu' ? 'ustar ' : 'ustar\0'), 257)
+  header.set(encoder.encode(options.format === 'gnu' ? ' \0' : '00'), 263)
+  if (options.uname !== undefined) header.set(encoder.encode(options.uname), 265)
+  if (options.gname !== undefined) header.set(encoder.encode(options.gname), 297)
   header.set(octal(0, 8), 329)
   header.set(octal(0, 8), 337)
   let checksum = 0
@@ -74,6 +82,18 @@ function tarHeader(path: string, size: number, options: Readonly<{
 
 function tarFile(path: string, bytes: Uint8Array, options: Parameters<typeof tarHeader>[2] = {}): Uint8Array {
   return concat(tarHeader(path, bytes.length, options), bytes, new Uint8Array((512 - bytes.length % 512) % 512))
+}
+
+function tarDirectory(path: string, options: Parameters<typeof tarHeader>[2] = {}): Uint8Array {
+  return tarHeader(path, 0, { mode: 0o755, ...options, type: 0x35 })
+}
+
+function gnuLongName(path: string): Uint8Array {
+  const body = concat(encoder.encode(path), new Uint8Array([0]))
+  return tarFile('././@LongLink', body, {
+    format: 'gnu', mode: 0, type: 0x4c, uid: 1000, gid: 1000,
+    uname: 'snapmeter', gname: 'snapmeter',
+  })
 }
 
 function refreshTarChecksum(tar: Uint8Array, offset = 0): void {
@@ -145,6 +165,35 @@ async function makeTar(options: TarOptions = {}): Promise<Uint8Array> {
   const tar = concat(...ordered, new Uint8Array(512 * (options.terminators ?? 2)))
   options.mutateTar?.(tar)
   return tar
+}
+
+async function makeGnuTar(): Promise<Uint8Array> {
+  const files: Array<{ path: string; bytes: Uint8Array }> = [
+    { path: 'assets/app.js', bytes: encoder.encode('console.log("warpkeep")\n') },
+    { path: 'index.html', bytes: encoder.encode('<!doctype html>\n') },
+  ]
+  for (let index = 0; index < 338; index += 1) {
+    const path = index < 66
+      ? `assets/${'nested/'.repeat(13)}bundle-${index.toString().padStart(3, '0')}.js`
+      : `assets/chunk-${index.toString().padStart(3, '0')}.js`
+    files.push({ path, bytes: encoder.encode(`chunk ${index}\n`) })
+  }
+  const attestation = await attestationBytes(files)
+  const common = { format: 'gnu' as const, uid: 1000, gid: 1000, uname: 'snapmeter', gname: 'snapmeter' }
+  const parts = [
+    tarDirectory('./', common),
+    tarDirectory('./assets/', common),
+  ]
+  for (const file of files) {
+    const path = `./${file.path}`
+    if (encoder.encode(path).length > 100) parts.push(gnuLongName(path))
+    parts.push(tarFile(encoder.encode(path).length > 100 ? './long-name-placeholder' : path, file.bytes, common))
+  }
+  parts.push(tarDirectory('./.well-known/', common))
+  parts.push(tarFile(`./${ATTESTATION_PATH}`, attestation, common))
+  const used = parts.reduce((sum, value) => sum + value.length, 0)
+  const paddedLength = Math.ceil((used + 1024) / 10_240) * 10_240
+  return concat(...parts, new Uint8Array(paddedLength - used))
 }
 
 type ZipOptions = Readonly<{
@@ -250,7 +299,7 @@ function responseAt(bytes: Uint8Array, chunkSize = bytes.length, declaredLength 
     },
   })
   const response = new Response(body, { status: 200, headers: { 'content-length': declaredLength, 'content-type': 'application/zip' } })
-  Object.defineProperty(response, 'url', { value: 'https://artifact-cdn.example.test/recovery.zip', configurable: true })
+  Object.defineProperty(response, 'url', { value: 'https://objects.githubusercontent.com/recovery.zip', configurable: true })
   Object.defineProperty(response, 'arrayBuffer', { value: () => { throw new Error('full body method forbidden') } })
   Object.defineProperty(response, 'text', { value: () => { throw new Error('full body method forbidden') } })
   return response
@@ -274,6 +323,13 @@ describe('Pages recovery archive validator', () => {
     expect(result.innerArtifactTarSha256).toBe(await sha256(tar))
     expect(result.deploymentAttestationSha256).toBe(await sha256(result.deploymentAttestationBytes))
     expect(result.contentManifestSha256).toBe(JSON.parse(new TextDecoder().decode(result.deploymentAttestationBytes)).contentManifestSha256)
+  })
+
+  it.each([0, 8] as const)('accepts a realistic GNU-tar upload-pages-artifact archive in ZIP method %i', async method => {
+    const tar = await makeGnuTar()
+    await expect(inspect(tar, { method })).resolves.toMatchObject({
+      innerArtifactTarSha256: await sha256(tar),
+    })
   })
 
   it('accepts adversarial one-byte chunking without full-body methods', async () => {
@@ -327,6 +383,22 @@ describe('Pages recovery archive validator', () => {
     await expect(inspectPagesArtifact(responseAt(zipBytes, 7), expected)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
   })
 
+  it('accepts a signatureless descriptor whose CRC equals the optional descriptor signature', async () => {
+    const files = [
+      { path: 'pad', bytes: new Uint8Array() },
+      { path: 'index.html', bytes: encoder.encode('x') },
+    ]
+    const attestation = await attestationBytes(files)
+    const tar = concat(
+      tarFile('pad', new Uint8Array(), { mtime: 5_840_551_874 }),
+      tarFile('index.html', encoder.encode('x')),
+      tarFile(ATTESTATION_PATH, attestation),
+      new Uint8Array(1024),
+    )
+    expect(crc32(tar)).toBe(0x0807_4b50)
+    await expect(inspect(tar, { method: 8, bit3: true, descriptorSignature: false })).resolves.toBeDefined()
+  })
+
   it('rejects missing, malformed, oversized, and mismatched length metadata', async () => {
     const bytes = makeZip(await makeTar())
     await expect(inspectPagesArtifact(responseAt(bytes, bytes.length, ''), expected)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
@@ -340,7 +412,7 @@ describe('Pages recovery archive validator', () => {
       status: 206,
       headers: { 'content-length': String(bytes.length), 'content-type': 'application/zip' },
     })
-    Object.defineProperty(status, 'url', { value: 'https://artifact-cdn.example.test/recovery.zip' })
+    Object.defineProperty(status, 'url', { value: 'https://objects.githubusercontent.com/recovery.zip' })
     await expect(inspectPagesArtifact(status, expected)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
     const unsafeUrl = responseAt(bytes)
     Object.defineProperty(unsafeUrl, 'url', { value: 'http://127.0.0.1/archive.zip' })
@@ -358,7 +430,7 @@ describe('Pages recovery archive validator', () => {
     const response = new Response(body, {
       headers: { 'content-length': '1', 'content-type': 'text/plain' },
     })
-    Object.defineProperty(response, 'url', { value: 'https://artifact-cdn.example.test/recovery.zip' })
+    Object.defineProperty(response, 'url', { value: 'https://objects.githubusercontent.com/recovery.zip' })
 
     await expect(inspectPagesArtifact(response, expected)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
     expect(cancelled).toBe(true)
@@ -374,7 +446,7 @@ describe('Pages recovery archive validator', () => {
     const response = new Response(body, {
       headers: { 'content-length': String(chunk.length), 'content-type': 'application/zip' },
     })
-    Object.defineProperty(response, 'url', { value: 'https://artifact-cdn.example.test/recovery.zip' })
+    Object.defineProperty(response, 'url', { value: 'https://objects.githubusercontent.com/recovery.zip' })
     await expect(inspectPagesArtifact(response, expected)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
     expect(cancelled).toBe(true)
   })
@@ -430,18 +502,82 @@ describe('Pages recovery archive validator', () => {
     await expect(inspectPagesArtifact(responseAt(bytes, 1), expected)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
   })
 
-  it('rejects a stalled archive stream on the bounded deadline', async () => {
+  it('allows progress beyond ten seconds but rejects a thirty-second idle stall', async () => {
     vi.useFakeTimers()
     try {
+      const bytes = makeZip(await makeTar(), { method: 8 })
+      let stage = 0
+      const slow = new Response(new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (stage === 0) {
+            stage = 1
+            controller.enqueue(bytes.subarray(0, Math.floor(bytes.length / 2)))
+            return
+          }
+          if (stage !== 1) return
+          stage = 2
+          return new Promise<void>(resolve => setTimeout(() => {
+            try {
+              controller.enqueue(bytes.subarray(Math.floor(bytes.length / 2)))
+              controller.close()
+            } catch {
+              // The RED implementation cancels at its obsolete ten-second deadline.
+            }
+            resolve()
+          }, 11_000))
+        },
+      }), { headers: { 'content-length': String(bytes.length), 'content-type': 'application/zip' } })
+      Object.defineProperty(slow, 'url', { value: 'https://objects.githubusercontent.com/recovery.zip' })
+      const slowPending = inspectPagesArtifact(slow, expected)
+      void slowPending.catch(() => undefined)
+      await vi.advanceTimersByTimeAsync(11_001)
+      await expect(slowPending).resolves.toBeDefined()
+
       const response = new Response(new ReadableStream<Uint8Array>({ pull: () => new Promise(() => undefined) }), {
         status: 200,
         headers: { 'content-length': '1024', 'content-type': 'application/zip' },
       })
-      Object.defineProperty(response, 'url', { value: 'https://artifact-cdn.example.test/recovery.zip' })
+      Object.defineProperty(response, 'url', { value: 'https://objects.githubusercontent.com/recovery.zip' })
       const pending = inspectPagesArtifact(response, expected)
       const rejection = expect(pending).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
-      await vi.advanceTimersByTimeAsync(10_001)
+      await vi.advanceTimersByTimeAsync(30_001)
       await rejection
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('separates resettable idle progress from an injectable hard total deadline', async () => {
+    vi.useFakeTimers()
+    try {
+      const bytes = makeZip(await makeTar())
+      let offset = 0
+      const progressive = new Response(new ReadableStream<Uint8Array>({
+        pull(controller) {
+          return new Promise<void>(resolve => setTimeout(() => {
+            const end = Math.min(bytes.length, offset + Math.ceil(bytes.length / 3))
+            controller.enqueue(bytes.subarray(offset, end))
+            offset = end
+            if (offset === bytes.length) controller.close()
+            resolve()
+          }, 20))
+        },
+      }), { headers: { 'content-length': String(bytes.length), 'content-type': 'application/zip' } })
+      Object.defineProperty(progressive, 'url', { value: 'https://objects.githubusercontent.com/recovery.zip' })
+      const progressWork = inspectPagesArtifact(progressive, expected, { totalTimeoutMilliseconds: 100, idleTimeoutMilliseconds: 30 })
+      await vi.advanceTimersByTimeAsync(80)
+      await expect(progressWork).resolves.toBeDefined()
+
+      const endless = new Response(new ReadableStream<Uint8Array>({
+        pull(controller) {
+          return new Promise<void>(resolve => setTimeout(() => { controller.enqueue(new Uint8Array([1])); resolve() }, 20))
+        },
+      }), { headers: { 'content-length': '1024', 'content-type': 'application/zip' } })
+      Object.defineProperty(endless, 'url', { value: 'https://objects.githubusercontent.com/recovery.zip' })
+      const totalWork = inspectPagesArtifact(endless, expected, { totalTimeoutMilliseconds: 100, idleTimeoutMilliseconds: 30 })
+      void totalWork.catch(() => undefined)
+      await vi.advanceTimersByTimeAsync(101)
+      await expect(totalWork).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
     } finally {
       vi.useRealTimers()
     }
@@ -465,12 +601,10 @@ describe('Pages recovery archive validator', () => {
     await expect(inspect(tar)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
   })
 
-  it('rejects noncanonical octal fields, nonzero identities/devices, reserved bytes, and oversized members', async () => {
+  it('rejects noncanonical octal fields, nonzero devices, reserved bytes, and oversized members', async () => {
     const mutations: readonly ((tar: Uint8Array) => void)[] = [
       tar => { tar[100] = 0x20 },
       tar => { tar[107] = 0x20 },
-      tar => { tar[108 + 6] = 0x31 },
-      tar => { tar[116 + 6] = 0x31 },
       tar => { tar[329 + 6] = 0x31 },
       tar => { tar[337 + 6] = 0x31 },
       tar => { tar[500] = 1 },
@@ -486,12 +620,65 @@ describe('Pages recovery archive validator', () => {
   })
 
   it.each([
-    ['symlink', 0x32], ['hardlink', 0x31], ['directory', 0x35], ['device', 0x33],
-    ['fifo', 0x36], ['PAX', 0x78], ['GNU long-name', 0x4c],
+    ['symlink', 0x32], ['hardlink', 0x31], ['device', 0x33],
+    ['fifo', 0x36], ['PAX', 0x78], ['GNU long-link target', 0x4b],
   ])('rejects %s TAR entries', async (_name, type) => {
     const body = encoder.encode('x')
     const tar = concat(tarFile('x', body, { type }), new Uint8Array(1024))
     await expect(inspect(tar)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
+  })
+
+  it('accepts only a bounded one-shot canonical GNU LongLink followed by a regular file', async () => {
+    const good = await makeGnuTar()
+    await expect(inspect(good, { method: 8 })).resolves.toBeDefined()
+    const common = { format: 'gnu' as const, uid: 1000, gid: 1000, uname: 'snapmeter', gname: 'snapmeter' }
+    const files = [{ path: 'index.html', bytes: encoder.encode('x') }]
+    const directoryTar = concat(
+      gnuLongName(`./assets/${'nested/'.repeat(15)}`),
+      tarDirectory('./placeholder/', common),
+      tarFile('./index.html', files[0]!.bytes, common),
+      tarFile(`./${ATTESTATION_PATH}`, await attestationBytes(files), common),
+      new Uint8Array(1024),
+    )
+    await expect(inspect(directoryTar)).resolves.toBeDefined()
+    const badBodies = [
+      encoder.encode('../escape\0'),
+      encoder.encode('/absolute\0'),
+      concat(encoder.encode('assets/no-nul'), new Uint8Array([1])),
+      new Uint8Array(1_025),
+    ]
+    for (const body of badBodies) {
+      const tar = concat(
+        tarFile('././@LongLink', body, { ...common, type: 0x4c }),
+        tarFile('./placeholder', encoder.encode('x'), common),
+        new Uint8Array(1024),
+      )
+      await expect(inspect(tar)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
+    }
+    const dangling = concat(gnuLongName('./assets/a.js'), new Uint8Array(1024))
+    await expect(inspect(dangling)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
+    const repeated = concat(gnuLongName('./assets/a.js'), gnuLongName('./assets/b.js'), tarFile('./x', encoder.encode('x'), common), new Uint8Array(1024))
+    await expect(inspect(repeated)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
+    const shortFiles = [{ path: 'index.html', bytes: encoder.encode('x') }]
+    const redundant = concat(
+      gnuLongName('./index.html'),
+      tarFile('./placeholder', shortFiles[0]!.bytes, common),
+      tarFile(`./${ATTESTATION_PATH}`, await attestationBytes(shortFiles), common),
+      new Uint8Array(1024),
+    )
+    await expect(inspect(redundant)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
+  })
+
+  it('accepts normalized directories and rejects unsafe directory bodies, modes, and collisions', async () => {
+    await expect(inspect(await makeGnuTar())).resolves.toBeDefined()
+    const invalid = [
+      concat(tarHeader('./assets/', 1, { type: 0x35, mode: 0o755 }), encoder.encode('x'), new Uint8Array(1535)),
+      concat(tarDirectory('./assets/', { mode: 0o777 }), new Uint8Array(1024)),
+      concat(tarDirectory('./../escape/', {}), new Uint8Array(1024)),
+      concat(tarDirectory('./.secret/', {}), new Uint8Array(1024)),
+      concat(tarDirectory('./assets/', {}), tarDirectory('./ASSETS/', {}), new Uint8Array(1024)),
+    ]
+    for (const tar of invalid) await expect(inspect(tar)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
   })
 
   it('rejects dot traversal, hidden authority, duplicate, case, and non-ASCII collisions', async () => {
@@ -505,10 +692,11 @@ describe('Pages recovery archive validator', () => {
     await expect(inspect(await makeTar({ files: caseFiles }))).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
   })
 
-  it('rejects missing, short, or overlong terminators and bytes after the terminator', async () => {
+  it('requires at least two zero terminators, accepts zero record padding, and rejects nonzero trailing bytes', async () => {
     await expect(inspect(await makeTar({ terminators: 0 }))).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
     await expect(inspect(await makeTar({ terminators: 1 }))).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
-    await expect(inspect(await makeTar({ terminators: 3 }))).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
+    await expect(inspect(await makeTar({ terminators: 3 }))).resolves.toBeDefined()
+    await expect(inspect(await makeTar({ terminators: 20 }))).resolves.toBeDefined()
     const tar = concat(await makeTar(), new Uint8Array([1]))
     await expect(inspect(tar)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
   })
@@ -544,6 +732,25 @@ describe('Pages recovery archive validator', () => {
     await expect(inspectPagesArtifact(responseAt(makeZip(tar)), accessor as never)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
     const hostile = new Proxy(expected, { getPrototypeOf: () => { throw new Error('hostile') } })
     await expect(inspectPagesArtifact(responseAt(makeZip(tar)), hostile)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
+  })
+
+  it('cancels without awaiting hostile cleanup when expected projection or response access fails', async () => {
+    const bytes = makeZip(await makeTar())
+    for (const kind of ['expected', 'response'] as const) {
+      let cancelled = false
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) { controller.enqueue(bytes) },
+        cancel() { cancelled = true; return new Promise<void>(() => undefined) },
+      })
+      const response = new Response(body, { headers: { 'content-length': String(bytes.length), 'content-type': 'application/zip' } })
+      Object.defineProperty(response, 'url', { value: 'https://objects.githubusercontent.com/recovery.zip' })
+      const target = kind === 'response'
+        ? new Proxy(response, { get(targetResponse, key) { if (key === 'status') throw new Error('secret'); return Reflect.get(targetResponse, key, targetResponse) } })
+        : response
+      const projection = kind === 'expected' ? { ...expected, candidateTree: 'invalid' } : expected
+      await expect(inspectPagesArtifact(target, projection)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
+      expect(cancelled).toBe(true)
+    }
   })
 
   it.each([
@@ -583,5 +790,11 @@ describe('Pages recovery archive validator', () => {
       'githubArtifactArchiveSha256', 'innerArtifactTarSha256',
     ].sort())
     expect(result.deploymentAttestationBytes.length).toBeLessThan(4096)
+  })
+
+  it('streams highly compressible input through the bounded 1KiB inflater feed', async () => {
+    const files = [{ path: 'large.bin', bytes: new Uint8Array(16 * 1024 * 1024) }]
+    const zipBytes = makeZip(await makeTar({ files }), { method: 8 })
+    await expect(inspectPagesArtifact(responseAt(zipBytes, 4096), expected)).resolves.toBeDefined()
   })
 })

@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-import { bounded, json, parseGitHubJsonObject } from '../src/http.js'
+import { bounded, githubArchiveRemainingMilliseconds, githubRedirect, json, parseGitHubJsonObject } from '../src/http.js'
 
 const URL = 'https://api.github.com/example'
 
@@ -141,5 +141,139 @@ describe('bounded GitHub JSON transport', () => {
   it('maps a missing response body to the stable caller code', async () => {
     await expect(bounded(responseAt(URL, null), 16, 'NO_BODY'))
       .rejects.toThrowError('NO_BODY')
+  })
+
+  it('maps a locked body reader to the stable caller code', async () => {
+    const response = responseAt(URL, '{}')
+    const reader = response.body!.getReader()
+    try {
+      await expect(bounded(response, 16, 'LOCKED_BODY'))
+        .rejects.toThrowError('LOCKED_BODY')
+    } finally {
+      reader.releaseLock()
+    }
+  })
+
+  it('cancels a JSON body on response-metadata failure without awaiting hostile cleanup', async () => {
+    let cancelled = false
+    const response = responseAt(URL, new ReadableStream<Uint8Array>({
+      cancel() {
+        cancelled = true
+        return new Promise<void>(() => undefined)
+      },
+    }), { headers: { 'content-type': 'text/plain' } })
+
+    await expect(json(fetchResponse(response), URL, {}, 'JSON_METADATA'))
+      .rejects.toThrowError('JSON_METADATA')
+    expect(cancelled).toBe(true)
+  })
+
+  it.each(['status', 'url', 'headers', 'body'] as const)(
+    'maps a throwing response %s accessor to a stable JSON error',
+    async property => {
+      const response = responseAt(URL, '{}', { headers: { 'content-type': 'application/json' } })
+      const hostile = new Proxy(response, {
+        get(target, key) {
+          if (key === property) throw new Error('upstream secret')
+          return Reflect.get(target, key, target)
+        },
+      })
+      await expect(json(fetchResponse(hostile), URL, {}, 'HOSTILE_RESPONSE'))
+        .rejects.toThrowError('HOSTILE_RESPONSE')
+    },
+  )
+})
+
+describe('GitHub archive redirect transport', () => {
+  function redirectResponse(url: string, target: string, status = 302, body: BodyInit | null = null): Response {
+    return responseAt(url, body, { status, headers: { location: target } })
+  }
+
+  it.each([
+    'https://intranet/archive.zip',
+    'https://artifact.local/archive.zip',
+    'https://artifact.internal/archive.zip',
+    'https://artifact.localdomain/archive.zip',
+    'https://artifact.home.arpa/archive.zip',
+    'https://objects.githubusercontent.com./archive.zip',
+  ])('rejects reserved or single-label redirect target %s', async target => {
+    const fake = (async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url === URL) return redirectResponse(URL, target)
+      return responseAt(url, 'archive')
+    }) as typeof fetch
+
+    await expect(githubRedirect(fake, URL, 'Bearer token'))
+      .rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
+  })
+
+  it('cancels a non-302 first response without awaiting hostile cleanup', async () => {
+    let cancelled = false
+    const body = new ReadableStream<Uint8Array>({
+      cancel() {
+        cancelled = true
+        return new Promise<void>(() => undefined)
+      },
+    })
+    const fake = (async () => redirectResponse(URL, 'https://objects.githubusercontent.com/archive.zip', 200, body)) as typeof fetch
+
+    await expect(githubRedirect(fake, URL, 'Bearer token'))
+      .rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
+    expect(cancelled).toBe(true)
+  })
+
+  it('maps a throwing first-response status accessor to the stable archive error', async () => {
+    const response = redirectResponse(URL, 'https://objects.githubusercontent.com/archive.zip')
+    const hostile = new Proxy(response, {
+      get(target, key) {
+        if (key === 'status') throw new Error('upstream secret')
+        return Reflect.get(target, key, target)
+      },
+    })
+    await expect(githubRedirect((async () => hostile) as typeof fetch, URL, 'Bearer token'))
+      .rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
+  })
+
+  it('attaches the five-minute archive deadline rather than the ten-second JSON deadline', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    try {
+      const target = 'https://objects.githubusercontent.com/recovery.zip'
+      const fake = (async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url === URL) return redirectResponse(URL, target)
+        expect(init?.signal).toBeInstanceOf(AbortSignal)
+        return responseAt(target, 'archive', { headers: { 'content-type': 'application/zip' } })
+      }) as typeof fetch
+      await githubRedirect(fake, URL, 'Bearer token')
+      expect(timeout.mock.calls.map(([milliseconds]) => milliseconds)).toEqual([10_000, 300_000])
+    } finally {
+      timeout.mockRestore()
+    }
+  })
+
+  it('shares the archive-fetch hard deadline with downstream inspection', async () => {
+    vi.useFakeTimers()
+    try {
+      const target = 'https://objects.githubusercontent.com/recovery.zip'
+      const fake = (async (input: string | URL | Request) => String(input) === URL
+        ? redirectResponse(URL, target)
+        : responseAt(target, 'archive')) as typeof fetch
+      const archive = await githubRedirect(fake, URL, 'Bearer token')
+      expect(githubArchiveRemainingMilliseconds(archive)).toBe(300_000)
+      await vi.advanceTimersByTimeAsync(120_000)
+      expect(githubArchiveRemainingMilliseconds(archive)).toBe(180_000)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('maps an arbitrary hostile thrown value from a reader to the stable caller code', async () => {
+    const hostile = new Proxy(Object.create(null), {
+      getPrototypeOf() { throw new Error('prototype secret') },
+    })
+    const response = responseAt(URL, new ReadableStream<Uint8Array>({
+      pull(controller) { controller.error(hostile) },
+    }))
+    await expect(bounded(response, 16, 'HOSTILE_READ')).rejects.toThrowError('HOSTILE_READ')
   })
 })

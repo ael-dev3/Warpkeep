@@ -8,7 +8,11 @@ import {
   sha,
   snapshotExactDataObject,
 } from './config.js'
-import { parseGitHubJsonObject, type GitHubJsonObject } from './http.js'
+import {
+  githubArchiveRemainingMilliseconds,
+  parseGitHubJsonObject,
+  type GitHubJsonObject,
+} from './http.js'
 
 const CODE = 'RECOVERY_GITHUB_ARCHIVE_INVALID'
 const ARTIFACT_NAME = 'artifact.tar'
@@ -27,12 +31,16 @@ const EXPECTED_KEYS = [
 const SOURCE_CLOSURE_PROFILE = 'warpkeep-0.4.0-recovery-source-closure-v1'
 const MAX_QUEUE_BYTES = 1024 * 1024
 const MAX_INFLATER_PENDING_BYTES = 256 * 1024
-const MAX_INFLATE_CHUNK_BYTES = 32 * 1024
+const MAX_INFLATE_CHUNK_BYTES = 1024
+const MAX_INFLATE_OUTPUT_CHUNK_BYTES = 2 * 1024 * 1024
 const MAX_TAR_ENTRIES = 20_000
 const MAX_TAR_FILE_BYTES = 64 * 1024 * 1024
 const MAX_ATTESTATION_BYTES = 16 * 1024
 const MAX_COMPRESSION_RATIO = 2048
-const READ_TIMEOUT_MS = 10_000
+const TOTAL_TIMEOUT_MS = 5 * 60_000
+const IDLE_TIMEOUT_MS = 30_000
+const MAX_GNU_LONG_NAME_BYTES = 1024
+const MAX_PATH_METADATA_BYTES = 4 * 1024 * 1024
 const LOCAL_SIGNATURE = 0x0403_4b50
 const CENTRAL_SIGNATURE = 0x0201_4b50
 const DESCRIPTOR_SIGNATURE = 0x0807_4b50
@@ -55,6 +63,28 @@ export type PagesArtifactDigests = Readonly<{
   deploymentAttestationSha256: string
   deploymentAttestationBytes: Uint8Array
 }>
+
+export type PagesArtifactTiming = Readonly<{
+  totalTimeoutMilliseconds: number
+  idleTimeoutMilliseconds: number
+}>
+
+function snapshotTiming(input: PagesArtifactTiming | undefined): PagesArtifactTiming {
+  if (input === undefined) return Object.freeze({ totalTimeoutMilliseconds: TOTAL_TIMEOUT_MS, idleTimeoutMilliseconds: IDLE_TIMEOUT_MS })
+  const value = snapshotExactDataObject(input, ['totalTimeoutMilliseconds', 'idleTimeoutMilliseconds'], CODE)
+  if (
+    !Number.isSafeInteger(value.totalTimeoutMilliseconds)
+    || !Number.isSafeInteger(value.idleTimeoutMilliseconds)
+    || (value.totalTimeoutMilliseconds as number) < 1
+    || (value.idleTimeoutMilliseconds as number) < 1
+    || (value.totalTimeoutMilliseconds as number) > TOTAL_TIMEOUT_MS
+    || (value.idleTimeoutMilliseconds as number) > IDLE_TIMEOUT_MS
+  ) githubFail(CODE)
+  return Object.freeze({
+    totalTimeoutMilliseconds: value.totalTimeoutMilliseconds as number,
+    idleTimeoutMilliseconds: value.idleTimeoutMilliseconds as number,
+  })
+}
 
 function snapshotExpected(input: PagesArtifactExpected): PagesArtifactExpected {
   const value = snapshotExactDataObject(input, EXPECTED_KEYS, CODE)
@@ -191,7 +221,7 @@ class Crc32 {
 }
 
 async function beforeDeadline<T>(promise: Promise<T>, deadline: number): Promise<T> {
-  const remaining = deadline - Date.now()
+  const remaining = deadline - performance.now()
   if (remaining <= 0) githubFail(CODE)
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_resolve, reject) => {
@@ -208,6 +238,7 @@ function safeArchiveUrl(value: string): boolean {
   try {
     const url = new URL(value)
     const hostname = url.hostname.toLowerCase()
+    const reservedSuffixes = ['.local', '.internal', '.localdomain', '.home', '.home.arpa', '.lan', '.localhost', '.invalid', '.test', '.example']
     return url.protocol === 'https:'
       && url.username === ''
       && url.password === ''
@@ -215,6 +246,9 @@ function safeArchiveUrl(value: string): boolean {
       && url.hash === ''
       && hostname !== 'localhost'
       && !hostname.endsWith('.localhost')
+      && hostname.includes('.')
+      && !hostname.endsWith('.')
+      && !reservedSuffixes.some(suffix => hostname.endsWith(suffix))
       && !hostname.includes(':')
       && !/^\d{1,3}(?:\.\d{1,3}){3}$/u.test(hostname)
       && !/^(?:10|127|169\.254|192\.168|172\.(?:1[6-9]|2[0-9]|3[0-1]))\./u.test(hostname)
@@ -226,7 +260,8 @@ function safeArchiveUrl(value: string): boolean {
 class ArchiveSource {
   readonly #reader: ReadableStreamDefaultReader<Uint8Array>
   readonly #declaredLength: number
-  readonly #deadline = Date.now() + READ_TIMEOUT_MS
+  readonly #totalDeadline: number
+  readonly #idleTimeoutMilliseconds: number
   readonly #outerSha256 = new Sha256()
   readonly #queue: Uint8Array[] = []
   #queueOffset = 0
@@ -235,25 +270,32 @@ class ArchiveSource {
   #position = 0
   #ended = false
 
-  constructor(response: Response) {
+  constructor(response: Response, body: ReadableStream<Uint8Array>, timing: PagesArtifactTiming) {
+    this.#totalDeadline = performance.now() + timing.totalTimeoutMilliseconds
+    this.#idleTimeoutMilliseconds = timing.idleTimeoutMilliseconds
     try {
-      if (response.status !== 200 || response.type === 'opaqueredirect' || !safeArchiveUrl(response.url) || response.body === null) {
+      const status = response.status
+      const type = response.type
+      const url = response.url
+      const headers = response.headers
+      if (status !== 200 || type === 'opaqueredirect' || !safeArchiveUrl(url)) {
         githubFail(CODE)
       }
-      const contentLength = response.headers.get('content-length')
-      const contentType = response.headers.get('content-type')
+      const contentLength = headers.get('content-length')
+      const contentType = headers.get('content-type')
       if (
         contentLength === null
+        || contentLength.length > 16
         || !/^[1-9][0-9]*$/u.test(contentLength)
         || contentType === null
+        || contentType.length > 128
         || !/^application\/(?:zip|octet-stream|x-zip-compressed)$/iu.test(contentType)
       ) githubFail(CODE)
       const declared = BigInt(contentLength)
       if (declared > BigInt(MAX_ARCHIVE_BYTES)) githubFail(CODE)
       this.#declaredLength = Number(declared)
-      this.#reader = response.body.getReader()
-    } catch (error) {
-      if (error instanceof RecoveryGitHubError) throw error
+      this.#reader = body.getReader()
+    } catch {
       githubFail(CODE)
     }
   }
@@ -277,6 +319,7 @@ class ArchiveSource {
 
   async readSome(limit: number): Promise<Uint8Array> {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_QUEUE_BYTES) githubFail(CODE)
+    if (performance.now() >= this.#totalDeadline) githubFail(CODE)
     while (this.#queuedBytes === 0 && !this.#ended) await this.pull()
     if (this.#queuedBytes === 0) return new Uint8Array()
     const first = this.#queue[0]!
@@ -313,9 +356,10 @@ class ArchiveSource {
     return this.#outerSha256.digestHex()
   }
 
-  async cancel(): Promise<void> {
+  cancel(): void {
     try {
-      await this.#reader.cancel()
+      const cancellation = this.#reader.cancel()
+      void Promise.resolve(cancellation).catch(() => undefined)
     } catch {
       // The stable archive error is selected by the caller.
     }
@@ -324,9 +368,11 @@ class ArchiveSource {
   private async pull(): Promise<void> {
     let result: ReadableStreamReadResult<Uint8Array>
     try {
-      result = await beforeDeadline(this.#reader.read(), this.#deadline)
-    } catch (error) {
-      if (error instanceof RecoveryGitHubError) throw error
+      result = await beforeDeadline(
+        this.#reader.read(),
+        Math.min(this.#totalDeadline, performance.now() + this.#idleTimeoutMilliseconds),
+      )
+    } catch {
       githubFail(CODE)
     }
     if (result.done) {
@@ -374,18 +420,22 @@ function octal(field: Uint8Array, maximum: number): number {
   return value
 }
 
-function safeTarPath(value: string): boolean {
+function normalizedTarPath(value: string, directory: boolean): string | undefined {
+  if (value.startsWith('./')) value = value.slice(2)
+  if (directory && value.endsWith('/')) value = value.slice(0, -1)
+  if (directory && value === '') return ''
   if (
     value.length < 1
-    || value.length > 255
+    || value.length > MAX_GNU_LONG_NAME_BYTES
     || value.startsWith('/')
     || value.endsWith('/')
     || /[\\\0-\x1f\x7f]/u.test(value)
-  ) return false
+  ) return undefined
   const parts = value.split('/')
-  if (parts.some(part => part === '' || part === '.' || part === '..')) return false
-  if (parts.some(part => part.startsWith('.')) && !ALLOWED_HIDDEN_PATHS.has(value)) return false
-  return !parts.some(part => (
+  if (parts.some(part => part === '' || part === '.' || part === '..')) return undefined
+  if (directory && parts.some(part => part.startsWith('.')) && value !== '.well-known') return undefined
+  if (!directory && parts.some(part => part.startsWith('.')) && !ALLOWED_HIDDEN_PATHS.has(value)) return undefined
+  if (parts.some(part => (
     part === '.git'
     || part === '.github'
     || part === 'node_modules'
@@ -393,7 +443,8 @@ function safeTarPath(value: string): boolean {
     || part === '.wrangler'
     || part === '.env'
     || part.startsWith('.env.')
-  ))
+  ))) return undefined
+  return value
 }
 
 type ManifestEntry = Readonly<{ path: string; byteLength: number; sha256: string }>
@@ -418,6 +469,11 @@ class TarStream {
   #attestation: Uint8Array | undefined
   #attestationOffset = 0
   #capturingAttestation = false
+  #capturingLongName = false
+  #longNameBytes: Uint8Array | undefined
+  #pendingLongName: string | undefined
+  #currentKind: 'file' | 'long-name' = 'file'
+  #pathMetadataBytes = 0
 
   get byteLength(): number {
     return this.#tarBytes
@@ -429,11 +485,14 @@ class TarStream {
 
   push(bytes: Uint8Array): void {
     if (bytes.length === 0) return
-    if (this.#ended) githubFail(CODE)
     if (bytes.length > MAX_TAR_BYTES - this.#tarBytes) githubFail(CODE)
     this.#tarSha256.update(bytes)
     this.#tarCrc32.update(bytes)
     this.#tarBytes += bytes.length
+    if (this.#ended) {
+      if (bytes.some(byte => byte !== 0)) githubFail(CODE)
+      return
+    }
     let offset = 0
     while (offset < bytes.length) {
       if (this.#bodyRemaining > 0) {
@@ -444,6 +503,10 @@ class TarStream {
           if (this.#attestation === undefined) githubFail(CODE)
           this.#attestation.set(part, this.#attestationOffset)
           this.#attestationOffset += count
+        }
+        if (this.#capturingLongName) {
+          if (this.#longNameBytes === undefined) githubFail(CODE)
+          this.#longNameBytes.set(part, this.#currentLength - this.#bodyRemaining)
         }
         this.#bodyRemaining -= count
         offset += count
@@ -470,7 +533,7 @@ class TarStream {
   }
 
   finish(expectedInput: PagesArtifactExpected): PagesArtifactDigests {
-    if (!this.#ended || this.#headerLength !== 0 || this.#bodyRemaining !== 0 || this.#paddingRemaining !== 0 || this.#zeroBlocks !== 2) {
+    if (!this.#ended || this.#headerLength !== 0 || this.#bodyRemaining !== 0 || this.#paddingRemaining !== 0 || this.#zeroBlocks < 2 || this.#tarBytes % 512 !== 0 || this.#pendingLongName !== undefined) {
       githubFail(CODE)
     }
     if (this.#attestation === undefined) githubFail(CODE)
@@ -528,26 +591,59 @@ class TarStream {
     octal(header.subarray(136, 148), Number.MAX_SAFE_INTEGER)
     const deviceMajor = octal(header.subarray(329, 337), 0x1f_ffff)
     const deviceMinor = octal(header.subarray(337, 345), 0x1f_ffff)
+    const type = header[156]
+    const posix = String.fromCharCode(...header.subarray(257, 263)) === 'ustar\0'
+      && String.fromCharCode(...header.subarray(263, 265)) === '00'
+    const gnu = String.fromCharCode(...header.subarray(257, 263)) === 'ustar '
+      && header[263] === 0x20 && header[264] === 0
     if (
-      (mode !== 0o644 && mode !== 0o755)
-      || uid !== 0
-      || gid !== 0
+      (type === 0x35 ? mode !== 0o755 : type === 0x4c ? mode !== 0 && mode !== 0o644 : mode !== 0o644 && mode !== 0o755)
       || deviceMajor !== 0
       || deviceMinor !== 0
-      || header[156] !== 0x30
       || header.subarray(157, 257).some(byte => byte !== 0)
-      || String.fromCharCode(...header.subarray(257, 263)) !== 'ustar\0'
-      || String.fromCharCode(...header.subarray(263, 265)) !== '00'
-      || header.subarray(265, 329).some(byte => byte !== 0)
+      || (!posix && !gnu)
     ) githubFail(CODE)
+    decodeNulField(header.subarray(265, 297))
+    decodeNulField(header.subarray(297, 329))
     const name = decodeNulField(header.subarray(0, 100))
-    const prefix = decodeNulField(header.subarray(345, 500))
+    const prefix = posix ? decodeNulField(header.subarray(345, 500)) : ''
     if (header.subarray(500).some(byte => byte !== 0)) githubFail(CODE)
-    const path = prefix === '' ? name : `${prefix}/${name}`
-    if (!safeTarPath(path) || this.#seen.has(path) || this.#folded.has(path.toLowerCase())) githubFail(CODE)
+    const headerPath = prefix === '' ? name : `${prefix}/${name}`
+    if (type === 0x35) {
+      if (size !== 0) githubFail(CODE)
+      const directoryPath = normalizedTarPath(this.#pendingLongName ?? headerPath, true)
+      this.#pendingLongName = undefined
+      if (directoryPath === undefined) githubFail(CODE)
+      if (directoryPath !== '') {
+        if (this.#seen.has(directoryPath) || this.#folded.has(directoryPath.toLowerCase())) githubFail(CODE)
+        this.trackPath(directoryPath)
+        this.#seen.add(directoryPath)
+        this.#folded.add(directoryPath.toLowerCase())
+      }
+      return
+    }
+    if (type === 0x4c) {
+      if (!gnu || headerPath !== '././@LongLink' || size < 2 || size > MAX_GNU_LONG_NAME_BYTES + 1 || this.#pendingLongName !== undefined) githubFail(CODE)
+      this.#currentKind = 'long-name'
+      this.#currentPath = ''
+      this.#currentLength = size
+      this.#bodyRemaining = size
+      this.#paddingRemaining = (512 - size % 512) % 512
+      this.#fileSha256 = new Sha256()
+      this.#longNameBytes = new Uint8Array(size)
+      this.#capturingLongName = true
+      return
+    }
+    if (type !== 0x30 && type !== 0) githubFail(CODE)
+    const rawPath = this.#pendingLongName ?? headerPath
+    this.#pendingLongName = undefined
+    const path = normalizedTarPath(rawPath, false)
+    if (path === undefined || this.#seen.has(path) || this.#folded.has(path.toLowerCase())) githubFail(CODE)
+    this.trackPath(path)
     this.#seen.add(path)
     this.#folded.add(path.toLowerCase())
     this.#currentPath = path
+    this.#currentKind = 'file'
     this.#currentLength = size
     this.#bodyRemaining = size
     this.#paddingRemaining = (512 - size % 512) % 512
@@ -564,7 +660,13 @@ class TarStream {
   private finishFile(): void {
     if (this.#fileSha256 === undefined) githubFail(CODE)
     const sha256 = this.#fileSha256.digestHex()
-    if (this.#currentPath !== ATTESTATION_PATH) {
+    if (this.#currentKind === 'long-name') {
+      if (this.#longNameBytes === undefined || this.#longNameBytes[this.#longNameBytes.length - 1] !== 0 || this.#longNameBytes.subarray(0, -1).includes(0)) githubFail(CODE)
+      const raw = decodeNulField(this.#longNameBytes)
+      const path = normalizedTarPath(raw, raw.endsWith('/'))
+      if (path === undefined || encoder.encode(raw).length <= 100) githubFail(CODE)
+      this.#pendingLongName = raw
+    } else if (this.#currentPath !== ATTESTATION_PATH) {
       this.#manifest.push(Object.freeze({ path: this.#currentPath, byteLength: this.#currentLength, sha256 }))
     }
     this.#fileSha256 = undefined
@@ -572,6 +674,14 @@ class TarStream {
     this.#currentLength = 0
     this.#attestationOffset = 0
     this.#capturingAttestation = false
+    this.#capturingLongName = false
+    this.#longNameBytes = undefined
+    this.#currentKind = 'file'
+  }
+
+  private trackPath(path: string): void {
+    this.#pathMetadataBytes += encoder.encode(path).length
+    if (this.#pathMetadataBytes > MAX_PATH_METADATA_BYTES) githubFail(CODE)
   }
 
   private parseAttestation(bytes: Uint8Array): GitHubJsonObject {
@@ -619,10 +729,10 @@ class RawInflater {
     // fflate is pinned exactly because this seam reads its stable 0.8.3 stream
     // cursor to delimit raw DEFLATE before a ZIP bit-3 data descriptor.
     this.#stream = new Inflate((bytes) => {
-      const copy = Uint8Array.from(bytes)
-      this.#outputBytes += copy.length
-      if (this.#outputBytes > MAX_TAR_BYTES) githubFail(CODE)
-      onData(copy)
+      if (bytes.length > MAX_INFLATE_OUTPUT_CHUNK_BYTES || bytes.length > MAX_TAR_BYTES - this.#outputBytes) githubFail(CODE)
+      this.#outputBytes += bytes.length
+      if (this.#outputBytes > this.#inputBytes * MAX_COMPRESSION_RATIO + 1024) githubFail(CODE)
+      onData(bytes)
     })
   }
 
@@ -642,14 +752,13 @@ class RawInflater {
   push(bytes: Uint8Array, final: boolean): void {
     if (this.complete || bytes.length === 0) githubFail(CODE)
     this.#inputBytes += bytes.length
+    this.assertPendingBound()
     try {
-      this.#stream.push(Uint8Array.from(bytes), final)
-    } catch (error) {
-      if (error instanceof RecoveryGitHubError) throw error
+      this.#stream.push(bytes, final)
+    } catch {
       githubFail(CODE)
     }
-    const internal = this.#stream as unknown as InspectableInflate
-    if (!(internal.p instanceof Uint8Array) || internal.p.length > MAX_INFLATER_PENDING_BYTES) githubFail(CODE)
+    const internal = this.assertPendingBound()
     if (internal.s.f && !internal.s.l) {
       const bitOffset = internal.s.p ?? 0
       if (!Number.isSafeInteger(bitOffset) || bitOffset < 0 || bitOffset > 7) githubFail(CODE)
@@ -658,6 +767,12 @@ class RawInflater {
       this.#consumedBytes = consumed
     }
     if (final && !this.complete) githubFail(CODE)
+  }
+
+  private assertPendingBound(): InspectableInflate {
+    const internal = this.#stream as unknown as InspectableInflate
+    if (!(internal.p instanceof Uint8Array) || internal.p.length > MAX_INFLATER_PENDING_BYTES) githubFail(CODE)
+    return internal
   }
 }
 
@@ -719,14 +834,24 @@ async function streamDescriptorDeflate(source: ArchiveSource, tar: TarStream): P
   return Object.freeze({ compressed: inflater.consumedBytes, uncompressed: inflater.outputBytes })
 }
 
-async function descriptor(source: ArchiveSource): Promise<Readonly<{ crc: number; compressed: number; uncompressed: number; length: number }>> {
-  const first = await source.readExactly(4)
-  if (u32(first, 0) === DESCRIPTOR_SIGNATURE) {
-    const rest = await source.readExactly(12)
-    return Object.freeze({ crc: u32(rest, 0), compressed: u32(rest, 4), uncompressed: u32(rest, 8), length: 16 })
-  }
-  const rest = await source.readExactly(8)
-  return Object.freeze({ crc: u32(first, 0), compressed: u32(rest, 0), uncompressed: u32(rest, 4), length: 12 })
+async function descriptor(
+  source: ArchiveSource,
+  expected: Readonly<{ crc: number; compressed: number; uncompressed: number }>,
+): Promise<Readonly<{ crc: number; compressed: number; uncompressed: number; length: number }>> {
+  const lookahead = await source.readExactly(20)
+  const unsigned = u32(lookahead, 0) === expected.crc
+    && u32(lookahead, 4) === expected.compressed
+    && u32(lookahead, 8) === expected.uncompressed
+    && u32(lookahead, 12) === CENTRAL_SIGNATURE
+  const signed = u32(lookahead, 0) === DESCRIPTOR_SIGNATURE
+    && u32(lookahead, 4) === expected.crc
+    && u32(lookahead, 8) === expected.compressed
+    && u32(lookahead, 12) === expected.uncompressed
+    && u32(lookahead, 16) === CENTRAL_SIGNATURE
+  if (unsigned === signed) githubFail(CODE)
+  const length = signed ? 16 : 12
+  source.unread(lookahead.subarray(length))
+  return Object.freeze({ ...expected, length })
 }
 
 function withArchiveDigest(result: PagesArtifactDigests, githubArtifactArchiveSha256: string): PagesArtifactDigests {
@@ -742,13 +867,29 @@ function withArchiveDigest(result: PagesArtifactDigests, githubArtifactArchiveSh
 export async function inspectPagesArtifact(
   response: Response,
   expected: PagesArtifactExpected,
+  timingInput?: PagesArtifactTiming,
 ): Promise<PagesArtifactDigests> {
   let source: ArchiveSource | undefined
-  let sourceConstructionStarted = false
+  let body: ReadableStream<Uint8Array> | undefined
   try {
+    try {
+      const captured = response.body
+      if (captured === null) githubFail(CODE)
+      body = captured
+    } catch {
+      githubFail(CODE)
+    }
     const trustedExpected = snapshotExpected(expected)
-    sourceConstructionStarted = true
-    source = new ArchiveSource(response)
+    const configuredTiming = snapshotTiming(timingInput)
+    const transportRemaining = githubArchiveRemainingMilliseconds(response)
+    if (transportRemaining === 0) githubFail(CODE)
+    const timing = transportRemaining === undefined
+      ? configuredTiming
+      : Object.freeze({
+          totalTimeoutMilliseconds: Math.min(configuredTiming.totalTimeoutMilliseconds, transportRemaining),
+          idleTimeoutMilliseconds: configuredTiming.idleTimeoutMilliseconds,
+        })
+    source = new ArchiveSource(response, body, timing)
     const localOffset = source.position
     if (localOffset !== 0) githubFail(CODE)
     const local = await source.readExactly(30)
@@ -797,7 +938,11 @@ export async function inspectPagesArtifact(
       uncompressedSize = await streamKnownDeflate(source, tar, localCompressed)
     } else {
       const inflated = await streamDescriptorDeflate(source, tar)
-      const metadata = await descriptor(source)
+      const metadata = await descriptor(source, {
+        crc: tar.crc32,
+        compressed: inflated.compressed,
+        uncompressed: inflated.uncompressed,
+      })
       compressedSize = inflated.compressed
       uncompressedSize = inflated.uncompressed
       crc = metadata.crc
@@ -861,17 +1006,17 @@ export async function inspectPagesArtifact(
       || eocdOffset !== centralOffset + centralSize
     ) githubFail(CODE)
     return withArchiveDigest(tarResult, await source.finish())
-  } catch (error) {
+  } catch {
     if (source !== undefined) {
-      await source.cancel()
-    } else if (sourceConstructionStarted) {
+      source.cancel()
+    } else if (body !== undefined) {
       try {
-        await response.body?.cancel()
+        const cancellation = body.cancel()
+        void Promise.resolve(cancellation).catch(() => undefined)
       } catch {
         // The stable archive error is selected below.
       }
     }
-    if (error instanceof RecoveryGitHubError) throw error
     githubFail(CODE)
   }
 }

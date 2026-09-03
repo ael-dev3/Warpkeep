@@ -28,6 +28,8 @@ const JSON_MEDIA_TYPE = /^application\/json(?:\s*;\s*charset\s*=\s*(?:utf-8|"utf
 const JSON_WHITESPACE = new Set([' ', '\t', '\n', '\r'])
 const MAX_JSON_DEPTH = 64
 const DEFAULT_TIMEOUT_MS = 10_000
+const ARCHIVE_TOTAL_TIMEOUT_MS = 5 * 60_000
+const archiveDeadlines = new WeakMap<Response, number>()
 const utf8 = new TextDecoder('utf-8', { fatal: true })
 
 function hasUnpairedSurrogate(value: string): boolean {
@@ -239,9 +241,18 @@ export function parseGitHubJsonObject(
     const source = utf8.decode(bytes)
     return new StrictGitHubJsonParser(source, new Set(integerFields), code)
       .parseObjectDocument()
-  } catch (error) {
-    if (error instanceof RecoveryGitHubError && error.code === code) throw error
+  } catch {
     githubFail(code)
+  }
+}
+
+function cancelBody(body: ReadableStream<Uint8Array> | null | undefined): void {
+  if (body === null || body === undefined) return
+  try {
+    const cancellation = body.cancel()
+    void Promise.resolve(cancellation).catch(() => undefined)
+  } catch {
+    // Cleanup never changes the stable caller-facing error.
   }
 }
 
@@ -275,23 +286,46 @@ export async function bounded(
     || timeoutMilliseconds < 1
   ) githubFail(code)
 
-  let body: ReadableStream<Uint8Array> | null
-  let declaredLength: bigint | undefined
+  let body: ReadableStream<Uint8Array> | null | undefined
+  let headers: Headers
   try {
     body = response.body
+    headers = response.headers
+  } catch {
+    cancelBody(body)
+    githubFail(code)
+  }
+  return boundedBody(body, headers, limit, code, timeoutMilliseconds)
+}
+
+async function boundedBody(
+  body: ReadableStream<Uint8Array> | null,
+  headers: Headers,
+  limit: number,
+  code: string,
+  timeoutMilliseconds = DEFAULT_TIMEOUT_MS,
+): Promise<Uint8Array> {
+  let declaredLength: bigint | undefined
+  try {
     if (body === null) githubFail(code)
-    const lengthHeader = response.headers.get('content-length')
+    const lengthHeader = headers.get('content-length')
     if (lengthHeader !== null) {
-      if (!/^(?:0|[1-9][0-9]*)$/u.test(lengthHeader)) githubFail(code)
+      if (lengthHeader.length > 16 || !/^(?:0|[1-9][0-9]*)$/u.test(lengthHeader)) githubFail(code)
       declaredLength = BigInt(lengthHeader)
       if (declaredLength > BigInt(limit)) githubFail(code)
     }
-  } catch (error) {
-    if (error instanceof RecoveryGitHubError && error.code === code) throw error
+  } catch {
+    cancelBody(body)
     githubFail(code)
   }
 
-  const reader = body.getReader()
+  let reader: ReadableStreamDefaultReader<Uint8Array>
+  try {
+    reader = body.getReader()
+  } catch {
+    cancelBody(body)
+    githubFail(code)
+  }
   const deadline = Date.now() + timeoutMilliseconds
   const chunks: Uint8Array[] = []
   let length = 0
@@ -305,13 +339,12 @@ export async function bounded(
       if (declaredLength !== undefined && BigInt(length) > declaredLength) githubFail(code)
       chunks.push(Uint8Array.from(part.value))
     }
-  } catch (error) {
-    if (error instanceof RecoveryGitHubError && error.code === code) throw error
+  } catch {
     githubFail(code)
   } finally {
     try {
       const cancellation = reader.cancel()
-      void cancellation.catch(() => undefined)
+      void Promise.resolve(cancellation).catch(() => undefined)
     } catch {
       // The stable caller code was already selected before cleanup.
     }
@@ -327,13 +360,12 @@ export async function bounded(
   return result
 }
 
-function boundedHeader(response: Response, name: string, code: string): string | null {
+function boundedHeader(headers: Headers, name: string, code: string): string | null {
   try {
-    const value = response.headers.get(name)
+    const value = headers.get(name)
     if (value !== null && (value.length > 4_096 || /[\0\r\n]/u.test(value))) githubFail(code)
     return value
-  } catch (error) {
-    if (error instanceof RecoveryGitHubError && error.code === code) throw error
+  } catch {
     githubFail(code)
   }
 }
@@ -345,7 +377,9 @@ export async function jsonWithMetadata(
   code = 'RECOVERY_GITHUB_HTTP_INVALID',
   expectedStatus = 200,
   integerFields: readonly string[] = [],
+  byteLimit = MAX_GITHUB_JSON_BYTES,
 ): Promise<GitHubJsonResponse> {
+  if (!Number.isSafeInteger(byteLimit) || byteLimit < 1 || byteLimit > 8 * 1024 * 1024) githubFail(code)
   let response: Response
   try {
     response = await fetchImplementation(url, {
@@ -357,25 +391,29 @@ export async function jsonWithMetadata(
     githubFail(code)
   }
 
+  let body: ReadableStream<Uint8Array> | null | undefined
+  let headers: Headers
   try {
+    body = response.body
+    headers = response.headers
     if (
       response.status !== expectedStatus
       || response.type === 'opaqueredirect'
       || response.url !== url
     ) githubFail(code)
-    const contentType = boundedHeader(response, 'content-type', code)
+    const contentType = boundedHeader(headers, 'content-type', code)
     if (contentType === null || !JSON_MEDIA_TYPE.test(contentType)) githubFail(code)
-  } catch (error) {
-    if (error instanceof RecoveryGitHubError && error.code === code) throw error
+  } catch {
+    cancelBody(body)
     githubFail(code)
   }
 
-  const bytes = await bounded(response, MAX_GITHUB_JSON_BYTES, code)
+  const bytes = await boundedBody(body, headers, byteLimit, code)
   return Object.freeze({
     value: parseGitHubJsonObject(bytes, code, integerFields),
     bytes: Uint8Array.from(bytes),
-    etag: boundedHeader(response, 'etag', code),
-    link: boundedHeader(response, 'link', code),
+    etag: boundedHeader(headers, 'etag', code),
+    link: boundedHeader(headers, 'link', code),
   })
 }
 
@@ -386,6 +424,7 @@ export async function json(
   code = 'RECOVERY_GITHUB_HTTP_INVALID',
   expectedStatus = 200,
   integerFields: readonly string[] = [],
+  byteLimit = MAX_GITHUB_JSON_BYTES,
 ): Promise<GitHubJsonObject> {
   return (await jsonWithMetadata(
     fetchImplementation,
@@ -394,11 +433,13 @@ export async function json(
     code,
     expectedStatus,
     integerFields,
+    byteLimit,
   )).value
 }
 
 function safeRedirectTarget(url: URL): boolean {
   const hostname = url.hostname.toLowerCase()
+  const reservedSuffixes = ['.local', '.internal', '.localdomain', '.home', '.home.arpa', '.lan', '.localhost', '.invalid', '.test', '.example']
   return url.protocol === 'https:'
     && url.username === ''
     && url.password === ''
@@ -406,6 +447,9 @@ function safeRedirectTarget(url: URL): boolean {
     && url.hash === ''
     && hostname !== 'localhost'
     && !hostname.endsWith('.localhost')
+    && hostname.includes('.')
+    && !hostname.endsWith('.')
+    && !reservedSuffixes.some(suffix => hostname.endsWith(suffix))
     && !hostname.includes(':')
     && !/^\d{1,3}(?:\.\d{1,3}){3}$/u.test(hostname)
     && !/^(?:10|127|169\.254|192\.168|172\.(?:1[6-9]|2[0-9]|3[0-1]))\./u.test(hostname)
@@ -426,16 +470,18 @@ export async function githubRedirect(
   } catch {
     githubFail('RECOVERY_GITHUB_ARCHIVE_INVALID')
   }
-  if (redirect.status !== 302 || redirect.url !== url) {
+  let location: string | null
+  let redirectBody: ReadableStream<Uint8Array> | null | undefined
+  try {
+    redirectBody = redirect.body
+    if (redirect.status !== 302 || redirect.url !== url) githubFail('RECOVERY_GITHUB_ARCHIVE_INVALID')
+    location = redirect.headers.get('location')
+    if (location !== null && (location.length > 4_096 || /[\0\r\n]/u.test(location))) githubFail('RECOVERY_GITHUB_ARCHIVE_INVALID')
+  } catch {
+    cancelBody(redirectBody)
     githubFail('RECOVERY_GITHUB_ARCHIVE_INVALID')
   }
-  const location = redirect.headers.get('location')
-  try {
-    const cancellation = redirect.body?.cancel()
-    void cancellation?.catch(() => undefined)
-  } catch {
-    // Redirect bodies are never used.
-  }
+  cancelBody(redirectBody)
 
   let target: URL
   try {
@@ -445,27 +491,54 @@ export async function githubRedirect(
   }
   if (!safeRedirectTarget(target)) githubFail('RECOVERY_GITHUB_ARCHIVE_INVALID')
 
+  const archiveDeadline = performance.now() + ARCHIVE_TOTAL_TIMEOUT_MS
   let archive: Response
   try {
     archive = await fetchImplementation(target, {
       redirect: 'manual',
-      signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+      signal: AbortSignal.timeout(ARCHIVE_TOTAL_TIMEOUT_MS),
     })
   } catch {
     githubFail('RECOVERY_GITHUB_ARCHIVE_INVALID')
   }
-  if (
-    archive.status !== 200
-    || archive.url !== target.href
-    || (archive.status >= 300 && archive.status < 400)
-  ) {
+  let archiveBody: ReadableStream<Uint8Array> | null | undefined
+  try {
+    const status = archive.status
+    const finalUrl = archive.url
+    if (
+      status !== 200
+      || finalUrl !== target.href
+      || (status >= 300 && status < 400)
+    ) githubFail('RECOVERY_GITHUB_ARCHIVE_INVALID')
+  } catch {
     try {
-      const cancellation = archive.body?.cancel()
-      void cancellation?.catch(() => undefined)
+      archiveBody = archive.body
     } catch {
-      // The stable archive code is returned below.
+      // Stable archive error below.
     }
+    cancelBody(archiveBody)
+    githubFail('RECOVERY_GITHUB_ARCHIVE_INVALID')
+  }
+  try {
+    archiveDeadlines.set(archive, archiveDeadline)
+  } catch {
+    try {
+      archiveBody = archive.body
+    } catch {
+      // Stable archive error below.
+    }
+    cancelBody(archiveBody)
     githubFail('RECOVERY_GITHUB_ARCHIVE_INVALID')
   }
   return archive
+}
+
+export function githubArchiveRemainingMilliseconds(response: Response): number | undefined {
+  let deadline: number | undefined
+  try {
+    deadline = archiveDeadlines.get(response)
+  } catch {
+    return undefined
+  }
+  return deadline === undefined ? undefined : Math.max(0, Math.floor(deadline - performance.now()))
 }

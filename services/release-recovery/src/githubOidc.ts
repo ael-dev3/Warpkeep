@@ -69,6 +69,7 @@ const OPTIONAL_CLAIMS = [
   'enterprise',
   'enterprise_id',
   'head_ref',
+  'issuer_scope',
   'job_workflow_ref',
   'job_workflow_sha',
   'ref_type',
@@ -174,7 +175,7 @@ function canonicalStandardBase64(value: string): Uint8Array {
   }
 }
 
-type ValidatedRsaJwk = Readonly<{ jwk: JsonWebKey; signatureLength: number; kid: string }>
+type ValidatedRsaJwk = Readonly<{ jwk: JsonWebKey; signatureLength: number; kid: string; x5t?: string }>
 
 function safeRsaJwk(value: GitHubJsonValue): ValidatedRsaJwk {
   const code = 'RECOVERY_GITHUB_OIDC_INVALID'
@@ -230,6 +231,7 @@ function safeRsaJwk(value: GitHubJsonValue): ValidatedRsaJwk {
     jwk: { kty: 'RSA', alg: 'RS256', use: 'sig', n: key.n, e: key.e },
     signatureLength: modulus.length,
     kid: key.kid,
+    ...(typeof key.x5t === 'string' ? { x5t: key.x5t } : {}),
   }
 }
 
@@ -257,6 +259,7 @@ function validOptionalClaims(claims: GitHubJsonObject, candidateCommit: string):
   const environmentNodeId = claims.environment_node_id
   const enterprise = claims.enterprise
   const headRef = claims.head_ref
+  const issuerScope = claims.issuer_scope
   return (
     (actor === undefined || (
       typeof actor === 'string'
@@ -279,6 +282,12 @@ function validOptionalClaims(claims: GitHubJsonObject, candidateCommit: string):
     && (headRef === undefined || (
       boundedString(headRef, 256)
       && (headRef === '' || /^refs\/heads\/[A-Za-z0-9._/-]+$/u.test(headRef))
+    ))
+    && (issuerScope === undefined || (
+      typeof issuerScope === 'string'
+      && issuerScope.length >= 1
+      && issuerScope.length <= 256
+      && !/[\0-\x1f\x7f]/u.test(issuerScope)
     ))
     && (claims.job_workflow_ref === undefined || claims.job_workflow_ref === GITHUB_WORKFLOW_REF)
     && (claims.job_workflow_sha === undefined || claims.job_workflow_sha === candidateCommit)
@@ -360,15 +369,15 @@ function validatePagesRunAttempt(
     run.id !== claims.run_id
     || run.run_attempt !== claims.run_attempt
     || run.name !== GITHUB_WORKFLOW_NAME
-    || run.path !== GITHUB_WORKFLOW_PATH
+    || (run.path !== GITHUB_WORKFLOW_PATH && run.path !== `${GITHUB_WORKFLOW_PATH}@main`)
     || run.event !== 'workflow_run'
     || run.head_branch !== 'main'
     || run.head_sha !== candidateCommit
     || run.status !== 'in_progress'
     || run.conclusion !== null
     || run.url !== runUrl
-    || run.jobs_url !== `${runUrl}/jobs`
-    || run.workflow_url !== `https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-pages.yml`
+    || run.jobs_url !== `${runUrl}/attempts/${claims.run_attempt}/jobs`
+    || run.workflow_url !== `https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/${run.workflow_id}`
     || run.check_suite_id !== check.suiteId
     || run.check_suite_url !== check.suiteUrl
     || headCommit.id !== candidateCommit
@@ -480,11 +489,15 @@ export async function verifyGitHubWorkflowIdentity(input: Readonly<{
     [],
   )
   if (
-    !exactKeys(header, ['alg', 'kid', 'typ'])
+    !exactKeys(header, ['alg', 'kid', 'typ'], ['x5t'])
     || header.alg !== 'RS256'
     || header.typ !== 'JWT'
     || typeof header.kid !== 'string'
     || !/^[A-Za-z0-9._:-]{1,256}$/u.test(header.kid)
+    || (header.x5t !== undefined && (
+      typeof header.x5t !== 'string'
+      || decodeBase64Url(header.x5t).length !== 20
+    ))
   ) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
 
   const discovery = await json(
@@ -513,6 +526,7 @@ export async function verifyGitHubWorkflowIdentity(input: Readonly<{
   ) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
   const matchingKeys = validatedKeys.filter(value => value.kid === header.kid)
   if (matchingKeys.length !== 1) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
+  if (header.x5t !== undefined && matchingKeys[0]!.x5t !== header.x5t) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
 
   try {
     const signature = Uint8Array.from(decodeBase64Url(segments[2]!))
@@ -572,7 +586,8 @@ export async function verifyGitHubWorkflowIdentity(input: Readonly<{
     || issuedAt > nowSeconds
     || notBefore > nowSeconds
     || expiresAt <= nowSeconds
-    || notBefore < issuedAt
+    || notBefore < issuedAt - 600
+    || notBefore > issuedAt
     || expiresAt <= notBefore
     || nowSeconds - issuedAt > 600
     || expiresAt - issuedAt > 600
