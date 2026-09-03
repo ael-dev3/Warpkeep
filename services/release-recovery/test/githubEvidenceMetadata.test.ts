@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import {
+  GITHUB_EVIDENCE_METADATA_KEYS,
   githubEvidenceMetadataSha256,
   snapshotGitHubEvidenceMetadata,
   type GitHubEvidenceMetadata,
@@ -31,6 +32,18 @@ const validMetadata: GitHubEvidenceMetadata = {
 describe('GitHub evidence metadata commitment', () => {
   test('snapshots valid metadata with the exact shape', () => {
     expect(snapshotGitHubEvidenceMetadata(validMetadata)).toEqual(validMetadata)
+  })
+
+  test('commits the exact ordered metadata wire format', async () => {
+    expect(GITHUB_EVIDENCE_METADATA_KEYS).toEqual([
+      'repository', 'repositoryId', 'repositoryOwnerId', 'candidateCommit',
+      'candidateTree', 'parentCommit', 'preparationTree', 'artifactId', 'artifactName',
+      'pagesRunId', 'pagesRunAttempt', 'artifactSize', 'artifactDigest',
+      'artifactUrl', 'artifactArchiveUrl', 'artifactNodeId', 'artifactCreatedAt',
+      'artifactExpiresAt', 'artifactEtag', 'githubArtifactArchiveSha256',
+    ])
+    await expect(githubEvidenceMetadataSha256(validMetadata))
+      .resolves.toBe('51411025c5494a9c86acb64a31dc794242542ac83eeb1b58f7f798957652e3bf')
   })
 
   test('changes the commitment when metadata is mutated', async () => {
