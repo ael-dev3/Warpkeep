@@ -1,0 +1,14 @@
+name = "warpkeep-release-recovery-ledger-test"
+main = "test-workerd/worker.ts"
+compatibility_date = "2026-07-11"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+[[durable_objects.bindings]]
+name = "RECOVERY_LEDGER"
+class_name = "ReleaseRecoveryAuthorizationLedger"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ReleaseRecoveryAuthorizationLedger"]

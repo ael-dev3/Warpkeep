@@ -112,7 +112,6 @@ export type LedgerStableWorkflowIdentity = Readonly<{
 export type LedgerAuthorizationSnapshot = Readonly<{
   locators: LedgerRequestLocators
   workflowIdentity: LedgerStableWorkflowIdentity
-  payload: RecoveryAuthorizationPayload
   authorizationJti: string
   authorizationEpoch: number
   issuedAt: number
@@ -301,6 +300,7 @@ function plainDataSnapshot(
       || ownKeys.some((key) => typeof key !== 'string')
       || (!allowExtraKeys && ownKeys.length !== keys.length)
       || keys.some((key) => !Object.hasOwn(descriptors, key))
+      || keys.some((key, index) => ownKeys[index] !== key)
       || (!allowExtraKeys && ownKeys.some((key) => !keys.includes(key as string)))
     ) fail(code)
     const result: Record<string, unknown> = Object.create(null)
@@ -533,7 +533,6 @@ function authorizationSnapshot(
   return Object.freeze({
     locators,
     workflowIdentity: identity,
-    payload,
     authorizationJti,
     authorizationEpoch,
     issuedAt,
@@ -952,6 +951,13 @@ function finalizeIssue(
     fail('RECOVERY_LEDGER_JWS_INVALID')
   }
   if (!sha(event.authorizationJwsSha256)) fail('RECOVERY_LEDGER_JWS_DIGEST_INVALID')
+  if (state.state === 'issued') {
+    if (
+      state.authorizationJws !== event.authorizationJws
+      || state.authorizationJwsSha256 !== event.authorizationJwsSha256
+    ) fail('RECOVERY_LEDGER_ISSUE_MISMATCH')
+    return state
+  }
   let parsedPayload: Uint8Array
   try {
     parsedPayload = parseRecoveryCompactJws(event.authorizationJws, 'authorization').payloadBytes
@@ -960,19 +966,12 @@ function finalizeIssue(
   }
   if (!sameBytes(
     parsedPayload,
-    serializeExactObject(RECOVERY_AUTHORIZATION_PAYLOAD_KEYS, state.authorization.payload),
+    serializeExactObject(RECOVERY_AUTHORIZATION_PAYLOAD_KEYS, state.reservedPayload),
   )) fail('RECOVERY_LEDGER_JWS_PAYLOAD_MISMATCH')
   if (rawSha256Hex(event.authorizationJws) !== event.authorizationJwsSha256) {
     fail('RECOVERY_LEDGER_JWS_DIGEST_MISMATCH')
   }
 
-  if (state.state === 'issued') {
-    if (
-      state.authorizationJws !== event.authorizationJws
-      || state.authorizationJwsSha256 !== event.authorizationJwsSha256
-    ) fail('RECOVERY_LEDGER_ISSUE_MISMATCH')
-    return state
-  }
   if (now >= state.issuingDeadline) fail('RECOVERY_LEDGER_RESERVATION_EXPIRED')
   return Object.freeze({
     state: 'issued',
@@ -1267,6 +1266,25 @@ function snakeCase(key: string): string {
   return key.replace(/[A-Z]/gu, (letter) => `_${letter.toLowerCase()}`)
 }
 
+function balancedSqlOperator(
+  parts: readonly string[],
+  operator: 'AND' | 'OR' | '||',
+  empty: string,
+): string {
+  if (parts.length === 0) return empty
+  let layer = [...parts]
+  while (layer.length > 1) {
+    const next: string[] = []
+    for (let index = 0; index < layer.length; index += 2) {
+      const left = layer[index] as string
+      const right = layer[index + 1]
+      next.push(right === undefined ? left : `(${left} ${operator} ${right})`)
+    }
+    layer = next
+  }
+  return layer[0] as string
+}
+
 function armingSqlType(key: (typeof RECOVERY_ARMING_TUPLE_KEYS)[number]): 'INTEGER' | 'TEXT' {
   return key === 'authorizationEpoch' || key === 'bridgeConfigEpoch' || key === 'pagesDeploymentApproved'
     ? 'INTEGER'
@@ -1286,15 +1304,15 @@ const controlArmingColumnNames = RECOVERY_ARMING_TUPLE_KEYS
 
 const controlArmingNotNullSql = controlArmingColumnNames
   .map((column) => `${column} IS NOT NULL`)
-  .join(' AND ')
+const balancedControlArmingNotNullSql = balancedSqlOperator(controlArmingNotNullSql, 'AND', '1')
 
 const controlArmingNullSql = controlArmingColumnNames
   .map((column) => `${column} IS NULL`)
-  .join(' AND ')
+const balancedControlArmingNullSql = balancedSqlOperator(controlArmingNullSql, 'AND', '1')
 
 const newControlArmingNullSql = controlArmingColumnNames
   .map((column) => `NEW.${column} IS NULL`)
-  .join(' AND ')
+const balancedNewControlArmingNullSql = balancedSqlOperator(newControlArmingNullSql, 'AND', '1')
 
 const payloadBooleanKeys = new Set<string>([
   'g001PlayerAccessEnabled',
@@ -1342,6 +1360,18 @@ const authorizationSqlColumnNames = [
   ...locatorSqlColumnNames,
   ...workflowIdentitySqlColumnNames,
   'authorization_jti',
+  'snapshot_authorization_epoch',
+  'issued_at',
+  'not_before',
+  'expires_at',
+  'candidate_tree',
+  'artifact_name',
+  'github_artifact_archive_sha256',
+  'inner_artifact_tar_sha256',
+  'content_manifest_sha256',
+  'deployment_attestation_sha256',
+  'snapshot_operation',
+  'snapshot_canonical_origin',
   'issuance_evidence_snapshot_digest',
   'live_invariant_digest',
 ] as const
@@ -1381,14 +1411,14 @@ const armedCoreNullableColumnNames = [
 
 const newArmedCoreNullSql = armedCoreNullableColumnNames
   .map((column) => `NEW.${column} IS NULL`)
-  .join(' AND ')
+const balancedNewArmedCoreNullSql = balancedSqlOperator(newArmedCoreNullSql, 'AND', '1')
 
 function sqlColumnsAreNull(columns: readonly string[]): string {
-  return columns.map((column) => `${column} IS NULL`).join(' AND ')
+  return balancedSqlOperator(columns.map((column) => `${column} IS NULL`), 'AND', '1')
 }
 
 function sqlColumnsAreNotNull(columns: readonly string[]): string {
-  return columns.map((column) => `${column} IS NOT NULL`).join(' AND ')
+  return balancedSqlOperator(columns.map((column) => `${column} IS NOT NULL`), 'AND', '1')
 }
 
 const authorizationNullSql = sqlColumnsAreNull(authorizationSqlColumnNames)
@@ -1405,6 +1435,10 @@ function sqlQualified(prefix: string, column: string): string {
   return `${prefix}${column}`
 }
 
+function balancedSqlConcatenation(parts: readonly string[]): string {
+  return balancedSqlOperator(parts, '||', "''")
+}
+
 function canonicalPayloadSqlExpression(prefix: string): string {
   const parts = RECOVERY_AUTHORIZATION_PAYLOAD_KEYS.map((key, index) => {
     const column = sqlQualified(prefix, `payload_${snakeCase(key)}`)
@@ -1419,7 +1453,7 @@ function canonicalPayloadSqlExpression(prefix: string): string {
     }
     return `'${label}' || ${value}`
   })
-  return `${parts.join(" || ")} || '}'`
+  return balancedSqlConcatenation([...parts, "'}'"])
 }
 
 const payloadArmingBindingSql = [
@@ -1449,7 +1483,11 @@ const payloadArmingBindingSql = [
 
 const payloadArmingBindingPredicate = payloadArmingBindingSql
   .map(([payloadColumn, armingColumn]) => `NEW.${payloadColumn} = a.${armingColumn}`)
-  .join(' AND ')
+const balancedPayloadArmingBindingPredicate = balancedSqlOperator(
+  payloadArmingBindingPredicate,
+  'AND',
+  '1',
+)
 
 const corePayloadBindingSql = [
   ['request_id', 'payload_request_id'],
@@ -1468,13 +1506,25 @@ const corePayloadBindingSql = [
   ['workflow_identity_pages_run_id', 'payload_pages_run_id'],
   ['workflow_identity_pages_run_attempt', 'payload_pages_run_attempt'],
   ['authorization_jti', 'payload_jti'],
+  ['snapshot_authorization_epoch', 'payload_authorization_epoch'],
+  ['issued_at', 'payload_iat'],
+  ['not_before', 'payload_nbf'],
+  ['expires_at', 'payload_exp'],
+  ['candidate_tree', 'payload_candidate_tree'],
+  ['artifact_name', 'payload_artifact_name'],
+  ['github_artifact_archive_sha256', 'payload_github_artifact_archive_sha256'],
+  ['inner_artifact_tar_sha256', 'payload_inner_artifact_tar_sha256'],
+  ['content_manifest_sha256', 'payload_content_manifest_sha256'],
+  ['deployment_attestation_sha256', 'payload_deployment_attestation_sha256'],
+  ['snapshot_operation', 'payload_operation'],
+  ['snapshot_canonical_origin', 'payload_canonical_origin'],
   ['issuance_evidence_snapshot_digest', 'payload_issuance_evidence_snapshot_digest'],
   ['live_invariant_digest', 'payload_live_invariant_digest'],
 ] as const
 
 const corePayloadBindingPredicate = corePayloadBindingSql
   .map(([coreColumn, payloadColumn]) => `NEW.${coreColumn} = p.${payloadColumn}`)
-  .join(' AND ')
+const balancedCorePayloadBindingPredicate = balancedSqlOperator(corePayloadBindingPredicate, 'AND', '1')
 
 const immutableCoreColumnNames = [
   'request_id',
@@ -1483,13 +1533,14 @@ const immutableCoreColumnNames = [
 
 const immutableCoreUpdatePredicate = immutableCoreColumnNames
   .map((column) => `OLD.${column} IS NOT NEW.${column}`)
-  .join(' OR ')
+const balancedImmutableCoreUpdatePredicate = balancedSqlOperator(immutableCoreUpdatePredicate, 'OR', '0')
 
 const claimDigestBindingSql = [
   'claim_live_invariant_digest = live_invariant_digest',
   'claim_snapshot_digest <> issuance_evidence_snapshot_digest',
   'claim_snapshot_digest <> live_invariant_digest',
-].join(' AND ')
+]
+const balancedClaimDigestBindingSql = balancedSqlOperator(claimDigestBindingSql, 'AND', '1')
 
 const reconciliationScheduleSql = [
   '(reconciliation_attempts = 0 AND next_reconcile_at = last_transition_at)',
@@ -1498,11 +1549,12 @@ const reconciliationScheduleSql = [
   `(reconciliation_attempts = 3 AND next_reconcile_at = last_transition_at + ${RECOVERY_RECONCILIATION_RETRY_DELAYS_SECONDS[2]})`,
   `(reconciliation_attempts = 4 AND next_reconcile_at = last_transition_at + ${RECOVERY_RECONCILIATION_RETRY_DELAYS_SECONDS[3]})`,
   '(reconciliation_attempts = 5 AND next_reconcile_at IS NULL)',
-].join(' OR ')
+]
+const balancedReconciliationScheduleSql = balancedSqlOperator(reconciliationScheduleSql, 'OR', '0')
 
 const claimSqlValuesUnchanged = claimSqlColumnNames
   .map((column) => `NEW.${column} IS OLD.${column}`)
-  .join(' AND ')
+const balancedClaimSqlValuesUnchanged = balancedSqlOperator(claimSqlValuesUnchanged, 'AND', '1')
 
 const authorizationDigestUnchanged = 'NEW.authorization_jws_sha256 IS OLD.authorization_jws_sha256'
 
@@ -1512,25 +1564,28 @@ const legalCoreTransitionSql = [
   "(OLD.state = 'issuing' AND NEW.state = 'expired-unused' AND NEW.last_transition_at >= OLD.issuing_deadline)",
   `(OLD.state = 'issued' AND NEW.state = 'claimed' AND NEW.last_transition_at >= OLD.last_transition_at AND ${authorizationDigestUnchanged})`,
   `(OLD.state = 'issued' AND NEW.state = 'expired-unused' AND NEW.last_transition_at >= OLD.last_transition_at AND ${authorizationDigestUnchanged})`,
-  `(OLD.state = 'claimed' AND NEW.state = 'reconciliation-required' AND NEW.last_transition_at >= OLD.claim_deadline AND NEW.reconciliation_attempts = 0 AND ${authorizationDigestUnchanged} AND ${claimSqlValuesUnchanged})`,
-  `(OLD.state = 'claimed' AND NEW.state = 'completed' AND NEW.last_transition_at >= OLD.last_transition_at AND NEW.last_transition_at < OLD.claim_deadline AND ${authorizationDigestUnchanged} AND ${claimSqlValuesUnchanged})`,
-  `(OLD.state = 'reconciliation-required' AND NEW.state = 'reconciliation-required' AND OLD.next_reconcile_at IS NOT NULL AND NEW.last_transition_at >= OLD.next_reconcile_at AND NEW.reconciliation_attempts = OLD.reconciliation_attempts + 1 AND ${authorizationDigestUnchanged} AND ${claimSqlValuesUnchanged})`,
-  `(OLD.state = 'reconciliation-required' AND NEW.state IN ('completed', 'not-deployed') AND OLD.next_reconcile_at IS NOT NULL AND NEW.last_transition_at >= OLD.next_reconcile_at AND ${authorizationDigestUnchanged} AND ${claimSqlValuesUnchanged})`,
-].join(' OR ')
+  `(OLD.state = 'claimed' AND NEW.state = 'reconciliation-required' AND NEW.last_transition_at >= OLD.claim_deadline AND NEW.reconciliation_attempts = 0 AND ${authorizationDigestUnchanged} AND ${balancedClaimSqlValuesUnchanged})`,
+  `(OLD.state = 'claimed' AND NEW.state = 'completed' AND NEW.last_transition_at >= OLD.last_transition_at AND NEW.last_transition_at < OLD.claim_deadline AND ${authorizationDigestUnchanged} AND ${balancedClaimSqlValuesUnchanged})`,
+  `(OLD.state = 'reconciliation-required' AND NEW.state = 'reconciliation-required' AND OLD.next_reconcile_at IS NOT NULL AND NEW.last_transition_at >= OLD.next_reconcile_at AND NEW.reconciliation_attempts = OLD.reconciliation_attempts + 1 AND ${authorizationDigestUnchanged} AND ${balancedClaimSqlValuesUnchanged})`,
+  `(OLD.state = 'reconciliation-required' AND NEW.state IN ('completed', 'not-deployed') AND OLD.next_reconcile_at IS NOT NULL AND NEW.last_transition_at >= OLD.next_reconcile_at AND ${authorizationDigestUnchanged} AND ${balancedClaimSqlValuesUnchanged})`,
+]
+const balancedLegalCoreTransitionSql = balancedSqlOperator(legalCoreTransitionSql, 'OR', '0')
 
 const corePayloadChronologyPredicate = [
   "(NEW.state = 'issuing' AND NEW.reserved_at = p.payload_iat)",
   `(NEW.state = 'issued' AND NEW.last_transition_at >= p.payload_iat AND NEW.last_transition_at < p.payload_iat + ${RECOVERY_ISSUING_TIMEOUT_SECONDS} AND NEW.last_transition_at < p.payload_exp)`,
   "(NEW.state IN ('claimed', 'reconciliation-required', 'completed', 'not-deployed') AND NEW.claimed_at >= p.payload_iat AND NEW.claimed_at < p.payload_exp)",
   "(NEW.state = 'expired-unused' AND ((NEW.expiration_source = 'issuing' AND NEW.expired_at >= p.payload_iat + 120) OR (NEW.expiration_source = 'issued' AND NEW.expired_at >= p.payload_exp)))",
-].join(' OR ')
+]
+const balancedCorePayloadChronologyPredicate = balancedSqlOperator(corePayloadChronologyPredicate, 'OR', '0')
 
 const canonicalReservedPayloadSql = canonicalPayloadSqlExpression('p.')
 
 /**
- * Schema consumed by the Task 5 Durable Object adapter. Arming and finalized
- * authorization fields are individual columns; only the transient unsigned
- * payload has a canonical JSON column while the row is `issuing`.
+ * Schema consumed by the Task 5 Durable Object adapter. Arming and the
+ * minimized finalized authorization snapshot use individual columns. The
+ * complete unsigned payload table and its canonical JSON duplicate exist only
+ * while the row is `issuing` and are deleted in the finalizing/expiry CAS.
  */
 export const RECOVERY_LEDGER_SQL_SCHEMA = `
 PRAGMA foreign_keys = ON;
@@ -1543,8 +1598,8 @@ CREATE TABLE IF NOT EXISTS recovery_control (
 ${controlArmingSqlColumns},
   revision INTEGER NOT NULL CHECK (revision >= 0),
   CHECK (
-    (enabled = 0 AND ${controlArmingNullSql})
-    OR (enabled = 1 AND ${controlArmingNotNullSql} AND active_authorization_epoch = authorization_epoch AND max_consumed_authorization_epoch = authorization_epoch)
+    (enabled = 0 AND ${balancedControlArmingNullSql})
+    OR (enabled = 1 AND ${balancedControlArmingNotNullSql} AND active_authorization_epoch = authorization_epoch AND max_consumed_authorization_epoch = authorization_epoch)
   )
 );
 
@@ -1560,7 +1615,7 @@ BEGIN
     NEW.enabled = 0
     AND NEW.revision = 0
     AND NEW.max_consumed_authorization_epoch IS NULL
-    AND ${newControlArmingNullSql}
+    AND ${balancedNewControlArmingNullSql}
     AND NOT EXISTS (SELECT 1 FROM recovery_used_arming)
   ) THEN RAISE(ABORT, 'RECOVERY_LEDGER_SQL_CONTROL_INITIAL_INVALID') END;
 END;
@@ -1647,7 +1702,7 @@ BEGIN
         c.max_consumed_authorization_epoch IS NULL
         OR NEW.authorization_epoch > c.max_consumed_authorization_epoch
       )
-      AND ${controlArmingColumnNames.map((column) => `c.${column} IS NULL`).join(' AND ')}
+      AND ${balancedSqlOperator(controlArmingColumnNames.map((column) => `c.${column} IS NULL`), 'AND', '1')}
   ) THEN RAISE(ABORT, 'RECOVERY_LEDGER_SQL_USED_ARMING_NOT_STAGED') END;
 END;
 
@@ -1696,10 +1751,16 @@ BEGIN
   SELECT RAISE(ABORT, 'RECOVERY_LEDGER_SQL_PAYLOAD_IMMUTABLE');
 END;
 
-CREATE TRIGGER IF NOT EXISTS recovery_authorization_payload_immutable_delete
+CREATE TRIGGER IF NOT EXISTS recovery_authorization_payload_delete_guard
 BEFORE DELETE ON recovery_authorization_payload
+WHEN NOT EXISTS (
+  SELECT 1 FROM recovery_authorization AS r
+  WHERE r.singleton_key = 1
+    AND r.request_id = OLD.payload_request_id
+    AND r.state IN ('issued', 'expired-unused')
+)
 BEGIN
-  SELECT RAISE(ABORT, 'RECOVERY_LEDGER_SQL_PAYLOAD_IMMUTABLE');
+  SELECT RAISE(ABORT, 'RECOVERY_LEDGER_SQL_PAYLOAD_DELETE_INVALID');
 END;
 
 CREATE TABLE IF NOT EXISTS recovery_authorization (
@@ -1722,6 +1783,18 @@ CREATE TABLE IF NOT EXISTS recovery_authorization (
   workflow_identity_pages_run_attempt TEXT,
   workflow_identity_check_run_id TEXT,
   authorization_jti TEXT,
+  snapshot_authorization_epoch INTEGER,
+  issued_at INTEGER,
+  not_before INTEGER,
+  expires_at INTEGER,
+  candidate_tree TEXT,
+  artifact_name TEXT,
+  github_artifact_archive_sha256 TEXT,
+  inner_artifact_tar_sha256 TEXT,
+  content_manifest_sha256 TEXT,
+  deployment_attestation_sha256 TEXT,
+  snapshot_operation TEXT,
+  snapshot_canonical_origin TEXT,
   authorization_jws TEXT,
   authorization_jws_sha256 TEXT,
   issuance_evidence_snapshot_digest TEXT,
@@ -1746,12 +1819,24 @@ CREATE TABLE IF NOT EXISTS recovery_authorization (
   CHECK (
     (state = 'armed' AND last_transition_at IS NULL AND ${authorizationNullSql} AND ${issuingNullSql} AND authorization_jws IS NULL AND authorization_jws_sha256 IS NULL AND ${claimNullSql} AND ${reconciliationNullSql} AND ${terminalNullSql} AND ${expirationNullSql})
     OR (state = 'issuing' AND last_transition_at = reserved_at AND ${authorizationNotNullSql} AND ${issuingNotNullSql} AND issuing_deadline = reserved_at + ${RECOVERY_ISSUING_TIMEOUT_SECONDS} AND authorization_jws IS NULL AND authorization_jws_sha256 IS NULL AND ${claimNullSql} AND ${reconciliationNullSql} AND ${terminalNullSql} AND ${expirationNullSql})
-    OR (state = 'issued' AND last_transition_at IS NOT NULL AND ${authorizationNotNullSql} AND ${issuingNullSql} AND authorization_jws IS NOT NULL AND authorization_jws_sha256 IS NOT NULL AND ${claimNullSql} AND ${reconciliationNullSql} AND ${terminalNullSql} AND ${expirationNullSql})
-    OR (state = 'claimed' AND last_transition_at = claimed_at AND ${authorizationNotNullSql} AND ${issuingNullSql} AND authorization_jws IS NULL AND authorization_jws_sha256 IS NOT NULL AND ${claimNotNullSql} AND ${claimDigestBindingSql} AND claim_sequence = 1 AND claim_deadline = claimed_at + ${RECOVERY_CLAIM_DEADLINE_SECONDS} AND ${reconciliationNullSql} AND ${terminalNullSql} AND ${expirationNullSql})
-    OR (state = 'reconciliation-required' AND last_transition_at >= claim_deadline AND ${authorizationNotNullSql} AND ${issuingNullSql} AND authorization_jws IS NULL AND authorization_jws_sha256 IS NOT NULL AND ${claimNotNullSql} AND ${claimDigestBindingSql} AND claim_sequence = 1 AND claim_deadline = claimed_at + ${RECOVERY_CLAIM_DEADLINE_SECONDS} AND (${reconciliationScheduleSql}) AND ${terminalNullSql} AND ${expirationNullSql})
-    OR (state = 'completed' AND last_transition_at = completed_at AND completed_at >= claimed_at AND ${authorizationNotNullSql} AND ${issuingNullSql} AND authorization_jws IS NULL AND authorization_jws_sha256 IS NOT NULL AND ${claimNotNullSql} AND ${claimDigestBindingSql} AND claim_sequence = 1 AND claim_deadline = claimed_at + ${RECOVERY_CLAIM_DEADLINE_SECONDS} AND ${reconciliationNullSql} AND completed_at IS NOT NULL AND terminal_outcome = 'completed' AND ${expirationNullSql})
-    OR (state = 'not-deployed' AND last_transition_at = completed_at AND completed_at >= claimed_at AND ${authorizationNotNullSql} AND ${issuingNullSql} AND authorization_jws IS NULL AND authorization_jws_sha256 IS NOT NULL AND ${claimNotNullSql} AND ${claimDigestBindingSql} AND claim_sequence = 1 AND claim_deadline = claimed_at + ${RECOVERY_CLAIM_DEADLINE_SECONDS} AND ${reconciliationNullSql} AND completed_at IS NOT NULL AND terminal_outcome = 'not-deployed' AND ${expirationNullSql})
-    OR (state = 'expired-unused' AND last_transition_at = expired_at AND ${authorizationNotNullSql} AND ${issuingNullSql} AND authorization_jws IS NULL AND ${claimNullSql} AND ${reconciliationNullSql} AND ${terminalNullSql} AND expired_at IS NOT NULL AND expiration_source IS NOT NULL AND ((expiration_source = 'issuing' AND authorization_jws_sha256 IS NULL) OR (expiration_source = 'issued' AND authorization_jws_sha256 IS NOT NULL)))
+    OR (state = 'issued' AND last_transition_at >= issued_at AND last_transition_at < issued_at + ${RECOVERY_ISSUING_TIMEOUT_SECONDS} AND last_transition_at < expires_at AND ${authorizationNotNullSql} AND ${issuingNullSql} AND authorization_jws IS NOT NULL AND authorization_jws_sha256 IS NOT NULL AND ${claimNullSql} AND ${reconciliationNullSql} AND ${terminalNullSql} AND ${expirationNullSql})
+    OR (state = 'claimed' AND last_transition_at = claimed_at AND claimed_at >= issued_at AND claimed_at < expires_at AND ${authorizationNotNullSql} AND ${issuingNullSql} AND authorization_jws IS NULL AND authorization_jws_sha256 IS NOT NULL AND ${claimNotNullSql} AND ${balancedClaimDigestBindingSql} AND claim_sequence = 1 AND claim_deadline = claimed_at + ${RECOVERY_CLAIM_DEADLINE_SECONDS} AND ${reconciliationNullSql} AND ${terminalNullSql} AND ${expirationNullSql})
+    OR (state = 'reconciliation-required' AND last_transition_at >= claim_deadline AND ${authorizationNotNullSql} AND ${issuingNullSql} AND authorization_jws IS NULL AND authorization_jws_sha256 IS NOT NULL AND ${claimNotNullSql} AND ${balancedClaimDigestBindingSql} AND claim_sequence = 1 AND claim_deadline = claimed_at + ${RECOVERY_CLAIM_DEADLINE_SECONDS} AND (${balancedReconciliationScheduleSql}) AND ${terminalNullSql} AND ${expirationNullSql})
+    OR (state = 'completed' AND last_transition_at = completed_at AND completed_at >= claimed_at AND ${authorizationNotNullSql} AND ${issuingNullSql} AND authorization_jws IS NULL AND authorization_jws_sha256 IS NOT NULL AND ${claimNotNullSql} AND ${balancedClaimDigestBindingSql} AND claim_sequence = 1 AND claim_deadline = claimed_at + ${RECOVERY_CLAIM_DEADLINE_SECONDS} AND ${reconciliationNullSql} AND completed_at IS NOT NULL AND terminal_outcome = 'completed' AND ${expirationNullSql})
+    OR (state = 'not-deployed' AND last_transition_at = completed_at AND completed_at >= claimed_at AND ${authorizationNotNullSql} AND ${issuingNullSql} AND authorization_jws IS NULL AND authorization_jws_sha256 IS NOT NULL AND ${claimNotNullSql} AND ${balancedClaimDigestBindingSql} AND claim_sequence = 1 AND claim_deadline = claimed_at + ${RECOVERY_CLAIM_DEADLINE_SECONDS} AND ${reconciliationNullSql} AND completed_at IS NOT NULL AND terminal_outcome = 'not-deployed' AND ${expirationNullSql})
+    OR (state = 'expired-unused' AND last_transition_at = expired_at AND ${authorizationNotNullSql} AND ${issuingNullSql} AND authorization_jws IS NULL AND ${claimNullSql} AND ${reconciliationNullSql} AND ${terminalNullSql} AND expired_at IS NOT NULL AND expiration_source IS NOT NULL AND ((expiration_source = 'issuing' AND authorization_jws_sha256 IS NULL AND expired_at >= issued_at + ${RECOVERY_ISSUING_TIMEOUT_SECONDS}) OR (expiration_source = 'issued' AND authorization_jws_sha256 IS NOT NULL AND expired_at >= expires_at)))
+  ),
+  CHECK (
+    state = 'armed'
+    OR (
+      snapshot_authorization_epoch > 0
+      AND not_before = issued_at
+      AND expires_at > issued_at
+      AND expires_at <= issued_at + 900
+      AND snapshot_operation = 'github-pages-production-deploy'
+      AND snapshot_canonical_origin = 'https://warpkeep.com'
+      AND artifact_name = 'github-pages-recovery-' || workflow_identity_pages_run_id || '-' || workflow_identity_pages_run_attempt
+    )
   )
 );
 
@@ -1760,7 +1845,7 @@ BEFORE INSERT ON recovery_authorization_payload
 BEGIN
   SELECT CASE WHEN NOT EXISTS (
     SELECT 1 FROM recovery_authorization_arming AS a
-    WHERE a.singleton_key = 1 AND ${payloadArmingBindingPredicate}
+    WHERE a.singleton_key = 1 AND ${balancedPayloadArmingBindingPredicate}
   ) THEN RAISE(ABORT, 'RECOVERY_LEDGER_SQL_PAYLOAD_ARMING_MISMATCH') END;
   SELECT CASE WHEN NOT EXISTS (
     SELECT 1 FROM recovery_authorization AS r
@@ -1778,7 +1863,7 @@ BEGIN
     NEW.state = 'armed'
     AND NEW.revision = 0
     AND NEW.last_transition_at IS NULL
-    AND ${newArmedCoreNullSql}
+    AND ${balancedNewArmedCoreNullSql}
   ) THEN RAISE(ABORT, 'RECOVERY_LEDGER_SQL_AUTHORIZATION_INITIAL_INVALID') END;
   SELECT CASE WHEN NOT EXISTS (
     SELECT 1 FROM recovery_authorization_arming AS a
@@ -1793,17 +1878,17 @@ BEGIN
     SELECT 1 FROM recovery_authorization_arming AS a
     WHERE a.singleton_key = 1 AND a.request_id = NEW.request_id
   ) THEN RAISE(ABORT, 'RECOVERY_LEDGER_SQL_ARMING_MISSING') END;
-  SELECT CASE WHEN NEW.state <> 'armed' AND NOT EXISTS (
+  SELECT CASE WHEN NEW.state = 'issuing' AND NOT EXISTS (
     SELECT 1 FROM recovery_authorization_payload AS p
-    WHERE p.singleton_key = 1 AND ${corePayloadBindingPredicate}
-      AND (${corePayloadChronologyPredicate})
+    WHERE p.singleton_key = 1 AND ${balancedCorePayloadBindingPredicate}
+      AND (${balancedCorePayloadChronologyPredicate})
       AND (NEW.state <> 'issuing' OR NEW.reserved_payload_json = ${canonicalReservedPayloadSql})
   ) THEN RAISE(ABORT, 'RECOVERY_LEDGER_SQL_PAYLOAD_MISMATCH') END;
 END;
 
 CREATE TRIGGER IF NOT EXISTS recovery_authorization_core_immutable_update
 BEFORE UPDATE ON recovery_authorization
-WHEN OLD.state <> 'armed' AND (${immutableCoreUpdatePredicate})
+WHEN OLD.state <> 'armed' AND (${balancedImmutableCoreUpdatePredicate})
 BEGIN
   SELECT RAISE(ABORT, 'RECOVERY_LEDGER_SQL_AUTHORIZATION_IMMUTABLE');
 END;
@@ -1812,7 +1897,7 @@ CREATE TRIGGER IF NOT EXISTS recovery_authorization_transition_guard
 BEFORE UPDATE ON recovery_authorization
 WHEN NOT (
   NEW.revision = OLD.revision + 1
-  AND (${legalCoreTransitionSql})
+  AND (${balancedLegalCoreTransitionSql})
 )
 BEGIN
   SELECT RAISE(ABORT, 'RECOVERY_LEDGER_SQL_TRANSITION_INVALID');

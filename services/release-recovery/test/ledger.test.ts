@@ -60,6 +60,10 @@ function rawSha256(value: string): string {
   return createHash('sha256').update(encoder.encode(value)).digest('hex')
 }
 
+function reverseKeyOrder(value: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value).reverse())
+}
+
 function sqlColumnName(key: string): string {
   return key.replace(/[A-Z]/gu, (letter) => `_${letter.toLowerCase()}`)
 }
@@ -91,14 +95,26 @@ function ledgerSqlRow(record: RecoveryLedgerRecord): Readonly<Record<string, str
   ] as const) {
     row[`workflow_identity_${sqlColumnName(key)}`] = sqlValue(authorization.workflowIdentity[key])
   }
-  for (const key of RECOVERY_AUTHORIZATION_PAYLOAD_KEYS) {
-    row[`payload_${sqlColumnName(key)}`] = sqlValue(authorization.payload[key])
-  }
   row.authorization_jti = authorization.authorizationJti
+  row.snapshot_authorization_epoch = authorization.authorizationEpoch
+  row.issued_at = authorization.issuedAt
+  row.not_before = authorization.notBefore
+  row.expires_at = authorization.expiresAt
+  row.candidate_tree = authorization.candidateTree
+  row.artifact_name = authorization.artifactName
+  row.github_artifact_archive_sha256 = authorization.githubArtifactArchiveSha256
+  row.inner_artifact_tar_sha256 = authorization.innerArtifactTarSha256
+  row.content_manifest_sha256 = authorization.contentManifestSha256
+  row.deployment_attestation_sha256 = authorization.deploymentAttestationSha256
+  row.snapshot_operation = authorization.operation
+  row.snapshot_canonical_origin = authorization.canonicalOrigin
   row.issuance_evidence_snapshot_digest = authorization.issuanceEvidenceSnapshotDigest
   row.live_invariant_digest = authorization.liveInvariantDigest
 
   if (record.state === 'issuing') {
+    for (const key of RECOVERY_AUTHORIZATION_PAYLOAD_KEYS) {
+      row[`payload_${sqlColumnName(key)}`] = sqlValue(record.reservedPayload[key])
+    }
     row.reserved_payload_json = new TextDecoder().decode(
       serializeExactObject(RECOVERY_AUTHORIZATION_PAYLOAD_KEYS, record.reservedPayload),
     )
@@ -498,6 +514,42 @@ function ledgerSqlPredecessors(record: RecoveryLedgerRecord): readonly RecoveryL
   const control = enabledControl(record.arming)
   const installed = armed(record.arming, control)
   const authorization = record.authorization
+  const reservedPayload = record.state === 'issuing'
+    ? record.reservedPayload
+    : payload({
+        authorizationEpoch: record.arming.authorizationEpoch,
+        repository: record.arming.repository,
+        repositoryId: record.arming.repositoryId,
+        repositoryOwnerId: record.arming.repositoryOwnerId,
+        ref: record.arming.ref,
+        workflowRef: record.arming.workflowRef,
+        environment: record.arming.environment,
+        releaseVersion: record.arming.releaseVersion,
+        operation: record.arming.operation,
+        canonicalOrigin: record.arming.canonicalOrigin,
+        authWorker: record.arming.authWorker,
+        sourceClosureProfile: record.arming.sourceClosureProfile,
+        sourceClosureSha256: record.arming.sourceClosureSha256,
+        recoveryAuthorizationCoreSha256: record.arming.recoveryAuthorizationCoreSha256,
+        predecessorCommit: record.arming.preparationCommit,
+        genesis001Database: record.arming.genesis001Database,
+        genesis002Database: record.arming.genesis002Database,
+        ptrDatabase: record.arming.ptrDatabase,
+        ...authorization.locators,
+        ...Object.fromEntries(Object.entries(authorization.workflowIdentity).filter(([key]) => key !== 'checkRunId')),
+        jti: authorization.authorizationJti,
+        iat: authorization.issuedAt,
+        nbf: authorization.notBefore,
+        exp: authorization.expiresAt,
+        candidateTree: authorization.candidateTree,
+        artifactName: authorization.artifactName,
+        githubArtifactArchiveSha256: authorization.githubArtifactArchiveSha256,
+        innerArtifactTarSha256: authorization.innerArtifactTarSha256,
+        contentManifestSha256: authorization.contentManifestSha256,
+        deploymentAttestationSha256: authorization.deploymentAttestationSha256,
+        issuanceEvidenceSnapshotDigest: authorization.issuanceEvidenceSnapshotDigest,
+        liveInvariantDigest: authorization.liveInvariantDigest,
+      })
   const reservation = applyLedgerEvent(installed, {
     type: 'reserve-issue',
     control,
@@ -506,7 +558,7 @@ function ledgerSqlPredecessors(record: RecoveryLedgerRecord): readonly RecoveryL
       ...authorization.workflowIdentity,
       oidcJti: OTHER_OIDC_JTI,
     },
-    payload: authorization.payload,
+    payload: reservedPayload,
     now: authorization.issuedAt,
   })
   if (record.state === 'issuing') return [installed]
@@ -516,7 +568,7 @@ function ledgerSqlPredecessors(record: RecoveryLedgerRecord): readonly RecoveryL
 
   const authorizationJws = record.state === 'issued'
     ? record.authorizationJws
-    : compactAuthorizationJws(authorization.payload)
+    : compactAuthorizationJws(reservedPayload)
   const issuance = applyLedgerEvent(reservation, {
     type: 'finalize-issue',
     control,
@@ -620,7 +672,20 @@ function applyLedgerSqlTarget(
     }
     return
   }
-  updateAuthorizationSqlValues(database, split.authorization)
+  const previous = database.prepare(
+    'SELECT state FROM recovery_authorization WHERE singleton_key = 1',
+  ).get() as { state: string }
+  database.exec('BEGIN')
+  try {
+    updateAuthorizationSqlValues(database, split.authorization)
+    if (previous.state === 'issuing') {
+      database.exec('DELETE FROM recovery_authorization_payload WHERE singleton_key = 1')
+    }
+    database.exec('COMMIT')
+  } catch (error) {
+    database.exec('ROLLBACK')
+    throw error
+  }
 }
 
 function persistLedgerSqlRecord(database: DatabaseSync, record: RecoveryLedgerRecord): void {
@@ -656,7 +721,7 @@ describe('recovery ledger schema and arming', () => {
         expect(count.count, name).toBeLessThanOrEqual(100)
       }
       expect(columnCounts).toEqual({
-        recovery_authorization: 39,
+        recovery_authorization: 51,
         recovery_authorization_arming: 51,
         recovery_authorization_payload: 60,
         recovery_control: 55,
@@ -701,9 +766,12 @@ describe('recovery ledger schema and arming', () => {
       updateAuthorizationSqlRow(database, reservation.record)
       database.exec('COMMIT')
       for (const record of [issuance, consumption, reconciliation, retry, terminal]) {
-        updateAuthorizationSqlRow(database, record)
+        applyLedgerSqlTarget(database, record)
         expect(database.prepare('SELECT state, revision FROM recovery_authorization').get())
           .toEqual({ state: record.state, revision: record.revision })
+        expect(database.prepare(
+          'SELECT COUNT(*) AS count FROM recovery_authorization_payload',
+        ).get()).toEqual({ count: 0 })
       }
     } finally {
       database.close()
@@ -993,8 +1061,8 @@ describe('recovery ledger schema and arming', () => {
       const now = ledgerAlarmDeadline(reconciling) as number
       reconciling = applyLedgerEvent(reconciling, {
         type: 'reconcile',
-        now,
         proof: { outcome: 'ambiguous' },
+        now,
       })
     }
     expectLedgerSqlMutationRejected(reconciling, {
@@ -1014,6 +1082,19 @@ describe('recovery ledger schema and arming', () => {
       expect.soft(() => deletionDatabase.exec(
         `UPDATE recovery_authorization SET locator_artifact_id = '790' WHERE singleton_key = 1`,
       )).toThrow()
+      for (const [column, value] of [
+        ['snapshot_authorization_epoch', 4],
+        ['expires_at', NOW + 901],
+        ['candidate_tree', '9'.repeat(40)],
+        ['artifact_name', 'github-pages-recovery-123-2'],
+        ['content_manifest_sha256', '9'.repeat(64)],
+        ['snapshot_operation', 'other-operation'],
+        ['snapshot_canonical_origin', 'https://example.com'],
+      ] as const) {
+        expect.soft(() => deletionDatabase.prepare(
+          `UPDATE recovery_authorization SET ${column} = ? WHERE singleton_key = 1`,
+        ).run(value)).toThrow()
+      }
     } finally {
       deletionDatabase.close()
     }
@@ -1084,8 +1165,10 @@ describe('recovery ledger schema and arming', () => {
       expect(controlSchema).toContain(`active_${column} `)
     }
     expect(controlSchema).not.toMatch(/active_arming_(?:json|blob)|active_identity_(?:json|blob)/u)
-    expect(controlSchema).toContain("enabled = 1 AND active_request_id IS NOT NULL")
-    expect(controlSchema).toContain("enabled = 0 AND active_request_id IS NULL")
+    expect(controlSchema).toContain('enabled = 1 AND')
+    expect(controlSchema).toContain('active_request_id IS NOT NULL')
+    expect(controlSchema).toContain('enabled = 0 AND')
+    expect(controlSchema).toContain('active_request_id IS NULL')
   })
 
   it('initializes disabled and reconciles control monotonically with a new unused tuple', () => {
@@ -1264,6 +1347,14 @@ describe('recovery ledger schema and arming', () => {
       enabled: false,
       authorizationEpoch: 3,
     })).toThrowError('RECOVERY_LEDGER_CONTROL_INVALID')
+    expect(() => reconcileLedgerControl(initial, reverseKeyOrder({
+      enabled: false,
+      authorizationEpoch: 3,
+    }) as never)).toThrowError('RECOVERY_LEDGER_CONTROL_INVALID')
+    expect(() => reconcileLedgerControl(reverseKeyOrder(initial) as never, {
+      enabled: false,
+      authorizationEpoch: 3,
+    })).toThrowError('RECOVERY_LEDGER_CONTROL_INVALID')
 
     const control = enabledControl()
     expect(() => installLedgerArming(undefined, {
@@ -1271,6 +1362,10 @@ describe('recovery ledger schema and arming', () => {
       control,
       unexpected: true,
     } as never)).toThrowError('RECOVERY_LEDGER_INSTALL_INVALID')
+    expect(() => installLedgerArming(undefined, reverseKeyOrder({
+      arming: arming(),
+      control,
+    }) as never)).toThrowError('RECOVERY_LEDGER_INSTALL_INVALID')
   })
 
   it('installs an exact arming tuple once and rejects every bridge/program/atlas substitution', () => {
@@ -1441,6 +1536,7 @@ describe('recovery authorization issue state machine', () => {
     const expired = applyLedgerEvent(value.record, { type: 'alarm', now: NOW + 120 })
     expect(expired.state).toBe('expired-unused')
     expect(JSON.stringify(expired)).not.toContain('reservedPayload')
+    expect('authorization' in expired && Object.hasOwn(expired.authorization, 'payload')).toBe(false)
     expect(ledgerAlarmDeadline(expired)).toBeNull()
     expect(() => applyLedgerEvent(expired, reserveEvent(value.control)))
       .toThrowError('RECOVERY_LEDGER_REISSUE_DENIED')
@@ -1453,6 +1549,7 @@ describe('recovery authorization issue state machine', () => {
     const result = applyLedgerEvent(value.record, finalizeEvent(value.control))
     expect(result).toMatchObject({ state: 'issued', authorizationJws: JWS, authorizationJwsSha256: JWS_SHA256 })
     expect(JSON.stringify(result)).not.toContain('reservedPayload')
+    expect('authorization' in result && Object.hasOwn(result.authorization, 'payload')).toBe(false)
     expect(ledgerAlarmDeadline(result)).toBe(NOW + 900)
     expect(applyLedgerEvent(result, finalizeEvent(value.control))).toBe(result)
 
@@ -1510,6 +1607,9 @@ describe('recovery authorization issue state machine', () => {
 
   it('rejects extra event keys, non-exact embedded control, and unknown event types', () => {
     const value = issuing()
+    expect(() => applyLedgerEvent(value.record, reverseKeyOrder(
+      finalizeEvent(value.control) as unknown as Readonly<Record<string, unknown>>,
+    ) as LedgerEvent)).toThrowError('RECOVERY_LEDGER_EVENT_INVALID')
     expect(() => applyLedgerEvent(value.record, {
       ...finalizeEvent(value.control),
       unexpected: true,
@@ -1517,6 +1617,16 @@ describe('recovery authorization issue state machine', () => {
     expect(() => applyLedgerEvent(value.record, {
       ...finalizeEvent({ ...value.control, unexpected: true } as never),
     } as never)).toThrowError('RECOVERY_LEDGER_CONTROL_INVALID')
+    expect(() => applyLedgerEvent(value.record, finalizeEvent(value.control, {
+      locators: reverseKeyOrder(locators()),
+    }))).toThrowError('RECOVERY_LEDGER_ISSUE_MISMATCH')
+    expect(() => applyLedgerEvent(value.record, finalizeEvent(value.control, {
+      identity: reverseKeyOrder(identity()),
+    }))).toThrowError('RECOVERY_LEDGER_ISSUE_MISMATCH')
+    expect(() => applyLedgerEvent(value.record, reverseKeyOrder({
+      type: 'alarm',
+      now: NOW + 120,
+    }) as LedgerEvent)).toThrowError('RECOVERY_LEDGER_EVENT_INVALID')
     expect(() => applyLedgerEvent(value.record, {
       type: 'future-event',
       now: NOW + 1,
@@ -1586,7 +1696,7 @@ describe('claim, completion, and reconciliation', () => {
       .toThrowError('RECOVERY_LEDGER_CONTROL_DISABLED')
 
     const consumed = applyLedgerEvent(value.record, claimEvent(value.control))
-    const complete = applyLedgerEvent(consumed, { type: 'complete', now: NOW + 3, proof: completedProof(consumed) })
+    const complete = applyLedgerEvent(consumed, { type: 'complete', proof: completedProof(consumed), now: NOW + 3 })
     expect(complete).toMatchObject({ state: 'completed', outcome: 'completed', completedAt: NOW + 3 })
     expect(() => applyLedgerEvent(complete, reserveEvent(value.control)))
       .toThrowError('RECOVERY_LEDGER_REISSUE_DENIED')
@@ -1596,16 +1706,21 @@ describe('claim, completion, and reconciliation', () => {
 
   it('requires all three post-deploy facts and completion before the fixed claim deadline', () => {
     const value = claimed()
+    expect(() => applyLedgerEvent(value.record, {
+      type: 'complete',
+      proof: reverseKeyOrder(completedProof(value.record)),
+      now: NOW + 3,
+    } as LedgerEvent)).toThrowError('RECOVERY_LEDGER_COMPLETION_NOT_PROVEN')
     for (const proof of [
       completedProof(value.record, { deployStepConclusion: 'failure' }),
       completedProof(value.record, { matchingPagesDeployment: false }),
       completedProof(value.record, { deploymentAttestationMatches: false }),
     ]) {
-      expect(() => applyLedgerEvent(value.record, { type: 'complete', now: NOW + 3, proof } as LedgerEvent))
+      expect(() => applyLedgerEvent(value.record, { type: 'complete', proof, now: NOW + 3 } as LedgerEvent))
         .toThrowError('RECOVERY_LEDGER_COMPLETION_NOT_PROVEN')
     }
     expect(() => applyLedgerEvent(value.record, {
-      type: 'complete', now: NOW + 1_202, proof: completedProof(value.record),
+      type: 'complete', proof: completedProof(value.record), now: NOW + 1_202,
     })).toThrowError('RECOVERY_LEDGER_CLAIM_DEADLINE_REACHED')
   })
 
@@ -1613,16 +1728,16 @@ describe('claim, completion, and reconciliation', () => {
     const value = claimed()
     expect(() => applyLedgerEvent(value.record, {
       type: 'complete',
-      now: NOW + 3,
       proof: completedProof(value.record, { rowBindingDigest: '8'.repeat(64) }),
+      now: NOW + 3,
     } as LedgerEvent)).toThrowError('RECOVERY_LEDGER_ROW_BINDING_MISMATCH')
 
     const deadline = NOW + 1_202
     const reconciling = applyLedgerEvent(value.record, { type: 'alarm', now: deadline })
     expect(() => applyLedgerEvent(reconciling, {
       type: 'reconcile',
-      now: deadline,
       proof: notDeployedProof(reconciling, { rowBindingDigest: '8'.repeat(64) }),
+      now: deadline,
     } as LedgerEvent)).toThrowError('RECOVERY_LEDGER_ROW_BINDING_MISMATCH')
   })
 
@@ -1637,7 +1752,7 @@ describe('claim, completion, and reconciliation', () => {
     const scheduled: number[] = []
     for (const delay of RECOVERY_RECONCILIATION_RETRY_DELAYS_SECONDS) {
       const now = ledgerAlarmDeadline(record) as number
-      record = applyLedgerEvent(record, { type: 'reconcile', now, proof: { outcome: 'ambiguous' } })
+      record = applyLedgerEvent(record, { type: 'reconcile', proof: { outcome: 'ambiguous' }, now })
       scheduled.push((ledgerAlarmDeadline(record) as number) - now)
       expect(() => applyLedgerEvent(record, reserveEvent(value.control)))
         .toThrowError('RECOVERY_LEDGER_REISSUE_DENIED')
@@ -1647,10 +1762,10 @@ describe('claim, completion, and reconciliation', () => {
     expect(scheduled).toEqual([...RECOVERY_RECONCILIATION_RETRY_DELAYS_SECONDS])
 
     const finalRetryAt = ledgerAlarmDeadline(record) as number
-    record = applyLedgerEvent(record, { type: 'reconcile', now: finalRetryAt, proof: { outcome: 'ambiguous' } })
+    record = applyLedgerEvent(record, { type: 'reconcile', proof: { outcome: 'ambiguous' }, now: finalRetryAt })
     expect(record).toMatchObject({ state: 'reconciliation-required', nextReconcileAt: null, reconciliationAttempts: 5 })
     expect(ledgerAlarmDeadline(record)).toBeNull()
-    expect(() => applyLedgerEvent(record, { type: 'reconcile', now: finalRetryAt + 1, proof: { outcome: 'ambiguous' } }))
+    expect(() => applyLedgerEvent(record, { type: 'reconcile', proof: { outcome: 'ambiguous' }, now: finalRetryAt + 1 }))
       .toThrowError('RECOVERY_LEDGER_RECONCILIATION_EXHAUSTED')
   })
 
@@ -1658,8 +1773,8 @@ describe('claim, completion, and reconciliation', () => {
     const value = claimed()
     const deadline = NOW + 1_202
     const reconciling = applyLedgerEvent(value.record, { type: 'alarm', now: deadline })
-    const ambiguous = applyLedgerEvent(reconciling, { type: 'reconcile', now: deadline, proof: { outcome: 'ambiguous' } })
-    expect(() => applyLedgerEvent(ambiguous, { type: 'reconcile', now: deadline + 59, proof: { outcome: 'ambiguous' } }))
+    const ambiguous = applyLedgerEvent(reconciling, { type: 'reconcile', proof: { outcome: 'ambiguous' }, now: deadline })
+    expect(() => applyLedgerEvent(ambiguous, { type: 'reconcile', proof: { outcome: 'ambiguous' }, now: deadline + 59 }))
       .toThrowError('RECOVERY_LEDGER_RECONCILIATION_NOT_DUE')
   })
 
@@ -1667,7 +1782,7 @@ describe('claim, completion, and reconciliation', () => {
     const value = claimed()
     const deadline = NOW + 1_202
     const reconciling = applyLedgerEvent(value.record, { type: 'alarm', now: deadline })
-    const completed = applyLedgerEvent(reconciling, { type: 'reconcile', now: deadline, proof: completedProof(reconciling) })
+    const completed = applyLedgerEvent(reconciling, { type: 'reconcile', proof: completedProof(reconciling), now: deadline })
     expect(completed).toMatchObject({ state: 'completed', outcome: 'completed', completedAt: deadline })
   })
 
@@ -1681,10 +1796,10 @@ describe('claim, completion, and reconciliation', () => {
       notDeployedProof(reconciling, { matchingPagesDeploymentAbsent: false }),
       { outcome: 'not-deployed', elapsedOnly: true, liveMarkerMissing: true },
     ]) {
-      expect(() => applyLedgerEvent(reconciling, { type: 'reconcile', now: deadline, proof } as LedgerEvent))
+      expect(() => applyLedgerEvent(reconciling, { type: 'reconcile', proof, now: deadline } as LedgerEvent))
         .toThrowError('RECOVERY_LEDGER_NOT_DEPLOYED_NOT_PROVEN')
     }
-    const terminal = applyLedgerEvent(reconciling, { type: 'reconcile', now: deadline, proof: notDeployedProof(reconciling) })
+    const terminal = applyLedgerEvent(reconciling, { type: 'reconcile', proof: notDeployedProof(reconciling), now: deadline })
     expect(terminal).toMatchObject({ state: 'not-deployed', outcome: 'not-deployed', completedAt: deadline })
     expect(() => applyLedgerEvent(terminal, reserveEvent(value.control)))
       .toThrowError('RECOVERY_LEDGER_REISSUE_DENIED')
@@ -1694,7 +1809,7 @@ describe('claim, completion, and reconciliation', () => {
 
   it('leaves terminal alarms as no-ops', () => {
     const value = claimed()
-    const completed = applyLedgerEvent(value.record, { type: 'complete', now: NOW + 3, proof: completedProof(value.record) })
+    const completed = applyLedgerEvent(value.record, { type: 'complete', proof: completedProof(value.record), now: NOW + 3 })
     expect(applyLedgerEvent(completed, { type: 'alarm', now: NOW + 99_999 })).toBe(completed)
   })
 
@@ -1702,36 +1817,36 @@ describe('claim, completion, and reconciliation', () => {
     const value = claimed()
     const completed = applyLedgerEvent(value.record, {
       type: 'complete',
-      now: NOW + 3,
       proof: completedProof(value.record),
+      now: NOW + 3,
     })
     expect(() => applyLedgerEvent(completed, {
       type: 'complete',
-      now: NOW + 4,
       proof: { ...completedProof(completed), unexpected: true },
+      now: NOW + 4,
     } as never)).toThrowError('RECOVERY_LEDGER_COMPLETION_NOT_PROVEN')
     expect(() => applyLedgerEvent(completed, {
       type: 'complete',
-      now: NOW + 2,
       proof: completedProof(completed),
+      now: NOW + 2,
     })).toThrowError('RECOVERY_LEDGER_TIME_BACKWARDS')
 
     const deadline = ledgerAlarmDeadline(value.record) as number
     const reconciling = applyLedgerEvent(value.record, { type: 'alarm', now: deadline })
     const notDeployed = applyLedgerEvent(reconciling, {
       type: 'reconcile',
-      now: deadline,
       proof: notDeployedProof(reconciling),
+      now: deadline,
     })
     expect(() => applyLedgerEvent(notDeployed, {
       type: 'reconcile',
-      now: deadline + 1,
       proof: { outcome: 'ambiguous', unexpected: true },
+      now: deadline + 1,
     } as never)).toThrowError('RECOVERY_LEDGER_RECONCILIATION_PROOF_INVALID')
     expect(() => applyLedgerEvent(notDeployed, {
       type: 'reconcile',
-      now: deadline - 1,
       proof: notDeployedProof(notDeployed),
+      now: deadline - 1,
     })).toThrowError('RECOVERY_LEDGER_TIME_BACKWARDS')
   })
 })
