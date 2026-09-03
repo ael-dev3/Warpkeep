@@ -1,0 +1,3 @@
+import { describe, expect, it } from 'vitest'
+import { loadGitHubCandidateEvidence } from '../src/githubEvidence.js'
+describe('GitHub candidate evidence',()=>{it('rejects noncanonical caller artifact IDs before a fake GitHub request',async()=>{const f=(async()=>{throw Error('must not fetch')}) as typeof fetch;await expect(loadGitHubCandidateEvidence({identity:{} as never,candidateCommit:'a'.repeat(40),artifactId:'01',sourceVerifyRunId:'5',sourceVerifyRunAttempt:'1',bindingRequestId:'123e4567-e89b-42d3-a456-426614174000',armed:{} as never,environment:{GITHUB_APP_ID:'1',GITHUB_APP_INSTALLATION_ID:'2',GITHUB_APP_PRIVATE_KEY_PEM:'x'},fetch:f})).rejects.toThrowError('RECOVERY_GITHUB_EVIDENCE_INVALID')})})
