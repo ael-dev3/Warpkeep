@@ -30,6 +30,11 @@ import {
   sha256Hex,
   type JsonValue,
 } from './protocol.js'
+import {
+  githubEvidenceMetadataSha256,
+  snapshotGitHubEvidenceMetadata,
+  type GitHubEvidenceMetadata,
+} from './githubEvidenceMetadata.js'
 import { RECOVERY_KEY_ID, RECOVERY_KEY_THUMBPRINT } from './recoveryPublicKey.js'
 import { parseDocument } from 'yaml'
 
@@ -39,6 +44,12 @@ export {
   type RecoveryArmingTuple,
   type RecoveryRealmBindingProjection,
 } from './config.js'
+export {
+  GITHUB_EVIDENCE_METADATA_KEYS,
+  githubEvidenceMetadataSha256,
+  snapshotGitHubEvidenceMetadata,
+  type GitHubEvidenceMetadata,
+} from './githubEvidenceMetadata.js'
 
 const API = `https://api.github.com/repos/${GITHUB_REPOSITORY}`
 const REPOSITORY_ID = '1273513252'
@@ -188,37 +199,6 @@ const RECEIPT_SNAPSHOT_KEYS = BINDING_KEYS.filter(key => !COMMITMENT_KEYS.has(ke
 // Shared with the literal service fixture; release Task 1 owns the matching root copy.
 export const RECOVERY_BINDING_KEYS_V2: readonly string[] = Object.freeze([...BINDING_KEYS])
 export const RECOVERY_RECEIPT_COMMITMENT_DIGESTS: Readonly<Record<string, string>> = RECEIPT_COMMITMENTS
-
-const METADATA_KEYS = [
-  'repository', 'repositoryId', 'repositoryOwnerId', 'candidateCommit',
-  'candidateTree', 'parentCommit', 'preparationTree', 'artifactId', 'artifactName',
-  'pagesRunId', 'pagesRunAttempt', 'artifactSize', 'artifactDigest',
-  'artifactUrl', 'artifactArchiveUrl', 'artifactNodeId', 'artifactCreatedAt',
-  'artifactExpiresAt', 'artifactEtag', 'githubArtifactArchiveSha256',
-] as const
-
-export type GitHubEvidenceMetadata = Readonly<{
-  repository: string
-  repositoryId: string
-  repositoryOwnerId: string
-  candidateCommit: string
-  candidateTree: string
-  parentCommit: string
-  preparationTree: string
-  artifactId: string
-  artifactName: string
-  pagesRunId: string
-  pagesRunAttempt: string
-  artifactSize: number
-  artifactDigest: string
-  artifactUrl: string
-  artifactArchiveUrl: string
-  artifactNodeId: string
-  artifactCreatedAt: string
-  artifactExpiresAt: string
-  artifactEtag: string
-  githubArtifactArchiveSha256: string
-}>
 
 export type GitHubCandidateEvidence = Readonly<{
   currentMainCommit: string
@@ -1082,39 +1062,6 @@ function snapshotArmed(value: unknown): RecoveryArmingTuple {
   return snapshotRecoveryArmingTuple(value, 'RECOVERY_GITHUB_EVIDENCE_INVALID')
 }
 
-async function metadataDigest(metadata: GitHubEvidenceMetadata): Promise<string> {
-  return sha256Hex('warpkeep.0.4.0.recovery-github-evidence-metadata.v1\n', serializeExactObject(METADATA_KEYS, metadata))
-}
-
-function asMetadata(value: unknown): GitHubEvidenceMetadata {
-  const metadata = snapshotExactDataObject(value, METADATA_KEYS, 'RECOVERY_GITHUB_EVIDENCE_INVALID')
-  if (
-    metadata.repository !== GITHUB_REPOSITORY
-    || metadata.repositoryId !== REPOSITORY_ID
-    || metadata.repositoryOwnerId !== REPOSITORY_OWNER_ID
-    || !commit(metadata.candidateCommit)
-    || !commit(metadata.candidateTree)
-    || !commit(metadata.parentCommit)
-    || !commit(metadata.preparationTree)
-    || !positive(metadata.artifactId)
-    || typeof metadata.artifactName !== 'string'
-    || !positive(metadata.pagesRunId)
-    || !positive(metadata.pagesRunAttempt)
-    || typeof metadata.artifactSize !== 'number'
-    || !Number.isSafeInteger(metadata.artifactSize)
-    || metadata.artifactSize < 1
-    || typeof metadata.artifactDigest !== 'string'
-    || typeof metadata.artifactUrl !== 'string'
-    || typeof metadata.artifactArchiveUrl !== 'string'
-    || typeof metadata.artifactNodeId !== 'string'
-    || typeof metadata.artifactCreatedAt !== 'string'
-    || typeof metadata.artifactExpiresAt !== 'string'
-    || typeof metadata.artifactEtag !== 'string'
-    || !sha(metadata.githubArtifactArchiveSha256)
-  ) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
-  return Object.freeze({ ...metadata }) as GitHubEvidenceMetadata
-}
-
 export async function loadGitHubCandidateEvidence(input: Readonly<{
   identity: GitHubWorkflowIdentity
   candidateCommit: string
@@ -1258,7 +1205,7 @@ export async function loadGitHubCandidateEvidence(input: Readonly<{
       contentManifestSha256: archive.contentManifestSha256,
       deploymentAttestationSha256: archive.deploymentAttestationSha256,
       githubMetadata,
-      githubMetadataSha256: await metadataDigest(githubMetadata),
+      githubMetadataSha256: await githubEvidenceMetadataSha256(githubMetadata),
     })
   } catch (error) {
     if (error instanceof RecoveryGitHubError) throw error
@@ -1279,8 +1226,8 @@ export async function recheckGitHubEvidenceMetadata(input: Readonly<{
       'RECOVERY_GITHUB_EVIDENCE_INVALID',
     )
     if (!sha(snapshot.githubMetadataSha256) || typeof snapshot.fetch !== 'function') githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
-    const metadata = asMetadata(snapshot.githubMetadata)
-    if (await metadataDigest(metadata) !== snapshot.githubMetadataSha256) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const metadata = snapshotGitHubEvidenceMetadata(snapshot.githubMetadata)
+    if (await githubEvidenceMetadataSha256(metadata) !== snapshot.githubMetadataSha256) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     if (
       metadata.artifactDigest !== `sha256:${metadata.githubArtifactArchiveSha256}`
       || metadata.artifactName !== `github-pages-recovery-${metadata.pagesRunId}-${metadata.pagesRunAttempt}`
