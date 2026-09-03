@@ -4,17 +4,22 @@
   "version": "0.1.0",
   "license": "Apache-2.0",
   "type": "module",
-  "packageManager": "npm@10.9.8",
+  "packageManager": "pnpm@11.7.0",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check": "tsc --noEmit && vitest run"
   },
   "dependencies": {
     "fflate": "0.8.3",
     "yaml": "2.9.0"
   },
+  "devDependencies": {
+    "@types/node": "26.1.1",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
+  },
   "engines": {
-    "node": ">=22.13 <23",
-    "npm": ">=10.9.8 <11"
+    "node": ">=22.13 <23"
   }
 }
