@@ -13,6 +13,46 @@ No GitHub, Cloudflare, SpacetimeDB, deployment, workflow-dispatch, provisioning,
 push, or other remote operation was performed. All network behavior was exercised
 through deterministic local fakes with generated test-only keys.
 
+## Review fix round 5
+
+Round 5 started from `c4916aa` and fixed a required-Node-22 compatibility blocker
+in the canonical GitHub blob decoder. No GitHub identity, package-transform,
+schema-2, archive, attestation, digest, or metadata-only-recheck contract changed.
+
+- RED command: bundled Node 22 ran `npm --prefix services/release-recovery test
+  -- --run test/githubEvidence.test.ts`.
+- RED result: 140 tests, 2 intended failures and 138 passes. Valid canonical
+  package-lock blobs at the captured repository size of 171,699 bytes and the
+  exact 1 MiB decoded boundary were both rejected. The former reached the
+  monolithic canonical base64 re-encode and reproduced Node 22's function-
+  argument stack limit; the latter additionally exposed the generic 256 KiB
+  GitHub JSON-envelope cap.
+- After the bounded encoder change, focused evidence was 139 passed / 1 failed:
+  the real-size case was fixed and the exact 1 MiB case failed specifically in
+  the HTTP body bound. The endpoint-specific envelope cap then produced evidence
+  GREEN at 140/140.
+- Final focused HTTP/OIDC/evidence/archive tests are 413/413; the full service
+  suite is 464/464 across 6 files.
+
+Round-5 decisions are pinned as follows:
+
+- Canonical base64 re-encoding uses browser/Worker `btoa` in bounded 24 KiB
+  decoded chunks. The chunk size is safely below function-argument limits and
+  is a multiple of three, so intermediate chunks cannot add padding and the
+  concatenated result exactly matches standard base64 with padding only on the
+  final chunk. No `Buffer` or Node-only API is used.
+- The GitHub blob endpoint alone receives a 2 MiB JSON-envelope bound, sufficient
+  for canonical 60-column LF wrapping and JSON escaping of an exact 1 MiB decoded
+  blob. The decoded limit remains exactly 1 MiB; 1 MiB plus one byte fails with
+  the stable evidence error. The generic GitHub JSON limit remains unchanged.
+- The local GitHub wire fixture encoder uses the same bounded, three-byte-aligned
+  chunking discipline. Full public-loader tests cover decoded sizes at 24 KiB,
+  24 KiB plus one/two bytes, 171,699 bytes, exactly 1 MiB, and 1 MiB plus one;
+  they construct no whole-buffer argument spread.
+
+Round 5 modified only `src/githubEvidence.ts`, its direct evidence test, and this
+report. No dependency, package manifest, or lock file changed.
+
 ## Review fix round 4
 
 Round 4 started from `2e3d5d4` and closed the reviewed package-content and
@@ -363,9 +403,9 @@ service's npm scripts and the repository's existing installed toolchain.
 ## Final verification
 
 - Node `v22.23.2`: `npm --prefix services/release-recovery run typecheck` — exit 0.
-- Full service tests — 6 files, 458 tests passed.
-- Focused archive/evidence/OIDC/HTTP tests — 4 files, 407 tests passed.
-- `git diff --check 2e3d5d4` — no output, exit 0.
+- Full service tests — 6 files, 464 tests passed.
+- Focused archive/evidence/OIDC/HTTP tests — 4 files, 413 tests passed.
+- `git diff --check c4916aa` — no output, exit 0.
 - Targeted coercion/full-body/mock/error-leak greps — no production GitHub ID
   `Number` coercion, no archive-response `arrayBuffer()`/`text()` use, no temporary archive
   inspector mock/seam, and no upstream token/body/error interpolation.

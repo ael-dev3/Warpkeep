@@ -49,6 +49,8 @@ const G001_DATABASE = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af
 const MAX_TREE_ENTRIES = 20_000
 const MAX_TREE_JSON_BYTES = 7 * 1024 * 1024
 const MAX_BLOB_BYTES = 1024 * 1024
+const MAX_BLOB_JSON_BYTES = 2 * 1024 * 1024
+const BASE64_ROUNDTRIP_CHUNK_BYTES = 24 * 1024
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
 const text = new TextEncoder()
 const utf8 = new TextDecoder('utf-8', { fatal: true })
@@ -522,6 +524,15 @@ function validateActivationDelta(
   ) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
 }
 
+function encodeCanonicalBase64(bytes: Uint8Array): string {
+  let result = ''
+  for (let offset = 0; offset < bytes.length; offset += BASE64_ROUNDTRIP_CHUNK_BYTES) {
+    const chunk = bytes.subarray(offset, offset + BASE64_ROUNDTRIP_CHUNK_BYTES)
+    result += btoa(String.fromCharCode(...chunk))
+  }
+  return result
+}
+
 function decodeCanonicalBase64(value: unknown): Uint8Array {
   const maximumEncodedLength = Math.ceil(MAX_BLOB_BYTES / 3) * 4
   const maximumWireLength = maximumEncodedLength + Math.ceil(maximumEncodedLength / 60)
@@ -542,7 +553,7 @@ function decodeCanonicalBase64(value: unknown): Uint8Array {
   }
   try {
     const result = Uint8Array.from(atob(encoded), character => character.charCodeAt(0))
-    if (btoa(String.fromCharCode(...result)) !== encoded || result.length > MAX_BLOB_BYTES) {
+    if (encodeCanonicalBase64(result) !== encoded || result.length > MAX_BLOB_BYTES) {
       githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     }
     return result
@@ -567,8 +578,12 @@ async function loadStableBlob(
   blobSha: string,
 ): Promise<Uint8Array> {
   const url = `${API}/git/blobs/${blobSha}`
-  const first = await jsonWithMetadata(fetchImplementation, url, init, 'RECOVERY_GITHUB_EVIDENCE_INVALID')
-  const second = await jsonWithMetadata(fetchImplementation, url, init, 'RECOVERY_GITHUB_EVIDENCE_INVALID')
+  const first = await jsonWithMetadata(
+    fetchImplementation, url, init, 'RECOVERY_GITHUB_EVIDENCE_INVALID', 200, [], MAX_BLOB_JSON_BYTES,
+  )
+  const second = await jsonWithMetadata(
+    fetchImplementation, url, init, 'RECOVERY_GITHUB_EVIDENCE_INVALID', 200, [], MAX_BLOB_JSON_BYTES,
+  )
   if (
     first.etag === null
     || first.etag.length < 1

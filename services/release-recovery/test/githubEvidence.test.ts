@@ -31,6 +31,7 @@ const G002 = '7'.repeat(64)
 const PTR = '8'.repeat(64)
 const CLOSURE = '6'.repeat(64)
 const encoder = new TextEncoder()
+const BASE64_CHUNK_BYTES = 24 * 1024
 const CAPTURED_GITHUB_PACKAGE_BLOB_CONTENT = `ewogICJuYW1lIjogIndhcnBrZWVwIiwKICAicHJpdmF0ZSI6IHRydWUsCiAg
 InZlcnNpb24iOiAiMC40LjAiLAogICJzY3JpcHRzIjogewogICAgImJ1aWxk
 IjogInZpdGUgYnVpbGQiLAogICAgInRlc3QiOiAidml0ZXN0IC0tcnVuIgog
@@ -102,7 +103,11 @@ async function blobSha(bytes: Uint8Array): Promise<string> {
 }
 
 function base64(bytes: Uint8Array): string {
-  return btoa(String.fromCharCode(...bytes))
+  let result = ''
+  for (let offset = 0; offset < bytes.length; offset += BASE64_CHUNK_BYTES) {
+    result += btoa(String.fromCharCode(...bytes.subarray(offset, offset + BASE64_CHUNK_BYTES)))
+  }
+  return result
 }
 
 function githubBlobBase64(bytes: Uint8Array): string {
@@ -111,6 +116,33 @@ function githubBlobBase64(bytes: Uint8Array): string {
 
 function canonicalJson(value: unknown): Uint8Array {
   return encoder.encode(`${JSON.stringify(value, null, 2)}\n`)
+}
+
+function packageLockPair(preparationByteLength: number): Readonly<{
+  candidate: Uint8Array
+  preparation: Uint8Array
+}> {
+  const value = (version: string, padding: string) => ({
+    name: 'warpkeep', version, lockfileVersion: 3, requires: true,
+    packages: {
+      '': { name: 'warpkeep', version, dependencies: { vite: '8.0.16' } },
+      'node_modules/vite': {
+        version: '8.0.16', resolved: 'https://registry.npmjs.org/vite/-/vite-8.0.16.tgz',
+        integrity: 'sha512-sanitized-fixture',
+      },
+    },
+    fixturePadding: padding,
+  })
+  const emptyPreparation = canonicalJson(value('0.3.43', ''))
+  const paddingLength = preparationByteLength - emptyPreparation.length
+  if (paddingLength < 0) throw new Error('invalid package-lock fixture size')
+  const padding = 'x'.repeat(paddingLength)
+  const preparation = canonicalJson(value('0.3.43', padding))
+  const candidate = canonicalJson(value('0.4.0', padding))
+  if (preparation.length !== preparationByteLength || candidate.length !== preparationByteLength - 2) {
+    throw new Error('package-lock fixture size mismatch')
+  }
+  return Object.freeze({ candidate, preparation })
 }
 
 function octal(value: number, length: number): Uint8Array {
@@ -598,6 +630,15 @@ async function mutatePackageLock(
   await replacePackageBlob(fixture, 'package-lock.json', side, canonicalJson(value))
 }
 
+async function installPackageLockSize(
+  fixture: Awaited<ReturnType<typeof makeFixture>>,
+  preparationByteLength: number,
+): Promise<void> {
+  const pair = packageLockPair(preparationByteLength)
+  await replacePackageBlob(fixture, 'package-lock.json', 'preparation', pair.preparation)
+  await replacePackageBlob(fixture, 'package-lock.json', 'candidate', pair.candidate)
+}
+
 async function rejects(mutator: (fixture: Awaited<ReturnType<typeof makeFixture>>) => void | Promise<void>): Promise<void> {
   const fixture = await makeFixture()
   await mutator(fixture)
@@ -750,6 +791,32 @@ describe('GitHub candidate evidence', () => {
       delete value.packages
     })],
   ])('rejects package-lock.json activation with changed %s', async (_name, mutate) => rejects(mutate))
+
+  it.each([
+    ['24 KiB chunk edge with no padding', BASE64_CHUNK_BYTES],
+    ['24 KiB chunk edge with two padding bytes', BASE64_CHUNK_BYTES + 1],
+    ['24 KiB chunk edge with one padding byte', BASE64_CHUNK_BYTES + 2],
+  ] as const)('loads a canonical package lock at the %s', async (_name, preparationByteLength) => {
+    const fixture = await makeFixture()
+    await installPackageLockSize(fixture, preparationByteLength)
+    await expect(loadGitHubCandidateEvidence(fixture.input)).resolves.toBeDefined()
+  })
+
+  it.each([
+    ['captured real package-lock size', 171_699],
+    ['exact decoded blob limit', 1024 * 1024],
+  ] as const)('loads a canonical version-only package lock at the %s', async (_name, preparationByteLength) => {
+    const fixture = await makeFixture()
+    await installPackageLockSize(fixture, preparationByteLength)
+    await expect(loadGitHubCandidateEvidence(fixture.input)).resolves.toBeDefined()
+  })
+
+  it('rejects a package lock one byte beyond the decoded blob limit with a stable error', async () => {
+    const fixture = await makeFixture()
+    await installPackageLockSize(fixture, 1024 * 1024 + 1)
+    await expect(loadGitHubCandidateEvidence(fixture.input))
+      .rejects.toThrowError('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  })
 
   it.each(['package.json', 'package-lock.json'] as const)('rejects noncanonical and duplicate %s JSON', async path => {
     await rejects(async fixture => {
