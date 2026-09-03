@@ -33,6 +33,10 @@ export interface DurableObjectNamespace {
   get(id: DurableObjectId): DurableObjectStub
 }
 
+export interface WorkerVersionMetadata {
+  readonly id: string
+}
+
 export interface WorkerEnv {
   /** Exact public HTTPS issuer. Required; no production URL is assumed. */
   ISSUER?: string
@@ -70,6 +74,18 @@ export interface WorkerEnv {
   SPACETIMEDB_URI?: string
   /** Non-secret database name used only by the Worker auth-epoch lookup. */
   SPACETIMEDB_DATABASE?: string
+  /** Exact immutable SpacetimeDB identity for sealed Genesis 002 recovery observation. */
+  GENESIS_002_SPACETIMEDB_DATABASE?: string
+  /** Independent 32-byte bridge-to-signer recovery RPC credential. */
+  RELEASE_RECOVERY_RPC_SECRET?: string
+  /** Independent 32-byte key for privacy-preserving recovery census commitments. */
+  RELEASE_RECOVERY_CENSUS_PEPPER?: string
+  /** Protected-deployer injected source commit for the recovery observer deployment. */
+  RELEASE_RECOVERY_BRIDGE_SOURCE_COMMIT?: string
+  /** Positive reviewed epoch for the exact recovery observer configuration. */
+  RELEASE_RECOVERY_BRIDGE_CONFIG_EPOCH?: string
+  /** Cloudflare runtime Version Metadata; its id is the actual deployed Worker version. */
+  CF_VERSION_METADATA?: WorkerVersionMetadata
   /** Candidate dedicated QA origin; production-pinned and independently reviewed before activation. */
   QA_OBSERVER_SPACETIMEDB_URI?: string
   /** Candidate dedicated QA database; distinct from gameplay and reviewed as identity-free before use. */

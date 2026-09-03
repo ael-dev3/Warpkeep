@@ -1,4 +1,11 @@
+import { WorkerEntrypoint } from 'cloudflare:workers'
 import { createAuthBridge } from './app'
+import {
+  observeReleaseRecoveryState,
+  type ReleaseRecoveryObservationRequest,
+  type ReleaseRecoveryRealmObservation,
+} from './releaseRecoveryObservation'
+import type { WorkerEnv } from './types'
 
 export {
   RELEASE_ATTESTATION_PATH,
@@ -35,5 +42,13 @@ export {
   MiniAppWebhookVerifierUnavailableError,
 } from './miniAppWebhook'
 export type * from './types'
+
+export class ReleaseRecoveryObservationEntrypoint extends WorkerEntrypoint<WorkerEnv> {
+  async observeReleaseRecoveryState(
+    request: ReleaseRecoveryObservationRequest,
+  ): Promise<ReleaseRecoveryRealmObservation> {
+    return observeReleaseRecoveryState(this.env, request)
+  }
+}
 
 export default createAuthBridge()
