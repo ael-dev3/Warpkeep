@@ -1,3 +1,5 @@
+import { RECOVERY_KEY_ID, RECOVERY_KEY_THUMBPRINT } from './recoveryPublicKey.js'
+
 export const GITHUB_OIDC_ISSUER='https://token.actions.githubusercontent.com' as const
 export const GITHUB_OIDC_DISCOVERY_URL='https://token.actions.githubusercontent.com/.well-known/openid-configuration' as const
 export const GITHUB_OIDC_JWKS_URL='https://token.actions.githubusercontent.com/.well-known/jwks' as const
@@ -116,4 +118,112 @@ export type RecoveryArmingTuple = RecoveryRealmBindingProjection & Readonly<{
   bindingPath: 'config/releases/0.4.0-sealed-launch.json'
   workflowPath: '.github/workflows/deploy-pages.yml'
 }>
+
+export const RECOVERY_BINDING_PATH = 'config/releases/0.4.0-sealed-launch.json' as const
+export const RECOVERY_WORKFLOW_PATH = '.github/workflows/deploy-pages.yml' as const
+export const RECOVERY_GENESIS_001_DATABASE =
+  'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e' as const
+
+const RECOVERY_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
+const RECOVERY_PUBLIC_RELEASE_ID = /^GRR-[A-Z2-7]{26}$/u
+const RECOVERY_PUBLIC_APPROVAL_RECEIPT_ID = /^GRA-[A-Z2-7]{26}$/u
+
+/**
+ * Snapshot the complete source-protected realm projection without invoking
+ * accessors. This is shared by GitHub evidence loading and the live realm gate
+ * so the two boundaries cannot silently disagree about accepted arming data.
+ */
+export function snapshotRecoveryRealmBindingProjection(
+  value: unknown,
+  code = 'RECOVERY_REALM_BINDING_INVALID',
+): RecoveryRealmBindingProjection {
+  const source = snapshotExactDataObject(value, RECOVERY_REALM_BINDING_PROJECTION_KEYS, code)
+  const digestKeys = [
+    'bridgeConfigIdentity', 'sourceClosureSha256',
+    'recoveryAuthorizationCoreSha256', 'genesis001Database',
+    'genesis002Database', 'ptrDatabase', 'g001ExpectedProgramKeccak256',
+    'g002ExpectedProgramKeccak256', 'ptrExpectedProgramKeccak256',
+    'g002ReleaseSha256', 'g002ReleaseHeaderSha256',
+    'g002VerificationDigest', 'ptrExpectedReleaseSha256',
+    'ptrReleaseHeaderSha256', 'ptrVerificationDigest',
+  ] as const
+  if (
+    typeof source.requestId !== 'string'
+    || !RECOVERY_UUID.test(source.requestId)
+    || source.authorizationMode !== 'recovery-authorization-v1'
+    || source.recoveryAuthorizationProfile !== 'warpkeep-0.4.0-recovery-authorization-v1'
+    || source.recoveryKeyId !== RECOVERY_KEY_ID
+    || source.recoveryKeyThumbprint !== RECOVERY_KEY_THUMBPRINT
+    || !Number.isSafeInteger(source.authorizationEpoch)
+    || (source.authorizationEpoch as number) < 1
+    || source.repository !== GITHUB_REPOSITORY
+    || source.repositoryId !== '1273513252'
+    || source.repositoryOwnerId !== '183124839'
+    || source.ref !== 'refs/heads/main'
+    || source.workflowRef !== `${GITHUB_REPOSITORY}/${RECOVERY_WORKFLOW_PATH}@refs/heads/main`
+    || source.environment !== 'github-pages'
+    || source.releaseVersion !== '0.4.0'
+    || source.operation !== 'github-pages-production-deploy'
+    || source.canonicalOrigin !== 'https://warpkeep.com'
+    || source.issuer !== 'https://release-auth.warpkeep.com'
+    || source.authWorker !== 'warpkeep-auth-bridge'
+    || source.bridgeWorkerVersion !== 'warpkeep-auth-bridge-release-recovery-v1'
+    || typeof source.bridgeWorkerVersionId !== 'string'
+    || !RECOVERY_UUID.test(source.bridgeWorkerVersionId)
+    || !commit(source.bridgeSourceCommit)
+    || !Number.isSafeInteger(source.bridgeConfigEpoch)
+    || (source.bridgeConfigEpoch as number) < 1
+    || !commit(source.preparationCommit)
+    || !commit(source.preparationTree)
+    || source.sourceClosureProfile !== 'warpkeep-0.4.0-recovery-source-closure-v1'
+    || source.pagesDeploymentApproved !== true
+    || digestKeys.some(key => !sha(source[key]))
+    || source.genesis001Database !== RECOVERY_GENESIS_001_DATABASE
+    || source.genesis002Database === source.genesis001Database
+    || source.ptrDatabase === source.genesis001Database
+    || source.ptrDatabase === source.genesis002Database
+    || source.g002AtlasId !== 'GENESIS_002_GREATER_REALM'
+    || typeof source.g002PublicReleaseId !== 'string'
+    || !RECOVERY_PUBLIC_RELEASE_ID.test(source.g002PublicReleaseId)
+    || typeof source.g002PublicApprovalReceiptId !== 'string'
+    || !RECOVERY_PUBLIC_APPROVAL_RECEIPT_ID.test(source.g002PublicApprovalReceiptId)
+    || !commit(source.g002AtlasSourceCommit)
+    || source.ptrAtlasId !== 'PTR_GREATER_REALM'
+    || typeof source.ptrPublicReleaseId !== 'string'
+    || !RECOVERY_PUBLIC_RELEASE_ID.test(source.ptrPublicReleaseId)
+    || typeof source.ptrPublicApprovalReceiptId !== 'string'
+    || !RECOVERY_PUBLIC_APPROVAL_RECEIPT_ID.test(source.ptrPublicApprovalReceiptId)
+    || !commit(source.ptrAtlasSourceCommit)
+  ) githubFail(code)
+  return Object.freeze({ ...source }) as RecoveryRealmBindingProjection
+}
+
+export function snapshotRecoveryArmingTuple(
+  value: unknown,
+  code = 'RECOVERY_REALM_BINDING_INVALID',
+): RecoveryArmingTuple {
+  const keys = [...RECOVERY_REALM_BINDING_PROJECTION_KEYS, 'bindingPath', 'workflowPath'] as const
+  const source = snapshotExactDataObject(value, keys, code)
+  const projection: Record<string, unknown> = Object.create(null)
+  for (const key of RECOVERY_REALM_BINDING_PROJECTION_KEYS) projection[key] = source[key]
+  const binding = snapshotRecoveryRealmBindingProjection(projection, code)
+  if (
+    source.bindingPath !== RECOVERY_BINDING_PATH
+    || source.workflowPath !== RECOVERY_WORKFLOW_PATH
+  ) githubFail(code)
+  return Object.freeze({
+    ...binding,
+    bindingPath: RECOVERY_BINDING_PATH,
+    workflowPath: RECOVERY_WORKFLOW_PATH,
+  })
+}
+
+export function recoveryRealmBindingProjectionFromArmed(
+  armed: RecoveryArmingTuple,
+  code = 'RECOVERY_REALM_BINDING_INVALID',
+): RecoveryRealmBindingProjection {
+  const projection: Record<string, unknown> = Object.create(null)
+  for (const key of RECOVERY_REALM_BINDING_PROJECTION_KEYS) projection[key] = armed[key]
+  return snapshotRecoveryRealmBindingProjection(projection, code)
+}
 export type GitHubAppEnvironment=Readonly<{GITHUB_APP_ID:string;GITHUB_APP_INSTALLATION_ID:string;GITHUB_APP_PRIVATE_KEY_PEM:string}>
