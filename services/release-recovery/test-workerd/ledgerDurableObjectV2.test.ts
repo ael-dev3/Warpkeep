@@ -263,7 +263,7 @@ async function reserveInput(control: LedgerV2ControlState) {
   }
 }
 
-async function issueAndClaim() {
+async function issueUnclaimed() {
   const { control, request } = await enableAndInstall()
   await request.reserveIssue(await reserveInput(control))
   const authorizationJws = compactAuthorizationJws(payload())
@@ -275,6 +275,11 @@ async function issueAndClaim() {
     authorizationJwsSha256: rawSha256(authorizationJws),
     now: NOW + 1,
   })
+  return { control, request, authorizationJws }
+}
+
+async function issueAndClaim() {
+  const { control, request, authorizationJws } = await issueUnclaimed()
   await request.claim({
     control,
     locators: locators(),
@@ -285,6 +290,24 @@ async function issueAndClaim() {
     now: NOW + 2,
   })
   return { control, request, authorizationJws }
+}
+
+async function corruptIssuedRecord(
+  request: ReturnType<typeof env.RECOVERY_LEDGER_V2.getByName>,
+  mutate: (record: Record<string, unknown>) => void,
+): Promise<void> {
+  await runInDurableObject(request, async (_instance, state) => {
+    const row = state.storage.sql.exec<{ record_json: string }>(
+      'SELECT record_json FROM recovery_v2_authorization WHERE singleton_key = 1',
+    ).one()
+    const record = JSON.parse(row.record_json) as Record<string, unknown>
+    mutate(record)
+    state.storage.sql.exec('DROP TRIGGER recovery_v2_authorization_transition_guard').toArray()
+    state.storage.sql.exec(
+      'UPDATE recovery_v2_authorization SET record_json = ? WHERE singleton_key = 1',
+      JSON.stringify(record),
+    ).toArray()
+  })
 }
 
 afterEach(async () => {
@@ -391,6 +414,46 @@ describe('ReleaseRecoveryAuthorizationLedgerV2 Workerd adapter', () => {
     )).rejects.toThrow('RECOVERY_LEDGER_STORAGE_CORRUPT')
   })
 
+  it('rejects an issued raw JWS corrupted after a valid eviction round trip', async () => {
+    const { request, authorizationJws } = await issueUnclaimed()
+    await evictDurableObject(request)
+    await expect(request.status()).resolves.toMatchObject({
+      role: 'request', requestId: REQUEST_ID, state: 'issued', revision: 2,
+    })
+
+    await corruptIssuedRecord(request, record => {
+      record.authorizationJws = `${authorizationJws.slice(0, -1)}A`
+    })
+    await evictDurableObject(request)
+
+    await expect(runInDurableObject(request, instance => instance.status()))
+      .rejects.toThrow('RECOVERY_LEDGER_STORAGE_CORRUPT')
+    await expect(runInDurableObject(
+      request,
+      instance => instance.readClaimedProjection({ requestId: REQUEST_ID }),
+    )).rejects.toThrow('RECOVERY_LEDGER_STORAGE_CORRUPT')
+  })
+
+  it('rejects an issued JWS digest corrupted after a valid eviction round trip', async () => {
+    const { request } = await issueUnclaimed()
+    await evictDurableObject(request)
+    await expect(request.status()).resolves.toMatchObject({
+      role: 'request', requestId: REQUEST_ID, state: 'issued', revision: 2,
+    })
+
+    await corruptIssuedRecord(request, record => {
+      record.authorizationJwsSha256 = 'a'.repeat(64)
+    })
+    await evictDurableObject(request)
+
+    await expect(runInDurableObject(request, instance => instance.status()))
+      .rejects.toThrow('RECOVERY_LEDGER_STORAGE_CORRUPT')
+    await expect(runInDurableObject(
+      request,
+      instance => instance.readClaimedProjection({ requestId: REQUEST_ID }),
+    )).rejects.toThrow('RECOVERY_LEDGER_STORAGE_CORRUPT')
+  })
+
   it('never exposes raw JWS, arming, or unsigned payload through status or projection', async () => {
     const { request, authorizationJws } = await issueAndClaim()
     const status = await request.status()
@@ -420,17 +483,36 @@ describe('ReleaseRecoveryAuthorizationLedgerV2 Workerd adapter', () => {
   it('uses only bounded ambiguous alarm retries until a proof reader exists', async () => {
     const { request } = await issueAndClaim()
     const firstAlarmAt = NOW + 2 + 1_200
-    vi.setSystemTime(firstAlarmAt * 1_000)
-    await expect(runDurableObjectAlarm(request)).resolves.toBe(true)
+    const callbacks = [
+      { at: firstAlarmAt, attempts: 1, next: firstAlarmAt + 60 },
+      { at: firstAlarmAt + 60, attempts: 2, next: firstAlarmAt + 360 },
+      { at: firstAlarmAt + 360, attempts: 3, next: firstAlarmAt + 1_260 },
+      { at: firstAlarmAt + 1_260, attempts: 4, next: firstAlarmAt + 4_860 },
+      { at: firstAlarmAt + 4_860, attempts: 5, next: null },
+    ] as const
 
+    for (const callback of callbacks) {
+      vi.setSystemTime(callback.at * 1_000)
+      await expect(runDurableObjectAlarm(request)).resolves.toBe(true)
+      const status = await request.status()
+      expect(status).toMatchObject({
+        role: 'request',
+        requestId: REQUEST_ID,
+        state: 'reconciliation-required',
+        reconciliationAttempts: callback.attempts,
+        nextReconcileAt: callback.next,
+      })
+      expect(status).not.toHaveProperty('terminal')
+      expect(status).not.toHaveProperty('proof')
+      await expect(runInDurableObject(
+        request,
+        async (_instance, state) => state.storage.getAlarm(),
+      )).resolves.toBe(callback.next === null ? null : callback.next * 1_000)
+    }
+
+    await expect(runDurableObjectAlarm(request)).resolves.toBe(false)
     await expect(request.status()).resolves.toMatchObject({
-      role: 'request',
-      requestId: REQUEST_ID,
-      state: 'reconciliation-required',
-      reconciliationAttempts: 1,
-      nextReconcileAt: firstAlarmAt + 60,
+      state: 'reconciliation-required', reconciliationAttempts: 5, nextReconcileAt: null,
     })
-    await expect(runInDurableObject(request, async (_instance, state) => state.storage.getAlarm()))
-      .resolves.toBe((firstAlarmAt + 60) * 1_000)
   })
 })
