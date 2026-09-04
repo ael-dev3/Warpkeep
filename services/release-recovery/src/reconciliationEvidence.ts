@@ -50,7 +50,9 @@ const ERROR_CODE = 'RECOVERY_RECONCILIATION_EVIDENCE_INVALID'
 const MAX_WORKFLOW_BYTES = 1024 * 1024
 const MAX_RUN_BYTES = 512 * 1024
 const MAX_JOBS_BYTES = 1024 * 1024
-const MAX_PAGES_BYTES = 16 * 1024
+const MAX_DEPLOYMENTS_BYTES = 512 * 1024
+const MAX_DEPLOYMENT_STATUSES_BYTES = 512 * 1024
+const MAX_PAGES_STATUS_BYTES = 16 * 1024
 const MAX_ATTESTATION_BYTES = 16 * 1024
 const HTTP_TIMEOUT_MS = 10_000
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
@@ -111,6 +113,26 @@ const STEP_KEYS = Object.freeze([
   'name', 'status', 'conclusion', 'number', 'started_at', 'completed_at',
 ] as const)
 
+const DEPLOYMENT_KEYS = Object.freeze([
+  'url', 'id', 'node_id', 'sha', 'ref', 'task', 'payload',
+  'original_environment', 'environment', 'description', 'creator', 'created_at',
+  'updated_at', 'statuses_url', 'repository_url', 'transient_environment',
+  'production_environment',
+] as const)
+
+const DEPLOYMENT_STATUS_KEYS = Object.freeze([
+  'url', 'id', 'node_id', 'state', 'creator', 'description', 'environment',
+  'target_url', 'created_at', 'updated_at', 'deployment_url', 'repository_url',
+  'environment_url', 'log_url',
+] as const)
+
+const GITHUB_USER_KEYS = Object.freeze([
+  'login', 'id', 'node_id', 'avatar_url', 'gravatar_id', 'url', 'html_url',
+  'followers_url', 'following_url', 'gists_url', 'starred_url',
+  'subscriptions_url', 'organizations_url', 'repos_url', 'events_url',
+  'received_events_url', 'type', 'site_admin',
+] as const)
+
 const ATTESTATION_KEYS = Object.freeze([
   'schemaVersion',
   'profile',
@@ -167,6 +189,12 @@ type ArtifactProjection = Readonly<{
 
 type StepDisposition = 'success' | 'unstarted' | 'ambiguous'
 type PagesDisposition = 'succeed' | 'absent' | 'ambiguous'
+type PagesDeploymentSnapshot = Readonly<{
+  id: string
+  url: string
+  createdAt: number
+  updatedAt: number
+}>
 
 function exactKeySet(value: GitHubJsonObject, keys: readonly string[]): boolean {
   const actual = Object.keys(value)
@@ -965,28 +993,161 @@ function stableRaw(first: RawResponse, second: RawResponse): RawResponse {
   return first
 }
 
+function parseJsonArray(
+  bytes: Uint8Array,
+  integerFields: readonly string[],
+): readonly GitHubJsonValue[] {
+  const prefix = text.encode('{"items":')
+  const suffix = text.encode('}')
+  const wrapped = new Uint8Array(prefix.byteLength + bytes.byteLength + suffix.byteLength)
+  wrapped.set(prefix)
+  wrapped.set(bytes, prefix.byteLength)
+  wrapped.set(suffix, prefix.byteLength + bytes.byteLength)
+  const object = parseGitHubJsonObject(
+    wrapped,
+    ERROR_CODE,
+    integerFields.map(field => `/items${field}`),
+  )
+  if (!exactKeySet(object, ['items']) || !Array.isArray(object.items)) throw new Error(ERROR_CODE)
+  return object.items
+}
+
+function validateGitHubActionsBot(value: GitHubJsonValue | undefined): void {
+  const actor = objectValue(value)
+  const apiUrl = 'https://api.github.com/users/github-actions%5Bbot%5D'
+  if (
+    !exactKeySet(actor, GITHUB_USER_KEYS)
+    || actor.login !== 'github-actions[bot]'
+    || actor.id !== '41898282'
+    || actor.node_id !== 'MDM6Qm90NDE4OTgyODI='
+    || actor.avatar_url !== 'https://avatars.githubusercontent.com/in/15368?v=4'
+    || actor.gravatar_id !== ''
+    || actor.url !== apiUrl
+    || actor.html_url !== 'https://github.com/apps/github-actions'
+    || actor.followers_url !== `${apiUrl}/followers`
+    || actor.following_url !== `${apiUrl}/following{/other_user}`
+    || actor.gists_url !== `${apiUrl}/gists{/gist_id}`
+    || actor.starred_url !== `${apiUrl}/starred{/owner}{/repo}`
+    || actor.subscriptions_url !== `${apiUrl}/subscriptions`
+    || actor.organizations_url !== `${apiUrl}/orgs`
+    || actor.repos_url !== `${apiUrl}/repos`
+    || actor.events_url !== `${apiUrl}/events{/privacy}`
+    || actor.received_events_url !== `${apiUrl}/received_events`
+    || actor.type !== 'Bot'
+    || actor.site_admin !== false
+  ) throw new Error(ERROR_CODE)
+}
+
+function validatePagesDeployment(
+  value: GitHubJsonObject,
+  projection: ProjectionSnapshot,
+): PagesDeploymentSnapshot {
+  if (!exactKeySet(value, DEPLOYMENT_KEYS) || !positive(value.id)) throw new Error(ERROR_CODE)
+  const deploymentUrl = `${API}/deployments/${value.id}`
+  const payload = objectValue(value.payload)
+  const createdAt = validInstant(value.created_at) ? Date.parse(value.created_at) : Number.NaN
+  const updatedAt = validInstant(value.updated_at) ? Date.parse(value.updated_at) : Number.NaN
+  validateGitHubActionsBot(value.creator)
+  if (
+    value.url !== deploymentUrl
+    || !nonemptyString(value.node_id)
+    || value.sha !== projection.authorization.locators.candidateCommit
+    || value.ref !== 'main'
+    || value.task !== 'deploy'
+    || Reflect.ownKeys(payload).length !== 0
+    || value.original_environment !== projection.authorization.workflowIdentity.environment
+    || value.environment !== projection.authorization.workflowIdentity.environment
+    || value.description !== 'github-pages'
+    || !Number.isFinite(createdAt)
+    || !Number.isFinite(updatedAt)
+    || createdAt > updatedAt
+    || updatedAt > Date.now()
+    || value.statuses_url !== `${deploymentUrl}/statuses`
+    || value.repository_url !== API
+    || value.transient_environment !== false
+    || value.production_environment !== true
+  ) throw new Error(ERROR_CODE)
+  return Object.freeze({ id: value.id, url: deploymentUrl, createdAt, updatedAt })
+}
+
+function validatePagesDeploymentStatuses(
+  values: readonly GitHubJsonValue[],
+  deployment: PagesDeploymentSnapshot,
+  projection: ProjectionSnapshot,
+): void {
+  if (values.length !== 1) throw new Error(ERROR_CODE)
+  const value = objectValue(values[0])
+  if (!exactKeySet(value, DEPLOYMENT_STATUS_KEYS) || !positive(value.id)) throw new Error(ERROR_CODE)
+  const statusUrl = `${deployment.url}/statuses/${value.id}`
+  const jobUrl = `https://github.com/${GITHUB_REPOSITORY}/actions/runs/${projection.authorization.workflowIdentity.pagesRunId}/job/${projection.authorization.workflowIdentity.checkRunId}`
+  const createdAt = validInstant(value.created_at) ? Date.parse(value.created_at) : Number.NaN
+  const updatedAt = validInstant(value.updated_at) ? Date.parse(value.updated_at) : Number.NaN
+  validateGitHubActionsBot(value.creator)
+  if (
+    value.url !== statusUrl
+    || !nonemptyString(value.node_id)
+    || value.state !== 'success'
+    || value.description !== 'Deployment finished successfully.'
+    || value.environment !== projection.authorization.workflowIdentity.environment
+    || value.target_url !== jobUrl
+    || !Number.isFinite(createdAt)
+    || !Number.isFinite(updatedAt)
+    || createdAt < deployment.createdAt
+    || createdAt > updatedAt
+    || updatedAt < deployment.updatedAt
+    || updatedAt > Date.now()
+    || value.deployment_url !== deployment.url
+    || value.repository_url !== API
+    || value.environment_url !== `${projection.authorization.canonicalOrigin}/`
+    || value.log_url !== jobUrl
+  ) throw new Error(ERROR_CODE)
+}
+
 async function loadPagesDisposition(
   fetchImplementation: typeof globalThis.fetch,
   init: RequestInit,
-  candidate: string,
+  projection: ProjectionSnapshot,
 ): Promise<PagesDisposition> {
-  const url = `${API}/pages/deployments/${candidate}`
-  const first = await fixedJsonBytes(fetchImplementation, url, init, [200, 404], MAX_PAGES_BYTES)
-  const second = await fixedJsonBytes(fetchImplementation, url, init, [200, 404], MAX_PAGES_BYTES)
-  const response = stableRaw(first, second)
-  let value: GitHubJsonObject
-  try {
-    value = parseGitHubJsonObject(response.bytes, ERROR_CODE, [])
-  } catch {
-    return 'ambiguous'
-  }
-  if (response.status === 200) {
-    return Reflect.ownKeys(value).length === 1 && value.status === 'succeed'
-      ? 'succeed'
-      : 'ambiguous'
-  }
-  return Reflect.ownKeys(value).length === 1 && value.message === 'Not Found'
-    ? 'absent'
+  const candidate = projection.authorization.locators.candidateCommit
+  const environment = projection.authorization.workflowIdentity.environment
+  const deploymentsUrl = `${API}/deployments?sha=${candidate}&environment=${environment}&per_page=100`
+  const firstDeployments = await fixedJsonBytes(
+    fetchImplementation, deploymentsUrl, init, [200], MAX_DEPLOYMENTS_BYTES,
+  )
+  const secondDeployments = await fixedJsonBytes(
+    fetchImplementation, deploymentsUrl, init, [200], MAX_DEPLOYMENTS_BYTES,
+  )
+  const deployments = parseJsonArray(
+    stableRaw(firstDeployments, secondDeployments).bytes,
+    ['/*/id', '/*/creator/id'],
+  )
+  if (deployments.length === 0) return 'absent'
+  if (deployments.length !== 1) return 'ambiguous'
+  const deployment = validatePagesDeployment(objectValue(deployments[0]), projection)
+
+  const statusesUrl = `${API}/deployments/${deployment.id}/statuses?per_page=100`
+  const firstStatuses = await fixedJsonBytes(
+    fetchImplementation, statusesUrl, init, [200], MAX_DEPLOYMENT_STATUSES_BYTES,
+  )
+  const secondStatuses = await fixedJsonBytes(
+    fetchImplementation, statusesUrl, init, [200], MAX_DEPLOYMENT_STATUSES_BYTES,
+  )
+  const statuses = parseJsonArray(
+    stableRaw(firstStatuses, secondStatuses).bytes,
+    ['/*/id', '/*/creator/id'],
+  )
+  validatePagesDeploymentStatuses(statuses, deployment, projection)
+
+  const pagesStatusUrl = `${API}/pages/deployments/${candidate}`
+  const firstStatus = await fixedJsonBytes(
+    fetchImplementation, pagesStatusUrl, init, [200], MAX_PAGES_STATUS_BYTES,
+  )
+  const secondStatus = await fixedJsonBytes(
+    fetchImplementation, pagesStatusUrl, init, [200], MAX_PAGES_STATUS_BYTES,
+  )
+  const status = parseGitHubJsonObject(stableRaw(firstStatus, secondStatus).bytes, ERROR_CODE, [])
+  return Reflect.ownKeys(status).length === 1 && status.status === 'succeed'
+    ? 'succeed'
     : 'ambiguous'
 }
 
@@ -1062,7 +1223,7 @@ async function readEvidence(
     const pages = await loadPagesDisposition(
       fetchImplementation,
       authenticatedInit,
-      projection.authorization.locators.candidateCommit,
+      projection,
     )
 
     if (run.step === 'success' && pages === 'succeed') {
@@ -1090,6 +1251,60 @@ async function readEvidence(
   }
 }
 
+function cancelResponseBody(response: Response): void {
+  try {
+    if (response.body === null) return
+    const cancellation = response.body.cancel()
+    void Promise.resolve(cancellation).catch(() => undefined)
+  } catch {
+    // Late transport cleanup cannot replace the already-selected fixed failure.
+  }
+}
+
+function createOwnedTransport(suppliedFetch: typeof globalThis.fetch): typeof globalThis.fetch {
+  return (async (request: RequestInfo | URL, init: RequestInit = {}) => {
+    const controller = new AbortController()
+    const callerSignal = init.signal
+    const abort = (): void => {
+      try {
+        controller.abort()
+      } catch {
+        // The observer-owned deadline below still settles the invocation.
+      }
+    }
+    if (callerSignal?.aborted === true) abort()
+    else callerSignal?.addEventListener('abort', abort, { once: true })
+
+    let finished = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const invocation = Promise.resolve().then(async () => await suppliedFetch(request, {
+      ...init,
+      cache: 'no-store',
+      redirect: 'manual',
+      signal: controller.signal,
+    }))
+    void invocation.then(
+      response => {
+        if (finished) cancelResponseBody(response)
+      },
+      () => undefined,
+    )
+    const deadline = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        abort()
+        reject(new Error(ERROR_CODE))
+      }, HTTP_TIMEOUT_MS)
+    })
+    try {
+      return await Promise.race([invocation, deadline])
+    } finally {
+      finished = true
+      if (timer !== undefined) clearTimeout(timer)
+      callerSignal?.removeEventListener('abort', abort)
+    }
+  }) as typeof globalThis.fetch
+}
+
 export function createDeploymentReconciliationProofReader(
   input: DeploymentReconciliationProofReaderInput,
 ): DeploymentReconciliationProofReader {
@@ -1098,12 +1313,8 @@ export function createDeploymentReconciliationProofReader(
     const githubApp = copyGitHubApp(source.githubApp)
     if (typeof source.fetch !== 'function') throw new Error(ERROR_CODE)
     const suppliedFetch = source.fetch as typeof globalThis.fetch
-    const noStoreFetch = ((request: RequestInfo | URL, init: RequestInit = {}) => suppliedFetch(request, {
-      ...init,
-      cache: 'no-store',
-      redirect: 'manual',
-    })) as typeof globalThis.fetch
-    return async projection => await readEvidence(projection, githubApp, noStoreFetch)
+    const ownedTransport = createOwnedTransport(suppliedFetch)
+    return async projection => await readEvidence(projection, githubApp, ownedTransport)
   } catch {
     return async () => AMBIGUOUS
   }

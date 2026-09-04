@@ -23,9 +23,15 @@ const RUN_ID = '41'
 const RUN_ATTEMPT = '2'
 const CHECK_RUN_ID = '91'
 const ARTIFACT_ID = '73'
+const DEPLOYMENT_ID = '501'
+const DEPLOYMENT_STATUS_ID = '601'
 const NOW = 1_788_400_000
 const DEPLOY_STEP = 'Deploy recovery-authorized release to GitHub Pages'
 const DEPLOY_ACTION = 'actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128'
+const DEPLOYMENTS_URL = `${API}/deployments?sha=${CANDIDATE}&environment=github-pages&per_page=100`
+const DEPLOYMENT_STATUSES_URL = `${API}/deployments/${DEPLOYMENT_ID}/statuses?per_page=100`
+const PAGES_STATUS_URL = `${API}/pages/deployments/${CANDIDATE}`
+const TRANSPORT_TIMEOUT_MS = 10_000
 const encoder = new TextEncoder()
 
 let githubApp: GitHubAppEnvironment
@@ -320,6 +326,74 @@ function jobsResponse(
   }
 }
 
+function githubActionsBotResponse(): Record<string, unknown> {
+  const apiUrl = 'https://api.github.com/users/github-actions%5Bbot%5D'
+  return {
+    login: 'github-actions[bot]',
+    id: 41898282,
+    node_id: 'MDM6Qm90NDE4OTgyODI=',
+    avatar_url: 'https://avatars.githubusercontent.com/in/15368?v=4',
+    gravatar_id: '',
+    url: apiUrl,
+    html_url: 'https://github.com/apps/github-actions',
+    followers_url: `${apiUrl}/followers`,
+    following_url: `${apiUrl}/following{/other_user}`,
+    gists_url: `${apiUrl}/gists{/gist_id}`,
+    starred_url: `${apiUrl}/starred{/owner}{/repo}`,
+    subscriptions_url: `${apiUrl}/subscriptions`,
+    organizations_url: `${apiUrl}/orgs`,
+    repos_url: `${apiUrl}/repos`,
+    events_url: `${apiUrl}/events{/privacy}`,
+    received_events_url: `${apiUrl}/received_events`,
+    type: 'Bot',
+    site_admin: false,
+  }
+}
+
+function pagesDeploymentResponse(): Record<string, unknown> {
+  const deploymentUrl = `${API}/deployments/${DEPLOYMENT_ID}`
+  return {
+    url: deploymentUrl,
+    id: Number(DEPLOYMENT_ID),
+    node_id: 'DE_kwDOsynthetic',
+    sha: CANDIDATE,
+    ref: 'main',
+    task: 'deploy',
+    payload: {},
+    original_environment: 'github-pages',
+    environment: 'github-pages',
+    description: 'github-pages',
+    creator: githubActionsBotResponse(),
+    created_at: new Date((NOW - 1_050) * 1_000).toISOString(),
+    updated_at: new Date((NOW - 850) * 1_000).toISOString(),
+    statuses_url: `${deploymentUrl}/statuses`,
+    repository_url: API,
+    transient_environment: false,
+    production_environment: true,
+  }
+}
+
+function pagesDeploymentStatusResponse(): Record<string, unknown> {
+  const deploymentUrl = `${API}/deployments/${DEPLOYMENT_ID}`
+  const jobUrl = `https://github.com/ael-dev3/Warpkeep/actions/runs/${RUN_ID}/job/${CHECK_RUN_ID}`
+  return {
+    url: `${deploymentUrl}/statuses/${DEPLOYMENT_STATUS_ID}`,
+    id: Number(DEPLOYMENT_STATUS_ID),
+    node_id: 'DS_kwDOsynthetic',
+    state: 'success',
+    creator: githubActionsBotResponse(),
+    description: 'Deployment finished successfully.',
+    environment: 'github-pages',
+    target_url: jobUrl,
+    created_at: new Date((NOW - 850) * 1_000).toISOString(),
+    updated_at: new Date((NOW - 850) * 1_000).toISOString(),
+    deployment_url: deploymentUrl,
+    repository_url: API,
+    environment_url: 'https://warpkeep.com/',
+    log_url: jobUrl,
+  }
+}
+
 type EvidenceState = {
   repository: Record<string, unknown>
   branch: Record<string, unknown>
@@ -331,6 +405,22 @@ type EvidenceState = {
   runSecond?: Record<string, unknown>
   jobs: Record<string, unknown>
   jobsSecond?: Record<string, unknown>
+  deploymentsStatus: number
+  deploymentsBody: unknown
+  deploymentsSecondStatus?: number
+  deploymentsSecondBody?: unknown
+  deploymentsEtag?: string
+  deploymentsSecondEtag?: string
+  deploymentsLink?: string
+  deploymentsSecondLink?: string
+  deploymentStatusesStatus: number
+  deploymentStatusesBody: unknown
+  deploymentStatusesSecondStatus?: number
+  deploymentStatusesSecondBody?: unknown
+  deploymentStatusesEtag?: string
+  deploymentStatusesSecondEtag?: string
+  deploymentStatusesLink?: string
+  deploymentStatusesSecondLink?: string
   pagesStatus: number
   pagesBody: Record<string, unknown>
   pagesSecondStatus?: number
@@ -339,6 +429,7 @@ type EvidenceState = {
   publicSecondBytes?: Uint8Array
   pagesRedirectUrl?: string
   publicRedirectUrl?: string
+  nonSettlingUrl?: string
 }
 
 type Fixture = {
@@ -347,7 +438,10 @@ type Fixture = {
   calls: string[]
   requestInits: RequestInit[]
   reader: ReturnType<typeof createDeploymentReconciliationProofReader>
+  settleNonSettling: (response?: Response) => void
 }
+
+const UNSETTLED = Symbol('unsettled')
 
 async function makeFixture(outcome: 'completed' | 'not-deployed' = 'completed'): Promise<Fixture> {
   const attestationText = JSON.stringify(canonicalAttestation())
@@ -441,6 +535,10 @@ async function makeFixture(outcome: 'completed' | 'not-deployed' = 'completed'):
     jobs: outcome === 'completed'
       ? jobsResponse()
       : jobsResponse(deployStep('skipped'), 'completed', 'failure'),
+    deploymentsStatus: 200,
+    deploymentsBody: outcome === 'completed' ? [pagesDeploymentResponse()] : [],
+    deploymentStatusesStatus: 200,
+    deploymentStatusesBody: outcome === 'completed' ? [pagesDeploymentStatusResponse()] : [],
     pagesStatus: outcome === 'completed' ? 200 : 404,
     pagesBody: outcome === 'completed' ? { status: 'succeed' } : { message: 'Not Found' },
     publicBytes,
@@ -450,13 +548,20 @@ async function makeFixture(outcome: 'completed' | 'not-deployed' = 'completed'):
   let artifactReads = 0
   let runReads = 0
   let jobReads = 0
+  let deploymentsReads = 0
+  let deploymentStatusesReads = 0
   let pagesReads = 0
   let publicReads = 0
+  let settleNonSettling!: (response: Response) => void
+  const nonSettling = new Promise<Response>(resolve => {
+    settleNonSettling = resolve
+  })
 
   const fetchImplementation = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input)
     calls.push(url)
     requestInits.push(init ?? {})
+    if (url === state.nonSettlingUrl) return await nonSettling
     if (url === INSTALLATION_URL) {
       return jsonResponse(url, {
         expires_at: new Date((NOW + 3_600) * 1_000).toISOString(),
@@ -523,7 +628,47 @@ async function makeFixture(outcome: 'completed' | 'not-deployed' = 'completed'):
         '"jobs-etag"',
       )
     }
-    if (url === `${API}/pages/deployments/${CANDIDATE}`) {
+    if (url === DEPLOYMENTS_URL) {
+      deploymentsReads += 1
+      const second = deploymentsReads === 2
+      const status = second ? state.deploymentsSecondStatus ?? state.deploymentsStatus : state.deploymentsStatus
+      const body = second ? state.deploymentsSecondBody ?? state.deploymentsBody : state.deploymentsBody
+      const etag = second ? state.deploymentsSecondEtag ?? state.deploymentsEtag : state.deploymentsEtag
+      const link = second ? state.deploymentsSecondLink ?? state.deploymentsLink : state.deploymentsLink
+      return responseAt(url, JSON.stringify(body), {
+        status,
+        headers: {
+          'content-type': 'application/json; charset=utf-8',
+          etag: etag ?? '"deployments-etag"',
+          ...(link === undefined ? {} : { link }),
+        },
+      })
+    }
+    if (url === DEPLOYMENT_STATUSES_URL) {
+      deploymentStatusesReads += 1
+      const second = deploymentStatusesReads === 2
+      const status = second
+        ? state.deploymentStatusesSecondStatus ?? state.deploymentStatusesStatus
+        : state.deploymentStatusesStatus
+      const body = second
+        ? state.deploymentStatusesSecondBody ?? state.deploymentStatusesBody
+        : state.deploymentStatusesBody
+      const etag = second
+        ? state.deploymentStatusesSecondEtag ?? state.deploymentStatusesEtag
+        : state.deploymentStatusesEtag
+      const link = second
+        ? state.deploymentStatusesSecondLink ?? state.deploymentStatusesLink
+        : state.deploymentStatusesLink
+      return responseAt(url, JSON.stringify(body), {
+        status,
+        headers: {
+          'content-type': 'application/json; charset=utf-8',
+          etag: etag ?? '"deployment-statuses-etag"',
+          ...(link === undefined ? {} : { link }),
+        },
+      })
+    }
+    if (url === PAGES_STATUS_URL) {
       pagesReads += 1
       const status = pagesReads === 2 ? state.pagesSecondStatus ?? state.pagesStatus : state.pagesStatus
       const body = pagesReads === 2 ? state.pagesSecondBody ?? state.pagesBody : state.pagesBody
@@ -546,7 +691,27 @@ async function makeFixture(outcome: 'completed' | 'not-deployed' = 'completed'):
     calls,
     requestInits,
     reader: createDeploymentReconciliationProofReader({ githubApp, fetch: fetchImplementation }),
+    settleNonSettling: (response = jsonResponse(state.nonSettlingUrl ?? API, {})) => {
+      settleNonSettling(response)
+    },
   }
+}
+
+async function expectOwnedTransportTimeout(fixture: Fixture, url: string): Promise<void> {
+  fixture.state.nonSettlingUrl = url
+  let observed: unknown = UNSETTLED
+  const pending = fixture.reader(fixture.projection)
+  void pending.then(
+    value => { observed = value },
+    error => { observed = error },
+  )
+  await vi.waitFor(() => {
+    expect(fixture.calls).toContain(url)
+  })
+
+  await vi.advanceTimersByTimeAsync(TRANSPORT_TIMEOUT_MS)
+  await vi.advanceTimersByTimeAsync(0)
+  expect(observed).toEqual({ outcome: 'ambiguous' })
 }
 
 describe('read-only V2 deployment reconciliation evidence', () => {
@@ -562,6 +727,9 @@ describe('read-only V2 deployment reconciliation evidence', () => {
     })
 
     expect(fixture.calls.filter(url => url === INSTALLATION_URL)).toHaveLength(1)
+    expect(fixture.calls.filter(url => url === DEPLOYMENTS_URL)).toHaveLength(2)
+    expect(fixture.calls.filter(url => url === DEPLOYMENT_STATUSES_URL)).toHaveLength(2)
+    expect(fixture.calls.filter(url => url === PAGES_STATUS_URL)).toHaveLength(2)
     expect(fixture.calls.some(url => /\/zip(?:\?|$)|objects\.githubusercontent\.com/u.test(url))).toBe(false)
     expect(fixture.calls.some(url => /openid-configuration|\.well-known\/jwks/u.test(url))).toBe(false)
     for (const init of fixture.requestInits) {
@@ -584,6 +752,8 @@ describe('read-only V2 deployment reconciliation evidence', () => {
       pagesDeployStepStarted: false,
       matchingPagesDeploymentAbsent: true,
     })
+    expect(fixture.calls.filter(url => url === DEPLOYMENTS_URL)).toHaveLength(2)
+    expect(fixture.calls).not.toContain(PAGES_STATUS_URL)
     expect(fixture.calls).not.toContain(PUBLIC_ATTESTATION_URL)
   })
 
@@ -603,6 +773,43 @@ describe('read-only V2 deployment reconciliation evidence', () => {
     })
 
     await expect(offline(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+  })
+
+  it('settles exactly ambiguous when App-token mint transport never settles or observes abort', async () => {
+    const fixture = await makeFixture()
+
+    await expectOwnedTransportTimeout(fixture, INSTALLATION_URL)
+  })
+
+  it('settles exactly ambiguous when authenticated metadata transport never settles or observes abort', async () => {
+    const fixture = await makeFixture()
+
+    await expectOwnedTransportTimeout(fixture, API)
+  })
+
+  it('keeps its selected ambiguous result when a timed-out public transport settles late', async () => {
+    const fixture = await makeFixture()
+    fixture.state.nonSettlingUrl = PUBLIC_ATTESTATION_URL
+    let observed: unknown = UNSETTLED
+    const pending = fixture.reader(fixture.projection)
+    void pending.then(
+      value => { observed = value },
+      error => { observed = error },
+    )
+    await vi.waitFor(() => {
+      expect(fixture.calls).toContain(PUBLIC_ATTESTATION_URL)
+    })
+
+    await vi.advanceTimersByTimeAsync(TRANSPORT_TIMEOUT_MS)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(observed).toEqual({ outcome: 'ambiguous' })
+
+    fixture.settleNonSettling(responseAt(PUBLIC_ATTESTATION_URL, fixture.state.publicBytes, {
+      status: 200,
+      headers: { 'content-type': 'application/json', etag: '"late-public-etag"' },
+    }))
+    await vi.advanceTimersByTimeAsync(0)
+    await expect(pending).resolves.toEqual({ outcome: 'ambiguous' })
   })
 
   it('keeps the current workflow source ambiguous because no deploy-recovery producer exists yet', async () => {
@@ -637,8 +844,7 @@ describe('read-only V2 deployment reconciliation evidence', () => {
       steps.push({ ...steps[1], number: 8 })
     }],
     ['missing Pages deployment', (fixture: Fixture) => {
-      fixture.state.pagesStatus = 404
-      fixture.state.pagesBody = { message: 'Not Found' }
+      fixture.state.deploymentsBody = []
     }],
     ['wrong Pages status', (fixture: Fixture) => {
       fixture.state.pagesBody = { status: 'deployment_failed' }
@@ -663,6 +869,55 @@ describe('read-only V2 deployment reconciliation evidence', () => {
   })
 
   it.each([
+    ['wrong candidate', (fixture: Fixture) => {
+      const deployment = (fixture.state.deploymentsBody as Record<string, unknown>[])[0]!
+      deployment.sha = 'f'.repeat(40)
+    }],
+    ['wrong run', (fixture: Fixture) => {
+      const status = (fixture.state.deploymentStatusesBody as Record<string, unknown>[])[0]!
+      const wrong = `https://github.com/ael-dev3/Warpkeep/actions/runs/42/job/${CHECK_RUN_ID}`
+      status.target_url = wrong
+      status.log_url = wrong
+    }],
+    ['wrong attempt', (fixture: Fixture) => {
+      const status = (fixture.state.deploymentStatusesBody as Record<string, unknown>[])[0]!
+      const wrongAttemptJob = `https://github.com/ael-dev3/Warpkeep/actions/runs/${RUN_ID}/job/92`
+      status.target_url = wrongAttemptJob
+      status.log_url = wrongAttemptJob
+    }],
+    ['wrong environment', (fixture: Fixture) => {
+      const deployment = (fixture.state.deploymentsBody as Record<string, unknown>[])[0]!
+      const status = (fixture.state.deploymentStatusesBody as Record<string, unknown>[])[0]!
+      deployment.original_environment = 'staging'
+      deployment.environment = 'staging'
+      status.environment = 'staging'
+    }],
+    ['wrong deployment identity', (fixture: Fixture) => {
+      const status = (fixture.state.deploymentStatusesBody as Record<string, unknown>[])[0]!
+      status.deployment_url = `${API}/deployments/502`
+    }],
+  ])('rejects completed evidence with a %s Pages deployment relation', async (_name, mutate) => {
+    const fixture = await makeFixture('completed')
+    mutate(fixture)
+
+    await expect(fixture.reader(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+  })
+
+  it.each([
+    ['incomplete response', (fixture: Fixture) => {
+      fixture.state.deploymentsStatus = 206
+    }],
+    ['paginated response', (fixture: Fixture) => {
+      fixture.state.deploymentsLink = `<${DEPLOYMENTS_URL}&page=2>; rel="next"`
+    }],
+  ])('does not manufacture not-deployed from an empty but %s', async (_name, mutate) => {
+    const fixture = await makeFixture('not-deployed')
+    mutate(fixture)
+
+    await expect(fixture.reader(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+  })
+
+  it.each([
     ['a nonterminal run', (fixture: Fixture) => {
       fixture.state.run = runAttemptResponse()
     }],
@@ -670,6 +925,8 @@ describe('read-only V2 deployment reconciliation evidence', () => {
       fixture.state.jobs = jobsResponse(deployStep('failure'), 'completed', 'failure')
     }],
     ['an extant Pages deployment', (fixture: Fixture) => {
+      fixture.state.deploymentsBody = [pagesDeploymentResponse()]
+      fixture.state.deploymentStatusesBody = [pagesDeploymentStatusResponse()]
       fixture.state.pagesStatus = 200
       fixture.state.pagesBody = { status: 'succeed' }
     }],
@@ -688,7 +945,7 @@ describe('read-only V2 deployment reconciliation evidence', () => {
   it('returns ambiguous when run, Pages, or public evidence changes between reads', async () => {
     const fixtures = await Promise.all([makeFixture(), makeFixture(), makeFixture()])
     fixtures[0]!.state.runSecond = runAttemptResponse('completed', 'success')
-    fixtures[1]!.state.pagesSecondBody = { status: 'deployment_failed' }
+    fixtures[1]!.state.deploymentsSecondBody = []
     fixtures[2]!.state.publicSecondBytes = encoder.encode(JSON.stringify({
       ...canonicalAttestation(),
       sourceClosureSha256: '7'.repeat(64),
@@ -727,18 +984,26 @@ describe('read-only V2 deployment reconciliation evidence', () => {
 
   it('turns accessor, proxy, and malformed factory input into exactly ambiguous without reading through them', async () => {
     const fixture = await makeFixture()
+    let projectionAccessorReads = 0
     const accessor = { ...fixture.projection } as Record<string, unknown>
     Object.defineProperty(accessor, 'rowBindingDigest', {
       enumerable: true,
-      get() { throw new Error('hostile row binding') },
+      get() {
+        projectionAccessorReads += 1
+        throw new Error('hostile row binding')
+      },
     })
     const proxy = new Proxy(fixture.projection, {
       getPrototypeOf() { throw new Error('hostile projection') },
     })
     const factoryInput = {} as Record<string, unknown>
+    let factoryAccessorReads = 0
     Object.defineProperty(factoryInput, 'githubApp', {
       enumerable: true,
-      get() { throw new Error('hostile app') },
+      get() {
+        factoryAccessorReads += 1
+        throw new Error('hostile app')
+      },
     })
     factoryInput.fetch = async () => { throw new Error('must not fetch') }
     const failClosed = createDeploymentReconciliationProofReader(factoryInput as never)
@@ -746,5 +1011,7 @@ describe('read-only V2 deployment reconciliation evidence', () => {
     await expect(fixture.reader(accessor as never)).resolves.toEqual({ outcome: 'ambiguous' })
     await expect(fixture.reader(proxy)).resolves.toEqual({ outcome: 'ambiguous' })
     await expect(failClosed(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+    expect(projectionAccessorReads).toBe(0)
+    expect(factoryAccessorReads).toBe(0)
   })
 })
