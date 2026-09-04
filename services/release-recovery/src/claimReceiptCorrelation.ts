@@ -1,5 +1,5 @@
 import {
-  verifyRecoveryClaimJwsEnvelopeInternal,
+  verifyRecoveryClaimJws,
   type RecoveryClaimPayload,
 } from './crypto.js'
 import {
@@ -7,7 +7,12 @@ import {
   snapshotGitHubEvidenceMetadata,
 } from './githubEvidenceMetadata.js'
 import type { LedgerSignerClaimProjection } from './ledgerV2.js'
-import { RecoveryProtocolError, type JsonValue } from './protocol.js'
+import {
+  RecoveryProtocolError,
+  parseRecoveryCompactJws,
+  parseRecoveryPayload,
+  type JsonValue,
+} from './protocol.js'
 
 export type PostDeployClaimReceiptCorrelationInput = Readonly<{
   compact: string
@@ -36,7 +41,16 @@ export async function verifyPostDeployClaimReceiptCorrelation(
   const { compact, projection, nowSeconds } = input
   if (!Number.isSafeInteger(nowSeconds)) fail('RECOVERY_CLAIM_RECEIPT_TIME_INVALID')
 
-  const receipt = await verifyRecoveryClaimJwsEnvelopeInternal(compact)
+  const parsedReceipt = parseRecoveryCompactJws(compact, 'claim')
+  const unverifiedReceipt = parseRecoveryPayload(
+    parsedReceipt.payloadBytes,
+    'claim',
+  ) as RecoveryClaimPayload
+  const receiptIssuedAt = payloadField(unverifiedReceipt, 'iat') as number
+  // The strict verifier remains the sole cryptographic entrypoint. Evaluating it
+  // at the receipt's own signed iat proves the envelope before this boundary
+  // applies actual current time and the trusted durable deadline below.
+  const receipt = await verifyRecoveryClaimJws(compact, receiptIssuedAt)
   const { authorization, claim } = projection
   const { locators, workflowIdentity } = authorization
   let metadata
@@ -53,7 +67,6 @@ export async function verifyPostDeployClaimReceiptCorrelation(
     fail('RECOVERY_CLAIM_RECEIPT_MISMATCH')
   }
 
-  const receiptIssuedAt = payloadField(receipt, 'iat') as number
   if (nowSeconds < receiptIssuedAt || nowSeconds >= claim.claimDeadline) {
     fail('RECOVERY_CLAIM_RECEIPT_TIME_INVALID')
   }

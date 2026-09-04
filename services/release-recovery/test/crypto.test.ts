@@ -131,6 +131,10 @@ describe('recovery ES256 signatures', () => {
     expect('createRecoveryJwsVerifier' in recoveryCrypto).toBe(false)
   })
 
+  it('does not expose an expiry-relaxed verifier that returns full claim data', () => {
+    expect('verifyRecoveryClaimJwsEnvelopeInternal' in recoveryCrypto).toBe(false)
+  })
+
   it('rejects a status exactly at exp because JWT expiry is exclusive', async () => {
     const compact = await signRecoveryStatusJws(statusPayload, TEST_ONLY_PRIVATE_JWK)
     await expect(verifyRecoveryStatusJws(compact, statusPayload.exp)).rejects.toThrowError('RECOVERY_JWS_TIME_INVALID')
