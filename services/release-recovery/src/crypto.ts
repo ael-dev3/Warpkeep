@@ -200,13 +200,20 @@ async function sign<K extends keyof RecoveryPayloadByKind>(kind: K, payload: Rec
   return `${protectedSegment}.${payloadSegment}.${base64UrlEncode(normalizeLowS(asP1363(rawSignature)))}`
 }
 
-async function verify<K extends keyof RecoveryPayloadByKind>(publicJwk: JsonWebKey, kind: K, compact: string, nowSeconds: number): Promise<RecoveryPayloadByKind[K]> {
-  if (!Number.isSafeInteger(nowSeconds)) fail('RECOVERY_JWS_TIME_INVALID')
+function parseVerifiedInput<K extends keyof RecoveryPayloadByKind>(kind: K, compact: string): Readonly<{
+  parsed: ReturnType<typeof parseRecoveryCompactJws>
+  payload: RecoveryPayloadByKind[K]
+}> {
   const parsed = parseRecoveryCompactJws(compact, kind)
-  const payload = parseRecoveryPayload(parsed.payloadBytes, kind)
-  const iat = payload.iat as number
-  const exp = payload.exp as number
-  if (nowSeconds < iat || nowSeconds >= exp) fail('RECOVERY_JWS_TIME_INVALID')
+  const payload = parseRecoveryPayload(parsed.payloadBytes, kind) as RecoveryPayloadByKind[K]
+  return { parsed, payload }
+}
+
+async function verifyParsedSignature(
+  publicJwk: JsonWebKey,
+  compact: string,
+  parsed: ReturnType<typeof parseRecoveryCompactJws>,
+): Promise<void> {
   assertLowS(parsed.signature)
   const [header, body] = compact.split('.')
   const signingInput = new TextEncoder().encode(`${header}.${body}`)
@@ -218,7 +225,23 @@ async function verify<K extends keyof RecoveryPayloadByKind>(publicJwk: JsonWebK
     fail('RECOVERY_JWS_SIGNATURE_INVALID')
   }
   if (!valid) fail('RECOVERY_JWS_SIGNATURE_INVALID')
+}
+
+async function verify<K extends keyof RecoveryPayloadByKind>(publicJwk: JsonWebKey, kind: K, compact: string, nowSeconds: number): Promise<RecoveryPayloadByKind[K]> {
+  if (!Number.isSafeInteger(nowSeconds)) fail('RECOVERY_JWS_TIME_INVALID')
+  const { parsed, payload } = parseVerifiedInput(kind, compact)
+  const iat = payload.iat as number
+  const exp = payload.exp as number
+  if (nowSeconds < iat || nowSeconds >= exp) fail('RECOVERY_JWS_TIME_INVALID')
+  await verifyParsedSignature(publicJwk, compact, parsed)
   return payload as RecoveryPayloadByKind[K]
+}
+
+/** Internal signer boundary: validates the pinned claim envelope without choosing a time policy. */
+export async function verifyRecoveryClaimJwsEnvelopeInternal(compact: string): Promise<RecoveryClaimPayload> {
+  const { parsed, payload } = parseVerifiedInput('claim', compact)
+  await verifyParsedSignature(RECOVERY_PUBLIC_JWK, compact, parsed)
+  return payload
 }
 
 export async function signRecoveryAuthorizationJws(payload: RecoveryAuthorizationPayload, privateJwk: JsonWebKey): Promise<string> {

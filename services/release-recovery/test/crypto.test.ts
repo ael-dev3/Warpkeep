@@ -7,6 +7,7 @@ import {
   signRecoveryClaimJws,
   signRecoveryStatusJws,
   signRecoveryTerminalJws,
+  verifyRecoveryClaimJws,
   verifyRecoveryStatusJws,
 } from '../src/crypto.js'
 import * as recoveryCrypto from '../src/crypto.js'
@@ -133,6 +134,12 @@ describe('recovery ES256 signatures', () => {
   it('rejects a status exactly at exp because JWT expiry is exclusive', async () => {
     const compact = await signRecoveryStatusJws(statusPayload, TEST_ONLY_PRIVATE_JWK)
     await expect(verifyRecoveryStatusJws(compact, statusPayload.exp)).rejects.toThrowError('RECOVERY_JWS_TIME_INVALID')
+  })
+
+  it('keeps the production claim verifier strict after receipt expiry', async () => {
+    const compact = await signRecoveryClaimJws(claimPayload, TEST_ONLY_PRIVATE_JWK)
+    await expect(verifyRecoveryClaimJws(compact, claimPayload.exp + 1))
+      .rejects.toThrowError('RECOVERY_JWS_TIME_INVALID')
   })
 
   it('treats exp as exclusive for authorization, claim, and terminal verification', async () => {
