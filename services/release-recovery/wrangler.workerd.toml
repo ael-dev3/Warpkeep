@@ -9,6 +9,14 @@ preview_urls = false
 name = "RECOVERY_LEDGER"
 class_name = "ReleaseRecoveryAuthorizationLedger"
 
+[[durable_objects.bindings]]
+name = "RECOVERY_LEDGER_V2"
+class_name = "ReleaseRecoveryAuthorizationLedgerV2"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ReleaseRecoveryAuthorizationLedger"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["ReleaseRecoveryAuthorizationLedgerV2"]

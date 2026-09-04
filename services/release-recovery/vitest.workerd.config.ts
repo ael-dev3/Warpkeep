@@ -28,6 +28,9 @@ export default defineConfig({
   ],
   test: {
     include: ['test-workerd/**/*.test.ts'],
+    // Both suites use the pool's global reset helper. Running their files in
+    // parallel can reset the other namespace while an RPC is still in flight.
+    fileParallelism: false,
     testTimeout: 30_000,
   },
 })
