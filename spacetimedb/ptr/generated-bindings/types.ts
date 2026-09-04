@@ -397,8 +397,6 @@ export const PtrAdminGreaterRealmStatusV1 = __t.object("PtrAdminGreaterRealmStat
   activationMutationsCompiled: __t.bool(),
   ownerProvisioned: __t.bool(),
   ownerEnabled: __t.bool(),
-  ownerFid: __t.option(__t.u64()),
-  ownerAuthEpoch: __t.option(__t.u32()),
 });
 export type PtrAdminGreaterRealmStatusV1 = __Infer<typeof PtrAdminGreaterRealmStatusV1>;
 

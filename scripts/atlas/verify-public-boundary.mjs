@@ -906,6 +906,10 @@ function hardenedGitArguments(repositoryRoot, commandArguments) {
     '--no-optional-locks',
     '--literal-pathspecs',
     `--work-tree=${repositoryRoot}`,
+    // The caller-selected root is canonicalized before this read-only scan.
+    // Sandbox-created checkouts may have a different owner; trust this one
+    // exact directory without loading global configuration or trusting '*'.
+    '-c', `safe.directory=${realpathSync.native(repositoryRoot).replaceAll('\\', '/')}`,
     '-c', 'core.bare=false',
     '-c', 'core.fsmonitor=false',
     '-c', `core.hooksPath=${nullPath}`,

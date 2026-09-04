@@ -57,12 +57,6 @@ export const Castle = __t.object("Castle", {
 });
 export type Castle = __Infer<typeof Castle>;
 
-export const Genesis002AccessRequestStatusV1 = __t.object("Genesis002AccessRequestStatusV1", {
-  status: __t.string(),
-  requestedAtMicros: __t.option(__t.u64()),
-});
-export type Genesis002AccessRequestStatusV1 = __Infer<typeof Genesis002AccessRequestStatusV1>;
-
 export const Genesis002AdminGreaterRealmImportPlanV1 = __t.object("Genesis002AdminGreaterRealmImportPlanV1", {
   state: __t.string(),
   verificationPhase: __t.string(),
@@ -80,6 +74,38 @@ export const Genesis002AdminGreaterRealmImportPlanV1 = __t.object("Genesis002Adm
 export type Genesis002AdminGreaterRealmImportPlanV1 = __Infer<typeof Genesis002AdminGreaterRealmImportPlanV1>;
 
 export const Genesis002AdminGreaterRealmStatusV1 = __t.object("Genesis002AdminGreaterRealmStatusV1", {
+  realmId: __t.string(),
+  databaseName: __t.string(),
+  moduleIdentity: __t.string(),
+  releaseVersion: __t.string(),
+  launchState: __t.string(),
+  admissionsOpen: __t.bool(),
+  accessRequestsOpen: __t.bool(),
+  admittedPlayers: __t.u64(),
+  founders: __t.u64(),
+  allowedFids: __t.u64(),
+  accessRequests: __t.u64(),
+  playersV1: __t.u64(),
+  playersV2: __t.u64(),
+  ownershipBindings: __t.u64(),
+  castles: __t.u64(),
+  realmProfiles: __t.u64(),
+  termsAcceptances: __t.u64(),
+  markAccounts: __t.u64(),
+  resourceAccounts: __t.u64(),
+  castleClaims: __t.u64(),
+  cellOccupancies: __t.u64(),
+  activationRows: __t.u64(),
+  workerSystemRows: __t.u64(),
+  atlasImportMutationsEnabled: __t.bool(),
+  atlasActivationMutationsEnabled: __t.bool(),
+  playerPresentationEnabled: __t.bool(),
+  atlasPresent: __t.bool(),
+  atlasState: __t.string(),
+  atlasReady: __t.bool(),
+  atlasCellRows: __t.u64(),
+  atlasSlotRows: __t.u64(),
+  atlasResourceRows: __t.u64(),
   present: __t.bool(),
   atlasId: __t.option(__t.string()),
   publicReleaseId: __t.option(__t.string()),
@@ -115,22 +141,14 @@ export const Genesis002AdminGreaterRealmStatusV1 = __t.object("Genesis002AdminGr
   resourceRows: __t.u64(),
   claimRows: __t.u64(),
   occupancyRows: __t.u64(),
-  activationRows: __t.u64(),
   publicAtlasRows: __t.u64(),
   publicRegionRows: __t.u64(),
-  workerSystemRows: __t.u64(),
   importsExact: __t.bool(),
   ready: __t.bool(),
   importMutationsCompiled: __t.bool(),
   activationMutationsCompiled: __t.bool(),
 });
 export type Genesis002AdminGreaterRealmStatusV1 = __Infer<typeof Genesis002AdminGreaterRealmStatusV1>;
-
-export const Genesis002AuthResolverFidAdmissionV2 = __t.object("Genesis002AuthResolverFidAdmissionV2", {
-  state: __t.string(),
-  authEpoch: __t.u32(),
-});
-export type Genesis002AuthResolverFidAdmissionV2 = __Infer<typeof Genesis002AuthResolverFidAdmissionV2>;
 
 export const Genesis002GreaterRealmComponentImportV1 = __t.object("Genesis002GreaterRealmComponentImportV1", {
   componentKey: __t.string(),
@@ -166,44 +184,6 @@ export const Genesis002GreaterRealmRegionImportV1 = __t.object("Genesis002Greate
   active: __t.bool(),
 });
 export type Genesis002GreaterRealmRegionImportV1 = __Infer<typeof Genesis002GreaterRealmRegionImportV1>;
-
-export const Genesis002RealmStatusV1 = __t.object("Genesis002RealmStatusV1", {
-  realmId: __t.string(),
-  databaseName: __t.string(),
-  moduleIdentity: __t.string(),
-  releaseVersion: __t.string(),
-  launchState: __t.string(),
-  admissionsOpen: __t.bool(),
-  accessRequestsOpen: __t.bool(),
-  admittedPlayers: __t.u64(),
-  founders: __t.u64(),
-  allowedFids: __t.u64(),
-  accessRequests: __t.u64(),
-  playersV1: __t.u64(),
-  playersV2: __t.u64(),
-  ownershipBindings: __t.u64(),
-  castles: __t.u64(),
-  realmProfiles: __t.u64(),
-  termsAcceptances: __t.u64(),
-  markAccounts: __t.u64(),
-  resourceAccounts: __t.u64(),
-  castleClaims: __t.u64(),
-  cellOccupancies: __t.u64(),
-  activationRows: __t.u64(),
-  workerSystemRows: __t.u64(),
-  atlasImportMutationsEnabled: __t.bool(),
-  atlasActivationMutationsEnabled: __t.bool(),
-  playerPresentationEnabled: __t.bool(),
-  atlasPresent: __t.bool(),
-  atlasId: __t.option(__t.string()),
-  publicReleaseId: __t.option(__t.string()),
-  atlasState: __t.string(),
-  atlasReady: __t.bool(),
-  atlasCellRows: __t.u64(),
-  atlasSlotRows: __t.u64(),
-  atlasResourceRows: __t.u64(),
-});
-export type Genesis002RealmStatusV1 = __Infer<typeof Genesis002RealmStatusV1>;
 
 export const GreaterRealmActivationV1 = __t.object("GreaterRealmActivationV1", {
   activationId: __t.string(),
@@ -589,3 +569,4 @@ export const ResourceAccountV1 = __t.object("ResourceAccountV1", {
   updatedAt: __t.timestamp(),
 });
 export type ResourceAccountV1 = __Infer<typeof ResourceAccountV1>;
+

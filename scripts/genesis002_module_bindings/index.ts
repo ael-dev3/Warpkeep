@@ -34,33 +34,17 @@ import {
 } from "spacetimedb";
 
 // Import all reducer arg schemas
-import AcceptAlphaTermsV1Reducer from "./accept_alpha_terms_v_1_reducer";
-import AdminAdmitFounderForAccessRequestV2Reducer from "./admin_admit_founder_for_access_request_v_2_reducer";
-import AdminAdmitFounderV1Reducer from "./admin_admit_founder_v_1_reducer";
-import AdminAllowFidReducer from "./admin_allow_fid_reducer";
-import AdminAllowFidForAccessRequestV1Reducer from "./admin_allow_fid_for_access_request_v_1_reducer";
 import AdminBeginGreaterRealmVerificationV1Reducer from "./admin_begin_greater_realm_verification_v_1_reducer";
-import AdminBumpAuthEpochReducer from "./admin_bump_auth_epoch_reducer";
-import AdminDisableFidReducer from "./admin_disable_fid_reducer";
 import AdminFinalizeGreaterRealmReleaseV1Reducer from "./admin_finalize_greater_realm_release_v_1_reducer";
 import AdminImportGreaterRealmChunkV1Reducer from "./admin_import_greater_realm_chunk_v_1_reducer";
 import AdminImportGreaterRealmComponentsV1Reducer from "./admin_import_greater_realm_components_v_1_reducer";
 import AdminImportGreaterRealmRegionsV1Reducer from "./admin_import_greater_realm_regions_v_1_reducer";
-import AdminResetAccessRequestV1Reducer from "./admin_reset_access_request_v_1_reducer";
 import AdminStageGreaterRealmReleaseV1Reducer from "./admin_stage_greater_realm_release_v_1_reducer";
-import AdminUpsertRealmProfileV1Reducer from "./admin_upsert_realm_profile_v_1_reducer";
 import AdminVerifyGreaterRealmBatchV1Reducer from "./admin_verify_greater_realm_batch_v_1_reducer";
-import BootstrapPlayerReducer from "./bootstrap_player_reducer";
-import BootstrapPlayerV2Reducer from "./bootstrap_player_v_2_reducer";
 
 // Import all procedure arg schemas
-import * as AccessRequestGetStatusV1Procedure from "./access_request_get_status_v_1_procedure";
-import * as AccessRequestSubmitV1Procedure from "./access_request_submit_v_1_procedure";
 import * as AdminGetGreaterRealmImportPlanV1Procedure from "./admin_get_greater_realm_import_plan_v_1_procedure";
 import * as AdminGetGreaterRealmStatusV1Procedure from "./admin_get_greater_realm_status_v_1_procedure";
-import * as AuthResolverGetFidAdmissionV2Procedure from "./auth_resolver_get_fid_admission_v_2_procedure";
-import * as GetMyAdmissionStatusV2Procedure from "./get_my_admission_status_v_2_procedure";
-import * as GetRealmStatusV1Procedure from "./get_realm_status_v_1_procedure";
 
 // Import all table schema definitions
 import AccessRequestV1Row from "./access_request_v_1_table";
@@ -523,35 +507,19 @@ const tablesSchema = __schema({
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
-  __reducerSchema("accept_alpha_terms_v1", AcceptAlphaTermsV1Reducer),
-  __reducerSchema("admin_admit_founder_for_access_request_v2", AdminAdmitFounderForAccessRequestV2Reducer),
-  __reducerSchema("admin_admit_founder_v1", AdminAdmitFounderV1Reducer),
-  __reducerSchema("admin_allow_fid", AdminAllowFidReducer),
-  __reducerSchema("admin_allow_fid_for_access_request_v1", AdminAllowFidForAccessRequestV1Reducer),
   __reducerSchema("admin_begin_greater_realm_verification_v1", AdminBeginGreaterRealmVerificationV1Reducer),
-  __reducerSchema("admin_bump_auth_epoch", AdminBumpAuthEpochReducer),
-  __reducerSchema("admin_disable_fid", AdminDisableFidReducer),
   __reducerSchema("admin_finalize_greater_realm_release_v1", AdminFinalizeGreaterRealmReleaseV1Reducer),
   __reducerSchema("admin_import_greater_realm_chunk_v1", AdminImportGreaterRealmChunkV1Reducer),
   __reducerSchema("admin_import_greater_realm_components_v1", AdminImportGreaterRealmComponentsV1Reducer),
   __reducerSchema("admin_import_greater_realm_regions_v1", AdminImportGreaterRealmRegionsV1Reducer),
-  __reducerSchema("admin_reset_access_request_v1", AdminResetAccessRequestV1Reducer),
   __reducerSchema("admin_stage_greater_realm_release_v1", AdminStageGreaterRealmReleaseV1Reducer),
-  __reducerSchema("admin_upsert_realm_profile_v1", AdminUpsertRealmProfileV1Reducer),
   __reducerSchema("admin_verify_greater_realm_batch_v1", AdminVerifyGreaterRealmBatchV1Reducer),
-  __reducerSchema("bootstrap_player", BootstrapPlayerReducer),
-  __reducerSchema("bootstrap_player_v2", BootstrapPlayerV2Reducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
 const proceduresSchema = __procedures(
-  __procedureSchema("access_request_get_status_v_1", AccessRequestGetStatusV1Procedure.params, AccessRequestGetStatusV1Procedure.returnType),
-  __procedureSchema("access_request_submit_v_1", AccessRequestSubmitV1Procedure.params, AccessRequestSubmitV1Procedure.returnType),
   __procedureSchema("admin_get_greater_realm_import_plan_v_1", AdminGetGreaterRealmImportPlanV1Procedure.params, AdminGetGreaterRealmImportPlanV1Procedure.returnType),
   __procedureSchema("admin_get_greater_realm_status_v_1", AdminGetGreaterRealmStatusV1Procedure.params, AdminGetGreaterRealmStatusV1Procedure.returnType),
-  __procedureSchema("auth_resolver_get_fid_admission_v_2", AuthResolverGetFidAdmissionV2Procedure.params, AuthResolverGetFidAdmissionV2Procedure.returnType),
-  __procedureSchema("get_my_admission_status_v_2", GetMyAdmissionStatusV2Procedure.params, GetMyAdmissionStatusV2Procedure.returnType),
-  __procedureSchema("get_realm_status_v1", GetRealmStatusV1Procedure.params, GetRealmStatusV1Procedure.returnType),
 );
 
 /** The remote SpacetimeDB module schema, both runtime and type information. */
@@ -606,3 +574,4 @@ export class DbConnection extends __DbConnectionImpl<typeof REMOTE_MODULE> {
     return new SubscriptionBuilder(this);
   };
 }
+

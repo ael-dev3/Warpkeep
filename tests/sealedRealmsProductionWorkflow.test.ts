@@ -149,7 +149,7 @@ describe('sealed-realms production workflow authority', () => {
       'linux', 'auth-bridge', 'spacetimedb-module', 'native-contract', 'verify',
     ]);
     expect(document.jobs?.['native-contract']?.['runs-on']).toBe(
-      'macos-14-xlarge',
+      'macos-14',
     );
     expect(document.jobs?.['native-contract']).not.toHaveProperty('environment');
     const nativeJob = source.slice(

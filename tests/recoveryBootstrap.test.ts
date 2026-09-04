@@ -2,7 +2,6 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import {
   createHash,
   createHmac,
-  createPrivateKey,
   createPublicKey,
   generateKeyPairSync,
 } from 'node:crypto';
@@ -167,7 +166,9 @@ afterEach(() => {
   fixtures.splice(0).forEach((root) => rmSync(root, { recursive: true, force: true }));
 });
 
-describe('0.4.0 recovery bootstrap', () => {
+// Windows cases launch real PowerShell/ACL checks for every fixture file.
+// Keep a finite integration budget without timing out valid OS verification.
+describe('0.4.0 recovery bootstrap', { timeout: process.platform === 'win32' ? 30_000 : 10_000 }, () => {
   it('is disabled by default and does not create a recovery key', () => {
     const root = fixtureRoot();
     const result = run([], { USERPROFILE: root });
@@ -228,7 +229,7 @@ describe('0.4.0 recovery bootstrap', () => {
     expect(privateJwk).toMatchObject({
       kty: 'EC', crv: 'P-256', d: expect.any(String)
     });
-    const independentlyDerived = createPublicKey(createPrivateKey({ key: privateJwk, format: 'jwk' }))
+    const independentlyDerived = createPublicKey({ key: privateJwk, format: 'jwk' })
       .export({ format: 'jwk' });
     const independentlyDerivedPublic = {
       kty: independentlyDerived.kty,

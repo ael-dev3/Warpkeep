@@ -293,7 +293,8 @@ jobs:
         run: pnpm --dir spacetimedb audit --audit-level low
 
   native-contract:
-    runs-on: macos-14-xlarge
+    # Standard macOS 14 is ARM64 and does not require a paid larger runner.
+    runs-on: macos-14
     timeout-minutes: 30
     steps:
       - name: Checkout
