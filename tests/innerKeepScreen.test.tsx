@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { InnerKeepScreen } from '../src/components/inner-keep/InnerKeepScreen';
@@ -57,6 +57,49 @@ function renderScreen(options: Readonly<{
 }
 
 describe('InnerKeepScreen free placement', () => {
+  it('shows the quoted build time and first benefit while choosing a building', () => {
+    const original = createInnerKeepPresentation();
+    renderScreen({
+      catalogueOpen: true,
+      presentation: {
+        ...original,
+        quotes: original.quotes.map(quote => quote.buildingKind === 'city-mill'
+          ? { ...quote, durationMicros: 5_400_000_000n }
+          : quote),
+      },
+    });
+    const mill = screen.getByRole('heading', { name: 'City Mill' }).closest('li')!;
+    const details = within(mill).getByLabelText('Project details');
+    expect(within(details).getByText('1 hour 30 minutes')).toBeVisible();
+    expect(within(details).getByText('Food construction costs -5%.')).toBeVisible();
+  });
+
+  it('shows time, benefit, and irreversible consequences before placement confirmation', () => {
+    renderScreen({
+      placementBuildingKind: 'city-mill',
+      onStartProject: vi.fn(async () => undefined),
+    });
+    const details = screen.getByLabelText('Project details');
+    expect(within(details).getByText('1 day')).toBeVisible();
+    expect(within(details).getByText('Food construction costs -5%.')).toBeVisible();
+    expect(screen.getByText(/after you confirm, placement is permanent/i)).toBeVisible();
+    expect(screen.getByText(/construction cannot be cancelled.*not refunded/i)).toBeVisible();
+    expect(screen.getByRole('button', { name: 'CONFIRM PLACEMENT' })).toBeEnabled();
+  });
+
+  it('distinguishes the completed benefit from the next upgrade benefit', () => {
+    renderScreen({
+      selectedBuildingKind: 'city-mill',
+      presentation: createInnerKeepPresentation({
+        buildings: [createInnerKeepTestBuilding({ buildingKind: 'city-mill' })],
+      }),
+    });
+    expect(screen.getByText('Food construction costs -5%.')).toBeVisible();
+    const details = screen.getByLabelText('Project details');
+    expect(within(details).getByText('2 days')).toBeVisible();
+    expect(within(details).getByText('Food construction costs -10%.')).toBeVisible();
+  });
+
   it('opens a six-building catalogue from a mostly empty town', () => {
     const onOpenCatalogue = vi.fn();
     const view = renderScreen({ onOpenCatalogue });

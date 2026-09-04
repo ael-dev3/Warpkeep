@@ -207,6 +207,21 @@ function ResourceCost({ quote }: Readonly<{ quote: InnerKeepProjectQuote }>) {
   );
 }
 
+function ProjectDetails({ entry, quote }: Readonly<{
+  entry: InnerKeepCatalogueEntry;
+  quote: InnerKeepProjectQuote;
+}>) {
+  return (
+    <dl aria-label="Project details" className="inner-keep-building-detail__next">
+      <div><dt>Build time</dt><dd>{durationCopy(quote.durationMicros)}</dd></div>
+      <div>
+        <dt>After completion</dt>
+        <dd>{completedEffectCopy(entry, quote.targetLevel)}</dd>
+      </div>
+    </dl>
+  );
+}
+
 function quoteFor(
   presentation: InnerKeepPresentation,
   buildingKind: InnerKeepBuildingKind,
@@ -673,6 +688,7 @@ export function InnerKeepScreen({
                         <span>Level 1</span>
                       </div>
                       {quote ? <ResourceCost quote={quote} /> : null}
+                      {quote ? <ProjectDetails entry={entry} quote={quote} /> : null}
                       <p>{entry.effectCopy}</p>
                       <button
                         data-inner-keep-building-kind={entry.buildingKind}
@@ -711,6 +727,7 @@ export function InnerKeepScreen({
           <div className="inner-keep-panel__body inner-keep-placement">
             <BuildingArt entry={selectedEntry} />
             {selectedQuote ? <ResourceCost quote={selectedQuote} /> : null}
+            {selectedQuote ? <ProjectDetails entry={selectedEntry} quote={selectedQuote} /> : null}
             <p className="inner-keep-placement__help">
               Choose any clear space inside the walls. Roads and civic areas must remain open.
             </p>
@@ -768,6 +785,10 @@ export function InnerKeepScreen({
               role="status"
             >
               {placementReason}
+            </p>
+            <p className="inner-keep-placement__help">
+              After you confirm, placement is permanent. Construction cannot be cancelled,
+              and spent resources are not refunded.
             </p>
             <button
               data-command-intent="primary"
@@ -842,8 +863,8 @@ export function InnerKeepScreen({
                   <>
                     <dl className="inner-keep-building-detail__next">
                       <div><dt>Next level</dt><dd>{selectedQuote.targetLevel}</dd></div>
-                      <div><dt>Build time</dt><dd>{durationCopy(selectedQuote.durationMicros)}</dd></div>
                     </dl>
+                    <ProjectDetails entry={selectedEntry} quote={selectedQuote} />
                     <ResourceCost quote={selectedQuote} />
                     <button
                       data-command-intent="primary"
