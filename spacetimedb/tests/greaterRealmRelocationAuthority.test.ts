@@ -204,9 +204,12 @@ async function loadExactProductionModule<Module>(sourceUrl: URL): Promise<Module
   });
   if (trace) process.stderr.write(`bundle:built:${label}\n`);
   assert.equal(result.outputFiles.length, 1);
+  // Custom-namespace metafile keys retain native Windows separators. Match
+  // the exact namespace and absolute source, not a platform-specific suffix.
+  const expectedInput = `warpkeep-stateful-local:${sourcePath}`.replaceAll('\\', '/');
   assert.ok(Object.keys(result.metafile.inputs).some(
-    input => input.endsWith(label),
-  ));
+    input => input.replaceAll('\\', '/') === expectedInput,
+  ), `Expected bundled production source ${label}`);
   const encoded = Buffer.from(result.outputFiles[0]!.contents).toString('base64');
   const loaded = import(`data:text/javascript;base64,${encoded}`) as Promise<Module>;
   const module = await loaded;

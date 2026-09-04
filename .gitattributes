@@ -4,6 +4,13 @@ src/spacetime/module_bindings/** text eol=lf whitespace=-blank-at-eof
 scripts/genesis002_module_bindings/** text eol=lf whitespace=-blank-at-eof
 spacetimedb/ptr/generated-bindings/** text eol=lf whitespace=-blank-at-eof
 
+# Backend source is inspected by contract tests and release byte commitments.
+# Preserve repository LF bytes on Windows as well as Linux/macOS.
+spacetimedb/src/** text eol=lf
+spacetimedb/migration-fixtures/**/*.ts text eol=lf
+scripts/verify-spacetime-additive-migration.mjs text eol=lf
+src/spacetime/warpkeepConnection.ts text eol=lf
+
 # Generated catalogs are compared byte-for-byte during every production build.
 src/components/inner-keep/innerKeepRuntimeAssetCatalog.generated.ts text eol=lf
 
