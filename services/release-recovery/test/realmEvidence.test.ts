@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   EVIDENCE_SNAPSHOT_KEYS,
@@ -30,6 +30,7 @@ const G001_PROGRAM = '4'.repeat(64)
 const G002_PROGRAM = 'c'.repeat(64)
 const PTR_PROGRAM = 'a'.repeat(64)
 const RPC_CREDENTIAL = 'A'.repeat(43)
+const NOW_SECONDS = 1_800_000_000
 
 type MutableRecord = Record<string, any>
 
@@ -249,8 +250,8 @@ function bridgeResponse(protectedBinding: RecoveryRealmBindingProjection): Mutab
     requestId: REQUEST_ID,
     candidateCommit: CANDIDATE_COMMIT,
     recoveryAuthorizationEpoch: 7,
-    observedFrom: 101,
-    observedThrough: 102,
+    observedFrom: NOW_SECONDS,
+    observedThrough: NOW_SECONDS,
     bridgeService: 'warpkeep-auth-bridge',
     bridgeWorkerVersion: protectedBinding.bridgeWorkerVersion,
     bridgeWorkerVersionId: protectedBinding.bridgeWorkerVersionId,
@@ -368,7 +369,6 @@ async function testInputs(
     [G002_DATABASE]: fixtures.g002,
     [PTR_DATABASE]: fixtures.ptr,
   }
-  let unixIndex = 0
   return {
     bridge: {
       async observeReleaseRecoveryState(request) {
@@ -401,11 +401,6 @@ async function testInputs(
       if (bytes === undefined) throw new Error('wrong-database')
       return response(url, bytes)
     }) as typeof fetch,
-    nowUnixSeconds: () => [100, 103][unixIndex++]!,
-    deadlineRuntime: {
-      nowAfterIoMilliseconds: () => 1_000,
-      timeoutSignal: () => new AbortController().signal,
-    },
   }
 }
 
@@ -413,8 +408,15 @@ async function expectFailure(
   input: ObserveRecoveryRealmEvidenceInput,
   secret = '',
 ): Promise<void> {
+  return expectOperationFailure(observeRecoveryRealmEvidence(input), secret)
+}
+
+async function expectOperationFailure(
+  operation: Promise<unknown>,
+  secret = '',
+): Promise<void> {
   try {
-    await observeRecoveryRealmEvidence(input)
+    await operation
     throw new Error('expected failure')
   } catch (error) {
     expect(error).toBeInstanceOf(Error)
@@ -427,7 +429,27 @@ async function expectFailure(
   }
 }
 
+// Runtime-only legacy properties keep these regressions specific: an observer that
+// starts trusting the removed caller clock hooks still has to reject/capture the bridge correctly.
+function ignoredLegacyCallerTimingHooks() {
+  return {
+    nowUnixSeconds: () => NOW_SECONDS,
+    deadlineRuntime: {
+      nowAfterIoMilliseconds: () => NOW_SECONDS * 1_000,
+      timeoutSignal: () => new AbortController().signal,
+    },
+  }
+}
+
 describe('observeRecoveryRealmEvidence', () => {
+  beforeEach(() => {
+    vi.setSystemTime(NOW_SECONDS * 1_000)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('keeps the live invariant stable while phase and monotonic sequence separate snapshots', async () => {
     const issue = await observeRecoveryRealmEvidence({ ...await testInputs(), phase: 'issue', sequence: 1 })
     const claim = await observeRecoveryRealmEvidence({ ...await testInputs(), phase: 'claim', sequence: 2 })
@@ -494,8 +516,113 @@ describe('observeRecoveryRealmEvidence', () => {
 
     const mismatch = await testInputs()
     const mutableArmed = { ...mismatch.armed, bridgeConfigEpoch: 10 }
-    await expectFailure({ ...mismatch, armed: mutableArmed as RecoveryArmingTuple, phase: 'issue', sequence: 1 })
+    let mismatchFetchCalls = 0
+    let mismatchBridgeCalls = 0
+    await expectFailure({
+      ...mismatch,
+      armed: mutableArmed as RecoveryArmingTuple,
+      bridge: {
+        observeReleaseRecoveryState: async () => {
+          mismatchBridgeCalls += 1
+          throw new Error('bridge-reached')
+        },
+      },
+      fetch: (async () => {
+        mismatchFetchCalls += 1
+        throw new Error('network-reached')
+      }) as typeof fetch,
+      phase: 'issue',
+      sequence: 1,
+    })
     expect(fetchCalls).toBe(0)
+    expect(mismatchFetchCalls).toBe(0)
+    expect(mismatchBridgeCalls).toBe(0)
+  })
+
+  it('rejects non-exact bridge capabilities before any I/O without invoking accessors', async () => {
+    for (const kind of ['extra-state', 'extra-method', 'accessor', 'exotic'] as const) {
+      const source = await testInputs()
+      let fetchCalls = 0
+      let bridgeCalls = 0
+      let getterCalls = 0
+      const callable = async () => {
+        bridgeCalls += 1
+        return bridgeResponse(source.binding)
+      }
+      let bridge: object
+      if (kind === 'extra-state') {
+        bridge = { observeReleaseRecoveryState: callable, state: 'not-a-capability' }
+      } else if (kind === 'extra-method') {
+        bridge = { observeReleaseRecoveryState: callable, close: () => undefined }
+      } else if (kind === 'accessor') {
+        bridge = {}
+        Object.defineProperty(bridge, 'observeReleaseRecoveryState', {
+          enumerable: true,
+          get: () => {
+            getterCalls += 1
+            Object.defineProperty(bridge, 'observeReleaseRecoveryState', {
+              enumerable: true,
+              value: async () => { throw new Error('toctou-replacement') },
+            })
+            return callable
+          },
+        })
+      } else {
+        bridge = Object.create({ inheritedState: true })
+        Object.defineProperty(bridge, 'observeReleaseRecoveryState', {
+          enumerable: true,
+          value: callable,
+        })
+      }
+      await expectFailure({
+        ...source,
+        ...ignoredLegacyCallerTimingHooks(),
+        bridge: bridge as ObserveRecoveryRealmEvidenceInput['bridge'],
+        fetch: (async () => {
+          fetchCalls += 1
+          throw new Error('network-reached')
+        }) as typeof fetch,
+        phase: 'issue',
+        sequence: 1,
+      })
+      expect(fetchCalls).toBe(0)
+      expect(bridgeCalls).toBe(0)
+      expect(getterCalls).toBe(0)
+    }
+  })
+
+  it('captures the exact bridge callable once before schema I/O', async () => {
+    const source = await testInputs()
+    let originalCalls = 0
+    let replacementCalls = 0
+    const capability = {
+      observeReleaseRecoveryState: async () => {
+        originalCalls += 1
+        return bridgeResponse(source.binding)
+      },
+    }
+    const fetchImplementation = source.fetch
+    let fetchCalls = 0
+    const evidence = await observeRecoveryRealmEvidence({
+      ...source,
+      ...ignoredLegacyCallerTimingHooks(),
+      bridge: capability,
+      fetch: (async (request, init) => {
+        fetchCalls += 1
+        capability.observeReleaseRecoveryState = async () => {
+          replacementCalls += 1
+          throw new Error('toctou-replacement')
+        }
+        return fetchImplementation(request, init)
+      }) as typeof fetch,
+      phase: 'issue',
+      sequence: 1,
+    })
+
+    expect(evidence.liveInvariantDigest).toMatch(/^[0-9a-f]{64}$/u)
+    expect(fetchCalls).toBe(3)
+    expect(originalCalls).toBe(1)
+    expect(replacementCalls).toBe(0)
   })
 
   it('rejects bridge echo, deployment, and admission-state substitutions', async () => {
@@ -588,24 +715,77 @@ describe('observeRecoveryRealmEvidence', () => {
     } as unknown as ObserveRecoveryRealmEvidenceInput)
   })
 
-  it('rejects extra bridge fields, exotic nested records, and an aborted overall deadline', async () => {
+  it('rejects extra bridge response fields and exotic nested response records', async () => {
     await expectFailure({ ...await testInputs(value => { value.extra = true }), phase: 'issue', sequence: 1 })
     await expectFailure({
       ...await testInputs(value => { value.g001 = Object.create(value.g001) }),
       phase: 'issue',
       sequence: 1,
     })
+  })
 
-    const timedOut = await testInputs()
-    await expectFailure({
-      ...timedOut,
-      deadlineRuntime: {
-        nowAfterIoMilliseconds: () => 1_000,
-        timeoutSignal: () => AbortSignal.abort(),
-      },
+  it('owns the deadline that terminates a non-settling schema fetch', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW_SECONDS * 1_000)
+    const source = await testInputs()
+    let settled = false
+    const operation = observeRecoveryRealmEvidence({
+      ...source,
+      fetch: (() => new Promise<Response>(() => undefined)) as typeof fetch,
       phase: 'issue',
       sequence: 1,
     })
+    const tracked = operation.then(
+      value => ({ value, error: undefined }),
+      error => ({ value: undefined, error }),
+    )
+    void tracked.then(() => { settled = true })
+
+    await vi.advanceTimersByTimeAsync(3_999)
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    const outcome = await tracked
+    expect(outcome.value).toBeUndefined()
+    expect((outcome.error as Error).message).toBe('RECOVERY_REALM_EVIDENCE_FAILED')
+  })
+
+  it('owns the deadline that terminates a non-settling bridge call', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW_SECONDS * 1_000)
+    const source = await testInputs()
+    let markBridgeStarted!: () => void
+    const bridgeStarted = new Promise<void>(resolve => { markBridgeStarted = resolve })
+    const operation = observeRecoveryRealmEvidence({
+      ...source,
+      bridge: {
+        observeReleaseRecoveryState: async () => {
+          markBridgeStarted()
+          return new Promise<never>(() => undefined)
+        },
+      },
+      phase: 'claim',
+      sequence: 2,
+    })
+    const tracked = operation.then(
+      value => ({ value, error: undefined }),
+      error => ({ value: undefined, error }),
+    )
+    const reachedBridge = await Promise.race([
+      bridgeStarted.then(() => true),
+      tracked.then(() => false),
+    ])
+    expect(reachedBridge).toBe(true)
+    let settled = false
+    void tracked.then(() => { settled = true })
+
+    await vi.advanceTimersByTimeAsync(89_999)
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    const outcome = await tracked
+    expect(outcome.value).toBeUndefined()
+    expect((outcome.error as Error).message).toBe('RECOVERY_REALM_EVIDENCE_FAILED')
+    expect(Object.hasOwn(outcome.error as object, 'stack')).toBe(false)
+    expect(Object.hasOwn(outcome.error as object, 'cause')).toBe(false)
   })
 
   it('maps bridge, schema, and hostile accessor failures to one redacted error', async () => {

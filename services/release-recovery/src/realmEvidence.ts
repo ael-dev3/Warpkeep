@@ -316,11 +316,6 @@ export type ObserveRecoveryRealmEvidenceInput = Readonly<{
   pins: SpacetimeProgramPins
   expectedRawModuleDefV10Fixtures: ExpectedRawModuleDefV10Fixtures
   fetch: typeof fetch
-  nowUnixSeconds: () => number
-  deadlineRuntime: Readonly<{
-    nowAfterIoMilliseconds: () => number
-    timeoutSignal: (milliseconds: number) => AbortSignal
-  }>
 }> & RecoveryObservationPhase
 
 type RealmName = 'g001' | 'g002' | 'ptr'
@@ -455,8 +450,15 @@ function validateStaticInputs(input: ObserveRecoveryRealmEvidenceInput): Readonl
   protectedBindingBytes: Uint8Array
   armedBindingBytes: Uint8Array
   request: ReleaseRecoveryObservationRequest
+  observeReleaseRecoveryState: ReleaseRecoveryObservationService['observeReleaseRecoveryState']
 }> {
   validatePhase(input)
+  const bridgeCapability = exactRecord(input.bridge, ['observeReleaseRecoveryState'])
+  const observeReleaseRecoveryState = bridgeCapability.observeReleaseRecoveryState
+  if (typeof observeReleaseRecoveryState !== 'function') fail()
+  const capturedObserver = observeReleaseRecoveryState as (
+    request: ReleaseRecoveryObservationRequest,
+  ) => Promise<unknown>
   const binding = snapshotRecoveryRealmBindingProjection(input.binding, RECOVERY_REALM_EVIDENCE_FAILED)
   const armed = snapshotRecoveryArmingTuple(input.armed, RECOVERY_REALM_EVIDENCE_FAILED)
   const armedProjection = recoveryRealmBindingProjectionFromArmed(armed, RECOVERY_REALM_EVIDENCE_FAILED)
@@ -483,17 +485,7 @@ function validateStaticInputs(input: ObserveRecoveryRealmEvidenceInput): Readonl
     const normalized = parseAndNormalizeRawModuleDefV10(fixtures[realm])
     if (!equalBytes(fixtures[realm], normalized.canonicalBytes())) fail()
   }
-  if (
-    (typeof input.bridge !== 'object' && typeof input.bridge !== 'function')
-    || input.bridge === null
-    || typeof input.bridge.observeReleaseRecoveryState !== 'function'
-    || typeof input.fetch !== 'function'
-    || typeof input.nowUnixSeconds !== 'function'
-    || input.deadlineRuntime === null
-    || typeof input.deadlineRuntime !== 'object'
-    || typeof input.deadlineRuntime.nowAfterIoMilliseconds !== 'function'
-    || typeof input.deadlineRuntime.timeoutSignal !== 'function'
-  ) fail()
+  if (typeof input.fetch !== 'function') fail()
   const request = captureBridgeRequest(input.rpcCredential, binding, input.candidateCommit)
   return Object.freeze({
     binding,
@@ -503,35 +495,47 @@ function validateStaticInputs(input: ObserveRecoveryRealmEvidenceInput): Readonl
     protectedBindingBytes,
     armedBindingBytes,
     request,
+    observeReleaseRecoveryState: capturedObserver,
   })
 }
 
-function requireAbortSignal(value: unknown): AbortSignal {
-  if (!(value instanceof AbortSignal)) fail()
-  return value
-}
-
-function requireRuntimeNow(runtime: ObserveRecoveryRealmEvidenceInput['deadlineRuntime']): number {
-  const value = runtime.nowAfterIoMilliseconds()
+function requireRuntimeNow(): number {
+  const value = Date.now()
   if (!safeNonnegative(value)) fail()
   return value
 }
 
-function requireUnixNow(nowUnixSeconds: () => number): number {
-  const value = nowUnixSeconds()
+function requireUnixNow(): number {
+  const value = Math.floor(Date.now() / 1_000)
   if (!safeNonnegative(value)) fail()
   return value
 }
 
 function requireBeforeDeadline(
-  runtime: ObserveRecoveryRealmEvidenceInput['deadlineRuntime'],
   deadline: number,
   signals: readonly AbortSignal[],
 ): number {
   if (signals.some(signal => signal.aborted)) fail()
-  const now = requireRuntimeNow(runtime)
+  const now = requireRuntimeNow()
   if (now >= deadline) fail()
   return now
+}
+
+type OwnedTimeout = Readonly<{
+  signal: AbortSignal
+  cancel(): void
+}>
+
+function createOwnedTimeout(milliseconds: number): OwnedTimeout {
+  if (!positiveSafe(milliseconds)) fail()
+  const controller = new AbortController()
+  const handle = setTimeout(() => {
+    controller.abort()
+  }, milliseconds)
+  return Object.freeze({
+    signal: controller.signal,
+    cancel: () => clearTimeout(handle),
+  })
 }
 
 async function raceSignals<T>(operation: Promise<T>, signals: readonly AbortSignal[]): Promise<T> {
@@ -637,16 +641,15 @@ async function fetchSchema(
   fixture: Uint8Array,
   pins: SpacetimeProgramPins,
   fetchImplementation: typeof fetch,
-  runtime: ObserveRecoveryRealmEvidenceInput['deadlineRuntime'],
-  overallSignal: AbortSignal,
+  overallTimeout: OwnedTimeout,
   deadline: number,
 ): Promise<Readonly<{ abiSha256: string; responseSha256: string }>> {
-  const remaining = deadline - requireBeforeDeadline(runtime, deadline, [overallSignal])
+  const remaining = deadline - requireBeforeDeadline(deadline, [overallTimeout.signal])
   if (remaining <= 0) fail()
-  const requestSignal = requireAbortSignal(runtime.timeoutSignal(
+  const requestTimeout = createOwnedTimeout(
     Math.min(REQUEST_TIMEOUT_MILLISECONDS, remaining),
-  ))
-  const signals = [overallSignal, requestSignal] as const
+  )
+  const signals = [overallTimeout.signal, requestTimeout.signal] as const
   const combined = combinedSignal(signals)
   const url = `${MAINCLOUD_ORIGIN}/v1/database/${database}/schema?version=10`
   let response: Response
@@ -659,20 +662,20 @@ async function fetchSchema(
       cache: 'no-store',
       signal: combined.signal,
     })), signals)
-    requireBeforeDeadline(runtime, deadline, signals)
+    requireBeforeDeadline(deadline, signals)
     if (
       response.url !== url
       || response.status !== 200
       || !/^application\/json(?:; charset=utf-8)?$/iu.test(response.headers.get('content-type') ?? '')
     ) fail()
     const raw = await readBoundedBody(response, signals)
-    requireBeforeDeadline(runtime, deadline, signals)
+    requireBeforeDeadline(deadline, signals)
     const normalized = parseAndNormalizeRawModuleDefV10(raw)
     const canonical = normalized.canonicalBytes()
     if (!equalBytes(canonical, fixture)) fail()
     const abiSha256 = await raceSignals(sha256Hex(ABI_DOMAINS[realm], canonical), signals)
     const responseSha256 = await raceSignals(sha256Hex(RESPONSE_DOMAINS[realm], raw), signals)
-    requireBeforeDeadline(runtime, deadline, signals)
+    requireBeforeDeadline(deadline, signals)
     if (
       abiSha256 !== pins.realms[realm].deployedAbiV10Sha256
       || responseSha256 !== pins.realms[realm].rawModuleDefV10ResponseSha256
@@ -680,6 +683,7 @@ async function fetchSchema(
     return Object.freeze({ abiSha256, responseSha256 })
   } finally {
     combined.cleanup()
+    requestTimeout.cancel()
   }
 }
 
@@ -866,16 +870,15 @@ function jsonProjection(
 export async function observeRecoveryRealmEvidence(
   input: ObserveRecoveryRealmEvidenceInput,
 ): Promise<RecoveryRealmEvidence> {
+  let overallTimeout: OwnedTimeout | undefined
   try {
     const captured = validateStaticInputs(input)
-    const runtimeStart = requireRuntimeNow(input.deadlineRuntime)
+    const runtimeStart = requireRuntimeNow()
     if (runtimeStart > Number.MAX_SAFE_INTEGER - OVERALL_TIMEOUT_MILLISECONDS) fail()
     const deadline = runtimeStart + OVERALL_TIMEOUT_MILLISECONDS
-    const overallSignal = requireAbortSignal(
-      input.deadlineRuntime.timeoutSignal(OVERALL_TIMEOUT_MILLISECONDS),
-    )
-    requireBeforeDeadline(input.deadlineRuntime, deadline, [overallSignal])
-    const observedFrom = requireUnixNow(input.nowUnixSeconds)
+    overallTimeout = createOwnedTimeout(OVERALL_TIMEOUT_MILLISECONDS)
+    requireBeforeDeadline(deadline, [overallTimeout.signal])
+    const observedFrom = requireUnixNow()
 
     const schemas: Partial<Record<RealmName, Readonly<{
       abiSha256: string
@@ -888,27 +891,26 @@ export async function observeRecoveryRealmEvidence(
         captured.fixtures[realm],
         captured.pins,
         input.fetch,
-        input.deadlineRuntime,
-        overallSignal,
+        overallTimeout,
         deadline,
       )
     }
 
-    requireBeforeDeadline(input.deadlineRuntime, deadline, [overallSignal])
+    requireBeforeDeadline(deadline, [overallTimeout.signal])
     let rawBridgeResponse: unknown
     try {
       rawBridgeResponse = await raceSignals(
         Promise.resolve(captured.request).then(request => (
-          input.bridge.observeReleaseRecoveryState(request)
+          captured.observeReleaseRecoveryState(request)
         )),
-        [overallSignal],
+        [overallTimeout.signal],
       )
     } catch {
       fail()
     }
-    requireBeforeDeadline(input.deadlineRuntime, deadline, [overallSignal])
+    requireBeforeDeadline(deadline, [overallTimeout.signal])
     const bridge = captureBridgeResponse(rawBridgeResponse, captured.binding, captured.request)
-    const observedThrough = requireUnixNow(input.nowUnixSeconds)
+    const observedThrough = requireUnixNow()
     if (
       observedThrough < observedFrom
       || observedThrough - observedFrom > 90
@@ -1059,5 +1061,11 @@ export async function observeRecoveryRealmEvidence(
     }) as RecoveryRealmEvidence
   } catch {
     throw new RecoveryRealmEvidenceError()
+  } finally {
+    try {
+      overallTimeout?.cancel()
+    } catch {
+      // Cleanup cannot replace the selected result or fixed failure.
+    }
   }
 }
