@@ -9,7 +9,10 @@ import {
   PROGRAM_PIN_REALM_KEYS,
   PTR_PROGRAM_PIN_KEYS,
   parseSpacetimeProgramPins,
+  validateSpacetimeProgramPins,
 } from '../src/spacetimeProgramPins.js'
+
+const encoder = new TextEncoder()
 
 const G001_DATABASE = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
 const BUILD_PROFILE = 'warpkeep-release-recovery-cross-platform-program-build-v1'
@@ -182,13 +185,13 @@ function orderedCopy(source: Record<string, unknown>, keys: readonly string[]): 
 async function reject(mutator: (manifest: Record<string, unknown>) => void): Promise<void> {
   const manifest = validManifest()
   mutator(manifest)
-  expect(() => parseSpacetimeProgramPins(manifest)).toThrowError('RELEASE_RECOVERY_PROGRAM_PINS_FAILED')
+  expect(() => validateSpacetimeProgramPins(manifest)).toThrowError('RELEASE_RECOVERY_PROGRAM_PINS_FAILED')
 }
 
 describe('parseSpacetimeProgramPins', () => {
   it('parses the exact three-realm manifest into an independent deeply frozen snapshot', () => {
     const manifest = validManifest()
-    const parsed = parseSpacetimeProgramPins(manifest)
+    const parsed = validateSpacetimeProgramPins(manifest)
 
     expect(Object.keys(parsed)).toEqual([...PROGRAM_PIN_MANIFEST_KEYS])
     expect(Object.keys(parsed.realms)).toEqual([...PROGRAM_PIN_REALM_KEYS])
@@ -206,6 +209,27 @@ describe('parseSpacetimeProgramPins', () => {
 
     realm(manifest, 'g002').programArtifactSha256 = 'f'.repeat(64)
     expect(parsed.realms.g002.programArtifactSha256).toBe('b'.repeat(64))
+  })
+
+  it('parses only explicit strict manifest bytes without another authority source', () => {
+    const manifest = validManifest()
+    const bytes = encoder.encode(JSON.stringify(manifest))
+    const parsed = parseSpacetimeProgramPins(bytes)
+
+    expect(parsed.realms.g001.databaseIdentity).toBe(G001_DATABASE)
+    expect(parsed.realms.g002.programKeccak256).toBe('c'.repeat(64))
+    expect(Object.isFrozen(parsed.realms.ptr)).toBe(true)
+
+    const duplicate = encoder.encode(JSON.stringify(manifest).replace(
+      '{"schemaVersion":1,',
+      '{"schemaVersion":1,"schemaVersion":1,',
+    ))
+    expect(() => parseSpacetimeProgramPins(duplicate))
+      .toThrowError('RELEASE_RECOVERY_PROGRAM_PINS_FAILED')
+    expect(() => parseSpacetimeProgramPins(new Uint8Array([0xff])))
+      .toThrowError('RELEASE_RECOVERY_PROGRAM_PINS_FAILED')
+    expect(() => parseSpacetimeProgramPins({} as Uint8Array))
+      .toThrowError('RELEASE_RECOVERY_PROGRAM_PINS_FAILED')
   })
 
   it('fixes the manifest and realm field order', () => {
@@ -349,7 +373,7 @@ describe('parseSpacetimeProgramPins', () => {
       ownKeys: () => { throw new Error('do-not-leak-this-value') },
     })
     try {
-      parseSpacetimeProgramPins(hostile)
+      validateSpacetimeProgramPins(hostile)
       throw new Error('expected failure')
     } catch (error) {
       expect(error).toBeInstanceOf(Error)

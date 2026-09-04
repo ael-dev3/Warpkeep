@@ -151,6 +151,10 @@ export type SpacetimeProgramPins = Readonly<{
 
 const LOWER_HEX_40 = /^[0-9a-f]{40}$/u
 const LOWER_HEX_64 = /^[0-9a-f]{64}$/u
+const MAX_PROGRAM_PINS_BYTES = 128 * 1024
+const MAX_PROGRAM_PINS_DEPTH = 16
+const MAX_PROGRAM_PINS_NODES = 1_024
+const decoder = new TextDecoder('utf-8', { fatal: true })
 
 export class ReleaseRecoveryProgramPinsError extends Error {
   readonly code = 'RELEASE_RECOVERY_PROGRAM_PINS_FAILED' as const
@@ -311,7 +315,7 @@ function requireDistinct(values: readonly string[]): void {
   if (new Set(values).size !== values.length) fail()
 }
 
-function parse(input: unknown): SpacetimeProgramPins {
+function validate(input: unknown): SpacetimeProgramPins {
   const manifest = exactRecord(input, PROGRAM_PIN_MANIFEST_KEYS)
   requireLiteral(manifest.schemaVersion, 1)
   requireLiteral(manifest.profile, SPACETIME_PROGRAM_PINS_PROFILE)
@@ -355,9 +359,149 @@ function parse(input: unknown): SpacetimeProgramPins {
   })
 }
 
-export function parseSpacetimeProgramPins(input: unknown): SpacetimeProgramPins {
+export function validateSpacetimeProgramPins(input: unknown): SpacetimeProgramPins {
   try {
-    return parse(input)
+    return validate(input)
+  } catch (error) {
+    if (error instanceof ReleaseRecoveryProgramPinsError) throw error
+    fail()
+  }
+}
+
+class StrictProgramPinsJsonParser {
+  #index = 0
+  #nodes = 0
+  readonly #number = /-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/uy
+
+  constructor(private readonly source: string) {}
+
+  parse(): unknown {
+    this.skipWhitespace()
+    const value = this.value(1)
+    this.skipWhitespace()
+    if (this.#index !== this.source.length) fail()
+    return value
+  }
+
+  private value(depth: number): unknown {
+    if (depth > MAX_PROGRAM_PINS_DEPTH || ++this.#nodes > MAX_PROGRAM_PINS_NODES) fail()
+    this.skipWhitespace()
+    const character = this.source[this.#index]
+    if (character === '{') return this.object(depth)
+    if (character === '[') return this.array(depth)
+    if (character === '"') return this.string()
+    if (this.consume('true')) return true
+    if (this.consume('false')) return false
+    if (this.consume('null')) return null
+    this.#number.lastIndex = this.#index
+    const match = this.#number.exec(this.source)
+    if (match === null) fail()
+    const number = Number(match[0])
+    if (!Number.isSafeInteger(number) || String(number) !== match[0]) fail()
+    this.#index = this.#number.lastIndex
+    return number
+  }
+
+  private object(depth: number): Record<string, unknown> {
+    this.#index += 1
+    const result: Record<string, unknown> = {}
+    this.skipWhitespace()
+    if (this.source[this.#index] === '}') {
+      this.#index += 1
+      return result
+    }
+    while (true) {
+      if (this.source[this.#index] !== '"') fail()
+      const key = this.string()
+      if (Object.hasOwn(result, key)) fail()
+      this.skipWhitespace()
+      if (this.source[this.#index] !== ':') fail()
+      this.#index += 1
+      result[key] = this.value(depth + 1)
+      this.skipWhitespace()
+      const separator = this.source[this.#index]
+      if (separator === '}') {
+        this.#index += 1
+        return result
+      }
+      if (separator !== ',') fail()
+      this.#index += 1
+      this.skipWhitespace()
+    }
+  }
+
+  private array(depth: number): unknown[] {
+    this.#index += 1
+    const result: unknown[] = []
+    this.skipWhitespace()
+    if (this.source[this.#index] === ']') {
+      this.#index += 1
+      return result
+    }
+    while (true) {
+      result.push(this.value(depth + 1))
+      if (result.length > MAX_PROGRAM_PINS_NODES) fail()
+      this.skipWhitespace()
+      const separator = this.source[this.#index]
+      if (separator === ']') {
+        this.#index += 1
+        return result
+      }
+      if (separator !== ',') fail()
+      this.#index += 1
+      this.skipWhitespace()
+    }
+  }
+
+  private string(): string {
+    const start = this.#index
+    this.#index += 1
+    let escaped = false
+    while (this.#index < this.source.length) {
+      const character = this.source[this.#index++]
+      if (character === '"' && !escaped) {
+        const token = this.source.slice(start, this.#index)
+        try {
+          const value: unknown = JSON.parse(token)
+          if (typeof value !== 'string' || JSON.stringify(value) !== token) fail()
+          return value
+        } catch (error) {
+          if (error instanceof ReleaseRecoveryProgramPinsError) throw error
+          fail()
+        }
+      }
+      if (character === undefined || character < ' ') fail()
+      if (escaped) {
+        if (character === 'u') {
+          if (!/^[0-9a-fA-F]{4}$/u.test(this.source.slice(this.#index, this.#index + 4))) fail()
+          this.#index += 4
+        } else if (!'"\\/bfnrt'.includes(character)) {
+          fail()
+        }
+        escaped = false
+      } else if (character === '\\') {
+        escaped = true
+      }
+    }
+    fail()
+  }
+
+  private skipWhitespace(): void {
+    while (' \t\r\n'.includes(this.source[this.#index] ?? '\0')) this.#index += 1
+  }
+
+  private consume(token: string): boolean {
+    if (!this.source.startsWith(token, this.#index)) return false
+    this.#index += token.length
+    return true
+  }
+}
+
+export function parseSpacetimeProgramPins(bytes: Uint8Array): SpacetimeProgramPins {
+  try {
+    if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0 || bytes.byteLength > MAX_PROGRAM_PINS_BYTES) fail()
+    if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) fail()
+    return validate(new StrictProgramPinsJsonParser(decoder.decode(bytes)).parse())
   } catch (error) {
     if (error instanceof ReleaseRecoveryProgramPinsError) throw error
     fail()
