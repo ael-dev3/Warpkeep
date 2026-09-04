@@ -1,3 +1,5 @@
+export const FIXED_PRIVATE_ROOT: 'C:\\Users\\heyas\\.warpkeep\\private\\release-recovery-v1'
+
 export const FIXED_PRIVATE_RECORD_PATHS: Readonly<{
   marker: string
   rpcSecret: string
@@ -6,7 +8,12 @@ export const FIXED_PRIVATE_RECORD_PATHS: Readonly<{
   authBridgePublicJwk: string
   toolchainAttestation: string
   g002Receipt: string
+  g002ImportReceipt: string
+  g002LiveReceipt: string
   ptrReceipt: string
+  ptrImportReceipt: string
+  ptrOwnerReceipt: string
+  ptrLiveReceipt: string
 }>
 
 export const FIXTURE_OUTPUT_PATHS: Readonly<{
@@ -29,3 +36,9 @@ export function parseGeneratorArguments(argv: readonly string[]): Readonly<{
 export function runGenerator(input: unknown): Promise<Readonly<
   { verified: true } | { written: true }
 >>
+
+export function preflightFixedPrivatePrerequisites(input: unknown): Promise<Readonly<{
+  g002: Readonly<Record<string, unknown>>
+  ptr: Readonly<Record<string, unknown>>
+  toolchain: Readonly<Record<string, unknown>>
+}>>

@@ -1,7 +1,34 @@
 import { createHash } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { win32 } from 'node:path'
 
 import { describe, expect, it, vi } from 'vitest'
+
+const childProcessBoundary = vi.hoisted(() => ({
+  spawnSync: vi.fn(),
+}))
+
+vi.mock('node:child_process', async importOriginal => ({
+  ...await importOriginal<typeof import('node:child_process')>(),
+  spawnSync: childProcessBoundary.spawnSync,
+}))
+
+const fixedHost = vi.hoisted(() => ({
+  openFixedPrivateRoot: vi.fn(),
+  readFixedPrivateRecord: vi.fn(),
+  closeFixedPrivateRoot: vi.fn(),
+  verifyFixedPublishReceipt: vi.fn(),
+  verifyFixedToolchainAttestation: vi.fn(),
+  readFixedFixtureOutput: vi.fn(),
+  recoverFixedFixtureOutputs: vi.fn(),
+  beginFixedFixtureOutputTransaction: vi.fn(),
+  preflightFixedWslHostAndGuest: vi.fn(),
+  bootstrapFixedWslToolchain: vi.fn(),
+  executeFixedWslFixturePlan: vi.fn(),
+}))
+
+vi.mock('../scripts/release-recovery-fixture-host.mjs', () => fixedHost)
 
 import {
   FIXED_PRIVATE_RECORD_PATHS,
@@ -22,7 +49,11 @@ import { parseSpacetimeProgramPins } from '../src/spacetimeProgramPins.js'
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
-const PRIVATE_ROOT = String.raw`C:\synthetic\owner-private\release-recovery-v1`
+const FIXED_OPERATOR_ROOT = String.raw`C:\Users\heyas\.warpkeep\private\release-recovery-v1`
+const PRIVATE_ROOT = FIXED_OPERATOR_ROOT
+const SYNTHETIC_PRIVATE_ROOT = String.raw`C:\synthetic\owner-private\release-recovery-v1`
+const FIXED_BOOTSTRAP_PROGRAM = '/opt/warpkeep/release-recovery-v1/bin/bootstrap-toolchain-v1'
+const FIXED_MATERIALIZER_PROGRAM = '/opt/warpkeep/release-recovery-v1/bin/materialize-spacetime-fixtures-v1'
 
 const encode = (value: string): Uint8Array => encoder.encode(value)
 const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex')
@@ -69,7 +100,12 @@ function privateBytes(): Map<string, Uint8Array> {
       encode(`${JSON.stringify(bridgeJwk)}\n`)],
     [FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation, encode('synthetic-toolchain-attestation\n')],
     [FIXED_PRIVATE_RECORD_PATHS.g002Receipt, encode('synthetic-g002-receipt\n')],
+    [FIXED_PRIVATE_RECORD_PATHS.g002ImportReceipt, encode('synthetic-g002-import-receipt\n')],
+    [FIXED_PRIVATE_RECORD_PATHS.g002LiveReceipt, encode('synthetic-g002-live-receipt\n')],
     [FIXED_PRIVATE_RECORD_PATHS.ptrReceipt, encode('synthetic-ptr-receipt\n')],
+    [FIXED_PRIVATE_RECORD_PATHS.ptrImportReceipt, encode('synthetic-ptr-import-receipt\n')],
+    [FIXED_PRIVATE_RECORD_PATHS.ptrOwnerReceipt, encode('synthetic-ptr-owner-receipt\n')],
+    [FIXED_PRIVATE_RECORD_PATHS.ptrLiveReceipt, encode('synthetic-ptr-live-receipt\n')],
   ])
 }
 
@@ -125,6 +161,66 @@ function runnerResult(): any {
         rawModuleDefV10ResponseBytes: encode('{"sections":[{"Reducers":[]}]}'),
       },
     },
+  }
+}
+
+function platformAttestation(): any {
+  return {
+    schemaVersion: 1,
+    profile: 'warpkeep-release-recovery-wsl-host-guest-preflight-v1',
+    executableSha256: '27cc8dd52be326e138a89f8889241b1d8c51dd1978b22eb70be77036ccdee3c2',
+    wslVersion: '2.7.11.0',
+    distribution: 'Ubuntu-24.04',
+    osReleaseSha256: '01af466feb100306498c86aa6bad1815e33036019aa34d4362c20f374ea5c829',
+    kernelReleaseSha256: '600c01e56d5afd93f0ecd74ff4ebb5ef91623d779bbba04388a866c3b581fc92',
+    gitSha256: '2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668',
+    unshareSha256: 'a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c',
+    loopbackToolSha256: '81a95d97c70f3677d1883b9d8fe13b1771ab208d5bca56bc447aaaff0b0480e0',
+  }
+}
+
+function fixedProgramCoordinates(): any {
+  const bootstrap = Uint8Array.from(readFileSync(new URL(
+    '../scripts/release-recovery-wsl-bootstrap.py',
+    import.meta.url,
+  )))
+  const materializer = Uint8Array.from(readFileSync(new URL(
+    '../scripts/release-recovery-wsl-materialize.mjs',
+    import.meta.url,
+  )))
+  return {
+    bootstrap,
+    materializer,
+    toolchain: {
+      manifestSha256: runnerResult().toolchainManifestSha256,
+      cacheCatalogSha256: '7'.repeat(64),
+      bootstrapProgramBytes: bootstrap.byteLength,
+      bootstrapProgramSha256: sha256(bootstrap),
+      materializerProgramBytes: materializer.byteLength,
+      materializerProgramSha256: sha256(materializer),
+    },
+  }
+}
+
+function fixtureWireResult(result = runnerResult()): any {
+  const realm = (value: any) => ({
+    ...value,
+    rawModuleDefV10ResponseBase64url:
+      Buffer.from(value.rawModuleDefV10ResponseBytes).toString('base64url'),
+    rawModuleDefV10ResponseBytes: undefined,
+  })
+  const wireRealms = Object.fromEntries(
+    Object.entries(result.realms).map(([name, value]) => [name, realm(value)]),
+  )
+  for (const value of Object.values(wireRealms) as any[]) {
+    delete value.rawModuleDefV10ResponseBytes
+  }
+  return {
+    schemaVersion: result.schemaVersion,
+    profile: result.profile,
+    toolchainManifestBase64url: Buffer.from(result.toolchainManifestBytes).toString('base64url'),
+    toolchainManifestSha256: result.toolchainManifestSha256,
+    realms: wireRealms,
   }
 }
 
@@ -199,6 +295,7 @@ function dependencies(options: Readonly<{
   result?: any
   output?: MemoryOutputs
 }> = {}) {
+  for (const boundary of Object.values(fixedHost)) boundary.mockReset()
   const files = options.files ?? privateBytes()
   const output = options.output ?? memoryOutputs()
   const rootHandle = {
@@ -211,7 +308,7 @@ function dependencies(options: Readonly<{
     ...options.rootMutation,
   }
   const privateRoot = {
-    open: vi.fn(async () => rootHandle),
+    open: vi.fn(async (_requestedPath: string) => rootHandle),
     read: vi.fn(async (_root: unknown, relativePath: string, maximumBytes: number) => {
       const bytes = files.get(relativePath)
       if (bytes === undefined) throw new Error('missing-private-input-with-detail')
@@ -227,21 +324,43 @@ function dependencies(options: Readonly<{
         ...options.fileMutation,
       }
     }),
-    close: vi.fn(async () => undefined),
+    close: vi.fn(async (_root: unknown) => undefined),
   }
   const verifyReceipt = vi.fn(async ({ realm, bytes }: any) => authenticatedReceipt(realm, bytes))
   const result = options.result ?? runnerResult()
-  const verifyToolchain = vi.fn(async ({ bytes }: any) => ({
-    schemaVersion: 1,
-    profile: 'warpkeep-release-recovery-wsl-toolchain-attestation-v1',
-    platform: 'linux',
-    architecture: 'x64',
-    offlineReady: true,
-    signaturesVerified: true,
-    attestationSha256: sha256(bytes),
-    toolchainManifestSha256: result.toolchainManifestSha256,
-  }))
+  const verifyToolchain = vi.fn(async ({ bytes }: any) => {
+    const programs = fixedProgramCoordinates().toolchain
+    return {
+      schemaVersion: 1,
+      profile: 'warpkeep-release-recovery-wsl-toolchain-attestation-v1',
+      platform: 'linux',
+      architecture: 'x64',
+      offlineReady: true,
+      signaturesVerified: true,
+      attestationSha256: sha256(bytes),
+      toolchainManifestSha256: result.toolchainManifestSha256,
+      cacheCatalogSha256: programs.cacheCatalogSha256,
+      bootstrapProgramBytes: programs.bootstrapProgramBytes,
+      bootstrapProgramSha256: programs.bootstrapProgramSha256,
+      materializerProgramBytes: programs.materializerProgramBytes,
+      materializerProgramSha256: programs.materializerProgramSha256,
+    }
+  })
   const runner = vi.fn(async (_request: any) => result)
+  fixedHost.openFixedPrivateRoot.mockImplementation((requestedPath: any) => privateRoot.open(requestedPath))
+  fixedHost.readFixedPrivateRecord.mockImplementation(
+    (root: any, relativePath: any, maximumBytes: any) => privateRoot.read(root, relativePath, maximumBytes),
+  )
+  fixedHost.closeFixedPrivateRoot.mockImplementation((root: any) => privateRoot.close(root))
+  fixedHost.verifyFixedPublishReceipt.mockImplementation((request: any) => verifyReceipt(request))
+  fixedHost.verifyFixedToolchainAttestation.mockImplementation((request: any) => verifyToolchain(request))
+  fixedHost.readFixedFixtureOutput.mockImplementation((path: any) => output.outputs.read(path))
+  fixedHost.recoverFixedFixtureOutputs.mockImplementation(() => output.outputs.recover())
+  fixedHost.beginFixedFixtureOutputTransaction.mockImplementation(
+    (paths: any) => output.outputs.begin(paths),
+  )
+  fixedHost.preflightFixedWslHostAndGuest.mockResolvedValue(platformAttestation())
+  fixedHost.executeFixedWslFixturePlan.mockImplementation((request: any) => runner(request))
   return {
     adapters: {
       privateRoot,
@@ -282,7 +401,168 @@ function allObjectKeys(value: unknown, keys = new Set<string>()): ReadonlySet<st
 }
 
 describe('guarded recovery fixture generator', () => {
-  it('accepts only one exact mode and one absolute private root', () => {
+  it('review boundary: fixed publish authority includes its matching producer records', () => {
+    expect(Object.values(FIXED_PRIVATE_RECORD_PATHS)).toEqual([
+      'recovery-bootstrap-marker.json',
+      'recovery-rpc-secret.txt',
+      'recovery-census-pepper.txt',
+      'player-canary-owner-fid.txt',
+      'auth-bridge-signing-public.jwk.json',
+      'fixture-materialization/wsl-toolchain-attestation-v1.json',
+      'activation-evidence/records/g002-publish-receipt.json',
+      'activation-evidence/records/g002-atlas-import-receipt.json',
+      'activation-evidence/records/g002-sealed-live-receipt.json',
+      'activation-evidence/records/ptr-publish-receipt.json',
+      'activation-evidence/records/ptr-atlas-import-receipt.json',
+      'activation-evidence/records/ptr-owner-provision-receipt.json',
+      'activation-evidence/records/ptr-sealed-live-receipt.json',
+    ])
+  })
+
+  it('review boundary: production CLI accepts only the fixed operator root', () => {
+    expect(parseGeneratorArguments(['--check', '--private-root', FIXED_OPERATOR_ROOT])).toEqual({
+      privateRoot: FIXED_OPERATOR_ROOT,
+      mode: 'check',
+    })
+    expect(parseToolchainArguments(['--private-root', FIXED_OPERATOR_ROOT])).toEqual({
+      privateRoot: FIXED_OPERATOR_ROOT,
+    })
+
+    for (const root of [
+      SYNTHETIC_PRIVATE_ROOT,
+      `${FIXED_OPERATOR_ROOT}\\`,
+      'C:/Users/heyas/.warpkeep/private/release-recovery-v1',
+      String.raw`c:\Users\heyas\.warpkeep\private\release-recovery-v1`,
+    ]) {
+      expect(() => parseGeneratorArguments(['--check', '--private-root', root]))
+        .toThrowError('RECOVERY_FIXTURE_INPUT_INVALID')
+      expect(() => parseToolchainArguments(['--private-root', root]))
+        .toThrowError('RECOVERY_FIXTURE_INPUT_INVALID')
+    }
+  })
+
+  it('review boundary: production APIs reject injected implementations before observing them', async () => {
+    const fixture = dependencies()
+    await rejected(runGenerator({
+      privateRoot: PRIVATE_ROOT,
+      mode: 'write',
+      adapters: fixture.adapters,
+    }))
+    expect(fixture.privateRoot.open).not.toHaveBeenCalled()
+    expect(fixture.runner).not.toHaveBeenCalled()
+    expect(fixture.output.outputs.begin).not.toHaveBeenCalled()
+
+    const bootstrap = vi.fn(async (_request: any) => ({
+      prepared: true,
+      manifestSha256: runnerResult().toolchainManifestSha256,
+      cacheSha256: fixedProgramCoordinates().toolchain.cacheCatalogSha256,
+      signaturesVerified: true,
+      offlineReady: true,
+    }))
+    await rejected(prepareReleaseRecoveryWslToolchain({
+      privateRoot: PRIVATE_ROOT,
+      adapters: { privateRoot: fixture.privateRoot, bootstrap },
+    }))
+    expect(bootstrap).not.toHaveBeenCalled()
+
+    for (const [field, value] of [
+      ['root', { canonicalPath: PRIVATE_ROOT }],
+      ['url', 'https://example.test'],
+      ['command', 'chosen-command'],
+      ['credential', 'chosen-credential'],
+      ['output', 'chosen-output'],
+    ] as const) {
+      const guarded = dependencies()
+      await rejected(runGenerator({
+        privateRoot: PRIVATE_ROOT,
+        mode: 'write',
+        [field]: value,
+      } as any))
+      expect(guarded.privateRoot.open).not.toHaveBeenCalled()
+      expect(guarded.runner).not.toHaveBeenCalled()
+      expect(guarded.output.outputs.begin).not.toHaveBeenCalled()
+
+      const guardedBootstrap = vi.fn()
+      fixedHost.bootstrapFixedWslToolchain.mockImplementation(guardedBootstrap)
+      await rejected(prepareReleaseRecoveryWslToolchain({
+        privateRoot: PRIVATE_ROOT,
+        [field]: value,
+      } as any))
+      expect(guardedBootstrap).not.toHaveBeenCalled()
+    }
+  })
+
+  it('review boundary: neither WSL nor bootstrap receives a private-root coordinate', async () => {
+    const fixture = dependencies()
+    await runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' })
+    expect(JSON.stringify(fixture.runner.mock.calls[0]![0])).not.toContain(PRIVATE_ROOT)
+    expect(allObjectKeys(fixture.runner.mock.calls[0]![0])).not.toContain('privateRoot')
+    expect(allObjectKeys(fixture.runner.mock.calls[0]![0])).not.toContain('root')
+    expect(allObjectKeys(fixture.runner.mock.calls[0]![0])).not.toContain('canonicalPath')
+
+    const bootstrap = vi.fn(async (_request: any) => ({
+      prepared: true,
+      manifestSha256: runnerResult().toolchainManifestSha256,
+      cacheSha256: fixedProgramCoordinates().toolchain.cacheCatalogSha256,
+      signaturesVerified: true,
+      offlineReady: true,
+    }))
+    fixedHost.bootstrapFixedWslToolchain.mockImplementation(bootstrap)
+    await prepareReleaseRecoveryWslToolchain({
+      privateRoot: PRIVATE_ROOT,
+    })
+    expect(JSON.stringify(bootstrap.mock.calls[0]![0])).not.toContain(PRIVATE_ROOT)
+    expect(allObjectKeys(bootstrap.mock.calls[0]![0])).not.toContain('privateRoot')
+    expect(allObjectKeys(bootstrap.mock.calls[0]![0])).not.toContain('root')
+    expect(allObjectKeys(bootstrap.mock.calls[0]![0])).not.toContain('canonicalPath')
+  })
+
+  it('review boundary: every fixed host prerequisite is validated before bootstrap', async () => {
+    const files = privateBytes()
+    files.delete(FIXED_PRIVATE_RECORD_PATHS.ptrLiveReceipt)
+    const fixture = dependencies({ files })
+    const bootstrap = vi.fn(async () => ({
+      prepared: true,
+      manifestSha256: runnerResult().toolchainManifestSha256,
+      cacheSha256: fixedProgramCoordinates().toolchain.cacheCatalogSha256,
+      signaturesVerified: true,
+      offlineReady: true,
+    }))
+    fixedHost.bootstrapFixedWslToolchain.mockImplementation(bootstrap)
+
+    await rejected(prepareReleaseRecoveryWslToolchain({
+      privateRoot: PRIVATE_ROOT,
+    }))
+    expect(fixture.privateRoot.read.mock.calls.map((call: any[]) => call[1]))
+      .toEqual(Object.values(FIXED_PRIVATE_RECORD_PATHS))
+    expect(fixedHost.preflightFixedWslHostAndGuest).not.toHaveBeenCalled()
+    expect(bootstrap).not.toHaveBeenCalled()
+  })
+
+  it('review boundary: fixed WSL preflight failure precedes bootstrap, runner, and writes', async () => {
+    const generatorFixture = dependencies()
+    fixedHost.preflightFixedWslHostAndGuest.mockRejectedValueOnce(
+      new Error('synthetic-fixed-wsl-preflight-detail'),
+    )
+    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' }))
+    expect(generatorFixture.runner).not.toHaveBeenCalled()
+    expect(generatorFixture.output.outputs.recover).not.toHaveBeenCalled()
+    expect(generatorFixture.output.outputs.begin).not.toHaveBeenCalled()
+
+    const bootstrapFixture = dependencies()
+    const bootstrap = vi.fn()
+    fixedHost.bootstrapFixedWslToolchain.mockImplementation(bootstrap)
+    fixedHost.preflightFixedWslHostAndGuest.mockRejectedValueOnce(
+      new Error('synthetic-fixed-wsl-preflight-detail'),
+    )
+    await rejected(prepareReleaseRecoveryWslToolchain({ privateRoot: PRIVATE_ROOT }))
+    expect(bootstrapFixture.privateRoot.read).toHaveBeenCalledTimes(
+      Object.values(FIXED_PRIVATE_RECORD_PATHS).length,
+    )
+    expect(bootstrap).not.toHaveBeenCalled()
+  })
+
+  it('accepts only one exact mode and the fixed private root', () => {
     expect(parseGeneratorArguments(['--check', '--private-root', PRIVATE_ROOT])).toEqual({
       privateRoot: PRIVATE_ROOT,
       mode: 'check',
@@ -360,7 +640,7 @@ describe('guarded recovery fixture generator', () => {
     const fixture = dependencies()
     fixture.privateRoot.open.mockRejectedValueOnce(new Error('missing-private-detail'))
 
-    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'check', adapters: fixture.adapters }))
+    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'check' }))
 
     expect(fixture.runner).not.toHaveBeenCalled()
     expect(fixture.output.outputs.recover).not.toHaveBeenCalled()
@@ -374,7 +654,7 @@ describe('guarded recovery fixture generator', () => {
       files.delete(missingPath)
       const fixture = dependencies({ files })
 
-      await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write', adapters: fixture.adapters }))
+      await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' }))
 
       expect(fixture.runner).not.toHaveBeenCalled()
       expect(fixture.output.outputs.recover).not.toHaveBeenCalled()
@@ -391,7 +671,7 @@ describe('guarded recovery fixture generator', () => {
     ['unverified root descriptor', { descriptorVerified: false }],
   ])('rejects a %s before reading records', async (_label, rootMutation) => {
     const fixture = dependencies({ rootMutation })
-    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write', adapters: fixture.adapters }))
+    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' }))
     expect(fixture.privateRoot.read).not.toHaveBeenCalled()
     expect(fixture.runner).not.toHaveBeenCalled()
     expect(fixture.output.outputs.begin).not.toHaveBeenCalled()
@@ -406,7 +686,7 @@ describe('guarded recovery fixture generator', () => {
     ['unverified file descriptor', { descriptorVerified: false }],
   ])('rejects a %s before WSL or output mutation', async (_label, fileMutation) => {
     const fixture = dependencies({ fileMutation })
-    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write', adapters: fixture.adapters }))
+    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' }))
     expect(fixture.runner).not.toHaveBeenCalled()
     expect(fixture.output.outputs.recover).not.toHaveBeenCalled()
     expect(fixture.output.outputs.begin).not.toHaveBeenCalled()
@@ -414,7 +694,7 @@ describe('guarded recovery fixture generator', () => {
 
   it('derives only fixed receipt paths and passes only sanitized coordinates to WSL', async () => {
     const fixture = dependencies()
-    await runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write', adapters: fixture.adapters })
+    await runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' })
 
     expect(fixture.privateRoot.read.mock.calls.map((call: any[]) => call[1])).toEqual(
       Object.values(FIXED_PRIVATE_RECORD_PATHS),
@@ -440,7 +720,7 @@ describe('guarded recovery fixture generator', () => {
   it('retains the opened descriptor capability through every fixed read and close', async () => {
     const fixture = dependencies()
 
-    await runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write', adapters: fixture.adapters })
+    await runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' })
 
     expect(fixture.privateRoot.read.mock.calls.every((call: any[]) => call[0] === fixture.rootHandle))
       .toBe(true)
@@ -450,10 +730,13 @@ describe('guarded recovery fixture generator', () => {
   it('zeroizes verifier copies of private receipt and toolchain records', async () => {
     const fixture = dependencies()
 
-    await runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write', adapters: fixture.adapters })
+    await runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' })
 
     for (const call of fixture.verifyReceipt.mock.calls) {
       expect((call[0] as any).bytes.every((byte: number) => byte === 0)).toBe(true)
+      for (const bytes of Object.values((call[0] as any).corroboratingReceipts) as Uint8Array[]) {
+        expect(bytes.every(byte => byte === 0)).toBe(true)
+      }
     }
     for (const call of fixture.verifyToolchain.mock.calls) {
       expect((call[0] as any).bytes.every((byte: number) => byte === 0)).toBe(true)
@@ -469,25 +752,31 @@ describe('guarded recovery fixture generator', () => {
     await rejected(runGenerator({
       privateRoot: PRIVATE_ROOT,
       mode: 'write',
-      adapters: receiptFixture.adapters,
     }))
     expect(receiptFixture.runner).not.toHaveBeenCalled()
 
     const toolchainFixture = dependencies()
-    toolchainFixture.verifyToolchain.mockImplementationOnce(async ({ bytes }: any) => ({
-      schemaVersion: 1,
-      profile: 'warpkeep-release-recovery-wsl-toolchain-attestation-v1',
-      platform: 'linux',
-      architecture: 'x64',
-      offlineReady: true,
-      signaturesVerified: false,
-      attestationSha256: sha256(bytes),
-      toolchainManifestSha256: runnerResult().toolchainManifestSha256,
-    }))
+    toolchainFixture.verifyToolchain.mockImplementationOnce(async ({ bytes }: any) => {
+      const programs = fixedProgramCoordinates().toolchain
+      return {
+        schemaVersion: 1,
+        profile: 'warpkeep-release-recovery-wsl-toolchain-attestation-v1',
+        platform: 'linux',
+        architecture: 'x64',
+        offlineReady: true,
+        signaturesVerified: false,
+        attestationSha256: sha256(bytes),
+        toolchainManifestSha256: runnerResult().toolchainManifestSha256,
+        cacheCatalogSha256: programs.cacheCatalogSha256,
+        bootstrapProgramBytes: programs.bootstrapProgramBytes,
+        bootstrapProgramSha256: programs.bootstrapProgramSha256,
+        materializerProgramBytes: programs.materializerProgramBytes,
+        materializerProgramSha256: programs.materializerProgramSha256,
+      }
+    })
     await rejected(runGenerator({
       privateRoot: PRIVATE_ROOT,
       mode: 'write',
-      adapters: toolchainFixture.adapters,
     }))
     expect(toolchainFixture.runner).not.toHaveBeenCalled()
   })
@@ -501,7 +790,7 @@ describe('guarded recovery fixture generator', () => {
       const result = runnerResult()
       mutate(result)
       const fixture = dependencies({ result })
-      await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write', adapters: fixture.adapters }))
+      await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' }))
       expect(fixture.output.outputs.recover).not.toHaveBeenCalled()
       expect(fixture.output.outputs.begin).not.toHaveBeenCalled()
     }
@@ -511,14 +800,14 @@ describe('guarded recovery fixture generator', () => {
     const extra = runnerResult()
     extra.realms.g001.programBytes = encode('private-program-bytes')
     const extraFixture = dependencies({ result: extra })
-    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write', adapters: extraFixture.adapters }))
+    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' }))
     expect(extraFixture.output.outputs.begin).not.toHaveBeenCalled()
 
     const malformed = runnerResult()
     malformed.realms.g001.rawModuleDefV10ResponseBytes =
       encode('{"sections":[],"sections":[]}')
     const malformedFixture = dependencies({ result: malformed })
-    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write', adapters: malformedFixture.adapters }))
+    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' }))
     expect(malformedFixture.output.outputs.begin).not.toHaveBeenCalled()
   })
 
@@ -527,7 +816,6 @@ describe('guarded recovery fixture generator', () => {
     const result = await runGenerator({
       privateRoot: PRIVATE_ROOT,
       mode: 'write',
-      adapters: fixture.adapters,
     })
 
     expect(result).toEqual({ written: true })
@@ -557,7 +845,7 @@ describe('guarded recovery fixture generator', () => {
     const output = memoryOutputs(previous, 2)
     const fixture = dependencies({ output })
 
-    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write', adapters: fixture.adapters }))
+    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' }))
 
     const transaction = output.transaction()
     expect(transaction.commit).not.toHaveBeenCalled()
@@ -572,7 +860,7 @@ describe('guarded recovery fixture generator', () => {
     output.setStaleStage()
     const fixture = dependencies({ output })
 
-    await runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write', adapters: fixture.adapters })
+    await runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' })
 
     expect(output.outputs.recover).toHaveBeenCalledTimes(1)
     expect(output.outputs.recover.mock.invocationCallOrder[0])
@@ -582,20 +870,20 @@ describe('guarded recovery fixture generator', () => {
 
   it('preflights all checked-in outputs before WSL and --check never recovers or writes', async () => {
     const empty = dependencies()
-    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'check', adapters: empty.adapters }))
+    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'check' }))
     expect(empty.runner).not.toHaveBeenCalled()
     expect(empty.output.outputs.recover).not.toHaveBeenCalled()
     expect(empty.output.outputs.begin).not.toHaveBeenCalled()
 
     const output = memoryOutputs()
     const writer = dependencies({ output })
-    await runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write', adapters: writer.adapters })
+    await runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' })
     output.outputs.read.mockClear()
     output.outputs.recover.mockClear()
     output.outputs.begin.mockClear()
     const checker = dependencies({ output })
 
-    await expect(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'check', adapters: checker.adapters }))
+    await expect(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'check' }))
       .resolves.toEqual({ verified: true })
     expect(output.outputs.read).toHaveBeenCalledTimes(Object.values(FIXTURE_OUTPUT_PATHS).length * 2)
     expect(output.outputs.recover).not.toHaveBeenCalled()
@@ -603,7 +891,7 @@ describe('guarded recovery fixture generator', () => {
 
     output.committed.set(FIXTURE_OUTPUT_PATHS.ptr, encode('{"sections":[]}'))
     const drifted = dependencies({ output })
-    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'check', adapters: drifted.adapters }))
+    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'check' }))
     expect(output.outputs.recover).not.toHaveBeenCalled()
     expect(output.outputs.begin).not.toHaveBeenCalled()
   })
@@ -618,6 +906,7 @@ describe('toolchain bootstrap and WSL runner shells', () => {
       ['--private-root', 'relative'],
       ['--private-root', PRIVATE_ROOT, '--url', 'https://example.test'],
       ['--private-root', PRIVATE_ROOT, '--command', 'curl'],
+      ['--private-root', PRIVATE_ROOT, '--credential', 'chosen'],
       ['--private-root', PRIVATE_ROOT, '--output', 'chosen.json'],
     ]) expect(() => parseToolchainArguments(argv)).toThrowError('RECOVERY_FIXTURE_INPUT_INVALID')
   })
@@ -658,13 +947,13 @@ describe('toolchain bootstrap and WSL runner shells', () => {
     const bootstrap = vi.fn(async (_request: any) => ({
       prepared: true,
       manifestSha256: runnerResult().toolchainManifestSha256,
-      cacheSha256: '6'.repeat(64),
+      cacheSha256: fixedProgramCoordinates().toolchain.cacheCatalogSha256,
       signaturesVerified: true,
       offlineReady: true,
     }))
+    fixedHost.bootstrapFixedWslToolchain.mockImplementation(bootstrap)
     await expect(prepareReleaseRecoveryWslToolchain({
       privateRoot: PRIVATE_ROOT,
-      adapters: { privateRoot: fixture.privateRoot, bootstrap },
     })).resolves.toEqual({ prepared: true })
     expect(bootstrap).toHaveBeenCalledTimes(1)
     expect(JSON.stringify(bootstrap.mock.calls[0]![0])).not.toContain('example.test')
@@ -672,16 +961,39 @@ describe('toolchain bootstrap and WSL runner shells', () => {
 
   it('fixes the WSL isolation policy and rejects caller-selected execution fields', async () => {
     const fixture = dependencies()
-    await runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write', adapters: fixture.adapters })
+    await runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' })
     const plan = fixture.runner.mock.calls[0]![0].plan
     const execute = vi.fn(async () => runnerResult())
+    fixedHost.executeFixedWslFixturePlan.mockImplementation(execute)
 
-    await runReleaseRecoverySpacetimeFixturesWsl({ plan, execute })
+    await runReleaseRecoverySpacetimeFixturesWsl({ plan })
 
-    expect(execute).toHaveBeenCalledWith({ policy: WSL_EXECUTION_POLICY, plan })
+    expect(execute).toHaveBeenCalledWith({
+      policy: WSL_EXECUTION_POLICY,
+      platform: expect.objectContaining({
+        profile: 'warpkeep-release-recovery-wsl-host-guest-preflight-v1',
+      }),
+      plan,
+    })
+    expect(fixedHost.preflightFixedWslHostAndGuest.mock.invocationCallOrder.at(-1))
+      .toBeLessThan(execute.mock.invocationCallOrder[0]!)
     expect(WSL_EXECUTION_POLICY).toEqual({
-      executable: 'wsl.exe',
+      executable: String.raw`C:\Windows\System32\wsl.exe`,
+      executableBytes: 274_432,
+      executableFileVersion: '10.0.26100.8737',
+      executableProductVersion: '10.0.26100.8737',
+      executableSha256: '27cc8dd52be326e138a89f8889241b1d8c51dd1978b22eb70be77036ccdee3c2',
+      wslVersion: '2.7.11.0',
       distribution: 'Ubuntu-24.04',
+      guestOsReleaseBytes: 400,
+      guestOsReleaseSha256: '01af466feb100306498c86aa6bad1815e33036019aa34d4362c20f374ea5c829',
+      guestKernelRelease: '6.18.33.2-microsoft-standard-WSL2\n',
+      guestKernelReleaseBytes: 34,
+      guestKernelReleaseSha256: '600c01e56d5afd93f0ecd74ff4ebb5ef91623d779bbba04388a866c3b581fc92',
+      gitExecutable: '/usr/bin/git',
+      gitVersion: 'git version 2.43.0',
+      gitPackageVersion: '1:2.43.0-1ubuntu7.3',
+      gitSha256: '2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668',
       unshare: ['/usr/bin/unshare', '--user', '--map-root-user', '--net'],
       unsharePackageVersion: '2.39.3-9ubuntu6.6',
       unshareSha256: 'a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c',
@@ -698,5 +1010,257 @@ describe('toolchain bootstrap and WSL runner shells', () => {
       execute,
     } as any))
     expect(execute).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('fixed production WSL host boundary', () => {
+  it('uses numeric Windows file-version parts before any WSL invocation', async () => {
+    if (process.platform !== 'win32') return
+    const wslPath = String.raw`C:\Windows\System32\wsl.exe`
+    const wslBytes = Uint8Array.from(readFileSync(wslPath))
+    if (sha256(wslBytes) !== WSL_EXECUTION_POLICY.executableSha256) return
+    let reachedWslVersion = false
+    childProcessBoundary.spawnSync.mockReset()
+    childProcessBoundary.spawnSync.mockImplementation((executable: any, args: any) => {
+      if (executable === String.raw`C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`) {
+        const script = String(args.at(-1))
+        const usesNumericParts = script.includes('FileMajorPart')
+          && script.includes('FileMinorPart')
+          && script.includes('FileBuildPart')
+          && script.includes('FilePrivatePart')
+          && script.includes('ProductMajorPart')
+          && script.includes('ProductPrivatePart')
+        return {
+          error: undefined,
+          status: 0,
+          signal: null,
+          stdout: usesNumericParts
+            ? '10.0.26100.8737\n10.0.26100.8737\n'
+            : '10.0.26100.8737 (WinBuild.160101.0800)\n10.0.26100.8737\n',
+          stderr: '',
+        }
+      }
+      if (executable === wslPath && JSON.stringify(args) === JSON.stringify(['--version'])) {
+        reachedWslVersion = true
+        return {
+          error: new Error('synthetic-stop-before-wsl'),
+          status: null,
+          signal: null,
+          stdout: '',
+          stderr: '',
+        }
+      }
+      throw new Error('unexpected synthetic process boundary')
+    })
+    const actualHost = await vi.importActual<
+      typeof import('../scripts/release-recovery-fixture-host.mjs')
+    >('../scripts/release-recovery-fixture-host.mjs')
+
+    await expect(actualHost.preflightFixedWslHostAndGuest({
+      policy: WSL_EXECUTION_POLICY,
+    })).rejects.toThrow('RECOVERY_FIXTURE_INPUT_INVALID')
+    expect(reachedWslVersion).toBe(true)
+  }, 15_000)
+
+  it('accepts one real fixed toolchain-attestation schema shared with the generator', async () => {
+    const programs = fixedProgramCoordinates().toolchain
+    const record = {
+      schemaVersion: 1,
+      profile: 'warpkeep-release-recovery-wsl-toolchain-attestation-v1',
+      platform: 'linux',
+      architecture: 'x64',
+      offlineReady: true,
+      signaturesVerified: true,
+      toolchainManifestSha256: programs.manifestSha256,
+      cacheCatalogSha256: programs.cacheCatalogSha256,
+      bootstrapProgramBytes: programs.bootstrapProgramBytes,
+      bootstrapProgramSha256: programs.bootstrapProgramSha256,
+      materializerProgramBytes: programs.materializerProgramBytes,
+      materializerProgramSha256: programs.materializerProgramSha256,
+    }
+    const bytes = encode(`${JSON.stringify(record)}\n`)
+    const actualHost = await vi.importActual<
+      typeof import('../scripts/release-recovery-fixture-host.mjs')
+    >('../scripts/release-recovery-fixture-host.mjs')
+
+    await expect(actualHost.verifyFixedToolchainAttestation({
+      path: FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation,
+      bytes,
+      attestationSha256: sha256(bytes),
+    })).resolves.toEqual({
+      ...record,
+      attestationSha256: sha256(bytes),
+    })
+  })
+
+  it('tracks the corrected guest source and owned-child lifecycle boundaries', () => {
+    const materializer = decoder.decode(fixedProgramCoordinates().materializer)
+
+    expect(materializer).toContain('const sourceRoot = `${cleanRoot}/source`')
+    expect(materializer).toContain('destination,\n  })')
+    expect(materializer).toContain(
+      "exact(result, ['baseline', 'baselineAbiSha256', 'extractedFileCount', 'freezeNonce'])",
+    )
+    expect(materializer).toContain(
+      'attestFixedFile(GIT, { mode: 0o755, sha256: GIT_SHA256 })',
+    )
+    expect(materializer).toContain("const store = `${cleanRoot}/.pnpm-store`")
+    expect(materializer).toContain('store.verify()')
+    expect(materializer).not.toContain('`${STATE_ROOT}/pnpm-store/${realm}`')
+    expect(materializer).toContain('await terminateOwnedChild(child)')
+    expect(materializer).toContain('realpathSync.native(`/proc/${child.pid}/exe`) !== STANDALONE')
+    expect(materializer).not.toContain('[GIT, true]')
+  })
+
+  it('keeps the byte-pinned Python guest source LF-normalized by Git', () => {
+    const programs = fixedProgramCoordinates()
+    expect([...programs.bootstrap]).not.toContain(13)
+    expect(execFileSync('git', [
+      'check-attr', 'eol', '--',
+      'services/release-recovery/scripts/release-recovery-wsl-bootstrap.py',
+    ], {
+      cwd: new URL('../../..', import.meta.url),
+      encoding: 'utf8',
+    })).toContain('eol: lf')
+  })
+
+  it('attests and invokes the fixed bootstrap and isolated materializer programs', async () => {
+    const programs = fixedProgramCoordinates()
+    const fixture = dependencies()
+    await runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' })
+    const basePlan = fixture.runner.mock.calls[0]![0].plan
+    const plan = {
+      ...basePlan,
+      toolchain: {
+        ...basePlan.toolchain,
+        materializerProgramBytes: programs.toolchain.materializerProgramBytes,
+        materializerProgramSha256: programs.toolchain.materializerProgramSha256,
+      },
+    }
+    const bootstrapResult = {
+      prepared: true,
+      manifestSha256: programs.toolchain.manifestSha256,
+      cacheSha256: programs.toolchain.cacheCatalogSha256,
+      signaturesVerified: true,
+      offlineReady: true,
+    }
+    const materializerWire = fixtureWireResult()
+    const capturedRequests = new Map<string, unknown>()
+
+    childProcessBoundary.spawnSync.mockReset()
+    childProcessBoundary.spawnSync.mockImplementation((executable: any, args: any, options: any) => {
+      expect(executable).toBe(String.raw`C:\Windows\System32\wsl.exe`)
+      if (args.includes('/bin/sh') && args.includes('-ceu')) {
+        const expectedProgram = args.includes(FIXED_BOOTSTRAP_PROGRAM)
+          ? programs.bootstrap
+          : programs.materializer
+        expect(args).toEqual(expect.arrayContaining(['--user', 'root']))
+        expect(Buffer.from(options.input)).toEqual(Buffer.from(expectedProgram))
+        expect(args).toEqual(expect.arrayContaining([
+          String(expectedProgram.byteLength),
+          sha256(expectedProgram),
+        ]))
+        return {
+          error: undefined,
+          status: 0,
+          signal: null,
+          stdout: Buffer.alloc(0),
+          stderr: Buffer.alloc(0),
+        }
+      }
+      const path = args.at(-1)
+      const programBytes = args.includes(FIXED_BOOTSTRAP_PROGRAM)
+        ? programs.bootstrap
+        : programs.materializer
+      if (args.includes('/usr/bin/readlink')) {
+        return { error: undefined, status: 0, signal: null, stdout: `${path}\n`, stderr: '' }
+      }
+      if (args.includes('/usr/bin/stat')) {
+        return {
+          error: undefined,
+          status: 0,
+          signal: null,
+          stdout: `regular file|500|0|0|${programBytes.byteLength}\n`,
+          stderr: '',
+        }
+      }
+      if (args.includes('/bin/cat')) {
+        return {
+          error: undefined,
+          status: 0,
+          signal: null,
+          stdout: Buffer.from(programBytes),
+          stderr: Buffer.alloc(0),
+        }
+      }
+      const response = args.includes(FIXED_BOOTSTRAP_PROGRAM)
+        ? bootstrapResult
+        : materializerWire
+      const selectedProgram = args.includes(FIXED_BOOTSTRAP_PROGRAM)
+        ? FIXED_BOOTSTRAP_PROGRAM
+        : FIXED_MATERIALIZER_PROGRAM
+      capturedRequests.set(
+        selectedProgram,
+        JSON.parse(Buffer.from(options.input).toString('utf8')),
+      )
+      return {
+        error: undefined,
+        status: 0,
+        signal: null,
+        stdout: Buffer.from(`${JSON.stringify(response)}\n`),
+        stderr: Buffer.alloc(0),
+      }
+    })
+
+    const actualHost = await vi.importActual<
+      typeof import('../scripts/release-recovery-fixture-host.mjs')
+    >('../scripts/release-recovery-fixture-host.mjs')
+    const platform = platformAttestation()
+    await expect(actualHost.bootstrapFixedWslToolchain({
+      policy: TOOLCHAIN_BOOTSTRAP_POLICY,
+      platform,
+      toolchain: programs.toolchain,
+    })).resolves.toEqual(bootstrapResult)
+    await expect(actualHost.executeFixedWslFixturePlan({
+      policy: WSL_EXECUTION_POLICY,
+      platform,
+      plan,
+    })).resolves.toEqual(runnerResult())
+
+    const calls = childProcessBoundary.spawnSync.mock.calls
+    expect(calls).toHaveLength(13)
+    const bootstrapCall = calls.find(([, args]: any[]) => (
+      args.includes(FIXED_BOOTSTRAP_PROGRAM)
+      && !args.includes('/bin/sh')
+      && !args.includes('/bin/cat')
+      && !args.includes('/usr/bin/stat')
+      && !args.includes('/usr/bin/readlink')
+    ))!
+    const materializerCall = calls.find(([, args]: any[]) => (
+      args.includes(FIXED_MATERIALIZER_PROGRAM)
+      && !args.includes('/bin/sh')
+      && !args.includes('/bin/cat')
+      && !args.includes('/usr/bin/stat')
+      && !args.includes('/usr/bin/readlink')
+    ))!
+    expect(bootstrapCall[1]).toContain('/usr/bin/env')
+    expect(bootstrapCall[1]).toEqual(expect.arrayContaining(['--user', 'root']))
+    expect(materializerCall[1]).toEqual(expect.arrayContaining([
+      '--user', 'root', '/usr/bin/unshare', '--user', '--map-root-user', '--net',
+      FIXED_MATERIALIZER_PROGRAM,
+    ]))
+    for (const [call, program] of [
+      [bootstrapCall, FIXED_BOOTSTRAP_PROGRAM],
+      [materializerCall, FIXED_MATERIALIZER_PROGRAM],
+    ] as const) {
+      expect(Object.keys(call[2].env).sort()).toEqual([
+        'ComSpec', 'PATH', 'PATHEXT', 'SystemRoot', 'WINDIR',
+      ])
+      expect(JSON.stringify(call)).not.toContain(PRIVATE_ROOT)
+      const request = capturedRequests.get(program)
+      expect(allObjectKeys(request)).not.toContain('privateRoot')
+      expect(allObjectKeys(request)).not.toContain('root')
+      expect(allObjectKeys(request)).not.toContain('canonicalPath')
+    }
   })
 })

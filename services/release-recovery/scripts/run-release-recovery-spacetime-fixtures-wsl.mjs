@@ -1,5 +1,10 @@
 import { types } from 'node:util'
 
+import {
+  executeFixedWslFixturePlan,
+  preflightFixedWslHostAndGuest,
+} from './release-recovery-fixture-host.mjs'
+
 const LOWER_HEX_40 = /^[0-9a-f]{40}$/u
 const LOWER_HEX_64 = /^[0-9a-f]{64}$/u
 
@@ -42,8 +47,22 @@ const REALM_RESULT_KEYS = Object.freeze([
 ])
 
 export const WSL_EXECUTION_POLICY = Object.freeze({
-  executable: 'wsl.exe',
+  executable: String.raw`C:\Windows\System32\wsl.exe`,
+  executableBytes: 274_432,
+  executableFileVersion: '10.0.26100.8737',
+  executableProductVersion: '10.0.26100.8737',
+  executableSha256: '27cc8dd52be326e138a89f8889241b1d8c51dd1978b22eb70be77036ccdee3c2',
+  wslVersion: '2.7.11.0',
   distribution: 'Ubuntu-24.04',
+  guestOsReleaseBytes: 400,
+  guestOsReleaseSha256: '01af466feb100306498c86aa6bad1815e33036019aa34d4362c20f374ea5c829',
+  guestKernelRelease: '6.18.33.2-microsoft-standard-WSL2\n',
+  guestKernelReleaseBytes: 34,
+  guestKernelReleaseSha256: '600c01e56d5afd93f0ecd74ff4ebb5ef91623d779bbba04388a866c3b581fc92',
+  gitExecutable: '/usr/bin/git',
+  gitVersion: 'git version 2.43.0',
+  gitPackageVersion: '1:2.43.0-1ubuntu7.3',
+  gitSha256: '2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668',
   unshare: Object.freeze(['/usr/bin/unshare', '--user', '--map-root-user', '--net']),
   unsharePackageVersion: '2.39.3-9ubuntu6.6',
   unshareSha256: 'a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c',
@@ -133,7 +152,6 @@ export function validateWslFixturePlan(value) {
       'schemaVersion',
       'profile',
       'recoveryBuildProfile',
-      'privateRoot',
       'toolchain',
       'realms',
     ])
@@ -143,27 +161,27 @@ export function validateWslFixturePlan(value) {
       || plan.recoveryBuildProfile
         !== 'warpkeep-release-recovery-cross-platform-program-build-v1'
     ) fail()
-    const root = exactDataObject(plan.privateRoot, ['canonicalPath', 'descriptorVerified'])
-    if (
-      typeof root.canonicalPath !== 'string'
-      || root.canonicalPath.length === 0
-      || root.canonicalPath.length > 32_767
-      || /[\0\r\n]/u.test(root.canonicalPath)
-      || root.descriptorVerified !== true
-    ) fail()
     const toolchain = exactDataObject(plan.toolchain, [
       'manifestSha256',
+      'cacheCatalogSha256',
       'platform',
       'architecture',
       'offlineReady',
       'signaturesVerified',
+      'materializerProgramBytes',
+      'materializerProgramSha256',
     ])
     nonzeroHex(toolchain.manifestSha256, LOWER_HEX_64)
+    nonzeroHex(toolchain.cacheCatalogSha256, LOWER_HEX_64)
+    nonzeroHex(toolchain.materializerProgramSha256, LOWER_HEX_64)
     if (
       toolchain.platform !== 'linux'
       || toolchain.architecture !== 'x64'
       || toolchain.offlineReady !== true
       || toolchain.signaturesVerified !== true
+      || !Number.isSafeInteger(toolchain.materializerProgramBytes)
+      || toolchain.materializerProgramBytes < 1
+      || toolchain.materializerProgramBytes > 16 * 1024 * 1024
     ) fail()
     const realms = exactDataObject(plan.realms, ['g001', 'g002', 'ptr'])
     const g001 = exactDataObject(realms.g001, G001_PLAN_KEYS)
@@ -245,10 +263,14 @@ export function validateWslFixtureResult(value) {
 
 export async function runReleaseRecoverySpacetimeFixturesWsl(input) {
   try {
-    const options = exactDataObject(input, ['plan', 'execute'])
+    const options = exactDataObject(input, ['plan'])
     validateWslFixturePlan(options.plan)
-    if (typeof options.execute !== 'function') fail()
-    const result = await options.execute({ policy: WSL_EXECUTION_POLICY, plan: options.plan })
+    const platform = await preflightFixedWslHostAndGuest({ policy: WSL_EXECUTION_POLICY })
+    const result = await executeFixedWslFixturePlan({
+      policy: WSL_EXECUTION_POLICY,
+      platform,
+      plan: options.plan,
+    })
     validateWslFixtureResult(result)
     return result
   } catch (error) {

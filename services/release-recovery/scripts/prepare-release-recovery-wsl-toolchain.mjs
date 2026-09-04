@@ -1,6 +1,15 @@
-import { isAbsolute, posix, win32 } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { types } from 'node:util'
+
+import {
+  FIXED_PRIVATE_ROOT,
+  preflightFixedPrivatePrerequisites,
+} from './generate-release-recovery-spacetime-fixtures.mjs'
+import {
+  bootstrapFixedWslToolchain,
+  preflightFixedWslHostAndGuest,
+} from './release-recovery-fixture-host.mjs'
+import { WSL_EXECUTION_POLICY } from './run-release-recovery-spacetime-fixtures-wsl.mjs'
 
 const LOWER_HEX_64 = /^[0-9a-f]{64}$/u
 
@@ -124,49 +133,6 @@ function exactDataObject(value, expectedKeys) {
   return snapshot
 }
 
-function absoluteHostPath(value) {
-  return typeof value === 'string'
-    && value.length > 0
-    && value.length <= 32_767
-    && !/[\0\r\n]/u.test(value)
-    && (isAbsolute(value) || win32.isAbsolute(value) || posix.isAbsolute(value))
-}
-
-function isFilesystemRoot(value) {
-  const parser = win32.isAbsolute(value) ? win32 : posix
-  return parser.normalize(value) === parser.parse(value).root
-}
-
-function samePath(left, right) {
-  const parser = win32.isAbsolute(left) || win32.isAbsolute(right) ? win32 : posix
-  const normalize = value => {
-    const normalized = parser.normalize(value)
-    return parser === win32 ? normalized.toLowerCase() : normalized
-  }
-  return normalize(left) === normalize(right)
-}
-
-function validateRootHandle(value, requestedPath) {
-  const root = exactDataObject(value, [
-    'canonicalPath',
-    'directory',
-    'reparsePoint',
-    'ownerOnly',
-    'mode',
-    'descriptorVerified',
-  ])
-  if (
-    !absoluteHostPath(root.canonicalPath)
-    || !samePath(root.canonicalPath, requestedPath)
-    || root.directory !== true
-    || root.reparsePoint !== false
-    || root.ownerOnly !== true
-    || root.mode !== 0o700
-    || root.descriptorVerified !== true
-  ) fail()
-  return value
-}
-
 export function parseToolchainArguments(argv) {
   try {
     if (
@@ -175,7 +141,7 @@ export function parseToolchainArguments(argv) {
       || argv.length !== 2
       || argv[0] !== '--private-root'
     ) fail()
-    if (!absoluteHostPath(argv[1]) || isFilesystemRoot(argv[1])) fail()
+    if (argv[1] !== FIXED_PRIVATE_ROOT) fail()
     return Object.freeze({ privateRoot: argv[1] })
   } catch (error) {
     if (error instanceof RecoveryFixtureInputError) throw error
@@ -184,28 +150,20 @@ export function parseToolchainArguments(argv) {
 }
 
 export async function prepareReleaseRecoveryWslToolchain(input) {
-  let privateRootAdapter
-  let rootHandle
   try {
-    const options = exactDataObject(input, ['privateRoot', 'adapters'])
-    if (!absoluteHostPath(options.privateRoot) || isFilesystemRoot(options.privateRoot)) fail()
-    const adapters = exactDataObject(options.adapters, ['privateRoot', 'bootstrap'])
-    privateRootAdapter = exactDataObject(adapters.privateRoot, ['open', 'read', 'close'])
-    if (
-      typeof privateRootAdapter.open !== 'function'
-      || typeof privateRootAdapter.read !== 'function'
-      || typeof privateRootAdapter.close !== 'function'
-      || typeof adapters.bootstrap !== 'function'
-    ) fail()
-    rootHandle = await privateRootAdapter.open(options.privateRoot)
-    validateRootHandle(rootHandle, options.privateRoot)
+    const options = exactDataObject(input, ['privateRoot'])
+    if (options.privateRoot !== FIXED_PRIVATE_ROOT) fail()
+    const prerequisites = await preflightFixedPrivatePrerequisites({
+      privateRoot: options.privateRoot,
+    })
+    const platform = await preflightFixedWslHostAndGuest({
+      policy: WSL_EXECUTION_POLICY,
+    })
     const result = exactDataObject(
-      await adapters.bootstrap({
+      await bootstrapFixedWslToolchain({
         policy: TOOLCHAIN_BOOTSTRAP_POLICY,
-        root: Object.freeze({
-          canonicalPath: rootHandle.canonicalPath,
-          descriptorVerified: true,
-        }),
+        platform,
+        toolchain: prerequisites.toolchain,
       }),
       [
         'prepared',
@@ -220,19 +178,16 @@ export async function prepareReleaseRecoveryWslToolchain(input) {
       || typeof result.manifestSha256 !== 'string'
       || !LOWER_HEX_64.test(result.manifestSha256)
       || /^0+$/u.test(result.manifestSha256)
+      || result.manifestSha256 !== prerequisites.toolchain.manifestSha256
       || typeof result.cacheSha256 !== 'string'
       || !LOWER_HEX_64.test(result.cacheSha256)
       || /^0+$/u.test(result.cacheSha256)
+      || result.cacheSha256 !== prerequisites.toolchain.cacheCatalogSha256
       || result.signaturesVerified !== true
       || result.offlineReady !== true
     ) fail()
-    await privateRootAdapter.close(rootHandle)
-    rootHandle = undefined
     return Object.freeze({ prepared: true })
   } catch (error) {
-    if (rootHandle !== undefined && privateRootAdapter !== undefined) {
-      try { await privateRootAdapter.close(rootHandle) } catch { /* retain the fixed error */ }
-    }
     if (error instanceof RecoveryFixtureInputError) throw error
     fail()
   }

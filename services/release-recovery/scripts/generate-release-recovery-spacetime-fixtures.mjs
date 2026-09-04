@@ -10,9 +10,20 @@ import { types } from 'node:util'
 import { parseAndNormalizeRawModuleDefV10 } from '../src/rawModuleDefV10.ts'
 import { validateSpacetimeProgramPins } from '../src/spacetimeProgramPins.ts'
 import {
+  runReleaseRecoverySpacetimeFixturesWsl,
   validateWslFixturePlan,
   validateWslFixtureResult,
 } from './run-release-recovery-spacetime-fixtures-wsl.mjs'
+import {
+  beginFixedFixtureOutputTransaction,
+  closeFixedPrivateRoot,
+  openFixedPrivateRoot,
+  readFixedFixtureOutput,
+  readFixedPrivateRecord,
+  recoverFixedFixtureOutputs,
+  verifyFixedPublishReceipt,
+  verifyFixedToolchainAttestation,
+} from './release-recovery-fixture-host.mjs'
 
 const decoder = new TextDecoder('utf-8', { fatal: true })
 const encoder = new TextEncoder()
@@ -20,6 +31,8 @@ const LOWER_HEX_40 = /^[0-9a-f]{40}$/u
 const LOWER_HEX_64 = /^[0-9a-f]{64}$/u
 const BASE64URL_32 = /^[A-Za-z0-9_-]{43}$/u
 const POSITIVE_DECIMAL = /^[1-9][0-9]{0,15}$/u
+
+export const FIXED_PRIVATE_ROOT = String.raw`C:\Users\heyas\.warpkeep\private\release-recovery-v1`
 
 const G001_DATABASE_IDENTITY =
   'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
@@ -45,7 +58,12 @@ export const FIXED_PRIVATE_RECORD_PATHS = Object.freeze({
   authBridgePublicJwk: 'auth-bridge-signing-public.jwk.json',
   toolchainAttestation: 'fixture-materialization/wsl-toolchain-attestation-v1.json',
   g002Receipt: 'activation-evidence/records/g002-publish-receipt.json',
+  g002ImportReceipt: 'activation-evidence/records/g002-atlas-import-receipt.json',
+  g002LiveReceipt: 'activation-evidence/records/g002-sealed-live-receipt.json',
   ptrReceipt: 'activation-evidence/records/ptr-publish-receipt.json',
+  ptrImportReceipt: 'activation-evidence/records/ptr-atlas-import-receipt.json',
+  ptrOwnerReceipt: 'activation-evidence/records/ptr-owner-provision-receipt.json',
+  ptrLiveReceipt: 'activation-evidence/records/ptr-sealed-live-receipt.json',
 })
 
 export const FIXTURE_OUTPUT_PATHS = Object.freeze({
@@ -64,7 +82,12 @@ const PRIVATE_MAXIMUM_BYTES = Object.freeze({
   [FIXED_PRIVATE_RECORD_PATHS.authBridgePublicJwk]: 1_024,
   [FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation]: 256 * 1_024,
   [FIXED_PRIVATE_RECORD_PATHS.g002Receipt]: 256 * 1_024,
+  [FIXED_PRIVATE_RECORD_PATHS.g002ImportReceipt]: 256 * 1_024,
+  [FIXED_PRIVATE_RECORD_PATHS.g002LiveReceipt]: 256 * 1_024,
   [FIXED_PRIVATE_RECORD_PATHS.ptrReceipt]: 256 * 1_024,
+  [FIXED_PRIVATE_RECORD_PATHS.ptrImportReceipt]: 256 * 1_024,
+  [FIXED_PRIVATE_RECORD_PATHS.ptrOwnerReceipt]: 256 * 1_024,
+  [FIXED_PRIVATE_RECORD_PATHS.ptrLiveReceipt]: 256 * 1_024,
 })
 
 const OUTPUT_MAXIMUM_BYTES = Object.freeze({
@@ -160,11 +183,6 @@ function hostPathModule(...values) {
   return values.some(value => typeof value === 'string' && win32.isAbsolute(value))
     ? win32
     : posix
-}
-
-function isFilesystemRoot(value) {
-  const paths = hostPathModule(value)
-  return paths.normalize(value) === paths.parse(value).root
 }
 
 function samePath(left, right) {
@@ -332,14 +350,14 @@ function validatePrivateFile(value, root, relativePath, maximumBytes) {
     || file.bytes.byteLength === 0
     || file.bytes.byteLength > maximumBytes
   ) fail()
-  return file.bytes.slice()
+  return file.bytes
 }
 
-async function readPrivateRecords(adapter, root) {
+async function readPrivateRecords(host, root) {
   const records = new Map()
   for (const relativePath of Object.values(FIXED_PRIVATE_RECORD_PATHS)) {
     const maximumBytes = PRIVATE_MAXIMUM_BYTES[relativePath]
-    const file = await adapter.read(root, relativePath, maximumBytes)
+    const file = await host.read(root, relativePath, maximumBytes)
     records.set(relativePath, validatePrivateFile(file, root, relativePath, maximumBytes))
   }
   return records
@@ -373,17 +391,31 @@ function validateAuthenticatedReceipt(value, realm, bytes) {
   })
 }
 
-async function authenticateReceipt(verifier, realm, path, bytes) {
+async function authenticateReceipt(verifier, realm, path, bytes, records) {
   const verifierBytes = bytes.slice()
+  const corroboratingReceipts = realm === 'g002'
+    ? Object.freeze({
+        importBytes: records.get(FIXED_PRIVATE_RECORD_PATHS.g002ImportReceipt).slice(),
+        liveBytes: records.get(FIXED_PRIVATE_RECORD_PATHS.g002LiveReceipt).slice(),
+      })
+    : Object.freeze({
+        importBytes: records.get(FIXED_PRIVATE_RECORD_PATHS.ptrImportReceipt).slice(),
+        ownerBytes: records.get(FIXED_PRIVATE_RECORD_PATHS.ptrOwnerReceipt).slice(),
+        liveBytes: records.get(FIXED_PRIVATE_RECORD_PATHS.ptrLiveReceipt).slice(),
+      })
   try {
     return await verifier({
       realm,
       path,
       bytes: verifierBytes,
       receiptSha256: sha256(bytes),
+      corroboratingReceipts,
     })
   } finally {
     verifierBytes.fill(0)
+    for (const corroboratingBytes of Object.values(corroboratingReceipts)) {
+      corroboratingBytes.fill(0)
+    }
   }
 }
 
@@ -397,6 +429,11 @@ function validateToolchainAttestation(value, bytes) {
     'signaturesVerified',
     'attestationSha256',
     'toolchainManifestSha256',
+    'cacheCatalogSha256',
+    'bootstrapProgramBytes',
+    'bootstrapProgramSha256',
+    'materializerProgramBytes',
+    'materializerProgramSha256',
   ])
   if (
     attestation.schemaVersion !== 1
@@ -406,9 +443,25 @@ function validateToolchainAttestation(value, bytes) {
     || attestation.offlineReady !== true
     || attestation.signaturesVerified !== true
     || attestation.attestationSha256 !== sha256(bytes)
+    || !Number.isSafeInteger(attestation.bootstrapProgramBytes)
+    || attestation.bootstrapProgramBytes < 1
+    || attestation.bootstrapProgramBytes > 16 * 1024 * 1024
+    || !Number.isSafeInteger(attestation.materializerProgramBytes)
+    || attestation.materializerProgramBytes < 1
+    || attestation.materializerProgramBytes > 16 * 1024 * 1024
   ) fail()
   nonzeroHex(attestation.toolchainManifestSha256, LOWER_HEX_64)
-  return Object.freeze({ manifestSha256: attestation.toolchainManifestSha256 })
+  nonzeroHex(attestation.cacheCatalogSha256, LOWER_HEX_64)
+  nonzeroHex(attestation.bootstrapProgramSha256, LOWER_HEX_64)
+  nonzeroHex(attestation.materializerProgramSha256, LOWER_HEX_64)
+  return Object.freeze({
+    manifestSha256: attestation.toolchainManifestSha256,
+    cacheCatalogSha256: attestation.cacheCatalogSha256,
+    bootstrapProgramBytes: attestation.bootstrapProgramBytes,
+    bootstrapProgramSha256: attestation.bootstrapProgramSha256,
+    materializerProgramBytes: attestation.materializerProgramBytes,
+    materializerProgramSha256: attestation.materializerProgramSha256,
+  })
 }
 
 async function authenticateToolchain(verifier, path, bytes) {
@@ -424,21 +477,20 @@ async function authenticateToolchain(verifier, path, bytes) {
   }
 }
 
-function createPlan(root, toolchain, g002, ptr) {
+function createPlan(toolchain, g002, ptr) {
   const plan = Object.freeze({
     schemaVersion: 1,
     profile: 'warpkeep-release-recovery-wsl-fixture-plan-v1',
     recoveryBuildProfile: 'warpkeep-release-recovery-cross-platform-program-build-v1',
-    privateRoot: Object.freeze({
-      canonicalPath: root.canonicalPath,
-      descriptorVerified: true,
-    }),
     toolchain: Object.freeze({
       manifestSha256: toolchain.manifestSha256,
+      cacheCatalogSha256: toolchain.cacheCatalogSha256,
       platform: 'linux',
       architecture: 'x64',
       offlineReady: true,
       signaturesVerified: true,
+      materializerProgramBytes: toolchain.materializerProgramBytes,
+      materializerProgramSha256: toolchain.materializerProgramSha256,
     }),
     realms: Object.freeze({
       g001: Object.freeze({
@@ -660,29 +712,21 @@ function normalizeRunnerResult(value, plan) {
   })
 }
 
-function validateAdapters(value) {
-  const adapters = exactDataObject(value, [
-    'privateRoot',
-    'verifyReceipt',
-    'verifyToolchain',
-    'runner',
-    'outputs',
-  ])
-  const privateRoot = exactDataObject(adapters.privateRoot, ['open', 'read', 'close'])
-  const outputs = exactDataObject(adapters.outputs, ['read', 'recover', 'begin'])
-  if (
-    typeof privateRoot.open !== 'function'
-    || typeof privateRoot.read !== 'function'
-    || typeof privateRoot.close !== 'function'
-    || typeof adapters.verifyReceipt !== 'function'
-    || typeof adapters.verifyToolchain !== 'function'
-    || typeof adapters.runner !== 'function'
-    || typeof outputs.read !== 'function'
-    || typeof outputs.recover !== 'function'
-    || typeof outputs.begin !== 'function'
-  ) fail()
-  return { ...adapters, privateRoot, outputs }
-}
+const FIXED_PRIVATE_HOST = Object.freeze({
+  privateRoot: Object.freeze({
+    open: openFixedPrivateRoot,
+    read: readFixedPrivateRecord,
+    close: closeFixedPrivateRoot,
+  }),
+  verifyReceipt: verifyFixedPublishReceipt,
+  verifyToolchain: verifyFixedToolchainAttestation,
+})
+
+const FIXED_OUTPUTS = Object.freeze({
+  read: readFixedFixtureOutput,
+  recover: recoverFixedFixtureOutputs,
+  begin: beginFixedFixtureOutputTransaction,
+})
 
 async function readOutputSnapshot(outputs) {
   const snapshot = new Map()
@@ -746,8 +790,7 @@ export function parseGeneratorArguments(argv) {
     }
     if (
       (mode !== 'check' && mode !== 'write')
-      || !absoluteHostPath(privateRoot)
-      || isFilesystemRoot(privateRoot)
+      || privateRoot !== FIXED_PRIVATE_ROOT
     ) fail()
     return Object.freeze({ privateRoot, mode })
   } catch (error) {
@@ -756,24 +799,16 @@ export function parseGeneratorArguments(argv) {
   }
 }
 
-export async function runGenerator(input) {
-  let adapters
+async function preflightPrivatePrerequisites(privateRoot) {
   let rootHandle
   let records
   let rootClosed = false
   try {
-    const options = exactDataObject(input, ['privateRoot', 'mode', 'adapters'])
-    if (
-      !absoluteHostPath(options.privateRoot)
-      || isFilesystemRoot(options.privateRoot)
-      || (options.mode !== 'check' && options.mode !== 'write')
-    ) fail()
-    adapters = validateAdapters(options.adapters)
     rootHandle = validateRootHandle(
-      await adapters.privateRoot.open(options.privateRoot),
-      options.privateRoot,
+      await FIXED_PRIVATE_HOST.privateRoot.open(privateRoot),
+      privateRoot,
     )
-    records = await readPrivateRecords(adapters.privateRoot, rootHandle)
+    records = await readPrivateRecords(FIXED_PRIVATE_HOST.privateRoot, rootHandle)
     validateBootstrapRecords(records)
 
     const g002Bytes = records.get(FIXED_PRIVATE_RECORD_PATHS.g002Receipt)
@@ -781,20 +816,22 @@ export async function runGenerator(input) {
     const toolchainBytes = records.get(FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation)
     const g002 = validateAuthenticatedReceipt(
       await authenticateReceipt(
-        adapters.verifyReceipt,
+        FIXED_PRIVATE_HOST.verifyReceipt,
         'g002',
         FIXED_PRIVATE_RECORD_PATHS.g002Receipt,
         g002Bytes,
+        records,
       ),
       'g002',
       g002Bytes,
     )
     const ptr = validateAuthenticatedReceipt(
       await authenticateReceipt(
-        adapters.verifyReceipt,
+        FIXED_PRIVATE_HOST.verifyReceipt,
         'ptr',
         FIXED_PRIVATE_RECORD_PATHS.ptrReceipt,
         ptrBytes,
+        records,
       ),
       'ptr',
       ptrBytes,
@@ -802,38 +839,16 @@ export async function runGenerator(input) {
     if (g002.databaseIdentity === ptr.databaseIdentity) fail()
     const toolchain = validateToolchainAttestation(
       await authenticateToolchain(
-        adapters.verifyToolchain,
+        FIXED_PRIVATE_HOST.verifyToolchain,
         FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation,
         toolchainBytes,
       ),
       toolchainBytes,
     )
-    const plan = createPlan(rootHandle, toolchain, g002, ptr)
-
-    const checkedBefore = options.mode === 'check'
-      ? await readOutputSnapshot(adapters.outputs)
-      : undefined
-    const result = await adapters.runner(Object.freeze({
-      root: Object.freeze({
-        canonicalPath: rootHandle.canonicalPath,
-        descriptorVerified: true,
-      }),
-      plan,
-    }))
-    const generated = normalizeRunnerResult(result, plan)
-
-    await adapters.privateRoot.close(rootHandle)
+    await FIXED_PRIVATE_HOST.privateRoot.close(rootHandle)
     rootClosed = true
     for (const bytes of records.values()) bytes.fill(0)
-
-    if (options.mode === 'check') {
-      assertOutputMatches(checkedBefore, generated)
-      const checkedAfter = await readOutputSnapshot(adapters.outputs)
-      assertOutputMatches(checkedAfter, generated)
-      return Object.freeze({ verified: true })
-    }
-    await installAtomically(adapters.outputs, generated)
-    return Object.freeze({ written: true })
+    return Object.freeze({ g002, ptr, toolchain })
   } catch (error) {
     if (error instanceof RecoveryFixtureInputError) throw error
     fail()
@@ -841,9 +856,51 @@ export async function runGenerator(input) {
     if (records !== undefined) {
       for (const bytes of records.values()) bytes.fill(0)
     }
-    if (!rootClosed && rootHandle !== undefined && adapters !== undefined) {
-      try { await adapters.privateRoot.close(rootHandle) } catch { /* retain the fixed error */ }
+    if (!rootClosed && rootHandle !== undefined) {
+      try { await FIXED_PRIVATE_HOST.privateRoot.close(rootHandle) } catch { /* retain the fixed error */ }
     }
+  }
+}
+
+export async function preflightFixedPrivatePrerequisites(input) {
+  try {
+    const options = exactDataObject(input, ['privateRoot'])
+    if (options.privateRoot !== FIXED_PRIVATE_ROOT) fail()
+    return await preflightPrivatePrerequisites(options.privateRoot)
+  } catch (error) {
+    if (error instanceof RecoveryFixtureInputError) throw error
+    fail()
+  }
+}
+
+export async function runGenerator(input) {
+  try {
+    const options = exactDataObject(input, ['privateRoot', 'mode'])
+    if (
+      options.privateRoot !== FIXED_PRIVATE_ROOT
+      || (options.mode !== 'check' && options.mode !== 'write')
+    ) fail()
+    const prerequisites = await preflightFixedPrivatePrerequisites({
+      privateRoot: options.privateRoot,
+    })
+    const plan = createPlan(prerequisites.toolchain, prerequisites.g002, prerequisites.ptr)
+    const checkedBefore = options.mode === 'check'
+      ? await readOutputSnapshot(FIXED_OUTPUTS)
+      : undefined
+    const result = await runReleaseRecoverySpacetimeFixturesWsl(Object.freeze({ plan }))
+    const generated = normalizeRunnerResult(result, plan)
+
+    if (options.mode === 'check') {
+      assertOutputMatches(checkedBefore, generated)
+      const checkedAfter = await readOutputSnapshot(FIXED_OUTPUTS)
+      assertOutputMatches(checkedAfter, generated)
+      return Object.freeze({ verified: true })
+    }
+    await installAtomically(FIXED_OUTPUTS, generated)
+    return Object.freeze({ written: true })
+  } catch (error) {
+    if (error instanceof RecoveryFixtureInputError) throw error
+    fail()
   }
 }
 
