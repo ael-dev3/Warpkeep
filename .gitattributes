@@ -1,3 +1,14 @@
+# Release verification hashes repository source/configuration bytes directly.
+# Never let a Windows checkout rewrite those bytes before verification.
+*.ts text eol=lf
+*.tsx text eol=lf
+*.mjs text eol=lf
+*.mts text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+docs/operations/*.sh.txt text eol=lf
+
 # SpacetimeDB CLI 2.6.1 emits a terminal blank line in these generated files.
 # Keep the CLI output byte-for-byte verifiable without treating it as hand-written whitespace.
 src/spacetime/module_bindings/** text eol=lf whitespace=-blank-at-eof
