@@ -36,9 +36,11 @@ import {
   SEALED_LAUNCH_SOURCE_PATHS,
 } from './verify-0.4.0-sealed-launch.mjs';
 
-const MEMBER_PATH = /^(?:docs\/operations\/(?:genesis-001-policy-observation-launch-envelope|greater-realm-production-launch-envelope)\.sh\.txt|(?:owner-canary\/)?index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|spacetimedb\/(?:package\.json|pnpm-(?:lock|workspace)\.yaml|(?:src|genesis002|ptr\/generated-bindings)\/[A-Za-z0-9._/-]+)|(?:\.github\/workflows|config\/releases|scripts|services\/auth-bridge|src)\/[A-Za-z0-9._/-]+)$/u;
+const MEMBER_PATH = /^(?:docs\/operations\/(?:genesis-001-policy-observation-launch-envelope|greater-realm-production-launch-envelope)\.sh\.txt|(?:owner-canary\/)?index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|spacetimedb\/(?:package\.json|pnpm-(?:lock|workspace)\.yaml|(?:src|genesis002|ptr)\/[A-Za-z0-9._/-]+)|(?:\.github\/workflows|config\/releases|scripts|services\/auth-bridge|src)\/[A-Za-z0-9._/-]+)$/u;
 // This is the exact generated client/operator ABI reached from shipped roots.
-// PTR module source, private table bindings, build output, and config stay out.
+// Backend source/config is protected separately; private table bindings and
+// build output are never admitted by the generated-client allowlist.
+const PTR_MODULE_MEMBER_PATH = /^spacetimedb\/ptr\/(?:src\/[A-Za-z0-9._/-]+\.ts|package\.json|tsconfig\.json|pnpm-lock\.yaml|\.gitignore)$/u;
 const PTR_GENERATED_BINDING_MEMBER_PATHS = new Set([
   'spacetimedb/ptr/generated-bindings/admin_begin_greater_realm_verification_v_1_reducer.ts',
   'spacetimedb/ptr/generated-bindings/admin_finalize_greater_realm_release_v_1_reducer.ts',
@@ -60,7 +62,8 @@ const PTR_GENERATED_BINDING_MEMBER_PATHS = new Set([
   'spacetimedb/ptr/generated-bindings/types.ts',
 ]);
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
-const MAX_MEMBERS = 997;
+// Resource bound, not the generated inventory's exact member count.
+const MAX_MEMBERS = 2048;
 const SCRIPT_GRAPH_ROOTS = Object.freeze([
   'scripts/auth-bridge-notification-b0-cloudflare-runtime.mjs',
   'scripts/auth-bridge-notification-b0-deploy-adapter.mjs',
@@ -253,7 +256,8 @@ function canonicalMemberPath(repository, memberPath, code) {
     typeof memberPath !== 'string'
     || !MEMBER_PATH.test(memberPath)
     || (memberPath.startsWith('spacetimedb/ptr/')
-      && !PTR_GENERATED_BINDING_MEMBER_PATHS.has(memberPath))
+      && !PTR_GENERATED_BINDING_MEMBER_PATHS.has(memberPath)
+      && !PTR_MODULE_MEMBER_PATH.test(memberPath))
     || memberPath.includes('//')
     || memberPath.split('/').some(part => part === '.' || part === '..')
   ) fail(code);
@@ -396,15 +400,19 @@ function resolveLocalSpecifier(repository, importer, specifier) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_IMPORT_INVALID');
   }
   const base = resolve(repository, dirname(importer), specifier);
-  const candidates = /\.(?:css|json|mjs|mts|ts|tsx)$/u.test(specifier)
-    ? [base]
-    : [
-      `${base}.mjs`,
-      `${base}.mts`,
-      `${base}.ts`,
-      `${base}.tsx`,
-      resolve(base, 'index.ts'),
-    ];
+  // NodeNext TypeScript spells runtime imports as .js while the protected
+  // source graph contains .ts/.tsx. Do not append a second extension.
+  const candidates = specifier.endsWith('.js')
+    ? [`${base.slice(0, -3)}.ts`, `${base.slice(0, -3)}.tsx`]
+    : /\.(?:css|json|mjs|mts|ts|tsx)$/u.test(specifier)
+      ? [base]
+      : [
+        `${base}.mjs`,
+        `${base}.mts`,
+        `${base}.ts`,
+        `${base}.tsx`,
+        resolve(base, 'index.ts'),
+      ];
   const matches = [];
   for (const candidate of candidates) {
     try {
@@ -480,10 +488,52 @@ function namespaceMembers(repository, directoryPath, namePattern, code) {
   }));
 }
 
+function sealedModuleMembers(repository) {
+  const code = 'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_NAMESPACE_INVALID';
+  const members = new Set();
+  const visit = (directoryPath, depth = 0) => {
+    if (depth > 8) fail(code);
+    const directory = resolve(repository, directoryPath);
+    let entries;
+    try {
+      const status = lstatSync(directory);
+      if (!status.isDirectory() || status.isSymbolicLink()
+        || realpathSync(directory) !== directory) fail(code);
+      entries = readdirSync(directory, { withFileTypes: true });
+    } catch { fail(code); }
+    if (entries.length > 256) fail(code);
+    for (const entry of entries) {
+      if (!/^[A-Za-z][A-Za-z0-9._-]*$/u.test(entry.name)) fail(code);
+      const path = `${directoryPath}/${entry.name}`;
+      if (entry.isDirectory() && !entry.isSymbolicLink()) visit(path, depth + 1);
+      else {
+        if (!entry.isFile() || !entry.name.endsWith('.ts')) fail(code);
+        canonicalMemberPath(repository, path, code);
+        members.add(path);
+      }
+      if (members.size > MAX_MEMBERS) fail(code);
+    }
+  };
+  for (const module of ['genesis002', 'ptr']) {
+    const before = members.size;
+    visit(`spacetimedb/${module}/src`);
+    if (members.size === before) fail(code);
+    const metadata = ['.gitignore', 'package.json', 'tsconfig.json'];
+    if (module === 'ptr') metadata.push('pnpm-lock.yaml');
+    for (const name of metadata) {
+      const path = `spacetimedb/${module}/${name}`;
+      canonicalMemberPath(repository, path, code);
+      members.add(path);
+    }
+  }
+  return members;
+}
+
 export function deriveAuthBridgeNotificationPreparedDeployClosurePaths({
   repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..'),
 } = {}) {
   const repository = canonicalRepository(repositoryRoot);
+  const moduleMembers = sealedModuleMembers(repository);
   const scriptGraph = deriveLocalGraph(repository, [
     ...SCRIPT_GRAPH_ROOTS,
     ...SEALED_LAUNCH_SOURCE_GRAPH_ROOTS,
@@ -516,9 +566,15 @@ export function deriveAuthBridgeNotificationPreparedDeployClosurePaths({
     ...browserGraph,
     ...workerMembers,
     ...checkMembers,
+    ...moduleMembers,
   ]);
   for (const memberPath of scriptGraph) {
     if (!memberPath.endsWith('.mjs')) continue;
+    // These declarations are explicitly outside the runtime closure. Requiring
+    // them to exist would make a complete exported closure unverifiable.
+    if (NON_RUNTIME_DECLARATIONS_OUTSIDE_PROTECTED_CLOSURE.has(memberPath)) {
+      continue;
+    }
     const declaration = memberPath.replace(/\.mjs$/u, '.d.mts');
     let declarationPresent = false;
     try {
@@ -529,9 +585,6 @@ export function deriveAuthBridgeNotificationPreparedDeployClosurePaths({
       if (!DECLARATION_OPTIONAL_GRAPH_MEMBERS.has(memberPath)) {
         fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_ABI_MISSING');
       }
-      continue;
-    }
-    if (NON_RUNTIME_DECLARATIONS_OUTSIDE_PROTECTED_CLOSURE.has(memberPath)) {
       continue;
     }
     if (DECLARATION_OPTIONAL_GRAPH_MEMBERS.has(memberPath)) {

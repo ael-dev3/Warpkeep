@@ -111,7 +111,7 @@ afterAll(() => {
 });
 
 describe('PTR prepared-deploy protected closure', () => {
-  it('binds every live PTR operator and browser dependency without admitting backend source', () => {
+  it('binds every live PTR operator, browser dependency, and backend source', () => {
     const paths = protectedClosurePaths;
 
     expect(paths).toEqual(
@@ -129,22 +129,58 @@ describe('PTR prepared-deploy protected closure', () => {
     expect(paths.filter(
       path => path.startsWith('spacetimedb/ptr/generated-bindings/'),
     )).toEqual(PTR_GENERATED_BINDING_MEMBERS);
-    expect(paths.some(path => path.startsWith('spacetimedb/ptr/src/')))
-      .toBe(false);
+    expect(paths).toEqual(expect.arrayContaining([
+      'spacetimedb/ptr/src/index.ts',
+      'spacetimedb/ptr/src/schema.ts',
+      'spacetimedb/ptr/src/auth.ts',
+      'spacetimedb/ptr/src/ownerPolicy.ts',
+      'spacetimedb/ptr/package.json',
+      'spacetimedb/ptr/tsconfig.json',
+      'spacetimedb/ptr/pnpm-lock.yaml',
+      'scripts/genesis001-admitted-player-census.mjs',
+      'scripts/genesis001-admitted-player-census.d.mts',
+    ]));
     expect(paths.some(path => path.startsWith('spacetimedb/ptr/dist/')))
       .toBe(false);
-    expect(paths).not.toContain('spacetimedb/ptr/package.json');
-    expect(paths).not.toContain('spacetimedb/ptr/tsconfig.json');
+    expect(paths).not.toContain('spacetimedb/genesis002/src/reducers.ts');
+  }, 90_000);
+
+  // The full TypeScript graph launches native parser processes on Windows.
+  it('includes unimported module source so a release cannot omit dormant authority', () => {
+    const additions = [
+      'spacetimedb/genesis002/src/releaseInventorySentinel.ts',
+      'spacetimedb/ptr/src/releaseInventorySentinel.ts',
+    ];
+    try {
+      for (const path of additions) {
+        writeFileSync(resolve(fixtureRoot, path), 'export const sentinel = true;\n');
+      }
+      expect(deriveAuthBridgeNotificationPreparedDeployClosurePaths({
+        repositoryRoot: fixtureRoot,
+      })).toEqual(expect.arrayContaining(additions));
+    } finally {
+      for (const path of additions) rmSync(resolve(fixtureRoot, path), { force: true });
+    }
+  }, process.platform === 'win32' ? 180_000 : 90_000);
+
+  it('requires the PTR independent lock even when no runtime import reaches it', () => {
+    const target = resolve(fixtureRoot, 'spacetimedb/ptr/pnpm-lock.yaml');
+    const original = readFileSync(target);
+    try {
+      rmSync(target);
+      expect(() => deriveAuthBridgeNotificationPreparedDeployClosurePaths({
+        repositoryRoot: fixtureRoot,
+      })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_NAMESPACE_INVALID');
+    } finally {
+      writeFileSync(target, original);
+    }
   }, 90_000);
 
   it.each([
-    ['backend source', 'spacetimedb/ptr/src/schema.ts'],
     [
       'private generated table',
       'spacetimedb/ptr/generated-bindings/private_admin_audit_table.ts',
     ],
-    ['module package config', 'spacetimedb/ptr/package.json'],
-    ['module TypeScript config', 'spacetimedb/ptr/tsconfig.json'],
     ['built module output', 'spacetimedb/ptr/dist/bundle.ts'],
   ])('rejects a PTR %s imported by a protected root', (_label, hostilePath) => {
     const entrypoint = resolve(
@@ -167,7 +203,22 @@ describe('PTR prepared-deploy protected closure', () => {
     }
   }, 90_000);
 
-  it('rejects a generated PTR binding replaced by a symlink', () => {
+  it('rejects a module source directory reparse point before traversing it', () => {
+    const target = resolve(fixtureRoot, 'spacetimedb/ptr/src');
+    const link = resolve(target, 'linkedSource');
+    symlinkSync(target, link, process.platform === 'win32' ? 'junction' : 'dir');
+    try {
+      expect(() => deriveAuthBridgeNotificationPreparedDeployClosurePaths({
+        repositoryRoot: fixtureRoot,
+      })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_NAMESPACE_INVALID');
+    } finally {
+      rmSync(link, { force: true });
+    }
+  });
+
+  // File symlinks require Developer Mode/elevation on Windows. The directory
+  // reparse-point case above still runs there; Linux CI retains this case.
+  it.skipIf(process.platform === 'win32')('rejects a generated PTR binding replaced by a symlink', () => {
     const entrypoint = resolve(
       fixtureRoot,
       'scripts/auth-bridge-notification-b0-cloudflare-runtime.mjs',

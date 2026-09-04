@@ -23,9 +23,11 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_PROFILE =
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH =
   'scripts/auth-bridge-notification-prepared-deploy-closure-v1.json';
 
-const MEMBER_PATH = /^(?:docs\/operations\/(?:genesis-001-policy-observation-launch-envelope|greater-realm-production-launch-envelope)\.sh\.txt|(?:owner-canary\/)?index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|spacetimedb\/(?:package\.json|pnpm-(?:lock|workspace)\.yaml|(?:src|genesis002|ptr\/generated-bindings)\/[A-Za-z0-9._/-]+)|(?:\.github\/workflows|config\/releases|scripts|services\/auth-bridge|src)\/[A-Za-z0-9._/-]+)$/u;
+const MEMBER_PATH = /^(?:docs\/operations\/(?:genesis-001-policy-observation-launch-envelope|greater-realm-production-launch-envelope)\.sh\.txt|(?:owner-canary\/)?index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|spacetimedb\/(?:package\.json|pnpm-(?:lock|workspace)\.yaml|(?:src|genesis002|ptr)\/[A-Za-z0-9._/-]+)|(?:\.github\/workflows|config\/releases|scripts|services\/auth-bridge|src)\/[A-Za-z0-9._/-]+)$/u;
 // This is the exact generated client/operator ABI reached from shipped roots.
-// PTR module source, private table bindings, build output, and config stay out.
+// Backend source/config is protected separately; private table bindings and
+// build output are never admitted by the generated-client allowlist.
+const PTR_MODULE_MEMBER_PATH = /^spacetimedb\/ptr\/(?:src\/[A-Za-z0-9._/-]+\.ts|package\.json|tsconfig\.json|pnpm-lock\.yaml|\.gitignore)$/u;
 const PTR_GENERATED_BINDING_MEMBER_PATHS = new Set([
   'spacetimedb/ptr/generated-bindings/admin_begin_greater_realm_verification_v_1_reducer.ts',
   'spacetimedb/ptr/generated-bindings/admin_finalize_greater_realm_release_v_1_reducer.ts',
@@ -49,7 +51,8 @@ const PTR_GENERATED_BINDING_MEMBER_PATHS = new Set([
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
 const MAX_MANIFEST_BYTES = 256 * 1_024;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
-const MAX_MEMBERS = 997;
+// Resource bound, independent of the exact frozen member list below.
+const MAX_MEMBERS = 2048;
 const MANIFEST_KEYS = Object.freeze(['schemaVersion', 'profile', 'members']);
 const MEMBER_KEYS = Object.freeze(['path', 'digestProfile', 'sha256']);
 const RAW_FILE_DIGEST_PROFILE = 'raw-file-sha256-v1';
@@ -264,6 +267,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/genesis001-admission-monitor-current-state.d.mts',
     'scripts/genesis001-admission-monitor-current-state.mjs',
     'scripts/genesis001-admission-monitor-suspension.ts',
+    'scripts/genesis001-admitted-player-census.d.mts',
+    'scripts/genesis001-admitted-player-census.mjs',
     'scripts/genesis001-census-privacy-safe-receipt.d.mts',
     'scripts/genesis001-census-privacy-safe-receipt.mjs',
     'scripts/genesis001-frozen-materializer.d.mts',
@@ -286,36 +291,20 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/genesis002-production-transport.ts',
     'scripts/genesis002-sealed-live-receipt.d.mts',
     'scripts/genesis002-sealed-live-receipt.mjs',
-    'scripts/genesis002_module_bindings/accept_alpha_terms_v_1_reducer.ts',
-    'scripts/genesis002_module_bindings/access_request_get_status_v_1_procedure.ts',
-    'scripts/genesis002_module_bindings/access_request_submit_v_1_procedure.ts',
     'scripts/genesis002_module_bindings/access_request_v_1_table.ts',
-    'scripts/genesis002_module_bindings/admin_admit_founder_for_access_request_v_2_reducer.ts',
-    'scripts/genesis002_module_bindings/admin_admit_founder_v_1_reducer.ts',
-    'scripts/genesis002_module_bindings/admin_allow_fid_for_access_request_v_1_reducer.ts',
-    'scripts/genesis002_module_bindings/admin_allow_fid_reducer.ts',
     'scripts/genesis002_module_bindings/admin_audit_table.ts',
     'scripts/genesis002_module_bindings/admin_begin_greater_realm_verification_v_1_reducer.ts',
-    'scripts/genesis002_module_bindings/admin_bump_auth_epoch_reducer.ts',
-    'scripts/genesis002_module_bindings/admin_disable_fid_reducer.ts',
     'scripts/genesis002_module_bindings/admin_finalize_greater_realm_release_v_1_reducer.ts',
     'scripts/genesis002_module_bindings/admin_get_greater_realm_import_plan_v_1_procedure.ts',
     'scripts/genesis002_module_bindings/admin_get_greater_realm_status_v_1_procedure.ts',
     'scripts/genesis002_module_bindings/admin_import_greater_realm_chunk_v_1_reducer.ts',
     'scripts/genesis002_module_bindings/admin_import_greater_realm_components_v_1_reducer.ts',
     'scripts/genesis002_module_bindings/admin_import_greater_realm_regions_v_1_reducer.ts',
-    'scripts/genesis002_module_bindings/admin_reset_access_request_v_1_reducer.ts',
     'scripts/genesis002_module_bindings/admin_stage_greater_realm_release_v_1_reducer.ts',
-    'scripts/genesis002_module_bindings/admin_upsert_realm_profile_v_1_reducer.ts',
     'scripts/genesis002_module_bindings/admin_verify_greater_realm_batch_v_1_reducer.ts',
     'scripts/genesis002_module_bindings/allowed_fid_table.ts',
     'scripts/genesis002_module_bindings/alpha_terms_acceptance_v_1_table.ts',
-    'scripts/genesis002_module_bindings/auth_resolver_get_fid_admission_v_2_procedure.ts',
-    'scripts/genesis002_module_bindings/bootstrap_player_reducer.ts',
-    'scripts/genesis002_module_bindings/bootstrap_player_v_2_reducer.ts',
     'scripts/genesis002_module_bindings/castle_table.ts',
-    'scripts/genesis002_module_bindings/get_my_admission_status_v_2_procedure.ts',
-    'scripts/genesis002_module_bindings/get_realm_status_v_1_procedure.ts',
     'scripts/genesis002_module_bindings/greater_realm_activation_v_1_table.ts',
     'scripts/genesis002_module_bindings/greater_realm_castle_claim_v_1_table.ts',
     'scripts/genesis002_module_bindings/greater_realm_castle_slot_v_1_table.ts',
@@ -425,6 +414,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/profiles/profile-plan-artifact.ts',
     'scripts/profiles/profile-transport.ts',
     'scripts/profiles/profiles-operator.ts',
+    'scripts/ptr-owner-provision-operator.ts',
     'scripts/ptr-production-admin-token.ts',
     'scripts/ptr-production-import-core.ts',
     'scripts/ptr-production-import-operator.ts',
@@ -440,6 +430,16 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/qa-observer/local-fullstack-spacetime.mjs',
     'scripts/qa-observer/local-vite-fs-deny.d.mts',
     'scripts/qa-observer/local-vite-fs-deny.mjs',
+    'scripts/sealed-realms-production-auth-bridge-state.d.mts',
+    'scripts/sealed-realms-production-auth-bridge-state.mjs',
+    'scripts/sealed-realms-production-continuation.d.mts',
+    'scripts/sealed-realms-production-continuation.mjs',
+    'scripts/sealed-realms-production-private-state.d.mts',
+    'scripts/sealed-realms-production-private-state.mjs',
+    'scripts/sealed-realms-production-source-authority.d.mts',
+    'scripts/sealed-realms-production-source-authority.mjs',
+    'scripts/sealed-realms-production-workflow-authority.d.mts',
+    'scripts/sealed-realms-production-workflow-authority.mjs',
     'scripts/spacetime-additive-migration-proof.d.mts',
     'scripts/spacetime-additive-migration-proof.mjs',
     'scripts/spacetime-cli-attestation.d.mts',
@@ -484,11 +484,14 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'services/auth-bridge/src/miniAppWebhook.ts',
     'services/auth-bridge/src/qaObserver.ts',
     'services/auth-bridge/src/rateLimit.ts',
+    'services/auth-bridge/src/releaseRecoveryConfig.ts',
+    'services/auth-bridge/src/releaseRecoveryObservation.ts',
     'services/auth-bridge/src/sessionCookie.ts',
     'services/auth-bridge/src/sessionFamily.ts',
     'services/auth-bridge/src/spacetimeAccessRequestResolver.ts',
     'services/auth-bridge/src/spacetimeAuthEpochResolver.ts',
     'services/auth-bridge/src/spacetimeQaObserverResolver.ts',
+    'services/auth-bridge/src/spacetimeReleaseRecoveryResolver.ts',
     'services/auth-bridge/src/types.ts',
     'services/auth-bridge/test-workerd/authBridge.workerd.test.ts',
     'services/auth-bridge/test-workerd/tsconfig.json',
@@ -498,19 +501,25 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'services/auth-bridge/test/browserBinding.test.ts',
     'services/auth-bridge/test/challengeStore.test.ts',
     'services/auth-bridge/test/farcaster.test.ts',
+    'services/auth-bridge/test/genesis002AdminToken.test.ts',
     'services/auth-bridge/test/miniAppWebhook.test.ts',
     'services/auth-bridge/test/ptrOwnerExchange.test.ts',
     'services/auth-bridge/test/qaObserver.test.ts',
     'services/auth-bridge/test/rateLimit.test.ts',
+    'services/auth-bridge/test/releaseRecoveryConfig.test.ts',
+    'services/auth-bridge/test/releaseRecoveryObservation.test.ts',
     'services/auth-bridge/test/sessionFamily.test.ts',
     'services/auth-bridge/test/spacetimeAccessRequestResolver.test.ts',
     'services/auth-bridge/test/spacetimeAuthEpochResolver.test.ts',
     'services/auth-bridge/test/spacetimeQaObserverResolver.test.ts',
+    'services/auth-bridge/test/spacetimeReleaseRecoveryResolver.test.ts',
     'services/auth-bridge/tsconfig.json',
     'services/auth-bridge/vitest.config.ts',
     'services/auth-bridge/vitest.workerd.config.ts',
     'services/auth-bridge/wrangler.toml',
+    'spacetimedb/genesis002/.gitignore',
     'spacetimedb/genesis002/package.json',
+    'spacetimedb/genesis002/src/adminPolicy.ts',
     'spacetimedb/genesis002/src/atlasImportReducers.ts',
     'spacetimedb/genesis002/src/auth.ts',
     'spacetimedb/genesis002/src/contract.ts',
@@ -518,12 +527,12 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'spacetimedb/genesis002/src/lifecycle.ts',
     'spacetimedb/genesis002/src/policy.ts',
     'spacetimedb/genesis002/src/population.ts',
-    'spacetimedb/genesis002/src/reducers.ts',
     'spacetimedb/genesis002/src/schema.ts',
     'spacetimedb/genesis002/tsconfig.json',
     'spacetimedb/package.json',
     'spacetimedb/pnpm-lock.yaml',
     'spacetimedb/pnpm-workspace.yaml',
+    'spacetimedb/ptr/.gitignore',
     'spacetimedb/ptr/generated-bindings/admin_begin_greater_realm_verification_v_1_reducer.ts',
     'spacetimedb/ptr/generated-bindings/admin_finalize_greater_realm_release_v_1_reducer.ts',
     'spacetimedb/ptr/generated-bindings/admin_get_greater_realm_status_v_1_procedure.ts',
@@ -542,6 +551,25 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'spacetimedb/ptr/generated-bindings/index.ts',
     'spacetimedb/ptr/generated-bindings/plan_realm_route_v_1_procedure.ts',
     'spacetimedb/ptr/generated-bindings/types.ts',
+    'spacetimedb/ptr/package.json',
+    'spacetimedb/ptr/pnpm-lock.yaml',
+    'spacetimedb/ptr/src/atlasAuthority.ts',
+    'spacetimedb/ptr/src/atlasImportReducers.ts',
+    'spacetimedb/ptr/src/atlasPolicy.ts',
+    'spacetimedb/ptr/src/atlasReadPolicy.ts',
+    'spacetimedb/ptr/src/atlasReadReducers.ts',
+    'spacetimedb/ptr/src/auth.ts',
+    'spacetimedb/ptr/src/context.ts',
+    'spacetimedb/ptr/src/contract.ts',
+    'spacetimedb/ptr/src/index.ts',
+    'spacetimedb/ptr/src/lifecycle.ts',
+    'spacetimedb/ptr/src/ownerPolicy.ts',
+    'spacetimedb/ptr/src/ownerReducers.ts',
+    'spacetimedb/ptr/src/policy.ts',
+    'spacetimedb/ptr/src/schema.ts',
+    'spacetimedb/ptr/src/schemaContract.ts',
+    'spacetimedb/ptr/src/sha256.ts',
+    'spacetimedb/ptr/tsconfig.json',
     'spacetimedb/src/accessRequestPolicy.ts',
     'spacetimedb/src/adminPolicy.ts',
     'spacetimedb/src/admissionPolicy.ts',
@@ -1215,15 +1243,18 @@ function canonicalRepository(repositoryRoot) {
   return repository;
 }
 
+function permittedMemberPath(memberPath) {
+  return typeof memberPath === 'string'
+    && MEMBER_PATH.test(memberPath)
+    && (!memberPath.startsWith('spacetimedb/ptr/')
+      || PTR_MODULE_MEMBER_PATH.test(memberPath)
+      || PTR_GENERATED_BINDING_MEMBER_PATHS.has(memberPath))
+    && !memberPath.includes('//')
+    && !memberPath.split('/').some(part => part === '.' || part === '..');
+}
+
 function canonicalMemberPath(repository, memberPath, code) {
-  if (
-    typeof memberPath !== 'string'
-    || !MEMBER_PATH.test(memberPath)
-    || (memberPath.startsWith('spacetimedb/ptr/')
-      && !PTR_GENERATED_BINDING_MEMBER_PATHS.has(memberPath))
-    || memberPath.includes('//')
-    || memberPath.split('/').some(part => part === '.' || part === '..')
-  ) fail(code);
+  if (!permittedMemberPath(memberPath)) fail(code);
   const requested = resolve(repository, memberPath);
   let canonical;
   let status;
@@ -1338,7 +1369,7 @@ function parseManifest(body) {
   for (const member of value.members) {
     if (
       !exactKeys(member, MEMBER_KEYS)
-      || !MEMBER_PATH.test(member.path ?? '')
+      || !permittedMemberPath(member.path)
       || member.digestProfile !== expectedMemberDigestProfile(member.path)
       || !SHA256_HEX.test(member.sha256 ?? '')
       || member.path <= previous
