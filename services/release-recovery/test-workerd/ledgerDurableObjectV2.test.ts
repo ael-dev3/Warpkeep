@@ -16,7 +16,13 @@ import {
   type GitHubEvidenceMetadata,
 } from '../src/githubEvidenceMetadata.js'
 import type { GitHubWorkflowIdentity } from '../src/githubOidc.js'
-import type { LedgerV2ControlState } from '../src/ledgerV2.js'
+import {
+  type LedgerSignerClaimProjection,
+  type LedgerV2ControlState,
+  type LedgerV2ReconciliationProof,
+} from '../src/ledgerV2.js'
+import { ReleaseRecoveryAuthorizationLedgerV2 } from '../src/ledgerDurableObjectV2.js'
+import type { DeploymentReconciliationProofReader } from '../src/reconciliationEvidence.js'
 import {
   RECOVERY_AUTHORIZATION_PAYLOAD_KEYS,
   RECOVERY_AUTHORIZATION_TYP,
@@ -292,6 +298,20 @@ async function issueAndClaim() {
   return { control, request, authorizationJws }
 }
 
+async function runAlarmWithReader(
+  request: ReturnType<typeof env.RECOVERY_LEDGER_V2.getByName>,
+  reader: DeploymentReconciliationProofReader,
+): Promise<void> {
+  await runInDurableObject(request, async (_instance, state) => {
+    const injected = new ReleaseRecoveryAuthorizationLedgerV2(
+      state,
+      { RECOVERY_LEDGER_V2: env.RECOVERY_LEDGER_V2 },
+      () => reader,
+    )
+    await injected.alarm()
+  })
+}
+
 async function corruptIssuedRecord(
   request: ReturnType<typeof env.RECOVERY_LEDGER_V2.getByName>,
   mutate: (record: Record<string, unknown>) => void,
@@ -480,7 +500,102 @@ describe('ReleaseRecoveryAuthorizationLedgerV2 Workerd adapter', () => {
     expect(durable.payloadCount).toBe(0)
   })
 
-  it('uses only bounded ambiguous alarm retries until a proof reader exists', async () => {
+  it('persists reconciliation-required before the injected reader and accepts a row-bound completed proof', async () => {
+    const { request } = await issueAndClaim()
+    const alarmAt = NOW + 2 + 1_200
+    vi.setSystemTime(alarmAt * 1_000)
+    let projectionSeen: LedgerSignerClaimProjection | undefined
+    let storedStateSeen: string | undefined
+
+    await runInDurableObject(request, async (_instance, state) => {
+      const reader: DeploymentReconciliationProofReader = async projection => {
+        projectionSeen = projection
+        storedStateSeen = state.storage.sql.exec<{ state: string }>(
+          'SELECT state FROM recovery_v2_authorization WHERE singleton_key = 1',
+        ).one().state
+        return Object.freeze({
+          outcome: 'completed',
+          rowBindingDigest: projection.rowBindingDigest,
+          deployStepConclusion: 'success',
+          matchingPagesDeployment: true,
+          deploymentAttestationMatches: true,
+        })
+      }
+      const injected = new ReleaseRecoveryAuthorizationLedgerV2(
+        state,
+        { RECOVERY_LEDGER_V2: env.RECOVERY_LEDGER_V2 },
+        () => reader,
+      )
+      await injected.alarm()
+    })
+
+    expect(storedStateSeen).toBe('reconciliation-required')
+    expect(projectionSeen).toMatchObject({
+      state: 'reconciliation-required', requestId: REQUEST_ID, revision: 4,
+    })
+    await expect(request.status()).resolves.toMatchObject({
+      state: 'completed', terminal: { outcome: 'completed', completedAt: alarmAt }, revision: 5,
+    })
+  })
+
+  it('accepts not-deployed only through the alarm reader and exposes no public reconcile RPC', async () => {
+    const { request } = await issueAndClaim()
+    const alarmAt = NOW + 2 + 1_200
+    vi.setSystemTime(alarmAt * 1_000)
+    const reader: DeploymentReconciliationProofReader = async projection => Object.freeze({
+      outcome: 'not-deployed',
+      rowBindingDigest: projection.rowBindingDigest,
+      authoritativeTerminalRun: true,
+      pagesDeployStepStarted: false,
+      matchingPagesDeploymentAbsent: true,
+    })
+
+    await runAlarmWithReader(request, reader)
+
+    await expect(request.status()).resolves.toMatchObject({
+      state: 'not-deployed', terminal: { outcome: 'not-deployed', completedAt: alarmAt }, revision: 5,
+    })
+    await runInDurableObject(request, instance => {
+      expect('reconcile' in instance).toBe(false)
+    })
+  })
+
+  it('discards a terminal reader result when the stored revision changes during the await', async () => {
+    const { request } = await issueAndClaim()
+    const alarmAt = NOW + 2 + 1_200
+    vi.setSystemTime(alarmAt * 1_000)
+    let calls = 0
+
+    await runInDurableObject(request, async (runtimeInstance, state) => {
+      const reader = async (
+        projection: LedgerSignerClaimProjection,
+      ): Promise<LedgerV2ReconciliationProof> => {
+        calls += 1
+        await runtimeInstance.alarm()
+        return Object.freeze({
+          outcome: 'completed',
+          rowBindingDigest: projection.rowBindingDigest,
+          deployStepConclusion: 'success',
+          matchingPagesDeployment: true,
+          deploymentAttestationMatches: true,
+        })
+      }
+      const injected = new ReleaseRecoveryAuthorizationLedgerV2(
+        state,
+        { RECOVERY_LEDGER_V2: env.RECOVERY_LEDGER_V2 },
+        () => reader,
+      )
+      await injected.alarm()
+    })
+
+    expect(calls).toBe(1)
+    await expect(request.status()).resolves.toMatchObject({
+      state: 'reconciliation-required', reconciliationAttempts: 1,
+      nextReconcileAt: alarmAt + 60, revision: 5,
+    })
+  })
+
+  it('uses only bounded ambiguous alarm retries when configured evidence is unavailable', async () => {
     const { request } = await issueAndClaim()
     const firstAlarmAt = NOW + 2 + 1_200
     const callbacks = [

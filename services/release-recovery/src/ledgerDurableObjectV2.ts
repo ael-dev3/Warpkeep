@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers'
 
-import type { RecoveryArmingTuple } from './config.js'
+import type { GitHubAppEnvironment, RecoveryArmingTuple } from './config.js'
 import type { RecoveryAuthorizationPayload } from './crypto.js'
 import {
   GITHUB_EVIDENCE_METADATA_KEYS,
@@ -25,8 +25,14 @@ import {
   type LedgerV2ClaimSnapshot,
   type LedgerV2ControlState,
   type LedgerV2Event,
+  type LedgerV2ReconciliationProof,
   type RecoveryLedgerRecordV2,
 } from './ledgerV2.js'
+import {
+  createDeploymentReconciliationProofReader,
+  type DeploymentReconciliationProofReader,
+  type DeploymentReconciliationProofReaderFactory,
+} from './reconciliationEvidence.js'
 
 export const RECOVERY_LEDGER_V2_CONTROL_OBJECT_NAME = 'warpkeep-release-recovery-control-v2'
 
@@ -653,14 +659,23 @@ class CasConflict extends Error {}
 
 export interface SignerEnvV2 {
   RECOVERY_LEDGER_V2: DurableObjectNamespace
+  GITHUB_APP_ID?: string
+  GITHUB_APP_INSTALLATION_ID?: string
+  GITHUB_APP_PRIVATE_KEY_PEM?: string
 }
 
 export class ReleaseRecoveryAuthorizationLedgerV2 extends DurableObject<SignerEnvV2> {
   readonly #name: string | null
   readonly #role: ObjectRole | null
   readonly #identityValid: boolean
+  readonly #reconciliationReader: DeploymentReconciliationProofReader
 
-  constructor(ctx: DurableObjectState, env: SignerEnvV2) {
+  constructor(
+    ctx: DurableObjectState,
+    env: SignerEnvV2,
+    readerFactory: DeploymentReconciliationProofReaderFactory =
+      createDeploymentReconciliationProofReader,
+  ) {
     super(ctx, env)
     const name = ctx.id.name
     this.#name = typeof name === 'string' ? name : null
@@ -677,6 +692,25 @@ export class ReleaseRecoveryAuthorizationLedgerV2 extends DurableObject<SignerEn
       identityValid = false
     }
     this.#identityValid = identityValid
+    let reader: DeploymentReconciliationProofReader = async () => Object.freeze({
+      outcome: 'ambiguous',
+    })
+    try {
+      reader = readerFactory(Object.freeze({
+        githubApp: Object.freeze({
+          GITHUB_APP_ID: env.GITHUB_APP_ID,
+          GITHUB_APP_INSTALLATION_ID: env.GITHUB_APP_INSTALLATION_ID,
+          GITHUB_APP_PRIVATE_KEY_PEM: env.GITHUB_APP_PRIVATE_KEY_PEM,
+        }) as unknown as GitHubAppEnvironment,
+        fetch: globalThis.fetch,
+      }))
+      if (typeof reader !== 'function') {
+        reader = async () => Object.freeze({ outcome: 'ambiguous' })
+      }
+    } catch {
+      reader = async () => Object.freeze({ outcome: 'ambiguous' })
+    }
+    this.#reconciliationReader = reader
 
     ctx.blockConcurrencyWhile(async () => {
       if (this.#role === null || !this.#identityValid || this.#name === null) return
@@ -1075,6 +1109,54 @@ export class ReleaseRecoveryAuthorizationLedgerV2 extends DurableObject<SignerEn
     }
   }
 
+  async #readReconciliationProof(
+    projection: LedgerSignerClaimProjection,
+  ): Promise<LedgerV2ReconciliationProof> {
+    const ambiguous = (): LedgerV2ReconciliationProof => Object.freeze({ outcome: 'ambiguous' })
+    try {
+      const value = await this.#reconciliationReader(projection)
+      try {
+        const source = exactData(value, ['outcome'], 'RECOVERY_LEDGER_RECONCILIATION_PROOF_INVALID')
+        if (source.outcome === 'ambiguous') return ambiguous()
+      } catch {
+        // Try each exact terminal proof shape below.
+      }
+      try {
+        const source = exactData(value, [
+          'outcome', 'rowBindingDigest', 'deployStepConclusion',
+          'matchingPagesDeployment', 'deploymentAttestationMatches',
+        ], 'RECOVERY_LEDGER_RECONCILIATION_PROOF_INVALID')
+        if (
+          source.outcome === 'completed'
+          && source.rowBindingDigest === projection.rowBindingDigest
+          && source.deployStepConclusion === 'success'
+          && source.matchingPagesDeployment === true
+          && source.deploymentAttestationMatches === true
+        ) return Object.freeze({ ...source }) as LedgerV2ReconciliationProof
+      } catch {
+        // Try the exact not-deployed shape below.
+      }
+      try {
+        const source = exactData(value, [
+          'outcome', 'rowBindingDigest', 'authoritativeTerminalRun',
+          'pagesDeployStepStarted', 'matchingPagesDeploymentAbsent',
+        ], 'RECOVERY_LEDGER_RECONCILIATION_PROOF_INVALID')
+        if (
+          source.outcome === 'not-deployed'
+          && source.rowBindingDigest === projection.rowBindingDigest
+          && source.authoritativeTerminalRun === true
+          && source.pagesDeployStepStarted === false
+          && source.matchingPagesDeploymentAbsent === true
+        ) return Object.freeze({ ...source }) as LedgerV2ReconciliationProof
+      } catch {
+        // Any malformed or hostile reader result is ambiguous.
+      }
+      return ambiguous()
+    } catch {
+      return ambiguous()
+    }
+  }
+
   async #withPublicErrors<T>(operation: () => Promise<T>): Promise<T> {
     try {
       return await operation()
@@ -1379,24 +1461,56 @@ export class ReleaseRecoveryAuthorizationLedgerV2 extends DurableObject<SignerEn
         const required = await applyLedgerV2Event(
           current, Object.freeze({ type: 'alarm', now }),
         )
-        const scheduled = await applyLedgerV2Event(required, Object.freeze({
-          type: 'reconcile',
-          proof: Object.freeze({ outcome: 'ambiguous' }),
-          now,
-        }))
-        this.ctx.storage.transactionSync(() => {
+        this.ctx.storage.transactionSync(() => (
           this.#updateRecord(current as RecoveryLedgerRecordV2, required)
-          this.#updateRecord(required, scheduled)
-        })
-        current = scheduled
-      } else if (current.state === 'reconciliation-required') {
+        ))
+        const persisted = await this.#loadRecord()
+        if (persisted === undefined) fail('RECOVERY_LEDGER_STORAGE_CORRUPT')
+        current = persisted
+      }
+
+      if (current.state === 'reconciliation-required') {
+        if (current.nextReconcileAt === null || now < current.nextReconcileAt) {
+          await this.#repairAlarm(current)
+          return
+        }
+        const readerProjection = projectClaimedLedgerV2Row(current)
+        const proof = await this.#readReconciliationProof(readerProjection)
+        const fresh = await this.#loadRecord()
+        if (fresh === undefined) fail('RECOVERY_LEDGER_STORAGE_CORRUPT')
+        current = fresh
+        if (current.state !== 'reconciliation-required') {
+          await this.#repairAlarm(current)
+          return
+        }
+        const freshNow = Math.floor(Date.now() / 1_000)
+        if (current.nextReconcileAt === null || freshNow < current.nextReconcileAt) {
+          await this.#repairAlarm(current)
+          return
+        }
+        const freshProjection = projectClaimedLedgerV2Row(current)
+        const unchanged = freshProjection.state === 'reconciliation-required'
+          && freshProjection.requestId === readerProjection.requestId
+          && freshProjection.revision === readerProjection.revision
+          && freshProjection.rowBindingDigest === readerProjection.rowBindingDigest
+        const selectedProof = unchanged
+          ? proof
+          : Object.freeze({ outcome: 'ambiguous' as const })
         const next = await applyLedgerV2Event(current, Object.freeze({
-          type: 'reconcile',
-          proof: Object.freeze({ outcome: 'ambiguous' }),
-          now,
+          type: 'reconcile', proof: selectedProof, now: freshNow,
         }))
-        this.ctx.storage.transactionSync(() => this.#updateRecord(current as RecoveryLedgerRecordV2, next))
-        current = next
+        try {
+          this.ctx.storage.transactionSync(() => (
+            this.#updateRecord(current as RecoveryLedgerRecordV2, next)
+          ))
+          current = next
+        } catch (error) {
+          if (!(error instanceof CasConflict)) throw error
+          const latest = await this.#loadRecord()
+          if (latest === undefined) fail('RECOVERY_LEDGER_STORAGE_CORRUPT')
+          await this.#repairAlarm(latest)
+          return
+        }
       }
       await this.#repairAlarm(current)
     })

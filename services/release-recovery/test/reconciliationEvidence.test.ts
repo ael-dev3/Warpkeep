@@ -1,0 +1,750 @@
+import { readFile } from 'node:fs/promises'
+
+import { sha256 } from '@noble/hashes/sha2.js'
+import { bytesToHex } from '@noble/hashes/utils.js'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { GitHubAppEnvironment } from '../src/config.js'
+import { githubEvidenceMetadataSha256, type GitHubEvidenceMetadata } from '../src/githubEvidenceMetadata.js'
+import type { LedgerSignerClaimProjection } from '../src/ledgerV2.js'
+import { createDeploymentReconciliationProofReader } from '../src/reconciliationEvidence.js'
+
+const API = 'https://api.github.com/repos/ael-dev3/Warpkeep'
+const INSTALLATION_URL = 'https://api.github.com/app/installations/23/access_tokens'
+const PUBLIC_ATTESTATION_URL = 'https://warpkeep.com/.well-known/warpkeep-deployment-v1.json'
+const REQUEST_ID = '123e4567-e89b-42d3-a456-426614174000'
+const AUTHORIZATION_JTI = '123e4567-e89b-42d3-a456-426614174001'
+const CANDIDATE = 'a'.repeat(40)
+const CANDIDATE_TREE = 'b'.repeat(40)
+const PREPARATION_COMMIT = 'c'.repeat(40)
+const PREPARATION_TREE = 'd'.repeat(40)
+const ARCHIVE_SHA256 = 'e'.repeat(64)
+const RUN_ID = '41'
+const RUN_ATTEMPT = '2'
+const CHECK_RUN_ID = '91'
+const ARTIFACT_ID = '73'
+const NOW = 1_788_400_000
+const DEPLOY_STEP = 'Deploy recovery-authorized release to GitHub Pages'
+const DEPLOY_ACTION = 'actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128'
+const encoder = new TextEncoder()
+
+let githubApp: GitHubAppEnvironment
+
+beforeAll(async () => {
+  const pair = await crypto.subtle.generateKey(
+    {
+      name: 'RSASSA-PKCS1-v1_5',
+      modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: 'SHA-256',
+    },
+    true,
+    ['sign', 'verify'],
+  )
+  const pkcs8 = new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey))
+  githubApp = Object.freeze({
+    GITHUB_APP_ID: '17',
+    GITHUB_APP_INSTALLATION_ID: '23',
+    GITHUB_APP_PRIVATE_KEY_PEM:
+      `-----BEGIN PRIVATE KEY-----\n${Buffer.from(pkcs8).toString('base64')}\n-----END PRIVATE KEY-----`,
+  })
+})
+
+beforeEach(() => {
+  vi.useFakeTimers()
+  vi.setSystemTime(NOW * 1_000)
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+function rawSha256(bytes: Uint8Array): string {
+  return bytesToHex(sha256(bytes))
+}
+
+function responseAt(
+  requestedUrl: string,
+  body: BodyInit | Uint8Array | null,
+  init: ResponseInit = {},
+  finalUrl = requestedUrl,
+): Response {
+  const responseBody = body instanceof Uint8Array ? Uint8Array.from(body).buffer : body
+  const response = new Response(responseBody, init)
+  Object.defineProperty(response, 'url', { value: finalUrl })
+  return response
+}
+
+function jsonResponse(
+  url: string,
+  value: unknown,
+  status = 200,
+  etag = '"fixture-etag"',
+  finalUrl = url,
+): Response {
+  return responseAt(url, JSON.stringify(value), {
+    status,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      ...(etag === '' ? {} : { etag }),
+    },
+  }, finalUrl)
+}
+
+function canonicalAttestation(): Record<string, unknown> {
+  return {
+    schemaVersion: 1,
+    profile: 'warpkeep-deployment-attestation-v1',
+    candidateCommit: CANDIDATE,
+    candidateTree: CANDIDATE_TREE,
+    recoveryAuthorizationCoreSha256: '1'.repeat(64),
+    sourceClosureProfile: 'warpkeep-0.4.0-recovery-source-closure-v1',
+    sourceClosureSha256: '2'.repeat(64),
+    releaseVersion: '0.4.0',
+    canonicalOrigin: 'https://warpkeep.com',
+    contentManifestSha256: '3'.repeat(64),
+  }
+}
+
+function recoveryWorkflow(): string {
+  return `name: Deploy GitHub Pages
+on:
+  workflow_run:
+    workflows: [Verify]
+    types: [completed]
+jobs:
+  deploy-recovery:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - name: Request recovery authority
+        run: echo verified
+      - name: ${DEPLOY_STEP}
+        id: deployment
+        uses: ${DEPLOY_ACTION}
+        with:
+          artifact_name: github-pages-recovery-\${{ github.run_id }}-\${{ github.run_attempt }}
+`
+}
+
+function repositoryResponse(): Record<string, unknown> {
+  return {
+    id: 1273513252,
+    name: 'Warpkeep',
+    full_name: 'ael-dev3/Warpkeep',
+    default_branch: 'main',
+    archived: false,
+    disabled: false,
+    owner: { id: 183124839, login: 'ael-dev3' },
+  }
+}
+
+function branchResponse(): Record<string, unknown> {
+  return { name: 'main', protected: true, commit: { sha: CANDIDATE } }
+}
+
+function commitResponse(): Record<string, unknown> {
+  return {
+    sha: CANDIDATE,
+    tree: { sha: CANDIDATE_TREE },
+    parents: [{ sha: PREPARATION_COMMIT }],
+  }
+}
+
+function artifactResponse(): Record<string, unknown> {
+  return {
+    id: Number(ARTIFACT_ID),
+    name: `github-pages-recovery-${RUN_ID}-${RUN_ATTEMPT}`,
+    node_id: 'A_kwDOsynthetic',
+    size_in_bytes: 1_234,
+    url: `${API}/actions/artifacts/${ARTIFACT_ID}`,
+    archive_download_url: `${API}/actions/artifacts/${ARTIFACT_ID}/zip`,
+    expired: false,
+    created_at: new Date((NOW - 3_600) * 1_000).toISOString(),
+    expires_at: new Date((NOW + 86_400) * 1_000).toISOString(),
+    updated_at: new Date((NOW - 3_500) * 1_000).toISOString(),
+    digest: `sha256:${ARCHIVE_SHA256}`,
+    workflow_run: {
+      id: Number(RUN_ID),
+      repository_id: 1273513252,
+      head_repository_id: 1273513252,
+      head_branch: 'main',
+      head_sha: CANDIDATE,
+    },
+  }
+}
+
+function githubBlobBase64(bytes: Uint8Array): string {
+  const encoded = Buffer.from(bytes).toString('base64')
+  return `${encoded.match(/.{1,60}/gu)!.join('\n')}\n`
+}
+
+async function workflowContentsResponse(workflow: string): Promise<Record<string, unknown>> {
+  const bytes = encoder.encode(workflow)
+  const prefix = encoder.encode(`blob ${bytes.byteLength}\0`)
+  const blobInput = new Uint8Array(prefix.byteLength + bytes.byteLength)
+  blobInput.set(prefix)
+  blobInput.set(bytes, prefix.byteLength)
+  const blob = [...new Uint8Array(await crypto.subtle.digest('SHA-1', blobInput))]
+    .map(byte => byte.toString(16).padStart(2, '0')).join('')
+  const url = `${API}/contents/.github/workflows/deploy-pages.yml?ref=${CANDIDATE}`
+  return {
+    type: 'file',
+    encoding: 'base64',
+    size: bytes.byteLength,
+    name: 'deploy-pages.yml',
+    path: '.github/workflows/deploy-pages.yml',
+    content: githubBlobBase64(bytes),
+    sha: blob,
+    url,
+    git_url: `${API}/git/blobs/${blob}`,
+    html_url: `https://github.com/ael-dev3/Warpkeep/blob/${CANDIDATE}/.github/workflows/deploy-pages.yml`,
+    download_url: `https://raw.githubusercontent.com/ael-dev3/Warpkeep/${CANDIDATE}/.github/workflows/deploy-pages.yml`,
+    _links: {
+      self: url,
+      git: `${API}/git/blobs/${blob}`,
+      html: `https://github.com/ael-dev3/Warpkeep/blob/${CANDIDATE}/.github/workflows/deploy-pages.yml`,
+    },
+  }
+}
+
+function runAttemptResponse(
+  status: 'in_progress' | 'completed' = 'in_progress',
+  conclusion: string | null = null,
+): Record<string, unknown> {
+  const runUrl = `${API}/actions/runs/${RUN_ID}`
+  return {
+    id: Number(RUN_ID),
+    name: 'Deploy GitHub Pages',
+    node_id: 'WFR_kwDOfixture',
+    head_branch: 'main',
+    head_sha: CANDIDATE,
+    path: '.github/workflows/deploy-pages.yml@main',
+    display_title: 'Deploy GitHub Pages',
+    run_number: 300,
+    event: 'workflow_run',
+    status,
+    conclusion,
+    workflow_id: 309643090,
+    check_suite_id: 77,
+    check_suite_node_id: 'CS_kwDOfixture',
+    url: runUrl,
+    html_url: `https://github.com/ael-dev3/Warpkeep/actions/runs/${RUN_ID}`,
+    pull_requests: [],
+    created_at: new Date((NOW - 2_000) * 1_000).toISOString(),
+    updated_at: new Date((NOW - 1) * 1_000).toISOString(),
+    actor: { login: 'github-actions[bot]', id: 41898282, type: 'Bot' },
+    triggering_actor: { login: 'github-actions[bot]', id: 41898282, type: 'Bot' },
+    run_attempt: Number(RUN_ATTEMPT),
+    referenced_workflows: [],
+    run_started_at: new Date((NOW - 2_000) * 1_000).toISOString(),
+    jobs_url: `${runUrl}/attempts/${RUN_ATTEMPT}/jobs`,
+    logs_url: `${runUrl}/logs`,
+    check_suite_url: `${API}/check-suites/77`,
+    artifacts_url: `${runUrl}/artifacts`,
+    cancel_url: `${runUrl}/cancel`,
+    rerun_url: `${runUrl}/rerun`,
+    previous_attempt_url: null,
+    workflow_url: `${API}/actions/workflows/309643090`,
+    head_commit: {
+      id: CANDIDATE,
+      tree_id: CANDIDATE_TREE,
+      message: 'activate recovery',
+      timestamp: new Date((NOW - 2_100) * 1_000).toISOString(),
+      author: { name: 'Warpkeep', email: 'noreply@example.invalid' },
+      committer: { name: 'Warpkeep', email: 'noreply@example.invalid' },
+    },
+    repository: { id: 1273513252, name: 'Warpkeep', full_name: 'ael-dev3/Warpkeep' },
+    head_repository: { id: 1273513252, name: 'Warpkeep', full_name: 'ael-dev3/Warpkeep' },
+  }
+}
+
+function deployStep(
+  conclusion: 'success' | 'skipped' | 'failure' = 'success',
+): Record<string, unknown> {
+  const unstarted = conclusion === 'skipped'
+  return {
+    name: DEPLOY_STEP,
+    status: 'completed',
+    conclusion,
+    number: 7,
+    started_at: unstarted ? null : new Date((NOW - 1_000) * 1_000).toISOString(),
+    completed_at: unstarted ? null : new Date((NOW - 900) * 1_000).toISOString(),
+  }
+}
+
+function jobsResponse(
+  step = deployStep(),
+  jobStatus: 'in_progress' | 'completed' = 'in_progress',
+  jobConclusion: string | null = null,
+): Record<string, unknown> {
+  const runUrl = `${API}/actions/runs/${RUN_ID}`
+  return {
+    total_count: 1,
+    jobs: [{
+      id: Number(CHECK_RUN_ID),
+      run_id: Number(RUN_ID),
+      workflow_name: 'Deploy GitHub Pages',
+      head_branch: 'main',
+      run_url: runUrl,
+      run_attempt: Number(RUN_ATTEMPT),
+      node_id: 'CR_kwDOfixture',
+      head_sha: CANDIDATE,
+      url: `${API}/actions/jobs/${CHECK_RUN_ID}`,
+      html_url: `https://github.com/ael-dev3/Warpkeep/actions/runs/${RUN_ID}/job/${CHECK_RUN_ID}`,
+      status: jobStatus,
+      conclusion: jobConclusion,
+      created_at: new Date((NOW - 2_000) * 1_000).toISOString(),
+      started_at: new Date((NOW - 1_990) * 1_000).toISOString(),
+      completed_at: jobStatus === 'completed' ? new Date((NOW - 800) * 1_000).toISOString() : null,
+      name: 'deploy-recovery',
+      steps: [
+        {
+          name: 'Request recovery authority',
+          status: 'completed',
+          conclusion: 'success',
+          number: 6,
+          started_at: new Date((NOW - 1_200) * 1_000).toISOString(),
+          completed_at: new Date((NOW - 1_100) * 1_000).toISOString(),
+        },
+        step,
+      ],
+      check_run_url: `${API}/check-runs/${CHECK_RUN_ID}`,
+      labels: ['ubuntu-latest'],
+      runner_id: 1001,
+      runner_name: 'GitHub Actions 1',
+      runner_group_id: 0,
+      runner_group_name: 'GitHub Actions',
+    }],
+  }
+}
+
+type EvidenceState = {
+  repository: Record<string, unknown>
+  branch: Record<string, unknown>
+  commit: Record<string, unknown>
+  artifact: Record<string, unknown>
+  artifactSecond?: Record<string, unknown>
+  workflow: string
+  run: Record<string, unknown>
+  runSecond?: Record<string, unknown>
+  jobs: Record<string, unknown>
+  jobsSecond?: Record<string, unknown>
+  pagesStatus: number
+  pagesBody: Record<string, unknown>
+  pagesSecondStatus?: number
+  pagesSecondBody?: Record<string, unknown>
+  publicBytes: Uint8Array
+  publicSecondBytes?: Uint8Array
+  pagesRedirectUrl?: string
+  publicRedirectUrl?: string
+}
+
+type Fixture = {
+  state: EvidenceState
+  projection: LedgerSignerClaimProjection
+  calls: string[]
+  requestInits: RequestInit[]
+  reader: ReturnType<typeof createDeploymentReconciliationProofReader>
+}
+
+async function makeFixture(outcome: 'completed' | 'not-deployed' = 'completed'): Promise<Fixture> {
+  const attestationText = JSON.stringify(canonicalAttestation())
+  const publicBytes = encoder.encode(attestationText)
+  const artifactName = `github-pages-recovery-${RUN_ID}-${RUN_ATTEMPT}`
+  const metadata: GitHubEvidenceMetadata = {
+    repository: 'ael-dev3/Warpkeep',
+    repositoryId: '1273513252',
+    repositoryOwnerId: '183124839',
+    candidateCommit: CANDIDATE,
+    candidateTree: CANDIDATE_TREE,
+    parentCommit: PREPARATION_COMMIT,
+    preparationTree: PREPARATION_TREE,
+    artifactId: ARTIFACT_ID,
+    artifactName,
+    pagesRunId: RUN_ID,
+    pagesRunAttempt: RUN_ATTEMPT,
+    artifactSize: 1_234,
+    artifactDigest: `sha256:${ARCHIVE_SHA256}`,
+    artifactUrl: `${API}/actions/artifacts/${ARTIFACT_ID}`,
+    artifactArchiveUrl: `${API}/actions/artifacts/${ARTIFACT_ID}/zip`,
+    artifactNodeId: 'A_kwDOsynthetic',
+    artifactCreatedAt: new Date((NOW - 3_600) * 1_000).toISOString(),
+    artifactExpiresAt: new Date((NOW + 86_400) * 1_000).toISOString(),
+    artifactEtag: '"artifact-etag"',
+    githubArtifactArchiveSha256: ARCHIVE_SHA256,
+  }
+  const projection: LedgerSignerClaimProjection = {
+    state: 'reconciliation-required',
+    requestId: REQUEST_ID,
+    authorization: {
+      locators: {
+        requestId: REQUEST_ID,
+        candidateCommit: CANDIDATE,
+        sourceVerifyRunId: '51',
+        sourceVerifyRunAttempt: '1',
+        artifactId: ARTIFACT_ID,
+      },
+      workflowIdentity: {
+        repository: 'ael-dev3/Warpkeep',
+        repositoryId: '1273513252',
+        repositoryOwnerId: '183124839',
+        ref: 'refs/heads/main',
+        workflowRef: 'ael-dev3/Warpkeep/.github/workflows/deploy-pages.yml@refs/heads/main',
+        environment: 'github-pages',
+        eventName: 'workflow_run',
+        workflowSha: CANDIDATE,
+        pagesRunId: RUN_ID,
+        pagesRunAttempt: RUN_ATTEMPT,
+        checkRunId: CHECK_RUN_ID,
+      },
+      authorizationJti: AUTHORIZATION_JTI,
+      authorizationEpoch: 3,
+      issuedAt: NOW - 3_000,
+      notBefore: NOW - 3_000,
+      expiresAt: NOW - 1_000,
+      issuanceEvidenceSnapshotDigest: '4'.repeat(64),
+      liveInvariantDigest: '5'.repeat(64),
+      candidateTree: CANDIDATE_TREE,
+      artifactName,
+      githubArtifactArchiveSha256: ARCHIVE_SHA256,
+      innerArtifactTarSha256: '6'.repeat(64),
+      contentManifestSha256: '3'.repeat(64),
+      deploymentAttestationSha256: rawSha256(publicBytes),
+      operation: 'github-pages-production-deploy',
+      canonicalOrigin: 'https://warpkeep.com',
+      githubMetadata: metadata,
+      githubMetadataSha256: await githubEvidenceMetadataSha256(metadata),
+    },
+    authorizationJwsSha256: '8'.repeat(64),
+    claim: {
+      claimSnapshotDigest: '9'.repeat(64),
+      claimLiveInvariantDigest: '5'.repeat(64),
+      claimSequence: 1,
+      claimedAt: NOW - 1_300,
+      claimDeadline: NOW - 100,
+    },
+    rowBindingDigest: 'a1'.repeat(32),
+    revision: 4,
+  }
+
+  const state: EvidenceState = {
+    repository: repositoryResponse(),
+    branch: branchResponse(),
+    commit: commitResponse(),
+    artifact: artifactResponse(),
+    workflow: recoveryWorkflow(),
+    run: outcome === 'completed'
+      ? runAttemptResponse()
+      : runAttemptResponse('completed', 'failure'),
+    jobs: outcome === 'completed'
+      ? jobsResponse()
+      : jobsResponse(deployStep('skipped'), 'completed', 'failure'),
+    pagesStatus: outcome === 'completed' ? 200 : 404,
+    pagesBody: outcome === 'completed' ? { status: 'succeed' } : { message: 'Not Found' },
+    publicBytes,
+  }
+  const calls: string[] = []
+  const requestInits: RequestInit[] = []
+  let artifactReads = 0
+  let runReads = 0
+  let jobReads = 0
+  let pagesReads = 0
+  let publicReads = 0
+
+  const fetchImplementation = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input)
+    calls.push(url)
+    requestInits.push(init ?? {})
+    if (url === INSTALLATION_URL) {
+      return jsonResponse(url, {
+        expires_at: new Date((NOW + 3_600) * 1_000).toISOString(),
+        permissions: {
+          actions: 'read',
+          checks: 'read',
+          contents: 'read',
+          deployments: 'read',
+          metadata: 'read',
+          pages: 'read',
+        },
+        repository_selection: 'selected',
+        repositories_url: 'https://api.github.com/installation/repositories',
+        has_multiple_single_files: false,
+        single_file: null,
+        single_file_paths: [],
+        token_last_eight: 'on-token',
+        repositories: [{
+          full_name: 'ael-dev3/Warpkeep',
+          id: 1273513252,
+          node_id: 'R_kgDOL5fixture',
+          name: 'Warpkeep',
+          private: false,
+          owner: { login: 'ael-dev3', id: 183124839 },
+        }],
+        token: 'installation-token',
+      }, 201)
+    }
+
+    const authorization = new Headers(init?.headers).get('authorization')
+    if (url.startsWith('https://api.github.com/') && authorization !== 'Bearer installation-token') {
+      return jsonResponse(url, { message: 'denied' }, 401)
+    }
+    if (url === API) return jsonResponse(url, state.repository)
+    if (url === `${API}/branches/main`) return jsonResponse(url, state.branch)
+    if (url === `${API}/git/commits/${CANDIDATE}`) return jsonResponse(url, state.commit)
+    if (url === `${API}/actions/artifacts/${ARTIFACT_ID}`) {
+      artifactReads += 1
+      return jsonResponse(
+        url,
+        artifactReads === 2 ? state.artifactSecond ?? state.artifact : state.artifact,
+        200,
+        '"artifact-etag"',
+      )
+    }
+    if (url === `${API}/contents/.github/workflows/deploy-pages.yml?ref=${CANDIDATE}`) {
+      return jsonResponse(url, await workflowContentsResponse(state.workflow), 200, '"workflow-etag"')
+    }
+    if (url === `${API}/actions/runs/${RUN_ID}/attempts/${RUN_ATTEMPT}`) {
+      runReads += 1
+      return jsonResponse(
+        url,
+        runReads === 2 ? state.runSecond ?? state.run : state.run,
+        200,
+        '"run-etag"',
+      )
+    }
+    if (url === `${API}/actions/runs/${RUN_ID}/attempts/${RUN_ATTEMPT}/jobs?per_page=100`) {
+      jobReads += 1
+      return jsonResponse(
+        url,
+        jobReads === 2 ? state.jobsSecond ?? state.jobs : state.jobs,
+        200,
+        '"jobs-etag"',
+      )
+    }
+    if (url === `${API}/pages/deployments/${CANDIDATE}`) {
+      pagesReads += 1
+      const status = pagesReads === 2 ? state.pagesSecondStatus ?? state.pagesStatus : state.pagesStatus
+      const body = pagesReads === 2 ? state.pagesSecondBody ?? state.pagesBody : state.pagesBody
+      return jsonResponse(url, body, status, '"pages-etag"', state.pagesRedirectUrl ?? url)
+    }
+    if (url === PUBLIC_ATTESTATION_URL) {
+      publicReads += 1
+      const body = publicReads === 2 ? state.publicSecondBytes ?? state.publicBytes : state.publicBytes
+      return responseAt(url, body, {
+        status: 200,
+        headers: { 'content-type': 'application/json', etag: '"public-etag"' },
+      }, state.publicRedirectUrl ?? url)
+    }
+    throw new Error(`unexpected fake transport: ${url}`)
+  }) as typeof fetch
+
+  return {
+    state,
+    projection,
+    calls,
+    requestInits,
+    reader: createDeploymentReconciliationProofReader({ githubApp, fetch: fetchImplementation }),
+  }
+}
+
+describe('read-only V2 deployment reconciliation evidence', () => {
+  it('completes only from the exact pinned step, Pages deployment, and raw-SHA-bound public attestation', async () => {
+    const fixture = await makeFixture('completed')
+
+    await expect(fixture.reader(fixture.projection)).resolves.toEqual({
+      outcome: 'completed',
+      rowBindingDigest: fixture.projection.rowBindingDigest,
+      deployStepConclusion: 'success',
+      matchingPagesDeployment: true,
+      deploymentAttestationMatches: true,
+    })
+
+    expect(fixture.calls.filter(url => url === INSTALLATION_URL)).toHaveLength(1)
+    expect(fixture.calls.some(url => /\/zip(?:\?|$)|objects\.githubusercontent\.com/u.test(url))).toBe(false)
+    expect(fixture.calls.some(url => /openid-configuration|\.well-known\/jwks/u.test(url))).toBe(false)
+    for (const init of fixture.requestInits) {
+      expect(init.cache).toBe('no-store')
+      expect(init.redirect).toBe('manual')
+    }
+    const publicIndex = fixture.calls.indexOf(PUBLIC_ATTESTATION_URL)
+    expect(publicIndex).toBeGreaterThan(-1)
+    expect(new Headers(fixture.requestInits[publicIndex]!.headers).has('authorization')).toBe(false)
+    expect(fixture.requestInits[publicIndex]!.credentials).toBe('omit')
+  })
+
+  it('marks not-deployed only for an authoritative terminal attempt, an unstarted exact step, and stable Pages absence', async () => {
+    const fixture = await makeFixture('not-deployed')
+
+    await expect(fixture.reader(fixture.projection)).resolves.toEqual({
+      outcome: 'not-deployed',
+      rowBindingDigest: fixture.projection.rowBindingDigest,
+      authoritativeTerminalRun: true,
+      pagesDeployStepStarted: false,
+      matchingPagesDeploymentAbsent: true,
+    })
+    expect(fixture.calls).not.toContain(PUBLIC_ATTESTATION_URL)
+  })
+
+  it('returns exactly ambiguous without fetching for a non-reconciliation projection', async () => {
+    const fixture = await makeFixture()
+    const claimed = { ...fixture.projection, state: 'claimed' } as LedgerSignerClaimProjection
+
+    await expect(fixture.reader(claimed)).resolves.toEqual({ outcome: 'ambiguous' })
+    expect(fixture.calls).toEqual([])
+  })
+
+  it('collapses a transport rejection to exactly ambiguous without exposing its error', async () => {
+    const fixture = await makeFixture()
+    const offline = createDeploymentReconciliationProofReader({
+      githubApp,
+      fetch: (async () => { throw new Error('sensitive upstream detail') }) as typeof fetch,
+    })
+
+    await expect(offline(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+  })
+
+  it('keeps the current workflow source ambiguous because no deploy-recovery producer exists yet', async () => {
+    const fixture = await makeFixture()
+    fixture.state.workflow = await readFile(
+      new URL('../../../.github/workflows/deploy-pages.yml', import.meta.url),
+      'utf8',
+    )
+
+    await expect(fixture.reader(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+    expect(fixture.calls).not.toContain(PUBLIC_ATTESTATION_URL)
+  })
+
+  it.each([
+    ['unpinned action', (fixture: Fixture) => {
+      fixture.state.workflow = fixture.state.workflow.replace(DEPLOY_ACTION, 'actions/deploy-pages@v5')
+    }],
+    ['wrong artifact input', (fixture: Fixture) => {
+      fixture.state.workflow = fixture.state.workflow.replace('github-pages-recovery-', 'github-pages-')
+    }],
+    ['wrong run attempt', (fixture: Fixture) => {
+      fixture.state.run.run_attempt = 3
+    }],
+    ['duplicate deploy job', (fixture: Fixture) => {
+      const jobs = fixture.state.jobs.jobs as Record<string, unknown>[]
+      jobs.push({ ...jobs[0], id: 92, node_id: 'duplicate' })
+      fixture.state.jobs.total_count = 2
+    }],
+    ['duplicate named step', (fixture: Fixture) => {
+      const job = (fixture.state.jobs.jobs as Record<string, unknown>[])[0]!
+      const steps = job.steps as Record<string, unknown>[]
+      steps.push({ ...steps[1], number: 8 })
+    }],
+    ['missing Pages deployment', (fixture: Fixture) => {
+      fixture.state.pagesStatus = 404
+      fixture.state.pagesBody = { message: 'Not Found' }
+    }],
+    ['wrong Pages status', (fixture: Fixture) => {
+      fixture.state.pagesBody = { status: 'deployment_failed' }
+    }],
+    ['noncanonical public attestation', (fixture: Fixture) => {
+      fixture.state.publicBytes = encoder.encode(`${new TextDecoder().decode(fixture.state.publicBytes)}\n`)
+      ;(fixture.projection.authorization as unknown as { deploymentAttestationSha256: string })
+        .deploymentAttestationSha256 = rawSha256(fixture.state.publicBytes)
+    }],
+    ['public attestation field substitution', (fixture: Fixture) => {
+      fixture.state.publicBytes = encoder.encode(JSON.stringify({
+        ...canonicalAttestation(),
+        candidateCommit: 'f'.repeat(40),
+      }))
+      ;(fixture.projection.authorization as unknown as { deploymentAttestationSha256: string })
+        .deploymentAttestationSha256 = rawSha256(fixture.state.publicBytes)
+    }],
+  ])('returns ambiguous for completed evidence with %s', async (_name, mutate) => {
+    const fixture = await makeFixture()
+    mutate(fixture)
+    await expect(fixture.reader(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+  })
+
+  it.each([
+    ['a nonterminal run', (fixture: Fixture) => {
+      fixture.state.run = runAttemptResponse()
+    }],
+    ['a started failed deploy step', (fixture: Fixture) => {
+      fixture.state.jobs = jobsResponse(deployStep('failure'), 'completed', 'failure')
+    }],
+    ['an extant Pages deployment', (fixture: Fixture) => {
+      fixture.state.pagesStatus = 200
+      fixture.state.pagesBody = { status: 'succeed' }
+    }],
+  ])('does not manufacture not-deployed from %s', async (_name, mutate) => {
+    const fixture = await makeFixture('not-deployed')
+    mutate(fixture)
+    await expect(fixture.reader(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+  })
+
+  it('returns ambiguous when authenticated metadata drifts between its two reads', async () => {
+    const fixture = await makeFixture()
+    fixture.state.artifactSecond = { ...fixture.state.artifact, node_id: 'drifted' }
+    await expect(fixture.reader(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+  })
+
+  it('returns ambiguous when run, Pages, or public evidence changes between reads', async () => {
+    const fixtures = await Promise.all([makeFixture(), makeFixture(), makeFixture()])
+    fixtures[0]!.state.runSecond = runAttemptResponse('completed', 'success')
+    fixtures[1]!.state.pagesSecondBody = { status: 'deployment_failed' }
+    fixtures[2]!.state.publicSecondBytes = encoder.encode(JSON.stringify({
+      ...canonicalAttestation(),
+      sourceClosureSha256: '7'.repeat(64),
+    }))
+
+    for (const fixture of fixtures) {
+      await expect(fixture.reader(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+    }
+  })
+
+  it('returns ambiguous for a redirect at either authenticated or public evidence origin', async () => {
+    const pages = await makeFixture()
+    pages.state.pagesRedirectUrl = 'https://attacker.test/evidence'
+    await expect(pages.reader(pages.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+
+    const publicEvidence = await makeFixture()
+    publicEvidence.state.publicRedirectUrl = 'https://attacker.test/evidence'
+    await expect(publicEvidence.reader(publicEvidence.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+    expect(publicEvidence.calls).toContain(PUBLIC_ATTESTATION_URL)
+  })
+
+  it('rejects projection commitment/cross-link substitutions before terminal evidence is accepted', async () => {
+    const fixtures = await Promise.all([makeFixture(), makeFixture(), makeFixture()])
+    ;(fixtures[0]!.projection.authorization.githubMetadata as unknown as { candidateTree: string })
+      .candidateTree = 'f'.repeat(40)
+    ;(fixtures[1]!.projection.authorization.workflowIdentity as unknown as { pagesRunAttempt: string })
+      .pagesRunAttempt = '3'
+    ;(fixtures[2]!.projection.authorization as unknown as { githubMetadataSha256: string })
+      .githubMetadataSha256 = '0'.repeat(64)
+
+    for (const fixture of fixtures) {
+      await expect(fixture.reader(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+      expect(fixture.calls).toEqual([])
+    }
+  })
+
+  it('turns accessor, proxy, and malformed factory input into exactly ambiguous without reading through them', async () => {
+    const fixture = await makeFixture()
+    const accessor = { ...fixture.projection } as Record<string, unknown>
+    Object.defineProperty(accessor, 'rowBindingDigest', {
+      enumerable: true,
+      get() { throw new Error('hostile row binding') },
+    })
+    const proxy = new Proxy(fixture.projection, {
+      getPrototypeOf() { throw new Error('hostile projection') },
+    })
+    const factoryInput = {} as Record<string, unknown>
+    Object.defineProperty(factoryInput, 'githubApp', {
+      enumerable: true,
+      get() { throw new Error('hostile app') },
+    })
+    factoryInput.fetch = async () => { throw new Error('must not fetch') }
+    const failClosed = createDeploymentReconciliationProofReader(factoryInput as never)
+
+    await expect(fixture.reader(accessor as never)).resolves.toEqual({ outcome: 'ambiguous' })
+    await expect(fixture.reader(proxy)).resolves.toEqual({ outcome: 'ambiguous' })
+    await expect(failClosed(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+  })
+})
