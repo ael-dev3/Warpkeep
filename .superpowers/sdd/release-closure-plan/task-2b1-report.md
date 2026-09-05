@@ -137,3 +137,109 @@ in `58a7b32`.
   owned operation materialization. This helper adds no recovery framework or
   public capability factory; existing trusted materialization controls remain
   the recovery boundary.
+
+## Fix round 1: review findings
+
+Implementation commits:
+
+- `2987a05b9bd849d7e647ba365e36d5b85e674fe8` — exact selected-package
+  platform/optional authority, retained read/close failures, and isolated
+  native-writer integration coverage.
+- `a4f6dd88cbb86d93a4008d7f35ee5e706a2d52dc` — fixture-only correction that
+  reproduces the real materializer's private `0700` directory contract.
+
+### Review RED
+
+The focused mutation and combined descriptor-failure command was:
+
+```text
+.git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run \
+  tests/ptrBindingLockedSourceBuild.test.ts --maxWorkers=1 \
+  -t "exact optional-platform metadata mutation|preserves a descriptor read failure"
+```
+
+Before the production fix it returned exit 1: 7 failed, 2 passed, and 25
+skipped. Six mutations incorrectly passed validation: missing esbuild `cpu`,
+missing esbuild `os`, missing fsevents `os`, a misplaced fsevents `cpu`, and
+misplaced generic platform/optional markers. The widened esbuild `cpu` and
+missing esbuild optional marker were already rejected. The combined failure
+case exposed only `MOCK_DESCRIPTOR_CLOSE_FAILED`, proving the primary read
+failure had been replaced by descriptor cleanup.
+
+The first native Linux run of commit `2987a05b` returned exit 1 with 55 passed,
+1 failed, and 3 existing Darwin-only skips. The new test reached the real
+staged writer, which rejected the copied PTR root at
+`exactPrivateDirectory` with `GREATER_REALM_OPENAT_HELPER_INVALID` before any
+write. Source audit established the cause: the real production materializer
+creates the destination and every source ancestor through the descriptor
+writer at `0700`, while the test materializer had relied on `cpSync`-inherited
+directory modes and supplied `0755`. Commit `a4f6dd88` corrects only that test
+boundary by making every copied source directory private before it is
+snapshotted and returned; no production permission check was relaxed.
+
+### Review GREEN and changes
+
+`EXPECTED_OPTIONAL_PLATFORM_METADATA` now binds the exact `os`, `cpu`, and
+snapshot `optional` presence and values for every selected key (with absence
+required for all other selected packages). Focused mutations cover missing,
+widened, and misplaced metadata and assert the stable PTR lock rejection
+before the operation boundary.
+
+`readExactBoundedFile` now captures its primary outcome and descriptor-close
+failure separately. A non-PTR read failure is retained as the cause of the
+stable PTR validation error; simultaneous primary and close failures are
+ordered in `PTR_LOCKED_SOURCE_BUILD_READ_AND_CLOSE_FAILED`. The regression
+asserts the stable primary code, its underlying read cause, the close cause,
+and `read-failed` then `close-failed` ordering.
+
+`tests/ptrBindingLockedSourceBuildNative.test.ts` mocks only commit
+materialization. On Linux it uses the unchanged staged Python writer and real
+filesystem syscalls. It asserts native `0700` directory and `0600` lock-copy
+modes, the exact top-level and `.pnpm` layouts, the exact set of package,
+internal-dependency, and `.bin` symlinks, relative targets, lexical and
+resolved PTR containment, an independently framed provenance digest, exact
+tree id/result, and post-lifecycle materialization removal.
+
+Focused Windows GREEN after the production fix:
+
+```text
+.git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run \
+  tests/ptrBindingLockedSourceBuild.test.ts --maxWorkers=1 \
+  -t "exact optional-platform metadata mutation|preserves a descriptor read failure"
+```
+
+Result: exit 0; 9 passed and 25 skipped. The complete helper file returned
+exit 0 with 34/34 passed. The native file returned exit 0 with its one test
+explicitly skipped on Windows. The covering Windows helper/native/publisher/
+race command returned 51 passed, 1 skipped, and only the two known native-mode
+race assertions failed because Windows reports mode `0666`; those assertions
+were not weakened. The publisher file passed 17/17.
+
+Pinned typecheck after the fixture correction:
+
+```text
+.git/ci-node-22.22.3/node.exe node_modules/typescript/bin/tsc \
+  -p tsconfig.app.json \
+  --tsBuildInfoFile .git/ptr-binding-source-fix-app.tsbuildinfo
+```
+
+Result: exit 0, no diagnostics. Staged/committed `git diff --check` returned
+exit 0.
+
+Definitive native Linux verification copied the committed `a4f6dd88` snapshot;
+the controller reported all five copied blob hashes matched. The exact five-
+suite helper/native/publisher/race/historical command returned exit 0 in 4.71
+seconds: 56 passed, 3 existing Darwin-only skips, 0 failures, and all 5 files
+passed. Breakdown: helper 34/34, native real-writer 1/1 (1004 ms), publisher
+17/17, race 2/2, and historical 2 passed/3 skipped.
+
+### Fix-round limits and concerns
+
+- Windows remains test-only evidence for the mocked writer and cannot prove
+  native POSIX symlink or chmod behavior; the native integration is therefore
+  Linux-only. No native Darwin run was performed.
+- The review's minor source/archive/aggregate size-bound test expansion was
+  explicitly deferred and is not included in this fix round.
+- No full root suite, real module generation/build/publish, remote call, or
+  private credential access was performed. No frozen G001 projection, shared
+  immutable helper, package/lock, or `spacetimedb` source file changed.
