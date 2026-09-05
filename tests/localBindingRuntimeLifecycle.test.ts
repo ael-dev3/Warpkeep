@@ -69,6 +69,18 @@ vi.mock('../scripts/greater-realm-production-provenance', async () => {
       destination: string;
     }>) {
       fs.cpSync(input.repositoryRoot, input.destination, { recursive: true, errorOnExist: true });
+      // The real descriptor writer materializes every directory at 0700.
+      // cpSync creates destination directories through the ambient umask on
+      // Linux, so reproduce the production boundary before exercising it.
+      const makeDirectoriesPrivate = (candidate: string) => {
+        const state = fs.lstatSync(candidate);
+        if (!state.isDirectory()) return;
+        fs.chmodSync(candidate, 0o700);
+        for (const name of fs.readdirSync(candidate)) {
+          makeDirectoriesPrivate(join(candidate, name));
+        }
+      };
+      makeDirectoriesPrivate(input.destination);
       let cleaned = false;
       return Object.freeze({
         root: input.destination,
