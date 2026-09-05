@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 describe('Greater Realm host QA navigation', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="root"></div>';
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 390
+    });
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
       matches: false,
       media: '',
@@ -68,6 +72,11 @@ describe('Greater Realm host QA navigation', () => {
     fireEvent.click(ptr);
     fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
     expect(await screen.findByRole('main', { name: 'Greater Realm' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Realm details' }).getAttribute('aria-expanded'))
+      .toBe('false');
+    expect(screen.getByRole('button', { name: 'Map and vessel controls' }))
+      .not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Return to Menu' })).not.toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));

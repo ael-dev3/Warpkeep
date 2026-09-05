@@ -29,6 +29,7 @@ import {
   isCurrentGreaterRealmSceneSnapshot
 } from './greaterRealmWorldSnapshotAuthority';
 import { resolveGreaterRealmWorldViewPolicy } from './greaterRealmWorldViewPolicy';
+import { useNarrowRealmPresentation } from './useNarrowRealmPresentation';
 
 export { isCurrentGreaterRealmSceneSnapshot } from './greaterRealmWorldSnapshotAuthority';
 
@@ -99,6 +100,8 @@ export type GreaterRealmWorldSceneProps = Readonly<{
   ownCastle: Readonly<{ castleId: number; q: number; r: number }>;
   resolvedGraphicsQuality?: GraphicsQualityTier;
   onPhaseChange: (phase: GreaterRealmClientPhase) => void;
+  narrowOpenPanel?: 'controls' | 'resources';
+  onNarrowOpenPanelChange?: (panel: 'controls' | 'resources' | undefined) => void;
 }>;
 
 /**
@@ -111,11 +114,14 @@ export function GreaterRealmWorldScene({
   identityKey,
   ownCastle,
   resolvedGraphicsQuality,
-  onPhaseChange
+  onPhaseChange,
+  narrowOpenPanel,
+  onNarrowOpenPanelChange
 }: GreaterRealmWorldSceneProps) {
   const miniAppHost = useMiniAppHost();
   const reducedMotion = useReducedMotionPreference();
   const browser = useBrowserPresentation();
+  const narrowPresentation = useNarrowRealmPresentation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const canvasHostRef = useRef<GreaterRealmWorldCanvasHost | undefined>(undefined);
   const commandGenerationRef = useRef(0);
@@ -131,6 +137,16 @@ export function GreaterRealmWorldScene({
     useState<GreaterRealmResourceSelection>();
   const [pendingWorkerId, setPendingWorkerId] = useState<string>();
   const [commandError, setCommandError] = useState(false);
+  const [localOpenPanel, setLocalOpenPanel] = useState<'controls' | 'resources'>();
+  const openPanel = onNarrowOpenPanelChange === undefined
+    ? localOpenPanel
+    : narrowOpenPanel;
+  const setOpenPanel = (panel: 'controls' | 'resources' | undefined) => {
+    if (onNarrowOpenPanelChange === undefined) setLocalOpenPanel(panel);
+    else onNarrowOpenPanelChange(panel);
+  };
+  const controlsTriggerRef = useRef<HTMLButtonElement>(null);
+  const resourcesTriggerRef = useRef<HTMLButtonElement>(null);
   const controlStatusIsAnnouncement = worldSelection !== undefined
     || localVesselState.status === 'selected'
     || localVesselState.status === 'blocked';
@@ -151,6 +167,22 @@ export function GreaterRealmWorldScene({
     reducedMotion,
     resolvedGraphicsQuality
   ]);
+
+  useEffect(() => {
+    if (!narrowPresentation || openPanel === undefined) return undefined;
+    const closePanel = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.repeat) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const trigger = openPanel === 'controls'
+        ? controlsTriggerRef.current
+        : resourcesTriggerRef.current;
+      setOpenPanel(undefined);
+      trigger?.focus();
+    };
+    document.addEventListener('keydown', closePanel);
+    return () => document.removeEventListener('keydown', closePanel);
+  }, [narrowPresentation, openPanel]);
   const snapshotCurrent = useMemo(() => (
     snapshotIdentityKeyRef.current === identityKey
     && snapshot !== undefined
@@ -530,7 +562,28 @@ export function GreaterRealmWorldScene({
         aria-describedby="greater-realm-world-help greater-realm-world-status"
         data-testid="greater-realm-world-canvas"
       />
-      <div className="greater-realm-world__controls" aria-label="Greater Realm view controls">
+      <div
+        className="greater-realm-world__controls"
+        aria-label="Greater Realm view controls"
+        data-open={openPanel === 'controls'}
+        hidden={narrowPresentation && openPanel === 'resources'}
+      >
+        <button
+          ref={controlsTriggerRef}
+          type="button"
+          className="greater-realm-world__disclosure-trigger"
+          hidden={!narrowPresentation}
+          aria-expanded={openPanel === 'controls'}
+          aria-controls="greater-realm-world-controls-panel"
+          onClick={() => setOpenPanel(openPanel === 'controls' ? undefined : 'controls')}
+        >
+          Map and vessel controls
+        </button>
+        <div
+          id="greater-realm-world-controls-panel"
+          className="greater-realm-world__controls-body"
+          hidden={narrowPresentation && openPanel !== 'controls'}
+        >
         <span id="greater-realm-world-help" className="greater-realm-world__control-help">
           Drag to pan, Shift-drag or right-drag to orbit, and pinch or scroll to zoom.
           Keyboard: arrows or WASD, Q/E, plus/minus, Enter to select.
@@ -646,6 +699,7 @@ export function GreaterRealmWorldScene({
               ? localVesselState.message
               : `${worldSelection.label} at ${worldSelection.atlasQ}, ${worldSelection.atlasR}`}
         </span>
+        </div>
       </div>
       {tierOneRegions.length === 0 ? null : (
         <aside className="greater-realm-world__zone-legend" aria-label="Tier I zones">
@@ -671,10 +725,28 @@ export function GreaterRealmWorldScene({
       {publicResources.length === 0 && activeWorkers.length === 0 ? null : (
         <aside
           className="greater-realm-world__resources"
+          data-open={openPanel === 'resources'}
+          hidden={narrowPresentation && openPanel === 'controls'}
           aria-label={publicResources.length === 0
             ? 'Greater Realm Worker controls'
             : 'Nearby public resources'}
         >
+          <button
+            ref={resourcesTriggerRef}
+            type="button"
+            className="greater-realm-world__disclosure-trigger"
+            hidden={!narrowPresentation}
+            aria-expanded={openPanel === 'resources'}
+            aria-controls="greater-realm-world-resources-panel"
+            onClick={() => setOpenPanel(openPanel === 'resources' ? undefined : 'resources')}
+          >
+            Nearby resources and workers
+          </button>
+          <div
+            id="greater-realm-world-resources-panel"
+            className="greater-realm-world__resources-body"
+            hidden={narrowPresentation && openPanel !== 'resources'}
+          >
           {publicResources.length === 0 ? null : (
             <>
               <strong>Nearby resources</strong>
@@ -779,6 +851,7 @@ export function GreaterRealmWorldScene({
             </div>
           )}
           {commandError ? <span role="alert">Worker command was not accepted.</span> : null}
+          </div>
         </aside>
       )}
       {renderer === 'unavailable' ? (

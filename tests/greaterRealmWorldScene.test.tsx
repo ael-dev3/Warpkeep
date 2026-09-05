@@ -166,6 +166,14 @@ function renderScene(
   );
 }
 
+function setViewportWidth(width: number) {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    value: width
+  });
+  fireEvent(window, new Event('resize'));
+}
+
 beforeEach(() => {
   canvasHostHarness.create.mockReset();
   canvasHostHarness.create.mockImplementation(() => ({
@@ -180,11 +188,87 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  setViewportWidth(1_024);
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
 describe('Greater Realm world scene lifecycle', () => {
+  it('keeps narrow map and resource actions in exclusive accessible disclosures', async () => {
+    setViewportWidth(390);
+    const desktopSnapshot = readySnapshot();
+    const mobileSnapshot = {
+      ...desktopSnapshot,
+      window: { ...desktopSnapshot.window, radius: 2 },
+      view: { ...desktopSnapshot.view, radius: 2 }
+    } as GreaterRealmClientSnapshot;
+    renderScene(bridge({
+      snapshot: mobileSnapshot,
+      control: workerControl(['idle'])
+    }));
+
+    const controlsTrigger = screen.getByRole('button', {
+      name: 'Map and vessel controls'
+    });
+    const resourcesTrigger = await screen.findByRole('button', {
+      name: 'Nearby resources and workers'
+    });
+    expect(controlsTrigger.getAttribute('aria-expanded')).toBe('false');
+    expect(resourcesTrigger.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('button', { name: 'PAN NORTH' })).toBeNull();
+
+    fireEvent.click(controlsTrigger);
+    expect(controlsTrigger.getAttribute('aria-expanded')).toBe('true');
+    expect(resourcesTrigger.closest('[hidden]')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'PAN NORTH' })).not.toBeNull();
+    expect(screen.getByText(/movement is not saved to the server/i)).not.toBeNull();
+
+    fireEvent.click(resourcesTrigger);
+    expect(controlsTrigger.getAttribute('aria-expanded')).toBe('false');
+    expect(resourcesTrigger.getAttribute('aria-expanded')).toBe('true');
+    expect(controlsTrigger.closest('[hidden]')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'PAN NORTH' })).toBeNull();
+    expect(screen.getAllByRole('button', {
+      name: / at -?\d+, -?\d+ · \d+ nodes/
+    }).length).toBeGreaterThan(0);
+
+    resourcesTrigger.focus();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(resourcesTrigger.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(resourcesTrigger);
+  });
+
+  it('retains the same canvas, selection, and closed state across narrow resizes', async () => {
+    setViewportWidth(390);
+    renderScene(bridge());
+    const canvas = await screen.findByRole('application', {
+      name: 'Interactive Greater Realm public atlas'
+    });
+    const controlsTrigger = screen.getByRole('button', {
+      name: 'Map and vessel controls'
+    });
+    fireEvent.click(controlsTrigger);
+    const hostOptions = canvasHostHarness.create.mock.calls[0]![0];
+    act(() => hostOptions.onSelectionChange({
+      kind: 'region',
+      label: 'The Hegemony Lowlands',
+      atlasQ: 0,
+      atlasR: 0
+    }));
+    fireEvent.click(controlsTrigger);
+
+    setViewportWidth(360);
+
+    expect(screen.getByTestId('greater-realm-world-canvas')).toBe(canvas);
+    expect(canvasHostHarness.create).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', {
+      name: 'Map and vessel controls'
+    }).getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(screen.getByRole('button', { name: 'Map and vessel controls' }));
+    expect(screen.getByRole('status').textContent)
+      .toContain('The Hegemony Lowlands at 0, 0');
+  });
+
   it('clears resource-read authority in the layout phase before controls are interactive', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/components/realm/GreaterRealmWorldScene.tsx'),

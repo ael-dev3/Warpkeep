@@ -495,9 +495,6 @@
   right: max(1rem, var(--realm-safe-right));
   bottom: max(1rem, var(--realm-safe-bottom));
   left: max(1rem, var(--realm-safe-left));
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.42rem 0.72rem;
   width: min(48rem, calc(100vw - 2rem));
   box-sizing: border-box;
   margin-inline: auto;
@@ -508,6 +505,22 @@
   box-shadow: 0 0.8rem 2.6rem rgb(0 0 0 / 34%);
   color: #eef2df;
   backdrop-filter: blur(10px);
+}
+
+.greater-realm-world__controls-body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.42rem 0.72rem;
+}
+
+.greater-realm-world__controls-body[hidden],
+.greater-realm-world__resources-body[hidden],
+.greater-realm-world__continuity-details[hidden] {
+  display: none;
+}
+
+.greater-realm-world__disclosure-trigger {
+  width: 100%;
 }
 
 .greater-realm-world__control-help,
@@ -700,15 +713,18 @@
   outline-offset: 2px;
 }
 
+.greater-realm-world__continuity-details,
+.greater-realm-world__continuity-actions {
+  display: grid;
+  gap: 0.52rem;
+}
+
 .greater-realm-world__resources {
   position: absolute;
   z-index: 8;
   top: max(1rem, var(--realm-safe-top));
   right: max(1rem, var(--realm-safe-right));
-  display: grid;
-  gap: 0.55rem;
   width: min(20rem, calc(100vw - 2rem));
-  max-height: min(64vh, 36rem);
   box-sizing: border-box;
   padding: 0.8rem;
   border: 1px solid rgb(155 190 163 / 44%);
@@ -716,10 +732,16 @@
   background: rgb(9 15 15 / 84%);
   box-shadow: 0 1rem 3rem rgb(0 0 0 / 32%);
   backdrop-filter: blur(10px);
+}
+
+.greater-realm-world__resources-body {
+  display: grid;
+  gap: 0.55rem;
+  max-height: min(64vh, 36rem);
   overflow: auto;
 }
 
-.greater-realm-world__resources > strong {
+.greater-realm-world__resources-body > strong {
   color: #e3d9a7;
   font: 600 0.82rem/1.2 Georgia, "Times New Roman", serif;
   letter-spacing: 0.05em;
@@ -788,15 +810,26 @@
   }
 
   .greater-realm-world__controls {
-    right: max(0.65rem, var(--realm-safe-right));
+    right: auto;
     bottom: max(0.65rem, var(--realm-safe-bottom));
     left: max(0.65rem, var(--realm-safe-left));
-    grid-template-columns: 1fr;
+    width: min(10rem, calc(100vw - 11rem));
+    padding: 0.34rem;
+  }
+
+  .greater-realm-world__controls[data-open="true"] {
+    right: max(0.65rem, var(--realm-safe-right));
+    bottom: calc(max(0.65rem, var(--realm-safe-bottom)) + 4.25rem);
     width: auto;
-    max-height: min(36vh, 16rem);
-    padding: 0.5rem;
-    padding-block-end: 4.5rem;
+  }
+
+  .greater-realm-world__controls-body {
+    grid-template-columns: 1fr;
+    max-height: min(48dvh, 22rem);
+    margin-block-start: 0.42rem;
+    padding: 0.14rem;
     overflow: auto;
+    overscroll-behavior: contain;
   }
 
   .greater-realm-world__helm {
@@ -818,19 +851,64 @@
     right: max(0.65rem, var(--realm-safe-right));
     left: max(0.65rem, var(--realm-safe-left));
     width: auto;
-    max-height: min(44vh, 20rem);
+    gap: 0.34rem;
+    max-height: none;
+    padding: 0.52rem 0.58rem;
+  }
+
+  .greater-realm-world__continuity strong {
+    font-size: 0.82rem;
+  }
+
+  .greater-realm-world__continuity > span {
+    font-size: 0.7rem;
+    line-height: 1.25;
+  }
+
+  .greater-realm-world__continuity-details {
+    max-height: min(20dvh, 9rem);
     overflow: auto;
-    padding: 0.72rem 0.8rem;
+    overscroll-behavior: contain;
+  }
+
+  .greater-realm-world__continuity-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.34rem;
+  }
+
+  .greater-realm-world__continuity button {
+    min-height: 2.25rem;
+    padding-inline: 0.46rem;
+    font-size: 0.66rem;
   }
 
   .greater-realm-world__resources {
     top: auto;
-    right: max(0.65rem, var(--realm-safe-right));
-    bottom: calc(max(0.65rem, var(--realm-safe-bottom)) + min(36vh, 16rem) + 0.5rem);
+    right: auto;
+    bottom: calc(max(0.65rem, var(--realm-safe-bottom)) + 3.15rem);
     left: max(0.65rem, var(--realm-safe-left));
+    width: min(15.5rem, calc(100vw - 5.4rem));
+    padding: 0.34rem;
+  }
+
+  .greater-realm-world__resources[data-open="true"] {
+    right: max(0.65rem, var(--realm-safe-right));
+    bottom: calc(max(0.65rem, var(--realm-safe-bottom)) + 4.25rem);
     width: auto;
-    max-height: min(42vh, 21rem);
-    padding: 0.65rem;
+  }
+
+  .greater-realm-world__resources-body {
+    max-height: min(48dvh, 22rem);
+    margin-block-start: 0.42rem;
+    padding: 0.14rem;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  .greater-realm-world__disclosure-trigger {
+    min-height: 2.35rem;
+    padding: 0.42rem 0.55rem;
+    text-align: start;
   }
 }
 

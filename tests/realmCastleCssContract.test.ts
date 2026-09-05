@@ -58,15 +58,21 @@ function block(source: string, marker: string) {
 }
 
 describe('compact Realm CSS contract', () => {
-  it('reserves a compact Greater Realm control row for chat without covering vessel commands', () => {
+  it('bounds open Greater Realm disclosures without restoring the expanded mobile stack', () => {
     const compactMap = block(MAP, '@media (width <= 760px), (pointer: coarse) {');
     const compactControls = block(compactMap, '.greater-realm-world__controls {');
+    const compactControlBody = block(compactMap, '.greater-realm-world__controls-body {');
+    const compactResourcesBody = block(compactMap, '.greater-realm-world__resources-body {');
     const compactChat = block(
       CHAT,
       '.realm-map-screen--greater-realm .realm-chat-dock[data-compact="true"][data-open="false"] {'
     );
 
-    expect(compactControls).toContain('padding-block-end: 4.5rem;');
+    expect(compactControls).not.toContain('padding-block-end: 4.5rem;');
+    expect(compactControlBody).toContain('overflow: auto;');
+    expect(compactResourcesBody).toContain('overflow: auto;');
+    expect(compactControlBody).toMatch(/max-height:\s*min\((?:48|50)dvh/);
+    expect(compactResourcesBody).toMatch(/max-height:\s*min\((?:48|50)dvh/);
     expect(compactChat).toContain('right: max(0.75rem, var(--realm-safe-right));');
     expect(compactChat).toContain('bottom: max(0.75rem, var(--realm-safe-bottom));');
     expect(compactChat).toContain('left: auto;');

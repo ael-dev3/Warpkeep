@@ -31,6 +31,14 @@ const VERIFIED_REALM_IDENTITY: RealmIdentity = Object.freeze({
 const LARGE_REALM_INTERACTION_WAIT_MILLISECONDS = 5_000;
 const LARGE_REALM_INTERACTION_TEST_MILLISECONDS = 20_000;
 
+function setViewportWidth(width: number) {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    value: width
+  });
+  fireEvent(window, new Event('resize'));
+}
+
 function renderFallbackRealm(
   options: Readonly<{
     identity?: RealmIdentity;
@@ -157,10 +165,62 @@ function openPlayerExplore() {
 
 afterEach(() => {
   cleanup();
+  setViewportWidth(1_024);
   vi.restoreAllMocks();
 });
 
 describe('RealmMapScreen', () => {
+  it('keeps narrow Greater Realm status and navigation persistent while details disclose', () => {
+    setViewportWidth(390);
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const onRequestReturn = vi.fn();
+    const canonical = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
+    render(
+      <RealmMapScreen
+        identity={VERIFIED_REALM_IDENTITY}
+        realmContinuity={continuityFromSnapshot(canonical)}
+        resources={createReadyResourceState(CANONICAL_TEST_FID)}
+        workerRoster={{ workers: [{}, {}, {}, {}] } as never}
+        innerKeep={createInnerKeepPresentation()}
+        greaterRealm={availableGreaterRealmBridge(vi.fn(), vi.fn())}
+        localQaGreaterRealmPresentationAllowed
+        onRequestReturn={onRequestReturn}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'OPEN INNER KEEP' })).not.toBeNull();
+    const menu = screen.getByRole('button', { name: 'Return to Menu' });
+    expect(menu).not.toBeNull();
+    expect(screen.getByRole('status').textContent)
+      .toContain('The retired Lowlands surface stays hidden while current authority is prepared.');
+    const details = screen.getByRole('button', { name: 'Realm details' });
+    const controls = screen.getByRole('button', { name: 'Map and vessel controls' });
+    expect(details.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByTestId('retired-realm-resources').closest('[hidden]')).not.toBeNull();
+
+    fireEvent.click(controls);
+    expect(controls.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(details);
+    expect(details.getAttribute('aria-expanded')).toBe('true');
+    expect(controls.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByTestId('retired-realm-resources').closest('[hidden]')).toBeNull();
+    expect(screen.getByTestId('retired-realm-workers').textContent).toContain('4');
+
+    const canvas = screen.getByTestId('greater-realm-world-canvas');
+    setViewportWidth(1_024);
+    setViewportWidth(390);
+    expect(screen.getByTestId('greater-realm-world-canvas')).toBe(canvas);
+    expect(details.getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(details);
+    details.focus();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(details.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(details);
+    fireEvent.click(menu);
+    expect(onRequestReturn).toHaveBeenCalledOnce();
+  });
+
   it('describes the exact player and observer map keyboard contracts', () => {
     const playerView = renderFallbackRealm();
     const playerRealm = screen.getByRole('main', { name: 'Hegemony realm' });
