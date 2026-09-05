@@ -51,20 +51,46 @@ function canonicalWorkerRequest() {
   };
 }
 
-function runWorkerRequestFd3(source: string): Promise<Readonly<{ code: number | null; stdout: string; stderr: string }>> {
+function runWorkerRequestFd3(source: string): Promise<Readonly<{
+  code: number | null;
+  stdout: string;
+  stderr: string;
+  pipeError?: string;
+}>> {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(process.execPath, [workerRequestFixture], {
       stdio: ['ignore', 'pipe', 'pipe', 'pipe'],
     });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
+    const control = child.stdio[3] as import('node:stream').Writable;
+    let code: number | null;
+    let childClosed = false;
+    let controlClosed = false;
+    let pipeError: string | undefined;
+    const complete = () => {
+      if (childClosed && controlClosed) resolvePromise({
+        code, stdout: Buffer.concat(stdout).toString(), stderr: Buffer.concat(stderr).toString(),
+        ...(pipeError === undefined ? {} : { pipeError }),
+      });
+    };
     child.stdout!.on('data', chunk => stdout.push(chunk));
     child.stderr!.on('data', chunk => stderr.push(chunk));
     child.on('error', reject);
-    child.on('close', code => resolvePromise({
-      code, stdout: Buffer.concat(stdout).toString(), stderr: Buffer.concat(stderr).toString(),
-    }));
-    (child.stdio[3] as import('node:stream').Writable).end(source);
+    child.on('close', status => {
+      code = status;
+      childClosed = true;
+      complete();
+    });
+    control.on('error', error => {
+      pipeError = typeof (error as NodeJS.ErrnoException).code === 'string'
+        ? (error as NodeJS.ErrnoException).code : 'UNKNOWN_PIPE_ERROR';
+    });
+    control.on('close', () => {
+      controlClosed = true;
+      complete();
+    });
+    control.end(source);
   });
 }
 
@@ -177,19 +203,23 @@ describe('fixed local PTR binding runtime', () => {
 
   it('reads one canonical request from real fd3 and rejects malformed framing early', async () => {
     const canonical = `${JSON.stringify(canonicalWorkerRequest())}\n`;
-    await expect(runWorkerRequestFd3(canonical)).resolves.toMatchObject({
+    await expect(runWorkerRequestFd3(canonical)).resolves.toEqual({
       code: 0, stdout: `${'a'.repeat(32)}\n`, stderr: '',
     });
-    for (const malformed of [
-      canonical.trimEnd(),
-      ` ${canonical}`,
-      `${JSON.stringify({ ...canonicalWorkerRequest(), extra: true })}\n`,
-      `${'x'.repeat(1024 * 1024 + 1)}\n`,
-    ]) {
+    const malformedRequests: readonly [string, boolean][] = [
+      [canonical.trimEnd(), false],
+      [` ${canonical}`, false],
+      [`${JSON.stringify({ ...canonicalWorkerRequest(), extra: true })}\n`, false],
+      [`${'x'.repeat(1024 * 1024 + 1)}\n`, true],
+    ];
+    for (const [malformed, mayClosePipeEarly] of malformedRequests) {
       const result = await runWorkerRequestFd3(malformed);
       expect(result.code).toBe(1);
       expect(result.stdout).toBe('');
       expect(result.stderr).toContain('LOCAL_BINDING_WORKER_REQUEST_INVALID');
+      if (mayClosePipeEarly) {
+        expect([undefined, 'ECONNRESET', 'EPIPE', 'EOF']).toContain(result.pipeError);
+      } else expect(result.pipeError).toBeUndefined();
     }
   });
 

@@ -58,10 +58,11 @@ export function bindOperationOwnedCliSnapshot(source, operationRoot) {
       || typeof operationRoot !== 'string') {
     fail('LOCAL_BINDING_RUNTIME_CLI_SNAPSHOT_INVALID');
   }
-  const operationRecord = verifyDirectory(operationRoot);
+  verifyDirectory(operationRoot);
   const directory = join(operationRoot, 'cli');
   mkdirSync(directory, { mode: 0o700 });
   chmodSync(directory, 0o700);
+  const operationRecord = verifyDirectory(operationRoot);
   const directoryRecord = verifyDirectory(directory);
   source.verify();
   const path = join(directory, 'spacetimedb-cli');
