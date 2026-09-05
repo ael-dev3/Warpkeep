@@ -925,6 +925,10 @@ export function createGreaterRealmSceneRuntime(
   let selected = new Map<string, SelectedChunk>();
   let pending = new Map<string, SelectedChunk>();
   const uploaded = new Map<string, ChunkRenderResource>();
+  const uploadedTerrainCells = new Map<string, Readonly<{
+    resource: ChunkRenderResource;
+    cell: GreaterRealmPublicCellDto;
+  }>>();
   const access = new Map<string, GreaterRealmCellAccessPresentation>();
   let boatCells = new Map<string, GreaterRealmBoatCellPresentation>();
   let boatLanes: readonly GreaterRealmBoatLanePresentation[] = Object.freeze([]);
@@ -957,6 +961,12 @@ export function createGreaterRealmSceneRuntime(
     const resource = uploaded.get(handle);
     if (!resource) return;
     uploaded.delete(handle);
+    for (const cell of resource.plan.terrainCells) {
+      const key = greaterRealmCoordinateKey(cell);
+      if (uploadedTerrainCells.get(key)?.resource === resource) {
+        uploadedTerrainCells.delete(key);
+      }
+    }
     group.remove(resource.group);
     resource.dispose();
   };
@@ -1500,6 +1510,12 @@ export function createGreaterRealmSceneRuntime(
         }
         const resource = buildChunkResource(row, cellSize);
         uploaded.set(row.plan.chunkHandle, resource);
+        for (const cell of resource.plan.terrainCells) {
+          uploadedTerrainCells.set(
+            greaterRealmCoordinateKey(cell),
+            Object.freeze({ resource, cell })
+          );
+        }
         group.add(resource.group);
         pending.delete(row.plan.chunkHandle);
         uploadedThisFrame += 1;
@@ -1544,18 +1560,14 @@ export function createGreaterRealmSceneRuntime(
     },
     bindCanvas,
     getCellAccess: (coordinate) => access.get(greaterRealmCoordinateKey(coordinate)),
-    getTerrainSurfaceY: (chunkHandle, cell) => {
-      const resource = uploaded.get(chunkHandle);
-      if (resource === undefined || !resource.usesVoxelTerrain) return undefined;
-      const selectedCell = resource.plan.terrainCells.find((candidate) => (
-        candidate.atlasQ === cell.atlasQ && candidate.atlasR === cell.atlasR
-      ));
-      return selectedCell === undefined
+    getTerrainSurfaceY: (_chunkHandle, cell) => {
+      const emitted = uploadedTerrainCells.get(greaterRealmCoordinateKey(cell));
+      return emitted === undefined || !emitted.resource.usesVoxelTerrain
         ? undefined
         : greaterRealmVoxelSurfaceY({
-            cell: selectedCell,
-            graphicsProfile: resource.plan.voxelTerrainPlan.graphicsProfile,
-            cellSize: resource.plan.cellSize
+            cell: emitted.cell,
+            graphicsProfile: emitted.resource.plan.voxelTerrainPlan.graphicsProfile,
+            cellSize: emitted.resource.plan.cellSize
           });
     },
     isCoordinatePassable: (coordinate) => (

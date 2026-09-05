@@ -66,6 +66,31 @@ function chunkWithGroundElevation(elevation: number) {
   return decodeGreaterRealmChunkDto(raw);
 }
 
+function crossOwnerApronChunks(neighborFallsBack = false) {
+  const ownerRaw = structuredClone(
+    GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0]
+  ) as any;
+  ownerRaw.lod = 1;
+  ownerRaw.coreCells = ownerRaw.coreCells.filter((cell: any) => (
+    cell.atlasQ !== -1 || cell.atlasR !== 1
+  ));
+  const neighborRaw = structuredClone(
+    GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[1]
+  ) as any;
+  if (neighborFallsBack) {
+    neighborRaw.coreCells.find((cell: any) => (
+      cell.atlasQ === 1 && cell.atlasR === 0
+    )).elevation = -2_147_483_648;
+    neighborRaw.coreCells.find((cell: any) => (
+      cell.atlasQ === 1 && cell.atlasR === 1
+    )).elevation = 2_147_483_647;
+  }
+  return Object.freeze([
+    decodeGreaterRealmChunkDto(ownerRaw),
+    decodeGreaterRealmChunkDto(neighborRaw)
+  ]);
+}
+
 function oceanChunk(ordinal: number) {
   const base = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[1].coreCells[4]!;
   const chunkHandle = handle(500 + ordinal);
@@ -416,6 +441,43 @@ describe('Greater Realm scene runtime', () => {
     expect(routeY).toContainEqual(expect.closeTo(0.55, 6));
     runtime.dispose();
   });
+
+  it.each([
+    ['voxel', 'reduced', false, 0, 'voxel'],
+    ['fallback', 'balanced', true, undefined, 'mixed']
+  ] as const)(
+    'resolves %s grounding from the selected resource that actually emits an apron cell',
+    (_mode, graphicsProfile, neighborFallsBack, expectedSurfaceY, expectedMode) => {
+      const chunks = crossOwnerApronChunks(neighborFallsBack);
+      const ownerHandle = chunks[0]!.chunkHandle;
+      const emittedCell = chunks[1]!.apronCells.find((cell) => (
+        cell.atlasQ === -1 && cell.atlasR === 1
+      ))!;
+      if (neighborFallsBack) {
+        const neighborPlan = createGreaterRealmChunkPresentationPlan({
+          chunk: chunks[1]!, graphicsProfile, cellSize: 1
+        });
+        expect(neighborPlan.voxelTerrainFallbackReason).toContain('Float32');
+      }
+      const runtime = createGreaterRealmSceneRuntime({
+        deviceClass: 'desktop', graphicsProfile
+      });
+      runtime.setView({
+        revision: 1n,
+        cellSize: 1,
+        chunks: chunks.map((chunk) => ({ chunk, distanceChunks: 0 }))
+      });
+      runtime.flushUploads();
+      runtime.flushUploads();
+
+      expect(runtime.getTelemetry()).toMatchObject({
+        uploadedChunkCount: 2,
+        voxelMode: expectedMode
+      });
+      expect(runtime.getTerrainSurfaceY?.(ownerHandle, emittedCell)).toBe(expectedSurfaceY);
+      runtime.dispose();
+    }
+  );
 
   it('replaces a chunk when only its filtered full-halo signature changes', () => {
     const runtime = createGreaterRealmSceneRuntime({

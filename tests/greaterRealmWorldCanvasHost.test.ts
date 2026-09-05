@@ -11,8 +11,12 @@ import {
 import { resolveGreaterRealmWorldViewPolicy } from '../src/components/realm/greaterRealmWorldViewPolicy';
 import * as voxelPresentation from '../src/components/realm/greaterRealmVoxelPresentation';
 import { GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE } from '../src/dev/greaterRealmSyntheticTierOneFixture';
-import type { GreaterRealmSceneTelemetry } from '../src/greater-realm/createGreaterRealmSceneRuntime';
+import {
+  createGreaterRealmSceneRuntime,
+  type GreaterRealmSceneTelemetry
+} from '../src/greater-realm/createGreaterRealmSceneRuntime';
 import type { GreaterRealmClientSnapshot } from '../src/greater-realm/greaterRealmClientRuntime';
+import { decodeGreaterRealmChunkDto } from '../src/greater-realm/greaterRealmPublicContract';
 import { GREATER_REALM_GRAPHICS_BUDGETS } from '../src/greater-realm/greaterRealmRuntimePolicy';
 
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -652,6 +656,64 @@ describe('Greater Realm world canvas host', () => {
       host.dispose();
     }
   );
+
+  it('grounds a castle from the real neighboring resource that emits its apron cell', () => {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+    const frames = new Map<number, FrameRequestCallback>();
+    let nextFrame = 1;
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const id = nextFrame++;
+      frames.set(id, callback);
+      return id;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      frames.delete(id);
+    });
+    const renderer = {
+      setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn()
+    };
+    const snapshot = structuredClone(readySnapshot()) as any;
+    const ownerRaw = structuredClone(snapshot.chunks[0].chunk) as any;
+    ownerRaw.lod = 1;
+    ownerRaw.coreCells = ownerRaw.coreCells.filter((cell: any) => (
+      cell.atlasQ !== -1 || cell.atlasR !== 1
+    ));
+    snapshot.chunks[0].chunk = decodeGreaterRealmChunkDto(ownerRaw);
+    const host = createGreaterRealmWorldCanvasHost({
+      canvas,
+      atlasQ: -2,
+      atlasR: 1,
+      ownCastleId: 1,
+      policy: resolveGreaterRealmWorldViewPolicy({
+        atlasQ: -2,
+        atlasR: 1,
+        viewportWidth: 1_440,
+        coarsePointer: false,
+        farcasterMiniApp: false,
+        resolvedGraphicsQuality: 'performance',
+        reducedMotion: true
+      }),
+      rendererFactory: () => renderer,
+      sceneRuntimeFactory: (options) => createGreaterRealmSceneRuntime(options)
+    })!;
+
+    host.applySnapshot(snapshot);
+    let frameTime = 16;
+    while (frames.size > 0 && frameTime <= 64) {
+      for (const [id, callback] of [...frames]) {
+        frames.delete(id);
+        callback(frameTime);
+      }
+      frameTime += 16;
+    }
+    const scene = renderer.render.mock.calls.at(-1)![0] as THREE.Scene;
+    const castles = scene.getObjectByName(
+      'greater-realm-public-castle-instances'
+    ) as THREE.InstancedMesh;
+    expect(instancePosition(castles, 1).y).toBeCloseTo(0.03, 6);
+    host.dispose();
+  });
 
   it('updates same-revision castle topology in place and ignores unselected chunks', () => {
     const canvas = document.createElement('canvas');
