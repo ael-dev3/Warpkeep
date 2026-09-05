@@ -355,14 +355,15 @@ and client runtime objects persist across the breakpoint.
 
 The earlier full-suite attempt remains interrupted before Vitest emitted a
 final summary or assertion-detail section; it was not rerun in this fix round.
-The 16 named RuntimeRelease, LicensePolicy, and GreaterRealmCliSecurity failures
-were independently reproduced on native Windows. The controller then ran the
-three complete groups in an existing Linux scratch whose implicated test/source
-hashes matched and obtained 89/89 passing in 322.95s. That Linux scratch was not
-the current fix commit, so this is platform-diagnostic evidence rather than a
-current-HEAD full-suite certification. It is consistent with the native
-failures exercising POSIX ancestor-mode, newline-filename creation, and trusted
-Git-mode admission guards; those guards were intentionally left unchanged.
+The original interrupted native run reported 16 named RuntimeRelease,
+LicensePolicy, and GreaterRealmCliSecurity failures. The controller independently
+reproduced three representative native failures, one from each file, covering
+POSIX ancestor-mode, newline-filename creation, and trusted Git-mode admission.
+The controller then ran all 89 tests across those three groups in an existing
+Linux scratch whose implicated test/source hashes matched; all 89 passed in
+322.95s. That Linux scratch was not the current fix commit, so this is
+platform-diagnostic evidence rather than a current-HEAD full-suite
+certification. The affected guards were intentionally left unchanged.
 
 The B0 closure mismatch was not unrelated: it was a real source-closure defect
 within this fix scope. It is corrected by the exact five-member integration and
