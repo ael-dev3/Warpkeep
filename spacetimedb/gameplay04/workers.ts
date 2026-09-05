@@ -1,10 +1,11 @@
 import {
-  GAMEPLAY04_MAX_RECEIPTS,
   GAMEPLAY04_U64_MAX,
   Gameplay04KeepError,
   boundedRows04,
   boundedTextGameplay04,
   canonicalFingerprint04,
+  commitGameplay04Command,
+  commitGameplay04Revision,
   failGameplay04,
   isPositiveU64Gameplay04,
   isU64Gameplay04,
@@ -134,6 +135,7 @@ function mapError<T>(effect: () => T): T {
         error.code === 'GAMEPLAY04_RECEIPT_CONFLICT'
         || error.code === 'GAMEPLAY04_RECEIPT_EXPIRED'
         || error.code === 'GAMEPLAY04_SEQUENCE_INVALID'
+        || error.code === 'GAMEPLAY04_REVISION_OVERFLOW'
       ) workerFail(error.code);
       if (error.code === 'GAMEPLAY04_INPUT_INVALID') workerFail(error.code);
       throw error;
@@ -245,7 +247,7 @@ export function preflightWorkerCommand04(
 
 type Reconciliation = Readonly<{ keep: KeepRow04; changed: boolean }>;
 
-function reconcileWithoutRevision(
+export function reconcileWorkersWithoutRevision04(
   storage: WorkerStorage04,
   binding: KeepBinding04,
   now: bigint,
@@ -340,43 +342,6 @@ function reconcileWithoutRevision(
   return Object.freeze({ keep, changed });
 }
 
-function commitRevision(storage: WorkerStorage04, keep: KeepRow04): KeepRow04 {
-  if (keep.revision === GAMEPLAY04_U64_MAX) workerFail('GAMEPLAY04_REVISION_OVERFLOW');
-  const updated = Object.freeze({ ...keep, revision: keep.revision + 1n });
-  storage.updateKeep(updated);
-  return updated;
-}
-
-function commitCommand(
-  storage: WorkerStorage04,
-  keep: KeepRow04,
-  kind: 'dispatch' | 'recall',
-  input: WorkerCommand04,
-): WorkerCommandResult04 {
-  const updated = commitRevision(storage, Object.freeze({
-    ...keep,
-    lastAcceptedSequence: input.sequence,
-  }));
-  storage.insertReceipt(Object.freeze({
-    receiptId: `${keep.keepId}:receipt:${input.sequence.toString()}`,
-    keepId: keep.keepId,
-    sequence: input.sequence,
-    requestKey: input.requestKey,
-    fingerprint: fingerprint(kind, input),
-    resultRevision: updated.revision,
-  }));
-  const receipts = [...storage.receipts(keep.keepId)];
-  if (receipts.length > GAMEPLAY04_MAX_RECEIPTS + 1) {
-    workerFail('GAMEPLAY04_STORED_STATE_INVALID');
-  }
-  if (receipts.length === GAMEPLAY04_MAX_RECEIPTS + 1) {
-    let oldest = receipts[0]!;
-    for (const row of receipts.slice(1)) if (row.sequence < oldest.sequence) oldest = row;
-    storage.deleteReceipt(oldest.receiptId);
-  }
-  return Object.freeze({ sequence: input.sequence, revision: updated.revision });
-}
-
 function validateTarget(
   binding: KeepBinding04,
   input: DispatchWorkerInput04,
@@ -423,12 +388,15 @@ export function dispatchWorker04(
   now: bigint,
   input: DispatchWorkerInput04,
   target: ResolvedDispatch04,
+  accumulatedKeep?: KeepRow04,
 ): WorkerCommandResult04 {
   return mapError(() => {
     const preflight = preflightWorkerCommand04(storage, binding, now, { kind: 'dispatch', input });
     if (preflight.kind === 'replay') return preflight.result;
     const facts = validateTarget(binding, input, target);
-    const reconciled = reconcileWithoutRevision(storage, binding, now);
+    const reconciled = reconcileWorkersWithoutRevision04(
+      storage, binding, now, accumulatedKeep,
+    );
     const state = readKeep04(storage, binding);
     validateKeepRow04(reconciled.keep, binding);
     const worker = validateWorkerRows(state.workers)[input.workerOrdinal]!;
@@ -465,7 +433,9 @@ export function dispatchWorker04(
       assignmentRevision,
       dueAtMicros: due,
     }));
-    return commitCommand(storage, reconciled.keep, 'dispatch', input);
+    return commitGameplay04Command(
+      storage, reconciled.keep, input, fingerprint('dispatch', input),
+    );
   });
 }
 
@@ -474,11 +444,14 @@ export function recallWorker04(
   binding: KeepBinding04,
   now: bigint,
   input: RecallWorkerInput04,
+  accumulatedKeep?: KeepRow04,
 ): WorkerCommandResult04 {
   return mapError(() => {
     const preflight = preflightWorkerCommand04(storage, binding, now, { kind: 'recall', input });
     if (preflight.kind === 'replay') return preflight.result;
-    let reconciled = reconcileWithoutRevision(storage, binding, now);
+    let reconciled = reconcileWorkersWithoutRevision04(
+      storage, binding, now, accumulatedKeep,
+    );
     const state = readKeep04(storage, binding);
     const worker = validateWorkerRows(state.workers)[input.workerOrdinal]!;
     if (worker.assignment !== undefined) {
@@ -502,11 +475,13 @@ export function recallWorker04(
             dueAtMicros: due,
           }));
         } else {
-          reconciled = reconcileWithoutRevision(storage, binding, now, reconciled.keep);
+          reconciled = reconcileWorkersWithoutRevision04(storage, binding, now, reconciled.keep);
         }
       }
     }
-    return commitCommand(storage, reconciled.keep, 'recall', input);
+    return commitGameplay04Command(
+      storage, reconciled.keep, input, fingerprint('recall', input),
+    );
   });
 }
 
@@ -518,11 +493,11 @@ export function reconcileWorkers04(
   return mapError(() => {
     validateBinding04(binding);
     validateTimestamp04(now);
-    const reconciled = reconcileWithoutRevision(storage, binding, now);
+    const reconciled = reconcileWorkersWithoutRevision04(storage, binding, now);
     if (!reconciled.changed) {
       return Object.freeze({ changed: false, revision: reconciled.keep.revision });
     }
-    const keep = commitRevision(storage, reconciled.keep);
+    const keep = commitGameplay04Revision(storage, reconciled.keep);
     return Object.freeze({ changed: true, revision: keep.revision });
   });
 }

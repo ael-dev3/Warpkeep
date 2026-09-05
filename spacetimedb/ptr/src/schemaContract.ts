@@ -27,6 +27,8 @@ export const PTR_PRIVATE_TABLE_ACCESSORS = Object.freeze([
   'gameplay04WorkerV1',
   'gameplay04ReceiptV1',
   'gameplay04ReservationV1',
+  'gameplay04BuildingV1',
+  'gameplay04ProjectV1',
   'gameplay04_schedule_v1',
 ] as const);
 

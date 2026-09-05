@@ -34,6 +34,23 @@ const gameplay04ReturnOutcomeV1 = t.object('Gameplay04ReturnOutcomeV1', {
   overflow: t.u64(),
 });
 
+const gameplay04CostV1 = t.object('Gameplay04CostV1', {
+  food: t.u64(),
+  wood: t.u64(),
+  stone: t.u64(),
+  gold: t.u64(),
+});
+
+const gameplay04WorkerWakeupV1 = t.object('Gameplay04WorkerWakeupV1', {
+  workerId: t.string(),
+  assignmentRevision: t.u64(),
+});
+
+const gameplay04ProjectWakeupV1 = t.object('Gameplay04ProjectWakeupV1', {
+  buildingId: t.string(),
+  projectRevision: t.u64(),
+});
+
 export const gameplay04KeepV1 = table(
   { name: 'gameplay04_keep_v1' },
   {
@@ -88,6 +105,36 @@ export const gameplay04ReservationV1 = table(
   },
 );
 
+export const gameplay04BuildingV1 = table(
+  { name: 'gameplay04_building_v1' },
+  {
+    buildingId: t.string().primaryKey(),
+    keepId: t.string().index(),
+    kind: t.string(),
+    x: t.i64(),
+    z: t.i64(),
+    rotation: t.u32(),
+    completedLevel: t.u32(),
+    revision: t.u64(),
+  },
+);
+
+export const gameplay04ProjectV1 = table(
+  { name: 'gameplay04_project_v1' },
+  {
+    keepId: t.string().primaryKey(),
+    projectRevision: t.u64(),
+    buildingId: t.string(),
+    targetLevel: t.u32(),
+    startedAtMicros: t.i64(),
+    completesAtMicros: t.i64(),
+    cost: gameplay04CostV1,
+    durationMicros: t.i64(),
+    policyVersion: t.string(),
+    layoutDigest: t.string(),
+  },
+);
+
 export const gameplay04ScheduleV1 = table(
   {
     name: 'gameplay04_schedule_v1',
@@ -97,7 +144,8 @@ export const gameplay04ScheduleV1 = table(
     scheduleId: t.u64().primaryKey().autoInc(),
     scheduledAt: t.scheduleAt(),
     keepId: t.string().index(),
-    workerId: t.string().index(),
-    assignmentRevision: t.u64().index(),
+    lane: t.string(),
+    worker: t.option(gameplay04WorkerWakeupV1),
+    project: t.option(gameplay04ProjectWakeupV1),
   },
 );

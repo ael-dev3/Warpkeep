@@ -53,4 +53,5 @@ export const PTR_OWNER_PROCEDURES = Object.freeze([
   'get_gameplay04_keep_v1',
   'dispatch_gameplay04_worker_v1',
   'recall_gameplay04_worker_v1',
+  'start_gameplay04_building_v1',
 ] as const);

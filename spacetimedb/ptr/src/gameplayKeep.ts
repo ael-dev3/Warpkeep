@@ -1,6 +1,12 @@
 import { SenderError, t } from 'spacetimedb/server';
 
 import {
+  GAMEPLAY04_LAYOUT_DIGEST,
+  GAMEPLAY04_LAYOUT_VERSION,
+  Gameplay04ConstructionError,
+  validateConstructionState04,
+} from '../../gameplay04/construction';
+import {
   Gameplay04KeepError,
   initializeKeep04,
   readKeep04,
@@ -8,8 +14,9 @@ import {
 import { observeJourney04 } from '../../gameplay04/workerJourney';
 import {
   Gameplay04WorkerError,
-  reconcileWorkers04,
 } from '../../gameplay04/workers';
+import { reconcileGameplay04 } from '../../gameplay04/reconciliation';
+import { buildingDuration04, gatheringYield04, travelPerEdge04 } from '../../gameplay04/policy';
 import { requirePtrOwner } from './auth';
 import {
   requirePtrReadyAtlas,
@@ -56,8 +63,51 @@ const gameplay04WorkerStateV1 = t.object('Gameplay04WorkerStateV1', {
   lastReturn: t.option(gameplay04ReturnOutcomeV1),
 });
 
+const gameplay04BuildingStateV1 = t.object('Gameplay04BuildingStateV1', {
+  kind: t.string(),
+  x: t.i64(),
+  z: t.i64(),
+  rotation: t.u32(),
+  completedLevel: t.u32(),
+  revision: t.u64(),
+});
+
+const gameplay04CostStateV1 = t.object('Gameplay04CostStateV1', {
+  food: t.u64(), wood: t.u64(), stone: t.u64(), gold: t.u64(),
+});
+
+const gameplay04ProjectStateV1 = t.object('Gameplay04ProjectStateV1', {
+  kind: t.string(),
+  projectRevision: t.u64(),
+  targetLevel: t.u32(),
+  startedAtMicros: t.i64(),
+  completesAtMicros: t.i64(),
+  cost: gameplay04CostStateV1,
+  durationMicros: t.i64(),
+});
+
+const gameplay04CompletedLevelsV1 = t.object('Gameplay04CompletedLevelsV1', {
+  mill: t.u32(),
+  lumberCamp: t.u32(),
+  stoneworks: t.u32(),
+  goldworks: t.u32(),
+  barracks: t.u32(),
+  cathedral: t.u32(),
+});
+
+const gameplay04CompletedEffectsV1 = t.object('Gameplay04CompletedEffectsV1', {
+  foodYieldPerQuantum: t.u64(),
+  woodYieldPerQuantum: t.u64(),
+  stoneYieldPerQuantum: t.u64(),
+  goldYieldPerQuantum: t.u64(),
+  travelPerEdgeMicros: t.i64(),
+  levelOneBuildDurationMicros: t.i64(),
+});
+
 const gameplay04KeepStateV1 = t.object('Gameplay04KeepStateV1', {
   policyVersion: t.string(),
+  layoutVersion: t.string(),
+  layoutDigest: t.string(),
   revision: t.u64(),
   lastAcceptedSequence: t.u64(),
   food: t.u64(),
@@ -65,6 +115,10 @@ const gameplay04KeepStateV1 = t.object('Gameplay04KeepStateV1', {
   stone: t.u64(),
   gold: t.u64(),
   workers: t.array(gameplay04WorkerStateV1),
+  buildings: t.array(gameplay04BuildingStateV1),
+  project: t.option(gameplay04ProjectStateV1),
+  completedLevels: gameplay04CompletedLevelsV1,
+  completedEffects: gameplay04CompletedEffectsV1,
 });
 
 const gameplay04InitializeResultV1 = t.object('Gameplay04InitializeResultV1', {
@@ -73,7 +127,11 @@ const gameplay04InitializeResultV1 = t.object('Gameplay04InitializeResultV1', {
 });
 
 function sender(error: unknown, fallback: string): never {
-  if (error instanceof Gameplay04KeepError || error instanceof Gameplay04WorkerError) {
+  if (
+    error instanceof Gameplay04KeepError
+    || error instanceof Gameplay04WorkerError
+    || error instanceof Gameplay04ConstructionError
+  ) {
     throw new SenderError(error.code);
   }
   if (error instanceof SenderError) throw error;
@@ -117,13 +175,20 @@ export const getGameplay04KeepV1 = ptr.procedure(
         const atlas = requirePtrReadyAtlas(tx);
         const binding = gameplay04Binding(tx, claims.fid, atlas);
         const store = gameplay04WorkerStorage(tx);
-        reconcileWorkers04(store, binding, tx.timestamp.microsSinceUnixEpoch);
+        reconcileGameplay04(store, binding, tx.timestamp.microsSinceUnixEpoch);
         const state = readKeep04(
           store,
           binding,
         );
+        const construction = validateConstructionState04(store, binding);
+        const projectBuilding = construction.project === null
+          ? undefined
+          : construction.buildings.find(row => row.buildingId === construction.project!.buildingId);
+        const completed = construction.completed;
         return {
           policyVersion: state.keep.policyVersion,
+          layoutVersion: GAMEPLAY04_LAYOUT_VERSION,
+          layoutDigest: GAMEPLAY04_LAYOUT_DIGEST,
           revision: state.keep.revision,
           lastAcceptedSequence: state.keep.lastAcceptedSequence,
           food: state.keep.food,
@@ -158,6 +223,39 @@ export const getGameplay04KeepV1 = ptr.procedure(
               lastReturn: worker.lastReturn,
             };
           }),
+          buildings: construction.buildings.map(building => ({
+            kind: building.kind,
+            x: building.x,
+            z: building.z,
+            rotation: building.rotation,
+            completedLevel: building.completedLevel,
+            revision: building.revision,
+          })),
+          project: construction.project === null || projectBuilding === undefined ? undefined : {
+            kind: projectBuilding.kind,
+            projectRevision: construction.project.projectRevision,
+            targetLevel: construction.project.targetLevel,
+            startedAtMicros: construction.project.startedAtMicros,
+            completesAtMicros: construction.project.completesAtMicros,
+            cost: construction.project.cost,
+            durationMicros: construction.project.durationMicros,
+          },
+          completedLevels: {
+            mill: completed['city-mill'],
+            lumberCamp: completed['lumber-camp'],
+            stoneworks: completed['city-stoneworks'],
+            goldworks: completed['city-goldworks'],
+            barracks: completed['city-barracks'],
+            cathedral: completed['grand-covenant-cathedral'],
+          },
+          completedEffects: {
+            foodYieldPerQuantum: gatheringYield04('food', completed),
+            woodYieldPerQuantum: gatheringYield04('wood', completed),
+            stoneYieldPerQuantum: gatheringYield04('stone', completed),
+            goldYieldPerQuantum: gatheringYield04('gold', completed),
+            travelPerEdgeMicros: travelPerEdge04(completed),
+            levelOneBuildDurationMicros: buildingDuration04(1, completed),
+          },
         };
       });
     } catch (error) {

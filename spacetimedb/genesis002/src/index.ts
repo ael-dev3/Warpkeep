@@ -22,6 +22,7 @@ export {
   dispatchGameplay04WorkerV1,
   recallGameplay04WorkerV1,
 } from './gameplayWorkers';
+export { startGameplay04BuildingV1 } from './gameplayConstruction';
 export { runGameplay04ScheduleV1 } from './gameplaySchedule';
 
 for (const name of [
@@ -29,6 +30,7 @@ for (const name of [
   'get_gameplay04_keep_v1',
   'dispatch_gameplay04_worker_v1',
   'recall_gameplay04_worker_v1',
+  'start_gameplay04_building_v1',
   'run_gameplay_04_schedule_v_1',
 ]) {
   genesis002.moduleDef.explicitNames.entries.push({

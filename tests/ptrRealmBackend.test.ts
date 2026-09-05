@@ -111,6 +111,8 @@ test('PTR schema appends private gameplay keep storage to the isolated atlas', (
     'gameplay04WorkerV1',
     'gameplay04ReceiptV1',
     'gameplay04ReservationV1',
+    'gameplay04BuildingV1',
+    'gameplay04ProjectV1',
     'gameplay04_schedule_v1',
   ]);
   assert.doesNotThrow(() => assertPtrPrivateSchemaSurface(
@@ -183,6 +185,7 @@ test('PTR registers only the approved admin and owner procedure surface', () => 
     'get_gameplay04_keep_v1',
     'dispatch_gameplay04_worker_v1',
     'recall_gameplay04_worker_v1',
+    'start_gameplay04_building_v1',
   ]);
   const surface = JSON.stringify([
     ...PTR_ADMIN_PROCEDURES,
@@ -334,6 +337,7 @@ test('generated public PTR bindings expose no tables and only the approved calls
       'initializeGameplay04KeepV1',
       'planRealmRouteV1',
       'recallGameplay04WorkerV1',
+      'startGameplay04BuildingV1',
     ]);
   } finally {
     rmSync(generatedPath, { recursive: true, force: true });
@@ -400,13 +404,17 @@ test('compiled PTR payload contains no shared production graph or forbidden poli
     '../gameplay04/workerJourney.ts',
     '../gameplay04/workerState.ts',
     '../gameplay04/keep.ts',
+    '../gameplay04/placement.ts',
     '../gameplay04/workers.ts',
+    '../gameplay04/construction.ts',
+    '../gameplay04/reconciliation.ts',
     'node_modules/.pnpm/base64-js@1.5.1/node_modules/base64-js/index.js',
     'node_modules/.pnpm/safe-stable-stringify@2.5.0/node_modules/safe-stable-stringify/index.js',
     'node_modules/.pnpm/safe-stable-stringify@2.5.0/node_modules/safe-stable-stringify/esm/wrapper.js',
     'node_modules/.pnpm/spacetimedb@2.6.1/node_modules/spacetimedb/dist/index.browser.mjs',
     'src/gameplayWorkers.ts',
     'src/gameplayKeep.ts',
+    'src/gameplayConstruction.ts',
     'src/gameplaySchedule.ts',
     'src/index.ts',
   ]);

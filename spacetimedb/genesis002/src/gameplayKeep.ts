@@ -40,8 +40,51 @@ const gameplay04WorkerStateV1 = t.object('Gameplay04WorkerStateV1', {
   lastReturn: t.option(gameplay04ReturnOutcomeV1),
 });
 
+const gameplay04BuildingStateV1 = t.object('Gameplay04BuildingStateV1', {
+  kind: t.string(),
+  x: t.i64(),
+  z: t.i64(),
+  rotation: t.u32(),
+  completedLevel: t.u32(),
+  revision: t.u64(),
+});
+
+const gameplay04CostStateV1 = t.object('Gameplay04CostStateV1', {
+  food: t.u64(), wood: t.u64(), stone: t.u64(), gold: t.u64(),
+});
+
+const gameplay04ProjectStateV1 = t.object('Gameplay04ProjectStateV1', {
+  kind: t.string(),
+  projectRevision: t.u64(),
+  targetLevel: t.u32(),
+  startedAtMicros: t.i64(),
+  completesAtMicros: t.i64(),
+  cost: gameplay04CostStateV1,
+  durationMicros: t.i64(),
+});
+
+const gameplay04CompletedLevelsV1 = t.object('Gameplay04CompletedLevelsV1', {
+  mill: t.u32(),
+  lumberCamp: t.u32(),
+  stoneworks: t.u32(),
+  goldworks: t.u32(),
+  barracks: t.u32(),
+  cathedral: t.u32(),
+});
+
+const gameplay04CompletedEffectsV1 = t.object('Gameplay04CompletedEffectsV1', {
+  foodYieldPerQuantum: t.u64(),
+  woodYieldPerQuantum: t.u64(),
+  stoneYieldPerQuantum: t.u64(),
+  goldYieldPerQuantum: t.u64(),
+  travelPerEdgeMicros: t.i64(),
+  levelOneBuildDurationMicros: t.i64(),
+});
+
 const gameplay04KeepStateV1 = t.object('Gameplay04KeepStateV1', {
   policyVersion: t.string(),
+  layoutVersion: t.string(),
+  layoutDigest: t.string(),
   revision: t.u64(),
   lastAcceptedSequence: t.u64(),
   food: t.u64(),
@@ -49,6 +92,10 @@ const gameplay04KeepStateV1 = t.object('Gameplay04KeepStateV1', {
   stone: t.u64(),
   gold: t.u64(),
   workers: t.array(gameplay04WorkerStateV1),
+  buildings: t.array(gameplay04BuildingStateV1),
+  project: t.option(gameplay04ProjectStateV1),
+  completedLevels: gameplay04CompletedLevelsV1,
+  completedEffects: gameplay04CompletedEffectsV1,
 });
 
 const gameplay04InitializeResultV1 = t.object('Gameplay04InitializeResultV1', {

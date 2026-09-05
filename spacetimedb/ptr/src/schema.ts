@@ -5,7 +5,9 @@ import {
   assertPtrPrivateSchemaSurface,
 } from './schemaContract';
 import {
+  gameplay04BuildingV1,
   gameplay04KeepV1,
+  gameplay04ProjectV1,
   gameplay04ReservationV1,
   gameplay04ReceiptV1,
   gameplay04ScheduleV1,
@@ -16,7 +18,7 @@ import {
  * These table descriptors are intentionally defined in this isolated module.
  * Importing the production schema would evaluate and bundle its registration
  * graph, including legacy admission/gameplay/economy wires that PTR must not carry.
- * Every descriptor below omits `public: true`, so all 27 tables are private.
+ * Every descriptor below omits `public: true`, so all 31 tables are private.
  */
 
 export const allowedFid = table(
@@ -570,6 +572,8 @@ const ptrTables = {
   gameplay04WorkerV1,
   gameplay04ReceiptV1,
   gameplay04ReservationV1,
+  gameplay04BuildingV1,
+  gameplay04ProjectV1,
   gameplay04_schedule_v1: gameplay04ScheduleV1,
 } as const;
 

@@ -51,16 +51,17 @@ beforeAll(async () => {
   ]);
 });
 
-test('both modules register five private gameplay descriptors and exact Worker wires', () => {
+test('both modules register seven private gameplay descriptors and exact Worker wires', () => {
   for (const module of [ptrModule, g002Module]) {
     const tables = module.schema.moduleDef.tables.filter((row: any) => (
       String(row.sourceName).includes('gameplay04')
     ));
-    assert.equal(tables.length, 5);
+    assert.equal(tables.length, 7);
     assert.ok(tables.every((row: any) => row.tableAccess.tag === 'Private'));
     assert.deepEqual(tables.map((row: any) => row.sourceName), [
       'gameplay04KeepV1', 'gameplay04WorkerV1', 'gameplay04ReceiptV1',
-      'gameplay04ReservationV1', 'gameplay04_schedule_v1',
+      'gameplay04ReservationV1', 'gameplay04BuildingV1', 'gameplay04ProjectV1',
+      'gameplay04_schedule_v1',
     ]);
     const names = module.schema.moduleDef.explicitNames.entries
       .filter((entry: any) => entry.tag === 'Function')
@@ -118,7 +119,8 @@ test('the SDK-registered PTR scheduler enforces the system caller before databas
   assert.throws(() => ptrModule.runGameplay04ScheduleV1(ctx, { arg: {
     scheduleId: 1n,
     scheduledAt: { tag: 'Time', value: { microsSinceUnixEpoch: 2n } },
-    keepId: 'keep', workerId: 'worker', assignmentRevision: 1n,
+    keepId: 'keep', lane: 'worker',
+    worker: { workerId: 'worker', assignmentRevision: 1n }, project: undefined,
   } }), /GAMEPLAY04_SCHEDULER_UNAUTHORIZED/u);
   assert.equal(touched, false);
 });
@@ -138,7 +140,8 @@ test('G002 Worker procedures and every scheduler caller class fail closed before
     }],
     [g002Module.runGameplay04ScheduleV1, { arg: {
       scheduleId: 1n, scheduledAt: { tag: 'Time', value: { microsSinceUnixEpoch: 2n } },
-      keepId: 'keep', workerId: 'worker', assignmentRevision: 1n,
+      keepId: 'keep', lane: 'worker',
+      worker: { workerId: 'worker', assignmentRevision: 1n }, project: undefined,
     } }],
   ] as const) {
     for (const connectionId of [null, {}]) {

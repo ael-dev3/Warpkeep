@@ -19,7 +19,8 @@ export type Gameplay04KeepErrorCode =
   | 'GAMEPLAY04_RECEIPT_EXPIRED'
   | 'GAMEPLAY04_ALREADY_INITIALIZED'
   | 'GAMEPLAY04_SEQUENCE_INVALID'
-  | 'GAMEPLAY04_NOT_INITIALIZED';
+  | 'GAMEPLAY04_NOT_INITIALIZED'
+  | 'GAMEPLAY04_REVISION_OVERFLOW';
 
 export const GAMEPLAY04_U64_MAX = 18_446_744_073_709_551_615n;
 export const GAMEPLAY04_I64_MAX = 9_223_372_036_854_775_807n;
@@ -225,4 +226,53 @@ export function preflightSequence04(
   ) failGameplay04('GAMEPLAY04_SEQUENCE_INVALID');
   if (input.expectedRevision !== keep.revision) failGameplay04('GAMEPLAY04_INPUT_INVALID');
   return Object.freeze({ kind: 'fresh' as const });
+}
+
+export type CommandCommitStorage04 = KeepStorage04 & {
+  updateKeep(row: KeepRow04): void;
+  deleteReceipt(receiptId: string): void;
+};
+
+export function commitGameplay04Revision(
+  storage: CommandCommitStorage04,
+  keep: KeepRow04,
+): KeepRow04 {
+  if (keep.revision === GAMEPLAY04_U64_MAX) {
+    failGameplay04('GAMEPLAY04_REVISION_OVERFLOW');
+  }
+  const updated = Object.freeze({ ...keep, revision: keep.revision + 1n });
+  storage.updateKeep(updated);
+  return updated;
+}
+
+export function commitGameplay04Command(
+  storage: CommandCommitStorage04,
+  keep: KeepRow04,
+  input: Readonly<{ sequence: bigint; requestKey: string }>,
+  canonicalFingerprint: string,
+): Readonly<{ sequence: bigint; revision: bigint }> {
+  const updated = commitGameplay04Revision(storage, Object.freeze({
+    ...keep,
+    lastAcceptedSequence: input.sequence,
+  }));
+  storage.insertReceipt(Object.freeze({
+    receiptId: `${keep.keepId}:receipt:${input.sequence.toString()}`,
+    keepId: keep.keepId,
+    sequence: input.sequence,
+    requestKey: input.requestKey,
+    fingerprint: canonicalFingerprint,
+    resultRevision: updated.revision,
+  }));
+  const receipts = [...storage.receipts(keep.keepId)];
+  if (receipts.length > GAMEPLAY04_MAX_RECEIPTS + 1) {
+    failGameplay04('GAMEPLAY04_STORED_STATE_INVALID');
+  }
+  if (receipts.length === GAMEPLAY04_MAX_RECEIPTS + 1) {
+    let oldest = receipts[0]!;
+    for (const row of receipts.slice(1)) {
+      if (row.sequence < oldest.sequence) oldest = row;
+    }
+    storage.deleteReceipt(oldest.receiptId);
+  }
+  return Object.freeze({ sequence: input.sequence, revision: updated.revision });
 }

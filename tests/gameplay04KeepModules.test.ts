@@ -69,6 +69,8 @@ beforeAll(async () => {
       } from './spacetimedb/ptr/src/gameplayKeep.ts';
       export { dispatchGameplay04WorkerV1, recallGameplay04WorkerV1 }
         from './spacetimedb/ptr/src/gameplayWorkers.ts';
+      export { startGameplay04BuildingV1 }
+        from './spacetimedb/ptr/src/gameplayConstruction.ts';
       export { runGameplay04ScheduleV1 }
         from './spacetimedb/ptr/src/gameplaySchedule.ts';
       export { getPtrOwnerStatusV1, adminSuspendPtrOwnerV1 }
@@ -165,8 +167,12 @@ class PtrHarness {
   workers = new Map<string, Record<string, any>>();
   receipts = new Map<string, Record<string, any>>();
   reservations = new Map<string, Record<string, any>>();
+  buildings = new Map<string, Record<string, any>>();
+  projects = new Map<string, Record<string, any>>();
   schedules = new Map<bigint, Record<string, any>>();
   nextScheduleId = 1n;
+  maxScheduleRows = 0;
+  failAfterScheduleInsert = false;
   anchor = {
     singletonKey: 'PTR_OWNER_V1', ownerFid: OWNER_FID, authEpoch: 1,
     enabled: true, provisionedAt: {}, provisionedBy: 'service:hermes',
@@ -176,6 +182,7 @@ class PtrHarness {
   resourceComponentKey = `GRC-${'A'.repeat(26)}`;
   resourceNodeMode: 'valid' | 'duplicate-node' | 'release-gap' | 'active' = 'valid';
   resourceAtAdjacentCell = false;
+  resourceKind: 'food' | 'wood' | 'stone' | 'gold' = 'wood';
   failOnUpdateKeep = false;
   nowMicros = NOW_MICROS;
   payload: unknown = ownerPayload();
@@ -186,6 +193,8 @@ class PtrHarness {
     workers = this.workers,
     receipts = this.receipts,
     reservations = this.reservations,
+    buildings = this.buildings,
+    projects = this.projects,
     schedules = this.schedules,
     scheduleCounter = { value: this.nextScheduleId },
   ) {
@@ -221,12 +230,14 @@ class PtrHarness {
       cellKey: 'T1_LOWLANDS:1:0', atlasQ: 1, atlasR: 0,
       routeDepth: 1, routeParentDirection: 3,
     } : cell;
-    const resourceNodes = [0, 1, 2].map(nodeOrdinal => ({
-      nodeId: `NODE:WOOD:${nodeOrdinal}`, locationId: 'LOCATION:WOOD', nodeOrdinal,
+    const resourceLocationId = `LOCATION:${this.resourceKind.toUpperCase()}`;
+    const resourceNodes = [0, 1, 2, 3].map(nodeOrdinal => ({
+      nodeId: `NODE:${this.resourceKind.toUpperCase()}:${nodeOrdinal}`,
+      locationId: resourceLocationId, nodeOrdinal,
       releaseOrdinal: 100 + nodeOrdinal, atlasId: 'PTR_GREATER_REALM',
       cellKey: destination.cellKey, regionId: destination.regionId,
       componentKey: this.resourceComponentKey,
-      resourceKind: 'wood', policyVersion: 'atlas-resource-v1', tier: 1,
+      resourceKind: this.resourceKind, policyVersion: 'atlas-resource-v1', tier: 1,
       active: false, allocationRank: 0xffff_ffff,
     }));
     if (this.resourceNodeMode === 'duplicate-node') {
@@ -271,7 +282,7 @@ class PtrHarness {
       greaterRealmCastleSlotV1: { count: () => 600n },
       greaterRealmResourceNodeV1: {
         count: () => 12_000n,
-        locationId: { filter: (key: string) => key === 'LOCATION:WOOD' ? resourceNodes : [] },
+        locationId: { filter: (key: string) => key === resourceLocationId ? resourceNodes : [] },
       },
       ptrOwnerAnchorV1: {
         count: () => 1n,
@@ -312,6 +323,21 @@ class PtrHarness {
         },
         insert: (row: Record<string, any>) => { reservations.set(row.nodeId, { ...row }); },
       },
+      gameplay04BuildingV1: {
+        keepId: { filter: (key: string) => [...buildings.values()].filter(row => row.keepId === key) },
+        buildingId: {
+          find: (key: string) => buildings.get(key) ?? null,
+          update: (row: Record<string, any>) => { buildings.set(row.buildingId, { ...row }); },
+        },
+        insert: (row: Record<string, any>) => { buildings.set(row.buildingId, { ...row }); },
+      },
+      gameplay04ProjectV1: {
+        keepId: {
+          find: (key: string) => projects.get(key) ?? null,
+          delete: (key: string) => projects.delete(key),
+        },
+        insert: (row: Record<string, any>) => { projects.set(row.keepId, { ...row }); },
+      },
       gameplay04_schedule_v1: {
         keepId: { filter: (key: string) => [...schedules.values()].filter(row => row.keepId === key) },
         scheduleId: {
@@ -321,6 +347,8 @@ class PtrHarness {
         insert: (row: Record<string, any>) => {
           const id = row.scheduleId === 0n ? scheduleCounter.value++ : row.scheduleId;
           schedules.set(id, { ...row, scheduleId: id });
+          this.maxScheduleRows = Math.max(this.maxScheduleRows, schedules.size);
+          if (this.failAfterScheduleInsert) throw new Error('injected schedule insert failure');
         },
       },
     };
@@ -337,17 +365,21 @@ class PtrHarness {
         const workers = new Map([...outer.workers].map(([key, row]) => [key, { ...row }]));
         const receipts = new Map([...outer.receipts].map(([key, row]) => [key, { ...row }]));
         const reservations = new Map([...outer.reservations].map(([key, row]) => [key, { ...row }]));
+        const buildings = new Map([...outer.buildings].map(([key, row]) => [key, { ...row }]));
+        const projects = new Map([...outer.projects].map(([key, row]) => [key, { ...row }]));
         const schedules = new Map([...outer.schedules].map(([key, row]) => [key, { ...row }]));
         const scheduleCounter = { value: outer.nextScheduleId };
         const tx = {
           ...this,
-          db: outer.database(keeps, workers, receipts, reservations, schedules, scheduleCounter),
+          db: outer.database(keeps, workers, receipts, reservations, buildings, projects, schedules, scheduleCounter),
         };
         const result = effect(tx);
         outer.keeps = keeps;
         outer.workers = workers;
         outer.receipts = receipts;
         outer.reservations = reservations;
+        outer.buildings = buildings;
+        outer.projects = projects;
         outer.schedules = schedules;
         outer.nextScheduleId = scheduleCounter.value;
         return result;
@@ -364,6 +396,8 @@ class PtrHarness {
     const workers = new Map([...this.workers].map(([key, row]) => [key, { ...row }]));
     const receipts = new Map([...this.receipts].map(([key, row]) => [key, { ...row }]));
     const reservations = new Map([...this.reservations].map(([key, row]) => [key, { ...row }]));
+    const buildings = new Map([...this.buildings].map(([key, row]) => [key, { ...row }]));
+    const projects = new Map([...this.projects].map(([key, row]) => [key, { ...row }]));
     const schedules = new Map([...this.schedules].map(([key, row]) => [key, { ...row }]));
     const scheduleCounter = { value: this.nextScheduleId };
     const databaseIdentity = {
@@ -377,13 +411,15 @@ class PtrHarness {
       connectionId: options.connectionId ?? null,
       databaseIdentity,
       timestamp: { microsSinceUnixEpoch: this.nowMicros },
-      db: this.database(keeps, workers, receipts, reservations, schedules, scheduleCounter),
+      db: this.database(keeps, workers, receipts, reservations, buildings, projects, schedules, scheduleCounter),
     };
     const result = (ptrModule.runGameplay04ScheduleV1 as Callable)(ctx, { arg });
     this.keeps = keeps;
     this.workers = workers;
     this.receipts = receipts;
     this.reservations = reservations;
+    this.buildings = buildings;
+    this.projects = projects;
     this.schedules = schedules;
     this.nextScheduleId = scheduleCounter.value;
     return result;
@@ -406,7 +442,8 @@ class PtrHarness {
   snapshot() {
     return JSON.stringify({
       keeps: [...this.keeps], workers: [...this.workers], receipts: [...this.receipts],
-      reservations: [...this.reservations], schedules: [...this.schedules],
+      reservations: [...this.reservations], buildings: [...this.buildings],
+      projects: [...this.projects], schedules: [...this.schedules],
       nextScheduleId: this.nextScheduleId,
       legacy: { active: false, allocationRank: 0xffff_ffff, population: 0 },
     }, (_key, value) => typeof value === 'bigint' ? value.toString() : value);
@@ -435,11 +472,24 @@ describe('PTR gameplay keep module adapter', () => {
     });
     assert.equal(harness.snapshot(), beforeRetry);
     assert.deepEqual(read(harness.context()), {
-      policyVersion: 'warpkeep-0.4-gameplay-v1', revision: 1n,
+      policyVersion: 'warpkeep-0.4-gameplay-v1',
+      layoutVersion: 'warpkeep-0.4-placement-v1',
+      layoutDigest: '152d900c9e2309ed822610d3b885e9dcbd0dcae1d5621b3ddbaf788844f6dec8',
+      revision: 1n,
       lastAcceptedSequence: 1n, food: 0n, wood: 0n, stone: 0n, gold: 0n,
       workers: [0, 1, 2, 3].map(ordinal => ({
         ordinal, assignmentRevision: 0n, assignment: undefined, lastReturn: undefined,
       })),
+      buildings: [],
+      project: undefined,
+      completedLevels: {
+        mill: 0, lumberCamp: 0, stoneworks: 0, goldworks: 0, barracks: 0, cathedral: 0,
+      },
+      completedEffects: {
+        foodYieldPerQuantum: 10n, woodYieldPerQuantum: 10n,
+        stoneYieldPerQuantum: 10n, goldYieldPerQuantum: 10n,
+        travelPerEdgeMicros: 2_000_000n, levelOneBuildDurationMicros: 120_000_000n,
+      },
     });
     assert.doesNotMatch(JSON.stringify(read(harness.context()), (_key, value) => (
       typeof value === 'bigint' ? value.toString() : value
@@ -458,6 +508,183 @@ describe('PTR gameplay keep module adapter', () => {
     assert.equal(harness.reservations.size, 1);
     assert.equal(harness.schedules.size, 1);
     assert.equal(harness.workers.values().next().value!.assignment.route.length, 1);
+  });
+
+  test('actual PTR gather, construction, completion, and later dispatch use persisted effects', () => {
+    const harness = new PtrHarness();
+    const renew = () => {
+      const nowSeconds = Number(harness.nowMicros / 1_000_000n);
+      harness.payload = ownerPayload({
+        iat: nowSeconds - 1, nbf: nowSeconds - 1, exp: nowSeconds + 119,
+        session_iat: nowSeconds - 1, session_exp: nowSeconds + 119,
+        jti: `renewed-${nowSeconds}`,
+      });
+    };
+    const initialize = ptrModule.initializeGameplay04KeepV1 as Callable;
+    const dispatch = ptrModule.dispatchGameplay04WorkerV1 as Callable;
+    const start = ptrModule.startGameplay04BuildingV1 as Callable;
+    const read = ptrModule.getGameplay04KeepV1 as Callable;
+    initialize(harness.context(), GAMEPLAY_INPUT);
+    let sequence = 2n;
+    let revision = 1n;
+    for (const resource of ['food', 'wood', 'stone'] as const) {
+      harness.resourceKind = resource;
+      dispatch(harness.context(), {
+        sequence,
+        requestKey: `g04:${sequence}:${sequence.toString().repeat(32)}`,
+        expectedRevision: revision,
+        policyVersion: 'warpkeep-0.4-gameplay-v1',
+        expectedAtlasRevision: 7n,
+        workerOrdinal: 0,
+        locationId: `LOCATION:${resource.toUpperCase()}`,
+        resource,
+        gatheringDurationMicros: 60_000_000n,
+      });
+      revision += 1n;
+      harness.nowMicros += 60_000_000n;
+      renew();
+      revision = read(harness.context()).revision;
+      sequence += 1n;
+    }
+    assert.deepEqual(
+      (({ food, wood, stone, gold }) => ({ food, wood, stone, gold }))(read(harness.context())),
+      { food: 60n, wood: 60n, stone: 60n, gold: 0n },
+    );
+    const buildAt = harness.nowMicros;
+    const buildInput = {
+      sequence: 5n,
+      requestKey: `g04:5:${'5'.repeat(32)}`,
+      expectedRevision: 7n,
+      expectedAtlasRevision: 7n,
+      policyVersion: 'warpkeep-0.4-gameplay-v1',
+      layoutDigest: '152d900c9e2309ed822610d3b885e9dcbd0dcae1d5621b3ddbaf788844f6dec8',
+      kind: 'city-mill',
+      targetLevel: 1,
+      x: -15_000_000n,
+      z: 15_000_000n,
+      rotation: 0,
+      expectedCost: { food: 20n, wood: 40n, stone: 20n, gold: 0n },
+      expectedDurationMicros: 120_000_000n,
+    };
+    assert.deepEqual(start(harness.context(), buildInput), { sequence: 5n, revision: 8n });
+    assert.equal(harness.buildings.values().next().value!.completedLevel, 0);
+    harness.resourceKind = 'food';
+    dispatch(harness.context(), {
+      sequence: 6n, requestKey: `g04:6:${'6'.repeat(32)}`, expectedRevision: 8n,
+      policyVersion: 'warpkeep-0.4-gameplay-v1', expectedAtlasRevision: 7n,
+      workerOrdinal: 0, locationId: 'LOCATION:FOOD', resource: 'food',
+      gatheringDurationMicros: 60_000_000n,
+    });
+    assert.equal(harness.workers.values().next().value!.assignment.journey.yieldPerQuantum, 10n);
+    assert.equal(harness.schedules.size, 2);
+    harness.nowMicros = buildAt + 120_000_000n;
+    renew();
+    const completed = read(harness.context());
+    assert.equal(completed.revision, 10n);
+    assert.equal(completed.buildings[0].completedLevel, 1);
+    assert.equal(completed.project, undefined);
+    assert.equal(completed.completedEffects.foodYieldPerQuantum, 12n);
+    assert.deepEqual(dispatch(harness.context(), {
+      sequence: 7n, requestKey: `g04:7:${'7'.repeat(32)}`, expectedRevision: 10n,
+      policyVersion: 'warpkeep-0.4-gameplay-v1', expectedAtlasRevision: 7n,
+      workerOrdinal: 0, locationId: 'LOCATION:FOOD', resource: 'food',
+      gatheringDurationMicros: 60_000_000n,
+    }), { sequence: 7n, revision: 11n });
+    assert.equal(harness.workers.values().next().value!.assignment.journey.yieldPerQuantum, 12n);
+    const snapshot = harness.snapshot();
+    assert.deepEqual(start(harness.context(), buildInput), { sequence: 5n, revision: 8n });
+    assert.equal(harness.snapshot(), snapshot);
+  });
+
+  test('the shared schedule graph supports four Workers plus one project and atomic replacement', () => {
+    const setup = () => {
+      const harness = new PtrHarness();
+      (ptrModule.initializeGameplay04KeepV1 as Callable)(harness.context(), GAMEPLAY_INPUT);
+      const keepId = [...harness.keeps.keys()][0]!;
+      harness.keeps.set(keepId, {
+        ...harness.keeps.get(keepId)!, food: 100n, wood: 100n, stone: 100n, gold: 0n,
+      });
+      (ptrModule.startGameplay04BuildingV1 as Callable)(harness.context(), {
+        sequence: 2n, requestKey: `g04:2:${'2'.repeat(32)}`, expectedRevision: 1n,
+        expectedAtlasRevision: 7n, policyVersion: 'warpkeep-0.4-gameplay-v1',
+        layoutDigest: '152d900c9e2309ed822610d3b885e9dcbd0dcae1d5621b3ddbaf788844f6dec8',
+        kind: 'city-mill', targetLevel: 1, x: -15_000_000n, z: 15_000_000n,
+        rotation: 0, expectedCost: { food: 20n, wood: 40n, stone: 20n, gold: 0n },
+        expectedDurationMicros: 120_000_000n,
+      });
+      harness.resourceAtAdjacentCell = true;
+      for (let ordinal = 0; ordinal < 4; ordinal += 1) {
+        const sequence = BigInt(ordinal + 3);
+        (ptrModule.dispatchGameplay04WorkerV1 as Callable)(harness.context(), {
+          sequence, requestKey: `g04:${sequence}:${sequence.toString().repeat(32)}`,
+          expectedRevision: sequence - 1n,
+          policyVersion: 'warpkeep-0.4-gameplay-v1', expectedAtlasRevision: 7n,
+          workerOrdinal: ordinal, locationId: 'LOCATION:WOOD', resource: 'wood',
+          gatheringDurationMicros: 60_000_000n,
+        });
+      }
+      assert.equal(harness.schedules.size, 5);
+      return harness;
+    };
+    const successful = setup();
+    successful.maxScheduleRows = 5;
+    successful.nowMicros += 2_000_000n;
+    assert.equal((ptrModule.getGameplay04KeepV1 as Callable)(successful.context()).revision, 7n);
+    assert.equal(successful.schedules.size, 5);
+    assert.equal(successful.maxScheduleRows, 6);
+
+    const rollback = setup();
+    rollback.nowMicros += 2_000_000n;
+    const before = rollback.snapshot();
+    rollback.failAfterScheduleInsert = true;
+    assert.throws(
+      () => (ptrModule.getGameplay04KeepV1 as Callable)(rollback.context()),
+      /GAMEPLAY04_READ_FAILED/u,
+    );
+    assert.equal(rollback.snapshot(), before);
+  });
+
+  test('malformed lanes reject, and a foreign project identity cannot complete the current project', () => {
+    const malformed = new PtrHarness();
+    (ptrModule.initializeGameplay04KeepV1 as Callable)(malformed.context(), GAMEPLAY_INPUT);
+    (ptrModule.dispatchGameplay04WorkerV1 as Callable)(malformed.context(), {
+      sequence: 2n, requestKey: `g04:2:${'2'.repeat(32)}`, expectedRevision: 1n,
+      policyVersion: 'warpkeep-0.4-gameplay-v1', expectedAtlasRevision: 7n,
+      workerOrdinal: 0, locationId: 'LOCATION:WOOD', resource: 'wood',
+      gatheringDurationMicros: 60_000_000n,
+    });
+    const [scheduleId, schedule] = malformed.schedules.entries().next().value!;
+    malformed.schedules.set(scheduleId, { ...schedule, lane: 'unknown' });
+    const corrupted = malformed.snapshot();
+    expectSenderCode(
+      () => (ptrModule.getGameplay04KeepV1 as Callable)(malformed.context()),
+      'GAMEPLAY04_STORED_STATE_INVALID',
+    );
+    assert.equal(malformed.snapshot(), corrupted);
+
+    const stale = new PtrHarness();
+    (ptrModule.initializeGameplay04KeepV1 as Callable)(stale.context(), GAMEPLAY_INPUT);
+    const keepId = [...stale.keeps.keys()][0]!;
+    stale.keeps.set(keepId, {
+      ...stale.keeps.get(keepId)!, food: 100n, wood: 100n, stone: 100n, gold: 0n,
+    });
+    (ptrModule.startGameplay04BuildingV1 as Callable)(stale.context(), {
+      sequence: 2n, requestKey: `g04:2:${'2'.repeat(32)}`, expectedRevision: 1n,
+      expectedAtlasRevision: 7n, policyVersion: 'warpkeep-0.4-gameplay-v1',
+      layoutDigest: '152d900c9e2309ed822610d3b885e9dcbd0dcae1d5621b3ddbaf788844f6dec8',
+      kind: 'city-mill', targetLevel: 1, x: -15_000_000n, z: 15_000_000n,
+      rotation: 0, expectedCost: { food: 20n, wood: 40n, stone: 20n, gold: 0n },
+      expectedDurationMicros: 120_000_000n,
+    });
+    const current = stale.schedules.values().next().value!;
+    stale.nowMicros = current.scheduledAt.value.microsSinceUnixEpoch;
+    const before = stale.snapshot();
+    stale.invokeSchedule({
+      ...current,
+      project: { ...current.project, buildingId: `${keepId}:building:lumber-camp` },
+    });
+    assert.equal(stale.snapshot(), before);
+    assert.equal(stale.buildings.values().next().value!.completedLevel, 0);
   });
 
   test('production dispatch rejects a resource group bound to the wrong component without writes', () => {
@@ -532,7 +759,7 @@ describe('PTR gameplay keep module adapter', () => {
     assert.equal(harness.snapshot(), before, 'reducer no-op does not emulate engine deletion');
     harness.invokeSchedule({ ...current, scheduleId: 99n });
     assert.equal(harness.snapshot(), before);
-    harness.invokeSchedule({ ...current, workerId: 'foreign' });
+    harness.invokeSchedule({ ...current, worker: { ...current.worker, workerId: 'foreign' } });
     assert.equal(harness.snapshot(), before);
 
     harness.schedules.delete(current.scheduleId);
@@ -767,7 +994,7 @@ describe('PTR gameplay keep module adapter', () => {
 });
 
 describe('module-local schema and Genesis 002 closure', () => {
-  test('both modules append the same five private gameplay descriptors', () => {
+  test('both modules append the same seven private gameplay descriptors', () => {
     const tableProjection = (module: BundledModule) => module.schema.moduleDef.tables
       .filter((row: any) => String(row.sourceName).includes('gameplay04'))
       .map((row: any) => ({
@@ -783,7 +1010,7 @@ describe('module-local schema and Genesis 002 closure', () => {
       }));
     const ptr = tableProjection(ptrModule);
     const g002 = tableProjection(genesis002Module);
-    assert.equal(ptr.length, 5);
+    assert.equal(ptr.length, 7);
     assert.deepEqual(
       g002.map((row: any) => ({
         sourceName: row.sourceName,
@@ -805,7 +1032,8 @@ describe('module-local schema and Genesis 002 closure', () => {
     assert.ok(ptr.every((row: any) => row.tableAccess.tag === 'Private'));
     assert.deepEqual(ptr.map((row: any) => row.sourceName), [
       'gameplay04KeepV1', 'gameplay04WorkerV1', 'gameplay04ReceiptV1',
-      'gameplay04ReservationV1', 'gameplay04_schedule_v1',
+      'gameplay04ReservationV1', 'gameplay04BuildingV1', 'gameplay04ProjectV1',
+      'gameplay04_schedule_v1',
     ]);
   });
 
@@ -844,11 +1072,12 @@ describe('module-local schema and Genesis 002 closure', () => {
     }
   });
 
-  test('the G002 population guard directly counts all five gameplay families', () => {
+  test('the G002 population guard directly counts all seven gameplay families', () => {
     const requireEmpty = genesis002Module.requireGenesis002PopulationEmpty as Callable;
     for (const changed of [
       undefined, 'gameplay04KeepV1', 'gameplay04WorkerV1', 'gameplay04ReceiptV1',
-      'gameplay04ReservationV1', 'gameplay04_schedule_v1',
+      'gameplay04ReservationV1', 'gameplay04BuildingV1', 'gameplay04ProjectV1',
+      'gameplay04_schedule_v1',
     ]) {
       const db: Record<string, unknown> = {};
       for (const name of [
@@ -857,7 +1086,8 @@ describe('module-local schema and Genesis 002 closure', () => {
         'resourceAccountV1', 'greaterRealmCastleClaimV1', 'greaterRealmCellOccupancyV1',
         'greaterRealmActivationV1', 'realmWorkerSystemV2', 'gameplay04KeepV1',
         'gameplay04WorkerV1', 'gameplay04ReceiptV1',
-        'gameplay04ReservationV1', 'gameplay04_schedule_v1',
+        'gameplay04ReservationV1', 'gameplay04BuildingV1', 'gameplay04ProjectV1',
+        'gameplay04_schedule_v1',
       ]) db[name] = { count: () => name === changed ? 1n : 0n };
       if (changed === undefined) assert.doesNotThrow(() => requireEmpty({ db }));
       else expectSenderCode(

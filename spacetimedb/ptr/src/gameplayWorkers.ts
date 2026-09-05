@@ -6,6 +6,15 @@ import {
   type KeepBinding04,
 } from '../../gameplay04/keep';
 import {
+  Gameplay04ConstructionError,
+  completedBuildingLevels04,
+  type ConstructionStorage04,
+  type ProjectSchedule04,
+} from '../../gameplay04/construction';
+import { isPositiveU64Gameplay04, isTimestampGameplay04 } from '../../gameplay04/commands';
+import { reconcileGameplayWithoutRevision04 } from '../../gameplay04/reconciliation';
+import type { Building04, CompletedLevels04 } from '../../gameplay04/policy';
+import {
   Gameplay04WorkerError,
   dispatchWorker04,
   preflightWorkerCommand04,
@@ -48,10 +57,14 @@ const ZERO_COMPLETED_LEVELS = Object.freeze({
   'city-goldworks': 0,
   'city-barracks': 0,
   'grand-covenant-cathedral': 0,
-});
+}) satisfies CompletedLevels04;
 
 function sender(error: unknown, fallback: string): never {
-  if (error instanceof Gameplay04WorkerError || error instanceof Gameplay04KeepError) {
+  if (
+    error instanceof Gameplay04WorkerError
+    || error instanceof Gameplay04KeepError
+    || error instanceof Gameplay04ConstructionError
+  ) {
     throw new SenderError(error.code);
   }
   if (error instanceof SenderError) throw error;
@@ -99,22 +112,95 @@ function dueAtMicros(row: any): bigint {
     row.scheduledAt?.tag !== 'Time'
     || typeof row.scheduledAt.value?.microsSinceUnixEpoch !== 'bigint'
   ) throw new Gameplay04WorkerError('GAMEPLAY04_STORED_STATE_INVALID');
-  return row.scheduledAt.value.microsSinceUnixEpoch;
+  const value = row.scheduledAt.value.microsSinceUnixEpoch;
+  if (!isTimestampGameplay04(value)) {
+    throw new Gameplay04WorkerError('GAMEPLAY04_STORED_STATE_INVALID');
+  }
+  return value;
 }
 
-export function gameplay04WorkerStorage(tx: PtrContext): WorkerStorage04 {
+export type DecodedSchedule04 = Readonly<{
+  scheduleId: bigint;
+  scheduledAt: unknown;
+  keepId: string;
+  lane: 'worker' | 'project';
+  worker: Readonly<{ workerId: string; assignmentRevision: bigint }> | undefined;
+  project: Readonly<{ buildingId: string; projectRevision: bigint }> | undefined;
+  dueAtMicros: bigint;
+}>;
+
+export function decodeGameplay04Schedules(
+  tx: PtrContext,
+  keepId: string,
+): readonly DecodedSchedule04[] {
+  const rows = [...tx.db.gameplay04_schedule_v1.keepId.filter(keepId)];
+  if (rows.length > 5) throw new Gameplay04WorkerError('GAMEPLAY04_STORED_STATE_INVALID');
+  const ids = new Set<bigint>();
+  return Object.freeze(rows.map(row => {
+    const worker = row.worker ?? undefined;
+    const project = row.project ?? undefined;
+    if (
+      row.keepId !== keepId
+      || !isPositiveU64Gameplay04(row.scheduleId)
+      || ids.has(row.scheduleId)
+      || (row.lane !== 'worker' && row.lane !== 'project')
+      || (row.lane === 'worker' && (
+        worker === undefined
+        || project !== undefined
+        || typeof worker.workerId !== 'string'
+        || worker.workerId.length === 0
+        || !isPositiveU64Gameplay04(worker.assignmentRevision)
+      ))
+      || (row.lane === 'project' && (
+        project === undefined
+        || worker !== undefined
+        || typeof project.buildingId !== 'string'
+        || project.buildingId.length === 0
+        || !isPositiveU64Gameplay04(project.projectRevision)
+      ))
+    ) throw new Gameplay04WorkerError('GAMEPLAY04_STORED_STATE_INVALID');
+    ids.add(row.scheduleId);
+    return Object.freeze({
+      scheduleId: row.scheduleId,
+      scheduledAt: row.scheduledAt,
+      keepId: row.keepId,
+      lane: row.lane,
+      worker,
+      project,
+      dueAtMicros: dueAtMicros(row),
+    });
+  }));
+}
+
+export function gameplay04WorkerStorage(tx: PtrContext): ConstructionStorage04 {
   return {
     findKeep: keepId => tx.db.gameplay04KeepV1.keepId.find(keepId),
     workers: keepId => [...tx.db.gameplay04WorkerV1.keepId.filter(keepId)].map(pureWorker),
     receipts: keepId => tx.db.gameplay04ReceiptV1.keepId.filter(keepId),
     reservations: keepId => tx.db.gameplay04ReservationV1.keepId.filter(keepId),
-    schedules: keepId => [...tx.db.gameplay04_schedule_v1.keepId.filter(keepId)].map(row => ({
-      scheduleId: row.scheduleId,
-      keepId: row.keepId,
-      workerId: row.workerId,
-      assignmentRevision: row.assignmentRevision,
-      dueAtMicros: dueAtMicros(row),
+    schedules: keepId => decodeGameplay04Schedules(tx, keepId)
+      .filter(row => row.lane === 'worker')
+      .map(row => ({
+        scheduleId: row.scheduleId,
+        keepId: row.keepId,
+        workerId: row.worker!.workerId,
+        assignmentRevision: row.worker!.assignmentRevision,
+        dueAtMicros: row.dueAtMicros,
+      })),
+    buildings: keepId => [...tx.db.gameplay04BuildingV1.keepId.filter(keepId)].map(row => ({
+      ...row,
+      kind: row.kind as Building04,
     })),
+    findProject: keepId => tx.db.gameplay04ProjectV1.keepId.find(keepId),
+    projectSchedules: keepId => decodeGameplay04Schedules(tx, keepId)
+      .filter(row => row.lane === 'project')
+      .map(row => ({
+        scheduleId: row.scheduleId,
+        keepId: row.keepId,
+        buildingId: row.project!.buildingId,
+        projectRevision: row.project!.projectRevision,
+        dueAtMicros: row.dueAtMicros,
+      } satisfies ProjectSchedule04)),
     findReservation: nodeId => tx.db.gameplay04ReservationV1.nodeId.find(nodeId),
     insertKeep: row => { tx.db.gameplay04KeepV1.insert(row); },
     insertWorker: row => { tx.db.gameplay04WorkerV1.insert(storedWorker({
@@ -130,10 +216,26 @@ export function gameplay04WorkerStorage(tx: PtrContext): WorkerStorage04 {
       scheduleId: 0n,
       scheduledAt: ScheduleAt.time(row.dueAtMicros),
       keepId: row.keepId,
-      workerId: row.workerId,
-      assignmentRevision: row.assignmentRevision,
+      lane: 'worker',
+      worker: { workerId: row.workerId, assignmentRevision: row.assignmentRevision },
+      project: undefined,
     }); },
     deleteSchedule: scheduleId => { tx.db.gameplay04_schedule_v1.scheduleId.delete(scheduleId); },
+    insertBuilding: row => { tx.db.gameplay04BuildingV1.insert(row); },
+    updateBuilding: row => { tx.db.gameplay04BuildingV1.buildingId.update(row); },
+    insertProject: row => { tx.db.gameplay04ProjectV1.insert(row); },
+    deleteProject: keepId => { tx.db.gameplay04ProjectV1.keepId.delete(keepId); },
+    insertProjectSchedule: row => { tx.db.gameplay04_schedule_v1.insert({
+      scheduleId: 0n,
+      scheduledAt: ScheduleAt.time(row.dueAtMicros),
+      keepId: row.keepId,
+      lane: 'project',
+      worker: undefined,
+      project: { buildingId: row.buildingId, projectRevision: row.projectRevision },
+    }); },
+    deleteProjectSchedule: scheduleId => {
+      tx.db.gameplay04_schedule_v1.scheduleId.delete(scheduleId);
+    },
   };
 }
 
@@ -157,6 +259,7 @@ function resolveDispatch(
   tx: PtrContext,
   atlas: PtrReadyAtlas,
   input: DispatchWorkerInput04,
+  completed: CompletedLevels04 = ZERO_COMPLETED_LEVELS,
 ): ResolvedDispatch04 {
   const rows = [...tx.db.greaterRealmResourceNodeV1.locationId.filter(input.locationId)];
   if (rows.length < 1 || rows.length > GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION) {
@@ -216,7 +319,7 @@ function resolveDispatch(
     resource: input.resource,
     candidateNodeIds: Object.freeze(rows.map(row => row.nodeId)),
     route: Object.freeze(path.map(cell => Object.freeze({ q: cell.atlasQ, r: cell.atlasR }))),
-    completed: ZERO_COMPLETED_LEVELS,
+    completed,
   });
 }
 
@@ -242,12 +345,19 @@ export const dispatchGameplay04WorkerV1 = ptr.procedure(
           { kind: 'dispatch', input: commandInput },
         );
         if (preflight.kind === 'replay') return preflight.result;
+        const reconciled = reconcileGameplayWithoutRevision04(
+          store, binding, tx.timestamp.microsSinceUnixEpoch,
+        );
+        const completed = completedBuildingLevels04([
+          ...store.buildings(binding.keepId),
+        ]);
         return dispatchWorker04(
           store,
           binding,
           tx.timestamp.microsSinceUnixEpoch,
           commandInput,
-          resolveDispatch(tx, atlas, commandInput),
+          resolveDispatch(tx, atlas, commandInput, completed),
+          reconciled.keep,
         );
       });
     } catch (error) { return sender(error, 'GAMEPLAY04_DISPATCH_FAILED'); }
@@ -263,11 +373,23 @@ export const recallGameplay04WorkerV1 = ptr.procedure(
       return ctx.withTx(tx => {
         const { claims } = requirePtrOwner(tx);
         const atlas = requirePtrReadyAtlas(tx);
+        const store = gameplay04WorkerStorage(tx);
+        const binding = gameplay04Binding(tx, claims.fid, atlas);
+        const commandInput = input as any;
+        const preflight = preflightWorkerCommand04(
+          store, binding, tx.timestamp.microsSinceUnixEpoch,
+          { kind: 'recall', input: commandInput },
+        );
+        if (preflight.kind === 'replay') return preflight.result;
+        const reconciled = reconcileGameplayWithoutRevision04(
+          store, binding, tx.timestamp.microsSinceUnixEpoch,
+        );
         return recallWorker04(
-          gameplay04WorkerStorage(tx),
-          gameplay04Binding(tx, claims.fid, atlas),
+          store,
+          binding,
           tx.timestamp.microsSinceUnixEpoch,
-          input,
+          commandInput,
+          reconciled.keep,
         );
       });
     } catch (error) { return sender(error, 'GAMEPLAY04_RECALL_FAILED'); }
