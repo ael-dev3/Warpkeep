@@ -213,3 +213,62 @@ tests/ptrRealmBackend.test.ts
 - The checked-in PTR generated binding family is now expectedly stale relative to the compiled module. Its exact equality test remains red until the controller's later release-family refreeze. This task intentionally did not mutate generated release artifacts or pins.
 - This is the controller-approved incremental persistence slice for the initial three private gameplay families. It is not the complete Gameplay 0.4 release: the final seven-family gameplay model, worker assignment payloads, gathering/construction/scheduler behavior, final generated bindings, and live authenticated acceptance remain required before release.
 - No secrets were accessed and nothing was deployed.
+
+## Review fix round 1 of 5
+
+Review base: `5017323e132ddd50c46580d60381461fd31e0ce1`.
+
+Applied both controller-confirmed Important findings from `task-1-review.md`:
+
+- `validateBinding` now establishes that `databaseIdentity` is a primitive string of exactly 64 characters before evaluating the lowercase-hex regular expression. This prevents `RegExp.test` coercion from admitting a non-string identity into persistent state.
+- Replaced the combined Worker corruption loop with four case-distinct tests. Missing state returns three rows; wrong-keep state deliberately returns four rows including the foreign row; duplicate state deliberately returns four rows containing a duplicate ordinal and identity; over-cap state deliberately returns five rows. The storage harness accepts an explicit returned-row fixture so corruption is not silently filtered by `keepId`.
+
+The reviewer Minor concerning sort-before-ordinal scalar validation was left unchanged by controller ruling for later Worker integration/final review.
+
+### Round 1 RED
+
+Tests were changed before production code. The production mutation caught by the new regression is removal of the primitive-string/length checks: a coercible object then reaches initialization instead of failing at the binding boundary.
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/gameplay04Keep.test.ts --maxWorkers=1
+```
+
+Exit code: `1`.
+
+```text
+Test Files  1 failed (1)
+Tests       1 failed | 14 passed (15)
+FAIL ... rejects a non-string database identity before storage access
+AssertionError: Missing expected exception.
+RED_EXIT=1
+```
+
+All four revised Worker cases passed during this RED run against the existing production validators. Their fixture correction is tests-only: the production Worker validation already rejected each invariant once the deliberately corrupted rows were actually returned.
+
+### Round 1 GREEN and covering verification
+
+After adding the minimal type and exact-length checks before `DATABASE_HEX.test`:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/gameplay04Keep.test.ts tests/gameplay04KeepModules.test.ts --maxWorkers=1
+```
+
+Exit code: `0`.
+
+```text
+Test Files  2 passed (2)
+Tests       23 passed (23)
+GREEN_EXIT=0
+```
+
+Applicable typechecks were rerun fresh:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/typescript/bin/tsc -p tsconfig.app.json --tsBuildInfoFile .git/gameplay04-keep-fix-r1.tsbuildinfo
+& .git/ci-node-22.22.3/node.exe node_modules/typescript/bin/tsc -p spacetimedb/ptr/tsconfig.json --noEmit
+& .git/ci-node-22.22.3/node.exe node_modules/typescript/bin/tsc -p spacetimedb/genesis002/tsconfig.json --noEmit
+```
+
+Exit codes: app `0`, PTR `0`, G002 `0`; no diagnostics.
+
+Round 1 review found no additional scoped defect. `git diff --check` passed for the authority and test corrections. No release artifact, pin, module schema, procedure wire, dependency file, or unrelated dirty path was changed.

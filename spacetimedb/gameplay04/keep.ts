@@ -88,6 +88,8 @@ function validateBinding(binding: KeepBinding04): void {
   if (
     binding === null
     || typeof binding !== 'object'
+    || typeof binding.databaseIdentity !== 'string'
+    || binding.databaseIdentity.length !== 64
     || !DATABASE_HEX.test(binding.databaseIdentity)
     || !isPositiveU64(binding.ownerFid)
     || !boundedText(binding.atlasId, MAX_BINDING_TEXT)

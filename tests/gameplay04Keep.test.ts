@@ -77,10 +77,11 @@ class TransactionalKeepHarness {
     return result;
   }
 
-  directStorage(): KeepStorage04 {
+  directStorage(returnedWorkers?: readonly WorkerSlot04[]): KeepStorage04 {
     return {
       findKeep: keepId => this.keeps.get(keepId) ?? null,
-      workers: keepId => [...this.workers.values()].filter(row => row.keepId === keepId),
+      workers: keepId => returnedWorkers
+        ?? [...this.workers.values()].filter(row => row.keepId === keepId),
       receipts: keepId => [...this.receipts.values()].filter(row => row.keepId === keepId),
       insertKeep: row => { this.keeps.set(row.keepId, row); },
       insertWorker: row => { this.workers.set(row.workerId, row); },
@@ -209,6 +210,21 @@ describe('gameplay 0.4 keep initialization authority', () => {
     );
   });
 
+  test('rejects a non-string database identity before storage access', () => {
+    const harness = new TransactionalKeepHarness();
+    const coercibleIdentity = { toString: () => DATABASE_IDENTITY };
+    const binding = {
+      ...BINDING,
+      databaseIdentity: coercibleIdentity,
+    } as unknown as KeepBinding04;
+
+    expectCode(
+      () => harness.tx(store => initializeKeep04(store, binding, 0n, INPUT)),
+      'GAMEPLAY04_BINDING_INVALID',
+    );
+    assert.deepEqual(harness.snapshot(), { keeps: [], workers: [], receipts: [] });
+  });
+
   test('read never initializes and initialization rejects orphan rows', () => {
     const missing = new TransactionalKeepHarness();
     expectCode(
@@ -257,37 +273,57 @@ describe('gameplay 0.4 keep initialization authority', () => {
     }
   });
 
-  test('rejects missing, duplicate, foreign, and over-cap Worker state', () => {
-    const mutations: Array<(harness: TransactionalKeepHarness) => void> = [
-      harness => { harness.workers.delete(`${KEEP_ID}:worker:3`); },
-      harness => {
-        harness.workers.set('duplicate-slot', {
-          workerId: `${KEEP_ID}:worker:0`, keepId: KEEP_ID, ordinal: 0,
-          assignmentRevision: 0n,
-        });
-      },
-      harness => {
-        harness.workers.set(`${KEEP_ID}:worker:3`, {
-          workerId: `${KEEP_ID}:worker:3`, keepId: 'foreign', ordinal: 3,
-          assignmentRevision: 0n,
-        });
-      },
-      harness => {
-        harness.workers.set(`${KEEP_ID}:worker:4`, {
-          workerId: `${KEEP_ID}:worker:4`, keepId: KEEP_ID, ordinal: 4,
-          assignmentRevision: 0n,
-        });
-      },
-    ];
-    for (const mutate of mutations) {
-      const harness = new TransactionalKeepHarness();
-      harness.tx(store => initializeKeep04(store, BINDING, 1n, INPUT));
-      mutate(harness);
-      expectCode(
-        () => readKeep04(harness.directStorage(), BINDING),
-        'GAMEPLAY04_STORED_STATE_INVALID',
-      );
-    }
+  test('rejects missing Worker state', () => {
+    const harness = new TransactionalKeepHarness();
+    harness.tx(store => initializeKeep04(store, BINDING, 1n, INPUT));
+    const rows = [...harness.workers.values()].slice(0, 3);
+
+    expectCode(
+      () => readKeep04(harness.directStorage(rows), BINDING),
+      'GAMEPLAY04_STORED_STATE_INVALID',
+    );
+  });
+
+  test('rejects a wrong keepId in four returned Worker rows', () => {
+    const harness = new TransactionalKeepHarness();
+    harness.tx(store => initializeKeep04(store, BINDING, 1n, INPUT));
+    const rows = [...harness.workers.values()].map(row => (
+      row.ordinal === 3 ? { ...row, keepId: 'foreign' } : row
+    ));
+    assert.equal(rows.length, 4);
+
+    expectCode(
+      () => readKeep04(harness.directStorage(rows), BINDING),
+      'GAMEPLAY04_STORED_STATE_INVALID',
+    );
+  });
+
+  test('rejects duplicate Worker ordinal and identity in four returned rows', () => {
+    const harness = new TransactionalKeepHarness();
+    harness.tx(store => initializeKeep04(store, BINDING, 1n, INPUT));
+    const validRows = [...harness.workers.values()];
+    const rows = [...validRows.slice(0, 3), { ...validRows[2]! }];
+    assert.equal(rows.length, 4);
+
+    expectCode(
+      () => readKeep04(harness.directStorage(rows), BINDING),
+      'GAMEPLAY04_STORED_STATE_INVALID',
+    );
+  });
+
+  test('rejects a fifth returned Worker row', () => {
+    const harness = new TransactionalKeepHarness();
+    harness.tx(store => initializeKeep04(store, BINDING, 1n, INPUT));
+    const rows = [...harness.workers.values(), {
+      workerId: `${KEEP_ID}:worker:4`, keepId: KEEP_ID, ordinal: 4,
+      assignmentRevision: 0n,
+    }];
+    assert.equal(rows.length, 5);
+
+    expectCode(
+      () => readKeep04(harness.directStorage(rows), BINDING),
+      'GAMEPLAY04_STORED_STATE_INVALID',
+    );
   });
 
   test('receipt replay, conflict, expiry, gaps, and normal re-entry are distinct', () => {
