@@ -170,3 +170,201 @@ The required scoped gates and pinned app TypeScript are green as recorded above.
 
 Full release, backend gameplay, palette polish, authenticated/physical-device
 acceptance, and long-duration performance remain separate requirements.
+
+## Review fix round 1 (superseding corrections)
+
+This section supersedes the earlier breakpoint-continuity limitation and the
+classification of the B0 closure failure above. The correction was developed
+from review base `9c4bf5f131ad98eb29f79fc336a8d8046d8a16ef`.
+
+Fix source and tests commit:
+`3bbcfc18c4918e9047ded6201f4e866d5b076b1e`
+
+The canvas host is now keyed only to genuine session, identity, and own-castle
+authority changes. A responsive policy change keeps the same canvas host and
+WebGL renderer, creates a profile-appropriate scene runtime inside that host,
+reapplies the latest validated snapshot so uploads are queued under the new
+budget, and retains a selected target only when the same kind and atlas
+coordinate remain in the returned view. The old scene runtime is disposed only
+after its replacement starts. Replacement is deferred while the context is
+lost and applied after restoration; a failed replacement is cleaned up and
+fails the host closed. Genuine session/identity changes still dispose the host
+and its authority. The generation-scoped public client runtime/subscription is
+still replaced when its adaptive device/profile/window policy changes, so its
+network and selected-chunk budgets are not frozen. This report claims host,
+WebGL renderer, and valid world-selection continuity across the breakpoint; it
+does not claim that every internal scene or client runtime object is retained.
+
+The Greater-Realm disclosure wrappers now render only in the
+`greater-realm` strategy. The `connection-hold` branch again renders its status,
+resource/Worker spans, Inner Keep action, and Return to Menu directly under the
+original `.realm-map-screen__loading` parent, with no hidden disclosure trigger
+or Greater-Realm wrapper in that branch.
+
+Narrow disclosure state and adjacent realm-chat device chrome now use the same
+exported predicate. The shared boundary is `< 760px` (or a coarse pointer), and
+the CSS queries use the same strict width comparison, eliminating the mixed
+mode at exactly 760px.
+
+The exact prepared-deploy closure authority now includes all five paths that
+were present in the derived graph but missing from the fixed sorted namespace:
+
+- `scripts/ptr-binding-locked-source-build-core.ts`
+- `scripts/ptr-binding-locked-source-build.ts`
+- `src/components/realm/greaterRealmVoxelPresentation.ts`
+- `src/components/realm/useNarrowRealmPresentation.ts`
+- `src/components/realm/voxelSurfaceMesh.ts`
+
+The exact member-count assertions in B0Closure, PreparedWorkflow, and
+PreparedReleaseProjection are now 1027. Derived/fixed graph equality,
+declaration parity, membership checks, and release-transition verification were
+retained; no release activation, refreeze, graph bypass, or security-guard
+weakening was added.
+
+### Fix-round exact owned files
+
+- `scripts/auth-bridge-notification-prepared-deploy-closure.mjs`
+- `src/components/realm/GreaterRealmWorldScene.tsx`
+- `src/components/realm/RealmMapScreen.css`
+- `src/components/realm/RealmMapScreen.tsx`
+- `src/components/realm/createGreaterRealmWorldCanvasHost.ts`
+- `src/components/realm/useNarrowRealmPresentation.ts`
+- `tests/authBridgeNotificationB0Closure.test.ts`
+- `tests/authBridgeNotificationPreparedReleaseProjection.test.ts`
+- `tests/authBridgeNotificationPreparedWorkflow.test.ts`
+- `tests/greaterRealmWorldCanvasHost.test.ts`
+- `tests/greaterRealmWorldScene.test.tsx`
+- `tests/realmCastleCssContract.test.ts`
+- `tests/realmMapScreen.test.tsx`
+- `.superpowers/sdd/release-closure-plan/task-v2-report.md` (report commit only)
+
+Unrelated line-ending dirt, the unrelated integrated-voxel plan edit, G001
+projection, backend work, and the root `node_modules` junction were preserved.
+No dependency or lockfile was changed.
+
+### Fix-round TDD and verification evidence
+
+Responsive/legacy/threshold RED command:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/greaterRealmWorldScene.test.tsx tests/greaterRealmWorldCanvasHost.test.ts tests/realmMapScreen.test.tsx --maxWorkers=1
+```
+
+Result: exit 1; 3 files failed; 5 tests failed and 62 passed. The new tests
+reported that the host factory was called twice at 390 -> 1440,
+`host.updatePolicy` did not exist, the disclosure trigger was present at exactly
+760px, and the connection-hold branch still contained the hidden Realm-details
+trigger/wrappers. A later canvas lifecycle assertion also failed because the
+missing-method exception aborted the new host test before disposal and leaked
+its listeners; it passed once that primary RED was corrected.
+
+Closure RED command:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/authBridgeNotificationB0Closure.test.ts --maxWorkers=1
+```
+
+Result: exit 1; 1 test failed and 2 passed. Exact error:
+`AssertionError: expected [ …(1027) ] to deeply equal [ …(1022) ]`. The diff
+listed exactly the two PTR build files, the two voxel files, and the new narrow
+presentation hook recorded above.
+
+Final UI/host gate after all source changes:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/greaterRealmWorldScene.test.tsx tests/greaterRealmWorldCanvasHost.test.ts tests/greaterRealmHostQaNavigation.test.tsx tests/realmMapScreen.test.tsx tests/realmCastleCssContract.test.ts tests/realmChoicePolicy.test.ts tests/realmChoiceMenuIntegration.test.tsx tests/WarpkeepExperiencePtrRealm.test.tsx --maxWorkers=1
+```
+
+Result: exit 0; 8 files passed; 128 tests passed; duration 34.44s. The host
+coverage includes adaptive replacement/requeue, valid-selection retention,
+invalid-selection clearing, context-loss deferral/restoration, failed-swap
+cleanup, and genuine owner teardown.
+
+Final pinned app TypeScript command:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/typescript/bin/tsc -p tsconfig.app.json --tsBuildInfoFile .git/voxel-runtime.tsbuildinfo
+```
+
+Result: exit 0 with no diagnostics.
+
+Final B0 topology command was the RED command above after correction. Result:
+exit 0; 1 file passed; 3 tests passed; duration 6.26s.
+
+Focused PreparedWorkflow command:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/authBridgeNotificationPreparedWorkflow.test.ts -t "derives the exact executable" --maxWorkers=1
+```
+
+Native Windows result: exit 1; the focused test reached its final policy
+verifier after the exact path/manifest/count assertions, then failed with
+`AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_REPOSITORY_INVALID` at
+`scripts/auth-bridge-notification-prepared-deploy-closure.mjs:1247`, called by
+the verifier at line 1876 and the test at line 1320. The guard was not changed.
+
+Focused PreparedReleaseProjection command:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/authBridgeNotificationPreparedReleaseProjection.test.ts -t "constructs the same C0 authority" --maxWorkers=1
+```
+
+Native Windows result: exit 1 with the same
+`AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_REPOSITORY_INVALID` at closure lines
+1247/1876, reached from the projection verifier/test at lines 231/454. No test
+or security-policy source was weakened.
+
+Fresh exact-source Linux verification used detached commit
+`3bbcfc18c4918e9047ded6201f4e866d5b076b1e` in
+`/tmp/warpkeep-v2-closure-rKkfKm9k/repo`, cloned with `--no-hardlinks` and an
+initial clean Git status. Existing root and auth-bridge dependencies were
+reused through ignored symlinks; nothing was reinstalled. The projection filter
+passed 1 test with 6 filtered in 1.138s. The workflow filter passed 1 test with
+117 filtered, exit 0, in 8.72s. An initial combined attempt had a workflow
+import/setup failure because service dependencies were absent; after linking
+the existing service dependency tree, the exact workflow filter passed. These
+are focused exact-source results, not the complete PreparedWorkflow or
+PreparedReleaseProjection files.
+
+`git diff --cached --check` passed before the fix source/test commit. Git again
+emitted only the known `RealmMapScreen.css` LF-to-CRLF working-copy warning.
+
+### Fix-round actual local Chrome synthetic QA
+
+The controller reran the strengthened private probe against the stable fix
+source:
+
+- `.git/voxel-viewport-ui390-yrMwy8`, exit 0 in 7.63s
+- `.git/voxel-viewport-ui360-gtP0qp`, exit 0 in 8.99s
+
+The probe used the actual `SELECT NEXT` control and retained the exact selected
+status `The Hegemony Lowlands at -1, 1` through 390 -> 1440 -> 390, with the
+same canvas. All disclosure, hit-target, synthetic Escape/focus, three realm
+cycles, resize, and actual WebGL context-recovery checks passed. Fresh visual
+inspection of `ui360-gtP0qp/panel-2.png` and
+`ui390-yrMwy8/recovery.png` confirmed that the map/vessel panel and disclaimer
+remain clear of chat and that the recovered scene is visible with compact
+controls.
+
+This remains local synthetic Chrome evidence using DOM clicks and synthetic
+Escape. It is not physical-device/touch/keyboard acceptance, authenticated
+gameplay, long-duration performance evidence, or proof that all internal scene
+and client runtime objects persist across the breakpoint.
+
+### Corrected full-suite classification
+
+The earlier full-suite attempt remains interrupted before Vitest emitted a
+final summary or assertion-detail section; it was not rerun in this fix round.
+The 16 named RuntimeRelease, LicensePolicy, and GreaterRealmCliSecurity failures
+were independently reproduced on native Windows. The controller then ran the
+three complete groups in an existing Linux scratch whose implicated test/source
+hashes matched and obtained 89/89 passing in 322.95s. That Linux scratch was not
+the current fix commit, so this is platform-diagnostic evidence rather than a
+current-HEAD full-suite certification. It is consistent with the native
+failures exercising POSIX ancestor-mode, newline-filename creation, and trusted
+Git-mode admission guards; those guards were intentionally left unchanged.
+
+The B0 closure mismatch was not unrelated: it was a real source-closure defect
+within this fix scope. It is corrected by the exact five-member integration and
+the focused B0 gate is green as recorded above. The original interrupted run
+still provides no whole-suite-green claim.
