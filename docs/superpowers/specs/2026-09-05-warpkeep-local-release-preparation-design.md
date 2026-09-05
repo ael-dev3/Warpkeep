@@ -1,5 +1,17 @@
 # Warpkeep local final-release preparation
 
+## Priority amendment: admissions deferred
+
+The owner's latest direction makes shipping 0.4 live the immediate priority;
+future admissions scope is undecided and deferred until after release. Do not
+design, expand or activate admissions as part of this work. Preserve current
+access restrictions and existing players during deployment. Do not interpret
+the undecided future policy as authorization to open access, delete players or
+relax authentication. Admission-policy design is not a release prerequisite.
+An owner identity is necessary only for an operation that actually provisions
+owner access; its absence must not block unrelated release work or be filled
+with an invented identity.
+
 ## Scope amendment: all production operations local
 
 The owner's subsequent instruction is: disregard the Mac runner entirely and
