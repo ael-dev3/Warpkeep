@@ -102,10 +102,16 @@ function restrictSelectedNodeFixtureAncestry(
   source: string,
   fixtureRoot: string,
 ): string {
-  return source.replace(
-    /(function verify_immutable_executable_path\(\) \{[\s\S]*?)if \[\[ "\$component" == '\/' \]\]; then break; fi/u,
-    `$1if [[ "$component" == ${bashSingleQuoted(bashPath(fixtureRoot))} || "$component" == '/' ]]; then break; fi`,
-  );
+  const declaration = /^verify_immutable_executable_path\(\) \{\n[\s\S]*?^\}/gmu;
+  const functions = [...source.matchAll(declaration)];
+  const stop = 'if [[ "$component" == \'/\' ]]; then break; fi';
+  if (functions.length !== 1 || functions[0]![0].split(stop).length !== 2) {
+    throw new Error('B0 fixture ancestry boundary invalid');
+  }
+  return source.replace(declaration, body => body.replace(
+    stop,
+    () => `if [[ "$component" == ${bashSingleQuoted(bashPath(fixtureRoot))} || "$component" == '/' ]]; then break; fi`,
+  ));
 }
 
 function setFixtureMode(path: string, mode: number): void {
@@ -235,6 +241,25 @@ function protectedLaunchForPortableMetadata(
   return process.platform === 'win32'
     ? adaptWindowsFixtureShellSource(generatedBash)
     : generatedBash;
+}
+
+for (const stepId of ['deploy', 'recovery']) {
+  it.each(['missing function', 'duplicate function', 'missing stop', 'duplicate stop'])(
+    `rejects %s before adapting the ${stepId} fixture ancestry`,
+    mutation => {
+      const source = step(stepId).run ?? '';
+      const stop = 'if [[ "$component" == \'/\' ]]; then break; fi';
+      const changed = mutation === 'missing function'
+        ? source.replace('verify_immutable_executable_path() {', 'different_function() {')
+        : mutation === 'duplicate function'
+          ? `${source}\n${source}`
+          : mutation === 'missing stop'
+            ? source.replace(stop, '')
+            : source.replace(stop, `${stop}\n${stop}`);
+      expect(() => restrictSelectedNodeFixtureAncestry(changed, '/private/test-fixture'))
+        .toThrow('B0 fixture ancestry boundary invalid');
+    },
+  );
 }
 
 it('renders a native selected Node path with forward slashes in generated Bash only', () => {
