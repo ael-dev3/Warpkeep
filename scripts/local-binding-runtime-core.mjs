@@ -578,14 +578,18 @@ export async function deriveFixedLocalBindingRuntime() {
     const manifestSource = stableFile(manifestPath).toString('utf8');
     const manifest = validateLocalBindingYamlManifest(manifestSource);
     const yaml = attestYaml(manifest);
+    verifyLocalBindingBootstrapSource(source);
     const { attestPinnedSpacetimeCli } = await import(pathToFileURL(
       join(source.root, 'scripts', 'spacetime-cli-attestation.mjs'),
     ).href);
+    verifyLocalBindingBootstrapSource(source);
     const cliAttestation = attestPinnedSpacetimeCli(CLI_PATH, spawnSync, environment);
     cli = cliAttestation;
+    verifyLocalBindingBootstrapSource(source);
     const { readSpacetimeBindingTree } = await import(pathToFileURL(
       join(source.root, 'scripts', 'spacetime-binding-tree.mjs'),
     ).href);
+    verifyLocalBindingBootstrapSource(source);
     const verifyExecutables = () => {
       stableFile(NODE_PATH, NODE_BYTES, NODE_SHA256, 1000, true, nodeAuthority.identity).fill(0);
       stableFile(GIT_PATH, undefined, GIT_SHA256, 0, true, gitAuthority.identity).fill(0);

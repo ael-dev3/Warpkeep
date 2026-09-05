@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -270,19 +270,20 @@ describe('controlled local binding runtime lifecycle', () => {
 
     expect(Buffer.from(output.bindings[0]!.bytes).toString()).toBe('controlled-bundle');
     expect(regularTree(liveBindings)).toEqual(beforeLiveBindings);
+    const nodeAttestation = `attest:${basename(process.execPath)}`;
     expect(boundary.events).toEqual([
       'entrypoint:core',
-      'attest:node.exe', 'attest:git', 'attest:spacetimedb-cli', 'attest:spacetimedb-standalone',
+      nodeAttestation, 'attest:git', 'attest:spacetimedb-cli', 'attest:spacetimedb-standalone',
       'hooks:register',
-      'attest:node.exe', 'attest:git', 'attest:spacetimedb-cli', 'attest:spacetimedb-standalone',
+      nodeAttestation, 'attest:git', 'attest:spacetimedb-cli', 'attest:spacetimedb-standalone',
       'builder:enter', 'builder:operation',
-      'attest:node.exe', 'attest:git', 'attest:spacetimedb-cli', 'attest:spacetimedb-standalone',
+      nodeAttestation, 'attest:git', 'attest:spacetimedb-cli', 'attest:spacetimedb-standalone',
       'command:typecheck',
-      'attest:node.exe', 'attest:git', 'attest:spacetimedb-cli', 'attest:spacetimedb-standalone',
+      nodeAttestation, 'attest:git', 'attest:spacetimedb-cli', 'attest:spacetimedb-standalone',
       'command:build-snapshot-cli',
-      'attest:node.exe', 'attest:git', 'attest:spacetimedb-cli', 'attest:spacetimedb-standalone',
+      nodeAttestation, 'attest:git', 'attest:spacetimedb-cli', 'attest:spacetimedb-standalone',
       'builder:operation-return', 'builder:cleanup-complete',
-      'attest:node.exe', 'attest:git', 'attest:spacetimedb-cli', 'attest:spacetimedb-standalone',
+      nodeAttestation, 'attest:git', 'attest:spacetimedb-cli', 'attest:spacetimedb-standalone',
       'hooks:deregister',
     ]);
     expect(existsSync(join(value.materializationParent, 'ptr-linux-builds'))).toBe(false);
