@@ -1134,6 +1134,442 @@ def producer_control_flow() -> None:
     print("producer-control-flow:ok")
 
 
+def combined_producer_authority() -> None:
+    module = load_program()
+    if os.name != "posix" or os.geteuid() != 0:
+        raise AssertionError("combined producer authority test requires a root Linux test host")
+    parsed = module.validate_request(valid_request())
+    policy = parsed["sourcePolicy"]
+
+    registry_archives = {
+        "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.25.12.tgz":
+            b"synthetic-linux-x64-package\n",
+        "https://registry.npmjs.org/esbuild/-/esbuild-0.25.12.tgz":
+            b"synthetic-esbuild-package\n",
+    }
+    registry_sri = {
+        url: "sha512-" + base64.b64encode(hashlib.sha512(content).digest()).decode("ascii")
+        for url, content in registry_archives.items()
+    }
+
+    def package_document(name: str) -> bytes:
+        return json.dumps({
+            "name": name,
+            "private": True,
+            "packageManager": "pnpm@11.7.0",
+            "scripts": {},
+        }, separators=(",", ":")).encode("utf-8") + b"\n"
+
+    def lock_document(importer: str) -> bytes:
+        linux_sri = registry_sri[
+            "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.25.12.tgz"
+        ]
+        esbuild_sri = registry_sri[
+            "https://registry.npmjs.org/esbuild/-/esbuild-0.25.12.tgz"
+        ]
+        return f"""lockfileVersion: '9.0'
+
+importers:
+
+  {importer}:
+    devDependencies:
+      esbuild:
+        specifier: 0.25.12
+        version: 0.25.12
+
+packages:
+
+  '@esbuild/linux-x64@0.25.12':
+    resolution: {{integrity: {linux_sri}}}
+    cpu: [x64]
+    os: [linux]
+
+  esbuild@0.25.12:
+    resolution: {{integrity: {esbuild_sri}}}
+
+snapshots:
+
+  '@esbuild/linux-x64@0.25.12':
+    {{}}
+
+  esbuild@0.25.12:
+    optionalDependencies:
+      '@esbuild/linux-x64': 0.25.12
+""".encode("utf-8")
+
+    dependency_contents = {
+        "g001": {
+            "spacetimedb/package.json": package_document("warpkeep-spacetimedb-module"),
+            "spacetimedb/pnpm-lock.yaml": lock_document("."),
+            "spacetimedb/pnpm-workspace.yaml":
+                b"packages:\n  - .\nallowBuilds:\n  esbuild: true\n",
+        },
+        "g002": {
+            "spacetimedb/package.json": package_document("warpkeep-spacetimedb-module"),
+            "spacetimedb/pnpm-workspace.yaml":
+                b"packages:\n  - genesis002\nallowBuilds:\n  esbuild: true\n",
+            "spacetimedb/pnpm-lock.yaml": lock_document("genesis002"),
+            "spacetimedb/genesis002/package.json": package_document(
+                "warpkeep-genesis-002-spacetimedb-module"
+            ),
+        },
+        "ptr": {
+            "spacetimedb/ptr/package.json": package_document(
+                "warpkeep-ptr-spacetimedb-module"
+            ),
+            "spacetimedb/ptr/pnpm-lock.yaml": lock_document("."),
+        },
+    }
+    objects: dict[str, tuple[str, bytes]] = {}
+    preparation_manifest = b'{"syntheticPreparation":true}\n'
+    materializer = b"export const syntheticMaterializer = true\n"
+    source_files = {
+        realm: {**contents, f"{policy['sourceRules'][realm]['modulePath']}/src/module.ts": (
+            f"export const {realm} = true\n".encode("ascii")
+        )}
+        for realm, contents in dependency_contents.items()
+    }
+    roots = {
+        realm: build_tree(files, objects)
+        for realm, files in source_files.items()
+    }
+    preparation_root = build_tree({
+        policy["sourceRules"]["g001"]["preparationManifestPath"]: preparation_manifest,
+        policy["sourceRules"]["g001"]["materializerPath"]: materializer,
+    }, objects)
+    commits = {
+        realm: add_commit(root, realm, objects)
+        for realm, root in roots.items()
+    }
+    preparation_commit = add_commit(preparation_root, "preparation", objects)
+    rules = policy["sourceRules"]
+    rules["g001"].update({
+        "sourceCommit": commits["g001"],
+        "sourceTree": roots["g001"],
+        "dependencyBlobs": [
+            tree_path(module, roots["g001"], path, objects)
+            for path in rules["g001"]["dependencyPaths"]
+        ],
+        "preparationCommit": preparation_commit,
+        "preparationTree": preparation_root,
+        "preparationManifestBlob": tree_path(
+            module, preparation_root, rules["g001"]["preparationManifestPath"], objects,
+        ),
+        "preparationManifestBytes": len(preparation_manifest),
+        "preparationManifestSha256": hashlib.sha256(preparation_manifest).hexdigest(),
+        "materializerBlob": tree_path(
+            module, preparation_root, rules["g001"]["materializerPath"], objects,
+        ),
+        "materializerSha256": hashlib.sha256(materializer).hexdigest(),
+    })
+    parsed["sources"]["g001"].update({
+        "sourceCommit": commits["g001"],
+        "sourceTree": roots["g001"],
+    })
+    for realm in ("g002", "ptr"):
+        parsed["sources"][realm].update({
+            "sourceCommit": commits[realm],
+            "sourceTree": tree_path(
+                module, roots[realm], rules[realm]["modulePath"], objects,
+            ),
+        })
+
+    node_artifacts: dict[str, dict[str, bytes]] = {}
+    for version, release in policy["nodeReleases"].items():
+        member = f"synthetic-node-{version}\n".encode("ascii")
+        archive = tar_bytes({release["archiveMemberPath"]: (0o755, member)}, "w:xz")
+        archive_digest = hashlib.sha256(archive).hexdigest()
+        archive_name = release["archiveUrl"].rsplit("/", 1)[1]
+        shasums = f"{archive_digest}  {archive_name}\n".encode("ascii")
+        key = f"synthetic-key-{version}\n".encode("ascii")
+        signature = f"synthetic-signature-{version}\n".encode("ascii")
+        release.update({
+            "archiveBytes": len(archive),
+            "archiveSha256": archive_digest,
+            "archiveMemberBytes": len(member),
+            "archiveMemberSha256": hashlib.sha256(member).hexdigest(),
+            "shasumsBytes": len(shasums),
+            "shasumsSha256": hashlib.sha256(shasums).hexdigest(),
+            "signatureBytes": len(signature),
+            "signatureSha256": hashlib.sha256(signature).hexdigest(),
+            "publicKeyBytes": len(key),
+            "publicKeySha256": hashlib.sha256(key).hexdigest(),
+        })
+        node_artifacts[version] = {
+            "archive": archive,
+            "member": member,
+            "shasums": shasums,
+            "signature": signature,
+            "key": key,
+        }
+
+    pnpm_member_contents = {
+        "package/bin/pnpm.mjs": b"synthetic-pnpm-entry\n",
+        "package/dist/pnpm.mjs": b"synthetic-pnpm-distribution\n",
+        "package/package.json": b'{"name":"pnpm","version":"11.7.0"}\n',
+    }
+    pnpm_archive = tar_bytes({
+        path: (int(policy["pnpm"]["members"][path]["mode"], 8), content)
+        for path, content in pnpm_member_contents.items()
+    }, "w:gz")
+    policy["pnpm"].update({
+        "compressedBytes": len(pnpm_archive),
+        "sri": "sha512-" + base64.b64encode(
+            hashlib.sha512(pnpm_archive).digest()
+        ).decode("ascii"),
+        "sha256": hashlib.sha256(pnpm_archive).hexdigest(),
+        "members": {
+            path: {
+                **policy["pnpm"]["members"][path],
+                "bytes": len(content),
+                "sha256": hashlib.sha256(content).hexdigest(),
+            }
+            for path, content in pnpm_member_contents.items()
+        },
+    })
+
+    spacetime_member_contents = {
+        "spacetimedb-cli": b"synthetic-spacetime-cli\n",
+        "spacetimedb-standalone": b"synthetic-spacetime-standalone\n",
+    }
+    spacetime_archive = tar_bytes({
+        path: (0o755, content)
+        for path, content in spacetime_member_contents.items()
+    }, "w:gz")
+    policy["spacetime"].update({
+        "archiveBytes": len(spacetime_archive),
+        "archiveSha256": hashlib.sha256(spacetime_archive).hexdigest(),
+        "members": {
+            path: {
+                **policy["spacetime"]["members"][path],
+                "bytes": len(content),
+                "sha256": hashlib.sha256(content).hexdigest(),
+            }
+            for path, content in spacetime_member_contents.items()
+        },
+    })
+    parsed["sourcePolicySha256"] = hashlib.sha256(
+        module.canonical_bytes(policy)
+    ).hexdigest()
+
+    direct_artifacts: dict[str, bytes] = {
+        policy["pnpm"]["url"]: pnpm_archive,
+        **registry_archives,
+    }
+    for version, release in policy["nodeReleases"].items():
+        artifacts = node_artifacts[version]
+        direct_artifacts.update({
+            release["publicKeyUrl"]: artifacts["key"],
+            release["shasumsUrl"]: artifacts["shasums"],
+            release["signatureUrl"]: artifacts["signature"],
+            release["archiveUrl"]: artifacts["archive"],
+        })
+    spacetime_redirect = "https://release-assets.githubusercontent.com/synthetic-fixed"
+    request_calls: list[tuple[str, int]] = []
+
+    def request_once(url: str, maximum: int):
+        request_calls.append((url, maximum))
+        if url == policy["spacetime"]["archiveUrl"]:
+            return 302, {"location": spacetime_redirect}, b"synthetic redirect metadata"
+        if url == spacetime_redirect:
+            content = spacetime_archive
+        else:
+            content = direct_artifacts.get(url)
+        if content is None or len(content) > maximum:
+            raise AssertionError(f"unexpected or unbounded synthetic request: {url}")
+        return 200, {"content-length": str(len(content))}, content
+
+    with tempfile.TemporaryDirectory(prefix="warpkeep-combined-producer-") as temporary:
+        root = pathlib.Path(temporary)
+        state = root / "state"
+        source = root / "public.git" / "objects"
+        source.mkdir(parents=True, mode=0o700)
+        module.STATE_ROOT = str(state)
+        module.CATALOG_PATH = str(state / "cache-catalog-v2.json")
+        module.TRANSACTION_PATH = str(state / ".bootstrap-transaction-v1")
+        module.JOURNAL_PATH = str(pathlib.Path(module.TRANSACTION_PATH) / "journal.json")
+        module.STAGE_PATH = str(pathlib.Path(module.TRANSACTION_PATH) / "stage")
+        git_runner = FakeGit(str(source), objects)
+        process_calls: list[tuple[str, list[str]]] = []
+
+        def release_for_environment(environment: dict[str, str]):
+            matches = [
+                version for version in ("24.19.0", "22.22.3")
+                if version in environment.get("GNUPGHOME", "")
+            ]
+            if len(matches) != 1:
+                raise AssertionError("signature process did not bind one Node release")
+            return matches[0], policy["nodeReleases"][matches[0]]
+
+        def fixed_process(
+            executable: str,
+            arguments: list[str],
+            environment: dict[str, str],
+            maximum: int,
+            input_bytes: bytes | None = None,
+        ) -> bytes:
+            process_calls.append((executable, list(arguments)))
+            if executable == "/usr/bin/git":
+                return git_runner(executable, arguments, environment, maximum, input_bytes)
+            if input_bytes is not None or maximum < 1:
+                raise AssertionError("unexpected synthetic process input")
+            if executable in ("/usr/bin/gpg", "/usr/bin/gpgv"):
+                version, release = release_for_environment(environment)
+                artifacts = node_artifacts[version]
+                if executable == "/usr/bin/gpg" and "--import" in arguments:
+                    if pathlib.Path(arguments[-1]).read_bytes() != artifacts["key"]:
+                        raise AssertionError("signature verifier imported substituted key bytes")
+                    return b""
+                if executable == "/usr/bin/gpg" and "--list-keys" in arguments:
+                    algorithm = "22" if release["signingAlgorithm"] == "EdDSA" else "1"
+                    return (
+                        f"pub:-:255:{algorithm}:KEY::::::\n"
+                        f"fpr:::::::::{release['signerFingerprint']}:\n"
+                    ).encode("ascii")
+                if executable == "/usr/bin/gpgv":
+                    if (
+                        pathlib.Path(arguments[-2]).read_bytes() != artifacts["signature"]
+                        or pathlib.Path(arguments[-1]).read_bytes() != artifacts["shasums"]
+                    ):
+                        raise AssertionError("signature verifier received substituted signed bytes")
+                    return (
+                        f"[GNUPG:] VALIDSIG {release['signerFingerprint']} 1 2 3\n"
+                    ).encode("ascii")
+                raise AssertionError("unexpected GPG operation")
+            if executable == "/usr/bin/unshare":
+                pnpm_positions = [
+                    index for index, value in enumerate(arguments)
+                    if value.endswith("/package/bin/pnpm.mjs")
+                ]
+                if len(pnpm_positions) != 1:
+                    raise AssertionError("offline command omitted the pinned pnpm entrypoint")
+                command = arguments[pnpm_positions[0] + 1:]
+                if "store" in command and "add" in command:
+                    store_arguments = [
+                        value.removeprefix("--store-dir=") for value in command
+                        if value.startswith("--store-dir=")
+                    ]
+                    if len(store_arguments) != 1:
+                        raise AssertionError("store add did not bind one store directory")
+                    archive_path = pathlib.Path(command[-1])
+                    archive = archive_path.read_bytes()
+                    store = pathlib.Path(store_arguments[0])
+                    files = store / "files"
+                    files.mkdir(parents=True, exist_ok=True, mode=0o700)
+                    files.chmod(0o700)
+                    cached = files / hashlib.sha256(archive).hexdigest()
+                    if cached.exists() and cached.read_bytes() != archive:
+                        raise AssertionError("synthetic store collision")
+                    cached.write_bytes(archive)
+                    cached.chmod(0o600)
+                    return b""
+                if "fetch" in command:
+                    if not all(flag in command for flag in (
+                        "--offline", "--frozen-lockfile", "--ignore-scripts",
+                    )):
+                        raise AssertionError("dependency fetch widened its offline contract")
+                    return b""
+                raise AssertionError("unexpected offline pnpm operation")
+            raise AssertionError(f"unexpected producer process: {executable}")
+
+        authorities = {
+            name: getattr(module, name)
+            for name in (
+                "_export_source_objects",
+                "_source_evidence_records",
+                "_validate_dependency_documents",
+                "_install_toolchains",
+                "_verified_node_release",
+                "_build_dependency_caches",
+                "_fetch_registry_package",
+                "_verify_retained_node_signatures",
+                "_verify_node_signature",
+                "_verify_sri",
+                "_extract_selected_members",
+                "_verify_published_cache",
+            )
+        }
+        module._request_once = request_once
+        module._fixed_process = fixed_process
+        programs = {
+            **parsed["programs"],
+            "installedMode": "500",
+            "installedVerified": True,
+        }
+        system_tools = {
+            name: {
+                **value,
+                "installedBytes": 100 + index,
+                "installedMode": "755",
+                "installedVerified": True,
+            }
+            for index, (name, value) in enumerate(policy["systemTools"].items())
+        }
+        result = module._prepare_toolchain(
+            parsed, str(source), programs, system_tools,
+        )
+        if result["prepared"] is not True or result["signaturesVerified"] is not True:
+            raise AssertionError("combined producer did not publish verified evidence")
+        if any(getattr(module, name) is not function for name, function in authorities.items()):
+            raise AssertionError("combined producer replaced an authority function")
+
+        manifest = json.loads((state / "toolchains" / "linux-x64.json").read_bytes())
+        for realm, contents in dependency_contents.items():
+            observed = {
+                record["path"]: record["sha256"]
+                for record in manifest["sources"][realm]["dependencyFiles"]
+            }
+            expected = {
+                path: hashlib.sha256(content).hexdigest()
+                for path, content in contents.items()
+            }
+            if observed != expected:
+                raise AssertionError("exported dependency bytes did not reach document authority")
+            source_evidence = manifest["sources"][realm]
+            cache_evidence = manifest["dependencyCaches"][realm]
+            historical = parsed["sources"][realm].get(
+                "historicalDependencyClosureSha256"
+            )
+            if (
+                source_evidence["historicalDependencyClosureSha256"] != historical
+                or cache_evidence["historicalDependencyClosureSha256"] != historical
+                or cache_evidence["linuxSourceDependencyClosureSha256"]
+                != source_evidence["linuxSourceDependencyClosureSha256"]
+                or source_evidence["linuxSourceDependencyClosureSha256"] == historical
+            ):
+                raise AssertionError("historical, source, and cache commitments were conflated")
+            packages = manifest["dependencyCaches"][realm]["packages"]
+            if {
+                package["url"]: package["sha256"] for package in packages
+            } != {
+                url: hashlib.sha256(content).hexdigest()
+                for url, content in registry_archives.items()
+            }:
+                raise AssertionError("verified dependency archives did not reach cache evidence")
+        if manifest["sourceObjectExport"]["objectCount"] != len(objects):
+            raise AssertionError("combined producer omitted an authenticated Git object")
+        if sum(1 for executable, _arguments in process_calls if executable == "/usr/bin/gpgv") != 4:
+            raise AssertionError("installation and retained detached signatures were not verified")
+        offline_calls = [
+            arguments for executable, arguments in process_calls
+            if executable == "/usr/bin/unshare"
+        ]
+        if len(offline_calls) != 9:
+            raise AssertionError("combined producer did not build and fetch all three caches")
+        expected_requests = 8 + 1 + 2 + 6
+        if len(request_calls) != expected_requests:
+            raise AssertionError(f"unexpected producer request census: {request_calls!r}")
+        catalog = json.loads((state / "cache-catalog-v2.json").read_bytes())
+        catalog_paths = {entry["path"] for entry in catalog["entries"]}
+        if not all(
+            f"source-caches/{realm}-linux-source-dependency-closure-sha256.txt"
+            in catalog_paths
+            for realm in ("g001", "g002", "ptr")
+        ):
+            raise AssertionError("published catalog omitted authenticated dependency closure")
+    print("combined-producer-authority:ok")
+
+
 if __name__ == "__main__":
     if sys.argv == [sys.argv[0], "request-parser"]:
         request_parser()
@@ -1155,5 +1591,7 @@ if __name__ == "__main__":
         transaction_catalog()
     elif sys.argv == [sys.argv[0], "producer-control-flow"]:
         producer_control_flow()
+    elif sys.argv == [sys.argv[0], "combined-producer-authority"]:
+        combined_producer_authority()
     else:
         raise SystemExit(2)

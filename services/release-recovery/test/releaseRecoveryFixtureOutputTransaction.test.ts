@@ -308,6 +308,100 @@ describe('fixed fixture output transaction', () => {
     expect(filesystemFault.events).not.toContain('flush-journal:COMMITTED')
   }, TRANSACTION_TEST_TIMEOUT)
 
+  it('retries the missing-target namespace flush before deleting rollback state', async () => {
+    const repositoryRoot = temporaryRoot()
+    const paths = ['fixtures/absent/one.json', 'fixtures/fail/two.json']
+    const absentDirectory = join(repositoryRoot, 'fixtures', 'absent')
+    mkdirSync(absentDirectory, { recursive: true })
+    mkdirSync(join(repositoryRoot, 'fixtures', 'fail'), { recursive: true })
+    const store = createFixedFixtureOutputStore({ repositoryRoot, paths })
+    const transaction = await store.begin(paths)
+    await transaction.stage(paths[0], new TextEncoder().encode('new-one\n'))
+    await transaction.stage(paths[1], new TextEncoder().encode('new-two\n'))
+    let installFailed = false
+    let rollbackFlushFailed = false
+    filesystemFault.beforeRename = source => {
+      if (!installFailed && source.endsWith(`${sep}1.new`)) {
+        installFailed = true
+        throw new Error('synthetic second install interruption')
+      }
+    }
+    filesystemFault.beforeFsync = flushPath => {
+      if (installFailed && !rollbackFlushFailed && flushPath === absentDirectory) {
+        rollbackFlushFailed = true
+        throw new Error('synthetic rollback unlink flush interruption')
+      }
+    }
+
+    await expect(transaction.commit()).rejects.toThrow('RECOVERY_FIXTURE_INPUT_INVALID')
+
+    const firstTarget = join(repositoryRoot, ...paths[0].split('/'))
+    expect(installFailed).toBe(true)
+    expect(rollbackFlushFailed).toBe(true)
+    expect(existsSync(firstTarget)).toBe(false)
+    expect(existsSync(stageRoot(repositoryRoot))).toBe(true)
+
+    filesystemFault.beforeRename = undefined
+    filesystemFault.beforeFsync = undefined
+    const retryStart = filesystemFault.events.length
+    const restarted = createFixedFixtureOutputStore({ repositoryRoot, paths })
+    await restarted.recover()
+
+    expect(filesystemFault.events.slice(retryStart))
+      .toContain(`flush-directory:${absentDirectory}`)
+    expect(existsSync(firstTarget)).toBe(false)
+    expect(existsSync(stageRoot(repositoryRoot))).toBe(false)
+  })
+
+  it('retries the restored-target namespace flush before deleting rollback state', async () => {
+    const repositoryRoot = temporaryRoot()
+    const paths = ['fixtures/old/one.json', 'fixtures/fail/two.json']
+    const oldDirectory = join(repositoryRoot, 'fixtures', 'old')
+    mkdirSync(oldDirectory, { recursive: true })
+    mkdirSync(join(repositoryRoot, 'fixtures', 'fail'), { recursive: true })
+    const firstTarget = join(repositoryRoot, ...paths[0].split('/'))
+    writeFileSync(firstTarget, 'old-one\n')
+    const store = createFixedFixtureOutputStore({ repositoryRoot, paths })
+    const transaction = await store.begin(paths)
+    await transaction.stage(paths[0], new TextEncoder().encode('new-one\n'))
+    await transaction.stage(paths[1], new TextEncoder().encode('new-two\n'))
+    let installFailed = false
+    let rollbackFlushFailed = false
+    filesystemFault.beforeRename = source => {
+      if (!installFailed && source.endsWith(`${sep}1.new`)) {
+        installFailed = true
+        throw new Error('synthetic second install interruption')
+      }
+    }
+    filesystemFault.beforeFsync = flushPath => {
+      const restored = filesystemFault.events.some(event => (
+        event.includes(`${sep}0.old->`) && event.endsWith(firstTarget)
+      ))
+      if (installFailed && restored && !rollbackFlushFailed && flushPath === oldDirectory) {
+        rollbackFlushFailed = true
+        throw new Error('synthetic rollback restore flush interruption')
+      }
+    }
+
+    await expect(transaction.commit()).rejects.toThrow('RECOVERY_FIXTURE_INPUT_INVALID')
+
+    expect(installFailed).toBe(true)
+    expect(rollbackFlushFailed).toBe(true)
+    expect(readFileSync(firstTarget, 'utf8')).toBe('old-one\n')
+    expect(existsSync(stageRoot(repositoryRoot))).toBe(true)
+
+    filesystemFault.beforeRename = undefined
+    filesystemFault.beforeFsync = undefined
+    const retryStart = filesystemFault.events.length
+    const restarted = createFixedFixtureOutputStore({ repositoryRoot, paths })
+    await restarted.recover()
+
+    expect(filesystemFault.events.slice(retryStart))
+      .toContain(`flush-directory:${oldDirectory}`)
+    expect(readFileSync(firstTarget, 'utf8')).toBe('old-one\n')
+    expect(existsSync(stageRoot(repositoryRoot))).toBe(false)
+  })
+
   it('commits and reads one complete fixed output set', async () => {
     const repositoryRoot = temporaryRoot()
     const paths = ['fixtures/one.json', 'fixtures/two.json']

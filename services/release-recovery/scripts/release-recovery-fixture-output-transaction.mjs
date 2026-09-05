@@ -532,6 +532,8 @@ function restorePreviousSet(repositoryRoot, stageRoot, journalPath, paths, state
         sha256: entry.newSha256,
       })
     }
+    directoryChain(repositoryRoot, dirname(target), false)
+    flushDirectory(dirname(target))
   }
   removeCompletedStage(stageRoot, journalPath, paths)
 }
