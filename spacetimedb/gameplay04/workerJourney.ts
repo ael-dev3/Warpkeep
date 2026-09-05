@@ -81,24 +81,29 @@ function requireExactEnumerableFields(
   value: unknown,
   expectedFields: readonly string[],
 ): asserts value is Record<string, unknown> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+  if (value === null || typeof value !== 'object') {
     invalidJourney();
   }
 
-  let enumerableKeys: PropertyKey[];
+  let hasExactFields: boolean;
   try {
-    enumerableKeys = Reflect.ownKeys(value).filter((key) => (
-      Object.prototype.propertyIsEnumerable.call(value, key)
-    ));
+    if (Array.isArray(value)) {
+      hasExactFields = false;
+    } else {
+      const enumerableKeys = Reflect.ownKeys(value).filter((key) => (
+        Object.prototype.propertyIsEnumerable.call(value, key)
+      ));
+      hasExactFields = (
+        enumerableKeys.length === expectedFields.length
+        && enumerableKeys.every((key) => typeof key === 'string' && expectedFields.includes(key))
+        && expectedFields.every((field) => Object.prototype.hasOwnProperty.call(value, field))
+      );
+    }
   } catch {
     invalidJourney();
   }
 
-  if (
-    enumerableKeys.length !== expectedFields.length
-    || enumerableKeys.some((key) => typeof key !== 'string' || !expectedFields.includes(key))
-    || expectedFields.some((field) => !Object.prototype.hasOwnProperty.call(value, field))
-  ) {
+  if (!hasExactFields) {
     invalidJourney();
   }
 }
@@ -332,7 +337,7 @@ export function recallJourney04(journey: Journey04, now: bigint): Journey04 {
   requireNow(now, derivation);
 
   if (derivation.journey.recalledAt !== null || now >= derivation.stop) {
-    return Object.isFrozen(journey) ? journey : Object.freeze({ ...derivation.journey });
+    return Object.freeze({ ...derivation.journey });
   }
 
   const recalled = Object.freeze({ ...derivation.journey, recalledAt: now });

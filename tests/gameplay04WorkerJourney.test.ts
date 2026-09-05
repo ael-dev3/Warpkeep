@@ -201,10 +201,29 @@ describe('gameplay 0.4 Worker journey transitions', () => {
     const recalled = recallJourney04(journey, 16_000_000n);
 
     expect(observeJourney04(recalled, 16_000_000n)).toMatchObject({ phase: 'returning', earned: 10n });
-    expect(recallJourney04(recalled, 16_000_001n)).toBe(recalled);
-    expect(recallJourney04(journey, 66_000_000n)).toBe(journey);
-    expect(recallJourney04(journey, 72_000_000n)).toBe(journey);
-    expect(recallJourney04(journey, I64_MAX)).toBe(journey);
+    expect(recallJourney04(recalled, 16_000_001n)).toEqual(recalled);
+    expect(recallJourney04(journey, 66_000_000n)).toEqual(journey);
+    expect(recallJourney04(journey, 72_000_000n)).toEqual(journey);
+    expect(recallJourney04(journey, I64_MAX)).toEqual(journey);
+  });
+
+  it('locks recall immediately before, at, and after automatic return start', () => {
+    const journey = dispatch();
+    const before = recallJourney04(journey, 65_999_999n);
+    const at = recallJourney04(journey, 66_000_000n);
+    const after = recallJourney04(journey, 66_000_001n);
+
+    expect(before.recalledAt).toBe(65_999_999n);
+    expect(observeJourney04(before, 65_999_999n)).toMatchObject({
+      phase: 'returning',
+      gatheringStopsAt: 65_999_999n,
+      returnsAt: 71_999_999n,
+      earned: 50n,
+    });
+    expect(at).toEqual(journey);
+    expect(after).toEqual(journey);
+    expect(at.recalledAt).toBeNull();
+    expect(after.recalledAt).toBeNull();
   });
 
   it('captures travel and yield policy at dispatch despite later completed-level changes', () => {
@@ -418,5 +437,57 @@ describe('gameplay 0.4 Worker journey transitions', () => {
     const sentinel = 'do-not-echo-this-resource';
     expectInvalid(() => dispatch({ resource: sentinel as Resource04 }), sentinel);
     expectInvalid(() => observeJourney04(rawJourney({ resource: sentinel as Resource04 }), 0n), sentinel);
+  });
+
+  it('normalizes descriptor-trap failures during complete own-field inspection', () => {
+    const sentinel = 'do-not-echo-this-descriptor-trap';
+    const target = rawJourney();
+    const enumerableFieldCount = Reflect.ownKeys(target).length;
+    let descriptorReads = 0;
+    const trapped = new Proxy(target, {
+      getOwnPropertyDescriptor(current, property) {
+        descriptorReads += 1;
+        if (descriptorReads > enumerableFieldCount) {
+          throw new Error(sentinel);
+        }
+        return Reflect.getOwnPropertyDescriptor(current, property);
+      },
+    });
+
+    expectInvalid(() => observeJourney04(trapped, 0n), sentinel);
+  });
+
+  it('normalizes revoked-proxy failures during shape inspection', () => {
+    const { proxy, revoke } = Proxy.revocable(rawJourney(), {});
+    revoke();
+
+    expectInvalid(() => observeJourney04(proxy, 0n));
+  });
+
+  it('canonicalizes frozen accessor-backed journeys before returning them', () => {
+    const backing: Record<keyof Journey04, unknown> = { ...rawJourney() };
+    const accessorJourney = {} as Journey04;
+    for (const field of Object.keys(backing) as (keyof Journey04)[]) {
+      Object.defineProperty(accessorJourney, field, {
+        enumerable: true,
+        configurable: false,
+        get: () => backing[field],
+      });
+    }
+    Object.preventExtensions(accessorJourney);
+    expect(Object.isFrozen(accessorJourney)).toBe(true);
+
+    const returned = recallJourney04(accessorJourney, 66_000_000n);
+    backing.resource = 'gold';
+    backing.yieldPerQuantum = 20n;
+
+    expect(returned).not.toBe(accessorJourney);
+    expect(returned.resource).toBe('wood');
+    expect(returned.yieldPerQuantum).toBe(10n);
+    expect(Object.isFrozen(returned)).toBe(true);
+    expect(Object.getOwnPropertyDescriptor(returned, 'resource')).toMatchObject({
+      value: 'wood',
+      writable: false,
+    });
   });
 });
