@@ -738,7 +738,7 @@ export async function verifyFixedPublishReceipt(input) {
       sourceCommit: receipt.sourceCommit,
       sourceTree: receipt.moduleTreeId,
       publishedModuleSha256: receipt.moduleSha256,
-      dependencyLockClosureSha256: receipt.dependencyClosureDigest,
+      historicalDependencyClosureSha256: receipt.dependencyClosureDigest,
       signatureVerified: true,
       matchingImportReceiptVerified: true,
       matchingLiveReceiptVerified: true,
@@ -1072,13 +1072,13 @@ function exactBootstrapSources(value) {
   for (const realm of ['g002', 'ptr']) {
     const source = exactObject(sources[realm], [
       'receiptSha256', 'databaseIdentity', 'sourceCommit', 'sourceTree',
-      'publishedModuleSha256', 'dependencyLockClosureSha256',
+      'publishedModuleSha256', 'historicalDependencyClosureSha256',
     ])
     for (const digest of [
       source.receiptSha256,
       source.databaseIdentity,
       source.publishedModuleSha256,
-      source.dependencyLockClosureSha256,
+      source.historicalDependencyClosureSha256,
     ]) if (!LOWER_HEX_64.test(digest) || /^0+$/u.test(digest)) fail()
     if (
       !LOWER_HEX_40.test(source.sourceCommit)
@@ -1089,7 +1089,7 @@ function exactBootstrapSources(value) {
     sanitized[realm] = Object.freeze({
       sourceCommit: source.sourceCommit,
       sourceTree: source.sourceTree,
-      dependencyLockClosureSha256: source.dependencyLockClosureSha256,
+      historicalDependencyClosureSha256: source.historicalDependencyClosureSha256,
     })
   }
   return Object.freeze(sanitized)
@@ -1194,7 +1194,9 @@ function decodeBase64url(value, maximumBytes) {
 function decodeFixtureRealm(value, realm) {
   const result = exactObject(value, [
     'realm',
-    'dependencyLockClosureSha256',
+    'historicalDependencyClosureSha256',
+    'linuxSourceDependencyClosureSha256',
+    'linuxCacheClosureSha256',
     'transformedSourceClosureSha256',
     'firstBuildArtifactSha256',
     'secondBuildArtifactSha256',
@@ -1206,7 +1208,9 @@ function decodeFixtureRealm(value, realm) {
   if (result.realm !== realm) fail()
   return Object.freeze({
     realm: result.realm,
-    dependencyLockClosureSha256: result.dependencyLockClosureSha256,
+    historicalDependencyClosureSha256: result.historicalDependencyClosureSha256,
+    linuxSourceDependencyClosureSha256: result.linuxSourceDependencyClosureSha256,
+    linuxCacheClosureSha256: result.linuxCacheClosureSha256,
     transformedSourceClosureSha256: result.transformedSourceClosureSha256,
     firstBuildArtifactSha256: result.firstBuildArtifactSha256,
     secondBuildArtifactSha256: result.secondBuildArtifactSha256,
@@ -1532,13 +1536,11 @@ export async function bootstrapFixedWslToolchain(input) {
         || catalog.entries.length < 1
         || catalog.entries.length > 100_000
       ) fail()
-      const untrustedManifest = canonicalJson(manifestBytes, 512 * 1024)
-      const g001Closure = untrustedManifest?.sources?.g001?.dependencyLockClosureSha256
       const verifiedManifest = parseToolchainEvidenceBytes(manifestBytes, parsedPolicy, {
         g001: {
           sourceCommit: parsedPolicy.policy.sourceRules.g001.sourceCommit,
           sourceTree: parsedPolicy.policy.sourceRules.g001.sourceTree,
-          dependencyLockClosureSha256: g001Closure,
+          historicalDependencyClosureSha256: null,
         },
         g002: sources.g002,
         ptr: sources.ptr,

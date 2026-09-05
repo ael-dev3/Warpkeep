@@ -116,7 +116,7 @@ const RECEIPT_AUTHENTICATION_KEYS = Object.freeze([
   'sourceCommit',
   'sourceTree',
   'publishedModuleSha256',
-  'dependencyLockClosureSha256',
+  'historicalDependencyClosureSha256',
   'signatureVerified',
   'matchingImportReceiptVerified',
   'matchingLiveReceiptVerified',
@@ -404,14 +404,14 @@ function validateAuthenticatedReceipt(value, realm, bytes) {
   nonzeroHex(receipt.sourceCommit, LOWER_HEX_40)
   nonzeroHex(receipt.sourceTree, LOWER_HEX_40)
   nonzeroHex(receipt.publishedModuleSha256, LOWER_HEX_64)
-  nonzeroHex(receipt.dependencyLockClosureSha256, LOWER_HEX_64)
+  nonzeroHex(receipt.historicalDependencyClosureSha256, LOWER_HEX_64)
   return Object.freeze({
     receiptSha256: receipt.receiptSha256,
     databaseIdentity: receipt.databaseIdentity,
     sourceCommit: receipt.sourceCommit,
     sourceTree: receipt.sourceTree,
     publishedModuleSha256: receipt.publishedModuleSha256,
-    dependencyLockClosureSha256: receipt.dependencyLockClosureSha256,
+    historicalDependencyClosureSha256: receipt.historicalDependencyClosureSha256,
   })
 }
 
@@ -549,7 +549,7 @@ function createPlan(toolchain, g002, ptr) {
         sourceCommit: g002.sourceCommit,
         sourceTree: g002.sourceTree,
         publishedModuleSha256: g002.publishedModuleSha256,
-        dependencyLockClosureSha256: g002.dependencyLockClosureSha256,
+        historicalDependencyClosureSha256: g002.historicalDependencyClosureSha256,
         modulePath: 'spacetimedb/genesis002',
         nodeVersion: '22.22.3',
       }),
@@ -561,7 +561,7 @@ function createPlan(toolchain, g002, ptr) {
         sourceCommit: ptr.sourceCommit,
         sourceTree: ptr.sourceTree,
         publishedModuleSha256: ptr.publishedModuleSha256,
-        dependencyLockClosureSha256: ptr.dependencyLockClosureSha256,
+        historicalDependencyClosureSha256: ptr.historicalDependencyClosureSha256,
         modulePath: 'spacetimedb/ptr',
         nodeVersion: '22.22.3',
       }),
@@ -572,21 +572,23 @@ function createPlan(toolchain, g002, ptr) {
 }
 
 function validateToolchainManifest(bytes, plan, result) {
-  parseToolchainEvidenceBytes(bytes, FIXED_TOOLCHAIN_SOURCE_POLICY, {
+  return parseToolchainEvidenceBytes(bytes, FIXED_TOOLCHAIN_SOURCE_POLICY, {
     g001: {
       sourceCommit: G001_BASELINE_COMMIT,
       sourceTree: G001_BASELINE_TREE,
-      dependencyLockClosureSha256: result.realms.g001.dependencyLockClosureSha256,
+      historicalDependencyClosureSha256: null,
     },
     g002: {
       sourceCommit: plan.realms.g002.sourceCommit,
       sourceTree: plan.realms.g002.sourceTree,
-      dependencyLockClosureSha256: plan.realms.g002.dependencyLockClosureSha256,
+      historicalDependencyClosureSha256:
+        plan.realms.g002.historicalDependencyClosureSha256,
     },
     ptr: {
       sourceCommit: plan.realms.ptr.sourceCommit,
       sourceTree: plan.realms.ptr.sourceTree,
-      dependencyLockClosureSha256: plan.realms.ptr.dependencyLockClosureSha256,
+      historicalDependencyClosureSha256:
+        plan.realms.ptr.historicalDependencyClosureSha256,
     },
   })
 }
@@ -597,7 +599,11 @@ function normalizeRunnerResult(value, plan) {
     value.toolchainManifestSha256 !== plan.toolchain.manifestSha256
     || sha256(value.toolchainManifestBytes) !== value.toolchainManifestSha256
   ) fail()
-  validateToolchainManifest(value.toolchainManifestBytes, plan, value)
+  const toolchainManifest = validateToolchainManifest(
+    value.toolchainManifestBytes,
+    plan,
+    value,
+  )
   const fixtureBytes = {}
   const abiDigests = {}
   const responseDigests = {}
@@ -615,20 +621,32 @@ function normalizeRunnerResult(value, plan) {
     )
   }
   if (
-    value.realms.g002.dependencyLockClosureSha256
-      !== plan.realms.g002.dependencyLockClosureSha256
-    || value.realms.ptr.dependencyLockClosureSha256
-      !== plan.realms.ptr.dependencyLockClosureSha256
+    value.realms.g002.historicalDependencyClosureSha256
+      !== plan.realms.g002.historicalDependencyClosureSha256
+    || value.realms.ptr.historicalDependencyClosureSha256
+      !== plan.realms.ptr.historicalDependencyClosureSha256
     || value.realms.g002.programArtifactSha256 !== plan.realms.g002.publishedModuleSha256
     || value.realms.ptr.programArtifactSha256 !== plan.realms.ptr.publishedModuleSha256
   ) fail()
+  for (const realm of ['g001', 'g002', 'ptr']) {
+    if (
+      value.realms[realm].historicalDependencyClosureSha256
+        !== toolchainManifest.sources[realm].historicalDependencyClosureSha256
+      || value.realms[realm].linuxSourceDependencyClosureSha256
+        !== toolchainManifest.sources[realm].linuxSourceDependencyClosureSha256
+      || value.realms[realm].linuxCacheClosureSha256
+        !== toolchainManifest.dependencyCaches[realm].linuxCacheClosureSha256
+    ) fail()
+  }
 
   const common = (realm, databaseIdentity, modulePath, nodeVersion) => ({
     realm,
     databaseIdentity,
     recoveryBuildProfile: 'warpkeep-release-recovery-cross-platform-program-build-v1',
     modulePath,
-    dependencyLockClosureSha256: value.realms[realm].dependencyLockClosureSha256,
+    dependencyLockClosureSha256: realm === 'g001'
+      ? value.realms[realm].linuxSourceDependencyClosureSha256
+      : value.realms[realm].historicalDependencyClosureSha256,
     toolchainManifestPath: FIXTURE_OUTPUT_PATHS.toolchain,
     toolchainManifestSha256: value.toolchainManifestSha256,
     nodeVersion,

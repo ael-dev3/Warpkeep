@@ -30,13 +30,15 @@ const AUTHENTICATED_PLAN_KEYS = Object.freeze([
   'sourceCommit',
   'sourceTree',
   'publishedModuleSha256',
-  'dependencyLockClosureSha256',
+  'historicalDependencyClosureSha256',
   'modulePath',
   'nodeVersion',
 ])
 const REALM_RESULT_KEYS = Object.freeze([
   'realm',
-  'dependencyLockClosureSha256',
+  'historicalDependencyClosureSha256',
+  'linuxSourceDependencyClosureSha256',
+  'linuxCacheClosureSha256',
   'transformedSourceClosureSha256',
   'firstBuildArtifactSha256',
   'secondBuildArtifactSha256',
@@ -143,7 +145,7 @@ function validateAuthenticatedPlan(value, realm, modulePath) {
   nonzeroHex(plan.sourceCommit, LOWER_HEX_40)
   nonzeroHex(plan.sourceTree, LOWER_HEX_40)
   nonzeroHex(plan.publishedModuleSha256, LOWER_HEX_64)
-  nonzeroHex(plan.dependencyLockClosureSha256, LOWER_HEX_64)
+  nonzeroHex(plan.historicalDependencyClosureSha256, LOWER_HEX_64)
 }
 
 export function validateWslFixturePlan(value) {
@@ -221,7 +223,13 @@ export function validateWslFixturePlan(value) {
 function validateRealmResult(value, realm) {
   const result = exactDataObject(value, REALM_RESULT_KEYS)
   if (result.realm !== realm) fail()
-  nonzeroHex(result.dependencyLockClosureSha256, LOWER_HEX_64)
+  if (realm === 'g001') {
+    if (result.historicalDependencyClosureSha256 !== null) fail()
+  } else {
+    nonzeroHex(result.historicalDependencyClosureSha256, LOWER_HEX_64)
+  }
+  nonzeroHex(result.linuxSourceDependencyClosureSha256, LOWER_HEX_64)
+  nonzeroHex(result.linuxCacheClosureSha256, LOWER_HEX_64)
   if (realm === 'g001') {
     nonzeroHex(result.transformedSourceClosureSha256, LOWER_HEX_64)
   } else if (result.transformedSourceClosureSha256 !== null) {

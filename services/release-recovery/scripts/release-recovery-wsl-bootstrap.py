@@ -395,8 +395,23 @@ def validate_source_policy(value: object) -> dict[str, object]:
         "materializerSha256": "a85df9f4c76f26ecd171e0ab7d1fcc03b928eb9b3331df188598628b10e58a93",
     }:
         fail()
+    g002 = exact(rules["g002"], (
+        "modulePath", "workspacePath", "lockImporter", "packageName",
+        "nodeVersion", "dependencyPaths",
+    ))
+    if g002 != {
+        "modulePath": "spacetimedb/genesis002",
+        "workspacePath": "spacetimedb",
+        "lockImporter": "genesis002",
+        "packageName": "warpkeep-genesis-002-spacetimedb-module",
+        "nodeVersion": "22.22.3",
+        "dependencyPaths": [
+            "spacetimedb/package.json", "spacetimedb/pnpm-workspace.yaml",
+            "spacetimedb/pnpm-lock.yaml", "spacetimedb/genesis002/package.json",
+        ],
+    }:
+        fail()
     dynamic_rules = {
-        "g002": ("spacetimedb/genesis002", "warpkeep-genesis-002-spacetimedb-module", ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "spacetimedb/genesis002/package.json"]),
         "ptr": ("spacetimedb/ptr", "warpkeep-ptr-spacetimedb-module", ["spacetimedb/ptr/package.json", "spacetimedb/ptr/pnpm-lock.yaml"]),
     }
     for realm, expected in dynamic_rules.items():
@@ -459,11 +474,11 @@ def validate_request(value: object) -> dict[str, object]:
     }
     for realm in ("g002", "ptr"):
         source = exact(dynamic_sources[realm], (
-            "sourceCommit", "sourceTree", "dependencyLockClosureSha256",
+            "sourceCommit", "sourceTree", "historicalDependencyClosureSha256",
         ))
         lower_hex_40(source["sourceCommit"])
         lower_hex_40(source["sourceTree"])
-        lower_hex_64(source["dependencyLockClosureSha256"])
+        lower_hex_64(source["historicalDependencyClosureSha256"])
         sources[realm] = dict(source)
     programs = exact(request["programs"], (
         "bootstrapProgramBytes", "bootstrapProgramSha256",
@@ -802,7 +817,13 @@ def _export_source_objects(
     )
     source_git_directory = os.path.join(os.path.dirname(destination), ".source-reader.git")
     _make_directory(source_git_directory)
+    _make_directory(os.path.join(source_git_directory, "refs"))
     _write_exclusive(os.path.join(source_git_directory, "HEAD"), b"ref: refs/heads/never\n", 0o400)
+    _write_exclusive(
+        os.path.join(source_git_directory, "config"),
+        b"[core]\n\trepositoryformatversion = 0\n\tbare = true\n",
+        0o400,
+    )
     objects: dict[str, tuple[str, bytes]] = {}
 
     def source_read(object_id: str) -> tuple[str, bytes]:
@@ -841,10 +862,7 @@ def _export_source_objects(
         records: list[dict[str, object]] = []
         contents: dict[str, bytes] = {}
         for index, evidence_path in enumerate(rules[realm]["dependencyPaths"]):
-            repository_path = evidence_path
-            if realm == "g002" and not repository_path.startswith("spacetimedb/"):
-                repository_path = f"spacetimedb/{repository_path}"
-            blob = _resolve_tree_path(root_tree, repository_path, objects)
+            blob = _resolve_tree_path(root_tree, evidence_path, objects)
             kind, content = objects.get(blob, (None, None))
             if kind != "blob" or type(content) is not bytes:
                 fail()
@@ -1803,8 +1821,6 @@ def _commit_transaction(result: dict[str, object]) -> None:
         installed.append(name)
         _write_journal(_journal_record("INSTALLING", list(installed), None, None))
     _write_journal(_journal_record("COMMITTED", list(installed), None, dict(result)))
-    _remove_tree(TRANSACTION_PATH)
-    _fsync_directory(STATE_ROOT)
 
 
 def _dependency_closure(
@@ -1815,17 +1831,23 @@ def _dependency_closure(
         fail()
     digest = hashlib.sha256()
     digest.update(f"warpkeep.release-recovery.source-dependencies.{realm}.v1\n".encode("ascii"))
-    previous = b""
+    normalized: list[tuple[bytes, dict[str, object]]] = []
     for record in records:
         entry = exact(record, ("path", "blob", "bytes", "sha256"))
         path = safe_git_path(entry["path"])
         encoded = path.encode("utf-8", "strict")
-        if encoded <= previous:
-            fail()
-        previous = encoded
         lower_hex_40(entry["blob"])
         positive_integer(entry["bytes"], 16 * 1024 * 1024)
         lower_hex_64(entry["sha256"])
+        normalized.append((encoded, entry))
+    normalized.sort(key=lambda item: item[0])
+    if any(
+        normalized[index - 1][0] == normalized[index][0]
+        for index in range(1, len(normalized))
+    ):
+        fail()
+    for _encoded, entry in normalized:
+        path = entry["path"]
         digest.update(
             f"{path}\0{entry['blob']}\0{entry['bytes']}\0{entry['sha256']}\n"
             .encode("utf-8")
@@ -1843,19 +1865,20 @@ def _source_evidence_records(
         paths = parsed["sourcePolicy"]["sourceRules"][realm]["dependencyPaths"]
         if [record["path"] for record in records] != paths:
             fail()
-        closure = _dependency_closure(realm, records)
-        expected = parsed["sources"][realm].get("dependencyLockClosureSha256")
-        if expected is not None and closure != expected:
-            fail()
+        linux_source_closure = _dependency_closure(realm, records)
+        historical_closure = parsed["sources"][realm].get(
+            "historicalDependencyClosureSha256"
+        )
         result[realm] = {
             "realm": realm,
             "sourceCommit": parsed["sources"][realm]["sourceCommit"],
             "sourceTree": parsed["sources"][realm]["sourceTree"],
-            "dependencyLockClosureSha256": closure,
+            "historicalDependencyClosureSha256": historical_closure,
+            "linuxSourceDependencyClosureSha256": linux_source_closure,
             "dependencyInventoryDomain":
                 f"warpkeep.release-recovery.source-dependencies.{realm}.v1",
             "dependencyClosureRecordPath":
-                f"source-caches/{realm}-dependency-closure-sha256.txt",
+                f"source-caches/{realm}-linux-source-dependency-closure-sha256.txt",
             "dependencyFiles": records,
         }
     return result
@@ -1934,8 +1957,9 @@ def _validate_dependency_documents(
             else "spacetimedb/ptr/package.json"
         )
         package = _json_document(files[package_path], 1024 * 1024)
+        package_name = rule["packageName"] if realm == "g002" else rule["importer"]
         if (
-            package.get("name") != rule["importer"]
+            package.get("name") != package_name
             or package.get("private") is not True
             or package.get("packageManager") != "pnpm@11.7.0"
             or type(package.get("scripts")) is not dict
@@ -1944,15 +1968,15 @@ def _validate_dependency_documents(
         if realm in ("g001", "g002"):
             workspace_path = (
                 "spacetimedb/pnpm-workspace.yaml"
-                if realm == "g001" else "pnpm-workspace.yaml"
+                if realm == "g001" else f"{rule['workspacePath']}/pnpm-workspace.yaml"
             )
             _workspace_policy(files[workspace_path], rule["modulePath"])
         lock_path = (
             "spacetimedb/pnpm-lock.yaml" if realm == "g001"
-            else "pnpm-lock.yaml" if realm == "g002"
+            else f"{rule['workspacePath']}/pnpm-lock.yaml" if realm == "g002"
             else "spacetimedb/ptr/pnpm-lock.yaml"
         )
-        importer = "spacetimedb/genesis002" if realm == "g002" else "."
+        importer = rule["lockImporter"] if realm == "g002" else "."
         packages[realm] = _parse_lock_packages(files[lock_path], importer)
     return packages
 
@@ -2066,6 +2090,13 @@ def _verified_node_release(
     _validate_shasums(shasums, release["archiveUrl"], release["archiveSha256"])
     signature_root = os.path.join(STAGE_PATH, ".work", f"node-{version}-signature")
     _verify_node_signature(key, shasums, signature, release, signature_root, _fixed_process)
+    provenance_root = f"source-caches/public-provenance/node-v{version}"
+    for name, content in (
+        ("release-key.asc", key),
+        ("SHASUMS256.txt", shasums),
+        ("SHASUMS256.txt.sig", signature),
+    ):
+        _install_cache_file(root, f"{provenance_root}/{name}", content, 0o400)
     members = _extract_selected_members(archive, "r:xz", {
         release["archiveMemberPath"]: {
             "mode": release["archiveMemberMode"],
@@ -2080,6 +2111,50 @@ def _verified_node_release(
         0o500,
     )
     return {**release, "signatureVerified": True, "extractedMemberVerified": True}
+
+
+def _verify_retained_node_signatures(
+    parsed: dict[str, object],
+    root: str,
+) -> None:
+    for version in ("24.19.0", "22.22.3"):
+        release = parsed["sourcePolicy"]["nodeReleases"][version]
+        provenance = os.path.join(
+            root, "source-caches", "public-provenance", f"node-v{version}",
+        )
+        records = {}
+        for name, maximum, expected_size, expected_digest in (
+            ("release-key.asc", 64 * 1024, release["publicKeyBytes"], release["publicKeySha256"]),
+            ("SHASUMS256.txt", 64 * 1024, release["shasumsBytes"], release["shasumsSha256"]),
+            ("SHASUMS256.txt.sig", 64 * 1024, release["signatureBytes"], release["signatureSha256"]),
+        ):
+            path = os.path.join(provenance, name)
+            content = (
+                Path(path).read_bytes()
+                if os.name == "nt"
+                else descriptor_read(path, maximum, 0o400)
+            )
+            if len(content) != expected_size or sha256_bytes(content) != expected_digest:
+                fail()
+            records[name] = content
+        _validate_shasums(
+            records["SHASUMS256.txt"],
+            release["archiveUrl"],
+            release["archiveSha256"],
+        )
+        working = os.path.join(root, f".offline-node-signature-{version}")
+        try:
+            _verify_node_signature(
+                records["release-key.asc"],
+                records["SHASUMS256.txt"],
+                records["SHASUMS256.txt.sig"],
+                release,
+                working,
+                _fixed_process,
+            )
+        finally:
+            if os.path.lexists(working):
+                _remove_tree(working)
 
 
 def _install_toolchains(
@@ -2224,6 +2299,57 @@ def _normalize_cache_tree(root: str) -> None:
             os.chmod(path, 0o400)
 
 
+def _dependency_cache_closure(
+    realm: str,
+    source: dict[str, object],
+    packages: list[dict[str, object]],
+    root: str,
+) -> str:
+    if realm not in ("g001", "g002", "ptr"):
+        fail()
+    store_path = f"pnpm-store/{realm}"
+    entries = [
+        entry for entry in _inventory_cache(root)
+        if entry["path"] == store_path
+        or entry["path"].startswith(f"{store_path}/")
+    ]
+    if not entries or entries[0] != {
+        "path": store_path, "type": "directory", "mode": "700",
+    }:
+        fail()
+    digest = hashlib.sha256()
+    domain = f"warpkeep.release-recovery.linux-dependency-cache.{realm}.v1"
+    digest.update(f"{domain}\n".encode("ascii"))
+    historical = source["historicalDependencyClosureSha256"]
+    digest.update(
+        (
+            f"source\0{source['sourceCommit']}\0{source['sourceTree']}\0"
+            f"{historical if historical is not None else '-'}\0"
+            f"{source['linuxSourceDependencyClosureSha256']}\n"
+        ).encode("ascii")
+    )
+    previous_package = b""
+    for package in packages:
+        coordinate = f"{package['name']}@{package['version']}".encode("utf-8")
+        if coordinate <= previous_package:
+            fail()
+        previous_package = coordinate
+        digest.update(b"package\0")
+        digest.update(canonical_bytes(package))
+    for entry in entries:
+        relative = "." if entry["path"] == store_path else entry["path"][len(store_path) + 1:]
+        if entry["type"] == "directory":
+            digest.update(
+                f"directory\0{relative}\0{entry['mode']}\n".encode("utf-8")
+            )
+        else:
+            digest.update(
+                f"file\0{relative}\0{entry['bytes']}\0{entry['sha256']}\0{entry['mode']}\n"
+                .encode("utf-8")
+            )
+    return digest.hexdigest()
+
+
 def _build_dependency_caches(
     parsed: dict[str, object],
     dependency_contents: dict[str, dict[str, bytes]],
@@ -2257,14 +2383,17 @@ def _build_dependency_caches(
                 f"--store-dir={store}", "--reporter=silent", "store", "add",
                 archive_path,
             ], work)
+        rule = parsed["sourcePolicy"]["sourceRules"][realm]
         project = (
             os.path.join(workspace, "spacetimedb") if realm == "g001"
-            else workspace if realm == "g002"
+            else os.path.join(workspace, rule["workspacePath"])
+            if realm == "g002"
             else os.path.join(workspace, "spacetimedb", "ptr")
         )
+        package_name = rule["packageName"] if realm == "g002" else rule["importer"]
         _offline_pnpm([
             "--dir", project,
-            "--filter", parsed["sourcePolicy"]["sourceRules"][realm]["importer"],
+            "--filter", package_name,
             "--store-dir", store,
             "--reporter=silent",
             "fetch", "--offline", "--frozen-lockfile", "--ignore-scripts",
@@ -2280,13 +2409,22 @@ def _build_dependency_caches(
         ):
             fail()
         source = source_evidence[realm]
+        cache_closure = _dependency_cache_closure(
+            realm, source, verified_packages, STAGE_PATH,
+        )
         caches[realm] = {
             "realm": realm,
             "sourceCommit": source["sourceCommit"],
             "sourceTree": source["sourceTree"],
             "storePath": f"pnpm-store/{realm}",
             "closureRecordPath": source["dependencyClosureRecordPath"],
-            "closureSha256": source["dependencyLockClosureSha256"],
+            "historicalDependencyClosureSha256":
+                source["historicalDependencyClosureSha256"],
+            "linuxSourceDependencyClosureSha256":
+                source["linuxSourceDependencyClosureSha256"],
+            "linuxCacheClosureSha256": cache_closure,
+            "cacheInventoryDomain":
+                f"warpkeep.release-recovery.linux-dependency-cache.{realm}.v1",
             "containsLinuxX64Esbuild": True,
             "packages": verified_packages,
         }
@@ -2486,8 +2624,10 @@ def _validate_manifest_identity(
     caches = exact(manifest["dependencyCaches"], ("g001", "g002", "ptr"))
     for realm in ("g001", "g002", "ptr"):
         source = exact(sources[realm], (
-            "realm", "sourceCommit", "sourceTree", "dependencyLockClosureSha256",
-            "dependencyInventoryDomain", "dependencyClosureRecordPath", "dependencyFiles",
+            "realm", "sourceCommit", "sourceTree",
+            "historicalDependencyClosureSha256",
+            "linuxSourceDependencyClosureSha256", "dependencyInventoryDomain",
+            "dependencyClosureRecordPath", "dependencyFiles",
         ))
         if (
             source["realm"] != realm
@@ -2496,20 +2636,22 @@ def _validate_manifest_identity(
             or source["dependencyInventoryDomain"]
             != f"warpkeep.release-recovery.source-dependencies.{realm}.v1"
             or source["dependencyClosureRecordPath"]
-            != f"source-caches/{realm}-dependency-closure-sha256.txt"
+            != f"source-caches/{realm}-linux-source-dependency-closure-sha256.txt"
             or type(source["dependencyFiles"]) is not list
             or _dependency_closure(realm, source["dependencyFiles"])
-            != source["dependencyLockClosureSha256"]
+            != source["linuxSourceDependencyClosureSha256"]
         ):
             fail()
-        if realm != "g001" and (
-            source["dependencyLockClosureSha256"]
-            != parsed["sources"][realm]["dependencyLockClosureSha256"]
-        ):
+        expected_historical = parsed["sources"][realm].get(
+            "historicalDependencyClosureSha256"
+        )
+        if source["historicalDependencyClosureSha256"] != expected_historical:
             fail()
         cache = exact(caches[realm], (
             "realm", "sourceCommit", "sourceTree", "storePath", "closureRecordPath",
-            "closureSha256", "containsLinuxX64Esbuild", "packages",
+            "historicalDependencyClosureSha256",
+            "linuxSourceDependencyClosureSha256", "linuxCacheClosureSha256",
+            "cacheInventoryDomain", "containsLinuxX64Esbuild", "packages",
         ))
         if (
             cache["realm"] != realm
@@ -2517,12 +2659,18 @@ def _validate_manifest_identity(
             or cache["sourceTree"] != source["sourceTree"]
             or cache["storePath"] != f"pnpm-store/{realm}"
             or cache["closureRecordPath"] != source["dependencyClosureRecordPath"]
-            or cache["closureSha256"] != source["dependencyLockClosureSha256"]
+            or cache["historicalDependencyClosureSha256"]
+            != source["historicalDependencyClosureSha256"]
+            or cache["linuxSourceDependencyClosureSha256"]
+            != source["linuxSourceDependencyClosureSha256"]
+            or cache["cacheInventoryDomain"]
+            != f"warpkeep.release-recovery.linux-dependency-cache.{realm}.v1"
             or cache["containsLinuxX64Esbuild"] is not True
             or type(cache["packages"]) is not list
             or len(cache["packages"]) < 1
         ):
             fail()
+        lower_hex_64(cache["linuxCacheClosureSha256"])
         previous = b""
         esbuild = False
         for raw_package in cache["packages"]:
@@ -2550,6 +2698,10 @@ def _validate_manifest_identity(
             ):
                 esbuild = True
         if not esbuild:
+            fail()
+        if cache["linuxCacheClosureSha256"] != _dependency_cache_closure(
+            realm, source, cache["packages"], STATE_ROOT,
+        ):
             fail()
     exported = exact(manifest["sourceObjectExport"], (
         "profile", "repositoryPath", "objectFormat", "objectInventoryDomain",
@@ -2612,6 +2764,7 @@ def _verify_published_cache(
     if manifest_sha256 != catalog["manifestSha256"]:
         fail()
     _validate_manifest_identity(manifest_bytes, parsed, programs)
+    _verify_retained_node_signatures(parsed, STATE_ROOT)
     return _validate_result({
         "prepared": True,
         "sourcePolicySha256": parsed["sourcePolicySha256"],
@@ -2635,22 +2788,13 @@ def _prepare_toolchain(
         record = _read_journal()
         if record["state"] != "COMMITTED":
             fail()
-        try:
-            recovered = _verify_published_cache(parsed, programs)
-            if recovered != _validate_result(record["result"]):
-                fail()
-        except BaseException:
-            for name in reversed(FINAL_CACHE_NAMES):
-                _remove_exact_cache_target(name)
-            _remove_tree(TRANSACTION_PATH)
-            _fsync_directory(STATE_ROOT)
-            raise
-        _remove_tree(TRANSACTION_PATH)
-        _fsync_directory(STATE_ROOT)
+        recovered = _verify_published_cache(parsed, programs)
+        if recovered != _validate_result(record["result"]):
+            fail()
         return recovered
     existing = [os.path.lexists(os.path.join(STATE_ROOT, name)) for name in FINAL_CACHE_NAMES]
     if all(existing):
-        return _verify_published_cache(parsed, programs)
+        fail()
     if any(existing):
         fail()
     _begin_transaction()
@@ -2669,8 +2813,8 @@ def _prepare_toolchain(
         for realm in ("g001", "g002", "ptr"):
             _install_cache_file(
                 STAGE_PATH,
-                f"source-caches/{realm}-dependency-closure-sha256.txt",
-                f"{sources[realm]['dependencyLockClosureSha256']}\n".encode("ascii"),
+                f"source-caches/{realm}-linux-source-dependency-closure-sha256.txt",
+                f"{sources[realm]['linuxSourceDependencyClosureSha256']}\n".encode("ascii"),
                 0o400,
             )
         selected_packages = _validate_dependency_documents(parsed, dependency_contents)

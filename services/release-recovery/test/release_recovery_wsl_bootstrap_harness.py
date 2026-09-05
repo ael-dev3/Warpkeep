@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import copy
+import atexit
 import base64
 import hashlib
 import importlib.util
 import io
 import json
 import pathlib
+import os
+import subprocess
 import tempfile
 import sys
 import tarfile
@@ -55,12 +58,12 @@ def valid_request() -> dict[str, object]:
             "g002": {
                 "sourceCommit": "8" * 40,
                 "sourceTree": "9" * 40,
-                "dependencyLockClosureSha256": "a" * 64,
+                "historicalDependencyClosureSha256": "a" * 64,
             },
             "ptr": {
                 "sourceCommit": "b" * 40,
                 "sourceTree": "c" * 40,
-                "dependencyLockClosureSha256": "d" * 64,
+                "historicalDependencyClosureSha256": "d" * 64,
             },
         },
         "programs": {
@@ -96,7 +99,7 @@ def request_parser() -> None:
     selected["sources"]["g001"] = {
         "sourceCommit": "1" * 40,
         "sourceTree": "2" * 40,
-        "dependencyLockClosureSha256": "3" * 64,
+        "historicalDependencyClosureSha256": "3" * 64,
     }
     expect_invalid(module, selected)
     for forbidden in ("root", "privateRoot", "url", "command", "credential", "output"):
@@ -199,7 +202,7 @@ class FakeGit:
         return content
 
 
-def source_export() -> None:
+def synthetic_export_inputs():
     module = load_program()
     parsed = module.validate_request(valid_request())
     objects: dict[str, tuple[str, bytes]] = {}
@@ -264,6 +267,12 @@ def source_export() -> None:
             "sourceTree": tree_path(module, roots[realm], module_path, objects),
         })
 
+    return module, parsed, objects
+
+
+def source_export() -> None:
+    module, parsed, objects = synthetic_export_inputs()
+
     with tempfile.TemporaryDirectory(prefix="warpkeep-source-export-") as temporary:
         source = pathlib.Path(temporary) / "objects"
         source.mkdir()
@@ -306,6 +315,90 @@ def source_export() -> None:
         else:
             raise AssertionError("missing object accepted")
     print("source-export:ok")
+
+
+def real_source_export() -> None:
+    module, parsed, objects = synthetic_export_inputs()
+    if os.name != "posix" or not pathlib.Path("/usr/bin/git").is_file():
+        raise AssertionError("real disposable Git test requires the authorized Linux test host")
+    with tempfile.TemporaryDirectory(prefix="warpkeep-real-source-export-") as temporary:
+        root = pathlib.Path(temporary)
+        source_repository = root / "source.git"
+        (source_repository / "objects").mkdir(parents=True)
+        for object_id, (kind, content) in sorted(objects.items()):
+            module._write_loose_object(str(source_repository), object_id, kind, content)
+        stage = root / "stage"
+        (stage / "source-caches").mkdir(parents=True)
+        module.STAGE_PATH = str(stage)
+        destination = stage / "source-caches" / "repository.git"
+        evidence, dependency_files, _dependency_contents = module._export_source_objects(
+            parsed,
+            str(source_repository / "objects"),
+            str(destination),
+        )
+        if evidence["objectCount"] != len(objects):
+            raise AssertionError("real Git export omitted an authenticated object")
+        if dependency_files["g002"][0]["path"] != "spacetimedb/package.json":
+            raise AssertionError("G002 object coordinate was relabelled")
+        if not (destination / "HEAD").is_file() or not (destination / "refs").is_dir():
+            raise AssertionError("exported cache is not a minimal Git repository")
+        if (stage / "source-caches" / ".source-reader.git").exists():
+            raise AssertionError("temporary isolated reader survived exact export")
+
+        invalid = copy.deepcopy(parsed)
+        invalid["sources"]["ptr"]["sourceCommit"] = "f" * 40
+        second_stage = root / "invalid-stage"
+        (second_stage / "source-caches").mkdir(parents=True)
+        module.STAGE_PATH = str(second_stage)
+        try:
+            module._export_source_objects(
+                invalid,
+                str(source_repository / "objects"),
+                str(second_stage / "source-caches" / "repository.git"),
+            )
+        except module.Invalid:
+            pass
+        else:
+            raise AssertionError("missing authenticated Git object was accepted")
+    print("real-source-export:ok")
+
+
+def receipt_digest_separation() -> None:
+    module = load_program()
+    request = valid_request()
+    historical = {"g002": "a" * 64, "ptr": "d" * 64}
+    for realm, digest in historical.items():
+        request["sources"][realm] = {
+            "sourceCommit": request["sources"][realm]["sourceCommit"],
+            "sourceTree": request["sources"][realm]["sourceTree"],
+            "historicalDependencyClosureSha256": digest,
+        }
+    parsed = module.validate_request(request)
+    dependency_files = {}
+    for realm in ("g001", "g002", "ptr"):
+        dependency_files[realm] = [
+            {
+                "path": path,
+                "blob": (
+                    parsed["sourcePolicy"]["sourceRules"][realm]["dependencyBlobs"][index]
+                    if realm == "g001" else ("1" if realm == "g002" else "2") * 40
+                ),
+                "bytes": len(path.encode("utf-8")),
+                "sha256": hashlib.sha256(path.encode("utf-8")).hexdigest(),
+            }
+            for index, path in enumerate(
+                parsed["sourcePolicy"]["sourceRules"][realm]["dependencyPaths"]
+            )
+        ]
+    evidence = module._source_evidence_records(parsed, dependency_files)
+    for realm in ("g002", "ptr"):
+        if evidence[realm]["historicalDependencyClosureSha256"] != historical[realm]:
+            raise AssertionError("authenticated historical receipt digest was replaced")
+        if evidence[realm]["linuxSourceDependencyClosureSha256"] == historical[realm]:
+            raise AssertionError("unrelated Linux source digest was conflated with receipt digest")
+    if evidence["g001"]["historicalDependencyClosureSha256"] is not None:
+        raise AssertionError("G001 invented a historical publisher receipt digest")
+    print("receipt-digest-separation:ok")
 
 
 class FakeResponse:
@@ -478,6 +571,100 @@ def artifact_boundaries() -> None:
     print("artifact-boundaries:ok")
 
 
+def real_signature_boundary() -> None:
+    module = load_program()
+    if os.name != "posix" or not pathlib.Path("/usr/bin/gpgv").is_file():
+        raise AssertionError("real disposable signature test requires the authorized Linux test host")
+    with tempfile.TemporaryDirectory(prefix="warpkeep-real-signature-") as temporary:
+        root = pathlib.Path(temporary)
+        signer = root / "signer"
+        signer.mkdir(mode=0o700)
+        environment = {
+            "GNUPGHOME": str(signer),
+            "HOME": str(signer),
+            "LANG": "C",
+            "LC_ALL": "C",
+            "PATH": "/usr/bin:/bin",
+            "TZ": "UTC",
+        }
+        def kill_agent() -> None:
+            subprocess.run(
+                ["/usr/bin/gpgconf", "--homedir", str(signer), "--kill", "gpg-agent"],
+                check=False,
+                cwd="/",
+                env=environment,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+            )
+        atexit.register(kill_agent)
+
+        def gpg(arguments: list[str], input_bytes: bytes | None = None) -> bytes:
+            result = subprocess.run(
+                ["/usr/bin/gpg", "--homedir", str(signer), "--batch", "--no-options",
+                 "--no-auto-key-locate", *arguments],
+                check=False,
+                cwd="/",
+                env=environment,
+                input=input_bytes,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                raise AssertionError("synthetic GPG setup failed")
+            return result.stdout
+
+        identity = "Warpkeep Recovery Synthetic Test <synthetic@example.invalid>"
+        gpg([
+            "--pinentry-mode", "loopback", "--passphrase", "",
+            "--quick-generate-key", identity, "ed25519", "sign", "0",
+        ])
+        listing = gpg(["--with-colons", "--fingerprint", "--list-keys", identity])
+        fingerprints = [
+            line.split(":")[9]
+            for line in listing.decode("utf-8").splitlines()
+            if line.startswith("fpr:")
+        ]
+        if len(fingerprints) != 1 or len(fingerprints[0]) != 40:
+            raise AssertionError("synthetic signer fingerprint unavailable")
+        fingerprint = fingerprints[0]
+        key = gpg(["--armor", "--export", fingerprint])
+        shasums = (
+            b"0" * 64
+            + b"  node-v0.0.0-linux-x64.tar.xz\n"
+        )
+        sums_path = root / "SHASUMS256.txt"
+        signature_path = root / "SHASUMS256.txt.sig"
+        sums_path.write_bytes(shasums)
+        gpg([
+            "--pinentry-mode", "loopback", "--passphrase", "",
+            "--local-user", fingerprint, "--detach-sign",
+            "--output", str(signature_path), str(sums_path),
+        ])
+        signature = signature_path.read_bytes()
+        release = {
+            "signerFingerprint": fingerprint,
+            "signingAlgorithm": "EdDSA",
+        }
+        module._verify_node_signature(
+            key, shasums, signature, release, str(root / "verify-valid")
+        )
+        invalid = bytearray(signature)
+        invalid[-1] ^= 1
+        try:
+            module._verify_node_signature(
+                key, shasums, bytes(invalid), release, str(root / "verify-invalid")
+            )
+        except module.Invalid:
+            pass
+        else:
+            raise AssertionError("invalid detached signature was accepted")
+        kill_agent()
+        atexit.unregister(kill_agent)
+    print("real-signature-boundary:ok")
+
+
 def lock_graph() -> None:
     module = load_program()
     if module._package_coordinate("@scope/package@1.2.3(peer@4.5.6)") != (
@@ -548,6 +735,102 @@ snapshots:
     else:
         raise AssertionError("missing Linux esbuild accepted")
     print("lock-graph:ok")
+
+
+def workspace_layout() -> None:
+    module = load_program()
+    parsed = module.validate_request(valid_request())
+    g002 = parsed["sourcePolicy"]["sourceRules"]["g002"]
+    if g002 != {
+        "modulePath": "spacetimedb/genesis002",
+        "workspacePath": "spacetimedb",
+        "lockImporter": "genesis002",
+        "packageName": "warpkeep-genesis-002-spacetimedb-module",
+        "nodeVersion": "22.22.3",
+        "dependencyPaths": [
+            "spacetimedb/package.json",
+            "spacetimedb/pnpm-workspace.yaml",
+            "spacetimedb/pnpm-lock.yaml",
+            "spacetimedb/genesis002/package.json",
+        ],
+    }:
+        raise AssertionError("G002 authenticated workspace policy changed")
+
+    def package(name: str) -> bytes:
+        return json.dumps({
+            "name": name,
+            "private": True,
+            "packageManager": "pnpm@11.7.0",
+            "scripts": {},
+        }, separators=(",", ":")).encode() + b"\n"
+
+    def lock(importer: str) -> bytes:
+        integrity = "sha512-" + base64.b64encode(
+            hashlib.sha512(importer.encode()).digest()
+        ).decode("ascii")
+        return f"""lockfileVersion: '9.0'
+
+importers:
+
+  {importer}:
+    devDependencies:
+      esbuild:
+        specifier: 0.25.12
+        version: 0.25.12
+
+packages:
+
+  '@esbuild/linux-x64@0.25.12':
+    resolution: {{integrity: {integrity}}}
+    cpu: [x64]
+    os: [linux]
+
+  esbuild@0.25.12:
+    resolution: {{integrity: {integrity}}}
+
+snapshots:
+
+  '@esbuild/linux-x64@0.25.12':
+    {{}}
+
+  esbuild@0.25.12:
+    optionalDependencies:
+      '@esbuild/linux-x64': 0.25.12
+""".encode()
+
+    workspace = b"packages:\n  - genesis002\nallowBuilds:\n  esbuild: true\n"
+    g001_workspace = b"packages:\n  - .\nallowBuilds:\n  esbuild: true\n"
+    contents = {
+        "g001": {
+            "spacetimedb/package.json": package("warpkeep-spacetimedb-module"),
+            "spacetimedb/pnpm-lock.yaml": lock("."),
+            "spacetimedb/pnpm-workspace.yaml": g001_workspace,
+        },
+        "g002": {
+            "spacetimedb/package.json": package("warpkeep-spacetimedb-module"),
+            "spacetimedb/pnpm-workspace.yaml": workspace,
+            "spacetimedb/pnpm-lock.yaml": lock("genesis002"),
+            "spacetimedb/genesis002/package.json": package(
+                "warpkeep-genesis-002-spacetimedb-module"
+            ),
+        },
+        "ptr": {
+            "spacetimedb/ptr/package.json": package("warpkeep-ptr-spacetimedb-module"),
+            "spacetimedb/ptr/pnpm-lock.yaml": lock("."),
+        },
+    }
+    selected = module._validate_dependency_documents(parsed, contents)
+    if selected["g002"][0]["name"] != "@esbuild/linux-x64":
+        raise AssertionError("G002 workspace lock graph was not selected")
+    rejected = copy.deepcopy(contents)
+    rejected["g002"]["spacetimedb/pnpm-lock.yaml"] = lock("spacetimedb/genesis002")
+    try:
+        module._validate_dependency_documents(parsed, rejected)
+    except module.Invalid:
+        pass
+    else:
+        raise AssertionError("repository-relative path was accepted as G002 lock importer")
+    print("workspace-layout:ok")
 
 
 def transaction_catalog() -> None:
@@ -659,9 +942,6 @@ def producer_control_flow() -> None:
             contents[path] = content
         dependency_files[realm] = records
         dependency_contents[realm] = contents
-        closure = module._dependency_closure(realm, records)
-        if realm != "g001":
-            parsed["sources"][realm]["dependencyLockClosureSha256"] = closure
 
     source_export = {
         "profile": "warpkeep-release-recovery-source-object-export-v1",
@@ -786,7 +1066,15 @@ def producer_control_flow() -> None:
                     "sourceTree": sources[realm]["sourceTree"],
                     "storePath": f"pnpm-store/{realm}",
                     "closureRecordPath": sources[realm]["dependencyClosureRecordPath"],
-                    "closureSha256": sources[realm]["dependencyLockClosureSha256"],
+                    "historicalDependencyClosureSha256":
+                        sources[realm]["historicalDependencyClosureSha256"],
+                    "linuxSourceDependencyClosureSha256":
+                        sources[realm]["linuxSourceDependencyClosureSha256"],
+                    "linuxCacheClosureSha256": module._dependency_cache_closure(
+                        realm, sources[realm], [package], module.STAGE_PATH,
+                    ),
+                    "cacheInventoryDomain":
+                        f"warpkeep.release-recovery.linux-dependency-cache.{realm}.v1",
                     "containsLinuxX64Esbuild": True,
                     "packages": [package],
                 }
@@ -796,19 +1084,24 @@ def producer_control_flow() -> None:
         module._validate_dependency_documents = validate_documents
         module._install_toolchains = install_toolchains
         module._build_dependency_caches = build_caches
+        module._verify_retained_node_signatures = lambda *_args: calls.append(
+            "offline-signature"
+        )
         result = module._prepare_toolchain(
             parsed, "/mnt/c/synthetic/.git/objects", programs, system_tools,
         )
         if calls != [
             "source-export", "dependency-authority", "artifact-verification", "offline-cache",
+            "offline-signature",
         ]:
             raise AssertionError(f"unexpected producer order: {calls!r}")
         catalog_before = (state / "cache-catalog-v2.json").read_bytes()
         manifest = json.loads((state / "toolchains" / "linux-x64.json").read_bytes())
         if manifest["programs"] != programs or manifest["sourceObjectExport"] != source_export:
             raise AssertionError("full evidence omitted from manifest")
-        if (state / ".bootstrap-transaction-v1").exists() or (state / ".work").exists():
-            raise AssertionError("producer transaction residue survived")
+        journal = json.loads((state / ".bootstrap-transaction-v1" / "journal.json").read_bytes())
+        if journal["state"] != "COMMITTED" or (state / ".work").exists():
+            raise AssertionError("durable producer completion anchor missing")
 
         module._export_source_objects = lambda *_args: (_ for _ in ()).throw(
             AssertionError("idempotent readback rebuilt source cache")
@@ -818,6 +1111,26 @@ def producer_control_flow() -> None:
         )
         if repeated != result or (state / "cache-catalog-v2.json").read_bytes() != catalog_before:
             raise AssertionError("idempotent producer rewrote verified cache")
+
+        transaction = state / ".bootstrap-transaction-v1"
+        retained = state / ".bootstrap-transaction-retained"
+        transaction.rename(retained)
+        tampered = state / "pnpm-store" / "g001" / "files" / "value"
+        tampered.chmod(0o600)
+        tampered.write_bytes(b"tampered-unanchored-cache\n")
+        tampered.chmod(0o400)
+        before = module._inventory_cache(str(state))
+        try:
+            module._prepare_toolchain(
+                parsed, "/mnt/c/synthetic/.git/objects", programs, system_tools,
+            )
+        except module.Invalid:
+            pass
+        else:
+            raise AssertionError("unanchored existing cache received fresh trust")
+        after = module._inventory_cache(str(state))
+        if after != before or not retained.is_dir():
+            raise AssertionError("rejected unanchored cache state was mutated")
     print("producer-control-flow:ok")
 
 
@@ -826,10 +1139,18 @@ if __name__ == "__main__":
         request_parser()
     elif sys.argv == [sys.argv[0], "source-export"]:
         source_export()
+    elif sys.argv == [sys.argv[0], "real-source-export"]:
+        real_source_export()
+    elif sys.argv == [sys.argv[0], "receipt-digest-separation"]:
+        receipt_digest_separation()
     elif sys.argv == [sys.argv[0], "artifact-boundaries"]:
         artifact_boundaries()
+    elif sys.argv == [sys.argv[0], "real-signature-boundary"]:
+        real_signature_boundary()
     elif sys.argv == [sys.argv[0], "lock-graph"]:
         lock_graph()
+    elif sys.argv == [sys.argv[0], "workspace-layout"]:
+        workspace_layout()
     elif sys.argv == [sys.argv[0], "transaction-catalog"]:
         transaction_catalog()
     elif sys.argv == [sys.argv[0], "producer-control-flow"]:

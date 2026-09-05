@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import {
   closeSync,
@@ -13,7 +14,6 @@ import {
   renameSync,
   rmdirSync,
   unlinkSync,
-  writeFileSync,
   writeSync,
 } from 'node:fs'
 import {
@@ -30,6 +30,36 @@ const JOURNAL_NAME = 'transaction-journal-v1.ndjson'
 const JOURNAL_PROFILE = 'warpkeep-release-recovery-fixture-output-transaction-journal-v1'
 const MAXIMUM_JOURNAL_BYTES = 2 * 1024 * 1024
 const HEX_64 = /^[0-9a-f]{64}$/u
+const FIXED_POWERSHELL = String.raw`C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`
+const WINDOWS_MOVE_FILE_WRITE_THROUGH = String.raw`
+$ErrorActionPreference = 'Stop'
+$null = Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+public static class WarpkeepDurableMove {
+  [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+  private static extern bool MoveFileExW(string existingPath, string newPath, uint flags);
+  public static void Move(string existingPath, string newPath) {
+    const uint MOVEFILE_WRITE_THROUGH = 0x00000008;
+    if (!MoveFileExW(existingPath, newPath, MOVEFILE_WRITE_THROUGH)) {
+      throw new Win32Exception(Marshal.GetLastWin32Error());
+    }
+  }
+}
+'@
+[WarpkeepDurableMove]::Move(
+  $env:WARPKEEP_DURABLE_SOURCE,
+  $env:WARPKEEP_DURABLE_TARGET
+)
+`
+const FIXED_WINDOWS_ENVIRONMENT = Object.freeze({
+  ComSpec: String.raw`C:\Windows\System32\cmd.exe`,
+  PATH: String.raw`C:\Windows\System32`,
+  PATHEXT: '.COM;.EXE;.BAT;.CMD',
+  SystemRoot: String.raw`C:\Windows`,
+  WINDIR: String.raw`C:\Windows`,
+})
 
 function fail() {
   const error = new Error('RECOVERY_FIXTURE_INPUT_INVALID')
@@ -80,6 +110,114 @@ function samePath(left, right) {
     : left === right
 }
 
+function flushDirectory(path) {
+  assertCanonicalDirectory(path)
+  const flags = process.platform === 'win32'
+    ? constants.O_WRONLY
+    : constants.O_RDONLY | (constants.O_DIRECTORY ?? 0)
+  const descriptor = openSync(path, flags)
+  try {
+    const stat = fstatSync(descriptor)
+    if (!stat.isDirectory()) fail()
+    fsyncSync(descriptor)
+  } finally {
+    closeSync(descriptor)
+  }
+  assertCanonicalDirectory(path)
+}
+
+function durableRename(source, target, scratchRoot) {
+  if (
+    typeof source !== 'string'
+    || typeof target !== 'string'
+    || !isAbsolute(source)
+    || !isAbsolute(target)
+    || source.includes('\0')
+    || target.includes('\0')
+  ) fail()
+  const sourceParent = dirname(source)
+  const targetParent = dirname(target)
+  assertCanonicalDirectory(sourceParent)
+  assertCanonicalDirectory(targetParent)
+  assertCanonicalDirectory(scratchRoot)
+  const sourceStatus = lstatSync(source, { throwIfNoEntry: false })
+  if (
+    sourceStatus === undefined
+    || sourceStatus.isSymbolicLink()
+    || !sourceStatus.isFile()
+    || !samePath(realpathSync.native(source), source)
+    || lstatSync(target, { throwIfNoEntry: false }) !== undefined
+    || lstatSync(sourceParent).dev !== lstatSync(targetParent).dev
+  ) fail()
+  if (process.platform === 'win32') {
+    const result = spawnSync(FIXED_POWERSHELL, [
+      '-NoLogo', '-NoProfile', '-NonInteractive', '-Command',
+      WINDOWS_MOVE_FILE_WRITE_THROUGH,
+    ], {
+      cwd: scratchRoot,
+      encoding: null,
+      env: {
+        ...FIXED_WINDOWS_ENVIRONMENT,
+        TEMP: scratchRoot,
+        TMP: scratchRoot,
+        WARPKEEP_DURABLE_SOURCE: source,
+        WARPKEEP_DURABLE_TARGET: target,
+      },
+      maxBuffer: 4 * 1024,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 30_000,
+      windowsHide: true,
+    })
+    if (
+      result.error !== undefined
+      || result.status !== 0
+      || result.signal !== null
+      || !(result.stdout instanceof Uint8Array)
+      || !(result.stderr instanceof Uint8Array)
+      || result.stdout.byteLength !== 0
+      || result.stderr.byteLength !== 0
+    ) fail()
+  } else {
+    renameSync(source, target)
+  }
+  flushDirectory(sourceParent)
+  if (!samePath(sourceParent, targetParent)) flushDirectory(targetParent)
+}
+
+function durableUnlink(parent, path) {
+  unlinkSync(path)
+  flushDirectory(parent)
+}
+
+function durableCreateDirectory(parent, path, mode) {
+  mkdirSync(path, { mode })
+  assertCanonicalDirectory(path)
+  flushDirectory(path)
+  flushDirectory(parent)
+}
+
+function writeDurableStageFile(stageRoot, path, bytes) {
+  const descriptor = openSync(
+    path,
+    constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0),
+    0o600,
+  )
+  try {
+    const status = fstatSync(descriptor)
+    if (!status.isFile() || status.size !== 0) fail()
+    let offset = 0
+    while (offset < bytes.byteLength) {
+      const written = writeSync(descriptor, bytes, offset, bytes.byteLength - offset)
+      if (!Number.isSafeInteger(written) || written < 1) fail()
+      offset += written
+    }
+    fsyncSync(descriptor)
+  } finally {
+    closeSync(descriptor)
+  }
+  flushDirectory(stageRoot)
+}
+
 function assertCanonicalDirectory(path) {
   const stat = lstatSync(path, { throwIfNoEntry: false })
   if (
@@ -100,7 +238,7 @@ function directoryChain(repositoryRoot, targetParent, create) {
     let stat = lstatSync(current, { throwIfNoEntry: false })
     if (stat === undefined) {
       if (!create) break
-      mkdirSync(current, { mode: 0o755 })
+      durableCreateDirectory(dirname(current), current, 0o755)
       stat = lstatSync(current, { throwIfNoEntry: false })
     }
     if (
@@ -270,6 +408,7 @@ function appendJournal(stageRoot, journalPath, state) {
     bytes.fill(0)
     closeSync(descriptor)
   }
+  if (existing === undefined) flushDirectory(stageRoot)
 }
 
 function readJournal(stageRoot, journalPath, paths) {
@@ -328,7 +467,7 @@ function assertStageInventory(stageRoot, paths) {
 function removeStageMember(stageRoot, path) {
   if (lstatSync(path, { throwIfNoEntry: false }) === undefined) return
   assertStageMember(stageRoot, path)
-  unlinkSync(path)
+  durableUnlink(stageRoot, path)
 }
 
 function removeCompletedStage(stageRoot, journalPath, paths) {
@@ -341,6 +480,7 @@ function removeCompletedStage(stageRoot, journalPath, paths) {
   assertCanonicalDirectory(stageRoot)
   if (readdirSync(stageRoot).length !== 0) fail()
   rmdirSync(stageRoot)
+  flushDirectory(dirname(stageRoot))
 }
 
 function targetFor(repositoryRoot, paths, path) {
@@ -358,7 +498,7 @@ function assertTargetFile(repositoryRoot, target, expected) {
 
 function removeTarget(repositoryRoot, target, expected) {
   assertTargetFile(repositoryRoot, target, expected)
-  unlinkSync(target)
+  durableUnlink(dirname(target), target)
   directoryChain(repositoryRoot, dirname(target), false)
 }
 
@@ -380,7 +520,7 @@ function restorePreviousSet(repositoryRoot, stageRoot, journalPath, paths, state
           removeTarget(repositoryRoot, target, newFingerprint)
         }
         directoryChain(repositoryRoot, dirname(target), false)
-        renameSync(backup, target)
+        durableRename(backup, target, stageRoot)
         assertTargetFile(repositoryRoot, target, oldFingerprint)
       } else {
         if (targetStat === undefined) fail()
@@ -410,7 +550,7 @@ function finishCommittedSet(repositoryRoot, stageRoot, journalPath, paths, state
       if (entry.hadOld !== true) fail()
       assertStageMember(stageRoot, backup)
       if (!sameFingerprint(backup, { bytes: entry.oldBytes, sha256: entry.oldSha256 })) fail()
-      unlinkSync(backup)
+      durableUnlink(stageRoot, backup)
     }
   }
   removeCompletedStage(stageRoot, journalPath, paths)
@@ -426,10 +566,12 @@ function recoverStage(repositoryRoot, stageRoot, journalPath, paths) {
   if (journal === undefined) {
     if (readdirSync(stageRoot).length !== 0) fail()
     rmdirSync(stageRoot)
+    flushDirectory(dirname(stageRoot))
     return
   }
   const state = readJournal(stageRoot, journalPath, paths)
   if (state.phase === 'COMMITTED') {
+    appendJournal(stageRoot, journalPath, state)
     finishCommittedSet(repositoryRoot, stageRoot, journalPath, paths, state)
     return
   }
@@ -481,7 +623,7 @@ export function createFixedFixtureOutputStore(input) {
         }
         directoryChain(repositoryRoot, dirname(stageRoot), false)
         if (lstatSync(stageRoot, { throwIfNoEntry: false }) !== undefined) fail()
-        mkdirSync(stageRoot, { mode: 0o700 })
+        durableCreateDirectory(dirname(stageRoot), stageRoot, 0o700)
         assertCanonicalDirectory(stageRoot)
         const state = {
           schemaVersion: 1,
@@ -506,12 +648,17 @@ export function createFixedFixtureOutputStore(input) {
         return Object.freeze({
           async stage(path, bytes) {
             try {
-              if (closed || !(bytes instanceof Uint8Array) || bytes.byteLength < 1) fail()
+              if (
+                closed
+                || !(bytes instanceof Uint8Array)
+                || bytes.byteLength < 1
+                || bytes.byteLength > 64 * 1024 * 1024
+              ) fail()
               const index = paths.indexOf(path)
               if (index < 0 || state.entries[index].staged) fail()
               assertCanonicalDirectory(stageRoot)
               const stagePath = resolve(stageRoot, `${index}.new`)
-              writeFileSync(stagePath, bytes, { flag: 'wx', mode: 0o600 })
+              writeDurableStageFile(stageRoot, stagePath, bytes)
               const fingerprint = fileFingerprint(stagePath)
               state.entries[index].staged = true
               state.entries[index].newBytes = fingerprint.bytes
@@ -523,7 +670,6 @@ export function createFixedFixtureOutputStore(input) {
           },
           async commit() {
             if (closed || state.entries.some(entry => !entry.staged)) fail()
-            let committed = false
             try {
               for (let index = 0; index < paths.length; index += 1) {
                 const entry = state.entries[index]
@@ -555,7 +701,7 @@ export function createFixedFixtureOutputStore(input) {
                     sha256: entry.oldSha256,
                   })
                   if (lstatSync(backup, { throwIfNoEntry: false }) !== undefined) fail()
-                  renameSync(target, backup)
+                  durableRename(target, backup, stageRoot)
                   assertStageMember(stageRoot, backup)
                   if (!sameFingerprint(backup, { bytes: entry.oldBytes, sha256: entry.oldSha256 })) fail()
                   entry.backupState = 'moved'
@@ -567,7 +713,7 @@ export function createFixedFixtureOutputStore(input) {
                 if (!sameFingerprint(staged, { bytes: entry.newBytes, sha256: entry.newSha256 })) fail()
                 if (lstatSync(target, { throwIfNoEntry: false }) !== undefined) fail()
                 directoryChain(repositoryRoot, dirname(target), false)
-                renameSync(staged, target)
+                durableRename(staged, target, stageRoot)
                 assertTargetFile(repositoryRoot, target, {
                   bytes: entry.newBytes,
                   sha256: entry.newSha256,
@@ -577,12 +723,22 @@ export function createFixedFixtureOutputStore(input) {
               }
               state.phase = 'COMMITTED'
               appendJournal(stageRoot, journalPath, state)
-              committed = true
               finishCommittedSet(repositoryRoot, stageRoot, journalPath, paths, state)
               closed = true
             } catch {
               try { recoverStage(repositoryRoot, stageRoot, journalPath, paths) } catch { /* retain recovery state */ }
-              if (committed && lstatSync(stageRoot, { throwIfNoEntry: false }) === undefined) {
+              if (
+                state.phase === 'COMMITTED'
+                && lstatSync(stageRoot, { throwIfNoEntry: false }) === undefined
+              ) {
+                for (const entry of state.entries) {
+                  if (!entry.staged) fail()
+                  assertTargetFile(
+                    repositoryRoot,
+                    targetFor(repositoryRoot, paths, entry.path),
+                    { bytes: entry.newBytes, sha256: entry.newSha256 },
+                  )
+                }
                 closed = true
                 return
               }

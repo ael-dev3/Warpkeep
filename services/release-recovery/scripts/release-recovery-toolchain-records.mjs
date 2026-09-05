@@ -233,22 +233,31 @@ function validateSourceRules(value) {
     || g001.materializerSha256
       !== 'a85df9f4c76f26ecd171e0ab7d1fcc03b928eb9b3331df188598628b10e58a93'
   ) fail()
+  const g002 = exact(rules.g002, [
+    'modulePath', 'workspacePath', 'lockImporter', 'packageName', 'nodeVersion',
+    'dependencyPaths',
+  ])
+  if (
+    g002.modulePath !== 'spacetimedb/genesis002'
+    || g002.workspacePath !== 'spacetimedb'
+    || g002.lockImporter !== 'genesis002'
+    || g002.packageName !== 'warpkeep-genesis-002-spacetimedb-module'
+    || g002.nodeVersion !== '22.22.3'
+    || !sameJson(g002.dependencyPaths, [
+      'spacetimedb/package.json',
+      'spacetimedb/pnpm-workspace.yaml',
+      'spacetimedb/pnpm-lock.yaml',
+      'spacetimedb/genesis002/package.json',
+    ])
+  ) fail()
   const dynamicExpected = Object.freeze({
-    g002: Object.freeze({
-      modulePath: 'spacetimedb/genesis002',
-      importer: 'warpkeep-genesis-002-spacetimedb-module',
-      paths: Object.freeze([
-        'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml',
-        'spacetimedb/genesis002/package.json',
-      ]),
-    }),
     ptr: Object.freeze({
       modulePath: 'spacetimedb/ptr',
       importer: 'warpkeep-ptr-spacetimedb-module',
       paths: Object.freeze(['spacetimedb/ptr/package.json', 'spacetimedb/ptr/pnpm-lock.yaml']),
     }),
   })
-  for (const realm of ['g002', 'ptr']) {
+  for (const realm of ['ptr']) {
     const rule = exact(rules[realm], [
       'modulePath', 'importer', 'nodeVersion', 'dependencyPaths',
     ])
@@ -312,51 +321,61 @@ function validateSourceCoordinates(value) {
   const sources = exact(value, REALMS)
   for (const realm of REALMS) {
     const source = exact(sources[realm], [
-      'sourceCommit', 'sourceTree', 'dependencyLockClosureSha256',
+      'sourceCommit', 'sourceTree', 'historicalDependencyClosureSha256',
     ])
     hex(source.sourceCommit, HEX40)
     hex(source.sourceTree, HEX40)
-    hex(source.dependencyLockClosureSha256, HEX64)
+    if (realm === 'g001') {
+      if (source.historicalDependencyClosureSha256 !== null) fail()
+    } else {
+      hex(source.historicalDependencyClosureSha256, HEX64)
+    }
   }
   return sources
 }
 
 function validateSourceEvidence(value, realm, policy, expected) {
   const source = exact(value, [
-    'realm', 'sourceCommit', 'sourceTree', 'dependencyLockClosureSha256',
-    'dependencyInventoryDomain', 'dependencyClosureRecordPath', 'dependencyFiles',
+    'realm', 'sourceCommit', 'sourceTree', 'historicalDependencyClosureSha256',
+    'linuxSourceDependencyClosureSha256', 'dependencyInventoryDomain',
+    'dependencyClosureRecordPath', 'dependencyFiles',
   ])
   if (
     source.realm !== realm
     || source.sourceCommit !== expected.sourceCommit
     || source.sourceTree !== expected.sourceTree
-    || source.dependencyLockClosureSha256 !== expected.dependencyLockClosureSha256
+    || source.historicalDependencyClosureSha256
+      !== expected.historicalDependencyClosureSha256
     || source.dependencyInventoryDomain
       !== `warpkeep.release-recovery.source-dependencies.${realm}.v1`
     || source.dependencyClosureRecordPath
-      !== `source-caches/${realm}-dependency-closure-sha256.txt`
+      !== `source-caches/${realm}-linux-source-dependency-closure-sha256.txt`
     || !Array.isArray(source.dependencyFiles)
     || source.dependencyFiles.length !== policy.sourceRules[realm].dependencyPaths.length
   ) fail()
   const closure = createHash('sha256')
   closure.update(`${source.dependencyInventoryDomain}\n`)
-  let previous = Buffer.alloc(0)
+  const closureRecords = []
   for (let index = 0; index < source.dependencyFiles.length; index += 1) {
     const file = exact(source.dependencyFiles[index], ['path', 'blob', 'bytes', 'sha256'])
     const encodedPath = Buffer.from(safeRelativePath(file.path), 'utf8')
     if (
-      encodedPath.compare(previous) <= 0
-      || file.path !== policy.sourceRules[realm].dependencyPaths[index]
+      file.path !== policy.sourceRules[realm].dependencyPaths[index]
       || file.path === source.dependencyClosureRecordPath
     ) fail()
-    previous = encodedPath
     hex(file.blob, HEX40)
     integer(file.bytes, 16 * 1024 * 1024)
     hex(file.sha256, HEX64)
     if (realm === 'g001' && file.blob !== policy.sourceRules.g001.dependencyBlobs[index]) fail()
+    closureRecords.push({ encodedPath, file })
+  }
+  closureRecords.sort((left, right) => left.encodedPath.compare(right.encodedPath))
+  for (let index = 0; index < closureRecords.length; index += 1) {
+    if (index > 0 && closureRecords[index].encodedPath.equals(closureRecords[index - 1].encodedPath)) fail()
+    const { file } = closureRecords[index]
     closure.update(`${file.path}\0${file.blob}\0${file.bytes}\0${file.sha256}\n`)
   }
-  if (closure.digest('hex') !== source.dependencyLockClosureSha256) fail()
+  if (closure.digest('hex') !== source.linuxSourceDependencyClosureSha256) fail()
   return source
 }
 
@@ -397,7 +416,9 @@ function validatePackage(value) {
 function validateCacheEvidence(value, realm, source) {
   const cache = exact(value, [
     'realm', 'sourceCommit', 'sourceTree', 'storePath', 'closureRecordPath',
-    'closureSha256', 'containsLinuxX64Esbuild', 'packages',
+    'historicalDependencyClosureSha256', 'linuxSourceDependencyClosureSha256',
+    'linuxCacheClosureSha256', 'cacheInventoryDomain',
+    'containsLinuxX64Esbuild', 'packages',
   ])
   if (
     cache.realm !== realm
@@ -405,12 +426,18 @@ function validateCacheEvidence(value, realm, source) {
     || cache.sourceTree !== source.sourceTree
     || cache.storePath !== `pnpm-store/${realm}`
     || cache.closureRecordPath !== source.dependencyClosureRecordPath
-    || cache.closureSha256 !== source.dependencyLockClosureSha256
+    || cache.historicalDependencyClosureSha256
+      !== source.historicalDependencyClosureSha256
+    || cache.linuxSourceDependencyClosureSha256
+      !== source.linuxSourceDependencyClosureSha256
+    || cache.cacheInventoryDomain
+      !== `warpkeep.release-recovery.linux-dependency-cache.${realm}.v1`
     || cache.containsLinuxX64Esbuild !== true
     || !Array.isArray(cache.packages)
     || cache.packages.length < 1
     || cache.packages.length > 10_000
   ) fail()
+  hex(cache.linuxCacheClosureSha256, HEX64)
   let previous = Buffer.alloc(0)
   let esbuild = false
   for (const raw of cache.packages) {

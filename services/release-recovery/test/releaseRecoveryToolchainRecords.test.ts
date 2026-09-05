@@ -118,9 +118,11 @@ function sourcePolicy(): Record<string, unknown> {
       },
       g002: {
         modulePath: 'spacetimedb/genesis002',
-        importer: 'warpkeep-genesis-002-spacetimedb-module',
+        workspacePath: 'spacetimedb',
+        lockImporter: 'genesis002',
+        packageName: 'warpkeep-genesis-002-spacetimedb-module',
         nodeVersion: '22.22.3',
-        dependencyPaths: ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'spacetimedb/genesis002/package.json'],
+        dependencyPaths: ['spacetimedb/package.json', 'spacetimedb/pnpm-workspace.yaml', 'spacetimedb/pnpm-lock.yaml', 'spacetimedb/genesis002/package.json'],
       },
       ptr: {
         modulePath: 'spacetimedb/ptr',
@@ -135,19 +137,20 @@ function sourcePolicy(): Record<string, unknown> {
   }
 }
 
-function sources() {
-  const closure = (realm: string): string => {
-    const hash = createHash('sha256')
-    hash.update(`warpkeep.release-recovery.source-dependencies.${realm}.v1\n`)
-    for (const file of dependencyFiles(realm)) {
-      hash.update(`${file.path}\0${file.blob}\0${file.bytes}\0${file.sha256}\n`)
-    }
-    return hash.digest('hex')
+function sourceClosure(realm: string): string {
+  const hash = createHash('sha256')
+  hash.update(`warpkeep.release-recovery.source-dependencies.${realm}.v1\n`)
+  for (const file of [...dependencyFiles(realm)].sort((left, right) => Buffer.from(left.path).compare(Buffer.from(right.path)))) {
+    hash.update(`${file.path}\0${file.blob}\0${file.bytes}\0${file.sha256}\n`)
   }
+  return hash.digest('hex')
+}
+
+function sources() {
   return {
-    g001: { sourceCommit: '2ae51984e1fa6ce5b0028c1a250359fed79d819b', sourceTree: '90deebb5faf4129282f5c35999244f540001b27d', dependencyLockClosureSha256: closure('g001') },
-    g002: { sourceCommit: '8'.repeat(40), sourceTree: '9'.repeat(40), dependencyLockClosureSha256: closure('g002') },
-    ptr: { sourceCommit: 'a'.repeat(40), sourceTree: 'b'.repeat(40), dependencyLockClosureSha256: closure('ptr') },
+    g001: { sourceCommit: '2ae51984e1fa6ce5b0028c1a250359fed79d819b', sourceTree: '90deebb5faf4129282f5c35999244f540001b27d', historicalDependencyClosureSha256: null },
+    g002: { sourceCommit: '8'.repeat(40), sourceTree: '9'.repeat(40), historicalDependencyClosureSha256: h('a') },
+    ptr: { sourceCommit: 'a'.repeat(40), sourceTree: 'b'.repeat(40), historicalDependencyClosureSha256: h('b') },
   }
 }
 
@@ -155,7 +158,7 @@ function dependencyFiles(realm: string) {
   const paths = realm === 'g001'
     ? ['spacetimedb/package.json', 'spacetimedb/pnpm-lock.yaml', 'spacetimedb/pnpm-workspace.yaml']
     : realm === 'g002'
-      ? ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'spacetimedb/genesis002/package.json']
+      ? ['spacetimedb/package.json', 'spacetimedb/pnpm-workspace.yaml', 'spacetimedb/pnpm-lock.yaml', 'spacetimedb/genesis002/package.json']
       : ['spacetimedb/ptr/package.json', 'spacetimedb/ptr/pnpm-lock.yaml']
   const fixedG001Blobs = [
     'faf7214653f1248a3f9231fd6a13dda130821014',
@@ -174,8 +177,9 @@ function evidence(policy: any, policySha256: string): Record<string, unknown> {
   const sourceRecords = Object.fromEntries(Object.entries(sources()).map(([realm, source]: any) => [realm, {
     realm,
     ...source,
+    linuxSourceDependencyClosureSha256: sourceClosure(realm),
     dependencyInventoryDomain: `warpkeep.release-recovery.source-dependencies.${realm}.v1`,
-    dependencyClosureRecordPath: `source-caches/${realm}-dependency-closure-sha256.txt`,
+    dependencyClosureRecordPath: `source-caches/${realm}-linux-source-dependency-closure-sha256.txt`,
     dependencyFiles: dependencyFiles(realm),
   }]))
   const dependencyCaches = Object.fromEntries(Object.entries(sources()).map(([realm, source]: any) => [realm, {
@@ -183,8 +187,11 @@ function evidence(policy: any, policySha256: string): Record<string, unknown> {
     sourceCommit: source.sourceCommit,
     sourceTree: source.sourceTree,
     storePath: `pnpm-store/${realm}`,
-    closureRecordPath: `source-caches/${realm}-dependency-closure-sha256.txt`,
-    closureSha256: source.dependencyLockClosureSha256,
+    closureRecordPath: `source-caches/${realm}-linux-source-dependency-closure-sha256.txt`,
+    historicalDependencyClosureSha256: source.historicalDependencyClosureSha256,
+    linuxSourceDependencyClosureSha256: sourceClosure(realm),
+    linuxCacheClosureSha256: h(realm === 'g001' ? '4' : realm === 'g002' ? '5' : '6'),
+    cacheInventoryDomain: `warpkeep.release-recovery.linux-dependency-cache.${realm}.v1`,
     containsLinuxX64Esbuild: true,
     packages: [{
       name: '@esbuild/linux-x64',
@@ -283,6 +290,14 @@ function materializerCatalogEntries(manifest: any): Map<string, Record<string, u
     const release = manifest.nodeReleases[version]
     const path = `toolchains/node-v${version}-linux-x64/bin/node`
     result.set(path, entry(path, '500', release.archiveMemberBytes, release.archiveMemberSha256))
+    for (const [name, bytes, sha256] of [
+      ['release-key.asc', release.publicKeyBytes, release.publicKeySha256],
+      ['SHASUMS256.txt', release.shasumsBytes, release.shasumsSha256],
+      ['SHASUMS256.txt.sig', release.signatureBytes, release.signatureSha256],
+    ] as const) {
+      const evidencePath = `source-caches/public-provenance/node-v${version}/${name}`
+      result.set(evidencePath, entry(evidencePath, '400', bytes, sha256))
+    }
   }
   for (const [memberPath, member] of Object.entries(manifest.pnpm.members) as Array<[
     string,
@@ -301,8 +316,8 @@ function materializerCatalogEntries(manifest: any): Map<string, Record<string, u
     result.set(path, entry(path, '500', member.bytes, member.sha256))
   }
   for (const realm of ['g001', 'g002', 'ptr']) {
-    const path = `source-caches/${realm}-dependency-closure-sha256.txt`
-    const bytes = Buffer.from(`${manifest.sources[realm].dependencyLockClosureSha256}\n`, 'ascii')
+    const path = `source-caches/${realm}-linux-source-dependency-closure-sha256.txt`
+    const bytes = Buffer.from(`${manifest.sources[realm].linuxSourceDependencyClosureSha256}\n`, 'ascii')
     result.set(path, entry(path, '400', bytes.byteLength, digest(bytes.toString('ascii'))))
   }
   for (const [path, content] of [

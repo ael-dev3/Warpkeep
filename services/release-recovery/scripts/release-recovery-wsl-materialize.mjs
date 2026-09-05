@@ -24,6 +24,8 @@ const CATALOG_PATH = `${STATE_ROOT}/cache-catalog-v2.json`
 const MANIFEST_PATH = `${STATE_ROOT}/toolchains/linux-x64.json`
 const REPOSITORY = `${STATE_ROOT}/source-caches/repository.git`
 const GIT = '/usr/bin/git'
+const GPG = '/usr/bin/gpg'
+const GPGV = '/usr/bin/gpgv'
 const IP = '/usr/sbin/ip'
 const NODE_24 = `${STATE_ROOT}/toolchains/node-v24.19.0-linux-x64/bin/node`
 const NODE_22 = `${STATE_ROOT}/toolchains/node-v22.22.3-linux-x64/bin/node`
@@ -413,7 +415,7 @@ function validateRequest(value) {
   const validateAuthenticatedRealm = (raw, realm, modulePath) => {
     const authenticated = exact(raw, [
       'realm', 'sourceAuthority', 'receiptSha256', 'databaseIdentity', 'sourceCommit',
-      'sourceTree', 'publishedModuleSha256', 'dependencyLockClosureSha256',
+      'sourceTree', 'publishedModuleSha256', 'historicalDependencyClosureSha256',
       'modulePath', 'nodeVersion',
     ])
     if (
@@ -424,7 +426,7 @@ function validateRequest(value) {
       || !HEX40.test(authenticated.sourceCommit)
       || !HEX40.test(authenticated.sourceTree)
       || !HEX64.test(authenticated.publishedModuleSha256)
-      || !HEX64.test(authenticated.dependencyLockClosureSha256)
+      || !HEX64.test(authenticated.historicalDependencyClosureSha256)
       || authenticated.modulePath !== modulePath
       || authenticated.nodeVersion !== '22.22.3'
     ) fail()
@@ -468,8 +470,9 @@ function requireCatalogFile(entries, path, mode, bytes, digest) {
 
 function validateManifestSource(value, realm, coordinates) {
   const source = exact(value, [
-    'realm', 'sourceCommit', 'sourceTree', 'dependencyLockClosureSha256',
-    'dependencyInventoryDomain', 'dependencyClosureRecordPath', 'dependencyFiles',
+    'realm', 'sourceCommit', 'sourceTree', 'historicalDependencyClosureSha256',
+    'linuxSourceDependencyClosureSha256', 'dependencyInventoryDomain',
+    'dependencyClosureRecordPath', 'dependencyFiles',
   ])
   const expectedCommit = realm === 'g001' ? coordinates.baselineCommit : coordinates.sourceCommit
   const expectedTree = realm === 'g001' ? coordinates.baselineTree : coordinates.sourceTree
@@ -477,13 +480,15 @@ function validateManifestSource(value, realm, coordinates) {
     source.realm !== realm
     || source.sourceCommit !== expectedCommit
     || source.sourceTree !== expectedTree
-    || !HEX64.test(source.dependencyLockClosureSha256)
-    || (coordinates.dependencyLockClosureSha256 !== undefined
-      && source.dependencyLockClosureSha256 !== coordinates.dependencyLockClosureSha256)
+    || !HEX64.test(source.linuxSourceDependencyClosureSha256)
+    || (realm === 'g001'
+      ? source.historicalDependencyClosureSha256 !== null
+      : source.historicalDependencyClosureSha256
+        !== coordinates.historicalDependencyClosureSha256)
     || source.dependencyInventoryDomain
       !== `warpkeep.release-recovery.source-dependencies.${realm}.v1`
     || source.dependencyClosureRecordPath
-      !== `source-caches/${realm}-dependency-closure-sha256.txt`
+      !== `source-caches/${realm}-linux-source-dependency-closure-sha256.txt`
     || !Array.isArray(source.dependencyFiles)
     || source.dependencyFiles.length < 1
     || source.dependencyFiles.length > 16
@@ -491,11 +496,12 @@ function validateManifestSource(value, realm, coordinates) {
   const expectedPaths = realm === 'g001'
     ? ['spacetimedb/package.json', 'spacetimedb/pnpm-lock.yaml', 'spacetimedb/pnpm-workspace.yaml']
     : realm === 'g002'
-      ? ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'spacetimedb/genesis002/package.json']
+      ? ['spacetimedb/package.json', 'spacetimedb/pnpm-workspace.yaml', 'spacetimedb/pnpm-lock.yaml', 'spacetimedb/genesis002/package.json']
       : ['spacetimedb/ptr/package.json', 'spacetimedb/ptr/pnpm-lock.yaml']
   if (source.dependencyFiles.length !== expectedPaths.length) fail()
   const closure = createHash('sha256')
   closure.update(`${source.dependencyInventoryDomain}\n`)
+  const closureFiles = []
   for (let index = 0; index < source.dependencyFiles.length; index += 1) {
     const file = exact(source.dependencyFiles[index], ['path', 'blob', 'bytes', 'sha256'])
     if (
@@ -505,7 +511,7 @@ function validateManifestSource(value, realm, coordinates) {
       || !HEX64.test(file.sha256)
     ) fail()
     positiveInteger(file.bytes, 16 * 1024 * 1024)
-    closure.update(`${file.path}\0${file.blob}\0${file.bytes}\0${file.sha256}\n`)
+    closureFiles.push(file)
   }
   if (
     realm === 'g001'
@@ -515,14 +521,22 @@ function validateManifestSource(value, realm, coordinates) {
       'a640febaa07fad295f2de4b4416b7a22910eb2e6',
     ])
   ) fail()
-  if (closure.digest('hex') !== source.dependencyLockClosureSha256) fail()
+  closureFiles.sort((left, right) => Buffer.from(left.path).compare(Buffer.from(right.path)))
+  for (let index = 0; index < closureFiles.length; index += 1) {
+    if (index > 0 && closureFiles[index].path === closureFiles[index - 1].path) fail()
+    const file = closureFiles[index]
+    closure.update(`${file.path}\0${file.blob}\0${file.bytes}\0${file.sha256}\n`)
+  }
+  if (closure.digest('hex') !== source.linuxSourceDependencyClosureSha256) fail()
   return source
 }
 
 function validateManifestCache(value, realm, source) {
   const cache = exact(value, [
     'realm', 'sourceCommit', 'sourceTree', 'storePath', 'closureRecordPath',
-    'closureSha256', 'containsLinuxX64Esbuild', 'packages',
+    'historicalDependencyClosureSha256', 'linuxSourceDependencyClosureSha256',
+    'linuxCacheClosureSha256', 'cacheInventoryDomain',
+    'containsLinuxX64Esbuild', 'packages',
   ])
   if (
     cache.realm !== realm
@@ -530,7 +544,13 @@ function validateManifestCache(value, realm, source) {
     || cache.sourceTree !== source.sourceTree
     || cache.storePath !== `pnpm-store/${realm}`
     || cache.closureRecordPath !== source.dependencyClosureRecordPath
-    || cache.closureSha256 !== source.dependencyLockClosureSha256
+    || cache.historicalDependencyClosureSha256
+      !== source.historicalDependencyClosureSha256
+    || cache.linuxSourceDependencyClosureSha256
+      !== source.linuxSourceDependencyClosureSha256
+    || !HEX64.test(cache.linuxCacheClosureSha256)
+    || cache.cacheInventoryDomain
+      !== `warpkeep.release-recovery.linux-dependency-cache.${realm}.v1`
     || cache.containsLinuxX64Esbuild !== true
     || !Array.isArray(cache.packages)
     || cache.packages.length < 1
@@ -729,6 +749,19 @@ export function validateToolchainManifestBytes(bytes, toolchain, realmCoordinate
       node.archiveMemberBytes,
       node.archiveMemberSha256,
     )
+    for (const [name, sizeField, digestField] of [
+      ['release-key.asc', 'publicKeyBytes', 'publicKeySha256'],
+      ['SHASUMS256.txt', 'shasumsBytes', 'shasumsSha256'],
+      ['SHASUMS256.txt.sig', 'signatureBytes', 'signatureSha256'],
+    ]) {
+      requireCatalogFile(
+        catalogEntries,
+        `source-caches/public-provenance/node-v${version}/${name}`,
+        '400',
+        node[sizeField],
+        node[digestField],
+      )
+    }
   }
   for (const [memberPath, installedMode] of [
     ['package/bin/pnpm.mjs', '500'],
@@ -758,10 +791,13 @@ export function validateToolchainManifestBytes(bytes, toolchain, realmCoordinate
     )
   }
   for (const realm of ['g001', 'g002', 'ptr']) {
-    const closureBytes = Buffer.from(`${sources[realm].dependencyLockClosureSha256}\n`, 'ascii')
+    const closureBytes = Buffer.from(
+      `${sources[realm].linuxSourceDependencyClosureSha256}\n`,
+      'ascii',
+    )
     requireCatalogFile(
       catalogEntries,
-      `source-caches/${realm}-dependency-closure-sha256.txt`,
+      `source-caches/${realm}-linux-source-dependency-closure-sha256.txt`,
       '400',
       closureBytes.byteLength,
       sha256(closureBytes),
@@ -880,6 +916,38 @@ function cacheEntryClosure(entries) {
   return digest.digest('hex')
 }
 
+function dependencyCacheClosure(realm, source, cache, entries) {
+  if (!SAFE_REALM.test(realm) || !Array.isArray(entries)) fail()
+  const storePath = `pnpm-store/${realm}`
+  const inventory = entries.filter(entry => (
+    entry.path === storePath || entry.path.startsWith(`${storePath}/`)
+  ))
+  if (
+    inventory.length < 1
+    || JSON.stringify(inventory[0]) !== JSON.stringify({
+      path: storePath,
+      type: 'directory',
+      mode: '700',
+    })
+  ) fail()
+  const digest = createHash('sha256')
+  digest.update(`${cache.cacheInventoryDomain}\n`)
+  digest.update(
+    `source\0${source.sourceCommit}\0${source.sourceTree}\0${source.historicalDependencyClosureSha256 ?? '-'}\0${source.linuxSourceDependencyClosureSha256}\n`,
+  )
+  for (const entry of cache.packages) {
+    digest.update('package\0')
+    digest.update(`${JSON.stringify(entry)}\n`)
+  }
+  for (const entry of inventory) {
+    const path = entry.path === storePath ? '.' : entry.path.slice(storePath.length + 1)
+    digest.update(entry.type === 'directory'
+      ? `directory\0${path}\0${entry.mode}\n`
+      : `file\0${path}\0${entry.bytes}\0${entry.sha256}\0${entry.mode}\n`)
+  }
+  return digest.digest('hex')
+}
+
 function attestCacheEntry(path, relativePath) {
   const status = lstatSync(path)
   if (
@@ -991,9 +1059,9 @@ export function verifyCacheCatalog(expectedSha256) {
     'toolchains/pnpm-11.7.0/package/bin/pnpm.mjs',
     'toolchains/spacetime-2.6.1/spacetime',
     'toolchains/spacetime-2.6.1/spacetimedb-standalone',
-    'source-caches/g001-dependency-closure-sha256.txt',
-    'source-caches/g002-dependency-closure-sha256.txt',
-    'source-caches/ptr-dependency-closure-sha256.txt',
+    'source-caches/g001-linux-source-dependency-closure-sha256.txt',
+    'source-caches/g002-linux-source-dependency-closure-sha256.txt',
+    'source-caches/ptr-linux-source-dependency-closure-sha256.txt',
   ]) if (!fileEntries.has(path)) fail()
   for (const path of fileEntries.keys()) {
     if (
@@ -1026,6 +1094,84 @@ function attestFixedFile(path, expected) {
     || realpathSync.native(path) !== path
   ) fail()
   if (sha256(readFileSync(path)) !== expected.sha256) fail()
+}
+
+function validateGpgListing(bytes, fingerprint, algorithm) {
+  const lines = new TextDecoder('utf-8', { fatal: true }).decode(bytes).split('\n')
+  const publicPositions = lines
+    .map((line, index) => line.startsWith('pub:') ? index : -1)
+    .filter(index => index >= 0)
+  const expectedAlgorithm = algorithm === 'EdDSA' ? '22' : algorithm === 'RSA' ? '1' : null
+  if (expectedAlgorithm === null || publicPositions.length !== 1) fail()
+  const publicFields = lines[publicPositions[0]].split(':')
+  let primaryFingerprint = null
+  for (const line of lines.slice(publicPositions[0] + 1)) {
+    if (line.startsWith('pub:') || line.startsWith('sub:')) break
+    if (line.startsWith('fpr:')) {
+      const fields = line.split(':')
+      if (fields.length < 10 || primaryFingerprint !== null) fail()
+      primaryFingerprint = fields[9]
+    }
+  }
+  if (publicFields.length < 5 || publicFields[3] !== expectedAlgorithm || primaryFingerprint !== fingerprint) fail()
+}
+
+function validateGpgvStatus(bytes, fingerprint) {
+  const lines = new TextDecoder('utf-8', { fatal: true }).decode(bytes).split('\n')
+  const valid = lines
+    .filter(line => line.startsWith('[GNUPG:] VALIDSIG '))
+    .map(line => line.split(/\s+/u))
+  if (valid.length !== 1 || valid[0].length < 3 || valid[0][2] !== fingerprint) fail()
+  if (lines.some(line => line.startsWith('[GNUPG:] ') && [
+    'BADSIG', 'ERRSIG', 'NO_PUBKEY', 'EXPSIG', 'EXPKEYSIG', 'REVKEYSIG',
+  ].some(token => line.includes(token)))) fail()
+}
+
+function verifyRetainedNodeSignatures(manifest) {
+  for (const version of ['24.19.0', '22.22.3']) {
+    const release = manifest.nodeReleases[version]
+    const root = mkdtempSync(`${RUN_PARENT}/node-signature-${version}-`)
+    chmodSync(root, 0o700)
+    try {
+      const source = `${STATE_ROOT}/source-caches/public-provenance/node-v${version}`
+      const keyPath = `${root}/release-key.asc`
+      const sumsPath = `${root}/SHASUMS256.txt`
+      const signaturePath = `${root}/SHASUMS256.txt.sig`
+      privateFile(keyPath, readFileSync(`${source}/release-key.asc`))
+      privateFile(sumsPath, readFileSync(`${source}/SHASUMS256.txt`))
+      privateFile(signaturePath, readFileSync(`${source}/SHASUMS256.txt.sig`))
+      const environment = Object.freeze({
+        GNUPGHOME: root,
+        HOME: root,
+        LANG: 'C',
+        LC_ALL: 'C',
+        PATH: '/usr/bin:/bin',
+        TZ: 'UTC',
+      })
+      fixedRun(GPG, [
+        '--homedir', root, '--batch', '--no-options', '--no-auto-key-locate',
+        '--no-autostart', '--quiet', '--status-fd=1', '--logger-fd=1',
+        '--import', keyPath,
+      ], environment, 64 * 1024)
+      const listing = fixedRun(GPG, [
+        '--homedir', root, '--batch', '--no-options', '--no-auto-key-locate',
+        '--no-autostart', '--quiet', '--logger-fd=1', '--with-colons',
+        '--fingerprint', '--list-keys',
+      ], environment, 64 * 1024)
+      validateGpgListing(listing, release.signerFingerprint, release.signingAlgorithm)
+      const status = fixedRun(GPGV, [
+        '--status-fd=1', '--logger-fd=1', '--keyring', `${root}/pubring.kbx`,
+        signaturePath, sumsPath,
+      ], environment, 64 * 1024)
+      validateGpgvStatus(status, release.signerFingerprint)
+      const archiveName = new URL(release.archiveUrl).pathname.split('/').at(-1)
+      const expected = `${release.archiveSha256}  ${archiveName}`
+      const lines = readFileSync(sumsPath, 'utf8').split(/\n/u)
+      if (lines.filter(line => line === expected).length !== 1) fail()
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  }
 }
 
 function verifyMaterializedStore(store, expected) {
@@ -1123,7 +1269,7 @@ function materializeCommit(commit, tree, modulePath, cleanRoot, realm) {
     .toString('utf8').trim()
   if (resolvedCommit !== commit || resolvedTree !== tree) fail()
   const prefixes = realm === 'g002'
-    ? ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'spacetimedb']
+    ? ['spacetimedb']
     : realm === 'ptr' ? ['spacetimedb/ptr'] : fail()
   const listing = git(
     ['ls-tree', '-rz', '--full-tree', '--long', commit, '--', ...prefixes],
@@ -1219,7 +1365,7 @@ function sourceClosure(root) {
   return digest.digest('hex')
 }
 
-async function buildOnce(realm, realmPlan, catalogEntries) {
+async function buildOnce(realm, realmPlan, catalogEntries, manifestSource) {
   if (!SAFE_REALM.test(realm)) fail()
   const cleanRoot = mkdtempSync(`${RUN_PARENT}/${realm}-build-`)
   chmodSync(cleanRoot, 0o700)
@@ -1255,10 +1401,10 @@ async function buildOnce(realm, realmPlan, catalogEntries) {
       ? sourceClosure(`${sourceRoot}/spacetimedb`)
       : null
     const dependencyDigest = readFileSync(
-      `${STATE_ROOT}/source-caches/${realm}-dependency-closure-sha256.txt`,
+      `${STATE_ROOT}/source-caches/${realm}-linux-source-dependency-closure-sha256.txt`,
       'utf8',
     )
-    if (dependencyDigest !== `${realmPlan.dependencyLockClosureSha256 ?? dependencyDigest.trim()}\n`) fail()
+    if (dependencyDigest !== `${manifestSource.linuxSourceDependencyClosureSha256}\n`) fail()
     fixedRun(node, [
       PNPM,
       '--dir', workspacePath,
@@ -1528,7 +1674,7 @@ async function main() {
   ) fail()
   const manifest = readFileSync(MANIFEST_PATH)
   if (manifest.byteLength > MAX_MANIFEST_BYTES || sha256(manifest) !== plan.toolchain.manifestSha256) fail()
-  validateToolchainManifestBytes(
+  const verifiedManifest = validateToolchainManifestBytes(
     manifest,
     {
       sourcePolicySha256: plan.toolchain.sourcePolicySha256,
@@ -1542,6 +1688,16 @@ async function main() {
     plan.realms,
     verifiedCatalog.entries,
   )
+  for (const realm of ['g001', 'g002', 'ptr']) {
+    if (
+      dependencyCacheClosure(
+        realm,
+        verifiedManifest.sources[realm],
+        verifiedManifest.dependencyCaches[realm],
+        verifiedCatalog.catalog.entries,
+      ) !== verifiedManifest.dependencyCaches[realm].linuxCacheClosureSha256
+    ) fail()
+  }
   for (const [path, entry] of verifiedCatalog.entries) {
     attestFixedFile(resolve(STATE_ROOT, path), {
       bytes: entry.bytes,
@@ -1549,20 +1705,37 @@ async function main() {
       sha256: entry.sha256,
     })
   }
+  attestFixedFile(GPG, { mode: 0o755, sha256: SYSTEM_TOOL_EVIDENCE.gpg.sha256 })
+  attestFixedFile(GPGV, { mode: 0o755, sha256: SYSTEM_TOOL_EVIDENCE.gpgv.sha256 })
+  privateDirectory(RUN_PARENT)
+  verifyRetainedNodeSignatures(verifiedManifest)
   attestFixedFile(GIT, { mode: 0o755, sha256: GIT_SHA256 })
   attestFixedFile(IP, { mode: 0o755, sha256: IP_SHA256 })
-  privateDirectory(RUN_PARENT)
   const builds = {}
   for (const realm of ['g001', 'g002', 'ptr']) {
-    const first = await buildOnce(realm, plan.realms[realm], verifiedCatalog.entries)
-    const second = await buildOnce(realm, plan.realms[realm], verifiedCatalog.entries)
+    const first = await buildOnce(
+      realm,
+      plan.realms[realm],
+      verifiedCatalog.entries,
+      verifiedManifest.sources[realm],
+    )
+    const second = await buildOnce(
+      realm,
+      plan.realms[realm],
+      verifiedCatalog.entries,
+      verifiedManifest.sources[realm],
+    )
     if (!Buffer.from(first.bundle).equals(Buffer.from(second.bundle))) fail()
     const digest = sha256(first.bundle)
     if (realm !== 'g001' && digest !== plan.realms[realm].publishedModuleSha256) fail()
     builds[realm] = {
       bundle: first.bundle,
-      dependencyLockClosureSha256: plan.realms[realm].dependencyLockClosureSha256
-        ?? readFileSync(`${STATE_ROOT}/source-caches/g001-dependency-closure-sha256.txt`, 'utf8').trim(),
+      historicalDependencyClosureSha256:
+        verifiedManifest.sources[realm].historicalDependencyClosureSha256,
+      linuxSourceDependencyClosureSha256:
+        verifiedManifest.sources[realm].linuxSourceDependencyClosureSha256,
+      linuxCacheClosureSha256:
+        verifiedManifest.dependencyCaches[realm].linuxCacheClosureSha256,
       transformedSourceClosureSha256: first.transformedSourceClosureSha256,
       firstBuildArtifactSha256: digest,
       secondBuildArtifactSha256: digest,
@@ -1581,7 +1754,9 @@ async function main() {
   }
   const realmWire = realm => ({
     realm,
-    dependencyLockClosureSha256: builds[realm].dependencyLockClosureSha256,
+    historicalDependencyClosureSha256: builds[realm].historicalDependencyClosureSha256,
+    linuxSourceDependencyClosureSha256: builds[realm].linuxSourceDependencyClosureSha256,
+    linuxCacheClosureSha256: builds[realm].linuxCacheClosureSha256,
     transformedSourceClosureSha256: builds[realm].transformedSourceClosureSha256,
     firstBuildArtifactSha256: builds[realm].firstBuildArtifactSha256,
     secondBuildArtifactSha256: builds[realm].secondBuildArtifactSha256,

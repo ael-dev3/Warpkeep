@@ -65,7 +65,12 @@ function toolchainDependencyFiles(realm: 'g001' | 'g002' | 'ptr') {
   const paths = realm === 'g001'
     ? ['spacetimedb/package.json', 'spacetimedb/pnpm-lock.yaml', 'spacetimedb/pnpm-workspace.yaml']
     : realm === 'g002'
-      ? ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'spacetimedb/genesis002/package.json']
+      ? [
+          'spacetimedb/package.json',
+          'spacetimedb/pnpm-workspace.yaml',
+          'spacetimedb/pnpm-lock.yaml',
+          'spacetimedb/genesis002/package.json',
+        ]
       : ['spacetimedb/ptr/package.json', 'spacetimedb/ptr/pnpm-lock.yaml']
   const g001Blobs = [
     'faf7214653f1248a3f9231fd6a13dda130821014',
@@ -83,7 +88,8 @@ function toolchainDependencyFiles(realm: 'g001' | 'g002' | 'ptr') {
 function toolchainDependencyClosure(realm: 'g001' | 'g002' | 'ptr'): string {
   const hash = createHash('sha256')
   hash.update(`warpkeep.release-recovery.source-dependencies.${realm}.v1\n`)
-  for (const file of toolchainDependencyFiles(realm)) {
+  for (const file of [...toolchainDependencyFiles(realm)].sort((left, right) =>
+    Buffer.from(left.path).compare(Buffer.from(right.path)))) {
     hash.update(`${file.path}\0${file.blob}\0${file.bytes}\0${file.sha256}\n`)
   }
   return hash.digest('hex')
@@ -115,7 +121,7 @@ const SOURCE = Object.freeze({
     sourceCommit: '8'.repeat(40),
     sourceTree: '9'.repeat(40),
     publishedModuleSha256: 'b'.repeat(64),
-    dependencyLockClosureSha256: toolchainDependencyClosure('g002'),
+    historicalDependencyClosureSha256: 'a'.repeat(64),
   }),
   ptr: Object.freeze({
     receiptSha256: '5'.repeat(64),
@@ -123,7 +129,7 @@ const SOURCE = Object.freeze({
     sourceCommit: 'f'.repeat(40),
     sourceTree: '1'.repeat(40),
     publishedModuleSha256: '9'.repeat(64),
-    dependencyLockClosureSha256: toolchainDependencyClosure('ptr'),
+    historicalDependencyClosureSha256: 'b'.repeat(64),
   }),
 })
 
@@ -169,25 +175,28 @@ function runnerResult(): any {
     g001: {
       sourceCommit: '2ae51984e1fa6ce5b0028c1a250359fed79d819b',
       sourceTree: '90deebb5faf4129282f5c35999244f540001b27d',
-      dependencyLockClosureSha256: toolchainDependencyClosure('g001'),
+      historicalDependencyClosureSha256: null,
     },
     g002: {
       sourceCommit: SOURCE.g002.sourceCommit,
       sourceTree: SOURCE.g002.sourceTree,
-      dependencyLockClosureSha256: SOURCE.g002.dependencyLockClosureSha256,
+      historicalDependencyClosureSha256: SOURCE.g002.historicalDependencyClosureSha256,
     },
     ptr: {
       sourceCommit: SOURCE.ptr.sourceCommit,
       sourceTree: SOURCE.ptr.sourceTree,
-      dependencyLockClosureSha256: SOURCE.ptr.dependencyLockClosureSha256,
+      historicalDependencyClosureSha256: SOURCE.ptr.historicalDependencyClosureSha256,
     },
   }
   const sources = Object.fromEntries(
     Object.entries(sourceCoordinates).map(([realm, source]) => [realm, {
       realm,
       ...source,
+      linuxSourceDependencyClosureSha256:
+        toolchainDependencyClosure(realm as 'g001' | 'g002' | 'ptr'),
       dependencyInventoryDomain: `warpkeep.release-recovery.source-dependencies.${realm}.v1`,
-      dependencyClosureRecordPath: `source-caches/${realm}-dependency-closure-sha256.txt`,
+      dependencyClosureRecordPath:
+        `source-caches/${realm}-linux-source-dependency-closure-sha256.txt`,
       dependencyFiles: toolchainDependencyFiles(realm as 'g001' | 'g002' | 'ptr'),
     }]),
   )
@@ -197,8 +206,14 @@ function runnerResult(): any {
       sourceCommit: source.sourceCommit,
       sourceTree: source.sourceTree,
       storePath: `pnpm-store/${realm}`,
-      closureRecordPath: `source-caches/${realm}-dependency-closure-sha256.txt`,
-      closureSha256: source.dependencyLockClosureSha256,
+      closureRecordPath:
+        `source-caches/${realm}-linux-source-dependency-closure-sha256.txt`,
+      historicalDependencyClosureSha256: source.historicalDependencyClosureSha256,
+      linuxSourceDependencyClosureSha256:
+        toolchainDependencyClosure(realm as 'g001' | 'g002' | 'ptr'),
+      linuxCacheClosureSha256:
+        `${realm === 'g001' ? '6' : realm === 'g002' ? '7' : '8'}`.repeat(64),
+      cacheInventoryDomain: `warpkeep.release-recovery.linux-dependency-cache.${realm}.v1`,
       containsLinuxX64Esbuild: true,
       packages: [{
         name: '@esbuild/linux-x64',
@@ -275,7 +290,9 @@ function runnerResult(): any {
     realms: {
       g001: {
         realm: 'g001',
-        dependencyLockClosureSha256: toolchainDependencyClosure('g001'),
+        historicalDependencyClosureSha256: null,
+        linuxSourceDependencyClosureSha256: toolchainDependencyClosure('g001'),
+        linuxCacheClosureSha256: '6'.repeat(64),
         transformedSourceClosureSha256: '7'.repeat(64),
         firstBuildArtifactSha256: '3'.repeat(64),
         secondBuildArtifactSha256: '3'.repeat(64),
@@ -286,7 +303,9 @@ function runnerResult(): any {
       },
       g002: {
         realm: 'g002',
-        dependencyLockClosureSha256: SOURCE.g002.dependencyLockClosureSha256,
+        historicalDependencyClosureSha256: SOURCE.g002.historicalDependencyClosureSha256,
+        linuxSourceDependencyClosureSha256: toolchainDependencyClosure('g002'),
+        linuxCacheClosureSha256: '7'.repeat(64),
         transformedSourceClosureSha256: null,
         firstBuildArtifactSha256: SOURCE.g002.publishedModuleSha256,
         secondBuildArtifactSha256: SOURCE.g002.publishedModuleSha256,
@@ -297,7 +316,9 @@ function runnerResult(): any {
       },
       ptr: {
         realm: 'ptr',
-        dependencyLockClosureSha256: SOURCE.ptr.dependencyLockClosureSha256,
+        historicalDependencyClosureSha256: SOURCE.ptr.historicalDependencyClosureSha256,
+        linuxSourceDependencyClosureSha256: toolchainDependencyClosure('ptr'),
+        linuxCacheClosureSha256: '8'.repeat(64),
         transformedSourceClosureSha256: null,
         firstBuildArtifactSha256: SOURCE.ptr.publishedModuleSha256,
         secondBuildArtifactSha256: SOURCE.ptr.publishedModuleSha256,
@@ -399,7 +420,7 @@ function authenticatedReceipt(realm: 'g002' | 'ptr', receiptBytes: Uint8Array): 
     sourceCommit: source.sourceCommit,
     sourceTree: source.sourceTree,
     publishedModuleSha256: source.publishedModuleSha256,
-    dependencyLockClosureSha256: source.dependencyLockClosureSha256,
+    historicalDependencyClosureSha256: source.historicalDependencyClosureSha256,
     signatureVerified: true,
     matchingImportReceiptVerified: true,
     matchingLiveReceiptVerified: true,
@@ -1353,9 +1374,13 @@ describe('fixed production WSL host boundary', () => {
       'attestFixedFile(GIT, { mode: 0o755, sha256: GIT_SHA256 })',
     )
     expect(materializer).toContain("const store = `${cleanRoot}/.pnpm-store`")
-    expect(materializer).toContain("['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'spacetimedb']")
+    expect(materializer).toContain("const prefixes = realm === 'g002'\n    ? ['spacetimedb']")
     expect(materializer).toContain("['--no-replace-objects', '--git-dir', REPOSITORY, ...args]")
     expect(materializer).toContain('store.verify()')
+    expect(materializer).toContain('verifyRetainedNodeSignatures(verifiedManifest)')
+    expect(materializer).toContain(
+      'attestFixedFile(GPGV, { mode: 0o755, sha256: SYSTEM_TOOL_EVIDENCE.gpgv.sha256 })',
+    )
     expect(materializer).not.toContain('`${STATE_ROOT}/pnpm-store/${realm}`')
     expect(materializer).toContain('await terminateOwnedChild(child)')
     expect(materializer).toContain('realpathSync.native(`/proc/${child.pid}/exe`) !== STANDALONE')
