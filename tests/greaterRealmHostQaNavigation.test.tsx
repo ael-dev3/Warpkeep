@@ -45,7 +45,7 @@ describe('Greater Realm host QA navigation', () => {
       name: /Genesis 001.*version 0\.3\.43.*Admitted/i
     });
     const genesis002 = screen.getByRole('radio', {
-      name: /Genesis 002.*version 0\.4\.0.*Not admitted/i
+      name: /Genesis 002.*version 0\.4\.0.*Sealed/i
     });
     const ptr = screen.getByRole('radio', {
       name: /Public Test Realm.*version 0\.4\.0-ptr\.1.*Admitted/i

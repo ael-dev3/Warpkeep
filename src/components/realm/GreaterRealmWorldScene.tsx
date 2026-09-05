@@ -323,6 +323,21 @@ export function GreaterRealmWorldScene({
           telemetry.scene.localVesselCount
         );
         canvas.dataset.greaterRealmBoats = String(telemetry.scene.boatCount);
+        canvas.dataset.greaterRealmVoxelMode = telemetry.scene.voxelMode;
+        canvas.dataset.greaterRealmVoxelTriangles = String(
+          telemetry.scene.residentVoxelTriangleCount
+        );
+        canvas.dataset.greaterRealmVoxelQuads = String(
+          telemetry.scene.residentVoxelQuadCount
+        );
+        canvas.dataset.greaterRealmVoxelUploadBytes = String(
+          telemetry.scene.voxelUploadBytesThisFrame
+        );
+        canvas.dataset.greaterRealmVoxelFallbackCount = String(
+          telemetry.scene.voxelFallbackCount
+        );
+        canvas.dataset.greaterRealmVoxelFallbackReasons =
+          telemetry.scene.voxelFallbackReasons.join('|');
         canvas.dataset.greaterRealmPublicResources = String(telemetry.publicResourceCount);
         canvas.dataset.greaterRealmVisibleRegions = String(telemetry.visibleRegionCount);
       },

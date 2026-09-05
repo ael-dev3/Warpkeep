@@ -254,6 +254,48 @@ describe('Greater Realm world scene lifecycle', () => {
     expect(screen.getByText(/movement is not saved to the server/i)).not.toBeNull();
   });
 
+  it('forwards truthful voxel mode, geometry, upload, and fallback telemetry to the canvas', async () => {
+    renderScene(bridge());
+    const canvas = await screen.findByRole('application', {
+      name: 'Interactive Greater Realm public atlas'
+    }) as HTMLCanvasElement;
+    const options = canvasHostHarness.create.mock.calls[0]![0];
+
+    act(() => options.onTelemetry({
+      renderer: 'webgl',
+      publicCastleCount: 2,
+      publicCastleUploadBytesThisFrame: 4_000,
+      publicResourceCount: 0,
+      visibleRegionCount: 1,
+      hostUploadBytesThisFrame: 4_000,
+      scene: {
+        uploadedChunkCount: 2,
+        selectedChunkCount: 2,
+        drawCallCount: 18,
+        contextLost: false,
+        grassPatchCount: 4,
+        npcCount: 2,
+        wildlifeCount: 1,
+        ambientBoatCount: 0,
+        localVesselCount: 0,
+        boatCount: 0,
+        voxelMode: 'mixed',
+        residentVoxelTriangleCount: 144,
+        residentVoxelQuadCount: 72,
+        voxelUploadBytesThisFrame: 6_912,
+        voxelFallbackCount: 1,
+        voxelFallbackReasons: ['terrain:injected']
+      }
+    } as any));
+
+    expect(canvas.dataset.greaterRealmVoxelMode).toBe('mixed');
+    expect(canvas.dataset.greaterRealmVoxelTriangles).toBe('144');
+    expect(canvas.dataset.greaterRealmVoxelQuads).toBe('72');
+    expect(canvas.dataset.greaterRealmVoxelUploadBytes).toBe('6912');
+    expect(canvas.dataset.greaterRealmVoxelFallbackCount).toBe('1');
+    expect(canvas.dataset.greaterRealmVoxelFallbackReasons).toBe('terrain:injected');
+  });
+
   it('renders canary and halted atlas reads while dispatch remains active-only', async () => {
     for (const mode of ['canary', 'halted', 'active']) {
       const dispatchWorker = vi.fn(async () => undefined);

@@ -213,4 +213,57 @@ describe('Greater Realm presentation plan', () => {
       maximumUploadBytesPerFrame: 196_608
     });
   });
+
+  it('stores bounded voxel terrain/prefabs and reserves the larger real or fallback costs', () => {
+    const chunk = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0]!;
+    const plan = createGreaterRealmChunkPresentationPlan({
+      chunk, graphicsProfile: 'high', cellSize: 1
+    });
+
+    expect(plan.voxelTerrainPlan.kind).toBe('terrain');
+    expect(plan.voxelTerrainPlan.graphicsProfile).toBe('high');
+    expect(plan.voxelTerrainPlan.contextCellCount).toBe(plan.terrainCells.length);
+    expect(plan.voxelTerrainPlan.surfacePlan.mergedQuadCount).toBeGreaterThan(0);
+    expect(plan.terrainReservationBytes).toBe(Math.max(
+      plan.voxelTerrainPlan.uploadBytes,
+      plan.terrainCells.length * 648
+    ));
+    expect(plan.voxelPrefabPlans.map((prefab) => prefab.kind).sort())
+      .toEqual(['signpost', 'waystone']);
+    expect(plan.voxelPrefabPlans.every((prefab) => prefab.uploadBytes > 0)).toBe(true);
+    expect(plan.featureReservationBytes).toBeGreaterThan(0);
+    expect(plan.estimatedUploadBytes).toBeGreaterThanOrEqual(
+      plan.terrainReservationBytes + plan.featureReservationBytes
+    );
+  });
+
+  it('retains the original full halo in voxel identity after emitted apron filtering', () => {
+    const original = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0]!;
+    const filteredChunk = Object.freeze({
+      ...original,
+      apronCells: Object.freeze([])
+    });
+    const fullContext = [...original.coreCells, ...original.apronCells];
+    const baseline = createGreaterRealmChunkPresentationPlan({
+      chunk: filteredChunk,
+      occluderCells: fullContext,
+      graphicsProfile: 'balanced',
+      cellSize: 1
+    });
+    const changedContext = structuredClone(fullContext) as any[];
+    changedContext.at(-1)!.presentationVariant += 1;
+    const changed = createGreaterRealmChunkPresentationPlan({
+      chunk: filteredChunk,
+      occluderCells: changedContext,
+      graphicsProfile: 'balanced',
+      cellSize: 1
+    });
+
+    expect(baseline.terrainCells).toEqual(original.coreCells);
+    expect(baseline.voxelTerrainPlan.emittingCellCount).toBe(original.coreCells.length);
+    expect(baseline.voxelTerrainPlan.contextCellCount).toBe(fullContext.length);
+    expect(changed.voxelTerrainPlan.signature).not.toBe(
+      baseline.voxelTerrainPlan.signature
+    );
+  });
 });

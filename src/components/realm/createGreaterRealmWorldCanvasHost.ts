@@ -2,6 +2,10 @@ import * as THREE from 'three';
 
 import { axialToWorld } from '../../game/map/hexCoordinates';
 import {
+  createGreaterRealmVoxelGeometry,
+  createGreaterRealmVoxelPrefabPlan
+} from './greaterRealmVoxelPresentation';
+import {
   createGreaterRealmSceneRuntime,
   type CreateGreaterRealmSceneRuntimeOptions,
   type GreaterRealmLocalVesselMove,
@@ -32,7 +36,7 @@ type GreaterRealmRenderer = Readonly<{
   dispose: () => void;
 }>;
 
-/** Cylinder buffers plus 600 matrix/color instance attributes, conservatively aligned. */
+/** Voxel castle buffers plus 600 matrix/color instance attributes. */
 export const GREATER_REALM_CASTLE_UPLOAD_RESERVE_BYTES = 65_536 as const;
 export const GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES = 98_304 as const;
 export const GREATER_REALM_HOST_DRAW_CALL_RESERVE = 6 as const;
@@ -106,10 +110,14 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
   group.name = 'greater-realm-public-castles';
   let count = 0;
   let appliedSignature: string | undefined;
-  let geometry: THREE.CylinderGeometry | undefined;
+  let geometry: THREE.BufferGeometry | undefined;
   let material: THREE.MeshStandardMaterial | undefined;
   let mesh: THREE.InstancedMesh | undefined;
   let pendingUploadBytes = 0;
+  let voxelTriangleCount = 0;
+  let voxelQuadCount = 0;
+  let voxelUploadBytes = 0;
+  let voxelFallbackReasons: readonly string[] = Object.freeze([]);
   let targets: readonly GreaterRealmSelectionTarget[] = Object.freeze([]);
   const clear = () => {
     group.clear();
@@ -121,12 +129,20 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
     material = undefined;
     count = 0;
     pendingUploadBytes = 0;
+    voxelTriangleCount = 0;
+    voxelQuadCount = 0;
+    voxelUploadBytes = 0;
+    voxelFallbackReasons = Object.freeze([]);
     targets = Object.freeze([]);
   };
   return Object.freeze({
     group,
     get count() { return count; },
     get pendingUploadBytes() { return pendingUploadBytes; },
+    get voxelTriangleCount() { return voxelTriangleCount; },
+    get voxelQuadCount() { return voxelQuadCount; },
+    get voxelUploadBytes() { return voxelUploadBytes; },
+    get voxelFallbackReasons() { return voxelFallbackReasons; },
     get targets() { return targets; },
     consumePendingUploadBytes: () => {
       const value = pendingUploadBytes;
@@ -170,9 +186,26 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
       appliedSignature = signature;
       clear();
       if (castles.length === 0) return true;
-      geometry = new THREE.CylinderGeometry(0.18, 0.25, 0.42, 6);
+      try {
+        const prefab = createGreaterRealmVoxelPrefabPlan({
+          kind: 'castle',
+          graphicsProfile: options.policy.graphicsProfile,
+          cellSize: 1
+        });
+        geometry = createGreaterRealmVoxelGeometry(prefab);
+        voxelTriangleCount = prefab.surfacePlan.triangleCount;
+        voxelQuadCount = prefab.surfacePlan.mergedQuadCount;
+        voxelUploadBytes = prefab.uploadBytes;
+      } catch (error) {
+        geometry?.dispose();
+        geometry = new THREE.CylinderGeometry(0.18, 0.25, 0.42, 6);
+        voxelFallbackReasons = Object.freeze([
+          `castle:${error instanceof Error ? error.message : String(error)}`
+        ]);
+      }
       material = new THREE.MeshStandardMaterial({
         color: '#ffffff',
+        vertexColors: voxelFallbackReasons.length === 0,
         roughness: 0.68,
         metalness: 0.08,
         fog: true
@@ -192,7 +225,7 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
         const size = Math.min(1.65, 0.92 + (castle.level - 1) * 0.12);
         position.set(
           world.x,
-          castle.elevation / 1_000 + 0.21 * size + 0.03,
+          castle.elevation / 1_000 + (voxelFallbackReasons.length === 0 ? 0.03 : 0.21 * size + 0.03),
           world.z
         );
         scale.set(size, size, size);
@@ -615,12 +648,33 @@ export function createGreaterRealmWorldCanvasHost(
     const regionDrawCalls = regionLayer.count > 0 ? 1 : 0;
     const hostDrawCalls = castleDrawCalls + regionDrawCalls + resourceLayer.drawCallCount;
     const hostInstances = castleLayer.count + regionLayer.count + resourceLayer.count;
+    const voxelFallbackReasons = Object.freeze([
+      ...(sceneTelemetry.voxelFallbackReasons ?? []),
+      ...castleLayer.voxelFallbackReasons
+    ]);
+    const residentVoxelTriangleCount = (sceneTelemetry.residentVoxelTriangleCount ?? 0)
+      + castleLayer.voxelTriangleCount;
+    const residentVoxelQuadCount = (sceneTelemetry.residentVoxelQuadCount ?? 0)
+      + castleLayer.voxelQuadCount;
+    const hasVoxelGeometry = residentVoxelQuadCount > 0;
+    const hasAnyGeometry = sceneTelemetry.uploadedChunkCount > 0 || castleLayer.count > 0;
     const combinedSceneTelemetry = Object.freeze({
       ...sceneTelemetry,
       drawCallCount: sceneTelemetry.drawCallCount + hostDrawCalls,
       instanceCount: sceneTelemetry.instanceCount + hostInstances,
       uploadBytesThisFrame: sceneTelemetry.uploadBytesThisFrame
-        + hostUploadBytesThisFrame
+        + hostUploadBytesThisFrame,
+      voxelMode: !hasAnyGeometry
+        ? 'none' as const
+        : voxelFallbackReasons.length === 0
+          ? 'voxel' as const
+          : hasVoxelGeometry ? 'mixed' as const : 'fallback' as const,
+      residentVoxelTriangleCount,
+      residentVoxelQuadCount,
+      voxelUploadBytesThisFrame: (sceneTelemetry.voxelUploadBytesThisFrame ?? 0)
+        + (castleUploadBytesThisFrame > 0 ? castleLayer.voxelUploadBytes : 0),
+      voxelFallbackCount: voxelFallbackReasons.length,
+      voxelFallbackReasons
     });
     const telemetry = Object.freeze({
       renderer: 'webgl' as const,
@@ -640,6 +694,12 @@ export function createGreaterRealmWorldCanvasHost(
       telemetry.scene.drawCallCount,
       telemetry.scene.instanceCount,
       telemetry.scene.uploadBytesThisFrame,
+      telemetry.scene.voxelMode,
+      telemetry.scene.residentVoxelTriangleCount,
+      telemetry.scene.residentVoxelQuadCount,
+      telemetry.scene.voxelUploadBytesThisFrame,
+      telemetry.scene.voxelFallbackCount,
+      telemetry.scene.voxelFallbackReasons.join('|'),
       telemetry.hostUploadBytesThisFrame,
       telemetry.publicCastleUploadBytesThisFrame,
       telemetry.scene.grassPatchCount,

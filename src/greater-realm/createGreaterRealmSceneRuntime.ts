@@ -5,6 +5,10 @@ import { axialToWorld } from '../game/map/hexCoordinates';
 import { createRealmAmbientScheduler, type RealmAmbientScheduler } from '../components/realm/realmAmbientScheduler';
 import { sampleRealmLivingEnvironment } from '../components/realm/realmLivingEnvironment';
 import {
+  createGreaterRealmVoxelGeometry,
+  type GreaterRealmVoxelPrefabKind
+} from '../components/realm/greaterRealmVoxelPresentation';
+import {
   greaterRealmCoordinateKey,
   type GreaterRealmAtlasCoordinate,
   type GreaterRealmChunkDto,
@@ -62,6 +66,12 @@ export type GreaterRealmSceneTelemetry = Readonly<{
   maximumUploadsPerFrame: number;
   maximumUploadBytesPerFrame: number;
   skippedByBudgetCount: number;
+  voxelMode: 'none' | 'voxel' | 'mixed' | 'fallback';
+  residentVoxelTriangleCount: number;
+  residentVoxelQuadCount: number;
+  voxelUploadBytesThisFrame: number;
+  voxelFallbackCount: number;
+  voxelFallbackReasons: readonly string[];
 }>;
 
 export type GreaterRealmLocalVesselState = Readonly<{
@@ -125,6 +135,11 @@ type ChunkRenderResource = Readonly<{
   plan: GreaterRealmChunkPresentationPlan;
   waterMaterials: readonly THREE.MeshStandardMaterial[];
   actors: readonly ActorRenderRef[];
+  voxelTriangleCount: number;
+  voxelQuadCount: number;
+  voxelUploadBytes: number;
+  voxelLayerCount: number;
+  voxelFallbackReasons: readonly string[];
   dispose: () => void;
 }>;
 
@@ -298,6 +313,38 @@ function terrainMesh(plan: GreaterRealmChunkPresentationPlan, cellSize: number) 
   return mesh;
 }
 
+function voxelFailureReason(layer: string, error: unknown) {
+  const detail = error instanceof Error ? error.message : String(error);
+  return `${layer}:${detail}`;
+}
+
+function voxelTerrainMesh(plan: GreaterRealmChunkPresentationPlan) {
+  let geometry: THREE.BufferGeometry | undefined;
+  let material: THREE.MeshStandardMaterial | undefined;
+  try {
+    geometry = createGreaterRealmVoxelGeometry(plan.voxelTerrainPlan);
+    material = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.92,
+      metalness: 0,
+      fog: true
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(
+      plan.voxelTerrainPlan.origin.x,
+      plan.voxelTerrainPlan.origin.y,
+      plan.voxelTerrainPlan.origin.z
+    );
+    mesh.name = `greater-realm-voxel-terrain:${plan.chunkHandle}`;
+    mesh.raycast = () => {};
+    return mesh;
+  } catch (error) {
+    geometry?.dispose();
+    material?.dispose();
+    throw error;
+  }
+}
+
 function waterMesh(plan: GreaterRealmChunkPresentationPlan, cellSize: number) {
   if (plan.waterCells.length === 0) return undefined;
   const positions: number[] = [];
@@ -420,7 +467,10 @@ function featureColor(kind: GreaterRealmFeaturePresentation['kind']) {
   return '#aa8253';
 }
 
-function featureMeshes(plan: GreaterRealmChunkPresentationPlan) {
+function featureMeshes(
+  plan: GreaterRealmChunkPresentationPlan,
+  onlyKinds?: ReadonlySet<GreaterRealmFeaturePresentation['kind']>
+) {
   const meshes: THREE.InstancedMesh[] = [];
   const matrix = new THREE.Matrix4();
   const quaternion = new THREE.Quaternion();
@@ -428,6 +478,7 @@ function featureMeshes(plan: GreaterRealmChunkPresentationPlan) {
   const scale = new THREE.Vector3(1, 1, 1);
   const up = new THREE.Vector3(0, 1, 0);
   for (const kind of ['signpost', 'waystone', 'lamp-post', 'ruin'] as const) {
+    if (onlyKinds !== undefined && !onlyKinds.has(kind)) continue;
     const features = plan.features.filter((feature) => feature.kind === kind);
     if (features.length === 0) continue;
     const geometry = featureGeometry(kind);
@@ -451,6 +502,74 @@ function featureMeshes(plan: GreaterRealmChunkPresentationPlan) {
     meshes.push(mesh);
   }
   return Object.freeze(meshes);
+}
+
+function voxelFeatureMeshes(plan: GreaterRealmChunkPresentationPlan) {
+  const meshes: THREE.InstancedMesh[] = [];
+  const fallbackMeshes: THREE.InstancedMesh[] = [];
+  const failures: string[] = plan.voxelPrefabFallbackReasons.map(
+    (fallback) => voxelFailureReason(`feature-${fallback.kind}`, fallback.reason)
+  );
+  let triangleCount = 0;
+  let quadCount = 0;
+  let uploadBytes = 0;
+  let voxelLayerCount = 0;
+  const matrix = new THREE.Matrix4();
+  const quaternion = new THREE.Quaternion();
+  const position = new THREE.Vector3();
+  const scale = new THREE.Vector3(1, 1, 1);
+  const up = new THREE.Vector3(0, 1, 0);
+  for (const fallback of plan.voxelPrefabFallbackReasons) {
+    featureMeshes(plan, new Set([fallback.kind])).forEach((mesh) => fallbackMeshes.push(mesh));
+  }
+  for (const prefab of plan.voxelPrefabPlans) {
+    if (prefab.kind === 'castle') continue;
+    const kind = prefab.kind as GreaterRealmVoxelPrefabKind & GreaterRealmFeaturePresentation['kind'];
+    const features = plan.features.filter((feature) => feature.kind === kind);
+    if (features.length === 0) continue;
+    let geometry: THREE.BufferGeometry | undefined;
+    let material: THREE.MeshStandardMaterial | undefined;
+    try {
+      geometry = createGreaterRealmVoxelGeometry(prefab);
+      material = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        emissive: kind === 'lamp-post' ? '#3d290e' : '#000000',
+        emissiveIntensity: kind === 'lamp-post' ? 0.65 : 0,
+        roughness: kind === 'lamp-post' ? 0.55 : 0.9,
+        fog: true
+      });
+      const mesh = new THREE.InstancedMesh(geometry, material, features.length);
+      features.forEach((feature, index) => {
+        const baseLift = kind === 'waystone' ? 0.15 : 0.18;
+        position.set(feature.position.x, feature.position.y - baseLift, feature.position.z);
+        quaternion.setFromAxisAngle(up, feature.headingRadians);
+        matrix.compose(position, quaternion, scale);
+        mesh.setMatrixAt(index, matrix);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.name = `greater-realm-voxel-feature-${kind}:${plan.chunkHandle}`;
+      mesh.raycast = () => {};
+      meshes.push(mesh);
+      triangleCount += prefab.surfacePlan.triangleCount;
+      quadCount += prefab.surfacePlan.mergedQuadCount;
+      uploadBytes += prefab.uploadBytes;
+      voxelLayerCount += 1;
+    } catch (error) {
+      geometry?.dispose();
+      material?.dispose();
+      failures.push(voxelFailureReason(`feature-${kind}`, error));
+      featureMeshes(plan, new Set([kind])).forEach((mesh) => fallbackMeshes.push(mesh));
+    }
+  }
+  return Object.freeze({
+    meshes: Object.freeze(meshes),
+    fallbackMeshes: Object.freeze(fallbackMeshes),
+    failures: Object.freeze(failures),
+    triangleCount,
+    quadCount,
+    uploadBytes,
+    voxelLayerCount
+  });
 }
 
 function resourceColor(kind: GreaterRealmChunkPresentationPlan['resources'][number]['kind']) {
@@ -611,14 +730,42 @@ function disposeObject(root: THREE.Object3D) {
 function buildChunkResource(selected: SelectedChunk, cellSize: number): ChunkRenderResource {
   const group = new THREE.Group();
   group.name = `greater-realm-chunk:${selected.plan.chunkHandle}:lod${selected.plan.lod}`;
-  group.add(terrainMesh(selected.plan, cellSize));
+  const voxelFallbackReasons: string[] = [];
+  let voxelTriangleCount = 0;
+  let voxelQuadCount = 0;
+  let voxelUploadBytes = 0;
+  let voxelLayerCount = 0;
+  if (selected.plan.voxelTerrainFallbackReason !== undefined) {
+    voxelFallbackReasons.push(voxelFailureReason(
+      'terrain-preparation', selected.plan.voxelTerrainFallbackReason
+    ));
+    group.add(terrainMesh(selected.plan, cellSize));
+  } else {
+    try {
+      group.add(voxelTerrainMesh(selected.plan));
+      voxelTriangleCount += selected.plan.voxelTerrainPlan.surfacePlan.triangleCount;
+      voxelQuadCount += selected.plan.voxelTerrainPlan.surfacePlan.mergedQuadCount;
+      voxelUploadBytes += selected.plan.voxelTerrainPlan.uploadBytes;
+      voxelLayerCount += 1;
+    } catch (error) {
+      voxelFallbackReasons.push(voxelFailureReason('terrain', error));
+      group.add(terrainMesh(selected.plan, cellSize));
+    }
+  }
   const water = waterMesh(selected.plan, cellSize);
   if (water) group.add(water.mesh);
   const routes = routeLines(selected.plan);
   if (routes) group.add(routes);
   const crossings = crossingMesh(selected.plan, cellSize);
   if (crossings) group.add(crossings);
-  featureMeshes(selected.plan).forEach((mesh) => group.add(mesh));
+  const voxelFeatures = voxelFeatureMeshes(selected.plan);
+  voxelFeatures.meshes.forEach((mesh) => group.add(mesh));
+  voxelFeatures.fallbackMeshes.forEach((mesh) => group.add(mesh));
+  voxelFallbackReasons.push(...voxelFeatures.failures);
+  voxelTriangleCount += voxelFeatures.triangleCount;
+  voxelQuadCount += voxelFeatures.quadCount;
+  voxelUploadBytes += voxelFeatures.uploadBytes;
+  voxelLayerCount += voxelFeatures.voxelLayerCount;
   const actors = actorMeshes(selected.plan);
   actors.meshes.forEach((mesh) => group.add(mesh));
   resourceMeshes(selected.plan).forEach((mesh) => group.add(mesh));
@@ -631,6 +778,11 @@ function buildChunkResource(selected: SelectedChunk, cellSize: number): ChunkRen
     plan: selected.plan,
     waterMaterials: Object.freeze(water ? [water.material] : []),
     actors: actors.refs,
+    voxelTriangleCount,
+    voxelQuadCount,
+    voxelUploadBytes,
+    voxelLayerCount,
+    voxelFallbackReasons: Object.freeze(voxelFallbackReasons),
     dispose: () => {
       if (disposed) return;
       disposed = true;
@@ -642,6 +794,10 @@ function buildChunkResource(selected: SelectedChunk, cellSize: number): ChunkRen
 function planSignature(plan: GreaterRealmChunkPresentationPlan) {
   return [
     plan.revision, plan.lod, plan.cellSize, plan.drawCallCount, plan.instanceCount,
+    plan.voxelTerrainPlan.signature,
+    plan.voxelPrefabPlans.map((prefab) => prefab.signature).join(','),
+    plan.voxelTerrainFallbackReason ?? '',
+    plan.voxelPrefabFallbackReasons.map((row) => `${row.kind}:${row.reason}`).join(','),
     plan.terrainCells.length, plan.sealedEdges.length,
     plan.actors.map((actor) => actor.id).join(','),
     plan.features.map((feature) => feature.id).join(','),
@@ -714,6 +870,7 @@ export function createGreaterRealmSceneRuntime(
   let scheduler: RealmAmbientScheduler | undefined;
   let uploadedThisFrame = 0;
   let uploadBytesThisFrame = 0;
+  let voxelUploadBytesThisFrame = 0;
   let skippedByBudgetCount = 0;
   let boundCanvas: HTMLCanvasElement | null = null;
   const matrix = new THREE.Matrix4();
@@ -954,8 +1111,22 @@ export function createGreaterRealmSceneRuntime(
   };
 
   const telemetry = (): GreaterRealmSceneTelemetry => {
-    const plans = [...uploaded.values()].map((row) => row.plan);
+    const resources = [...uploaded.values()];
+    const plans = resources.map((row) => row.plan);
     const actors = plans.flatMap((plan) => plan.actors);
+    const voxelFallbackReasons = Object.freeze(resources.flatMap(
+      (resource) => resource.voxelFallbackReasons
+    ));
+    const voxelLayerCount = resources.reduce(
+      (total, resource) => total + resource.voxelLayerCount, 0
+    );
+    const voxelMode = resources.length === 0
+      ? 'none' as const
+      : voxelFallbackReasons.length === 0
+        ? 'voxel' as const
+        : voxelLayerCount === 0
+          ? 'fallback' as const
+          : 'mixed' as const;
     const ambientBoatCount = ambientBoatResource?.routes.length ?? 0;
     const localVesselCount = Number(localVesselResource !== undefined);
     return Object.freeze({
@@ -991,7 +1162,17 @@ export function createGreaterRealmSceneRuntime(
       uploadBytesThisFrame,
       maximumUploadsPerFrame: budget.maximumUploadsPerFrame,
       maximumUploadBytesPerFrame: budget.maximumUploadBytesPerFrame,
-      skippedByBudgetCount
+      skippedByBudgetCount,
+      voxelMode,
+      residentVoxelTriangleCount: resources.reduce(
+        (total, resource) => total + resource.voxelTriangleCount, 0
+      ),
+      residentVoxelQuadCount: resources.reduce(
+        (total, resource) => total + resource.voxelQuadCount, 0
+      ),
+      voxelUploadBytesThisFrame,
+      voxelFallbackCount: voxelFallbackReasons.length,
+      voxelFallbackReasons
     });
   };
 
@@ -1110,6 +1291,10 @@ export function createGreaterRealmSceneRuntime(
         let flowerLayers = 0;
         for (const value of values) {
           if (next.size >= budget.maximumVisibleChunks) break;
+          const occluderCells = Object.freeze([
+            ...value.chunk.coreCells,
+            ...value.chunk.apronCells
+          ]);
           const visibleApron = filterAprons
             ? value.chunk.apronCells.filter((cell) => {
               const key = greaterRealmCoordinateKey(cell);
@@ -1124,6 +1309,7 @@ export function createGreaterRealmSceneRuntime(
             chunk,
             graphicsProfile: options.graphicsProfile,
             cellSize,
+            occluderCells,
             actorAllowance: {
               canopy: budget.canopyCount - canopy,
               grassPatches: budget.grassPatchCount - grassPatches,
@@ -1213,6 +1399,7 @@ export function createGreaterRealmSceneRuntime(
     },
     flushUploads: () => {
       uploadedThisFrame = 0;
+      voxelUploadBytesThisFrame = 0;
       uploadBytesThisFrame = pendingAmbientBoatUploadBytes
         + pendingLocalVesselUploadBytes;
       pendingAmbientBoatUploadBytes = 0;
@@ -1242,6 +1429,7 @@ export function createGreaterRealmSceneRuntime(
         uploadedThisFrame += 1;
         chunkUploadBytesThisFrame += row.plan.estimatedUploadBytes;
         uploadBytesThisFrame += row.plan.estimatedUploadBytes;
+        voxelUploadBytesThisFrame += resource.voxelUploadBytes;
       }
       if (pending.size > 0) options.onInvalidate?.();
       return uploadedThisFrame;

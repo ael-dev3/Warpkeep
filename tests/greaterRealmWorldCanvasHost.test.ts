@@ -9,6 +9,7 @@ import {
   GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES
 } from '../src/components/realm/createGreaterRealmWorldCanvasHost';
 import { resolveGreaterRealmWorldViewPolicy } from '../src/components/realm/greaterRealmWorldViewPolicy';
+import * as voxelPresentation from '../src/components/realm/greaterRealmVoxelPresentation';
 import { GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE } from '../src/dev/greaterRealmSyntheticTierOneFixture';
 import type { GreaterRealmSceneTelemetry } from '../src/greater-realm/createGreaterRealmSceneRuntime';
 import type { GreaterRealmClientSnapshot } from '../src/greater-realm/greaterRealmClientRuntime';
@@ -45,7 +46,13 @@ const EMPTY_TELEMETRY: GreaterRealmSceneTelemetry = Object.freeze({
   uploadBytesThisFrame: 0,
   maximumUploadsPerFrame: 2,
   maximumUploadBytesPerFrame: 524_288,
-  skippedByBudgetCount: 0
+  skippedByBudgetCount: 0,
+  voxelMode: 'none',
+  residentVoxelTriangleCount: 0,
+  residentVoxelQuadCount: 0,
+  voxelUploadBytesThisFrame: 0,
+  voxelFallbackCount: 0,
+  voxelFallbackReasons: Object.freeze([])
 });
 
 const UNAVAILABLE_VESSEL = Object.freeze({
@@ -113,6 +120,43 @@ describe('Greater Realm world canvas host', () => {
       rendererFactory
     })).toBeUndefined();
     expect(rendererFactory).not.toHaveBeenCalled();
+  });
+
+  it('falls back to one instanced castle layer when voxel prefab preparation fails', () => {
+    vi.spyOn(voxelPresentation, 'createGreaterRealmVoxelPrefabPlan')
+      .mockImplementation(() => { throw new Error('INJECTED_CASTLE_PREPARATION_FAILURE'); });
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    const runtime = {
+      group: new THREE.Group(),
+      setView: vi.fn(), flushUploads: vi.fn(() => 0), update: vi.fn(() => false),
+      startAnimation: vi.fn(), stopAnimation: vi.fn(), setReducedMotion: vi.fn(),
+      setDocumentVisible: vi.fn(), bindCanvas: vi.fn(), getCellAccess: vi.fn(),
+      isCoordinatePassable: vi.fn(() => false), ...vesselRuntimeMethods(),
+      getTelemetry: vi.fn(() => EMPTY_TELEMETRY), dispose: vi.fn()
+    };
+    const host = createGreaterRealmWorldCanvasHost({
+      canvas,
+      atlasQ: -2,
+      atlasR: 1,
+      ownCastleId: 1,
+      policy: resolveGreaterRealmWorldViewPolicy({
+        atlasQ: -2, atlasR: 1, viewportWidth: 1_440, coarsePointer: false,
+        farcasterMiniApp: false, resolvedGraphicsQuality: 'balanced', reducedMotion: false
+      }),
+      rendererFactory: () => ({
+        setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn()
+      }),
+      sceneRuntimeFactory: () => runtime
+    })!;
+
+    expect(() => host.applySnapshot(readySnapshot())).not.toThrow();
+    expect(host.getTelemetry().publicCastleCount).toBe(2);
+    expect(host.getTelemetry().scene.voxelFallbackReasons.join('|'))
+      .toContain('INJECTED_CASTLE_PREPARATION_FAILURE');
+    host.dispose();
   });
 
   it('fails construction without leaking a created renderer or thrown context probe', () => {
@@ -414,6 +458,11 @@ describe('Greater Realm world canvas host', () => {
       'greater-realm-public-castle-instances'
     ) as THREE.InstancedMesh;
     expect(castleInstances.count).toBe(2);
+    expect(castleInstances.geometry.index).not.toBeNull();
+    expect(castleInstances.geometry.getAttribute('normal').normalized).toBe(true);
+    expect(castleInstances.geometry.getAttribute('color').normalized).toBe(true);
+    expect(castleInstances.geometry.userData.greaterRealmVoxelSignature)
+      .toContain('greater-realm-voxel-prefab-v1');
     expect(renderedScene.getObjectByName(
       'greater-realm-visible-region-landmark-instances'
     )).toBeDefined();
@@ -427,7 +476,7 @@ describe('Greater Realm world canvas host', () => {
       .flatMap((chunk) => [...chunk.coreCells, ...chunk.apronCells])
       .find((cell) => cell.atlasQ === -2 && cell.atlasR === 1)!;
     expect(ownPosition.y).toBeCloseTo(
-      ownCell.elevation / 1_000 + 0.21 * 1.04 + 0.03,
+      ownCell.elevation / 1_000 + 0.03,
       6
     );
     const resourceOnlyPublish = structuredClone(readySnapshot()) as any;
@@ -664,6 +713,9 @@ describe('Greater Realm world canvas host', () => {
     expect(capacityTelemetry.scene.uploadBytesThisFrame).toBeLessThanOrEqual(
       budget.maximumUploadBytesPerFrame
     );
+    expect(capacityTelemetry.scene.residentVoxelTriangleCount).toBeGreaterThan(0);
+    expect(capacityTelemetry.scene.residentVoxelQuadCount).toBeGreaterThan(0);
+    expect(capacityTelemetry.scene.voxelMode).toBe('voxel');
     host.dispose();
   });
 

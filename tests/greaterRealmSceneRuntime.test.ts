@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE } from '../src/dev/greaterRealmSyntheticTierOneFixture';
 import { createGreaterRealmSceneRuntime } from '../src/greater-realm/createGreaterRealmSceneRuntime';
 import { GREATER_REALM_CASTLE_UPLOAD_RESERVE_BYTES } from '../src/components/realm/createGreaterRealmWorldCanvasHost';
+import * as voxelPresentation from '../src/components/realm/greaterRealmVoxelPresentation';
 import { createGreaterRealmChunkPresentationPlan } from '../src/greater-realm/greaterRealmPresentationPlan';
 import {
   GREATER_REALM_AMBIENCE_CLASS,
@@ -213,10 +214,10 @@ describe('Greater Realm scene runtime', () => {
     expect(runtime.isCoordinatePassable({ atlasQ: 2, atlasR: 2 })).toBe(false);
     expect(runtime.getCellAccess({ atlasQ: 2, atlasR: 2 })?.passable).toBe(false);
     expect(runtime.group.children.some((chunk) => (
-      chunk.children.some((child) => child.name.startsWith('greater-realm-feature-waystone:'))
+      chunk.children.some((child) => child.name.startsWith('greater-realm-voxel-feature-waystone:'))
     ))).toBe(true);
     expect(runtime.group.children.some((chunk) => (
-      chunk.children.some((child) => child.name.startsWith('greater-realm-feature-signpost:'))
+      chunk.children.some((child) => child.name.startsWith('greater-realm-voxel-feature-signpost:'))
     ))).toBe(true);
     expect(runtime.group.children.some((chunk) => (
       chunk.children.some((child) => child.name.startsWith('greater-realm-shoreline-fence:'))
@@ -225,6 +226,118 @@ describe('Greater Realm scene runtime', () => {
     expect(invalidate).toHaveBeenCalled();
     runtime.dispose();
     expect(runtime.group.children).toHaveLength(0);
+  });
+
+  it('creates indexed named voxel terrain and instanced voxel landmark layers', () => {
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop', graphicsProfile: 'high'
+    });
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: viewChunks() });
+    runtime.flushUploads();
+
+    const terrain = runtime.group.getObjectByName(
+      `greater-realm-voxel-terrain:${viewChunks()[0]!.chunk.chunkHandle}`
+    ) as THREE.Mesh;
+    expect(terrain).toBeInstanceOf(THREE.Mesh);
+    expect(terrain.geometry.index).not.toBeNull();
+    expect(terrain.geometry.getAttribute('normal').normalized).toBe(true);
+    expect(terrain.geometry.getAttribute('color').normalized).toBe(true);
+    const waystone = runtime.group.children.flatMap((chunk) => chunk.children).find(
+      (child) => child.name.startsWith('greater-realm-voxel-feature-waystone:')
+    );
+    expect(waystone).toBeInstanceOf(THREE.InstancedMesh);
+    expect((waystone as THREE.InstancedMesh).count).toBeGreaterThan(0);
+    expect(runtime.getTelemetry()).toMatchObject({
+      voxelMode: 'voxel',
+      voxelFallbackCount: 0
+    });
+    expect(runtime.getTelemetry().residentVoxelTriangleCount).toBeGreaterThan(0);
+    expect(runtime.getTelemetry().residentVoxelQuadCount).toBeGreaterThan(0);
+    expect(runtime.getTelemetry().voxelUploadBytesThisFrame).toBeGreaterThan(0);
+    expect(runtime.getTelemetry().voxelUploadBytesThisFrame).toBeLessThanOrEqual(
+      runtime.getTelemetry().uploadBytesThisFrame
+    );
+    runtime.dispose();
+  });
+
+  it('replaces a chunk when only its filtered full-halo signature changes', () => {
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop', graphicsProfile: 'balanced'
+    });
+    const chunks = viewChunks();
+    runtime.setView({ revision: 1n, cellSize: 1, chunks });
+    runtime.flushUploads();
+    const handle = chunks[0]!.chunk.chunkHandle;
+    const original = runtime.group.getObjectByName(
+      `greater-realm-voxel-terrain:${handle}`
+    ) as THREE.Mesh;
+    const disposeGeometry = vi.spyOn(original.geometry, 'dispose');
+    const changed = structuredClone(chunks) as any[];
+    changed[0].chunk.apronCells[0].presentationVariant += 1;
+
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: changed });
+
+    expect(disposeGeometry).toHaveBeenCalledOnce();
+    expect(runtime.getTelemetry().pendingUploadCount).toBeGreaterThan(0);
+    runtime.flushUploads();
+    expect(runtime.group.getObjectByName(`greater-realm-voxel-terrain:${handle}`))
+      .not.toBe(original);
+    runtime.dispose();
+  });
+
+  it('falls back only at voxel construction and reports the graphics reason truthfully', () => {
+    const createGeometry = vi.spyOn(voxelPresentation, 'createGreaterRealmVoxelGeometry')
+      .mockImplementation(() => {
+        throw new Error('INJECTED_VOXEL_GEOMETRY_FAILURE');
+      });
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop', graphicsProfile: 'high'
+    });
+    runtime.setView({
+      revision: 1n,
+      cellSize: 1,
+      chunks: [{ chunk: viewChunks()[0]!.chunk, distanceChunks: 0 }]
+    });
+    expect(runtime.flushUploads()).toBe(1);
+
+    expect(runtime.group.getObjectByName(
+      `greater-realm-terrain:${viewChunks()[0]!.chunk.chunkHandle}`
+    )).toBeDefined();
+    expect(runtime.getTelemetry()).toMatchObject({
+      voxelMode: 'fallback',
+      residentVoxelTriangleCount: 0,
+      residentVoxelQuadCount: 0
+    });
+    expect(runtime.getTelemetry().voxelFallbackCount).toBeGreaterThan(0);
+    expect(runtime.getTelemetry().voxelFallbackReasons.join('|'))
+      .toContain('INJECTED_VOXEL_GEOMETRY_FAILURE');
+    runtime.dispose();
+    createGeometry.mockRestore();
+  });
+
+  it('keeps bounded voxel preparation failure inside the terrain graphics boundary', () => {
+    const prepareTerrain = vi.spyOn(voxelPresentation, 'createGreaterRealmVoxelTerrainPlan')
+      .mockImplementation(() => {
+        throw new RangeError('INJECTED_VOXEL_PREPARATION_FAILURE');
+      });
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop', graphicsProfile: 'balanced'
+    });
+
+    expect(() => runtime.setView({
+      revision: 1n,
+      cellSize: 1,
+      chunks: [{ chunk: viewChunks()[0]!.chunk, distanceChunks: 0 }]
+    })).not.toThrow();
+    expect(runtime.flushUploads()).toBe(1);
+    expect(runtime.group.getObjectByName(
+      `greater-realm-terrain:${viewChunks()[0]!.chunk.chunkHandle}`
+    )).toBeDefined();
+    expect(runtime.getTelemetry().voxelFallbackReasons.join('|'))
+      .toContain('INJECTED_VOXEL_PREPARATION_FAILURE');
+
+    runtime.dispose();
+    prepareTerrain.mockRestore();
   });
 
   it('drops resources on context loss and rebuilds only after restoration', () => {
@@ -311,7 +424,7 @@ describe('Greater Realm scene runtime', () => {
     });
     runtime.flushUploads();
     expect(runtime.group.children.some((chunk) => (
-      chunk.children.some((child) => child.name.startsWith('greater-realm-feature-lamp-post:'))
+      chunk.children.some((child) => child.name.startsWith('greater-realm-voxel-feature-lamp-post:'))
     ))).toBe(true);
     expect(runtime.getTelemetry()).toMatchObject({
       ambientBoatCount: 1,
