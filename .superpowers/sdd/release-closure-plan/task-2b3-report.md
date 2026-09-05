@@ -348,10 +348,11 @@ private operation-owned `cli/` path.
   sanitized process failure without an uncaught exception. A companion control
   proves a complete fd3 write/read still succeeds.
 - The controller's first exact-blob Linux run at `369565b` found two additional
-  fixture-boundary REDs: `101 passed, 1 failed`, plus one unhandled error,
+  REDs: `101 passed, 1 failed`, plus one unhandled error,
   exit 1. The hostile-ambient snapshot case failed at the post-copy operation
-  identity check because the fixture captured the parent identity before its
-  own expected `cli/` mkdir changed parent mtime/ctime. The fd3 request helper
+  identity check because the production binder captured the operation parent
+  identity before its own expected `cli/` mkdir changed parent mtime/ctime.
+  The fd3 request helper
   emitted an uncaught Linux `ECONNRESET` when the oversized malformed reader
   closed early. The correction captures the operation identity after the
   expected mkdir and then holds it across both copies; the test helper awaits
@@ -462,3 +463,116 @@ use, or deployment.
 
 - `369565b992c402f747f9cee3fa722d1b9438472c` — `fix(runtime): bind local PTR execution authority`
 - `8e445b940320b85681f969123fec207063f2b931` — `test(runtime): harden native fd3 fixtures`
+
+## Fix round 3 — stable container identity and composed parent lifecycle
+
+The round-two correction moved the operation-root snapshot after the initial
+`cli/` mkdir, but it still required the operation root's full directory
+metadata to remain unchanged. That was a production defect, not a fixture
+limitation: each real cycle legitimately creates a new operation-root child,
+changing `nlink`, `mtimeNs`, and `ctimeNs`. The CLI directory also captured full
+metadata before its own two executable copies; the low-level copy mock did not
+materialize those large fixed files and therefore concealed that self-change.
+
+### Focused RED/GREEN
+
+A new regression composes the real `bindOperationOwnedCliSnapshot()` result,
+including its real `verify()` method, with
+`executeFixedLocalBindingParentCycles()`. The process and large-file copy remain
+controlled low-level boundaries, but neither the binder nor parent core is
+mocked. Before the repair, the focused command failed at the first real parent
+`context.verifyExecutables()` call:
+
+```text
+npm exec vitest -- run tests/localBindingRuntimeParent.test.ts \
+  -t "keeps the real operation-owned" --maxWorkers=1
+
+Test Files  1 failed (1)
+Tests       1 failed | 10 skipped (11)
+Error       LOCAL_BINDING_RUNTIME_CLI_SNAPSHOT_INVALID
+site        executeCycle -> context.verifyExecutables -> cli.verify
+exit        1
+```
+
+After the identity repair, the same focused test passed. The full parent suite
+then passed 11/11. The composed regression observes both real parent cycles: two
+canonical worker requests, two generate calls, six real CLI verifications, and
+exactly ten source-snapshot verifications.
+
+### Identity repair
+
+- The operation root remains required to be a canonical, non-linked directory
+  owned by uid 1000 with mode 0700. Its stable identity is `dev` plus `ino`,
+  with owner and mode retained; expected child creation may change directory
+  `nlink`, `mtimeNs`, and `ctimeNs` without being misclassified as executable
+  tampering.
+- While the binder creates its two known CLI files, the CLI directory is held
+  to the same canonical owner/mode/stable-inode checks. Only after both copies
+  are complete does it capture the full CLI-directory identity, including
+  link count and timestamps. Every cycle then requires that full exact
+  directory identity plus the exact pinned CLI and companion file identities.
+- The frozen G001 CLI attester remains byte-identical. No public path,
+  environment, runner, resolver, profile, or command injection was added.
+
+### Final local GREEN evidence
+
+At immutable source/test commit
+`9290ef26681ff18c657837d8c5c4f61b14e7a0ee`:
+
+```text
+npm exec vitest -- run \
+  tests/localBindingRuntime.test.ts \
+  tests/localBindingRuntimeParent.test.ts \
+  tests/localBindingRuntimeLifecycle.test.ts \
+  tests/localBindingNativeTsHooks.test.ts \
+  tests/localBindingYamlManifest.test.ts \
+  tests/ptrBindingLinuxLockedSourceBuild.test.ts \
+  tests/ptrBindingLockedSourceBuildNative.test.ts \
+  tests/spacetimeBindingTree.test.ts \
+  --maxWorkers=1
+
+Test Files  7 passed | 1 skipped (8)
+Tests       96 passed | 7 skipped (103)
+Duration    16.05s
+exit        0
+```
+
+`npm run typecheck`, the pinned-node app typecheck, runtime syntax check, and
+cached diff check all exited 0. The seven skips are the same explicit Windows
+limitations for native Linux ownership, chmod, and symlink evidence.
+
+### Final native GREEN evidence
+
+The controller copied the two changed committed blobs and rechecked all 17
+owned files against commit `9290ef26681ff18c657837d8c5c4f61b14e7a0ee`.
+All hashes matched. WSL Ubuntu 24.04 session 84944 ran pinned Linux Node 22.22.3
+with the same eight-suite command and `--maxWorkers=1`:
+
+```text
+Test Files  8 passed (8)
+Tests       103 passed (103)
+Skipped     0
+Failures    0
+Unhandled   0
+Duration    9.03s
+exit        0
+```
+
+The native real-writer tests passed in 949 ms and 1675 ms. This gate includes
+the previously missing real binder/verifier-to-both-parent-cycles composition,
+so expected Linux directory metadata changes are exercised rather than mocked
+away.
+
+### Remaining limitation
+
+The composed parent regression executes the production binder, verifier,
+request framing, two-cycle orchestration, handoff checks, generate command
+construction, strict tree reader, and reproducibility comparison. External
+process outcomes and large fixed executable copies remain controlled low-level
+test boundaries. The fixed guest root is still unprovisioned and no real
+Spacetime build/generate, publication, network, credentials, or deployment is
+claimed; the provisioned derive remains the separate next gate.
+
+### Fix-round-3 commit
+
+- `9290ef26681ff18c657837d8c5c4f61b14e7a0ee` — `fix(runtime): preserve CLI authority across cycles`
