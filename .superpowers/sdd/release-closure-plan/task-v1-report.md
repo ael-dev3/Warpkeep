@@ -92,3 +92,30 @@ The 390x844 mobile emulation had 390px inner/client/scroll widths and no outside
 - The observed 10,272-byte / 0.6-ms initial Reduced-profile upload is a representative synthetic two-chunk sample, not worst-case geometry or budget proof; broader browser performance acceptance remains a follow-up.
 - The pale voxel palette is materially different from the former flat green terrain. Geometry, water, silhouettes, seams, and fallback were source/browser reviewed, but further art direction may choose a different fixed palette without changing authority or meshing.
 - The complete backend-backed progression journey remains a separate pending release requirement. This renderer does not admit G002, wire legacy G001 commands into PTR, mutate game state, or prove deployment/publication.
+
+## Review fix round 1 — 2026-09-05
+
+Source/test commit: `273b751` — `fix(renderer): ground and bound voxel integration` (parent base `3f9879c73d815b9fe9130d39ea19a26f4f699476`). Only the three reviewed production paths and four affected test paths were staged.
+
+### Important finding closure
+
+1. Ground-attached runtime landmarks, ambient actors, land routes, crossings, and renderer-local resources now share the same per-cell quantized surface calculation as successful voxel terrain. The choice is made after terrain construction, so both preparation and construction fallback retain raw presentation elevations. The runtime exposes only an optional selected voxel surface to the host; after each upload flush, castle matrices and selection targets use that surface, while an absent/fallback surface retains the castle DTO's raw elevation. Castle identity now includes the returned cell fields that control surface height.
+2. `createGreaterRealmVoxelGeometry` now owns a try/cleanup/rethrow boundary around every post-`BufferGeometry` allocation operation. An injected failure on the second attribute attachment disposes the partial geometry exactly once. Runtime lifecycle probes assert exact voxel geometry, material, and `InstancedMesh` disposal across context loss/restoration, profile-runtime replacement, final disposal, and repeated disposal.
+3. Terrain planning now rejects any emitted local lattice coordinate whose value or next voxel edge cannot be represented exactly in Float32. Adjacent decoded public cells at the full signed-i32 elevation extremes reproduce this guard, and presentation planning converts it into the existing bounded flat-terrain fallback with its unchanged reservation.
+
+### Fix-round RED/GREEN evidence
+
+All commands used pinned `.git/ci-node-22.22.3/node.exe` and `--maxWorkers=1`.
+
+- Adapter RED: `vitest run tests/greaterRealmVoxelPresentation.test.ts` exited 1 with 2 failed / 8 passed. The extreme adjacent-i32 span did not throw, and a fault on the second `BufferGeometry.setAttribute` call observed zero partial-geometry disposals. GREEN: 10/10, exit 0.
+- Runtime grounding RED: `vitest run tests/greaterRealmSceneRuntime.test.ts` exited 1 with 7 failed / 22 passed. All six High/Balanced/Reduced boundary-side landmark cases remained at raw elevation, as did the actor/land-route case. GREEN after the shared selected-surface grounder: 29/29, exit 0. Adding exact lifecycle probes retained GREEN at 30/30.
+- Host castle RED: `vitest run tests/greaterRealmWorldCanvasHost.test.ts` exited 1 with 12 failed / 9 passed across both sides of every profile boundary and both voxel/fallback selections. GREEN after post-flush selected-surface resolution: 21/21, exit 0.
+- Affected five-suite gate (`voxelSurfaceMesh`, voxel adapter, presentation plan, runtime, host): 5/5 files, 86/86 tests, exit 0.
+- Fresh pinned TypeScript: `node_modules/typescript/bin/tsc -p tsconfig.app.json --tsBuildInfoFile .git/voxel-runtime.tsbuildinfo`; exit 0, no diagnostics.
+- Fresh full covering gate with the original ten required paths: 10/10 files, 146/146 tests, skipped 0, exit 0, 35.19 seconds.
+
+### Controller evidence after stable source
+
+The controller's actual local Chrome Balanced 390x844 synthetic-fixture run passed 30 menu/active cycles with zero/one canvases respectively, then used real `WEBGL_lose_context`: context-lost telemetry reported zero uploaded chunks; restoration retained the same canvas and rebuilt two chunks at 478 triangles, 23 draws, voxel mode, and zero fallbacks. Artifacts are `.git/voxel-viewport-soak-s4Aca0/{metrics,journey,recovery}.json` plus `recovery.png`. The observed initial maxima were 22,944 upload bytes, 0.80 ms emission, and 10.70 ms preparation. Heap samples ranged from 43,042,003 to 65,575,173 bytes (first 52,598,485; last 64,047,646) and remain GC-dependent, not evidence of leak absence.
+
+This closes the three source-review findings only. Browser evidence remains representative and synthetic; mobile panel usability, long-duration/physical-device behavior, authenticated owner progression, publication, and the separate full backend-backed playable journey remain outside this source fix and are not claimed as accepted.
