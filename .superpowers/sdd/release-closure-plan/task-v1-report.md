@@ -119,3 +119,24 @@ All commands used pinned `.git/ci-node-22.22.3/node.exe` and `--maxWorkers=1`.
 The controller's actual local Chrome Balanced 390x844 synthetic-fixture run passed 30 menu/active cycles with zero/one canvases respectively, then used real `WEBGL_lose_context`: context-lost telemetry reported zero uploaded chunks; restoration retained the same canvas and rebuilt two chunks at 478 triangles, 23 draws, voxel mode, and zero fallbacks. Artifacts are `.git/voxel-viewport-soak-s4Aca0/{metrics,journey,recovery}.json` plus `recovery.png`. The observed initial maxima were 22,944 upload bytes, 0.80 ms emission, and 10.70 ms preparation. Heap samples ranged from 43,042,003 to 65,575,173 bytes (first 52,598,485; last 64,047,646) and remain GC-dependent, not evidence of leak absence.
 
 This closes the three source-review findings only. Browser evidence remains representative and synthetic; mobile panel usability, long-duration/physical-device behavior, authenticated owner progression, publication, and the separate full backend-backed playable journey remain outside this source fix and are not claimed as accepted.
+
+## Review fix round 2 — 2026-09-05
+
+Source/test commit: `168b475` — `fix(renderer): resolve emitted terrain grounding` (parent base `e35ef88aad1f00600dd5386714a07cc844ffd160`). Only `createGreaterRealmSceneRuntime.ts` and the runtime/host regression suites were staged.
+
+This section supersedes round 1's statement that all three source-review findings were closed. Round 1 independently closed partial-construction cleanup and Float32 span precision, but its owner-handle grounding lookup left this cross-owner emitted-apron case open; round 2 closes that remaining source finding.
+
+The remaining grounding defect came from using a castle's ownership handle as its render-resource lookup. Runtime apron deduplication can make a neighboring selected chunk the only resource that actually emits that returned coordinate. The runtime now maintains a bounded coordinate index over uploaded resources' emitted `terrainCells`; insertion happens with resource upload and identity-checked removal happens before disposal. `getTerrainSurfaceY` resolves the indexed emitter and returns its quantized surface only when that exact resource uses voxel terrain; preparation/construction fallback still returns no voxel surface, so the host keeps raw castle elevation.
+
+### Fix-round RED/GREEN evidence
+
+- Exact fixture RED with pinned Node: clone owner chunk A, set LOD1, remove core `(-1,1)`, decode it, retain chunk B whose apron emits `(-1,1)`, then upload both. The runtime returned `undefined` instead of Reduced surface `0`; the real-runtime host placed castle 2 at `0.169` instead of `0.03`. The two-file command exited 1 with 2 failed / 51 passed.
+- The real host test initially inspected only Reduced's first admitted chunk. Its frame harness was corrected to drain scheduled upload frames. Mutation-checking that corrected test against the restored owner-only lookup failed both focused reproductions: runtime 1 failed / 30 skipped, exit 1; host 1 failed / 21 skipped, exit 1. Restoring the emitted-coordinate index made both focused tests pass.
+- Runtime coverage also uses a real Balanced selected neighboring resource whose valid i32 elevation span triggers bounded terrain preparation fallback; the indexed coordinate truthfully returns no voxel surface and aggregate mode is mixed.
+- Focused runtime+host GREEN: 2/2 files, 54/54 tests, exit 0.
+- Fresh pinned TypeScript: `node_modules/typescript/bin/tsc -p tsconfig.app.json --tsBuildInfoFile .git/voxel-runtime.tsbuildinfo`; exit 0, no diagnostics.
+- Fresh full ten-path covering gate: 10/10 files, 149/149 tests, skipped 0, exit 0, 35.64 seconds.
+
+### Controller fallback evidence
+
+The controller's actual local Chrome Balanced 390x844 synthetic run at `.git/voxel-viewport-fallback-YmVnaW` injected failure only when attaching normalized Uint8 voxel colors, without a production hook. Across three menu/entry cycles plus real context loss/restoration it observed 19 injected failures, fallback mode with five reasons, zero voxel triangles, two chunks, 23 draws, two castles, and four resources. All cycles retained zero menu canvases and one active canvas; restoration changed context-lost true to false on the same canvas and rebuilt the same five fallback reasons. `recovery.png` visibly contains flat-hex/primitive fallback. The screenshot is narrow functional evidence, not professional art, authenticated-owner, physical-device, or full gameplay acceptance.
