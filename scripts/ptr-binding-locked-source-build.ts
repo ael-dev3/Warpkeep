@@ -81,6 +81,21 @@ const EXPECTED_PACKAGE_EDGES = Object.freeze<Record<string, readonly string[]>>(
   'url-polyfill@1.1.14': Object.freeze([]),
 });
 const EXPECTED_PACKAGE_KEYS = Object.freeze(Object.keys(EXPECTED_PACKAGE_EDGES).sort());
+const EXPECTED_OPTIONAL_PLATFORM_METADATA = Object.freeze<Record<string, Readonly<{
+  os?: readonly string[];
+  cpu?: readonly string[];
+  optional?: true;
+}>>>({
+  '@esbuild/darwin-arm64@0.25.12': Object.freeze({
+    os: Object.freeze(['darwin']),
+    cpu: Object.freeze(['arm64']),
+    optional: true,
+  }),
+  'fsevents@2.3.3': Object.freeze({
+    os: Object.freeze(['darwin']),
+    optional: true,
+  }),
+});
 
 // This frozen export retains its historical test-seam name for G001 byte
 // compatibility. PTR consumes only the two pure validators explicitly shared
@@ -90,9 +105,10 @@ type DependencySnapshot = ReturnType<typeof dependencyTreeSnapshot>;
 type SafeNpmTar = ReturnType<typeof parseSafeNpmTar>;
 
 export class PtrBindingLockedSourceBuildError extends Error {
-  constructor(readonly code: string) {
+  constructor(readonly code: string, cause?: unknown) {
     super(code);
     this.name = 'PtrBindingLockedSourceBuildError';
+    if (cause !== undefined) Object.defineProperty(this, 'cause', { value: cause });
   }
 }
 
@@ -133,6 +149,8 @@ function readExactBoundedFile(
 ): Readonly<{ body: Buffer; identity: ExactFileIdentity }> {
   let descriptor: number | undefined;
   let body: Buffer | undefined;
+  let result: Readonly<{ body: Buffer; identity: ExactFileIdentity }> | undefined;
+  let primaryError: unknown;
   try {
     const byPath = lstatSync(path, { bigint: true });
     if (byPath.isSymbolicLink() || !byPath.isFile() || byPath.nlink !== 1n
@@ -155,14 +173,31 @@ function readExactBoundedFile(
     if (body.byteLength !== Number(opened.size)
       || !sameFileIdentity(expected, fileIdentity(after))
       || !sameFileIdentity(expected, fileIdentity(afterPath))) fail(changedCode);
-    return Object.freeze({ body, identity: expected });
+    result = Object.freeze({ body, identity: expected });
   } catch (error) {
     body?.fill(0);
-    if (error instanceof PtrBindingLockedSourceBuildError) throw error;
-    return fail(invalidCode);
-  } finally {
-    if (descriptor !== undefined) closeSync(descriptor);
+    primaryError = error instanceof PtrBindingLockedSourceBuildError
+      ? error
+      : new PtrBindingLockedSourceBuildError(invalidCode, error);
   }
+  let closeError: unknown;
+  try {
+    if (descriptor !== undefined) closeSync(descriptor);
+  } catch (error) {
+    closeError = error;
+  }
+  if (primaryError !== undefined || closeError !== undefined) {
+    if (primaryError !== undefined && closeError === undefined) throw primaryError;
+    if (primaryError === undefined && closeError !== undefined) {
+      body?.fill(0);
+      throw closeError;
+    }
+    throw new AggregateError(
+      [primaryError, closeError],
+      'PTR_LOCKED_SOURCE_BUILD_READ_AND_CLOSE_FAILED',
+    );
+  }
+  return result ?? fail(invalidCode);
 }
 
 function assertExactFileIdentity(path: string, expected: ExactFileIdentity, changedCode: string): void {
@@ -258,7 +293,6 @@ function canonicalIntegrity(value: unknown): Readonly<{ value: string; digest: B
 
 function platformMetadata(packageRecord: Readonly<Record<string, unknown>>): Readonly<{
   compatible: boolean;
-  constrained: boolean;
 }> {
   const validate = (value: unknown): readonly string[] | undefined => {
     if (value === undefined) return undefined;
@@ -272,8 +306,27 @@ function platformMetadata(packageRecord: Readonly<Record<string, unknown>>): Rea
   return Object.freeze({
     compatible: (os === undefined || os[0] === 'darwin')
       && (cpu === undefined || cpu[0] === 'arm64'),
-    constrained: os !== undefined || cpu !== undefined,
   });
+}
+
+function assertExactSelectedPlatformMetadata(
+  key: string,
+  packageRecord: Readonly<Record<string, unknown>>,
+  snapshot: Readonly<Record<string, unknown>>,
+): void {
+  const expected = EXPECTED_OPTIONAL_PLATFORM_METADATA[key] ?? Object.freeze({});
+  for (const field of ['os', 'cpu'] as const) {
+    const expectedPresent = expected[field] !== undefined;
+    if (Object.hasOwn(packageRecord, field) !== expectedPresent
+      || JSON.stringify(packageRecord[field]) !== JSON.stringify(expected[field])) {
+      fail('PTR_LOCKED_SOURCE_BUILD_LOCK_INVALID');
+    }
+  }
+  const expectedOptional = expected.optional === true;
+  if (Object.hasOwn(snapshot, 'optional') !== expectedOptional
+    || snapshot.optional !== (expectedOptional ? true : undefined)) {
+    fail('PTR_LOCKED_SOURCE_BUILD_LOCK_INVALID');
+  }
 }
 
 function selectedPackages(lockBody: Buffer): readonly LockedPackage[] {
@@ -327,8 +380,7 @@ function selectedPackages(lockBody: Buffer): readonly LockedPackage[] {
     if (Object.keys(snapshot).some(field => ![
       'dependencies', 'optionalDependencies', 'optional',
     ].includes(field))) fail(code);
-    if (platform.constrained && snapshot.optional !== true) fail(code);
-    if (snapshot.optional !== undefined && snapshot.optional !== true) fail(code);
+    assertExactSelectedPlatformMetadata(key, packageRecord, snapshot);
     const dependencies: string[] = [];
     for (const field of ['dependencies', 'optionalDependencies'] as const) {
       if (snapshot[field] === undefined) continue;

@@ -24,6 +24,10 @@ import { parse, stringify } from 'yaml';
 
 const boundary = vi.hoisted(() => ({
   cleanupFailure: false,
+  descriptorCloseFailureSuffix: '',
+  descriptorEvents: [] as string[],
+  descriptorReadFailureSuffix: '',
+  descriptorPaths: new Map<number, string>(),
   finishFailure: false,
   stageFailure: false,
   writeFailure: false,
@@ -46,6 +50,36 @@ vi.mock('node:fs', async () => {
   };
   return {
     ...actual,
+    openSync(path: import('node:fs').PathLike, flags: string | number, mode?: number) {
+      const descriptor = actual.openSync(path, flags, mode);
+      boundary.descriptorPaths.set(descriptor, String(path));
+      return descriptor;
+    },
+    readSync(
+      descriptor: number,
+      buffer: NodeJS.ArrayBufferView,
+      offset: number,
+      length: number,
+      position: number | null,
+    ) {
+      const path = boundary.descriptorPaths.get(descriptor) ?? '';
+      if (boundary.descriptorReadFailureSuffix !== ''
+        && path.endsWith(boundary.descriptorReadFailureSuffix)) {
+        boundary.descriptorEvents.push('read-failed');
+        throw new Error('MOCK_DESCRIPTOR_READ_FAILED');
+      }
+      return actual.readSync(descriptor, buffer, offset, length, position);
+    },
+    closeSync(descriptor: number) {
+      const path = boundary.descriptorPaths.get(descriptor) ?? '';
+      boundary.descriptorPaths.delete(descriptor);
+      actual.closeSync(descriptor);
+      if (boundary.descriptorCloseFailureSuffix !== ''
+        && path.endsWith(boundary.descriptorCloseFailureSuffix)) {
+        boundary.descriptorEvents.push('close-failed');
+        throw new Error('MOCK_DESCRIPTOR_CLOSE_FAILED');
+      }
+    },
     lstatSync(path: import('node:fs').PathLike, options?: { bigint?: boolean }) {
       const status = actual.lstatSync(path, options as never);
       return process.platform === 'win32' ? normalize(status) : status;
@@ -210,6 +244,10 @@ const temporaryDirectories: string[] = [];
 
 beforeEach(() => {
   boundary.cleanupFailure = false;
+  boundary.descriptorCloseFailureSuffix = '';
+  boundary.descriptorEvents.length = 0;
+  boundary.descriptorReadFailureSuffix = '';
+  boundary.descriptorPaths.clear();
   boundary.finishFailure = false;
   boundary.stageFailure = false;
   boundary.writeFailure = false;
@@ -403,6 +441,7 @@ function thrownMessages(operation: () => unknown): readonly string[] {
   const messages: string[] = [];
   const visit = (error: unknown) => {
     if (error instanceof Error) messages.push(error.message);
+    if (error instanceof Error && error.cause !== undefined) visit(error.cause);
     if (error instanceof AggregateError) for (const cause of error.errors) visit(cause);
   };
   visit(thrown);
@@ -533,6 +572,62 @@ describe('independent PTR locked-source build', () => {
       () => { operationCalled = true; },
     ));
     expect(messages).toContain('PTR_LOCKED_SOURCE_BUILD_LOCK_INVALID');
+    expect(operationCalled).toBe(false);
+  });
+
+  it.each([
+    ['missing esbuild cpu', (lock: Record<string, any>) => {
+      delete lock.packages['@esbuild/darwin-arm64@0.25.12'].cpu;
+    }],
+    ['missing esbuild os', (lock: Record<string, any>) => {
+      delete lock.packages['@esbuild/darwin-arm64@0.25.12'].os;
+    }],
+    ['widened esbuild cpu', (lock: Record<string, any>) => {
+      lock.packages['@esbuild/darwin-arm64@0.25.12'].cpu = ['arm64', 'x64'];
+    }],
+    ['missing esbuild optional marker', (lock: Record<string, any>) => {
+      delete lock.snapshots['@esbuild/darwin-arm64@0.25.12'].optional;
+    }],
+    ['missing fsevents os', (lock: Record<string, any>) => {
+      delete lock.packages['fsevents@2.3.3'].os;
+    }],
+    ['misplaced fsevents cpu', (lock: Record<string, any>) => {
+      lock.packages['fsevents@2.3.3'].cpu = ['arm64'];
+    }],
+    ['misplaced generic platform and optional markers', (lock: Record<string, any>) => {
+      lock.packages['typescript@5.6.3'].os = ['darwin'];
+      lock.packages['typescript@5.6.3'].cpu = ['arm64'];
+      lock.snapshots['typescript@5.6.3'].optional = true;
+    }],
+    ['misplaced generic optional marker', (lock: Record<string, any>) => {
+      lock.snapshots['typescript@5.6.3'].optional = true;
+    }],
+  ])('rejects exact optional-platform metadata mutation: %s', (_label, mutateLock) => {
+    let operationCalled = false;
+    const messages = thrownMessages(() => runFixture(
+      fixture({ mutateLock }),
+      () => { operationCalled = true; },
+    ));
+    expect(messages).toContain('PTR_LOCKED_SOURCE_BUILD_LOCK_INVALID');
+    expect(operationCalled).toBe(false);
+  });
+
+  it('preserves a descriptor read failure together with close failure', () => {
+    const value = fixture();
+    boundary.descriptorReadFailureSuffix = join('spacetimedb', 'ptr', 'package.json');
+    boundary.descriptorCloseFailureSuffix = join('spacetimedb', 'ptr', 'package.json');
+    let operationCalled = false;
+    let thrown: unknown;
+    try { runFixture(value, () => { operationCalled = true; }); } catch (error) { thrown = error; }
+    expect(thrown).toBeInstanceOf(AggregateError);
+    expect((thrown as AggregateError).message).toBe('PTR_LOCKED_SOURCE_BUILD_READ_AND_CLOSE_FAILED');
+    const [primary, close] = (thrown as AggregateError).errors as readonly Error[];
+    expect(primary).toMatchObject({
+      code: 'PTR_LOCKED_SOURCE_BUILD_MANIFEST_INVALID',
+      cause: expect.objectContaining({ message: 'MOCK_DESCRIPTOR_READ_FAILED' }),
+    });
+    expect(close).toMatchObject({ message: 'MOCK_DESCRIPTOR_CLOSE_FAILED' });
+    expect(boundary.descriptorEvents).toEqual(['read-failed', 'close-failed']);
     expect(operationCalled).toBe(false);
   });
 
