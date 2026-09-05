@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { withGreaterRealmLockedSourceBuild } from './greater-realm-production-immutable-artifact.ts';
+import { withPtrLockedSourceBuild } from './ptr-binding-locked-source-build.ts';
 import { assertProductionAdminTrustedAncestors } from './production-admin-token-budget.mjs';
 import { attestPinnedSpacetimeCli } from './spacetime-cli-attestation.mjs';
 
@@ -846,12 +846,11 @@ export function preparePtrSourceBuiltArtifact(input) {
         | (constants.O_NOFOLLOW ?? 0),
       0o600,
     );
-    const sourceBuild = withGreaterRealmLockedSourceBuild({
+    const sourceBuild = withPtrLockedSourceBuild({
       repositoryRoot: REPOSITORY_ROOT,
       moduleSourceCommit: input.sourceCommit,
       dependencyCacheRoot: input.dependencyCacheRoot,
       materializationParent: input.materializationParent,
-      generatedFiles: ['spacetimedb/ptr/dist/bundle.js'],
       operation: ({ materializedRoot }) => {
         const build = (input.spawn ?? spawnSync)(cli.path, [
           'build', '--module-path', PTR_PRODUCTION_TARGET.modulePath,
