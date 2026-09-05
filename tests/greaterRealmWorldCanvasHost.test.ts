@@ -301,6 +301,58 @@ describe('Greater Realm world canvas host', () => {
     expect(runtimeFactory).toHaveBeenCalledTimes(3);
   });
 
+  it('requeues real scene uploads after a swapped runtime loses context during a policy change', () => {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+    const frames = new Map<number, FrameRequestCallback>();
+    let nextFrame = 1;
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const id = nextFrame++;
+      frames.set(id, callback);
+      return id;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      frames.delete(id);
+    });
+    const renderer = {
+      setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn()
+    };
+    const policy = (viewportWidth: number) => resolveGreaterRealmWorldViewPolicy({
+      atlasQ: -2, atlasR: 1, viewportWidth, coarsePointer: false,
+      farcasterMiniApp: false, resolvedGraphicsQuality: 'balanced', reducedMotion: true
+    });
+    const host = createGreaterRealmWorldCanvasHost({
+      canvas, atlasQ: -2, atlasR: 1, ownCastleId: 1, policy: policy(1_440),
+      rendererFactory: () => renderer,
+      sceneRuntimeFactory: (options) => createGreaterRealmSceneRuntime(options)
+    })!;
+    const flushFrames = () => {
+      for (let time = 16; frames.size > 0 && time <= 320; time += 16) {
+        for (const [id, callback] of [...frames]) {
+          frames.delete(id);
+          callback(time);
+        }
+      }
+    };
+
+    host.applySnapshot(readySnapshot());
+    flushFrames();
+    expect(host.getTelemetry().scene.uploadedChunkCount).toBeGreaterThan(0);
+    host.updatePolicy(policy(390));
+    flushFrames();
+    expect(host.getTelemetry().scene.selectedChunkCount).toBeGreaterThan(0);
+    expect(host.getTelemetry().scene.uploadedChunkCount).toBeGreaterThan(0);
+
+    canvas.dispatchEvent(new Event('webglcontextlost'));
+    host.updatePolicy(policy(1_440));
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    flushFrames();
+
+    expect(host.getTelemetry().scene.selectedChunkCount).toBeGreaterThan(0);
+    expect(host.getTelemetry().scene.uploadedChunkCount).toBeGreaterThan(0);
+    host.dispose();
+  });
+
   it('fails closed and cleans both runtimes when an adaptive swap cannot start', () => {
     const canvas = document.createElement('canvas');
     vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);

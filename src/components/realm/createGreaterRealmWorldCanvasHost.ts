@@ -799,23 +799,23 @@ export function createGreaterRealmWorldCanvasHost(
   };
   const render = () => {
     frame = 0;
-    const activeRuntime = runtime;
+    const runtimeForFrame = activeRuntime;
     const activeRenderer = renderer;
     if (
       disposed
       || terminalFailure
       || !documentVisible
-      || activeRuntime === undefined
+      || runtimeForFrame === undefined
       || activeRenderer === undefined
     ) {
       return;
     }
     try {
-      activeRuntime.flushUploads();
+      runtimeForFrame.flushUploads();
       castleLayer.refreshGrounding((chunkHandle, cell) => (
-        activeRuntime.getTerrainSurfaceY?.(chunkHandle, cell)
+        runtimeForFrame.getTerrainSurfaceY?.(chunkHandle, cell)
       ));
-      const telemetry = activeRuntime.getTelemetry();
+      const telemetry = runtimeForFrame.getTelemetry();
       if (
         fitRequested
         && !telemetry.contextLost
