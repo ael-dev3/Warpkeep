@@ -301,28 +301,41 @@ function source(repository, memberPath, code) {
   }
 }
 
-function parseSourceFile(value, memberPath) {
+function parseSourceFile(value, memberPath, parser) {
   const code = 'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_SOURCE_INVALID';
   const fileName = `/auth-bridge-prepared-closure/${memberPath}`;
-  let api;
   let snapshot;
   try {
-    api = new TypeScriptAPI({
-      cwd: dirname(fileName),
-      fs: createVirtualFileSystem({ [fileName]: value }),
+    if (parser.api === undefined) {
+      parser.fs = createVirtualFileSystem({});
+      parser.api = new TypeScriptAPI({
+        cwd: '/auth-bridge-prepared-closure',
+        fs: parser.fs,
+      });
+    }
+    // Keep the virtual project file-local as before. Only the native compiler
+    // belongs to the graph: no source or compiler survives another graph scan.
+    const previousFiles = parser.previousFile === undefined
+      ? [] : [parser.previousFile];
+    for (const previous of previousFiles) parser.fs.removeFile(previous);
+    parser.fs.writeFile(fileName, value);
+    snapshot = parser.api.updateSnapshot({
+      openFiles: [fileName],
+      closeFiles: previousFiles,
+      fileChanges: { created: [fileName], deleted: previousFiles },
     });
-    snapshot = api.updateSnapshot({ openFiles: [fileName] });
+    parser.previousFile = fileName;
     const project = snapshot.getDefaultProjectForFile(fileName);
     const sourceFile = project?.program.getSourceFile(fileName);
     if (
       project === undefined
       || sourceFile === undefined
+      || sourceFile.text !== value
       || project.program.getSyntacticDiagnostics(fileName).length !== 0
     ) fail(code);
-    return Object.freeze({ api, snapshot, sourceFile });
+    return Object.freeze({ snapshot, sourceFile });
   } catch (error) {
     try { snapshot?.dispose(); } catch { /* Preserve the primary failure. */ }
-    try { api?.close(); } catch { /* Preserve the primary failure. */ }
     if (error instanceof AuthBridgeNotificationPreparedDeployClosureError) {
       throw error;
     }
@@ -330,10 +343,11 @@ function parseSourceFile(value, memberPath) {
   }
 }
 
-function sourceModuleSpecifiers(value, memberPath) {
-  const parsed = parseSourceFile(value, memberPath);
+function sourceModuleSpecifiers(value, memberPath, parser) {
+  const parsed = parseSourceFile(value, memberPath, parser);
   const specifiers = [];
   const dynamicImportExpressions = new Set();
+  let failed = false;
   try {
     const visit = node => {
       if (isImportDeclaration(node) || isExportDeclaration(node)) {
@@ -388,9 +402,13 @@ function sourceModuleSpecifiers(value, memberPath) {
         !== JSON.stringify([...expectedDynamicImports].sort())
     ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_IMPORT_INVALID');
     return Object.freeze(specifiers);
+  } catch (error) {
+    failed = true;
+    throw error;
   } finally {
-    parsed.snapshot.dispose();
-    parsed.api.close();
+    try { parsed.snapshot.dispose(); } catch (error) {
+      if (!failed) throw error;
+    }
   }
 }
 
@@ -435,42 +453,54 @@ function resolveLocalSpecifier(repository, importer, specifier) {
 function deriveLocalGraph(repository, roots) {
   const pending = [...roots];
   const graph = new Set();
-  while (pending.length > 0) {
-    const memberPath = pending.shift();
-    if (memberPath === undefined || graph.has(memberPath)) continue;
-    graph.add(memberPath);
-    if (memberPath.endsWith('.css')) {
+  const parser = {};
+  let failed = false;
+  try {
+    while (pending.length > 0) {
+      const memberPath = pending.shift();
+      if (memberPath === undefined || graph.has(memberPath)) continue;
+      graph.add(memberPath);
+      if (memberPath.endsWith('.css')) {
+        const value = source(
+          repository,
+          memberPath,
+          'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_SOURCE_INVALID',
+        );
+        if (/@import\b|url\s*\(/iu.test(value)) {
+          fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_ASSET_IMPORT_FORBIDDEN');
+        }
+        continue;
+      }
+      if (!/\.(?:mjs|mts|ts|tsx)$/u.test(memberPath)) continue;
       const value = source(
         repository,
         memberPath,
         'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_SOURCE_INVALID',
       );
-      if (/@import\b|url\s*\(/iu.test(value)) {
-        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_ASSET_IMPORT_FORBIDDEN');
-      }
-      continue;
-    }
-    if (!/\.(?:mjs|mts|ts|tsx)$/u.test(memberPath)) continue;
-    const value = source(
-      repository,
-      memberPath,
-      'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_SOURCE_INVALID',
-    );
-    for (const specifier of sourceModuleSpecifiers(value, memberPath)) {
-      if (specifier.includes('/node_modules/')) {
-        if (!ATTESTED_INSTALLED_IMPORTS.get(memberPath)?.has(specifier)) {
-          fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_INSTALLED_IMPORT_INVALID');
+      for (const specifier of sourceModuleSpecifiers(value, memberPath, parser)) {
+        if (specifier.includes('/node_modules/')) {
+          if (!ATTESTED_INSTALLED_IMPORTS.get(memberPath)?.has(specifier)) {
+            fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_INSTALLED_IMPORT_INVALID');
+          }
+          continue;
         }
-        continue;
+        const dependency = resolveLocalSpecifier(repository, memberPath, specifier);
+        if (dependency !== undefined && !graph.has(dependency)) pending.push(dependency);
       }
-      const dependency = resolveLocalSpecifier(repository, memberPath, specifier);
-      if (dependency !== undefined && !graph.has(dependency)) pending.push(dependency);
+      if (graph.size > MAX_MEMBERS) {
+        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_TOO_LARGE');
+      }
     }
-    if (graph.size > MAX_MEMBERS) {
-      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_TOO_LARGE');
+    return graph;
+  } catch (error) {
+    failed = true;
+    throw error;
+  } finally {
+    // Also close on source/import/path failures or failed snapshot disposal.
+    try { parser.api?.close(); } catch (error) {
+      if (!failed) throw error;
     }
   }
-  return graph;
 }
 
 function namespaceMembers(repository, directoryPath, namePattern, code) {
