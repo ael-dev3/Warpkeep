@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { lstatSync, realpathSync } from 'node:fs';
+import { lstatSync, mkdirSync, realpathSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -79,6 +79,45 @@ function attestRuntimeExecutables(request, expected) {
   });
 }
 
+function bindPrivateBuildOutput(request, materializedRoot) {
+  const expectedParent = join(request.materializationRoot, 'ptr-locked-source-builds-v1');
+  const name = basename(materializedRoot);
+  const ptrRoot = join(materializedRoot, 'spacetimedb', 'ptr');
+  try {
+    if (dirname(materializedRoot) !== expectedParent || !/^[0-9a-f]{32}$/u.test(name)) {
+      fail('LOCAL_BINDING_WORKER_BUILD_OUTPUT_INVALID');
+    }
+    for (const path of [expectedParent, materializedRoot, ptrRoot]) {
+      const state = lstatSync(path, { bigint: true });
+      if (!state.isDirectory() || state.isSymbolicLink() || state.uid !== 1000n
+          || (state.mode & 0o7777n) !== 0o700n || realpathSync(path) !== path) {
+        fail('LOCAL_BINDING_WORKER_BUILD_OUTPUT_INVALID');
+      }
+    }
+  } catch (error) {
+    if (error?.code === 'LOCAL_BINDING_WORKER_BUILD_OUTPUT_INVALID') throw error;
+    fail('LOCAL_BINDING_WORKER_BUILD_OUTPUT_INVALID', error);
+  }
+  const output = join(ptrRoot, 'dist');
+  return Object.freeze({
+    ptrRoot,
+    create() {
+      try {
+        mkdirSync(output, { recursive: false, mode: 0o700 });
+        const state = lstatSync(output, { bigint: true });
+        if (!state.isDirectory() || state.isSymbolicLink() || state.uid !== 1000n
+            || (state.mode & 0o7777n) !== 0o700n || realpathSync(output) !== output
+            || dirname(output) !== ptrRoot) {
+          fail('LOCAL_BINDING_WORKER_BUILD_OUTPUT_INVALID');
+        }
+      } catch (error) {
+        if (error?.code === 'LOCAL_BINDING_WORKER_BUILD_OUTPUT_INVALID') throw error;
+        fail('LOCAL_BINDING_WORKER_BUILD_OUTPUT_INVALID', error);
+      }
+    },
+  });
+}
+
 function command(executable, args, cwd, timeout) {
   const result = spawnSync(executable, args, {
     cwd, env: process.env, shell: false, stdio: ['ignore', 'pipe', 'pipe'],
@@ -116,13 +155,15 @@ export async function runFixedLocalBindingWorker(input) {
       dependencyCacheRoot: request.dependencyCacheRoot,
       materializationParent: request.materializationRoot,
       operation(context) {
-        const ptrRoot = join(context.materializedRoot, 'spacetimedb', 'ptr');
+        const buildOutput = bindPrivateBuildOutput(request, context.materializedRoot);
+        const { ptrRoot } = buildOutput;
         attestRuntimeExecutables(request, runtimeAuthority);
         command(request.nodePath, [
           join(ptrRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
           '--noEmit', '--project', join(ptrRoot, 'tsconfig.json'),
         ], ptrRoot, 10 * 60_000);
         attestRuntimeExecutables(request, runtimeAuthority);
+        buildOutput.create();
         command(request.cliPath, ['build', '--module-path', 'spacetimedb/ptr'], context.materializedRoot, 10 * 60_000);
         attestRuntimeExecutables(request, runtimeAuthority);
         return createLocalBindingWorkerResult({

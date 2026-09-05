@@ -1,6 +1,16 @@
 // @vitest-environment node
 
-import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -14,6 +24,10 @@ const boundary = vi.hoisted(() => ({
   executableAttestations: 0,
   executableFailureAt: 0,
   commandFailure: '' as '' | 'typecheck' | 'build',
+  buildOutputScenario: 'success' as 'success' | 'existing-directory' | 'existing-file' | 'existing-link' | 'escaped-root',
+  buildOutputWasPrecreated: false,
+  observedBuildOutputMode: 0,
+  observedPostBuildOutputMode: 0,
   deregisterFailure: false,
 }));
 
@@ -60,7 +74,16 @@ vi.mock('../scripts/greater-realm-production-provenance', async () => {
         root: input.destination,
         moduleSourceCommit: input.moduleSourceCommit,
         moduleTreeId: 'b'.repeat(40),
-        verify() {},
+        verify(allowed?: Readonly<{ files?: readonly string[] }>) {
+          if (allowed?.files?.includes('spacetimedb/ptr/dist/bundle.js')) {
+            const dist = join(input.destination, 'spacetimedb', 'ptr', 'dist');
+            const mode = fs.lstatSync(dist).mode & 0o7777;
+            if (process.platform !== 'win32' && mode !== 0o700) {
+              throw new Error('LIFECYCLE_MATERIALIZATION_DIRECTORY_CHANGED');
+            }
+            boundary.events.push('materialization:verified-private-output');
+          }
+        },
         cleanup() {
           if (!cleaned) fs.rmSync(input.destination, { recursive: true, force: false });
           cleaned = true;
@@ -144,16 +167,33 @@ vi.mock('node:child_process', async () => {
         if (boundary.commandFailure === 'typecheck') {
           return { status: 3, signal: null, error: undefined, stdout: Buffer.alloc(0), stderr: Buffer.from('failed') };
         }
+        const dist = join(options.cwd, 'dist');
+        if (boundary.buildOutputScenario === 'existing-directory') mkdirSync(dist, { mode: 0o700 });
+        if (boundary.buildOutputScenario === 'existing-file') writeFileSync(dist, 'unexpected', { mode: 0o600 });
+        if (boundary.buildOutputScenario === 'existing-link') {
+          const target = join(dirname(options.cwd), 'unexpected-dist-target');
+          mkdirSync(target, { mode: 0o700 });
+          symlinkSync(target, dist, 'junction');
+        }
       } else if (args[0] === 'build') {
         if (executable !== boundary.request?.cliPath) {
           throw new Error('LIFECYCLE_DID_NOT_EXECUTE_ATTESTED_CLI_SNAPSHOT');
         }
-        boundary.events.push('command:build-snapshot-cli');
         if (boundary.commandFailure === 'build') {
+          boundary.events.push('command:build-snapshot-cli');
           return { status: 4, signal: null, error: undefined, stdout: Buffer.alloc(0), stderr: Buffer.from('failed') };
         }
         const dist = join(options.cwd, 'spacetimedb', 'ptr', 'dist');
-        mkdirSync(dist, { recursive: true, mode: 0o700 });
+        boundary.buildOutputWasPrecreated = existsSync(dist);
+        if (boundary.buildOutputWasPrecreated) {
+          boundary.observedBuildOutputMode = lstatSync(dist).mode & 0o7777;
+        }
+        boundary.events.push('build-output:precreated');
+        boundary.events.push('command:build-snapshot-cli');
+        // Reproduce the real CLI's recursive mkdir under ambient umask 0022.
+        // An already-private directory retains 0700; an absent one becomes 0755.
+        mkdirSync(dist, { recursive: true, mode: 0o755 });
+        boundary.observedPostBuildOutputMode = lstatSync(dist).mode & 0o7777;
         writeFileSync(join(dist, 'bundle.js'), 'controlled-bundle', { mode: 0o600 });
       } else throw new Error(`UNEXPECTED_LIFECYCLE_COMMAND:${executable}:${args.join(' ')}`);
       return { status: 0, signal: null, error: undefined, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) };
@@ -173,7 +213,9 @@ vi.mock('warpkeep:ptr-binding-entry', async () => {
         ...input,
         operation(context) {
           boundary.events.push('builder:operation');
-          const value = operation(context);
+          const value = operation(boundary.buildOutputScenario === 'escaped-root'
+            ? { ...context, materializedRoot: input.repositoryRoot }
+            : context);
           boundary.events.push('builder:operation-return');
           return value;
         },
@@ -208,6 +250,10 @@ afterEach(() => {
   boundary.executableAttestations = 0;
   boundary.executableFailureAt = 0;
   boundary.commandFailure = '';
+  boundary.buildOutputScenario = 'success';
+  boundary.buildOutputWasPrecreated = false;
+  boundary.observedBuildOutputMode = 0;
+  boundary.observedPostBuildOutputMode = 0;
   boundary.deregisterFailure = false;
   for (const root of boundary.cleanupRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
@@ -271,6 +317,9 @@ describe('controlled local binding runtime lifecycle', () => {
     const output = await derivePreparedPtrLinuxBindings();
 
     expect(Buffer.from(output.bindings[0]!.bytes).toString()).toBe('controlled-bundle');
+    expect(boundary.buildOutputWasPrecreated).toBe(true);
+    expect(boundary.observedBuildOutputMode).toBe(0o700);
+    expect(boundary.observedPostBuildOutputMode).toBe(0o700);
     expect(regularTree(liveBindings)).toEqual(beforeLiveBindings);
     const nodeAttestation = `attest:${basename(process.execPath)}`;
     expect(boundary.events).toEqual([
@@ -282,13 +331,31 @@ describe('controlled local binding runtime lifecycle', () => {
       nodeAttestation, 'attest:git', 'attest:spacetimedb-cli', 'attest:spacetimedb-standalone',
       'command:typecheck',
       nodeAttestation, 'attest:git', 'attest:spacetimedb-cli', 'attest:spacetimedb-standalone',
+      'build-output:precreated',
       'command:build-snapshot-cli',
       nodeAttestation, 'attest:git', 'attest:spacetimedb-cli', 'attest:spacetimedb-standalone',
-      'builder:operation-return', 'builder:cleanup-complete',
+      'builder:operation-return', 'materialization:verified-private-output', 'builder:cleanup-complete',
       nodeAttestation, 'attest:git', 'attest:spacetimedb-cli', 'attest:spacetimedb-standalone',
       'hooks:deregister',
     ]);
     expect(existsSync(join(value.materializationParent, 'ptr-linux-builds'))).toBe(false);
+  });
+
+  it.each([
+    ['existing-directory', true],
+    ['existing-file', true],
+    ['existing-link', true],
+    ['escaped-root', false],
+  ] as const)('rejects %s before the CLI build', async (scenario, typecheckRuns) => {
+    prepareRequest();
+    boundary.buildOutputScenario = scenario;
+    const { runFixedLocalBindingWorker } = await import('../scripts/local-binding-runtime-worker.mjs');
+    let error: unknown;
+    try { await runFixedLocalBindingWorker(boundary.request); } catch (caught) { error = caught; }
+    expect(messages(error)).toContain('LOCAL_BINDING_WORKER_BUILD_OUTPUT_INVALID');
+    expect(boundary.events.includes('command:typecheck')).toBe(typecheckRuns);
+    expect(boundary.events).not.toContain('command:build-snapshot-cli');
+    expect(boundary.events.at(-1)).toBe('hooks:deregister');
   });
 
   it.each([
