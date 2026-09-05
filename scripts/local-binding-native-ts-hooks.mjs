@@ -7,6 +7,7 @@ import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 
 const SYNTHETIC_ENTRY = 'warpkeep:ptr-binding-entry';
 const MAX_SOURCE_BYTES = 4 * 1024 * 1024;
+const YAML_BUILTINS = new Set(['buffer', 'process']);
 
 function fail(code, cause) {
   throw new Error(code, cause === undefined ? undefined : { cause });
@@ -151,6 +152,7 @@ export function installLocalBindingNativeTsHooks(attestedGraph, attestedYaml) {
         if (typeof specifier !== 'string') {
           fail('LOCAL_BINDING_HOOK_RESOLUTION_DENIED');
         }
+        if (YAML_BUILTINS.has(specifier)) return nextResolve(`node:${specifier}`, context);
         let target;
         if (specifier.startsWith('.')) target = new URL(specifier, context.parentURL).href;
         else if (specifier.startsWith('file:')) target = new URL(specifier).href;
@@ -159,6 +161,7 @@ export function installLocalBindingNativeTsHooks(attestedGraph, attestedYaml) {
         if (!yamlByUrl.has(target)) fail('LOCAL_BINDING_HOOK_RESOLUTION_DENIED');
         return { url: target, shortCircuit: true };
       }
+      if (YAML_BUILTINS.has(specifier)) fail('LOCAL_BINDING_HOOK_RESOLUTION_DENIED');
       return nextResolve(specifier, context);
     },
     load(url, _context, nextLoad) {

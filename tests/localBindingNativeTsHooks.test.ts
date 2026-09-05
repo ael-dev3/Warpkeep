@@ -10,6 +10,9 @@ const node = process.platform === 'win32'
   : process.execPath;
 const fixture = join(repositoryRoot, 'tests', 'fixtures', 'localBindingNativeTsHooksFixture.mjs');
 const roots: string[] = [];
+const defaultImports = [
+  { specifier: './value', target: 'value.ts' }, { specifier: 'yaml', yaml: true },
+];
 
 function write(root: string, relative: string, body: string) {
   const target = join(root, relative);
@@ -17,15 +20,17 @@ function write(root: string, relative: string, body: string) {
   writeFileSync(target, body);
 }
 
-function makeFixture(entryBody: string, imports = [
-  { specifier: './value', target: 'value.ts' }, { specifier: 'yaml', yaml: true },
-]) {
+function makeFixture(
+  entryBody: string,
+  imports = defaultImports,
+  nestedYaml = "module.exports = { suffix: '-yaml' }\n",
+) {
   const root = mkdtempSync(join(tmpdir(), 'warpkeep-native-hooks-'));
   roots.push(root);
   write(root, 'source/entry.ts', entryBody);
   write(root, 'source/value.ts', 'export enum Tone { Low = 3 }\nexport class Box { constructor(public n: number) {} }\n');
   write(root, 'yaml/dist/index.js', "module.exports = require('./nested.js')\n");
-  write(root, 'yaml/dist/nested.js', "module.exports = { suffix: '-yaml' }\n");
+  write(root, 'yaml/dist/nested.js', nestedYaml);
   for (const path of ['source', 'yaml', 'yaml/dist']) chmodSync(join(root, path), 0o700);
   write(root, 'graph.json', JSON.stringify([
     { path: 'entry.ts', format: 'typescript', imports },
@@ -49,6 +54,60 @@ describe('native local binding TypeScript hooks', () => {
     const result = spawnSync(node, [fixture, root], { encoding: 'utf8', env: { PATH: process.env.PATH } });
     expect(result.status, result.stderr).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({ value: '3-yaml' });
+  });
+
+  it('admits only the YAML archive builtins used by the pinned physical CJS graph', () => {
+    const allowedRoot = makeFixture(
+      "import { Tone } from './value'; import yaml from 'yaml'; export const value = Tone.Low + yaml.suffix;\n",
+      defaultImports,
+      "module.exports = { suffix: '-' + require('process').platform + '-' + require('buffer').Buffer.from('yaml').toString() }\n",
+    );
+    const allowed = spawnSync(node, [fixture, allowedRoot], { encoding: 'utf8', env: { PATH: process.env.PATH } });
+    expect(allowed.status, allowed.stderr).toBe(0);
+    expect(JSON.parse(allowed.stdout)).toEqual({ value: `3-${process.platform}-yaml` });
+
+    const deniedRoot = makeFixture(
+      "import yaml from 'yaml'; export const value = yaml.suffix;\n",
+      [{ specifier: 'yaml', yaml: true }],
+      "module.exports = { suffix: String(require('fs').existsSync('.')) }\n",
+    );
+    const denied = spawnSync(node, [fixture, deniedRoot], { encoding: 'utf8', env: { PATH: process.env.PATH } });
+    expect(denied.status).not.toBe(0);
+    expect(denied.stderr).toContain('LOCAL_BINDING_HOOK_RESOLUTION_DENIED');
+
+    const barePackageRoot = makeFixture(
+      "import yaml from 'yaml'; export const value = yaml.suffix;\n",
+      [{ specifier: 'yaml', yaml: true }],
+      "module.exports = { suffix: require('unapproved-package') }\n",
+    );
+    write(barePackageRoot, 'node_modules/unapproved-package/index.js', "module.exports = '-ambient'\n");
+    const barePackage = spawnSync(node, [fixture, barePackageRoot], {
+      encoding: 'utf8', env: { PATH: process.env.PATH },
+    });
+    expect(barePackage.status).not.toBe(0);
+    expect(barePackage.stderr).toContain('LOCAL_BINDING_HOOK_RESOLUTION_DENIED');
+
+    for (const builtin of ['process', 'buffer']) {
+      const repositoryRoot = makeFixture(
+        `import value from '${builtin}'; export const result = value;\n`,
+        [],
+      );
+      const repository = spawnSync(node, [fixture, repositoryRoot], {
+        encoding: 'utf8', env: { PATH: process.env.PATH },
+      });
+      expect(repository.status).not.toBe(0);
+      expect(repository.stderr).toContain('LOCAL_BINDING_HOOK_RESOLUTION_DENIED');
+
+      const unrecordedRoot = makeFixture(
+        "import { Tone } from './value'; import yaml from 'yaml'; export const value = Tone.Low + yaml.suffix;\n",
+      );
+      const unrecorded = spawnSync(node, [fixture, unrecordedRoot], {
+        encoding: 'utf8',
+        env: { PATH: process.env.PATH, LOCAL_BINDING_FIXTURE_UNRECORDED_BUILTIN: builtin },
+      });
+      expect(unrecorded.status).not.toBe(0);
+      expect(unrecorded.stderr).toContain('LOCAL_BINDING_HOOK_RESOLUTION_DENIED');
+    }
   });
 
   it('denies dynamic imports and unrecorded extension fallback at the runtime boundary', () => {
