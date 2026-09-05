@@ -51,6 +51,18 @@ vi.mock('../scripts/greater-realm-production-provenance', async () => {
       destination: string;
     }>) {
       fs.cpSync(input.repositoryRoot, input.destination, { recursive: true, errorOnExist: true });
+      // The real commit materializer creates every directory through the
+      // descriptor writer at 0700. cpSync does not provide that contract
+      // consistently, so the synthetic materializer must reproduce it.
+      const makeDirectoriesPrivate = (candidate: string) => {
+        const status = fs.lstatSync(candidate);
+        if (!status.isDirectory()) return;
+        fs.chmodSync(candidate, 0o700);
+        for (const name of fs.readdirSync(candidate)) {
+          makeDirectoriesPrivate(path.join(candidate, name));
+        }
+      };
+      makeDirectoriesPrivate(input.destination);
       materializations.roots.push(input.destination);
       const tracked = walk(input.destination);
       let cleaned = false;
