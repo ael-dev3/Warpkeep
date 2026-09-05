@@ -200,7 +200,14 @@ function validateWorkerRows(rows: readonly WorkerSlot04[]): readonly WorkerRow04
     const lastReturn = row.lastReturn === undefined
       ? undefined
       : validateReturnOutcome04(row.lastReturn);
-    if (lastReturn !== undefined && lastReturn.assignmentRevision > row.assignmentRevision) {
+    if (
+      (assignment !== undefined && !isPositiveU64Gameplay04(row.assignmentRevision))
+      || (lastReturn !== undefined && (
+        lastReturn.assignmentRevision > row.assignmentRevision
+        || (assignment !== undefined
+          && lastReturn.assignmentRevision === row.assignmentRevision)
+      ))
+    ) {
       workerFail('GAMEPLAY04_STORED_STATE_INVALID');
     }
     return Object.freeze({ ...row, assignment, lastReturn });
@@ -242,9 +249,10 @@ function reconcileWithoutRevision(
   storage: WorkerStorage04,
   binding: KeepBinding04,
   now: bigint,
+  accumulatedKeep?: KeepRow04,
 ): Reconciliation {
   const state = readKeep04(storage, binding);
-  let keep = state.keep;
+  let keep = accumulatedKeep ?? state.keep;
   const workers = validateWorkerRows(state.workers);
   const reservations = boundedRows04(storage.reservations(binding.keepId), GAMEPLAY04_WORKER_COUNT);
   const schedules = boundedRows04(storage.schedules(binding.keepId), GAMEPLAY04_WORKER_COUNT);
@@ -494,7 +502,7 @@ export function recallWorker04(
             dueAtMicros: due,
           }));
         } else {
-          reconciled = reconcileWithoutRevision(storage, binding, now);
+          reconciled = reconcileWithoutRevision(storage, binding, now, reconciled.keep);
         }
       }
     }

@@ -44,3 +44,47 @@ Shared: `gameplay04/{commands,workerState,workers}.ts`, `gameplay04/keep.ts`. PT
 Reviewed exact command shapes/fingerprints, no-write preflight ordering, route/node bounds, reservation uniqueness, schedule identity/time, callback authority, revision/sequence overflow, rollback, receipt bound, read privacy, G002 closure, and source graph. Fixed forged overdue schedules and zero-distance recall during review. No root package/lock, checked-in binding, deployment, credentials, G001 authority, or legacy population was changed.
 
 This is not final release acceptance: schemas remain the planned intermediate 29/28 (later construction raises them to 31/30 and must bind real completed rows); checked-in bindings require the controller-owned final refreeze; the actual Worker module has not been published and exercised through a fresh authenticated owner journey on the pinned runtime. The controller's separate pinned-engine probe proves one-shot rollback/deletion/successor semantics, but is not claimed as this module's runtime acceptance. The controller's G002 runtime evidence proves outer 403 denial, not inner closed-body or zero-row SQL through that route.
+
+## Fix round 1 — independent-review findings
+
+The original report overstated callback coverage: the Task 1 baseline inspected PTR schedule registration and executed the G002 closed callback, but did not execute the production PTR scheduled reducer. Fix round 1 adds that missing execution and the complete requested adapter callback matrix; the separate pinned-engine probe remains the only real-engine lifecycle evidence.
+
+### RED / GREEN
+
+Core RED command:
+
+`& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/gameplay04Workers.test.ts --maxWorkers=1`
+
+After correcting two coverage-only expectations, exit 1 with 2 substantive failures: immediate recall reconciliation produced `40n` instead of `100n`, and active revision-zero/same-revision-return graphs did not throw. After the fixes, the same command exited 0 with 16/16, later 17/17 after the additional invalid-command coverage.
+
+Production adapter RED command:
+
+`& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/gameplay04KeepModules.test.ts --maxWorkers=1`
+
+Exit 1: a resource group whose only changed fact was a foreign component key did not throw `GAMEPLAY04_TARGET_INVALID` (the second reported failure was an old snapshot literal updated for the expanded five-table snapshot). After binding the first resource row to the destination component, the module test passed. Scheduler-matrix tests exercised already-intended callback behavior and were green when introduced; they close the review's missing execution coverage rather than claim a scheduler production change.
+
+Final focused command:
+
+`& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/gameplay04Workers.test.ts tests/gameplay04WorkersModules.test.ts tests/gameplay04Keep.test.ts tests/gameplay04KeepModules.test.ts tests/gameplay04Policy.test.ts tests/gameplay04WorkerJourney.test.ts tests/ptrAtlasReadContract.test.ts --maxWorkers=1`
+
+Result: exit 0, 7 files and 95 tests passed after all Fix 1 additions.
+
+Registered-module callback evidence command:
+
+`& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/gameplay04WorkersModules.test.ts tests/gameplay04KeepModules.test.ts --maxWorkers=1`
+
+Result: exit 0, 2 files and 22 tests passed. Seven PTR callback-focused tests execute 12 distinct registered-reducer invocations across system/current, future, missing, foreign argument, stale/replacement, foreign sender, connected caller, disabled owner, successful settlement, failed completed settlement, and failed arrival cleanup paths. G002 closed callback execution remains separately covered in the same 22-test result.
+
+Verification after all test changes: app TypeScript exit 0; PTR and G002 module TypeScript exit 0; the PTR exact compiled-source graph test passed 1/1 with 13 unrelated tests skipped. Pinned 2.6.1 PTR and G002 builds had already been rerun after the two production fixes and both exited 0.
+
+### Fixes and coverage
+
+- The immediate-return recall path now supplies the first reconciliation's returned keep to the second pass, preserving all earlier ordinal settlement balances and outcomes. Regression covers Worker A settlement plus zero-distance Worker B recall and exact replay stability.
+- Active assignments now require a positive assignment revision, and any retained prior return must be strictly older than the active revision. Matched revision-zero and same-revision graphs reject without mutation before financial reconciliation.
+- PTR resource resolution now requires the resource group component to equal the actual destination cell component. Production-adapter tests additionally reject duplicate IDs, noncontiguous release ordinals, and active legacy rows with exact no-write snapshots.
+- A rollback-capable adapter harness executes the SDK-registered `runGameplay04ScheduleV1` reducer. Distinct cases cover system/current, missing, stale replacement, future, foreign argument, foreign sender, connected caller, disabled owner, one-time settlement, no sequence consumption, reducer rollback followed by separate engine cleanup, authenticated repair before return, and authenticated one-time settlement after return. Snapshots include all five gameplay tables, keep balance/revision/sequence, fresh schedule identity, and retained legacy inactive/unassigned facts.
+- Added pruned replay rejection, stale expected revision after scheduler reconciliation, invalid atlas epoch/duration/resource no-write cases, renewed-session replay before resource loading, expired/suspended/cross-database replay denial, and simulated primary-key race rollback.
+
+Changed in Fix 1: `spacetimedb/gameplay04/workers.ts`, `spacetimedb/ptr/src/gameplayWorkers.ts`, `tests/gameplay04Workers.test.ts`, `tests/gameplay04WorkersModules.test.ts`, `tests/gameplay04KeepModules.test.ts`, and this report.
+
+Limitations remain unchanged: no published authenticated PTR Worker journey was performed; the harness distinguishes reducer transaction rollback from simulated engine one-shot deletion but does not replace the controller's real pinned-engine probe; checked-in bindings remain intentionally stale for final refreeze; schemas remain intermediate 29/28; completed construction levels remain real zero until the later construction lane.

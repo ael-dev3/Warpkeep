@@ -106,6 +106,23 @@ test('the scheduler table has ScheduleAt state and its reducer is not a client p
   }
 });
 
+test('the SDK-registered PTR scheduler enforces the system caller before database access', () => {
+  let touched = false;
+  const databaseIdentity = {};
+  const ctx = {
+    connectionId: {},
+    sender: { equals: () => false },
+    databaseIdentity,
+    get db() { touched = true; throw new Error('storage touched'); },
+  };
+  assert.throws(() => ptrModule.runGameplay04ScheduleV1(ctx, { arg: {
+    scheduleId: 1n,
+    scheduledAt: { tag: 'Time', value: { microsSinceUnixEpoch: 2n } },
+    keepId: 'keep', workerId: 'worker', assignmentRevision: 1n,
+  } }), /GAMEPLAY04_SCHEDULER_UNAUTHORIZED/u);
+  assert.equal(touched, false);
+});
+
 test('G002 Worker procedures and every scheduler caller class fail closed before storage', () => {
   for (const [call, arg] of [
     [g002Module.dispatchGameplay04WorkerV1, {

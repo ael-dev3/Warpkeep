@@ -89,6 +89,7 @@ class WorkerHarness {
   schedules = new Map<bigint, WorkerSchedule04>();
   nextScheduleId = 1n;
   failOn: 'updateKeep' | 'updateWorker' | 'insertReservation' | 'insertSchedule' | undefined;
+  hideReservationsOnFind = false;
 
   constructor() {
     this.tx(store => initializeKeep04(store, BINDING, 0n, {
@@ -115,7 +116,7 @@ class WorkerHarness {
       receipts: keepId => [...receipts.values()].filter(row => row.keepId === keepId),
       reservations: keepId => [...reservations.values()].filter(row => row.keepId === keepId),
       schedules: keepId => [...schedules.values()].filter(row => row.keepId === keepId),
-      findReservation: nodeId => reservations.get(nodeId) ?? null,
+      findReservation: nodeId => this.hideReservationsOnFind ? null : reservations.get(nodeId) ?? null,
       insertKeep: row => { keeps.set(row.keepId, { ...row }); },
       insertWorker: row => { workers.set(row.workerId, { ...row, assignment: undefined, lastReturn: undefined }); },
       insertReceipt: row => { receipts.set(row.receiptId, { ...row }); },
@@ -392,10 +393,10 @@ describe('persistent gameplay 0.4 Worker authority', () => {
     );
   });
 
-  test('129 accepted commands retain only the latest 128 receipts', () => {
+  test('130 accepted commands retain only the latest 128 receipts and reject a pruned replay', () => {
     const harness = new WorkerHarness();
     let revision = 1n;
-    for (let sequence = 2n; sequence <= 129n; sequence += 1n) {
+    for (let sequence = 2n; sequence <= 130n; sequence += 1n) {
       const result = harness.tx(store => recallWorker04(store, BINDING, sequence, {
         sequence, requestKey: requestKey(sequence), expectedRevision: revision,
         policyVersion: GAMEPLAY04_POLICY_VERSION, expectedAtlasRevision: 7n,
@@ -405,6 +406,114 @@ describe('persistent gameplay 0.4 Worker authority', () => {
     }
     assert.equal(harness.receipts.size, 128);
     assert.equal(harness.receipts.has(`${KEEP_ID}:receipt:1`), false);
-    assert.equal(harness.receipts.has(`${KEEP_ID}:receipt:129`), true);
+    assert.equal(harness.receipts.has(`${KEEP_ID}:receipt:130`), true);
+    expectCode(() => harness.tx(store => recallWorker04(store, BINDING, 131n, {
+      sequence: 2n, requestKey: requestKey(2n), expectedRevision: 1n,
+      policyVersion: GAMEPLAY04_POLICY_VERSION, expectedAtlasRevision: 7n,
+      workerOrdinal: 0,
+    })), 'GAMEPLAY04_RECEIPT_EXPIRED');
+  });
+
+  test('immediate recall reconciliation carries an earlier Worker settlement balance', () => {
+    const harness = new WorkerHarness();
+    harness.tx(store => dispatchWorker04(store, BINDING, 0n, dispatchInput(), TARGET));
+    harness.tx(store => dispatchWorker04(store, BINDING, 20_000_000n, dispatchInput(
+      3n, 2n, { workerOrdinal: 1, requestKey: requestKey(3n) },
+    ), {
+      ...TARGET, destinationCellKey: BINDING.anchorCellKey,
+      candidateNodeIds: ['NODE:B'], route: [{ q: 0, r: 0 }],
+    }));
+    const input = {
+      sequence: 4n, requestKey: requestKey(4n), expectedRevision: 3n,
+      policyVersion: GAMEPLAY04_POLICY_VERSION, expectedAtlasRevision: 7n,
+      workerOrdinal: 1,
+    } as const;
+    assert.deepEqual(harness.tx(store => recallWorker04(
+      store, BINDING, 68_000_000n, input,
+    )), { sequence: 4n, revision: 4n });
+    assert.equal(harness.keeps.get(KEEP_ID)!.wood, 100n);
+    assert.deepEqual(
+      [harness.worker(0).lastReturn?.credited, harness.worker(1).lastReturn?.credited],
+      [60n, 40n],
+    );
+    const settled = harness.snapshot();
+    assert.deepEqual(harness.tx(store => recallWorker04(
+      store, BINDING, 69_000_000n, input,
+    )), { sequence: 4n, revision: 4n });
+    assert.equal(harness.snapshot(), settled);
+  });
+
+  test('active revision-zero and same-revision prior-return graphs fail without writes', () => {
+    for (const corrupt of ['zero', 'same-return'] as const) {
+      const harness = new WorkerHarness();
+      harness.tx(store => dispatchWorker04(store, BINDING, 0n, dispatchInput(), TARGET));
+      const worker = harness.worker(0);
+      const reservation = harness.reservations.get('NODE:0')!;
+      const [scheduleId, schedule] = harness.schedules.entries().next().value!;
+      if (corrupt === 'zero') {
+        harness.workers.set(worker.workerId, { ...worker, assignmentRevision: 0n });
+        harness.reservations.set('NODE:0', { ...reservation, assignmentRevision: 0n });
+        harness.schedules.set(scheduleId, { ...schedule, assignmentRevision: 0n });
+      } else {
+        harness.workers.set(worker.workerId, {
+          ...worker,
+          lastReturn: {
+            assignmentRevision: worker.assignmentRevision,
+            resource: 'wood', returnedAtMicros: 0n,
+            earned: 0n, credited: 0n, overflow: 0n,
+          },
+        });
+      }
+      const before = harness.snapshot();
+      expectCode(
+        () => harness.tx(store => reconcileWorkers04(store, BINDING, 68_000_000n)),
+        'GAMEPLAY04_STORED_STATE_INVALID',
+      );
+      assert.equal(harness.snapshot(), before);
+    }
+  });
+
+  test('scheduler revision makes a pending fresh command stale without consuming sequence', () => {
+    const harness = new WorkerHarness();
+    harness.tx(store => dispatchWorker04(store, BINDING, 0n, dispatchInput(), TARGET));
+    harness.tx(store => reconcileWorkers04(store, BINDING, 4_000_000n));
+    const before = harness.snapshot();
+    expectCode(() => harness.tx(store => recallWorker04(store, BINDING, 5_000_000n, {
+      sequence: 3n, requestKey: requestKey(3n), expectedRevision: 2n,
+      policyVersion: GAMEPLAY04_POLICY_VERSION, expectedAtlasRevision: 7n,
+      workerOrdinal: 0,
+    })), 'GAMEPLAY04_INPUT_INVALID');
+    assert.equal(harness.snapshot(), before);
+  });
+
+  test('primary-key arbitration rolls back a concurrent stale reservation attempt', () => {
+    const harness = new WorkerHarness();
+    harness.reservations.set('NODE:0', {
+      nodeId: 'NODE:0', keepId: 'foreign', workerId: 'foreign', assignmentRevision: 1n,
+    });
+    harness.hideReservationsOnFind = true;
+    const before = harness.snapshot();
+    assert.throws(
+      () => harness.tx(store => dispatchWorker04(store, BINDING, 0n, dispatchInput(), {
+        ...TARGET, candidateNodeIds: ['NODE:0'],
+      })),
+      /duplicate reservation/u,
+    );
+    assert.equal(harness.snapshot(), before);
+  });
+
+  test('wrong atlas epoch, unsupported duration, and unknown resource consume no sequence', () => {
+    for (const overrides of [
+      { expectedAtlasRevision: 8n },
+      { gatheringDurationMicros: 1n },
+      { resource: 'iron' as any },
+    ]) {
+      const harness = new WorkerHarness();
+      const before = harness.snapshot();
+      expectCode(() => harness.tx(store => dispatchWorker04(
+        store, BINDING, 0n, dispatchInput(2n, 1n, overrides), TARGET,
+      )), 'GAMEPLAY04_INPUT_INVALID');
+      assert.equal(harness.snapshot(), before);
+    }
   });
 });

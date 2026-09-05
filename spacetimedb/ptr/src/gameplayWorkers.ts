@@ -173,6 +173,7 @@ function resolveDispatch(
     || destination.atlasId !== atlas.release.atlasId
     || !destination.passable
     || destination.componentKey !== atlas.anchorCell.componentKey
+    || first.componentKey !== destination.componentKey
     || destination.regionId !== first.regionId
     || destination.tier !== GREATER_REALM_VISIBLE_TIER_MAX
   ) throw new SenderError('GAMEPLAY04_TARGET_INVALID');

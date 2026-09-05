@@ -69,6 +69,8 @@ beforeAll(async () => {
       } from './spacetimedb/ptr/src/gameplayKeep.ts';
       export { dispatchGameplay04WorkerV1, recallGameplay04WorkerV1 }
         from './spacetimedb/ptr/src/gameplayWorkers.ts';
+      export { runGameplay04ScheduleV1 }
+        from './spacetimedb/ptr/src/gameplaySchedule.ts';
       export { getPtrOwnerStatusV1, adminSuspendPtrOwnerV1 }
         from './spacetimedb/ptr/src/ownerReducers.ts';
       export { onConnect } from './spacetimedb/ptr/src/lifecycle.ts';
@@ -138,14 +140,14 @@ function zeroCountTable(extra: Record<string, unknown> = {}) {
   return { count: () => 0n, ...extra };
 }
 
-function regionManifest() {
+function regionManifest(lowlandsCellCount = 1) {
   return `${JSON.stringify(REGION_IDENTITIES.map(([regionId, publicName], ordinal) => ({
     regionId,
     publicName,
     ordinal,
     tier: 1,
-    cellCount: ordinal === 0 ? 1 : 0,
-    passableCellCount: ordinal === 0 ? 1 : 0,
+    cellCount: ordinal === 0 ? lowlandsCellCount : 0,
+    passableCellCount: ordinal === 0 ? lowlandsCellCount : 0,
     chunkCount: ordinal === 0 ? 1 : 0,
     castleCapacity: 100,
     resourceLocationCount: 2_000,
@@ -164,12 +166,18 @@ class PtrHarness {
   receipts = new Map<string, Record<string, any>>();
   reservations = new Map<string, Record<string, any>>();
   schedules = new Map<bigint, Record<string, any>>();
+  nextScheduleId = 1n;
   anchor = {
     singletonKey: 'PTR_OWNER_V1', ownerFid: OWNER_FID, authEpoch: 1,
     enabled: true, provisionedAt: {}, provisionedBy: 'service:hermes',
     suspendedAt: undefined, suspendedBy: undefined,
   };
   importEpoch = 7n;
+  resourceComponentKey = `GRC-${'A'.repeat(26)}`;
+  resourceNodeMode: 'valid' | 'duplicate-node' | 'release-gap' | 'active' = 'valid';
+  resourceAtAdjacentCell = false;
+  failOnUpdateKeep = false;
+  nowMicros = NOW_MICROS;
   payload: unknown = ownerPayload();
   auditRows: unknown[] = [];
 
@@ -179,19 +187,21 @@ class PtrHarness {
     receipts = this.receipts,
     reservations = this.reservations,
     schedules = this.schedules,
+    scheduleCounter = { value: this.nextScheduleId },
   ) {
+    const cellCount = this.resourceAtAdjacentCell ? 2 : 1;
     const release = {
       atlasId: 'PTR_GREATER_REALM', publicReleaseId: `GRR-${'A'.repeat(26)}`,
       publicName: 'PTR Greater Realm', state: 'ready', readyAt: {},
       importEpoch: this.importEpoch, verificationPhase: 'complete',
       expectedRegionCount: 6, expectedComponentCount: 1, expectedChunkCount: 1,
-      expectedCellCount: 1, expectedSlotCount: 600, expectedResourceNodeCount: 12_000,
-      verifiedComponentCount: 1, verifiedChunkCount: 1, verifiedCellCount: 1,
+      expectedCellCount: cellCount, expectedSlotCount: 600, expectedResourceNodeCount: 12_000,
+      verifiedComponentCount: 1, verifiedChunkCount: 1, verifiedCellCount: cellCount,
       verifiedSlotCount: 600, verifiedResourceNodeCount: 12_000,
-      nextChunkOrdinal: 1, componentExpectedCellCount: 1,
-      importedPassableCellCount: 1, componentExpectedSlotCount: 600,
+      nextChunkOrdinal: 1, componentExpectedCellCount: cellCount,
+      importedPassableCellCount: cellCount, componentExpectedSlotCount: 600,
       componentExpectedResourceNodeCount: 12_000,
-      regionManifestJson: regionManifest(), generatorVersion: 'generator-v1',
+      regionManifestJson: regionManifest(cellCount), generatorVersion: 'generator-v1',
       runtimePartitionVersion: 'axial-bin-15-tier-one-filter-v1',
       rendererContractVersion: 'greater-realm-renderer-v1',
     };
@@ -206,13 +216,26 @@ class PtrHarness {
       passable: true, routeDepth: 0, routeParentDirection: undefined,
       atlasQ: 0, atlasR: 0, elevation: 0, regionId: 'T1_LOWLANDS', tier: 1,
     };
+    const destination = this.resourceAtAdjacentCell ? {
+      ...cell,
+      cellKey: 'T1_LOWLANDS:1:0', atlasQ: 1, atlasR: 0,
+      routeDepth: 1, routeParentDirection: 3,
+    } : cell;
     const resourceNodes = [0, 1, 2].map(nodeOrdinal => ({
       nodeId: `NODE:WOOD:${nodeOrdinal}`, locationId: 'LOCATION:WOOD', nodeOrdinal,
       releaseOrdinal: 100 + nodeOrdinal, atlasId: 'PTR_GREATER_REALM',
-      cellKey: cell.cellKey, regionId: cell.regionId, componentKey: component.componentKey,
+      cellKey: destination.cellKey, regionId: destination.regionId,
+      componentKey: this.resourceComponentKey,
       resourceKind: 'wood', policyVersion: 'atlas-resource-v1', tier: 1,
       active: false, allocationRank: 0xffff_ffff,
     }));
+    if (this.resourceNodeMode === 'duplicate-node') {
+      resourceNodes[1] = { ...resourceNodes[1]!, nodeId: resourceNodes[0]!.nodeId };
+    } else if (this.resourceNodeMode === 'release-gap') {
+      resourceNodes[1] = { ...resourceNodes[1]!, releaseOrdinal: 200 };
+    } else if (this.resourceNodeMode === 'active') {
+      resourceNodes[1] = { ...resourceNodes[1]!, active: true };
+    }
     const chunk = {
       chunkHandle: cell.chunkHandle, atlasId: 'PTR_GREATER_REALM', binQ: 0, binR: 0,
     };
@@ -237,8 +260,13 @@ class PtrHarness {
         count: () => 1n, chunkHandle: { find: () => chunk },
       },
       greaterRealmCellV1: {
-        count: () => 1n, cellKey: { find: () => cell },
-        atlasCoordKey: { find: (key: string) => key === 'A:0:0' ? cell : null },
+        count: () => BigInt(cellCount),
+        cellKey: { find: (key: string) => (
+          key === cell.cellKey ? cell : key === destination.cellKey ? destination : null
+        ) },
+        atlasCoordKey: { find: (key: string) => (
+          key === 'A:0:0' ? cell : key === 'A:1:0' ? destination : null
+        ) },
       },
       greaterRealmCastleSlotV1: { count: () => 600n },
       greaterRealmResourceNodeV1: {
@@ -256,7 +284,10 @@ class PtrHarness {
       gameplay04KeepV1: {
         keepId: {
           find: (key: string) => keeps.get(key) ?? null,
-          update: (row: Record<string, any>) => { keeps.set(row.keepId, { ...row }); },
+          update: (row: Record<string, any>) => {
+            if (this.failOnUpdateKeep) throw new Error('injected updateKeep failure');
+            keeps.set(row.keepId, { ...row });
+          },
         },
         insert: (row: Record<string, any>) => { keeps.set(row.keepId, { ...row }); },
       },
@@ -288,7 +319,7 @@ class PtrHarness {
           delete: (key: bigint) => schedules.delete(key),
         },
         insert: (row: Record<string, any>) => {
-          const id = row.scheduleId === 0n ? BigInt(schedules.size + 1) : row.scheduleId;
+          const id = row.scheduleId === 0n ? scheduleCounter.value++ : row.scheduleId;
           schedules.set(id, { ...row, scheduleId: id });
         },
       },
@@ -299,7 +330,7 @@ class PtrHarness {
     const outer = this;
     return {
       senderAuth: { jwt: this.payload === null ? null : { fullPayload: this.payload } },
-      timestamp: { microsSinceUnixEpoch: NOW_MICROS },
+      timestamp: { microsSinceUnixEpoch: this.nowMicros },
       databaseIdentity: { toHexString: () => DATABASE_IDENTITY },
       withTx<T>(effect: (tx: any) => T): T {
         const keeps = new Map([...outer.keeps].map(([key, row]) => [key, { ...row }]));
@@ -307,24 +338,78 @@ class PtrHarness {
         const receipts = new Map([...outer.receipts].map(([key, row]) => [key, { ...row }]));
         const reservations = new Map([...outer.reservations].map(([key, row]) => [key, { ...row }]));
         const schedules = new Map([...outer.schedules].map(([key, row]) => [key, { ...row }]));
-        const tx = { ...this, db: outer.database(keeps, workers, receipts, reservations, schedules) };
+        const scheduleCounter = { value: outer.nextScheduleId };
+        const tx = {
+          ...this,
+          db: outer.database(keeps, workers, receipts, reservations, schedules, scheduleCounter),
+        };
         const result = effect(tx);
         outer.keeps = keeps;
         outer.workers = workers;
         outer.receipts = receipts;
         outer.reservations = reservations;
         outer.schedules = schedules;
+        outer.nextScheduleId = scheduleCounter.value;
         return result;
       },
       db: this.database(),
     };
   }
 
+  invokeSchedule(
+    arg: Record<string, any>,
+    options: Readonly<{ foreignSender?: boolean; connectionId?: object | null }> = {},
+  ) {
+    const keeps = new Map([...this.keeps].map(([key, row]) => [key, { ...row }]));
+    const workers = new Map([...this.workers].map(([key, row]) => [key, { ...row }]));
+    const receipts = new Map([...this.receipts].map(([key, row]) => [key, { ...row }]));
+    const reservations = new Map([...this.reservations].map(([key, row]) => [key, { ...row }]));
+    const schedules = new Map([...this.schedules].map(([key, row]) => [key, { ...row }]));
+    const scheduleCounter = { value: this.nextScheduleId };
+    const databaseIdentity = {
+      toHexString: () => DATABASE_IDENTITY,
+      equals: (other: unknown) => other === databaseIdentity,
+    };
+    const ctx = {
+      sender: options.foreignSender
+        ? { equals: () => false }
+        : databaseIdentity,
+      connectionId: options.connectionId ?? null,
+      databaseIdentity,
+      timestamp: { microsSinceUnixEpoch: this.nowMicros },
+      db: this.database(keeps, workers, receipts, reservations, schedules, scheduleCounter),
+    };
+    const result = (ptrModule.runGameplay04ScheduleV1 as Callable)(ctx, { arg });
+    this.keeps = keeps;
+    this.workers = workers;
+    this.receipts = receipts;
+    this.reservations = reservations;
+    this.schedules = schedules;
+    this.nextScheduleId = scheduleCounter.value;
+    return result;
+  }
+
+  runScheduleByEngine(
+    arg: Record<string, any>,
+    options: Readonly<{ foreignSender?: boolean; connectionId?: object | null }> = {},
+  ) {
+    let failure: unknown;
+    try {
+      this.invokeSchedule(arg, options);
+    } catch (error) {
+      failure = error;
+    }
+    this.schedules.delete(arg.scheduleId);
+    if (failure !== undefined) throw failure;
+  }
+
   snapshot() {
     return JSON.stringify({
-      keeps: [...this.keeps.keys()], workers: [...this.workers.keys()],
-      receipts: [...this.receipts.keys()],
-    });
+      keeps: [...this.keeps], workers: [...this.workers], receipts: [...this.receipts],
+      reservations: [...this.reservations], schedules: [...this.schedules],
+      nextScheduleId: this.nextScheduleId,
+      legacy: { active: false, allocationRank: 0xffff_ffff, population: 0 },
+    }, (_key, value) => typeof value === 'bigint' ? value.toString() : value);
   }
 }
 
@@ -375,6 +460,208 @@ describe('PTR gameplay keep module adapter', () => {
     assert.equal(harness.workers.values().next().value!.assignment.route.length, 1);
   });
 
+  test('production dispatch rejects a resource group bound to the wrong component without writes', () => {
+    const harness = new PtrHarness();
+    (ptrModule.initializeGameplay04KeepV1 as Callable)(harness.context(), GAMEPLAY_INPUT);
+    harness.resourceComponentKey = `GRC-${'B'.repeat(26)}`;
+    const before = harness.snapshot();
+    expectSenderCode(() => (ptrModule.dispatchGameplay04WorkerV1 as Callable)(
+      harness.context(), {
+        sequence: 2n, requestKey: `g04:2:${'c'.repeat(32)}`, expectedRevision: 1n,
+        policyVersion: 'warpkeep-0.4-gameplay-v1', expectedAtlasRevision: 7n,
+        workerOrdinal: 0, locationId: 'LOCATION:WOOD', resource: 'wood',
+        gatheringDurationMicros: 60_000_000n,
+      },
+    ), 'GAMEPLAY04_TARGET_INVALID');
+    assert.equal(harness.snapshot(), before);
+  });
+
+  test('production dispatch rejects duplicate, noncontiguous, and legacy-active node groups', () => {
+    for (const mode of ['duplicate-node', 'release-gap', 'active'] as const) {
+      const harness = new PtrHarness();
+      (ptrModule.initializeGameplay04KeepV1 as Callable)(harness.context(), GAMEPLAY_INPUT);
+      harness.resourceNodeMode = mode;
+      const before = harness.snapshot();
+      expectSenderCode(() => (ptrModule.dispatchGameplay04WorkerV1 as Callable)(
+        harness.context(), {
+          sequence: 2n, requestKey: `g04:2:${'3'.repeat(32)}`, expectedRevision: 1n,
+          policyVersion: 'warpkeep-0.4-gameplay-v1', expectedAtlasRevision: 7n,
+          workerOrdinal: 0, locationId: 'LOCATION:WOOD', resource: 'wood',
+          gatheringDurationMicros: 60_000_000n,
+        },
+      ), 'GAMEPLAY04_TARGET_INVALID');
+      assert.equal(harness.snapshot(), before);
+    }
+  });
+
+  test('PTR scheduler rejects both client caller shapes before touching state', () => {
+    for (const options of [
+      { foreignSender: true },
+      { connectionId: {} },
+    ]) {
+      const harness = new PtrHarness();
+      (ptrModule.initializeGameplay04KeepV1 as Callable)(harness.context(), GAMEPLAY_INPUT);
+      (ptrModule.dispatchGameplay04WorkerV1 as Callable)(harness.context(), {
+        sequence: 2n, requestKey: `g04:2:${'d'.repeat(32)}`, expectedRevision: 1n,
+        policyVersion: 'warpkeep-0.4-gameplay-v1', expectedAtlasRevision: 7n,
+        workerOrdinal: 0, locationId: 'LOCATION:WOOD', resource: 'wood',
+        gatheringDurationMicros: 60_000_000n,
+      });
+      const current = harness.schedules.values().next().value!;
+      const before = harness.snapshot();
+      expectSenderCode(
+        () => harness.invokeSchedule(current, options),
+        'GAMEPLAY04_SCHEDULER_UNAUTHORIZED',
+      );
+      assert.equal(harness.snapshot(), before);
+    }
+  });
+
+  test('PTR scheduler keeps current future rows and ignores missing, foreign, and stale callbacks', () => {
+    const harness = new PtrHarness();
+    (ptrModule.initializeGameplay04KeepV1 as Callable)(harness.context(), GAMEPLAY_INPUT);
+    (ptrModule.dispatchGameplay04WorkerV1 as Callable)(harness.context(), {
+      sequence: 2n, requestKey: `g04:2:${'e'.repeat(32)}`, expectedRevision: 1n,
+      policyVersion: 'warpkeep-0.4-gameplay-v1', expectedAtlasRevision: 7n,
+      workerOrdinal: 0, locationId: 'LOCATION:WOOD', resource: 'wood',
+      gatheringDurationMicros: 60_000_000n,
+    });
+    const current = harness.schedules.values().next().value!;
+    let before = harness.snapshot();
+    harness.invokeSchedule(current);
+    assert.equal(harness.snapshot(), before, 'reducer no-op does not emulate engine deletion');
+    harness.invokeSchedule({ ...current, scheduleId: 99n });
+    assert.equal(harness.snapshot(), before);
+    harness.invokeSchedule({ ...current, workerId: 'foreign' });
+    assert.equal(harness.snapshot(), before);
+
+    harness.schedules.delete(current.scheduleId);
+    const replacement = { ...current, scheduleId: 2n };
+    harness.schedules.set(replacement.scheduleId, replacement);
+    before = harness.snapshot();
+    harness.invokeSchedule(current);
+    assert.equal(harness.snapshot(), before);
+    assert.equal(harness.schedules.has(replacement.scheduleId), true);
+  });
+
+  test('disabled owner callbacks preserve assignment, claim, wakeup, balances, and sequence', () => {
+    const harness = new PtrHarness();
+    (ptrModule.initializeGameplay04KeepV1 as Callable)(harness.context(), GAMEPLAY_INPUT);
+    (ptrModule.dispatchGameplay04WorkerV1 as Callable)(harness.context(), {
+      sequence: 2n, requestKey: `g04:2:${'f'.repeat(32)}`, expectedRevision: 1n,
+      policyVersion: 'warpkeep-0.4-gameplay-v1', expectedAtlasRevision: 7n,
+      workerOrdinal: 0, locationId: 'LOCATION:WOOD', resource: 'wood',
+      gatheringDurationMicros: 60_000_000n,
+    });
+    const current = harness.schedules.values().next().value!;
+    harness.nowMicros = current.scheduledAt.value.microsSinceUnixEpoch;
+    harness.anchor = { ...harness.anchor, enabled: false };
+    const before = harness.snapshot();
+    harness.invokeSchedule(current);
+    assert.equal(harness.snapshot(), before);
+  });
+
+  test('current PTR callback credits once without consuming command sequence', () => {
+    const harness = new PtrHarness();
+    (ptrModule.initializeGameplay04KeepV1 as Callable)(harness.context(), GAMEPLAY_INPUT);
+    (ptrModule.dispatchGameplay04WorkerV1 as Callable)(harness.context(), {
+      sequence: 2n, requestKey: `g04:2:${'1'.repeat(32)}`, expectedRevision: 1n,
+      policyVersion: 'warpkeep-0.4-gameplay-v1', expectedAtlasRevision: 7n,
+      workerOrdinal: 0, locationId: 'LOCATION:WOOD', resource: 'wood',
+      gatheringDurationMicros: 60_000_000n,
+    });
+    const current = harness.schedules.values().next().value!;
+    harness.nowMicros = current.scheduledAt.value.microsSinceUnixEpoch;
+    harness.runScheduleByEngine(current);
+    const keep = harness.keeps.values().next().value!;
+    assert.deepEqual(
+      { wood: keep.wood, revision: keep.revision, sequence: keep.lastAcceptedSequence },
+      { wood: 60n, revision: 3n, sequence: 2n },
+    );
+    assert.equal(harness.reservations.size, 0);
+    assert.equal(harness.schedules.size, 0);
+    const settled = harness.snapshot();
+    harness.invokeSchedule(current);
+    assert.equal(harness.snapshot(), settled);
+  });
+
+  test('failed callback rolls back adapter writes, engine cleanup loses its row, and read repairs once', () => {
+    const harness = new PtrHarness();
+    (ptrModule.initializeGameplay04KeepV1 as Callable)(harness.context(), GAMEPLAY_INPUT);
+    (ptrModule.dispatchGameplay04WorkerV1 as Callable)(harness.context(), {
+      sequence: 2n, requestKey: `g04:2:${'2'.repeat(32)}`, expectedRevision: 1n,
+      policyVersion: 'warpkeep-0.4-gameplay-v1', expectedAtlasRevision: 7n,
+      workerOrdinal: 0, locationId: 'LOCATION:WOOD', resource: 'wood',
+      gatheringDurationMicros: 60_000_000n,
+    });
+    const current = harness.schedules.values().next().value!;
+    harness.nowMicros = current.scheduledAt.value.microsSinceUnixEpoch;
+    harness.failOnUpdateKeep = true;
+    assert.throws(() => harness.runScheduleByEngine(current), /injected updateKeep failure/u);
+    const rolledBack = harness.keeps.values().next().value!;
+    assert.deepEqual(
+      { wood: rolledBack.wood, revision: rolledBack.revision, sequence: rolledBack.lastAcceptedSequence },
+      { wood: 0n, revision: 2n, sequence: 2n },
+    );
+    assert.equal(harness.workers.values().next().value!.assignment !== undefined, true);
+    assert.equal(harness.reservations.size, 1);
+    assert.equal(harness.schedules.size, 0, 'engine cleanup is separate from reducer rollback');
+
+    harness.failOnUpdateKeep = false;
+    (ptrModule.getGameplay04KeepV1 as Callable)(harness.context());
+    const repaired = harness.keeps.values().next().value!;
+    assert.deepEqual(
+      { wood: repaired.wood, revision: repaired.revision, sequence: repaired.lastAcceptedSequence },
+      { wood: 60n, revision: 3n, sequence: 2n },
+    );
+    const settled = harness.snapshot();
+    (ptrModule.getGameplay04KeepV1 as Callable)(harness.context());
+    assert.equal(harness.snapshot(), settled);
+  });
+
+  test('failed arrival callback cleanup is repaired before return and a later read credits once', () => {
+    const harness = new PtrHarness();
+    harness.resourceAtAdjacentCell = true;
+    (ptrModule.initializeGameplay04KeepV1 as Callable)(harness.context(), GAMEPLAY_INPUT);
+    (ptrModule.dispatchGameplay04WorkerV1 as Callable)(harness.context(), {
+      sequence: 2n, requestKey: `g04:2:${'5'.repeat(32)}`, expectedRevision: 1n,
+      policyVersion: 'warpkeep-0.4-gameplay-v1', expectedAtlasRevision: 7n,
+      workerOrdinal: 0, locationId: 'LOCATION:WOOD', resource: 'wood',
+      gatheringDurationMicros: 60_000_000n,
+    });
+    const arrival = harness.schedules.values().next().value!;
+    harness.nowMicros = arrival.scheduledAt.value.microsSinceUnixEpoch;
+    harness.failOnUpdateKeep = true;
+    assert.throws(() => harness.runScheduleByEngine(arrival), /injected updateKeep failure/u);
+    assert.equal(harness.schedules.size, 0);
+    assert.equal(harness.reservations.size, 1);
+    assert.equal(harness.keeps.values().next().value!.revision, 2n);
+
+    harness.failOnUpdateKeep = false;
+    (ptrModule.getGameplay04KeepV1 as Callable)(harness.context());
+    const repaired = harness.schedules.values().next().value!;
+    assert.ok(repaired.scheduleId > arrival.scheduleId);
+    assert.ok(repaired.scheduledAt.value.microsSinceUnixEpoch > harness.nowMicros);
+    assert.deepEqual(
+      { wood: harness.keeps.values().next().value!.wood,
+        revision: harness.keeps.values().next().value!.revision,
+        sequence: harness.keeps.values().next().value!.lastAcceptedSequence },
+      { wood: 0n, revision: 3n, sequence: 2n },
+    );
+
+    harness.nowMicros = repaired.scheduledAt.value.microsSinceUnixEpoch + 2_000_000n;
+    (ptrModule.getGameplay04KeepV1 as Callable)(harness.context());
+    assert.deepEqual(
+      { wood: harness.keeps.values().next().value!.wood,
+        revision: harness.keeps.values().next().value!.revision,
+        sequence: harness.keeps.values().next().value!.lastAcceptedSequence },
+      { wood: 60n, revision: 4n, sequence: 2n },
+    );
+    const settled = harness.snapshot();
+    (ptrModule.getGameplay04KeepV1 as Callable)(harness.context());
+    assert.equal(harness.snapshot(), settled);
+  });
+
   test('owner/auth/atlas failures precede gameplay writes', () => {
     const cases: Array<readonly [(harness: PtrHarness) => void, string]> = [
       [harness => { harness.payload = null; }, 'AUTH_REQUIRED'],
@@ -404,14 +691,55 @@ describe('PTR gameplay keep module adapter', () => {
     }
   });
 
+  test('renewed owner session replays before resource loading while expired, suspended, and cross-db sessions cannot replay', () => {
+    const harness = new PtrHarness();
+    (ptrModule.initializeGameplay04KeepV1 as Callable)(harness.context(), GAMEPLAY_INPUT);
+    const input = {
+      sequence: 2n, requestKey: `g04:2:${'4'.repeat(32)}`, expectedRevision: 1n,
+      policyVersion: 'warpkeep-0.4-gameplay-v1', expectedAtlasRevision: 7n,
+      workerOrdinal: 0, locationId: 'LOCATION:WOOD', resource: 'wood',
+      gatheringDurationMicros: 60_000_000n,
+    };
+    const original = (ptrModule.dispatchGameplay04WorkerV1 as Callable)(harness.context(), input);
+    harness.payload = ownerPayload({
+      iat: 1_040, nbf: 1_040, session_iat: 1_040, jti: 'renewed-owner-jti',
+    });
+    harness.resourceNodeMode = 'active';
+    const beforeReplay = harness.snapshot();
+    assert.deepEqual(
+      (ptrModule.dispatchGameplay04WorkerV1 as Callable)(harness.context(), input),
+      original,
+    );
+    assert.equal(harness.snapshot(), beforeReplay);
+
+    for (const mutate of [
+      () => { harness.payload = ownerPayload({ exp: 1_050, session_exp: 1_050 }); },
+      () => { harness.payload = ownerPayload({ ptr_database_identity: '2'.repeat(64) }); },
+      () => {
+        harness.payload = ownerPayload();
+        harness.anchor = { ...harness.anchor, enabled: false };
+      },
+    ]) {
+      harness.anchor = { ...harness.anchor, enabled: true };
+      mutate();
+      const before = harness.snapshot();
+      assert.throws(
+        () => (ptrModule.dispatchGameplay04WorkerV1 as Callable)(harness.context(), input),
+        /INVALID_PTR_OWNER_SESSION|PTR_OWNER_NOT_AUTHORIZED/u,
+      );
+      assert.equal(harness.snapshot(), before);
+    }
+  });
+
   test('stale atlas and changed atlas binding fail without reseeding', () => {
     const stale = new PtrHarness();
+    const staleBefore = stale.snapshot();
     stale.importEpoch = 0n;
     expectSenderCode(
       () => (ptrModule.initializeGameplay04KeepV1 as Callable)(stale.context(), GAMEPLAY_INPUT),
       'PTR_ATLAS_UNAVAILABLE',
     );
-    assert.equal(stale.snapshot(), '{"keeps":[],"workers":[],"receipts":[]}');
+    assert.equal(stale.snapshot(), staleBefore);
 
     const changed = new PtrHarness();
     (ptrModule.initializeGameplay04KeepV1 as Callable)(changed.context(), GAMEPLAY_INPUT);
