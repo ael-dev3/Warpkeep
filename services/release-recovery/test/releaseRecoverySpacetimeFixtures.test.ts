@@ -2,8 +2,11 @@ import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { win32 } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it, vi } from 'vitest'
+
+import { withFixedWindowsHostEmulation } from './fixedWindowsHostEmulation.js'
 
 const childProcessBoundary = vi.hoisted(() => ({
   spawnSync: vi.fn(),
@@ -1278,53 +1281,6 @@ describe('toolchain bootstrap and WSL runner shells', () => {
 })
 
 describe('fixed production WSL host boundary', () => {
-  it('uses numeric Windows file-version parts before any WSL invocation', async () => {
-    if (process.platform !== 'win32') return
-    const wslPath = String.raw`C:\Windows\System32\wsl.exe`
-    const wslBytes = Uint8Array.from(readFileSync(wslPath))
-    if (sha256(wslBytes) !== WSL_EXECUTION_POLICY.executableSha256) return
-    let reachedWslVersion = false
-    childProcessBoundary.spawnSync.mockReset()
-    childProcessBoundary.spawnSync.mockImplementation((executable: any, args: any) => {
-      if (executable === String.raw`C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`) {
-        const script = String(args.at(-1))
-        const usesNumericParts = script.includes('FileMajorPart')
-          && script.includes('FileMinorPart')
-          && script.includes('FileBuildPart')
-          && script.includes('FilePrivatePart')
-          && script.includes('ProductMajorPart')
-          && script.includes('ProductPrivatePart')
-        return {
-          error: undefined,
-          status: 0,
-          signal: null,
-          stdout: usesNumericParts
-            ? '10.0.26100.8737\n10.0.26100.8737\n'
-            : '10.0.26100.8737 (WinBuild.160101.0800)\n10.0.26100.8737\n',
-          stderr: '',
-        }
-      }
-      if (executable === wslPath && JSON.stringify(args) === JSON.stringify(['--version'])) {
-        reachedWslVersion = true
-        return {
-          error: new Error('synthetic-stop-before-wsl'),
-          status: null,
-          signal: null,
-          stdout: '',
-          stderr: '',
-        }
-      }
-      throw new Error('unexpected synthetic process boundary')
-    })
-    const actualHost = await vi.importActual<
-      typeof import('../scripts/release-recovery-fixture-host.mjs')
-    >('../scripts/release-recovery-fixture-host.mjs')
-
-    await expect(actualHost.preflightFixedWslHostAndGuest({
-      policy: WSL_EXECUTION_POLICY,
-    })).rejects.toThrow('RECOVERY_FIXTURE_INPUT_INVALID')
-    expect(reachedWslVersion).toBe(true)
-  }, 15_000)
 
   it('accepts one real fixed toolchain-attestation schema shared with the generator', async () => {
     const programs = fixedProgramCoordinates().toolchain
@@ -1391,12 +1347,30 @@ describe('fixed production WSL host boundary', () => {
     const programs = fixedProgramCoordinates()
     expect([...programs.bootstrap]).not.toContain(13)
     expect(execFileSync('git', [
+      '-c', `safe.directory=${fileURLToPath(new URL('../../..', import.meta.url)).replace(/[\\/]+$/u, '')}`,
       'check-attr', 'eol', '--',
       'services/release-recovery/scripts/release-recovery-wsl-bootstrap.py',
     ], {
       cwd: new URL('../../..', import.meta.url),
       encoding: 'utf8',
     })).toContain('eol: lf')
+  })
+
+  it('accepts only the supported native Windows source host without starting WSL', async () => {
+    childProcessBoundary.spawnSync.mockClear()
+    const actualHost = await vi.importActual<
+      typeof import('../scripts/release-recovery-fixture-host.mjs')
+    >('../scripts/release-recovery-fixture-host.mjs')
+    if (process.platform === 'win32') {
+      await expect(actualHost.preflightFixedPublicSourceObjectDatabase()).resolves.toEqual({
+        schemaVersion: 1,
+        profile: 'warpkeep-release-recovery-fixed-public-source-capability-v1',
+      })
+    } else {
+      await expect(actualHost.preflightFixedPublicSourceObjectDatabase())
+        .rejects.toThrow('RECOVERY_FIXTURE_INPUT_INVALID')
+    }
+    expect(childProcessBoundary.spawnSync).not.toHaveBeenCalled()
   })
 
   it('attests and invokes the fixed bootstrap and isolated materializer programs', async () => {
@@ -1513,67 +1487,69 @@ describe('fixed production WSL host boundary', () => {
       }
     })
 
-    const actualHost = await vi.importActual<
-      typeof import('../scripts/release-recovery-fixture-host.mjs')
-    >('../scripts/release-recovery-fixture-host.mjs')
-    const platform = platformAttestation()
-    const sourcePolicy = await actualHost.preflightFixedToolchainSourcePolicy()
-    const sourceObjects = await actualHost.preflightFixedPublicSourceObjectDatabase()
-    await expect(actualHost.bootstrapFixedWslToolchain({
-      platform,
-      sourcePolicy,
-      sourceObjects,
-      sources: {
-        g002: { ...SOURCE.g002 },
-        ptr: { ...SOURCE.ptr },
-      },
-    })).resolves.toEqual({
-      ...fixedBootstrapResult,
-      bootstrapProgramBytes: programs.bootstrap.byteLength,
-      bootstrapProgramSha256: sha256(programs.bootstrap),
-      materializerProgramBytes: programs.materializer.byteLength,
-      materializerProgramSha256: sha256(programs.materializer),
-    })
-    await expect(actualHost.executeFixedWslFixturePlan({
-      policy: WSL_EXECUTION_POLICY,
-      platform,
-      plan,
-    })).resolves.toEqual(runnerResult())
+    await withFixedWindowsHostEmulation(async () => {
+      const actualHost = await vi.importActual<
+        typeof import('../scripts/release-recovery-fixture-host.mjs')
+      >('../scripts/release-recovery-fixture-host.mjs')
+      const platform = platformAttestation()
+      const sourcePolicy = await actualHost.preflightFixedToolchainSourcePolicy()
+      const sourceObjects = await actualHost.preflightFixedPublicSourceObjectDatabase()
+      await expect(actualHost.bootstrapFixedWslToolchain({
+        platform,
+        sourcePolicy,
+        sourceObjects,
+        sources: {
+          g002: { ...SOURCE.g002 },
+          ptr: { ...SOURCE.ptr },
+        },
+      })).resolves.toEqual({
+        ...fixedBootstrapResult,
+        bootstrapProgramBytes: programs.bootstrap.byteLength,
+        bootstrapProgramSha256: sha256(programs.bootstrap),
+        materializerProgramBytes: programs.materializer.byteLength,
+        materializerProgramSha256: sha256(programs.materializer),
+      })
+      await expect(actualHost.executeFixedWslFixturePlan({
+        policy: WSL_EXECUTION_POLICY,
+        platform,
+        plan,
+      })).resolves.toEqual(runnerResult())
 
-    const calls = childProcessBoundary.spawnSync.mock.calls
-    expect(calls).toHaveLength(19)
-    const bootstrapCall = calls.find(([, args]: any[]) => (
-      args.includes(FIXED_BOOTSTRAP_PROGRAM)
-      && !args.includes('/bin/sh')
-      && !args.includes('/bin/cat')
-      && !args.includes('/usr/bin/stat')
-      && !args.includes('/usr/bin/readlink')
-    ))!
-    const materializerCall = calls.find(([, args]: any[]) => (
-      args.includes(FIXED_MATERIALIZER_PROGRAM)
-      && !args.includes('/bin/sh')
-      && !args.includes('/bin/cat')
-      && !args.includes('/usr/bin/stat')
-      && !args.includes('/usr/bin/readlink')
-    ))!
-    expect(bootstrapCall[1]).toContain('/usr/bin/env')
-    expect(bootstrapCall[1]).toEqual(expect.arrayContaining(['--user', 'root']))
-    expect(materializerCall[1]).toEqual(expect.arrayContaining([
-      '--user', 'root', '/usr/bin/unshare', '--user', '--map-root-user', '--net',
-      FIXED_MATERIALIZER_PROGRAM,
-    ]))
-    for (const [call, program] of [
-      [bootstrapCall, FIXED_BOOTSTRAP_PROGRAM],
-      [materializerCall, FIXED_MATERIALIZER_PROGRAM],
-    ] as const) {
-      expect(Object.keys(call[2].env).sort()).toEqual([
-        'ComSpec', 'PATH', 'PATHEXT', 'SystemRoot', 'WINDIR',
-      ])
-      expect(JSON.stringify(call)).not.toContain(PRIVATE_ROOT)
-      const request = capturedRequests.get(program)
-      expect(allObjectKeys(request)).not.toContain('privateRoot')
-      expect(allObjectKeys(request)).not.toContain('root')
-      expect(allObjectKeys(request)).not.toContain('canonicalPath')
-    }
+      const calls = childProcessBoundary.spawnSync.mock.calls
+      expect(calls).toHaveLength(19)
+      const bootstrapCall = calls.find(([, args]: any[]) => (
+        args.includes(FIXED_BOOTSTRAP_PROGRAM)
+        && !args.includes('/bin/sh')
+        && !args.includes('/bin/cat')
+        && !args.includes('/usr/bin/stat')
+        && !args.includes('/usr/bin/readlink')
+      ))!
+      const materializerCall = calls.find(([, args]: any[]) => (
+        args.includes(FIXED_MATERIALIZER_PROGRAM)
+        && !args.includes('/bin/sh')
+        && !args.includes('/bin/cat')
+        && !args.includes('/usr/bin/stat')
+        && !args.includes('/usr/bin/readlink')
+      ))!
+      expect(bootstrapCall[1]).toContain('/usr/bin/env')
+      expect(bootstrapCall[1]).toEqual(expect.arrayContaining(['--user', 'root']))
+      expect(materializerCall[1]).toEqual(expect.arrayContaining([
+        '--user', 'root', '/usr/bin/unshare', '--user', '--map-root-user', '--net',
+        FIXED_MATERIALIZER_PROGRAM,
+      ]))
+      for (const [call, program] of [
+        [bootstrapCall, FIXED_BOOTSTRAP_PROGRAM],
+        [materializerCall, FIXED_MATERIALIZER_PROGRAM],
+      ] as const) {
+        expect(Object.keys(call[2].env).sort()).toEqual([
+          'ComSpec', 'PATH', 'PATHEXT', 'SystemRoot', 'WINDIR',
+        ])
+        expect(JSON.stringify(call)).not.toContain(PRIVATE_ROOT)
+        const request = capturedRequests.get(program)
+        expect(allObjectKeys(request)).not.toContain('privateRoot')
+        expect(allObjectKeys(request)).not.toContain('root')
+        expect(allObjectKeys(request)).not.toContain('canonicalPath')
+      }
+    })
   })
 })

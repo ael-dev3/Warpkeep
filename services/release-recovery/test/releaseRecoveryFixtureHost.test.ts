@@ -36,6 +36,21 @@ vi.mock('node:child_process', async importOriginal => ({
   spawnSync: boundary.spawnSync,
 }))
 
+// The operator is a fixed Windows host. Model that path boundary even when
+// Vitest runs on Linux; unrelated real source paths retain native semantics.
+vi.mock('node:path', async importOriginal => {
+  const original = await importOriginal<typeof import('node:path')>()
+  const windowsPath = (values: string[]) => values.some(value => /^[A-Za-z]:[\\/]/u.test(value))
+  return {
+    ...original,
+    sep: original.win32.sep,
+    resolve: (...values: string[]) => (windowsPath(values) ? original.win32 : original).resolve(...values),
+    relative: (from: string, to: string) => (windowsPath([from, to]) ? original.win32 : original).relative(from, to),
+    join: (...values: string[]) => (windowsPath(values) ? original.win32 : original).join(...values),
+    isAbsolute: (value: string) => original.win32.isAbsolute(value) || original.isAbsolute(value),
+  }
+})
+
 vi.mock('node:fs', async importOriginal => {
   const original = await importOriginal<typeof import('node:fs')>()
   const realpathSync = original.realpathSync.bind(undefined) as typeof original.realpathSync
@@ -116,10 +131,23 @@ function success(stdout: string | Buffer) {
 
 describe('fixed recovery fixture host preflight', () => {
   it('accepts normal newline-terminated link and route JSON from the fixed namespace', async () => {
+    let numericVersionChecked = false
     boundary.spawnSync.mockImplementation((_executable: unknown, rawArgs: unknown[]) => {
       const args = rawArgs.map(String)
-      if (args.includes('-NoProfile')) return success('10.0.26100.8737\n10.0.26100.8737\n')
-      if (args.length === 1 && args[0] === '--version') return success('WSL version: 2.7.11.0\n')
+      if (args.includes('-NoProfile')) {
+        const script = args.at(-1)!
+        for (const prefix of ['File', 'Product']) {
+          for (const part of ['MajorPart', 'MinorPart', 'BuildPart', 'PrivatePart']) {
+            expect(script).toContain(`${prefix}${part}`)
+          }
+        }
+        numericVersionChecked = true
+        return success('10.0.26100.8737\n10.0.26100.8737\n')
+      }
+      if (args.length === 1 && args[0] === '--version') {
+        expect(numericVersionChecked).toBe(true)
+        return success('WSL version: 2.7.11.0\n')
+      }
       if (args.includes('/bin/cat')) {
         const path = args.at(-1)
         if (path === '/etc/os-release') return success(boundary.osRelease)
@@ -166,6 +194,7 @@ describe('fixed recovery fixture host preflight', () => {
       unshareSha256: 'a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c',
       loopbackToolSha256: '81a95d97c70f3677d1883b9d8fe13b1771ab208d5bca56bc447aaaff0b0480e0',
     })
+    expect(numericVersionChecked).toBe(true)
   })
 
   it('clears the original host read buffer after returning an isolated record copy', async () => {
@@ -202,6 +231,7 @@ describe('fixed recovery fixture host preflight', () => {
       descriptor === fileDescriptor ? fileStat : directoryStat
     ))
     boundary.closeSync.mockReset()
+    boundary.spawnSync.mockClear()
     boundary.spawnSync.mockImplementation((executable: unknown, rawArgs: unknown[]) => {
       const args = rawArgs.map(String)
       if (String(executable).endsWith('whoami.exe')) return success('synthetic-user\n')
@@ -214,15 +244,23 @@ describe('fixed recovery fixture host preflight', () => {
       throw new Error('unexpected synthetic owner boundary')
     })
 
-    const root = await openFixedPrivateRoot(boundary.privateRoot)
-    const record = await readFixedPrivateRecord(
-      root,
-      'recovery-bootstrap-marker.json',
-      256,
-    )
-    await closeFixedPrivateRoot(root)
-
-    expect(Buffer.from((record as { bytes: Uint8Array }).bytes)).toEqual(expected)
-    expect(boundary.privateRecord.every(byte => byte === 0)).toBe(true)
+    const platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')!
+    Object.defineProperty(process, 'platform', { ...platformDescriptor, value: 'win32' })
+    try {
+      const root = await openFixedPrivateRoot(boundary.privateRoot)
+      try {
+        const record = await readFixedPrivateRecord(root, 'recovery-bootstrap-marker.json', 256)
+        expect(Buffer.from((record as { bytes: Uint8Array }).bytes)).toEqual(expected)
+        expect(boundary.privateRecord.every(byte => byte === 0)).toBe(true)
+        const commands = boundary.spawnSync.mock.calls.map(([executable]) => String(executable))
+        for (const executable of ['whoami.exe', 'icacls.exe', 'powershell.exe']) {
+          expect(commands.filter(command => command.endsWith(executable))).toHaveLength(2)
+        }
+      } finally {
+        await closeFixedPrivateRoot(root)
+      }
+    } finally {
+      Object.defineProperty(process, 'platform', platformDescriptor)
+    }
   })
 })

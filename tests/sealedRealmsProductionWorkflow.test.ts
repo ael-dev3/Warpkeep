@@ -134,7 +134,7 @@ describe('sealed-realms production workflow authority', () => {
     }
   });
 
-  it('keeps the stable verify check as an always-run five-job aggregator', () => {
+  it('keeps the stable verify check as an always-run aggregator including recovery', () => {
     const source = workflow('verify.yml');
     const document = parse(source) as {
       jobs?: Record<string, {
@@ -146,7 +146,7 @@ describe('sealed-realms production workflow authority', () => {
       }>;
     };
     expect(Object.keys(document.jobs ?? {})).toEqual([
-      'linux', 'auth-bridge', 'spacetimedb-module', 'native-contract', 'verify',
+      'linux', 'auth-bridge', 'release-recovery', 'spacetimedb-module', 'native-contract', 'verify',
     ]);
     expect(document.jobs?.['native-contract']?.['runs-on']).toBe(
       'macos-14',
@@ -161,11 +161,12 @@ describe('sealed-realms production workflow authority', () => {
     expect(nativeJob).not.toMatch(/secrets\.|warpkeep-production-admin|self-hosted/u);
     expect(document.jobs?.verify).toMatchObject({
       name: 'Verify',
-      needs: ['linux', 'auth-bridge', 'spacetimedb-module', 'native-contract'],
+      needs: ['linux', 'auth-bridge', 'release-recovery', 'spacetimedb-module', 'native-contract'],
     });
     expect(document.jobs?.verify?.if).toContain('always()');
     expect(source).toContain("needs.linux.result == 'success'");
     expect(source).toContain("needs.auth-bridge.result == 'success'");
+    expect(source).toContain("needs.release-recovery.result == 'success'");
     expect(source).toContain("needs.spacetimedb-module.result == 'success'");
     expect(source).toContain("needs.native-contract.result == 'success'");
   });

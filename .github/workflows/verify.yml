@@ -208,6 +208,37 @@ jobs:
       - name: Audit bridge dependencies
         run: pnpm --dir services/auth-bridge audit --audit-level low
 
+  release-recovery:
+    # Fixture-only ownership checks use unprivileged user namespaces, whose
+    # capabilities Ubuntu 24.04 restricts with AppArmor. No host policy changes.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.22.3
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0
+          run_install: false
+
+      - name: Install recovery dependencies
+        run: pnpm --dir services/release-recovery install --frozen-lockfile
+
+      - name: Verify recovery service and local Workerd contracts
+        run: pnpm --dir services/release-recovery run check
+
+      - name: Audit recovery dependencies
+        run: pnpm --dir services/release-recovery audit --audit-level low
+
   spacetimedb-module:
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -328,7 +359,7 @@ jobs:
 
   verify:
     name: Verify
-    needs: [linux, auth-bridge, spacetimedb-module, native-contract]
+    needs: [linux, auth-bridge, release-recovery, spacetimedb-module, native-contract]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -337,6 +368,7 @@ jobs:
         if: >-
           needs.linux.result == 'success' &&
           needs.auth-bridge.result == 'success' &&
+          needs.release-recovery.result == 'success' &&
           needs.spacetimedb-module.result == 'success' &&
           needs.native-contract.result == 'success'
         run: exit 0
@@ -345,6 +377,7 @@ jobs:
         if: >-
           needs.linux.result != 'success' ||
           needs.auth-bridge.result != 'success' ||
+          needs.release-recovery.result != 'success' ||
           needs.spacetimedb-module.result != 'success' ||
           needs.native-contract.result != 'success'
         run: exit 1
