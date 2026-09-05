@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-import { axialToWorld } from '../game/map/hexCoordinates';
+import { axialToWorld, worldToNearestAxial } from '../game/map/hexCoordinates';
 import { createRealmAmbientScheduler, type RealmAmbientScheduler } from '../components/realm/realmAmbientScheduler';
 import { sampleRealmLivingEnvironment } from '../components/realm/realmLivingEnvironment';
 import {
   createGreaterRealmVoxelGeometry,
+  greaterRealmVoxelSurfaceY,
   type GreaterRealmVoxelPrefabKind
 } from '../components/realm/greaterRealmVoxelPresentation';
 import {
@@ -22,7 +23,8 @@ import {
   type GreaterRealmCellAccessPresentation,
   type GreaterRealmChunkPresentationPlan,
   type GreaterRealmFeaturePresentation,
-  type GreaterRealmPresentationActor
+  type GreaterRealmPresentationActor,
+  type GreaterRealmPresentationPosition
 } from './greaterRealmPresentationPlan';
 import {
   GREATER_REALM_GRAPHICS_BUDGETS,
@@ -104,6 +106,10 @@ export type GreaterRealmSceneRuntime = Readonly<{
   getCellAccess: (
     coordinate: GreaterRealmAtlasCoordinate
   ) => GreaterRealmCellAccessPresentation | undefined;
+  getTerrainSurfaceY?: (
+    chunkHandle: string,
+    cell: GreaterRealmPublicCellDto
+  ) => number | undefined;
   isCoordinatePassable: (coordinate: GreaterRealmAtlasCoordinate) => boolean;
   selectLocalVessel: () => GreaterRealmLocalVesselState;
   moveLocalVessel: (move: GreaterRealmLocalVesselMove) => GreaterRealmLocalVesselState;
@@ -127,6 +133,7 @@ export type CreateGreaterRealmSceneRuntimeOptions = Readonly<{
 
 type ActorRenderRef = Readonly<{
   actor: GreaterRealmPresentationActor;
+  groundPosition: GreaterRealmPresentationPosition;
   mesh: THREE.InstancedMesh;
   index: number;
 }>;
@@ -143,8 +150,13 @@ type ChunkRenderResource = Readonly<{
   voxelEmissionMilliseconds: number;
   voxelLayerCount: number;
   voxelFallbackReasons: readonly string[];
+  usesVoxelTerrain: boolean;
   dispose: () => void;
 }>;
+
+type GroundPosition = (
+  position: GreaterRealmPresentationPosition
+) => GreaterRealmPresentationPosition;
 
 type LocalVesselResource = Readonly<{
   mesh: THREE.Mesh;
@@ -383,17 +395,45 @@ function waterMesh(plan: GreaterRealmChunkPresentationPlan, cellSize: number) {
   return Object.freeze({ mesh, material });
 }
 
-function routeLines(plan: GreaterRealmChunkPresentationPlan) {
+function chunkGroundPosition(
+  plan: GreaterRealmChunkPresentationPlan,
+  usesVoxelTerrain: boolean
+): GroundPosition {
+  if (!usesVoxelTerrain) return (position) => position;
+  const cellsByCoordinate = new Map(plan.terrainCells.map((cell) => (
+    [greaterRealmCoordinateKey(cell), cell] as const
+  )));
+  return (position) => {
+    const coordinate = worldToNearestAxial(position, plan.cellSize);
+    const cell = cellsByCoordinate.get(`${coordinate.q},${coordinate.r}`);
+    if (cell === undefined) return position;
+    const surfaceY = greaterRealmVoxelSurfaceY({
+      cell,
+      graphicsProfile: plan.voxelTerrainPlan.graphicsProfile,
+      cellSize: plan.cellSize
+    });
+    return Object.freeze({
+      x: position.x,
+      y: position.y + surfaceY - cell.elevation / 1_000,
+      z: position.z
+    });
+  };
+}
+
+function routeLines(plan: GreaterRealmChunkPresentationPlan, groundPosition: GroundPosition) {
   if (plan.routeSegments.length === 0) return undefined;
   const positions: number[] = [];
   const colors: number[] = [];
   for (const segment of plan.routeSegments) {
+    const followsWater = segment.kind === 'river' || segment.kind === 'stream'
+      || segment.kind === 'boat-lane';
+    const from = followsWater ? segment.from : groundPosition(segment.from);
+    const to = followsWater ? segment.to : groundPosition(segment.to);
     positions.push(
-      segment.from.x, segment.from.y, segment.from.z,
-      segment.to.x, segment.to.y, segment.to.z
+      from.x, from.y, from.z,
+      to.x, to.y, to.z
     );
-    const color = segment.kind === 'river' || segment.kind === 'stream'
-      || segment.kind === 'boat-lane'
+    const color = followsWater
       ? new THREE.Color('#69a7b2')
       : segment.kind === 'track'
         ? new THREE.Color('#786b52')
@@ -416,7 +456,11 @@ function routeLines(plan: GreaterRealmChunkPresentationPlan) {
   return lines;
 }
 
-function crossingMesh(plan: GreaterRealmChunkPresentationPlan, cellSize: number) {
+function crossingMesh(
+  plan: GreaterRealmChunkPresentationPlan,
+  cellSize: number,
+  groundPosition: GroundPosition
+) {
   if (plan.crossings.length === 0) return undefined;
   const geometry = new THREE.BoxGeometry(cellSize * 0.58, 0.06, cellSize * 0.2);
   const material = new THREE.MeshStandardMaterial({
@@ -429,7 +473,8 @@ function crossingMesh(plan: GreaterRealmChunkPresentationPlan, cellSize: number)
   const scale = new THREE.Vector3(1, 1, 1);
   const up = new THREE.Vector3(0, 1, 0);
   plan.crossings.forEach((crossing, index) => {
-    position.set(crossing.position.x, crossing.position.y, crossing.position.z);
+    const grounded = groundPosition(crossing.position);
+    position.set(grounded.x, grounded.y, grounded.z);
     quaternion.setFromAxisAngle(up, crossing.headingRadians);
     matrix.compose(position, quaternion, scale);
     mesh.setMatrixAt(index, matrix);
@@ -476,6 +521,7 @@ function featureColor(kind: GreaterRealmFeaturePresentation['kind']) {
 
 function featureMeshes(
   plan: GreaterRealmChunkPresentationPlan,
+  groundPosition: GroundPosition,
   onlyKinds?: ReadonlySet<GreaterRealmFeaturePresentation['kind']>
 ) {
   const meshes: THREE.InstancedMesh[] = [];
@@ -498,7 +544,8 @@ function featureMeshes(
     });
     const mesh = new THREE.InstancedMesh(geometry, material, features.length);
     features.forEach((feature, index) => {
-      position.set(feature.position.x, feature.position.y, feature.position.z);
+      const grounded = groundPosition(feature.position);
+      position.set(grounded.x, grounded.y, grounded.z);
       quaternion.setFromAxisAngle(up, feature.headingRadians);
       matrix.compose(position, quaternion, scale);
       mesh.setMatrixAt(index, matrix);
@@ -511,7 +558,7 @@ function featureMeshes(
   return Object.freeze(meshes);
 }
 
-function voxelFeatureMeshes(plan: GreaterRealmChunkPresentationPlan) {
+function voxelFeatureMeshes(plan: GreaterRealmChunkPresentationPlan, groundPosition: GroundPosition) {
   const meshes: THREE.InstancedMesh[] = [];
   const fallbackMeshes: THREE.InstancedMesh[] = [];
   const failures: string[] = plan.voxelPrefabFallbackReasons.map(
@@ -527,7 +574,8 @@ function voxelFeatureMeshes(plan: GreaterRealmChunkPresentationPlan) {
   const scale = new THREE.Vector3(1, 1, 1);
   const up = new THREE.Vector3(0, 1, 0);
   for (const fallback of plan.voxelPrefabFallbackReasons) {
-    featureMeshes(plan, new Set([fallback.kind])).forEach((mesh) => fallbackMeshes.push(mesh));
+    featureMeshes(plan, groundPosition, new Set([fallback.kind]))
+      .forEach((mesh) => fallbackMeshes.push(mesh));
   }
   for (const prefab of plan.voxelPrefabPlans) {
     if (prefab.kind === 'castle') continue;
@@ -548,7 +596,8 @@ function voxelFeatureMeshes(plan: GreaterRealmChunkPresentationPlan) {
       const mesh = new THREE.InstancedMesh(geometry, material, features.length);
       features.forEach((feature, index) => {
         const baseLift = kind === 'waystone' ? 0.15 : 0.18;
-        position.set(feature.position.x, feature.position.y - baseLift, feature.position.z);
+        const grounded = groundPosition(feature.position);
+        position.set(grounded.x, grounded.y - baseLift, grounded.z);
         quaternion.setFromAxisAngle(up, feature.headingRadians);
         matrix.compose(position, quaternion, scale);
         mesh.setMatrixAt(index, matrix);
@@ -565,7 +614,8 @@ function voxelFeatureMeshes(plan: GreaterRealmChunkPresentationPlan) {
       geometry?.dispose();
       material?.dispose();
       failures.push(voxelFailureReason(`feature-${kind}`, error));
-      featureMeshes(plan, new Set([kind])).forEach((mesh) => fallbackMeshes.push(mesh));
+      featureMeshes(plan, groundPosition, new Set([kind]))
+        .forEach((mesh) => fallbackMeshes.push(mesh));
     }
   }
   return Object.freeze({
@@ -586,7 +636,7 @@ function resourceColor(kind: GreaterRealmChunkPresentationPlan['resources'][numb
   return '#d7a94a';
 }
 
-function resourceMeshes(plan: GreaterRealmChunkPresentationPlan) {
+function resourceMeshes(plan: GreaterRealmChunkPresentationPlan, groundPosition: GroundPosition) {
   const meshes: THREE.InstancedMesh[] = [];
   const matrix = new THREE.Matrix4();
   for (const kind of ['food', 'wood', 'stone', 'gold'] as const) {
@@ -599,8 +649,9 @@ function resourceMeshes(plan: GreaterRealmChunkPresentationPlan) {
     const mesh = new THREE.InstancedMesh(geometry, material, rows.length);
     rows.forEach((resource, index) => {
       const size = Math.min(1.4, 0.82 + Math.log2(resource.nodeCount + 1) * 0.08);
+      const grounded = groundPosition(resource.position);
       matrix.makeScale(size, size, size);
-      matrix.setPosition(resource.position.x, resource.position.y, resource.position.z);
+      matrix.setPosition(grounded.x, grounded.y, grounded.z);
       mesh.setMatrixAt(index, matrix);
     });
     mesh.instanceMatrix.needsUpdate = true;
@@ -629,7 +680,7 @@ function actorColor(kind: GreaterRealmPresentationActor['kind']) {
   return '#835f45';
 }
 
-function actorMeshes(plan: GreaterRealmChunkPresentationPlan) {
+function actorMeshes(plan: GreaterRealmChunkPresentationPlan, groundPosition: GroundPosition) {
   const refs: ActorRenderRef[] = [];
   const meshes: THREE.InstancedMesh[] = [];
   const matrix = new THREE.Matrix4();
@@ -649,11 +700,12 @@ function actorMeshes(plan: GreaterRealmChunkPresentationPlan) {
     mesh.name = `greater-realm-${kind}:${plan.chunkHandle}`;
     mesh.raycast = () => {};
     actors.forEach((actor, index) => {
-      position.set(actor.position.x, actor.position.y, actor.position.z);
+      const grounded = kind === 'boat' ? actor.position : groundPosition(actor.position);
+      position.set(grounded.x, grounded.y, grounded.z);
       quaternion.setFromAxisAngle(up, actor.headingRadians);
       matrix.compose(position, quaternion, scale);
       mesh.setMatrixAt(index, matrix);
-      refs.push(Object.freeze({ actor, mesh, index }));
+      refs.push(Object.freeze({ actor, groundPosition: grounded, mesh, index }));
     });
     mesh.instanceMatrix.needsUpdate = true;
     meshes.push(mesh);
@@ -743,6 +795,7 @@ function buildChunkResource(selected: SelectedChunk, cellSize: number): ChunkRen
   let voxelUploadBytes = 0;
   let voxelEmissionMilliseconds = 0;
   let voxelLayerCount = 0;
+  let usesVoxelTerrain = false;
   const terrainEmissionStarted = nowMilliseconds();
   if (selected.plan.voxelTerrainFallbackReason !== undefined) {
     voxelFallbackReasons.push(voxelFailureReason(
@@ -756,20 +809,22 @@ function buildChunkResource(selected: SelectedChunk, cellSize: number): ChunkRen
       voxelQuadCount += selected.plan.voxelTerrainPlan.surfacePlan.mergedQuadCount;
       voxelUploadBytes += selected.plan.voxelTerrainPlan.uploadBytes;
       voxelLayerCount += 1;
+      usesVoxelTerrain = true;
     } catch (error) {
       voxelFallbackReasons.push(voxelFailureReason('terrain', error));
       group.add(terrainMesh(selected.plan, cellSize));
     }
   }
   voxelEmissionMilliseconds += nowMilliseconds() - terrainEmissionStarted;
+  const groundPosition = chunkGroundPosition(selected.plan, usesVoxelTerrain);
   const water = waterMesh(selected.plan, cellSize);
   if (water) group.add(water.mesh);
-  const routes = routeLines(selected.plan);
+  const routes = routeLines(selected.plan, groundPosition);
   if (routes) group.add(routes);
-  const crossings = crossingMesh(selected.plan, cellSize);
+  const crossings = crossingMesh(selected.plan, cellSize, groundPosition);
   if (crossings) group.add(crossings);
   const featureEmissionStarted = nowMilliseconds();
-  const voxelFeatures = voxelFeatureMeshes(selected.plan);
+  const voxelFeatures = voxelFeatureMeshes(selected.plan, groundPosition);
   voxelEmissionMilliseconds += nowMilliseconds() - featureEmissionStarted;
   voxelFeatures.meshes.forEach((mesh) => group.add(mesh));
   voxelFeatures.fallbackMeshes.forEach((mesh) => group.add(mesh));
@@ -778,9 +833,9 @@ function buildChunkResource(selected: SelectedChunk, cellSize: number): ChunkRen
   voxelQuadCount += voxelFeatures.quadCount;
   voxelUploadBytes += voxelFeatures.uploadBytes;
   voxelLayerCount += voxelFeatures.voxelLayerCount;
-  const actors = actorMeshes(selected.plan);
+  const actors = actorMeshes(selected.plan, groundPosition);
   actors.meshes.forEach((mesh) => group.add(mesh));
-  resourceMeshes(selected.plan).forEach((mesh) => group.add(mesh));
+  resourceMeshes(selected.plan, groundPosition).forEach((mesh) => group.add(mesh));
   const boundary = boundaryMesh(selected.plan);
   if (boundary) group.add(boundary);
   let disposed = false;
@@ -796,6 +851,7 @@ function buildChunkResource(selected: SelectedChunk, cellSize: number): ChunkRen
     voxelEmissionMilliseconds,
     voxelLayerCount,
     voxelFallbackReasons: Object.freeze(voxelFallbackReasons),
+    usesVoxelTerrain,
     dispose: () => {
       if (disposed) return;
       disposed = true;
@@ -1209,9 +1265,9 @@ export function createGreaterRealmSceneRuntime(
       for (const ref of resource.actors) {
         const actor = ref.actor;
         sampleRealmLivingEnvironment(time, actor.position.x, actor.position.z, livingSample);
-        let x = actor.position.x;
-        let y = actor.position.y;
-        let z = actor.position.z;
+        let x = ref.groundPosition.x;
+        let y = ref.groundPosition.y;
+        let z = ref.groundPosition.z;
         let yaw = actor.headingRadians;
         let sway = 0;
         if (active) {
@@ -1488,6 +1544,20 @@ export function createGreaterRealmSceneRuntime(
     },
     bindCanvas,
     getCellAccess: (coordinate) => access.get(greaterRealmCoordinateKey(coordinate)),
+    getTerrainSurfaceY: (chunkHandle, cell) => {
+      const resource = uploaded.get(chunkHandle);
+      if (resource === undefined || !resource.usesVoxelTerrain) return undefined;
+      const selectedCell = resource.plan.terrainCells.find((candidate) => (
+        candidate.atlasQ === cell.atlasQ && candidate.atlasR === cell.atlasR
+      ));
+      return selectedCell === undefined
+        ? undefined
+        : greaterRealmVoxelSurfaceY({
+            cell: selectedCell,
+            graphicsProfile: resource.plan.voxelTerrainPlan.graphicsProfile,
+            cellSize: resource.plan.cellSize
+          });
+    },
     isCoordinatePassable: (coordinate) => (
       access.get(greaterRealmCoordinateKey(coordinate))?.passable === true
     ),

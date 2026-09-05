@@ -81,6 +81,19 @@ function quantizedSurfaceIndex(cell: GreaterRealmPublicCellDto, verticalStep: nu
     : Math.min(elevation, Math.floor((cell.hydroSurfaceMilli / 1_000) / verticalStep));
 }
 
+export function greaterRealmVoxelSurfaceY(input: Readonly<{
+  cell: GreaterRealmPublicCellDto;
+  graphicsProfile: GreaterRealmGraphicsProfile;
+  cellSize: number;
+}>) {
+  if (!Number.isFinite(input.cellSize) || input.cellSize <= 0) {
+    throw new RangeError('Greater Realm voxel cellSize must be positive and finite.');
+  }
+  const profile = GREATER_REALM_VOXEL_PROFILES[input.graphicsProfile];
+  const verticalStep = input.cellSize / profile.verticalDivisor;
+  return quantizedSurfaceIndex(input.cell, verticalStep) * verticalStep;
+}
+
 function horizontalColumns(
   cells: readonly GreaterRealmPublicCellDto[],
   cellSize: number,
@@ -146,6 +159,18 @@ function sourceVoxels(
   return [...voxels.values()];
 }
 
+function assertFloat32VoxelStepPrecision(voxels: readonly VoxelCell[]) {
+  for (const voxel of voxels) {
+    for (const coordinate of [voxel.x, voxel.y, voxel.z]) {
+      if (Math.fround(coordinate) !== coordinate || Math.fround(coordinate + 1) !== coordinate + 1) {
+        throw new RangeError(
+          'Greater Realm voxel local span exceeds exact Float32 voxel-step precision.'
+        );
+      }
+    }
+  }
+}
+
 function cellListSignature(cells: readonly GreaterRealmPublicCellDto[]) {
   return [...cells].sort((left, right) => (
     left.atlasQ - right.atlasQ || left.atlasR - right.atlasR
@@ -188,6 +213,7 @@ export function createGreaterRealmVoxelTerrainPlan(input: Readonly<{
   const occluders = sourceVoxels(
     contextCells, input.cellSize, horizontalStep, verticalStep, anchor, depth
   );
+  assertFloat32VoxelStepPrecision(voxels);
   const surfacePlan = planVoxelSurface({
     voxels,
     occluders,
@@ -342,13 +368,18 @@ export function createGreaterRealmVoxelGeometry(plan: GreaterRealmVoxelGeometryP
     positions[index + 2] = data.positions[index + 2]! * plan.scale.z;
   }
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute('normal', new THREE.BufferAttribute(data.normals, 3, true));
-  geometry.setAttribute('color', new THREE.BufferAttribute(data.colors, 3, true));
-  geometry.setIndex(new THREE.BufferAttribute(data.indices, 1));
-  geometry.computeBoundingBox();
-  geometry.computeBoundingSphere();
-  geometry.userData.greaterRealmVoxelSignature = plan.signature;
-  geometry.userData.greaterRealmVoxelUploadBytes = data.uploadBytes;
-  return geometry;
+  try {
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('normal', new THREE.BufferAttribute(data.normals, 3, true));
+    geometry.setAttribute('color', new THREE.BufferAttribute(data.colors, 3, true));
+    geometry.setIndex(new THREE.BufferAttribute(data.indices, 1));
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+    geometry.userData.greaterRealmVoxelSignature = plan.signature;
+    geometry.userData.greaterRealmVoxelUploadBytes = data.uploadBytes;
+    return geometry;
+  } catch (error) {
+    geometry.dispose();
+    throw error;
+  }
 }

@@ -266,4 +266,21 @@ describe('Greater Realm presentation plan', () => {
       baseline.voxelTerrainPlan.signature
     );
   });
+
+  it('turns an unrepresentable local elevation span into a bounded terrain fallback', () => {
+    const raw = structuredClone(
+      GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0]
+    ) as any;
+    raw.coreCells[0].elevation = -2_147_483_648;
+    raw.coreCells[1].elevation = 2_147_483_647;
+    const plan = createGreaterRealmChunkPresentationPlan({
+      chunk: decodeGreaterRealmChunkDto(raw),
+      graphicsProfile: 'high',
+      cellSize: 1
+    });
+
+    expect(plan.voxelTerrainFallbackReason).toContain('Float32');
+    expect(plan.voxelTerrainPlan.surfacePlan.occupiedVoxelCount).toBe(0);
+    expect(plan.terrainReservationBytes).toBe(plan.terrainCells.length * 648);
+  });
 });

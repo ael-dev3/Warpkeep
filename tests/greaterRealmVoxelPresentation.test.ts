@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE
@@ -14,6 +14,10 @@ import {
 } from '../src/components/realm/greaterRealmVoxelPresentation';
 
 const fixtureChunk = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0]!;
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('Greater Realm voxel presentation adapter', () => {
   it('pins the three sampling and meshing profiles', () => {
@@ -140,6 +144,53 @@ describe('Greater Realm voxel presentation adapter', () => {
 
     expect(terrain.quantizedSurfaceMaximumY)
       .toBeLessThanOrEqual(cell.hydroSurfaceMilli / 1_000);
+  });
+
+  it('rejects a multi-cell elevation span that cannot preserve voxel steps in Float32', () => {
+    const lowRaw = structuredClone(fixtureChunk.coreCells[0]) as any;
+    const highRaw = structuredClone(fixtureChunk.coreCells[1]) as any;
+    Object.assign(lowRaw, {
+      atlasQ: 0,
+      atlasR: 0,
+      elevation: -2_147_483_648
+    });
+    Object.assign(highRaw, {
+      atlasQ: 1,
+      atlasR: 0,
+      elevation: 2_147_483_647
+    });
+    const cells = [
+      decodeGreaterRealmPublicCellDto(lowRaw),
+      decodeGreaterRealmPublicCellDto(highRaw)
+    ];
+
+    expect(() => createGreaterRealmVoxelTerrainPlan({
+      cells,
+      graphicsProfile: 'high',
+      cellSize: 1
+    })).toThrow('Float32');
+  });
+
+  it('disposes geometry when post-allocation attribute construction fails', () => {
+    const plan = createGreaterRealmVoxelPrefabPlan({
+      kind: 'castle', graphicsProfile: 'balanced', cellSize: 1
+    });
+    const originalSetAttribute = THREE.BufferGeometry.prototype.setAttribute;
+    let attachmentCount = 0;
+    vi.spyOn(THREE.BufferGeometry.prototype, 'setAttribute').mockImplementation(function (
+      this: THREE.BufferGeometry,
+      name: string | number | symbol,
+      attribute: THREE.BufferAttribute | THREE.InterleavedBufferAttribute
+    ) {
+      attachmentCount += 1;
+      if (attachmentCount === 2) throw new Error('INJECTED_ATTRIBUTE_FAILURE');
+      return originalSetAttribute.call(this, String(name), attribute);
+    });
+    const dispose = vi.spyOn(THREE.BufferGeometry.prototype, 'dispose');
+
+    expect(() => createGreaterRealmVoxelGeometry(plan))
+      .toThrow('INJECTED_ATTRIBUTE_FAILURE');
+    expect(dispose).toHaveBeenCalledOnce();
   });
 
   it('builds distinct voxel silhouettes and keeps the 600-castle layer under 65536 bytes', () => {

@@ -72,6 +72,12 @@ function vesselRuntimeMethods() {
   };
 }
 
+function instancePosition(mesh: THREE.InstancedMesh, index = 0) {
+  const matrix = new THREE.Matrix4();
+  mesh.getMatrixAt(index, matrix);
+  return new THREE.Vector3().setFromMatrixPosition(matrix);
+}
+
 function readySnapshot() {
   return {
     phase: 'ready',
@@ -549,6 +555,103 @@ describe('Greater Realm world canvas host', () => {
     );
     expect(frames.size).toBe(0);
   });
+
+  it.each([
+    ['high', 62, 'voxel', 0],
+    ['high', 63, 'voxel', 0.125],
+    ['balanced', 124, 'voxel', 0],
+    ['balanced', 126, 'voxel', 0.25],
+    ['reduced', 249, 'voxel', 0],
+    ['reduced', 251, 'voxel', 0.5],
+    ['high', 62, 'fallback', 0.062],
+    ['high', 63, 'fallback', 0.063],
+    ['balanced', 124, 'fallback', 0.124],
+    ['balanced', 126, 'fallback', 0.126],
+    ['reduced', 249, 'fallback', 0.249],
+    ['reduced', 251, 'fallback', 0.251]
+  ] as const)(
+    'grounds %s castles at elevation %i on the selected %s surface',
+    (graphicsProfile, elevation, terrainMode, expectedSurfaceY) => {
+      const canvas = document.createElement('canvas');
+      vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+      const frames = new Map<number, FrameRequestCallback>();
+      let nextFrame = 1;
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+        const id = nextFrame++;
+        frames.set(id, callback);
+        return id;
+      });
+      vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+        frames.delete(id);
+      });
+      const runtime = {
+        group: new THREE.Group(),
+        setView: vi.fn(),
+        flushUploads: vi.fn(() => 1),
+        update: vi.fn(() => false),
+        startAnimation: vi.fn(),
+        stopAnimation: vi.fn(),
+        setReducedMotion: vi.fn(),
+        setDocumentVisible: vi.fn(),
+        bindCanvas: vi.fn(),
+        getCellAccess: vi.fn(),
+        getTerrainSurfaceY: vi.fn((_chunkHandle: string, cell: any) => (
+          terrainMode === 'voxel' ? expectedSurfaceY : undefined
+        )),
+        isCoordinatePassable: vi.fn(() => false),
+        ...vesselRuntimeMethods(),
+        getTelemetry: vi.fn(() => ({ ...EMPTY_TELEMETRY, voxelMode: terrainMode })),
+        dispose: vi.fn()
+      };
+      const renderer = {
+        setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn()
+      };
+      const snapshot = structuredClone(readySnapshot()) as any;
+      const ownCastle = snapshot.window.castles.find((castle: any) => castle.castleId === 1n);
+      ownCastle.elevation = elevation;
+      const ownCell = snapshot.chunks.flatMap((row: any) => (
+        [...row.chunk.coreCells, ...row.chunk.apronCells]
+      )).find((cell: any) => (
+        cell.atlasQ === ownCastle.atlasQ && cell.atlasR === ownCastle.atlasR
+      ));
+      ownCell.elevation = elevation;
+      const host = createGreaterRealmWorldCanvasHost({
+        canvas,
+        atlasQ: ownCastle.atlasQ,
+        atlasR: ownCastle.atlasR,
+        ownCastleId: 1,
+        policy: {
+          ...resolveGreaterRealmWorldViewPolicy({
+            atlasQ: ownCastle.atlasQ,
+            atlasR: ownCastle.atlasR,
+            viewportWidth: 1_440,
+            coarsePointer: false,
+            farcasterMiniApp: false,
+            resolvedGraphicsQuality: graphicsProfile === 'high'
+              ? 'cinematic'
+              : graphicsProfile === 'reduced' ? 'performance' : 'balanced',
+            reducedMotion: false
+          }),
+          graphicsProfile
+        },
+        rendererFactory: () => renderer,
+        sceneRuntimeFactory: () => runtime
+      })!;
+
+      host.applySnapshot(snapshot);
+      for (const [id, callback] of [...frames]) {
+        frames.delete(id);
+        callback(16);
+      }
+      const scene = renderer.render.mock.calls[0]![0] as THREE.Scene;
+      const castles = scene.getObjectByName(
+        'greater-realm-public-castle-instances'
+      ) as THREE.InstancedMesh;
+      expect(instancePosition(castles).y).toBeCloseTo(expectedSurfaceY + 0.03, 6);
+      expect(runtime.getTerrainSurfaceY).toHaveBeenCalled();
+      host.dispose();
+    }
+  );
 
   it('updates same-revision castle topology in place and ignores unselected chunks', () => {
     const canvas = document.createElement('canvas');

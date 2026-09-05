@@ -18,6 +18,7 @@ import type {
 } from '../../greater-realm/greaterRealmClientRuntime';
 import {
   GREATER_REALM_PUBLIC_LIMITS,
+  type GreaterRealmPublicCellDto,
   type GreaterRealmWindowCastleDto
 } from '../../greater-realm/greaterRealmPublicContract';
 import {
@@ -105,6 +106,14 @@ type GreaterRealmSelectionTarget = Readonly<{
   world: THREE.Vector3;
 }>;
 
+type CastleGroundingRow = Readonly<{
+  castle: GreaterRealmWindowCastleDto;
+  cell?: GreaterRealmPublicCellDto;
+  index: number;
+  size: number;
+  target: GreaterRealmSelectionTarget;
+}>;
+
 function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptions) {
   const group = new THREE.Group();
   group.name = 'greater-realm-public-castles';
@@ -119,6 +128,8 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
   let voxelUploadBytes = 0;
   let voxelFallbackReasons: readonly string[] = Object.freeze([]);
   let targets: readonly GreaterRealmSelectionTarget[] = Object.freeze([]);
+  let groundingRows: readonly CastleGroundingRow[] = Object.freeze([]);
+  let groundingSignature: string | undefined;
   const clear = () => {
     group.clear();
     mesh?.dispose();
@@ -134,6 +145,50 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
     voxelUploadBytes = 0;
     voxelFallbackReasons = Object.freeze([]);
     targets = Object.freeze([]);
+    groundingRows = Object.freeze([]);
+    groundingSignature = undefined;
+  };
+  const refreshGrounding = (
+    resolveSurfaceY?: (
+      chunkHandle: string,
+      cell: NonNullable<CastleGroundingRow['cell']>
+    ) => number | undefined
+  ) => {
+    if (mesh === undefined || groundingRows.length === 0) return false;
+    const rows = groundingRows.map((row) => {
+      const surfaceY = row.cell === undefined || resolveSurfaceY === undefined
+        ? row.castle.elevation / 1_000
+        : resolveSurfaceY(row.castle.chunkHandle, row.cell) ?? row.castle.elevation / 1_000;
+      return Object.freeze({ row, surfaceY });
+    });
+    const signature = rows.map(({ row, surfaceY }) => (
+      `${row.castle.castleId}:${surfaceY}`
+    )).join('|');
+    if (signature === groundingSignature) return false;
+    groundingSignature = signature;
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const scale = new THREE.Vector3();
+    const rotation = new THREE.Quaternion();
+    const geometryLift = voxelFallbackReasons.length === 0 ? 0.03 : undefined;
+    for (const { row, surfaceY } of rows) {
+      const world = axialToWorld({ q: row.castle.atlasQ, r: row.castle.atlasR }, 1);
+      position.set(
+        world.x,
+        surfaceY + (geometryLift ?? 0.21 * row.size + 0.03),
+        world.z
+      );
+      scale.set(row.size, row.size, row.size);
+      matrix.compose(position, rotation, scale);
+      mesh.setMatrixAt(row.index, matrix);
+      row.target.world.copy(position);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    pendingUploadBytes = Math.max(
+      pendingUploadBytes,
+      groundingRows.length * 16 * Float32Array.BYTES_PER_ELEMENT
+    );
+    return true;
   };
   return Object.freeze({
     group,
@@ -144,6 +199,7 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
     get voxelUploadBytes() { return voxelUploadBytes; },
     get voxelFallbackReasons() { return voxelFallbackReasons; },
     get targets() { return targets; },
+    refreshGrounding,
     consumePendingUploadBytes: () => {
       const value = pendingUploadBytes;
       pendingUploadBytes = 0;
@@ -179,7 +235,12 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
         snapshot.bootstrap?.revision.toString(),
         greaterRealmWindowCastleTopologySignature(castles),
         ...castles.map((castle) => (
-          cellsByCoordinate.get(`${castle.atlasQ},${castle.atlasR}`)?.regionId ?? 'unknown'
+          (() => {
+            const cell = cellsByCoordinate.get(`${castle.atlasQ},${castle.atlasR}`);
+            return cell === undefined
+              ? 'unknown'
+              : [cell.regionId, cell.elevation, cell.hydroRegime, cell.hydroSurfaceMilli].join(':');
+          })()
         ))
       ].join('|');
       if (signature === appliedSignature) return false;
@@ -217,6 +278,7 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
       const scale = new THREE.Vector3();
       const rotation = new THREE.Quaternion();
       const nextTargets: GreaterRealmSelectionTarget[] = [];
+      const nextGroundingRows: CastleGroundingRow[] = [];
       const publicNames = new Map(snapshot.bootstrap?.regions.map((region) => (
         [region.regionId, region.publicName] as const
       )) ?? []);
@@ -236,7 +298,7 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
         nextMesh.setColorAt(index, new THREE.Color(
           castle.castleId === ownCastleId ? '#f0d58c' : regionColor
         ));
-        nextTargets.push(Object.freeze({
+        const target = Object.freeze({
           selection: Object.freeze({
             kind: 'castle',
             label: castle.castleId === ownCastleId
@@ -246,7 +308,9 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
             atlasR: castle.atlasR
           }),
           world: position.clone()
-        }));
+        });
+        nextTargets.push(target);
+        nextGroundingRows.push(Object.freeze({ castle, cell, index, size, target }));
       });
       nextMesh.instanceMatrix.needsUpdate = true;
       if (nextMesh.instanceColor) nextMesh.instanceColor.needsUpdate = true;
@@ -255,6 +319,7 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
       group.add(nextMesh);
       count = castles.length;
       targets = Object.freeze(nextTargets);
+      groundingRows = Object.freeze(nextGroundingRows);
       const geometryBytes = Object.values(geometry.attributes).reduce(
         (total, attribute) => total + attribute.array.byteLength,
         geometry.index?.array.byteLength ?? 0
@@ -739,6 +804,9 @@ export function createGreaterRealmWorldCanvasHost(
     }
     try {
       activeRuntime.flushUploads();
+      castleLayer.refreshGrounding((chunkHandle, cell) => (
+        activeRuntime.getTerrainSurfaceY?.(chunkHandle, cell)
+      ));
       const telemetry = activeRuntime.getTelemetry();
       if (
         fitRequested
