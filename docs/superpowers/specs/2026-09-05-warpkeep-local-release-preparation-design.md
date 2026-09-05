@@ -3,7 +3,8 @@
 ## Priority amendment: admissions deferred
 
 The owner's latest direction makes shipping 0.4 live the immediate priority;
-future admissions scope is undecided and deferred until after release. Do not
+Genesis 002's future admissions scope is undecided and deferred until after
+release. Genesis 001 admissions stay frozen at the existing 0.3 state. Do not
 design, expand or activate admissions as part of this work. Preserve current
 access restrictions and existing players during deployment. Do not interpret
 the undecided future policy as authorization to open access, delete players or
