@@ -4,12 +4,17 @@ import {
   PTR_PRIVATE_TABLE_COUNT,
   assertPtrPrivateSchemaSurface,
 } from './schemaContract';
+import {
+  gameplay04KeepV1,
+  gameplay04ReceiptV1,
+  gameplay04WorkerV1,
+} from './gameplaySchema';
 
 /*
  * These table descriptors are intentionally defined in this isolated module.
  * Importing the production schema would evaluate and bundle its registration
- * graph, including admission/gameplay/economy wires that PTR must not carry.
- * Every descriptor below omits `public: true`, so all 24 tables are private.
+ * graph, including legacy admission/gameplay/economy wires that PTR must not carry.
+ * Every descriptor below omits `public: true`, so all 27 tables are private.
  */
 
 export const allowedFid = table(
@@ -559,6 +564,9 @@ const ptrTables = {
   realmAtlasVisibleRegionV1,
   realmWorkerSystemV2,
   ptrOwnerAnchorV1,
+  gameplay04KeepV1,
+  gameplay04WorkerV1,
+  gameplay04ReceiptV1,
 } as const;
 
 assertPtrPrivateSchemaSurface(Object.keys(ptrTables));

@@ -31,4 +31,9 @@ export function genesis002PopulationSnapshot(
 
 export function requireGenesis002PopulationEmpty(ctx: Genesis002Context): void {
   assertGenesis002PopulationEmpty(genesis002PopulationSnapshot(ctx));
+  if (
+    ctx.db.gameplay04KeepV1.count() !== 0n
+    || ctx.db.gameplay04WorkerV1.count() !== 0n
+    || ctx.db.gameplay04ReceiptV1.count() !== 0n
+  ) throw new Error('GENESIS_002_POPULATION_NOT_EMPTY');
 }

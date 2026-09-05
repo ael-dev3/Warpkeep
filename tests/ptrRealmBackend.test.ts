@@ -81,7 +81,7 @@ function generatedSources(root: string): Readonly<Record<string, string>> {
   )));
 }
 
-test('PTR schema is exactly G002 private atlas storage plus one owner anchor', () => {
+test('PTR schema appends private gameplay keep storage to the isolated atlas', () => {
   assert.deepEqual(PTR_PRIVATE_TABLE_ACCESSORS, [
     'allowedFid',
     'accessRequestV1',
@@ -107,6 +107,9 @@ test('PTR schema is exactly G002 private atlas storage plus one owner anchor', (
     'realmAtlasVisibleRegionV1',
     'realmWorkerSystemV2',
     'ptrOwnerAnchorV1',
+    'gameplay04KeepV1',
+    'gameplay04WorkerV1',
+    'gameplay04ReceiptV1',
   ]);
   assert.doesNotThrow(() => assertPtrPrivateSchemaSurface(
     PTR_PRIVATE_TABLE_ACCESSORS,
@@ -174,6 +177,8 @@ test('PTR registers only the approved admin and owner procedure surface', () => 
     'get_realm_atlas_chunk_v1',
     'get_realm_atlas_resource_locations_v1',
     'plan_realm_route_v1',
+    'initialize_gameplay04_keep_v1',
+    'get_gameplay04_keep_v1',
   ]);
   const surface = JSON.stringify([
     ...PTR_ADMIN_PROCEDURES,
@@ -182,7 +187,7 @@ test('PTR registers only the approved admin and owner procedure surface', () => 
   ]);
   assert.doesNotMatch(
     surface,
-    /access.request|admit|allow.fid|bootstrap.player|gameplay|scheduler|worker|chat|economy/iu,
+    /access.request|admit|allow.fid|bootstrap.player|scheduler|worker|chat|economy/iu,
   );
 });
 
@@ -362,9 +367,10 @@ test('compiled PTR payload contains no shared production graph or forbidden poli
       .replaceAll('\\', '/');
   });
   assert.deepEqual(sourceSections, [
-    '../node_modules/.pnpm/headers-polyfill@4.0.3/node_modules/headers-polyfill/lib/index.mjs',
-    '../node_modules/.pnpm/spacetimedb@2.6.1/node_modules/spacetimedb/dist/server/index.mjs',
+    'node_modules/.pnpm/headers-polyfill@4.0.3/node_modules/headers-polyfill/lib/index.mjs',
+    'node_modules/.pnpm/spacetimedb@2.6.1/node_modules/spacetimedb/dist/server/index.mjs',
     'src/schemaContract.ts',
+    'src/gameplaySchema.ts',
     'src/schema.ts',
     'src/contract.ts',
     'src/ownerPolicy.ts',
@@ -379,11 +385,14 @@ test('compiled PTR payload contains no shared production graph or forbidden poli
     'src/ownerReducers.ts',
     'src/atlasReadPolicy.ts',
     'src/atlasReadReducers.ts',
+    '../gameplay04/policy.ts',
+    '../gameplay04/keep.ts',
+    'src/gameplayKeep.ts',
     'src/index.ts',
   ]);
 
   for (const forbidden of [
-    /\b(?:inner_keep|economy|gameplay)\b/iu,
+    /\b(?:inner_keep|economy)\b/iu,
     /CANONICAL_INNER_KEEP/iu,
     /BUILDING_POLICIES/iu,
     /INNER_KEEP_(?:LAYOUT|POLICY|PLACEMENT|DISCOUNT|RESOURCE)/iu,

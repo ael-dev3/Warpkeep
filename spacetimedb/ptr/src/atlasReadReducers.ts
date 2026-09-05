@@ -130,7 +130,7 @@ function ptrRegionManifest(release: PtrReleaseRow): readonly PtrRegionManifestRo
   return Object.freeze(rows);
 }
 
-type PtrReadyAtlas = Readonly<{
+export type PtrReadyAtlas = Readonly<{
   release: PtrReleaseRow;
   revision: bigint;
   regions: readonly PtrRegionManifestRow[];
@@ -138,7 +138,7 @@ type PtrReadyAtlas = Readonly<{
   anchorChunk: PtrChunkRow;
 }>;
 
-function requirePtrReadyAtlas(ctx: PtrContext): PtrReadyAtlas {
+export function requirePtrReadyAtlas(ctx: PtrContext): PtrReadyAtlas {
   requirePtrPopulationEmpty(ctx);
   const status = inspectGreaterRealmV17(sharedGreaterRealmContext(ctx));
   const release = ctx.db.greaterRealmReleaseV1.atlasId.find(PTR_ATLAS_ID);

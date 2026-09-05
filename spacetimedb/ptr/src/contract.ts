@@ -19,7 +19,7 @@ export const PTR_STATUS = Object.freeze({
   accessRequestsOpen: false,
 } as const);
 
-/** Atlas import is temporary; activation and every non-atlas mutation are absent. */
+/** Atlas import and private keep initialization are enabled; activation remains absent. */
 export const PTR_ATLAS_POLICY = Object.freeze({
   importMutationsEnabled: true,
   activationMutationsEnabled: false,
@@ -49,4 +49,6 @@ export const PTR_OWNER_PROCEDURES = Object.freeze([
   'get_realm_atlas_chunk_v1',
   'get_realm_atlas_resource_locations_v1',
   'plan_realm_route_v1',
+  'initialize_gameplay04_keep_v1',
+  'get_gameplay04_keep_v1',
 ] as const);

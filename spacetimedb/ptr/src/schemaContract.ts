@@ -23,6 +23,9 @@ export const PTR_PRIVATE_TABLE_ACCESSORS = Object.freeze([
   'realmAtlasVisibleRegionV1',
   'realmWorkerSystemV2',
   'ptrOwnerAnchorV1',
+  'gameplay04KeepV1',
+  'gameplay04WorkerV1',
+  'gameplay04ReceiptV1',
 ] as const);
 
 export const PTR_PRIVATE_TABLE_COUNT = PTR_PRIVATE_TABLE_ACCESSORS.length;

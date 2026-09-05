@@ -147,11 +147,14 @@ test('every G002 table descriptor is forced private instead of inheriting G001 v
   assert.equal(
     source.split('makeGenesis002PrivateTable(').length - 1,
     23,
-    'all 23 registered tables must use the private transform',
+    'all 23 inherited descriptors must use the private transform',
   );
   assert.doesNotMatch(source, /public:\s*true/u);
   assert.match(
     source,
-    /GENESIS_002_PRIVATE_TABLE_COUNT = 23/u,
+    /GENESIS_002_PRIVATE_TABLE_COUNT = 26/u,
   );
+  for (const accessor of [
+    'gameplay04KeepV1', 'gameplay04WorkerV1', 'gameplay04ReceiptV1',
+  ]) assert.match(source, new RegExp(`\\b${accessor}\\b`, 'u'));
 });
