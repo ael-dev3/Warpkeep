@@ -369,3 +369,115 @@ The B0 closure mismatch was not unrelated: it was a real source-closure defect
 within this fix scope. It is corrected by the exact five-member integration and
 the focused B0 gate is green as recorded above. The original interrupted run
 still provides no whole-suite-green claim.
+
+## Review fix round 2: repeated context restoration
+
+This correction was developed from base
+`286f6d580678cc3ec4ad12a95f26468e2a78d418` and changes only the canvas host
+and its focused test.
+
+Source/test commits:
+
+- `1ce16f7033dbfa313e2ea5531f034763a10af501` — register the host's deferred
+  policy retry after each replacement runtime's context-restored listener.
+- `f9b85c59505764b0eee022948e524a1f92bb4260` — render and flush uploads through
+  the mutable active runtime after an adaptive runtime replacement, with a real
+  scene-runtime regression.
+
+Exact source/test files:
+
+- `src/components/realm/createGreaterRealmWorldCanvasHost.ts`
+- `tests/greaterRealmWorldCanvasHost.test.ts`
+- `.superpowers/sdd/release-closure-plan/task-v2-report.md` (report commit only)
+
+After an adaptive swap, the replacement scene runtime installs its own WebGL
+context listeners. The host now removes and re-registers its retry listener
+around that binding, ensuring the runtime clears `contextLost` before the host
+consumes a pending responsive policy on every later restoration. This uses DOM
+listener ordering directly; it adds no deferred microtask, timer, or frame that
+could survive host disposal. The regression disposes the host and dispatches a
+further restore event to prove no queued runtime construction occurs.
+
+The strengthened browser probe then exposed a second issue in the same
+replacement lifecycle: the host render callback still read the original
+construction-time runtime variable. The replacement runtime correctly had two
+selected and pending chunks, but its queue was never flushed. Rendering,
+surface grounding, and telemetry now use the mutable active runtime, so the
+replacement queue is uploaded after both ordinary swaps and context-restored
+swaps.
+
+### Round-two TDD and verification
+
+Listener-order RED command:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/greaterRealmWorldCanvasHost.test.ts --maxWorkers=1
+```
+
+Result before the listener correction: exit 1; the new
+`retries a deferred policy after restore when an earlier swap changed listener order`
+test expected three runtime constructions but received two. One later lifecycle
+test also failed because the intentional assertion aborted before disposal and
+left its test listener active. After the listener correction, the same complete
+host file passed 26/26.
+
+The first strengthened real-browser run against
+`1ce16f7033dbfa313e2ea5531f034763a10af501` failed after the first
+loss/desktop-resize/restore cycle. The repeated diagnostic reproduced the
+failure at `.git/voxel-viewport-ui390-TTlVBn/lost-resize-failure.json`: after a
+five-second wait, WebGL was restored and the same selection and host-owned
+castle/resource layers remained, but scene telemetry reported zero selected and
+uploaded chunks. This was an actual local Chrome failure, not only a review
+hypothesis.
+
+Real scene-runtime RED command added from that browser evidence:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/greaterRealmWorldCanvasHost.test.ts -t "requeues real scene uploads" --maxWorkers=1
+```
+
+Result before the active-runtime render correction: exit 1; 1 test failed and
+26 were filtered. Immediately after the first adaptive swap, telemetry showed
+`selectedChunkCount: 2`, `pendingUploadCount: 2`,
+`skippedByBudgetCount: 0`, and `uploadedChunkCount: 0`. This established that
+the adaptive plan and budget admitted the chunks while the replacement upload
+queue was not being rendered.
+
+Result after correction: exit 0; the focused real-runtime test passed, with 26
+filtered. The final complete host command (the listener-order RED command
+above) then exited 0 with 27/27 tests passing in 2.59s. It covers ordinary
+adaptive upload replacement, swap -> context loss -> responsive policy change
+-> restore, a second active-runtime upload/recovery path, invalid selection,
+failed-swap cleanup, and disposal.
+
+Pinned app TypeScript after the final source change:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/typescript/bin/tsc -p tsconfig.app.json --tsBuildInfoFile .git/voxel-runtime.tsbuildinfo
+```
+
+Result: exit 0 with no diagnostics.
+
+`git diff --cached --check` passed before each source/test commit. Only the two
+exact files listed above were included in those commits; unrelated dirt,
+backend work, G001 projection, dependency state, and the root `node_modules`
+junction were left unchanged.
+
+### Round-two actual local Chrome synthetic QA
+
+The controller reran the strengthened repeated-recovery probe against exact
+source `f9b85c59505764b0eee022948e524a1f92bb4260`:
+
+- `.git/voxel-viewport-ui390-ei7gBv`, exit 0 in 8.74s
+- `.git/voxel-viewport-ui360-gT4wf0`, exit 0 in 8.36s
+
+The 390 evidence's `lost-resize.json` confirms successful restoration first at
+1440x900 and then back at 390x844. Both cycles retained the same canvas and the
+exact selected target while reporting two selected and two uploaded chunks, 23
+draw calls, 478 resident voxel triangles, and zero voxel fallbacks. The normal
+disclosure, hit-target, Escape/focus, realm-cycle, resize, and context-recovery
+checks also remained green.
+
+This is synthetic local Chrome evidence, not physical-device/touch/keyboard or
+authenticated-gameplay acceptance. It does not establish full release
+completion or a whole-suite-green result.
