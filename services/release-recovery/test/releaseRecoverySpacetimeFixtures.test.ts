@@ -23,8 +23,11 @@ const fixedHost = vi.hoisted(() => ({
   readFixedFixtureOutput: vi.fn(),
   recoverFixedFixtureOutputs: vi.fn(),
   beginFixedFixtureOutputTransaction: vi.fn(),
+  preflightFixedPublicSourceObjectDatabase: vi.fn(),
+  preflightFixedToolchainSourcePolicy: vi.fn(),
   preflightFixedWslHostAndGuest: vi.fn(),
   bootstrapFixedWslToolchain: vi.fn(),
+  publishFixedToolchainAttestation: vi.fn(),
   executeFixedWslFixturePlan: vi.fn(),
 }))
 
@@ -37,7 +40,7 @@ import {
   runGenerator,
 } from '../scripts/generate-release-recovery-spacetime-fixtures.mjs'
 import {
-  TOOLCHAIN_BOOTSTRAP_POLICY,
+  TOOLCHAIN_SOURCE_POLICY_PATH,
   parseToolchainArguments,
   prepareReleaseRecoveryWslToolchain,
 } from '../scripts/prepare-release-recovery-wsl-toolchain.mjs'
@@ -58,6 +61,53 @@ const FIXED_MATERIALIZER_PROGRAM = '/opt/warpkeep/release-recovery-v1/bin/materi
 const encode = (value: string): Uint8Array => encoder.encode(value)
 const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex')
 
+function toolchainDependencyFiles(realm: 'g001' | 'g002' | 'ptr') {
+  const paths = realm === 'g001'
+    ? ['spacetimedb/package.json', 'spacetimedb/pnpm-lock.yaml', 'spacetimedb/pnpm-workspace.yaml']
+    : realm === 'g002'
+      ? ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'spacetimedb/genesis002/package.json']
+      : ['spacetimedb/ptr/package.json', 'spacetimedb/ptr/pnpm-lock.yaml']
+  const g001Blobs = [
+    'faf7214653f1248a3f9231fd6a13dda130821014',
+    '649efdebd25528f593aff612ca8aef6f761d1e94',
+    'a640febaa07fad295f2de4b4416b7a22910eb2e6',
+  ]
+  return paths.map((path, index) => ({
+    path,
+    blob: realm === 'g001' ? g001Blobs[index]! : `${realm === 'g002' ? 'c' : 'd'}`.repeat(40),
+    bytes: 100 + index,
+    sha256: sha256(encode(`${realm}:${path}`)),
+  }))
+}
+
+function toolchainDependencyClosure(realm: 'g001' | 'g002' | 'ptr'): string {
+  const hash = createHash('sha256')
+  hash.update(`warpkeep.release-recovery.source-dependencies.${realm}.v1\n`)
+  for (const file of toolchainDependencyFiles(realm)) {
+    hash.update(`${file.path}\0${file.blob}\0${file.bytes}\0${file.sha256}\n`)
+  }
+  return hash.digest('hex')
+}
+
+function installedProgramEvidence() {
+  const bootstrap = Uint8Array.from(readFileSync(new URL(
+    '../scripts/release-recovery-wsl-bootstrap.py',
+    import.meta.url,
+  )))
+  const materializer = Uint8Array.from(readFileSync(new URL(
+    '../scripts/release-recovery-wsl-materialize.mjs',
+    import.meta.url,
+  )))
+  return {
+    bootstrapProgramBytes: bootstrap.byteLength,
+    bootstrapProgramSha256: sha256(bootstrap),
+    materializerProgramBytes: materializer.byteLength,
+    materializerProgramSha256: sha256(materializer),
+    installedMode: '500',
+    installedVerified: true,
+  }
+}
+
 const SOURCE = Object.freeze({
   g002: Object.freeze({
     receiptSha256: '4'.repeat(64),
@@ -65,7 +115,7 @@ const SOURCE = Object.freeze({
     sourceCommit: '8'.repeat(40),
     sourceTree: '9'.repeat(40),
     publishedModuleSha256: 'b'.repeat(64),
-    dependencyLockClosureSha256: 'a'.repeat(64),
+    dependencyLockClosureSha256: toolchainDependencyClosure('g002'),
   }),
   ptr: Object.freeze({
     receiptSha256: '5'.repeat(64),
@@ -73,7 +123,7 @@ const SOURCE = Object.freeze({
     sourceCommit: 'f'.repeat(40),
     sourceTree: '1'.repeat(40),
     publishedModuleSha256: '9'.repeat(64),
-    dependencyLockClosureSha256: '8'.repeat(64),
+    dependencyLockClosureSha256: toolchainDependencyClosure('ptr'),
   }),
 })
 
@@ -110,16 +160,112 @@ function privateBytes(): Map<string, Uint8Array> {
 }
 
 function runnerResult(): any {
+  const policyBytes = Uint8Array.from(readFileSync(new URL(
+    '../scripts/release-recovery-wsl-toolchain-source-policy-v1.json',
+    import.meta.url,
+  )))
+  const policy = JSON.parse(decoder.decode(policyBytes))
+  const sourceCoordinates = {
+    g001: {
+      sourceCommit: '2ae51984e1fa6ce5b0028c1a250359fed79d819b',
+      sourceTree: '90deebb5faf4129282f5c35999244f540001b27d',
+      dependencyLockClosureSha256: toolchainDependencyClosure('g001'),
+    },
+    g002: {
+      sourceCommit: SOURCE.g002.sourceCommit,
+      sourceTree: SOURCE.g002.sourceTree,
+      dependencyLockClosureSha256: SOURCE.g002.dependencyLockClosureSha256,
+    },
+    ptr: {
+      sourceCommit: SOURCE.ptr.sourceCommit,
+      sourceTree: SOURCE.ptr.sourceTree,
+      dependencyLockClosureSha256: SOURCE.ptr.dependencyLockClosureSha256,
+    },
+  }
+  const sources = Object.fromEntries(
+    Object.entries(sourceCoordinates).map(([realm, source]) => [realm, {
+      realm,
+      ...source,
+      dependencyInventoryDomain: `warpkeep.release-recovery.source-dependencies.${realm}.v1`,
+      dependencyClosureRecordPath: `source-caches/${realm}-dependency-closure-sha256.txt`,
+      dependencyFiles: toolchainDependencyFiles(realm as 'g001' | 'g002' | 'ptr'),
+    }]),
+  )
+  const dependencyCaches = Object.fromEntries(
+    Object.entries(sourceCoordinates).map(([realm, source]) => [realm, {
+      realm,
+      sourceCommit: source.sourceCommit,
+      sourceTree: source.sourceTree,
+      storePath: `pnpm-store/${realm}`,
+      closureRecordPath: `source-caches/${realm}-dependency-closure-sha256.txt`,
+      closureSha256: source.dependencyLockClosureSha256,
+      containsLinuxX64Esbuild: true,
+      packages: [{
+        name: '@esbuild/linux-x64',
+        version: '0.25.0',
+        url: 'https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.25.0.tgz',
+        sri: `sha512-${Buffer.alloc(64, realm.charCodeAt(0)).toString('base64')}`,
+        bytes: 1_000,
+        sha256: sha256(encode(`archive:${realm}`)),
+        os: ['linux'],
+        cpu: ['x64'],
+      }],
+    }]),
+  )
   const toolchainManifestBytes = encode(`${JSON.stringify({
     schemaVersion: 1,
     profile: 'warpkeep-release-recovery-wsl-linux-x64-toolchain-v1',
     platform: 'linux',
     architecture: 'x64',
-    nodeVersions: ['24.19.0', '22.22.3'],
-    pnpmVersion: '11.7.0',
-    spacetimeVersion: '2.6.1',
-    gitPackageVersion: '1:2.43.0-1ubuntu7.3',
-    wslVersion: '2.7.11.0',
+    distribution: 'Ubuntu-24.04',
+    recoveryBuildProfile: policy.recoveryBuildProfile,
+    sourcePolicySha256: sha256(policyBytes),
+    hostGuest: { ...policy.hostGuest, platformVerified: true },
+    programs: installedProgramEvidence(),
+    nodeReleases: Object.fromEntries(Object.entries(policy.nodeReleases).map(([version, value]: any) => [version, {
+      ...value,
+      signatureVerified: true,
+      extractedMemberVerified: true,
+    }])),
+    pnpm: { ...policy.pnpm, archiveVerified: true, membersVerified: true },
+    spacetime: { ...policy.spacetime, archiveVerified: true, membersVerified: true },
+    systemTools: Object.fromEntries(Object.entries(policy.systemTools).map(([name, value]: any) => [name, {
+      ...value,
+      installedBytes: 1_000 + name.length,
+      installedMode: '755',
+      installedVerified: true,
+    }])),
+    sourceObjectExport: {
+      profile: 'warpkeep-release-recovery-source-object-export-v1',
+      repositoryPath: 'source-caches/repository.git',
+      objectFormat: 'sha1',
+      objectInventoryDomain: 'warpkeep.release-recovery.source-object-export.v1',
+      objectInventoryRecordPath: 'source-caches/repository-object-inventory-v1.json',
+      objectCount: 42,
+      objectBytes: 12_345,
+      objectClosureSha256: 'e'.repeat(64),
+      exactObjectsVerified: true,
+      sources: {
+        g001: {
+          sourceCommit: sourceCoordinates.g001.sourceCommit,
+          sourceTree: sourceCoordinates.g001.sourceTree,
+          preparationCommit: policy.sourceRules.g001.preparationCommit,
+          preparationTree: policy.sourceRules.g001.preparationTree,
+        },
+        g002: {
+          sourceCommit: sourceCoordinates.g002.sourceCommit,
+          sourceTree: sourceCoordinates.g002.sourceTree,
+        },
+        ptr: {
+          sourceCommit: sourceCoordinates.ptr.sourceCommit,
+          sourceTree: sourceCoordinates.ptr.sourceTree,
+        },
+      },
+    },
+    sources,
+    dependencyCaches,
+    signaturesVerified: true,
+    offlineReady: true,
   })}\n`)
   return {
     schemaVersion: 1,
@@ -129,7 +275,7 @@ function runnerResult(): any {
     realms: {
       g001: {
         realm: 'g001',
-        dependencyLockClosureSha256: '1'.repeat(64),
+        dependencyLockClosureSha256: toolchainDependencyClosure('g001'),
         transformedSourceClosureSha256: '7'.repeat(64),
         firstBuildArtifactSha256: '3'.repeat(64),
         secondBuildArtifactSha256: '3'.repeat(64),
@@ -199,6 +345,23 @@ function fixedProgramCoordinates(): any {
       materializerProgramBytes: materializer.byteLength,
       materializerProgramSha256: sha256(materializer),
     },
+  }
+}
+
+function bootstrapResult(): any {
+  const programs = fixedProgramCoordinates().toolchain
+  return {
+    prepared: true,
+    sourcePolicySha256: '6'.repeat(64),
+    manifestSha256: runnerResult().toolchainManifestSha256,
+    cacheSha256: programs.cacheCatalogSha256,
+    cacheClosureSha256: '8'.repeat(64),
+    signaturesVerified: true,
+    offlineReady: true,
+    bootstrapProgramBytes: programs.bootstrapProgramBytes,
+    bootstrapProgramSha256: programs.bootstrapProgramSha256,
+    materializerProgramBytes: programs.materializerProgramBytes,
+    materializerProgramSha256: programs.materializerProgramSha256,
   }
 }
 
@@ -335,11 +498,16 @@ function dependencies(options: Readonly<{
       profile: 'warpkeep-release-recovery-wsl-toolchain-attestation-v1',
       platform: 'linux',
       architecture: 'x64',
+      sourcePolicySha256: sha256(readFileSync(new URL(
+        '../scripts/release-recovery-wsl-toolchain-source-policy-v1.json',
+        import.meta.url,
+      ))),
       offlineReady: true,
       signaturesVerified: true,
       attestationSha256: sha256(bytes),
       toolchainManifestSha256: result.toolchainManifestSha256,
       cacheCatalogSha256: programs.cacheCatalogSha256,
+      cacheClosureSha256: '8'.repeat(64),
       bootstrapProgramBytes: programs.bootstrapProgramBytes,
       bootstrapProgramSha256: programs.bootstrapProgramSha256,
       materializerProgramBytes: programs.materializerProgramBytes,
@@ -360,6 +528,15 @@ function dependencies(options: Readonly<{
     (paths: any) => output.outputs.begin(paths),
   )
   fixedHost.preflightFixedWslHostAndGuest.mockResolvedValue(platformAttestation())
+  fixedHost.preflightFixedPublicSourceObjectDatabase.mockResolvedValue(Object.freeze({
+    schemaVersion: 1,
+    profile: 'warpkeep-release-recovery-fixed-public-source-capability-v1',
+  }))
+  fixedHost.preflightFixedToolchainSourcePolicy.mockResolvedValue(Object.freeze({
+    schemaVersion: 1,
+    profile: 'warpkeep-release-recovery-wsl-toolchain-source-policy-capability-v1',
+    sourcePolicySha256: '6'.repeat(64),
+  }))
   fixedHost.executeFixedWslFixturePlan.mockImplementation((request: any) => runner(request))
   return {
     adapters: {
@@ -452,13 +629,7 @@ describe('guarded recovery fixture generator', () => {
     expect(fixture.runner).not.toHaveBeenCalled()
     expect(fixture.output.outputs.begin).not.toHaveBeenCalled()
 
-    const bootstrap = vi.fn(async (_request: any) => ({
-      prepared: true,
-      manifestSha256: runnerResult().toolchainManifestSha256,
-      cacheSha256: fixedProgramCoordinates().toolchain.cacheCatalogSha256,
-      signaturesVerified: true,
-      offlineReady: true,
-    }))
+    const bootstrap = vi.fn(async (_request: any) => bootstrapResult())
     await rejected(prepareReleaseRecoveryWslToolchain({
       privateRoot: PRIVATE_ROOT,
       adapters: { privateRoot: fixture.privateRoot, bootstrap },
@@ -500,13 +671,7 @@ describe('guarded recovery fixture generator', () => {
     expect(allObjectKeys(fixture.runner.mock.calls[0]![0])).not.toContain('root')
     expect(allObjectKeys(fixture.runner.mock.calls[0]![0])).not.toContain('canonicalPath')
 
-    const bootstrap = vi.fn(async (_request: any) => ({
-      prepared: true,
-      manifestSha256: runnerResult().toolchainManifestSha256,
-      cacheSha256: fixedProgramCoordinates().toolchain.cacheCatalogSha256,
-      signaturesVerified: true,
-      offlineReady: true,
-    }))
+    const bootstrap = vi.fn(async (_request: any) => bootstrapResult())
     fixedHost.bootstrapFixedWslToolchain.mockImplementation(bootstrap)
     await prepareReleaseRecoveryWslToolchain({
       privateRoot: PRIVATE_ROOT,
@@ -521,22 +686,37 @@ describe('guarded recovery fixture generator', () => {
     const files = privateBytes()
     files.delete(FIXED_PRIVATE_RECORD_PATHS.ptrLiveReceipt)
     const fixture = dependencies({ files })
-    const bootstrap = vi.fn(async () => ({
-      prepared: true,
-      manifestSha256: runnerResult().toolchainManifestSha256,
-      cacheSha256: fixedProgramCoordinates().toolchain.cacheCatalogSha256,
-      signaturesVerified: true,
-      offlineReady: true,
-    }))
+    const bootstrap = vi.fn(async () => bootstrapResult())
     fixedHost.bootstrapFixedWslToolchain.mockImplementation(bootstrap)
 
     await rejected(prepareReleaseRecoveryWslToolchain({
       privateRoot: PRIVATE_ROOT,
     }))
     expect(fixture.privateRoot.read.mock.calls.map((call: any[]) => call[1]))
-      .toEqual(Object.values(FIXED_PRIVATE_RECORD_PATHS))
+      .toEqual(Object.values(FIXED_PRIVATE_RECORD_PATHS).filter(
+        path => path !== FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation,
+      ))
     expect(fixedHost.preflightFixedWslHostAndGuest).not.toHaveBeenCalled()
     expect(bootstrap).not.toHaveBeenCalled()
+  })
+
+  it('bootstrap preserves every Task-0 prerequisite except its not-yet-produced attestation', async () => {
+    const files = privateBytes()
+    files.delete(FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation)
+    const fixture = dependencies({ files })
+    const resultCapability = Object.freeze(bootstrapResult())
+    const bootstrap = vi.fn(async () => resultCapability)
+    fixedHost.bootstrapFixedWslToolchain.mockImplementation(bootstrap)
+
+    await expect(prepareReleaseRecoveryWslToolchain({ privateRoot: PRIVATE_ROOT }))
+      .resolves.toEqual({ prepared: true })
+    expect(fixture.privateRoot.read.mock.calls.map((call: any[]) => call[1]))
+      .toEqual(Object.values(FIXED_PRIVATE_RECORD_PATHS).filter(
+        path => path !== FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation,
+      ))
+    expect(bootstrap).toHaveBeenCalledTimes(1)
+    expect(fixedHost.publishFixedToolchainAttestation.mock.calls[0]![0])
+      .toBe(resultCapability)
   })
 
   it('review boundary: fixed WSL preflight failure precedes bootstrap, runner, and writes', async () => {
@@ -557,7 +737,7 @@ describe('guarded recovery fixture generator', () => {
     )
     await rejected(prepareReleaseRecoveryWslToolchain({ privateRoot: PRIVATE_ROOT }))
     expect(bootstrapFixture.privateRoot.read).toHaveBeenCalledTimes(
-      Object.values(FIXED_PRIVATE_RECORD_PATHS).length,
+      Object.values(FIXED_PRIVATE_RECORD_PATHS).length - 1,
     )
     expect(bootstrap).not.toHaveBeenCalled()
   })
@@ -743,6 +923,59 @@ describe('guarded recovery fixture generator', () => {
     }
   })
 
+  it('zeroizes every acquired private record when a later fixed read fails', async () => {
+    const fixture = dependencies()
+    const originalRead = fixture.privateRoot.read.getMockImplementation()!
+    const acquired: Uint8Array[] = []
+    let reads = 0
+    fixture.privateRoot.read.mockImplementation(async (...args: any[]) => {
+      if (reads++ === 3) throw new Error('later-private-read-detail')
+      const file = await originalRead(args[0], args[1], args[2])
+      acquired.push(file.bytes)
+      return file
+    })
+
+    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' }))
+
+    expect(acquired).toHaveLength(3)
+    expect(acquired.every(bytes => bytes.every(byte => byte === 0))).toBe(true)
+  })
+
+  it('zeroizes a newly acquired record when its descriptor evidence is invalid', async () => {
+    const fixture = dependencies({ fileMutation: { mode: 0o644 } })
+    const originalRead = fixture.privateRoot.read.getMockImplementation()!
+    let acquired: Uint8Array | undefined
+    fixture.privateRoot.read.mockImplementationOnce(async (...args: any[]) => {
+      const file = await originalRead(args[0], args[1], args[2])
+      acquired = file.bytes
+      return file
+    })
+
+    await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' }))
+
+    expect(acquired).toBeInstanceOf(Uint8Array)
+    expect(acquired!.every(byte => byte === 0)).toBe(true)
+  })
+
+  it('zeroizes a decoded RPC secret when census decoding fails', async () => {
+    const files = privateBytes()
+    files.set(FIXED_PRIVATE_RECORD_PATHS.censusPepper, encode('invalid-census\n'))
+    dependencies({ files })
+    const fill = vi.spyOn(Buffer.prototype, 'fill')
+    let secretBuffers: Buffer[]
+    try {
+      await rejected(runGenerator({ privateRoot: PRIVATE_ROOT, mode: 'write' }))
+      secretBuffers = fill.mock.instances.filter(
+        (bytes): bytes is Buffer => Buffer.isBuffer(bytes) && bytes.byteLength === 32,
+      )
+    } finally {
+      fill.mockRestore()
+    }
+
+    expect(secretBuffers!).toHaveLength(2)
+    expect(secretBuffers!.every(bytes => bytes.every(byte => byte === 0))).toBe(true)
+  })
+
   it('requires authenticated receipts and signed offline toolchain attestation before WSL', async () => {
     const receiptFixture = dependencies()
     receiptFixture.verifyReceipt.mockImplementationOnce(async ({ realm, bytes }: any) => ({
@@ -763,11 +996,16 @@ describe('guarded recovery fixture generator', () => {
         profile: 'warpkeep-release-recovery-wsl-toolchain-attestation-v1',
         platform: 'linux',
         architecture: 'x64',
+        sourcePolicySha256: sha256(readFileSync(new URL(
+          '../scripts/release-recovery-wsl-toolchain-source-policy-v1.json',
+          import.meta.url,
+        ))),
         offlineReady: true,
         signaturesVerified: false,
         attestationSha256: sha256(bytes),
         toolchainManifestSha256: runnerResult().toolchainManifestSha256,
         cacheCatalogSha256: programs.cacheCatalogSha256,
+        cacheClosureSha256: '8'.repeat(64),
         bootstrapProgramBytes: programs.bootstrapProgramBytes,
         bootstrapProgramSha256: programs.bootstrapProgramSha256,
         materializerProgramBytes: programs.materializerProgramBytes,
@@ -912,19 +1150,31 @@ describe('toolchain bootstrap and WSL runner shells', () => {
   })
 
   it('pins release signatures and archive identities without consulting PATH or caller URLs', () => {
-    expect(TOOLCHAIN_BOOTSTRAP_POLICY).toMatchObject({
-      nodeReleaseSignatures: {
+    expect(TOOLCHAIN_SOURCE_POLICY_PATH).toBe(
+      'services/release-recovery/scripts/release-recovery-wsl-toolchain-source-policy-v1.json',
+    )
+    const policy = JSON.parse(decoder.decode(readFileSync(new URL(
+      '../scripts/release-recovery-wsl-toolchain-source-policy-v1.json',
+      import.meta.url,
+    ))))
+    expect(policy).toMatchObject({
+      profile: 'warpkeep-release-recovery-wsl-toolchain-source-policy-v1',
+      nodeReleases: {
         '24.19.0': {
-          algorithm: 'EdDSA',
-          fingerprint: '5BE8A3F6C8A5C01D106C0AD820B1A390B168D356',
-          keyBytes: 924,
-          keySha256: '5115095e2f8010c75da052ecb1cfb3af630e084f0f8daa93a863557b01b0f90a',
+          archiveBytes: 31_633_904,
+          archiveMemberBytes: 125_989_464,
+          shasumsBytes: 2_967,
+          signatureBytes: 119,
+          signingAlgorithm: 'EdDSA',
+          signerFingerprint: '5BE8A3F6C8A5C01D106C0AD820B1A390B168D356',
         },
         '22.22.3': {
-          algorithm: 'RSA',
-          fingerprint: 'CC68F5A3106FF448322E48ED27F5E38D5B0A215F',
-          keyBytes: 3163,
-          keySha256: 'e31e1aa40a8331f01d753cef475f7b9eab934fc25f5f0b36995bfd80bd66ad27',
+          archiveBytes: 31_059_464,
+          archiveMemberBytes: 124_819_136,
+          shasumsBytes: 3_777,
+          signatureBytes: 566,
+          signingAlgorithm: 'RSA',
+          signerFingerprint: 'CC68F5A3106FF448322E48ED27F5E38D5B0A215F',
         },
       },
       pnpm: {
@@ -935,22 +1185,15 @@ describe('toolchain bootstrap and WSL runner shells', () => {
       spacetime: {
         version: '2.6.1',
         commit: '052c83fe984a4c4eb7bb4f9afa5c6b1903891d87',
+        archiveBytes: 57_464_969,
         archiveSha256: 'cb03bb4706dc6bd6ef080c9bbd220a6e7d10430a65e7be2ba6be27ec7e3a9118',
-        cliSha256: 'cac13c929049f31cb588c230a0d7fe5f388505b4c64047a68b1d5cfdc811624b',
-        standaloneSha256: 'a9185a737c9b739896c8f51326e1c3aedefba80a0f01def76ce26f358d5c187b',
       },
     })
   })
 
   it('prepares only through a validated fixed-policy bootstrap and returns no details', async () => {
     const fixture = dependencies()
-    const bootstrap = vi.fn(async (_request: any) => ({
-      prepared: true,
-      manifestSha256: runnerResult().toolchainManifestSha256,
-      cacheSha256: fixedProgramCoordinates().toolchain.cacheCatalogSha256,
-      signaturesVerified: true,
-      offlineReady: true,
-    }))
+    const bootstrap = vi.fn(async (_request: any) => bootstrapResult())
     fixedHost.bootstrapFixedWslToolchain.mockImplementation(bootstrap)
     await expect(prepareReleaseRecoveryWslToolchain({
       privateRoot: PRIVATE_ROOT,
@@ -1069,10 +1312,15 @@ describe('fixed production WSL host boundary', () => {
       profile: 'warpkeep-release-recovery-wsl-toolchain-attestation-v1',
       platform: 'linux',
       architecture: 'x64',
+      sourcePolicySha256: sha256(readFileSync(new URL(
+        '../scripts/release-recovery-wsl-toolchain-source-policy-v1.json',
+        import.meta.url,
+      ))),
       offlineReady: true,
       signaturesVerified: true,
       toolchainManifestSha256: programs.manifestSha256,
       cacheCatalogSha256: programs.cacheCatalogSha256,
+      cacheClosureSha256: '8'.repeat(64),
       bootstrapProgramBytes: programs.bootstrapProgramBytes,
       bootstrapProgramSha256: programs.bootstrapProgramSha256,
       materializerProgramBytes: programs.materializerProgramBytes,
@@ -1105,6 +1353,8 @@ describe('fixed production WSL host boundary', () => {
       'attestFixedFile(GIT, { mode: 0o755, sha256: GIT_SHA256 })',
     )
     expect(materializer).toContain("const store = `${cleanRoot}/.pnpm-store`")
+    expect(materializer).toContain("['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'spacetimedb']")
+    expect(materializer).toContain("['--no-replace-objects', '--git-dir', REPOSITORY, ...args]")
     expect(materializer).toContain('store.verify()')
     expect(materializer).not.toContain('`${STATE_ROOT}/pnpm-store/${realm}`')
     expect(materializer).toContain('await terminateOwnedChild(child)')
@@ -1137,10 +1387,29 @@ describe('fixed production WSL host boundary', () => {
         materializerProgramSha256: programs.toolchain.materializerProgramSha256,
       },
     }
-    const bootstrapResult = {
+    const manifestBytes = runnerResult().toolchainManifestBytes
+    const catalogBytes = encode(`${JSON.stringify({
+      schemaVersion: 2,
+      profile: 'warpkeep-release-recovery-wsl-cache-catalog-v2',
+      platform: 'linux',
+      architecture: 'x64',
+      inventoryRoots: ['pnpm-store', 'source-caches', 'toolchains'],
+      manifestPath: 'toolchains/linux-x64.json',
+      manifestSha256: sha256(manifestBytes),
+      cacheClosureSha256: '8'.repeat(64),
+      signaturesVerified: true,
+      offlineReady: true,
+      entries: [{ path: 'pnpm-store', type: 'directory', mode: '700' }],
+    })}\n`)
+    const fixedBootstrapResult = {
       prepared: true,
-      manifestSha256: programs.toolchain.manifestSha256,
-      cacheSha256: programs.toolchain.cacheCatalogSha256,
+      sourcePolicySha256: sha256(readFileSync(new URL(
+        '../scripts/release-recovery-wsl-toolchain-source-policy-v1.json',
+        import.meta.url,
+      ))),
+      manifestSha256: sha256(manifestBytes),
+      cacheSha256: sha256(catalogBytes),
+      cacheClosureSha256: '8'.repeat(64),
       signaturesVerified: true,
       offlineReady: true,
     }
@@ -1169,9 +1438,16 @@ describe('fixed production WSL host boundary', () => {
         }
       }
       const path = args.at(-1)
-      const programBytes = args.includes(FIXED_BOOTSTRAP_PROGRAM)
-        ? programs.bootstrap
-        : programs.materializer
+      const artifactBytes = path === '/var/lib/warpkeep/release-recovery-v1/toolchains/linux-x64.json'
+        ? manifestBytes
+        : path === '/var/lib/warpkeep/release-recovery-v1/cache-catalog-v2.json'
+          ? catalogBytes
+          : args.includes(FIXED_BOOTSTRAP_PROGRAM)
+            ? programs.bootstrap
+            : programs.materializer
+      const artifactMode = path?.startsWith('/var/lib/warpkeep/release-recovery-v1/')
+        ? '400'
+        : '500'
       if (args.includes('/usr/bin/readlink')) {
         return { error: undefined, status: 0, signal: null, stdout: `${path}\n`, stderr: '' }
       }
@@ -1180,7 +1456,7 @@ describe('fixed production WSL host boundary', () => {
           error: undefined,
           status: 0,
           signal: null,
-          stdout: `regular file|500|0|0|${programBytes.byteLength}\n`,
+          stdout: `regular file|${artifactMode}|0|0|${artifactBytes.byteLength}\n`,
           stderr: '',
         }
       }
@@ -1189,12 +1465,12 @@ describe('fixed production WSL host boundary', () => {
           error: undefined,
           status: 0,
           signal: null,
-          stdout: Buffer.from(programBytes),
+          stdout: Buffer.from(artifactBytes),
           stderr: Buffer.alloc(0),
         }
       }
       const response = args.includes(FIXED_BOOTSTRAP_PROGRAM)
-        ? bootstrapResult
+        ? fixedBootstrapResult
         : materializerWire
       const selectedProgram = args.includes(FIXED_BOOTSTRAP_PROGRAM)
         ? FIXED_BOOTSTRAP_PROGRAM
@@ -1216,11 +1492,23 @@ describe('fixed production WSL host boundary', () => {
       typeof import('../scripts/release-recovery-fixture-host.mjs')
     >('../scripts/release-recovery-fixture-host.mjs')
     const platform = platformAttestation()
+    const sourcePolicy = await actualHost.preflightFixedToolchainSourcePolicy()
+    const sourceObjects = await actualHost.preflightFixedPublicSourceObjectDatabase()
     await expect(actualHost.bootstrapFixedWslToolchain({
-      policy: TOOLCHAIN_BOOTSTRAP_POLICY,
       platform,
-      toolchain: programs.toolchain,
-    })).resolves.toEqual(bootstrapResult)
+      sourcePolicy,
+      sourceObjects,
+      sources: {
+        g002: { ...SOURCE.g002 },
+        ptr: { ...SOURCE.ptr },
+      },
+    })).resolves.toEqual({
+      ...fixedBootstrapResult,
+      bootstrapProgramBytes: programs.bootstrap.byteLength,
+      bootstrapProgramSha256: sha256(programs.bootstrap),
+      materializerProgramBytes: programs.materializer.byteLength,
+      materializerProgramSha256: sha256(programs.materializer),
+    })
     await expect(actualHost.executeFixedWslFixturePlan({
       policy: WSL_EXECUTION_POLICY,
       platform,
@@ -1228,7 +1516,7 @@ describe('fixed production WSL host boundary', () => {
     })).resolves.toEqual(runnerResult())
 
     const calls = childProcessBoundary.spawnSync.mock.calls
-    expect(calls).toHaveLength(13)
+    expect(calls).toHaveLength(19)
     const bootstrapCall = calls.find(([, args]: any[]) => (
       args.includes(FIXED_BOOTSTRAP_PROGRAM)
       && !args.includes('/bin/sh')

@@ -1,18 +1,18 @@
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import {
+  chmodSync,
   closeSync,
   constants,
-  existsSync,
   fstatSync,
+  fsyncSync,
   lstatSync,
-  mkdirSync,
   openSync,
   readFileSync,
   realpathSync,
   renameSync,
-  rmSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs'
 import {
@@ -39,6 +39,11 @@ import {
   ptrSealedLiveReceiptDigest,
 } from '../../../scripts/ptr-production-release-receipts.ts'
 import { isExactCurrentOwnerOnlyAcl } from '../../../scripts/recovery-bootstrap-acl.mjs'
+import { createFixedFixtureOutputStore } from './release-recovery-fixture-output-transaction.mjs'
+import {
+  parseToolchainEvidenceBytes,
+  parseToolchainSourcePolicyBytes,
+} from './release-recovery-toolchain-records.mjs'
 
 const FIXED_PRIVATE_ROOT = String.raw`C:\Users\heyas\.warpkeep\private\release-recovery-v1`
 const FIXED_WSL_EXECUTABLE = String.raw`C:\Windows\System32\wsl.exe`
@@ -128,11 +133,15 @@ const FIXED_OUTPUT_PATHS = Object.freeze([
 ])
 const SCRIPT_DIRECTORY = dirname(fileURLToPath(import.meta.url))
 const REPOSITORY_ROOT = resolve(SCRIPT_DIRECTORY, '../../..')
-const STAGE_ROOT = resolve(
-  REPOSITORY_ROOT,
-  'services/release-recovery/.release-recovery-fixtures-stage-v1',
+const FIXED_TOOLCHAIN_SOURCE_POLICY = join(
+  SCRIPT_DIRECTORY,
+  'release-recovery-wsl-toolchain-source-policy-v1.json',
 )
 const rootCapabilities = new WeakMap()
+const sourcePolicyCapabilities = new WeakMap()
+const publicSourceCapabilities = new WeakMap()
+const bootstrapResultCapabilities = new WeakMap()
+let fixtureOutputStore
 
 function fail() {
   const error = new Error('RECOVERY_FIXTURE_INPUT_INVALID')
@@ -142,6 +151,14 @@ function fail() {
 
 function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex')
+}
+
+function freezeData(value) {
+  if (value !== null && typeof value === 'object') {
+    for (const child of Object.values(value)) freezeData(child)
+    Object.freeze(value)
+  }
+  return value
 }
 
 function exactObject(value, expectedKeys) {
@@ -417,6 +434,7 @@ export async function openFixedPrivateRoot(requestedPath) {
 
 export async function readFixedPrivateRecord(root, relativePath, maximumBytes) {
   let descriptor
+  let bytes
   try {
     const capability = rootCapabilities.get(root)
     if (
@@ -432,7 +450,7 @@ export async function readFixedPrivateRecord(root, relativePath, maximumBytes) {
     if (!sameHostPath(canonicalPath, target)) fail()
     const opened = stableDescriptor(target, 'file', maximumBytes)
     descriptor = opened.descriptor
-    const bytes = readFileSync(descriptor)
+    bytes = readFileSync(descriptor)
     const after = fstatSync(descriptor)
     if (
       after.dev !== opened.before.dev
@@ -453,6 +471,7 @@ export async function readFixedPrivateRecord(root, relativePath, maximumBytes) {
   } catch {
     fail()
   } finally {
+    bytes?.fill(0)
     if (descriptor !== undefined) closeSync(descriptor)
   }
 }
@@ -741,10 +760,12 @@ export async function verifyFixedToolchainAttestation(input) {
       'profile',
       'platform',
       'architecture',
+      'sourcePolicySha256',
       'offlineReady',
       'signaturesVerified',
       'toolchainManifestSha256',
       'cacheCatalogSha256',
+      'cacheClosureSha256',
       'bootstrapProgramBytes',
       'bootstrapProgramSha256',
       'materializerProgramBytes',
@@ -755,12 +776,18 @@ export async function verifyFixedToolchainAttestation(input) {
       || value.profile !== 'warpkeep-release-recovery-wsl-toolchain-attestation-v1'
       || value.platform !== 'linux'
       || value.architecture !== 'x64'
+      || !LOWER_HEX_64.test(value.sourcePolicySha256)
+      || /^0+$/u.test(value.sourcePolicySha256)
       || value.offlineReady !== true
       || value.signaturesVerified !== true
+      || !LOWER_HEX_64.test(value.cacheClosureSha256)
+      || /^0+$/u.test(value.cacheClosureSha256)
     ) fail()
     exactProgramCoordinates({
+      sourcePolicySha256: value.sourcePolicySha256,
       manifestSha256: value.toolchainManifestSha256,
       cacheCatalogSha256: value.cacheCatalogSha256,
+      cacheClosureSha256: value.cacheClosureSha256,
       bootstrapProgramBytes: value.bootstrapProgramBytes,
       bootstrapProgramSha256: value.bootstrapProgramSha256,
       materializerProgramBytes: value.materializerProgramBytes,
@@ -775,19 +802,17 @@ export async function verifyFixedToolchainAttestation(input) {
   }
 }
 
-function outputTarget(relativePath) {
-  if (!FIXED_OUTPUT_PATHS.includes(relativePath)) fail()
-  const target = resolve(REPOSITORY_ROOT, ...relativePath.split('/'))
-  if (!within(REPOSITORY_ROOT, target)) fail()
-  return target
+function fixedFixtureOutputStore() {
+  fixtureOutputStore ??= createFixedFixtureOutputStore({
+    repositoryRoot: REPOSITORY_ROOT,
+    paths: FIXED_OUTPUT_PATHS,
+  })
+  return fixtureOutputStore
 }
 
 export async function readFixedFixtureOutput(relativePath) {
   try {
-    const target = outputTarget(relativePath)
-    const stat = lstatSync(target, { throwIfNoEntry: false })
-    if (stat === undefined || stat.isSymbolicLink() || !stat.isFile()) fail()
-    return Uint8Array.from(readFileSync(target))
+    return await fixedFixtureOutputStore().read(relativePath)
   } catch {
     fail()
   }
@@ -795,7 +820,7 @@ export async function readFixedFixtureOutput(relativePath) {
 
 export async function recoverFixedFixtureOutputs() {
   try {
-    if (existsSync(STAGE_ROOT)) rmSync(STAGE_ROOT, { force: true, recursive: true })
+    await fixedFixtureOutputStore().recover()
   } catch {
     fail()
   }
@@ -803,57 +828,7 @@ export async function recoverFixedFixtureOutputs() {
 
 export async function beginFixedFixtureOutputTransaction(paths) {
   try {
-    if (
-      !Array.isArray(paths)
-      || JSON.stringify(paths) !== JSON.stringify(FIXED_OUTPUT_PATHS)
-      || existsSync(STAGE_ROOT)
-    ) fail()
-    mkdirSync(STAGE_ROOT, { mode: 0o700 })
-    const staged = new Map()
-    let closed = false
-    return Object.freeze({
-      async stage(relativePath, bytes) {
-        if (closed || staged.has(relativePath) || !FIXED_OUTPUT_PATHS.includes(relativePath)) fail()
-        if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0) fail()
-        const stagePath = join(STAGE_ROOT, `${FIXED_OUTPUT_PATHS.indexOf(relativePath)}.new`)
-        writeFileSync(stagePath, bytes, { flag: 'wx', mode: 0o600 })
-        staged.set(relativePath, stagePath)
-      },
-      async commit() {
-        if (closed || staged.size !== FIXED_OUTPUT_PATHS.length) fail()
-        const installed = []
-        const backups = []
-        try {
-          for (const relativePath of FIXED_OUTPUT_PATHS) {
-            const target = outputTarget(relativePath)
-            mkdirSync(dirname(target), { mode: 0o755, recursive: true })
-            if (existsSync(target)) {
-              const backup = join(STAGE_ROOT, `${FIXED_OUTPUT_PATHS.indexOf(relativePath)}.old`)
-              renameSync(target, backup)
-              backups.push([target, backup])
-            }
-            renameSync(staged.get(relativePath), target)
-            installed.push(target)
-          }
-          closed = true
-          rmSync(STAGE_ROOT, { force: true, recursive: true })
-        } catch {
-          for (const target of installed.reverse()) {
-            try { rmSync(target, { force: true }) } catch { /* retain fixed failure */ }
-          }
-          for (const [target, backup] of backups.reverse()) {
-            try { renameSync(backup, target) } catch { /* retain fixed failure */ }
-          }
-          fail()
-        }
-      },
-      async rollback() {
-        if (!closed) {
-          closed = true
-          rmSync(STAGE_ROOT, { force: true, recursive: true })
-        }
-      },
-    })
+    return await fixedFixtureOutputStore().begin(paths)
   } catch {
     fail()
   }
@@ -892,145 +867,284 @@ function exactProgramCoordinates(value, includeBootstrap) {
     value,
     includeBootstrap
       ? [
+          'sourcePolicySha256',
           'manifestSha256',
           'cacheCatalogSha256',
+          'cacheClosureSha256',
           'bootstrapProgramBytes',
           'bootstrapProgramSha256',
           'materializerProgramBytes',
           'materializerProgramSha256',
         ]
       : [
+          'sourcePolicySha256',
           'manifestSha256',
           'cacheCatalogSha256',
+          'cacheClosureSha256',
           'platform',
           'architecture',
           'offlineReady',
           'signaturesVerified',
+          'bootstrapProgramBytes',
+          'bootstrapProgramSha256',
           'materializerProgramBytes',
           'materializerProgramSha256',
         ],
   )
   if (
-    !LOWER_HEX_64.test(coordinates.manifestSha256)
+    !LOWER_HEX_64.test(coordinates.sourcePolicySha256)
+    || /^0+$/u.test(coordinates.sourcePolicySha256)
+    || !LOWER_HEX_64.test(coordinates.manifestSha256)
     || /^0+$/u.test(coordinates.manifestSha256)
     || !LOWER_HEX_64.test(coordinates.cacheCatalogSha256)
     || /^0+$/u.test(coordinates.cacheCatalogSha256)
+    || !LOWER_HEX_64.test(coordinates.cacheClosureSha256)
+    || /^0+$/u.test(coordinates.cacheClosureSha256)
     || !Number.isSafeInteger(coordinates.materializerProgramBytes)
     || coordinates.materializerProgramBytes < 1
     || coordinates.materializerProgramBytes > 16 * 1024 * 1024
     || !LOWER_HEX_64.test(coordinates.materializerProgramSha256)
     || /^0+$/u.test(coordinates.materializerProgramSha256)
   ) fail()
-  if (includeBootstrap) {
-    if (
-      !Number.isSafeInteger(coordinates.bootstrapProgramBytes)
-      || coordinates.bootstrapProgramBytes < 1
-      || coordinates.bootstrapProgramBytes > 16 * 1024 * 1024
-      || !LOWER_HEX_64.test(coordinates.bootstrapProgramSha256)
-      || /^0+$/u.test(coordinates.bootstrapProgramSha256)
-    ) fail()
-  } else if (
+  if (
+    !Number.isSafeInteger(coordinates.bootstrapProgramBytes)
+    || coordinates.bootstrapProgramBytes < 1
+    || coordinates.bootstrapProgramBytes > 16 * 1024 * 1024
+    || !LOWER_HEX_64.test(coordinates.bootstrapProgramSha256)
+    || /^0+$/u.test(coordinates.bootstrapProgramSha256)
+  ) fail()
+  if (!includeBootstrap && (
     coordinates.platform !== 'linux'
     || coordinates.architecture !== 'x64'
     || coordinates.offlineReady !== true
     || coordinates.signaturesVerified !== true
-  ) fail()
+  )) fail()
   return coordinates
 }
 
-function exactBootstrapPolicy(value) {
-  const policy = exactObject(value, [
-    'schemaVersion',
-    'profile',
-    'distribution',
-    'platform',
-    'architecture',
-    'nodeVersions',
-    'pnpmVersion',
-    'spacetimeVersion',
-    'spacetimeCommit',
-    'gitPackageVersion',
-    'wslVersion',
-    'packageFetchPolicy',
-    'nodeReleaseSignatures',
-    'pnpm',
-    'spacetime',
-    'gnupg',
-    'lifecycleScripts',
-    'noClobber',
-  ])
-  if (
-    policy.schemaVersion !== 1
-    || policy.profile !== 'warpkeep-release-recovery-wsl-toolchain-bootstrap-v1'
-    || policy.distribution !== 'Ubuntu-24.04'
-    || policy.platform !== 'linux'
-    || policy.architecture !== 'x64'
-    || JSON.stringify(policy.nodeVersions) !== JSON.stringify(['24.19.0', '22.22.3'])
-    || policy.pnpmVersion !== '11.7.0'
-    || policy.spacetimeVersion !== '2.6.1'
-    || policy.spacetimeCommit !== '052c83fe984a4c4eb7bb4f9afa5c6b1903891d87'
-    || policy.gitPackageVersion !== '1:2.43.0-1ubuntu7.3'
-    || policy.wslVersion !== '2.7.11.0'
-    || policy.packageFetchPolicy !== 'fixed-https-no-redirect-no-credential'
-    || policy.lifecycleScripts !== false
-    || policy.noClobber !== true
-  ) fail()
-  const signatures = exactObject(policy.nodeReleaseSignatures, ['24.19.0', '22.22.3'])
-  const node24 = exactObject(signatures['24.19.0'], [
-    'algorithm', 'fingerprint', 'keyUrl', 'keyBytes', 'keySha256',
-  ])
-  const node22 = exactObject(signatures['22.22.3'], [
-    'algorithm', 'fingerprint', 'keyUrl', 'keyBytes', 'keySha256',
-  ])
-  if (
-    node24.algorithm !== 'EdDSA'
-    || node24.fingerprint !== '5BE8A3F6C8A5C01D106C0AD820B1A390B168D356'
-    || node24.keyUrl !== 'https://raw.githubusercontent.com/nodejs/release-keys/5b7f55f4a7e35d1176d27a6b81b0c3c3b794216b/keys/5BE8A3F6C8A5C01D106C0AD820B1A390B168D356.asc'
-    || node24.keyBytes !== 924
-    || node24.keySha256 !== '5115095e2f8010c75da052ecb1cfb3af630e084f0f8daa93a863557b01b0f90a'
-    || node22.algorithm !== 'RSA'
-    || node22.fingerprint !== 'CC68F5A3106FF448322E48ED27F5E38D5B0A215F'
-    || node22.keyUrl !== 'https://raw.githubusercontent.com/nodejs/release-keys/5b7f55f4a7e35d1176d27a6b81b0c3c3b794216b/keys/CC68F5A3106FF448322E48ED27F5E38D5B0A215F.asc'
-    || node22.keyBytes !== 3_163
-    || node22.keySha256 !== 'e31e1aa40a8331f01d753cef475f7b9eab934fc25f5f0b36995bfd80bd66ad27'
-  ) fail()
-  const pnpm = exactObject(policy.pnpm, [
-    'version', 'url', 'compressedBytes', 'sri', 'sha256', 'members',
-  ])
-  if (
-    pnpm.version !== '11.7.0'
-    || pnpm.url !== 'https://registry.npmjs.org/pnpm/-/pnpm-11.7.0.tgz'
-    || pnpm.compressedBytes !== 4_590_455
-    || pnpm.sri !== 'sha512-GcyFLBIMcSV2DyRD7mvgyltA+fUFmN4aCaHxd1A+AQ5Xwjx3ZG4B52HeWb+HT7IqM5jDOrlpH8E+uUa28PTWIA=='
-    || pnpm.sha256 !== 'deafa7ec98a1218b6a047289b92fbe2395c1e22d3495bb711653013218ee15ee'
-  ) fail()
-  const pnpmMembers = exactObject(pnpm.members, [
-    'package/bin/pnpm.mjs', 'package/dist/pnpm.mjs', 'package/package.json',
-  ])
-  const memberExpected = [
-    ['package/bin/pnpm.mjs', 0o755, 1_464, 'ff3224d46b47fbb24a7e9fe15fededef7e00892d07d4e376b6762d4899906bfd'],
-    ['package/dist/pnpm.mjs', 0o644, 12_565_169, 'd3a7f4bde2f32c5acc5f012d1edc24c24ea247c2f6c8823146f8cd69ed70b22f'],
-    ['package/package.json', 0o644, 2_216, '2b20455ee8d69d072df339bf9851edea94ee08a9ea14db9289a7fca0bbb7abb0'],
-  ]
-  for (const [path, mode, bytes, digest] of memberExpected) {
-    const member = exactObject(pnpmMembers[path], ['mode', 'bytes', 'sha256'])
-    if (member.mode !== mode || member.bytes !== bytes || member.sha256 !== digest) fail()
+export async function preflightFixedToolchainSourcePolicy(...unexpected) {
+  let descriptor
+  let bytes
+  try {
+    if (unexpected.length !== 0) fail()
+    assertNoLinkComponents(FIXED_TOOLCHAIN_SOURCE_POLICY, REPOSITORY_ROOT)
+    if (realpathSync.native(FIXED_TOOLCHAIN_SOURCE_POLICY) !== FIXED_TOOLCHAIN_SOURCE_POLICY) fail()
+    const named = lstatSync(FIXED_TOOLCHAIN_SOURCE_POLICY)
+    if (
+      !named.isFile()
+      || named.isSymbolicLink()
+      || named.size < 2
+      || named.size > 512 * 1024
+    ) fail()
+    descriptor = openSync(
+      FIXED_TOOLCHAIN_SOURCE_POLICY,
+      constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
+    )
+    const before = fstatSync(descriptor)
+    if (
+      !before.isFile()
+      || before.dev !== named.dev
+      || before.ino !== named.ino
+      || before.size !== named.size
+    ) fail()
+    bytes = readFileSync(descriptor)
+    const after = fstatSync(descriptor)
+    if (
+      after.dev !== before.dev
+      || after.ino !== before.ino
+      || after.size !== before.size
+      || bytes.byteLength !== before.size
+    ) fail()
+    const parsed = parseToolchainSourcePolicyBytes(bytes)
+    freezeData(parsed.policy)
+    const capability = Object.freeze({
+      schemaVersion: 1,
+      profile: 'warpkeep-release-recovery-wsl-toolchain-source-policy-capability-v1',
+      sourcePolicySha256: parsed.sha256,
+    })
+    sourcePolicyCapabilities.set(capability, parsed)
+    return capability
+  } catch {
+    fail()
+  } finally {
+    bytes?.fill(0)
+    if (descriptor !== undefined) closeSync(descriptor)
   }
-  const spacetime = exactObject(policy.spacetime, [
-    'version', 'commit', 'archiveSha256', 'cliSha256', 'standaloneSha256',
-  ])
-  const gnupg = exactObject(policy.gnupg, ['packageVersion', 'gpgSha256', 'gpgvSha256'])
+}
+
+function fixedGuestHostPath(path) {
+  const normalized = win32.normalize(path)
+  const parsed = win32.parse(normalized)
+  const drive = /^([A-Za-z]):\\$/u.exec(parsed.root)
   if (
-    spacetime.version !== '2.6.1'
-    || spacetime.commit !== '052c83fe984a4c4eb7bb4f9afa5c6b1903891d87'
-    || spacetime.archiveSha256 !== 'cb03bb4706dc6bd6ef080c9bbd220a6e7d10430a65e7be2ba6be27ec7e3a9118'
-    || spacetime.cliSha256 !== 'cac13c929049f31cb588c230a0d7fe5f388505b4c64047a68b1d5cfdc811624b'
-    || spacetime.standaloneSha256 !== 'a9185a737c9b739896c8f51326e1c3aedefba80a0f01def76ce26f358d5c187b'
-    || gnupg.packageVersion !== '2.4.4-2ubuntu17.4'
-    || gnupg.gpgSha256 !== '7ecb1341104b0ee1107fe908abce37e24546de1db0848b29c75f59f72094f4e8'
-    || gnupg.gpgvSha256 !== '097b577cdf8b51dcc1fb42417d5ef3ca2e22b36a8ad16c9df4bd083a38fe476c'
+    drive === null
+    || normalized.includes('\0')
+    || /[\r\n]/u.test(normalized)
   ) fail()
-  return value
+  const segments = relative(parsed.root, normalized).split('\\')
+  if (
+    segments.length < 1
+    || segments.some(segment => (
+      segment.length < 1
+      || segment === '.'
+      || segment === '..'
+      || /[\u0000-\u001f]/u.test(segment)
+    ))
+  ) fail()
+  return `/mnt/${drive[1].toLowerCase()}/${segments.join('/')}`
+}
+
+export async function preflightFixedPublicSourceObjectDatabase(...unexpected) {
+  let descriptor
+  let configBytes
+  try {
+    if (unexpected.length !== 0) fail()
+    const gitDirectory = join(REPOSITORY_ROOT, '.git')
+    const objectDirectory = join(gitDirectory, 'objects')
+    assertNoLinkComponents(objectDirectory, REPOSITORY_ROOT)
+    for (const path of [gitDirectory, objectDirectory]) {
+      const status = lstatSync(path)
+      if (
+        status.isSymbolicLink()
+        || !status.isDirectory()
+        || realpathSync.native(path) !== path
+      ) fail()
+    }
+    for (const path of [
+      join(objectDirectory, 'info', 'alternates'),
+      join(objectDirectory, 'info', 'http-alternates'),
+      join(gitDirectory, 'info', 'grafts'),
+      join(gitDirectory, 'refs', 'replace'),
+    ]) {
+      if (lstatSync(path, { throwIfNoEntry: false }) !== undefined) fail()
+    }
+    const configPath = join(gitDirectory, 'config')
+    assertNoLinkComponents(configPath, REPOSITORY_ROOT)
+    if (realpathSync.native(configPath) !== configPath) fail()
+    const named = lstatSync(configPath)
+    if (
+      named.isSymbolicLink()
+      || !named.isFile()
+      || named.size < 1
+      || named.size > 64 * 1024
+    ) fail()
+    descriptor = openSync(configPath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0))
+    const before = fstatSync(descriptor)
+    if (
+      !before.isFile()
+      || before.dev !== named.dev
+      || before.ino !== named.ino
+      || before.size !== named.size
+    ) fail()
+    configBytes = readFileSync(descriptor)
+    const after = fstatSync(descriptor)
+    if (
+      after.dev !== before.dev
+      || after.ino !== before.ino
+      || after.size !== before.size
+      || configBytes.byteLength !== before.size
+    ) fail()
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(configBytes)
+    if (
+      text.includes('\0')
+      || /^\s*\[(?:include|includeIf|extensions)\b/imu.test(text)
+      || /^\s*(?:alternateRefsCommand|useReplaceRefs|partialClone)\s*=/imu.test(text)
+    ) fail()
+    const capability = Object.freeze({
+      schemaVersion: 1,
+      profile: 'warpkeep-release-recovery-fixed-public-source-capability-v1',
+    })
+    publicSourceCapabilities.set(capability, Object.freeze({
+      objectDirectory: fixedGuestHostPath(objectDirectory),
+    }))
+    return capability
+  } catch {
+    fail()
+  } finally {
+    configBytes?.fill(0)
+    if (descriptor !== undefined) closeSync(descriptor)
+  }
+}
+
+function exactBootstrapSources(value) {
+  const sources = exactObject(value, ['g002', 'ptr'])
+  const sanitized = Object.create(null)
+  for (const realm of ['g002', 'ptr']) {
+    const source = exactObject(sources[realm], [
+      'receiptSha256', 'databaseIdentity', 'sourceCommit', 'sourceTree',
+      'publishedModuleSha256', 'dependencyLockClosureSha256',
+    ])
+    for (const digest of [
+      source.receiptSha256,
+      source.databaseIdentity,
+      source.publishedModuleSha256,
+      source.dependencyLockClosureSha256,
+    ]) if (!LOWER_HEX_64.test(digest) || /^0+$/u.test(digest)) fail()
+    if (
+      !LOWER_HEX_40.test(source.sourceCommit)
+      || /^0+$/u.test(source.sourceCommit)
+      || !LOWER_HEX_40.test(source.sourceTree)
+      || /^0+$/u.test(source.sourceTree)
+    ) fail()
+    sanitized[realm] = Object.freeze({
+      sourceCommit: source.sourceCommit,
+      sourceTree: source.sourceTree,
+      dependencyLockClosureSha256: source.dependencyLockClosureSha256,
+    })
+  }
+  return Object.freeze(sanitized)
+}
+
+function fixedGuestProgramCoordinates() {
+  let bootstrap
+  let materializer
+  try {
+    bootstrap = readFileSync(join(SCRIPT_DIRECTORY, 'release-recovery-wsl-bootstrap.py'))
+    materializer = readFileSync(join(SCRIPT_DIRECTORY, 'release-recovery-wsl-materialize.mjs'))
+    if (
+      bootstrap.byteLength < 1
+      || bootstrap.byteLength > 16 * 1024 * 1024
+      || materializer.byteLength < 1
+      || materializer.byteLength > 16 * 1024 * 1024
+    ) fail()
+    return Object.freeze({
+      bootstrapProgramBytes: bootstrap.byteLength,
+      bootstrapProgramSha256: sha256(bootstrap),
+      materializerProgramBytes: materializer.byteLength,
+      materializerProgramSha256: sha256(materializer),
+    })
+  } finally {
+    bootstrap?.fill(0)
+    materializer?.fill(0)
+  }
+}
+
+function readFixedGuestArtifact(path, expectedMode, maximumBytes, distribution) {
+  const prefix = ['--distribution', distribution, '--user', 'root', '--exec']
+  const canonical = fixedCommand(
+    FIXED_WSL_EXECUTABLE,
+    [...prefix, '/usr/bin/readlink', '-e', '--', path],
+    512,
+    FIXED_HOST_ENVIRONMENT,
+  )
+  const metadata = fixedCommand(
+    FIXED_WSL_EXECUTABLE,
+    [...prefix, '/usr/bin/stat', '--format=%F|%a|%u|%g|%s', '--', path],
+    512,
+    FIXED_HOST_ENVIRONMENT,
+  )
+  const match = /^regular file\|([0-7]{3})\|0\|0\|([1-9][0-9]*)\n$/u.exec(metadata)
+  if (canonical !== `${path}\n` || match === null || match[1] !== expectedMode) fail()
+  const length = Number(match[2])
+  if (!Number.isSafeInteger(length) || length < 1 || length > maximumBytes) fail()
+  const bytes = fixedBinaryCommand(
+    FIXED_WSL_EXECUTABLE,
+    [...prefix, '/bin/cat', '--', path],
+    maximumBytes,
+    FIXED_HOST_ENVIRONMENT,
+  )
+  if (bytes.byteLength !== length) fail()
+  return bytes
 }
 
 function attestFixedGuestProgram(path, expectedBytes, expectedSha256, distribution) {
@@ -1227,7 +1341,6 @@ $productVersion = '{0}.{1}.{2}.{3}' -f $version.ProductMajorPart, $version.Produ
         [
           '/usr/sbin/ip link set lo up',
           '/usr/sbin/ip -json link show',
-          "printf '\\n'",
           '/usr/sbin/ip -json route show table all',
         ].join('; '),
       ],
@@ -1288,10 +1401,16 @@ $productVersion = '{0}.{1}.{2}.{3}' -f $version.ProductMajorPart, $version.Produ
 
 export async function bootstrapFixedWslToolchain(input) {
   try {
-    const request = exactObject(input, ['policy', 'platform', 'toolchain'])
-    exactBootstrapPolicy(request.policy)
+    const request = exactObject(input, [
+      'platform', 'sourcePolicy', 'sourceObjects', 'sources',
+    ])
+    const parsedPolicy = sourcePolicyCapabilities.get(request.sourcePolicy)
+    const sourceTransport = publicSourceCapabilities.get(request.sourceObjects)
+    if (parsedPolicy === undefined) fail()
+    if (sourceTransport === undefined) fail()
+    publicSourceCapabilities.delete(request.sourceObjects)
+    const sources = exactBootstrapSources(request.sources)
     exactPlatformAttestation(request.platform, {
-      ...request.policy,
       executableSha256: '27cc8dd52be326e138a89f8889241b1d8c51dd1978b22eb70be77036ccdee3c2',
       wslVersion: '2.7.11.0',
       distribution: 'Ubuntu-24.04',
@@ -1301,70 +1420,249 @@ export async function bootstrapFixedWslToolchain(input) {
       unshareSha256: 'a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c',
       loopbackToolSha256: '81a95d97c70f3677d1883b9d8fe13b1771ab208d5bca56bc447aaaff0b0480e0',
     })
-    const toolchain = exactProgramCoordinates(request.toolchain, true)
+    const toolchain = fixedGuestProgramCoordinates()
     installFixedGuestProgram(
       'release-recovery-wsl-bootstrap.py',
       FIXED_GUEST_BOOTSTRAP_PROGRAM,
       toolchain.bootstrapProgramBytes,
       toolchain.bootstrapProgramSha256,
-      request.policy.distribution,
+      'Ubuntu-24.04',
     )
     installFixedGuestProgram(
       'release-recovery-wsl-materialize.mjs',
       FIXED_GUEST_MATERIALIZER_PROGRAM,
       toolchain.materializerProgramBytes,
       toolchain.materializerProgramSha256,
-      request.policy.distribution,
+      'Ubuntu-24.04',
     )
     attestFixedGuestProgram(
       FIXED_GUEST_BOOTSTRAP_PROGRAM,
       toolchain.bootstrapProgramBytes,
       toolchain.bootstrapProgramSha256,
-      request.policy.distribution,
+      'Ubuntu-24.04',
     )
     attestFixedGuestProgram(
       FIXED_GUEST_MATERIALIZER_PROGRAM,
       toolchain.materializerProgramBytes,
       toolchain.materializerProgramSha256,
-      request.policy.distribution,
+      'Ubuntu-24.04',
     )
     const result = exactObject(canonicalJsonCommand(
       FIXED_WSL_EXECUTABLE,
       [
         '--distribution',
-        request.policy.distribution,
+        'Ubuntu-24.04',
         '--user',
         'root',
         '--exec',
         ...FIXED_GUEST_ENVIRONMENT_ARGUMENTS,
         FIXED_GUEST_BOOTSTRAP_PROGRAM,
+        '--public-object-database',
+        sourceTransport.objectDirectory,
       ],
       Object.freeze({
         schemaVersion: 1,
         profile: 'warpkeep-release-recovery-wsl-toolchain-bootstrap-request-v1',
-        policy: request.policy,
+        sourcePolicy: parsedPolicy.policy,
+        sourcePolicySha256: parsedPolicy.sha256,
         platform: request.platform,
-        toolchain: request.toolchain,
+        sources,
+        programs: toolchain,
       }),
       64 * 1024,
       FIXED_HOST_ENVIRONMENT,
     ), [
       'prepared',
+      'sourcePolicySha256',
       'manifestSha256',
       'cacheSha256',
+      'cacheClosureSha256',
       'signaturesVerified',
       'offlineReady',
     ])
     if (
       result.prepared !== true
-      || result.manifestSha256 !== toolchain.manifestSha256
-      || result.cacheSha256 !== toolchain.cacheCatalogSha256
+      || result.sourcePolicySha256 !== parsedPolicy.sha256
+      || !LOWER_HEX_64.test(result.manifestSha256)
+      || /^0+$/u.test(result.manifestSha256)
+      || !LOWER_HEX_64.test(result.cacheSha256)
+      || /^0+$/u.test(result.cacheSha256)
+      || !LOWER_HEX_64.test(result.cacheClosureSha256)
+      || /^0+$/u.test(result.cacheClosureSha256)
       || result.signaturesVerified !== true
       || result.offlineReady !== true
     ) fail()
-    return Object.freeze({ ...result })
+    let manifestBytes
+    let catalogBytes
+    try {
+      manifestBytes = readFixedGuestArtifact(
+        `${FIXED_GUEST_STATE_ROOT}/toolchains/linux-x64.json`,
+        '400',
+        512 * 1024,
+        'Ubuntu-24.04',
+      )
+      catalogBytes = readFixedGuestArtifact(
+        `${FIXED_GUEST_STATE_ROOT}/cache-catalog-v2.json`,
+        '400',
+        8 * 1024 * 1024,
+        'Ubuntu-24.04',
+      )
+      if (
+        sha256(manifestBytes) !== result.manifestSha256
+        || sha256(catalogBytes) !== result.cacheSha256
+      ) fail()
+      const catalog = exactObject(canonicalJson(catalogBytes, 8 * 1024 * 1024), [
+        'schemaVersion', 'profile', 'platform', 'architecture', 'inventoryRoots',
+        'manifestPath', 'manifestSha256', 'cacheClosureSha256', 'signaturesVerified',
+        'offlineReady', 'entries',
+      ])
+      if (
+        catalog.schemaVersion !== 2
+        || catalog.profile !== 'warpkeep-release-recovery-wsl-cache-catalog-v2'
+        || catalog.platform !== 'linux'
+        || catalog.architecture !== 'x64'
+        || JSON.stringify(catalog.inventoryRoots)
+          !== JSON.stringify(['pnpm-store', 'source-caches', 'toolchains'])
+        || catalog.manifestPath !== 'toolchains/linux-x64.json'
+        || catalog.manifestSha256 !== result.manifestSha256
+        || catalog.cacheClosureSha256 !== result.cacheClosureSha256
+        || catalog.signaturesVerified !== true
+        || catalog.offlineReady !== true
+        || !Array.isArray(catalog.entries)
+        || catalog.entries.length < 1
+        || catalog.entries.length > 100_000
+      ) fail()
+      const untrustedManifest = canonicalJson(manifestBytes, 512 * 1024)
+      const g001Closure = untrustedManifest?.sources?.g001?.dependencyLockClosureSha256
+      const verifiedManifest = parseToolchainEvidenceBytes(manifestBytes, parsedPolicy, {
+        g001: {
+          sourceCommit: parsedPolicy.policy.sourceRules.g001.sourceCommit,
+          sourceTree: parsedPolicy.policy.sourceRules.g001.sourceTree,
+          dependencyLockClosureSha256: g001Closure,
+        },
+        g002: sources.g002,
+        ptr: sources.ptr,
+      })
+      if (JSON.stringify(verifiedManifest.programs) !== JSON.stringify({
+        ...toolchain,
+        installedMode: '500',
+        installedVerified: true,
+      })) fail()
+    } finally {
+      manifestBytes?.fill(0)
+      catalogBytes?.fill(0)
+    }
+    const verified = Object.freeze({
+      ...result,
+      ...toolchain,
+    })
+    bootstrapResultCapabilities.set(verified, Object.freeze({ ...verified }))
+    return verified
   } catch {
     fail()
+  }
+}
+
+export async function publishFixedToolchainAttestation(resultCapability) {
+  let root
+  let descriptor
+  let bytes
+  let temporary
+  let temporaryCreated = false
+  try {
+    const result = bootstrapResultCapabilities.get(resultCapability)
+    if (result === undefined) fail()
+    const record = Object.freeze({
+      schemaVersion: 1,
+      profile: 'warpkeep-release-recovery-wsl-toolchain-attestation-v1',
+      platform: 'linux',
+      architecture: 'x64',
+      sourcePolicySha256: result.sourcePolicySha256,
+      offlineReady: true,
+      signaturesVerified: true,
+      toolchainManifestSha256: result.manifestSha256,
+      cacheCatalogSha256: result.cacheSha256,
+      cacheClosureSha256: result.cacheClosureSha256,
+      bootstrapProgramBytes: result.bootstrapProgramBytes,
+      bootstrapProgramSha256: result.bootstrapProgramSha256,
+      materializerProgramBytes: result.materializerProgramBytes,
+      materializerProgramSha256: result.materializerProgramSha256,
+    })
+    bytes = Buffer.from(`${JSON.stringify(record)}\n`, 'utf8')
+    await verifyFixedToolchainAttestation({
+      path: 'fixture-materialization/wsl-toolchain-attestation-v1.json',
+      bytes,
+      attestationSha256: sha256(bytes),
+    })
+    root = await openFixedPrivateRoot(FIXED_PRIVATE_ROOT)
+    const parent = join(FIXED_PRIVATE_ROOT, 'fixture-materialization')
+    assertNoLinkComponents(parent, FIXED_PRIVATE_ROOT)
+    const parentStat = lstatSync(parent)
+    if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) fail()
+    assertOwnerOnly(parent, parentStat, 0o700)
+    const target = join(parent, 'wsl-toolchain-attestation-v1.json')
+    const existing = lstatSync(target, { throwIfNoEntry: false })
+    if (existing !== undefined) {
+      const current = await readFixedPrivateRecord(
+        root,
+        'fixture-materialization/wsl-toolchain-attestation-v1.json',
+        256 * 1_024,
+      )
+      try {
+        if (!Buffer.from(current.bytes).equals(bytes)) fail()
+      } finally {
+        current.bytes.fill(0)
+      }
+      return Object.freeze({ published: true })
+    }
+    temporary = join(parent, `.wsl-toolchain-attestation-${sha256(bytes)}.pending`)
+    if (lstatSync(temporary, { throwIfNoEntry: false }) !== undefined) fail()
+    descriptor = openSync(
+      temporary,
+      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY,
+      0o600,
+    )
+    temporaryCreated = true
+    writeFileSync(descriptor, bytes)
+    fsyncSync(descriptor)
+    closeSync(descriptor)
+    descriptor = undefined
+    chmodSync(temporary, 0o600)
+    const temporaryStat = lstatSync(temporary)
+    if (
+      !temporaryStat.isFile()
+      || temporaryStat.isSymbolicLink()
+      || temporaryStat.nlink !== 1
+      || temporaryStat.size !== bytes.byteLength
+    ) fail()
+    assertOwnerOnly(temporary, temporaryStat, 0o600)
+    assertNoLinkComponents(parent, FIXED_PRIVATE_ROOT)
+    if (lstatSync(target, { throwIfNoEntry: false }) !== undefined) fail()
+    renameSync(temporary, target)
+    temporaryCreated = false
+    const published = await readFixedPrivateRecord(
+      root,
+      'fixture-materialization/wsl-toolchain-attestation-v1.json',
+      256 * 1_024,
+    )
+    try {
+      if (!Buffer.from(published.bytes).equals(bytes)) fail()
+    } finally {
+      published.bytes.fill(0)
+    }
+    return Object.freeze({ published: true })
+  } catch {
+    fail()
+  } finally {
+    bootstrapResultCapabilities.delete(resultCapability)
+    bytes?.fill(0)
+    if (descriptor !== undefined) closeSync(descriptor)
+    if (temporaryCreated && temporary !== undefined) {
+      try { unlinkSync(temporary) } catch { /* retain the fixed error */ }
+    }
+    if (root !== undefined) {
+      try { await closeFixedPrivateRoot(root) } catch { /* retain the fixed error */ }
+    }
   }
 }
 

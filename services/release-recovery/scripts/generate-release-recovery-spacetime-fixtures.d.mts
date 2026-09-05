@@ -42,3 +42,8 @@ export function preflightFixedPrivatePrerequisites(input: unknown): Promise<Read
   ptr: Readonly<Record<string, unknown>>
   toolchain: Readonly<Record<string, unknown>>
 }>>
+
+export function preflightFixedBootstrapPrerequisites(input: unknown): Promise<Readonly<{
+  g002: Readonly<Record<string, unknown>>
+  ptr: Readonly<Record<string, unknown>>
+}>>

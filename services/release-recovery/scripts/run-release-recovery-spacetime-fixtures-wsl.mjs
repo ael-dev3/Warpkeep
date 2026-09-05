@@ -162,23 +162,33 @@ export function validateWslFixturePlan(value) {
         !== 'warpkeep-release-recovery-cross-platform-program-build-v1'
     ) fail()
     const toolchain = exactDataObject(plan.toolchain, [
+      'sourcePolicySha256',
       'manifestSha256',
       'cacheCatalogSha256',
+      'cacheClosureSha256',
       'platform',
       'architecture',
       'offlineReady',
       'signaturesVerified',
+      'bootstrapProgramBytes',
+      'bootstrapProgramSha256',
       'materializerProgramBytes',
       'materializerProgramSha256',
     ])
+    nonzeroHex(toolchain.sourcePolicySha256, LOWER_HEX_64)
     nonzeroHex(toolchain.manifestSha256, LOWER_HEX_64)
     nonzeroHex(toolchain.cacheCatalogSha256, LOWER_HEX_64)
+    nonzeroHex(toolchain.cacheClosureSha256, LOWER_HEX_64)
+    nonzeroHex(toolchain.bootstrapProgramSha256, LOWER_HEX_64)
     nonzeroHex(toolchain.materializerProgramSha256, LOWER_HEX_64)
     if (
       toolchain.platform !== 'linux'
       || toolchain.architecture !== 'x64'
       || toolchain.offlineReady !== true
       || toolchain.signaturesVerified !== true
+      || !Number.isSafeInteger(toolchain.bootstrapProgramBytes)
+      || toolchain.bootstrapProgramBytes < 1
+      || toolchain.bootstrapProgramBytes > 16 * 1024 * 1024
       || !Number.isSafeInteger(toolchain.materializerProgramBytes)
       || toolchain.materializerProgramBytes < 1
       || toolchain.materializerProgramBytes > 16 * 1024 * 1024

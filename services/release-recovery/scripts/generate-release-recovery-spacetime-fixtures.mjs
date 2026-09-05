@@ -3,6 +3,7 @@ import {
   createPublicKey,
   timingSafeEqual,
 } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { isAbsolute, posix, win32 } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { types } from 'node:util'
@@ -24,6 +25,10 @@ import {
   verifyFixedPublishReceipt,
   verifyFixedToolchainAttestation,
 } from './release-recovery-fixture-host.mjs'
+import {
+  parseToolchainEvidenceBytes,
+  parseToolchainSourcePolicyBytes,
+} from './release-recovery-toolchain-records.mjs'
 
 const decoder = new TextDecoder('utf-8', { fatal: true })
 const encoder = new TextEncoder()
@@ -31,6 +36,9 @@ const LOWER_HEX_40 = /^[0-9a-f]{40}$/u
 const LOWER_HEX_64 = /^[0-9a-f]{64}$/u
 const BASE64URL_32 = /^[A-Za-z0-9_-]{43}$/u
 const POSITIVE_DECIMAL = /^[1-9][0-9]{0,15}$/u
+const FIXED_TOOLCHAIN_SOURCE_POLICY = parseToolchainSourcePolicyBytes(readFileSync(
+  new URL('./release-recovery-wsl-toolchain-source-policy-v1.json', import.meta.url),
+))
 
 export const FIXED_PRIVATE_ROOT = String.raw`C:\Users\heyas\.warpkeep\private\release-recovery-v1`
 
@@ -270,13 +278,15 @@ function validateBootstrapRecords(records) {
     || marker.enabled !== false
   ) fail()
 
-  const rpc = decodeSecret(records.get(FIXED_PRIVATE_RECORD_PATHS.rpcSecret))
-  const census = decodeSecret(records.get(FIXED_PRIVATE_RECORD_PATHS.censusPepper))
+  let rpc
+  let census
   try {
+    rpc = decodeSecret(records.get(FIXED_PRIVATE_RECORD_PATHS.rpcSecret))
+    census = decodeSecret(records.get(FIXED_PRIVATE_RECORD_PATHS.censusPepper))
     if (timingSafeEqual(rpc, census)) fail()
   } finally {
-    rpc.fill(0)
-    census.fill(0)
+    rpc?.fill(0)
+    census?.fill(0)
   }
 
   const fidText = decoder.decode(records.get(FIXED_PRIVATE_RECORD_PATHS.canaryFid))
@@ -330,37 +340,51 @@ function validateRootHandle(value, requestedPath) {
 }
 
 function validatePrivateFile(value, root, relativePath, maximumBytes) {
-  const file = exactDataObject(value, [
-    'canonicalPath',
-    'regularFile',
-    'reparsePoint',
-    'ownerOnly',
-    'mode',
-    'descriptorVerified',
-    'bytes',
-  ])
-  if (
-    !samePath(file.canonicalPath, expectedPrivatePath(root.canonicalPath, relativePath))
-    || file.regularFile !== true
-    || file.reparsePoint !== false
-    || file.ownerOnly !== true
-    || file.mode !== 0o600
-    || file.descriptorVerified !== true
-    || !(file.bytes instanceof Uint8Array)
-    || file.bytes.byteLength === 0
-    || file.bytes.byteLength > maximumBytes
-  ) fail()
-  return file.bytes
+  let bytes
+  try {
+    const file = exactDataObject(value, [
+      'canonicalPath',
+      'regularFile',
+      'reparsePoint',
+      'ownerOnly',
+      'mode',
+      'descriptorVerified',
+      'bytes',
+    ])
+    bytes = file.bytes
+    if (
+      !samePath(file.canonicalPath, expectedPrivatePath(root.canonicalPath, relativePath))
+      || file.regularFile !== true
+      || file.reparsePoint !== false
+      || file.ownerOnly !== true
+      || file.mode !== 0o600
+      || file.descriptorVerified !== true
+      || !(bytes instanceof Uint8Array)
+      || bytes.byteLength === 0
+      || bytes.byteLength > maximumBytes
+    ) fail()
+    const validated = bytes
+    bytes = undefined
+    return validated
+  } catch (error) {
+    if (bytes instanceof Uint8Array) bytes.fill(0)
+    throw error
+  }
 }
 
-async function readPrivateRecords(host, root) {
+async function readPrivateRecords(host, root, paths = Object.values(FIXED_PRIVATE_RECORD_PATHS)) {
   const records = new Map()
-  for (const relativePath of Object.values(FIXED_PRIVATE_RECORD_PATHS)) {
-    const maximumBytes = PRIVATE_MAXIMUM_BYTES[relativePath]
-    const file = await host.read(root, relativePath, maximumBytes)
-    records.set(relativePath, validatePrivateFile(file, root, relativePath, maximumBytes))
+  try {
+    for (const relativePath of paths) {
+      const maximumBytes = PRIVATE_MAXIMUM_BYTES[relativePath]
+      const file = await host.read(root, relativePath, maximumBytes)
+      records.set(relativePath, validatePrivateFile(file, root, relativePath, maximumBytes))
+    }
+    return records
+  } catch {
+    for (const bytes of records.values()) bytes.fill(0)
+    fail()
   }
-  return records
 }
 
 function validateAuthenticatedReceipt(value, realm, bytes) {
@@ -425,11 +449,13 @@ function validateToolchainAttestation(value, bytes) {
     'profile',
     'platform',
     'architecture',
+    'sourcePolicySha256',
     'offlineReady',
     'signaturesVerified',
     'attestationSha256',
     'toolchainManifestSha256',
     'cacheCatalogSha256',
+    'cacheClosureSha256',
     'bootstrapProgramBytes',
     'bootstrapProgramSha256',
     'materializerProgramBytes',
@@ -440,6 +466,7 @@ function validateToolchainAttestation(value, bytes) {
     || attestation.profile !== 'warpkeep-release-recovery-wsl-toolchain-attestation-v1'
     || attestation.platform !== 'linux'
     || attestation.architecture !== 'x64'
+    || attestation.sourcePolicySha256 !== FIXED_TOOLCHAIN_SOURCE_POLICY.sha256
     || attestation.offlineReady !== true
     || attestation.signaturesVerified !== true
     || attestation.attestationSha256 !== sha256(bytes)
@@ -452,11 +479,14 @@ function validateToolchainAttestation(value, bytes) {
   ) fail()
   nonzeroHex(attestation.toolchainManifestSha256, LOWER_HEX_64)
   nonzeroHex(attestation.cacheCatalogSha256, LOWER_HEX_64)
+  nonzeroHex(attestation.cacheClosureSha256, LOWER_HEX_64)
   nonzeroHex(attestation.bootstrapProgramSha256, LOWER_HEX_64)
   nonzeroHex(attestation.materializerProgramSha256, LOWER_HEX_64)
   return Object.freeze({
+    sourcePolicySha256: attestation.sourcePolicySha256,
     manifestSha256: attestation.toolchainManifestSha256,
     cacheCatalogSha256: attestation.cacheCatalogSha256,
+    cacheClosureSha256: attestation.cacheClosureSha256,
     bootstrapProgramBytes: attestation.bootstrapProgramBytes,
     bootstrapProgramSha256: attestation.bootstrapProgramSha256,
     materializerProgramBytes: attestation.materializerProgramBytes,
@@ -483,12 +513,16 @@ function createPlan(toolchain, g002, ptr) {
     profile: 'warpkeep-release-recovery-wsl-fixture-plan-v1',
     recoveryBuildProfile: 'warpkeep-release-recovery-cross-platform-program-build-v1',
     toolchain: Object.freeze({
+      sourcePolicySha256: toolchain.sourcePolicySha256,
       manifestSha256: toolchain.manifestSha256,
       cacheCatalogSha256: toolchain.cacheCatalogSha256,
+      cacheClosureSha256: toolchain.cacheClosureSha256,
       platform: 'linux',
       architecture: 'x64',
       offlineReady: true,
       signaturesVerified: true,
+      bootstrapProgramBytes: toolchain.bootstrapProgramBytes,
+      bootstrapProgramSha256: toolchain.bootstrapProgramSha256,
       materializerProgramBytes: toolchain.materializerProgramBytes,
       materializerProgramSha256: toolchain.materializerProgramSha256,
     }),
@@ -537,29 +571,24 @@ function createPlan(toolchain, g002, ptr) {
   return plan
 }
 
-function validateToolchainManifest(bytes) {
-  const manifest = exactOrderedRecord(parseCanonicalJson(bytes, 512 * 1_024), [
-    'schemaVersion',
-    'profile',
-    'platform',
-    'architecture',
-    'nodeVersions',
-    'pnpmVersion',
-    'spacetimeVersion',
-    'gitPackageVersion',
-    'wslVersion',
-  ])
-  if (
-    manifest.schemaVersion !== 1
-    || manifest.profile !== 'warpkeep-release-recovery-wsl-linux-x64-toolchain-v1'
-    || manifest.platform !== 'linux'
-    || manifest.architecture !== 'x64'
-    || JSON.stringify(manifest.nodeVersions) !== JSON.stringify(['24.19.0', '22.22.3'])
-    || manifest.pnpmVersion !== '11.7.0'
-    || manifest.spacetimeVersion !== '2.6.1'
-    || manifest.gitPackageVersion !== '1:2.43.0-1ubuntu7.3'
-    || manifest.wslVersion !== '2.7.11.0'
-  ) fail()
+function validateToolchainManifest(bytes, plan, result) {
+  parseToolchainEvidenceBytes(bytes, FIXED_TOOLCHAIN_SOURCE_POLICY, {
+    g001: {
+      sourceCommit: G001_BASELINE_COMMIT,
+      sourceTree: G001_BASELINE_TREE,
+      dependencyLockClosureSha256: result.realms.g001.dependencyLockClosureSha256,
+    },
+    g002: {
+      sourceCommit: plan.realms.g002.sourceCommit,
+      sourceTree: plan.realms.g002.sourceTree,
+      dependencyLockClosureSha256: plan.realms.g002.dependencyLockClosureSha256,
+    },
+    ptr: {
+      sourceCommit: plan.realms.ptr.sourceCommit,
+      sourceTree: plan.realms.ptr.sourceTree,
+      dependencyLockClosureSha256: plan.realms.ptr.dependencyLockClosureSha256,
+    },
+  })
 }
 
 function normalizeRunnerResult(value, plan) {
@@ -568,7 +597,7 @@ function normalizeRunnerResult(value, plan) {
     value.toolchainManifestSha256 !== plan.toolchain.manifestSha256
     || sha256(value.toolchainManifestBytes) !== value.toolchainManifestSha256
   ) fail()
-  validateToolchainManifest(value.toolchainManifestBytes)
+  validateToolchainManifest(value.toolchainManifestBytes, plan, value)
   const fixtureBytes = {}
   const abiDigests = {}
   const responseDigests = {}
@@ -799,7 +828,7 @@ export function parseGeneratorArguments(argv) {
   }
 }
 
-async function preflightPrivatePrerequisites(privateRoot) {
+async function preflightPrivatePrerequisites(privateRoot, includeToolchain) {
   let rootHandle
   let records
   let rootClosed = false
@@ -808,12 +837,14 @@ async function preflightPrivatePrerequisites(privateRoot) {
       await FIXED_PRIVATE_HOST.privateRoot.open(privateRoot),
       privateRoot,
     )
-    records = await readPrivateRecords(FIXED_PRIVATE_HOST.privateRoot, rootHandle)
+    const recordPaths = Object.values(FIXED_PRIVATE_RECORD_PATHS).filter(
+      path => includeToolchain || path !== FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation,
+    )
+    records = await readPrivateRecords(FIXED_PRIVATE_HOST.privateRoot, rootHandle, recordPaths)
     validateBootstrapRecords(records)
 
     const g002Bytes = records.get(FIXED_PRIVATE_RECORD_PATHS.g002Receipt)
     const ptrBytes = records.get(FIXED_PRIVATE_RECORD_PATHS.ptrReceipt)
-    const toolchainBytes = records.get(FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation)
     const g002 = validateAuthenticatedReceipt(
       await authenticateReceipt(
         FIXED_PRIVATE_HOST.verifyReceipt,
@@ -837,18 +868,22 @@ async function preflightPrivatePrerequisites(privateRoot) {
       ptrBytes,
     )
     if (g002.databaseIdentity === ptr.databaseIdentity) fail()
-    const toolchain = validateToolchainAttestation(
-      await authenticateToolchain(
-        FIXED_PRIVATE_HOST.verifyToolchain,
-        FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation,
-        toolchainBytes,
-      ),
-      toolchainBytes,
-    )
+    const toolchain = includeToolchain
+      ? validateToolchainAttestation(
+          await authenticateToolchain(
+            FIXED_PRIVATE_HOST.verifyToolchain,
+            FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation,
+            records.get(FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation),
+          ),
+          records.get(FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation),
+        )
+      : undefined
     await FIXED_PRIVATE_HOST.privateRoot.close(rootHandle)
     rootClosed = true
     for (const bytes of records.values()) bytes.fill(0)
-    return Object.freeze({ g002, ptr, toolchain })
+    return includeToolchain
+      ? Object.freeze({ g002, ptr, toolchain })
+      : Object.freeze({ g002, ptr })
   } catch (error) {
     if (error instanceof RecoveryFixtureInputError) throw error
     fail()
@@ -866,7 +901,18 @@ export async function preflightFixedPrivatePrerequisites(input) {
   try {
     const options = exactDataObject(input, ['privateRoot'])
     if (options.privateRoot !== FIXED_PRIVATE_ROOT) fail()
-    return await preflightPrivatePrerequisites(options.privateRoot)
+    return await preflightPrivatePrerequisites(options.privateRoot, true)
+  } catch (error) {
+    if (error instanceof RecoveryFixtureInputError) throw error
+    fail()
+  }
+}
+
+export async function preflightFixedBootstrapPrerequisites(input) {
+  try {
+    const options = exactDataObject(input, ['privateRoot'])
+    if (options.privateRoot !== FIXED_PRIVATE_ROOT) fail()
+    return await preflightPrivatePrerequisites(options.privateRoot, false)
   } catch (error) {
     if (error instanceof RecoveryFixtureInputError) throw error
     fail()
