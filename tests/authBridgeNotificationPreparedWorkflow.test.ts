@@ -227,9 +227,13 @@ function protectedLaunchForTrustedNode(
   source: string,
   nodeExecutable: string,
   nodeDigest: string,
+  fixtureRoot: string,
 ): string {
+  if (dirname(nodeExecutable) !== fixtureRoot) {
+    throw new Error('prepared fixture Node must be a direct child of its private root');
+  }
   const uid = String(process.getuid?.() ?? 0);
-  return emulateBsdNodeAttestationForLinux(source
+  const generatedBash = emulateBsdNodeAttestationForLinux(source
     .replaceAll(IMMUTABLE_NODE_22_22_3_DARWIN_ARM64_PATH, nodeExecutable)
     .replaceAll(OFFICIAL_NODE_22_22_3_DARWIN_ARM64_SHA256, nodeDigest)
     .replaceAll(
@@ -254,6 +258,17 @@ function protectedLaunchForTrustedNode(
       () => '"$signature" != *$\'TeamIdentifier=HX7739G8FX\'* '
         + '&& "$signature" != *$\'Signature=adhoc\'*',
     ));
+  const declaration = /^verify_immutable_executable_path\(\) \{\n[\s\S]*?^\}/gmu;
+  const functions = [...generatedBash.matchAll(declaration)];
+  const stop = 'if [[ "$component" == \'/\' ]]; then break; fi';
+  if (functions.length !== 1 || functions[0]![0].split(stop).length !== 2) {
+    throw new Error('prepared fixture ancestry boundary invalid');
+  }
+  const quotedRoot = `'${fixtureRoot.replaceAll("'", "'\"'\"'")}'`;
+  return generatedBash.replace(declaration, body => body.replace(
+    stop,
+    () => `if [[ "$component" == ${quotedRoot} || "$component" == '/' ]]; then break; fi`,
+  ));
 }
 
 function protectedLaunchForSameUidSwapTarget(
@@ -884,6 +899,32 @@ afterEach(() => {
 });
 
 describe('notification-bridge-prepared protected workflow', () => {
+  for (const stepId of ['deploy', 'recovery']) {
+    it.each(['missing function', 'duplicate function', 'missing stop', 'duplicate stop'])(
+      `rejects %s before adapting the ${stepId} fixture ancestry`,
+      mutation => {
+        const source = step(stepId).run ?? '';
+        const stop = 'if [[ "$component" == \'/\' ]]; then break; fi';
+        const changed = mutation === 'missing function'
+          ? source.replace('verify_immutable_executable_path() {', 'different_function() {')
+          : mutation === 'duplicate function'
+            ? `${source}\n${source}`
+            : mutation === 'missing stop'
+              ? source.replace(stop, '')
+              : source.replace(stop, `${stop}\n${stop}`);
+        expect(() => protectedLaunchForTrustedNode(
+          changed, '/private/test-fixture/node', 'a'.repeat(64), '/private/test-fixture',
+        )).toThrow('prepared fixture ancestry boundary invalid');
+      },
+    );
+  }
+
+  it('rejects a selected fixture Node outside its own private root', () => {
+    expect(() => protectedLaunchForTrustedNode(
+      step('deploy').run ?? '', '/another-fixture/node', 'a'.repeat(64), '/private/test-fixture',
+    )).toThrow('prepared fixture Node must be a direct child of its private root');
+  });
+
   it('is manual-only, protected, bounded, and selects only the dedicated persistent runner', () => {
     const source = workflow();
     const document = workflowDocument();
@@ -2382,13 +2423,16 @@ const commonRequired = ${JSON.stringify([
   'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
 ])};
 for (const name of commonRequired) {
-  if (!Object.hasOwn(process.env, name)) process.exit(42);
+  if (Object.hasOwn(process.env, name)) process.exit(44);
 }
 const deploymentOnly = ${JSON.stringify([
   'WARPKEEP_PLAYER_CANARY_OWNER_FID',
   'WARPKEEP_PTR_SPACETIMEDB_DATABASE',
 ])};
 function requireDeploymentAuthority(present) {
+  for (const name of commonRequired) {
+    if (!Object.hasOwn(process.env, name)) process.exit(42);
+  }
   for (const name of deploymentOnly) {
     if (Object.hasOwn(process.env, name) !== present) process.exit(43);
   }
@@ -2400,6 +2444,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
 export async function runAuthBridgeNotificationPreparedReadOnlyRecovery() {
 requireDeploymentAuthority(false);
 writeFileSync(${JSON.stringify(marker)}, 'sanitized');
+return Object.freeze({ outcome: 'verified-read-only-recovery' });
 }
 `,
       );
@@ -2407,7 +2452,9 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
         root,
         'scripts/auth-bridge-notification-prepared-deploy.mjs',
       );
-      const trustedNode = realpathSync(process.execPath);
+      const trustedNode = resolve(root, 'node');
+      cpSync(realpathSync(process.execPath), trustedNode);
+      chmodSync(trustedNode, 0o555);
       const trustedNodeDigest = createHash('sha256')
         .update(readFileSync(trustedNode))
         .digest('hex');
@@ -2422,6 +2469,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
           protectedRun,
           trustedNode,
           trustedNodeDigest,
+          root,
         ),
       );
       expect(step(stepId).shell).toBe(
@@ -2601,6 +2649,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
             step(stepId).run ?? '',
             node,
             digest,
+            root,
           ),
         );
         const secret = 'github-prepared-untrusted-node-state-token';
@@ -2743,7 +2792,9 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
         'export async function runAuthBridgeNotificationPreparedDeploy() {}',
         '',
       ].join('\n'));
-      const trustedNode = realpathSync(process.execPath);
+      const trustedNode = resolve(root, 'node');
+      cpSync(realpathSync(process.execPath), trustedNode);
+      chmodSync(trustedNode, 0o555);
       const trustedNodeDigest = createHash('sha256')
         .update(readFileSync(trustedNode))
         .digest('hex');
@@ -2753,6 +2804,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
           step(stepId).run ?? '',
           trustedNode,
           trustedNodeDigest,
+          root,
         ),
       );
       const result = spawnSync('/usr/bin/env', [
@@ -2790,6 +2842,9 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
       });
       expect(result.signal, stepId).toBeNull();
       expect(result.status, stepId).not.toBe(0);
+      if (process.platform !== 'win32') {
+        expect(result.stderr, stepId).toContain('TEST_CLOSURE_MODULE_DIGEST_MISMATCH');
+      }
       expect(() => readFileSync(marker), stepId).toThrow();
       expect(result.stderr, stepId)
         .not.toContain('github-prepared-mutated-entrypoint-token');
@@ -2821,7 +2876,9 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
         'scripts/auth-bridge-notification-prepared-deploy.mjs',
         'b'.repeat(64),
       );
-      const trustedNode = realpathSync(process.execPath);
+      const trustedNode = resolve(root, 'node');
+      cpSync(realpathSync(process.execPath), trustedNode);
+      chmodSync(trustedNode, 0o555);
       const trustedNodeDigest = createHash('sha256')
         .update(readFileSync(trustedNode))
         .digest('hex');
@@ -2831,6 +2888,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
           step(stepId).run ?? '',
           trustedNode,
           trustedNodeDigest,
+          root,
         ),
       );
       const result = spawnSync('/usr/bin/env', [
@@ -2868,6 +2926,9 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
       });
       expect(result.signal, stepId).toBeNull();
       expect(result.status, stepId).not.toBe(0);
+      if (process.platform !== 'win32') {
+        expect(result.stderr, stepId).toContain('AUTH_BRIDGE_PREPARED_DEPLOY_MANIFEST_AUTHORITY_MISMATCH');
+      }
       expect(() => readFileSync(marker), stepId).toThrow();
       expect(result.stderr, stepId)
         .not.toContain('github-prepared-refrozen-token');
@@ -2902,7 +2963,9 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
         root,
         'scripts/auth-bridge-notification-prepared-deploy.mjs',
       );
-      const trustedNode = realpathSync(process.execPath);
+      const trustedNode = resolve(root, 'node');
+      cpSync(realpathSync(process.execPath), trustedNode);
+      chmodSync(trustedNode, 0o555);
       const trustedNodeDigest = createHash('sha256')
         .update(readFileSync(trustedNode))
         .digest('hex');
@@ -2912,6 +2975,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
           step(stepId).run ?? '',
           trustedNode,
           trustedNodeDigest,
+          root,
         ),
       );
       const sharedCredential = 'shared-owner-credential-value';
@@ -2985,7 +3049,9 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
         root,
         'scripts/auth-bridge-notification-prepared-deploy.mjs',
       );
-      const trustedNode = realpathSync(process.execPath);
+      const trustedNode = resolve(root, 'node');
+      cpSync(realpathSync(process.execPath), trustedNode);
+      chmodSync(trustedNode, 0o555);
       const trustedNodeDigest = createHash('sha256')
         .update(readFileSync(trustedNode))
         .digest('hex');
@@ -3002,6 +3068,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
           withoutOuterCredentialGuard,
           trustedNode,
           trustedNodeDigest,
+          root,
         ),
       );
       const sharedCredential = 'shared-prepared-child-credential-value';
@@ -3039,6 +3106,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
       });
       expect(result.signal, stepId).toBeNull();
       expect(result.status, stepId).not.toBe(0);
+      expect(result.stderr, stepId).toContain('AUTH_BRIDGE_PREPARED_DEPLOY_CREDENTIALS_INVALID');
       expect(() => readFileSync(marker), stepId).toThrow();
       expect(result.stderr, stepId).not.toContain(sharedCredential);
       }
