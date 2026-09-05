@@ -1,5 +1,34 @@
 # Warpkeep local final-release preparation
 
+## Scope amendment: all production operations local
+
+The owner's subsequent instruction is: disregard the Mac runner entirely and
+bring all production scope onto the local machine. This supersedes every
+statement below that defers deployment migration or preserves a mandatory Mac
+execution dependency. The preparation design remains a component, not the full
+delivery scope. No further Mac availability checks are part of this plan.
+
+Windows/WSL must support build, verification, final preparation, authenticated
+deployment, recovery operations, activation and post-deployment checks against
+the existing remote services. This does not relocate the live databases or
+website onto this workstation. Cloudflare, SpacetimeDB and GitHub remain their
+existing hosting/control services unless a separately justified change is made.
+
+Replace Mac-specific execution and attestation contracts with explicitly
+identified local equivalents; retain legacy interfaces only for compatibility,
+never as required steps. Audit the installed-toolchain, workflow identity,
+receipt and signing interfaces before specifying their successors. Local
+execution cannot manufacture GitHub OIDC claims, historical receipts, missing
+keys or owner identity. Genuine remote permission and credential requirements
+must be established through supported authenticated mechanisms.
+
+Preserve existing G001 players, data and latest 0.3 behavior with no additional
+admissions; keep G002 sealed and PTR owner-only. Do not delete or recreate a
+populated database as a deployment shortcut. Completion requires an actual
+verified live release and local operating instructions, not merely a working
+local build. The deployment migration audit and implementation tasks are tracked
+in the active release-closure ledger.
+
 ## Objective and authorization
 
 Build and verify the final 0.4 preparation tree locally on Windows/WSL, without
