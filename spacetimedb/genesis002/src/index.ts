@@ -18,10 +18,18 @@ export {
   initializeGameplay04KeepV1,
   getGameplay04KeepV1,
 } from './gameplayKeep';
+export {
+  dispatchGameplay04WorkerV1,
+  recallGameplay04WorkerV1,
+} from './gameplayWorkers';
+export { runGameplay04ScheduleV1 } from './gameplaySchedule';
 
 for (const name of [
   'initialize_gameplay04_keep_v1',
   'get_gameplay04_keep_v1',
+  'dispatch_gameplay04_worker_v1',
+  'recall_gameplay04_worker_v1',
+  'run_gameplay_04_schedule_v_1',
 ]) {
   genesis002.moduleDef.explicitNames.entries.push({
     tag: 'Function',

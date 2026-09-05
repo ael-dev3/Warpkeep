@@ -1,5 +1,39 @@
 import { table, t } from 'spacetimedb/server';
 
+import { getGameplay04ScheduleV1 } from './gameplayScheduleLink';
+
+const gameplay04RoutePointV1 = t.object('Gameplay04RoutePointV1', {
+  q: t.i32(),
+  r: t.i32(),
+});
+
+const gameplay04JourneyV1 = t.object('Gameplay04JourneyV1', {
+  resource: t.string(),
+  dispatchedAt: t.i64(),
+  routeEdges: t.u32(),
+  travelPerEdgeMicros: t.i64(),
+  gatheringDurationMicros: t.i64(),
+  yieldPerQuantum: t.u64(),
+  recalledAt: t.option(t.i64()),
+});
+
+const gameplay04AssignmentV1 = t.object('Gameplay04AssignmentV1', {
+  nodeId: t.string(),
+  locationId: t.string(),
+  destinationCellKey: t.string(),
+  route: t.array(gameplay04RoutePointV1),
+  journey: gameplay04JourneyV1,
+});
+
+const gameplay04ReturnOutcomeV1 = t.object('Gameplay04ReturnOutcomeV1', {
+  assignmentRevision: t.u64(),
+  resource: t.string(),
+  returnedAtMicros: t.i64(),
+  earned: t.u64(),
+  credited: t.u64(),
+  overflow: t.u64(),
+});
+
 export const gameplay04KeepV1 = table(
   { name: 'gameplay04_keep_v1' },
   {
@@ -27,6 +61,8 @@ export const gameplay04WorkerV1 = table(
     keepId: t.string().index(),
     ordinal: t.u32(),
     assignmentRevision: t.u64(),
+    assignment: t.option(gameplay04AssignmentV1),
+    lastReturn: t.option(gameplay04ReturnOutcomeV1),
   },
 );
 
@@ -39,5 +75,29 @@ export const gameplay04ReceiptV1 = table(
     requestKey: t.string(),
     fingerprint: t.string(),
     resultRevision: t.u64(),
+  },
+);
+
+export const gameplay04ReservationV1 = table(
+  { name: 'gameplay04_reservation_v1' },
+  {
+    nodeId: t.string().primaryKey(),
+    keepId: t.string().index(),
+    workerId: t.string(),
+    assignmentRevision: t.u64(),
+  },
+);
+
+export const gameplay04ScheduleV1 = table(
+  {
+    name: 'gameplay04_schedule_v1',
+    scheduled: (): any => getGameplay04ScheduleV1(),
+  },
+  {
+    scheduleId: t.u64().primaryKey().autoInc(),
+    scheduledAt: t.scheduleAt(),
+    keepId: t.string().index(),
+    workerId: t.string().index(),
+    assignmentRevision: t.u64().index(),
   },
 );

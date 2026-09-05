@@ -3,6 +3,33 @@ import {
   GAMEPLAY04_POLICY_VERSION,
   GAMEPLAY04_WORKER_COUNT,
 } from './policy';
+import {
+  GAMEPLAY04_I64_MAX,
+  GAMEPLAY04_MAX_BINDING_TEXT,
+  GAMEPLAY04_MAX_FINGERPRINT,
+  GAMEPLAY04_MAX_RECEIPTS,
+  GAMEPLAY04_MAX_REQUEST_KEY,
+  GAMEPLAY04_U64_MAX,
+  Gameplay04KeepError,
+  boundedRows04,
+  canonicalFingerprint04,
+  failGameplay04,
+  validateBinding04,
+  validateKeepRow04,
+  validateReceipts04,
+  validateTimestamp04,
+  type Gameplay04KeepErrorCode,
+} from './commands';
+import {
+  Gameplay04WorkerStateError,
+  validateAssignment04,
+  validateReturnOutcome04,
+  type Assignment04,
+  type ReturnOutcome04,
+} from './workerState';
+
+export { Gameplay04KeepError } from './commands';
+export type { Gameplay04KeepErrorCode } from './commands';
 
 export type KeepBinding04 = Readonly<{
   keepId: string; databaseIdentity: string; ownerFid: bigint;
@@ -16,6 +43,8 @@ export type KeepRow04 = KeepBinding04 & Readonly<{
 export type WorkerSlot04 = Readonly<{
   workerId: string; keepId: string; ordinal: number;
   assignmentRevision: bigint;
+  assignment?: Assignment04 | undefined;
+  lastReturn?: ReturnOutcome04 | undefined;
 }>;
 export type ReceiptRow04 = Readonly<{
   receiptId: string; keepId: string; sequence: bigint;
@@ -37,39 +66,20 @@ export interface KeepStorage04 {
   insertReceipt(row: ReceiptRow04): void;
 }
 
-export type Gameplay04KeepErrorCode =
-  | 'GAMEPLAY04_INPUT_INVALID'
-  | 'GAMEPLAY04_BINDING_INVALID'
-  | 'GAMEPLAY04_TIMESTAMP_INVALID'
-  | 'GAMEPLAY04_STORED_STATE_INVALID'
-  | 'GAMEPLAY04_BINDING_MISMATCH'
-  | 'GAMEPLAY04_RECEIPT_CONFLICT'
-  | 'GAMEPLAY04_RECEIPT_EXPIRED'
-  | 'GAMEPLAY04_ALREADY_INITIALIZED'
-  | 'GAMEPLAY04_SEQUENCE_INVALID'
-  | 'GAMEPLAY04_NOT_INITIALIZED';
-
-const U64_MAX = 18_446_744_073_709_551_615n;
-const I64_MAX = 9_223_372_036_854_775_807n;
+const U64_MAX = GAMEPLAY04_U64_MAX;
+const I64_MAX = GAMEPLAY04_I64_MAX;
 const DATABASE_HEX = /^[0-9a-f]{64}$/u;
 const REQUEST_KEY = /^g04:([1-9][0-9]{0,19}):([0-9a-f]{32})$/u;
 const INPUT_KEYS = Object.freeze([
   'sequence', 'requestKey', 'expectedRevision', 'policyVersion',
 ] as const);
-const MAX_BINDING_TEXT = 256;
-const MAX_REQUEST_KEY = 57;
-const MAX_FINGERPRINT = 4_096;
-const MAX_RECEIPTS = 128;
-
-export class Gameplay04KeepError extends Error {
-  constructor(readonly code: Gameplay04KeepErrorCode) {
-    super(code);
-    this.name = 'Gameplay04KeepError';
-  }
-}
+const MAX_BINDING_TEXT = GAMEPLAY04_MAX_BINDING_TEXT;
+const MAX_REQUEST_KEY = GAMEPLAY04_MAX_REQUEST_KEY;
+const MAX_FINGERPRINT = GAMEPLAY04_MAX_FINGERPRINT;
+const MAX_RECEIPTS = GAMEPLAY04_MAX_RECEIPTS;
 
 function fail(code: Gameplay04KeepErrorCode): never {
-  throw new Gameplay04KeepError(code);
+  return failGameplay04(code);
 }
 
 function isU64(value: unknown): value is bigint {
@@ -85,24 +95,11 @@ function boundedText(value: unknown, maximum: number): value is string {
 }
 
 function validateBinding(binding: KeepBinding04): void {
-  if (
-    binding === null
-    || typeof binding !== 'object'
-    || typeof binding.databaseIdentity !== 'string'
-    || binding.databaseIdentity.length !== 64
-    || !DATABASE_HEX.test(binding.databaseIdentity)
-    || !isPositiveU64(binding.ownerFid)
-    || !boundedText(binding.atlasId, MAX_BINDING_TEXT)
-    || !isPositiveU64(binding.atlasRevision)
-    || !boundedText(binding.anchorCellKey, MAX_BINDING_TEXT)
-    || binding.keepId !== `g04:${binding.databaseIdentity}:${binding.ownerFid.toString()}`
-  ) fail('GAMEPLAY04_BINDING_INVALID');
+  validateBinding04(binding);
 }
 
 function validateTimestamp(nowMicros: bigint): void {
-  if (typeof nowMicros !== 'bigint' || nowMicros < 0n || nowMicros > I64_MAX) {
-    fail('GAMEPLAY04_TIMESTAMP_INVALID');
-  }
+  validateTimestamp04(nowMicros);
 }
 
 function validateRequestKey(requestKey: unknown, sequence: bigint): void {
@@ -149,58 +146,40 @@ function validateInput(input: InitializeKeepInput04): void {
 }
 
 function fingerprint(input: InitializeKeepInput04): string {
-  const value = JSON.stringify([
+  return canonicalFingerprint04([
     'initialize',
     input.sequence.toString(),
     input.requestKey,
     input.expectedRevision.toString(),
     input.policyVersion,
   ]);
-  if (value.length > MAX_FINGERPRINT) fail('GAMEPLAY04_INPUT_INVALID');
-  return value;
 }
 
 function boundedRows<Row>(
   rows: Iterable<Row>,
   maximum: number,
 ): readonly Row[] {
-  const result: Row[] = [];
-  for (const row of rows) {
-    if (result.length === maximum) fail('GAMEPLAY04_STORED_STATE_INVALID');
-    result.push(row);
-  }
-  return result;
+  return boundedRows04(rows, maximum);
 }
 
 function validateKeepRow(row: KeepRow04, binding: KeepBinding04): void {
-  if (
-    row.keepId !== binding.keepId
-    || row.databaseIdentity !== binding.databaseIdentity
-    || row.ownerFid !== binding.ownerFid
-    || row.atlasId !== binding.atlasId
-    || row.atlasRevision !== binding.atlasRevision
-    || row.anchorCellKey !== binding.anchorCellKey
-  ) fail('GAMEPLAY04_BINDING_MISMATCH');
-  if (
-    row.policyVersion !== GAMEPLAY04_POLICY_VERSION
-    || !isPositiveU64(row.revision)
-    || !isPositiveU64(row.lastAcceptedSequence)
-    || !isU64(row.food) || row.food > GAMEPLAY04_BALANCE_CAP
-    || !isU64(row.wood) || row.wood > GAMEPLAY04_BALANCE_CAP
-    || !isU64(row.stone) || row.stone > GAMEPLAY04_BALANCE_CAP
-    || !isU64(row.gold) || row.gold > GAMEPLAY04_BALANCE_CAP
-    || typeof row.createdAtMicros !== 'bigint'
-    || row.createdAtMicros < 0n
-    || row.createdAtMicros > I64_MAX
-  ) fail('GAMEPLAY04_STORED_STATE_INVALID');
+  validateKeepRow04(row, binding);
 }
 
 function validateWorkers(
   storage: KeepStorage04,
   keepId: string,
 ): readonly WorkerSlot04[] {
-  const rows = [...boundedRows(storage.workers(keepId), GAMEPLAY04_WORKER_COUNT)]
-    .sort((left, right) => left.ordinal - right.ordinal);
+  const rows = [...boundedRows(storage.workers(keepId), GAMEPLAY04_WORKER_COUNT)];
+  for (const row of rows) {
+    if (
+      typeof row.ordinal !== 'number'
+      || !Number.isSafeInteger(row.ordinal)
+      || row.ordinal < 0
+      || row.ordinal >= GAMEPLAY04_WORKER_COUNT
+    ) fail('GAMEPLAY04_STORED_STATE_INVALID');
+  }
+  rows.sort((left, right) => left.ordinal - right.ordinal);
   if (rows.length !== GAMEPLAY04_WORKER_COUNT) {
     fail('GAMEPLAY04_STORED_STATE_INVALID');
   }
@@ -213,7 +192,24 @@ function validateWorkers(
       || !isU64(row.assignmentRevision)
     ) fail('GAMEPLAY04_STORED_STATE_INVALID');
   }
-  return Object.freeze(rows.map(row => Object.freeze({ ...row })));
+  return Object.freeze(rows.map(row => {
+    try {
+      return Object.freeze({
+        ...row,
+        ...(row.assignment === undefined
+          ? {}
+          : { assignment: validateAssignment04(row.assignment) }),
+        ...(row.lastReturn === undefined
+          ? {}
+          : { lastReturn: validateReturnOutcome04(row.lastReturn) }),
+      });
+    } catch (error) {
+      if (error instanceof Gameplay04WorkerStateError) {
+        fail('GAMEPLAY04_STORED_STATE_INVALID');
+      }
+      throw error;
+    }
+  }));
 }
 
 function validateCanonicalFingerprint(value: unknown): void {
@@ -237,26 +233,7 @@ function validateReceipts(
   storage: KeepStorage04,
   keep: KeepRow04,
 ): readonly ReceiptRow04[] {
-  const rows = boundedRows(storage.receipts(keep.keepId), MAX_RECEIPTS);
-  const sequences = new Set<bigint>();
-  const identities = new Set<string>();
-  for (const row of rows) {
-    if (
-      row.keepId !== keep.keepId
-      || !isPositiveU64(row.sequence)
-      || row.sequence > keep.lastAcceptedSequence
-      || row.receiptId !== `${keep.keepId}:receipt:${row.sequence.toString()}`
-      || identities.has(row.receiptId)
-      || sequences.has(row.sequence)
-      || !isPositiveU64(row.resultRevision)
-      || row.resultRevision > keep.revision
-    ) fail('GAMEPLAY04_STORED_STATE_INVALID');
-    validateRequestKeyStored(row.requestKey, row.sequence);
-    validateCanonicalFingerprint(row.fingerprint);
-    identities.add(row.receiptId);
-    sequences.add(row.sequence);
-  }
-  return Object.freeze(rows.map(row => Object.freeze({ ...row })));
+  return validateReceipts04(storage, keep);
 }
 
 function validateRequestKeyStored(requestKey: unknown, sequence: bigint): void {

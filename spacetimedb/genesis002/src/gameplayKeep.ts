@@ -2,9 +2,42 @@ import { SenderError, t } from 'spacetimedb/server';
 
 import genesis002 from './schema';
 
+const gameplay04RoutePointV1 = t.object('Gameplay04RoutePointProjectionV1', {
+  q: t.i32(), r: t.i32(),
+});
+
+const gameplay04AssignmentStateV1 = t.object('Gameplay04AssignmentStateV1', {
+  locationId: t.string(),
+  destinationCellKey: t.string(),
+  resource: t.string(),
+  route: t.array(gameplay04RoutePointV1),
+  dispatchedAt: t.i64(),
+  routeEdges: t.u32(),
+  travelPerEdgeMicros: t.i64(),
+  gatheringDurationMicros: t.i64(),
+  yieldPerQuantum: t.u64(),
+  recalledAt: t.option(t.i64()),
+  phase: t.string(),
+  arrivesAt: t.i64(),
+  gatheringStopsAt: t.i64(),
+  returnsAt: t.i64(),
+  earned: t.u64(),
+});
+
+const gameplay04ReturnOutcomeV1 = t.object('Gameplay04ReturnOutcomeProjectionV1', {
+  assignmentRevision: t.u64(),
+  resource: t.string(),
+  returnedAtMicros: t.i64(),
+  earned: t.u64(),
+  credited: t.u64(),
+  overflow: t.u64(),
+});
+
 const gameplay04WorkerStateV1 = t.object('Gameplay04WorkerStateV1', {
   ordinal: t.u32(),
   assignmentRevision: t.u64(),
+  assignment: t.option(gameplay04AssignmentStateV1),
+  lastReturn: t.option(gameplay04ReturnOutcomeV1),
 });
 
 const gameplay04KeepStateV1 = t.object('Gameplay04KeepStateV1', {

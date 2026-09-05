@@ -67,6 +67,8 @@ beforeAll(async () => {
         initializeGameplay04KeepV1,
         getGameplay04KeepV1,
       } from './spacetimedb/ptr/src/gameplayKeep.ts';
+      export { dispatchGameplay04WorkerV1, recallGameplay04WorkerV1 }
+        from './spacetimedb/ptr/src/gameplayWorkers.ts';
       export { getPtrOwnerStatusV1, adminSuspendPtrOwnerV1 }
         from './spacetimedb/ptr/src/ownerReducers.ts';
       export { onConnect } from './spacetimedb/ptr/src/lifecycle.ts';
@@ -160,6 +162,8 @@ class PtrHarness {
   keeps = new Map<string, Record<string, any>>();
   workers = new Map<string, Record<string, any>>();
   receipts = new Map<string, Record<string, any>>();
+  reservations = new Map<string, Record<string, any>>();
+  schedules = new Map<bigint, Record<string, any>>();
   anchor = {
     singletonKey: 'PTR_OWNER_V1', ownerFid: OWNER_FID, authEpoch: 1,
     enabled: true, provisionedAt: {}, provisionedBy: 'service:hermes',
@@ -173,6 +177,8 @@ class PtrHarness {
     keeps = this.keeps,
     workers = this.workers,
     receipts = this.receipts,
+    reservations = this.reservations,
+    schedules = this.schedules,
   ) {
     const release = {
       atlasId: 'PTR_GREATER_REALM', publicReleaseId: `GRR-${'A'.repeat(26)}`,
@@ -198,8 +204,15 @@ class PtrHarness {
       cellKey: 'T1_LOWLANDS:0:0', atlasId: 'PTR_GREATER_REALM',
       componentKey: component.componentKey, chunkHandle: `GRK-${'A'.repeat(26)}`,
       passable: true, routeDepth: 0, routeParentDirection: undefined,
-      atlasQ: 0, atlasR: 0, elevation: 0,
+      atlasQ: 0, atlasR: 0, elevation: 0, regionId: 'T1_LOWLANDS', tier: 1,
     };
+    const resourceNodes = [0, 1, 2].map(nodeOrdinal => ({
+      nodeId: `NODE:WOOD:${nodeOrdinal}`, locationId: 'LOCATION:WOOD', nodeOrdinal,
+      releaseOrdinal: 100 + nodeOrdinal, atlasId: 'PTR_GREATER_REALM',
+      cellKey: cell.cellKey, regionId: cell.regionId, componentKey: component.componentKey,
+      resourceKind: 'wood', policyVersion: 'atlas-resource-v1', tier: 1,
+      active: false, allocationRank: 0xffff_ffff,
+    }));
     const chunk = {
       chunkHandle: cell.chunkHandle, atlasId: 'PTR_GREATER_REALM', binQ: 0, binR: 0,
     };
@@ -225,9 +238,13 @@ class PtrHarness {
       },
       greaterRealmCellV1: {
         count: () => 1n, cellKey: { find: () => cell },
+        atlasCoordKey: { find: (key: string) => key === 'A:0:0' ? cell : null },
       },
       greaterRealmCastleSlotV1: { count: () => 600n },
-      greaterRealmResourceNodeV1: { count: () => 12_000n },
+      greaterRealmResourceNodeV1: {
+        count: () => 12_000n,
+        locationId: { filter: (key: string) => key === 'LOCATION:WOOD' ? resourceNodes : [] },
+      },
       ptrOwnerAnchorV1: {
         count: () => 1n,
         singletonKey: {
@@ -237,16 +254,43 @@ class PtrHarness {
       },
       adminAudit: { insert: (row: unknown) => { this.auditRows.push(row); } },
       gameplay04KeepV1: {
-        keepId: { find: (key: string) => keeps.get(key) ?? null },
+        keepId: {
+          find: (key: string) => keeps.get(key) ?? null,
+          update: (row: Record<string, any>) => { keeps.set(row.keepId, { ...row }); },
+        },
         insert: (row: Record<string, any>) => { keeps.set(row.keepId, { ...row }); },
       },
       gameplay04WorkerV1: {
         keepId: { filter: (key: string) => [...workers.values()].filter(row => row.keepId === key) },
+        workerId: {
+          find: (key: string) => workers.get(key) ?? null,
+          update: (row: Record<string, any>) => { workers.set(row.workerId, { ...row }); },
+        },
         insert: (row: Record<string, any>) => { workers.set(row.workerId, { ...row }); },
       },
       gameplay04ReceiptV1: {
         keepId: { filter: (key: string) => [...receipts.values()].filter(row => row.keepId === key) },
+        receiptId: { delete: (key: string) => receipts.delete(key) },
         insert: (row: Record<string, any>) => { receipts.set(row.receiptId, { ...row }); },
+      },
+      gameplay04ReservationV1: {
+        keepId: { filter: (key: string) => [...reservations.values()].filter(row => row.keepId === key) },
+        nodeId: {
+          find: (key: string) => reservations.get(key) ?? null,
+          delete: (key: string) => reservations.delete(key),
+        },
+        insert: (row: Record<string, any>) => { reservations.set(row.nodeId, { ...row }); },
+      },
+      gameplay04_schedule_v1: {
+        keepId: { filter: (key: string) => [...schedules.values()].filter(row => row.keepId === key) },
+        scheduleId: {
+          find: (key: bigint) => schedules.get(key) ?? null,
+          delete: (key: bigint) => schedules.delete(key),
+        },
+        insert: (row: Record<string, any>) => {
+          const id = row.scheduleId === 0n ? BigInt(schedules.size + 1) : row.scheduleId;
+          schedules.set(id, { ...row, scheduleId: id });
+        },
       },
     };
   }
@@ -261,11 +305,15 @@ class PtrHarness {
         const keeps = new Map([...outer.keeps].map(([key, row]) => [key, { ...row }]));
         const workers = new Map([...outer.workers].map(([key, row]) => [key, { ...row }]));
         const receipts = new Map([...outer.receipts].map(([key, row]) => [key, { ...row }]));
-        const tx = { ...this, db: outer.database(keeps, workers, receipts) };
+        const reservations = new Map([...outer.reservations].map(([key, row]) => [key, { ...row }]));
+        const schedules = new Map([...outer.schedules].map(([key, row]) => [key, { ...row }]));
+        const tx = { ...this, db: outer.database(keeps, workers, receipts, reservations, schedules) };
         const result = effect(tx);
         outer.keeps = keeps;
         outer.workers = workers;
         outer.receipts = receipts;
+        outer.reservations = reservations;
+        outer.schedules = schedules;
         return result;
       },
       db: this.database(),
@@ -304,11 +352,27 @@ describe('PTR gameplay keep module adapter', () => {
     assert.deepEqual(read(harness.context()), {
       policyVersion: 'warpkeep-0.4-gameplay-v1', revision: 1n,
       lastAcceptedSequence: 1n, food: 0n, wood: 0n, stone: 0n, gold: 0n,
-      workers: [0, 1, 2, 3].map(ordinal => ({ ordinal, assignmentRevision: 0n })),
+      workers: [0, 1, 2, 3].map(ordinal => ({
+        ordinal, assignmentRevision: 0n, assignment: undefined, lastReturn: undefined,
+      })),
     });
     assert.doesNotMatch(JSON.stringify(read(harness.context()), (_key, value) => (
       typeof value === 'bigint' ? value.toString() : value
     )), /ownerFid|keepId|requestKey|fingerprint|jwt|credential/u);
+  });
+
+  test('dispatch executes the production atlas loader and storage adapter', () => {
+    const harness = new PtrHarness();
+    (ptrModule.initializeGameplay04KeepV1 as Callable)(harness.context(), GAMEPLAY_INPUT);
+    assert.deepEqual((ptrModule.dispatchGameplay04WorkerV1 as Callable)(harness.context(), {
+      sequence: 2n, requestKey: `g04:2:${'b'.repeat(32)}`, expectedRevision: 1n,
+      policyVersion: 'warpkeep-0.4-gameplay-v1', expectedAtlasRevision: 7n,
+      workerOrdinal: 0, locationId: 'LOCATION:WOOD', resource: 'wood',
+      gatheringDurationMicros: 60_000_000n,
+    }), { sequence: 2n, revision: 2n });
+    assert.equal(harness.reservations.size, 1);
+    assert.equal(harness.schedules.size, 1);
+    assert.equal(harness.workers.values().next().value!.assignment.route.length, 1);
   });
 
   test('owner/auth/atlas failures precede gameplay writes', () => {
@@ -375,7 +439,7 @@ describe('PTR gameplay keep module adapter', () => {
 });
 
 describe('module-local schema and Genesis 002 closure', () => {
-  test('both modules append the same three private gameplay descriptors', () => {
+  test('both modules append the same five private gameplay descriptors', () => {
     const tableProjection = (module: BundledModule) => module.schema.moduleDef.tables
       .filter((row: any) => String(row.sourceName).includes('gameplay04'))
       .map((row: any) => ({
@@ -391,11 +455,29 @@ describe('module-local schema and Genesis 002 closure', () => {
       }));
     const ptr = tableProjection(ptrModule);
     const g002 = tableProjection(genesis002Module);
-    assert.equal(ptr.length, 3);
-    assert.deepEqual(g002, ptr);
+    assert.equal(ptr.length, 5);
+    assert.deepEqual(
+      g002.map((row: any) => ({
+        sourceName: row.sourceName,
+        tableAccess: row.tableAccess,
+        fields: row.rowType.value.elements.map((element: any) => ({
+          name: element.name,
+          tag: element.algebraicType.tag,
+        })),
+      })),
+      ptr.map((row: any) => ({
+        sourceName: row.sourceName,
+        tableAccess: row.tableAccess,
+        fields: row.rowType.value.elements.map((element: any) => ({
+          name: element.name,
+          tag: element.algebraicType.tag,
+        })),
+      })),
+    );
     assert.ok(ptr.every((row: any) => row.tableAccess.tag === 'Private'));
     assert.deepEqual(ptr.map((row: any) => row.sourceName), [
       'gameplay04KeepV1', 'gameplay04WorkerV1', 'gameplay04ReceiptV1',
+      'gameplay04ReservationV1', 'gameplay04_schedule_v1',
     ]);
   });
 
@@ -434,9 +516,12 @@ describe('module-local schema and Genesis 002 closure', () => {
     }
   });
 
-  test('the G002 population guard directly counts all three gameplay families', () => {
+  test('the G002 population guard directly counts all five gameplay families', () => {
     const requireEmpty = genesis002Module.requireGenesis002PopulationEmpty as Callable;
-    for (const changed of [undefined, 'gameplay04KeepV1', 'gameplay04WorkerV1', 'gameplay04ReceiptV1']) {
+    for (const changed of [
+      undefined, 'gameplay04KeepV1', 'gameplay04WorkerV1', 'gameplay04ReceiptV1',
+      'gameplay04ReservationV1', 'gameplay04_schedule_v1',
+    ]) {
       const db: Record<string, unknown> = {};
       for (const name of [
         'allowedFid', 'accessRequestV1', 'player', 'playerV2', 'playerOwnershipV2',
@@ -444,6 +529,7 @@ describe('module-local schema and Genesis 002 closure', () => {
         'resourceAccountV1', 'greaterRealmCastleClaimV1', 'greaterRealmCellOccupancyV1',
         'greaterRealmActivationV1', 'realmWorkerSystemV2', 'gameplay04KeepV1',
         'gameplay04WorkerV1', 'gameplay04ReceiptV1',
+        'gameplay04ReservationV1', 'gameplay04_schedule_v1',
       ]) db[name] = { count: () => name === changed ? 1n : 0n };
       if (changed === undefined) assert.doesNotThrow(() => requireEmpty({ db }));
       else expectSenderCode(

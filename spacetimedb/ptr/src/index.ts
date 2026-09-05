@@ -33,6 +33,11 @@ export {
   initializeGameplay04KeepV1,
   getGameplay04KeepV1,
 } from './gameplayKeep';
+export {
+  dispatchGameplay04WorkerV1,
+  recallGameplay04WorkerV1,
+} from './gameplayWorkers';
+export { runGameplay04ScheduleV1 } from './gameplaySchedule';
 
 // Procedure registration does not create an explicit name entry. Pin exact
 // client wire names so SpacetimeDB 2.6 cannot rewrite `v1` to `v_1`.
@@ -46,6 +51,9 @@ for (const name of [
   'plan_realm_route_v1',
   'initialize_gameplay04_keep_v1',
   'get_gameplay04_keep_v1',
+  'dispatch_gameplay04_worker_v1',
+  'recall_gameplay04_worker_v1',
+  'run_gameplay_04_schedule_v_1',
 ]) {
   ptr.moduleDef.explicitNames.entries.push({
     tag: 'Function',

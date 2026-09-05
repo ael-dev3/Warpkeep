@@ -96,20 +96,12 @@ function routeNodeValid(
     && safeInteger(node.atlasR, -0x8000_0000, 0x7fff_ffff);
 }
 
-/** Build one bounded page over the verified parent tree without graph search. */
-export function planPtrTreeRoutePage<T extends PtrRouteNode>(
+/** Build one complete bounded route over the verified parent tree without graph search. */
+export function planPtrTreeRoute<T extends PtrRouteNode>(
   origin: T,
   destination: T,
-  offset: number,
-  limit: number,
   findAtCoordinate: (q: number, r: number) => T | null,
-): Readonly<{
-  cells: readonly T[];
-  totalLength: number;
-  nextOffset: number | undefined;
-  complete: boolean;
-}> {
-  requirePtrRoutePageRequest(offset, limit);
+): readonly T[] {
   const atlasId = origin.atlasId;
   const componentKey = origin.componentKey;
   if (
@@ -178,10 +170,28 @@ export function planPtrTreeRoutePage<T extends PtrRouteNode>(
     ...originChain.slice(0, originLcaIndex + 1),
     ...destinationChain.slice(0, destinationLcaIndex).reverse(),
   ];
-  if (
-    path.length > GREATER_REALM_MAX_ROUTE_DEPTH * 2 + 1
-    || offset > path.length
-  ) fail('PTR_ATLAS_ROUTE_UNAVAILABLE');
+  if (path.length > GREATER_REALM_MAX_ROUTE_DEPTH * 2 + 1) {
+    fail('PTR_ATLAS_ROUTE_UNAVAILABLE');
+  }
+  return Object.freeze(path);
+}
+
+/** Preserve the existing pagination wire over one complete verified path. */
+export function planPtrTreeRoutePage<T extends PtrRouteNode>(
+  origin: T,
+  destination: T,
+  offset: number,
+  limit: number,
+  findAtCoordinate: (q: number, r: number) => T | null,
+): Readonly<{
+  cells: readonly T[];
+  totalLength: number;
+  nextOffset: number | undefined;
+  complete: boolean;
+}> {
+  requirePtrRoutePageRequest(offset, limit);
+  const path = planPtrTreeRoute(origin, destination, findAtCoordinate);
+  if (offset > path.length) fail('PTR_ATLAS_ROUTE_UNAVAILABLE');
   const cells = Object.freeze(path.slice(offset, offset + limit));
   const nextOffset = offset + cells.length < path.length
     ? offset + cells.length

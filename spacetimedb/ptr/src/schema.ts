@@ -6,7 +6,9 @@ import {
 } from './schemaContract';
 import {
   gameplay04KeepV1,
+  gameplay04ReservationV1,
   gameplay04ReceiptV1,
+  gameplay04ScheduleV1,
   gameplay04WorkerV1,
 } from './gameplaySchema';
 
@@ -567,6 +569,8 @@ const ptrTables = {
   gameplay04KeepV1,
   gameplay04WorkerV1,
   gameplay04ReceiptV1,
+  gameplay04ReservationV1,
+  gameplay04_schedule_v1: gameplay04ScheduleV1,
 } as const;
 
 assertPtrPrivateSchemaSurface(Object.keys(ptrTables));

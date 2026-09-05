@@ -35,5 +35,7 @@ export function requireGenesis002PopulationEmpty(ctx: Genesis002Context): void {
     ctx.db.gameplay04KeepV1.count() !== 0n
     || ctx.db.gameplay04WorkerV1.count() !== 0n
     || ctx.db.gameplay04ReceiptV1.count() !== 0n
+    || ctx.db.gameplay04ReservationV1.count() !== 0n
+    || ctx.db.gameplay04_schedule_v1.count() !== 0n
   ) throw new Error('GENESIS_002_POPULATION_NOT_EMPTY');
 }

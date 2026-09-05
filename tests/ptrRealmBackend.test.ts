@@ -110,6 +110,8 @@ test('PTR schema appends private gameplay keep storage to the isolated atlas', (
     'gameplay04KeepV1',
     'gameplay04WorkerV1',
     'gameplay04ReceiptV1',
+    'gameplay04ReservationV1',
+    'gameplay04_schedule_v1',
   ]);
   assert.doesNotThrow(() => assertPtrPrivateSchemaSurface(
     PTR_PRIVATE_TABLE_ACCESSORS,
@@ -179,6 +181,8 @@ test('PTR registers only the approved admin and owner procedure surface', () => 
     'plan_realm_route_v1',
     'initialize_gameplay04_keep_v1',
     'get_gameplay04_keep_v1',
+    'dispatch_gameplay04_worker_v1',
+    'recall_gameplay04_worker_v1',
   ]);
   const surface = JSON.stringify([
     ...PTR_ADMIN_PROCEDURES,
@@ -187,7 +191,7 @@ test('PTR registers only the approved admin and owner procedure surface', () => 
   ]);
   assert.doesNotMatch(
     surface,
-    /access.request|admit|allow.fid|bootstrap.player|scheduler|worker|chat|economy/iu,
+    /access.request|admit|allow.fid|bootstrap.player|scheduler|chat|economy/iu,
   );
 });
 
@@ -325,7 +329,11 @@ test('generated public PTR bindings expose no tables and only the approved calls
       'getRealmAtlasChunkV1',
       'getRealmAtlasResourceLocationsV1',
       'getRealmAtlasWindowV1',
+      'dispatchGameplay04WorkerV1',
+      'getGameplay04KeepV1',
+      'initializeGameplay04KeepV1',
       'planRealmRouteV1',
+      'recallGameplay04WorkerV1',
     ]);
   } finally {
     rmSync(generatedPath, { recursive: true, force: true });
@@ -367,9 +375,11 @@ test('compiled PTR payload contains no shared production graph or forbidden poli
       .replaceAll('\\', '/');
   });
   assert.deepEqual(sourceSections, [
+    '../../../../../../../../../0rolldown/runtime.js',
     'node_modules/.pnpm/headers-polyfill@4.0.3/node_modules/headers-polyfill/lib/index.mjs',
     'node_modules/.pnpm/spacetimedb@2.6.1/node_modules/spacetimedb/dist/server/index.mjs',
     'src/schemaContract.ts',
+    'src/gameplayScheduleLink.ts',
     'src/gameplaySchema.ts',
     'src/schema.ts',
     'src/contract.ts',
@@ -386,8 +396,18 @@ test('compiled PTR payload contains no shared production graph or forbidden poli
     'src/atlasReadPolicy.ts',
     'src/atlasReadReducers.ts',
     '../gameplay04/policy.ts',
+    '../gameplay04/commands.ts',
+    '../gameplay04/workerJourney.ts',
+    '../gameplay04/workerState.ts',
     '../gameplay04/keep.ts',
+    '../gameplay04/workers.ts',
+    'node_modules/.pnpm/base64-js@1.5.1/node_modules/base64-js/index.js',
+    'node_modules/.pnpm/safe-stable-stringify@2.5.0/node_modules/safe-stable-stringify/index.js',
+    'node_modules/.pnpm/safe-stable-stringify@2.5.0/node_modules/safe-stable-stringify/esm/wrapper.js',
+    'node_modules/.pnpm/spacetimedb@2.6.1/node_modules/spacetimedb/dist/index.browser.mjs',
+    'src/gameplayWorkers.ts',
     'src/gameplayKeep.ts',
+    'src/gameplaySchedule.ts',
     'src/index.ts',
   ]);
 

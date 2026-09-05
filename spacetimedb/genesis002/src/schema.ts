@@ -27,7 +27,9 @@ import {
 } from '../../src/schema';
 import {
   gameplay04KeepV1,
+  gameplay04ReservationV1,
   gameplay04ReceiptV1,
+  gameplay04ScheduleV1,
   gameplay04WorkerV1,
 } from './gameplaySchema';
 
@@ -97,9 +99,11 @@ const genesis002Tables = {
   gameplay04KeepV1,
   gameplay04WorkerV1,
   gameplay04ReceiptV1,
+  gameplay04ReservationV1,
+  gameplay04_schedule_v1: gameplay04ScheduleV1,
 } as const;
 
-export const GENESIS_002_PRIVATE_TABLE_COUNT = 26 as const;
+export const GENESIS_002_PRIVATE_TABLE_COUNT = 28 as const;
 if (Object.keys(genesis002Tables).length !== GENESIS_002_PRIVATE_TABLE_COUNT) {
   throw new Error('GENESIS_002_PRIVATE_TABLE_SET_INVALID');
 }

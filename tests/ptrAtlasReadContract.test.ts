@@ -21,6 +21,7 @@ import {
 } from '../spacetimedb/ptr/src/atlasAuthority';
 import {
   PTR_ATLAS_MAX_RESOURCE_CHUNK_HANDLES,
+  planPtrTreeRoute,
   planPtrTreeRoutePage,
   requirePtrChunkRequest,
   requirePtrResourceChunkHandles,
@@ -323,6 +324,11 @@ describe('PTR bounded tree-route policy', () => {
   const findAt = (q: number, r: number) => byCoordinate.get(`${q}:${r}`) ?? null;
 
   test('returns a deterministic paged path through the lowest common ancestor', () => {
+    assert.deepEqual(
+      planPtrTreeRoute(nodes[2]!, nodes[3]!, findAt).map(cell => cell.cellKey),
+      ['CELL-B', 'CELL-A', 'CELL-ROOT', 'CELL-C'],
+      'the Worker adapter receives the complete verified route in one traversal',
+    );
     const result = planPtrTreeRoutePage(
       nodes[2]!,
       nodes[3]!,
