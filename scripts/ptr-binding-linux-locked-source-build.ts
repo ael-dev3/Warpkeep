@@ -2,5 +2,5 @@ export {
   PtrBindingLockedSourceBuildError,
   type PtrSourceBuildInput,
   type PtrSourceBuildResult,
-  withPtrDarwinLockedSourceBuild as withPtrLockedSourceBuild,
+  withPtrLinuxLockedSourceBuild,
 } from './ptr-binding-locked-source-build-core';

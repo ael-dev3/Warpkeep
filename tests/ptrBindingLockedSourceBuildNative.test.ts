@@ -98,7 +98,16 @@ vi.mock('../scripts/greater-realm-production-provenance', async () => {
 // Deliberately do not mock greater-realm-openat: this suite proves the staged
 // Python writer creates native links through its descriptor-relative boundary.
 import { withPtrLockedSourceBuild } from '../scripts/ptr-binding-locked-source-build';
+import { withPtrLinuxLockedSourceBuild } from '../scripts/ptr-binding-linux-locked-source-build';
 import { greaterRealmImmutableArtifactTestSeams } from '../scripts/greater-realm-production-immutable-artifact';
+import {
+  LINUX_EDGES,
+  LINUX_PACKAGE_KEYS,
+  createPtrFixture,
+  expectedSymlinks as expectedLinuxSymlinks,
+  independentlyExpectedClosureDigest as independentlyExpectedLinuxClosureDigest,
+  installedSymlinks as installedLinuxSymlinks,
+} from './fixtures/ptrLockedSourceBuildFixture';
 
 const SELECTED_PACKAGE_KEYS = Object.freeze([
   '@esbuild/darwin-arm64@0.25.12',
@@ -370,6 +379,78 @@ describe('independent PTR locked-source build native writer', () => {
       });
       expect(materializations.roots).toEqual([materializedRoot]);
       expect(existsSync(materializedRoot)).toBe(false);
+    },
+  );
+
+  it.skipIf(process.platform !== 'linux')(
+    'creates the exact Linux x64 links and deterministic provenance across fresh roots',
+    () => {
+      const run = () => {
+        const value = createPtrFixture({ keys: LINUX_PACKAGE_KEYS });
+        temporaryDirectories.push(...value.cleanupRoots);
+        let materializedRoot = '';
+        let independentlyDerived = '';
+        const output = withPtrLinuxLockedSourceBuild({
+          repositoryRoot: value.repositoryRoot,
+          moduleSourceCommit: value.sourceCommit,
+          dependencyCacheRoot: value.dependencyCacheRoot,
+          materializationParent: value.materializationParent,
+          operation: context => {
+            materializedRoot = context.materializedRoot;
+            const ptrRoot = join(materializedRoot, 'spacetimedb', 'ptr');
+            const nodeModules = join(ptrRoot, 'node_modules');
+            for (const path of [materializedRoot, ptrRoot, nodeModules,
+              join(nodeModules, '.bin'), join(nodeModules, '.pnpm')]) {
+              expect(lstatSync(path).mode & 0o7777, path).toBe(0o700);
+            }
+            expect(lstatSync(join(nodeModules, '.pnpm', 'lock.yaml')).mode & 0o7777).toBe(0o600);
+            expect(readdirSync(nodeModules).sort()).toEqual([
+              '.bin', '.pnpm', ...Object.keys(TOP_LEVEL_PACKAGES),
+            ].sort());
+            expect(readdirSync(join(nodeModules, '.pnpm')).sort()).toEqual([
+              ...LINUX_PACKAGE_KEYS.map(key => key.replace('/', '+')), 'lock.yaml',
+            ].sort());
+            expect(existsSync(join(nodeModules, '.pnpm', 'fsevents@2.3.3'))).toBe(false);
+            expect(existsSync(join(nodeModules, '.pnpm', '@esbuild+darwin-arm64@0.25.12'))).toBe(false);
+            expect(existsSync(join(materializedRoot, 'spacetimedb', 'node_modules'))).toBe(false);
+            expect(existsSync(join(
+              materializedRoot, 'spacetimedb', 'genesis002', 'node_modules',
+            ))).toBe(false);
+            const links = installedLinuxSymlinks(nodeModules);
+            expect(links).toEqual(expectedLinuxSymlinks(LINUX_EDGES));
+            for (const logical of links) {
+              const path = join(nodeModules, ...logical.split('/'));
+              expect(lstatSync(path).isSymbolicLink(), logical).toBe(true);
+              const target = readlinkSync(path);
+              expect(isAbsolute(target), logical).toBe(false);
+              expect(inside(ptrRoot, resolve(dirname(path), target)), logical).toBe(true);
+              expect(inside(ptrRoot, realpathSync(path)), logical).toBe(true);
+            }
+            independentlyDerived = independentlyExpectedLinuxClosureDigest({
+              root: materializedRoot,
+              domain: 'warpkeep-ptr-independent-linux-x64-dependency-closure-v1',
+              keys: LINUX_PACKAGE_KEYS,
+              edges: LINUX_EDGES,
+            });
+            expect(context.dependencyClosureDigest).toBe(independentlyDerived);
+            const dist = join(ptrRoot, 'dist');
+            mkdirSync(dist, { mode: 0o700 });
+            writeFileSync(join(dist, 'bundle.js'), 'bundle', { mode: 0o600 });
+            return 'linux-native-built';
+          },
+        });
+        expect(output).toEqual({
+          result: 'linux-native-built',
+          dependencyClosureDigest: independentlyDerived,
+          moduleTreeId: 'b'.repeat(40),
+        });
+        expect(existsSync(materializedRoot)).toBe(false);
+        return output.dependencyClosureDigest;
+      };
+      const first = run();
+      const second = run();
+      expect(first).toBe(second);
+      expect(materializations.roots).toHaveLength(2);
     },
   );
 });
