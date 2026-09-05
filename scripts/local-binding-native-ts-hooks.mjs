@@ -1,8 +1,9 @@
-import { createHash } from 'node:crypto';
-import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { lstatSync, readdirSync, realpathSync } from 'node:fs';
 import { registerHooks, stripTypeScriptTypes } from 'node:module';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+
+import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 
 const SYNTHETIC_ENTRY = 'warpkeep:ptr-binding-entry';
 const MAX_SOURCE_BYTES = 4 * 1024 * 1024;
@@ -14,10 +15,6 @@ function fail(code, cause) {
 function exactKeys(value, keys) {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort());
-}
-
-function sha256(body) {
-  return createHash('sha256').update(body).digest('hex');
 }
 
 function contained(root, candidate) {
@@ -35,51 +32,19 @@ function stableRead(root, path, record, requireMode) {
   if (!validateRelativePath(path)) fail('LOCAL_BINDING_HOOK_RECORD_INVALID');
   const absolute = resolve(root, ...path.split('/'));
   if (!contained(root, absolute)) fail('LOCAL_BINDING_HOOK_RECORD_INVALID');
-  const before = lstatSync(absolute, { bigint: true });
-  if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1n
-      || before.size < 0n || before.size > BigInt(MAX_SOURCE_BYTES)) {
-    fail('LOCAL_BINDING_HOOK_FILE_INVALID');
-  }
-  if (Number(before.size) !== record.bytes
-      || (requireMode && process.platform !== 'win32' && Number(before.mode & 0o777n) !== record.mode)) {
-    fail('LOCAL_BINDING_HOOK_FILE_CHANGED');
-  }
-  if (record.identity !== undefined) {
-    const actualIdentity = Object.fromEntries(
-      ['dev', 'ino', 'mode', 'uid', 'nlink', 'size', 'mtimeNs', 'ctimeNs'].map(key => [key, String(before[key])]),
-    );
-    if (JSON.stringify(actualIdentity) !== JSON.stringify(record.identity)) fail('LOCAL_BINDING_HOOK_FILE_CHANGED');
-  }
-  if (realpathSync(absolute) !== absolute) fail('LOCAL_BINDING_HOOK_FILE_INVALID');
-  let descriptor;
-  let primary;
-  let body;
   try {
-    descriptor = openSync(absolute, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-    const opened = fstatSync(descriptor, { bigint: true });
-    if (opened.dev !== before.dev || opened.ino !== before.ino || opened.mode !== before.mode
-        || opened.size !== before.size || opened.mtimeNs !== before.mtimeNs || opened.ctimeNs !== before.ctimeNs) {
-      fail('LOCAL_BINDING_HOOK_FILE_CHANGED');
-    }
-    body = readFileSync(descriptor);
-    const after = fstatSync(descriptor, { bigint: true });
-    if (after.dev !== opened.dev || after.ino !== opened.ino || after.mode !== opened.mode
-        || after.size !== opened.size || after.mtimeNs !== opened.mtimeNs || after.ctimeNs !== opened.ctimeNs
-        || body.length !== Number(after.size) || sha256(body) !== record.sha256) {
-      fail('LOCAL_BINDING_HOOK_FILE_CHANGED');
-    }
+    return readLocalBindingBoundedFile(absolute, {
+      maximumBytes: MAX_SOURCE_BYTES,
+      expectedBytes: record.bytes,
+      expectedSha256: record.sha256,
+      expectedMode: requireMode && process.platform !== 'win32' ? record.mode : undefined,
+      expectedIdentity: record.identity,
+    }).body;
   } catch (error) {
-    primary = error;
+    if (error?.code === 'LOCAL_BINDING_BOUNDED_FILE_INVALID') fail('LOCAL_BINDING_HOOK_FILE_INVALID', error);
+    if (error?.code === 'LOCAL_BINDING_BOUNDED_FILE_CHANGED') fail('LOCAL_BINDING_HOOK_FILE_CHANGED', error);
+    throw error;
   }
-  let closeError;
-  try { if (descriptor !== undefined) closeSync(descriptor); } catch (error) { closeError = error; }
-  if (primary !== undefined || closeError !== undefined) {
-    if (primary !== undefined && closeError === undefined) throw primary;
-    throw new AggregateError([primary, closeError].filter(Boolean), 'LOCAL_BINDING_HOOK_FILE_READ_FAILED', {
-      cause: primary,
-    });
-  }
-  return body;
 }
 
 function records(graph, yaml) {

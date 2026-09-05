@@ -1,15 +1,15 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
-  chmodSync, closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readFileSync,
+  chmodSync, lstatSync, mkdirSync,
   readdirSync, realpathSync, rmSync,
 } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as vm from 'node:vm';
 
-import { readSpacetimeBindingTree } from './spacetime-binding-tree.mjs';
+import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 
 const PROFILE = 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
 const WORKER_PROFILE = 'warpkeep-local-binding-worker-v1';
@@ -34,12 +34,16 @@ const MAX_SOURCE_MODULES = 256;
 const MAX_WORKER_REQUEST = 1024 * 1024;
 const MAX_WORKER_OUTPUT = 64 * 1024;
 const CONTROL_FILES = Object.freeze([
+  'scripts/local-binding-bounded-file.mjs',
   'scripts/local-binding-runtime.mjs',
   'scripts/local-binding-runtime-core.mjs',
   'scripts/local-binding-runtime-worker.mjs',
   'scripts/local-binding-native-ts-hooks.mjs',
   'scripts/local-binding-runtime-worker-result.mjs',
   'scripts/local-binding-runtime-yaml-v1.json',
+  'scripts/spacetime-binding-tree.mjs',
+  'scripts/spacetime-cli-attestation.mjs',
+  'scripts/spacetime-additive-migration-proof.mjs',
 ]);
 const REQUEST_KEYS = Object.freeze([
   'schemaVersion', 'profile', 'nonce', 'sourceCommit', 'sourceTree', 'repositoryRoot',
@@ -155,7 +159,9 @@ export function validateLocalBindingWorkerRequest(value) {
       || !fixedContainedPath(value.repositoryRoot, RUNS_ROOT)
       || !/^binding-[0-9a-f]{32}$/u.test(operationName)
       || value.dependencyCacheRoot !== CACHE_ROOT || !fixedContainedPath(value.materializationRoot, RUNS_ROOT)
-      || value.nodePath !== NODE_PATH || value.cliPath !== CLI_PATH
+      || value.nodePath !== NODE_PATH || typeof value.cliPath !== 'string' || !isAbsolute(value.cliPath)
+      || basename(value.cliPath) !== 'spacetimedb-cli'
+      || !basename(dirname(value.cliPath)).startsWith('warpkeep-cli-attestation-')
       || !fixedContainedPath(value.handoffPath, RUNS_ROOT)
       || value.graph?.root !== value.repositoryRoot
       || value.graph?.entry !== 'scripts/ptr-binding-linux-locked-source-build.ts'
@@ -227,41 +233,26 @@ export function assertReproducibleLocalBindingCycles(left, right) {
   return left;
 }
 
-function stableFile(path, expectedBytes, expectedDigest, expectedOwner, requireExecutable = false) {
-  let descriptor;
-  let body;
-  let primary;
-  try {
-    const before = lstatSync(path, { bigint: true });
-    if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1n
-        || realpathSync(path) !== path
-        || (expectedBytes !== undefined && before.size !== BigInt(expectedBytes))
-        || (expectedOwner !== undefined && before.uid !== BigInt(expectedOwner))
-        || (requireExecutable && (before.mode & 0o111n) === 0n)) fail('LOCAL_BINDING_RUNTIME_IDENTITY_INVALID');
-    descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-    const opened = fstatSync(descriptor, { bigint: true });
-    if (opened.dev !== before.dev || opened.ino !== before.ino || opened.mode !== before.mode
-        || opened.size !== before.size || opened.mtimeNs !== before.mtimeNs || opened.ctimeNs !== before.ctimeNs) {
-      fail('LOCAL_BINDING_RUNTIME_IDENTITY_CHANGED');
-    }
-    body = readFileSync(descriptor);
-    const after = fstatSync(descriptor, { bigint: true });
-    if (after.dev !== opened.dev || after.ino !== opened.ino || after.mode !== opened.mode
-        || after.size !== opened.size || after.mtimeNs !== opened.mtimeNs || after.ctimeNs !== opened.ctimeNs
-        || body.length !== Number(after.size)
-        || (expectedDigest !== undefined && sha256(body) !== expectedDigest)) {
-      fail('LOCAL_BINDING_RUNTIME_IDENTITY_CHANGED');
-    }
-  } catch (error) { primary = error; }
-  let closeError;
-  try { if (descriptor !== undefined) closeSync(descriptor); } catch (error) { closeError = error; }
-  if (primary !== undefined || closeError !== undefined) {
-    if (primary !== undefined && closeError === undefined) throw primary;
-    throw new AggregateError([primary, closeError].filter(Boolean), 'LOCAL_BINDING_RUNTIME_FILE_READ_FAILED', {
-      cause: primary,
-    });
-  }
-  return body;
+function stableFileRecord(
+  path, expectedBytes, expectedDigest, expectedOwner, requireExecutable = false, expectedIdentity,
+) {
+  const maximumBytes = expectedBytes ?? (path === GIT_PATH ? 64 * 1024 * 1024 : MAX_SOURCE_FILE);
+  return readLocalBindingBoundedFile(path, {
+    maximumBytes,
+    expectedBytes,
+    expectedSha256: expectedDigest,
+    expectedUid: expectedOwner,
+    requireExecutable,
+    rejectWritableExecutable: requireExecutable,
+    discardBody: requireExecutable,
+    expectedIdentity,
+  });
+}
+
+function stableFile(path, expectedBytes, expectedDigest, expectedOwner, requireExecutable = false, expectedIdentity) {
+  return stableFileRecord(
+    path, expectedBytes, expectedDigest, expectedOwner, requireExecutable, expectedIdentity,
+  ).body;
 }
 
 function privateDirectory(path) {
@@ -272,7 +263,8 @@ function privateDirectory(path) {
   }
 }
 
-function git(repositoryRoot, environment, args, maxBuffer = 1024 * 1024) {
+function git(repositoryRoot, environment, gitIdentity, args, maxBuffer = 1024 * 1024) {
+  stableFile(GIT_PATH, undefined, GIT_SHA256, 0, true, gitIdentity).fill(0);
   const result = spawnSync(GIT_PATH, args, {
     cwd: repositoryRoot, env: environment, encoding: 'utf8', shell: false,
     stdio: ['ignore', 'pipe', 'pipe'], maxBuffer, timeout: 60_000,
@@ -280,6 +272,7 @@ function git(repositoryRoot, environment, args, maxBuffer = 1024 * 1024) {
   if (result.status !== 0 || result.signal !== null || result.error !== undefined) {
     fail('LOCAL_BINDING_RUNTIME_GIT_FAILED', result.error);
   }
+  stableFile(GIT_PATH, undefined, GIT_SHA256, 0, true, gitIdentity).fill(0);
   return result.stdout.trim();
 }
 
@@ -310,7 +303,7 @@ function deriveSourceGraph(root) {
     if (format === undefined) fail('LOCAL_BINDING_RUNTIME_SOURCE_GRAPH_INVALID');
     const absolute = resolve(root, ...path.split('/'));
     const beforeIdentity = lstatSync(absolute, { bigint: true });
-    const body = stableFile(absolute);
+    const body = stableFile(absolute, undefined, undefined, undefined, false);
     const afterIdentity = lstatSync(absolute, { bigint: true });
     if (JSON.stringify(serializedIdentity(beforeIdentity)) !== JSON.stringify(serializedIdentity(afterIdentity))) {
       fail('LOCAL_BINDING_RUNTIME_SOURCE_CHANGED');
@@ -388,7 +381,7 @@ function attestYaml(manifest) {
   return Object.freeze({ root: YAML_ROOT, entry: manifest.entry, files: manifest.files });
 }
 
-function runBounded(executable, args, options) {
+export function runLocalBindingBoundedProcess(executable, args, options) {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(executable, args, {
       cwd: options.cwd, env: options.env, shell: false,
@@ -438,31 +431,67 @@ function cleanEnvironment(operationRoot) {
   });
 }
 
-function snapshotCommittedSource(repositoryRoot, operationRoot, environment) {
-  const commit = git(repositoryRoot, environment, ['rev-parse', '--verify', 'HEAD']);
-  const tree = git(repositoryRoot, environment, ['rev-parse', '--verify', 'HEAD^{tree}']);
+function snapshotCommittedSource(repositoryRoot, operationRoot, environment, gitIdentity) {
+  const commit = git(repositoryRoot, environment, gitIdentity, ['rev-parse', '--verify', 'HEAD']);
+  const tree = git(repositoryRoot, environment, gitIdentity, ['rev-parse', '--verify', 'HEAD^{tree}']);
   if (!/^[0-9a-f]{40}$/u.test(commit) || !/^[0-9a-f]{40}$/u.test(tree)) fail('LOCAL_BINDING_RUNTIME_GIT_FAILED');
+  const committedControls = new Map();
   for (const path of CONTROL_FILES) {
+    stableFile(GIT_PATH, undefined, GIT_SHA256, 0, true, gitIdentity).fill(0);
     const committed = spawnSync(GIT_PATH, ['show', `${commit}:${path}`], {
       cwd: repositoryRoot, env: environment, encoding: null, stdio: ['ignore', 'pipe', 'pipe'],
       maxBuffer: 5 * 1024 * 1024, timeout: 60_000,
     });
-    if (committed.status !== 0 || !Buffer.from(committed.stdout).equals(readFileSync(join(repositoryRoot, ...path.split('/'))))) {
+    stableFile(GIT_PATH, undefined, GIT_SHA256, 0, true, gitIdentity).fill(0);
+    const expected = Buffer.from(committed.stdout);
+    if (committed.status !== 0 || !expected.equals(stableFile(
+      join(repositoryRoot, ...path.split('/')), expected.length, sha256(expected), undefined, false,
+    ))) {
       fail('LOCAL_BINDING_RUNTIME_CONTROL_SOURCE_CHANGED');
     }
+    committedControls.set(path, expected);
   }
   const root = join(operationRoot, 'source');
-  git(repositoryRoot, environment, ['worktree', 'add', '--detach', root, commit], 4 * 1024 * 1024);
+  git(repositoryRoot, environment, gitIdentity, ['worktree', 'add', '--detach', root, commit], 4 * 1024 * 1024);
   chmodSync(root, 0o700);
-  if (git(root, environment, ['rev-parse', '--verify', 'HEAD']) !== commit
-      || git(root, environment, ['rev-parse', '--verify', 'HEAD^{tree}']) !== tree) {
+  if (git(root, environment, gitIdentity, ['rev-parse', '--verify', 'HEAD']) !== commit
+      || git(root, environment, gitIdentity, ['rev-parse', '--verify', 'HEAD^{tree}']) !== tree) {
     fail('LOCAL_BINDING_RUNTIME_SOURCE_CHANGED');
   }
-  return { root, commit, tree };
+  const bootstrap = Object.freeze([...committedControls].map(([path, expected]) => {
+    const absolute = join(root, ...path.split('/'));
+    const bytes = expected.length;
+    const digest = sha256(expected);
+    const opened = readLocalBindingBoundedFile(absolute, {
+      maximumBytes: Math.max(bytes, 1),
+      expectedBytes: bytes,
+      expectedSha256: digest,
+      expectedUid: 1000,
+    });
+    expected.fill(0);
+    opened.body.fill(0);
+    return Object.freeze({ path, bytes, sha256: digest, identity: opened.identity });
+  }));
+  return { root, commit, tree, bootstrap };
+}
+
+export function verifyLocalBindingBootstrapSource(source) {
+  for (const record of source.bootstrap) {
+    readLocalBindingBoundedFile(join(source.root, ...record.path.split('/')), {
+      maximumBytes: Math.max(record.bytes, 1), expectedBytes: record.bytes,
+      expectedSha256: record.sha256, expectedUid: 1000, expectedIdentity: record.identity,
+    }).body.fill(0);
+  }
 }
 
 function readHandoff(path, result) {
-  const body = stableFile(path, result.bundleBytes, result.bundleSha256, 1000);
+  const body = readLocalBindingBoundedFile(path, {
+    maximumBytes: 32 * 1024 * 1024,
+    minimumBytes: 1,
+    expectedBytes: result.bundleBytes,
+    expectedSha256: result.bundleSha256,
+    expectedUid: 1000,
+  }).body;
   return new Uint8Array(body);
 }
 
@@ -484,22 +513,25 @@ async function executeCycle(context, index) {
   });
   const encoded = `${JSON.stringify(request)}\n`;
   if (Buffer.byteLength(encoded) > MAX_WORKER_REQUEST) fail('LOCAL_BINDING_WORKER_REQUEST_INVALID');
-  context.cli.verify();
-  const worker = await runBounded(NODE_PATH, ['--experimental-vm-modules', join(context.repositoryRoot, 'scripts', 'local-binding-runtime-worker.mjs')], {
+  context.verifyExecutables();
+  verifyLocalBindingBootstrapSource(context.source);
+  const worker = await runLocalBindingBoundedProcess(NODE_PATH, ['--experimental-vm-modules', join(context.source.root, 'scripts', 'local-binding-runtime-worker.mjs')], {
     cwd: context.repositoryRoot, env: context.environment, fd3: encoded,
     timeout: 15 * 60_000, maxOutput: MAX_WORKER_OUTPUT,
   });
+  verifyLocalBindingBootstrapSource(context.source);
   const result = parseLocalBindingWorkerResult(worker.stdout, nonce, handoffPath);
   if (result.sourceCommit !== context.source.commit || result.sourceTree !== context.source.tree) {
     fail('LOCAL_BINDING_WORKER_RESULT_INVALID');
   }
   const bundle = readHandoff(handoffPath, result);
-  context.cli.verify();
-  await runBounded(context.cli.path, [
+  context.verifyExecutables();
+  await runLocalBindingBoundedProcess(context.cli.path, [
     'generate', '--lang', 'typescript', '--yes', '--no-config', '--js-path', handoffPath,
     '--out-dir', generatedRoot,
   ], { cwd: cycleRoot, env: context.environment, timeout: 5 * 60_000, maxOutput: 4 * 1024 * 1024 });
-  const bindings = (await readSpacetimeBindingTree(generatedRoot)).map(entry => ({
+  context.verifyExecutables();
+  const bindings = (await context.readBindingTree(generatedRoot)).map(entry => ({
     path: `spacetimedb/ptr/generated-bindings/${entry.path}`,
     bytes: new Uint8Array(entry.bytes),
   }));
@@ -514,19 +546,21 @@ export async function deriveFixedLocalBindingRuntime() {
   const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   if (process.platform !== 'linux' || process.arch !== 'x64' || process.getuid?.() !== 1000
       || process.execPath !== NODE_PATH || process.env.NODE_OPTIONS
-      || process.execArgv.some(argument => argument !== '--experimental-vm-modules')
-      || !process.execArgv.includes('--experimental-vm-modules')) {
+      || JSON.stringify(process.execArgv) !== JSON.stringify(['--experimental-vm-modules'])) {
     fail('LOCAL_BINDING_RUNTIME_HOST_INVALID');
   }
   for (const path of [
     ROOT, join(ROOT, 'toolchain'), dirname(dirname(NODE_PATH)), dirname(NODE_PATH),
     dirname(CLI_PATH), join(ROOT, 'cache'), CACHE_ROOT, RUNS_ROOT,
   ]) privateDirectory(path);
-  stableFile(NODE_PATH, NODE_BYTES, NODE_SHA256, 1000, true);
-  stableFile(CLI_PATH, CLI_BYTES, CLI_SHA256, 1000, true);
-  stableFile(STANDALONE_PATH, STANDALONE_BYTES, STANDALONE_SHA256, 1000, true);
-  stableFile(GIT_PATH, undefined, GIT_SHA256, 0, true);
+  const nodeAuthority = stableFileRecord(NODE_PATH, NODE_BYTES, NODE_SHA256, 1000, true);
+  nodeAuthority.body.fill(0);
+  stableFile(CLI_PATH, CLI_BYTES, CLI_SHA256, 1000, true).fill(0);
+  stableFile(STANDALONE_PATH, STANDALONE_BYTES, STANDALONE_SHA256, 1000, true).fill(0);
+  const gitAuthority = stableFileRecord(GIT_PATH, undefined, GIT_SHA256, 0, true);
+  gitAuthority.body.fill(0);
   const version = spawnSync(NODE_PATH, ['--version'], { encoding: 'utf8', shell: false, stdio: ['ignore', 'pipe', 'pipe'], timeout: 10_000 });
+  stableFile(NODE_PATH, NODE_BYTES, NODE_SHA256, 1000, true, nodeAuthority.identity).fill(0);
   if (version.status !== 0 || version.stdout.trim() !== 'v22.22.3') fail('LOCAL_BINDING_RUNTIME_NODE_INVALID');
 
   const operationRoot = join(RUNS_ROOT, `binding-${randomUUID().replaceAll('-', '')}`);
@@ -538,29 +572,35 @@ export async function deriveFixedLocalBindingRuntime() {
   let finalResult;
   let primaryError;
   try {
-    source = snapshotCommittedSource(repositoryRoot, operationRoot, environment);
+    source = snapshotCommittedSource(repositoryRoot, operationRoot, environment, gitAuthority.identity);
     const graph = deriveSourceGraph(source.root);
-    const manifestSource = readFileSync(join(source.root, 'scripts', 'local-binding-runtime-yaml-v1.json'), 'utf8');
+    const manifestPath = join(source.root, 'scripts', 'local-binding-runtime-yaml-v1.json');
+    const manifestSource = stableFile(manifestPath).toString('utf8');
     const manifest = validateLocalBindingYamlManifest(manifestSource);
     const yaml = attestYaml(manifest);
-    const { attestPinnedSpacetimeCli } = await import('./spacetime-cli-attestation.mjs');
+    const { attestPinnedSpacetimeCli } = await import(pathToFileURL(
+      join(source.root, 'scripts', 'spacetime-cli-attestation.mjs'),
+    ).href);
     const cliAttestation = attestPinnedSpacetimeCli(CLI_PATH, spawnSync, environment);
-    cli = Object.freeze({
-      path: CLI_PATH,
-      verify() {
-        stableFile(CLI_PATH, CLI_BYTES, CLI_SHA256, 1000, true);
-        stableFile(STANDALONE_PATH, STANDALONE_BYTES, STANDALONE_SHA256, 1000, true);
-        cliAttestation.verify();
-      },
-      cleanup() { cliAttestation.cleanup(); },
-    });
-    const context = { repositoryRoot, operationRoot, environment, source, graph, yaml, cli };
+    cli = cliAttestation;
+    const { readSpacetimeBindingTree } = await import(pathToFileURL(
+      join(source.root, 'scripts', 'spacetime-binding-tree.mjs'),
+    ).href);
+    const verifyExecutables = () => {
+      stableFile(NODE_PATH, NODE_BYTES, NODE_SHA256, 1000, true, nodeAuthority.identity).fill(0);
+      stableFile(GIT_PATH, undefined, GIT_SHA256, 0, true, gitAuthority.identity).fill(0);
+      cli.verify();
+    };
+    const context = {
+      repositoryRoot, operationRoot, environment, source, graph, yaml, cli,
+      readBindingTree: readSpacetimeBindingTree, verifyExecutables,
+    };
     const first = await executeCycle(context, 1);
     const second = await executeCycle(context, 2);
     const selected = assertReproducibleLocalBindingCycles(first, second);
     cli.verify();
-    if (git(source.root, environment, ['rev-parse', '--verify', 'HEAD']) !== source.commit
-        || git(source.root, environment, ['rev-parse', '--verify', 'HEAD^{tree}']) !== source.tree) {
+    if (git(source.root, environment, gitAuthority.identity, ['rev-parse', '--verify', 'HEAD']) !== source.commit
+        || git(source.root, environment, gitAuthority.identity, ['rev-parse', '--verify', 'HEAD^{tree}']) !== source.tree) {
       fail('LOCAL_BINDING_RUNTIME_SOURCE_CHANGED');
     }
     complete = true;
@@ -579,7 +619,7 @@ export async function deriveFixedLocalBindingRuntime() {
   try { cli?.cleanup(); } catch (error) { cleanupError = error; }
   if (complete) {
     try {
-      if (source !== undefined) git(repositoryRoot, environment, ['worktree', 'remove', '--force', source.root]);
+      if (source !== undefined) git(repositoryRoot, environment, gitAuthority.identity, ['worktree', 'remove', '--force', source.root]);
       rmSync(operationRoot, { recursive: true, force: false });
     } catch (error) { cleanupError ??= error; }
   }
