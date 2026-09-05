@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { lstatSync, readSync, realpathSync } from 'node:fs';
+import { lstatSync, realpathSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -7,8 +7,8 @@ import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { installLocalBindingNativeTsHooks } from './local-binding-native-ts-hooks.mjs';
 import { validateLocalBindingWorkerRequest } from './local-binding-runtime-core.mjs';
 import { createLocalBindingWorkerResult } from './local-binding-runtime-worker-result.mjs';
+import { readLocalBindingWorkerRequest } from './local-binding-runtime-worker-request.mjs';
 
-const MAX_REQUEST_BYTES = 1024 * 1024;
 const MAX_COMMAND_OUTPUT = 4 * 1024 * 1024;
 const CLI_BYTES = 47905552;
 const CLI_SHA256 = 'cac13c929049f31cb588c230a0d7fe5f388505b4c64047a68b1d5cfdc811624b';
@@ -23,26 +23,6 @@ function fail(code, cause) {
   const error = new Error(code, cause === undefined ? undefined : { cause });
   error.code = code;
   throw error;
-}
-
-function readRequest() {
-  const descriptor = 3;
-  const chunks = [];
-  let total = 0;
-  while (true) {
-    const chunk = Buffer.allocUnsafe(Math.min(64 * 1024, MAX_REQUEST_BYTES + 1 - total));
-    const count = readSync(descriptor, chunk, 0, chunk.length, null);
-    if (count === 0) break;
-    total += count;
-    if (total > MAX_REQUEST_BYTES) fail('LOCAL_BINDING_WORKER_REQUEST_INVALID');
-    chunks.push(chunk.subarray(0, count));
-  }
-  const source = Buffer.concat(chunks).toString('utf8');
-  if (!source.endsWith('\n')) fail('LOCAL_BINDING_WORKER_REQUEST_INVALID');
-  let value;
-  try { value = JSON.parse(source); } catch { fail('LOCAL_BINDING_WORKER_REQUEST_INVALID'); }
-  if (`${JSON.stringify(value)}\n` !== source) fail('LOCAL_BINDING_WORKER_REQUEST_INVALID');
-  return validateLocalBindingWorkerRequest(value);
 }
 
 function attestExecutable(path, bytes, digest, uid, expectedMode, expectedIdentity) {
@@ -80,8 +60,10 @@ function sameDirectoryIdentity(state, expected) {
 
 function attestRuntimeExecutables(request, expected) {
   const snapshotDirectory = dirname(request.cliPath);
+  const operationRoot = dirname(request.repositoryRoot);
   const directory = lstatSync(snapshotDirectory, { bigint: true });
-  if (basename(snapshotDirectory).startsWith('warpkeep-cli-attestation-') === false
+  if (snapshotDirectory !== join(operationRoot, 'cli')
+      || basename(request.cliPath) !== 'spacetimedb-cli'
       || !directory.isDirectory() || directory.isSymbolicLink() || directory.uid !== 1000n
       || (directory.mode & 0o777n) !== 0o700n || realpathSync(snapshotDirectory) !== snapshotDirectory
       || !sameDirectoryIdentity(directory, expected?.directory)) {
@@ -169,7 +151,7 @@ export async function runFixedLocalBindingWorker(input) {
 
 async function main() {
   assertWorkerHost();
-  const result = await runFixedLocalBindingWorker(readRequest());
+  const result = await runFixedLocalBindingWorker(readLocalBindingWorkerRequest());
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }
 

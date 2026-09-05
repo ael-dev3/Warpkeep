@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto';
-import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, realpathSync } from 'node:fs';
+import {
+  closeSync, constants, fchmodSync, fstatSync, fsyncSync, lstatSync, openSync,
+  readSync, realpathSync, writeSync,
+} from 'node:fs';
 
 const IDENTITY_FIELDS = Object.freeze([
   'dev', 'ino', 'mode', 'uid', 'nlink', 'size', 'mtimeNs', 'ctimeNs',
@@ -119,4 +122,97 @@ export function readLocalBindingBoundedFile(path, options) {
     );
   }
   return result;
+}
+
+export function copyLocalBindingBoundedFile(sourcePath, destinationPath, options) {
+  if (typeof destinationPath !== 'string' || destinationPath.length === 0
+      || options === null || typeof options !== 'object'
+      || !Number.isSafeInteger(options.destinationMode)
+      || options.destinationMode < 0 || options.destinationMode > 0o777
+      || options.expectedSha256 === undefined || options.expectedBytes === undefined) {
+    fail('LOCAL_BINDING_BOUNDED_FILE_INPUT_INVALID');
+  }
+  const source = readLocalBindingBoundedFile(sourcePath, { ...options, discardBody: true });
+  let sourceDescriptor;
+  let destinationDescriptor;
+  let scratch;
+  let primaryError;
+  try {
+    sourceDescriptor = openSync(sourcePath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const openedSource = fstatSync(sourceDescriptor, { bigint: true });
+    if (!sameIdentity(openedSource, source.identity)) fail('LOCAL_BINDING_BOUNDED_FILE_CHANGED');
+    destinationDescriptor = openSync(
+      destinationPath, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL,
+      options.destinationMode,
+    );
+    scratch = Buffer.allocUnsafe(Math.min(options.expectedBytes + 1, 1024 * 1024));
+    const digest = createHash('sha256');
+    let sourceOffset = 0;
+    while (sourceOffset < options.expectedBytes) {
+      const count = readSync(
+        sourceDescriptor, scratch, 0,
+        Math.min(scratch.length, options.expectedBytes - sourceOffset), sourceOffset,
+      );
+      if (!Number.isSafeInteger(count) || count <= 0
+          || count > Math.min(scratch.length, options.expectedBytes - sourceOffset)) {
+        fail('LOCAL_BINDING_BOUNDED_FILE_CHANGED');
+      }
+      digest.update(scratch.subarray(0, count));
+      let written = 0;
+      while (written < count) {
+        const next = writeSync(destinationDescriptor, scratch, written, count - written, sourceOffset + written);
+        if (!Number.isSafeInteger(next) || next <= 0 || next > count - written) {
+          fail('LOCAL_BINDING_BOUNDED_FILE_COPY_FAILED');
+        }
+        written += next;
+      }
+      sourceOffset += count;
+    }
+    if (readSync(sourceDescriptor, scratch, 0, 1, sourceOffset) !== 0
+        || digest.digest('hex') !== options.expectedSha256
+        || !sameIdentity(openedSource, fstatSync(sourceDescriptor, { bigint: true }))) {
+      fail('LOCAL_BINDING_BOUNDED_FILE_CHANGED');
+    }
+    fchmodSync(destinationDescriptor, options.destinationMode);
+    fsyncSync(destinationDescriptor);
+    const destinationState = fstatSync(destinationDescriptor, { bigint: true });
+    if (!destinationState.isFile() || destinationState.nlink !== 1n
+        || destinationState.size !== BigInt(options.expectedBytes)
+        || (process.platform !== 'win32'
+          && Number(destinationState.mode & 0o777n) !== options.destinationMode)) {
+      fail('LOCAL_BINDING_BOUNDED_FILE_COPY_FAILED');
+    }
+  } catch (error) {
+    primaryError = error;
+  }
+  scratch?.fill(0);
+  const closeErrors = [];
+  for (const descriptor of [destinationDescriptor, sourceDescriptor]) {
+    try { if (descriptor !== undefined) closeSync(descriptor); } catch (error) { closeErrors.push(error); }
+  }
+  if (primaryError !== undefined || closeErrors.length > 0) {
+    if (primaryError !== undefined && closeErrors.length === 0) throw primaryError;
+    throw new AggregateError(
+      [primaryError, ...closeErrors].filter(error => error !== undefined),
+      'LOCAL_BINDING_BOUNDED_FILE_COPY_FAILED',
+      { cause: primaryError },
+    );
+  }
+  readLocalBindingBoundedFile(sourcePath, {
+    ...options, discardBody: true, expectedIdentity: source.identity,
+  });
+  const destination = readLocalBindingBoundedFile(destinationPath, {
+    maximumBytes: options.maximumBytes,
+    expectedBytes: options.expectedBytes,
+    expectedSha256: options.expectedSha256,
+    expectedMode: process.platform === 'win32' ? undefined : options.destinationMode,
+    expectedUid: options.expectedUid,
+  });
+  const bytes = destination.body.length;
+  destination.body.fill(0);
+  return Object.freeze({
+    bytes,
+    sha256: options.expectedSha256,
+    identity: destination.identity,
+  });
 }

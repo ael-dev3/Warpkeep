@@ -19,6 +19,8 @@ mock.module('node:fs', { namedExports: {
   realpathSync: path => path,
   openSync: () => 7,
   fstatSync: () => state,
+  fchmodSync: () => {},
+  fsyncSync: () => {},
   readSync: (_fd, buffer) => {
     readCalls += 1;
     if (scenario === 'combined') throw primary;
@@ -33,6 +35,7 @@ mock.module('node:fs', { namedExports: {
   closeSync: () => {
     if (scenario === 'combined') throw close;
   },
+  writeSync: () => { throw new Error('unexpected write'); },
 } });
 
 const { readLocalBindingBoundedFile } = await import('../../scripts/local-binding-bounded-file.mjs');

@@ -6,6 +6,22 @@ export function validateLocalBindingYamlManifest(source: string): Readonly<Recor
 
 export function validateLocalBindingWorkerRequest<T extends Readonly<Record<string, unknown>>>(value: T): T;
 
+export function validateLocalBindingRuntimeHost(value: Readonly<{
+  platform?: string;
+  arch?: string;
+  uid?: number;
+  execPath?: string;
+  execArgv?: readonly string[];
+  nodeOptions?: string;
+  readonly [key: string]: unknown;
+}>): void;
+
+export function deriveLocalBindingSourceGraph(root: string): Readonly<{
+  root: string;
+  entry: string;
+  modules: readonly Readonly<Record<string, unknown>>[];
+}>;
+
 export function parseLocalBindingWorkerResult(
   source: string,
   nonce: string,
@@ -44,6 +60,33 @@ export function verifyLocalBindingBootstrapSource(source: Readonly<{
     identity: import('./local-binding-bounded-file.mjs').LocalBindingFileIdentity;
   }>[];
 }>): void;
+
+export function executeFixedLocalBindingParentCycles(context: Readonly<{
+  repositoryRoot: string;
+  operationRoot: string;
+  environment: Readonly<Record<string, string | undefined>>;
+  source: Readonly<{
+    root: string;
+    commit: string;
+    tree: string;
+    bootstrap: readonly Readonly<{
+      path: string;
+      bytes: number;
+      sha256: string;
+      identity: import('./local-binding-bounded-file.mjs').LocalBindingFileIdentity;
+    }>[];
+  }>;
+  graph: Readonly<Record<string, unknown>>;
+  yaml: Readonly<Record<string, unknown>>;
+  cli: Readonly<{ path: string; verify(): void }>;
+  readBindingTree(root: string): Promise<readonly Readonly<{ path: string; bytes: Uint8Array }>[]>
+  verifyExecutables(): void;
+}>): Promise<LocalBindingCycle>;
+
+export function preserveLocalBindingRuntimePrimaryAndCleanup(
+  primaryError: unknown | undefined,
+  cleanupError: unknown | undefined,
+): void;
 
 export function deriveFixedLocalBindingRuntime(): Promise<Readonly<{
   profile: 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';

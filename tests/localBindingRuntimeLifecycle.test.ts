@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -216,13 +216,15 @@ describe('controlled local binding runtime lifecycle', () => {
   function prepareRequest() {
     const value = createPtrFixture({ keys: LINUX_PACKAGE_KEYS });
     boundary.cleanupRoots.push(...value.cleanupRoots);
-    const snapshotRoot = join(value.materializationParent, 'warpkeep-cli-attestation-test');
+    const sourceRoot = join(value.materializationParent, 'source');
+    cpSync(value.repositoryRoot, sourceRoot, { recursive: true, errorOnExist: true });
+    const snapshotRoot = join(value.materializationParent, 'cli');
     mkdirSync(snapshotRoot, { mode: 0o700 });
     const cliPath = join(snapshotRoot, 'spacetimedb-cli');
     writeFileSync(cliPath, 'cli', { mode: 0o500 });
     writeFileSync(join(snapshotRoot, 'spacetimedb-standalone'), 'standalone', { mode: 0o500 });
     boundary.request = {
-      repositoryRoot: value.repositoryRoot,
+      repositoryRoot: sourceRoot,
       sourceCommit: value.sourceCommit,
       sourceTree: 'c'.repeat(40),
       dependencyCacheRoot: value.dependencyCacheRoot,

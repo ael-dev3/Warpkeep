@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { dirname, join, resolve } from 'node:path';
+import { spawn, spawnSync } from 'node:child_process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { derivePreparedPtrLinuxBindings } from '../scripts/local-binding-runtime.mjs';
@@ -10,11 +10,15 @@ import {
   assertReproducibleLocalBindingCycles,
   parseLocalBindingWorkerResult,
   runLocalBindingBoundedProcess,
+  validateLocalBindingRuntimeHost,
   verifyLocalBindingBootstrapSource,
   validateLocalBindingWorkerRequest,
   validateLocalBindingYamlManifest,
 } from '../scripts/local-binding-runtime-core.mjs';
-import { readLocalBindingBoundedFile } from '../scripts/local-binding-bounded-file.mjs';
+import {
+  copyLocalBindingBoundedFile,
+  readLocalBindingBoundedFile,
+} from '../scripts/local-binding-bounded-file.mjs';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
 const manifest = JSON.parse(readFileSync(
@@ -22,6 +26,47 @@ const manifest = JSON.parse(readFileSync(
 ));
 const boundedFixture = join(repositoryRoot, 'tests', 'fixtures', 'localBindingBoundedFileFixture.mjs');
 const processFixture = join(repositoryRoot, 'tests', 'fixtures', 'localBindingProcessFixture.mjs');
+const sourceGraphFixture = join(repositoryRoot, 'tests', 'fixtures', 'localBindingSourceGraphFixture.mjs');
+const workerRequestFixture = join(repositoryRoot, 'tests', 'fixtures', 'localBindingWorkerRequestFixture.mjs');
+
+function canonicalWorkerRequest() {
+  const operation = `/home/snapmeter/.warpkeep/release-preparation-v1/runs/binding-${'9'.repeat(32)}`;
+  return {
+    schemaVersion: 1, profile: 'warpkeep-local-binding-worker-v1', nonce: 'a'.repeat(32),
+    sourceCommit: '1'.repeat(40), sourceTree: '2'.repeat(40),
+    repositoryRoot: `${operation}/source`,
+    dependencyCacheRoot: '/home/snapmeter/.warpkeep/release-preparation-v1/cache/ptr',
+    materializationRoot: `${operation}/cycle-1/builds`,
+    nodePath: '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
+    cliPath: join(operation, 'cli', 'spacetimedb-cli'),
+    handoffPath: `${operation}/cycle-1/handoff/bundle.js`,
+    graph: { root: `${operation}/source`, entry: 'scripts/ptr-binding-linux-locked-source-build.ts', modules: [
+      { path: 'scripts/ptr-binding-linux-locked-source-build.ts', format: 'typescript', imports: [], bytes: 1, sha256: '3'.repeat(64), identity: {
+        dev: '1', ino: '2', mode: '33152', uid: '1000', nlink: '1', size: '1', mtimeNs: '3', ctimeNs: '4',
+      } },
+    ] },
+    yaml: { root: '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/yaml-2.9.0/package', entry: 'dist/index.js', files: [
+      { path: 'dist/index.js', mode: 420, bytes: 1, sha256: '4'.repeat(64) },
+    ] },
+  };
+}
+
+function runWorkerRequestFd3(source: string): Promise<Readonly<{ code: number | null; stdout: string; stderr: string }>> {
+  return new Promise((resolvePromise, reject) => {
+    const child = spawn(process.execPath, [workerRequestFixture], {
+      stdio: ['ignore', 'pipe', 'pipe', 'pipe'],
+    });
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    child.stdout!.on('data', chunk => stdout.push(chunk));
+    child.stderr!.on('data', chunk => stderr.push(chunk));
+    child.on('error', reject);
+    child.on('close', code => resolvePromise({
+      code, stdout: Buffer.concat(stdout).toString(), stderr: Buffer.concat(stderr).toString(),
+    }));
+    (child.stdio[3] as import('node:stream').Writable).end(source);
+  });
+}
 
 afterEach(() => {
   vi.doUnmock('../scripts/local-binding-runtime-core.mjs');
@@ -45,6 +90,66 @@ describe('fixed local PTR binding runtime', () => {
     expect(direct.stderr).toBe('LOCAL_BINDING_RUNTIME_ARGUMENTS_INVALID\n');
   });
 
+  it('ignores ordinary ambient values but rejects actual preload authority', () => {
+    const host = {
+      platform: 'linux', arch: 'x64', uid: 1000,
+      execPath: '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
+      execArgv: ['--experimental-vm-modules'], nodeOptions: undefined,
+      ambient: { HOME: '/hostile/home', PATH: '/hostile/bin', TMPDIR: '/hostile/tmp', SPACETIME_BIN: '/hostile/cli' },
+    };
+    expect(() => validateLocalBindingRuntimeHost(host)).not.toThrow();
+    expect(() => validateLocalBindingRuntimeHost({ ...host, nodeOptions: '--require=/hostile/preload.cjs' }))
+      .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_RUNTIME_HOST_INVALID' }));
+    expect(() => validateLocalBindingRuntimeHost({ ...host, execArgv: ['--experimental-vm-modules', '--import=/hostile.mjs'] }))
+      .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_RUNTIME_HOST_INVALID' }));
+  });
+
+  const invalidSourceGraphs: readonly [string, string, { outside?: boolean; ambiguous?: boolean }][] = [
+    ['graph escape', "import '../../outside.mjs';\n", { outside: true }],
+    ['ambiguous extension', "import './dependency';\n", { ambiguous: true }],
+    ['missing source', "import './missing';\n", {}],
+  ];
+
+  it.each(invalidSourceGraphs)('rejects source derivation %s before evaluation', (_label, entry, setup) => {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), 'warpkeep-source-graph-'));
+    const root = join(fixtureRoot, 'repository');
+    try {
+      mkdirSync(root);
+      mkdirSync(join(root, 'scripts'));
+      writeFileSync(join(root, 'scripts', 'ptr-binding-linux-locked-source-build.ts'), entry);
+      if (setup.outside) writeFileSync(join(dirname(root), 'outside.mjs'), 'export {};\n');
+      if (setup.ambiguous) {
+        writeFileSync(join(root, 'scripts', 'dependency.ts'), 'export {};\n');
+        writeFileSync(join(root, 'scripts', 'dependency.mjs'), 'export {};\n');
+      }
+      const result = spawnSync(process.execPath, [
+        '--experimental-vm-modules', sourceGraphFixture, root,
+      ], { encoding: 'utf8' });
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain('LOCAL_BINDING_RUNTIME_SOURCE_GRAPH_INVALID');
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('derives a real TypeScript enum and parameter-property source without evaluation', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-source-graph-'));
+    try {
+      mkdirSync(join(root, 'scripts'));
+      writeFileSync(join(root, 'scripts', 'ptr-binding-linux-locked-source-build.ts'),
+        'export enum Tone { Low = 3 }\nexport class Box { constructor(public value: Tone) {} }\n');
+      const result = spawnSync(process.execPath, [
+        '--experimental-vm-modules', sourceGraphFixture, root,
+      ], { encoding: 'utf8' });
+      expect(result.status, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual({
+        modules: ['scripts/ptr-binding-linux-locked-source-build.ts'],
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('independently validates canonical YAML authority framing and rejects mutations', () => {
     expect(validateLocalBindingYamlManifest(`${JSON.stringify(manifest, null, 2)}\n`)).toEqual(manifest);
     const changed = structuredClone(manifest);
@@ -56,32 +161,36 @@ describe('fixed local PTR binding runtime', () => {
   });
 
   it('validates the fixed fd3 request schema and rejects injected coordinates', () => {
-    const operation = `/home/snapmeter/.warpkeep/release-preparation-v1/runs/binding-${'9'.repeat(32)}`;
-    const request = {
-      schemaVersion: 1, profile: 'warpkeep-local-binding-worker-v1', nonce: 'a'.repeat(32),
-      sourceCommit: '1'.repeat(40), sourceTree: '2'.repeat(40),
-      repositoryRoot: `${operation}/source`,
-      dependencyCacheRoot: '/home/snapmeter/.warpkeep/release-preparation-v1/cache/ptr',
-      materializationRoot: `${operation}/cycle-1/builds`,
-      nodePath: '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
-      cliPath: '/tmp/warpkeep-cli-attestation-abcdef/spacetimedb-cli',
-      handoffPath: `${operation}/cycle-1/handoff/bundle.js`,
-      graph: { root: `${operation}/source`, entry: 'scripts/ptr-binding-linux-locked-source-build.ts', modules: [
-        { path: 'scripts/ptr-binding-linux-locked-source-build.ts', format: 'typescript', imports: [], bytes: 1, sha256: '3'.repeat(64), identity: {
-          dev: '1', ino: '2', mode: '33152', uid: '1000', nlink: '1', size: '1', mtimeNs: '3', ctimeNs: '4',
-        } },
-      ] },
-      yaml: { root: '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/yaml-2.9.0/package', entry: 'dist/index.js', files: [
-        { path: 'dist/index.js', mode: 420, bytes: 1, sha256: '4'.repeat(64) },
-      ] },
-    };
+    const request = canonicalWorkerRequest();
     expect(validateLocalBindingWorkerRequest(request)).toEqual(request);
+    expect(() => validateLocalBindingWorkerRequest({
+      ...request,
+      cliPath: '/tmp/warpkeep-cli-attestation-abcdef/spacetimedb-cli',
+    })).toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_REQUEST_INVALID' }));
     expect(() => validateLocalBindingWorkerRequest({
       ...request,
       cliPath: '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/spacetime-2.6.1/spacetimedb-cli',
     })).toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_REQUEST_INVALID' }));
     expect(() => validateLocalBindingWorkerRequest({ ...request, database: 'production' }))
       .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_REQUEST_INVALID' }));
+  });
+
+  it('reads one canonical request from real fd3 and rejects malformed framing early', async () => {
+    const canonical = `${JSON.stringify(canonicalWorkerRequest())}\n`;
+    await expect(runWorkerRequestFd3(canonical)).resolves.toMatchObject({
+      code: 0, stdout: `${'a'.repeat(32)}\n`, stderr: '',
+    });
+    for (const malformed of [
+      canonical.trimEnd(),
+      ` ${canonical}`,
+      `${JSON.stringify({ ...canonicalWorkerRequest(), extra: true })}\n`,
+      `${'x'.repeat(1024 * 1024 + 1)}\n`,
+    ]) {
+      const result = await runWorkerRequestFd3(malformed);
+      expect(result.code).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toContain('LOCAL_BINDING_WORKER_REQUEST_INVALID');
+    }
   });
 
   it('accepts one canonical bounded worker result bound to nonce and handoff', () => {
@@ -167,6 +276,32 @@ describe('fixed local PTR binding runtime', () => {
     expect(JSON.parse(result.stdout)).toEqual({ code: 'LOCAL_BINDING_BOUNDED_FILE_CHANGED' });
   });
 
+  it('copies an exact source through bounded descriptors into an exclusive destination', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-bounded-copy-'));
+    try {
+      const source = join(root, 'source');
+      const destination = join(root, 'destination');
+      const body = Buffer.from('operation-owned-cli-snapshot');
+      writeFileSync(source, body);
+      const result = copyLocalBindingBoundedFile(source, destination, {
+        maximumBytes: 1024,
+        expectedBytes: body.length,
+        expectedSha256: createHash('sha256').update(body).digest('hex'),
+        destinationMode: 0o600,
+      });
+      expect(result.bytes).toBe(body.length);
+      expect(readFileSync(destination)).toEqual(body);
+      expect(() => copyLocalBindingBoundedFile(source, destination, {
+        maximumBytes: 1024,
+        expectedBytes: body.length,
+        expectedSha256: createHash('sha256').update(body).digest('hex'),
+        destinationMode: 0o600,
+      })).toThrow();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it.each([
     ['output', 5, 1_000, 'LOCAL_BINDING_RUNTIME_PROCESS_OUTPUT_LIMIT'],
     ['nonzero', 1024, 1_000, 'LOCAL_BINDING_RUNTIME_PROCESS_FAILED'],
@@ -182,6 +317,20 @@ describe('fixed local PTR binding runtime', () => {
     await expect(runLocalBindingBoundedProcess(process.execPath, [processFixture, 'success'], {
       cwd: repositoryRoot, env: { PATH: process.env.PATH }, maxOutput: 1024, timeout: 1_000,
     })).resolves.toEqual({ stdout: 'ok', stderr: '' });
+  });
+
+  it('rejects a child that exits successfully before accepting its complete fd3 request', async () => {
+    await expect(runLocalBindingBoundedProcess(process.execPath, [processFixture, 'fd3-early-exit'], {
+      cwd: repositoryRoot, env: { PATH: process.env.PATH }, fd3: 'x'.repeat(4 * 1024 * 1024),
+      maxOutput: 1024, timeout: 1_000,
+    })).rejects.toMatchObject({ code: 'LOCAL_BINDING_RUNTIME_PROCESS_FAILED' });
+  });
+
+  it('accepts a child only after the complete fd3 request is written and read', async () => {
+    await expect(runLocalBindingBoundedProcess(process.execPath, [processFixture, 'fd3-success'], {
+      cwd: repositoryRoot, env: { PATH: process.env.PATH }, fd3: 'canonical-request\n',
+      maxOutput: 1024, timeout: 1_000,
+    })).resolves.toEqual({ stdout: 'canonical-request\n', stderr: '' });
   });
 
   it.skipIf(process.platform !== 'linux')(

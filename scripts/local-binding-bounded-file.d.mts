@@ -25,3 +25,18 @@ export function readLocalBindingBoundedFile(path: string, options: Readonly<{
   rejectWritableExecutable?: boolean;
   discardBody?: boolean;
 }>): Readonly<{ body: Buffer; identity: LocalBindingFileIdentity }>;
+
+export function copyLocalBindingBoundedFile(
+  sourcePath: string,
+  destinationPath: string,
+  options: Readonly<{
+    maximumBytes: number;
+    expectedBytes: number;
+    expectedSha256: string;
+    expectedMode?: number;
+    expectedUid?: number;
+    requireExecutable?: boolean;
+    rejectWritableExecutable?: boolean;
+    destinationMode: number;
+  }>,
+): Readonly<{ bytes: number; sha256: string; identity: LocalBindingFileIdentity }>;

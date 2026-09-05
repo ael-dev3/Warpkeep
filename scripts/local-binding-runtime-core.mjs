@@ -1,15 +1,19 @@
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
   chmodSync, lstatSync, mkdirSync,
   readdirSync, realpathSync, rmSync,
 } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as vm from 'node:vm';
 
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
+import { bindOperationOwnedCliSnapshot } from './local-binding-runtime-cli-snapshot.mjs';
+import { runLocalBindingBoundedProcess } from './local-binding-runtime-process.mjs';
+
+export { runLocalBindingBoundedProcess } from './local-binding-runtime-process.mjs';
 
 const PROFILE = 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
 const WORKER_PROFILE = 'warpkeep-local-binding-worker-v1';
@@ -35,9 +39,12 @@ const MAX_WORKER_REQUEST = 1024 * 1024;
 const MAX_WORKER_OUTPUT = 64 * 1024;
 const CONTROL_FILES = Object.freeze([
   'scripts/local-binding-bounded-file.mjs',
+  'scripts/local-binding-runtime-cli-snapshot.mjs',
+  'scripts/local-binding-runtime-process.mjs',
   'scripts/local-binding-runtime.mjs',
   'scripts/local-binding-runtime-core.mjs',
   'scripts/local-binding-runtime-worker.mjs',
+  'scripts/local-binding-runtime-worker-request.mjs',
   'scripts/local-binding-native-ts-hooks.mjs',
   'scripts/local-binding-runtime-worker-result.mjs',
   'scripts/local-binding-runtime-yaml-v1.json',
@@ -150,6 +157,14 @@ function fixedContainedPath(path, prefix) {
   return typeof path === 'string' && isAbsolute(path) && within(prefix, path) && path !== prefix;
 }
 
+export function validateLocalBindingRuntimeHost(value) {
+  if (value?.platform !== 'linux' || value?.arch !== 'x64' || value?.uid !== 1000
+      || value?.execPath !== NODE_PATH || value?.nodeOptions
+      || JSON.stringify(value?.execArgv) !== JSON.stringify(['--experimental-vm-modules'])) {
+    fail('LOCAL_BINDING_RUNTIME_HOST_INVALID');
+  }
+}
+
 export function validateLocalBindingWorkerRequest(value) {
   const operationRoot = typeof value?.repositoryRoot === 'string' ? dirname(value.repositoryRoot) : '';
   const operationName = operationRoot === '' ? '' : relative(RUNS_ROOT, operationRoot);
@@ -159,9 +174,7 @@ export function validateLocalBindingWorkerRequest(value) {
       || !fixedContainedPath(value.repositoryRoot, RUNS_ROOT)
       || !/^binding-[0-9a-f]{32}$/u.test(operationName)
       || value.dependencyCacheRoot !== CACHE_ROOT || !fixedContainedPath(value.materializationRoot, RUNS_ROOT)
-      || value.nodePath !== NODE_PATH || typeof value.cliPath !== 'string' || !isAbsolute(value.cliPath)
-      || basename(value.cliPath) !== 'spacetimedb-cli'
-      || !basename(dirname(value.cliPath)).startsWith('warpkeep-cli-attestation-')
+      || value.nodePath !== NODE_PATH || value.cliPath !== join(operationRoot, 'cli', 'spacetimedb-cli')
       || !fixedContainedPath(value.handoffPath, RUNS_ROOT)
       || value.graph?.root !== value.repositoryRoot
       || value.graph?.entry !== 'scripts/ptr-binding-linux-locked-source-build.ts'
@@ -287,7 +300,7 @@ function resolveGraphTarget(root, parentPath, specifier) {
   return relative(root, candidates[0]).split(sep).join('/');
 }
 
-function deriveSourceGraph(root) {
+export function deriveLocalBindingSourceGraph(root) {
   if (typeof SourceTextModule !== 'function') fail('LOCAL_BINDING_RUNTIME_VM_MODULES_REQUIRED');
   const entry = 'scripts/ptr-binding-linux-locked-source-build.ts';
   const pending = [entry];
@@ -379,45 +392,6 @@ function attestYaml(manifest) {
   visit(YAML_ROOT, []);
   if (actual.size !== expected.size) fail('LOCAL_BINDING_RUNTIME_YAML_NAMESPACE_INVALID');
   return Object.freeze({ root: YAML_ROOT, entry: manifest.entry, files: manifest.files });
-}
-
-export function runLocalBindingBoundedProcess(executable, args, options) {
-  return new Promise((resolvePromise, reject) => {
-    const child = spawn(executable, args, {
-      cwd: options.cwd, env: options.env, shell: false,
-      stdio: options.fd3 === undefined ? ['ignore', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe', 'pipe'],
-    });
-    const output = { stdout: [], stderr: [], stdoutBytes: 0, stderrBytes: 0 };
-    let settled = false;
-    const finish = error => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      if (error) reject(error);
-      else resolvePromise({ stdout: Buffer.concat(output.stdout).toString('utf8'), stderr: Buffer.concat(output.stderr).toString('utf8') });
-    };
-    for (const name of ['stdout', 'stderr']) child[name].on('data', chunk => {
-      output[`${name}Bytes`] += chunk.length;
-      if (output[`${name}Bytes`] > options.maxOutput) {
-        child.kill('SIGKILL');
-        finish(new LocalBindingRuntimeCoreError('LOCAL_BINDING_RUNTIME_PROCESS_OUTPUT_LIMIT'));
-      } else output[name].push(chunk);
-    });
-    child.on('error', error => finish(new LocalBindingRuntimeCoreError('LOCAL_BINDING_RUNTIME_PROCESS_FAILED', { cause: error })));
-    child.on('close', (code, signal) => {
-      if (code !== 0 || signal !== null) finish(new LocalBindingRuntimeCoreError(
-        signal === 'SIGKILL' ? 'LOCAL_BINDING_RUNTIME_PROCESS_TIMEOUT' : 'LOCAL_BINDING_RUNTIME_PROCESS_FAILED',
-      ));
-      else finish();
-    });
-    if (options.fd3 !== undefined) {
-      child.stdio[3].end(options.fd3);
-    }
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      finish(new LocalBindingRuntimeCoreError('LOCAL_BINDING_RUNTIME_PROCESS_TIMEOUT'));
-    }, options.timeout);
-  });
 }
 
 function cleanEnvironment(operationRoot) {
@@ -542,13 +516,30 @@ async function executeCycle(context, index) {
   });
 }
 
+export async function executeFixedLocalBindingParentCycles(context) {
+  const first = await executeCycle(context, 1);
+  const second = await executeCycle(context, 2);
+  return assertReproducibleLocalBindingCycles(first, second);
+}
+
+export function preserveLocalBindingRuntimePrimaryAndCleanup(primaryError, cleanupError) {
+  if (primaryError === undefined && cleanupError === undefined) return;
+  if (primaryError !== undefined && cleanupError === undefined) throw primaryError;
+  throw new AggregateError([primaryError, cleanupError].filter(error => error !== undefined), 'LOCAL_BINDING_RUNTIME_FAILED', {
+    cause: primaryError,
+  });
+}
+
 export async function deriveFixedLocalBindingRuntime() {
   const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-  if (process.platform !== 'linux' || process.arch !== 'x64' || process.getuid?.() !== 1000
-      || process.execPath !== NODE_PATH || process.env.NODE_OPTIONS
-      || JSON.stringify(process.execArgv) !== JSON.stringify(['--experimental-vm-modules'])) {
-    fail('LOCAL_BINDING_RUNTIME_HOST_INVALID');
-  }
+  validateLocalBindingRuntimeHost({
+    platform: process.platform,
+    arch: process.arch,
+    uid: process.getuid?.(),
+    execPath: process.execPath,
+    execArgv: process.execArgv,
+    nodeOptions: process.env.NODE_OPTIONS,
+  });
   for (const path of [
     ROOT, join(ROOT, 'toolchain'), dirname(dirname(NODE_PATH)), dirname(NODE_PATH),
     dirname(CLI_PATH), join(ROOT, 'cache'), CACHE_ROOT, RUNS_ROOT,
@@ -568,12 +559,13 @@ export async function deriveFixedLocalBindingRuntime() {
   const environment = cleanEnvironment(operationRoot);
   let source;
   let cli;
+  let cliSource;
   let complete = false;
   let finalResult;
   let primaryError;
   try {
     source = snapshotCommittedSource(repositoryRoot, operationRoot, environment, gitAuthority.identity);
-    const graph = deriveSourceGraph(source.root);
+    const graph = deriveLocalBindingSourceGraph(source.root);
     const manifestPath = join(source.root, 'scripts', 'local-binding-runtime-yaml-v1.json');
     const manifestSource = stableFile(manifestPath).toString('utf8');
     const manifest = validateLocalBindingYamlManifest(manifestSource);
@@ -583,8 +575,8 @@ export async function deriveFixedLocalBindingRuntime() {
       join(source.root, 'scripts', 'spacetime-cli-attestation.mjs'),
     ).href);
     verifyLocalBindingBootstrapSource(source);
-    const cliAttestation = attestPinnedSpacetimeCli(CLI_PATH, spawnSync, environment);
-    cli = cliAttestation;
+    cliSource = attestPinnedSpacetimeCli(CLI_PATH, spawnSync, environment);
+    cli = bindOperationOwnedCliSnapshot(cliSource, operationRoot);
     verifyLocalBindingBootstrapSource(source);
     const { readSpacetimeBindingTree } = await import(pathToFileURL(
       join(source.root, 'scripts', 'spacetime-binding-tree.mjs'),
@@ -599,9 +591,7 @@ export async function deriveFixedLocalBindingRuntime() {
       repositoryRoot, operationRoot, environment, source, graph, yaml, cli,
       readBindingTree: readSpacetimeBindingTree, verifyExecutables,
     };
-    const first = await executeCycle(context, 1);
-    const second = await executeCycle(context, 2);
-    const selected = assertReproducibleLocalBindingCycles(first, second);
+    const selected = await executeFixedLocalBindingParentCycles(context);
     cli.verify();
     if (git(source.root, environment, gitAuthority.identity, ['rev-parse', '--verify', 'HEAD']) !== source.commit
         || git(source.root, environment, gitAuthority.identity, ['rev-parse', '--verify', 'HEAD^{tree}']) !== source.tree) {
@@ -620,18 +610,13 @@ export async function deriveFixedLocalBindingRuntime() {
     primaryError = error;
   }
   let cleanupError;
-  try { cli?.cleanup(); } catch (error) { cleanupError = error; }
+  try { cliSource?.cleanup(); } catch (error) { cleanupError = error; }
   if (complete) {
     try {
       if (source !== undefined) git(repositoryRoot, environment, gitAuthority.identity, ['worktree', 'remove', '--force', source.root]);
       rmSync(operationRoot, { recursive: true, force: false });
     } catch (error) { cleanupError ??= error; }
   }
-  if (primaryError !== undefined || cleanupError !== undefined) {
-    if (primaryError !== undefined && cleanupError === undefined) throw primaryError;
-    throw new AggregateError([primaryError, cleanupError].filter(Boolean), 'LOCAL_BINDING_RUNTIME_FAILED', {
-      cause: primaryError,
-    });
-  }
+  preserveLocalBindingRuntimePrimaryAndCleanup(primaryError, cleanupError);
   return finalResult;
 }
