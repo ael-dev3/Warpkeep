@@ -620,7 +620,7 @@ describe('0.4.0 recovery bootstrap', { timeout: process.platform === 'win32' ? 3
   it('rejects a root inside a separately linked Git worktree', () => {
     const root = fixtureRoot();
     const linkedWorktree = join(root, 'linked-worktree');
-    execFileSync('git', ['worktree', 'add', '--detach', linkedWorktree, 'HEAD'], {
+    execFileSync('git', ['worktree', 'add', '--detach', '--no-checkout', linkedWorktree, 'HEAD'], {
       cwd: repositoryRoot,
       stdio: 'ignore'
     });
