@@ -189,12 +189,13 @@ afterEach(() => {
   rmSync(boundary.physicalRoot, { recursive: true, force: true });
 });
 
-function context() {
+function context(cli?: Readonly<{ path: string; verify(): void }>) {
   const operationRoot = join(`${FIXED_ROOT}/runs`, `binding-${'a'.repeat(32)}`);
   const sourceRoot = join(operationRoot, 'source');
   mkdirSync(operationRoot, { recursive: true, mode: 0o700 });
   mkdirSync(sourceRoot, { mode: 0o700 });
-  mkdirSync(join(operationRoot, 'cli'), { mode: 0o700 });
+  if (cli === undefined) mkdirSync(join(operationRoot, 'cli'), { mode: 0o700 });
+  const selectedCli = cli ?? { path: join(operationRoot, 'cli', 'spacetimedb-cli'), verify() {} };
   return {
     repositoryRoot: sourceRoot,
     operationRoot,
@@ -209,9 +210,12 @@ function context() {
     yaml: { root: `${FIXED_ROOT}/toolchain/yaml-2.9.0/package`, entry: 'dist/index.js', files: [
       { path: 'dist/index.js', mode: 420, bytes: 1, sha256: '4'.repeat(64) },
     ] },
-    cli: { path: join(operationRoot, 'cli', 'spacetimedb-cli'), verify() {} },
+    cli: selectedCli,
     readBindingTree: readSpacetimeBindingTree,
-    verifyExecutables() { boundary.events.push('verify-executables'); },
+    verifyExecutables() {
+      selectedCli.verify();
+      boundary.events.push('verify-executables');
+    },
   };
 }
 
@@ -243,6 +247,24 @@ describe('production local binding parent cycles', () => {
       [join(source.directory, 'spacetimedb-standalone'), join(operationRoot, 'cli', 'spacetimedb-standalone')],
     ]);
     expect(sourceVerifications).toBeGreaterThanOrEqual(4);
+  });
+
+  it('keeps the real operation-owned CLI verifier valid through both production parent cycles', async () => {
+    const operationRoot = join(`${FIXED_ROOT}/runs`, `binding-${'a'.repeat(32)}`);
+    mkdirSync(operationRoot, { recursive: true, mode: 0o700 });
+    let sourceVerifications = 0;
+    const source = {
+      directory: join('C:\\hostile-ambient-tmp', 'warpkeep-cli-attestation-cycle'),
+      path: join('C:\\hostile-ambient-tmp', 'warpkeep-cli-attestation-cycle', 'spacetimedb-cli'),
+      verify() { sourceVerifications += 1; },
+    };
+    const cli = bindOperationOwnedCliSnapshot(source, operationRoot);
+    const result = await executeFixedLocalBindingParentCycles(context(cli));
+    expect(Buffer.from(result.bindings[0]!.bytes).toString()).toBe('binding');
+    expect(boundary.events.filter(event => event.startsWith('worker:'))).toHaveLength(2);
+    expect(boundary.events.filter(event => event === 'generate')).toHaveLength(2);
+    expect(boundary.events.filter(event => event === 'verify-executables')).toHaveLength(6);
+    expect(sourceVerifications).toBe(10);
   });
 
   it('uses canonical fd3, reattests handoff, generates twice, and reads the strict tree', async () => {
