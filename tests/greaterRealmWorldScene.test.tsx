@@ -283,6 +283,8 @@ describe('Greater Realm world scene lifecycle', () => {
         residentVoxelTriangleCount: 144,
         residentVoxelQuadCount: 72,
         voxelUploadBytesThisFrame: 6_912,
+        voxelPreparationMilliseconds: 1.25,
+        voxelEmissionMillisecondsThisFrame: 0.75,
         voxelFallbackCount: 1,
         voxelFallbackReasons: ['terrain:injected']
       }
@@ -292,6 +294,8 @@ describe('Greater Realm world scene lifecycle', () => {
     expect(canvas.dataset.greaterRealmVoxelTriangles).toBe('144');
     expect(canvas.dataset.greaterRealmVoxelQuads).toBe('72');
     expect(canvas.dataset.greaterRealmVoxelUploadBytes).toBe('6912');
+    expect(canvas.dataset.greaterRealmVoxelPreparationMilliseconds).toBe('1.25');
+    expect(canvas.dataset.greaterRealmVoxelEmissionMilliseconds).toBe('0.75');
     expect(canvas.dataset.greaterRealmVoxelFallbackCount).toBe('1');
     expect(canvas.dataset.greaterRealmVoxelFallbackReasons).toBe('terrain:injected');
   });

@@ -257,6 +257,10 @@ describe('Greater Realm scene runtime', () => {
     expect(runtime.getTelemetry().voxelUploadBytesThisFrame).toBeLessThanOrEqual(
       runtime.getTelemetry().uploadBytesThisFrame
     );
+    expect(Number.isFinite(runtime.getTelemetry().voxelPreparationMilliseconds)).toBe(true);
+    expect(Number.isFinite(runtime.getTelemetry().voxelEmissionMillisecondsThisFrame)).toBe(true);
+    expect(runtime.getTelemetry().voxelPreparationMilliseconds).toBeGreaterThanOrEqual(0);
+    expect(runtime.getTelemetry().voxelEmissionMillisecondsThisFrame).toBeGreaterThanOrEqual(0);
     runtime.dispose();
   });
 

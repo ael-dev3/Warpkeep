@@ -333,6 +333,12 @@ export function GreaterRealmWorldScene({
         canvas.dataset.greaterRealmVoxelUploadBytes = String(
           telemetry.scene.voxelUploadBytesThisFrame
         );
+        canvas.dataset.greaterRealmVoxelPreparationMilliseconds = String(
+          telemetry.scene.voxelPreparationMilliseconds
+        );
+        canvas.dataset.greaterRealmVoxelEmissionMilliseconds = String(
+          telemetry.scene.voxelEmissionMillisecondsThisFrame
+        );
         canvas.dataset.greaterRealmVoxelFallbackCount = String(
           telemetry.scene.voxelFallbackCount
         );

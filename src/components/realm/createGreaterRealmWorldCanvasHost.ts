@@ -698,6 +698,8 @@ export function createGreaterRealmWorldCanvasHost(
       telemetry.scene.residentVoxelTriangleCount,
       telemetry.scene.residentVoxelQuadCount,
       telemetry.scene.voxelUploadBytesThisFrame,
+      telemetry.scene.voxelPreparationMilliseconds,
+      telemetry.scene.voxelEmissionMillisecondsThisFrame,
       telemetry.scene.voxelFallbackCount,
       telemetry.scene.voxelFallbackReasons.join('|'),
       telemetry.hostUploadBytesThisFrame,

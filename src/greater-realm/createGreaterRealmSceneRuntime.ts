@@ -70,6 +70,8 @@ export type GreaterRealmSceneTelemetry = Readonly<{
   residentVoxelTriangleCount: number;
   residentVoxelQuadCount: number;
   voxelUploadBytesThisFrame: number;
+  voxelPreparationMilliseconds: number;
+  voxelEmissionMillisecondsThisFrame: number;
   voxelFallbackCount: number;
   voxelFallbackReasons: readonly string[];
 }>;
@@ -138,6 +140,7 @@ type ChunkRenderResource = Readonly<{
   voxelTriangleCount: number;
   voxelQuadCount: number;
   voxelUploadBytes: number;
+  voxelEmissionMilliseconds: number;
   voxelLayerCount: number;
   voxelFallbackReasons: readonly string[];
   dispose: () => void;
@@ -175,6 +178,10 @@ type SelectedChunk = Readonly<{
 
 function finiteDistance(value: number) {
   return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : Number.MAX_SAFE_INTEGER;
+}
+
+function nowMilliseconds() {
+  return globalThis.performance?.now() ?? Date.now();
 }
 
 const GREATER_REALM_BOAT_GEOMETRY_UPLOAD_BYTES = 840;
@@ -734,7 +741,9 @@ function buildChunkResource(selected: SelectedChunk, cellSize: number): ChunkRen
   let voxelTriangleCount = 0;
   let voxelQuadCount = 0;
   let voxelUploadBytes = 0;
+  let voxelEmissionMilliseconds = 0;
   let voxelLayerCount = 0;
+  const terrainEmissionStarted = nowMilliseconds();
   if (selected.plan.voxelTerrainFallbackReason !== undefined) {
     voxelFallbackReasons.push(voxelFailureReason(
       'terrain-preparation', selected.plan.voxelTerrainFallbackReason
@@ -752,13 +761,16 @@ function buildChunkResource(selected: SelectedChunk, cellSize: number): ChunkRen
       group.add(terrainMesh(selected.plan, cellSize));
     }
   }
+  voxelEmissionMilliseconds += nowMilliseconds() - terrainEmissionStarted;
   const water = waterMesh(selected.plan, cellSize);
   if (water) group.add(water.mesh);
   const routes = routeLines(selected.plan);
   if (routes) group.add(routes);
   const crossings = crossingMesh(selected.plan, cellSize);
   if (crossings) group.add(crossings);
+  const featureEmissionStarted = nowMilliseconds();
   const voxelFeatures = voxelFeatureMeshes(selected.plan);
+  voxelEmissionMilliseconds += nowMilliseconds() - featureEmissionStarted;
   voxelFeatures.meshes.forEach((mesh) => group.add(mesh));
   voxelFeatures.fallbackMeshes.forEach((mesh) => group.add(mesh));
   voxelFallbackReasons.push(...voxelFeatures.failures);
@@ -781,6 +793,7 @@ function buildChunkResource(selected: SelectedChunk, cellSize: number): ChunkRen
     voxelTriangleCount,
     voxelQuadCount,
     voxelUploadBytes,
+    voxelEmissionMilliseconds,
     voxelLayerCount,
     voxelFallbackReasons: Object.freeze(voxelFallbackReasons),
     dispose: () => {
@@ -871,6 +884,8 @@ export function createGreaterRealmSceneRuntime(
   let uploadedThisFrame = 0;
   let uploadBytesThisFrame = 0;
   let voxelUploadBytesThisFrame = 0;
+  let voxelPreparationMilliseconds = 0;
+  let voxelEmissionMillisecondsThisFrame = 0;
   let skippedByBudgetCount = 0;
   let boundCanvas: HTMLCanvasElement | null = null;
   const matrix = new THREE.Matrix4();
@@ -1171,6 +1186,8 @@ export function createGreaterRealmSceneRuntime(
         (total, resource) => total + resource.voxelQuadCount, 0
       ),
       voxelUploadBytesThisFrame,
+      voxelPreparationMilliseconds,
+      voxelEmissionMillisecondsThisFrame,
       voxelFallbackCount: voxelFallbackReasons.length,
       voxelFallbackReasons
     });
@@ -1359,10 +1376,12 @@ export function createGreaterRealmSceneRuntime(
         return next;
       };
 
+      const voxelPreparationStarted = nowMilliseconds();
       const preliminary = buildPlans(ordered, false);
       const acceptedHandles = new Set(preliminary.keys());
       const accepted = ordered.filter((row) => acceptedHandles.has(row.chunk.chunkHandle));
       const next = buildPlans(accepted, true);
+      voxelPreparationMilliseconds = nowMilliseconds() - voxelPreparationStarted;
       skippedByBudgetCount = ordered.length - next.size;
       for (const [handle, resource] of uploaded) {
         if (next.get(handle)?.signature !== resource.signature) removeUploaded(handle);
@@ -1400,6 +1419,7 @@ export function createGreaterRealmSceneRuntime(
     flushUploads: () => {
       uploadedThisFrame = 0;
       voxelUploadBytesThisFrame = 0;
+      voxelEmissionMillisecondsThisFrame = 0;
       uploadBytesThisFrame = pendingAmbientBoatUploadBytes
         + pendingLocalVesselUploadBytes;
       pendingAmbientBoatUploadBytes = 0;
@@ -1430,6 +1450,7 @@ export function createGreaterRealmSceneRuntime(
         chunkUploadBytesThisFrame += row.plan.estimatedUploadBytes;
         uploadBytesThisFrame += row.plan.estimatedUploadBytes;
         voxelUploadBytesThisFrame += resource.voxelUploadBytes;
+        voxelEmissionMillisecondsThisFrame += resource.voxelEmissionMilliseconds;
       }
       if (pending.size > 0) options.onInvalidate?.();
       return uploadedThisFrame;

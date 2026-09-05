@@ -51,6 +51,8 @@ const EMPTY_TELEMETRY: GreaterRealmSceneTelemetry = Object.freeze({
   residentVoxelTriangleCount: 0,
   residentVoxelQuadCount: 0,
   voxelUploadBytesThisFrame: 0,
+  voxelPreparationMilliseconds: 0,
+  voxelEmissionMillisecondsThisFrame: 0,
   voxelFallbackCount: 0,
   voxelFallbackReasons: Object.freeze([])
 });
