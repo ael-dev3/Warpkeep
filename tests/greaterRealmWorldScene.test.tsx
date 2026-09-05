@@ -178,6 +178,7 @@ beforeEach(() => {
   canvasHostHarness.create.mockReset();
   canvasHostHarness.create.mockImplementation(() => ({
     applySnapshot: vi.fn(),
+    updatePolicy: vi.fn(),
     control: vi.fn(),
     getLocalVesselState: vi.fn(),
     schedule: vi.fn(),
@@ -238,7 +239,7 @@ describe('Greater Realm world scene lifecycle', () => {
     expect(document.activeElement).toBe(resourcesTrigger);
   });
 
-  it('retains the same canvas, selection, and closed state across narrow resizes', async () => {
+  it('retains the same host, selection, and closed state across presentation breakpoints', async () => {
     setViewportWidth(390);
     renderScene(bridge());
     const canvas = await screen.findByRole('application', {
@@ -257,16 +258,41 @@ describe('Greater Realm world scene lifecycle', () => {
     }));
     fireEvent.click(controlsTrigger);
 
-    setViewportWidth(360);
+    const host = canvasHostHarness.create.mock.results[0]!.value;
+
+    setViewportWidth(1_440);
 
     expect(screen.getByTestId('greater-realm-world-canvas')).toBe(canvas);
     expect(canvasHostHarness.create).toHaveBeenCalledOnce();
+    expect(host.dispose).not.toHaveBeenCalled();
+    expect(host.updatePolicy).toHaveBeenLastCalledWith(expect.objectContaining({
+      deviceClass: 'desktop',
+      graphicsProfile: 'balanced',
+      radius: 3
+    }));
+    expect(screen.getByRole('status').textContent)
+      .toContain('The Hegemony Lowlands at 0, 0');
+
+    setViewportWidth(390);
+
+    expect(screen.getByTestId('greater-realm-world-canvas')).toBe(canvas);
+    expect(canvasHostHarness.create).toHaveBeenCalledOnce();
+    expect(host.dispose).not.toHaveBeenCalled();
     expect(screen.getByRole('button', {
       name: 'Map and vessel controls'
     }).getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(screen.getByRole('button', { name: 'Map and vessel controls' }));
     expect(screen.getByRole('status').textContent)
       .toContain('The Hegemony Lowlands at 0, 0');
+  });
+
+  it('uses desktop presentation consistently at the shared 760 pixel boundary', () => {
+    setViewportWidth(760);
+    renderScene(bridge());
+
+    expect(screen.queryByRole('button', { name: 'Map and vessel controls' })).toBeNull();
+    expect(document.querySelector('[data-greater-realm-device-class="desktop"]'))
+      .not.toBeNull();
   });
 
   it('clears resource-read authority in the layout phase before controls are interactive', () => {

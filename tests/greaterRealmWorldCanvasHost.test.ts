@@ -110,6 +110,184 @@ afterEach(() => {
 });
 
 describe('Greater Realm world canvas host', () => {
+  it('updates responsive rendering policy in one host and retains a returned selection', () => {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    const runtimes: any[] = [];
+    function makeRuntime(
+      options: { deviceClass: 'desktop' | 'mobile'; graphicsProfile: string }
+    ): any {
+      const runtime = {
+        group: new THREE.Group(),
+        setView: vi.fn(), flushUploads: vi.fn(() => 0), update: vi.fn(() => false),
+        startAnimation: vi.fn(), stopAnimation: vi.fn(), setReducedMotion: vi.fn(),
+        setDocumentVisible: vi.fn(), bindCanvas: vi.fn(), getCellAccess: vi.fn(),
+        isCoordinatePassable: vi.fn(() => false), ...vesselRuntimeMethods(),
+        getTelemetry: vi.fn(() => ({
+          ...EMPTY_TELEMETRY,
+          deviceClass: options.deviceClass,
+          graphicsProfile: options.graphicsProfile
+        })),
+        dispose: vi.fn()
+      };
+      runtimes.push(runtime);
+      return runtime;
+    }
+    const renderer = {
+      setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn()
+    };
+    const rendererFactory = vi.fn(() => renderer);
+    const runtimeFactory = vi.fn((options: any) => makeRuntime(options));
+    const onSelectionChange = vi.fn();
+    const desktopPolicy = resolveGreaterRealmWorldViewPolicy({
+      atlasQ: -2, atlasR: 1, viewportWidth: 1_440, coarsePointer: false,
+      farcasterMiniApp: false, resolvedGraphicsQuality: 'cinematic', reducedMotion: false
+    });
+    const mobilePolicy = resolveGreaterRealmWorldViewPolicy({
+      atlasQ: -2, atlasR: 1, viewportWidth: 390, coarsePointer: false,
+      farcasterMiniApp: false, resolvedGraphicsQuality: 'cinematic', reducedMotion: false
+    });
+    const host = createGreaterRealmWorldCanvasHost({
+      canvas,
+      atlasQ: -2,
+      atlasR: 1,
+      ownCastleId: 1,
+      policy: desktopPolicy,
+      rendererFactory,
+      sceneRuntimeFactory: runtimeFactory,
+      onSelectionChange
+    })!;
+
+    host.applySnapshot(readySnapshot());
+    host.control({ kind: 'select-next' });
+    const selected = onSelectionChange.mock.calls.at(-1)![0];
+    expect(selected).toBeDefined();
+
+    host.updatePolicy(mobilePolicy);
+
+    expect(rendererFactory).toHaveBeenCalledOnce();
+    expect(runtimeFactory).toHaveBeenCalledTimes(2);
+    expect(runtimeFactory).toHaveBeenLastCalledWith(expect.objectContaining({
+      deviceClass: 'mobile',
+      graphicsProfile: 'balanced'
+    }));
+    expect(runtimes[0]!.dispose).toHaveBeenCalledOnce();
+    expect(runtimes[1]!.setView).toHaveBeenCalledOnce();
+    expect(onSelectionChange).not.toHaveBeenLastCalledWith(undefined);
+    expect(onSelectionChange.mock.calls.at(-1)![0]).toEqual(selected);
+
+    const outsideReturnedView = {
+      ...readySnapshot(),
+      window: { ...readySnapshot().window!, castles: [] },
+      chunks: [],
+      selectedChunkCount: 0,
+      resourceLocations: []
+    } as GreaterRealmClientSnapshot;
+    host.applySnapshot(outsideReturnedView);
+    expect(onSelectionChange).toHaveBeenLastCalledWith(undefined);
+    host.dispose();
+  });
+
+  it('defers an adaptive runtime swap through context loss and applies it on restoration', () => {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    let contextLost = true;
+    const runtimes: any[] = [];
+    const runtimeFactory = vi.fn(() => {
+      const runtime = {
+        group: new THREE.Group(),
+        setView: vi.fn(), flushUploads: vi.fn(() => 0), update: vi.fn(() => false),
+        startAnimation: vi.fn(), stopAnimation: vi.fn(), setReducedMotion: vi.fn(),
+        setDocumentVisible: vi.fn(), bindCanvas: vi.fn(), getCellAccess: vi.fn(),
+        isCoordinatePassable: vi.fn(() => false), ...vesselRuntimeMethods(),
+        getTelemetry: vi.fn(() => ({ ...EMPTY_TELEMETRY, contextLost })),
+        dispose: vi.fn()
+      };
+      runtimes.push(runtime);
+      return runtime;
+    });
+    const desktopPolicy = resolveGreaterRealmWorldViewPolicy({
+      atlasQ: 0, atlasR: 0, viewportWidth: 1_440, coarsePointer: false,
+      farcasterMiniApp: false, resolvedGraphicsQuality: 'balanced', reducedMotion: false
+    });
+    const mobilePolicy = resolveGreaterRealmWorldViewPolicy({
+      atlasQ: 0, atlasR: 0, viewportWidth: 390, coarsePointer: false,
+      farcasterMiniApp: false, resolvedGraphicsQuality: 'balanced', reducedMotion: false
+    });
+    const host = createGreaterRealmWorldCanvasHost({
+      canvas, atlasQ: 0, atlasR: 0, ownCastleId: 1, policy: desktopPolicy,
+      rendererFactory: () => ({
+        setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn()
+      }),
+      sceneRuntimeFactory: runtimeFactory
+    })!;
+
+    host.applySnapshot(readySnapshot());
+    host.updatePolicy(mobilePolicy);
+    expect(runtimeFactory).toHaveBeenCalledOnce();
+    expect(runtimes[0]!.dispose).not.toHaveBeenCalled();
+
+    contextLost = false;
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(runtimeFactory).toHaveBeenCalledTimes(2);
+    expect(runtimes[0]!.dispose).toHaveBeenCalledOnce();
+    expect(runtimes[1]!.setView).toHaveBeenCalledOnce();
+    host.dispose();
+  });
+
+  it('fails closed and cleans both runtimes when an adaptive swap cannot start', () => {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    const runtimes: any[] = [];
+    const runtimeFactory = vi.fn(() => {
+      const failing = runtimes.length > 0;
+      const runtime = {
+        group: new THREE.Group(),
+        setView: vi.fn(), flushUploads: vi.fn(() => 0), update: vi.fn(() => false),
+        startAnimation: failing
+          ? vi.fn(() => { throw new Error('INJECTED_ADAPTIVE_RUNTIME_FAILURE'); })
+          : vi.fn(),
+        stopAnimation: vi.fn(), setReducedMotion: vi.fn(),
+        setDocumentVisible: vi.fn(), bindCanvas: vi.fn(), getCellAccess: vi.fn(),
+        isCoordinatePassable: vi.fn(() => false), ...vesselRuntimeMethods(),
+        getTelemetry: vi.fn(() => EMPTY_TELEMETRY),
+        dispose: vi.fn()
+      };
+      runtimes.push(runtime);
+      return runtime;
+    });
+    const renderer = {
+      setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn()
+    };
+    const onFailure = vi.fn();
+    const host = createGreaterRealmWorldCanvasHost({
+      canvas, atlasQ: 0, atlasR: 0, ownCastleId: 1,
+      policy: resolveGreaterRealmWorldViewPolicy({
+        atlasQ: 0, atlasR: 0, viewportWidth: 1_440, coarsePointer: false,
+        farcasterMiniApp: false, resolvedGraphicsQuality: 'balanced', reducedMotion: false
+      }),
+      rendererFactory: () => renderer,
+      sceneRuntimeFactory: runtimeFactory,
+      onFailure
+    })!;
+
+    host.updatePolicy(resolveGreaterRealmWorldViewPolicy({
+      atlasQ: 0, atlasR: 0, viewportWidth: 390, coarsePointer: false,
+      farcasterMiniApp: false, resolvedGraphicsQuality: 'balanced', reducedMotion: false
+    }));
+
+    expect(onFailure).toHaveBeenCalledOnce();
+    expect(runtimes[0]!.dispose).toHaveBeenCalledOnce();
+    expect(runtimes[1]!.dispose).toHaveBeenCalledOnce();
+    expect(renderer.dispose).toHaveBeenCalledOnce();
+  });
+
   it('does not construct Three when WebGL 2 preflight fails', () => {
     const canvas = document.createElement('canvas');
     vi.spyOn(canvas, 'getContext').mockReturnValue(null);

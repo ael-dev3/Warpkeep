@@ -59,7 +59,7 @@ function block(source: string, marker: string) {
 
 describe('compact Realm CSS contract', () => {
   it('bounds open Greater Realm disclosures without restoring the expanded mobile stack', () => {
-    const compactMap = block(MAP, '@media (width <= 760px), (pointer: coarse) {');
+    const compactMap = block(MAP, '@media (width < 760px), (pointer: coarse) {');
     const compactControls = block(compactMap, '.greater-realm-world__controls {');
     const compactControlBody = block(compactMap, '.greater-realm-world__controls-body {');
     const compactResourcesBody = block(compactMap, '.greater-realm-world__resources-body {');
@@ -79,7 +79,7 @@ describe('compact Realm CSS contract', () => {
   });
 
   it('removes the decorative zone legend from the narrow mobile overlay stack', () => {
-    const narrowMap = block(MAP, '@media (width <= 760px) {');
+    const narrowMap = block(MAP, '@media (width < 760px) {');
     const narrowZoneLegend = block(narrowMap, '.greater-realm-world__zone-legend {');
 
     expect(narrowZoneLegend).toContain('display: none;');

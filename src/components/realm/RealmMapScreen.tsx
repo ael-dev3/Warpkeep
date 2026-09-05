@@ -298,7 +298,10 @@ import {
   type RealmChatSenderProfile
 } from './RealmChatDock';
 import { GreaterRealmWorldScene } from './GreaterRealmWorldScene';
-import { useNarrowRealmPresentation } from './useNarrowRealmPresentation';
+import {
+  isNarrowRealmPresentation,
+  useNarrowRealmPresentation
+} from './useNarrowRealmPresentation';
 
 const InnerKeepScreen = lazy(async () => {
   const module = await import('../inner-keep/InnerKeepScreen');
@@ -631,9 +634,9 @@ function RetiredRealmWorldHost({
     return () => document.removeEventListener('keydown', closeDetails);
   }, [narrowPresentation, realmDetailsOpen]);
   const deviceClass = typeof window !== 'undefined'
-    && (
-      window.innerWidth < 760
-      || window.matchMedia?.('(pointer: coarse)').matches === true
+    && isNarrowRealmPresentation(
+      window.innerWidth,
+      window.matchMedia?.('(pointer: coarse)').matches === true
     )
       ? 'mobile' as const
       : 'desktop' as const;
@@ -757,45 +760,70 @@ function RetiredRealmWorldHost({
           : strategy.kind === 'greater-realm' && greaterPhase === 'failed'
             ? 'The public atlas could not be loaded. The retired Lowlands remains hidden.'
             : 'The retired Lowlands surface stays hidden while current authority is prepared.'}</span>
-        <button
-          ref={realmDetailsTriggerRef}
-          type="button"
-          className="greater-realm-world__disclosure-trigger greater-realm-world__details-trigger"
-          hidden={strategy.kind !== 'greater-realm' || !narrowPresentation}
-          aria-expanded={realmDetailsOpen}
-          aria-controls="greater-realm-world-details-panel"
-          onClick={() => setNarrowOpenPanel((open) => (
-            open === 'details' ? undefined : 'details'
-          ))}
-        >
-          Realm details
-        </button>
-        <div
-          id="greater-realm-world-details-panel"
-          className="greater-realm-world__continuity-details"
-          hidden={strategy.kind === 'greater-realm' && narrowPresentation && !realmDetailsOpen}
-        >
-          {props.resources === undefined ? null : (
-            <span data-testid="retired-realm-resources">
-              Food {props.resources.balances.food.toString()}
-              {' · '}Wood {props.resources.balances.wood.toString()}
-              {' · '}Stone {props.resources.balances.stone.toString()}
-              {' · '}Gold {props.resources.balances.gold.toString()}
-              {' · '}Marks {props.resources.marksBalanceMicros.toString()}
-            </span>
-          )}
-          {props.workerRoster === undefined ? null : (
-            <span data-testid="retired-realm-workers">
-              Workers current · {props.workerRoster.workers.length}
-            </span>
-          )}
-        </div>
-        <div className="greater-realm-world__continuity-actions">
-          {props.innerKeep === undefined ? null : (
-            <button type="button" onClick={() => setInnerKeepOpen(true)}>OPEN INNER KEEP</button>
-          )}
-          <button type="button" onClick={props.onRequestReturn}>Return to Menu</button>
-        </div>
+        {strategy.kind === 'greater-realm' ? (
+          <>
+            <button
+              ref={realmDetailsTriggerRef}
+              type="button"
+              className="greater-realm-world__disclosure-trigger greater-realm-world__details-trigger"
+              hidden={!narrowPresentation}
+              aria-expanded={realmDetailsOpen}
+              aria-controls="greater-realm-world-details-panel"
+              onClick={() => setNarrowOpenPanel((open) => (
+                open === 'details' ? undefined : 'details'
+              ))}
+            >
+              Realm details
+            </button>
+            <div
+              id="greater-realm-world-details-panel"
+              className="greater-realm-world__continuity-details"
+              hidden={narrowPresentation && !realmDetailsOpen}
+            >
+              {props.resources === undefined ? null : (
+                <span data-testid="retired-realm-resources">
+                  Food {props.resources.balances.food.toString()}
+                  {' · '}Wood {props.resources.balances.wood.toString()}
+                  {' · '}Stone {props.resources.balances.stone.toString()}
+                  {' · '}Gold {props.resources.balances.gold.toString()}
+                  {' · '}Marks {props.resources.marksBalanceMicros.toString()}
+                </span>
+              )}
+              {props.workerRoster === undefined ? null : (
+                <span data-testid="retired-realm-workers">
+                  Workers current · {props.workerRoster.workers.length}
+                </span>
+              )}
+            </div>
+            <div className="greater-realm-world__continuity-actions">
+              {props.innerKeep === undefined ? null : (
+                <button type="button" onClick={() => setInnerKeepOpen(true)}>OPEN INNER KEEP</button>
+              )}
+              <button type="button" onClick={props.onRequestReturn}>Return to Menu</button>
+            </div>
+          </>
+        ) : (
+          <>
+            {props.resources === undefined ? null : (
+              <span data-testid="retired-realm-resources">
+                Food {props.resources.balances.food.toString()}
+                {' · '}Wood {props.resources.balances.wood.toString()}
+                {' · '}Stone {props.resources.balances.stone.toString()}
+                {' · '}Gold {props.resources.balances.gold.toString()}
+                {' · '}Marks {props.resources.marksBalanceMicros.toString()}
+              </span>
+            )}
+            {props.workerRoster === undefined ? null : (
+              <span data-testid="retired-realm-workers">
+                Workers current · {props.workerRoster.workers.length}
+              </span>
+            )}
+            {props.innerKeep === undefined ? null : (
+              <button type="button" onClick={() => setInnerKeepOpen(true)}>OPEN INNER KEEP</button>
+            )}
+            <button type="button" onClick={props.onRequestReturn}>Return to Menu</button>
+          </>
+        )}
       </div>
       {props.realmChat !== undefined
       && props.onSendRealmChatMessage !== undefined

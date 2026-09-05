@@ -771,6 +771,16 @@ describe('RealmMapScreen', () => {
     expect(document.querySelector('[data-realm-world-scene-strategy="connection-hold"]'))
       .not.toBeNull();
     expect(document.querySelector('.realm-map-screen__fallback-map')).toBeNull();
+    const connectionHost = document.querySelector(
+      '[data-realm-world-scene-strategy="connection-hold"] > .realm-map-screen__loading'
+    );
+    expect(connectionHost).not.toBeNull();
+    expect(connectionHost?.querySelector('.greater-realm-world__details-trigger')).toBeNull();
+    expect(connectionHost?.querySelector('.greater-realm-world__continuity-details')).toBeNull();
+    expect(connectionHost?.querySelector('.greater-realm-world__continuity-actions')).toBeNull();
+    expect(screen.getByTestId('retired-realm-resources').parentElement).toBe(connectionHost);
+    expect(screen.getByRole('button', { name: 'Return to Menu' }).parentElement)
+      .toBe(connectionHost);
 
     const reconnectLoadView = vi.fn();
     const reconnectDispose = vi.fn();

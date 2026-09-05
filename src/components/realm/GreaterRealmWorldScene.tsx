@@ -397,9 +397,17 @@ export function GreaterRealmWorldScene({
     identityKey,
     ownCastle.castleId,
     ownCastle.q,
-    ownCastle.r,
+    ownCastle.r
+  ]);
+
+  useEffect(() => {
+    canvasHostRef.current?.updatePolicy(policy);
+  }, [
+    policy.centerQ,
+    policy.centerR,
     policy.deviceClass,
     policy.graphicsProfile,
+    policy.lod,
     policy.pixelRatioCap,
     policy.radius,
     policy.reducedMotion

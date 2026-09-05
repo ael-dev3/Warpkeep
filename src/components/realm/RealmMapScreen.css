@@ -800,7 +800,7 @@
   color: #f1b8aa;
 }
 
-@media (width <= 760px), (pointer: coarse) {
+@media (width < 760px), (pointer: coarse) {
   .greater-realm-world__continuity,
   .greater-realm-world__resources,
   .greater-realm-world__controls,
@@ -912,7 +912,7 @@
   }
 }
 
-@media (width <= 760px) {
+@media (width < 760px) {
   .greater-realm-world__zone-legend {
     display: none;
   }

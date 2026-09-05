@@ -1,11 +1,20 @@
 import { useEffect, useState } from 'react';
 
-const NARROW_REALM_MAXIMUM_WIDTH = 760;
+export const NARROW_REALM_MAXIMUM_WIDTH = 760;
+
+export function isNarrowRealmPresentation(
+  viewportWidth: number,
+  coarsePointer: boolean
+) {
+  return viewportWidth < NARROW_REALM_MAXIMUM_WIDTH || coarsePointer;
+}
 
 function readNarrowRealmPresentation() {
   if (typeof window === 'undefined') return false;
-  return window.innerWidth <= NARROW_REALM_MAXIMUM_WIDTH
-    || window.matchMedia?.('(pointer: coarse)').matches === true;
+  return isNarrowRealmPresentation(
+    window.innerWidth,
+    window.matchMedia?.('(pointer: coarse)').matches === true
+  );
 }
 
 /** Keeps presentation-only disclosures aligned with the matching CSS query. */
