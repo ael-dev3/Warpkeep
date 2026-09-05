@@ -314,3 +314,151 @@ still does not claim a provisioned real Spacetime build/generate.
 
 - `198b35a97be4988dcb3c1312ae644ed93ea8fc62` — `fix(release): harden local binding runtime boundaries`
 - `6b05496d0fb5d09c14e1f91213f85d36804d52c4` — `test(release): close captured bootstrap race`
+
+## Fix round 2 — operation-owned CLI authority and production-parent coverage
+
+This section supersedes the round-one description of the attester-created
+temporary CLI as sufficient execution authority. The unchanged frozen attester
+still validates and snapshots the pinned tool, but that ambient temporary
+snapshot is now only a verified source for a second bounded descriptor copy.
+The actual build and generate executable plus its companion live at the exact
+private operation-owned `cli/` path.
+
+### RED evidence
+
+- The focused worker-request mutation first rejected the new exact
+  `<operation>/cli/spacetimedb-cli` path with
+  `LOCAL_BINDING_WORKER_REQUEST_INVALID`, demonstrating that the old validator
+  still selected the ambient attester path.
+- The bounded-copy test first failed because
+  `copyLocalBindingBoundedFile` did not exist. The parent-cycle suite then
+  failed all seven initial scenarios because the production cycle function was
+  not reachable independently of the full host setup. After extracting only
+  that internal orchestration, the first run reached the production code and
+  exposed a test mapper defect; the fixed mapper then made all production
+  parent cases behavioral rather than string assertions.
+- The parent primary-plus-cleanup test produced `8 passed, 1 failed` because
+  `preserveLocalBindingRuntimePrimaryAndCleanup` did not exist. It became
+  `9 passed` after the production finalization path used the same helper and
+  retained the primary exception as `AggregateError.cause` with both errors.
+- The real fd3 early-exit regression initially resolved successfully even
+  though the child exited before accepting the 4 MiB request, and Vitest also
+  reported an uncaught `write EOF`. The process boundary now requires completed
+  fd3 writing before a zero exit can succeed and converts pipe errors to the
+  sanitized process failure without an uncaught exception. A companion control
+  proves a complete fd3 write/read still succeeds.
+- The controller's first exact-blob Linux run at `369565b` found two additional
+  fixture-boundary REDs: `101 passed, 1 failed`, plus one unhandled error,
+  exit 1. The hostile-ambient snapshot case failed at the post-copy operation
+  identity check because the fixture captured the parent identity before its
+  own expected `cli/` mkdir changed parent mtime/ctime. The fd3 request helper
+  emitted an uncaught Linux `ECONNRESET` when the oversized malformed reader
+  closed early. The correction captures the operation identity after the
+  expected mkdir and then holds it across both copies; the test helper awaits
+  and records fd3 pipe closure and requires no pipe error on the canonical
+  request. Production directory ownership, 0700 mode, canonical-path, and
+  identity checks were not relaxed.
+
+### Implemented F2/F4 closure
+
+1. `bindOperationOwnedCliSnapshot` creates exactly
+   `<operation>/cli/{spacetimedb-cli,spacetimedb-standalone}` under the fixed
+   uid-1000, mode-0700 operation. Both files are copied exclusively through
+   bounded descriptors, pinned by exact size/digest and mode 0500, and source,
+   operation directory, destination directory, and destination identities are
+   reattested across the copy and every later execution. The fd3 request accepts
+   only that exact relationship. Hostile ambient `TMPDIR`, `HOME`, `PATH`, npm,
+   and `SPACETIME_BIN` values cannot select the executed path; preload authority
+   remains rejected.
+2. The production parent now has behavioral coverage without mocking its core.
+   Tests mock only low-level filesystem/process boundaries while running the
+   actual request framing, two-cycle orchestration, handoff reattestation,
+   fixed generate command, strict binding-tree reader, and reproducibility
+   comparison. Cases cover canonical fd3 plus early close, source-graph escape,
+   ambiguous and missing resolution, real enum/parameter-property parsing,
+   hostile ambient snapshot paths, forged nonce, changed handoff bytes,
+   generate failure, bundle mismatch, binding-byte mismatch, binding-path
+   mismatch, dependency-digest mismatch, exact executable-verification order,
+   and primary-plus-cleanup preservation. The public runtime remains the fixed
+   zero-argument API; no production runner, resolver, environment, path, or
+   authority injection was added.
+3. The evaluated committed bootstrap closure includes the new CLI-snapshot,
+   process, and fd3-request modules. The worker reads its one-use request from
+   real fd3 through the same exact request validator, and its CLI-directory
+   check independently requires the operation-owned sibling path.
+
+### Final local GREEN evidence
+
+At immutable successor `8e445b9`, the Windows covering command was:
+
+```text
+npm exec vitest -- run \
+  tests/localBindingRuntime.test.ts \
+  tests/localBindingRuntimeParent.test.ts \
+  tests/localBindingRuntimeLifecycle.test.ts \
+  tests/localBindingNativeTsHooks.test.ts \
+  tests/localBindingYamlManifest.test.ts \
+  tests/ptrBindingLinuxLockedSourceBuild.test.ts \
+  tests/ptrBindingLockedSourceBuildNative.test.ts \
+  tests/spacetimeBindingTree.test.ts \
+  --maxWorkers=1
+
+Test Files  7 passed | 1 skipped (8)
+Tests       95 passed | 7 skipped (102)
+Duration    16.17s
+exit        0
+```
+
+The seven skips remain explicit Windows-only limitations for native Linux
+ownership, chmod, and symlink behavior. Both typecheck commands passed:
+
+```text
+npm run typecheck
+exit 0
+
+.git/ci-node-22.22.3/node.exe node_modules/typescript/bin/tsc \
+  -p tsconfig.app.json \
+  --tsBuildInfoFile .git/local-binding-runtime.tsbuildinfo
+exit 0
+```
+
+`node --check` over the changed runtime and fixture JavaScript also exited 0,
+and `git diff --cached --check` reported no errors before each source/test
+commit.
+
+### Final native GREEN evidence
+
+The controller copied the two-file correction from `8e445b9` over the first
+native snapshot and rechecked all 17 owned files against their committed blobs.
+All hashes matched. In WSL Ubuntu 24.04, session 64722 ran the pinned Linux Node
+22.22.3 with the same eight suites and `--maxWorkers=1`:
+
+```text
+Test Files  8 passed (8)
+Tests       102 passed (102)
+Skipped     0
+Failures    0
+Unhandled   0
+Duration    8.96s
+exit        0
+```
+
+The two native real-writer tests passed in 939 ms and 1717 ms. This is native
+evidence for the operation-owned directory identities, permissions, symlinks,
+real fd3 closure behavior, native hooks, and existing reviewed PTR writer/tree
+boundaries.
+
+### Remaining limitation
+
+No test in this fix round provisioned the fixed guest root or ran a real
+Spacetime module build/generate. Process and materialization effects remain
+controlled low-level test boundaries, with the actual worker/locked-source
+helper and actual parent orchestration exercised separately. The provisioned
+two-cycle derive is still the explicitly separate gate; this report makes no
+claim of release binding generation, publication, network access, credential
+use, or deployment.
+
+### Fix-round-2 commits
+
+- `369565b992c402f747f9cee3fa722d1b9438472c` — `fix(runtime): bind local PTR execution authority`
+- `8e445b940320b85681f969123fec207063f2b931` — `test(runtime): harden native fd3 fixtures`
