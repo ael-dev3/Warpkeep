@@ -1211,7 +1211,18 @@ export function createGreaterRealmWorldCanvasHost(
     let nextRuntime: GreaterRealmSceneRuntime | undefined;
     try {
       nextRuntime = createRuntimeForPolicy(policy);
+      // A replacement runtime installs its own context-restored listener.
+      // Keep the host retry listener after it so the runtime clears its loss
+      // flag before a deferred policy is evaluated on every replacement cycle.
+      options.canvas.removeEventListener(
+        'webglcontextrestored',
+        applyPendingPolicyAfterContextRestore
+      );
       nextRuntime.bindCanvas(options.canvas);
+      options.canvas.addEventListener(
+        'webglcontextrestored',
+        applyPendingPolicyAfterContextRestore
+      );
       nextRuntime.setDocumentVisible(documentVisible);
       nextRuntime.startAnimation();
       const previousRuntime = activeRuntime;
