@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto';
-import { closeSync, constants, lstatSync, openSync, writeSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
-import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
+import {
+  copyLocalBindingBoundedFile,
+  readLocalBindingBoundedFile,
+} from './local-binding-bounded-file.mjs';
 
 const MAX_BUNDLE_BYTES = 32 * 1024 * 1024;
 
@@ -23,53 +25,54 @@ function readExactRegular(path) {
   }
 }
 
-export function preserveLocalBindingWorkerBundle(input) {
-  const source = readExactRegular(input.bundlePath);
+function writeCheckedLocalBindingHandoff(input) {
   const handoff = resolve(input.handoffPath);
   if (dirname(handoff) !== resolve(input.handoffRoot)) fail('LOCAL_BINDING_WORKER_HANDOFF_INVALID');
-  let descriptor;
-  let primary;
-  try {
-    descriptor = openSync(handoff, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o600);
-    let offset = 0;
-    while (offset < source.length) offset += writeSync(descriptor, source, offset, source.length - offset);
-  } catch (error) { primary = error; }
-  let closeError;
-  try { if (descriptor !== undefined) closeSync(descriptor); } catch (error) { closeError = error; }
+  const source = readExactRegular(input.bundlePath);
   const sha256 = createHash('sha256').update(source).digest('hex');
-  const bytes = new Uint8Array(source);
-  source.fill(0);
-  if (primary !== undefined || closeError !== undefined) {
-    if (primary !== undefined && closeError === undefined) fail('LOCAL_BINDING_WORKER_HANDOFF_INVALID', primary);
-    throw new AggregateError([primary, closeError].filter(Boolean), 'LOCAL_BINDING_WORKER_HANDOFF_INVALID', { cause: primary });
+  let copied;
+  let installed;
+  try {
+    copied = copyLocalBindingBoundedFile(input.bundlePath, handoff, {
+      maximumBytes: MAX_BUNDLE_BYTES,
+      expectedBytes: source.byteLength,
+      expectedSha256: sha256,
+      destinationMode: 0o600,
+      expectedUid: process.platform === 'win32' ? undefined : 1000,
+    });
+    installed = readLocalBindingBoundedFile(handoff, {
+      maximumBytes: MAX_BUNDLE_BYTES,
+      expectedBytes: copied.bytes,
+      expectedSha256: copied.sha256,
+      expectedMode: process.platform === 'win32' ? undefined : 0o600,
+      expectedUid: process.platform === 'win32' ? undefined : 1000,
+      expectedIdentity: copied.identity,
+    });
+  } catch (error) {
+    source.fill(0);
+    installed?.body.fill(0);
+    return fail('LOCAL_BINDING_WORKER_HANDOFF_INVALID', error);
   }
-  return Object.freeze({ path: handoff, sha256, bytes });
+  source.fill(0);
+  return Object.freeze({
+    path: handoff, sha256: copied.sha256, byteLength: copied.bytes,
+    identity: copied.identity, body: installed.body,
+  });
+}
+
+export function preserveLocalBindingWorkerBundle(input) {
+  const checked = writeCheckedLocalBindingHandoff(input);
+  const bytes = new Uint8Array(checked.body);
+  checked.body.fill(0);
+  return Object.freeze({
+    path: checked.path, sha256: checked.sha256, byteLength: checked.byteLength,
+    identity: checked.identity, bytes,
+  });
 }
 
 export function createLocalBindingWorkerResult(input) {
-  const source = readExactRegular(input.bundlePath);
-  const handoff = resolve(input.handoffPath);
-  if (dirname(handoff) !== resolve(input.handoffRoot)) fail('LOCAL_BINDING_WORKER_HANDOFF_INVALID');
-  let descriptor;
-  let primary;
-  try {
-    descriptor = openSync(handoff, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o600);
-    let offset = 0;
-    while (offset < source.length) offset += writeSync(descriptor, source, offset, source.length - offset);
-  } catch (error) {
-    primary = error;
-  }
-  let closeError;
-  try { if (descriptor !== undefined) closeSync(descriptor); } catch (error) { closeError = error; }
-  if (primary !== undefined || closeError !== undefined) {
-    source.fill(0);
-    if (primary !== undefined && closeError === undefined) fail('LOCAL_BINDING_WORKER_HANDOFF_INVALID', primary);
-    throw new AggregateError([primary, closeError].filter(Boolean), 'LOCAL_BINDING_WORKER_HANDOFF_INVALID', {
-      cause: primary,
-    });
-  }
-  const bundleSha256 = createHash('sha256').update(source).digest('hex');
-  source.fill(0);
+  const checked = writeCheckedLocalBindingHandoff(input);
+  checked.body.fill(0);
   return Object.freeze({
     schemaVersion: 1,
     profile: input.requestProfile === 'warpkeep-local-binding-genesis002-worker-v1'
@@ -84,8 +87,8 @@ export function createLocalBindingWorkerResult(input) {
     sourceTree: input.sourceTree,
     moduleTreeId: input.moduleTreeId,
     dependencyClosureDigest: input.dependencyClosureDigest,
-    bundleSha256,
-    bundleBytes: Number(lstatSync(handoff, { bigint: true }).size),
-    handoffPath: handoff,
+    bundleSha256: checked.sha256,
+    bundleBytes: checked.byteLength,
+    handoffPath: checked.path,
   });
 }

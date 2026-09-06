@@ -1,16 +1,25 @@
 // @vitest-environment node
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as vm from 'node:vm';
+import { createHash } from 'node:crypto';
+import { existsSync, linkSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawn } from 'node:child_process';
 
 import * as frozenSource from '../scripts/genesis001-binding-frozen-source.mjs';
 import {
   GENESIS001_CHECKED_FROZEN_WRITERS,
   assertGenesis001FrozenWriterObservation,
+  attestGenesis001LocalProofArtifact,
   decodeGenesis001BoundedJson,
   decodeGenesis001ProcedureResponse,
   readGenesis001BoundedResponseBody,
+  runGenesis001LocalUpgradeProof,
+  terminateGenesis001LocalProofProcessGroup,
 } from '../scripts/genesis001-local-upgrade-proof.mjs';
+import { readLocalBindingBoundedFile } from '../scripts/local-binding-bounded-file.mjs';
 import {
   deriveGenesis001CompatibilitySourceGraph,
   parseLocalBindingWorkerResult,
@@ -49,7 +58,7 @@ describe('fixed Genesis 001 local upgrade proof', () => {
       const kind = writer === 'access_request_submit_v1' ? 'procedure' : 'reducer';
       expect(() => assertGenesis001FrozenWriterObservation({
         writer, status: 530, text: 'The instance encountered a fatal error.',
-        serverText: `${kind} "${writer}" runtime error: Uncaught Error: ${reason}`, before,
+        serverText: `${kind} "${writer}" runtime error: Uncaught Error: ${reason}\n`, before,
         after: structuredClone(before),
       })).not.toThrow();
       expect(() => assertGenesis001FrozenWriterObservation({
@@ -58,12 +67,12 @@ describe('fixed Genesis 001 local upgrade proof', () => {
       })).toThrow('GENESIS001_LOCAL_PROOF_WRITER_INVALID');
       expect(() => assertGenesis001FrozenWriterObservation({
         writer, status: 200, text: JSON.stringify({ error: reason }),
-        serverText: `${kind} "${writer}" runtime error: Uncaught Error: ${reason}`, before,
+        serverText: `${kind} "${writer}" runtime error: Uncaught Error: ${reason}\n`, before,
         after: structuredClone(before),
       })).toThrow('GENESIS001_LOCAL_PROOF_WRITER_INVALID');
       expect(() => assertGenesis001FrozenWriterObservation({
         writer, status: 530, text: 'The instance encountered a fatal error.',
-        serverText: `${kind} "${writer}" runtime error: Uncaught Error: ${reason}`, before,
+        serverText: `${kind} "${writer}" runtime error: Uncaught Error: ${reason}\n`, before,
         after: [{ admitted: true }, [], ['GENESIS_001', false]],
       })).toThrow('GENESIS001_LOCAL_PROOF_WRITER_INVALID');
     }
@@ -86,7 +95,7 @@ describe('fixed Genesis 001 local upgrade proof', () => {
     expect(() => assertGenesis001FrozenWriterObservation({
       writer: 'admin_allow_fid', status: expected.status, text: expected.text,
       serverText: 'reducer "admin_allow_fid" runtime error: Uncaught Error: '
-        + 'GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED',
+        + 'GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED\n',
       before, after: structuredClone(before),
     })).not.toThrow();
 
@@ -100,9 +109,15 @@ describe('fixed Genesis 001 local upgrade proof', () => {
     for (const serverText of [
       '',
       'reducer "admin_allow_fid" runtime error: Uncaught Error: GENESIS_001_ADMISSION_STATE_MUTATIONS_',
+      'reducer "admin_allow_fid" runtime error: Uncaught Error: GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED',
+      'reducer "admin_allow_fid" runtime error: Uncaught Error: GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED_UNRELATED\n',
+      'authorization rejected reducer "admin_allow_fid" runtime error: Uncaught Error: '
+        + 'GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED\n',
       'reducer "admin_disable_fid" runtime error: Uncaught Error: GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED',
       'reducer "admin_allow_fid" runtime error: Uncaught Error: OTHER\n'
         + 'JS error: Uncaught Error: GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED',
+      'reducer "admin_allow_fid" runtime error: Uncaught Error: GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED\n'
+        + 'reducer "admin_allow_fid" runtime error: Uncaught Error: GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED\n',
     ]) {
       expect(() => assertGenesis001FrozenWriterObservation({
         writer: 'admin_allow_fid', status: 530,
@@ -110,6 +125,14 @@ describe('fixed Genesis 001 local upgrade proof', () => {
         before, after: structuredClone(before),
       })).toThrow('GENESIS001_LOCAL_PROOF_WRITER_INVALID');
     }
+    const stale = 'reducer "admin_allow_fid" runtime error: Uncaught Error: '
+      + 'GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED\n';
+    const window = `${stale}authorization rejected\n`;
+    expect(() => assertGenesis001FrozenWriterObservation({
+      writer: 'admin_allow_fid', status: 530,
+      text: 'The instance encountered a fatal error.', serverText: window.slice(stale.length),
+      before, after: structuredClone(before),
+    })).toThrow('GENESIS001_LOCAL_PROOF_WRITER_INVALID');
     expect(() => decodeGenesis001ProcedureResponse(302, Buffer.from('redirect'), 64, credential))
       .toThrow('GENESIS001_LOCAL_PROOF_REDIRECT_DENIED');
     expect(() => decodeGenesis001ProcedureResponse(400, Buffer.from('x'.repeat(65)), 64, credential))
@@ -137,6 +160,108 @@ describe('fixed Genesis 001 local upgrade proof', () => {
     )).rejects.toThrow('GENESIS001_LOCAL_PROOF_RESPONSE_INVALID');
     await expect(readGenesis001BoundedResponseBody(new Response(Buffer.from('1234')), 4))
       .resolves.toEqual(Uint8Array.from(Buffer.from('1234')));
+  });
+
+  it('binds each published artifact to its exact bytes, hash, link count and inode', () => {
+    const root = mkdtempSync(join(tmpdir(), 'g001-local-proof-artifact-'));
+    try {
+      const path = join(root, 'bundle.js');
+      const body = Buffer.from('baseline-bundle');
+      writeFileSync(path, body, { mode: 0o600 });
+      const opened = readLocalBindingBoundedFile(path, {
+        maximumBytes: 1024, expectedBytes: body.length,
+        expectedSha256: createHash('sha256').update(body).digest('hex'),
+      });
+      const artifact = {
+        path, bytes: body.length,
+        sha256: createHash('sha256').update(body).digest('hex'), identity: opened.identity,
+      };
+      opened.body.fill(0);
+      expect(() => attestGenesis001LocalProofArtifact(artifact)).not.toThrow();
+
+      writeFileSync(path, Buffer.from('changed!-bundle'));
+      expect(() => attestGenesis001LocalProofArtifact(artifact))
+        .toThrow('GENESIS001_LOCAL_PROOF_ARTIFACT_CHANGED');
+
+      const replacement = join(root, 'replacement.js');
+      writeFileSync(replacement, body, { mode: 0o600 });
+      renameSync(replacement, path);
+      expect(readFileSync(path)).toEqual(body);
+      expect(() => attestGenesis001LocalProofArtifact(artifact))
+        .toThrow('GENESIS001_LOCAL_PROOF_ARTIFACT_CHANGED');
+
+      const replacementOpened = readLocalBindingBoundedFile(path, {
+        maximumBytes: 1024, expectedBytes: body.length,
+        expectedSha256: artifact.sha256,
+      });
+      const linkedArtifact = { ...artifact, identity: replacementOpened.identity };
+      replacementOpened.body.fill(0);
+      const linked = join(root, 'linked.js');
+      linkSync(path, linked);
+      expect(() => attestGenesis001LocalProofArtifact(linkedArtifact))
+        .toThrow('GENESIS001_LOCAL_PROOF_ARTIFACT_INVALID');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform !== 'linux')(
+    'runs the actual proof startup failure through contained cleanup without success evidence', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'g001-local-proof-startup-'));
+    const baselinePath = join(root, 'baseline.js');
+    const frozenPath = join(root, 'frozen.js');
+    const artifact = (path: string, body: Buffer) => {
+      writeFileSync(path, body, { mode: 0o600 });
+      const opened = readLocalBindingBoundedFile(path, {
+        maximumBytes: 1024, expectedBytes: body.length,
+        expectedSha256: createHash('sha256').update(body).digest('hex'),
+      });
+      const value = {
+        path, bytes: body.length, sha256: createHash('sha256').update(body).digest('hex'),
+        identity: opened.identity,
+      };
+      opened.body.fill(0);
+      return value;
+    };
+    const baselineArtifact = artifact(baselinePath, Buffer.from('baseline'));
+    const frozenArtifact = artifact(frozenPath, Buffer.from('frozen'));
+    let clock = 0;
+    const now = vi.spyOn(Date, 'now').mockImplementation(() => {
+      clock += 1;
+      return clock <= 2 ? 0 : 1_000_000 + clock * 10_000;
+    });
+    let evidence: unknown;
+    try {
+      try {
+        evidence = await runGenesis001LocalUpgradeProof({
+          cliPath: process.execPath, baselineArtifact, frozenArtifact, operationRoot: root,
+          environment: { PATH: process.env.PATH }, verifyExecutables() {},
+        });
+      } catch (error) {
+        expect(error).toMatchObject({ code: 'GENESIS001_LOCAL_PROOF_STARTUP_TIMEOUT' });
+      }
+      expect(evidence).toBeUndefined();
+      expect(existsSync(join(root, 'proof'))).toBe(true);
+    } finally {
+      now.mockRestore();
+      rmSync(root, { recursive: true, force: true });
+    }
+    },
+  );
+
+  it('reports failed direct containment instead of accepting evidence while a process survives', async () => {
+    const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      stdio: 'ignore', shell: false,
+    });
+    try {
+      await expect(terminateGenesis001LocalProofProcessGroup({
+        pid: child.pid,
+        kill() { return true; },
+      }, 20)).rejects.toMatchObject({ code: 'GENESIS001_LOCAL_PROOF_CONTAINMENT_FAILED' });
+    } finally {
+      child.kill('SIGKILL');
+      await new Promise<void>(resolvePromise => child.once('close', () => resolvePromise()));
+    }
   });
 
   it('accepts only the distinct bounded compatibility worker result shape', () => {

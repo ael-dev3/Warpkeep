@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { createHash } from 'node:crypto';
 import {
   cpSync,
   existsSync,
@@ -44,6 +45,12 @@ const boundary = vi.hoisted(() => ({
   compilerAttestations: 0,
   compilerNamespaceScenario: '' as '' | 'extra' | 'owner' | 'mode',
   compilerExecutableScenario: '' as '' | 'node22' | 'digest' | 'owner' | 'mode',
+  compatibilityScenario: 'success' as 'success' | 'baseline-nondeterminism'
+    | 'frozen-nondeterminism' | 'cross-lane-substitution' | 'artifact-mutation'
+    | 'frozen-artifact-mutation' | 'artifact-link-substitution' | 'proof-failure'
+    | 'build-command-failure',
+  compatibilityBuilds: { baseline: 0, frozen: 0 },
+  compatibilityProofInput: undefined as Record<string, any> | undefined,
 }));
 
 vi.mock('node:fs', async () => {
@@ -293,7 +300,18 @@ vi.mock('node:child_process', async () => {
         // An already-private directory retains 0700; an absent one becomes 0755.
         mkdirSync(dist, { recursive: true, mode: 0o755 });
         boundary.observedPostBuildOutputMode = lstatSync(dist).mode & 0o7777;
-        writeFileSync(join(dist, 'bundle.js'), 'controlled-bundle', { mode: 0o600 });
+        let bundle = 'controlled-bundle';
+        if (boundary.request?.profile === 'warpkeep-local-binding-genesis001-compatibility-worker-v1') {
+          const lane = options.cwd.includes('genesis001-baseline-locked-source-builds-v1')
+            ? 'baseline' : 'frozen';
+          boundary.compatibilityBuilds[lane] += 1;
+          const ordinal = boundary.compatibilityBuilds[lane];
+          bundle = boundary.compatibilityScenario === 'cross-lane-substitution'
+            ? 'same-bundle'
+            : `${lane}-bundle${boundary.compatibilityScenario === `${lane}-nondeterminism` && ordinal === 2
+              ? '-changed' : ''}`;
+        }
+        writeFileSync(join(dist, 'bundle.js'), bundle, { mode: 0o600 });
       } else throw new Error(`UNEXPECTED_LIFECYCLE_COMMAND:${executable}:${args.join(' ')}`);
       return { status: 0, signal: null, error: undefined, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) };
     },
@@ -390,6 +408,60 @@ vi.mock('../scripts/local-binding-runtime-core.mjs', () => ({
   },
 }));
 
+vi.mock('warpkeep:genesis001-compatibility-entry', async () => {
+  const fs = await vi.importActual<typeof import('node:fs')>('node:fs');
+  const proof = await vi.importActual<typeof import('../scripts/genesis001-local-upgrade-proof.mjs')>(
+    '../scripts/genesis001-local-upgrade-proof.mjs',
+  );
+  const build = (input: Readonly<Record<string, any>>, lane: 'baseline' | 'frozen') => {
+    boundary.builderKeys = Object.keys(input).sort();
+    const ordinal = boundary.compatibilityBuilds[lane] + 1;
+    const stateChild = lane === 'baseline'
+      ? 'genesis001-baseline-locked-source-builds-v1' : 'genesis001-locked-source-builds-v1';
+    const root = join(input.materializationParent, stateChild, String(ordinal).padStart(32, lane === 'baseline' ? 'a' : 'b'));
+    fs.mkdirSync(join(root, 'spacetimedb', 'node_modules', 'typescript', 'bin'), {
+      recursive: true, mode: 0o700,
+    });
+    const dependencyClosureDigest = boundary.compatibilityScenario === 'cross-lane-substitution'
+      ? '4'.repeat(64) : (lane === 'baseline' ? '5' : '4').repeat(64);
+    const moduleTreeId = (lane === 'baseline' ? '6' : '3').repeat(40);
+    const result = input.operation({ materializedRoot: root, dependencyClosureDigest, moduleTreeId });
+    return Object.freeze({ result, dependencyClosureDigest, moduleTreeId });
+  };
+  return {
+    withGenesis001BaselineLinuxLockedSourceBuild(input: Readonly<Record<string, any>>) {
+      return build(input, 'baseline');
+    },
+    withGenesis001LinuxLockedSourceBuild(input: Readonly<Record<string, any>>) {
+      return build(input, 'frozen');
+    },
+    async runGenesis001LocalUpgradeProof(input: Readonly<Record<string, any>>) {
+      boundary.compatibilityProofInput = input;
+      if (boundary.compatibilityScenario === 'proof-failure') {
+        throw new Error('GENESIS001_LOCAL_PROOF_STARTUP_TIMEOUT');
+      }
+      if (boundary.compatibilityScenario === 'artifact-mutation') {
+        fs.writeFileSync(input.baselineArtifact.path, 'mutated-bundle');
+      }
+      if (boundary.compatibilityScenario === 'frozen-artifact-mutation') {
+        fs.writeFileSync(input.frozenArtifact.path, 'mutated-bundle');
+      }
+      if (boundary.compatibilityScenario === 'artifact-link-substitution') {
+        fs.linkSync(input.baselineArtifact.path, `${input.baselineArtifact.path}.linked`);
+      }
+      proof.attestGenesis001LocalProofArtifact(input.baselineArtifact);
+      proof.attestGenesis001LocalProofArtifact(input.frozenArtifact);
+      return Object.freeze({
+        baselineDescriptorSha256: '7'.repeat(64), frozenDescriptorSha256: '8'.repeat(64),
+        checkedFrozenWriters: Object.freeze([
+          'admin_allow_fid', 'admin_admit_founder_v1', 'admin_disable_fid',
+          'admin_bump_auth_epoch', 'access_request_submit_v1', 'admin_reset_access_request_v1',
+        ]),
+      });
+    },
+  };
+});
+
 afterEach(() => {
   boundary.request = undefined;
   boundary.events.length = 0;
@@ -410,13 +482,18 @@ afterEach(() => {
   boundary.compilerAttestations = 0;
   boundary.compilerNamespaceScenario = '';
   boundary.compilerExecutableScenario = '';
+  boundary.compatibilityScenario = 'success';
+  boundary.compatibilityBuilds.baseline = 0;
+  boundary.compatibilityBuilds.frozen = 0;
+  boundary.compatibilityProofInput = undefined;
   for (const root of boundary.cleanupRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
 describe('controlled local binding runtime lifecycle', () => {
-  function prepareRequest(lane: 'ptr' | 'genesis002' | 'genesis001' = 'ptr') {
+  function prepareRequest(lane: 'ptr' | 'genesis002' | 'genesis001' | 'compatibility' = 'ptr') {
     const genesis002 = lane === 'genesis002';
     const genesis001 = lane === 'genesis001';
+    const compatibility = lane === 'compatibility';
     const value = genesis002
       ? createGenesis002Fixture()
       : createPtrFixture({ keys: LINUX_PACKAGE_KEYS });
@@ -438,6 +515,7 @@ describe('controlled local binding runtime lifecycle', () => {
       schemaVersion: 1,
       profile: genesis002
         ? 'warpkeep-local-binding-genesis002-worker-v1'
+        : compatibility ? 'warpkeep-local-binding-genesis001-compatibility-worker-v1'
         : genesis001 ? 'warpkeep-local-binding-genesis001-worker-v1'
           : 'warpkeep-local-binding-worker-v1',
       repositoryRoot: sourceRoot,
@@ -450,7 +528,7 @@ describe('controlled local binding runtime lifecycle', () => {
       handoffPath: join(fixtureInput.materializationParent, 'handoff.js'),
       nonce: 'd'.repeat(32), graph: {}, yaml: {},
     };
-    if (genesis001) {
+    if (genesis001 || compatibility) {
       for (const name of ['home', 'tmp']) mkdirSync(join(dirname(sourceRoot), name), { mode: 0o700 });
     }
     return { ...value, materializationParent: fixtureInput.materializationParent };
@@ -573,6 +651,43 @@ describe('controlled local binding runtime lifecycle', () => {
         expectedMode: 0o500,
       }),
     }));
+  });
+
+  it('executes the actual fixed compatibility worker branch across four builds and the proof handoff', async () => {
+    prepareRequest('compatibility');
+    const { runFixedLocalBindingWorker } = await import('../scripts/local-binding-runtime-worker.mjs');
+    const result = await runFixedLocalBindingWorker(boundary.request);
+    expect(result).toEqual(expect.objectContaining({
+      profile: 'warpkeep-local-binding-genesis001-compatibility-result-v1',
+      baselineBundleSha256: createHash('sha256').update('baseline-bundle').digest('hex'),
+      frozenBundleSha256: createHash('sha256').update('frozen-bundle').digest('hex'),
+      baselineDescriptorSha256: '7'.repeat(64), frozenDescriptorSha256: '8'.repeat(64),
+    }));
+    expect(boundary.builderKeys).toEqual([
+      'dependencyCacheRoot', 'materializationParent', 'operation', 'repositoryRoot',
+    ]);
+    expect(boundary.compatibilityBuilds).toEqual({ baseline: 2, frozen: 2 });
+    expect(boundary.compatibilityProofInput).toEqual(expect.objectContaining({
+      baselineArtifact: expect.objectContaining({ bytes: Buffer.byteLength('baseline-bundle') }),
+      frozenArtifact: expect.objectContaining({ bytes: Buffer.byteLength('frozen-bundle') }),
+    }));
+  });
+
+  it.each([
+    ['baseline-nondeterminism', 'LOCAL_BINDING_RUNTIME_REPRODUCIBILITY_FAILED'],
+    ['frozen-nondeterminism', 'LOCAL_BINDING_RUNTIME_REPRODUCIBILITY_FAILED'],
+    ['cross-lane-substitution', 'LOCAL_BINDING_WORKER_CROSS_LANE_SUBSTITUTION'],
+    ['artifact-mutation', 'GENESIS001_LOCAL_PROOF_ARTIFACT_CHANGED'],
+    ['frozen-artifact-mutation', 'GENESIS001_LOCAL_PROOF_ARTIFACT_CHANGED'],
+    ['artifact-link-substitution', 'GENESIS001_LOCAL_PROOF_ARTIFACT_INVALID'],
+    ['proof-failure', 'GENESIS001_LOCAL_PROOF_STARTUP_TIMEOUT'],
+    ['build-command-failure', 'LOCAL_BINDING_WORKER_COMMAND_FAILED'],
+  ] as const)('rejects compatibility orchestration %s without a worker result', async (scenario, code) => {
+    prepareRequest('compatibility');
+    boundary.compatibilityScenario = scenario;
+    if (scenario === 'build-command-failure') boundary.commandFailure = 'build';
+    const { runFixedLocalBindingWorker } = await import('../scripts/local-binding-runtime-worker.mjs');
+    await expect(runFixedLocalBindingWorker(boundary.request)).rejects.toThrow(code);
   });
 
   it('rejects a changed Node24 compiler identity after typecheck and before build output', async () => {

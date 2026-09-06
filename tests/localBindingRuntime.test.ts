@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
@@ -19,6 +19,7 @@ import {
   copyLocalBindingBoundedFile,
   readLocalBindingBoundedFile,
 } from '../scripts/local-binding-bounded-file.mjs';
+import { preserveLocalBindingWorkerBundle } from '../scripts/local-binding-runtime-worker-result.mjs';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
 const manifest = JSON.parse(readFileSync(
@@ -356,6 +357,33 @@ describe('fixed local PTR binding runtime', () => {
     }
   });
 
+  it('returns the checked handoff identity used to bind later consumers', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-checked-handoff-'));
+    try {
+      const source = join(root, 'source.js');
+      const handoffRoot = join(root, 'handoff');
+      const handoffPath = join(handoffRoot, 'bundle.js');
+      mkdirSync(handoffRoot);
+      writeFileSync(source, 'checked-bundle');
+      const result = preserveLocalBindingWorkerBundle({
+        bundlePath: source, handoffRoot, handoffPath,
+      }) as unknown as Readonly<{
+        path: string; sha256: string; byteLength: number;
+        bytes: Uint8Array; identity: Readonly<Record<string, string>>;
+      }>;
+      expect(result.path).toBe(handoffPath);
+      expect(result.byteLength).toBe(Buffer.byteLength('checked-bundle'));
+      expect(Buffer.from(result.bytes).toString()).toBe('checked-bundle');
+      expect(result.identity).toEqual(expect.objectContaining({ nlink: '1', size: String(result.byteLength) }));
+      expect(() => readLocalBindingBoundedFile(handoffPath, {
+        maximumBytes: 1024, expectedBytes: result.byteLength,
+        expectedSha256: result.sha256, expectedIdentity: result.identity as never,
+      })).not.toThrow();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it.each([
     ['output', 5, 1_000, 'LOCAL_BINDING_RUNTIME_PROCESS_OUTPUT_LIMIT'],
     ['nonzero', 1024, 1_000, 'LOCAL_BINDING_RUNTIME_PROCESS_FAILED'],
@@ -372,6 +400,45 @@ describe('fixed local PTR binding runtime', () => {
       cwd: repositoryRoot, env: { PATH: process.env.PATH }, maxOutput: 1024, timeout: 1_000,
     })).resolves.toEqual({ stdout: 'ok', stderr: '' });
   });
+
+  it.skipIf(process.platform !== 'linux').each([
+    ['timeout-descendant', 150, 'LOCAL_BINDING_RUNTIME_PROCESS_TIMEOUT'],
+    ['failure-descendant', 1_000, 'LOCAL_BINDING_RUNTIME_PROCESS_FAILED'],
+    ['success-descendant', 1_000, 'LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED'],
+  ] as const)(
+    'settles process-group scenario %s only after its live descendant is gone', async (scenario, timeout, code) => {
+      const root = mkdtempSync(join(tmpdir(), 'warpkeep-process-group-timeout-'));
+      const pidPath = join(root, 'pids.json');
+      let pids: { parent: number; descendant: number } | undefined;
+      const exists = (pid: number) => {
+        try { process.kill(pid, 0); return true; } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false;
+          throw error;
+        }
+      };
+      try {
+        const pending = runLocalBindingBoundedProcess(
+          process.execPath, [processFixture, scenario, pidPath], {
+            cwd: root, env: { PATH: process.env.PATH }, maxOutput: 1024, timeout,
+            containProcessGroup: true,
+          },
+        );
+        const deadline = Date.now() + 3_000;
+        while (!existsSync(pidPath) && Date.now() < deadline) {
+          await new Promise(resolvePromise => setTimeout(resolvePromise, 10));
+        }
+        pids = JSON.parse(readFileSync(pidPath, 'utf8'));
+        await expect(pending).rejects.toMatchObject({ code });
+        expect(exists(pids!.parent)).toBe(false);
+        expect(exists(pids!.descendant)).toBe(false);
+      } finally {
+        for (const pid of [pids?.descendant, pids?.parent]) {
+          if (pid !== undefined && exists(pid)) process.kill(pid, 'SIGKILL');
+        }
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
 
   it('rejects a child that exits successfully before accepting its complete fd3 request', async () => {
     await expect(runLocalBindingBoundedProcess(process.execPath, [processFixture, 'fd3-early-exit'], {

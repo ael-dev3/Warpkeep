@@ -17,6 +17,13 @@ export function readGenesis001BoundedResponseBody(
   response: Response, maximumBytes: number,
 ): Promise<Uint8Array>;
 
+export function attestGenesis001LocalProofArtifact(value: Readonly<{
+  path: string;
+  bytes: number;
+  sha256: string;
+  identity: import('./local-binding-bounded-file.mjs').LocalBindingFileIdentity;
+}>): void;
+
 export function assertGenesis001FrozenWriterObservation(value: Readonly<{
   writer: string; status: number; text: string; serverText: string;
   before: unknown; after: unknown;
@@ -29,8 +36,18 @@ export function terminateGenesis001LocalProofProcessGroup(
 
 export function runGenesis001LocalUpgradeProof(input: Readonly<{
   cliPath: string;
-  baselineArtifactPath: string;
-  frozenArtifactPath: string;
+  baselineArtifact: Readonly<{
+    path: string;
+    bytes: number;
+    sha256: string;
+    identity: import('./local-binding-bounded-file.mjs').LocalBindingFileIdentity;
+  }>;
+  frozenArtifact: Readonly<{
+    path: string;
+    bytes: number;
+    sha256: string;
+    identity: import('./local-binding-bounded-file.mjs').LocalBindingFileIdentity;
+  }>;
   operationRoot: string;
   environment: Readonly<Record<string, string | undefined>>;
   verifyExecutables(): void;

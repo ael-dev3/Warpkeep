@@ -428,8 +428,14 @@ export async function runFixedLocalBindingWorker(input) {
       attestRuntimeExecutables(request, runtimeAuthority);
       const proof = await builder.runGenesis001LocalUpgradeProof({
         cliPath: request.cliPath,
-        baselineArtifactPath: baselineFirst.path,
-        frozenArtifactPath: frozenFirst.path,
+        baselineArtifact: Object.freeze({
+          path: baselineFirst.path, bytes: baselineFirst.byteLength,
+          sha256: baselineFirst.sha256, identity: baselineFirst.identity,
+        }),
+        frozenArtifact: Object.freeze({
+          path: frozenFirst.path, bytes: frozenFirst.byteLength,
+          sha256: frozenFirst.sha256, identity: frozenFirst.identity,
+        }),
         operationRoot: dirname(request.repositoryRoot),
         environment: genesis001CommandEnvironment(request),
         verifyExecutables: () => attestRuntimeExecutables(request, runtimeAuthority),

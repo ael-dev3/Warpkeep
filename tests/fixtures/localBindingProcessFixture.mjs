@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 const scenario = process.argv[2];
 
@@ -11,6 +12,15 @@ if (scenario === 'output') {
   process.kill(process.pid, 'SIGTERM');
 } else if (scenario === 'timeout') {
   setInterval(() => {}, 1000);
+} else if (['timeout-descendant', 'failure-descendant', 'success-descendant'].includes(scenario)) {
+  const descendant = spawn(process.execPath, [import.meta.filename, 'timeout'], {
+    stdio: 'ignore', shell: false,
+  });
+  writeFileSync(process.argv[3], `${JSON.stringify({ parent: process.pid, descendant: descendant.pid })}\n`, {
+    flag: 'wx', mode: 0o600,
+  });
+  if (scenario === 'timeout-descendant') setInterval(() => {}, 1000);
+  else process.exit(scenario === 'failure-descendant' ? 7 : 0);
 } else if (scenario === 'success') {
   process.stdout.write('ok');
 } else if (scenario === 'fd3-early-exit') {

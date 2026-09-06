@@ -10,6 +10,7 @@ import {
   canonicalGenesis001FrozenPolicyReceipt,
   descriptorDigest,
 } from './genesis001-frozen-publisher-core';
+import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 
 const DATABASE = 'genesis-001-local-upgrade-proof';
 const ADMIN_ISSUER = 'https://auth.warpkeep.com';
@@ -66,6 +67,13 @@ function canonical(value) {
 
 function canonicalJson(value) {
   return JSON.stringify(canonical(value));
+}
+
+function genesis001GuardRecordCount(serverText, writer) {
+  const expected = `${writer.kind} "${writer.name}" runtime error: Uncaught Error: ${writer.reason}`;
+  const completeLines = serverText.match(/[^\n]*\n/gu) ?? [];
+  return completeLines.filter(line => line.slice(0, -1).replace(/\r$/u, '')
+    .replace(/\u001b\[[0-9;]*m/gu, '') === expected).length;
 }
 
 export function decodeGenesis001BoundedJson(body, maximumBytes, code = 'GENESIS001_LOCAL_PROOF_JSON_INVALID') {
@@ -127,6 +135,32 @@ export async function readGenesis001BoundedResponseBody(response, maximumBytes) 
   return result;
 }
 
+export function attestGenesis001LocalProofArtifact(value) {
+  if (!exactKeys(value, ['path', 'bytes', 'sha256', 'identity'])
+      || typeof value.path !== 'string' || !isAbsolute(value.path)
+      || !Number.isSafeInteger(value.bytes) || value.bytes < 1 || value.bytes > 32 * 1024 * 1024
+      || !/^[0-9a-f]{64}$/u.test(value.sha256)) {
+    fail('GENESIS001_LOCAL_PROOF_ARTIFACT_INVALID');
+  }
+  try {
+    const opened = readLocalBindingBoundedFile(value.path, {
+      maximumBytes: 32 * 1024 * 1024,
+      expectedBytes: value.bytes,
+      expectedSha256: value.sha256,
+      expectedMode: process.platform === 'win32' ? undefined : 0o600,
+      expectedUid: process.platform === 'win32' ? undefined : 1000,
+      expectedIdentity: value.identity,
+      discardBody: true,
+    });
+    opened.body.fill(0);
+  } catch (error) {
+    if (error?.code === 'LOCAL_BINDING_BOUNDED_FILE_INVALID') {
+      return fail('GENESIS001_LOCAL_PROOF_ARTIFACT_INVALID', error);
+    }
+    return fail('GENESIS001_LOCAL_PROOF_ARTIFACT_CHANGED', error);
+  }
+}
+
 export function assertGenesis001FrozenWriterObservation(value) {
   if (!exactKeys(value, ['writer', 'status', 'text', 'serverText', 'before', 'after'])) {
     fail('GENESIS001_LOCAL_PROOF_WRITER_INVALID');
@@ -136,9 +170,7 @@ export function assertGenesis001FrozenWriterObservation(value) {
       || value.status < 400 || value.status > 599 || typeof value.text !== 'string'
       || Buffer.byteLength(value.text) > MAX_RESPONSE_BYTES || typeof value.serverText !== 'string'
       || Buffer.byteLength(value.serverText) > MAX_SERVER_OUTPUT_BYTES
-      || !value.serverText.includes(
-        `${expected.kind} "${expected.name}" runtime error: Uncaught Error: ${expected.reason}`,
-      )
+      || genesis001GuardRecordCount(value.serverText, expected) !== 1
       || canonicalJson(value.before) !== canonicalJson(value.after)) {
     fail('GENESIS001_LOCAL_PROOF_WRITER_INVALID');
   }
@@ -207,8 +239,8 @@ async function freeLoopbackPort() {
   });
 }
 
-function processGroupExists(pid) {
-  try { process.kill(-pid, 0); return true; } catch (error) {
+function processExists(pid) {
+  try { process.kill(pid, 0); return true; } catch (error) {
     if (error?.code === 'ESRCH') return false;
     throw error;
   }
@@ -219,17 +251,17 @@ const delay = milliseconds => new Promise(resolvePromise => setTimeout(resolvePr
 export async function terminateGenesis001LocalProofProcessGroup(child, grace = CONTAINMENT_GRACE) {
   const pid = child?.pid;
   if (!Number.isSafeInteger(pid) || pid < 2) fail('GENESIS001_LOCAL_PROOF_PROCESS_INVALID');
-  if (!processGroupExists(pid)) return;
-  try { process.kill(-pid, 'SIGTERM'); } catch (error) {
-    if (!processGroupExists(pid)) return;
+  if (!processExists(pid)) return;
+  try { child.kill('SIGTERM'); } catch (error) {
+    if (!processExists(pid)) return;
     fail('GENESIS001_LOCAL_PROOF_CONTAINMENT_FAILED', error);
   }
   const soft = Date.now() + grace;
-  while (processGroupExists(pid) && Date.now() < soft) await delay(20);
-  if (processGroupExists(pid)) process.kill(-pid, 'SIGKILL');
+  while (processExists(pid) && Date.now() < soft) await delay(20);
+  if (processExists(pid)) child.kill('SIGKILL');
   const hard = Date.now() + grace;
-  while (processGroupExists(pid) && Date.now() < hard) await delay(20);
-  if (processGroupExists(pid)) fail('GENESIS001_LOCAL_PROOF_CONTAINMENT_FAILED');
+  while (processExists(pid) && Date.now() < hard) await delay(20);
+  if (processExists(pid)) fail('GENESIS001_LOCAL_PROOF_CONTAINMENT_FAILED');
 }
 
 async function boundedFetchJson(url, options, deadline, maximum = MAX_RESPONSE_BYTES) {
@@ -292,15 +324,17 @@ async function awaitIdentity(server, deadline) {
 
 export async function runGenesis001LocalUpgradeProof(input) {
   if (!exactKeys(input, [
-    'cliPath', 'baselineArtifactPath', 'frozenArtifactPath', 'operationRoot',
+    'cliPath', 'baselineArtifact', 'frozenArtifact', 'operationRoot',
     'environment', 'verifyExecutables',
   ]) || typeof input.cliPath !== 'string' || !isAbsolute(input.cliPath)
-      || typeof input.baselineArtifactPath !== 'string' || !isAbsolute(input.baselineArtifactPath)
-      || typeof input.frozenArtifactPath !== 'string' || !isAbsolute(input.frozenArtifactPath)
       || typeof input.operationRoot !== 'string' || !isAbsolute(input.operationRoot)
       || typeof input.verifyExecutables !== 'function'
-      || !contained(input.operationRoot, input.baselineArtifactPath)
-      || !contained(input.operationRoot, input.frozenArtifactPath)) {
+      || input.baselineArtifact === null || typeof input.baselineArtifact !== 'object'
+      || input.frozenArtifact === null || typeof input.frozenArtifact !== 'object'
+      || typeof input.baselineArtifact.path !== 'string'
+      || typeof input.frozenArtifact.path !== 'string'
+      || !contained(input.operationRoot, input.baselineArtifact.path)
+      || !contained(input.operationRoot, input.frozenArtifact.path)) {
     fail('GENESIS001_LOCAL_PROOF_INPUT_INVALID');
   }
   const deadline = Date.now() + TOTAL_TIMEOUT;
@@ -322,7 +356,7 @@ export async function runGenesis001LocalUpgradeProof(input) {
     'start', '--listen-addr', `127.0.0.1:${port}`, '--in-memory', '--data-dir', proofRoot,
     '--jwt-pub-key-path', publicKeyPath, '--jwt-priv-key-path', privateKeyPath, '--non-interactive',
   ], {
-    cwd: input.operationRoot, detached: true, env: input.environment,
+    cwd: input.operationRoot, detached: false, env: input.environment,
     stdio: ['ignore', 'pipe', 'pipe'], shell: false,
   });
   let serverOutputBytes = 0;
@@ -332,7 +366,7 @@ export async function runGenesis001LocalUpgradeProof(input) {
     serverOutputBytes += chunk.byteLength;
     if (serverOutputBytes > MAX_SERVER_OUTPUT_BYTES) {
       outputOverflow = true;
-      try { process.kill(-child.pid, 'SIGKILL'); } catch { /* containment reports the outcome */ }
+      try { child.kill('SIGKILL'); } catch { /* containment reports the outcome */ }
       return;
     }
     serverOutputChunks.push(Buffer.from(chunk));
@@ -349,10 +383,12 @@ export async function runGenesis001LocalUpgradeProof(input) {
     privateFile(configPath, `spacetimedb_token = ${JSON.stringify(identity.token)}\n`);
     const config = `--config-path=${configPath}`;
     const publish = artifact => {
+      attestGenesis001LocalProofArtifact(artifact);
       input.verifyExecutables();
-      boundedCommand(input.cliPath, [config, 'publish', '--server', server, '--js-path', artifact,
+      boundedCommand(input.cliPath, [config, 'publish', '--server', server, '--js-path', artifact.path,
         '--delete-data=never', '--no-config', DATABASE], input.operationRoot, input.environment, deadline);
       input.verifyExecutables();
+      attestGenesis001LocalProofArtifact(artifact);
     };
     const describe = () => {
       input.verifyExecutables();
@@ -361,10 +397,10 @@ export async function runGenesis001LocalUpgradeProof(input) {
       input.verifyExecutables();
       return decodeGenesis001BoundedJson(body, MAX_DESCRIPTOR_BYTES, 'GENESIS001_LOCAL_PROOF_DESCRIPTOR_INVALID');
     };
-    publish(input.baselineArtifactPath);
+    publish(input.baselineArtifact);
     const baseline = describe();
     assertGenesis001BaselineDescriptor(baseline);
-    publish(input.frozenArtifactPath);
+    publish(input.frozenArtifact);
     const frozen = describe();
     assertFrozenDescriptorPreservesBaseline(baseline, frozen);
 
@@ -392,16 +428,25 @@ export async function runGenesis001LocalUpgradeProof(input) {
       return Object.freeze([status.value, requests.value, currentPolicy.value]);
     };
     const serverTextSince = async (offset, writer) => {
-      const expected = `${writer.kind} "${writer.name}" runtime error: Uncaught Error: ${writer.reason}`;
       const limit = Date.now() + remaining(deadline, 5_000);
       let text = '';
+      let stableBytes = -1;
+      let stableSince = 0;
       while (Date.now() < limit) {
         if (outputOverflow) fail('GENESIS001_LOCAL_PROOF_SERVER_OUTPUT_INVALID');
         const bytes = Buffer.concat(serverOutputChunks, serverOutputBytes).subarray(offset);
         try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch (error) {
           return fail('GENESIS001_LOCAL_PROOF_SERVER_OUTPUT_INVALID', error);
         }
-        if (text.includes(expected)) return text;
+        if (genesis001GuardRecordCount(text, writer) > 0) {
+          if (stableBytes !== bytes.byteLength) {
+            stableBytes = bytes.byteLength;
+            stableSince = Date.now();
+          } else if (Date.now() - stableSince >= 50) return text;
+        } else {
+          stableBytes = -1;
+          stableSince = 0;
+        }
         await delay(20);
       }
       return text;

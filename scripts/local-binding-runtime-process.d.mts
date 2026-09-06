@@ -11,5 +11,6 @@ export function runLocalBindingBoundedProcess(
     fd3?: string;
     timeout: number;
     maxOutput: number;
+    containProcessGroup?: boolean;
   }>,
 ): Promise<Readonly<{ stdout: string; stderr: string }>>;

@@ -102,19 +102,42 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
   const map = (value: string) => translated(value) as string;
   return {
     async runLocalBindingBoundedProcess(executable: string, args: readonly string[], options: {
-      fd3?: string;
+      fd3?: string; containProcessGroup?: boolean;
     }) {
       if (options.fd3 !== undefined) {
         const request = JSON.parse(options.fd3) as Record<string, any>;
         const genesis002 = request.profile === 'warpkeep-local-binding-genesis002-worker-v1';
         const genesis001 = request.profile === 'warpkeep-local-binding-genesis001-worker-v1';
+        const compatibility = request.profile === 'warpkeep-local-binding-genesis001-compatibility-worker-v1';
         boundary.events.push(genesis002
           ? `worker:genesis002:${path.basename(request.handoffPath)}`
+          : compatibility ? 'worker:genesis001-compatibility'
           : genesis001 ? `worker:genesis001:${path.basename(request.handoffPath)}`
             : `worker:${path.basename(request.handoffPath)}`);
         expect(executable).toBe(`${FIXED_ROOT}/toolchain/node-v22.22.3-linux-x64/bin/node`);
         expect(args).toEqual(['--experimental-vm-modules', join(request.repositoryRoot, 'scripts', 'local-binding-runtime-worker.mjs')]);
         expect(`${JSON.stringify(request)}\n`).toBe(options.fd3);
+        expect(options.containProcessGroup).toBe(compatibility ? true : undefined);
+        if (compatibility) {
+          const result = {
+            schemaVersion: 1,
+            profile: 'warpkeep-local-binding-genesis001-compatibility-result-v1',
+            nonce: request.nonce,
+            sourceCommit: request.sourceCommit,
+            sourceTree: request.sourceTree,
+            baselineBundleSha256: '5'.repeat(64),
+            frozenBundleSha256: boundary.scenario === 'compatibility-cross-lane'
+              ? '5'.repeat(64) : '6'.repeat(64),
+            baselineDescriptorSha256: '7'.repeat(64),
+            frozenDescriptorSha256: '8'.repeat(64),
+            checkedFrozenWriters: [
+              'admin_allow_fid', 'admin_admit_founder_v1', 'admin_disable_fid',
+              'admin_bump_auth_epoch', 'access_request_submit_v1', 'admin_reset_access_request_v1',
+            ],
+            ...(boundary.scenario === 'compatibility-extra-result' ? { extra: true } : {}),
+          };
+          return { stdout: `${JSON.stringify(result)}\n`, stderr: '' };
+        }
         const cycle = request.handoffPath.includes('cycle-2') ? 2 : 1;
         const mismatchedLane = boundary.scenario === `${genesis002 ? 'genesis002' : 'ptr'}-bundle-mismatch`;
         const bundle = Buffer.from((boundary.scenario === 'bundle-mismatch' || mismatchedLane) && cycle === 2
@@ -189,6 +212,7 @@ vi.mock('../scripts/local-binding-bounded-file.mjs', async () => {
 });
 
 import {
+  executeFixedGenesis001CompatibilityParent,
   executeFixedGenesis001LocalBindingParentCycles,
   executeFixedLocalBindingParentCycles,
   executeFixedPairedLocalBindingParentCycles,
@@ -267,6 +291,21 @@ function genesis001Context() {
   };
 }
 
+function genesis001CompatibilityContext() {
+  const value = context();
+  return {
+    ...value,
+    graph: {
+      ...value.graph,
+      entry: 'scripts/genesis001-baseline-binding-linux-locked-source-build.ts',
+      modules: [{
+        ...value.graph.modules[0],
+        path: 'scripts/genesis001-baseline-binding-linux-locked-source-build.ts',
+      }],
+    },
+  };
+}
+
 describe('production local binding parent cycles', () => {
   it('preserves the parent primary failure together with cleanup failure', () => {
     const primary = new Error('CONTROLLED_PARENT_PRIMARY');
@@ -333,6 +372,30 @@ describe('production local binding parent cycles', () => {
     expect(boundary.generateArgs.every(args => !args.includes('--include-private'))).toBe(true);
     expect(boundary.events.filter(event => event.startsWith('worker:genesis001:'))).toHaveLength(2);
   });
+
+  it('accepts the strict compatibility worker result without generation or handoff projection', async () => {
+    const result = await executeFixedGenesis001CompatibilityParent(genesis001CompatibilityContext());
+    expect(result).toEqual({
+      sourceCommit: '1'.repeat(40), sourceTree: '2'.repeat(40),
+      baselineBundleSha256: '5'.repeat(64), frozenBundleSha256: '6'.repeat(64),
+      baselineDescriptorSha256: '7'.repeat(64), frozenDescriptorSha256: '8'.repeat(64),
+      checkedFrozenWriters: [
+        'admin_allow_fid', 'admin_admit_founder_v1', 'admin_disable_fid',
+        'admin_bump_auth_epoch', 'access_request_submit_v1', 'admin_reset_access_request_v1',
+      ],
+    });
+    expect(boundary.events).toEqual(['verify-executables', 'worker:genesis001-compatibility', 'verify-executables']);
+    expect(boundary.generateArgs).toHaveLength(0);
+  });
+
+  it.each(['compatibility-extra-result', 'compatibility-cross-lane'])(
+    'rejects compatibility parent result %s before public evidence', async scenario => {
+      boundary.scenario = scenario;
+      await expect(executeFixedGenesis001CompatibilityParent(genesis001CompatibilityContext()))
+        .rejects.toMatchObject({ code: 'LOCAL_BINDING_WORKER_RESULT_INVALID' });
+      expect(boundary.generateArgs).toHaveLength(0);
+    },
+  );
 
   it.each([
     ['forged-nonce', 'LOCAL_BINDING_WORKER_RESULT_INVALID'],

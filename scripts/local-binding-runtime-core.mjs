@@ -662,6 +662,7 @@ async function executeCycle(context, lane, index) {
   const worker = await runLocalBindingBoundedProcess(NODE_PATH, ['--experimental-vm-modules', join(context.source.root, 'scripts', 'local-binding-runtime-worker.mjs')], {
     cwd: context.repositoryRoot, env: context.environment, fd3: encoded,
     timeout: 15 * 60_000, maxOutput: MAX_WORKER_OUTPUT,
+    ...(lane === GENESIS001_COMPATIBILITY_LANE ? { containProcessGroup: true } : {}),
   });
   verifyLocalBindingBootstrapSource(context.source);
   const result = parseLocalBindingWorkerResult(worker.stdout, nonce, handoffPath, lane.workerProfile);
