@@ -300,3 +300,95 @@ Post-run cleanup evidence: the runs directory mtime advanced to `2026-09-06 11:4
 - The mismatch attester is now tested in the composed executor rather than as an isolated helper.
 - Test-only executor substitution is carried under an unexported symbol and absent from the declared fixed executor signature and public runtime API.
 - Legacy modes, provider boundaries, credentials, dependency junction, protected projection and successor release scope remain unchanged.
+
+## Fix round 2: preserve the first legacy cleanup diagnostic
+
+Review found that the lifecycle refactor had changed one legacy edge case: after a
+successful legacy operation, `cleanupCli()` and `cleanupSuccess()` are both still
+attempted, but a failure from the second callback unconditionally replaced the
+earlier CLI cleanup failure. The pre-refactor behavior retained the first cleanup
+diagnostic.
+
+### Correction
+
+Source fix commit: `073875c462f942d36c1a929316410acaf720c660`
+
+Source tree: `46254b2061c949209144366e6f82a4027426a00f`
+
+Changed paths:
+
+- `scripts/local-binding-runtime-core.mjs`
+- `tests/localBindingRuntimeLifecycle.test.ts`
+
+The legacy success-cleanup catch now uses `cleanupError ??= error`. This preserves
+the CLI cleanup error when both cleanup callbacks fail, while still recording the
+operation-root cleanup error when it is the only cleanup failure. The regression
+test also asserts that legacy `cleanupSuccess()` is attempted exactly once, so the
+fix does not weaken the prior cleanup behavior.
+
+### RED evidence
+
+Command:
+
+```powershell
+npm exec -- vitest --run tests/localBindingRuntimeLifecycle.test.ts `
+  -t "preserves the first legacy cleanup failure when operation-root cleanup also fails"
+```
+
+Actual result before correction: exit `1`; 1 test failed and 40 tests were
+skipped by the name filter. The received `AggregateError.errors` contained
+`CONTROLLED_LEGACY_OPERATION_ROOT_CLEANUP`; the expected first diagnostic was
+`CONTROLLED_LEGACY_CLI_CLEANUP`.
+
+### GREEN evidence
+
+The same focused command after the correction exited `0`: 1 test passed and 40
+tests were skipped by the name filter.
+
+Required suites:
+
+```powershell
+& '.git/ci-node-22.22.3/node.exe' 'node_modules/vitest/vitest.mjs' run `
+  'tests/localBindingRuntimeParent.test.ts' `
+  'tests/localBindingRuntimeLifecycle.test.ts'
+```
+
+Actual result: exit `0`; 2 test files passed and 78 tests passed.
+
+App TypeScript:
+
+```powershell
+& '.git/ci-node-22.22.3/node.exe' 'node_modules/typescript/bin/tsc' `
+  --project 'tsconfig.app.json' --noEmit `
+  --tsBuildInfoFile '.git/tsbuildinfo/all-realm-binding-composition-fix-2.app.tsbuildinfo'
+```
+
+Actual result: exit `0`, empty stdout/stderr.
+
+Protected projection verification re-imported the exact
+`GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS` constant, required all 34 roots,
+compared each root's exact filesystem membership with `git ls-tree -r HEAD`, and
+compared every file's working blob with `HEAD:<path>`. Actual result:
+`PROTECTED_ROOTS=34 FAILURES=0`. No protected path changed.
+
+### Native evidence disposition
+
+No native acceptance was repeated for this fix. The correction changes only the
+legacy branch where `retainDiagnosticsOnCleanupFailure` is false and both cleanup
+callbacks fail. All-realms passes true and skips `cleanupSuccess()` after a CLI
+cleanup failure, so the changed nullish assignment is not reached in that case.
+The successful all-realms native session `35368` at source
+`910662b8708817a004ae808b17fa9c8cf7621685` therefore remains the applicable
+composed-runtime evidence, as authorized for this exact restoration.
+
+### Fix-round self-review
+
+- The first cleanup error is again preserved for legacy modes.
+- Legacy operation-root cleanup is still attempted after a successful operation,
+  even when CLI cleanup fails.
+- A lone operation-root cleanup failure is still reported because nullish
+  assignment fills an otherwise empty cleanup slot.
+- Primary-error aggregation and all-realms diagnostic retention paths are
+  unchanged.
+- No public interface, lane composition, provider boundary, credential handling,
+  dependency junction, protected path or generated binding changed.
