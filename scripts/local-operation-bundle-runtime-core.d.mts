@@ -32,6 +32,13 @@ export function parseOperationBundleLoadResult(
   }>,
 ): Readonly<Record<string, unknown>>;
 
+export function parseOperationBundleCliMetadata(source: string): Readonly<{
+  profile: 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
+  sourceCommit: string;
+  sourceTree: string;
+  bundles: readonly Readonly<Record<string, unknown>>[];
+}>;
+
 export function assertReproducibleOperationBundleCycles<T extends OperationBundleCycle>(
   left: T, right: OperationBundleCycle,
 ): T;

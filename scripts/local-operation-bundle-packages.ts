@@ -277,14 +277,20 @@ function archivePath(cacheRoot: string, integrity: string): string {
 
 function readArchive(cacheRoot: string, integrity: string): Buffer {
   const digest = sriDigest(integrity);
-  const opened = readLocalBindingBoundedFile(archivePath(cacheRoot, integrity), {
-    maximumBytes: MAX_ARCHIVE_BYTES, minimumBytes: 1, expectedMode: 0o400, expectedUid: 1000,
-  });
-  if (createHash('sha512').update(opened.body).digest('hex') !== digest) {
-    opened.body.fill(0);
-    fail('OPERATION_BUNDLE_PACKAGES_ARCHIVE_INVALID');
+  let opened;
+  try {
+    opened = readLocalBindingBoundedFile(archivePath(cacheRoot, integrity), {
+      maximumBytes: MAX_ARCHIVE_BYTES, minimumBytes: 1, expectedMode: 0o400, expectedUid: 1000,
+    });
+    if (createHash('sha512').update(opened.body).digest('hex') !== digest) {
+      fail('OPERATION_BUNDLE_PACKAGES_ARCHIVE_INVALID');
+    }
+    return opened.body;
+  } catch (error) {
+    opened?.body.fill(0);
+    if (error instanceof OperationBundlePackagesError) throw error;
+    fail('OPERATION_BUNDLE_PACKAGES_ARCHIVE_INVALID', error);
   }
-  return opened.body;
 }
 
 function createParents(root: string, path: string): void {

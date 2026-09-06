@@ -28,6 +28,7 @@ const RUNS_ROOT = `${ROOT}/runs`;
 const CACHE_ROOT = `${ROOT}/cache/operation-bundles`;
 const YAML_ROOT = `${ROOT}/toolchain/yaml-2.9.0/package`;
 const MAX_ARTIFACT = 4 * 1024 * 1024;
+const MAX_RESULT_OUTPUT = 64 * 1024;
 const LANES = Object.freeze(['activation', 'g001', 'g002', 'ptr']);
 const LANE_METADATA = Object.freeze({
   activation: Object.freeze({
@@ -145,6 +146,25 @@ export function parseOperationBundleWorkerResult(source, expected) {
   }
   let value;
   try { value = JSON.parse(source); } catch { fail('OPERATION_BUNDLE_RUNTIME_WORKER_RESULT_INVALID'); }
+  const failureKeys = ['schemaVersion', 'profile', 'nonce', 'sourceCommit', 'sourceTree', 'lane',
+    'primaryFailure', 'cleanupFailure'];
+  if (value?.profile === 'warpkeep-local-operation-bundle-worker-failure-v1') {
+    const failure = part => part === null || (exactKeys(part, ['code'])
+      && typeof part.code === 'string' && /^[A-Z][A-Z0-9_]{0,127}$/u.test(part.code));
+    if (!exactKeys(value, failureKeys) || `${JSON.stringify(value)}\n` !== source
+        || value.schemaVersion !== 1 || value.nonce !== expected.nonce
+        || value.sourceCommit !== expected.sourceCommit || value.sourceTree !== expected.sourceTree
+        || value.lane !== expected.lane || !failure(value.primaryFailure)
+        || !failure(value.cleanupFailure)
+        || (value.primaryFailure === null && value.cleanupFailure === null)) {
+      fail('OPERATION_BUNDLE_RUNTIME_WORKER_RESULT_INVALID');
+    }
+    const errors = [value.primaryFailure, value.cleanupFailure]
+      .filter(part => part !== null)
+      .map(part => new OperationBundleRuntimeError(part.code));
+    if (errors.length === 1) throw errors[0];
+    throw new AggregateError(errors, 'OPERATION_BUNDLE_RUNTIME_WORKER_FAILED', { cause: errors[0] });
+  }
   const keys = ['schemaVersion', 'profile', 'nonce', 'sourceCommit', 'sourceTree', 'lane',
     'basename', 'bundleBytes', 'byteDigest', 'sourceClosureDigest', 'graphManifest',
     'exportNames', 'factoryExport', 'factoryFailureCode', 'handoffPath'];
@@ -182,6 +202,58 @@ export function parseOperationBundleLoadResult(source, expected) {
     fail('OPERATION_BUNDLE_RUNTIME_LOAD_RESULT_INVALID');
   }
   return value;
+}
+
+export function parseOperationBundleCliMetadata(source) {
+  if (typeof source !== 'string' || Buffer.byteLength(source) > MAX_RESULT_OUTPUT
+      || !source.endsWith('\n')) fail('OPERATION_BUNDLE_RUNTIME_WSL_RESULT_INVALID');
+  let value;
+  try { value = JSON.parse(source); } catch (error) {
+    fail('OPERATION_BUNDLE_RUNTIME_WSL_RESULT_INVALID', error);
+  }
+  const topKeys = ['profile', 'sourceCommit', 'sourceTree', 'bundles'];
+  if (`${JSON.stringify(value)}\n` !== source || !exactKeys(value, topKeys)
+      || value.profile !== PROFILE || !/^[0-9a-f]{40}$/u.test(value.sourceCommit ?? '')
+      || !/^[0-9a-f]{40}$/u.test(value.sourceTree ?? '') || !Array.isArray(value.bundles)
+      || value.bundles.length !== LANES.length) {
+    fail('OPERATION_BUNDLE_RUNTIME_WSL_RESULT_INVALID');
+  }
+  const bundleKeys = ['lane', 'basename', 'bundleBytes', 'byteDigest', 'sourceClosureDigest',
+    'graphCount', 'exportCount', 'load'];
+  const loadKeys = ['profile', 'byteDigest', 'exportNames', 'factoryFailureCode'];
+  const bundles = value.bundles.map((bundle, index) => {
+    const lane = LANES[index];
+    const spec = LANE_METADATA[lane];
+    const load = bundle?.load;
+    if (!exactKeys(bundle, bundleKeys) || bundle.lane !== lane || bundle.basename !== spec.basename
+        || !Number.isSafeInteger(bundle.bundleBytes) || bundle.bundleBytes < 1
+        || bundle.bundleBytes > MAX_ARTIFACT
+        || !/^[0-9a-f]{64}$/u.test(bundle.byteDigest ?? '')
+        || !/^[0-9a-f]{64}$/u.test(bundle.sourceClosureDigest ?? '')
+        || !Number.isSafeInteger(bundle.graphCount) || bundle.graphCount < 1 || bundle.graphCount > 256
+        || bundle.exportCount !== 2 || !exactKeys(load, loadKeys)
+        || load.profile !== 'warpkeep-linux-operation-bundle-load-v1'
+        || load.byteDigest !== bundle.byteDigest
+        || JSON.stringify(load.exportNames) !== JSON.stringify([...spec.exportNames].sort())
+        || load.factoryFailureCode !== spec.factoryFailureCode) {
+      fail('OPERATION_BUNDLE_RUNTIME_WSL_RESULT_INVALID');
+    }
+    return Object.freeze({
+      lane, basename: spec.basename, bundleBytes: bundle.bundleBytes,
+      byteDigest: bundle.byteDigest, sourceClosureDigest: bundle.sourceClosureDigest,
+      graphCount: bundle.graphCount, exportCount: bundle.exportCount,
+      load: Object.freeze({
+        profile: 'warpkeep-linux-operation-bundle-load-v1',
+        byteDigest: load.byteDigest,
+        exportNames: Object.freeze([...load.exportNames]),
+        factoryFailureCode: load.factoryFailureCode,
+      }),
+    });
+  });
+  return Object.freeze({
+    profile: PROFILE, sourceCommit: value.sourceCommit, sourceTree: value.sourceTree,
+    bundles: Object.freeze(bundles),
+  });
 }
 
 export function assertReproducibleOperationBundleCycles(left, right) {
@@ -245,7 +317,7 @@ async function loadArtifact(context, cycleRoot, worker) {
   const result = await runLocalBindingBoundedProcess(NODE_PATH,
     [join(context.source.root, 'scripts', 'local-operation-bundle-load.mjs')], {
       cwd: loadRoot, env: context.environment, fd3: `${JSON.stringify(request)}\n`,
-      timeout: 30_000, maxOutput: MAX_ARTIFACT, containProcessGroup: true,
+      timeout: 30_000, maxOutput: MAX_RESULT_OUTPUT, containProcessGroup: true,
     });
   if (result.stderr !== '') fail('OPERATION_BUNDLE_RUNTIME_LOAD_FAILED');
   return parseOperationBundleLoadResult(result.stdout, request);
@@ -275,7 +347,7 @@ async function executeCycle(context, lane, cycle) {
   const result = await runLocalBindingBoundedProcess(NODE_PATH,
     ['--no-warnings', join(context.source.root, 'scripts', 'local-operation-bundle-worker.mjs')], {
       cwd: cycleRoot, env: context.environment, fd3: encoded,
-      timeout: 5 * 60_000, maxOutput: MAX_ARTIFACT, containProcessGroup: true,
+      timeout: 5 * 60_000, maxOutput: MAX_RESULT_OUTPUT, containProcessGroup: true,
     });
   if (result.stderr !== '') fail('OPERATION_BUNDLE_RUNTIME_WORKER_FAILED');
   const worker = parseOperationBundleWorkerResult(result.stdout, {

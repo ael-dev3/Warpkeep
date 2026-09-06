@@ -75,6 +75,7 @@ const OPERATION_BUNDLE_CONTROL_FILES = Object.freeze([
   'package-lock.json',
   'scripts/local-binding-bounded-file.mjs',
   'scripts/local-binding-native-ts-hooks.mjs',
+  'scripts/local-binding-runtime-cli-snapshot.mjs',
   'scripts/local-binding-runtime-core.mjs',
   'scripts/local-binding-runtime-process.mjs',
   'scripts/local-operation-bundle-load.mjs',

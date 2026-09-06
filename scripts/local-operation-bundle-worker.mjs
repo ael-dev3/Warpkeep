@@ -14,6 +14,7 @@ const RUNS_ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1/runs';
 const MAX_REQUEST = 1024 * 1024;
 const MAX_ARTIFACT = 4 * 1024 * 1024;
 const LANES = new Set(['activation', 'g001', 'g002', 'ptr']);
+let acceptedRequest;
 
 function fail(code, cause) { throw new Error(code, cause === undefined ? undefined : { cause }); }
 function exactKeys(value, keys) {
@@ -24,6 +25,28 @@ function inside(parent, child) {
   const difference = relative(parent, child);
   return difference === '' || (difference !== '..' && !difference.startsWith(`..${sep}`)
     && !isAbsolute(difference));
+}
+
+function failureCode(error, fallback) {
+  for (const candidate of [error?.code, error?.message]) {
+    if (typeof candidate === 'string' && /^[A-Z][A-Z0-9_]{0,127}$/u.test(candidate)) return candidate;
+  }
+  return fallback;
+}
+
+function failureRecord(request, primaryError, cleanupError) {
+  return Object.freeze({
+    schemaVersion: 1,
+    profile: 'warpkeep-local-operation-bundle-worker-failure-v1',
+    nonce: request.nonce,
+    sourceCommit: request.sourceCommit,
+    sourceTree: request.sourceTree,
+    lane: request.lane,
+    primaryFailure: primaryError === undefined ? null
+      : Object.freeze({ code: failureCode(primaryError, 'OPERATION_BUNDLE_WORKER_FAILED') }),
+    cleanupFailure: cleanupError === undefined ? null
+      : Object.freeze({ code: failureCode(cleanupError, 'OPERATION_BUNDLE_WORKER_CLEANUP_FAILED') }),
+  });
 }
 
 function readRequest() {
@@ -98,6 +121,7 @@ async function main() {
       || JSON.stringify(process.execArgv) !== JSON.stringify(['--no-warnings'])
       || process.env.ESBUILD_WORKER_THREADS) fail('OPERATION_BUNDLE_WORKER_HOST_INVALID');
   const request = readRequest();
+  acceptedRequest = request;
   const source = Object.freeze({ root: request.sourceRoot, bootstrap: request.controls });
   verifyLocalBindingBootstrapSource(source);
   installLocalBindingNativeTsHooks(request.packageGraph, request.yaml);
@@ -127,9 +151,7 @@ async function main() {
     sourceRoot: request.materializationRoot, ...namespace,
   }); } catch (error) { cleanupError ??= error; }
   if (primaryError !== undefined || cleanupError !== undefined) {
-    if (primaryError !== undefined && cleanupError === undefined) throw primaryError;
-    throw new AggregateError([primaryError, cleanupError].filter(Boolean),
-      'OPERATION_BUNDLE_WORKER_BUILD_AND_CLEANUP_FAILED', { cause: primaryError });
+    return failureRecord(request, primaryError, cleanupError);
   }
   verifyLocalBindingBootstrapSource(source);
   writeArtifact(request.handoffPath, artifact.bytes);
@@ -158,6 +180,10 @@ async function main() {
 }
 
 main().then(result => process.stdout.write(`${JSON.stringify(result)}\n`)).catch(error => {
-  process.stderr.write(`${error?.message ?? 'OPERATION_BUNDLE_WORKER_FAILED'}\n`);
-  process.exitCode = 1;
+  if (acceptedRequest !== undefined) {
+    process.stdout.write(`${JSON.stringify(failureRecord(acceptedRequest, error, undefined))}\n`);
+  } else {
+    process.stderr.write('OPERATION_BUNDLE_WORKER_FAILED\n');
+    process.exitCode = 1;
+  }
 });
