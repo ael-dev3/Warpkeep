@@ -443,7 +443,7 @@ function deriveFixedEntrySourceGraph(root, entry) {
     total += body.length;
     if (total > MAX_SOURCE_TOTAL) fail('LOCAL_BINDING_RUNTIME_SOURCE_GRAPH_INVALID');
     const source = body.toString('utf8');
-    if (/\b(?:require\s*\(|import\s*\()/u.test(source) || /sourceMappingURL/u.test(source)) {
+    if (/sourceMappingURL/u.test(source)) {
       fail('LOCAL_BINDING_RUNTIME_SOURCE_GRAPH_INVALID');
     }
     let parsed;

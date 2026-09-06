@@ -178,6 +178,24 @@ describe('fixed local PTR binding runtime', () => {
     }
   });
 
+  it('does not mistake an inert import string in authenticated source for dynamic authority', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-source-graph-'));
+    try {
+      mkdirSync(join(root, 'scripts'));
+      writeFileSync(join(root, 'scripts', 'ptr-binding-linux-locked-source-build.ts'),
+        'export const childSource = "await import(process.argv[1]);";\n');
+      const result = spawnSync(process.execPath, [
+        '--experimental-vm-modules', sourceGraphFixture, root,
+      ], { encoding: 'utf8' });
+      expect(result.status, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual({
+        modules: ['scripts/ptr-binding-linux-locked-source-build.ts'],
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('independently validates canonical YAML authority framing and rejects mutations', () => {
     expect(validateLocalBindingYamlManifest(`${JSON.stringify(manifest, null, 2)}\n`)).toEqual(manifest);
     const changed = structuredClone(manifest);
