@@ -4,12 +4,12 @@ import {
   chmodSync, closeSync, constants, existsSync, fsyncSync, lstatSync, mkdirSync,
   openSync, readFileSync, realpathSync, readdirSync, writeSync,
 } from 'node:fs';
-import { request as httpsRequest } from 'node:https';
 import { createRequire } from 'node:module';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
+import { downloadLocalPreparationArchive } from './local-preparation-archive-download.mjs';
 import { validateLocalBindingYamlManifest } from './local-binding-runtime-core.mjs';
 
 const PROFILE = 'warpkeep-genesis002-local-binding-cache-bootstrap-linux-x64-v1';
@@ -122,6 +122,7 @@ function attestCommittedSource(repositoryRoot, gitIdentity) {
   const files = [
     'scripts/bootstrap-genesis002-local-binding-cache.mjs',
     'scripts/local-binding-bounded-file.mjs',
+    'scripts/local-preparation-archive-download.mjs',
     'scripts/local-binding-runtime-core.mjs',
     'scripts/local-binding-runtime-cli-snapshot.mjs',
     'scripts/local-binding-runtime-process.mjs',
@@ -238,73 +239,10 @@ function tarballUrl(package_) {
 }
 
 function downloadArchive(url) {
-  return new Promise((resolvePromise, rejectPromise) => {
-    let settled = false;
-    let request;
-    let response;
-    let deadline;
-    const chunks = [];
-    let total = 0;
-    const eraseChunks = () => {
-      for (const chunk of chunks) chunk.fill(0);
-      chunks.length = 0;
-      total = 0;
-    };
-    const finish = (callback, value, cancel = false) => {
-      if (settled) return;
-      settled = true;
-      if (deadline !== undefined) clearTimeout(deadline);
-      if (cancel) {
-        eraseChunks();
-        try { response?.destroy(value instanceof Error ? value : undefined); } catch {}
-        try { request?.destroy(value instanceof Error ? value : undefined); } catch {}
-      }
-      callback(value);
-    };
-    const rejectFetch = error => finish(rejectPromise,
-      error instanceof Error ? error : new Error('GENESIS002_LOCAL_BINDING_CACHE_FETCH_REJECTED'), true);
-    try {
-      request = httpsRequest(url, {
-        method: 'GET', headers: { accept: 'application/octet-stream', 'accept-encoding': 'identity' },
-        timeout: DEADLINE_MS, agent: false,
-      }, incoming => {
-        if (settled) {
-          try { incoming.destroy(); } catch {}
-          return;
-        }
-        response = incoming;
-        const length = incoming.headers['content-length'];
-        if (incoming.statusCode !== 200 || incoming.headers.location !== undefined
-            || incoming.headers['content-encoding'] !== undefined
-            || (length !== undefined && (!/^\d+$/u.test(length)
-              || !Number.isSafeInteger(Number(length)) || Number(length) > MAX_ARCHIVE_BYTES))) {
-          rejectFetch(new Error('GENESIS002_LOCAL_BINDING_CACHE_FETCH_REJECTED'));
-          return;
-        }
-        incoming.on('data', chunk => {
-          if (settled) return;
-          total += chunk.length;
-          if (total > MAX_ARCHIVE_BYTES) {
-            rejectFetch(new Error('GENESIS002_LOCAL_BINDING_CACHE_FETCH_REJECTED'));
-          } else chunks.push(chunk);
-        });
-        incoming.on('end', () => {
-          if (settled) return;
-          const body = Buffer.concat(chunks, total);
-          eraseChunks();
-          finish(resolvePromise, body);
-        });
-        incoming.on('aborted', () => rejectFetch(
-          new Error('GENESIS002_LOCAL_BINDING_CACHE_FETCH_REJECTED')));
-        incoming.on('error', error => rejectFetch(error));
-      });
-      request.on('timeout', () => rejectFetch(
-        new Error('GENESIS002_LOCAL_BINDING_CACHE_FETCH_REJECTED')));
-      request.on('error', error => rejectFetch(error));
-      deadline = setTimeout(() => rejectFetch(
-        new Error('GENESIS002_LOCAL_BINDING_CACHE_FETCH_REJECTED')), DEADLINE_MS);
-      request.end();
-    } catch (error) { rejectFetch(error); }
+  return downloadLocalPreparationArchive(url, {
+    maximumBytes: MAX_ARCHIVE_BYTES,
+    deadlineMs: DEADLINE_MS,
+    errorCode: 'GENESIS002_LOCAL_BINDING_CACHE_FETCH_REJECTED',
   });
 }
 

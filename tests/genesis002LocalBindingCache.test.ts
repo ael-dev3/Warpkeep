@@ -40,7 +40,8 @@ const boundary = vi.hoisted(() => ({
   nextDescriptor: 100,
   fetches: 0,
   fetchScenario: 'success' as
-    | 'success' | 'status' | 'redirect' | 'oversize' | 'timeout' | 'sri' | 'trickle',
+    | 'success' | 'status' | 'redirect' | 'encoding' | 'oversize' | 'timeout' | 'sri'
+    | 'trickle' | 'truncated' | 'incomplete',
   changedSource: '',
   escapedRoot: '',
   responseDestroyCount: 0,
@@ -176,6 +177,8 @@ vi.mock('node:https', () => ({
                 ? { location: 'https://example.invalid/archive.tgz' } : {}),
               ...(boundary.fetchScenario === 'oversize'
                 ? { 'content-length': String(256 * 1024 * 1024 + 1) } : {}),
+              ...(boundary.fetchScenario === 'encoding' ? { 'content-encoding': 'gzip' } : {}),
+              ...(boundary.fetchScenario === 'truncated' ? { 'content-length': '100' } : {}),
             },
             on(name: string, handler: (value?: unknown) => void) {
               responseHandlers.set(name, handler); return response;
@@ -185,7 +188,8 @@ vi.mock('node:https', () => ({
           };
           callback(response);
           if (boundary.fetchScenario === 'status' || boundary.fetchScenario === 'redirect'
-              || boundary.fetchScenario === 'oversize' || stopped) return;
+              || boundary.fetchScenario === 'encoding' || boundary.fetchScenario === 'oversize'
+              || stopped) return;
           if (boundary.fetchScenario === 'trickle') {
             trickleTimer = setInterval(() => {
               if (stopped) return;
@@ -198,7 +202,8 @@ vi.mock('node:https', () => ({
             ? Buffer.from('wrong archive') : Buffer.from(boundary.downloads.get(String(url))!);
           boundary.dataEvents += 1;
           responseHandlers.get('data')?.(body);
-          responseHandlers.get('end')?.();
+          if (boundary.fetchScenario === 'incomplete') responseHandlers.get('close')?.();
+          else responseHandlers.get('end')?.();
         });
       },
     };
@@ -258,6 +263,7 @@ beforeEach(() => {
     `${ROOT}/cache`]) boundary.directories.set(path, 0o700);
   for (const path of [
     'scripts/bootstrap-genesis002-local-binding-cache.mjs', 'scripts/local-binding-bounded-file.mjs',
+    'scripts/local-preparation-archive-download.mjs',
     'scripts/local-binding-runtime-core.mjs', 'scripts/local-binding-runtime-cli-snapshot.mjs',
     'scripts/local-binding-runtime-process.mjs', 'scripts/local-binding-runtime-yaml-v1.json',
     'spacetimedb/pnpm-lock.yaml', 'spacetimedb/pnpm-workspace.yaml',
@@ -316,7 +322,7 @@ describe('fixed Genesis 002 local-binding cache bootstrap', () => {
     expect(boundary.archives.size).toBe(0);
   });
 
-  it.each(['status', 'redirect', 'oversize', 'timeout'] as const)(
+  it.each(['status', 'redirect', 'encoding', 'oversize', 'timeout', 'truncated', 'incomplete'] as const)(
     'rejects a %s response before cache installation', async scenario => {
       boundary.fetchScenario = scenario;
       await expect(bootstrap()).rejects.toBeInstanceOf(Error);
