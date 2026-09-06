@@ -363,23 +363,41 @@ test('generated atlas writer ABI binds every phase to the PTR release target', a
   }
 });
 
+function ptrBundleSourceLabel(label: string, modulePath: string): string {
+  // Rolldown emits a virtual ID, not a filesystem-rooted Windows path.
+  if (label === '\\0rolldown/runtime.js') return 'virtual:rolldown/runtime.js';
+  const normalized = (isAbsolute(label) ? relative(modulePath, label) : label).replaceAll('\\', '/');
+  // The locked SpacetimeDB dependencies may live in the enclosing module.
+  // Do not normalize any other parent path or broaden the exact list below.
+  return normalized.replace(/^\.\.\/node_modules\//u, 'node_modules/');
+}
+
+test('PTR bundle labels preserve unknown paths while recognizing the two dependency layouts', () => {
+  for (const [label, expected] of [
+    ['\\0rolldown/runtime.js', 'virtual:rolldown/runtime.js'],
+    ['node_modules/.pnpm/pkg/index.js', 'node_modules/.pnpm/pkg/index.js'],
+    ['../node_modules/.pnpm/pkg/index.js', 'node_modules/.pnpm/pkg/index.js'],
+    ['../../node_modules/.pnpm/pkg/index.js', '../../node_modules/.pnpm/pkg/index.js'],
+    ['../gameplay04/policy.ts', '../gameplay04/policy.ts'],
+    ['../src/auth.ts', '../src/auth.ts'],
+  ]) assert.equal(ptrBundleSourceLabel(label!, process.cwd()), expected);
+});
+
 test('compiled PTR payload contains no shared production graph or forbidden policy family', () => {
   const modulePath = join(process.cwd(), 'spacetimedb', 'ptr');
   execFileSync(SPACETIME_BIN, ['build', '--module-path', modulePath], {
     cwd: process.cwd(),
     encoding: 'utf8',
     stdio: 'pipe',
+    timeout: 120_000,
+    maxBuffer: 4 * 1024 * 1024,
   });
   const bundle = readFileSync(join(modulePath, 'dist', 'bundle.js'), 'utf8');
   const sourceSections = [...bundle.matchAll(
     /^\/\/#region (.+)$/gmu,
-  )].map(match => {
-    const label = match[1];
-    return (isAbsolute(label) ? relative(modulePath, label) : label)
-      .replaceAll('\\', '/');
-  });
+  )].map(match => ptrBundleSourceLabel(match[1]!, modulePath));
   assert.deepEqual(sourceSections, [
-    '../../../../../../../../../0rolldown/runtime.js',
+    'virtual:rolldown/runtime.js',
     'node_modules/.pnpm/headers-polyfill@4.0.3/node_modules/headers-polyfill/lib/index.mjs',
     'node_modules/.pnpm/spacetimedb@2.6.1/node_modules/spacetimedb/dist/server/index.mjs',
     'src/schemaContract.ts',
