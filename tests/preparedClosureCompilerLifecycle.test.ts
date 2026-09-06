@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { API, type Snapshot } from '../services/auth-bridge/node_modules/typescript/dist/api/sync/api.js';
-import { AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS } from '../scripts/auth-bridge-notification-prepared-deploy-closure.mjs';
 import { deriveAuthBridgeNotificationPreparedDeployClosurePaths } from '../scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
@@ -14,12 +13,16 @@ const secondMember = 'scripts/auth-bridge-notification-b0-deploy-adapter.mjs';
 let fixtureRoot: string;
 let originalRoot: string;
 let originalSecond: string;
+let fixtureMembers: readonly string[];
 const testCompilers = new Set<API>();
 const closeCompiler = API.prototype.close;
 
 beforeAll(() => {
   fixtureRoot = realpathSync(mkdtempSync(join(tmpdir(), 'warpkeep-compiler-lifecycle-')));
-  for (const member of AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS) {
+  // Lifecycle tests need complete current input, not a final-release inventory
+  // that intentionally remains frozen until the assembler transaction.
+  fixtureMembers = deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot });
+  for (const member of fixtureMembers) {
     const destination = resolve(fixtureRoot, member);
     mkdirSync(dirname(destination), { recursive: true });
     cpSync(resolve(repositoryRoot, member), destination);
@@ -97,7 +100,7 @@ describe('prepared closure compiler ownership', () => {
   it('derives the complete graph with bounded compiler startups and released snapshots', async () => {
     const childrenBefore = process.platform === 'linux' ? nativeChildren() : [];
     const observation = observeCompiler();
-    expect(scan()).toEqual(AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS);
+    expect(scan()).toEqual(fixtureMembers);
     expect(observation.instances.size).toBe(3);
     observation.assertReleased();
     if (process.platform === 'linux') {
@@ -125,7 +128,7 @@ describe('prepared closure compiler ownership', () => {
     vi.restoreAllMocks();
     writeFileSync(resolve(fixtureRoot, rootMember), originalRoot);
     const repaired = observeCompiler();
-    expect(scan()).toEqual(AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS);
+    expect(scan()).toEqual(fixtureMembers);
     expect([...repaired.instances].some(instance => failed.instances.has(instance))).toBe(false);
     repaired.assertReleased();
   }, 90_000);
