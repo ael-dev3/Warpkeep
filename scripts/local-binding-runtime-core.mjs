@@ -422,7 +422,9 @@ function deriveFixedEntrySourceGraph(root, entry) {
     const functionName = entry === PTR_LANE.graphEntry ? 'deriveLocalBindingSourceGraph'
       : entry === GENESIS002_LANE.graphEntry ? 'deriveGenesis002LocalBindingSourceGraph'
         : entry === GENESIS001_LANE.graphEntry ? 'deriveGenesis001LocalBindingSourceGraph'
-          : fail('LOCAL_BINDING_RUNTIME_SOURCE_GRAPH_INVALID');
+          : entry === GENESIS001_COMPATIBILITY_LANE.graphEntry
+            ? 'deriveGenesis001CompatibilitySourceGraph'
+            : fail('LOCAL_BINDING_RUNTIME_SOURCE_GRAPH_INVALID');
     const moduleUrl = pathToFileURL(join(root, 'scripts', 'local-binding-runtime-core.mjs')).href;
     const script = `import { ${functionName} } from ${JSON.stringify(moduleUrl)};process.stdout.write(JSON.stringify(${functionName}(${JSON.stringify(root)})));`;
     const node = stableFileRecord(NODE_PATH, NODE_BYTES, NODE_SHA256, 1000, true);
