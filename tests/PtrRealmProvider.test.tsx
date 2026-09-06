@@ -25,6 +25,7 @@ import {
   type PtrRealmProviderRuntime,
 } from '../src/ptr/PtrRealmProvider';
 import type { GreaterRealmProviderBridge } from '../src/spacetime/greaterRealmProviderBridge';
+import { scriptedCapability04 } from './fixtures/gameplay04Client';
 
 const NOW = 1_788_000_000_000;
 const FID = 12_345;
@@ -143,6 +144,7 @@ function runtimeHarness(
     }),
     preflight: vi.fn(async () => Object.freeze({ castleId: FID, q: 7, r: -4 })),
     createBridge: vi.fn(() => READY_BRIDGE),
+    createGameplay04: vi.fn(() => scriptedCapability04().capability),
     isSessionCurrent,
     closeSession: vi.fn(),
     ...overrides,
@@ -188,6 +190,27 @@ afterEach(() => {
 });
 
 describe('PTR realm provider', () => {
+  it('publishes gameplay only after bridge preflight and clears it on leave or factory failure', async () => {
+    const authority = await issuedAuthority();
+    installHost();
+    const harness = runtimeHarness(authority);
+    mount(CONFIG, harness.runtime);
+    expect(currentContext().gameplay04).toBeNull();
+    await act(async () => currentContext().checkAccess());
+    expect(currentContext().gameplay04).toBeNull();
+    await act(async () => currentContext().enter());
+    expect(currentContext().gameplay04).toBe(vi.mocked(harness.runtime.createGameplay04).mock.results[0].value);
+    expect(harness.runtime.createGameplay04).toHaveBeenCalledWith(harness.session, authority, { castleId: FID, q: 7, r: -4 }, harness.runtime.now);
+    expect(vi.mocked(harness.runtime.createBridge).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(harness.runtime.createGameplay04).mock.invocationCallOrder[0]);
+    act(() => currentContext().leave());
+    expect(currentContext().gameplay04).toBeNull();
+    cleanup();
+    const failing = runtimeHarness(await issuedAuthority(), { createGameplay04: () => { throw new Error(); } });
+    mount(CONFIG, failing.runtime);
+    await act(async () => currentContext().checkAccess());
+    await act(async () => currentContext().enter());
+    expect(currentContext()).toMatchObject({ phase: 'error', gameplay04: null, bridge: null, viewAnchor: null });
+  });
   it.each([
     ['disabled build', UNAVAILABLE_CONFIG, true],
     ['regular web', CONFIG, false],

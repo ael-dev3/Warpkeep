@@ -15,6 +15,7 @@ import {
   GREATER_REALM_RELEASE_REFRESH_INTERVAL_MILLISECONDS,
   GreaterRealmWorldScene
 } from '../src/components/realm/GreaterRealmWorldScene';
+import type { WorldSelection04 } from '../src/components/realm/GreaterRealmWorldScene';
 import {
   GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE
 } from '../src/dev/greaterRealmSyntheticTierOneFixture';
@@ -173,6 +174,43 @@ function setViewportWidth(width: number) {
   });
   fireEvent(window, new Event('resize'));
 }
+
+it('publishes only current 0.4 selection and rejects retained guards after refresh, replacement and disposal', async () => {
+  let listener!: RuntimeListener;
+  const onSelection = vi.fn();
+  let selection: WorldSelection04 | null = null;
+  let guard!: (value: WorldSelection04) => boolean;
+  const props = {
+    bridge: bridge({ captureListener: value => { listener = value; } }), identityFid: 77,
+    identityKey: '77:1', ownCastle: OWN_CASTLE, resolvedGraphicsQuality: 'balanced' as const,
+    onPhaseChange: vi.fn(), onGameplay04WorldSelection: onSelection,
+    renderGameplay04WorldPanel: (value: WorldSelection04 | null, validate: typeof guard) => {
+      selection = value; guard = validate; return null;
+    },
+  };
+  const mounted = render(<GreaterRealmWorldScene {...props} />);
+  const resource = await screen.findByRole('button', { name: /food at/ });
+  fireEvent.click(resource);
+  expect((selection as WorldSelection04 | null)?.target?.resource).toBe('food');
+  const captured = selection!;
+  const retained = guard;
+  expect(retained(captured)).toBe(true);
+  act(() => listener({ ...readySnapshot(), resourceLocations: [...readySnapshot().resourceLocations!] }));
+  expect(retained(captured)).toBe(false);
+  expect((selection as WorldSelection04 | null)?.target).toBeNull();
+  expect(guard(selection!)).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: /food at/ }));
+  const next = selection!;
+  act(() => listener({ ...readySnapshot(), phase: 'bootstrapping' }));
+  expect(retained(next)).toBe(false);
+  expect(onSelection).toHaveBeenLastCalledWith(null);
+  act(() => listener(readySnapshot()));
+  fireEvent.click(screen.getByRole('button', { name: /food at/ }));
+  const last = selection!;
+  mounted.unmount();
+  expect(retained(last)).toBe(false);
+  expect(onSelection).toHaveBeenLastCalledWith(null);
+});
 
 beforeEach(() => {
   canvasHostHarness.create.mockReset();

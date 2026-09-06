@@ -1,10 +1,14 @@
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
-  useState
+  useState,
+  type ReactNode
 } from 'react';
+import type { Resource04 } from '../../../spacetimedb/gameplay04/policy';
+import type { Atlas04, Target04 } from '../../ptr/gameplay04/ptrGameplay04Types';
 
 import {
   GREATER_REALM_MAXIMUM_RESOURCE_AFFORDANCES,
@@ -93,6 +97,12 @@ function useBrowserPresentation() {
   return presentation;
 }
 
+export type WorldSelection04 = Readonly<{
+  sessionGeneration: number;
+  atlas: Atlas04;
+  target: Target04 | null;
+}>;
+
 export type GreaterRealmWorldSceneProps = Readonly<{
   bridge: AvailableGreaterRealmProviderBridge;
   identityFid: number;
@@ -102,6 +112,10 @@ export type GreaterRealmWorldSceneProps = Readonly<{
   onPhaseChange: (phase: GreaterRealmClientPhase) => void;
   narrowOpenPanel?: 'controls' | 'resources';
   onNarrowOpenPanelChange?: (panel: 'controls' | 'resources' | undefined) => void;
+  onGameplay04WorldSelection?: (selection: WorldSelection04 | null) => void;
+  resourceFocus04?: Resource04 | null;
+  /** Public presentation only. The freshness guard is not owner authority or capacity proof. */
+  renderGameplay04WorldPanel?: (selection: WorldSelection04 | null, validateSelection: (selection: WorldSelection04) => boolean) => ReactNode;
 }>;
 
 /**
@@ -116,7 +130,10 @@ export function GreaterRealmWorldScene({
   resolvedGraphicsQuality,
   onPhaseChange,
   narrowOpenPanel,
-  onNarrowOpenPanelChange
+  onNarrowOpenPanelChange,
+  onGameplay04WorldSelection,
+  resourceFocus04,
+  renderGameplay04WorldPanel
 }: GreaterRealmWorldSceneProps) {
   const miniAppHost = useMiniAppHost();
   const reducedMotion = useReducedMotionPreference();
@@ -126,6 +143,9 @@ export function GreaterRealmWorldScene({
   const canvasHostRef = useRef<GreaterRealmWorldCanvasHost | undefined>(undefined);
   const commandGenerationRef = useRef(0);
   const snapshotIdentityKeyRef = useRef<string | undefined>(undefined);
+  const snapshotBridgeRef = useRef<typeof bridge | undefined>(undefined);
+  const gameplaySelectionRef = useRef<WorldSelection04 | null>(null);
+  const gameplayLiveRef = useRef(false);
   const [snapshot, setSnapshot] = useState<GreaterRealmClientSnapshot>();
   const [commandSnapshot, setCommandSnapshot] = useState<GreaterRealmClientSnapshot>();
   const [renderer, setRenderer] = useState<'loading' | 'webgl' | 'unavailable'>('loading');
@@ -259,6 +279,30 @@ export function GreaterRealmWorldScene({
       && location.locationId === resourceSelection.locationId
     )
   );
+  const gameplaySelection = useMemo<WorldSelection04 | null>(() => {
+    const current = commandSnapshotCurrent;
+    if (snapshotBridgeRef.current !== bridge || !current?.bootstrap || current.bootstrap.mode !== 'active' || current.resourceLocationPhase !== 'ready') return null;
+    const atlas = Object.freeze({ atlasId: current.bootstrap.atlasId, revision: current.bootstrap.revision });
+    const target = selectedLocation && current.resourceLocations === publicResourceSource
+      ? Object.freeze({ ...atlas, locationId: selectedLocation.locationId, resource: selectedLocation.resourceKind,
+          q: selectedLocation.atlasQ, r: selectedLocation.atlasR }) : null;
+    return Object.freeze({ sessionGeneration: bridge.sessionGeneration, atlas, target });
+  }, [bridge, commandSnapshotCurrent, publicResourceSource, selectedLocation]);
+  gameplaySelectionRef.current = gameplaySelection;
+  const validateGameplaySelection = useCallback((value: WorldSelection04) => (
+    gameplayLiveRef.current && value === gameplaySelectionRef.current
+  ), []);
+  useLayoutEffect(() => {
+    gameplayLiveRef.current = true;
+    return () => {
+      gameplayLiveRef.current = false;
+      gameplaySelectionRef.current = null;
+      onGameplay04WorldSelection?.(null);
+    };
+  }, [onGameplay04WorldSelection]);
+  useLayoutEffect(() => {
+    onGameplay04WorldSelection?.(gameplaySelection);
+  }, [gameplaySelection, onGameplay04WorldSelection]);
   const workerBridge = bridge;
   const candidateWorkerControl = readWorkerControl(workerBridge);
   const identityFidAuthority = Number.isSafeInteger(identityFid) && identityFid > 0
@@ -445,6 +489,8 @@ export function GreaterRealmWorldScene({
       });
       unsubscribe = runtime.subscribe((next) => {
         if (!active) return;
+        // Revoke retained dispatch handlers synchronously, before React renders.
+        gameplaySelectionRef.current = null;
         const generationCurrent = next.sessionGeneration === bridge.sessionGeneration;
         const usable = generationCurrent && isCurrentGreaterRealmSceneSnapshot({
           snapshot: next,
@@ -461,6 +507,7 @@ export function GreaterRealmWorldScene({
           return;
         }
         if (usable) {
+          snapshotBridgeRef.current = bridge;
           snapshotIdentityKeyRef.current = identityKey;
           setSnapshot(next);
           setCommandSnapshot(next);
@@ -730,7 +777,7 @@ export function GreaterRealmWorldScene({
           </ol>
         </aside>
       )}
-      {publicResources.length === 0 && activeWorkers.length === 0 ? null : (
+      {publicResources.length === 0 && activeWorkers.length === 0 && renderGameplay04WorldPanel === undefined ? null : (
         <aside
           className="greater-realm-world__resources"
           data-open={openPanel === 'resources'}
@@ -759,7 +806,7 @@ export function GreaterRealmWorldScene({
             <>
               <strong>Nearby resources</strong>
               <div className="greater-realm-world__resource-list">
-                {publicResources.map((location) => (
+                {publicResources.filter(location => !resourceFocus04 || location.resourceKind === resourceFocus04).map((location) => (
                   <button
                     key={location.locationId}
                     type="button"
@@ -784,7 +831,7 @@ export function GreaterRealmWorldScene({
                   </button>
                 ))}
               </div>
-              {selectedLocation === undefined ? null : (
+              {selectedLocation === undefined || (renderGameplay04WorldPanel !== undefined && workerControl === undefined) ? null : (
                 <div className="greater-realm-world__worker-command">
                   <span>
                     {selectedLocation.resourceKind} at {selectedLocation.atlasQ}, {selectedLocation.atlasR}
@@ -858,6 +905,7 @@ export function GreaterRealmWorldScene({
               )}
             </div>
           )}
+          {renderGameplay04WorldPanel?.(gameplaySelection, validateGameplaySelection)}
           {commandError ? <span role="alert">Worker command was not accepted.</span> : null}
           </div>
         </aside>

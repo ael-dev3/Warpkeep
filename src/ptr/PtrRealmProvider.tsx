@@ -25,6 +25,8 @@ import {
   isCurrentPtrRealmConnectionSession,
   type ConnectPtrRealmOptions,
   type PtrRealmConnectionSession,
+  createPtrGameplay04Capability,
+  type PtrGameplay04Capability,
 } from './ptrRealmConnection';
 import {
   readPtrRealmConfig,
@@ -77,6 +79,7 @@ export type PtrRealmContextValue = Readonly<{
   authority: PtrRealmAuthority | null;
   viewAnchor: PtrRealmViewAnchor | null;
   bridge: GreaterRealmProviderBridge | null;
+  gameplay04: PtrGameplay04Capability | null;
   checkAccess: () => Promise<void>;
   enter: () => Promise<void>;
   leave: () => void;
@@ -107,6 +110,12 @@ export type PtrRealmProviderRuntime = Readonly<{
     authority: PtrRealmAuthority,
     now: number,
   ) => boolean;
+  createGameplay04: (
+    session: PtrRealmConnectionSession,
+    authority: PtrRealmAuthority,
+    anchor: PtrRealmViewAnchor,
+    now: () => number,
+  ) => PtrGameplay04Capability;
   closeSession: (session: PtrRealmConnectionSession | undefined) => void;
 }>;
 
@@ -118,6 +127,7 @@ const DEFAULT_PTR_REALM_PROVIDER_RUNTIME: PtrRealmProviderRuntime = Object.freez
   connect: connectPtrRealm,
   preflight: preflightPtrRealmView,
   createBridge: createPtrGreaterRealmProviderBridge,
+  createGameplay04: createPtrGameplay04Capability,
   isSessionCurrent: isCurrentPtrRealmConnectionSession,
   closeSession: closePtrRealmConnectionSession,
 });
@@ -157,6 +167,7 @@ function publicSnapshot(
     authority: input.authority ?? null,
     viewAnchor: input.viewAnchor ?? null,
     bridge: input.bridge ?? null,
+    gameplay04: phase === 'ready' ? input.gameplay04 ?? null : null,
   });
 }
 
@@ -490,11 +501,17 @@ export function PtrRealmProvider({
         || !operationIsCurrent(operation)
         || !operationScopeIsCurrent(currentHost, currentConfig, currentRuntime)
       ) throw new Error();
+      const gameplay04 = currentRuntime.createGameplay04(
+        connectedSession, authority, viewAnchor, currentRuntime.now,
+      );
+      if (!operationIsCurrent(operation)
+        || !operationScopeIsCurrent(currentHost, currentConfig, currentRuntime)) throw new Error();
       publish(publicSnapshot('ready', {
         presentationAuthority: ADMITTED_PRESENTATION,
         authority,
         viewAnchor: Object.freeze({ ...viewAnchor }),
         bridge,
+        gameplay04,
       }));
     } catch {
       if (

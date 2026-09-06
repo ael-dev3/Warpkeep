@@ -1765,6 +1765,7 @@ export function WarpkeepExperience() {
                 identity={realmIdentity}
                 ptrRealmAuthority={ptrRealm.authority}
                 ptrViewAnchor={ptrRealm.viewAnchor}
+                ptrGameplay04={ptrRealm.gameplay04 ?? undefined}
                 greaterRealm={ptrRealm.bridge}
                 graphicsPreference={graphicsPreference}
                 resolvedGraphicsQuality={resolvedGraphicsQuality}

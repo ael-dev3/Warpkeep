@@ -8,6 +8,8 @@ import {
   closePtrRealmConnectionSession,
   connectPtrRealm,
   createPtrRealmProcedureInvoker,
+  createPtrGameplay04Capability,
+  isCurrentPtrGameplay04Capability,
   ptrRealmConnectionFailureCode,
   type PtrRealmConnectionBuilder,
   type PtrRealmConnectionLike,
@@ -484,10 +486,15 @@ describe('PTR realm connection', () => {
       sessionGeneration: 12,
     });
     expect(bridge).not.toHaveProperty('getWorkerControl');
+    const gameplay04 = createPtrGameplay04Capability(session, authority, { q: 7, r: -4 }, () => NOW);
+    expect(gameplay04.scope).toEqual({ generation: 12, databaseIdentity: DATABASE_IDENTITY, anchorQ: 7, anchorR: -4 });
+    expect(isCurrentPtrGameplay04Capability(gameplay04, authority, 12)).toBe(true);
     expect(bridge).not.toHaveProperty('dispatchWorker');
     expect(bridge).not.toHaveProperty('recallWorker');
     expect(bridge).not.toHaveProperty('recallAllWorkers');
     expect(JSON.stringify(bridge)).not.toMatch(/fid|token|jwt|reducers|procedures|connection/iu);
+    closePtrRealmConnectionSession(session);
+    expect(gameplay04.isCurrent()).toBe(false);
   });
 
   it('closes the PTR session instead of synthesizing an unsafe view anchor', async () => {

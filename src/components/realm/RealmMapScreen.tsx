@@ -178,6 +178,7 @@ import {
   type RealmWorldSceneStrategy
 } from './greaterRealmSceneStrategy';
 import type { PtrRealmAuthority } from '../../ptr/ptrRealmAuthClient';
+import { isCurrentPtrGameplay04Capability, type PtrGameplay04Capability } from '../../ptr/ptrRealmConnection';
 import {
   resolvePtrRealmPresentation,
   type PtrRealmViewAnchor
@@ -314,7 +315,7 @@ export {
 } from './realmMapProjectionStability';
 export type { RealmCastleProjection } from './realmMapProjectionStability';
 
-type RealmMapScreenProps = Readonly<{
+export type RealmMapScreenProps = Readonly<{
   identity: RealmIdentity;
   /** Privately branded, exact Genesis 001 renderer authority; absent after cutover. */
   snapshot?: CanonicalWarpkeepRealmSnapshot;
@@ -326,6 +327,7 @@ type RealmMapScreenProps = Readonly<{
   ptrRealmAuthority?: PtrRealmAuthority;
   /** Server-projected virtual atlas anchor; it is never a player/castle row. */
   ptrViewAnchor?: PtrRealmViewAnchor;
+  ptrGameplay04?: PtrGameplay04Capability;
   /** Authenticated caller-only inventory, separate from the public snapshot. */
   resources?: ReadyRealmResourcePresentation;
   /** Exact caller-only Gold expedition procedure projection. */
@@ -848,9 +850,12 @@ function RetiredRealmWorldHost({
  * Invalid or malformed runtime input must not be dereferenced, generate a
  * terrain surface, or register WebGL/browser effects before failing closed.
  */
+const PtrGameplay04SurfaceHost = lazy(() => import('../../ptr/PtrGameplay04SurfaceHost').then(module => ({ default: module.PtrGameplay04SurfaceHost })));
+
 export function RealmMapScreen(props: RealmMapScreenProps) {
   const ptrBoundaryRequested = props.ptrRealmAuthority !== undefined
-    || props.ptrViewAnchor !== undefined;
+    || props.ptrViewAnchor !== undefined
+    || props.ptrGameplay04 !== undefined;
   const localQaSurfacePresent = import.meta.env.DEV && (
     props.localQaWorkerProjectionTelemetry !== undefined
     || props.localQaLivingVisualTimeSeconds !== undefined
@@ -922,6 +927,19 @@ export function RealmMapScreen(props: RealmMapScreenProps) {
         serverPresentationAllowed: true
       })
     : resolveRealmWorldSceneStrategy(strategyInput);
+  if (props.ptrGameplay04 !== undefined) {
+    if (ptrPresentation === null || worldSceneStrategy.kind !== 'greater-realm'
+      || props.identity.fid !== ptrPresentation.authority.fid
+      || !isCurrentPtrGameplay04Capability(props.ptrGameplay04, ptrPresentation.authority, worldSceneStrategy.bridge.sessionGeneration)
+      || props.ptrGameplay04.scope.databaseIdentity !== ptrPresentation.authority.databaseIdentity
+      || props.ptrGameplay04.scope.anchorQ !== ptrPresentation.viewAnchor.q
+      || props.ptrGameplay04.scope.anchorR !== ptrPresentation.viewAnchor.r) {
+      return <CanonicalRealmUnavailable onRequestReturn={props.onRequestReturn} realm="PTR" />;
+    }
+    return <Suspense fallback={<p role="status">Loading PTR…</p>}>
+      <PtrGameplay04SurfaceHost {...props} ptrGameplay04={props.ptrGameplay04} />
+    </Suspense>;
+  }
   if (worldSceneStrategy.kind !== 'legacy-lowlands') {
     return (
       <RetiredRealmWorldHost

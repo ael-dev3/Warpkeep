@@ -35,6 +35,7 @@ vi.mock('../src/components/realm/RealmMapScreen', async () => {
         'data-has-genesis-continuity': String(props.realmContinuity !== undefined),
         'data-has-genesis-snapshot': String(props.snapshot !== undefined),
         'data-has-ptr-authority': String(props.ptrRealmAuthority !== undefined),
+        'data-has-ptr-gameplay': String(props.ptrGameplay04 !== undefined),
         'data-ptr-castle-id': String(
           (props.ptrViewAnchor as { castleId?: number } | undefined)?.castleId ?? '',
         ),
@@ -60,6 +61,7 @@ import {
 import type { PtrRealmConnectionSession } from '../src/ptr/ptrRealmConnection';
 import type { AvailablePtrRealmConfig } from '../src/ptr/ptrRealmConfig';
 import type { GreaterRealmProviderBridge } from '../src/spacetime/greaterRealmProviderBridge';
+import { scriptedCapability04 } from './fixtures/gameplay04Client';
 
 const NOW = 1_800_000_000_000;
 const OWNER_FID = 12_345;
@@ -161,6 +163,7 @@ function runtimeHarness(authority: PtrRealmAuthority): PtrRuntimeHarness {
       r: -9,
     })),
     createBridge: vi.fn(() => bridge),
+    createGameplay04: vi.fn(() => scriptedCapability04().capability),
     isSessionCurrent: vi.fn(() => true),
     closeSession: vi.fn(),
   });
@@ -201,6 +204,7 @@ function deferredRuntimeHarness(authority: PtrRealmAuthority): DeferredPtrRuntim
       r: -9,
     })),
     createBridge: vi.fn(() => bridge),
+    createGameplay04: vi.fn(() => scriptedCapability04().capability),
     isSessionCurrent: vi.fn(() => true),
     closeSession: vi.fn(),
   });
@@ -414,6 +418,7 @@ describe('Warpkeep PTR realm integration', () => {
 
     const ptrSurface = await screen.findByRole('main', { name: 'PTR realm test surface' });
     expect(ptrSurface.getAttribute('data-has-ptr-authority')).toBe('true');
+    expect(ptrSurface.getAttribute('data-has-ptr-gameplay')).toBe('true');
     expect(ptrSurface.getAttribute('data-ptr-castle-id')).toBe(String(OWNER_FID));
     expect(ptrSurface.getAttribute('data-has-genesis-snapshot')).toBe('false');
     expect(ptrSurface.getAttribute('data-has-genesis-continuity')).toBe('false');
