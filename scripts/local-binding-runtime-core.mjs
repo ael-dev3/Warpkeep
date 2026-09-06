@@ -1311,7 +1311,8 @@ async function deriveLocalBindingRuntime(mode) {
   const genesis001Compatibility = mode === 'genesis001-compatibility';
   const genesis001Current = mode === 'genesis001-current';
   const needsGenesis001 = genesis001 || genesis001Compatibility || allRealms;
-  const useIndependentSnapshot = genesis001Current || allRealms;
+  // PTR materialization must not inherit the Windows checkout's Git configuration.
+  const useIndependentSnapshot = mode === 'ptr' || genesis001Current || allRealms;
   const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   validateLocalBindingRuntimeHost({
     platform: process.platform,
