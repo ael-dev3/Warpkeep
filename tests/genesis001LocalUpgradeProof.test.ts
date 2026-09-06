@@ -98,6 +98,14 @@ describe('fixed Genesis 001 local upgrade proof', () => {
         + 'GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED\n',
       before, after: structuredClone(before),
     })).not.toThrow();
+    expect(() => assertGenesis001FrozenWriterObservation({
+      writer: 'admin_allow_fid', status: expected.status, text: expected.text,
+      serverText: '\u001b[2m2026-09-06T06:42:03.083229Z\u001b[0m \u001b[32m INFO\u001b[0m '
+        + '\u001b[2mcrates/core/src/host/v8/error.rs\u001b[0m\u001b[2m:\u001b[0m\u001b[2m618\u001b[0m'
+        + '\u001b[2m:\u001b[0m reducer "admin_allow_fid" runtime error: Uncaught Error: '
+        + 'GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED\n',
+      before, after: structuredClone(before),
+    })).not.toThrow();
 
     const arbitrary = decodeGenesis001ProcedureResponse(
       400, Buffer.from('UNAUTHORIZED'), 64, credential,

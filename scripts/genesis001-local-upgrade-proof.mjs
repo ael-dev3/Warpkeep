@@ -72,8 +72,13 @@ function canonicalJson(value) {
 function genesis001GuardRecordCount(serverText, writer) {
   const expected = `${writer.kind} "${writer.name}" runtime error: Uncaught Error: ${writer.reason}`;
   const completeLines = serverText.match(/[^\n]*\n/gu) ?? [];
-  return completeLines.filter(line => line.slice(0, -1).replace(/\r$/u, '')
-    .replace(/\u001b\[[0-9;]*m/gu, '') === expected).length;
+  return completeLines.filter(line => {
+    const normalized = line.slice(0, -1).replace(/\r$/u, '').replace(/\u001b\[[0-9;]*m/gu, '');
+    const envelope = normalized.match(
+      /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+Z\s+INFO\s+crates\/core\/src\/host\/v8\/error\.rs:[1-9][0-9]*:\s+/u,
+    );
+    return (envelope === null ? normalized : normalized.slice(envelope[0].length)) === expected;
+  }).length;
 }
 
 export function decodeGenesis001BoundedJson(body, maximumBytes, code = 'GENESIS001_LOCAL_PROOF_JSON_INVALID') {
