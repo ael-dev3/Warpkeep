@@ -33,7 +33,13 @@ function boundedExec(executable, args, input = '') {
       else if (stderr.trim()) fail(new Error('Windows QA OS query reported diagnostics.'));
       else done(stdout.trim());
     });
-    child.stdin?.end(input);
+    child.stdin?.on('error', error => {
+      const failure = new Error('Bounded Windows QA OS input failed.');
+      failure.code = error.code;
+      fail(failure);
+    });
+    // Avoid writing an empty chunk to commands that do not consume stdin.
+    child.stdin?.end(input || undefined);
   });
 }
 const powershell = (script, input) => boundedExec(POWERSHELL, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', `$ErrorActionPreference='Stop'; ${script}`], input === undefined ? '' : JSON.stringify(input));

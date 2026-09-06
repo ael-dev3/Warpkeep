@@ -5,18 +5,37 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { resolve, join, dirname } from 'node:path';
 import { readWindowsCaptureSource } from '../scripts/qa-observer/keep04-windows-capture.mjs';
 
-const fixture = vi.hoisted(() => ({ cwd: '', queries: [] as string[][] }));
+const fixture = vi.hoisted(() => ({
+  cwd: '', queries: [] as string[][], pipeFailure: false,
+  git: process.platform === 'win32' ? 'C:/Program Files/Git/cmd/git.exe' : '/usr/bin/git',
+}));
 vi.mock('node:child_process', async importOriginal => {
   const actual = await importOriginal<typeof import('node:child_process')>();
+  const { EventEmitter } = await import('node:events');
   return { ...actual, execFile: (file: string, args: string[], options: object, callback: unknown) => {
-    fixture.queries.push(args); return Reflect.apply(actual.execFile, undefined, [file, args, { ...options, cwd: fixture.cwd }, callback]);
+    if (file !== 'C:/Program Files/Git/cmd/git.exe') throw new Error('Unexpected source fixture executable');
+    if (fixture.pipeFailure) {
+      const stdin = Object.assign(new EventEmitter(), {
+        end() { queueMicrotask(() => stdin.emit('error', Object.assign(new Error('private pipe details'), { code: 'EPIPE' }))); },
+      });
+      return { stdin };
+    }
+    fixture.queries.push(args); return Reflect.apply(actual.execFile, undefined, [fixture.git, args, { ...options, cwd: fixture.cwd }, callback]);
   } };
 });
 const parent = resolve('.cache/keep04-qa');
 const baseline = 'const label = `value  \nnext`;\nMarkdown hard break  \nnext\n';
+it('rejects input pipe failure without leaking OS details or returning source evidence', async () => {
+  fixture.pipeFailure = true;
+  try {
+    await expect(readWindowsCaptureSource()).rejects.toMatchObject({
+      message: 'Bounded Windows QA OS input failed.', code: 'EPIPE',
+    });
+  } finally { fixture.pipeFailure = false; }
+});
 beforeAll(async () => {
   await mkdir(parent, { recursive: true }); fixture.cwd = await mkdtemp(join(parent, 'source-test-'));
-  const git = (args: string[]) => execFileSync('C:/Program Files/Git/cmd/git.exe', args, { cwd: fixture.cwd, windowsHide: true, timeout: 15000, maxBuffer: 1024 * 1024, stdio: 'pipe' });
+  const git = (args: string[]) => execFileSync(fixture.git, args, { cwd: fixture.cwd, windowsHide: true, timeout: 15000, maxBuffer: 1024 * 1024, stdio: 'pipe' });
   git(['init', '--quiet']); await writeFile(join(fixture.cwd, 'source.md'), baseline);
   await writeFile(join(fixture.cwd, '.gitattributes'), '*.bin -text\n');
   await writeFile(join(fixture.cwd, 'image.bin'), Buffer.from('binary\0\r\n'));
