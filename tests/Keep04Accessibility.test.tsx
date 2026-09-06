@@ -57,6 +57,17 @@ it('returns Escape focus to Buildings when a non-focusable canvas opened the bui
   expect(screen.getByRole('button', { name: 'Buildings' })).toHaveFocus();
 });
 
+it('puts compact primary commands before the scene and preserves their opener focus without collapsing the schematic', () => {
+  setup();
+  const commands = screen.getByRole('navigation', { name: 'Primary keep actions' });
+  const schematic = screen.getByRole('application', { name: 'Keep placement schematic' });
+  expect(commands.compareDocumentPosition(schematic) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  const primary = commands.querySelector('button')!; fireEvent.click(primary);
+  expect(screen.getByRole('complementary', { name: 'Command panel' })).toBeVisible();
+  fireEvent.keyDown(screen.getByRole('button', { name: 'Close panel' }), { key: 'Escape' });
+  expect(primary).toHaveFocus(); expect(schematic.closest('details')!.open).toBe(true);
+});
+
 it('keeps valid and blocked footprints distinct using system colors and line patterns in forced-colors rules', () => {
   setup(); fireEvent.click(screen.getByRole('button', { name: 'Buildings' })); fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
   const source = document.createElement('style'); source.textContent = readFileSync('src/components/keep04/Keep04Screen.css', 'utf8'); document.head.append(source);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { Building04, Resource04 } from '../../../spacetimedb/gameplay04/policy';
 import type { Placement04 } from '../../../spacetimedb/gameplay04/placement';
 import type { Controller04, Snapshot04 } from '../../ptr/gameplay04/createGameplay04Controller';
@@ -6,7 +6,7 @@ import { initialPlacement04 } from '../../ptr/gameplay04/gameplay04Placement';
 import { PENDING_LABEL04 } from '../../ptr/gameplay04/gameplay04Presentation';
 import { Keep04BuildingPanel, RESOURCES04 } from './Keep04BuildingPanel';
 import { Keep04Schematic } from './Keep04Schematic';
-import { Keep04SceneHost } from './Keep04SceneHost';
+import { Keep04SceneHost, type Keep04SceneHostProps } from './Keep04SceneHost';
 import { evaluatePlacement04 } from '../../../spacetimedb/gameplay04/placement';
 import { estimatedTime04, Keep04WorkerPanel } from './Keep04WorkerPanel';
 import './Keep04Screen.css';
@@ -19,10 +19,12 @@ export type Keep04ScreenProps = Readonly<{
   onSelectionChange: (selection: Keep04UiSelection) => void; onBack: () => void;
   quality: 'high' | 'balanced' | 'reduced'; reducedMotion: boolean;
   onFindResources: (resource: Resource04 | null) => void; onReturnToWorld: () => void;
+  onSceneObservation?: Keep04SceneHostProps['onObservation']; qaFault?: Keep04SceneHostProps['qaFault'];
 }>;
 
-export function Keep04Screen({ snapshot, controller, selection, onSelectionChange, onBack, quality, reducedMotion, onFindResources, onReturnToWorld }: Keep04ScreenProps) {
+export function Keep04Screen({ snapshot, controller, selection, onSelectionChange, onBack, quality, reducedMotion, onFindResources, onReturnToWorld, onSceneObservation, qaFault }: Keep04ScreenProps) {
   const { view, phase, problem } = snapshot;
+  const panelId = useId();
   const [nowMs, setNowMs] = useState(Date.now);
   const [sceneMode, setSceneMode] = useState<'loading' | 'webgl' | 'fallback'>('loading');
   const opener = useRef<HTMLElement | SVGElement | null>(null);
@@ -86,11 +88,16 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
         {RESOURCES04.map(resource => <div key={resource}><span>{resource[0].toUpperCase() + resource.slice(1)}</span><strong>{view.balances[resource].toString()}</strong><small>Pending {view.pending[resource].toString()}</small></div>)}
         <p>{PENDING_LABEL04}</p>
       </section>
+      <nav className="keep04-primary-nav" aria-label="Primary keep actions">
+        <button type="button" aria-controls={selection.panel ? panelId : undefined} aria-expanded={selection.panel === 'buildings'} onClick={event => openPanel('buildings', event.currentTarget)}>Open building catalog</button>
+        <button type="button" aria-controls={selection.panel ? panelId : undefined} aria-expanded={selection.panel === 'workers'} onClick={event => openPanel('workers', event.currentTarget)}>Manage Workers</button>
+      </nav>
       {problem === 'capacity' && <p role="status">That resource location is full. Find another location.</p>}
       {problem === 'target' && <p role="status">That resource location changed. Choose a current Realm location.</p>}
       <div className="keep04-workspace" data-panel-open={selection.panel !== null}>
         <div className="keep04-scene-region">
           {ready && <Keep04SceneHost quality={quality} reducedMotion={reducedMotion} onMode={setSceneMode}
+            onObservation={onSceneObservation} {...(import.meta.env.DEV ? { qaFault } : {})}
             visual={{ buildings: view.buildings, selectedKind: selection.selectedKind, draft: selection.panel === 'buildings' ? selection.draft : null,
               draftValid: selection.draft !== null && evaluatePlacement04(selection.draft, view.buildings.filter(building => building.kind !== selection.draft!.kind).map(building => building.placement)).valid }}
             onSelect={selectBuilding} onPlacement={draft => onSelectionChange({ ...selection, draft })} />}
@@ -104,7 +111,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
             Constructing level {building.targetLevel} · Estimated build time: <span>{estimatedTime04(building.completesAtMicros!, nowMs)}</span>
           </p>)}
         </div>
-        {selection.panel && <aside className="keep04-panel" aria-label="Command panel">
+        {selection.panel && <aside id={panelId} className="keep04-panel" aria-label="Command panel">
           <button ref={closeButton} className="keep04-close" type="button" onClick={closePanel}>Close panel</button>
           {selection.panel === 'workers'
             ? <Keep04WorkerPanel view={view} enabled={ready} nowMs={nowMs} onFindResources={onFindResources} onRecall={ordinal => {

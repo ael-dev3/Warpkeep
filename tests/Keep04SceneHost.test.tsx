@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { Keep04SceneHost, type Keep04SceneHostProps } from '../src/components/keep04/Keep04SceneHost';
+import { Keep04SceneHost, type Keep04SceneHostProps, type Keep04Observation } from '../src/components/keep04/Keep04SceneHost';
 import * as loader from '../src/components/keep04/loadKeep04Assets';
 import type { InnerKeepRuntimeAssetBundle } from '../src/components/inner-keep/loadInnerKeepRuntimeAssets';
 import { PtrGameplay04SurfaceHost } from '../src/ptr/PtrGameplay04SurfaceHost';
@@ -25,7 +25,7 @@ function deferred<T>() { let resolve!: (value: T) => void; const promise = new P
 let queued: Map<number, FrameRequestCallback>; let sequence: number; let active: number; let maximum: number;
 let renderers: RendererBoundary[]; let hidden: boolean; let observers: number;
 class RendererBoundary {
-  domElement = document.createElement('canvas'); shadowMap = {}; info = { render: { calls: 0, triangles: 0 } };
+  domElement = document.createElement('canvas'); shadowMap = {}; info = { render: { calls: 0, triangles: 0 }, memory: { geometries: 7, textures: 2 } };
   ratio = 0; disposed = false; scenes: THREE.Scene[] = [];
   constructor() { active++; maximum = Math.max(maximum, active); renderers.push(this); }
   setPixelRatio(value: number) { this.ratio = value; } setSize() {} forceContextLoss() {}
@@ -38,6 +38,7 @@ function pointer(canvas: HTMLCanvasElement, type: string, id: number, x: number,
   const event = new Event(type, { bubbles: true }); Object.assign(event, { pointerId: id, clientX: x, clientY: y, button: 0 }); fireEvent(canvas, event);
 }
 beforeEach(() => {
+  vi.clearAllMocks();
   queued = new Map(); sequence = 0; active = 0; maximum = 0; renderers = []; hidden = false; observers = 0;
   vi.stubGlobal('WebGL2RenderingContext', class {});
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { queued.set(++sequence, callback); return sequence; });
@@ -53,6 +54,64 @@ beforeEach(() => {
   vi.spyOn(loader, 'loadKeep04Assets').mockImplementation(async () => bundle());
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+it('observes actual renderer counters, retains the restore listener on loss, and reports final cleanup without invented GPU zeros', async () => {
+  const observations: Keep04Observation[] = [];
+  const mounted = render(<Keep04SceneHost {...props()} onObservation={value => observations.push(value)} />);
+  await act(async () => {});
+  Object.assign(renderers[0].info.render, { calls: 37, triangles: 1234 }); tick(42);
+  expect(observations.at(-1)).toMatchObject({ event: 'frame', timestampMs: 42, renderCalls: 37, renderTriangles: 1234, rendererGeometries: 7, rendererTextures: 2 });
+  expect(observations.at(-1)!.voxelPreparationMs).toBeGreaterThanOrEqual(0);
+  fireEvent(mounted.container.querySelector('canvas')!, new Event('webglcontextlost', { cancelable: true }));
+  expect(observations.at(-1)).toMatchObject({ event: 'context-lost', activeListeners: 1, pendingRafs: 0, renderCalls: null, rendererGeometries: null });
+  mounted.unmount();
+  expect(observations.at(-1)).toMatchObject({ event: 'disposed', activeListeners: 0, pendingRafs: 0, activeLoaders: 0, rendererTextures: null });
+  for (const value of observations) for (const [key, field] of Object.entries(value)) {
+    if (key !== 'event' && field !== null) expect(typeof field === 'number' && Number.isFinite(field) && field >= 0).toBe(true);
+  }
+  expect(JSON.stringify(observations)).not.toMatch(/requestKey|identity|jwt|atlas|token/i);
+});
+
+it('isolates observer failure from frames and disposal', async () => {
+  const mounted = render(<Keep04SceneHost {...props()} onObservation={() => { throw new Error('Observer failed'); }} />);
+  await act(async () => {}); expect(() => tick()).not.toThrow();
+  expect(renderers[0].scenes.length).toBe(1); expect(() => mounted.unmount()).not.toThrow();
+  expect(active).toBe(0); expect(queued.size).toBe(0); expect(observers).toBe(0);
+});
+
+it('reports no active loader once an asset request rejects', async () => {
+  vi.mocked(loader.loadKeep04Assets).mockRejectedValue(new Error('Unavailable'));
+  const observations: Keep04Observation[] = [];
+  render(<Keep04SceneHost {...props()} onObservation={value => observations.push(value)} />);
+  await act(async () => {});
+  expect(observations.at(-1)).toMatchObject({ event: 'fallback', activeLoaders: 0, activeListeners: 0, pendingRafs: 0 });
+});
+
+it.each(['missing-model', 'voxel-failure', 'webgl-unavailable'] as const)('exercises the fixed DEV graphics fault %s without changing commands', async qaFault => {
+  const options = props(); const mounted = render(<Keep04SceneHost {...options} qaFault={qaFault} />);
+  await act(async () => {}); tick();
+  if (qaFault === 'webgl-unavailable') expect(mounted.container.querySelector('canvas')).toBeNull();
+  else {
+    expect(mounted.container.querySelector('canvas')).not.toBeNull();
+    if (qaFault === 'voxel-failure') expect(renderers[0].scenes[0].getObjectByName('simple-perimeter-fallback')).toBeDefined();
+  }
+  expect(options.onPlacement).not.toHaveBeenCalled(); mounted.unmount(); expect(active).toBe(0);
+});
+
+it('removes only the selected DEV Mill source from a successfully loaded bundle and uses the real fallback silhouette', async () => {
+  const root = new THREE.Group(); const geometry = new THREE.BoxGeometry(1, 1, 1); const material = new THREE.MeshStandardMaterial(); root.add(new THREE.Mesh(geometry, material));
+  const assets = { ...bundle(), staticPrefabs: new Map([['city-mill', { id: 'city-mill', root, clips: [], boundsMeters: [1, 1, 1] as const, triangles: 12, drawCalls: 1, animated: false, mounted: false, clone: () => root.clone(true) }]]) };
+  vi.mocked(loader.loadKeep04Assets).mockResolvedValue(assets);
+  const options = props(); const placement = options.visual.draft!;
+  const visual = { ...options.visual, draft: null, buildings: [{ kind: placement.kind, placement, completedLevel: 1, targetLevel: 1, phase: 'complete' as const, startsAtMicros: null, completesAtMicros: null }] };
+  const mounted = render(<Keep04SceneHost {...options} visual={visual} />); await act(async () => {}); tick();
+  expect(renderers[0].scenes[0].getObjectByName('prefab:city-mill')).toBeDefined();
+  mounted.rerender(<Keep04SceneHost {...options} visual={visual} qaFault="missing-model" />); await act(async () => {}); tick();
+  expect(renderers[1].scenes[0].getObjectByName('prefab:city-mill')).toBeUndefined();
+  expect(renderers[1].scenes[0].getObjectByName('silhouette:city-mill')).toBeDefined();
+  expect(assets.staticPrefabs.has('city-mill')).toBe(true);
+  mounted.unmount(); geometry.dispose(); material.dispose();
+});
 
 it('disposes a late bundle after unmount without ever allocating a renderer or attaching canvas', async () => {
   const pending = deferred<InnerKeepRuntimeAssetBundle>(); const assets = bundle(); vi.mocked(loader.loadKeep04Assets).mockReturnValue(pending.promise);

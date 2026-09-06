@@ -11,6 +11,17 @@ export type Keep04SceneHostProps = Readonly<{
   visual: VisualState04; quality: Quality04; reducedMotion: boolean;
   onSelect: (kind: Building04) => void; onPlacement: (placement: Placement04) => void;
   onMode: (mode: 'loading' | 'webgl' | 'fallback') => void;
+  onObservation?: (observation: Keep04Observation) => void;
+  qaFault?: 'none' | 'missing-model' | 'voxel-failure' | 'webgl-unavailable';
+}>;
+
+/** Numeric renderer observations only; owned bytes estimate CPU-side buffers, not GPU allocation. */
+export type Keep04Observation = Readonly<{
+  event: 'loading' | 'frame' | 'disposed' | 'context-lost' | 'fallback'; timestampMs: number;
+  frameWorkMs: number | null; renderCalls: number | null; renderTriangles: number | null;
+  rendererGeometries: number | null; rendererTextures: number | null;
+  ownedGeometryBytes: number | null; ownedTextureBytes: number | null; voxelPreparationMs: number | null;
+  pendingRafs: number; activeLoaders: number; activeListeners: number;
 }>;
 
 export function Keep04SceneHost(props: Keep04SceneHostProps) {
@@ -25,6 +36,21 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
     let observer: ResizeObserver | undefined; const listeners: Array<() => void> = [];
     let recoveryCanvas: HTMLCanvasElement | undefined; let removeRecovery: (() => void) | undefined;
     let lost = false;
+    let activeLoaders = 0;
+    const qaFault = import.meta.env.DEV ? props.qaFault : undefined;
+    function observe(event: Keep04Observation['event'], frameWorkMs: number | null = null, timestampMs = performance.now()) {
+      const callback = current.current.onObservation; if (!callback) return;
+      try {
+        const telemetry = scene?.telemetry();
+        callback(Object.freeze({ event, timestampMs, frameWorkMs,
+          renderCalls: renderer?.info.render.calls ?? null, renderTriangles: renderer?.info.render.triangles ?? null,
+          rendererGeometries: renderer?.info.memory?.geometries ?? null, rendererTextures: renderer?.info.memory?.textures ?? null,
+          ownedGeometryBytes: telemetry?.geometryBytes ?? null, ownedTextureBytes: telemetry?.textureBytes ?? null,
+          voxelPreparationMs: telemetry?.voxelPreparationMs ?? null, pendingRafs: frame ? 1 : 0,
+          activeLoaders, activeListeners: listeners.length + (removeRecovery ? 1 : 0),
+        }));
+      } catch { /* An observer must never change rendering, commands, or cleanup. */ }
+    }
     const set = (value: typeof mode) => { if (!retired) { setMode(value); current.current.onMode(value); } };
     function request() { if (!retired && !document.hidden && !frame && scene) frame = requestAnimationFrame(draw); }
     function draw(now: number) {
@@ -40,6 +66,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
       last = props.reducedMotion || !Number.isFinite(last) || elapsed >= interval * 2
         ? now : last + Math.floor((elapsed + tolerance) / interval) * interval;
       try {
+        const workStarted = current.current.onObservation ? performance.now() : 0;
         const active = scene.update(now / 1000);
         renderer.render(scene.scene, scene.camera);
         const budget = KEEP04_VISUAL_PROFILE.budgets[props.quality];
@@ -50,6 +77,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
         host.dataset.geometryBytes = String(telemetry.geometryBytes); host.dataset.textureBytes = String(telemetry.textureBytes);
         host.dataset.fallback = telemetry.fallback;
         if (active) request();
+        if (current.current.onObservation) observe('frame', performance.now() - workStarted, now);
       } catch { failure(); }
     }
     function release(keepRecovery = false) {
@@ -61,8 +89,9 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
       // canvas/restoration listener, never the retired scene, bundle or renderer.
       if (!keepRecovery) { renderer?.forceContextLoss(); renderer?.domElement.remove(); removeRecovery?.(); removeRecovery = undefined; recoveryCanvas?.remove(); }
       renderer = undefined;
+      observe(keepRecovery ? 'context-lost' : 'disposed');
     }
-    function failure() { release(); set('fallback'); }
+    function failure() { release(); set('fallback'); observe('fallback'); }
     function reconcile() {
       try { scene?.reconcile(current.current.visual); request(); } catch { failure(); }
     }
@@ -70,11 +99,13 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
       target.addEventListener(event, listener); listeners.push(() => target.removeEventListener(event, listener));
     }
     set('loading');
-    if (typeof WebGL2RenderingContext === 'undefined') { set('fallback'); return () => { retired = true; abort.abort(); }; }
+    if ((import.meta.env.DEV && qaFault === 'webgl-unavailable') || typeof WebGL2RenderingContext === 'undefined') { set('fallback'); observe('fallback'); return () => { retired = true; release(); }; }
     async function initialize() {
       let loaded: InnerKeepRuntimeAssetBundle | undefined;
       try {
+        activeLoaders = 1; observe('loading');
         loaded = await loadKeep04Assets({ quality: props.quality, reducedMotion: props.reducedMotion, signal: abort.signal });
+        activeLoaders = 0;
         if (retired || abort.signal.aborted) return;
         if (loaded.failures.length) throw new Error('Keep graphics assets unavailable.');
         bundle = loaded; loaded = undefined;
@@ -141,19 +172,22 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
         const visibility = () => { if (document.hidden) { if (frame) cancelAnimationFrame(frame); frame = 0; cancelPointer(); }
           else reconcile(); };
         document.addEventListener('visibilitychange', visibility); listeners.push(() => document.removeEventListener('visibilitychange', visibility));
-        scene = createKeep04Scene({ quality: props.quality, reducedMotion: props.reducedMotion, assets: bundle });
+        const sceneAssets = import.meta.env.DEV && qaFault === 'missing-model'
+          ? { ...bundle, staticPrefabs: new Map([...bundle.staticPrefabs].filter(([id]) => id !== 'city-mill')) } : bundle;
+        scene = createKeep04Scene({ quality: props.quality, reducedMotion: props.reducedMotion, assets: sceneAssets,
+          ...(import.meta.env.DEV ? { qaVoxelFailure: qaFault === 'voxel-failure' } : {}) });
         const resize = () => { if (!scene || !renderer) return; const width = host.clientWidth; const height = host.clientHeight; if (!width || !height) return;
           renderer.setSize(width, height, false); scene.resize(width, height); panX = panZ = 0; request(); };
         runtime.current = { scene, request, reconcile, reset: () => { if (scene) scene.camera.zoom = 1; resize(); } };
         scene.reconcile(current.current.visual);
         if (scene.telemetry().fallback === 'budget') throw new Error('Keep graphics budget exceeded.');
         observer = new ResizeObserver(resize); observer.observe(host); resize(); set('webgl'); request();
-      } catch { if (!retired && !abort.signal.aborted) failure(); }
-      finally { loaded?.dispose(); }
+      } catch { activeLoaders = 0; if (!retired && !abort.signal.aborted) failure(); }
+      finally { activeLoaders = 0; loaded?.dispose(); if (retired) observe('disposed'); }
     }
     void initialize();
     return () => { retired = true; release(); };
-  }, [props.quality, props.reducedMotion, recovery]);
+  }, [props.quality, props.reducedMotion, recovery, import.meta.env.DEV ? props.qaFault : undefined]);
   useEffect(() => { runtime.current?.reconcile(); }, [props.visual]);
   function zoom(factor: number) { const active = runtime.current; if (!active) return; active.scene.camera.zoom = Math.max(.8, Math.min(2, active.scene.camera.zoom * factor)); active.scene.camera.updateProjectionMatrix(); active.request(); }
   return <section aria-label="Verdant Citadel scene" data-mode={mode}>

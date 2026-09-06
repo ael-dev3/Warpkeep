@@ -4,6 +4,7 @@ import { assertLocalQaRuntime } from './localQaRuntime';
 const root = createRoot(document.getElementById('root')!);
 async function start() {
   try {
+    if (!import.meta.env.DEV) throw new Error('Development only.');
     assertLocalQaRuntime();
     const { Keep04QaHarness } = await import('./Keep04QaHarness');
     root.render(<Keep04QaHarness />);

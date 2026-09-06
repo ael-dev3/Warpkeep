@@ -12,6 +12,7 @@ export type VisualState04 = Readonly<{ buildings: readonly BuildingView04[]; sel
 export type SceneTelemetry04 = Readonly<{
   drawCalls: number; triangles: number; geometryBytes: number; textureBytes: number; uploadBytes: number;
   voxelQuads: number; sceneryInstances: number; buildingCount: number; pickTargetCount: number;
+  voxelPreparationMs: number | null;
   fallback: 'none' | 'asset' | 'voxel' | 'budget';
 }>;
 export type Scene04 = Readonly<{
@@ -21,7 +22,7 @@ export type Scene04 = Readonly<{
   update: (elapsedSeconds: number) => boolean; telemetry: () => SceneTelemetry04; dispose: () => void;
 }>;
 
-export function createKeep04Scene(options: Readonly<{ quality: Quality04; reducedMotion: boolean; assets: InnerKeepRuntimeAssetBundle }>): Scene04 {
+export function createKeep04Scene(options: Readonly<{ quality: Quality04; reducedMotion: boolean; assets: InnerKeepRuntimeAssetBundle; qaVoxelFailure?: boolean }>): Scene04 {
   const { quality, assets } = options; const budget = P.budgets[quality];
   const scene = new THREE.Scene(); scene.background = new THREE.Color(P.distantHaze); scene.fog = new THREE.Fog(P.distantHaze, 150, 300);
   const camera = new THREE.OrthographicCamera(); fitKeep04Camera(camera, 1.4);
@@ -31,6 +32,7 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
   let shadow: THREE.LightShadow | undefined;
   const buildings = new Map<Building04, { key: string; building: Keep04Building; view: BuildingView04; reveal: number | null }>();
   let disposed = false; let fallback: SceneTelemetry04['fallback'] = 'none'; let voxelQuads = 0;
+  let voxelPreparationMs: number | null = null;
   let indicatorKey = ''; let selected: THREE.Mesh | null = null; let draft: THREE.Mesh | null = null;
   const pickTargets: THREE.Object3D[] = []; const pickKinds = new Map<THREE.Object3D, Building04>();
   const raycaster = new THREE.Raycaster(); const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -59,7 +61,9 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
     const deckMaterial = mat(P.ground); deckMaterial.vertexColors = true;
     mesh(deckGeometry, deckMaterial, 0, -.5, -4).name = 'legal-support-y0';
     try {
-      const dressing = createKeep04Dressing(quality); voxelQuads = dressing.quads;
+      if (import.meta.env.DEV && options.qaVoxelFailure) throw new Error('QA voxel preparation failure.');
+      const preparationStart = performance.now();
+      const dressing = createKeep04Dressing(quality); voxelPreparationMs = performance.now() - preparationStart; voxelQuads = dressing.quads;
       const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }); materials.add(material);
       mesh(dressing.geometry, material).name = 'voxel-terracing';
     } catch {
@@ -197,7 +201,7 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
         }
         return active;
       },
-      telemetry: () => ({ ...measureKeep04Object(scene), voxelQuads: disposed ? 0 : voxelQuads, sceneryInstances: disposed ? 0 : budget.trees, buildingCount: buildings.size, pickTargetCount: pickTargets.length, fallback }),
+      telemetry: () => ({ ...measureKeep04Object(scene), voxelPreparationMs, voxelQuads: disposed ? 0 : voxelQuads, sceneryInstances: disposed ? 0 : budget.trees, buildingCount: buildings.size, pickTargetCount: pickTargets.length, fallback }),
       dispose,
     };
   } catch (error) { dispose(); throw error; }
