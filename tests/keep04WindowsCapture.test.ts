@@ -175,21 +175,28 @@ it.each(['Runtime.evaluate', 'Page.captureScreenshot'])('does not send %s before
   expect(f.history).not.toContain(method); expect(f.history).toContain('Browser.close');
 });
 
-it('records exact owned target_closed detach as teardown only after acknowledged close and verified normal exit', async () => {
+it.each([
+  { reason: 'target_closed', kind: 'inspector-detached-target-closed' },
+  { reason: 'Render process gone.', kind: 'inspector-detached-render-process-gone' },
+])('records exact owned $reason detach only after acknowledged close and verified normal exit', async ({ reason, kind }) => {
   const f = fixture(); const session = f.ops.transport(); const original = session.browserCommand;
-  session.browserCommand = async method => { if (method === 'Browser.close') f.emit('Inspector.detached', { reason: 'target_closed' }); return original(method); };
+  session.browserCommand = async method => { if (method === 'Browser.close') f.emit('Inspector.detached', { reason }); return original(method); };
   const capture = f.ops.capture; f.ops.capture = async () => { f.emit('Log.entryAdded', { entry: { source: 'network', level: 'error', text: 'unresolved private diagnostic' } }); return capture(); };
   const report = await runKeep04WindowsCapture(['--base-url=http://127.0.0.1:4176'], f.ops);
   expect(report).toMatchObject({ stableSource: true, failure: null, diagnostics: { violation: null, reviewRequired: true, diagnostics: expect.arrayContaining([
     { kind: 'browser-log-network', severity: 'error', phase: 'capture' },
-    { kind: 'inspector-detached-target-closed', severity: 'info', phase: 'owned-close' },
+    { kind, severity: 'info', phase: 'owned-close' },
   ]), ownedClose: { requested: true, acknowledged: true, verified: true, detachCount: 1 } } });
   expect(JSON.stringify(report)).not.toContain('unresolved private');
 });
 
-it.each(['Inspector.detached', 'Target.targetCrashed'])('fails a late pre-close %s after the last capture guard check', async method => {
+it.each([
+  { method: 'Inspector.detached', reason: 'target_closed' },
+  { method: 'Inspector.detached', reason: 'Render process gone.' },
+  { method: 'Target.targetCrashed', reason: 'target_closed' },
+])('fails a late pre-close $method/$reason after the last capture guard check', async ({ method, reason }) => {
   const f = fixture(); const source = f.ops.source; let reads = 0;
-  f.ops.source = async () => { if (++reads === 2) f.emit(method, { reason: 'target_closed', targetId: 'owned', status: 'crashed', errorCode: 1 }); return source(); };
+  f.ops.source = async () => { if (++reads === 2) f.emit(method, { reason, targetId: 'owned', status: 'crashed', errorCode: 1 }); return source(); };
   await expect(runKeep04WindowsCapture(['--base-url=http://127.0.0.1:4176'], f.ops)).rejects.toThrow();
   expect(f.report()).toMatchObject({ status: 'failed; no acceptance claimed', stableSource: false, failure: expect.objectContaining({ kind: 'guard-failed' }), diagnostics: { violation: expect.any(String), diagnostics: expect.arrayContaining([expect.objectContaining({ phase: 'capture', severity: 'error' })]) } });
   expect(f.history).toContain('Browser.close');
@@ -198,8 +205,12 @@ it.each(['Inspector.detached', 'Target.targetCrashed'])('fails a late pre-close 
 it.each([
   { event: 'Inspector.detached', reason: 'replaced_with_devtools', closeFails: false },
   { event: 'Inspector.detached', reason: 'target_closed', closeFails: true },
+  { event: 'Inspector.detached', reason: 'Render process gone.', closeFails: true },
+  { event: 'Inspector.detached', reason: 'Render process gone', closeFails: false },
+  { event: 'Inspector.detached', reason: 'render process gone.', closeFails: false },
   { event: 'Target.targetCrashed', reason: 'target_closed', closeFails: false },
   { event: 'Target.targetCrashed', reason: 'target_closed', closeFails: true },
+  { event: 'Target.targetCrashed', reason: 'Render process gone.', closeFails: false },
 ])('does not forgive unexpected close-time event case %#', async entry => {
   const f = fixture(); const session = f.ops.transport(); const original = session.browserCommand;
   session.browserCommand = async method => {
@@ -208,6 +219,24 @@ it.each([
   };
   await expect(runKeep04WindowsCapture(['--base-url=http://127.0.0.1:4176'], f.ops)).rejects.toThrow();
   expect(f.report()).toMatchObject({ status: 'failed; no acceptance claimed', stableSource: false, failure: expect.objectContaining({ kind: 'guard-failed' }), diagnostics: { violation: expect.any(String) } });
+});
+
+it.each(['forced', 'nonzero', 'failed-cleanup'])('keeps observed Render process gone. fatal with %s close', async outcome => {
+  const f = fixture(); const session = f.ops.transport(); const original = session.browserCommand;
+  session.browserCommand = async method => {
+    if (method === 'Browser.close') { f.emit('Inspector.detached', { reason: 'Render process gone.' }); if (outcome === 'nonzero') f.child.emit('close', 1, null); }
+    return original(method);
+  };
+  const inspect = f.ops.inspectOwned; let inspections = 0;
+  f.ops.inspectOwned = async () => {
+    if (++inspections === 2) {
+      if (outcome === 'failed-cleanup') throw new Error('cleanup inspection failed');
+      if (outcome === 'forced') return [{ pid: 45, created: '100' }];
+    }
+    return inspect();
+  };
+  await expect(runKeep04WindowsCapture(['--base-url=http://127.0.0.1:4176'], f.ops)).rejects.toThrow();
+  expect(f.report()).toMatchObject({ status: 'failed; no acceptance claimed', stableSource: false, diagnostics: { violation: 'unverified-close-detach', ownedClose: { verified: false, detachCount: 1 } } });
 });
 
 it('retains a real late network-boundary violation emitted during transport cleanup', async () => {

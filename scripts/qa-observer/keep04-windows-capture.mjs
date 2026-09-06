@@ -124,9 +124,11 @@ export function createKeep04NetworkGuard() {
         reject('popup'); if (typeof params.targetInfo.targetId === 'string') track(session.browserCommand('Target.closeTarget', { targetId: params.targetInfo.targetId }));
       } else if (method === 'Target.targetCrashed') reject('target-crashed');
       else if (method === 'Inspector.detached') {
-        if (phase === 'owned-close' && target && params?.reason === 'target_closed') {
+        const teardownKind = params?.reason === 'target_closed' ? 'inspector-detached-target-closed'
+          : params?.reason === 'Render process gone.' ? 'inspector-detached-render-process-gone' : null;
+        if (phase === 'owned-close' && target && teardownKind) {
           ownedClose.detachCount = Math.min(129, ownedClose.detachCount + 1);
-          record('inspector-detached-target-closed', 'info');
+          record(teardownKind, 'info');
           if (ownedClose.detachCount > 128) reject('teardown-overflow');
         } else reject(params?.reason === 'target_closed' ? 'unexpected-target-closed' : 'unexpected-inspector-detach');
       }
@@ -249,7 +251,8 @@ export async function runKeep04WindowsCapture(args, operations = defaultOperatio
       finally { session?.close(); }
     } else cleanup = { ...cleanup, verified: true, remaining: 0 };
   }
-  // Only a requested, acknowledged, normal owned close can explain target_closed.
+  // Only a requested, acknowledged, normal owned close can explain either exact
+  // observed detach reason; "Render process gone." was observed on Chrome151.
   // Never clear prior capture violations; crashes/other detach reasons stay fatal.
   guard.finishOwnedClose(cleanup.verified && !cleanup.forced && !cleanup.closeFailed && childExit?.code === 0 && childExit.signal === null && !childExit.spawnError);
   await guard.drain();
