@@ -39,14 +39,32 @@ const PTR_GENERATED_BINDING_MEMBER_PATHS = new Set([
   'spacetimedb/ptr/generated-bindings/admin_stage_greater_realm_release_v_1_reducer.ts',
   'spacetimedb/ptr/generated-bindings/admin_suspend_ptr_owner_v_1_reducer.ts',
   'spacetimedb/ptr/generated-bindings/admin_verify_greater_realm_batch_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/dispatch_gameplay_04_worker_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_gameplay_04_keep_v_1_procedure.ts',
   'spacetimedb/ptr/generated-bindings/get_ptr_owner_status_v_1_procedure.ts',
   'spacetimedb/ptr/generated-bindings/get_realm_atlas_bootstrap_v_1_procedure.ts',
   'spacetimedb/ptr/generated-bindings/get_realm_atlas_chunk_v_1_procedure.ts',
   'spacetimedb/ptr/generated-bindings/get_realm_atlas_resource_locations_v_1_procedure.ts',
   'spacetimedb/ptr/generated-bindings/get_realm_atlas_window_v_1_procedure.ts',
   'spacetimedb/ptr/generated-bindings/index.ts',
+  'spacetimedb/ptr/generated-bindings/initialize_gameplay_04_keep_v_1_procedure.ts',
   'spacetimedb/ptr/generated-bindings/plan_realm_route_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/recall_gameplay_04_worker_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/start_gameplay_04_building_v_1_procedure.ts',
   'spacetimedb/ptr/generated-bindings/types.ts',
+]);
+// Exact shared sources reached by the protected client/backend graphs and their
+// type imports. Other gameplay helpers are not admitted merely by location.
+const GAMEPLAY04_SHARED_SOURCE_MEMBER_PATHS = new Set([
+  'spacetimedb/gameplay04/commands.ts',
+  'spacetimedb/gameplay04/construction.ts',
+  'spacetimedb/gameplay04/keep.ts',
+  'spacetimedb/gameplay04/placement.ts',
+  'spacetimedb/gameplay04/policy.ts',
+  'spacetimedb/gameplay04/reconciliation.ts',
+  'spacetimedb/gameplay04/workerJourney.ts',
+  'spacetimedb/gameplay04/workerState.ts',
+  'spacetimedb/gameplay04/workers.ts',
 ]);
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
 const MAX_MANIFEST_BYTES = 256 * 1_024;
@@ -1251,7 +1269,8 @@ function canonicalRepository(repositoryRoot) {
 
 function permittedMemberPath(memberPath) {
   return typeof memberPath === 'string'
-    && MEMBER_PATH.test(memberPath)
+    && (MEMBER_PATH.test(memberPath)
+      || GAMEPLAY04_SHARED_SOURCE_MEMBER_PATHS.has(memberPath))
     && (!memberPath.startsWith('spacetimedb/ptr/')
       || PTR_MODULE_MEMBER_PATH.test(memberPath)
       || PTR_GENERATED_BINDING_MEMBER_PATHS.has(memberPath))
