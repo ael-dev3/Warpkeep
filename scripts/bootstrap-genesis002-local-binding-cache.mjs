@@ -238,37 +238,71 @@ function tarballUrl(package_) {
 function downloadArchive(url) {
   return new Promise((resolvePromise, rejectPromise) => {
     let settled = false;
-    const finish = (callback, value) => {
+    let request;
+    let response;
+    let deadline;
+    const chunks = [];
+    let total = 0;
+    const eraseChunks = () => {
+      for (const chunk of chunks) chunk.fill(0);
+      chunks.length = 0;
+      total = 0;
+    };
+    const finish = (callback, value, cancel = false) => {
       if (settled) return;
       settled = true;
+      if (deadline !== undefined) clearTimeout(deadline);
+      if (cancel) {
+        eraseChunks();
+        try { response?.destroy(value instanceof Error ? value : undefined); } catch {}
+        try { request?.destroy(value instanceof Error ? value : undefined); } catch {}
+      }
       callback(value);
     };
-    const request = httpsRequest(url, {
-      method: 'GET', headers: { accept: 'application/octet-stream', 'accept-encoding': 'identity' },
-      timeout: DEADLINE_MS, agent: false,
-    }, response => {
-      if (response.statusCode !== 200 || response.headers.location !== undefined
-          || response.headers['content-encoding'] !== undefined
-          || (response.headers['content-length'] !== undefined
-            && Number(response.headers['content-length']) > MAX_ARCHIVE_BYTES)) {
-        response.resume();
-        finish(rejectPromise, new Error('GENESIS002_LOCAL_BINDING_CACHE_FETCH_REJECTED'));
-        return;
-      }
-      const chunks = [];
-      let total = 0;
-      response.on('data', chunk => {
-        total += chunk.length;
-        if (total > MAX_ARCHIVE_BYTES) {
-          request.destroy(new Error('GENESIS002_LOCAL_BINDING_CACHE_FETCH_REJECTED'));
-        } else chunks.push(chunk);
+    const rejectFetch = error => finish(rejectPromise,
+      error instanceof Error ? error : new Error('GENESIS002_LOCAL_BINDING_CACHE_FETCH_REJECTED'), true);
+    try {
+      request = httpsRequest(url, {
+        method: 'GET', headers: { accept: 'application/octet-stream', 'accept-encoding': 'identity' },
+        timeout: DEADLINE_MS, agent: false,
+      }, incoming => {
+        if (settled) {
+          try { incoming.destroy(); } catch {}
+          return;
+        }
+        response = incoming;
+        const length = incoming.headers['content-length'];
+        if (incoming.statusCode !== 200 || incoming.headers.location !== undefined
+            || incoming.headers['content-encoding'] !== undefined
+            || (length !== undefined && (!/^\d+$/u.test(length)
+              || !Number.isSafeInteger(Number(length)) || Number(length) > MAX_ARCHIVE_BYTES))) {
+          rejectFetch(new Error('GENESIS002_LOCAL_BINDING_CACHE_FETCH_REJECTED'));
+          return;
+        }
+        incoming.on('data', chunk => {
+          if (settled) return;
+          total += chunk.length;
+          if (total > MAX_ARCHIVE_BYTES) {
+            rejectFetch(new Error('GENESIS002_LOCAL_BINDING_CACHE_FETCH_REJECTED'));
+          } else chunks.push(chunk);
+        });
+        incoming.on('end', () => {
+          if (settled) return;
+          const body = Buffer.concat(chunks, total);
+          eraseChunks();
+          finish(resolvePromise, body);
+        });
+        incoming.on('aborted', () => rejectFetch(
+          new Error('GENESIS002_LOCAL_BINDING_CACHE_FETCH_REJECTED')));
+        incoming.on('error', error => rejectFetch(error));
       });
-      response.on('end', () => finish(resolvePromise, Buffer.concat(chunks, total)));
-      response.on('error', error => finish(rejectPromise, error));
-    });
-    request.on('timeout', () => request.destroy(new Error('GENESIS002_LOCAL_BINDING_CACHE_FETCH_REJECTED')));
-    request.on('error', error => finish(rejectPromise, error));
-    request.end();
+      request.on('timeout', () => rejectFetch(
+        new Error('GENESIS002_LOCAL_BINDING_CACHE_FETCH_REJECTED')));
+      request.on('error', error => rejectFetch(error));
+      deadline = setTimeout(() => rejectFetch(
+        new Error('GENESIS002_LOCAL_BINDING_CACHE_FETCH_REJECTED')), DEADLINE_MS);
+      request.end();
+    } catch (error) { rejectFetch(error); }
   });
 }
 
