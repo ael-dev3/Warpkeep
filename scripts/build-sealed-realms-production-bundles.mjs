@@ -27,7 +27,7 @@ const LANE_SPECS = Object.freeze({
   activation: Object.freeze({
     entryPath: 'scripts/sealed-realms-production-activation-workflow-entry.mjs',
     basename: 'sealed-realms-production-activation-lane.bundle.mjs',
-    graphCount: 12,
+    graphCount: 14,
     factoryExport: 'createSealedRealmsProductionActivationWorkflowRuntime',
     factoryFailureCode: 'SEALED_REALMS_ACTIVATION_WORKFLOW_INPUT_INVALID',
     exportNames: Object.freeze([
@@ -38,7 +38,7 @@ const LANE_SPECS = Object.freeze({
   g001: Object.freeze({
     entryPath: 'scripts/sealed-realms-production-g001-workflow-entry.mjs',
     basename: 'sealed-realms-production-g001-lane.bundle.mjs',
-    graphCount: 15,
+    graphCount: 12,
     factoryExport: 'createSealedRealmsProductionG001WorkflowRuntime',
     factoryFailureCode: 'SEALED_REALMS_G001_WORKFLOW_INPUT_INVALID',
     exportNames: Object.freeze([
@@ -49,7 +49,7 @@ const LANE_SPECS = Object.freeze({
   g002: Object.freeze({
     entryPath: 'scripts/sealed-realms-production-g002-workflow-entry.mjs',
     basename: 'sealed-realms-production-g002-lane.bundle.mjs',
-    graphCount: 127,
+    graphCount: 131,
     factoryExport: 'createSealedRealmsProductionG002WorkflowRuntime',
     factoryFailureCode: 'SEALED_REALMS_G002_WORKFLOW_INPUT_INVALID',
     exportNames: Object.freeze([
@@ -60,7 +60,7 @@ const LANE_SPECS = Object.freeze({
   ptr: Object.freeze({
     entryPath: 'scripts/sealed-realms-production-ptr-workflow-entry.mjs',
     basename: 'sealed-realms-production-ptr-lane.bundle.mjs',
-    graphCount: 127,
+    graphCount: 131,
     factoryExport: 'createSealedRealmsProductionPtrWorkflowRuntime',
     factoryFailureCode: 'SEALED_REALMS_PTR_WORKFLOW_INPUT_INVALID',
     exportNames: Object.freeze([
@@ -132,15 +132,21 @@ const PATH_TRANSFORMS = Object.freeze({
   'scripts/greater-realm-openat.ts': [['/usr/bin/python3', 1], ['/usr/bin', 1]],
   'scripts/greater-realm-production-provenance.ts': [['core.attributesFile=/dev/null', 1], ['core.excludesFile=/dev/null', 1], ['core.hooksPath=/dev/null', 1], ['/dev/null', 2]],
   'scripts/production-admin-token-budget.mjs': [['/bin/ps', 1], ['/usr/bin:/bin', 1]],
+  'scripts/genesis001-admission-monitor-current-state.mjs': [['/usr/bin/git', 1], ['/bin/launchctl', 1], ['/usr/bin/plutil', 1], ['/dev/null', 2], ['/usr/bin/false', 1], ['/usr/bin:/bin', 1]],
+  'scripts/genesis001-binding-frozen-source.mjs': [['core.attributesFile=/dev/null', 1], ['core.excludesFile=/dev/null', 1], ['core.hooksPath=/dev/null', 1], ['/dev/null', 2], ['/usr/bin/git', 1], ['/usr/bin:/bin', 1]],
 });
 
 function exactCount(source, token) { return source.split(token).length - 1; }
 
+function codePointExpression(value) {
+  return `String.fromCodePoint(${[...value]
+    .map(character => character.codePointAt(0)).join(',')})`;
+}
+
 function pathFreeSourceLiterals(source, sourcePath) {
   let rewritten = source;
   for (const [value, expectedCount] of PATH_TRANSFORMS[sourcePath] ?? []) {
-    const expression = `String.fromCodePoint(${[...value]
-      .map(character => character.codePointAt(0)).join(',')})`;
+    const expression = codePointExpression(value);
     const single = `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`;
     const double = `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
     if (exactCount(rewritten, single) + exactCount(rewritten, double) !== expectedCount) {
@@ -153,6 +159,20 @@ function pathFreeSourceLiterals(source, sourcePath) {
     if (exactCount(rewritten, token) !== 1) fail('SEALED_REALMS_BUNDLES_SOURCE_INVALID');
     rewritten = rewritten.replace(token,
       '`${runRoot}:${String.fromCodePoint(47,117,115,114,47,98,105,110,58,47,98,105,110)}`');
+  }
+  if (sourcePath === 'scripts/genesis001-binding-frozen-source.mjs') {
+    const importBootstrap = '"const loaded=await import(process.argv[1]);"';
+    const valueBootstrap = '`const value=loaded.${operation}({repoRoot:process.argv[2],destination:process.argv[3]});`';
+    if (exactCount(rewritten, importBootstrap) !== 1 || exactCount(rewritten, valueBootstrap) !== 1) {
+      fail('SEALED_REALMS_BUNDLES_SOURCE_INVALID');
+    }
+    rewritten = rewritten.replace(
+      importBootstrap,
+      codePointExpression('const loaded=await import(process.argv[1]);'),
+    ).replace(
+      valueBootstrap,
+      `${codePointExpression('const value=loaded.')} + operation + ${codePointExpression('({repoRoot:process.argv[2],destination:process.argv[3]});')}`,
+    );
   }
   return rewritten;
 }
@@ -268,6 +288,7 @@ async function buildLane(lane) {
       entryPoints: [spec.entryPath],
       absWorkingDir: REPOSITORY_ROOT,
       bundle: true,
+      preserveSymlinks: true,
       format: 'esm',
       platform: 'node',
       target: 'node22',
