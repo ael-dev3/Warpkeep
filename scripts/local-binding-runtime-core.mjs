@@ -5,7 +5,7 @@ import {
   readdirSync, realpathSync, rmSync,
 } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as vm from 'node:vm';
 
