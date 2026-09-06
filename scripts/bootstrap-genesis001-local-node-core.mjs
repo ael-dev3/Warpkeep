@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import {
   chmodSync,
@@ -23,6 +22,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
+import { runGenesis001NodeBoundedProcess } from './bootstrap-genesis001-local-node-process.mjs';
 
 const PROFILE = 'warpkeep-genesis001-local-node-bootstrap-linux-x64-v1';
 const ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
@@ -68,6 +68,7 @@ const POLICY_PATH = 'services/release-recovery/scripts/release-recovery-wsl-tool
 const SOURCE_PATHS = Object.freeze([
   'scripts/bootstrap-genesis001-local-node.mjs',
   'scripts/bootstrap-genesis001-local-node-core.mjs',
+  'scripts/bootstrap-genesis001-local-node-process.mjs',
   'scripts/local-binding-bounded-file.mjs',
   POLICY_PATH,
 ]);
@@ -100,6 +101,18 @@ const CACHE_FILES = Object.freeze({
 });
 const DEADLINE_MS = 30_000;
 const PROCESS_STDERR_LIMIT = 64 * 1_024;
+const PREPARATION_DIRECTORY_POLICY = Object.freeze([
+  Object.freeze({ path: '/', uid: 0, mode: 0o755 }),
+  Object.freeze({ path: '/home', uid: 0, mode: 0o755 }),
+  Object.freeze({ path: '/home/snapmeter', uid: 1000, mode: 0o750 }),
+  Object.freeze({ path: '/home/snapmeter/.warpkeep', uid: 1000, mode: 0o700 }),
+  Object.freeze({ path: ROOT, uid: 1000, mode: 0o700 }),
+  Object.freeze({ path: TOOLCHAIN, uid: 1000, mode: 0o700 }),
+  Object.freeze({ path: `${TOOLCHAIN}/node-v22.22.3-linux-x64`, uid: 1000, mode: 0o700 }),
+  Object.freeze({ path: `${TOOLCHAIN}/node-v22.22.3-linux-x64/bin`, uid: 1000, mode: 0o700 }),
+  Object.freeze({ path: RUNS, uid: 1000, mode: 0o700 }),
+  Object.freeze({ path: CACHE_PARENT, uid: 1000, mode: 0o700 }),
+]);
 
 function codedError(code, cause) {
   const error = new Error(code, cause === undefined ? undefined : { cause });
@@ -137,6 +150,23 @@ function directory(path, expectedUid = 1000, expectedMode = 0o700, expectedIdent
     if (error?.code?.startsWith?.('GENESIS001_')) throw error;
     fail('GENESIS001_LOCAL_NODE_BOOTSTRAP_DIRECTORY_INVALID', error);
   }
+}
+
+function bindPreparationNamespace() {
+  const base = new Map(PREPARATION_DIRECTORY_POLICY.map(specification => [
+    specification.path,
+    Object.freeze({ specification, identity: directory(
+      specification.path, specification.uid, specification.mode,
+    ) }),
+  ]));
+  return { base, cache: undefined };
+}
+
+function recheckPreparationNamespace(authority) {
+  for (const { specification, identity } of authority.base.values()) {
+    directory(specification.path, specification.uid, specification.mode, identity);
+  }
+  if (authority.cache !== undefined) directory(CACHE, 1000, 0o700, authority.cache);
 }
 
 function fsyncDirectory(path) {
@@ -197,62 +227,45 @@ function cleanEnvironment(extra = {}) {
   return Object.freeze({ LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8', ...extra });
 }
 
-function runProcess(executable, arguments_, options) {
-  const result = spawnSync(executable, arguments_, {
-    cwd: options.cwd,
-    env: options.env,
-    shell: false,
-    windowsHide: true,
-    encoding: null,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    timeout: options.timeout,
-    killSignal: 'SIGKILL',
-    maxBuffer: Math.max(options.maxStdout, options.maxStderr) + 1,
-  });
-  const stdout = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.alloc(0);
-  const stderr = Buffer.isBuffer(result.stderr) ? result.stderr : Buffer.alloc(0);
-  if (result.error !== undefined || result.status !== 0 || result.signal !== null
-      || stdout.length > options.maxStdout || stderr.length > options.maxStderr) {
-    stdout.fill(0);
-    stderr.fill(0);
-    fail(result.error?.code === 'ETIMEDOUT'
-      ? 'GENESIS001_LOCAL_NODE_BOOTSTRAP_PROCESS_TIMEOUT'
-      : 'GENESIS001_LOCAL_NODE_BOOTSTRAP_PROCESS_FAILED', result.error);
-  }
-  return Object.freeze({ stdout, stderr });
-}
-
 function decodeBounded(buffer, code) {
   try { return new TextDecoder('utf-8', { fatal: true }).decode(buffer); }
   catch (error) { fail(code, error); }
 }
 
-function runGit(repositoryRoot, gitIdentity, arguments_, maximumBytes = 128 * 1_024) {
+async function runGit(repositoryRoot, gitIdentity, authority, arguments_, maximumBytes = 128 * 1_024) {
+  recheckPreparationNamespace(authority);
   attestTool(GIT, gitIdentity);
-  const result = runProcess(GIT.path, arguments_, {
+  const result = await runGenesis001NodeBoundedProcess(GIT.path,
+    ['--no-replace-objects', ...arguments_], {
     cwd: repositoryRoot,
     env: cleanEnvironment({
       PATH: '/usr/bin:/bin', GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null',
-      GIT_CONFIG_COUNT: '0', HOME: '/nonexistent',
+      GIT_CONFIG_COUNT: '0', GIT_NO_REPLACE_OBJECTS: '1', HOME: '/nonexistent',
     }),
     timeout: 60_000, maxStdout: maximumBytes, maxStderr: PROCESS_STDERR_LIMIT,
   });
   attestTool(GIT, gitIdentity);
+  recheckPreparationNamespace(authority);
   result.stderr.fill(0);
   return result.stdout;
 }
 
-function attestCommittedSource(repositoryRoot, gitIdentity, expected) {
-  const commitBody = runGit(repositoryRoot, gitIdentity, ['rev-parse', '--verify', 'HEAD^{commit}']);
-  const treeBody = runGit(repositoryRoot, gitIdentity, ['rev-parse', '--verify', 'HEAD^{tree}']);
+async function attestCommittedSource(repositoryRoot, gitIdentity, authority, expected) {
+  const commitBody = await runGit(repositoryRoot, gitIdentity, authority,
+    ['rev-parse', '--verify', 'HEAD^{commit}']);
   const commitText = decodeBounded(commitBody, 'GENESIS001_LOCAL_NODE_BOOTSTRAP_SOURCE_INVALID');
-  const treeText = decodeBounded(treeBody, 'GENESIS001_LOCAL_NODE_BOOTSTRAP_SOURCE_INVALID');
   commitBody.fill(0);
-  treeBody.fill(0);
-  if (!/^[0-9a-f]{40}\n$/u.test(commitText) || !/^[0-9a-f]{40}\n$/u.test(treeText)) {
+  if (!/^[0-9a-f]{40}\n$/u.test(commitText)) {
     fail('GENESIS001_LOCAL_NODE_BOOTSTRAP_SOURCE_INVALID');
   }
   const commit = commitText.slice(0, -1);
+  const treeBody = await runGit(repositoryRoot, gitIdentity, authority,
+    ['rev-parse', '--verify', `${commit}^{tree}`]);
+  const treeText = decodeBounded(treeBody, 'GENESIS001_LOCAL_NODE_BOOTSTRAP_SOURCE_INVALID');
+  treeBody.fill(0);
+  if (!/^[0-9a-f]{40}\n$/u.test(treeText)) {
+    fail('GENESIS001_LOCAL_NODE_BOOTSTRAP_SOURCE_INVALID');
+  }
   const tree = treeText.slice(0, -1);
   if (expected !== undefined && (commit !== expected.commit || tree !== expected.tree)) {
     fail('GENESIS001_LOCAL_NODE_BOOTSTRAP_SOURCE_CHANGED');
@@ -260,7 +273,8 @@ function attestCommittedSource(repositoryRoot, gitIdentity, expected) {
   const bodies = new Map();
   const identities = new Map();
   for (const path of SOURCE_PATHS) {
-    const committed = runGit(repositoryRoot, gitIdentity, ['show', `${commit}:${path}`], 8 * 1_024 * 1_024);
+    const committed = await runGit(repositoryRoot, gitIdentity, authority,
+      ['show', `${commit}:${path}`], 8 * 1_024 * 1_024);
     const current = attestFile(join(repositoryRoot, ...path.split('/')), {
       bytes: committed.length, sha256: hash(committed), uid: 1000,
       code: 'GENESIS001_LOCAL_NODE_BOOTSTRAP_SOURCE_INVALID',
@@ -272,8 +286,8 @@ function attestCommittedSource(repositoryRoot, gitIdentity, expected) {
   return Object.freeze({ commit, tree, bodies, identities });
 }
 
-function reattestCommittedSource(repositoryRoot, gitIdentity, source) {
-  const again = attestCommittedSource(repositoryRoot, gitIdentity, source);
+async function reattestCommittedSource(repositoryRoot, gitIdentity, authority, source) {
+  const again = await attestCommittedSource(repositoryRoot, gitIdentity, authority, source);
   for (const path of SOURCE_PATHS) {
     if (hash(again.bodies.get(path)) !== hash(source.bodies.get(path))) {
       fail('GENESIS001_LOCAL_NODE_BOOTSTRAP_SOURCE_CHANGED');
@@ -438,7 +452,8 @@ function writeExclusiveFile(path, body, mode, parent) {
   return opened;
 }
 
-async function ensureEvidenceFile(record, key) {
+async function ensureEvidenceFile(record, key, authority) {
+  recheckPreparationNamespace(authority);
   const specification = CACHE_FILES[key];
   const path = join(CACHE, specification.name);
   const bytes = record[specification.bytesField];
@@ -452,7 +467,9 @@ async function ensureEvidenceFile(record, key) {
   }
   const body = await downloadExact(record[specification.urlField], bytes, sha256);
   try {
+    recheckPreparationNamespace(authority);
     writeExclusiveFile(path, body, 0o400, CACHE);
+    recheckPreparationNamespace(authority);
     const installed = readExactPrivateFile(path, bytes, sha256);
     installed.body.fill(0);
   } finally { body.fill(0); }
@@ -476,21 +493,25 @@ function createOperation() {
   fail('GENESIS001_LOCAL_NODE_BOOTSTRAP_OPERATION_FAILED');
 }
 
-function cleanupOperation(operation) {
+function cleanupOperation(operation, authority) {
+  recheckPreparationNamespace(authority);
   if (!existsSync(operation.path)) return;
   directory(operation.path, 1000, 0o700, operation.identity);
   rmSync(operation.path, { recursive: true, force: false });
   fsyncDirectory(RUNS);
+  recheckPreparationNamespace(authority);
 }
 
 function gpgEnvironment(operation, home) {
   return cleanEnvironment({ HOME: operation, GNUPGHOME: home, PATH: '/usr/bin:/bin' });
 }
 
-function runPinnedTool(tool, identity, arguments_, options) {
+async function runPinnedTool(tool, identity, authority, arguments_, options) {
+  recheckPreparationNamespace(authority);
   attestTool(tool, identity);
-  const result = runProcess(tool.path, arguments_, options);
+  const result = await runGenesis001NodeBoundedProcess(tool.path, arguments_, options);
   attestTool(tool, identity);
+  recheckPreparationNamespace(authority);
   return result;
 }
 
@@ -521,26 +542,26 @@ function verifySignatureStatus(text, fingerprint) {
   }
 }
 
-function authenticateEvidence(record, paths, operation, identities) {
+async function authenticateEvidence(record, paths, operation, identities, authority) {
   const home = join(operation.path, 'gnupg');
   mkdirSync(home, { mode: 0o700 });
   chmodSync(home, 0o700);
   directory(home);
   const env = gpgEnvironment(operation.path, home);
   const common = ['--no-options', '--batch', '--no-tty', '--no-autostart', '--homedir', home];
-  const inspect = runPinnedTool(GPG, identities.gpg, [
+  const inspect = await runPinnedTool(GPG, identities.gpg, authority, [
     ...common, '--with-colons', '--import-options', 'show-only', '--dry-run', '--import', paths.publicKey,
   ], { cwd: operation.path, env, timeout: 30_000, maxStdout: 64 * 1_024, maxStderr: 64 * 1_024 });
   const inspectionText = `${decodeBounded(inspect.stdout, 'GENESIS001_LOCAL_NODE_BOOTSTRAP_KEY_INVALID')}${decodeBounded(inspect.stderr, 'GENESIS001_LOCAL_NODE_BOOTSTRAP_KEY_INVALID')}`;
   inspect.stdout.fill(0); inspect.stderr.fill(0);
   verifyPrimaryKey(inspectionText, record.signerFingerprint);
-  const imported = runPinnedTool(GPG, identities.gpg, [
+  const imported = await runPinnedTool(GPG, identities.gpg, authority, [
     ...common, '--status-fd=1', '--import', paths.publicKey,
   ], { cwd: operation.path, env, timeout: 30_000, maxStdout: 64 * 1_024, maxStderr: 64 * 1_024 });
   const importStatus = decodeBounded(imported.stdout, 'GENESIS001_LOCAL_NODE_BOOTSTRAP_KEY_INVALID');
   imported.stdout.fill(0); imported.stderr.fill(0);
   if (!importStatus.includes('[GNUPG:] IMPORT_OK ')) fail('GENESIS001_LOCAL_NODE_BOOTSTRAP_KEY_INVALID');
-  const verified = runPinnedTool(GPG, identities.gpg, [
+  const verified = await runPinnedTool(GPG, identities.gpg, authority, [
     ...common, '--status-fd=1', '--verify', paths.signature, paths.shasums,
   ], { cwd: operation.path, env, timeout: 30_000, maxStdout: 64 * 1_024, maxStderr: 64 * 1_024 });
   const status = decodeBounded(verified.stdout, 'GENESIS001_LOCAL_NODE_BOOTSTRAP_SIGNATURE_INVALID');
@@ -619,9 +640,9 @@ function finalInstallation() {
   }).identity;
 }
 
-function extractMember(record, archivePath, operation, identities) {
+async function extractMember(record, archivePath, operation, identities, authority) {
   attestTool(XZ, identities.xz);
-  const result = runPinnedTool(TAR, identities.tar, [
+  const result = await runPinnedTool(TAR, identities.tar, authority, [
     '--extract', '--file', archivePath, '--to-stdout',
     `--use-compress-program=${XZ.path}`, '--', record.archiveMemberPath,
   ], {
@@ -659,13 +680,15 @@ function installMember(body) {
   return final;
 }
 
-function runInstalledNode(identity) {
+async function runInstalledNode(identity, authority) {
+  recheckPreparationNamespace(authority);
   const before = finalInstallation();
   if (!sameIdentity(before, identity)) fail('GENESIS001_LOCAL_NODE_BOOTSTRAP_DESTINATION_INVALID');
-  const result = runProcess(FINAL_NODE, ['--version'], {
+  const result = await runGenesis001NodeBoundedProcess(FINAL_NODE, ['--version'], {
     cwd: ROOT, env: cleanEnvironment(), timeout: 10_000,
     maxStdout: 64, maxStderr: PROCESS_STDERR_LIMIT,
   });
+  recheckPreparationNamespace(authority);
   const version = decodeBounded(result.stdout, 'GENESIS001_LOCAL_NODE_BOOTSTRAP_DESTINATION_INVALID');
   result.stdout.fill(0); result.stderr.fill(0);
   if (version !== 'v24.19.0\n') fail('GENESIS001_LOCAL_NODE_BOOTSTRAP_DESTINATION_INVALID');
@@ -694,7 +717,7 @@ export async function runGenesis001LocalNodeBootstrap(...arguments_) {
       fail('GENESIS001_LOCAL_NODE_BOOTSTRAP_HOST_INVALID');
     }
   } finally { kernelBody.fill(0); }
-  for (const path of [ROOT, TOOLCHAIN, RUNS, CACHE_PARENT]) directory(path);
+  const namespace = bindPreparationNamespace();
   const bootstrapIdentity = attestFile(BOOTSTRAP_NODE, {
     bytes: BOOTSTRAP_NODE_BYTES, sha256: BOOTSTRAP_NODE_SHA256, uid: 1000,
     mode: 0o500, executable: true, discardBody: true,
@@ -710,15 +733,19 @@ export async function runGenesis001LocalNodeBootstrap(...arguments_) {
   let primary;
   let outcome;
   try {
-    source = attestCommittedSource(repositoryRoot, identities.git);
+    source = await attestCommittedSource(repositoryRoot, identities.git, namespace);
     const record = selectedPolicy(source);
     ensurePrivateChild(CACHE_PARENT, 'node-v24.19.0-provenance-v1');
+    namespace.cache = directory(CACHE);
+    recheckPreparationNamespace(namespace);
     validateCacheNamespace();
     operation = createOperation();
     const paths = {};
-    for (const key of Object.keys(CACHE_FILES)) paths[key] = await ensureEvidenceFile(record, key);
+    for (const key of Object.keys(CACHE_FILES)) {
+      paths[key] = await ensureEvidenceFile(record, key, namespace);
+    }
     validateCacheNamespace();
-    authenticateEvidence(record, paths, operation, identities);
+    await authenticateEvidence(record, paths, operation, identities, namespace);
     verifySums(record, paths.shasums);
     attestFile(paths.archive, {
       bytes: record.archiveBytes, sha256: record.archiveSha256, uid: 1000, mode: 0o400,
@@ -726,17 +753,17 @@ export async function runGenesis001LocalNodeBootstrap(...arguments_) {
     });
     ensureProvenance(record);
     validateCacheNamespace(false);
-    reattestCommittedSource(repositoryRoot, identities.git, source);
+    await reattestCommittedSource(repositoryRoot, identities.git, namespace, source);
     let installed = false;
     let nodeIdentity = finalInstallation();
     if (nodeIdentity === undefined) {
-      const member = extractMember(record, paths.archive, operation, identities);
+      const member = await extractMember(record, paths.archive, operation, identities, namespace);
       try { nodeIdentity = installMember(member); }
       finally { member.fill(0); }
       installed = true;
     }
-    runInstalledNode(nodeIdentity);
-    reattestCommittedSource(repositoryRoot, identities.git, source);
+    await runInstalledNode(nodeIdentity, namespace);
+    await reattestCommittedSource(repositoryRoot, identities.git, namespace, source);
     attestFile(BOOTSTRAP_NODE, {
       bytes: BOOTSTRAP_NODE_BYTES, sha256: BOOTSTRAP_NODE_SHA256, uid: 1000,
       mode: 0o500, executable: true, discardBody: true, identity: bootstrapIdentity,
@@ -751,7 +778,7 @@ export async function runGenesis001LocalNodeBootstrap(...arguments_) {
     });
   } catch (error) { primary = error; }
   let cleanup;
-  try { if (operation !== undefined) cleanupOperation(operation); } catch (error) { cleanup = error; }
+  try { if (operation !== undefined) cleanupOperation(operation, namespace); } catch (error) { cleanup = error; }
   cleanSourceBodies(source);
   if (primary !== undefined || cleanup !== undefined) {
     if (primary !== undefined && cleanup === undefined) throw primary;
