@@ -1,6 +1,19 @@
 # Verdant Citadel QA instrumentation and acceptance ledger
 
 Status: source instrumentation; Task 8 and release acceptance remain incomplete.
+Source review of `d88e376bb84690d0d1553a8900e54553aa92cbf8` requires fixes.
+Published as an unfinished development checkpoint, not accepted measurement tooling:
+
+- Capture metadata labels retained records with publish-time scenario/quality;
+  changing configuration can misattribute samples, and fault/effective motion are missing.
+- Browser readiness can accept WebGL before the first submitted frame; it must
+  require matching scenario/profile and a frame or terminal fallback observation.
+- Repeated Start can misreport long-task support; Stop must drain queued observer
+  records and record capture boundaries before publishing.
+
+Do not use these affected reports as release acceptance evidence until corrected
+and re-reviewed. Existing build warnings remain warnings, not performance results.
+
 Binding measurement gates: [0.4 performance contract](../evidence/0.4.0/performance.md).
 DEV fixtures, production full-world/keep measurements, actual owner gameplay,
 and a physical phone are four distinct evidence lanes. A passing unit suite or
