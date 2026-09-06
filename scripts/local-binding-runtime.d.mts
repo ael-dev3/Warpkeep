@@ -53,7 +53,17 @@ export interface PreparedGenesis001LinuxCompatibility {
   ];
 }
 
+export interface PreparedGenesis001CurrentLinuxBindingCheck {
+  readonly profile: 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
+  readonly sourceCommit: string;
+  readonly sourceTree: string;
+  readonly bundleSha256: string;
+  readonly dependencyClosureDigest: string;
+  readonly bindingFileCount: number;
+}
+
 export function derivePreparedPtrLinuxBindings(): Promise<PreparedPtrLinuxBindings>;
 export function derivePreparedPairedLinuxBindings(): Promise<PreparedPairedLinuxBindings>;
 export function derivePreparedGenesis001LinuxCompilation(): Promise<PreparedGenesis001LinuxCompilation>;
 export function derivePreparedGenesis001LinuxCompatibility(): Promise<PreparedGenesis001LinuxCompatibility>;
+export function derivePreparedGenesis001CurrentLinuxBindingCheck(): Promise<PreparedGenesis001CurrentLinuxBindingCheck>;

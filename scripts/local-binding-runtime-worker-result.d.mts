@@ -16,7 +16,10 @@ export function createLocalBindingWorkerResult(input: Readonly<{
   bundlePath: string;
   handoffRoot: string;
   handoffPath: string;
-  requestProfile: string;
+  requestProfile: 'warpkeep-local-binding-worker-v1'
+    | 'warpkeep-local-binding-genesis002-worker-v1'
+    | 'warpkeep-local-binding-genesis001-worker-v1'
+    | 'warpkeep-local-binding-genesis001-current-worker-v1';
   nonce: string;
   sourceCommit: string;
   sourceTree: string;

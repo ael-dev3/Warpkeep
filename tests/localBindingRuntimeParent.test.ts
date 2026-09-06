@@ -14,6 +14,8 @@ const boundary = vi.hoisted(() => ({
   events: [] as string[],
   copies: [] as Array<readonly [string, string]>,
   generateArgs: [] as string[][],
+  currentGeneration: false,
+  expectedReads: 0,
 }));
 
 function translated(path: import('node:fs').PathLike): import('node:fs').PathLike {
@@ -109,10 +111,13 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
         const request = JSON.parse(options.fd3) as Record<string, any>;
         const genesis002 = request.profile === 'warpkeep-local-binding-genesis002-worker-v1';
         const genesis001 = request.profile === 'warpkeep-local-binding-genesis001-worker-v1';
+        const genesis001Current = request.profile === 'warpkeep-local-binding-genesis001-current-worker-v1';
         const compatibility = request.profile === 'warpkeep-local-binding-genesis001-compatibility-worker-v1';
+        boundary.currentGeneration = genesis001Current;
         boundary.events.push(genesis002
           ? `worker:genesis002:${path.basename(request.handoffPath)}`
           : compatibility ? 'worker:genesis001-compatibility'
+          : genesis001Current ? `worker:genesis001-current:${path.basename(request.handoffPath)}`
           : genesis001 ? `worker:genesis001:${path.basename(request.handoffPath)}`
             : `worker:${path.basename(request.handoffPath)}`);
         expect(executable).toBe(`${FIXED_ROOT}/toolchain/node-v22.22.3-linux-x64/bin/node`);
@@ -159,11 +164,16 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
           schemaVersion: 1,
           profile: genesis002
             ? 'warpkeep-local-binding-genesis002-worker-result-v1'
+            : genesis001Current
+              ? boundary.scenario === 'current-cross-lane-result'
+                ? 'warpkeep-local-binding-genesis001-worker-result-v1'
+                : 'warpkeep-local-binding-genesis001-current-worker-result-v1'
             : genesis001 ? 'warpkeep-local-binding-genesis001-worker-result-v1'
             : 'warpkeep-local-binding-worker-result-v1',
           nonce: boundary.scenario === 'forged-nonce' ? 'f'.repeat(32) : request.nonce,
           sourceCommit: request.sourceCommit,
-          sourceTree: boundary.scenario === 'genesis002-source-substitution' && genesis002
+          sourceTree: (boundary.scenario === 'genesis002-source-substitution' && genesis002)
+            || (boundary.scenario === 'current-source-substitution' && genesis001Current)
             ? '8'.repeat(40) : request.sourceTree,
           moduleTreeId: '3'.repeat(40),
           dependencyClosureDigest: boundary.scenario === 'digest-mismatch' && cycle === 2
@@ -174,6 +184,8 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
         })}\n`, stderr: '' };
       }
       boundary.events.push('generate');
+      const genesis001Current = boundary.currentGeneration;
+      boundary.currentGeneration = false;
       const genesis002 = args.includes('--include-private');
       if (genesis002) boundary.events[boundary.events.length - 1] = 'generate:genesis002';
       boundary.generateArgs.push([...args]);
@@ -187,8 +199,16 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
       fs.mkdirSync(map(output), { recursive: true, mode: 0o700 });
       fs.writeFileSync(path.join(map(output), 'index.ts'),
         boundary.scenario === 'binding-mismatch' && cycle === 2 ? 'binding-2'
+          : boundary.scenario === 'current-single-byte' && genesis001Current ? 'bindinh'
+            : boundary.scenario === 'current-newline' && genesis001Current ? 'binding\n'
           : genesis002 ? 'binding-genesis002' : 'binding',
         { mode: 0o600 });
+      if (genesis001Current && boundary.scenario === 'current-added-file') {
+        fs.writeFileSync(path.join(map(output), 'added.ts'), 'export {};\n', { mode: 0o600 });
+      }
+      if (genesis001Current && ['current-two-files', 'current-reordered'].includes(boundary.scenario)) {
+        fs.writeFileSync(path.join(map(output), 'types.ts'), 'types', { mode: 0o600 });
+      }
       if (boundary.scenario === 'binding-path-mismatch' && cycle === 2) {
         fs.writeFileSync(path.join(map(output), 'other.ts'), 'export {};\n', { mode: 0o600 });
       }
@@ -222,6 +242,7 @@ vi.mock('../scripts/local-binding-bounded-file.mjs', async () => {
 
 import {
   executeFixedGenesis001CompatibilityParent,
+  executeFixedGenesis001CurrentBindingParentCycles,
   executeFixedGenesis001LocalBindingParentCycles,
   executeFixedLocalBindingParentCycles,
   executeFixedPairedLocalBindingParentCycles,
@@ -236,6 +257,8 @@ beforeEach(() => {
   boundary.events.length = 0;
   boundary.copies.length = 0;
   boundary.generateArgs.length = 0;
+  boundary.currentGeneration = false;
+  boundary.expectedReads = 0;
 });
 
 afterEach(() => {
@@ -296,6 +319,39 @@ function genesis001Context() {
         ...value.graph.modules[0],
         path: 'scripts/genesis001-binding-linux-locked-source-build.ts',
       }],
+    },
+  };
+}
+
+function genesis001CurrentContext() {
+  const value = context();
+  return {
+    ...value,
+    graph: {
+      ...value.graph,
+      entry: 'scripts/genesis001-current-binding-linux-locked-source-build.ts',
+      modules: [{
+        ...value.graph.modules[0],
+        path: 'scripts/genesis001-current-binding-linux-locked-source-build.ts',
+      }],
+    },
+    readCommittedBindings() {
+      boundary.expectedReads += 1;
+      if (boundary.scenario === 'current-expected-changed' && boundary.expectedReads === 2) {
+        return [{ path: 'index.ts', bytes: Buffer.from('changed') }];
+      }
+      if (boundary.scenario === 'current-reordered' || boundary.scenario === 'current-two-files') {
+        return boundary.expectedReads === 1
+          ? [{ path: 'types.ts', bytes: Buffer.from('types') }, { path: 'index.ts', bytes: Buffer.from('binding') }]
+          : [{ path: 'index.ts', bytes: Buffer.from('binding') }, { path: 'types.ts', bytes: Buffer.from('types') }];
+      }
+      if (boundary.scenario === 'current-missing-file') {
+        return [
+          { path: 'index.ts', bytes: Buffer.from('binding') },
+          { path: 'missing.ts', bytes: Buffer.from('missing') },
+        ];
+      }
+      return [{ path: 'index.ts', bytes: Buffer.from('binding') }];
     },
   };
 }
@@ -380,6 +436,44 @@ describe('production local binding parent cycles', () => {
     expect(boundary.generateArgs).toHaveLength(2);
     expect(boundary.generateArgs.every(args => !args.includes('--include-private'))).toBe(true);
     expect(boundary.events.filter(event => event.startsWith('worker:genesis001:'))).toHaveLength(2);
+  });
+
+  it('checks two current G001 cycles against captured frontend authority without private generation', async () => {
+    const result = await executeFixedGenesis001CurrentBindingParentCycles(genesis001CurrentContext());
+    expect(result.bindingFileCount).toBe(1);
+    expect(boundary.expectedReads).toBe(2);
+    expect(boundary.generateArgs).toHaveLength(2);
+    for (const generationArgs of boundary.generateArgs) {
+      expect(generationArgs).not.toContain('--include-private');
+      expect(generationArgs).toContain('--js-path');
+      expect(generationArgs).toContain('--no-config');
+    }
+    expect(boundary.events.filter(event => event.startsWith('worker:genesis001-current:'))).toHaveLength(2);
+  });
+
+  it('accepts reordered equivalent committed entries', async () => {
+    boundary.scenario = 'current-reordered';
+    await expect(executeFixedGenesis001CurrentBindingParentCycles(genesis001CurrentContext()))
+      .resolves.toMatchObject({ bindingFileCount: 2 });
+  });
+
+  it.each([
+    ['current-added-file', 'LOCAL_BINDING_RUNTIME_CURRENT_BINDINGS_MISMATCH'],
+    ['current-missing-file', 'LOCAL_BINDING_RUNTIME_CURRENT_BINDINGS_MISMATCH'],
+    ['current-single-byte', 'LOCAL_BINDING_RUNTIME_CURRENT_BINDINGS_MISMATCH'],
+    ['current-newline', 'LOCAL_BINDING_RUNTIME_CURRENT_BINDINGS_MISMATCH'],
+    ['binding-mismatch', 'LOCAL_BINDING_RUNTIME_REPRODUCIBILITY_FAILED'],
+    ['current-expected-changed', 'LOCAL_BINDING_RUNTIME_SOURCE_CHANGED'],
+    ['current-cross-lane-result', 'LOCAL_BINDING_WORKER_RESULT_INVALID'],
+    ['current-source-substitution', 'LOCAL_BINDING_WORKER_RESULT_INVALID'],
+  ])('rejects current G001 parent boundary %s without returning success', async (scenario, code) => {
+    boundary.scenario = scenario;
+    let result: unknown;
+    await expect(executeFixedGenesis001CurrentBindingParentCycles(genesis001CurrentContext()).then(value => {
+      result = value;
+      return value;
+    })).rejects.toMatchObject({ code });
+    expect(result).toBeUndefined();
   });
 
   it('accepts the strict compatibility worker result without generation or handoff projection', async () => {

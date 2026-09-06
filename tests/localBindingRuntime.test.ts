@@ -11,6 +11,7 @@ import { derivePreparedPtrLinuxBindings } from '../scripts/local-binding-runtime
 import {
   assertReproducibleLocalBindingCycles,
   parseLocalBindingWorkerResult,
+  parseGenesis001CurrentCommittedBindingListing,
   runLocalBindingBoundedProcess,
   validateLocalBindingRuntimeHost,
   verifyLocalBindingBootstrapSource,
@@ -106,7 +107,8 @@ describe('fixed local PTR binding runtime', () => {
   it('exposes only the fixed no-argument candidate API and rejects authority arguments first', async () => {
     const module = await import('../scripts/local-binding-runtime.mjs');
     expect(Object.keys(module).sort()).toEqual([
-      'LocalBindingRuntimeError', 'derivePreparedGenesis001LinuxCompatibility',
+      'LocalBindingRuntimeError', 'derivePreparedGenesis001CurrentLinuxBindingCheck',
+      'derivePreparedGenesis001LinuxCompatibility',
       'derivePreparedGenesis001LinuxCompilation',
       'derivePreparedPairedLinuxBindings', 'derivePreparedPtrLinuxBindings',
     ]);
@@ -122,6 +124,13 @@ describe('fixed local PTR binding runtime', () => {
     expect(direct.status).toBe(1);
     expect(direct.stdout).toBe('');
     expect(direct.stderr).toBe('LOCAL_BINDING_RUNTIME_ARGUMENTS_INVALID\n');
+
+    const currentWrongHost = spawnSync(process.execPath, [
+      join(repositoryRoot, 'scripts', 'local-binding-runtime.mjs'), '--genesis001-current-check',
+    ], { encoding: 'utf8' });
+    expect(currentWrongHost.status).toBe(1);
+    expect(currentWrongHost.stdout).toBe('');
+    expect(currentWrongHost.stderr).toBe('LOCAL_BINDING_RUNTIME_HOST_INVALID\n');
   });
 
   it('ignores ordinary ambient values but rejects actual preload authority', () => {
@@ -228,6 +237,32 @@ describe('fixed local PTR binding runtime', () => {
       .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_REQUEST_INVALID' }));
   });
 
+  it('binds the current G001 request to its fixed graph and G002 cache only', () => {
+    const request = canonicalWorkerRequest();
+    const current = {
+      ...request,
+      profile: 'warpkeep-local-binding-genesis001-current-worker-v1',
+      dependencyCacheRoot: '/home/snapmeter/.warpkeep/release-preparation-v1/cache/genesis002',
+      graph: {
+        ...request.graph,
+        entry: 'scripts/genesis001-current-binding-linux-locked-source-build.ts',
+        modules: [{
+          ...request.graph.modules[0],
+          path: 'scripts/genesis001-current-binding-linux-locked-source-build.ts',
+        }],
+      },
+    };
+    expect(validateLocalBindingWorkerRequest(current)).toEqual(current);
+    for (const mutation of [
+      { profile: 'warpkeep-local-binding-genesis001-worker-v1' },
+      { dependencyCacheRoot: '/home/snapmeter/.warpkeep/release-preparation-v1/cache/ptr' },
+      { graph: { ...current.graph, entry: 'scripts/genesis001-binding-linux-locked-source-build.ts' } },
+    ]) {
+      expect(() => validateLocalBindingWorkerRequest({ ...current, ...mutation }))
+        .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_REQUEST_INVALID' }));
+    }
+  });
+
   it('reads one canonical request from real fd3 and rejects malformed framing early', async () => {
     const canonical = `${JSON.stringify(canonicalWorkerRequest())}\n`;
     await expect(runWorkerRequestFd3(canonical)).resolves.toEqual({
@@ -263,6 +298,39 @@ describe('fixed local PTR binding runtime', () => {
       .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_RESULT_INVALID' }));
     expect(() => parseLocalBindingWorkerResult(`${JSON.stringify(result)}\nextra`, 'a'.repeat(32), handoff))
       .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_RESULT_INVALID' }));
+  });
+
+  it('accepts only the distinct current G001 worker result profile', () => {
+    const handoff = '/home/snapmeter/.warpkeep/release-preparation-v1/runs/op/handoff/bundle.js';
+    const result = {
+      schemaVersion: 1, profile: 'warpkeep-local-binding-genesis001-current-worker-result-v1',
+      nonce: 'a'.repeat(32), sourceCommit: '1'.repeat(40), sourceTree: '2'.repeat(40),
+      moduleTreeId: '3'.repeat(40), dependencyClosureDigest: '4'.repeat(64),
+      bundleSha256: '5'.repeat(64), bundleBytes: 17, handoffPath: handoff,
+    };
+    expect(parseLocalBindingWorkerResult(
+      `${JSON.stringify(result)}\n`, 'a'.repeat(32), handoff,
+      'warpkeep-local-binding-genesis001-current-worker-v1',
+    )).toEqual(result);
+    expect(() => parseLocalBindingWorkerResult(
+      `${JSON.stringify({ ...result, profile: 'warpkeep-local-binding-genesis001-worker-result-v1' })}\n`,
+      'a'.repeat(32), handoff, 'warpkeep-local-binding-genesis001-current-worker-v1',
+    )).toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_RESULT_INVALID' }));
+  });
+
+  it.each([
+    ['link', ['120000 blob ' + '1'.repeat(40) + ' 1\tsrc/spacetime/module_bindings/index.ts']],
+    ['noncanonical path', ['100644 blob ' + '1'.repeat(40) + ' 1\tsrc/spacetime/module_bindings/.hidden.ts']],
+    ['case-colliding directory', [
+      '100644 blob ' + '1'.repeat(40) + ' 1\tsrc/spacetime/module_bindings/Types/a.ts',
+      '100644 blob ' + '2'.repeat(40) + ' 1\tsrc/spacetime/module_bindings/types/b.ts',
+      '100644 blob ' + '3'.repeat(40) + ' 1\tsrc/spacetime/module_bindings/index.ts',
+    ]],
+    ['non-TypeScript member', ['100644 blob ' + '1'.repeat(40) + ' 1\tsrc/spacetime/module_bindings/index.js']],
+  ])('rejects committed current binding listing %s', (_label, records) => {
+    const listing = Buffer.from(`${records.join('\0')}\0`);
+    expect(() => parseGenesis001CurrentCommittedBindingListing(listing))
+      .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_RUNTIME_EXPECTED_BINDINGS_INVALID' }));
   });
 
   it('requires byte-identical bundles, binding paths and bytes across two full cycles', () => {

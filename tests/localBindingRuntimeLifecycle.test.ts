@@ -390,12 +390,39 @@ vi.mock('warpkeep:genesis001-binding-entry', async () => {
   };
 });
 
+vi.mock('warpkeep:genesis001-current-binding-entry', async () => {
+  const actual = await vi.importActual<typeof import('../scripts/genesis001-current-binding-linux-locked-source-build')>(
+    '../scripts/genesis001-current-binding-linux-locked-source-build',
+  );
+  return {
+    withGenesis001CurrentLinuxLockedSourceBuild(
+      input: Parameters<typeof actual.withGenesis001CurrentLinuxLockedSourceBuild>[0],
+    ) {
+      boundary.builderKeys = Object.keys(input).sort();
+      boundary.events.push('builder:enter');
+      const operation = input.operation;
+      const result = actual.withGenesis001CurrentLinuxLockedSourceBuild({
+        ...input,
+        operation(context) {
+          boundary.events.push('builder:operation');
+          const value = operation(context);
+          boundary.events.push('builder:operation-return');
+          return value;
+        },
+      });
+      boundary.events.push('builder:cleanup-complete');
+      return result;
+    },
+  };
+});
+
 vi.mock('../scripts/local-binding-runtime-core.mjs', () => ({
   validateLocalBindingWorkerRequest(value: unknown) { return value; },
   async deriveFixedLocalBindingRuntime() {
     boundary.events.push('entrypoint:core');
     const { runFixedLocalBindingWorker } = await import('../scripts/local-binding-runtime-worker.mjs');
     const result = await runFixedLocalBindingWorker(boundary.request);
+    if (!('handoffPath' in result)) throw new Error('LIFECYCLE_UNEXPECTED_COMPATIBILITY_RESULT');
     const bytes = readFileSync(result.handoffPath);
     return Object.freeze({
       profile: 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1',
@@ -490,11 +517,12 @@ afterEach(() => {
 });
 
 describe('controlled local binding runtime lifecycle', () => {
-  function prepareRequest(lane: 'ptr' | 'genesis002' | 'genesis001' | 'compatibility' = 'ptr') {
+  function prepareRequest(lane: 'ptr' | 'genesis002' | 'genesis001' | 'current' | 'compatibility' = 'ptr') {
     const genesis002 = lane === 'genesis002';
     const genesis001 = lane === 'genesis001';
+    const current = lane === 'current';
     const compatibility = lane === 'compatibility';
-    const value = genesis002
+    const value = genesis002 || current
       ? createGenesis002Fixture()
       : createPtrFixture({ keys: LINUX_PACKAGE_KEYS });
     boundary.cleanupRoots.push(...value.cleanupRoots);
@@ -515,6 +543,7 @@ describe('controlled local binding runtime lifecycle', () => {
       schemaVersion: 1,
       profile: genesis002
         ? 'warpkeep-local-binding-genesis002-worker-v1'
+        : current ? 'warpkeep-local-binding-genesis001-current-worker-v1'
         : compatibility ? 'warpkeep-local-binding-genesis001-compatibility-worker-v1'
         : genesis001 ? 'warpkeep-local-binding-genesis001-worker-v1'
           : 'warpkeep-local-binding-worker-v1',
@@ -596,6 +625,7 @@ describe('controlled local binding runtime lifecycle', () => {
     const value = prepareRequest('genesis002');
     const { runFixedLocalBindingWorker } = await import('../scripts/local-binding-runtime-worker.mjs');
     const result = await runFixedLocalBindingWorker(boundary.request);
+    if (!('handoffPath' in result)) throw new Error('LIFECYCLE_UNEXPECTED_COMPATIBILITY_RESULT');
     expect(result.profile).toBe('warpkeep-local-binding-genesis002-worker-result-v1');
     expect(readFileSync(result.handoffPath, 'utf8')).toBe('controlled-bundle');
     expect(boundary.events).toContain('builder:operation');
@@ -651,6 +681,50 @@ describe('controlled local binding runtime lifecycle', () => {
         expectedMode: 0o500,
       }),
     }));
+  });
+
+  it('dispatches the current G001 root helper with five keys and Node22', async () => {
+    const value = prepareRequest('current');
+    const { runFixedLocalBindingWorker } = await import('../scripts/local-binding-runtime-worker.mjs');
+    const result = await runFixedLocalBindingWorker(boundary.request);
+    expect(result.profile).toBe('warpkeep-local-binding-genesis001-current-worker-result-v1');
+    expect(boundary.builderKeys).toEqual([
+      'dependencyCacheRoot', 'materializationParent', 'moduleSourceCommit', 'operation', 'repositoryRoot',
+    ]);
+    const typecheck = boundary.commands.find(command => command.args.includes('--noEmit'))!;
+    const build = boundary.commands.find(command => command.args[0] === 'build')!;
+    expect(typecheck.executable).toBe(boundary.request!.nodePath);
+    expect(typecheck.args).toEqual([
+      expect.stringMatching(/spacetimedb[\\/]node_modules[\\/]typescript[\\/]bin[\\/]tsc$/u),
+      '--noEmit', '--project', expect.stringMatching(/spacetimedb[\\/]tsconfig\.json$/u),
+    ]);
+    expect(build.args).toEqual(['build', '--module-path', 'spacetimedb']);
+    expect(boundary.executableRecords.some(record => record.path.includes('node-v24.19.0'))).toBe(false);
+    expect(readdirSync(join(value.materializationParent, 'genesis001-current-locked-source-builds-v1'))).toEqual([]);
+  });
+
+  it.each(['typecheck', 'build'] as const)(
+    'current G001 propagates %s failure without a handoff or result', async failedCommand => {
+      prepareRequest('current');
+      boundary.commandFailure = failedCommand;
+      const { runFixedLocalBindingWorker } = await import('../scripts/local-binding-runtime-worker.mjs');
+      let result: unknown;
+      await expect(runFixedLocalBindingWorker(boundary.request).then(value => { result = value; }))
+        .rejects.toThrow('LOCAL_BINDING_WORKER_COMMAND_FAILED');
+      expect(result).toBeUndefined();
+      expect(existsSync(boundary.request!.handoffPath as string)).toBe(false);
+      if (failedCommand === 'typecheck') expect(boundary.events).not.toContain('command:build-snapshot-cli');
+    },
+  );
+
+  it('current G001 rejects a pre-existing output namespace before build and handoff', async () => {
+    prepareRequest('current');
+    boundary.buildOutputScenario = 'existing-link';
+    const { runFixedLocalBindingWorker } = await import('../scripts/local-binding-runtime-worker.mjs');
+    await expect(runFixedLocalBindingWorker(boundary.request))
+      .rejects.toThrow('LOCAL_BINDING_WORKER_BUILD_OUTPUT_INVALID');
+    expect(boundary.events).not.toContain('command:build-snapshot-cli');
+    expect(existsSync(boundary.request!.handoffPath as string)).toBe(false);
   });
 
   it('executes the actual fixed compatibility worker branch across four builds and the proof handoff', async () => {

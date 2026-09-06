@@ -254,6 +254,26 @@ const GENESIS002_PROFILE = Object.freeze<PtrLockedSourceBuildProfile>({
   materialize: materializeCommit,
 });
 
+const GENESIS001_CURRENT_PROFILE = Object.freeze<PtrLockedSourceBuildProfile>({
+  os: 'linux',
+  cpu: 'x64',
+  provenanceDomain: 'warpkeep-genesis001-current-linux-x64-dependency-closure-v1',
+  expectedPackageEdges: GENESIS002_EXPECTED_PACKAGE_EDGES,
+  expectedPackageKeys: Object.freeze(Object.keys(GENESIS002_EXPECTED_PACKAGE_EDGES).sort()),
+  optionalPlatformMetadata: LINUX_OPTIONAL_PLATFORM_METADATA,
+  importerKinds: GENESIS002_IMPORTER_KINDS,
+  moduleRoot: 'spacetimedb',
+  manifestPath: 'spacetimedb/package.json',
+  lockPath: 'spacetimedb/pnpm-lock.yaml',
+  workspacePath: 'spacetimedb/pnpm-workspace.yaml',
+  workspacePackages: Object.freeze(['.', 'genesis002', 'migration-fixtures/*']),
+  generatedPrefix: 'spacetimedb/node_modules/',
+  bundlePath: 'spacetimedb/dist/bundle.js',
+  stateChild: 'genesis001-current-locked-source-builds-v1',
+  requireMaterializationParent: true,
+  materialize: materializeCommit,
+});
+
 const GENESIS001_IMPORTER_KINDS = Object.freeze<Record<string, 'module' | 'fixture'>>({
   '.': 'module',
   ...Object.fromEntries(Array.from({ length: 13 }, (_, index) => [
@@ -902,6 +922,24 @@ export type Genesis002SourceBuildResult<T> = Readonly<{
   moduleTreeId: string;
 }>;
 
+export type Genesis001CurrentSourceBuildInput<T> = Readonly<{
+  repositoryRoot: string;
+  moduleSourceCommit: string;
+  dependencyCacheRoot: string;
+  materializationParent: string;
+  operation: (context: Readonly<{
+    materializedRoot: string;
+    dependencyClosureDigest: string;
+    moduleTreeId: string;
+  }>) => T;
+}>;
+
+export type Genesis001CurrentSourceBuildResult<T> = Readonly<{
+  result: T;
+  dependencyClosureDigest: string;
+  moduleTreeId: string;
+}>;
+
 export type Genesis001SourceBuildInput<T> = Readonly<{
   repositoryRoot: string;
   dependencyCacheRoot: string;
@@ -920,7 +958,8 @@ export type Genesis001SourceBuildResult<T> = Readonly<{
 }>;
 
 function withPtrLockedSourceBuildProfile<T>(
-  input: PtrSourceBuildInput<T> | Genesis002SourceBuildInput<T> | Genesis001SourceBuildInput<T>,
+  input: PtrSourceBuildInput<T> | Genesis002SourceBuildInput<T>
+    | Genesis001CurrentSourceBuildInput<T> | Genesis001SourceBuildInput<T>,
   profile: PtrLockedSourceBuildProfile,
 ): PtrSourceBuildResult<T> {
   const inputCode = 'PTR_LOCKED_SOURCE_BUILD_INPUT_INVALID';
@@ -1146,6 +1185,12 @@ export function withGenesis002LinuxLockedSourceBuild<T>(
   input: Genesis002SourceBuildInput<T>,
 ): Genesis002SourceBuildResult<T> {
   return withPtrLockedSourceBuildProfile(input, GENESIS002_PROFILE);
+}
+
+export function withGenesis001CurrentLinuxLockedSourceBuild<T>(
+  input: Genesis001CurrentSourceBuildInput<T>,
+): Genesis001CurrentSourceBuildResult<T> {
+  return withPtrLockedSourceBuildProfile(input, GENESIS001_CURRENT_PROFILE);
 }
 
 export function withGenesis001LinuxLockedSourceBuild<T>(

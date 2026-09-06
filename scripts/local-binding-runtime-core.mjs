@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
   chmodSync, lstatSync, mkdirSync,
-  readdirSync, realpathSync, rmSync,
+  readdirSync, realpathSync, rmSync, writeFileSync,
 } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -19,10 +19,12 @@ const PROFILE = 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
 const WORKER_PROFILE = 'warpkeep-local-binding-worker-v1';
 const GENESIS002_WORKER_PROFILE = 'warpkeep-local-binding-genesis002-worker-v1';
 const GENESIS001_WORKER_PROFILE = 'warpkeep-local-binding-genesis001-worker-v1';
+const GENESIS001_CURRENT_WORKER_PROFILE = 'warpkeep-local-binding-genesis001-current-worker-v1';
 const GENESIS001_COMPATIBILITY_WORKER_PROFILE = 'warpkeep-local-binding-genesis001-compatibility-worker-v1';
 const WORKER_RESULT_PROFILE = 'warpkeep-local-binding-worker-result-v1';
 const GENESIS002_WORKER_RESULT_PROFILE = 'warpkeep-local-binding-genesis002-worker-result-v1';
 const GENESIS001_WORKER_RESULT_PROFILE = 'warpkeep-local-binding-genesis001-worker-result-v1';
+const GENESIS001_CURRENT_WORKER_RESULT_PROFILE = 'warpkeep-local-binding-genesis001-current-worker-result-v1';
 const GENESIS001_COMPATIBILITY_RESULT_PROFILE = 'warpkeep-local-binding-genesis001-compatibility-result-v1';
 const ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
 const NODE_PATH = `${ROOT}/toolchain/node-v22.22.3-linux-x64/bin/node`;
@@ -58,6 +60,7 @@ const CONTROL_FILES = Object.freeze([
   'scripts/local-binding-runtime-worker-request.mjs',
   'scripts/local-binding-native-ts-hooks.mjs',
   'scripts/local-binding-runtime-worker-result.mjs',
+  'scripts/genesis001-current-binding-linux-locked-source-build.ts',
   'scripts/bootstrap-genesis002-local-binding-cache.mjs',
   'scripts/local-binding-runtime-yaml-v1.json',
   'scripts/spacetime-binding-tree.mjs',
@@ -92,6 +95,13 @@ const GENESIS001_LANE = Object.freeze({
   cacheRoot: GENESIS002_CACHE_ROOT,
   bindingPrefix: '', includePrivate: false,
 });
+const GENESIS001_CURRENT_LANE = Object.freeze({
+  name: 'genesis001-current', workerProfile: GENESIS001_CURRENT_WORKER_PROFILE,
+  resultProfile: GENESIS001_CURRENT_WORKER_RESULT_PROFILE,
+  graphEntry: 'scripts/genesis001-current-binding-linux-locked-source-build.ts',
+  cacheRoot: GENESIS002_CACHE_ROOT,
+  bindingPrefix: '', includePrivate: false,
+});
 const GENESIS001_COMPATIBILITY_LANE = Object.freeze({
   name: 'genesis001-compatibility', workerProfile: GENESIS001_COMPATIBILITY_WORKER_PROFILE,
   resultProfile: GENESIS001_COMPATIBILITY_RESULT_PROFILE,
@@ -103,6 +113,7 @@ function laneForWorkerProfile(profile) {
   if (profile === WORKER_PROFILE) return PTR_LANE;
   if (profile === GENESIS002_WORKER_PROFILE) return GENESIS002_LANE;
   if (profile === GENESIS001_WORKER_PROFILE) return GENESIS001_LANE;
+  if (profile === GENESIS001_CURRENT_WORKER_PROFILE) return GENESIS001_CURRENT_LANE;
   if (profile === GENESIS001_COMPATIBILITY_WORKER_PROFILE) return GENESIS001_COMPATIBILITY_LANE;
   fail('LOCAL_BINDING_WORKER_REQUEST_INVALID');
 }
@@ -422,6 +433,7 @@ function deriveFixedEntrySourceGraph(root, entry) {
     const functionName = entry === PTR_LANE.graphEntry ? 'deriveLocalBindingSourceGraph'
       : entry === GENESIS002_LANE.graphEntry ? 'deriveGenesis002LocalBindingSourceGraph'
         : entry === GENESIS001_LANE.graphEntry ? 'deriveGenesis001LocalBindingSourceGraph'
+          : entry === GENESIS001_CURRENT_LANE.graphEntry ? 'deriveGenesis001CurrentLocalBindingSourceGraph'
           : entry === GENESIS001_COMPATIBILITY_LANE.graphEntry
             ? 'deriveGenesis001CompatibilitySourceGraph'
             : fail('LOCAL_BINDING_RUNTIME_SOURCE_GRAPH_INVALID');
@@ -523,6 +535,10 @@ export function deriveGenesis001LocalBindingSourceGraph(root) {
   return deriveFixedEntrySourceGraph(root, GENESIS001_LANE.graphEntry);
 }
 
+export function deriveGenesis001CurrentLocalBindingSourceGraph(root) {
+  return deriveFixedEntrySourceGraph(root, GENESIS001_CURRENT_LANE.graphEntry);
+}
+
 export function deriveGenesis001CompatibilitySourceGraph(root) {
   return deriveFixedEntrySourceGraph(root, GENESIS001_COMPATIBILITY_LANE.graphEntry);
 }
@@ -562,6 +578,113 @@ function attestYaml(manifest) {
   visit(YAML_ROOT, []);
   if (actual.size !== expected.size) fail('LOCAL_BINDING_RUNTIME_YAML_NAMESPACE_INVALID');
   return Object.freeze({ root: YAML_ROOT, entry: manifest.entry, files: manifest.files });
+}
+
+const GENESIS001_CURRENT_BINDING_PREFIX = 'src/spacetime/module_bindings/';
+const MAX_BINDING_FILE_COUNT = 4096;
+const MAX_BINDING_FILE_BYTES = 4 * 1024 * 1024;
+const MAX_BINDING_TOTAL_BYTES = 32 * 1024 * 1024;
+
+function gitBuffer(repositoryRoot, environment, gitIdentity, args, maxBuffer) {
+  stableFile(GIT_PATH, undefined, GIT_SHA256, 0, true, gitIdentity).fill(0);
+  const result = spawnSync(GIT_PATH, args, {
+    cwd: repositoryRoot, env: environment, encoding: null, shell: false,
+    stdio: ['ignore', 'pipe', 'pipe'], maxBuffer, timeout: 60_000,
+  });
+  stableFile(GIT_PATH, undefined, GIT_SHA256, 0, true, gitIdentity).fill(0);
+  if (result.status !== 0 || result.signal !== null || result.error !== undefined
+      || !Buffer.from(result.stderr).equals(Buffer.alloc(0))) {
+    fail('LOCAL_BINDING_RUNTIME_GIT_FAILED', result.error);
+  }
+  return Buffer.from(result.stdout);
+}
+
+function canonicalBindingPath(path) {
+  if (typeof path !== 'string' || path.length === 0 || path.length > 512 || !path.endsWith('.ts')) return false;
+  const parts = path.split('/');
+  return parts.length <= 16 && parts.every(part => part.length > 0 && part !== '.' && part !== '..'
+    && !part.startsWith('.') && !/[\\:\u0000-\u001f\u007f]/u.test(part) && !/[. ]$/u.test(part));
+}
+
+export function parseGenesis001CurrentCommittedBindingListing(listing) {
+  if (!Buffer.isBuffer(listing) || listing.length === 0 || listing.length > 4 * 1024 * 1024
+      || listing.at(-1) !== 0) fail('LOCAL_BINDING_RUNTIME_EXPECTED_BINDINGS_INVALID');
+  const records = listing.subarray(0, listing.length === 0 ? 0 : listing.length - 1).toString('utf8').split('\0');
+  if (records.length > MAX_BINDING_FILE_COUNT) fail('LOCAL_BINDING_RUNTIME_EXPECTED_BINDINGS_INVALID');
+  const descriptors = [];
+  const namespace = new Map();
+  let totalBytes = 0;
+  for (const record of records) {
+    const match = /^(100644) (blob) ([0-9a-f]{40,64}) +([0-9]+)\t(.+)$/u.exec(record);
+    if (match === null || !match[5].startsWith(GENESIS001_CURRENT_BINDING_PREFIX)) {
+      fail('LOCAL_BINDING_RUNTIME_EXPECTED_BINDINGS_INVALID');
+    }
+    const path = match[5].slice(GENESIS001_CURRENT_BINDING_PREFIX.length);
+    const size = Number(match[4]);
+    if (!canonicalBindingPath(path) || !Number.isSafeInteger(size) || size < 0 || size > MAX_BINDING_FILE_BYTES) {
+      fail('LOCAL_BINDING_RUNTIME_EXPECTED_BINDINGS_INVALID');
+    }
+    const parts = path.split('/');
+    for (let index = 1; index <= parts.length; index += 1) {
+      const member = parts.slice(0, index).join('/');
+      const collision = namespace.get(member.toLowerCase());
+      if (collision !== undefined && collision !== member) fail('LOCAL_BINDING_RUNTIME_EXPECTED_BINDINGS_INVALID');
+      namespace.set(member.toLowerCase(), member);
+    }
+    totalBytes += size;
+    if (totalBytes > MAX_BINDING_TOTAL_BYTES) fail('LOCAL_BINDING_RUNTIME_EXPECTED_BINDINGS_INVALID');
+    descriptors.push(Object.freeze({ object: match[3], path, sourcePath: match[5], size }));
+  }
+  if (!descriptors.some(entry => entry.path === 'index.ts')) {
+    fail('LOCAL_BINDING_RUNTIME_EXPECTED_BINDINGS_INVALID');
+  }
+  return Object.freeze(descriptors.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0));
+}
+
+function readCommittedGenesis001CurrentBindings(source, environment, gitIdentity) {
+  const listing = gitBuffer(source.root, environment, gitIdentity, [
+    'ls-tree', '--full-tree', '-r', '-z', '-l', source.commit, '--', GENESIS001_CURRENT_BINDING_PREFIX,
+  ], 4 * 1024 * 1024);
+  const descriptors = parseGenesis001CurrentCommittedBindingListing(listing);
+  const entries = [];
+  for (const descriptor of descriptors) {
+    const bytes = gitBuffer(source.root, environment, gitIdentity, [
+      'show', `${source.commit}:${descriptor.sourcePath}`,
+    ], MAX_BINDING_FILE_BYTES + 1);
+    if (bytes.length !== descriptor.size) fail('LOCAL_BINDING_RUNTIME_SOURCE_CHANGED');
+    entries.push(Object.freeze({ path: descriptor.path, bytes: new Uint8Array(bytes) }));
+  }
+  return Object.freeze(entries);
+}
+
+function writeGenesis001CurrentBindingMismatch(operationRoot, source, expectedEntries, actualEntries) {
+  const expected = new Map(expectedEntries.map(entry => [entry.path, entry.bytes]));
+  const actual = new Map(actualEntries.map(entry => [entry.path, entry.bytes]));
+  const paths = [...new Set([...expected.keys(), ...actual.keys()])].sort();
+  const mismatches = paths.filter(path => {
+    const left = expected.get(path);
+    const right = actual.get(path);
+    return left === undefined || right === undefined || !equalBytes(left, right);
+  }).map(path => {
+    const left = expected.get(path);
+    const right = actual.get(path);
+    return Object.freeze({
+      path: `${GENESIS001_CURRENT_BINDING_PREFIX}${path}`,
+      expectedBytes: left?.byteLength ?? null,
+      expectedSha256: left === undefined ? null : sha256(left),
+      generatedBytes: right?.byteLength ?? null,
+      generatedSha256: right === undefined ? null : sha256(right),
+    });
+  });
+  const root = join(operationRoot, 'diagnostics');
+  mkdirSync(root, { mode: 0o700 });
+  writeFileSync(join(root, 'genesis001-current-binding-mismatch-v1.json'), `${JSON.stringify({
+    schemaVersion: 1,
+    profile: 'warpkeep-local-binding-genesis001-current-binding-mismatch-v1',
+    sourceCommit: source.commit,
+    sourceTree: source.tree,
+    mismatches,
+  })}\n`, { flag: 'wx', mode: 0o600 });
 }
 
 function cleanEnvironment(operationRoot) {
@@ -722,6 +845,32 @@ export async function executeFixedGenesis001LocalBindingParentCycles(context) {
   return assertReproducibleLocalBindingCycles(first, second);
 }
 
+function sortedBindingEntries(entries) {
+  return [...entries].sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
+}
+
+function sameBindingEntries(left, right) {
+  if (!Array.isArray(left) || !Array.isArray(right) || left.length === 0 || left.length !== right.length) return false;
+  const expected = sortedBindingEntries(left);
+  const actual = sortedBindingEntries(right);
+  return expected.every((entry, index) => entry.path === actual[index]?.path
+    && equalBytes(entry.bytes, actual[index].bytes));
+}
+
+export async function executeFixedGenesis001CurrentBindingParentCycles(context) {
+  const expectedBefore = await context.readCommittedBindings();
+  const first = await executeCycle(context, GENESIS001_CURRENT_LANE, 1);
+  const second = await executeCycle(context, GENESIS001_CURRENT_LANE, 2);
+  const reproducible = assertReproducibleLocalBindingCycles(first, second);
+  const expectedAfter = await context.readCommittedBindings();
+  if (!sameBindingEntries(expectedBefore, expectedAfter)) fail('LOCAL_BINDING_RUNTIME_SOURCE_CHANGED');
+  if (!sameBindingEntries(expectedBefore, reproducible.bindings)) {
+    context.recordBindingMismatch?.(expectedBefore, reproducible.bindings);
+    fail('LOCAL_BINDING_RUNTIME_CURRENT_BINDINGS_MISMATCH');
+  }
+  return Object.freeze({ ...reproducible, bindingFileCount: expectedBefore.length });
+}
+
 export async function executeFixedGenesis001CompatibilityParent(context) {
   const cycle = await executeCycle(context, GENESIS001_COMPATIBILITY_LANE, 1);
   return cycle;
@@ -761,6 +910,7 @@ async function deriveLocalBindingRuntime(mode) {
   const paired = mode === 'paired';
   const genesis001 = mode === 'genesis001';
   const genesis001Compatibility = mode === 'genesis001-compatibility';
+  const genesis001Current = mode === 'genesis001-current';
   const needsGenesis001 = genesis001 || genesis001Compatibility;
   const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   validateLocalBindingRuntimeHost({
@@ -774,7 +924,7 @@ async function deriveLocalBindingRuntime(mode) {
   for (const path of [
     ROOT, join(ROOT, 'toolchain'), dirname(dirname(NODE_PATH)), dirname(NODE_PATH),
     dirname(CLI_PATH), join(ROOT, 'cache'), CACHE_ROOT,
-    ...((paired || needsGenesis001) ? [GENESIS002_CACHE_ROOT] : []), RUNS_ROOT,
+    ...((paired || needsGenesis001 || genesis001Current) ? [GENESIS002_CACHE_ROOT] : []), RUNS_ROOT,
     ...(needsGenesis001 ? [dirname(dirname(GENESIS001_NODE_PATH)), dirname(GENESIS001_NODE_PATH)] : []),
   ]) privateDirectory(path);
   const nodeAuthority = stableFileRecord(NODE_PATH, NODE_BYTES, NODE_SHA256, 1000, true);
@@ -816,6 +966,7 @@ async function deriveLocalBindingRuntime(mode) {
     source = snapshotCommittedSource(repositoryRoot, operationRoot, environment, gitAuthority.identity);
     const graph = genesis001Compatibility
       ? deriveGenesis001CompatibilitySourceGraph(source.root)
+      : genesis001Current ? deriveGenesis001CurrentLocalBindingSourceGraph(source.root)
       : genesis001 ? deriveGenesis001LocalBindingSourceGraph(source.root)
         : deriveLocalBindingSourceGraph(source.root);
     const graphs = paired ? Object.freeze({
@@ -846,14 +997,22 @@ async function deriveLocalBindingRuntime(mode) {
       stableFile(GIT_PATH, undefined, GIT_SHA256, 0, true, gitAuthority.identity).fill(0);
       cli.verify();
     };
+    const readCommittedBindings = () => readCommittedGenesis001CurrentBindings(
+      source, environment, gitAuthority.identity,
+    );
+    const recordBindingMismatch = (expected, actual) => writeGenesis001CurrentBindingMismatch(
+      operationRoot, source, expected, actual,
+    );
     const context = {
       repositoryRoot, operationRoot, environment, source, graph, graphs, yaml, cli,
-      readBindingTree: readSpacetimeBindingTree, verifyExecutables,
+      readBindingTree: readSpacetimeBindingTree, readCommittedBindings,
+      recordBindingMismatch, verifyExecutables,
     };
     const selected = paired
       ? await executeFixedPairedLocalBindingParentCycles(context)
       : genesis001Compatibility
         ? await executeFixedGenesis001CompatibilityParent(context)
+        : genesis001Current ? await executeFixedGenesis001CurrentBindingParentCycles(context)
         : genesis001 ? await executeFixedGenesis001LocalBindingParentCycles(context)
           : await executeFixedLocalBindingParentCycles(context);
     cli.verify();
@@ -879,6 +1038,11 @@ async function deriveLocalBindingRuntime(mode) {
       baselineDescriptorSha256: selected.baselineDescriptorSha256,
       frozenDescriptorSha256: selected.frozenDescriptorSha256,
       checkedFrozenWriters: Object.freeze([...selected.checkedFrozenWriters]),
+    }) : genesis001Current ? Object.freeze({
+      profile: PROFILE, sourceCommit: selected.sourceCommit, sourceTree: selected.sourceTree,
+      bundleSha256: selected.bundleSha256,
+      dependencyClosureDigest: selected.dependencyClosureDigest,
+      bindingFileCount: selected.bindingFileCount,
     }) : genesis001 ? Object.freeze({
       profile: PROFILE, sourceCommit: selected.sourceCommit, sourceTree: selected.sourceTree,
       bundleSha256: selected.bundleSha256,
@@ -919,4 +1083,8 @@ export function deriveFixedGenesis001LocalCompilation() {
 
 export function deriveFixedGenesis001LocalCompatibility() {
   return deriveLocalBindingRuntime('genesis001-compatibility');
+}
+
+export function deriveFixedGenesis001CurrentBindingCheck() {
+  return deriveLocalBindingRuntime('genesis001-current');
 }

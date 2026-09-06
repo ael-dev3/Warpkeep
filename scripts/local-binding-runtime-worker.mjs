@@ -151,6 +151,11 @@ function fixedWorkerLane(profile) {
     syntheticEntry: 'warpkeep:genesis001-binding-entry', builder: 'withGenesis001LinuxLockedSourceBuild',
     modulePath: 'spacetimedb', stateChild: 'genesis001-locked-source-builds-v1',
   });
+  if (profile === 'warpkeep-local-binding-genesis001-current-worker-v1') return Object.freeze({
+    syntheticEntry: 'warpkeep:genesis001-current-binding-entry',
+    builder: 'withGenesis001CurrentLinuxLockedSourceBuild',
+    modulePath: 'spacetimedb', stateChild: 'genesis001-current-locked-source-builds-v1',
+  });
   if (profile === GENESIS001_COMPATIBILITY_PROFILE) return Object.freeze({
     syntheticEntry: 'warpkeep:genesis001-compatibility-entry',
     modulePath: 'spacetimedb', stateChild: '', compatibility: true,

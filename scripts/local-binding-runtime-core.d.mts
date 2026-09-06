@@ -34,6 +34,12 @@ export function deriveGenesis001LocalBindingSourceGraph(root: string): Readonly<
   modules: readonly Readonly<Record<string, unknown>>[];
 }>;
 
+export function deriveGenesis001CurrentLocalBindingSourceGraph(root: string): Readonly<{
+  root: string;
+  entry: string;
+  modules: readonly Readonly<Record<string, unknown>>[];
+}>;
+
 export function deriveGenesis001CompatibilitySourceGraph(root: string): Readonly<{
   root: string;
   entry: string;
@@ -46,8 +52,16 @@ export function parseLocalBindingWorkerResult(
   handoffPath: string,
   workerProfile?: 'warpkeep-local-binding-worker-v1' | 'warpkeep-local-binding-genesis002-worker-v1'
     | 'warpkeep-local-binding-genesis001-worker-v1'
+    | 'warpkeep-local-binding-genesis001-current-worker-v1'
     | 'warpkeep-local-binding-genesis001-compatibility-worker-v1',
 ): Readonly<Record<string, unknown>>;
+
+export function parseGenesis001CurrentCommittedBindingListing(listing: Buffer): readonly Readonly<{
+  object: string;
+  path: string;
+  sourcePath: string;
+  size: number;
+}>[];
 
 export interface LocalBindingCycle {
   readonly sourceCommit: string;
@@ -126,6 +140,29 @@ export function executeFixedGenesis001LocalBindingParentCycles(context: Readonly
   readBindingTree(root: string): Promise<readonly Readonly<{ path: string; bytes: Uint8Array }>[]>
   verifyExecutables(): void;
 }>): Promise<LocalBindingCycle>;
+
+export function executeFixedGenesis001CurrentBindingParentCycles(context: Readonly<{
+  repositoryRoot: string;
+  operationRoot: string;
+  environment: Readonly<Record<string, string | undefined>>;
+  source: Readonly<{
+    root: string;
+    commit: string;
+    tree: string;
+    bootstrap: readonly Readonly<Record<string, unknown>>[];
+  }>;
+  graph: Readonly<Record<string, unknown>>;
+  yaml: Readonly<Record<string, unknown>>;
+  cli: Readonly<{ path: string; verify(): void }>;
+  readBindingTree(root: string): Promise<readonly Readonly<{ path: string; bytes: Uint8Array }>[]>
+  readCommittedBindings(): readonly Readonly<{ path: string; bytes: Uint8Array }>[]
+    | Promise<readonly Readonly<{ path: string; bytes: Uint8Array }>[]>
+  recordBindingMismatch?(
+    expected: readonly Readonly<{ path: string; bytes: Uint8Array }>[],
+    actual: readonly Readonly<{ path: string; bytes: Uint8Array }>[],
+  ): void;
+  verifyExecutables(): void;
+}>): Promise<LocalBindingCycle & Readonly<{ bindingFileCount: number }>>;
 
 export function executeFixedGenesis001CompatibilityParent(context: Readonly<{
   repositoryRoot: string;
@@ -219,4 +256,13 @@ export function deriveFixedGenesis001LocalCompatibility(): Promise<Readonly<{
   baselineDescriptorSha256: string;
   frozenDescriptorSha256: string;
   checkedFrozenWriters: readonly string[];
+}>>;
+
+export function deriveFixedGenesis001CurrentBindingCheck(): Promise<Readonly<{
+  profile: 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
+  sourceCommit: string;
+  sourceTree: string;
+  bundleSha256: string;
+  dependencyClosureDigest: string;
+  bindingFileCount: number;
 }>>;
