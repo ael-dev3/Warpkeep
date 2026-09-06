@@ -174,3 +174,119 @@ The report itself is committed separately after native verification so the nativ
 - A WSL Vitest attempt was also unavailable because the preserved Windows dependency junction does not contain the Linux `@rolldown/binding-linux-x64-gnu` optional package. Per task constraints, the dependency junction was preserved and no reinstall was attempted. This did not affect the actual native proof, which uses the pinned Linux runtimes and completed successfully.
 - Failure roots intentionally remain for controller review and include disposable local private keys. They are protected by owner-private parent directories and were not printed. They may be removed by the controller after review.
 - The broad pre-existing dirty worktree and dependency junction were preserved. Only the exact files above were staged and committed.
+
+---
+
+## Independent-review correction round 1/5 (I1-I5)
+
+### Status and implementation
+
+All five Important findings in `task-1-review.md` were addressed on top of `af286c19648038f14a4da215c85d83fab30216cc` (with the pre-existing report-only commit left intact).
+
+- **I1, surviving containment:** the compatibility worker alone is now started as a POSIX process-group leader. The local standalone inherits that owned group instead of detaching into an unsupervised group. On timeout, output overflow, fd3 failure, spawn failure, abnormal worker exit, or a nominal worker exit with a live descendant, the surviving parent sends `SIGKILL` to the complete group, waits up to the bounded containment grace, verifies group absence, and only then settles. Ordinary PTR/G001-compilation/G002 workers keep their previous non-group invocation. The proof's normal path terminates and checks the standalone PID; the parent remains the final all-descendant authority if the worker is killed or a server descendant survives.
+- **I2, exact fresh guard record:** the fresh byte cursor, fatal UTF-8 decoding, output bound, failed HTTP response and unchanged authenticated before/after state remain mandatory. A match now requires cardinality exactly one complete newline-terminated record. After stripping only SGR decoration, the record must be either the exact bare writer/kind/error/reason line or the exact pinned standalone envelope (ISO timestamp, `INFO`, `crates/core/src/host/v8/error.rs:<positive line>:`) followed by the exact payload. Truncation, payload suffix, arbitrary/malformed prefix or origin, duplicate records, stale-window text, wrong writer/kind/reason, split text, redirects, oversized/non-UTF8 bodies and successful plain text are rejected.
+- **I3, bundle commitment:** the shared handoff write returns the installed file's bounded bytes, SHA-256 and full descriptor-safe identity. The worker passes those exact baseline/frozen records to the proof. Each publish re-attests byte length, hash, mode, uid, link count and inode identity immediately before CLI consumption and immediately after it. Same-path mutation, same-byte inode replacement, hard-link substitution, baseline mutation and frozen mutation all fail before evidence can be returned.
+- **I4, actual orchestration coverage:** the lifecycle test now calls the real fixed compatibility worker branch and observes two independent baseline builds, two frozen builds and the proof handoff. Negative cases cover baseline and frozen nondeterminism, actual cross-lane substitution, both artifact lanes, link/namespace mutation, compilation-command failure and proof/startup failure. Parent tests call the actual compatibility parent authority, assert group containment is requested only for this lane, assert no generation/projection, and reject extra or cross-lane result evidence. The native process fixture covers timeout, abnormal exit and nominal success while a live descendant exists.
+- **I5, one checked writer:** `writeCheckedLocalBindingHandoff` is the sole private copy/readback implementation used by both `preserveLocalBindingWorkerBundle` and `createLocalBindingWorkerResult`; their distinct public schemas remain intact.
+
+The server-output-overflow path was also corrected to kill the inherited standalone PID rather than addressing a now-invalid negative PID after the containment redesign. Malformed artifact input now fails with the frozen input error rather than an incidental path exception.
+
+### RED/GREEN evidence
+
+I1 native descendant RED before the supervisor change:
+
+```powershell
+& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 TMPDIR=/home/snapmeter/.warpkeep/release-preparation-v1/runs /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/tests/fixtures/localBindingProcessGroupProof.mjs
+```
+
+Exit `1`: `{"code":"LOCAL_BINDING_RUNTIME_PROCESS_TIMEOUT","parentSurvives":false,"descendantSurvives":true}`. After the group supervisor change the same command exited `0` with both survival fields `false`. The two additional native outcomes also exited `0`:
+
+```powershell
+& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 TMPDIR=/home/snapmeter/.warpkeep/release-preparation-v1/runs /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/tests/fixtures/localBindingProcessGroupProof.mjs failure-descendant
+& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 TMPDIR=/home/snapmeter/.warpkeep/release-preparation-v1/runs /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/tests/fixtures/localBindingProcessGroupProof.mjs success-descendant
+```
+
+Outputs were respectively `LOCAL_BINDING_RUNTIME_PROCESS_FAILED` and `LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED`, both with `parentSurvives:false` and `descendantSurvives:false`. The latter proves nominal child success is not accepted while a descendant survives.
+
+I2 exactness RED:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/genesis001LocalUpgradeProof.test.ts -t "bounded fatal-UTF8"
+```
+
+Exit `1`: one failed because an arbitrary prefix followed by the expected token was accepted. Whole-line equality made this GREEN. The first committed native correction run then supplied a second genuine RED: after all four builds and the first writer it exited `1` with `LOCAL_BINDING_RUNTIME_PROCESS_FAILED` because the exact payload was inside the pinned ANSI structured envelope. The retained bounded log line identified the fixed `INFO crates/core/src/host/v8/error.rs:618:` origin; strict envelope parsing made the focused command exit `0` (one selected pass, ten skipped) while the arbitrary/malformed prefix, reason suffix, truncation, duplicate and stale cases continued to reject.
+
+I3/I5 RED commands:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/genesis001LocalUpgradeProof.test.ts tests/localBindingRuntime.test.ts
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/localBindingRuntime.test.ts -t "returns the checked handoff identity"
+```
+
+The first exited `1` because `attestGenesis001LocalProofArtifact` did not exist. The selected handoff test exited `1` because the saved result lacked installed `byteLength`/identity. After the shared checked writer, pre/post-publish attestation and worker record plumbing, the focused pair passed 34 tests with 2 environment skips; the expanded final matrix is recorded below.
+
+I4 exposed missing coverage rather than a separate latent implementation failure: the newly added real worker/parent success, nondeterminism and cross-lane tests were GREEN against the already implemented four-build branch. Artifact mutation was RED with I3 until the attester existed. Link/namespace mutation, both artifact lanes, build-command failure and proof failure now execute through the same real compatibility worker branch and reject without a worker result; strict parent negative cases reject before public evidence or generation.
+
+### Final covering verification
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/genesis001LocalUpgradeProof.test.ts tests/genesis001BindingFrozenSource.test.ts tests/localBindingRuntime.test.ts tests/localBindingRuntimeParent.test.ts tests/localBindingRuntimeLifecycle.test.ts tests/localBindingNativeTsHooks.test.ts tests/genesis001LocalCompilation.test.ts tests/genesis001LinuxLockedSourceBuild.test.ts
+```
+
+Exit `0`: 8 files passed; 118 tests passed and 13 platform/VM-gated tests skipped (131 total).
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/genesis001FrozenPublisher.test.ts -t "accepts only the exact historical|requires exact build provenance|requires the exact source-bound policy|compares every legacy ABI|requires exact baseline counts|scrubs credentials"
+```
+
+Exit `0`: 6 selected tests passed; 18 unselected.
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json --tsBuildInfoFile .git/task-1-genesis001-fix.tsbuildinfo
+git diff --check af286c19648038f14a4da215c85d83fab30216cc..9e7d3ff1bafca5a542d3e530d79467d595588750 -- scripts tests
+```
+
+Both exited `0` with no diagnostics. A final process readback returned `pgrep` exit `1` for `spacetimedb-standalone`, `spacetimedb-cli` and `local-binding-runtime.mjs` (no owned processes).
+
+### Fixed native acceptance
+
+Exact command at implementation commit `9e7d3ff1bafca5a542d3e530d79467d595588750`:
+
+```powershell
+& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-binding-runtime.mjs --genesis001-compatibility
+```
+
+Exit `0`:
+
+```json
+{"profile":"warpkeep-spacetime-binding-final-preparation-linux-x64-v1","sourceCommit":"9e7d3ff1bafca5a542d3e530d79467d595588750","sourceTree":"decdb57581b3f27741eedd493f6d4193f80357c7","baselineBundleSha256":"179103343455b16a02cbb55205e867c6d4590cf7e9bb614c611d91f15e215801","frozenBundleSha256":"a2d7f204ed591aadb98696225d68332ee573519187e0989e68f528da8064cd49","baselineDescriptorSha256":"cb7d69d2bed316702ffa1aa8696a4e1ca1934a775b8312129b305a9c33eb0e03","frozenDescriptorSha256":"cf3cbfff9087c04bd9de553410adb49100c40dbdecebc59e265f83cb904dd04d","checkedFrozenWriters":["admin_allow_fid","admin_admit_founder_v1","admin_disable_fid","admin_bump_auth_epoch","access_request_submit_v1","admin_reset_access_request_v1"]}
+```
+
+The preceding native attempt at `2f5fc8b` exited with the bounded redacted process code described above and retained `/home/snapmeter/.warpkeep/release-preparation-v1/runs/binding-2d15b6d2dd7c4b34a77eaaf9f77f1184`. Its owner-private root contains disposable proof credentials; only file metadata and the single relevant bounded guard-log record were inspected, never key/token contents. It emitted no success JSON and no worker/server remained.
+
+### Correction-round changed files and commits
+
+- `scripts/genesis001-local-upgrade-proof.d.mts`
+- `scripts/genesis001-local-upgrade-proof.mjs`
+- `scripts/local-binding-runtime-core.d.mts`
+- `scripts/local-binding-runtime-core.mjs`
+- `scripts/local-binding-runtime-process.d.mts`
+- `scripts/local-binding-runtime-process.mjs`
+- `scripts/local-binding-runtime-worker-result.d.mts`
+- `scripts/local-binding-runtime-worker-result.mjs`
+- `scripts/local-binding-runtime-worker.mjs`
+- `tests/fixtures/localBindingProcessFixture.mjs`
+- `tests/fixtures/localBindingProcessGroupProof.mjs`
+- `tests/genesis001LocalUpgradeProof.test.ts`
+- `tests/localBindingRuntime.test.ts`
+- `tests/localBindingRuntimeLifecycle.test.ts`
+- `tests/localBindingRuntimeParent.test.ts`
+- `.superpowers/sdd/2026-09-06-warpkeep-genesis001-local-upgrade-proof/task-1-report.md`
+
+Commits: `2f5fc8b` (`fix: harden genesis001 local proof evidence`) and `9e7d3ff` (`fix: parse structured genesis001 guard records`). This appendix is committed separately after native verification.
+
+### Remaining concerns
+
+- The Linux-only Vitest cases for direct proof startup/no-success and process-group semantics are skipped by the Windows runner. The process-group failure matrix was run directly and successfully under the pinned Linux Node as recorded above; the complete native compatibility proof exercised the real Linux startup/success/cleanup path. Direct Linux Vitest remains unavailable because the preserved Windows dependency junction lacks `@rolldown/binding-linux-x64-gnu`; per scope, no dependency reinstall was attempted.
+- M1/M2 remain the controller-recorded deferred Minor findings. No whole production publisher suite rerun or dependency-junction mutation was performed.
+- The native parser-diagnosis root remains intentionally retained and private for controller review. The broad unrelated dirty worktree and existing dependency junction were preserved.
