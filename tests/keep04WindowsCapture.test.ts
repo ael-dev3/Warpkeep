@@ -90,7 +90,9 @@ it('enables interception before captures and closes only the owned browser after
   const f = fixture(); const report = await runKeep04WindowsCapture(['--base-url=http://127.0.0.1:4176'], f.ops);
   expect(f.history.indexOf('Fetch.enable')).toBeLessThan(f.history.indexOf('capture'));
   expect(f.history).toContain('Browser.close'); expect(f.history).not.toContain('terminate-owned');
-  expect(report).toMatchObject({ synthetic: true, cleanup: { verified: true, remaining: 0, profileRetained: true }, stableSource: true });
+  expect(report).toMatchObject({ synthetic: true, cleanup: { verified: true, remaining: 0, profileRetained: true }, stableSource: true,
+    serverDocumentPolicy: { delivery: 'server-origin; unmodified CDP continuation', enforcedResponseHeader: "sandbox allow-scripts allow-same-origin; worker-src 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; form-action 'none'" } });
+  expect(report).not.toHaveProperty('injectedDocumentPolicy');
 });
 it('rejects changed executable after launch and still performs owned cleanup', async () => {
   const f = fixture(); f.changeIdentity(); await expect(runKeep04WindowsCapture(['--base-url=http://127.0.0.1:4176'], f.ops)).rejects.toThrow(/executable changed/);
@@ -131,22 +133,72 @@ it('bounds diagnostics and rejects HMR contamination without serializing payload
 });
 
 const qaDocument = 'http://127.0.0.1:4176/dev/keep04-qa.html?scenario=empty&quality=high';
-it('installs an enforced native popup/worker denial before releasing the exact Document response', async () => {
+const policy = "sandbox allow-scripts allow-same-origin; worker-src 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; form-action 'none'";
+const documentHeaders = [{ name: 'Content-Type', value: 'text/html' }, { name: 'Content-Security-Policy', value: policy }];
+it.each([
+  [], [{ name: 'Content-Type', value: 'text/plain' }],
+  [{ name: 'Content-Type', value: 'text/html; charset=utf-16' }],
+  [{ name: 'Content-Type', value: 'text/html' }, { name: 'Content-Type', value: 'text/html' }],
+].map(headers => ({ headers })))('rejects absent/nonHTML/ambiguous document content type %#', async ({ headers }) => {
+  const guard = createKeep04NetworkGuard(); guard.expectNavigation(qaDocument);
+  const commands: string[] = []; const session = { command: async (method: string) => { commands.push(method); return {}; } };
+  const request = { requestId: 'document', frameId: 'main', request: { url: qaDocument, method: 'GET' }, resourceType: 'Document' };
+  guard.event('Fetch.requestPaused', request, session); await guard.drain();
+  guard.event('Fetch.requestPaused', { ...request, responseStatusCode: 200, responseHeaders: [...headers, { name: 'Content-Security-Policy', value: policy }] }, session); await guard.drain();
+  expect(commands).toEqual(['Fetch.continueRequest', 'Fetch.failRequest']); expect(() => guard.assertDocumentReady()).toThrow();
+});
+it.each(['HEAD', 'POST', undefined])('rejects a document request without exact GET method: %s', async method => {
+  const guard = createKeep04NetworkGuard(); guard.expectNavigation(qaDocument);
+  const commands: string[] = []; const session = { command: async (method: string) => { commands.push(method); return {}; } };
+  guard.event('Fetch.requestPaused', { requestId: 'document', frameId: 'main', request: { url: qaDocument, method }, resourceType: 'Document' }, session); await guard.drain();
+  expect(commands).toEqual(['Fetch.failRequest']); expect(() => guard.assert()).toThrow();
+});
+it.each(['stale', 'rejected', 'duplicate'])('does not mark document guarded after %s continuation', async outcome => {
+  const guard = createKeep04NetworkGuard(); guard.expectNavigation(qaDocument);
+  let acknowledge: (value?: unknown) => void = () => {}; let fail: (reason: Error) => void = () => {};
+  const commands: string[] = [];
+  const session = { command: async (method: string) => { commands.push(method); if (method === 'Fetch.continueResponse') await new Promise((done, reject) => { acknowledge = done; fail = reject; }); return {}; } };
+  const request = { requestId: 'document', frameId: 'main', request: { url: qaDocument, method: 'GET' }, resourceType: 'Document' };
+  const response = { ...request, responseStatusCode: 200, responseHeaders: documentHeaders };
+  guard.event('Fetch.requestPaused', request, session); await guard.drain();
+  guard.event('Fetch.requestPaused', response, session);
+  if (outcome === 'stale') guard.expectNavigation(qaDocument);
+  if (outcome === 'duplicate') guard.event('Fetch.requestPaused', response, session);
+  if (outcome === 'rejected') fail(new Error('continuation failed')); else acknowledge();
+  // A duplicate must be failed before scheduling a second hanging continuation.
+  if (outcome === 'duplicate') expect(commands).toEqual(['Fetch.continueRequest', 'Fetch.continueResponse', 'Fetch.failRequest']);
+  await guard.drain(); expect(() => guard.assertDocumentReady()).toThrow();
+  expect(guard.snapshot()).toMatchObject({ guardedDocuments: 0 });
+});
+it('validates server-origin denial and releases the exact Document without replacing body or headers', async () => {
   const guard = createKeep04NetworkGuard(); guard.expectNavigation(qaDocument);
   const commands: [string, unknown][] = []; let acknowledge: () => void = () => {};
   const session = { command: async (method: string, params: unknown) => { commands.push([method, params]); if (method === 'Fetch.continueResponse') await new Promise<void>(done => { acknowledge = done; }); return {}; } };
-  const request = { requestId: 'document', frameId: 'main', request: { url: qaDocument }, resourceType: 'Document' };
+  const request = { requestId: 'document', frameId: 'main', request: { url: qaDocument, method: 'GET' }, resourceType: 'Document' };
   guard.event('Fetch.requestPaused', request, session); await guard.drain();
-  const originalHeaders = [{ name: 'Content-Type', value: 'text/html' }, { name: 'Content-Security-Policy', value: "img-src 'self'" }, { name: 'X-Test', value: 'preserved' }];
+  const originalHeaders = [{ name: 'Content-Type', value: 'text/html' }, { name: 'Content-Security-Policy', value: "img-src 'self'" }, { name: 'X-Test', value: 'preserved' }, { name: 'Content-Security-Policy', value: policy }];
   guard.event('Fetch.requestPaused', { ...request, responseStatusCode: 200, responseStatusText: 'OK', responseHeaders: originalHeaders }, session);
   expect(() => guard.assertDocumentReady()).toThrow();
-  expect(commands[1]).toEqual(['Fetch.continueResponse', { requestId: 'document', responseCode: 200, responsePhrase: 'OK', responseHeaders: [...originalHeaders,
-    { name: 'Content-Security-Policy', value: "sandbox allow-scripts allow-same-origin; worker-src 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; form-action 'none'" }] }]);
-  // No new-target creation/closure is needed for policy installation. Chrome enforces
-  // sandbox and worker-src before creation/fetch; the controller separately tests it.
+  expect(commands[1]).toEqual(['Fetch.continueResponse', { requestId: 'document' }]);
+  // Native enforcement still requires controller validation, not this protocol double.
   expect(commands.map(([method]) => method)).not.toContain('Target.closeTarget');
   acknowledge(); await guard.drain(); expect(() => guard.assertDocumentReady()).not.toThrow();
   guard.expectNavigation(qaDocument); expect(() => guard.assertDocumentReady()).toThrow();
+});
+it.each([
+  [], [{ name: 'Content-Security-Policy', value: "worker-src 'none'" }],
+  [{ name: 'Content-Security-Policy-Report-Only', value: policy }],
+  [{ name: 'Content-Security-Policy', value: `${policy}; worker-src blob:` }],
+  [{ name: 'Content-Security-Policy', value: policy }, { name: 'Content-Security-Policy', value: policy }],
+  [{ name: 'Content-Security-Policy', value: `${policy}, worker-src blob:` }],
+].map(headers => ({ headers })))('fails closed for absent/wrong/report-only/ambiguous original policy %#', async ({ headers }) => {
+  const guard = createKeep04NetworkGuard(); guard.expectNavigation(qaDocument);
+  const commands: unknown[] = []; const session = { command: async (method: string, params: unknown) => { commands.push([method, params]); return {}; } };
+  const request = { requestId: 'document', frameId: 'main', request: { url: qaDocument, method: 'GET' }, resourceType: 'Document' };
+  guard.event('Fetch.requestPaused', request, session); await guard.drain();
+  guard.event('Fetch.requestPaused', { ...request, responseStatusCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'text/html' }, ...headers] }, session); await guard.drain();
+  expect(commands[1]).toEqual(['Fetch.failRequest', { requestId: 'document', errorReason: 'BlockedByClient' }]);
+  expect(() => guard.assertDocumentReady()).toThrow();
 });
 it.each([
   { responseStatusCode: 302 }, { responseErrorReason: 'Failed' },
@@ -156,9 +208,9 @@ it.each([
 ])('never releases an unguarded or invalid Document response case %#', async change => {
   const guard = createKeep04NetworkGuard(); guard.expectNavigation(qaDocument);
   const commands: string[] = []; const session = { command: async (method: string) => { commands.push(method); return {}; } };
-  const request = { requestId: 'document', frameId: 'main', request: { url: qaDocument }, resourceType: 'Document' };
+  const request = { requestId: 'document', frameId: 'main', request: { url: qaDocument, method: 'GET' }, resourceType: 'Document' };
   guard.event('Fetch.requestPaused', request, session); await guard.drain();
-  guard.event('Fetch.requestPaused', { ...request, responseStatusCode: 200, responseHeaders: [], ...change }, session); await guard.drain();
+  guard.event('Fetch.requestPaused', { ...request, responseStatusCode: 200, responseHeaders: documentHeaders, ...change }, session); await guard.drain();
   expect(commands).toEqual(['Fetch.continueRequest', 'Fetch.failRequest']); expect(() => guard.assert()).toThrow();
 });
 it('rejects a required resource blocked by policy instead of accepting altered fallback rendering', () => {

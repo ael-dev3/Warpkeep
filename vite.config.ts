@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import { keep04DocumentPolicyPlugin } from './scripts/qa-observer/keep04-document-policy.mjs';
 
 import {
   WARPKEEP_LOCAL_VITE_FS_DENY,
@@ -118,7 +119,7 @@ export default defineConfig(({ command }) => ({
   // keeps the strict document CSP, while localhost development removes only
   // that explicitly marked production meta element. Dedicated QA entries
   // retain their own loopback-only CSPs.
-  plugins: [warpkeepLocalPublicBoundaryPlugin(), react(), stripProductionCspFromLocalServe()],
+  plugins: [warpkeepLocalPublicBoundaryPlugin(), react(), stripProductionCspFromLocalServe(), command === 'serve' && keep04DocumentPolicyPlugin()],
   test: {
     environment: 'jsdom',
     globals: true,

@@ -6,13 +6,13 @@ import { pathToFileURL } from 'node:url';
 import { DevtoolsPipeSession, selectBlankPageTarget } from './rendered-webgl-browser-probe.mjs';
 import { KEEP04_QA_ORIGIN, keep04ProbePlan, runKeep04BrowserProbe } from './keep04-browser-probe.mjs';
 import { createKeep04CaptureRun, createKeep04WindowsProfile, writeKeep04RunFile } from './keep04-capture-output.mjs';
+import { KEEP04_DOCUMENT_POLICY } from './keep04-document-policy.mjs';
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const POWERSHELL = 'C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe';
 const GIT = 'C:/Program Files/Git/cmd/git.exe';
 const ROOT = resolve(import.meta.dirname, '../..');
 const SYSTEM_ENV = Object.freeze({ SystemRoot: 'C:\\Windows', WINDIR: 'C:\\Windows' });
-const DOCUMENT_POLICY = "sandbox allow-scripts allow-same-origin; worker-src 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; form-action 'none'";
 const identityFields = ['path', 'realPath', 'regular', 'dev', 'ino', 'size', 'mtimeMs', 'sha256', 'status', 'subject', 'thumbprint', 'version'];
 const localPath = value => typeof value === 'string' ? value.replaceAll('\\', '/').toLowerCase() : '';
 
@@ -89,23 +89,26 @@ export function createKeep04NetworkGuard() {
     event(method, params, session) {
       if (method === 'Fetch.requestPaused') {
         if (typeof params?.requestId !== 'string') { reject('fetch-shape'); return; }
-        const permitted = !violation && allowedResource(params?.request?.url) && (params.resourceType !== 'Document' || params.request.url === expected);
+        const permitted = !violation && allowedResource(params?.request?.url) && (params.resourceType !== 'Document' || (params.request.url === expected && params.request.method === 'GET'));
         if ('responseStatusCode' in params || 'responseErrorReason' in params) {
           const headers = params.responseHeaders;
           const validHeaders = Array.isArray(headers) && headers.length <= 128 && headers.every(header => header && typeof header.name === 'string' && /^[!#$%&'*+.^_`|~\da-z-]+$/i.test(header.name)
             && typeof header.value === 'string' && !/[\r\n\0]/.test(header.value)) && Buffer.byteLength(JSON.stringify(headers)) <= 65536;
           const validPhrase = params.responseStatusText === undefined || (typeof params.responseStatusText === 'string' && params.responseStatusText.length <= 128 && !/[\r\n\0]/.test(params.responseStatusText));
+          const contentTypes = validHeaders ? headers.filter(header => header.name.toLowerCase() === 'content-type') : [];
+          const validPolicy = validHeaders && headers.filter(header => header.name.toLowerCase() === 'content-security-policy' && header.value === KEEP04_DOCUMENT_POLICY).length === 1;
           if (!permitted || params.resourceType !== 'Document' || params.responseStatusCode !== 200 || params.responseErrorReason !== undefined || !validHeaders || !validPhrase
-            || !documentRequest || params.requestId !== documentRequest.requestId || params.frameId !== documentRequest.frameId || documentGuarded) {
+            || !validPolicy || contentTypes.length !== 1 || !/^text\/html(?:\s*;\s*charset=(?:utf-8|"utf-8"))?$/i.test(contentTypes[0].value)
+            || !documentRequest || params.requestId !== documentRequest.requestId || params.frameId !== documentRequest.frameId || documentRequest.responsePending || documentGuarded) {
             reject('document-response-blocked'); track(session.command('Fetch.failRequest', { requestId: params.requestId, errorReason: 'BlockedByClient' })); return;
           }
           const request = documentRequest;
-          // Enforced HTTP policy reaches Chrome before document execution. Unlike
-          // target discovery, sandbox/worker-src prevent creation and worker fetch.
-          track(session.command('Fetch.continueResponse', { requestId: params.requestId, responseCode: params.responseStatusCode,
-            ...(params.responseStatusText === undefined ? {} : { responsePhrase: params.responseStatusText }),
-            responseHeaders: [...headers, { name: 'Content-Security-Policy', value: DOCUMENT_POLICY }] }).then(() => {
-            if (documentRequest === request) { documentGuarded = true; guardedDocuments++; }
+          request.responsePending = true;
+          // Validate the server-origin policy, then leave response/body/network
+          // metadata untouched. Header-only CDP replacement did not enforce
+          // worker-src; body fulfillment changed local-network behavior.
+          track(session.command('Fetch.continueResponse', { requestId: params.requestId }).then(() => {
+            if (!violation && documentRequest === request) { documentGuarded = true; guardedDocuments++; }
           })); return;
         }
         if (!permitted) reject('request-blocked');
@@ -264,7 +267,7 @@ export async function runKeep04WindowsCapture(args, operations = defaultOperatio
     run: run?.id ?? null, profile: profile ?? null, sourceBefore: beforeSource ?? null, sourceAfter: afterSource ?? null,
     stableSource: Boolean(beforeSource && afterSource && !beforeSource.substantiveDirty && !afterSource.substantiveDirty && beforeSource.commit === afterSource.commit && beforeSource.tree === afterSource.tree && !diagnostics.violation),
     executableBefore: baseline ?? null, executableAfterLaunch: launched ?? null, executableAfterCapture: finalIdentity ?? null,
-    injectedDocumentPolicy: { scope: 'synthetic keep-only; not production gameplay or performance', enforcedResponseHeader: DOCUMENT_POLICY, cacheDisabled: true },
+    serverDocumentPolicy: { scope: 'synthetic keep-only; not production gameplay or performance', delivery: 'server-origin; unmodified CDP continuation', enforcedResponseHeader: KEEP04_DOCUMENT_POLICY, cacheDisabled: true },
     browser: browser ? { product: String(browser.product).slice(0, 128), protocolVersion: String(browser.protocolVersion).slice(0, 32) } : null, gpu: gpu ?? null,
     diagnosticPolicy: 'Bounded phase/severity/event classes and stderr counts only; no URLs, console arguments, request bodies or profile content retained. reviewRequired is not asset or visual acceptance.', diagnostics, stderr,
     captureCount: Array.isArray(captured?.observations) ? captured.observations.length : null, failure: originalError ? { stage, kind: failureKind } : cleanupError ? { stage: 'cleanup', kind: 'cleanup-failed' } : null, cleanup: { ...cleanup, exit: childExit ?? null } };
