@@ -34,7 +34,6 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   const root = useRef<HTMLDivElement>(null);
   const decisionHeader = useRef<HTMLDivElement>(null);
   const commandPanel = useRef<HTMLElement>(null);
-  const previousPanel = useRef<Keep04UiSelection['panel']>(null);
   const schematic = useRef<HTMLDetailsElement>(null);
   const wasReady = useRef(phase === 'ready');
   const ready = phase === 'ready' && view !== null;
@@ -59,11 +58,10 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
     };
   }, [ready]);
   useEffect(() => {
-    if (!ready) return;
-    const opened = previousPanel.current !== selection.panel;
-    previousPanel.current = selection.panel;
-    if (!selection.panel) return;
-    focusPanel(opened);
+    // Pending focus may have scrolled to Back. Align again when ready restores
+    // panel focus; ordinary ready-to-ready polls, resizes and draft edits do
+    // not rerun this effect or disturb the user's scroll.
+    if (ready && selection.panel) focusPanel();
   }, [selection.panel, ready]);
   useEffect(() => {
     // Keep the same DOM and focus, but reopen controls if graphics disappear.
@@ -73,12 +71,11 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
     if (wasReady.current && !ready && (!document.activeElement || document.activeElement === document.body || root.current?.contains(document.activeElement))) backButton.current?.focus();
     wasReady.current = ready;
   }, [ready]);
-  function focusPanel(align: boolean) {
+  function focusPanel() {
     const compact = decisionHeader.current !== null && getComputedStyle(decisionHeader.current).position === 'sticky';
     if (compact) {
       // Skip the intervening scene without collapsing/unmounting the schematic.
-      // Unchanged polling, draft edits and resizes must not steal the scroll.
-      if (align) commandPanel.current?.scrollIntoView?.({ block: 'start', behavior: 'instant' });
+      commandPanel.current?.scrollIntoView?.({ block: 'start', behavior: 'instant' });
       closeButton.current?.focus({ preventScroll: true });
     } else closeButton.current?.focus();
   }
@@ -88,7 +85,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   }
   function openPanel(panel: 'workers' | 'buildings', control: HTMLElement) {
     opener.current = control; onSelectionChange({ ...selection, panel });
-    if (selection.panel === panel && decisionHeader.current && getComputedStyle(decisionHeader.current).position === 'sticky') focusPanel(true);
+    if (selection.panel === panel && decisionHeader.current && getComputedStyle(decisionHeader.current).position === 'sticky') focusPanel();
   }
   function selectBuilding(kind: Building04) {
     if (!view) return;

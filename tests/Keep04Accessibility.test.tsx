@@ -13,8 +13,7 @@ const viewportStyles = new Set<HTMLStyleElement>();
 // This file isolates screen DOM/focus ownership; actual scene lifecycle is covered in Keep04SceneHost.test.tsx.
 vi.mock('../src/components/keep04/Keep04SceneHost', () => ({ Keep04SceneHost: (props: Keep04SceneHostProps) => { sceneProps = props; return null; } }));
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); viewportStyles.forEach(style => style.remove()); viewportStyles.clear(); });
-function setup(fixture: 'empty' | 'construction' | 'complete' = 'empty') {
-  const snapshot = createKeep04QaSnapshot(fixture);
+function setup(fixture: 'empty' | 'construction' | 'complete' = 'empty', snapshot = createKeep04QaSnapshot(fixture)) {
   const controller: Controller04 = { getSnapshot: () => snapshot, subscribe: () => () => {}, refresh: vi.fn(async () => {}), submit: vi.fn(async () => {}), retryPending: vi.fn(async () => {}), setAtlas: vi.fn(), dispose: vi.fn() };
   function Harness({ phase = snapshot.phase }: { phase?: Snapshot04['phase'] }) {
     const [selection, onSelectionChange] = useState<Keep04UiSelection>({ panel: null, selectedKind: null, draft: null });
@@ -122,7 +121,7 @@ it('preserves the desktop dock and bounded side panel without a sticky resource 
   } finally { removeStyles(); }
 });
 
-it('measures header changes, aligns only an opened compact panel, and preserves schematic focus and user collapse', () => {
+it('measures header changes without realigning for resizes or draft edits and preserves schematic focus and user collapse', () => {
   let resized: ResizeObserverCallback = () => {};
   let observed: Element | undefined;
   let observedBox: ResizeObserverBoxOptions | undefined;
@@ -167,29 +166,66 @@ it('measures header changes, aligns only an opened compact panel, and preserves 
       bounds.mockClear(); fireEvent.resize(window); expect(bounds).not.toHaveBeenCalled();
       rerenderPhase('ready');
       expect(root.style.getPropertyValue('--keep04-decision-height')).toBe('126px');
-      expect(scroll).toHaveBeenCalledTimes(1);
-      fireEvent.click(opener);
       expect(scroll).toHaveBeenCalledTimes(2);
+      fireEvent.click(opener);
+      expect(scroll).toHaveBeenCalledTimes(3);
       expect(screen.getByRole('button', { name: 'Close panel' })).toHaveFocus();
       fireEvent.keyDown(schematic, { key: 'Escape' }); expect(opener).toHaveFocus();
       fireEvent.click(screen.getByRole('button', { name: 'Manage Workers' }));
-      expect(scroll).toHaveBeenCalledTimes(3);
+      expect(scroll).toHaveBeenCalledTimes(4);
       // Leave and re-enter the compact CSS branch without remounting the screen.
       removeStyles(); const removeDesktopStyles = applyViewportRules(1280, 900);
       fireEvent.resize(window);
       fireEvent.keyDown(screen.getByRole('button', { name: 'Close panel' }), { key: 'Escape' });
       fireEvent.click(screen.getByRole('button', { name: 'Buildings' }));
-      expect(scroll).toHaveBeenCalledTimes(3);
+      expect(scroll).toHaveBeenCalledTimes(4);
       const desktopOpener = screen.getByRole('button', { name: 'Buildings' });
       desktopOpener.focus(); fireEvent.click(desktopOpener); expect(desktopOpener).toHaveFocus();
       removeDesktopStyles(); const removeLandscapeStyles = applyViewportRules(844, 390);
       fireEvent.resize(window);
       fireEvent.click(screen.getByRole('button', { name: 'Manage Workers' }));
-      expect(scroll).toHaveBeenCalledTimes(4); removeLandscapeStyles();
+      expect(scroll).toHaveBeenCalledTimes(5); removeLandscapeStyles();
       cleanup(); expect(disconnect).toHaveBeenCalledTimes(2);
       bounds.mockClear(); fireEvent.resize(window); expect(bounds).not.toHaveBeenCalled();
     } finally { delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView; }
   } finally { removeStyles(); }
+});
+
+it.each([[390, 844], [844, 390]])('realigns the restored command panel before focusing Close after command/pending/ready at %ix%i', (width, height) => {
+  const removeStyles = applyViewportRules(width, height);
+  const scroll = vi.fn();
+  const originalScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scroll });
+  try {
+    const snapshot = createKeep04QaSnapshot('complete');
+    const { controller, rerenderPhase } = setup('complete', { ...snapshot,
+      view: { ...snapshot.view!, atlas: { atlasId: 'synthetic-command-focus-test', revision: 1n } } });
+    const opener = screen.getByRole('button', { name: 'Open building catalog' }); fireEvent.click(opener);
+    fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
+    const confirm = screen.getByRole('button', { name: 'Confirm upgrade' });
+    expect(confirm).toBeEnabled(); confirm.focus(); fireEvent.click(confirm);
+    expect(controller.submit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ kind: 'build' }));
+    rerenderPhase('pending');
+    expect(screen.getByRole('button', { name: 'Back' })).toHaveFocus();
+    expect(screen.queryByRole('button', { name: 'Close panel' })).not.toBeInTheDocument();
+    scroll.mockClear();
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+    rerenderPhase('ready');
+    // jsdom proves the alignment/focus contract and order, not viewport geometry.
+    // Chrome must verify visibility after Back's native focus scrolling.
+    expect(scroll).toHaveBeenCalledExactlyOnceWith({ block: 'start', behavior: 'instant' });
+    expect(scroll.mock.contexts[0]).toBe(screen.getByRole('complementary', { name: 'Command panel' }));
+    expect(screen.getByRole('button', { name: 'Close panel' })).toHaveFocus();
+    expect(focus).toHaveBeenLastCalledWith({ preventScroll: true });
+    expect(scroll.mock.invocationCallOrder[0]).toBeLessThan(focus.mock.invocationCallOrder.at(-1)!);
+    rerenderPhase('ready'); fireEvent.resize(window);
+    expect(scroll).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Close panel' }), { key: 'Escape' }); expect(opener).toHaveFocus();
+  } finally {
+    if (originalScroll) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', originalScroll);
+    else delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+    removeStyles();
+  }
 });
 
 it('keeps valid and blocked footprints distinct using system colors and line patterns in forced-colors rules', () => {
