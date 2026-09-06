@@ -2,6 +2,8 @@ import { GAMEPLAY04_POLICY_VERSION, buildingDuration04, gatheringYield04, travel
 import { GAMEPLAY04_LAYOUT_VERSION } from '../../spacetimedb/gameplay04/placement';
 import { GAMEPLAY04_LAYOUT_DIGEST } from '../../spacetimedb/gameplay04/construction';
 import type { ReadWire04 } from '../../src/ptr/gameplay04/ptrGameplay04Types';
+import type { PtrGameplay04Capability } from '../../src/ptr/ptrRealmConnection';
+import { vi } from 'vitest';
 
 export const EMPTY_WIRE04 = {
   policyVersion: GAMEPLAY04_POLICY_VERSION,
@@ -73,4 +75,15 @@ export function constructingWire04(): Mutable04<ReadWire04> {
 export function expectDeepFrozen04(value: unknown): boolean {
   if (value === null || typeof value !== 'object') return true;
   return Object.isFrozen(value) && Object.values(value).every(expectDeepFrozen04);
+}
+
+// Controller unit-test transport only; never passes production capability branding.
+export function scriptedCapability04() {
+  let current = true;
+  const read = vi.fn<PtrGameplay04Capability['read']>().mockImplementation(async () => freshWire04());
+  const mutate = vi.fn<PtrGameplay04Capability['mutate']>().mockResolvedValue({ sequence: 2n, revision: 2n });
+  const capability: PtrGameplay04Capability = Object.freeze({
+    scope: Object.freeze({ ...SCOPE04 }), isCurrent: () => current, read, mutate,
+  });
+  return { capability, read, mutate, expire: () => { current = false; } };
 }
