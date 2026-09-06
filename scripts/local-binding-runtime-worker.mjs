@@ -153,8 +153,10 @@ function runGenesis002Typecheck(request, moduleRoot) {
     compilerOptions: {
       baseUrl: moduleRoot,
       paths: {
-        spacetimedb: [join(moduleRoot, 'node_modules', 'spacetimedb')],
-        'spacetimedb/*': [join(moduleRoot, 'node_modules', 'spacetimedb', '*')],
+        spacetimedb: [join(moduleRoot, 'node_modules', 'spacetimedb', 'dist', 'index.d.ts')],
+        'spacetimedb/server': [
+          join(moduleRoot, 'node_modules', 'spacetimedb', 'dist', 'server', 'index.d.ts'),
+        ],
       },
     },
   })}\n`, 'utf8');

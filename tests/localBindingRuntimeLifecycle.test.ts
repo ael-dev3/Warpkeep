@@ -33,6 +33,7 @@ const boundary = vi.hoisted(() => ({
   observedPostBuildOutputMode: 0,
   deregisterFailure: false,
   typecheckArgs: [] as string[],
+  typecheckConfig: undefined as Record<string, unknown> | undefined,
 }));
 
 vi.mock('node:fs', async () => {
@@ -181,6 +182,10 @@ vi.mock('node:child_process', async () => {
     spawnSync(executable: string, args: readonly string[], options: { cwd: string }) {
       if (args.includes('--noEmit')) {
         boundary.typecheckArgs = [...args];
+        const project = args[args.indexOf('--project') + 1]!;
+        if (basename(project) === 'genesis002-typecheck-v1.json') {
+          boundary.typecheckConfig = JSON.parse(readFileSync(project, 'utf8'));
+        }
         boundary.events.push('command:typecheck');
         if (boundary.commandFailure === 'typecheck') {
           return { status: 3, signal: null, error: undefined, stdout: Buffer.alloc(0), stderr: Buffer.from('failed') };
@@ -300,6 +305,7 @@ afterEach(() => {
   boundary.observedPostBuildOutputMode = 0;
   boundary.deregisterFailure = false;
   boundary.typecheckArgs.length = 0;
+  boundary.typecheckConfig = undefined;
   for (const root of boundary.cleanupRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
@@ -410,6 +416,15 @@ describe('controlled local binding runtime lifecycle', () => {
     expect(boundary.typecheckArgs[boundary.typecheckArgs.indexOf('--project') + 1]).toBe(
       join(boundary.request!.materializationRoot as string, 'genesis002-typecheck-v1.json'),
     );
+    expect(boundary.typecheckConfig).toEqual(expect.objectContaining({
+      compilerOptions: {
+        baseUrl: expect.stringContaining(join('spacetimedb', 'genesis002')),
+        paths: {
+          spacetimedb: [expect.stringMatching(/node_modules[\\/]spacetimedb[\\/]dist[\\/]index\.d\.ts$/u)],
+          'spacetimedb/server': [expect.stringMatching(/node_modules[\\/]spacetimedb[\\/]dist[\\/]server[\\/]index\.d\.ts$/u)],
+        },
+      },
+    }));
     expect(boundary.events).toContain('command:build-snapshot-cli');
     expect(readdirSync(join(value.materializationParent, 'genesis002-locked-source-builds-v1'))).toEqual([]);
   });
