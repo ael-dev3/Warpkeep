@@ -29,6 +29,7 @@ const boundary = vi.hoisted(() => ({
   events: [] as string[],
   cleanupRoots: [] as string[],
   executableAttestations: 0,
+  fixtureUid: 1000,
   executableFailureAt: 0,
   commandFailure: '' as '' | 'typecheck' | 'build',
   buildOutputScenario: 'success' as 'success' | 'existing-directory' | 'existing-file' | 'existing-link' | 'escaped-root',
@@ -68,14 +69,17 @@ vi.mock('node:fs', async () => {
   const normalize = <T extends { mode: number | bigint; uid: number | bigint; isDirectory(): boolean; isFile(): boolean }>(
     status: T,
   ): T => {
+    // Controlled fixture identity is the approved runtime account, independent
+    // of the ambient CI owner. Preserve native Linux modes and remaining stats.
+    Object.defineProperty(status, 'uid', {
+      value: typeof status.uid === 'bigint' ? BigInt(boundary.fixtureUid) : boundary.fixtureUid,
+    });
+    if (process.platform !== 'win32') return status;
     const permissions = status.isDirectory() ? 0o700 : status.isFile() ? 0o600 : 0o777;
     Object.defineProperty(status, 'mode', {
       value: typeof status.mode === 'bigint'
         ? (status.mode & ~0o7777n) | BigInt(permissions)
         : (status.mode & ~0o7777) | permissions,
-    });
-    Object.defineProperty(status, 'uid', {
-      value: typeof status.uid === 'bigint' ? 1000n : 1000,
     });
     return status;
   };
@@ -86,11 +90,11 @@ vi.mock('node:fs', async () => {
         return compilerDirectoryState(path);
       }
       const status = actual.lstatSync(path, options as never);
-      return process.platform === 'win32' ? normalize(status) : status;
+      return normalize(status);
     },
     fstatSync(descriptor: number, options?: { bigint?: boolean }) {
       const status = actual.fstatSync(descriptor, options as never);
-      return process.platform === 'win32' ? normalize(status) : status;
+      return normalize(status);
     },
     readdirSync(path: import('node:fs').PathLike, options?: unknown) {
       if (path === compilerVersionRoot) return boundary.compilerNamespaceScenario === 'extra'
@@ -493,6 +497,7 @@ afterEach(() => {
   boundary.request = undefined;
   boundary.events.length = 0;
   boundary.executableAttestations = 0;
+  boundary.fixtureUid = 1000;
   boundary.executableFailureAt = 0;
   boundary.commandFailure = '';
   boundary.buildOutputScenario = 'success';
@@ -517,6 +522,16 @@ afterEach(() => {
 });
 
 describe('controlled local binding runtime lifecycle', () => {
+  it.each([999, 1001])('rejects a worker operation owned by UID %s before compiler commands', async uid => {
+    prepareRequest();
+    boundary.fixtureUid = uid;
+    const { derivePreparedPtrLinuxBindings } = await import('../scripts/local-binding-runtime.mjs');
+    await expect(derivePreparedPtrLinuxBindings()).rejects.toMatchObject({
+      code: 'LOCAL_BINDING_WORKER_EXECUTABLE_INVALID',
+    });
+    expect(boundary.commands).toEqual([]);
+  });
+
   function prepareRequest(lane: 'ptr' | 'genesis002' | 'genesis001' | 'current' | 'compatibility' = 'ptr') {
     const genesis002 = lane === 'genesis002';
     const genesis001 = lane === 'genesis001';

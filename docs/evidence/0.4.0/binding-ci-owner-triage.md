@@ -65,3 +65,28 @@ Reproduce the checked-in suite with:
 
 This correction covers the controlled parent suite only. The lifecycle and native
 handoff cases above remain open and must not be marked repaired by inference.
+
+## Worker lifecycle fixture reproduction and correction
+
+At 00:56:48, an owned Linux copy of `localBindingRuntimeLifecycle.test.ts`
+instrumented at its existing path-stat adapter to present UID 1001 reproduced
+39 failures / two passes in 870 ms. The early worker-executable rejection matched
+the hosted failure boundary. No user account or filesystem ownership was changed.
+
+The controlled lifecycle adapter now represents the fixed runtime UID on Linux
+as well as Windows. Native Linux modes and remaining stat fields are retained;
+the separate compiler-owner and compiler-mode mutation fixtures remain unchanged.
+Two new cases require UID 999/1001 operations to fail before compiler commands.
+An initial run of those additions exposed a missing test-local dynamic import;
+it was corrected before final verification, not treated as a production defect.
+
+Final results on pinned Node 22.22.3: controlled UID-1001 Linux copy 43 passed,
+1.62 seconds; ordinary Linux copy 43 passed, 1.63 seconds; Windows 43 passed,
+8.35 seconds. No skips or unhandled errors. Typecheck and exact diff check exit
+zero. Commands use the same Vitest invocation above with
+`tests/localBindingRuntimeLifecycle.test.ts`. Owned snapshots/private caches were
+removed; shared dependencies and production runtime code were unchanged.
+
+Parent and lifecycle controlled fixtures are now locally verified. This does not
+establish hosted CI success, a real compiler build, or native ownership acceptance.
+The standalone checked-handoff/native tests still need their separate repair.
