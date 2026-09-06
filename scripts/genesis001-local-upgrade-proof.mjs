@@ -21,17 +21,17 @@ const COMMAND_TIMEOUT = 2 * 60_000;
 const TOTAL_TIMEOUT = 12 * 60_000;
 const CONTAINMENT_GRACE = 5_000;
 const WRITERS = Object.freeze([
-  Object.freeze({ name: 'admin_allow_fid', body: '[1,""]', reason: 'GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED' }),
+  Object.freeze({ name: 'admin_allow_fid', kind: 'reducer', body: '[1,""]', reason: 'GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED' }),
   Object.freeze({
-    name: 'admin_admit_founder_v1',
+    name: 'admin_admit_founder_v1', kind: 'reducer',
     body: '[1,"","g001-local-proof",null,"https://example.invalid/g001.png",null,"trusted-snapchain-profile-v3"]',
     reason: 'GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED',
   }),
-  Object.freeze({ name: 'admin_disable_fid', body: '[1,""]', reason: 'GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED' }),
-  Object.freeze({ name: 'admin_bump_auth_epoch', body: '[1,""]', reason: 'GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED' }),
-  Object.freeze({ name: 'access_request_submit_v1', body: '[]', reason: 'GENESIS_001_ACCESS_REQUEST_SUBMISSIONS_DISABLED' }),
+  Object.freeze({ name: 'admin_disable_fid', kind: 'reducer', body: '[1,""]', reason: 'GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED' }),
+  Object.freeze({ name: 'admin_bump_auth_epoch', kind: 'reducer', body: '[1,""]', reason: 'GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED' }),
+  Object.freeze({ name: 'access_request_submit_v1', kind: 'procedure', body: '[]', reason: 'GENESIS_001_ACCESS_REQUEST_SUBMISSIONS_DISABLED' }),
   Object.freeze({
-    name: 'admin_reset_access_request_v1', body: '[1,false,0,null,null,""]',
+    name: 'admin_reset_access_request_v1', kind: 'reducer', body: '[1,false,0,null,null,""]',
     reason: 'GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED',
   }),
 ]);
@@ -136,8 +136,9 @@ export function assertGenesis001FrozenWriterObservation(value) {
       || value.status < 400 || value.status > 599 || typeof value.text !== 'string'
       || Buffer.byteLength(value.text) > MAX_RESPONSE_BYTES || typeof value.serverText !== 'string'
       || Buffer.byteLength(value.serverText) > MAX_SERVER_OUTPUT_BYTES
-      || !value.serverText.includes(`reducer "${expected.name}" runtime error:`)
-      || !value.serverText.includes(`Uncaught Error: ${expected.reason}`)
+      || !value.serverText.includes(
+        `${expected.kind} "${expected.name}" runtime error: Uncaught Error: ${expected.reason}`,
+      )
       || canonicalJson(value.before) !== canonicalJson(value.after)) {
     fail('GENESIS001_LOCAL_PROOF_WRITER_INVALID');
   }
@@ -391,8 +392,7 @@ export async function runGenesis001LocalUpgradeProof(input) {
       return Object.freeze([status.value, requests.value, currentPolicy.value]);
     };
     const serverTextSince = async (offset, writer) => {
-      const expected = `Uncaught Error: ${writer.reason}`;
-      const writerName = `reducer "${writer.name}" runtime error:`;
+      const expected = `${writer.kind} "${writer.name}" runtime error: Uncaught Error: ${writer.reason}`;
       const limit = Date.now() + remaining(deadline, 5_000);
       let text = '';
       while (Date.now() < limit) {
@@ -401,7 +401,7 @@ export async function runGenesis001LocalUpgradeProof(input) {
         try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch (error) {
           return fail('GENESIS001_LOCAL_PROOF_SERVER_OUTPUT_INVALID', error);
         }
-        if (text.includes(writerName) && text.includes(expected)) return text;
+        if (text.includes(expected)) return text;
         await delay(20);
       }
       return text;

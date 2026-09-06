@@ -46,9 +46,10 @@ describe('fixed Genesis 001 local upgrade proof', () => {
       const reason = writer === 'access_request_submit_v1'
         ? 'GENESIS_001_ACCESS_REQUEST_SUBMISSIONS_DISABLED'
         : 'GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED';
+      const kind = writer === 'access_request_submit_v1' ? 'procedure' : 'reducer';
       expect(() => assertGenesis001FrozenWriterObservation({
         writer, status: 530, text: 'The instance encountered a fatal error.',
-        serverText: `reducer "${writer}" runtime error: Uncaught Error: ${reason}`, before,
+        serverText: `${kind} "${writer}" runtime error: Uncaught Error: ${reason}`, before,
         after: structuredClone(before),
       })).not.toThrow();
       expect(() => assertGenesis001FrozenWriterObservation({
@@ -57,12 +58,12 @@ describe('fixed Genesis 001 local upgrade proof', () => {
       })).toThrow('GENESIS001_LOCAL_PROOF_WRITER_INVALID');
       expect(() => assertGenesis001FrozenWriterObservation({
         writer, status: 200, text: JSON.stringify({ error: reason }),
-        serverText: `reducer "${writer}" runtime error: Uncaught Error: ${reason}`, before,
+        serverText: `${kind} "${writer}" runtime error: Uncaught Error: ${reason}`, before,
         after: structuredClone(before),
       })).toThrow('GENESIS001_LOCAL_PROOF_WRITER_INVALID');
       expect(() => assertGenesis001FrozenWriterObservation({
         writer, status: 530, text: 'The instance encountered a fatal error.',
-        serverText: `reducer "${writer}" runtime error: Uncaught Error: ${reason}`, before,
+        serverText: `${kind} "${writer}" runtime error: Uncaught Error: ${reason}`, before,
         after: [{ admitted: true }, [], ['GENESIS_001', false]],
       })).toThrow('GENESIS001_LOCAL_PROOF_WRITER_INVALID');
     }
@@ -96,6 +97,19 @@ describe('fixed Genesis 001 local upgrade proof', () => {
       writer: 'admin_allow_fid', status: arbitrary.status, text: arbitrary.text,
       serverText: 'authorization rejected', before, after: structuredClone(before),
     })).toThrow('GENESIS001_LOCAL_PROOF_WRITER_INVALID');
+    for (const serverText of [
+      '',
+      'reducer "admin_allow_fid" runtime error: Uncaught Error: GENESIS_001_ADMISSION_STATE_MUTATIONS_',
+      'reducer "admin_disable_fid" runtime error: Uncaught Error: GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED',
+      'reducer "admin_allow_fid" runtime error: Uncaught Error: OTHER\n'
+        + 'JS error: Uncaught Error: GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED',
+    ]) {
+      expect(() => assertGenesis001FrozenWriterObservation({
+        writer: 'admin_allow_fid', status: 530,
+        text: 'The instance encountered a fatal error.', serverText,
+        before, after: structuredClone(before),
+      })).toThrow('GENESIS001_LOCAL_PROOF_WRITER_INVALID');
+    }
     expect(() => decodeGenesis001ProcedureResponse(302, Buffer.from('redirect'), 64, credential))
       .toThrow('GENESIS001_LOCAL_PROOF_REDIRECT_DENIED');
     expect(() => decodeGenesis001ProcedureResponse(400, Buffer.from('x'.repeat(65)), 64, credential))
