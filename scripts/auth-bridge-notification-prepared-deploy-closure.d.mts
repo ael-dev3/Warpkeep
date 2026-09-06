@@ -10,6 +10,16 @@ export class AuthBridgeNotificationPreparedDeployClosureError extends Error {
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS:
   readonly string[];
 
+export function deriveAuthBridgeNotificationPreparedDeployClosure(
+  options: Readonly<{ memberBodies: ReadonlyMap<string, Uint8Array> }>,
+): Readonly<{
+  profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1';
+  memberCount: number;
+  manifestBytes: Uint8Array;
+  manifestSha256: string;
+  workflowBodies: readonly Readonly<{ path: string; bytes: Uint8Array }>[];
+}>;
+
 export function verifyAuthBridgeNotificationPreparedDeployClosure(
   options?: Readonly<{ repositoryRoot?: string }>,
 ): Readonly<{

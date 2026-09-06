@@ -51,6 +51,7 @@ const PTR_GENERATED_BINDING_MEMBER_PATHS = new Set([
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
 const MAX_MANIFEST_BYTES = 256 * 1_024;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
+const MAX_AGGREGATE_MEMBER_BYTES = 128 * 1_024 * 1_024;
 // Resource bound, independent of the exact frozen member list below.
 const MAX_MEMBERS = 2048;
 const MANIFEST_KEYS = Object.freeze(['schemaVersion', 'profile', 'members']);
@@ -1831,7 +1832,7 @@ function readBootstrapPinValues(repository, manifestSha256) {
   return values;
 }
 
-function canonicalPinnedWorkflowBody(memberPath, body, expectedPins) {
+function inspectPinnedWorkflowBody(memberPath, body, expectedPins) {
   let source;
   try { source = new TextDecoder('utf-8', { fatal: true }).decode(body); } catch {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_BOOTSTRAP_INVALID');
@@ -1840,7 +1841,7 @@ function canonicalPinnedWorkflowBody(memberPath, body, expectedPins) {
   if (workflow === undefined) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_BOOTSTRAP_INVALID');
   }
-  let canonical = source;
+  const declaredPins = new Map();
   for (const binding of BOOTSTRAP_PIN_BINDINGS) {
     const definitionPattern = new RegExp(
       `^\\s*${binding.name}\\s*:`,
@@ -1856,18 +1857,233 @@ function canonicalPinnedWorkflowBody(memberPath, body, expectedPins) {
     if (
       definitions.length !== (expectedHere ? 1 : 0)
       || exact.length !== (expectedHere ? 1 : 0)
-      || (expectedHere && exact[0][1] !== expectedPins.get(binding.name))
+      || (
+        expectedHere
+        && expectedPins !== undefined
+        && exact[0][1] !== expectedPins.get(binding.name)
+      )
     ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_BOOTSTRAP_INVALID');
-    if (!expectedHere) continue;
+    if (expectedHere) declaredPins.set(binding.name, exact[0][1]);
+  }
+  return Object.freeze({ source, declaredPins });
+}
+
+function declaredBootstrapPinValues(memberPath, body) {
+  return inspectPinnedWorkflowBody(memberPath, body).declaredPins;
+}
+
+function canonicalPinnedWorkflowBody(memberPath, body, expectedPins) {
+  const { source } = inspectPinnedWorkflowBody(memberPath, body, expectedPins);
+  const workflow = BOOTSTRAP_PINNED_WORKFLOWS.get(memberPath);
+  let canonical = source;
+  for (const binding of workflow.bindings) {
+    const exactPattern = new RegExp(
+      `^${workflow.indentation}${binding.name}: '([a-f0-9]{64})'$`,
+      'gmu',
+    );
     canonical = canonical.replace(
       exactPattern,
       `${workflow.indentation}${binding.name}: '${BOOTSTRAP_PIN_CANONICAL_VALUE}'`,
     );
   }
-  if (canonical === source) {
-    fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_BOOTSTRAP_INVALID');
-  }
   return Buffer.from(canonical, 'utf8');
+}
+
+function rewritePinnedWorkflowBody(memberPath, body, finalPins) {
+  const { source } = inspectPinnedWorkflowBody(memberPath, body);
+  const workflow = BOOTSTRAP_PINNED_WORKFLOWS.get(memberPath);
+  let rewritten = source;
+  for (const binding of workflow.bindings) {
+    const value = finalPins.get(binding.name);
+    if (!SHA256_HEX.test(value ?? '')) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_BOOTSTRAP_INVALID');
+    }
+    rewritten = rewritten.replace(
+      new RegExp(
+        `^${workflow.indentation}${binding.name}: '[a-f0-9]{64}'$`,
+        'gmu',
+      ),
+      `${workflow.indentation}${binding.name}: '${value}'`,
+    );
+  }
+  return Buffer.from(rewritten, 'utf8');
+}
+
+function bootstrapPinsByWorkflow(pinValues) {
+  return new Map(
+    [...BOOTSTRAP_PINNED_WORKFLOWS.keys()]
+      .map(memberPath => [memberPath, pinValues]),
+  );
+}
+
+function canonicalManifestMembers(memberBodies, workflowPinValues) {
+  let releaseBodies;
+  try {
+    releaseBodies = canonicalReviewedReleaseMemberBodies(memberBodies);
+    const members = [];
+    for (const memberPath of AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS) {
+      const releaseBody = releaseBodies.get(memberPath);
+      const body = releaseBody ?? memberBodies.get(memberPath);
+      if (body === undefined) {
+        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+      }
+      let canonicalBody = body;
+      try {
+        if (BOOTSTRAP_PINNED_WORKFLOWS.has(memberPath)) {
+          const pinValues = workflowPinValues.get(memberPath);
+          if (pinValues === undefined) {
+            fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_BOOTSTRAP_INVALID');
+          }
+          canonicalBody = canonicalPinnedWorkflowBody(
+            memberPath,
+            body,
+            pinValues,
+          );
+        }
+        members.push({
+          path: memberPath,
+          digestProfile: expectedMemberDigestProfile(memberPath),
+          sha256: sha256Body(canonicalBody),
+        });
+      } finally {
+        if (canonicalBody !== body) canonicalBody.fill(0);
+      }
+    }
+    return members;
+  } finally {
+    if (releaseBodies !== undefined) {
+      for (const body of releaseBodies.values()) body.fill(0);
+    }
+  }
+}
+
+function bootstrapPinValuesFromMemberBodies(memberBodies, manifestSha256) {
+  const values = new Map();
+  for (const binding of BOOTSTRAP_PIN_BINDINGS) {
+    if (binding.path === AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH) {
+      values.set(binding.name, manifestSha256);
+      continue;
+    }
+    const body = memberBodies.get(binding.path);
+    if (body === undefined) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+    }
+    values.set(binding.name, sha256Body(body));
+  }
+  return values;
+}
+
+export function deriveAuthBridgeNotificationPreparedDeployClosure(options) {
+  if (!exactKeys(options, ['memberBodies'])) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+  }
+  const { memberBodies } = options;
+  if (
+    !(memberBodies instanceof Map)
+    || memberBodies.size !== AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS.length
+    || memberBodies.size > MAX_MEMBERS
+  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+
+  const expectedPaths = new Set(
+    AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS,
+  );
+  let aggregateBytes = 0;
+  for (const [memberPath, body] of memberBodies) {
+    if (!permittedMemberPath(memberPath) || !expectedPaths.has(memberPath)) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+    }
+    if (
+      !(body instanceof Uint8Array)
+      || body.byteLength < 1
+      || body.byteLength > MAX_MEMBER_BYTES
+    ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_INVALID');
+    aggregateBytes += body.byteLength;
+    if (aggregateBytes > MAX_AGGREGATE_MEMBER_BYTES) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_INVALID');
+    }
+  }
+  for (const memberPath of AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS) {
+    if (!memberBodies.has(memberPath)) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+    }
+  }
+
+  const ownedBodies = new Map();
+  const rewrittenWorkflowBodies = new Map();
+  let manifestBytes;
+  try {
+    for (const memberPath of AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS) {
+      ownedBodies.set(memberPath, Buffer.from(memberBodies.get(memberPath)));
+    }
+
+    const declaredPinsByWorkflow = new Map();
+    for (const memberPath of BOOTSTRAP_PINNED_WORKFLOWS.keys()) {
+      declaredPinsByWorkflow.set(
+        memberPath,
+        declaredBootstrapPinValues(memberPath, ownedBodies.get(memberPath)),
+      );
+    }
+    const members = canonicalManifestMembers(
+      ownedBodies,
+      declaredPinsByWorkflow,
+    );
+    manifestBytes = Buffer.from(`${JSON.stringify({
+      schemaVersion: 2,
+      profile: AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_PROFILE,
+      members,
+    }, null, 2)}\n`, 'utf8');
+    if (
+      manifestBytes.byteLength < 2
+      || manifestBytes.byteLength > MAX_MANIFEST_BYTES
+    ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
+    const manifestSha256 = sha256Body(manifestBytes);
+    const finalPins = bootstrapPinValuesFromMemberBodies(
+      ownedBodies,
+      manifestSha256,
+    );
+    for (const memberPath of BOOTSTRAP_PINNED_WORKFLOWS.keys()) {
+      rewrittenWorkflowBodies.set(
+        memberPath,
+        rewritePinnedWorkflowBody(
+          memberPath,
+          ownedBodies.get(memberPath),
+          finalPins,
+        ),
+      );
+    }
+
+    const installedBodies = new Map(ownedBodies);
+    for (const [memberPath, body] of rewrittenWorkflowBodies) {
+      installedBodies.set(memberPath, body);
+    }
+    const installedMembers = canonicalManifestMembers(
+      installedBodies,
+      bootstrapPinsByWorkflow(finalPins),
+    );
+    if (JSON.stringify(installedMembers) !== JSON.stringify(members)) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH');
+    }
+
+    const workflowBodies = Object.freeze(
+      [...rewrittenWorkflowBodies]
+        .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+        .map(([path, bytes]) => Object.freeze({
+          path,
+          bytes: Buffer.from(bytes),
+        })),
+    );
+    return Object.freeze({
+      profile: AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_PROFILE,
+      memberCount: members.length,
+      manifestBytes: Buffer.from(manifestBytes),
+      manifestSha256,
+      workflowBodies,
+    });
+  } finally {
+    for (const body of ownedBodies.values()) body.fill(0);
+    for (const body of rewrittenWorkflowBodies.values()) body.fill(0);
+    if (manifestBytes !== undefined) manifestBytes.fill(0);
+  }
 }
 
 export function verifyAuthBridgeNotificationPreparedDeployClosure({
@@ -1892,88 +2108,24 @@ export function verifyAuthBridgeNotificationPreparedDeployClosure({
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
   }
   const expectedPins = readBootstrapPinValues(repository, manifestSha256);
-  const releaseMemberBodies = new Map();
-  let releaseBodies;
+  const memberBodies = new Map();
   try {
-    for (const memberPath of Object.values(REVIEWED_RELEASE_SOURCE_PATHS)) {
-      releaseMemberBodies.set(memberPath, readMember(
+    for (const memberPath of AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS) {
+      memberBodies.set(memberPath, readMember(
         repository,
         memberPath,
         'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_INVALID',
       ));
     }
-    releaseBodies = canonicalReviewedReleaseMemberBodies(releaseMemberBodies);
-    for (const body of releaseMemberBodies.values()) body.fill(0);
-    releaseMemberBodies.clear();
-    for (const member of manifest.members) {
-      const releaseBody = releaseBodies.get(member.path);
-      const body = releaseBody ?? readMember(
-        repository,
-        member.path,
-        'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_INVALID',
-      );
-      let canonicalBody;
-      try {
-        if (member.digestProfile === RAW_FILE_DIGEST_PROFILE) {
-          if (
-            releaseBody !== undefined
-            || BOOTSTRAP_PINNED_WORKFLOWS.has(member.path)
-          ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
-          canonicalBody = body;
-        } else if (
-          member.digestProfile === BOOTSTRAP_PIN_DIGEST_PROFILE
-        ) {
-          if (
-            releaseBody !== undefined
-            || !BOOTSTRAP_PINNED_WORKFLOWS.has(member.path)
-          ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
-          canonicalBody = canonicalPinnedWorkflowBody(
-            member.path,
-            body,
-            expectedPins,
-          );
-        } else if (
-          member.digestProfile
-            === REVIEWED_RELEASE_TRANSITION_DIGEST_PROFILE
-        ) {
-          if (
-            releaseBody === undefined
-            || BOOTSTRAP_PINNED_WORKFLOWS.has(member.path)
-          ) {
-            fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
-          }
-          canonicalBody = body;
-        } else if (
-          member.digestProfile
-            === REVIEWED_RELEASE_TRANSITION_PLUS_BOOTSTRAP_PIN_DIGEST_PROFILE
-        ) {
-          if (
-            releaseBody === undefined
-            || !BOOTSTRAP_PINNED_WORKFLOWS.has(member.path)
-          ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
-          canonicalBody = canonicalPinnedWorkflowBody(
-            member.path,
-            body,
-            expectedPins,
-          );
-        } else {
-          fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
-        }
-        if (sha256Body(canonicalBody) !== member.sha256) {
-          fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH');
-        }
-      } finally {
-        if (canonicalBody !== undefined && canonicalBody !== body) {
-          canonicalBody.fill(0);
-        }
-        if (releaseBody === undefined) body.fill(0);
-      }
+    const expectedMembers = canonicalManifestMembers(
+      memberBodies,
+      bootstrapPinsByWorkflow(expectedPins),
+    );
+    if (JSON.stringify(expectedMembers) !== JSON.stringify(manifest.members)) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH');
     }
   } finally {
-    for (const body of releaseMemberBodies.values()) body.fill(0);
-    if (releaseBodies !== undefined) {
-      for (const body of releaseBodies.values()) body.fill(0);
-    }
+    for (const body of memberBodies.values()) body.fill(0);
   }
   const authority = Object.freeze({
     profile: AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_PROFILE,
