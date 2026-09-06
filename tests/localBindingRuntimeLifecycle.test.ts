@@ -32,6 +32,7 @@ const boundary = vi.hoisted(() => ({
   observedBuildOutputMode: 0,
   observedPostBuildOutputMode: 0,
   deregisterFailure: false,
+  typecheckArgs: [] as string[],
 }));
 
 vi.mock('node:fs', async () => {
@@ -179,6 +180,7 @@ vi.mock('node:child_process', async () => {
     ...actual,
     spawnSync(executable: string, args: readonly string[], options: { cwd: string }) {
       if (args.includes('--noEmit')) {
+        boundary.typecheckArgs = [...args];
         boundary.events.push('command:typecheck');
         if (boundary.commandFailure === 'typecheck') {
           return { status: 3, signal: null, error: undefined, stdout: Buffer.alloc(0), stderr: Buffer.from('failed') };
@@ -297,6 +299,7 @@ afterEach(() => {
   boundary.observedBuildOutputMode = 0;
   boundary.observedPostBuildOutputMode = 0;
   boundary.deregisterFailure = false;
+  boundary.typecheckArgs.length = 0;
   for (const root of boundary.cleanupRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
@@ -404,6 +407,9 @@ describe('controlled local binding runtime lifecycle', () => {
     expect(readFileSync(result.handoffPath, 'utf8')).toBe('controlled-bundle');
     expect(boundary.events).toContain('builder:operation');
     expect(boundary.events).toContain('command:typecheck');
+    expect(boundary.typecheckArgs[boundary.typecheckArgs.indexOf('--project') + 1]).toBe(
+      join(boundary.request!.materializationRoot as string, 'genesis002-typecheck-v1.json'),
+    );
     expect(boundary.events).toContain('command:build-snapshot-cli');
     expect(readdirSync(join(value.materializationParent, 'genesis002-locked-source-builds-v1'))).toEqual([]);
   });

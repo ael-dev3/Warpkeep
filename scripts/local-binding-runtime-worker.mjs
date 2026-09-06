@@ -1,5 +1,8 @@
 import { spawnSync } from 'node:child_process';
-import { lstatSync, mkdirSync, realpathSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import {
+  closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, realpathSync, unlinkSync, writeSync,
+} from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -143,6 +146,66 @@ function command(executable, args, cwd, timeout) {
   }
 }
 
+function runGenesis002Typecheck(request, moduleRoot) {
+  const configPath = join(request.materializationRoot, 'genesis002-typecheck-v1.json');
+  const body = Buffer.from(`${JSON.stringify({
+    extends: join(moduleRoot, 'tsconfig.json'),
+    compilerOptions: {
+      baseUrl: moduleRoot,
+      paths: {
+        spacetimedb: [join(moduleRoot, 'node_modules', 'spacetimedb')],
+        'spacetimedb/*': [join(moduleRoot, 'node_modules', 'spacetimedb', '*')],
+      },
+    },
+  })}\n`, 'utf8');
+  const digest = createHash('sha256').update(body).digest('hex');
+  let descriptor;
+  let identity;
+  let primary;
+  try {
+    descriptor = openSync(configPath, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL
+      | (constants.O_NOFOLLOW ?? 0), 0o600);
+    let offset = 0;
+    while (offset < body.length) offset += writeSync(descriptor, body, offset, body.length - offset);
+    fsyncSync(descriptor);
+    closeSync(descriptor);
+    descriptor = undefined;
+    const opened = readLocalBindingBoundedFile(configPath, {
+      maximumBytes: body.length, expectedBytes: body.length, expectedSha256: digest,
+      expectedUid: 1000, expectedMode: 0o600,
+    });
+    opened.body.fill(0);
+    identity = opened.identity;
+    command(request.nodePath, [
+      join(moduleRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
+      '--noEmit', '--project', configPath,
+    ], moduleRoot, 10 * 60_000);
+  } catch (error) { primary = error; }
+  let cleanupError;
+  try {
+    if (descriptor !== undefined) closeSync(descriptor);
+    if (identity !== undefined) {
+      readLocalBindingBoundedFile(configPath, {
+        maximumBytes: body.length, expectedBytes: body.length, expectedSha256: digest,
+        expectedUid: 1000, expectedMode: 0o600, expectedIdentity: identity,
+      }).body.fill(0);
+      unlinkSync(configPath);
+      if (process.platform !== 'win32') {
+        const directory = openSync(request.materializationRoot,
+          constants.O_RDONLY | (constants.O_DIRECTORY ?? 0) | (constants.O_NOFOLLOW ?? 0));
+        try { fsyncSync(directory); } finally { closeSync(directory); }
+      }
+    }
+  } catch (error) { cleanupError = error; }
+  body.fill(0);
+  if (primary !== undefined || cleanupError !== undefined) {
+    if (primary !== undefined && cleanupError === undefined) throw primary;
+    throw new AggregateError([primary, cleanupError].filter(Boolean), 'LOCAL_BINDING_WORKER_COMMAND_FAILED', {
+      cause: primary,
+    });
+  }
+}
+
 function assertWorkerHost() {
   if (process.argv.length !== 2 || process.platform !== 'linux' || process.arch !== 'x64'
       || process.getuid?.() !== 1000 || process.execPath !== '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node'
@@ -171,10 +234,14 @@ export async function runFixedLocalBindingWorker(input) {
         const buildOutput = bindPrivateBuildOutput(request, lane, context.materializedRoot);
         const { moduleRoot } = buildOutput;
         attestRuntimeExecutables(request, runtimeAuthority);
-        command(request.nodePath, [
-          join(moduleRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
-          '--noEmit', '--project', join(moduleRoot, 'tsconfig.json'),
-        ], moduleRoot, 10 * 60_000);
+        if (request.profile === 'warpkeep-local-binding-genesis002-worker-v1') {
+          runGenesis002Typecheck(request, moduleRoot);
+        } else {
+          command(request.nodePath, [
+            join(moduleRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
+            '--noEmit', '--project', join(moduleRoot, 'tsconfig.json'),
+          ], moduleRoot, 10 * 60_000);
+        }
         attestRuntimeExecutables(request, runtimeAuthority);
         buildOutput.create();
         command(request.cliPath, ['build', '--module-path', lane.modulePath], context.materializedRoot, 10 * 60_000);
