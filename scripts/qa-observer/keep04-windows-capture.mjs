@@ -68,14 +68,24 @@ function allowedResource(value, websocket = false) {
 }
 export function createKeep04NetworkGuard() {
   let expected = 'about:blank'; let target = ''; let violation = ''; let dropped = 0;
+  let phase = 'capture'; let reviewRequired = false;
+  const ownedClose = { requested: false, acknowledged: false, verified: false, detachCount: 0 };
   let documentRequest; let documentGuarded = false; let guardedDocuments = 0;
   const diagnostics = []; const pending = new Set();
-  const record = (kind, severity = 'error') => { if (diagnostics.length < 128) diagnostics.push({ kind, severity }); else dropped++; };
+  const record = (kind, severity = 'error') => { if (severity !== 'info') reviewRequired = true; if (diagnostics.length < 128) diagnostics.push({ kind, severity, phase }); else dropped++; };
   const reject = kind => { violation ||= kind; record(kind); };
   const track = promise => { if (pending.size >= 256) { reject('interception-overflow'); void promise.catch(() => {}); return; } pending.add(promise); promise.catch(() => reject('interception-command')).finally(() => pending.delete(promise)); };
   return {
     expectNavigation(url) { if (!keep04ProbePlan([`--base-url=${KEEP04_QA_ORIGIN}`]).cases.some(entry => entry.url === url)) throw new Error('Unexpected keep QA navigation request.'); expected = url; documentRequest = undefined; documentGuarded = false; },
     setTarget(id) { target = id; },
+    beginOwnedClose() { ownedClose.requested = true; phase = 'owned-close'; record('owned-close-requested', 'info'); },
+    acknowledgeOwnedClose() { ownedClose.acknowledged = true; record('owned-close-acknowledged', 'info'); },
+    finishOwnedClose(verified) {
+      ownedClose.verified = ownedClose.requested && ownedClose.acknowledged && verified === true;
+      if (ownedClose.detachCount && !ownedClose.verified) reject('unverified-close-detach');
+      if (ownedClose.requested) record(ownedClose.verified ? 'owned-close-verified' : 'owned-close-unverified', ownedClose.verified ? 'info' : 'warning');
+      phase = 'closed';
+    },
     event(method, params, session) {
       if (method === 'Fetch.requestPaused') {
         if (typeof params?.requestId !== 'string') { reject('fetch-shape'); return; }
@@ -112,7 +122,14 @@ export function createKeep04NetworkGuard() {
       } else if (method === 'Page.windowOpen' || method === 'Page.downloadWillBegin') reject('page-side-effect');
       else if (method === 'Target.targetCreated' && params?.targetInfo?.type === 'page' && params.targetInfo.targetId !== target) {
         reject('popup'); if (typeof params.targetInfo.targetId === 'string') track(session.browserCommand('Target.closeTarget', { targetId: params.targetInfo.targetId }));
-      } else if (['Target.targetCrashed', 'Inspector.detached'].includes(method)) reject('target-failed');
+      } else if (method === 'Target.targetCrashed') reject('target-crashed');
+      else if (method === 'Inspector.detached') {
+        if (phase === 'owned-close' && target && params?.reason === 'target_closed') {
+          ownedClose.detachCount = Math.min(129, ownedClose.detachCount + 1);
+          record('inspector-detached-target-closed', 'info');
+          if (ownedClose.detachCount > 128) reject('teardown-overflow');
+        } else reject(params?.reason === 'target_closed' ? 'unexpected-target-closed' : 'unexpected-inspector-detach');
+      }
       else if (method === 'Log.entryAdded' && params?.entry?.source === 'security' && params.entry.level === 'error') reject('security-policy-error');
       else if (method === 'Runtime.exceptionThrown') record('runtime-exception');
       else if (method === 'Runtime.consoleAPICalled' && ['warning', 'error', 'assert'].includes(params?.type)) record('browser-console', params.type === 'warning' ? 'warning' : 'error');
@@ -121,7 +138,7 @@ export function createKeep04NetworkGuard() {
     async drain() { await Promise.allSettled([...pending]); },
     assert() { if (violation) throw new Error(`Keep QA network boundary failed: ${violation}.`); },
     assertDocumentReady() { if (violation || !documentGuarded) throw new Error('Exact QA Document response policy is not confirmed.'); },
-    snapshot() { return { violation: violation || null, diagnostics: [...diagnostics], dropped, guardedDocuments }; },
+    snapshot() { return { violation: violation || null, diagnostics: [...diagnostics], dropped, guardedDocuments, reviewRequired, ownedClose: { ...ownedClose } }; },
   };
 }
 
@@ -171,6 +188,7 @@ function defaultOperations() {
 export async function runKeep04WindowsCapture(args, operations = defaultOperations()) {
   keep04ProbePlan(args); if (operations.platform !== 'win32') throw new Error('This local capture launcher requires Windows.');
   let run, profile, child, session, closed, childExit, originalError, cleanupError;
+  let failureKind = 'operation-failed';
   let stage = 'create-run'; let baseline, launched, finalIdentity, beforeSource, afterSource, captured, browser, gpu;
   const guard = createKeep04NetworkGuard(); const stderr = { bytes: 0, chunks: 0, warningChunks: 0, errorChunks: 0, droppedBytes: 0 };
   let cleanup = { verified: false, remaining: null, forced: false, closeFailed: false, profileRetained: true };
@@ -218,7 +236,8 @@ export async function runKeep04WindowsCapture(args, operations = defaultOperatio
         let known = []; let inspectionError;
         try { known = await operations.inspectOwned(profile); } catch (error) { inspectionError = error; }
         // Always attempt normal close, even when the pre-close ownership query failed.
-        try { await session?.browserCommand('Browser.close', {}, 5000); } catch { cleanup.closeFailed = true; /* Only verified owned processes below. */ }
+        guard.beginOwnedClose();
+        try { if (session) { await session.browserCommand('Browser.close', {}, 5000); guard.acknowledgeOwnedClose(); } } catch { cleanup.closeFailed = true; /* Only verified owned processes below. */ }
         let exited = await operations.waitForExit(closed);
         let remaining = await operations.inspectOwned(profile, known);
         if (remaining.length) { cleanup.forced = true; await operations.terminateOwned(remaining); exited = await operations.waitForExit(closed); remaining = await operations.inspectOwned(profile, known); }
@@ -230,14 +249,22 @@ export async function runKeep04WindowsCapture(args, operations = defaultOperatio
       finally { session?.close(); }
     } else cleanup = { ...cleanup, verified: true, remaining: 0 };
   }
+  // Only a requested, acknowledged, normal owned close can explain target_closed.
+  // Never clear prior capture violations; crashes/other detach reasons stay fatal.
+  guard.finishOwnedClose(cleanup.verified && !cleanup.forced && !cleanup.closeFailed && childExit?.code === 0 && childExit.signal === null && !childExit.spawnError);
+  await guard.drain();
+  try { guard.assert(); } catch (error) {
+    if (!originalError) { originalError = error; stage = 'final-guard'; failureKind = 'guard-failed'; }
+  }
+  const diagnostics = guard.snapshot();
   const report = { synthetic: true, scope: 'Windows local DEV keep-only capture; not production or phone attestation', status: originalError || cleanupError ? 'failed; no acceptance claimed' : 'captured; images uninspected; performance not measured',
     run: run?.id ?? null, profile: profile ?? null, sourceBefore: beforeSource ?? null, sourceAfter: afterSource ?? null,
-    stableSource: Boolean(beforeSource && afterSource && !beforeSource.substantiveDirty && !afterSource.substantiveDirty && beforeSource.commit === afterSource.commit && beforeSource.tree === afterSource.tree && !guard.snapshot().violation),
+    stableSource: Boolean(beforeSource && afterSource && !beforeSource.substantiveDirty && !afterSource.substantiveDirty && beforeSource.commit === afterSource.commit && beforeSource.tree === afterSource.tree && !diagnostics.violation),
     executableBefore: baseline ?? null, executableAfterLaunch: launched ?? null, executableAfterCapture: finalIdentity ?? null,
     injectedDocumentPolicy: { scope: 'synthetic keep-only; not production gameplay or performance', enforcedResponseHeader: DOCUMENT_POLICY, cacheDisabled: true },
     browser: browser ? { product: String(browser.product).slice(0, 128), protocolVersion: String(browser.protocolVersion).slice(0, 32) } : null, gpu: gpu ?? null,
-    diagnosticPolicy: 'Bounded severity/source classes and stderr counts only; no URLs, console arguments, request bodies or profile content retained.', diagnostics: guard.snapshot(), stderr,
-    captureCount: Array.isArray(captured?.observations) ? captured.observations.length : null, failure: originalError ? { stage, kind: 'operation-failed' } : null, cleanup: { ...cleanup, exit: childExit ?? null } };
+    diagnosticPolicy: 'Bounded phase/severity/event classes and stderr counts only; no URLs, console arguments, request bodies or profile content retained. reviewRequired is not asset or visual acceptance.', diagnostics, stderr,
+    captureCount: Array.isArray(captured?.observations) ? captured.observations.length : null, failure: originalError ? { stage, kind: failureKind } : cleanupError ? { stage: 'cleanup', kind: 'cleanup-failed' } : null, cleanup: { ...cleanup, exit: childExit ?? null } };
   if (run) { try { await operations.writeReport(run, report); } catch (error) { cleanupError = cleanupError ? new AggregateError([cleanupError, error], 'Cleanup/report failures.') : error; } }
   if (originalError && cleanupError) throw new AggregateError([originalError, cleanupError], 'Windows keep capture and cleanup/report failed.', { cause: originalError });
   if (originalError) throw originalError; if (cleanupError) throw cleanupError; return report;

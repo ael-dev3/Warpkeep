@@ -43,6 +43,8 @@ it.each(['Page.windowOpen', 'Page.downloadWillBegin', 'Target.targetCreated'])('
 
 function fixture() {
   const history: string[] = []; const child = new EventEmitter() as EventEmitter & { pid: number; stderr: EventEmitter }; child.pid = 45; child.stderr = new EventEmitter();
+  let event: (method: string, params: unknown, session: unknown) => void = () => {};
+  let published: unknown;
   let processes = [{ pid: 45, created: '100' }]; let afterIdentity = identity();
   const session = { open: async () => { history.push('open'); }, close: () => { history.push('transport-close'); }, attachToPage: async () => { history.push('attach'); },
     command: async (method: string) => { history.push(method); return {}; },
@@ -59,13 +61,13 @@ function fixture() {
     createRun: async () => ({ id: 'windows-run-ABC123', directory: 'artifacts/keep04-qa/windows-run-ABC123' }),
     createProfile: async () => 'C:/workspace/.cache/keep04-qa/profile-ABC123',
     source: async () => ({ commit: '1'.repeat(40), tree: '2'.repeat(40), substantiveDirty: false, untrackedRelevantCount: 0 }),
-    spawn: () => { history.push('spawn'); return child; }, transport: () => session,
+    spawn: () => { history.push('spawn'); return child; }, transport: (_child?: unknown, handler?: typeof event) => { if (handler) event = handler; return session; },
     inspectOwned: async () => [...processes], terminateOwned: async () => { history.push('terminate-owned'); processes = []; child.emit('close', null, 'SIGTERM'); },
     waitForExit: async () => processes.length === 0,
     capture: async () => { history.push('capture'); return { status: 'captured; uninspected', observations: Array(36).fill({ imageInspected: false }) }; },
-    writeReport: async (_run: unknown, report: unknown) => { history.push('write-report'); return report; },
+    writeReport: async (_run: unknown, report: unknown) => { history.push('write-report'); published = report; return report; },
   };
-  return { ops, history, child, changeIdentity: () => { afterIdentity = { ...identity(), sha256: 'c'.repeat(64) }; } };
+  return { ops, history, child, emit: (method: string, params: unknown) => event(method, params, session), report: () => published, changeIdentity: () => { afterIdentity = { ...identity(), sha256: 'c'.repeat(64) }; } };
 }
 it.each([[], ['--base-url=https://example.com'], ['--base-url=http://127.0.0.1:4176', '--browser=C:/other.exe']].map(args => ({ args })))('rejects launcher argument scope before any OS work: $args', async ({ args }) => {
   const f = fixture(); await expect(runKeep04WindowsCapture(args, f.ops)).rejects.toThrow(/Only --base-url/); expect(f.history).toEqual([]);
@@ -171,4 +173,46 @@ it.each(['Runtime.evaluate', 'Page.captureScreenshot'])('does not send %s before
   };
   await expect(runKeep04WindowsCapture(['--base-url=http://127.0.0.1:4176'], f.ops)).rejects.toThrow(/Document response policy/);
   expect(f.history).not.toContain(method); expect(f.history).toContain('Browser.close');
+});
+
+it('records exact owned target_closed detach as teardown only after acknowledged close and verified normal exit', async () => {
+  const f = fixture(); const session = f.ops.transport(); const original = session.browserCommand;
+  session.browserCommand = async method => { if (method === 'Browser.close') f.emit('Inspector.detached', { reason: 'target_closed' }); return original(method); };
+  const capture = f.ops.capture; f.ops.capture = async () => { f.emit('Log.entryAdded', { entry: { source: 'network', level: 'error', text: 'unresolved private diagnostic' } }); return capture(); };
+  const report = await runKeep04WindowsCapture(['--base-url=http://127.0.0.1:4176'], f.ops);
+  expect(report).toMatchObject({ stableSource: true, failure: null, diagnostics: { violation: null, reviewRequired: true, diagnostics: expect.arrayContaining([
+    { kind: 'browser-log-network', severity: 'error', phase: 'capture' },
+    { kind: 'inspector-detached-target-closed', severity: 'info', phase: 'owned-close' },
+  ]), ownedClose: { requested: true, acknowledged: true, verified: true, detachCount: 1 } } });
+  expect(JSON.stringify(report)).not.toContain('unresolved private');
+});
+
+it.each(['Inspector.detached', 'Target.targetCrashed'])('fails a late pre-close %s after the last capture guard check', async method => {
+  const f = fixture(); const source = f.ops.source; let reads = 0;
+  f.ops.source = async () => { if (++reads === 2) f.emit(method, { reason: 'target_closed', targetId: 'owned', status: 'crashed', errorCode: 1 }); return source(); };
+  await expect(runKeep04WindowsCapture(['--base-url=http://127.0.0.1:4176'], f.ops)).rejects.toThrow();
+  expect(f.report()).toMatchObject({ status: 'failed; no acceptance claimed', stableSource: false, failure: expect.objectContaining({ kind: 'guard-failed' }), diagnostics: { violation: expect.any(String), diagnostics: expect.arrayContaining([expect.objectContaining({ phase: 'capture', severity: 'error' })]) } });
+  expect(f.history).toContain('Browser.close');
+});
+
+it.each([
+  { event: 'Inspector.detached', reason: 'replaced_with_devtools', closeFails: false },
+  { event: 'Inspector.detached', reason: 'target_closed', closeFails: true },
+  { event: 'Target.targetCrashed', reason: 'target_closed', closeFails: false },
+  { event: 'Target.targetCrashed', reason: 'target_closed', closeFails: true },
+])('does not forgive unexpected close-time event case %#', async entry => {
+  const f = fixture(); const session = f.ops.transport(); const original = session.browserCommand;
+  session.browserCommand = async method => {
+    if (method === 'Browser.close') { f.emit(entry.event, { reason: entry.reason, targetId: 'owned', status: 'crashed', errorCode: 1 }); if (entry.closeFails) throw new Error('close failed'); }
+    return original(method);
+  };
+  await expect(runKeep04WindowsCapture(['--base-url=http://127.0.0.1:4176'], f.ops)).rejects.toThrow();
+  expect(f.report()).toMatchObject({ status: 'failed; no acceptance claimed', stableSource: false, failure: expect.objectContaining({ kind: 'guard-failed' }), diagnostics: { violation: expect.any(String) } });
+});
+
+it('retains a real late network-boundary violation emitted during transport cleanup', async () => {
+  const f = fixture(); const session = f.ops.transport(); const original = session.close;
+  session.close = () => { f.emit('Network.requestWillBeSent', { request: { url: 'https://example.invalid/private' } }); original(); };
+  await expect(runKeep04WindowsCapture(['--base-url=http://127.0.0.1:4176'], f.ops)).rejects.toThrow();
+  expect(f.report()).toMatchObject({ status: 'failed; no acceptance claimed', stableSource: false, failure: expect.objectContaining({ kind: 'guard-failed' }), diagnostics: { violation: 'network' } });
 });
