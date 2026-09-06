@@ -4,6 +4,8 @@
 
 **Files:**
 
+**Inventory clarification:** The frozen-source exact transform inventory also includes `/usr/bin:/bin` x1, already approved after inspecting its fixed child environment. Preserve the evaluated value and exact occurrence assertion; this corrects the omitted inventory entry, not the validator or execution policy.
+
 **Dependency-path amendment:** Set the fixed esbuild option `preserveSymlinks: true` for the shared engine and corrected legacy baseline. Bounded probe proves G002/PTR counts remain131 and output bytes unchanged, while72 YAML paths become `node_modules/yaml/dist/...` instead of external junction targets. Retain graph path rejection, exact counts and byte hashing. This normalizes compiler path identity; it does not prove canonical containment or authorize arbitrary symlink targets. The fixed Linux wrapper must independently attest its real contained dependency namespace. Regression tests must cover the fixed option and normalized graph output; preserve the existing junction without installing or modifying dependencies.
 
 **Fixed Git literal addition:** Extend the exact transform table for `scripts/genesis001-binding-frozen-source.mjs` with `/usr/bin/git`1, `/dev/null`2, `core.hooksPath=/dev/null`1, `core.attributesFile=/dev/null`1, `core.excludesFile=/dev/null`1, matching the existing provenance transform convention. Preserve evaluated strings, exact occurrence rejection and unchanged artifact validation. This completes the reported literal inventory of that newly included helper; inspect all its emitted literals in one bounded pass rather than repeatedly running the full suite per literal. No arbitrary-source/general escaping is authorized.

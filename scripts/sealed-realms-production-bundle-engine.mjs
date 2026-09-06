@@ -193,9 +193,10 @@ function graphManifest(metafile, spec, sourceRoot) {
   if (paths.length !== spec.graphCount || !paths.includes(spec.entryPath)) {
     fail('SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID');
   }
+  const sourceRootPrefix = sourceRoot.endsWith(sep) ? sourceRoot : `${sourceRoot}${sep}`;
   const entries = paths.map((path) => {
     const absolute = resolve(sourceRoot, path);
-    if (!absolute.startsWith(`${sourceRoot}${sep}`)) {
+    if (!absolute.startsWith(sourceRootPrefix)) {
       fail('SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID');
     }
     const bytes = readFileSync(absolute);
@@ -241,7 +242,8 @@ export async function buildSealedRealmOperationBundle(input) {
     || typeof options.sourceRoot !== 'string' || !isAbsolute(options.sourceRoot)
     || typeof options.build !== 'function'
   ) fail('SEALED_REALMS_BUNDLES_INPUT_INVALID');
-  const { lane, sourceRoot, build } = options;
+  const { lane, build } = options;
+  const sourceRoot = resolve(options.sourceRoot);
   const spec = LANE_SPECS[lane];
   let result;
   try {

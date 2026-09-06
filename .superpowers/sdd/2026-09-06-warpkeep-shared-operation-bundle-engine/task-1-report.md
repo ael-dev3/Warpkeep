@@ -325,3 +325,45 @@ Self-review against the brief found no public signature change, no new arbitrary
 ## Remaining concerns and scope boundary
 
 `preserveSymlinks: true` provides stable logical metafile paths but is not canonical filesystem containment or dependency-package attestation. The future fixed Linux wrapper must attest that its real YAML dependency namespace is contained and approved. This task does not implement Linux runtime/bootstrap, eight independent materializations, bounded load children, bundle/declaration family installation, refreeze, or final transaction; all remain successor work.
+
+## Review round 1 fix
+
+Fix base: `3f087d838f39fb82df1eb87f0f0df9dba2188b60`.
+
+The review found that the brief omitted the already implemented and approved frozen-source `/usr/bin:/bin` x1 inventory entry. The plan and regenerated brief now record that exact value/count explicitly; the engine transform and the original report inventory already contained it, so this documentation correction does not change packaging behavior.
+
+The review also found that the engine validated `sourceRoot` as absolute but retained its unnormalized spelling. Esbuild could complete for a trailing-separator or dot-segment spelling and graph containment would then compare normalized input paths with an unnormalized prefix. A new regression uses real activation builds for the normalized root, a trailing-separator spelling, and an absolute `unused/..` spelling. It requires identical bytes, graph manifest, and source-closure digest, and requires the compiler to receive the normalized root in all three calls.
+
+Review RED:
+
+```powershell
+& '.git/ci-node-22.22.3/node.exe' 'node_modules/vitest/vitest.mjs' run 'tests/sealedRealmsProductionBundleEngine.test.ts'
+```
+
+Result: 1 file failed; 1 test failed and 6 passed. The new real-build test failed with `SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID` in `graphManifest`, proving the trailing-separator defect.
+
+The fix resolves the validated absolute root exactly once and consistently supplies that normalized value to the compiler, transforms, artifact validator, and graph manifest. The containment prefix adds a separator only when the normalized root does not already end in one, retaining the path-boundary check for both ordinary directories and filesystem roots. It does not canonicalize symlinks or relax graph/artifact validation.
+
+Focused GREEN:
+
+```powershell
+& '.git/ci-node-22.22.3/node.exe' 'node_modules/vitest/vitest.mjs' run 'tests/sealedRealmsProductionBundleEngine.test.ts'
+```
+
+Result: 1 file passed; 7 tests passed.
+
+Covering GREEN:
+
+```powershell
+& '.git/ci-node-22.22.3/node.exe' 'node_modules/vitest/vitest.mjs' run 'tests/sealedRealmsProductionBundleEngine.test.ts' 'tests/sealedRealmsProductionBundles.test.ts'
+```
+
+Result: 2 files passed; 12 tests passed (Vitest 4.1.9, duration 7.53s).
+
+```powershell
+& '.git/ci-node-22.22.3/node.exe' 'node_modules/typescript/bin/tsc' --project tsconfig.app.json --noEmit --tsBuildInfoFile .git/tsbuildinfo/shared-operation-bundle-engine-review-1.app.tsbuildinfo
+```
+
+Result: exit 0, no diagnostics.
+
+Original evidence pointers: corrected-baseline source/test changes and regression are in `ed81b1bcfc75f3966b479d907776b910c53583a0`; extraction source and engine-boundary equivalence tests are in `527750b89774bc524a1bb7108c78b07082d89240`; the exact baseline/final digests and manifest paths are retained above in this report. The raw baseline, final artifact-capture, and prerequisite verification stdout existed only in the original task tool transcript and was intentionally not installed as generated repository output, so there is no separate local raw-log artifact to reference.

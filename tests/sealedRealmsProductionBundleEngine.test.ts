@@ -5,7 +5,7 @@ import {
   rmSync, writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { build, type BuildOptions, type Plugin } from 'esbuild';
@@ -114,6 +114,34 @@ describe('sealed-realms production bundle engine', () => {
       firstLocal.cleanup();
       secondLocal.cleanup();
     }
+  });
+
+  it('normalizes equivalent absolute source-root spellings before a real activation build', async () => {
+    const local = sourceFixture();
+    const observedWorkingDirectories: string[] = [];
+    const compiler: typeof build = (options: BuildOptions) => {
+      observedWorkingDirectories.push(options.absWorkingDir!);
+      return build(options);
+    };
+    try {
+      const normalized = await buildSealedRealmOperationBundle({
+        lane: 'activation', sourceRoot: local.root, build: compiler,
+      });
+      const trailingSeparator = await buildSealedRealmOperationBundle({
+        lane: 'activation', sourceRoot: `${local.root}${sep}`, build: compiler,
+      });
+      const dotSegments = await buildSealedRealmOperationBundle({
+        lane: 'activation', sourceRoot: `${local.root}${sep}unused${sep}..`, build: compiler,
+      });
+      for (const equivalent of [trailingSeparator, dotSegments]) {
+        expect(equivalent.bytes).toEqual(normalized.bytes);
+        expect(equivalent.graphManifest).toEqual(normalized.graphManifest);
+        expect(equivalent.sourceClosureDigest).toBe(normalized.sourceClosureDigest);
+      }
+      expect(observedWorkingDirectories).toEqual([
+        local.root, local.root, local.root,
+      ]);
+    } finally { local.cleanup(); }
   });
 
   it('binds graph reads to the supplied source root', async () => {
