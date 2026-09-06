@@ -141,3 +141,35 @@ it('prevents building with missing atlas authority even when funds and placement
   rerender({ ...snapshot, view: { ...snapshot.view!, atlas: null } }); openMill();
   expect(screen.getByRole('button', { name: /Confirm placement/ })).toBeDisabled(); expect(controller.submit).not.toHaveBeenCalled();
 });
+
+it('recovers every repeated same-revision rejection with a separate explicit review and confirmation', () => {
+  const wire = freshWire04(); Object.assign(wire, { food: 1000n, wood: 1000n, stone: 1000n, gold: 1000n });
+  const { snapshot, controller, rerender } = setup(wire); openMill();
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm placement' }));
+  expect(controller.submit).toHaveBeenCalledTimes(1);
+  for (let rejectedAttempt = 1; rejectedAttempt <= 2; rejectedAttempt++) {
+    // Local stale capture can go straight to loading; a repeated reconfirm
+    // problem need not clear and the authoritative revision can stay at one.
+    rerender({ ...snapshot, phase: 'loading', problem: 'reconfirm' });
+    expect(screen.queryByRole('button', { name: 'Review updated costs' })).not.toBeInTheDocument();
+    rerender({ ...snapshot, phase: 'ready', problem: 'reconfirm' });
+    expect(screen.getByText('Review updated costs and confirm again')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Confirm placement' })).toBeDisabled();
+    expect(controller.submit).toHaveBeenCalledTimes(rejectedAttempt);
+    fireEvent.click(screen.getByRole('button', { name: 'Review updated costs' }));
+    expect(controller.submit).toHaveBeenCalledTimes(rejectedAttempt);
+    // An unchanged background poll after review is not a new rejection.
+    rerender({ ...snapshot, phase: 'loading', problem: 'reconfirm' });
+    rerender({ ...snapshot, phase: 'ready', problem: 'reconfirm' });
+    const confirm = screen.getByRole('button', { name: 'Confirm placement' });
+    expect(confirm).toBeEnabled(); fireEvent.click(confirm); fireEvent.click(confirm);
+    expect(controller.submit).toHaveBeenCalledTimes(rejectedAttempt + 1);
+  }
+  for (const [intent] of vi.mocked(controller.submit).mock.calls) {
+    expect(intent.kind).toBe('build');
+    if (intent.kind === 'build') {
+      expect(Object.isFrozen(intent.quote)).toBe(true); expect(intent.quote.revision).toBe(1n);
+      expect(intent.quote.cost).toEqual({ food: 20n, wood: 40n, stone: 20n, gold: 0n });
+    }
+  }
+});

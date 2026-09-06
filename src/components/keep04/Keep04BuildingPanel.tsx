@@ -34,19 +34,26 @@ export function Keep04BuildingPanel({ view, selectedKind, draft, enabled, proble
   const draftKey = `${selectedKind}:${placement?.x}:${placement?.z}:${placement?.rotation}`;
   const [reviewed, setReviewed] = useState(() => ({ realmKey, draftKey, quote: candidate, problem: 'none' as Snapshot04['problem'] }));
   const [sent, setSent] = useState(false);
+  const [submissionLeftReady, setSubmissionLeftReady] = useState(false);
   const sentRef = useRef(false);
-  const changedRealm = reviewed.realmKey !== realmKey || (problem === 'reconfirm' && reviewed.problem !== problem);
+  // Reconfirm is sticky across reads. A new submission leaving ready must
+  // re-arm review even when its rejection repeats the same problem/revision.
+  useEffect(() => {
+    if (sent && !enabled) setSubmissionLeftReady(true);
+  }, [sent, enabled]);
+  const changedRealm = reviewed.realmKey !== realmKey
+    || (problem === 'reconfirm' && (reviewed.problem !== problem || (sent && submissionLeftReady)));
   const changedDraft = reviewed.draftKey !== draftKey;
   useEffect(() => {
     if (changedDraft && !changedRealm) {
-      setReviewed({ realmKey, draftKey, quote: candidate, problem }); setSent(false); sentRef.current = false;
+      setReviewed({ realmKey, draftKey, quote: candidate, problem }); setSent(false); setSubmissionLeftReady(false); sentRef.current = false;
     }
   }, [changedDraft, changedRealm, realmKey, draftKey, candidate, problem]);
   const deficits = selectedKind ? buildingDeficits04(view, selectedKind) : null;
   const affordable = deficits !== null && RESOURCES04.every(resource => deficits[resource] === 0n);
   const canConfirm = enabled && candidate !== null && reviewed.quote !== null && !changedRealm && !changedDraft && !sent && affordable;
   function review() {
-    setReviewed({ realmKey, draftKey, quote: candidate, problem }); setSent(false); sentRef.current = false;
+    setReviewed({ realmKey, draftKey, quote: candidate, problem }); setSent(false); setSubmissionLeftReady(false); sentRef.current = false;
   }
   return <section aria-label="Buildings" className="keep04-building-panel">
     <h2>Buildings</h2>
