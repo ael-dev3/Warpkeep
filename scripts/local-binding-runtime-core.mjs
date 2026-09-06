@@ -71,6 +71,20 @@ const CONTROL_FILES = Object.freeze([
   'scripts/genesis001-local-upgrade-proof.mjs',
   'scripts/genesis001-frozen-publisher-core.ts',
 ]);
+const OPERATION_BUNDLE_CONTROL_FILES = Object.freeze([
+  'package-lock.json',
+  'scripts/local-binding-bounded-file.mjs',
+  'scripts/local-binding-native-ts-hooks.mjs',
+  'scripts/local-binding-runtime-core.mjs',
+  'scripts/local-binding-runtime-process.mjs',
+  'scripts/local-operation-bundle-load.mjs',
+  'scripts/local-operation-bundle-packages.ts',
+  'scripts/local-operation-bundle-runtime-core.mjs',
+  'scripts/local-operation-bundle-runtime.mjs',
+  'scripts/local-operation-bundle-worker.mjs',
+  'scripts/sealed-realms-production-bundle-engine.mjs',
+  'scripts/local-binding-runtime-yaml-v1.json',
+]);
 const REQUEST_KEYS = Object.freeze([
   'schemaVersion', 'profile', 'nonce', 'sourceCommit', 'sourceTree', 'repositoryRoot',
   'dependencyCacheRoot', 'materializationRoot', 'nodePath', 'cliPath', 'handoffPath', 'graph', 'yaml',
@@ -668,7 +682,9 @@ function deriveFixedEntrySourceGraph(root, entry) {
           : entry === GENESIS001_CURRENT_LANE.graphEntry ? 'deriveGenesis001CurrentLocalBindingSourceGraph'
           : entry === GENESIS001_COMPATIBILITY_LANE.graphEntry
             ? 'deriveGenesis001CompatibilitySourceGraph'
-            : fail('LOCAL_BINDING_RUNTIME_SOURCE_GRAPH_INVALID');
+            : entry === 'scripts/local-operation-bundle-packages.ts'
+              ? 'deriveOperationBundlePackageSourceGraph'
+              : fail('LOCAL_BINDING_RUNTIME_SOURCE_GRAPH_INVALID');
     const moduleUrl = pathToFileURL(join(root, 'scripts', 'local-binding-runtime-core.mjs')).href;
     const script = `import { ${functionName} } from ${JSON.stringify(moduleUrl)};process.stdout.write(JSON.stringify(${functionName}(${JSON.stringify(root)})));`;
     const node = stableFileRecord(NODE_PATH, NODE_BYTES, NODE_SHA256, 1000, true);
@@ -773,6 +789,10 @@ export function deriveGenesis001CurrentLocalBindingSourceGraph(root) {
 
 export function deriveGenesis001CompatibilitySourceGraph(root) {
   return deriveFixedEntrySourceGraph(root, GENESIS001_COMPATIBILITY_LANE.graphEntry);
+}
+
+export function deriveOperationBundlePackageSourceGraph(root) {
+  return deriveFixedEntrySourceGraph(root, 'scripts/local-operation-bundle-packages.ts');
 }
 
 function attestYaml(manifest) {
@@ -933,7 +953,10 @@ function cleanEnvironment(operationRoot) {
   });
 }
 
-function snapshotCommittedSource(repositoryRoot, operationRoot, environment, gitIdentity, independentCurrent = false) {
+function snapshotCommittedSource(
+  repositoryRoot, operationRoot, environment, gitIdentity, independentCurrent = false,
+  controlFiles = CONTROL_FILES,
+) {
   const currentBoundary = independentCurrent
     ? createGenesis001CurrentFixedGitBoundary(operationRoot, environment, gitIdentity)
     : undefined;
@@ -943,7 +966,7 @@ function snapshotCommittedSource(repositoryRoot, operationRoot, environment, git
   const tree = runGit(repositoryRoot, ['rev-parse', '--verify', 'HEAD^{tree}']);
   if (!/^[0-9a-f]{40}$/u.test(commit) || !/^[0-9a-f]{40}$/u.test(tree)) fail('LOCAL_BINDING_RUNTIME_GIT_FAILED');
   const committedControls = new Map();
-  for (const path of CONTROL_FILES) {
+  for (const path of controlFiles) {
     let expected;
     if (currentBoundary !== undefined) {
       expected = currentBoundary.read(repositoryRoot, ['show', `${commit}:${path}`], 5 * 1024 * 1024);
@@ -1003,6 +1026,50 @@ function snapshotCommittedSource(repositoryRoot, operationRoot, environment, git
       gitBuffer: currentBoundary.read,
     }),
   };
+}
+
+export function captureFixedOperationBundleSource({ repositoryRoot, operationRoot, environment, gitIdentity }) {
+  const source = snapshotCommittedSource(
+    repositoryRoot, operationRoot, environment, gitIdentity, true,
+    OPERATION_BUNDLE_CONTROL_FILES,
+  );
+  const materializationControlRoot = join(operationRoot, 'operation-materialization');
+  mkdirSync(materializationControlRoot, { mode: 0o700 });
+  const boundary = createGenesis001CurrentFixedGitBoundary(
+    materializationControlRoot, environment, gitIdentity,
+  );
+  return Object.freeze({
+    ...source,
+    materialize(destination) {
+      return initializeGenesis001CurrentIndependentSnapshot({
+        repositoryRoot: source.root,
+        root: destination,
+        commit: source.commit,
+        tree: source.tree,
+      }, boundary);
+    },
+    verify() {
+      verifyLocalBindingBootstrapSource(source);
+      boundary.attest(source.root);
+      if (boundary.git(source.root, ['rev-parse', '--verify', 'HEAD']) !== source.commit
+          || boundary.git(source.root, ['rev-parse', '--verify', 'HEAD^{tree}']) !== source.tree) {
+        fail('LOCAL_BINDING_RUNTIME_SOURCE_CHANGED');
+      }
+    },
+    verifyMaterialization(destination) {
+      boundary.attest(destination);
+      if (boundary.git(destination, ['rev-parse', '--verify', 'HEAD']) !== source.commit
+          || boundary.git(destination, ['rev-parse', '--verify', 'HEAD^{tree}']) !== source.tree) {
+        fail('LOCAL_BINDING_RUNTIME_SOURCE_CHANGED');
+      }
+      for (const record of source.bootstrap) {
+        readLocalBindingBoundedFile(join(destination, ...record.path.split('/')), {
+          maximumBytes: Math.max(record.bytes, 1), expectedBytes: record.bytes,
+          expectedSha256: record.sha256, expectedUid: 1000,
+        }).body.fill(0);
+      }
+    },
+  });
 }
 
 export function verifyLocalBindingBootstrapSource(source) {

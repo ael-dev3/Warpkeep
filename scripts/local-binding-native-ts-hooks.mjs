@@ -11,6 +11,7 @@ const SYNTHETIC_ENTRIES = new Map([
   ['scripts/genesis001-binding-linux-locked-source-build.ts', 'warpkeep:genesis001-binding-entry'],
   ['scripts/genesis001-current-binding-linux-locked-source-build.ts', 'warpkeep:genesis001-current-binding-entry'],
   ['scripts/genesis001-baseline-binding-linux-locked-source-build.ts', 'warpkeep:genesis001-compatibility-entry'],
+  ['scripts/local-operation-bundle-packages.ts', 'warpkeep:operation-bundle-packages'],
 ]);
 const MAX_SOURCE_BYTES = 4 * 1024 * 1024;
 const YAML_BUILTINS = new Set(['buffer', 'process']);

@@ -88,6 +88,37 @@ export function deriveGenesis001CompatibilitySourceGraph(root: string): Readonly
   modules: readonly Readonly<Record<string, unknown>>[];
 }>;
 
+export function deriveOperationBundlePackageSourceGraph(root: string): Readonly<{
+  root: string;
+  entry: 'scripts/local-operation-bundle-packages.ts';
+  modules: readonly Readonly<Record<string, unknown>>[];
+}>;
+
+export function captureFixedOperationBundleSource(input: Readonly<{
+  repositoryRoot: string;
+  operationRoot: string;
+  environment: Readonly<Record<string, string | undefined>>;
+  gitIdentity: import('./local-binding-bounded-file.mjs').LocalBindingFileIdentity;
+}>): Readonly<{
+  root: string;
+  commit: string;
+  tree: string;
+  kind: 'independent-clone';
+  bootstrap: readonly Readonly<{
+    path: string;
+    bytes: number;
+    sha256: string;
+    identity: import('./local-binding-bounded-file.mjs').LocalBindingFileIdentity;
+  }>[];
+  git(cwd: string, args: readonly string[], maxBuffer?: number): string;
+  gitBuffer(cwd: string, args: readonly string[], maxBuffer?: number): Buffer;
+  materialize(destination: string): Readonly<{
+    root: string; commit: string; tree: string; kind: 'independent-clone';
+  }>;
+  verify(): void;
+  verifyMaterialization(destination: string): void;
+}>;
+
 export function parseLocalBindingWorkerResult(
   source: string,
   nonce: string,
