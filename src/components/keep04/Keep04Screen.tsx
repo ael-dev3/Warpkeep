@@ -6,6 +6,8 @@ import { initialPlacement04 } from '../../ptr/gameplay04/gameplay04Placement';
 import { PENDING_LABEL04 } from '../../ptr/gameplay04/gameplay04Presentation';
 import { Keep04BuildingPanel, RESOURCES04 } from './Keep04BuildingPanel';
 import { Keep04Schematic } from './Keep04Schematic';
+import { Keep04SceneHost } from './Keep04SceneHost';
+import { evaluatePlacement04 } from '../../../spacetimedb/gameplay04/placement';
 import { estimatedTime04, Keep04WorkerPanel } from './Keep04WorkerPanel';
 import './Keep04Screen.css';
 
@@ -22,6 +24,7 @@ export type Keep04ScreenProps = Readonly<{
 export function Keep04Screen({ snapshot, controller, selection, onSelectionChange, onBack, quality, reducedMotion, onFindResources, onReturnToWorld }: Keep04ScreenProps) {
   const { view, phase, problem } = snapshot;
   const [nowMs, setNowMs] = useState(Date.now);
+  const [sceneMode, setSceneMode] = useState<'loading' | 'webgl' | 'fallback'>('loading');
   const opener = useRef<HTMLElement | SVGElement | null>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const buildingsButton = useRef<HTMLButtonElement>(null);
@@ -79,8 +82,15 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
       {problem === 'target' && <p role="status">That resource location changed. Choose a current Realm location.</p>}
       <div className="keep04-workspace" data-panel-open={selection.panel !== null}>
         <div className="keep04-scene-region">
-          <Keep04Schematic buildings={view.buildings} draft={selection.panel === 'buildings' ? selection.draft : null} selectedKind={selection.selectedKind}
-            onSelect={selectBuilding} onChange={draft => onSelectionChange({ ...selection, draft })} />
+          {ready && <Keep04SceneHost quality={quality} reducedMotion={reducedMotion} onMode={setSceneMode}
+            visual={{ buildings: view.buildings, selectedKind: selection.selectedKind, draft: selection.panel === 'buildings' ? selection.draft : null,
+              draftValid: selection.draft !== null && evaluatePlacement04(selection.draft, view.buildings.filter(building => building.kind !== selection.draft!.kind).map(building => building.placement)).valid }}
+            onSelect={selectBuilding} onPlacement={draft => onSelectionChange({ ...selection, draft })} />}
+          <details open={sceneMode !== 'webgl' ? true : undefined} key={sceneMode === 'webgl' ? 'webgl' : 'fallback'}>
+            <summary style={{ cursor: 'pointer', padding: '12px 0', minHeight: 44 }}>Placement schematic and keyboard controls</summary>
+            <Keep04Schematic buildings={view.buildings} draft={selection.panel === 'buildings' ? selection.draft : null} selectedKind={selection.selectedKind}
+              onSelect={selectBuilding} onChange={draft => onSelectionChange({ ...selection, draft })} />
+          </details>
           {view.buildings.filter(building => building.phase === 'constructing').map(building => <p key={building.kind} className="keep04-construction">
             Constructing level {building.targetLevel} · Estimated build time: <span>{estimatedTime04(building.completesAtMicros!, nowMs)}</span>
           </p>)}
