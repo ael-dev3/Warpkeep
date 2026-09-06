@@ -32,6 +32,8 @@
 - Extend `tests/greaterRealmPresentationPlan.test.ts`, `tests/greaterRealmSceneRuntime.test.ts`, `tests/greaterRealmWorldCanvasHost.test.ts`, `tests/greaterRealmWorldScene.test.tsx` with actual integration and lifecycle assertions.
 - Run unchanged `tests/realmChoicePolicy.test.ts`, `tests/realmChoiceMenuIntegration.test.tsx`, `tests/greaterRealmHostQaNavigation.test.tsx` and `tests/WarpkeepExperiencePtrRealm.test.tsx`; these exact paths were verified in the current tree.
 
+Baseline exception established before implementation: `greaterRealmHostQaNavigation.test.tsx:48` still queries Genesis002's accessible name as `Not admitted`, whereas the current policy and passing menu/policy tests require `Sealed`. The 8-suite baseline is85pass/1fail (33.86s,exit1). Repair this stale test query to `Sealed` as part of the integration test work, retain its `data-admission=not-admitted`/blocked-entry assertions, and run the full navigation case to expose any later failures. Do not change production admission behavior or remove the closed-entry assertion to obtain green. This is a known pre-voxel failure, not caused by meshing.
+
 **Interfaces:** Keep public DTOs unchanged. Define the new neutral API as:
 
 ```ts

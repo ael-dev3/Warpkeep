@@ -1,5 +1,44 @@
 # Warpkeep 0.4 integrated voxel renderer
 
+## Owner request: Astra-led keep redesign (2026-09-06)
+
+The owner requests a brand-new 0.4 look and an Astra-authored reassessment of
+internal keep gameplay and visuals. Use GPT-6 Astra for that design and any
+subsequent keep-redesign implementation delegation. Judge existing code and
+assets on observed quality, not guessed model provenance. Preserve reliable
+interfaces where appropriate rather than replacing every asset automatically.
+
+Treat internal keep presentation as its own scene and interaction flow, not
+as a synonym for the Greater Realm world map. Inspect both routes before
+selecting integration points. The design must connect visible gathering,
+construction decisions, progress and benefits into the existing 0.4 journey.
+Keep scenery visual-only under the clarification below, preserve mobile
+budgets, and leave Genesis 001 gameplay and presentation unchanged. Genesis
+002 remains sealed and PTR owner-only. A representative redesigned keep
+scene establishes the direction before applying it across the 0.4 experience.
+This records the requested direction, not a completed design or implementation.
+
+## Owner clarification: visual-only, mobile-friendly scenery (2026-09-06)
+
+Additional visual reference: https://verdant-forest.lexn8.chatgpt.site/.
+The owner explicitly requires this forest inspiration and the voxel work to
+remain visual-only additions, with no new interactivity and mobile-friendly
+delivery. Preserve existing Warpkeep gameplay controls; this clarification
+does not remove the separately requested gather/build gameplay journey.
+
+The reference was viewed in-browser: layered tree silhouettes, varied trunks,
+muted green foliage, fern/grass ground cover, an earthy path and atmospheric
+distance haze. Use these as art-direction references, not an obligation to
+copy assets, scene density, rendering technology or performance assumptions.
+Do not import its free-flight/WASD camera or add interactive vegetation,
+destruction, excavation, collisions, harvesting targets or persistent state.
+
+Decorative terrain/vegetation must remain separate from authoritative resource
+locations, navigation and picking. Keep existing mobile draw/upload/memory
+ceilings, visibility/detail management, reduced-motion behavior and fallback;
+reduce decorative density and effects before compromising gameplay readability
+or frame pacing. The reference itself is not mobile-performance evidence.
+
 ## Owner requirement and delivery
 
 The expanded owner goal explicitly requires a reusable voxel subsystem in an

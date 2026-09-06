@@ -39,6 +39,15 @@ local release operations contract rather than silently treated as portable.
 
 Auth-bridge and release-recovery jobs passed. SpacetimeDB verification was still running when checked; no result is asserted here. A subsequent Verify run 34044461236 for `76480d6be2951cc884d6ecf705e12fc9d9dfe6dd` also showed those two failures, the two service jobs passing, and the module job in progress.
 
+Follow-up authenticated result: run `34044383667` is now completed with overall
+failure, while SpacetimeDB job `101516706815` completed successfully at
+`2026-09-06T17:01:35Z`. Its module/generated-binding verification, synthetic
+exporter/server compatibility, connected relocation/rollback, active population/
+gathering rehearsal and module dependency audit all report success. This is
+evidence for that run's `de80139` source, not the later renderer commit, live
+production state or actual-owner ten-minute journey. Linux history scanning and
+native-contract failures still prevent aggregate Verify acceptance.
+
 ## Remaining R14 acceptance
 
 Dependency triage (2026-09-06): authenticated Dependabot alert #2 is open,
