@@ -95,6 +95,21 @@ function sourceClosureDigest(lane: string, graphManifest: unknown) {
   ]), 'utf8'));
 }
 
+function fixedGraphManifest(lane: typeof LANES[number], longPaths = false) {
+  const spec = SPECS[lane];
+  const generated = Array.from({ length: spec.graphCount - 1 }, (_, index) => {
+    const path = longPaths
+      ? `scripts/${lane}/${String(index).padStart(3, '0')}-${'x'.repeat(4_096)}.mjs`
+      : `node_modules/warpkeep-fixture/${lane}/${String(index).padStart(3, '0')}.mjs`;
+    return { path, byteLength: Buffer.byteLength(path), sha256: sha256(path) };
+  });
+  return [...generated, {
+    path: spec.entryPath,
+    byteLength: Buffer.byteLength(spec.entryPath),
+    sha256: sha256(spec.entryPath),
+  }].sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
+}
+
 function fixture() {
   const entryDeclarations = new Map<string, Uint8Array>();
   const bundles = LANES.map((lane, index) => {
@@ -102,11 +117,7 @@ function fixture() {
     const declaration = gitBlob(declarationPath(spec.entryPath));
     entryDeclarations.set(declarationPath(spec.entryPath), new Uint8Array(declaration));
     const bytes = Buffer.from(`export const ${lane}BundleFixture = ${index};\n`, 'utf8');
-    const graphManifest = [{
-      path: spec.entryPath,
-      byteLength: declaration.byteLength,
-      sha256: sha256(declaration),
-    }];
+    const graphManifest = fixedGraphManifest(lane);
     const byteDigest = sha256(bytes);
     return {
       lane,
@@ -308,6 +319,25 @@ describe('local prepared bundle files', () => {
       input.bundles.bundles[0].graphManifest = [];
       input.bundles.bundles[0].sourceClosureDigest = sourceClosureDigest('activation', []);
     }],
+    ['rejects a wrong fixed graph count with a recomputed closure digest', input => {
+      const bundle = input.bundles.bundles[0];
+      const removable = bundle.graphManifest.findIndex(member => member.path !== SPECS.activation.entryPath);
+      bundle.graphManifest.splice(removable, 1);
+      bundle.sourceClosureDigest = sourceClosureDigest('activation', bundle.graphManifest);
+    }],
+    ['rejects a graph missing its fixed entry path with a recomputed closure digest', input => {
+      const bundle = input.bundles.bundles[0];
+      const entry = bundle.graphManifest.findIndex(member => member.path === SPECS.activation.entryPath);
+      (bundle.graphManifest as Array<{ path: string; byteLength: number; sha256: string }>)[entry] = {
+        path: 'scripts/zz-missing-activation-entry.mjs',
+        byteLength: 1,
+        sha256: sha256('invented graph member'),
+      };
+      bundle.graphManifest.sort((left, right) => (
+        left.path < right.path ? -1 : left.path > right.path ? 1 : 0
+      ));
+      bundle.sourceClosureDigest = sourceClosureDigest('activation', bundle.graphManifest);
+    }],
     ['rejects absolute graph paths', input => {
       (input.bundles.bundles[0].graphManifest[0] as any).path = '/x';
     }],
@@ -432,13 +462,11 @@ describe('local prepared bundle files', () => {
     const input = fixture();
     for (const [laneIndex, lane] of LANES.entries()) {
       const bundle = input.bundles.bundles[laneIndex];
-      (bundle as any).graphManifest = Array.from({ length: 256 }, (_, index) => ({
-        path: `scripts/${lane}/${String(index).padStart(3, '0')}-${'x'.repeat(1_024)}.mjs`,
-        byteLength: index,
-        sha256: sha256(`${lane}:${index}`),
-      }));
+      (bundle as any).graphManifest = fixedGraphManifest(lane, true);
       bundle.sourceClosureDigest = sourceClosureDigest(lane, bundle.graphManifest);
     }
+    expect(Buffer.byteLength(`${JSON.stringify(expectedManifest(input), null, 2)}\n`, 'utf8'))
+      .toBeGreaterThan(1024 * 1024);
     expectInvalid(() => module.derivePreparedOperationBundleFiles(input));
   });
 
