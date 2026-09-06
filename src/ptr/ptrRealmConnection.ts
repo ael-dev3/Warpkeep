@@ -1,4 +1,6 @@
 import { DbConnection } from '../../spacetimedb/ptr/generated-bindings/index';
+import { classifyGameplay04Error, Gameplay04ClientError } from './gameplay04/ptrGameplay04Errors';
+import type { Mutation04, ReadWire04, ResultWire04, Scope04 } from './gameplay04/ptrGameplay04Types';
 
 import {
   GREATER_REALM_PUBLIC_PROCEDURES,
@@ -408,4 +410,122 @@ export function createPtrRealmProcedureInvoker(
       }
     },
   });
+}
+
+export type PtrGameplay04Capability = Readonly<{
+  scope: Scope04;
+  isCurrent: () => boolean;
+  read: (signal: AbortSignal) => Promise<ReadWire04>;
+  mutate: (command: Mutation04, signal: AbortSignal) => Promise<ResultWire04>;
+}>;
+
+const privateGameplayCapabilities = new WeakMap<object, Readonly<{
+  session: PtrRealmConnectionSession;
+  authority: PtrRealmAuthority;
+  now: () => number;
+}>>();
+
+export function isCurrentPtrGameplay04Capability(
+  value: unknown,
+  authority: PtrRealmAuthority,
+  generation: number,
+): value is PtrGameplay04Capability {
+  if (typeof value !== 'object' || value === null) return false;
+  const details = privateGameplayCapabilities.get(value);
+  return details !== undefined && details.authority === authority
+    && details.session.generation === generation
+    && isCurrentPtrRealmConnectionSession(details.session, authority, details.now());
+}
+
+function assertLiveGameplayInvocation(
+  capability: unknown,
+  session: PtrRealmConnectionSession,
+  authority: PtrRealmAuthority,
+  signal: AbortSignal,
+): PrivateSession {
+  if (!(signal instanceof AbortSignal) || signal.aborted
+    || !isCurrentPtrGameplay04Capability(capability, authority, session.generation)
+    || privateGameplayCapabilities.get(capability)?.session !== session) {
+    throw new Gameplay04ClientError('authority');
+  }
+  const details = privateSessions.get(session);
+  if (!details) throw new Gameplay04ClientError('authority');
+  return details;
+}
+
+/** Abort suppresses delivery only: the transaction may already have committed. */
+function awaitGameplayInvocation<T>(operation: Promise<T>, signals: readonly AbortSignal[]): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      for (const signal of signals) signal.removeEventListener('abort', abort);
+      callback();
+    };
+    const abort = () => finish(() => reject(new Gameplay04ClientError('authority')));
+    for (const signal of signals) signal.addEventListener('abort', abort, { once: true });
+    // Always observe late rejection, even if the SDK synchronously aborted a signal.
+    void Promise.resolve(operation).then(
+      value => finish(() => resolve(value)),
+      error => finish(() => reject(error)),
+    );
+    if (signals.some(signal => signal.aborted)) abort();
+  });
+}
+
+export function createPtrGameplay04Capability(
+  session: PtrRealmConnectionSession,
+  authority: PtrRealmAuthority,
+  anchor: Readonly<{ q: number; r: number }>,
+  now: () => number = Date.now,
+): PtrGameplay04Capability {
+  if (!isCurrentPtrRealmConnectionSession(session, authority, now())
+    || !Number.isSafeInteger(anchor.q) || !Number.isSafeInteger(anchor.r)) {
+    throw new Gameplay04ClientError('authority');
+  }
+  const capability: PtrGameplay04Capability = Object.freeze({
+    scope: Object.freeze({ generation: session.generation, databaseIdentity: authority.databaseIdentity,
+      anchorQ: anchor.q, anchorR: anchor.r }),
+    isCurrent() {
+      return isCurrentPtrGameplay04Capability(this, authority, session.generation);
+    },
+    async read(signal: AbortSignal) {
+      const details = assertLiveGameplayInvocation(this, session, authority, signal);
+      try {
+        const result = await awaitGameplayInvocation(
+          details.connection.procedures.getGameplay04KeepV1({}), [signal, details.signal],
+        );
+        assertLiveGameplayInvocation(this, session, authority, signal);
+        return result;
+      } catch (error) {
+        assertLiveGameplayInvocation(this, session, authority, signal);
+        throw classifyGameplay04Error(error);
+      }
+    },
+    async mutate(command: Mutation04, signal: AbortSignal) {
+      const details = assertLiveGameplayInvocation(this, session, authority, signal);
+      try {
+        const procedures = details.connection.procedures;
+        let operation: Promise<ResultWire04>;
+        switch (command.kind) {
+          case 'initialize': operation = procedures.initializeGameplay04KeepV1(command.input); break;
+          case 'dispatch': operation = procedures.dispatchGameplay04WorkerV1(command.input); break;
+          case 'recall': operation = procedures.recallGameplay04WorkerV1(command.input); break;
+          case 'build': operation = procedures.startGameplay04BuildingV1(command.input); break;
+          default:
+            command satisfies never;
+            return Promise.reject(new Gameplay04ClientError('rejected'));
+        }
+        const result = await awaitGameplayInvocation(operation, [signal, details.signal]);
+        assertLiveGameplayInvocation(this, session, authority, signal);
+        return result;
+      } catch (error) {
+        assertLiveGameplayInvocation(this, session, authority, signal);
+        throw classifyGameplay04Error(error);
+      }
+    },
+  });
+  privateGameplayCapabilities.set(capability, { session, authority, now });
+  return capability;
 }
