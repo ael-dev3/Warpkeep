@@ -43,6 +43,7 @@ const boundary = vi.hoisted(() => ({
   compilerFailureAt: 0,
   compilerAttestations: 0,
   compilerNamespaceScenario: '' as '' | 'extra' | 'owner' | 'mode',
+  compilerExecutableScenario: '' as '' | 'node22' | 'digest' | 'owner' | 'mode',
 }));
 
 vi.mock('node:fs', async () => {
@@ -51,7 +52,8 @@ vi.mock('node:fs', async () => {
   const compilerBinRoot = `${compilerVersionRoot}/bin`;
   const compilerDirectories = new Set([compilerVersionRoot, compilerBinRoot]);
   const compilerDirectoryState = (path: string) => ({
-    dev: 1n, ino: path === compilerVersionRoot ? 24n : 25n, mode: 0o40700n,
+    dev: 1n, ino: path === compilerVersionRoot ? 24n : 25n,
+    mode: boundary.compilerNamespaceScenario === 'mode' ? 0o40755n : 0o40700n,
     uid: boundary.compilerNamespaceScenario === 'owner' ? 999n : 1000n,
     nlink: 2n, size: 1n, mtimeNs: 3n, ctimeNs: 4n,
     isDirectory: () => true, isFile: () => false, isSymbolicLink: () => false,
@@ -193,6 +195,26 @@ vi.mock('../scripts/local-binding-bounded-file.mjs', async () => {
             throw Object.assign(new Error('LOCAL_BINDING_BOUNDED_FILE_CHANGED'), {
               code: 'LOCAL_BINDING_BOUNDED_FILE_CHANGED',
             });
+          }
+          const node22 = boundary.compilerExecutableScenario === 'node22';
+          const actual = {
+            bytes: node22 ? 124819136 : 125989464,
+            sha256: node22
+              ? 'e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2'
+              : boundary.compilerExecutableScenario === 'digest' ? 'f'.repeat(64)
+                : 'bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12',
+            uid: boundary.compilerExecutableScenario === 'owner' ? 999 : 1000,
+            mode: boundary.compilerExecutableScenario === 'mode' ? 0o700 : 0o500,
+          };
+          const invalidMetadata = actual.uid !== options.expectedUid
+            || actual.mode !== options.expectedMode;
+          const changedBytes = actual.bytes !== options.expectedBytes
+            || actual.sha256 !== options.expectedSha256;
+          if (invalidMetadata || changedBytes) {
+            const code = invalidMetadata
+              ? 'LOCAL_BINDING_BOUNDED_FILE_INVALID'
+              : 'LOCAL_BINDING_BOUNDED_FILE_CHANGED';
+            throw Object.assign(new Error(code), { code });
           }
         }
         boundary.events.push(`attest:${path.split(/[\\/]/u).at(-1)}`);
@@ -387,6 +409,7 @@ afterEach(() => {
   boundary.compilerFailureAt = 0;
   boundary.compilerAttestations = 0;
   boundary.compilerNamespaceScenario = '';
+  boundary.compilerExecutableScenario = '';
   for (const root of boundary.cleanupRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
@@ -561,9 +584,46 @@ describe('controlled local binding runtime lifecycle', () => {
     expect(boundary.events).toContain('command:typecheck');
     expect(boundary.events).not.toContain('build-output:precreated');
     expect(boundary.events).not.toContain('command:build-snapshot-cli');
+    expect(boundary.compilerAttestations).toBe(4);
+    expect(existsSync(boundary.request!.handoffPath as string)).toBe(false);
   });
 
-  it.each(['extra', 'owner'] as const)(
+  it.each([
+    ['Node22 substitution', 'node22'],
+    ['wrong digest', 'digest'],
+    ['wrong executable owner', 'owner'],
+    ['wrong executable mode', 'mode'],
+  ] as const)(
+    'rejects compiler %s before entering the source builder or producing a handoff',
+    async (_label, scenario) => {
+      prepareRequest('genesis001');
+      boundary.compilerExecutableScenario = scenario;
+      const { runFixedLocalBindingWorker } = await import('../scripts/local-binding-runtime-worker.mjs');
+      await expect(runFixedLocalBindingWorker(boundary.request)).rejects.toMatchObject({
+        code: expect.stringMatching(/^LOCAL_BINDING_WORKER_EXECUTABLE_(?:INVALID|CHANGED)$/u),
+      });
+      expect(boundary.events).not.toContain('builder:enter');
+      expect(boundary.events).not.toContain('command:typecheck');
+      expect(boundary.events).not.toContain('command:build-snapshot-cli');
+      expect(boundary.compilerAttestations).toBe(1);
+      expect(existsSync(boundary.request!.handoffPath as string)).toBe(false);
+    },
+  );
+
+  it('rejects compiler identity replacement after build and before handoff consumption', async () => {
+    prepareRequest('genesis001');
+    boundary.compilerFailureAt = 5;
+    const { runFixedLocalBindingWorker } = await import('../scripts/local-binding-runtime-worker.mjs');
+    await expect(runFixedLocalBindingWorker(boundary.request))
+      .rejects.toMatchObject({ code: 'LOCAL_BINDING_WORKER_EXECUTABLE_CHANGED' });
+    expect(boundary.events).toContain('builder:enter');
+    expect(boundary.events).toContain('command:typecheck');
+    expect(boundary.events).toContain('command:build-snapshot-cli');
+    expect(boundary.compilerAttestations).toBe(5);
+    expect(existsSync(boundary.request!.handoffPath as string)).toBe(false);
+  });
+
+  it.each(['extra', 'owner', 'mode'] as const)(
     'rejects an invalid Node24 compiler %s namespace before entering the source builder',
     async scenario => {
       prepareRequest('genesis001');
@@ -572,6 +632,9 @@ describe('controlled local binding runtime lifecycle', () => {
       await expect(runFixedLocalBindingWorker(boundary.request))
         .rejects.toMatchObject({ code: 'LOCAL_BINDING_WORKER_COMPILER_INVALID' });
       expect(boundary.events).not.toContain('builder:enter');
+      expect(boundary.events).not.toContain('command:typecheck');
+      expect(boundary.events).not.toContain('command:build-snapshot-cli');
+      expect(existsSync(boundary.request!.handoffPath as string)).toBe(false);
     },
   );
 
