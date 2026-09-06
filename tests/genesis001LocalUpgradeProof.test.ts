@@ -8,6 +8,8 @@ import {
   GENESIS001_CHECKED_FROZEN_WRITERS,
   assertGenesis001FrozenWriterObservation,
   decodeGenesis001BoundedJson,
+  decodeGenesis001ProcedureResponse,
+  readGenesis001BoundedResponseBody,
 } from '../scripts/genesis001-local-upgrade-proof.mjs';
 import {
   deriveGenesis001CompatibilitySourceGraph,
@@ -68,6 +70,54 @@ describe('fixed Genesis 001 local upgrade proof', () => {
     expect(() => decodeGenesis001BoundedJson(Buffer.from('{"ok":'), 64)).toThrow();
     expect(() => decodeGenesis001BoundedJson(Buffer.from('{"ok":true}'), 4)).toThrow();
     expect(() => decodeGenesis001BoundedJson(Uint8Array.of(0xff), 64)).toThrow();
+  });
+
+  it('admits bounded fatal-UTF8 plain text only for procedure errors and still requires the exact guard', () => {
+    const credential = 'private-proof-credential';
+    const before = [{ admitted: false }];
+    const expected = decodeGenesis001ProcedureResponse(
+      400, Buffer.from('GENESIS_001_ADMISSION_STATE_MUTATIONS_DISABLED'), 64, credential,
+    );
+    expect(expected.value).toBeUndefined();
+    expect(() => assertGenesis001FrozenWriterObservation({
+      writer: 'admin_allow_fid', status: expected.status, text: expected.text,
+      before, after: structuredClone(before),
+    })).not.toThrow();
+
+    const arbitrary = decodeGenesis001ProcedureResponse(
+      400, Buffer.from('UNAUTHORIZED'), 64, credential,
+    );
+    expect(() => assertGenesis001FrozenWriterObservation({
+      writer: 'admin_allow_fid', status: arbitrary.status, text: arbitrary.text,
+      before, after: structuredClone(before),
+    })).toThrow('GENESIS001_LOCAL_PROOF_WRITER_INVALID');
+    expect(() => decodeGenesis001ProcedureResponse(302, Buffer.from('redirect'), 64, credential))
+      .toThrow('GENESIS001_LOCAL_PROOF_REDIRECT_DENIED');
+    expect(() => decodeGenesis001ProcedureResponse(400, Buffer.from('x'.repeat(65)), 64, credential))
+      .toThrow('GENESIS001_LOCAL_PROOF_RESPONSE_INVALID');
+    expect(() => decodeGenesis001ProcedureResponse(400, Uint8Array.of(0xff), 64, credential))
+      .toThrow('GENESIS001_LOCAL_PROOF_RESPONSE_INVALID');
+    expect(() => decodeGenesis001ProcedureResponse(200, Buffer.from('plain text'), 64, credential))
+      .toThrow('GENESIS001_LOCAL_PROOF_JSON_INVALID');
+    expect(() => decodeGenesis001ProcedureResponse(400, Buffer.from(credential), 64, credential))
+      .toThrow('GENESIS001_LOCAL_PROOF_RESPONSE_INVALID');
+  });
+
+  it('stops network response reads at the configured byte bound', async () => {
+    const chunks = [Buffer.from('1234'), Buffer.from('5678'), Buffer.from('9')];
+    const response = new Response(new ReadableStream({
+      pull(controller) {
+        const chunk = chunks.shift();
+        if (chunk === undefined) controller.close(); else controller.enqueue(chunk);
+      },
+    }));
+    await expect(readGenesis001BoundedResponseBody(response, 8))
+      .rejects.toThrow('GENESIS001_LOCAL_PROOF_RESPONSE_INVALID');
+    await expect(readGenesis001BoundedResponseBody(
+      new Response(Buffer.from('1234'), { headers: { 'content-length': '65' } }), 64,
+    )).rejects.toThrow('GENESIS001_LOCAL_PROOF_RESPONSE_INVALID');
+    await expect(readGenesis001BoundedResponseBody(new Response(Buffer.from('1234')), 4))
+      .resolves.toEqual(Uint8Array.from(Buffer.from('1234')));
   });
 
   it('accepts only the distinct bounded compatibility worker result shape', () => {

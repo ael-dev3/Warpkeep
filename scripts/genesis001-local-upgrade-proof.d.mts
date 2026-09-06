@@ -9,6 +9,14 @@ export function decodeGenesis001BoundedJson(
   body: Uint8Array, maximumBytes: number, code?: string,
 ): unknown;
 
+export function decodeGenesis001ProcedureResponse(
+  status: number, body: Uint8Array, maximumBytes: number, credential: string,
+): Readonly<{ status: number; text: string; value: unknown }>;
+
+export function readGenesis001BoundedResponseBody(
+  response: Response, maximumBytes: number,
+): Promise<Uint8Array>;
+
 export function assertGenesis001FrozenWriterObservation(value: Readonly<{
   writer: string; status: number; text: string; before: unknown; after: unknown;
 }>): void;

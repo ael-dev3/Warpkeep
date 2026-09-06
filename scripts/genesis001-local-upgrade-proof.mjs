@@ -78,6 +78,55 @@ export function decodeGenesis001BoundedJson(body, maximumBytes, code = 'GENESIS0
   return value;
 }
 
+export function decodeGenesis001ProcedureResponse(status, body, maximumBytes, credential) {
+  if (!Number.isSafeInteger(status) || status < 100 || status > 599
+      || !(body instanceof Uint8Array) || !Number.isSafeInteger(maximumBytes)
+      || maximumBytes < 1 || body.byteLength < 1 || body.byteLength > maximumBytes
+      || typeof credential !== 'string' || credential.length < 1) {
+    fail('GENESIS001_LOCAL_PROOF_RESPONSE_INVALID');
+  }
+  if (status >= 300 && status < 400) fail('GENESIS001_LOCAL_PROOF_REDIRECT_DENIED');
+  let text;
+  try { text = new TextDecoder('utf-8', { fatal: true }).decode(body); } catch (error) {
+    return fail('GENESIS001_LOCAL_PROOF_RESPONSE_INVALID', error);
+  }
+  if (text.includes(credential)) fail('GENESIS001_LOCAL_PROOF_RESPONSE_INVALID');
+  let value;
+  try { value = JSON.parse(text); } catch (error) {
+    if (status < 400) fail('GENESIS001_LOCAL_PROOF_JSON_INVALID', error);
+  }
+  return Object.freeze({ status, text, value });
+}
+
+export async function readGenesis001BoundedResponseBody(response, maximumBytes) {
+  if (response === null || typeof response !== 'object' || response.body === null
+      || !Number.isSafeInteger(maximumBytes) || maximumBytes < 1) {
+    fail('GENESIS001_LOCAL_PROOF_RESPONSE_INVALID');
+  }
+  const declared = response.headers.get('content-length');
+  if (declared !== null && (!/^(?:0|[1-9][0-9]*)$/u.test(declared)
+      || Number(declared) > maximumBytes)) {
+    fail('GENESIS001_LOCAL_PROOF_RESPONSE_INVALID');
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    const item = await reader.read();
+    if (item.done) break;
+    if (!(item.value instanceof Uint8Array) || total + item.value.byteLength > maximumBytes) {
+      await reader.cancel().catch(() => undefined);
+      fail('GENESIS001_LOCAL_PROOF_RESPONSE_INVALID');
+    }
+    chunks.push(item.value);
+    total += item.value.byteLength;
+  }
+  const result = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.byteLength; }
+  return result;
+}
+
 export function assertGenesis001FrozenWriterObservation(value) {
   if (!exactKeys(value, ['writer', 'status', 'text', 'before', 'after'])) {
     fail('GENESIS001_LOCAL_PROOF_WRITER_INVALID');
@@ -187,12 +236,7 @@ async function boundedFetchJson(url, options, deadline, maximum = MAX_RESPONSE_B
     ...options, redirect: 'manual', signal: AbortSignal.timeout(remaining(deadline, 5_000)),
   });
   if (response.status >= 300 && response.status < 400) fail('GENESIS001_LOCAL_PROOF_REDIRECT_DENIED');
-  const declared = response.headers.get('content-length');
-  if (declared !== null && (!/^[0-9]+$/u.test(declared) || Number(declared) > maximum)) {
-    fail('GENESIS001_LOCAL_PROOF_RESPONSE_INVALID');
-  }
-  const body = new Uint8Array(await response.arrayBuffer());
-  if (body.byteLength > maximum) fail('GENESIS001_LOCAL_PROOF_RESPONSE_INVALID');
+  const body = await readGenesis001BoundedResponseBody(response, maximum);
   return Object.freeze({ status: response.status, body, value: decodeGenesis001BoundedJson(body, maximum) });
 }
 
@@ -212,16 +256,18 @@ function adminJwt(privateKey) {
 }
 
 async function call(server, procedure, credential, body, deadline) {
-  const response = await boundedFetchJson(
-    `${server}/v1/database/${DATABASE}/call/${procedure}`,
-    { method: 'POST', headers: Object.freeze({
+  const parsed = new URL(`${server}/v1/database/${DATABASE}/call/${procedure}`);
+  if (parsed.protocol !== 'http:' || parsed.hostname !== '127.0.0.1') {
+    fail('GENESIS001_LOCAL_PROOF_URL_INVALID');
+  }
+  const response = await fetch(parsed, {
+    method: 'POST', headers: Object.freeze({
       authorization: `Bearer ${credential}`, 'cache-control': 'no-store',
       'content-type': 'application/json',
-    }), body }, deadline,
-  );
-  const text = new TextDecoder('utf-8', { fatal: true }).decode(response.body);
-  if (text.includes(credential)) fail('GENESIS001_LOCAL_PROOF_RESPONSE_INVALID');
-  return Object.freeze({ status: response.status, text, value: response.value });
+    }), body, redirect: 'manual', signal: AbortSignal.timeout(remaining(deadline, 5_000)),
+  });
+  const bytes = await readGenesis001BoundedResponseBody(response, MAX_RESPONSE_BYTES);
+  return decodeGenesis001ProcedureResponse(response.status, bytes, MAX_RESPONSE_BYTES, credential);
 }
 
 async function awaitIdentity(server, deadline) {
