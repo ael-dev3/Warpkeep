@@ -45,6 +45,24 @@ Reported final verification (pinned Node 22.22.3):
 RED/GREEN evidence includes the initially missing module and a failing
 cross-session method-borrowing regression corrected before the final run.
 
+## Validated state and pure presentation
+
+Accepted commit: `53bede2e0eaceb5a7872f566ec9ec97ee46a9123`.
+Independent review approved spec compliance and quality with no findings.
+Seven scoped source/test files add closed, bounded, recursively frozen decoding
+of the real flat projection; shared-policy costs, benefits and placement; and
+spendable-only deficits. Captured trip rates are not rebased after upgrades.
+There is no client-clock resource grant, transport or admission change.
+
+The report records 154 passing tests across the three new client suites and
+shared policy, placement and journey suites, plus pinned `tsc -b` exit 0.
+Failure-first evidence includes over-cap balance rejection and regressions for
+zero initialized keep revision/sequence. Review checked the actual server
+projection, shared journey, return and construction validators.
+
+Controller retry/reconfirmation, session retirement and integrated rendering
+are not supplied by this pure state layer and remain mandatory downstream work.
+
 ## Acceptance boundary
 
 R01's local generated-binding and narrow-client condition is satisfied for these
