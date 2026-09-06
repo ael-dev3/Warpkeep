@@ -28,6 +28,10 @@ export const localBindingRuntimeTestSeams: Readonly<{
     tree: string;
     kind: 'independent-clone';
   }>;
+  attestComposedLaneSource(
+    context: Readonly<{ source: Readonly<{ commit: string; tree: string }> }>,
+    lane: Readonly<{ sourceCommit: string; sourceTree: string }>,
+  ): Readonly<{ sourceCommit: string; sourceTree: string }>;
 }>;
 
 export function validateLocalBindingYamlManifest(source: string): Readonly<Record<string, unknown>>;
@@ -250,6 +254,46 @@ export function deriveFixedLocalBindingRuntime(): Promise<Readonly<{
   bindings: readonly Readonly<{ path: string; bytes: Uint8Array }>[];
 }>>;
 
+export function executeFixedAllRealmLocalBindingParentCycles(context: Readonly<{
+  repositoryRoot: string;
+  operationRoot: string;
+  environment: Readonly<Record<string, string | undefined>>;
+  source: Readonly<{
+    root: string;
+    commit: string;
+    tree: string;
+    bootstrap: readonly Readonly<Record<string, unknown>>[];
+  }>;
+  graphs: Readonly<{
+    genesis001Current: Readonly<Record<string, unknown>>;
+    genesis001Compatibility: Readonly<Record<string, unknown>>;
+    genesis002: Readonly<Record<string, unknown>>;
+    ptr: Readonly<Record<string, unknown>>;
+  }>;
+  yaml: Readonly<Record<string, unknown>>;
+  cli: Readonly<{ path: string; verify(): void }>;
+  readBindingTree(root: string): Promise<readonly Readonly<{ path: string; bytes: Uint8Array }>[]>;
+  readCommittedBindings(): readonly Readonly<{ path: string; bytes: Uint8Array }>[]
+    | Promise<readonly Readonly<{ path: string; bytes: Uint8Array }>[]>
+  recordBindingMismatch?(
+    expected: readonly Readonly<{ path: string; bytes: Uint8Array }>[],
+    actual: readonly Readonly<{ path: string; bytes: Uint8Array }>[],
+  ): void;
+  verifyExecutables(): void;
+}>): Promise<Readonly<{
+  current: LocalBindingCycle & Readonly<{ bindingFileCount: number }>;
+  compatibility: Readonly<{
+    sourceCommit: string;
+    sourceTree: string;
+    baselineBundleSha256: string;
+    frozenBundleSha256: string;
+    baselineDescriptorSha256: string;
+    frozenDescriptorSha256: string;
+    checkedFrozenWriters: readonly string[];
+  }>;
+  paired: Readonly<{ genesis002: LocalBindingCycle; ptr: LocalBindingCycle }>;
+}>>;
+
 export function deriveFixedPairedLocalBindingRuntime(): Promise<Readonly<{
   profile: 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
   sourceCommit: string;
@@ -293,4 +337,37 @@ export function deriveFixedGenesis001CurrentBindingCheck(): Promise<Readonly<{
   bundleSha256: string;
   dependencyClosureDigest: string;
   bindingFileCount: number;
+}>>;
+
+export function deriveFixedAllRealmLocalBindingRuntime(): Promise<Readonly<{
+  profile: 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
+  sourceCommit: string;
+  sourceTree: string;
+  genesis001: Readonly<{
+    current: Readonly<{
+      bundleSha256: string;
+      dependencyClosureDigest: string;
+      bindingFileCount: number;
+    }>;
+    compatibility: Readonly<{
+      baselineBundleSha256: string;
+      frozenBundleSha256: string;
+      baselineDescriptorSha256: string;
+      frozenDescriptorSha256: string;
+      checkedFrozenWriters: readonly [
+        'admin_allow_fid', 'admin_admit_founder_v1', 'admin_disable_fid',
+        'admin_bump_auth_epoch', 'access_request_submit_v1', 'admin_reset_access_request_v1',
+      ];
+    }>;
+  }>;
+  genesis002: Readonly<{
+    bundleSha256: string;
+    dependencyClosureDigest: string;
+    bindings: readonly Readonly<{ path: string; bytes: Uint8Array }>[];
+  }>;
+  ptr: Readonly<{
+    bundleSha256: string;
+    dependencyClosureDigest: string;
+    bindings: readonly Readonly<{ path: string; bytes: Uint8Array }>[];
+  }>;
 }>>;

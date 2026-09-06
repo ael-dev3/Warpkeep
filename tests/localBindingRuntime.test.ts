@@ -162,7 +162,8 @@ describe('fixed local PTR binding runtime', () => {
   it('exposes only the fixed no-argument candidate API and rejects authority arguments first', async () => {
     const module = await import('../scripts/local-binding-runtime.mjs');
     expect(Object.keys(module).sort()).toEqual([
-      'LocalBindingRuntimeError', 'derivePreparedGenesis001CurrentLinuxBindingCheck',
+      'LocalBindingRuntimeError', 'derivePreparedAllRealmLinuxBindings',
+      'derivePreparedGenesis001CurrentLinuxBindingCheck',
       'derivePreparedGenesis001LinuxCompatibility',
       'derivePreparedGenesis001LinuxCompilation',
       'derivePreparedPairedLinuxBindings', 'derivePreparedPtrLinuxBindings',
@@ -186,6 +187,13 @@ describe('fixed local PTR binding runtime', () => {
     expect(currentWrongHost.status).toBe(1);
     expect(currentWrongHost.stdout).toBe('');
     expect(currentWrongHost.stderr).toBe('LOCAL_BINDING_RUNTIME_HOST_INVALID\n');
+
+    const allRealmsWrongHost = spawnSync(process.execPath, [
+      join(repositoryRoot, 'scripts', 'local-binding-runtime.mjs'), '--all-realms',
+    ], { encoding: 'utf8' });
+    expect(allRealmsWrongHost.status).toBe(1);
+    expect(allRealmsWrongHost.stdout).toBe('');
+    expect(allRealmsWrongHost.stderr).toBe('LOCAL_BINDING_RUNTIME_HOST_INVALID\n');
   });
 
   it('ignores ordinary ambient values but rejects actual preload authority', () => {

@@ -639,6 +639,7 @@ function initializeGenesis001CurrentIndependentSnapshot(input, boundary) {
 export const localBindingRuntimeTestSeams = Object.freeze({
   createGenesis001CurrentFixedGitBoundary,
   initializeGenesis001CurrentIndependentSnapshot,
+  attestComposedLaneSource,
 });
 
 function resolveGraphTarget(root, parentPath, specifier) {
@@ -1140,7 +1141,7 @@ export async function executeFixedPairedLocalBindingParentCycles(context) {
   for (const lane of [GENESIS002_LANE, PTR_LANE]) {
     const laneRoot = join(context.operationRoot, lane.name);
     mkdirSync(laneRoot, { mode: 0o700 });
-    laneContexts[lane.name] = { ...context, laneRoot, graph: context.graphs[lane.name] };
+    laneContexts[lane.name] = Object.freeze({ ...context, laneRoot, graph: context.graphs[lane.name] });
   }
   const genesis002 = assertReproducibleLocalBindingCycles(
     await executeCycle(laneContexts.genesis002, GENESIS002_LANE, 1),
@@ -1157,6 +1158,39 @@ export async function executeFixedPairedLocalBindingParentCycles(context) {
   return Object.freeze({ genesis002, ptr });
 }
 
+function attestComposedLaneSource(context, lane) {
+  if (lane.sourceCommit !== context.source.commit || lane.sourceTree !== context.source.tree) {
+    fail('LOCAL_BINDING_RUNTIME_SOURCE_CHANGED');
+  }
+  return lane;
+}
+
+export async function executeFixedAllRealmLocalBindingParentCycles(context) {
+  const laneContext = (name, graph) => {
+    const laneRoot = join(context.operationRoot, name);
+    mkdirSync(laneRoot, { mode: 0o700 });
+    return Object.freeze({ ...context, laneRoot, graph });
+  };
+  const current = attestComposedLaneSource(context,
+    await executeFixedGenesis001CurrentBindingParentCycles(
+      laneContext('genesis001-current', context.graphs.genesis001Current),
+    ));
+  const compatibility = attestComposedLaneSource(context,
+    await executeFixedGenesis001CompatibilityParent(
+      laneContext('genesis001-compatibility', context.graphs.genesis001Compatibility),
+    ));
+  const paired = await executeFixedPairedLocalBindingParentCycles(Object.freeze({
+    ...context,
+    graphs: Object.freeze({
+      genesis002: context.graphs.genesis002,
+      ptr: context.graphs.ptr,
+    }),
+  }));
+  attestComposedLaneSource(context, paired.genesis002);
+  attestComposedLaneSource(context, paired.ptr);
+  return Object.freeze({ current, compatibility, paired });
+}
+
 export function preserveLocalBindingRuntimePrimaryAndCleanup(primaryError, cleanupError) {
   if (primaryError === undefined && cleanupError === undefined) return;
   if (primaryError !== undefined && cleanupError === undefined) throw primaryError;
@@ -1166,11 +1200,13 @@ export function preserveLocalBindingRuntimePrimaryAndCleanup(primaryError, clean
 }
 
 async function deriveLocalBindingRuntime(mode) {
+  const allRealms = mode === 'all-realms';
   const paired = mode === 'paired';
   const genesis001 = mode === 'genesis001';
   const genesis001Compatibility = mode === 'genesis001-compatibility';
   const genesis001Current = mode === 'genesis001-current';
-  const needsGenesis001 = genesis001 || genesis001Compatibility;
+  const needsGenesis001 = genesis001 || genesis001Compatibility || allRealms;
+  const useIndependentSnapshot = genesis001Current || allRealms;
   const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   validateLocalBindingRuntimeHost({
     platform: process.platform,
@@ -1223,16 +1259,20 @@ async function deriveLocalBindingRuntime(mode) {
   let primaryError;
   try {
     source = snapshotCommittedSource(
-      repositoryRoot, operationRoot, environment, gitAuthority.identity, genesis001Current,
+      repositoryRoot, operationRoot, environment, gitAuthority.identity, useIndependentSnapshot,
     );
     const graph = genesis001Compatibility
       ? deriveGenesis001CompatibilitySourceGraph(source.root)
       : genesis001Current ? deriveGenesis001CurrentLocalBindingSourceGraph(source.root)
       : genesis001 ? deriveGenesis001LocalBindingSourceGraph(source.root)
         : deriveLocalBindingSourceGraph(source.root);
-    const graphs = paired ? Object.freeze({
+    const graphs = allRealms ? Object.freeze({
+      genesis001Current: deriveGenesis001CurrentLocalBindingSourceGraph(source.root),
+      genesis001Compatibility: deriveGenesis001CompatibilitySourceGraph(source.root),
       genesis002: deriveGenesis002LocalBindingSourceGraph(source.root),
       ptr: graph,
+    }) : paired ? Object.freeze({
+      genesis002: deriveGenesis002LocalBindingSourceGraph(source.root), ptr: graph,
     }) : undefined;
     const manifestPath = join(source.root, 'scripts', 'local-binding-runtime-yaml-v1.json');
     const manifestSource = stableFile(manifestPath).toString('utf8');
@@ -1264,19 +1304,24 @@ async function deriveLocalBindingRuntime(mode) {
     const recordBindingMismatch = (expected, actual) => writeGenesis001CurrentBindingMismatch(
       operationRoot, source, expected, actual,
     );
-    const context = {
+    const context = Object.freeze({
       repositoryRoot, operationRoot, environment, source, graph, graphs, yaml, cli,
       readBindingTree: readSpacetimeBindingTree, readCommittedBindings,
       recordBindingMismatch, verifyExecutables,
-    };
-    const selected = paired
+    });
+    const selected = allRealms
+      ? await executeFixedAllRealmLocalBindingParentCycles(context)
+      : paired
       ? await executeFixedPairedLocalBindingParentCycles(context)
       : genesis001Compatibility
         ? await executeFixedGenesis001CompatibilityParent(context)
         : genesis001Current ? await executeFixedGenesis001CurrentBindingParentCycles(context)
         : genesis001 ? await executeFixedGenesis001LocalBindingParentCycles(context)
           : await executeFixedLocalBindingParentCycles(context);
-    cli.verify();
+    if (allRealms) {
+      verifyLocalBindingBootstrapSource(source);
+      verifyExecutables();
+    } else cli.verify();
     const verifySourceGit = source.git
       ?? ((cwd, args) => git(cwd, environment, gitAuthority.identity, args));
     if (verifySourceGit(source.root, ['rev-parse', '--verify', 'HEAD']) !== source.commit
@@ -1291,7 +1336,27 @@ async function deriveLocalBindingRuntime(mode) {
         path: entry.path, bytes: new Uint8Array(entry.bytes),
       }))),
     });
-    finalResult = paired ? Object.freeze({
+    const copyCurrent = lane => Object.freeze({
+      bundleSha256: lane.bundleSha256,
+      dependencyClosureDigest: lane.dependencyClosureDigest,
+      bindingFileCount: lane.bindingFileCount,
+    });
+    const copyCompatibility = lane => Object.freeze({
+      baselineBundleSha256: lane.baselineBundleSha256,
+      frozenBundleSha256: lane.frozenBundleSha256,
+      baselineDescriptorSha256: lane.baselineDescriptorSha256,
+      frozenDescriptorSha256: lane.frozenDescriptorSha256,
+      checkedFrozenWriters: Object.freeze([...lane.checkedFrozenWriters]),
+    });
+    finalResult = allRealms ? Object.freeze({
+      profile: PROFILE, sourceCommit: source.commit, sourceTree: source.tree,
+      genesis001: Object.freeze({
+        current: copyCurrent(selected.current),
+        compatibility: copyCompatibility(selected.compatibility),
+      }),
+      genesis002: copyLane(selected.paired.genesis002),
+      ptr: copyLane(selected.paired.ptr),
+    }) : paired ? Object.freeze({
       profile: PROFILE, sourceCommit: source.commit, sourceTree: source.tree,
       genesis002: copyLane(selected.genesis002), ptr: copyLane(selected.ptr),
     }) : genesis001Compatibility ? Object.freeze({
@@ -1354,4 +1419,8 @@ export function deriveFixedGenesis001LocalCompatibility() {
 
 export function deriveFixedGenesis001CurrentBindingCheck() {
   return deriveLocalBindingRuntime('genesis001-current');
+}
+
+export function deriveFixedAllRealmLocalBindingRuntime() {
+  return deriveLocalBindingRuntime('all-realms');
 }

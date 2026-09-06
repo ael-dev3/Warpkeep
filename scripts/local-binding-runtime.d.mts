@@ -62,7 +62,33 @@ export interface PreparedGenesis001CurrentLinuxBindingCheck {
   readonly bindingFileCount: number;
 }
 
+export interface PreparedAllRealmLinuxBindings {
+  readonly profile: 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
+  readonly sourceCommit: string;
+  readonly sourceTree: string;
+  readonly genesis001: Readonly<{
+    current: Readonly<{
+      bundleSha256: string;
+      dependencyClosureDigest: string;
+      bindingFileCount: number;
+    }>;
+    compatibility: Readonly<{
+      baselineBundleSha256: string;
+      frozenBundleSha256: string;
+      baselineDescriptorSha256: string;
+      frozenDescriptorSha256: string;
+      checkedFrozenWriters: readonly [
+        'admin_allow_fid', 'admin_admit_founder_v1', 'admin_disable_fid',
+        'admin_bump_auth_epoch', 'access_request_submit_v1', 'admin_reset_access_request_v1',
+      ];
+    }>;
+  }>;
+  readonly genesis002: PreparedLinuxRealmBindings;
+  readonly ptr: PreparedLinuxRealmBindings;
+}
+
 export function derivePreparedPtrLinuxBindings(): Promise<PreparedPtrLinuxBindings>;
+export function derivePreparedAllRealmLinuxBindings(): Promise<PreparedAllRealmLinuxBindings>;
 export function derivePreparedPairedLinuxBindings(): Promise<PreparedPairedLinuxBindings>;
 export function derivePreparedGenesis001LinuxCompilation(): Promise<PreparedGenesis001LinuxCompilation>;
 export function derivePreparedGenesis001LinuxCompatibility(): Promise<PreparedGenesis001LinuxCompatibility>;

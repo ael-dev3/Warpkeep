@@ -14,6 +14,7 @@ const boundary = vi.hoisted(() => ({
   events: [] as string[],
   copies: [] as Array<readonly [string, string]>,
   generateArgs: [] as string[][],
+  requests: [] as Array<Record<string, any>>,
   currentGeneration: false,
   expectedReads: 0,
 }));
@@ -109,6 +110,7 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
     }) {
       if (options.fd3 !== undefined) {
         const request = JSON.parse(options.fd3) as Record<string, any>;
+        boundary.requests.push(request);
         const genesis002 = request.profile === 'warpkeep-local-binding-genesis002-worker-v1';
         const genesis001 = request.profile === 'warpkeep-local-binding-genesis001-worker-v1';
         const genesis001Current = request.profile === 'warpkeep-local-binding-genesis001-current-worker-v1';
@@ -244,8 +246,10 @@ import {
   executeFixedGenesis001CompatibilityParent,
   executeFixedGenesis001CurrentBindingParentCycles,
   executeFixedGenesis001LocalBindingParentCycles,
+  executeFixedAllRealmLocalBindingParentCycles,
   executeFixedLocalBindingParentCycles,
   executeFixedPairedLocalBindingParentCycles,
+  localBindingRuntimeTestSeams,
   preserveLocalBindingRuntimePrimaryAndCleanup,
 } from '../scripts/local-binding-runtime-core.mjs';
 import { bindOperationOwnedCliSnapshot } from '../scripts/local-binding-runtime-cli-snapshot.mjs';
@@ -257,6 +261,7 @@ beforeEach(() => {
   boundary.events.length = 0;
   boundary.copies.length = 0;
   boundary.generateArgs.length = 0;
+  boundary.requests.length = 0;
   boundary.currentGeneration = false;
   boundary.expectedReads = 0;
 });
@@ -371,6 +376,24 @@ function genesis001CompatibilityContext() {
   };
 }
 
+function allRealmContext() {
+  const current = genesis001CurrentContext();
+  const graph = (entry: string) => ({
+    ...current.graph,
+    entry,
+    modules: [{ ...current.graph.modules[0], path: entry }],
+  });
+  return {
+    ...current,
+    graphs: {
+      genesis001Current: current.graph,
+      genesis001Compatibility: graph('scripts/genesis001-baseline-binding-linux-locked-source-build.ts'),
+      genesis002: graph('scripts/genesis002-binding-linux-locked-source-build.ts'),
+      ptr: graph('scripts/ptr-binding-linux-locked-source-build.ts'),
+    },
+  };
+}
+
 describe('production local binding parent cycles', () => {
   it('preserves the parent primary failure together with cleanup failure', () => {
     const primary = new Error('CONTROLLED_PARENT_PRIMARY');
@@ -380,6 +403,14 @@ describe('production local binding parent cycles', () => {
     expect(error).toBeInstanceOf(AggregateError);
     expect((error as AggregateError).cause).toBe(primary);
     expect((error as AggregateError).errors).toEqual([primary, cleanup]);
+  });
+
+  it('rejects composed lane source drift before any public result', () => {
+    expect(() => localBindingRuntimeTestSeams.attestComposedLaneSource({
+      source: { commit: '1'.repeat(40), tree: '2'.repeat(40) },
+    }, {
+      sourceCommit: '1'.repeat(40), sourceTree: '9'.repeat(40),
+    })).toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_RUNTIME_SOURCE_CHANGED' }));
   });
 
   it('binds a hostile ambient attester result to the exact operation-owned CLI path', () => {
@@ -550,6 +581,67 @@ describe('production local binding parent cycles', () => {
     expect(genesisCommands.every(args => args.filter(value => value === '--include-private').length === 1)).toBe(true);
     expect(ptrCommands.every(args => !args.includes('--include-private'))).toBe(true);
     expect(new Set(boundary.generateArgs.map(args => args[args.indexOf('--out-dir') + 1])).size).toBe(4);
+  });
+
+  it('composes current G001, compatibility, G002 and PTR in order from one source with disjoint lane roots', async () => {
+    const selected = allRealmContext();
+    const result = await executeFixedAllRealmLocalBindingParentCycles(selected);
+
+    expect(result.current.bindingFileCount).toBe(1);
+    expect(result.compatibility.checkedFrozenWriters).toHaveLength(6);
+    expect(Buffer.from(result.paired.genesis002.bindings[0]!.bytes).toString()).toBe('binding-genesis002');
+    expect(Buffer.from(result.paired.ptr.bindings[0]!.bytes).toString()).toBe('binding');
+    expect(boundary.requests.map(request => request.profile)).toEqual([
+      'warpkeep-local-binding-genesis001-current-worker-v1',
+      'warpkeep-local-binding-genesis001-current-worker-v1',
+      'warpkeep-local-binding-genesis001-compatibility-worker-v1',
+      'warpkeep-local-binding-genesis002-worker-v1',
+      'warpkeep-local-binding-genesis002-worker-v1',
+      'warpkeep-local-binding-worker-v1',
+      'warpkeep-local-binding-worker-v1',
+    ]);
+    expect(new Set(boundary.requests.map(request => `${request.sourceCommit}:${request.sourceTree}`)))
+      .toEqual(new Set([`${'1'.repeat(40)}:${'2'.repeat(40)}`]));
+    expect(new Set(boundary.requests.map(request => request.graph.entry))).toEqual(new Set([
+      'scripts/genesis001-current-binding-linux-locked-source-build.ts',
+      'scripts/genesis001-baseline-binding-linux-locked-source-build.ts',
+      'scripts/genesis002-binding-linux-locked-source-build.ts',
+      'scripts/ptr-binding-linux-locked-source-build.ts',
+    ]));
+    const roots = boundary.requests.map(request => request.materializationRoot.replaceAll('\\', '/'));
+    expect(roots.slice(0, 2).every(root => root.includes('/genesis001-current/cycle-'))).toBe(true);
+    expect(roots[2]).toContain('/genesis001-compatibility/cycle-1/');
+    expect(roots.slice(3, 5).every(root => root.includes('/genesis002/cycle-'))).toBe(true);
+    expect(roots.slice(5).every(root => root.includes('/ptr/cycle-'))).toBe(true);
+    expect(new Set(roots).size).toBe(7);
+    expect(existsSync(join(selected.operationRoot, 'proof'))).toBe(false);
+  });
+
+  it('stops all later lanes when current G001 fails', async () => {
+    boundary.scenario = 'current-single-byte';
+    await expect(executeFixedAllRealmLocalBindingParentCycles(allRealmContext()))
+      .rejects.toMatchObject({ code: 'LOCAL_BINDING_RUNTIME_CURRENT_BINDINGS_MISMATCH' });
+    expect(boundary.requests.map(request => request.profile)).toEqual([
+      'warpkeep-local-binding-genesis001-current-worker-v1',
+      'warpkeep-local-binding-genesis001-current-worker-v1',
+    ]);
+  });
+
+  it('does not enter G002/PTR after compatibility rejection', async () => {
+    boundary.scenario = 'compatibility-cross-lane';
+    await expect(executeFixedAllRealmLocalBindingParentCycles(allRealmContext()))
+      .rejects.toMatchObject({ code: 'LOCAL_BINDING_WORKER_RESULT_INVALID' });
+    expect(boundary.requests.map(request => request.profile)).toEqual([
+      'warpkeep-local-binding-genesis001-current-worker-v1',
+      'warpkeep-local-binding-genesis001-current-worker-v1',
+      'warpkeep-local-binding-genesis001-compatibility-worker-v1',
+    ]);
+  });
+
+  it.each(['genesis002', 'ptr'] as const)('rejects a %s composition lane failure without success', async lane => {
+    boundary.scenario = `${lane}-bundle-mismatch`;
+    await expect(executeFixedAllRealmLocalBindingParentCycles(allRealmContext()))
+      .rejects.toMatchObject({ code: 'LOCAL_BINDING_RUNTIME_REPRODUCIBILITY_FAILED' });
   });
 
   it.each(['genesis002', 'ptr'] as const)(
