@@ -2,8 +2,8 @@
 
 Status: source instrumentation; Task 8 and release acceptance remain incomplete.
 Source review of `d88e376bb84690d0d1553a8900e54553aa92cbf8` identified the issues
-below. Round 1 source corrections have focused regression tests and await
-controller re-review; this is still an unfinished development checkpoint:
+below. Round 1 source corrections passed independent source review; this is
+still an unfinished development checkpoint:
 
 - Capture provenance: configuration is now frozen during capture, including fault
   and effective reduced motion. Later idle configuration changes do not relabel
@@ -16,7 +16,7 @@ controller re-review; this is still an unfinished development checkpoint:
   recorded. New captures correctly re-establish long-task support.
 
 Do not use the affected checkpoint reports as release acceptance evidence. The
-corrected tooling still needs re-review and actual captures/measurements. Existing
+Windows launcher addition still needs review and actual captures/measurements. Existing
 build warnings remain warnings, not performance results.
 
 Binding measurement gates: [0.4 performance contract](../evidence/0.4.0/performance.md).
@@ -97,17 +97,44 @@ or automatic feedback timestamp is introduced for a better benchmark result.
 accepts exactly that argument. No remote origin, credentials, arbitrary output,
 profile or browser path is accepted. Outputs stay below `artifacts/keep04-qa/`
 and use exclusive creation to avoid replacing earlier evidence. The CLI writes
-an explicitly unmeasured manual plan; the existing repository attested browser
-launcher is macOS/codesign-bound, and this Windows task uses the controller's
-available browser tool without installing automation. The exported
+an explicitly unmeasured manual plan, not an executed browser verifier. The exported
 `runKeep04BrowserProbe(session)` supports the existing CDP `command` interface for
 an already-owned browser session; it does not launch browser/server processes.
 Its captures remain uninspected until images are actually reviewed.
 The controller independently verified the existing CDP pipe transport with
 Windows Chrome 151 in a disposable credential-free profile (version/targets/close
-only, no navigation or measurements). Thus transport is available; adapting the
-task-owned Windows launcher and executing Task 8/R11 measurements remains
-controller-owned work outside this source fix. The CLI is still manual-plan-only.
+only, no navigation or measurements). The separate Windows-local entry point is:
+
+```powershell
+.git/ci-node-22.22.3/node.exe scripts/qa-observer/keep04-windows-capture.mjs --base-url=http://127.0.0.1:4176
+```
+
+Run only after source review with the existing controller-owned Vite server and
+stable source. It verifies the fixed installed Google-signed Chrome executable
+before/after launch and after capture, uses the existing inherited-pipe transport,
+and enables exact-loopback request guards before navigation. No arbitrary browser,
+profile, output, origin, credentials, TCP debugger, software-renderer override,
+or server-start argument is accepted. Fresh profiles stay under
+`.cache/keep04-qa/profile-*`; captures and bounded provenance are exclusively
+created under `artifacts/keep04-qa/windows-run-*`. Repeated runs never replace
+earlier evidence. Profiles are retained; cleanup does not recursively delete them.
+
+Each successful run writes 36 PNGs, `synthetic-render-observations.json`, and
+`run-provenance.json`. The latter records executable identity, browser/backend,
+source commit/tree and substantive dirt (ignoring line-ending-only tracked changes
+and untracked artifact/cache work areas), diagnostic classes/counts, and verified
+owned-browser cleanup. HMR, navigation, output and cleanup failures cannot become
+accepted evidence. Warnings are counted without retaining console arguments or
+request bodies; absent metrics stay absent. Failed runs retain bounded failure
+stage/provenance when output remains writable. Cleanup uses fresh-profile and
+process-creation identities, never global Chrome termination. Uncertain cleanup
+retains the profile and fails the run.
+
+The launcher is narrowly source-tested; its complete Windows navigation/capture
+run remains controller-owned and unexecuted during implementation. Successful
+capture still means images uninspected and performance not measured. Windows
+transport is available; macOS is not a final dependency. Full Task 8/R11 production
+measurements and the separate owner/phone/G001 lanes remain open.
 
 Capture each named state at 1440x900/high, 390x844/balanced, 390x844/reduced and
 844x390/balanced. Also inspect open catalog, Workers and permanent confirmation.

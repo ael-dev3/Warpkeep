@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createKeep04CaptureRun, writeKeep04RunFile } from './keep04-capture-output.mjs';
 
 export const KEEP04_QA_ORIGIN = 'http://127.0.0.1:4176';
 const SCENARIOS = Object.freeze(['empty', 'mill-placement', 'blocked-placement', 'mill-constructing', 'mill-complete', 'all-six-level-five', 'fallback', 'reduced-motion', 'context-cycle']);
@@ -70,10 +71,10 @@ export async function waitForKeep04ProbeObservation(session, entry, navigation) 
  * Caller supplies the already-owned session, not a profile, credential, URL or filesystem destination.
  * This is synthetic render capture, not the final production workload measurement.
  */
-export async function runKeep04BrowserProbe(session) {
+export async function runKeep04BrowserProbe(session, suppliedRun) {
   if (!session || typeof session.command !== 'function') throw new TypeError('An existing task-owned CDP command session is required.');
   const plan = keep04ProbePlan([`--base-url=${KEEP04_QA_ORIGIN}`]);
-  await mkdir(OUTPUT, { recursive: true });
+  const run = suppliedRun ?? await createKeep04CaptureRun();
   const observations = [];
   for (const entry of plan.cases) {
     await session.command('Emulation.setDeviceMetricsOverride', { width: entry.width, height: entry.height, deviceScaleFactor: 1, mobile: entry.cpuRate === 4 });
@@ -83,21 +84,21 @@ export async function runKeep04BrowserProbe(session) {
     const screenshot = await session.command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     if (typeof screenshot?.data !== 'string' || screenshot.data.length > 12 * 1024 * 1024) throw new Error('Screenshot unavailable or oversized.');
     const filename = `${entry.id}-${entry.scenario}.png`;
-    await writeFile(resolve(OUTPUT, filename), Buffer.from(screenshot.data, 'base64'), { flag: 'wx' });
+    await writeKeep04RunFile(run, filename, Buffer.from(screenshot.data, 'base64'));
     observations.push({ ...entry, ...observation, screenshot: filename, imageInspected: false });
   }
-  const report = { ...plan, status: 'captured; images require human inspection; performance not measured', observations };
-  await writeFile(resolve(OUTPUT, 'synthetic-render-observations.json'), `${JSON.stringify(report, null, 2)}\n`, { flag: 'wx' });
+  const report = { ...plan, output: `artifacts/keep04-qa/${run.id}/`, status: 'captured; images require human inspection; performance not measured', observations };
+  await writeKeep04RunFile(run, 'synthetic-render-observations.json', `${JSON.stringify(report, null, 2)}\n`);
   return report;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try {
     const plan = keep04ProbePlan(process.argv.slice(2));
-    // Existing attested launcher is macOS codesign-bound. Do not install automation,
-    // create another Vite server, or silently substitute an unattested browser here.
+    // This entry point deliberately remains plan-only. The separate
+    // keep04-windows-capture launcher owns Windows process/profile lifecycle.
     await mkdir(OUTPUT, { recursive: true });
     await writeFile(resolve(OUTPUT, 'manual-capture-plan.json'), `${JSON.stringify(plan, null, 2)}\n`, { flag: 'wx' });
-    console.log('Browser transport is controller-owned. Manual capture plan written below artifacts/keep04-qa; no measurements claimed. Use the available browser tool, or runKeep04BrowserProbe with an existing attested CDP session.');
+    console.log('Manual capture plan written below artifacts/keep04-qa; no measurements claimed. Windows execution uses keep04-windows-capture.mjs with the same fixed base-url argument.');
   } catch (error) { console.error(error instanceof Error ? error.message : 'Keep QA probe failed.'); process.exitCode = 1; }
 }
