@@ -17,7 +17,20 @@ function python(): string {
 }
 
 function run(script: string, argument: string) {
-  return spawnSync(python(), [script, argument], { encoding: 'utf8' });
+  return spawnSync(python(), [script, argument], { encoding: 'utf8', timeout: 10000, maxBuffer: 1024 * 1024 });
+}
+
+function generatorFixture() {
+  const root = mkdtempSync(join(tmpdir(), 'warpkeep-yaml-generator-'));
+  temporaryRoots.push(root);
+  mkdirSync(join(root, 'scripts'));
+  mkdirSync(join(root, '.git'));
+  const script = join(root, 'scripts', 'generate-local-binding-yaml-manifest.py');
+  const manifest = join(root, 'scripts', 'local-binding-runtime-yaml-v1.json');
+  writeFileSync(script, readFileSync(generator));
+  writeFileSync(manifest, readFileSync(manifestPath));
+  writeFileSync(join(root, '.git', 'yaml-2.9.0.tgz'), readFileSync(archive));
+  return { script, manifest };
 }
 
 afterEach(() => {
@@ -26,7 +39,8 @@ afterEach(() => {
 
 describe('local binding YAML authority manifest', () => {
   it('checks the committed manifest against the exact offline archive', () => {
-    const result = run(generator, '--check');
+    const fixture = generatorFixture();
+    const result = run(fixture.script, '--check');
     expect(result.status, result.stderr).toBe(0);
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
     expect(manifest).toMatchObject({
@@ -45,9 +59,13 @@ describe('local binding YAML authority manifest', () => {
   });
 
   it('accepts exactly --write or --check', () => {
-    expect(run(generator, '').status).not.toBe(0);
-    expect(run(generator, '--write').status).toBe(0);
-    expect(spawnSync(python(), [generator, '--check', '--write']).status).not.toBe(0);
+    const fixture = generatorFixture();
+    const before = readFileSync(manifestPath);
+    expect(run(fixture.script, '').status).not.toBe(0);
+    expect(run(fixture.script, '--write').status).toBe(0);
+    expect(readFileSync(fixture.manifest)).toEqual(before);
+    expect(readFileSync(manifestPath)).toEqual(before);
+    expect(spawnSync(python(), [fixture.script, '--check', '--write'], { timeout: 10000, maxBuffer: 1024 * 1024 }).status).not.toBe(0);
   });
 
   it('fails closed before TAR parsing when archive identity changes', () => {
@@ -70,7 +88,7 @@ describe('local binding YAML authority manifest', () => {
   });
 
   it('rejects traversal, links and wrong package metadata after exact archive attestation', () => {
-    const result = spawnSync(python(), [boundaryHarness, generator], { encoding: 'utf8' });
+    const result = spawnSync(python(), [boundaryHarness, generator], { encoding: 'utf8', timeout: 10000, maxBuffer: 1024 * 1024 });
     expect(result.status, result.stderr).toBe(0);
     expect(result.stderr).toContain('Ran 3 tests');
   });

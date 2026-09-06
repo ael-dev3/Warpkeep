@@ -149,6 +149,19 @@ jobs:
           echo "$bin_dir" >> "$GITHUB_PATH"
           "$bin_dir/spacetime" --version
 
+      - name: Prepare exact offline YAML archive for manifest tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive=".git/yaml-2.9.0.tgz"
+          test ! -e "$archive"
+          curl --fail --proto '=https' --tlsv1.2 --max-time 30 \
+            --max-filesize 112086 --output "$archive" \
+            'https://registry.npmjs.org/yaml/-/yaml-2.9.0.tgz'
+          test "$(wc -c < "$archive")" -eq 112086
+          echo "008fa204cb1ba700e0272ba045abbf09a6ffe63456e8146ba97cac6c2ad1ef91  $archive" \
+            | sha256sum --check --strict -
+
       - name: Run tests
         run: |
           npm test -- \
