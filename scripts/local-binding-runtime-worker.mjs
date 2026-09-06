@@ -10,7 +10,10 @@ import { pathToFileURL } from 'node:url';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { installLocalBindingNativeTsHooks } from './local-binding-native-ts-hooks.mjs';
 import { validateLocalBindingWorkerRequest } from './local-binding-runtime-core.mjs';
-import { createLocalBindingWorkerResult } from './local-binding-runtime-worker-result.mjs';
+import {
+  createLocalBindingWorkerResult,
+  preserveLocalBindingWorkerBundle,
+} from './local-binding-runtime-worker-result.mjs';
 import { readLocalBindingWorkerRequest } from './local-binding-runtime-worker-request.mjs';
 
 const MAX_COMMAND_OUTPUT = 4 * 1024 * 1024;
@@ -25,6 +28,13 @@ const GENESIS001_NODE_BYTES = 125989464;
 const GENESIS001_NODE_SHA256 = 'bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12';
 const GIT_PATH = '/usr/bin/git';
 const GIT_SHA256 = '2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668';
+const GENESIS001_COMPATIBILITY_PROFILE = 'warpkeep-local-binding-genesis001-compatibility-worker-v1';
+const GENESIS001_COMPATIBILITY_RESULT_PROFILE = 'warpkeep-local-binding-genesis001-compatibility-result-v1';
+
+function isGenesis001Profile(profile) {
+  return profile === 'warpkeep-local-binding-genesis001-worker-v1'
+    || profile === GENESIS001_COMPATIBILITY_PROFILE;
+}
 
 function fail(code, cause) {
   const error = new Error(code, cause === undefined ? undefined : { cause });
@@ -84,7 +94,7 @@ function attestRuntimeExecutables(request, expected) {
     standalone: attestExecutable(join(snapshotDirectory, 'spacetimedb-standalone'),
       STANDALONE_BYTES, STANDALONE_SHA256, 1000, 0o500, expected?.standalone),
   };
-  if (request.profile === 'warpkeep-local-binding-genesis001-worker-v1') {
+  if (isGenesis001Profile(request.profile)) {
     try {
       const versionRoot = dirname(dirname(GENESIS001_NODE_PATH));
       const binRoot = dirname(GENESIS001_NODE_PATH);
@@ -140,6 +150,10 @@ function fixedWorkerLane(profile) {
   if (profile === 'warpkeep-local-binding-genesis001-worker-v1') return Object.freeze({
     syntheticEntry: 'warpkeep:genesis001-binding-entry', builder: 'withGenesis001LinuxLockedSourceBuild',
     modulePath: 'spacetimedb', stateChild: 'genesis001-locked-source-builds-v1',
+  });
+  if (profile === GENESIS001_COMPATIBILITY_PROFILE) return Object.freeze({
+    syntheticEntry: 'warpkeep:genesis001-compatibility-entry',
+    modulePath: 'spacetimedb', stateChild: '', compatibility: true,
   });
   fail('LOCAL_BINDING_WORKER_REQUEST_INVALID');
 }
@@ -346,9 +360,94 @@ export async function runFixedLocalBindingWorker(input) {
   let result;
   try {
     const builder = await import(lane.syntheticEntry);
-    if (typeof builder[lane.builder] !== 'function') fail('LOCAL_BINDING_WORKER_BUILDER_INVALID');
-    attestRuntimeExecutables(request, runtimeAuthority);
-    const builderInput = {
+    if (lane.compatibility === true) {
+      const handoffRoot = dirname(request.handoffPath);
+      const buildCycle = (builderName, stateChild, label, index) => {
+        if (typeof builder[builderName] !== 'function') fail('LOCAL_BINDING_WORKER_BUILDER_INVALID');
+        const fixedLane = Object.freeze({ modulePath: 'spacetimedb', stateChild });
+        const built = builder[builderName]({
+          repositoryRoot: request.repositoryRoot,
+          dependencyCacheRoot: request.dependencyCacheRoot,
+          materializationParent: request.materializationRoot,
+          operation(context) {
+            const buildOutput = bindPrivateBuildOutput(request, fixedLane, context.materializedRoot);
+            const { moduleRoot } = buildOutput;
+            attestRuntimeExecutables(request, runtimeAuthority);
+            command(GENESIS001_NODE_PATH, [
+              join(moduleRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
+              '--noEmit', '--project', join(moduleRoot, 'tsconfig.json'),
+            ], moduleRoot, 10 * 60_000, genesis001CommandEnvironment(request));
+            attestRuntimeExecutables(request, runtimeAuthority);
+            buildOutput.create();
+            command(request.cliPath, ['build', '--module-path', 'spacetimedb'],
+              context.materializedRoot, 10 * 60_000, genesis001CommandEnvironment(request));
+            attestRuntimeExecutables(request, runtimeAuthority);
+            const preserved = preserveLocalBindingWorkerBundle({
+              bundlePath: join(moduleRoot, 'dist', 'bundle.js'), handoffRoot,
+              handoffPath: join(handoffRoot, `${label}-${index}.js`),
+            });
+            return Object.freeze({
+              ...preserved, dependencyClosureDigest: context.dependencyClosureDigest,
+              moduleTreeId: context.moduleTreeId,
+            });
+          },
+        });
+        if (built.dependencyClosureDigest !== built.result.dependencyClosureDigest
+            || built.moduleTreeId !== built.result.moduleTreeId) {
+          fail('LOCAL_BINDING_WORKER_PROVENANCE_INVALID');
+        }
+        return built.result;
+      };
+      const baselineFirst = buildCycle(
+        'withGenesis001BaselineLinuxLockedSourceBuild',
+        'genesis001-baseline-locked-source-builds-v1', 'baseline', 1,
+      );
+      const baselineSecond = buildCycle(
+        'withGenesis001BaselineLinuxLockedSourceBuild',
+        'genesis001-baseline-locked-source-builds-v1', 'baseline', 2,
+      );
+      const frozenFirst = buildCycle(
+        'withGenesis001LinuxLockedSourceBuild',
+        'genesis001-locked-source-builds-v1', 'frozen', 1,
+      );
+      const frozenSecond = buildCycle(
+        'withGenesis001LinuxLockedSourceBuild',
+        'genesis001-locked-source-builds-v1', 'frozen', 2,
+      );
+      const sameCycle = (left, right) => left.sha256 === right.sha256
+        && left.dependencyClosureDigest === right.dependencyClosureDigest
+        && left.moduleTreeId === right.moduleTreeId
+        && Buffer.from(left.bytes).equals(Buffer.from(right.bytes));
+      if (!sameCycle(baselineFirst, baselineSecond) || !sameCycle(frozenFirst, frozenSecond)) {
+        fail('LOCAL_BINDING_RUNTIME_REPRODUCIBILITY_FAILED');
+      }
+      if (baselineFirst.sha256 === frozenFirst.sha256
+          || baselineFirst.dependencyClosureDigest === frozenFirst.dependencyClosureDigest) {
+        fail('LOCAL_BINDING_WORKER_CROSS_LANE_SUBSTITUTION');
+      }
+      attestRuntimeExecutables(request, runtimeAuthority);
+      const proof = await builder.runGenesis001LocalUpgradeProof({
+        cliPath: request.cliPath,
+        baselineArtifactPath: baselineFirst.path,
+        frozenArtifactPath: frozenFirst.path,
+        operationRoot: dirname(request.repositoryRoot),
+        environment: genesis001CommandEnvironment(request),
+        verifyExecutables: () => attestRuntimeExecutables(request, runtimeAuthority),
+      });
+      attestRuntimeExecutables(request, runtimeAuthority);
+      result = Object.freeze({
+        schemaVersion: 1, profile: GENESIS001_COMPATIBILITY_RESULT_PROFILE,
+        nonce: request.nonce, sourceCommit: request.sourceCommit, sourceTree: request.sourceTree,
+        baselineBundleSha256: baselineFirst.sha256,
+        frozenBundleSha256: frozenFirst.sha256,
+        baselineDescriptorSha256: proof.baselineDescriptorSha256,
+        frozenDescriptorSha256: proof.frozenDescriptorSha256,
+        checkedFrozenWriters: proof.checkedFrozenWriters,
+      });
+    } else {
+      if (typeof builder[lane.builder] !== 'function') fail('LOCAL_BINDING_WORKER_BUILDER_INVALID');
+      attestRuntimeExecutables(request, runtimeAuthority);
+      const builderInput = {
       repositoryRoot: request.repositoryRoot,
       dependencyCacheRoot: request.dependencyCacheRoot,
       materializationParent: request.materializationRoot,
@@ -358,7 +457,7 @@ export async function runFixedLocalBindingWorker(input) {
         attestRuntimeExecutables(request, runtimeAuthority);
         if (request.profile === 'warpkeep-local-binding-genesis002-worker-v1') {
           runGenesis002Typecheck(request, moduleRoot);
-        } else if (request.profile === 'warpkeep-local-binding-genesis001-worker-v1') {
+        } else if (isGenesis001Profile(request.profile)) {
           command(GENESIS001_NODE_PATH, [
             join(moduleRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
             '--noEmit', '--project', join(moduleRoot, 'tsconfig.json'),
@@ -373,7 +472,7 @@ export async function runFixedLocalBindingWorker(input) {
         buildOutput.create();
         if (request.profile === 'warpkeep-local-binding-genesis002-worker-v1') {
           runGenesis002Build(request, lane, context.materializedRoot, moduleRoot);
-        } else if (request.profile === 'warpkeep-local-binding-genesis001-worker-v1') {
+        } else if (isGenesis001Profile(request.profile)) {
           command(request.cliPath, ['build', '--module-path', 'spacetimedb'],
             context.materializedRoot, 10 * 60_000, genesis001CommandEnvironment(request));
         } else {
@@ -390,16 +489,17 @@ export async function runFixedLocalBindingWorker(input) {
           requestProfile: request.profile,
         });
       },
-    };
-    if (request.profile !== 'warpkeep-local-binding-genesis001-worker-v1') {
-      builderInput.moduleSourceCommit = request.sourceCommit;
+      };
+      if (request.profile !== 'warpkeep-local-binding-genesis001-worker-v1') {
+        builderInput.moduleSourceCommit = request.sourceCommit;
+      }
+      const built = builder[lane.builder](builderInput);
+      if (built.dependencyClosureDigest !== built.result.dependencyClosureDigest) {
+        fail('LOCAL_BINDING_WORKER_PROVENANCE_INVALID');
+      }
+      attestRuntimeExecutables(request, runtimeAuthority);
+      result = built.result;
     }
-    const built = builder[lane.builder](builderInput);
-    if (built.dependencyClosureDigest !== built.result.dependencyClosureDigest) {
-      fail('LOCAL_BINDING_WORKER_PROVENANCE_INVALID');
-    }
-    attestRuntimeExecutables(request, runtimeAuthority);
-    result = built.result;
   } catch (error) { primary = error; }
   let deregisterError;
   try { hooks.deregister(); } catch (error) { deregisterError = error; }

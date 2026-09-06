@@ -17,7 +17,10 @@ import {
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 
-import { createGenesis001FrozenSourceMaterialization } from './genesis001-binding-frozen-source.mjs';
+import {
+  createGenesis001BaselineSourceMaterialization,
+  createGenesis001FrozenSourceMaterialization,
+} from './genesis001-binding-frozen-source.mjs';
 import { stageGreaterRealmOpenAtHelper } from './greater-realm-openat';
 import { createGreaterRealmProductionCommitMaterialization } from './greater-realm-production-provenance';
 import { greaterRealmImmutableArtifactTestSeams } from './greater-realm-production-immutable-artifact';
@@ -280,6 +283,17 @@ const GENESIS001_PROFILE = Object.freeze<PtrLockedSourceBuildProfile>({
   expectedModuleTreeId: '90deebb5faf4129282f5c35999244f540001b27d',
   expectedSourceClosureDigest: '0e12b32f90f91a80993c52998ef8764109ce926528a71b1933ba527605ff41f9',
   materialize: input => createGenesis001FrozenSourceMaterialization({
+    repositoryRoot: input.repositoryRoot,
+    destination: input.destination,
+  }),
+});
+
+const GENESIS001_BASELINE_PROFILE = Object.freeze<PtrLockedSourceBuildProfile>({
+  ...GENESIS001_PROFILE,
+  provenanceDomain: 'warpkeep-genesis001-baseline-linux-x64-dependency-closure-v1',
+  stateChild: 'genesis001-baseline-locked-source-builds-v1',
+  expectedSourceClosureDigest: '99772bf087a8bacd8414e762a88174d19a93a8afa3fae5904ce77cc93e7921be',
+  materialize: input => createGenesis001BaselineSourceMaterialization({
     repositoryRoot: input.repositoryRoot,
     destination: input.destination,
   }),
@@ -1138,4 +1152,10 @@ export function withGenesis001LinuxLockedSourceBuild<T>(
   input: Genesis001SourceBuildInput<T>,
 ): Genesis001SourceBuildResult<T> {
   return withPtrLockedSourceBuildProfile(input, GENESIS001_PROFILE);
+}
+
+export function withGenesis001BaselineLinuxLockedSourceBuild<T>(
+  input: Genesis001SourceBuildInput<T>,
+): Genesis001SourceBuildResult<T> {
+  return withPtrLockedSourceBuildProfile(input, GENESIS001_BASELINE_PROFILE);
 }

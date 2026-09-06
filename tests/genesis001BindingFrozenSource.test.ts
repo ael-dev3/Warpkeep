@@ -12,9 +12,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   GENESIS001_FROZEN_SOURCE_COMMIT,
+  GENESIS001_BASELINE_SOURCE_INVENTORY_SHA256,
   GENESIS001_FROZEN_SOURCE_INVENTORY_SHA256,
   GENESIS001_FROZEN_SOURCE_TREE,
   createGenesis001FrozenSourceMaterialization,
+  createGenesis001BaselineSourceMaterialization,
 } from '../scripts/genesis001-binding-frozen-source.mjs';
 
 const temporaryDirectories: string[] = [];
@@ -41,6 +43,17 @@ function materialize() {
   };
 }
 
+function materializeBaseline() {
+  const parent = privateParent('warpkeep-g001-baseline-test-');
+  const destination = join(parent, 'source');
+  return {
+    destination,
+    value: createGenesis001BaselineSourceMaterialization({
+      repositoryRoot: realpathSync(process.cwd()), destination,
+    }),
+  };
+}
+
 function regularFileCount(root: string): number {
   let count = 0;
   const visit = (path: string) => {
@@ -53,6 +66,36 @@ function regularFileCount(root: string): number {
 }
 
 describe('Genesis 001 authenticated frozen-source materialization', () => {
+  it.skipIf(process.platform !== 'linux')(
+    'materializes the exact independent historical baseline inventory and cleans by identity',
+    () => {
+      const candidate = materializeBaseline();
+      expect(candidate.value).toMatchObject({
+        moduleSourceCommit: GENESIS001_FROZEN_SOURCE_COMMIT,
+        moduleTreeId: GENESIS001_FROZEN_SOURCE_TREE,
+        sourceClosureDigest: GENESIS001_BASELINE_SOURCE_INVENTORY_SHA256,
+      });
+      expect(candidate.value.sourceClosureDigest).not.toBe(GENESIS001_FROZEN_SOURCE_INVENTORY_SHA256);
+      expect(regularFileCount(candidate.destination)).toBe(172);
+      expect(existsSync(join(candidate.destination, 'spacetimedb', 'src', 'genesis001FrozenPolicy.ts')))
+        .toBe(false);
+      candidate.value.verify();
+      candidate.value.cleanup();
+      expect(existsSync(candidate.destination)).toBe(false);
+    },
+  );
+
+  it.skipIf(process.platform !== 'linux')(
+    'retains a mutated historical baseline instead of broad cleanup',
+    () => {
+      const candidate = materializeBaseline();
+      writeFileSync(join(candidate.destination, 'spacetimedb', 'package.json'), 'changed');
+      expect(() => candidate.value.verify()).toThrow('GENESIS001_FROZEN_SOURCE_CHANGED');
+      expect(() => candidate.value.cleanup()).toThrow();
+      expect(existsSync(candidate.destination)).toBe(true);
+    },
+  );
+
   it('keeps commit and post-freeze source inventory as distinct authorities', () => {
     expect(GENESIS001_FROZEN_SOURCE_COMMIT).toBe('2ae51984e1fa6ce5b0028c1a250359fed79d819b');
     expect(GENESIS001_FROZEN_SOURCE_TREE).toBe('90deebb5faf4129282f5c35999244f540001b27d');

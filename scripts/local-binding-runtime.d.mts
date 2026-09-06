@@ -39,6 +39,21 @@ export interface PreparedGenesis001LinuxCompilation {
   readonly diagnosticBindings: readonly Readonly<{ path: string; bytes: Uint8Array }>[];
 }
 
+export interface PreparedGenesis001LinuxCompatibility {
+  readonly profile: 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
+  readonly sourceCommit: string;
+  readonly sourceTree: string;
+  readonly baselineBundleSha256: string;
+  readonly frozenBundleSha256: string;
+  readonly baselineDescriptorSha256: string;
+  readonly frozenDescriptorSha256: string;
+  readonly checkedFrozenWriters: readonly [
+    'admin_allow_fid', 'admin_admit_founder_v1', 'admin_disable_fid',
+    'admin_bump_auth_epoch', 'access_request_submit_v1', 'admin_reset_access_request_v1',
+  ];
+}
+
 export function derivePreparedPtrLinuxBindings(): Promise<PreparedPtrLinuxBindings>;
 export function derivePreparedPairedLinuxBindings(): Promise<PreparedPairedLinuxBindings>;
 export function derivePreparedGenesis001LinuxCompilation(): Promise<PreparedGenesis001LinuxCompilation>;
+export function derivePreparedGenesis001LinuxCompatibility(): Promise<PreparedGenesis001LinuxCompatibility>;

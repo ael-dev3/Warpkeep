@@ -17,6 +17,8 @@ import { dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:p
 
 export const GENESIS001_FROZEN_SOURCE_COMMIT = '2ae51984e1fa6ce5b0028c1a250359fed79d819b';
 export const GENESIS001_FROZEN_SOURCE_TREE = '90deebb5faf4129282f5c35999244f540001b27d';
+export const GENESIS001_BASELINE_SOURCE_INVENTORY_SHA256 =
+  '99772bf087a8bacd8414e762a88174d19a93a8afa3fae5904ce77cc93e7921be';
 export const GENESIS001_FROZEN_SOURCE_INVENTORY_SHA256 =
   '0e12b32f90f91a80993c52998ef8764109ce926528a71b1933ba527605ff41f9';
 
@@ -147,7 +149,7 @@ function directoryIdentity(path, code) {
   }
 }
 
-function sourceInventory(root) {
+function sourceInventory(root, domain) {
   const entries = [];
   let totalBytes = 0;
   const visit = (path) => {
@@ -177,7 +179,7 @@ function sourceInventory(root) {
     ? ['directory', entry.path]
     : ['file', entry.path, entry.size, entry.sha256]);
   const digest = createHash('sha256')
-    .update('warpkeep-genesis001-frozen-source-inventory-v1\0')
+    .update(`${domain}\0`)
     .update(JSON.stringify(projected))
     .digest('hex');
   return Object.freeze({
@@ -269,12 +271,12 @@ function authenticateSource(repositoryRoot, destination) {
   return materializer;
 }
 
-function runMaterializer(repositoryRoot, destination, materializer) {
+function runMaterializer(repositoryRoot, destination, materializer, operation) {
   const dataUrl = `data:text/javascript;base64,${materializer.toString('base64')}`;
   materializer.fill(0);
   const bootstrap = [
     "const loaded=await import(process.argv[1]);",
-    "const value=loaded.materializeGenesis001Frozen({repoRoot:process.argv[2],destination:process.argv[3]});",
+    `const value=loaded.${operation}({repoRoot:process.argv[2],destination:process.argv[3]});`,
     "process.stdout.write(JSON.stringify(value));",
   ].join('');
   let output;
@@ -292,12 +294,15 @@ function runMaterializer(repositoryRoot, destination, materializer) {
   try { metadata = JSON.parse(output); } catch (error) {
     return fail('GENESIS001_FROZEN_SOURCE_MATERIALIZATION_INVALID', error);
   }
-  if (JSON.stringify(Object.keys(metadata).sort()) !== JSON.stringify([
-    'baseline', 'baselineAbiSha256', 'extractedFileCount', 'freezeNonce',
-  ].sort())
+  const frozen = operation === 'materializeGenesis001Frozen';
+  const expectedKeys = ['baseline', 'baselineAbiSha256', 'extractedFileCount',
+    ...(frozen ? ['freezeNonce'] : [])];
+  if (JSON.stringify(Object.keys(metadata).sort()) !== JSON.stringify(expectedKeys.sort())
     || metadata.baseline !== GENESIS001_FROZEN_SOURCE_COMMIT
     || metadata.baselineAbiSha256 !== 'cb7d69d2bed316702ffa1aa8696a4e1ca1934a775b8312129b305a9c33eb0e03'
-    || metadata.freezeNonce !== '3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00'
+    || (frozen
+      ? metadata.freezeNonce !== '3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00'
+      : Object.hasOwn(metadata, 'freezeNonce'))
     || metadata.extractedFileCount !== 172) {
     fail('GENESIS001_FROZEN_SOURCE_MATERIALIZATION_INVALID');
   }
@@ -376,7 +381,7 @@ function removeFrozenInventory(root, frozen) {
   }
 }
 
-export function createGenesis001FrozenSourceMaterialization(input) {
+function createGenesis001SourceMaterialization(input, profile) {
   if (process.platform !== 'linux' || process.arch !== 'x64'
     || input === null || typeof input !== 'object' || Array.isArray(input)
     || JSON.stringify(Object.keys(input).sort()) !== JSON.stringify(['destination', 'repositoryRoot'])
@@ -401,11 +406,11 @@ export function createGenesis001FrozenSourceMaterialization(input) {
     fail('GENESIS001_FROZEN_SOURCE_INPUT_INVALID');
   }
   const materializer = authenticateSource(repositoryRoot, input.destination);
-  runMaterializer(repositoryRoot, input.destination, materializer);
-  const frozen = sourceInventory(input.destination);
-  if (frozen.digest !== GENESIS001_FROZEN_SOURCE_INVENTORY_SHA256
-    || frozen.entries.length !== SOURCE_ENTRY_COUNT
-    || frozen.entries.filter(entry => entry.kind === 'file').length !== SOURCE_FILE_COUNT) {
+  runMaterializer(repositoryRoot, input.destination, materializer, profile.materializer);
+  const frozen = sourceInventory(input.destination, profile.inventoryDomain);
+  if (frozen.digest !== profile.inventorySha256
+    || frozen.entries.length !== profile.entryCount
+    || frozen.entries.filter(entry => entry.kind === 'file').length !== profile.fileCount) {
     fail('GENESIS001_FROZEN_SOURCE_INVENTORY_INVALID');
   }
   verifyInventory(input.destination, frozen);
@@ -414,7 +419,7 @@ export function createGenesis001FrozenSourceMaterialization(input) {
     root: input.destination,
     moduleSourceCommit: GENESIS001_FROZEN_SOURCE_COMMIT,
     moduleTreeId: GENESIS001_FROZEN_SOURCE_TREE,
-    sourceClosureDigest: GENESIS001_FROZEN_SOURCE_INVENTORY_SHA256,
+    sourceClosureDigest: profile.inventorySha256,
     verify(allowed) {
       if (cleaned) fail('GENESIS001_FROZEN_SOURCE_CHANGED');
       if (allowed !== undefined && (allowed === null || typeof allowed !== 'object'
@@ -428,4 +433,24 @@ export function createGenesis001FrozenSourceMaterialization(input) {
       cleaned = true;
     },
   });
+}
+
+export function createGenesis001BaselineSourceMaterialization(input) {
+  return createGenesis001SourceMaterialization(input, Object.freeze({
+    materializer: 'materializeGenesis001HistoricalBaseline',
+    inventoryDomain: 'warpkeep-genesis001-baseline-source-inventory-v1',
+    inventorySha256: GENESIS001_BASELINE_SOURCE_INVENTORY_SHA256,
+    entryCount: 207,
+    fileCount: 172,
+  }));
+}
+
+export function createGenesis001FrozenSourceMaterialization(input) {
+  return createGenesis001SourceMaterialization(input, Object.freeze({
+    materializer: 'materializeGenesis001Frozen',
+    inventoryDomain: 'warpkeep-genesis001-frozen-source-inventory-v1',
+    inventorySha256: GENESIS001_FROZEN_SOURCE_INVENTORY_SHA256,
+    entryCount: SOURCE_ENTRY_COUNT,
+    fileCount: SOURCE_FILE_COUNT,
+  }));
 }
