@@ -127,3 +127,57 @@ Back can scroll the page upward during pending, then restoration focuses Close
 with `preventScroll` without bringing that panel back into view. The source is
 not accepted until that path is repaired and verified. These opening checks do
 not waive the issue or the remaining mobile/fallback/reduced-motion gates.
+
+## Server-origin correction and stable capture
+
+Source `b107fb6` replaces injected policy with exact-route local-server CSP and
+unmodified response continuation. Mobile fix `14753e0` removes the suppression
+of panel alignment when readiness returns. Root reviewed the focused source
+diff independently of its implementer; the restoration finding is addressed
+in source, with reported 34/34 focused tests and clean typecheck. Native focus
+restoration is still unverified because the current fixture cannot enter pending.
+
+Two fresh signed-Chrome native diagnostics at `14753e0` observed dedicated and
+shared worker error events, three worker-src violations, service-worker
+SecurityError, blocked popup and zero canary requests. Before the canary, real
+WebGL produced a frame with one canvas and zero active loaders; the second run
+recorded a successful WebSocket101 handshake. Both exited normally with zero
+remaining processes and no forced termination. Intentional canary violations
+remain recorded, not recast as a clean ordinary capture. Pre-canary diagnostics
+included the sandbox warning and favicon404, not the fulfillment-path local
+network access errors. These are synthetic local checks, not production evidence.
+
+The subsequent unmodified full launcher run `windows-run-ySam1r` completed36
+captures, exit0, with identical clean source before/after:
+`14753e062074c0b00abcab55203ceae9864174d2`, tree
+`5717077c5389cc3ff013056edc3230000802b160`. It recorded36 guarded documents,
+no guard violation or failure, stableSource=true, and normal verified owned
+closure with zero remaining processes. The report retains reviewRequired=true
+for warning/network diagnostic classes. Its36 images are not yet inspected;
+performance was not measured. This proves capture completion, not visual or
+release acceptance. Raw reports and previous failed runs are retained unchanged.
+
+### Human inspection of ySam1r
+
+All36 PNGs were SHA256-grouped into22 distinct byte sequences; root viewed each
+distinct image individually. Duplicate files share the inspected pixels, not
+proof of their labeled runtime transition. Original report flags stay unchanged.
+
+- Desktop shows empty grounds, a small completed mill, construction scaffold,
+  six completed models, legal/blocked outlines and explicit schematic fallback.
+  The four economy models remain visually too small relative to the grounds and
+  cathedral. Portrait balanced/reduced scenes retain the same readability issue.
+- Portrait and landscape placement captures now retain Resources and primary
+  controls above the focused panel. They show the catalog opening, not the
+  offscreen footprint/confirmation. Legal and blocked captures are byte-identical
+  within each mobile viewport, so they do not establish visual distinction there.
+- Landscape default captures show header/resources; the actual scene is below
+  the viewport. QA notice overhead is visible and must be distinguished from
+  production layout, not hidden to manufacture acceptance.
+- Fallback copy and schematic are visible on desktop/portrait; short landscape
+  fallback contents are below the viewport. Static reduced-motion/context-cycle
+  duplicates do not prove motion policy or resource-lifecycle behavior.
+
+Next evidence must exercise and inspect the actual offscreen controls/footprints,
+readiness restoration and camera/silhouette readability. Capture success is not
+a passing visual gate.
