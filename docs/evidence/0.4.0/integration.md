@@ -48,6 +48,15 @@ evidence for that run's `de80139` source, not the later renderer commit, live
 production state or actual-owner ten-minute journey. Linux history scanning and
 native-contract failures still prevent aggregate Verify acceptance.
 
+Later authenticated result: [SpacetimeDB job 101532737031](https://github.com/ael-dev3/Warpkeep/actions/runs/34050353854/job/101532737031)
+for source `e711523946a0982050461ce9f2e4b9fff3771a32` completed successfully at
+`2026-09-06T18:57:18Z`. Module/generated bindings, synthetic exporter/server
+compatibility, connected relocation/rollback, active population/gathering and
+module dependency audit all passed. This covers that source's CI rehearsals,
+not the later QA tooling, live realm preservation, actual owner journey or final
+release. The separately failed Linux history scan and native-contract job still
+prevent aggregate Verify acceptance.
+
 ## Remaining R14 acceptance
 
 Dependency triage (2026-09-06): authenticated Dependabot alert #2 is open,
