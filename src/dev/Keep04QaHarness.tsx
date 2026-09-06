@@ -36,6 +36,14 @@ export function Keep04QaHarness() {
   const [fault, setFault] = useState<Keep04SceneHostProps['qaFault']>(initial === 'fallback' ? 'webgl-unavailable' : 'none');
   const [requestedReducedMotion] = useState(params.get('motion') === 'reduced');
   const [mounted, setMounted] = useState(true);
+  const [readinessArmed, setReadinessArmed] = useState(false);
+  const [syntheticPending, setSyntheticPending] = useState(false);
+  const readiness = useRef({ armed: false, timer: null as number | null, generation: 0 });
+  const retireReadiness = useCallback(() => {
+    readiness.current.generation++;
+    if (readiness.current.timer !== null) window.clearTimeout(readiness.current.timer);
+    readiness.current.timer = null; readiness.current.armed = false;
+  }, []);
   const scenario = useMemo(() => createKeep04QaScenario(id), [id]);
   const [selection, setSelection] = useState<Keep04UiSelection>(scenario.selection);
   const [message, setMessage] = useState('No gameplay connection. Fixture controls change presentation only.');
@@ -46,10 +54,21 @@ export function Keep04QaHarness() {
   const active = useRef(false);
   const longTaskObserver = useRef<PerformanceObserver | null>(null);
   const [last, setLast] = useState('No renderer observation yet.');
-  const snapshot = scenario.snapshot;
+  const snapshot = useMemo(() => syntheticPending ? { ...scenario.snapshot, phase: 'pending' as const } : scenario.snapshot, [scenario, syntheticPending]);
   const reducedMotion = scenario.reducedMotion || requestedReducedMotion;
   const controller = useMemo<Controller04>(() => ({ getSnapshot: () => snapshot, subscribe: () => () => {}, refresh: async () => {}, setAtlas: () => {},
-    submit: async () => { setMessage('Synthetic controller: command suppressed. No resources or authority changed.'); }, retryPending: async () => {}, dispose: () => {} }), [snapshot]);
+    submit: async () => {
+      setMessage('Synthetic controller: command suppressed. No resources or authority changed.');
+      if (!import.meta.env.DEV || active.current || !readiness.current.armed || readiness.current.timer !== null) return;
+      // Presentation only: consume the arm synchronously and keep the same view
+      // and selection. No command, route, credentials or resources are created.
+      readiness.current.armed = false; setReadinessArmed(false); setSyntheticPending(true);
+      const generation = readiness.current.generation;
+      readiness.current.timer = window.setTimeout(() => {
+        if (readiness.current.generation !== generation) return;
+        readiness.current.timer = null; setSyntheticPending(false);
+      }, 1000);
+    }, retryPending: async () => {}, dispose: () => {} }), [snapshot]);
   const observe = useCallback((observation: Keep04Observation) => {
     const started = performance.now();
     const serialized = serializeKeep04QaObservation(observation);
@@ -60,7 +79,13 @@ export function Keep04QaHarness() {
       capture.current.observerWorkMs += performance.now() - started;
     }
   }, []);
-  useEffect(() => () => { active.current = false; longTaskObserver.current?.disconnect(); longTaskObserver.current = null; }, []);
+  useEffect(() => () => { retireReadiness(); active.current = false; longTaskObserver.current?.disconnect(); longTaskObserver.current = null; }, [retireReadiness]);
+  function resetReadiness() {
+    retireReadiness(); setReadinessArmed(false); setSyntheticPending(false);
+  }
+  function changeMount(next: boolean) {
+    resetReadiness(); setMounted(next);
+  }
   function retainLongTasks(entries: PerformanceEntry[]) {
     if (!active.current) return;
     for (const entry of entries) {
@@ -69,7 +94,7 @@ export function Keep04QaHarness() {
     }
   }
   function startCapture() {
-    if (active.current) return;
+    if (active.current || readiness.current.armed || readiness.current.timer !== null) return;
     capture.current = { ...newCapture(), configuration: Object.freeze({ scenario: id, quality, fault: fault ?? 'none', reducedMotion }), startedAtMs: performance.now() };
     active.current = true; setCapturing(true);
     if (typeof PerformanceObserver !== 'undefined' && PerformanceObserver.supportedEntryTypes.includes('longtask')) {
@@ -89,6 +114,7 @@ export function Keep04QaHarness() {
   }
   function change(next: Keep04QaScenarioId) {
     if (active.current) return;
+    resetReadiness();
     setId(next); setSelection(createKeep04QaScenario(next).selection); setFault(next === 'fallback' ? 'webgl-unavailable' : 'none'); setMounted(true);
   }
   function publish() {
@@ -112,13 +138,17 @@ export function Keep04QaHarness() {
         <label>Scenario <select disabled={capturing} aria-label="QA scenario" value={id} onChange={event => change(event.target.value as Keep04QaScenarioId)}>{KEEP04_QA_SCENARIOS.map(name => <option key={name}>{name}</option>)}</select></label>
         <label>Quality <select disabled={capturing} aria-label="Scene quality" value={quality} onChange={event => { if (!active.current) setQuality(event.target.value as Quality04); }}><option>high</option><option>balanced</option><option>reduced</option></select></label>
         <label>Graphics fault <select disabled={capturing} aria-label="Graphics fault" value={fault} onChange={event => { if (!active.current) setFault(event.target.value as Keep04SceneHostProps['qaFault']); }}><option>none</option><option>missing-model</option><option>voxel-failure</option><option>webgl-unavailable</option></select></label>
+        {import.meta.env.DEV && <label><input type="checkbox" checked={readinessArmed} disabled={capturing || syntheticPending || !mounted} onChange={event => {
+          if (active.current || readiness.current.timer !== null || !mounted) return;
+          readiness.current.armed = event.currentTarget.checked; setReadinessArmed(event.currentTarget.checked);
+        }} />Simulate pending → ready on next suppressed command</label>}
         <button disabled={capturing} type="button" onClick={() => change('empty')}>Empty keep fixture</button>
         <button disabled={capturing} type="button" onClick={() => change('mill-constructing')}>Mill construction fixture</button>
         <button disabled={capturing} type="button" onClick={() => change('mill-complete')}>Mill completion fixture</button>
-        <button type="button" onClick={() => setMounted(value => !value)}>{mounted ? 'Unmount keep' : 'Mount keep'}</button>
+        <button type="button" onClick={() => changeMount(!mounted)}>{mounted ? 'Unmount keep' : 'Mount keep'}</button>
         <button type="button" onClick={loseContext}>Lose WebGL context</button>
         <button type="button" onClick={() => { retainedContext.current?.restoreContext(); retainedContext.current = null; }}>Restore WebGL context</button>
-        <button disabled={capturing} type="button" onClick={startCapture}>Start bounded observation</button>
+        <button disabled={capturing || readinessArmed || syntheticPending} type="button" onClick={startCapture}>Start bounded observation</button>
         <button type="button" onClick={stopCapture}>Stop and publish observation</button>
         <button type="button" onClick={publish}>Publish current observation</button>
       </div>
@@ -128,7 +158,7 @@ export function Keep04QaHarness() {
     <p role="status" style={{ padding: '0 12px' }}>{message}</p>
     {mounted && <Keep04Screen snapshot={snapshot} controller={controller} selection={selection} onSelectionChange={setSelection} quality={quality}
       onSceneObservation={observe} qaFault={fault} reducedMotion={reducedMotion}
-      onBack={() => setMounted(false)} onFindResources={() => setMessage('Synthetic controller: no Realm resource queries or dispatch targets.')}
+      onBack={() => changeMount(false)} onFindResources={() => setMessage('Synthetic controller: no Realm resource queries or dispatch targets.')}
       onReturnToWorld={() => setMessage('Synthetic controller: no world connection. Use Unmount keep for keep-only cleanup.')} />}
   </main>;
 }
