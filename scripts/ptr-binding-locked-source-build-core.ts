@@ -17,6 +17,7 @@ import {
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 
+import { createGenesis001FrozenSourceMaterialization } from './genesis001-binding-frozen-source.mjs';
 import { stageGreaterRealmOpenAtHelper } from './greater-realm-openat';
 import { createGreaterRealmProductionCommitMaterialization } from './greater-realm-production-provenance';
 import { greaterRealmImmutableArtifactTestSeams } from './greater-realm-production-immutable-artifact';
@@ -153,11 +154,36 @@ type PtrLockedSourceBuildProfile = Readonly<{
   manifestPath: string;
   lockPath: string;
   workspacePath?: string;
+  workspacePackages?: readonly string[];
   generatedPrefix: string;
   bundlePath: string;
   stateChild: string;
   requireMaterializationParent: boolean;
+  fixedModuleSourceCommit?: string;
+  expectedModuleTreeId?: string;
+  expectedSourceClosureDigest?: string;
+  materialize: (input: Readonly<{
+    repositoryRoot: string;
+    moduleSourceCommit: string;
+    destination: string;
+  }>) => Readonly<{
+    root: string;
+    moduleSourceCommit: string;
+    moduleTreeId: string;
+    sourceClosureDigest?: string;
+    verify: (allowedUntracked?: Readonly<{
+      prefixes?: readonly string[];
+      files?: readonly string[];
+    }>) => void;
+    cleanup: () => void;
+  }>;
 }>;
+
+const materializeCommit = (input: Readonly<{
+  repositoryRoot: string;
+  moduleSourceCommit: string;
+  destination: string;
+}>) => createGreaterRealmProductionCommitMaterialization(input);
 
 const DARWIN_PROFILE = Object.freeze<PtrLockedSourceBuildProfile>({
   os: 'darwin',
@@ -174,6 +200,7 @@ const DARWIN_PROFILE = Object.freeze<PtrLockedSourceBuildProfile>({
   bundlePath: 'spacetimedb/ptr/dist/bundle.js',
   stateChild: 'ptr-locked-source-builds-v1',
   requireMaterializationParent: false,
+  materialize: materializeCommit,
 });
 
 const LINUX_PROFILE = Object.freeze<PtrLockedSourceBuildProfile>({
@@ -191,6 +218,7 @@ const LINUX_PROFILE = Object.freeze<PtrLockedSourceBuildProfile>({
   bundlePath: 'spacetimedb/ptr/dist/bundle.js',
   stateChild: 'ptr-locked-source-builds-v1',
   requireMaterializationParent: false,
+  materialize: materializeCommit,
 });
 
 const GENESIS002_IMPORTER_KINDS = Object.freeze<Record<string, 'module' | 'fixture'>>({
@@ -215,10 +243,46 @@ const GENESIS002_PROFILE = Object.freeze<PtrLockedSourceBuildProfile>({
   manifestPath: 'spacetimedb/genesis002/package.json',
   lockPath: 'spacetimedb/pnpm-lock.yaml',
   workspacePath: 'spacetimedb/pnpm-workspace.yaml',
+  workspacePackages: Object.freeze(['.', 'genesis002', 'migration-fixtures/*']),
   generatedPrefix: 'spacetimedb/genesis002/node_modules/',
   bundlePath: 'spacetimedb/genesis002/dist/bundle.js',
   stateChild: 'genesis002-locked-source-builds-v1',
   requireMaterializationParent: true,
+  materialize: materializeCommit,
+});
+
+const GENESIS001_IMPORTER_KINDS = Object.freeze<Record<string, 'module' | 'fixture'>>({
+  '.': 'module',
+  ...Object.fromEntries(Array.from({ length: 13 }, (_, index) => [
+    `migration-fixtures/additive-v${index + 2}-schema`, 'fixture' as const,
+  ])),
+  'migration-fixtures/production-v1': 'fixture',
+});
+
+const GENESIS001_PROFILE = Object.freeze<PtrLockedSourceBuildProfile>({
+  os: 'linux',
+  cpu: 'x64',
+  provenanceDomain: 'warpkeep-genesis001-frozen-linux-x64-dependency-closure-v1',
+  expectedPackageEdges: GENESIS002_EXPECTED_PACKAGE_EDGES,
+  expectedPackageKeys: Object.freeze(Object.keys(GENESIS002_EXPECTED_PACKAGE_EDGES).sort()),
+  optionalPlatformMetadata: LINUX_OPTIONAL_PLATFORM_METADATA,
+  importerKinds: GENESIS001_IMPORTER_KINDS,
+  moduleRoot: 'spacetimedb',
+  manifestPath: 'spacetimedb/package.json',
+  lockPath: 'spacetimedb/pnpm-lock.yaml',
+  workspacePath: 'spacetimedb/pnpm-workspace.yaml',
+  workspacePackages: Object.freeze(['.', 'migration-fixtures/*']),
+  generatedPrefix: 'spacetimedb/node_modules/',
+  bundlePath: 'spacetimedb/dist/bundle.js',
+  stateChild: 'genesis001-locked-source-builds-v1',
+  requireMaterializationParent: true,
+  fixedModuleSourceCommit: '2ae51984e1fa6ce5b0028c1a250359fed79d819b',
+  expectedModuleTreeId: '90deebb5faf4129282f5c35999244f540001b27d',
+  expectedSourceClosureDigest: '0e12b32f90f91a80993c52998ef8764109ce926528a71b1933ba527605ff41f9',
+  materialize: input => createGenesis001FrozenSourceMaterialization({
+    repositoryRoot: input.repositoryRoot,
+    destination: input.destination,
+  }),
 });
 
 // This frozen export retains its historical test-seam name for G001 byte
@@ -384,7 +448,7 @@ function validatePtrManifest(body: Buffer): void {
   }
 }
 
-function validateGenesis002Workspace(body: Buffer): void {
+function validateWorkspace(body: Buffer, profile: PtrLockedSourceBuildProfile): void {
   const code = 'PTR_LOCKED_SOURCE_BUILD_WORKSPACE_INVALID';
   let workspace: Readonly<Record<string, unknown>>;
   try {
@@ -394,9 +458,7 @@ function validateGenesis002Workspace(body: Buffer): void {
     return fail(code);
   }
   exactKeys(workspace, ['allowBuilds', 'packages'], code);
-  if (JSON.stringify(workspace.packages) !== JSON.stringify([
-    '.', 'genesis002', 'migration-fixtures/*',
-  ])) fail(code);
+  if (JSON.stringify(workspace.packages) !== JSON.stringify(profile.workspacePackages)) fail(code);
   const allowBuilds = exactRecord(workspace.allowBuilds, code);
   exactKeys(allowBuilds, ['esbuild'], code);
   if (allowBuilds.esbuild !== true) fail(code);
@@ -759,6 +821,7 @@ function dependencyClosureDigest(input: Readonly<{
   packages: readonly LockedPackage[];
   snapshot: DependencySnapshot;
   profile: PtrLockedSourceBuildProfile;
+  sourceClosureDigest?: string;
 }>): string {
   const digest = createHash('sha256');
   updateFramed(digest, 'domain', input.profile.provenanceDomain);
@@ -769,6 +832,9 @@ function dependencyClosureDigest(input: Readonly<{
   if (input.profile.workspacePath !== undefined && input.workspaceBytes !== undefined) {
     updateFramed(digest, 'workspace-path', input.profile.workspacePath);
     updateFramed(digest, 'workspace-bytes', input.workspaceBytes);
+  }
+  if (input.sourceClosureDigest !== undefined) {
+    updateFramed(digest, 'frozen-source-inventory-sha256', input.sourceClosureDigest);
   }
   for (const package_ of input.packages) {
     updateFramed(digest, 'package-key', package_.key);
@@ -822,34 +888,61 @@ export type Genesis002SourceBuildResult<T> = Readonly<{
   moduleTreeId: string;
 }>;
 
+export type Genesis001SourceBuildInput<T> = Readonly<{
+  repositoryRoot: string;
+  dependencyCacheRoot: string;
+  materializationParent: string;
+  operation: (context: Readonly<{
+    materializedRoot: string;
+    dependencyClosureDigest: string;
+    moduleTreeId: string;
+  }>) => T;
+}>;
+
+export type Genesis001SourceBuildResult<T> = Readonly<{
+  result: T;
+  dependencyClosureDigest: string;
+  moduleTreeId: string;
+}>;
+
 function withPtrLockedSourceBuildProfile<T>(
-  input: PtrSourceBuildInput<T> | Genesis002SourceBuildInput<T>,
+  input: PtrSourceBuildInput<T> | Genesis002SourceBuildInput<T> | Genesis001SourceBuildInput<T>,
   profile: PtrLockedSourceBuildProfile,
 ): PtrSourceBuildResult<T> {
   const inputCode = 'PTR_LOCKED_SOURCE_BUILD_INPUT_INVALID';
   if (input === null || typeof input !== 'object' || Array.isArray(input)) fail(inputCode);
   const record = input as Readonly<Record<string, unknown>>;
-  const repositoryRootInput = input.repositoryRoot;
-  const moduleSourceCommit = input.moduleSourceCommit;
-  const dependencyCacheRootInput = input.dependencyCacheRoot;
-  const materializationParent = input.materializationParent;
-  const operation = input.operation;
-  const expectedKeys = ['dependencyCacheRoot', 'moduleSourceCommit', 'operation', 'repositoryRoot',
+  const repositoryRootInput = record.repositoryRoot;
+  const moduleSourceCommit = profile.fixedModuleSourceCommit ?? record.moduleSourceCommit;
+  const dependencyCacheRootInput = record.dependencyCacheRoot;
+  const materializationParent = record.materializationParent;
+  const operation = record.operation;
+  const expectedKeys = ['dependencyCacheRoot', 'operation', 'repositoryRoot',
+    ...(profile.fixedModuleSourceCommit === undefined ? ['moduleSourceCommit'] : []),
     ...(profile.requireMaterializationParent || Object.hasOwn(record, 'materializationParent')
       ? ['materializationParent'] : [])].sort();
   if (JSON.stringify(Object.keys(record).sort()) !== JSON.stringify(expectedKeys)) fail(inputCode);
+  if (typeof repositoryRootInput !== 'string' || typeof dependencyCacheRootInput !== 'string'
+    || typeof moduleSourceCommit !== 'string' || typeof operation !== 'function'
+    || (materializationParent !== undefined && typeof materializationParent !== 'string')) fail(inputCode);
   const repositoryRoot = canonicalDirectory(repositoryRootInput, false, inputCode);
   const dependencyCacheRoot = canonicalDirectory(dependencyCacheRootInput, true, inputCode);
-  if (!COMMIT.test(moduleSourceCommit) || typeof operation !== 'function') fail(inputCode);
+  if (!COMMIT.test(moduleSourceCommit)) fail(inputCode);
   if (profile.requireMaterializationParent && materializationParent === undefined) fail(inputCode);
   const stateRoot = materializationParent === undefined
     ? ensureCanonicalProductionAdminStateDirectory()
     : canonicalDirectory(materializationParent, true, inputCode);
   const parent = ensurePrivateChild(stateRoot, profile.stateChild);
   const destination = join(parent, randomUUID().replaceAll('-', ''));
-  const materialization = createGreaterRealmProductionCommitMaterialization({
+  const materialization = profile.materialize({
     repositoryRoot, moduleSourceCommit, destination,
   });
+  if ((profile.expectedModuleTreeId !== undefined
+      && materialization.moduleTreeId !== profile.expectedModuleTreeId)
+    || (profile.expectedSourceClosureDigest !== undefined
+      && materialization.sourceClosureDigest !== profile.expectedSourceClosureDigest)) {
+    fail('PTR_LOCKED_SOURCE_BUILD_SOURCE_INVALID');
+  }
   const ptrRoot = join(materialization.root, ...profile.moduleRoot.split('/'));
   const manifestPath = join(materialization.root, ...profile.manifestPath.split('/'));
   const lockPath = join(materialization.root, ...profile.lockPath.split('/'));
@@ -876,7 +969,7 @@ function withPtrLockedSourceBuildProfile<T>(
     if (workspacePath !== undefined) {
       workspace = readExactBoundedFile(workspacePath, MAXIMUM_SOURCE_AUTHORITY_BYTES,
         'PTR_LOCKED_SOURCE_BUILD_WORKSPACE_INVALID', 'PTR_LOCKED_SOURCE_BUILD_SOURCE_CHANGED');
-      validateGenesis002Workspace(workspace.body);
+      validateWorkspace(workspace.body, profile);
     }
     const writer = stageGreaterRealmOpenAtHelper({ root: ptrRoot });
     const archives: ArchiveIdentity[] = [];
@@ -963,6 +1056,7 @@ function withPtrLockedSourceBuildProfile<T>(
       packages,
       snapshot: installedSnapshot,
       profile,
+      sourceClosureDigest: materialization.sourceClosureDigest,
     });
     materialization.verify({ prefixes: [profile.generatedPrefix] });
     assertExactFileIdentity(manifestPath, manifest.identity, 'PTR_LOCKED_SOURCE_BUILD_SOURCE_CHANGED');
@@ -1038,4 +1132,10 @@ export function withGenesis002LinuxLockedSourceBuild<T>(
   input: Genesis002SourceBuildInput<T>,
 ): Genesis002SourceBuildResult<T> {
   return withPtrLockedSourceBuildProfile(input, GENESIS002_PROFILE);
+}
+
+export function withGenesis001LinuxLockedSourceBuild<T>(
+  input: Genesis001SourceBuildInput<T>,
+): Genesis001SourceBuildResult<T> {
+  return withPtrLockedSourceBuildProfile(input, GENESIS001_PROFILE);
 }
