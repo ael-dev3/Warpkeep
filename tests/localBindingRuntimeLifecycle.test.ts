@@ -6,6 +6,7 @@ import {
   lstatSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   readdirSync,
   rmSync,
   symlinkSync,
@@ -94,6 +95,10 @@ vi.mock('../scripts/greater-realm-production-provenance', async () => {
         verify(allowed?: Readonly<{ files?: readonly string[] }>) {
           const bundle = allowed?.files?.find(path => /^spacetimedb\/(?:ptr|genesis002)\/dist\/bundle\.js$/u.test(path));
           if (bundle !== undefined) {
+            if (bundle.startsWith('spacetimedb/genesis002/')
+                && fs.existsSync(join(input.destination, 'spacetimedb', 'node_modules'))) {
+              throw new Error('LIFECYCLE_BUILD_RESOLUTION_LINK_RETAINED');
+            }
             const dist = join(input.destination, ...dirname(bundle).split('/'));
             const mode = fs.lstatSync(dist).mode & 0o7777;
             if (process.platform !== 'win32' && mode !== 0o700) {
@@ -207,6 +212,14 @@ vi.mock('node:child_process', async () => {
           return { status: 4, signal: null, error: undefined, stdout: Buffer.alloc(0), stderr: Buffer.from('failed') };
         }
         const modulePath = args[args.indexOf('--module-path') + 1]!;
+        if (modulePath === 'spacetimedb/genesis002') {
+          const resolutionLink = join(options.cwd, 'spacetimedb', 'node_modules');
+          if (!lstatSync(resolutionLink).isSymbolicLink()
+              || realpathSync(resolutionLink) !== realpathSync(join(options.cwd, modulePath, 'node_modules'))) {
+            throw new Error('LIFECYCLE_BUILD_RESOLUTION_LINK_MISSING');
+          }
+          boundary.events.push('build:resolution-link');
+        }
         const dist = join(options.cwd, ...modulePath.split('/'), 'dist');
         boundary.buildOutputWasPrecreated = existsSync(dist);
         if (boundary.buildOutputWasPrecreated) {

@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
-  closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, realpathSync, unlinkSync, writeSync,
+  closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, realpathSync, symlinkSync, unlinkSync,
+  writeSync,
 } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -208,6 +209,60 @@ function runGenesis002Typecheck(request, moduleRoot) {
   }
 }
 
+function runGenesis002Build(request, lane, materializedRoot, moduleRoot) {
+  const dependencyRoot = join(moduleRoot, 'node_modules');
+  const sharedModuleRoot = dirname(moduleRoot);
+  const linkPath = join(sharedModuleRoot, 'node_modules');
+  const target = process.platform === 'win32'
+    ? dependencyRoot : join(basename(moduleRoot), 'node_modules');
+  let identity;
+  let primary;
+  try {
+    for (const path of [sharedModuleRoot, dependencyRoot]) {
+      const state = lstatSync(path, { bigint: true });
+      if (!state.isDirectory() || state.isSymbolicLink() || state.uid !== 1000n
+          || (state.mode & 0o7777n) !== 0o700n || realpathSync(path) !== path) {
+        fail('LOCAL_BINDING_WORKER_BUILD_RESOLUTION_INVALID');
+      }
+    }
+    try {
+      lstatSync(linkPath);
+      fail('LOCAL_BINDING_WORKER_BUILD_RESOLUTION_INVALID');
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+    }
+    symlinkSync(target, linkPath, process.platform === 'win32' ? 'junction' : 'dir');
+    const state = lstatSync(linkPath, { bigint: true });
+    if (!state.isSymbolicLink() || state.uid !== 1000n || realpathSync(linkPath) !== dependencyRoot) {
+      fail('LOCAL_BINDING_WORKER_BUILD_RESOLUTION_INVALID');
+    }
+    identity = directoryIdentity(state);
+    command(request.cliPath, ['build', '--module-path', lane.modulePath], materializedRoot, 10 * 60_000);
+  } catch (error) { primary = error; }
+  let cleanupError;
+  try {
+    if (identity !== undefined) {
+      const state = lstatSync(linkPath, { bigint: true });
+      if (!state.isSymbolicLink() || !sameDirectoryIdentity(state, identity)
+          || realpathSync(linkPath) !== dependencyRoot) {
+        fail('LOCAL_BINDING_WORKER_BUILD_RESOLUTION_CHANGED');
+      }
+      unlinkSync(linkPath);
+      if (process.platform !== 'win32') {
+        const directory = openSync(sharedModuleRoot,
+          constants.O_RDONLY | (constants.O_DIRECTORY ?? 0) | (constants.O_NOFOLLOW ?? 0));
+        try { fsyncSync(directory); } finally { closeSync(directory); }
+      }
+    }
+  } catch (error) { cleanupError = error; }
+  if (primary !== undefined || cleanupError !== undefined) {
+    if (primary !== undefined && cleanupError === undefined) throw primary;
+    throw new AggregateError([primary, cleanupError].filter(Boolean), 'LOCAL_BINDING_WORKER_COMMAND_FAILED', {
+      cause: primary,
+    });
+  }
+}
+
 function assertWorkerHost() {
   if (process.argv.length !== 2 || process.platform !== 'linux' || process.arch !== 'x64'
       || process.getuid?.() !== 1000 || process.execPath !== '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node'
@@ -246,7 +301,12 @@ export async function runFixedLocalBindingWorker(input) {
         }
         attestRuntimeExecutables(request, runtimeAuthority);
         buildOutput.create();
-        command(request.cliPath, ['build', '--module-path', lane.modulePath], context.materializedRoot, 10 * 60_000);
+        if (request.profile === 'warpkeep-local-binding-genesis002-worker-v1') {
+          runGenesis002Build(request, lane, context.materializedRoot, moduleRoot);
+        } else {
+          command(request.cliPath, ['build', '--module-path', lane.modulePath],
+            context.materializedRoot, 10 * 60_000);
+        }
         attestRuntimeExecutables(request, runtimeAuthority);
         return createLocalBindingWorkerResult({
           bundlePath: join(moduleRoot, 'dist', 'bundle.js'),
