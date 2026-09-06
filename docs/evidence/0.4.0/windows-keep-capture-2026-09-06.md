@@ -71,3 +71,59 @@ the production implementation without loosening that budget. This is not a
 physical-phone result or final performance measurement. Source inspection places
 the timer around voxel planning, mesh-array preparation and geometry creation,
 not later asynchronous asset loads or actual GPU upload.
+
+## Native capture-policy diagnosis
+
+The later `windows-run-m7CLTQ` run at source `613228c` captured 36 cases but
+correctly failed its final guard: Chrome emitted an unexpected detach during
+verified normal owned closure. A separate fresh blank-page diagnostic identified
+the exact native reason `Render process gone.`. Reviewed correction `8dcfa7b`
+recognizes that spelling only under the existing verified normal-close conditions;
+it does not waive crashes or unexpected disconnections. Earlier reports remain
+unchanged.
+
+Native worker tests then disproved the headers-only interception assumption.
+Using the same signed Chrome 151, fresh profiles and loopback-only canary:
+
+| Document policy delivery | Dedicated/shared worker result |
+| --- | --- |
+| Original QA document, header added through `Fetch.continueResponse` | Both executed; no worker-src violation |
+| Controlled HTML fulfilled with the same policy header | Both blocked; worker-src violations |
+| Original QA document plus worker-src meta policy | Both blocked; worker-src violations |
+| Original QA body explicitly fulfilled with the same header | Both blocked; worker-src violations |
+
+The last comparison used the same DOM-originated script as the first. All
+diagnostic browsers exited normally with zero remaining owned processes and zero
+canary-server requests. Zero requests alone is not worker nonexecution; the
+message/error and policy-violation observations distinguish the outcomes.
+The meta comparison is diagnostic only: it cannot replace the required sandbox
+response header. Some runs overlapped mobile source edits and are explicitly not
+stable-build or performance evidence.
+
+Thus a visible modified header and successful continuation acknowledgement do
+not establish enforcement in this Chrome path. A capture-tool correction remains
+required. Body fulfillment also produced local-network access errors for Vite
+websockets in a subsequent diagnostic; it is not accepted as a complete fix.
+Serving the exact QA route's header directly from the local dev server is being
+assessed to preserve normal response handling without body interception.
+No production headers, G001 behavior or browser permissions were changed.
+
+## Mobile layout follow-up (partial, not acceptance)
+
+An exploratory Chrome check of mobile commit `19de7cf` used the local synthetic
+all-six-level-five balanced fixture. The capture-policy source repair was in
+progress separately: this is rendered UI evidence, not a stable-source capture,
+performance result, physical-phone result or authoritative PTR journey.
+
+- At 390×844, opening Buildings left Resources at y=4..103.89, primary actions
+  at y=109.89..153.89 and the focused Close panel button at y=182.80..227.30.
+- At 844×390, opening Workers left Resources at y=4..103.89 and focused Close
+  at y=182.80..227.30. The first Worker content was visible below the heading.
+- Neither viewport had horizontal document overflow. Screenshots were inspected
+  for these openings; remaining controls and transition cases are not yet proven.
+
+Independent source review found an Important pending-to-ready focus regression:
+Back can scroll the page upward during pending, then restoration focuses Close
+with `preventScroll` without bringing that panel back into view. The source is
+not accepted until that path is repaired and verified. These opening checks do
+not waive the issue or the remaining mobile/fallback/reduced-motion gates.
