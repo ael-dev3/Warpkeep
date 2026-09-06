@@ -15,6 +15,12 @@ const workflow = (name: string) => readFileSync(
   resolve(repositoryRoot, `.github/workflows/${name}`),
   'utf8',
 );
+type VerificationStep = { name?: string; uses?: string; with?: Record<string, unknown>; shell?: string; run?: string; if?: string; env?: unknown };
+type VerificationJob = {
+  name?: string; needs?: string[]; if?: string; 'runs-on'?: string | string[];
+  'timeout-minutes'?: number; environment?: unknown; permissions?: unknown; env?: unknown; steps: VerificationStep[];
+};
+const verification = () => parse(workflow('verify.yml')) as { permissions?: unknown; env?: unknown; jobs: Record<string, VerificationJob> };
 
 describe('sealed-realms production workflow authority', () => {
   const hardenedShell =
@@ -135,40 +141,62 @@ describe('sealed-realms production workflow authority', () => {
   });
 
   it('keeps the stable verify check as an always-run aggregator including recovery', () => {
-    const source = workflow('verify.yml');
-    const document = parse(source) as {
-      jobs?: Record<string, {
-        name?: string;
-        needs?: string[];
-        if?: string;
-        'runs-on'?: string | string[];
-        environment?: unknown;
-      }>;
-    };
+    const document = verification();
     expect(Object.keys(document.jobs ?? {})).toEqual([
       'linux', 'auth-bridge', 'release-recovery', 'spacetimedb-module', 'native-contract', 'verify',
     ]);
-    expect(document.jobs?.['native-contract']?.['runs-on']).toBe(
-      'macos-14',
-    );
-    expect(document.jobs?.['native-contract']).not.toHaveProperty('environment');
-    const nativeJob = source.slice(
-      source.indexOf('  native-contract:'),
-      source.indexOf('  verify:', source.indexOf('  native-contract:')),
-    );
-    expect(nativeJob).toContain('RUNNER_ARCH');
-    expect(nativeJob).toContain('ARM64');
-    expect(nativeJob).not.toMatch(/secrets\.|warpkeep-production-admin|self-hosted/u);
     expect(document.jobs?.verify).toMatchObject({
       name: 'Verify',
       needs: ['linux', 'auth-bridge', 'release-recovery', 'spacetimedb-module', 'native-contract'],
     });
     expect(document.jobs?.verify?.if).toContain('always()');
-    expect(source).toContain("needs.linux.result == 'success'");
-    expect(source).toContain("needs.auth-bridge.result == 'success'");
-    expect(source).toContain("needs.release-recovery.result == 'success'");
-    expect(source).toContain("needs.spacetimedb-module.result == 'success'");
-    expect(source).toContain("needs.native-contract.result == 'success'");
+    const predecessors = ['linux', 'auth-bridge', 'release-recovery', 'spacetimedb-module', 'native-contract'];
+    const [accept, reject] = document.jobs.verify.steps;
+    expect(document.jobs.verify.steps).toHaveLength(2);
+    expect(accept.run).toBe('exit 0'); expect(reject.run).toBe('exit 1');
+    expect(accept.if?.trim().split(/\s*&&\s*/u)).toEqual(predecessors.map(name => `needs.${name}.result == 'success'`));
+    expect(reject.if?.trim().split(/\s*\|\|\s*/u)).toEqual(predecessors.map(name => `needs.${name}.result != 'success'`));
+  });
+
+  it('restricts native contracts to disposable hosted Linux X64 without privileged workflow authority', () => {
+    const document = verification(); const job = document.jobs['native-contract'];
+    expect(job['runs-on']).toBe('ubuntu-24.04'); expect(job['timeout-minutes']).toBe(30);
+    expect(document.permissions).toEqual({ contents: 'read' });
+    expect(document).not.toHaveProperty('env');
+    for (const field of ['environment', 'permissions', 'env', 'if', 'continue-on-error', 'uses', 'secrets']) expect(job).not.toHaveProperty(field);
+    expect(JSON.stringify(job)).not.toMatch(/secrets\s*\.|warpkeep-production-admin|self-hosted/u);
+    for (const step of job.steps) expect(step).not.toHaveProperty('env');
+    const guard = job.steps.find(step => step.name === 'Require disposable X64 Linux authority');
+    expect(guard?.shell).toBe('bash');
+    expect(guard?.run?.trim().split(/\r?\n/u).map(line => line.trim())).toEqual([
+      'set -euo pipefail', 'test "$RUNNER_OS" = \'Linux\'', 'test "$RUNNER_ARCH" = \'X64\'',
+    ]);
+    expect(job.steps[0]).toMatchObject({ uses: 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0', with: { 'persist-credentials': false } });
+    expect(job.steps[1]).toBe(guard);
+  });
+
+  it('installs both exact runtime trees between private Node staging and re-attestation before all three serial native suites', () => {
+    const document = verification(); const steps = document.jobs['native-contract'].steps;
+    const expectedNames = ['Checkout', 'Require disposable X64 Linux authority', 'Setup Node',
+      'Setup pinned pnpm for bridge runtime-contract tests', 'Stage Node in a runner-private toolchain path',
+      'Install dependencies', 'Install exact bridge runtime-test toolchain', 'Re-attest runner-private Node after dependency install',
+      'Verify native production contracts'];
+    expect(steps.map(step => step.name)).toEqual(expectedNames);
+    expect(steps[2]).toMatchObject({ uses: 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020', with: { 'node-version': '22.22.3', cache: 'npm' } });
+    expect(steps[3]).toMatchObject({ uses: 'pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271', with: { version: '11.7.0', run_install: false } });
+    expect(steps[5].run?.trim().split(/\s+/u)).toEqual(['npm', 'ci']);
+    expect(steps[6].run?.trim().split(/\s+/u)).toEqual(['pnpm', '--dir', 'services/auth-bridge', 'install', '--frozen-lockfile', '--ignore-scripts']);
+    // Reuse the existing Linux job's complete staging/attestation contract, not a
+    // second subtly different toolchain policy or weaker native-only variant.
+    for (const index of [4, 7]) {
+      const linux = document.jobs.linux.steps.find(step => step.name === expectedNames[index]);
+      expect(linux).toBeDefined(); expect(steps[index]).toEqual(linux);
+    }
+    expect(steps[8].run?.trim().split(/\s+/u)).toEqual(['npm', 'test', '--',
+      'tests/sealedRealmsPublicActivationArtifactVerifier.test.ts',
+      'tests/authBridgeNotificationPreparedReceipt.test.ts',
+      'tests/authBridgeNotificationPreparedDeployRuntime.test.ts', '--maxWorkers=1']);
+    for (const step of steps) { expect(step).not.toHaveProperty('if'); expect(step).not.toHaveProperty('continue-on-error'); }
   });
 
   it('makes prepared recovery an explicit no-deploy operation choice', () => {
