@@ -261,3 +261,26 @@ content/layout regression was found in those pairs; no pixel-identity claim is
 made for them. Existing offscreen landscape content and small-building
 readability gaps remain. Original raw image-inspection flags are unchanged;
 comparison/inspection is recorded here rather than rewriting capture evidence.
+
+## Production build after the voxel correction
+
+At source `6c351fd1df3e280a470ff38f3b0a20fc7a0676d3`, root ran the complete
+`npm run build` with pinned Node22.22.3/npm10.9.8 and process-local Node PATH.
+The command exited0: generated voxel plan check, TypeScript, all registered
+asset verification steps, Vite, production asset checks, production exclusions,
+Greater Realm public boundary and Farcaster integrity checks completed.
+The build still reports the existing large-minified-chunk warning and a
+`vite:css-post` plugin timing warning; this is not a warning-free build.
+
+Then root explicitly enabled `KEEP04_QA_VERIFY_DIST=1` and ran
+`tests/keep04QaContract.test.ts` with pinned Node/Vitest. All19 tests passed,
+exit0, including the actual production-output exclusion test (not skipped).
+This covers QA entry/fixture/DEV fault exclusion, not live authentication or the
+complete real-owner journey. The package still carries the development version
+0.3.43; this build is not relabeled as the final0.4 release artifact.
+
+Offline gzip-level9 inspection of all33 emitted JavaScript files measured
+3,943,201 raw bytes / 1,081,249 gzip bytes. The emitted PTR surface chunk was
+84,737 raw / 25,800 gzip bytes. These are reproducible local compression sizes,
+not response encodedBodySize or evidence that actual world/keep static-transfer
+budgets passed. Required production network/workload measurements remain open.

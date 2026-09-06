@@ -166,10 +166,11 @@ Do not measure during HMR edits: freeze the source for each captured run.
 | Lane/gate | Status / required evidence |
 | --- | --- |
 | Unit/source, genuine bindings | Task tests and final commit listed in ignored Task 8 report; binding provenance below |
-| Synthetic render | Controller exploratory Chrome captures exist; stable-source captures and complete state/profile image review still required |
+| Synthetic render | Stable Windows runs ySam1r and ZDYnN9 captured36 cases each; prior unique images reviewed, new32/36 PNG hashes identical and remaining4 pairs inspected. Labeled context/reduced-motion screenshots alone do not prove transitions; see windows-keep-capture-2026-09-06.md |
 | Mobile primary reach | Representative 390px correction inspected by controller; primary buttons visible after resources, correct panel/focus; not full mobile acceptance |
-| Mobile catalog resource visibility | Known limitation: panel lower in flow after schematic; resource totals scroll away during panel use |
+| Mobile catalog resource visibility | Sticky resources and primary actions implemented; portrait/landscape panel focus restoration verified through synthetic pending→ready. Scene/placement and selected confirmation remain separated by long content; readability correction still required |
 | Mobile six-building identity | Full-fit small economy silhouettes remain tiny; explicit zoom/Fit available; readability not accepted solely from no-overflow |
+| Voxel preparation | ZDYnN9 clean-source native CPU4 synthetic mobile24 cases1.3–2.8ms, zero above16ms after offline fixed-plan generation. Geometry preserved; not full production performance acceptance |
 | Context recovery | Controller exploratory loss/restore reached one canvas; HMR contaminated repeat timing; clean three-cycle evidence required |
 | Production cold load/transfer | Not measured: ten cold runs/profile; realm UI/world/keep usable timings; compressed JS/static bytes, API separate |
 | Production frame pacing | Not measured: three 60-second workloads/profile, nearest-rank p50/p95/p99, raw sample counts, work/long tasks and input latency |
