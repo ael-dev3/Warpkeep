@@ -43,6 +43,7 @@ const currentSnapshotSecurityFixture = join(
   repositoryRoot, 'tests', 'fixtures', 'localBindingCurrentSnapshotSecurityFixture.mjs',
 );
 const currentSnapshotSecurityEligibility = selectCurrentSnapshotSecurityEligibility();
+const nativeOwnerAuthorized = process.platform === 'win32' || process.getuid?.() === 1000;
 
 function canonicalWorkerRequest() {
   const operation = `/home/snapmeter/.warpkeep/release-preparation-v1/runs/binding-${'9'.repeat(32)}`;
@@ -588,7 +589,9 @@ describe('fixed local PTR binding runtime', () => {
     }
   });
 
-  it('returns the checked handoff identity used to bind later consumers', () => {
+  it(nativeOwnerAuthorized
+    ? 'returns the checked handoff identity used to bind later consumers'
+    : 'rejects an unauthorized native owner without publishing a handoff', () => {
     const root = mkdtempSync(join(tmpdir(), 'warpkeep-checked-handoff-'));
     try {
       const source = join(root, 'source.js');
@@ -596,6 +599,13 @@ describe('fixed local PTR binding runtime', () => {
       const handoffPath = join(handoffRoot, 'bundle.js');
       mkdirSync(handoffRoot);
       writeFileSync(source, 'checked-bundle');
+      if (!nativeOwnerAuthorized) {
+        expect(() => preserveLocalBindingWorkerBundle({ bundlePath: source, handoffRoot, handoffPath }))
+          .toThrowError(expect.objectContaining({ message: 'LOCAL_BINDING_WORKER_HANDOFF_INVALID' }));
+        expect(existsSync(handoffPath)).toBe(false);
+        expect(readFileSync(source, 'utf8')).toBe('checked-bundle');
+        return;
+      }
       const result = preserveLocalBindingWorkerBundle({
         bundlePath: source, handoffRoot, handoffPath,
       }) as unknown as Readonly<{
@@ -738,7 +748,9 @@ describe('fixed local PTR binding runtime', () => {
   });
 
   it.skipIf(process.platform !== 'linux')(
-    'rejects a captured bootstrap module replacement before worker evaluation',
+    nativeOwnerAuthorized
+      ? 'rejects a captured bootstrap module replacement before worker evaluation'
+      : 'rejects an unauthorized native owner before accepting bootstrap evidence',
     () => {
       const root = mkdtempSync(join(tmpdir(), 'warpkeep-bootstrap-identity-'));
       try {
@@ -747,6 +759,18 @@ describe('fixed local PTR binding runtime', () => {
         const replacement = join(root, 'replacement.mjs');
         const body = Buffer.from('export const value = 1;\n');
         writeFileSync(path, body, { mode: 0o600 });
+        if (!nativeOwnerAuthorized) {
+          const observed = readLocalBindingBoundedFile(path, {
+            maximumBytes: 1024, expectedBytes: body.length,
+          });
+          observed.body.fill(0);
+          expect(() => verifyLocalBindingBootstrapSource({ root, bootstrap: [{
+            path: 'worker.mjs', bytes: body.length,
+            sha256: createHash('sha256').update(body).digest('hex'), identity: observed.identity,
+          }] })).toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_BOUNDED_FILE_CHANGED' }));
+          expect(readFileSync(path)).toEqual(body);
+          return;
+        }
         const captured = readLocalBindingBoundedFile(path, {
           maximumBytes: 1024, expectedBytes: body.length,
           expectedSha256: createHash('sha256').update(body).digest('hex'), expectedUid: 1000,

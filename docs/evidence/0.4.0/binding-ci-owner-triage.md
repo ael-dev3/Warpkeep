@@ -90,3 +90,28 @@ removed; shared dependencies and production runtime code were unchanged.
 Parent and lifecycle controlled fixtures are now locally verified. This does not
 establish hosted CI success, a real compiler build, or native ownership acceptance.
 The standalone checked-handoff/native tests still need their separate repair.
+
+## Native handoff/bootstrap expectation correction
+
+The standalone tests no longer assume every native Linux account has UID 1000.
+Their displayed names identify the applicable branch. Windows retains its
+existing handoff checks and Linux-only bootstrap exclusion. Real UID-1000 Linux
+continues to require successful handoff identity validation and rejection after
+actual bootstrap file replacement. Other native owners must instead be rejected
+by the production APIs; no handoff may appear and source bytes must be preserved.
+There is no owner mocking, chown, elevated execution or production policy change.
+
+Fresh local verification at 01:00:44: two selected tests passed on the actual
+UID-1000 WSL account, 225 ms; 45 other tests were name-filtered. Windows: one
+selected handoff passed, 46 filtered/platform skips, 3.52 seconds. Typecheck and
+diff check exited zero. The owned Linux snapshot used existing dependencies and
+was removed after the run.
+
+```powershell
+.git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/localBindingRuntime.test.ts -t 'checked handoff identity|bootstrap module replacement|unauthorized native owner'
+```
+
+The non-1000 rejection branches require native execution evidence from an actual
+other-owner environment; they are not proven by the UID-1000 results. Latest
+hosted CI remains separate evidence. This checkpoint must not be reported as a
+complete green root suite or successful production preparation.
