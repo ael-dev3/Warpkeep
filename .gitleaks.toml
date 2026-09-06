@@ -109,3 +109,67 @@ condition = "AND"
 regexTarget = "secret"
 regexes = ['''^g002AdmissionMutationsEnabled$''']
 paths = ['''^scripts/verify-sealed-realms-public-activation-artifact\.mjs$''']
+
+[[allowlists]]
+description = "Two public toolchain key SHA-256 records in the audited recovery records, WSL preparation and fixture test"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/release-recovery/scripts/release-recovery-toolchain-records\.mjs$''','''^services/release-recovery/scripts/prepare-release-recovery-wsl-toolchain\.mjs$''','''^services/release-recovery/test/releaseRecoverySpacetimeFixtures\.test\.ts$''']
+regexes = ['''^5115095e2f8010c75da052ecb1cfb3af630e084f0f8daa93a863557b01b0f90a$''','''^e31e1aa40a8331f01d753cef475f7b9eab934fc25f5f0b36995bfd80bd66ad27$''']
+
+[[allowlists]]
+description = "Fixed synthetic private-fid label in the recovery Realm evidence redaction test"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/release-recovery/test/realmEvidence\.test\.ts$''']
+regexes = ['''^private-fid-123456$''']
+
+[[allowlists]]
+description = "Fixed sequential-byte RPC credential fixture in the bridge recovery configuration test"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/auth-bridge/test/releaseRecoveryConfig\.test\.ts$''']
+regexes = ['''^AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8$''']
+
+[[allowlists]]
+description = "Fixed synthetic owner label inside the bridge observation URL-redaction test"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/auth-bridge/test/releaseRecoveryObservation\.test\.ts$''']
+regexes = ['''^secret-owner-fid-12345$''']
+
+[[allowlists]]
+description = "Public sealed-launch boolean schema key in recovery evidence and activation record validation"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/release-recovery/src/githubEvidence\.ts$''','''^scripts/sealed-realms-production-activation-records\.mjs$''']
+regexes = ['''^g002AdmissionMutationsEnabled$''']
+
+[[allowlists]]
+description = "Public recovery verification-key thumbprint, not private signing material"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/release-recovery/src/recoveryPublicKey\.ts$''']
+regexes = ['''^jJpfIbYjQL5LxwND5zk1MUOqN1B3vOh_ydTAOoUnuR8$''']
+
+[[allowlists]]
+description = "One fixed expired test-key-signed recovery status JWT in the crypto fixture test"
+targetRules = ["jwt"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/release-recovery/test/crypto\.test\.ts$''']
+regexes = ['''^eyJhbGciOiJFUzI1NiIsInR5cCI6IndhcnBrZWVwLTAuNC4wLXJlY292ZXJ5LXN0YXR1cytqd3QiLCJraWQiOiJ3YXJwa2VlcC0wLjQuMC1yZWNvdmVyeS0yMDI2LTA5LTAzLTEifQ\.eyJzY2hlbWFWZXJzaW9uIjoxLCJwcm9maWxlIjoid2FycGtlZXAtMC40LjAtcmVjb3Zlcnktc3RhdHVzLXYxIiwiaXNzIjoiaHR0cHM6Ly9yZWxlYXNlLWF1dGgud2FycGtlZXAuY29tIiwiYXVkIjoid2FycGtlZXAtMC40LjAtc2VhbGVkLWxhdW5jaCIsInN1YiI6IndhcnBrZWVwLTAuNC4wLXJlY292ZXJ5LWNvbnRyb2wtc3RhdHVzIiwia2lkIjoid2FycGtlZXAtMC40LjAtcmVjb3ZlcnktMjAyNi0wOS0wMy0xIiwiZW5hYmxlZCI6dHJ1ZSwiYXV0aG9yaXphdGlvbkVwb2NoIjo3LCJpYXQiOjEwMDAsIm5iZiI6MTAwMCwiZXhwIjoxMDYwfQ\.-KXyra7BGffHXoMvcsPr7lArwRAMOsgJ2YHidcQeEsRGnaXM2BFD9G9O-ri-OtNMVfxk20hcHfVTC1YfpaVLgg$''']
+
+[[allowlists]]
+description = "Exact cross-line match of two deliberately malformed RSA-key literals in the recovery evidence test"
+targetRules = ["private-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/release-recovery/test/githubEvidence\.test\.ts$''']
+regexes = ['''^-----BEGIN RSA PRIVATE KEY-----\\nAAAA\\n-----END RSA PRIVATE KEY-----\x27,\n {6}\x60-----BEGIN RSA PRIVATE KEY-----$''']
