@@ -17,9 +17,10 @@ function rectangle(placement: Placement04) {
   return { x: Number(placement.x) / 1_000_000 - halfX, y: Number(placement.z) / 1_000_000 - halfZ, width: halfX * 2, height: halfZ * 2 };
 }
 
-export function Keep04Schematic({ buildings, draft, selectedKind, onSelect, onChange }: Readonly<{
+export function Keep04Schematic({ buildings, draft, selectedKind, onSelect, onChange, onReview }: Readonly<{
   buildings: readonly BuildingView04[]; draft: Placement04 | null; selectedKind: Building04 | null;
   onSelect: (kind: Building04) => void; onChange: (draft: Placement04) => void;
+  onReview?: () => void;
 }>) {
   const existing = buildings.find(building => building.kind === selectedKind);
   const editable = !existing && draft !== null && draft.kind === selectedKind;
@@ -69,6 +70,7 @@ export function Keep04Schematic({ buildings, draft, selectedKind, onSelect, onCh
       <button type="button" onClick={() => nudge(0, 1)}>Move down 0.5 m</button>
       <button type="button" onClick={rotate}>Rotate 90°</button>
     </div>}
+    {selectedKind && onReview && <button type="button" onClick={onReview}>{existing ? 'Review upgrade' : 'Review placement'}</button>}
     <div className="keep04-sites" aria-label="Completed and constructing sites">
       {buildings.map((building, index) => <button type="button" key={building.kind} aria-pressed={building.kind === selectedKind} onClick={() => onSelect(building.kind)}>
         {index + 1} · Select {BUILDING_NAMES04[building.kind]} · level {building.completedLevel} · {building.phase}

@@ -3,7 +3,7 @@
 import type { VoxelSurfacePlan } from '../realm/voxelSurfaceMesh';
 import type { Quality04 } from './keep04VisualProfile';
 
-export const KEEP04_DRESSING_PLAN_SOURCE_SHA256 = '4a08b08d0878e8769f4011944d06a0498b2d8146ead60d08a58b17ab0f28dd0f';
+export const KEEP04_DRESSING_PLAN_SOURCE_SHA256 = 'fd7ecbd9aa1a60967f51aa68d571cc97b292c15f78ab04027d225a9602df1eca';
 export const KEEP04_DRESSING_PLANS: Readonly<Record<Quality04, VoxelSurfacePlan>> = Object.freeze({
   high: Object.freeze({
     quads: Object.freeze([

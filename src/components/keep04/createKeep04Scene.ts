@@ -5,7 +5,7 @@ import type { BuildingView04 } from '../../ptr/gameplay04/gameplay04Presentation
 import type { InnerKeepRuntimeAssetBundle, InnerKeepRuntimePrefab } from '../inner-keep/loadInnerKeepRuntimeAssets';
 import { createKeep04Building, KEEP04_FOOTPRINTS, measureKeep04Object, type Keep04Building } from './createKeep04Buildings';
 import { KEEP04_BUILDING_IDS, KEEP04_TREE_IDS } from './loadKeep04Assets';
-import { fitKeep04Camera, KEEP04_VISUAL_PROFILE as P, type Quality04 } from './keep04VisualProfile';
+import { fitKeep04Camera, fitKeep04SiteCamera, KEEP04_VISUAL_PROFILE as P, type Quality04 } from './keep04VisualProfile';
 import { createKeep04Dressing } from './keep04VoxelDressing';
 
 export type VisualState04 = Readonly<{ buildings: readonly BuildingView04[]; selectedKind: Building04 | null; draft: Placement04 | null; draftValid: boolean }>;
@@ -18,6 +18,7 @@ export type SceneTelemetry04 = Readonly<{
 export type Scene04 = Readonly<{
   scene: THREE.Scene; camera: THREE.OrthographicCamera; reconcile: (state: VisualState04) => void;
   resize: (width: number, height: number) => void; pickBuilding: (ndcX: number, ndcY: number) => Building04 | null;
+  selectedSiteBounds: () => THREE.Box3 | null; fitSite: (bounds: THREE.Box3, aspect: number) => boolean;
   pickPlacement: (ndcX: number, ndcY: number, kind: Building04) => Placement04 | null;
   update: (elapsedSeconds: number) => boolean; telemetry: () => SceneTelemetry04; dispose: () => void;
 }>;
@@ -34,6 +35,7 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
   let disposed = false; let fallback: SceneTelemetry04['fallback'] = 'none'; let voxelQuads = 0;
   let voxelPreparationMs: number | null = null;
   let indicatorKey = ''; let selected: THREE.Mesh | null = null; let draft: THREE.Mesh | null = null;
+  let visualState: VisualState04 | null = null;
   const pickTargets: THREE.Object3D[] = []; const pickKinds = new Map<THREE.Object3D, Building04>();
   const raycaster = new THREE.Raycaster(); const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   function mat(color: string) { const material = new THREE.MeshStandardMaterial({ color, roughness: .95 }); materials.add(material); return material; }
@@ -176,10 +178,34 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
         if (state.draft && !buildings.has(state.draft.kind)) draft = footprint(state.draft, state.draftValid ? '#d9f3be' : '#ffab7c', 'draft-footprint');
       }
       scene.updateMatrixWorld(true);
+      visualState = state;
     }
     function setRay(x: number, y: number) { camera.updateMatrixWorld(true); raycaster.setFromCamera(new THREE.Vector2(x, y), camera); }
     return {
       scene, camera, reconcile,
+      selectedSiteBounds: () => {
+        if (disposed || !visualState?.selectedKind) return null;
+        const entry = buildings.get(visualState.selectedKind);
+        const placement = entry?.view.placement ?? (visualState.draft?.kind === visualState.selectedKind ? visualState.draft : null);
+        if (!placement) return null;
+        const [width, depth] = KEEP04_FOOTPRINTS[placement.kind];
+        const transform = new THREE.Matrix4().compose(new THREE.Vector3(Number(placement.x) / 1e6, 0, Number(placement.z) / 1e6),
+          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -placement.rotation * Math.PI / 180000), new THREE.Vector3(1, 1, 1));
+        const bounds = new THREE.Box3(new THREE.Vector3(-width / 2, 0, -depth / 2), new THREE.Vector3(width / 2, 0, depth / 2)).applyMatrix4(transform);
+        if (entry) {
+          // Undo only the root's temporary completion reveal in the derived matrix,
+          // never mutate the rendered root or borrowed geometry to measure it.
+          const inverse = entry.building.root.matrixWorld.clone().invert();
+          entry.building.root.traverseVisible(object => {
+            if (!(object instanceof THREE.Mesh)) return;
+            object.geometry.computeBoundingBox();
+            if (object.geometry.boundingBox) bounds.union(object.geometry.boundingBox.clone().applyMatrix4(
+              transform.clone().multiply(inverse).multiply(object.matrixWorld)));
+          });
+        }
+        return bounds;
+      },
+      fitSite: (bounds, aspect) => !disposed && fitKeep04SiteCamera(camera, aspect, bounds),
       resize: (width, height) => { if (width > 0 && height > 0) fitKeep04Camera(camera, width / height); },
       pickBuilding: (x, y) => {
         if (disposed || ![x, y].every(value => Number.isFinite(value) && Math.abs(value) <= 1)) return null;

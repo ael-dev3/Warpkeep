@@ -56,14 +56,19 @@
 .keep04 .keep04-map-heading p, .keep04 .keep04-schematic > p { color: var(--keep04-muted); }
 .keep04 .keep04-schematic > p { margin-top: 12px; }
 .keep04 .keep04-placement-controls, .keep04 .keep04-sites { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.keep04 .keep04-panel { width: 320px; max-height: 76vh; overflow-y: auto; scrollbar-gutter: stable; padding: 12px; background: var(--keep04-panel); border: 1px solid var(--keep04-line); border-radius: 10px; scroll-padding-block: 60px 230px; }
+.keep04 .keep04-panel { width: 320px; max-height: 76vh; overflow-y: auto; scrollbar-gutter: stable; padding: 12px; background: var(--keep04-panel); border: 1px solid var(--keep04-line); border-radius: 10px; scroll-padding-block: 12px; }
 .keep04 .keep04-close { display: block; margin: 0 0 12px auto; }
 .keep04 .keep04-card { padding: 12px; margin-bottom: 12px; border: 1px solid var(--keep04-line); border-radius: 6px; background: #203b34; }
 .keep04 .keep04-card[data-selected="true"] { border-color: #dfc6ff; border-width: 2px; }
 .keep04 .keep04-card > button:first-child { width: 100%; text-align: left; font-weight: 600; }
 .keep04 .keep04-card p { margin-top: 8px; overflow-wrap: anywhere; }
 .keep04 .keep04-badge { display: inline-block; padding: 2px 7px; border: 1px solid #9dab96; border-radius: 4px; font-size: 14px; }
-.keep04 .keep04-primary-action { position: sticky; bottom: -12px; background: #182e2b; padding: 12px 0 max(12px, env(safe-area-inset-bottom)); border-top: 2px solid #dfc6ff; }
+.keep04 .keep04-primary-action { position: static; background: #182e2b; padding: 12px 0 max(12px, env(safe-area-inset-bottom)); border-top: 2px solid #dfc6ff; }
+.keep04 .keep04-selected-review { margin-bottom: 16px; }
+.keep04 .keep04-selected-review > button { margin-bottom: 8px; }
+.keep04 .keep04-scene-toolbar { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; }
+.keep04 .keep04-scene-canvas { position: relative; width: 100%; height: clamp(220px, 43vw, 620px); overflow: hidden; border-radius: 8px; background: #a3b3a1; }
+.keep04 .keep04-scene[data-mode="fallback"] .keep04-scene-canvas { height: 0; }
 .keep04 .keep04-primary-action button { width: 100%; margin-top: 8px; }
 .keep04 .keep04-confirm:not(:disabled) { background: #e1d4b5; color: #18251e; border-color: #e1d4b5; font-weight: 700; }
 .keep04 .keep04-dock { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; padding: 12px 0 max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--keep04-line); }
@@ -92,6 +97,7 @@
   .keep04 .keep04-workspace[data-panel-open="true"] { grid-template-columns: minmax(0, 1fr); }
   .keep04 .keep04-panel { width: 100%; max-height: none; overflow-y: visible; padding-bottom: max(12px, env(safe-area-inset-bottom)); scroll-padding-block: 0; }
   .keep04 .keep04-primary-action { position: static; }
+  .keep04 .keep04-scene-canvas { height: clamp(144px, min(43vw, calc(100dvh - var(--keep04-decision-height, 0px) - var(--keep04-scene-toolbar-height, 0px) - 16px)), 620px); }
   .keep04 .keep04-panel, .keep04 .keep04-workspace :is(button, summary, [tabindex]), .keep04 .keep04-dock button { scroll-margin-top: calc(var(--keep04-decision-height, 0px) + 8px); }
 }
 @media (prefers-reduced-motion: reduce) {

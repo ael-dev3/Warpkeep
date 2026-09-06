@@ -35,6 +35,8 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   const decisionHeader = useRef<HTMLDivElement>(null);
   const commandPanel = useRef<HTMLElement>(null);
   const schematic = useRef<HTMLDetailsElement>(null);
+  const reviewHeading = useRef<HTMLHeadingElement>(null);
+  const selectionNavigation = useRef<Building04 | null>(null);
   const wasReady = useRef(phase === 'ready');
   const ready = phase === 'ready' && view !== null;
   const activeTimer = ready && (view.state.project !== undefined || view.workers.some(worker => worker.phase !== 'idle'));
@@ -61,8 +63,14 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
     // Pending focus may have scrolled to Back. Align again when ready restores
     // panel focus; ordinary ready-to-ready polls, resizes and draft edits do
     // not rerun this effect or disturb the user's scroll.
-    if (ready && selection.panel) focusPanel();
+    if (ready && selection.panel && selectionNavigation.current === null) focusPanel();
   }, [selection.panel, ready]);
+  useEffect(() => {
+    if (!ready || selection.panel !== 'buildings') { selectionNavigation.current = null; return; }
+    if (selectionNavigation.current !== null && selectionNavigation.current === selection.selectedKind) {
+      selectionNavigation.current = null; focusReview();
+    }
+  });
   useEffect(() => {
     // Keep the same DOM and focus, but reopen controls if graphics disappear.
     if (sceneMode !== 'webgl' && schematic.current) schematic.current.open = true;
@@ -80,10 +88,12 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
     } else closeButton.current?.focus();
   }
   function closePanel() {
+    selectionNavigation.current = null;
     onSelectionChange({ ...selection, panel: null });
     (opener.current?.isConnected ? opener.current : buildingsButton.current)?.focus();
   }
   function openPanel(panel: 'workers' | 'buildings', control: HTMLElement) {
+    selectionNavigation.current = null;
     opener.current = control; onSelectionChange({ ...selection, panel });
     if (selection.panel === panel && decisionHeader.current && getComputedStyle(decisionHeader.current).position === 'sticky') focusPanel();
   }
@@ -94,8 +104,18 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
       opener.current = (active instanceof HTMLElement || active instanceof SVGElement) && active !== document.body && root.current?.contains(active) ? active : buildingsButton.current;
     }
     const existing = view.buildings.find(building => building.kind === kind);
+    if (selection.selectedKind !== kind || selection.panel !== 'buildings') selectionNavigation.current = kind;
     onSelectionChange({ panel: 'buildings', selectedKind: kind,
       draft: existing?.placement ?? (selection.draft?.kind === kind ? selection.draft : initialPlacement04(kind, view.buildings.map(building => building.placement))) });
+  }
+  function alignAndFocus(element: HTMLElement | SVGSVGElement | null) {
+    element?.scrollIntoView?.({ block: 'start', behavior: 'instant' }); element?.focus({ preventScroll: true });
+  }
+  function focusReview() { if (ready) alignAndFocus(reviewHeading.current); }
+  function viewSite() {
+    if (!ready || !schematic.current) return;
+    schematic.current.open = true;
+    alignAndFocus(schematic.current.querySelector('svg'));
   }
   return <div ref={root} className="keep04" data-quality={quality} data-reduced-motion={reducedMotion} onKeyDown={event => {
     if (event.key === 'Escape' && ready && selection.panel) { event.preventDefault(); closePanel(); }
@@ -135,7 +155,8 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
           <details ref={schematic} open>
             <summary style={{ cursor: 'pointer', padding: '12px 0', minHeight: 44 }}>Placement schematic and keyboard controls</summary>
             <Keep04Schematic buildings={view.buildings} draft={selection.panel === 'buildings' ? selection.draft : null} selectedKind={selection.selectedKind}
-              onSelect={selectBuilding} onChange={draft => onSelectionChange({ ...selection, draft })} />
+              onSelect={selectBuilding} onChange={draft => onSelectionChange({ ...selection, draft })}
+              onReview={selection.panel === 'buildings' ? focusReview : undefined} />
           </details>
           {view.buildings.filter(building => building.phase === 'constructing').map(building => <p key={building.kind} className="keep04-construction">
             Constructing level {building.targetLevel} · Estimated build time: <span>{estimatedTime04(building.completesAtMicros!, nowMs)}</span>
@@ -149,6 +170,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
             }} />
             : <Keep04BuildingPanel view={view} selectedKind={selection.selectedKind} draft={selection.draft} enabled={ready} problem={problem}
               onSelect={selectBuilding} onConfirm={quote => { void controller.submit({ kind: 'build', quote }); }} onFindResources={onFindResources}
+              onViewSite={viewSite} reviewHeadingRef={reviewHeading}
               onCancelDraft={() => { onSelectionChange({ ...selection, selectedKind: null, draft: null }); closeButton.current?.focus(); }} />}
         </aside>}
       </div>

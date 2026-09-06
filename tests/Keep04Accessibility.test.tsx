@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { useState } from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Keep04Screen, type Keep04UiSelection } from '../src/components/keep04/Keep04Screen';
 import type { Keep04SceneHostProps } from '../src/components/keep04/Keep04SceneHost';
@@ -22,6 +22,41 @@ function setup(fixture: 'empty' | 'construction' | 'complete' = 'empty', snapsho
   const rendered = render(<Harness />);
   return { controller, rerenderPhase: (phase: Snapshot04['phase']) => rendered.rerender(<Harness phase={phase} />) };
 }
+it('promotes one complete selected review and connects it to the same schematic without commands', () => {
+  const { controller, rerenderPhase } = setup(); act(() => sceneProps.onMode('webgl'));
+  const opener = screen.getByRole('button', { name: 'Buildings' }); fireEvent.click(opener);
+  const schematic = screen.getByRole('application', { name: 'Keep placement schematic' });
+  for (const name of ['City Mill', 'Lumber Camp', 'City Stoneworks', 'City Goldworks', 'City Barracks', 'Grand Covenant Cathedral']) {
+    fireEvent.click(screen.getByRole('button', { name }));
+    const heading = screen.getByRole('heading', { name: `Place ${name}` }); expect(heading).toHaveFocus();
+    const review = screen.getByRole('region', { name: `Place ${name}` });
+    expect(within(review).getByText(/^Cost:/)).toBeVisible(); expect(within(review).getByText(/^Missing:/)).toBeVisible();
+    expect(within(review).getByText(/^Build duration:/)).toBeVisible(); expect(within(review).getByText(/^Current:/)).toBeVisible();
+    expect(screen.getAllByRole('article')).toHaveLength(6);
+    const others = screen.getByRole('heading', { name: 'Other buildings' });
+    expect(screen.getByRole('button', { name: 'Confirm placement' }).compareDocumentPosition(others) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    schematic.closest('details')!.open = false;
+    fireEvent.click(screen.getByRole('button', { name: 'Adjust placement' }));
+    expect(schematic.closest('details')!.open).toBe(true); expect(schematic).toHaveFocus();
+    fireEvent.keyDown(schematic, { key: 'ArrowRight' }); expect(schematic).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: 'Review placement' })); expect(heading).toHaveFocus();
+    rerenderPhase('ready'); fireEvent.resize(window); expect(heading).toHaveFocus();
+  }
+  expect(controller.submit).not.toHaveBeenCalled();
+  rerenderPhase('pending'); expect(screen.getByRole('button', { name: 'Back' })).toHaveFocus();
+  rerenderPhase('ready'); expect(screen.getByRole('button', { name: 'Close panel' })).toHaveFocus();
+  fireEvent.keyDown(schematic, { key: 'Escape' }); expect(opener).toHaveFocus();
+});
+it('connects persisted-site upgrade review without replacing or editing its schematic', () => {
+  const { controller } = setup('complete');
+  const schematic = screen.getByRole('application', { name: 'Keep placement schematic' });
+  fireEvent.click(screen.getByRole('button', { name: /City Mill footprint/ }));
+  const heading = screen.getByRole('heading', { name: 'Upgrade City Mill' }); expect(heading).toHaveFocus();
+  fireEvent.click(screen.getByRole('button', { name: 'View site' })); expect(schematic).toHaveFocus();
+  expect(screen.queryByRole('button', { name: 'Move up 0.5 m' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Review upgrade' })); expect(heading).toHaveFocus();
+  expect(controller.submit).not.toHaveBeenCalled();
+});
 it('keeps the schematic, controls, selection and focus mounted through loading/webgl/fallback transitions', () => {
   const { controller } = setup(); const opener = screen.getByRole('button', { name: 'Buildings' }); fireEvent.click(opener);
   fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
@@ -158,33 +193,37 @@ it('measures header changes without realigning for resizes or draft edits and pr
       expect(root.style.getPropertyValue('--keep04-decision-height')).toBe('126px');
       expect(scroll).toHaveBeenCalledTimes(1);
       details.open = true; schematic.focus(); fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
+      expect(scroll).toHaveBeenCalledTimes(2);
+      expect(screen.getByRole('heading', { name: 'Place City Mill' })).toHaveFocus();
+      // Explicit selection navigates once; draft edits below still do not.
+      scroll.mockClear();
       schematic.focus(); fireEvent.keyDown(schematic, { key: 'ArrowRight' });
-      expect(schematic).toHaveFocus(); expect(scroll).toHaveBeenCalledTimes(1);
+      expect(schematic).toHaveFocus(); expect(scroll).not.toHaveBeenCalled();
       rerenderPhase('pending');
       expect(disconnect).toHaveBeenCalledOnce();
       expect(root.style.getPropertyValue('--keep04-decision-height')).toBe('');
       bounds.mockClear(); fireEvent.resize(window); expect(bounds).not.toHaveBeenCalled();
       rerenderPhase('ready');
       expect(root.style.getPropertyValue('--keep04-decision-height')).toBe('126px');
-      expect(scroll).toHaveBeenCalledTimes(2);
+      expect(scroll).toHaveBeenCalledTimes(1);
       fireEvent.click(opener);
-      expect(scroll).toHaveBeenCalledTimes(3);
+      expect(scroll).toHaveBeenCalledTimes(2);
       expect(screen.getByRole('button', { name: 'Close panel' })).toHaveFocus();
       fireEvent.keyDown(schematic, { key: 'Escape' }); expect(opener).toHaveFocus();
       fireEvent.click(screen.getByRole('button', { name: 'Manage Workers' }));
-      expect(scroll).toHaveBeenCalledTimes(4);
+      expect(scroll).toHaveBeenCalledTimes(3);
       // Leave and re-enter the compact CSS branch without remounting the screen.
       removeStyles(); const removeDesktopStyles = applyViewportRules(1280, 900);
       fireEvent.resize(window);
       fireEvent.keyDown(screen.getByRole('button', { name: 'Close panel' }), { key: 'Escape' });
       fireEvent.click(screen.getByRole('button', { name: 'Buildings' }));
-      expect(scroll).toHaveBeenCalledTimes(4);
+      expect(scroll).toHaveBeenCalledTimes(3);
       const desktopOpener = screen.getByRole('button', { name: 'Buildings' });
       desktopOpener.focus(); fireEvent.click(desktopOpener); expect(desktopOpener).toHaveFocus();
       removeDesktopStyles(); const removeLandscapeStyles = applyViewportRules(844, 390);
       fireEvent.resize(window);
       fireEvent.click(screen.getByRole('button', { name: 'Manage Workers' }));
-      expect(scroll).toHaveBeenCalledTimes(5); removeLandscapeStyles();
+      expect(scroll).toHaveBeenCalledTimes(4); removeLandscapeStyles();
       cleanup(); expect(disconnect).toHaveBeenCalledTimes(2);
       bounds.mockClear(); fireEvent.resize(window); expect(bounds).not.toHaveBeenCalled();
     } finally { delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView; }

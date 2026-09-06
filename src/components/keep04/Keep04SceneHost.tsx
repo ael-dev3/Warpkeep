@@ -6,6 +6,7 @@ import type { InnerKeepRuntimeAssetBundle } from '../inner-keep/loadInnerKeepRun
 import { createKeep04Scene, type Scene04, type VisualState04 } from './createKeep04Scene';
 import { loadKeep04Assets } from './loadKeep04Assets';
 import { KEEP04_VISUAL_PROFILE, type Quality04 } from './keep04VisualProfile';
+import { BUILDING_NAMES04 } from './Keep04BuildingPanel';
 
 export type Keep04SceneHostProps = Readonly<{
   visual: VisualState04; quality: Quality04; reducedMotion: boolean;
@@ -26,8 +27,10 @@ export type Keep04Observation = Readonly<{
 
 export function Keep04SceneHost(props: Keep04SceneHostProps) {
   const element = useRef<HTMLDivElement>(null); const current = useRef(props); current.current = props;
-  const runtime = useRef<{ scene: Scene04; request: () => void; reset: () => void; reconcile: () => void } | null>(null);
+  const wrapper = useRef<HTMLElement>(null); const toolbar = useRef<HTMLDivElement>(null);
+  const runtime = useRef<{ scene: Scene04; request: () => void; reset: () => void; inspect: () => void; reconcile: () => void } | null>(null);
   const [mode, setMode] = useState<'loading' | 'webgl' | 'fallback'>('loading');
+  const [inspectedKind, setInspectedKind] = useState<Building04 | null>(null);
   const [recovery, setRecovery] = useState(0);
   useEffect(() => {
     const host = element.current!; const abort = new AbortController();
@@ -37,6 +40,8 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
     let recoveryCanvas: HTMLCanvasElement | undefined; let removeRecovery: (() => void) | undefined;
     let lost = false;
     let activeLoaders = 0;
+    let inspection: { kind: Building04; bounds: THREE.Box3 } | null = null;
+    let panX = 0; let panZ = 0;
     const qaFault = import.meta.env.DEV ? props.qaFault : undefined;
     function observe(event: Keep04Observation['event'], frameWorkMs: number | null = null, timestampMs = performance.now()) {
       const callback = current.current.onObservation; if (!callback) return;
@@ -89,16 +94,46 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
       // canvas/restoration listener, never the retired scene, bundle or renderer.
       if (!keepRecovery) { renderer?.forceContextLoss(); renderer?.domElement.remove(); removeRecovery?.(); removeRecovery = undefined; recoveryCanvas?.remove(); }
       renderer = undefined;
+      wrapper.current?.style.removeProperty('--keep04-scene-toolbar-height');
       observe(keepRecovery ? 'context-lost' : 'disposed');
     }
     function failure() { release(); set('fallback'); observe('fallback'); }
     function reconcile() {
-      try { scene?.reconcile(current.current.visual); request(); } catch { failure(); }
+      try {
+        scene?.reconcile(current.current.visual);
+        if (inspection && scene) {
+          const visual = current.current.visual; const kind = visual.selectedKind;
+          // Polls/draft motion need only check existence, not remeasure every mesh.
+          const hasSite = kind && (visual.buildings.some(building => building.kind === kind) || visual.draft?.kind === kind);
+          if (!hasSite) reset();
+          else if (kind !== inspection.kind) inspect();
+        }
+        request();
+      } catch { failure(); }
+    }
+    function resize() {
+      const region = wrapper.current; const controls = toolbar.current;
+      if (region && controls) region.style.setProperty('--keep04-scene-toolbar-height', `${controls.getBoundingClientRect().height}px`);
+      if (!scene || !renderer) return;
+      const width = host.clientWidth; const height = host.clientHeight; if (!width || !height) return;
+      renderer.setSize(width, height, false); scene.resize(width, height);
+      if (inspection) scene.fitSite(inspection.bounds, width / height);
+      scene.camera.position.x += panX; scene.camera.position.z += panZ;
+      scene.camera.updateMatrixWorld(true); request();
+    }
+    function reset() {
+      inspection = null; setInspectedKind(null); panX = panZ = 0;
+      if (scene) scene.camera.zoom = 1; resize();
+    }
+    function inspect() {
+      const kind = current.current.visual.selectedKind; const bounds = scene?.selectedSiteBounds();
+      if (!kind || !bounds || !scene) { reset(); return; }
+      inspection = { kind, bounds }; setInspectedKind(kind); panX = panZ = 0; scene.camera.zoom = 1; resize();
     }
     function listen<K extends keyof HTMLElementEventMap>(target: HTMLElement, event: K, listener: (event: HTMLElementEventMap[K]) => void) {
       target.addEventListener(event, listener); listeners.push(() => target.removeEventListener(event, listener));
     }
-    set('loading');
+    set('loading'); setInspectedKind(null);
     if ((import.meta.env.DEV && qaFault === 'webgl-unavailable') || typeof WebGL2RenderingContext === 'undefined') { set('fallback'); observe('fallback'); return () => { retired = true; release(); }; }
     async function initialize() {
       let loaded: InnerKeepRuntimeAssetBundle | undefined;
@@ -124,7 +159,6 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
         removeRecovery = () => canvas.removeEventListener('webglcontextrestored', contextRestored);
         let pointer: { id: number; x: number; y: number; dragged: boolean } | null = null;
         const pointers = new Map<number, { x: number; y: number }>();
-        let panX = 0; let panZ = 0;
         listen(canvas, 'pointerdown', event => {
           if (event.button !== 0) return;
           pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -176,12 +210,13 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
           ? { ...bundle, staticPrefabs: new Map([...bundle.staticPrefabs].filter(([id]) => id !== 'city-mill')) } : bundle;
         scene = createKeep04Scene({ quality: props.quality, reducedMotion: props.reducedMotion, assets: sceneAssets,
           ...(import.meta.env.DEV ? { qaVoxelFailure: qaFault === 'voxel-failure' } : {}) });
-        const resize = () => { if (!scene || !renderer) return; const width = host.clientWidth; const height = host.clientHeight; if (!width || !height) return;
-          renderer.setSize(width, height, false); scene.resize(width, height); panX = panZ = 0; request(); };
-        runtime.current = { scene, request, reconcile, reset: () => { if (scene) scene.camera.zoom = 1; resize(); } };
+        runtime.current = { scene, request, reconcile, reset, inspect };
         scene.reconcile(current.current.visual);
         if (scene.telemetry().fallback === 'budget') throw new Error('Keep graphics budget exceeded.');
-        observer = new ResizeObserver(resize); observer.observe(host); resize(); set('webgl'); request();
+        observer = new ResizeObserver(resize); observer.observe(host);
+        if (toolbar.current) observer.observe(toolbar.current, { box: 'border-box' });
+        window.addEventListener('resize', resize); listeners.push(() => window.removeEventListener('resize', resize));
+        resize(); set('webgl'); request();
       } catch { activeLoaders = 0; if (!retired && !abort.signal.aborted) failure(); }
       finally { activeLoaders = 0; loaded?.dispose(); if (retired) observe('disposed'); }
     }
@@ -190,12 +225,20 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
   }, [props.quality, props.reducedMotion, recovery, import.meta.env.DEV ? props.qaFault : undefined]);
   useEffect(() => { runtime.current?.reconcile(); }, [props.visual]);
   function zoom(factor: number) { const active = runtime.current; if (!active) return; active.scene.camera.zoom = Math.max(.8, Math.min(2, active.scene.camera.zoom * factor)); active.scene.camera.updateProjectionMatrix(); active.request(); }
-  return <section aria-label="Verdant Citadel scene" data-mode={mode}>
-    <div ref={element} style={{ position: 'relative', width: '100%', height: mode === 'fallback' ? 0 : 'clamp(220px, 43vw, 620px)', overflow: 'hidden', borderRadius: 8, background: '#a3b3a1' }} />
+  const hasSite = props.visual.selectedKind !== null && (props.visual.buildings.some(building => building.kind === props.visual.selectedKind) || props.visual.draft?.kind === props.visual.selectedKind);
+  return <section ref={wrapper} className="keep04-scene" aria-label="Verdant Citadel scene" tabIndex={-1} data-mode={mode}>
+    <div ref={toolbar} className="keep04-scene-toolbar">
+      <button type="button" aria-label="Zoom in" disabled={mode !== 'webgl'} onClick={() => zoom(1.2)}>+</button>
+      <button type="button" aria-label="Zoom out" disabled={mode !== 'webgl'} onClick={() => zoom(1 / 1.2)}>−</button>
+      <button type="button" disabled={mode !== 'webgl'} onClick={() => runtime.current?.reset()}>Fit grounds</button>
+      <button type="button" disabled={mode !== 'webgl' || !hasSite} onClick={event => {
+        runtime.current?.inspect(); wrapper.current?.scrollIntoView?.({ block: 'start', behavior: 'instant' }); event.currentTarget.focus({ preventScroll: true });
+      }}>Inspect selected site</button>
+    </div>
+    <div ref={element} className="keep04-scene-canvas" />
     {mode === 'loading' && <p role="status">Preparing the citadel. Placement controls remain available below.</p>}
-    {mode === 'webgl' && <><p style={{ marginTop: 10 }}>Verdant Citadel · Drag to pan · Scroll to zoom</p><div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-      <button type="button" aria-label="Zoom in" onClick={() => zoom(1.2)}>+</button><button type="button" aria-label="Zoom out" onClick={() => zoom(1 / 1.2)}>−</button>
-      <button type="button" onClick={() => runtime.current?.reset()}>Fit grounds</button>
-    </div><small>Existing pinned Hegemony models · Verdant Citadel composition and material treatment.</small></>}
+    {mode === 'webgl' && <><p>{inspectedKind ? `Inspecting ${BUILDING_NAMES04[inspectedKind]}` : 'Whole grounds'} · Drag to pan · Scroll to zoom</p>
+      {!hasSite && <p>Select a building or draft to inspect its site.</p>}
+      <small>Existing pinned Hegemony models · Verdant Citadel composition and material treatment.</small></>}
   </section>;
 }

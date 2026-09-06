@@ -26,11 +26,11 @@ let queued: Map<number, FrameRequestCallback>; let sequence: number; let active:
 let renderers: RendererBoundary[]; let hidden: boolean; let observers: number;
 class RendererBoundary {
   domElement = document.createElement('canvas'); shadowMap = {}; info = { render: { calls: 0, triangles: 0 }, memory: { geometries: 7, textures: 2 } };
-  ratio = 0; disposed = false; scenes: THREE.Scene[] = [];
+  ratio = 0; disposed = false; scenes: THREE.Scene[] = []; camera: THREE.OrthographicCamera | undefined;
   constructor() { active++; maximum = Math.max(maximum, active); renderers.push(this); }
   setPixelRatio(value: number) { this.ratio = value; } setSize() {} forceContextLoss() {}
   dispose() { expect(this.disposed).toBe(false); this.disposed = true; active--; }
-  render(scene: THREE.Scene) { expect(this.disposed).toBe(false); this.scenes.push(scene); }
+  render(scene: THREE.Scene, camera: THREE.OrthographicCamera) { expect(this.disposed).toBe(false); this.scenes.push(scene); this.camera = camera; }
 }
 const props = (): Keep04SceneHostProps => ({ visual: { buildings: [], selectedKind: 'city-mill', draft: { kind: 'city-mill', x: -24_000_000n, z: -20_000_000n, rotation: 90_000 }, draftValid: true }, quality: 'balanced', reducedMotion: false, onMode: vi.fn(), onPlacement: vi.fn(), onSelect: vi.fn() });
 function tick(time = 0) { const callbacks = [...queued.values()]; queued.clear(); act(() => callbacks.forEach(callback => callback(time))); }
@@ -54,6 +54,50 @@ beforeEach(() => {
   vi.spyOn(loader, 'loadKeep04Assets').mockImplementation(async () => bundle());
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+it('inspects explicitly, retains zoom through resize and draft edits, and resets without loading another scene', async () => {
+  const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(796);
+  const height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(144);
+  const current = props(); const mounted = render(<Keep04SceneHost {...current} />); await act(async () => {}); tick();
+  const camera = renderers[0].camera!; const overview = camera.position.clone();
+  const inspect = screen.getByRole('button', { name: 'Inspect selected site' }); fireEvent.click(inspect); tick(100);
+  expect(camera.top).toBe(12); expect(camera.position.equals(overview)).toBe(false); expect(inspect).toHaveFocus();
+  fireEvent.click(screen.getByRole('button', { name: 'Zoom in' })); expect(camera.zoom).toBe(1.2);
+  const inspectedPosition = camera.position.clone();
+  mounted.rerender(<Keep04SceneHost {...current} visual={{ ...current.visual, draft: { ...current.visual.draft!, x: -10_000_000n } }} />);
+  expect(camera.position.equals(inspectedPosition)).toBe(true);
+  fireEvent.resize(window); expect(camera.zoom).toBe(1.2); expect(camera.position.equals(inspectedPosition)).toBe(true);
+  fireEvent.click(inspect); expect(camera.zoom).toBe(1); expect(camera.position.equals(inspectedPosition)).toBe(false);
+  const canvas = mounted.container.querySelector('canvas')!;
+  pointer(canvas, 'pointerdown', 1, 100, 100); pointer(canvas, 'pointermove', 1, 200, 150); pointer(canvas, 'pointerup', 1, 200, 150);
+  const panned = camera.position.clone(); fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+  width.mockReturnValue(342); height.mockReturnValue(220); fireEvent.resize(window);
+  expect(camera.zoom).toBe(1.2); expect(camera.position.distanceTo(panned)).toBeLessThan(1e-10);
+  expect(camera.right / camera.top).toBeCloseTo(342 / 220);
+  width.mockReturnValue(796); height.mockReturnValue(144); fireEvent.resize(window);
+  expect(camera.position.distanceTo(panned)).toBeLessThan(1e-10); expect(camera.zoom).toBe(1.2);
+  mounted.rerender(<Keep04SceneHost {...current} visual={{ ...current.visual, selectedKind: 'lumber-camp', draft: { ...current.visual.draft!, kind: 'lumber-camp', x: 20_000_000n } }} />);
+  expect(screen.getByText(/Inspecting Lumber Camp/)).toBeVisible(); expect(camera.zoom).toBe(1);
+  fireEvent.click(screen.getByRole('button', { name: 'Fit grounds' })); expect(camera.position.equals(overview)).toBe(true);
+  expect(mounted.container.querySelectorAll('canvas')).toHaveLength(1); expect(loader.loadKeep04Assets).toHaveBeenCalledOnce();
+  expect(current.onPlacement).not.toHaveBeenCalled(); expect(current.onSelect).not.toHaveBeenCalled();
+  mounted.unmount(); expect(observers).toBe(0); expect(queued.size).toBe(0);
+});
+
+it('measures the real scene toolbar, retires resize ownership on loss, and keeps unavailable inspection disabled', async () => {
+  const mounted = render(<Keep04SceneHost {...props()} />); await act(async () => {});
+  const region = screen.getByRole('region', { name: 'Verdant Citadel scene' });
+  const controls = screen.getByRole('button', { name: 'Fit grounds' }).parentElement!;
+  const bounds = vi.spyOn(controls, 'getBoundingClientRect').mockReturnValue({ height: 103.5 } as DOMRect);
+  fireEvent.resize(window); expect(region.style.getPropertyValue('--keep04-scene-toolbar-height')).toBe('103.5px');
+  expect(controls.compareDocumentPosition(mounted.container.querySelector('canvas')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  mounted.rerender(<Keep04SceneHost {...props()} visual={{ buildings: [], selectedKind: null, draft: null, draftValid: false }} />);
+  expect(screen.getByRole('button', { name: 'Inspect selected site' })).toBeDisabled();
+  fireEvent(mounted.container.querySelector('canvas')!, new Event('webglcontextlost', { cancelable: true }));
+  expect(screen.getByRole('button', { name: 'Inspect selected site' })).toBeDisabled();
+  expect(region.style.getPropertyValue('--keep04-scene-toolbar-height')).toBe('');
+  bounds.mockClear(); fireEvent.resize(window); expect(bounds).not.toHaveBeenCalled(); expect(observers).toBe(0);
+});
 
 it('observes actual renderer counters, retains the restore listener on loss, and reports final cleanup without invented GPU zeros', async () => {
   const observations: Keep04Observation[] = [];

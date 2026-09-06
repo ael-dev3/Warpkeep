@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type Ref } from 'react';
 import { buildingCost04, buildingDuration04, type Building04, type Cost04, type Resource04 } from '../../../spacetimedb/gameplay04/policy';
 import type { Placement04 } from '../../../spacetimedb/gameplay04/placement';
 import { buildingBenefit04, buildingDeficits04, quoteBuilding04, type View04 } from '../../ptr/gameplay04/gameplay04Presentation';
@@ -14,11 +14,13 @@ const KINDS04 = Object.keys(BUILDING_NAMES04) as Building04[];
 const costText = (cost: Cost04) => RESOURCES04.map(resource => `${resource} ${cost[resource]}`).join(' · ');
 const secondsText = (micros: bigint) => `${Number(micros) / 1_000_000} s`;
 
-export function Keep04BuildingPanel({ view, selectedKind, draft, enabled, problem, onSelect, onConfirm, onCancelDraft, onFindResources }: Readonly<{
+export function Keep04BuildingPanel({ view, selectedKind, draft, enabled, problem, onSelect, onConfirm, onCancelDraft, onFindResources, onViewSite, reviewHeadingRef }: Readonly<{
   view: View04; selectedKind: Building04 | null; draft: Placement04 | null; enabled: boolean; problem: Snapshot04['problem'];
   onSelect: (kind: Building04) => void; onConfirm: (quote: BuildQuote04) => void;
   onCancelDraft: () => void; onFindResources: (resource: Resource04) => void;
+  onViewSite?: () => void; reviewHeadingRef?: Ref<HTMLHeadingElement>;
 }>) {
+  const reviewId = useId();
   const completed = view.state.completedLevels;
   const levels = { 'city-mill': completed.mill, 'lumber-camp': completed.lumberCamp, 'city-stoneworks': completed.stoneworks,
     'city-goldworks': completed.goldworks, 'city-barracks': completed.barracks, 'grand-covenant-cathedral': completed.cathedral };
@@ -55,31 +57,32 @@ export function Keep04BuildingPanel({ view, selectedKind, draft, enabled, proble
   function review() {
     setReviewed({ realmKey, draftKey, quote: candidate, problem }); setSent(false); setSubmissionLeftReady(false); sentRef.current = false;
   }
+  function card(kind: Building04) {
+    const level = levels[kind]; const maximum = level === 5;
+    const benefit = buildingBenefit04(view, kind); const missing = buildingDeficits04(view, kind);
+    const firstDeficit = RESOURCES04.find(resource => missing[resource] > 0n);
+    const value = (amount: bigint) => benefit.unit === 'micros' ? secondsText(amount) : amount.toString();
+    return <article key={kind} aria-label={BUILDING_NAMES04[kind]} className="keep04-card" data-selected={selectedKind === kind}>
+      <button type="button" aria-pressed={selectedKind === kind} onClick={() => onSelect(kind)}>{BUILDING_NAMES04[kind]}</button>
+      <p className="keep04-badge">Completed level {level}</p>
+      {maximum ? <p>Maximum level</p> : <>
+        <p>Cost: {costText(buildingCost04(kind, level + 1))}</p>
+        <p>Build duration: {secondsText(buildingDuration04(level + 1, levels))}</p>
+      </>}
+      <p>Missing: {costText(missing)}</p>
+      <p>{benefit.label}</p><p>Current: {value(benefit.current)} → Next: {value(benefit.next)}</p>
+      {firstDeficit && <button type="button" onClick={() => onFindResources(firstDeficit)}>Find {firstDeficit}</button>}
+    </article>;
+  }
   return <section aria-label="Buildings" className="keep04-building-panel">
     <h2>Buildings</h2>
     <p>Benefits apply after completion. Existing expeditions keep their captured rates.</p>
     {view.state.project !== undefined && <p className="keep04-badge">Builder busy</p>}
-    <div className="keep04-catalog">
-      {KINDS04.map(kind => {
-        const level = levels[kind]; const maximum = level === 5;
-        const benefit = buildingBenefit04(view, kind); const missing = buildingDeficits04(view, kind);
-        const firstDeficit = RESOURCES04.find(resource => missing[resource] > 0n);
-        const value = (amount: bigint) => benefit.unit === 'micros' ? secondsText(amount) : amount.toString();
-        return <article key={kind} aria-label={BUILDING_NAMES04[kind]} className="keep04-card" data-selected={selectedKind === kind}>
-          <button type="button" aria-pressed={selectedKind === kind} onClick={() => onSelect(kind)}>{BUILDING_NAMES04[kind]}</button>
-          <p className="keep04-badge">Completed level {level}</p>
-          {maximum ? <p>Maximum level</p> : <>
-            <p>Cost: {costText(buildingCost04(kind, level + 1))}</p>
-            <p>Build duration: {secondsText(buildingDuration04(level + 1, levels))}</p>
-          </>}
-          <p>Missing: {costText(missing)}</p>
-          <p>{benefit.label}</p><p>Current: {value(benefit.current)} → Next: {value(benefit.next)}</p>
-          {firstDeficit && <button type="button" onClick={() => onFindResources(firstDeficit)}>Find {firstDeficit}</button>}
-        </article>;
-      })}
-    </div>
-    {selectedKind && <div className="keep04-primary-action">
-      <h3>{existing ? 'Upgrade' : 'Place'} {BUILDING_NAMES04[selectedKind]}</h3>
+    {selectedKind && <section aria-labelledby={reviewId} className="keep04-selected-review">
+      <h3 id={reviewId} ref={reviewHeadingRef} tabIndex={-1}>{existing ? 'Upgrade' : 'Place'} {BUILDING_NAMES04[selectedKind]}</h3>
+      {onViewSite && <button type="button" onClick={onViewSite}>{existing ? 'View site' : 'Adjust placement'}</button>}
+      {card(selectedKind)}
+      <div className="keep04-primary-action">
       {placement && <p>{existing ? 'Permanent site' : 'Draft'}: x {Number(placement.x) / 1_000_000} m · z {Number(placement.z) / 1_000_000} m · {placement.rotation / 1000}°</p>}
       <p>Permanent placement: construction cannot be cancelled and spent resources are not refunded.</p>
       {changedRealm && <><p role="status">Review updated costs and confirm again</p><button type="button" disabled={!enabled} onClick={review}>Review updated costs</button></>}
@@ -89,6 +92,9 @@ export function Keep04BuildingPanel({ view, selectedKind, draft, enabled, proble
         sentRef.current = true; setSent(true); onConfirm(reviewed.quote);
       }}>{existing ? 'Confirm upgrade' : 'Confirm placement'}</button>
       {!existing && <button type="button" onClick={onCancelDraft}>Cancel draft · free</button>}
-    </div>}
+      </div>
+    </section>}
+    {selectedKind && <h3>Other buildings</h3>}
+    <div className="keep04-catalog">{KINDS04.filter(kind => kind !== selectedKind).map(card)}</div>
   </section>;
 }

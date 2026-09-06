@@ -17,6 +17,36 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 const empty = (): InnerKeepRuntimeAssetBundle => ({ staticPrefabs: new Map(), populationPrefabs: new Map(), failures: [], dispose: vi.fn() });
 const mill = { kind: 'city-mill', placement: { kind: 'city-mill', x: -24_000_000n, z: -20_000_000n, rotation: 0 }, completedLevel: 0, targetLevel: 1, phase: 'constructing', startsAtMicros: 5n, completesAtMicros: 120_000_005n } as const;
 const visual: VisualState04 = { buildings: [mill], selectedKind: 'city-mill', draft: null, draftValid: true };
+it('inspects settled site bounds without changing geometry, placement or picking', () => {
+  const scene = createKeep04Scene({ quality: 'reduced', reducedMotion: true, assets: empty() }); scene.reconcile(visual);
+  const before = scene.telemetry(); const root = scene.scene.getObjectByName('building:city-mill')!;
+  const transform = root.matrixWorld.clone(); const bounds = scene.selectedSiteBounds();
+  expect(bounds).not.toBeNull(); expect(bounds!.min.x).toBeLessThanOrEqual(-29.65); expect(bounds!.max.x).toBeGreaterThanOrEqual(-18.35);
+  expect(scene.fitSite(bounds!, 2)).toBe(true); expect(root.matrixWorld.equals(transform)).toBe(true);
+  expect(scene.telemetry()).toEqual(before);
+  const point = new THREE.Vector3(-24, 1, -20).project(scene.camera); expect(scene.pickBuilding(point.x, point.y)).toBe('city-mill');
+  scene.reconcile({ buildings: [], selectedKind: 'city-mill', draft: { ...mill.placement, rotation: 90000 }, draftValid: false });
+  const size = scene.selectedSiteBounds()!.getSize(new THREE.Vector3());
+  expect(size.x).toBeCloseTo(9.5, 10); expect(size.y).toBe(0); expect(size.z).toBeCloseTo(11.3, 10);
+  scene.reconcile({ buildings: [], selectedKind: null, draft: null, draftValid: false }); expect(scene.selectedSiteBounds()).toBeNull(); scene.dispose();
+});
+it.each(['city-mill', 'lumber-camp', 'city-stoneworks', 'city-goldworks', 'city-barracks', 'grand-covenant-cathedral'] as const)('fits %s level-one/five and scaffold bounds without altering its transform', kind => {
+  const scene = createKeep04Scene({ quality: 'reduced', reducedMotion: false, assets: empty() });
+  for (const phase of ['constructing', 'complete'] as const) for (const level of [1, 5]) {
+    scene.reconcile({ buildings: [{ ...mill, kind, placement: { kind, x: 16_000_000n, z: -18_000_000n, rotation: 90000 }, phase, completedLevel: level, targetLevel: level }], selectedKind: kind, draft: null, draftValid: true });
+    const root = scene.scene.getObjectByName(`building:${kind}`)!; const transform = root.matrixWorld.clone();
+    const bounds = scene.selectedSiteBounds()!; expect(bounds.isEmpty()).toBe(false);
+    for (const aspect of [342 / 220, 796 / 144]) {
+      scene.resize(aspect * 200, 200); expect(scene.fitSite(bounds, aspect)).toBe(true);
+      for (const x of [bounds.min.x, bounds.max.x]) for (const y of [bounds.min.y, bounds.max.y]) for (const z of [bounds.min.z, bounds.max.z]) {
+        const p = new THREE.Vector3(x, y, z).project(scene.camera);
+        expect(Math.abs(p.x)).toBeLessThanOrEqual(1 / 1.2 + 1e-8); expect(Math.abs(p.y)).toBeLessThanOrEqual(1 / 1.2 + 1e-8);
+      }
+    }
+    expect(root.matrixWorld.equals(transform)).toBe(true);
+  }
+  scene.dispose();
+});
 it('projects exactly the active Mill site, separates scenery picks, and retains keyed buildings across selection', () => {
   const assets = empty(); const scene = createKeep04Scene({ quality: 'reduced', reducedMotion: true, assets });
   scene.reconcile(visual);
