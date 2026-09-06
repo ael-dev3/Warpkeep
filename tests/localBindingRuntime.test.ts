@@ -33,6 +33,9 @@ const boundedFixture = join(repositoryRoot, 'tests', 'fixtures', 'localBindingBo
 const processFixture = join(repositoryRoot, 'tests', 'fixtures', 'localBindingProcessFixture.mjs');
 const sourceGraphFixture = join(repositoryRoot, 'tests', 'fixtures', 'localBindingSourceGraphFixture.mjs');
 const workerRequestFixture = join(repositoryRoot, 'tests', 'fixtures', 'localBindingWorkerRequestFixture.mjs');
+const currentSnapshotSecurityFixture = join(
+  repositoryRoot, 'tests', 'fixtures', 'localBindingCurrentSnapshotSecurityFixture.mjs',
+);
 
 function canonicalWorkerRequest() {
   const operation = `/home/snapmeter/.warpkeep/release-preparation-v1/runs/binding-${'9'.repeat(32)}`;
@@ -289,9 +292,11 @@ describe('fixed local PTR binding runtime', () => {
       { cwd: repositoryRoot, args: [
         'clone', '--local', '--no-hardlinks', '--no-checkout', '--no-tags', '--', repositoryRoot, root,
       ] },
-      { cwd: root, args: ['config', '--local', '--unset-all', 'remote.origin.tagOpt'] },
       { cwd: root, args: [
-        'config', '--local', '--replace-all', 'remote.origin.url',
+        'config', '--no-includes', '--local', '--unset-all', 'remote.origin.tagOpt',
+      ] },
+      { cwd: root, args: [
+        'config', '--no-includes', '--local', '--replace-all', 'remote.origin.url',
         'https://github.com/ael-dev3/Warpkeep.git',
       ] },
       { cwd: root, args: ['checkout', '--detach', '--force', commit] },
@@ -338,6 +343,28 @@ describe('fixed local PTR binding runtime', () => {
       },
       chmod: vi.fn(), attest() { throw contextFailure; },
     })).toThrow(contextFailure);
+  });
+
+  it('closes ambient Git hook and template authority before the current snapshot clone', () => {
+    const fixture = currentSnapshotSecurityFixture
+      .replaceAll('\\', '/')
+      .replace(/^([A-Za-z]):/u, (_match, drive: string) => `/mnt/${drive.toLowerCase()}`);
+    const result = spawnSync('C:/Windows/System32/wsl.exe', [
+      '--distribution', 'Ubuntu-24.04', '--user', 'snapmeter', '--',
+      '/usr/bin/env', '-i', 'LANG=C.UTF-8', 'LC_ALL=C.UTF-8',
+      '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
+      fixture,
+    ], { encoding: 'utf8' });
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      systemHookRan: false,
+      globalHookRan: false,
+      templateHookRan: false,
+      systemTemplateHookPresent: false,
+      globalTemplateHookPresent: false,
+      contextCode: 'LOCAL_BINDING_RUNTIME_GIT_CONTEXT_INVALID',
+      forbiddenCheckoutPresent: false,
+    });
   });
 
   it('reads one canonical request from real fd3 and rejects malformed framing early', async () => {

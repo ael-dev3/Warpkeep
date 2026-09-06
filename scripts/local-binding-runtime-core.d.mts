@@ -3,11 +3,23 @@ export class LocalBindingRuntimeCoreError extends Error {
 }
 
 export const localBindingRuntimeTestSeams: Readonly<{
+  createGenesis001CurrentFixedGitBoundary(
+    operationRoot: string,
+    baseEnvironment: Readonly<Record<string, string | undefined>>,
+    expectedGitIdentity?: import('./local-binding-bounded-file.mjs').LocalBindingFileIdentity,
+  ): Readonly<{
+    git(cwd: string, args: readonly string[], maxBuffer?: number): string;
+    read(cwd: string, args: readonly string[], maxBuffer?: number): Buffer;
+    chmod(path: string, mode: number): void;
+    prepare(root: string): void;
+    attest(root: string): void;
+  }>;
   initializeGenesis001CurrentIndependentSnapshot(
     input: Readonly<{ repositoryRoot: string; root: string; commit: string; tree: string }>,
     boundary: Readonly<{
       git(cwd: string, args: readonly string[], maxBuffer?: number): string;
       chmod(path: string, mode: number): void;
+      prepare?(root: string): void;
       attest(root: string): void;
     }>,
   ): Readonly<{
