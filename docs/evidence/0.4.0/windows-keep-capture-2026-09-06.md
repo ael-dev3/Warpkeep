@@ -53,3 +53,21 @@ The QA-only header also consumes screen space; production UI must be checked
 separately rather than assuming this exact initial viewport is production.
 No performance, native negative-canary, full lifecycle, owner journey, G001
 comparison or live deployment gate is satisfied by this run.
+
+## Preliminary numeric observations
+
+All 32 non-fallback entries recorded one canvas, a frame observation and zero
+active loaders. The four intentional fallback entries recorded zero canvases.
+All-six samples reported high 43 draws/142,260 triangles, balanced 28/37,060,
+and reduced 28/36,040. These are individual synthetic frames, not representative
+frame-time percentiles or a whole-game renderer pass.
+
+The measured synchronous `createKeep04Dressing` call took 13.1–15.4 ms on the
+desktop profile, 19.5–22.7 ms on portrait balanced, 18.9–20.5 ms on portrait
+reduced, and 18.2–21.8 ms on landscape balanced. The capture code applies the
+profile CPU-throttling rate before navigation. These DEV samples exceed the
+16 ms voxel-preparation budget on the mobile profiles; investigate and remeasure
+the production implementation without loosening that budget. This is not a
+physical-phone result or final performance measurement. Source inspection places
+the timer around voxel planning, mesh-array preparation and geometry creation,
+not later asynchronous asset loads or actual GPU upload.
