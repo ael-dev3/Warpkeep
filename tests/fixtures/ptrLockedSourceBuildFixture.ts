@@ -12,11 +12,10 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { gzipSync } from 'node:zlib';
-
 import { parse, stringify } from 'yaml';
 
 import { greaterRealmImmutableArtifactTestSeams } from '../../scripts/greater-realm-production-immutable-artifact';
+import { createLockedSourceBuildPackageArchive } from './lockedSourceBuildArchiveFixture';
 
 export const DARWIN_PACKAGE_KEYS = Object.freeze([
   '@esbuild/darwin-arm64@0.25.12',
@@ -112,67 +111,6 @@ function privateDirectory(label: string): string {
   return root;
 }
 
-function tarHeader(path: string, kind: 'directory' | 'file' | 'symlink', size: number): Buffer {
-  const header = Buffer.alloc(512);
-  header.write(path, 0, 100, 'utf8');
-  header.write(`${(kind === 'directory' ? 0o755 : 0o644).toString(8).padStart(7, '0')}\0`, 100, 8, 'ascii');
-  header.write('0000000\0', 108, 8, 'ascii');
-  header.write('0000000\0', 116, 8, 'ascii');
-  header.write(`${size.toString(8).padStart(11, '0')}\0`, 124, 12, 'ascii');
-  header.write('00000000000\0', 136, 12, 'ascii');
-  header.fill(0x20, 148, 156);
-  header[156] = kind === 'directory' ? 0x35 : kind === 'file' ? 0x30 : 0x32;
-  header.write('ustar\0', 257, 6, 'ascii');
-  header.write('00', 263, 2, 'ascii');
-  const checksum = header.reduce((total, value) => total + value, 0);
-  header.write(checksum.toString(8).padStart(6, '0'), 148, 6, 'ascii');
-  header[154] = 0;
-  header[155] = 0x20;
-  return header;
-}
-
-function packageArchive(
-  name: string,
-  version: string,
-  corrupt?: 'path' | 'link',
-): Buffer {
-  if (corrupt === 'path') {
-    return gzipSync(Buffer.concat([
-      tarHeader('package/../escape', 'file', 1), Buffer.from('x'), Buffer.alloc(511),
-      Buffer.alloc(1_024),
-    ]));
-  }
-  if (corrupt === 'link') {
-    return gzipSync(Buffer.concat([
-      tarHeader('package/link', 'symlink', 0), Buffer.alloc(1_024),
-    ]));
-  }
-  const files = new Map<string, Buffer>([
-    ['package.json', Buffer.from(`${JSON.stringify({ name, version })}\n`)],
-  ]);
-  if (name === 'esbuild') files.set('bin/esbuild', Buffer.from('#!/bin/sh\n'));
-  if (name === 'tsx') files.set('dist/cli.mjs', Buffer.from('export {};\n'));
-  if (name === 'typescript') {
-    files.set('bin/tsc', Buffer.from('#!/bin/sh\n'));
-    files.set('bin/tsserver', Buffer.from('#!/bin/sh\n'));
-  }
-  const directories = new Set<string>(['package']);
-  for (const path of files.keys()) {
-    const components = path.split('/');
-    for (let index = 1; index < components.length; index += 1) {
-      directories.add(`package/${components.slice(0, index).join('/')}`);
-    }
-  }
-  const blocks: Buffer[] = [];
-  for (const path of [...directories].sort()) blocks.push(tarHeader(`${path}/`, 'directory', 0));
-  for (const [path, body] of [...files].sort(([left], [right]) => left.localeCompare(right))) {
-    blocks.push(tarHeader(`package/${path}`, 'file', body.byteLength), body);
-    if (body.byteLength % 512 !== 0) blocks.push(Buffer.alloc(512 - (body.byteLength % 512)));
-  }
-  blocks.push(Buffer.alloc(1_024));
-  return gzipSync(Buffer.concat(blocks));
-}
-
 export function packageNameAndVersion(key: string): readonly [string, string] {
   const separator = key.lastIndexOf('@');
   return [key.slice(0, separator), key.slice(separator + 1)];
@@ -213,11 +151,11 @@ export function createPtrFixture(input: Readonly<{
   for (const key of input.keys) {
     const [expectedName, expectedVersion] = packageNameAndVersion(key);
     const override = input.archiveOverride?.key === key ? input.archiveOverride : undefined;
-    const archive = packageArchive(
-      override?.name ?? expectedName,
-      override?.version ?? expectedVersion,
-      override?.corrupt,
-    );
+    const archive = createLockedSourceBuildPackageArchive({
+      name: override?.name ?? expectedName,
+      version: override?.version ?? expectedVersion,
+      corrupt: override?.corrupt,
+    });
     const digest = createHash('sha512').update(archive).digest('hex');
     lock.packages[key].resolution.integrity = `sha512-${Buffer.from(digest, 'hex').toString('base64')}`;
     const path = join(dependencyCacheRoot, '_cacache', 'content-v2', 'sha512',

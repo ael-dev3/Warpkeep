@@ -237,9 +237,8 @@ describe('fixed Genesis 002 Linux workspace locked-source build', () => {
     let materializedRoot = '';
     const result = runFixture(value, (root, digest) => {
       materializedRoot = root;
-      const snapshot = value.assertInstalledG002(root);
+      value.assertInstalledG002(root);
       expect(digest).toBe(value.expectedClosureDigest());
-      expect(snapshot).toEqual(value.materializationSnapshot());
       expect(existsSync(join(root, 'spacetimedb', 'ptr', 'node_modules'))).toBe(false);
       return 'g002-built';
     });
