@@ -155,6 +155,47 @@ Darwin installed deployment toolchain remains a separate protected input.
 
 ## Verification and delivery limits
 
+### Four-operation bundle execution refinement
+
+The Linux successor reuses the existing fixed lane definitions, source
+transformations, source-graph manifests and payload validation rather than
+forking a second set of bundle rules. Extract these into an internal build
+engine that has no top-level third-party import. The legacy wrapper keeps its
+existing public signatures and provenance. A separately named Linux wrapper
+binds the fixed local runtime internally; it accepts no caller executor,
+attestation callback, source directory, package directory or load hook.
+
+The Linux worker verifies the root-lock esbuild 0.28.1 package and its
+@esbuild/linux-x64 companion in the dedicated preparation namespace before
+importing either package code or executing its binary. Package acquisition is
+an explicit bounded bootstrap operation; ordinary derivation remains offline.
+Do not install into or modify the Windows node_modules junction. No arbitrary
+dependency resolver or root-lock mutation is part of this work.
+
+Capture one committed source identity using the already hardened independent
+snapshot mechanism. Each of the two builds of each fixed lane uses a separate
+owned source materialization. All transformation reads and manifest hashes are
+relative to that materialization and are checked against the captured source;
+the engine must not fall back to its own module-derived repository root.
+Compare complete bytes and manifests across both builds before retaining a
+lane. A lane failure yields no complete family. Keep diagnostic roots on
+failure and preserve primary and cleanup errors.
+
+Validate each completed bundle by actually loading it in a bounded child of
+the pinned Linux Node binary with a clean environment and no production
+credentials. Verify the exact exports and existing no-input factory rejection
+contract. A caller-authored loaded=true record is not execution evidence.
+The result supplies the four verified bundle members and source-bound metadata
+to the eventual final transaction; it does not install generated repository
+files, claim live activation, or change a remote service. Declarations and final
+manifest/consumer pins remain part of the complete final transaction contract.
+
+This design rejects a profile-only shim, because it would retain ambient
+compiler resolution and caller-reported execution; it also rejects duplicating
+all legacy bundle rules, because their future divergence would undermine the
+same release contract. The cost of the shared-engine approach is explicit
+legacy regression coverage alongside native Linux acceptance.
+
 Test wrong platform/tool identity, caller injection, source/lock/archive drift,
 cross-profile substitution, missing/widened optional metadata, bounds,
 symlink/namespace mutation, real native writer behavior, cleanup failures,
