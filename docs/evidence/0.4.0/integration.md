@@ -126,4 +126,114 @@ Before any exception, verify each exact value and use rule + exact path + exact
 value conjunctions with negative controls proving other secrets remain detected.
 No scanner configuration was changed and no finding is marked resolved.
 
+### Disposable Linux native-contract probe
+
+On 2026-09-06, root ran all three native-contract files in the pre-existing,
+disposable WSL Ubuntu24.04 checkout at
+`8dcabc4dc40c9214c586f957514c284aa2e86eab`, with pinned private Node22.22.3,
+existing root dependencies and the bridge pnpm installation. Invocation used
+`env -i`, an explicit toolchain/system PATH and `NODE_ENV=test`, with no inherited
+provider credentials. No dependency installation or source edit was performed.
+
+```text
+node node_modules/vitest/vitest.mjs run \
+  tests/sealedRealmsPublicActivationArtifactVerifier.test.ts \
+  tests/authBridgeNotificationPreparedReceipt.test.ts \
+  tests/authBridgeNotificationPreparedDeployRuntime.test.ts --maxWorkers=1
+Test Files 3 passed (3)
+Tests 105 passed (105)
+exit 0
+```
+
+The target test files and Cloudflare runtime have no Git diff between that
+checkout's commit and current `a3569d6`; their disposable worktree paths also
+remained clean. This is a diagnostic of the Linux/pnpm replacement hypothesis,
+not proof of the full current source or transitive closure. The replacement CI
+job still needs an explicit reviewed workflow/test amendment, equivalent pinned
+dependency preparation and a successful run on the final source. Production
+execution and GitHub workflow identity remain separate requirements.
+
+### Exact scanner-exception diagnostic (not installed)
+
+Root completed historical-source triage for the remaining fixture values:
+the bridge RPC fixture encodes sequential test bytes; the observation fixture
+throws an example-domain URL with a literal redaction-test token; the two
+activation fields are schema names. A targeted scan of the malformed-key test
+identified the exact match as the literal invalid `AAAA` key plus the next
+line's opening marker, rather than a usable key or the runtime-generated test key.
+
+An ignored diagnostic configuration copied all existing rules/allowlists and
+added only exact rule + path + value conjunctions for the14 known findings.
+With pinned Gitleaks8.30.1, the full local history scan inspected763 commits /
+approximately42.17MB, returned no findings and exited0. This is a proposal test,
+not a passing run of the unchanged repository `.gitleaks.toml` or GitHub CI.
+
+In an isolated two-file synthetic Git fixture, the unchanged configuration
+reported3 findings. The proposal reported exactly2: the same allowlisted value
+at a wrong path, and a changed value at the intended path. Only the exact
+intended path/value was suppressed. This demonstrates those generic-key
+negative controls; broader per-entry/private-key/JWT controls remain required
+before reviewed implementation. No actual credential or private player data
+was used in these synthetic controls.
+
+The first diagnostic attempt used configuration extension, which did not retain
+the existing global allowlist and therefore resurfaced16 old findings. It was
+not accepted. The successful probe retained the existing configuration verbatim
+and appended exact exceptions. Do not replace existing entries or use broad
+path/commit exemptions. Repository scanner configuration is still unchanged.
+
+The diagnostic matrix was subsequently expanded to all14 intended path/value
+cases, including the exact JWT and cross-line malformed-key match. The unchanged
+configuration reported37 findings; the proposal retained exactly23 negative
+findings and suppressed only the14 intended positives. Root compared complete
+rule/file/start-line sets, not counts alone. Mutated values in permitted paths
+and original values in wrong paths remained detected. This resolves the earlier
+diagnostic coverage gap; permanent regression tests, reviewed configuration
+implementation and actual-config full-history/CI acceptance are still pending.
+
+### Current committed source: Linux native contracts
+
+Root then repeated all three native-contract suites against a separate clean
+Linux checkout of `a3569d6ebdf2343fa638f36a0b2593c5aacc1970`, tree
+`a909803c10f6179208ecc93622dab495aca2f7d0`. All105 tests passed with no skips,
+exit0, and the checkout remained clean. This removes the older-source limitation
+for these three suites, not for unrelated tests or production operations.
+
+The older disposable checkout was found to contain unrelated local source edits
+and was preserved. The new snapshot borrowed Git objects read-only, linked the
+existing Linux root dependencies and copied the existing bridge dependency
+layout into its own service directory without reinstalling. Root and bridge
+lockfile SHA-256 values matched the source installations exactly. The copy
+command emitted a portability warning about `cp -n`; it exited0. No shared
+dependencies or active Windows source were changed.
+
+The test command retained the explicit `env -i` credential-free invocation,
+pinned private Node22.22.3 and `--maxWorkers=1`. Production workflow identity,
+fresh dependency installation in CI and the reviewed no-Mac workflow amendment
+are not proven by this local suite result and remain required.
+
+### Readability checkpoint cb8cac6: production build and initial native inspection
+
+Root inspected the presentation/camera source diff at
+`cb8cac640f7f05a7cde30824801b3c455bb0d573`. The selected-card reordering
+leaves quote construction, confirmation guards and command authority unchanged.
+This is an initial source review, not final acceptance of all camera/layout cases.
+
+The pinned Node22.22.3 full `npm run build` completed with exit0: genuine voxel
+provenance check, TypeScript, asset checks, Vite, production exclusions, atlas
+public boundary and Farcaster integrity checks passed. The large-chunk warning
+remains. Package metadata still identifies0.3.43; this is not a final0.4 artifact.
+The subsequent `KEEP04_QA_VERIFY_DIST=1` run of
+`tests/keep04QaContract.test.ts` passed19/19 with exit0 against that emitted dist,
+including the opt-in actual-output exclusion check; no tests were skipped.
+
+Root operated the actual Inspect selected site control in Chrome on the local
+`mill-complete` balanced-quality fixture at390×844 and844×390. Both inspected
+screenshots show the complete mill silhouette and footprint below the persistent
+resources/actions and camera toolbar, with Inspect retaining focus. The temporary
+viewport override was reset. This is browser-emulated synthetic-fixture evidence,
+not a physical-phone result or authoritative gameplay. Numeric silhouette
+measurement, remaining families/states, reciprocal placement, readiness,
+accessibility and production performance gates remain open.
+
 Repair and review the concrete CI failures, complete the no-Mac execution path, publish reviewed gameplay/visual/operating sources, pass every required check on the final source, and integrate through repository protections. Capture final source/CI/PR identities in the release ledger. These intermediate observations cannot satisfy final release verification.
