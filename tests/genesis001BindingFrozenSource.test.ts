@@ -116,6 +116,30 @@ describe('Genesis 001 authenticated frozen-source materialization', () => {
   );
 
   it.skipIf(process.platform !== 'linux')(
+    'rejects a removed freeze guard and missing generated policy outputs while retaining roots',
+    () => {
+      const guard = materialize();
+      const adminPath = join(guard.destination, 'spacetimedb', 'src', 'reducers', 'admin.ts');
+      const admin = readFileSync(adminPath, 'utf8');
+      const guardCall = 'rejectGenesis001AdmissionMutation();';
+      expect(admin.split(guardCall)).toHaveLength(5);
+      writeFileSync(adminPath, admin.replace(guardCall, ''));
+      expect(() => guard.value.verify()).toThrow('GENESIS001_FROZEN_SOURCE_CHANGED');
+      expect(existsSync(guard.destination)).toBe(true);
+
+      for (const output of [
+        ['src', 'genesis001FrozenPolicy.ts'],
+        ['src', 'reducers', 'genesis001FrozenPolicy.ts'],
+      ]) {
+        const missing = materialize();
+        unlinkSync(join(missing.destination, 'spacetimedb', ...output));
+        expect(() => missing.value.verify()).toThrow('GENESIS001_FROZEN_SOURCE_CHANGED');
+        expect(existsSync(missing.destination)).toBe(true);
+      }
+    },
+  );
+
+  it.skipIf(process.platform !== 'linux')(
     'rejects a repository missing the pinned commit before creating a destination',
     () => {
       const repositoryRoot = privateParent('warpkeep-g001-empty-repo-');
