@@ -1222,7 +1222,7 @@ async function runLocalBindingRuntimeLifecycle(input) {
   let cleanupError;
   try { input.cleanupCli(); } catch (error) { cleanupError = error; }
   if (complete && (!input.retainDiagnosticsOnCleanupFailure || cleanupError === undefined)) {
-    try { input.cleanupSuccess(); } catch (error) { cleanupError = error; }
+    try { input.cleanupSuccess(); } catch (error) { cleanupError ??= error; }
   }
   preserveLocalBindingRuntimePrimaryAndCleanup(primaryError, cleanupError);
   return result;

@@ -616,6 +616,33 @@ describe('controlled local binding runtime lifecycle', () => {
     expect(existsSync(diagnostics)).toBe(true);
   });
 
+  it('preserves the first legacy cleanup failure when operation-root cleanup also fails', async () => {
+    const cliCleanupError = new Error('CONTROLLED_LEGACY_CLI_CLEANUP');
+    const operationRootCleanupError = new Error('CONTROLLED_LEGACY_OPERATION_ROOT_CLEANUP');
+    const actualCore = await vi.importActual<typeof import('../scripts/local-binding-runtime-core.mjs')>(
+      '../scripts/local-binding-runtime-core.mjs',
+    );
+    let cleanupSuccessCalls = 0;
+    let resolved: unknown;
+    let error: unknown;
+    try {
+      resolved = await actualCore.localBindingRuntimeTestSeams.runLocalBindingRuntimeLifecycle({
+        async execute() { return 'prepared'; },
+        cleanupCli() { throw cliCleanupError; },
+        retainDiagnosticsOnCleanupFailure: false,
+        cleanupSuccess() {
+          cleanupSuccessCalls += 1;
+          throw operationRootCleanupError;
+        },
+      });
+    } catch (caught) { error = caught; }
+
+    expect(cleanupSuccessCalls).toBe(1);
+    expect(resolved).toBeUndefined();
+    expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).errors).toEqual([cliCleanupError]);
+  });
+
   it('runs the public entrypoint through the actual worker and real locked-source helper', async () => {
     const value = prepareRequest();
     const liveBindings = join(process.cwd(), 'spacetimedb', 'ptr', 'generated-bindings');
