@@ -191,3 +191,77 @@ The shared worktree contains broad pre-existing unrelated modifications, includi
 - The two failed operation roots above remain private retained diagnostic evidence. Other pre-existing retained runs/worktrees were not modified.
 - Only the focused and affected source-builder/runtime/parent/lifecycle/native-hook suites were run. Unrelated publisher/production suites were intentionally not repeated on Windows.
 - Downstream all-realm bundle integration and independent controller review remain separate work.
+
+## Review fix round 1 — fixed Git authority before first command
+
+Review base and fix base were both `979f67ea501547df97dfccb1a31abc6bf328eb78`. The review identified I1: the independent current snapshot used the scrubbed runtime environment, but it did not close system/global Git configuration, template, hook, helper, and protocol authority before its initial Git commands. The correction is committed as `a9143ba074b990c302abaf07f56a53e2e28c9ec8` (`fix: harden current binding git snapshot`), tree `688bdc08194b88e6652c8dcd41333fd14fd2a5a2`.
+
+### RED and diagnostic progression
+
+The initial real command-boundary test was added before the new boundary existed:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/localBindingRuntime.test.ts
+```
+
+Result: exit 1; one failed, 36 passed, four skipped. The failure was the deliberately missing `createGenesis001CurrentFixedGitBoundary` seam.
+
+The first implementation then reached real Git and failed closed with `LOCAL_BINDING_RUNTIME_GIT_FAILED`. A bounded isolated diagnostic reported `fatal: transport 'file' not allowed`: setting every protocol, including `file`, to `never` prevents Git's explicitly local `clone --local`. The correction keeps `protocol.allow=never` and `protocol.ext.allow=never`, permits only `protocol.file.allow=always`, supplies an exact absolute source path, and retains `--local --no-hardlinks --no-checkout --no-tags`. No fetch, push, network, credential, or remote-helper path is introduced.
+
+The next real regression failed closed with `LOCAL_BINDING_RUNTIME_GIT_CONTEXT_INVALID` because the deliberately empty fixed template does not create the usual `.git/info` structures. The current-only initializer now verifies the clone root, `.git`, and `.git/objects` as canonical, uid-1000, non-symlink and non-group/world-writable directories, creates only missing `.git/info` and `.git/objects/info` with non-recursive mode-0700 operations, and re-attests their exact type, owner, canonical path and mode. `.git/info/exclude` remains validated when present but is no longer required when an empty template correctly omits it.
+
+The real regression was then strengthened by first changing its expectation. This produced the expected RED:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/localBindingRuntime.test.ts -t "closes ambient Git hook"
+```
+
+Result: exit 1; one failed and 40 skipped because the fixture had not yet returned the new global-config and pre-checkout rejection evidence.
+
+### Hardened boundary and actual-validator coverage
+
+Before the first current-G001 Git command, the runtime now attests the fixed `/usr/bin/git`, creates and attests private empty mode-0700 Git-exec and template directories, and constructs a fixed command boundary. It sets system/global config to `/dev/null`, sets `GIT_CONFIG_NOSYSTEM=1`, fixes `GIT_TEMPLATE_DIR` and `GIT_EXEC_PATH` to those empty directories, disables system attributes, prompts, optional locks, pagers and locale variance, and passes fixed command-line overrides for `/dev/null` hooks, disabled fsmonitor/untracked cache, the empty template, deny-by-default protocols, file-only local transport, denied ext transport, and an empty credential-helper list. The Git executable and both private empty directories are re-attested before and after every command. Arguments, cwd, output, and execution time remain bounded and shell execution remains disabled.
+
+The disposable WSL regression uses real `/usr/bin/git` and the real production boundary. Separate cases poison a system config and a global config with checkout hooks, template authority, and URL rewrites to a forbidden HTTPS origin; it also supplies a poisoned `GIT_TEMPLATE_DIR`. Both exact local clones succeed without creating either hook marker or copying the template hook. A third case injects forbidden local `core.hooksPath` after clone preparation; the actual production validator returns `LOCAL_BINDING_RUNTIME_GIT_CONTEXT_INVALID` before checkout, the tracked file remains absent, and the forbidden hook does not execute. This addresses the M1 concern for I1's required actual-validator path. The pre-existing mocked mismatch/clone failure and callback-propagation cases remain useful for ordering and propagation; additional one-test-per-validator-rule expansion remains explicitly deferred because it is outside this bounded I1 correction.
+
+The focused GREEN was:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/localBindingRuntime.test.ts -t "closes ambient Git hook"
+```
+
+Result: exit 0; one passed and 40 skipped.
+
+The runtime plus affected parent/lifecycle coverage was also run during repair:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/localBindingRuntime.test.ts tests/localBindingRuntimeParent.test.ts tests/localBindingRuntimeLifecycle.test.ts
+```
+
+Result: exit 0; three files passed, 106 tests passed and four skipped.
+
+Final affected coverage after the strengthened fixture:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/genesis001CurrentBindingCheck.test.ts tests/genesis001LinuxLockedSourceBuild.test.ts tests/genesis002BindingLinuxLockedSourceBuild.test.ts tests/ptrBindingLinuxLockedSourceBuild.test.ts tests/localBindingRuntime.test.ts tests/localBindingRuntimeParent.test.ts tests/localBindingRuntimeLifecycle.test.ts tests/localBindingNativeTsHooks.test.ts
+```
+
+Result: exit 0; eight files passed, 201 tests passed and four skipped.
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/typescript/bin/tsc -p tsconfig.app.json --noEmit --tsBuildInfoFile .git/tsbuildinfo/genesis001-current-binding-check-review-1.app.tsbuildinfo
+```
+
+Result: exit 0 with no output.
+
+### Fresh fixed native evidence
+
+After source commit `a9143ba074b990c302abaf07f56a53e2e28c9ec8` existed, the unchanged fixed native command documented above ran once in process session `61714` and completed with exit 0 after approximately 167 seconds:
+
+```json
+{"profile":"warpkeep-spacetime-binding-final-preparation-linux-x64-v1","sourceCommit":"a9143ba074b990c302abaf07f56a53e2e28c9ec8","sourceTree":"688bdc08194b88e6652c8dcd41333fd14fd2a5a2","bundleSha256":"7811ce8485cb101e9bd864ca801ade3823353389832921554c757a847d8cf48a","dependencyClosureDigest":"fcc9b32282ff947da96738a15735aa809919f9229e2861d9a53cb0c98acb6e62","bindingFileCount":180}
+```
+
+The bundle and dependency-closure digests remain identical to the prior successful current-G001 proof. The source commit/tree changed only for this hardening and its tests. The exact diff from fix base through implementation commit contains four paths: `scripts/local-binding-runtime-core.d.mts`, `scripts/local-binding-runtime-core.mjs`, `tests/fixtures/localBindingCurrentSnapshotSecurityFixture.mjs`, and `tests/localBindingRuntime.test.ts`. The same diff contains zero paths under `src/spacetime/module_bindings/` or `spacetimedb/`. The source clone's existing upstream/disabled-push settings and `core.symlinks` were not changed or consumed as authority, and no host system/global Git configuration was modified for testing.
+
+This appendix records only review fix round 1 for the current-G001 binding check. It does not claim downstream bundle integration, whole-release completion, protected-main authority, production/provider execution, or broader validator coverage.
