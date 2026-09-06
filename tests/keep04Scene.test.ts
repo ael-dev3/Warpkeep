@@ -1,11 +1,18 @@
-import { expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { createElement } from 'react';
-import { cleanup, render, screen, fireEvent } from '@testing-library/react';
+import { act, cleanup, render, screen, fireEvent } from '@testing-library/react';
 import { Keep04SceneHost } from '../src/components/keep04/Keep04SceneHost';
 import { Keep04QaHarness, createKeep04QaSnapshot } from '../src/dev/Keep04QaHarness';
 import { createKeep04Scene, type VisualState04 } from '../src/components/keep04/createKeep04Scene';
 import type { InnerKeepRuntimeAssetBundle } from '../src/components/inner-keep/loadInnerKeepRuntimeAssets';
+import * as assetsLoader from '../src/components/keep04/loadKeep04Assets';
+
+vi.mock('three', async importOriginal => {
+  const original = await importOriginal<typeof import('three')>();
+  return { ...original, WebGLRenderer: vi.fn() };
+});
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 const empty = (): InnerKeepRuntimeAssetBundle => ({ staticPrefabs: new Map(), populationPrefabs: new Map(), failures: [], dispose: vi.fn() });
 const mill = { kind: 'city-mill', placement: { kind: 'city-mill', x: -24_000_000n, z: -20_000_000n, rotation: 0 }, completedLevel: 0, targetLevel: 1, phase: 'constructing', startsAtMicros: 5n, completesAtMicros: 120_000_005n } as const;
@@ -87,4 +94,80 @@ it.each(['empty', 'construction', 'complete'] as const)('validates the %s fixtur
   const snapshot = createKeep04QaSnapshot(fixture);
   expect(Object.isFrozen(snapshot.view!.state)).toBe(true);
   expect(snapshot.view!.state.completedEffects.foodYieldPerQuantum).toBe(fixture === 'complete' ? 12n : 10n);
+});
+
+// Only the external asset request and GPU boundary are doubled. The actual React
+// host, scene update/reconciliation, event listeners and scheduling run unchanged.
+async function mountScheduledHost(quality: 'high' | 'balanced' | 'reduced', reducedMotion = false) {
+  const queued = new Map<number, FrameRequestCallback>(); const renderedAt: number[] = [];
+  let timestamp = 0; let sequence = 0;
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { queued.set(++sequence, callback); return sequence; });
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => { queued.delete(id); });
+  vi.stubGlobal('WebGL2RenderingContext', class {});
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+  vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+  vi.spyOn(assetsLoader, 'loadKeep04Assets').mockResolvedValue(empty());
+  class RendererBoundary {
+    domElement = document.createElement('canvas'); shadowMap = {}; info = { render: { calls: 0, triangles: 0 } };
+    setPixelRatio() {} setSize() {} dispose() {} forceContextLoss() {}
+    render() { renderedAt.push(timestamp); }
+  }
+  vi.mocked(THREE.WebGLRenderer).mockImplementation(function () { return new RendererBoundary() as unknown as THREE.WebGLRenderer; });
+  const props = { visual, quality, reducedMotion, onMode: vi.fn(), onSelect: vi.fn(), onPlacement: vi.fn() };
+  const mounted = render(createElement(Keep04SceneHost, props));
+  await act(async () => {});
+  const canvas = mounted.container.querySelector('canvas')!;
+  expect(canvas).not.toBeNull();
+  function frame(now: number, input = false) {
+    timestamp = now;
+    if (input) fireEvent.wheel(canvas, { deltaY: 1 });
+    const callbacks = [...queued.values()]; queued.clear();
+    expect(callbacks.length).toBeLessThanOrEqual(1);
+    const before = renderedAt.length;
+    act(() => { callbacks.forEach(callback => callback(now)); });
+    expect(renderedAt.length - before).toBeLessThanOrEqual(1); // Never catch up in a burst.
+  }
+  return { frame, renderedAt, queued, mounted, props };
+}
+
+for (const jitter of [false, true]) it.each([
+  ['high', 33.4, 299], ['balanced', 50.05, 239], ['reduced', 75, 149],
+] as const)('paces actual %s host requests over 600 RAF callbacks (jitter=' + jitter + ')', async (quality, p95Limit, minimumRenders) => {
+  const host = await mountScheduledHost(quality);
+  for (let i = 0; i <= 600; i++) host.frame(i * 1000 / 60 + (jitter ? [0, .015, -.015, .005][i % 4] : 0), true);
+  const intervals = host.renderedAt.slice(1).map((time, i) => time - host.renderedAt[i]).sort((a, b) => a - b);
+  expect(intervals[Math.ceil(intervals.length * .95) - 1]).toBeLessThanOrEqual(p95Limit);
+  expect(host.renderedAt.length).toBeGreaterThanOrEqual(minimumRenders);
+  expect(host.renderedAt.length).toBeLessThanOrEqual(minimumRenders + 3);
+  expect(host.queued.size).toBe(0);
+});
+
+it.each(['high', 'balanced', 'reduced'] as const)('resumes %s after idle without stale catch-up or idle spinning', async quality => {
+  const host = await mountScheduledHost(quality);
+  host.frame(0); expect(host.queued.size).toBe(0);
+  const resumedAt = 10013.7; // Deliberately not a multiple of any quality interval.
+  host.frame(resumedAt, true); expect(host.renderedAt).toEqual([0, resumedAt]); expect(host.queued.size).toBe(0);
+  host.frame(resumedAt + 1, true); // A new request remains bounded by this fresh phase.
+  for (let i = 1; i <= 10; i++) host.frame(resumedAt + i * 1000 / 60);
+  expect(host.renderedAt).toHaveLength(3); expect(host.queued.size).toBe(0);
+  expect(host.renderedAt[2] - resumedAt).toBeGreaterThanOrEqual({ high: 33.3, balanced: 41.6, reduced: 66.6 }[quality]);
+});
+
+it('renders reduced-motion feedback on the next callback without spinning and skips the real completion reveal', async () => {
+  const host = await mountScheduledHost('reduced', true);
+  host.frame(0); host.frame(1, true);
+  expect(host.renderedAt).toEqual([0, 1]); expect(host.queued.size).toBe(0);
+  const complete: VisualState04 = { ...visual, buildings: [{ ...mill, completedLevel: 1, targetLevel: 1, phase: 'complete' }] };
+  host.mounted.rerender(createElement(Keep04SceneHost, { ...host.props, visual: complete }));
+  host.frame(2); expect(host.renderedAt).toEqual([0, 1, 2]); expect(host.queued.size).toBe(0);
+});
+
+it('paces real completion reveal then retires its last RAF without inventing an idle loop', async () => {
+  const host = await mountScheduledHost('high'); host.frame(0);
+  const complete: VisualState04 = { ...visual, buildings: [{ ...mill, completedLevel: 1, targetLevel: 1, phase: 'complete' }] };
+  host.mounted.rerender(createElement(Keep04SceneHost, { ...host.props, visual: complete }));
+  for (let i = 1; i <= 60; i++) host.frame(i * 1000 / 60);
+  const intervals = host.renderedAt.slice(1).map((time, i) => time - host.renderedAt[i]);
+  expect(Math.max(...intervals)).toBeLessThanOrEqual(33.4);
+  expect(host.queued.size).toBe(0); expect(host.renderedAt.at(-1)).toBeLessThan(600);
 });

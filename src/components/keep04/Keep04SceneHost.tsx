@@ -27,8 +27,16 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
     function draw(now: number) {
       frame = 0; if (retired || document.hidden || !scene || !renderer) return;
       const interval = 1000 / ({ high: 30, balanced: 24, reduced: 15 }[props.quality]);
-      if (now - last < interval) { request(); return; }
-      last = now; const active = scene.update(now / 1000);
+      const elapsed = now - last;
+      // Keep the cadence phase instead of throwing away a late RAF's remainder.
+      // 0.05ms covers timestamp rounding without conceding a whole display frame.
+      const tolerance = .05;
+      if (!props.reducedMotion && elapsed + tolerance < interval) { request(); return; }
+      // Rebase after idle/a long stall; render at most once, never replay missed frames.
+      // Reduced motion is event-driven feedback, so it needs no throttle-only RAFs.
+      last = props.reducedMotion || !Number.isFinite(last) || elapsed >= interval * 2
+        ? now : last + Math.floor((elapsed + tolerance) / interval) * interval;
+      const active = scene.update(now / 1000);
       renderer.render(scene.scene, scene.camera);
       // Actual renderer submissions include shadow work; scene telemetry separately accounts unique buffers.
       const telemetry = scene.telemetry();
