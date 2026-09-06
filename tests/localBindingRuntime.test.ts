@@ -24,6 +24,12 @@ import {
   readLocalBindingBoundedFile,
 } from '../scripts/local-binding-bounded-file.mjs';
 import { preserveLocalBindingWorkerBundle } from '../scripts/local-binding-runtime-worker-result.mjs';
+import {
+  CurrentSnapshotHarnessError,
+  runBoundedNativeProcess,
+  runCurrentSnapshotSecurityFixture,
+  selectCurrentSnapshotSecurityEligibility,
+} from './fixtures/localBindingCurrentSnapshotHarness.mjs';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
 const manifest = JSON.parse(readFileSync(
@@ -36,6 +42,7 @@ const workerRequestFixture = join(repositoryRoot, 'tests', 'fixtures', 'localBin
 const currentSnapshotSecurityFixture = join(
   repositoryRoot, 'tests', 'fixtures', 'localBindingCurrentSnapshotSecurityFixture.mjs',
 );
+const currentSnapshotSecurityEligibility = selectCurrentSnapshotSecurityEligibility();
 
 function canonicalWorkerRequest() {
   const operation = `/home/snapmeter/.warpkeep/release-preparation-v1/runs/binding-${'9'.repeat(32)}`;
@@ -108,6 +115,50 @@ afterEach(() => {
 });
 
 describe('fixed local PTR binding runtime', () => {
+  it('marks unsupported hosts and missing fixed WSL launcher as unavailable without probing', () => {
+    const unexpectedProbe = () => { throw new Error('UNEXPECTED_PROBE'); };
+    expect(selectCurrentSnapshotSecurityEligibility({
+      platform: 'linux', launcherExists: true, probe: unexpectedProbe,
+    })).toEqual({ eligible: false, reason: 'WINDOWS_WSL_REQUIRED' });
+    expect(selectCurrentSnapshotSecurityEligibility({
+      platform: 'win32', launcherExists: false, probe: unexpectedProbe,
+    })).toEqual({ eligible: false, reason: 'FIXED_WSL_LAUNCHER_MISSING' });
+  });
+
+  it('marks a timed out or failed prepared-runtime probe as explicitly unavailable', () => {
+    expect(selectCurrentSnapshotSecurityEligibility({
+      platform: 'win32', launcherExists: true,
+      probe() { throw new CurrentSnapshotHarnessError('CURRENT_SNAPSHOT_HARNESS_TIMEOUT'); },
+    })).toEqual({ eligible: false, reason: 'PREPARED_WSL_RUNTIME_PROBE_TIMEOUT' });
+    expect(selectCurrentSnapshotSecurityEligibility({
+      platform: 'win32', launcherExists: true,
+      probe() { throw new CurrentSnapshotHarnessError('CURRENT_SNAPSHOT_HARNESS_LAUNCH_FAILED'); },
+    })).toEqual({ eligible: false, reason: 'PREPARED_WSL_RUNTIME_UNAVAILABLE' });
+    expect(selectCurrentSnapshotSecurityEligibility({
+      platform: 'win32', launcherExists: true,
+      probe: () => ({ stdout: 'v22.21.0\n', stderr: '' }),
+    })).toEqual({ eligible: false, reason: 'PREPARED_WSL_NODE_VERSION_INVALID' });
+  });
+
+  it('selects only the exact prepared WSL Node prerequisite', () => {
+    expect(selectCurrentSnapshotSecurityEligibility({
+      platform: 'win32', launcherExists: true,
+      probe: () => ({ stdout: 'v22.22.3\n', stderr: '' }),
+    })).toEqual({ eligible: true });
+  });
+
+  it.each([
+    ['timeout', process.execPath, ['--eval', 'setInterval(() => {}, 1000)'], 100,
+      'CURRENT_SNAPSHOT_HARNESS_TIMEOUT'],
+    ['launch error', join(tmpdir(), 'missing-current-snapshot-launcher'), [], 1_000,
+      'CURRENT_SNAPSHOT_HARNESS_LAUNCH_FAILED'],
+    ['nonzero exit', process.execPath, ['--eval', 'process.exit(7)'], 1_000,
+      'CURRENT_SNAPSHOT_HARNESS_PROCESS_FAILED'],
+  ])('bounds native harness %s failures', (_label, executable, args, timeoutMs, code) => {
+    expect(() => runBoundedNativeProcess(executable, args, { timeoutMs }))
+      .toThrowError(expect.objectContaining({ code }));
+  });
+
   it('exposes only the fixed no-argument candidate API and rejects authority arguments first', async () => {
     const module = await import('../scripts/local-binding-runtime.mjs');
     expect(Object.keys(module).sort()).toEqual([
@@ -345,27 +396,25 @@ describe('fixed local PTR binding runtime', () => {
     })).toThrow(contextFailure);
   });
 
-  it('closes ambient Git hook and template authority before the current snapshot clone', () => {
-    const fixture = currentSnapshotSecurityFixture
-      .replaceAll('\\', '/')
-      .replace(/^([A-Za-z]):/u, (_match, drive: string) => `/mnt/${drive.toLowerCase()}`);
-    const result = spawnSync('C:/Windows/System32/wsl.exe', [
-      '--distribution', 'Ubuntu-24.04', '--user', 'snapmeter', '--',
-      '/usr/bin/env', '-i', 'LANG=C.UTF-8', 'LC_ALL=C.UTF-8',
-      '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
-      fixture,
-    ], { encoding: 'utf8' });
-    expect(result.status, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual({
-      systemHookRan: false,
-      globalHookRan: false,
-      templateHookRan: false,
-      systemTemplateHookPresent: false,
-      globalTemplateHookPresent: false,
-      contextCode: 'LOCAL_BINDING_RUNTIME_GIT_CONTEXT_INVALID',
-      forbiddenCheckoutPresent: false,
-    });
-  });
+  it.skipIf(!currentSnapshotSecurityEligibility.eligible)(
+    `closes ambient Git hook and template authority before the current snapshot clone${
+      currentSnapshotSecurityEligibility.eligible
+        ? '' : ` [unavailable: ${currentSnapshotSecurityEligibility.reason}]`
+    }`, () => {
+      const fixture = currentSnapshotSecurityFixture
+        .replaceAll('\\', '/')
+        .replace(/^([A-Za-z]):/u, (_match, drive: string) => `/mnt/${drive.toLowerCase()}`);
+      const result = runCurrentSnapshotSecurityFixture(fixture);
+      expect(JSON.parse(result.stdout)).toEqual({
+        systemHookRan: false,
+        globalHookRan: false,
+        templateHookRan: false,
+        systemTemplateHookPresent: false,
+        globalTemplateHookPresent: false,
+        contextCode: 'LOCAL_BINDING_RUNTIME_GIT_CONTEXT_INVALID',
+        forbiddenCheckoutPresent: false,
+      });
+    }, 35_000);
 
   it('reads one canonical request from real fd3 and rejects malformed framing early', async () => {
     const canonical = `${JSON.stringify(canonicalWorkerRequest())}\n`;

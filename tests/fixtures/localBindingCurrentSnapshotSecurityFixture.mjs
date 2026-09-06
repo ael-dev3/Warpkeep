@@ -29,6 +29,11 @@ function setupGit(cwd, args) {
   ], {
     cwd,
     encoding: 'utf8',
+    killSignal: 'SIGKILL',
+    maxBuffer: 1024 * 1024,
+    shell: false,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: 10_000,
     env: {
       GIT_ATTR_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
       GIT_CONFIG_SYSTEM: '/dev/null', GIT_EXEC_PATH: '/usr/lib/git-core',
@@ -36,8 +41,9 @@ function setupGit(cwd, args) {
       HOME: operationRoot, LANG: 'C', LC_ALL: 'C', PAGER: 'cat', PATH: '/usr/bin:/bin',
     },
   });
+  if (result.error?.code === 'ETIMEDOUT') throw new Error('FIXTURE_GIT_TIMEOUT');
   if (result.status !== 0 || result.signal !== null || result.error !== undefined) {
-    throw new Error(`FIXTURE_GIT_FAILED:${result.stderr}`);
+    throw new Error('FIXTURE_GIT_FAILED');
   }
   return result.stdout.trim();
 }
