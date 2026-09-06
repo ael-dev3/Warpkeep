@@ -127,3 +127,48 @@ it('bounds diagnostics and rejects HMR contamination without serializing payload
   expect(guard.snapshot()).toMatchObject({ dropped: 13, violation: 'hmr-during-capture' });
   expect(JSON.stringify(guard.snapshot())).not.toContain('secret'); expect(() => guard.assert()).toThrow(/hmr/);
 });
+
+const qaDocument = 'http://127.0.0.1:4176/dev/keep04-qa.html?scenario=empty&quality=high';
+it('installs an enforced native popup/worker denial before releasing the exact Document response', async () => {
+  const guard = createKeep04NetworkGuard(); guard.expectNavigation(qaDocument);
+  const commands: [string, unknown][] = []; let acknowledge: () => void = () => {};
+  const session = { command: async (method: string, params: unknown) => { commands.push([method, params]); if (method === 'Fetch.continueResponse') await new Promise<void>(done => { acknowledge = done; }); return {}; } };
+  const request = { requestId: 'document', frameId: 'main', request: { url: qaDocument }, resourceType: 'Document' };
+  guard.event('Fetch.requestPaused', request, session); await guard.drain();
+  const originalHeaders = [{ name: 'Content-Type', value: 'text/html' }, { name: 'Content-Security-Policy', value: "img-src 'self'" }, { name: 'X-Test', value: 'preserved' }];
+  guard.event('Fetch.requestPaused', { ...request, responseStatusCode: 200, responseStatusText: 'OK', responseHeaders: originalHeaders }, session);
+  expect(() => guard.assertDocumentReady()).toThrow();
+  expect(commands[1]).toEqual(['Fetch.continueResponse', { requestId: 'document', responseCode: 200, responsePhrase: 'OK', responseHeaders: [...originalHeaders,
+    { name: 'Content-Security-Policy', value: "sandbox allow-scripts allow-same-origin; worker-src 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; form-action 'none'" }] }]);
+  // No new-target creation/closure is needed for policy installation. Chrome enforces
+  // sandbox and worker-src before creation/fetch; the controller separately tests it.
+  expect(commands.map(([method]) => method)).not.toContain('Target.closeTarget');
+  acknowledge(); await guard.drain(); expect(() => guard.assertDocumentReady()).not.toThrow();
+  guard.expectNavigation(qaDocument); expect(() => guard.assertDocumentReady()).toThrow();
+});
+it.each([
+  { responseStatusCode: 302 }, { responseErrorReason: 'Failed' },
+  { responseHeaders: [{ name: 'X-Test', value: 'bad\r\nInjected: value' }] },
+  { responseHeaders: [{ name: 'X-Test', value: 'x'.repeat(65537) }] },
+  { requestId: 'stale-document' }, { request: { url: 'http://127.0.0.1:4176/other' } },
+])('never releases an unguarded or invalid Document response case %#', async change => {
+  const guard = createKeep04NetworkGuard(); guard.expectNavigation(qaDocument);
+  const commands: string[] = []; const session = { command: async (method: string) => { commands.push(method); return {}; } };
+  const request = { requestId: 'document', frameId: 'main', request: { url: qaDocument }, resourceType: 'Document' };
+  guard.event('Fetch.requestPaused', request, session); await guard.drain();
+  guard.event('Fetch.requestPaused', { ...request, responseStatusCode: 200, responseHeaders: [], ...change }, session); await guard.drain();
+  expect(commands).toEqual(['Fetch.continueRequest', 'Fetch.failRequest']); expect(() => guard.assert()).toThrow();
+});
+it('rejects a required resource blocked by policy instead of accepting altered fallback rendering', () => {
+  const guard = createKeep04NetworkGuard();
+  guard.event('Log.entryAdded', { entry: { source: 'security', level: 'error', text: 'private CSP diagnostic must not be retained' } }, {});
+  expect(() => guard.assert()).toThrow(); expect(JSON.stringify(guard.snapshot())).not.toContain('private CSP');
+});
+it.each(['Runtime.evaluate', 'Page.captureScreenshot'])('does not send %s before a guarded exact Document response', async method => {
+  const f = fixture();
+  f.ops.capture = async (session?: { command: (method: string, params?: object) => Promise<unknown> }) => {
+    await session!.command('Page.navigate', { url: qaDocument }); await session!.command(method); throw new Error('Unreachable');
+  };
+  await expect(runKeep04WindowsCapture(['--base-url=http://127.0.0.1:4176'], f.ops)).rejects.toThrow(/Document response policy/);
+  expect(f.history).not.toContain(method); expect(f.history).toContain('Browser.close');
+});

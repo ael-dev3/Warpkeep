@@ -12,6 +12,7 @@ const POWERSHELL = 'C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe';
 const GIT = 'C:/Program Files/Git/cmd/git.exe';
 const ROOT = resolve(import.meta.dirname, '../..');
 const SYSTEM_ENV = Object.freeze({ SystemRoot: 'C:\\Windows', WINDIR: 'C:\\Windows' });
+const DOCUMENT_POLICY = "sandbox allow-scripts allow-same-origin; worker-src 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; form-action 'none'";
 const identityFields = ['path', 'realPath', 'regular', 'dev', 'ino', 'size', 'mtimeMs', 'sha256', 'status', 'subject', 'thumbprint', 'version'];
 const localPath = value => typeof value === 'string' ? value.replaceAll('\\', '/').toLowerCase() : '';
 
@@ -67,18 +68,41 @@ function allowedResource(value, websocket = false) {
 }
 export function createKeep04NetworkGuard() {
   let expected = 'about:blank'; let target = ''; let violation = ''; let dropped = 0;
+  let documentRequest; let documentGuarded = false; let guardedDocuments = 0;
   const diagnostics = []; const pending = new Set();
   const record = (kind, severity = 'error') => { if (diagnostics.length < 128) diagnostics.push({ kind, severity }); else dropped++; };
   const reject = kind => { violation ||= kind; record(kind); };
   const track = promise => { if (pending.size >= 256) { reject('interception-overflow'); void promise.catch(() => {}); return; } pending.add(promise); promise.catch(() => reject('interception-command')).finally(() => pending.delete(promise)); };
   return {
-    expectNavigation(url) { if (!keep04ProbePlan([`--base-url=${KEEP04_QA_ORIGIN}`]).cases.some(entry => entry.url === url)) throw new Error('Unexpected keep QA navigation request.'); expected = url; },
+    expectNavigation(url) { if (!keep04ProbePlan([`--base-url=${KEEP04_QA_ORIGIN}`]).cases.some(entry => entry.url === url)) throw new Error('Unexpected keep QA navigation request.'); expected = url; documentRequest = undefined; documentGuarded = false; },
     setTarget(id) { target = id; },
     event(method, params, session) {
       if (method === 'Fetch.requestPaused') {
         if (typeof params?.requestId !== 'string') { reject('fetch-shape'); return; }
         const permitted = !violation && allowedResource(params?.request?.url) && (params.resourceType !== 'Document' || params.request.url === expected);
+        if ('responseStatusCode' in params || 'responseErrorReason' in params) {
+          const headers = params.responseHeaders;
+          const validHeaders = Array.isArray(headers) && headers.length <= 128 && headers.every(header => header && typeof header.name === 'string' && /^[!#$%&'*+.^_`|~\da-z-]+$/i.test(header.name)
+            && typeof header.value === 'string' && !/[\r\n\0]/.test(header.value)) && Buffer.byteLength(JSON.stringify(headers)) <= 65536;
+          const validPhrase = params.responseStatusText === undefined || (typeof params.responseStatusText === 'string' && params.responseStatusText.length <= 128 && !/[\r\n\0]/.test(params.responseStatusText));
+          if (!permitted || params.resourceType !== 'Document' || params.responseStatusCode !== 200 || params.responseErrorReason !== undefined || !validHeaders || !validPhrase
+            || !documentRequest || params.requestId !== documentRequest.requestId || params.frameId !== documentRequest.frameId || documentGuarded) {
+            reject('document-response-blocked'); track(session.command('Fetch.failRequest', { requestId: params.requestId, errorReason: 'BlockedByClient' })); return;
+          }
+          const request = documentRequest;
+          // Enforced HTTP policy reaches Chrome before document execution. Unlike
+          // target discovery, sandbox/worker-src prevent creation and worker fetch.
+          track(session.command('Fetch.continueResponse', { requestId: params.requestId, responseCode: params.responseStatusCode,
+            ...(params.responseStatusText === undefined ? {} : { responsePhrase: params.responseStatusText }),
+            responseHeaders: [...headers, { name: 'Content-Security-Policy', value: DOCUMENT_POLICY }] }).then(() => {
+            if (documentRequest === request) { documentGuarded = true; guardedDocuments++; }
+          })); return;
+        }
         if (!permitted) reject('request-blocked');
+        if (permitted && params.resourceType === 'Document') {
+          if (documentRequest || typeof params.frameId !== 'string' || !params.frameId) { reject('document-request-shape'); track(session.command('Fetch.failRequest', { requestId: params.requestId, errorReason: 'BlockedByClient' })); return; }
+          documentRequest = { requestId: params.requestId, frameId: params.frameId };
+        }
         track(session.command(permitted ? 'Fetch.continueRequest' : 'Fetch.failRequest', { requestId: params.requestId, ...(!permitted ? { errorReason: 'BlockedByClient' } : {}) }));
       } else if (method === 'Page.frameNavigated' && !params?.frame?.parentId && params?.frame?.url !== expected) reject('navigation');
       else if (method === 'Network.requestWillBeSent' && !allowedResource(params?.request?.url)) reject('network');
@@ -89,13 +113,15 @@ export function createKeep04NetworkGuard() {
       else if (method === 'Target.targetCreated' && params?.targetInfo?.type === 'page' && params.targetInfo.targetId !== target) {
         reject('popup'); if (typeof params.targetInfo.targetId === 'string') track(session.browserCommand('Target.closeTarget', { targetId: params.targetInfo.targetId }));
       } else if (['Target.targetCrashed', 'Inspector.detached'].includes(method)) reject('target-failed');
+      else if (method === 'Log.entryAdded' && params?.entry?.source === 'security' && params.entry.level === 'error') reject('security-policy-error');
       else if (method === 'Runtime.exceptionThrown') record('runtime-exception');
       else if (method === 'Runtime.consoleAPICalled' && ['warning', 'error', 'assert'].includes(params?.type)) record('browser-console', params.type === 'warning' ? 'warning' : 'error');
       else if (method === 'Log.entryAdded' && ['warning', 'error'].includes(params?.entry?.level)) record(`browser-log-${['network', 'security', 'deprecation', 'rendering', 'javascript'].includes(params.entry.source) ? params.entry.source : 'other'}`, params.entry.level);
     },
     async drain() { await Promise.allSettled([...pending]); },
     assert() { if (violation) throw new Error(`Keep QA network boundary failed: ${violation}.`); },
-    snapshot() { return { violation: violation || null, diagnostics: [...diagnostics], dropped }; },
+    assertDocumentReady() { if (violation || !documentGuarded) throw new Error('Exact QA Document response policy is not confirmed.'); },
+    snapshot() { return { violation: violation || null, diagnostics: [...diagnostics], dropped, guardedDocuments }; },
   };
 }
 
@@ -106,9 +132,23 @@ function processRecords(value) {
   return value.map(({ pid, created }) => ({ pid, created }));
 }
 export async function readWindowsCaptureSource() {
+  // Preflight attributes before a worktree diff: do not execute clean filters or
+  // permit ident/encoding transformations to hide byte changes. These queries
+  // inspect metadata only, in two bounded processes regardless of path count.
+  const paths = await boundedExec(GIT, ['ls-files', '-z']);
+  if (!paths.endsWith('\0') || paths.split('\0').length > 4097) throw new Error('Source path inventory exceeded its bound.');
+  const attributes = (await boundedExec(GIT, ['check-attr', '-z', '--all', '--stdin'], paths)).split('\0');
+  if (attributes.pop() !== '' || attributes.length % 3 !== 0) throw new Error('Source attribute inventory invalid.');
+  for (let index = 0; index < attributes.length; index += 3) {
+    // --all omits unspecified attributes, distinguishing them from a filter
+    // driver literally named "unspecified" or "unset". Reject even disabled ones.
+    if (['filter', 'ident', 'working-tree-encoding'].includes(attributes[index + 1])) throw new Error('Unsupported source conversion attribute; source cleanliness unverified.');
+  }
   const [revision, differences, untracked] = await Promise.all([
     boundedExec(GIT, ['log', '-1', '--format=%H%n%T']),
-    boundedExec(GIT, ['-c', 'core.autocrlf=false', 'diff', '--no-ext-diff', '--no-textconv', '--ignore-space-at-eol', '--numstat', 'HEAD']),
+    // Read-only CRLF input normalization, not xdiff whitespace equivalence:
+    // trailing spaces/tabs and final-newline removal remain substantive.
+    boundedExec(GIT, ['-c', 'core.autocrlf=input', '-c', 'core.safecrlf=false', 'diff', '--no-ext-diff', '--no-textconv', '--numstat', 'HEAD']),
     boundedExec(GIT, ['ls-files', '--others', '--exclude-standard', '--', ':!artifacts/**', ':!.cache/**', ':!.superpowers/**', ':!**/__pycache__/**']),
   ]);
   const [commit, tree] = revision.split(/\r?\n/); if (![commit, tree].every(value => /^[a-f\d]{40}$/.test(value))) throw new Error('Keep QA source identity invalid.');
@@ -156,14 +196,16 @@ export async function runKeep04WindowsCapture(args, operations = defaultOperatio
     for (const method of ['Page.enable', 'Runtime.enable', 'Log.enable', 'Network.enable']) await session.command(method);
     await session.command('Page.setDownloadBehavior', { behavior: 'deny' });
     await session.command('Network.setBypassServiceWorker', { bypass: true });
+    await session.command('Network.setCacheDisabled', { cacheDisabled: true });
     // Chrome151 ordered URLPattern allow rules precede the network-wide block.
     // Fetch interception below additionally rejects unexpected same-origin documents.
     await session.command('Network.setBlockedURLs', { urlPatterns: [
       { urlPattern: 'http://127.0.0.1:4176/*', block: false }, { urlPattern: 'ws://127.0.0.1:4176/', block: false }, { urlPattern: '*://*:*/*', block: true },
     ] });
-    await session.command('Fetch.enable', { patterns: [{ requestStage: 'Request', urlPattern: '*' }] });
+    await session.command('Fetch.enable', { patterns: [{ requestStage: 'Request', urlPattern: '*' }, { requestStage: 'Response', resourceType: 'Document', urlPattern: '*' }] });
     const guardedSession = { command: async (method, parameters) => {
       guard.assert(); if (method === 'Page.navigate') guard.expectNavigation(parameters.url);
+      if (method === 'Runtime.evaluate' || method === 'Page.captureScreenshot') { await guard.drain(); guard.assert(); guard.assertDocumentReady(); }
       const result = await session.command(method, parameters); guard.assert(); return result;
     } };
     stage = 'capture'; captured = await operations.capture(guardedSession, run); await guard.drain(); guard.assert();
@@ -192,6 +234,7 @@ export async function runKeep04WindowsCapture(args, operations = defaultOperatio
     run: run?.id ?? null, profile: profile ?? null, sourceBefore: beforeSource ?? null, sourceAfter: afterSource ?? null,
     stableSource: Boolean(beforeSource && afterSource && !beforeSource.substantiveDirty && !afterSource.substantiveDirty && beforeSource.commit === afterSource.commit && beforeSource.tree === afterSource.tree && !guard.snapshot().violation),
     executableBefore: baseline ?? null, executableAfterLaunch: launched ?? null, executableAfterCapture: finalIdentity ?? null,
+    injectedDocumentPolicy: { scope: 'synthetic keep-only; not production gameplay or performance', enforcedResponseHeader: DOCUMENT_POLICY, cacheDisabled: true },
     browser: browser ? { product: String(browser.product).slice(0, 128), protocolVersion: String(browser.protocolVersion).slice(0, 32) } : null, gpu: gpu ?? null,
     diagnosticPolicy: 'Bounded severity/source classes and stderr counts only; no URLs, console arguments, request bodies or profile content retained.', diagnostics: guard.snapshot(), stderr,
     captureCount: Array.isArray(captured?.observations) ? captured.observations.length : null, failure: originalError ? { stage, kind: 'operation-failed' } : null, cleanup: { ...cleanup, exit: childExit ?? null } };

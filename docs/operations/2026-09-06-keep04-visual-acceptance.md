@@ -112,7 +112,17 @@ only, no navigation or measurements). The separate Windows-local entry point is:
 Run only after source review with the existing controller-owned Vite server and
 stable source. It verifies the fixed installed Google-signed Chrome executable
 before/after launch and after capture, uses the existing inherited-pipe transport,
-and enables exact-loopback request guards before navigation. No arbitrary browser,
+and enables exact-loopback request guards before navigation. The exact QA Document
+response is paused before delivery and receives an additional enforced HTTP CSP:
+`sandbox allow-scripts allow-same-origin; worker-src 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; form-action 'none'`.
+This synthetic-only policy natively denies auxiliary contexts and worker creation;
+target discovery/closure is defense-in-depth, not prevention. Original bounded
+response headers/status are preserved. Readiness and screenshots require confirmed
+policy delivery for the exact requested document, reset on every navigation.
+Cache is disabled to require a fresh guarded response. Security-policy errors fail
+the run instead of accepting policy-altered rendering. This policy is prominently
+recorded in provenance and is not production gameplay/performance configuration.
+No arbitrary browser,
 profile, output, origin, credentials, TCP debugger, software-renderer override,
 or server-start argument is accepted. Fresh profiles stay under
 `.cache/keep04-qa/profile-*`; captures and bounded provenance are exclusively
@@ -121,14 +131,24 @@ earlier evidence. Profiles are retained; cleanup does not recursively delete the
 
 Each successful run writes 36 PNGs, `synthetic-render-observations.json`, and
 `run-provenance.json`. The latter records executable identity, browser/backend,
-source commit/tree and substantive dirt (ignoring line-ending-only tracked changes
-and untracked artifact/cache work areas), diagnostic classes/counts, and verified
+source commit/tree and substantive dirt (read-only CRLF input normalization, with
+no whitespace-equivalence diff flags, and untracked artifact/cache work areas
+excluded), diagnostic classes/counts, and verified
 owned-browser cleanup. HMR, navigation, output and cleanup failures cannot become
 accepted evidence. Warnings are counted without retaining console arguments or
 request bodies; absent metrics stay absent. Failed runs retain bounded failure
 stage/provenance when output remains writable. Cleanup uses fresh-profile and
 process-creation identities, never global Chrome termination. Uncertain cleanup
 retains the profile and fails the run.
+
+Source queries preflight attributes before conversion and reject any `filter`,
+`ident`, or `working-tree-encoding` declaration, including disabled declarations;
+no custom conversion executes. Git process-local `core.autocrlf=input` preserves
+trailing spaces/tabs, final-newline changes and binary changes. No persistent
+configuration, index or worktree normalization occurs. Inventory is bounded to
+4,096 paths and each query to 15 seconds/1 MiB; unsupported/oversized source
+inventory fails closed, never claims cleanliness. The controlled native-browser
+popup/worker negative check and actual capture remain controller review gates.
 
 The launcher is narrowly source-tested; its complete Windows navigation/capture
 run remains controller-owned and unexecuted during implementation. Successful
