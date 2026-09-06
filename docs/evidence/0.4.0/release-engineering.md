@@ -27,6 +27,36 @@ visual coverage/local operations, final release freeze, deployment, live checks.
 Source pins, artifact hashes and closure counts must derive from the finished
 source family, not be edited to make an intermediate branch pass.
 
+## 2026-09-07 source reinspection
+
+Rechecked at `88e35b48cb0eb66ec35e472081caa906bb2df461` before final
+freeze. The source fences above remain present. Additionally,
+`scripts/sealed-realms-production-activation-lane-entry.mjs:221` rejects
+`activation-evidence-generate` after validating the lane authority. Completing
+the dispatcher alone therefore cannot make activation executable: the lane and
+private generator must be completed together under the existing receipt rules.
+
+The assembler has more reusable work than the original inventory states:
+`scripts/local-prepared-bundle-files.mjs` exports
+`derivePreparedOperationBundleFiles`, which derives four bundle/declaration
+pairs and a source-bound manifest. It checks fixed lane identities, graph
+digests, export names, declaration shape, and bounded bytes. Its returned files
+are data, not an installed or authenticated candidate. A repository search for
+that exported function found its definition, declaration, tests and component
+plan, but no operating caller in `scripts/`.
+
+The next assembler work is the specification's complete-family composition and
+owned-Linux candidate transaction: derive bindings and all generated consumers
+from one source identity, lock and journal replacements, recover interrupted
+publication without overwriting unexpected bytes, then independently verify
+the full family and repeat-write zero diff. The existing bundle-file helper
+should be reused; its component tests cannot substitute for those transaction
+and convergence checks. Do not perform final refreeze before remaining gameplay
+and deployment source changes finish.
+
+This is a refinement of R11–R13, not an additional release requirement. No
+production changes or fence removals were performed during this inspection.
+
 ## Scope and acceptance boundaries
 
 These are concrete entries within existing R11–R13, not additional product scope.

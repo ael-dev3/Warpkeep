@@ -236,4 +236,143 @@ not a physical-phone result or authoritative gameplay. Numeric silhouette
 measurement, remaining families/states, reciprocal placement, readiness,
 accessibility and production performance gates remain open.
 
+### Native portrait placement round trip at0e00269
+
+Root operated Chrome at390×844 against the local balanced-quality
+`mill-placement` fixture on source `0e00269862e75c4fb79511fd1a590e7321dabbda`.
+Adjust placement focused the real schematic, whose measured top170.09px lay
+below the sticky header bottom161.89px. A settled screenshot showed the legal
+outline, reserved areas, validity text and movement/review controls. An immediate
+post-click screenshot lagged the DOM scroll; the subsequent settled screenshot
+confirmed the destination rather than treating the stale frame as a layout failure.
+
+Move right and Rotate changed the reviewed draft from x−15,z15,0° to
+x−14.5,z15,90°. Review placement focused Place City Mill at top169.99px,
+below the same header. The inspected review showed cost, duration, benefit,
+coordinates and permanent warning before Confirm, with Other buildings after
+the action and no horizontal overflow. Explicit confirmation produced the QA
+status `Synthetic controller: command suppressed. No resources or authority changed.`
+and disabled repeat confirmation. No real build or server acceptance is claimed.
+
+Root then opened the `blocked-placement` fixture and used Adjust placement.
+The inspected schematic visibly placed the draft over civic space, displayed
+`Keep roads and civic space clear.`, retained schematic focus and measured
+top170.09px, and Confirm placement was disabled. This resolves the earlier
+portrait legal/blocked evidence gap where only identical catalog views were
+captured. Temporary viewport emulation was reset. Remaining landscape,
+all-family, accessibility, readiness and actual-owner gates remain open.
+
+### Six-family level-five inspection coverage
+
+Root exercised all six actual selection controls in the local balanced
+`all-six-level-five` fixture at390×844. Each explicit selection focused its own
+Upgrade heading, placed its sole card before the other five, retained disabled
+maximum-level confirmation, and inspection labelled the selected family with
+one canvas. Portrait screenshots showed contained mill, lumber, stoneworks,
+goldworks, barracks and cathedral silhouettes/footprints. The economy sites
+remain distinguishable by their roofs and working structures; this qualitative
+inspection does not replace the numeric projected-extent gate.
+
+At844×390, all six selected inspection states measured the canvas at
+x33,y222.39,width763,height159.61,bottom382, with no horizontal overflow.
+Immediate screenshots in that batch lagged the measured scroll position and
+are not accepted as six landscape visual passes. A separately settled cathedral
+frame showed its complete silhouette and footprint beneath the sticky resources
+and toolbar. The temporary viewport override was reset. Visual source remains
+cb8cac6; concurrent CI-only work does not change the scene. This is synthetic
+browser-emulation evidence, not physical-device or actual-owner gameplay proof.
+
+### Reduced-quality fallback navigation
+
+Root exercised the local `fallback` fixture in Chrome at390×844 with reduced
+quality. The page reported that3D graphics were unavailable and commands remained
+available through the schematic. Zoom, Fit grounds and Inspect were disabled;
+there were zero canvases. Selecting the existing level-five mill focused its
+review. View site focused the open schematic; Review upgrade returned focus to
+Upgrade City Mill. No horizontal overflow was measured. The viewport override
+was reset. This verifies initial WebGL-unavailable navigation, not missing-asset
+recovery or context restoration, which remain separate mandatory checks.
+
+### Hosted Linux native contracts passed at88e35b4
+
+The reviewed CI amendment `88e35b48cb0eb66ec35e472081caa906bb2df461`
+was scanned and pushed; the remote branch SHA matched. Authenticated inspection
+of Verify run34062404692, native-contract job101565131316, reports success.
+All preparation steps passed: hosted Linux X64 guard, pinned Node/pnpm setup,
+private Node staging, fresh root and bridge installation, and post-install
+re-attestation. The actual job log reports three files and105 tests passed,
+no skips, duration3.95s at2026-09-06T21:54:16Z.
+
+Evidence: https://github.com/ael-dev3/Warpkeep/actions/runs/34062404692/job/101565131316
+
+This closes the missing-Wrangler/native-verification CI defect for this commit.
+Auth-bridge and release-recovery jobs also succeeded in that run. The Linux job
+still failed its full-history scanner and the SpacetimeDB job was in progress
+when inspected. No aggregate Verify pass, production runner migration, live
+deployment, or final release-source acceptance is claimed.
+
+Ruling: retain duplicated inline private-Node setup in the two disposable jobs,
+with full parsed-step parity checks, for the bounded repair. This preserves the
+existing execution boundaries; cost is duplicated maintenance. Carry this
+explicit maintainability trade-off to the final whole-branch review.
+
+### Post-readability pending-to-ready mobile check
+
+Root armed the existing one-shot synthetic pending-to-ready checkbox, then
+explicitly confirmed a legal City Mill draft at390×844. Immediate DOM observation
+reported focus on Back during pending. After ready returned, focus was Close
+panel; its measured top182.99/bottom227.49 and44.5px height lay below the header
+bottom161.89. One canvas and no horizontal overflow; settled screenshot inspected.
+
+At844×390 the previous draft remained disabled, so the attempted click correctly
+timed out without submission. Root did not override it: selected a fresh Lumber
+Camp draft using the real catalog control, confirmed it with the one-shot option,
+observed pending Back, then restored Close with the same vertical measurements,
+one canvas and no overflow. Landscape screenshot inspected, viewport reset.
+This confirms native synthetic readiness focus after the readability change;
+it does not prove an authenticated command, reconnect or real server transition.
+
+### Native context loss and restoration after readability
+
+Root used the actual QA Lose/Restore WebGL context controls in Chrome390×844,
+reduced quality, `context-cycle` fixture. Before loss, selected City Mill
+inspection was WebGL. After the asynchronous loss event, mode was fallback,
+Inspect disabled, and the unavailable-graphics explanation present. The one
+retired canvas remained for the existing restoration listener; it was not counted
+as an active renderer. View site still focused the schematic during fallback.
+
+After restoration settled, WebGL returned with exactly one canvas, City Mill
+selection retained and camera at Whole grounds as specified. Explicit Inspect
+worked again and the recovered screenshot was inspected. Unmount keep then
+left zero canvases and zero keep roots. Viewport override reset. This is one
+native synthetic loss/restoration cycle and DOM cleanup evidence, not the
+multi-cycle heap/RAF/listener budget or physical-device acceptance.
+
+### Missing-model native inspection (2026-09-07 local)
+
+Root selected the existing missing-model fault through the local QA dropdown
+on the completed level-one mill, balanced quality, Chrome390×844. After loading,
+Inspect selected site remained available, WebGL mode returned with one canvas,
+and the inspected screenshot showed the simple mill fallback and its full
+footprint in frame. The schematic remained present. Viewport override reset.
+This fault removes the admitted model from the fixture asset bundle; it is not
+an actual HTTP transport failure or a physical-phone test.
+
 Repair and review the concrete CI failures, complete the no-Mac execution path, publish reviewed gameplay/visual/operating sources, pass every required check on the final source, and integrate through repository protections. Capture final source/CI/PR identities in the release ledger. These intermediate observations cannot satisfy final release verification.
+
+### Scanner checkpoint — 2026-09-07
+
+Published `f6cb1bae40f8ad392f92a985cb3e3aee99c60e42` to
+`codex/prepared-keep-bindings-fix`; authenticated `git ls-remote` returned that
+exact commit. Root reviewed all four changed files: eight anchored rule/path/value
+AND exceptions, independently constructed scanner fixtures, bounded process and
+cleanup handling, regression tests, and the single CI invocation before the
+unchanged full-history scan. Existing allowlists and scanner defaults remain.
+
+Independent root execution of the real pinned Gitleaks 8.30.1 regression exited
+0: 14 audited positives excluded and all 23 exact negative identities retained.
+The four focused scanner/workflow test files passed 34/34 (00:10:12 local,
+11.88 seconds). Outgoing `88e35b4..f6cb1ba` scanned one commit / 17,320 bytes
+with no findings. The implementer separately recorded a successful actual-config
+full-history scan of 767 scanned commits / 42,226,410 bytes; that is not yet a
+hosted CI result. Hosted acceptance remains pending. No production effects.
