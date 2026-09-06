@@ -72,6 +72,20 @@ function digest(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
+export function getSealedRealmOperationBundleSpecification(lane) {
+  if (typeof lane !== 'string' || !Object.hasOwn(LANE_SPECS, lane)) {
+    fail('SEALED_REALMS_BUNDLES_INPUT_INVALID');
+  }
+  return LANE_SPECS[lane];
+}
+
+export function deriveSealedRealmOperationBundleSourceClosureDigest(lane, manifest) {
+  getSealedRealmOperationBundleSpecification(lane);
+  return digest(Buffer.from(JSON.stringify([
+    'warpkeep-sealed-realms-production-source-graph-v1', lane, manifest,
+  ]), 'utf8'));
+}
+
 function portablePath(path) {
   return path.split(sep).join('/');
 }
@@ -244,7 +258,7 @@ export async function buildSealedRealmOperationBundle(input) {
   ) fail('SEALED_REALMS_BUNDLES_INPUT_INVALID');
   const { lane, build } = options;
   const sourceRoot = resolve(options.sourceRoot);
-  const spec = LANE_SPECS[lane];
+  const spec = getSealedRealmOperationBundleSpecification(lane);
   let result;
   try {
     result = await build({
@@ -286,9 +300,7 @@ export async function buildSealedRealmOperationBundle(input) {
   const bytes = Buffer.from(result.outputFiles[0].contents);
   validateArtifactSource(bytes, sourceRoot);
   const manifest = graphManifest(result.metafile, spec, sourceRoot);
-  const sourceClosureDigest = digest(Buffer.from(JSON.stringify([
-    'warpkeep-sealed-realms-production-source-graph-v1', lane, manifest,
-  ]), 'utf8'));
+  const sourceClosureDigest = deriveSealedRealmOperationBundleSourceClosureDigest(lane, manifest);
   return Object.freeze({
     lane,
     basename: spec.basename,

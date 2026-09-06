@@ -19,6 +19,14 @@ export type SealedRealmsProductionBundleGraphMember = Readonly<{
   byteLength: number;
   sha256: string;
 }>;
+export type SealedRealmOperationBundleSpecification = Readonly<{
+  entryPath: string;
+  basename: string;
+  graphCount: number;
+  factoryExport: SealedRealmsProductionWorkflowFactory;
+  factoryFailureCode: SealedRealmsProductionWorkflowFactoryFailure;
+  exportNames: readonly [SealedRealmsProductionWorkflowFactory, string];
+}>;
 export type SealedRealmOperationBundle = Readonly<{
   lane: SealedRealmsProductionBundleLane;
   basename: string;
@@ -36,3 +44,12 @@ export function buildSealedRealmOperationBundle(input: Readonly<{
   sourceRoot: string;
   build: typeof import('esbuild').build;
 }>): Promise<SealedRealmOperationBundle>;
+
+export function getSealedRealmOperationBundleSpecification(
+  lane: SealedRealmsProductionBundleLane,
+): SealedRealmOperationBundleSpecification;
+
+export function deriveSealedRealmOperationBundleSourceClosureDigest(
+  lane: SealedRealmsProductionBundleLane,
+  manifest: readonly SealedRealmsProductionBundleGraphMember[],
+): string;
