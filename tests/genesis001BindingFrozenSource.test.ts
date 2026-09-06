@@ -128,4 +128,41 @@ describe('Genesis 001 authenticated frozen-source materialization', () => {
       expect(existsSync(destination)).toBe(false);
     },
   );
+
+  it.skipIf(process.platform !== 'linux')(
+    'rejects corrupt pinned commit, tree, dependency, and materializer objects',
+    () => {
+      const parent = privateParent('warpkeep-g001-corrupt-objects-');
+      const repositoryRoot = join(parent, 'repository');
+      expect(spawnSync('/usr/bin/git', [
+        'clone', '--quiet', '--no-hardlinks', '--no-checkout', process.cwd(), repositoryRoot,
+      ]).status).toBe(0);
+      const packRoot = join(repositoryRoot, '.git', 'objects', 'pack');
+      const disabledPackRoot = join(repositoryRoot, '.git', 'disabled-packs');
+      mkdirSync(disabledPackRoot, { mode: 0o700 });
+      const packs = readdirSync(packRoot).filter(name => name.endsWith('.pack'));
+      for (const name of readdirSync(packRoot)) renameSync(
+        join(packRoot, name), join(disabledPackRoot, name),
+      );
+      for (const pack of packs) {
+        const command = `'/usr/bin/git' unpack-objects -r < '${join(disabledPackRoot, pack)}'`;
+        expect(spawnSync('/bin/sh', ['-c', command], { cwd: repositoryRoot }).status).toBe(0);
+      }
+      for (const objectId of [
+        GENESIS001_FROZEN_SOURCE_COMMIT,
+        GENESIS001_FROZEN_SOURCE_TREE,
+        'faf7214653f1248a3f9231fd6a13dda130821014',
+        'c50182e99ed2e2fab1ca994c905818d383782cfc',
+      ]) {
+        const objectPath = join(repositoryRoot, '.git', 'objects', objectId.slice(0, 2), objectId.slice(2));
+        const original = readFileSync(objectPath);
+        writeFileSync(objectPath, 'corrupt-object');
+        const destination = join(parent, `source-${objectId.slice(0, 8)}`);
+        expect(() => createGenesis001FrozenSourceMaterialization({ repositoryRoot, destination }))
+          .toThrow();
+        expect(existsSync(destination)).toBe(false);
+        writeFileSync(objectPath, original);
+      }
+    },
+  );
 });

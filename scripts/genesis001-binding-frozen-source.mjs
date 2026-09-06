@@ -213,6 +213,24 @@ function exactLine(value, code) {
   return line;
 }
 
+function authenticatedGitObject(repositoryRoot, destination, type, objectId, maximumBytes, code) {
+  let body;
+  try {
+    body = runGit(repositoryRoot, destination, ['cat-file', type, objectId], {
+      maxBuffer: maximumBytes + 1,
+    });
+  } catch (error) {
+    return fail(code, error);
+  }
+  if (body.byteLength < 1 || body.byteLength > maximumBytes
+    || createHash('sha1').update(`${type} ${body.byteLength}\0`).update(body).digest('hex')
+      !== objectId) {
+    body.fill(0);
+    fail(code);
+  }
+  return body;
+}
+
 function authenticateSource(repositoryRoot, destination) {
   const gitStatus = lstatSync(ABSOLUTE_GIT);
   if (!gitStatus.isFile() || gitStatus.isSymbolicLink() || (gitStatus.mode & 0o022) !== 0
@@ -227,18 +245,23 @@ function authenticateSource(repositoryRoot, destination) {
   ], { encoding: 'utf8' }), 'GENESIS001_FROZEN_SOURCE_TREE_INVALID');
   if (commit !== GENESIS001_FROZEN_SOURCE_COMMIT) fail('GENESIS001_FROZEN_SOURCE_COMMIT_INVALID');
   if (tree !== GENESIS001_FROZEN_SOURCE_TREE) fail('GENESIS001_FROZEN_SOURCE_TREE_INVALID');
+  authenticatedGitObject(repositoryRoot, destination, 'commit', commit, 64 * 1024,
+    'GENESIS001_FROZEN_SOURCE_COMMIT_INVALID').fill(0);
+  authenticatedGitObject(repositoryRoot, destination, 'tree', tree, 1 * 1024 * 1024,
+    'GENESIS001_FROZEN_SOURCE_TREE_INVALID').fill(0);
   for (const dependency of DEPENDENCY_BLOBS) {
     const blob = exactLine(runGit(repositoryRoot, destination, [
       'rev-parse', '--verify', `${GENESIS001_FROZEN_SOURCE_COMMIT}:${dependency.path}`,
     ], { encoding: 'utf8' }), 'GENESIS001_FROZEN_SOURCE_DEPENDENCY_INVALID');
     if (blob !== dependency.blob) fail('GENESIS001_FROZEN_SOURCE_DEPENDENCY_INVALID');
+    authenticatedGitObject(repositoryRoot, destination, 'blob', blob,
+      8 * 1024 * 1024, 'GENESIS001_FROZEN_SOURCE_DEPENDENCY_INVALID').fill(0);
   }
-  const materializer = runGit(repositoryRoot, destination, ['cat-file', 'blob', MATERIALIZER_BLOB], {
-    maxBuffer: MAXIMUM_MATERIALIZER_BYTES + 1,
-  });
+  const materializer = authenticatedGitObject(
+    repositoryRoot, destination, 'blob', MATERIALIZER_BLOB,
+    MAXIMUM_MATERIALIZER_BYTES, 'GENESIS001_FROZEN_SOURCE_MATERIALIZER_INVALID',
+  );
   if (materializer.byteLength < 1 || materializer.byteLength > MAXIMUM_MATERIALIZER_BYTES
-    || createHash('sha1').update(`blob ${materializer.byteLength}\0`).update(materializer).digest('hex')
-      !== MATERIALIZER_BLOB
     || createHash('sha256').update(materializer).digest('hex') !== MATERIALIZER_SHA256) {
     materializer.fill(0);
     fail('GENESIS001_FROZEN_SOURCE_MATERIALIZER_INVALID');
