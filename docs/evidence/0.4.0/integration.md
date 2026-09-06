@@ -59,6 +59,14 @@ prevent aggregate Verify acceptance.
 
 ## Remaining R14 acceptance
 
+The newer [SpacetimeDB job 101537410746](https://github.com/ael-dev3/Warpkeep/actions/runs/34052095337/job/101537410746)
+also completed successfully at `2026-09-06T19:19:49Z` for source
+`b62b7920021f3ef9fe56e43883e276622e127503`. Its module/generated bindings,
+exporter/server compatibility, connected relocation/rollback, active population/
+gathering and dependency audit all passed. This updates the previously pending
+job result only; it does not resolve the other CI failures or prove live release
+acceptance.
+
 Dependency triage (2026-09-06): authenticated Dependabot alert #2 is open,
 GHSA-528h-pc64-c93x, medium severity, for quadratic-depth denial of service in
 stream-json pick/ignore/filter/replace filters. The advisory marks versions
