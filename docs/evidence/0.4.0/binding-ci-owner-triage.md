@@ -35,3 +35,33 @@ fixtures fixes that native boundary. Other recorded failures (YAML manifest,
 frozen source pins, source graph coverage and compiler cleanup) remain separate
 until their full causes are inspected. Failure counts do not establish that
 every failed assertion shares this cause.
+
+## Parent fixture reproduction and correction
+
+On September 7, an owned Linux copy of the current parent test was instrumented
+only at its existing stat adapter to present UID 1001 before normalization.
+No filesystem owner or system account was changed. At 00:54:29 this reproduced
+27 failures / 10 passes in 322 ms, matching the hosted parent-file failure count
+and early snapshot/bounded-file errors. This is controlled metadata evidence,
+not a measurement of the hosted runner's actual UID.
+
+The parent fixture now represents UID 1000 on both platforms while retaining
+native Linux modes and other file identity fields. Two added negative cases
+represent UID 999 and 1001 and require the real snapshot binder to reject before
+any CLI copy or source consumption. Production code is unchanged.
+
+With the same controlled UID-1001 instrumentation: 39 passed, 385 ms. The ordinary
+owned Linux copy: 39 passed, 386 ms. Windows: 39 passed, 1.63 seconds. Pinned Node
+22.22.3 was used throughout; typecheck and exact-file diff check exited zero.
+The Linux copies used existing read-only dependencies and private cache directories
+and were cleaned up after each run. No skip or weakened assertion was introduced.
+
+Reproduce the checked-in suite with:
+
+```powershell
+.git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/localBindingRuntimeParent.test.ts
+.git/ci-node-22.22.3/node.exe node_modules/typescript/bin/tsc -b
+```
+
+This correction covers the controlled parent suite only. The lifecycle and native
+handoff cases above remain open and must not be marked repaired by inference.

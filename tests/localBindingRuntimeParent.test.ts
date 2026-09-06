@@ -17,6 +17,7 @@ const boundary = vi.hoisted(() => ({
   requests: [] as Array<Record<string, any>>,
   currentGeneration: false,
   expectedReads: 0,
+  fixtureUid: 1000,
 }));
 
 function translated(path: import('node:fs').PathLike): import('node:fs').PathLike {
@@ -42,8 +43,12 @@ vi.mock('node:fs', async () => {
     isDirectory(): boolean;
     isFile(): boolean;
   }>(state: T): T => {
+    // This controlled parent fixture represents the fixed local account, not
+    // the CI runner account. Keep native Linux mode and identity observations.
+    Object.defineProperty(state, 'uid', {
+      value: typeof state.uid === 'bigint' ? BigInt(boundary.fixtureUid) : boundary.fixtureUid,
+    });
     if (process.platform !== 'win32') return state;
-    Object.defineProperty(state, 'uid', { value: typeof state.uid === 'bigint' ? 1000n : 1000 });
     const permissions = state.isDirectory() ? 0o700 : state.isFile() ? 0o600 : 0o777;
     Object.defineProperty(state, 'mode', {
       value: typeof state.mode === 'bigint'
@@ -264,6 +269,7 @@ beforeEach(() => {
   boundary.requests.length = 0;
   boundary.currentGeneration = false;
   boundary.expectedReads = 0;
+  boundary.fixtureUid = 1000;
 });
 
 afterEach(() => {
@@ -395,6 +401,17 @@ function allRealmContext() {
 }
 
 describe('production local binding parent cycles', () => {
+  it.each([999, 1001])('rejects an operation owned by UID %s before copying CLI bytes', uid => {
+    const operationRoot = join(`${FIXED_ROOT}/runs`, `binding-${'b'.repeat(32)}`);
+    mkdirSync(operationRoot, { recursive: true, mode: 0o700 });
+    boundary.fixtureUid = uid;
+    expect(() => bindOperationOwnedCliSnapshot({
+      directory: '/controlled-source', path: '/controlled-source/spacetimedb-cli',
+      verify() { throw new Error('Source must not be consumed after owner rejection'); },
+    }, operationRoot)).toThrow('LOCAL_BINDING_RUNTIME_CLI_SNAPSHOT_INVALID');
+    expect(boundary.copies).toEqual([]);
+  });
+
   it('preserves the parent primary failure together with cleanup failure', () => {
     const primary = new Error('CONTROLLED_PARENT_PRIMARY');
     const cleanup = new Error('CONTROLLED_PARENT_CLEANUP');
