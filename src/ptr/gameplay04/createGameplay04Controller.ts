@@ -214,7 +214,12 @@ export function createGameplay04Controller(options: Readonly<{
       catch (error) {
         if (!live(capturedLife)) return;
         const failure = errorKind(error);
-        publish(failure.kind === 'rejected' ? snapshot.phase : 'failed', failure.kind === 'rejected' ? 'reconfirm' : 'invalid-state');
+        if (failure.kind === 'rejected') {
+          // The rejected intent stays unsent: refresh, then require a new confirmation.
+          publish('loading', 'reconfirm');
+          await refresh();
+          if (!live(capturedLife)) return;
+        } else publish('failed', 'invalid-state');
         return;
       }
       await sendPending(capturedLife);

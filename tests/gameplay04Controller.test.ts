@@ -216,23 +216,64 @@ describe('authoritative gameplay controller', () => {
     expect(mutate).not.toHaveBeenCalled(); expect(controller.getSnapshot().phase).toBe('failed');
   });
 
-  it('rejects stale quotes locally, preserves exact fresh build fields and copies mutable intent data', async () => {
+  it('refreshes stale quotes locally and requires a newly confirmed quote with exact captured fields', async () => {
     const { controller, mutate, read } = await setup();
     const quote = quoteBuilding04(controller.getSnapshot().view!, 'city-mill', MILL_PLACEMENT04);
     read.mockResolvedValueOnce({ ...freshWire04(), revision: 2n }); await controller.refresh();
-    await controller.submit({ kind: 'build', quote });
-    expect(mutate).not.toHaveBeenCalled(); expect(controller.getSnapshot().problem).toBe('reconfirm');
+    const refreshed = deferred<ReadWire04>(); read.mockReturnValueOnce(refreshed.promise);
+    const rejected = controller.submit({ kind: 'build', quote });
+    expect(read).toHaveBeenCalledTimes(3);
+    expect(controller.getSnapshot()).toMatchObject({ phase: 'loading', problem: 'reconfirm' });
+    await controller.submit({ kind: 'build', quote }); await controller.retryPending();
+    expect(read).toHaveBeenCalledTimes(3); expect(mutate).not.toHaveBeenCalled();
+    read.mockResolvedValue({ ...freshWire04(), revision: 3n });
+    refreshed.resolve({ ...freshWire04(), revision: 3n }); await rejected;
+    expect(controller.getSnapshot()).toMatchObject({ phase: 'ready', problem: 'reconfirm' });
+    expect(controller.getSnapshot().view?.state.revision).toBe(3n);
+    expect(mutate).not.toHaveBeenCalled();
+    // Refresh must not rebind or submit the original quote; even explicit reuse remains stale.
+    await controller.submit({ kind: 'build', quote }); await controller.retryPending();
+    expect(read).toHaveBeenCalledTimes(4); expect(mutate).not.toHaveBeenCalled();
     const fresh = quoteBuilding04(controller.getSnapshot().view!, 'city-mill', MILL_PLACEMENT04);
     const cost = { ...fresh.cost };
     mutate.mockRejectedValueOnce(uncertain());
     await controller.submit({ kind: 'build', quote: { ...fresh, cost } }); cost.wood = 999n;
     expect(mutate.mock.calls[0][0]).toEqual({ kind: 'build', input: {
-      sequence: 2n, expectedRevision: 2n, requestKey: 'g04:2:' + 'b'.repeat(32), policyVersion: fresh.policyVersion,
+      sequence: 2n, expectedRevision: 3n, requestKey: 'g04:2:' + 'b'.repeat(32), policyVersion: fresh.policyVersion,
       expectedAtlasRevision: 1n, layoutDigest: fresh.layoutDigest, kind: 'city-mill', targetLevel: 1,
       x: -24_000_000n, z: -20_000_000n, rotation: 0,
       expectedCost: { food: 20n, wood: 40n, stone: 20n, gold: 0n }, expectedDurationMicros: 120_000_000n,
     } });
     expect(expectDeepFrozen04(mutate.mock.calls[0][0])).toBe(true);
+  });
+
+  it('keeps stale quote reconfirmation read-only when its local rejection refresh fails', async () => {
+    const { controller, mutate, read } = await setup();
+    const quote = quoteBuilding04(controller.getSnapshot().view!, 'city-mill', MILL_PLACEMENT04);
+    controller.setAtlas({ ...atlas, revision: 2n });
+    read.mockRejectedValueOnce(uncertain()); await controller.submit({ kind: 'build', quote });
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(controller.getSnapshot()).toMatchObject({ phase: 'failed', problem: 'reconfirm' });
+    await controller.submit({ kind: 'build', quote }); await controller.retryPending();
+    expect(mutate).not.toHaveBeenCalled(); expect(read).toHaveBeenCalledTimes(2);
+    await controller.refresh();
+    expect(controller.getSnapshot()).toMatchObject({ phase: 'ready', problem: 'reconfirm' });
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it.each(['dispose', 'expire'] as const)('drops a stale quote refresh on %s without submitting', async invalidation => {
+    const { controller, mutate, read, expire } = await setup();
+    const quote = quoteBuilding04(controller.getSnapshot().view!, 'city-mill', MILL_PLACEMENT04);
+    controller.setAtlas({ ...atlas, revision: 2n });
+    const refreshed = deferred<ReadWire04>(); read.mockReturnValueOnce(refreshed.promise);
+    const rejected = controller.submit({ kind: 'build', quote });
+    expect(read).toHaveBeenCalledTimes(2);
+    if (invalidation === 'dispose') controller.dispose(); else expire();
+    refreshed.resolve({ ...freshWire04(), revision: 2n }); await rejected;
+    expect(controller.getSnapshot()).toEqual({ phase: 'disposed', view: null,
+      problem: invalidation === 'dispose' ? 'none' : 'authority' });
+    expect(read.mock.calls[1][0].aborted).toBe(true);
+    await controller.retryPending(); expect(mutate).not.toHaveBeenCalled();
   });
 
   it('requires the displayed atlas for dispatch and recall', async () => {
