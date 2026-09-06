@@ -33,9 +33,6 @@ const MAXIMUM_CLOSURE_ENTRIES = 20_000;
 const MAXIMUM_CLOSURE_FILE_BYTES = 512 * 1_024 * 1_024;
 const DIRECTORY_MODE = 0o700;
 const FILE_MODE = 0o600;
-const PTR_PREFIX = 'spacetimedb/ptr/node_modules/';
-const PTR_BUNDLE = 'spacetimedb/ptr/dist/bundle.js';
-
 const DEPENDENCIES = Object.freeze({ spacetimedb: '2.6.1' });
 const DEV_DEPENDENCIES = Object.freeze({
   esbuild: '0.25.12',
@@ -91,6 +88,33 @@ const LINUX_EXPECTED_PACKAGE_EDGES = Object.freeze<Record<string, readonly strin
   'tsx@4.20.6': Object.freeze(['esbuild@0.25.12', 'get-tsconfig@4.14.3']),
 });
 
+const GENESIS002_EXPECTED_PACKAGE_EDGES = Object.freeze<Record<string, readonly string[]>>({
+  'base64-js@1.5.1': Object.freeze([]),
+  'get-tsconfig@4.14.0': Object.freeze(['resolve-pkg-maps@1.0.0']),
+  'headers-polyfill@4.0.3': Object.freeze([]),
+  'object-inspect@1.13.4': Object.freeze([]),
+  'prettier@3.9.5': Object.freeze([]),
+  'pure-rand@7.0.1': Object.freeze([]),
+  'resolve-pkg-maps@1.0.0': Object.freeze([]),
+  'safe-stable-stringify@2.5.0': Object.freeze([]),
+  'spacetimedb@2.6.1': Object.freeze([
+    'base64-js@1.5.1',
+    'headers-polyfill@4.0.3',
+    'object-inspect@1.13.4',
+    'prettier@3.9.5',
+    'pure-rand@7.0.1',
+    'safe-stable-stringify@2.5.0',
+    'statuses@2.0.2',
+    'url-polyfill@1.1.14',
+  ]),
+  'statuses@2.0.2': Object.freeze([]),
+  'typescript@5.6.3': Object.freeze([]),
+  'url-polyfill@1.1.14': Object.freeze([]),
+  '@esbuild/linux-x64@0.25.12': Object.freeze([]),
+  'esbuild@0.25.12': Object.freeze(['@esbuild/linux-x64@0.25.12']),
+  'tsx@4.20.6': Object.freeze(['esbuild@0.25.12', 'get-tsconfig@4.14.0']),
+});
+
 type OptionalPlatformMetadata = Readonly<{
   os?: readonly string[];
   cpu?: readonly string[];
@@ -124,6 +148,15 @@ type PtrLockedSourceBuildProfile = Readonly<{
   expectedPackageEdges: Readonly<Record<string, readonly string[]>>;
   expectedPackageKeys: readonly string[];
   optionalPlatformMetadata: Readonly<Record<string, OptionalPlatformMetadata>>;
+  importerKinds: Readonly<Record<string, 'module' | 'fixture'>>;
+  moduleRoot: string;
+  manifestPath: string;
+  lockPath: string;
+  workspacePath?: string;
+  generatedPrefix: string;
+  bundlePath: string;
+  stateChild: string;
+  requireMaterializationParent: boolean;
 }>;
 
 const DARWIN_PROFILE = Object.freeze<PtrLockedSourceBuildProfile>({
@@ -133,6 +166,14 @@ const DARWIN_PROFILE = Object.freeze<PtrLockedSourceBuildProfile>({
   expectedPackageEdges: DARWIN_EXPECTED_PACKAGE_EDGES,
   expectedPackageKeys: Object.freeze(Object.keys(DARWIN_EXPECTED_PACKAGE_EDGES).sort()),
   optionalPlatformMetadata: DARWIN_OPTIONAL_PLATFORM_METADATA,
+  importerKinds: Object.freeze({ '.': 'module' }),
+  moduleRoot: 'spacetimedb/ptr',
+  manifestPath: 'spacetimedb/ptr/package.json',
+  lockPath: 'spacetimedb/ptr/pnpm-lock.yaml',
+  generatedPrefix: 'spacetimedb/ptr/node_modules/',
+  bundlePath: 'spacetimedb/ptr/dist/bundle.js',
+  stateChild: 'ptr-locked-source-builds-v1',
+  requireMaterializationParent: false,
 });
 
 const LINUX_PROFILE = Object.freeze<PtrLockedSourceBuildProfile>({
@@ -142,6 +183,42 @@ const LINUX_PROFILE = Object.freeze<PtrLockedSourceBuildProfile>({
   expectedPackageEdges: LINUX_EXPECTED_PACKAGE_EDGES,
   expectedPackageKeys: Object.freeze(Object.keys(LINUX_EXPECTED_PACKAGE_EDGES).sort()),
   optionalPlatformMetadata: LINUX_OPTIONAL_PLATFORM_METADATA,
+  importerKinds: Object.freeze({ '.': 'module' }),
+  moduleRoot: 'spacetimedb/ptr',
+  manifestPath: 'spacetimedb/ptr/package.json',
+  lockPath: 'spacetimedb/ptr/pnpm-lock.yaml',
+  generatedPrefix: 'spacetimedb/ptr/node_modules/',
+  bundlePath: 'spacetimedb/ptr/dist/bundle.js',
+  stateChild: 'ptr-locked-source-builds-v1',
+  requireMaterializationParent: false,
+});
+
+const GENESIS002_IMPORTER_KINDS = Object.freeze<Record<string, 'module' | 'fixture'>>({
+  '.': 'module',
+  genesis002: 'module',
+  ...Object.fromEntries(Array.from({ length: 16 }, (_, index) => [
+    `migration-fixtures/additive-v${index + 2}-schema`, 'fixture' as const,
+  ])),
+  'migration-fixtures/current-candidate-inspection': 'fixture',
+  'migration-fixtures/production-v1': 'fixture',
+});
+
+const GENESIS002_PROFILE = Object.freeze<PtrLockedSourceBuildProfile>({
+  os: 'linux',
+  cpu: 'x64',
+  provenanceDomain: 'warpkeep-genesis002-workspace-linux-x64-dependency-closure-v1',
+  expectedPackageEdges: GENESIS002_EXPECTED_PACKAGE_EDGES,
+  expectedPackageKeys: Object.freeze(Object.keys(GENESIS002_EXPECTED_PACKAGE_EDGES).sort()),
+  optionalPlatformMetadata: LINUX_OPTIONAL_PLATFORM_METADATA,
+  importerKinds: GENESIS002_IMPORTER_KINDS,
+  moduleRoot: 'spacetimedb/genesis002',
+  manifestPath: 'spacetimedb/genesis002/package.json',
+  lockPath: 'spacetimedb/pnpm-lock.yaml',
+  workspacePath: 'spacetimedb/pnpm-workspace.yaml',
+  generatedPrefix: 'spacetimedb/genesis002/node_modules/',
+  bundlePath: 'spacetimedb/genesis002/dist/bundle.js',
+  stateChild: 'genesis002-locked-source-builds-v1',
+  requireMaterializationParent: true,
 });
 
 // This frozen export retains its historical test-seam name for G001 byte
@@ -307,6 +384,24 @@ function validatePtrManifest(body: Buffer): void {
   }
 }
 
+function validateGenesis002Workspace(body: Buffer): void {
+  const code = 'PTR_LOCKED_SOURCE_BUILD_WORKSPACE_INVALID';
+  let workspace: Readonly<Record<string, unknown>>;
+  try {
+    workspace = exactRecord(parseYaml(new TextDecoder('utf-8', { fatal: true }).decode(body)), code);
+  } catch (error) {
+    if (error instanceof PtrBindingLockedSourceBuildError) throw error;
+    return fail(code);
+  }
+  exactKeys(workspace, ['allowBuilds', 'packages'], code);
+  if (JSON.stringify(workspace.packages) !== JSON.stringify([
+    '.', 'genesis002', 'migration-fixtures/*',
+  ])) fail(code);
+  const allowBuilds = exactRecord(workspace.allowBuilds, code);
+  exactKeys(allowBuilds, ['esbuild'], code);
+  if (allowBuilds.esbuild !== true) fail(code);
+}
+
 type LockedPackage = Readonly<{
   key: string;
   name: string;
@@ -398,19 +493,23 @@ function selectedPackages(
   exactKeys(settings, ['autoInstallPeers', 'excludeLinksFromLockfile'], code);
   if (settings.autoInstallPeers !== true || settings.excludeLinksFromLockfile !== false) fail(code);
   const importers = exactRecord(lock.importers, code);
-  exactKeys(importers, ['.'], code);
-  const importer = exactRecord(importers['.'], code);
-  exactKeys(importer, ['dependencies', 'devDependencies'], code);
-  for (const [field, expected] of [
-    ['dependencies', DEPENDENCIES],
-    ['devDependencies', DEV_DEPENDENCIES],
-  ] as const) {
-    const dependencies = exactRecord(importer[field], code);
-    exactKeys(dependencies, Object.keys(expected), code);
-    for (const [name, version] of Object.entries(expected)) {
-      const dependency = exactRecord(dependencies[name], code);
-      exactKeys(dependency, ['specifier', 'version'], code);
-      if (dependency.specifier !== version || dependency.version !== version) fail(code);
+  exactKeys(importers, Object.keys(profile.importerKinds), code);
+  for (const [importerName, kind] of Object.entries(profile.importerKinds)) {
+    const importer = exactRecord(importers[importerName], code);
+    exactKeys(importer, ['dependencies', 'devDependencies'], code);
+    for (const [field, expected] of [
+      ['dependencies', DEPENDENCIES],
+      ['devDependencies', kind === 'module' ? DEV_DEPENDENCIES : Object.freeze({
+        typescript: DEV_DEPENDENCIES.typescript,
+      })],
+    ] as const) {
+      const dependencies = exactRecord(importer[field], code);
+      exactKeys(dependencies, Object.keys(expected), code);
+      for (const [name, version] of Object.entries(expected)) {
+        const dependency = exactRecord(dependencies[name], code);
+        exactKeys(dependency, ['specifier', 'version'], code);
+        if (dependency.specifier !== version || dependency.version !== version) fail(code);
+      }
     }
   }
   const packageRecords = exactRecord(lock.packages, code);
@@ -633,8 +732,8 @@ function removeExactDependencyTree(root: string, snapshot: DependencySnapshot): 
   }
 }
 
-function cleanupBundle(materializedRoot: string): void {
-  const path = join(materializedRoot, ...PTR_BUNDLE.split('/'));
+function cleanupBundle(materializedRoot: string, bundlePath: string): void {
+  const path = join(materializedRoot, ...bundlePath.split('/'));
   const dist = dirname(path);
   const before = lstatSync(path, { bigint: true });
   const directory = lstatSync(dist, { bigint: true });
@@ -656,22 +755,27 @@ function cleanupBundle(materializedRoot: string): void {
 function dependencyClosureDigest(input: Readonly<{
   manifestBytes: Buffer;
   lockBytes: Buffer;
+  workspaceBytes?: Buffer;
   packages: readonly LockedPackage[];
   snapshot: DependencySnapshot;
-  provenanceDomain: string;
+  profile: PtrLockedSourceBuildProfile;
 }>): string {
   const digest = createHash('sha256');
-  updateFramed(digest, 'domain', input.provenanceDomain);
-  updateFramed(digest, 'manifest-path', 'spacetimedb/ptr/package.json');
+  updateFramed(digest, 'domain', input.profile.provenanceDomain);
+  updateFramed(digest, 'manifest-path', input.profile.manifestPath);
   updateFramed(digest, 'manifest-bytes', input.manifestBytes);
-  updateFramed(digest, 'lock-path', 'spacetimedb/ptr/pnpm-lock.yaml');
+  updateFramed(digest, 'lock-path', input.profile.lockPath);
   updateFramed(digest, 'lock-bytes', input.lockBytes);
+  if (input.profile.workspacePath !== undefined && input.workspaceBytes !== undefined) {
+    updateFramed(digest, 'workspace-path', input.profile.workspacePath);
+    updateFramed(digest, 'workspace-bytes', input.workspaceBytes);
+  }
   for (const package_ of input.packages) {
     updateFramed(digest, 'package-key', package_.key);
     updateFramed(digest, 'package-integrity', package_.integrity);
     updateFramed(digest, 'package-edges', JSON.stringify(package_.dependencies));
   }
-  updateFramed(digest, 'installed-content-profile', 'spacetimedb/ptr/node_modules');
+  updateFramed(digest, 'installed-content-profile', `${input.profile.moduleRoot}/node_modules`);
   updateFramed(digest, 'installed-content-sha256', input.snapshot.contentDigest);
   updateFramed(digest, 'installed-entry-count', String(input.snapshot.entries.size));
   return digest.digest('hex');
@@ -700,8 +804,26 @@ export type PtrSourceBuildResult<T> = Readonly<{
   moduleTreeId: string;
 }>;
 
+export type Genesis002SourceBuildInput<T> = Readonly<{
+  repositoryRoot: string;
+  moduleSourceCommit: string;
+  dependencyCacheRoot: string;
+  materializationParent: string;
+  operation: (context: Readonly<{
+    materializedRoot: string;
+    dependencyClosureDigest: string;
+    moduleTreeId: string;
+  }>) => T;
+}>;
+
+export type Genesis002SourceBuildResult<T> = Readonly<{
+  result: T;
+  dependencyClosureDigest: string;
+  moduleTreeId: string;
+}>;
+
 function withPtrLockedSourceBuildProfile<T>(
-  input: PtrSourceBuildInput<T>,
+  input: PtrSourceBuildInput<T> | Genesis002SourceBuildInput<T>,
   profile: PtrLockedSourceBuildProfile,
 ): PtrSourceBuildResult<T> {
   const inputCode = 'PTR_LOCKED_SOURCE_BUILD_INPUT_INVALID';
@@ -713,24 +835,30 @@ function withPtrLockedSourceBuildProfile<T>(
   const materializationParent = input.materializationParent;
   const operation = input.operation;
   const expectedKeys = ['dependencyCacheRoot', 'moduleSourceCommit', 'operation', 'repositoryRoot',
-    ...(Object.hasOwn(record, 'materializationParent') ? ['materializationParent'] : [])].sort();
+    ...(profile.requireMaterializationParent || Object.hasOwn(record, 'materializationParent')
+      ? ['materializationParent'] : [])].sort();
   if (JSON.stringify(Object.keys(record).sort()) !== JSON.stringify(expectedKeys)) fail(inputCode);
   const repositoryRoot = canonicalDirectory(repositoryRootInput, false, inputCode);
   const dependencyCacheRoot = canonicalDirectory(dependencyCacheRootInput, true, inputCode);
   if (!COMMIT.test(moduleSourceCommit) || typeof operation !== 'function') fail(inputCode);
+  if (profile.requireMaterializationParent && materializationParent === undefined) fail(inputCode);
   const stateRoot = materializationParent === undefined
     ? ensureCanonicalProductionAdminStateDirectory()
     : canonicalDirectory(materializationParent, true, inputCode);
-  const parent = ensurePrivateChild(stateRoot, 'ptr-locked-source-builds-v1');
+  const parent = ensurePrivateChild(stateRoot, profile.stateChild);
   const destination = join(parent, randomUUID().replaceAll('-', ''));
   const materialization = createGreaterRealmProductionCommitMaterialization({
     repositoryRoot, moduleSourceCommit, destination,
   });
-  const ptrRoot = join(materialization.root, 'spacetimedb', 'ptr');
-  const manifestPath = join(ptrRoot, 'package.json');
-  const lockPath = join(ptrRoot, 'pnpm-lock.yaml');
+  const ptrRoot = join(materialization.root, ...profile.moduleRoot.split('/'));
+  const manifestPath = join(materialization.root, ...profile.manifestPath.split('/'));
+  const lockPath = join(materialization.root, ...profile.lockPath.split('/'));
+  const workspacePath = profile.workspacePath === undefined
+    ? undefined
+    : join(materialization.root, ...profile.workspacePath.split('/'));
   let manifest: ReturnType<typeof readExactBoundedFile> | undefined;
   let lock: ReturnType<typeof readExactBoundedFile> | undefined;
+  let workspace: ReturnType<typeof readExactBoundedFile> | undefined;
   let packages: readonly LockedPackage[] = [];
   let archiveIdentities: readonly ArchiveIdentity[] = [];
   let installedSnapshot: DependencySnapshot | undefined;
@@ -745,6 +873,11 @@ function withPtrLockedSourceBuildProfile<T>(
     lock = readExactBoundedFile(lockPath, MAXIMUM_SOURCE_AUTHORITY_BYTES,
       'PTR_LOCKED_SOURCE_BUILD_LOCK_INVALID', 'PTR_LOCKED_SOURCE_BUILD_SOURCE_CHANGED');
     packages = selectedPackages(lock.body, profile);
+    if (workspacePath !== undefined) {
+      workspace = readExactBoundedFile(workspacePath, MAXIMUM_SOURCE_AUTHORITY_BYTES,
+        'PTR_LOCKED_SOURCE_BUILD_WORKSPACE_INVALID', 'PTR_LOCKED_SOURCE_BUILD_SOURCE_CHANGED');
+      validateGenesis002Workspace(workspace.body);
+    }
     const writer = stageGreaterRealmOpenAtHelper({ root: ptrRoot });
     const archives: ArchiveIdentity[] = [];
     let entryCount = 0;
@@ -826,13 +959,18 @@ function withPtrLockedSourceBuildProfile<T>(
     closureDigest = dependencyClosureDigest({
       manifestBytes: manifest.body,
       lockBytes: lock.body,
+      workspaceBytes: workspace?.body,
       packages,
       snapshot: installedSnapshot,
-      provenanceDomain: profile.provenanceDomain,
+      profile,
     });
-    materialization.verify({ prefixes: [PTR_PREFIX] });
+    materialization.verify({ prefixes: [profile.generatedPrefix] });
     assertExactFileIdentity(manifestPath, manifest.identity, 'PTR_LOCKED_SOURCE_BUILD_SOURCE_CHANGED');
     assertExactFileIdentity(lockPath, lock.identity, 'PTR_LOCKED_SOURCE_BUILD_SOURCE_CHANGED');
+    if (workspacePath !== undefined && workspace !== undefined) {
+      assertExactFileIdentity(workspacePath, workspace.identity,
+        'PTR_LOCKED_SOURCE_BUILD_SOURCE_CHANGED');
+    }
     result = operation(Object.freeze({
       materializedRoot: materialization.root,
       dependencyClosureDigest: closureDigest,
@@ -842,11 +980,15 @@ function withPtrLockedSourceBuildProfile<T>(
     operationCompleted = true;
     assertExactFileIdentity(manifestPath, manifest.identity, 'PTR_LOCKED_SOURCE_BUILD_SOURCE_CHANGED');
     assertExactFileIdentity(lockPath, lock.identity, 'PTR_LOCKED_SOURCE_BUILD_SOURCE_CHANGED');
+    if (workspacePath !== undefined && workspace !== undefined) {
+      assertExactFileIdentity(workspacePath, workspace.identity,
+        'PTR_LOCKED_SOURCE_BUILD_SOURCE_CHANGED');
+    }
     for (const archive of archiveIdentities) assertArchiveIdentity(archive);
     const after = dependencyTreeSnapshot({ root: dependencyRoot, boundary: ptrRoot });
     if (!sameDependencySnapshot(installedSnapshot, after)) fail('PTR_LOCKED_SOURCE_BUILD_DEPENDENCY_CHANGED');
-    materialization.verify({ prefixes: [PTR_PREFIX], files: [PTR_BUNDLE] });
-    cleanupBundle(materialization.root);
+    materialization.verify({ prefixes: [profile.generatedPrefix], files: [profile.bundlePath] });
+    cleanupBundle(materialization.root, profile.bundlePath);
     removeExactDependencyTree(dependencyRoot, installedSnapshot);
     materialization.verify();
   } catch (error) {
@@ -854,6 +996,7 @@ function withPtrLockedSourceBuildProfile<T>(
   } finally {
     manifest?.body.fill(0);
     lock?.body.fill(0);
+    workspace?.body.fill(0);
     for (const package_ of packages) package_.integrityDigest.fill(0);
   }
   let cleanupError: unknown;
@@ -889,4 +1032,10 @@ export function withPtrLinuxLockedSourceBuild<T>(
   input: PtrSourceBuildInput<T>,
 ): PtrSourceBuildResult<T> {
   return withPtrLockedSourceBuildProfile(input, LINUX_PROFILE);
+}
+
+export function withGenesis002LinuxLockedSourceBuild<T>(
+  input: Genesis002SourceBuildInput<T>,
+): Genesis002SourceBuildResult<T> {
+  return withPtrLockedSourceBuildProfile(input, GENESIS002_PROFILE);
 }
