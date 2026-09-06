@@ -221,3 +221,43 @@ This closes the identified native focus-restoration regression for these browser
 profiles. It is a synthetic presentation transition, not real construction,
 server command timing, physical-phone evidence or the owner PTR journey. Overall
 visual, performance and release acceptance remain open.
+
+## Static voxel planning correction: native result
+
+Source change `ab2c3fe75fe2426cf16ed8e1170377dd73c13f1f` generates the fixed
+decorative plans offline through the unchanged bounded mesher. The normal build
+checks deterministic source provenance and exact generated content. Runtime
+retains real mesh emission, per-scene buffer ownership, palette/scaling and
+reservations. The scene preparation timer and 16ms limit are unchanged.
+Independent root source review approved the seven-file change; the implementer
+reported 72 passing tests across five focused files, clean typecheck and genuine
+generator `--check`. Native evidence below is separate from those test results.
+
+Fresh run `windows-run-ZDYnN9` completed with exit 0 on source
+`c494239be66fa5814ca85f52ffa78535290d0545`, tree
+`8e95872894c32438f130e236e865981b903430d0`. Before/after source was unchanged and
+substantively clean. All 36 documents were guarded; capture count36, no guard
+violation/failure, normal acknowledged browser close, zero remaining owned
+processes and no forced termination. Signed Chrome151 and hardware RTX3090
+identity match the prior capture. Diagnostic review remains explicitly required:
+36 security-warning classes and one network-error class, no dropped diagnostics;
+these are not silently reclassified as a pristine run.
+
+| Profile | WebGL cases | Preparation range ms | Above16ms |
+| --- | ---: | ---: | ---: |
+| Desktop high, CPU1 | 8 | 0.3–0.9 | 0 |
+| Portrait balanced, CPU4 | 8 | 1.5–1.9 | 0 |
+| Portrait reduced, CPU4 | 8 | 1.3–2.4 | 0 |
+| Landscape balanced, CPU4 | 8 | 1.4–2.8 | 0 |
+
+This resolves the observed synthetic per-scene preparation overrun: all24 mobile
+cases previously exceeded16ms, now none do. It is not total cold-load, GPU-upload,
+frame-percentile, physical-phone or production workload acceptance.
+
+SHA-256 comparison against ySam1r found32/36 PNGs byte-identical. Root inspected
+old/new pairs for the four differing PNGs: mobile-fallback,
+mobile-reduced-fallback, landscape-empty and landscape-fallback. No visible
+content/layout regression was found in those pairs; no pixel-identity claim is
+made for them. Existing offscreen landscape content and small-building
+readability gaps remain. Original raw image-inspection flags are unchanged;
+comparison/inspection is recorded here rather than rewriting capture evidence.
