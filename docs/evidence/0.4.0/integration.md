@@ -79,4 +79,51 @@ dependency audit/reachability question before final integration; do not force
 an incompatible major override or dismiss the alert without evidence. No
 dependencies, lockfiles, scanner rules, or alert state were changed by triage.
 
+### Recheck at fffc761 (2026-09-06)
+
+Authenticated [Verify run 34058969788](https://github.com/ael-dev3/Warpkeep/actions/runs/34058969788)
+targets `fffc761c0e27148bad833b603d555b1ed3c44cd0`. At inspection,
+auth-bridge and release-recovery succeeded; SpacetimeDB remained in progress.
+Native-contract job 101555939306 completed with 104 passing tests and one
+failure: exact pinned Wrangler resolution, at `exactWrangler` line 998.
+The job installs root npm dependencies but not the required bridge pnpm layout.
+The resolver's realpath/file check fails before multipart generation. Preserve
+that resolver and install the pinned dependency layout in disposable verification.
+
+The same job explicitly requires macOS/ARM64; its workflow test also pins
+`macos-14` and ARM64. Removing the Mac dependency therefore requires a reviewed
+workflow/test amendment and running all three existing contract suites on the
+replacement native Linux environment, not skipping contracts or changing the
+production authority checks. No replacement run is claimed here.
+
+Linux job 101555939351 again stopped at the full-history Gitleaks scan with
+14 findings. This is not a successful root test run. Current development-range
+scans do not replace the required history scan. No scanner exception, dependency,
+workflow, production state, or authority check was changed by this inspection.
+
+Local reproduction with pinned Gitleaks 8.30.1, the unchanged configuration,
+`git --redact --verbose --log-opts=--all`, scanned 759 commits / approximately
+42.13 MB and exited 1 with the same 14 findings. The redacted inventory is:
+
+- Six `generic-api-key` findings on `keySha256` in recovery toolchain records,
+  the historical WSL preparer, and Spacetime fixture tests (two per file).
+- Three generic-key findings in realm-evidence, bridge recovery-config, and
+  bridge recovery-observation tests.
+- One `private-key` finding in the historical GitHub-evidence malformed-key test.
+- Two generic-key findings on activation schema field names in GitHub evidence
+  and sealed-realms activation records.
+- One generic-key finding on the recovery public-key thumbprint.
+- One `jwt` finding on the hand-derived test-only status JWS.
+
+Historical-source inspection confirms the malformed-key case contains literal
+`AAAA` and an oversized repeated-A negative fixture, not a usable RSA key.
+The realm-evidence case is a deliberately thrown redaction-test error string.
+The thumbprint is exported beside a public P-256 JWK; the toolchain values are
+public signing-key SHA-256 pins. The status fixture has fixed epoch-second
+timestamps 1000 through 1060. These observations support narrowly scoped
+triage, not blanket suppression or a claim that the remaining history is clean.
+Before any exception, verify each exact value and use rule + exact path + exact
+value conjunctions with negative controls proving other secrets remain detected.
+No scanner configuration was changed and no finding is marked resolved.
+
 Repair and review the concrete CI failures, complete the no-Mac execution path, publish reviewed gameplay/visual/operating sources, pass every required check on the final source, and integrate through repository protections. Capture final source/CI/PR identities in the release ledger. These intermediate observations cannot satisfy final release verification.

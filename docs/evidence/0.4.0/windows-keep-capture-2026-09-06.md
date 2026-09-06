@@ -181,3 +181,43 @@ proof of their labeled runtime transition. Original report flags stay unchanged.
 Next evidence must exercise and inspect the actual offscreen controls/footprints,
 readiness restoration and camera/silhouette readability. Capture success is not
 a passing visual gate.
+
+### Current preparation-time observations
+
+The stable ySam1r DEV observations repeat the preparation-budget concern:
+
+| Profile | WebGL cases | Voxel preparation range ms | Cases above16ms |
+| --- | ---: | ---: | ---: |
+| Desktop high | 8 | 12.3–15.5 | 0 |
+| Portrait balanced | 8 | 19.3–25.4 | 8 |
+| Portrait reduced | 8 | 18.6–24.3 | 8 |
+| Landscape balanced | 8 | 18.5–22.6 | 8 |
+
+These are individual synchronous `createKeep04Dressing` durations, not frame-time
+percentiles or a completed production performance benchmark. All mobile cases
+used CPU4 emulation. Maximum observed calls/triangles were high43/142260,
+balanced28/37060 and reduced28/36040; those snapshots do not replace workload
+measurements. The16ms preparation budget is unchanged. The next optimization
+requires profiling the planning/meshing/allocation stages before choosing a fix;
+no specific hotspot is established merely by reading their source.
+
+## Readiness focus regression verified in Chrome
+
+Root reviewed `4bbc0f9`'s two-file QA-only readiness fixture independently of
+its implementer. The default-off one-shot arm affects only suppressed fixture
+commands, retires timers by generation on lifecycle changes, and cannot mix with
+bounded capture. No blocking source finding was identified. Reported verification
+is29 passed/one existing opt-in production-dist test skipped and clean typecheck;
+that skip does not prove a new production build's exclusion.
+
+Using the actual panel in Chrome, root armed the synthetic cycle and clicked
+Confirm placement for City Mill at390×844, then Lumber Camp at844×390.
+Both pending observations showed Back focused, scrollY=0 and the pending message.
+After readiness returned, both showed Close panel focused at y=182.80..227.30,
+Resources at y=4..103.89, one canvas, no pending status and no horizontal overflow.
+Screenshots of both restored states were inspected. Viewport was then reset.
+
+This closes the identified native focus-restoration regression for these browser
+profiles. It is a synthetic presentation transition, not real construction,
+server command timing, physical-phone evidence or the owner PTR journey. Overall
+visual, performance and release acceptance remain open.
