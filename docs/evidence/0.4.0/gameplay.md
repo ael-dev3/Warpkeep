@@ -12,6 +12,7 @@ source components and local fixture tests are not a live owner playtest.
 | Command/controller lifecycle | `df7acb8`, `615597c` | Single-flight commands, original-envelope uncertain retry, authoritative refresh on stale quotes, explicit renewed confirmation |
 | Keep controls and schematic | `16f5c02`, `91bf888` | Four Workers, six building choices, resource deficits, permanent placement, repeated rejected-quote review recovery |
 | Actual frontend PTR route integration | `acd62c7ce785939cbe8a16ca4ef3b63291a31e08` | Provider publishes capability only after preflight/bridge; lazy matched host; world/keep navigation; actual selected-resource assertions; bounded returned-route inset |
+| Verdant Citadel renderer | `b020f7c`, `2c460f8` | New 0.4 composition/materials, bounded decorative voxels, six pinned prefab families and distinct procedural fallbacks, keyed reconciliation; actual-host frame-cadence repair independently reviewed |
 
 Each checkpoint passed its task-scoped independent spec and quality review.
 Task 5 review found no defects. Its cross-task limitations remain mandatory
@@ -43,6 +44,20 @@ schematic at this checkpoint, so future WebGL world/keep exclusivity must be
 measured again with the actual renderer.
 
 ## Remaining acceptance
+
+Task 6 source review accepted the renderer after the cadence fix. Its report
+records 191 passing tests across 11 focused renderer/UI/route suites and pinned
+TypeScript build-mode validation at `2c460f8`. Tests cover all six procedural
+fallbacks across five levels and actual host scheduling with controlled RAF
+timestamps; these are not measured real-device frame times. Existing pinned
+models are reused assets, not newly authored Astra models.
+
+Representative actual Chrome renders at desktop 1440×900/high and 390×844/balanced
+were inspected for the settled composition. These synthetic local fixtures do
+not establish all-six visual coverage, full-path transfer/performance budgets,
+GPU cleanup or the live owner journey. Task 7 owns context recovery, resource
+cleanup (including explicit forest-instance disposal) and accessible fallback;
+Task 8 owns broader rendered acceptance and measurements.
 
 Demonstrate dispatch, gathering, return, first construction, completion and the
 improved subsequent return through the actual authenticated owner's isolated PTR
