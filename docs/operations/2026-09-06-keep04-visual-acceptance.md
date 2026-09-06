@@ -1,18 +1,23 @@
 # Verdant Citadel QA instrumentation and acceptance ledger
 
 Status: source instrumentation; Task 8 and release acceptance remain incomplete.
-Source review of `d88e376bb84690d0d1553a8900e54553aa92cbf8` requires fixes.
-Published as an unfinished development checkpoint, not accepted measurement tooling:
+Source review of `d88e376bb84690d0d1553a8900e54553aa92cbf8` identified the issues
+below. Round 1 source corrections have focused regression tests and await
+controller re-review; this is still an unfinished development checkpoint:
 
-- Capture metadata labels retained records with publish-time scenario/quality;
-  changing configuration can misattribute samples, and fault/effective motion are missing.
-- Browser readiness can accept WebGL before the first submitted frame; it must
-  require matching scenario/profile and a frame or terminal fallback observation.
-- Repeated Start can misreport long-task support; Stop must drain queued observer
-  records and record capture boundaries before publishing.
+- Capture provenance: configuration is now frozen during capture, including fault
+  and effective reduced motion. Later idle configuration changes do not relabel
+  retained samples or the captured last observation.
+- Pre-frame readiness: the probe now waits for the requested navigation's document,
+  exact URL/scenario/quality/fault/motion/viewport, and an actual frame with numeric
+  renderer counters or terminal fallback. Stale documents/scenarios keep polling.
+- Capture boundaries: repeated Start is disabled/guarded, Stop drains queued
+  long tasks before disconnect/publish, and start/stop performance timestamps are
+  recorded. New captures correctly re-establish long-task support.
 
-Do not use these affected reports as release acceptance evidence until corrected
-and re-reviewed. Existing build warnings remain warnings, not performance results.
+Do not use the affected checkpoint reports as release acceptance evidence. The
+corrected tooling still needs re-review and actual captures/measurements. Existing
+build warnings remain warnings, not performance results.
 
 Binding measurement gates: [0.4 performance contract](../evidence/0.4.0/performance.md).
 DEV fixtures, production full-world/keep measurements, actual owner gameplay,
@@ -55,8 +60,11 @@ observation. Read the JSON text from `output[data-qa-observation]` or inspect th
 live `data-last-observation` attribute. No controller state is exposed. Maximum
 retention is 12,000 host records and 12,000 long-task entries; `overflow` means
 evidence is incomplete, never silently truncated acceptance. Publish does not
-clear records. Start resets them. Keep long-task observer work separate from
-scene-owned resources.
+clear records. Start resets them only when no capture is already active and locks
+scenario/quality/fault controls until Stop. Published configuration always belongs
+to the retained capture, even after idle controls change. Start/stop timestamps
+bound samples; Stop drains queued long-task entries before publication. Keep
+long-task observer work separate from scene-owned resources.
 
 | Field | Provenance |
 | --- | --- |
@@ -95,9 +103,11 @@ available browser tool without installing automation. The exported
 `runKeep04BrowserProbe(session)` supports the existing CDP `command` interface for
 an already-owned browser session; it does not launch browser/server processes.
 Its captures remain uninspected until images are actually reviewed.
-This launcher mismatch is a current platform gap, not a requirement for macOS
-or evidence that Windows Chrome cannot be measured. Final Task 8/R11 browser
-measurement transport remains controller-owned work outside this source task.
+The controller independently verified the existing CDP pipe transport with
+Windows Chrome 151 in a disposable credential-free profile (version/targets/close
+only, no navigation or measurements). Thus transport is available; adapting the
+task-owned Windows launcher and executing Task 8/R11 measurements remains
+controller-owned work outside this source fix. The CLI is still manual-plan-only.
 
 Capture each named state at 1440x900/high, 390x844/balanced, 390x844/reduced and
 844x390/balanced. Also inspect open catalog, Workers and permanent confirmation.

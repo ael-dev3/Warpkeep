@@ -65,6 +65,58 @@ it('serializes only bounded numeric observations, never arbitrary credentials, o
   expect(JSON.parse(json).rendererTextures).toBeNull();
 });
 
+it('freezes capture configuration and retains its provenance when idle controls later change', () => {
+  vi.stubGlobal('WebGL2RenderingContext', undefined);
+  window.history.replaceState({}, '', '/?scenario=fallback&quality=reduced&motion=reduced');
+  const mounted = render(createElement(Keep04QaHarness));
+  fireEvent.click(screen.getByText('Synthetic controller · local visual QA only · Controls'));
+  fireEvent.click(screen.getByRole('button', { name: 'Start bounded observation' }));
+  for (const name of ['QA scenario', 'Scene quality', 'Graphics fault']) expect(screen.getByRole('combobox', { name })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Empty keep fixture' })).toBeDisabled();
+  fireEvent.change(screen.getByRole('combobox', { name: 'QA scenario' }), { target: { value: 'empty' } });
+  fireEvent.change(screen.getByRole('combobox', { name: 'Scene quality' }), { target: { value: 'high' } });
+  fireEvent.change(screen.getByRole('combobox', { name: 'Graphics fault' }), { target: { value: 'none' } });
+  expect(mounted.container.querySelector('main')).toHaveAttribute('data-qa-scenario', 'fallback');
+  expect(mounted.container.querySelector('main')).toHaveAttribute('data-qa-quality', 'reduced');
+  expect(mounted.container.querySelector('main')).toHaveAttribute('data-qa-fault', 'webgl-unavailable');
+  fireEvent.click(screen.getByRole('button', { name: 'Unmount keep' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Mount keep' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Stop and publish observation' }));
+  const read = () => JSON.parse(mounted.container.querySelector('[data-qa-observation]')!.textContent!);
+  const first = read();
+  expect(first).toMatchObject({ scenario: 'fallback', quality: 'reduced', fault: 'webgl-unavailable', reducedMotion: true });
+  expect(first.records.map((record: { event: string }) => record.event)).toEqual(['disposed', 'fallback']);
+  fireEvent.change(screen.getByRole('combobox', { name: 'QA scenario' }), { target: { value: 'empty' } });
+  fireEvent.change(screen.getByRole('combobox', { name: 'Scene quality' }), { target: { value: 'high' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Publish current observation' }));
+  expect(read()).toMatchObject({ scenario: 'fallback', quality: 'reduced', fault: 'webgl-unavailable', reducedMotion: true, records: first.records, lastObservation: first.lastObservation });
+});
+
+it('does not reset a running capture and drains queued long tasks before Stop publishes', () => {
+  vi.stubGlobal('WebGL2RenderingContext', undefined);
+  let pending: PerformanceEntry[] = [];
+  let connections = 0;
+  vi.stubGlobal('PerformanceObserver', class {
+    static supportedEntryTypes = ['longtask'];
+    observe() { connections++; }
+    takeRecords() { const records = pending; pending = []; return records; }
+    disconnect() { connections--; }
+  });
+  const mounted = render(createElement(Keep04QaHarness));
+  fireEvent.click(screen.getByText('Synthetic controller · local visual QA only · Controls'));
+  const start = screen.getByRole('button', { name: 'Start bounded observation' });
+  fireEvent.click(start); expect(start).toBeDisabled(); fireEvent.click(start);
+  const queuedAt = performance.now(); pending = [{ startTime: queuedAt, duration: 80 } as PerformanceEntry];
+  fireEvent.click(screen.getByRole('button', { name: 'Stop and publish observation' }));
+  const report = JSON.parse(mounted.container.querySelector('[data-qa-observation]')!.textContent!);
+  expect(report.longTaskSupported).toBe(true);
+  expect(report.longTasks).toEqual([{ startTime: queuedAt, duration: 80 }]);
+  expect(report.longTasks).toHaveLength(1); expect(connections).toBe(0);
+  expect(report.startedAtMs).toBeLessThanOrEqual(queuedAt); expect(report.stoppedAtMs).toBeGreaterThanOrEqual(queuedAt);
+  fireEvent.click(start); fireEvent.click(screen.getByRole('button', { name: 'Stop and publish observation' }));
+  expect(JSON.parse(mounted.container.querySelector('[data-qa-observation]')!.textContent!)).toMatchObject({ longTaskSupported: true, longTasks: [] });
+});
+
 it.each(['--base-url=https://example.com', '--base-url=http://127.0.0.1:5173', '--jwt=secret', '--output=../escape'])('rejects unapproved browser-probe argument %s before browser or filesystem work', argument => {
   const result = spawnSync(process.execPath, ['scripts/qa-observer/keep04-browser-probe.mjs', argument], { encoding: 'utf8' });
   expect(result.status).toBe(1); expect(result.stderr).toMatch(/Only --base-url=http:\/\/127.0.0.1:4176 is accepted/);

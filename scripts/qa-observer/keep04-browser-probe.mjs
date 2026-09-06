@@ -23,6 +23,49 @@ export function keep04ProbePlan(args) {
   };
 }
 
+// Closure-free: this exact function is evaluated in the requested browser document.
+export function readKeep04ProbeDom(expected) {
+  if (location.origin !== 'http://127.0.0.1:4176' || location.href !== expected.url) return null;
+  const root = document.querySelector('[data-qa-synthetic="true"]');
+  const host = document.querySelector('[aria-label="Verdant Citadel scene"]');
+  const raw = document.querySelector('[data-qa-observation]')?.dataset.lastObservation;
+  const fault = expected.scenario === 'fallback' ? 'webgl-unavailable' : 'none';
+  const reducedMotion = expected.scenario === 'reduced-motion';
+  if (!root || !host || !raw || root.dataset.qaScenario !== expected.scenario || root.dataset.qaQuality !== expected.quality
+    || root.dataset.qaFault !== fault || root.dataset.qaReducedMotion !== String(reducedMotion)
+    || innerWidth !== expected.width || innerHeight !== expected.height) return null;
+  let last;
+  try { last = JSON.parse(raw); } catch { return null; }
+  if (!last || typeof last !== 'object') return null;
+  const canvasCount = document.querySelectorAll('.keep04 canvas').length;
+  if (host.dataset.mode === 'webgl') {
+    if (last.event !== 'frame' || canvasCount !== 1
+      || ![last.renderCalls, last.renderTriangles].every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0)) return null;
+  } else if (host.dataset.mode !== 'fallback' || last.event !== 'fallback') return null;
+  return { synthetic: true, scenario: root.dataset.qaScenario, quality: root.dataset.qaQuality, fault, reducedMotion,
+    mode: host.dataset.mode, canvasCount, horizontalOverflow: document.documentElement.scrollWidth > innerWidth, observation: last };
+}
+
+export async function waitForKeep04ProbeObservation(session, entry, navigation) {
+  if (!navigation || typeof navigation.frameId !== 'string' || !navigation.frameId || typeof navigation.loaderId !== 'string' || !navigation.loaderId) {
+    throw new Error('The requested new browser document was not identified.');
+  }
+  const deadline = Date.now() + 30000;
+  while (Date.now() < deadline) {
+    const tree = await session.command('Page.getFrameTree');
+    const frame = tree?.frameTree?.frame;
+    if (frame?.id === navigation.frameId && frame?.loaderId === navigation.loaderId && frame?.url === entry.url) {
+      const result = await session.command('Runtime.evaluate', { returnByValue: true,
+        expression: `(${readKeep04ProbeDom.toString()})(${JSON.stringify(entry)})` });
+      const observation = result?.result?.value;
+      if (observation) return observation;
+    }
+    // Old documents, old scenario/profile DOM and pre-frame WebGL all remain pending.
+    await new Promise(done => setTimeout(done, 100));
+  }
+  throw new Error('Synthetic scenario did not become observable in the requested document.');
+}
+
 /** Uses the repository CDP command transport shape; reads public QA DOM, never controller state.
  * Caller supplies the already-owned session, not a profile, credential, URL or filesystem destination.
  * This is synthetic render capture, not the final production workload measurement.
@@ -35,26 +78,8 @@ export async function runKeep04BrowserProbe(session) {
   for (const entry of plan.cases) {
     await session.command('Emulation.setDeviceMetricsOverride', { width: entry.width, height: entry.height, deviceScaleFactor: 1, mobile: entry.cpuRate === 4 });
     await session.command('Emulation.setCPUThrottlingRate', { rate: entry.cpuRate });
-    await session.command('Page.navigate', { url: entry.url });
-    let observation = null;
-    const deadline = Date.now() + 30000;
-    while (Date.now() < deadline) {
-      const result = await session.command('Runtime.evaluate', { returnByValue: true, expression: `(() => {
-        if (location.origin !== '${KEEP04_QA_ORIGIN}') throw new Error('Local QA boundary changed.');
-        const root = document.querySelector('[data-qa-synthetic="true"]');
-        const host = document.querySelector('[aria-label="Verdant Citadel scene"]');
-        const raw = document.querySelector('[data-qa-observation]')?.dataset.lastObservation;
-        if (!root || !host || host.dataset.mode === 'loading' || !raw) return null;
-        const last = JSON.parse(raw);
-        return { synthetic: true, scenario: root.dataset.qaScenario, mode: host.dataset.mode,
-          canvasCount: document.querySelectorAll('.keep04 canvas').length,
-          horizontalOverflow: document.documentElement.scrollWidth > innerWidth, observation: last };
-      })()` });
-      observation = result?.result?.value;
-      if (observation) break;
-      await new Promise(done => setTimeout(done, 100));
-    }
-    if (!observation || observation.scenario !== entry.scenario) throw new Error('Synthetic scenario did not become observable.');
+    const navigation = await session.command('Page.navigate', { url: entry.url });
+    const observation = await waitForKeep04ProbeObservation(session, entry, navigation);
     const screenshot = await session.command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     if (typeof screenshot?.data !== 'string' || screenshot.data.length > 12 * 1024 * 1024) throw new Error('Screenshot unavailable or oversized.');
     const filename = `${entry.id}-${entry.scenario}.png`;
