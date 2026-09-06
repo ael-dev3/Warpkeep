@@ -18,7 +18,8 @@ export function readGenesis001BoundedResponseBody(
 ): Promise<Uint8Array>;
 
 export function assertGenesis001FrozenWriterObservation(value: Readonly<{
-  writer: string; status: number; text: string; before: unknown; after: unknown;
+  writer: string; status: number; text: string; serverText: string;
+  before: unknown; after: unknown;
 }>): void;
 
 export function terminateGenesis001LocalProofProcessGroup(

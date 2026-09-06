@@ -128,13 +128,16 @@ export async function readGenesis001BoundedResponseBody(response, maximumBytes) 
 }
 
 export function assertGenesis001FrozenWriterObservation(value) {
-  if (!exactKeys(value, ['writer', 'status', 'text', 'before', 'after'])) {
+  if (!exactKeys(value, ['writer', 'status', 'text', 'serverText', 'before', 'after'])) {
     fail('GENESIS001_LOCAL_PROOF_WRITER_INVALID');
   }
   const expected = WRITERS.find(writer => writer.name === value.writer);
   if (expected === undefined || !Number.isSafeInteger(value.status)
       || value.status < 400 || value.status > 599 || typeof value.text !== 'string'
-      || value.text.length > MAX_RESPONSE_BYTES || !value.text.includes(expected.reason)
+      || Buffer.byteLength(value.text) > MAX_RESPONSE_BYTES || typeof value.serverText !== 'string'
+      || Buffer.byteLength(value.serverText) > MAX_SERVER_OUTPUT_BYTES
+      || !value.serverText.includes(`reducer "${expected.name}" runtime error:`)
+      || !value.serverText.includes(`Uncaught Error: ${expected.reason}`)
       || canonicalJson(value.before) !== canonicalJson(value.after)) {
     fail('GENESIS001_LOCAL_PROOF_WRITER_INVALID');
   }
@@ -322,13 +325,16 @@ export async function runGenesis001LocalUpgradeProof(input) {
     stdio: ['ignore', 'pipe', 'pipe'], shell: false,
   });
   let serverOutputBytes = 0;
+  const serverOutputChunks = [];
   let outputOverflow = false;
   const drain = chunk => {
     serverOutputBytes += chunk.byteLength;
     if (serverOutputBytes > MAX_SERVER_OUTPUT_BYTES) {
       outputOverflow = true;
       try { process.kill(-child.pid, 'SIGKILL'); } catch { /* containment reports the outcome */ }
+      return;
     }
+    serverOutputChunks.push(Buffer.from(chunk));
   };
   child.stdout.on('data', drain);
   child.stderr.on('data', drain);
@@ -384,12 +390,30 @@ export async function runGenesis001LocalUpgradeProof(input) {
       }
       return Object.freeze([status.value, requests.value, currentPolicy.value]);
     };
+    const serverTextSince = async (offset, writer) => {
+      const expected = `Uncaught Error: ${writer.reason}`;
+      const writerName = `reducer "${writer.name}" runtime error:`;
+      const limit = Date.now() + remaining(deadline, 5_000);
+      let text = '';
+      while (Date.now() < limit) {
+        if (outputOverflow) fail('GENESIS001_LOCAL_PROOF_SERVER_OUTPUT_INVALID');
+        const bytes = Buffer.concat(serverOutputChunks, serverOutputBytes).subarray(offset);
+        try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch (error) {
+          return fail('GENESIS001_LOCAL_PROOF_SERVER_OUTPUT_INVALID', error);
+        }
+        if (text.includes(writerName) && text.includes(expected)) return text;
+        await delay(20);
+      }
+      return text;
+    };
     for (const writer of WRITERS) {
       const before = await state();
+      const serverOffset = serverOutputBytes;
       const response = await call(server, writer.name, adminJwt(keys.privateKey), writer.body, deadline);
       const after = await state();
+      const serverText = await serverTextSince(serverOffset, writer);
       assertGenesis001FrozenWriterObservation({
-        writer: writer.name, status: response.status, text: response.text, before, after,
+        writer: writer.name, status: response.status, text: response.text, serverText, before, after,
       });
     }
     if (outputOverflow) fail('GENESIS001_LOCAL_PROOF_SERVER_OUTPUT_INVALID');
