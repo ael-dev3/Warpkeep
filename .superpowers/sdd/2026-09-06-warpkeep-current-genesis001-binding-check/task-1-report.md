@@ -265,3 +265,73 @@ After source commit `a9143ba074b990c302abaf07f56a53e2e28c9ec8` existed, the unch
 The bundle and dependency-closure digests remain identical to the prior successful current-G001 proof. The source commit/tree changed only for this hardening and its tests. The exact diff from fix base through implementation commit contains four paths: `scripts/local-binding-runtime-core.d.mts`, `scripts/local-binding-runtime-core.mjs`, `tests/fixtures/localBindingCurrentSnapshotSecurityFixture.mjs`, and `tests/localBindingRuntime.test.ts`. The same diff contains zero paths under `src/spacetime/module_bindings/` or `spacetimedb/`. The source clone's existing upstream/disabled-push settings and `core.symlinks` were not changed or consumed as authority, and no host system/global Git configuration was modified for testing.
 
 This appendix records only review fix round 1 for the current-G001 binding check. It does not claim downstream bundle integration, whole-release completion, protected-main authority, production/provider execution, or broader validator coverage.
+
+## Review fix round 2 — bounded native test harness
+
+Fix base was `f917da2e8421df514f078516783b90155a5e9dd3`. The round-1 review accepted I1 and identified N1: the shared runtime test unconditionally invoked the Windows-only WSL launcher without a subprocess deadline, and the WSL fixture's setup Git commands were also unbounded.
+
+The test-harness correction is commit `e708d57c6013ce536fe4dbfd6c128b8dfbdce71c` (`test: bound current snapshot native harness`), tree `ef80fdf9e0919829ef157ebc09270dff924fe5b3`. Its exact paths are:
+
+- `tests/fixtures/localBindingCurrentSnapshotHarness.d.mts`
+- `tests/fixtures/localBindingCurrentSnapshotHarness.mjs`
+- `tests/fixtures/localBindingCurrentSnapshotSecurityFixture.mjs`
+- `tests/localBindingRuntime.test.ts`
+
+No production runtime, builder, worker, frontend binding, `spacetimedb`, package, lock, dependency-junction, protected source, provider, or deployment path changed.
+
+### RED
+
+Tests were added against an unimplemented harness seam, then run with:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/localBindingRuntime.test.ts -t "unsupported hosts|timed out|selects only|bounds native"
+```
+
+Result: exit 1; six targeted tests failed and 41 were skipped. The three selection cases failed with `NOT_IMPLEMENTED`; the timeout, missing-launcher, and nonzero-exit cases received `NOT_IMPLEMENTED` instead of their independently expected error codes.
+
+### Implementation and bounded behavior
+
+The test-only harness retains the exact fixed `C:/Windows/System32/wsl.exe`, Ubuntu 24.04 distribution, `snapmeter` user, scrubbed Linux environment, and pinned Node 22.22.3 path. Eligibility is explicit:
+
+- non-Windows hosts are unavailable as `WINDOWS_WSL_REQUIRED`;
+- absence of the exact fixed launcher is unavailable as `FIXED_WSL_LAUNCHER_MISSING`;
+- a bounded prepared-runtime probe must return exactly `v22.22.3` with empty stderr;
+- probe timeout, launch/process failure, and wrong Node version are distinct unavailable reasons;
+- the integration test uses `it.skipIf` and includes the unavailable reason in its test name, so an unsupported host is reported as skipped rather than passed.
+
+All synchronous native harness processes have shell disabled, ignored stdin, 1 MiB output bounds, `SIGKILL`, and a required finite timeout of at most 60 seconds. A timeout, launcher error, signal, or nonzero exit throws a distinct harness error. Once eligibility succeeds, the real integration launch cannot become a skip: its failures propagate as test failures. The real fixture has an inner `/usr/bin/timeout --signal=KILL 25s` guard and a 30-second outer Windows launcher deadline. Each fixture setup Git command separately has a 10-second timeout, `SIGKILL`, shell disabled, ignored stdin, and a 1 MiB output bound.
+
+### GREEN and supported native-fixture evidence
+
+The targeted GREEN command was unchanged from RED. Result: exit 0; six passed and 41 skipped. The timeout case used a real Node child that remained live until killed at the 100 ms command deadline; missing-executable and nonzero-exit cases also used real subprocess boundaries.
+
+The real prepared Windows/WSL fixture was then selected and run explicitly:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/localBindingRuntime.test.ts -t "closes ambient Git hook" --reporter=verbose
+```
+
+Result: exit 0; the named WSL test passed in 747 ms and 46 non-selected tests were skipped. It was not reported unavailable, proving that the fixed launcher and exact prepared runtime were eligible on this acceptance host. The hook/config/template/context assertions remained unchanged.
+
+The first complete runtime/typecheck pass found one test-helper declaration issue:
+
+```text
+tests/localBindingRuntime.test.ts(32,8): error TS7016: Could not find a declaration file for module './fixtures/localBindingCurrentSnapshotHarness.mjs'.
+```
+
+The runtime suite itself passed 43 tests with four pre-existing platform skips. A narrow sibling `.d.mts` was added for the test-only harness, after which the final commands were:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/localBindingRuntime.test.ts
+& .git/ci-node-22.22.3/node.exe node_modules/typescript/bin/tsc -p tsconfig.app.json --noEmit --tsBuildInfoFile .git/tsbuildinfo/genesis001-current-binding-check-review-2.app.tsbuildinfo
+& .git/ci-node-22.22.3/node.exe --check tests/fixtures/localBindingCurrentSnapshotHarness.mjs
+& .git/ci-node-22.22.3/node.exe --check tests/fixtures/localBindingCurrentSnapshotSecurityFixture.mjs
+```
+
+Results: runtime exit 0 with 43 passed/four skipped; TypeScript exit 0 with no output; both syntax checks exit 0 with no output. The verbose complete runtime run also showed the real WSL security fixture passing in 742 ms, so none of the four skips was the supported-host integration.
+
+### Native-build evidence boundary
+
+No full current-G001 native rebuild was run for round 2. A bounded blob comparison checked all 11 production runtime/control files introduced or changed by this task against fix base; every working-file blob ID matched its `f917da2` committed blob (`checked=11`, zero mismatches). The exact fix-base-to-implementation diff contains only the four test/harness paths above and zero paths under `scripts/`, `src/spacetime/module_bindings/`, or `spacetimedb/`.
+
+Accordingly, round 1's full native success remains evidence for runtime implementation `a9143ba074b990c302abaf07f56a53e2e28c9ec8`; it is not relabeled as a native build at the test-only round-2 commit. Round 2 adds supported-host execution evidence only for the bounded WSL security regression. M1's additional one-test-per-validator-rule expansion remains a deferred non-blocking minor observation.
