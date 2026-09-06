@@ -290,3 +290,124 @@ Commits: `2f5fc8b` (`fix: harden genesis001 local proof evidence`) and `9e7d3ff`
 - The Linux-only Vitest cases for direct proof startup/no-success and process-group semantics are skipped by the Windows runner. The process-group failure matrix was run directly and successfully under the pinned Linux Node as recorded above; the complete native compatibility proof exercised the real Linux startup/success/cleanup path. Direct Linux Vitest remains unavailable because the preserved Windows dependency junction lacks `@rolldown/binding-linux-x64-gnu`; per scope, no dependency reinstall was attempted.
 - M1/M2 remain the controller-recorded deferred Minor findings. No whole production publisher suite rerun or dependency-junction mutation was performed.
 - The native parser-diagnosis root remains intentionally retained and private for controller review. The broad unrelated dirty worktree and existing dependency junction were preserved.
+
+---
+
+## Independent-review correction round 2/5 (I4/N1/N2)
+
+### Status and implementation
+
+The three open Important findings in `task-1-fix-round-1-review.md` were corrected on top of implementation authority `9e7d3ff1bafca5a542d3e530d79467d595588750` (and its report-only successor `d9d0451`). The addressed I1/I2/I3/I5 behavior remains in place.
+
+- **N1, independently bounded finalization:** `runLocalBindingBoundedProcess` now starts a separate five-second termination deadline as soon as timeout, output overflow, fd3 failure, spawn failure, or another stop condition occurs. It sends the owned PID/group kill, polls that PID/group independently of `close`, retries at the deadline, and settles even when the child never emits `close`. The original timeout/process/output/control error is preserved only after absence is verified; a still-live process/group or unexpected survivor is reported as `LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED` with the primary error retained as its cause. This applies to both compatibility process groups and ordinary helper callers.
+- **N2, supervisor-owned cleanup boundary:** the worker proof no longer removes `operationRoot/proof` after checking only its direct server PID. It returns with private proof artifacts intact. Only the surviving parent, after the process-group helper has verified that all descendants are absent, re-verifies bootstrap source, parses and source-binds the strict result, re-attests executables, validates the fixed private proof directory, and removes that proof directory. Process containment failure and malformed/cross-lane result paths occur before cleanup and retain the evidence. Successful operation completion still removes the complete operation root through the existing outer success cleanup.
+- **I4, actual compatibility negative coverage:** the real compatibility worker branch is now invoked with `extra`, wrong-owner, and wrong-mode compiler-namespace mutations. Each case fails with `LOCAL_BINDING_WORKER_COMPILER_INVALID`, emits no worker result, performs zero baseline/frozen builds, and never enters the proof handoff. Parent lifecycle coverage additionally verifies accepted-success cleanup and proof retention/no-result on containment failure and strict invalid-result cases.
+
+### RED/GREEN evidence
+
+N1 RED, after adding the failed-kill/non-closing-child test and before implementing independent termination settlement:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/localBindingRuntime.test.ts -t "independently bounds failed termination"
+```
+
+Exit `1`: the race returned `UNSETTLED` after 6,001 fake milliseconds instead of `LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED`. After the fix, the same command exited `0`: 2 selected tests passed and 30 were unselected, covering both `containProcessGroup=false` and `true`; each forced `EPERM` for kill, kept the PID alive, emitted no `close`, and retained the original `LOCAL_BINDING_RUNTIME_PROCESS_TIMEOUT` as the containment error's cause.
+
+N2 RED, with the parent cleanup/retention boundary tests in place before moving cleanup out of the worker proof:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/localBindingRuntimeParent.test.ts -t "strict compatibility|retains private proof|compatibility parent result"
+```
+
+Exit `1`: the accepted-success case still found the controlled proof marker because there was not yet a post-supervisor cleanup. With the parent cleanup boundary implemented, the same command exited `0`: 4 selected tests passed and 16 were unselected. Accepted success removed the proof directory; containment failure produced no result and retained the marker; both extra-result and cross-lane-result failures produced no public result/generation and retained the marker.
+
+I4 was a coverage gap rather than a newly exposed implementation defect. The actual compatibility namespace tests were GREEN when introduced:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/localBindingRuntimeLifecycle.test.ts -t "compatibility compiler namespace"
+```
+
+Exit `0`: 3 selected tests passed and 32 were unselected. All three executed the compatibility worker authority and asserted the exact failure, undefined result, zero compatibility builds, and absent proof input.
+
+The four specifically required runtime/proof suites then passed together:
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/genesis001LocalUpgradeProof.test.ts tests/localBindingRuntime.test.ts tests/localBindingRuntimeLifecycle.test.ts tests/localBindingRuntimeParent.test.ts
+```
+
+Exit `0`: 4 files passed; 92 tests passed and 6 platform/VM-gated tests skipped (98 total).
+
+### Native descendant and retained-artifact evidence
+
+The corrected process helper and fixture were executed under the pinned Linux Node for all three descendant outcomes:
+
+```powershell
+$wsl='C:/Windows/System32/wsl.exe'
+$node='/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node'
+$fixture='/mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/tests/fixtures/localBindingProcessGroupProof.mjs'
+foreach ($scenario in @('timeout-descendant','failure-descendant','success-descendant')) {
+  & $wsl --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 TMPDIR=/home/snapmeter/.warpkeep/release-preparation-v1/runs $node $fixture $scenario
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+```
+
+Exit `0`; exact outputs:
+
+```json
+{"code":"LOCAL_BINDING_RUNTIME_PROCESS_TIMEOUT","parentSurvives":false,"descendantSurvives":false,"retainedEvidence":true}
+{"code":"LOCAL_BINDING_RUNTIME_PROCESS_FAILED","parentSurvives":false,"descendantSurvives":false,"retainedEvidence":true}
+{"code":"LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED","parentSurvives":false,"descendantSurvives":false,"retainedEvidence":true}
+```
+
+The nominal parent exit with a live descendant is therefore never accepted as success, both PIDs are absent before settlement, and its proof marker survives through that containment decision. The real kernel cannot be safely induced to deny this owner a `SIGKILL`; failed-kill/non-closing behavior is covered deterministically for group and ordinary callers by the focused mocked-process test above, while the native matrix covers successful-kill process-group behavior.
+
+### Covering verification
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/genesis001LocalUpgradeProof.test.ts tests/genesis001BindingFrozenSource.test.ts tests/localBindingRuntime.test.ts tests/localBindingRuntimeParent.test.ts tests/localBindingRuntimeLifecycle.test.ts tests/localBindingNativeTsHooks.test.ts tests/genesis001LocalCompilation.test.ts tests/genesis001LinuxLockedSourceBuild.test.ts
+```
+
+Exit `0`: 8 files passed; 124 tests passed and 13 platform/VM-gated tests skipped (137 total). This includes the shared checked-handoff callers, source builders, parent/runtime lifecycle, process fixtures, proof contracts, and native-hook surfaces affected by the correction.
+
+```powershell
+& .git/ci-node-22.22.3/node.exe node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json --tsBuildInfoFile .git/task-1-genesis001-round2.tsbuildinfo
+git diff --check -- scripts/local-binding-runtime-process.mjs scripts/genesis001-local-upgrade-proof.mjs scripts/local-binding-runtime-core.mjs tests/localBindingRuntime.test.ts tests/localBindingRuntimeParent.test.ts tests/localBindingRuntimeLifecycle.test.ts tests/fixtures/localBindingProcessFixture.mjs tests/fixtures/localBindingProcessGroupProof.mjs
+```
+
+Both exited `0` with no diagnostics.
+
+### Fixed native acceptance
+
+Exact command against implementation commit `e137f6eb7c0ea92037df6fc4a7b48974546acad0`:
+
+```powershell
+& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-binding-runtime.mjs --genesis001-compatibility
+```
+
+Exit `0`:
+
+```json
+{"profile":"warpkeep-spacetime-binding-final-preparation-linux-x64-v1","sourceCommit":"e137f6eb7c0ea92037df6fc4a7b48974546acad0","sourceTree":"c90876be4a9d90d4e1378dc5119b47f5c76a2704","baselineBundleSha256":"179103343455b16a02cbb55205e867c6d4590cf7e9bb614c611d91f15e215801","frozenBundleSha256":"a2d7f204ed591aadb98696225d68332ee573519187e0989e68f528da8064cd49","baselineDescriptorSha256":"cb7d69d2bed316702ffa1aa8696a4e1ca1934a775b8312129b305a9c33eb0e03","frozenDescriptorSha256":"cf3cbfff9087c04bd9de553410adb49100c40dbdecebc59e265f83cb904dd04d","checkedFrozenWriters":["admin_allow_fid","admin_admit_founder_v1","admin_disable_fid","admin_bump_auth_epoch","access_request_submit_v1","admin_reset_access_request_v1"]}
+```
+
+The baseline and frozen commitments remain canonical and distinct, all six guarded writers completed, and success was emitted only after the surviving parent accepted process-group absence and removed the proof artifacts. A post-run check returned `pgrep --full` exit `1` separately for `spacetimedb-standalone`, `spacetimedb-cli`, and `local-binding-runtime.mjs`; no owned process remained.
+
+### Correction-round changed files and commits
+
+- `scripts/genesis001-local-upgrade-proof.mjs`
+- `scripts/local-binding-runtime-core.mjs`
+- `scripts/local-binding-runtime-process.mjs`
+- `tests/fixtures/localBindingProcessFixture.mjs`
+- `tests/fixtures/localBindingProcessGroupProof.mjs`
+- `tests/localBindingRuntime.test.ts`
+- `tests/localBindingRuntimeLifecycle.test.ts`
+- `tests/localBindingRuntimeParent.test.ts`
+- `.superpowers/sdd/2026-09-06-warpkeep-genesis001-local-upgrade-proof/task-1-report.md`
+
+Implementation commit: `e137f6e` (`fix: finalize genesis001 proof containment`). This appendix is committed separately after native verification.
+
+### Remaining concerns
+
+- The Linux-only Vitest startup/no-success case remains unsupported in this preserved Windows dependency junction because the Linux optional Rolldown binding is absent. It is not claimed as passed. The fixed native compatibility command does exercise real Linux proof startup and the complete success lifecycle; the direct pinned-Linux fixture exercises timeout, abnormal exit, nominal-exit-with-descendant rejection, retained evidence, and process absence. No junction reinstall was performed.
+- M1/M2 remain the controller-recorded deferred Minor findings. No whole publisher-suite rerun or unrelated production work was performed.
+- The earlier owner-private diagnostic roots remain intentionally retained for controller review. The broad unrelated dirty worktree and existing dependency junction were preserved; only the exact files named above were staged.
