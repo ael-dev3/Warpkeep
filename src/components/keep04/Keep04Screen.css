@@ -91,4 +91,5 @@
   .keep04 .keep04-reserved, .keep04 .keep04-footprint rect, .keep04 .keep04-draft { fill: Canvas; stroke: CanvasText; }
   .keep04 .keep04-map-label, .keep04 .keep04-footprint text { fill: CanvasText; }
   .keep04 .keep04-draft { stroke: Highlight; }
+  .keep04 .keep04-draft[data-valid="false"] { fill: Canvas; stroke: CanvasText; stroke-dasharray: 1 .7; }
 }

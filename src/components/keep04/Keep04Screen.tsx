@@ -30,6 +30,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   const buildingsButton = useRef<HTMLButtonElement>(null);
   const backButton = useRef<HTMLButtonElement>(null);
   const root = useRef<HTMLDivElement>(null);
+  const schematic = useRef<HTMLDetailsElement>(null);
   const wasReady = useRef(phase === 'ready');
   const ready = phase === 'ready' && view !== null;
   const activeTimer = ready && (view.state.project !== undefined || view.workers.some(worker => worker.phase !== 'idle'));
@@ -41,6 +42,10 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   useEffect(() => {
     if (ready && selection.panel) closeButton.current?.focus();
   }, [selection.panel, ready]);
+  useEffect(() => {
+    // Keep the same DOM and focus, but reopen controls if graphics disappear.
+    if (sceneMode !== 'webgl' && schematic.current) schematic.current.open = true;
+  }, [sceneMode]);
   useEffect(() => {
     if (wasReady.current && !ready && (!document.activeElement || document.activeElement === document.body || root.current?.contains(document.activeElement))) backButton.current?.focus();
     wasReady.current = ready;
@@ -54,7 +59,10 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   }
   function selectBuilding(kind: Building04) {
     if (!view) return;
-    if (selection.panel !== 'buildings') opener.current = document.activeElement instanceof HTMLElement || document.activeElement instanceof SVGElement ? document.activeElement : buildingsButton.current;
+    if (selection.panel !== 'buildings') {
+      const active = document.activeElement;
+      opener.current = (active instanceof HTMLElement || active instanceof SVGElement) && active !== document.body && root.current?.contains(active) ? active : buildingsButton.current;
+    }
     const existing = view.buildings.find(building => building.kind === kind);
     onSelectionChange({ panel: 'buildings', selectedKind: kind,
       draft: existing?.placement ?? (selection.draft?.kind === kind ? selection.draft : initialPlacement04(kind, view.buildings.map(building => building.placement))) });
@@ -86,7 +94,8 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
             visual={{ buildings: view.buildings, selectedKind: selection.selectedKind, draft: selection.panel === 'buildings' ? selection.draft : null,
               draftValid: selection.draft !== null && evaluatePlacement04(selection.draft, view.buildings.filter(building => building.kind !== selection.draft!.kind).map(building => building.placement)).valid }}
             onSelect={selectBuilding} onPlacement={draft => onSelectionChange({ ...selection, draft })} />}
-          <details open={sceneMode !== 'webgl' ? true : undefined} key={sceneMode === 'webgl' ? 'webgl' : 'fallback'}>
+          {sceneMode === 'fallback' && <p role="status">3D graphics are unavailable. Your keep and commands remain available in the placement schematic.</p>}
+          <details ref={schematic} open>
             <summary style={{ cursor: 'pointer', padding: '12px 0', minHeight: 44 }}>Placement schematic and keyboard controls</summary>
             <Keep04Schematic buildings={view.buildings} draft={selection.panel === 'buildings' ? selection.draft : null} selectedKind={selection.selectedKind}
               onSelect={selectBuilding} onChange={draft => onSelectionChange({ ...selection, draft })} />
