@@ -1398,6 +1398,14 @@ function sha256Body(body) {
   return createHash('sha256').update(body).digest('hex');
 }
 
+function boundedAggregateMemberBytes(aggregateBytes, body) {
+  const nextAggregateBytes = aggregateBytes + body.byteLength;
+  if (nextAggregateBytes > MAX_AGGREGATE_MEMBER_BYTES) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_INVALID');
+  }
+  return nextAggregateBytes;
+}
+
 function moduleSourceBody(source) {
   if (typeof source === 'string') return Buffer.from(source, 'utf8');
   if (source instanceof ArrayBuffer) {
@@ -1997,10 +2005,7 @@ export function deriveAuthBridgeNotificationPreparedDeployClosure(options) {
       || body.byteLength < 1
       || body.byteLength > MAX_MEMBER_BYTES
     ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_INVALID');
-    aggregateBytes += body.byteLength;
-    if (aggregateBytes > MAX_AGGREGATE_MEMBER_BYTES) {
-      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_INVALID');
-    }
+    aggregateBytes = boundedAggregateMemberBytes(aggregateBytes, body);
   }
   for (const memberPath of AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS) {
     if (!memberBodies.has(memberPath)) {
@@ -2109,13 +2114,21 @@ export function verifyAuthBridgeNotificationPreparedDeployClosure({
   }
   const expectedPins = readBootstrapPinValues(repository, manifestSha256);
   const memberBodies = new Map();
+  let aggregateBytes = 0;
   try {
     for (const memberPath of AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS) {
-      memberBodies.set(memberPath, readMember(
+      const body = readMember(
         repository,
         memberPath,
         'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_INVALID',
-      ));
+      );
+      try {
+        aggregateBytes = boundedAggregateMemberBytes(aggregateBytes, body);
+        memberBodies.set(memberPath, body);
+      } catch (error) {
+        body.fill(0);
+        throw error;
+      }
     }
     const expectedMembers = canonicalManifestMembers(
       memberBodies,

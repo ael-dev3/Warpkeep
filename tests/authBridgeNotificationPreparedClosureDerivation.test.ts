@@ -469,4 +469,29 @@ describe('prepared deploy closure derivation', () => {
     },
     180_000,
   );
+
+  it.skipIf(typeof process.getuid !== 'function')(
+    'bounds aggregate member bytes before the verifier retains the full inventory',
+    () => {
+      const closure = deriveAuthBridgeNotificationPreparedDeployClosure({
+        memberBodies: fixtureMemberBodies,
+      });
+      const installed = mutableFixture();
+      for (const workflow of closure.workflowBodies) {
+        installed.set(workflow.path, workflow.bytes);
+      }
+      const root = writeFixture(installed, closure.manifestBytes);
+      const maximumBody = Buffer.alloc(MAX_MEMBER_BYTES);
+      const largeRawPaths = AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS
+        .filter(relativePath => fixtureDigestProfile(relativePath) === RAW_FILE_DIGEST_PROFILE)
+        .slice(0, 33);
+      expect(largeRawPaths).toHaveLength(33);
+      for (const relativePath of largeRawPaths) {
+        writeFileSync(resolve(root, relativePath), maximumBody, { mode: 0o600 });
+      }
+      expect(() => verifyAuthBridgeNotificationPreparedDeployClosure({ repositoryRoot: root }))
+        .toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_INVALID');
+    },
+    180_000,
+  );
 });
