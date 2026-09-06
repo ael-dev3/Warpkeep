@@ -21,6 +21,8 @@ import {
   createGenesis002Fixture,
 } from './fixtures/genesis002LockedSourceBuildFixture';
 
+const FIXED_ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
+
 const boundary = vi.hoisted(() => ({
   request: undefined as Record<string, unknown> | undefined,
   events: [] as string[],
@@ -35,10 +37,25 @@ const boundary = vi.hoisted(() => ({
   deregisterFailure: false,
   typecheckArgs: [] as string[],
   typecheckConfig: undefined as Record<string, unknown> | undefined,
+  builderKeys: [] as string[],
+  commands: [] as Array<{ executable: string; args: readonly string[]; env?: NodeJS.ProcessEnv }>,
+  executableRecords: [] as Array<{ path: string; options: Record<string, unknown> }>,
+  compilerFailureAt: 0,
+  compilerAttestations: 0,
+  compilerNamespaceScenario: '' as '' | 'extra' | 'owner' | 'mode',
 }));
 
 vi.mock('node:fs', async () => {
   const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
+  const compilerVersionRoot = '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v24.19.0-linux-x64';
+  const compilerBinRoot = `${compilerVersionRoot}/bin`;
+  const compilerDirectories = new Set([compilerVersionRoot, compilerBinRoot]);
+  const compilerDirectoryState = (path: string) => ({
+    dev: 1n, ino: path === compilerVersionRoot ? 24n : 25n, mode: 0o40700n,
+    uid: boundary.compilerNamespaceScenario === 'owner' ? 999n : 1000n,
+    nlink: 2n, size: 1n, mtimeNs: 3n, ctimeNs: 4n,
+    isDirectory: () => true, isFile: () => false, isSymbolicLink: () => false,
+  });
   const normalize = <T extends { mode: number | bigint; uid: number | bigint; isDirectory(): boolean; isFile(): boolean }>(
     status: T,
   ): T => {
@@ -56,12 +73,25 @@ vi.mock('node:fs', async () => {
   return {
     ...actual,
     lstatSync(path: import('node:fs').PathLike, options?: { bigint?: boolean }) {
+      if (typeof path === 'string' && compilerDirectories.has(path)) {
+        return compilerDirectoryState(path);
+      }
       const status = actual.lstatSync(path, options as never);
       return process.platform === 'win32' ? normalize(status) : status;
     },
     fstatSync(descriptor: number, options?: { bigint?: boolean }) {
       const status = actual.fstatSync(descriptor, options as never);
       return process.platform === 'win32' ? normalize(status) : status;
+    },
+    readdirSync(path: import('node:fs').PathLike, options?: unknown) {
+      if (path === compilerVersionRoot) return boundary.compilerNamespaceScenario === 'extra'
+        ? ['bin', 'hostile'] : ['bin'];
+      if (path === compilerBinRoot) return ['node'];
+      return actual.readdirSync(path, options as never);
+    },
+    realpathSync(path: import('node:fs').PathLike) {
+      if (typeof path === 'string' && compilerDirectories.has(path)) return path;
+      return actual.realpathSync(path);
     },
   };
 });
@@ -156,6 +186,15 @@ vi.mock('../scripts/local-binding-bounded-file.mjs', async () => {
     ...actual,
     readLocalBindingBoundedFile(path: string, options: Record<string, unknown>) {
       if (options.requireExecutable === true) {
+        boundary.executableRecords.push({ path, options });
+        if (path.endsWith('/node-v24.19.0-linux-x64/bin/node')) {
+          boundary.compilerAttestations += 1;
+          if (boundary.compilerAttestations === boundary.compilerFailureAt) {
+            throw Object.assign(new Error('LOCAL_BINDING_BOUNDED_FILE_CHANGED'), {
+              code: 'LOCAL_BINDING_BOUNDED_FILE_CHANGED',
+            });
+          }
+        }
         boundary.events.push(`attest:${path.split(/[\\/]/u).at(-1)}`);
         boundary.executableAttestations += 1;
         if (boundary.executableAttestations === boundary.executableFailureAt) {
@@ -184,7 +223,8 @@ vi.mock('node:child_process', async () => {
   const actual = await vi.importActual<typeof import('node:child_process')>('node:child_process');
   return {
     ...actual,
-    spawnSync(executable: string, args: readonly string[], options: { cwd: string }) {
+    spawnSync(executable: string, args: readonly string[], options: { cwd: string; env?: NodeJS.ProcessEnv }) {
+      boundary.commands.push({ executable, args: [...args], env: options.env });
       if (args.includes('--noEmit')) {
         boundary.typecheckArgs = [...args];
         const project = args[args.indexOf('--project') + 1]!;
@@ -288,6 +328,28 @@ vi.mock('warpkeep:genesis002-binding-entry', async () => {
   };
 });
 
+vi.mock('warpkeep:genesis001-binding-entry', async () => {
+  const fs = await vi.importActual<typeof import('node:fs')>('node:fs');
+  return {
+    withGenesis001LinuxLockedSourceBuild(input: Readonly<Record<string, any>>) {
+      boundary.builderKeys = Object.keys(input).sort();
+      boundary.events.push('builder:enter');
+      const root = join(input.materializationParent, 'genesis001-locked-source-builds-v1', 'e'.repeat(32));
+      const moduleRoot = join(root, 'spacetimedb');
+      fs.mkdirSync(join(moduleRoot, 'node_modules', 'typescript', 'bin'), { recursive: true, mode: 0o700 });
+      boundary.events.push('builder:operation');
+      const result = input.operation({
+        materializedRoot: root,
+        dependencyClosureDigest: '4'.repeat(64),
+        moduleTreeId: '3'.repeat(40),
+      });
+      boundary.events.push('builder:operation-return');
+      boundary.events.push('builder:cleanup-complete');
+      return Object.freeze({ result, dependencyClosureDigest: '4'.repeat(64), moduleTreeId: '3'.repeat(40) });
+    },
+  };
+});
+
 vi.mock('../scripts/local-binding-runtime-core.mjs', () => ({
   validateLocalBindingWorkerRequest(value: unknown) { return value; },
   async deriveFixedLocalBindingRuntime() {
@@ -319,12 +381,19 @@ afterEach(() => {
   boundary.deregisterFailure = false;
   boundary.typecheckArgs.length = 0;
   boundary.typecheckConfig = undefined;
+  boundary.builderKeys.length = 0;
+  boundary.commands.length = 0;
+  boundary.executableRecords.length = 0;
+  boundary.compilerFailureAt = 0;
+  boundary.compilerAttestations = 0;
+  boundary.compilerNamespaceScenario = '';
   for (const root of boundary.cleanupRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
 describe('controlled local binding runtime lifecycle', () => {
-  function prepareRequest(lane: 'ptr' | 'genesis002' = 'ptr') {
+  function prepareRequest(lane: 'ptr' | 'genesis002' | 'genesis001' = 'ptr') {
     const genesis002 = lane === 'genesis002';
+    const genesis001 = lane === 'genesis001';
     const value = genesis002
       ? createGenesis002Fixture()
       : createPtrFixture({ keys: LINUX_PACKAGE_KEYS });
@@ -346,7 +415,8 @@ describe('controlled local binding runtime lifecycle', () => {
       schemaVersion: 1,
       profile: genesis002
         ? 'warpkeep-local-binding-genesis002-worker-v1'
-        : 'warpkeep-local-binding-worker-v1',
+        : genesis001 ? 'warpkeep-local-binding-genesis001-worker-v1'
+          : 'warpkeep-local-binding-worker-v1',
       repositoryRoot: sourceRoot,
       sourceCommit: fixtureInput.moduleSourceCommit,
       sourceTree: 'c'.repeat(40),
@@ -357,6 +427,9 @@ describe('controlled local binding runtime lifecycle', () => {
       handoffPath: join(fixtureInput.materializationParent, 'handoff.js'),
       nonce: 'd'.repeat(32), graph: {}, yaml: {},
     };
+    if (genesis001) {
+      for (const name of ['home', 'tmp']) mkdirSync(join(dirname(sourceRoot), name), { mode: 0o700 });
+    }
     return { ...value, materializationParent: fixtureInput.materializationParent };
   }
 
@@ -441,6 +514,66 @@ describe('controlled local binding runtime lifecycle', () => {
     expect(boundary.events).toContain('command:build-snapshot-cli');
     expect(readdirSync(join(value.materializationParent, 'genesis002-locked-source-builds-v1'))).toEqual([]);
   });
+
+  it('dispatches G001 with four builder keys and a Node24-only clean compiler environment', async () => {
+    prepareRequest('genesis001');
+    const { runFixedLocalBindingWorker } = await import('../scripts/local-binding-runtime-worker.mjs');
+    const result = await runFixedLocalBindingWorker(boundary.request);
+    expect(result.profile).toBe('warpkeep-local-binding-genesis001-worker-result-v1');
+    expect(boundary.builderKeys).toEqual([
+      'dependencyCacheRoot', 'materializationParent', 'operation', 'repositoryRoot',
+    ]);
+    const compilerPath = `${FIXED_ROOT}/toolchain/node-v24.19.0-linux-x64/bin/node`;
+    const typecheck = boundary.commands.find(command => command.args.includes('--noEmit'))!;
+    const build = boundary.commands.find(command => command.args[0] === 'build')!;
+    expect(typecheck.executable).toBe(compilerPath);
+    expect(typecheck.executable).not.toBe(boundary.request!.nodePath);
+    expect(typecheck.args).toEqual([
+      expect.stringMatching(/node_modules[\\/]typescript[\\/]bin[\\/]tsc$/u),
+      '--noEmit', '--project', expect.stringMatching(/spacetimedb[\\/]tsconfig\.json$/u),
+    ]);
+    expect(build.args).toEqual(['build', '--module-path', 'spacetimedb']);
+    for (const command of [typecheck, build]) {
+      expect(command.env).toEqual({
+        HOME: join(dirname(boundary.request!.repositoryRoot as string), 'home'),
+        TMPDIR: join(dirname(boundary.request!.repositoryRoot as string), 'tmp'),
+        PATH: `${FIXED_ROOT}/toolchain/node-v24.19.0-linux-x64/bin`,
+        LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8', TZ: 'UTC',
+      });
+    }
+    expect(boundary.executableRecords).toContainEqual(expect.objectContaining({
+      path: compilerPath,
+      options: expect.objectContaining({
+        expectedBytes: 125989464,
+        expectedSha256: 'bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12',
+        expectedUid: 1000,
+        expectedMode: 0o500,
+      }),
+    }));
+  });
+
+  it('rejects a changed Node24 compiler identity after typecheck and before build output', async () => {
+    prepareRequest('genesis001');
+    boundary.compilerFailureAt = 4;
+    const { runFixedLocalBindingWorker } = await import('../scripts/local-binding-runtime-worker.mjs');
+    await expect(runFixedLocalBindingWorker(boundary.request))
+      .rejects.toMatchObject({ code: 'LOCAL_BINDING_WORKER_EXECUTABLE_CHANGED' });
+    expect(boundary.events).toContain('command:typecheck');
+    expect(boundary.events).not.toContain('build-output:precreated');
+    expect(boundary.events).not.toContain('command:build-snapshot-cli');
+  });
+
+  it.each(['extra', 'owner'] as const)(
+    'rejects an invalid Node24 compiler %s namespace before entering the source builder',
+    async scenario => {
+      prepareRequest('genesis001');
+      boundary.compilerNamespaceScenario = scenario;
+      const { runFixedLocalBindingWorker } = await import('../scripts/local-binding-runtime-worker.mjs');
+      await expect(runFixedLocalBindingWorker(boundary.request))
+        .rejects.toMatchObject({ code: 'LOCAL_BINDING_WORKER_COMPILER_INVALID' });
+      expect(boundary.events).not.toContain('builder:enter');
+    },
+  );
 
   it.each([
     ['existing-directory', true],

@@ -28,11 +28,18 @@ export function deriveGenesis002LocalBindingSourceGraph(root: string): Readonly<
   modules: readonly Readonly<Record<string, unknown>>[];
 }>;
 
+export function deriveGenesis001LocalBindingSourceGraph(root: string): Readonly<{
+  root: string;
+  entry: string;
+  modules: readonly Readonly<Record<string, unknown>>[];
+}>;
+
 export function parseLocalBindingWorkerResult(
   source: string,
   nonce: string,
   handoffPath: string,
-  workerProfile?: 'warpkeep-local-binding-worker-v1' | 'warpkeep-local-binding-genesis002-worker-v1',
+  workerProfile?: 'warpkeep-local-binding-worker-v1' | 'warpkeep-local-binding-genesis002-worker-v1'
+    | 'warpkeep-local-binding-genesis001-worker-v1',
 ): Readonly<Record<string, unknown>>;
 
 export interface LocalBindingCycle {
@@ -69,6 +76,28 @@ export function verifyLocalBindingBootstrapSource(source: Readonly<{
 }>): void;
 
 export function executeFixedLocalBindingParentCycles(context: Readonly<{
+  repositoryRoot: string;
+  operationRoot: string;
+  environment: Readonly<Record<string, string | undefined>>;
+  source: Readonly<{
+    root: string;
+    commit: string;
+    tree: string;
+    bootstrap: readonly Readonly<{
+      path: string;
+      bytes: number;
+      sha256: string;
+      identity: import('./local-binding-bounded-file.mjs').LocalBindingFileIdentity;
+    }>[];
+  }>;
+  graph: Readonly<Record<string, unknown>>;
+  yaml: Readonly<Record<string, unknown>>;
+  cli: Readonly<{ path: string; verify(): void }>;
+  readBindingTree(root: string): Promise<readonly Readonly<{ path: string; bytes: Uint8Array }>[]>
+  verifyExecutables(): void;
+}>): Promise<LocalBindingCycle>;
+
+export function executeFixedGenesis001LocalBindingParentCycles(context: Readonly<{
   repositoryRoot: string;
   operationRoot: string;
   environment: Readonly<Record<string, string | undefined>>;
@@ -140,4 +169,13 @@ export function deriveFixedPairedLocalBindingRuntime(): Promise<Readonly<{
     dependencyClosureDigest: string;
     bindings: readonly Readonly<{ path: string; bytes: Uint8Array }>[];
   }>;
+}>>;
+
+export function deriveFixedGenesis001LocalCompilation(): Promise<Readonly<{
+  profile: 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
+  sourceCommit: string;
+  sourceTree: string;
+  bundleSha256: string;
+  dependencyClosureDigest: string;
+  diagnosticBindings: readonly Readonly<{ path: string; bytes: Uint8Array }>[];
 }>>;

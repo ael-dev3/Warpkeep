@@ -33,13 +33,13 @@ if (process.env.LOCAL_BINDING_FIXTURE_MUTATION === 'yaml-extra') {
 }
 
 const hooks = installLocalBindingNativeTsHooks(
-  { root: resolve(root, 'source'), entry: 'entry.ts', modules: moduleRecords },
+  { root: resolve(root, 'source'), entry: process.env.LOCAL_BINDING_FIXTURE_GRAPH_ENTRY ?? 'entry.ts', modules: moduleRecords },
   { root: resolve(root, 'yaml'), entry: 'dist/index.js', files: yamlFiles },
 );
 try {
   if (process.env.LOCAL_BINDING_FIXTURE_UNRECORDED_BUILTIN === 'process') await import('process');
   if (process.env.LOCAL_BINDING_FIXTURE_UNRECORDED_BUILTIN === 'buffer') await import('buffer');
-  const loaded = await import('warpkeep:ptr-binding-entry');
+  const loaded = await import(process.env.LOCAL_BINDING_FIXTURE_SYNTHETIC_ENTRY ?? 'warpkeep:ptr-binding-entry');
   process.stdout.write(`${JSON.stringify({ value: loaded.value })}\n`);
 } finally {
   hooks.deregister();

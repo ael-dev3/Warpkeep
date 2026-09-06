@@ -63,13 +63,40 @@ export async function derivePreparedPairedLinuxBindings(...arguments_) {
   }
 }
 
+export async function derivePreparedGenesis001LinuxCompilation(...arguments_) {
+  if (arguments_.length !== 0) throw new LocalBindingRuntimeError('LOCAL_BINDING_RUNTIME_ARGUMENTS_INVALID');
+  try {
+    const { deriveFixedGenesis001LocalCompilation } = await import('./local-binding-runtime-core.mjs');
+    const result = await deriveFixedGenesis001LocalCompilation();
+    return Object.freeze({
+      profile: result.profile,
+      sourceCommit: result.sourceCommit,
+      sourceTree: result.sourceTree,
+      bundleSha256: result.bundleSha256,
+      dependencyClosureDigest: result.dependencyClosureDigest,
+      diagnosticBindings: Object.freeze(result.diagnosticBindings.map(entry => Object.freeze({
+        path: entry.path,
+        bytes: new Uint8Array(entry.bytes),
+      }))),
+    });
+  } catch (error) {
+    if (error instanceof LocalBindingRuntimeError) throw error;
+    const code = typeof error?.code === 'string' && /^LOCAL_BINDING_[A-Z0-9_]+$/u.test(error.code)
+      ? error.code : 'LOCAL_BINDING_RUNTIME_FAILED';
+    throw new LocalBindingRuntimeError(code, { cause: error });
+  }
+}
+
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const paired = process.argv.length === 3 && process.argv[2] === '--paired';
-  if (process.argv.length !== 2 && !paired) {
+  const genesis001 = process.argv.length === 3 && process.argv[2] === '--genesis001';
+  if (process.argv.length !== 2 && !paired && !genesis001) {
     process.stderr.write('LOCAL_BINDING_RUNTIME_ARGUMENTS_INVALID\n');
     process.exitCode = 1;
   } else {
-    (paired ? derivePreparedPairedLinuxBindings() : derivePreparedPtrLinuxBindings()).then(result => {
+    (paired ? derivePreparedPairedLinuxBindings()
+      : genesis001 ? derivePreparedGenesis001LinuxCompilation()
+        : derivePreparedPtrLinuxBindings()).then(result => {
       const summary = paired ? {
         profile: result.profile,
         sourceCommit: result.sourceCommit,
@@ -84,6 +111,13 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
           dependencyClosureDigest: result.ptr.dependencyClosureDigest,
           bindingCount: result.ptr.bindings.length,
         },
+      } : genesis001 ? {
+        profile: result.profile,
+        sourceCommit: result.sourceCommit,
+        sourceTree: result.sourceTree,
+        bundleSha256: result.bundleSha256,
+        dependencyClosureDigest: result.dependencyClosureDigest,
+        diagnosticBindingCount: result.diagnosticBindings.length,
       } : {
         profile: result.profile,
         sourceCommit: result.sourceCommit,

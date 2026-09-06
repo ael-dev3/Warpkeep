@@ -8,6 +8,7 @@ import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 const SYNTHETIC_ENTRIES = new Map([
   ['scripts/ptr-binding-linux-locked-source-build.ts', 'warpkeep:ptr-binding-entry'],
   ['scripts/genesis002-binding-linux-locked-source-build.ts', 'warpkeep:genesis002-binding-entry'],
+  ['scripts/genesis001-binding-linux-locked-source-build.ts', 'warpkeep:genesis001-binding-entry'],
 ]);
 const MAX_SOURCE_BYTES = 4 * 1024 * 1024;
 const YAML_BUILTINS = new Set(['buffer', 'process']);

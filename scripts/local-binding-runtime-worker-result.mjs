@@ -51,6 +51,8 @@ export function createLocalBindingWorkerResult(input) {
     schemaVersion: 1,
     profile: input.requestProfile === 'warpkeep-local-binding-genesis002-worker-v1'
       ? 'warpkeep-local-binding-genesis002-worker-result-v1'
+      : input.requestProfile === 'warpkeep-local-binding-genesis001-worker-v1'
+        ? 'warpkeep-local-binding-genesis001-worker-result-v1'
       : input.requestProfile === 'warpkeep-local-binding-worker-v1'
         ? 'warpkeep-local-binding-worker-result-v1'
         : fail('LOCAL_BINDING_WORKER_RESULT_INVALID'),

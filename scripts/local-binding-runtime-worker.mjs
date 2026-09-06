@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
-  closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, realpathSync, symlinkSync, unlinkSync,
+  closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, realpathSync, symlinkSync, unlinkSync,
   writeSync,
 } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
@@ -20,6 +20,9 @@ const STANDALONE_BYTES = 130219584;
 const STANDALONE_SHA256 = 'a9185a737c9b739896c8f51326e1c3aedefba80a0f01def76ce26f358d5c187b';
 const NODE_BYTES = 124819136;
 const NODE_SHA256 = 'e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2';
+const GENESIS001_NODE_PATH = '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v24.19.0-linux-x64/bin/node';
+const GENESIS001_NODE_BYTES = 125989464;
+const GENESIS001_NODE_SHA256 = 'bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12';
 const GIT_PATH = '/usr/bin/git';
 const GIT_SHA256 = '2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668';
 
@@ -73,14 +76,56 @@ function attestRuntimeExecutables(request, expected) {
       || !sameDirectoryIdentity(directory, expected?.directory)) {
     fail('LOCAL_BINDING_WORKER_EXECUTABLE_INVALID');
   }
-  return Object.freeze({
+  const result = {
     directory: directoryIdentity(directory),
     node: attestExecutable(request.nodePath, NODE_BYTES, NODE_SHA256, 1000, undefined, expected?.node),
     git: attestExecutable(GIT_PATH, undefined, GIT_SHA256, 0, undefined, expected?.git),
     cli: attestExecutable(request.cliPath, CLI_BYTES, CLI_SHA256, 1000, 0o500, expected?.cli),
     standalone: attestExecutable(join(snapshotDirectory, 'spacetimedb-standalone'),
       STANDALONE_BYTES, STANDALONE_SHA256, 1000, 0o500, expected?.standalone),
-  });
+  };
+  if (request.profile === 'warpkeep-local-binding-genesis001-worker-v1') {
+    try {
+      const versionRoot = dirname(dirname(GENESIS001_NODE_PATH));
+      const binRoot = dirname(GENESIS001_NODE_PATH);
+      const directories = [
+        [versionRoot, ['bin'], expected?.compilerVersionRoot],
+        [binRoot, ['node'], expected?.compilerBinRoot],
+      ];
+      for (const [path, children, identity] of directories) {
+        const state = lstatSync(path, { bigint: true });
+        if (!state.isDirectory() || state.isSymbolicLink() || state.uid !== 1000n
+            || (state.mode & 0o777n) !== 0o700n || realpathSync(path) !== path
+            || JSON.stringify(requireExactChildren(path)) !== JSON.stringify(children)
+            || !sameDirectoryIdentity(state, identity)) {
+          fail('LOCAL_BINDING_WORKER_COMPILER_INVALID');
+        }
+        result[path === versionRoot ? 'compilerVersionRoot' : 'compilerBinRoot'] = directoryIdentity(state);
+      }
+      result.compiler = attestExecutable(
+        GENESIS001_NODE_PATH, GENESIS001_NODE_BYTES, GENESIS001_NODE_SHA256,
+        1000, 0o500, expected?.compiler,
+      );
+    } catch (error) {
+      if (typeof error?.code === 'string' && error.code.startsWith('LOCAL_BINDING_WORKER_')) throw error;
+      fail(expected === undefined
+        ? 'LOCAL_BINDING_WORKER_COMPILER_INVALID'
+        : 'LOCAL_BINDING_WORKER_COMPILER_CHANGED', error);
+    }
+  }
+  return Object.freeze(result);
+}
+
+function requireExactChildren(path) {
+  try {
+    return Array.from(requireDirectoryEntries(path)).sort();
+  } catch (error) {
+    fail('LOCAL_BINDING_WORKER_COMPILER_INVALID', error);
+  }
+}
+
+function requireDirectoryEntries(path) {
+  return readdirSync(path);
 }
 
 function fixedWorkerLane(profile) {
@@ -91,6 +136,10 @@ function fixedWorkerLane(profile) {
   if (profile === 'warpkeep-local-binding-genesis002-worker-v1') return Object.freeze({
     syntheticEntry: 'warpkeep:genesis002-binding-entry', builder: 'withGenesis002LinuxLockedSourceBuild',
     modulePath: 'spacetimedb/genesis002', stateChild: 'genesis002-locked-source-builds-v1',
+  });
+  if (profile === 'warpkeep-local-binding-genesis001-worker-v1') return Object.freeze({
+    syntheticEntry: 'warpkeep:genesis001-binding-entry', builder: 'withGenesis001LinuxLockedSourceBuild',
+    modulePath: 'spacetimedb', stateChild: 'genesis001-locked-source-builds-v1',
   });
   fail('LOCAL_BINDING_WORKER_REQUEST_INVALID');
 }
@@ -134,9 +183,9 @@ function bindPrivateBuildOutput(request, lane, materializedRoot) {
   });
 }
 
-function command(executable, args, cwd, timeout) {
+function command(executable, args, cwd, timeout, env = process.env) {
   const result = spawnSync(executable, args, {
-    cwd, env: process.env, shell: false, stdio: ['ignore', 'pipe', 'pipe'],
+    cwd, env, shell: false, stdio: ['ignore', 'pipe', 'pipe'],
     encoding: 'buffer', timeout, maxBuffer: MAX_COMMAND_OUTPUT,
   });
   if (result.status !== 0 || result.signal !== null || result.error !== undefined
@@ -145,6 +194,23 @@ function command(executable, args, cwd, timeout) {
     fail(result.error?.code === 'ETIMEDOUT'
       ? 'LOCAL_BINDING_WORKER_COMMAND_TIMEOUT' : 'LOCAL_BINDING_WORKER_COMMAND_FAILED', result.error);
   }
+}
+
+function genesis001CommandEnvironment(request) {
+  const operationRoot = dirname(request.repositoryRoot);
+  const home = join(operationRoot, 'home');
+  const temporary = join(operationRoot, 'tmp');
+  for (const path of [home, temporary]) {
+    const state = lstatSync(path, { bigint: true });
+    if (!state.isDirectory() || state.isSymbolicLink() || state.uid !== 1000n
+        || (state.mode & 0o777n) !== 0o700n || realpathSync(path) !== path) {
+      fail('LOCAL_BINDING_WORKER_COMPILER_ENVIRONMENT_INVALID');
+    }
+  }
+  return Object.freeze({
+    HOME: home, TMPDIR: temporary, PATH: dirname(GENESIS001_NODE_PATH),
+    LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8', TZ: 'UTC',
+  });
 }
 
 function runGenesis002Typecheck(request, moduleRoot) {
@@ -282,9 +348,8 @@ export async function runFixedLocalBindingWorker(input) {
     const builder = await import(lane.syntheticEntry);
     if (typeof builder[lane.builder] !== 'function') fail('LOCAL_BINDING_WORKER_BUILDER_INVALID');
     attestRuntimeExecutables(request, runtimeAuthority);
-    const built = builder[lane.builder]({
+    const builderInput = {
       repositoryRoot: request.repositoryRoot,
-      moduleSourceCommit: request.sourceCommit,
       dependencyCacheRoot: request.dependencyCacheRoot,
       materializationParent: request.materializationRoot,
       operation(context) {
@@ -293,6 +358,11 @@ export async function runFixedLocalBindingWorker(input) {
         attestRuntimeExecutables(request, runtimeAuthority);
         if (request.profile === 'warpkeep-local-binding-genesis002-worker-v1') {
           runGenesis002Typecheck(request, moduleRoot);
+        } else if (request.profile === 'warpkeep-local-binding-genesis001-worker-v1') {
+          command(GENESIS001_NODE_PATH, [
+            join(moduleRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
+            '--noEmit', '--project', join(moduleRoot, 'tsconfig.json'),
+          ], moduleRoot, 10 * 60_000, genesis001CommandEnvironment(request));
         } else {
           command(request.nodePath, [
             join(moduleRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
@@ -303,6 +373,9 @@ export async function runFixedLocalBindingWorker(input) {
         buildOutput.create();
         if (request.profile === 'warpkeep-local-binding-genesis002-worker-v1') {
           runGenesis002Build(request, lane, context.materializedRoot, moduleRoot);
+        } else if (request.profile === 'warpkeep-local-binding-genesis001-worker-v1') {
+          command(request.cliPath, ['build', '--module-path', 'spacetimedb'],
+            context.materializedRoot, 10 * 60_000, genesis001CommandEnvironment(request));
         } else {
           command(request.cliPath, ['build', '--module-path', lane.modulePath],
             context.materializedRoot, 10 * 60_000);
@@ -317,7 +390,11 @@ export async function runFixedLocalBindingWorker(input) {
           requestProfile: request.profile,
         });
       },
-    });
+    };
+    if (request.profile !== 'warpkeep-local-binding-genesis001-worker-v1') {
+      builderInput.moduleSourceCommit = request.sourceCommit;
+    }
+    const built = builder[lane.builder](builderInput);
     if (built.dependencyClosureDigest !== built.result.dependencyClosureDigest) {
       fail('LOCAL_BINDING_WORKER_PROVENANCE_INVALID');
     }

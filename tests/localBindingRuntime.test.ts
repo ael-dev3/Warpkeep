@@ -103,7 +103,8 @@ describe('fixed local PTR binding runtime', () => {
   it('exposes only the fixed no-argument candidate API and rejects authority arguments first', async () => {
     const module = await import('../scripts/local-binding-runtime.mjs');
     expect(Object.keys(module).sort()).toEqual([
-      'LocalBindingRuntimeError', 'derivePreparedPairedLinuxBindings', 'derivePreparedPtrLinuxBindings',
+      'LocalBindingRuntimeError', 'derivePreparedGenesis001LinuxCompilation',
+      'derivePreparedPairedLinuxBindings', 'derivePreparedPtrLinuxBindings',
     ]);
     await expect((derivePreparedPtrLinuxBindings as unknown as (input: unknown) => Promise<unknown>)({
       root: '/tmp/other',

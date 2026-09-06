@@ -30,5 +30,15 @@ export interface PreparedPairedLinuxBindings {
   readonly ptr: PreparedLinuxRealmBindings;
 }
 
+export interface PreparedGenesis001LinuxCompilation {
+  readonly profile: 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
+  readonly sourceCommit: string;
+  readonly sourceTree: string;
+  readonly bundleSha256: string;
+  readonly dependencyClosureDigest: string;
+  readonly diagnosticBindings: readonly Readonly<{ path: string; bytes: Uint8Array }>[];
+}
+
 export function derivePreparedPtrLinuxBindings(): Promise<PreparedPtrLinuxBindings>;
 export function derivePreparedPairedLinuxBindings(): Promise<PreparedPairedLinuxBindings>;
+export function derivePreparedGenesis001LinuxCompilation(): Promise<PreparedGenesis001LinuxCompilation>;

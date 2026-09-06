@@ -18,12 +18,17 @@ export { runLocalBindingBoundedProcess } from './local-binding-runtime-process.m
 const PROFILE = 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
 const WORKER_PROFILE = 'warpkeep-local-binding-worker-v1';
 const GENESIS002_WORKER_PROFILE = 'warpkeep-local-binding-genesis002-worker-v1';
+const GENESIS001_WORKER_PROFILE = 'warpkeep-local-binding-genesis001-worker-v1';
 const WORKER_RESULT_PROFILE = 'warpkeep-local-binding-worker-result-v1';
 const GENESIS002_WORKER_RESULT_PROFILE = 'warpkeep-local-binding-genesis002-worker-result-v1';
+const GENESIS001_WORKER_RESULT_PROFILE = 'warpkeep-local-binding-genesis001-worker-result-v1';
 const ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
 const NODE_PATH = `${ROOT}/toolchain/node-v22.22.3-linux-x64/bin/node`;
 const NODE_BYTES = 124819136;
 const NODE_SHA256 = 'e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2';
+const GENESIS001_NODE_PATH = `${ROOT}/toolchain/node-v24.19.0-linux-x64/bin/node`;
+const GENESIS001_NODE_BYTES = 125989464;
+const GENESIS001_NODE_SHA256 = 'bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12';
 const CLI_PATH = `${ROOT}/toolchain/spacetime-2.6.1/spacetimedb-cli`;
 const CLI_BYTES = 47905552;
 const CLI_SHA256 = 'cac13c929049f31cb588c230a0d7fe5f388505b4c64047a68b1d5cfdc811624b';
@@ -75,10 +80,18 @@ const GENESIS002_LANE = Object.freeze({
   cacheRoot: GENESIS002_CACHE_ROOT,
   bindingPrefix: 'scripts/genesis002_module_bindings/', includePrivate: true,
 });
+const GENESIS001_LANE = Object.freeze({
+  name: 'genesis001', workerProfile: GENESIS001_WORKER_PROFILE,
+  resultProfile: GENESIS001_WORKER_RESULT_PROFILE,
+  graphEntry: 'scripts/genesis001-binding-linux-locked-source-build.ts',
+  cacheRoot: GENESIS002_CACHE_ROOT,
+  bindingPrefix: '', includePrivate: false,
+});
 
 function laneForWorkerProfile(profile) {
   if (profile === WORKER_PROFILE) return PTR_LANE;
   if (profile === GENESIS002_WORKER_PROFILE) return GENESIS002_LANE;
+  if (profile === GENESIS001_WORKER_PROFILE) return GENESIS001_LANE;
   fail('LOCAL_BINDING_WORKER_REQUEST_INVALID');
 }
 
@@ -302,6 +315,45 @@ function privateDirectory(path) {
   }
 }
 
+function attestGenesis001CompilerNamespace(expected) {
+  const versionRoot = dirname(dirname(GENESIS001_NODE_PATH));
+  const binRoot = dirname(GENESIS001_NODE_PATH);
+  const result = {};
+  try {
+    for (const [path, children, key] of [
+      [versionRoot, ['bin'], 'versionRoot'],
+      [binRoot, ['node'], 'binRoot'],
+    ]) {
+      privateDirectory(path);
+      const state = lstatSync(path, { bigint: true });
+      if (JSON.stringify(readdirSync(path).sort()) !== JSON.stringify(children)
+          || (expected?.[key] !== undefined
+            && JSON.stringify(serializedIdentity(state)) !== JSON.stringify(expected[key]))) {
+        fail('LOCAL_BINDING_RUNTIME_COMPILER_INVALID');
+      }
+      result[key] = serializedIdentity(state);
+    }
+    const nodeState = lstatSync(GENESIS001_NODE_PATH, { bigint: true });
+    if (!nodeState.isFile() || nodeState.isSymbolicLink() || nodeState.uid !== 1000n
+        || (nodeState.mode & 0o777n) !== 0o500n
+        || realpathSync(GENESIS001_NODE_PATH) !== GENESIS001_NODE_PATH) {
+      fail('LOCAL_BINDING_RUNTIME_COMPILER_INVALID');
+    }
+    const node = stableFileRecord(
+      GENESIS001_NODE_PATH, GENESIS001_NODE_BYTES, GENESIS001_NODE_SHA256,
+      1000, true, expected?.node,
+    );
+    node.body.fill(0);
+    result.node = node.identity;
+    return Object.freeze(result);
+  } catch (error) {
+    if (error?.code === 'LOCAL_BINDING_RUNTIME_COMPILER_INVALID') throw error;
+    fail(expected === undefined
+      ? 'LOCAL_BINDING_RUNTIME_COMPILER_INVALID'
+      : 'LOCAL_BINDING_RUNTIME_COMPILER_CHANGED', error);
+  }
+}
+
 function git(repositoryRoot, environment, gitIdentity, args, maxBuffer = 1024 * 1024) {
   stableFile(GIT_PATH, undefined, GIT_SHA256, 0, true, gitIdentity).fill(0);
   const result = spawnSync(GIT_PATH, args, {
@@ -388,6 +440,10 @@ export function deriveLocalBindingSourceGraph(root) {
 
 export function deriveGenesis002LocalBindingSourceGraph(root) {
   return deriveFixedEntrySourceGraph(root, GENESIS002_LANE.graphEntry);
+}
+
+export function deriveGenesis001LocalBindingSourceGraph(root) {
+  return deriveFixedEntrySourceGraph(root, GENESIS001_LANE.graphEntry);
 }
 
 function attestYaml(manifest) {
@@ -558,6 +614,12 @@ export async function executeFixedLocalBindingParentCycles(context) {
   return assertReproducibleLocalBindingCycles(first, second);
 }
 
+export async function executeFixedGenesis001LocalBindingParentCycles(context) {
+  const first = await executeCycle(context, GENESIS001_LANE, 1);
+  const second = await executeCycle(context, GENESIS001_LANE, 2);
+  return assertReproducibleLocalBindingCycles(first, second);
+}
+
 export async function executeFixedPairedLocalBindingParentCycles(context) {
   const laneContexts = {};
   for (const lane of [GENESIS002_LANE, PTR_LANE]) {
@@ -588,7 +650,9 @@ export function preserveLocalBindingRuntimePrimaryAndCleanup(primaryError, clean
   });
 }
 
-async function deriveLocalBindingRuntime(paired) {
+async function deriveLocalBindingRuntime(mode) {
+  const paired = mode === 'paired';
+  const genesis001 = mode === 'genesis001';
   const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   validateLocalBindingRuntimeHost({
     platform: process.platform,
@@ -601,7 +665,8 @@ async function deriveLocalBindingRuntime(paired) {
   for (const path of [
     ROOT, join(ROOT, 'toolchain'), dirname(dirname(NODE_PATH)), dirname(NODE_PATH),
     dirname(CLI_PATH), join(ROOT, 'cache'), CACHE_ROOT,
-    ...(paired ? [GENESIS002_CACHE_ROOT] : []), RUNS_ROOT,
+    ...((paired || genesis001) ? [GENESIS002_CACHE_ROOT] : []), RUNS_ROOT,
+    ...(genesis001 ? [dirname(dirname(GENESIS001_NODE_PATH)), dirname(GENESIS001_NODE_PATH)] : []),
   ]) privateDirectory(path);
   const nodeAuthority = stableFileRecord(NODE_PATH, NODE_BYTES, NODE_SHA256, 1000, true);
   nodeAuthority.body.fill(0);
@@ -612,10 +677,26 @@ async function deriveLocalBindingRuntime(paired) {
   const version = spawnSync(NODE_PATH, ['--version'], { encoding: 'utf8', shell: false, stdio: ['ignore', 'pipe', 'pipe'], timeout: 10_000 });
   stableFile(NODE_PATH, NODE_BYTES, NODE_SHA256, 1000, true, nodeAuthority.identity).fill(0);
   if (version.status !== 0 || version.stdout.trim() !== 'v22.22.3') fail('LOCAL_BINDING_RUNTIME_NODE_INVALID');
+  const genesis001NodeAuthority = genesis001 ? attestGenesis001CompilerNamespace() : undefined;
 
   const operationRoot = join(RUNS_ROOT, `binding-${randomUUID().replaceAll('-', '')}`);
   mkdirSync(operationRoot, { mode: 0o700 });
   const environment = cleanEnvironment(operationRoot);
+  if (genesis001NodeAuthority !== undefined) {
+    const compilerEnvironment = Object.freeze({
+      ...environment, PATH: dirname(GENESIS001_NODE_PATH),
+    });
+    const compilerVersion = spawnSync(GENESIS001_NODE_PATH, ['--version'], {
+      cwd: operationRoot, env: compilerEnvironment, encoding: 'utf8', shell: false,
+      stdio: ['ignore', 'pipe', 'pipe'], timeout: 10_000, maxBuffer: 64 * 1024,
+    });
+    attestGenesis001CompilerNamespace(genesis001NodeAuthority);
+    if (compilerVersion.status !== 0 || compilerVersion.signal !== null
+        || compilerVersion.error !== undefined || compilerVersion.stdout !== 'v24.19.0\n'
+        || compilerVersion.stderr !== '') {
+      fail('LOCAL_BINDING_RUNTIME_COMPILER_INVALID', compilerVersion.error);
+    }
+  }
   let source;
   let cli;
   let cliSource;
@@ -624,7 +705,9 @@ async function deriveLocalBindingRuntime(paired) {
   let primaryError;
   try {
     source = snapshotCommittedSource(repositoryRoot, operationRoot, environment, gitAuthority.identity);
-    const graph = deriveLocalBindingSourceGraph(source.root);
+    const graph = genesis001
+      ? deriveGenesis001LocalBindingSourceGraph(source.root)
+      : deriveLocalBindingSourceGraph(source.root);
     const graphs = paired ? Object.freeze({
       genesis002: deriveGenesis002LocalBindingSourceGraph(source.root),
       ptr: graph,
@@ -647,6 +730,9 @@ async function deriveLocalBindingRuntime(paired) {
     verifyLocalBindingBootstrapSource(source);
     const verifyExecutables = () => {
       stableFile(NODE_PATH, NODE_BYTES, NODE_SHA256, 1000, true, nodeAuthority.identity).fill(0);
+      if (genesis001NodeAuthority !== undefined) {
+        attestGenesis001CompilerNamespace(genesis001NodeAuthority);
+      }
       stableFile(GIT_PATH, undefined, GIT_SHA256, 0, true, gitAuthority.identity).fill(0);
       cli.verify();
     };
@@ -656,7 +742,9 @@ async function deriveLocalBindingRuntime(paired) {
     };
     const selected = paired
       ? await executeFixedPairedLocalBindingParentCycles(context)
-      : await executeFixedLocalBindingParentCycles(context);
+      : genesis001
+        ? await executeFixedGenesis001LocalBindingParentCycles(context)
+        : await executeFixedLocalBindingParentCycles(context);
     cli.verify();
     if (git(source.root, environment, gitAuthority.identity, ['rev-parse', '--verify', 'HEAD']) !== source.commit
         || git(source.root, environment, gitAuthority.identity, ['rev-parse', '--verify', 'HEAD^{tree}']) !== source.tree) {
@@ -673,6 +761,13 @@ async function deriveLocalBindingRuntime(paired) {
     finalResult = paired ? Object.freeze({
       profile: PROFILE, sourceCommit: source.commit, sourceTree: source.tree,
       genesis002: copyLane(selected.genesis002), ptr: copyLane(selected.ptr),
+    }) : genesis001 ? Object.freeze({
+      profile: PROFILE, sourceCommit: selected.sourceCommit, sourceTree: selected.sourceTree,
+      bundleSha256: selected.bundleSha256,
+      dependencyClosureDigest: selected.dependencyClosureDigest,
+      diagnosticBindings: Object.freeze(selected.bindings.map(entry => Object.freeze({
+        path: entry.path, bytes: new Uint8Array(entry.bytes),
+      }))),
     }) : Object.freeze({
       profile: PROFILE, sourceCommit: selected.sourceCommit, sourceTree: selected.sourceTree,
       ...copyLane(selected),
@@ -693,9 +788,13 @@ async function deriveLocalBindingRuntime(paired) {
 }
 
 export function deriveFixedLocalBindingRuntime() {
-  return deriveLocalBindingRuntime(false);
+  return deriveLocalBindingRuntime('ptr');
 }
 
 export function deriveFixedPairedLocalBindingRuntime() {
-  return deriveLocalBindingRuntime(true);
+  return deriveLocalBindingRuntime('paired');
+}
+
+export function deriveFixedGenesis001LocalCompilation() {
+  return deriveLocalBindingRuntime('genesis001');
 }

@@ -1,4 +1,6 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -47,6 +49,26 @@ afterEach(() => {
 });
 
 describe('native local binding TypeScript hooks', () => {
+  it('resolves the fixed G001 graph only through its distinct synthetic entry', () => {
+    const root = makeFixture('export const value = 17;\n', []);
+    const graph = JSON.parse(readFileSync(join(root, 'graph.json'), 'utf8'));
+    graph[0].path = 'scripts/genesis001-binding-linux-locked-source-build.ts';
+    mkdirSync(join(root, 'source', 'scripts'));
+    renameSync(join(root, 'source', 'entry.ts'),
+      join(root, 'source', 'scripts', 'genesis001-binding-linux-locked-source-build.ts'));
+    writeFileSync(join(root, 'graph.json'), JSON.stringify(graph));
+    const result = spawnSync(node, [fixture, root], {
+      encoding: 'utf8',
+      env: {
+        PATH: process.env.PATH,
+        LOCAL_BINDING_FIXTURE_GRAPH_ENTRY: 'scripts/genesis001-binding-linux-locked-source-build.ts',
+        LOCAL_BINDING_FIXTURE_SYNTHETIC_ENTRY: 'warpkeep:genesis001-binding-entry',
+      },
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({ value: 17 });
+  });
+
   it('runs transformed TypeScript and a contained nested physical YAML CJS graph in pinned Node', () => {
     const root = makeFixture(
       "import { Tone, Box } from './value';\nimport yaml from 'yaml';\nexport const value = new Box(Tone.Low).n + yaml.suffix;\n",

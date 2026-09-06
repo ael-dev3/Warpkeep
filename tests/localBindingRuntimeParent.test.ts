@@ -107,9 +107,11 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
       if (options.fd3 !== undefined) {
         const request = JSON.parse(options.fd3) as Record<string, any>;
         const genesis002 = request.profile === 'warpkeep-local-binding-genesis002-worker-v1';
+        const genesis001 = request.profile === 'warpkeep-local-binding-genesis001-worker-v1';
         boundary.events.push(genesis002
           ? `worker:genesis002:${path.basename(request.handoffPath)}`
-          : `worker:${path.basename(request.handoffPath)}`);
+          : genesis001 ? `worker:genesis001:${path.basename(request.handoffPath)}`
+            : `worker:${path.basename(request.handoffPath)}`);
         expect(executable).toBe(`${FIXED_ROOT}/toolchain/node-v22.22.3-linux-x64/bin/node`);
         expect(args).toEqual(['--experimental-vm-modules', join(request.repositoryRoot, 'scripts', 'local-binding-runtime-worker.mjs')]);
         expect(`${JSON.stringify(request)}\n`).toBe(options.fd3);
@@ -125,6 +127,7 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
           schemaVersion: 1,
           profile: genesis002
             ? 'warpkeep-local-binding-genesis002-worker-result-v1'
+            : genesis001 ? 'warpkeep-local-binding-genesis001-worker-result-v1'
             : 'warpkeep-local-binding-worker-result-v1',
           nonce: boundary.scenario === 'forged-nonce' ? 'f'.repeat(32) : request.nonce,
           sourceCommit: request.sourceCommit,
@@ -186,6 +189,7 @@ vi.mock('../scripts/local-binding-bounded-file.mjs', async () => {
 });
 
 import {
+  executeFixedGenesis001LocalBindingParentCycles,
   executeFixedLocalBindingParentCycles,
   executeFixedPairedLocalBindingParentCycles,
   preserveLocalBindingRuntimePrimaryAndCleanup,
@@ -248,6 +252,21 @@ function pairedContext() {
   return { ...value, graphs: { genesis002, ptr: value.graph } };
 }
 
+function genesis001Context() {
+  const value = context();
+  return {
+    ...value,
+    graph: {
+      ...value.graph,
+      entry: 'scripts/genesis001-binding-linux-locked-source-build.ts',
+      modules: [{
+        ...value.graph.modules[0],
+        path: 'scripts/genesis001-binding-linux-locked-source-build.ts',
+      }],
+    },
+  };
+}
+
 describe('production local binding parent cycles', () => {
   it('preserves the parent primary failure together with cleanup failure', () => {
     const primary = new Error('CONTROLLED_PARENT_PRIMARY');
@@ -304,6 +323,15 @@ describe('production local binding parent cycles', () => {
       'verify-executables', 'worker:bundle.js', 'verify-executables', 'generate', 'verify-executables',
       'verify-executables', 'worker:bundle.js', 'verify-executables', 'generate', 'verify-executables',
     ]);
+  });
+
+  it('runs two G001 cycles without private generation or frontend path projection', async () => {
+    const result = await executeFixedGenesis001LocalBindingParentCycles(genesis001Context());
+    expect(Buffer.from(result.bindings[0]!.bytes).toString()).toBe('binding');
+    expect(result.bindings[0]!.path).toBe('index.ts');
+    expect(boundary.generateArgs).toHaveLength(2);
+    expect(boundary.generateArgs.every(args => !args.includes('--include-private'))).toBe(true);
+    expect(boundary.events.filter(event => event.startsWith('worker:genesis001:'))).toHaveLength(2);
   });
 
   it.each([
