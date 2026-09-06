@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { Building04, Resource04 } from '../../../spacetimedb/gameplay04/policy';
 import type { Placement04 } from '../../../spacetimedb/gameplay04/placement';
 import type { Controller04, Snapshot04 } from '../../ptr/gameplay04/createGameplay04Controller';
@@ -32,6 +32,9 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   const buildingsButton = useRef<HTMLButtonElement>(null);
   const backButton = useRef<HTMLButtonElement>(null);
   const root = useRef<HTMLDivElement>(null);
+  const decisionHeader = useRef<HTMLDivElement>(null);
+  const commandPanel = useRef<HTMLElement>(null);
+  const previousPanel = useRef<Keep04UiSelection['panel']>(null);
   const schematic = useRef<HTMLDetailsElement>(null);
   const wasReady = useRef(phase === 'ready');
   const ready = phase === 'ready' && view !== null;
@@ -41,8 +44,26 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
     setNowMs(Date.now()); const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [activeTimer]);
+  useLayoutEffect(() => {
+    const header = decisionHeader.current; const element = root.current;
+    if (!ready || !header || !element) return;
+    // Includes wrapping, font changes and safe-area padding, not a guessed
+    // mobile height. Resizing updates offsets without moving the user's scroll.
+    const measure = () => element.style.setProperty('--keep04-decision-height', `${header.getBoundingClientRect().height}px`);
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(header, { box: 'border-box' }); window.addEventListener('resize', measure);
+    return () => {
+      observer?.disconnect(); window.removeEventListener('resize', measure);
+      element.style.removeProperty('--keep04-decision-height');
+    };
+  }, [ready]);
   useEffect(() => {
-    if (ready && selection.panel) closeButton.current?.focus();
+    if (!ready) return;
+    const opened = previousPanel.current !== selection.panel;
+    previousPanel.current = selection.panel;
+    if (!selection.panel) return;
+    focusPanel(opened);
   }, [selection.panel, ready]);
   useEffect(() => {
     // Keep the same DOM and focus, but reopen controls if graphics disappear.
@@ -52,12 +73,22 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
     if (wasReady.current && !ready && (!document.activeElement || document.activeElement === document.body || root.current?.contains(document.activeElement))) backButton.current?.focus();
     wasReady.current = ready;
   }, [ready]);
+  function focusPanel(align: boolean) {
+    const compact = decisionHeader.current !== null && getComputedStyle(decisionHeader.current).position === 'sticky';
+    if (compact) {
+      // Skip the intervening scene without collapsing/unmounting the schematic.
+      // Unchanged polling, draft edits and resizes must not steal the scroll.
+      if (align) commandPanel.current?.scrollIntoView?.({ block: 'start', behavior: 'instant' });
+      closeButton.current?.focus({ preventScroll: true });
+    } else closeButton.current?.focus();
+  }
   function closePanel() {
     onSelectionChange({ ...selection, panel: null });
     (opener.current?.isConnected ? opener.current : buildingsButton.current)?.focus();
   }
   function openPanel(panel: 'workers' | 'buildings', control: HTMLElement) {
     opener.current = control; onSelectionChange({ ...selection, panel });
+    if (selection.panel === panel && decisionHeader.current && getComputedStyle(decisionHeader.current).position === 'sticky') focusPanel(true);
   }
   function selectBuilding(kind: Building04) {
     if (!view) return;
@@ -84,14 +115,16 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
       {phase === 'failed' && <button type="button" onClick={() => { void controller.refresh(); }}>Refresh keep</button>}
     </section>}
     {view !== null && <div hidden={!ready}>
-      <section className="keep04-resources" aria-label="Resources">
-        {RESOURCES04.map(resource => <div key={resource}><span>{resource[0].toUpperCase() + resource.slice(1)}</span><strong>{view.balances[resource].toString()}</strong><small>Pending {view.pending[resource].toString()}</small></div>)}
-        <p>{PENDING_LABEL04}</p>
-      </section>
-      <nav className="keep04-primary-nav" aria-label="Primary keep actions">
-        <button type="button" aria-controls={selection.panel ? panelId : undefined} aria-expanded={selection.panel === 'buildings'} onClick={event => openPanel('buildings', event.currentTarget)}>Open building catalog</button>
-        <button type="button" aria-controls={selection.panel ? panelId : undefined} aria-expanded={selection.panel === 'workers'} onClick={event => openPanel('workers', event.currentTarget)}>Manage Workers</button>
-      </nav>
+      <div ref={decisionHeader} className="keep04-decision-header">
+        <section className="keep04-resources" aria-label="Resources">
+          {RESOURCES04.map(resource => <div key={resource}><span>{resource[0].toUpperCase() + resource.slice(1)}</span><strong>{view.balances[resource].toString()}</strong><small>Pending {view.pending[resource].toString()}</small></div>)}
+          <p>{PENDING_LABEL04}</p>
+        </section>
+        <nav className="keep04-primary-nav" aria-label="Primary keep actions">
+          <button type="button" aria-controls={selection.panel ? panelId : undefined} aria-expanded={selection.panel === 'buildings'} onClick={event => openPanel('buildings', event.currentTarget)}>Open building catalog</button>
+          <button type="button" aria-controls={selection.panel ? panelId : undefined} aria-expanded={selection.panel === 'workers'} onClick={event => openPanel('workers', event.currentTarget)}>Manage Workers</button>
+        </nav>
+      </div>
       {problem === 'capacity' && <p role="status">That resource location is full. Find another location.</p>}
       {problem === 'target' && <p role="status">That resource location changed. Choose a current Realm location.</p>}
       <div className="keep04-workspace" data-panel-open={selection.panel !== null}>
@@ -111,7 +144,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
             Constructing level {building.targetLevel} · Estimated build time: <span>{estimatedTime04(building.completesAtMicros!, nowMs)}</span>
           </p>)}
         </div>
-        {selection.panel && <aside id={panelId} className="keep04-panel" aria-label="Command panel">
+        {selection.panel && <aside ref={commandPanel} id={panelId} className="keep04-panel" aria-label="Command panel">
           <button ref={closeButton} className="keep04-close" type="button" onClick={closePanel}>Close panel</button>
           {selection.panel === 'workers'
             ? <Keep04WorkerPanel view={view} enabled={ready} nowMs={nowMs} onFindResources={onFindResources} onRecall={ordinal => {

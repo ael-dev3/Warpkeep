@@ -74,17 +74,25 @@
 @media (max-width: 760px) {
   .keep04 { padding: 12px; }
   .keep04 .keep04-workspace[data-panel-open="true"] { grid-template-columns: minmax(0, 1fr); }
-  .keep04 .keep04-panel { width: 100%; max-height: 70dvh; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
   .keep04 .keep04-scene-region { padding: 12px; }
   .keep04 .keep04-resources { gap: 8px; padding: 10px; }
   .keep04 .keep04-resources strong { font-size: 20px; }
   .keep04 .keep04-dock > button { flex: 1 1 130px; }
 }
 @media (max-width: 760px), (max-height: 500px) {
-  .keep04 .keep04-primary-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; position: sticky; top: 0; z-index: 2; padding: max(8px, env(safe-area-inset-top)) 0 8px; margin-bottom: 8px; background: #102520; }
-  .keep04 .keep04-primary-nav button { padding-inline: 8px; }
-  .keep04 .keep04-panel { scroll-margin-top: 100px; }
-  .keep04 .keep04-panel :focus { scroll-margin-top: 100px; }
+  .keep04 .keep04-decision-header { position: sticky; top: 0; z-index: 2; padding: max(4px, env(safe-area-inset-top)) 0 8px; margin-bottom: 8px; background: #102520; }
+  .keep04 .keep04-resources { gap: 4px 8px; padding: 6px 8px; margin: 0 0 6px; line-height: 1.3; }
+  .keep04 .keep04-resources > div { min-width: 0; overflow-wrap: anywhere; }
+  .keep04 .keep04-resources strong { font-size: 20px; }
+  .keep04 .keep04-resources > p { font-size: 14px; }
+  .keep04 .keep04-primary-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .keep04 .keep04-primary-nav button { padding: 6px 8px; }
+  /* A single document scroll keeps every card and its confirmation reachable,
+     including short landscape. No sticky confirmation covers catalog content. */
+  .keep04 .keep04-workspace[data-panel-open="true"] { grid-template-columns: minmax(0, 1fr); }
+  .keep04 .keep04-panel { width: 100%; max-height: none; overflow-y: visible; padding-bottom: max(12px, env(safe-area-inset-bottom)); scroll-padding-block: 0; }
+  .keep04 .keep04-primary-action { position: static; }
+  .keep04 .keep04-panel, .keep04 .keep04-workspace :is(button, summary, [tabindex]), .keep04 .keep04-dock button { scroll-margin-top: calc(var(--keep04-decision-height, 0px) + 8px); }
 }
 @media (prefers-reduced-motion: reduce) {
   .keep04 *, .keep04 *::before, .keep04 *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
