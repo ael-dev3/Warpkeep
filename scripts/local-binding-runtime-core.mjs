@@ -17,6 +17,9 @@ export { runLocalBindingBoundedProcess } from './local-binding-runtime-process.m
 
 const PROFILE = 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
 const WORKER_PROFILE = 'warpkeep-local-binding-worker-v1';
+const GENESIS002_WORKER_PROFILE = 'warpkeep-local-binding-genesis002-worker-v1';
+const WORKER_RESULT_PROFILE = 'warpkeep-local-binding-worker-result-v1';
+const GENESIS002_WORKER_RESULT_PROFILE = 'warpkeep-local-binding-genesis002-worker-result-v1';
 const ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
 const NODE_PATH = `${ROOT}/toolchain/node-v22.22.3-linux-x64/bin/node`;
 const NODE_BYTES = 124819136;
@@ -31,6 +34,7 @@ const GIT_PATH = '/usr/bin/git';
 const GIT_SHA256 = '2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668';
 const YAML_ROOT = `${ROOT}/toolchain/yaml-2.9.0/package`;
 const CACHE_ROOT = `${ROOT}/cache/ptr`;
+const GENESIS002_CACHE_ROOT = `${ROOT}/cache/genesis002`;
 const RUNS_ROOT = `${ROOT}/runs`;
 const MAX_SOURCE_FILE = 4 * 1024 * 1024;
 const MAX_SOURCE_TOTAL = 64 * 1024 * 1024;
@@ -47,6 +51,7 @@ const CONTROL_FILES = Object.freeze([
   'scripts/local-binding-runtime-worker-request.mjs',
   'scripts/local-binding-native-ts-hooks.mjs',
   'scripts/local-binding-runtime-worker-result.mjs',
+  'scripts/bootstrap-genesis002-local-binding-cache.mjs',
   'scripts/local-binding-runtime-yaml-v1.json',
   'scripts/spacetime-binding-tree.mjs',
   'scripts/spacetime-cli-attestation.mjs',
@@ -57,6 +62,25 @@ const REQUEST_KEYS = Object.freeze([
   'dependencyCacheRoot', 'materializationRoot', 'nodePath', 'cliPath', 'handoffPath', 'graph', 'yaml',
 ]);
 const { SourceTextModule } = vm;
+
+const PTR_LANE = Object.freeze({
+  name: 'ptr', workerProfile: WORKER_PROFILE, resultProfile: WORKER_RESULT_PROFILE,
+  graphEntry: 'scripts/ptr-binding-linux-locked-source-build.ts', cacheRoot: CACHE_ROOT,
+  bindingPrefix: 'spacetimedb/ptr/generated-bindings/', includePrivate: false,
+});
+const GENESIS002_LANE = Object.freeze({
+  name: 'genesis002', workerProfile: GENESIS002_WORKER_PROFILE,
+  resultProfile: GENESIS002_WORKER_RESULT_PROFILE,
+  graphEntry: 'scripts/genesis002-binding-linux-locked-source-build.ts',
+  cacheRoot: GENESIS002_CACHE_ROOT,
+  bindingPrefix: 'scripts/genesis002_module_bindings/', includePrivate: true,
+});
+
+function laneForWorkerProfile(profile) {
+  if (profile === WORKER_PROFILE) return PTR_LANE;
+  if (profile === GENESIS002_WORKER_PROFILE) return GENESIS002_LANE;
+  fail('LOCAL_BINDING_WORKER_REQUEST_INVALID');
+}
 
 export class LocalBindingRuntimeCoreError extends Error {
   constructor(code, options) {
@@ -166,18 +190,19 @@ export function validateLocalBindingRuntimeHost(value) {
 }
 
 export function validateLocalBindingWorkerRequest(value) {
+  const lane = laneForWorkerProfile(value?.profile);
   const operationRoot = typeof value?.repositoryRoot === 'string' ? dirname(value.repositoryRoot) : '';
   const operationName = operationRoot === '' ? '' : relative(RUNS_ROOT, operationRoot);
-  if (!exactKeys(value, REQUEST_KEYS) || value.schemaVersion !== 1 || value.profile !== WORKER_PROFILE
+  if (!exactKeys(value, REQUEST_KEYS) || value.schemaVersion !== 1
       || !/^[0-9a-f]{32}$/u.test(value.nonce ?? '') || !/^[0-9a-f]{40}$/u.test(value.sourceCommit ?? '')
       || !/^[0-9a-f]{40}$/u.test(value.sourceTree ?? '')
       || !fixedContainedPath(value.repositoryRoot, RUNS_ROOT)
       || !/^binding-[0-9a-f]{32}$/u.test(operationName)
-      || value.dependencyCacheRoot !== CACHE_ROOT || !fixedContainedPath(value.materializationRoot, RUNS_ROOT)
+      || value.dependencyCacheRoot !== lane.cacheRoot || !fixedContainedPath(value.materializationRoot, RUNS_ROOT)
       || value.nodePath !== NODE_PATH || value.cliPath !== join(operationRoot, 'cli', 'spacetimedb-cli')
       || !fixedContainedPath(value.handoffPath, RUNS_ROOT)
       || value.graph?.root !== value.repositoryRoot
-      || value.graph?.entry !== 'scripts/ptr-binding-linux-locked-source-build.ts'
+      || value.graph?.entry !== lane.graphEntry
       || !Array.isArray(value.graph?.modules) || value.graph.modules.length === 0
       || value.graph.modules.length > MAX_SOURCE_MODULES || value.yaml?.root !== YAML_ROOT
       || value.yaml?.entry !== 'dist/index.js' || !Array.isArray(value.yaml?.files)
@@ -204,7 +229,8 @@ export function validateLocalBindingWorkerRequest(value) {
   return value;
 }
 
-export function parseLocalBindingWorkerResult(source, nonce, handoffPath) {
+export function parseLocalBindingWorkerResult(source, nonce, handoffPath, workerProfile = WORKER_PROFILE) {
+  const lane = laneForWorkerProfile(workerProfile);
   if (typeof source !== 'string' || Buffer.byteLength(source) > MAX_WORKER_OUTPUT || !source.endsWith('\n')) {
     fail('LOCAL_BINDING_WORKER_RESULT_INVALID');
   }
@@ -213,7 +239,7 @@ export function parseLocalBindingWorkerResult(source, nonce, handoffPath) {
   const keys = ['schemaVersion', 'profile', 'nonce', 'sourceCommit', 'sourceTree', 'moduleTreeId',
     'dependencyClosureDigest', 'bundleSha256', 'bundleBytes', 'handoffPath'];
   if (!exactKeys(value, keys) || `${JSON.stringify(value)}\n` !== source || value.schemaVersion !== 1
-      || value.profile !== 'warpkeep-local-binding-worker-result-v1' || value.nonce !== nonce
+      || value.profile !== lane.resultProfile || value.nonce !== nonce
       || value.handoffPath !== handoffPath || !/^[0-9a-f]{40}$/u.test(value.sourceCommit ?? '')
       || !/^[0-9a-f]{40}$/u.test(value.sourceTree ?? '') || !/^[0-9a-f]{40,64}$/u.test(value.moduleTreeId ?? '')
       || !/^[0-9a-f]{64}$/u.test(value.dependencyClosureDigest ?? '')
@@ -300,9 +326,8 @@ function resolveGraphTarget(root, parentPath, specifier) {
   return relative(root, candidates[0]).split(sep).join('/');
 }
 
-export function deriveLocalBindingSourceGraph(root) {
+function deriveFixedEntrySourceGraph(root, entry) {
   if (typeof SourceTextModule !== 'function') fail('LOCAL_BINDING_RUNTIME_VM_MODULES_REQUIRED');
-  const entry = 'scripts/ptr-binding-linux-locked-source-build.ts';
   const pending = [entry];
   const records = new Map();
   let total = 0;
@@ -355,6 +380,14 @@ export function deriveLocalBindingSourceGraph(root) {
     });
   }
   return Object.freeze({ root, entry, modules: [...records.values()].sort((a, b) => a.path.localeCompare(b.path)) });
+}
+
+export function deriveLocalBindingSourceGraph(root) {
+  return deriveFixedEntrySourceGraph(root, PTR_LANE.graphEntry);
+}
+
+export function deriveGenesis002LocalBindingSourceGraph(root) {
+  return deriveFixedEntrySourceGraph(root, GENESIS002_LANE.graphEntry);
 }
 
 function attestYaml(manifest) {
@@ -469,8 +502,8 @@ function readHandoff(path, result) {
   return new Uint8Array(body);
 }
 
-async function executeCycle(context, index) {
-  const cycleRoot = join(context.operationRoot, `cycle-${index}`);
+async function executeCycle(context, lane, index) {
+  const cycleRoot = join(context.laneRoot ?? context.operationRoot, `cycle-${index}`);
   mkdirSync(cycleRoot, { mode: 0o700 });
   const handoffRoot = join(cycleRoot, 'handoff');
   const buildRoot = join(cycleRoot, 'builds');
@@ -479,9 +512,9 @@ async function executeCycle(context, index) {
   const handoffPath = join(handoffRoot, 'bundle.js');
   const nonce = randomBytes(16).toString('hex');
   const request = validateLocalBindingWorkerRequest({
-    schemaVersion: 1, profile: WORKER_PROFILE, nonce,
+    schemaVersion: 1, profile: lane.workerProfile, nonce,
     sourceCommit: context.source.commit, sourceTree: context.source.tree,
-    repositoryRoot: context.source.root, dependencyCacheRoot: CACHE_ROOT,
+    repositoryRoot: context.source.root, dependencyCacheRoot: lane.cacheRoot,
     materializationRoot: buildRoot, nodePath: NODE_PATH, cliPath: context.cli.path,
     handoffPath, graph: context.graph, yaml: context.yaml,
   });
@@ -494,19 +527,22 @@ async function executeCycle(context, index) {
     timeout: 15 * 60_000, maxOutput: MAX_WORKER_OUTPUT,
   });
   verifyLocalBindingBootstrapSource(context.source);
-  const result = parseLocalBindingWorkerResult(worker.stdout, nonce, handoffPath);
+  const result = parseLocalBindingWorkerResult(worker.stdout, nonce, handoffPath, lane.workerProfile);
   if (result.sourceCommit !== context.source.commit || result.sourceTree !== context.source.tree) {
     fail('LOCAL_BINDING_WORKER_RESULT_INVALID');
   }
   const bundle = readHandoff(handoffPath, result);
   context.verifyExecutables();
-  await runLocalBindingBoundedProcess(context.cli.path, [
+  const generateArgs = [
     'generate', '--lang', 'typescript', '--yes', '--no-config', '--js-path', handoffPath,
     '--out-dir', generatedRoot,
-  ], { cwd: cycleRoot, env: context.environment, timeout: 5 * 60_000, maxOutput: 4 * 1024 * 1024 });
+    ...(lane.includePrivate ? ['--include-private'] : []),
+  ];
+  await runLocalBindingBoundedProcess(context.cli.path, generateArgs,
+    { cwd: cycleRoot, env: context.environment, timeout: 5 * 60_000, maxOutput: 4 * 1024 * 1024 });
   context.verifyExecutables();
   const bindings = (await context.readBindingTree(generatedRoot)).map(entry => ({
-    path: `spacetimedb/ptr/generated-bindings/${entry.path}`,
+    path: `${lane.bindingPrefix}${entry.path}`,
     bytes: new Uint8Array(entry.bytes),
   }));
   return Object.freeze({
@@ -517,9 +553,31 @@ async function executeCycle(context, index) {
 }
 
 export async function executeFixedLocalBindingParentCycles(context) {
-  const first = await executeCycle(context, 1);
-  const second = await executeCycle(context, 2);
+  const first = await executeCycle(context, PTR_LANE, 1);
+  const second = await executeCycle(context, PTR_LANE, 2);
   return assertReproducibleLocalBindingCycles(first, second);
+}
+
+export async function executeFixedPairedLocalBindingParentCycles(context) {
+  const laneContexts = {};
+  for (const lane of [GENESIS002_LANE, PTR_LANE]) {
+    const laneRoot = join(context.operationRoot, lane.name);
+    mkdirSync(laneRoot, { mode: 0o700 });
+    laneContexts[lane.name] = { ...context, laneRoot, graph: context.graphs[lane.name] };
+  }
+  const genesis002 = assertReproducibleLocalBindingCycles(
+    await executeCycle(laneContexts.genesis002, GENESIS002_LANE, 1),
+    await executeCycle(laneContexts.genesis002, GENESIS002_LANE, 2),
+  );
+  const ptr = assertReproducibleLocalBindingCycles(
+    await executeCycle(laneContexts.ptr, PTR_LANE, 1),
+    await executeCycle(laneContexts.ptr, PTR_LANE, 2),
+  );
+  if (genesis002.sourceCommit !== context.source.commit || ptr.sourceCommit !== context.source.commit
+      || genesis002.sourceTree !== context.source.tree || ptr.sourceTree !== context.source.tree) {
+    fail('LOCAL_BINDING_RUNTIME_SOURCE_CHANGED');
+  }
+  return Object.freeze({ genesis002, ptr });
 }
 
 export function preserveLocalBindingRuntimePrimaryAndCleanup(primaryError, cleanupError) {
@@ -530,7 +588,7 @@ export function preserveLocalBindingRuntimePrimaryAndCleanup(primaryError, clean
   });
 }
 
-export async function deriveFixedLocalBindingRuntime() {
+async function deriveLocalBindingRuntime(paired) {
   const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   validateLocalBindingRuntimeHost({
     platform: process.platform,
@@ -542,7 +600,8 @@ export async function deriveFixedLocalBindingRuntime() {
   });
   for (const path of [
     ROOT, join(ROOT, 'toolchain'), dirname(dirname(NODE_PATH)), dirname(NODE_PATH),
-    dirname(CLI_PATH), join(ROOT, 'cache'), CACHE_ROOT, RUNS_ROOT,
+    dirname(CLI_PATH), join(ROOT, 'cache'), CACHE_ROOT,
+    ...(paired ? [GENESIS002_CACHE_ROOT] : []), RUNS_ROOT,
   ]) privateDirectory(path);
   const nodeAuthority = stableFileRecord(NODE_PATH, NODE_BYTES, NODE_SHA256, 1000, true);
   nodeAuthority.body.fill(0);
@@ -566,6 +625,10 @@ export async function deriveFixedLocalBindingRuntime() {
   try {
     source = snapshotCommittedSource(repositoryRoot, operationRoot, environment, gitAuthority.identity);
     const graph = deriveLocalBindingSourceGraph(source.root);
+    const graphs = paired ? Object.freeze({
+      genesis002: deriveGenesis002LocalBindingSourceGraph(source.root),
+      ptr: graph,
+    }) : undefined;
     const manifestPath = join(source.root, 'scripts', 'local-binding-runtime-yaml-v1.json');
     const manifestSource = stableFile(manifestPath).toString('utf8');
     const manifest = validateLocalBindingYamlManifest(manifestSource);
@@ -588,23 +651,31 @@ export async function deriveFixedLocalBindingRuntime() {
       cli.verify();
     };
     const context = {
-      repositoryRoot, operationRoot, environment, source, graph, yaml, cli,
+      repositoryRoot, operationRoot, environment, source, graph, graphs, yaml, cli,
       readBindingTree: readSpacetimeBindingTree, verifyExecutables,
     };
-    const selected = await executeFixedLocalBindingParentCycles(context);
+    const selected = paired
+      ? await executeFixedPairedLocalBindingParentCycles(context)
+      : await executeFixedLocalBindingParentCycles(context);
     cli.verify();
     if (git(source.root, environment, gitAuthority.identity, ['rev-parse', '--verify', 'HEAD']) !== source.commit
         || git(source.root, environment, gitAuthority.identity, ['rev-parse', '--verify', 'HEAD^{tree}']) !== source.tree) {
       fail('LOCAL_BINDING_RUNTIME_SOURCE_CHANGED');
     }
     complete = true;
-    finalResult = Object.freeze({
-      profile: PROFILE, sourceCommit: selected.sourceCommit, sourceTree: selected.sourceTree,
-      bundleSha256: selected.bundleSha256,
-      dependencyClosureDigest: selected.dependencyClosureDigest,
-      bindings: Object.freeze(selected.bindings.map(entry => Object.freeze({
+    const copyLane = lane => Object.freeze({
+      bundleSha256: lane.bundleSha256,
+      dependencyClosureDigest: lane.dependencyClosureDigest,
+      bindings: Object.freeze(lane.bindings.map(entry => Object.freeze({
         path: entry.path, bytes: new Uint8Array(entry.bytes),
       }))),
+    });
+    finalResult = paired ? Object.freeze({
+      profile: PROFILE, sourceCommit: source.commit, sourceTree: source.tree,
+      genesis002: copyLane(selected.genesis002), ptr: copyLane(selected.ptr),
+    }) : Object.freeze({
+      profile: PROFILE, sourceCommit: selected.sourceCommit, sourceTree: selected.sourceTree,
+      ...copyLane(selected),
     });
   } catch (error) {
     primaryError = error;
@@ -619,4 +690,12 @@ export async function deriveFixedLocalBindingRuntime() {
   }
   preserveLocalBindingRuntimePrimaryAndCleanup(primaryError, cleanupError);
   return finalResult;
+}
+
+export function deriveFixedLocalBindingRuntime() {
+  return deriveLocalBindingRuntime(false);
+}
+
+export function deriveFixedPairedLocalBindingRuntime() {
+  return deriveLocalBindingRuntime(true);
 }

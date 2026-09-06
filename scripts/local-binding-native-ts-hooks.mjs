@@ -5,7 +5,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 
-const SYNTHETIC_ENTRY = 'warpkeep:ptr-binding-entry';
+const SYNTHETIC_ENTRIES = new Map([
+  ['scripts/ptr-binding-linux-locked-source-build.ts', 'warpkeep:ptr-binding-entry'],
+  ['scripts/genesis002-binding-linux-locked-source-build.ts', 'warpkeep:genesis002-binding-entry'],
+]);
 const MAX_SOURCE_BYTES = 4 * 1024 * 1024;
 const YAML_BUILTINS = new Set(['buffer', 'process']);
 
@@ -123,6 +126,10 @@ function records(graph, yaml) {
 
 export function installLocalBindingNativeTsHooks(attestedGraph, attestedYaml) {
   const state = records(attestedGraph, attestedYaml);
+  // Preserve the legacy PTR hook semantics for controlled graphs while giving
+  // the fixed G002 graph its own non-interchangeable synthetic entry.
+  const syntheticEntry = SYNTHETIC_ENTRIES.get(attestedGraph.entry)
+    ?? 'warpkeep:ptr-binding-entry';
   const sourceByUrl = new Map([...state.source].map(([path, record]) => [
     pathToFileURL(resolve(state.sourceRoot, ...path.split('/'))).href, record,
   ]));
@@ -134,7 +141,7 @@ export function installLocalBindingNativeTsHooks(attestedGraph, attestedYaml) {
 
   return registerHooks({
     resolve(specifier, context, nextResolve) {
-      if (specifier === SYNTHETIC_ENTRY && !entryResolved) {
+      if (specifier === syntheticEntry && !entryResolved) {
         entryResolved = true;
         return { url: pathToFileURL(resolve(state.sourceRoot, ...attestedGraph.entry.split('/'))).href, shortCircuit: true };
       }

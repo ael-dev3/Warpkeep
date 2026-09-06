@@ -16,6 +16,9 @@ import { basename, dirname, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createPtrFixture, LINUX_PACKAGE_KEYS } from './fixtures/ptrLockedSourceBuildFixture';
+import {
+  createGenesis002Fixture,
+} from './fixtures/genesis002LockedSourceBuildFixture';
 
 const boundary = vi.hoisted(() => ({
   request: undefined as Record<string, unknown> | undefined,
@@ -87,8 +90,9 @@ vi.mock('../scripts/greater-realm-production-provenance', async () => {
         moduleSourceCommit: input.moduleSourceCommit,
         moduleTreeId: 'b'.repeat(40),
         verify(allowed?: Readonly<{ files?: readonly string[] }>) {
-          if (allowed?.files?.includes('spacetimedb/ptr/dist/bundle.js')) {
-            const dist = join(input.destination, 'spacetimedb', 'ptr', 'dist');
+          const bundle = allowed?.files?.find(path => /^spacetimedb\/(?:ptr|genesis002)\/dist\/bundle\.js$/u.test(path));
+          if (bundle !== undefined) {
+            const dist = join(input.destination, ...dirname(bundle).split('/'));
             const mode = fs.lstatSync(dist).mode & 0o7777;
             if (process.platform !== 'win32' && mode !== 0o700) {
               throw new Error('LIFECYCLE_MATERIALIZATION_DIRECTORY_CHANGED');
@@ -195,7 +199,8 @@ vi.mock('node:child_process', async () => {
           boundary.events.push('command:build-snapshot-cli');
           return { status: 4, signal: null, error: undefined, stdout: Buffer.alloc(0), stderr: Buffer.from('failed') };
         }
-        const dist = join(options.cwd, 'spacetimedb', 'ptr', 'dist');
+        const modulePath = args[args.indexOf('--module-path') + 1]!;
+        const dist = join(options.cwd, ...modulePath.split('/'), 'dist');
         boundary.buildOutputWasPrecreated = existsSync(dist);
         if (boundary.buildOutputWasPrecreated) {
           boundary.observedBuildOutputMode = lstatSync(dist).mode & 0o7777;
@@ -222,6 +227,31 @@ vi.mock('warpkeep:ptr-binding-entry', async () => {
       boundary.events.push('builder:enter');
       const operation = input.operation;
       const result = actual.withPtrLinuxLockedSourceBuild({
+        ...input,
+        operation(context) {
+          boundary.events.push('builder:operation');
+          const value = operation(boundary.buildOutputScenario === 'escaped-root'
+            ? { ...context, materializedRoot: input.repositoryRoot }
+            : context);
+          boundary.events.push('builder:operation-return');
+          return value;
+        },
+      });
+      boundary.events.push('builder:cleanup-complete');
+      return result;
+    },
+  };
+});
+
+vi.mock('warpkeep:genesis002-binding-entry', async () => {
+  const actual = await vi.importActual<typeof import('../scripts/genesis002-binding-linux-locked-source-build')>(
+    '../scripts/genesis002-binding-linux-locked-source-build',
+  );
+  return {
+    withGenesis002LinuxLockedSourceBuild(input: Parameters<typeof actual.withGenesis002LinuxLockedSourceBuild>[0]) {
+      boundary.events.push('builder:enter');
+      const operation = input.operation;
+      const result = actual.withGenesis002LinuxLockedSourceBuild({
         ...input,
         operation(context) {
           boundary.events.push('builder:operation');
@@ -271,28 +301,41 @@ afterEach(() => {
 });
 
 describe('controlled local binding runtime lifecycle', () => {
-  function prepareRequest() {
-    const value = createPtrFixture({ keys: LINUX_PACKAGE_KEYS });
+  function prepareRequest(lane: 'ptr' | 'genesis002' = 'ptr') {
+    const genesis002 = lane === 'genesis002';
+    const value = genesis002
+      ? createGenesis002Fixture()
+      : createPtrFixture({ keys: LINUX_PACKAGE_KEYS });
     boundary.cleanupRoots.push(...value.cleanupRoots);
-    const sourceRoot = join(value.materializationParent, 'source');
-    cpSync(value.repositoryRoot, sourceRoot, { recursive: true, errorOnExist: true });
-    const snapshotRoot = join(value.materializationParent, 'cli');
+    const fixtureInput = 'input' in value ? value.input : {
+      repositoryRoot: value.repositoryRoot,
+      materializationParent: value.materializationParent,
+      dependencyCacheRoot: value.dependencyCacheRoot,
+      moduleSourceCommit: value.sourceCommit,
+    };
+    const sourceRoot = join(fixtureInput.materializationParent, 'source');
+    cpSync(fixtureInput.repositoryRoot, sourceRoot, { recursive: true, errorOnExist: true });
+    const snapshotRoot = join(fixtureInput.materializationParent, 'cli');
     mkdirSync(snapshotRoot, { mode: 0o700 });
     const cliPath = join(snapshotRoot, 'spacetimedb-cli');
     writeFileSync(cliPath, 'cli', { mode: 0o500 });
     writeFileSync(join(snapshotRoot, 'spacetimedb-standalone'), 'standalone', { mode: 0o500 });
     boundary.request = {
+      schemaVersion: 1,
+      profile: genesis002
+        ? 'warpkeep-local-binding-genesis002-worker-v1'
+        : 'warpkeep-local-binding-worker-v1',
       repositoryRoot: sourceRoot,
-      sourceCommit: value.sourceCommit,
+      sourceCommit: fixtureInput.moduleSourceCommit,
       sourceTree: 'c'.repeat(40),
-      dependencyCacheRoot: value.dependencyCacheRoot,
-      materializationRoot: value.materializationParent,
+      dependencyCacheRoot: fixtureInput.dependencyCacheRoot,
+      materializationRoot: fixtureInput.materializationParent,
       nodePath: process.execPath,
       cliPath,
-      handoffPath: join(value.materializationParent, 'handoff.js'),
+      handoffPath: join(fixtureInput.materializationParent, 'handoff.js'),
       nonce: 'd'.repeat(32), graph: {}, yaml: {},
     };
-    return value;
+    return { ...value, materializationParent: fixtureInput.materializationParent };
   }
 
   function messages(value: unknown): readonly string[] {
@@ -351,6 +394,18 @@ describe('controlled local binding runtime lifecycle', () => {
       'hooks:deregister',
     ]);
     expect(existsSync(join(value.materializationParent, 'ptr-linux-builds'))).toBe(false);
+  });
+
+  it('dispatches the fixed G002 helper and compiles/builds only the Genesis 002 module', async () => {
+    const value = prepareRequest('genesis002');
+    const { runFixedLocalBindingWorker } = await import('../scripts/local-binding-runtime-worker.mjs');
+    const result = await runFixedLocalBindingWorker(boundary.request);
+    expect(result.profile).toBe('warpkeep-local-binding-genesis002-worker-result-v1');
+    expect(readFileSync(result.handoffPath, 'utf8')).toBe('controlled-bundle');
+    expect(boundary.events).toContain('builder:operation');
+    expect(boundary.events).toContain('command:typecheck');
+    expect(boundary.events).toContain('command:build-snapshot-cli');
+    expect(readdirSync(join(value.materializationParent, 'genesis002-locked-source-builds-v1'))).toEqual([]);
   });
 
   it.each([

@@ -79,15 +79,27 @@ function attestRuntimeExecutables(request, expected) {
   });
 }
 
-function bindPrivateBuildOutput(request, materializedRoot) {
-  const expectedParent = join(request.materializationRoot, 'ptr-locked-source-builds-v1');
+function fixedWorkerLane(profile) {
+  if (profile === 'warpkeep-local-binding-worker-v1') return Object.freeze({
+    syntheticEntry: 'warpkeep:ptr-binding-entry', builder: 'withPtrLinuxLockedSourceBuild',
+    modulePath: 'spacetimedb/ptr', stateChild: 'ptr-locked-source-builds-v1',
+  });
+  if (profile === 'warpkeep-local-binding-genesis002-worker-v1') return Object.freeze({
+    syntheticEntry: 'warpkeep:genesis002-binding-entry', builder: 'withGenesis002LinuxLockedSourceBuild',
+    modulePath: 'spacetimedb/genesis002', stateChild: 'genesis002-locked-source-builds-v1',
+  });
+  fail('LOCAL_BINDING_WORKER_REQUEST_INVALID');
+}
+
+function bindPrivateBuildOutput(request, lane, materializedRoot) {
+  const expectedParent = join(request.materializationRoot, lane.stateChild);
   const name = basename(materializedRoot);
-  const ptrRoot = join(materializedRoot, 'spacetimedb', 'ptr');
+  const moduleRoot = join(materializedRoot, ...lane.modulePath.split('/'));
   try {
     if (dirname(materializedRoot) !== expectedParent || !/^[0-9a-f]{32}$/u.test(name)) {
       fail('LOCAL_BINDING_WORKER_BUILD_OUTPUT_INVALID');
     }
-    for (const path of [expectedParent, materializedRoot, ptrRoot]) {
+    for (const path of [expectedParent, materializedRoot, moduleRoot]) {
       const state = lstatSync(path, { bigint: true });
       if (!state.isDirectory() || state.isSymbolicLink() || state.uid !== 1000n
           || (state.mode & 0o7777n) !== 0o700n || realpathSync(path) !== path) {
@@ -98,16 +110,16 @@ function bindPrivateBuildOutput(request, materializedRoot) {
     if (error?.code === 'LOCAL_BINDING_WORKER_BUILD_OUTPUT_INVALID') throw error;
     fail('LOCAL_BINDING_WORKER_BUILD_OUTPUT_INVALID', error);
   }
-  const output = join(ptrRoot, 'dist');
+  const output = join(moduleRoot, 'dist');
   return Object.freeze({
-    ptrRoot,
+    moduleRoot,
     create() {
       try {
         mkdirSync(output, { recursive: false, mode: 0o700 });
         const state = lstatSync(output, { bigint: true });
         if (!state.isDirectory() || state.isSymbolicLink() || state.uid !== 1000n
             || (state.mode & 0o7777n) !== 0o700n || realpathSync(output) !== output
-            || dirname(output) !== ptrRoot) {
+            || dirname(output) !== moduleRoot) {
           fail('LOCAL_BINDING_WORKER_BUILD_OUTPUT_INVALID');
         }
       } catch (error) {
@@ -141,37 +153,39 @@ function assertWorkerHost() {
 
 export async function runFixedLocalBindingWorker(input) {
   const request = validateLocalBindingWorkerRequest(input);
+  const lane = fixedWorkerLane(request.profile);
   const runtimeAuthority = attestRuntimeExecutables(request);
   const hooks = installLocalBindingNativeTsHooks(request.graph, request.yaml);
   let primary;
   let result;
   try {
-    const builder = await import('warpkeep:ptr-binding-entry');
-    if (typeof builder.withPtrLinuxLockedSourceBuild !== 'function') fail('LOCAL_BINDING_WORKER_BUILDER_INVALID');
+    const builder = await import(lane.syntheticEntry);
+    if (typeof builder[lane.builder] !== 'function') fail('LOCAL_BINDING_WORKER_BUILDER_INVALID');
     attestRuntimeExecutables(request, runtimeAuthority);
-    const built = builder.withPtrLinuxLockedSourceBuild({
+    const built = builder[lane.builder]({
       repositoryRoot: request.repositoryRoot,
       moduleSourceCommit: request.sourceCommit,
       dependencyCacheRoot: request.dependencyCacheRoot,
       materializationParent: request.materializationRoot,
       operation(context) {
-        const buildOutput = bindPrivateBuildOutput(request, context.materializedRoot);
-        const { ptrRoot } = buildOutput;
+        const buildOutput = bindPrivateBuildOutput(request, lane, context.materializedRoot);
+        const { moduleRoot } = buildOutput;
         attestRuntimeExecutables(request, runtimeAuthority);
         command(request.nodePath, [
-          join(ptrRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
-          '--noEmit', '--project', join(ptrRoot, 'tsconfig.json'),
-        ], ptrRoot, 10 * 60_000);
+          join(moduleRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
+          '--noEmit', '--project', join(moduleRoot, 'tsconfig.json'),
+        ], moduleRoot, 10 * 60_000);
         attestRuntimeExecutables(request, runtimeAuthority);
         buildOutput.create();
-        command(request.cliPath, ['build', '--module-path', 'spacetimedb/ptr'], context.materializedRoot, 10 * 60_000);
+        command(request.cliPath, ['build', '--module-path', lane.modulePath], context.materializedRoot, 10 * 60_000);
         attestRuntimeExecutables(request, runtimeAuthority);
         return createLocalBindingWorkerResult({
-          bundlePath: join(ptrRoot, 'dist', 'bundle.js'),
+          bundlePath: join(moduleRoot, 'dist', 'bundle.js'),
           handoffRoot: dirname(request.handoffPath), handoffPath: request.handoffPath,
           nonce: request.nonce, sourceCommit: request.sourceCommit, sourceTree: request.sourceTree,
           moduleTreeId: context.moduleTreeId,
           dependencyClosureDigest: context.dependencyClosureDigest,
+          requestProfile: request.profile,
         });
       },
     });

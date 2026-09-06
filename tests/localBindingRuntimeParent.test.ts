@@ -13,6 +13,7 @@ const boundary = vi.hoisted(() => ({
   scenario: 'success',
   events: [] as string[],
   copies: [] as Array<readonly [string, string]>,
+  generateArgs: [] as string[][],
 }));
 
 function translated(path: import('node:fs').PathLike): import('node:fs').PathLike {
@@ -105,21 +106,30 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
     }) {
       if (options.fd3 !== undefined) {
         const request = JSON.parse(options.fd3) as Record<string, any>;
-        boundary.events.push(`worker:${path.basename(request.handoffPath)}`);
+        const genesis002 = request.profile === 'warpkeep-local-binding-genesis002-worker-v1';
+        boundary.events.push(genesis002
+          ? `worker:genesis002:${path.basename(request.handoffPath)}`
+          : `worker:${path.basename(request.handoffPath)}`);
         expect(executable).toBe(`${FIXED_ROOT}/toolchain/node-v22.22.3-linux-x64/bin/node`);
         expect(args).toEqual(['--experimental-vm-modules', join(request.repositoryRoot, 'scripts', 'local-binding-runtime-worker.mjs')]);
         expect(`${JSON.stringify(request)}\n`).toBe(options.fd3);
         const cycle = request.handoffPath.includes('cycle-2') ? 2 : 1;
-        const bundle = Buffer.from(boundary.scenario === 'bundle-mismatch' && cycle === 2 ? 'bundle-2' : 'bundle');
+        const mismatchedLane = boundary.scenario === `${genesis002 ? 'genesis002' : 'ptr'}-bundle-mismatch`;
+        const bundle = Buffer.from((boundary.scenario === 'bundle-mismatch' || mismatchedLane) && cycle === 2
+          ? `bundle-${genesis002 ? 'genesis002-' : ''}2`
+          : genesis002 ? 'bundle-genesis002' : 'bundle');
         fs.writeFileSync(map(request.handoffPath), bundle, { mode: 0o600 });
         const bundleSha256 = crypto.createHash('sha256').update(bundle).digest('hex');
         if (boundary.scenario === 'changed-handoff') fs.writeFileSync(map(request.handoffPath), 'changed');
         return { stdout: `${JSON.stringify({
           schemaVersion: 1,
-          profile: 'warpkeep-local-binding-worker-result-v1',
+          profile: genesis002
+            ? 'warpkeep-local-binding-genesis002-worker-result-v1'
+            : 'warpkeep-local-binding-worker-result-v1',
           nonce: boundary.scenario === 'forged-nonce' ? 'f'.repeat(32) : request.nonce,
           sourceCommit: request.sourceCommit,
-          sourceTree: request.sourceTree,
+          sourceTree: boundary.scenario === 'genesis002-source-substitution' && genesis002
+            ? '8'.repeat(40) : request.sourceTree,
           moduleTreeId: '3'.repeat(40),
           dependencyClosureDigest: boundary.scenario === 'digest-mismatch' && cycle === 2
             ? '9'.repeat(64) : '4'.repeat(64),
@@ -129,6 +139,9 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
         })}\n`, stderr: '' };
       }
       boundary.events.push('generate');
+      const genesis002 = args.includes('--include-private');
+      if (genesis002) boundary.events[boundary.events.length - 1] = 'generate:genesis002';
+      boundary.generateArgs.push([...args]);
       if (boundary.scenario === 'generate-failure') {
         throw Object.assign(new Error('LOCAL_BINDING_RUNTIME_PROCESS_FAILED'), {
           code: 'LOCAL_BINDING_RUNTIME_PROCESS_FAILED',
@@ -138,7 +151,8 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
       const cycle = output.includes('cycle-2') ? 2 : 1;
       fs.mkdirSync(map(output), { recursive: true, mode: 0o700 });
       fs.writeFileSync(path.join(map(output), 'index.ts'),
-        boundary.scenario === 'binding-mismatch' && cycle === 2 ? 'binding-2' : 'binding',
+        boundary.scenario === 'binding-mismatch' && cycle === 2 ? 'binding-2'
+          : genesis002 ? 'binding-genesis002' : 'binding',
         { mode: 0o600 });
       if (boundary.scenario === 'binding-path-mismatch' && cycle === 2) {
         fs.writeFileSync(path.join(map(output), 'other.ts'), 'export {};\n', { mode: 0o600 });
@@ -173,6 +187,7 @@ vi.mock('../scripts/local-binding-bounded-file.mjs', async () => {
 
 import {
   executeFixedLocalBindingParentCycles,
+  executeFixedPairedLocalBindingParentCycles,
   preserveLocalBindingRuntimePrimaryAndCleanup,
 } from '../scripts/local-binding-runtime-core.mjs';
 import { bindOperationOwnedCliSnapshot } from '../scripts/local-binding-runtime-cli-snapshot.mjs';
@@ -183,6 +198,7 @@ beforeEach(() => {
   boundary.scenario = 'success';
   boundary.events.length = 0;
   boundary.copies.length = 0;
+  boundary.generateArgs.length = 0;
 });
 
 afterEach(() => {
@@ -217,6 +233,19 @@ function context(cli?: Readonly<{ path: string; verify(): void }>) {
       boundary.events.push('verify-executables');
     },
   };
+}
+
+function pairedContext() {
+  const value = context();
+  const genesis002 = {
+    ...value.graph,
+    entry: 'scripts/genesis002-binding-linux-locked-source-build.ts',
+    modules: [{
+      ...value.graph.modules[0],
+      path: 'scripts/genesis002-binding-linux-locked-source-build.ts',
+    }],
+  };
+  return { ...value, graphs: { genesis002, ptr: value.graph } };
 }
 
 describe('production local binding parent cycles', () => {
@@ -288,5 +317,42 @@ describe('production local binding parent cycles', () => {
   ])('rejects parent boundary %s', async (scenario, code) => {
     boundary.scenario = scenario;
     await expect(executeFixedLocalBindingParentCycles(context())).rejects.toMatchObject({ code });
+  });
+
+  it('runs two disjoint cycles per fixed lane from one source and uses private generation only for G002', async () => {
+    const result = await executeFixedPairedLocalBindingParentCycles(pairedContext());
+    expect(result.genesis002.sourceCommit).toBe(result.ptr.sourceCommit);
+    expect(result.genesis002.sourceTree).toBe(result.ptr.sourceTree);
+    expect(Buffer.from(result.genesis002.bindings[0]!.bytes).toString()).toBe('binding-genesis002');
+    expect(Buffer.from(result.ptr.bindings[0]!.bytes).toString()).toBe('binding');
+    expect(result.genesis002.bindings.every(entry =>
+      entry.path.startsWith('scripts/genesis002_module_bindings/'))).toBe(true);
+    expect(result.ptr.bindings.every(entry =>
+      entry.path.startsWith('spacetimedb/ptr/generated-bindings/'))).toBe(true);
+    expect(boundary.events.filter(event => event.startsWith('worker:genesis002:'))).toHaveLength(2);
+    expect(boundary.events.filter(event => event === 'worker:bundle.js')).toHaveLength(2);
+    const genesisCommands = boundary.generateArgs.filter(args => args.includes('--include-private'));
+    const ptrCommands = boundary.generateArgs.filter(args => !args.includes('--include-private'));
+    expect(genesisCommands).toHaveLength(2);
+    expect(ptrCommands).toHaveLength(2);
+    expect(genesisCommands.every(args => args.filter(value => value === '--include-private').length === 1)).toBe(true);
+    expect(ptrCommands.every(args => !args.includes('--include-private'))).toBe(true);
+    expect(new Set(boundary.generateArgs.map(args => args[args.indexOf('--out-dir') + 1])).size).toBe(4);
+  });
+
+  it.each(['genesis002', 'ptr'] as const)(
+    'rejects two-cycle nondeterminism in the %s lane',
+    async lane => {
+      boundary.scenario = `${lane}-bundle-mismatch`;
+      await expect(executeFixedPairedLocalBindingParentCycles(pairedContext()))
+        .rejects.toMatchObject({ code: 'LOCAL_BINDING_RUNTIME_REPRODUCIBILITY_FAILED' });
+    },
+  );
+
+  it('rejects a different source identity reported by G002 before generating bindings', async () => {
+    boundary.scenario = 'genesis002-source-substitution';
+    await expect(executeFixedPairedLocalBindingParentCycles(pairedContext()))
+      .rejects.toMatchObject({ code: 'LOCAL_BINDING_WORKER_RESULT_INVALID' });
+    expect(boundary.events).not.toContain('generate:genesis002');
   });
 });
