@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { generateKeyPairSync, randomUUID, sign } from 'node:crypto';
-import { chmodSync, lstatSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, lstatSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
@@ -481,6 +481,5 @@ export async function runGenesis001LocalUpgradeProof(input) {
     throw new AggregateError([primary, containment].filter(Boolean), 'GENESIS001_LOCAL_PROOF_FAILED', { cause: primary });
   }
   if (!succeeded || evidence === undefined) fail('GENESIS001_LOCAL_PROOF_FAILED');
-  rmSync(proofRoot, { recursive: true, force: false });
   return evidence;
 }

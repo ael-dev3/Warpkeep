@@ -8,6 +8,9 @@ export class LocalBindingRuntimeProcessError extends Error {
   }
 }
 
+const TERMINATION_TIMEOUT = 5_000;
+const TERMINATION_POLL = 20;
+
 export function runLocalBindingBoundedProcess(executable, args, options) {
   return new Promise((resolvePromise, reject) => {
     const containProcessGroup = options.containProcessGroup === true && process.platform !== 'win32';
@@ -18,23 +21,27 @@ export function runLocalBindingBoundedProcess(executable, args, options) {
     });
     const output = { stdout: [], stderr: [], stdoutBytes: 0, stderrBytes: 0 };
     let settled = false;
-    let timer;
+    let operationTimer;
+    let terminationTimer;
     let fd3Complete = options.fd3 === undefined;
     let requestedError;
-    let finalizing = false;
+    let terminationDeadline;
+    let unexpectedSurvivor = false;
+    let killError;
     const finish = error => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      clearTimeout(operationTimer);
+      clearTimeout(terminationTimer);
       if (error) reject(error);
       else resolvePromise({
         stdout: Buffer.concat(output.stdout).toString('utf8'),
         stderr: Buffer.concat(output.stderr).toString('utf8'),
       });
     };
-    const processGroupExists = () => {
-      if (!containProcessGroup || !Number.isSafeInteger(child.pid) || child.pid < 2) return false;
-      try { process.kill(-child.pid, 0); return true; } catch (error) {
+    const ownedProcessExists = () => {
+      if (!Number.isSafeInteger(child.pid) || child.pid < 2) return false;
+      try { process.kill(containProcessGroup ? -child.pid : child.pid, 0); return true; } catch (error) {
         if (error?.code === 'ESRCH') return false;
         throw error;
       }
@@ -43,64 +50,74 @@ export function runLocalBindingBoundedProcess(executable, args, options) {
       try {
         if (containProcessGroup && Number.isSafeInteger(child.pid) && child.pid >= 2) {
           process.kill(-child.pid, 'SIGKILL');
-        } else child.kill('SIGKILL');
-      } catch (error) {
-        if (error?.code !== 'ESRCH') {
-          requestedError = new LocalBindingRuntimeProcessError(
-            'LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED', { cause: error },
-          );
+        } else if (child.kill('SIGKILL') === false) {
+          killError ??= new Error('LOCAL_BINDING_RUNTIME_PROCESS_KILL_FAILED');
         }
+      } catch (error) {
+        if (error?.code !== 'ESRCH') killError ??= error;
       }
     };
-    const stop = error => {
+    const containmentFailure = cause => new LocalBindingRuntimeProcessError(
+      'LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED',
+      cause === undefined ? undefined : { cause },
+    );
+    const pollTermination = () => {
+      if (settled || terminationDeadline === undefined) return;
+      let alive;
+      try { alive = ownedProcessExists(); } catch (error) {
+        finish(containmentFailure(requestedError ?? error));
+        return;
+      }
+      if (!alive) {
+        finish(unexpectedSurvivor ? containmentFailure(requestedError ?? killError) : requestedError);
+        return;
+      }
+      if (Date.now() >= terminationDeadline) {
+        killOwned();
+        try { alive = ownedProcessExists(); } catch (error) {
+          finish(containmentFailure(requestedError ?? error));
+          return;
+        }
+        finish(alive || unexpectedSurvivor
+          ? containmentFailure(requestedError ?? killError)
+          : requestedError);
+        return;
+      }
+      terminationTimer = setTimeout(pollTermination, TERMINATION_POLL);
+    };
+    const beginTermination = (error, survivorIsFailure = false) => {
       if (settled) return;
       requestedError ??= error;
-      clearTimeout(timer);
+      unexpectedSurvivor ||= survivorIsFailure;
+      clearTimeout(operationTimer);
+      if (terminationDeadline !== undefined) return;
+      terminationDeadline = Date.now() + TERMINATION_TIMEOUT;
       killOwned();
+      terminationTimer = setTimeout(pollTermination, 0);
     };
-    const finalize = async (code, signal) => {
-      if (settled || finalizing) return;
-      finalizing = true;
-      clearTimeout(timer);
-      let error = requestedError;
-      if (error === undefined && (code !== 0 || signal !== null || !fd3Complete)) {
-        error = new LocalBindingRuntimeProcessError('LOCAL_BINDING_RUNTIME_PROCESS_FAILED');
+    const stop = error => beginTermination(error);
+    const closed = (code, signal) => {
+      if (settled) return;
+      clearTimeout(operationTimer);
+      const error = requestedError ?? ((code !== 0 || signal !== null || !fd3Complete)
+        ? new LocalBindingRuntimeProcessError('LOCAL_BINDING_RUNTIME_PROCESS_FAILED')
+        : undefined);
+      if (terminationDeadline !== undefined) {
+        requestedError ??= error;
+        pollTermination();
+        return;
       }
-      if (containProcessGroup) {
-        let alive;
-        try { alive = processGroupExists(); } catch (caught) {
-          error = new LocalBindingRuntimeProcessError(
-            'LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED', { cause: caught },
-          );
-          alive = true;
-        }
-        if (alive) {
-          if (error === undefined) {
-            error = new LocalBindingRuntimeProcessError('LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED');
-          }
-          killOwned();
-          const deadline = Date.now() + 5_000;
-          while (Date.now() < deadline) {
-            try { if (!processGroupExists()) break; } catch (caught) {
-              error = new LocalBindingRuntimeProcessError(
-                'LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED', { cause: caught },
-              );
-              break;
-            }
-            await new Promise(resolve => setTimeout(resolve, 20));
-          }
-          try {
-            if (processGroupExists()) {
-              error = new LocalBindingRuntimeProcessError('LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED');
-            }
-          } catch (caught) {
-            error = new LocalBindingRuntimeProcessError(
-              'LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED', { cause: caught },
-            );
-          }
-        }
+      if (!containProcessGroup) {
+        finish(error);
+        return;
       }
-      finish(error);
+      let alive;
+      try { alive = ownedProcessExists(); } catch (caught) {
+        finish(containmentFailure(error ?? caught));
+        return;
+      }
+      if (alive) beginTermination(error, error === undefined);
+      else finish(error);
     };
     for (const name of ['stdout', 'stderr']) child[name].on('data', chunk => {
       output[`${name}Bytes`] += chunk.length;
@@ -111,10 +128,8 @@ export function runLocalBindingBoundedProcess(executable, args, options) {
     child.on('error', error => stop(new LocalBindingRuntimeProcessError(
       'LOCAL_BINDING_RUNTIME_PROCESS_FAILED', { cause: error },
     )));
-    child.on('close', (code, signal) => {
-      void finalize(code, signal);
-    });
-    timer = setTimeout(() => {
+    child.on('close', closed);
+    operationTimer = setTimeout(() => {
       stop(new LocalBindingRuntimeProcessError('LOCAL_BINDING_RUNTIME_PROCESS_TIMEOUT'));
     }, options.timeout);
     if (options.fd3 !== undefined) {

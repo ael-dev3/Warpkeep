@@ -14,6 +14,7 @@ const expectedCode = scenario === 'timeout-descendant'
 const root = mkdtempSync(join(tmpdir(), 'local-binding-group-proof-'));
 chmodSync(root, 0o700);
 const pidPath = join(root, 'pids.json');
+const evidencePath = join(root, 'proof', 'retained-evidence');
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 const exists = pid => {
   try { process.kill(pid, 0); return true; } catch (error) {
@@ -25,7 +26,7 @@ const exists = pid => {
 let pids;
 let error;
 try {
-  const pending = runLocalBindingBoundedProcess(process.execPath, [fixture, scenario, pidPath], {
+  const pending = runLocalBindingBoundedProcess(process.execPath, [fixture, scenario, pidPath, evidencePath], {
     cwd: root, env: { PATH: process.env.PATH }, maxOutput: 1024, timeout: 150,
     containProcessGroup: true,
   }).catch(caught => caught);
@@ -39,10 +40,11 @@ try {
     code: error?.code,
     parentSurvives: exists(pids.parent),
     descendantSurvives: exists(pids.descendant),
+    retainedEvidence: scenario !== 'success-descendant' || existsSync(evidencePath),
   };
   process.stdout.write(`${JSON.stringify(result)}\n`);
   if (result.code !== expectedCode
-      || result.parentSurvives || result.descendantSurvives) process.exitCode = 1;
+      || result.parentSurvives || result.descendantSurvives || !result.retainedEvidence) process.exitCode = 1;
 } finally {
   for (const pid of [pids?.descendant, pids?.parent]) {
     if (Number.isSafeInteger(pid) && exists(pid)) {

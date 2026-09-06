@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 
 const scenario = process.argv[2];
 
@@ -19,6 +20,10 @@ if (scenario === 'output') {
   writeFileSync(process.argv[3], `${JSON.stringify({ parent: process.pid, descendant: descendant.pid })}\n`, {
     flag: 'wx', mode: 0o600,
   });
+  if (scenario === 'success-descendant' && process.argv[4] !== undefined) {
+    mkdirSync(dirname(process.argv[4]), { mode: 0o700 });
+    writeFileSync(process.argv[4], 'retained evidence', { flag: 'wx', mode: 0o600 });
+  }
   if (scenario === 'timeout-descendant') setInterval(() => {}, 1000);
   else process.exit(scenario === 'failure-descendant' ? 7 : 0);
 } else if (scenario === 'success') {

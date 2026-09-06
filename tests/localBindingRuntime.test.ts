@@ -3,6 +3,8 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { derivePreparedPtrLinuxBindings } from '../scripts/local-binding-runtime.mjs';
@@ -401,6 +403,56 @@ describe('fixed local PTR binding runtime', () => {
     })).resolves.toEqual({ stdout: 'ok', stderr: '' });
   });
 
+  it.each([false, true])(
+    'independently bounds failed termination when a child never closes (group=%s)', async containProcessGroup => {
+      vi.useFakeTimers();
+      const originalKill = process.kill;
+      const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+      const stdout = new PassThrough();
+      const stderr = new PassThrough();
+      const child = Object.assign(new EventEmitter(), {
+        pid: 4242, stdout, stderr, stdio: [null, stdout, stderr],
+        kill() {
+          throw Object.assign(new Error('CONTROLLED_KILL_DENIED'), { code: 'EPERM' });
+        },
+      });
+      Object.defineProperty(process, 'platform', { ...originalPlatform, value: 'linux' });
+      process.kill = ((pid: number, signal?: NodeJS.Signals | number) => {
+        if (signal === undefined || signal === 0) return true;
+        throw Object.assign(new Error(`CONTROLLED_KILL_DENIED:${pid}`), { code: 'EPERM' });
+      }) as typeof process.kill;
+      vi.resetModules();
+      vi.doMock('node:child_process', () => ({
+        default: { spawn: () => child },
+        spawn: () => child,
+      }));
+      try {
+        const modulePath = '../scripts/local-binding-runtime-process.mjs';
+        const processModule = await import(modulePath);
+        const pending = processModule.runLocalBindingBoundedProcess('/controlled/child', [], {
+          cwd: repositoryRoot, env: {}, maxOutput: 1024, timeout: 10, containProcessGroup,
+        });
+        const outcome = Promise.race([
+          pending.catch((error: unknown) => error),
+          new Promise(resolvePromise => setTimeout(() => resolvePromise('UNSETTLED'), 6_000)),
+        ]);
+        await vi.advanceTimersByTimeAsync(6_001);
+        expect(await outcome).toMatchObject({
+          code: 'LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED',
+          cause: expect.objectContaining({ code: 'LOCAL_BINDING_RUNTIME_PROCESS_TIMEOUT' }),
+        });
+      } finally {
+        vi.doUnmock('node:child_process');
+        vi.resetModules();
+        vi.useRealTimers();
+        process.kill = originalKill;
+        Object.defineProperty(process, 'platform', originalPlatform);
+        stdout.destroy();
+        stderr.destroy();
+      }
+    },
+  );
+
   it.skipIf(process.platform !== 'linux').each([
     ['timeout-descendant', 150, 'LOCAL_BINDING_RUNTIME_PROCESS_TIMEOUT'],
     ['failure-descendant', 1_000, 'LOCAL_BINDING_RUNTIME_PROCESS_FAILED'],
@@ -409,6 +461,7 @@ describe('fixed local PTR binding runtime', () => {
     'settles process-group scenario %s only after its live descendant is gone', async (scenario, timeout, code) => {
       const root = mkdtempSync(join(tmpdir(), 'warpkeep-process-group-timeout-'));
       const pidPath = join(root, 'pids.json');
+      const evidencePath = join(root, 'proof', 'retained-evidence');
       let pids: { parent: number; descendant: number } | undefined;
       const exists = (pid: number) => {
         try { process.kill(pid, 0); return true; } catch (error) {
@@ -418,7 +471,7 @@ describe('fixed local PTR binding runtime', () => {
       };
       try {
         const pending = runLocalBindingBoundedProcess(
-          process.execPath, [processFixture, scenario, pidPath], {
+          process.execPath, [processFixture, scenario, pidPath, evidencePath], {
             cwd: root, env: { PATH: process.env.PATH }, maxOutput: 1024, timeout,
             containProcessGroup: true,
           },
@@ -431,6 +484,7 @@ describe('fixed local PTR binding runtime', () => {
         await expect(pending).rejects.toMatchObject({ code });
         expect(exists(pids!.parent)).toBe(false);
         expect(exists(pids!.descendant)).toBe(false);
+        if (scenario === 'success-descendant') expect(existsSync(evidencePath)).toBe(true);
       } finally {
         for (const pid of [pids?.descendant, pids?.parent]) {
           if (pid !== undefined && exists(pid)) process.kill(pid, 'SIGKILL');

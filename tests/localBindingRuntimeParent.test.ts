@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -52,6 +52,7 @@ vi.mock('node:fs', async () => {
   return {
     ...actual,
     chmodSync(path: import('node:fs').PathLike, mode: number) { return actual.chmodSync(map(path), mode); },
+    existsSync(path: import('node:fs').PathLike) { return actual.existsSync(map(path)); },
     lstatSync(path: import('node:fs').PathLike, options?: { bigint?: boolean }) {
       return normalize(actual.lstatSync(map(path), options as never));
     },
@@ -119,6 +120,14 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
         expect(`${JSON.stringify(request)}\n`).toBe(options.fd3);
         expect(options.containProcessGroup).toBe(compatibility ? true : undefined);
         if (compatibility) {
+          const proofRoot = path.join(path.dirname(request.repositoryRoot), 'proof');
+          fs.mkdirSync(map(proofRoot), { mode: 0o700 });
+          fs.writeFileSync(path.join(map(proofRoot), 'retained-evidence'), 'controlled evidence', { mode: 0o600 });
+          if (boundary.scenario === 'compatibility-containment-failure') {
+            throw Object.assign(new Error('LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED'), {
+              code: 'LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED',
+            });
+          }
           const result = {
             schemaVersion: 1,
             profile: 'warpkeep-local-binding-genesis001-compatibility-result-v1',
@@ -374,7 +383,8 @@ describe('production local binding parent cycles', () => {
   });
 
   it('accepts the strict compatibility worker result without generation or handoff projection', async () => {
-    const result = await executeFixedGenesis001CompatibilityParent(genesis001CompatibilityContext());
+    const selected = genesis001CompatibilityContext();
+    const result = await executeFixedGenesis001CompatibilityParent(selected);
     expect(result).toEqual({
       sourceCommit: '1'.repeat(40), sourceTree: '2'.repeat(40),
       baselineBundleSha256: '5'.repeat(64), frozenBundleSha256: '6'.repeat(64),
@@ -386,14 +396,31 @@ describe('production local binding parent cycles', () => {
     });
     expect(boundary.events).toEqual(['verify-executables', 'worker:genesis001-compatibility', 'verify-executables']);
     expect(boundary.generateArgs).toHaveLength(0);
+    expect(existsSync(join(selected.operationRoot, 'proof'))).toBe(false);
+  });
+
+  it('retains private proof artifacts and emits no result when compatibility containment fails', async () => {
+    boundary.scenario = 'compatibility-containment-failure';
+    const selected = genesis001CompatibilityContext();
+    let result: unknown;
+    try {
+      result = await executeFixedGenesis001CompatibilityParent(selected);
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED' });
+    }
+    expect(result).toBeUndefined();
+    expect(existsSync(join(selected.operationRoot, 'proof', 'retained-evidence'))).toBe(true);
+    expect(boundary.generateArgs).toHaveLength(0);
   });
 
   it.each(['compatibility-extra-result', 'compatibility-cross-lane'])(
     'rejects compatibility parent result %s before public evidence', async scenario => {
       boundary.scenario = scenario;
-      await expect(executeFixedGenesis001CompatibilityParent(genesis001CompatibilityContext()))
+      const selected = genesis001CompatibilityContext();
+      await expect(executeFixedGenesis001CompatibilityParent(selected))
         .rejects.toMatchObject({ code: 'LOCAL_BINDING_WORKER_RESULT_INVALID' });
       expect(boundary.generateArgs).toHaveLength(0);
+      expect(existsSync(join(selected.operationRoot, 'proof', 'retained-evidence'))).toBe(true);
     },
   );
 

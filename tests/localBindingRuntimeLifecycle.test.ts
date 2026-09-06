@@ -690,6 +690,21 @@ describe('controlled local binding runtime lifecycle', () => {
     await expect(runFixedLocalBindingWorker(boundary.request)).rejects.toThrow(code);
   });
 
+  it.each(['extra', 'owner', 'mode'] as const)(
+    'rejects compatibility compiler namespace mutation %s without a worker result', async scenario => {
+      prepareRequest('compatibility');
+      boundary.compilerNamespaceScenario = scenario;
+      const { runFixedLocalBindingWorker } = await import('../scripts/local-binding-runtime-worker.mjs');
+      let result: unknown;
+      try { result = await runFixedLocalBindingWorker(boundary.request); } catch (error) {
+        expect(error).toMatchObject({ code: 'LOCAL_BINDING_WORKER_COMPILER_INVALID' });
+      }
+      expect(result).toBeUndefined();
+      expect(boundary.compatibilityBuilds).toEqual({ baseline: 0, frozen: 0 });
+      expect(boundary.compatibilityProofInput).toBeUndefined();
+    },
+  );
+
   it('rejects a changed Node24 compiler identity after typecheck and before build output', async () => {
     prepareRequest('genesis001');
     boundary.compilerFailureAt = 4;

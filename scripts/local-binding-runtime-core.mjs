@@ -639,6 +639,12 @@ function readHandoff(path, result) {
   return new Uint8Array(body);
 }
 
+function removeAcceptedGenesis001CompatibilityProof(operationRoot) {
+  const proofRoot = join(operationRoot, 'proof');
+  privateDirectory(proofRoot);
+  rmSync(proofRoot, { recursive: true, force: false });
+}
+
 async function executeCycle(context, lane, index) {
   const cycleRoot = join(context.laneRoot ?? context.operationRoot, `cycle-${index}`);
   mkdirSync(cycleRoot, { mode: 0o700 });
@@ -671,7 +677,7 @@ async function executeCycle(context, lane, index) {
   }
   if (lane === GENESIS001_COMPATIBILITY_LANE) {
     context.verifyExecutables();
-    return Object.freeze({
+    const accepted = Object.freeze({
       sourceCommit: result.sourceCommit,
       sourceTree: result.sourceTree,
       baselineBundleSha256: result.baselineBundleSha256,
@@ -680,6 +686,8 @@ async function executeCycle(context, lane, index) {
       frozenDescriptorSha256: result.frozenDescriptorSha256,
       checkedFrozenWriters: Object.freeze([...result.checkedFrozenWriters]),
     });
+    removeAcceptedGenesis001CompatibilityProof(context.operationRoot);
+    return accepted;
   }
   const bundle = readHandoff(handoffPath, result);
   context.verifyExecutables();
