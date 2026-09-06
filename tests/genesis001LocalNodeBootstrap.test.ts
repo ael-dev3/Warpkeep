@@ -21,6 +21,15 @@ const ARCHIVE_HASH = '14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b
 const NODE_HASH = 'bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12';
 const ORIGINAL_GETUID = Object.getOwnPropertyDescriptor(process, 'getuid');
 const ORIGINAL_NODE_OPTIONS = process.env.NODE_OPTIONS;
+const TEST_DRIVER_PLATFORM = process.platform;
+const NATIVE_LANE_ENV = 'WARPKEEP_GENESIS001_NODE_NATIVE_TESTS';
+const NATIVE_LANE_VALUE = process.env[NATIVE_LANE_ENV];
+const NATIVE_LANE_REQUESTED = NATIVE_LANE_VALUE === '1';
+const NATIVE_NODE_UNC = '\\\\wsl.localhost\\Ubuntu-24.04\\home\\snapmeter\\.warpkeep\\release-preparation-v1\\toolchain\\node-v24.19.0-linux-x64\\bin\\node';
+
+if (NATIVE_LANE_VALUE !== undefined && !NATIVE_LANE_REQUESTED) {
+  throw new Error(`${NATIVE_LANE_ENV}_INVALID`);
+}
 const SOURCE_PATHS = [
   'scripts/bootstrap-genesis001-local-node.mjs',
   'scripts/bootstrap-genesis001-local-node-core.mjs',
@@ -142,9 +151,23 @@ vi.mock('../scripts/local-binding-bounded-file.mjs', () => ({
 
 vi.mock('node:fs', async () => {
   const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
-  boundary.readInstalledNode = () => actual.readFileSync(
-    '\\\\wsl.localhost\\Ubuntu-24.04\\home\\snapmeter\\.warpkeep\\release-preparation-v1\\toolchain\\node-v24.19.0-linux-x64\\bin\\node',
-  );
+  boundary.readInstalledNode = () => {
+    if (!NATIVE_LANE_REQUESTED) throw new Error('GENESIS001_LOCAL_NODE_NATIVE_LANE_NOT_REQUESTED');
+    if (TEST_DRIVER_PLATFORM !== 'win32') {
+      throw new Error('GENESIS001_LOCAL_NODE_NATIVE_WINDOWS_WSL_REQUIRED');
+    }
+    let body;
+    try { body = actual.readFileSync(NATIVE_NODE_UNC); }
+    catch (error) {
+      throw new Error('GENESIS001_LOCAL_NODE_NATIVE_NODE24_REQUIRED', { cause: error });
+    }
+    if (body.length !== RECORD.archiveMemberBytes
+        || createHash('sha256').update(body).digest('hex') !== RECORD.archiveMemberSha256) {
+      body.fill(0);
+      throw new Error('GENESIS001_LOCAL_NODE_NATIVE_NODE24_INVALID');
+    }
+    return body;
+  };
   return { ...actual,
     existsSync(path: string) { const exact = normalized(path); return boundary.directories.has(exact) || boundary.files.has(exact); },
     lstatSync(path: string) {
@@ -462,26 +485,32 @@ describe('Genesis 001 fixed Node 24 bootstrap', () => {
     expect(boundary.files.has(FINAL_NODE)).toBe(false);
   });
 
-  it('rejects a size-correct non-UTF-8 member with the wrong SHA-256', async () => {
-    boundary.files.delete(FINAL_NODE); boundary.directories.delete(FINAL_BIN); boundary.directories.delete(FINAL_VERSION);
-    boundary.processScenario = 'wrong-member-hash';
-    await expect(bootstrap()).rejects.toMatchObject({
-      code: 'GENESIS001_LOCAL_NODE_BOOTSTRAP_MEMBER_INVALID',
-    });
-    expect(boundary.files.has(FINAL_NODE)).toBe(false);
-  });
+  it.runIf(NATIVE_LANE_REQUESTED)(
+    `native-only (${NATIVE_LANE_ENV}=1; Windows/Ubuntu-24.04 and exact installed Node24 required): rejects a size-correct non-UTF-8 member with the wrong SHA-256`,
+    async () => {
+      boundary.files.delete(FINAL_NODE); boundary.directories.delete(FINAL_BIN); boundary.directories.delete(FINAL_VERSION);
+      boundary.processScenario = 'wrong-member-hash';
+      await expect(bootstrap()).rejects.toMatchObject({
+        code: 'GENESIS001_LOCAL_NODE_BOOTSTRAP_MEMBER_INVALID',
+      });
+      expect(boundary.files.has(FINAL_NODE)).toBe(false);
+    },
+  );
 
-  it('fails a fresh exclusive installation when the full binary cannot be fsynced', async () => {
-    boundary.files.delete(FINAL_NODE); boundary.directories.delete(FINAL_BIN); boundary.directories.delete(FINAL_VERSION);
-    boundary.processScenario = 'fresh-member';
-    boundary.fsyncFailurePath = FINAL_NODE;
-    await expect(bootstrap()).rejects.toBeInstanceOf(Error);
-    expect(boundary.writes).toBe(1);
-    expect(boundary.files.get(FINAL_NODE)).toMatchObject({
-      bytes: RECORD.archiveMemberBytes, sha256: RECORD.archiveMemberSha256, mode: 0o500,
-    });
-    expect(boundary.executions.some(value => value.executable === FINAL_NODE)).toBe(false);
-  });
+  it.runIf(NATIVE_LANE_REQUESTED)(
+    `native-only (${NATIVE_LANE_ENV}=1; Windows/Ubuntu-24.04 and exact installed Node24 required): fails a fresh exclusive installation when the full binary cannot be fsynced`,
+    async () => {
+      boundary.files.delete(FINAL_NODE); boundary.directories.delete(FINAL_BIN); boundary.directories.delete(FINAL_VERSION);
+      boundary.processScenario = 'fresh-member';
+      boundary.fsyncFailurePath = FINAL_NODE;
+      await expect(bootstrap()).rejects.toBeInstanceOf(Error);
+      expect(boundary.writes).toBe(1);
+      expect(boundary.files.get(FINAL_NODE)).toMatchObject({
+        bytes: RECORD.archiveMemberBytes, sha256: RECORD.archiveMemberSha256, mode: 0o500,
+      });
+      expect(boundary.executions.some(value => value.executable === FINAL_NODE)).toBe(false);
+    },
+  );
 
   it('rejects executable mutation after --version reattestation', async () => {
     boundary.processScenario = 'mutate-node';

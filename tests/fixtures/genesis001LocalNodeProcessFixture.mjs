@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const mode = process.argv[2];
 
@@ -70,6 +71,10 @@ if (mode === 'binary-child') {
     process.stdout.write(`${JSON.stringify({
       binaryHex: '00ff800a', stdoutOverflow: true, stderrOverflow: true,
       timeout: true, descendantTerminated: true,
+      fixturePath: fileURLToPath(import.meta.url),
+      helperPath: fileURLToPath(new URL(
+        '../../scripts/bootstrap-genesis001-local-node-process.mjs', import.meta.url,
+      )),
     })}\n`);
   } finally {
     rmSync(root, { recursive: true, force: true });
