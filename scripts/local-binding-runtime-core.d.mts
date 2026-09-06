@@ -28,10 +28,20 @@ export const localBindingRuntimeTestSeams: Readonly<{
     tree: string;
     kind: 'independent-clone';
   }>;
-  attestComposedLaneSource(
-    context: Readonly<{ source: Readonly<{ commit: string; tree: string }> }>,
-    lane: Readonly<{ sourceCommit: string; sourceTree: string }>,
-  ): Readonly<{ sourceCommit: string; sourceTree: string }>;
+  runLocalBindingRuntimeLifecycle<T>(input: Readonly<{
+    execute(): T | Promise<T>;
+    cleanupCli(): void;
+    retainDiagnosticsOnCleanupFailure: boolean;
+    cleanupSuccess(): void;
+  }>): Promise<T>;
+  withAllRealmParentExecutors<T extends Readonly<Record<string, unknown>>>(
+    context: T,
+    executors: Readonly<{
+      current(context: unknown): Promise<unknown>;
+      compatibility(context: unknown): Promise<unknown>;
+      paired(context: unknown): Promise<unknown>;
+    }>,
+  ): T;
 }>;
 
 export function validateLocalBindingYamlManifest(source: string): Readonly<Record<string, unknown>>;

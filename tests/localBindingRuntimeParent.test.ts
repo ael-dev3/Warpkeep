@@ -405,12 +405,16 @@ describe('production local binding parent cycles', () => {
     expect((error as AggregateError).errors).toEqual([primary, cleanup]);
   });
 
-  it('rejects composed lane source drift before any public result', () => {
-    expect(() => localBindingRuntimeTestSeams.attestComposedLaneSource({
-      source: { commit: '1'.repeat(40), tree: '2'.repeat(40) },
-    }, {
-      sourceCommit: '1'.repeat(40), sourceTree: '9'.repeat(40),
-    })).toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_RUNTIME_SOURCE_CHANGED' }));
+  it('rejects a mismatched current lane through the composed executor before later lanes', async () => {
+    const later = vi.fn();
+    const context = localBindingRuntimeTestSeams.withAllRealmParentExecutors(allRealmContext(), {
+      current: async () => ({ sourceCommit: '1'.repeat(40), sourceTree: '9'.repeat(40) }),
+      compatibility: later,
+      paired: later,
+    });
+    await expect(executeFixedAllRealmLocalBindingParentCycles(context))
+      .rejects.toMatchObject({ code: 'LOCAL_BINDING_RUNTIME_SOURCE_CHANGED' });
+    expect(later).not.toHaveBeenCalled();
   });
 
   it('binds a hostile ambient attester result to the exact operation-owned CLI path', () => {
@@ -615,6 +619,35 @@ describe('production local binding parent cycles', () => {
     expect(roots.slice(5).every(root => root.includes('/ptr/cycle-'))).toBe(true);
     expect(new Set(roots).size).toBe(7);
     expect(existsSync(join(selected.operationRoot, 'proof'))).toBe(false);
+  });
+
+  it('rejects a cleanup failure after real composed execution without resolving or removing diagnostics', async () => {
+    const selected = allRealmContext();
+    const diagnostics = join(selected.operationRoot, 'diagnostics');
+    let resolved: unknown;
+    const cleanupError = new Error('CONTROLLED_COMPOSED_CLI_CLEANUP_FAILED');
+
+    let error: unknown;
+    try {
+      resolved = await localBindingRuntimeTestSeams.runLocalBindingRuntimeLifecycle({
+        execute: async () => {
+          const result = await executeFixedAllRealmLocalBindingParentCycles(selected);
+          mkdirSync(diagnostics, { mode: 0o700 });
+          return result;
+        },
+        cleanupCli() { throw cleanupError; },
+        retainDiagnosticsOnCleanupFailure: true,
+        cleanupSuccess() { rmSync(selected.operationRoot, { recursive: true, force: false }); },
+      });
+    } catch (caught) { error = caught; }
+    expect(resolved).toBeUndefined();
+    expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).errors).toEqual([cleanupError]);
+    expect(existsSync(diagnostics)).toBe(true);
+    expect(existsSync(join(selected.operationRoot, 'genesis001-current'))).toBe(true);
+    expect(existsSync(join(selected.operationRoot, 'genesis001-compatibility'))).toBe(true);
+    expect(existsSync(join(selected.operationRoot, 'genesis002'))).toBe(true);
+    expect(existsSync(join(selected.operationRoot, 'ptr'))).toBe(true);
   });
 
   it('stops all later lanes when current G001 fails', async () => {

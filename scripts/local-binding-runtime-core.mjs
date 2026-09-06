@@ -636,10 +636,13 @@ function initializeGenesis001CurrentIndependentSnapshot(input, boundary) {
   return Object.freeze({ root: input.root, commit, tree, kind: 'independent-clone' });
 }
 
+const ALL_REALM_PARENT_EXECUTORS = Symbol('warpkeep.allRealmParentExecutors');
+
 export const localBindingRuntimeTestSeams = Object.freeze({
   createGenesis001CurrentFixedGitBoundary,
   initializeGenesis001CurrentIndependentSnapshot,
-  attestComposedLaneSource,
+  runLocalBindingRuntimeLifecycle,
+  withAllRealmParentExecutors,
 });
 
 function resolveGraphTarget(root, parentPath, specifier) {
@@ -1165,21 +1168,36 @@ function attestComposedLaneSource(context, lane) {
   return lane;
 }
 
+const FIXED_ALL_REALM_PARENT_EXECUTORS = Object.freeze({
+  current: executeFixedGenesis001CurrentBindingParentCycles,
+  compatibility: executeFixedGenesis001CompatibilityParent,
+  paired: executeFixedPairedLocalBindingParentCycles,
+});
+
+function withAllRealmParentExecutors(context, executors) {
+  if (!exactKeys(executors, ['current', 'compatibility', 'paired'])
+      || Object.values(executors).some(executor => typeof executor !== 'function')) {
+    fail('LOCAL_BINDING_RUNTIME_TEST_SEAM_INVALID');
+  }
+  return Object.freeze({ ...context, [ALL_REALM_PARENT_EXECUTORS]: Object.freeze({ ...executors }) });
+}
+
 export async function executeFixedAllRealmLocalBindingParentCycles(context) {
+  const executors = context[ALL_REALM_PARENT_EXECUTORS] ?? FIXED_ALL_REALM_PARENT_EXECUTORS;
   const laneContext = (name, graph) => {
     const laneRoot = join(context.operationRoot, name);
     mkdirSync(laneRoot, { mode: 0o700 });
     return Object.freeze({ ...context, laneRoot, graph });
   };
   const current = attestComposedLaneSource(context,
-    await executeFixedGenesis001CurrentBindingParentCycles(
+    await executors.current(
       laneContext('genesis001-current', context.graphs.genesis001Current),
     ));
   const compatibility = attestComposedLaneSource(context,
-    await executeFixedGenesis001CompatibilityParent(
+    await executors.compatibility(
       laneContext('genesis001-compatibility', context.graphs.genesis001Compatibility),
     ));
-  const paired = await executeFixedPairedLocalBindingParentCycles(Object.freeze({
+  const paired = await executors.paired(Object.freeze({
     ...context,
     graphs: Object.freeze({
       genesis002: context.graphs.genesis002,
@@ -1189,6 +1207,25 @@ export async function executeFixedAllRealmLocalBindingParentCycles(context) {
   attestComposedLaneSource(context, paired.genesis002);
   attestComposedLaneSource(context, paired.ptr);
   return Object.freeze({ current, compatibility, paired });
+}
+
+async function runLocalBindingRuntimeLifecycle(input) {
+  let complete = false;
+  let result;
+  let primaryError;
+  try {
+    result = await input.execute();
+    complete = true;
+  } catch (error) {
+    primaryError = error;
+  }
+  let cleanupError;
+  try { input.cleanupCli(); } catch (error) { cleanupError = error; }
+  if (complete && (!input.retainDiagnosticsOnCleanupFailure || cleanupError === undefined)) {
+    try { input.cleanupSuccess(); } catch (error) { cleanupError = error; }
+  }
+  preserveLocalBindingRuntimePrimaryAndCleanup(primaryError, cleanupError);
+  return result;
 }
 
 export function preserveLocalBindingRuntimePrimaryAndCleanup(primaryError, cleanupError) {
@@ -1254,7 +1291,6 @@ async function deriveLocalBindingRuntime(mode) {
   let source;
   let cli;
   let cliSource;
-  let complete = false;
   let finalResult;
   let primaryError;
   try {
@@ -1328,7 +1364,6 @@ async function deriveLocalBindingRuntime(mode) {
         || verifySourceGit(source.root, ['rev-parse', '--verify', 'HEAD^{tree}']) !== source.tree) {
       fail('LOCAL_BINDING_RUNTIME_SOURCE_CHANGED');
     }
-    complete = true;
     const copyLane = lane => Object.freeze({
       bundleSha256: lane.bundleSha256,
       dependencyClosureDigest: lane.dependencyClosureDigest,
@@ -1385,20 +1420,22 @@ async function deriveLocalBindingRuntime(mode) {
   } catch (error) {
     primaryError = error;
   }
-  let cleanupError;
-  try { cliSource?.cleanup(); } catch (error) { cleanupError = error; }
-  if (complete) {
-    try {
+  return runLocalBindingRuntimeLifecycle({
+    async execute() {
+      if (primaryError !== undefined) throw primaryError;
+      return finalResult;
+    },
+    cleanupCli() { cliSource?.cleanup(); },
+    retainDiagnosticsOnCleanupFailure: allRealms,
+    cleanupSuccess() {
       if (source?.kind === 'linked-worktree') {
         git(repositoryRoot, environment, gitAuthority.identity, [
           'worktree', 'remove', '--force', source.root,
         ]);
       }
       rmSync(operationRoot, { recursive: true, force: false });
-    } catch (error) { cleanupError ??= error; }
-  }
-  preserveLocalBindingRuntimePrimaryAndCleanup(primaryError, cleanupError);
-  return finalResult;
+    },
+  });
 }
 
 export function deriveFixedLocalBindingRuntime() {

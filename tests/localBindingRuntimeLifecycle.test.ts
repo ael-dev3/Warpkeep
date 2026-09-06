@@ -588,6 +588,34 @@ describe('controlled local binding runtime lifecycle', () => {
     return result;
   }
 
+  it('aggregates an all-realm primary failure with CLI cleanup failure and retains diagnostics', async () => {
+    prepareRequest('current');
+    const operationRoot = dirname(boundary.request!.repositoryRoot as string);
+    const diagnostics = join(operationRoot, 'diagnostics');
+    mkdirSync(diagnostics, { mode: 0o700 });
+    const primaryError = new Error('CONTROLLED_ALL_REALM_PRIMARY');
+    const cleanupError = new Error('CONTROLLED_ALL_REALM_CLI_CLEANUP');
+    const actualCore = await vi.importActual<typeof import('../scripts/local-binding-runtime-core.mjs')>(
+      '../scripts/local-binding-runtime-core.mjs',
+    );
+    let resolved: unknown;
+    let error: unknown;
+    try {
+      resolved = await actualCore.localBindingRuntimeTestSeams.runLocalBindingRuntimeLifecycle({
+        async execute() { throw primaryError; },
+        cleanupCli() { throw cleanupError; },
+        retainDiagnosticsOnCleanupFailure: true,
+        cleanupSuccess() { rmSync(operationRoot, { recursive: true, force: false }); },
+      });
+    } catch (caught) { error = caught; }
+
+    expect(resolved).toBeUndefined();
+    expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).cause).toBe(primaryError);
+    expect((error as AggregateError).errors).toEqual([primaryError, cleanupError]);
+    expect(existsSync(diagnostics)).toBe(true);
+  });
+
   it('runs the public entrypoint through the actual worker and real locked-source helper', async () => {
     const value = prepareRequest();
     const liveBindings = join(process.cwd(), 'spacetimedb', 'ptr', 'generated-bindings');
