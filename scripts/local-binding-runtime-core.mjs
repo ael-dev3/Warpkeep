@@ -195,9 +195,10 @@ function fixedContainedPath(path, prefix) {
 }
 
 export function validateLocalBindingRuntimeHost(value) {
+  const execArgv = JSON.stringify(value?.execArgv);
   if (value?.platform !== 'linux' || value?.arch !== 'x64' || value?.uid !== 1000
       || value?.execPath !== NODE_PATH || value?.nodeOptions
-      || JSON.stringify(value?.execArgv) !== JSON.stringify(['--experimental-vm-modules'])) {
+      || ![JSON.stringify([]), JSON.stringify(['--experimental-vm-modules'])].includes(execArgv)) {
     fail('LOCAL_BINDING_RUNTIME_HOST_INVALID');
   }
 }
@@ -379,7 +380,47 @@ function resolveGraphTarget(root, parentPath, specifier) {
 }
 
 function deriveFixedEntrySourceGraph(root, entry) {
-  if (typeof SourceTextModule !== 'function') fail('LOCAL_BINDING_RUNTIME_VM_MODULES_REQUIRED');
+  if (typeof SourceTextModule !== 'function') {
+    if (!fixedContainedPath(root, RUNS_ROOT) || basename(root) !== 'source') {
+      fail('LOCAL_BINDING_RUNTIME_VM_MODULES_REQUIRED');
+    }
+    const operationRoot = dirname(root);
+    const functionName = entry === PTR_LANE.graphEntry ? 'deriveLocalBindingSourceGraph'
+      : entry === GENESIS002_LANE.graphEntry ? 'deriveGenesis002LocalBindingSourceGraph'
+        : entry === GENESIS001_LANE.graphEntry ? 'deriveGenesis001LocalBindingSourceGraph'
+          : fail('LOCAL_BINDING_RUNTIME_SOURCE_GRAPH_INVALID');
+    const moduleUrl = pathToFileURL(join(root, 'scripts', 'local-binding-runtime-core.mjs')).href;
+    const script = `import { ${functionName} } from ${JSON.stringify(moduleUrl)};process.stdout.write(JSON.stringify(${functionName}(${JSON.stringify(root)})));`;
+    const node = stableFileRecord(NODE_PATH, NODE_BYTES, NODE_SHA256, 1000, true);
+    node.body.fill(0);
+    const child = spawnSync(NODE_PATH, [
+      '--no-warnings', '--experimental-vm-modules', '--input-type=module', '--eval', script,
+    ], {
+      cwd: root,
+      env: {
+        HOME: join(operationRoot, 'home'), TMPDIR: join(operationRoot, 'tmp'),
+        PATH: dirname(NODE_PATH), LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8', TZ: 'UTC',
+      },
+      encoding: 'utf8', shell: false, stdio: ['ignore', 'pipe', 'pipe'],
+      maxBuffer: MAX_SOURCE_TOTAL, timeout: 60_000,
+    });
+    stableFile(NODE_PATH, NODE_BYTES, NODE_SHA256, 1000, true, node.identity).fill(0);
+    if (child.status !== 0 || child.signal !== null || child.error !== undefined
+        || child.stderr !== '' || typeof child.stdout !== 'string') {
+      fail('LOCAL_BINDING_RUNTIME_SOURCE_GRAPH_INVALID', child.error);
+    }
+    let graph;
+    try { graph = JSON.parse(child.stdout); } catch (error) {
+      fail('LOCAL_BINDING_RUNTIME_SOURCE_GRAPH_INVALID', error);
+    }
+    if (graph?.root !== root || graph?.entry !== entry || !Array.isArray(graph?.modules)) {
+      fail('LOCAL_BINDING_RUNTIME_SOURCE_GRAPH_INVALID');
+    }
+    return Object.freeze({
+      root: graph.root, entry: graph.entry,
+      modules: Object.freeze(graph.modules.map(record => Object.freeze(record))),
+    });
+  }
   const pending = [entry];
   const records = new Map();
   let total = 0;

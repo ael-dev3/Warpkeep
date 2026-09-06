@@ -125,6 +125,7 @@ describe('fixed local PTR binding runtime', () => {
       ambient: { HOME: '/hostile/home', PATH: '/hostile/bin', TMPDIR: '/hostile/tmp', SPACETIME_BIN: '/hostile/cli' },
     };
     expect(() => validateLocalBindingRuntimeHost(host)).not.toThrow();
+    expect(() => validateLocalBindingRuntimeHost({ ...host, execArgv: [] })).not.toThrow();
     expect(() => validateLocalBindingRuntimeHost({ ...host, nodeOptions: '--require=/hostile/preload.cjs' }))
       .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_RUNTIME_HOST_INVALID' }));
     expect(() => validateLocalBindingRuntimeHost({ ...host, execArgv: ['--experimental-vm-modules', '--import=/hostile.mjs'] }))
