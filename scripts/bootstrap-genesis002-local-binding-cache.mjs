@@ -123,6 +123,8 @@ function attestCommittedSource(repositoryRoot, gitIdentity) {
     'scripts/bootstrap-genesis002-local-binding-cache.mjs',
     'scripts/local-binding-bounded-file.mjs',
     'scripts/local-binding-runtime-core.mjs',
+    'scripts/local-binding-runtime-cli-snapshot.mjs',
+    'scripts/local-binding-runtime-process.mjs',
     'scripts/local-binding-runtime-yaml-v1.json',
     'spacetimedb/pnpm-lock.yaml',
     'spacetimedb/pnpm-workspace.yaml',

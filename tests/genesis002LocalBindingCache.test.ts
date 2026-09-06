@@ -41,7 +41,7 @@ const boundary = vi.hoisted(() => ({
   fetches: 0,
   fetchScenario: 'success' as
     | 'success' | 'status' | 'redirect' | 'oversize' | 'timeout' | 'sri' | 'trickle',
-  changedSource: false,
+  changedSource: '',
   escapedRoot: '',
   responseDestroyCount: 0,
   requestDestroyCount: 0,
@@ -85,7 +85,7 @@ vi.mock('../scripts/local-binding-bounded-file.mjs', () => ({
     const key = [...boundary.committed.keys()].find(value => exact.endsWith(`/${value}`));
     if (key === undefined) throw new Error(`UNEXPECTED_BOUNDED_FILE:${exact}`);
     const body = Buffer.from(boundary.committed.get(key)!);
-    if (boundary.changedSource && key === 'scripts/bootstrap-genesis002-local-binding-cache.mjs') body[0] ^= 1;
+    if (boundary.changedSource === key) body[0] ^= 1;
     if (body.length !== options.expectedBytes
         || createHash('sha256').update(body).digest('hex') !== options.expectedSha256) {
       throw new Error('LOCAL_BINDING_BOUNDED_FILE_INVALID');
@@ -248,7 +248,7 @@ beforeEach(() => {
   boundary.nextDescriptor = 100;
   boundary.fetches = 0;
   boundary.fetchScenario = 'success';
-  boundary.changedSource = false;
+  boundary.changedSource = '';
   boundary.escapedRoot = '';
   boundary.responseDestroyCount = 0;
   boundary.requestDestroyCount = 0;
@@ -258,7 +258,8 @@ beforeEach(() => {
     `${ROOT}/cache`]) boundary.directories.set(path, 0o700);
   for (const path of [
     'scripts/bootstrap-genesis002-local-binding-cache.mjs', 'scripts/local-binding-bounded-file.mjs',
-    'scripts/local-binding-runtime-core.mjs', 'scripts/local-binding-runtime-yaml-v1.json',
+    'scripts/local-binding-runtime-core.mjs', 'scripts/local-binding-runtime-cli-snapshot.mjs',
+    'scripts/local-binding-runtime-process.mjs', 'scripts/local-binding-runtime-yaml-v1.json',
     'spacetimedb/pnpm-lock.yaml', 'spacetimedb/pnpm-workspace.yaml',
   ]) boundary.committed.set(path, Buffer.from(`committed:${path}`));
   boundary.lock = fixtureLock();
@@ -297,9 +298,19 @@ describe('fixed Genesis 002 local-binding cache bootstrap', () => {
     ['platform', () => vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')],
     ['root identity', () => { boundary.escapedRoot = ROOT; }],
     ['root mode', () => { boundary.directories.set(ROOT, 0o755); }],
-    ['source', () => { boundary.changedSource = true; }],
+    ['source', () => { boundary.changedSource = 'scripts/bootstrap-genesis002-local-binding-cache.mjs'; }],
   ] as const)('rejects wrong %s before fetching or cache installation', async (_name, mutate) => {
     mutate();
+    await expect(bootstrap()).rejects.toBeInstanceOf(Error);
+    expect(boundary.fetches).toBe(0);
+    expect(boundary.archives.size).toBe(0);
+  });
+
+  it.each([
+    'scripts/local-binding-runtime-cli-snapshot.mjs',
+    'scripts/local-binding-runtime-process.mjs',
+  ])('rejects drift in executing helper %s before fetch or cache installation', async path => {
+    boundary.changedSource = path;
     await expect(bootstrap()).rejects.toBeInstanceOf(Error);
     expect(boundary.fetches).toBe(0);
     expect(boundary.archives.size).toBe(0);
