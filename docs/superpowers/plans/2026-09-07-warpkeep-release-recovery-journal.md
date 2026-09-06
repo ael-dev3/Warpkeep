@@ -50,7 +50,7 @@ expect(() => planPreparedReleaseRollback({ journal, observations: tampered }))
 ```
 
 - [x] Run RED, implement reconciliation without filesystem writes or callbacks, then run GREEN. Deep-copy/freeze accepted records and actions; never return caller-owned objects.
-- [ ] Run the focused suite and TypeScript check, review the exact diff, scan the outgoing commit, and push the reviewed checkpoint to the existing development branch.
+- [x] Run the focused suite and TypeScript check, review the exact diff, scan the outgoing commit, and push the reviewed checkpoint to the existing development branch. Delivered in `ade7708`.
 
 ## Native integration obligation
 
@@ -91,3 +91,59 @@ release candidate or mints verification/deployment authority.
 Native crash tests must cover the pre-terminal and post-terminal fsync boundary
 and each cleanup unlink. This protocol is a mandatory integration requirement;
 the pure codec/planner does not implement it.
+
+## Task 2: Crash-released native candidate lock
+
+**Files:** Create `scripts/local-release-candidate-lock.mjs`, its `.d.mts`,
+`tests/localReleaseCandidateLock.test.ts`, and
+`tests/fixtures/localReleaseCandidateLockChild.mjs`.
+
+**Interfaces:** `acquirePreparedReleaseCandidateLock(candidateRoot)` returns
+only frozen `assertActive()` and idempotent `release()` methods. It provides
+mutual exclusion, not source/verification authority. The native installer must
+hold it from source/target preflight through journal/terminal handling and cleanup.
+
+- Require Linux x64, UID1000, Node22.22.3, a canonical private mode0700 candidate
+  root and an owned, non-group/world-writable, non-symlink `.git` directory on
+  the same ext4 filesystem. Fail closed on NTFS/DrvFS rather than claim Linux
+  durability. This component deliberately does not accept a caller lock path,
+  owner, helper, filesystem adapter or process-liveness callback.
+- Use the permanent `.git/warpkeep-release-assembly.lock` inode, never unlink,
+  replace, or truncate it. Open no-follow/exclusive-create (existing files must
+  be regular, single-link, empty, owned1000, mode0600). Pin candidate, `.git`,
+  descriptor and named lock identities before/after acquiring the lock.
+  Set mode0600 on the exclusively created descriptor to account for a restrictive
+  umask; never change permissions on an existing inode.
+- Adapt the existing B0 journal's inherited-descriptor `fcntl.flock(3,
+  LOCK_EX|LOCK_NB)` pattern with fixed `/usr/bin/python3 -I`, clean environment,
+  5-second deadline, bounded output and exact success marker. The parent retains
+  the descriptor; no helper process or PID-file inference remains after acquisition.
+- Fsync the lock descriptor and its directory. `assertActive()` rechecks the
+  owned directory chain and descriptor/name identity. `release()` always closes
+  the held descriptor, even if validation finds substitution, and reports that
+  substitution without touching the replacement path.
+- [x] Write native tests demonstrating a second process is excluded while the
+  first owns the lock, then succeeds after first release and after actual SIGKILL.
+  Use disposable private ext4 fixtures only; never signal a user process.
+
+```js
+const lock = acquirePreparedReleaseCandidateLock(candidateRoot);
+lock.assertActive();
+// Separate child against the same fixture must exit with the fixed BUSY code.
+lock.release();
+// A new child must acquire the unchanged permanent lock inode successfully.
+```
+
+- [x] Write negative tests for symbolic-link root/`.git`/lock, wrong modes,
+  nonempty or hardlinked lock, named-lock substitution and use-after-release.
+  Unsupported Windows hosts must reject before filesystem writes, not skip into
+  a simulated successful Linux path.
+- [ ] Run RED, implement the fixed lock, run Windows negatives and actual Linux
+  process tests, run TypeScript, request independent review and push the exact
+  checkpoint after scanning it. Retain the separate installer/journal/terminal/
+  crash-durability/full-family requirements; a lock test cannot satisfy them.
+
+The boundary is a trusted, exclusively owned candidate with advisory lock
+coordination and substitution detection. It does not isolate against a hostile
+process running as the same UID. The installer must preserve the existing
+disposable-worker/credential separation and fresh checks before every mutation.
