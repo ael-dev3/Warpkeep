@@ -1,0 +1,94 @@
+.keep04 {
+  --keep04-ink: #f2eddf;
+  --keep04-muted: #cbcdbd;
+  --keep04-panel: #182e2b;
+  --keep04-line: #698c80;
+  color: var(--keep04-ink);
+  background: #102520;
+  font: 400 15px/1.5 system-ui, sans-serif;
+  min-height: 100%;
+  padding: 16px;
+  box-sizing: border-box;
+  color-scheme: dark;
+}
+.keep04 *, .keep04 *::before, .keep04 *::after { box-sizing: border-box; }
+.keep04 button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--keep04-line);
+  border-radius: 6px;
+  background: #23473f;
+  color: var(--keep04-ink);
+  font: inherit;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.keep04 button:hover:not(:disabled) { background: #325b50; }
+.keep04 button:disabled { color: #c0c5b9; background: #283731; cursor: not-allowed; border-style: dashed; }
+.keep04 :focus-visible { outline: 3px solid #dfc6ff; outline-offset: 3px; }
+.keep04 h1, .keep04 h2, .keep04 h3, .keep04 p { margin: 0 0 10px; }
+.keep04 h1 { font-size: 24px; font-weight: 600; }
+.keep04 h2 { font-size: 20px; }
+.keep04 h3 { font-size: 17px; }
+.keep04 small { font-size: 14px; }
+.keep04 .keep04-header { display: flex; align-items: center; gap: 16px; }
+.keep04 .keep04-eyebrow { color: #c9d7c6; letter-spacing: .18em; font-size: 14px; margin-bottom: 2px; }
+.keep04 .keep04-reentry { color: var(--keep04-muted); max-width: 80ch; }
+.keep04 .keep04-resources { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 12px 16px; margin: 12px 0; border: 1px solid var(--keep04-line); border-radius: 8px; background: var(--keep04-panel); }
+.keep04 .keep04-resources > div { display: flex; flex-direction: column; }
+.keep04 .keep04-resources strong { font-size: 22px; font-variant-numeric: tabular-nums; }
+.keep04 .keep04-resources > p { grid-column: 1 / -1; color: var(--keep04-muted); margin: 0; }
+.keep04 .keep04-workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.keep04 .keep04-workspace[data-panel-open="true"] { grid-template-columns: minmax(0, 1fr) 320px; }
+.keep04 .keep04-scene-region { min-width: 0; padding: 16px; border: 1px solid var(--keep04-line); border-radius: 12px; background: linear-gradient(145deg, #28433a, #162c27); }
+.keep04 .keep04-schematic svg { display: block; width: 100%; aspect-ratio: 88 / 72; max-width: calc(65vh * 88 / 72); margin-inline: auto; border: 2px solid #a0ad8d; border-radius: 8px; touch-action: manipulation; }
+.keep04 .keep04-grounds { fill: #203c32; }
+.keep04 .keep04-reserved { fill: #d8caa8; stroke: #453e2c; stroke-width: .3; stroke-dasharray: 1 1; }
+.keep04 .keep04-map-label { fill: #18251e; font-size: 5px; font-weight: 700; text-anchor: middle; }
+.keep04 .keep04-map-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 0; list-style: none; }
+.keep04 .keep04-footprint rect { fill: #3c736a; stroke: #e4dfc9; stroke-width: .4; }
+.keep04 .keep04-footprint text { fill: #fff8e6; font-size: 5px; text-anchor: middle; }
+.keep04 .keep04-footprint[data-phase="constructing"] rect { fill: #654a2b; stroke-dasharray: 1 1; }
+.keep04 .keep04-footprint[data-selected="true"] rect { stroke: #dfc6ff; stroke-width: .8; }
+.keep04 .keep04-draft { fill: #a9e3bf; fill-opacity: .22; stroke: #c4ffdc; stroke-width: .6; pointer-events: none; }
+.keep04 .keep04-draft[data-valid="false"] { stroke: #ffc6a1; stroke-dasharray: 1 .7; fill: #a94328; }
+.keep04 .keep04-map-heading p, .keep04 .keep04-schematic > p { color: var(--keep04-muted); }
+.keep04 .keep04-schematic > p { margin-top: 12px; }
+.keep04 .keep04-placement-controls, .keep04 .keep04-sites { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.keep04 .keep04-panel { width: 320px; max-height: 76vh; overflow-y: auto; scrollbar-gutter: stable; padding: 12px; background: var(--keep04-panel); border: 1px solid var(--keep04-line); border-radius: 10px; scroll-padding-block: 60px 230px; }
+.keep04 .keep04-close { display: block; margin: 0 0 12px auto; }
+.keep04 .keep04-card { padding: 12px; margin-bottom: 12px; border: 1px solid var(--keep04-line); border-radius: 6px; background: #203b34; }
+.keep04 .keep04-card[data-selected="true"] { border-color: #dfc6ff; border-width: 2px; }
+.keep04 .keep04-card > button:first-child { width: 100%; text-align: left; font-weight: 600; }
+.keep04 .keep04-card p { margin-top: 8px; overflow-wrap: anywhere; }
+.keep04 .keep04-badge { display: inline-block; padding: 2px 7px; border: 1px solid #9dab96; border-radius: 4px; font-size: 14px; }
+.keep04 .keep04-primary-action { position: sticky; bottom: -12px; background: #182e2b; padding: 12px 0 max(12px, env(safe-area-inset-bottom)); border-top: 2px solid #dfc6ff; }
+.keep04 .keep04-primary-action button { width: 100%; margin-top: 8px; }
+.keep04 .keep04-confirm:not(:disabled) { background: #e1d4b5; color: #18251e; border-color: #e1d4b5; font-weight: 700; }
+.keep04 .keep04-dock { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; padding: 12px 0 max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--keep04-line); }
+.keep04 .keep04-state { padding: 24px; border: 1px solid var(--keep04-line); }
+.keep04 .keep04-state button { margin: 8px; }
+.keep04 .keep04-construction { padding-top: 16px; color: #ffe1ad; }
+@media (max-width: 760px) {
+  .keep04 { padding: 12px; }
+  .keep04 .keep04-workspace[data-panel-open="true"] { grid-template-columns: minmax(0, 1fr); }
+  .keep04 .keep04-panel { width: 100%; max-height: 70dvh; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .keep04 .keep04-scene-region { padding: 12px; }
+  .keep04 .keep04-resources { gap: 8px; padding: 10px; }
+  .keep04 .keep04-resources strong { font-size: 20px; }
+  .keep04 .keep04-dock > button { flex: 1 1 130px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .keep04 *, .keep04 *::before, .keep04 *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+.keep04[data-reduced-motion="true"] *, .keep04[data-quality="reduced"] * { animation: none !important; transition: none !important; }
+@media (forced-colors: active) {
+  .keep04 { background: Canvas; color: CanvasText; }
+  .keep04 button { border: 1px solid ButtonText; }
+  .keep04 :focus-visible { outline-color: Highlight; }
+  .keep04 .keep04-grounds { fill: Canvas; }
+  .keep04 .keep04-reserved, .keep04 .keep04-footprint rect, .keep04 .keep04-draft { fill: Canvas; stroke: CanvasText; }
+  .keep04 .keep04-map-label, .keep04 .keep04-footprint text { fill: CanvasText; }
+  .keep04 .keep04-draft { stroke: Highlight; }
+}
