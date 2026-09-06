@@ -46,12 +46,17 @@ import AdminVerifyGreaterRealmBatchV1Reducer from "./admin_verify_greater_realm_
 
 // Import all procedure arg schemas
 import * as AdminGetGreaterRealmStatusV1Procedure from "./admin_get_greater_realm_status_v_1_procedure";
+import * as DispatchGameplay04WorkerV1Procedure from "./dispatch_gameplay_04_worker_v_1_procedure";
+import * as GetGameplay04KeepV1Procedure from "./get_gameplay_04_keep_v_1_procedure";
 import * as GetPtrOwnerStatusV1Procedure from "./get_ptr_owner_status_v_1_procedure";
 import * as GetRealmAtlasBootstrapV1Procedure from "./get_realm_atlas_bootstrap_v_1_procedure";
 import * as GetRealmAtlasChunkV1Procedure from "./get_realm_atlas_chunk_v_1_procedure";
 import * as GetRealmAtlasResourceLocationsV1Procedure from "./get_realm_atlas_resource_locations_v_1_procedure";
 import * as GetRealmAtlasWindowV1Procedure from "./get_realm_atlas_window_v_1_procedure";
+import * as InitializeGameplay04KeepV1Procedure from "./initialize_gameplay_04_keep_v_1_procedure";
 import * as PlanRealmRouteV1Procedure from "./plan_realm_route_v_1_procedure";
+import * as RecallGameplay04WorkerV1Procedure from "./recall_gameplay_04_worker_v_1_procedure";
+import * as StartGameplay04BuildingV1Procedure from "./start_gameplay_04_building_v_1_procedure";
 
 // Import all table schema definitions
 
@@ -77,12 +82,17 @@ const reducersSchema = __reducers(
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
 const proceduresSchema = __procedures(
   __procedureSchema("admin_get_greater_realm_status_v1", AdminGetGreaterRealmStatusV1Procedure.params, AdminGetGreaterRealmStatusV1Procedure.returnType),
+  __procedureSchema("dispatch_gameplay04_worker_v1", DispatchGameplay04WorkerV1Procedure.params, DispatchGameplay04WorkerV1Procedure.returnType),
+  __procedureSchema("get_gameplay04_keep_v1", GetGameplay04KeepV1Procedure.params, GetGameplay04KeepV1Procedure.returnType),
   __procedureSchema("get_ptr_owner_status_v1", GetPtrOwnerStatusV1Procedure.params, GetPtrOwnerStatusV1Procedure.returnType),
   __procedureSchema("get_realm_atlas_bootstrap_v1", GetRealmAtlasBootstrapV1Procedure.params, GetRealmAtlasBootstrapV1Procedure.returnType),
   __procedureSchema("get_realm_atlas_chunk_v1", GetRealmAtlasChunkV1Procedure.params, GetRealmAtlasChunkV1Procedure.returnType),
   __procedureSchema("get_realm_atlas_resource_locations_v1", GetRealmAtlasResourceLocationsV1Procedure.params, GetRealmAtlasResourceLocationsV1Procedure.returnType),
   __procedureSchema("get_realm_atlas_window_v1", GetRealmAtlasWindowV1Procedure.params, GetRealmAtlasWindowV1Procedure.returnType),
+  __procedureSchema("initialize_gameplay04_keep_v1", InitializeGameplay04KeepV1Procedure.params, InitializeGameplay04KeepV1Procedure.returnType),
   __procedureSchema("plan_realm_route_v1", PlanRealmRouteV1Procedure.params, PlanRealmRouteV1Procedure.returnType),
+  __procedureSchema("recall_gameplay04_worker_v1", RecallGameplay04WorkerV1Procedure.params, RecallGameplay04WorkerV1Procedure.returnType),
+  __procedureSchema("start_gameplay04_building_v1", StartGameplay04BuildingV1Procedure.params, StartGameplay04BuildingV1Procedure.returnType),
 );
 
 /** The remote SpacetimeDB module schema, both runtime and type information. */

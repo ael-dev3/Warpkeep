@@ -327,13 +327,13 @@ test('generated public PTR bindings expose no tables and only the approved calls
     ]);
     assert.deepEqual(Object.keys(generated.procedures).sort(), [
       'adminGetGreaterRealmStatusV1',
+      'dispatchGameplay04WorkerV1',
+      'getGameplay04KeepV1',
       'getPtrOwnerStatusV1',
       'getRealmAtlasBootstrapV1',
       'getRealmAtlasChunkV1',
       'getRealmAtlasResourceLocationsV1',
       'getRealmAtlasWindowV1',
-      'dispatchGameplay04WorkerV1',
-      'getGameplay04KeepV1',
       'initializeGameplay04KeepV1',
       'planRealmRouteV1',
       'recallGameplay04WorkerV1',

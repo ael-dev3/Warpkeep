@@ -7,15 +7,24 @@ import { type Infer as __Infer } from "spacetimedb";
 
 // Import all procedure arg schemas
 import * as AdminGetGreaterRealmStatusV1Procedure from "../admin_get_greater_realm_status_v_1_procedure";
+import * as DispatchGameplay04WorkerV1Procedure from "../dispatch_gameplay_04_worker_v_1_procedure";
+import * as GetGameplay04KeepV1Procedure from "../get_gameplay_04_keep_v_1_procedure";
 import * as GetPtrOwnerStatusV1Procedure from "../get_ptr_owner_status_v_1_procedure";
 import * as GetRealmAtlasBootstrapV1Procedure from "../get_realm_atlas_bootstrap_v_1_procedure";
 import * as GetRealmAtlasChunkV1Procedure from "../get_realm_atlas_chunk_v_1_procedure";
 import * as GetRealmAtlasResourceLocationsV1Procedure from "../get_realm_atlas_resource_locations_v_1_procedure";
 import * as GetRealmAtlasWindowV1Procedure from "../get_realm_atlas_window_v_1_procedure";
+import * as InitializeGameplay04KeepV1Procedure from "../initialize_gameplay_04_keep_v_1_procedure";
 import * as PlanRealmRouteV1Procedure from "../plan_realm_route_v_1_procedure";
+import * as RecallGameplay04WorkerV1Procedure from "../recall_gameplay_04_worker_v_1_procedure";
+import * as StartGameplay04BuildingV1Procedure from "../start_gameplay_04_building_v_1_procedure";
 
 export type AdminGetGreaterRealmStatusV1Args = __Infer<typeof AdminGetGreaterRealmStatusV1Procedure.params>;
 export type AdminGetGreaterRealmStatusV1Result = __Infer<typeof AdminGetGreaterRealmStatusV1Procedure.returnType>;
+export type DispatchGameplay04WorkerV1Args = __Infer<typeof DispatchGameplay04WorkerV1Procedure.params>;
+export type DispatchGameplay04WorkerV1Result = __Infer<typeof DispatchGameplay04WorkerV1Procedure.returnType>;
+export type GetGameplay04KeepV1Args = __Infer<typeof GetGameplay04KeepV1Procedure.params>;
+export type GetGameplay04KeepV1Result = __Infer<typeof GetGameplay04KeepV1Procedure.returnType>;
 export type GetPtrOwnerStatusV1Args = __Infer<typeof GetPtrOwnerStatusV1Procedure.params>;
 export type GetPtrOwnerStatusV1Result = __Infer<typeof GetPtrOwnerStatusV1Procedure.returnType>;
 export type GetRealmAtlasBootstrapV1Args = __Infer<typeof GetRealmAtlasBootstrapV1Procedure.params>;
@@ -26,6 +35,12 @@ export type GetRealmAtlasResourceLocationsV1Args = __Infer<typeof GetRealmAtlasR
 export type GetRealmAtlasResourceLocationsV1Result = __Infer<typeof GetRealmAtlasResourceLocationsV1Procedure.returnType>;
 export type GetRealmAtlasWindowV1Args = __Infer<typeof GetRealmAtlasWindowV1Procedure.params>;
 export type GetRealmAtlasWindowV1Result = __Infer<typeof GetRealmAtlasWindowV1Procedure.returnType>;
+export type InitializeGameplay04KeepV1Args = __Infer<typeof InitializeGameplay04KeepV1Procedure.params>;
+export type InitializeGameplay04KeepV1Result = __Infer<typeof InitializeGameplay04KeepV1Procedure.returnType>;
 export type PlanRealmRouteV1Args = __Infer<typeof PlanRealmRouteV1Procedure.params>;
 export type PlanRealmRouteV1Result = __Infer<typeof PlanRealmRouteV1Procedure.returnType>;
+export type RecallGameplay04WorkerV1Args = __Infer<typeof RecallGameplay04WorkerV1Procedure.params>;
+export type RecallGameplay04WorkerV1Result = __Infer<typeof RecallGameplay04WorkerV1Procedure.returnType>;
+export type StartGameplay04BuildingV1Args = __Infer<typeof StartGameplay04BuildingV1Procedure.params>;
+export type StartGameplay04BuildingV1Result = __Infer<typeof StartGameplay04BuildingV1Procedure.returnType>;
 
