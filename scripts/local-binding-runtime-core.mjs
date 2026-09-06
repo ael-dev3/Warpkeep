@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
-  chmodSync, lstatSync, mkdirSync,
+  chmodSync, existsSync, lstatSync, mkdirSync,
   readdirSync, realpathSync, rmSync, writeFileSync,
 } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
@@ -41,6 +41,7 @@ const STANDALONE_BYTES = 130219584;
 const STANDALONE_SHA256 = 'a9185a737c9b739896c8f51326e1c3aedefba80a0f01def76ce26f358d5c187b';
 const GIT_PATH = '/usr/bin/git';
 const GIT_SHA256 = '2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668';
+const CANONICAL_ORIGIN_URL = 'https://github.com/ael-dev3/Warpkeep.git';
 const YAML_ROOT = `${ROOT}/toolchain/yaml-2.9.0/package`;
 const CACHE_ROOT = `${ROOT}/cache/ptr`;
 const GENESIS002_CACHE_ROOT = `${ROOT}/cache/genesis002`;
@@ -413,6 +414,97 @@ function git(repositoryRoot, environment, gitIdentity, args, maxBuffer = 1024 * 
   return result.stdout.trim();
 }
 
+function exactGitLine(value) {
+  const line = value.endsWith('\n') ? value.slice(0, -1) : value;
+  return line.length > 0 && !line.includes('\n') && !line.includes('\r') ? line : undefined;
+}
+
+function attestGenesis001CurrentIndependentSnapshotContext(root, runGit) {
+  const gitRoot = join(root, '.git');
+  const contextFiles = [join(gitRoot, 'config'), join(gitRoot, 'info', 'exclude')];
+  try {
+    const rootState = lstatSync(root, { bigint: true });
+    const gitState = lstatSync(gitRoot, { bigint: true });
+    if (!rootState.isDirectory() || rootState.isSymbolicLink() || rootState.uid !== 1000n
+        || (rootState.mode & 0o7777n) !== 0o700n || realpathSync(root) !== root
+        || !gitState.isDirectory() || gitState.isSymbolicLink() || gitState.uid !== 1000n
+        || (gitState.mode & 0o022n) !== 0n || realpathSync(gitRoot) !== gitRoot) {
+      fail('LOCAL_BINDING_RUNTIME_GIT_CONTEXT_INVALID');
+    }
+    for (const path of contextFiles) {
+      const state = lstatSync(path, { bigint: true });
+      if (!state.isFile() || state.isSymbolicLink() || state.uid !== 1000n || state.nlink !== 1n
+          || ![0o600n, 0o644n].includes(state.mode & 0o7777n) || realpathSync(path) !== path) {
+        fail('LOCAL_BINDING_RUNTIME_GIT_CONTEXT_INVALID');
+      }
+    }
+    for (const path of [join(gitRoot, 'info'), join(gitRoot, 'objects', 'info')]) {
+      const state = lstatSync(path, { bigint: true });
+      if (!state.isDirectory() || state.isSymbolicLink() || state.uid !== 1000n
+          || (state.mode & 0o022n) !== 0n || realpathSync(path) !== path) {
+        fail('LOCAL_BINDING_RUNTIME_GIT_CONTEXT_INVALID');
+      }
+    }
+    for (const path of [
+      join(gitRoot, 'config.worktree'), join(gitRoot, 'info', 'grafts'),
+      join(gitRoot, 'info', 'attributes'), join(gitRoot, 'objects', 'info', 'alternates'),
+      join(gitRoot, 'shallow'),
+    ]) if (existsSync(path)) fail('LOCAL_BINDING_RUNTIME_GIT_CONTEXT_INVALID');
+  } catch (error) {
+    if (error?.code === 'LOCAL_BINDING_RUNTIME_GIT_CONTEXT_INVALID') throw error;
+    fail('LOCAL_BINDING_RUNTIME_GIT_CONTEXT_INVALID', error);
+  }
+  const names = runGit(root, ['config', '--local', '--null', '--name-only', '--list'])
+    .split('\0').filter(Boolean).map(value => value.toLowerCase());
+  const allowedName = name => [
+    'core.repositoryformatversion', 'core.filemode', 'core.bare', 'core.logallrefupdates',
+    'core.ignorecase', 'core.precomposeunicode', 'remote.origin.url', 'remote.origin.fetch',
+    'extensions.worktreeconfig', 'gpg.format', 'user.signingkey', 'commit.gpgsign',
+  ].includes(name) || /^branch\.[a-z0-9._\/-]{1,255}\.(?:remote|merge)$/u.test(name);
+  const origin = exactGitLine(runGit(root, ['config', '--local', '--get-all', 'remote.origin.url']));
+  const resolvedOrigin = exactGitLine(runGit(root, ['remote', 'get-url', '--all', 'origin']));
+  const fetch = exactGitLine(runGit(root, ['config', '--local', '--get-all', 'remote.origin.fetch']));
+  const repositoryFormat = exactGitLine(runGit(root, [
+    'config', '--local', '--get', 'core.repositoryformatversion',
+  ]));
+  const fileMode = exactGitLine(runGit(root, ['config', '--local', '--get', 'core.filemode']));
+  const bare = exactGitLine(runGit(root, ['config', '--local', '--get', 'core.bare']));
+  const topLevel = exactGitLine(runGit(root, ['rev-parse', '--show-toplevel']));
+  const gitDirectory = exactGitLine(runGit(root, ['rev-parse', '--path-format=absolute', '--git-dir']));
+  const commonDirectory = exactGitLine(runGit(root, [
+    'rev-parse', '--path-format=absolute', '--git-common-dir',
+  ]));
+  if (names.some(name => !allowedName(name)) || names.includes('extensions.worktreeconfig')
+      || repositoryFormat !== '0' || fileMode !== 'true' || bare !== 'false'
+      || topLevel !== root || gitDirectory !== gitRoot || commonDirectory !== gitRoot
+      || origin !== CANONICAL_ORIGIN_URL || resolvedOrigin !== CANONICAL_ORIGIN_URL
+      || fetch !== '+refs/heads/*:refs/remotes/origin/*') {
+    fail('LOCAL_BINDING_RUNTIME_GIT_CONTEXT_INVALID');
+  }
+}
+
+function initializeGenesis001CurrentIndependentSnapshot(input, boundary) {
+  boundary.git(input.repositoryRoot, [
+    'clone', '--local', '--no-hardlinks', '--no-checkout', '--no-tags', '--',
+    input.repositoryRoot, input.root,
+  ], 4 * 1024 * 1024);
+  boundary.chmod(input.root, 0o700);
+  boundary.git(input.root, ['config', '--local', '--unset-all', 'remote.origin.tagOpt']);
+  boundary.git(input.root, [
+    'config', '--local', '--replace-all', 'remote.origin.url', CANONICAL_ORIGIN_URL,
+  ]);
+  boundary.git(input.root, ['checkout', '--detach', '--force', input.commit], 4 * 1024 * 1024);
+  const commit = boundary.git(input.root, ['rev-parse', '--verify', 'HEAD']);
+  const tree = boundary.git(input.root, ['rev-parse', '--verify', 'HEAD^{tree}']);
+  if (commit !== input.commit || tree !== input.tree) fail('LOCAL_BINDING_RUNTIME_SOURCE_CHANGED');
+  boundary.attest(input.root);
+  return Object.freeze({ root: input.root, commit, tree, kind: 'independent-clone' });
+}
+
+export const localBindingRuntimeTestSeams = Object.freeze({
+  initializeGenesis001CurrentIndependentSnapshot,
+});
+
 function resolveGraphTarget(root, parentPath, specifier) {
   if (!specifier.startsWith('.')) fail('LOCAL_BINDING_RUNTIME_SOURCE_GRAPH_INVALID');
   const base = resolve(root, dirname(parentPath), specifier);
@@ -698,7 +790,7 @@ function cleanEnvironment(operationRoot) {
   });
 }
 
-function snapshotCommittedSource(repositoryRoot, operationRoot, environment, gitIdentity) {
+function snapshotCommittedSource(repositoryRoot, operationRoot, environment, gitIdentity, independentCurrent = false) {
   const commit = git(repositoryRoot, environment, gitIdentity, ['rev-parse', '--verify', 'HEAD']);
   const tree = git(repositoryRoot, environment, gitIdentity, ['rev-parse', '--verify', 'HEAD^{tree}']);
   if (!/^[0-9a-f]{40}$/u.test(commit) || !/^[0-9a-f]{40}$/u.test(tree)) fail('LOCAL_BINDING_RUNTIME_GIT_FAILED');
@@ -719,12 +811,25 @@ function snapshotCommittedSource(repositoryRoot, operationRoot, environment, git
     committedControls.set(path, expected);
   }
   const root = join(operationRoot, 'source');
-  git(repositoryRoot, environment, gitIdentity, ['worktree', 'add', '--detach', root, commit], 4 * 1024 * 1024);
-  chmodSync(root, 0o700);
-  if (git(root, environment, gitIdentity, ['rev-parse', '--verify', 'HEAD']) !== commit
-      || git(root, environment, gitIdentity, ['rev-parse', '--verify', 'HEAD^{tree}']) !== tree) {
-    fail('LOCAL_BINDING_RUNTIME_SOURCE_CHANGED');
-  }
+  const source = independentCurrent
+    ? initializeGenesis001CurrentIndependentSnapshot({ repositoryRoot, root, commit, tree }, {
+      git: (cwd, args, maxBuffer) => git(cwd, environment, gitIdentity, args, maxBuffer),
+      chmod: chmodSync,
+      attest: candidate => attestGenesis001CurrentIndependentSnapshotContext(
+        candidate, (cwd, args) => git(cwd, environment, gitIdentity, args),
+      ),
+    })
+    : (() => {
+      git(repositoryRoot, environment, gitIdentity, [
+        'worktree', 'add', '--detach', root, commit,
+      ], 4 * 1024 * 1024);
+      chmodSync(root, 0o700);
+      if (git(root, environment, gitIdentity, ['rev-parse', '--verify', 'HEAD']) !== commit
+          || git(root, environment, gitIdentity, ['rev-parse', '--verify', 'HEAD^{tree}']) !== tree) {
+        fail('LOCAL_BINDING_RUNTIME_SOURCE_CHANGED');
+      }
+      return Object.freeze({ root, commit, tree, kind: 'linked-worktree' });
+    })();
   const bootstrap = Object.freeze([...committedControls].map(([path, expected]) => {
     const absolute = join(root, ...path.split('/'));
     const bytes = expected.length;
@@ -739,7 +844,7 @@ function snapshotCommittedSource(repositoryRoot, operationRoot, environment, git
     opened.body.fill(0);
     return Object.freeze({ path, bytes, sha256: digest, identity: opened.identity });
   }));
-  return { root, commit, tree, bootstrap };
+  return { ...source, bootstrap };
 }
 
 export function verifyLocalBindingBootstrapSource(source) {
@@ -963,7 +1068,9 @@ async function deriveLocalBindingRuntime(mode) {
   let finalResult;
   let primaryError;
   try {
-    source = snapshotCommittedSource(repositoryRoot, operationRoot, environment, gitAuthority.identity);
+    source = snapshotCommittedSource(
+      repositoryRoot, operationRoot, environment, gitAuthority.identity, genesis001Current,
+    );
     const graph = genesis001Compatibility
       ? deriveGenesis001CompatibilitySourceGraph(source.root)
       : genesis001Current ? deriveGenesis001CurrentLocalBindingSourceGraph(source.root)
@@ -1061,7 +1168,11 @@ async function deriveLocalBindingRuntime(mode) {
   try { cliSource?.cleanup(); } catch (error) { cleanupError = error; }
   if (complete) {
     try {
-      if (source !== undefined) git(repositoryRoot, environment, gitAuthority.identity, ['worktree', 'remove', '--force', source.root]);
+      if (source?.kind === 'linked-worktree') {
+        git(repositoryRoot, environment, gitAuthority.identity, [
+          'worktree', 'remove', '--force', source.root,
+        ]);
+      }
       rmSync(operationRoot, { recursive: true, force: false });
     } catch (error) { cleanupError ??= error; }
   }

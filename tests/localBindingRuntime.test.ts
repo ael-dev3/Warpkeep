@@ -12,6 +12,7 @@ import {
   assertReproducibleLocalBindingCycles,
   parseLocalBindingWorkerResult,
   parseGenesis001CurrentCommittedBindingListing,
+  localBindingRuntimeTestSeams,
   runLocalBindingBoundedProcess,
   validateLocalBindingRuntimeHost,
   verifyLocalBindingBootstrapSource,
@@ -261,6 +262,82 @@ describe('fixed local PTR binding runtime', () => {
       expect(() => validateLocalBindingWorkerRequest({ ...current, ...mutation }))
         .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_REQUEST_INVALID' }));
     }
+  });
+
+  it('initializes the current G001 snapshot as a local-only independent clone of the captured commit', () => {
+    const commit = '1'.repeat(40);
+    const tree = '2'.repeat(40);
+    const repositoryRoot = '/private/existing-repository';
+    const root = `/home/snapmeter/.warpkeep/release-preparation-v1/runs/binding-${'8'.repeat(32)}/source`;
+    const commands: Array<{ cwd: string; args: readonly string[] }> = [];
+    const chmod = vi.fn();
+    const attest = vi.fn();
+    const result = localBindingRuntimeTestSeams.initializeGenesis001CurrentIndependentSnapshot({
+      repositoryRoot, root, commit, tree,
+    }, {
+      git(cwd, args) {
+        commands.push({ cwd, args: [...args] });
+        if (args[0] === 'rev-parse' && args.at(-1) === 'HEAD') return commit;
+        if (args[0] === 'rev-parse' && args.at(-1) === 'HEAD^{tree}') return tree;
+        return '';
+      },
+      chmod,
+      attest,
+    });
+    expect(result).toEqual({ root, commit, tree, kind: 'independent-clone' });
+    expect(commands).toEqual([
+      { cwd: repositoryRoot, args: [
+        'clone', '--local', '--no-hardlinks', '--no-checkout', '--no-tags', '--', repositoryRoot, root,
+      ] },
+      { cwd: root, args: ['config', '--local', '--unset-all', 'remote.origin.tagOpt'] },
+      { cwd: root, args: [
+        'config', '--local', '--replace-all', 'remote.origin.url',
+        'https://github.com/ael-dev3/Warpkeep.git',
+      ] },
+      { cwd: root, args: ['checkout', '--detach', '--force', commit] },
+      { cwd: root, args: ['rev-parse', '--verify', 'HEAD'] },
+      { cwd: root, args: ['rev-parse', '--verify', 'HEAD^{tree}'] },
+    ]);
+    expect(chmod).toHaveBeenCalledWith(root, 0o700);
+    expect(attest).toHaveBeenCalledWith(root);
+  });
+
+  it('fails a current G001 independent snapshot on clone, identity, or context rejection', () => {
+    const commit = '1'.repeat(40);
+    const tree = '2'.repeat(40);
+    const input = {
+      repositoryRoot: '/private/existing-repository',
+      root: `/home/snapmeter/.warpkeep/release-preparation-v1/runs/binding-${'7'.repeat(32)}/source`,
+      commit,
+      tree,
+    };
+    const cloneFailure = Object.assign(new Error('LOCAL_BINDING_RUNTIME_GIT_FAILED'), {
+      code: 'LOCAL_BINDING_RUNTIME_GIT_FAILED',
+    });
+    expect(() => localBindingRuntimeTestSeams.initializeGenesis001CurrentIndependentSnapshot(input, {
+      git() { throw cloneFailure; }, chmod: vi.fn(), attest: vi.fn(),
+    })).toThrow(cloneFailure);
+
+    expect(() => localBindingRuntimeTestSeams.initializeGenesis001CurrentIndependentSnapshot(input, {
+      git(_cwd, args) {
+        if (args[0] === 'rev-parse' && args.at(-1) === 'HEAD') return '3'.repeat(40);
+        if (args[0] === 'rev-parse' && args.at(-1) === 'HEAD^{tree}') return tree;
+        return '';
+      },
+      chmod: vi.fn(), attest: vi.fn(),
+    })).toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_RUNTIME_SOURCE_CHANGED' }));
+
+    const contextFailure = Object.assign(new Error('LOCAL_BINDING_RUNTIME_GIT_CONTEXT_INVALID'), {
+      code: 'LOCAL_BINDING_RUNTIME_GIT_CONTEXT_INVALID',
+    });
+    expect(() => localBindingRuntimeTestSeams.initializeGenesis001CurrentIndependentSnapshot(input, {
+      git(_cwd, args) {
+        if (args[0] === 'rev-parse' && args.at(-1) === 'HEAD') return commit;
+        if (args[0] === 'rev-parse' && args.at(-1) === 'HEAD^{tree}') return tree;
+        return '';
+      },
+      chmod: vi.fn(), attest() { throw contextFailure; },
+    })).toThrow(contextFailure);
   });
 
   it('reads one canonical request from real fd3 and rejects malformed framing early', async () => {

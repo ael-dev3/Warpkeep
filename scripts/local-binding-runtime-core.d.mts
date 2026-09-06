@@ -2,6 +2,22 @@ export class LocalBindingRuntimeCoreError extends Error {
   readonly code: string;
 }
 
+export const localBindingRuntimeTestSeams: Readonly<{
+  initializeGenesis001CurrentIndependentSnapshot(
+    input: Readonly<{ repositoryRoot: string; root: string; commit: string; tree: string }>,
+    boundary: Readonly<{
+      git(cwd: string, args: readonly string[], maxBuffer?: number): string;
+      chmod(path: string, mode: number): void;
+      attest(root: string): void;
+    }>,
+  ): Readonly<{
+    root: string;
+    commit: string;
+    tree: string;
+    kind: 'independent-clone';
+  }>;
+}>;
+
 export function validateLocalBindingYamlManifest(source: string): Readonly<Record<string, unknown>>;
 
 export function validateLocalBindingWorkerRequest<T extends Readonly<Record<string, unknown>>>(value: T): T;
