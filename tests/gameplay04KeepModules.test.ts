@@ -458,6 +458,74 @@ function expectSenderCode(effect: () => unknown, code: string): void {
   });
 }
 
+function buildingInput(
+  sequence: bigint,
+  revision: bigint,
+  overrides: Readonly<Record<string, unknown>> = {},
+) {
+  return {
+    sequence,
+    requestKey: `g04:${sequence}:${sequence.toString().repeat(32)}`,
+    expectedRevision: revision,
+    expectedAtlasRevision: 7n,
+    policyVersion: 'warpkeep-0.4-gameplay-v1',
+    layoutDigest: '152d900c9e2309ed822610d3b885e9dcbd0dcae1d5621b3ddbaf788844f6dec8',
+    kind: 'city-mill',
+    targetLevel: 1,
+    x: -15_000_000n,
+    z: 15_000_000n,
+    rotation: 0,
+    expectedCost: { food: 20n, wood: 40n, stone: 20n, gold: 0n },
+    expectedDurationMicros: 120_000_000n,
+    ...overrides,
+  };
+}
+
+function renewOwnerSession(harness: PtrHarness): void {
+  const nowSeconds = Number(harness.nowMicros / 1_000_000n);
+  harness.payload = ownerPayload({
+    iat: nowSeconds - 1,
+    nbf: nowSeconds - 1,
+    exp: nowSeconds + 119,
+    session_iat: nowSeconds - 1,
+    session_exp: nowSeconds + 119,
+    jti: `renewed-${nowSeconds}`,
+  });
+}
+
+function prepareDueProjectAndReturns(harness: PtrHarness): string {
+  (ptrModule.initializeGameplay04KeepV1 as Callable)(harness.context(), GAMEPLAY_INPUT);
+  const keepId = [...harness.keeps.keys()][0]!;
+  harness.keeps.set(keepId, {
+    ...harness.keeps.get(keepId)!, food: 100n, wood: 100n, stone: 100n, gold: 0n,
+  });
+  (ptrModule.startGameplay04BuildingV1 as Callable)(
+    harness.context(), buildingInput(2n, 1n),
+  );
+  harness.resourceKind = 'food';
+  for (const [ordinal, duration] of [
+    [0, 60_000_000n],
+    [1, 60_000_000n],
+    [2, 600_000_000n],
+  ] as const) {
+    const sequence = BigInt(ordinal + 3);
+    (ptrModule.dispatchGameplay04WorkerV1 as Callable)(harness.context(), {
+      sequence,
+      requestKey: `g04:${sequence}:${sequence.toString().repeat(32)}`,
+      expectedRevision: sequence - 1n,
+      policyVersion: 'warpkeep-0.4-gameplay-v1',
+      expectedAtlasRevision: 7n,
+      workerOrdinal: ordinal,
+      locationId: 'LOCATION:FOOD',
+      resource: 'food',
+      gatheringDurationMicros: duration,
+    });
+  }
+  harness.nowMicros += 120_000_000n;
+  renewOwnerSession(harness);
+  return keepId;
+}
+
 describe('PTR gameplay keep module adapter', () => {
   test('executes the registered SDK procedures and returns only the private wire projection', () => {
     const harness = new PtrHarness();
@@ -594,6 +662,98 @@ describe('PTR gameplay keep module adapter', () => {
     const snapshot = harness.snapshot();
     assert.deepEqual(start(harness.context(), buildInput), { sequence: 5n, revision: 8n });
     assert.equal(harness.snapshot(), snapshot);
+  });
+
+  test('dispatch itself settles a due project and two returns, preserves an ongoing capture, and commits once', () => {
+    const harness = new PtrHarness();
+    const keepId = prepareDueProjectAndReturns(harness);
+    const before = harness.keeps.get(keepId)!;
+    assert.deepEqual([before.revision, before.lastAcceptedSequence], [5n, 5n]);
+
+    assert.deepEqual((ptrModule.dispatchGameplay04WorkerV1 as Callable)(harness.context(), {
+      sequence: 6n,
+      requestKey: `g04:6:${'6'.repeat(32)}`,
+      expectedRevision: 5n,
+      policyVersion: 'warpkeep-0.4-gameplay-v1',
+      expectedAtlasRevision: 7n,
+      workerOrdinal: 3,
+      locationId: 'LOCATION:FOOD',
+      resource: 'food',
+      gatheringDurationMicros: 60_000_000n,
+    }), { sequence: 6n, revision: 6n });
+
+    const keep = harness.keeps.get(keepId)!;
+    assert.deepEqual(
+      [keep.food, keep.wood, keep.stone, keep.gold, keep.revision, keep.lastAcceptedSequence],
+      [200n, 60n, 80n, 0n, 6n, 6n],
+    );
+    assert.equal(harness.projects.size, 0);
+    assert.equal(harness.buildings.values().next().value!.completedLevel, 1);
+    assert.equal([...harness.workers.values()].find(row => row.ordinal === 2)!.assignment.journey.yieldPerQuantum, 10n);
+    assert.equal([...harness.workers.values()].find(row => row.ordinal === 3)!.assignment.journey.yieldPerQuantum, 12n);
+  });
+
+  test('recall itself settles a due project and multiple returns with one revision and sequence increment', () => {
+    const harness = new PtrHarness();
+    const keepId = prepareDueProjectAndReturns(harness);
+    assert.deepEqual((ptrModule.recallGameplay04WorkerV1 as Callable)(harness.context(), {
+      sequence: 6n,
+      requestKey: `g04:6:${'6'.repeat(32)}`,
+      expectedRevision: 5n,
+      policyVersion: 'warpkeep-0.4-gameplay-v1',
+      expectedAtlasRevision: 7n,
+      workerOrdinal: 2,
+    }), { sequence: 6n, revision: 6n });
+
+    const keep = harness.keeps.get(keepId)!;
+    assert.deepEqual(
+      [keep.food, keep.wood, keep.stone, keep.gold, keep.revision, keep.lastAcceptedSequence],
+      [320n, 60n, 80n, 0n, 6n, 6n],
+    );
+    assert.equal(harness.projects.size, 0);
+    assert.equal(harness.buildings.values().next().value!.completedLevel, 1);
+    const recalled = [...harness.workers.values()].find(row => row.ordinal === 2)!;
+    assert.equal(recalled.assignment, undefined);
+    assert.deepEqual([recalled.lastReturn.earned, recalled.lastReturn.credited], [120n, 120n]);
+  });
+
+  test('later target rejection and commit failure roll back command-path project and return settlement', () => {
+    const rejected = new PtrHarness();
+    prepareDueProjectAndReturns(rejected);
+    rejected.resourceComponentKey = `GRC-${'B'.repeat(26)}`;
+    const beforeRejected = rejected.snapshot();
+    expectSenderCode(
+      () => (ptrModule.dispatchGameplay04WorkerV1 as Callable)(rejected.context(), {
+        sequence: 6n,
+        requestKey: `g04:6:${'6'.repeat(32)}`,
+        expectedRevision: 5n,
+        policyVersion: 'warpkeep-0.4-gameplay-v1',
+        expectedAtlasRevision: 7n,
+        workerOrdinal: 3,
+        locationId: 'LOCATION:FOOD',
+        resource: 'food',
+        gatheringDurationMicros: 60_000_000n,
+      }),
+      'GAMEPLAY04_TARGET_INVALID',
+    );
+    assert.equal(rejected.snapshot(), beforeRejected);
+
+    const failedCommit = new PtrHarness();
+    prepareDueProjectAndReturns(failedCommit);
+    failedCommit.failOnUpdateKeep = true;
+    const beforeFailure = failedCommit.snapshot();
+    expectSenderCode(
+      () => (ptrModule.recallGameplay04WorkerV1 as Callable)(failedCommit.context(), {
+        sequence: 6n,
+        requestKey: `g04:6:${'6'.repeat(32)}`,
+        expectedRevision: 5n,
+        policyVersion: 'warpkeep-0.4-gameplay-v1',
+        expectedAtlasRevision: 7n,
+        workerOrdinal: 2,
+      }),
+      'GAMEPLAY04_RECALL_FAILED',
+    );
+    assert.equal(failedCommit.snapshot(), beforeFailure);
   });
 
   test('the shared schedule graph supports four Workers plus one project and atomic replacement', () => {
@@ -812,6 +972,122 @@ describe('PTR gameplay keep module adapter', () => {
     assert.equal(harness.snapshot(), settled);
   });
 
+  test('current project callback completes once without consuming command sequence', () => {
+    const harness = new PtrHarness();
+    (ptrModule.initializeGameplay04KeepV1 as Callable)(harness.context(), GAMEPLAY_INPUT);
+    const keepId = [...harness.keeps.keys()][0]!;
+    harness.keeps.set(keepId, {
+      ...harness.keeps.get(keepId)!, food: 100n, wood: 100n, stone: 100n, gold: 0n,
+    });
+    (ptrModule.startGameplay04BuildingV1 as Callable)(harness.context(), buildingInput(2n, 1n));
+    const current = [...harness.schedules.values()].find(row => row.lane === 'project')!;
+    harness.nowMicros = current.scheduledAt.value.microsSinceUnixEpoch;
+    harness.runScheduleByEngine(current);
+    const keep = harness.keeps.get(keepId)!;
+    assert.deepEqual(
+      [keep.food, keep.wood, keep.stone, keep.revision, keep.lastAcceptedSequence],
+      [80n, 60n, 80n, 3n, 2n],
+    );
+    assert.equal(harness.buildings.values().next().value!.completedLevel, 1);
+    assert.equal(harness.projects.size, 0);
+    assert.equal(harness.schedules.size, 0);
+    const settled = harness.snapshot();
+    harness.invokeSchedule(current);
+    assert.equal(harness.snapshot(), settled);
+  });
+
+  test('failed project callback rolls back, engine cleanup removes its row, and authenticated read recovers once', () => {
+    const harness = new PtrHarness();
+    (ptrModule.initializeGameplay04KeepV1 as Callable)(harness.context(), GAMEPLAY_INPUT);
+    const keepId = [...harness.keeps.keys()][0]!;
+    harness.keeps.set(keepId, {
+      ...harness.keeps.get(keepId)!, food: 100n, wood: 100n, stone: 100n, gold: 0n,
+    });
+    (ptrModule.startGameplay04BuildingV1 as Callable)(harness.context(), buildingInput(2n, 1n));
+    const current = [...harness.schedules.values()].find(row => row.lane === 'project')!;
+    harness.nowMicros = current.scheduledAt.value.microsSinceUnixEpoch;
+    harness.failOnUpdateKeep = true;
+    assert.throws(() => harness.runScheduleByEngine(current), /injected updateKeep failure/u);
+    assert.deepEqual(
+      [harness.keeps.get(keepId)!.revision, harness.keeps.get(keepId)!.lastAcceptedSequence],
+      [2n, 2n],
+    );
+    assert.equal(harness.buildings.values().next().value!.completedLevel, 0);
+    assert.equal(harness.projects.size, 1);
+    assert.equal(harness.schedules.size, 0);
+
+    harness.failOnUpdateKeep = false;
+    renewOwnerSession(harness);
+    (ptrModule.getGameplay04KeepV1 as Callable)(harness.context());
+    assert.equal(harness.buildings.values().next().value!.completedLevel, 1);
+    assert.equal(harness.projects.size, 0);
+    assert.equal(harness.schedules.size, 0);
+    assert.deepEqual(
+      [harness.keeps.get(keepId)!.revision, harness.keeps.get(keepId)!.lastAcceptedSequence],
+      [3n, 2n],
+    );
+    const recovered = harness.snapshot();
+    (ptrModule.getGameplay04KeepV1 as Callable)(harness.context());
+    assert.equal(harness.snapshot(), recovered);
+  });
+
+  test('disabled owner cannot complete or repair a project until re-enabled', () => {
+    const disabledCompletion = new PtrHarness();
+    (ptrModule.initializeGameplay04KeepV1 as Callable)(disabledCompletion.context(), GAMEPLAY_INPUT);
+    const completionKeepId = [...disabledCompletion.keeps.keys()][0]!;
+    disabledCompletion.keeps.set(completionKeepId, {
+      ...disabledCompletion.keeps.get(completionKeepId)!,
+      food: 100n, wood: 100n, stone: 100n, gold: 0n,
+    });
+    (ptrModule.startGameplay04BuildingV1 as Callable)(
+      disabledCompletion.context(), buildingInput(2n, 1n),
+    );
+    const due = [...disabledCompletion.schedules.values()].find(row => row.lane === 'project')!;
+    disabledCompletion.nowMicros = due.scheduledAt.value.microsSinceUnixEpoch;
+    disabledCompletion.anchor = { ...disabledCompletion.anchor, enabled: false };
+    disabledCompletion.runScheduleByEngine(due);
+    renewOwnerSession(disabledCompletion);
+    const afterDisabledCallback = disabledCompletion.snapshot();
+    expectSenderCode(
+      () => (ptrModule.getGameplay04KeepV1 as Callable)(disabledCompletion.context()),
+      'PTR_OWNER_NOT_AUTHORIZED',
+    );
+    assert.equal(disabledCompletion.snapshot(), afterDisabledCallback);
+    assert.equal(disabledCompletion.buildings.values().next().value!.completedLevel, 0);
+    assert.equal(disabledCompletion.projects.size, 1);
+    assert.equal(disabledCompletion.schedules.size, 0);
+
+    const disabledRepair = new PtrHarness();
+    (ptrModule.initializeGameplay04KeepV1 as Callable)(disabledRepair.context(), GAMEPLAY_INPUT);
+    const repairKeepId = [...disabledRepair.keeps.keys()][0]!;
+    disabledRepair.keeps.set(repairKeepId, {
+      ...disabledRepair.keeps.get(repairKeepId)!,
+      food: 100n, wood: 100n, stone: 100n, gold: 0n,
+    });
+    (ptrModule.startGameplay04BuildingV1 as Callable)(disabledRepair.context(), buildingInput(2n, 1n));
+    disabledRepair.schedules.clear();
+    disabledRepair.anchor = { ...disabledRepair.anchor, enabled: false };
+    const missingWhileDisabled = disabledRepair.snapshot();
+    expectSenderCode(
+      () => (ptrModule.getGameplay04KeepV1 as Callable)(disabledRepair.context()),
+      'PTR_OWNER_NOT_AUTHORIZED',
+    );
+    assert.equal(disabledRepair.snapshot(), missingWhileDisabled);
+    assert.equal(disabledRepair.schedules.size, 0);
+
+    disabledRepair.anchor = { ...disabledRepair.anchor, enabled: true };
+    renewOwnerSession(disabledRepair);
+    (ptrModule.getGameplay04KeepV1 as Callable)(disabledRepair.context());
+    assert.equal(disabledRepair.projects.size, 1);
+    assert.equal(disabledRepair.buildings.values().next().value!.completedLevel, 0);
+    assert.equal(disabledRepair.schedules.size, 1);
+    assert.deepEqual(
+      [disabledRepair.keeps.get(repairKeepId)!.revision,
+        disabledRepair.keeps.get(repairKeepId)!.lastAcceptedSequence],
+      [3n, 2n],
+    );
+  });
+
   test('failed callback rolls back adapter writes, engine cleanup loses its row, and read repairs once', () => {
     const harness = new PtrHarness();
     (ptrModule.initializeGameplay04KeepV1 as Callable)(harness.context(), GAMEPLAY_INPUT);
@@ -956,6 +1232,39 @@ describe('PTR gameplay keep module adapter', () => {
       );
       assert.equal(harness.snapshot(), before);
     }
+  });
+
+  test('start-building replay authenticates expired and cross-database sessions before receipt lookup', () => {
+    const harness = new PtrHarness();
+    (ptrModule.initializeGameplay04KeepV1 as Callable)(harness.context(), GAMEPLAY_INPUT);
+    const keepId = [...harness.keeps.keys()][0]!;
+    harness.keeps.set(keepId, {
+      ...harness.keeps.get(keepId)!, food: 100n, wood: 100n, stone: 100n, gold: 0n,
+    });
+    const input = buildingInput(2n, 1n);
+    const accepted = (ptrModule.startGameplay04BuildingV1 as Callable)(harness.context(), input);
+    const afterAccepted = harness.snapshot();
+
+    for (const [payload, code] of [
+      [ownerPayload({ exp: 1_050, session_exp: 1_050 }), 'INVALID_PTR_OWNER_SESSION'],
+      [ownerPayload({ ptr_database_identity: '2'.repeat(64) }), 'PTR_OWNER_NOT_AUTHORIZED'],
+    ] as const) {
+      harness.payload = payload;
+      expectSenderCode(
+        () => (ptrModule.startGameplay04BuildingV1 as Callable)(harness.context(), input),
+        code,
+      );
+      assert.equal(harness.snapshot(), afterAccepted);
+    }
+
+    harness.payload = ownerPayload({
+      iat: 1_040, nbf: 1_040, session_iat: 1_040, jti: 'renewed-construction-jti',
+    });
+    assert.deepEqual(
+      (ptrModule.startGameplay04BuildingV1 as Callable)(harness.context(), input),
+      accepted,
+    );
+    assert.equal(harness.snapshot(), afterAccepted);
   });
 
   test('stale atlas and changed atlas binding fail without reseeding', () => {

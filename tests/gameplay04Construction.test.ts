@@ -13,6 +13,7 @@ import {
   type ProjectSchedule04,
   type StartBuildingInput04,
 } from '../spacetimedb/gameplay04/construction';
+import { GAMEPLAY04_U64_MAX } from '../spacetimedb/gameplay04/commands';
 import { initializeKeep04, type KeepBinding04, type KeepRow04, type ReceiptRow04 } from '../spacetimedb/gameplay04/keep';
 import { placementDigestInput04, type Placement04 } from '../spacetimedb/gameplay04/placement';
 import {
@@ -339,6 +340,124 @@ describe('persistent gameplay 0.4 construction', () => {
       /injected project insert failure/u,
     );
     assert.equal(rollback.snapshot(), before);
+  });
+
+  test('construction sequence conflicts, gaps, stale revisions, pruned replay, and overflow are inert', () => {
+    for (const input of [
+      quote(3n, 1n, 'city-mill', 1),
+      quote(2n, 0n, 'city-mill', 1),
+    ]) {
+      const harness = new ConstructionHarness();
+      harness.setBalances(100n, 100n, 100n, 100n);
+      const before = harness.snapshot();
+      expectConstructionCode(
+        () => harness.tx(store => startBuilding04(store, BINDING, 1n, input)),
+        input.sequence === 3n ? 'GAMEPLAY04_SEQUENCE_INVALID' : 'GAMEPLAY04_INPUT_INVALID',
+      );
+      assert.equal(harness.snapshot(), before);
+    }
+
+    const conflict = new ConstructionHarness();
+    conflict.setBalances(100n, 100n, 100n, 100n);
+    const accepted = quote(2n, 1n, 'city-mill', 1);
+    conflict.tx(store => startBuilding04(store, BINDING, 1n, accepted));
+    const afterAccepted = conflict.snapshot();
+    expectConstructionCode(
+      () => conflict.tx(store => startBuilding04(store, BINDING, 2n, {
+        ...accepted,
+        expectedCost: { ...accepted.expectedCost, wood: accepted.expectedCost.wood + 1n },
+      })),
+      'GAMEPLAY04_RECEIPT_CONFLICT',
+    );
+    assert.equal(conflict.snapshot(), afterAccepted);
+
+    const pruned = new ConstructionHarness();
+    pruned.setBalances(100n, 100n, 100n, 100n);
+    pruned.keeps.set(KEEP_ID, {
+      ...pruned.keeps.get(KEEP_ID)!, lastAcceptedSequence: 129n,
+    });
+    const beforePruned = pruned.snapshot();
+    expectConstructionCode(
+      () => pruned.tx(store => startBuilding04(store, BINDING, 1n, quote(2n, 1n, 'city-mill', 1))),
+      'GAMEPLAY04_RECEIPT_EXPIRED',
+    );
+    assert.equal(pruned.snapshot(), beforePruned);
+
+    const overflow = new ConstructionHarness();
+    overflow.setBalances(100n, 100n, 100n, 100n);
+    overflow.keeps.set(KEEP_ID, {
+      ...overflow.keeps.get(KEEP_ID)!, revision: GAMEPLAY04_U64_MAX,
+    });
+    const beforeOverflow = overflow.snapshot();
+    expectConstructionCode(
+      () => overflow.tx(store => startBuilding04(
+        store, BINDING, 1n, quote(2n, GAMEPLAY04_U64_MAX, 'city-mill', 1),
+      )),
+      'GAMEPLAY04_REVISION_OVERFLOW',
+    );
+    assert.equal(overflow.snapshot(), beforeOverflow);
+  });
+
+  test('invalid kind and level plus overlapping and boundary placements leave every row unchanged', () => {
+    for (const invalid of [
+      { kind: 'city-forge' as Building04 },
+      { targetLevel: 0 },
+      { targetLevel: 6 },
+      { x: -44_000_000n },
+    ]) {
+      const harness = new ConstructionHarness();
+      harness.setBalances(100n, 100n, 100n, 100n);
+      const before = harness.snapshot();
+      expectConstructionCode(
+        () => harness.tx(store => startBuilding04(store, BINDING, 1n, {
+          ...quote(2n, 1n, 'city-mill', 1), ...invalid,
+        })),
+        'GAMEPLAY04_INPUT_INVALID',
+      );
+      assert.equal(harness.snapshot(), before);
+    }
+
+    const overlap = new ConstructionHarness();
+    overlap.setBalances(1_000n, 1_000n, 1_000n, 1_000n);
+    const mill = quote(2n, 1n, 'city-mill', 1);
+    overlap.tx(store => startBuilding04(store, BINDING, 0n, mill));
+    overlap.tx(store => reconcileGameplay04(store, BINDING, mill.expectedDurationMicros));
+    const before = overlap.snapshot();
+    const levels = completedBuildingLevels04([...overlap.buildings.values()]);
+    expectConstructionCode(
+      () => overlap.tx(store => startBuilding04(store, BINDING, mill.expectedDurationMicros, quote(
+        3n, 3n, 'lumber-camp', 1, levels,
+        { x: mill.x, z: mill.z, rotation: mill.rotation },
+      ))),
+      'GAMEPLAY04_INPUT_INVALID',
+    );
+    assert.equal(overlap.snapshot(), before);
+  });
+
+  test('corrupted building and project graphs reject before reconciliation writes', () => {
+    for (const corrupt of [
+      (harness: ConstructionHarness) => {
+        const [id, building] = harness.buildings.entries().next().value!;
+        harness.buildings.set(id, { ...building, buildingId: `${KEEP_ID}:building:lumber-camp` });
+      },
+      (harness: ConstructionHarness) => {
+        const [id, project] = harness.projects.entries().next().value!;
+        harness.projects.set(id, {
+          ...project, cost: { ...project.cost, food: project.cost.food + 1n },
+        });
+      },
+    ]) {
+      const harness = new ConstructionHarness();
+      harness.setBalances(100n, 100n, 100n, 100n);
+      harness.tx(store => startBuilding04(store, BINDING, 0n, quote(2n, 1n, 'city-mill', 1)));
+      corrupt(harness);
+      const corrupted = harness.snapshot();
+      expectConstructionCode(
+        () => harness.tx(store => reconcileGameplay04(store, BINDING, 120_000_000n)),
+        'GAMEPLAY04_STORED_STATE_INVALID',
+      );
+      assert.equal(harness.snapshot(), corrupted);
+    }
   });
 
   test('all six legal placements validate and completed effects are derived from persisted rows', () => {
