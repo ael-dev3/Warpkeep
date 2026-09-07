@@ -153,3 +153,23 @@ the recovery job: the bounded OIDC helper still needs source-validator/entrypoin
 integration, and the current Pages workflow still has no deploy-recovery job.
 The subsequent full recovery-service run passed all 932 tests across 31 files
 in 74.60 seconds on native Windows Node 22.22.3.
+
+## 2026-09-07: separate-process deployment preflight
+
+`scripts/recovery-workflow-deployment-boundary.mjs` exports
+`checkPersistedRecoveryDeploymentBoundary(privateRoot, bindingSource, contextSource)`
+for a later Actions step. It parses the current recovery binding, opens the
+persisted claim with strict deployment-time verification, and binds its signed
+request ID and epoch to that binding. It fetches and verifies fresh fixed-endpoint
+signer status, then reopens the file, rejects substitution, and repeats strict
+receipt verification after the network wait. Only the bounded receipt timing/
+epoch projection is returned. No raw receipt, reissue, deployment, or durable
+permission is exposed; the result cannot be cached as an authorization.
+
+The caller still must independently establish current source/artifact context
+and execute the reviewed deployment step immediately after this preflight. This
+module is not an installed workflow entrypoint and does not authenticate caller
+context by itself. Eleven mocked-boundary tests passed; combined with session
+and reconciliation tests, 32 passed with one Linux-only skip on Windows.
+Targeted strict TypeScript passed. Real persisted signature verification is
+separately covered by the native probe above, not claimed by these mock tests.
