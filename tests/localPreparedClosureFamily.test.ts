@@ -29,10 +29,20 @@ afterEach(() => vi.restoreAllMocks());
 it('connects the actual verifier engine to manifest and workflow generation (existing-inventory fixture)', async () => {
   fixture();
   const result = await derivePreparedClosureFamily({ repositoryRoot: root });
-  expect(result.files).toHaveLength(12);
+  expect(result.files).toHaveLength(14);
   expect(result.memberCount).toBe(state.count);
   const manifest = result.files.find(file => file.path.endsWith('deploy-closure-v1.json'))!;
   expect(createHash('sha256').update(manifest.bytes).digest('hex')).toBe(result.manifestSha256);
+  const members = JSON.parse(Buffer.from(manifest.bytes).toString()).members;
+  for (const path of ['scripts/generate-0.4.0-sealed-launch-activation.mjs', 'scripts/verify-0.4.0-sealed-launch.mjs']) {
+    const file = result.files.find(file => file.path === path)!;
+    expect(members.find((member: { path: string }) => member.path === path)).toMatchObject({
+      digestProfile: 'raw-file-sha256-v1', sha256: createHash('sha256').update(file.bytes).digest('hex'),
+    });
+  }
+  const generator = result.files.find(file => file.path === 'scripts/generate-0.4.0-sealed-launch-activation.mjs')!;
+  const launchVerifier = result.files.find(file => file.path === 'scripts/verify-0.4.0-sealed-launch.mjs')!;
+  expect(Buffer.from(launchVerifier.bytes).toString()).toContain(createHash('sha256').update(generator.bytes).digest('hex'));
   for (const workflow of result.files.filter(file => file.path.startsWith('.github/'))) {
     expect(Buffer.from(workflow.bytes).toString()).toContain(result.manifestSha256);
   }
@@ -64,6 +74,20 @@ it('uses the newly expanded literal inventory, including all nine synthetic bund
   for (const path of bundles) expect(manifest.members.some((member: { path: string }) => member.path === path)).toBe(true);
   // The coordinator owns read buffers, never the actual working files.
   expect(readFileSync(resolve(root, verifierPath)).length).toBeGreaterThan(0);
+});
+it('converges across all fourteen source/pin/manifest/workflow outputs using a read-overlay fixture', async () => {
+  fixture();
+  const first = await derivePreparedClosureFamily({ repositoryRoot: root });
+  const overlay = new Map(first.files.map(file => [resolve(root, file.path), file.bytes]));
+  state.files = outputPaths.map(path => ({ path, bytes: new Uint8Array(overlay.get(resolve(root, path))!) }));
+  const read = boundedFiles.readLocalBindingBoundedFile;
+  vi.spyOn(boundedFiles, 'readLocalBindingBoundedFile').mockImplementation((path, options) => {
+    const bytes = overlay.get(path);
+    return bytes === undefined ? read(path, options)
+      : { body: Buffer.from(bytes), identity: {} } as never;
+  });
+  const second = await derivePreparedClosureFamily({ repositoryRoot: root });
+  expect(second).toEqual(first);
 });
 it('rejects altered verifier logic before executing candidate code and clears owned outputs', async () => {
   fixture();
