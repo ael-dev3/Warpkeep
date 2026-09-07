@@ -25,3 +25,16 @@ Latest local run: 23 tests passed, exit 0, 58.53 seconds; root and recovery-serv
 Still required: safe installation and source-bound CLI integration; checks against the exact production packager's long-name entries, root/directory entries, and record padding; final archive verification; authorized workflow integration. Filesystem identity rechecks detect observed traversal changes but do not provide an atomic filesystem snapshot or lock against subsequent writes. The eventual release operation must retain isolation and verify the final packaged bytes.
 
 No production mutations, admissions changes, historical receipts, or deployment claims are supplied by this component. Full Task 3 and the live release remain incomplete.
+
+## Source-bound command prerequisite (2026-09-07)
+
+After checkpoint `ed69c896ac1b2e78bd7b7cdd79d219e1001c1a04`, direct CLI execution explicitly fails rather than returning success without verification. The importable derivation remains data-only.
+
+Current source inspection confirms the next dependency is recovery release plan Task 1, not an arbitrary-hash CLI wrapper:
+
+- `config/releases/0.4.0-sealed-launch.json` is schema 1.
+- `scripts/verify-0.4.0-sealed-launch.mjs` has a schema-1-only `parseBinding` and historical v1 receipt commitments.
+- The planned root `verify-0.4.0-recovery-authorization.mjs`, `generate-0.4.0-recovery-activation.mjs`, and `tests/recoveryAuthorizationBinding.test.ts` do not yet exist.
+- `services/release-recovery/src/githubEvidence.ts` already defines the exact schema-2 field order and service-side acyclic projections. Its receipt snapshot excludes commitment slots and forces the core slot to null; the subsequent core includes populated commitments and forces only its own slot to null. Its `githubEvidence.test.ts` exercises that receiver contract with synthetic metadata.
+
+Next implementation: add the separate root schema-2 parser/generator and independently checked projection tests under the approved Task 1 requirements, preserving schema-1 behavior. Then derive attestation coordinates from the verified candidate/source closure and fresh build. Do not populate the checked-in release binding from synthetic service fixtures, treat those fixtures as live evidence, or claim the failed CLI guard completes Task 3.

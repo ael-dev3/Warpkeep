@@ -147,7 +147,7 @@ description = "Public sealed-launch boolean schema key in recovery evidence and 
 targetRules = ["generic-api-key"]
 condition = "AND"
 regexTarget = "secret"
-paths = ['''^services/release-recovery/src/githubEvidence\.ts$''','''^scripts/sealed-realms-production-activation-records\.mjs$''']
+paths = ['''^services/release-recovery/src/githubEvidence\.ts$''','''^scripts/sealed-realms-production-activation-records\.mjs$''','''^scripts/recovery-binding-projection\.mjs$''']
 regexes = ['''^g002AdmissionMutationsEnabled$''']
 
 [[allowlists]]
