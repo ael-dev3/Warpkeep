@@ -413,6 +413,16 @@ function evidence() {
   return { privateEvidence, authority };
 }
 
+function expectRecoveryRejection(candidate: unknown, verifiedAt: string) {
+  const { freezePublishReceipt: _historical, ...recovery } =
+    candidate as Record<string, unknown>;
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(verifiedAt));
+  try {
+    expect(() => deriveGenesis001RecoveryLaunchEvidence(recovery)).toThrow();
+  } finally { vi.useRealTimers(); }
+}
+
 describe('Genesis 001 sealed-launch adoption', () => {
   it('derives identical non-historical checks for recovery without a historical receipt', () => {
     const { privateEvidence, authority } = evidence();
@@ -901,6 +911,7 @@ describe('Genesis 001 sealed-launch adoption', () => {
         authority,
         new Date(verifiedAt),
       )).toThrow();
+      expectRecoveryRejection(candidate, verifiedAt);
     }
   });
 
@@ -964,6 +975,9 @@ describe('Genesis 001 sealed-launch adoption', () => {
         authority,
         new Date('2026-08-28T12:02:00.000Z'),
       )).toThrow();
+      expectRecoveryRejection(
+        { ...baseline, ...candidateEvidence }, '2026-08-28T12:02:00.000Z',
+      );
     }
   });
 
