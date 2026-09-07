@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createSignerObservationService } from '../src/signerObservationService.js'
 
 import {
   EVIDENCE_SNAPSHOT_KEYS,
@@ -448,6 +449,21 @@ describe('observeRecoveryRealmEvidence', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('validates adapted RPC evidence unchanged and still rejects extra fields', async () => {
+    for (const extra of [false, true]) {
+      const dispose = vi.fn()
+      const input = await testInputs(value => {
+        Object.defineProperty(value, Symbol.dispose, { value: dispose })
+        if (extra) value.unexpected = 'reject'
+      })
+      const operation = observeRecoveryRealmEvidence({ ...input,
+        bridge: createSignerObservationService(input.bridge), phase: 'issue', sequence: 1 })
+      if (extra) await expectOperationFailure(operation)
+      else expect((await operation).g001ProgramKeccak256).toBe(G001_PROGRAM)
+      expect(dispose).toHaveBeenCalledOnce()
+    }
   })
 
   it('keeps the live invariant stable while phase and monotonic sequence separate snapshots', async () => {

@@ -1,5 +1,6 @@
 import { WorkerEntrypoint } from 'cloudflare:workers'
 import { snapshotSignerRequest } from '../src/signerRequests.js'
+import type { ReleaseRecoveryObservationRequest } from '../src/realmEvidence.js'
 
 /** Named RPC transport fixture only. Never exported by either production Worker. */
 export class RecoveryGatewayTestSigner extends WorkerEntrypoint {
@@ -15,4 +16,8 @@ export class RecoveryGatewayTestSigner extends WorkerEntrypoint {
   async complete(request: unknown) { this.#check('complete', request); return { terminalJws: 'test-only-terminal' } }
   async reconcile(request: unknown) { this.#check('reconcile', request); return { terminalJws: 'test-only-terminal' } }
   async terminal(request: unknown) { this.#check('terminal', request); return { terminalJws: 'test-only-terminal' } }
+  async observeReleaseRecoveryState(request: ReleaseRecoveryObservationRequest) {
+    if (request.rpcCredential !== 'test-only-rpc') throw new Error('test-only-invalid-observer-request')
+    return { testOnlyObservation: true, requestId: request.requestId }
+  }
 }

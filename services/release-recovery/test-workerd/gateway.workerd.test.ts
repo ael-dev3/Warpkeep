@@ -2,6 +2,8 @@ import { env } from 'cloudflare:workers'
 import { expect, it, vi } from 'vitest'
 import { createRecoveryGateway } from '../src/gateway.js'
 import { snapshotSignerRequest } from '../src/signerRequests.js'
+import { createSignerObservationService } from '../src/signerObservationService.js'
+import type { ReleaseRecoveryObservationRequest } from '../src/realmEvidence.js'
 
 it('transports all six endpoint contracts through a real named Worker service binding', async () => {
   const log = vi.fn()
@@ -27,4 +29,20 @@ it('transports all six endpoint contracts through a real named Worker service bi
   expect(await (await gateway.fetch(new Request(root + 'requests/' + requestId))).json()).toEqual({ terminalJws: 'test-only-terminal' })
   expect(log).toHaveBeenCalledTimes(6)
   expect(JSON.stringify(log.mock.calls)).not.toMatch(/test-only-|oidcToken|authorizationJws|claimReceiptJws/u)
+})
+
+it('adapts a real named observer binding to the strict plain capability without RPC lifecycle fields', async () => {
+  const service = env.RECOVERY_GATEWAY_TEST_SIGNER
+  expect(Object.getPrototypeOf(service)).not.toBe(Object.prototype)
+  const request = { rpcCredential: 'test-only-rpc', requestId: '123e4567-e89b-42d3-a456-426614174000' } as ReleaseRecoveryObservationRequest
+  const direct = await service.observeReleaseRecoveryState(request)
+  expect(Reflect.ownKeys(direct)).toContain(Symbol.dispose)
+  direct[Symbol.dispose]()
+  const adapter = createSignerObservationService(service)
+  expect(Object.getPrototypeOf(adapter)).toBe(Object.prototype)
+  expect(Reflect.ownKeys(adapter)).toEqual(['observeReleaseRecoveryState'])
+  const detached = adapter.observeReleaseRecoveryState
+  const result = await detached(request)
+  expect(Reflect.ownKeys(result as object)).toEqual(['testOnlyObservation', 'requestId'])
+  expect(result).toEqual({ testOnlyObservation: true, requestId: request.requestId })
 })

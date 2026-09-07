@@ -4,6 +4,7 @@ import type { ReleaseRecoveryObservationService } from './realmEvidence.js'
 import { parseSpacetimeProgramPins } from './spacetimeProgramPins.js'
 import { RAW_MODULE_DEF_V10_MAX_BYTES } from './rawModuleDefV10.js'
 import { githubFail } from './config.js'
+import { createSignerObservationService } from './signerObservationService.js'
 
 export interface RecoverySignerEnvironment {
   RECOVERY_ENABLED: string
@@ -34,7 +35,7 @@ export function signerFromEnvironment(env: RecoverySignerEnvironment, compiled: 
     githubApp: { GITHUB_APP_ID: env.GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID: env.GITHUB_APP_INSTALLATION_ID,
       GITHUB_APP_PRIVATE_KEY_PEM: env.GITHUB_APP_PRIVATE_KEY_PEM },
     fetch: globalThis.fetch,
-    observation: { bridge: env.AUTH_BRIDGE_OBSERVER, pins, expectedRawModuleDefV10Fixtures: schemas },
+    observation: { bridge: createSignerObservationService(env.AUTH_BRIDGE_OBSERVER), pins, expectedRawModuleDefV10Fixtures: schemas },
     requestLedger: requestId => env.RECOVERY_LEDGER_V2.getByName(requestId),
   })
 }
