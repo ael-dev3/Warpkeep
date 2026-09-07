@@ -73,3 +73,37 @@ tests, not proof of fixed Linux execution or complete candidate installation.
 Verify run `34066214945` for the inspected commit: native-contract,
 release-recovery, and auth-bridge succeeded; linux and spacetimedb-module were
 still in progress. This is not a full green CI result.
+
+## Fixed Linux execution — 2026-09-07
+
+The actual fixed CLI, not the earlier Windows esbuild probe, completed with
+exit 0 for source commit `4b29017122d74cc94ad5c529c855cd3119f34724`, tree
+`ee96a46448bf39beb6ef6ccc4de1322ce43942f3`:
+
+```text
+wsl -d Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-operation-bundle-runtime.mjs
+```
+
+All four lanes completed two independent build cycles and actual isolated
+Node loading. Bundle sizes, byte digests, and graph counts match the table above.
+Each exposed the exact two expected exports and rejected its invalid factory
+input with the expected lane-specific error. These are load/ABI checks, not
+successful production operations or deployment authentication.
+
+Returned profile: `warpkeep-spacetime-binding-final-preparation-linux-x64-v1`.
+Returned source-closure digests:
+
+| Lane | Source-closure SHA-256 |
+| --- | --- |
+| activation | ab5800dc5d5e1359ca43a99d701421059f1d8326c2f42c832ec1cda47e665c19 |
+| g001 | dd5faea207e356544c4a691c59fe696c5477dd4240bcea3a4fb8c873b0621a46 |
+| g002 | c1761c1184a432b151d12c1ea32e7a8133cd21d91408ccc06d4f29ee47f776ef |
+| ptr | 1043a6f8e9e40c1d976bd32bc40d32fe55b07814c336476d40fd95e370a49912 |
+
+This strengthens evidence for the bundle producer only. Complete consumer
+derivation, durable installation, whole-family verification and convergence
+remain unfinished. No generated release files or production services changed.
+
+Fresh GitHub inspection: run `34066214945` is now completed/failure. Linux and
+aggregate Verify failed; native-contract, release-recovery, SpacetimeDB module,
+and auth bridge succeeded. It remains a failed release integration gate.
