@@ -1,9 +1,11 @@
 # Release engineering, CI and infrastructure audit
 
-Source inspection: 2026-09-07, local
-`781e51e364d1e5a7319ca2364744c8730e83b0d6`, before the next source checkpoint.
-Authenticated provider and local-process observations were refreshed around
-21:48–21:51 UTC. Later publication state belongs in the
+Original source inspection: 2026-09-07, local
+`781e51e364d1e5a7319ca2364744c8730e83b0d6`. Current caller status below was updated
+on 2026-09-08 through development `c51bb00`; the original provider/process and CI
+observations retain their dates and source scope.
+Authenticated provider and local-process observations were refreshed on September 7
+around 21:48–21:51 UTC. Later publication state belongs in the
 [execution handoff](execution-handoff.md). Provider observations expire; reverify
 the relevant account, target and operating source before effects.
 
@@ -81,7 +83,7 @@ workflow/runner integration. The owner excluded dependence on the Mac runner.
 | Recovery private descriptor | `sealed-realms-production-activation-records.mjs`, recovery export at `1600f4b`, asynchronous-consumer rejection fixed in `1feb105` | No operating production caller; must feed a fixed authenticated generator, not caller-chosen evidence |
 | G001 producer-local capture | `sealed-realms-production-g001-lane-entry.mjs`: stable applicant pair, admitted capture at suspend, S-mode current-state capture | Other producer/adapters remain unavailable; A-mode inspection must preserve original preparation capture |
 | Publisher ABI checks | `genesis002-production-publisher.mjs` and `ptr-production-publisher.mjs` corrected for real generated gameplay ABI | Fresh-create publishers still reject existing targets; both realms are confirmed to exist |
-| Recovery claim workflow helpers | OIDC/current-context/prepare-claim/deployment-boundary/postflight/reconciliation helpers | Fixed helper installation and genuine operating job remain absent |
+| Recovery Pages caller | `deploy-pages.yml` implements the Linux build/attestation/artifact/claim/boundary/deploy/postflight job at `c51bb00`, using the fixed recovery helpers | Actual runner/private state, tracked generated bundle/manifest installation, final source family and live authorization acceptance remain outstanding |
 | Recovery Worker split | `services/release-recovery` gateway route and private signer/service binding, durable ledger, disabled gate | Configuration files do not prove deployed Workers, installed keys or armed authorization |
 
 Read [compiled family evidence](../../evidence/0.4.0/local-release-compiled-family-probe.md),
@@ -113,12 +115,15 @@ superseded; a later component pass still does not prove its missing caller exist
    no-delete publication, ambiguous-outcome reconciliation and authenticated
    postflight are required for a safe update. Removing the refusal or resetting
    the database is not an update implementation.
-5. `deploy-pages.yml` has no `deploy-recovery` job; two protected jobs still target
-   macOS. `services/release-recovery/src/githubEvidence.ts` already validates the
-   intended fixed Linux labels/permissions/environment, non-cancelling production
-   lock, unique artifact and adjacent claim → boundary → pinned Pages deploy →
-   mandatory postflight. The workflow must actually implement that contract and
-   pass both issuance and reconciliation validation.
+5. `deploy-pages.yml` implements `deploy-recovery` at `c51bb00`; its actual source
+   passes the fixed issuance and reconciliation workflow contracts. It owns the
+   build, installed attestation, unique artifact and adjacent claim → fresh boundary
+   → pinned Pages deploy → mandatory postflight under the non-cancelling production
+   lock. The supported Linux runner and UID 1001 private state remain unprovisioned;
+   the tracked generated claim bundle/manifest and final derived source family
+   still require installation. Live authorization and deployment acceptance remain
+   unverified. These are operating prerequisites, not an absent workflow caller;
+   see [release engineering evidence](../../evidence/0.4.0/release-engineering.md).
 6. The **native-contract verification job has already migrated** to disposable
    hosted `ubuntu-24.04` and asserts Linux/X64 in `verify.yml`. The old
    local-operations table listing Verify as macOS-dependent is historical.

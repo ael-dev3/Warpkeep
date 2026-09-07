@@ -14,11 +14,14 @@ binding, durable ledger and Worker-runtime tests are implemented. Checked-in
 Configuration files do not prove that either Worker, its keys, control state or
 release-specific authorization has been deployed and armed.
 
-The operating path is still being connected. Source expects a protected
-`deploy-recovery` job and a particular authenticated Linux runner context;
-the complete production workflow, installed helpers and activation caller must
-actually supply that contract. A local compiler probe or valid-looking descriptor
-does not provide a GitHub job identity or complete a recovery deployment.
+The [Pages workflow](../../.github/workflows/deploy-pages.yml) implements the
+protected Linux `deploy-recovery` caller at `c51bb00`. It builds and attests the
+exact artifact before claim preparation, then runs the fresh deployment boundary,
+pinned Pages deployment and mandatory postflight. The real runner and UID 1001
+private state remain unprovisioned; the tracked generated bundle/manifest, final
+source family, activation inputs and live authorization acceptance remain
+outstanding. A local compiler probe or valid-looking descriptor does not supply
+those prerequisites or complete a recovery deployment.
 
 Read the [architecture](../../docs/technical-architecture.md),
 [0.4 handoff](../../docs/agent-notes/0.4.0/README.md),
@@ -85,7 +88,7 @@ the implemented reconciliation path instead of issuing a new unrelated attempt.
 | Realm observations and module compatibility | [realmEvidence.ts](src/realmEvidence.ts), [spacetimeProgramPins.ts](src/spacetimeProgramPins.ts), [rawModuleDefV10.ts](src/rawModuleDefV10.ts) |
 | Durable authorization/claim state | [ledgerV2.ts](src/ledgerV2.ts), [ledgerDurableObjectV2.ts](src/ledgerDurableObjectV2.ts), [V2 runtime tests](test-workerd/ledgerDurableObjectV2.test.ts) |
 | Uncertain-outcome reconciliation | [reconciliationEvidence.ts](src/reconciliationEvidence.ts), [reconciliationProof.ts](src/reconciliationProof.ts) |
-| Fixed deployment caller | Root [claim preparation](../../scripts/recovery-workflow-prepare-claim.mjs), [deployment boundary](../../scripts/recovery-workflow-deployment-boundary.mjs), [postflight](../../scripts/recovery-workflow-postflight.mjs) and [reconciliation](../../scripts/recovery-workflow-reconcile-current-run.mjs) |
+| Fixed deployment caller | [Pages workflow](../../.github/workflows/deploy-pages.yml), root [claim preparation](../../scripts/recovery-workflow-prepare-claim.mjs), [deployment boundary](../../scripts/recovery-workflow-deployment-boundary.mjs), [postflight](../../scripts/recovery-workflow-postflight.mjs) and [reconciliation](../../scripts/recovery-workflow-reconcile-current-run.mjs) |
 
 V2 is the configured ledger path. Older ledger code and fixtures remain reference
 and test material; their presence is not a second active production state owner.

@@ -5,6 +5,10 @@ contributors. This page routes deeper work without duplicating it.
 
 ## Current 0.4 — start here
 
+These local links describe the active `codex/prepared-keep-bindings-fix`
+checkout. Check the branch and dated evidence before following a development
+guide; `main` and the running game can represent different release stages.
+
 - [Agent guide](../AGENTS.md) — durable repository rules, authority boundaries,
   verification and handoff expectations
 - [0.4 agent handoff and quality audit](agent-notes/0.4.0/README.md) — current
@@ -15,6 +19,10 @@ contributors. This page routes deeper work without duplicating it.
   bounded changes, review, evidence and source publication
 - [Technical architecture](technical-architecture.md) — current subsystem ownership,
   preserved G001 versus separate 0.4, rendering and delivery boundaries
+- [Repository map](agent-notes/0.4.0/repo-map.md) — source entry points, generated
+  boundaries and verification owners
+- [Source synchronization](operations/0.4.0-development-sync.md) — checked-out,
+  reviewed and published source boundaries
 - [Repository ecosystem](engineering/repository-ecosystem.md) — game and services,
   asset archive, planned tooling, and public presentation
 
@@ -33,6 +41,8 @@ These guides describe their named generation, not new 0.4 gameplay authority or
 an instruction to activate unrelated features. Use the settled 0.4 specs below
 for the current release; retain historical contracts and provenance intact.
 
+- [Legacy Inner Keep construction V1](design/inner-keep-construction.md) —
+  dormant G001 construction discounts, distinct from current 0.4 building benefits
 - [Realm Chat V1 implementation](design/realm-chat-v1-implementation.md) —
   review-only research, SpacetimeDB authority, abuse controls, and rollout gates
 - [Lowlands renderer](design/hegemony-lowlands-terrain.md) — terrain,
@@ -83,6 +93,7 @@ running an operation. Historical procedures do not replace the 0.4 release path.
 - [Daily Marks operations](operations/daily-marks.md)
 - [Local visual QA](operations/qa-observatory.md)
 - [Threat model](security/threat-model.md)
+- [Private security reporting](../SECURITY.md)
 - [Operations and recovery](operations/reconstruction/README.md)
 
 ## Art and licensing

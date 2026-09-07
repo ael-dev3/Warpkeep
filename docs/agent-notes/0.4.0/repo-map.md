@@ -87,6 +87,11 @@ The controller has separate `ready`, `refreshing`, `pending` and `uncertain`
 states. A healthy refresh preserves the last validated presentation while
 commands are unavailable; an unknown mutation outcome retains its exact envelope.
 Inspect delayed-request and disposal tests before changing those transitions.
+Active PTR continuation is implemented at `c990a3b`: hard expiry retires the old
+capability, obtains fresh same-FID/database/epoch authority and reconnects through
+preflight. A new controller reads authoritative state before allowing commands;
+no draft or command envelope crosses sessions. Actual owner renewal acceptance
+remains open; see the [continuation evidence](../../evidence/0.4.0/isolation-lifecycle.md).
 The world/keep host mounts mutually exclusive renderers rather than passing 0.4
 callbacks into the legacy G001 authority surface.
 
@@ -171,11 +176,13 @@ Two concrete operating seams remain visible in source:
   supplies unavailable implementations for deployment/binding attesters, import
   evidence and owner provision resolution. Its lane interface alone is not the
   complete provider operation.
-- [`githubOidc.ts`](../../../services/release-recovery/src/githubOidc.ts) expects the
-  defined Linux/WSL runner profile and a `deploy-recovery` job. The checked-in
-  Pages/sealed-realm workflows retain Mac production selections and lack that
-  connected recovery job. Workflow and signer changes must describe the same
-  real execution; changing only `runs-on` does not connect them.
+- The [Pages workflow](../../../.github/workflows/deploy-pages.yml) implements
+  `deploy-recovery` at `c51bb00`, matching the defined Linux/WSL runner profile in
+  [`githubOidc.ts`](../../../services/release-recovery/src/githubOidc.ts) and the
+  claim → fresh boundary → deployment → mandatory postflight contract. The actual
+  runner and private state remain unprovisioned; tracked generated bundle/manifest
+  installation, final source-family preparation and live authorization acceptance
+  remain outstanding. Other Pages/sealed-realm lanes retain Mac selections.
 
 Recovery service unit tests live in `services/release-recovery/test`; real
 Cloudflare-runtime tests live in `test-workerd`. The

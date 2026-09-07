@@ -2,9 +2,10 @@
 
 **A real person. A permanent keep. A world worth returning to.**
 
-Warpkeep is a persistent strategy world connected to Farcaster. Your keep is a
-place to belong: Workers set out across the landscape, resources come home,
-and the choices you build become part of a world that continues while you are away.
+Warpkeep is a persistent strategy world connected to Farcaster. Workers travel
+across the landscape, resources come home, and a keep becomes a place shaped by
+its Keeper's choices. We are building a game that makes the first session
+satisfying and the next visit worthwhile.
 
 [warpkeep.com](https://warpkeep.com/) · [Follow development](https://github.com/ael-dev3/Warpkeep/pull/228)
 · [Product direction](docs/design/warpkeep-direction.md) · [Documentation](docs/README.md)
@@ -38,9 +39,9 @@ on a desktop. Reused assets retain their original credits and permissions.
 ## Where development stands
 
 **0.4 is being integrated; it is not yet the completed live release.** The
-gameplay core, new keep presentation and operating tools are substantial.
-Connected owner play, visual refinement, session continuity and the complete
-local deployment/recovery path are the work that turns them into a release.
+development branch includes the gameplay core, new keep presentation, session
+renewal and local release/recovery tools. Connected owner play, visual refinement
+and the complete operating path require their own current acceptance evidence.
 
 | Realm | Purpose |
 | --- | --- |
@@ -60,7 +61,8 @@ Active 0.4 development is on
 Check your branch before using a development guide; `main` and the running game
 can represent different release stages.
 
-For a fresh independent checkout, use Git, Node 22 and npm 10.9.8:
+For a fresh independent checkout, use Git, Node 22 (22.13 or newer within that
+major) and npm 10.9.8:
 
 ```sh
 git clone --branch codex/prepared-keep-bindings-fix https://github.com/ael-dev3/Warpkeep.git
@@ -89,9 +91,10 @@ Stop the development server with `Ctrl+C` in its terminal.
 
 The browser uses React, TypeScript and Three.js. Cloudflare verifies identity;
 SpacetimeDB owns persistent gameplay; GitHub Pages serves the frontend.
-We are completing development and release operations on Windows/WSL and Linux;
-remaining Mac dependencies are documented in the infrastructure notes. Source
-publication is continuous work; production deployment is a verified outcome.
+Development and release operations target Windows/WSL and Linux; the
+[infrastructure notes](docs/agent-notes/0.4.0/release-and-infrastructure.md)
+distinguish verified paths from remaining work. Source publication is continuous
+work; production deployment is a verified outcome.
 
 ## Community and reuse
 

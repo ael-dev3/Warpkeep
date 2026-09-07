@@ -21,6 +21,11 @@ they do not create new permissions or silently restrict a newer product directio
 4. Read source and current evidence before redoing a feature or repeating an old
    failure. Record what is implemented, verified, deployed or still unknown.
 
+Use the [branch entry map](docs/engineering/ecosystem-map.md) to distinguish
+the published baseline from active development, and the
+[repository ecosystem](docs/engineering/repository-ecosystem.md) for related
+repositories and asset handoffs.
+
 ## Product and design judgment
 
 - Favor useful player decisions, visible benefits, clear resource feedback and
@@ -59,6 +64,8 @@ Use the owner's isolated PTR for the new playable journey. Never invent a player
 token, receipt or substitute administrator authority for actual player access.
 
 The server owns resources, ownership, routes, completion and command outcomes.
+Schema changes must preserve existing player data and compatible readers; inspect
+the actual migration, deployment and recovery path before changing persisted state.
 Preserve atomic settlement, exact retry identity, stale-quote reconciliation,
 monotonic state and realm/session/database/epoch isolation. Recheck authority after
 asynchronous work. Healthy refresh should preserve scene and focus without making
@@ -104,6 +111,8 @@ different outcomes. The [release acceptance record](docs/operations/0.4.0-releas
 tracks the remaining evidence for preservation, gameplay, visuals, performance,
 operations and the credential-free Desktop package. Keep it current with the
 user's direction; do not turn historical task labels into new approval layers.
+Inspect the exact selected job and artifact: a successful Pages preparation run
+can deliberately skip deployment and does not establish a live release.
 
 Recovery must preserve legitimate writes after deployment. Derive complete source
 and artifact inventories; do not type hashes, weaken checks or fabricate old

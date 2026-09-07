@@ -39,11 +39,16 @@ flag alone does not prove the production change occurred.
    and publish a reproducible, credential-free handoff.
 
 The core economy, transactional adapters, client command controller and Verdant
-Citadel renderer are implemented. The healthy-refresh scene/focus correction is
-also complete in source. Integrated owner play, final visual coverage, measured
-performance and deployment acceptance remain unfinished; their current evidence
-belongs in the [gameplay audit](../agent-notes/0.4.0/gameplay-and-visuals.md)
-and the release checklist, rather than being inferred from this roadmap.
+Citadel renderer are implemented. Healthy refresh preserves scene and focus;
+active PTR expiry now obtains fresh scoped authority before restoring a root
+view, without replaying an interrupted action. The Linux recovery Pages caller
+is connected in source. Integrated owner play, final visual coverage, measured
+performance, real runner/source-family preparation and deployment acceptance
+remain unfinished. Current evidence belongs in the
+[gameplay audit](../agent-notes/0.4.0/gameplay-and-visuals.md),
+[session record](../evidence/0.4.0/isolation-lifecycle.md),
+[release engineering record](../evidence/0.4.0/release-engineering.md) and the
+release checklist, rather than being inferred from this roadmap.
 
 Follow representative playable keep → required gameplay/visual/operating coverage
 → final family freeze → protected integration/deployment → live verification →

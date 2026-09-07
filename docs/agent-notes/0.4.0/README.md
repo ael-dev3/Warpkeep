@@ -7,9 +7,10 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-This refresh was inspected on 2026-09-07 against development source `781e51e`
-and the documentation changes accompanying this note. Recheck Git and live
-providers before acting on dated observations.
+Updated 2026-09-08 for development checkpoint `c51bb00` and the documentation
+reconciliation with protected main `9eb98e7`. These identify the merge inputs;
+read Git for the resulting commit and publication state. The original audit at
+`781e51e` remains dated evidence. Recheck providers before using its observations.
 
 - `main` is the public G001 baseline. Current 0.4 implementation is on
   `codex/prepared-keep-bindings-fix`, associated with draft
@@ -17,13 +18,16 @@ providers before acting on dated observations.
 - The server-owned gameplay core, typed client, realm isolation, and keep
   presentation are substantial working foundations. Their presence does not
   establish a complete live owner journey.
-- Healthy snapshot refresh now retains the keep scene and focus (`555e505`).
-  Session expiry, meaningful pacing on real routes, complete visual/device
-  coverage, and connected release operations still need evidence and work.
+- Healthy snapshot refresh retains the keep scene and focus (`555e505`). Active
+  PTR continuation now obtains fresh scoped authority at hard expiry (`c990a3b`)
+  without replaying commands. Actual owner renewal, meaningful pacing on real
+  routes, complete visual/device coverage and live acceptance still need evidence.
 - GitHub and configured Cloudflare/SpacetimeDB metadata reads work in the current
   session. Earlier network-denial notes describe an older session.
-- G002 and PTR databases already exist. Production workflows retain Mac-specific
-  dependencies even though native CI has moved to Linux.
+- G002 and PTR databases already exist. The Linux recovery Pages caller is
+  implemented (`c51bb00`); its runner/private state, tracked generated bundle and
+  manifest, final source family and live authorization remain unprepared or
+  unverified. Other production lanes retain Mac-specific dependencies.
 - 0.4 is **not shipped**. Preserve the live G001 game and its admission freeze,
   keep G002 closed, and use the isolated owner's PTR for real 0.4 acceptance.
 

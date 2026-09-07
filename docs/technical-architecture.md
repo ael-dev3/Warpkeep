@@ -239,11 +239,16 @@ release command:
   describes the intended operating interface.
 - The [activation workflow adapter](../scripts/sealed-realms-production-activation-workflow-entry.mjs)
   still supplies unavailable attesters for deployment/binding/import/owner facts.
-- The recovery signer expects a `deploy-recovery` job with the defined Linux/WSL
-  execution identity, while the checked-in
-  [Pages](../.github/workflows/deploy-pages.yml) and
-  [sealed-realms workflow](../.github/workflows/sealed-realms-production.yml)
-  retain Mac production job selections and do not provide that connected job.
+- The [Pages workflow](../.github/workflows/deploy-pages.yml) now supplies the
+  signer's `deploy-recovery` caller with the defined Linux/WSL identity and
+  claim → fresh boundary → deployment → postflight sequence. Its actual runner,
+  private runtime state, installed generated bundle/manifest, final source family
+  and live authorization
+  remain unprepared or unverified. Other production lanes, including the
+  [sealed-realms workflow](../.github/workflows/sealed-realms-production.yml),
+  still retain Mac selections. The
+  [release engineering record](evidence/0.4.0/release-engineering.md) distinguishes
+  tested workflow composition from operating acceptance.
 
 These are implementation interfaces to finish, not reasons to manufacture new
 permission stages. Their current observed execution status and remaining evidence

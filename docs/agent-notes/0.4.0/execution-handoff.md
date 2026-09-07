@@ -1,6 +1,9 @@
 # Continue Warpkeep 0.4
 
-Refreshed 2026-09-08 (Europe/Budapest), following source inspection at `781e51e`.
+Refreshed 2026-09-08 (Europe/Budapest) from development checkpoint `c51bb00`,
+including active PTR continuation at `c990a3b`, during documentation reconciliation
+with protected main `9eb98e7`. The original `781e51e` inspection remains historical
+evidence; these merge inputs do not identify the final merge or publication state.
 Read the [handoff index](README.md) for product intent and the
 [infrastructure audit](release-and-infrastructure.md) for dated provider/CI facts.
 The owner requested the GitHub/profile/repository refresh before game shipping.
@@ -45,10 +48,16 @@ Development checkpoints may be published while the release remains unfinished.
   account, and SpacetimeDB metadata lists existing G001/G002/PTR databases.
   The previous session's socket and WSL access denials are historical.
 - Healthy refresh retains the existing keep scene, assets, and focus (`555e505`).
-  Active PTR now also renews at hard expiry through fresh scoped authorization,
-  reconnect and preflight, with no automatic command replay. See the
+  Active PTR now also renews at hard expiry (`c990a3b`) through fresh scoped
+  authorization, reconnect and preflight, with no automatic command replay. See the
   [local continuation evidence](../../evidence/0.4.0/isolation-lifecycle.md).
   Actual owner journey and integrated live acceptance remain open.
+- The Linux `deploy-recovery` Pages caller is implemented at `c51bb00`, including
+  build, attestation, exact artifact, claim, fresh deployment boundary and mandatory
+  postflight. The [release engineering record](../../evidence/0.4.0/release-engineering.md)
+  records local composition checks; runner/private-state provisioning, tracked
+  generated bundle/manifest installation, final source-family preparation and
+  live authorization acceptance remain separate work.
 - Existing PR CodeQL annotations were reviewed against current source. They
   concern unchanged test fixtures and test helpers; no attacker-controlled
   production path was found in that review. Required checks still need legitimate
@@ -73,6 +82,13 @@ refreshed, and the asset collection guide merged through
 private authoring repositories accurately describe their planned roles.
 Continue publishing reviewed source through the same procedure; none of these
 source/documentation updates establishes that 0.4 is deployed.
+
+This documentation reconciliation uses development
+`c51bb00455d7f4db28828d5c6bd9ee9b5b05a1b2` and protected main
+`9eb98e78bc975e29ced16d92c2060ab833ad9b46`. It preserves the implemented PTR
+continuation and recovery caller while incorporating the main documentation
+refresh. Inspect the resulting merge commit, outgoing range and exact GitHub ref
+before recording a new synchronization result; no final merge hash is assumed here.
 
 The [earlier execution record](https://github.com/ael-dev3/Warpkeep/blob/781e51e364d1e5a7319ca2364744c8730e83b0d6/docs/agent-notes/0.4.0/execution-handoff.md)
 preserves historical test commands and exact limitations. Later evidence must
@@ -99,8 +115,9 @@ cleanup, private-store extraction, or production mutation was used for this stud
 ## Next useful work after the public refresh
 
 1. **Finish a believable owner journey.** Trace real bindings, provider,
-   controller, module, and keep UI. Address session expiry/re-entry and uncertain
-   command outcomes. Verify the first useful building and its improved return on
+   controller, module, and keep UI. Verify the implemented active-session renewal
+   with the actual owner, including foreground resume and uncertain command
+   outcomes. Verify the first useful building and its improved return on
    actual routes. Evaluate clarity, pacing, and reasons to return as well as rules.
 2. **Improve the rendered Verdant Citadel.** Use actual 0.4 scene ownership,
    especially Greater Realm water. Cover placement, construction, completion,
@@ -114,10 +131,11 @@ cleanup, private-store extraction, or production mutation was used for this stud
    contain Mac-specific dependencies. Helper tests do not establish a working
    release pipeline.
 
-   The recovery Pages caller is now composed in `deploy-pages.yml` and validated
-   against the real source-evidence contract. Its supported Linux runner,
-   private account/state, installed generated bundle and authentic authorization
-   remain unprovisioned. Follow the
+   The recovery Pages caller is composed in `deploy-pages.yml` at `c51bb00` and
+   validated against the real source-evidence contract. Its supported Linux runner
+   and private account/state remain unprovisioned; installation of the tracked
+   generated bundle/manifest, final source family and live authorization acceptance
+   remain outstanding. Follow the
    [dated operating gaps](../../evidence/0.4.0/release-engineering.md); do not
    reimplement the caller or treat local WSL identity as workflow evidence.
 4. **Prove preservation and recovery before production effects.** Capture a
