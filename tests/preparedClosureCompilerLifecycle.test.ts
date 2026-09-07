@@ -43,7 +43,7 @@ afterEach(async () => {
 
 afterAll(() => rmSync(fixtureRoot, { recursive: true, force: true }));
 
-function observeCompiler(options: { failUpdate?: number; failDispose?: boolean; failClose?: boolean } = {}) {
+function observeCompiler(options: { failUpdate?: number; failDispose?: boolean; disposeMember?: string; failClose?: boolean } = {}) {
   const instances = new Set<API>();
   const closed = new Set<API>();
   const snapshots: Snapshot[] = [];
@@ -51,6 +51,7 @@ function observeCompiler(options: { failUpdate?: number; failDispose?: boolean; 
   const close = API.prototype.close;
   let updates = 0;
   let peakUndisposed = 0;
+  let disposalFailures = 0;
   vi.spyOn(API.prototype, 'updateSnapshot').mockImplementation(function (this: API, params) {
     instances.add(this);
     testCompilers.add(this);
@@ -61,10 +62,12 @@ function observeCompiler(options: { failUpdate?: number; failDispose?: boolean; 
     const snapshot = update.call(this, params);
     snapshots.push(snapshot);
     peakUndisposed = Math.max(peakUndisposed, snapshots.filter(item => !item.isDisposed()).length);
-    if (options.failDispose) {
+    if (options.failDispose && (options.disposeMember === undefined
+      || params?.openFiles?.includes(`/auth-bridge-prepared-closure/${options.disposeMember}`))) {
       const dispose = snapshot.dispose.bind(snapshot);
       vi.spyOn(snapshot, 'dispose').mockImplementation(() => {
         dispose();
+        disposalFailures += 1;
         throw new Error('test snapshot disposal failure');
       });
     }
@@ -83,6 +86,7 @@ function observeCompiler(options: { failUpdate?: number; failDispose?: boolean; 
       expect([...instances].every(instance => closed.has(instance))).toBe(true);
       expect(snapshots.every(snapshot => snapshot.isDisposed())).toBe(true);
       expect(peakUndisposed).toBeLessThanOrEqual(1);
+      if (options.failDispose) expect(disposalFailures).toBe(1);
     },
   };
 }
@@ -159,7 +163,9 @@ describe('prepared closure compiler ownership', () => {
   });
 
   it.each([
-    ['import and dispose', 'import(globalThis.untrustedPath);', 'IMPORT_INVALID', { failDispose: true }],
+    // Fail disposal on the same source as the rejected import, not an earlier
+    // valid root whose position may change as the protected graph grows.
+    ['import and dispose', 'import(globalThis.untrustedPath);', 'IMPORT_INVALID', { failDispose: true, disposeMember: rootMember }],
     ['import and close', 'import(globalThis.untrustedPath);', 'IMPORT_INVALID', { failClose: true }],
     ['syntax and close', 'export const broken = ;', 'SOURCE_INVALID', { failClose: true }],
     ['path and close', 'import "./not-present-in-fixture.ts";', 'IMPORT_UNRESOLVED', { failClose: true }],
