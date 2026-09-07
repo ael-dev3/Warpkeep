@@ -223,3 +223,29 @@ Run-context suite: 38 tests passed, including 12 artifact scenarios for the
 valid path, identity/expiry/URL/digest substitution, duplicate/paginated listings,
 and changing ETag or response bytes. Targeted strict TypeScript passed. Tests
 use mocked API responses; no production artifact was downloaded or deployed.
+
+## 2026-09-07: workflow artifact/source composition
+
+`services/release-recovery/scripts/read-recovery-workflow-artifact.ts` composes
+the existing committed-candidate reader, local dist attestation verifier,
+run-scoped metadata reader, one-hop credential-stripping GitHub transport and
+the signer's existing streaming ZIP/TAR verifier. It accepts no caller inputs.
+The archive is downloaded once and independently hashed/parsed against the
+local candidate identity. Its actual archive hash must match GitHub metadata;
+its attestation hash must match the independently verified local dist. The
+existing parser checks the canonical embedded attestation and content manifest.
+
+Before returning the complete ordered 11-field session context and fixed-path
+binding bytes, it re-fetches metadata (not the archive), rechecks committed
+source and local dist, then rechecks the source after reading the binding.
+Any changed source, artifact metadata, archive, attestation or binding denies
+the operation. It neither requests recovery authorization nor deploys anything.
+No new archive parser or weakened signer rule was introduced.
+
+Twelve composition tests use mocked component boundaries; the existing archive
+and HTTP suites separately exercise their real implementations. Combined result:
+128 tests passed across three files on Windows Node 22.22.3. Service TypeScript
+passed after an explicit never-return in the redacted error handler. This is
+not yet a built native Actions entrypoint or a production artifact test. The
+protected workflow, executable packaging, fixed private storage provisioning and
+live signer prerequisites remain unfinished.
