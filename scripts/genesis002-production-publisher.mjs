@@ -557,14 +557,23 @@ const EXPECTED_REDUCERS = Object.freeze([
   'admin_import_greater_realm_regions_v1',
   'admin_stage_greater_realm_release_v1',
   'admin_verify_greater_realm_batch_v1',
+  'run_gameplay_04_schedule_v_1',
 ]);
 const EXPECTED_PROCEDURES = Object.freeze([
   'admin_get_greater_realm_import_plan_v_1',
   'admin_get_greater_realm_status_v_1',
+  'dispatch_gameplay04_worker_v1',
+  'get_gameplay04_keep_v1',
+  'initialize_gameplay04_keep_v1',
+  'recall_gameplay04_worker_v1',
+  'start_gameplay04_building_v1',
 ]);
 const EXPECTED_TABLES = Object.freeze([
   'access_request_v1', 'admin_audit', 'allowed_fid', 'alpha_terms_acceptance_v1',
-  'castle', 'greater_realm_activation_v1', 'greater_realm_castle_claim_v1',
+  'castle', 'gameplay04_building_v1', 'gameplay04_keep_v1',
+  'gameplay04_project_v1', 'gameplay04_receipt_v1', 'gameplay04_reservation_v1',
+  'gameplay04_schedule_v1', 'gameplay04_worker_v1',
+  'greater_realm_activation_v1', 'greater_realm_castle_claim_v1',
   'greater_realm_castle_slot_v1', 'greater_realm_cell_occupancy_v1',
   'greater_realm_cell_v1', 'greater_realm_chunk_v1',
   'greater_realm_navigation_component_v1', 'greater_realm_release_v1',
