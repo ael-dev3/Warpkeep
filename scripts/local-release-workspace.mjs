@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { captureFixedOperationBundleSource } from './local-binding-runtime-core.mjs';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { acquirePreparedReleaseCandidateLock } from './local-release-candidate-lock.mjs';
+import { installPreparedReleaseTransactionUnderLock } from './local-release-transaction-install.mjs';
 
 const ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
 const RUNS = `${ROOT}/runs`;
@@ -142,6 +143,15 @@ export function capturePreparedLinuxReleaseWorkspace(...args) {
     assertCandidateClean();
     return Object.freeze({ profile: PROFILE, operationRoot, sourceRoot: source.root, candidateRoot,
       sourceCommit: source.commit, sourceTree: source.tree, assertActive, assertCandidateClean,
+      installOutputs(...args) {
+        if (args.length !== 1) fail('ARGUMENTS_INVALID');
+        const [files] = args;
+        assertCandidateClean();
+        const result = installPreparedReleaseTransactionUnderLock({ candidateRoot,
+          sourceCommit: source.commit, sourceTree: source.tree, files }, lock);
+        assertActive();
+        return result;
+      },
       release() {
         if (released) return;
         released = true;

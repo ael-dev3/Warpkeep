@@ -8,7 +8,8 @@ const profile = 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
 afterEach(() => {
   vi.restoreAllMocks();
   for (const name of ['node:fs', '../scripts/local-binding-bounded-file.mjs',
-    '../scripts/local-binding-runtime-core.mjs', '../scripts/local-release-candidate-lock.mjs']) vi.doUnmock(name);
+    '../scripts/local-binding-runtime-core.mjs', '../scripts/local-release-candidate-lock.mjs',
+    '../scripts/local-release-transaction-install.mjs']) vi.doUnmock(name);
   vi.resetModules();
 });
 
@@ -20,6 +21,12 @@ async function setup() {
     sourceRoot: '', candidateRoot: '', changedPath: '', created: [] as string[],
     listing: '100644 blob 2e65efe2a145dda7ee51d1741299f848e5bf752e       1\tsource.txt\0' };
   const inodes = new Map<string, bigint>();
+  const install = vi.fn((_input: unknown, lease: { assertActive(): void }) => {
+    lease.assertActive();
+    state.candidateDirty = true;
+    return { status: 'installed-unverified' as const, transactionId: '1'.repeat(32) };
+  });
+  vi.doMock('../scripts/local-release-transaction-install.mjs', () => ({ installPreparedReleaseTransactionUnderLock: install }));
   vi.doMock('node:fs', () => ({
     mkdirSync(path: string) { state.created.push(path); },
     chmodSync() {},
@@ -78,12 +85,48 @@ async function setup() {
     return Reflect.get(target, key);
   } }));
   const module = await import('../scripts/local-release-workspace.mjs');
-  return { state, capture: module.capturePreparedLinuxReleaseWorkspace };
+  return { state, capture: module.capturePreparedLinuxReleaseWorkspace, install };
 }
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe('fixed native release workspace', () => {
+  it('installs using captured source coordinates and keeps its lease active for post-install checking', async () => {
+    const { state, capture, install } = await setup();
+    const workspace = capture();
+    const files = [{ path: 'scripts/genesis002_module_bindings/a.ts', bytes: Buffer.from('fixture') }];
+    expect(workspace.installOutputs(files)).toEqual({ status: 'installed-unverified', transactionId: '1'.repeat(32) });
+    expect(install).toHaveBeenCalledOnce();
+    expect(install.mock.calls[0][0]).toEqual({ candidateRoot: workspace.candidateRoot,
+      sourceCommit: workspace.sourceCommit, sourceTree: workspace.sourceTree, files });
+    expect(state.released).toBe(false);
+    workspace.assertActive();
+    expect(() => workspace.assertCandidateClean()).toThrow('LOCAL_RELEASE_WORKSPACE_CANDIDATE_DIRTY');
+    workspace.release();
+    expect(() => workspace.installOutputs(files)).toThrow('LOCAL_RELEASE_WORKSPACE_RELEASED');
+    expect(install).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a dirty candidate before calling the installer', async () => {
+    const { state, capture, install } = await setup();
+    const workspace = capture(); state.candidateDirty = true;
+    expect(() => workspace.installOutputs([])).toThrow('LOCAL_RELEASE_WORKSPACE_CANDIDATE_DIRTY');
+    expect(install).not.toHaveBeenCalled();
+    workspace.release();
+  });
+
+  it('does not return installation success if the captured source changed during installation', async () => {
+    const { state, capture, install } = await setup();
+    const workspace = capture();
+    install.mockImplementation(() => {
+      state.rawChanged = true;
+      return { status: 'installed-unverified', transactionId: '1'.repeat(32) };
+    });
+    expect(() => workspace.installOutputs([])).toThrow('LOCAL_RELEASE_WORKSPACE_SOURCE_BYTES_CHANGED');
+    expect(state.released).toBe(false);
+    workspace.release();
+  });
+
   it('retains distinct source and candidate roots and releases its lock explicitly', async () => {
     const { state, capture } = await setup();
     const workspace = capture();

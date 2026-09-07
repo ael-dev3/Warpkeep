@@ -4,6 +4,7 @@ import { closeSync, constants, fchmodSync, fstatSync, fsyncSync, lstatSync, open
 import { isAbsolute, join, resolve } from 'node:path';
 
 const LOCK_NAME = 'warpkeep-release-assembly.lock';
+const heldLocks = new WeakMap();
 const EXT4_SUPER_MAGIC = 0xef53;
 // Like the B0 deployment journal: flock is attached to the inherited open-file
 // description. This helper exits, while the parent's descriptor retains it.
@@ -92,7 +93,7 @@ export function acquirePreparedReleaseCandidateLock(...args) {
       fsyncSync(directoryFd);
     } finally { closeSync(directoryFd); }
     assertActive();
-    return Object.freeze({
+    const lease = Object.freeze({
       assertActive,
       release() {
         if (released) return;
@@ -105,6 +106,8 @@ export function acquirePreparedReleaseCandidateLock(...args) {
         if (primary !== undefined) throw primary;
       },
     });
+    heldLocks.set(lease, candidateRoot);
+    return lease;
   } catch (error) {
     if (descriptor !== undefined) {
       try { closeSync(descriptor); } catch { /* Preserve the initial fixed error. */ }
@@ -112,4 +115,12 @@ export function acquirePreparedReleaseCandidateLock(...args) {
     if (error instanceof LocalReleaseCandidateLockError) throw error;
     fail('UNAVAILABLE');
   }
+}
+
+/** Authenticate a live kernel lease from this module, not caller callbacks. */
+export function assertPreparedReleaseCandidateLock(...args) {
+  const [lease, candidateRoot] = args;
+  if (args.length !== 2 || typeof candidateRoot !== 'string'
+      || heldLocks.get(lease) !== candidateRoot) fail('CAPABILITY_INVALID');
+  lease.assertActive();
 }

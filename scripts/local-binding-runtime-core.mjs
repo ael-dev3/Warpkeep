@@ -75,6 +75,8 @@ const CONTROL_FILES = Object.freeze([
 const OPERATION_BUNDLE_CONTROL_FILES = Object.freeze([
   'scripts/local-release-workspace.mjs',
   'scripts/local-release-candidate-lock.mjs',
+  'scripts/local-release-transaction-install.mjs',
+  'scripts/local-release-recovery-journal.mjs',
   'scripts/local-release-artifact-inputs.mjs',
   'package-lock.json',
   'scripts/local-binding-bounded-file.mjs',

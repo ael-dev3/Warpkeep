@@ -12,6 +12,10 @@ export interface PreparedLinuxReleaseWorkspace {
   readonly sourceTree: string;
   assertActive(): void;
   assertCandidateClean(): void;
+  /** Install while retaining the captured lock; never marks a release prepared. */
+  installOutputs(files: readonly Readonly<{ path: string; bytes: Uint8Array }>[]): Readonly<{
+    status: 'installed-unverified'; transactionId: string;
+  }>;
   /** Releases the lock; retains private checkouts and diagnostics. */
   release(): void;
 }

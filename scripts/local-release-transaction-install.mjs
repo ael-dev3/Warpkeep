@@ -4,7 +4,7 @@ import { closeSync, constants, fchmodSync, fstatSync, fsyncSync, lstatSync, mkdi
   openSync, readdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { types } from 'node:util';
-import { acquirePreparedReleaseCandidateLock } from './local-release-candidate-lock.mjs';
+import { acquirePreparedReleaseCandidateLock, assertPreparedReleaseCandidateLock } from './local-release-candidate-lock.mjs';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { encodePreparedReleaseJournal, isPreparedReleaseOutputPath } from './local-release-recovery-journal.mjs';
 
@@ -57,13 +57,16 @@ function sync(path, directory = false) {
  * only on an owned Linux candidate, retains rollback evidence, and deliberately
  * never marks the candidate prepared. Full-family derivation and independent
  * acceptance must precede any later completed journal or candidate export. */
-export function installPreparedReleaseTransaction(...args) {
-  if (args.length !== 1) fail();
-  const input = inputs(args[0]);
+function install(inputValue, suppliedLock, ownsLock) {
+  const input = inputs(inputValue);
   let lock;
   try {
     const { candidateRoot, sourceCommit, sourceTree, files } = input;
-    lock = acquirePreparedReleaseCandidateLock(candidateRoot);
+    if (ownsLock) lock = acquirePreparedReleaseCandidateLock(candidateRoot);
+    else {
+      assertPreparedReleaseCandidateLock(suppliedLock, candidateRoot);
+      lock = suppliedLock;
+    }
     const root = lstatSync(candidateRoot, { bigint: true });
     const device = String(root.dev);
     const directories = new Map();
@@ -198,5 +201,16 @@ export function installPreparedReleaseTransaction(...args) {
     publicationGuard(entries.length, true);
     return Object.freeze({ status: 'installed-unverified', transactionId });
   } catch { fail(); }
-  finally { for (const file of input.files) file.bytes.fill(0); lock?.release(); }
+  finally { for (const file of input.files) file.bytes.fill(0); if (ownsLock) lock?.release(); }
+}
+
+export function installPreparedReleaseTransaction(...args) {
+  if (args.length !== 1) fail();
+  return install(args[0], undefined, true);
+}
+
+/** Uses only a genuine active lease, leaving it held on success AND failure. */
+export function installPreparedReleaseTransactionUnderLock(...args) {
+  if (args.length !== 2) fail();
+  return install(args[0], args[1], false);
 }

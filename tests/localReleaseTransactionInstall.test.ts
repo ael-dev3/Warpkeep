@@ -5,7 +5,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSyn
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { installPreparedReleaseTransaction } from '../scripts/local-release-transaction-install.mjs';
+import { installPreparedReleaseTransaction, installPreparedReleaseTransactionUnderLock } from '../scripts/local-release-transaction-install.mjs';
 import { recoverPreparedReleaseTransaction } from '../scripts/local-release-transaction-recovery.mjs';
 import { decodePreparedReleaseJournal } from '../scripts/local-release-recovery-journal.mjs';
 import { acquirePreparedReleaseCandidateLock } from '../scripts/local-release-candidate-lock.mjs';
@@ -22,6 +22,13 @@ it('rejects unknown output and G001 targets before touching a candidate', () => 
     expect(() => installPreparedReleaseTransaction({ candidateRoot: '/absent', sourceCommit: 'a'.repeat(40),
       sourceTree: 'b'.repeat(40), files: [{ path, bytes: Buffer.from('x') }] })).toThrow('LOCAL_RELEASE_TRANSACTION_INSTALL_INVALID');
   }
+});
+it('rejects a forged lease without invoking caller callbacks', () => {
+  let calls = 0;
+  const fake = { assertActive() { calls += 1; }, release() { calls += 1; } };
+  expect(() => installPreparedReleaseTransactionUnderLock({ candidateRoot: '/absent', sourceCommit: 'a'.repeat(40),
+    sourceTree: 'b'.repeat(40), files: files() }, fake)).toThrow('LOCAL_RELEASE_TRANSACTION_INSTALL_INVALID');
+  expect(calls).toBe(0);
 });
 
 describe.skipIf(!supported)('native journaled candidate installation', () => {
@@ -104,6 +111,36 @@ describe.skipIf(!supported)('native journaled candidate installation', () => {
       expect(() => installPreparedReleaseTransaction(input())).toThrow();
       held.assertActive(); restored();
       expect(existsSync(join(root, '.git', 'warpkeep-release-assembly-v1'))).toBe(false);
+    } finally { held.release(); }
+  });
+  it('publishes under a genuine existing lease without reacquiring or releasing it', () => {
+    const held = acquirePreparedReleaseCandidateLock(root);
+    let transactionId: string;
+    try {
+      transactionId = installPreparedReleaseTransactionUnderLock(input(), held).transactionId;
+      held.assertActive();
+      expect(() => acquirePreparedReleaseCandidateLock(root)).toThrow('LOCAL_RELEASE_LOCK_BUSY');
+      for (const file of files()) expect(readFileSync(join(root, file.path))).toEqual(file.bytes);
+    } finally { held.release(); }
+    recoverPreparedReleaseTransaction(root, transactionId!); restored();
+  });
+  it('rejects a genuine lease for a different candidate and a released lease', () => {
+    const held = acquirePreparedReleaseCandidateLock(root);
+    try {
+      expect(() => installPreparedReleaseTransactionUnderLock({ ...input(), candidateRoot: join(root, 'other') }, held)).toThrow();
+      held.assertActive(); restored();
+    } finally { held.release(); }
+    expect(() => installPreparedReleaseTransactionUnderLock(input(), held)).toThrow();
+    restored();
+  });
+  it('keeps a supplied lease held when installation rejects dirty source', () => {
+    const held = acquirePreparedReleaseCandidateLock(root);
+    try {
+      writeFileSync(join(root, paths[0]), 'user-edit');
+      expect(() => installPreparedReleaseTransactionUnderLock(input(), held)).toThrow();
+      held.assertActive();
+      expect(() => acquirePreparedReleaseCandidateLock(root)).toThrow('LOCAL_RELEASE_LOCK_BUSY');
+      expect(readFileSync(join(root, paths[0]), 'utf8')).toBe('user-edit');
     } finally { held.release(); }
   });
   it.each(['journal', 'rename-1', 'rename-2'])('recovers after real process death at %s', point => {
