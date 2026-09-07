@@ -155,7 +155,7 @@ description = "Public recovery verification-key thumbprint, not private signing 
 targetRules = ["generic-api-key"]
 condition = "AND"
 regexTarget = "secret"
-paths = ['''^services/release-recovery/src/recoveryPublicKey\.ts$''','''^scripts/recovery-activation-candidate\.mjs$''','''^tests/fixtures/recoveryBindingCandidate\.ts$''']
+paths = ['''^services/release-recovery/src/recoveryPublicKey\.ts$''','''^scripts/recovery-activation-candidate\.mjs$''','''^tests/fixtures/recoveryBindingCandidate\.ts$''','''^scripts/recovery-public-key\.mjs$''']
 regexes = ['''^jJpfIbYjQL5LxwND5zk1MUOqN1B3vOh_ydTAOoUnuR8$''']
 
 [[allowlists]]
