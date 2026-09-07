@@ -77,7 +77,7 @@ function hex(value, length) {
   return typeof value === 'string' && value.length === length && /^[0-9a-f]+$/u.test(value);
 }
 
-function allowedPath(path) {
+export function isPreparedReleaseOutputPath(path) {
   if (typeof path !== 'string' || path.length > 240) return false;
   if (FIXED_OUTPUTS.has(path)) return true;
   return /^(?:scripts\/genesis002_module_bindings|spacetimedb\/ptr\/generated-bindings)\/(?:[a-zA-Z0-9_][a-zA-Z0-9_-]*\/)*[a-zA-Z0-9_][a-zA-Z0-9_-]*\.ts$/u.test(path);
@@ -114,7 +114,7 @@ function copyRecord(value) {
   }
   const entries = list(value.entries, MAX_ENTRIES).map(input => {
     object(input, ['path', 'before', 'after']);
-    if (!allowedPath(input.path) || input.path <= previous || paths.has(input.path.toLowerCase())) fail();
+    if (!isPreparedReleaseOutputPath(input.path) || input.path <= previous || paths.has(input.path.toLowerCase())) fail();
     previous = input.path;
     paths.add(input.path.toLowerCase());
     let before = null;

@@ -30,6 +30,8 @@ export class LocalReleaseRecoveryJournalError extends Error {
   constructor(code?: string);
 }
 export function encodePreparedReleaseJournal(record: unknown): Uint8Array;
+/** Namespace check only, not complete-family or source authentication. */
+export function isPreparedReleaseOutputPath(path: unknown): boolean;
 export function decodePreparedReleaseJournal(bytes: unknown): PreparedReleaseJournal;
 export function planPreparedReleaseRollback(input: unknown): readonly Readonly<{
   path: string;
