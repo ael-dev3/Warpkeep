@@ -463,3 +463,33 @@ test is not a substitute for authenticated extraction.
 The recovery cache bootstrap and isolated worker have not yet been wired to this
 new materializer. No complete recovery artifact family, activation, or live
 deployment is claimed by this change.
+
+## Native recovery cache and extraction — 2026-09-07
+
+`eaca823` adds a separate no-argument recovery cache bootstrap using the existing
+fixed-host bounded download, SHA-512 checks, private cache permissions and pinned
+Node verification. Its distinct profile selects exactly three packages. The
+historical entrypoint remains two packages. Thirty-nine cache tests pass on
+Windows and Linux; targeted strict TypeScript passes. New cases cover repeated
+recovery use, missing pins, caller overrides and preservation/rejection of
+corrupted cached bytes without replacement.
+
+On WSL Ubuntu 24.04, using the fixed Node 22.22.3 executable and an empty
+environment, `node scripts/bootstrap-recovery-bundle-cache.mjs` returned
+`packageCount: 3, installedCount: 1`. Its second run returned `installedCount: 0`.
+The historical bootstrap then returned `packageCount: 2, installedCount: 0`.
+The only persistent addition is the integrity-verified fflate archive in the
+existing owner-private preparation cache; no dependency installation scripts ran.
+
+At `d7cff79`, the native package fixture's `recovery` scenario successfully
+extracted and re-attested the real cached packages, checking all 17 fflate files
+are 0400. It returned `RECOVERY_NAMESPACE_VERIFIED` and an empty transport-builtin
+list. The first probe invocation omitted `--experimental-vm-modules` and failed
+before materialization; rerunning with the required flag passed. Reproduce from
+the clean Linux checkout with the fixed Node executable, `--no-warnings
+--experimental-vm-modules tests/fixtures/localOperationBundlePackagesNativeFixture.mjs
+<absolute-checkout> recovery`. The fixture removes only its disposable directory.
+
+This establishes cache/extraction behavior, not the final recovery worker or
+artifact-family installation. The next connection is the fixed-entry build
+engine using this isolated compiler/dependency namespace and captured source.
