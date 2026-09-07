@@ -962,7 +962,8 @@ afterEach(() => {
 });
 
 describe('sealed-realms activation descriptor records', () => {
-  it.each(['valid', 'independent', 'module-source', 'atlas-source', 'digest', 'missing', 'historical'])(
+  it.each(['valid', 'independent', 'module-source', 'atlas-source', 'digest', 'missing', 'historical',
+    'database', 'module-bytes', 'module-tree', 'atlas-header', 'owner-receipt', 'async-consumer'])(
     'validates the twelve-record recovery descriptor: %s', (scenario) => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-28T12:02:00.000Z'));
@@ -1034,6 +1035,11 @@ describe('sealed-realms activation descriptor records', () => {
       if (scenario === 'module-source') candidate.g002ModuleSourceCommit = 'e'.repeat(40);
       if (scenario === 'atlas-source') candidate.ptrAtlasSourceCommit = 'e'.repeat(40);
       if (scenario === 'digest') candidate.ptrPublishReceiptDigest = 'e'.repeat(64);
+      if (scenario === 'database') candidate.g002DatabaseIdentity = 'e'.repeat(64);
+      if (scenario === 'module-bytes') candidate.ptrModuleSha256 = 'e'.repeat(64);
+      if (scenario === 'module-tree') candidate.g002ModuleTreeId = 'e'.repeat(40);
+      if (scenario === 'atlas-header') candidate.ptrReleaseHeaderSha256 = 'e'.repeat(64);
+      if (scenario === 'owner-receipt') candidate.ptrOwnerProvisionReceiptDigest = 'e'.repeat(64);
       if (scenario === 'missing') state.remove({
         root: 'runtime', relativePath: `activation-evidence/records/${ACTIVATION_RECORD_NAMES.ptrSealedLiveReceipt}`,
       });
@@ -1047,14 +1053,24 @@ describe('sealed-realms activation descriptor records', () => {
           expect(descriptor.bindingCandidate.g001FreezePublishReceiptDigest).toBeNull();
           expect(Object.keys(descriptor)).toHaveLength(15);
         } finally { bytes.fill(0); }
+        if (scenario === 'async-consumer') return Promise.reject(new Error('synthetic consumer failure')) as never;
         return undefined;
       });
       if (scenario === 'valid' || scenario === 'independent') {
         expect(writeSealedRealmsProductionRecoveryActivationDescriptor({ records, consumeDescriptor: consume })).toEqual({});
         expect(consume).toHaveBeenCalledTimes(1);
+      } else if (scenario === 'async-consumer') {
+        expect(() => writeSealedRealmsProductionRecoveryActivationDescriptor({ records, consumeDescriptor: consume }))
+          .toThrow('SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_ASYNC_CONSUME');
+        expect(consume).toHaveBeenCalledTimes(1);
+        // Failed consumption retains its no-clobber audit record, never silently retries.
+        expect(() => writeSealedRealmsProductionRecoveryActivationDescriptor({ records, consumeDescriptor: consume }))
+          .toThrow('SEALED_REALMS_PRIVATE_STATE_FILE_EXISTS');
+        expect(consume).toHaveBeenCalledTimes(1);
       } else {
         expect(() => writeSealedRealmsProductionRecoveryActivationDescriptor({ records, consumeDescriptor: consume })).toThrow();
         expect(consume).not.toHaveBeenCalled();
+        expect(() => state.read({ root: 'runtime', relativePath: FIXED_DESCRIPTOR_RELATIVE_PATH })).toThrow();
       }
     } finally { vi.useRealTimers(); }
   });

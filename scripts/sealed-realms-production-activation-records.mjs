@@ -1053,12 +1053,9 @@ export function writeSealedRealmsProductionRecoveryActivationDescriptor(input) {
     }, null, 2)}\n`, 'utf8');
     state.privateState.writeCanonicalNoClobberAndConsumeDescriptor({
       bytes,
-      consume: descriptor => {
-        if (options.consumeDescriptor(descriptor) !== undefined) {
-          fail('SEALED_REALMS_ACTIVATION_RECORDS_CONSUME_INVALID');
-        }
-        return undefined;
-      },
+      // Let the private FD owner reject and observe asynchronous results before
+      // closing its handle; swallowing the result here loses rejection handling.
+      consume: descriptor => options.consumeDescriptor(descriptor),
     });
   } finally { bytes?.fill(0); }
   return Object.freeze({});
