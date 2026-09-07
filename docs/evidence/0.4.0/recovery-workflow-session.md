@@ -50,3 +50,29 @@ post-deployment correlation rule; it does not extend deployment authorization
 or provide durable handoff by itself.
 Final combined run including terminal-request denial after the deadline:
 120 tests passed; targeted strict TypeScript passed.
+
+## Private handoff storage primitive
+
+`f766595` and `2c7f150` add Linux-only claim storage in an existing canonical,
+current-owner 0700 directory. The fixed `recovery-claim-v1.json` file is created
+exclusively as 0600 through a held directory descriptor, fsynced and read back
+before persistence is acknowledged. It contains only the claim receipt,
+private expected context and signed deadline—not the authorization JWS or OIDC.
+The strict receipt gate is checked before and after writing.
+
+Reopen is bounded to 64 KiB and rejects changed identity, links, ownership or
+permissions, noncanonical bytes, changed deadline, and different independently
+established run/artifact context. Separate deployment and reconciliation APIs
+retain the distinct expiry rules. Return values are private and must not be
+logged or uploaded. Failed writes are preserved for diagnosis, not overwritten
+or removed through potentially replaced paths.
+
+At `2c7f150`, the Linux handoff/claim/session suites passed 128 tests with one
+Windows-only skip. Filesystem tests mock receipt-verifier calls; the adjacent
+claim suite independently covers real cryptographic verification with test
+keys. This is not a real signed-receipt persistence or power-loss test.
+
+Still required: connect storage to the session and fixed runner-private path,
+recover ambiguous claim responses/process loss, bind actual Actions context,
+and implement the protected deployment workflow. The storage primitive alone
+does not make the workflow resumable or production-ready.
