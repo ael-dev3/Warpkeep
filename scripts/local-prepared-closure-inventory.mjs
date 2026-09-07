@@ -5,7 +5,51 @@ import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 const PATH = 'scripts/auth-bridge-notification-prepared-deploy-closure.mjs';
 const NAME = 'AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS';
 const MAX_BYTES = 4 * 1024 * 1024;
+const POLICY_PATH = 'scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs';
+const BUNDLE_MEMBERS = Object.freeze([
+  ...['activation', 'g001', 'g002', 'ptr'].flatMap(lane => ['d.mts', 'mjs'].map(suffix =>
+    `scripts/sealed-realms-production-${lane}-lane.bundle.${suffix}`)),
+  'scripts/sealed-realms-production-bundle-manifest-v1.json',
+].sort());
 function fail() { throw new Error('LOCAL_PREPARED_CLOSURE_INVENTORY_INVALID'); }
+function repositoryOption(options) {
+  if (options === null || typeof options !== 'object' || Object.getPrototypeOf(options) !== Object.prototype
+    || Reflect.ownKeys(options).length !== 1 || !Object.hasOwn(options, 'repositoryRoot')
+    || !Object.hasOwn(Object.getOwnPropertyDescriptor(options, 'repositoryRoot'), 'value')
+    || typeof options.repositoryRoot !== 'string') fail();
+  return options.repositoryRoot;
+}
+
+/** Derive before scanning the prospective candidate; never edit the source checkout.
+ * Bundle presence is mandatory in the resulting closure, not a filesystem-dependent
+ * optional expansion. The closure reader subsequently verifies every member body.
+ */
+export function derivePreparedClosurePolicySource(options) {
+  let body;
+  try {
+    const root = repositoryOption(options);
+    body = readLocalBindingBoundedFile(resolve(root, POLICY_PATH), { maximumBytes: MAX_BYTES, minimumBytes: 1 }).body;
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(body);
+    if (!Buffer.from(source).equals(body)) fail();
+    const header = 'const STATIC_SECURITY_INPUTS = Object.freeze([';
+    if (source.split(header).length !== 2) fail();
+    const matches = [...source.matchAll(/^const STATIC_SECURITY_INPUTS = Object\.freeze\(\[(\r?\n)((?:  '[A-Za-z0-9._/-]+',\r?\n)+)\]\);/gm)];
+    if (matches.length !== 1) fail();
+    const match = matches[0];
+    const paths = match[2].split(/\r?\n/u).filter(Boolean).map(line => line.slice(3, -2));
+    // The established list is not sorted: preserve its order and all existing
+    // security inputs. Validate uniqueness/canonical paths separately.
+    pathsValid([...paths].sort());
+    const existing = paths.filter(path => BUNDLE_MEMBERS.includes(path));
+    if (existing.length !== 0 && existing.length !== BUNDLE_MEMBERS.length) fail();
+    const members = existing.length === 0 ? [...paths, ...BUNDLE_MEMBERS] : paths;
+    const declaration = `${header}${match[1]}${members.map(path => `  '${path}',${match[1]}`).join('')}]);`;
+    const bytes = new Uint8Array(Buffer.from(`${source.slice(0, match.index)}${declaration}${source.slice(match.index + match[0].length)}`));
+    if (bytes.length > MAX_BYTES) fail();
+    return Object.freeze({ path: POLICY_PATH, bytes });
+  } catch { fail(); }
+  finally { body?.fill(0); }
+}
 function pathsValid(paths) {
   if (!Array.isArray(paths) || paths.length < 1 || paths.length > 2048) fail();
   let previous = '';
