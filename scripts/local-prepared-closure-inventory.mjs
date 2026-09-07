@@ -50,3 +50,57 @@ export function derivePreparedClosureInventorySource(options) {
   } catch { fail(); }
   finally { body?.fill(0); }
 }
+
+const COUNT_CONSUMERS = [
+  ['scripts/production-player-canary-activation-launcher.mjs', [
+    ['export const EXPECTED_PROTECTED_SOURCE_CLOSURE_MEMBER_COUNT = ', ';', 1],
+  ]],
+  ['scripts/production-player-canary-activation-launcher.d.mts', [
+    ['export const EXPECTED_PROTECTED_SOURCE_CLOSURE_MEMBER_COUNT: ', ';', 1],
+  ]],
+  ['tests/authBridgeNotificationB0Closure.test.ts', [['expect(derived).toHaveLength(', ');', 1]]],
+  ['tests/authBridgeNotificationPreparedReleaseProjection.test.ts', [
+    ['expect(authority.memberCount).toBe(', ');', 1],
+    ['expect(baseline.memberCount).toBe(', ');', 1],
+    ['expect(verify(root).memberCount).toBe(', ');', 2],
+  ]],
+  ['tests/authBridgeNotificationPreparedWorkflow.test.ts', [
+    ['executableSecurityClosureMemberCount: ', ',', 1],
+    ['expect(paths).toHaveLength(', ');', 1],
+    ['memberCount: ', ',', 1],
+  ]],
+  ['tests/greaterRealmReleaseGateDeployBoundary.test.ts', [['expect(checkedMembers).toHaveLength(', ');', 1]]],
+];
+const escapePattern = text => text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+
+/** Derive the inventory-dependent subset, never a complete installed candidate. */
+export function derivePreparedClosureInventoryAndCounts(options) {
+  const owned = [];
+  try {
+    const inventory = derivePreparedClosureInventorySource(options);
+    owned.push(inventory.bytes);
+    const files = [{ path: inventory.path, bytes: inventory.bytes }];
+    for (const [path, slots] of COUNT_CONSUMERS) {
+      const opened = readLocalBindingBoundedFile(resolve(options.repositoryRoot, path), { maximumBytes: MAX_BYTES, minimumBytes: 1 });
+      let source;
+      try {
+        source = new TextDecoder('utf-8', { fatal: true }).decode(opened.body);
+        if (!Buffer.from(source).equals(opened.body)) fail();
+      } finally { opened.body.fill(0); }
+      for (const [prefix, suffix, count] of slots) {
+        const pattern = new RegExp(`^([ \\t]*${escapePattern(prefix)})([1-9][0-9]{0,3})(${escapePattern(suffix)})(?=\\r?$)`, 'gm');
+        const matches = [...source.matchAll(pattern)];
+        if (matches.length !== count || matches.some(match => Number(match[2]) > 2048)) fail();
+        source = source.replace(pattern, (_match, before, _old, after) => `${before}${inventory.memberCount}${after}`);
+      }
+      const bytes = new Uint8Array(Buffer.from(source));
+      if (bytes.length > MAX_BYTES) fail();
+      owned.push(bytes); files.push({ path, bytes });
+    }
+    files.sort((left, right) => left.path < right.path ? -1 : 1);
+    return Object.freeze({ memberCount: inventory.memberCount, files: Object.freeze(files.map(file => Object.freeze(file))) });
+  } catch {
+    for (const bytes of owned) bytes.fill(0);
+    fail();
+  }
+}

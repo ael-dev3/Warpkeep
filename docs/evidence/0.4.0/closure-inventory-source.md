@@ -71,3 +71,35 @@ consumers. For example, the canary launcher's protected member count is still 99
 the production and Verify workflows are outside this generator's three-workflow
 rewrite set. Complete consumer dependency derivation and whole-family installation
 remain required; these partial deterministic outputs do not satisfy convergence.
+
+## Count-consumer composition checkpoint
+
+Working source based on `17c3e65ba0633289b8549158d321ddac42f7aa9c` now
+derives all 11 inventory-dependent numeric slots in six fixed consumer files,
+alongside the verifier inventory. No files are installed by this API.
+The diagnostic substitutes all seven returned files before hashing closure
+members, including the canary launcher; updating that launcher after hashing
+would instead invalidate the manifest.
+
+Fresh checks: Windows inventory suite 21 passed, 1 native symlink skip (626 ms);
+native Linux suite 22 passed (166 ms); pinned TypeScript build exit 0.
+The same commands above reproduce these component checks.
+
+Actual generator composition returned 1,077 members, 16,545,930 input bytes,
+manifest SHA-256
+`17b2382d4932ed9440bc4d28626c6deaa8b2576711cd6667b0959824c55ac1ed`.
+Both runs returned byte-identical manifests and all three workflow outputs:
+
+| Workflow | Bytes | SHA-256 |
+| --- | ---: | --- |
+| deploy-pages.yml | 40349 | a11653ecd563005f9a60507352616f66bf3516d023faa67831b1dd7e5147e022 |
+| notification-bridge-b0.yml | 54519 | caacabd82d0d270094127fe8795506393971dc1358e2d2ddb1c01bf4a023e2a7 |
+| notification-bridge-prepared.yml | 55697 | 5a9b632468e32bda66d3860d73e85247b71b3c0595cc0f8d205483466ddb0d81 |
+
+Independent review found no blocking issues and one minor missing boundary-test
+case. Added direct rejection coverage for zero, leading zero, 2049, negative,
+fractional and expression values; all passed with the existing implementation.
+This is supplemental coverage of existing validation, not a new bug-fix claim.
+This checkpoint is not a complete output
+family: generated bundles/bindings, remaining workflow/source pins, native
+installation and whole-family convergence still require integration.

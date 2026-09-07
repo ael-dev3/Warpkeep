@@ -7,7 +7,7 @@ const scanner = vi.hoisted(() => ({ paths: ['scripts/a.mjs', 'src/b.ts'] }));
 vi.mock('../scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs', () => ({
   deriveAuthBridgeNotificationPreparedDeployClosurePaths: () => scanner.paths,
 }));
-import { derivePreparedClosureInventorySource } from '../scripts/local-prepared-closure-inventory.mjs';
+import { derivePreparedClosureInventorySource, derivePreparedClosureInventoryAndCounts } from '../scripts/local-prepared-closure-inventory.mjs';
 const declaration = (paths: string[], newline = '\n') => `export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =${newline}  Object.freeze([${newline}${paths.map(path => `    '${path}',${newline}`).join('')}  ]);`;
 let root: string;
 let path: string;
@@ -63,4 +63,48 @@ it.skipIf(process.platform === 'win32')('rejects a source symlink without changi
   writeFileSync(target, original); symlinkSync(target, path);
   expect(() => derivePreparedClosureInventorySource({ repositoryRoot: root })).toThrow();
   expect(readFileSync(target, 'utf8')).toBe(original);
+});
+
+const countConsumers = {
+  'scripts/production-player-canary-activation-launcher.mjs': 'export const EXPECTED_PROTECTED_SOURCE_CLOSURE_MEMBER_COUNT = 997;',
+  'scripts/production-player-canary-activation-launcher.d.mts': 'export const EXPECTED_PROTECTED_SOURCE_CLOSURE_MEMBER_COUNT: 997;',
+  'tests/authBridgeNotificationB0Closure.test.ts': '    expect(derived).toHaveLength(1027);',
+  'tests/authBridgeNotificationPreparedReleaseProjection.test.ts': '      expect(authority.memberCount).toBe(1027);\n    expect(baseline.memberCount).toBe(1027);\n    expect(verify(root).memberCount).toBe(1027);\n    expect(verify(root).memberCount).toBe(1027);',
+  'tests/authBridgeNotificationPreparedWorkflow.test.ts': '        executableSecurityClosureMemberCount: 1027,\n    expect(paths).toHaveLength(1027);\n        memberCount: 1027,',
+  'tests/greaterRealmReleaseGateDeployBoundary.test.ts': '    expect(checkedMembers).toHaveLength(997);',
+};
+function writeConsumers() {
+  mkdirSync(join(root, 'tests'));
+  writeFileSync(path, declaration(['scripts/a.mjs']));
+  for (const [name, body] of Object.entries(countConsumers)) writeFileSync(join(root, name), `${body}\n// unrelated 997 and 1027\n`);
+}
+it('derives all eleven count slots together without touching unrelated numbers or source files', () => {
+  writeConsumers();
+  const result = derivePreparedClosureInventoryAndCounts({ repositoryRoot: root });
+  expect(result.files).toHaveLength(7);
+  expect(result.memberCount).toBe(2);
+  for (const [name, body] of Object.entries(countConsumers)) {
+    const file = result.files.find(file => file.path === name)!;
+    expect(Buffer.from(file.bytes).toString()).toBe(`${body.replace(/997|1027/gu, '2')}\n// unrelated 997 and 1027\n`);
+    expect(readFileSync(join(root, name), 'utf8')).toBe(`${body}\n// unrelated 997 and 1027\n`);
+  }
+  for (const file of result.files) writeFileSync(join(root, file.path), file.bytes);
+  expect(derivePreparedClosureInventoryAndCounts({ repositoryRoot: root })).toEqual(result);
+});
+it.each(['missing', 'duplicate'])('rejects a %s count slot instead of returning a partial family', kind => {
+  writeConsumers();
+  const name = 'scripts/production-player-canary-activation-launcher.d.mts';
+  const body = kind === 'missing' ? '// missing declaration' : `${countConsumers[name]}\n${countConsumers[name]}`;
+  writeFileSync(join(root, name), body);
+  expect(() => derivePreparedClosureInventoryAndCounts({ repositoryRoot: root })).toThrow('LOCAL_PREPARED_CLOSURE_INVENTORY_INVALID');
+  expect(readFileSync(join(root, name), 'utf8')).toBe(body);
+});
+
+it.each(['0', '01', '2049', '-1', '1.5', '1 + 1'])('rejects invalid existing count %s without modifying consumers', value => {
+  writeConsumers();
+  const name = 'scripts/production-player-canary-activation-launcher.mjs';
+  const body = countConsumers[name].replace('997', value);
+  writeFileSync(join(root, name), body);
+  expect(() => derivePreparedClosureInventoryAndCounts({ repositoryRoot: root })).toThrow('LOCAL_PREPARED_CLOSURE_INVENTORY_INVALID');
+  expect(readFileSync(join(root, name), 'utf8')).toBe(body);
 });
