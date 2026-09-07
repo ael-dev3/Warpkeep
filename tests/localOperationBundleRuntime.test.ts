@@ -1,13 +1,13 @@
 // @vitest-environment node
 
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { derivePreparedLinuxOperationBundles } from '../scripts/local-operation-bundle-runtime.mjs';
+import { derivePreparedLinuxOperationBundleFiles, derivePreparedLinuxOperationBundles } from '../scripts/local-operation-bundle-runtime.mjs';
 import {
   assertReproducibleOperationBundleCycles,
   parseOperationBundleLoadResult,
@@ -15,6 +15,10 @@ import {
   verifyOperationBundleMaterializedGraph,
 } from '../scripts/local-operation-bundle-runtime-core.mjs';
 import * as operationCore from '../scripts/local-operation-bundle-runtime-core.mjs';
+import {
+  deriveSealedRealmOperationBundleSourceClosureDigest,
+  getSealedRealmOperationBundleSpecification,
+} from '../scripts/sealed-realms-production-bundle-engine.mjs';
 
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 const nonce = 'a'.repeat(32);
@@ -45,11 +49,16 @@ describe('fixed Linux operation bundle runtime boundaries', () => {
   it('rejects every public argument, including explicit undefined, before host work', async () => {
     await expect((derivePreparedLinuxOperationBundles as unknown as (value: unknown) => Promise<unknown>)(undefined))
       .rejects.toMatchObject({ code: 'OPERATION_BUNDLE_RUNTIME_ARGUMENTS_INVALID' });
+    await expect((derivePreparedLinuxOperationBundleFiles as unknown as (value: unknown) => Promise<unknown>)(undefined))
+      .rejects.toMatchObject({ code: 'OPERATION_BUNDLE_RUNTIME_ARGUMENTS_INVALID' });
   });
 
   it('rejects non-Linux in-process use and inherited loader/compiler overrides', async () => {
     const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
     await expect(derivePreparedLinuxOperationBundles()).rejects.toMatchObject({
+      code: 'OPERATION_BUNDLE_RUNTIME_HOST_INVALID',
+    });
+    await expect(derivePreparedLinuxOperationBundleFiles()).rejects.toMatchObject({
       code: 'OPERATION_BUNDLE_RUNTIME_HOST_INVALID',
     });
     platform.mockRestore();
@@ -223,10 +232,16 @@ describe('fixed Linux operation bundle runtime boundaries', () => {
 });
 
 type OrchestrationScenario = 'success' | 'early-lane' | 'load-timeout'
-  | 'descendant-survival' | 'captured-source-mutation' | 'worker-primary-cleanup';
+  | 'descendant-survival' | 'captured-source-mutation' | 'worker-primary-cleanup'
+  | 'files' | 'declaration-mode' | 'declaration-empty' | 'declaration-oversize';
 
 async function runMockedProductionOrchestration(scenario: OrchestrationScenario) {
   vi.resetModules();
+  const fileMode = scenario === 'files' || scenario.startsWith('declaration-');
+  const declarationBodies = new Map(['activation', 'g001', 'g002', 'ptr'].map(lane => {
+    const path = `scripts/sealed-realms-production-${lane}-workflow-entry.d.mts`;
+    return [path, readFileSync(path)] as const;
+  }));
   const state = {
     lanes: [] as string[],
     sourceRoots: [] as string[],
@@ -280,7 +295,7 @@ async function runMockedProductionOrchestration(scenario: OrchestrationScenario)
     readLocalBindingBoundedFile(path: string, options: Record<string, unknown>) {
       let body = Buffer.alloc(0);
       if (path.endsWith('local-binding-runtime-yaml-v1.json')) body = Buffer.from('{}');
-      else if (path.endsWith('scripts\\a.mjs') || path.endsWith('scripts/a.mjs')) body = Buffer.from('a');
+      else if (options.expectedSha256 === digest('a')) body = Buffer.from('a');
       else if (path.endsWith('artifact.mjs')) {
         const lane = ['activation', 'g001', 'g002', 'ptr'].find(name => path.includes(`${name}-`))!;
         body = Buffer.from(`bundle:${lane}`);
@@ -303,6 +318,21 @@ async function runMockedProductionOrchestration(scenario: OrchestrationScenario)
       const sourceRoot = `${input.operationRoot}/source`;
       return Object.freeze({
         root: sourceRoot, commit: 'b'.repeat(40), tree: 'c'.repeat(40), bootstrap: [],
+        gitBuffer(root: string, args: string[], cap: number) {
+          if (state.removed || root !== sourceRoot) throw new Error('SOURCE_NOT_OWNED');
+          if (args[0] === 'ls-tree' && args[1] === '-z' && args[2] === 'c'.repeat(40)
+              && args[3] === '--' && declarationBodies.has(args[4]!) && cap <= 4096) {
+            return Buffer.from(`${scenario === 'declaration-mode' ? '120000' : '100644'} blob ${'d'.repeat(40)}\t${args[4]}\0`);
+          }
+          if (args.join(' ') === `cat-file blob ${'d'.repeat(40)}` && cap === 65536) {
+            if (scenario === 'declaration-empty') return Buffer.alloc(0);
+            if (scenario === 'declaration-oversize') return Buffer.alloc(65537);
+            const next = declarationBodies.values().next().value!;
+            declarationBodies.delete(declarationBodies.keys().next().value!);
+            return Buffer.from(next);
+          }
+          throw new Error('UNEXPECTED_GIT_READ');
+        },
         materialize(destination: string) {
           state.sourceRoots.push(destination);
           return Object.freeze({ root: destination, commit: 'b'.repeat(40), tree: 'c'.repeat(40) });
@@ -350,14 +380,21 @@ async function runMockedProductionOrchestration(scenario: OrchestrationScenario)
         }
         const spec = laneMetadata[request.lane]!;
         const body = Buffer.from(`bundle:${request.lane}`);
+        const realSpec = getSealedRealmOperationBundleSpecification(request.lane);
+        const graphManifest = fileMode
+          ? [realSpec.entryPath, ...Array.from({ length: realSpec.graphCount - 1 }, (_, i) => `scripts/fixture-${String(i).padStart(3, '0')}.mjs`)]
+            .sort().map(path => ({ path, byteLength: 1, sha256: digest('a') }))
+          : [{ path: 'scripts/a.mjs', byteLength: 1, sha256: digest('a') }];
         return {
           stderr: '',
           stdout: `${JSON.stringify({
             schemaVersion: 1, profile: 'warpkeep-local-operation-bundle-worker-result-v1',
             nonce: request.nonce, sourceCommit: request.sourceCommit, sourceTree: request.sourceTree,
             lane: request.lane, basename: spec.basename, bundleBytes: body.length,
-            byteDigest: digest(body.toString()), sourceClosureDigest: digest(`closure:${request.lane}`),
-            graphManifest: [{ path: 'scripts/a.mjs', byteLength: 1, sha256: digest('a') }],
+            byteDigest: digest(body.toString()), sourceClosureDigest: fileMode
+              ? deriveSealedRealmOperationBundleSourceClosureDigest(request.lane, graphManifest)
+              : digest(`closure:${request.lane}`),
+            graphManifest,
             exportNames: spec.exports, factoryExport: spec.factory, factoryFailureCode: spec.failure,
             handoffPath: request.handoffPath,
           })}\n`,
@@ -404,7 +441,9 @@ async function runMockedProductionOrchestration(scenario: OrchestrationScenario)
   let error;
   try {
     const core = await import('../scripts/local-operation-bundle-runtime-core.mjs');
-    value = await core.derivePreparedLinuxOperationBundlesCore();
+    value = fileMode
+      ? await core.derivePreparedLinuxOperationBundleFilesCore()
+      : await core.derivePreparedLinuxOperationBundlesCore();
   } catch (caught) { error = caught; }
   finally {
     for (const [name, environmentValue] of removedEnvironment) process.env[name] = environmentValue;
@@ -420,6 +459,31 @@ async function runMockedProductionOrchestration(scenario: OrchestrationScenario)
 }
 
 describe('fixed production operation bundle orchestration', () => {
+  it('returns nine validated files while the exact committed declaration source is still owned', async () => {
+    const { state, value, error } = await runMockedProductionOrchestration('files');
+    expect(error).toBeUndefined();
+    expect(value).toMatchObject({ sourceCommit: 'b'.repeat(40), sourceTree: 'c'.repeat(40) });
+    if (value === undefined || !('files' in value)) throw new Error('Expected prepared files');
+    const files = value.files;
+    expect(files).toHaveLength(9);
+    expect(Buffer.from(files.find(file => file.path.endsWith('activation-lane.bundle.mjs'))!.bytes).toString())
+      .toBe('bundle:activation');
+    for (const lane of ['activation', 'g001', 'g002', 'ptr']) {
+      expect(Buffer.from(files.find(file => file.path.endsWith(`${lane}-lane.bundle.d.mts`))!.bytes))
+        .toEqual(readFileSync(`scripts/sealed-realms-production-${lane}-workflow-entry.d.mts`));
+    }
+    expect(state.removed).toBe(true);
+  });
+
+  it.each(['declaration-mode', 'declaration-empty', 'declaration-oversize'] as const)(
+    'rejects %s without publishing files or removing diagnostics', async scenario => {
+      const { state, value, error } = await runMockedProductionOrchestration(scenario);
+      expect(value).toBeUndefined();
+      expect(error).toMatchObject({ code: 'OPERATION_BUNDLE_RUNTIME_DECLARATION_INVALID' });
+      expect(state.removed).toBe(false);
+    },
+  );
+
   it('uses eight distinct source roots in exact lane order and 64 KiB result caps', async () => {
     const { state, value, error } = await runMockedProductionOrchestration('success');
     expect(error).toBeUndefined();

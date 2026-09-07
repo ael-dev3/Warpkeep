@@ -3,6 +3,7 @@ import { pathToFileURL } from 'node:url';
 
 import {
   derivePreparedLinuxOperationBundlesCore,
+  derivePreparedLinuxOperationBundleFilesCore,
   OperationBundleRuntimeError,
   parseOperationBundleCliMetadata,
 } from './local-operation-bundle-runtime-core.mjs';
@@ -23,6 +24,12 @@ export async function derivePreparedLinuxOperationBundles(...arguments_) {
   if (arguments_.length !== 0) fail('OPERATION_BUNDLE_RUNTIME_ARGUMENTS_INVALID');
   if (process.platform !== 'linux') fail('OPERATION_BUNDLE_RUNTIME_HOST_INVALID');
   return derivePreparedLinuxOperationBundlesCore();
+}
+
+export async function derivePreparedLinuxOperationBundleFiles(...arguments_) {
+  if (arguments_.length !== 0) fail('OPERATION_BUNDLE_RUNTIME_ARGUMENTS_INVALID');
+  if (process.platform !== 'linux') fail('OPERATION_BUNDLE_RUNTIME_HOST_INVALID');
+  return derivePreparedLinuxOperationBundleFilesCore();
 }
 
 function metadata(result) {

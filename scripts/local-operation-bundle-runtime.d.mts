@@ -1,5 +1,7 @@
 export { OperationBundleRuntimeError } from './local-operation-bundle-runtime-core.mjs';
 
+export function derivePreparedLinuxOperationBundleFiles(...arguments_: []): Promise<import('./local-prepared-bundle-files.mjs').LocalPreparedOperationBundleFiles>;
+
 export function derivePreparedLinuxOperationBundles(...arguments_: []): Promise<Readonly<{
   profile: 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
   sourceCommit: string;

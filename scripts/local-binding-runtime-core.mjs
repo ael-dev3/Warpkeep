@@ -83,6 +83,7 @@ const OPERATION_BUNDLE_CONTROL_FILES = Object.freeze([
   'scripts/local-operation-bundle-runtime-core.mjs',
   'scripts/local-operation-bundle-runtime.mjs',
   'scripts/local-operation-bundle-worker.mjs',
+  'scripts/local-prepared-bundle-files.mjs',
   'scripts/sealed-realms-production-bundle-engine.mjs',
   'scripts/local-binding-runtime-yaml-v1.json',
 ]);

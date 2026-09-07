@@ -5,6 +5,8 @@ import {
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { derivePreparedOperationBundleFiles } from './local-prepared-bundle-files.mjs';
+import { getSealedRealmOperationBundleSpecification } from './sealed-realms-production-bundle-engine.mjs';
 
 import {
   copyLocalBindingBoundedFile, readLocalBindingBoundedFile,
@@ -382,7 +384,40 @@ function copyBundle(cycle) {
   });
 }
 
+function composeCapturedBundleFiles(source, bundles) {
+  const entryDeclarations = new Map();
+  try {
+    source.verify();
+    for (const lane of LANES) {
+      const path = getSealedRealmOperationBundleSpecification(lane).entryPath.replace(/\.mjs$/u, '.d.mts');
+      const record = source.gitBuffer(source.root, ['ls-tree', '-z', source.tree, '--', path], 4096);
+      const text = record.toString('utf8');
+      const match = /^100644 blob ([0-9a-f]{40})\t([^\0]+)\0$/u.exec(text);
+      if (!match || match[2] !== path || !Buffer.from(text).equals(record)) {
+        fail('OPERATION_BUNDLE_RUNTIME_DECLARATION_INVALID');
+      }
+      const body = source.gitBuffer(source.root, ['cat-file', 'blob', match[1]], 64 * 1024);
+      entryDeclarations.set(path, body);
+      if (body.length < 1 || body.length > 64 * 1024) {
+        fail('OPERATION_BUNDLE_RUNTIME_DECLARATION_INVALID');
+      }
+    }
+    source.verify();
+    return derivePreparedOperationBundleFiles({ bundles, entryDeclarations });
+  } finally {
+    for (const body of entryDeclarations.values()) body.fill(0);
+  }
+}
+
 export async function derivePreparedLinuxOperationBundlesCore() {
+  return deriveOperationResult(false);
+}
+
+export async function derivePreparedLinuxOperationBundleFilesCore() {
+  return deriveOperationResult(true);
+}
+
+async function deriveOperationResult(includeFiles) {
   validateHost();
   for (const path of [ROOT, join(ROOT, 'toolchain'), dirname(dirname(NODE_PATH)), dirname(NODE_PATH),
     join(ROOT, 'cache'), CACHE_ROOT, RUNS_ROOT]) privateDirectory(path);
@@ -423,6 +458,8 @@ export async function derivePreparedLinuxOperationBundlesCore() {
       profile: PROFILE, sourceCommit: source.commit, sourceTree: source.tree,
       bundles: Object.freeze(bundles),
     });
+    if (includeFiles) finalResult = composeCapturedBundleFiles(source, finalResult);
+    source.verify();
   } catch (error) { primaryError = error; }
   let cleanupError;
   if (primaryError === undefined) {

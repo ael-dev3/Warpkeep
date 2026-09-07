@@ -48,6 +48,8 @@ export function verifyOperationBundleMaterializedGraph(
   manifest: readonly Readonly<{ path: string; byteLength: number; sha256: string }>[],
 ): void;
 
+export function derivePreparedLinuxOperationBundleFilesCore(): Promise<import('./local-prepared-bundle-files.mjs').LocalPreparedOperationBundleFiles>;
+
 export function derivePreparedLinuxOperationBundlesCore(): Promise<Readonly<{
   profile: 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
   sourceCommit: string;
