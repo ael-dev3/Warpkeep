@@ -5082,10 +5082,18 @@ function main(arguments_, environment) {
     if (result.mode !== 'sealed-g002' && result.mode !== 'sealed-g002-recovery') {
       fail('SEALED_LAUNCH_PAGES_PTR_ENVIRONMENT_INVALID');
     }
-    const ptr = verifySealedLaunchPagesBuildEnvironment({
-      bindingSource: readSources().bindingJson,
-      environment,
-    });
+    let bindingBytes;
+    let ptr;
+    try {
+      const bindingSource = result.mode === 'sealed-g002-recovery'
+        ? (() => {
+          bindingBytes = readLocalBindingBoundedFile(resolve(REPOSITORY_ROOT, 'config/releases/0.4.0-sealed-launch.json'),
+            { maximumBytes: 2 * 1024 * 1024 }).body;
+          return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bindingBytes);
+        })()
+        : readSources().bindingJson;
+      ptr = verifySealedLaunchPagesBuildEnvironment({ bindingSource, environment });
+    } finally { bindingBytes?.fill(0); }
     process.stdout.write(`${JSON.stringify({ ...result, ...ptr })}\n`);
     return;
   }

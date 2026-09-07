@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, copyFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, beforeEach, expect, it } from 'vitest';
@@ -18,6 +18,11 @@ beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'warpkeep-recovery-source-'));
   git('init', '--quiet'); git('config', 'core.autocrlf', 'false');
   mkdirSync(join(root, 'config/releases'), { recursive: true });
+  mkdirSync(join(root, 'scripts'));
+  for (const file of ['verify-0.4.0-sealed-launch.mjs', 'local-binding-bounded-file.mjs',
+    'recovery-attestation-source.mjs', 'recovery-activation-candidate.mjs', 'recovery-binding-projection.mjs']) {
+    copyFileSync(fileURLToPath(new URL(`../scripts/${file}`, import.meta.url)), join(root, 'scripts', file));
+  }
   json('config/releases/0.4.0-sealed-launch.json', { preparation: true });
   json('package.json', { name: 'warpkeep', version: '0.3.43' });
   json('package-lock.json', { name: 'warpkeep', version: '0.3.43', lockfileVersion: 3, requires: true,
@@ -56,6 +61,26 @@ it.skipIf(process.platform !== 'linux')('rejects recovery routing with a stale s
 it('rejects dirty source outside the three activation files', () => {
   writeFileSync(join(root, 'source.js'), 'changed');
   expect(() => readRecoveryAttestationSource(root)).toThrow();
+});
+it.skipIf(process.platform !== 'linux')('runs the real recovery Pages build CLI and rejects wrong PTR targeting', () => {
+  const candidate = git('rev-parse', 'HEAD');
+  const binding = JSON.parse(readFileSync(join(root, 'config/releases/0.4.0-sealed-launch.json'), 'utf8'));
+  const env = { PATH: '/usr/bin:/bin', CI: 'true', GITHUB_ACTIONS: 'true',
+    GITHUB_REPOSITORY: 'ael-dev3/Warpkeep', GITHUB_EVENT_NAME: 'workflow_run',
+    GITHUB_WORKFLOW_REF: 'ael-dev3/Warpkeep/.github/workflows/deploy-pages.yml@refs/heads/main',
+    WARPKEEP_PAGES_SOURCE_COMMIT: candidate, VITE_WARPKEEP_PTR_ENABLED: 'true',
+    VITE_PTR_SPACETIMEDB_DATABASE: binding.ptrDatabaseIdentity };
+  const invoke = (environment: NodeJS.ProcessEnv) => spawnSync(process.execPath,
+    [join(root, 'scripts/verify-0.4.0-sealed-launch.mjs'), '--phase=pages-build'],
+    { cwd: root, env: environment, encoding: 'utf8', timeout: 15000 });
+  const accepted = invoke(env);
+  expect(accepted.stderr).toBe(''); expect(accepted.status).toBe(0);
+  expect(JSON.parse(accepted.stdout)).toEqual({ profile: 'warpkeep-0.4.0-sealed-launch-v2',
+    candidatePagesSourceCommit: candidate, mode: 'sealed-g002-recovery', ptrEnabled: true,
+    ptrDatabaseIdentity: binding.ptrDatabaseIdentity });
+  const rejected = invoke({ ...env, VITE_PTR_SPACETIMEDB_DATABASE: binding.g001DatabaseIdentity });
+  expect(rejected.status).toBe(1); expect(rejected.stdout).toBe('');
+  expect(rejected.stderr).toBe('SEALED_LAUNCH_PAGES_PTR_ENVIRONMENT_INVALID\n');
 });
 it('rejects an extra source change committed into the activation child', () => {
   writeFileSync(join(root, 'source.js'), 'changed'); git('add', '.');
