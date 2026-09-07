@@ -2,6 +2,7 @@
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { PassThrough, Readable } from 'node:stream';
 import { beforeAll, expect, it, vi } from 'vitest';
 const kid = 'warpkeep-0.4.0-recovery-2026-09-03-1';
 const order = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n;
@@ -27,9 +28,11 @@ function token(value: unknown = payload()) {
   return `${input}.${signature.toString('base64url')}`;
 }
 let verify: typeof import('../scripts/verify-recovery-claim-receipt.mjs').verifyRecoveryClaimReceipt;
+let verifyInput: typeof import('../scripts/verify-recovery-claim-receipt.mjs').verifyRecoveryClaimReceiptFromStdin;
 beforeAll(async () => {
   vi.doMock('../scripts/recovery-public-key.mjs', () => ({ RECOVERY_KEY_ID: kid, RECOVERY_PUBLIC_JWK: jwk, RECOVERY_KEY_THUMBPRINT: thumbprint }));
   verify = (await import('../scripts/verify-recovery-claim-receipt.mjs')).verifyRecoveryClaimReceipt;
+  verifyInput = (await import('../scripts/verify-recovery-claim-receipt.mjs')).verifyRecoveryClaimReceiptFromStdin;
 });
 it('verifies a signed claim bound to independently expected authorization and artifact coordinates', () => {
   expect(verify(token(), JSON.stringify(expected()), 1030)).toEqual({ authorizationEpoch: 7, claimSequence: 1, issuedAt: 1001, expiresAt: 1121 });
@@ -91,8 +94,65 @@ it('rejects the test signer through the unmodified production entrypoint', async
   const production = await import('../scripts/verify-recovery-claim-receipt.mjs');
   expect(() => production.verifyRecoveryClaimReceipt(token(), JSON.stringify(expected()), 1030)).toThrow('RECOVERY_CLAIM_INVALID');
 });
-it('does not report successful CLI verification before expected-context integration exists', () => {
+it('rejects unsupported CLI arguments without exposing private data', () => {
   const result = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/verify-recovery-claim-receipt.mjs', import.meta.url)), '--check'], { encoding: 'utf8' });
   expect(result.status).toBe(1); expect(result.stdout).toBe('');
-  expect(result.stderr).toBe('RECOVERY_CLAIM_CLI_NOT_IMPLEMENTED\n');
+  expect(result.stderr).toBe('RECOVERY_CLAIM_INVALID\n');
+});
+it('verifies a private stdin envelope and wipes the consumed buffer', async () => {
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(1030000);
+  const bytes = Buffer.from(JSON.stringify({ claimReceiptJws: token(), expectedSource: JSON.stringify(expected()) }));
+  const input = Readable.from([bytes]);
+  try {
+    await expect(verifyInput(input)).resolves.toEqual({ authorizationEpoch: 7, claimSequence: 1, issuedAt: 1001, expiresAt: 1121 });
+    expect(bytes.every(byte => byte === 0)).toBe(true);
+    expect(input.destroyed).toBe(true);
+  } finally { clock.mockRestore(); }
+});
+it('rejects expiry while the private envelope is being read', async () => {
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(1030000);
+  const input = new PassThrough();
+  try {
+    const rejected = expect(verifyInput(input)).rejects.toThrow('RECOVERY_CLAIM_INVALID');
+    input.write(Buffer.from(JSON.stringify({ claimReceiptJws: token(), expectedSource: JSON.stringify(expected()) })));
+    clock.mockReturnValue(1121000); input.end();
+    await rejected;
+  } finally { clock.mockRestore(); input.destroy(); }
+});
+it('rejects malformed, oversized, text-mode and extra-field envelopes', async () => {
+  for (const source of ['', 'private-sentinel', 'A'.repeat(65537), JSON.stringify({ claimReceiptJws: token(), expectedSource: JSON.stringify(expected()), allowExpired: true })]) {
+    const input = Readable.from([Buffer.from(source)]);
+    await expect(verifyInput(input)).rejects.toThrowError(/^RECOVERY_CLAIM_INVALID$/);
+    expect(input.destroyed).toBe(true);
+  }
+  await expect(verifyInput(Readable.from(['private-sentinel']))).rejects.toThrow('RECOVERY_CLAIM_INVALID');
+});
+it('terminates an incomplete private envelope after five seconds', async () => {
+  vi.useFakeTimers();
+  const input = new PassThrough();
+  try {
+    const rejected = expect(verifyInput(input)).rejects.toThrow('RECOVERY_CLAIM_INVALID');
+    input.write(Buffer.from('private-sentinel'));
+    await vi.advanceTimersByTimeAsync(5000); await rejected;
+    expect(input.destroyed).toBe(true);
+  } finally { vi.useRealTimers(); input.destroy(); }
+});
+it('rejects duplicate, reordered, BOM-prefixed and noncanonical envelope bytes', async () => {
+  const envelope = { claimReceiptJws: token(), expectedSource: JSON.stringify(expected()) };
+  for (const source of [JSON.stringify(envelope, null, 2), `\ufeff${JSON.stringify(envelope)}`,
+    JSON.stringify({ expectedSource: envelope.expectedSource, claimReceiptJws: envelope.claimReceiptJws }),
+    JSON.stringify(envelope).replace('{', '{"claimReceiptJws":"private-sentinel",')]) {
+    await expect(verifyInput(Readable.from([Buffer.from(source)]))).rejects.toThrow('RECOVERY_CLAIM_INVALID');
+  }
+});
+it('redacts stream errors and rejects clock override arguments', async () => {
+  const input = new PassThrough();
+  const rejected = expect(verifyInput(input)).rejects.toThrowError(/^RECOVERY_CLAIM_INVALID$/);
+  input.destroy(new Error('private-sentinel')); await rejected;
+  await expect(Reflect.apply(verifyInput, null, [Readable.from([]), 1030])).rejects.toThrow('RECOVERY_CLAIM_INVALID');
+});
+it.each([[], ['--now', '1030'], ['--token', 'private-sentinel']])('CLI redacts private stdin and rejects overrides: %j', (...argv) => {
+  const result = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/verify-recovery-claim-receipt.mjs', import.meta.url)), ...argv],
+    { input: 'private-sentinel', encoding: 'utf8', timeout: 10000 });
+  expect(result.status).toBe(1); expect(result.stdout).toBe(''); expect(result.stderr).toBe('RECOVERY_CLAIM_INVALID\n');
 });

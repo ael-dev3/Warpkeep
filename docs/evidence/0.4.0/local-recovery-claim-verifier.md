@@ -21,4 +21,16 @@ Commands (Node 22.22.3):
 
 Review exposed mismatches in durable sequence/timestamp equality and unnecessarily number-bounded GitHub IDs. Seven failing regressions demonstrated both before correction. Fresh verification passed all 555 root tests (94 claim, 57 status, 404 binding/projection), all 42 service crypto/status/claim tests, and both TypeScript checks.
 
-This is component implementation, not a deployed claim or complete Task 2. Authorization-JWS verification, derivation of expected claim coordinates from verified authorization, secure CLI integration, authenticated acquisition, workflow ordering and fresh status checks remain required before deployment.
+This is component implementation, not a deployed claim or complete Task 2. The historical checkpoint above left authorization verification and CLI integration unfinished; subsequent changes are recorded below.
+
+## Private stdin integration — 2026-09-07
+
+Following authorization integration in `3da0aa59`, the claim command now accepts no arguments and consumes one private compact JSON envelope from stdin, with exactly these ordered fields: `claimReceiptJws` and `expectedSource`. The latter is the exact private JSON string derived by the authorization verifier, not an assertion of authority from arbitrary matching JSON. The workflow must establish and preserve that context independently.
+
+Input is binary, non-interactive, limited to 65,536 bytes and a five-second deadline. Malformed UTF-8, BOM, duplicate/reordered/extra keys, noncanonical JSON, text-mode streams and pre-consumed streams are rejected. Receipt verification samples the real wall clock after EOF; no CLI clock, key, token or expiry override is accepted. Consumed mutable chunks and the owned accumulator are cleared, and the input stream is destroyed. JavaScript immutable strings are not claimed to be zeroized.
+
+The command emits only epoch, sequence and issue/expiry times after successful verification; failures emit the fixed redacted error and exit one. This is a necessary claim gate, not a complete deployment authorization or fresh status check. Example invocation is `node scripts/verify-recovery-claim-receipt.mjs` with the envelope supplied through a private pipe, never command arguments or logged shell interpolation.
+
+Four tests failed against the unimplemented input boundary before implementation. Expanded verification: 315 root authorization/claim/status tests passed; 43 service authorization/claim/status/crypto tests passed; root `tsc -b` and service `tsc --noEmit` exited zero. CLI rejection tests execute real child processes; the successful signed-input test uses an ephemeral test key through the imported stdin entrypoint, not the production private key.
+
+Authenticated acquisition, authorization CLI/private-context persistence, full workflow ordering, boundary status rechecks and live deployment remain unfinished.

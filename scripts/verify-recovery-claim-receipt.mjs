@@ -1,5 +1,6 @@
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { Readable } from 'node:stream';
 import { RECOVERY_KEY_ID } from './recovery-public-key.mjs';
 import { verifyRecoverySignedPayload } from './recovery-authorization-protocol.mjs';
 const EXPECTED_KEYS = ['requestId', 'authorizationJti', 'authorizationJwsSha256', 'pagesRunId', 'pagesRunAttempt',
@@ -44,6 +45,42 @@ export function verifyRecoveryClaimReceipt(...args) {
     return Object.freeze({ authorizationEpoch: p.authorizationEpoch, claimSequence: p.claimSequence, issuedAt: p.iat, expiresAt: p.exp });
   } catch { fail(); }
 }
+/** Private canonical envelope: {claimReceiptJws, expectedSource}. No caller clock override. */
+export async function verifyRecoveryClaimReceiptFromStdin(...args) {
+  const [input] = args;
+  const bytes = Buffer.alloc(65536);
+  let length = 0;
+  let timer;
+  try {
+    if (args.length !== 1 || !(input instanceof Readable) || input.isTTY
+      || input.destroyed || input.readableDidRead || input.readableEncoding) fail();
+    timer = setTimeout(() => input.destroy(new Error('RECOVERY_CLAIM_INVALID')), 5000);
+    for await (const chunk of input) {
+      try {
+        if (!Buffer.isBuffer(chunk) || chunk.length > bytes.length - length) fail();
+        chunk.copy(bytes, length); length += chunk.length;
+      } finally { if (Buffer.isBuffer(chunk)) chunk.fill(0); }
+    }
+    const source = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, length));
+    const envelope = JSON.parse(source);
+    if (envelope === null || typeof envelope !== 'object' || Array.isArray(envelope)
+      || Object.keys(envelope).join(',') !== 'claimReceiptJws,expectedSource'
+      || JSON.stringify(envelope) !== source) fail();
+    return verifyRecoveryClaimReceipt(envelope.claimReceiptJws, envelope.expectedSource, Math.floor(Date.now() / 1000));
+  } catch { fail(); }
+  finally {
+    clearTimeout(timer); bytes.fill(0);
+    if (input instanceof Readable) input.destroy();
+  }
+}
 let direct = false;
 try { direct = Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url); } catch { /* imported */ }
-if (direct) { process.stderr.write('RECOVERY_CLAIM_CLI_NOT_IMPLEMENTED\n'); process.exitCode = 1; }
+if (direct) {
+  try {
+    if (process.argv.length !== 2) fail();
+    const result = await verifyRecoveryClaimReceiptFromStdin(process.stdin);
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+  } catch {
+    process.stdin.destroy(); process.stderr.write('RECOVERY_CLAIM_INVALID\n'); process.exitCode = 1;
+  }
+}
