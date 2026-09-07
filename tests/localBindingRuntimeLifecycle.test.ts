@@ -15,7 +15,7 @@ import {
 } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createPtrFixture, LINUX_PACKAGE_KEYS } from './fixtures/ptrLockedSourceBuildFixture';
 import {
@@ -493,7 +493,20 @@ vi.mock('warpkeep:genesis001-compatibility-entry', async () => {
   };
 });
 
+let restoreFixtureProcessOwner: (() => void) | undefined;
+beforeEach(() => {
+  // This controlled lifecycle uses simulated UID-1000 file metadata. The
+  // in-process locked-source helper must observe the same simulated account,
+  // not the ambient CI runner's UID. Native owner tests remain separate.
+  if (process.getuid !== undefined) {
+    const owner = vi.spyOn(process, 'getuid').mockReturnValue(1000);
+    restoreFixtureProcessOwner = () => owner.mockRestore();
+  }
+});
+
 afterEach(() => {
+  restoreFixtureProcessOwner?.();
+  restoreFixtureProcessOwner = undefined;
   boundary.request = undefined;
   boundary.events.length = 0;
   boundary.executableAttestations = 0;
