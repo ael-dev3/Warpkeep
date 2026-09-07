@@ -3,15 +3,36 @@
 The root [README](../README.md) is the best starting point for players and new
 contributors. This page routes deeper work without duplicating it.
 
-## Start here
+## Current 0.4 — start here
+
+- [Agent guide](../AGENTS.md) — durable repository rules, authority boundaries,
+  verification and handoff expectations
+- [0.4 agent handoff and quality audit](agent-notes/0.4.0/README.md) — current
+  implementation map, working and unverified behavior, release gaps, and next checks
+- [0.4 release checklist](operations/0.4.0-release-checklist.md) — the single
+  mandatory R01–R18 acceptance contract; planned evidence destinations are not passes
+- [Development workflow](engineering/development-workflow.md) — document ownership,
+  bounded changes, review, evidence and source publication
+- [Technical architecture](technical-architecture.md) — current subsystem ownership,
+  preserved G001 versus separate 0.4, rendering and delivery boundaries
+
+## Product and contribution
 
 - [Product direction](design/warpkeep-direction.md) — the game's premise and
   design principles
 - [Roadmap](design/roadmap.md) — what is live, under development, and later
+- [Contributing](../CONTRIBUTING.md) — local setup, checks, privacy, and
+  provenance expectations
+- [Code of Conduct](../CODE_OF_CONDUCT.md) — expectations for project spaces
+
+## Preserved G001 and dormant V1 references
+
+These guides describe their named generation, not new 0.4 gameplay authority or
+an instruction to activate unrelated features. Use the settled 0.4 specs below
+for the current release; retain historical contracts and provenance intact.
+
 - [Realm Chat V1 implementation](design/realm-chat-v1-implementation.md) —
   review-only research, SpacetimeDB authority, abuse controls, and rollout gates
-- [Technical architecture](technical-architecture.md) — browser, identity
-  bridge, SpacetimeDB, rendering, and delivery
 - [Lowlands renderer](design/hegemony-lowlands-terrain.md) — terrain,
   presentation, and performance principles
 - [Living Realm V1](design/living-realm-v1.md) — coherent environmental motion,
@@ -28,11 +49,22 @@ contributors. This page routes deeper work without duplicating it.
   — the snow-system clean-room and license record
 - [Sunscoured South reference boundary](design/sunscoured-south-reference-boundary.md)
   — the desert presentation's clean-room boundary
-- [Contributing](../CONTRIBUTING.md) — local setup, checks, privacy, and
-  provenance expectations
-- [Code of Conduct](../CODE_OF_CONDUCT.md) — expectations for project spaces
 
-## System guides
+## Current 0.4 specifications and acceptance
+
+- [0.4 gameplay specification](superpowers/specs/2026-09-05-warpkeep-0.4-gameplay-design.md)
+  — settled isolated gameplay; not the older dormant G001 construction-discount policy
+- [Verdant Citadel specification](superpowers/specs/2026-09-06-warpkeep-astra-keep-design.md)
+  — separate 0.4 presentation, mobile usability and accurate asset authorship
+- [Local complete release assembler](superpowers/specs/2026-09-06-warpkeep-local-release-assembler-design.md)
+  — required family derivation, installation/recovery and final-freeze ordering
+- [0.4 performance contract](evidence/0.4.0/performance.md) — fixed profiles,
+  workload and numeric gates; final measurements remain separately required
+
+## Services and operations
+
+Inspect the named runbook's generation, actual script and current authority before
+running an operation. Historical procedures do not replace the 0.4 release path.
 
 - [Farcaster integration](farcaster-integration.md)
 - [Auth bridge](../services/auth-bridge/README.md)
@@ -57,6 +89,13 @@ contributors. This page routes deeper work without duplicating it.
   It is evidence for specific assets, not a general asset library.
 
 ## Project history
+
+Current 0.4 intent is defined by the release checklist and linked settled specs;
+current implementation must be checked against source and dated evidence.
+Older design, operations and `superpowers` plans preserve their own generation and
+date. They do not silently reopen scope, prove deployment or override the new
+gameplay policy. The [documentation ownership guide](engineering/development-workflow.md)
+explains where to update each kind of information.
 
 The [changelog](../CHANGELOG.md) summarizes public versions, and the
 [versioning guide](releases/versioning.md) explains tags and builds. Git tags,

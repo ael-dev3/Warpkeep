@@ -57,12 +57,20 @@ See [`LICENSING.md`](LICENSING.md),
 
 ## Development checks
 
+Start with the [agent/contributor guide](AGENTS.md),
+[0.4 handoff](docs/agent-notes/0.4.0/README.md), and
+[development workflow](docs/engineering/development-workflow.md). They distinguish
+the preserved G001 baseline, current 0.4 target, test boundaries and release evidence.
+
 From the repository root:
 
 ```sh
 npm ci
 npm run check
 ```
+
+`npm ci` above is for a fresh independent checkout. Inspect dependency paths in
+an existing worktree first; never reinstall into a shared `node_modules` junction.
 
 `npm run check` verifies licensing, runtime assets, repository size, tests,
 types, and the production build. When changing the auth bridge or SpacetimeDB

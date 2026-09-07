@@ -15,9 +15,11 @@ No reference code, textures or other assets were copied.
 
 - Preserve a readable strategic map: use restrained blue/teal color depth,
   broad wave structure and sparse highlights rather than screen-filling sparkle.
-- Reuse existing quality-scaled analytic wave/normal shading, foam and fallback
-  infrastructure in `src/components/realm/realmWaterLayer.ts` and `realmQuality.ts`.
-  Do not introduce a second ocean engine merely to match the reference.
+- Target the actual 0.4 water in `src/greater-realm/createGreaterRealmSceneRuntime.ts`.
+  The analytic wave/normal, foam and fallback infrastructure in the legacy
+  `src/components/realm/realmWaterLayer.ts` is a reuse reference, not already
+  integrated 0.4 water. Any adaptation must be 0.4-owned and leave G001 unchanged;
+  do not introduce a second ocean engine merely to match the reference.
 - Prefer shader-level lighting/color tuning. No FFT ocean simulation, additional
   reflection/refraction scene renders, volumetric clouds, physics, free flight,
   underwater mode or new environmental interactions for this inspiration item.
@@ -33,3 +35,13 @@ No reference code, textures or other assets were copied.
 Status: inspiration studied and recorded; no water implementation changed. Apply
 only as bounded polish within existing visual coverage. This note does not add a
 separate engine or silently expand the finite release acceptance checklist.
+
+## Renderer routing clarification — 2026-09-07
+
+The actual 0.4/PTR world water is currently created by `waterMesh` in
+`src/greater-realm/createGreaterRealmSceneRuntime.ts`, with standard materials
+and bounded color/opacity animation. `realmWaterLayer.ts` is consumed by the
+legacy G001 renderer, not that 0.4 path. Its analytic shading is a reuse reference,
+not already-integrated 0.4 functionality. Any adaptation must be 0.4-owned and
+leave G001 appearance unchanged. See the [agent visual audit](../agent-notes/0.4.0/gameplay-and-visuals.md)
+for the source distinction and required verification.
