@@ -598,3 +598,36 @@ This is the two-file recovery installation test, not a rerun of the complete
 realm artifact/closure family. Complete-family verification and the protected
 Actions job/deployment-boundary/terminal integration still remain; no final
 freeze, real authentication request, or live deployment occurred.
+
+## Verified local content-manifest cross-check — 2026-09-07
+
+At `7697711aa1f621685aa5d451ef1ca12d8b8e62b0`, the deployment-attestation
+verifier returns the content-manifest SHA-256 derived from its actual bounded
+file-tree scan, only after the installed attestation matches the derived bytes.
+It does not obtain this result from unchecked stored JSON. Recovery artifact
+intake compares that digest with the inspected archive's content manifest and
+rechecks both local digests after metadata revalidation. No second archive
+download was added.
+
+Verification at that source:
+
+- Windows attestation suite: 27 passed, five Linux-only installation tests skipped.
+- Native WSL/Linux attestation suite: 31 passed, one Windows-only rejection test
+  skipped. The five installation tests therefore ran on their supported host.
+- Recovery workflow artifact composition: 14 passed, including manifest mismatch
+  and changed second-read manifest denial with exactly one download.
+- Compiled recovery workflow module suite: eight passed, including native child
+  ingestion of a real compressed fixture. Source/API/dist fixture boundaries are
+  synthetic; this is not authenticated production artifact evidence.
+- Root TypeScript build passed.
+
+Commands: run `tests/deploymentAttestation.test.ts` and
+`tests/recoveryWorkflowArtifactModule.test.ts` with root Vitest; run
+`test/workflowArtifact.test.ts` with the recovery service's Vitest. Linux used
+the fixed Node 22.22.3 executable in the clean independent diagnostic checkout.
+
+This exposes the independently verified local digest needed by the pending
+separate-process deployment recheck. That recheck, protected workflow wiring,
+live authentication, final freeze, and deployment are still incomplete. The
+earlier complete-family result applies to its recorded source, not automatically
+to this changed compiler input.
