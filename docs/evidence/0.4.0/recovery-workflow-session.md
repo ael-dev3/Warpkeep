@@ -631,3 +631,46 @@ separate-process deployment recheck. That recheck, protected workflow wiring,
 live authentication, final freeze, and deployment are still incomplete. The
 earlier complete-family result applies to its recorded source, not automatically
 to this changed compiler input.
+
+## Separate-process preflight progress — 2026-09-07
+
+Implementation through `d35faef4d3424c76308c1cea8ef45001df773f56`:
+
+- `readRecoveryClaimHandoffHistory` projects only signature/schema/deadline-checked
+  historical context. It returns neither the private receipt nor deployment
+  permission. Ten Linux filesystem tests passed (cryptography mocked there).
+  The separate native handoff probe passed fourteen cross-process checks with a
+  generated test-only key, including wrong-key denial, strict deployment expiry,
+  and historical correlation stopping at the signed deadline. The probe requires
+  Node's `--experimental-vm-modules`; the first invocation without it failed at
+  module import, before running the probe.
+- `readRecoveryWorkflowCurrentContext` matches signed history against fresh
+  run/artifact metadata, candidate commit/tree and re-derived local content and
+  attestation hashes, then repeats the relevant reads. Only the signed inner TAR
+  digest is historical, anchored to the matching immutable archive SHA-256.
+  Seventeen mocked composition tests and targeted strict TypeScript passed.
+- `recovery-workflow-check-deployment.mjs` composes that reader with the existing
+  signed-status/current-expiry persisted-claim boundary. It accepts no arguments,
+  prints only a fixed acknowledgment, and never deploys. Thirty-three combined
+  context/boundary/command tests passed, including native argument rejection.
+  The command is included as a prospective closure graph root; this is not a
+  final closure freeze.
+- The GitHub workflow validator requires adjacent claim preparation, the exact
+  boundary command, and the one exact pinned Pages deployment action and artifact
+  name. Its 233-test suite and recovery-service TypeScript passed.
+
+The actual Pages workflow remains unwired: its classifier still uses the schema-1
+path; schema-2 routing, the local recovery job, postflight and terminal handling
+remain required. These tests do not prove authenticated production execution.
+
+Two subsequent full recovery-service runs failed only with reported five-second
+test timeouts: first 967 passed/one failed, then 966 passed/two failed. Commits
+`6cc89aa` and `2346198` apply the existing 60-second transaction-test allowance
+to two rollback tests and a 30-second real-host-module import allowance to the
+attestation schema test. No runtime timeout or acceptance gate changed. The
+combined focused rerun passed all 71 tests in 44.95 seconds. The subsequent full
+run at `2346198adf74c1be49cda47f3f35ee7e549badda` passed all 968 tests across
+33 files in 74.70 seconds, exit code 0. Command, from `services/release-recovery`:
+`../../.git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run --maxWorkers=1`.
+This is the Windows Node test suite, not the separate workerd/runtime suite or
+live acceptance. The earlier full runs remain recorded as failures.
