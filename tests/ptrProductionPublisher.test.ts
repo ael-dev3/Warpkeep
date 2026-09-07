@@ -413,12 +413,17 @@ describe('PTR production publisher', () => {
     ];
     const procedures = [
       'admin_get_greater_realm_status_v1',
+      'dispatch_gameplay04_worker_v1',
+      'get_gameplay04_keep_v1',
       'get_ptr_owner_status_v1',
       'get_realm_atlas_bootstrap_v1',
       'get_realm_atlas_chunk_v1',
       'get_realm_atlas_resource_locations_v1',
       'get_realm_atlas_window_v1',
+      'initialize_gameplay04_keep_v1',
       'plan_realm_route_v1',
+      'recall_gameplay04_worker_v1',
+      'start_gameplay04_building_v1',
     ];
     expect(verifyPtrGeneratedAbi({
       reducers,
@@ -427,13 +432,30 @@ describe('PTR production publisher', () => {
       publicTables: [],
     })).toEqual({
       reducerCount: 9,
-      procedureCount: 7,
+      procedureCount: 12,
       tableCount: 0,
       publicTableCount: 0,
       ownerProvisionReducerCount: 1,
       ownerSuspendReducerCount: 1,
       atlasActivationReducerCount: 0,
     });
+    for (const procedure of procedures.filter(name => name.includes('gameplay'))) {
+      expect(() => verifyPtrGeneratedAbi({
+        reducers, procedures: procedures.filter(name => name !== procedure),
+        tables: [], publicTables: [],
+      })).toThrow('PTR_PRODUCTION_MODULE_ABI_INVALID');
+    }
+    expect(() => verifyPtrGeneratedAbi({
+      reducers, procedures: procedures.filter(name => !name.includes('gameplay')),
+      tables: [], publicTables: [],
+    })).toThrow('PTR_PRODUCTION_MODULE_ABI_INVALID');
+    expect(() => verifyPtrGeneratedAbi({
+      reducers: [...reducers, 'run_gameplay_04_schedule_v_1'], procedures,
+      tables: [], publicTables: [],
+    })).toThrow('PTR_PRODUCTION_MODULE_ABI_INVALID');
+    expect(() => verifyPtrGeneratedAbi({
+      reducers, procedures, tables: [], publicTables: ['gameplay04_keep_v1'],
+    })).toThrow('PTR_PRODUCTION_MODULE_ABI_INVALID');
     expect(() => verifyPtrGeneratedAbi({
       reducers: [...reducers, 'admin_activate_greater_realm_v1'],
       procedures,

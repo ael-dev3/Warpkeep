@@ -112,12 +112,17 @@ const EXPECTED_REDUCERS = Object.freeze([
 ]);
 const EXPECTED_PROCEDURES = Object.freeze([
   'admin_get_greater_realm_status_v1',
+  'dispatch_gameplay04_worker_v1',
+  'get_gameplay04_keep_v1',
   'get_ptr_owner_status_v1',
   'get_realm_atlas_bootstrap_v1',
   'get_realm_atlas_chunk_v1',
   'get_realm_atlas_resource_locations_v1',
   'get_realm_atlas_window_v1',
+  'initialize_gameplay04_keep_v1',
   'plan_realm_route_v1',
+  'recall_gameplay04_worker_v1',
+  'start_gameplay04_building_v1',
 ]);
 
 export class PtrProductionPublisherError extends Error {
@@ -566,8 +571,8 @@ export function verifyPtrGeneratedAbi(value) {
     || !exactNames(value.publicTables, [])
   ) fail('PTR_PRODUCTION_MODULE_ABI_INVALID');
   return Object.freeze({
-    reducerCount: 9,
-    procedureCount: 7,
+    reducerCount: EXPECTED_REDUCERS.length,
+    procedureCount: EXPECTED_PROCEDURES.length,
     tableCount: 0,
     publicTableCount: 0,
     ownerProvisionReducerCount: 1,
