@@ -95,3 +95,23 @@ Remaining: choose/provision the fixed runner-private directory in the real
 workflow, implement process-resume and ambiguous-claim handling, connect the
 pinned Pages action and terminal step, and verify genuine Actions execution.
 No live authorization or deployment occurred in these tests.
+
+## Reconciliation reopen adapter
+
+`scripts/recovery-workflow-reconciliation.mjs` reopens a persisted claim using
+independently established current run/artifact context and exposes only
+`reconcile()` and `dispose()`. It cannot issue, claim, deploy or recreate a
+deployment boundary. After fresh OIDC acquisition it reopens and compares the
+private handoff again, including its signed deadline, then sends the original
+locators and receipt to the fixed reconcile endpoint and verifies the terminal
+response. An ambiguous response permits only another fresh reconciliation;
+concurrent requests and post-disposal revival are rejected.
+
+This is an adapter for a later process, not yet an installed Actions entrypoint.
+Tests mock the storage, network and verifier boundaries. Actual cross-process
+signed-receipt recovery, fixed runner-directory provisioning, workflow wiring,
+and recovery when no receipt was persisted remain unverified/unfinished.
+Windows adapter/session run: 21 tests passed with one Linux-only skip;
+targeted strict TypeScript passed. Eight adapter tests cover the normal path,
+missing/substituted/expired storage, ambiguity, verifier failure, concurrency
+and disposal. No live request was sent.
