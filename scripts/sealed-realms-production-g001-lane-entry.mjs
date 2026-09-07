@@ -772,7 +772,7 @@ async function censusSecondInspect(authority, capability, input) {
       confirmationDigest,
     });
     const confirmationPersisted = writeCensusRecord(member.privateState, 'confirmation', confirmationRecord);
-    captureCensusActivationRecord(member, authority, Object.freeze({
+    captureG001ActivationRecord(member, authority, Object.freeze({
       first: canonicalCensusApplicant(first.sample.applicant),
       second: canonicalCensusApplicant(second.sample.applicant),
     }));
@@ -874,20 +874,22 @@ async function censusSecondSuspend(authority, capability, input) {
     consumed: reopen(consumedRecord.relativePath, consumedRecord.digest,
       ['schemaVersion', 'profile', 'sourceCommit', 'firstDigest', 'secondDigest', 'confirmationDigest', 'consumedAt']),
   });
-  captureCensusActivationRecord(member, authority, receipt);
+  captureG001ActivationRecord(member, authority, receipt);
   return Object.freeze({ status: 'completed' });
 }
 
 // Private to this producer module. No caller-selected path, operation or raw
 // receipt capture surface is exported to a lane or dispatcher consumer.
-function captureCensusActivationRecord(member, authority, receipt) {
+function captureG001ActivationRecord(member, authority, receipt) {
   const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(authority);
   const operation = authority.operation;
   const capture = operation === 'g001-census-second-inspect'
     ? ['g001CensusPrivacySafePrivateReceipt', 'g001-census-privacy-safe-private-receipt.json']
     : operation === 'g001-census-second-suspend'
       ? ['g001AdmittedPlayerCensusPrivateReceipt', 'g001-admitted-player-census-private-receipt.json']
-      : undefined;
+      : operation === 'g001-current-state'
+        ? ['g001AdmissionMonitorCurrentStateReceipt', 'g001-admission-monitor-current-state-receipt.json']
+        : undefined;
   if (authority.mode !== 'S' || capture === undefined) fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
   const [recordMember, basename] = capture;
   const body = Buffer.from(`${JSON.stringify(receipt)}\n`, 'utf8');
@@ -1710,6 +1712,11 @@ export function createSealedRealmsProductionG001Lane(input) {
         censusAuthorityMember(options.censusAuthority).privateState,
         receipt,
       );
+      // Activated-mode read-only inspection must not replace preparation
+      // evidence. Only the authenticated S producer captures this member.
+      if (authority.mode === 'S') {
+        captureG001ActivationRecord(censusAuthorityMember(options.censusAuthority), authority, receipt);
+      }
       return Object.freeze({ status: 'current-state-inspected' });
     }
     requireWebSocket();

@@ -440,6 +440,17 @@ describe('sealed-realms production recovery policy', () => {
       try {
         expect(JSON.parse(bytes.toString('utf8'))).toEqual(operator.mock.results[0]?.value);
       } finally { bytes.fill(0); }
+      const captured = fixture.state().read({
+        root: 'runtime',
+        relativePath: 'activation-evidence/records/g001-admission-monitor-current-state-receipt.json',
+      });
+      try {
+        const record = JSON.parse(captured.toString('utf8'));
+        expect(record.member).toBe('g001AdmissionMonitorCurrentStateReceipt');
+        expect(record.operation).toBe('g001-current-state');
+        expect(record.sourceAuthorityDigest).toBe(run.sourceAuthority.authorityDigest);
+        expect(record.receipt).toEqual(operator.mock.results[0]?.value);
+      } finally { captured.fill(0); }
     } finally { fixture.cleanup(); }
   });
 
@@ -461,6 +472,25 @@ describe('sealed-realms production recovery policy', () => {
       expect(fixture.state().list({
         root: 'runtime', relativeDirectory: 'g001/current-state',
       })).toEqual([]);
+      expect(fixture.state().exists({
+        root: 'runtime', relativePath: 'activation-evidence/records/g001-admission-monitor-current-state-receipt.json',
+      })).toBe(false);
+    } finally { fixture.cleanup(); }
+  });
+
+  it('fails without replacing an existing current-state activation capture', async () => {
+    const fixture = privateFixture();
+    const relativePath = 'activation-evidence/records/g001-admission-monitor-current-state-receipt.json';
+    try {
+      fixture.state().write({ root: 'runtime', relativePath, bytes: Buffer.from('{}\n') });
+      const operator = vi.fn(() => currentStateReceipt());
+      const run = await protectedRun('g001-current-state', '9791');
+      await expect(dispatchG001(
+        g001Lane(fixture.state(), vi.fn(), vi.fn(), operator), run, fixture.state(),
+      )).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+      expect(operator).toHaveBeenCalledTimes(1);
+      const bytes = fixture.state().read({ root: 'runtime', relativePath });
+      try { expect(bytes.toString('utf8')).toBe('{}\n'); } finally { bytes.fill(0); }
     } finally { fixture.cleanup(); }
   });
 
