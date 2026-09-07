@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as vm from 'node:vm';
 import { createHash } from 'node:crypto';
-import { existsSync, linkSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, linkSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -185,7 +185,12 @@ describe('fixed Genesis 001 local upgrade proof', () => {
         sha256: createHash('sha256').update(body).digest('hex'), identity: opened.identity,
       };
       opened.body.fill(0);
-      expect(() => attestGenesis001LocalProofArtifact(artifact)).not.toThrow();
+      if (process.platform === 'win32' || statSync(path).uid === 1000) {
+        expect(() => attestGenesis001LocalProofArtifact(artifact)).not.toThrow();
+      } else {
+        expect(() => attestGenesis001LocalProofArtifact(artifact))
+          .toThrow('GENESIS001_LOCAL_PROOF_ARTIFACT_CHANGED');
+      }
 
       writeFileSync(path, Buffer.from('changed!-bundle'));
       expect(() => attestGenesis001LocalProofArtifact(artifact))
@@ -233,22 +238,17 @@ describe('fixed Genesis 001 local upgrade proof', () => {
     };
     const baselineArtifact = artifact(baselinePath, Buffer.from('baseline'));
     const frozenArtifact = artifact(frozenPath, Buffer.from('frozen'));
-    let clock = 0;
-    const now = vi.spyOn(Date, 'now').mockImplementation(() => {
-      clock += 1;
-      return clock <= 2 ? 0 : 1_000_000 + clock * 10_000;
-    });
-    let evidence: unknown;
+    // Expire only the startup deadline. Containment must retain real elapsed time
+    // so SIGTERM/SIGKILL can be delivered and the actual child can be reaped.
+    const now = vi.spyOn(Date, 'now')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(1_000_000);
     try {
-      try {
-        evidence = await runGenesis001LocalUpgradeProof({
-          cliPath: process.execPath, baselineArtifact, frozenArtifact, operationRoot: root,
-          environment: { PATH: process.env.PATH }, verifyExecutables() {},
-        });
-      } catch (error) {
-        expect(error).toMatchObject({ code: 'GENESIS001_LOCAL_PROOF_STARTUP_TIMEOUT' });
-      }
-      expect(evidence).toBeUndefined();
+      await expect(runGenesis001LocalUpgradeProof({
+        cliPath: process.execPath, baselineArtifact, frozenArtifact, operationRoot: root,
+        environment: { PATH: process.env.PATH }, verifyExecutables() {},
+      })).rejects.toMatchObject({ code: 'GENESIS001_LOCAL_PROOF_STARTUP_TIMEOUT' });
       expect(existsSync(join(root, 'proof'))).toBe(true);
     } finally {
       now.mockRestore();
