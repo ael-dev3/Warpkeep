@@ -452,9 +452,11 @@ function mutateGenesis002BridgeRoute(
 }
 
 describe('0.4.0 sealed-launch verifier', () => {
-  it('drives the aligned fixture to the current G001 admission-monitor pin boundary', () => {
+  it('rejects changed G001 admission-monitor bytes after source-pin derivation', () => {
+    const sources = checkedInSources();
+    sources.genesis001AdmissionMonitorCurrentStateSource += '\n// unreviewed source change\n';
     expect(() => verifySealedLaunchSources(
-      checkedInSources(),
+      sources,
       'checked-in',
     )).toThrow('SEALED_LAUNCH_G001_ADMISSION_MONITOR_CURRENT_STATE_INVALID');
   });

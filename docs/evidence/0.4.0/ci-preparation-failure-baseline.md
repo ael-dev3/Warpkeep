@@ -39,3 +39,35 @@ matched the development branch on GitHub. Its Verify run `34111350875` was
 still in progress: auth-bridge, recovery, and native-contract passed; Linux
 tests and database verification were running. CodeQL run `34111351315`
 passed. These observations are snapshots, not a claim that current Verify passed.
+
+## Source-pin candidate diagnostic
+
+An independent Linux clone of `fd9bb480cd8b8f2fc0bf4b632ca4bff34059d2f4`
+was prepared solely for diagnosis, separate from the running compiled-family
+probe. `derivePreparedSourcePins({ repositoryRoot: process.cwd() })` generated
+its two fixed outputs, the activation generator and sealed-launch verifier.
+Only those generated files were mechanically installed in that disposable
+checkout; this was not a native release transaction or final freeze. Ordinary
+Linux test dependencies were used, not production toolchain attestation.
+
+Running the unchanged `tests/sealedLaunchVerifier.test.ts` there produced
+152 passes and one failure. The remaining test explicitly expected the old
+G001 current-state pin mismatch from otherwise valid checked-in sources. The
+generated verifier instead accepted those sources. This identifies an obsolete
+transitional assertion, not a reason to retain stale pins.
+
+The test now deliberately appends a source change to the G001 current-state
+input and still requires the exact current-state rejection. The existing
+positive acceptance and other mutation tests remain unchanged. With that one
+test overlaid on the diagnostic candidate, all 153 tests passed (5.47 seconds),
+including native Git history/index-flag checks. Targeted strict TypeScript
+checking and `git diff --check` also passed.
+
+```text
+node node_modules/vitest/vitest.mjs run tests/sealedLaunchVerifier.test.ts --maxWorkers=1
+```
+
+This proves the source-pin derivation resolves that suite against the described
+candidate. It does not make the unrefrozen development checkout fully green,
+complete the activation generator capability, or establish live authority.
+The regenerated production files remain confined to the diagnostic checkout.
