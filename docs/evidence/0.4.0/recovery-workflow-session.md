@@ -173,3 +173,30 @@ context by itself. Eleven mocked-boundary tests passed; combined with session
 and reconciliation tests, 32 passed with one Linux-only skip on Windows.
 Targeted strict TypeScript passed. Real persisted signature verification is
 separately covered by the native probe above, not claimed by these mock tests.
+
+## 2026-09-07: independently cross-checked workflow run context
+
+`scripts/recovery-workflow-run-context.mjs` adds a no-argument, read-only reader
+for the protected Actions environment. It reads the bounded event file, checks
+the fixed repository/owner, successful Verify push/main event, current run/attempt
+and candidate SHA, then uses the configured job token against fixed GitHub API
+paths. It verifies protected main before and after independently fetching the
+exact source Verify attempt and current Pages attempt. It rejects mismatched
+repositories, workflow paths, events, statuses, attempts and commits.
+
+Requests use no-store, no redirects, fixed API version and identity encoding;
+each response has a ten-second total deadline and 512 KiB streamed cap. Errors
+are fixed and credential-free. No caller URL/token/run override is accepted.
+Environment checks are not authentication by themselves: genuine signer-side
+OIDC/job identity verification remains mandatory. This reader returns only five
+run/source coordinates and does not establish candidate tree/closure, artifact
+identity or digests, live state, or deployment permission. It is not yet wired
+to an Actions entrypoint; those remaining context fields must be independently
+derived before passing the complete context to the recovery session.
+
+Twenty-six new mocked-event/API tests passed, including stale main, wrong
+run/repository/event/path, response bounds, redacted errors and an unresponsive
+transport ignoring abort. Combined run-context, deployment-boundary and OIDC
+tests: 68 passed. Targeted strict TypeScript passed after correcting a test-only
+header-fixture union type. No GitHub credential-bearing request or deployment
+was performed by this new module during these tests.
