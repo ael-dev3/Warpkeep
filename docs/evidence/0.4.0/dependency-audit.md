@@ -1,7 +1,8 @@
 # Required dependency audit — 2026-09-07
 
 Source inspected: `321940caf0af038f869af78c8b3fc2db695b2e45`.
-This is an unresolved R14 integration gate, not an added product requirement.
+The initial failing checkpoint below is retained; see the tested repair below.
+This is an existing R14 integration gate, not an added product requirement.
 The existing Pages workflow requires `npm audit` and `npm audit signatures`.
 
 Authenticated GitHub alert 2 is open for root `package-lock.json`:
@@ -45,3 +46,60 @@ Separately, the Pages workflow still has no `deploy-recovery` job; its required
 claim bundle is not tracked at the expected installed path. Runner proxy smoke
 success therefore does not make the production workflow executable. Those
 existing R11/R12 integration requirements remain open.
+
+## Tested compatible pin
+
+The root override now pins only `@solana/web3.js`'s `jayson` to `4.1.3`, within
+its declared `^4.1.1` range. This deliberately selects the previous compatible
+release, not a patched version of `stream-json`. Its dependency tree uses
+`JSONStream@1.3.5` instead; `stream-json` and `stream-chain` leave the root lock.
+The latest Jayson release still requires the affected stream-json major.
+Revisit the pin when upstream supplies a compatible repaired release.
+
+The [upstream comparison](https://github.com/tedeh/jayson/compare/v4.1.3...v4.3.0)
+was inspected: browser-client changes concern callback return handling; the
+stream parser replacement concerns the Node stream transport. The installed
+Solana browser entry imports `jayson/lib/client/browser`. No Jayson server or
+TCP/TLS transport was added or exposed by this change. No advisory was dismissed
+or audit threshold changed.
+
+Candidate base: `c8dbbec7e1017daa5b42e119563ed670c9504091`; isolated checkout:
+`/tmp/warpkeep-dependency-repair.3WwbRCjc/repo`. A fresh root installation used
+Node 22.22.3/npm 10.9.8, `npm install --ignore-scripts --no-fund`.
+All testing below used these actual newly installed root dependencies, not the
+Windows shared dependency junction. That junction remains unchanged; local
+testing against it still resolves the old Jayson until separately reinstalled.
+
+- Installation audit: zero vulnerabilities, exit 0.
+- Subsequent clean `npm ci --ignore-scripts --no-fund`: exit 0, zero
+  vulnerabilities; all five native compatibility checks passed again.
+- `npm audit signatures`: 250 verified registry signatures and 74 verified
+  attestations, exit 0. This is the Linux installed package set.
+- `node --test tests/fixtures/solana-rpc-dependency-compatibility.mjs`: 5 passed.
+  Actual SDK/Solana/browser-client imports; synthetic transport only. Checks the
+  resolved pin, SDK availability, RPC request/response, malformed JSON, and
+  server-error correlation. No real account or network operation is performed.
+- Vitest: 86 passed across the new compatibility wrapper and existing
+  `miniAppRuntime`, `miniAppHostProvider`, `farcasterQuickAuthLifecycle`,
+  `farcasterMiniAppContract`, and `farcasterMiniAppEntryGate` tests. Existing
+  React act warnings remain visible; mocked contract output is not live proof.
+- Full `npm run build`: exit 0, including TypeScript, asset checks, Vite,
+  production exclusions, atlas public boundary and Mini App manifest checks.
+  Existing >600 kB chunk warnings remain; this is not device-performance proof.
+
+Fresh-checkout setup failures were corrected before claiming build success:
+the first build lacked bridge TypeScript dependencies; `npm ci --prefix
+services/auth-bridge` cannot install its pnpm-managed lock. The build therefore
+used the existing bridge dependency cache via a symlink, without modifying it.
+The first new Vitest wrapper used an incompatible jsdom URL assumption; fixed
+to resolve the repository fixture path, then the complete focused set passed.
+
+Candidate and worktree package files were compared byte-for-byte by SHA-256:
+
+```text
+package.json       22dc783771328ee489fe4a5d4e3d5d4b2050418da4405448a82058ac8ef0c0b7
+package-lock.json  5f8b6a8c7f7279ae60fe8f46e24d3e9c90d301b290d1efb2ef116ea563668fc6
+```
+
+This resolves the locally observed dependency finding subject to final required
+CI and final-family verification; it does not close R14 or claim a live release.
