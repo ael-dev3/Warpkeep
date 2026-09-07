@@ -41,3 +41,33 @@ Full assembler integration remains incomplete: this returned verifier source mus
 be included with every derived binding, bundle, declaration, manifest, consumer
 and workflow pin, then independently checked and installed in the native candidate.
 No final frozen inventory, release artifact, or production deployment changed.
+
+## Expanded generator composition probe
+
+After source checkpoint `069e1f572d55a07bbf85a38981ec323c0b0026cc`, a
+read-only Windows Node 22.22.3 probe loaded the returned verifier source as an
+in-memory module and invoked its actual closure generator with current member
+bytes, substituting only that derived verifier source. No artifact was installed.
+This is a composition diagnostic, not authenticated source capture or native
+candidate verification. The generated module does not receive a member-list
+override; its own derived declaration defines the exact inventory.
+
+Result: 1,077 members, 16,545,929 input bytes, manifest SHA-256
+`7774f246c64ed71798e0586781984dd8825c7b572798ec062f905d60c6f5d1be`.
+Two derivations returned byte-identical manifests and all three workflow bodies:
+
+| Workflow | Bytes | SHA-256 |
+| --- | ---: | --- |
+| deploy-pages.yml | 40349 | b993449425b876f71f34bcfed84b3cd429713dca0f975b2a114962fa621054f4 |
+| notification-bridge-b0.yml | 54519 | 2c67b3dc5bb6150ad0a7831550ba3705b9c21da468ff9592902b2bf92a61b7df |
+| notification-bridge-prepared.yml | 55697 | a04b21edb7a0e1becdba0776d576d82ec96d5f691eac3049be6742e9f3fd88d3 |
+
+Reproduce diagnostic: pinned Node running `.superpowers/closure-candidate-probe.mjs`.
+The ignored probe uses bounded member reads, a 128 MiB aggregate cap, fixed-error
+reporting, and clears member buffers. It is not a production loader.
+
+The probe does not include newly derived lane bundles/bindings or all Task 7
+consumers. For example, the canary launcher's protected member count is still 997;
+the production and Verify workflows are outside this generator's three-workflow
+rewrite set. Complete consumer dependency derivation and whole-family installation
+remain required; these partial deterministic outputs do not satisfy convergence.
