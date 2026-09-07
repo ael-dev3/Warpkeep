@@ -83,17 +83,18 @@ it('issues through real ledger and crypto, retries retained bytes with fresh ide
     githubMetadata: metadata, githubMetadataSha256: await githubEvidenceMetadataSha256(metadata) }
   const verifyIdentity = vi.fn(async () => ({ ...identity, oidcJti: crypto.randomUUID() }))
   const loadEvidence = vi.fn(async () => github)
-  const observe = vi.fn(async () => ({ recoveryAuthorizationCoreSha256: armed.recoveryAuthorizationCoreSha256,
+  const recheck = vi.fn(async () => {})
+  const observe = vi.fn(async () => ({ phase: 'issue', observationSequence: 1, recoveryAuthorizationCoreSha256: armed.recoveryAuthorizationCoreSha256,
     genesis001Database: armed.genesis001Database, genesis002Database: armed.genesis002Database, ptrDatabase: armed.ptrDatabase,
     g001ReleaseVersion: '0.3.43', g001PlayerAccessEnabled: true, g001AdmissionStateMutationsEnabled: false, g001AccessRequestSubmissionsEnabled: false,
     g001BaselineAbiSha256: '3'.repeat(64), g002Sealed: true, g002PlayerCount: 0, g002GeneralAdmissionCount: 0,
     ptrSingletonOwnerCount: 1, ptrGeneralAdmissionCount: 0, observedFrom: 990, observedThrough: 999,
     evidenceSnapshotDigest: '8'.repeat(64), liveInvariantDigest: '9'.repeat(64) }))
   vi.doMock('../src/githubOidc.js', () => ({ verifyGitHubWorkflowIdentity: verifyIdentity }))
-  vi.doMock('../src/githubEvidence.js', () => ({ loadGitHubCandidateEvidence: loadEvidence }))
+  vi.doMock('../src/githubEvidence.js', () => ({ loadGitHubCandidateEvidence: loadEvidence, recheckGitHubEvidenceMetadata: recheck }))
   vi.doMock('../src/realmEvidence.js', () => ({ observeRecoveryRealmEvidence: observe }))
   const { RecoverySigner } = await import('../src/signer.js')
-  const { verifyRecoveryAuthorizationJws } = await import('../src/crypto.js')
+  const { verifyRecoveryAuthorizationJws, verifyRecoveryClaimJws } = await import('../src/crypto.js')
   type Ledger = import('../src/signerIssue.js').SignerIssueRuntime['requestLedger'] extends (...args: never[]) => infer R ? R : never
   const issued = () => {
     if (row?.state !== 'issued') throw new Error('test expected issued')
@@ -109,6 +110,11 @@ it('issues through real ledger and crypto, retries retained bytes with fresh ide
     },
     async finalizeIssue(value) { row = await applyLedgerV2Event(row!, { type: 'finalize-issue', ...value }); return issued() },
     async readIssued(value) { row = await applyLedgerV2Event(row!, { type: 'read-issued', ...value }); return issued() },
+    async claim(value) {
+      row = await applyLedgerV2Event(row!, { type: 'claim', ...value })
+      if (row.state !== 'claimed') throw new Error('test expected claimed')
+      return { authorization: row.authorization, authorizationJwsSha256: row.authorizationJwsSha256, claim: row.claim, revision: row.revision }
+    },
   }
   const requestLedger = vi.fn(() => ledger)
   // Observation transport is mocked above; this sentinel must never be used as a real service.
@@ -159,6 +165,7 @@ it('issues through real ledger and crypto, retries retained bytes with fresh ide
     { ptrSingletonOwnerCount: 0 },
     { genesis002Database: armed.genesis001Database },
     { recoveryAuthorizationCoreSha256: '0'.repeat(64) },
+    { phase: 'claim' },
   ]) {
     row = undefined
     time = 1000
@@ -171,7 +178,37 @@ it('issues through real ledger and crypto, retries retained bytes with fresh ide
   time = 1000
   controlState = createLedgerV2Control({ authorizationEpoch: 3 })
   observe.mockResolvedValueOnce({ ...realm, observedFrom: 882 })
-  expect(await verifyRecoveryAuthorizationJws((await signer.issue(request)).authorizationJws, time)).toMatchObject({ observedFrom: 882, iat: 1002 })
+  const lastIssue = await signer.issue(request)
+  expect(await verifyRecoveryAuthorizationJws(lastIssue.authorizationJws, time)).toMatchObject({ observedFrom: 882, iat: 1002 })
+
+  const claimRequest = { ...request, authorizationJws: lastIssue.authorizationJws, oidcToken: 'test-fresh-claim-token' }
+  const archiveLoads = loadEvidence.mock.calls.length
+  for (const mutation of [ { observedFrom: 1081 }, { observedThrough: 1203 },
+    { liveInvariantDigest: '0'.repeat(64) }, { evidenceSnapshotDigest: realm.evidenceSnapshotDigest }, { phase: 'issue' } ]) {
+    time = 1200
+    observe.mockResolvedValueOnce({ ...realm, phase: 'claim', observationSequence: 2, observedFrom: 1082, observedThrough: 1200, evidenceSnapshotDigest: '7'.repeat(64), ...mutation })
+    await expect(signer.claim(claimRequest)).rejects.toThrow()
+    expect((row as unknown as { state: string }).state).toBe('issued')
+  }
+  time = 1200
+  recheck.mockRejectedValueOnce(new Error('RECOVERY_GITHUB_EVIDENCE_INVALID'))
+  const observationsBeforeMetadataFailure = observe.mock.calls.length
+  await expect(signer.claim(claimRequest)).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  expect(observe).toHaveBeenCalledTimes(observationsBeforeMetadataFailure)
+  verifyIdentity.mockRejectedValueOnce(new Error('RECOVERY_GITHUB_OIDC_INVALID'))
+  await expect(signer.claim({ ...claimRequest, oidcToken: 'test-expired-token' })).rejects.toThrow('RECOVERY_GITHUB_OIDC_INVALID')
+  time = 1200
+  observe.mockResolvedValueOnce({ ...realm, phase: 'claim', observationSequence: 2, observedFrom: 1082, observedThrough: 1200, evidenceSnapshotDigest: '7'.repeat(64) })
+  const claimed = await signer.claim(claimRequest)
+  expect((row as unknown as { state: string }).state).toBe('claimed')
+  expect(Object.hasOwn(row!, 'authorizationJws')).toBe(false)
+  expect(await verifyRecoveryClaimJws(claimed.claimReceiptJws, time)).toMatchObject({ claimedAt: 1202, iat: 1202, exp: 1322, claimDeadline: 2402, claimSequence: 1 })
+  await expect(verifyRecoveryClaimJws(claimed.claimReceiptJws, 1322)).rejects.toThrow('RECOVERY_JWS_TIME_INVALID')
+  expect(loadEvidence).toHaveBeenCalledTimes(archiveLoads)
+  expect(recheck).toHaveBeenLastCalledWith(expect.objectContaining({ githubMetadata: metadata, githubMetadataSha256: github.githubMetadataSha256 }))
+  expect(observe).toHaveBeenLastCalledWith(expect.objectContaining({ phase: 'claim', sequence: 2, candidateCommit: request.candidateCommit }))
+  expect(verifyIdentity).toHaveBeenLastCalledWith(expect.objectContaining({ token: 'test-fresh-claim-token' }))
+  await expect(signer.claim(claimRequest)).rejects.toThrow('RECOVERY_LEDGER_ALREADY_CLAIMED')
 })
 
 it('rejects equal decoded secrets, malformed encoding, duplicate JSON, extra keys and mismatched key material', async () => {

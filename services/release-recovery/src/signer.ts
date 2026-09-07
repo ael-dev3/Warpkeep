@@ -5,6 +5,7 @@ import { RECOVERY_KEY_ID } from './recoveryPublicKey.js'
 import { parseSignerControl, reconcileSignerControl } from './signerControl.js'
 import { validateSignerSecrets } from './signerSecrets.js'
 import { issueRecoveryAuthorization, type SignerIssueRuntime } from './signerIssue.js'
+import { claimRecoveryAuthorization } from './signerClaim.js'
 
 type ControlLedger = Parameters<typeof reconcileSignerControl>[1]
 
@@ -19,6 +20,12 @@ export class RecoverySigner {
     if (extra.length !== 0) githubFail('RECOVERY_SIGNER_REQUEST_INVALID')
     if (this.issueRuntime === undefined) githubFail('RECOVERY_SIGNER_CONFIGURATION_INVALID')
     return issueRecoveryAuthorization(request, this.control, this.secrets, this.ledger, this.issueRuntime, this.now)
+  }
+
+  async claim(request: unknown, ...extra: unknown[]): Promise<Readonly<{ claimReceiptJws: string }>> {
+    if (extra.length !== 0) githubFail('RECOVERY_SIGNER_REQUEST_INVALID')
+    if (this.issueRuntime === undefined) githubFail('RECOVERY_SIGNER_CONFIGURATION_INVALID')
+    return claimRecoveryAuthorization(request, this.control, this.secrets, this.ledger, this.issueRuntime, this.now)
   }
 
   async status(...args: []): Promise<Readonly<{ statusJws: string }>> {

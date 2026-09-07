@@ -15,7 +15,7 @@ export type SignerIssueRuntime = Readonly<{
   fetch: typeof fetch
   observation: Pick<ObserveRecoveryRealmEvidenceInput, 'bridge' | 'pins' | 'expectedRawModuleDefV10Fixtures'>
   requestLedger(requestId: string): Pick<ReleaseRecoveryAuthorizationLedgerV2,
-    'status' | 'installArming' | 'reserveIssue' | 'finalizeIssue' | 'readIssued'>
+    'status' | 'installArming' | 'reserveIssue' | 'finalizeIssue' | 'readIssued' | 'claim'>
 }>
 
 function clock(now: () => number): number {
@@ -58,6 +58,7 @@ export async function issueRecoveryAuthorization(request: unknown, controlInput:
       const realm = await observeRecoveryRealmEvidence({ ...runtime.observation, rpcCredential: secrets.rpcCredential,
         binding: github.realmBinding, armed: config.arming, candidateCommit: req.candidateCommit,
         fetch: runtime.fetch, phase: 'issue', sequence: 1 })
+      if (realm.phase !== 'issue' || realm.observationSequence !== 1) githubFail('RECOVERY_SIGNER_ISSUE_EVIDENCE_INVALID')
       const iat = clock(now)
       payload = Object.freeze({
         schemaVersion: 1, profile: 'warpkeep-0.4.0-recovery-authorization-v1',
