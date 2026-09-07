@@ -294,3 +294,28 @@ This establishes module loading and observed byte convergence in these two
 diagnostic environments, not complete dependency/toolchain attestation, compiled
 archive-ingestion success, protected Actions execution, or full release-family
 convergence. Those requirements remain outstanding.
+
+## 2026-09-07: compiled archive ingestion in native Windows and Linux
+
+At `4b166ba`, the compiled module was exercised in a separate Node 22.22.3
+process with actual compressed ZIP/TAR bytes, an embedded synthetic attestation,
+and independently computed expected archive/TAR/manifest/attestation hashes.
+The compiled one-hop download transport, streaming parser, hash calculations
+and comparisons were real. Fetch returned controlled synthetic responses;
+the external source, GitHub metadata, local dist and binding readers were
+test-only replacements in a disposable directory. No production credential or
+network was used, and no production attestation was created.
+
+The child confirmed one authenticated API redirect followed by a credential-free
+artifact request, exact returned hashes, and rejection of a corrupted archive.
+The initial fixture lacked the sanctioned upload action's central-directory
+creator/file attributes and was correctly rejected. The fixture was corrected
+to the same attributes already covered by the parser's compatibility tests;
+production validation was not weakened. All three module tests passed on both
+Windows and WSL Linux, and targeted strict TypeScript passed on Windows.
+Temporary fixture files were removed by the tests.
+
+This closes the compiled-ingestion diagnostic gap, not the complete release
+workflow. Real GitHub artifact evidence, fixed private storage/entrypoint
+integration, attested production tooling, live signer inputs, and deployment
+acceptance remain required.
