@@ -78,7 +78,7 @@ function defaultClaims(): Record<string, unknown> {
     workflow_sha: candidateCommit,
     environment: 'github-pages',
     event_name: 'workflow_run',
-    runner_environment: 'github-hosted',
+    runner_environment: 'self-hosted',
     check_run_id: '91',
     run_id: '41',
     run_attempt: '2',
@@ -238,11 +238,11 @@ function defaultJobs(runId: string, runAttempt: string, checkUrl: string): Recor
         completed_at: null,
       }],
       check_run_url: checkUrl,
-      labels: ['ubuntu-latest'],
+      labels: ['self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive'],
       runner_id: 1001,
-      runner_name: 'GitHub Actions 1',
-      runner_group_id: 0,
-      runner_group_name: 'GitHub Actions',
+      runner_name: 'warpkeep-wsl-production-01',
+      runner_group_id: 1,
+      runner_group_name: 'Default',
     }, {
       id: 92,
       run_id: Number(runId),
@@ -415,11 +415,21 @@ describe('GitHub recovery OIDC identity', () => {
     await expect(verify()).resolves.toMatchObject({ pagesRunId: '41', checkRunId: '91' })
   })
 
-  it('accepts immutable sanitized current-wire sparse check and hosted/null-peer job JSON', async () => {
+  it('accepts the captured sparse check with synthetic local-runner job metadata', async () => {
     await expect(verify({
       checkRunText: () => CAPTURED_SPARSE_CHECK_RUN_JSON,
-      jobsText: () => CAPTURED_HOSTED_AND_SKIPPED_JOBS_JSON,
     })).resolves.toMatchObject({ pagesRunId: '41', checkRunId: '91' })
+  })
+
+  it('rejects captured hosted job metadata even with a signed self-hosted claim', async () => {
+    await invalidOidc({ jobsText: () => CAPTURED_HOSTED_AND_SKIPPED_JOBS_JSON })
+  })
+
+  it('accepts only the exact local label set regardless of API label order', async () => {
+    await expect(verify({ mutateJobs: jobs => {
+      const job = (jobs.jobs as Array<Record<string, unknown>>)[0]!
+      job.labels = (job.labels as string[]).slice().reverse()
+    } })).resolves.toMatchObject({ checkRunId: '91' })
   })
 
   it.each([
@@ -480,7 +490,7 @@ describe('GitHub recovery OIDC identity', () => {
     ['workflow SHA', 'workflow_sha', 'b'.repeat(40)],
     ['environment', 'environment', 'preview'],
     ['event', 'event_name', 'pull_request'],
-    ['runner environment', 'runner_environment', 'self-hosted'],
+    ['runner environment', 'runner_environment', 'github-hosted'],
   ])('rejects a substituted fixed %s claim', async (_name, key, replacement) => {
     await invalidOidc({ mutateClaims: claims => { claims[key] = replacement } })
   })
@@ -797,8 +807,13 @@ describe('GitHub recovery OIDC identity', () => {
     ['completed state at issuance', (job: Record<string, unknown>) => { job.status = 'completed'; job.conclusion = 'success' }],
     ['runner label', (job: Record<string, unknown>) => { job.labels = ['self-hosted'] }],
     ['runner name', (job: Record<string, unknown>) => { job.runner_name = 'self-hosted-1' }],
-    ['runner group', (job: Record<string, unknown>) => { job.runner_group_name = 'Default' }],
-    ['runner group ID', (job: Record<string, unknown>) => { job.runner_group_id = 1 }],
+    ['runner group', (job: Record<string, unknown>) => { job.runner_group_name = 'GitHub Actions' }],
+    ['runner group ID', (job: Record<string, unknown>) => { job.runner_group_id = 0 }],
+    ['extra local label', (job: Record<string, unknown>) => { (job.labels as string[]).push('unreviewed') }],
+    ['missing isolation label', (job: Record<string, unknown>) => { (job.labels as string[]).pop() }],
+    ['duplicate local label', (job: Record<string, unknown>) => { (job.labels as string[])[4] = 'Linux' }],
+    ['Mac runner', (job: Record<string, unknown>) => { (job.labels as string[])[1] = 'macOS' }],
+    ['wrong architecture', (job: Record<string, unknown>) => { (job.labels as string[])[2] = 'ARM64' }],
     ['null selected runner ID', (job: Record<string, unknown>) => { job.runner_id = null }],
     ['null selected runner group ID', (job: Record<string, unknown>) => { job.runner_group_id = null }],
   ])('rejects mismatched deploy-recovery job %s metadata', async (_name, mutateJob) => {
@@ -818,8 +833,8 @@ describe('GitHub recovery OIDC identity', () => {
 
   it.each([
     ['exponent runner ID', (body: string) => body.replace('"runner_id":1001', '"runner_id":1e3')],
-    ['leading-zero group ID', (body: string) => body.replace('"runner_group_id":0', '"runner_group_id":00')],
-    ['fractional group ID', (body: string) => body.replace('"runner_group_id":0', '"runner_group_id":0.0')],
+    ['leading-zero group ID', (body: string) => body.replace('"runner_group_id":1', '"runner_group_id":01')],
+    ['fractional group ID', (body: string) => body.replace('"runner_group_id":1', '"runner_group_id":1.0')],
     ['negative runner ID', (body: string) => body.replace('"runner_id":1001', '"runner_id":-1')],
   ])('rejects malformed nullable job identity with %s', async (_name, mutate) => {
     await invalidOidc({ jobsText: jobs => mutate(JSON.stringify(jobs)) })

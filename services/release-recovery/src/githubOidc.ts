@@ -80,6 +80,12 @@ const OPTIONAL_CLAIMS = [
 const GITHUB_WORKFLOW_NAME = 'Deploy GitHub Pages'
 const GITHUB_WORKFLOW_PATH = '.github/workflows/deploy-pages.yml'
 const GITHUB_WORKFLOW_REF = `${GITHUB_REPOSITORY}/${GITHUB_WORKFLOW_PATH}@refs/heads/main`
+// Fixed local production profile. These are requirements for independently
+// fetched GitHub job metadata, never caller/runner-environment assertions.
+const RECOVERY_RUNNER_NAME = 'warpkeep-wsl-production-01'
+const RECOVERY_RUNNER_LABELS = [
+  'self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive',
+] as const
 const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
 const DISCOVERY_REQUIRED_KEYS = ['issuer', 'jwks_uri'] as const
 const DISCOVERY_OPTIONAL_ARRAY_KEYS = [
@@ -462,14 +468,13 @@ function validateDeployRecoveryJob(
     || job.html_url !== `https://github.com/${GITHUB_REPOSITORY}/actions/runs/${claims.run_id}/job/${claims.check_run_id}`
     || job.status !== 'in_progress'
     || job.conclusion !== null
-    || labels.length !== 1
-    || labels[0] !== 'ubuntu-latest'
+    || labels.length !== RECOVERY_RUNNER_LABELS.length
+    || RECOVERY_RUNNER_LABELS.some(label => !labels.includes(label))
     || unassigned
     || !githubIdentifier(job.runner_id)
-    || job.runner_group_id !== '0'
-    || typeof job.runner_name !== 'string'
-    || !/^GitHub Actions [A-Za-z0-9 ._-]{1,128}$/u.test(job.runner_name)
-    || job.runner_group_name !== 'GitHub Actions'
+    || !githubIdentifier(job.runner_group_id)
+    || job.runner_name !== RECOVERY_RUNNER_NAME
+    || job.runner_group_name !== 'Default'
   ) githubFail(code)
 }
 
@@ -599,7 +604,7 @@ export async function verifyGitHubWorkflowIdentity(input: Readonly<{
     || claims.workflow_sha !== candidateCommit
     || claims.environment !== 'github-pages'
     || claims.event_name !== 'workflow_run'
-    || claims.runner_environment !== 'github-hosted'
+    || claims.runner_environment !== 'self-hosted'
     || !githubIdentifier(claims.check_run_id)
     || !githubIdentifier(claims.run_id)
     || !githubIdentifier(claims.run_attempt)
