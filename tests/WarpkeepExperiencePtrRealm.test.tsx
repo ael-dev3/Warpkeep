@@ -6,6 +6,7 @@ const hookState = vi.hoisted(() => ({
   farcaster: {} as Record<string, unknown>,
   miniApp: {} as Record<string, unknown>,
   miniAppBack: undefined as (() => void) | undefined,
+  gameplayProbe: false,
 }));
 
 vi.mock('../src/farcaster/FarcasterAuthProviderCore', () => ({
@@ -26,7 +27,26 @@ vi.mock('../src/farcaster/miniapp', () => ({
 }));
 
 vi.mock('../src/components/realm/RealmMapScreen', async () => {
-  const { createElement } = await import('react');
+  const { createElement, useLayoutEffect } = await import('react');
+  function GameplayProbe(props: Record<string, unknown>) {
+    const { controller, snapshot } = useGameplay04Controller(props.ptrGameplay04 as import('../src/ptr/ptrRealmConnection').PtrGameplay04Capability);
+    useLayoutEffect(() => controller.setAtlas(ATLAS04), [controller]);
+    useLayoutEffect(() => {
+      const report = props.onPtrCommandStateChange as ((unconfirmed: boolean) => void) | undefined;
+      if (snapshot.phase === 'pending' || snapshot.phase === 'uncertain') report?.(true);
+      if (snapshot.phase === 'ready' || snapshot.phase === 'uninitialized') report?.(false);
+    }, [props.onPtrCommandStateChange, snapshot.phase]);
+    return createElement('section', { 'aria-label': 'Authoritative gameplay probe' },
+      createElement('p', { 'data-testid': 'gameplay-phase' }, snapshot.phase),
+      createElement('p', { 'data-testid': 'mill-level' }, String(snapshot.view?.state.completedLevels.mill ?? 'unread')),
+      createElement('button', {
+        type: 'button', disabled: snapshot.phase !== 'ready' || !snapshot.view,
+        onClick: () => {
+          if (snapshot.view) void controller.submit({ kind: 'build', quote: quoteBuilding04(snapshot.view, 'city-mill', MILL_PLACEMENT04) });
+        },
+      }, 'Build City Mill'),
+    );
+  }
   return {
     RealmMapScreen: (props: Record<string, unknown>) => createElement(
       'main',
@@ -36,6 +56,8 @@ vi.mock('../src/components/realm/RealmMapScreen', async () => {
         'data-has-genesis-snapshot': String(props.snapshot !== undefined),
         'data-has-ptr-authority': String(props.ptrRealmAuthority !== undefined),
         'data-has-ptr-gameplay': String(props.ptrGameplay04 !== undefined),
+        'data-initial-surface': String(props.ptrInitialSurface ?? 'world'),
+        'data-unconfirmed-notice': String(props.ptrContinuationNotice === true),
         'data-ptr-castle-id': String(
           (props.ptrViewAnchor as { castleId?: number } | undefined)?.castleId ?? '',
         ),
@@ -44,6 +66,10 @@ vi.mock('../src/components/realm/RealmMapScreen', async () => {
         onClick: props.onRequestReturn as (() => void) | undefined,
         type: 'button',
       }, 'Return to Menu'),
+      createElement('button', { type: 'button', onClick: () =>
+        (props.onPtrSurfaceChange as ((surface: 'keep') => void) | undefined)?.('keep'),
+      }, 'Open keep'),
+      hookState.gameplayProbe ? createElement(GameplayProbe, props) : null,
     ),
   };
 });
@@ -61,7 +87,9 @@ import {
 import type { PtrRealmConnectionSession } from '../src/ptr/ptrRealmConnection';
 import type { AvailablePtrRealmConfig } from '../src/ptr/ptrRealmConfig';
 import type { GreaterRealmProviderBridge } from '../src/spacetime/greaterRealmProviderBridge';
-import { scriptedCapability04 } from './fixtures/gameplay04Client';
+import { useGameplay04Controller } from '../src/ptr/gameplay04/useGameplay04Controller';
+import { quoteBuilding04 } from '../src/ptr/gameplay04/gameplay04Presentation';
+import { scriptedCapability04, freshWire04, constructingWire04, wireWithBuilding04, ATLAS04, MILL_PLACEMENT04 } from './fixtures/gameplay04Client';
 
 const NOW = 1_800_000_000_000;
 const OWNER_FID = 12_345;
@@ -215,6 +243,63 @@ function deferredRuntimeHarness(authority: PtrRealmAuthority): DeferredPtrRuntim
   });
 }
 
+async function renewalRuntimeHarness() {
+  const authorities = await Promise.all([0, 1, 2, 3].map(index =>
+    ownerAuthority(NOW + index * 120_000, `ptr-continuation-${index}`)));
+  const capabilities = authorities.map(() => scriptedCapability04());
+  let currentWire = freshWire04();
+  currentWire.food = currentWire.wood = currentWire.stone = currentWire.gold = 1000n;
+  for (const candidate of capabilities) candidate.read.mockImplementation(async () => structuredClone(currentWire));
+  let connections = 0;
+  let exchanges = 0;
+  let failRenewal = false;
+  let releaseExchange: (() => void) | undefined;
+  let renewalWait: Promise<void> | undefined;
+  const sessions = new Map<PtrRealmConnectionSession, number>();
+  const exchangeQuickAuth = vi.fn(async () => {
+    const index = exchanges++;
+    if (index > 0 && renewalWait) await renewalWait;
+    if (index > 0 && failRenewal) throw new Error('temporary renewal failure');
+    return authorities[Math.min(Math.floor((Date.now() - NOW) / 120_000), authorities.length - 1)]!;
+  });
+  const runtime: PtrRealmProviderRuntime = Object.freeze({
+    now: Date.now,
+    createAuthClient: vi.fn(() => Object.freeze({ exchangeQuickAuth })),
+    connect: vi.fn(async options => {
+      const session = Object.freeze({ realmId: 'PTR', generation: options.generation }) as unknown as PtrRealmConnectionSession;
+      sessions.set(session, connections++);
+      return session;
+    }),
+    preflight: vi.fn(async () => Object.freeze({ castleId: OWNER_FID, q: 14, r: -9 })),
+    createBridge: vi.fn(session => Object.freeze({
+      phase: 'available', presentationAllowed: true, sessionGeneration: session.generation, createRuntime: vi.fn(),
+    }) as unknown as GreaterRealmProviderBridge),
+    createGameplay04: vi.fn(session => capabilities[sessions.get(session)!]!.capability),
+    isSessionCurrent: vi.fn((session, authority, now) => sessions.has(session as PtrRealmConnectionSession)
+      && isCurrentPtrRealmAuthority(authority, now)
+      && capabilities[sessions.get(session as PtrRealmConnectionSession)!]!.capability.isCurrent()),
+    closeSession: vi.fn(session => {
+      if (session !== undefined && sessions.has(session)) capabilities[sessions.get(session)!]!.expire();
+    }),
+  });
+  return {
+    runtime, capabilities, authorities, exchangeQuickAuth,
+    setWire: (wire: ReturnType<typeof freshWire04>) => { currentWire = wire; },
+    failRenewal: (fail: boolean) => { failRenewal = fail; },
+    deferRenewal: () => { renewalWait = new Promise<void>(resolve => { releaseExchange = resolve; }); },
+    releaseRenewal: () => { releaseExchange?.(); },
+  };
+}
+
+async function enterPtr() {
+  fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+  fireEvent.click(screen.getByRole('radio', { name: /Public Test Realm.*Access unknown/i }));
+  fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
+  await waitFor(() => expect(screen.getByRole('radio', { name: /Public Test Realm.*Admitted/i })).not.toBeNull());
+  fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
+  await screen.findByRole('main', { name: 'PTR realm test surface' });
+}
+
 async function beginDeferredPtrEntry(harness: DeferredPtrRuntimeHarness) {
   fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
   fireEvent.click(screen.getByRole('radio', {
@@ -261,6 +346,7 @@ beforeEach(() => {
   document.cookie = 'warpkeepRealmId=; Max-Age=0; Path=/';
   installBrowserStubs();
   hookState.miniAppBack = undefined;
+  hookState.gameplayProbe = false;
   hookState.farcaster = Object.freeze({
     state: Object.freeze({ phase: 'anonymous' }),
     accessRequest: Object.freeze({ phase: 'request-available' }),
@@ -596,6 +682,111 @@ describe('Warpkeep PTR realm integration', () => {
     expect(isCurrentPtrRealmAuthority(renewedAuthority, Date.now())).toBe(true);
     expect(runtime.connect).not.toHaveBeenCalled();
     expect(runtime.preflight).not.toHaveBeenCalled();
+  });
+
+  it('renews an active build and restores the keep only after fresh authoritative state', async () => {
+    const harness = await renewalRuntimeHarness();
+    harness.setWire(constructingWire04());
+    harness.deferRenewal();
+    hookState.gameplayProbe = true;
+    render(<PtrRealmProvider config={CONFIG} runtime={harness.runtime}><WarpkeepExperience /></PtrRealmProvider>);
+    await enterPtr();
+    await waitFor(() => expect(screen.getByTestId('gameplay-phase').textContent).toBe('ready'));
+    fireEvent.click(screen.getByRole('button', { name: 'Open keep' }));
+    expect(screen.getByTestId('mill-level').textContent).toBe('0');
+
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+
+    expect(screen.getByRole('region', { name: 'PTR session connection' }).textContent).toContain('Restoring your PTR session');
+    expect(screen.queryByRole('button', { name: 'Build City Mill' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'ENTER REALM' })).toBeNull();
+    expect(document.querySelector('.warpkeep-experience')?.getAttribute('data-active-realm')).toBe('ptr');
+    expect(window.location.hash).toBe('#realm');
+    expect(isCurrentPtrRealmAuthority(harness.authorities[0], Date.now())).toBe(false);
+    harness.setWire(wireWithBuilding04());
+    await act(async () => harness.releaseRenewal());
+    await waitFor(() => expect(screen.getByTestId('mill-level').textContent).toBe('1'));
+    expect(screen.getByRole('main', { name: 'PTR realm test surface' }).getAttribute('data-initial-surface')).toBe('keep');
+    expect(harness.capabilities[1].read).toHaveBeenCalled();
+    for (const capability of harness.capabilities) expect(capability.mutate).not.toHaveBeenCalled();
+    expect(hookState.backend.disconnect).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])('does not replay an interrupted build when committed=%s', async committed => {
+    const harness = await renewalRuntimeHarness();
+    let finishOldRequest: ((value: { sequence: bigint; revision: bigint }) => void) | undefined;
+    harness.capabilities[0].mutate.mockImplementation(() => new Promise(resolve => { finishOldRequest = resolve; }));
+    hookState.gameplayProbe = true;
+    render(<PtrRealmProvider config={CONFIG} runtime={harness.runtime}><WarpkeepExperience /></PtrRealmProvider>);
+    await enterPtr();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Build City Mill' }).hasAttribute('disabled')).toBe(false));
+    fireEvent.click(screen.getByRole('button', { name: 'Build City Mill' }));
+    await waitFor(() => expect(screen.getByTestId('gameplay-phase').textContent).toBe('pending'));
+    if (committed) {
+      const accepted = wireWithBuilding04();
+      accepted.revision = 2n;
+      accepted.lastAcceptedSequence = 2n;
+      harness.setWire(accepted);
+    }
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    await waitFor(() => expect(screen.getByTestId('gameplay-phase').textContent).toBe('ready'));
+    expect(screen.getByTestId('mill-level').textContent).toBe(committed ? '1' : '0');
+    expect(screen.getByRole('main', { name: 'PTR realm test surface' }).getAttribute('data-unconfirmed-notice')).toBe('true');
+    expect(harness.capabilities[0].mutate).toHaveBeenCalledTimes(1);
+    expect(harness.capabilities[1].mutate).not.toHaveBeenCalled();
+    await act(async () => finishOldRequest?.({ sequence: 2n, revision: 2n }));
+    expect(screen.getByTestId('mill-level').textContent).toBe(committed ? '1' : '0');
+    expect(harness.capabilities[1].mutate).not.toHaveBeenCalled();
+  });
+
+  it('keeps transient renewal failure inside PTR and retries once without realm selection', async () => {
+    const harness = await renewalRuntimeHarness();
+    harness.failRenewal(true);
+    render(<PtrRealmProvider config={CONFIG} runtime={harness.runtime}><WarpkeepExperience /></PtrRealmProvider>);
+    await enterPtr();
+    fireEvent.click(screen.getByRole('button', { name: 'Open keep' }));
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    expect(screen.getByRole('region', { name: 'PTR session connection' }).textContent).toContain('Could not restore');
+    expect(screen.queryByRole('button', { name: 'ENTER REALM' })).toBeNull();
+    expect(harness.exchangeQuickAuth).toHaveBeenCalledTimes(2);
+    harness.failRenewal(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Retry connection' }));
+    const restored = await screen.findByRole('main', { name: 'PTR realm test surface' });
+    expect(restored.getAttribute('data-initial-surface')).toBe('keep');
+    expect(harness.runtime.connect).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'ENTER REALM' })).not.toBeNull());
+    expect(screen.queryByRole('main', { name: 'PTR realm test surface' })).toBeNull();
+    expect(harness.exchangeQuickAuth).toHaveBeenCalledTimes(3);
+  });
+
+  it('drops continuation and late renewal authority when the player leaves', async () => {
+    const harness = await renewalRuntimeHarness();
+    harness.deferRenewal();
+    render(<PtrRealmProvider config={CONFIG} runtime={harness.runtime}><WarpkeepExperience /></PtrRealmProvider>);
+    await enterPtr();
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
+    await act(async () => harness.releaseRenewal());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'ENTER REALM' })).not.toBeNull());
+    expect(harness.runtime.connect).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('main', { name: 'PTR realm test surface' })).toBeNull();
+    expect(window.location.hash).toBe('#menu');
+  });
+
+  it('continues across repeated expiry cycles without stale capabilities or automatic mutations', async () => {
+    const harness = await renewalRuntimeHarness();
+    hookState.gameplayProbe = true;
+    render(<PtrRealmProvider config={CONFIG} runtime={harness.runtime}><WarpkeepExperience /></PtrRealmProvider>);
+    await enterPtr();
+    for (let cycle = 1; cycle <= 3; cycle += 1) {
+      await act(async () => vi.advanceTimersByTimeAsync(120_000));
+      await waitFor(() => expect(screen.getByTestId('gameplay-phase').textContent).toBe('ready'));
+      expect(harness.runtime.connect).toHaveBeenCalledTimes(cycle + 1);
+      expect(harness.capabilities[cycle - 1].capability.isCurrent()).toBe(false);
+      expect(harness.capabilities[cycle].mutate).not.toHaveBeenCalled();
+    }
+    expect(document.querySelector('.warpkeep-experience')?.getAttribute('data-active-realm')).toBe('ptr');
   });
 
   it('revokes the mounted PTR surface and normalizes history on transport failure', async () => {

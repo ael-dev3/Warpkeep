@@ -157,6 +157,14 @@ while commands are unavailable; failed or ambiguous refresh does not restore
 write authority from cached state. Expiry, delayed responses, unknown outcomes
 and return navigation are part of the connected lifecycle, not only error copy.
 
+An owner already inside PTR can renew at hard expiry through fresh Quick Auth,
+same-FID/database/epoch verification and a new connection/preflight. Renewal
+removes the expired surface; only the world/keep destination and an interrupted-
+action notice survive. Fresh state decides the outcome, and commands are never
+replayed across leases. Menu admission remains an explicit access/entry flow.
+See [session continuation evidence](evidence/0.4.0/isolation-lifecycle.md) for
+verified behavior and the remaining actual-owner/foreground identity coverage.
+
 G001 Chat, Marks, notifications, observers and canaries retain their own authority
 and activation rules. They are not implicitly enabled by the new keep. Private
 identity proofs, balances and operational receipts do not belong in rendering

@@ -328,6 +328,12 @@ export type RealmMapScreenProps = Readonly<{
   /** Server-projected virtual atlas anchor; it is never a player/castle row. */
   ptrViewAnchor?: PtrRealmViewAnchor;
   ptrGameplay04?: PtrGameplay04Capability;
+  /** Memory-only destination across PTR renewal; never a command or route stack. */
+  ptrInitialSurface?: 'world' | 'keep';
+  onPtrSurfaceChange?: (surface: 'world' | 'keep') => void;
+  onPtrCommandStateChange?: (unconfirmed: boolean) => void;
+  ptrContinuationNotice?: boolean;
+  onDismissPtrContinuationNotice?: () => void;
   /** Authenticated caller-only inventory, separate from the public snapshot. */
   resources?: ReadyRealmResourcePresentation;
   /** Exact caller-only Gold expedition procedure projection. */

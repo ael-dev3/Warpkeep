@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useState, type ReactElement } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
 import type { Building04, Resource04 } from '../../spacetimedb/gameplay04/policy';
 import type { Placement04 } from '../../spacetimedb/gameplay04/placement';
 import { Keep04Screen, type Keep04UiSelection } from '../components/keep04/Keep04Screen';
@@ -13,6 +13,7 @@ import { isCurrentPtrGameplay04Capability, type PtrGameplay04Capability } from '
 import { useGameplay04Controller } from './gameplay04/useGameplay04Controller';
 import type { Controller04, Snapshot04 } from './gameplay04/createGameplay04Controller';
 import type { WorkerView04 } from './gameplay04/gameplay04Presentation';
+import { PtrSessionRenewalNotice } from './PtrSessionContinuation';
 
 type Props = RealmMapScreenProps & { ptrGameplay04: PtrGameplay04Capability };
 const BUILDINGS: readonly Building04[] = ['city-mill', 'lumber-camp', 'city-stoneworks', 'city-goldworks', 'city-barracks', 'grand-covenant-cathedral'];
@@ -38,10 +39,32 @@ function CurrentSurface(props: Props & { identityKey: string }) {
   const reducedMotion = useReducedMotionPreference();
   const { controller, snapshot } = useGameplay04Controller(props.ptrGameplay04);
   const surface = useRealmSurfaceNavigation({ historyEnabled: !miniAppHost.isMiniApp, identityKey: props.identityKey });
+  const [initialSurface] = useState(props.ptrInitialSurface ?? 'world');
+  const [restoringSurface, setRestoringSurface] = useState(initialSurface === 'keep');
+  const [noticeDismissed, setNoticeDismissed] = useState(false);
+  const content = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<Placement04 | null>(null);
   const [resourceFocus, setResourceFocus] = useState<Resource04 | null>(null);
   const [openPanel, setOpenPanel] = useState<'controls' | 'resources'>();
   const [worldRevision, setWorldRevision] = useState(0);
+  useLayoutEffect(() => {
+    // Navigation has just reset to this capability's empty history envelope.
+    // Reopen only the keep root, without mounting a transient world scene or
+    // importing a former panel, placement draft, target or history entry.
+    if (initialSurface === 'keep') surface.replace({ kind: 'inner-keep' });
+    setRestoringSurface(false);
+  }, [initialSurface, surface.replace]);
+  useLayoutEffect(() => {
+    // Observe controller publication directly: pending may become disposed in
+    // the same React batch as renewal. The owner retains only this boolean.
+    const report = () => {
+      const phase = controller.getSnapshot().phase;
+      if (phase === 'pending' || phase === 'uncertain') props.onPtrCommandStateChange?.(true);
+      else if (phase === 'ready' || phase === 'uninitialized') props.onPtrCommandStateChange?.(false);
+    };
+    report();
+    return controller.subscribe(report);
+  }, [controller, props.onPtrCommandStateChange]);
   useLayoutEffect(() => {
     // Rejected public assertions require a new world read and a new selection,
     // never an optimistic assignment or a silent retry against the old site.
@@ -56,6 +79,9 @@ function CurrentSurface(props: Props & { identityKey: string }) {
   const route = surface.current;
   const knownRoute = route === undefined || route.kind === 'inner-keep' || route.kind === 'inner-keep-catalogue' || route.kind === 'workers'
     || ((route.kind === 'inner-keep-placement' || route.kind === 'inner-keep-building') && buildingKind(route.buildingKind));
+  useLayoutEffect(() => {
+    if (!restoringSurface && knownRoute) props.onPtrSurfaceChange?.(route === undefined ? 'world' : 'keep');
+  }, [knownRoute, restoringSurface, route, props.onPtrSurfaceChange]);
   useLayoutEffect(() => {
     if (!knownRoute) surface.closeToRealm();
     if (route?.kind !== 'inner-keep-placement') setDraft(null);
@@ -92,8 +118,12 @@ function CurrentSurface(props: Props & { identityKey: string }) {
   function findResources(resource: Resource04 | null) {
     setResourceFocus(resource); setOpenPanel('resources'); setDraft(null); surface.closeToRealm();
   }
+  if (restoringSurface) return <p role="status">Opening keep…</p>;
   if (!knownRoute) return <p role="status">Returning to world…</p>;
-  return <main className="realm-map-screen realm-map-screen--greater-realm" aria-label="PTR" data-realm-world-scene-strategy="greater-realm">
+  return <main className="realm-map-screen realm-map-screen--greater-realm ptr-gameplay-surface" aria-label="PTR" data-realm-world-scene-strategy="greater-realm">
+    {props.ptrContinuationNotice && !noticeDismissed && (snapshot.view !== null || snapshot.phase === 'uninitialized') &&
+      <PtrSessionRenewalNotice onDismiss={() => { setNoticeDismissed(true); props.onDismissPtrContinuationNotice?.(); content.current?.focus({ preventScroll: true }); }} />}
+    <div ref={content} tabIndex={-1} className={`ptr-gameplay-surface__content${route === undefined ? '' : ' ptr-gameplay-surface__content--keep'}`}>
     {route === undefined ? <>
       <GreaterRealmWorldScene key={worldRevision} bridge={props.greaterRealm as AvailableBridge} identityFid={props.identity.fid}
         identityKey={props.identityKey} ownCastle={props.ptrViewAnchor!} resolvedGraphicsQuality={props.resolvedGraphicsQuality}
@@ -107,6 +137,7 @@ function CurrentSurface(props: Props & { identityKey: string }) {
     </> : <Keep04Screen snapshot={snapshot} controller={controller} selection={selection} onSelectionChange={changeSelection}
       onBack={handleBack} quality={props.resolvedGraphicsQuality === 'cinematic' ? 'high' : props.resolvedGraphicsQuality === 'performance' ? 'reduced' : 'balanced'}
       reducedMotion={reducedMotion} onFindResources={findResources} onReturnToWorld={surface.closeToRealm} />}
+    </div>
   </main>;
 }
 

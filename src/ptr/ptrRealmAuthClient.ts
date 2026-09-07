@@ -20,6 +20,13 @@ export type PtrRealmAuthority = Readonly<{
   expiresAt: number;
 }>;
 
+/** Credential-free identity boundary retained only for an active continuation. */
+export type PtrRealmAuthorityScope = Readonly<{
+  fid: number;
+  databaseIdentity: string;
+  authEpoch: number;
+}>;
+
 export type PtrRealmAuthFailureCode =
   | 'configuration'
   | 'invalid-credential'
@@ -35,6 +42,7 @@ const failureCodes = new WeakMap<Error, PtrRealmAuthFailureCode>();
 const privateCredentials = new WeakMap<object, Readonly<{
   jwt: string;
   expiresAt: number;
+  authEpoch: number;
 }>>();
 
 export class PtrRealmAuthClientError extends Error {
@@ -150,6 +158,7 @@ function parsePtrJwt(
 ): Readonly<{
   fid: number;
   expiresAt: number;
+  authEpoch: number;
 }> | undefined {
   if (
     typeof jwt !== 'string'
@@ -218,7 +227,7 @@ function parsePtrJwt(
     || now < notBefore
     || now >= expiresAt
   ) return undefined;
-  return Object.freeze({ fid, expiresAt });
+  return Object.freeze({ fid, expiresAt, authEpoch: payload.auth_epoch });
 }
 
 async function readBoundedJson(response: Response, signal: AbortSignal): Promise<unknown> {
@@ -389,6 +398,7 @@ export function createPtrRealmAuthClient(
         privateCredentials.set(authority, Object.freeze({
           jwt: decoded.accessToken as string,
           expiresAt: claims.expiresAt,
+          authEpoch: claims.authEpoch,
         }));
         return authority;
       } finally {
@@ -438,6 +448,21 @@ export function readPtrRealmPrivateJwtForConnection(
     return null;
   }
   return credential.jwt;
+}
+
+/** Only a current branded authority can establish a continuation scope. */
+export function readPtrRealmAuthorityScope(
+  authority: unknown,
+  now = Date.now(),
+): PtrRealmAuthorityScope | null {
+  if (!isCurrentPtrRealmAuthority(authority, now)) return null;
+  const credential = privateCredentials.get(authority);
+  if (!credential) return null;
+  return Object.freeze({
+    fid: authority.fid,
+    databaseIdentity: authority.databaseIdentity,
+    authEpoch: credential.authEpoch,
+  });
 }
 
 /** One-way memory revocation for provider leave, replacement, and teardown. */

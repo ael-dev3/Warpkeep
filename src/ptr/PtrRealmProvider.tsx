@@ -15,9 +15,11 @@ import {
   createPtrRealmAuthClient,
   isCurrentPtrRealmAuthority,
   ptrRealmAuthFailureCode,
+  readPtrRealmAuthorityScope,
   retirePtrRealmAuthority,
   type PtrRealmAuthClient,
   type PtrRealmAuthority,
+  type PtrRealmAuthorityScope,
 } from './ptrRealmAuthClient';
 import {
   closePtrRealmConnectionSession,
@@ -46,6 +48,8 @@ export type PtrRealmPhase =
   | 'not-admitted'
   | 'admitted'
   | 'connecting'
+  | 'renewing'
+  | 'renewal-error'
   | 'ready'
   | 'error';
 
@@ -56,6 +60,7 @@ export type PtrRealmStatusCode =
   | 'ptr-access-denied'
   | 'ptr-access-verified'
   | 'ptr-connecting'
+  | 'ptr-renewing'
   | 'ptr-ready'
   | 'ptr-access-unavailable'
   | 'ptr-transport-unavailable';
@@ -82,12 +87,16 @@ export type PtrRealmContextValue = Readonly<{
   gameplay04: PtrGameplay04Capability | null;
   checkAccess: () => Promise<void>;
   enter: () => Promise<void>;
+  /** Arms expiry continuation only after the experience actually enters PTR. */
+  setContinuationActive: (active: boolean) => void;
+  /** Retries an expired active session; never rotates a still-valid lease. */
+  renewSession: () => Promise<void>;
   leave: () => void;
 }>;
 
 type PtrRealmPublicSnapshot = Omit<
   PtrRealmContextValue,
-  'checkAccess' | 'enter' | 'leave'
+  'checkAccess' | 'enter' | 'setContinuationActive' | 'renewSession' | 'leave'
 >;
 
 export type PtrRealmProviderRuntime = Readonly<{
@@ -153,7 +162,9 @@ function publicSnapshot(
       case 'not-admitted': return 'ptr-access-denied';
       case 'admitted': return 'ptr-access-verified';
       case 'connecting': return 'ptr-connecting';
+      case 'renewing': return 'ptr-renewing';
       case 'ready': return 'ptr-ready';
+      case 'renewal-error':
       case 'error': return input.failure === 'transport-unavailable'
         ? 'ptr-transport-unavailable'
         : 'ptr-access-unavailable';
@@ -233,6 +244,12 @@ export function PtrRealmProvider({
   const operationRef = useRef<ActiveOperation | undefined>(undefined);
   const sessionRef = useRef<ActiveSession | undefined>(undefined);
   const authorityRef = useRef<PtrRealmAuthority | undefined>(undefined);
+  const continuationRef = useRef<PtrRealmAuthorityScope | null>(null);
+  const renewalFlightRef = useRef<Readonly<{
+    operation: ActiveOperation;
+    promise: Promise<void>;
+  }> | undefined>(undefined);
+  const expireAuthorityRef = useRef<(authority: PtrRealmAuthority) => void>(() => undefined);
   const expiryTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const latestHostRef = useRef(host);
   const latestConfigRef = useRef(config);
@@ -269,6 +286,7 @@ export function PtrRealmProvider({
     generationRef.current += 1;
     operationRef.current?.controller.abort();
     operationRef.current = undefined;
+    renewalFlightRef.current = undefined;
     clearExpiryTimer();
     if (closeSession) closeActiveSession();
     retireActiveAuthority();
@@ -282,17 +300,14 @@ export function PtrRealmProvider({
     clearExpiryTimer();
     const delay = authority.expiresAt - latestRuntimeRef.current.now();
     if (!Number.isSafeInteger(delay) || delay <= 0) {
-      invalidatePrivateState(true);
-      publish(baseline());
+      expireAuthorityRef.current(authority);
       return false;
     }
     expiryTimerRef.current = setTimeout(() => {
-      if (authorityRef.current !== authority) return;
-      invalidatePrivateState(true);
-      publish(baseline());
+      expireAuthorityRef.current(authority);
     }, delay);
     return true;
-  }, [baseline, clearExpiryTimer, invalidatePrivateState, publish]);
+  }, [clearExpiryTimer]);
 
   const beginOperation = useCallback((): ActiveOperation => {
     generationRef.current += 1;
@@ -324,11 +339,16 @@ export function PtrRealmProvider({
 
   const handleTransportFailure = useCallback((generation: number) => {
     if (!mountedRef.current || generationRef.current !== generation) return;
+    const renewing = snapshotRef.current.phase === 'renewing';
+    if (!renewing) continuationRef.current = null;
     invalidatePrivateState(true);
-    publish(publicSnapshot('error', { failure: 'transport-unavailable' }));
+    publish(publicSnapshot(renewing ? 'renewal-error' : 'error', {
+      failure: 'transport-unavailable',
+    }));
   }, [invalidatePrivateState, publish]);
 
   const checkAccess = useCallback(async () => {
+    continuationRef.current = null;
     const currentConfig = latestConfigRef.current;
     const currentHost = latestHostRef.current;
     const currentRuntime = latestRuntimeRef.current;
@@ -414,29 +434,13 @@ export function PtrRealmProvider({
     scheduleAuthorityExpiry,
   ]);
 
-  const enter = useCallback(async () => {
-    const authority = authorityRef.current;
-    const currentHost = latestHostRef.current;
-    const currentConfig = latestConfigRef.current;
-    const currentRuntime = latestRuntimeRef.current;
-    if (
-      snapshotRef.current.phase !== 'admitted'
-      || !authority
-      || currentConfig.availability !== 'available'
-      || !latestEligibleRef.current
-      || !isCurrentPtrRealmAuthority(authority, currentRuntime.now())
-    ) {
-      invalidatePrivateState(true);
-      publish(baseline());
-      return;
-    }
-
-    closeActiveSession();
-    const operation = beginOperation();
-    publish(publicSnapshot('connecting', {
-      presentationAuthority: ADMITTED_PRESENTATION,
-      authority,
-    }));
+  const connectAuthority = useCallback(async (
+    authority: PtrRealmAuthority,
+    operation: ActiveOperation,
+    currentHost: ReturnType<typeof useMiniAppHost>,
+    currentConfig: AvailablePtrRealmConfig,
+    currentRuntime: PtrRealmProviderRuntime,
+  ) => {
     let connectedSession: PtrRealmConnectionSession | undefined;
     try {
       connectedSession = await currentRuntime.connect({
@@ -505,7 +509,11 @@ export function PtrRealmProvider({
         connectedSession, authority, viewAnchor, currentRuntime.now,
       );
       if (!operationIsCurrent(operation)
-        || !operationScopeIsCurrent(currentHost, currentConfig, currentRuntime)) throw new Error();
+        || !operationScopeIsCurrent(currentHost, currentConfig, currentRuntime)
+        || !isCurrentPtrRealmAuthority(authority, currentRuntime.now())
+        || !currentRuntime.isSessionCurrent(connectedSession, authority, currentRuntime.now())) {
+        throw new Error();
+      }
       publish(publicSnapshot('ready', {
         presentationAuthority: ADMITTED_PRESENTATION,
         authority,
@@ -513,7 +521,7 @@ export function PtrRealmProvider({
         bridge,
         gameplay04,
       }));
-    } catch {
+    } catch (error) {
       if (
         !operationIsCurrent(operation)
         || !operationScopeIsCurrent(currentHost, currentConfig, currentRuntime)
@@ -530,24 +538,191 @@ export function PtrRealmProvider({
       closeActiveSession();
       clearExpiryTimer();
       retireActiveAuthority();
-      publish(publicSnapshot('error', { failure: 'transport-unavailable' }));
-    } finally {
-      if (operationRef.current === operation) operationRef.current = undefined;
+      throw error;
     }
   }, [
-    baseline,
-    beginOperation,
     clearExpiryTimer,
     closeActiveSession,
     handleTransportFailure,
-    invalidatePrivateState,
     operationIsCurrent,
     operationScopeIsCurrent,
     publish,
     retireActiveAuthority,
   ]);
 
+  const enter = useCallback(async () => {
+    const authority = authorityRef.current;
+    const currentHost = latestHostRef.current;
+    const currentConfig = latestConfigRef.current;
+    const currentRuntime = latestRuntimeRef.current;
+    if (
+      snapshotRef.current.phase !== 'admitted'
+      || !authority
+      || currentConfig.availability !== 'available'
+      || !latestEligibleRef.current
+      || !isCurrentPtrRealmAuthority(authority, currentRuntime.now())
+    ) {
+      invalidatePrivateState(true);
+      publish(baseline());
+      return;
+    }
+
+    closeActiveSession();
+    const operation = beginOperation();
+    publish(publicSnapshot('connecting', {
+      presentationAuthority: ADMITTED_PRESENTATION,
+      authority,
+    }));
+    try {
+      await connectAuthority(authority, operation, currentHost, currentConfig, currentRuntime);
+    } catch {
+      if (operationIsCurrent(operation)
+        && operationScopeIsCurrent(currentHost, currentConfig, currentRuntime)) {
+        publish(publicSnapshot('error', { failure: 'transport-unavailable' }));
+      }
+    } finally {
+      if (operationRef.current === operation) operationRef.current = undefined;
+    }
+  }, [
+    baseline, beginOperation, closeActiveSession, connectAuthority, invalidatePrivateState,
+    operationIsCurrent, operationScopeIsCurrent, publish,
+  ]);
+
+  const renewSession = useCallback((): Promise<void> => {
+    if (renewalFlightRef.current) return renewalFlightRef.current.promise;
+    const expectedScope = continuationRef.current;
+    const currentHost = latestHostRef.current;
+    const currentConfig = latestConfigRef.current;
+    const currentRuntime = latestRuntimeRef.current;
+    if (!mountedRef.current || !expectedScope) return Promise.resolve();
+    if (currentConfig.availability !== 'available'
+      || !latestEligibleRef.current || !eligibleMiniAppHost(currentHost)) {
+      continuationRef.current = null;
+      invalidatePrivateState(true);
+      publish(baseline());
+      return Promise.resolve();
+    }
+    // A foreground event or repeated click must not interrupt an unexpired command.
+    if (authorityRef.current
+      && isCurrentPtrRealmAuthority(authorityRef.current, currentRuntime.now())) {
+      return Promise.resolve();
+    }
+
+    invalidatePrivateState(true);
+    const operation = beginOperation();
+    publish(publicSnapshot('renewing'));
+    const scopeIsCurrent = () => operationIsCurrent(operation)
+      && continuationRef.current === expectedScope
+      && operationScopeIsCurrent(currentHost, currentConfig, currentRuntime);
+    const deny = (verified: boolean) => {
+      continuationRef.current = null;
+      invalidatePrivateState(true);
+      publish(publicSnapshot('not-admitted', verified ? {
+        presentationAuthority: NOT_ADMITTED_PRESENTATION,
+      } : { failure: 'host-unverified' }));
+    };
+    const promise = Promise.resolve().then(async () => {
+      let quickAuthToken: string | undefined;
+      let connecting = false;
+      try {
+        if (!scopeIsCurrent()) return;
+        const acquisition = await currentHost.quickAuth.getToken({ force: true });
+        if (!scopeIsCurrent()) return;
+        if (acquisition.status !== 'token') {
+          if (acquisition.status === 'host-replaced') {
+            continuationRef.current = null;
+            invalidatePrivateState(true);
+            publish(publicSnapshot('unavailable'));
+          } else if (acquisition.status === 'timeout') {
+            publish(publicSnapshot('renewal-error', { failure: 'access-unavailable' }));
+          } else {
+            deny(false);
+          }
+          return;
+        }
+        quickAuthToken = acquisition.token;
+        const authority = await currentRuntime.createAuthClient(currentConfig)
+          .exchangeQuickAuth(quickAuthToken, operation.controller.signal);
+        quickAuthToken = undefined;
+        if (!scopeIsCurrent()) {
+          retirePtrRealmAuthority(authority);
+          return;
+        }
+        const renewedScope = readPtrRealmAuthorityScope(authority, currentRuntime.now());
+        if (!renewedScope) {
+          retirePtrRealmAuthority(authority);
+          publish(publicSnapshot('renewal-error', { failure: 'access-unavailable' }));
+          return;
+        }
+        if (renewedScope.fid !== expectedScope.fid
+          || renewedScope.databaseIdentity !== expectedScope.databaseIdentity
+          || renewedScope.authEpoch !== expectedScope.authEpoch) {
+          retirePtrRealmAuthority(authority);
+          deny(false);
+          return;
+        }
+        authorityRef.current = authority;
+        if (!scheduleAuthorityExpiry(authority)) return;
+        connecting = true;
+        // No prior view, draft, quote or mutation envelope crosses this boundary.
+        await connectAuthority(authority, operation, currentHost, currentConfig, currentRuntime);
+      } catch (error) {
+        if (!scopeIsCurrent()) return;
+        const failure = ptrRealmAuthFailureCode(error);
+        if (failure === 'forbidden' || failure === 'invalid-credential') {
+          deny(failure === 'forbidden');
+        } else {
+          invalidatePrivateState(true);
+          publish(publicSnapshot('renewal-error', {
+            failure: connecting ? 'transport-unavailable' : 'access-unavailable',
+          }));
+        }
+      } finally {
+        quickAuthToken = undefined;
+        if (operationRef.current === operation) operationRef.current = undefined;
+        if (renewalFlightRef.current?.operation === operation) renewalFlightRef.current = undefined;
+      }
+    });
+    renewalFlightRef.current = Object.freeze({ operation, promise });
+    return promise;
+  }, [
+    baseline, beginOperation, connectAuthority, invalidatePrivateState,
+    operationIsCurrent, operationScopeIsCurrent, publish, scheduleAuthorityExpiry,
+  ]);
+
+  const expireAuthority = useCallback((authority: PtrRealmAuthority) => {
+    if (!mountedRef.current || authorityRef.current !== authority) return;
+    const priorPhase = snapshotRef.current.phase;
+    const continueActive = continuationRef.current !== null && priorPhase === 'ready';
+    invalidatePrivateState(true);
+    if (continueActive) {
+      void renewSession();
+    } else if (continuationRef.current && priorPhase === 'renewing') {
+      // An attempt that outlives its new lease requires an explicit retry.
+      publish(publicSnapshot('renewal-error', { failure: 'access-unavailable' }));
+    } else {
+      publish(baseline());
+    }
+  }, [baseline, invalidatePrivateState, publish, renewSession]);
+  expireAuthorityRef.current = expireAuthority;
+
+  const setContinuationActive = useCallback((active: boolean) => {
+    if (!active) {
+      continuationRef.current = null;
+      if (snapshotRef.current.phase === 'renewing' || snapshotRef.current.phase === 'renewal-error') {
+        invalidatePrivateState(true);
+        publish(baseline());
+      }
+      return;
+    }
+    if (continuationRef.current || snapshotRef.current.phase !== 'ready') return;
+    continuationRef.current = readPtrRealmAuthorityScope(
+      authorityRef.current, latestRuntimeRef.current.now(),
+    );
+  }, [baseline, invalidatePrivateState, publish]);
+
   const leave = useCallback(() => {
+    continuationRef.current = null;
     invalidatePrivateState(true);
     publish(baseline());
   }, [baseline, invalidatePrivateState, publish]);
@@ -567,15 +742,35 @@ export function PtrRealmProvider({
       || prior.eligible !== eligible;
     scopeRef.current = Object.freeze({ host, config: nextConfig, runtime, eligible });
     if (changed) {
+      continuationRef.current = null;
       invalidatePrivateState(true);
       publish(publicSnapshot(eligible ? 'unknown' : 'unavailable'));
     }
   }, [config, eligible, host, invalidatePrivateState, publish, runtime]);
 
   useEffect(() => {
+    const checkExpiry = () => {
+      if (document.visibilityState === 'hidden') return;
+      const authority = authorityRef.current;
+      if (authority && !isCurrentPtrRealmAuthority(authority, latestRuntimeRef.current.now())) {
+        expireAuthorityRef.current(authority);
+      }
+    };
+    window.addEventListener('focus', checkExpiry);
+    window.addEventListener('pageshow', checkExpiry);
+    document.addEventListener('visibilitychange', checkExpiry);
+    return () => {
+      window.removeEventListener('focus', checkExpiry);
+      window.removeEventListener('pageshow', checkExpiry);
+      document.removeEventListener('visibilitychange', checkExpiry);
+    };
+  }, []);
+
+  useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      continuationRef.current = null;
       invalidatePrivateState(true);
     };
   }, [invalidatePrivateState]);
@@ -584,8 +779,10 @@ export function PtrRealmProvider({
     ...snapshot,
     checkAccess,
     enter,
+    setContinuationActive,
+    renewSession,
     leave,
-  }), [checkAccess, enter, leave, snapshot]);
+  }), [checkAccess, enter, leave, renewSession, setContinuationActive, snapshot]);
 
   return (
     <PtrRealmContext.Provider value={value}>

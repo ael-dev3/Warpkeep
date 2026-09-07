@@ -45,19 +45,24 @@ function segment(value: unknown): string {
   return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
 }
 
-async function issuedAuthority(): Promise<PtrRealmAuthority> {
-  const issuedAt = Math.floor(NOW / 1_000);
+async function issuedAuthority(
+  now = NOW,
+  scope: Readonly<{ fid?: number; databaseIdentity?: string; authEpoch?: number }> = {},
+): Promise<PtrRealmAuthority> {
+  const fid = scope.fid ?? FID;
+  const databaseIdentity = scope.databaseIdentity ?? DATABASE_IDENTITY;
+  const issuedAt = Math.floor(now / 1_000);
   const expiresAt = (issuedAt + 120) * 1_000;
   const jwt = `${segment({ alg: 'ES256', typ: 'JWT', kid: 'ptr-provider-test' })}.${segment({
     iss: 'https://auth.warpkeep.com',
-    sub: `farcaster:${FID}`,
+    sub: `farcaster:${fid}`,
     aud: ['warpkeep-ptr-spacetimedb'],
     token_type: 'spacetime-access',
     auth_version: 2,
     realm_id: 'PTR',
-    fid: String(FID),
-    ptr_database_identity: DATABASE_IDENTITY,
-    auth_epoch: 1,
+    fid: String(fid),
+    ptr_database_identity: databaseIdentity,
+    auth_epoch: scope.authEpoch ?? 1,
     roles: ['warpkeep-ptr-owner'],
     iat: issuedAt,
     nbf: issuedAt,
@@ -67,13 +72,13 @@ async function issuedAuthority(): Promise<PtrRealmAuthority> {
     jti: PRIVATE_PTR_JWT_MARKER,
   })}.test_signature`;
   return createPtrRealmAuthClient({
-    expectedDatabaseIdentity: DATABASE_IDENTITY,
-    now: () => NOW,
+    expectedDatabaseIdentity: databaseIdentity,
+    now: () => now,
     fetch: vi.fn(async () => new Response(JSON.stringify({
       version: 1,
       status: 'authorized',
       realmId: 'PTR',
-      databaseIdentity: DATABASE_IDENTITY,
+      databaseIdentity,
       accessToken: jwt,
       tokenType: 'spacetime-access',
       accessExpiresAt: expiresAt,
@@ -131,7 +136,7 @@ function runtimeHarness(
     realmId: 'PTR',
     generation: 1,
   }) as unknown as PtrRealmConnectionSession;
-  const exchangeQuickAuth = vi.fn(async () => authority);
+  const exchangeQuickAuth = vi.fn<PtrRealmAuthClient['exchangeQuickAuth']>(async () => authority);
   const isSessionCurrent: PtrRealmProviderRuntime['isSessionCurrent'] = candidate => (
     candidate === session
   );
@@ -181,12 +186,337 @@ function mount(
   );
 }
 
+async function activeRenewalHarness() {
+  vi.useFakeTimers();
+  vi.setSystemTime(NOW);
+  const authority = await issuedAuthority();
+  const getToken = installHost();
+  const connections: Parameters<PtrRealmProviderRuntime['connect']>[0][] = [];
+  const liveSessions = new Map<PtrRealmConnectionSession, {
+    authority: PtrRealmAuthority;
+    expire?: () => void;
+  }>();
+  const harness = runtimeHarness(authority, {
+    now: Date.now,
+    connect: vi.fn(async options => {
+      connections.push(options);
+      const session = Object.freeze({ realmId: 'PTR', generation: options.generation }) as unknown as PtrRealmConnectionSession;
+      liveSessions.set(session, { authority: options.authority });
+      return session;
+    }),
+    isSessionCurrent: (session, candidate, now) => (
+      liveSessions.get(session as PtrRealmConnectionSession)?.authority === candidate
+      && isCurrentPtrRealmAuthority(candidate, now)
+    ),
+    createBridge: vi.fn(session => Object.freeze({ ...READY_BRIDGE, sessionGeneration: session.generation })),
+    createGameplay04: vi.fn(session => {
+      const scripted = scriptedCapability04();
+      liveSessions.get(session)!.expire = scripted.expire;
+      return Object.freeze({
+        ...scripted.capability,
+        scope: Object.freeze({ ...scripted.capability.scope, generation: session.generation }),
+      });
+    }),
+    closeSession: vi.fn(session => {
+      if (session) {
+        liveSessions.get(session)?.expire?.();
+        liveSessions.delete(session);
+      }
+    }),
+  });
+  const mounted = mount(CONFIG, harness.runtime);
+  await act(async () => currentContext().checkAccess());
+  await act(async () => currentContext().enter());
+  act(() => currentContext().setContinuationActive(true));
+  harness.exchangeQuickAuth.mockImplementation(async () => issuedAuthority(Date.now()));
+  return { ...harness, authority, getToken, connections, mounted };
+}
+
 afterEach(() => {
   cleanup();
   captured = undefined;
   hostState.current = {};
   vi.useRealTimers();
   vi.restoreAllMocks();
+});
+
+describe('active PTR session continuation', () => {
+  it('keeps a valid lease until expiry, then forces fresh access and creates a new capability', async () => {
+    const harness = await activeRenewalHarness();
+    const previous = currentContext().gameplay04!;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(119_999);
+      await currentContext().renewSession();
+      window.dispatchEvent(new Event('focus'));
+    });
+    expect(harness.getToken).toHaveBeenCalledTimes(1);
+    expect(harness.runtime.closeSession).not.toHaveBeenCalled();
+    expect(currentContext().gameplay04).toBe(previous);
+
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(currentContext().phase).toBe('ready');
+    expect(harness.getToken).toHaveBeenCalledTimes(2);
+    expect(harness.getToken).toHaveBeenLastCalledWith({ force: true });
+    expect(harness.runtime.preflight).toHaveBeenCalledTimes(2);
+    expect(harness.runtime.createGameplay04).toHaveBeenCalledTimes(2);
+    expect(previous.isCurrent()).toBe(false);
+    expect(isCurrentPtrRealmAuthority(harness.authority, NOW)).toBe(false);
+    expect(currentContext().authority).not.toBe(harness.authority);
+    expect(currentContext().gameplay04).not.toBe(previous);
+    expect(currentContext().gameplay04!.scope.generation).toBeGreaterThan(previous.scope.generation);
+    expect(previous.mutate).not.toHaveBeenCalled();
+    expect(currentContext().gameplay04!.mutate).not.toHaveBeenCalled();
+    // A disconnect belonging to the expired socket cannot revoke its replacement.
+    act(() => harness.connections[0]!.onTransportFailure?.('transport-unavailable'));
+    expect(currentContext().phase).toBe('ready');
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    expect(harness.getToken).toHaveBeenCalledTimes(3);
+    expect(currentContext().phase).toBe('ready');
+  });
+
+  it('coalesces renewal and hides all authority until the new preflight completes', async () => {
+    const harness = await activeRenewalHarness();
+    const pending = deferred<{ castleId: number; q: number; r: number }>();
+    vi.mocked(harness.runtime.preflight).mockReturnValueOnce(pending.promise);
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    expect(currentContext()).toMatchObject({
+      phase: 'renewing', statusCode: 'ptr-renewing', authority: null,
+      bridge: null, viewAnchor: null, gameplay04: null, presentationAuthority: null,
+    });
+    let first!: Promise<void>;
+    let second!: Promise<void>;
+    act(() => {
+      first = currentContext().renewSession();
+      second = currentContext().renewSession();
+      window.dispatchEvent(new Event('focus'));
+    });
+    expect(first).toBe(second);
+    expect(harness.getToken).toHaveBeenCalledTimes(2);
+    expect(harness.runtime.createGameplay04).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      pending.resolve({ castleId: FID, q: 7, r: -4 });
+      await first;
+    });
+    expect(currentContext().phase).toBe('ready');
+  });
+
+  it.each(['focus', 'pageshow', 'visibilitychange'] as const)(
+    'checks absolute expiry on %s when a background timer has not fired',
+    async event => {
+      const harness = await activeRenewalHarness();
+      vi.setSystemTime(NOW + 121_000);
+      const pending = deferred<PtrRealmAuthority>();
+      harness.exchangeQuickAuth.mockReturnValueOnce(pending.promise);
+      await act(async () => {
+        (event === 'visibilitychange' ? document : window).dispatchEvent(new Event(event));
+      });
+      expect(currentContext().phase).toBe('renewing');
+      await act(async () => {
+        pending.resolve(await issuedAuthority(Date.now()));
+        await currentContext().renewSession();
+      });
+      expect(harness.getToken).toHaveBeenCalledTimes(2);
+      expect(currentContext().phase).toBe('ready');
+      expect(currentContext().authority!.expiresAt).toBe(NOW + 241_000);
+    },
+  );
+
+  it('disarming a ready session keeps menu expiry manual', async () => {
+    const harness = await activeRenewalHarness();
+    act(() => currentContext().setContinuationActive(false));
+    expect(currentContext().phase).toBe('ready');
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    expect(currentContext().phase).toBe('unknown');
+    await act(async () => currentContext().renewSession());
+    expect(harness.getToken).toHaveBeenCalledTimes(1);
+    expect(currentContext().authority).toBeNull();
+  });
+
+  it.each(['disarm', 'leave', 'unmount', 'host-change', 'config-change'] as const)(
+    'cancels %s during exchange and retires a late authority',
+    async cancellation => {
+      const harness = await activeRenewalHarness();
+      const pending = deferred<PtrRealmAuthority>();
+      harness.exchangeQuickAuth.mockReturnValueOnce(pending.promise);
+      await act(async () => vi.advanceTimersByTimeAsync(120_000));
+      const signal = harness.exchangeQuickAuth.mock.calls[1]![1] as AbortSignal;
+      const lateAuthority = await issuedAuthority(Date.now());
+      act(() => {
+        if (cancellation === 'disarm') currentContext().setContinuationActive(false);
+        if (cancellation === 'leave') currentContext().leave();
+        if (cancellation === 'unmount') harness.mounted.unmount();
+        if (cancellation === 'host-change') {
+          installHost();
+          harness.mounted.rerender(<PtrRealmProvider config={CONFIG} runtime={harness.runtime}><Capture /></PtrRealmProvider>);
+        }
+        if (cancellation === 'config-change') {
+          harness.mounted.rerender(<PtrRealmProvider config={UNAVAILABLE_CONFIG} runtime={harness.runtime}><Capture /></PtrRealmProvider>);
+        }
+      });
+      expect(signal.aborted).toBe(true);
+      await act(async () => pending.resolve(lateAuthority));
+      expect(isCurrentPtrRealmAuthority(lateAuthority, Date.now())).toBe(false);
+      expect(harness.runtime.connect).toHaveBeenCalledTimes(1);
+      if (cancellation !== 'unmount') {
+        expect(currentContext().gameplay04).toBeNull();
+        await act(async () => currentContext().renewSession());
+        expect(harness.getToken).toHaveBeenCalledTimes(2);
+      }
+    },
+  );
+
+  it('closes a pending preflight on leave and ignores its late success', async () => {
+    const harness = await activeRenewalHarness();
+    const pending = deferred<{ castleId: number; q: number; r: number }>();
+    vi.mocked(harness.runtime.preflight).mockReturnValueOnce(pending.promise);
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    const renewedAuthority = harness.connections[1]!.authority;
+    act(() => currentContext().leave());
+    expect(isCurrentPtrRealmAuthority(renewedAuthority, Date.now())).toBe(false);
+    expect(harness.connections[1]!.signal!.aborted).toBe(true);
+    await act(async () => pending.resolve({ castleId: FID, q: 7, r: -4 }));
+    expect(currentContext().phase).toBe('unknown');
+    expect(harness.runtime.createGameplay04).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not exchange a late Quick Auth result after continuation is cancelled', async () => {
+    const harness = await activeRenewalHarness();
+    const pending = deferred<{ status: 'token'; token: typeof QUICK_AUTH_TOKEN }>();
+    harness.getToken.mockReturnValueOnce(pending.promise);
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    expect(currentContext().phase).toBe('renewing');
+    act(() => currentContext().setContinuationActive(false));
+    await act(async () => pending.resolve({ status: 'token', token: QUICK_AUTH_TOKEN }));
+    expect(harness.exchangeQuickAuth).toHaveBeenCalledTimes(1);
+    expect(currentContext().phase).toBe('unknown');
+  });
+
+  it('retires a superseded renewal result without disturbing a later manual session', async () => {
+    const harness = await activeRenewalHarness();
+    const pending = deferred<PtrRealmAuthority>();
+    harness.exchangeQuickAuth.mockReturnValueOnce(pending.promise);
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    const staleAuthority = await issuedAuthority(Date.now());
+    act(() => currentContext().leave());
+    await act(async () => currentContext().checkAccess());
+    await act(async () => currentContext().enter());
+    const replacement = currentContext().authority;
+    const capability = currentContext().gameplay04;
+    await act(async () => pending.resolve(staleAuthority));
+    expect(isCurrentPtrRealmAuthority(staleAuthority, Date.now())).toBe(false);
+    expect(isCurrentPtrRealmAuthority(replacement, Date.now())).toBe(true);
+    expect(currentContext().phase).toBe('ready');
+    expect(currentContext().gameplay04).toBe(capability);
+    expect(currentContext().authority).toBe(replacement);
+  });
+
+  it.each([401, 403])('disarms continuation after an exchange denial (%s)', async status => {
+    const harness = await activeRenewalHarness();
+    const deniedClient = createPtrRealmAuthClient({
+      expectedDatabaseIdentity: DATABASE_IDENTITY,
+      now: Date.now,
+      fetch: vi.fn(async () => new Response(null, { status })) as typeof fetch,
+    });
+    harness.exchangeQuickAuth.mockImplementationOnce(deniedClient.exchangeQuickAuth);
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    expect(currentContext().phase).toBe('not-admitted');
+    expect(currentContext().authority).toBeNull();
+    expect(currentContext().presentationAuthority).toEqual(status === 403 ? {
+      source: 'server-verified', admission: 'not-admitted',
+    } : null);
+    await act(async () => currentContext().renewSession());
+    expect(harness.getToken).toHaveBeenCalledTimes(2);
+    expect(harness.runtime.connect).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['owner', { fid: FID + 1 }],
+    ['database', { databaseIdentity: 'f'.repeat(64) }],
+    ['auth epoch', { authEpoch: 2 }],
+  ] as const)('rejects a changed %s and disarms continuation', async (_label, scope) => {
+    const harness = await activeRenewalHarness();
+    const mismatch = await issuedAuthority(NOW + 120_000, scope);
+    harness.exchangeQuickAuth.mockResolvedValueOnce(mismatch);
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    expect(currentContext().phase).toBe('not-admitted');
+    expect(currentContext().authority).toBeNull();
+    expect(harness.runtime.connect).toHaveBeenCalledTimes(1);
+    expect(isCurrentPtrRealmAuthority(mismatch, Date.now())).toBe(false);
+    await act(async () => currentContext().renewSession());
+    expect(harness.getToken).toHaveBeenCalledTimes(2);
+  });
+
+  it('requires explicit retry after an exchange failure and forces new Quick Auth again', async () => {
+    const harness = await activeRenewalHarness();
+    harness.exchangeQuickAuth.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    expect(currentContext()).toMatchObject({
+      phase: 'renewal-error', failure: 'access-unavailable', authority: null, gameplay04: null,
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300_000);
+      window.dispatchEvent(new Event('focus'));
+    });
+    expect(harness.getToken).toHaveBeenCalledTimes(2);
+    await act(async () => currentContext().renewSession());
+    expect(harness.getToken).toHaveBeenCalledTimes(3);
+    expect(harness.getToken).toHaveBeenLastCalledWith({ force: true });
+    expect(currentContext().phase).toBe('ready');
+  });
+
+  it('clears single-flight state even when Quick Auth throws synchronously', async () => {
+    const harness = await activeRenewalHarness();
+    harness.getToken.mockImplementationOnce(() => { throw new Error('host unavailable'); });
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    expect(currentContext().phase).toBe('renewal-error');
+    await act(async () => currentContext().renewSession());
+    expect(harness.getToken).toHaveBeenCalledTimes(3);
+    expect(currentContext().phase).toBe('ready');
+  });
+
+  it.each(['connect', 'preflight'] as const)('allows explicit retry after renewal %s fails', async stage => {
+    const harness = await activeRenewalHarness();
+    vi.mocked(harness.runtime[stage]).mockRejectedValueOnce(new Error('disconnected'));
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    expect(currentContext()).toMatchObject({
+      phase: 'renewal-error', failure: 'transport-unavailable', authority: null,
+      bridge: null, gameplay04: null,
+    });
+    await act(async () => currentContext().renewSession());
+    expect(harness.getToken).toHaveBeenCalledTimes(3);
+    expect(currentContext().phase).toBe('ready');
+  });
+
+  it('revokes the renewing connection on its transport failure and ignores late preflight', async () => {
+    const harness = await activeRenewalHarness();
+    const pending = deferred<{ castleId: number; q: number; r: number }>();
+    vi.mocked(harness.runtime.preflight).mockReturnValueOnce(pending.promise);
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    const attempt = harness.connections[1]!;
+    act(() => attempt.onTransportFailure?.('transport-unavailable'));
+    expect(currentContext().phase).toBe('renewal-error');
+    expect(isCurrentPtrRealmAuthority(attempt.authority, Date.now())).toBe(false);
+    await act(async () => pending.resolve({ castleId: FID, q: 7, r: -4 }));
+    expect(currentContext().phase).toBe('renewal-error');
+    expect(harness.runtime.createGameplay04).toHaveBeenCalledTimes(1);
+    await act(async () => currentContext().renewSession());
+    expect(currentContext().phase).toBe('ready');
+  });
+
+  it('does not loop if a replacement lease expires during preflight', async () => {
+    const harness = await activeRenewalHarness();
+    const pending = deferred<{ castleId: number; q: number; r: number }>();
+    vi.mocked(harness.runtime.preflight).mockReturnValueOnce(pending.promise);
+    await act(async () => vi.advanceTimersByTimeAsync(240_000));
+    expect(currentContext().phase).toBe('renewal-error');
+    expect(harness.getToken).toHaveBeenCalledTimes(2);
+    expect(currentContext().gameplay04).toBeNull();
+    await act(async () => pending.resolve({ castleId: FID, q: 7, r: -4 }));
+    expect(currentContext().phase).toBe('renewal-error');
+    await act(async () => currentContext().renewSession());
+    expect(currentContext().phase).toBe('ready');
+    expect(harness.getToken).toHaveBeenCalledTimes(3);
+  });
 });
 
 describe('PTR realm provider', () => {

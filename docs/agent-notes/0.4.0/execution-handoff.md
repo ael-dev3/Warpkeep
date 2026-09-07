@@ -45,8 +45,10 @@ Development checkpoints may be published while the release remains unfinished.
   account, and SpacetimeDB metadata lists existing G001/G002/PTR databases.
   The previous session's socket and WSL access denials are historical.
 - Healthy refresh retains the existing keep scene, assets, and focus (`555e505`).
-  Commands remain blocked during refresh and uncertain outcomes. Real session
-  expiry/re-entry and owner journey acceptance remain open.
+  Active PTR now also renews at hard expiry through fresh scoped authorization,
+  reconnect and preflight, with no automatic command replay. See the
+  [local continuation evidence](../../evidence/0.4.0/isolation-lifecycle.md).
+  Actual owner journey and integrated live acceptance remain open.
 - Existing PR CodeQL annotations were reviewed against current source. They
   concern unchanged test fixtures and test helpers; no attacker-controlled
   production path was found in that review. Required checks still need legitimate
@@ -62,8 +64,10 @@ checks, including the platform limitations found in the first Windows run.
 The previously unpublished source through `781e51e` and the documentation/service
 entry-point refresh through `4912ff5` were pushed with GitHub ref equality verified.
 The protected main refresh is tracked separately in
-[PR #230](https://github.com/ael-dev3/Warpkeep/pull/230); read its actual state
-before claiming integration. The profile, project catalog and descriptions were
+[PR #230](https://github.com/ael-dev3/Warpkeep/pull/230), merged after all required
+checks passed into main `9eb98e78bc975e29ced16d92c2060ab833ad9b46`. The local main
+study checkout was fast-forwarded and verified equal to GitHub. The profile,
+project catalog and descriptions were
 refreshed, and the asset collection guide merged through
 [Assets PR #32](https://github.com/ael-dev3/Warpkeep-Assets/pull/32). The water and
 private authoring repositories accurately describe their planned roles.

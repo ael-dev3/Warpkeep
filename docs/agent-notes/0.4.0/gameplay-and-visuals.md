@@ -7,6 +7,9 @@ owner session or production call. Earlier executed results keep their original
 source and limitations in the [execution handoff](execution-handoff.md).
 The earlier `1600f4b` audit is the origin of findings G01–G03 and V01–V02;
 G01 is now fixed in source by `555e505` and is not unfinished implementation.
+The 2026-09-08 continuation update below supersedes G02's implementation gap;
+its [executed evidence](../../evidence/0.4.0/isolation-lifecycle.md) has separate
+source, test and browser limits from this original inspection.
 
 The current product is **gather → choose → build → benefit → return**: gather
 spendable resources, make a meaningful building choice, see the keep change,
@@ -19,7 +22,7 @@ this page keeps precise mechanics, implementation routes and evidence limits.
 | Area | What the source establishes | What remains unknown or unfinished |
 | --- | --- | --- |
 | 0.4 gameplay core | Persistent gathering, returns, construction, upgrades and six completed effects are implemented | Complete genuinely authorized owner journey on the real atlas |
-| PTR integration | Realm-bound capability, real transaction adapters and world/keep UI callers exist | Usable reauthorization and complete live acceptance |
+| PTR integration | Scoped capability, real adapters and active-session renewal through fresh authorization/reconnect/preflight | Actual-owner renewal and complete live acceptance |
 | Healthy refresh | Verified scene/focus retained while new commands stay disabled; regression added in `555e505` | Final browser/device/performance proof for the integrated release |
 | G002 | Gameplay deliberately denies access before storage | Fresh live denial and no-unauthorized-write evidence; admissions TBD |
 | Verdant Citadel | Distinct 0.4 keep composition, materials, dressing, progression and fallback paths exist | Complete final-source visual matrix and small-screen readability |
@@ -178,22 +181,22 @@ configuration typechecks. SDK/assets/GPU are fixtures in this evidence. This
 documentation refresh rechecked the source and commit diff, but did not rerun
 those tests. Preserve the fix; final rendered and owner acceptance remain open.
 
-### G02 — short PTR sessions can interrupt the intended first journey
+### G02 — active PTR expiry continuation implemented; owner acceptance remains
 
-Priority: product acceptance risk, not a security defect. PTR owner JWT lifetime
-is at most 120 seconds (`spacetimedb/ptr/src/ownerPolicy.ts`). At expiry,
-`src/ptr/PtrRealmProvider.tsx` closes the connection, retires capability and returns
-to unknown; `WarpkeepExperience.tsx` returns the player to the menu. Current tests
-explicitly require a fresh access check. No automatic renewal is implemented in
-that provider in the inspected `781e51e` source.
+The original `781e51e` inspection found that every expiry returned the owner to
+the menu. The 2026-09-08 correction preserves an active PTR journey through fresh
+authorization, same-FID/database/epoch verification and a new connection/preflight.
+Transient failures offer retry in place. The old capability is retired at hard
+expiry, and no draft or command envelope crosses sessions. Menu admission still
+expires to unknown and requires an explicit check.
 
 A two-minute level-one build and a ten-minute first journey cross this boundary.
-Exercise genuinely authorized renewal/re-entry early, including an ambiguous
-command near expiry. Verify the authoritative read explains what actually
-committed; never silently submit a new irreversible command. If this prevents a
-usable journey, document a bounded fresh-authorization UX correction. Do not
-lengthen TTL, keep old capability alive, invent tokens or weaken epoch/database
-checks. This audit did not request or implement a policy change.
+Local tests now exercise construction completion, ambiguous requests, repeated
+renewal, denial, scope changes and late cancellation. The rendered recovery view
+and notice were reviewed in a synthetic local fixture. The 120-second server
+maximum is unchanged. Complete the actual-owner background/resume and improved
+return journey, including stable-host account changes; see the
+[continuation record](../../evidence/0.4.0/isolation-lifecycle.md).
 
 ### G03 — real route timing and improved return are unproved
 

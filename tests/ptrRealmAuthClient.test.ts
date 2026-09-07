@@ -6,7 +6,9 @@ import {
   createPtrRealmAuthClient,
   isCurrentPtrRealmAuthority,
   ptrRealmAuthFailureCode,
+  readPtrRealmAuthorityScope,
   readPtrRealmPrivateJwtForConnection,
+  retirePtrRealmAuthority,
 } from '../src/ptr/ptrRealmAuthClient';
 
 const NOW = 1_800_000_000_000;
@@ -71,6 +73,26 @@ function jsonResponse(value: unknown, init: ResponseInit = {}): Response {
 }
 
 describe('PTR realm auth client', () => {
+  it('reads credential-free continuation scope only from current branded authority', async () => {
+    const client = createPtrRealmAuthClient({
+      expectedDatabaseIdentity: DATABASE,
+      fetch: vi.fn(async () => jsonResponse(body())) as typeof fetch,
+      now: () => NOW,
+    });
+    const authority = await client.exchangeQuickAuth(TOKEN);
+    const scope = readPtrRealmAuthorityScope(authority, NOW);
+    expect(scope).toEqual({ fid: FID, databaseIdentity: DATABASE, authEpoch: 7 });
+    expect(Object.isFrozen(scope)).toBe(true);
+    expect(readPtrRealmAuthorityScope({ ...authority }, NOW)).toBeNull();
+    expect(readPtrRealmAuthorityScope(authority, NOW + 120_000)).toBeNull();
+    expect(readPtrRealmAuthorityScope(authority, NOW)).toBeNull();
+    const other = await client.exchangeQuickAuth(TOKEN);
+    retirePtrRealmAuthority(other);
+    expect(readPtrRealmAuthorityScope(other, NOW)).toBeNull();
+    expect(JSON.stringify(scope)).not.toContain(TOKEN);
+    expect(JSON.stringify(scope)).not.toContain(ptrJwt());
+  });
+
   it('exchanges one Quick Auth bearer for an opaque exact PTR authority', async () => {
     const fetchImpl = vi.fn(async (
       _input: RequestInfo | URL,

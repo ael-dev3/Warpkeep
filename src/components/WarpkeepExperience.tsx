@@ -75,6 +75,7 @@ import {
   useMiniAppHost
 } from '../farcaster/miniapp';
 import { usePtrRealm } from '../ptr/PtrRealmProvider';
+import { PtrSessionRenewalPanel } from '../ptr/PtrSessionContinuation';
 import {
   REALM_SURFACE_HISTORY_KEY,
   readRealmSurfaceHistoryState
@@ -313,6 +314,10 @@ export function WarpkeepExperience() {
   );
   const [pendingDestination, setPendingDestination] = useState<'realm' | 'ptr' | null>(null);
   const [activeRealm, setActiveRealm] = useState<ActiveRealmId | null>(null);
+  const ptrSurfaceRef = useRef<'world' | 'keep'>('world');
+  const ptrUnconfirmedActionRef = useRef(false);
+  const ptrLastGameplayRef = useRef(ptrRealm.gameplay04);
+  const [ptrContinuationNotice, setPtrContinuationNotice] = useState(false);
   const [directMiniAppEntryEnabled, setDirectMiniAppEntryEnabled] = useState(
     hasMiniAppLaunchHint
   );
@@ -413,7 +418,40 @@ export function WarpkeepExperience() {
       clearPendingRealmDestination();
     }
     ptrRealm.leave();
+    ptrSurfaceRef.current = 'world';
+    ptrUnconfirmedActionRef.current = false;
+    setPtrContinuationNotice(false);
   }, [clearPendingRealmDestination, ptrRealm.leave]);
+
+  useEffect(() => {
+    ptrRealm.setContinuationActive(activeRealm === 'ptr' && experience.phase === 'realm');
+    return () => ptrRealm.setContinuationActive(false);
+  }, [activeRealm, experience.phase, ptrRealm.setContinuationActive]);
+
+  // React can batch a fast renewal through to ready. Capture the old command
+  // state before the fresh controller's layout effects report its first read.
+  const ptrSessionReplaced = ptrRealm.gameplay04 !== null
+    && ptrLastGameplayRef.current !== null
+    && ptrRealm.gameplay04 !== ptrLastGameplayRef.current;
+  const ptrRenewalInterrupted = activeRealm === 'ptr' && experience.phase === 'realm'
+    && ptrUnconfirmedActionRef.current
+    && (ptrRealm.phase === 'renewing' || ptrRealm.phase === 'renewal-error' || ptrSessionReplaced);
+  useLayoutEffect(() => {
+    if (ptrRenewalInterrupted) setPtrContinuationNotice(true);
+    ptrLastGameplayRef.current = ptrRealm.gameplay04;
+  }, [ptrRenewalInterrupted, ptrRealm.gameplay04]);
+
+  const rememberPtrSurface = useCallback((surface: 'world' | 'keep') => {
+    if (activeRealmRef.current === 'ptr' && phaseRef.current === 'realm') {
+      ptrSurfaceRef.current = surface;
+    }
+  }, []);
+  const rememberPtrCommandState = useCallback((unconfirmed: boolean) => {
+    if (activeRealmRef.current === 'ptr' && phaseRef.current === 'realm') {
+      ptrUnconfirmedActionRef.current = unconfirmed;
+    }
+  }, []);
+  const dismissPtrContinuationNotice = useCallback(() => setPtrContinuationNotice(false), []);
 
   const deactivateCurrentRealm = useCallback(() => {
     cancelPtrRealmEntry();
@@ -590,6 +628,8 @@ export function WarpkeepExperience() {
     ? ptrRealmIdentity
     : activeRealm === 'genesis-001' ? genesis001RealmIdentity : null;
   const realmMounted = experience.phase === 'realm' && realmIdentity !== null;
+  const ptrContinuationVisible = experience.phase === 'realm' && activeRealm === 'ptr'
+    && (ptrRealm.phase === 'renewing' || ptrRealm.phase === 'renewal-error');
   const backendMutationAuthorityCurrent = farcasterAuthState.phase === 'authenticated'
     && farcasterAuthState.assurance === 'bridge-oidc-alpha'
     && oidcSession !== undefined
@@ -643,6 +683,8 @@ export function WarpkeepExperience() {
     if (
       phaseRef.current !== 'realm'
       || activeRealmRef.current !== 'ptr'
+      || ptrRealm.phase === 'renewing'
+      || ptrRealm.phase === 'renewal-error'
       || (
         ptrRealm.phase === 'ready'
         && ptrRealm.authority !== null
@@ -1747,6 +1789,17 @@ export function WarpkeepExperience() {
         </div>
       ) : null}
 
+      {ptrContinuationVisible ? (
+        <div
+          className="warpkeep-experience__screen warpkeep-experience__screen--realm"
+          data-presented="true"
+        >
+          <MiniAppMenuBackBinding active onBack={returnRealmToMenu} />
+          <PtrSessionRenewalPanel failed={ptrRealm.phase === 'renewal-error'}
+            onRetry={() => void ptrRealm.renewSession()} onReturn={returnRealmToMenu} />
+        </div>
+      ) : null}
+
       {realmMounted ? (
         <div
           className="warpkeep-experience__screen warpkeep-experience__screen--realm"
@@ -1766,6 +1819,11 @@ export function WarpkeepExperience() {
                 ptrRealmAuthority={ptrRealm.authority}
                 ptrViewAnchor={ptrRealm.viewAnchor}
                 ptrGameplay04={ptrRealm.gameplay04 ?? undefined}
+                ptrInitialSurface={ptrSurfaceRef.current}
+                onPtrSurfaceChange={rememberPtrSurface}
+                onPtrCommandStateChange={rememberPtrCommandState}
+                ptrContinuationNotice={ptrContinuationNotice}
+                onDismissPtrContinuationNotice={dismissPtrContinuationNotice}
                 greaterRealm={ptrRealm.bridge}
                 graphicsPreference={graphicsPreference}
                 resolvedGraphicsQuality={resolvedGraphicsQuality}

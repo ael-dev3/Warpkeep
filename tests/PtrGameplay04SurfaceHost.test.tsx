@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
 import { createPtrRealmAuthClient } from '../src/ptr/ptrRealmAuthClient';
@@ -10,6 +11,7 @@ import type { AvailableGreaterRealmProviderBridge } from '../src/spacetime/great
 import { freshWire04, assignmentWire04 } from './fixtures/gameplay04Client';
 import { REALM_SURFACE_HISTORY_KEY } from '../src/components/realm/realmSurfaceNavigation';
 import type { BuildWire04, DispatchWire04 } from '../src/ptr/gameplay04/ptrGameplay04Types';
+import { PtrSessionRenewalPanel } from '../src/ptr/PtrSessionContinuation';
 
 const host = vi.hoisted(() => ({ miniApp: true, fallback: false, back: undefined as (() => void) | undefined, canvases: 0, maximum: 0, creates: 0 }));
 vi.mock('../src/farcaster/miniapp', () => ({
@@ -29,7 +31,7 @@ const anchor = { castleId: 1, q: -2, r: 1 };
 let hostValue: Record<string, unknown>;
 const config = { availability: 'available', enabled: true, spacetimeUri: 'https://maincloud.spacetimedb.com', databaseIdentity } as const;
 
-async function setup() {
+async function setup(generation = 17) {
   const segment = (value: unknown) => btoa(JSON.stringify(value)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
   const seconds = NOW / 1000;
   const token = `${segment({ alg: 'ES256', typ: 'JWT', kid: 'test' })}.${segment({
@@ -46,7 +48,7 @@ async function setup() {
   const authority = await client.exchangeQuickAuth('quick.auth.token');
   let wire = freshWire04();
   const read = vi.fn(async () => structuredClone(wire));
-  const build = vi.fn((_input: BuildWire04) => new Promise<never>(() => {}));
+  const build = vi.fn((_input: BuildWire04) => new Promise<{ sequence: bigint; revision: bigint }>(() => {}));
   const dispatch = vi.fn(async (input: DispatchWire04) => {
     wire.revision = input.expectedRevision + 1n; wire.lastAcceptedSequence = input.sequence;
     wire.workers[input.workerOrdinal].assignmentRevision = 1n;
@@ -60,17 +62,17 @@ async function setup() {
     onConnect(callback) { accept = callback; return this; }, onDisconnect() { return this; }, onConnectError() { return this; },
     build() { queueMicrotask(() => accept(connection, {}, 'ignored')); return connection; },
   };
-  const session = await connectPtrRealm({ config, authority, generation: 17, signal: new AbortController().signal, builderFactory: () => builder });
+  const session = await connectPtrRealm({ config, authority, generation, signal: new AbortController().signal, builderFactory: () => builder });
   const capability = createPtrGameplay04Capability(session, authority, anchor);
   let listener!: (value: GreaterRealmClientSnapshot) => void;
-  const ready = (): GreaterRealmClientSnapshot => ({ phase: 'ready', sessionGeneration: 17, deviceClass: 'desktop', graphicsProfile: 'balanced',
+  const ready = (): GreaterRealmClientSnapshot => ({ phase: 'ready', sessionGeneration: generation, deviceClass: 'desktop', graphicsProfile: 'balanced',
     cellSize: 1, bootstrap: { ...fixture.bootstrap, mode: 'active', myCastleId: 1n },
     window: { ...fixture.window, centerQ: -1, centerR: 0, radius: hostValue.isMiniApp ? 2 : 3 }, view: { centerQ: -1, centerR: 0, radius: hostValue.isMiniApp ? 2 : 3, lod: 1 },
     chunks: fixture.chunks.map((chunk, index) => ({ chunk: { ...chunk, lod: 1, resourceLocations: [] }, distanceChunks: index })),
     selectedChunkCount: fixture.chunks.length, resourceLocationPhase: 'ready', resourceLocations: fixture.resourceLocations,
     resourceLocationsTruncated: false, stream: {},
   } as unknown as GreaterRealmClientSnapshot);
-  const bridge = { phase: 'available', presentationAllowed: true, sessionGeneration: 17,
+  const bridge = { phase: 'available', presentationAllowed: true, sessionGeneration: generation,
     createRuntime: () => ({ subscribe(next: typeof listener) { listener = next; return () => {}; },
       async loadView() { listener(ready()); }, dispose() {}, refreshRelease: async () => ready() }),
   } as unknown as AvailableGreaterRealmProviderBridge;
@@ -307,4 +309,125 @@ it('viewport refresh removes dispatch until a current world snapshot and explici
   fireEvent.click(screen.getByRole('button', { name: /food at/ }));
   expect((screen.getByRole('button', { name: 'Dispatch Worker 1' }) as HTMLButtonElement).disabled).toBe(false);
   expect(h.dispatch).not.toHaveBeenCalled();
+});
+
+it.each([true, false])('restores only the keep root after a navigation reset in StrictMode (miniApp=%s)', async miniApp => {
+  hostValue = { ...hostValue, isMiniApp: miniApp };
+  const h = await setup();
+  const surface = vi.fn();
+  render(<StrictMode><RealmMapScreen {...h.props} ptrInitialSurface="keep" onPtrSurfaceChange={surface} /></StrictMode>);
+  await screen.findByRole('heading', { name: 'Your keep' });
+  await screen.findByRole('button', { name: 'Buildings' });
+  expect(host.creates).toBe(0);
+  expect(surface).toHaveBeenCalledWith('keep');
+  expect(surface).not.toHaveBeenCalledWith('world');
+  if (!miniApp) expect(window.history.state[REALM_SURFACE_HISTORY_KEY].stack).toEqual([{ kind: 'inner-keep' }]);
+  act(() => host.back?.());
+  await screen.findByRole('button', { name: 'Open keep' });
+  expect(surface).toHaveBeenLastCalledWith('world');
+  expect(h.props.onRequestReturn).not.toHaveBeenCalled();
+  expect(h.build).not.toHaveBeenCalled();
+  expect(h.dispatch).not.toHaveBeenCalled();
+});
+
+it('reopens the keep under a fresh capability without carrying or replaying a pending placement', async () => {
+  const old = await setup(); old.fund();
+  let completeOld!: (receipt: { sequence: bigint; revision: bigint }) => void;
+  old.build.mockImplementationOnce(() => new Promise(resolve => { completeOld = resolve; }));
+  const commandState = vi.fn();
+  const surface = vi.fn();
+  const mounted = render(<RealmMapScreen {...old.props} onPtrSurfaceChange={surface} onPtrCommandStateChange={commandState} />);
+  await screen.findByRole('button', { name: /food at/ });
+  fireEvent.click(screen.getByRole('button', { name: 'Open keep' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Buildings' }));
+  fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Move right 0.5 m' }));
+  fireEvent.click(screen.getByRole('button', { name: /Confirm placement/ }));
+  expect(commandState).toHaveBeenLastCalledWith(true);
+  expect(surface).toHaveBeenLastCalledWith('keep');
+  expect(old.build).toHaveBeenCalledOnce();
+  const oldReadCount = old.read.mock.calls.length;
+  const fresh = await setup(18);
+  const creates = host.creates;
+  closePtrRealmConnectionSession(old.session);
+  mounted.rerender(<RealmMapScreen {...fresh.props} ptrInitialSurface="keep" onPtrSurfaceChange={surface} onPtrCommandStateChange={commandState} />);
+  await waitFor(() => expect(commandState).toHaveBeenLastCalledWith(false));
+  expect(screen.getByRole('heading', { name: 'Your keep' })).toBeTruthy();
+  expect(screen.queryByRole('complementary', { name: 'Command panel' })).toBeNull();
+  expect(screen.queryByRole('button', { name: /Confirm placement/ })).toBeNull();
+  expect(host.creates).toBe(creates);
+  const command = old.build.mock.calls[0][0];
+  await act(async () => completeOld({ sequence: command.sequence, revision: command.expectedRevision + 1n }));
+  expect(old.read).toHaveBeenCalledTimes(oldReadCount);
+  expect(old.build).toHaveBeenCalledOnce();
+  expect(fresh.build).not.toHaveBeenCalled();
+  expect(fresh.dispatch).not.toHaveBeenCalled();
+  expect(screen.queryByRole('button', { name: /Confirm placement/ })).toBeNull();
+});
+
+it('shows a dismissible continuation notice only after a fresh keep read', async () => {
+  const h = await setup();
+  let finishRead!: (wire: ReturnType<typeof freshWire04>) => void;
+  h.read.mockImplementationOnce(() => new Promise(resolve => { finishRead = resolve; }));
+  const dismiss = vi.fn();
+  const commandState = vi.fn();
+  render(<RealmMapScreen {...h.props} ptrInitialSurface="keep" ptrContinuationNotice onDismissPtrContinuationNotice={dismiss} onPtrCommandStateChange={commandState} />);
+  await waitFor(() => expect(h.read).toHaveBeenCalledOnce());
+  expect(screen.queryByRole('region', { name: 'Session renewal' })).toBeNull();
+  expect(commandState).not.toHaveBeenCalled();
+  await act(async () => finishRead(freshWire04()));
+  const notice = await screen.findByRole('region', { name: 'Session renewal' });
+  expect(within(notice).getByRole('status').textContent).toBe('Your session was renewed. Review the latest keep state before retrying an interrupted action.');
+  expect(commandState).toHaveBeenLastCalledWith(false);
+  fireEvent.click(within(notice).getByRole('button', { name: 'Dismiss session notice' }));
+  expect(dismiss).toHaveBeenCalledOnce();
+  expect(screen.queryByRole('region', { name: 'Session renewal' })).toBeNull();
+  expect(document.activeElement?.classList.contains('ptr-gameplay-surface__content')).toBe(true);
+});
+
+it('does not report an interrupted action for an ordinary first-read failure', async () => {
+  const h = await setup();
+  h.read.mockRejectedValueOnce(new Error('read unavailable'));
+  const commandState = vi.fn();
+  render(<RealmMapScreen {...h.props} onPtrCommandStateChange={commandState} />);
+  await screen.findByRole('button', { name: 'Refresh keep' });
+  expect(commandState).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh keep' }));
+  await waitFor(() => expect(commandState).toHaveBeenLastCalledWith(false));
+  expect(commandState).not.toHaveBeenCalledWith(true);
+});
+
+it('retains the unconfirmed signal through a failed post-command read until refreshed state arrives', async () => {
+  const h = await setup();
+  const commandState = vi.fn();
+  render(<RealmMapScreen {...h.props} onPtrCommandStateChange={commandState} />);
+  fireEvent.click(await screen.findByRole('button', { name: /food at/ }));
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Dispatch Worker 1' }) as HTMLButtonElement).disabled).toBe(false));
+  h.read.mockRejectedValueOnce(new Error('confirmation read unavailable'));
+  commandState.mockClear();
+  fireEvent.click(screen.getByRole('button', { name: 'Dispatch Worker 1' }));
+  await screen.findByRole('button', { name: 'Refresh keep' });
+  expect(commandState).toHaveBeenLastCalledWith(true);
+  expect(commandState).not.toHaveBeenCalledWith(false);
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh keep' }));
+  await waitFor(() => expect(commandState).toHaveBeenLastCalledWith(false));
+  expect(h.dispatch).toHaveBeenCalledOnce();
+});
+
+it('recovers focus and presents accurate retry controls when session renewal fails', () => {
+  const onRetry = vi.fn();
+  const onReturn = vi.fn();
+  const mounted = render(<PtrSessionRenewalPanel failed={false} onRetry={onRetry} onReturn={onReturn} />);
+  expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Returning to your keep' }));
+  expect(screen.getByRole('status').textContent).toBe('Restoring your PTR session…');
+  expect(screen.queryByRole('button', { name: 'Retry connection' })).toBeNull();
+  screen.getByRole('button', { name: 'Return to Menu' }).focus();
+  mounted.rerender(<PtrSessionRenewalPanel failed onRetry={onRetry} onReturn={onReturn} />);
+  expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Connection interrupted' }));
+  expect(screen.getByRole('status').textContent).toBe('Could not restore your PTR session.');
+  expect(screen.queryByText('Connecting to the latest state of your keep.')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry connection' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
+  expect(onRetry).toHaveBeenCalledOnce();
+  expect(onReturn).toHaveBeenCalledOnce();
 });
