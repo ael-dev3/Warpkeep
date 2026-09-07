@@ -788,3 +788,23 @@ tests use actual ES256 signing/verification with an isolated generated test key;
 they do not establish production-key access. Reconciliation composition still
 uses mocked transport/verification. Live postflight, workflow wiring, and durable
 release-ledger collection have not been completed by this change.
+
+### Exact public attestation postflight — 2026-09-07
+
+`verifyRecoveryWorkflowLivePostflight()` now reads the independently verified
+current context, fetches only
+`https://warpkeep.com/.well-known/warpkeep-deployment-v1.json`, and requires its
+exact SHA-256 to match the locally verified attestation and signed claim history.
+The request has no credentials, rejects redirects, requests uncached identity
+encoding, requires HTTP 200/JSON/exact URL, and enforces both a 16-KiB streamed
+body bound and a 10-second fetch/body deadline. It checks declared length where
+present, cancels/releases resources, and independently rereads the context after
+the network wait. Errors expose only a fixed code. There are no caller URLs,
+digest overrides, authority requests, or deployment effects.
+
+Windows Node 22.22.3: 14 focused tests passed; root TypeScript exited 0. Tests use
+synthetic public responses and a mocked already-verified context, including a
+body that ignores abort. They establish transport/composition behavior, not a
+live deployment. The new graph root is included in prospective closure derivation.
+The helper is not yet wired into the workflow or terminal completion command;
+it proves only exact attestation availability, not full gameplay/live acceptance.

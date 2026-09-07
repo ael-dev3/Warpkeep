@@ -92,6 +92,7 @@ const SCRIPT_GRAPH_ROOTS = Object.freeze([
   'scripts/recovery-workflow-session.mjs',
   'scripts/recovery-workflow-check-deployment.mjs',
   'scripts/recovery-workflow-reconcile-current-run.mjs',
+  'scripts/recovery-workflow-live-postflight.mjs',
   'scripts/auth-bridge-notification-b0-cloudflare-runtime.mjs',
   'scripts/auth-bridge-notification-b0-deploy-adapter.mjs',
   'scripts/auth-bridge-notification-b0-deploy-journal.mjs',
