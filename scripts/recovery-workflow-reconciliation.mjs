@@ -38,7 +38,8 @@ export function resumeRecoveryWorkflowReconciliation(...args) {
           if (phase !== 'requesting') fail();
           const result = verifyRecoveryTerminal(terminalJws, retained.expectedSource, Math.floor(Date.now() / 1000));
           phase = 'finished'; retained = undefined; tokenHashes.clear();
-          return result;
+          // Only the verified public terminal attestation may leave this session.
+          return Object.freeze({ ...result, terminalJws });
         } catch {
           if (phase !== 'disposed') phase = 'ready';
           fail();

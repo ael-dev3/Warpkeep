@@ -10,12 +10,12 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.context.mockResolvedValue({ privateRoot: '/private/run', bindingSource: 'binding', contextSource: 'context' });
   mocks.resume.mockReturnValue({ reconcile: mocks.reconcile, dispose: mocks.dispose });
-  mocks.reconcile.mockResolvedValue({ outcome: 'completed', completedAt: 100, privateSentinel: 'must not escape' });
+  mocks.reconcile.mockResolvedValue({ outcome: 'completed', terminalJws: 'verified-terminal', completedAt: 100, privateSentinel: 'must not escape' });
 });
 it.each(['completed', 'not-deployed'])('projects the verified %s outcome and disposes the session', async outcome => {
-  mocks.reconcile.mockResolvedValue({ outcome, privateSentinel: 'must not escape' });
+  mocks.reconcile.mockResolvedValue({ outcome, terminalJws: 'verified-terminal', privateSentinel: 'must not escape' });
   const result = await reconcile();
-  expect(result).toEqual({ outcome }); expect(Object.isFrozen(result)).toBe(true);
+  expect(result).toEqual({ outcome, terminalJws: 'verified-terminal' }); expect(Object.isFrozen(result)).toBe(true);
   expect(mocks.resume).toHaveBeenCalledExactlyOnceWith('/private/run', 'context');
   expect(mocks.context.mock.invocationCallOrder[0]).toBeLessThan(mocks.resume.mock.invocationCallOrder[0]);
   expect(mocks.reconcile).toHaveBeenCalledExactlyOnceWith();
@@ -36,6 +36,11 @@ it('rejects an unexpected terminal outcome and still disposes', async () => {
 it('rejects overrides before context or claim access', async () => {
   await expect(Reflect.apply(reconcile, null, ['override'])).rejects.toThrow('RECOVERY_WORKFLOW_CURRENT_RUN_RECONCILIATION_INVALID');
   expect(mocks.context).not.toHaveBeenCalled(); expect(mocks.resume).not.toHaveBeenCalled();
+});
+it.each([undefined, '', 'x'.repeat(16385)])('rejects missing or unbounded terminal evidence', async terminalJws => {
+  mocks.reconcile.mockResolvedValue({ outcome: 'completed', terminalJws });
+  await expect(reconcile()).rejects.toThrow(/^RECOVERY_WORKFLOW_CURRENT_RUN_RECONCILIATION_INVALID$/);
+  expect(mocks.dispose).toHaveBeenCalledOnce();
 });
 it('native CLI rejects arguments without secret-bearing output', () => {
   const path = fileURLToPath(new URL('../scripts/recovery-workflow-reconcile-current-run.mjs', import.meta.url));

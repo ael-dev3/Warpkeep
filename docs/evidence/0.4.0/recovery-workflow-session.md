@@ -770,3 +770,21 @@ current-context reader. It is not an arbitrary later-run recovery entrypoint.
 The workflow is not wired yet; live postflight, signed terminal evidence delivery,
 and successful release acceptance remain separate required work. A reconciled
 not-deployed row does not mean a shipped release.
+
+### Preserve verified terminal audit evidence — 2026-09-07
+
+The resumed session previously verified and then discarded `terminalJws`, leaving
+only an unsigned acknowledgment available to downstream evidence collection.
+It now returns the exact signed terminal only after `verifyRecoveryTerminal`
+succeeds. The current-run command projects exactly `outcome` and `terminalJws`
+and emits one JSON line; this supersedes its original fixed success messages.
+Missing/empty/over-16-KiB terminal strings fail. Private claim receipts, OIDC,
+authorization JWS, and context are still excluded. The terminal protocol's exact
+schema and signature checks remain unchanged; terminal evidence is not a permit.
+
+Windows Node 22.22.3: the two reconciliation suites passed 19 tests, the terminal
+verifier suite passed 69 tests, and root TypeScript exited 0. Terminal verifier
+tests use actual ES256 signing/verification with an isolated generated test key;
+they do not establish production-key access. Reconciliation composition still
+uses mocked transport/verification. Live postflight, workflow wiring, and durable
+release-ledger collection have not been completed by this change.

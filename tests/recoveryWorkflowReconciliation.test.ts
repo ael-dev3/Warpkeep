@@ -17,7 +17,7 @@ beforeEach(() => {
 it('reopens and reconciles only the retained claim, without reissue or deployment', async () => {
   const session = resumeRecoveryWorkflowReconciliation('/private-root', 'context');
   expect(Object.keys(session)).toEqual(['reconcile', 'dispose']);
-  await expect(session.reconcile()).resolves.toEqual(result);
+  await expect(session.reconcile()).resolves.toEqual({ ...result, terminalJws: 'terminal' });
   expect(mocks.read).toHaveBeenCalledTimes(2);
   expect(mocks.request.mock.calls.map(call => call[0])).toEqual(['reconcile']);
   const body = JSON.parse(mocks.request.mock.calls[0]![1]);
@@ -47,7 +47,7 @@ it('retries only reconciliation with fresh OIDC after an ambiguous response', as
   const session = resumeRecoveryWorkflowReconciliation('/private-root', 'context');
   mocks.request.mockRejectedValueOnce(new Error('private-sentinel'));
   await expect(session.reconcile()).rejects.toThrow(/^RECOVERY_WORKFLOW_RECONCILIATION_INVALID$/);
-  await expect(session.reconcile()).resolves.toEqual(result);
+  await expect(session.reconcile()).resolves.toEqual({ ...result, terminalJws: 'terminal' });
   expect(mocks.request.mock.calls.map(call => call[0])).toEqual(['reconcile', 'reconcile']);
   expect(mocks.request.mock.calls.map(call => JSON.parse(call[1]).oidcToken)).toEqual(['fresh-1', 'fresh-2']);
 });
@@ -64,7 +64,7 @@ it('does not report completion when terminal verification fails', async () => {
   const session = resumeRecoveryWorkflowReconciliation('/private-root', 'context');
   mocks.terminal.mockImplementationOnce(() => { throw new Error('wrong signature'); });
   await expect(session.reconcile()).rejects.toThrow('RECOVERY_WORKFLOW_RECONCILIATION_INVALID');
-  await expect(session.reconcile()).resolves.toEqual(result);
+  await expect(session.reconcile()).resolves.toEqual({ ...result, terminalJws: 'terminal' });
 });
 it('rejects concurrent reconciliation without dispatching a duplicate request', async () => {
   const session = resumeRecoveryWorkflowReconciliation('/private-root', 'context');
@@ -72,6 +72,6 @@ it('rejects concurrent reconciliation without dispatching a duplicate request', 
   mocks.oidc.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
   const pending = session.reconcile();
   await expect(session.reconcile()).rejects.toThrow('RECOVERY_WORKFLOW_RECONCILIATION_INVALID');
-  resolve('fresh-token'); await expect(pending).resolves.toEqual(result);
+  resolve('fresh-token'); await expect(pending).resolves.toEqual({ ...result, terminalJws: 'terminal' });
   expect(mocks.request).toHaveBeenCalledTimes(1);
 });

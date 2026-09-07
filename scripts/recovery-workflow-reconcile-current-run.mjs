@@ -13,8 +13,10 @@ export async function reconcileRecoveryWorkflowCurrentRun(...args) {
     session = resumeRecoveryWorkflowReconciliation(context.privateRoot, context.contextSource);
     const result = await session.reconcile();
     // Explicit projection: no private claim, context, or unsigned response output.
-    if (!['completed', 'not-deployed'].includes(result.outcome)) fail();
-    return Object.freeze({ outcome: result.outcome });
+    if (!['completed', 'not-deployed'].includes(result.outcome)
+        || typeof result.terminalJws !== 'string' || result.terminalJws.length === 0
+        || result.terminalJws.length > 16384) fail();
+    return Object.freeze({ outcome: result.outcome, terminalJws: result.terminalJws });
   } catch { fail(); }
   finally { session?.dispose(); context = undefined; session = undefined; }
 }
@@ -25,8 +27,7 @@ if (direct) {
   try {
     if (process.argv.length !== 2) fail();
     const result = await reconcileRecoveryWorkflowCurrentRun();
-    process.stdout.write(result.outcome === 'completed'
-      ? 'RECOVERY_WORKFLOW_RECONCILED_COMPLETED\n' : 'RECOVERY_WORKFLOW_RECONCILED_NOT_DEPLOYED\n');
+    process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch {
     process.stderr.write('RECOVERY_WORKFLOW_CURRENT_RUN_RECONCILIATION_INVALID\n');
     process.exitCode = 1;
