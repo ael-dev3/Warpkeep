@@ -16,8 +16,9 @@ baseline repository; comparisons with that remote are not GitHub synchronization
 evidence.
 
 Fetch and compare actual refs before editing. Preserve existing changes. The
-checkout contains widespread line-ending/stat noise, a small meaningful diff,
-private or disposable probes, and concurrent documentation work. Use explicit
+checkout has contained widespread line-ending/stat noise, private or disposable
+probes, and concurrent work. Inspect its current state rather than treating that
+historical dirty status as unfinished source. Use explicit
 paths and inspect real diffs; never stage everything or normalize this checkout
 as a convenience. Git's Windows view of Linux worktree paths is not permission
 to prune them.
@@ -58,9 +59,16 @@ Development checkpoints may be published while the release remains unfinished.
 The [refresh verification record](../../evidence/0.4.0/documentation-refresh.md)
 records successful native Linux documentation/license and focused component
 checks, including the platform limitations found in the first Windows run.
-The previously unpublished source through `781e51e` has now been pushed and its
-GitHub ref equality verified. Continue publishing reviewed documentation and
-source through the same procedure; do not infer main integration from that push.
+The previously unpublished source through `781e51e` and the documentation/service
+entry-point refresh through `4912ff5` were pushed with GitHub ref equality verified.
+The protected main refresh is tracked separately in
+[PR #230](https://github.com/ael-dev3/Warpkeep/pull/230); read its actual state
+before claiming integration. The profile, project catalog and descriptions were
+refreshed, and the asset collection guide merged through
+[Assets PR #32](https://github.com/ael-dev3/Warpkeep-Assets/pull/32). The water and
+private authoring repositories accurately describe their planned roles.
+Continue publishing reviewed source through the same procedure; none of these
+source/documentation updates establishes that 0.4 is deployed.
 
 The [earlier execution record](https://github.com/ael-dev3/Warpkeep/blob/781e51e364d1e5a7319ca2364744c8730e83b0d6/docs/agent-notes/0.4.0/execution-handoff.md)
 preserves historical test commands and exact limitations. Later evidence must
