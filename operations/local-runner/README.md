@@ -108,3 +108,27 @@ The follow-up harness now runs plain Node (no `--use-env-proxy` CLI flag), with
 of that CLI flag, so its fetch checks exercise environment-only activation.
 This is the required environment contract for the pinned job Node; it is not
 yet installed into a production runner or proof of embedded Actions behavior.
+
+## Image-default proxy contract — 2026-09-07
+
+Current runner image:
+`sha256:1448fef20686e5ca679698806f9311662ef2050e35bfce4231b380d77272b8da`.
+This supersedes earlier runner image IDs for the current harness. The proxy
+image is unchanged. The Dockerfile now sets runtime `NODE_USE_ENV_PROXY=1`,
+both upper/lowercase HTTP/HTTPS proxy variables to the fixed isolated proxy,
+and both no-proxy variables to empty. These defaults are set after download
+layers, so image construction does not depend on the runtime-only proxy.
+
+The full network harness passed without supplying any proxy environment
+arguments to the probe container. Its real Node fetch checks therefore consume
+image defaults, not a separate test-only launch configuration. All existing
+listener/client restrictions, direct-network denial, unavailable-proxy checks
+and five private-resolution scenarios also passed. The offline smoke passed
+non-root/capability/no-new-privileges/network-disabled/host-path/unregistered
+checks. Temporary resources used suffix `c196ab19dd49` and were cleaned up.
+
+Environment defaults provide client configuration, not access enforcement:
+the isolated Docker network and allowlisting proxy remain necessary. The image
+still is not registered and carries no production credentials. Other clients
+and embedded Actions runtimes need actual integration verification; setting
+their conventional proxy variables alone is not proof of their behavior.

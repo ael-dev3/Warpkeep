@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 assert.equal(process.version, 'v22.22.3');
 assert.equal(process.getuid(), 1001);
-assert.equal(process.env.HTTPS_PROXY, 'http://172.30.240.2:3128');
+for (const key of ['HTTPS_PROXY', 'HTTP_PROXY', 'https_proxy', 'http_proxy']) {
+  assert.equal(process.env[key], 'http://172.30.240.2:3128');
+}
 assert.equal(process.env.NO_PROXY, '');
+assert.equal(process.env.no_proxy, '');
 assert.equal(process.env.NODE_USE_ENV_PROXY, '1');
 assert.equal(process.execArgv.includes('--use-env-proxy'), false);
 const response = await fetch('https://api.github.com', {

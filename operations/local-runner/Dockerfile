@@ -28,6 +28,17 @@ RUN curl --fail --location --proto '=https' --proto-redir '=https' \
     && rm /tmp/warpkeep-node.tar.xz
 ENV PATH=/opt/node-v22.22.3-linux-x64/bin:$PATH
 
+# Runtime-only fixed isolated-network contract; never used for image downloads.
+# Supply both spellings for Node, the runner, git and individual Actions clients.
+# The proxy enforces destinations; environment variables are not the firewall.
+ENV NODE_USE_ENV_PROXY=1 \
+    HTTPS_PROXY=http://172.30.240.2:3128 \
+    HTTP_PROXY=http://172.30.240.2:3128 \
+    https_proxy=http://172.30.240.2:3128 \
+    http_proxy=http://172.30.240.2:3128 \
+    NO_PROXY="" \
+    no_proxy=""
+
 # No sudo, host mount, Docker socket, registration token, or production secret.
 USER 1001:1001
 ENV HOME=/home/runner

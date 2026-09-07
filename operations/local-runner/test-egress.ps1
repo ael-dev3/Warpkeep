@@ -4,7 +4,7 @@ $taskSuffix = [Guid]::NewGuid().ToString('N').Substring(0, 12)
 $taskInternal = "warpkeep-egress-test-in-$taskSuffix"
 $taskExternal = "warpkeep-egress-test-out-$taskSuffix"
 $taskProxy = "warpkeep-egress-test-proxy-$taskSuffix"
-$taskRunnerImage = 'sha256:4d90dea1fe43cf3bd2f4f6e3b319ae42cf72cce2f299d256f8e52fa44632cf5c'
+$taskRunnerImage = 'sha256:1448fef20686e5ca679698806f9311662ef2050e35bfce4231b380d77272b8da'
 $taskProxyImage = 'sha256:59a9b5038312c48ee4a787da0db7f81c1c1d48f74e070eece79b05db3a23c0ec'
 $taskNetworks = [System.Collections.Generic.List[string]]::new()
 $taskProxyCreated = $false
@@ -52,7 +52,7 @@ try {
             Invoke-TaskProbe 'network-smoke.py'
             Invoke-TaskProbe 'proxy-smoke.py'
             Get-Content -Raw (Join-Path $PSScriptRoot 'node-proxy-smoke.mjs') |
-                & wsl -d Ubuntu-24.04 --exec docker run --rm --interactive --network $taskInternal --ip 172.30.240.3 --dns 127.0.0.1 --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --memory 256m --cpus 1 --env HTTPS_PROXY=http://172.30.240.2:3128 --env NO_PROXY= --env NODE_USE_ENV_PROXY=1 --entrypoint /opt/node-v22.22.3-linux-x64/bin/node $taskRunnerImage --input-type=module -
+                & wsl -d Ubuntu-24.04 --exec docker run --rm --interactive --network $taskInternal --ip 172.30.240.3 --dns 127.0.0.1 --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --memory 256m --cpus 1 --entrypoint /opt/node-v22.22.3-linux-x64/bin/node $taskRunnerImage --input-type=module -
             if ($LASTEXITCODE -ne 0) { throw 'Pinned Node proxy probe failed' }
         }
         Invoke-TaskDocker @('stop', '--timeout', '5', $taskProxy)
