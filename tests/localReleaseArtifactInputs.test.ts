@@ -50,7 +50,18 @@ describe('fixed release artifact input coordination', () => {
     vi.spyOn(bindingRuntime, 'derivePreparedAllRealmLinuxBindings').mockResolvedValue(bindings);
     vi.spyOn(bundleRuntime, 'derivePreparedLinuxOperationBundleFiles').mockResolvedValue(bundles);
     const run = await coordinator();
-    expect(await run()).toEqual({ ...identity, bindings, bundles });
+    const result = await run();
+    const files = [...bindings.genesis002.bindings, ...bindings.ptr.bindings, ...bundles.files]
+      .sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
+    expect(result).toEqual({ ...identity, bindings, bundles, files });
+    expect(result.files.map(file => file.path)).toEqual([...result.files.map(file => file.path)].sort());
+    expect(result.files.at(-1)?.path).toBe('spacetimedb/ptr/generated-bindings/index.ts');
+    expect(result.files).toHaveLength(11);
+    expect(Object.isFrozen(result.files)).toBe(true);
+    // Sorting is a copy; source producer ordering and byte ownership survive.
+    expect(bundles.files[0].path).toBe('scripts/sealed-realms-production-activation-lane.bundle.mjs');
+    expect(result.files.find(file => file.path === bindings.ptr.bindings[0].path)?.bytes)
+      .toBe(bindings.ptr.bindings[0].bytes);
   });
 
   it.each([

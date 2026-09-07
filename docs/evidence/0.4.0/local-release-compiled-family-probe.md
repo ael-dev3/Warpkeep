@@ -44,3 +44,25 @@ is therefore **not** part of that initial execution. It prevents a successful
 closure hash from concealing a bundle built from earlier source bytes. A later
 execution must report `checkedBundleInputs` to prove this additional check ran;
 do not retroactively attribute it to the already-running probe.
+
+## First terminal result and ordering correction
+
+The first process exited 1 with `LOCAL_RELEASE_TRANSACTION_INSTALL_INVALID`
+after its real producer calls completed. It did not reach closure derivation.
+The composed input concatenated separately ordered G002, PTR and bundle lists;
+the installer's strict global-order check rejected the later `scripts/` bundle
+paths after the `spacetimedb/` PTR group. The guard was correct and remains intact.
+
+The retained draft candidate had empty Git status and no
+`.git/warpkeep-release-assembly-v1` directory, consistent with rejection before
+staging or publication. No production state was involved.
+
+`derivePreparedLinuxArtifactInputs` now returns a globally ordered `files` array
+without changing producer arrays or byte ownership. The probe also globally
+sorts the combined artifact-plus-closure family before its second installation.
+The producer test now covers ordering across all three groups, count, frozen
+result-array shape, and preservation of original producer ordering/buffers.
+All nine coordinator tests, targeted strict types and probe syntax checks passed.
+
+A fresh native run is still needed to verify the correction and the additional
+compiler-input comparison. The failed first run is not an assembly success.

@@ -34,5 +34,10 @@ export async function derivePreparedLinuxArtifactInputs(...arguments_) {
       || bundles?.sourceTree !== source.sourceTree) {
     fail('LOCAL_RELEASE_ARTIFACT_SOURCE_MISMATCH');
   }
-  return Object.freeze({ ...source, bindings, bundles });
+  // Each producer sorts its own namespace. Their concatenation is not globally
+  // sorted (PTR's spacetimedb/ prefix precedes the later scripts/ bundle group).
+  // Publish one ordered installation input without mutating producer results.
+  const files = Object.freeze([...bindings.genesis002.bindings, ...bindings.ptr.bindings, ...bundles.files]
+    .sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0));
+  return Object.freeze({ ...source, bindings, bundles, files });
 }

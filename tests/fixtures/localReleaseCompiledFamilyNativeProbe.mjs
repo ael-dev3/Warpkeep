@@ -24,8 +24,7 @@ try {
   const draft = capturePreparedLinuxReleaseWorkspace(); workspaces.push(draft);
   phase('compiling-bindings-and-bundles');
   const inputs = await derivePreparedLinuxArtifactInputs();
-  const artifacts = [...inputs.bindings.genesis002.bindings, ...inputs.bindings.ptr.bindings,
-    ...inputs.bundles.files];
+  const artifacts = inputs.files;
   owned.push(...artifacts.map(file => file.bytes));
   sameSource(draft, inputs); draft.assertCandidateClean();
   const draftTransaction = draft.installOutputs(artifacts);
@@ -35,7 +34,8 @@ try {
   draft.assertActive();
   const candidate = capturePreparedLinuxReleaseWorkspace(); workspaces.push(candidate);
   sameSource(candidate, inputs);
-  const files = [...artifacts, ...closure.files];
+  const files = [...artifacts, ...closure.files]
+    .sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
   const transaction = candidate.installOutputs(files);
   phase('verifying-installed-family');
   for (const file of files) {

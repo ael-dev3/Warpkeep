@@ -12,4 +12,5 @@ export function derivePreparedLinuxArtifactInputs(...arguments_: []): Promise<Re
   sourceTree: string;
   bindings: PreparedAllRealmLinuxBindings;
   bundles: LocalPreparedOperationBundleFiles;
+  files: readonly Readonly<{ path: string; bytes: Uint8Array }>[];
 }>>;
