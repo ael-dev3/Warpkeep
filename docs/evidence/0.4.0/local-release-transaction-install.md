@@ -68,3 +68,43 @@ by the actual generated family, completed-journal lifecycle, independent final
 verification, repeat-write convergence and reviewed candidate export remain
 assembler work. Existing activation/production-source work must also finish
 before final freeze. This component does not close R11–R13.
+
+## Captured workspace connection
+
+Commit `e8716ddfede628fae49fd69a6872710c713a9703` connects the captured workspace
+to installation without attempting a second, conflicting acquisition of its
+already-held lock. The lock module authenticates genuine active leases in a
+private WeakMap and binds each to its exact candidate root. Forged callback
+objects, released leases and wrong-root leases are rejected. The under-lock
+installer never releases the caller's lease, including on failure. The workspace
+supplies its own captured source coordinates and checks the immutable source
+again after installation. The installer and journal codec are now included in
+the fixed bootstrap-control source checks for this new import chain.
+
+The explicit credential-free native integration probe passed:
+
+```powershell
+wsl -d Ubuntu-24.04 -- /usr/bin/env -i HOME=/home/snapmeter PATH=/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin:/usr/bin:/bin LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/tests/fixtures/localReleaseWorkspaceNativeProbe.mjs
+```
+
+Session 4545 exited 0 for source tree
+`c72231294edbad7dddc86aa77a21790d094d7781`. It captured the real committed
+repository into fresh private source/candidate directories, installed the exact
+existing bytes of `scripts/genesis002_module_bindings/index.ts`, checked the held
+lock against a competing acquisition, released it explicitly, and rolled back
+with the existing recovery implementation. Before and after, the target SHA-256
+was `7f3790b57c9fabd1b93bb93e4ef8329217f717ae0026cf4d8a7a843a99a6b876`.
+The capture/install/recovery path used no filesystem or Git mocks. An earlier
+attempt correctly rejected uncommitted bootstrap control changes; committing
+them, not disabling the source check, allowed this exact-source run.
+
+Expanded Linux installer/journal/recovery tests: **96 passed, 1 conditional
+skip**. Windows workspace/installer/lock/bundle-runtime suites: **44 passed,
+32 platform skips**. Root and targeted strict TypeScript checks exited 0.
+The workspace unit tests mock capture/installation to isolate wiring; the
+native probe above is separate evidence of their actual integration.
+
+This probe intentionally installs identical bytes for one existing file. It
+does not demonstrate complete-family generation, declaration/consumer pin
+coverage, repeat-write convergence, final verification or deployment. Private
+probe workspaces are retained for diagnostics, not exported as release builds.
