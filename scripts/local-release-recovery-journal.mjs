@@ -25,6 +25,8 @@ const FIXED_OUTPUTS = new Set([
   ].flatMap(name => [`scripts/${name}.mjs`, `scripts/${name}.d.mts`]),
   'scripts/auth-bridge-notification-prepared-deploy-closure-v1.json',
   'scripts/sealed-realms-production-bundle-manifest-v1.json',
+  'scripts/recovery-workflow-bundle-manifest-v1.json',
+  'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs',
   ...['sealed-realms-production', 'notification-bridge-b0',
     'notification-bridge-prepared', 'deploy-pages', 'verify']
     .map(name => `.github/workflows/${name}.yml`),

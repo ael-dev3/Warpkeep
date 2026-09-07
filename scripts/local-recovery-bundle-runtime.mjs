@@ -9,6 +9,9 @@ import { installLocalBindingNativeTsHooks } from './local-binding-native-ts-hook
 
 const ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
 const NODE = `${ROOT}/toolchain/node-v22.22.3-linux-x64/bin/node`;
+const PROFILE = 'warpkeep-recovery-bundle-preparation-linux-x64-v1';
+const BUNDLE_PATH = 'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs';
+const MANIFEST_PATH = 'scripts/recovery-workflow-bundle-manifest-v1.json';
 const fail = () => { throw new Error('LOCAL_RECOVERY_BUNDLE_RUNTIME_INVALID'); };
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 function privateDirectory(path) {
@@ -95,9 +98,14 @@ export async function derivePreparedLinuxRecoveryBundle(...args) {
     if (!first.bytes.equals(second.bytes) || first.sha256 !== second.sha256
       || JSON.stringify(first.inputs) !== JSON.stringify(second.inputs)) fail();
     source.verify(); attest(NODE, nodeSha, 1000, nodeIdentity); attest('/usr/bin/git', gitSha, 0, gitIdentity);
-    result = Object.freeze({sourceCommit: source.commit, sourceTree: source.tree,
-      path: 'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs',
-      bytes: first.bytes, sha256: first.sha256, inputs: Object.freeze(first.inputs)});
+    const manifest = Buffer.from(`${JSON.stringify({schemaVersion: 1, profile: PROFILE,
+      sourceCommit: source.commit, sourceTree: source.tree,
+      bundle: {path: BUNDLE_PATH, byteLength: first.bytes.length, sha256: first.sha256},
+      compilerInputs: first.inputs}, null, 2)}\n`);
+    result = Object.freeze({profile: PROFILE, sourceCommit: source.commit, sourceTree: source.tree,
+      path: BUNDLE_PATH, bytes: first.bytes, sha256: first.sha256, inputs: Object.freeze(first.inputs),
+      files: Object.freeze([Object.freeze({path: MANIFEST_PATH, bytes: manifest}),
+        Object.freeze({path: BUNDLE_PATH, bytes: first.bytes})])});
     second.bytes.fill(0);
   } catch { fail(); }
   finally {

@@ -1,10 +1,20 @@
 // @vitest-environment node
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as bindingRuntime from '../scripts/local-binding-runtime.mjs';
 import * as bundleRuntime from '../scripts/local-operation-bundle-runtime.mjs';
+import * as recoveryRuntime from '../scripts/local-recovery-bundle-runtime.mjs';
 
 const profile = 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1' as const;
 const identity = { profile, sourceCommit: 'a'.repeat(40), sourceTree: 'b'.repeat(40) };
+function recoveryResult(): Awaited<ReturnType<typeof recoveryRuntime.derivePreparedLinuxRecoveryBundle>> {
+  const bytes = Buffer.from('fixture');
+  const path = 'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs';
+  return {...identity, profile: 'warpkeep-recovery-bundle-preparation-linux-x64-v1', path, bytes,
+    sha256: 'd'.repeat(64), inputs: [], files: [
+      {path: 'scripts/recovery-workflow-bundle-manifest-v1.json', bytes: Buffer.from('{}')}, {path, bytes},
+    ]};
+}
+beforeEach(() => vi.spyOn(recoveryRuntime, 'derivePreparedLinuxRecoveryBundle').mockResolvedValue(recoveryResult()));
 
 function bindingResult(): bindingRuntime.PreparedAllRealmLinuxBindings {
   const digest = 'c'.repeat(64);
@@ -43,6 +53,14 @@ async function coordinator() {
 afterEach(() => vi.restoreAllMocks());
 
 describe('fixed release artifact input coordination', () => {
+  it.each([{sourceCommit: 'c'.repeat(40)}, {sourceTree: 'c'.repeat(40)}, {profile: 'other'}])(
+    'rejects a recovery producer from a different source or profile %j', async changed => {
+      vi.spyOn(process, 'platform', 'get').mockReturnValue('linux');
+      vi.spyOn(bindingRuntime, 'derivePreparedAllRealmLinuxBindings').mockResolvedValue(bindingResult());
+      vi.spyOn(bundleRuntime, 'derivePreparedLinuxOperationBundleFiles').mockResolvedValue(bundleResult());
+      vi.mocked(recoveryRuntime.derivePreparedLinuxRecoveryBundle).mockResolvedValue({...recoveryResult(), ...changed} as never);
+      await expect((await coordinator())()).rejects.toMatchObject({code: 'LOCAL_RELEASE_ARTIFACT_SOURCE_MISMATCH'});
+    });
   it('returns matching verified producer results without creating G001 output files', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('linux');
     const bindings = bindingResult();
@@ -51,12 +69,13 @@ describe('fixed release artifact input coordination', () => {
     vi.spyOn(bundleRuntime, 'derivePreparedLinuxOperationBundleFiles').mockResolvedValue(bundles);
     const run = await coordinator();
     const result = await run();
-    const files = [...bindings.genesis002.bindings, ...bindings.ptr.bindings, ...bundles.files]
+    const recovery = recoveryResult();
+    const files = [...bindings.genesis002.bindings, ...bindings.ptr.bindings, ...bundles.files, ...recovery.files]
       .sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
-    expect(result).toEqual({ ...identity, bindings, bundles, files });
+    expect(result).toEqual({ ...identity, bindings, bundles, recovery, files });
     expect(result.files.map(file => file.path)).toEqual([...result.files.map(file => file.path)].sort());
     expect(result.files.at(-1)?.path).toBe('spacetimedb/ptr/generated-bindings/index.ts');
-    expect(result.files).toHaveLength(11);
+    expect(result.files).toHaveLength(13);
     expect(Object.isFrozen(result.files)).toBe(true);
     // Sorting is a copy; source producer ordering and byte ownership survive.
     expect(bundles.files[0].path).toBe('scripts/sealed-realms-production-activation-lane.bundle.mjs');

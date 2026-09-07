@@ -12,5 +12,6 @@ export function derivePreparedLinuxArtifactInputs(...arguments_: []): Promise<Re
   sourceTree: string;
   bindings: PreparedAllRealmLinuxBindings;
   bundles: LocalPreparedOperationBundleFiles;
+  recovery: Awaited<ReturnType<typeof import('./local-recovery-bundle-runtime.mjs').derivePreparedLinuxRecoveryBundle>>;
   files: readonly Readonly<{ path: string; bytes: Uint8Array }>[];
 }>>;

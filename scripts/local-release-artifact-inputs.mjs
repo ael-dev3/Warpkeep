@@ -1,5 +1,6 @@
 import { derivePreparedAllRealmLinuxBindings } from './local-binding-runtime.mjs';
 import { derivePreparedLinuxOperationBundleFiles } from './local-operation-bundle-runtime.mjs';
+import { derivePreparedLinuxRecoveryBundle } from './local-recovery-bundle-runtime.mjs';
 
 const PROFILE = 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
 
@@ -34,10 +35,15 @@ export async function derivePreparedLinuxArtifactInputs(...arguments_) {
       || bundles?.sourceTree !== source.sourceTree) {
     fail('LOCAL_RELEASE_ARTIFACT_SOURCE_MISMATCH');
   }
+  const recovery = await derivePreparedLinuxRecoveryBundle();
+  if (recovery?.profile !== 'warpkeep-recovery-bundle-preparation-linux-x64-v1'
+    || recovery.sourceCommit !== source.sourceCommit || recovery.sourceTree !== source.sourceTree) {
+    fail('LOCAL_RELEASE_ARTIFACT_SOURCE_MISMATCH');
+  }
   // Each producer sorts its own namespace. Their concatenation is not globally
   // sorted (PTR's spacetimedb/ prefix precedes the later scripts/ bundle group).
   // Publish one ordered installation input without mutating producer results.
-  const files = Object.freeze([...bindings.genesis002.bindings, ...bindings.ptr.bindings, ...bundles.files]
+  const files = Object.freeze([...bindings.genesis002.bindings, ...bindings.ptr.bindings, ...bundles.files, ...recovery.files]
     .sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0));
-  return Object.freeze({ ...source, bindings, bundles, files });
+  return Object.freeze({ ...source, bindings, bundles, recovery, files });
 }
