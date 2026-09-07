@@ -101,3 +101,10 @@ These checks do not configure the protected workflow's proxy environment or
 validate embedded action runtimes, full Actions endpoints, signed OIDC, runner
 registration, dependency installation, or production job authorization. The
 remaining requirements above still apply. No credentials entered the image/test.
+
+The follow-up harness now runs plain Node (no `--use-env-proxy` CLI flag), with
+`NODE_USE_ENV_PROXY=1` supplied alongside the fixed HTTPS proxy and empty
+`NO_PROXY`. The smoke script asserts both the environment setting and absence
+of that CLI flag, so its fetch checks exercise environment-only activation.
+This is the required environment contract for the pinned job Node; it is not
+yet installed into a production runner or proof of embedded Actions behavior.

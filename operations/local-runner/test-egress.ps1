@@ -52,7 +52,7 @@ try {
             Invoke-TaskProbe 'network-smoke.py'
             Invoke-TaskProbe 'proxy-smoke.py'
             Get-Content -Raw (Join-Path $PSScriptRoot 'node-proxy-smoke.mjs') |
-                & wsl -d Ubuntu-24.04 --exec docker run --rm --interactive --network $taskInternal --ip 172.30.240.3 --dns 127.0.0.1 --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --memory 256m --cpus 1 --env HTTPS_PROXY=http://172.30.240.2:3128 --env NO_PROXY= --entrypoint /opt/node-v22.22.3-linux-x64/bin/node $taskRunnerImage --use-env-proxy --input-type=module -
+                & wsl -d Ubuntu-24.04 --exec docker run --rm --interactive --network $taskInternal --ip 172.30.240.3 --dns 127.0.0.1 --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --memory 256m --cpus 1 --env HTTPS_PROXY=http://172.30.240.2:3128 --env NO_PROXY= --env NODE_USE_ENV_PROXY=1 --entrypoint /opt/node-v22.22.3-linux-x64/bin/node $taskRunnerImage --input-type=module -
             if ($LASTEXITCODE -ne 0) { throw 'Pinned Node proxy probe failed' }
         }
         Invoke-TaskDocker @('stop', '--timeout', '5', $taskProxy)
