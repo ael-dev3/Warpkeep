@@ -38,7 +38,12 @@ function attest(path, bytes, sha256, uid) {
 }
 
 function sourceManifest(source) {
-  const listing = source.git(source.root, ['ls-tree', '-r', '-l', '-z', source.tree], 1024 * 1024);
+  const bytes = source.gitBuffer(source.root, ['ls-tree', '-r', '-l', '-z', source.tree], 1024 * 1024);
+  let listing;
+  try {
+    listing = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    if (!Buffer.from(listing).equals(bytes)) fail('SOURCE_INVALID');
+  } catch { fail('SOURCE_INVALID'); }
   if (!listing.endsWith('\0')) fail('SOURCE_INVALID');
   const entries = listing.slice(0, -1).split('\0');
   // Current whole committed tree: 2,746 files / 184,542,446 bytes; these are
@@ -68,6 +73,7 @@ function verifySourceBytes(root, manifest) {
       maximumBytes: 16 * 1024 * 1024, expectedBytes: file.size, expectedUid: 1000, expectedMode: file.mode,
     });
     try {
+      if ((BigInt(opened.identity.mode) & 0o7777n) !== BigInt(file.mode)) fail('SOURCE_MODE_CHANGED');
       const oid = createHash('sha1').update(`blob ${file.size}\0`).update(opened.body).digest('hex');
       if (oid !== file.oid) fail('SOURCE_BYTES_CHANGED');
     } finally { opened.body.fill(0); }

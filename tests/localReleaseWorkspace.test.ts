@@ -14,7 +14,8 @@ afterEach(() => {
 
 async function setup() {
   vi.resetModules();
-  const state = { sourceDirty: false, rawChanged: false, candidateDirty: false, candidateChanged: false,
+  const state = { sourceDirty: false, rawChanged: false, sourceMode: 0o100644n, rawListing: null as Buffer | null,
+    candidateDirty: false, candidateChanged: false,
     released: false, acquired: false, failAfterLock: false, cleanupFails: false, filesystem: 0xef53,
     sourceRoot: '', candidateRoot: '', changedPath: '', created: [] as string[],
     listing: '100644 blob 2e65efe2a145dda7ee51d1741299f848e5bf752e       1\tsource.txt\0' };
@@ -33,7 +34,7 @@ async function setup() {
   vi.doMock('../scripts/local-binding-bounded-file.mjs', () => ({
     readLocalBindingBoundedFile(path: string) {
       return { body: path === join(state.sourceRoot, 'source.txt') ? Buffer.from(state.rawChanged ? 'b' : 'a') : Buffer.alloc(0),
-        identity: { ino: '1' } };
+        identity: { ino: '1', mode: String(state.sourceMode) } };
     },
   }));
   vi.doMock('../scripts/local-binding-runtime-core.mjs', () => ({
@@ -46,6 +47,10 @@ async function setup() {
         },
         verify() { if (state.acquired && state.failAfterLock) throw new Error('SOURCE_CHANGED'); },
         verifyMaterialization() { if (state.candidateChanged) throw new Error('CANDIDATE_HEAD_CHANGED'); },
+        gitBuffer(root: string, args: string[]) {
+          if (root !== state.sourceRoot || args.join(' ') !== `ls-tree -r -l -z ${'b'.repeat(40)}`) throw new Error('UNEXPECTED_GIT');
+          return state.rawListing ?? Buffer.from(state.listing);
+        },
         git(root: string, args: string[]) {
           if (root === state.sourceRoot && args.join(' ') === `ls-tree -r -l -z ${'b'.repeat(40)}`) {
             return state.listing;
@@ -117,6 +122,20 @@ describe('fixed native release workspace', () => {
     state.rawChanged = true;
     expect(() => workspace.assertActive()).toThrow('LOCAL_RELEASE_WORKSPACE_SOURCE_BYTES_CHANGED');
     workspace.release();
+  });
+
+  it('rejects special permission bits even when content and Git status are unchanged', async () => {
+    const { state, capture } = await setup();
+    const workspace = capture();
+    state.sourceMode = 0o104644n;
+    expect(() => workspace.assertActive()).toThrow('LOCAL_RELEASE_WORKSPACE_SOURCE_MODE_CHANGED');
+    workspace.release();
+  });
+
+  it('rejects invalid UTF-8 pathname bytes instead of decoding to a shadow name', async () => {
+    const { state, capture } = await setup();
+    state.rawListing = Buffer.concat([Buffer.from('100644 blob 2e65efe2a145dda7ee51d1741299f848e5bf752e 1\t'), Buffer.from([255, 0])]);
+    expect(() => capture()).toThrow('LOCAL_RELEASE_WORKSPACE_SOURCE_INVALID');
   });
 
   it.each([
