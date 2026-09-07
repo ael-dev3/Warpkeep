@@ -478,20 +478,17 @@ jobs:
       pages: write
       id-token: write
     steps:
-      - name: Acquire exact recovery identity
-        id: recovery-oidc
-        shell: bash
-        env:
-          OIDC_AUDIENCE: warpkeep-release-recovery
-        run: |
-          test "$OIDC_AUDIENCE" = warpkeep-release-recovery
-          curl --fail-with-body --silent --show-error \\
-            --header "Authorization: bearer \${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \\
-            "\${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=\${OIDC_AUDIENCE}"
       - name: Upload exact recovery artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
         with:
           name: github-pages-recovery-\${{ github.run_id }}-\${{ github.run_attempt }}
+      - name: Prepare private recovery claim
+        id: recovery-claim
+        shell: bash
+        env:
+          GITHUB_TOKEN: \${{ github.token }}
+        run: |
+          node scripts/recovery-workflow-prepare-claim.mjs
 `)
 }
 
@@ -1246,8 +1243,15 @@ describe('GitHub candidate evidence', () => {
     ['ignored job failure', (source: string) => source.replace('    environment:', '    continue-on-error: true\n    environment:')],
     ['non-object step', (source: string) => source.replace('    steps:', '    steps:\n      - ignored')],
     ['artifact convention', (source: string) => source.replace('github-pages-recovery-', 'pages-')],
-    ['OIDC audience', (source: string) => source.replace('warpkeep-release-recovery', 'attacker-audience')],
-    ['OIDC request URL', (source: string) => source.replace('ACTIONS_ID_TOKEN_REQUEST_URL', 'ATTACKER_URL')],
+    ['preparation command', (source: string) => source.replace('node scripts/recovery-workflow-prepare-claim.mjs', 'node scripts/other.mjs')],
+    ['comment-only preparation', (source: string) => source.replace('node scripts/recovery-workflow-prepare-claim.mjs', '# node scripts/recovery-workflow-prepare-claim.mjs')],
+    ['preparation caller arguments', (source: string) => source.replace('node scripts/recovery-workflow-prepare-claim.mjs', 'node scripts/recovery-workflow-prepare-claim.mjs --override')],
+    ['ignored preparation failure', (source: string) => source.replace('        id: recovery-claim', '        continue-on-error: true\n        id: recovery-claim')],
+    ['conditional preparation', (source: string) => source.replace('        id: recovery-claim', '        if: false\n        id: recovery-claim')],
+    ['preparation token override', (source: string) => source.replace('GITHUB_TOKEN: ${{ github.token }}', 'GITHUB_TOKEN: other')],
+    ['preparation ambient override', (source: string) => source.replace('          GITHUB_TOKEN:', '          NODE_OPTIONS: other\n          GITHUB_TOKEN:')],
+    ['preparation before upload', (source: string) => source.replace(/(      - name: Upload exact recovery artifact[\s\S]*?)(      - name: Prepare private recovery claim[\s\S]*)/, '$2$1')],
+    ['duplicate preparation', (source: string) => source + source.slice(source.indexOf('      - name: Prepare private recovery claim'))],
     ['artifact action input', (source: string) => source.replace('name: github-pages-recovery-', 'artifact-name: github-pages-recovery-')],
     ['display-name-only spoof', (source: string) => source.replace('uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9', 'run: echo upload-pages-artifact')],
     ['wrong pinned artifact action', (source: string) => source.replace('fc324d3547104276b827a68afc52ff2a11cc49c9', '0000000000000000000000000000000000000000')],

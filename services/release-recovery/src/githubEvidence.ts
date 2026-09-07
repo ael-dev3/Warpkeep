@@ -908,15 +908,17 @@ function validateWorkflow(bytes: Uint8Array): void {
     if (!Array.isArray(steps) || steps.length < 1 || steps.length > 100) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     const objects = steps.filter(step => step !== null && typeof step === 'object' && !Array.isArray(step)) as Record<string, unknown>[]
     if (objects.length !== steps.length) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
-    const audienceSteps = objects.filter(step => {
+    const preparationSteps = objects.filter(step => {
       const environment = step.env
-      return environment !== null && typeof environment === 'object' && !Array.isArray(environment)
-        && (environment as Record<string, unknown>).OIDC_AUDIENCE === 'warpkeep-release-recovery'
-        && typeof step.run === 'string'
-        && step.run.includes('$OIDC_AUDIENCE')
-        && step.run.includes('ACTIONS_ID_TOKEN_REQUEST_URL')
-        && step.run.includes('ACTIONS_ID_TOKEN_REQUEST_TOKEN')
-        && step.run.includes('audience=${OIDC_AUDIENCE}')
+      // The fixed helper owns fresh audience-bound OIDC acquisition. Shell
+      // substrings (including comments or raw curl) do not prove that behavior.
+      return Object.keys(step).length === 5
+        && step.name === 'Prepare private recovery claim'
+        && step.id === 'recovery-claim' && step.shell === 'bash'
+        && environment !== null && typeof environment === 'object' && !Array.isArray(environment)
+        && Object.keys(environment).length === 1
+        && (environment as Record<string, unknown>).GITHUB_TOKEN === '${{ github.token }}'
+        && step.run === 'node scripts/recovery-workflow-prepare-claim.mjs\n'
     })
     const artifactSteps = objects.filter(step => {
       const withValue = step.with
@@ -925,7 +927,8 @@ function validateWorkflow(bytes: Uint8Array): void {
         && withValue !== null && typeof withValue === 'object' && !Array.isArray(withValue)
         && (withValue as Record<string, unknown>).name === 'github-pages-recovery-${{ github.run_id }}-${{ github.run_attempt }}'
     })
-    if (audienceSteps.length !== 1 || artifactSteps.length !== 1) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    if (preparationSteps.length !== 1 || artifactSteps.length !== 1
+      || objects.indexOf(artifactSteps[0]!) >= objects.indexOf(preparationSteps[0]!)) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   } catch {
     githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   }

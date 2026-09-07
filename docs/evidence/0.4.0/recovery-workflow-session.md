@@ -399,3 +399,22 @@ including repeatable claim-module builds, native import and pre-I/O rejection
 of overrides. Targeted strict TypeScript passed. No real issue/claim request,
 production directory allocation or deployment occurred. The protected Actions
 step, deployment-time entrypoint and full workflow reconciliation remain unfinished.
+
+## Native preparation command and protected source contract — 2026-09-07
+
+`a098ee2` adds the no-argument native preparation command. It imports only the
+fixed installed claim bundle, rejects missing/failed/invalid preparation with a
+fixed error and nonzero exit, and emits only a bounded acknowledgment on success.
+Seven native CLI tests use synthetic prepared modules; four separate packaging
+tests exercise compiled modules and native archive ingestion. All 11 passed on
+Windows and Linux Node 22.22.3; targeted strict TypeScript passed. These tests
+made no real authority requests and did not deploy anything.
+
+The protected workflow validator now requires the exact preparation step and
+command after its unique artifact upload, instead of accepting OIDC-related
+shell substrings. It rejects comments, caller arguments, skipped/ignored steps,
+environment overrides, duplicate preparation and preparation before upload.
+The source specification records this bounded integration contract. Actual
+compiled-family installation, the recovery job, fresh deployment-time context
+reconstruction, terminal reconciliation and runner provisioning are still
+required. No final freeze or production activation was performed.
