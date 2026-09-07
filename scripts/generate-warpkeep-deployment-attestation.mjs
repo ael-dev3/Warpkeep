@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { lstatSync, readdirSync, realpathSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { types } from 'node:util';
+import { fileURLToPath } from 'node:url';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 
 const ATTESTATION = '.well-known/warpkeep-deployment-v1.json';
@@ -93,4 +94,13 @@ export function verifyWarpkeepDeploymentAttestation(options) {
     if (!opened.body.equals(bytes)) fail();
     return Object.freeze({ deploymentAttestationSha256: sha(bytes) });
   } finally { opened.body.fill(0); }
+}
+
+let invokedDirectly = false;
+try {
+  invokedDirectly = Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+} catch { /* Embedded importers need not supply a filesystem entry point. */ }
+if (invokedDirectly) {
+  process.stderr.write('WARPKEEP_DEPLOYMENT_ATTESTATION_CLI_NOT_IMPLEMENTED\n');
+  process.exitCode = 1;
 }

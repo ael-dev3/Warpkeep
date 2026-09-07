@@ -1,5 +1,7 @@
 // @vitest-environment node
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import * as fs from 'node:fs';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, linkSync, symlinkSync, openSync, ftruncateSync, closeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -16,6 +18,26 @@ const identity = Object.freeze({ candidateCommit: 'a'.repeat(40), candidateTree:
   recoveryAuthorizationCoreSha256: 'c'.repeat(64),
   sourceClosureProfile: 'warpkeep-0.4.0-recovery-source-closure-v1', sourceClosureSha256: 'd'.repeat(64) });
 let root: string;
+
+it('does not report successful CLI verification before source-bound command integration exists', () => {
+  const script = fileURLToPath(new URL('../scripts/generate-warpkeep-deployment-attestation.mjs', import.meta.url));
+  const result = spawnSync(process.execPath, [script, '--check'], { encoding: 'utf8', timeout: 10000 });
+  expect(result.error).toBeUndefined();
+  expect(result.status).toBe(1);
+  expect(result.stderr).toBe('WARPKEEP_DEPLOYMENT_ATTESTATION_CLI_NOT_IMPLEMENTED\n');
+  expect(result.stdout).toBe('');
+});
+
+it('can be imported by a host with a non-file argv entry', () => {
+  const moduleUrl = new URL('../scripts/generate-warpkeep-deployment-attestation.mjs', import.meta.url).href;
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e',
+    `process.argv[1] = '[embedded-host]'; await import(${JSON.stringify(moduleUrl)});`],
+  { encoding: 'utf8', timeout: 10000 });
+  expect(result.error).toBeUndefined();
+  expect(result.status).toBe(0);
+  expect(result.stderr).toBe('');
+  expect(result.stdout).toBe('');
+});
 beforeEach(() => {
   vi.resetAllMocks();
   root = mkdtempSync(join(tmpdir(), 'warpkeep-attestation-'));
