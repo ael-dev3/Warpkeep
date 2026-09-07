@@ -319,3 +319,27 @@ This closes the compiled-ingestion diagnostic gap, not the complete release
 workflow. Real GitHub artifact evidence, fixed private storage/entrypoint
 integration, attested production tooling, live signer inputs, and deployment
 acceptance remain required.
+
+## 2026-09-07: claim persistence timing correction
+
+Startup previously returned only after a status network request, leaving the
+verified claim in memory until the caller invoked `persistClaim`. A process
+failure during that wait could lose the receipt before reconciliation storage
+existed. `beginRecoveryWorkflowSession` now requires the private directory as its
+third argument and persists immediately after strict claim verification, before
+the status request. The separate public `persistClaim` method was removed; no
+operating callers existed outside the updated tests. Storage failure returns a
+reconciliation-only session, never a deployment-capable one.
+
+Before any OIDC or issue request, `preflightRecoveryClaimHandoff` checks the
+existing canonical owner-private Linux directory, write access and emptiness
+through a held descriptor. Preflight is not a guarantee against later disk
+failure; exclusive write, fsync, identity/readback and strict receipt checks
+remain mandatory at persistence. Existing files are preserved, not overwritten.
+The caller still must provision the fixed runner directory before startup.
+
+At source `a36c7cc`, Linux session/storage suites passed 23 tests with one
+Windows-only skip. Windows passed 15 with nine Linux-only skips; targeted strict
+TypeScript passed. The real-filesystem, real-signature native probe passed ten
+scenarios, now including empty-directory preflight and prior-claim rejection.
+No production issue/claim request or deployment occurred.
