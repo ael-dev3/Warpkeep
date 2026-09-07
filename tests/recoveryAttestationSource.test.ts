@@ -41,13 +41,14 @@ it('derives identity from a real committed three-file activation child', () => {
   expect(result.candidateTree).toBe(git('rev-parse', 'HEAD^{tree}'));
   expect(result.recoveryAuthorizationCoreSha256).toMatch(/^[a-f0-9]{64}$/);
 });
-it('routes an exact schema-2 activation child only to the recovery lane', () => {
+// The Pages classifier intentionally uses the fixed /usr/bin/git boundary.
+it.skipIf(process.platform !== 'linux')('routes an exact schema-2 activation child only to the recovery lane', () => {
   const candidatePagesSourceCommit = git('rev-parse', 'HEAD');
   expect(classifySealedLaunchPagesDeployLane({ repositoryRoot: root, candidatePagesSourceCommit })).toEqual({
     profile: 'warpkeep-0.4.0-sealed-launch-v2', candidatePagesSourceCommit, mode: 'sealed-g002-recovery',
   });
 });
-it('rejects recovery routing with a stale source SHA or untracked source', () => {
+it.skipIf(process.platform !== 'linux')('rejects recovery routing with a stale source SHA or untracked source', () => {
   expect(() => classifySealedLaunchPagesDeployLane({ repositoryRoot: root, candidatePagesSourceCommit: 'a'.repeat(40) })).toThrow();
   writeFileSync(join(root, 'untracked.js'), 'unreviewed');
   expect(() => classifySealedLaunchPagesDeployLane({ repositoryRoot: root, candidatePagesSourceCommit: git('rev-parse', 'HEAD') })).toThrow();
