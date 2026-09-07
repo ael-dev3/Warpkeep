@@ -43,6 +43,12 @@ if (process.argv[2] === '--child') {
     else if (input.operation === 'write') api.writeRecoveryClaimHandoff(input.root, input.receipt, input.expected);
     else if (input.operation === 'deploy') api.readRecoveryClaimHandoffForDeployment(input.root, input.context);
     else if (input.operation === 'reconcile') api.readRecoveryClaimHandoffForReconciliation(input.root, input.context);
+    else if (input.operation === 'history') {
+      const history = api.readRecoveryClaimHandoffHistory(input.root);
+      assert.equal(Object.keys(history).join(','), 'purpose,contextSource');
+      assert.equal(history.purpose, 'signed-history-only');
+      assert.equal(history.contextSource, input.context);
+    }
     else throw new Error('UNKNOWN_OPERATION');
     process.stdout.write('{"accepted":true}');
   } catch { process.stdout.write('{"accepted":false}'); }
@@ -89,11 +95,15 @@ if (process.argv[2] === '--child') {
     assert.equal(run('write', 1002), false);
     assert.equal(run('deploy', 1121), false);
     assert.equal(run('reconcile', 1121), true);
+    assert.equal(run('history', 1002), true);
+    assert.equal(run('history', 1121), true);
+    assert.equal(run('history', 2201), false);
     assert.equal(run('reconcile', 2201), false);
     assert.equal(run('reconcile', 1002, { context: JSON.stringify({ ...context, artifactId: '999' }) }), false);
     const wrong = generateKeyPairSync('ec', { namedCurve: 'prime256v1' }).publicKey.export({ format: 'jwk' });
     const wrongThumbprint = createHash('sha256').update(JSON.stringify({ crv: wrong.crv, kty: wrong.kty, x: wrong.x, y: wrong.y })).digest('base64url');
     assert.equal(run('reconcile', 1002, { jwk: wrong, thumbprint: wrongThumbprint }), false);
-    process.stdout.write('{"crossProcessSignatureAndPersistence":true,"checks":10,"productionCredentialsUsed":false}\n');
+    assert.equal(run('history', 1002, { jwk: wrong, thumbprint: wrongThumbprint }), false);
+    process.stdout.write('{"crossProcessSignatureAndPersistence":true,"checks":14,"productionCredentialsUsed":false}\n');
   } finally { rmSync(root, { recursive: true }); }
 }
