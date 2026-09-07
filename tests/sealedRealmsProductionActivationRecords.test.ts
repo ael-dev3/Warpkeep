@@ -51,6 +51,7 @@ import {
 } from '../scripts/genesis001-admitted-player-census.mjs';
 import {
   genesis001CensusOpaqueProofDigest,
+  deriveGenesis001RecoveryLaunchEvidence,
   genesis001AdmissionMonitorCurrentStateReceiptDigest,
   genesis001FreezePublishReceiptDigest,
   genesis001MonitorSuspensionReceiptDigest,
@@ -73,7 +74,9 @@ import {
 import {
   createSealedRealmsProductionActivationRecords,
   writeSealedRealmsProductionActivationDescriptor,
+  writeSealedRealmsProductionRecoveryActivationDescriptor,
 } from '../scripts/sealed-realms-production-activation-records.mjs';
+import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
 import * as activationRecordsModule from '../scripts/sealed-realms-production-activation-records.mjs';
 import {
   authenticateSealedRealmsProductionSourceAuthority,
@@ -959,6 +962,103 @@ afterEach(() => {
 });
 
 describe('sealed-realms activation descriptor records', () => {
+  it.each(['valid', 'independent', 'module-source', 'atlas-source', 'digest', 'missing', 'historical'])(
+    'validates the twelve-record recovery descriptor: %s', (scenario) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-28T12:02:00.000Z'));
+    try {
+      const state = privateStateFixture();
+      const receipts = fullCorpus();
+      if (scenario === 'independent') {
+        for (const realm of ['g002', 'ptr'] as const) {
+          for (const [member, receipt] of Object.entries(receipts)) {
+            if (!member.startsWith(realm)) continue;
+            const mutable = receipt as Record<string, unknown>;
+            if ('sourceCommit' in mutable) mutable.sourceCommit = (realm === 'g002' ? 'e' : 'f').repeat(40);
+            if ('moduleSourceCommit' in mutable) mutable.moduleSourceCommit = (realm === 'g002' ? 'e' : 'f').repeat(40);
+            if ('atlasSourceCommit' in mutable) mutable.atlasSourceCommit = (realm === 'g002' ? 'c' : 'd').repeat(40);
+          }
+        }
+        const { publishReceiptDigest: _g002Publish, ...g002Publish } = receipts.g002PublishReceipt;
+        receipts.g002PublishReceipt.publishReceiptDigest = genesis002PublishReceiptDigest(g002Publish);
+        const { importReceiptDigest: _g002Import, ...g002Import } = receipts.g002AtlasImportReceipt;
+        receipts.g002AtlasImportReceipt.importReceiptDigest = genesis002ProductionImportReceiptDigest(g002Import);
+        const { publishReceiptDigest: _ptrPublish, ...ptrPublish } = receipts.ptrPublishReceipt;
+        receipts.ptrPublishReceipt.publishReceiptDigest = ptrProductionPublishReceiptDigest(ptrPublish);
+        const { importReceiptDigest: _ptrImport, ...ptrImport } = receipts.ptrAtlasImportReceipt;
+        receipts.ptrAtlasImportReceipt.importReceiptDigest = ptrProductionAtlasImportReceiptDigest(ptrImport);
+        receipts.ptrOwnerProvisionReceipt.atlasImportReceiptDigest = receipts.ptrAtlasImportReceipt.importReceiptDigest;
+        const { provisionReceiptDigest: _owner, ...owner } = receipts.ptrOwnerProvisionReceipt;
+        receipts.ptrOwnerProvisionReceipt.provisionReceiptDigest = ptrOwnerProvisionReceiptDigest(owner);
+      }
+      const candidate = recoveryBindingCandidate();
+      Object.assign(candidate, {
+        preparationSourceCommit: FIXTURE_SOURCE_COMMIT,
+        recoveryAuthWorkerSourceCommit: FIXTURE_SOURCE_COMMIT,
+        authBridgeSourceCommit: FIXTURE_SOURCE_COMMIT,
+      }, deriveGenesis001RecoveryLaunchEvidence({
+        preparationSourceCommit: FIXTURE_SOURCE_COMMIT,
+        policyObservationBootstrapReceipt: receipts.g001PolicyObservationBootstrapReceipt,
+        censusPrivacySafePrivateReceipt: receipts.g001CensusPrivacySafePrivateReceipt,
+        admissionMonitorSuspensionReceipt: receipts.g001AdmissionMonitorSuspensionReceipt,
+        admissionMonitorCurrentStateReceipt: receipts.g001AdmissionMonitorCurrentStateReceipt,
+        admittedPlayerCensusPrivateReceipt: receipts.g001AdmittedPlayerCensusPrivateReceipt,
+      }));
+      for (const realm of ['g002', 'ptr'] as const) {
+        const published = receipts[`${realm}PublishReceipt`] as Record<string, unknown>;
+        for (const field of ['databaseIdentity', 'moduleSha256', 'moduleTreeId',
+          'dependencyClosureDigest', 'spacetimeExecutableSha256', 'spacetimeCliConfigSha256',
+          'freshStatusDigest', 'publishReceiptDigest']) {
+          candidate[`${realm}${field[0]!.toUpperCase()}${field.slice(1)}`] = published[field] as string;
+        }
+        candidate[`${realm}ModuleSourceCommit`] = published.sourceCommit as string;
+        candidate[`${realm}AtlasImportReceiptDigest`] = receipts[`${realm}AtlasImportReceipt`].importReceiptDigest;
+        const live = receipts[`${realm}SealedLiveReceipt`] as Record<string, unknown>;
+        candidate[`${realm}SealedLiveReceiptDigest`] = realm === 'g002'
+          ? genesis002SealedLiveReceiptDigest(live) : ptrSealedLiveReceiptDigest(live);
+        for (const field of ['atlasId', 'atlasSourceCommit', 'publicReleaseId', 'releaseHeaderSha256', 'verificationDigest']) {
+          candidate[`${realm}${field[0]!.toUpperCase()}${field.slice(1)}`] = live[field] as string;
+        }
+      }
+      candidate.g002ReleaseSha256 = receipts.g002SealedLiveReceipt.releaseSha256;
+      candidate.ptrReleaseManifestSha256 = receipts.ptrSealedLiveReceipt.releaseManifestSha256;
+      candidate.ptrExpectedReleaseSha256 = receipts.ptrSealedLiveReceipt.expectedReleaseSha256;
+      candidate.ptrOwnerProvisionReceiptDigest = receipts.ptrOwnerProvisionReceipt.provisionReceiptDigest;
+      for (const member of Object.keys(receipts) as ActivationRecordMember[]) {
+        if (member !== 'g001FreezePublishReceipt') writeActivationRecord(state, member, receipts[member]);
+      }
+      const records = createSealedRealmsProductionActivationRecords({
+        privateState: state, authority: fullRecordAuthority(),
+        readBindingCandidate: () => `${JSON.stringify(candidate, null, 2)}\n`,
+      });
+      if (scenario === 'module-source') candidate.g002ModuleSourceCommit = 'e'.repeat(40);
+      if (scenario === 'atlas-source') candidate.ptrAtlasSourceCommit = 'e'.repeat(40);
+      if (scenario === 'digest') candidate.ptrPublishReceiptDigest = 'e'.repeat(64);
+      if (scenario === 'missing') state.remove({
+        root: 'runtime', relativePath: `activation-evidence/records/${ACTIVATION_RECORD_NAMES.ptrSealedLiveReceipt}`,
+      });
+      if (scenario === 'historical') writeActivationRecord(state, 'g001FreezePublishReceipt', receipts.g001FreezePublishReceipt);
+      const consume = vi.fn((fd: number) => {
+        const bytes = readFileSync(fd);
+        try {
+          const descriptor = JSON.parse(bytes.toString('utf8'));
+          expect(descriptor.schemaVersion).toBe(2);
+          expect(descriptor).not.toHaveProperty('g001FreezePublishReceipt');
+          expect(descriptor.bindingCandidate.g001FreezePublishReceiptDigest).toBeNull();
+          expect(Object.keys(descriptor)).toHaveLength(15);
+        } finally { bytes.fill(0); }
+        return undefined;
+      });
+      if (scenario === 'valid' || scenario === 'independent') {
+        expect(writeSealedRealmsProductionRecoveryActivationDescriptor({ records, consumeDescriptor: consume })).toEqual({});
+        expect(consume).toHaveBeenCalledTimes(1);
+      } else {
+        expect(() => writeSealedRealmsProductionRecoveryActivationDescriptor({ records, consumeDescriptor: consume })).toThrow();
+        expect(consume).not.toHaveBeenCalled();
+      }
+    } finally { vi.useRealTimers(); }
+  });
+
   it('exposes no raw-receipt capture surface and never accepts descriptor evidence input', () => {
     const state = privateStateFixture();
     const source = 'a'.repeat(40);

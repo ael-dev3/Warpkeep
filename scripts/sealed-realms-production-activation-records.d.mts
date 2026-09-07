@@ -21,6 +21,12 @@ export function assertSealedRealmsProductionActivationRecords(
   records: unknown,
 ): SealedRealmsProductionActivationRecords;
 
+/** Reads a canonical schema-2 candidate and twelve non-historical private records. */
+export function writeSealedRealmsProductionRecoveryActivationDescriptor(input: Readonly<{
+  records: SealedRealmsProductionActivationRecords;
+  consumeDescriptor: (descriptor: number) => undefined;
+}>): Readonly<Record<never, never>>;
+
 /** Opens only the fixed private descriptor FD to one synchronous internal consumer. */
 export function writeSealedRealmsProductionActivationDescriptor(input: Readonly<{
   records: SealedRealmsProductionActivationRecords;
