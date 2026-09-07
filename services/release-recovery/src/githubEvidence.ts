@@ -929,6 +929,26 @@ function validateWorkflow(bytes: Uint8Array): void {
     })
     if (preparationSteps.length !== 1 || artifactSteps.length !== 1
       || objects.indexOf(artifactSteps[0]!) >= objects.indexOf(preparationSteps[0]!)) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const boundarySteps = objects.filter(step => {
+      const env = step.env
+      return Object.keys(step).length === 5 && step.name === 'Check recovery deployment boundary'
+        && step.id === 'recovery-boundary' && step.shell === 'bash'
+        && env !== null && typeof env === 'object' && !Array.isArray(env) && Object.keys(env).length === 1
+        && (env as Record<string, unknown>).GITHUB_TOKEN === '${{ github.token }}'
+        && step.run === 'node scripts/recovery-workflow-check-deployment.mjs\n'
+    })
+    const deploySteps = objects.filter(step => typeof step.uses === 'string' && step.uses.startsWith('actions/deploy-pages@'))
+    if (boundarySteps.length !== 1 || deploySteps.length !== 1) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const deploy = deploySteps[0]!
+    const deployWith = deploy.with
+    if (Object.keys(deploy).length !== 4 || deploy.name !== 'Deploy recovery-authorized release to GitHub Pages'
+      || deploy.id !== 'recovery-deployment'
+      || deploy.uses !== 'actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128'
+      || deployWith === null || typeof deployWith !== 'object' || Array.isArray(deployWith)
+      || Object.keys(deployWith).length !== 1
+      || (deployWith as Record<string, unknown>).artifact_name !== 'github-pages-recovery-${{ github.run_id }}-${{ github.run_attempt }}'
+      || objects.indexOf(boundarySteps[0]!) !== objects.indexOf(preparationSteps[0]!) + 1
+      || objects.indexOf(deploy) !== objects.indexOf(boundarySteps[0]!) + 1) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   } catch {
     githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   }

@@ -489,6 +489,18 @@ jobs:
           GITHUB_TOKEN: \${{ github.token }}
         run: |
           node scripts/recovery-workflow-prepare-claim.mjs
+      - name: Check recovery deployment boundary
+        id: recovery-boundary
+        shell: bash
+        env:
+          GITHUB_TOKEN: \${{ github.token }}
+        run: |
+          node scripts/recovery-workflow-check-deployment.mjs
+      - name: Deploy recovery-authorized release to GitHub Pages
+        id: recovery-deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128
+        with:
+          artifact_name: github-pages-recovery-\${{ github.run_id }}-\${{ github.run_attempt }}
 `)
 }
 
@@ -1244,6 +1256,14 @@ describe('GitHub candidate evidence', () => {
     ['non-object step', (source: string) => source.replace('    steps:', '    steps:\n      - ignored')],
     ['artifact convention', (source: string) => source.replace('github-pages-recovery-', 'pages-')],
     ['preparation command', (source: string) => source.replace('node scripts/recovery-workflow-prepare-claim.mjs', 'node scripts/other.mjs')],
+    ['boundary comment spoof', (source: string) => source.replace('node scripts/recovery-workflow-check-deployment.mjs', '# node scripts/recovery-workflow-check-deployment.mjs')],
+    ['boundary arguments', (source: string) => source.replace('node scripts/recovery-workflow-check-deployment.mjs', 'node scripts/recovery-workflow-check-deployment.mjs --override')],
+    ['ignored boundary failure', (source: string) => source.replace('        id: recovery-boundary', '        continue-on-error: true\n        id: recovery-boundary')],
+    ['conditional boundary', (source: string) => source.replace('        id: recovery-boundary', '        if: false\n        id: recovery-boundary')],
+    ['intervening deployment step', (source: string) => source.replace('      - name: Deploy recovery-authorized', '      - run: echo intervening\n      - name: Deploy recovery-authorized')],
+    ['wrong deployment pin', (source: string) => source.replace('cd2ce8fcbc39b97be8ca5fce6e763baed58fa128', '0000000000000000000000000000000000000000')],
+    ['deployment artifact override', (source: string) => source.replace('artifact_name: github-pages-recovery-', 'artifact_name: other-')],
+    ['conditional deployment', (source: string) => source.replace('        id: recovery-deployment', '        if: always()\n        id: recovery-deployment')],
     ['comment-only preparation', (source: string) => source.replace('node scripts/recovery-workflow-prepare-claim.mjs', '# node scripts/recovery-workflow-prepare-claim.mjs')],
     ['preparation caller arguments', (source: string) => source.replace('node scripts/recovery-workflow-prepare-claim.mjs', 'node scripts/recovery-workflow-prepare-claim.mjs --override')],
     ['ignored preparation failure', (source: string) => source.replace('        id: recovery-claim', '        continue-on-error: true\n        id: recovery-claim')],
