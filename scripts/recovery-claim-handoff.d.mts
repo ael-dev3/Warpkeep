@@ -6,3 +6,7 @@ type PrivateClaim = Readonly<{ claimReceiptJws: string; expectedSource: string }
 export function readRecoveryClaimHandoffForDeployment(privateRoot: string, contextSource: string): PrivateClaim;
 /** Non-authorizing reconciliation only; strict signed ledger deadline still applies. */
 export function readRecoveryClaimHandoffForReconciliation(privateRoot: string, contextSource: string): PrivateClaim;
+/** Signed historical data only, not current evidence or deployment authority. Keep private. */
+export function readRecoveryClaimHandoffHistory(privateRoot: string): Readonly<{
+  purpose: 'signed-history-only'; contextSource: string;
+}>;

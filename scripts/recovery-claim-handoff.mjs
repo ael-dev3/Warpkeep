@@ -68,14 +68,17 @@ export function writeRecoveryClaimHandoff(...args) {
   finally { bytes?.fill(0); }
 }
 
-function read(root, contextSource, deployment) {
+function read(root, contextSource, deployment, historyOnly = false) {
   return directory(root, fd => {
     let file, bytes;
     try {
-      if (typeof contextSource !== 'string' || contextSource.length > 16384) fail();
-      const context = JSON.parse(contextSource);
-      if (!context || Array.isArray(context) || typeof context !== 'object'
-          || Object.keys(context).join(',') !== CONTEXT.join(',') || JSON.stringify(context) !== contextSource) fail();
+      let context;
+      if (!historyOnly) {
+        if (typeof contextSource !== 'string' || contextSource.length > 16384) fail();
+        context = JSON.parse(contextSource);
+        if (!context || Array.isArray(context) || typeof context !== 'object'
+            || Object.keys(context).join(',') !== CONTEXT.join(',') || JSON.stringify(context) !== contextSource) fail();
+      }
       file = openSync(`/proc/self/fd/${fd}/${NAME}`, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
       const before = fstatSync(file, { bigint: true });
       if (!before.isFile() || before.nlink !== 1n || before.uid !== BigInt(process.getuid())
@@ -94,6 +97,12 @@ function read(root, contextSource, deployment) {
       const correlation = verifyRecoveryClaimCorrelation(value.claimReceiptJws, value.expectedSource, now());
       if (correlation.claimDeadline !== value.claimDeadline) fail();
       const expected = JSON.parse(value.expectedSource);
+      if (historyOnly) {
+        // Signature/schema/deadline verification above precedes projection.
+        // Historical digests are NOT independently current deployment evidence.
+        return Object.freeze({ purpose: 'signed-history-only', contextSource:
+          JSON.stringify(Object.fromEntries(CONTEXT.map(key => [key, expected[key]]))) });
+      }
       if (CONTEXT.some(key => expected[key] !== context[key])) fail();
       if (deployment) verifyRecoveryClaimReceipt(value.claimReceiptJws, value.expectedSource, now());
       // Private return values: caller must not print, summarize or upload them.
@@ -108,4 +117,11 @@ export function readRecoveryClaimHandoffForDeployment(...args) {
 export function readRecoveryClaimHandoffForReconciliation(...args) {
   if (args.length !== 2) fail();
   return read(...args, false);
+}
+/** Private historical projection only. Caller must independently revalidate all
+ * current source/run/artifact bindings, then use the strict deployment reader.
+ * Returns neither a receipt nor permission to deploy. */
+export function readRecoveryClaimHandoffHistory(...args) {
+  if (args.length !== 1) fail();
+  return read(args[0], undefined, false, true);
 }

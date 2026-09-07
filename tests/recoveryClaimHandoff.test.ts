@@ -6,7 +6,7 @@ import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { recoveryAuthorizationFixture } from './fixtures/recoveryAuthorizationFixture';
 const mocks = vi.hoisted(() => ({ claim: vi.fn(), correlation: vi.fn() }));
 vi.mock('../scripts/verify-recovery-claim-receipt.mjs', () => ({ verifyRecoveryClaimReceipt: mocks.claim, verifyRecoveryClaimCorrelation: mocks.correlation }));
-import { writeRecoveryClaimHandoff, readRecoveryClaimHandoffForDeployment, readRecoveryClaimHandoffForReconciliation } from '../scripts/recovery-claim-handoff.mjs';
+import { writeRecoveryClaimHandoff, readRecoveryClaimHandoffForDeployment, readRecoveryClaimHandoffForReconciliation, readRecoveryClaimHandoffHistory } from '../scripts/recovery-claim-handoff.mjs';
 const context = recoveryAuthorizationFixture().context;
 const contextSource = JSON.stringify(context);
 // Filesystem tests mock cryptographic verification; signed grammar has its own suite.
@@ -33,6 +33,22 @@ test('refuses replacement of an existing handoff', () => {
   const before = readFileSync(file());
   expect(() => writeRecoveryClaimHandoff(root, 'replacement', expectedSource)).toThrow('RECOVERY_CLAIM_HANDOFF_INVALID');
   expect(readFileSync(file())).toEqual(before);
+});
+test('projects signed history without returning a receipt or deployment authority', () => {
+  writeRecoveryClaimHandoff(root, 'private-claim', expectedSource);
+  const result = readRecoveryClaimHandoffHistory(root);
+  expect(result).toEqual({ purpose: 'signed-history-only', contextSource });
+  expect(Object.isFrozen(result)).toBe(true);
+  expect(mocks.correlation).toHaveBeenLastCalledWith('private-claim', expectedSource, expect.any(Number));
+  mocks.claim.mockImplementation(() => { throw new Error('expired'); });
+  expect(readRecoveryClaimHandoffHistory(root)).toEqual(result);
+  expect(() => readRecoveryClaimHandoffForDeployment(root, contextSource)).toThrow();
+});
+test('rejects unverifiable historical data and caller context overrides', () => {
+  writeRecoveryClaimHandoff(root, 'private-claim', expectedSource);
+  mocks.correlation.mockImplementation(() => { throw new Error('bad signature or deadline'); });
+  expect(() => readRecoveryClaimHandoffHistory(root)).toThrow('RECOVERY_CLAIM_HANDOFF_INVALID');
+  expect(() => Reflect.apply(readRecoveryClaimHandoffHistory, null, [root, contextSource])).toThrow('RECOVERY_CLAIM_HANDOFF_INVALID');
 });
 test('refuses a directory accessible by another user', () => {
   chmodSync(root, 0o755);
