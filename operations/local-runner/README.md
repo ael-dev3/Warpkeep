@@ -33,6 +33,28 @@ The test checks non-root execution, zero effective capabilities,
 paths and sudo, and lack of write permission to `/etc`. Containers created by
 these commands are disposable; the built image remains installed locally.
 
+## Isolated-network checkpoint (2026-09-07)
+
+On Docker 29.7.2, a disposable user-defined bridge with `--internal` and
+`com.docker.network.bridge.gateway_mode_ipv4=isolated` passed the network
+smoke test below with the exact image recorded above. The container had no
+default or gateway route, no effective capabilities, and `NoNewPrivs` enabled.
+A direct numeric public TCP connection failed, and `api.github.com` did not
+resolve with external DNS disabled. This is a **deny-path check**, not evidence
+that an allowlisting proxy or authenticated GitHub execution works.
+
+```powershell
+wsl -d Ubuntu-24.04 --exec docker network create --internal --driver bridge --opt com.docker.network.bridge.gateway_mode_ipv4=isolated --label com.warpkeep.purpose=runner-isolation-probe warpkeep-runner-isolation-probe-20260907
+Get-Content -Raw operations/local-runner/network-smoke.py | wsl -d Ubuntu-24.04 --exec docker run --rm --interactive --network warpkeep-runner-isolation-probe-20260907 --dns 127.0.0.1 --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --memory 1g --cpus 2 --entrypoint /usr/bin/python3 sha256:5027b7108810a0c601e43a77d9f4b2fefb6757d59c8f0def279dd6c64b4b745c -
+```
+
+Inspect the exact network's ownership label and empty container membership
+before removing it with `docker network rm`. Do not prune shared networks.
+No production runner was registered and no credentials were supplied.
+Docker documents why ordinary internal networking is insufficient to remove
+the host bridge address, and how isolated gateway mode differs:
+[gateway modes](https://docs.docker.com/engine/network/port-publishing/#gateway-modes).
+
 ## Remaining before any registration or production job
 
 - Use a fresh single-job runner with the exact selected local name/labels and
