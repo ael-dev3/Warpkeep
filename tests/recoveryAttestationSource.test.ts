@@ -10,7 +10,7 @@ import { createRecoveryActivationBinding } from '../scripts/recovery-activation-
 import { readRecoveryAttestationSource } from '../scripts/recovery-attestation-source.mjs';
 
 let root: string;
-const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8', windowsHide: true }).trim();
+const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8', windowsHide: true, timeout: 10000 }).trim();
 const json = (path: string, value: unknown) => writeFileSync(join(root, path), `${JSON.stringify(value, null, 2)}\n`);
 function commit() { git('add', '.'); git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--quiet', '-m', 'Synthetic test only'); }
 beforeEach(() => {
@@ -31,8 +31,8 @@ beforeEach(() => {
   json('package-lock.json', { name: 'warpkeep', version: '0.4.0', lockfileVersion: 3, requires: true,
     packages: { '': { name: 'warpkeep', version: '0.4.0' } } });
   commit();
-});
-afterEach(() => rmSync(root, { recursive: true, force: true }));
+}, 30000);
+afterEach(() => rmSync(root, { recursive: true, force: true }), 30000);
 
 it('derives identity from a real committed three-file activation child', () => {
   const result = readRecoveryAttestationSource(root);
@@ -79,8 +79,8 @@ it.skipIf(process.platform !== 'linux')('writes and checks the fixed dist artifa
   writeFileSync(join(root, 'dist/index.html'), 'changed build');
   expect(command('--check').status).toBe(1);
 });
-it.each([[], ['--write', '--identity=caller'], ['--dist=/tmp/other'], ['--check', '--write']])
-  ('rejects CLI overrides: %j', (...args) => {
+it.each([[], ['--write', '--identity=caller'], ['--dist=/tmp/other'], ['--check', '--write']].map(args => ({ args })))
+  ('rejects CLI overrides: $args', ({ args }) => {
     const result = command(...args);
     expect(result.status).toBe(1); expect(result.stdout).toBe('');
     expect(result.stderr).toBe('WARPKEEP_DEPLOYMENT_ATTESTATION_INVALID\n');

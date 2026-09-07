@@ -58,3 +58,37 @@ synthetic bindings, not live receipts. This reader checks local consistency;
 it does **not** verify protected GitHub main, receipt authenticity, or the
 contents represented by the closure digest. It is not yet connected to the
 installer CLI and must not be substituted for those release authority checks.
+
+## Source-bound CLI checkpoint
+
+`0287c23` connects the reader and installer with exactly two commands, run from
+the disposable candidate checkout root:
+
+```text
+node scripts/generate-warpkeep-deployment-attestation.mjs --write
+node scripts/generate-warpkeep-deployment-attestation.mjs --check
+```
+
+Both use only that checkout's fixed `dist` path and derive identity internally;
+no digest, root, URL, branch, or identity override is accepted. Source is checked
+again after installation/readback. Success outputs only the attestation SHA-256;
+failures emit a fixed redacted error. `--write` requires Linux/WSL and refuses
+an existing attestation. `--check` verifies without writing.
+
+At `0287c23`, Linux passed 43 tests with one Windows-only skip. This includes
+actual subprocess write/check, repeat-write denial, changed-content denial,
+and argument-override rejection in synthetic committed test repositories.
+Targeted strict TypeScript passed. The earlier CLI-unavailable limitation is
+superseded by this checkpoint, not the remaining release-authority requirements.
+
+These commands create/verify build metadata, **not deployment authorization**.
+The protected workflow must still verify approved source and source closure;
+the signer must independently validate GitHub identity, receipts, artifact,
+and live invariants before issue/claim. No production binding was fabricated
+and the unfinished development checkout still cannot pass this CLI.
+
+The initial Windows CLI-suite run reported ten passes, one Linux-only skip
+and one ten-second Git-fixture setup timeout. Fixture setup/cleanup now have
+30-second limits, and each fixture Git subprocess has its own ten-second
+limit. Production Git-command and acceptance limits are unchanged.
+The Windows rerun passed eleven tests with one Linux-only skip in 36.41 seconds.
