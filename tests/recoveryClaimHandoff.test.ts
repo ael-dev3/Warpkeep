@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { mkdtempSync, rmSync, readFileSync, writeFileSync, chmodSync, statSync, symlinkSync, unlinkSync, linkSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, writeFileSync, chmodSync, statSync, symlinkSync, linkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
@@ -24,9 +24,9 @@ test('writes a private exclusive file and reopens it with both receipt checks', 
   expect(statSync(file()).mode & 0o777).toBe(0o600);
   expect(readFileSync(file(), 'utf8')).not.toContain('authorizationJws');
   expect(readRecoveryClaimHandoffForDeployment(root, contextSource)).toEqual({ claimReceiptJws: 'private-claim', expectedSource });
-  expect(mocks.claim).toHaveBeenCalledTimes(2);
+  expect(mocks.claim).toHaveBeenCalledTimes(3);
   expect(readRecoveryClaimHandoffForReconciliation(root, contextSource)).toEqual({ claimReceiptJws: 'private-claim', expectedSource });
-  expect(mocks.claim).toHaveBeenCalledTimes(2);
+  expect(mocks.claim).toHaveBeenCalledTimes(3);
 });
 test('refuses replacement of an existing handoff', () => {
   writeRecoveryClaimHandoff(root, 'original', expectedSource);

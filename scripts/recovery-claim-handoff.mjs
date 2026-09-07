@@ -38,12 +38,22 @@ export function writeRecoveryClaimHandoff(...args) {
       claimReceiptJws, expectedSource, claimDeadline }));
     if (bytes.length > LIMIT) fail();
     return directory(root, fd => {
-      let file;
+      let file, readback;
       try {
-        file = openSync(`/proc/self/fd/${fd}/${NAME}`, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+        file = openSync(`/proc/self/fd/${fd}/${NAME}`, constants.O_RDWR | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
         writeFileSync(file, bytes); fsyncSync(file); fsyncSync(fd);
+        const state = fstatSync(file, { bigint: true });
+        if (!state.isFile() || state.nlink !== 1n || state.uid !== BigInt(process.getuid())
+            || (state.mode & 0o7777n) !== 0o600n || state.size !== BigInt(bytes.length)) fail();
+        readback = Buffer.alloc(bytes.length + 1);
+        let offset = 0, count;
+        while (offset < readback.length && (count = readSync(file, readback, offset, readback.length - offset, offset)) !== 0) offset += count;
+        if (offset !== bytes.length || !readback.subarray(0, offset).equals(bytes)) fail();
+        const byPath = lstatSync(`/proc/self/fd/${fd}/${NAME}`, { bigint: true });
+        if (byPath.dev !== state.dev || byPath.ino !== state.ino || byPath.mode !== state.mode || byPath.nlink !== 1n) fail();
+        verifyRecoveryClaimReceipt(claimReceiptJws, expectedSource, now());
         return Object.freeze({ claimDeadline });
-      } finally { if (file !== undefined) closeSync(file); }
+      } finally { readback?.fill(0); if (file !== undefined) closeSync(file); }
     });
   } catch { fail(); }
   finally { bytes?.fill(0); }
@@ -66,6 +76,8 @@ function read(root, contextSource, deployment) {
       while (length < bytes.length && (count = readSync(file, bytes, length, bytes.length - length, length)) !== 0) length += count;
       const after = fstatSync(file, { bigint: true });
       if (length !== Number(before.size) || ['dev', 'ino', 'mode', 'uid', 'nlink', 'size', 'mtimeNs', 'ctimeNs'].some(key => before[key] !== after[key])) fail();
+      const byPath = lstatSync(`/proc/self/fd/${fd}/${NAME}`, { bigint: true });
+      if (['dev', 'ino', 'mode', 'uid', 'nlink', 'size', 'mtimeNs', 'ctimeNs'].some(key => before[key] !== byPath[key])) fail();
       const source = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, length));
       const value = JSON.parse(source);
       if (!value || Array.isArray(value) || typeof value !== 'object' || Object.keys(value).join(',') !== KEYS.join(',')
