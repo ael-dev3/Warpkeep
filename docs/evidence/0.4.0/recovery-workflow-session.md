@@ -440,3 +440,26 @@ not meet the existing provenance contract. Next integration must carry the
 recovery source/dependency graph through the captured-source producer and include
 its output in the installed family before the workflow can invoke this command.
 No runtime compilation fallback or weaker installation path was added.
+
+## Recovery dependency namespace — 2026-09-07
+
+`c1e2402` adds a separate fixed recovery package selector/materializer to the
+existing isolated package implementation. It adds only fflate 0.8.3, with its
+exact registry URL, lockfile SHA-512 integrity and 17-file size inventory.
+Historical operation materialization still selects only the compiler pair plus
+YAML. Recovery extraction reuses integrity-checked cache reads, strict archive
+validation, exclusive owner-private installation and namespace re-attestation;
+all fflate files are non-executable (0400).
+
+A read-only HTTPS fetch of the pinned registry archive returned 173034 bytes.
+SHA-512 matched the checked-in lockfile; bounded decompression confirmed all 17
+file names and sizes in the new specification. The archive was held in memory,
+not installed, and no package lifecycle scripts ran. Thirteen package tests
+passed on Windows and Linux; targeted strict TypeScript passed. New tests cover
+the unchanged historical pair, missing/wrong recovery pin, exact inventory,
+missing/extra files, wrong sizes and traversal paths. The synthetic inventory
+test is not a substitute for authenticated extraction.
+
+The recovery cache bootstrap and isolated worker have not yet been wired to this
+new materializer. No complete recovery artifact family, activation, or live
+deployment is claimed by this change.
