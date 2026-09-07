@@ -12,7 +12,8 @@ try {
     || Object.keys(process.env).some(key => /TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|COOKIE|API_KEY|NODE_OPTIONS|NODE_PATH|ESBUILD_/iu.test(key))) throw new Error('HOST');
   const sourceRoot = dirname(dirname(fileURLToPath(import.meta.url)));
   const operationRoot = dirname(sourceRoot);
-  if (!new RegExp(`^${ROOT}/runs/recovery-bundle-[0-9a-f]{32}/source$`).test(sourceRoot)
+  if (!sourceRoot.startsWith(`${ROOT}/runs/`)
+    || !/^recovery-bundle-[0-9a-f]{32}\/source$/.test(sourceRoot.slice(`${ROOT}/runs/`.length))
     || realpathSync(sourceRoot) !== sourceRoot) throw new Error('SOURCE');
   const request = Buffer.alloc(33); let size = 0;
   while (size < request.length) {

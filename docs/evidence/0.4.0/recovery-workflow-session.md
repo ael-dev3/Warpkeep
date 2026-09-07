@@ -542,3 +542,29 @@ It is not connected to artifact-family installation yet. Compilation currently
 runs within the preparation process; bounded worker-process containment and
 manifest/installer integration still need completion before production use.
 No final freeze, credentials, database writes or live deployment occurred.
+
+## Bounded compiler child — 2026-09-07
+
+At `85b3c5df071d1ab031f267f8c1dee13cb731e0f2`, the captured-source producer
+successfully compiled both cycles through a separate native worker. Each child
+has a 60000 ms deadline, 3 MiB per-stream output cap and detached process-group
+containment using the existing bounded process implementation. The worker takes
+only the exact cycle number through fd3; it derives fixed source, compiler and
+working-directory paths, accepts no CLI overrides and uses a credential-free
+environment. The parent validates canonical worker output, base64, SHA-256 and
+input paths before retaining bytes, then rechecks source and package identities.
+Tree `cee0cc64de77a78df033a033ae539c4cae355579` produced the same 50024-byte module
+and SHA-256 `d48cefcf82ee7eb2551ffba243c4040d8da0d50d74998b19afd82f70bb7b1901`.
+
+Twenty-two targeted recovery/operation runtime tests passed.
+The broader binding/recovery runtime suite then passed 47 tests with four
+platform-specific skips on Windows.
+Separate real Linux
+process-group probes covered timeout, failed parent and successful parent with a
+surviving descendant. All returned the expected failure code, no surviving
+parent or descendant, and retained evidence. These are reusable containment
+tests, not injected failures inside an actual esbuild compile. The producer's
+native build proves the successful compiler path, not every failure branch.
+
+Artifact-family manifest/installer integration remains unfinished. No deployment
+or authorization requests occurred.
