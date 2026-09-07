@@ -75,3 +75,29 @@ GitHub recommends ephemeral execution and documents the risks of self-hosted
 runners, especially for public repositories: [runner reference](https://docs.github.com/en/actions/reference/runners/self-hosted-runners),
 [security guidance](https://docs.github.com/en/enterprise-cloud%40latest/actions/reference/security/secure-use?learn=getting_started&learnProduct=actions).
 Runner source/release: [actions/runner v2.337.0](https://github.com/actions/runner/releases/tag/v2.337.0).
+
+## Pinned job Node and native proxy checkpoint — 2026-09-07
+
+The current Dockerfile additionally installs Node 22.22.3/npm 10.9.8 under
+root-owned `/opt/node-v22.22.3-linux-x64`, separate from embedded Actions runtimes.
+The fixed official archive SHA-256 is
+`2e5d13569282d016861fae7c8f935e741693c269101a5bebcf761a5376d1f99f`, checked against
+[Node release checksums](https://nodejs.org/dist/v22.22.3/SHASUMS256.txt).
+Installed Node bytes independently hash to
+`e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2`.
+The new exact image, used by the current network harness, is
+`sha256:4d90dea1fe43cf3bd2f4f6e3b319ae42cf72cce2f299d256f8e52fa44632cf5c`.
+Earlier image IDs above remain historical evidence, not the updated image.
+
+The complete network harness passed with this image. `node-proxy-smoke.mjs`
+used real Node fetch with `--use-env-proxy`, fixed
+`HTTPS_PROXY=http://172.30.240.2:3128`, empty `NO_PROXY`, and no direct networking.
+GitHub HTTPS HEAD returned 200; example.com, loopback and metadata destinations
+were denied. Node emitted its EnvHttpProxyAgent experimental warning; it was not
+suppressed. The offline smoke test also passed with the new image, and an offline
+npm invocation reported 10.9.8. Temporary harness resources were cleaned up.
+
+These checks do not configure the protected workflow's proxy environment or
+validate embedded action runtimes, full Actions endpoints, signed OIDC, runner
+registration, dependency installation, or production job authorization. The
+remaining requirements above still apply. No credentials entered the image/test.

@@ -4,7 +4,7 @@ FROM ubuntu:24.04@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-       ca-certificates curl git jq python3 tar gzip \
+       ca-certificates curl git jq python3 tar gzip xz-utils \
        libicu74 libssl3t64 zlib1g libkrb5-3 liblttng-ust1t64 libunwind8 \
     && useradd --uid 1001 --create-home --shell /bin/bash runner
 
@@ -17,6 +17,16 @@ RUN curl --fail --location --proto '=https' --proto-redir '=https' \
     && tar --extract --gzip --file /tmp/warpkeep-runner.tar.gz --no-same-owner \
     && rm /tmp/warpkeep-runner.tar.gz \
     && chown -R 1001:1001 /home/runner
+
+# Pinned job Node/npm, separate from the runner's embedded Actions runtimes.
+RUN curl --fail --location --proto '=https' --proto-redir '=https' \
+      --connect-timeout 15 --max-time 300 \
+      --output /tmp/warpkeep-node.tar.xz \
+      https://nodejs.org/dist/v22.22.3/node-v22.22.3-linux-x64.tar.xz \
+    && echo '2e5d13569282d016861fae7c8f935e741693c269101a5bebcf761a5376d1f99f  /tmp/warpkeep-node.tar.xz' | sha256sum --check --strict \
+    && tar --extract --xz --file /tmp/warpkeep-node.tar.xz --directory /opt --no-same-owner \
+    && rm /tmp/warpkeep-node.tar.xz
+ENV PATH=/opt/node-v22.22.3-linux-x64/bin:$PATH
 
 # No sudo, host mount, Docker socket, registration token, or production secret.
 USER 1001:1001
