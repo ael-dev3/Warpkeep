@@ -71,10 +71,11 @@ beforeAll(async () => {
       export class SenderError extends Error {
         constructor(message) { super(message); this.name = 'SenderError'; }
       }
-      const scalar = () => ({});
+      const scalar = () => ({ primaryKey: scalar, index: scalar, autoInc: scalar });
+      export const table = (_options, rowType) => ({ rowType });
       export const t = {
         array: scalar, bool: scalar, object: scalar, option: scalar,
-        string: scalar, u32: scalar, u64: scalar,
+        string: scalar, u32: scalar, u64: scalar, i32: scalar, i64: scalar, scheduleAt: scalar,
       };
     `],
     ['genesis002-schema', `
@@ -300,7 +301,7 @@ describe('Genesis 002 administrator confused-deputy boundary', () => {
     );
   });
 
-  it('exports only the administrator atlas-import ABI', () => {
+  it('exports the administrator atlas ABI and exactly the sealed 0.4 gameplay entrypoints', () => {
     expect(moduleExportNames).toEqual([
       'adminBeginGreaterRealmVerificationV1',
       'adminFinalizeGreaterRealmReleaseV1',
@@ -312,11 +313,22 @@ describe('Genesis 002 administrator confused-deputy boundary', () => {
       'adminStageGreaterRealmReleaseV1',
       'adminVerifyGreaterRealmBatchV1',
       'default',
+      'dispatchGameplay04WorkerV1',
+      'getGameplay04KeepV1',
+      'initializeGameplay04KeepV1',
       'onConnect',
+      'recallGameplay04WorkerV1',
+      'runGameplay04ScheduleV1',
+      'startGameplay04BuildingV1',
     ]);
     expect([...captured.procedures.keys()].sort()).toEqual([
       'admin_get_greater_realm_import_plan_v1',
       'admin_get_greater_realm_status_v1',
+      'dispatch_gameplay04_worker_v1',
+      'get_gameplay04_keep_v1',
+      'initialize_gameplay04_keep_v1',
+      'recall_gameplay04_worker_v1',
+      'start_gameplay04_building_v1',
     ]);
     expect([...captured.reducers.keys()].sort()).toEqual([
       'admin_begin_greater_realm_verification_v1',
@@ -326,7 +338,27 @@ describe('Genesis 002 administrator confused-deputy boundary', () => {
       'admin_import_greater_realm_regions_v1',
       'admin_stage_greater_realm_release_v1',
       'admin_verify_greater_realm_batch_v1',
+      'run_gameplay_04_schedule_v_1',
     ]);
+  });
+
+  it('denies every sealed gameplay entrypoint without database access inside or outside its transaction', () => {
+    for (const authority of [context(validPayload()), contextWithoutJwt()]) {
+      let touched = false;
+      const guarded: { withTx?: (effect: (tx: unknown) => unknown) => unknown } = Object.assign({}, authority);
+      guarded.withTx = effect => effect(guarded);
+      Object.defineProperty(guarded, 'db', { get() { touched = true; throw new Error('unexpected database access'); } });
+      for (const name of ['initialize_gameplay04_keep_v1', 'get_gameplay04_keep_v1',
+        'dispatch_gameplay04_worker_v1', 'recall_gameplay04_worker_v1', 'start_gameplay04_building_v1']) {
+        const procedure = captured.procedures.get(name);
+        expect(procedure, name).toBeTypeOf('function');
+        expect(() => procedure?.(guarded, {}), name).toThrow('GENESIS002_GAMEPLAY_CLOSED');
+      }
+      const schedule = captured.reducers.get('run_gameplay_04_schedule_v_1');
+      expect(schedule).toBeTypeOf('function');
+      expect(() => schedule?.(guarded, {})).toThrow('GENESIS002_GAMEPLAY_CLOSED');
+      expect(touched).toBe(false);
+    }
   });
 
   it('enforces the same G002 parser in lifecycle and every retained atlas-import entrypoint', () => {
