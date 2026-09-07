@@ -11,7 +11,7 @@ import { deriveWarpkeepDeploymentAttestation, verifyWarpkeepDeploymentAttestatio
 
 vi.mock('node:fs', async importOriginal => {
   const actual = await importOriginal<typeof import('node:fs')>();
-  return { ...actual, readdirSync: vi.fn(actual.readdirSync), writeFileSync: vi.fn(actual.writeFileSync) };
+  return { ...actual, readdirSync: vi.fn(actual.readdirSync), writeFileSync: vi.fn(actual.writeFileSync), openSync: vi.fn(actual.openSync) };
 });
 
 const identity = Object.freeze({ candidateCommit: 'a'.repeat(40), candidateTree: 'b'.repeat(40),
@@ -83,6 +83,32 @@ it('validates identity before creating output directories', () => {
   expect(() => installWarpkeepDeploymentAttestation({ distRoot: root,
     identity: { ...identity, candidateCommit: 'invalid' } })).toThrow();
   expect(fs.existsSync(join(root, '.well-known'))).toBe(false);
+});
+
+it.skipIf(process.platform === 'linux')('requires the WSL/Linux installer instead of weaker native writes', () => {
+  expect(() => installWarpkeepDeploymentAttestation({ distRoot: root, identity }))
+    .toThrow('WARPKEEP_DEPLOYMENT_ATTESTATION_INSTALL_REQUIRES_LINUX');
+  expect(fs.existsSync(join(root, '.well-known'))).toBe(false);
+});
+
+it.skipIf(process.platform !== 'linux')('does not redirect writes through a replaced well-known parent', async () => {
+  const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
+  const outside = mkdtempSync(join(tmpdir(), 'warpkeep-attestation-outside-'));
+  let replaced = false;
+  try {
+    vi.mocked(fs.openSync).mockImplementation(((...args: Parameters<typeof fs.openSync>) => {
+      if (String(args[0]).startsWith('/proc/self/fd/') && String(args[0]).endsWith('/warpkeep-deployment-v1.json')) {
+        actual.renameSync(join(root, '.well-known'), join(root, 'held-directory'));
+        actual.symlinkSync(outside, join(root, '.well-known'), 'dir');
+        replaced = true;
+      }
+      return actual.openSync(...args);
+    }) as typeof fs.openSync);
+    expect(() => installWarpkeepDeploymentAttestation({ distRoot: root, identity })).toThrow();
+    expect(replaced).toBe(true);
+    expect(actual.readdirSync(outside)).toEqual([]);
+    expect(actual.existsSync(join(root, 'held-directory/warpkeep-deployment-v1.json'))).toBe(true);
+  } finally { rmSync(outside, { recursive: true }); }
 });
 
 it.skipIf(process.platform !== 'linux')('preserves existing well-known metadata while installing', () => {
