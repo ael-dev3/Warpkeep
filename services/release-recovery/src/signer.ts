@@ -4,6 +4,7 @@ import { RECOVERY_AUDIENCE, RECOVERY_ISSUER } from './protocol.js'
 import { RECOVERY_KEY_ID } from './recoveryPublicKey.js'
 import { parseSignerControl, reconcileSignerControl } from './signerControl.js'
 import { validateSignerSecrets } from './signerSecrets.js'
+import { issueRecoveryAuthorization, type SignerIssueRuntime } from './signerIssue.js'
 
 type ControlLedger = Parameters<typeof reconcileSignerControl>[1]
 
@@ -11,7 +12,14 @@ type ControlLedger = Parameters<typeof reconcileSignerControl>[1]
  * and the fixed control-object stub; none of these are RPC request parameters. */
 export class RecoverySigner {
   constructor(private readonly control: unknown, private readonly secrets: unknown,
-    private readonly ledger: ControlLedger, private readonly now = () => Math.floor(Date.now() / 1000)) {}
+    private readonly ledger: ControlLedger, private readonly now = () => Math.floor(Date.now() / 1000),
+    private readonly issueRuntime?: SignerIssueRuntime) {}
+
+  async issue(request: unknown, ...extra: unknown[]): Promise<Readonly<{ authorizationJws: string }>> {
+    if (extra.length !== 0) githubFail('RECOVERY_SIGNER_REQUEST_INVALID')
+    if (this.issueRuntime === undefined) githubFail('RECOVERY_SIGNER_CONFIGURATION_INVALID')
+    return issueRecoveryAuthorization(request, this.control, this.secrets, this.ledger, this.issueRuntime, this.now)
+  }
 
   async status(...args: []): Promise<Readonly<{ statusJws: string }>> {
     if (args.length !== 0) githubFail('RECOVERY_SIGNER_REQUEST_INVALID')

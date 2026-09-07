@@ -3,6 +3,13 @@
 Inspected at `c3a9eb2f54c59b503a8c3029a86c839a9e852dda`; R12 remains incomplete.
 This maps existing executable components to Task 6, not a new architecture.
 
+Update 2026-09-07: `signerControl.ts`, `signerSecrets.ts`, `signer.ts` and
+`signerIssue.ts` now compose configuration/key validation, status and issuance.
+See `signer-status-composition.md` and `signer-issue-composition.md` for exact
+test scope and limitations. The table below is the original inspection;
+status/issue gaps have partially advanced, not the Worker runtime or the other
+methods. R12 is still open.
+
 Use `ReleaseRecoveryAuthorizationLedgerV2`, not the older ledger adapter.
 Its fixed control object is `warpkeep-release-recovery-control-v2`; request
 objects use the request UUID. `reconcileControl` transactionally returns the

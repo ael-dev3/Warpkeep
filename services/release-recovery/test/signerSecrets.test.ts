@@ -1,7 +1,10 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { base64UrlEncode } from '../src/protocol.js'
 
-afterEach(() => { vi.doUnmock('../src/recoveryPublicKey.js'); vi.resetModules() })
+afterEach(() => {
+  for (const module of ['recoveryPublicKey', 'githubOidc', 'githubEvidence', 'realmEvidence']) vi.doUnmock(`../src/${module}.js`)
+  vi.resetModules()
+})
 
 async function fixture() {
   const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify'])
@@ -53,6 +56,122 @@ it('validates the actual key self-check against test-only ephemeral pins and sna
   expect(result.rpcCredential).toBe(input.RELEASE_RECOVERY_RPC_SECRET)
   expect(Object.isFrozen(result)).toBe(true)
   expect(Object.isFrozen(result.privateJwk)).toBe(true)
+})
+
+it('issues through real ledger and crypto, retries retained bytes with fresh identity verification, and rejects changed locators', async () => {
+  const { input } = await fixture()
+  const { arming } = await import('./signerControlFixture.js')
+  const { createLedgerV2Control, reconcileLedgerV2Control, installLedgerV2Arming, applyLedgerV2Event } = await import('../src/ledgerV2.js')
+  const { githubEvidenceMetadataSha256 } = await import('../src/githubEvidenceMetadata.js')
+  const armed = arming()
+  let time = 1000
+  let controlState = createLedgerV2Control({ authorizationEpoch: 3 })
+  let row: import('../src/ledgerV2.js').RecoveryLedgerRecordV2 | undefined
+  const identity = { repository: armed.repository, repositoryId: armed.repositoryId, repositoryOwnerId: armed.repositoryOwnerId,
+    ref: armed.ref, workflowRef: armed.workflowRef, environment: armed.environment, eventName: 'workflow_run' as const,
+    workflowSha: 'a'.repeat(40), pagesRunId: '123', pagesRunAttempt: '1', checkRunId: '999', oidcJti: crypto.randomUUID() }
+  const metadata = { repository: armed.repository, repositoryId: armed.repositoryId, repositoryOwnerId: armed.repositoryOwnerId,
+    candidateCommit: identity.workflowSha, candidateTree: 'b'.repeat(40), parentCommit: armed.preparationCommit,
+    preparationTree: armed.preparationTree, artifactId: '123', artifactName: 'github-pages-recovery-123-1', pagesRunId: '123', pagesRunAttempt: '1',
+    artifactSize: 1, artifactDigest: 'sha256:' + 'f'.repeat(64), artifactUrl: 'https://api.github.com/artifact', artifactArchiveUrl: 'https://api.github.com/archive',
+    artifactNodeId: 'node', artifactCreatedAt: '2026-01-01T00:00:00.000Z', artifactExpiresAt: '2026-01-02T00:00:00.000Z', artifactEtag: 'etag', githubArtifactArchiveSha256: 'f'.repeat(64) }
+  const github = { currentMainCommit: armed.preparationCommit, parentCommit: armed.preparationCommit, candidateTree: metadata.candidateTree,
+    recoveryBindingBytes: new Uint8Array([1, 2]), protectedWorkflowBytes: new Uint8Array([3, 4]), realmBinding: armed,
+    sourceClosureSha256: armed.sourceClosureSha256, sourceVerifyRunId: '456', sourceVerifyRunAttempt: '2',
+    pagesArtifactId: '123', pagesArtifactName: metadata.artifactName, githubArtifactArchiveSha256: metadata.githubArtifactArchiveSha256,
+    innerArtifactTarSha256: 'd'.repeat(64), contentManifestSha256: 'e'.repeat(64), deploymentAttestationSha256: 'f'.repeat(64),
+    githubMetadata: metadata, githubMetadataSha256: await githubEvidenceMetadataSha256(metadata) }
+  const verifyIdentity = vi.fn(async () => ({ ...identity, oidcJti: crypto.randomUUID() }))
+  const loadEvidence = vi.fn(async () => github)
+  const observe = vi.fn(async () => ({ recoveryAuthorizationCoreSha256: armed.recoveryAuthorizationCoreSha256,
+    genesis001Database: armed.genesis001Database, genesis002Database: armed.genesis002Database, ptrDatabase: armed.ptrDatabase,
+    g001ReleaseVersion: '0.3.43', g001PlayerAccessEnabled: true, g001AdmissionStateMutationsEnabled: false, g001AccessRequestSubmissionsEnabled: false,
+    g001BaselineAbiSha256: '3'.repeat(64), g002Sealed: true, g002PlayerCount: 0, g002GeneralAdmissionCount: 0,
+    ptrSingletonOwnerCount: 1, ptrGeneralAdmissionCount: 0, observedFrom: 990, observedThrough: 999,
+    evidenceSnapshotDigest: '8'.repeat(64), liveInvariantDigest: '9'.repeat(64) }))
+  vi.doMock('../src/githubOidc.js', () => ({ verifyGitHubWorkflowIdentity: verifyIdentity }))
+  vi.doMock('../src/githubEvidence.js', () => ({ loadGitHubCandidateEvidence: loadEvidence }))
+  vi.doMock('../src/realmEvidence.js', () => ({ observeRecoveryRealmEvidence: observe }))
+  const { RecoverySigner } = await import('../src/signer.js')
+  const { verifyRecoveryAuthorizationJws } = await import('../src/crypto.js')
+  type Ledger = import('../src/signerIssue.js').SignerIssueRuntime['requestLedger'] extends (...args: never[]) => infer R ? R : never
+  const issued = () => {
+    if (row?.state !== 'issued') throw new Error('test expected issued')
+    return { authorization: row.authorization, authorizationJws: row.authorizationJws, authorizationJwsSha256: row.authorizationJwsSha256, revision: row.revision }
+  }
+  const ledger: Ledger = {
+    async status() { return { role: 'request', requestId: armed.requestId, state: row?.state ?? null, revision: row?.revision ?? null, alarmDeadline: null } },
+    async installArming(value) { row = installLedgerV2Arming(row, value); return row },
+    async reserveIssue(value) {
+      row = await applyLedgerV2Event(row!, { type: 'reserve-issue', ...value })
+      if (row.state !== 'issuing') throw new Error('test expected issuing')
+      return { authorization: row.authorization, reservedPayload: row.reservedPayload, issuingDeadline: row.issuingDeadline, revision: row.revision }
+    },
+    async finalizeIssue(value) { row = await applyLedgerV2Event(row!, { type: 'finalize-issue', ...value }); return issued() },
+    async readIssued(value) { row = await applyLedgerV2Event(row!, { type: 'read-issued', ...value }); return issued() },
+  }
+  const requestLedger = vi.fn(() => ledger)
+  // Observation transport is mocked above; this sentinel must never be used as a real service.
+  const observation = {} as import('../src/signerIssue.js').SignerIssueRuntime['observation']
+  const signer = new RecoverySigner({ RECOVERY_ENABLED: 'true', RECOVERY_AUTHORIZATION_EPOCH: '3', RECOVERY_ARMING_MANIFEST: JSON.stringify(armed) }, input,
+    { async reconcileControl(value) { time += 1; controlState = reconcileLedgerV2Control(controlState, value); return controlState } },
+    () => time, { githubApp: { GITHUB_APP_ID: '1', GITHUB_APP_INSTALLATION_ID: '2', GITHUB_APP_PRIVATE_KEY_PEM: 'test-only-unused' },
+      fetch: vi.fn(() => { throw new Error('unexpected network') }), observation, requestLedger })
+  const request = { requestId: armed.requestId, candidateCommit: identity.workflowSha, sourceVerifyRunId: '456', sourceVerifyRunAttempt: '2', artifactId: '123', oidcToken: 'test-token-one' }
+  const first = await signer.issue(request)
+  expect(await verifyRecoveryAuthorizationJws(first.authorizationJws, time)).toMatchObject({ iat: 1002, nbf: 1002, exp: 1902, observedFrom: 990 })
+  expect(github.recoveryBindingBytes.every(byte => byte === 0)).toBe(true)
+  expect(github.protectedWorkflowBytes.every(byte => byte === 0)).toBe(true)
+  expect(await signer.issue({ ...request, oidcToken: 'test-token-two' })).toEqual(first)
+  expect(verifyIdentity).toHaveBeenCalledTimes(2)
+  expect(loadEvidence).toHaveBeenCalledTimes(1)
+  expect(observe).toHaveBeenCalledTimes(1)
+  expect(requestLedger).toHaveBeenCalledWith(armed.requestId)
+  await expect(signer.issue({ ...request, artifactId: '124' })).rejects.toThrow()
+  verifyIdentity.mockResolvedValueOnce({ ...identity, pagesRunAttempt: '2' })
+  await expect(signer.issue(request)).rejects.toThrow()
+  verifyIdentity.mockRejectedValueOnce(new Error('RECOVERY_GITHUB_OIDC_INVALID'))
+  await expect(signer.issue(request)).rejects.toThrow('RECOVERY_GITHUB_OIDC_INVALID')
+  expect(loadEvidence).toHaveBeenCalledTimes(1)
+
+  // A crash before finalization retains the reservation, not newly minted terms.
+  row = undefined
+  time = 1000
+  controlState = createLedgerV2Control({ authorizationEpoch: 3 })
+  const finalize = vi.spyOn(ledger, 'finalizeIssue').mockRejectedValueOnce(new Error('test interrupted before durable finalize'))
+  await expect(signer.issue(request)).rejects.toThrow('test interrupted')
+  const reservedRow = row as unknown as import('../src/ledgerV2.js').LedgerV2IssuingState
+  expect(reservedRow.state).toBe('issuing')
+  const observationsBeforeRetry = observe.mock.calls.length
+  const resumed = await signer.issue({ ...request, oidcToken: 'test-token-after-interruption' })
+  expect(await verifyRecoveryAuthorizationJws(resumed.authorizationJws, time)).toMatchObject({
+    jti: reservedRow.reservedPayload.jti, iat: reservedRow.reservedPayload.iat, exp: reservedRow.reservedPayload.exp,
+  })
+  expect(observe).toHaveBeenCalledTimes(observationsBeforeRetry)
+  finalize.mockRestore()
+
+  const realm = await observe.mock.results[0].value
+  for (const mutation of [
+    { observedFrom: 881 }, // reservation at 1002: whole interval is 121 seconds old
+    { observedThrough: 1003 },
+    { g001AdmissionStateMutationsEnabled: true },
+    { g002PlayerCount: 1 },
+    { ptrSingletonOwnerCount: 0 },
+    { genesis002Database: armed.genesis001Database },
+    { recoveryAuthorizationCoreSha256: '0'.repeat(64) },
+  ]) {
+    row = undefined
+    time = 1000
+    controlState = createLedgerV2Control({ authorizationEpoch: 3 })
+    observe.mockResolvedValueOnce({ ...realm, ...mutation })
+    await expect(signer.issue(request)).rejects.toThrow()
+    expect((row as unknown as { state: string }).state).toBe('armed')
+  }
+  row = undefined
+  time = 1000
+  controlState = createLedgerV2Control({ authorizationEpoch: 3 })
+  observe.mockResolvedValueOnce({ ...realm, observedFrom: 882 })
+  expect(await verifyRecoveryAuthorizationJws((await signer.issue(request)).authorizationJws, time)).toMatchObject({ observedFrom: 882, iat: 1002 })
 })
 
 it('rejects equal decoded secrets, malformed encoding, duplicate JSON, extra keys and mismatched key material', async () => {
