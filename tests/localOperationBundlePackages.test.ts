@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertFixedOperationBundleNamespace,
   selectFixedOperationBundlePackages,
+  selectFixedRecoveryBundlePackages,
   validateFixedOperationBundleArchive,
 } from '../scripts/local-operation-bundle-packages';
 
@@ -37,6 +38,42 @@ function fixedLock() {
 }
 
 describe('fixed operation bundle compiler packages', () => {
+  it('requires the exact 17-file recovery archive inventory with non-executable modes', () => {
+    const spec = selectFixedRecoveryBundlePackages(JSON.parse(readFileSync('package-lock.json', 'utf8')))[2]!;
+    let offset = 0;
+    const entries = spec.files.map(file => {
+      const entry = {path: file.path, kind: 'file' as const, offset, size: file.bytes};
+      offset += file.bytes; return entry;
+    });
+    const parsed = {uncompressed: Buffer.alloc(offset), entries, fileBytes: offset};
+    const result = validateFixedOperationBundleArchive('node_modules/fflate', parsed);
+    expect(result).toHaveLength(17);
+    expect(result.every(file => file.mode === 0o400 && file.path.startsWith('fflate/'))).toBe(true);
+    for (const changed of [entries.slice(1), [...entries, entries[0]!],
+      entries.map((entry, index) => index === 0 ? {...entry, size: entry.size + 1} : entry),
+      entries.map((entry, index) => index === 0 ? {...entry, path: '../escape'} : entry)]) {
+      expect(() => validateFixedOperationBundleArchive('node_modules/fflate', {...parsed, entries: changed}))
+        .toThrow('OPERATION_BUNDLE_PACKAGES_ARCHIVE_INVALID');
+    }
+  });
+  it('adds only pinned fflate for recovery without changing the operation package pair', () => {
+    const lock = fixedLock();
+    Object.assign(lock.packages, { 'node_modules/fflate': {
+      version: '0.8.3', resolved: 'https://registry.npmjs.org/fflate/-/fflate-0.8.3.tgz',
+      integrity: 'sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rU20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==',
+    } });
+    // A one-byte integrity change is not accepted, even at the fixed version.
+    expect(() => selectFixedRecoveryBundlePackages(lock)).toThrow('OPERATION_BUNDLE_PACKAGES_LOCK_INVALID');
+    const record = (lock.packages as Record<string, any>)['node_modules/fflate'];
+    record.integrity = 'sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==';
+    expect(selectFixedRecoveryBundlePackages(lock).map(value => value.key)).toEqual([
+      'node_modules/esbuild', 'node_modules/@esbuild/linux-x64', 'node_modules/fflate',
+    ]);
+    expect(selectFixedOperationBundlePackages(lock)).toHaveLength(2);
+    record.version = '0.8.2';
+    expect(() => selectFixedRecoveryBundlePackages(lock)).toThrow('OPERATION_BUNDLE_PACKAGES_LOCK_INVALID');
+    expect(() => selectFixedRecoveryBundlePackages(fixedLock())).toThrow('OPERATION_BUNDLE_PACKAGES_LOCK_INVALID');
+  });
   it('selects only the fixed esbuild 0.28.1 Linux x64 pair', () => {
     const selected = selectFixedOperationBundlePackages(fixedLock());
     expect(selected.map(entry => entry.key)).toEqual([

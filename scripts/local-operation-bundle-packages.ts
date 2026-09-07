@@ -11,7 +11,7 @@ import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 const MAX_ARCHIVE_BYTES = 32 * 1024 * 1024;
 const MAX_LOCK_BYTES = 4 * 1024 * 1024;
 
-type PackageKey = 'node_modules/esbuild' | 'node_modules/@esbuild/linux-x64';
+type PackageKey = 'node_modules/esbuild' | 'node_modules/@esbuild/linux-x64' | 'node_modules/fflate';
 type FileExpectation = Readonly<{ path: string; bytes: number; executable: boolean }>;
 type NamespaceRecord = Readonly<{ path: string; mode: number; bytes: number; sha256: string }>;
 type SafeArchive = Readonly<{
@@ -57,6 +57,23 @@ export class OperationBundlePackagesError extends Error {
     this.code = code;
   }
 }
+
+// Recovery's archive parser adds one fixed dependency. Historical operation
+// bundle namespaces remain the original compiler pair plus YAML.
+const RECOVERY_ARCHIVE_PACKAGE = Object.freeze({
+  key: 'node_modules/fflate' as const,
+  name: 'fflate', version: '0.8.3',
+  resolved: 'https://registry.npmjs.org/fflate/-/fflate-0.8.3.tgz',
+  integrity: 'sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==',
+  files: Object.freeze([
+    ['CHANGELOG.md', 4560], ['esm/browser.d.ts', 53488], ['esm/browser.js', 90922],
+    ['esm/index.d.mts', 53488], ['esm/index.mjs', 91765], ['lib/browser.cjs', 91611],
+    ['lib/browser.d.cts', 53488], ['lib/index.cjs', 91005], ['lib/index.d.ts', 53488],
+    ['lib/node-worker.cjs', 1405], ['lib/node.cjs', 92380], ['lib/node.d.cts', 53488],
+    ['lib/worker.cjs', 636], ['LICENSE', 1069], ['package.json', 3543],
+    ['README.md', 27362], ['umd/index.js', 33044],
+  ].map(([path, bytes]) => Object.freeze({ path: path as string, bytes: bytes as number, executable: false }))),
+});
 
 function fail(code: string, cause?: unknown): never {
   throw new OperationBundlePackagesError(code, cause === undefined ? undefined : { cause });
@@ -114,9 +131,20 @@ export function selectFixedOperationBundlePackages(lock: unknown) {
 }
 
 function specFor(key: PackageKey) {
+  if (key === RECOVERY_ARCHIVE_PACKAGE.key) return RECOVERY_ARCHIVE_PACKAGE;
   const spec = FIXED_PACKAGES.find(candidate => candidate.key === key);
   if (spec === undefined) fail('OPERATION_BUNDLE_PACKAGES_ARCHIVE_INVALID');
   return spec;
+}
+
+export function selectFixedRecoveryBundlePackages(lock: unknown) {
+  const compiler = selectFixedOperationBundlePackages(lock);
+  const record = (lock as { packages: Record<string, unknown> }).packages[RECOVERY_ARCHIVE_PACKAGE.key];
+  if (!exactObject(record) || record.version !== RECOVERY_ARCHIVE_PACKAGE.version
+    || record.resolved !== RECOVERY_ARCHIVE_PACKAGE.resolved || record.integrity !== RECOVERY_ARCHIVE_PACKAGE.integrity) {
+    fail('OPERATION_BUNDLE_PACKAGES_LOCK_INVALID');
+  }
+  return Object.freeze([...compiler, RECOVERY_ARCHIVE_PACKAGE]);
 }
 
 export function validateFixedOperationBundleArchive(key: PackageKey, parsed: SafeArchive) {
@@ -345,17 +373,27 @@ function copyYaml(
   return Object.freeze(records);
 }
 
-export function materializeFixedOperationBundlePackages(input: Readonly<{
+type PackageMaterializationInput = Readonly<{
   sourceRoot: string;
   cacheRoot: string;
   yamlRoot: string;
   yamlManifest: Readonly<{ entry: string; files: readonly NamespaceRecord[] }>;
-}>) {
+}>;
+
+export function materializeFixedOperationBundlePackages(input: PackageMaterializationInput) {
+  return materializePackages(input, false);
+}
+
+export function materializeFixedRecoveryBundlePackages(input: PackageMaterializationInput) {
+  return materializePackages(input, true);
+}
+
+function materializePackages(input: PackageMaterializationInput, recovery: boolean) {
   if (process.platform !== 'linux' || process.arch !== 'x64' || process.getuid?.() !== 1000
       || !isAbsolute(input.sourceRoot) || !isAbsolute(input.cacheRoot) || !isAbsolute(input.yamlRoot)) {
     fail('OPERATION_BUNDLE_PACKAGES_INPUT_INVALID');
   }
-  const packages = selectFixedOperationBundlePackages(
+  const packages = (recovery ? selectFixedRecoveryBundlePackages : selectFixedOperationBundlePackages)(
     parseJsonFile(join(input.sourceRoot, 'package-lock.json'), MAX_LOCK_BYTES),
   );
   const nodeModules = join(input.sourceRoot, 'node_modules');
