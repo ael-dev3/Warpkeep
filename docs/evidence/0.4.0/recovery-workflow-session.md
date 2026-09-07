@@ -76,3 +76,22 @@ Still required: connect storage to the session and fixed runner-private path,
 recover ambiguous claim responses/process loss, bind actual Actions context,
 and implement the protected deployment workflow. The storage primitive alone
 does not make the workflow resumable or production-ready.
+
+## Session persistence integration
+
+`7a70b0a` connects storage to the session. `persistClaim(privateRoot)` writes the
+verified receipt/context without exposing them to the caller. The deployment
+boundary now refuses an unpersisted session, reopens the handoff using the
+independently supplied run/artifact context, and compares the returned receipt
+and context with the session's originals before permitting continuation.
+Storage failures leave reconciliation available but cannot restore deployment.
+
+Linux session/handoff suites: 22 passed, one Windows-only skip. This includes
+one session composition using actual 0600 Linux file creation and reopen;
+network and signature-verifier calls in that test remain mocked. The earlier
+13-case session suite also passed on Windows. Targeted strict types passed.
+
+Remaining: choose/provision the fixed runner-private directory in the real
+workflow, implement process-resume and ambiguous-claim handling, connect the
+pinned Pages action and terminal step, and verify genuine Actions execution.
+No live authorization or deployment occurred in these tests.
