@@ -10,6 +10,7 @@ import { buildRecoveryWorkflowArtifactModule as build } from '../scripts/build-r
 it('builds repeatable module bytes and loads in a separate native Node process', async () => {
   const first = await build(), second = await build();
   expect(first.bytes.equals(second.bytes)).toBe(true); expect(first.sha256).toBe(second.sha256);
+  expect(first.bytes.toString('utf8')).not.toContain('fflate/esm/index.mjs');
   expect(first.inputPaths).toContain('services/release-recovery/src/archive.ts');
   const root = mkdtempSync(join(tmpdir(), 'warpkeep-artifact-module-'));
   try {

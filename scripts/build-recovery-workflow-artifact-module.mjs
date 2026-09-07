@@ -21,6 +21,9 @@ export async function buildRecoveryWorkflowArtifactModule(...args) {
       entryPoints: ['services/release-recovery/scripts/read-recovery-workflow-artifact.ts'],
       outfile: 'services/release-recovery/scripts/read-recovery-workflow-artifact.bundle.mjs',
       bundle: true, platform: 'node', target: 'node22', format: 'esm', write: false,
+      // Remove esbuild's source-path comments: pnpm/junction locations differ
+      // between Windows and WSL even when dependency bytes are identical.
+      minifyWhitespace: true,
       metafile: true, sourcemap: false, legalComments: 'none', logLevel: 'silent', external: EXTERNAL });
     if (result.outputFiles.length !== 1 || result.errors.length !== 0 || result.warnings.length !== 0) fail();
     const outputs = Object.values(result.metafile.outputs);
