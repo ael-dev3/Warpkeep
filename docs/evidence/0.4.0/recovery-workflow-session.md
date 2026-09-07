@@ -516,3 +516,29 @@ Source copies in this probe are diagnostic, not the protected captured-source
 worker. Runtime source capture, artifact manifest/install integration and the
 actual recovery Actions job remain incomplete. No real OIDC, issue, claim or
 deployment request was made.
+
+## Captured-source recovery producer — 2026-09-07
+
+`cecc8d8c440ba76c2dfde788507462ca3f871237` successfully ran
+`scripts/local-recovery-bundle-runtime.mjs` in the clean Linux checkout with the
+fixed Node 22.22.3 binary, an empty environment plus `NODE_NO_WARNINGS=1`.
+Captured tree: `9bca655adca9ac9dc04fc4afab62b181d150c67f`. The producer made two
+independent source snapshots, materialized verified cached dependencies, built
+the fixed claim entrypoint twice, and compared the bytes and seven input records.
+Non-package inputs matched committed Git bytes; package inputs matched the
+verified namespace. Source/materialization and dependency checks ran again
+after compilation and input reads. The resulting 50024-byte module retained
+SHA-256 `d48cefcf82ee7eb2551ffba243c4040d8da0d50d74998b19afd82f70bb7b1901`.
+
+The shared capture implementation gained a separate fixed recovery control list
+(including the engine and producer), leaving operation capture's list unchanged.
+Forty-five targeted runtime/workspace/host-guard tests passed; targeted strict
+TypeScript passed. The earlier native run at `42fe119` also passed and emitted
+Node's expected experimental TypeScript warning. Successful disposable snapshot
+directories were removed by the producer; failures retain their own directories.
+
+This producer returns build bytes and input records, not deployment authority.
+It is not connected to artifact-family installation yet. Compilation currently
+runs within the preparation process; bounded worker-process containment and
+manifest/installer integration still need completion before production use.
+No final freeze, credentials, database writes or live deployment occurred.
