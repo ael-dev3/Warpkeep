@@ -747,3 +747,26 @@ legacy suite passes after preparation or that local production execution works.
 The monitor still depends on macOS launchctl/plutil, so this source-check result
 does not satisfy the required no-Mac operating boundary. Final preparation and
 the Linux production workflow remain outstanding.
+
+### Current-run reconciliation command — 2026-09-07
+
+`scripts/recovery-workflow-reconcile-current-run.mjs` now composes the fixed
+current-context reader with the existing persisted-claim reconciliation session.
+It accepts no arguments, overrides, or receipt input; it does not issue, claim,
+deploy, or create a new private directory. It disposes the session after either
+outcome and emits only a fixed completed/not-deployed acknowledgment or a fixed
+error. The underlying session still owns fresh OIDC, signature/deadline checks,
+and original-row correlation. Its new closure graph root includes the real
+transitive runtime dependencies in prospective preparation.
+
+Windows Node 22.22.3 verification: 33 tests passed across
+`recoveryWorkflowReconcileCurrentRun.test.ts`, `recoveryWorkflowReconciliation.test.ts`,
+and `recoveryWorkflowCurrentContext.test.ts`; root `tsc -b --pretty false` exited 0.
+The composition tests mock context/session dependencies; the CLI argument rejection
+is a native child process. These are not live signer or workflow proofs.
+
+This command is limited to the still-running protected job accepted by the
+current-context reader. It is not an arbitrary later-run recovery entrypoint.
+The workflow is not wired yet; live postflight, signed terminal evidence delivery,
+and successful release acceptance remain separate required work. A reconciled
+not-deployed row does not mean a shipped release.
