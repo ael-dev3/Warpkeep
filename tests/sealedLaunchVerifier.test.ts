@@ -121,6 +121,7 @@ function checkedInSources() {
     genesis002StatusSource:
       source('spacetimedb/genesis002/src/atlasImportReducers.ts'),
     genesis002SchemaSource: source('spacetimedb/genesis002/src/schema.ts'),
+    genesis002GameplaySchemaSource: source('spacetimedb/genesis002/src/gameplaySchema.ts'),
     genesis002LifecycleSource: source('spacetimedb/genesis002/src/lifecycle.ts'),
     genesis002IndexSource: source('spacetimedb/genesis002/src/index.ts'),
     genesis002AtlasImportSource: source('spacetimedb/genesis002/src/atlasImportReducers.ts'),
