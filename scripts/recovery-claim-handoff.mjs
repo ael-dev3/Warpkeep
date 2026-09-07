@@ -1,4 +1,4 @@
-import { constants, openSync, closeSync, fstatSync, lstatSync, realpathSync, readSync, writeFileSync, fsyncSync } from 'node:fs';
+import { constants, openSync, closeSync, fstatSync, lstatSync, realpathSync, readSync, writeFileSync, fsyncSync, accessSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { verifyRecoveryClaimReceipt, verifyRecoveryClaimCorrelation } from './verify-recovery-claim-receipt.mjs';
 const NAME = 'recovery-claim-v1.json';
@@ -24,6 +24,15 @@ function directory(root, action) {
     return result;
   } catch { fail(); }
   finally { if (fd !== undefined) closeSync(fd); }
+}
+
+/** Existing private Linux directory only. Persists no authorization JWS or OIDC token. */
+export function preflightRecoveryClaimHandoff(...args) {
+  if (args.length !== 1) fail();
+  return directory(args[0], fd => {
+    accessSync(`/proc/self/fd/${fd}`, constants.W_OK);
+    if (readdirSync(`/proc/self/fd/${fd}`).length !== 0) fail();
+  });
 }
 
 /** Existing private Linux directory only. Persists no authorization JWS or OIDC token. */

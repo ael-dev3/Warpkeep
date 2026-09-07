@@ -39,7 +39,8 @@ if (process.argv[2] === '--child') {
   await module.link(load); await module.evaluate();
   try {
     const api = module.namespace;
-    if (input.operation === 'write') api.writeRecoveryClaimHandoff(input.root, input.receipt, input.expected);
+    if (input.operation === 'preflight') api.preflightRecoveryClaimHandoff(input.root);
+    else if (input.operation === 'write') api.writeRecoveryClaimHandoff(input.root, input.receipt, input.expected);
     else if (input.operation === 'deploy') api.readRecoveryClaimHandoffForDeployment(input.root, input.context);
     else if (input.operation === 'reconcile') api.readRecoveryClaimHandoffForReconciliation(input.root, input.context);
     else throw new Error('UNKNOWN_OPERATION');
@@ -80,7 +81,9 @@ if (process.argv[2] === '--child') {
     return JSON.parse(result.stdout).accepted;
   }
   try {
+    assert.equal(run('preflight', 1001), true);
     assert.equal(run('write', 1001), true);
+    assert.equal(run('preflight', 1002), false);
     assert.equal(statSync(join(root, 'recovery-claim-v1.json')).mode & 0o777, 0o600);
     assert.equal(run('deploy', 1002), true);
     assert.equal(run('write', 1002), false);
@@ -91,6 +94,6 @@ if (process.argv[2] === '--child') {
     const wrong = generateKeyPairSync('ec', { namedCurve: 'prime256v1' }).publicKey.export({ format: 'jwk' });
     const wrongThumbprint = createHash('sha256').update(JSON.stringify({ crv: wrong.crv, kty: wrong.kty, x: wrong.x, y: wrong.y })).digest('base64url');
     assert.equal(run('reconcile', 1002, { jwk: wrong, thumbprint: wrongThumbprint }), false);
-    process.stdout.write('{"crossProcessSignatureAndPersistence":true,"checks":8,"productionCredentialsUsed":false}\n');
+    process.stdout.write('{"crossProcessSignatureAndPersistence":true,"checks":10,"productionCredentialsUsed":false}\n');
   } finally { rmSync(root, { recursive: true }); }
 }

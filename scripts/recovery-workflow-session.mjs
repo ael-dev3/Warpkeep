@@ -6,7 +6,7 @@ import { verifyRecoveryAuthorization } from './verify-recovery-authorization-jws
 import { verifyRecoveryClaimReceipt, verifyRecoveryClaimCorrelation } from './verify-recovery-claim-receipt.mjs';
 import { verifyRecoveryStatus } from './verify-recovery-status.mjs';
 import { verifyRecoveryTerminal } from './verify-recovery-terminal.mjs';
-import { writeRecoveryClaimHandoff, readRecoveryClaimHandoffForDeployment } from './recovery-claim-handoff.mjs';
+import { preflightRecoveryClaimHandoff, writeRecoveryClaimHandoff, readRecoveryClaimHandoffForDeployment } from './recovery-claim-handoff.mjs';
 
 const CONTEXT_KEYS = ['pagesRunId', 'pagesRunAttempt', 'sourceVerifyRunId', 'sourceVerifyRunAttempt',
   'candidateCommit', 'candidateTree', 'artifactId', 'githubArtifactArchiveSha256',
@@ -23,8 +23,8 @@ export async function beginRecoveryWorkflowSession(...args) {
   let handoffRoot;
   const tokenHashes = new Set();
   try {
-    const [bindingSource, expectedSource] = args;
-    if (args.length !== 2 || typeof expectedSource !== 'string' || expectedSource.length > 16384) fail();
+    const [bindingSource, expectedSource, privateRoot] = args;
+    if (args.length !== 3 || typeof expectedSource !== 'string' || expectedSource.length > 16384) fail();
     const context = JSON.parse(expectedSource);
     if (!context || Array.isArray(context) || typeof context !== 'object'
         || Object.keys(context).join(',') !== CONTEXT_KEYS.join(',') || JSON.stringify(context) !== expectedSource
@@ -33,6 +33,7 @@ export async function beginRecoveryWorkflowSession(...args) {
             : key.startsWith('candidate') ? /^[a-f0-9]{40}$/u : /^[a-f0-9]{64}$/u).test(context[key]))
         || context.pagesRunId === context.sourceVerifyRunId) fail();
     const binding = parseRecoveryBindingV2(bindingSource);
+    preflightRecoveryClaimHandoff(privateRoot);
     const locators = Object.freeze({ requestId: binding.recoveryAuthorizationRequestId,
       candidateCommit: context.candidateCommit, sourceVerifyRunId: context.sourceVerifyRunId,
       sourceVerifyRunAttempt: context.sourceVerifyRunAttempt, artifactId: context.artifactId });
@@ -61,16 +62,12 @@ export async function beginRecoveryWorkflowSession(...args) {
     verifyRecoveryClaimReceipt(claimReceiptJws, claimExpectedSource, now());
     authorizationJws = undefined;
     phase = 'claimed';
+    try {
+      writeRecoveryClaimHandoff(privateRoot, claimReceiptJws, claimExpectedSource);
+      handoffRoot = privateRoot;
+    } catch { phase = 'reconcile-only'; }
     try { await status(); } catch { phase = 'reconcile-only'; }
     return Object.freeze({
-      persistClaim(...parameters) {
-        if (parameters.length !== 1 || handoffRoot !== undefined || !['claimed', 'reconcile-only'].includes(phase)) fail();
-        try {
-          const result = writeRecoveryClaimHandoff(parameters[0], claimReceiptJws, claimExpectedSource);
-          handoffRoot = parameters[0];
-          return result;
-        } catch { phase = 'reconcile-only'; fail(); }
-      },
       async checkDeploymentBoundary() {
         if (phase !== 'claimed' || handoffRoot === undefined) fail();
         phase = 'checking';
