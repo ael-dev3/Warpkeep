@@ -1123,6 +1123,8 @@ describe('sealed-realms production dispatcher', () => {
         operation: 'g001-census-second-inspect', status: 'completed',
       });
       expect(JSON.stringify(second)).not.toContain('warpkeep-access-request-census');
+      const censusActivationPath = 'activation-evidence/records/g001-admitted-player-census-private-receipt.json';
+      expect(local.state.exists({ root: 'runtime', relativePath: censusActivationPath })).toBe(false);
       const suspendAuthority = g001Authority('g001-census-second-suspend');
       const suspensionDispatcher = await protectedG001Dispatcher(
         lane, 'g001-census-second-suspend', suspendAuthority, local.state,
@@ -1139,6 +1141,24 @@ describe('sealed-realms production dispatcher', () => {
       expect(attempts.filter(attempt => attempt.status === 'rejected')).toHaveLength(1);
       expect(suspend).toHaveBeenCalledTimes(1);
       expect(collection).toBe(2);
+      const capturedBytes = local.state.read({ root: 'runtime', relativePath: censusActivationPath });
+      try {
+        const captured = JSON.parse(capturedBytes.toString('utf8'));
+        expect(captured.operation).toBe('g001-census-second-suspend');
+        expect(captured.sourceAuthorityDigest).toBe(suspendAuthority.authorityDigest);
+        expect(captured.member).toBe('g001AdmittedPlayerCensusPrivateReceipt');
+        expect(Object.keys(captured.receipt)).toEqual([
+          'schemaVersion', 'profile', 'first', 'second', 'confirmation', 'consumed',
+        ]);
+        expect(captured.receipt.consumed.record.confirmationDigest)
+          .toBe(captured.receipt.confirmation.record.confirmationDigest);
+        expect(captured.bodyDigest).toBe(createHash('sha256')
+          .update(`${JSON.stringify(captured.receipt)}\n`).digest('hex'));
+        expect(captured.semanticDigest).toBe(createHash('sha256').update([
+          'warpkeep.sealed-realms.activation-record.v1', captured.member,
+          SOURCE, SOURCE, captured.operation, suspendAuthority.authorityDigest, captured.bodyDigest, '',
+        ].join('\n')).digest('hex'));
+      } finally { capturedBytes.fill(0); }
       expect(local.state.list({ root: 'runtime', relativeDirectory: 'g001/census' }))
         .toEqual(expect.arrayContaining(['first', 'second', 'consumed']));
     } finally {
@@ -1280,6 +1300,44 @@ describe('sealed-realms production dispatcher', () => {
       consumed.local.cleanup();
     }
   });
+
+  it.each(['operator failure', 'changed private record', 'existing capture'])(
+    'does not publish census capture success after %s or replay suspension', async mode => {
+      const scenario = await censusScenario();
+      const original = globalThis.WebSocket;
+      const capturePath = 'activation-evidence/records/g001-admitted-player-census-private-receipt.json';
+      Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: function WebSocket() {} });
+      try {
+        const { secondRunId } = await issueCensusContinuations(scenario);
+        scenario.suspend.mockImplementation(async () => {
+          expect(scenario.local.state.exists({ root: 'runtime', relativePath: capturePath })).toBe(false);
+          if (mode === 'operator failure') throw new Error('test-only suspension failure');
+          const relativePath = mode === 'existing capture' ? capturePath
+            : `g001/census/second/${scenario.local.state.list({ root: 'runtime', relativeDirectory: 'g001/census/second' })[0]}`;
+          if (mode === 'changed private record') scenario.local.state.remove({ root: 'runtime', relativePath });
+          scenario.local.state.write({ root: 'runtime', relativePath, bytes: Buffer.from('{}\n') });
+        });
+        const authority = g001Authority('g001-census-second-suspend');
+        const dispatcher = await protectedG001Dispatcher(
+          scenario.lane, 'g001-census-second-suspend', authority, scenario.local.state,
+          '6591', new Set([secondRunId]),
+        );
+        const request = Object.freeze({ operation: 'g001-census-second-suspend' as const, workflowInputSha: SOURCE });
+        await expect(dispatcher.dispatch(request)).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+        await expect(dispatcher.dispatch(request)).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+        expect(scenario.suspend).toHaveBeenCalledTimes(1);
+        if (mode === 'existing capture') {
+          const bytes = scenario.local.state.read({ root: 'runtime', relativePath: capturePath });
+          try { expect(bytes.toString('utf8')).toBe('{}\n'); } finally { bytes.fill(0); }
+        } else {
+          expect(scenario.local.state.exists({ root: 'runtime', relativePath: capturePath })).toBe(false);
+        }
+      } finally {
+        Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: original });
+        scenario.local.cleanup();
+      }
+    },
+  );
 
   it('uses only the fixed direct G001 inspection tools and never exposes child output', async () => {
     const authority = authenticateSealedRealmsProductionSourceAuthority({

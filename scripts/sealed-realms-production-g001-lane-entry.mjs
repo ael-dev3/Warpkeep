@@ -847,11 +847,62 @@ async function censusSecondSuspend(authority, capability, input) {
     confirmationDigest: memberRecord.confirmationDigest,
     consumedAt: now.text,
   });
-  writeCensusRecord(member.privateState, 'consumed', consumed);
+  const consumedRecord = writeCensusRecord(member.privateState, 'consumed', consumed);
   try {
     await member.suspend(Object.freeze({ sourceCommit }));
   } catch {
     fail('SEALED_REALMS_G001_CENSUS_SUSPEND_UNAVAILABLE');
+  }
+  // Producer-local capture: no raw receipt crosses the lane result or a caller
+  // callback. Reopen the exact authenticated records after the suspension.
+  const sampleKeys = ['schemaVersion', 'profile', 'sourceCommit', 'applicant', 'admitted', 'observedAt'];
+  const reopen = (relativePath, recordDigest, keys) => Object.freeze({
+    recordDigest,
+    record: readCensusRecord(member.privateState, relativePath, recordDigest, keys),
+  });
+  const receipt = Object.freeze({
+    schemaVersion: 1,
+    profile: 'warpkeep-sealed-realms-g001-census-activation-private-v1',
+    first: reopen(memberRecord.firstRelativePath, memberRecord.firstDigest, sampleKeys),
+    second: reopen(memberRecord.secondRelativePath, memberRecord.secondDigest, sampleKeys),
+    confirmation: reopen(memberRecord.confirmationRelativePath, memberRecord.confirmationRecordDigest,
+      ['schemaVersion', 'profile', 'sourceCommit', 'firstDigest', 'secondDigest', 'secondObservedAt', 'expiresAt', 'confirmationDigest']),
+    consumed: reopen(consumedRecord.relativePath, consumedRecord.digest,
+      ['schemaVersion', 'profile', 'sourceCommit', 'firstDigest', 'secondDigest', 'confirmationDigest', 'consumedAt']),
+  });
+  const body = Buffer.from(`${JSON.stringify(receipt)}\n`, 'utf8');
+  let bytes;
+  try {
+    const bodyDigest = digestBytes(body);
+    const recordMember = 'g001AdmittedPlayerCensusPrivateReceipt';
+    const operation = 'g001-census-second-suspend';
+    if (authority.operation !== operation) fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+    const semanticDigest = createHash('sha256').update([
+      'warpkeep.sealed-realms.activation-record.v1', recordMember,
+      sourceCommit, sourceCommit, operation, authority.authorityDigest, bodyDigest, '',
+    ].join('\n')).digest('hex');
+    bytes = Buffer.from(`${JSON.stringify({
+      schemaVersion: 1,
+      profile: 'warpkeep-sealed-realms-activation-record-v1',
+      member: recordMember,
+      preparationSourceCommit: sourceCommit,
+      sourceCommit,
+      operation,
+      sourceAuthorityDigest: authority.authorityDigest,
+      bodyDigest,
+      receipt,
+      semanticDigest,
+    })}\n`, 'utf8');
+    member.privateState.write({
+      root: 'runtime',
+      relativePath: 'activation-evidence/records/g001-admitted-player-census-private-receipt.json',
+      bytes,
+    });
+  } catch {
+    fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+  } finally {
+    body.fill(0);
+    bytes?.fill(0);
   }
   return Object.freeze({ status: 'completed' });
 }
