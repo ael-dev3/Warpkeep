@@ -64,3 +64,26 @@ do not establish those properties.
 
 Configuration semantics: [Squid ACL reference](https://www.squid-cache.org/Doc/config/acl/),
 [access rules](https://www.squid-cache.org/Doc/config/http_access/).
+
+## Restricted listener/client checkpoint — 2026-09-07
+
+The current configuration supersedes the unrestricted listener in the initial
+prototype: it binds only `172.30.240.2:3128` and allows CONNECT requests only
+from the designated runner at `172.30.240.3`. The disposable harness reserves
+`172.30.240.0/29`; an existing overlapping Docker network makes creation fail,
+not select a broader fallback. Only the harness-owned runner/proxy containers
+receive these addresses; no host mount or Docker socket is exposed to them.
+
+Updated exact image:
+`sha256:59a9b5038312c48ee4a787da0db7f81c1c1d48f74e070eece79b05db3a23c0ec`.
+The full `test-egress.ps1` run exited zero on Docker 29.7.2. A second client at
+`172.30.240.4` was denied CONNECT to otherwise-allowed `api.github.com` with 403.
+The designated client retained certificate-verified GitHub HTTPS 200. The ten
+original destination/method denials, direct TCP/DNS/route denials, stopped-proxy
+checks, and all five private-resolution cases still passed. The exact labeled
+test containers/networks were absent after cleanup; both images remain local.
+
+These are credential-free network tests, not authenticated job admission.
+DNS rebinding race coverage, full Actions endpoint connectivity, job-specific
+authorization, persistent private handoff/log handling, and runner registration
+remain unfinished. IP filtering alone is not a credential or repository boundary.

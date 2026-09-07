@@ -35,6 +35,10 @@ denied = ['example.com:443', 'api.github.com.example.com:443',
           '127.0.0.1:443', '169.254.169.254:443', '10.0.0.1:443',
           '[::1]:443', '1.1.1.1:443', 'api.github.com:80',
           'api.github.com:22']
+if sys.argv[1:] == ['--unauthorized-client']:
+    assert connect_status('api.github.com:443') == 403
+    print(json.dumps({'unauthorizedClientDenied': True}))
+    sys.exit(0)
 for authority in denied:
     assert connect_status(authority) == 403, authority
 assert connect_status('http://api.github.com/', 'GET') == 403

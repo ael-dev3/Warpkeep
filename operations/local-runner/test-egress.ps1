@@ -5,7 +5,7 @@ $taskInternal = "warpkeep-egress-test-in-$taskSuffix"
 $taskExternal = "warpkeep-egress-test-out-$taskSuffix"
 $taskProxy = "warpkeep-egress-test-proxy-$taskSuffix"
 $taskRunnerImage = 'sha256:5027b7108810a0c601e43a77d9f4b2fefb6757d59c8f0def279dd6c64b4b745c'
-$taskProxyImage = 'sha256:ca0567dfc0c47273f7af1522dddf04e135d17a578b5cef7f58b08f4843f99b1b'
+$taskProxyImage = 'sha256:59a9b5038312c48ee4a787da0db7f81c1c1d48f74e070eece79b05db3a23c0ec'
 $taskNetworks = [System.Collections.Generic.List[string]]::new()
 $taskProxyCreated = $false
 
@@ -17,15 +17,15 @@ function Invoke-TaskDocker {
 }
 
 function Invoke-TaskProbe {
-    param([string]$Script, [string[]]$ModeArgs = @())
+    param([string]$Script, [string[]]$ModeArgs = @(), [string]$Address = '172.30.240.3')
     Get-Content -Raw (Join-Path $PSScriptRoot $Script) |
-        & wsl -d Ubuntu-24.04 --exec docker run --rm --interactive --network $taskInternal --dns 127.0.0.1 --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --memory 256m --cpus 1 --entrypoint /usr/bin/python3 $taskRunnerImage - @ModeArgs
+        & wsl -d Ubuntu-24.04 --exec docker run --rm --interactive --network $taskInternal --ip $Address --dns 127.0.0.1 --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --memory 256m --cpus 1 --entrypoint /usr/bin/python3 $taskRunnerImage - @ModeArgs
     if ($LASTEXITCODE -ne 0) { throw "Network probe failed: $Script" }
 }
 
 try {
     Invoke-TaskDocker @('image', 'inspect', $taskRunnerImage, $taskProxyImage, '--format', '{{.Id}}')
-    Invoke-TaskDocker @('network', 'create', '--internal', '--driver', 'bridge', '--opt', 'com.docker.network.bridge.gateway_mode_ipv4=isolated', '--label', "com.warpkeep.test=$taskSuffix", $taskInternal)
+    Invoke-TaskDocker @('network', 'create', '--internal', '--subnet', '172.30.240.0/29', '--driver', 'bridge', '--opt', 'com.docker.network.bridge.gateway_mode_ipv4=isolated', '--label', "com.warpkeep.test=$taskSuffix", $taskInternal)
     $taskNetworks.Add($taskInternal)
     Invoke-TaskDocker @('network', 'create', '--driver', 'bridge', '--opt', 'com.docker.network.bridge.enable_icc=false', '--label', "com.warpkeep.test=$taskSuffix", $taskExternal)
     $taskNetworks.Add($taskExternal)
@@ -37,12 +37,13 @@ try {
         if ($taskPrivateAddress) { $taskCreateArgs += @('--add-host', "api.github.com=$taskPrivateAddress") }
         Invoke-TaskDocker ($taskCreateArgs + $taskProxyImage)
         $taskProxyCreated = $true
-        Invoke-TaskDocker @('network', 'connect', '--alias', 'warpkeep-egress', $taskInternal, $taskProxy)
+        Invoke-TaskDocker @('network', 'connect', '--ip', '172.30.240.2', '--alias', 'warpkeep-egress', $taskInternal, $taskProxy)
         Invoke-TaskDocker @('start', $taskProxy)
         # Bounded readiness retries only: never retry a failed acceptance test.
         Invoke-TaskProbe 'proxy-smoke.py' @('--ready')
         if ($taskPrivateAddress) { Invoke-TaskProbe 'proxy-smoke.py' @('--private-resolution') }
         else {
+            Invoke-TaskProbe 'proxy-smoke.py' @('--unauthorized-client') '172.30.240.4'
             Invoke-TaskProbe 'network-smoke.py'
             Invoke-TaskProbe 'proxy-smoke.py'
         }
