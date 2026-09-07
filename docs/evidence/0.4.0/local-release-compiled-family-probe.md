@@ -110,3 +110,36 @@ evidence, **not** an uninterrupted successful probe, final Task 7 acceptance,
 attested production-toolchain completion, or live release. It does not include
 the later workflow transport changes in `172d8e0`. Full compiler regeneration
 convergence and remaining dispatcher/activation/workflow consumers still matter.
+
+## Uninterrupted native success
+
+The third run completed with exit code 0 from a fresh independent Linux clone
+of `fd9bb480cd8b8f2fc0bf4b632ca4bff34059d2f4`, tree
+`738a5ac0e33a054717b483ed400a7b11ff401be4`. Unlike the second run, this source
+already contained the corrected YAML graph-input lookup and the workflow body
+bounds. No source overlays were applied to the running checkout.
+
+Its terminal result reported:
+
+- 84 real compiled artifact files and 14 derived closure-family files.
+- 98 installed files checked against their generated hashes.
+- 288 compiler-recorded bundle inputs checked against repository or separately
+  pinned YAML dependency bytes.
+- 1,099 members accepted by the actual installed closure verifier.
+- Identical repeated derivation of the fourteen closure-family outputs.
+- Manifest SHA-256:
+  `fa765a45259bd23d5a251a6dd1944bcd8546ac4993e9e04d1ee40642c7084e68`.
+- Successful native rollback of both test candidates before the process exited.
+- `finalReleasePrepared: false`.
+
+The run used the fixed Linux Node 22.22.3 executable with a cleared environment
+and ordinary Linux test dependency links for the scanner. The private transaction
+recovery restored replaced files and removed probe-created generated files;
+source checkouts and recovery records remain retained. No production state was
+touched. This run did not include subsequent documentation or the verifier-test
+correction in `e4640ba`.
+
+The uninterrupted result supersedes the need to rerun the corrected probe, not
+the remaining release requirements: full consumer/test integration, complete
+compiler regeneration convergence, production toolchain attestation, unfinished
+activation and workflow operations, final freeze, and live acceptance remain.
