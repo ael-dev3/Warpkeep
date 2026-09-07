@@ -72,7 +72,10 @@ it.skipIf(process.platform !== 'linux')('writes and checks the fixed dist artifa
   mkdirSync(join(root, 'dist')); writeFileSync(join(root, 'dist/index.html'), 'synthetic build');
   const written = command('--write');
   expect(written.status).toBe(0); expect(written.stderr).toBe('');
-  expect(JSON.parse(written.stdout)).toEqual({ deploymentAttestationSha256: expect.stringMatching(/^[a-f0-9]{64}$/) });
+  expect(JSON.parse(written.stdout)).toEqual({
+    deploymentAttestationSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+    contentManifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+  });
   const checked = command('--check');
   expect(checked.status).toBe(0); expect(checked.stdout).toBe(written.stdout);
   expect(command('--write').status).toBe(1);
