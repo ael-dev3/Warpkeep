@@ -118,19 +118,51 @@ on:
   workflow_run:
     workflows: [Verify]
     types: [completed]
+concurrency:
+  group: warpkeep-production-state
+  cancel-in-progress: false
 jobs:
   deploy-recovery:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, warpkeep-production-admin, warpkeep-repository-exclusive]
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
     steps:
-      - name: Request recovery authority
-        run: echo verified
+      - name: Upload exact recovery artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
+        with:
+          name: github-pages-recovery-\${{ github.run_id }}-\${{ github.run_attempt }}
+      - name: Prepare private recovery claim
+        id: recovery-claim
+        shell: bash
+        env:
+          GITHUB_TOKEN: \${{ github.token }}
+        run: |
+          node scripts/recovery-workflow-prepare-claim.mjs
+      - name: Check recovery deployment boundary
+        id: recovery-boundary
+        shell: bash
+        env:
+          GITHUB_TOKEN: \${{ github.token }}
+        run: |
+          node scripts/recovery-workflow-check-deployment.mjs
       - name: ${DEPLOY_STEP}
-        id: deployment
+        id: recovery-deployment
         uses: ${DEPLOY_ACTION}
         with:
           artifact_name: github-pages-recovery-\${{ github.run_id }}-\${{ github.run_attempt }}
+      - name: Verify recovery live postflight
+        id: recovery-postflight
+        if: \${{ always() && steps.recovery-claim.outcome == 'success' }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: \${{ github.token }}
+        run: |
+          node scripts/recovery-workflow-postflight.mjs
 `
 }
 
@@ -821,6 +853,15 @@ describe('read-only V2 deployment reconciliation evidence', () => {
 
     await expect(fixture.reader(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
     expect(fixture.calls).not.toContain(PUBLIC_ATTESTATION_URL)
+  })
+  it.each(['hosted-runner', 'old-deploy-id', 'missing-postflight'])('rejects stale reconciliation workflow contract: %s', async kind => {
+    const fixture = await makeFixture()
+    if (kind === 'hosted-runner') fixture.state.workflow = fixture.state.workflow.replace(
+      '[self-hosted, Linux, X64, warpkeep-production-admin, warpkeep-repository-exclusive]', 'ubuntu-latest')
+    if (kind === 'old-deploy-id') fixture.state.workflow = fixture.state.workflow.replace('id: recovery-deployment', 'id: deployment')
+    if (kind === 'missing-postflight') fixture.state.workflow = fixture.state.workflow.slice(0,
+      fixture.state.workflow.indexOf('      - name: Verify recovery live postflight'))
+    await expect(fixture.reader(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
   })
 
   it.each([

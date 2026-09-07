@@ -857,7 +857,7 @@ async function validateBinding(
   return realmBinding
 }
 
-function validateWorkflow(bytes: Uint8Array): void {
+export function validateRecoveryWorkflowSource(bytes: Uint8Array): void {
   let source: string
   try {
     source = utf8.decode(bytes)
@@ -1188,7 +1188,7 @@ export async function loadGitHubCandidateEvidence(input: Readonly<{
     const bindingBytes = await loadStableTreeBlob(fetchImplementation, init, bindingEntry)
     const realmBinding = await validateBinding(bindingBytes, armed, snapshot.bindingRequestId)
     const workflowBytes = await loadStableTreeBlob(fetchImplementation, init, workflowEntry)
-    validateWorkflow(workflowBytes)
+    validateRecoveryWorkflowSource(workflowBytes)
 
     const source = await json(
       fetchImplementation,

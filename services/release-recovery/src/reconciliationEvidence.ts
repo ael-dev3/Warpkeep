@@ -10,7 +10,7 @@ import {
   sha,
   snapshotExactDataObject,
 } from './config.js'
-import { mintGitHubInstallationToken } from './githubEvidence.js'
+import { mintGitHubInstallationToken, validateRecoveryWorkflowSource } from './githubEvidence.js'
 import {
   githubEvidenceMetadataSha256,
   snapshotGitHubEvidenceMetadata,
@@ -615,6 +615,7 @@ async function gitBlobSha1(bytes: Uint8Array): Promise<string> {
 }
 
 function validateWorkflowSource(bytes: Uint8Array): void {
+  validateRecoveryWorkflowSource(bytes)
   let source: string
   try {
     source = utf8.decode(bytes)
@@ -639,7 +640,7 @@ function validateWorkflowSource(bytes: Uint8Array): void {
     const recoveryObject = recovery as Record<string, unknown>
     const environment = recoveryObject.environment
     if (
-      recoveryObject['runs-on'] !== 'ubuntu-latest'
+      !Array.isArray(recoveryObject['runs-on'])
       || environment === null
       || typeof environment !== 'object'
       || Array.isArray(environment)
@@ -658,7 +659,7 @@ function validateWorkflowSource(bytes: Uint8Array): void {
     const deploy = named[0]!
     const withValue = deploy.with
     if (
-      deploy.id !== 'deployment'
+      deploy.id !== 'recovery-deployment'
       || withValue === null
       || typeof withValue !== 'object'
       || Array.isArray(withValue)

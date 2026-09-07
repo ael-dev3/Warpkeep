@@ -878,3 +878,21 @@ in the Linux diagnostic checkout. The fixture uses synthetic workflow environmen
 strings and no credentials or network authority. It is not authenticated Actions
 execution and grants no deployment authority. Actual workflow wiring, production
 runner provisioning, final preparation, and live acceptance remain outstanding.
+
+### Issuance/reconciliation workflow mismatch repaired — 2026-09-07
+
+The full recovery service suite at `7f80338` passed 976 tests across 33 files
+on Windows Node 22.22.3 (50.22 seconds). Source inspection nevertheless found
+reconciliation hard-coded to `ubuntu-latest` and deployment ID `deployment`,
+while issuance requires the local production runner labels and
+`recovery-deployment`. Separate positive fixtures had hidden this incompatibility.
+
+Reconciliation now invokes the same exported `validateRecoveryWorkflowSource`
+used by issuance before applying its additional parsing checks; its obsolete
+runner/step-ID requirements were corrected. Its fixture now includes the exact
+claim/boundary/deploy/postflight sequence, permissions, and non-cancelling lock.
+Both suites passed 273 tests before the three additional regression cases;
+the final reconciliation suite passed 35 tests including rejection of the old
+hosted runner, old ID, and missing postflight. Service TypeScript exited 0.
+These use fixture GitHub responses, not actual production execution. This
+corrects a real cross-component contract mismatch, but does not wire the job.
