@@ -727,7 +727,11 @@ describe('0.4.0 sealed-launch verifier', () => {
         writeFileSync(
           fixture,
           [
-            source('scripts/verify-0.4.0-sealed-launch.mjs'),
+            // The copied module exposes a private policy function for this test.
+            // Keep its real imported dependencies anchored to the repository.
+            source('scripts/verify-0.4.0-sealed-launch.mjs')
+              .replace("'./local-binding-bounded-file.mjs'", JSON.stringify(pathToFileURL(resolve('scripts/local-binding-bounded-file.mjs')).href))
+              .replace("'./recovery-attestation-source.mjs'", JSON.stringify(pathToFileURL(resolve('scripts/recovery-attestation-source.mjs')).href)),
             'export { verifyGenesis002Policy as verifyGenesis002PolicyForTesting };',
             '',
           ].join('\n'),
