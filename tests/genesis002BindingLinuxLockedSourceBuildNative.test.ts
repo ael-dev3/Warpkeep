@@ -31,6 +31,10 @@ describe('Genesis 002 Linux locked-source build native lifecycle', () => {
       const fixture = createGenesis002Fixture();
       temporaryDirectories.push(...fixture.cleanupRoots);
       const commit = fixture.commitSource();
+      for (const path of ['config', 'info/exclude']) {
+        const contextPath = join(fixture.input.repositoryRoot, '.git', path);
+        if (existsSync(contextPath)) expect(lstatSync(contextPath).mode & 0o777).toBe(0o600);
+      }
       const before = fixture.sourceSnapshot();
       let materializedRoot = '';
       const output = withGenesis002LinuxLockedSourceBuild({

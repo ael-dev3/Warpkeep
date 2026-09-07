@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   chmodSync,
+  existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -311,6 +312,12 @@ export function createGenesis002Fixture(options: Readonly<{
         return result.stdout.trim();
       };
       run(['init', '--quiet']);
+      // Git-created context files otherwise inherit the runner's umask (for
+      // example 0640 under 0027), rather than the fixture's private contract.
+      for (const path of ['config', 'info/exclude']) {
+        const contextPath = join(repositoryRoot, '.git', path);
+        if (existsSync(contextPath)) chmodSync(contextPath, 0o600);
+      }
       run(['add', '--', 'spacetimedb']);
       run(['commit', '--quiet', '-m', 'fixture'], {
         ...process.env,
