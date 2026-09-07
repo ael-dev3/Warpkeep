@@ -704,3 +704,20 @@ timeouts/locked fixture cleanup; they are not counted as passing evidence.
 No recovery job is wired in the Pages workflow yet. Final release preparation,
 authenticated protected-main/live authority, postflight, and deployment remain
 separate mandatory work.
+
+### Copied-verifier regression correction — 2026-09-07
+
+The equal failure counts above concealed a changed cause: the policy test copies
+the verifier into a temporary directory, where its two new relative imports
+could not resolve. Commit `9c4af62` resolves those test-copy imports to the actual
+repository modules using absolute file URLs; production verification is unchanged.
+
+The corrected Linux run completed with 95 passed and 58 failed out of 153 tests.
+Its report is `/tmp/warpkeep-routing-baseline.nsA1QEbM/corrected.json`. Comparison
+against `baseline.json`, keyed by full assertion name, found zero differences in
+the first failure-message line for all 58 failures. This restores the observed
+baseline failure reasons, not a passing suite or proof that every deeper cause
+is identical. The remaining failures encounter the G001 admission-monitor
+current-state guard before the intended downstream authority assertions. Do not
+refresh production source pins merely to make these tests pass; required operating
+sources and their review must precede the final release freeze.
