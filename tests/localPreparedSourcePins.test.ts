@@ -52,6 +52,8 @@ const digest = (value: string) => createHash('sha256').update(value).digest('hex
 let root: string;
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'warpkeep-source-pins-'));
+  writeFileSync(join(root, 'package.json'), `${JSON.stringify({ name: 'warpkeep', version: '0.3.43', private: true, description: '0.3.43' }, null, 2)}\n`);
+  writeFileSync(join(root, 'package-lock.json'), `${JSON.stringify({ name: 'warpkeep', version: '0.3.43', lockfileVersion: 3, packages: { '': { name: 'warpkeep', version: '0.3.43' }, 'node_modules/example': { version: '0.3.43' } } }, null, 2)}\n`);
   mkdirSync(join(root, 'scripts'));
   for (const [, path] of inlineSources) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
@@ -63,6 +65,8 @@ beforeEach(() => {
   writeFileSync(join(root, verifier), sourceNames.map(([name]) => pin(name)).join('')
     + pin('GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_FINALIZATION_SHA256')
     + pin('GENESIS_001_FREEZE_PUBLISH_RECEIPT_SHA256')
+    + pin('SEALED_LAUNCH_PACKAGE_STRUCTURE_SHA256')
+    + pin('SEALED_LAUNCH_LOCK_STRUCTURE_SHA256')
     + inlineSources.map(([key, , count]) => inlinePin(key).repeat(count)).join(''));
 });
 afterEach(() => rmSync(root, { recursive: true }));
@@ -83,6 +87,13 @@ it('hashes the updated generator after bootstrap derivation and preserves histor
     pin('GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_FINALIZATION_SHA256').replace(stale, digest(finalization)));
   for (const [key, path] of inlineSources) {
     expected = expected.replaceAll(inlinePin(key), inlinePin(key).replace(stale, digest(readFileSync(join(root, path), 'utf8'))));
+  }
+  for (const [name, value] of [
+    ['SEALED_LAUNCH_PACKAGE_STRUCTURE_SHA256', { name: 'warpkeep', version: '<release-version>', private: true, description: '0.3.43' }],
+    ['SEALED_LAUNCH_LOCK_STRUCTURE_SHA256', { name: 'warpkeep', version: '<release-version>', lockfileVersion: 3, packages: { '': { name: 'warpkeep', version: '<release-version>' }, 'node_modules/example': { version: '0.3.43' } } }],
+  ] as const) {
+    const projected = `${JSON.stringify(value, null, 2)}\n`;
+    expected = expected.replace(pin(name), pin(name).replace(stale, digest(projected)));
   }
   expect(verified).toBe(expected);
   expect(readFileSync(join(root, verifier), 'utf8')).toBe(original);
@@ -146,4 +157,15 @@ it.each(['missing', 'extra', 'unknown', 'expression'])('rejects %s inline hash s
   writeFileSync(join(root, verifier), changed);
   expect(() => derivePreparedSourcePins({ repositoryRoot: root })).toThrow('LOCAL_PREPARED_SOURCE_PINS_INVALID');
   expect(readFileSync(join(root, verifier), 'utf8')).toBe(changed);
+});
+it.each(['noncanonical', 'wrong-name', 'mixed-version', 'wrong-lock-version'])('rejects %s package identity before deriving structure pins', kind => {
+  const path = join(root, 'package-lock.json');
+  let value = readFileSync(path, 'utf8');
+  if (kind === 'noncanonical') value = value.trim();
+  if (kind === 'wrong-name') value = value.replace('"warpkeep"', '"other"');
+  if (kind === 'mixed-version') value = value.replace('"0.3.43"', '"0.4.0"');
+  if (kind === 'wrong-lock-version') value = value.replace('"lockfileVersion": 3', '"lockfileVersion": 2');
+  writeFileSync(path, value);
+  expect(() => derivePreparedSourcePins({ repositoryRoot: root })).toThrow('LOCAL_PREPARED_SOURCE_PINS_INVALID');
+  expect(readFileSync(path, 'utf8')).toBe(value);
 });

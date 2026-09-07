@@ -60,6 +60,26 @@ function replaceInlinePins(source, sources) {
   }
   return source.replace(pattern, (_match, before, key, after) => `${before}${digests.get(key)}${after}`);
 }
+function packageStructurePins(sources) {
+  const packageText = sources.get('package.json');
+  const lockText = sources.get('package-lock.json');
+  const packageJson = JSON.parse(packageText);
+  const lock = JSON.parse(lockText);
+  const canonical = value => `${JSON.stringify(value, null, 2)}\n`;
+  if (canonical(packageJson) !== packageText || canonical(lock) !== lockText
+    || packageJson?.name !== 'warpkeep' || lock?.name !== 'warpkeep'
+    || !['0.3.43', '0.4.0'].includes(packageJson.version)
+    || lock.version !== packageJson.version || lock.lockfileVersion !== 3
+    || lock.packages?.['']?.name !== 'warpkeep'
+    || lock.packages[''].version !== packageJson.version) fail();
+  packageJson.version = '<release-version>';
+  lock.version = '<release-version>';
+  lock.packages[''].version = '<release-version>';
+  return [
+    ['SEALED_LAUNCH_PACKAGE_STRUCTURE_SHA256', sha(canonical(packageJson))],
+    ['SEALED_LAUNCH_LOCK_STRUCTURE_SHA256', sha(canonical(lock))],
+  ];
+}
 
 /** Internal fixed-path derivation; callers cannot supply hashes or source maps. */
 export function derivePreparedSourcePins(options) {
@@ -70,7 +90,7 @@ export function derivePreparedSourcePins(options) {
       || !Object.hasOwn(Object.getOwnPropertyDescriptor(options, 'repositoryRoot'), 'value')
       || typeof options.repositoryRoot !== 'string') fail();
     const sources = new Map();
-    for (const path of new Set([...SOURCE_PINS.map(([, path]) => path), ...INLINE_PINS.map(([, path]) => path), VERIFIER])) {
+    for (const path of new Set([...SOURCE_PINS.map(([, path]) => path), ...INLINE_PINS.map(([, path]) => path), VERIFIER, 'package.json', 'package-lock.json'])) {
       const { body } = readLocalBindingBoundedFile(resolve(options.repositoryRoot, path), { maximumBytes: MAX_BYTES, minimumBytes: 1 });
       try {
         const text = new TextDecoder('utf-8', { fatal: true }).decode(body);
@@ -93,6 +113,7 @@ export function derivePreparedSourcePins(options) {
     for (const [name, path] of SOURCE_PINS) verifier = replacePin(verifier, name, sha(sources.get(path)));
     verifier = replacePin(verifier, 'GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_FINALIZATION_SHA256', finalizationDigest);
     verifier = replaceInlinePins(verifier, sources);
+    for (const [name, digest] of packageStructurePins(sources)) verifier = replacePin(verifier, name, digest);
     sources.set(VERIFIER, verifier);
     const files = [GENERATOR, VERIFIER].map(path => {
       const bytes = new Uint8Array(Buffer.from(sources.get(path)));

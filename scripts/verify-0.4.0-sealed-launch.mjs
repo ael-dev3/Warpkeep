@@ -3803,7 +3803,7 @@ function verifyPlayerFacingSealedRealmRelease(sources) {
     'GENESIS_001_PRESERVED_RELEASE_VERSION',
     'GENESIS_002_SEALED_RELEASE_VERSION',
     "admission: 'not-admitted'",
-    "statusLabel: 'Not admitted'",
+    "statusLabel: 'Sealed'",
     'Not admitted to Genesis 002',
     'Genesis 002 is sealed',
     'no access request or realm connection was made',
