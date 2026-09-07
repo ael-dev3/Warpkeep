@@ -7,6 +7,27 @@ import { pathToFileURL } from 'node:url';
 import { expect, it } from 'vitest';
 import { buildRecoveryWorkflowArtifactModule as build, buildRecoveryWorkflowClaimModule as buildClaim } from '../scripts/build-recovery-workflow-artifact-module.mjs';
 import { recoveryArtifactNativeFixture } from './fixtures/recoveryArtifactNativeFixture';
+import { buildRecoveryWorkflowModule as buildEngine } from '../scripts/recovery-workflow-bundle-engine.mjs';
+
+it('rejects invalid engine inputs before calling a compiler', async () => {
+  let calls = 0;
+  const compiler = () => { calls++; throw new Error('COMPILER_MUST_NOT_RUN'); };
+  for (const args of [[resolve('.'), compiler, 'other'], ['relative', compiler, 'claim'],
+    [resolve('.'), null, 'claim'], [resolve('.'), compiler, 'claim', undefined]]) {
+    await expect(Reflect.apply(buildEngine, null, args)).rejects.toThrow('RECOVERY_WORKFLOW_ARTIFACT_BUILD_INVALID');
+  }
+  expect(calls).toBe(0);
+});
+
+it.each(['export', 'external', 'warning'] as const)('rejects compiler output with invalid %s', async fault => {
+  const compiler = async () => ({ outputFiles: [{contents: Buffer.from('diagnostic')}], errors: [],
+    warnings: fault === 'warning' ? ['warning'] : [], metafile: {inputs: {}, outputs: {bundle: {
+      exports: [fault === 'export' ? 'other' : 'prepareRecoveryWorkflowClaim'],
+      imports: fault === 'external' ? [{external: true, path: 'unreviewed-package'}] : [],
+    }}} });
+  await expect(Reflect.apply(buildEngine, null, [resolve('.'), compiler, 'claim']))
+    .rejects.toThrow('RECOVERY_WORKFLOW_ARTIFACT_BUILD_INVALID');
+});
 
 it('builds repeatable module bytes and loads in a separate native Node process', async () => {
   const first = await build(), second = await build();

@@ -493,3 +493,26 @@ the clean Linux checkout with the fixed Node executable, `--no-warnings
 This establishes cache/extraction behavior, not the final recovery worker or
 artifact-family installation. The next connection is the fixed-entry build
 engine using this isolated compiler/dependency namespace and captured source.
+
+## Isolated compiler connection — 2026-09-07
+
+`c923b0a` separates the fixed-entry recovery build engine from the diagnostic
+checkout compiler import. The engine accepts an already-attested compiler and
+source root; it does not authenticate those inputs or grant deployment authority.
+The public checkout builders still accept no overrides. Both use the same fixed
+entrypoints, external import allowlist, output size/export checks and no-write
+esbuild options.
+
+The native recovery fixture now copies the six required source files plus service
+package/TypeScript metadata into its disposable private namespace, builds twice
+with the cached esbuild 0.28.1 compiler and fflate 0.8.3, then re-attests the package
+namespace. It returned `RECOVERY_ISOLATED_BUILD_VERIFIED`: 50024-byte claim module,
+SHA-256 `d48cefcf82ee7eb2551ffba243c4040d8da0d50d74998b19afd82f70bb7b1901`,
+identical in both builds. The Windows checkout builder produced the same bytes
+and hash. Eight packaging/native-module/engine-rejection tests and targeted strict
+TypeScript passed on Windows. The fixture removed its temporary namespace.
+
+Source copies in this probe are diagnostic, not the protected captured-source
+worker. Runtime source capture, artifact manifest/install integration and the
+actual recovery Actions job remain incomplete. No real OIDC, issue, claim or
+deployment request was made.
