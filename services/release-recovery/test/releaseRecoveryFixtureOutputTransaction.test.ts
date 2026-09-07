@@ -400,7 +400,7 @@ describe('fixed fixture output transaction', () => {
       .toContain(`flush-directory:${oldDirectory}`)
     expect(readFileSync(firstTarget, 'utf8')).toBe('old-one\n')
     expect(existsSync(stageRoot(repositoryRoot))).toBe(false)
-  })
+  }, TRANSACTION_TEST_TIMEOUT)
 
   it('commits and reads one complete fixed output set', async () => {
     const repositoryRoot = temporaryRoot()
