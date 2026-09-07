@@ -77,6 +77,32 @@ try {
   }
   const verifier = await import(pathToFileURL(join(candidate.candidateRoot,
     'scripts/auth-bridge-notification-prepared-deploy-closure.mjs')).href);
+  const recoveryManifest = JSON.parse(Buffer.from(inputs.recovery.files.find(file =>
+    file.path === 'scripts/recovery-workflow-bundle-manifest-v1.json').bytes).toString('utf8'));
+  if (recoveryManifest.sourceCommit !== inputs.sourceCommit || recoveryManifest.sourceTree !== inputs.sourceTree
+    || recoveryManifest.bundle.path !== inputs.recovery.path || recoveryManifest.bundle.sha256 !== inputs.recovery.sha256
+    || JSON.stringify(recoveryManifest.compilerInputs) !== JSON.stringify(inputs.recovery.inputs)) {
+    throw new Error('LOCAL_RELEASE_COMPILED_PROBE_RECOVERY_INVALID');
+  }
+  let checkedRecoveryInputs = 0;
+  for (const member of inputs.recovery.inputs) {
+    // Package inputs were authenticated from fixed archives by the native
+    // recovery producer. Recheck every committed source against this candidate.
+    if (!member.path.startsWith('node_modules/')) {
+      readLocalBindingBoundedFile(join(candidate.candidateRoot, member.path), {
+        maximumBytes: 4 * 1024 * 1024, expectedUid: 1000, expectedBytes: member.byteLength,
+        expectedSha256: member.sha256, discardBody: true,
+      }).body.fill(0);
+    }
+    checkedRecoveryInputs++;
+  }
+  for (const path of ['scripts/recovery-workflow-bundle-manifest-v1.json',
+    'scripts/recovery-workflow-prepare-claim.mjs', inputs.recovery.path,
+    'scripts/recovery-workflow-session.mjs', 'scripts/recovery-workflow-run-context.mjs']) {
+    if (!verifier.AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS.includes(path)) {
+      throw new Error('LOCAL_RELEASE_COMPILED_PROBE_RECOVERY_CLOSURE_MISSING');
+    }
+  }
   const verified = verifier.verifyAuthBridgeNotificationPreparedDeployClosure({ repositoryRoot: candidate.candidateRoot });
   if (verified.memberCount !== closure.memberCount) throw new Error('LOCAL_RELEASE_COMPILED_PROBE_CLOSURE_MISMATCH');
   const repeated = await derivePreparedClosureFamily({ repositoryRoot: candidate.candidateRoot });
@@ -93,7 +119,7 @@ try {
   process.stdout.write(`${JSON.stringify({ profile: 'warpkeep-local-compiled-family-probe-v1',
     sourceCommit: inputs.sourceCommit, sourceTree: inputs.sourceTree,
     artifactFiles: artifacts.length, closureFiles: closure.files.length,
-    installedFiles: files.length, checkedBundleInputs, closureMembers: closure.memberCount,
+    installedFiles: files.length, checkedBundleInputs, checkedRecoveryInputs, closureMembers: closure.memberCount,
     manifestSha256: closure.manifestSha256, closureConverged: true,
     bothCandidatesRolledBack: true, finalReleasePrepared: false })}\n`);
 } catch (error) {

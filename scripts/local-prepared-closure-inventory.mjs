@@ -10,6 +10,9 @@ const BUNDLE_MEMBERS = Object.freeze([
   ...['activation', 'g001', 'g002', 'ptr'].flatMap(lane => ['d.mts', 'mjs'].map(suffix =>
     `scripts/sealed-realms-production-${lane}-lane.bundle.${suffix}`)),
   'scripts/sealed-realms-production-bundle-manifest-v1.json',
+  'scripts/recovery-workflow-bundle-manifest-v1.json',
+  'scripts/recovery-workflow-prepare-claim.mjs',
+  'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs',
 ].sort());
 function fail() { throw new Error('LOCAL_PREPARED_CLOSURE_INVENTORY_INVALID'); }
 function repositoryOption(options) {
@@ -41,8 +44,10 @@ export function derivePreparedClosurePolicySource(options) {
     // security inputs. Validate uniqueness/canonical paths separately.
     pathsValid([...paths].sort());
     const existing = paths.filter(path => BUNDLE_MEMBERS.includes(path));
-    if (existing.length !== 0 && existing.length !== BUNDLE_MEMBERS.length) fail();
-    const members = existing.length === 0 ? [...paths, ...BUNDLE_MEMBERS] : paths;
+    const legacy = BUNDLE_MEMBERS.filter(path => path.startsWith('scripts/sealed-realms-production-'));
+    const completeLegacy = existing.length === legacy.length && legacy.every(path => existing.includes(path));
+    if (existing.length !== 0 && existing.length !== BUNDLE_MEMBERS.length && !completeLegacy) fail();
+    const members = [...paths, ...BUNDLE_MEMBERS.filter(path => !paths.includes(path))];
     const declaration = `${header}${match[1]}${members.map(path => `  '${path}',${match[1]}`).join('')}]);`;
     const bytes = new Uint8Array(Buffer.from(`${source.slice(0, match.index)}${declaration}${source.slice(match.index + match[0].length)}`));
     if (bytes.length > MAX_BYTES) fail();

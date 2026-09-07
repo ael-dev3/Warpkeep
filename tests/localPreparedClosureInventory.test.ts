@@ -16,6 +16,9 @@ const bundleMembers = [
   ...['activation', 'g001', 'g002', 'ptr'].flatMap(lane => ['d.mts', 'mjs'].map(suffix =>
     `scripts/sealed-realms-production-${lane}-lane.bundle.${suffix}`)),
   'scripts/sealed-realms-production-bundle-manifest-v1.json',
+  'scripts/recovery-workflow-bundle-manifest-v1.json',
+  'scripts/recovery-workflow-prepare-claim.mjs',
+  'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs',
 ].sort();
 const policyDeclaration = (paths: string[], newline = '\n') =>
   `const STATIC_SECURITY_INPUTS = Object.freeze([${newline}${paths.map(path => `  '${path}',${newline}`).join('')}]);`;
@@ -49,6 +52,16 @@ it.each(['missing', 'duplicate-declaration', 'duplicate-path', 'partial-family',
   writeFileSync(join(root, policyPath), bytes);
   expect(() => derivePreparedClosurePolicySource({ repositoryRoot: root })).toThrow('LOCAL_PREPARED_CLOSURE_INVENTORY_INVALID');
   expect(readFileSync(join(root, policyPath))).toEqual(bytes);
+});
+it('upgrades the complete historical operation family while rejecting partial recovery additions', () => {
+  const legacy = bundleMembers.filter(path => path.startsWith('scripts/sealed-realms-production-'));
+  writeFileSync(join(root, policyPath), policyDeclaration(legacy));
+  const updated = derivePreparedClosurePolicySource({repositoryRoot: root});
+  expect(Buffer.from(updated.bytes).toString()).toBe(policyDeclaration([
+    ...legacy, ...bundleMembers.filter(path => !legacy.includes(path)),
+  ]));
+  writeFileSync(join(root, policyPath), policyDeclaration([...legacy, 'scripts/recovery-workflow-prepare-claim.mjs']));
+  expect(() => derivePreparedClosurePolicySource({repositoryRoot: root})).toThrow('LOCAL_PREPARED_CLOSURE_INVENTORY_INVALID');
 });
 it.each(['\n', '\r\n'])('expands only the inventory and converges with newline %j', newline => {
   const original = `// untouched α${newline}${declaration(['scripts/a.mjs'], newline)}${newline}export const sentinel = 73;${newline}`;
@@ -116,12 +129,12 @@ it('derives expanded policy, inventory and every count together and converges be
   writeFileSync(join(root, policyPath), originalPolicy);
   const result = derivePreparedClosurePolicyInventoryAndCounts({ repositoryRoot: root });
   expect(result.files).toHaveLength(8);
-  expect(result.memberCount).toBe(11);
+  expect(result.memberCount).toBe(14);
   const inventory = result.files.find(file => file.path.endsWith('deploy-closure.mjs'))!;
   expect(Buffer.from(inventory.bytes).toString()).toBe(declaration([...scanner.paths, ...bundleMembers].sort()));
   for (const [name, body] of Object.entries(countConsumers)) {
     const file = result.files.find(file => file.path === name)!;
-    expect(Buffer.from(file.bytes).toString()).toBe(`${body.replace(/997|1027/gu, '11')}\n// unrelated 997 and 1027\n`);
+    expect(Buffer.from(file.bytes).toString()).toBe(`${body.replace(/997|1027/gu, '14')}\n// unrelated 997 and 1027\n`);
     expect(readFileSync(join(root, name), 'utf8')).toBe(`${body}\n// unrelated 997 and 1027\n`);
   }
   expect(readFileSync(join(root, policyPath), 'utf8')).toBe(originalPolicy);

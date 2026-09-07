@@ -1270,7 +1270,8 @@ function canonicalRepository(repositoryRoot) {
 function permittedMemberPath(memberPath) {
   return typeof memberPath === 'string'
     && (MEMBER_PATH.test(memberPath)
-      || GAMEPLAY04_SHARED_SOURCE_MEMBER_PATHS.has(memberPath))
+      || GAMEPLAY04_SHARED_SOURCE_MEMBER_PATHS.has(memberPath)
+      || memberPath === 'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs')
     && (!memberPath.startsWith('spacetimedb/ptr/')
       || PTR_MODULE_MEMBER_PATH.test(memberPath)
       || PTR_GENERATED_BINDING_MEMBER_PATHS.has(memberPath))

@@ -83,6 +83,13 @@ const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
 // Resource bound, not the generated inventory's exact member count.
 const MAX_MEMBERS = 2048;
 const SCRIPT_GRAPH_ROOTS = Object.freeze([
+  // External runtime imports of the fixed compiled recovery claim entrypoint.
+  'scripts/recovery-workflow-run-context.mjs',
+  'scripts/recovery-attestation-source.mjs',
+  'scripts/generate-warpkeep-deployment-attestation.mjs',
+  'scripts/local-binding-bounded-file.mjs',
+  'scripts/recovery-workflow-private-directory.mjs',
+  'scripts/recovery-workflow-session.mjs',
   'scripts/auth-bridge-notification-b0-cloudflare-runtime.mjs',
   'scripts/auth-bridge-notification-b0-deploy-adapter.mjs',
   'scripts/auth-bridge-notification-b0-deploy-journal.mjs',
@@ -273,7 +280,8 @@ function canonicalMemberPath(repository, memberPath, code) {
   if (
     typeof memberPath !== 'string'
     || (!MEMBER_PATH.test(memberPath)
-      && !GAMEPLAY04_SHARED_SOURCE_MEMBER_PATHS.has(memberPath))
+      && !GAMEPLAY04_SHARED_SOURCE_MEMBER_PATHS.has(memberPath)
+      && memberPath !== 'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs')
     || (memberPath.startsWith('spacetimedb/ptr/')
       && !PTR_GENERATED_BINDING_MEMBER_PATHS.has(memberPath)
       && !PTR_MODULE_MEMBER_PATH.test(memberPath))
