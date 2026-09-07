@@ -8,6 +8,13 @@ on:
 permissions:
   contents: read
 
+# Superseded PR verification must not occupy runners ahead of the current head.
+# Main pushes use unique run IDs: never cancel their verification or share a
+# concurrency group with the separate non-cancelling production deployment.
+concurrency:
+  group: verify-pr-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   linux:
     runs-on: ubuntu-latest

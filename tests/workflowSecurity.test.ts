@@ -53,6 +53,22 @@ function allWorkflows() {
 }
 
 describe('GitHub workflow security policy', () => {
+  it('supersedes only the same PR verification, leaving main and deployment locks separate', () => {
+    const verify = parse(workflow('verify.yml'));
+    expect(verify.concurrency).toEqual({
+      group: 'verify-pr-${{ github.event.pull_request.number || github.run_id }}',
+      'cancel-in-progress': "${{ github.event_name == 'pull_request' }}",
+    });
+    const pages = parse(workflow('deploy-pages.yml'));
+    expect(pages.concurrency).toEqual({
+      group: 'warpkeep-production-state',
+      'cancel-in-progress': false,
+    });
+    for (const job of Object.values(verify.jobs)) {
+      expect(job).not.toHaveProperty('concurrency');
+    }
+  });
+
   it('pins every external action to an immutable full commit SHA', () => {
     const source = allWorkflows().join('\n');
     const references = [...source.matchAll(/^\s*uses:\s*([^\s#]+)(?:\s+#.*)?$/gm)]
