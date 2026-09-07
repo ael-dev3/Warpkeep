@@ -203,7 +203,7 @@ describe('Genesis 001 authenticated frozen-source materialization', () => {
       const repositoryRoot = join(parent, 'repository');
       expect(spawnSync('/usr/bin/git', [
         'clone', '--quiet', '--no-hardlinks', '--no-checkout', process.cwd(), repositoryRoot,
-      ]).status).toBe(0);
+      ], { timeout: 60_000, killSignal: 'SIGKILL' }).status).toBe(0);
       const packRoot = join(repositoryRoot, '.git', 'objects', 'pack');
       const disabledPackRoot = join(repositoryRoot, '.git', 'disabled-packs');
       mkdirSync(disabledPackRoot, { mode: 0o700 });
@@ -212,8 +212,10 @@ describe('Genesis 001 authenticated frozen-source materialization', () => {
         join(packRoot, name), join(disabledPackRoot, name),
       );
       for (const pack of packs) {
-        const command = `'/usr/bin/git' unpack-objects -r < '${join(disabledPackRoot, pack)}'`;
-        expect(spawnSync('/bin/sh', ['-c', command], { cwd: repositoryRoot }).status).toBe(0);
+        const command = `exec '/usr/bin/git' unpack-objects -r < '${join(disabledPackRoot, pack)}'`;
+        expect(spawnSync('/bin/sh', ['-c', command], {
+          cwd: repositoryRoot, timeout: 60_000, killSignal: 'SIGKILL',
+        }).status).toBe(0);
       }
       for (const objectId of [
         GENESIS001_FROZEN_SOURCE_COMMIT,
@@ -223,6 +225,12 @@ describe('Genesis 001 authenticated frozen-source materialization', () => {
       ]) {
         const objectPath = join(repositoryRoot, '.git', 'objects', objectId.slice(0, 2), objectId.slice(2));
         const original = readFileSync(objectPath);
+        // Git objects are read-only. This clone explicitly uses --no-hardlinks,
+        // so changing its private test copy cannot alter the source repository.
+        const objectState = lstatSync(objectPath);
+        expect(objectState.isFile() && !objectState.isSymbolicLink()).toBe(true);
+        expect(objectState.nlink).toBe(1);
+        chmodSync(objectPath, 0o600);
         writeFileSync(objectPath, 'corrupt-object');
         const destination = join(parent, `source-${objectId.slice(0, 8)}`);
         expect(() => createGenesis001FrozenSourceMaterialization({ repositoryRoot, destination }))
@@ -231,5 +239,8 @@ describe('Genesis 001 authenticated frozen-source materialization', () => {
         writeFileSync(objectPath, original);
       }
     },
+    // This fixture copies and unpacks repository history; it is not a runtime
+    // latency gate. The observed local copy alone exceeds the 10-second default.
+    120_000,
   );
 });
