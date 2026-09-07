@@ -1,4 +1,6 @@
 import { createPrivateKey } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
+import { parseDocument } from 'yaml'
 import { beforeAll, describe, expect, it } from 'vitest'
 import {
   RECOVERY_BINDING_KEYS_V2,
@@ -6,6 +8,7 @@ import {
   loadGitHubCandidateEvidence,
   mintGitHubInstallationToken,
   recheckGitHubEvidenceMetadata,
+  validateRecoveryWorkflowSource,
   type GitHubCandidateEvidence,
 } from '../src/githubEvidence.js'
 import {
@@ -871,6 +874,86 @@ describe('GitHub candidate evidence', () => {
     expect(tokenHeaders.get('content-type')).toBe('application/json')
     expect(tokenHeaders.get('x-github-api-version')).toBe('2022-11-28')
     expect(tokenHeaders.get('authorization')).toMatch(/^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u)
+  })
+
+  it('accepts the checked-in recovery workflow through the complete source evidence chain', async () => {
+    const fixture = await makeFixture()
+    fixture.state.workflowBytes = new Uint8Array(await readFile(new URL('../../../.github/workflows/deploy-pages.yml', import.meta.url)))
+    const sha = await blobSha(fixture.state.workflowBytes)
+    for (const tree of [fixture.state.candidateTree, fixture.state.preparationTree]) {
+      const entry = tree.find(value => value.path === WORKFLOW_PATH)!
+      entry.sha = sha
+      entry.size = fixture.state.workflowBytes.length
+    }
+    const evidence = await loadGitHubCandidateEvidence(fixture.input)
+    expect(evidence.protectedWorkflowBytes).toEqual(fixture.state.workflowBytes)
+  })
+
+  it('composes the real recovery build, installed prerequisites and attested upload before requesting authority', async () => {
+    const bytes = await readFile(new URL('../../../.github/workflows/deploy-pages.yml', import.meta.url))
+    expect(() => validateRecoveryWorkflowSource(bytes)).not.toThrow()
+    const document = parseDocument(bytes.toString('utf8')).toJS() as {
+      jobs: Record<string, { needs: string; if: string; env: Record<string, string>; steps: Record<string, unknown>[] }>
+    }
+    const job = document.jobs['deploy-recovery']!
+    expect(job.needs).toBe('classify')
+    expect(job.if).toContain("needs.classify.outputs.deployment-lane == 'sealed-g002-recovery'")
+    expect(job.if).toContain("github.event.workflow_run.conclusion == 'success'")
+    expect(job.if).toContain("github.event.workflow_run.event == 'push'")
+    expect(job.if).toContain("github.event.workflow_run.head_branch == 'main'")
+    expect(job.env.VITE_WARPKEEP_PTR_ENABLED).toBe('true')
+    expect(job.env).not.toHaveProperty('VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED')
+    const named = (name: string) => {
+      const found = job.steps.filter(step => step.name === name)
+      expect(found).toHaveLength(1)
+      return found[0]!
+    }
+    expect(named('Checkout exact verified recovery source').with).toEqual({
+      ref: '${{ github.event.workflow_run.head_sha }}', 'fetch-depth': 0, 'persist-credentials': false,
+    })
+    expect(named('Setup exact recovery Node').with).toEqual({ 'node-version': '22.22.3' })
+    expect(named('Setup the pinned recovery build package manager').with).toEqual({
+      version: '11.7.0', run_install: false,
+    })
+    const prerequisites = named('Require the installed recovery runner and private state')
+    expect(prerequisites.run).toContain("test \"$RUNNER_NAME\" = 'warpkeep-wsl-production-01'")
+    expect(prerequisites.run).toContain("test \"$(id -u)\" = '1001'")
+    expect(prerequisites.run).toContain("private_state='/home/runner/.warpkeep-recovery-v1'")
+    expect(prerequisites.run).not.toContain('mkdir')
+    expect(prerequisites.run).toContain("printf '%s\\n' 'VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED=false' >> \"$GITHUB_ENV\"")
+    const source = named('Verify current protected main and installed recovery source')
+    expect(source.run).toContain('await readRecoveryWorkflowRunContext()')
+    expect(source.run).toContain('readRecoveryAttestationSource(process.cwd())')
+    expect(source.run).toContain('git ls-files --error-unmatch')
+    expect(source.run).toContain('services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs')
+    expect(source.run).toContain('scripts/recovery-workflow-bundle-manifest-v1.json')
+    expect(source.run).toContain('node scripts/auth-bridge-notification-prepared-deploy-closure.mjs')
+    const inputs = named('Validate recovery build inputs')
+    expect(inputs.run).toContain('node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages-build')
+    const install = named('Install exact recovery build dependencies')
+    expect(install.run).toBe('npm ci')
+    const parser = named('Install the recovery build validation parser')
+    expect(parser.run).toBe('pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts')
+    const runtime = named('Re-attest the recovery runtime and source before build')
+    expect(runtime.run).toContain('sha256sum --check --strict')
+    expect(runtime.run).toContain('npm run validate:pages-config')
+    const build = named('Build the verified recovery release')
+    expect(build.run).toBe('npm run build')
+    expect(build.env).toEqual({ GITHUB_PAGES: 'true' })
+    const attestation = named('Verify recovery release metadata and install its attestation')
+    expect(attestation.run).toContain('node scripts/generate-warpkeep-deployment-attestation.mjs --write')
+    expect(attestation.run).toContain('node scripts/generate-warpkeep-deployment-attestation.mjs --check')
+    const upload = named('Upload exact recovery artifact')
+    expect(upload.with).toEqual({
+      name: 'github-pages-recovery-${{ github.run_id }}-${{ github.run_attempt }}',
+      path: './dist', 'include-hidden-files': true,
+    })
+    const preparation = named('Prepare private recovery claim')
+    const sequence = [prerequisites, source, inputs, install, parser, runtime, build, attestation, upload, preparation]
+      .map(step => job.steps.indexOf(step))
+    expect(sequence).toEqual([...sequence].sort((left, right) => left - right))
+    const commands = job.steps.flatMap(step => typeof step.run === 'string' ? [step.run] : []).join('\n')
+    expect(commands).not.toMatch(/(?:build-recovery-workflow-artifact-module|local-recovery-bundle-runtime|esbuild|tsc|tsx)/u)
   })
 
   it('loads a complete local-generator binding through the receiver evidence and artifact chain', async () => {

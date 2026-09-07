@@ -15,6 +15,67 @@ The opaque activation-member checks and confirmation-consumption logic around th
 generator stubs are existing implementation, not a complete generator. Do not
 replace their private receipt boundaries with raw caller evidence to fill a stub.
 
+## 2026-09-08 recovery workflow caller
+
+The change following `c990a3bb361327f77d6f08faf74b3eb1537f5a03` adds the real
+`deploy-recovery` job to `.github/workflows/deploy-pages.yml`. It selects the
+existing `sealed-g002-recovery` classification and requires the supported Linux
+runner identity, UID 1001 and the existing mode-0700 recovery directory. It does
+not create that private state or compile an authorization helper during a run.
+
+The job checks exact verified/current protected main, the installed claim bundle
+and source closure, then builds with the existing V2-compatible configuration
+checks. It rechecks Node and source around dependency installation/build, writes
+and checks the deployment attestation, and uploads a run/attempt-specific Pages
+artifact including its required hidden manifest. The fixed claim, fresh boundary,
+pinned deployment and unconditional-after-claim postflight steps remain adjacent.
+The existing signer independently verifies workflow/runner metadata and the
+actual uploaded archive before permitting deployment.
+
+The actual checked-in workflow now passes the unchanged recovery source-evidence
+and reconciliation validators. Independent review caught a duplicate notification
+YAML key that broke the older source parser/closure projection. Recovery's fixed
+`false` value now goes through `GITHUB_ENV` in its first prerequisite step; the
+existing build's single YAML authority and validators remain unchanged. A real
+parser compatibility regression covers that interaction. Other jobs and global
+workflow settings were compared structurally with the prior source and are
+unchanged.
+
+Executed verification for this caller:
+
+- Release-recovery source-evidence/reconciliation suites: 278 passed; service
+  TypeScript check passed.
+- Linux root caller/parser/closure and attestation/context/boundary/postflight
+  suites: 115 passed, one intentional non-Linux guard skipped, across nine files.
+- All 12 Bash step bodies passed `bash -n`; scoped diff checks passed.
+- Independent review repeated the real legacy parser check before and after the
+  fix and found no remaining actionable caller defect.
+
+The Linux run used the isolated `5ddefb0` verification checkout plus the exact
+four-file workflow/test overlay. Relevant scripts, validators, test sources,
+package locks and test configuration were compared with `c990a3b` and found
+identical before the overlay. It used its own Node 22.22.3 and existing exact
+YAML/TypeScript Linux dependencies through a service-local link. The primary
+checkout's shared dependencies were not changed. Initial Windows Git fixtures
+hit a timeout/cleanup contention and hardcoded `/usr/bin/git` failures; the
+affected fixtures subsequently passed unchanged in the appropriate serial/local
+or Linux run. No timeout, assertion or platform condition was weakened.
+
+This is caller implementation, not an operating recovery deployment. A fresh
+read of the GitHub runner inventory found only the offline Mac runner; the
+required `warpkeep-wsl-production-01` Linux/X64 runner is not registered. The
+inspected Ubuntu environment has the separate UID-1000 preparation account,
+without UID 1001 or `/home/runner/.warpkeep-recovery-v1`. The generated claim
+bundle/manifest, final source closure, signer/gateway configuration and authentic
+release authorization must be installed and verified through their real owning
+procedures. Missing prerequisites still fail. No runner, provider, credential,
+admission, player state, security validator or generated pin changed here.
+
+This workflow must be part of the preparation source: the existing recovery
+activation child permits changes only to its binding and package version files.
+Do not postpone this caller until activation or claim R12/R16 from its fixture
+results. Other assembler/activation gaps below remain open.
+
 ## Existing work to retain
 
 Verified local generation, bundle construction and closure components exist and

@@ -844,15 +844,21 @@ describe('read-only V2 deployment reconciliation evidence', () => {
     await expect(pending).resolves.toEqual({ outcome: 'ambiguous' })
   })
 
-  it('keeps the current workflow source ambiguous because no deploy-recovery producer exists yet', async () => {
+  it('reconciles the checked-in recovery workflow against matching deployment and public evidence', async () => {
     const fixture = await makeFixture()
     fixture.state.workflow = await readFile(
       new URL('../../../.github/workflows/deploy-pages.yml', import.meta.url),
       'utf8',
     )
 
-    await expect(fixture.reader(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
-    expect(fixture.calls).not.toContain(PUBLIC_ATTESTATION_URL)
+    await expect(fixture.reader(fixture.projection)).resolves.toEqual({
+      outcome: 'completed',
+      rowBindingDigest: fixture.projection.rowBindingDigest,
+      deployStepConclusion: 'success',
+      matchingPagesDeployment: true,
+      deploymentAttestationMatches: true,
+    })
+    expect(fixture.calls).toContain(PUBLIC_ATTESTATION_URL)
   })
   it.each(['hosted-runner', 'old-deploy-id', 'missing-postflight'])('rejects stale reconciliation workflow contract: %s', async kind => {
     const fixture = await makeFixture()

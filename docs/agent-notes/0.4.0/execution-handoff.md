@@ -113,6 +113,13 @@ cleanup, private-store extraction, or production mutation was used for this stud
    Windows/WSL/Linux execution. Native CI runs Linux; production workflows still
    contain Mac-specific dependencies. Helper tests do not establish a working
    release pipeline.
+
+   The recovery Pages caller is now composed in `deploy-pages.yml` and validated
+   against the real source-evidence contract. Its supported Linux runner,
+   private account/state, installed generated bundle and authentic authorization
+   remain unprovisioned. Follow the
+   [dated operating gaps](../../evidence/0.4.0/release-engineering.md); do not
+   reimplement the caller or treat local WSL identity as workflow evidence.
 4. **Prove preservation and recovery before production effects.** Capture a
    fresh G001 baseline, preserve later writes, test isolated compatible recovery,
    and verify sealed G002 denial and owner-only PTR isolation.

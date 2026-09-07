@@ -4,6 +4,12 @@ import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { expect, it } from 'vitest';
+import { readNotificationPagesReleaseSources } from '../scripts/notification-pages-release-source-parser.mjs';
+
+it('keeps the existing notification source authority parseable alongside the recovery caller', () => {
+  const source = readNotificationPagesReleaseSources({ repositoryRoot: process.cwd() });
+  expect(source.phase).toEqual({ pagesPresentationEnabled: false, hermesExecutionApproved: false });
+});
 
 // Native CLI contract tests. The prepared module is synthetic; these do not
 // establish production authorization, signed receipts, or artifact validity.

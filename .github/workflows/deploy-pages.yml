@@ -444,6 +444,219 @@ jobs:
             attempt=$((attempt + 1))
           done
 
+  # Recovery owns its build and artifact in the same protected job. Source
+  # routing alone grants no deployment authority: the signer independently
+  # verifies this job, its runner, the artifact and the live realm invariants.
+  deploy-recovery:
+    needs: classify
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      needs.classify.outputs.deployment-lane == 'sealed-g002-recovery'
+    runs-on: [self-hosted, Linux, X64, warpkeep-production-admin, warpkeep-repository-exclusive]
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.recovery-deployment.outputs.page_url }}
+    env:
+      DEPLOY_BASE: '/'
+      VITE_WARPKEEP_RELEASE_CHANNEL: alpha
+      VITE_WARPKEEP_BUILD_SHA: ${{ github.event.workflow_run.head_sha }}
+      VITE_WARPKEEP_REPOSITORY_URL: https://github.com/ael-dev3/Warpkeep
+      VITE_WARPKEEP_CANONICAL_ORIGIN: https://warpkeep.com
+      VITE_WARPKEEP_SHARED_ALPHA_ENABLED: ${{ vars.WARPKEEP_SHARED_ALPHA_ENABLED }}
+      VITE_WARPKEEP_PTR_ENABLED: 'true'
+      VITE_PTR_SPACETIMEDB_DATABASE: ${{ vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE }}
+      VITE_WARPKEEP_AUTH_BRIDGE_URL: ${{ vars.WARPKEEP_AUTH_BRIDGE_URL || '' }}
+      VITE_WARPKEEP_OIDC_ISSUER: ${{ vars.WARPKEEP_OIDC_ISSUER || '' }}
+      VITE_WARPKEEP_OIDC_AUDIENCE: ${{ vars.WARPKEEP_OIDC_AUDIENCE || 'warpkeep-spacetimedb' }}
+      VITE_SPACETIMEDB_URI: ${{ vars.WARPKEEP_SPACETIMEDB_URI || 'https://maincloud.spacetimedb.com' }}
+      VITE_SPACETIMEDB_DATABASE: c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e
+    steps:
+      - name: Require the installed recovery runner and private state
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = 'Linux'
+          test "$RUNNER_ARCH" = 'X64'
+          test "$RUNNER_NAME" = 'warpkeep-wsl-production-01'
+          test "$(id -u)" = '1001'
+          private_state='/home/runner/.warpkeep-recovery-v1'
+          test -d "$private_state"
+          test ! -L "$private_state"
+          test "$(realpath -- "$private_state")" = "$private_state"
+          test "$(stat -c '%u:%a' -- "$private_state")" = '1001:700'
+          for forbidden in BASH_ENV ENV NODE_OPTIONS NODE_PATH NODE_EXTRA_CA_CERTS \
+            NODE_TLS_REJECT_UNAUTHORIZED LD_PRELOAD LD_LIBRARY_PATH \
+            GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM \
+            GIT_DIR GIT_EXEC_PATH GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+            GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_REPLACE_REF_BASE GIT_WORK_TREE; do
+            if [[ -n "${!forbidden+x}" ]]; then
+              echo 'RECOVERY_RUNNER_AMBIENT_OVERRIDE_INVALID' >&2
+              exit 1
+            fi
+          done
+          # The legacy notification parser owns the one source-selected YAML
+          # flag in jobs.build.env. Recovery always builds with notifications off.
+          printf '%s\n' 'VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED=false' >> "$GITHUB_ENV"
+
+      - name: Checkout exact verified recovery source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup exact recovery Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.22.3
+
+      - name: Setup the pinned recovery build package manager
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0
+          run_install: false
+
+      - name: Stage the recovery runtime in a private path
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_node="$(command -v node)"
+          test ! -L "$source_node"
+          source_node="$(realpath -- "$source_node")"
+          case "$source_node" in
+            "$RUNNER_TOOL_CACHE"/*) ;;
+            *) echo 'RECOVERY_NODE_TOOL_CACHE_INVALID' >&2; exit 1 ;;
+          esac
+          test "$("$source_node" --version)" = 'v22.22.3'
+          private_root="$(mktemp -d "$RUNNER_TEMP/warpkeep-recovery-node.XXXXXX")"
+          chmod 0700 "$private_root"
+          source_sha="$(sha256sum "$source_node" | cut -d ' ' -f 1)"
+          install -m 0700 "$source_node" "$private_root/node"
+          echo "$source_sha  $source_node" | sha256sum --check --strict -
+          echo "$source_sha  $private_root/node" | sha256sum --check --strict -
+          echo "$private_root" >> "$GITHUB_PATH"
+          echo "WARPKEEP_RECOVERY_NODE=$private_root/node" >> "$GITHUB_ENV"
+          echo "WARPKEEP_RECOVERY_NODE_SHA256=$source_sha" >> "$GITHUB_ENV"
+
+      - name: Verify current protected main and installed recovery source
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readRecoveryWorkflowRunContext } from './scripts/recovery-workflow-run-context.mjs';
+          import { readRecoveryAttestationSource } from './scripts/recovery-attestation-source.mjs';
+          const context = await readRecoveryWorkflowRunContext();
+          if (readRecoveryAttestationSource(process.cwd()).candidateCommit !== context.candidateCommit) {
+            throw new Error('RECOVERY_SOURCE_CONTEXT_INVALID');
+          }
+          NODE
+          # The reviewed preparation installs these files. Authorization never
+          # compiles a replacement or creates production private state.
+          for path in \
+            scripts/recovery-workflow-bundle-manifest-v1.json \
+            services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs; do
+            git ls-files --error-unmatch -- "$path" >/dev/null
+            test -f "$path"
+            test ! -L "$path"
+          done
+          node scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+
+      - name: Validate recovery build inputs
+        shell: bash
+        env:
+          WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          case "$VITE_WARPKEEP_SHARED_ALPHA_ENABLED" in
+            true | false) ;;
+            *) echo 'RECOVERY_SHARED_ALPHA_INPUT_INVALID' >&2; exit 1 ;;
+          esac
+          node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages-build
+
+      - name: Install exact recovery build dependencies
+        run: npm ci
+
+      - name: Install the recovery build validation parser
+        run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
+
+      - name: Re-attest the recovery runtime and source before build
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(realpath -- "$(command -v node)")" = "$WARPKEEP_RECOVERY_NODE"
+          test ! -L "$WARPKEEP_RECOVERY_NODE"
+          test "$(stat -c '%u:%a' -- "$WARPKEEP_RECOVERY_NODE")" = '1001:700'
+          echo "$WARPKEEP_RECOVERY_NODE_SHA256  $WARPKEEP_RECOVERY_NODE" | sha256sum --check --strict -
+          test "$(node --version)" = 'v22.22.3'
+          node scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+          npm run validate:pages-config
+
+      - name: Build the verified recovery release
+        run: npm run build
+        env:
+          GITHUB_PAGES: 'true'
+
+      - name: Verify recovery release metadata and install its attestation
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run verify:miniapp:release
+          node scripts/generate-warpkeep-deployment-attestation.mjs --write
+          node scripts/generate-warpkeep-deployment-attestation.mjs --check
+          echo "$WARPKEEP_RECOVERY_NODE_SHA256  $WARPKEEP_RECOVERY_NODE" | sha256sum --check --strict -
+          node scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+
+      - name: Setup recovery Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Upload exact recovery artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          name: github-pages-recovery-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ./dist
+          include-hidden-files: true
+
+      - name: Prepare private recovery claim
+        id: recovery-claim
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/recovery-workflow-prepare-claim.mjs
+
+      - name: Check recovery deployment boundary
+        id: recovery-boundary
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/recovery-workflow-check-deployment.mjs
+
+      - name: Deploy recovery-authorized release to GitHub Pages
+        id: recovery-deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+        with:
+          artifact_name: github-pages-recovery-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Verify recovery live postflight
+        id: recovery-postflight
+        if: ${{ always() && steps.recovery-claim.outcome == 'success' }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/recovery-workflow-postflight.mjs
+
   private-toolchain:
     needs: classify
     if: >-
