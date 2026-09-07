@@ -92,3 +92,26 @@ registers the existing six gameplay operations and their explicit canonical
 names. This is an outdated ABI expectation, not a hash slot. It requires a
 separate bounded verifier correction against the approved gameplay ABI and
 closed-admission checks; source-pin generation must not silently rewrite it.
+
+## Inline G002/PTR source pins
+
+After the separately reviewed ABI correction (`f9c5ef8`), the source-pin
+transformer now covers the 26 existing inline hash slots over 24 fixed source
+paths. Auth-bridge JWT and application source each appear twice. It requires
+the exact total and per-key occurrence counts and derives every digest from
+bounded fixed-path reads. Only digest bytes change; source lookup expressions,
+security checks, historical evidence, and unrelated source text stay intact.
+
+The expanded tests first failed in five cases: expected replacement output and
+missing/extra/unknown/expression slot rejection. With the implementation:
+Windows 16 passed and 1 native-symlink skip (1.23 s); native Linux 17 passed
+(186 ms); pinned TypeScript build exit 0. The earlier commands reproduce these
+checks, with the same `--source-pins` Linux helper flag.
+
+The actual Linux generated-verifier diagnostic now stops at
+`SEALED_LAUNCH_G002_PRIVATE_SCHEMA_INVALID`, beyond the prior G002 source-hash
+boundary. The current verifier still requires 23 private tables and forbids
+`ScheduleV1`; the approved module has 30 tables including seven private gameplay
+tables and its gameplay scheduler. This needs a separate exact privacy/schema
+expectation correction, not removal of privacy checks. Full static preparation,
+native assembly and live evidence remain incomplete.

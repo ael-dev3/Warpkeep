@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { derivePreparedSourcePins } from '../scripts/local-prepared-source-pins.mjs';
 
@@ -21,17 +21,49 @@ const sourceNames = [
   ['SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_SHA256', generator],
 ];
 const finalization = 'async function completeBootstrapLaunch(input) { return input; }\n';
+const inlineSources: readonly [string, string, number][] = [
+  ['genesis002ContractSource', 'spacetimedb/genesis002/src/contract.ts', 1],
+  ['genesis002AdminPolicySource', 'spacetimedb/genesis002/src/adminPolicy.ts', 1],
+  ['genesis002AuthSource', 'spacetimedb/genesis002/src/auth.ts', 1],
+  ['genesis002LifecycleSource', 'spacetimedb/genesis002/src/lifecycle.ts', 1],
+  ['genesis002AtlasImportSource', 'spacetimedb/genesis002/src/atlasImportReducers.ts', 1],
+  ['authBridgeConfigSource', 'services/auth-bridge/src/config.ts', 1],
+  ['authBridgeJwtSource', 'services/auth-bridge/src/jwt.ts', 2],
+  ['authBridgeSource', 'services/auth-bridge/src/app.ts', 2],
+  ['genesis002PublisherCoreSource', 'scripts/genesis002-production-publisher.mjs', 1],
+  ['genesis002TransportSource', 'scripts/genesis002-production-transport.ts', 1],
+  ['authBridgeTypesSource', 'services/auth-bridge/src/types.ts', 1],
+  ['ptrOwnerPolicySource', 'spacetimedb/ptr/src/ownerPolicy.ts', 1],
+  ['ptrAuthSource', 'spacetimedb/ptr/src/auth.ts', 1],
+  ['ptrAtlasImportReducersSource', 'spacetimedb/ptr/src/atlasImportReducers.ts', 1],
+  ['ptrOwnerReducersSource', 'spacetimedb/ptr/src/ownerReducers.ts', 1],
+  ['ptrProductionAdminTokenSource', 'scripts/ptr-production-admin-token.ts', 1],
+  ['ptrProductionTransportSource', 'scripts/ptr-production-transport.ts', 1],
+  ['ptrProductionImportCoreSource', 'scripts/ptr-production-import-core.ts', 1],
+  ['ptrProductionReleaseReceiptsSource', 'scripts/ptr-production-release-receipts.ts', 1],
+  ['ptrProductionImportOperatorSource', 'scripts/ptr-production-import-operator.ts', 1],
+  ['ptrProductionReceiptFileSource', 'scripts/ptr-production-receipt-file.ts', 1],
+  ['ptrOwnerProvisionOperatorSource', 'scripts/ptr-owner-provision-operator.ts', 1],
+  ['ptrPublisherCoreSource', 'scripts/ptr-production-publisher.mjs', 1],
+  ['ptrPublisherCliSource', 'scripts/ptr-production-publisher-cli.ts', 1],
+];
+const inlinePin = (key: string) => `    [sources.${key},\n      '${stale}'],\n`;
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 let root: string;
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'warpkeep-source-pins-'));
   mkdirSync(join(root, 'scripts'));
+  for (const [, path] of inlineSources) {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), `// ${path}\n`);
+  }
   for (const [, path] of sourceNames) writeFileSync(join(root, path), `// ${path}\n`);
   writeFileSync(join(root, bootstrap), `// prefix\n${finalization}\nfunction packageNameAndVersion() {}\n`);
   writeFileSync(join(root, generator), pin('EXPECTED_BOOTSTRAP_SHA256') + '// unchanged generator\n');
   writeFileSync(join(root, verifier), sourceNames.map(([name]) => pin(name)).join('')
     + pin('GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_FINALIZATION_SHA256')
-    + pin('GENESIS_001_FREEZE_PUBLISH_RECEIPT_SHA256'));
+    + pin('GENESIS_001_FREEZE_PUBLISH_RECEIPT_SHA256')
+    + inlineSources.map(([key, , count]) => inlinePin(key).repeat(count)).join(''));
 });
 afterEach(() => rmSync(root, { recursive: true }));
 it('hashes the updated generator after bootstrap derivation and preserves historical pins', () => {
@@ -49,6 +81,9 @@ it('hashes the updated generator after bootstrap derivation and preserves histor
   }
   expected = expected.replace(pin('GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_FINALIZATION_SHA256'),
     pin('GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_FINALIZATION_SHA256').replace(stale, digest(finalization)));
+  for (const [key, path] of inlineSources) {
+    expected = expected.replaceAll(inlinePin(key), inlinePin(key).replace(stale, digest(readFileSync(join(root, path), 'utf8'))));
+  }
   expect(verified).toBe(expected);
   expect(readFileSync(join(root, verifier), 'utf8')).toBe(original);
   expect(readFileSync(join(root, generator), 'utf8')).toBe(oldGenerator);
@@ -101,4 +136,14 @@ it.skipIf(process.platform === 'win32')('rejects a source symlink and preserves 
   symlinkSync(target, join(root, bootstrap));
   expect(() => derivePreparedSourcePins({ repositoryRoot: root })).toThrow('LOCAL_PREPARED_SOURCE_PINS_INVALID');
   expect(readFileSync(target)).toEqual(original);
+});
+it.each(['missing', 'extra', 'unknown', 'expression'])('rejects %s inline hash slots', kind => {
+  const before = readFileSync(join(root, verifier), 'utf8');
+  let changed = before.replace(inlinePin('authBridgeJwtSource'), '');
+  if (kind === 'extra') changed = before + inlinePin('authBridgeJwtSource');
+  if (kind === 'unknown') changed = before + inlinePin('callerControlledSource');
+  if (kind === 'expression') changed = before.replace(inlinePin('ptrAuthSource'), inlinePin('ptrAuthSource').replace(`'${stale}'`, 'callerDigest()'));
+  writeFileSync(join(root, verifier), changed);
+  expect(() => derivePreparedSourcePins({ repositoryRoot: root })).toThrow('LOCAL_PREPARED_SOURCE_PINS_INVALID');
+  expect(readFileSync(join(root, verifier), 'utf8')).toBe(changed);
 });
