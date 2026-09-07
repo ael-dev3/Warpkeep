@@ -418,3 +418,25 @@ The source specification records this bounded integration contract. Actual
 compiled-family installation, the recovery job, fresh deployment-time context
 reconstruction, terminal reconciliation and runner provisioning are still
 required. No final freeze or production activation was performed.
+
+## Full service regression and installation gap — 2026-09-07
+
+At source `dab50fb27172bfa423143505eb135fc5dc1029ef`, the complete recovery-service
+suite passed: 958 tests across 33 files, 48.27 seconds, Windows Node 22.22.3.
+Command from `services/release-recovery`:
+`../../.git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run --maxWorkers=1`.
+This is local service verification, not required GitHub CI or live evidence.
+
+Installation audit: `local-release-artifact-inputs.mjs` currently coordinates
+only all-realm bindings and the four operation bundles. It does not call either
+recovery module builder. `local-operation-bundle-runtime-core.mjs` already has
+fixed-source capture, pinned Node/Git checks, isolated repeat builds and native
+loads; its worker obtains esbuild through its verified package namespace.
+`bootstrap-operation-bundle-cache.mjs` pins esbuild 0.28.1 and its Linux binary,
+but not the recovery parser's fflate dependency. The recovery builder currently
+uses ordinary checkout dependencies and is expressly diagnostic, not an attested
+producer. Connecting that builder directly to production installation would
+not meet the existing provenance contract. Next integration must carry the
+recovery source/dependency graph through the captured-source producer and include
+its output in the installed family before the workflow can invoke this command.
+No runtime compilation fallback or weaker installation path was added.
