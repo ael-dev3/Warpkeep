@@ -1304,6 +1304,8 @@ describe('PTR gameplay keep module adapter', () => {
 
 describe('module-local schema and Genesis 002 closure', () => {
   test('both modules append the same seven private gameplay descriptors', () => {
+    assert.equal(genesis002Module.schema.moduleDef.tables.length, 30);
+    assert.ok(genesis002Module.schema.moduleDef.tables.every((row: any) => row.tableAccess.tag === 'Private'));
     const tableProjection = (module: BundledModule) => module.schema.moduleDef.tables
       .filter((row: any) => String(row.sourceName).includes('gameplay04'))
       .map((row: any) => ({

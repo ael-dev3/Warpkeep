@@ -130,3 +130,4 @@ export function classifySealedLaunchPagesDeployLane(input: Readonly<{
   candidatePagesSourceCommit: string;
   mode: 'sealed-launch-blocked' | 'sealed-g002';
 }>;
+export function verifyGenesis002PrivateSchemaSources(schemaSource: string, gameplaySource: string): void;

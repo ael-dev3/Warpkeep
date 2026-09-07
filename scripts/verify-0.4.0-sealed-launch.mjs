@@ -208,6 +208,7 @@ export const SEALED_LAUNCH_SOURCE_PATHS = Object.freeze({
   genesis002PopulationSource: 'spacetimedb/genesis002/src/population.ts',
   genesis002StatusSource: 'spacetimedb/genesis002/src/atlasImportReducers.ts',
   genesis002SchemaSource: 'spacetimedb/genesis002/src/schema.ts',
+  genesis002GameplaySchemaSource: 'spacetimedb/genesis002/src/gameplaySchema.ts',
   genesis002LifecycleSource: 'spacetimedb/genesis002/src/lifecycle.ts',
   genesis002IndexSource: 'spacetimedb/genesis002/src/index.ts',
   genesis002AtlasImportSource:
@@ -553,6 +554,47 @@ function exactUtf8Bytes(source, code) {
     return fail(code);
   }
   return bytes;
+}
+
+export function verifyGenesis002PrivateSchemaSources(schemaSource, gameplaySource) {
+  const code = 'SEALED_LAUNCH_G002_PRIVATE_SCHEMA_INVALID';
+  if (typeof schemaSource !== 'string' || typeof gameplaySource !== 'string') fail(code);
+  const source = schemaSource.replace(/\r\n?/gu, '\n');
+  const gameplay = gameplaySource.replace(/\r\n?/gu, '\n');
+  const inherited = [
+    'allowedFid', 'accessRequestV1', 'player', 'playerV2', 'playerOwnershipV2',
+    'castle', 'realmProfileV1', 'alphaTermsAcceptanceV1', 'markAccountV1',
+    'resourceAccountV1', 'adminAudit', 'greaterRealmReleaseV1',
+    'greaterRealmChunkV1', 'greaterRealmNavigationComponentV1', 'greaterRealmCellV1',
+    'greaterRealmCastleSlotV1', 'greaterRealmCastleClaimV1', 'greaterRealmCellOccupancyV1',
+    'greaterRealmResourceNodeV1', 'greaterRealmActivationV1', 'realmAtlasV1',
+    'realmAtlasVisibleRegionV1', 'realmWorkerSystemV2',
+  ];
+  const additions = ['Keep', 'Worker', 'Receipt', 'Reservation', 'Building', 'Project'];
+  const expected = inherited.map(name => `${name}:makeGenesis002PrivateTable(${name}),`).join('')
+    + additions.map(name => `gameplay04${name}V1,`).join('')
+    + 'gameplay04_schedule_v1:gameplay04ScheduleV1,';
+  const matches = [...source.matchAll(/^const genesis002Tables = \{\n([\s\S]*?)^\} as const;/gm)];
+  if (matches.length !== 1
+    || matches[0][1].replace(/^\s*\/\/[^\n]*$/gm, '').replace(/\s/gu, '') !== expected
+    || source.split('makeGenesis002PrivateTable(').length !== 24
+    || /public\s*:/u.test(source) || /public\s*:/u.test(gameplay)) fail(code);
+  requireOnce(source, "tableAccess: { tag: 'Private' }", code);
+  requireOnce(source, 'export const GENESIS_002_PRIVATE_TABLE_COUNT = 30 as const;', code);
+  requireOnce(source, "} from './gameplaySchema';", code);
+  requireOnce(source, 'const genesis002 = schema(genesis002Tables);', code);
+  requireOnce(gameplay, "import { table, t } from 'spacetimedb/server';", code);
+  for (const name of additions) {
+    requireOnce(gameplay, `export const gameplay04${name}V1 = table(\n  { name: 'gameplay04_${name.toLowerCase()}_v1' },`, code);
+  }
+  requireOnce(gameplay, [
+    'export const gameplay04ScheduleV1 = table(',
+    '  {',
+    "    name: 'gameplay04_schedule_v1',",
+    '    scheduled: (): any => getGameplay04ScheduleV1(),',
+    '  },',
+  ].join('\n'), code);
+  if (gameplay.split('= table(').length !== 8) fail(code);
 }
 
 function replaceUniqueBytes(source, before, after, code) {
@@ -1107,22 +1149,9 @@ function verifyGenesis002Policy(sources) {
       fail('SEALED_LAUNCH_G002_SCHEMA_INVALID');
     }
   }
-  for (const token of [
-    "tableAccess: { tag: 'Private' }",
-    'GENESIS_002_PRIVATE_TABLE_COUNT = 23',
-    'makeGenesis002PrivateTable(',
-  ]) {
-    if (!sources.genesis002SchemaSource.includes(token)) {
-      fail('SEALED_LAUNCH_G002_PRIVATE_SCHEMA_INVALID');
-    }
-  }
-  if (
-    sources.genesis002SchemaSource.split('makeGenesis002PrivateTable(').length
-      !== 24
-    || /public:\s*true/u.test(sources.genesis002SchemaSource)
-  ) fail('SEALED_LAUNCH_G002_PRIVATE_SCHEMA_INVALID');
+  verifyGenesis002PrivateSchemaSources(sources.genesis002SchemaSource, sources.genesis002GameplaySchemaSource);
   requireAbsent(
-    sources.genesis002SchemaSource,
+    sources.genesis002SchemaSource.replaceAll('gameplay04ScheduleV1', ''),
     ['export { default } from', 'ScheduleV1', 'productionPlayerCanary'],
     'SEALED_LAUNCH_G002_SCHEMA_INVALID',
   );
