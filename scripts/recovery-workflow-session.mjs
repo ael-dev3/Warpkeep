@@ -6,6 +6,7 @@ import { verifyRecoveryAuthorization } from './verify-recovery-authorization-jws
 import { verifyRecoveryClaimReceipt, verifyRecoveryClaimCorrelation } from './verify-recovery-claim-receipt.mjs';
 import { verifyRecoveryStatus } from './verify-recovery-status.mjs';
 import { verifyRecoveryTerminal } from './verify-recovery-terminal.mjs';
+import { writeRecoveryClaimHandoff, readRecoveryClaimHandoffForDeployment } from './recovery-claim-handoff.mjs';
 
 const CONTEXT_KEYS = ['pagesRunId', 'pagesRunAttempt', 'sourceVerifyRunId', 'sourceVerifyRunAttempt',
   'candidateCommit', 'candidateTree', 'artifactId', 'githubArtifactArchiveSha256',
@@ -13,12 +14,13 @@ const CONTEXT_KEYS = ['pagesRunId', 'pagesRunAttempt', 'sourceVerifyRunId', 'sou
 const fail = () => { throw new Error('RECOVERY_WORKFLOW_SESSION_INVALID'); };
 const now = () => Math.floor(Date.now() / 1000);
 
-/** In-memory integration only. Caller must independently verify source/artifact context.
- * No deployment effect, durable handoff, raw-JWS getter or credential output exists here.
+/** Caller must independently verify source/artifact context and provision the private directory.
+ * No deployment effect, process-resume entrypoint, raw-JWS getter or credential output exists here.
  */
 export async function beginRecoveryWorkflowSession(...args) {
   let authorizationJws, claimReceiptJws, claimExpectedSource;
   let phase = 'starting';
+  let handoffRoot;
   const tokenHashes = new Set();
   try {
     const [bindingSource, expectedSource] = args;
@@ -61,12 +63,22 @@ export async function beginRecoveryWorkflowSession(...args) {
     phase = 'claimed';
     try { await status(); } catch { phase = 'reconcile-only'; }
     return Object.freeze({
+      persistClaim(...parameters) {
+        if (parameters.length !== 1 || handoffRoot !== undefined || !['claimed', 'reconcile-only'].includes(phase)) fail();
+        try {
+          const result = writeRecoveryClaimHandoff(parameters[0], claimReceiptJws, claimExpectedSource);
+          handoffRoot = parameters[0];
+          return result;
+        } catch { phase = 'reconcile-only'; fail(); }
+      },
       async checkDeploymentBoundary() {
-        if (phase !== 'claimed') fail();
+        if (phase !== 'claimed' || handoffRoot === undefined) fail();
         phase = 'checking';
         try {
           await status();
           if (phase !== 'checking') fail();
+          const persisted = readRecoveryClaimHandoffForDeployment(handoffRoot, expectedSource);
+          if (persisted.claimReceiptJws !== claimReceiptJws || persisted.expectedSource !== claimExpectedSource) fail();
           const result = verifyRecoveryClaimReceipt(claimReceiptJws, claimExpectedSource, now());
           phase = 'boundary-checked';
           return result;
