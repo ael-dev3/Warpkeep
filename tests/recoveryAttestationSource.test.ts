@@ -8,6 +8,7 @@ import { afterEach, beforeEach, expect, it } from 'vitest';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
 import { createRecoveryActivationBinding } from '../scripts/recovery-activation-candidate.mjs';
 import { readRecoveryAttestationSource } from '../scripts/recovery-attestation-source.mjs';
+import { classifySealedLaunchPagesDeployLane } from '../scripts/verify-0.4.0-sealed-launch.mjs';
 
 let root: string;
 const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8', windowsHide: true, timeout: 10000 }).trim();
@@ -39,6 +40,17 @@ it('derives identity from a real committed three-file activation child', () => {
   expect(result.candidateCommit).toBe(git('rev-parse', 'HEAD'));
   expect(result.candidateTree).toBe(git('rev-parse', 'HEAD^{tree}'));
   expect(result.recoveryAuthorizationCoreSha256).toMatch(/^[a-f0-9]{64}$/);
+});
+it('routes an exact schema-2 activation child only to the recovery lane', () => {
+  const candidatePagesSourceCommit = git('rev-parse', 'HEAD');
+  expect(classifySealedLaunchPagesDeployLane({ repositoryRoot: root, candidatePagesSourceCommit })).toEqual({
+    profile: 'warpkeep-0.4.0-sealed-launch-v2', candidatePagesSourceCommit, mode: 'sealed-g002-recovery',
+  });
+});
+it('rejects recovery routing with a stale source SHA or untracked source', () => {
+  expect(() => classifySealedLaunchPagesDeployLane({ repositoryRoot: root, candidatePagesSourceCommit: 'a'.repeat(40) })).toThrow();
+  writeFileSync(join(root, 'untracked.js'), 'unreviewed');
+  expect(() => classifySealedLaunchPagesDeployLane({ repositoryRoot: root, candidatePagesSourceCommit: git('rev-parse', 'HEAD') })).toThrow();
 });
 it('rejects dirty source outside the three activation files', () => {
   writeFileSync(join(root, 'source.js'), 'changed');

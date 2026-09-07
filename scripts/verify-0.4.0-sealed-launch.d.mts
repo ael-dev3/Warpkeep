@@ -126,8 +126,8 @@ export function classifySealedLaunchPagesDeployLane(input: Readonly<{
   repositoryRoot?: string;
   candidatePagesSourceCommit: string;
 }>): Readonly<{
-  profile: typeof SEALED_LAUNCH_PROFILE;
+  profile: typeof SEALED_LAUNCH_PROFILE | 'warpkeep-0.4.0-sealed-launch-v2';
   candidatePagesSourceCommit: string;
-  mode: 'sealed-launch-blocked' | 'sealed-g002';
+  mode: 'sealed-launch-blocked' | 'sealed-g002' | 'sealed-g002-recovery';
 }>;
 export function verifyGenesis002PrivateSchemaSources(schemaSource: string, gameplaySource: string): void;

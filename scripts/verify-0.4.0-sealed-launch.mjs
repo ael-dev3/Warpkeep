@@ -9,6 +9,8 @@ import {
 } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
+import { readRecoveryAttestationSource } from './recovery-attestation-source.mjs';
 
 export const SEALED_LAUNCH_PROFILE = 'warpkeep-0.4.0-sealed-launch-v1';
 export const GENESIS_001_DATABASE_IDENTITY =
@@ -4948,6 +4950,22 @@ export function classifySealedLaunchPagesDeployLane({
   candidatePagesSourceCommit,
 } = {}) {
   assertExactCheckout(repositoryRoot, candidatePagesSourceCommit);
+  const bindingFile = readLocalBindingBoundedFile(resolve(repositoryRoot, 'config/releases/0.4.0-sealed-launch.json'),
+    { maximumBytes: 2 * 1024 * 1024 });
+  let schema;
+  try { schema = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bindingFile.body)).schemaVersion; }
+  catch { fail('SEALED_LAUNCH_BINDING_INVALID'); }
+  finally { bindingFile.body.fill(0); }
+  if (schema === 2) {
+    // Routing is not deployment authority. This verifies the complete v2 binding
+    // and exact committed activation child; the recovery job must additionally
+    // authenticate current protected main, artifacts, live state and signed claim.
+    const identity = readRecoveryAttestationSource(repositoryRoot);
+    if (identity.candidateCommit !== candidatePagesSourceCommit) fail('SEALED_LAUNCH_CHECKOUT_INVALID');
+    assertExactCheckout(repositoryRoot, candidatePagesSourceCommit);
+    return Object.freeze({ profile: 'warpkeep-0.4.0-sealed-launch-v2', candidatePagesSourceCommit,
+      mode: 'sealed-g002-recovery' });
+  }
   const sources = readSources(repositoryRoot);
   const mode = classifySealedLaunchPagesSources(sources);
   if (mode === 'sealed-g002') {
