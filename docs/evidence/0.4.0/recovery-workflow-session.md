@@ -896,3 +896,32 @@ the final reconciliation suite passed 35 tests including rejection of the old
 hosted runner, old ID, and missing postflight. Service TypeScript exited 0.
 These use fixture GitHub responses, not actual production execution. This
 corrects a real cross-component contract mismatch, but does not wire the job.
+
+### Local production-build script and runner recheck — 2026-09-07
+
+Authenticated `gh api repos/ael-dev3/Warpkeep/actions/runners` still lists only
+`warpkeep-production-runner-01`, macOS/ARM64, offline. No Linux production runner
+is registered. The recovery private directory contract requires Linux UID 1001
+and `/home/runner/.warpkeep-recovery-v1` owned at mode 0700; ordinary WSL UID 1000
+or a runner-label rename cannot satisfy it.
+
+The complete checked-in frontend build script passed at `ffdc431` in the isolated
+Linux checkout `/tmp/warpkeep-attestation-install.logAv0lN/repo`, exit 0. The first
+`npm run build` attempt could not start because this minimal Node toolchain has no
+npm executable. The successful invocation used pinned Node 22.22.3 to read
+`package.json`, reject unexpected prebuild/postbuild hooks, and execute its exact
+`scripts.build` via `/bin/sh` with the checkout's `node_modules/.bin` on PATH.
+No package script was removed or skipped. Dependencies were the existing
+diagnostic installation, not a new pinned production install.
+
+Voxel dressing, TypeScript, runtime asset inventories, Vite bundling, production
+asset checks, exclusion checks, atlas public boundary (2926 tracked paths/1682
+scanned entries), and Farcaster manifest/signature checks all passed. Vite warned
+about three minified chunks over 600 kB: Three.js 610.02 kB, RealmMapScreen
+746.57 kB, and application 796.22 kB (gzip 154.44/202.62/205.08 kB respectively).
+These measurements do not establish device performance gates or transfer totals.
+
+This is a preparation-checkout build with default local build environment, not
+the final 0.4 activation artifact or an authenticated production build. No release
+version transition, deployment, runner registration, or production mutation was
+performed. The output remains disposable diagnostic evidence.
