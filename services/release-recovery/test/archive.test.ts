@@ -1,4 +1,8 @@
 import { deflateSync, zipSync } from 'fflate'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { deriveWarpkeepDeploymentAttestation } from '../../../scripts/generate-warpkeep-deployment-attestation.mjs'
 import { describe, expect, it, vi } from 'vitest'
 import { inspectPagesArtifact, type PagesArtifactExpected } from '../src/archive.js'
 
@@ -327,6 +331,30 @@ async function inspect(tar: Uint8Array, zipOptions: ZipOptions = {}, chunkSize?:
 }
 
 describe('Pages recovery archive validator', () => {
+  it('accepts local attestation bytes and rejects changed archived content', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-archive-attestation-'))
+    try {
+      const files = [
+        { path: 'index.html', bytes: encoder.encode('<!doctype html>\n') },
+        { path: 'assets/Z.js', bytes: encoder.encode('upper') },
+        { path: 'assets/a.js', bytes: encoder.encode('lower') },
+      ]
+      mkdirSync(join(root, 'assets'))
+      for (const file of files) writeFileSync(join(root, file.path), file.bytes)
+      const attestation = deriveWarpkeepDeploymentAttestation({ distRoot: root, identity: expected })
+      const tar = await makeTar({ files, attestationRaw: attestation.bytes })
+      const result = await inspect(tar, { method: 8 }, 17)
+      expect(result.deploymentAttestationSha256).toBe(await sha256(attestation.bytes))
+      expect(result.contentManifestSha256).toBe(await sha256(await manifestBytes(files)))
+      const changed = files.map(file => file.path === 'assets/a.js'
+        ? { ...file, bytes: encoder.encode('other') } : file)
+      await expect(inspect(await makeTar({ files: changed, attestationRaw: attestation.bytes })))
+        .rejects.toThrow()
+    } finally {
+      rmSync(root, { recursive: true })
+    }
+  })
+
   it.each([
     ['stored', { method: 0 as const }],
     ['DEFLATE', { method: 8 as const }],
