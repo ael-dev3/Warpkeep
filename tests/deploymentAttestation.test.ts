@@ -59,7 +59,12 @@ it('verifies installed attestation and rejects a changed content byte', () => {
   const result = deriveWarpkeepDeploymentAttestation({ distRoot: root, identity });
   mkdirSync(join(root, '.well-known'));
   writeFileSync(join(root, '.well-known', 'warpkeep-deployment-v1.json'), result.bytes);
-  expect(() => verifyWarpkeepDeploymentAttestation({ distRoot: root, identity })).not.toThrow();
+  const verified = verifyWarpkeepDeploymentAttestation({ distRoot: root, identity });
+  expect(verified).toEqual({
+    deploymentAttestationSha256: createHash('sha256').update(result.bytes).digest('hex'),
+    contentManifestSha256: JSON.parse(Buffer.from(result.bytes).toString('utf8')).contentManifestSha256,
+  });
+  expect(Object.isFrozen(verified)).toBe(true);
   writeFileSync(join(root, 'index.html'), 'jello');
   expect(() => verifyWarpkeepDeploymentAttestation({ distRoot: root, identity })).toThrow();
 });

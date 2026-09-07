@@ -84,7 +84,7 @@ it('ingests a real compressed fixture through the compiled parser in a native ch
     // The compiled download transport, ZIP/TAR parser and digest comparisons are real.
     writeFileSync(join(scripts, 'recovery-workflow-run-context.mjs'), `export async function readRecoveryWorkflowArtifactMetadata() { return ${JSON.stringify(fixture.metadata)}; }`);
     writeFileSync(join(scripts, 'recovery-attestation-source.mjs'), `export function readRecoveryAttestationSource() { return ${JSON.stringify(fixture.identity)}; }`);
-    writeFileSync(join(scripts, 'generate-warpkeep-deployment-attestation.mjs'), `export function verifyWarpkeepDeploymentAttestation() { return {deploymentAttestationSha256: ${JSON.stringify(fixture.expected.deploymentAttestationSha256)}}; }`);
+    writeFileSync(join(scripts, 'generate-warpkeep-deployment-attestation.mjs'), `export function verifyWarpkeepDeploymentAttestation() { return ${JSON.stringify({ deploymentAttestationSha256: fixture.expected.deploymentAttestationSha256, contentManifestSha256: fixture.expected.contentManifestSha256 })}; }`);
     writeFileSync(join(scripts, 'local-binding-bounded-file.mjs'), `export function readLocalBindingBoundedFile() { return {body: Buffer.from('test-binding')}; }`);
     const directory = join(root, 'services/release-recovery/scripts'); mkdirSync(directory, { recursive: true });
     const output = join(directory, 'read-recovery-workflow-artifact.bundle.mjs'); writeFileSync(output, built.bytes);

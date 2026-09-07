@@ -16,7 +16,7 @@ let bytes: Uint8Array;
 beforeEach(() => {
   vi.resetAllMocks(); vi.stubEnv('GITHUB_TOKEN', 'test-only-token');
   mocks.source.mockReturnValue(identity); mocks.metadata.mockResolvedValue(metadata);
-  mocks.local.mockReturnValue({ deploymentAttestationSha256: '6'.repeat(64) });
+  mocks.local.mockReturnValue({ deploymentAttestationSha256: '6'.repeat(64), contentManifestSha256: '5'.repeat(64) });
   mocks.redirect.mockResolvedValue(new Response('test-archive'));
   bytes = new Uint8Array([1, 2, 3]);
   mocks.archive.mockResolvedValue({ githubArtifactArchiveSha256: '3'.repeat(64), innerArtifactTarSha256: '4'.repeat(64),
@@ -40,19 +40,25 @@ it('rejects local/candidate mismatch before downloading', async () => {
   mocks.metadata.mockResolvedValue({ ...metadata, candidateCommit: 'c'.repeat(40) });
   await expect(read()).rejects.toThrow('RECOVERY_WORKFLOW_ARTIFACT_INVALID'); expect(mocks.redirect).not.toHaveBeenCalled();
 });
-it.each(['githubArtifactArchiveSha256', 'deploymentAttestationSha256'])('rejects mismatched %s', async key => {
+it.each(['githubArtifactArchiveSha256', 'deploymentAttestationSha256', 'contentManifestSha256'])('rejects mismatched %s', async key => {
   const value = await mocks.archive(); mocks.archive.mockClear(); mocks.archive.mockResolvedValue({ ...value, [key]: 'f'.repeat(64) });
   await expect(read()).rejects.toThrow('RECOVERY_WORKFLOW_ARTIFACT_INVALID'); expect(bytes).toEqual(new Uint8Array(3));
 });
 it.each(['metadata', 'source', 'local'] as const)('rejects %s changing while verifying the archive', async boundary => {
   if (boundary === 'metadata') mocks.metadata.mockResolvedValueOnce(metadata).mockResolvedValueOnce({ ...metadata, artifactEtag: 'changed' });
   if (boundary === 'source') mocks.source.mockReturnValueOnce(identity).mockReturnValueOnce({ ...identity, candidateTree: 'c'.repeat(40) });
-  if (boundary === 'local') mocks.local.mockReturnValueOnce({ deploymentAttestationSha256: '6'.repeat(64) }).mockReturnValueOnce({ deploymentAttestationSha256: 'f'.repeat(64) });
+  if (boundary === 'local') mocks.local.mockReturnValueOnce({ deploymentAttestationSha256: '6'.repeat(64), contentManifestSha256: '5'.repeat(64) }).mockReturnValueOnce({ deploymentAttestationSha256: 'f'.repeat(64), contentManifestSha256: '5'.repeat(64) });
   await expect(read()).rejects.toThrow('RECOVERY_WORKFLOW_ARTIFACT_INVALID'); expect(mocks.redirect).toHaveBeenCalledTimes(1);
 });
 it.each(['redirect', 'archive', 'file'] as const)('redacts %s failures', async boundary => {
   mocks[boundary].mockImplementationOnce(() => { throw new Error('private-test-token'); });
   await expect(read()).rejects.toThrow(/^RECOVERY_WORKFLOW_ARTIFACT_INVALID$/);
+});
+it('rejects a changed re-read content manifest without downloading again', async () => {
+  mocks.local.mockReturnValueOnce({ deploymentAttestationSha256: '6'.repeat(64), contentManifestSha256: '5'.repeat(64) })
+    .mockReturnValueOnce({ deploymentAttestationSha256: '6'.repeat(64), contentManifestSha256: 'f'.repeat(64) });
+  await expect(read()).rejects.toThrow('RECOVERY_WORKFLOW_ARTIFACT_INVALID');
+  expect(mocks.redirect).toHaveBeenCalledTimes(1);
 });
 it('rejects a changed binding after its bounded read', async () => {
   mocks.source.mockReturnValueOnce(identity).mockReturnValueOnce(identity).mockReturnValueOnce({ ...identity, candidateTree: 'c'.repeat(40) });

@@ -75,11 +75,12 @@ function capture(options) {
   }
   if (entries.length === 0) fail();
   entries.sort((a, b) => Buffer.compare(Buffer.from(a.path), Buffer.from(b.path)));
+  const contentManifestSha256 = sha(JSON.stringify(entries));
   const bytes = Buffer.from(JSON.stringify({ schemaVersion: 1, profile: 'warpkeep-deployment-attestation-v1',
     ...identity, releaseVersion: '0.4.0', canonicalOrigin: 'https://warpkeep.com',
-    contentManifestSha256: sha(JSON.stringify(entries)) }));
+    contentManifestSha256 }));
   if (total + 512 + Math.ceil(bytes.length / 512) * 512 > 150 * 1024 * 1024) fail();
-  return { distRoot, bytes, rootIdentity: capturedIdentities[0].identity };
+  return { distRoot, bytes, contentManifestSha256, rootIdentity: capturedIdentities[0].identity };
 }
 
 /** Derives bytes only; caller coordinates are data, never deployment authority. */
@@ -88,11 +89,12 @@ export function deriveWarpkeepDeploymentAttestation(options) {
   return Object.freeze({ path: ATTESTATION, bytes: new Uint8Array(bytes) });
 }
 export function verifyWarpkeepDeploymentAttestation(options) {
-  const { distRoot, bytes } = capture(options);
+  const { distRoot, bytes, contentManifestSha256 } = capture(options);
   const opened = readLocalBindingBoundedFile(join(distRoot, ATTESTATION), { maximumBytes: 16384 });
   try {
     if (!opened.body.equals(bytes)) fail();
-    return Object.freeze({ deploymentAttestationSha256: sha(bytes) });
+    // Derived from the re-read file tree, never copied from unchecked JSON.
+    return Object.freeze({ deploymentAttestationSha256: sha(bytes), contentManifestSha256 });
   } finally { opened.body.fill(0); }
 }
 

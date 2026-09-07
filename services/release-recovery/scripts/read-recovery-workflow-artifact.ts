@@ -30,12 +30,13 @@ export async function readRecoveryWorkflowArtifact(...args: readonly unknown[]):
     const artifact = await inspectPagesArtifact(response, identity, undefined, { archiveByteLength: metadata.artifactSize });
     attestationBytes = artifact.deploymentAttestationBytes;
     if (artifact.githubArtifactArchiveSha256 !== metadata.advertisedArchiveSha256
-        || artifact.deploymentAttestationSha256 !== local.deploymentAttestationSha256) fail();
+        || artifact.deploymentAttestationSha256 !== local.deploymentAttestationSha256
+        || artifact.contentManifestSha256 !== local.contentManifestSha256) fail();
     // Re-fetch metadata only: never download the archive a second time.
     if (JSON.stringify(await readRecoveryWorkflowArtifactMetadata()) !== JSON.stringify(metadata)
         || JSON.stringify(readRecoveryAttestationSource(root)) !== JSON.stringify(identity)
-        || verifyWarpkeepDeploymentAttestation({ distRoot: join(root, 'dist'), identity }).deploymentAttestationSha256
-          !== local.deploymentAttestationSha256) fail();
+        || JSON.stringify(verifyWarpkeepDeploymentAttestation({ distRoot: join(root, 'dist'), identity }))
+          !== JSON.stringify(local)) fail();
     bindingBytes = readLocalBindingBoundedFile(join(root, 'config/releases/0.4.0-sealed-launch.json'),
       { maximumBytes: 2 * 1024 * 1024 }).body;
     const bindingSource = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bindingBytes);
