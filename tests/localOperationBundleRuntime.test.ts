@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -213,7 +213,7 @@ describe('fixed Linux operation bundle runtime boundaries', () => {
     })).toThrow('OPERATION_BUNDLE_RUNTIME_REPRODUCIBILITY_FAILED');
   });
 
-  it('reattests real materialized source bytes and rejects post-build mutation', () => {
+  it('enforces the fixed materialized-source owner and rejects post-build mutation', () => {
     const parent = mkdtempSync(join(tmpdir(), 'warpkeep-operation-source-'));
     const root = join(parent, 'source');
     const path = join(root, 'scripts', 'entry.mjs');
@@ -222,7 +222,14 @@ describe('fixed Linux operation bundle runtime boundaries', () => {
       mkdirSync(join(root, 'scripts'), { recursive: true });
       writeFileSync(path, body);
       const manifest = [{ path: 'scripts/entry.mjs', byteLength: body.length, sha256: digest(body.toString()) }];
-      expect(() => verifyOperationBundleMaterializedGraph(root, manifest)).not.toThrow();
+      if (process.platform === 'win32' || statSync(path).uid === 1000) {
+        expect(() => verifyOperationBundleMaterializedGraph(root, manifest)).not.toThrow();
+      } else {
+        // Hosted CI may not run as the fixed local production UID. The real
+        // descriptor reader must reject those bytes even when their hash matches.
+        expect(() => verifyOperationBundleMaterializedGraph(root, manifest))
+          .toThrow('OPERATION_BUNDLE_RUNTIME_SOURCE_CHANGED');
+      }
       chmodSync(path, 0o600);
       writeFileSync(path, 'export const value = 2;\n');
       expect(() => verifyOperationBundleMaterializedGraph(root, manifest))
