@@ -9,6 +9,7 @@ import { derivePreparedLinuxArtifactInputs } from '../../scripts/local-release-a
 import { derivePreparedClosureFamily } from '../../scripts/local-prepared-closure-family.mjs';
 import { readLocalBindingBoundedFile } from '../../scripts/local-binding-bounded-file.mjs';
 import { recoverPreparedReleaseTransaction } from '../../scripts/local-release-transaction-recovery.mjs';
+import { validateLocalBindingYamlManifest } from '../../scripts/local-binding-runtime-core.mjs';
 
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const workspaces = [];
@@ -49,10 +50,25 @@ try {
   // This manifest is the fixed native producer's own output, not caller input.
   const bundleManifest = JSON.parse(Buffer.from(inputs.bundles.files.find(file =>
     file.path === 'scripts/sealed-realms-production-bundle-manifest-v1.json').bytes).toString('utf8'));
+  const yamlBytes = readLocalBindingBoundedFile(join(candidate.candidateRoot,
+    'scripts/local-binding-runtime-yaml-v1.json'), { maximumBytes: 1024 * 1024, expectedUid: 1000 }).body;
+  let yaml;
+  try { yaml = validateLocalBindingYamlManifest(yamlBytes.toString('utf8')); }
+  finally { yamlBytes.fill(0); }
   let checkedBundleInputs = 0;
   for (const bundle of bundleManifest.bundles) {
     for (const member of bundle.graphManifest) {
-      readLocalBindingBoundedFile(join(candidate.candidateRoot, member.path), {
+      let path = join(candidate.candidateRoot, member.path);
+      if (member.path.startsWith('node_modules/')) {
+        const prefix = 'node_modules/yaml/';
+        const pinned = member.path.startsWith(prefix)
+          ? yaml.files.find(file => file.path === member.path.slice(prefix.length)) : undefined;
+        if (pinned === undefined || pinned.bytes !== member.byteLength || pinned.sha256 !== member.sha256) {
+          throw new Error('LOCAL_RELEASE_COMPILED_PROBE_DEPENDENCY_INVALID');
+        }
+        path = join('/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/yaml-2.9.0/package', pinned.path);
+      }
+      readLocalBindingBoundedFile(path, {
         maximumBytes: 8 * 1024 * 1024, expectedUid: 1000,
         expectedBytes: member.byteLength, expectedSha256: member.sha256, discardBody: true,
       }).body.fill(0);

@@ -66,3 +66,47 @@ All nine coordinator tests, targeted strict types and probe syntax checks passed
 
 A fresh native run is still needed to verify the correction and the additional
 compiler-input comparison. The failed first run is not an assembly success.
+
+## Corrected installation and resumed verification
+
+The second native run used an independent Linux checkout of
+`8eb53f1512b9c37db1d9041f37a9899768ae023a`, tree
+`8067ec588ad3d39774c1c2dd38ac917bc9412e2d`. It completed the real producer calls,
+installed 84 compiled artifact files in the draft, derived the closure family,
+and installed the combined 98 files in a second candidate. It reached
+`verifying-installed-family`, then exited 1 with `ENOENT`.
+
+Inspection established that the new graph-input checker was looking for YAML
+dependency files inside the candidate. Native bundle construction instead uses
+the separately pinned YAML 2.9.0 toolchain. The probe now distinguishes those
+dependency entries: only `node_modules/yaml/` entries present in the validated
+`local-binding-runtime-yaml-v1.json` manifest are mapped to the fixed toolchain
+directory, with both byte length and SHA-256 required to match. Unknown package
+entries fail. Repository inputs continue to be checked in the candidate.
+
+The original second process is still recorded as failed. A separate diagnostic
+acquired a genuine candidate lock and verified its retained installed artifacts
+using the corrected lookup, without recompiling or fabricating producer results:
+
+- All 288 recorded bundle inputs matched their source/dependency hashes.
+- The actual installed closure verifier accepted 1,099 members.
+- Re-deriving the fourteen closure/source-pin/workflow outputs matched their
+  installed bytes exactly.
+- Manifest SHA-256:
+  `a475cedfe253f8498850fc276a4d45a74dda2e44c9ec2275190d19413ffdd2d7`.
+- All 98 combined candidate files and 84 draft files were checked against the
+  recorded journal after-state hashes and lengths before recovery.
+- Native recovery returned `rolled-back` for both transactions. Both subsequent
+  Git status checks were empty. Existing bytes were restored and newly generated
+  test-candidate files removed; the private checkouts/journals remain available.
+
+Private test transaction identifiers for correlating retained records:
+
+- Combined: `7d6370c9409b44b3e651fa1e5ba5e058`.
+- Draft: `9a4499517f65c93213448f4b349bd8c7`.
+
+This is native compiled-artifact installation plus resumed verification/recovery
+evidence, **not** an uninterrupted successful probe, final Task 7 acceptance,
+attested production-toolchain completion, or live release. It does not include
+the later workflow transport changes in `172d8e0`. Full compiler regeneration
+convergence and remaining dispatcher/activation/workflow consumers still matter.
