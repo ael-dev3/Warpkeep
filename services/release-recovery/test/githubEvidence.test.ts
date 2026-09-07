@@ -501,6 +501,14 @@ jobs:
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128
         with:
           artifact_name: github-pages-recovery-\${{ github.run_id }}-\${{ github.run_attempt }}
+      - name: Verify recovery live postflight
+        id: recovery-postflight
+        if: \${{ always() && steps.recovery-claim.outcome == 'success' }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: \${{ github.token }}
+        run: |
+          node scripts/recovery-workflow-postflight.mjs
 `)
 }
 
@@ -1264,6 +1272,14 @@ describe('GitHub candidate evidence', () => {
     ['wrong deployment pin', (source: string) => source.replace('cd2ce8fcbc39b97be8ca5fce6e763baed58fa128', '0000000000000000000000000000000000000000')],
     ['deployment artifact override', (source: string) => source.replace('artifact_name: github-pages-recovery-', 'artifact_name: other-')],
     ['conditional deployment', (source: string) => source.replace('        id: recovery-deployment', '        if: always()\n        id: recovery-deployment')],
+    ['missing postflight', (source: string) => source.slice(0, source.indexOf('      - name: Verify recovery live postflight'))],
+    ['postflight comment spoof', (source: string) => source.replace('node scripts/recovery-workflow-postflight.mjs', '# node scripts/recovery-workflow-postflight.mjs')],
+    ['postflight arguments', (source: string) => source.replace('node scripts/recovery-workflow-postflight.mjs', 'node scripts/recovery-workflow-postflight.mjs --override')],
+    ['ignored postflight failure', (source: string) => source.replace('        id: recovery-postflight', '        continue-on-error: true\n        id: recovery-postflight')],
+    ['postflight omitted on deployment failure', (source: string) => source.replace("always() && steps.recovery-claim.outcome == 'success'", 'success()')],
+    ['postflight unconditional before claim', (source: string) => source.replace("always() && steps.recovery-claim.outcome == 'success'", 'always()')],
+    ['intervening postflight step', (source: string) => source.replace('      - name: Verify recovery live postflight', '      - run: echo intervening\n      - name: Verify recovery live postflight')],
+    ['duplicate postflight id', (source: string) => source + '      - id: recovery-postflight\n        run: echo duplicate\n'],
     ['comment-only preparation', (source: string) => source.replace('node scripts/recovery-workflow-prepare-claim.mjs', '# node scripts/recovery-workflow-prepare-claim.mjs')],
     ['preparation caller arguments', (source: string) => source.replace('node scripts/recovery-workflow-prepare-claim.mjs', 'node scripts/recovery-workflow-prepare-claim.mjs --override')],
     ['ignored preparation failure', (source: string) => source.replace('        id: recovery-claim', '        continue-on-error: true\n        id: recovery-claim')],

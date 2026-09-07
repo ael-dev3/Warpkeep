@@ -827,3 +827,18 @@ mocked dependencies, including the signature verifier, with native CLI rejection
 tested separately. Earlier actual ES256 verifier tests remain separate evidence.
 This does not prove a successful live postflight. The protected workflow source
 validator and actual job still need integration; no final release freeze occurred.
+
+### Required workflow postflight source contract — 2026-09-07
+
+The GitHub evidence validator now requires the exact fixed postflight command
+immediately after deployment, a unique `recovery-postflight` ID, the single
+GitHub token environment binding, bash, and the exact always-after-successful-claim
+condition recorded in the recovery specification. Missing/comment-only/argument-
+modified postflight, ignored failure, weakened conditions, intervening steps,
+and duplicate IDs are rejected. This prevents accepting workflow source that
+omits the implemented postflight or skips reconciliation after deployment failure.
+
+The release-recovery GitHub evidence suite passed 241 tests on Windows Node
+22.22.3 (eight new negative cases). These are source/fixture tests, not evidence
+that an authenticated production job executed. Actual workflow integration,
+local production runner setup and live acceptance remain unfinished.

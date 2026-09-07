@@ -949,6 +949,19 @@ function validateWorkflow(bytes: Uint8Array): void {
       || (deployWith as Record<string, unknown>).artifact_name !== 'github-pages-recovery-${{ github.run_id }}-${{ github.run_attempt }}'
       || objects.indexOf(boundarySteps[0]!) !== objects.indexOf(preparationSteps[0]!) + 1
       || objects.indexOf(deploy) !== objects.indexOf(boundarySteps[0]!) + 1) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const postflights = objects.filter(step => step.id === 'recovery-postflight')
+    if (postflights.length !== 1) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const postflight = postflights[0]!
+    const postflightEnv = postflight.env
+    if (Object.keys(postflight).length !== 6
+      || postflight.name !== 'Verify recovery live postflight'
+      || postflight.if !== "${{ always() && steps.recovery-claim.outcome == 'success' }}"
+      || postflight.shell !== 'bash'
+      || postflightEnv === null || typeof postflightEnv !== 'object' || Array.isArray(postflightEnv)
+      || Object.keys(postflightEnv).length !== 1
+      || (postflightEnv as Record<string, unknown>).GITHUB_TOKEN !== '${{ github.token }}'
+      || postflight.run !== 'node scripts/recovery-workflow-postflight.mjs\n'
+      || objects.indexOf(postflight) !== objects.indexOf(deploy) + 1) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   } catch {
     githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   }
