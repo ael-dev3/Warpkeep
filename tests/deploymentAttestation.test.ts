@@ -43,7 +43,8 @@ beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'warpkeep-attestation-'));
   writeFileSync(join(root, 'index.html'), 'hello');
 });
-afterEach(() => { vi.restoreAllMocks(); rmSync(root, { recursive: true }); });
+// The real 20,000-file boundary fixture also needs bounded NTFS cleanup time.
+afterEach(() => { vi.restoreAllMocks(); rmSync(root, { recursive: true }); }, 60000);
 
 it('derives canonical attestation bytes from the actual content manifest', () => {
   const result = deriveWarpkeepDeploymentAttestation({ distRoot: root, identity });
