@@ -3,6 +3,26 @@ import http.client
 import json
 import socket
 import ssl
+import sys
+import time
+
+if sys.argv[1:] == ['--ready']:
+    for attempt in range(20):
+        try:
+            with socket.create_connection(('warpkeep-egress', 3128), timeout=1):
+                print(json.dumps({'proxyTcpReady': True}))
+                sys.exit(0)
+        except OSError:
+            time.sleep(0.2)
+    raise AssertionError('proxy did not become reachable')
+
+if sys.argv[1:] == ['--unavailable']:
+    try:
+        with socket.create_connection(('warpkeep-egress', 3128), timeout=2):
+            raise AssertionError('stopped proxy remained reachable')
+    except OSError:
+        print(json.dumps({'stoppedProxyUnavailable': True}))
+        sys.exit(0)
 
 def connect_status(authority, method='CONNECT'):
     with socket.create_connection(('warpkeep-egress', 3128), timeout=10) as connection:
@@ -18,6 +38,14 @@ denied = ['example.com:443', 'api.github.com.example.com:443',
 for authority in denied:
     assert connect_status(authority) == 403, authority
 assert connect_status('http://api.github.com/', 'GET') == 403
+
+if sys.argv[1:] == ['--private-resolution']:
+    # The harness maps this otherwise-allowed name to a private address in
+    # the proxy's hosts file. No TLS connection should be attempted.
+    assert connect_status('api.github.com:443') == 403
+    print(json.dumps({'deniedCases': len(denied) + 2, 'allowedHostPrivateResolutionDenied': True}))
+    sys.exit(0)
+assert not sys.argv[1:], 'unsupported smoke mode'
 
 # TLS verification remains end-to-end: no interception or custom trust root.
 with socket.create_connection(('warpkeep-egress', 3128), timeout=10) as connection:
