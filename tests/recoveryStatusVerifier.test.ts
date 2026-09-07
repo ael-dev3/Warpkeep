@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { Readable, PassThrough } from 'node:stream';
 import { beforeAll, expect, it, vi } from 'vitest';
 
 const kid = 'warpkeep-0.4.0-recovery-2026-09-03-1';
@@ -22,9 +23,11 @@ function token(value: unknown = payload(), header = JSON.stringify({ alg: 'ES256
   return `${input}.${signature.toString('base64url')}`;
 }
 let verify: typeof import('../scripts/verify-recovery-status.mjs').verifyRecoveryStatus;
+let verifyInput: typeof import('../scripts/verify-recovery-status.mjs').verifyRecoveryStatusFromStdin;
 beforeAll(async () => {
   vi.doMock('../scripts/recovery-public-key.mjs', () => ({ RECOVERY_KEY_ID: kid, RECOVERY_PUBLIC_JWK: jwk, RECOVERY_KEY_THUMBPRINT: thumbprint }));
   verify = (await import('../scripts/verify-recovery-status.mjs')).verifyRecoveryStatus;
+  verifyInput = (await import('../scripts/verify-recovery-status.mjs')).verifyRecoveryStatusFromStdin;
 });
 it('verifies a signed enabled status and returns only safe gate coordinates', () => {
   expect(verify(token(), 7, 1030)).toEqual({ authorizationEpoch: 7, issuedAt: 1000, expiresAt: 1060 });
@@ -105,9 +108,82 @@ it('does not accept the test signer through the unmodified production key entryp
   const production = await import('../scripts/verify-recovery-status.mjs');
   expect(() => production.verifyRecoveryStatus(token(), 7, 1030)).toThrow('RECOVERY_STATUS_INVALID');
 });
-it('does not claim CLI verification before descriptor-based integration exists', () => {
+it('rejects unsupported CLI arguments without printing input', () => {
   const result = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/verify-recovery-status.mjs', import.meta.url)), '--check'], { encoding: 'utf8' });
   expect(result.status).toBe(1);
   expect(result.stdout).toBe('');
-  expect(result.stderr).toBe('RECOVERY_STATUS_CLI_NOT_IMPLEMENTED\n');
+  expect(result.stderr).toBe('RECOVERY_STATUS_INVALID\n');
 });
+
+it('verifies bounded binary stdin using the current clock after input completes', async () => {
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(1030000);
+  try {
+    const bytes = Buffer.from(token());
+    const input = Readable.from([bytes.subarray(0, 100), bytes.subarray(100)]);
+    await expect(verifyInput(input, 7)).resolves.toEqual({ authorizationEpoch: 7, issuedAt: 1000, expiresAt: 1060 });
+    expect(input.destroyed).toBe(true);
+    expect(bytes.every(byte => byte === 0)).toBe(true);
+  } finally { clock.mockRestore(); }
+});
+it('rejects a token which expires while stdin is still being read', async () => {
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(1030000);
+  const input = new PassThrough();
+  try {
+    const result = verifyInput(input, 7);
+    const rejected = expect(result).rejects.toThrow('RECOVERY_STATUS_INVALID');
+    input.write(Buffer.from(token()));
+    clock.mockReturnValue(1060000);
+    input.end();
+    await rejected;
+  } finally { clock.mockRestore(); input.destroy(); }
+});
+it.each([
+  ['--epoch', '7'], ['--epoch', '07'], ['--epoch', '0'],
+  ['--epoch', '7', '--now', '1030'], ['--epoch', '7', '--token', 'private-token-sentinel'],
+])('rejects invalid stdin or CLI overrides without exposing bytes: %j', (...argv) => {
+  const result = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/verify-recovery-status.mjs', import.meta.url)), ...argv],
+    { input: 'private-token-sentinel', encoding: 'utf8', timeout: 10000 });
+  expect(result.status).toBe(1);
+  expect(result.stdout).toBe('');
+  expect(result.stderr).toBe('RECOVERY_STATUS_INVALID\n');
+});
+it('rejects oversized, empty, text-mode and failed stdin with redacted errors', async () => {
+  for (const input of [Readable.from([Buffer.alloc(16385, 65)]), Readable.from([]), Readable.from(['private-token-sentinel'])]) {
+    await expect(verifyInput(input, 7)).rejects.toThrowError(/^RECOVERY_STATUS_INVALID$/);
+    expect(input.destroyed).toBe(true);
+  }
+  const broken = new PassThrough();
+  const result = verifyInput(broken, 7);
+  broken.destroy(new Error('private-token-sentinel'));
+  await expect(result).rejects.toThrowError(/^RECOVERY_STATUS_INVALID$/);
+});
+it('rejects stdin that never reaches EOF within five seconds', async () => {
+  vi.useFakeTimers();
+  const input = new PassThrough();
+  try {
+    const result = verifyInput(input, 7);
+    const rejected = expect(result).rejects.toThrowError(/^RECOVERY_STATUS_INVALID$/);
+    input.write(Buffer.from('private-token-sentinel'));
+    await vi.advanceTimersByTimeAsync(5000);
+    await rejected;
+    expect(input.destroyed).toBe(true);
+  } finally { vi.useRealTimers(); input.destroy(); }
+});
+it('terminates a real CLI process whose stdin producer never closes', async () => {
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../scripts/verify-recovery-status.mjs', import.meta.url)), '--epoch', '7'],
+    { stdio: ['pipe', 'pipe', 'pipe'] });
+  let stdout = ''; let stderr = '';
+  child.stdout.on('data', chunk => { stdout += chunk.toString(); });
+  child.stderr.on('data', chunk => { stderr += chunk.toString(); });
+  child.stdin.on('error', () => {});
+  const emergency = setTimeout(() => child.kill(), 8000);
+  try {
+    child.stdin.write('private-token-sentinel');
+    const status = await new Promise<number | null>((resolve, reject) => {
+      child.once('error', reject); child.once('close', resolve);
+    });
+    expect(status).toBe(1);
+    expect(stdout).toBe('');
+    expect(stderr).toBe('RECOVERY_STATUS_INVALID\n');
+  } finally { clearTimeout(emergency); child.kill(); }
+}, 10000);

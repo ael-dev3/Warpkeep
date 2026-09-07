@@ -1,6 +1,7 @@
 import { createHash, createPublicKey, verify } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { Readable } from 'node:stream';
 import { RECOVERY_KEY_ID, RECOVERY_PUBLIC_JWK, RECOVERY_KEY_THUMBPRINT } from './recovery-public-key.mjs';
 
 const ORDER = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n;
@@ -57,7 +58,46 @@ export function verifyRecoveryStatus(...args) {
   } catch { fail(); }
 }
 
-// Descriptor-based CLI integration remains pending; direct invocation must not report success.
+export async function verifyRecoveryStatusFromStdin(...args) {
+  const [input, expectedEpoch] = args;
+  let timer;
+  const bytes = Buffer.alloc(16384);
+  let length = 0;
+  try {
+    if (args.length !== 2 || !(input instanceof Readable) || input.isTTY
+      || input.destroyed || input.readableDidRead || input.readableEncoding
+      || !integer(expectedEpoch) || expectedEpoch === 0) fail();
+    timer = setTimeout(() => input.destroy(new Error('RECOVERY_STATUS_INVALID')), 5000);
+    for await (const chunk of input) {
+      try {
+        if (!Buffer.isBuffer(chunk) || chunk.length > bytes.length - length) fail();
+        chunk.copy(bytes, length);
+        length += chunk.length;
+      } finally { if (Buffer.isBuffer(chunk)) chunk.fill(0); }
+    }
+    const compact = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, length));
+    return verifyRecoveryStatus(compact, expectedEpoch, Math.floor(Date.now() / 1000));
+  } catch { fail(); }
+  finally {
+    clearTimeout(timer);
+    bytes.fill(0);
+    if (input instanceof Readable) input.destroy();
+  }
+}
+
 let direct = false;
 try { direct = Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url); } catch { /* imported */ }
-if (direct) { process.stderr.write('RECOVERY_STATUS_CLI_NOT_IMPLEMENTED\n'); process.exitCode = 1; }
+if (direct) {
+  try {
+    const argv = process.argv.slice(2);
+    if (argv.length !== 2 || argv[0] !== '--epoch' || !/^[1-9][0-9]*$/u.test(argv[1])) fail();
+    const epoch = Number(argv[1]);
+    if (!Number.isSafeInteger(epoch) || String(epoch) !== argv[1]) fail();
+    const result = await verifyRecoveryStatusFromStdin(process.stdin, epoch);
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+  } catch {
+    process.stdin.destroy();
+    process.stderr.write('RECOVERY_STATUS_INVALID\n');
+    process.exitCode = 1;
+  }
+}
