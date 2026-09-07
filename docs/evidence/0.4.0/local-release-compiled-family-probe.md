@@ -11,8 +11,9 @@ results or caller-supplied hashes:
 4. Journal-install G002/PTR bindings and bundle files into the private draft.
 5. Derive the fourteen policy/count/pin/manifest/workflow outputs against it.
 6. Capture a second matching workspace and journal-install the combined files.
-7. Check every installed byte digest, run the installed closure verifier, and
-   repeat closure derivation against the installed candidate.
+7. Check every installed byte digest and every bundle-recorded compiler input
+   against the installed source, run the installed closure verifier, and repeat
+   closure derivation against the installed candidate.
 8. Release locks and use native transaction recovery to roll both candidates back.
 
 G001 is validation-only. Nothing writes a production database or uses production
@@ -37,3 +38,9 @@ the independent Linux clone at commit
 `64e49bf7fcb831dcf02c00ce8d6f90bc264623e4`, with this probe copied in as an explicit
 test overlay. It reached `compiling-bindings-and-bundles`. No completed native
 result is asserted in this record; add the terminal result after observing it.
+
+The compiler-input comparison was added after that first process started and
+is therefore **not** part of that initial execution. It prevents a successful
+closure hash from concealing a bundle built from earlier source bytes. A later
+execution must report `checkedBundleInputs` to prove this additional check ran;
+do not retroactively attribute it to the already-running probe.

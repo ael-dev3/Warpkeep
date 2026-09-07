@@ -44,6 +44,21 @@ try {
       expectedSha256: sha(file.bytes), discardBody: true,
     }).body.fill(0);
   }
+  // The closure can faithfully hash a stale bundle. Separately require every
+  // compiler-recorded input to still match the installed prospective source.
+  // This manifest is the fixed native producer's own output, not caller input.
+  const bundleManifest = JSON.parse(Buffer.from(inputs.bundles.files.find(file =>
+    file.path === 'scripts/sealed-realms-production-bundle-manifest-v1.json').bytes).toString('utf8'));
+  let checkedBundleInputs = 0;
+  for (const bundle of bundleManifest.bundles) {
+    for (const member of bundle.graphManifest) {
+      readLocalBindingBoundedFile(join(candidate.candidateRoot, member.path), {
+        maximumBytes: 8 * 1024 * 1024, expectedUid: 1000,
+        expectedBytes: member.byteLength, expectedSha256: member.sha256, discardBody: true,
+      }).body.fill(0);
+      checkedBundleInputs += 1;
+    }
+  }
   const verifier = await import(pathToFileURL(join(candidate.candidateRoot,
     'scripts/auth-bridge-notification-prepared-deploy-closure.mjs')).href);
   const verified = verifier.verifyAuthBridgeNotificationPreparedDeployClosure({ repositoryRoot: candidate.candidateRoot });
@@ -62,7 +77,7 @@ try {
   process.stdout.write(`${JSON.stringify({ profile: 'warpkeep-local-compiled-family-probe-v1',
     sourceCommit: inputs.sourceCommit, sourceTree: inputs.sourceTree,
     artifactFiles: artifacts.length, closureFiles: closure.files.length,
-    installedFiles: files.length, closureMembers: closure.memberCount,
+    installedFiles: files.length, checkedBundleInputs, closureMembers: closure.memberCount,
     manifestSha256: closure.manifestSha256, closureConverged: true,
     bothCandidatesRolledBack: true, finalReleasePrepared: false })}\n`);
 } catch (error) {
