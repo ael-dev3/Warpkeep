@@ -76,6 +76,8 @@ or establish live gameplay acceptance. Follow [Contributing](CONTRIBUTING.md)
 and [the development workflow](docs/engineering/development-workflow.md) for
 setup, verification, and existing-worktree guidance.
 
+Stop the development server with `Ctrl+C` in its terminal.
+
 | I want to… | Start here |
 | --- | --- |
 | Understand the game and its future | [Product direction](docs/design/warpkeep-direction.md) and [roadmap](docs/design/roadmap.md) |

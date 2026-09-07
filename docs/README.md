@@ -70,6 +70,8 @@ running an operation. Historical procedures do not replace the 0.4 release path.
 
 - [Farcaster integration](farcaster-integration.md)
 - [Auth bridge](../services/auth-bridge/README.md)
+- [Recovery authorization service](../services/release-recovery/README.md)
+  — gateway, private signer, evidence, local checks and operating integration gaps
 - [SpacetimeDB module](../spacetimedb/README.md)
 - [Greater Realm production cutover](operations/greater-realm-production-cutover.md)
   — guarded commit-bound tooling and closed release-gate sequence

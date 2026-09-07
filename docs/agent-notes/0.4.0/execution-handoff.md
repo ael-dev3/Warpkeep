@@ -10,8 +10,10 @@ The owner requested the GitHub/profile/repository refresh before game shipping.
 The primary branch is `codex/prepared-keep-bindings-fix`. On the owner's current
 Windows machine its working directory is
 `C:/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree`.
-The GitHub remote is **`upstream`**. `origin` points to a local temporary baseline
-repository; its ahead/behind indicator is not GitHub synchronization evidence.
+The GitHub remote is **`upstream`**. The development branch now tracks
+`upstream/codex/prepared-keep-bindings-fix`. `origin` points to a local temporary
+baseline repository; comparisons with that remote are not GitHub synchronization
+evidence.
 
 Fetch and compare actual refs before editing. Preserve existing changes. The
 checkout contains widespread line-ending/stat noise, a small meaningful diff,
