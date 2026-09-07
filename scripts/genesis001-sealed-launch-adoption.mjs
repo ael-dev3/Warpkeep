@@ -785,6 +785,10 @@ function deriveGenesis001SealedLaunchEvidenceWithAuthority(
   ], true);
   if (!COMMIT.test(evidence.preparationSourceCommit ?? '')) fail();
   const freeze = exactFreezeEvidence(evidence.freezePublishReceipt, authority);
+  return deriveGenesis001NonHistoricalEvidence(evidence, verificationTime, freeze.receiptSha256);
+}
+
+function deriveGenesis001NonHistoricalEvidence(evidence, verificationTime, freezeReceiptDigest) {
   const policyObservationBootstrap = exactPolicyObservationBootstrapReceipt(
     evidence.policyObservationBootstrapReceipt,
     evidence.preparationSourceCommit,
@@ -843,7 +847,7 @@ function deriveGenesis001SealedLaunchEvidenceWithAuthority(
     g001SourceBaselineCommit: GENESIS_001_SOURCE_BASELINE_COMMIT,
     g001BaselineAbiSha256: GENESIS_001_BASELINE_ABI_SHA256,
     g001FreezeReleaseNonce: GENESIS_001_FREEZE_RELEASE_NONCE,
-    g001FreezePublishReceiptDigest: freeze.receiptSha256,
+    g001FreezePublishReceiptDigest: freezeReceiptDigest,
     g001PolicyReceiptDigest: observation.policyReceiptDigest,
     g001PolicyObservationBootstrapReceiptDigest:
       genesis001PolicyObservationBootstrapReceiptDigest(
@@ -872,6 +876,20 @@ export function deriveGenesis001SealedLaunchEvidence(value) {
     GENESIS_001_FREEZE_ADOPTION_AUTHORITY,
     new Date(),
   );
+}
+
+/** Validates current G001 evidence only; this projection is not recovery authorization. */
+export function deriveGenesis001RecoveryLaunchEvidence(value) {
+  const evidence = plainRecord(value, [
+    'preparationSourceCommit',
+    'policyObservationBootstrapReceipt',
+    'censusPrivacySafePrivateReceipt',
+    'admissionMonitorSuspensionReceipt',
+    'admissionMonitorCurrentStateReceipt',
+    'admittedPlayerCensusPrivateReceipt',
+  ], true);
+  if (!COMMIT.test(evidence.preparationSourceCommit ?? '')) fail();
+  return deriveGenesis001NonHistoricalEvidence(evidence, new Date(), null);
 }
 
 export function deriveGenesis001SealedLaunchEvidenceForTesting(

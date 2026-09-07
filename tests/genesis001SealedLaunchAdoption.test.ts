@@ -2,9 +2,10 @@
 
 import { createHash } from 'node:crypto';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
+  deriveGenesis001RecoveryLaunchEvidence,
   deriveGenesis001SealedLaunchEvidence,
   deriveGenesis001SealedLaunchEvidenceForTesting,
   genesis001AdmissionMonitorCurrentStateReceiptDigest,
@@ -413,6 +414,56 @@ function evidence() {
 }
 
 describe('Genesis 001 sealed-launch adoption', () => {
+  it('derives identical non-historical checks for recovery without a historical receipt', () => {
+    const { privateEvidence, authority } = evidence();
+    const { freezePublishReceipt: _historical, ...recovery } = privateEvidence;
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-28T12:02:00.000Z'));
+    try {
+      const historical = deriveGenesis001SealedLaunchEvidenceForTesting(
+        privateEvidence, authority, new Date(),
+      );
+      expect(deriveGenesis001RecoveryLaunchEvidence(recovery)).toEqual({
+        ...historical, g001FreezePublishReceiptDigest: null,
+      });
+      for (const key of Object.keys(recovery)) {
+        const missing = { ...recovery } as Record<string, unknown>;
+        delete missing[key];
+        expect(() => deriveGenesis001RecoveryLaunchEvidence(missing)).toThrow();
+      }
+      let historicalReads = 0;
+      Object.defineProperty(recovery, 'freezePublishReceipt', {
+        enumerable: true,
+        get: () => { historicalReads += 1; throw new Error('historical body must not be read'); },
+      });
+      expect(() => deriveGenesis001RecoveryLaunchEvidence(recovery)).toThrow();
+      expect(historicalReads).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('retains recovery current-state freshness, source and disabled-monitor checks', () => {
+    const { privateEvidence } = evidence();
+    const { freezePublishReceipt: _historical, ...recovery } = privateEvidence;
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-28T12:02:00.000Z'));
+    try {
+      for (const mutation of [
+        { disabled: false }, { loaded: true }, { sourceCommit: 'f'.repeat(40) },
+        { observedAt: '2026-08-28T11:00:00.000Z' },
+        { observedAt: '2026-08-28T12:03:00.000Z' },
+      ]) {
+        expect(() => deriveGenesis001RecoveryLaunchEvidence({
+          ...recovery,
+          admissionMonitorCurrentStateReceipt: {
+            ...recovery.admissionMonitorCurrentStateReceipt, ...mutation,
+          },
+        })).toThrow();
+      }
+      vi.setSystemTime(new Date('2026-08-29T12:02:00.000Z'));
+      expect(() => deriveGenesis001RecoveryLaunchEvidence(recovery)).toThrow();
+    } finally { vi.useRealTimers(); }
+  });
+
   it('derives the public G001 projection from one historical freeze and fresh S-bound evidence', () => {
     const { privateEvidence, authority } = evidence();
     const result = deriveGenesis001SealedLaunchEvidenceForTesting(

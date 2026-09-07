@@ -59,6 +59,12 @@ export function deriveGenesis001SealedLaunchEvidence(
   value: unknown,
 ): Genesis001SealedLaunchPublicEvidence;
 
+export function deriveGenesis001RecoveryLaunchEvidence(
+  value: unknown,
+): Readonly<Omit<Genesis001SealedLaunchPublicEvidence, 'g001FreezePublishReceiptDigest'> & {
+  g001FreezePublishReceiptDigest: null;
+}>;
+
 export function deriveGenesis001SealedLaunchEvidenceForTesting(
   value: unknown,
   authority: Readonly<{
