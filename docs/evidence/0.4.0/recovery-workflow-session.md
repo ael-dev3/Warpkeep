@@ -249,3 +249,25 @@ passed after an explicit never-return in the redacted error handler. This is
 not yet a built native Actions entrypoint or a production artifact test. The
 protected workflow, executable packaging, fixed private storage provisioning and
 live signer prerequisites remain unfinished.
+
+## 2026-09-07: standalone artifact module packaging
+
+`scripts/build-recovery-workflow-artifact-module.mjs` now builds the TypeScript
+artifact reader and its archive/transport dependencies into an in-memory Node
+22 ESM module. It requires the sole expected export and a fixed external import
+set, and caps output at 2 MiB. Root MJS helpers deliberately remain external
+at their existing relative locations: bundling their direct-CLI detection would
+change `import.meta.url` semantics. Output therefore belongs beside the original
+service script and is not a relocatable single-file application.
+
+The existing fflate Node entry imports the `module` builtin for its worker shim;
+the inspected external-import list records that dependency explicitly. No
+dependency was installed or upgraded. Two builds produced identical bytes and
+hashes. A separate Windows Node 22.22.3 process successfully imported the module
+from a disposable mirrored layout and rejected caller override input without
+network access. Both tests and targeted strict TypeScript passed.
+
+This is an unprivileged packaging diagnostic, not an attested production compiler
+or final installed artifact. The temporary module/layout was removed. Linux
+execution, actual archive ingestion through the compiled module, final source
+closure inclusion, and the protected Actions entrypoint remain unverified.
