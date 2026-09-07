@@ -454,6 +454,68 @@ describe('sealed-realms production recovery policy', () => {
     } finally { fixture.cleanup(); }
   });
 
+  it('keeps preparation capture unchanged during an activated current-state inspection', async () => {
+    const fixture = privateFixture();
+    const activation = '2'.repeat(40);
+    const relativePath = 'activation-evidence/records/g001-admission-monitor-current-state-receipt.json';
+    const readGit = (args: readonly string[]) => {
+      if (args.join('|') === 'rev-list|--parents|-n|1|HEAD') return `${activation} ${S}\n`;
+      if (args[0] === 'diff-tree') return [
+        'config/releases/0.4.0-sealed-launch.json', 'package-lock.json', 'package.json',
+      ].map(path => `:100644 100644 ${'a'.repeat(40)} ${'b'.repeat(40)} M\0${path}\0`).join('');
+      if (args[0] === 'rev-parse' && args[1] === '--verify') {
+        if (args[2] === `${S}^{commit}`) return `${S}\n`;
+        if (['HEAD^{commit}', 'refs/remotes/origin/main^{commit}'].includes(args[2]!)) {
+          return `${activation}\n`;
+        }
+      }
+      throw new Error('unexpected activated fixture Git query');
+    };
+    const readBinding = (commit: string) => ({
+      schemaVersion: 1,
+      profile: 'warpkeep-0.4.0-sealed-launch-v1',
+      pagesDeploymentApproved: commit === activation,
+      preparationSourceCommit: S,
+    });
+    const verifyEvidence = (commit: string) => ({ verifiedSha: commit });
+    try {
+      // Produce the original record through the real preparation lane first.
+      const preparationRun = await protectedRun('g001-current-state', '9681');
+      await dispatchG001(
+        g001Lane(fixture.state(), vi.fn(), vi.fn(), () => currentStateReceipt()),
+        preparationRun, fixture.state(),
+      );
+      const before = fixture.state().read({ root: 'runtime', relativePath });
+      try {
+        const sourceAuthority = authenticateSealedRealmsProductionSourceAuthority({
+          operation: 'g001-current-state', workflowInputSha: activation,
+          readGit, readBinding, verifyEvidence,
+        });
+        expect(sourceAuthority.mode).toBe('A');
+        const permit = await issueSealedRealmsProductionWorkflowPermit({
+          sourceAuthority, githubToken: 'github-sealed-realms-owner-token',
+          runId: '9682', runAttempt: '1', fetchImpl: github(activation, '9682'),
+        });
+        const context = createSealedRealmsProductionG001DispatchContext({
+          readGit, readBinding, verifyEvidence, sourceAuthority, permit,
+          continuationStore: createSealedRealmsProductionContinuationStore({ privateState: fixture.state() }),
+          runId: '9682', runAttempt: '1',
+        });
+        const operator = vi.fn(() => currentStateReceipt({ sourceCommit: activation }));
+        const dispatcher = createSealedRealmsProductionG001Dispatcher({
+          context, lane: g001Lane(fixture.state(), vi.fn(), vi.fn(), operator),
+        });
+        await expect(dispatcher.dispatch({
+          operation: 'g001-current-state', workflowInputSha: activation,
+        })).resolves.toEqual({ operation: 'g001-current-state', status: 'current-state-inspected' });
+        expect(operator).toHaveBeenCalledTimes(1);
+        const after = fixture.state().read({ root: 'runtime', relativePath });
+        try { expect(after.equals(before)).toBe(true); } finally { after.fill(0); }
+        expect(fixture.state().list({ root: 'runtime', relativeDirectory: 'g001/current-state' })).toHaveLength(2);
+      } finally { before.fill(0); }
+    } finally { fixture.cleanup(); }
+  });
+
   it.each([
     ['stale', { observedAt: '2026-08-31T00:00:00.000Z' }],
     ['swapped', { sourceCommit: 'f'.repeat(40) }],
