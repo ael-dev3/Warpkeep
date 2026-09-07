@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import { useEffect, useState } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
@@ -11,7 +12,9 @@ import { connectPtrRealm, createPtrGameplay04Capability, closePtrRealmConnection
 import { GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE as fixture } from '../src/dev/greaterRealmSyntheticTierOneFixture';
 import type { GreaterRealmClientSnapshot } from '../src/greater-realm/greaterRealmClientRuntime';
 import type { AvailableGreaterRealmProviderBridge } from '../src/spacetime/greaterRealmProviderBridge';
-import { freshWire04 } from './fixtures/gameplay04Client';
+import { ATLAS04, constructingWire04, freshWire04, MILL_PLACEMENT04, scriptedCapability04, wireWithBuilding04 } from './fixtures/gameplay04Client';
+import { useGameplay04Controller } from '../src/ptr/gameplay04/useGameplay04Controller';
+import { Keep04Screen, type Keep04UiSelection } from '../src/components/keep04/Keep04Screen';
 
 // Only the external request and GPU/browser boundary are doubled. Real host and scene own their lifetimes.
 vi.mock('three', async original => ({ ...await original<typeof import('three')>(), WebGLRenderer: vi.fn() }));
@@ -21,7 +24,11 @@ vi.mock('../src/components/realm/createGreaterRealmWorldCanvasHost', () => ({ cr
   return { applySnapshot() {}, updatePolicy() {}, dispose() { active--; } };
 } }));
 const bundle = (): InnerKeepRuntimeAssetBundle => ({ staticPrefabs: new Map(), populationPrefabs: new Map(), failures: [], dispose: vi.fn() });
-function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
+function deferred<T>() {
+  let resolve!: (value: T) => void; let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
+}
 let queued: Map<number, FrameRequestCallback>; let sequence: number; let active: number; let maximum: number;
 let renderers: RendererBoundary[]; let hidden: boolean; let observers: number;
 class RendererBoundary {
@@ -53,7 +60,112 @@ beforeEach(() => {
   vi.mocked(THREE.WebGLRenderer).mockImplementation(function () { return new RendererBoundary() as unknown as THREE.WebGLRenderer; });
   vi.spyOn(loader, 'loadKeep04Assets').mockImplementation(async () => bundle());
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+// Real hook, controller, screen, scene host and scene; only SDK replies/assets/GPU
+// are fixtures. Holding a poll prevents React batching from hiding its lifecycle.
+function refreshHarness(wire = freshWire04()) {
+  const scripted = scriptedCapability04();
+  scripted.read.mockImplementation(async () => wire);
+  let current!: ReturnType<typeof useGameplay04Controller>;
+  function Harness() {
+    const state = useGameplay04Controller(scripted.capability); current = state;
+    const [selection, onSelectionChange] = useState<Keep04UiSelection>({ panel: 'buildings', selectedKind: 'city-mill', draft: MILL_PLACEMENT04 });
+    useEffect(() => state.controller.setAtlas(ATLAS04), [state.controller]);
+    return <Keep04Screen {...state} selection={selection} onSelectionChange={onSelectionChange}
+      onBack={vi.fn()} quality="balanced" reducedMotion={false} onFindResources={vi.fn()} onReturnToWorld={vi.fn()} />;
+  }
+  return { ...scripted, mounted: render(<Harness />), current: () => current };
+}
+
+it.each(['poll', 'focus'] as const)('retains the real keep scene and focus through a held healthy %s refresh while commands stay disabled', async trigger => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  const wire = freshWire04(); Object.assign(wire, { food: 1000n, wood: 1000n, stone: 1000n, gold: 1000n });
+  const h = refreshHarness(wire); await act(async () => {}); tick();
+  const canvas = h.mounted.container.querySelector('canvas')!;
+  const originalScene = renderers[0].scenes[0];
+  const control = screen.getByRole('application', { name: 'Keep placement schematic' }); control.focus();
+  const confirm = screen.getByRole('button', { name: 'Confirm placement' }); expect(confirm).toBeEnabled();
+  const response = deferred<ReturnType<typeof freshWire04>>(); h.read.mockReturnValueOnce(response.promise);
+  if (trigger === 'poll') await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+  else act(() => { window.dispatchEvent(new Event('focus')); });
+  expect(h.read).toHaveBeenCalledTimes(2);
+  expect(h.mounted.container.querySelector('canvas')).toBe(canvas);
+  expect(control).toHaveFocus(); expect(confirm).toBeDisabled();
+  expect(screen.getByText('Refreshing keep from the Realm… Commands are temporarily unavailable.')).toBeVisible();
+  await act(async () => { await h.current().controller.submit({ kind: 'recall', workerOrdinal: 0, atlasRevision: ATLAS04.revision }); });
+  fireEvent.click(confirm); expect(h.mutate).not.toHaveBeenCalled();
+  expect(loader.loadKeep04Assets).toHaveBeenCalledTimes(1); expect(renderers).toHaveLength(1);
+  await act(async () => { response.resolve(wire); }); tick(5000);
+  expect(h.mounted.container.querySelector('canvas')).toBe(canvas); expect(control).toHaveFocus(); expect(confirm).toBeEnabled();
+  expect(renderers[0].scenes.at(-1)).toBe(originalScene); expect(loader.loadKeep04Assets).toHaveBeenCalledTimes(1);
+  h.mounted.unmount(); expect(active).toBe(0); expect(queued.size).toBe(0); expect(observers).toBe(0);
+});
+
+it.each(['failed', 'malformed', 'expired'] as const)('retires the retained presentation when an in-flight refresh is %s', async outcome => {
+  const h = refreshHarness(); await act(async () => {}); tick();
+  const control = screen.getByRole('application', { name: 'Keep placement schematic' }); control.focus();
+  const response = deferred<ReturnType<typeof freshWire04>>(); h.read.mockReturnValueOnce(response.promise);
+  act(() => { window.dispatchEvent(new Event('focus')); });
+  expect(h.mounted.container.querySelector('canvas')).not.toBeNull();
+  await act(async () => {
+    if (outcome === 'failed') response.reject(new Error('network unavailable'));
+    else {
+      if (outcome === 'expired') h.expire();
+      response.resolve(outcome === 'malformed' ? { ...freshWire04(), food: -1n } : freshWire04());
+    }
+  });
+  expect(h.current().snapshot.phase).toBe(outcome === 'expired' ? 'disposed' : 'failed');
+  expect(h.mounted.container.querySelector('canvas')).toBeNull(); expect(active).toBe(0);
+  expect(screen.getByRole('button', { name: 'Back' })).toHaveFocus();
+  expect(screen.queryByRole('button', { name: 'Confirm placement' })).not.toBeInTheDocument();
+  await act(async () => { await h.current().controller.submit({ kind: 'recall', workerOrdinal: 0, atlasRevision: ATLAS04.revision }); });
+  expect(h.mutate).not.toHaveBeenCalled();
+  if (outcome === 'expired') expect(h.current().snapshot.view).toBeNull();
+  else {
+    // A failed refresh cannot use its stale view to claim healthy refresh state.
+    const retry = deferred<ReturnType<typeof freshWire04>>(); h.read.mockReturnValueOnce(retry.promise);
+    act(() => { window.dispatchEvent(new Event('focus')); });
+    expect(h.current().snapshot.phase).toBe('loading'); expect(h.mounted.container.querySelector('canvas')).toBeNull();
+    await act(async () => { retry.resolve(freshWire04()); });
+    expect(h.current().snapshot.phase).toBe('ready'); expect(h.mounted.container.querySelector('canvas')).not.toBeNull();
+  }
+});
+
+it('keeps pending and uncertain mutation outcomes blocked instead of presenting them as healthy refreshes', async () => {
+  const h = refreshHarness(); await act(async () => {}); tick();
+  const mutation = deferred<{ sequence: bigint; revision: bigint }>(); h.mutate.mockReturnValueOnce(mutation.promise);
+  let work!: Promise<void>;
+  act(() => { work = h.current().controller.submit({ kind: 'recall', workerOrdinal: 0, atlasRevision: ATLAS04.revision }); });
+  expect(h.current().snapshot.phase).toBe('pending'); expect(h.mounted.container.querySelector('canvas')).toBeNull();
+  await act(async () => { mutation.reject(new Error('unknown outcome')); await work; });
+  const captured = h.mutate.mock.calls[0][0];
+  const response = deferred<ReturnType<typeof freshWire04>>(); h.read.mockReturnValueOnce(response.promise);
+  act(() => { window.dispatchEvent(new Event('focus')); });
+  expect(h.current().snapshot.phase).toBe('uncertain'); expect(h.mounted.container.querySelector('canvas')).toBeNull();
+  await act(async () => { response.resolve({ ...freshWire04(), revision: 2n, lastAcceptedSequence: 2n }); });
+  expect(h.current().snapshot.phase).toBe('uncertain'); expect(h.mutate).toHaveBeenCalledTimes(1);
+  h.read.mockResolvedValueOnce({ ...freshWire04(), revision: 2n, lastAcceptedSequence: 2n });
+  await act(async () => { await h.current().controller.retryPending(); });
+  expect(h.mutate.mock.calls[1][0]).toBe(captured); expect(h.current().snapshot.phase).toBe('ready');
+});
+
+it('reconciles an authoritative construction completion and its reveal in the same scene after polling', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  const h = refreshHarness(constructingWire04()); await act(async () => {}); tick();
+  const canvas = h.mounted.container.querySelector('canvas'); const originalScene = renderers[0].scenes[0];
+  expect(originalScene.getObjectByName('project:city-mill')).toBeDefined();
+  const response = deferred<ReturnType<typeof freshWire04>>(); h.read.mockReturnValueOnce(response.promise);
+  await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+  expect(h.mounted.container.querySelector('canvas')).toBe(canvas);
+  const complete = wireWithBuilding04(); complete.revision = 2n;
+  await act(async () => { response.resolve(complete); }); tick(5000);
+  expect(renderers).toHaveLength(1); expect(renderers[0].scenes.at(-1)).toBe(originalScene);
+  expect(originalScene.getObjectByName('project:city-mill')).toBeUndefined();
+  const mill = originalScene.getObjectByName('building:city-mill')!;
+  expect(mill.scale.x).toBeCloseTo(.94); tick(5500); expect(mill.scale.x).toBe(1);
+  expect(loader.loadKeep04Assets).toHaveBeenCalledTimes(1); expect(h.mutate).not.toHaveBeenCalled();
+});
 
 it('inspects explicitly, retains zoom through resize and draft edits, and resets without loading another scene', async () => {
   const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(796);

@@ -6,7 +6,7 @@ import { Gameplay04ClientError } from './ptrGameplay04Errors';
 import type { Atlas04, Intent04, Mutation04, ResultWire04 } from './ptrGameplay04Types';
 
 export type Snapshot04 = Readonly<{
-  phase: 'loading' | 'uninitialized' | 'ready' | 'pending' | 'uncertain' | 'failed' | 'disposed';
+  phase: 'loading' | 'uninitialized' | 'ready' | 'refreshing' | 'pending' | 'uncertain' | 'failed' | 'disposed';
   view: View04 | null;
   problem: 'none' | 'reconfirm' | 'capacity' | 'target' | 'authority' | 'unknown' | 'invalid-state';
 }>;
@@ -120,7 +120,11 @@ export function createGameplay04Controller(options: Readonly<{
     if (busy) return busy === 'read' ? reading ?? Promise.resolve() : Promise.resolve();
     const capturedLife = life;
     busy = 'read';
-    publish(pending && !confirmed ? 'uncertain' : 'loading');
+    // A healthy read keeps its last verified presentation mounted. It is still
+    // non-interactive for commands: busy and phase both reject new submissions.
+    // Failed/ambiguous reads never regain this state until authority is reread.
+    publish(pending && !confirmed ? 'uncertain'
+      : snapshot.phase === 'ready' && snapshot.view !== null ? 'refreshing' : 'loading');
     reading = readAuthoritative(capturedLife).finally(() => {
       if (capturedLife === life) { busy = null; reading = null; }
     });

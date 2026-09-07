@@ -37,9 +37,12 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   const schematic = useRef<HTMLDetailsElement>(null);
   const reviewHeading = useRef<HTMLHeadingElement>(null);
   const selectionNavigation = useRef<Building04 | null>(null);
-  const wasReady = useRef(phase === 'ready');
   const ready = phase === 'ready' && view !== null;
-  const activeTimer = ready && (view.state.project !== undefined || view.workers.some(worker => worker.phase !== 'idle'));
+  // A refresh preserves the last verified scene and local focus, not command
+  // authority. Failures, pending mutations and expired scopes stay unavailable.
+  const visible = (phase === 'ready' || phase === 'refreshing') && view !== null;
+  const wasVisible = useRef(visible);
+  const activeTimer = visible && (view.state.project !== undefined || view.workers.some(worker => worker.phase !== 'idle'));
   useEffect(() => {
     if (!activeTimer) return;
     setNowMs(Date.now()); const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -47,7 +50,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   }, [activeTimer]);
   useLayoutEffect(() => {
     const header = decisionHeader.current; const element = root.current;
-    if (!ready || !header || !element) return;
+    if (!visible || !header || !element) return;
     // Includes wrapping, font changes and safe-area padding, not a guessed
     // mobile height. Resizing updates offsets without moving the user's scroll.
     const measure = () => element.style.setProperty('--keep04-decision-height', `${header.getBoundingClientRect().height}px`);
@@ -58,15 +61,15 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
       observer?.disconnect(); window.removeEventListener('resize', measure);
       element.style.removeProperty('--keep04-decision-height');
     };
-  }, [ready]);
+  }, [visible]);
   useEffect(() => {
     // Pending focus may have scrolled to Back. Align again when ready restores
     // panel focus; ordinary ready-to-ready polls, resizes and draft edits do
     // not rerun this effect or disturb the user's scroll.
-    if (ready && selection.panel && selectionNavigation.current === null) focusPanel();
-  }, [selection.panel, ready]);
+    if (visible && selection.panel && selectionNavigation.current === null) focusPanel();
+  }, [selection.panel, visible]);
   useEffect(() => {
-    if (!ready || selection.panel !== 'buildings') { selectionNavigation.current = null; return; }
+    if (!visible || selection.panel !== 'buildings') { selectionNavigation.current = null; return; }
     if (selectionNavigation.current !== null && selectionNavigation.current === selection.selectedKind) {
       selectionNavigation.current = null; focusReview();
     }
@@ -76,9 +79,9 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
     if (sceneMode !== 'webgl' && schematic.current) schematic.current.open = true;
   }, [sceneMode]);
   useEffect(() => {
-    if (wasReady.current && !ready && (!document.activeElement || document.activeElement === document.body || root.current?.contains(document.activeElement))) backButton.current?.focus();
-    wasReady.current = ready;
-  }, [ready]);
+    if (wasVisible.current && !visible && (!document.activeElement || document.activeElement === document.body || root.current?.contains(document.activeElement))) backButton.current?.focus();
+    wasVisible.current = visible;
+  }, [visible]);
   function focusPanel() {
     const compact = decisionHeader.current !== null && getComputedStyle(decisionHeader.current).position === 'sticky';
     if (compact) {
@@ -125,13 +128,14 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
       <div><p className="keep04-eyebrow">VERDANT CITADEL</p><h1>Your keep</h1></div>
     </header>
     <p className="keep04-reentry">A previous action may have completed while you were away. Keep state is refreshed from the Realm.</p>
-    {!ready && <section className="keep04-state" aria-label="Keep status">
+    {!visible && <section className="keep04-state" aria-label="Keep status">
       <p role="status">{phase === 'uninitialized' ? 'Your keep is ready to initialize.' : phase === 'uncertain' ? 'Outcome unknown. Check the Realm or retry the same request.' : phase === 'failed' ? 'The keep could not be refreshed.' : phase === 'disposed' ? 'Keep authority is no longer available.' : phase === 'pending' ? 'Request pending. Awaiting Realm update.' : 'Loading keep from the Realm…'}</p>
       {phase === 'uninitialized' && <button type="button" onClick={() => { void controller.submit({ kind: 'initialize' }); }}>Initialize keep</button>}
       {phase === 'uncertain' && <><button type="button" onClick={() => { void controller.refresh(); }}>Check outcome</button><button type="button" onClick={() => { void controller.retryPending(); }}>Retry same request</button></>}
       {phase === 'failed' && <button type="button" onClick={() => { void controller.refresh(); }}>Refresh keep</button>}
     </section>}
-    {view !== null && <div hidden={!ready}>
+    {phase === 'refreshing' && visible && <p role="status">Refreshing keep from the Realm… Commands are temporarily unavailable.</p>}
+    {view !== null && <div hidden={!visible}>
       <div ref={decisionHeader} className="keep04-decision-header">
         <section className="keep04-resources" aria-label="Resources">
           {RESOURCES04.map(resource => <div key={resource}><span>{resource[0].toUpperCase() + resource.slice(1)}</span><strong>{view.balances[resource].toString()}</strong><small>Pending {view.pending[resource].toString()}</small></div>)}
@@ -146,7 +150,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
       {problem === 'target' && <p role="status">That resource location changed. Choose a current Realm location.</p>}
       <div className="keep04-workspace" data-panel-open={selection.panel !== null}>
         <div className="keep04-scene-region">
-          {ready && <Keep04SceneHost quality={quality} reducedMotion={reducedMotion} onMode={setSceneMode}
+          {visible && <Keep04SceneHost quality={quality} reducedMotion={reducedMotion} onMode={setSceneMode}
             onObservation={onSceneObservation} {...(import.meta.env.DEV ? { qaFault } : {})}
             visual={{ buildings: view.buildings, selectedKind: selection.selectedKind, draft: selection.panel === 'buildings' ? selection.draft : null,
               draftValid: selection.draft !== null && evaluatePlacement04(selection.draft, view.buildings.filter(building => building.kind !== selection.draft!.kind).map(building => building.placement)).valid }}
