@@ -55,24 +55,79 @@ See [`LICENSING.md`](LICENSING.md),
 [`ASSETS-LICENSE.md`](ASSETS-LICENSE.md), and
 [`TRADEMARKS.md`](TRADEMARKS.md) for the full policy and provenance boundary.
 
-## Development checks
+## Choose the source you intend to change
 
-From the repository root:
+`main` contains the Genesis 001 Alpha baseline and release preparation. Active
+0.4 gameplay, the owner PTR, the new keep and local release/recovery work are on
+[`codex/prepared-keep-bindings-fix`](https://github.com/ael-dev3/Warpkeep/tree/codex/prepared-keep-bindings-fix).
+Use the [ecosystem map](docs/engineering/ecosystem-map.md) to find the subsystem
+and read [AGENTS.md](AGENTS.md) when working with an agent.
+
+For a new 0.4 checkout:
+
+```sh
+git clone --branch codex/prepared-keep-bindings-fix https://github.com/ael-dev3/Warpkeep.git
+cd Warpkeep
+```
+
+For baseline work, clone without `--branch`. Inspect your branch, remote and
+existing changes before editing. Target the corresponding branch in a pull
+request; a source checkpoint does not mean the game has been deployed.
+
+## Local setup and verification
+
+The root package requires Node 22 (22.13 or newer within that major) and npm
+10.9.8. A fresh independent checkout can use:
 
 ```sh
 npm ci
+npm run dev
+```
+
+Open the address printed by Vite. Follow the checked-out version of the
+[auth bridge guide](services/auth-bridge/README.md) for local authentication;
+production identity and private realm data are not local fixtures. The
+[0.4 development workflow](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/engineering/development-workflow.md)
+describes its current synthetic and connected gameplay paths. Existing worktrees
+may share a `node_modules` link or junction; inspect that before installing and
+use an independent checkout when an install would affect another task.
+
+Run checks suited to the change, then the required complete checks on a stable
+candidate. The root aggregate is:
+
+```sh
 npm run check
 ```
 
-`npm run check` verifies licensing, runtime assets, repository size, tests,
-types, and the production build. When changing the auth bridge or SpacetimeDB
-module, also run the project-specific checks documented in their READMEs and in
-the CI workflow.
+`npm run check` verifies licensing, atlas public boundaries, runtime assets,
+repository size, root tests, project types and the production build.
+
+| Changed area | Verification owner |
+| --- | --- |
+| Browser, presentation and shared root tooling | Root `tests/**`, `npm run typecheck` and relevant build/asset checks |
+| SpacetimeDB authority | [Module guide](spacetimedb/README.md) and package `verify`; its tests use a separate Node/tsx runner |
+| Identity and sessions | [Auth bridge](services/auth-bridge/README.md) and package `check`, including workerd tests |
+| 0.4 gameplay, recovery and delivery | Development branch's [source map](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/repo-map.md) and package-specific scripts |
+| Documentation and issue forms | Local/branch link checks, `tests/communityIntake.test.ts`, `tests/licensePolicy.test.ts`, scoped diff review |
+
+Root `tsconfig.json` references separate projects; use build-mode
+`npm run typecheck` instead of treating root `tsc --noEmit` as a complete check.
+The [Verify workflow](.github/workflows/verify.yml) defines CI, including dependency
+and signature audits. Keep these checks intact and report inherited failures
+separately from results for the changed behavior.
 
 ## Pull requests
 
-Keep pull requests focused. Explain the user-facing or infrastructure purpose,
-identify generated files, include provenance for external material, and call
-out any security-sensitive behavior. Do not include raw authentication
-responses, live QR screenshots, tokens, private keys, or exported HAR/network
-files.
+Keep pull requests focused on a player or developer outcome. Explain the resulting
+behavior, affected realm and relevant checks, including failures or unverified
+work. For visual changes, review actual rendered states and say whether captures
+come from fixtures, emulation, a physical device or authenticated play.
+
+Identify generated files and their source, include provenance for external
+material, and explain security, compatibility or recovery implications when they
+apply. Update the canonical documentation for changed behavior instead of creating
+another competing plan. Preserve unrelated edits and stage exact reviewed paths.
+
+Do not include raw authentication responses, live QR screenshots, tokens, private
+keys or exported HAR/network files. A merged source change and successful tests
+do not by themselves establish production deployment or live acceptance.

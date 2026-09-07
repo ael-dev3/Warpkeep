@@ -1,11 +1,11 @@
 name: Bug report
-description: Report a reproducible Warpkeep product or documentation problem without private data.
+description: Help improve gameplay, visuals, reliability, or the contributor experience.
 title: "[Bug] "
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for helping improve Warpkeep. Report only public product behavior or synthetic/local reproduction details.
+        Tell us what interrupted the experience and what you expected. Note the realm and build so we can distinguish the running Alpha from 0.4 development. Use public behavior or a synthetic/local reproduction.
 
         **Do not include or attach tokens, proofs, QR payloads, wallet or account identifiers, private logs, personal data, or credentialed URLs.** For a security-sensitive problem, stop and follow [SECURITY.md](https://github.com/ael-dev3/Warpkeep/security/policy).
   - type: dropdown
@@ -16,6 +16,7 @@ body:
       options:
         - Live Alpha at warpkeep.com
         - Local development checkout
+        - Owner PTR (public or synthetic details only)
         - Documentation or repository workflow
         - Other public Warpkeep surface
     validations:
@@ -25,7 +26,7 @@ body:
     attributes:
       label: Version or public build
       description: Use the visible Alpha version, public release identifier, or commit SHA. Do not paste a credentialed URL.
-      placeholder: Alpha 0.3.x · BUILD abc1234
+      placeholder: Visible version and build, or the development commit
     validations:
       required: true
   - type: textarea
@@ -67,6 +68,14 @@ body:
         - Unknown
     validations:
       required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Device and entry route
+      description: Browser or Farcaster Mini App, device type, and graphics setting if relevant. Omit account identifiers and private details.
+      placeholder: Mobile browser · reduced graphics · after returning from the background
+    validations:
+      required: false
   - type: checkboxes
     id: privacy
     attributes:
