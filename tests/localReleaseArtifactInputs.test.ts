@@ -20,9 +20,9 @@ function bindingResult(): bindingRuntime.PreparedAllRealmLinuxBindings {
       },
     },
     genesis002: { bundleSha256: digest, dependencyClosureDigest: digest,
-      bindings: [{ path: 'index.ts', bytes: new Uint8Array([1]) }] },
+      bindings: [{ path: 'scripts/genesis002_module_bindings/index.ts', bytes: new Uint8Array([1]) }] },
     ptr: { bundleSha256: digest, dependencyClosureDigest: digest,
-      bindings: [{ path: 'index.ts', bytes: new Uint8Array([2]) }] },
+      bindings: [{ path: 'spacetimedb/ptr/generated-bindings/index.ts', bytes: new Uint8Array([2]) }] },
   };
 }
 

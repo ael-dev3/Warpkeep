@@ -22,7 +22,7 @@ function sourceIdentity(result) {
   return Object.freeze({ profile: PROFILE, sourceCommit: result.sourceCommit, sourceTree: result.sourceTree });
 }
 
-// Fixed producer coordination only: no candidate capture, filesystem writes,
+// Fixed producer coordination only: no candidate capture or repository writes,
 // deployment authority, or caller-provided evidence is supported here.
 export async function derivePreparedLinuxArtifactInputs(...arguments_) {
   if (arguments_.length !== 0) fail('LOCAL_RELEASE_ARTIFACT_ARGUMENTS_INVALID');
