@@ -842,3 +842,22 @@ The release-recovery GitHub evidence suite passed 241 tests on Windows Node
 22.22.3 (eight new negative cases). These are source/fixture tests, not evidence
 that an authenticated production job executed. Actual workflow integration,
 local production runner setup and live acceptance remain unfinished.
+
+### Recovery Pages build gate — 2026-09-07
+
+Workflow inspection found `--phase=pages-build` still rejected the distinct
+recovery lane. It now accepts either the historical lane or the already-validated
+`sealed-g002-recovery` lane, without changing the classifier's source/commit
+checks. The build environment helper parses a full schema-2 binding with
+`parseRecoveryBindingV2`; schema-1 retains its previous parser and activation
+validation. Both retain enabled PTR, exact immutable PTR database matching,
+G001/G002 separation, and forbidden alias/URI environment checks. This is static
+build validation only, not signed runtime deployment authority.
+
+Ten selected Windows tests passed: nine recovery build-environment cases and the
+historical PTR environment case; 152 unrelated cases were filtered out, not
+verified by that run. The first TypeScript run found broad fixture field types;
+explicit runtime string narrowing corrected them and the final root TypeScript
+check exited 0. The copied-verifier test now resolves the added real dependency
+from its repository path. Native CLI recovery-build execution and actual workflow
+integration still need verification; the legacy full suite remains nongreen.

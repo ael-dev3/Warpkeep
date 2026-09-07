@@ -11,6 +11,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { readRecoveryAttestationSource } from './recovery-attestation-source.mjs';
+import { parseRecoveryBindingV2 } from './recovery-activation-candidate.mjs';
 
 export const SEALED_LAUNCH_PROFILE = 'warpkeep-0.4.0-sealed-launch-v1';
 export const GENESIS_001_DATABASE_IDENTITY =
@@ -4493,8 +4494,14 @@ export function verifySealedLaunchPagesBuildEnvironment({
   bindingSource,
   environment,
 }) {
-  const binding = parseBinding(bindingSource);
-  verifyActivationBinding(binding);
+  let binding;
+  if (typeof bindingSource === 'string' && bindingSource.length <= 2 * 1024 * 1024
+      && JSON.parse(bindingSource)?.schemaVersion === 2) {
+    binding = parseRecoveryBindingV2(bindingSource);
+  } else {
+    binding = parseBinding(bindingSource);
+    verifyActivationBinding(binding);
+  }
   if (
     environment === null
     || typeof environment !== 'object'
@@ -5072,7 +5079,7 @@ function main(arguments_, environment) {
     candidatePagesSourceCommit: environment.WARPKEEP_PAGES_SOURCE_COMMIT,
   });
   if (phase === 'pages-build') {
-    if (result.mode !== 'sealed-g002') {
+    if (result.mode !== 'sealed-g002' && result.mode !== 'sealed-g002-recovery') {
       fail('SEALED_LAUNCH_PAGES_PTR_ENVIRONMENT_INVALID');
     }
     const ptr = verifySealedLaunchPagesBuildEnvironment({
