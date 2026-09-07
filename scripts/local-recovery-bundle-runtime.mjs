@@ -73,6 +73,8 @@ export async function derivePreparedLinuxRecoveryBundle(...args) {
           return {path, byteLength: body.length, sha256: hash(body)};
         } finally { body.fill(0); }
       });
+      source.verifyMaterialization(materialization);
+      packages.reattestFixedOperationBundlePackages({sourceRoot: materialization, ...namespace});
       cycles.push({...built, inputs});
     }
     const [first, second] = cycles;
