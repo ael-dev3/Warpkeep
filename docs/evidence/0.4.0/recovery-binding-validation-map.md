@@ -44,3 +44,40 @@ The service `githubEvidence.test.ts` helper `validBinding` initializes every fie
 The complete local fixture now addresses that data-shape gap. Never install it into `config/releases/0.4.0-sealed-launch.json` or use it as live evidence. The checked-in release binding remains schema 1 with deployment approval false.
 
 Remaining implementation: independently authenticated metadata/source integration, schema-1 compatibility verification and release-command integration, then the source-bound attestation command. Full Task 1 remains incomplete.
+
+## Recovery receipt adapter constraints (2026-09-07, source `76cc411`)
+
+Inspection of `sealed-realms-production-activation-records.mjs` establishes
+that the existing descriptor is not a recovery adapter:
+
+- `fullBindingCandidate` accepts only the exact schema-1 preparation binding.
+- `writeSealedRealmsProductionActivationDescriptor` requires the exact thirteen
+  historical basenames, including the unavailable G001 freeze record.
+- `validateReopenedCorpus` invokes the historical G001 derivation, which
+  authenticates that freeze record before deriving the other G001 evidence.
+- `validateMemberReceipt` and the PTR validators require module and atlas
+  coordinates to equal the preparation commit. Recovery instead requires each
+  coordinate to agree with its independently authenticated source evidence.
+
+Consequently, removing the historical basename from the list is insufficient.
+The recovery implementation must separately validate the twelve non-historical
+records, preserve their exact producer operation/body/semantic commitments,
+validate non-historical G001 census/policy/suspension/current-state relationships,
+and cross-check each realm's publish/import/live chain against the recovery
+candidate's independently verified module and atlas coordinates. The historical
+schema-1 descriptor and its acceptance behavior must remain separate.
+
+Required regression evidence: no historical-body read in recovery mode; missing
+or substituted non-historical records fail before descriptor consumption;
+correctly rehashed but mismatched source coordinates fail; independently
+authenticated differing source coordinates succeed; G001 non-historical and
+cross-realm invariants remain enforced; no raw receipt escapes the private
+descriptor boundary. Synthetic fixtures prove these component properties only,
+not production provenance. This refines existing R12, not release scope.
+
+Live access recheck: ordinary SpacetimeDB CLI list and G002 schema inspection
+succeeded, but the attempted private aggregate SQL inspection returned HTTP 403
+`INVALID_GENESIS_002_ADMIN_SESSION`. No alternate identity or authentication
+bypass was attempted. Existing G002 is a 23-table module; locally generated
+current G002 has 30 private tables. Existing-database update/reconciliation and
+authorized baseline inspection remain prerequisites, not a fresh-create retry.
