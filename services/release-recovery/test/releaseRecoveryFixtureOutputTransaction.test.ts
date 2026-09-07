@@ -457,7 +457,7 @@ describe('fixed fixture output transaction', () => {
     expect(readFileSync(join(repositoryRoot, paths[0]), 'utf8')).toBe('old-one\n')
     expect(readFileSync(join(repositoryRoot, paths[1]), 'utf8')).toBe('old-two\n')
     expect(existsSync(interruptedStage)).toBe(false)
-  })
+  }, TRANSACTION_TEST_TIMEOUT)
 
   it('opens and rolls back a transaction beneath ordinary repository directories', async () => {
     const repositoryRoot = temporaryRoot()

@@ -1316,7 +1316,9 @@ describe('fixed production WSL host boundary', () => {
       ...record,
       attestationSha256: sha256(bytes),
     })
-  })
+  // Includes vi.importActual transformation of the real host module on Windows;
+  // this is not a production operation or an attestation freshness deadline.
+  }, 30_000)
 
   it('tracks the corrected guest source and owned-child lifecycle boundaries', () => {
     const materializer = decoder.decode(fixedProgramCoordinates().materializer)
