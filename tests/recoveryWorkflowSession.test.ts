@@ -1,11 +1,11 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from 'vitest';
 import { recoveryAuthorizationFixture } from './fixtures/recoveryAuthorizationFixture';
-const mocks = vi.hoisted(() => ({ oidc: vi.fn(), request: vi.fn(), authorization: vi.fn(), claim: vi.fn(), status: vi.fn(), terminal: vi.fn() }));
+const mocks = vi.hoisted(() => ({ oidc: vi.fn(), request: vi.fn(), authorization: vi.fn(), claim: vi.fn(), correlation: vi.fn(), status: vi.fn(), terminal: vi.fn() }));
 vi.mock('../scripts/recovery-workflow-oidc.mjs', () => ({ requestFreshRecoveryOidc: mocks.oidc }));
 vi.mock('../scripts/recovery-authorization-client.mjs', () => ({ requestRecovery: mocks.request }));
 vi.mock('../scripts/verify-recovery-authorization-jws.mjs', () => ({ verifyRecoveryAuthorization: mocks.authorization }));
-vi.mock('../scripts/verify-recovery-claim-receipt.mjs', () => ({ verifyRecoveryClaimReceipt: mocks.claim }));
+vi.mock('../scripts/verify-recovery-claim-receipt.mjs', () => ({ verifyRecoveryClaimReceipt: mocks.claim, verifyRecoveryClaimCorrelation: mocks.correlation }));
 vi.mock('../scripts/verify-recovery-status.mjs', () => ({ verifyRecoveryStatus: mocks.status }));
 vi.mock('../scripts/verify-recovery-terminal.mjs', () => ({ verifyRecoveryTerminal: mocks.terminal }));
 import { beginRecoveryWorkflowSession } from '../scripts/recovery-workflow-session.mjs';
@@ -92,4 +92,11 @@ it('does not send a terminal request after disposal during fresh OIDC acquisitio
   const finishing = session.finish('complete'); session.dispose(); resolveOidc('late-token');
   await expect(finishing).rejects.toThrow('RECOVERY_WORKFLOW_SESSION_INVALID');
   expect(mocks.request.mock.calls.map(call => call[0])).toEqual(['issue', 'claim', 'status', 'status']);
+});
+it('does not send terminal requests when the signed correlation deadline has elapsed', async () => {
+  const session = await begin(); await session.checkDeploymentBoundary();
+  mocks.correlation.mockImplementation(() => { throw new Error('deadline elapsed'); });
+  await expect(session.finish('complete')).rejects.toThrow('RECOVERY_WORKFLOW_SESSION_INVALID');
+  expect(mocks.request.mock.calls.map(call => call[0])).toEqual(['issue', 'claim', 'status', 'status']);
+  await expect(session.checkDeploymentBoundary()).rejects.toThrow('RECOVERY_WORKFLOW_SESSION_INVALID');
 });

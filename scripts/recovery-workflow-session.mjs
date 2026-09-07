@@ -3,7 +3,7 @@ import { parseRecoveryBindingV2 } from './recovery-activation-candidate.mjs';
 import { requestFreshRecoveryOidc } from './recovery-workflow-oidc.mjs';
 import { requestRecovery } from './recovery-authorization-client.mjs';
 import { verifyRecoveryAuthorization } from './verify-recovery-authorization-jws.mjs';
-import { verifyRecoveryClaimReceipt } from './verify-recovery-claim-receipt.mjs';
+import { verifyRecoveryClaimReceipt, verifyRecoveryClaimCorrelation } from './verify-recovery-claim-receipt.mjs';
 import { verifyRecoveryStatus } from './verify-recovery-status.mjs';
 import { verifyRecoveryTerminal } from './verify-recovery-terminal.mjs';
 
@@ -43,6 +43,9 @@ export async function beginRecoveryWorkflowSession(...args) {
         const hash = createHash('sha256').update(oidcToken).digest('hex');
         if (tokenHashes.has(hash)) fail();
         tokenHashes.add(hash);
+        if (endpoint === 'complete' || endpoint === 'reconcile') {
+          verifyRecoveryClaimCorrelation(claimReceiptJws, claimExpectedSource, now());
+        }
         return await requestRecovery(endpoint, JSON.stringify({ ...locators, oidcToken, ...extra }));
       } finally { oidcToken = undefined; }
     }

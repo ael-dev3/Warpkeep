@@ -14,10 +14,9 @@ const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-
 const decimal = value => typeof value === 'string' && /^[1-9][0-9]*$/u.test(value);
 
 /** Strict deployment-time gate; no post-expiry mode. Expectations require independently verified authority. */
-export function verifyRecoveryClaimReceipt(...args) {
+function verifyClaim(compact, expectedSource, now, deployment) {
   try {
-    const [compact, expectedSource, now] = args;
-    if (args.length !== 3 || !integer(now) || typeof expectedSource !== 'string' || expectedSource.length > 16384) fail();
+    if (!integer(now) || typeof expectedSource !== 'string' || expectedSource.length > 16384) fail();
     const expected = JSON.parse(expectedSource);
     if (expected === null || typeof expected !== 'object' || Array.isArray(expected)
       || Object.keys(expected).length !== EXPECTED_KEYS.length
@@ -41,9 +40,22 @@ export function verifyRecoveryClaimReceipt(...args) {
       || !integer(p.claimedAt) || !integer(p.claimDeadline) || p.claimDeadline !== p.claimedAt + 1200
       || !integer(p.iat) || !integer(p.exp) || p.claimedAt !== p.iat || p.nbf !== p.iat
       || p.exp <= p.iat || p.exp - p.iat > 120 || p.exp > p.claimDeadline
-      || now < p.iat || now >= p.exp) fail();
-    return Object.freeze({ authorizationEpoch: p.authorizationEpoch, claimSequence: p.claimSequence, issuedAt: p.iat, expiresAt: p.exp });
+      || now < p.iat || now >= (deployment ? p.exp : p.claimDeadline)) fail();
+    return p;
   } catch { fail(); }
+}
+/** Strict deployment gate; no caller-selectable expiry mode. */
+export function verifyRecoveryClaimReceipt(...args) {
+  if (args.length !== 3) fail();
+  const p = verifyClaim(...args, true);
+  return Object.freeze({ authorizationEpoch: p.authorizationEpoch, claimSequence: p.claimSequence, issuedAt: p.iat, expiresAt: p.exp });
+}
+/** Non-authorizing correlation only, including after exp but never at/after the signed ledger deadline. */
+export function verifyRecoveryClaimCorrelation(...args) {
+  if (args.length !== 3) fail();
+  const p = verifyClaim(...args, false);
+  return Object.freeze({ purpose: 'reconciliation-only', authorizationEpoch: p.authorizationEpoch,
+    claimedAt: p.claimedAt, claimDeadline: p.claimDeadline });
 }
 /** Private canonical envelope: {claimReceiptJws, expectedSource}. No caller clock override. */
 export async function verifyRecoveryClaimReceiptFromStdin(...args) {
