@@ -147,3 +147,34 @@ The boundary is a trusted, exclusively owned candidate with advisory lock
 coordination and substitution detection. It does not isolate against a hostile
 process running as the same UID. The installer must preserve the existing
 disposable-worker/credential separation and fresh checks before every mutation.
+
+## Task 3: Native rollback of a durably prepared transaction
+
+**Files:** Create `scripts/local-release-transaction-recovery.mjs`, its declaration,
+`tests/localReleaseTransactionRecovery.test.ts`, and a child fixture.
+
+**Interface:** `recoverPreparedReleaseTransaction(candidateRoot, transactionId)`
+owns its lock and reads only `.git/warpkeep-release-assembly-v1/<32-hex-id>`.
+The fixed names are `journal.json`, `new-<index>`, `old-<index>`,
+`rolled-back.pending`, and `rolled-back.json`. Return only rollback status,
+never release verification authority.
+
+- [x] Write RED tests using disposable real Git repositories for mixed existing/
+  new-file restoration, same-source rejection, changed late-target preservation,
+  unknown siblings, repeated recovery, and child death after rename/unlink.
+- [x] Implement bounded native observations and whole-family planner preflight.
+  Recheck source commit/tree using fixed isolated Git, candidate/transaction
+  directory identity, and exact target identities before each mutation. Fsync
+  restored files and affected directories.
+- [x] Use exclusive pending-terminal creation and file fsync before rename and
+  directory fsync. Resume a complete matching pending terminal only after full
+  prior-family validation. Partial/corrupt pending records stop without mutation.
+  Keep journal and terminal after exact sibling cleanup. Missing journals and
+  incomplete initial staging remain preserved, never interpreted as prepared.
+- [ ] Run Linux process interruption tests, Windows host rejection, existing
+  journal/lock suites and TypeScript; obtain independent review and push.
+
+This recovery path must consume the actual journal and lock implementations,
+not caller action lists or fault-injection callbacks. A test-only child may wrap
+native filesystem calls to kill itself. Complete-family derivation, initial
+staging, successful installation and final verification remain assembler work.
