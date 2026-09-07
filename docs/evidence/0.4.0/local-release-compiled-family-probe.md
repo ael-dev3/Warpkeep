@@ -143,3 +143,33 @@ The uninterrupted result supersedes the need to rerun the corrected probe, not
 the remaining release requirements: full consumer/test integration, complete
 compiler regeneration convergence, production toolchain attestation, unfinished
 activation and workflow operations, final freeze, and live acceptance remain.
+
+## Recovery-inclusive native success — 2026-09-07
+
+The recovery-inclusive probe completed uninterrupted with exit code 0 at source
+`16c810718a9e236449e4083e7e3357740b6902ba`, tree
+`5a183b996fc9ecc3d365419c9cb61f8401a60832`. It used the fixed Linux Node
+22.22.3 executable with a cleared environment in the independent diagnostic
+checkout. The checkout was not changed during execution.
+
+Terminal evidence from `tests/fixtures/localReleaseCompiledFamilyNativeProbe.mjs`:
+
+- 86 real compiled artifact files, including the recovery bundle and manifest.
+- 14 closure-family outputs; 100 combined installed files verified by hash.
+- 288 operation-bundle inputs and 7 recovery compiler inputs checked. Recovery
+  package inputs were authenticated by the native producer; committed recovery
+  inputs were also rechecked against the prospective installed candidate.
+- 1,136 members accepted by the installed closure verifier, including the
+  recovery CLI, compiled bundle, manifest, and external runtime dependencies.
+- Repeated closure derivation produced identical output bytes.
+- Manifest SHA-256:
+  `f47a5032d015ebe34e67f9a624b4d352f85b7f90aaf2fa48d9320e543956ffd3`.
+- Both isolated candidate transactions rolled back successfully.
+- `finalReleasePrepared: false`.
+
+This supersedes the earlier probe's missing recovery-family coverage. It is
+local compiler, installation, closure-convergence, and candidate-file recovery
+evidence—not a final freeze, live deployment, production database recovery test,
+or completed workflow integration. Ordinary scanner dependency links remain
+diagnostic dependencies, not production toolchain attestation. No production
+state was changed.
