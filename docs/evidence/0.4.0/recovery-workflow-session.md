@@ -343,3 +343,33 @@ Windows-only skip. Windows passed 15 with nine Linux-only skips; targeted strict
 TypeScript passed. The real-filesystem, real-signature native probe passed ten
 scenarios, now including empty-directory preflight and prior-claim rejection.
 No production issue/claim request or deployment occurred.
+
+## 2026-09-07: fixed runner private directory
+
+`scripts/recovery-workflow-private-directory.mjs` creates or resolves only
+`/home/runner/.warpkeep-recovery-v1/pages-<run-id>-<attempt>`. It requires Linux
+UID 1001, the runner image's existing user, and a preprovisioned canonical 0700
+parent owned by that UID. Run coordinates are canonical positive decimal strings;
+paths and extra arguments are rejected. Creation is exclusive, uses held parent
+and child descriptors, verifies identities/ownership/permissions, and fsyncs the
+new directory and parent. It never removes or reuses existing attempt state.
+Resolution does not authenticate coordinates or replace signed receipt checks.
+
+The real Node 22.22.3 module passed the native container probe for creation,
+resolution, prior-state preservation, malformed coordinates, extra arguments,
+symlink rejection, wrong child/parent permissions, and wrong UID (including
+root). The runner base was the previously recorded image `5027b710...`.
+The diagnostic image manifest is
+`sha256:dd5bafb199eaabd41bdf38afb79ebc112615152b138dc18271289557943db0df`.
+Its Dockerfile is `operations/local-runner/private-directory-probe.Dockerfile`;
+it stages the local Node binary and test module before runtime. Initial Docker
+copy into a read-only container failed before testing; that container was removed.
+Using the staged image retained read-only rootfs, no network, dropped capabilities,
+no-new-privileges, and a dedicated 0700 private-directory tmpfs. No host mount,
+credential or production state was provided. All test containers were removed;
+the diagnostic image and `/tmp/warpkeep-directory-probe-20260907-1453` build inputs
+remain available in WSL. Unrelated containers were not changed.
+
+This tests the directory implementation, not production registration, job
+authorization, or storage survival after container destruction. Production
+directory provisioning/lifecycle and entrypoint composition remain required.
