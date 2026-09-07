@@ -135,3 +135,21 @@ stdout contains only an acceptance boolean. The result reports eight passing
 scenarios and no production credentials used. It does not verify genuine OIDC,
 the reconciliation network adapter, runner restart orchestration, or workflow
 installation. Those release integration requirements remain outstanding.
+
+## 2026-09-07: protected workflow execution boundary alignment
+
+Inspection found that `githubEvidence.ts` accepted the old hosted-runner test
+workflow even though `githubOidc.ts` already required the approved local runner.
+The source validator now requires the matching five Linux runner labels,
+github-pages environment, explicit least-privilege permissions, and the fixed
+non-cancelling production lock. Job lock overrides, matrices, reusable jobs,
+job containers/services, ignored job failures and non-object steps are rejected.
+The historical schema-1 path is unchanged. The recovery specification records
+this implementation of the existing local-execution and permission requirements.
+
+The GitHub evidence and OIDC suites passed: 383 tests across two files, including
+15 new negative workflow cases. Service TypeScript passed. This does not install
+the recovery job: the bounded OIDC helper still needs source-validator/entrypoint
+integration, and the current Pages workflow still has no deploy-recovery job.
+The subsequent full recovery-service run passed all 932 tests across 31 files
+in 74.60 seconds on native Windows Node 22.22.3.

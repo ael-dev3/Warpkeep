@@ -465,9 +465,18 @@ function workflowBytes(): Uint8Array {
   return encoder.encode(`name: Deploy GitHub Pages
 on:
   workflow_run:
+concurrency:
+  group: warpkeep-production-state
+  cancel-in-progress: false
 jobs:
   deploy-recovery:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, warpkeep-production-admin, warpkeep-repository-exclusive]
+    environment: github-pages
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
     steps:
       - name: Acquire exact recovery identity
         id: recovery-oidc
@@ -1221,6 +1230,21 @@ describe('GitHub candidate evidence', () => {
   it.each([
     ['workflow name', (source: string) => source.replace('Deploy GitHub Pages', 'Other')],
     ['recovery job', (source: string) => source.replace('deploy-recovery:', 'deploy:')],
+    ['hosted runner', (source: string) => source.replace('[self-hosted, Linux, X64, warpkeep-production-admin, warpkeep-repository-exclusive]', 'ubuntu-latest')],
+    ['Mac runner', (source: string) => source.replace('Linux, X64', 'macOS, ARM64')],
+    ['duplicate runner label', (source: string) => source.replace('Linux, X64', 'Linux, Linux')],
+    ['extra runner label', (source: string) => source.replace('Linux, X64', 'Linux, X64, unreviewed')],
+    ['deployment environment', (source: string) => source.replace('environment: github-pages', 'environment: staging')],
+    ['elevated contents permission', (source: string) => source.replace('contents: read', 'contents: write')],
+    ['extra permission', (source: string) => source.replace('contents: read', 'contents: read\n      packages: write')],
+    ['missing OIDC permission', (source: string) => source.replace('      id-token: write\n', '')],
+    ['cancelled production lock', (source: string) => source.replace('cancel-in-progress: false', 'cancel-in-progress: true')],
+    ['different production lock', (source: string) => source.replace('group: warpkeep-production-state', 'group: other')],
+    ['job lock override', (source: string) => source.replace('    environment:', '    concurrency: other\n    environment:')],
+    ['job matrix', (source: string) => source.replace('    environment:', '    strategy: {matrix: {variant: [one, two]}}\n    environment:')],
+    ['job container', (source: string) => source.replace('    environment:', '    container: ubuntu:latest\n    environment:')],
+    ['ignored job failure', (source: string) => source.replace('    environment:', '    continue-on-error: true\n    environment:')],
+    ['non-object step', (source: string) => source.replace('    steps:', '    steps:\n      - ignored')],
     ['artifact convention', (source: string) => source.replace('github-pages-recovery-', 'pages-')],
     ['OIDC audience', (source: string) => source.replace('warpkeep-release-recovery', 'attacker-audience')],
     ['OIDC request URL', (source: string) => source.replace('ACTIONS_ID_TOKEN_REQUEST_URL', 'ATTACKER_URL')],

@@ -881,9 +881,33 @@ function validateWorkflow(bytes: Uint8Array): void {
     }
     const recovery = (jobs as Record<string, unknown>)['deploy-recovery']
     if (recovery === null || typeof recovery !== 'object' || Array.isArray(recovery)) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
-    const steps = (recovery as Record<string, unknown>).steps
+    const job = recovery as Record<string, unknown>
+    const labels = job['runs-on']
+    const requiredLabels = ['self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive']
+    const permissions = job.permissions
+    const requiredPermissions = { contents: 'read', actions: 'read', pages: 'write', 'id-token': 'write' }
+    const concurrency = rootObject.concurrency
+    const environment = job.environment
+    const environmentName = typeof environment === 'string' ? environment
+      : environment !== null && typeof environment === 'object' && !Array.isArray(environment)
+        ? (environment as Record<string, unknown>).name : undefined
+    if (!Array.isArray(labels) || labels.length !== requiredLabels.length
+      || requiredLabels.some(label => !labels.includes(label))
+      || permissions === null || typeof permissions !== 'object' || Array.isArray(permissions)
+      || Object.keys(permissions).length !== Object.keys(requiredPermissions).length
+      || Object.entries(requiredPermissions).some(([key, value]) => (permissions as Record<string, unknown>)[key] !== value)
+      || concurrency === null || typeof concurrency !== 'object' || Array.isArray(concurrency)
+      || Object.keys(concurrency).length !== 2
+      || (concurrency as Record<string, unknown>).group !== 'warpkeep-production-state'
+      || (concurrency as Record<string, unknown>)['cancel-in-progress'] !== false
+      || environmentName !== 'github-pages'
+      || ['concurrency', 'strategy', 'uses', 'container', 'services', 'continue-on-error'].some(key => Object.hasOwn(job, key))) {
+      githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    }
+    const steps = job.steps
     if (!Array.isArray(steps) || steps.length < 1 || steps.length > 100) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     const objects = steps.filter(step => step !== null && typeof step === 'object' && !Array.isArray(step)) as Record<string, unknown>[]
+    if (objects.length !== steps.length) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     const audienceSteps = objects.filter(step => {
       const environment = step.env
       return environment !== null && typeof environment === 'object' && !Array.isArray(environment)
