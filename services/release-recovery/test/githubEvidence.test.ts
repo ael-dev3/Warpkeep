@@ -14,6 +14,8 @@ import {
 } from '../src/config.js'
 import { serializeExactObject, sha256Hex, type JsonValue } from '../src/protocol.js'
 import { RECOVERY_KEY_ID, RECOVERY_KEY_THUMBPRINT } from '../src/recoveryPublicKey.js'
+import { createRecoveryActivationBinding, parseRecoveryBindingV2 } from '../../../scripts/recovery-activation-candidate.mjs'
+import { recoveryBindingCandidate } from '../../../tests/fixtures/recoveryBindingCandidate.js'
 
 const REPOSITORY = 'ael-dev3/Warpkeep'
 const REPOSITORY_ID = 1273513252
@@ -363,7 +365,7 @@ function zip(body: Uint8Array): Uint8Array {
   return new Uint8Array([...local, ...body, ...central, ...eocd])
 }
 
-async function validBinding(): Promise<Readonly<{ bytes: Uint8Array; core: string }>> {
+async function validBinding(useLocalGenerator = false): Promise<Readonly<{ bytes: Uint8Array; core: string }>> {
   const binding: Record<string, JsonValue> = Object.create(null)
   for (const key of RECOVERY_BINDING_KEYS_V2) binding[key] = null
   Object.assign(binding, {
@@ -420,6 +422,19 @@ async function validBinding(): Promise<Readonly<{ bytes: Uint8Array; core: strin
     g001FreezePublishReceiptDigest: null,
     g001FreezePublishReceiptCommitment: null,
   })
+  if (useLocalGenerator) {
+    // Keep the receiver's independently fixed arming coordinates, while supplying
+    // every remaining gameplay invariant from the complete synthetic candidate.
+    const candidate = recoveryBindingCandidate()
+    for (const [key, value] of Object.entries(binding)) {
+      if (value !== null) candidate[key] = value as string | number | boolean
+    }
+    const generated = createRecoveryActivationBinding(`${JSON.stringify(candidate, null, 2)}\n`)
+    return {
+      bytes: encoder.encode(`${JSON.stringify(generated, null, 2)}\n`),
+      core: generated.recoveryAuthorizationCoreSha256 as string,
+    }
+  }
   let index = 1
   for (const digestKey of Object.values(RECOVERY_RECEIPT_COMMITMENT_DIGESTS)) {
     binding[digestKey] = (index++).toString(16).padStart(2, '0').repeat(32)
@@ -471,13 +486,13 @@ jobs:
 `)
 }
 
-async function makeFixture(): Promise<Readonly<{
+async function makeFixture(useLocalGenerator = false): Promise<Readonly<{
   state: State
   input: Parameters<typeof loadGitHubCandidateEvidence>[0]
   calls: string[]
   requestInits: RequestInit[]
 }>> {
-  const binding = await validBinding()
+  const binding = await validBinding(useLocalGenerator)
   const workflow = workflowBytes()
   const packageValue = {
     name: 'warpkeep', private: true, version: '0.4.0',
@@ -830,6 +845,38 @@ describe('GitHub candidate evidence', () => {
     expect(tokenHeaders.get('content-type')).toBe('application/json')
     expect(tokenHeaders.get('x-github-api-version')).toBe('2022-11-28')
     expect(tokenHeaders.get('authorization')).toMatch(/^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u)
+  })
+
+  it('loads a complete local-generator binding through the receiver evidence and artifact chain', async () => {
+    const fixture = await makeFixture(true)
+    const evidence = await loadGitHubCandidateEvidence(fixture.input)
+    const binding = parseRecoveryBindingV2(new TextDecoder().decode(evidence.recoveryBindingBytes))
+    expect(binding.g001PlayerAccessEnabled).toBe(true)
+    expect(binding.g002PlayerAccessEnabled).toBe(false)
+    expect(binding.ptrOwnerEnabled).toBe(true)
+    expect(binding.ptrAdmissionsOpen).toBe(false)
+    expect(evidence.realmBinding).toEqual(expectedRealmBinding(fixture.input.armed.recoveryAuthorizationCoreSha256))
+    expect(evidence.recoveryBindingBytes).toEqual(fixture.state.bindingBytes)
+  })
+
+  it.each([
+    ['bridgeWorkerVersionId', '123e4567-e89b-42d3-a456-426614174003'],
+    ['bridgeSourceCommit', '2'.repeat(40)],
+    ['bridgeConfigIdentity', '22'.repeat(32)],
+    ['bridgeConfigEpoch', 5],
+    ['genesis002Database', '71'.repeat(32)],
+    ['ptrDatabase', '81'.repeat(32)],
+    ['g001ExpectedProgramKeccak256', '32'.repeat(32)],
+    ['g002ExpectedProgramKeccak256', '42'.repeat(32)],
+    ['ptrExpectedProgramKeccak256', '52'.repeat(32)],
+    ['g002AtlasSourceCommit', '7'.repeat(40)],
+    ['ptrAtlasSourceCommit', '9'.repeat(40)],
+  ] as const)('rejects a complete generated binding against independently mismatched %s', async (key, value) => {
+    const fixture = await makeFixture(true)
+    await expect(loadGitHubCandidateEvidence({
+      ...fixture.input,
+      armed: { ...fixture.input.armed, [key]: value },
+    })).rejects.toThrowError('RECOVERY_GITHUB_EVIDENCE_INVALID')
   })
 
   it('returns the frozen exact static realm binding without candidate coordinates or source paths', async () => {

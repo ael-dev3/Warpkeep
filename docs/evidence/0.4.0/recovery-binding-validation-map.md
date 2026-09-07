@@ -31,6 +31,12 @@ The positive fixture in `tests/fixtures/recoveryBindingCandidate.ts` supplies ev
 
 This remains static consistency validation. It neither authenticates candidate provenance nor installs, signs, or authorizes a deployment. Authenticated bridge readback, program derivation, atlas/source metadata comparison, schema-specific release classification, and CLI integration remain required. Independent module/atlas coordinates are not forced to the preparation commit.
 
+## Receiver integration checkpoint (2026-09-07)
+
+The complete local-generated binding now also traverses `loadGitHubCandidateEvidence` in `services/release-recovery/test/githubEvidence.test.ts`. The harness retains its independently specified receiver arming coordinates and supplies a real synthetic ZIP/TAR artifact and source-tree/blob fixtures through mocked GitHub transport. The receiver accepts the completed binding, returns the expected realm projection, and rejects eleven separately substituted bridge, database, program, and atlas-source coordinates in its arming tuple.
+
+Fresh verification: 203 GitHub evidence tests plus two projection tests passed, and the service TypeScript check exited 0. Commands, from `services/release-recovery`: `node node_modules/vitest/vitest.mjs run test/githubEvidence.test.ts test/recoveryBindingProjection.test.ts` and `node node_modules/typescript/bin/tsc --noEmit`, using the pinned Node 22.22.3 runtime. This proves component interoperability under synthetic transport. It does not prove authenticated provider access, actual deployed artifact identity, complete workflow semantics, or production readiness. The existing projection-only fixture remains unchanged for its original negative cases.
+
 ## Fixture distinction
 
 The service `githubEvidence.test.ts` helper `validBinding` initializes every field to null and populates only the GitHub/arming projection and receipt fields. This is useful for that loader's contract but leaves many gameplay invariant fields null. Copying it as the local validator's positive acceptance fixture would omit the broader Task 1 requirements.
