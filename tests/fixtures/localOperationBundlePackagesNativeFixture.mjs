@@ -72,10 +72,18 @@ try {
     }
     let code = 'UNEXPECTED_SUCCESS';
     try {
-      const namespace = packages.materializeFixedOperationBundlePackages({
+      const materialize = scenario === 'recovery' ? packages.materializeFixedRecoveryBundlePackages
+        : packages.materializeFixedOperationBundlePackages;
+      const namespace = materialize({
         sourceRoot, cacheRoot, yamlRoot: YAML_ROOT,
         yamlManifest: { entry: yamlManifest.entry, files: yamlManifest.files },
       });
+      if (scenario === 'recovery') {
+        const files = namespace.records.filter(record => record.path.startsWith('fflate/'));
+        if (files.length !== 17 || files.some(record => record.mode !== 0o400)) throw new Error('RECOVERY_FILES_INVALID');
+        packages.reattestFixedOperationBundlePackages({ sourceRoot, ...namespace });
+        code = 'RECOVERY_NAMESPACE_VERIFIED';
+      }
       if (scenario === 'post-use-mutation') {
         const target = join(namespace.root, 'esbuild', 'package.json');
         chmodSync(target, 0o600);
