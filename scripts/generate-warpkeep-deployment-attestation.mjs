@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { lstatSync, readdirSync, realpathSync } from 'node:fs';
+import { lstatSync, readdirSync, realpathSync, mkdirSync, openSync, writeFileSync, fsyncSync, closeSync, fstatSync, constants } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { types } from 'node:util';
 import { fileURLToPath } from 'node:url';
@@ -79,7 +79,7 @@ function capture(options) {
     ...identity, releaseVersion: '0.4.0', canonicalOrigin: 'https://warpkeep.com',
     contentManifestSha256: sha(JSON.stringify(entries)) }));
   if (total + 512 + Math.ceil(bytes.length / 512) * 512 > 150 * 1024 * 1024) fail();
-  return { distRoot, bytes };
+  return { distRoot, bytes, rootIdentity: capturedIdentities[0].identity };
 }
 
 /** Derives bytes only; caller coordinates are data, never deployment authority. */
@@ -94,6 +94,46 @@ export function verifyWarpkeepDeploymentAttestation(options) {
     if (!opened.body.equals(bytes)) fail();
     return Object.freeze({ deploymentAttestationSha256: sha(bytes) });
   } finally { opened.body.fill(0); }
+}
+
+/** Installs once in a disposable build directory; does not authorize deployment. */
+export function installWarpkeepDeploymentAttestation(options) {
+  if (process.platform !== 'linux') throw new Error('WARPKEEP_DEPLOYMENT_ATTESTATION_INSTALL_REQUIRES_LINUX');
+  // Validate the entire input before creating even the well-known directory.
+  const initial = capture(options);
+  initial.bytes.fill(0);
+  let rootDescriptor;
+  let directoryDescriptor;
+  let descriptor;
+  let bytes;
+  try {
+    rootDescriptor = openSync(initial.distRoot, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+    const rootStatus = fstatSync(rootDescriptor, { bigint: true });
+    if (Object.entries(initial.rootIdentity).some(([key, value]) => String(rootStatus[key]) !== value)) fail();
+    // Held directory descriptors prevent ancestor substitution from redirecting
+    // writes outside this captured disposable dist, including during mkdir.
+    const directory = `/proc/self/fd/${rootDescriptor}/.well-known`;
+    try { mkdirSync(directory); }
+    catch (error) { if (error?.code !== 'EEXIST') throw error; }
+    directoryDescriptor = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+    // Count the added directory's TAR header and validate the current tree.
+    ({ bytes } = capture(options));
+    descriptor = openSync(`/proc/self/fd/${directoryDescriptor}/warpkeep-deployment-v1.json`,
+      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o644);
+    writeFileSync(descriptor, bytes);
+    fsyncSync(descriptor);
+    fsyncSync(directoryDescriptor);
+    fsyncSync(rootDescriptor);
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+    if (directoryDescriptor !== undefined) closeSync(directoryDescriptor);
+    if (rootDescriptor !== undefined) closeSync(rootDescriptor);
+    bytes?.fill(0);
+  }
+  // Re-scan actual output, not the bytes just passed to writeFileSync. Any
+  // failed installation stays in the disposable candidate for inspection;
+  // do not unlink a path that another process may have replaced.
+  return verifyWarpkeepDeploymentAttestation(options);
 }
 
 let invokedDirectly = false;

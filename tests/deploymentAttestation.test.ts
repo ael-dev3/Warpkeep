@@ -7,11 +7,11 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, linkSync, symlinkSync, o
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { deriveWarpkeepDeploymentAttestation, verifyWarpkeepDeploymentAttestation } from '../scripts/generate-warpkeep-deployment-attestation.mjs';
+import { deriveWarpkeepDeploymentAttestation, verifyWarpkeepDeploymentAttestation, installWarpkeepDeploymentAttestation } from '../scripts/generate-warpkeep-deployment-attestation.mjs';
 
 vi.mock('node:fs', async importOriginal => {
   const actual = await importOriginal<typeof import('node:fs')>();
-  return { ...actual, readdirSync: vi.fn(actual.readdirSync) };
+  return { ...actual, readdirSync: vi.fn(actual.readdirSync), writeFileSync: vi.fn(actual.writeFileSync) };
 });
 
 const identity = Object.freeze({ candidateCommit: 'a'.repeat(40), candidateTree: 'b'.repeat(40),
@@ -61,6 +61,45 @@ it('verifies installed attestation and rejects a changed content byte', () => {
   expect(() => verifyWarpkeepDeploymentAttestation({ distRoot: root, identity })).not.toThrow();
   writeFileSync(join(root, 'index.html'), 'jello');
   expect(() => verifyWarpkeepDeploymentAttestation({ distRoot: root, identity })).toThrow();
+});
+
+it.skipIf(process.platform !== 'linux')('installs the canonical attestation and independently verifies the output', () => {
+  const expected = deriveWarpkeepDeploymentAttestation({ distRoot: root, identity });
+  const result = installWarpkeepDeploymentAttestation({ distRoot: root, identity });
+  expect(fs.readFileSync(join(root, expected.path))).toEqual(Buffer.from(expected.bytes));
+  expect(result).toEqual(verifyWarpkeepDeploymentAttestation({ distRoot: root, identity }));
+  expect(result.deploymentAttestationSha256).toBe(createHash('sha256').update(expected.bytes).digest('hex'));
+});
+
+it.skipIf(process.platform !== 'linux')('does not overwrite an existing attestation, even when its bytes match', () => {
+  installWarpkeepDeploymentAttestation({ distRoot: root, identity });
+  const path = join(root, '.well-known/warpkeep-deployment-v1.json');
+  const before = fs.readFileSync(path);
+  expect(() => installWarpkeepDeploymentAttestation({ distRoot: root, identity })).toThrow();
+  expect(fs.readFileSync(path)).toEqual(before);
+});
+
+it('validates identity before creating output directories', () => {
+  expect(() => installWarpkeepDeploymentAttestation({ distRoot: root,
+    identity: { ...identity, candidateCommit: 'invalid' } })).toThrow();
+  expect(fs.existsSync(join(root, '.well-known'))).toBe(false);
+});
+
+it.skipIf(process.platform !== 'linux')('preserves existing well-known metadata while installing', () => {
+  mkdirSync(join(root, '.well-known'));
+  writeFileSync(join(root, '.well-known/farcaster.json'), '{}');
+  installWarpkeepDeploymentAttestation({ distRoot: root, identity });
+  expect(fs.readFileSync(join(root, '.well-known/farcaster.json'), 'utf8')).toBe('{}');
+});
+
+it.skipIf(process.platform !== 'linux')('rejects content mutation during installation instead of reporting a valid artifact', async () => {
+  const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
+  vi.mocked(fs.writeFileSync).mockImplementation(((...args: Parameters<typeof fs.writeFileSync>) => {
+    actual.writeFileSync(...args);
+    if (typeof args[0] === 'number') actual.writeFileSync(join(root, 'index.html'), 'mutated during install');
+  }) as typeof fs.writeFileSync);
+  expect(() => installWarpkeepDeploymentAttestation({ distRoot: root, identity })).toThrow();
+  expect(fs.readFileSync(join(root, 'index.html'), 'utf8')).toBe('mutated during install');
 });
 
 it('rejects an unlisted extra file after attestation', () => {
