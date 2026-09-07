@@ -59,3 +59,34 @@ two skips. Targeted strict types passed. No test deadline was increased.
 After that process terminated, an unchanged rerun passed all 60 tests with two
 skips (17.97 seconds total, 3.93 seconds in tests). The timeouts remain recorded;
 the passing rerun is not a claim that all Windows timing instability is resolved.
+
+## Native Linux compatibility evidence
+
+An independent, no-hardlinks clone of commit
+`64e49bf7fcb831dcf02c00ce8d6f90bc264623e4` was created at
+`/tmp/warpkeep-closure-family.610hdezU/repo` in Ubuntu-24.04. It uses the pinned
+Node 22.22.3 executable and an empty environment except HOME, PATH and LANG.
+Root and auth-bridge dependencies were linked from the existing disposable Linux
+test cache; they were **not** presented as attested production dependencies.
+
+The same three suites passed all 62 tests (zero skips, 2.31 seconds). This includes
+native symlink rejection and the real manifest engine's fourteen-output
+read-overlay convergence fixture. The expanded bundle bodies remain synthetic
+in the dedicated fixture; this does not prove native compiled-family assembly.
+
+A separate non-mocked, read-only invocation of
+`derivePreparedClosurePolicyInventoryAndCounts` and `derivePreparedSourcePins`
+against that Linux clone succeeded: 1,086 closure members, eight inventory/policy/
+count outputs and two source-pin outputs. This exercised the actual Linux
+TypeScript source scanner, not the mocked scanner used in focused unit tests.
+The clone's final `git status --porcelain=v1 --untracked-files=all` was empty.
+
+Reproduction (from that disposable checkout, using pinned Node):
+
+```text
+node node_modules/vitest/vitest.mjs run tests/localPreparedClosureFamily.test.ts tests/localPreparedClosureInventory.test.ts tests/localPreparedSourcePins.test.ts --maxWorkers=1
+```
+
+This removes uncertainty about Linux compatibility of these connected helpers.
+Production dependency attestation, compiled artifacts in the prospective checkout,
+complete transaction installation, independent checks and final freeze remain.
