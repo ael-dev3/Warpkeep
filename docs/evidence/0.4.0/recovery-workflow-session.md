@@ -200,3 +200,26 @@ transport ignoring abort. Combined run-context, deployment-boundary and OIDC
 tests: 68 passed. Targeted strict TypeScript passed after correcting a test-only
 header-fixture union type. No GitHub credential-bearing request or deployment
 was performed by this new module during these tests.
+
+## 2026-09-07: run-scoped artifact metadata
+
+The run-context reader now also exports the no-argument
+`readRecoveryWorkflowArtifactMetadata`. It repeats the existing run provenance
+checks, discovers exactly one artifact named for the current Pages run/attempt,
+rejects pagination or ambiguity, and compares the listed artifact with two
+direct metadata reads. Both direct reads must have the same nonempty ETag and
+identical response-body hashes. Projection checks bind numeric ID, name, size,
+fixed API/archive URLs, node ID, validity dates, SHA-256 digest and originating
+repository/run/branch/commit. Protected main is checked again after these reads.
+
+The digest is deliberately returned as `advertisedArchiveSha256`: no archive
+download or content verification occurs here. This does not yet prove TAR,
+manifest or deployment-attestation hashes or install the Actions entrypoint.
+Those checks remain required before the full session context can be assembled.
+The transport remains the same bounded, fixed-host read-only client with no
+caller token, artifact, URL or digest override.
+
+Run-context suite: 38 tests passed, including 12 artifact scenarios for the
+valid path, identity/expiry/URL/digest substitution, duplicate/paginated listings,
+and changing ETag or response bytes. Targeted strict TypeScript passed. Tests
+use mocked API responses; no production artifact was downloaded or deployed.

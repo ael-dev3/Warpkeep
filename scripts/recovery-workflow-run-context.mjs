@@ -1,4 +1,5 @@
 import { isAbsolute } from 'node:path';
+import { createHash } from 'node:crypto';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 const API = 'https://api.github.com/repos/ael-dev3/Warpkeep';
 const fail = () => { throw new Error('RECOVERY_WORKFLOW_RUN_CONTEXT_INVALID'); };
@@ -10,7 +11,7 @@ const guards = { GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
   GITHUB_WORKFLOW_REF: 'ael-dev3/Warpkeep/.github/workflows/deploy-pages.yml@refs/heads/main' };
 
 /** Read-only GitHub run provenance, not OIDC identity or artifact/deployment authority. */
-export async function readRecoveryWorkflowRunContext(...args) {
+async function readContext(args, includeArtifact) {
   let token, eventBytes;
   try {
     if (args.length !== 0 || Object.entries(guards).some(([key, value]) => process.env[key] !== value)) fail();
@@ -31,7 +32,7 @@ export async function readRecoveryWorkflowRunContext(...args) {
     if (sourceVerifyRunId === pagesRunId || process.env.GITHUB_SHA !== candidateCommit) fail();
     token = process.env.GITHUB_TOKEN;
     if (typeof token !== 'string' || !/^[\x21-\x7e]{1,16384}$/u.test(token)) fail();
-    async function get(path) {
+    async function get(path, metadata = false) {
       const controller = new AbortController();
       let timer, response, reader;
       const bytes = Buffer.alloc(512 * 1024);
@@ -60,7 +61,10 @@ export async function readRecoveryWorkflowRunContext(...args) {
           bytes.set(part.value, length); length += part.value.length;
         }
         if (declared !== null && Number(declared) !== length) fail();
-        return JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, length)));
+        const body = bytes.subarray(0, length);
+        const value = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(body));
+        return metadata ? { value, etag: response.headers.get('etag'), link: response.headers.get('link'),
+          bodySha256: createHash('sha256').update(body).digest('hex') } : value;
       } finally {
         clearTimeout(timer); controller.abort(); bytes.fill(0);
         try { void (reader ? reader.cancel() : response?.body?.cancel())?.catch(() => {}); } catch { /* fixed public error */ }
@@ -83,8 +87,45 @@ export async function readRecoveryWorkflowRunContext(...args) {
         || !['.github/workflows/deploy-pages.yml', '.github/workflows/deploy-pages.yml@main'].includes(pages.path)
         || pages.event !== 'workflow_run' || pages.head_branch !== 'main' || pages.head_sha !== candidateCommit
         || pages.status !== 'in_progress' || pages.conclusion !== null) fail();
+    let artifact;
+    if (includeArtifact) {
+      const artifactName = `github-pages-recovery-${pagesRunId}-${pagesRunAttempt}`;
+      const listed = await get(`/actions/runs/${pagesRunId}/artifacts?name=${encodeURIComponent(artifactName)}&per_page=100&page=1`, true);
+      if (listed.link !== null || listed.value?.total_count !== 1
+          || !Array.isArray(listed.value.artifacts) || listed.value.artifacts.length !== 1) fail();
+      const artifactId = id(listed.value.artifacts[0]?.id);
+      function projection(value) {
+        const run = value?.workflow_run;
+        if (id(value?.id) !== artifactId || value.name !== artifactName || value.expired !== false
+            || typeof value.node_id !== 'string' || !/^[\x21-\x7e]{1,256}$/u.test(value.node_id)
+            || !Number.isSafeInteger(value.size_in_bytes) || value.size_in_bytes < 1
+            || value.url !== `${API}/actions/artifacts/${artifactId}`
+            || value.archive_download_url !== `${API}/actions/artifacts/${artifactId}/zip`
+            || typeof value.digest !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(value.digest)
+            || id(run?.id) !== pagesRunId || run.repository_id !== 1273513252 || run.head_repository_id !== 1273513252
+            || run.head_branch !== 'main' || run.head_sha !== candidateCommit
+            || typeof value.created_at !== 'string' || typeof value.expires_at !== 'string') fail();
+        const created = Date.parse(value.created_at), expires = Date.parse(value.expires_at);
+        if (!Number.isFinite(created) || !Number.isFinite(expires) || created > Date.now()
+            || created >= expires || expires <= Date.now()) fail();
+        return JSON.stringify({ artifactId, artifactName, size: value.size_in_bytes, node: value.node_id,
+          created: value.created_at, expires: value.expires_at, digest: value.digest });
+      }
+      const initial = projection(listed.value.artifacts[0]);
+      const first = await get(`/actions/artifacts/${artifactId}`, true);
+      const second = await get(`/actions/artifacts/${artifactId}`, true);
+      if (first.link !== null || second.link !== null || typeof first.etag !== 'string' || first.etag.length === 0
+          || first.etag !== second.etag || first.bodySha256 !== second.bodySha256
+          || projection(first.value) !== initial || projection(second.value) !== initial) fail();
+      artifact = Object.freeze({ artifactId, artifactName, artifactSize: first.value.size_in_bytes,
+        advertisedArchiveSha256: first.value.digest.slice(7), artifactEtag: first.etag });
+    }
     await verifyMain();
-    return Object.freeze({ pagesRunId, pagesRunAttempt, sourceVerifyRunId, sourceVerifyRunAttempt, candidateCommit });
+    const runContext = Object.freeze({ pagesRunId, pagesRunAttempt, sourceVerifyRunId, sourceVerifyRunAttempt, candidateCommit });
+    return includeArtifact ? Object.freeze({ ...runContext, ...artifact }) : runContext;
   } catch { fail(); }
   finally { token = undefined; eventBytes?.fill(0); }
 }
+export async function readRecoveryWorkflowRunContext(...args) { return readContext(args, false); }
+/** Metadata only. Advertised digest is not a hash of independently downloaded archive bytes. */
+export async function readRecoveryWorkflowArtifactMetadata(...args) { return readContext(args, true); }

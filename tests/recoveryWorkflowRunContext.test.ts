@@ -3,12 +3,13 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ read: vi.fn(), fetch: vi.fn() }));
 vi.mock('../scripts/local-binding-bounded-file.mjs', () => ({ readLocalBindingBoundedFile: mocks.read }));
 import { readRecoveryWorkflowRunContext as read } from '../scripts/recovery-workflow-run-context.mjs';
+import { readRecoveryWorkflowArtifactMetadata as readArtifact } from '../scripts/recovery-workflow-run-context.mjs';
 const API = 'https://api.github.com/repos/ael-dev3/Warpkeep';
 const sha = 'a'.repeat(40);
 const repository = { id: 1273513252, full_name: 'ael-dev3/Warpkeep', owner: { id: 183124839 } };
 const sourceRun = () => ({ id: 456, run_attempt: 2, repository, head_repository: repository, name: 'Verify',
   path: '.github/workflows/verify.yml', event: 'push', head_branch: 'main', head_sha: sha, status: 'completed', conclusion: 'success' });
-let source: Record<string, unknown>, pages: Record<string, unknown>, main: Record<string, unknown>;
+let source: Record<string, unknown>, pages: Record<string, unknown>, main: Record<string, unknown>, artifact: Record<string, unknown>;
 function response(url: string, value: unknown, headers: Record<string, string> = {}) {
   const result = new Response(JSON.stringify(value), { headers: { 'content-type': 'application/json', ...headers } });
   Object.defineProperty(result, 'url', { value: url }); return result;
@@ -24,9 +25,14 @@ beforeEach(() => {
   pages = { ...sourceRun(), id: 123, run_attempt: 1, name: 'Deploy GitHub Pages', path: '.github/workflows/deploy-pages.yml',
     event: 'workflow_run', status: 'in_progress', conclusion: null };
   main = { name: 'main', protected: true, commit: { sha } };
+  artifact = { id: 789, name: 'github-pages-recovery-123-1', node_id: 'artifact-node', expired: false,
+    size_in_bytes: 1024, url: `${API}/actions/artifacts/789`, archive_download_url: `${API}/actions/artifacts/789/zip`,
+    digest: `sha256:${'b'.repeat(64)}`, created_at: '2026-01-01T00:00:00Z', expires_at: '2099-01-01T00:00:00Z',
+    workflow_run: { id: 123, repository_id: 1273513252, head_repository_id: 1273513252, head_branch: 'main', head_sha: sha } };
   mocks.read.mockImplementation(() => ({ body: Buffer.from(JSON.stringify({ action: 'completed', repository, workflow_run: sourceRun() })) }));
   mocks.fetch.mockImplementation(async (url: string) => response(url,
-    url.endsWith('/branches/main') ? main : url.includes('/456/') ? source : pages));
+    url.includes('/artifacts?') ? { total_count: 1, artifacts: [artifact] } : url.endsWith('/artifacts/789') ? artifact
+      : url.endsWith('/branches/main') ? main : url.includes('/456/') ? source : pages, { etag: '"stable"' }));
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 it('cross-checks source and current run with protected main before and after', async () => {
@@ -89,4 +95,29 @@ it('bounds a stalled transport even when it ignores cancellation', async () => {
   const result = expect(read()).rejects.toThrow(/^RECOVERY_WORKFLOW_RUN_CONTEXT_INVALID$/);
   await vi.advanceTimersByTimeAsync(10000); await result;
   expect(mocks.fetch.mock.calls[0]![1].signal.aborted).toBe(true);
+});
+it('discovers one exact artifact and compares two stable direct metadata reads', async () => {
+  await expect(readArtifact()).resolves.toMatchObject({ artifactId: '789', artifactName: 'github-pages-recovery-123-1',
+    artifactSize: 1024, advertisedArchiveSha256: 'b'.repeat(64), artifactEtag: '"stable"' });
+  expect(mocks.fetch.mock.calls.map(call => call[0]).filter(url => url.includes('/artifacts'))).toEqual([
+    `${API}/actions/runs/123/artifacts?name=github-pages-recovery-123-1&per_page=100&page=1`,
+    `${API}/actions/artifacts/789`, `${API}/actions/artifacts/789`,
+  ]);
+  expect(mocks.fetch.mock.calls.some(([url]) => url.endsWith('/zip'))).toBe(false);
+});
+it.each([['name', 'github-pages-recovery-123-2'], ['expired', true], ['size_in_bytes', 0],
+  ['digest', 'sha256:invalid'], ['url', 'https://example.invalid'], ['expires_at', '2020-01-01T00:00:00Z'],
+  ['workflow_run', { id: 999 }]] as const)('rejects substituted artifact %s', async (key, value) => {
+  artifact[key] = value; await expect(readArtifact()).rejects.toThrow('RECOVERY_WORKFLOW_RUN_CONTEXT_INVALID');
+});
+it.each(['pagination', 'duplicate', 'etag', 'bytes'])('rejects ambiguous or unstable artifact metadata: %s', async mode => {
+  const normal = mocks.fetch.getMockImplementation()!; let direct = 0;
+  mocks.fetch.mockImplementation(async (url: string, init: unknown) => {
+    if (url.includes('/artifacts?') && mode === 'pagination') return response(url, { total_count: 1, artifacts: [artifact] }, { link: '<https://api.github.com/next>; rel="next"' });
+    if (url.includes('/artifacts?') && mode === 'duplicate') return response(url, { total_count: 2, artifacts: [artifact, artifact] });
+    if (url.endsWith('/artifacts/789') && ++direct === 2) return response(url,
+      mode === 'bytes' ? { ...artifact, unrecognized_change: true } : artifact, { etag: mode === 'etag' ? '"changed"' : '"stable"' });
+    return normal(url, init);
+  });
+  await expect(readArtifact()).rejects.toThrow('RECOVERY_WORKFLOW_RUN_CONTEXT_INVALID');
 });
