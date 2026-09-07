@@ -808,3 +808,22 @@ body that ignores abort. They establish transport/composition behavior, not a
 live deployment. The new graph root is included in prospective closure derivation.
 The helper is not yet wired into the workflow or terminal completion command;
 it proves only exact attestation availability, not full gameplay/live acceptance.
+
+### Current-job postflight composition — 2026-09-07
+
+`node scripts/recovery-workflow-postflight.mjs` now runs the exact public check
+and then reconciles the existing claim with fresh OIDC through the fixed
+current-run helper. A failed public check still triggers reconciliation, but
+cannot produce success. Success requires both the completed outcome and a pinned
+signature-verified terminal payload whose deployment-attestation digest matches
+the public postflight digest. Output is limited to the completed outcome, digest,
+and verified terminal JWS. Failure is a fixed error with no stdout; no reissue,
+claim, or deployment fallback is available. The prospective closure includes
+the command and its real imports.
+
+Windows Node 22.22.3: 34 tests passed across the postflight, live-postflight, and
+current-run reconciliation suites; root TypeScript exited 0. Composition uses
+mocked dependencies, including the signature verifier, with native CLI rejection
+tested separately. Earlier actual ES256 verifier tests remain separate evidence.
+This does not prove a successful live postflight. The protected workflow source
+validator and actual job still need integration; no final release freeze occurred.
