@@ -41,3 +41,20 @@ workflow, exact artifact upload/issue/claim/deploy/postflight integration. The
 CLI remains explicitly unavailable; this API does not authenticate its caller's
 identity fields, approve source, or authorize deployment. No final release
 artifact or production deployment was created by this checkpoint.
+
+## Committed-source reader checkpoint
+
+`985b526` adds `readRecoveryAttestationSource(repositoryRoot)`. It derives
+candidate commit/tree and core/closure coordinates from local Git and the fixed
+schema-2 binding path, checks the single preparation parent/tree, exact three-file
+activation delta, regular blob modes, current file bytes, clean tracked source,
+and exact package/lock version-only transformation. It rejects index flags that
+can hide dirty files and does not inherit caller Git configuration environment.
+
+Seven real temporary-Git-repository tests passed in Linux. Together with the
+installer suite, the run at `985b526` passed 38 tests with one Windows-only skip.
+The earlier five-test version also passed on Windows. These fixtures contain
+synthetic bindings, not live receipts. This reader checks local consistency;
+it does **not** verify protected GitHub main, receipt authenticity, or the
+contents represented by the closure digest. It is not yet connected to the
+installer CLI and must not be substituted for those release authority checks.
