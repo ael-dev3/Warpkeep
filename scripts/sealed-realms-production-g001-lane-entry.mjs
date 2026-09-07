@@ -772,6 +772,10 @@ async function censusSecondInspect(authority, capability, input) {
       confirmationDigest,
     });
     const confirmationPersisted = writeCensusRecord(member.privateState, 'confirmation', confirmationRecord);
+    captureCensusActivationRecord(member, authority, Object.freeze({
+      first: canonicalCensusApplicant(first.sample.applicant),
+      second: canonicalCensusApplicant(second.sample.applicant),
+    }));
     const secondConfirmation = Object.freeze({});
     censusFirstConfirmations.delete(confirmation);
     censusFirstClaims.delete(confirmation);
@@ -870,13 +874,26 @@ async function censusSecondSuspend(authority, capability, input) {
     consumed: reopen(consumedRecord.relativePath, consumedRecord.digest,
       ['schemaVersion', 'profile', 'sourceCommit', 'firstDigest', 'secondDigest', 'confirmationDigest', 'consumedAt']),
   });
+  captureCensusActivationRecord(member, authority, receipt);
+  return Object.freeze({ status: 'completed' });
+}
+
+// Private to this producer module. No caller-selected path, operation or raw
+// receipt capture surface is exported to a lane or dispatcher consumer.
+function captureCensusActivationRecord(member, authority, receipt) {
+  const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(authority);
+  const operation = authority.operation;
+  const capture = operation === 'g001-census-second-inspect'
+    ? ['g001CensusPrivacySafePrivateReceipt', 'g001-census-privacy-safe-private-receipt.json']
+    : operation === 'g001-census-second-suspend'
+      ? ['g001AdmittedPlayerCensusPrivateReceipt', 'g001-admitted-player-census-private-receipt.json']
+      : undefined;
+  if (authority.mode !== 'S' || capture === undefined) fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+  const [recordMember, basename] = capture;
   const body = Buffer.from(`${JSON.stringify(receipt)}\n`, 'utf8');
   let bytes;
   try {
     const bodyDigest = digestBytes(body);
-    const recordMember = 'g001AdmittedPlayerCensusPrivateReceipt';
-    const operation = 'g001-census-second-suspend';
-    if (authority.operation !== operation) fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
     const semanticDigest = createHash('sha256').update([
       'warpkeep.sealed-realms.activation-record.v1', recordMember,
       sourceCommit, sourceCommit, operation, authority.authorityDigest, bodyDigest, '',
@@ -895,7 +912,7 @@ async function censusSecondSuspend(authority, capability, input) {
     })}\n`, 'utf8');
     member.privateState.write({
       root: 'runtime',
-      relativePath: 'activation-evidence/records/g001-admitted-player-census-private-receipt.json',
+      relativePath: `activation-evidence/records/${basename}`,
       bytes,
     });
   } catch {
@@ -904,7 +921,6 @@ async function censusSecondSuspend(authority, capability, input) {
     body.fill(0);
     bytes?.fill(0);
   }
-  return Object.freeze({ status: 'completed' });
 }
 
 /** A test-only fixed-file hash adapter; ordinary lane/dispatch inputs cannot forge it. */

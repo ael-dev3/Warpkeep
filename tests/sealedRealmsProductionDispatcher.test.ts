@@ -1114,6 +1114,8 @@ describe('sealed-realms production dispatcher', () => {
         lane, 'g001-census-first', firstAuthority, local.state, '6201',
       );
       expect(first).toEqual({ operation: 'g001-census-first', status: 'completed' });
+      const applicantActivationPath = 'activation-evidence/records/g001-census-privacy-safe-private-receipt.json';
+      expect(local.state.exists({ root: 'runtime', relativePath: applicantActivationPath })).toBe(false);
       const secondAuthority = g001Authority('g001-census-second-inspect');
       const second = await dispatchProtectedG001(
         lane, 'g001-census-second-inspect', secondAuthority, local.state,
@@ -1123,6 +1125,18 @@ describe('sealed-realms production dispatcher', () => {
         operation: 'g001-census-second-inspect', status: 'completed',
       });
       expect(JSON.stringify(second)).not.toContain('warpkeep-access-request-census');
+      const applicantBytes = local.state.read({ root: 'runtime', relativePath: applicantActivationPath });
+      try {
+        const applicant = JSON.parse(applicantBytes.toString('utf8'));
+        expect(applicant.member).toBe('g001CensusPrivacySafePrivateReceipt');
+        expect(applicant.operation).toBe('g001-census-second-inspect');
+        expect(applicant.sourceAuthorityDigest).toBe(secondAuthority.authorityDigest);
+        expect(Object.keys(applicant.receipt)).toEqual(['first', 'second']);
+        expect(applicant.receipt.first.privateCensusReference.pathBasename)
+          .not.toBe(applicant.receipt.second.privateCensusReference.pathBasename);
+        expect(applicant.bodyDigest).toBe(createHash('sha256')
+          .update(`${JSON.stringify(applicant.receipt)}\n`).digest('hex'));
+      } finally { applicantBytes.fill(0); }
       const censusActivationPath = 'activation-evidence/records/g001-admitted-player-census-private-receipt.json';
       expect(local.state.exists({ root: 'runtime', relativePath: censusActivationPath })).toBe(false);
       const suspendAuthority = g001Authority('g001-census-second-suspend');
@@ -1190,6 +1204,11 @@ describe('sealed-realms production dispatcher', () => {
         code: 'SEALED_REALMS_DISPATCH_LANE_FAILED',
       });
       expect(scenario.suspend).not.toHaveBeenCalled();
+      for (const basename of ['g001-census-privacy-safe-private-receipt.json', 'g001-admitted-player-census-private-receipt.json']) {
+        expect(scenario.local.state.exists({
+          root: 'runtime', relativePath: `activation-evidence/records/${basename}`,
+        })).toBe(false);
+      }
     } finally {
       Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: original });
       scenario.local.cleanup();
