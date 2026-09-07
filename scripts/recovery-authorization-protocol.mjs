@@ -22,6 +22,12 @@ const KEYS = Object.freeze({
     'artifactId', 'artifactName', 'githubArtifactArchiveSha256', 'innerArtifactTarSha256',
     'contentManifestSha256', 'deploymentAttestationSha256', 'operation', 'canonicalOrigin',
     'authorizationEpoch', 'claimSequence', 'claimedAt', 'claimDeadline', 'iat', 'nbf', 'exp'],
+  terminal: ['schemaVersion', 'profile', 'iss', 'aud', 'sub', 'kid', 'requestId',
+    'authorizationJti', 'authorizationJwsSha256', 'candidateCommit', 'candidateTree',
+    'artifactId', 'artifactName', 'githubArtifactArchiveSha256', 'innerArtifactTarSha256',
+    'contentManifestSha256', 'deploymentAttestationSha256', 'operation', 'canonicalOrigin',
+    'pagesRunId', 'pagesRunAttempt', 'sourceVerifyRunId', 'sourceVerifyRunAttempt',
+    'authorizationEpoch', 'completedAt', 'outcome', 'iat', 'nbf', 'exp'],
 });
 const fail = () => { throw new Error('RECOVERY_SIGNED_OBJECT_INVALID'); };
 function decode(segment) {
@@ -33,7 +39,7 @@ function decode(segment) {
 /** Pinned signature and byte grammar only; callers must apply kind-specific semantic gates. */
 export function verifyRecoverySignedPayload(compact, kind) {
   try {
-    if (!['status', 'claim', 'authorization'].includes(kind) || typeof compact !== 'string' || compact.length > 16384) fail();
+    if (!['status', 'claim', 'authorization', 'terminal'].includes(kind) || typeof compact !== 'string' || compact.length > 16384) fail();
     const segments = compact.split('.');
     if (segments.length !== 3) fail();
     const [header, body, signature] = segments.map(decode);
