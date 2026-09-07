@@ -9,12 +9,14 @@ contributors. This page routes deeper work without duplicating it.
   verification and handoff expectations
 - [0.4 agent handoff and quality audit](agent-notes/0.4.0/README.md) — current
   implementation map, working and unverified behavior, release gaps, and next checks
-- [0.4 release checklist](operations/0.4.0-release-checklist.md) — the single
-  mandatory R01–R18 acceptance contract; planned evidence destinations are not passes
+- [0.4 release checklist](operations/0.4.0-release-checklist.md) — required
+  release evidence; planned evidence destinations are not passes
 - [Development workflow](engineering/development-workflow.md) — document ownership,
   bounded changes, review, evidence and source publication
 - [Technical architecture](technical-architecture.md) — current subsystem ownership,
   preserved G001 versus separate 0.4, rendering and delivery boundaries
+- [Repository ecosystem](engineering/repository-ecosystem.md) — game and services,
+  asset archive, planned tooling, and public presentation
 
 ## Product and contribution
 
@@ -90,8 +92,9 @@ running an operation. Historical procedures do not replace the 0.4 release path.
 
 ## Project history
 
-Current 0.4 intent is defined by the release checklist and linked settled specs;
-current implementation must be checked against source and dated evidence.
+Current 0.4 intent starts with the product direction and the owner's current goal;
+specifications describe behavior and the release checklist records required proof.
+Current implementation must be checked against source and dated evidence.
 Older design, operations and `superpowers` plans preserve their own generation and
 date. They do not silently reopen scope, prove deployment or override the new
 gameplay policy. The [documentation ownership guide](engineering/development-workflow.md)

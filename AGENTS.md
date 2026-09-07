@@ -1,109 +1,116 @@
-# Warpkeep agent guide
+# Working on Warpkeep
 
-Repository-wide engineering guidance. This is not production credentials, a new
-authorization grant, or a replacement for the current user's task.
+Build a persistent strategy game around a real person, a permanent keep and a
+world worth returning to. Connect **gather → choose → build → benefit → return**
+into a satisfying experience, then ship and improve it through observed play.
 
-## Start with the right source of truth
+This file is durable repository guidance. The current user's instructions take
+precedence. Handoffs, old plans and acceptance records provide context and evidence;
+they do not create new permissions or silently restrict a newer product direction.
 
-1. Read `README.md` and `docs/README.md` for product and navigation.
-2. For 0.4, read `docs/operations/0.4.0-release-checklist.md` and
-   `docs/agent-notes/0.4.0/README.md`; use their linked maps to find current code.
-3. Continue the settled gameplay, Astra keep and assembler specifications linked
-   there. Historical plans and unchecked boxes do not prove current status.
-   Inspect source, actual callers and dated evidence before rebuilding something.
-4. Inspect current branch/commit, scoped diff and relevant CI. Preserve unrelated
-   changes and existing processes. Record which source your checks actually cover.
+## Orient before changing things
 
-Read `docs/engineering/development-workflow.md` for document ownership, change
-sequence and evidence standards. Keep dated operational status out of this guide.
+1. Read [README.md](README.md) for the promise and
+   [the 0.4 handoff](docs/agent-notes/0.4.0/README.md) for the current work.
+2. Inspect the actual checkout, branch, scoped diff, remote and relevant CI.
+   Active 0.4 work is on `codex/prepared-keep-bindings-fix`; do not confuse main,
+   a development checkout, a generated candidate and the deployed application.
+3. Use [the repository map](docs/agent-notes/0.4.0/repo-map.md) to find the real
+   caller, state owner and tests. Verify reported running work through its actual
+   process/job handle before restarting it. A stale lock or journal is not proof.
+4. Read source and current evidence before redoing a feature or repeating an old
+   failure. Record what is implemented, verified, deployed or still unknown.
 
-## Architectural invariants
+## Product and design judgment
 
-- Preserve G001's recorded 0.3 gameplay, presentation, identities and persistent
-  state. Freeze new admissions, not existing players or legitimate timers/writes.
-  Capture the required live baseline before effects; whole-database hash equality
-  is not a valid preservation criterion while gameplay continues.
-- G002 0.4 stays sealed with admissions TBD. Intentional pre-storage denial is
-  correct, not a stub to open. PTR requires the actual authenticated owner in its
-  isolated database. Never invent identity/tokens/receipts, substitute atlas-admin
-  authority for player authority, or bypass denied access with another credential.
-- Keep new gameplay in `spacetimedb/gameplay04/`, with thin realm transaction/auth
-  adapters. Keep G001 authority separate. The browser presents validated state;
-  it cannot grant resources or complete timers.
-- Preserve exact replay envelopes, monotonic sequence, atomic settlement,
-  stale-quote reconfirmation and realm/session/database/epoch retirement. Recheck
-  authority across asynchronous boundaries; no optimistic irreversible effects.
-- Use `src/ptr/gameplay04/` and `src/components/keep04/` for the new keep. Reuse
-  neutral utilities, not legacy policy or prop bypasses. Actual 0.4 world water is
-  in `src/greater-realm/createGreaterRealmSceneRuntime.ts`; `realmWaterLayer.ts`
-  belongs to the preserved G001 renderer.
-- Voxels, forest, water and scenery are decorative. Geometry cannot introduce
-  harvesting, navigation/collision authority, terrain editing or persistence.
-  Preserve mobile budgets, reduced motion, fallback and resource ownership.
+- Favor useful player decisions, visible benefits, clear resource feedback and
+  reliable return visits over feature count or implementation complexity.
+- Improve or replace weak mechanics and architecture when that materially helps
+  the game or delivery. Preserve useful foundations; explain significant changes
+  through the problem, chosen behavior, tradeoffs and verification.
+- Continue **The Verdant Citadel**: pale masonry, dark timber, teal roofs, warm
+  activity, restrained warp accents and layered natural framing. Review the actual
+  render path and mobile experience. A complex shader is not visual acceptance.
+- Keep marketing and onboarding focused on the experience. Put tunable map sizes,
+  capacities, economy values and performance limits in their technical owners,
+  rather than repeating them as permanent product promises.
+- Use independent bounded collaborators when useful, with explicit file ownership.
+  Integrate and review their results; delegation does not establish correctness.
 
-## Make bounded, reviewable changes
+## Know the system you are changing
 
-- Choose a specific existing requirement and trace source → caller → test →
-  operating evidence. A helper without its required caller is not delivery.
-- Do not expand 0.4 or rewrite working foundations to change authorship. Record
-  material design corrections with evidence, alternatives, impact and acceptance;
-  defer unrelated improvements with reasons.
-- Separate implementation, generated outputs and documentation in review. Stage
-  exact paths, not a dirty checkout; do not normalize unrelated files, overwrite
-  other work or force-push shared refs.
-- Do not hand-edit generated bindings, manifests, source pins or closure counts.
-  Use supported generation/assembly and verify outputs and convergence. Final
-  freeze waits until required gameplay, visual and operating sources are complete.
-- Private receipts, no-clobber files and fixed workflow checks are authority
-  boundaries. Never remove a guard, widen an arbitrary callback or relax exact
-  assertions merely to obtain green tests.
+| Work | Primary implementation |
+| --- | --- |
+| New gameplay rules | `spacetimedb/gameplay04/`, with realm-specific transaction/auth adapters |
+| Owner session and gameplay controller | `src/ptr/`, especially `src/ptr/gameplay04/` |
+| New personal keep | `src/components/keep04/` |
+| New atlas and water presentation | `src/greater-realm/`, especially `createGreaterRealmSceneRuntime.ts` |
+| Preserved G001 gameplay and renderer | `spacetimedb/src/`, `src/spacetime/`, `src/components/realm/createRealmScene.ts` |
+| Player identity | `services/auth-bridge/` |
+| Delivery and recovery | `scripts/`, `.github/workflows/`, `services/release-recovery/` |
 
-## Verify the actual boundary
+Legacy `inner-keep` and G001 water are not the current `keep04`/Greater Realm
+implementation. Read [the architecture](docs/technical-architecture.md) before
+crossing those boundaries.
 
-Follow package manifests and lockfiles in a fresh isolated checkout. Inspect
-existing dependency paths first: some worktrees use a shared `node_modules`
-junction. Do not install into or otherwise mutate that shared dependency tree.
+Preserve existing G001 progress, access and normal timers alongside the agreed
+new-admission freeze. G002 remains sealed while future admissions are undecided.
+Use the owner's isolated PTR for the new playable journey. Never invent a player,
+token, receipt or substitute administrator authority for actual player access.
 
-- Root: `npm run test`, `npm run typecheck`, `npm run build`; full `npm run check`.
-- Read-only app typecheck: `node node_modules/typescript/bin/tsc -p tsconfig.app.json --noEmit`.
-  Also check `tsconfig.node.json` for Vite configuration. Bare root `tsc --noEmit`
-  traverses no referenced project here (`files: []`); it is not app verification.
-- Root Vitest selects `tests/**`. Module `spacetimedb/tests/**` needs the package's
-  Node/tsx harness, plus its separate types/build checks.
-- Auth bridge and release recovery have their own package scripts/dependencies.
-  Root app types do not replace service or release-script verification.
-- Verify selected file/test counts and exit codes. Label platform skips, overlays,
-  fixtures, mocked SDK contexts and missing measurements; none is live owner play
-  or physical-phone proof.
-- Test delayed requests, stale responses, unknown outcomes and cleanup, not only
-  instant mocks. Preserve scene/focus on healthy refresh without stale commands.
-- Use `docs/evidence/0.4.0/performance.md`: emergency renderer ceilings and
-  scene-graph counts are not measured acceptance budgets.
+The server owns resources, ownership, routes, completion and command outcomes.
+Preserve atomic settlement, exact retry identity, stale-quote reconciliation,
+monotonic state and realm/session/database/epoch isolation. Recheck authority after
+asynchronous work. Healthy refresh should preserve scene and focus without making
+unconfirmed commands available. Decorative geometry must not silently change game
+authority. Generated bindings and release manifests come from their generators.
 
-## Publication, operations and privacy
+## Work, verify and publish
 
-- Source sync is not deployment. Follow `docs/operations/0.4.0-development-sync.md`:
-  review, secret scan, explicit non-forced branch push, verified remote SHA and
-  honest draft status while incomplete. Respect current permission boundaries.
-- Reverify hosting/account/immutable database targets with configured authorized
-  access. Pages hosts the frontend; Cloudflare hosts auth; SpacetimeDB owns state.
-  Login alone does not prove every application permission. Stop at actual denials.
-- Windows/WSL is the local operating target; no Mac dependency. Required Actions/
-  OIDC identity must come from a genuine authorized supported runner. Disposable
-  verification receives no production credentials or private state.
-- Keep credentials, raw identity proofs, real private FIDs/player records,
-  sensitive receipts and authenticated dumps out of Git, public notes, diagnostic
-  output and Desktop packages. Use synthetic/privacy-safe fixtures; approved
-  public projections retain their explicit boundary. Reference restricted evidence
-  without copying secret values.
-- Recovery must preserve post-deployment writes. Do not reset/recreate G001 or
-  call destructive old-snapshot restoration acceptable rollback.
-- Read `ASSETS-LICENSE.md` and dated provenance before media changes. Retain exact-use
-  and third-party terms; reused assets do not become newly Astra-authored.
+Follow [the development workflow](docs/engineering/development-workflow.md) and
+[source synchronization](docs/operations/0.4.0-development-sync.md).
 
-## Handoff standard
+- Make a coherent improvement, test the affected behavior and inspect the diff.
+  Complete the real caller and integration, not only an unused helper.
+- Inspect dependency paths before installing. Existing worktrees may share a
+  `node_modules` junction; install into an independent verification checkout.
+- Root Vitest owns `tests/**`; module tests use their separate Node/tsx runner.
+  Services own their own checks. Root `tsc --noEmit` alone does not traverse this
+  repository's referenced projects. Use package build-mode types or explicit
+  app and Vite-config noEmit checks. Confirm selected tests and exit codes.
+- For visual changes, inspect rendered views, progression, loading/failure,
+  background/resume and cleanup. Distinguish fixtures, emulation, actual devices
+  and authenticated owner play. Measure the agreed workloads before claiming
+  performance. Review authority, persistence and recovery changes independently.
+- Keep reviewed development commits visible on GitHub at meaningful checkpoints.
+  Fetch first, scan the outgoing range, push an explicit non-forced refspec to the
+  correct upstream branch and verify remote equality. Do not wait for production
+  readiness to publish an honestly labeled development checkpoint.
+- Preserve unrelated edits and private artifacts. Stage exact reviewed paths;
+  never sweep an entire dirty worktree into a commit or force-overwrite new remote
+  work. A clean-looking status is not worth losing work.
+- Keep README, architecture, source routing and dated notes aligned. Update the
+  canonical document for a topic instead of creating another competing plan.
 
-Report changed behavior, source/paths, executed checks, limitations, remote sync
-state and the next concrete requirement. Update the relevant evidence and routing
-when adding a durable component. Do not create a competing release checklist.
-Missing mandatory R01–R18 evidence means incomplete, not shipped.
+## Delivery and handoff
+
+GitHub Pages hosts the frontend, Cloudflare hosts identity/recovery services, and
+SpacetimeDB hosts persistent realms. Verify configured accounts and immutable
+targets. Complete the Windows/WSL/Linux operating path without a Mac dependency;
+required workflow identity must come from the actual supported runner.
+
+Source synchronization, a green test, deployment and usable player experience are
+different outcomes. The [release acceptance record](docs/operations/0.4.0-release-checklist.md)
+tracks the remaining evidence for preservation, gameplay, visuals, performance,
+operations and the credential-free Desktop package. Keep it current with the
+user's direction; do not turn historical task labels into new approval layers.
+
+Recovery must preserve legitimate writes after deployment. Derive complete source
+and artifact inventories; do not type hashes, weaken checks or fabricate old
+evidence to make a release pass. Keep credentials, private player data and sensitive
+operational records out of Git and public/Desktop deliverables. Read
+[asset provenance](ASSETS-LICENSE.md) before changing media and credit reuse accurately.
+
+End each session with what changed, the source and remote checkpoint, what was
+actually verified, the exact remaining issue and the next useful action. Keep the
+full release goal active until the deployed game and required evidence support it.

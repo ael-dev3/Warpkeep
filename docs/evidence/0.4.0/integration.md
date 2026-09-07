@@ -376,3 +376,54 @@ The four focused scanner/workflow test files passed 34/34 (00:10:12 local,
 with no findings. The implementer separately recorded a successful actual-config
 full-history scan of 767 scanned commits / 42,226,410 bytes; that is not yet a
 hosted CI result. Hosted acceptance remains pending. No production effects.
+
+### Settled landscape level-five follow-up — 2026-09-07
+
+Root revisited the balanced `all-six-level-five` local fixture in native Chrome
+at 844×390 on source `78a0a7a` (visual code unchanged from cb8cac6). Selected
+City Mill, Lumber Camp, City Stoneworks, City Goldworks and City Barracks through
+their actual controls, then Inspect selected site. Each screenshot was requested
+in a separate call after the camera/scroll action, avoiding the stale immediate
+frames recorded earlier. All five selected silhouettes and footprints were
+contained in the visible canvas beneath the resource header and toolbar.
+
+The final barracks DOM check measured canvas x33/y222.390625, width763,
+height159.609375, bottom382; WebGL mode, one canvas, Inspect focus and no
+horizontal overflow. Viewport emulation was reset. Along with the previously
+settled cathedral image, this fills the six-family level-five landscape
+qualitative coverage gap. Numeric projected extent, other progression and
+construction states, production performance and real owner gameplay remain
+separate open acceptance gates. These were synthetic fixtures, not phone tests.
+
+### Reduced construction inspection and busy-Builder copy defect
+
+On 2026-09-07 root inspected the `mill-constructing` reduced-quality fixture in
+Chrome at 390×844 and 844×390. Separately settled screenshots showed the full
+scaffold and footprint beneath the toolbar in both layouts. Opening the catalog
+reported Builder busy and disabled Confirm upgrade. Selecting Lumber Camp
+focused Place Lumber Camp and retained disabled Confirm placement despite
+sufficient displayed resources. No command or authoritative state changed;
+the viewport override was reset.
+
+Observed clarity defect: the selected legal draft's scene status says
+`Ready to build.` while the catalog still reports `Builder busy`. The disabled
+command behavior is correct, but the placement-validity copy overclaims command
+readiness. A bounded copy/state regression fix is needed; it must not change
+Builder authority or enable submission. This finding is within the existing
+clear-next-action requirement, not a new gameplay feature. Other building
+construction states and authoritative completion remain unverified.
+
+Source trace: `src/ptr/gameplay04/gameplay04Placement.ts:27` maps geometric
+reason `valid` to the misleading sentence. `Keep04Schematic.tsx:65` displays it
+without command eligibility context. Separately, `quoteBuilding04` in
+`gameplay04Presentation.ts:86` rejects an active project, so the catalog cannot
+form a confirmable quote. The bounded correction is to describe valid placement
+only, leaving quote validation and command enablement unchanged. Regression
+coverage should exercise a legal draft with a busy Builder and insufficient
+resources, not merely assert a string constant in isolation.
+
+Resolution checked during the 2026-09-08 documentation audit: commit
+`fd8b146c877fdbe75f02e4b0adecae31ffe1a0a3`, already in the current development
+history, changes the message to `Placement is valid.` and adds the relevant DOM
+regression. See [placement-readiness evidence](placement-readiness-copy.md).
+The observation above is historical and is not an outstanding copy defect.

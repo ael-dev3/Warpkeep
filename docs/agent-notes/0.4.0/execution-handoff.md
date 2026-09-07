@@ -1,228 +1,126 @@
-# Execution handoff and continued work
+# Continue Warpkeep 0.4
 
-Created 2026-09-07 from audit baseline `1600f4b`. This is the bounded working queue
-for the existing [R01–R18 contract](../../operations/0.4.0-release-checklist.md),
-not a replacement goal. The owner's current priority is completing and reviewing
-the README/documentation/agent rails before resuming this release queue.
-Update the continuation section when authoritative state
-changes; keep historical test results tied to their actual inputs.
+Refreshed 2026-09-08 (Europe/Budapest), following source inspection at `781e51e`.
+Read the [handoff index](README.md) for product intent and the
+[infrastructure audit](release-and-infrastructure.md) for dated provider/CI facts.
+The owner requested the GitHub/profile/repository refresh before game shipping.
 
-## Before editing
+## Resume from the actual development checkout
 
-1. Read [start here](README.md), inspect current commit, explicit changed paths,
-   remote refs and running jobs. Preserve unrelated changes. This worktree had
-   roughly 1,756 dirty tracked paths, largely line endings, plus local probes.
-   Do not `git add -A`, normalize the checkout, reset it, or discard those changes.
-2. Work on `codex/prepared-keep-bindings-fix` in the isolated 0.4 worktree. Read
-   current permissions. Configured credentials may be used normally within actual
-   authorization; an access denial is not permission to extract or bypass secrets.
-3. Inspect scripts before invocation. Many production CLI entries intentionally
-   refuse unconfigured execution. Do not replace these fences with success returns.
-4. The root dependency tree is a shared junction. Do not install/remove packages
-   there or use it for writable scratch state. Use an isolated clone/workspace for
-   clean installs, dependency audits and disposable generation. Scope temporary
-   output and subprocess ownership; never kill all Node processes or delete caches
-   broadly to fix an incidental timeout.
-5. Use exact file staging, review the staged diff, secret-scan outgoing history,
-   push a non-forced explicit refspec, then verify remote SHA. Follow the
-   [development sync policy](../../operations/0.4.0-development-sync.md).
-   The temporary `codex/0.4-local-checkpoint` backup avoids cancelling a still-running
-   PR database job; it is not a substitute for eventual PR-branch synchronization.
+The primary branch is `codex/prepared-keep-bindings-fix`. On the owner's current
+Windows machine its working directory is
+`C:/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree`.
+The GitHub remote is **`upstream`**. `origin` points to a local temporary baseline
+repository; its ahead/behind indicator is not GitHub synchronization evidence.
 
-## Verification traps found in this audit
+Fetch and compare actual refs before editing. Preserve existing changes. The
+checkout contains widespread line-ending/stat noise, a small meaningful diff,
+private or disposable probes, and concurrent documentation work. Use explicit
+paths and inspect real diffs; never stage everything or normalize this checkout
+as a convenience. Git's Windows view of Linux worktree paths is not permission
+to prune them.
 
-- **Root `tsc --noEmit` is not an app typecheck here.** `tsconfig.json` has
-  `files: []` and only project references. A trivial exit 0 from that command does
-   not traverse the app/Vite-configuration projects. Use the explicit two project checks below
-  for read-only checking, or the repository build-mode `npm run typecheck` in a
-  suitable isolated environment. Do not count earlier root-only noEmit exits as
-  coverage of changed tests or application source.
-- Root Vitest selects `tests/**/*.{test,spec}.{ts,tsx}`. Passing a module test path
-  under `spacetimedb/tests` can leave it unselected; verify actual file/test counts
-  and invoke the module's Node/tsx harness separately.
-- A passing targeted test is not a full suite/build. A passing composite Linux
-  clone with copied changed files is not exact-commit release evidence. A mocked
-  SDK transaction is not a live owner/database call. Label all four separately.
-- Windows private-file/fsync cases have shown timing variability. Keep default
-  validation/deadlines; diagnose owned workloads and compare isolated Linux rather
-  than deleting assertions or silently raising timeouts.
-- A successful final PowerShell command does not prove earlier commands passed.
-  Guard `$LASTEXITCODE` after each native command. Truncated logs and observation
-  timeouts do not prove a running process failed or finished; resume its handle.
+The root `node_modules` is a shared junction. Install dependencies only in an
+independent clone or verification worktree. Root tooling expects Node `22.22.3`
+and npm `10.9.8`; this machine's default Node/npm differ. Read the actual package
+scripts and engines in each service before invoking them.
 
-## Non-production local verification
+See [source synchronization](../../operations/0.4.0-development-sync.md) for the
+complete fetch, review, scan, non-forced push, and remote verification procedure.
+Development checkpoints may be published while the release remains unfinished.
 
-Run from the repository root with its accepted Node/toolchain. This worktree has
-Node 22.22.3 at `.git/ci-node-22.22.3/node.exe`; that local path is a convenience,
-not a portable deployment identity. These commands do not run publishers.
+## What changed during this handoff
 
-```powershell
-# Check the app and Vite-configuration projects, without build-info output.
-& .git/ci-node-22.22.3/node.exe node_modules/typescript/bin/tsc -p tsconfig.app.json --noEmit
-if ($LASTEXITCODE -ne 0) { throw 'App typecheck failed' }
-& .git/ci-node-22.22.3/node.exe node_modules/typescript/bin/tsc -p tsconfig.node.json --noEmit
-if ($LASTEXITCODE -ne 0) { throw 'Vite configuration typecheck failed' }
+- The current product/architecture/source maps, agent guidance, contribution
+  workflow, public intake, and repository roles were rewritten around 0.4.
+  Public descriptions avoid arbitrary asset/player counts and unsupported claims.
+- Independent review of the previously unpublished `c42f6e6..781e51e` range found
+  no critical publication or privacy regression. Gitleaks `8.30.1`, using the
+  repository configuration and that exact range, passed. This is source review,
+  not approval for production activation.
+- GitHub reads work. Configured Cloudflare reads reach the owning production
+  account, and SpacetimeDB metadata lists existing G001/G002/PTR databases.
+  The previous session's socket and WSL access denials are historical.
+- Healthy refresh retains the existing keep scene, assets, and focus (`555e505`).
+  Commands remain blocked during refresh and uncertain outcomes. Real session
+  expiry/re-entry and owner journey acceptance remain open.
+- Existing PR CodeQL annotations were reviewed against current source. They
+  concern unchanged test fixtures and test helpers; no attacker-controlled
+  production path was found in that review. Required checks still need legitimate
+  triage and passing results; nothing was disabled or dismissed by this audit.
+- A Windows-only issue-form test incorrectly split filesystem paths on `/`.
+  Use `node:path`'s `basename` without changing the expected form names or privacy
+  assertions. Linux-only filesystem cases in the license suite must still run on
+  Linux; do not remove those cases to manufacture a Windows pass.
 
-# Separate module test selection.
-& .git/ci-node-22.22.3/node.exe spacetimedb/node_modules/tsx/dist/cli.mjs --test spacetimedb/tests/genesis001AccessFreeze.test.ts
-if ($LASTEXITCODE -ne 0) { throw 'G001 freeze test failed' }
-```
+The [refresh verification record](../../evidence/0.4.0/documentation-refresh.md)
+records successful native Linux documentation/license and focused component
+checks, including the platform limitations found in the first Windows run.
+The previously unpublished source through `781e51e` has now been pushed and its
+GitHub ref equality verified. Continue publishing reviewed documentation and
+source through the same procedure; do not infer main integration from that push.
 
-Fresh audit backend/client/auth run at `1600f4b`: 17 suites, **301 passed**, 22.18s,
-default timeouts, no installs:
+The [earlier execution record](https://github.com/ael-dev3/Warpkeep/blob/781e51e364d1e5a7319ca2364744c8730e83b0d6/docs/agent-notes/0.4.0/execution-handoff.md)
+preserves historical test commands and exact limitations. Later evidence must
+identify its own source, overlays, environment, and results.
 
-```powershell
-& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/gameplay04Policy.test.ts tests/gameplay04Keep.test.ts tests/gameplay04KeepModules.test.ts tests/gameplay04WorkerJourney.test.ts tests/gameplay04Workers.test.ts tests/gameplay04WorkersModules.test.ts tests/gameplay04Construction.test.ts tests/gameplay04ConstructionModules.test.ts tests/gameplay04Placement.test.ts tests/ptrOwnerPolicy.test.ts tests/ptrGameplay04Bindings.test.ts tests/ptrGameplay04Capability.test.ts tests/gameplay04Controller.test.ts tests/gameplay04ControllerLifecycle.test.tsx tests/ptrRealmAuthClient.test.ts tests/ptrRealmConnection.test.ts tests/PtrRealmProvider.test.tsx --maxWorkers=2
-```
+## Local project inventory
 
-Second fresh run: 9 suites, **171 passed**, 24.30s. The separate G001 module command
-above passed **7 tests**. Total audit gameplay/client/routing/module cases: **479**.
+| Area | Role and treatment |
+| --- | --- |
+| Primary 0.4 worktree | Active development and authoritative local progress; preserve concurrent edits. |
+| Existing delivery worktree and current-session study clone | Clean snapshots of the public `main` baseline at inspection; these do not contain current 0.4 work. |
+| Older `pl/Warpkeep` checkout | Earlier feature work. Its divergent change was patch-equivalent to work already represented in the current source; preserve the checkout and recheck before reuse. |
+| Independent verification checkouts | Disposable installations and test output with exact source records. Do not confuse an overlay test with committed release evidence. |
+| Registered WSL release-preparation sources | Generated/diagnostic candidate sources. Windows may report their Linux paths as prunable; inspect in their owning environment before any cleanup. |
+| `.superpowers` probes, `artifacts/`, Python caches | Local investigations or generated output. Inspect relevant work, keep private data private, and stage only intended public source or sanitized evidence. |
+| `docs/superpowers/` and dated evidence | Design/implementation history. Update current owners and link useful records; unchecked old plans do not restart the project. |
+| Desktop handoff | Local continuation aid. Keep source/status accurate and credentials out; the final 0.4 delivery package still requires release acceptance. |
 
-```powershell
-& .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/RealmChoiceSelector.test.tsx tests/WarpkeepExperiencePtrRealm.test.tsx tests/PtrGameplay04SurfaceHost.test.tsx tests/gameplay04ClientState.test.ts tests/gameplay04ClientPlacement.test.ts tests/gameplay04Presentation.test.ts tests/ptrRealmBackend.test.ts tests/ptrAtlasReadContract.test.ts tests/ptrRealmConfig.test.ts --maxWorkers=2
-```
+The inventory inspected project-related directories and Git/worktree metadata.
+An older temporary verification checkout was owned by another account and Git
+refused inspection; its current state remains unverified. No ownership override,
+cleanup, private-store extraction, or production mutation was used for this study.
 
-Recovery follow-up: the isolated Linux dependency-repair checkout, overlaid with
-the three changed descriptor/source-declaration/test files from this worktree,
-passed **39 tests in two suites** in 1.75s (Vitest 4.1.9, Node 22.22.3). The clone
-contains earlier diagnostic overlays; this is component evidence, not final-source
-attestation. The Windows async-consumer target separately passed; a Windows full
-descriptor-suite pass was not claimed.
+## Next useful work after the public refresh
 
-```text
-node node_modules/vitest/vitest.mjs run tests/sealedRealmsProductionActivationRecords.test.ts tests/genesis001SealedLaunchAdoption.test.ts --maxWorkers=2
-```
+1. **Finish a believable owner journey.** Trace real bindings, provider,
+   controller, module, and keep UI. Address session expiry/re-entry and uncertain
+   command outcomes. Verify the first useful building and its improved return on
+   actual routes. Evaluate clarity, pacing, and reasons to return as well as rules.
+2. **Improve the rendered Verdant Citadel.** Use actual 0.4 scene ownership,
+   especially Greater Realm water. Cover placement, construction, completion,
+   loading/failure, reduced motion/quality, and mobile interaction. Preserve the
+   [placement-readiness correction](../../evidence/0.4.0/placement-readiness-copy.md)
+   already implemented in `fd8b146`. Distinguish fixture screenshots,
+   emulation, physical devices, and real owner evidence.
+3. **Connect local delivery and recovery.** Complete existing missing operating
+   callers, authenticated inputs, existing-database reconciliation, and supported
+   Windows/WSL/Linux execution. Native CI runs Linux; production workflows still
+   contain Mac-specific dependencies. Helper tests do not establish a working
+   release pipeline.
+4. **Prove preservation and recovery before production effects.** Capture a
+   fresh G001 baseline, preserve later writes, test isolated compatible recovery,
+   and verify sealed G002 denial and owner-only PTR isolation.
+5. **Settle source, derive the artifact family, integrate, deploy, and inspect.**
+   Generate pins/bindings/closure through their real tools, run required checks,
+   and use repository protections. Link live results to exact deployed artifacts.
+   Complete the credential-free Desktop package after the actual release result.
 
-Full acceptance still needs the actual root `check` pipeline, service/module
-checks, exact generated bindings, compiled family and mandatory CI. Root `build`
-contains additional asset/private-output checks beyond Vite. Service and module
-package scripts/lockfiles define their own toolchains; do not assume the root
-TypeScript/Vitest version applies to all subprojects.
+Improve mechanics or architecture when evidence shows a better route to the
+owner's goal. Record the decision and update its real consumers. Preserve player
+state and authority boundaries without adding arbitrary process or scope rules.
 
-## Evidence-backed next sequence
+## Verification reminders
 
-1. **Complete the audit-driven refresh correction and interrupted descriptor
-   regression.** Preserve canvas/focus on healthy reads, block unresolved commands,
-   retire on failures/expiry, and test in-place completion. Recovery async results
-   must be observed and rejected by the private FD owner; no-clobber evidence
-   remains retained on failure. See continuation below for actual outcomes.
-2. **Finish the representative owner path as soon as legitimate infrastructure
-   permits it.** Trace generated bindings through provider/controller into real
-   module adapters. Prove cross-expiry re-entry/uncertain-command behavior and the
-   ten-minute improved-return gate; do not infer this from synthetic adapter tests.
-3. **Complete required visual coverage and local release operations alongside
-   each other.** Use the real 0.4 water path, not G001. Implement fixed recovery
-   generator/source authentication, remaining producer/workflow adapters,
-   existing-database update/reconciliation and supported local runner/workflow
-   identity. A helper is done only when the required caller operates and tests
-   cover its full boundary. Keep genuine app-admin/owner access as an explicit
-   prerequisite for private live inspection, not something to fake locally.
-4. **Test preservation/recovery before production effects.** Capture G001's exact
-   deployed baseline privately; exercise isolated compatible update/recovery that
-   retains later writes. Test G002 denied access without opening admissions.
-5. **After operating/gameplay/visual source is settled, derive the complete
-   candidate family.** Run the native compiler/assembler/probe on exact committed
-   source, all five failed CI suites and all mandatory checks; verify repeated
-   convergence. Never final-freeze early or type closure hashes/counts by hand.
-6. **Protected integration → deployment → live verification → Desktop handoff.**
-   Link exact source/CI/artifacts/deployments/databases/results. Upload success,
-   a draft PR or unit tests cannot substitute for required live evidence.
-
-Unrelated orchestration refactors, new admissions, additional gameplay, general
-asset replacement and unrelated PRs remain deferred. No percentage estimate based
-on test count or commits is a meaningful release-completion measure.
-
-## Safe status inspection
-
-Use these through currently permitted configured access; stop at a genuine denial.
-Avoid repeated polling of unchanged jobs while useful local work is available.
-
-```powershell
-git log -1 --format='%H %s'
-git diff --stat -- PATHS_OWNED_BY_THIS_CHANGE
-git ls-remote upstream refs/heads/codex/0.4-local-checkpoint refs/heads/codex/prepared-keep-bindings-fix
-gh pr view 228 --repo ael-dev3/Warpkeep --json state,isDraft,headRefOid,mergeStateStatus
-gh run view 34145030182 --repo ael-dev3/Warpkeep --json headSha,status,conclusion,jobs
-gh api repos/ael-dev3/Warpkeep/actions/runners
-gh api repos/ael-dev3/Warpkeep/pages
-```
-
-A completed job's log may be available via `gh api .../actions/jobs/JOB_ID/logs`
-before `gh run view --log` will return the still-running aggregate's logs. Do not
-cancel/restart the live database job merely because log retrieval is delayed.
-
-## Continuation after the audit
-
-- Created the five-file agent index/map/audit/handoff, and linked it from the main
-  documentation index. This adds navigation and feedback, not release scope.
-- Verified the interrupted recovery descriptor correction on Linux: 39 tests pass.
-  Added negative candidate database/module bytes/tree/atlas-header/owner-receipt
-  cases and rejected asynchronous consumer coverage. The historical consumer
-  contract and production activation fences remain unchanged.
-- The real hook/controller/keep integration regression reproduced both timer and
-  focus refresh removing the canvas. The bounded correction adds a `refreshing`
-  phase for an already verified view; commands remain blocked. Its integration
-  tests cover retained canvas/scene/assets/focus, failed/malformed/expired reads,
-  blocked uncertain outcomes with original-envelope retry and in-place construction
-  completion/reveal. The implementing reviewer reported 134 passing tests across
-  eight focused suites before the session permission change. The main reviewer
-  inspected the complete three-file diff. External SDK/assets/GPU are fixtures;
-  this is not browser/device or live-owner proof.
-- Corrected guidance after discovering root-only `tsc --noEmit` checks no referenced
-  project. Main-agent explicit `tsc -p tsconfig.app.json --noEmit` and
-  `tsc -p tsconfig.node.json --noEmit` both passed after the frontend changes.
-  The second covers Vite configuration only, not every release script.
-- No production mutation, admissions change, final freeze or live-completion claim
-  was made by this audit. Keep the full release goal active.
-
-## Documentation-first checkpoint — 2026-09-07
-
-The owner requested a README/project-structure/agent-guidance overhaul before
-resuming game shipping. Completed locally: 0.4-first root README, durable root
-AGENTS guide, product direction/roadmap, current architecture, documentation index,
-contribution routing, development/evidence workflow and five detailed audit notes.
-The historical image is explicitly 0.3, legacy policy is labeled separately,
-version remains 0.3.43, and no live acceptance is inferred from source.
-
-Two independent reviews found and corrected recovery-test ordering, inventory
-terminology, source-path conventions, test/typecheck scope, overly broad privacy
-wording, Cathedral-adjusted duration and the actual 0.4 water route. Main-agent
-checks found 146 local Markdown links across 14 documents, all resolving; canonical
-README community/intake links and tracked documentation whitespace checks passed.
-No visual/gameplay acceptance was claimed from this documentation review.
-
-Remaining verification/publication limitations:
-
-- The attempted `projectLinks`, `communityIntake`, `licensePolicy` Vitest run never
-  started tests: the session's new filesystem restrictions deny Vite's temporary
-  config write under the external shared dependency junction. Do not report those
-  suites as passed or modify that shared tree to bypass the restriction.
-- The standalone license verifier initially stopped at its committed-policy
-  cleanliness precondition in the dirty working checkout. After committing the
-  documentation, a clean detached local worktree at `125bce95957bb55945904f2bb8a33acaa93fcca8`
-  passed `node scripts/verify-license-policy.mjs` (exit 0), and its Git status
-  remained clean. This verifies the actual documentation checkpoint without
-  staging or modifying unrelated dirty manifests. It does not replace the blocked
-  Vitest suite or verify the whole release.
-- Fresh GitHub status inspection was denied at the socket/network layer before
-  authentication. Network permission requests returned no grant. The earlier
-  remote/CI snapshots remain historical; no new push or current remote equality
-  is proved. Re-login is not a fix for this network restriction.
-- The outgoing-history Gitleaks check for `c42f6e6..555e505` could not launch:
-  the session denied the existing WSL scanner with `Wsl/Service/E_ACCESSDENIED`.
-  No clean scan is claimed for that range. Re-run the configured scanner before
-  publishing; do not substitute a visual diff review for the required scan.
-
-Saved local commits, none newly verified on GitHub:
-
-- `1feb1054f6649fbef26224e5039ccecbea6f04d9`: recovery consumer rejection and
-  additional candidate-mutation tests; 39 Linux component tests recorded above.
-- `125bce95957bb55945904f2bb8a33acaa93fcca8`: reviewed README/project direction,
-  architecture, agent rails and audit notes; clean-checkout license verification.
-- `555e505c10fbd33b495304f73af53f44bdae541c`: healthy refresh scene/focus correction
-  and integration regressions. App and Vite-configuration noEmit checks passed.
-
-Finish permitted local review/checkpoint work, then restore legitimate test and
-GitHub access before claiming the documentation is fully verified/published or
-resuming the user-deferred shipping queue. These limits do not establish a blanket
-prohibition on production deployment, and do not complete any live release gate.
+- Root `tsc --noEmit` does not traverse the referenced projects. Use
+  `npm run typecheck`, or explicitly check `tsconfig.app.json` and
+  `tsconfig.node.json`; the latter covers Vite configuration only.
+- Root Vitest selects `tests/**`. SpacetimeDB, auth bridge, and recovery packages
+  have their own checks. Verify actual selection and process exit status.
+- `npm run check` includes more than Vite build. Use the complete required
+  pipeline on a stable candidate; retain targeted diagnostics with honest scope.
+- Keep default assertions and budgets. Reproduce timing/platform failures in
+  an appropriate isolated environment instead of hiding them.
+- Record live evidence privately where required, with a sanitized public result.
+  A successful upload, draft PR, local fixture, or source sync is not deployment.

@@ -59,6 +59,27 @@ production changes or fence removals were performed during this inspection.
 
 ## Scope and acceptance boundaries
 
+### No-Mac execution boundary reinspection
+
+At `78a0a7a`, production migration is not just a runner-label change:
+
+- `sealed-realms-production.yml` selects macOS and checks a fixed Darwin Node
+  path and Mach-O ARM64 executable identity.
+- `notification-bridge-b0.yml` and `notification-bridge-prepared.yml` also bind
+  fixed Darwin Node/pnpm paths and the Darwin installed-toolchain manifest.
+- `deploy-pages.yml` has Linux-aware disposable build setup, but its protected
+  execution jobs still select macOS and consume that same Darwin manifest.
+- `auth-bridge-notification-prepared-installed-toolchain.mjs` binds a Darwin
+  profile and exact Darwin workerd, esbuild and native TypeScript executable
+  paths. A Linux package tree cannot truthfully satisfy that attestation.
+
+The local preparation runtime and hosted Linux native tests do not replace
+these production contracts. Required migration must update the supported local
+runner execution, fixed runtime checks, actual Linux installed-byte attestation
+and all authenticated consumers together, before final source closure freeze.
+Do not rename a Darwin manifest or accept a Linux runner under Darwin identity.
+This inspection was read-only and did not register or alter a runner.
+
 These are concrete entries within existing R11–R13, not additional product scope.
 Remove a fence only in the same reviewed change that supplies its required
 authority and tests. A deleted `exit 1`, changed status string, mock success or

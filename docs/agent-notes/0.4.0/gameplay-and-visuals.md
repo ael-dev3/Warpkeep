@@ -1,8 +1,124 @@
-# Gameplay, identity and visual quality audit
+# Gameplay and visual implementation notes
 
-Source snapshot: 2026-09-07, `1600f4b`; see [execution handoff](execution-handoff.md)
-for subsequent fixes. Findings below distinguish defects, intentional constraints
-and missing acceptance. Do not treat every closed gate as a bug to remove.
+Updated 2026-09-07 against the active 0.4 worktree at
+`781e51e364d1e5a7319ca2364744c8730e83b0d6`, including the inspected working files.
+This refresh is source/document inspection, with no new test run, authenticated
+owner session or production call. Earlier executed results keep their original
+source and limitations in the [execution handoff](execution-handoff.md).
+The earlier `1600f4b` audit is the origin of findings G01–G03 and V01–V02;
+G01 is now fixed in source by `555e505` and is not unfinished implementation.
+
+The current product is **gather → choose → build → benefit → return**: gather
+spendable resources, make a meaningful building choice, see the keep change,
+and use the completed improvement on a later journey or project. Read
+[product direction](../../design/warpkeep-direction.md) for the player promise;
+this page keeps precise mechanics, implementation routes and evidence limits.
+
+## Current state at a glance
+
+| Area | What the source establishes | What remains unknown or unfinished |
+| --- | --- | --- |
+| 0.4 gameplay core | Persistent gathering, returns, construction, upgrades and six completed effects are implemented | Complete genuinely authorized owner journey on the real atlas |
+| PTR integration | Realm-bound capability, real transaction adapters and world/keep UI callers exist | Usable reauthorization and complete live acceptance |
+| Healthy refresh | Verified scene/focus retained while new commands stay disabled; regression added in `555e505` | Final browser/device/performance proof for the integrated release |
+| G002 | Gameplay deliberately denies access before storage | Fresh live denial and no-unauthorized-write evidence; admissions TBD |
+| Verdant Citadel | Distinct 0.4 keep composition, materials, dressing, progression and fallback paths exist | Complete final-source visual matrix and small-screen readability |
+| Voxels | Bounded reusable mesher, world adapters and generated keep dressing are connected | Final whole-path visual/performance acceptance |
+| 0.4 water | Public-cell geometry with standard material and restrained color/opacity animation | Further polish against the reference study and strategic-camera evidence |
+| Shipping | Substantial implementation and local evidence exist | Final operating composition, deployment and live acceptance; see release notes |
+
+Neither a closed G002 gate nor missing acceptance is automatically a broken
+implementation. Conversely, a unit test or synthetic screenshot does not prove
+that a real owner can complete the loop. The [release checklist](../../operations/0.4.0-release-checklist.md)
+remains the acceptance ledger; this page does not add a competing set of gates.
+
+## Where the current game lives
+
+| Responsibility | Source and caller |
+| --- | --- |
+| Prices, gathering, travel and completed effects | [`policy.ts`](../../../spacetimedb/gameplay04/policy.ts) |
+| Initialization, sequence and replay authority | [`keep.ts`](../../../spacetimedb/gameplay04/keep.ts), [`commands.ts`](../../../spacetimedb/gameplay04/commands.ts) |
+| Journey timing, return credit and shared settlement | [`workerJourney.ts`](../../../spacetimedb/gameplay04/workerJourney.ts), [`workers.ts`](../../../spacetimedb/gameplay04/workers.ts), [`reconciliation.ts`](../../../spacetimedb/gameplay04/reconciliation.ts) |
+| Placement, project start and completion | [`placement.ts`](../../../spacetimedb/gameplay04/placement.ts), [`construction.ts`](../../../spacetimedb/gameplay04/construction.ts) |
+| Actual PTR transactions and scheduled callbacks | [`gameplayKeep.ts`](../../../spacetimedb/ptr/src/gameplayKeep.ts), [`gameplayWorkers.ts`](../../../spacetimedb/ptr/src/gameplayWorkers.ts), [`gameplayConstruction.ts`](../../../spacetimedb/ptr/src/gameplayConstruction.ts), [`gameplaySchedule.ts`](../../../spacetimedb/ptr/src/gameplaySchedule.ts) |
+| Session/capability and owner expiry | [`PtrRealmProvider.tsx`](../../../src/ptr/PtrRealmProvider.tsx), [`ptrRealmConnection.ts`](../../../src/ptr/ptrRealmConnection.ts), [`ownerPolicy.ts`](../../../spacetimedb/ptr/src/ownerPolicy.ts) |
+| Validated client state and exact command envelope | [`gameplay04State.ts`](../../../src/ptr/gameplay04/gameplay04State.ts), [`createGameplay04Controller.ts`](../../../src/ptr/gameplay04/createGameplay04Controller.ts), [`useGameplay04Controller.ts`](../../../src/ptr/gameplay04/useGameplay04Controller.ts) |
+| World-to-keep navigation and resource selection | [`PtrGameplay04SurfaceHost.tsx`](../../../src/ptr/PtrGameplay04SurfaceHost.tsx), [`GreaterRealmWorldScene.tsx`](../../../src/components/realm/GreaterRealmWorldScene.tsx) |
+| Keep decisions, placement and presentation | [`Keep04Screen.tsx`](../../../src/components/keep04/Keep04Screen.tsx), [`Keep04BuildingPanel.tsx`](../../../src/components/keep04/Keep04BuildingPanel.tsx), [`Keep04WorkerPanel.tsx`](../../../src/components/keep04/Keep04WorkerPanel.tsx), [`Keep04SceneHost.tsx`](../../../src/components/keep04/Keep04SceneHost.tsx) |
+| Art profile, buildings and asset lifetime | [`keep04VisualProfile.ts`](../../../src/components/keep04/keep04VisualProfile.ts), [`createKeep04Scene.ts`](../../../src/components/keep04/createKeep04Scene.ts), [`createKeep04Buildings.ts`](../../../src/components/keep04/createKeep04Buildings.ts), [`loadKeep04Assets.ts`](../../../src/components/keep04/loadKeep04Assets.ts) |
+| Decorative voxel surface and keep dressing | [`voxelSurfaceMesh.ts`](../../../src/components/realm/voxelSurfaceMesh.ts), [`keep04VoxelDressing.ts`](../../../src/components/keep04/keep04VoxelDressing.ts), [`planKeep04DressingSource.ts`](../../../src/components/keep04/planKeep04DressingSource.ts) |
+| Actual PTR/world water | [`createGreaterRealmSceneRuntime.ts`](../../../src/greater-realm/createGreaterRealmSceneRuntime.ts), `waterMesh` and its chunk material update |
+
+The historical [`inner-keep-construction.md`](../../design/inner-keep-construction.md)
+describes a different dormant V1 policy. Do not use its economy discounts or
+timings as 0.4 mechanics. Likewise, `realmWaterLayer.ts` and `createRealmScene.ts`
+serve the preserved G001 presentation, rather than the new PTR world/keep path.
+
+## Implemented mechanics snapshot
+
+These values come from the current shared policy, not a live observation or an
+immutable promise. Keep numeric changes in policy, tests and these technical
+notes together; product-facing pages need the decisions and benefits, not every
+constant.
+
+| Rule | Current implementation |
+| --- | --- |
+| Economy | Food, Wood, Stone, Gold; four permanent Worker slots and one Builder |
+| Gathering choices | 60 seconds, 10 minutes, 1 hour or 8 hours |
+| Base gathering yield | 10 units per completed 10-second gathering quantum |
+| Base travel | 2 seconds per server-validated route edge |
+| Spendable credit | On completed return; pending yield cannot fund construction |
+| Building progression | Levels 1–5; base cost multipliers 1 / 3 / 7 / 15 / 31 |
+| Base build durations | 2 minutes / 15 minutes / 1 hour / 4 hours / 12 hours |
+| Placement | Permanent accepted transform; draft cancellation is free, accepted construction has no cancellation/refund path |
+| Balance ceiling | 1,000,000 per resource; return outcome distinguishes earned, credited and overflow |
+
+| Building | Level-one Food / Wood / Stone / Gold | Completed effect |
+| --- | --- | --- |
+| Mill | 20 / 40 / 20 / 0 | Food yield gains 20% of base per level |
+| Lumber Camp | 20 / 20 / 40 / 0 | Wood yield gains 20% of base per level |
+| Stoneworks | 40 / 20 / 20 / 0 | Stone yield gains 20% of base per level |
+| Goldworks | 40 / 60 / 40 / 20 | Gold yield gains 20% of base per level |
+| Barracks | 60 / 80 / 80 / 40 | Travel duration reduces by 5% per level |
+| Cathedral | 80 / 100 / 120 / 60 | Future construction duration reduces by 5% per level |
+
+Economy gains are linear additions to base yield, not compounding multipliers.
+Journey travel/yield rates are captured when dispatched; a later completion
+does not retroactively change that journey. Construction captures the accepted
+cost and duration. The server reconciles due work atomically before accepting a
+new current command; the UI reaching zero remaining time cannot finish it.
+
+The client distinction is equally important: `ready` allows commands;
+`refreshing` preserves a previously verified view but blocks commands; `pending`
+and `uncertain` preserve the immutable original request for confirmation or exact
+retry. Stale quotes require another review, and an expired or changed capability
+retires the controller. A displayed balance, selected site or retained picture
+is never enough to authorize a new mutation.
+
+## Follow one building decision through the system
+
+`PtrGameplay04SurfaceHost` keeps the gameplay controller alive while the owner
+switches between atlas and keep. Resource navigation returns to the actual
+world selector; a validated same-generation atlas selection supplies the atlas
+assertion used by later commands. The host rejects copied, expired or mismatched
+PTR capabilities before mounting the gameplay surface.
+
+In the keep, `Keep04BuildingPanel` derives a quote from the decoded view and
+selected permanent transform. It shows exact costs, resource deficits, effect,
+Builder state and placement consequences. Confirm sends that reviewed quote to
+`createGameplay04Controller`, which checks it again and captures an immutable
+envelope containing sequence, expected keep/atlas revision, policy/layout,
+transform, cost and duration. Draft cancellation sends no gameplay command.
+
+The capability in `ptrRealmConnection.ts` rechecks current realm/session scope
+around the SDK call. The PTR construction procedure enters a real transaction,
+requires the authenticated owner and verified atlas, then uses the shared
+construction core to reconcile due work and validate/deduct/start atomically.
+The result acknowledges that exact sequence/revision; the client then reads
+authoritative state. The scene shows construction and completion from that
+state. The matching economy benefit is captured by a subsequent dispatch and
+becomes spendable only when the improved return is credited. That final return,
+rather than an updated label or accepted dispatch alone, closes the first loop.
 
 ## Implemented strengths to preserve
 
@@ -42,30 +158,25 @@ and missing acceptance. Do not treat every closed gate as a bug to remove.
   30/24/15fps caps, DPR limits, hidden-page suspension, schematic fallback and
   reduced-motion support are meaningful existing safeguards. Retain them.
 
-## Findings requiring action
+## Findings and remaining acceptance
 
-### G01 — healthy refresh can tear down the scene and move focus
+### G01 — healthy refresh scene/focus loss: fixed in source
 
-Priority: high integration correctness. At audited source, the real hook polls
-every five seconds in `src/ptr/gameplay04/useGameplay04Controller.ts`. Its
-controller publishes `loading` on an ordinary refresh even after a verified view.
-`Keep04Screen.tsx` mounts `Keep04SceneHost` only in `ready` and moves focus to Back
-on ready-to-not-ready. The host unmount disposes assets, canvas and context.
+The original audit found that ordinary five-second and focus refreshes published
+`loading`, unmounting the scene and moving focus despite a healthy session.
+The held-response integration regression reproduced it. Commit `555e505`
+corrected the controller and screen: an already verified view now enters
+`refreshing`, keeps the same scene/assets/canvas/focus, and reconciles the next
+verified state in place. New commands remain blocked during the read.
 
-This source chain predicted renderer recreation/focus loss during healthy polls;
-the subsequent held-response integration regression reproduced both cases.
-It also prevents `createKeep04Scene.ts` from seeing construction-to-complete in
-the same scene, which its reveal effect requires. Existing immediate-read/static
-controller tests do not cover a held real refresh response through a React render.
-
-Required correction: reproduce with real hook/controller + screen, hold a second
-read, verify scene/host and focused control continuity; keep actions unavailable
-while refresh is unresolved. Resolve changed authoritative state in place. Failed
-reads, expired scope, pending/uncertain commands must still block or retire as
-appropriate. Do not retain an expired capability or allow stale-state mutations
-merely to preserve the picture. The bounded correction and focused verification
-are recorded in the [continuation record](execution-handoff.md). Final rendered
-performance/owner acceptance still remains separate.
+[`Keep04SceneHost.test.tsx`](../../../tests/Keep04SceneHost.test.tsx) exercises the
+real hook/controller/screen path with delayed polling and focus reads, changed
+construction state, failed/malformed/expired responses and uncertain commands.
+The [continuation record](execution-handoff.md) records 134 passing tests in eight
+focused suites reported for the correction, followed by explicit app and Vite
+configuration typechecks. SDK/assets/GPU are fixtures in this evidence. This
+documentation refresh rechecked the source and commit diff, but did not rerun
+those tests. Preserve the fix; final rendered and owner acceptance remain open.
 
 ### G02 — short PTR sessions can interrupt the intended first journey
 
@@ -74,7 +185,7 @@ is at most 120 seconds (`spacetimedb/ptr/src/ownerPolicy.ts`). At expiry,
 `src/ptr/PtrRealmProvider.tsx` closes the connection, retires capability and returns
 to unknown; `WarpkeepExperience.tsx` returns the player to the menu. Current tests
 explicitly require a fresh access check. No automatic renewal is implemented in
-that provider at the audit snapshot.
+that provider in the inspected `781e51e` source.
 
 A two-minute level-one build and a ten-minute first journey cross this boundary.
 Exercise genuinely authorized renewal/re-entry early, including an ambiguous
@@ -100,19 +211,20 @@ integration/smoke/connected tooling. Existing atlas/G001 probes are not substitu
 
 ### V01 — water polish must target the renderer actually used by 0.4
 
-The [Pelagic study](../../operations/2026-09-06-water-visual-reference.md) is bounded
+The [Pelagic study](../../operations/2026-09-06-water-visual-reference.md) is visual
 inspiration, not copied source or completed implementation. Actual 0.4/PTR water
 comes from `src/greater-realm/createGreaterRealmSceneRuntime.ts` (`waterMesh`),
 using per-cell geometry and a standard material with color/opacity animation.
-The richer analytic wave/foam shader in `components/realm/realmWaterLayer.ts` is
+The richer analytic wave/foam shader in `src/components/realm/realmWaterLayer.ts` is
 used by legacy G001 `createRealmScene.ts`, not this runtime.
 
 Do not claim the advanced legacy shader is already integrated into PTR, or alter
 G001 water appearance to satisfy 0.4. Use a bounded 0.4-owned material/helper if
 implementation evidence calls for it; preserve public-cell geometry, hydrology,
-picking and scheduling. No FFT ocean, extra reflection/refraction scene passes,
-physics, free flight, underwater mode or new environmental interactions. Judge
-the result at strategic-camera scale and the existing 390px mobile budgets.
+picking and scheduling. The immediate need is readable depth, shoreline and
+surface movement at strategic-camera scale within the existing mobile budgets.
+An ocean simulation or extra render passes would need a demonstrated benefit
+and measured cost; the reference study alone is not a reason to introduce them.
 
 ### V02 — visual completeness exceeds current rendered evidence
 
@@ -170,5 +282,9 @@ method and budgets. This summary is a routing aid, not a replacement or relaxed 
   attractive initial header screenshot. A usable schematic is required recovery,
   not a replacement for mandatory successful WebGL visual acceptance.
 
-The correct next work is targeted integration and real acceptance, not replacing
-the already-tested transition core or inflating scope to postpone the finish line.
+After the requested documentation/source checkpoint is published, resume the
+integrated owner journey, reauthorization usability, visual completion and
+measured acceptance. Use current tests and source as foundations. If improving
+the game requires a design correction, record its player benefit, consequences
+and verification rather than treating historical implementation choices as
+permanent limits or restarting working systems without a reason.

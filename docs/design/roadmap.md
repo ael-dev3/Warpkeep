@@ -1,15 +1,16 @@
 # Warpkeep roadmap
 
-A finite release first; broader strategy only after the existing loop is reliable
-and rewarding. This page describes direction, not a deployment attestation or ETA.
+The next milestone is a rewarding, reliable loop of building and gathering. Broader
+strategy can grow from the choices and relationships it creates. This page
+describes priorities, not a deployment attestation or an ETA.
 Use the [release checklist](../operations/0.4.0-release-checklist.md) and
 [dated audit](../agent-notes/0.4.0/README.md) for acceptance and implementation state.
 
 ## Recorded baseline — Genesis 001 Alpha 0.3.43
 
-The admission-gated world foundation includes 10,000 persistent cells, 100 keep
-sites, verified Farcaster identities, public keep/profile presentation, four
-Worker journeys, Food/Wood/Stone/Gold gathering and private Community Marks.
+The admission-gated world foundation includes persistent keeps, verified
+Farcaster identities, public keep/profile presentation, Worker journeys,
+Food/Wood/Stone/Gold gathering and private Community Marks.
 The coastline, rivers, biomes, forests and resource sites provide the visual world.
 Marks have no spending, transfer, conversion, redemption or financial reward loop.
 
@@ -21,22 +22,28 @@ flag alone does not prove the production change occurred.
 
 1. Deliver the separate owner PTR gather → choose → build → benefit → return
    journey through real bindings, verified atlas routes and server transactions.
-2. Support four Workers and six building families at levels 1–5: economy buildings
-   improve matching gathering yield, Barracks improves travel, Cathedral improves
-   future construction time. Keep one Builder, permanent placement and exact
-   retry/stale-quote semantics. Base level-one construction is two minutes before
-   completed Cathedral reductions under the settled 0.4 policy; this is not the
-   old dormant V1 construction-discount design.
+2. Connect gathering to useful construction. Economy buildings improve matching
+   yield, Barracks improves travel and Cathedral improves future construction.
+   Make costs, shortages, incoming returns, permanent placement and completed
+   benefits clear. The [gameplay notes](../agent-notes/0.4.0/gameplay-and-visuals.md)
+   record current mechanics and their implementation sources.
 3. Finish the Verdant Citadel look across required building/placement/progression
    states, with reusable decorative voxel detail, layered forest and lightweight
    water. Cover mobile, reduced motion, asset failure, context recovery and fallback.
 4. Preserve G001. Deploy G002 sealed and accurately closed, with admissions TBD.
    Do not open it to demonstrate gameplay; use the genuine isolated owner PTR.
-5. Complete bounded local Windows/WSL preparation, execution and recovery without
-   a Mac dependency. Real Actions/OIDC identity is required where specified.
-6. Verify the ten-minute first economy building **and improved return**, fixed
-   performance budgets, live preservation/isolation and write-preserving recovery;
-   deliver the linked evidence ledger and credential-free Desktop package.
+5. Complete the local Windows/WSL preparation, release and recovery workflow,
+   using genuine service and player authority at the required boundaries.
+6. Demonstrate a useful first improvement and its improved return, measure
+   responsiveness across required views, verify existing-player preservation
+   and publish a reproducible, credential-free handoff.
+
+The core economy, transactional adapters, client command controller and Verdant
+Citadel renderer are implemented. The healthy-refresh scene/focus correction is
+also complete in source. Integrated owner play, final visual coverage, measured
+performance and deployment acceptance remain unfinished; their current evidence
+belongs in the [gameplay audit](../agent-notes/0.4.0/gameplay-and-visuals.md)
+and the release checklist, rather than being inferred from this roadmap.
 
 Follow representative playable keep → required gameplay/visual/operating coverage
 → final family freeze → protected integration/deployment → live verification →
@@ -58,12 +65,20 @@ its compatibility/provenance where needed, but do not use it as the specificatio
 for the isolated 0.4 successor or activate it to make the new PTR tests pass.
 Historical plans and deployment notes remain evidence of their own source/date.
 
-## Deferred beyond this release
+## Candidate directions after the first loop
 
-Possible later work includes training/scouting, defense/conflict, alliances,
-trading/social systems, seasons and governance. Queue/cancellation/relocation/
-refund mechanics, admissions design, payments and new resource systems are not
-part of 0.4. Do not implement deferred ideas merely because they appear here.
+| Direction | Player value to investigate |
+| --- | --- |
+| Scouting and exploration | Learn something useful about geography and future destinations |
+| Trade and specialization | Turn different resource priorities into cooperation |
+| Alliances and shared objectives | Make neighboring Keeps and returning together meaningful |
+| Training, defense and conflict | Add consequential preparation and interaction when the economy supports it |
+| Seasons and community institutions | Give a persistent world changing goals and shared history |
+
+These are possibilities, not implemented systems or fixed commitments. Queueing,
+cancellation, relocation and refunds would change current permanent-construction
+rules and require an explicit design. G002 admissions remain TBD. None of those
+decisions should be assumed from a historical plan or a visible UI placeholder.
 
 Validate the existing loop with an appropriately authorized cohort only after
 separate access decisions. Observe first dispatch, first useful build, voluntary
@@ -73,6 +88,7 @@ count—should decide what comes next.
 ## Product and release guardrails
 
 Keep server authority and private data boundaries; distinguish live, local and
-planned behavior. Preserve asset rights and accurate authorship. Do not weaken
-verification to call the patch shipped, and do not turn optional improvements
-into new release blockers without evidence and a recorded scope decision.
+planned behavior. Preserve asset rights and accurate authorship. Improve the
+design when evidence or considered judgment supports it, recording the player
+benefit, implementation impact and changed acceptance where applicable. Avoid
+restarting useful work or substituting a quality score for demonstrated results.

@@ -3,23 +3,42 @@
 ## The promise
 
 A real person, a permanent keep, and a world worth returning to. Warpkeep is a
-Farcaster-connected persistent strategy world, not a browser-authoritative save
-file or a collection of unrelated systems. A small population should feel that
-its progress belongs to a coherent shared place before the game adds breadth.
+Farcaster-connected persistent strategy game about building a home in a shared
+world. A Keeper's choices, accumulated effort and visible improvements should
+make that place feel personal and give the next visit a purpose.
+
+The Greater Realm supplies geography, resource destinations and visible journeys.
+The Inner Keep turns the results into decisions and a growing home. These scales
+should feel like one game: a shortage suggests a journey; a successful journey
+makes a building possible; a completed building improves what happens next.
 
 ## The current release target: 0.4
 
 Make one evening satisfying and tomorrow's return meaningful through
-**gather → choose → build → benefit → return**. Four Workers gather real atlas
-resources; six building families turn those returns into visible improvements
-and better future expeditions or projects. Decisions, costs, permanence and
-completed benefits should be easy to understand without reading a design document.
+**gather → choose → build → benefit → return**. Workers gather resources from
+the shared landscape. The player chooses which improvement matters now, places
+it inside the keep and sees completion improve a later journey or project.
+The first useful choice should arrive quickly; longer projects should create
+anticipation without making the first session feel empty.
 
-The Verdant Citadel is the settled visual direction: an elevated, readable town
-diorama, pale masonry, dark timber, teal roofs, restrained warp accents and muted
-layered forest. Voxels and lightweight water are decorative, mobile-budgeted
-presentation—not new terrain, harvesting, collision or persistence systems.
-Authorship is accurate: new composition does not reattribute reused assets.
+The current building roles make that loop concrete. Mills, Lumber Camps,
+Stoneworks and Goldworks improve their matching resource yield. Barracks shorten
+travel, and the Cathedral shortens future construction. Their exact costs,
+durations and progression live in the [gameplay notes](../agent-notes/0.4.0/gameplay-and-visuals.md),
+where they can be checked against implementation. A player should understand
+the benefit from the game itself.
+
+The Verdant Citadel is the visual direction: an elevated town diorama with pale
+masonry, dark timber, teal roofs, restrained warp accents and a muted, layered
+forest. Building silhouettes, entrances, construction and completed upgrades
+must remain legible at the scale of a phone. Voxel details give the ground and
+surroundings structure; lightweight water gives the landscape movement and depth.
+Both support the composition while staying decorative and responsive.
+
+Visual quality includes the whole interaction: framing the selected site,
+reading a cost, placing with touch or keyboard, seeing progress and recovering
+from missing graphics. Reused models retain their recorded provenance; the new
+composition and material treatment do not change their authorship.
 
 This target is **not yet a shipped release**. The recorded Genesis 001 0.3.43
 baseline has persistent keeps, Workers and gathering, not the completed 0.4
@@ -29,7 +48,7 @@ admissions TBD; prove playable 0.4 through the actual owner's isolated PTR.
 
 ## Design principles
 
-- Deliver one rewarding loop before adding another system.
+- Judge additions by how they strengthen choices, progress and the desire to return.
 - Make the next useful decision obvious; show spendable versus pending resources,
   exact costs and shortages, permanent placement and what completion changes.
 - Keep identity, admission, ownership, resources, routes, timers and outcomes
@@ -38,12 +57,13 @@ admissions TBD; prove playable 0.4 through the actual owner's isolated PTR.
   safe. Never hide a new irreversible command inside an automatic refresh.
 - Prefer coherent original art direction and provenance-recorded reuse. Reduce
   optional decorative density before sacrificing legibility or responsiveness.
-- Treat quality as verified behavior: actual owner play, measured performance,
-  preservation, failure recovery and truthful evidence—not helper or test counts.
+- Evaluate quality through actual play, measured responsiveness, visible state,
+  preservation and failure recovery. Code volume and test counts are supporting
+  evidence, not a rating of the game.
 - Use Farcaster for verified identity and bounded social presentation, not an
   unbounded gameplay advantage. AI-assisted creation does not become game authority.
 
-## Finite success criteria
+## How to judge the first release
 
 The [0.4 checklist](../operations/0.4.0-release-checklist.md) is the single release
 completion contract. The first economy building **and its improved return** must
@@ -52,16 +72,21 @@ All six effects/progression, realm isolation, visual/fallback states and fixed
 performance gates require evidence. Code and synthetic captures alone do not
 satisfy a live acceptance requirement.
 
-Continue the settled [gameplay specification](../superpowers/specs/2026-09-05-warpkeep-0.4-gameplay-design.md)
-and [Astra keep specification](../superpowers/specs/2026-09-06-warpkeep-astra-keep-design.md).
-Change settled design only for an evidenced material problem; record reason,
-impact and the unchanged or explicitly amended acceptance condition.
+Use the [gameplay specification](../superpowers/specs/2026-09-05-warpkeep-0.4-gameplay-design.md)
+and [Astra keep specification](../superpowers/specs/2026-09-06-warpkeep-astra-keep-design.md)
+as the current implementation baseline. Independent design and engineering
+judgment are encouraged when they make the game better. Explain a substantial
+change in terms of the player problem, alternatives, effect on existing work
+and how the new result will be evaluated. Preserve working foundations where
+they help; a historical plan is not a permanent limit on the game's ambition.
 
 ## Beyond 0.4
 
-Training, scouting, conflict, alliances, trade, social systems, seasons and
-community rules are possible later directions, not promises or active release
-tasks. Let observed play and voluntary return guide prioritization.
+Scouting could make geography valuable; trade could make different priorities
+useful; alliances and shared objectives could give neighbors a reason to matter.
+Training, conflict, seasons and community institutions are also possible directions.
+These are future possibilities rather than implemented features or promises.
+Let observed play, voluntary return and player relationships guide prioritization.
 See the [roadmap](roadmap.md) for the current/deferred boundary.
 
 Warpkeep is not a wallet client or financial product. Community Marks are

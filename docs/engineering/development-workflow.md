@@ -18,10 +18,12 @@ evidence records; product intent belongs in product/specification documents. The
 | What reached players? | [CHANGELOG](../../CHANGELOG.md), release/deployment ledger | Never mark planned or local-only work released |
 | What may be reused? | [ASSETS-LICENSE](../../ASSETS-LICENSE.md), dated provenance | Preserve file-specific terms and attribution |
 
-If documents conflict, do not infer precedence from file date alone. Follow the
-current explicit task and settled acceptance contract; inspect source and evidence
-to determine implementation status. Record unresolved material ambiguity rather
-than inventing a new architecture. Link historical contracts with clear labels.
+If documents conflict, follow the owner's current explicit task, then reconcile
+product intent, specifications, source, and evidence. File age alone does not
+establish authority. The owner authorizes improving mechanics and architecture
+when it materially benefits the game or delivery. Record the reason, update the
+owning specification, and preserve real player-state and security invariants.
+Historical plans are context, not an automatic restriction on better solutions.
 
 ## Change cycle
 
@@ -29,8 +31,9 @@ than inventing a new architecture. Link historical contracts with clear labels.
    caller, inspect branch/diff and tests. For diagnoses, gather evidence before
    implementing. Do not treat every fail-closed refusal as an accidental obstacle.
 2. **Bound.** State the user-visible or operational outcome, preserved invariants,
-   affected paths, relevant failure modes and proof needed. Select an existing
-   release gate; add mandatory work only when evidence shows it is necessary.
+   affected paths, relevant failure modes and proof needed. Connect release work
+   to the existing evidence requirements. Keep process proportional to the change;
+   do not invent mandatory gates for ordinary improvements.
 3. **Implement.** Prefer a vertical slice through existing interfaces. Delegate
    independent bounded work with explicit file ownership; reconcile reviews before
    committing. Avoid orphan helpers, duplicated realm authority and speculative

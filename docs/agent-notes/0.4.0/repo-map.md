@@ -1,108 +1,227 @@
 # Repository map and investigation routes
 
-Snapshot: 2026-09-07, `1600f4b`. Paths in code notation below are repository-relative.
-Follow the [start page](README.md) for scope and evidence terminology.
+Use this map to find the source, its real caller and the tests for a change.
+[Technical architecture](../../technical-architecture.md) explains ownership and
+runtime flow; the [execution handoff](execution-handoff.md) records dated checks
+and current work. This map intentionally does not duplicate repository counts,
+CI snapshots or release completion status.
 
-## Whole-tree inventory
+## Choose the correct generation
 
-`git ls-files` grouped by first path component counted 632 files under `tests`, 587 `src`
-files, 574 scripts, 328 SpacetimeDB files, 302 public assets, 269 docs, 155 service
-files, 22 `.superpowers` files, 15 operations files, 11 `.github` files, 9 dev files,
-3 files under `licenses`, and individual root/config/owner-canary files. These
-include generated material and are not measures of completeness or quality.
-Of the 632 tracked files under `tests`, 590 are `.test`/`.spec` TypeScript/TSX
-files; the remainder includes fixtures and helpers.
-
-| Area | Role / first inspection | Boundary |
+| Area | What belongs here | First source |
 | --- | --- | --- |
-| Root README, CHANGELOG, package/config files | Public 0.3 product; build/test/toolchain policy | `package.json` still says 0.3.43; source inclusion is not a 0.4 release |
-| `src/` | React/TypeScript frontend, Three.js presentation, narrow authenticated adapters | Browser cannot create authority or grant resources |
-| `spacetimedb/src/` | Existing G001 authority and dormant legacy features | Preserve deployed compatibility and existing player behavior |
-| `spacetimedb/gameplay04/` | Shared pure 0.4 policy and transition core | Do not mix with legacy G001 construction policy |
-| `spacetimedb/genesis002/`, `spacetimedb/ptr/` | Realm-specific schemas, procedures, auth and generated bindings | G002 remains closed; only real owner uses PTR |
-| `spacetimedb/tests/`, `migration-fixtures/`, `scripts/` | Module harnesses, migration and module generation | Separate test runner; synthetic contexts are not a live database |
-| `services/auth-bridge/` | Cloudflare Farcaster verification, sessions, admin/observer boundaries | Never expose signing/admin credentials to frontend |
-| `services/release-recovery/` | OIDC/GitHub evidence, private signer/gateway and durable recovery state | Separate deployment authority, default-disabled configuration |
-| `scripts/` | Build/asset/closure generation, publisher/operator/recovery code, QA tooling | Inspect entry points and credentials/effects before invoking |
-| `tests/` | Root Vitest suites and fixtures | Root runner does not select `spacetimedb/tests` |
-| `.github/` | Verify/CodeQL, Pages, notification and sealed-realm workflows; issue forms | Protected workflows/job identities cannot be simulated by a shell |
-| `public/` | Exact runtime assets and static metadata | Not a scratch directory or proof of broad media rights |
-| `docs/design`, `docs/gameplay`, `docs/superpowers` | Requirements, dated plans and specifications | Historical descriptions can lag current source |
-| `docs/evidence/0.4.0/` | Dated component verification journals | Read latest entries and their scope; not all gate files exist |
-| `docs/operations`, root `operations/` | Procedures and operator material | Commands may mutate production; review, do not run wholesale |
-| `docs/reference`, `docs/legal`, `licenses/`, `.reuse/` | Provenance, licensing classifications and canonical texts | Preserve exact upstream/license and asset-specific terms |
-| `dev/`, `src/dev/`, `src/owner-canary`, `owner-canary/` | Loopback QA, synthetic scenarios and separately gated canary | Must not become public authenticated gameplay or ship as QA backdoor |
-| `src/build`, `src/release`, `config/` | Build boundaries and generated release/config projections | Derive exact family; no hand-patched source pins |
-| `.superpowers/` | Mixture of tracked diagnostics and local probes | Inspect tracked status and ownership; not all probes are reproducible public evidence |
-| `.cache`, `artifacts`, `dist`, dependency directories, `AppData` | Local caches, diagnostic outputs, build products or machine state | Do not commit wholesale, delete broadly, or scan private data into notes |
+| Existing G001 game | Established world, identity, resources, Workers, timers and retained compatibility | [Module root](../../../spacetimedb/src/index.ts), [browser provider](../../../src/spacetime/WarpkeepSpacetimeProvider.tsx) |
+| Shared 0.4 gameplay | Pure policy, placement, command protocol and state transitions | [Policy](../../../spacetimedb/gameplay04/policy.ts), [commands](../../../spacetimedb/gameplay04/commands.ts) |
+| PTR module | Real owner access, private atlas, SDK storage/transaction adapters and scheduled execution | [Module root](../../../spacetimedb/ptr/src/index.ts), [auth](../../../spacetimedb/ptr/src/auth.ts) |
+| G002 module | Separate private schema, atlas ingestion and deliberately closed gameplay interface | [Module root](../../../spacetimedb/genesis002/src/index.ts), [closed keep procedures](../../../spacetimedb/genesis002/src/gameplayKeep.ts) |
+| New keep frontend | Validated 0.4 state, decisions, schematic fallback and renderer | [Surface host](../../../src/ptr/PtrGameplay04SurfaceHost.tsx), [Keep04Screen](../../../src/components/keep04/Keep04Screen.tsx) |
+| Greater Realm frontend | Atlas reads, chunk streaming, world rendering and 0.4 water | [Scene runtime](../../../src/greater-realm/createGreaterRealmSceneRuntime.ts) |
+| Identity service | Farcaster proof exchange, sessions, scoped claims and admission/notification boundaries | [Auth bridge README](../../../services/auth-bridge/README.md), [app](../../../services/auth-bridge/src/app.ts) |
+| Release/recovery | Source/artifact preparation, provider effects, workflow identity and durable authorization | [Release route map below](#release-and-recovery-routes) |
 
-The root `node_modules` here is a shared external junction. Generic `npm ci`
-instructions apply to a fresh isolated clone, **not** to this shared worktree.
-Generated `dist` directories and dependency trees are not source inputs to review
-by default. Temporary probes are not final attested toolchains.
+The G001 `inner-keep` components and `spacetimedb/src/innerKeep*` implement older
+construction semantics. New 0.4 work starts in `components/keep04`,
+`ptr/gameplay04` and `spacetimedb/gameplay04`. Similarly, G001's
+`src/components/realm/realmWaterLayer.ts` is not the active Greater Realm water path.
 
-## Browser route map
+## Trace a player decision end to end
 
-Start at `src/App.tsx` and `src/components/WarpkeepExperience.tsx`; inspect provider
-nesting, entry, realm selection, exit and settings before changing a child surface.
-In the following table, implementation paths are relative to `src/`; test names
-identify suites under the repository's root `tests/` directory.
+Start with [`App.tsx`](../../../src/App.tsx) and
+[`WarpkeepExperience.tsx`](../../../src/components/WarpkeepExperience.tsx) to see
+provider nesting, entry and realm selection. For a PTR Worker dispatch, follow:
 
-| Problem | Primary files | Useful root tests |
+1. [`PtrRealmProvider.tsx`](../../../src/ptr/PtrRealmProvider.tsx) obtains owner
+   access via [`ptrRealmAuthClient.ts`](../../../src/ptr/ptrRealmAuthClient.ts).
+   [`ptrRealmConnection.ts`](../../../src/ptr/ptrRealmConnection.ts) binds the
+   database connection, atlas bridge and private gameplay capability to the session.
+2. [`PtrGameplay04SurfaceHost.tsx`](../../../src/ptr/PtrGameplay04SurfaceHost.tsx)
+   receives a world resource selection and submits a duration/Worker intent.
+3. [`createGameplay04Controller.ts`](../../../src/ptr/gameplay04/createGameplay04Controller.ts)
+   captures the request key, next sequence, state revision and atlas revision.
+   The connection capability dispatches through
+   [generated PTR procedures](../../../spacetimedb/ptr/generated-bindings/index.ts).
+4. [`gameplayWorkers.ts`](../../../spacetimedb/ptr/src/gameplayWorkers.ts)
+   authenticates with `requirePtrOwner`, loads `requirePtrReadyAtlas`, performs
+   receipt preflight and resolves real location capacity and a connected route.
+5. [`workers.ts`](../../../spacetimedb/gameplay04/workers.ts) applies the transition
+   through the storage adapter. [`workerJourney.ts`](../../../spacetimedb/gameplay04/workerJourney.ts)
+   owns timing/recall/earned-cargo arithmetic; the server captures the terms.
+6. [`gameplaySchedule.ts`](../../../spacetimedb/ptr/src/gameplaySchedule.ts) or an
+   authenticated [`getGameplay04KeepV1`](../../../spacetimedb/ptr/src/gameplayKeep.ts)
+   reconciles due work. Return credits the account and records earned, credited
+   and overflow amounts. [`reconciliation.ts`](../../../spacetimedb/gameplay04/reconciliation.ts)
+   coordinates Worker and construction effects in one transaction.
+7. The controller rereads the result. [`gameplay04State.ts`](../../../src/ptr/gameplay04/gameplay04State.ts)
+   validates wire state and [`gameplay04Presentation.ts`](../../../src/ptr/gameplay04/gameplay04Presentation.ts)
+   derives UI meaning before publication.
+
+For a building decision, branch from `Keep04Screen` → `Keep04BuildingPanel` →
+controller quote capture →
+[`gameplayConstruction.ts`](../../../spacetimedb/ptr/src/gameplayConstruction.ts) →
+[`construction.ts`](../../../spacetimedb/gameplay04/construction.ts).
+The core validates expected cost/duration, target, layout and permanent placement;
+reconciles due work; deducts stored resources; and commits the project, schedule
+and receipt. Completed buildings affect subsequent journeys/projects, not terms
+already captured by an earlier command.
+
+## Browser investigation routes
+
+Test names below are exact root suite filenames unless a directory is shown.
+Use the linked source first, then inspect callers and the selected test's fixtures.
+
+| Symptom or change | Source to inspect | Useful tests |
 | --- | --- | --- |
-| Wrong realm access/directory | `components/menu/realmChoicePolicy.ts`, `release/admissionLaunchPolicy.ts`, `ptr/PtrRealmProvider.tsx` | `RealmChoiceSelector`, `PtrRealmProvider`, `WarpkeepExperiencePtrRealm` |
-| PTR connection/identity isolation | `ptr/ptrRealmAuthClient.ts`, `ptrRealmConnection.ts`, `PtrRealmProvider.tsx` | `ptrRealmAuthClient`, `ptrRealmConnection`, `ptrGameplay04Capability`, `ptrGameplay04Bindings` |
-| World/keep navigation | `ptr/PtrGameplay04SurfaceHost.tsx`, `components/realm/GreaterRealmWorldScene.tsx` | `PtrGameplay04SurfaceHost`, `greaterRealmWorldScene`, `Keep04SceneHost` |
-| State decoding/quotes/placement | `ptr/gameplay04/gameplay04State.ts`, `gameplay04Presentation.ts`, `gameplay04Placement.ts` | `gameplay04ClientState`, `gameplay04Presentation`, `gameplay04ClientPlacement` |
-| Refresh/retry/reconnect | `ptr/gameplay04/createGameplay04Controller.ts`, `useGameplay04Controller.ts` | `gameplay04Controller`, `gameplay04ControllerLifecycle` |
-| Keep choices/feedback/accessibility | `components/keep04/Keep04Screen.tsx`, `Keep04BuildingPanel.tsx`, `Keep04WorkerPanel.tsx`, `Keep04Schematic.tsx`, CSS | `Keep04Screen`, `Keep04PlacementUi`, `Keep04Benefits`, `Keep04Accessibility` |
-| Keep rendering/loading/disposal | `components/keep04/Keep04SceneHost.tsx`, `createKeep04Scene.ts`, `loadKeep04Assets.ts`, `createKeep04Buildings.ts`, `keep04VisualProfile.ts` | `Keep04SceneHost`, `keep04SceneLifecycle`, `keep04Scene`, `keep04Buildings`, `keep04VisualProfile` |
-| Voxel detail | `components/realm/voxelSurfaceMesh.ts`, `greaterRealmVoxelPresentation.ts`; `components/keep04/keep04VoxelDressing.ts`, `planKeep04DressingSource.ts`, generated plans | `voxelSurfaceMesh`, `greaterRealmVoxelPresentation`, `keep04VoxelDressing`, `keep04DressingGenerator` |
-| Actual 0.4 world/water/stream | `greater-realm/createGreaterRealmSceneRuntime.ts`, `greaterRealmPresentationPlan.ts`, `greaterRealmChunkStream.ts`; `components/realm/createGreaterRealmWorldCanvasHost.ts` | `greaterRealmSceneRuntime`, `greaterRealmChunkStream`, `greaterRealmWorldCanvasHost` |
-| G001 presentation regressions | `components/realm/RealmMapScreen.tsx`, `createRealmScene.ts`, `realmWaterLayer.ts`, `components/inner-keep/` | Existing G001/quality/legacy-production-seal suites and baseline comparisons |
-| Entry/menu/Farcaster/audio/chat | `components/{menu,auth,title,audio}/`, `farcaster/`, realm chat components | Existing entry/session/media/chat regression suites; no unrelated redesign |
+| Wrong realm choice or closed entry | [realmChoicePolicy](../../../src/components/menu/realmChoicePolicy.ts), [admissionLaunchPolicy](../../../src/release/admissionLaunchPolicy.ts), [PtrRealmProvider](../../../src/ptr/PtrRealmProvider.tsx) | `RealmChoiceSelector.test.tsx`, `PtrRealmProvider.test.tsx`, `WarpkeepExperiencePtrRealm.test.tsx` |
+| PTR identity, expiry or stale capability | [auth client](../../../src/ptr/ptrRealmAuthClient.ts), [connection](../../../src/ptr/ptrRealmConnection.ts), [provider](../../../src/ptr/PtrRealmProvider.tsx) | `ptrRealmAuthClient.test.ts`, `ptrRealmConnection.test.ts`, `ptrGameplay04Capability.test.ts` |
+| Refresh interruption, unknown command outcome or retry | [controller](../../../src/ptr/gameplay04/createGameplay04Controller.ts), [React lifecycle hook](../../../src/ptr/gameplay04/useGameplay04Controller.ts) | `gameplay04Controller.test.ts`, `gameplay04ControllerLifecycle.test.tsx` |
+| Incorrect balances, quote or placement preview | [state decoder](../../../src/ptr/gameplay04/gameplay04State.ts), [presentation](../../../src/ptr/gameplay04/gameplay04Presentation.ts), [placement](../../../src/ptr/gameplay04/gameplay04Placement.ts) | `gameplay04ClientState.test.ts`, `gameplay04Presentation.test.ts`, `gameplay04ClientPlacement.test.ts` |
+| Keep choice, shortage, benefit or keyboard/touch feedback | [screen](../../../src/components/keep04/Keep04Screen.tsx), [building panel](../../../src/components/keep04/Keep04BuildingPanel.tsx), [Worker panel](../../../src/components/keep04/Keep04WorkerPanel.tsx), [schematic](../../../src/components/keep04/Keep04Schematic.tsx) | `Keep04Screen.test.tsx`, `Keep04PlacementUi.test.tsx`, `Keep04Benefits.test.tsx`, `Keep04Accessibility.test.tsx` |
+| World/keep navigation and retained selection | [surface host](../../../src/ptr/PtrGameplay04SurfaceHost.tsx), [world scene](../../../src/components/realm/GreaterRealmWorldScene.tsx) | `PtrGameplay04SurfaceHost.test.tsx`, `greaterRealmWorldScene.test.tsx` |
+| Canvas replacement, loading or disposal | [Keep04SceneHost](../../../src/components/keep04/Keep04SceneHost.tsx), [scene](../../../src/components/keep04/createKeep04Scene.ts), [asset loader](../../../src/components/keep04/loadKeep04Assets.ts) | `Keep04SceneHost.test.tsx`, `keep04SceneLifecycle.test.ts`, `keep04Scene.test.ts` |
+| Building appearance or fallback | [buildings](../../../src/components/keep04/createKeep04Buildings.ts), [visual profile](../../../src/components/keep04/keep04VisualProfile.ts) | `keep04Buildings.test.ts`, `keep04VisualProfile.test.ts` |
+| Voxel/forest composition | [mesher](../../../src/components/realm/voxelSurfaceMesh.ts), [world voxel presentation](../../../src/components/realm/greaterRealmVoxelPresentation.ts), [keep dressing](../../../src/components/keep04/keep04VoxelDressing.ts) | `voxelSurfaceMesh.test.ts`, `greaterRealmVoxelPresentation.test.ts`, `keep04VoxelDressing.test.ts` |
+| Atlas streaming, world water or renderer ownership | [chunk stream](../../../src/greater-realm/greaterRealmChunkStream.ts), [runtime](../../../src/greater-realm/createGreaterRealmSceneRuntime.ts), [canvas host](../../../src/components/realm/createGreaterRealmWorldCanvasHost.ts) | `greaterRealmChunkStream.test.ts`, `greaterRealmSceneRuntime.test.ts`, `greaterRealmWorldCanvasHost.test.ts` |
+| G001 regression | [RealmMapScreen](../../../src/components/realm/RealmMapScreen.tsx), [createRealmScene](../../../src/components/realm/createRealmScene.ts), [legacy water](../../../src/components/realm/realmWaterLayer.ts) | Relevant existing `realm*`, `innerKeep*` and production-seal suites |
 
-`RealmMapScreen.tsx` (7,521 lines), `createRealmScene.ts` (6,144),
-`WarpkeepSpacetimeProvider.tsx` (5,326) and `WarpkeepExperience.tsx` (1,928) are
-concentrated orchestration surfaces at this snapshot. That increases review risk;
-it does not prove failure. Extract only a bounded responsibility when a needed
-change demonstrates the benefit, with existing interface tests intact.
+The controller has separate `ready`, `refreshing`, `pending` and `uncertain`
+states. A healthy refresh preserves the last validated presentation while
+commands are unavailable; an unknown mutation outcome retains its exact envelope.
+Inspect delayed-request and disposal tests before changing those transitions.
+The world/keep host mounts mutually exclusive renderers rather than passing 0.4
+callbacks into the legacy G001 authority surface.
 
-## Backend and release routes
+## Gameplay and database investigation routes
 
-For gameplay, read `spacetimedb/gameplay04/{policy,placement,commands,keep,workers,
-workerJourney,workerState,construction,reconciliation}.ts`, then the realm-specific
-`gameplayKeep`, `gameplayWorkers`, `gameplayConstruction`, `gameplaySchedule`,
-`gameplaySchema`, `auth`, `ownerPolicy` and atlas adapters under `spacetimedb/ptr/src`.
-Compare the deliberate pre-storage denials under `spacetimedb/genesis002/src`.
+| Rule or boundary | Source | Useful root tests |
+| --- | --- | --- |
+| Economy, durations and building effects | [policy](../../../spacetimedb/gameplay04/policy.ts) | `gameplay04Policy.test.ts`, `gameplay04Presentation.test.ts` |
+| Keep initialization and binding | [keep](../../../spacetimedb/gameplay04/keep.ts), [PTR keep adapter](../../../spacetimedb/ptr/src/gameplayKeep.ts) | `gameplay04Keep.test.ts`, `gameplay04KeepModules.test.ts` |
+| Replay, pruning, sequence and atomic revision | [commands](../../../spacetimedb/gameplay04/commands.ts), [construction](../../../spacetimedb/gameplay04/construction.ts), [Workers](../../../spacetimedb/gameplay04/workers.ts) | `gameplay04Keep.test.ts`, `gameplay04Workers.test.ts`, `gameplay04Construction.test.ts` |
+| Outbound/gather/return timing and cargo credit | [journey](../../../spacetimedb/gameplay04/workerJourney.ts), [state validation](../../../spacetimedb/gameplay04/workerState.ts), [Workers](../../../spacetimedb/gameplay04/workers.ts) | `gameplay04WorkerJourney.test.ts`, `gameplay04Workers.test.ts`, `gameplay04WorkersModules.test.ts` |
+| Build/upgrade costs, collision and completion | [placement](../../../spacetimedb/gameplay04/placement.ts), [construction](../../../spacetimedb/gameplay04/construction.ts), [PTR adapter](../../../spacetimedb/ptr/src/gameplayConstruction.ts) | `gameplay04Placement.test.ts`, `gameplay04Construction.test.ts`, `gameplay04ConstructionModules.test.ts` |
+| Actual owner or database rejection | [PTR auth](../../../spacetimedb/ptr/src/auth.ts), [owner policy](../../../spacetimedb/ptr/src/ownerPolicy.ts), [owner provisioning](../../../spacetimedb/ptr/src/ownerReducers.ts) | `ptrOwnerPolicy.test.ts`, `ptrRealmBackend.test.ts`, `ptrOwnerProvisionOperator.test.ts` |
+| Real destination/route/capacity | [PTR atlas reads](../../../spacetimedb/ptr/src/atlasReadReducers.ts), [atlas authority](../../../spacetimedb/ptr/src/atlasAuthority.ts), [dispatch resolver](../../../spacetimedb/ptr/src/gameplayWorkers.ts) | `gameplay04WorkersModules.test.ts`, PTR atlas suites |
+| Schema, generated interface or wakeup shape | [PTR gameplay schema](../../../spacetimedb/ptr/src/gameplaySchema.ts), [schedule](../../../spacetimedb/ptr/src/gameplaySchedule.ts), [G002 root](../../../spacetimedb/genesis002/src/index.ts) | `ptrGameplay04Bindings.test.ts`, `gameplay04KeepModules.test.ts`, `gameplay04WorkersModules.test.ts`, `gameplay04ConstructionModules.test.ts` |
+| Preserved G001 population policy | [access policy](../../../spacetimedb/src/genesis001AccessPolicy.ts), [admin reducers](../../../spacetimedb/src/reducers/admin.ts), [access requests](../../../spacetimedb/src/reducers/accessRequests.ts) | Module `spacetimedb/tests/genesis001AccessFreeze.test.ts` and compatibility proofs |
 
-For G001 freeze, start at `spacetimedb/src/genesis001AccessPolicy.ts` and its module
-test. For identity bridge changes, start at the [bridge README](../../../services/auth-bridge/README.md),
-its `src/app.ts`, fixed config and service tests. Never infer that a checked-in
-disabled flag is the deployed value; fetch authenticated configuration evidence.
+Protocol details which explain the interfaces:
 
-For release failures, start at the exact failed CI suite, then the corresponding
-source/closure generator. See [release audit](release-and-infrastructure.md) for
-the operating caller map. Avoid reading hundreds of similarly named scripts in
-alphabetical order without tracing their callers and fixed workflow inputs.
+- The private `gameplay04_*_v1` tables cover keep/account, Worker, receipt,
+  reservation, building, project and schedule. G002 and PTR register their own
+  tables and procedure roots; the pure core registers no SDK schema.
+- Keep binding includes database identity, owner FID, atlas identity/revision and
+  anchor cell. Commands carry a sequence-bound `g04:` request key and expected
+  revision. The core retains 128 receipts; older accepted sequences remain
+  rejected after their receipt is pruned.
+- Building requests also bind policy/layout, exact cost/duration, target level and
+  placement. Dispatch resolves route and capacity on the server. A client quote is
+  an assertion to verify, not an instruction to set a price or outcome.
+- Reads may reconcile overdue work; the name `getGameplay04KeepV1` does not mean
+  its transaction is necessarily free of writes. The schedule uses the same core
+  and validates persisted wakeup correlation before running it.
+- 0.4 resources are credited at return. Do not reuse G001's materialized-accrual or
+  passive-resource assumptions in the new HUD, costs or tests.
 
-## Assets, legal and public output
+Root Vitest contains the new shared-core and module-adapter tests. The older
+`spacetimedb/tests/` suite uses the module package's separate Node/tsx runner.
+Tests with in-memory tables or SDK stubs do not establish actual server scheduling
+or SQL visibility; inspect the relevant real loopback/migration evidence as well.
 
-Read [LICENSING](../../../LICENSING.md), [ASSETS-LICENSE](../../../ASSETS-LICENSE.md),
-[NOTICE](../../../NOTICE), [CONTRIBUTING](../../../CONTRIBUTING.md),
-[SECURITY](../../../SECURITY.md), [TRADEMARKS](../../../TRADEMARKS.md), and the
-asset's dated provenance record before modifying or redistributing media.
-New project software follows Apache-2.0; confirmed project-owned creative content
-follows CC-BY-4.0. File-specific externally governed terms remain separate.
+## Identity service routes
 
-The older [license inventory](../../legal/license-inventory.md) records a historical
-cutover, not current universal ownership. Exact-use GameReady and other supplied
-assets must not be relabeled, substituted or granted broad derivative rights by
-assumption. An Astra-authored art direction does not make preserved models new
-assets. Use official recorded runtime permissions and retain attribution.
+[`services/auth-bridge/src/app.ts`](../../../services/auth-bridge/src/app.ts)
+connects browser SIWF, Mini App exchange, PTR owner exchange, scoped administrator
+endpoints, session refresh and notification routes. Follow its dependencies into
+`jwt.ts`, `sessionFamily.ts`, `sessionCookie.ts` and `config.ts` for claim/session
+changes. PTR owner exchange is a separate route from atlas/admin credentials.
 
-Ordinary builds verify local immutable assets; explicit asset-fetch/preparation
-commands are separate. Keep QA/private atlas/source masters outside production
-output. Root `build` performs voxel-plan, asset/catalog, type, Vite, final asset,
-production-exclusion, public-atlas and Mini App checks: a successful `vite build`
-alone is not the same acceptance result.
+The service's own `test/`, package scripts and lockfile are the verification
+boundary. Root app types do not typecheck the service. The
+[Farcaster guide](../../farcaster-integration.md) explains user entry, and the
+[service README](../../../services/auth-bridge/README.md) covers configuration.
+
+## Release and recovery routes
+
+Trace the fixed caller and its generated inputs, rather than reading similarly
+named scripts in alphabetical order. These layers do different work:
+
+| Stage | Sources | What the stage establishes |
+| --- | --- | --- |
+| Binding production | [local-binding-runtime](../../../scripts/local-binding-runtime.mjs), [runtime core](../../../scripts/local-binding-runtime-core.mjs), realm locked-source builders | Actual compiled module/binding outputs from recorded committed source; G001 compatibility is a check |
+| Operation and recovery bundles | [operation runtime](../../../scripts/local-operation-bundle-runtime.mjs), [operation core](../../../scripts/local-operation-bundle-runtime-core.mjs), [recovery runtime](../../../scripts/local-recovery-bundle-runtime.mjs) | Fixed bundle exports, loading and source identity |
+| Matched artifact inputs | [local-release-artifact-inputs](../../../scripts/local-release-artifact-inputs.mjs) | Binding, operation and recovery producers agree on commit/tree; returns ordered candidate files |
+| Derived release family | [closure family](../../../scripts/local-prepared-closure-family.mjs), [inventory](../../../scripts/local-prepared-closure-inventory.mjs), [source pins](../../../scripts/local-prepared-source-pins.mjs) | Generated consumers match the prepared source family; no hand-edited pin/count repair |
+| Candidate installation | [workspace](../../../scripts/local-release-workspace.mjs), [lock](../../../scripts/local-release-candidate-lock.mjs), [transaction install](../../../scripts/local-release-transaction-install.mjs), [transaction recovery](../../../scripts/local-release-transaction-recovery.mjs) | Separate immutable source/candidate, owned filesystem writes and crash recovery |
+| Production operation lanes | [dispatcher](../../../scripts/sealed-realms-production-dispatch.mjs), realm-specific `sealed-realms-production-*-workflow-entry.mjs` and `*-lane-entry.mjs` | Select and execute a fixed G001/G002/PTR/activation operation with its authority/evidence |
+| Hosted frontend | [deploy-pages workflow](../../../.github/workflows/deploy-pages.yml), [sealed launch verifier](../../../scripts/verify-0.4.0-sealed-launch.mjs) | Classify source, build approved frontend output, deploy and verify; a skipped deploy is not a new release |
+| Recovery transport | [gateway entry](../../../services/release-recovery/src/index-gateway.ts), [gateway](../../../services/release-recovery/src/gateway.ts), [private signer entry](../../../services/release-recovery/src/index-signer.ts) | HTTP boundary forwards only the supported protocol to a private service binding |
+| Recovery authorization | [signer environment](../../../services/release-recovery/src/signerEnvironment.ts), [signer control](../../../services/release-recovery/src/signerControl.ts), [GitHub OIDC](../../../services/release-recovery/src/githubOidc.ts), [durable ledger](../../../services/release-recovery/src/ledgerDurableObjectV2.ts) | Independently verified source/artifact/workflow facts and durable issue/claim/completion/reconciliation |
+
+The integrated local family currently has a
+[native probe caller](../../../tests/fixtures/localReleaseCompiledFamilyNativeProbe.mjs).
+It composes real producer outputs, candidate installation and repeated derivation.
+It is a verification fixture, not a supported production assembler command.
+Useful suites are `localReleaseArtifactInputs`, `localPreparedClosureFamily`,
+`localReleaseWorkspace`, `localReleaseTransactionInstall` and
+`localReleaseTransactionRecovery` under root `tests/`.
+
+Two concrete operating seams remain visible in source:
+
+- [`sealed-realms-production-activation-workflow-entry.mjs`](../../../scripts/sealed-realms-production-activation-workflow-entry.mjs)
+  supplies unavailable implementations for deployment/binding attesters, import
+  evidence and owner provision resolution. Its lane interface alone is not the
+  complete provider operation.
+- [`githubOidc.ts`](../../../services/release-recovery/src/githubOidc.ts) expects the
+  defined Linux/WSL runner profile and a `deploy-recovery` job. The checked-in
+  Pages/sealed-realm workflows retain Mac production selections and lack that
+  connected recovery job. Workflow and signer changes must describe the same
+  real execution; changing only `runs-on` does not connect them.
+
+Recovery service unit tests live in `services/release-recovery/test`; real
+Cloudflare-runtime tests live in `test-workerd`. The
+[release/infrastructure audit](release-and-infrastructure.md),
+[assembler specification](../../superpowers/specs/2026-09-06-warpkeep-local-release-assembler-design.md)
+and [delivery journal](../../operations/0.4.0-live-delivery-status.md) distinguish
+component evidence, actual provider state and unfinished integration. Candidate
+file rollback and write-preserving live database recovery are separate subjects.
+
+## Generators, assets and public output
+
+| Output family | Authoring/producer route | Validation route |
+| --- | --- | --- |
+| Keep voxel dressing | [planKeep04DressingSource](../../../src/components/keep04/planKeep04DressingSource.ts) → [generate-keep04-voxel-dressing](../../../scripts/generate-keep04-voxel-dressing.ts) → `keep04DressingPlans.generated.ts` | `keep04DressingGenerator.test.ts`, producer `--check` used by root build |
+| Database bindings | Module schema/procedure roots → [binding runtime](../../../scripts/local-binding-runtime.mjs) / [binding generator](../../../scripts/generate-spacetime-bindings.mjs) | [binding verifier](../../../scripts/verify-spacetime-bindings.mjs), module/ABI tests and current family evidence |
+| Atlas runtime release | [atlas CLI](../../../scripts/atlas/greater-realm-cli.ts), [candidate generator](../../../scripts/atlas/greater-realm-candidate-generator.ts), [runtime release](../../../scripts/atlas/greater-realm-runtime-release.ts) | Atlas contract/audit suites and [public boundary verifier](../../../scripts/atlas/verify-public-boundary.mjs) |
+| Browser asset catalogs | Recorded asset registry and [catalog generator](../../../scripts/generate-inner-keep-browser-asset-catalog.mjs) | Runtime integrity and production-dist asset checks in [package.json](../../../package.json) |
+| Release closures/pins | Matched artifact producers and closure-family derivation above | Family tests, independent candidate verification and convergence evidence |
+
+`public/` contains deliverable runtime assets and static metadata. Source masters,
+private atlas packages and local captures have different roles. Read
+[ASSETS-LICENSE](../../../ASSETS-LICENSE.md), [LICENSING](../../../LICENSING.md) and
+the asset's dated provenance before changing media. New art direction does not
+change a reused model's ownership or terms.
+
+The root build checks generated plans, asset catalogs/integrity, TypeScript,
+Vite output, production exclusions, atlas public boundaries and Mini App metadata.
+Source generators, generated outputs and local artifacts should be recognizable
+as separate review units. Dependency trees, `dist`, private receipts and temporary
+probes are not source inputs to commit wholesale.
+
+## Supporting documentation and local tooling
+
+- [Development workflow](../../engineering/development-workflow.md): document
+  ownership and practical verification, including fresh clones versus shared
+  dependency junctions.
+- [Gameplay/visual audit](gameplay-and-visuals.md): connected UI and rendering
+  observations; [performance record](../../evidence/0.4.0/performance.md): measured
+  workloads and their limits.
+- `docs/design/`, `docs/gameplay/` and `docs/superpowers/specs/`: product and feature
+  intent. Dated plans explain decisions but do not replace inspection of callers.
+- `docs/evidence/0.4.0/`: dated source/test/runtime observations; use the relevant
+  topic's latest entry rather than treating every old failure as current.
+- `dev/`, `src/dev/`, `owner-canary/` and `tests/fixtures/`: isolated QA and canary
+  entry points. Inspect their build exclusions and authority before reusing them.
+- `.github/workflows/` and package manifests: actual CI selection and commands.
+  Root, module, auth and recovery packages have distinct check boundaries.
+- [Documentation index](../../README.md): product, operating, legal and historical
+  reading routes without duplicating the implementation map.

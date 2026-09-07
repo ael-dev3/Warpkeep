@@ -1,11 +1,11 @@
-name: Realm wish
-description: Propose a focused quality-of-life, worldbuilding, accessibility, or community improvement.
+name: Gameplay or experience idea
+description: Propose a better decision, clearer interaction, richer atmosphere, or reason to return.
 title: "[Realm wish] "
 body:
   - type: markdown
     attributes:
       value: |
-        Warpkeep is an experimental one-person Alpha and every system may change. A submitted wish is public community input, not a promise of implementation, rewards, an airdrop, or financial value.
+        Warpkeep is building a persistent world worth returning to. Start with the player need: gathering, choosing, building, benefiting, returning—or a compelling future direction. An idea is public input, not a promise of implementation, rewards, an airdrop, or financial value.
 
         **Do not include or attach tokens, proofs, QR payloads, wallet or account identifiers, private logs, personal data, or credentialed URLs.** Follow [SECURITY.md](https://github.com/ael-dev3/Warpkeep/security/policy) for security-sensitive behavior.
   - type: dropdown
@@ -14,6 +14,8 @@ body:
       label: Theme
       options:
         - Quality of life or interface clarity
+        - Gathering, construction, or progression
+        - Return visits and meaningful choices
         - Realm atmosphere or worldbuilding
         - Accessibility
         - Community or open-source workflow
@@ -33,7 +35,7 @@ body:
     id: proposal
     attributes:
       label: Focused proposal
-      description: Describe the smallest useful change and how a player would notice it.
+      description: Describe a coherent improvement, the tradeoff it introduces, and how a player would notice it.
       render: text
     validations:
       required: true

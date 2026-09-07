@@ -1,95 +1,70 @@
-# Warpkeep 0.4 agent handoff — start here
+# Warpkeep 0.4 development handoff
 
-Audited 2026-09-07 against local commit `1600f4b8950720709cd97fc7b86a1077ccbaf5bd`
-and the explicitly identified working changes. This is an implementation and
-release-readiness audit, not a new goal, an exhaustive security audit, or a claim
-that 0.4 is live. Recheck Git, CI and provider state before acting on this snapshot.
+Start with the [product direction](../../design/warpkeep-direction.md), then use
+this index to find the implementation, current evidence, and next useful work.
+The goal is a satisfying **gather → choose → build → benefit → return** journey
+and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
-## Read in this order
+## Current working state
 
-1. [Fixed release checklist](../../operations/0.4.0-release-checklist.md): R01–R18
-   remain the completion contract. Old status cells are dated, not current proof.
-2. [Repository map](repo-map.md): entry points, ownership, source versus generated
-   output, legal/asset boundaries, and where to investigate each kind of problem.
-3. [Gameplay and visuals audit](gameplay-and-visuals.md): implemented strengths,
-   concrete integration findings, missing owner/device evidence and acceptance matrix.
-4. [Release and infrastructure audit](release-and-infrastructure.md): working
-   components versus disconnected callers, CI, hosting and actual access limits.
-5. [Execution handoff](execution-handoff.md): safe working procedure, verification
-   commands, fixed next sequence and work continued after this audit.
+This refresh was inspected on 2026-09-07 against development source `781e51e`
+and the documentation changes accompanying this note. Recheck Git and live
+providers before acting on dated observations.
 
-Continue the existing [Astra keep design](../../superpowers/specs/2026-09-06-warpkeep-astra-keep-design.md)
-and [gameplay specification](../../superpowers/specs/2026-09-05-warpkeep-0.4-gameplay-design.md).
-Reopen settled decisions only when implementation evidence reveals a material
-problem; record the reason and impact. Do not restart design because an old plan
-has unchecked boxes or a previous model authored the implementation.
+- `main` is the public G001 baseline. Current 0.4 implementation is on
+  `codex/prepared-keep-bindings-fix`, associated with draft
+  [PR #228](https://github.com/ael-dev3/Warpkeep/pull/228).
+- The server-owned gameplay core, typed client, realm isolation, and keep
+  presentation are substantial working foundations. Their presence does not
+  establish a complete live owner journey.
+- Healthy snapshot refresh now retains the keep scene and focus (`555e505`).
+  Session expiry, meaningful pacing on real routes, complete visual/device
+  coverage, and connected release operations still need evidence and work.
+- GitHub and configured Cloudflare/SpacetimeDB metadata reads work in the current
+  session. Earlier network-denial notes describe an older session.
+- G002 and PTR databases already exist. Production workflows retain Mac-specific
+  dependencies even though native CI has moved to Linux.
+- 0.4 is **not shipped**. Preserve the live G001 game and its admission freeze,
+  keep G002 closed, and use the isolated owner's PTR for real 0.4 acceptance.
 
-## Current assessment
+## Find the right starting point
 
-The strongest parts are the server-owned transition core, realm/capability
-isolation, strict input validation, resource lifecycle controls and adversarial
-tests. Retain these. The weakest part is end-to-end composition: working pieces
-still lack operating release callers, genuinely authorized owner acceptance and
-final measured visual/performance evidence. More helper code alone does not close
-those gaps. Targeted integration fixes have higher value than a wholesale rewrite.
-
-| Evidence level | Meaning here | Does not establish |
+| Need | Read | Outcome |
 | --- | --- | --- |
-| Source-inspected | Implementation or an explicit fail-closed stop exists | Runtime correctness or deployment |
-| Locally verified | Named tests or a bounded probe passed on recorded inputs | Current full CI, real players or production identity |
-| Fixture-rendered | Synthetic local scene was rendered/inspected | Actual-owner gameplay or physical-phone performance |
-| Authenticated observation | Configured provider returned the named metadata | All application permissions or authorization for a different account |
-| Release accepted | Exact final source/artifacts and every mandatory live result are linked | Nothing may silently substitute for a missing gate |
+| Understand the game | [Direction](../../design/warpkeep-direction.md), [roadmap](../../design/roadmap.md) | Player promise, 0.4 focus, and later opportunities |
+| Find code and its owner | [Repository map](repo-map.md), [architecture](../../technical-architecture.md) | Real entry points, callers, state authority, and generated boundaries |
+| Improve play and appearance | [Gameplay and visuals](gameplay-and-visuals.md) | Working behavior, specific defects, missing evidence, and useful next probes |
+| Complete delivery | [Release and infrastructure](release-and-infrastructure.md) | Current services, CI, operating gaps, and verification routes |
+| Continue this checkout | [Execution handoff](execution-handoff.md), [source synchronization](../../operations/0.4.0-development-sync.md) | Current checkpoint, environment traps, reviewed publication, and next actions |
+| Work across repositories | [Repository ecosystem](../../engineering/repository-ecosystem.md) | Runtime, asset archive, planned tools, and public profile ownership |
+| Judge release readiness | [Release checklist](../../operations/0.4.0-release-checklist.md), [evidence](../../evidence/0.4.0/) | Required results tied to source and actual deployed artifacts |
 
-Fresh audit results: 26 root suites / 472 gameplay, client, auth and routing tests
-passed, plus 7 G001 admission-freeze module tests. A separate Linux diagnostic
-overlay passed 39 recovery-record/G001-adoption tests. These are targeted results,
-not a full-tree pass. The [execution handoff](execution-handoff.md) records their
-commands and source limitations.
+## How to use the findings
 
-At the audit snapshot, PR #228 was draft/BLOCKED at `c42f6e6`; its Linux job
-failed and its database job was still running. The checkpoint backup branch was
-`ac69ab1`; local `1600f4b` had not yet been pushed. Later synchronization must be
-recorded explicitly. A source checkpoint is not PR integration or deployment.
+Retain strong foundations and improve weak behavior based on evidence. The owner
+explicitly authorizes product and architecture improvements that advance the game;
+old plans do not impose arbitrary restrictions. Record changes to settled behavior
+in its specification and relevant tests so the next contributor understands why.
 
-## Boundaries that define this release
+Source inspection, local tests, synthetic rendered scenes, physical-device play,
+authenticated provider observations, and actual owner acceptance establish
+different facts. Each finding must say what was observed and what remains unknown.
+Never replace missing live evidence with a fixture or a plausible release record.
 
-- **G001:** preserve the recorded live 0.3.43 gameplay, player access, timers,
-  database and presentation. Freeze new admissions/access requests only. Capture
-  a fresh baseline before production changes; normal player writes must continue.
-- **G002:** deploy 0.4 sealed and accurately listed as closed. Admissions are TBD.
-  Denied gameplay must produce zero unauthorized writes. Do not open it for tests.
-- **PTR:** demonstrate the complete journey with the genuinely authorized owner
-  in the isolated realm. No fabricated identity, admin-token substitution or
-  synthetic journey may close this gate.
-- **Gameplay:** four Workers, six buildings and existing progression/effects,
-  exact retries/stale-state checks, one Builder, permanent placement. First economy
-  building **and its improved return** must complete within ten minutes on actual
-  atlas routes. Do not add unrelated mechanics, queues, combat or admissions.
-- **Appearance:** finish The Verdant Citadel with a distinct 0.4 composition.
-  Voxel, forest and Pelagic-inspired water are bounded presentation only, mobile
-  friendly, never authority for terrain, resources, navigation or interaction.
-  Preserve pre-existing asset attribution; do not relabel old media Astra-authored.
-- **Operations:** local Windows/WSL production preparation/execution; no reliance
-  on the Mac runner. Required Actions/OIDC identity must come from a genuine
-  authorized supported runner, not workflow emulation.
-- **Delivery:** complete required sources, then final family freeze, protected
-  integration, deployment, live verification and credential-free Desktop package.
-  Missing mandatory evidence means incomplete, not shipped.
+The owner's current sequence is to finish and publish the GitHub/profile/project
+documentation refresh before resuming gameplay shipping. Source publication is a
+normal development step; it does not require claiming the release is ready.
 
-## Audit coverage and limits
+## Coverage and limits
 
-The audit inventoried tracked top-level areas and examined the main browser,
-0.4 gameplay, G001 preservation, PTR/G002 schemas, auth bridge, recovery service,
-release scripts/workflows, verification configuration, asset/provenance and
-operations/design/evidence documentation. Three parallel read-only reviews
-covered gameplay, presentation and release infrastructure; the main review
-reconciled them and verified the interrupted recovery change.
+The study mapped tracked source, browser entry points, keep/world rendering,
+gameplay and schemas, identity, Cloudflare services, release/recovery callers,
+generators, tests, asset manifests, and current documentation. Independent reviews
+covered gameplay/presentation, backend ownership, and delivery infrastructure.
+Historical plans and generated/binary artifacts were classified by role; this is
+not a claim to have inspected every media byte or independently security-audited
+every dependency.
 
-It did not read every generated binding, binary asset or historical note line by
-line, run all tests, play as the owner, re-audit every third-party dependency,
-or perform production mutations. Private stores, credentials, raw player rows,
-receipts and cache contents were not swept into these notes. Report concrete
-findings as findings; report missing evidence as missing evidence, not a proven
-runtime defect. Use this index to avoid both redoing completed work and treating
-narrow historical successes as whole-release readiness.
+Keep private probes, credentials, player records, provider stores, and disposable
+build output outside public evidence. Preserve existing local work. Detailed
+commands and historical results remain in the linked notes, with dates and scope.

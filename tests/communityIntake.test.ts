@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 import { parseDocument } from 'yaml';
@@ -75,7 +75,7 @@ describe('Realm Council public intake', () => {
   });
 
   it('routes conversation, durable intake, and private security reporting distinctly', () => {
-    expect(FORM_PATHS.map((path) => path.split('/').pop())).toEqual([
+    expect(FORM_PATHS.map((path) => basename(path))).toEqual([
       'bug-report.yml',
       'realm-wish.yml',
       'security-contact.yml'

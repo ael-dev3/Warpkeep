@@ -1,17 +1,27 @@
 # Release engineering, CI and infrastructure audit
 
-Snapshot: 2026-09-07, local `1600f4b`. Provider observations expire; reverify before
-effects. This document does not contain credentials or authorization artifacts.
+Source inspection: 2026-09-07, local
+`781e51e364d1e5a7319ca2364744c8730e83b0d6`, before the next source checkpoint.
+Authenticated provider and local-process observations were refreshed around
+21:48–21:51 UTC. Later publication state belongs in the
+[execution handoff](execution-handoff.md). Provider observations expire; reverify
+the relevant account, target and operating source before effects.
+
+Use this map to connect implementation to its next real caller. It supplements
+the single [release checklist](../../operations/0.4.0-release-checklist.md), not a
+second acceptance contract. Historical component results remain useful evidence;
+they are not final-source tests, live owner play or deployed-state proof.
 
 ## Hosting and access: separate facts from assumptions
 
 | Surface | Observed / recorded state | What it does not prove |
 | --- | --- | --- |
-| Frontend | Authenticated GitHub Pages settings: workflow build, custom domain `warpkeep.com`, HTTPS enforced | Current 0.4 deployment or recoverable complete artifact |
-| Auth bridge | Cloudflare Worker behind `auth.warpkeep.com`; earlier connector found it, local Wrangler later used a different account and returned Worker-not-found | Wrong-account 10007 does not mean Worker is globally absent; configured login is not sufficient for the owning account |
-| Persistent realms | Configured Spacetime CLI 2.6.1 listed G001, G002 and PTR; G002 schema read succeeded | CLI ownership/list/schema access does not grant application-admin or owner access |
-| G002 private state | Recorded private aggregate read was rejected with `INVALID_GENESIS_002_ADMIN_SESSION`; no private baseline obtained | Do not infer empty/current state or bypass the denied application boundary |
-| Actions runner | Fresh repository inventory: only runner ID21, old macOS runner, offline | Local Docker/WSL image is not a registered production runner with genuine job/OIDC identity |
+| GitHub source | Fresh API reads succeed with repository push/admin permissions; PR #228 is draft/BLOCKED at `c42f6e6`, behind inspected local HEAD | Old socket denial is not current; permission metadata is not a verified new push |
+| Frontend | Fresh GitHub Pages settings: workflow build, custom domain `warpkeep.com`, HTTPS enforced, status null | Current served version, healthy 0.4 gameplay or recoverable complete artifact |
+| Auth bridge | Correct `warpkeep-production` Wrangler profile freshly lists `warpkeep-auth-bridge`; newest deployment `ec7c0f41-1404-40f8-9330-3c531afae621`, created 2026-08-28T07:54:39.545445Z, version `79dfceec-9810-4868-afca-5b794d08a9a5` at 100% | Historical wrong-default-account Worker-not-found is superseded; deployment metadata does not attest exact source bytes, configuration or owner authentication |
+| Persistent realms | Fresh authenticated Spacetime CLI 2.6.1 list returns G001, G002 and PTR with immutable identities matching the access ledger | Provider ownership/list/schema access does not grant application-admin or owner authority |
+| G002 private state | Historical private aggregate read returned `INVALID_GENESIS_002_ADMIN_SESSION`; no new private-row read attempted in this audit | Do not infer empty/current state or bypass the denied application boundary |
+| Actions runner | Fresh repository inventory: only runner ID21, old macOS runner, offline/not busy; no registered Windows/Linux production runner returned | Local Docker/WSL does not supply genuine repository job/OIDC identity |
 
 See [infra access](../../operations/0.4.0-infra-access.md),
 [local operations](../../evidence/0.4.0/local-operations.md) and
@@ -20,9 +30,45 @@ dated entries with authenticated fresh account/route/database metadata. Use
 configured credentials through their normal tools; never extract private OS
 credential stores or copy secrets/raw player data into Git, logs or a Desktop bundle.
 
-Specific remaining access needs are the owning Cloudflare account/Worker binding
-and genuine application-admin/owner sessions for required private inspections.
-These are concrete access limits, not a blanket prohibition on the owner's infra.
+The owning Cloudflare profile now works for the inspected deployment-list
+operation. Use it explicitly; the default profile in this worktree is a different
+account. Remaining unverified authority includes genuine application-admin/owner
+sessions, release-specific private inspections and the fixed workflow identity.
+Report the exact failed command/target when a boundary is denied. Do not attribute
+it to a blanket infrastructure prohibition or carry a historical denial forward
+after a successful fresh check.
+
+G002 and PTR were recorded as created on September 4 UTC / September 5 local;
+the fresh provider list confirms both still exist. The immutable identities and
+safe inspection commands are maintained in
+[infra access](../../operations/0.4.0-infra-access.md). Do not rebuild a fresh-create
+plan on the assumption that those databases are absent, and do not treat their
+existence as evidence that current gameplay or owner provisioning is deployed.
+
+## Windows/WSL working environment and process evidence
+
+| Check on September 7 | Observation | Practical consequence |
+| --- | --- | --- |
+| Checkout/remotes | HEAD `781e51e`; `upstream` is GitHub; `origin` is a local temporary baseline repository | Use explicit `upstream` and a reviewed SHA; the displayed ahead count against `origin` is misleading |
+| Dirty state | 1,755 tracked dirty paths; only two substantive paths under `git diff --ignore-space-at-eol --name-only` at the audit instant, plus 18 untracked entries | Recheck concurrent edits and exact bytes; preserve unrelated EOL churn, diagnostic files and private material |
+| Windows Node | PATH Node 24.19.0; repo-local `.git/ci-node-22.22.3/node.exe` is 22.22.3 | Select pinned Node explicitly; a successful command under PATH is not the recorded toolchain |
+| Root dependencies | `node_modules` is a shared junction into the temporary baseline's dependencies | Do not install into it; use a fresh isolated checkout for dependency/build experiments |
+| WSL | Ubuntu-24.04 is running under WSL2; Docker daemon is reachable | Useful local Linux tooling exists; this is not production runner registration |
+| Ubuntu processes/containers | `ps -eo pid,ppid,comm` showed `containerd` PID189 and `dockerd` PID265; Docker listed only unrelated monitoring containers | These are live infrastructure handles at this time, not a Warpkeep build, publisher or owner-play session |
+| Game/runner process evidence | The bounded Ubuntu process check found no node, spacetime, Runner.Listener or Runner.Worker process; the Windows command-line-path filter identified no Warpkeep node process and no 4173/5173 listener was observed | No reusable Warpkeep runtime handle was established; do not claim a test/server is still running from historical notes |
+
+Process IDs and ports are ephemeral. Before reusing a server, confirm its PID,
+start time, exact checkout/entrypoint and listening endpoint through a safe
+projection of process metadata. Never kill all Node/Docker/WSL processes or stop
+unrelated services. Do not log full command lines, environment variables or
+authenticated network dumps to identify a process. This audit created no
+persistent server, runner or test process and changed no provider configuration.
+
+Disposable local Linux execution can test compiler and filesystem behavior.
+Actual production actions that require GitHub OIDC still need a genuine authorized
+supported runner. Local platform support therefore has two separate gaps:
+finish executable Windows/WSL contracts, and install/verify their authentic
+workflow/runner integration. The owner excluded dependence on the Mac runner.
 
 ## Component status and next operating caller
 
@@ -32,9 +78,9 @@ These are concrete access limits, not a blanket prohibition on the owner's infra
 | Candidate installation/recovery | `local-release-transaction-install.mjs`, candidate lock and transaction recovery: Linux identity/fsync, dirty refusal, crash recovery | Candidate-file recovery is not production database recovery preserving later player writes |
 | Closure/inventory/source pins | `local-prepared-closure-family.mjs` and source-pin/manifest/policy derivation | Mechanically regenerate all consumers together after required source changes; no typed-in hashes/counts |
 | Static recovery candidate | `recovery-activation-candidate.mjs`, `recovery-binding-projection.mjs` | Canonical schema and consistent digests do not authenticate provenance or grant deployment authority |
-| Recovery private descriptor | `sealed-realms-production-activation-records.mjs`, new recovery export at `1600f4b` | No operating production caller; must feed a fixed authenticated generator, not caller-chosen evidence |
+| Recovery private descriptor | `sealed-realms-production-activation-records.mjs`, recovery export at `1600f4b`, asynchronous-consumer rejection fixed in `1feb105` | No operating production caller; must feed a fixed authenticated generator, not caller-chosen evidence |
 | G001 producer-local capture | `sealed-realms-production-g001-lane-entry.mjs`: stable applicant pair, admitted capture at suspend, S-mode current-state capture | Other producer/adapters remain unavailable; A-mode inspection must preserve original preparation capture |
-| Publisher ABI checks | G002/PTR publishers corrected for real generated gameplay ABI | Fresh-create publishers still reject existing targets; both realms already exist |
+| Publisher ABI checks | `genesis002-production-publisher.mjs` and `ptr-production-publisher.mjs` corrected for real generated gameplay ABI | Fresh-create publishers still reject existing targets; both realms are confirmed to exist |
 | Recovery claim workflow helpers | OIDC/current-context/prepare-claim/deployment-boundary/postflight/reconciliation helpers | Fixed helper installation and genuine operating job remain absent |
 | Recovery Worker split | `services/release-recovery` gateway route and private signer/service binding, durable ledger, disabled gate | Configuration files do not prove deployed Workers, installed keys or armed authorization |
 
@@ -73,11 +119,37 @@ superseded; a later component pass still does not prove its missing caller exist
    lock, unique artifact and adjacent claim → boundary → pinned Pages deploy →
    mandatory postflight. The workflow must actually implement that contract and
    pass both issuance and reconciliation validation.
-6. Local runner diagnostics do not establish registered trusted job identity,
+6. The **native-contract verification job has already migrated** to disposable
+   hosted `ubuntu-24.04` and asserts Linux/X64 in `verify.yml`. The old
+   local-operations table listing Verify as macOS-dependent is historical.
+   Production migration remains incomplete: sealed-realms, the two protected
+   Pages jobs, and both notification-bridge workflows still name macOS/Darwin
+   labels, binaries or toolchain manifests. Changing labels alone is insufficient.
+7. Local runner diagnostics do not establish registered trusted job identity,
    final network allowlist, attested embedded toolchains or durable private claim
    state. Do not expose a privileged production runner to arbitrary PR code,
    mount host credentials into disposable verification or rename labels to fake
    an authorized execution environment.
+
+Useful source anchors for the next operating slice:
+
+- G001 entry: `sealed-realms-production-g001-workflow-entry.mjs` wires
+  `resolveAdminSecretPath`, policy persistence, census collect/suspend, dispatcher
+  attestation, child execution and fixed current-state observation to
+  `unavailable`. Its lane helper is not an operating workflow by itself.
+- G002/PTR entries: `sealed-realms-production-g002-workflow-entry.mjs` and
+  `sealed-realms-production-ptr-workflow-entry.mjs` stop at the fixed marker and
+  inject unavailable deployment/binding/import/publish/postflight/live adapters;
+  PTR also lacks the operating owner inspection/provisioning adapters.
+- Existing-target rejection is explicit:
+  `genesis002-production-publisher.mjs` throws
+  `GENESIS_002_DATABASE_ALREADY_EXISTS`; `ptr-production-publisher.mjs` throws
+  `PTR_PRODUCTION_DATABASE_ALREADY_EXISTS`. Implement update/reconciliation with
+  a real caller and preservation proof; removing these checks is not an update.
+- Source search found definitions, but no production call site, for
+  `writeSealedRealmsProductionRecoveryActivationDescriptor` and
+  `createRecoveryActivationBinding`. Tests/local diagnostic invocations do not
+  close that integration gap.
 
 ## Recovery descriptor review boundary
 
@@ -96,26 +168,40 @@ production caller was found for this writer or `createRecoveryActivationBinding`
 The downstream fixed generator must independently establish these coordinates.
 Matching attacker-chosen values in two files is not provenance.
 
-The interrupted recovery consumer repair lets the private FD owner observe and
+The committed `1feb105` recovery consumer repair lets the private FD owner observe and
 reject an asynchronous result before closing the handle; async consumption remains
 unsupported. No-clobber descriptor state remains as audit evidence after failure.
 The historical wrapper has a similar thenable-observation risk if touched later;
 add a dedicated regression without silently changing schema1 semantics. Do not
 describe the recovery-only correction as covering all historical consumers.
 
-## Fresh CI and PR inventory
+## Refreshed CI and PR inventory
 
-Only open PR on 2026-09-07: [#228 — Prepare sealed 0.4.0 realm launch](https://github.com/ael-dev3/Warpkeep/pull/228),
+Inspected on 2026-09-07: [#228 — Prepare sealed 0.4.0 realm launch](https://github.com/ael-dev3/Warpkeep/pull/228),
 draft, BLOCKED, `codex/prepared-keep-bindings-fix` → `main`, head
-`c42f6e606640a49acdb9db64adc8ede30b37bb3d`. No other open PR needs release
-reconciliation at this snapshot. Recheck at integration; do not expand this into
-an endless unrelated PR/refactor project.
+`c42f6e606640a49acdb9db64adc8ede30b37bb3d`. Recheck open PR inventory at
+integration; do not expand this into an unrelated PR/refactor project. These
+results cover that remote head, not local `781e51e` or later documentation overlays.
 
 [Verify 34145030182](https://github.com/ael-dev3/Warpkeep/actions/runs/34145030182)
-at that source: auth bridge, release recovery and native contract passed; database
-job was still running during inspection. Completed Linux job `101815086934`
+at that source is now completed **FAILURE**. Auth bridge, release recovery,
+native contract and database jobs passed; the aggregate Verify job failed.
+Completed Linux job `101815086934`
 reported at 17:14:32 UTC: **5 failed files, 582 passed, 1 skipped; 62 failed tests,
-8,806 passed, 76 skipped**, duration 1,426.57s.
+8,806 passed, 76 skipped**, duration 1,426.57s. Database completed successfully at
+17:44:23 UTC, and aggregate Verify completed with failure at 17:44:28 UTC. This
+supersedes the earlier database-still-running observation.
+
+The CodeQL Actions `analyze` job succeeded, while the separate
+[CodeQL alert check](https://github.com/ael-dev3/Warpkeep/runs/101816113867)
+failed with **14 reported alerts: 9 high and 5 medium**. Its annotations identify
+only test files: nine incomplete string escaping/encoding findings, two shell
+commands built from environment values, and three improper code-sanitization
+findings. The provider notes that a large PR can surface pre-existing alerts.
+These are reported findings requiring scoped triage, not a fresh proof that all
+are exploitable or newly introduced. Do not dismiss them just because the paths
+are tests, or flatten successful analysis into “CodeQL passed.” Neither result
+verifies a newer local head.
 
 | Failed suite | Current observed cause | Correct next resolution |
 | --- | --- | --- |
@@ -129,7 +215,9 @@ The compiler lifecycle fixture repair **passed all 12 tests in actual CI**.
 The five remaining families match the earlier
 [failure baseline](../../evidence/0.4.0/ci-preparation-failure-baseline.md), with
 current counts above. Do not raise timeouts, delete equality checks or hand-edit
-pins to manufacture green. Do not label the running aggregate CI a pass.
+pins to manufacture green. The failure counts are from the recorded Linux job,
+not a fresh full local run. This documentation audit inspected source, provider
+metadata and local tooling; it did not rerun the full test suite or deploy.
 
 ## Completion is one linked evidence chain
 
