@@ -23,7 +23,7 @@ npm ci
 npm run dev
 ```
 
-Open the local URL Vite prints; shared Alpha access stays off by default. Contributor checks live in [CONTRIBUTING.md](CONTRIBUTING.md), authentication setup lives in the [Farcaster integration](docs/farcaster-integration.md) guide, and deeper setup lives in [reconstruction and recovery](docs/operations/reconstruction/README.md). Asset reconstruction is explicit and not part of a normal build; read [asset provenance](ASSETS-LICENSE.md) before working with protected source packages.
+Open the local URL Vite prints; shared Alpha access stays off by default. Stop the development server with `Ctrl+C` in the terminal. Contributor checks live in [CONTRIBUTING.md](CONTRIBUTING.md), authentication setup lives in the [Farcaster integration](docs/farcaster-integration.md) guide, and deeper setup lives in [reconstruction and recovery](docs/operations/reconstruction/README.md). Asset reconstruction is explicit and not part of a normal build; read [asset provenance](ASSETS-LICENSE.md) before working with protected source packages.
 
 ## Current status
 
