@@ -1,67 +1,104 @@
 # Warpkeep
 
-**[Warpkeep](https://warpkeep.com/) turns a Farcaster identity into a permanent castle in a shared strategy world that remembers you.**
+**A real person. A permanent keep. A world worth returning to.**
 
-## What is this?
+Warpkeep is a persistent strategy world connected to Farcaster. Workers travel
+across the landscape, resources come home, and a keep becomes a place shaped by
+its Keeper's choices. We are building a game that makes the first session
+satisfying and the next visit worthwhile.
 
-Genesis 001 is a persistent, invite-only 10,000-cell Lowlands realm with 100 permanent castle sites gathered near its founding district. Each admitted founder enters through a verified Farcaster identity, receives one durable keep, and returns to a world that remembers its coastline, twelve rivers, wintering north, sunscoured south, shaped forests, resource sites, Workers, wagons, and public keeper portraits. Four permanent Workers can gather Food / Wood / Stone / Gold, settle production automatically, and return home on command.
+[warpkeep.com](https://warpkeep.com/) · [Product direction](docs/design/warpkeep-direction.md)
+· [Documentation](docs/README.md) · [Follow 0.4 development](https://github.com/ael-dev3/Warpkeep/pull/228)
 
-The Realm records one experimental Community Mark for each admitted keeper per eligible day. In the current invite-only Alpha, returning admitted players whose Alpha Terms remain current enter directly in ordinary browsers or the portrait-first Farcaster Mini App; verified players outside the gate may submit one private access request for manual review, which does not itself grant admission. The current Alpha supports permanent keeps, four Worker journeys, and persistent resource gathering; construction, units, combat, alliances, and the larger strategy loop are still in development. Warpkeep is a one-person, open-source experiment—not a finished MMO or financial product. Participation earns no token reward, airdrop, financial return, guaranteed reward, or future value.
+## The next chapter
 
-![Current Alpha preview of the keeps and Worker road network in Genesis 001.](docs/reference/screenshots/2026-08-02-alpha-0.3.43-launch/warpkeep-alpha-0.3.43-genesis-001.png)
+Warpkeep 0.4 brings the game together around a clear loop:
 
-*A privacy-safe local capture of the current Realm renderer using synthetic keep records; this documentation image does not activate or authorize gameplay.*
+**Gather → choose → build → benefit → return.**
 
-## Quick start
+Choose where Workers travel and when they return. Turn the resources they bring
+home into a useful improvement. See that improvement change your keep and make
+the next journey or construction project better. Return to a place that remembers
+your effort and offers another worthwhile decision.
 
-Prerequisites: Git, Node.js 22.13 or newer within the Node 22 LTS line, and npm 10.9.8.
+The visual direction, **The Verdant Citadel**, is an inviting town diorama:
+pale masonry, dark timber, teal roofs, restrained warp accents, layered forest
+and flowing water. Clear silhouettes, comfortable mobile controls and visible
+progress matter as much as detail. Reused assets retain their original credits
+and permissions.
+
+## Where development stands
+
+**0.4 is under development; it is not yet the completed live release.**
+This default branch contains the Genesis 001 Alpha baseline and release
+preparation. The new gameplay core, owner PTR and keep presentation are on the
+separate [0.4 development branch](https://github.com/ael-dev3/Warpkeep/tree/codex/prepared-keep-bindings-fix).
+
+| Area | Role |
+| --- | --- |
+| **Genesis 001** | The established world: persistent keeps, Worker journeys and resource gathering. Preserve existing progress while the rollout freezes new admissions. |
+| **Genesis 002** | The successor realm, prepared as a sealed launch; future admissions remain undecided. |
+| **Owner PTR** | An isolated realm for exercising the new playable experience before broader release. Its implementation is on the development branch. |
+
+The [development handoff](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/README.md)
+tracks implementation and open integration work. Source flags and successful
+checks describe a candidate; deployment and usable player experience require
+their own evidence. The public site's build may differ from either branch.
+
+![Genesis 001 Alpha 0.3.43 world preview](docs/reference/screenshots/2026-08-02-alpha-0.3.43-launch/warpkeep-alpha-0.3.43-genesis-001.png)
+
+*Genesis 001 baseline, shown with synthetic local data. This is a historical
+preview, not a screenshot of the new 0.4 keep or proof of production activation.*
+
+## Build with us
+
+For active 0.4 work, start from the development branch. Use Git, Node 22
+(22.13 or newer within that major) and npm 10.9.8:
 
 ```sh
-git clone https://github.com/ael-dev3/Warpkeep.git
+git clone --branch codex/prepared-keep-bindings-fix https://github.com/ael-dev3/Warpkeep.git
 cd Warpkeep
 npm ci
 npm run dev
 ```
 
-Open the local URL Vite prints; shared Alpha access stays off by default. Contributor checks live in [CONTRIBUTING.md](CONTRIBUTING.md), authentication setup lives in the [Farcaster integration](docs/farcaster-integration.md) guide, and deeper setup lives in [reconstruction and recovery](docs/operations/reconstruction/README.md). Asset reconstruction is explicit and not part of a normal build; read [asset provenance](ASSETS-LICENSE.md) before working with protected source packages.
+Open the local address printed by Vite. On that development checkout, open
+`/dev/keep04-qa.html?scenario=all-six-level-five&quality=high` on the same local
+origin for a synthetic keep preview. This demonstrates presentation, not a live
+owner journey. Follow the
+[0.4 development workflow](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/engineering/development-workflow.md)
+for verification and package-check guidance.
+For the default-branch baseline, omit `--branch` and use the local
+[contributor guide](CONTRIBUTING.md). Inspect existing dependency links before
+installing into an established worktree.
 
-## Current status
+Stop the development server with `Ctrl+C` in its terminal.
 
-| State | Today |
+| I want to… | Start here |
 | --- | --- |
-| ✅ Live | The current invite-only Alpha is playable in ordinary browsers and the Farcaster Mini App. |
-| ✅ World | Genesis 001 persists 10,000 cells, a coastline, twelve one-cell rivers, colder northern and drier southern frontiers, and 100 permanent castle sites near the founding district. Founders return to one durable keep, explore the Lowlands up to its fog, and inspect nearby founders through their public username / portrait / castle. |
-| ✅ Authority | FID is the durable identity; handles and portraits are bounded presentation metadata. Farcaster sign-in uses a browser-bound, least-privilege bridge. The browser presents; the server decides admission, ownership, resources, timers, and saved state. A private access request asks for manual review and grants nothing by itself. |
-| ✅ Resources | Each keep privately holds Food / Wood / Stone / Gold. Food, Wood, and Stone come from authoritative terrain yield and can also be gathered at Wheat Farms, Logging Camps, and Stone Quarries; Gold comes from Gold Mines. Completed yield settles without a Claim step, and occupied sites keep their gathering story in one record. The browser never invents balances. |
-| ✅ Marks | Each admitted keeper receives one experimental Community Mark per eligible Realm day through private, replay-protected SpacetimeDB authority. Marks require no wallet or token action and cannot be spent, converted, redeemed, or transferred. They have no cash value, promised utility, or reward loop. |
-| 🧪 Greater Realm candidate | A larger six-region atlas candidate now has accessible pan / zoom / orbit / selection controls, region-specific terrain and landmarks, public resource markers, and a presentation-only local helm constrained to returned deep-water lanes. It is not live or persistent player travel: protected import, activation, presentation, notification, legal, and owner gates remain closed. |
-| 🚧 In progress | Worker journeys now begin on the map, but the larger construction, strategy, and social loops are still being built. |
-| 📋 Planned | Construction and upgrades; units / scouting / travel / combat; alliances / trading / chat; seasons / governance. Design notes are experiments, not promises that these features will ship unchanged. |
+| Understand the game and its future | [Product direction](docs/design/warpkeep-direction.md) and [roadmap](docs/design/roadmap.md) |
+| Find the right branch and subsystem | [Ecosystem map](docs/engineering/ecosystem-map.md) |
+| Work as an agent or return to development | [AGENTS.md](AGENTS.md) and the [0.4 handoff](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/README.md) |
+| Trace current gameplay and rendering | [0.4 architecture](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/technical-architecture.md) and [source map](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/repo-map.md) |
+| Contribute a focused improvement | [Contributing](CONTRIBUTING.md) and [issue forms](https://github.com/ael-dev3/Warpkeep/issues/new/choose) |
 
-## Tech stack
+The browser uses React, TypeScript and Three.js. Cloudflare verifies identity,
+SpacetimeDB owns persistent gameplay, and GitHub Pages serves the frontend.
+The 0.4 operating path targets Windows/WSL and Linux; see its
+[infrastructure notes](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/release-and-infrastructure.md)
+for what is connected and what remains to be completed.
 
-- **React** — Keeps interactive interface components manageable.
-- **TypeScript** — Makes shared data contracts explicit.
-- **Vite** — Builds the browser client quickly.
-- **Three.js / WebGL** — Renders the Lowlands in browsers.
-- **Responsive CSS** — Supports phones, keyboards, and fallbacks.
-- **Farcaster Auth** — Connects castles to verified identities.
-- **Cloudflare Workers** — Verifies sign-in with least privilege.
-- **SpacetimeDB** — Owns Realm and player state.
-- **Vitest** — Catches regressions across critical boundaries.
+## Community and reuse
 
-## Links
+[Warpkeep channel on Farcaster](https://farcaster.xyz/~/channel/warpkeep) ·
+[Realm Council issue forms](https://github.com/ael-dev3/Warpkeep/issues/new/choose) ·
+[Changelog](CHANGELOG.md) · [Releases](https://github.com/ael-dev3/Warpkeep/releases)
 
-- **Architecture:** The [technical architecture](docs/technical-architecture.md) explains what the browser shows and what the server decides.
-- **Roadmap:** The [roadmap](docs/design/roadmap.md) and [game direction](docs/design/warpkeep-direction.md) separate today's game from later plans.
-- **Authentication:** The [Farcaster integration](docs/farcaster-integration.md) guide covers sign-in, privacy, and public configuration.
-- **Release:** The [latest GitHub release](https://github.com/ael-dev3/Warpkeep/releases/latest) and [player-facing changelog](CHANGELOG.md) describe what has reached the living Realm.
-- **Licensing:** [LICENSING.md](LICENSING.md) explains release rules; [asset provenance](ASSETS-LICENSE.md) records where media came from and what permissions apply.
-- **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md) covers checks and provenance; the [Realm Council issue forms](https://github.com/ael-dev3/Warpkeep/issues/new/choose) accept privacy-safe bugs and ideas.
-- **Security:** Report sensitive issues privately through [SECURITY.md](SECURITY.md), never through a public issue.
-- **Quality:** The [verification checklist](docs/operations/reconstruction/verification-checklist.md) covers desktop / phone / keyboard / touch / reduced-motion / fallback checks.
-- **Community:** Play at [warpkeep.com](https://warpkeep.com/), join the [Warpkeep channel on Farcaster](https://farcaster.xyz/~/channel/warpkeep), and explore the [provenance-tracked visual archive](https://github.com/ael-dev3/Warpkeep-Assets).
+Report sensitive issues through [SECURITY.md](SECURITY.md). Public feedback should
+describe player experience without exposing credentials or private player data.
 
-## License
-
-Warpkeep software uses Apache-2.0; authorized project-owned creative work follows the recorded CC-BY terms, while some GameReady runtime assets have narrower permissions and no general open-content or derivative license—read [LICENSING.md](LICENSING.md) and [ASSETS-LICENSE.md](ASSETS-LICENSE.md) before reuse.
+Software is licensed under Apache-2.0. Project-owned creative work follows
+CC-BY-4.0; third-party assets retain their recorded terms. See
+[LICENSING.md](LICENSING.md), [ASSETS-LICENSE.md](ASSETS-LICENSE.md) and [NOTICE](NOTICE).
+Experimental Community Marks are separate from gameplay resources and carry no
+promise of financial value or rewards.

@@ -1,5 +1,12 @@
 # Technical architecture
 
+> **Generation note:** This default-branch reference describes G001 and earlier
+> prepared features. Active 0.4 gameplay, PTR and keep presentation have a separate
+> [architecture](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/technical-architecture.md)
+> and [source map](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/repo-map.md).
+> Use the [ecosystem map](engineering/ecosystem-map.md) to choose the correct
+> generation; descriptions here are not evidence of current production state.
+
 Warpkeep is an admission-gated persistent-world Alpha. The browser renders the
 Realm, a Cloudflare Worker verifies Farcaster sign-in, and SpacetimeDB owns game
 state. These responsibilities stay separate so a compromised or stale browser
@@ -59,23 +66,31 @@ separate legal and operational activation review.
 The module guide, local commands, and schema notes live in
 [`spacetimedb/README.md`](../spacetimedb/README.md).
 
-## Current world and resource model
+## G001 world and resource model
 
 Genesis 001 contains 10,000 persistent cells and 100 permanent castle sites
 near its founding district. Founded players return to the same castle and can
 inspect public castle and profile presentation for nearby founders.
 
-Each founded castle has a private Food, Wood, Stone, and Gold account. Terrain
-and completed ten-minute server intervals determine yield. Collection settles
-only server-recorded production and never reveals another player's balances.
+Each founded castle has a private Food, Wood, Stone, and Gold account. Resource
+settlement is server-authoritative and never reveals another player's balances.
+The source retains earlier passive-production and per-resource expedition paths
+alongside the generic Worker rollout; use the active rollout state and its
+authority code when tracing the behavior of a particular account.
 Community Marks use separate accounting and currently have no spending,
 conversion, transfer, redemption, or reward loop.
 
 Gold Mines, Wheat Farms, Logging Camps, and Stone Quarries are public map
-projections. Each resource has an independent private expedition that is bound
-to its caller and settled by server time. Public occupation rows show only the
-site, phase, timeline, and origin castle. Construction, upgrades, units, combat,
-alliances, trading, chat, seasons, and governance are not playable yet.
+projections. Generic Workers carry caller-bound assignments with authoritative
+routes, site capacity, timelines and settlement. Fresh legacy per-resource
+dispatch is retired once its Worker rollout reaches drain or active state;
+retained compatibility tables do not define the new command path. Start at
+[Worker authority](../spacetimedb/src/castleWorkerAuthority.ts),
+[Worker reducers](../spacetimedb/src/reducers/castleWorkers.ts) and
+[legacy reservation authority](../spacetimedb/src/resourceExpeditionReservationAuthority.ts).
+Public occupation rows expose bounded shared presentation. Construction, upgrades,
+units, combat, alliances, trading, chat, seasons and governance are not established
+playable features of this G001 baseline.
 
 The inactive Inner Keep V1 foundation defines a continuous buildable interior,
 six unique buildings with five levels, and one internal Builder per founded
@@ -97,10 +112,11 @@ aggregate revision against the reconciled graph. A mismatch rolls the whole
 reducer back before reconciliation, settlement, or deduction can commit. It
 then derives cost, discount, duration, settlement, deduction, and completion.
 
-Merging to protected `main` triggers the existing verified Pages deployment of
-the compatible, dormant client. Publication, catalog seed, Builder backfill,
-runtime asset verification, and activation remain separate owner-reviewed
-operations.
+The [Pages workflow](../.github/workflows/deploy-pages.yml) classifies an exact
+verified `main` source before selecting a deployment lane. Preparation source
+can skip build and deployment; a merge or green workflow alone does not publish
+this dormant client. Module publication, catalog seed, Builder backfill,
+runtime asset verification and activation have their own operating boundaries.
 See the [Inner Keep V1 authority contract](design/inner-keep-construction.md)
 and [future activation runbook](operations/inner-keep-activation.md).
 
@@ -200,7 +216,7 @@ state.
 GitHub Actions builds the client, auth bridge, and SpacetimeDB module; runs the
 test and dependency checks; verifies generated bindings and asset provenance;
 and scans code and committed history for security issues. Pages deployment is
-limited to `main` and requires the signed static Mini App manifest, exact image
+limited to an approved lane from verified `main` and requires the signed static Mini App manifest, exact image
 contract, and hidden `.well-known` upload. Worker publication, database
 publication, data migration, and admission changes remain separate operator
 actions.

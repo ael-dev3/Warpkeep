@@ -1,13 +1,20 @@
-## Purpose
+## Player or developer outcome
 
-Describe the player-facing or infrastructure problem this change solves.
+Describe the problem, resulting behavior, and how this moves Warpkeep forward.
+For a repair, give a short before/after example and link the relevant current notes.
 
 ## Validation
 
-List the checks or manual fixtures used to verify the change.
+List checks and observed results for this source. For visual work, describe the
+rendered scenarios/devices reviewed. Distinguish fixtures from live owner play.
+State material failures, skipped checks and remaining work plainly.
 
-## Review notes
+## Integration and follow-up
 
-- [ ] The change is focused and does not include private data or credentials.
-- [ ] New or modified media has compatible terms and a provenance record.
-- [ ] Generated files and operational or security implications are identified.
+Identify affected realms, generated outputs, compatibility/recovery implications,
+and the next action for an unfinished development checkpoint. Source publication
+does not imply deployment. Omit details that do not apply.
+
+- [ ] The diff contains the intended work and no credentials or private player data.
+- [ ] Changed documentation and agent routing reflect the actual behavior.
+- [ ] Any reused media is credited and generated outputs identify their source.

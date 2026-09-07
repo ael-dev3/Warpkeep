@@ -1,68 +1,98 @@
 # Warpkeep roadmap
 
-Warpkeep is building a persistent strategy world one playable loop at a time.
-Dates and feature order may change as the Alpha is tested.
+This default-branch overview describes the 0.4 target. Its implementation and
+linked specifications live on [the development branch](https://github.com/ael-dev3/Warpkeep/tree/codex/prepared-keep-bindings-fix);
+main retains the G001 baseline and release preparation.
 
-## Genesis 001 baseline — Alpha 0.3.43
+The next milestone is a rewarding, reliable loop of building and gathering. Broader
+strategy can grow from the choices and relationships it creates. This page
+describes priorities, not a deployment attestation or an ETA.
+Use the [release checklist](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/operations/0.4.0-release-checklist.md) and
+[dated audit](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/README.md) for acceptance and implementation state.
 
-- Farcaster-gated entry to the persistent Genesis 001 realm
-- 10,000 world cells and 100 permanent castle sites near the founding district
-- a persistent coastline and twelve one-cell rivers through the Lowlands
-- one durable castle for each founded player
-- public castle, username, and portrait presentation, including gathering
-  portraits at occupied resource sites
-- private Food, Wood, and Stone terrain yield, plus server-owned Gold balances
-- shared Gold Mine, Wheat Farm, Logging Camp, and Stone Quarry sites with one
-  private, server-governed expedition per resource type
-- denser biome-shaped forests, clustered outer groves, biome-driven grass, a
-  natural ocean-to-fog horizon, and responsive mobile presentation
-- unified, camera-neutral gathering records with authoritative time-left labels
-  and automatic server-owned settlement
-- separate private Community Marks accounting with no spending, transfer,
-  conversion, redemption, or reward loop
+## Recorded baseline — Genesis 001 Alpha 0.3.43
 
-The core strategy loop is not playable in this baseline. Alpha 0.3.43 is a
-working world foundation and visual representation of what is being built.
+The admission-gated world foundation includes persistent keeps, verified
+Farcaster identities, public keep/profile presentation, Worker journeys,
+Food/Wood/Stone/Gold gathering and private Community Marks.
+The coastline, rivers, biomes, forests and resource sites provide the visual world.
+Marks have no spending, transfer, conversion, redemption or financial reward loop.
 
-## Now building
+Preserve that baseline's existing players, state, timers and appearance.
+The 0.4 rollout freezes new admissions/access requests; documentation or a source
+flag alone does not prove the production change occurred.
 
-The next useful slice gives gathered resources a small, understandable purpose
-inside each player's own castle:
+## Now building — Warpkeep 0.4
 
-1. enter a 96 x 80 meter Inner Keep compound without leaving the Realm session;
-2. choose any valid half-meter-snapped position and quarter-turn orientation
-   within the continuous interior;
-3. spend stored resources on one of six server-priced buildings, including a
-   Barracks and Cathedral that are initially absent;
-4. let one internal Builder complete construction while the player is away;
-5. keep the completed level visible and apply an economy building's matching
-   resource discount;
-6. test whether that loop is enjoyable before adding breadth.
+1. Deliver the separate owner PTR gather → choose → build → benefit → return
+   journey through real bindings, verified atlas routes and server transactions.
+2. Connect gathering to useful construction. Economy buildings improve matching
+   yield, Barracks improves travel and Cathedral improves future construction.
+   Make costs, shortages, incoming returns, permanent placement and completed
+   benefits clear. The [gameplay notes](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/gameplay-and-visuals.md)
+   record current mechanics and their implementation sources.
+3. Finish the Verdant Citadel look across required building/placement/progression
+   states, with reusable decorative voxel detail, layered forest and lightweight
+   water. Cover mobile, reduced motion, asset failure, context recovery and fallback.
+4. Preserve G001. Deploy G002 sealed and accurately closed, with admissions TBD.
+   Do not open it to demonstrate gameplay; use the genuine isolated owner PTR.
+5. Complete the local Windows/WSL preparation, release and recovery workflow,
+   using genuine service and player authority at the required boundaries.
+6. Demonstrate a useful first improvement and its improved return, measure
+   responsiveness across required views, verify existing-player preservation
+   and publish a reproducible, credential-free handoff.
 
-This work is prepared behind an inactive component gate. A merge to protected
-`main` triggers the existing verified Pages deployment of the compatible,
-dormant client. It does not publish the schema, seed the catalog, backfill
-Builders, authorize archive assets, activate construction, or make the loop
-playable. Units and other map systems remain design work until they are
-intentionally released.
+The core economy, transactional adapters, client command controller and Verdant
+Citadel renderer are implemented. The healthy-refresh scene/focus correction is
+also complete in source. Integrated owner play, final visual coverage, measured
+performance and deployment acceptance remain unfinished; their current evidence
+belongs in the [gameplay audit](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/gameplay-and-visuals.md)
+and the release checklist, rather than being inferred from this roadmap.
 
-The exact inactive V1 policy and release gates are documented in
-[Inner Keep construction V1](inner-keep-construction.md).
+Follow representative playable keep → required gameplay/visual/operating coverage
+→ final family freeze → protected integration/deployment → live verification →
+handoff. Capture the required G001 baseline and test compatible write-preserving
+recovery before production effects. Do not final-freeze while required source is
+still changing.
 
-## After the Inner Keep loop
+The approved [gameplay](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/superpowers/specs/2026-09-05-warpkeep-0.4-gameplay-design.md),
+[keep](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/superpowers/specs/2026-09-06-warpkeep-astra-keep-design.md) and
+[assembler](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/superpowers/specs/2026-09-06-warpkeep-local-release-assembler-design.md)
+specifications define behavior and composition. The [R01–R18 checklist](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/operations/0.4.0-release-checklist.md)
+defines completion. Some components are verified locally; 0.4 remains unreleased.
 
-- more construction choices and deliberately bounded queue options;
-- unit training, scouting, travel, and map visibility;
-- defenses, raids, and bounded combat;
-- alliances, diplomacy, trading, chat, and seasons;
-- community governance and world history where they improve the game.
+## Historical work is not the current gameplay policy
 
-## Product guardrails
+[Inner Keep construction V1](inner-keep-construction.md) records dormant legacy
+G001-oriented work, including different durations and economy discounts. Preserve
+its compatibility/provenance where needed, but do not use it as the specification
+for the isolated 0.4 successor or activate it to make the new PTR tests pass.
+Historical plans and deployment notes remain evidence of their own source/date.
 
-- Do not describe a feature as playable before it is live.
-- Keep identity, ownership, resources, timers, and outcomes server-owned.
-- Keep private balances and administrative records out of public subscriptions.
-- Use Farcaster for identity and social presentation, not pay-to-win power.
-- Do not present Marks or Alpha participation as money, an airdrop, or a
-  guaranteed reward.
-- Prefer small, durable, enjoyable systems over a wide unfinished simulation.
+## Candidate directions after the first loop
+
+| Direction | Player value to investigate |
+| --- | --- |
+| Scouting and exploration | Learn something useful about geography and future destinations |
+| Trade and specialization | Turn different resource priorities into cooperation |
+| Alliances and shared objectives | Make neighboring Keeps and returning together meaningful |
+| Training, defense and conflict | Add consequential preparation and interaction when the economy supports it |
+| Seasons and community institutions | Give a persistent world changing goals and shared history |
+
+These are possibilities, not implemented systems or fixed commitments. Queueing,
+cancellation, relocation and refunds would change current permanent-construction
+rules and require an explicit design. G002 admissions remain TBD. None of those
+decisions should be assumed from a historical plan or a visible UI placeholder.
+
+Validate the existing loop with an appropriately authorized cohort only after
+separate access decisions. Observe first dispatch, first useful build, voluntary
+return and abandonment reasons. That evidence—not framework size or feature
+count—should decide what comes next.
+
+## Product and release guardrails
+
+Keep server authority and private data boundaries; distinguish live, local and
+planned behavior. Preserve asset rights and accurate authorship. Improve the
+design when evidence or considered judgment supports it, recording the player
+benefit, implementation impact and changed acceptance where applicable. Avoid
+restarting useful work or substituting a quality score for demonstrated results.
