@@ -84,8 +84,25 @@ realm connection. It does not prove actual owner play, real phone behavior,
 background timer scheduling, live command settlement or final performance.
 
 Before R08 acceptance, exercise the integrated owner journey across expiry,
-background/resume, uncertain outcome and repeated world/keep switches. A stable
-Mini App host that changes account without replacing its host object is checked
-on the next fresh exchange, rather than immediately while its current lease is
-still valid; review that foreground identity behavior before claiming complete
-account-switch coverage. No production or admission policy was changed here.
+background/resume, uncertain outcome and repeated world/keep switches. No
+production or admission policy was changed here.
+
+## Mini App presentation updates and identity changes
+
+A follow-up review reproduced an active PTR session returning to the menu when
+the Mini App host published a safe-area or notification update. The provider was
+using the entire host object as session identity, although the host intentionally
+replaces that object when presentation state changes.
+
+The provider now captures the actual identity and authority scope: host state,
+Mini App eligibility, user and client FID, Quick Auth adapter and its token
+function. Presentation changes preserve the active session. An observed account,
+client, authentication adapter or eligibility change invalidates both current
+and pending authority. Scalar snapshots also catch mutation of a reused host
+object when the provider renders or returns from asynchronous authentication;
+this does not claim to poll unreported host changes.
+
+Provider, experience, surface, auth-client and Mini App host suites passed
+**135 tests**, including twelve new provider cases. The explicit application
+noEmit check passed. These tests verify the local integration, not live owner
+play or actual mobile host account switching.

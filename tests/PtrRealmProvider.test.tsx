@@ -120,6 +120,17 @@ function installHost(
   return getToken;
 }
 
+function changeHostScope(change: 'account' | 'client' | 'adapter' | 'eligibility') {
+  const prior = hostState.current;
+  const context = prior.context as { user: { fid: number }; client: { clientFid: number } };
+  hostState.current = Object.freeze({ ...prior,
+    ...(change === 'account' ? { context: { ...context, user: { ...context.user, fid: FID + 1 } } } : {}),
+    ...(change === 'client' ? { context: { ...context, client: { ...context.client, clientFid: 10_000 } } } : {}),
+    ...(change === 'adapter' ? { quickAuth: { ...(prior.quickAuth as object) } } : {}),
+    ...(change === 'eligibility' ? { state: 'recovery', isMiniApp: false } : {}),
+  });
+}
+
 const READY_BRIDGE: GreaterRealmProviderBridge = Object.freeze({
   phase: 'available',
   presentationAllowed: true,
@@ -241,6 +252,125 @@ afterEach(() => {
 });
 
 describe('active PTR session continuation', () => {
+  it('preserves the current lease across MiniApp presentation-only snapshot changes', async () => {
+    const harness = await activeRenewalHarness();
+    const authority = currentContext().authority;
+    const capability = currentContext().gameplay04;
+    const oldHost = hostState.current;
+    const context = oldHost.context as { user: { fid: number }; client: { clientFid: number } };
+    hostState.current = Object.freeze({ ...oldHost,
+      context: Object.freeze({ ...context,
+        user: Object.freeze({ ...context.user, displayName: 'Updated presentation' }),
+        client: Object.freeze({ ...context.client, safeAreaInsets: { top: 24, right: 0, bottom: 12, left: 0 }, added: true }),
+      }),
+      notificationPresentation: 'enabled-hint',
+    });
+    harness.mounted.rerender(<PtrRealmProvider config={CONFIG} runtime={harness.runtime}><Capture /></PtrRealmProvider>);
+    expect(currentContext().phase).toBe('ready');
+    expect(currentContext().authority).toBe(authority);
+    expect(currentContext().gameplay04).toBe(capability);
+    expect(harness.runtime.closeSession).not.toHaveBeenCalled();
+    expect(harness.getToken).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    expect(currentContext().phase).toBe('ready');
+    expect(harness.getToken).toHaveBeenCalledTimes(2);
+    expect(harness.getToken).toHaveBeenLastCalledWith({ force: true });
+  });
+
+  it.each(['account', 'client', 'adapter', 'eligibility'] as const)(
+    'retires a ready lease after a MiniApp %s change', async change => {
+      const harness = await activeRenewalHarness();
+      const previous = currentContext().gameplay04!;
+      changeHostScope(change);
+      harness.mounted.rerender(<PtrRealmProvider config={CONFIG} runtime={harness.runtime}><Capture /></PtrRealmProvider>);
+      expect(currentContext().phase).toBe(change === 'eligibility' ? 'unavailable' : 'unknown');
+      expect(currentContext().authority).toBeNull();
+      expect(currentContext().gameplay04).toBeNull();
+      expect(previous.isCurrent()).toBe(false);
+      expect(isCurrentPtrRealmAuthority(harness.authority, NOW)).toBe(false);
+      await act(async () => currentContext().renewSession());
+      expect(harness.getToken).toHaveBeenCalledTimes(1);
+      expect(previous.mutate).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['account', 'client', 'adapter', 'eligibility'] as const)(
+    'cancels renewal and retires its late authority after a MiniApp %s change', async change => {
+      const harness = await activeRenewalHarness();
+      const pending = deferred<PtrRealmAuthority>();
+      harness.exchangeQuickAuth.mockReturnValueOnce(pending.promise);
+      await act(async () => vi.advanceTimersByTimeAsync(120_000));
+      const signal = harness.exchangeQuickAuth.mock.calls[1]![1] as AbortSignal;
+      const late = await issuedAuthority(Date.now());
+      changeHostScope(change);
+      harness.mounted.rerender(<PtrRealmProvider config={CONFIG} runtime={harness.runtime}><Capture /></PtrRealmProvider>);
+      expect(signal.aborted).toBe(true);
+      await act(async () => pending.resolve(late));
+      expect(currentContext().phase).toBe(change === 'eligibility' ? 'unavailable' : 'unknown');
+      expect(isCurrentPtrRealmAuthority(late, Date.now())).toBe(false);
+      expect(harness.runtime.connect).toHaveBeenCalledTimes(1);
+      expect(currentContext().gameplay04).toBeNull();
+      await act(async () => currentContext().renewSession());
+      expect(harness.getToken).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it('allows renewal to finish after a presentation-only update during exchange', async () => {
+    const harness = await activeRenewalHarness();
+    const pending = deferred<PtrRealmAuthority>();
+    harness.exchangeQuickAuth.mockReturnValueOnce(pending.promise);
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    const signal = harness.exchangeQuickAuth.mock.calls[1]![1] as AbortSignal;
+    hostState.current = Object.freeze({ ...hostState.current, notificationPresentation: 'enabled-hint' });
+    harness.mounted.rerender(<PtrRealmProvider config={CONFIG} runtime={harness.runtime}><Capture /></PtrRealmProvider>);
+    expect(currentContext().phase).toBe('renewing');
+    expect(signal.aborted).toBe(false);
+    await act(async () => pending.resolve(await issuedAuthority(Date.now())));
+    expect(currentContext().phase).toBe('ready');
+    expect(harness.getToken).toHaveBeenCalledTimes(2);
+    expect(harness.runtime.connect).toHaveBeenCalledTimes(2);
+  });
+
+  it('detects an account change even when a host facade retains object identity', async () => {
+    const authority = await issuedAuthority();
+    installHost();
+    const context = { user: { fid: FID }, client: { clientFid: 9_999 } };
+    const stableHost = { ...hostState.current, context };
+    hostState.current = stableHost;
+    const harness = runtimeHarness(authority);
+    const mounted = mount(CONFIG, harness.runtime);
+    await act(async () => currentContext().checkAccess());
+    await act(async () => currentContext().enter());
+    context.user.fid = FID + 1;
+    mounted.rerender(<PtrRealmProvider config={CONFIG} runtime={harness.runtime}><Capture /></PtrRealmProvider>);
+    expect(hostState.current).toBe(stableHost);
+    expect(currentContext().phase).toBe('unknown');
+    expect(currentContext().authority).toBeNull();
+    expect(isCurrentPtrRealmAuthority(authority, NOW)).toBe(false);
+    expect(harness.runtime.closeSession).toHaveBeenCalledWith(harness.session);
+  });
+
+  it('rejects an in-flight access result after a stable host facade changes account', async () => {
+    const authority = await issuedAuthority();
+    installHost();
+    const context = { user: { fid: FID }, client: { clientFid: 9_999 } };
+    hostState.current = { ...hostState.current, context };
+    const pending = deferred<PtrRealmAuthority>();
+    const harness = runtimeHarness(authority);
+    harness.exchangeQuickAuth.mockReturnValueOnce(pending.promise);
+    const mounted = mount(CONFIG, harness.runtime);
+    await act(async () => { void currentContext().checkAccess(); });
+    expect(harness.exchangeQuickAuth).toHaveBeenCalledOnce();
+    // The async boundary must compare the captured scalar even before React
+    // has committed a render that can abort the old operation.
+    context.user.fid = FID + 1;
+    await act(async () => pending.resolve(authority));
+    expect(isCurrentPtrRealmAuthority(authority, NOW)).toBe(false);
+    expect(harness.runtime.connect).not.toHaveBeenCalled();
+    mounted.rerender(<PtrRealmProvider config={CONFIG} runtime={harness.runtime}><Capture /></PtrRealmProvider>);
+    expect(currentContext().phase).toBe('unknown');
+  });
+
   it('keeps a valid lease until expiry, then forces fresh access and creates a new capability', async () => {
     const harness = await activeRenewalHarness();
     const previous = currentContext().gameplay04!;

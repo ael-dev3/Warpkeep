@@ -188,6 +188,38 @@ function eligibleMiniAppHost(host: ReturnType<typeof useMiniAppHost>) {
     && typeof host.quickAuth?.getToken === 'function';
 }
 
+type MiniAppScope = Readonly<{
+  state: ReturnType<typeof useMiniAppHost>['state'];
+  isMiniApp: boolean;
+  quickAuth: ReturnType<typeof useMiniAppHost>['quickAuth'];
+  getToken: ReturnType<typeof useMiniAppHost>['quickAuth']['getToken'];
+  fid: number | null;
+  clientFid: number | null;
+}>;
+
+function readMiniAppScope(host: ReturnType<typeof useMiniAppHost>): MiniAppScope {
+  // Context is presentation-only: these hints can revoke an existing scope,
+  // never establish identity or admission. Copy scalars so a stable facade
+  // cannot rewrite the account captured by an in-flight operation.
+  return Object.freeze({
+    state: host.state,
+    isMiniApp: host.isMiniApp,
+    quickAuth: host.quickAuth,
+    getToken: host.quickAuth?.getToken,
+    fid: host.context?.user.fid ?? null,
+    clientFid: host.context?.client.clientFid ?? null,
+  });
+}
+
+function sameMiniAppScope(left: MiniAppScope, right: MiniAppScope) {
+  return left.state === right.state
+    && left.isMiniApp === right.isMiniApp
+    && left.quickAuth === right.quickAuth
+    && left.getToken === right.getToken
+    && left.fid === right.fid
+    && left.clientFid === right.clientFid;
+}
+
 function configKey(config: PtrRealmConfig) {
   return config.availability === 'available'
     ? `available:${config.databaseIdentity}:${config.spacetimeUri}`
@@ -230,6 +262,7 @@ export function PtrRealmProvider({
   runtime: suppliedRuntime,
 }: PtrRealmProviderProps) {
   const host = useMiniAppHost();
+  const hostScope = readMiniAppScope(host);
   const environmentConfig = useMemo(() => readPtrRealmConfig(), []);
   const config = suppliedConfig ?? environmentConfig;
   const runtime = suppliedRuntime ?? DEFAULT_PTR_REALM_PROVIDER_RUNTIME;
@@ -328,10 +361,10 @@ export function PtrRealmProvider({
   ), []);
 
   const operationScopeIsCurrent = useCallback((
-    hostScope: ReturnType<typeof useMiniAppHost>,
+    expectedHostScope: MiniAppScope,
     configScope: AvailablePtrRealmConfig,
     runtimeScope: PtrRealmProviderRuntime,
-  ) => latestHostRef.current === hostScope
+  ) => sameMiniAppScope(readMiniAppScope(latestHostRef.current), expectedHostScope)
     && configKey(latestConfigRef.current) === configKey(configScope)
     && latestRuntimeRef.current === runtimeScope
     && latestEligibleRef.current,
@@ -351,6 +384,7 @@ export function PtrRealmProvider({
     continuationRef.current = null;
     const currentConfig = latestConfigRef.current;
     const currentHost = latestHostRef.current;
+    const currentHostScope = readMiniAppScope(currentHost);
     const currentRuntime = latestRuntimeRef.current;
     if (
       currentConfig.availability !== 'available'
@@ -370,7 +404,7 @@ export function PtrRealmProvider({
       const acquisition = await currentHost.quickAuth.getToken({ force: true });
       if (
         !operationIsCurrent(operation)
-        || !operationScopeIsCurrent(currentHost, currentConfig, currentRuntime)
+        || !operationScopeIsCurrent(currentHostScope, currentConfig, currentRuntime)
       ) return;
       if (acquisition.status !== 'token') {
         if (acquisition.status === 'host-replaced') {
@@ -390,7 +424,7 @@ export function PtrRealmProvider({
       quickAuthToken = undefined;
       if (
         !operationIsCurrent(operation)
-        || !operationScopeIsCurrent(currentHost, currentConfig, currentRuntime)
+        || !operationScopeIsCurrent(currentHostScope, currentConfig, currentRuntime)
       ) {
         retirePtrRealmAuthority(authority);
         return;
@@ -409,7 +443,7 @@ export function PtrRealmProvider({
     } catch (error) {
       if (
         !operationIsCurrent(operation)
-        || !operationScopeIsCurrent(currentHost, currentConfig, currentRuntime)
+        || !operationScopeIsCurrent(currentHostScope, currentConfig, currentRuntime)
       ) return;
       const failure = ptrRealmAuthFailureCode(error);
       if (failure === 'forbidden') {
@@ -437,7 +471,7 @@ export function PtrRealmProvider({
   const connectAuthority = useCallback(async (
     authority: PtrRealmAuthority,
     operation: ActiveOperation,
-    currentHost: ReturnType<typeof useMiniAppHost>,
+    currentHostScope: MiniAppScope,
     currentConfig: AvailablePtrRealmConfig,
     currentRuntime: PtrRealmProviderRuntime,
   ) => {
@@ -453,7 +487,7 @@ export function PtrRealmProvider({
       });
       if (
         !operationIsCurrent(operation)
-        || !operationScopeIsCurrent(currentHost, currentConfig, currentRuntime)
+        || !operationScopeIsCurrent(currentHostScope, currentConfig, currentRuntime)
       ) {
         currentRuntime.closeSession(connectedSession);
         retirePtrRealmAuthority(authority);
@@ -476,7 +510,7 @@ export function PtrRealmProvider({
       );
       if (
         !operationIsCurrent(operation)
-        || !operationScopeIsCurrent(currentHost, currentConfig, currentRuntime)
+        || !operationScopeIsCurrent(currentHostScope, currentConfig, currentRuntime)
       ) {
         if (sessionRef.current?.session === connectedSession) {
           sessionRef.current = undefined;
@@ -503,13 +537,13 @@ export function PtrRealmProvider({
         || bridge.presentationAllowed !== true
         || bridge.sessionGeneration !== connectedSession.generation
         || !operationIsCurrent(operation)
-        || !operationScopeIsCurrent(currentHost, currentConfig, currentRuntime)
+        || !operationScopeIsCurrent(currentHostScope, currentConfig, currentRuntime)
       ) throw new Error();
       const gameplay04 = currentRuntime.createGameplay04(
         connectedSession, authority, viewAnchor, currentRuntime.now,
       );
       if (!operationIsCurrent(operation)
-        || !operationScopeIsCurrent(currentHost, currentConfig, currentRuntime)
+        || !operationScopeIsCurrent(currentHostScope, currentConfig, currentRuntime)
         || !isCurrentPtrRealmAuthority(authority, currentRuntime.now())
         || !currentRuntime.isSessionCurrent(connectedSession, authority, currentRuntime.now())) {
         throw new Error();
@@ -524,7 +558,7 @@ export function PtrRealmProvider({
     } catch (error) {
       if (
         !operationIsCurrent(operation)
-        || !operationScopeIsCurrent(currentHost, currentConfig, currentRuntime)
+        || !operationScopeIsCurrent(currentHostScope, currentConfig, currentRuntime)
       ) {
         if (connectedSession) {
           if (sessionRef.current?.session === connectedSession) {
@@ -553,6 +587,7 @@ export function PtrRealmProvider({
   const enter = useCallback(async () => {
     const authority = authorityRef.current;
     const currentHost = latestHostRef.current;
+    const currentHostScope = readMiniAppScope(currentHost);
     const currentConfig = latestConfigRef.current;
     const currentRuntime = latestRuntimeRef.current;
     if (
@@ -574,10 +609,10 @@ export function PtrRealmProvider({
       authority,
     }));
     try {
-      await connectAuthority(authority, operation, currentHost, currentConfig, currentRuntime);
+      await connectAuthority(authority, operation, currentHostScope, currentConfig, currentRuntime);
     } catch {
       if (operationIsCurrent(operation)
-        && operationScopeIsCurrent(currentHost, currentConfig, currentRuntime)) {
+        && operationScopeIsCurrent(currentHostScope, currentConfig, currentRuntime)) {
         publish(publicSnapshot('error', { failure: 'transport-unavailable' }));
       }
     } finally {
@@ -592,6 +627,7 @@ export function PtrRealmProvider({
     if (renewalFlightRef.current) return renewalFlightRef.current.promise;
     const expectedScope = continuationRef.current;
     const currentHost = latestHostRef.current;
+    const currentHostScope = readMiniAppScope(currentHost);
     const currentConfig = latestConfigRef.current;
     const currentRuntime = latestRuntimeRef.current;
     if (!mountedRef.current || !expectedScope) return Promise.resolve();
@@ -613,7 +649,7 @@ export function PtrRealmProvider({
     publish(publicSnapshot('renewing'));
     const scopeIsCurrent = () => operationIsCurrent(operation)
       && continuationRef.current === expectedScope
-      && operationScopeIsCurrent(currentHost, currentConfig, currentRuntime);
+      && operationScopeIsCurrent(currentHostScope, currentConfig, currentRuntime);
     const deny = (verified: boolean) => {
       continuationRef.current = null;
       invalidatePrivateState(true);
@@ -665,7 +701,7 @@ export function PtrRealmProvider({
         if (!scheduleAuthorityExpiry(authority)) return;
         connecting = true;
         // No prior view, draft, quote or mutation envelope crosses this boundary.
-        await connectAuthority(authority, operation, currentHost, currentConfig, currentRuntime);
+        await connectAuthority(authority, operation, currentHostScope, currentConfig, currentRuntime);
       } catch (error) {
         if (!scopeIsCurrent()) return;
         const failure = ptrRealmAuthFailureCode(error);
@@ -728,7 +764,7 @@ export function PtrRealmProvider({
   }, [baseline, invalidatePrivateState, publish]);
 
   const scopeRef = useRef(Object.freeze({
-    host,
+    host: hostScope,
     config: configKey(config),
     runtime,
     eligible,
@@ -736,17 +772,17 @@ export function PtrRealmProvider({
   useEffect(() => {
     const nextConfig = configKey(config);
     const prior = scopeRef.current;
-    const changed = prior.host !== host
+    const changed = !sameMiniAppScope(prior.host, hostScope)
       || prior.config !== nextConfig
       || prior.runtime !== runtime
       || prior.eligible !== eligible;
-    scopeRef.current = Object.freeze({ host, config: nextConfig, runtime, eligible });
+    scopeRef.current = Object.freeze({ host: hostScope, config: nextConfig, runtime, eligible });
     if (changed) {
       continuationRef.current = null;
       invalidatePrivateState(true);
       publish(publicSnapshot(eligible ? 'unknown' : 'unavailable'));
     }
-  }, [config, eligible, host, invalidatePrivateState, publish, runtime]);
+  }, [config, eligible, hostScope, invalidatePrivateState, publish, runtime]);
 
   useEffect(() => {
     const checkExpiry = () => {
