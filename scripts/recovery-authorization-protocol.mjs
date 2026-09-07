@@ -2,6 +2,19 @@ import { createHash, createPublicKey, verify } from 'node:crypto';
 import { RECOVERY_KEY_ID, RECOVERY_PUBLIC_JWK, RECOVERY_KEY_THUMBPRINT } from './recovery-public-key.mjs';
 const ORDER = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n;
 const KEYS = Object.freeze({
+  authorization: ['schemaVersion', 'profile', 'iss', 'aud', 'sub', 'kid', 'requestId', 'jti',
+    'authorizationEpoch', 'repository', 'repositoryId', 'repositoryOwnerId', 'ref',
+    'workflowRef', 'workflowSha', 'environment', 'eventName', 'pagesRunId', 'pagesRunAttempt',
+    'sourceVerifyRunId', 'sourceVerifyRunAttempt', 'predecessorCommit', 'candidateCommit',
+    'candidateTree', 'sourceClosureProfile', 'sourceClosureSha256', 'recoveryAuthorizationCoreSha256',
+    'artifactId', 'artifactName', 'githubArtifactArchiveSha256', 'innerArtifactTarSha256',
+    'contentManifestSha256', 'deploymentAttestationSha256', 'releaseVersion', 'operation',
+    'canonicalOrigin', 'authWorker', 'genesis001Database', 'genesis002Database', 'ptrDatabase',
+    'historicalGenesis001ReceiptStatus', 'historicalGenesis001ReceiptExpectedSha256',
+    'g001ReleaseVersion', 'g001PlayerAccessEnabled', 'g001AdmissionStateMutationsEnabled',
+    'g001AccessRequestSubmissionsEnabled', 'g001BaselineAbiSha256', 'g002Sealed',
+    'g002PlayerCount', 'g002GeneralAdmissionCount', 'ptrSingletonOwnerCount', 'ptrGeneralAdmissionCount',
+    'observedFrom', 'observedThrough', 'issuanceEvidenceSnapshotDigest', 'liveInvariantDigest', 'iat', 'nbf', 'exp'],
   status: ['schemaVersion', 'profile', 'iss', 'aud', 'sub', 'kid', 'enabled', 'authorizationEpoch', 'iat', 'nbf', 'exp'],
   claim: ['schemaVersion', 'profile', 'iss', 'aud', 'sub', 'kid', 'requestId',
     'authorizationJti', 'authorizationJwsSha256', 'pagesRunId', 'pagesRunAttempt',
@@ -20,7 +33,7 @@ function decode(segment) {
 /** Pinned signature and byte grammar only; callers must apply kind-specific semantic gates. */
 export function verifyRecoverySignedPayload(compact, kind) {
   try {
-    if (!['status', 'claim'].includes(kind) || typeof compact !== 'string' || compact.length > 16384) fail();
+    if (!['status', 'claim', 'authorization'].includes(kind) || typeof compact !== 'string' || compact.length > 16384) fail();
     const segments = compact.split('.');
     if (segments.length !== 3) fail();
     const [header, body, signature] = segments.map(decode);
