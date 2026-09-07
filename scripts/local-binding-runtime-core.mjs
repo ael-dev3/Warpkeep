@@ -52,6 +52,7 @@ const MAX_SOURCE_MODULES = 256;
 const MAX_WORKER_REQUEST = 1024 * 1024;
 const MAX_WORKER_OUTPUT = 64 * 1024;
 const CONTROL_FILES = Object.freeze([
+  'scripts/local-release-artifact-inputs.mjs',
   'scripts/local-binding-bounded-file.mjs',
   'scripts/local-binding-runtime-cli-snapshot.mjs',
   'scripts/local-binding-runtime-process.mjs',
@@ -72,6 +73,7 @@ const CONTROL_FILES = Object.freeze([
   'scripts/genesis001-frozen-publisher-core.ts',
 ]);
 const OPERATION_BUNDLE_CONTROL_FILES = Object.freeze([
+  'scripts/local-release-artifact-inputs.mjs',
   'package-lock.json',
   'scripts/local-binding-bounded-file.mjs',
   'scripts/local-binding-native-ts-hooks.mjs',
