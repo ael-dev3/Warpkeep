@@ -1042,7 +1042,8 @@ export function captureFixedOperationBundleSource(input) {
 
 export function captureFixedRecoveryBundleSource(input) {
   return captureBundleSource(input, [...OPERATION_BUNDLE_CONTROL_FILES,
-    'scripts/recovery-workflow-bundle-engine.mjs', 'scripts/local-recovery-bundle-runtime.mjs']);
+    'scripts/recovery-workflow-bundle-engine.mjs', 'scripts/local-recovery-bundle-runtime.mjs',
+    'scripts/local-recovery-bundle-worker.mjs']);
 }
 
 function captureBundleSource({ repositoryRoot, operationRoot, environment, gitIdentity }, controlFiles) {

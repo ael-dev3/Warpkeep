@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { captureFixedRecoveryBundleSource, deriveOperationBundlePackageSourceGraph,
-  validateLocalBindingYamlManifest } from './local-binding-runtime-core.mjs';
+  validateLocalBindingYamlManifest, runLocalBindingBoundedProcess } from './local-binding-runtime-core.mjs';
 import { installLocalBindingNativeTsHooks } from './local-binding-native-ts-hooks.mjs';
 
 const ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
@@ -24,7 +24,7 @@ function attest(path, sha256, uid, expectedIdentity) {
 
 /** Local preparation only; no credentials, installation or deployment effect. */
 export async function derivePreparedLinuxRecoveryBundle(...args) {
-  let operationRoot, hooks, compiler, result;
+  let operationRoot, hooks, result;
   try {
     if (args.length !== 0 || process.platform !== 'linux' || process.arch !== 'x64'
       || process.getuid?.() !== 1000 || process.execPath !== NODE || process.execArgv.length !== 0
@@ -46,16 +46,30 @@ export async function derivePreparedLinuxRecoveryBundle(...args) {
     const yamlRoot = `${ROOT}/toolchain/yaml-2.9.0/package`;
     hooks = installLocalBindingNativeTsHooks(graph, {root: yamlRoot, entry: yaml.entry, files: yaml.files});
     const packages = await import('warpkeep:operation-bundle-packages');
-    const engine = await import(pathToFileURL(join(source.root, 'scripts/recovery-workflow-bundle-engine.mjs')).href);
     const cycles = [];
     for (let cycle = 1; cycle <= 2; cycle++) {
       const materialization = join(operationRoot, `cycle-${cycle}`);
       source.materialize(materialization); source.verifyMaterialization(materialization);
       const namespace = packages.materializeFixedRecoveryBundlePackages({sourceRoot: materialization,
         cacheRoot: `${ROOT}/cache/operation-bundles`, yamlRoot, yamlManifest: {entry: yaml.entry, files: yaml.files}});
-      compiler = await import(pathToFileURL(namespace.esbuildEntry).href);
-      const built = await engine.buildRecoveryWorkflowModule(materialization, compiler.build, 'claim');
-      compiler.stop(); compiler = undefined;
+      source.verify();
+      const output = await runLocalBindingBoundedProcess(NODE,
+        ['--no-warnings', join(source.root, 'scripts/local-recovery-bundle-worker.mjs')], {
+          cwd: materialization, env: environment, fd3: `${JSON.stringify({cycle})}\n`,
+          timeout: 60_000, maxOutput: 3 * 1024 * 1024, containProcessGroup: true,
+        });
+      if (output.stderr !== '') fail();
+      const parsed = JSON.parse(output.stdout);
+      if (`${JSON.stringify(parsed)}\n` !== output.stdout || parsed === null || typeof parsed !== 'object'
+        || Object.keys(parsed).join(',') !== 'bytes,sha256,inputPaths' || typeof parsed.bytes !== 'string'
+        || typeof parsed.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(parsed.sha256)
+        || !Array.isArray(parsed.inputPaths) || parsed.inputPaths.length < 1 || parsed.inputPaths.length > 256
+        || parsed.inputPaths.some((path, index) => typeof path !== 'string' || path.length > 512
+          || (index > 0 && parsed.inputPaths[index - 1] >= path))) fail();
+      const bytes = Buffer.from(parsed.bytes, 'base64');
+      if (bytes.length < 1 || bytes.length > 2 * 1024 * 1024 || bytes.toString('base64') !== parsed.bytes
+        || hash(bytes) !== parsed.sha256) fail();
+      const built = {bytes, sha256: parsed.sha256, inputPaths: parsed.inputPaths};
       packages.reattestFixedOperationBundlePackages({sourceRoot: materialization, ...namespace});
       source.verifyMaterialization(materialization); source.verify();
       const inputs = built.inputPaths.map(path => {
@@ -87,7 +101,7 @@ export async function derivePreparedLinuxRecoveryBundle(...args) {
     second.bytes.fill(0);
   } catch { fail(); }
   finally {
-    compiler?.stop(); hooks?.deregister();
+    hooks?.deregister();
     // Failed preparation is preserved for inspection. Only successful owned
     // independent snapshots are removed; the user's checkout is never a target.
     if (result && operationRoot) { privateDirectory(operationRoot); rmSync(operationRoot, {recursive: true, force: false}); }
