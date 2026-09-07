@@ -51,7 +51,9 @@ const PRODUCING_OPERATIONS = Object.freeze({
   g001FreezePublishReceipt: 'g001-policy-observe',
   g001PolicyObservationBootstrapReceipt: 'g001-policy-observe',
   g001CensusPrivacySafePrivateReceipt: 'g001-census-second-inspect',
-  g001AdmittedPlayerCensusPrivateReceipt: 'g001-census-second-inspect',
+  // The admitted-player baseline is captured at suspension, not the earlier
+  // inspection. The producing operation is part of the record commitment.
+  g001AdmittedPlayerCensusPrivateReceipt: 'g001-census-second-suspend',
   g001AdmissionMonitorSuspensionReceipt: 'g001-census-second-suspend',
   g001AdmissionMonitorCurrentStateReceipt: 'g001-current-state',
   g002PublishReceipt: 'g002-publish-apply',

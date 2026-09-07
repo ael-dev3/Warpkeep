@@ -128,7 +128,7 @@ const ACTIVATION_RECORD_OPERATIONS = Object.freeze({
   g001FreezePublishReceipt: 'g001-policy-observe',
   g001PolicyObservationBootstrapReceipt: 'g001-policy-observe',
   g001CensusPrivacySafePrivateReceipt: 'g001-census-second-inspect',
-  g001AdmittedPlayerCensusPrivateReceipt: 'g001-census-second-inspect',
+  g001AdmittedPlayerCensusPrivateReceipt: 'g001-census-second-suspend',
   g001AdmissionMonitorSuspensionReceipt: 'g001-census-second-suspend',
   g001AdmissionMonitorCurrentStateReceipt: 'g001-current-state',
   g002PublishReceipt: 'g002-publish-apply',
@@ -722,6 +722,7 @@ function fullCorpus() {
 function activationRecordSemanticDigest(
   member: ActivationRecordMember,
   bodyDigest: string,
+  operation: string = ACTIVATION_RECORD_OPERATIONS[member],
 ) {
   const hash = createHash('sha256');
   for (const value of [
@@ -729,7 +730,7 @@ function activationRecordSemanticDigest(
     member,
     FIXTURE_SOURCE_COMMIT,
     FIXTURE_SOURCE_COMMIT,
-    ACTIVATION_RECORD_OPERATIONS[member],
+    operation,
     'b'.repeat(64),
     bodyDigest,
   ]) hash.update(value).update('\n');
@@ -740,6 +741,7 @@ function writeActivationRecord(
   state: ReturnType<typeof createSealedRealmsProductionPrivateState>,
   member: ActivationRecordMember,
   receipt: object,
+  operation: string = ACTIVATION_RECORD_OPERATIONS[member],
 ) {
   const body = Buffer.from(`${JSON.stringify(receipt)}\n`, 'utf8');
   const bodyDigest = createHash('sha256').update(body).digest('hex');
@@ -749,11 +751,11 @@ function writeActivationRecord(
     member,
     preparationSourceCommit: FIXTURE_SOURCE_COMMIT,
     sourceCommit: FIXTURE_SOURCE_COMMIT,
-    operation: ACTIVATION_RECORD_OPERATIONS[member],
+    operation,
     sourceAuthorityDigest: 'b'.repeat(64),
     bodyDigest,
     receipt,
-    semanticDigest: activationRecordSemanticDigest(member, bodyDigest),
+    semanticDigest: activationRecordSemanticDigest(member, bodyDigest, operation),
   };
   const bytes = Buffer.from(`${JSON.stringify(record)}\n`, 'utf8');
   try {
@@ -1043,6 +1045,23 @@ describe('sealed-realms activation descriptor records', () => {
     })).toBe(false);
   });
 
+  it('rejects a rehashed admitted census captured by inspection instead of suspension', () => {
+    const { state, records, receipts } = fullCorpusFixture();
+    const member = 'g001AdmittedPlayerCensusPrivateReceipt';
+    state.remove({
+      root: 'runtime',
+      relativePath: `activation-evidence/records/${ACTIVATION_RECORD_NAMES[member]}`,
+    });
+    writeActivationRecord(state, member, receipts[member], 'g001-census-second-inspect');
+    let consumed = false;
+    expect(() => writeSealedRealmsProductionActivationDescriptor({
+      records,
+      consumeDescriptor: () => { consumed = true; return undefined; },
+    })).toThrow('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+    expect(consumed).toBe(false);
+    expect(state.exists({ root: 'runtime', relativePath: FIXED_DESCRIPTOR_RELATIVE_PATH })).toBe(false);
+  });
+
   it('rejects a rehashed individual G002 sealed-live record tamper before descriptor exposure', () => {
     const { state, records, receipts } = fullCorpusFixture();
     replaceActivationRecord(state, 'g002SealedLiveReceipt', {
@@ -1097,7 +1116,7 @@ describe('sealed-realms activation descriptor records', () => {
       member: 'g001AdmittedPlayerCensusPrivateReceipt',
       preparationSourceCommit: source,
       sourceCommit: source,
-      operation: 'g001-census-second-inspect',
+      operation: 'g001-census-second-suspend',
       sourceAuthorityDigest: 'b'.repeat(64),
       bodyDigest: sha256(`${JSON.stringify(receipt)}\n`),
       receipt,
