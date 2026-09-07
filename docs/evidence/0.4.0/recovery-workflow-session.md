@@ -568,3 +568,33 @@ native build proves the successful compiler path, not every failure branch.
 
 Artifact-family manifest/installer integration remains unfinished. No deployment
 or authorization requests occurred.
+
+## Release artifact and installer connection — 2026-09-07
+
+`c4f1ce0755b7a022ef275b6df442a2a41edf6c41` adds the recovery producer to
+`derivePreparedLinuxArtifactInputs`. Its commit and tree must match the realm
+binding and operation-bundle producers. The recovery producer emits exactly
+the claim bundle and `scripts/recovery-workflow-bundle-manifest-v1.json`; the
+manifest records its distinct preparation profile, source identity, bundle hash
+and byte length, and compiler input records. The journal's output allowlist
+adds only these two fixed paths, not a general service-directory allowance.
+
+The real Linux installation probe built at that commit/tree
+`1c1a37e016c6f4b649a59964201bb579e8354ab8`, captured a matching private release
+candidate, installed both files through the journaled installer, compared their
+bytes, imported the installed native module and verified pre-I/O override denial.
+It then released the candidate lock and successfully rolled back the transaction.
+Result: `installedFiles: 2`, `nativeImport: true`, `rolledBack: true`,
+`finalReleasePrepared: false`; bundle SHA-256 remained
+`d48cefcf82ee7eb2551ffba243c4040d8da0d50d74998b19afd82f70bb7b1901`.
+Run `tests/fixtures/localRecoveryBundleInstallNativeProbe.mjs` with the fixed
+Linux Node from a clean checkout, empty environment plus `NODE_NO_WARNINGS=1`.
+Candidate diagnostics remain private; rollback removed only its two new files.
+
+Seventy-six artifact coordination/journal/installation tests passed on Windows,
+with 19 platform-specific skips. Targeted strict TypeScript passed. Added tests
+reject mismatched recovery identities and adjacent, unapproved service paths.
+This is the two-file recovery installation test, not a rerun of the complete
+realm artifact/closure family. Complete-family verification and the protected
+Actions job/deployment-boundary/terminal integration still remain; no final
+freeze, real authentication request, or live deployment occurred.

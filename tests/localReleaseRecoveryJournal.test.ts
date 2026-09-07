@@ -44,6 +44,9 @@ describe('prepared release recovery journal', () => {
     'spacetimedb/ptr/generated-bindings/a\\b.ts',
     'spacetimedb/ptr/generated-bindings/a.ts\n',
     'scripts/local-release-recovery-journal.mjs',
+    'services/release-recovery/scripts/other.bundle.mjs',
+    'services/release-recovery/scripts/prepare-recovery-workflow-claim.ts',
+    'scripts/recovery-workflow-bundle-manifest-v2.json',
   ])('rejects forbidden output %s', badPath => {
     const input = record(); input.entries[0].path = badPath;
     expect(() => recovery!.encodePreparedReleaseJournal(input)).toThrow();
@@ -54,6 +57,8 @@ describe('prepared release recovery journal', () => {
     'spacetimedb/ptr/generated-bindings/types/worker.ts',
     '.github/workflows/verify.yml',
     'scripts/sealed-realms-production-activation-lane.bundle.d.mts',
+    'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs',
+    'scripts/recovery-workflow-bundle-manifest-v1.json',
   ])('accepts an eligible generated target %s', allowedPath => {
     const input = record(); input.entries[0].path = allowedPath;
     expect(recovery!.decodePreparedReleaseJournal(recovery!.encodePreparedReleaseJournal(input)).entries[0].path)
