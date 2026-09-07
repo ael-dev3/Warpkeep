@@ -3,6 +3,8 @@ import {
   chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { buildRecoveryWorkflowModule } from '../../scripts/recovery-workflow-bundle-engine.mjs';
 
 import {
   deriveOperationBundlePackageSourceGraph,
@@ -71,6 +73,7 @@ try {
       chmodSync(path, 0o400);
     }
     let code = 'UNEXPECTED_SUCCESS';
+    let recoveryBuild;
     try {
       const materialize = scenario === 'recovery' ? packages.materializeFixedRecoveryBundlePackages
         : packages.materializeFixedOperationBundlePackages;
@@ -82,7 +85,29 @@ try {
         const files = namespace.records.filter(record => record.path.startsWith('fflate/'));
         if (files.length !== 17 || files.some(record => record.mode !== 0o400)) throw new Error('RECOVERY_FILES_INVALID');
         packages.reattestFixedOperationBundlePackages({ sourceRoot, ...namespace });
-        code = 'RECOVERY_NAMESPACE_VERIFIED';
+        // Diagnostic source copies, not the captured production source worker.
+        for (const path of [
+          'services/release-recovery/scripts/prepare-recovery-workflow-claim.ts',
+          'services/release-recovery/scripts/read-recovery-workflow-artifact.ts',
+          'services/release-recovery/src/archive.ts', 'services/release-recovery/src/config.ts',
+          'services/release-recovery/src/http.ts', 'services/release-recovery/src/recoveryPublicKey.ts',
+          'services/release-recovery/tsconfig.json', 'services/release-recovery/package.json',
+        ]) {
+          const destination = join(sourceRoot, path);
+          mkdirSync(dirname(destination), { recursive: true, mode: 0o700 });
+          writeFileSync(destination, readFileSync(join(repositoryRoot, path)), { mode: 0o400 });
+        }
+        const compiler = await import(pathToFileURL(namespace.esbuildEntry).href);
+        try {
+          const first = await buildRecoveryWorkflowModule(sourceRoot, compiler.build, 'claim');
+          const second = await buildRecoveryWorkflowModule(sourceRoot, compiler.build, 'claim');
+          if (!first.bytes.equals(second.bytes) || first.sha256 !== second.sha256
+            || !first.inputPaths.includes('node_modules/fflate/esm/index.mjs')) throw new Error('RECOVERY_BUILD_INVALID');
+          packages.reattestFixedOperationBundlePackages({ sourceRoot, ...namespace });
+          recoveryBuild = { byteLength: first.bytes.length, sha256: first.sha256, repeatable: true };
+          first.bytes.fill(0); second.bytes.fill(0);
+          code = 'RECOVERY_ISOLATED_BUILD_VERIFIED';
+        } finally { compiler.stop(); }
       }
       if (scenario === 'post-use-mutation') {
         const target = join(namespace.root, 'esbuild', 'package.json');
@@ -94,7 +119,7 @@ try {
         } catch (error) { code = error?.code ?? error?.message; }
       }
     } catch (error) { code = error?.code ?? error?.message; }
-    process.stdout.write(`${JSON.stringify({ code, transportBuiltins })}\n`);
+    process.stdout.write(`${JSON.stringify({ code, transportBuiltins, ...(recoveryBuild ? {recoveryBuild} : {}) })}\n`);
   } finally { hooks.deregister(); }
 } finally {
   rmSync(operationRoot, { recursive: true, force: true });
