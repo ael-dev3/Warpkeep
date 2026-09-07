@@ -147,7 +147,7 @@ description = "Public sealed-launch boolean schema key in recovery evidence and 
 targetRules = ["generic-api-key"]
 condition = "AND"
 regexTarget = "secret"
-paths = ['''^services/release-recovery/src/githubEvidence\.ts$''','''^scripts/sealed-realms-production-activation-records\.mjs$''','''^scripts/recovery-binding-projection\.mjs$''']
+paths = ['''^services/release-recovery/src/githubEvidence\.ts$''','''^scripts/sealed-realms-production-activation-records\.mjs$''','''^scripts/recovery-binding-projection\.mjs$''','''^scripts/recovery-activation-candidate\.mjs$''']
 regexes = ['''^g002AdmissionMutationsEnabled$''']
 
 [[allowlists]]
@@ -155,8 +155,16 @@ description = "Public recovery verification-key thumbprint, not private signing 
 targetRules = ["generic-api-key"]
 condition = "AND"
 regexTarget = "secret"
-paths = ['''^services/release-recovery/src/recoveryPublicKey\.ts$''']
+paths = ['''^services/release-recovery/src/recoveryPublicKey\.ts$''','''^scripts/recovery-activation-candidate\.mjs$''','''^tests/fixtures/recoveryBindingCandidate\.ts$''']
 regexes = ['''^jJpfIbYjQL5LxwND5zk1MUOqN1B3vOh_ydTAOoUnuR8$''']
+
+[[allowlists]]
+description = "Exact synthetic Worker version UUID in the non-deployable recovery candidate fixture"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^tests/fixtures/recoveryBindingCandidate\.ts$''']
+regexes = ['''^123e4567-e89b-42d3-a456-426614174002$''']
 
 [[allowlists]]
 description = "One fixed expired test-key-signed recovery status JWT in the crypto fixture test"

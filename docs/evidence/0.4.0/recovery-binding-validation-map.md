@@ -23,10 +23,18 @@ Review found no critical or important issue within this foundation scope. Fresh 
 | Source coordinates | Recovery specification's independently authenticated build/import coordinates | Do not blindly copy old `moduleSourceCommit === preparationSourceCommit` and `atlasSourceCommit === preparationSourceCommit` checks. Verify each coordinate against its own authenticated source evidence. |
 | Hash consistency | New projections and service `validateBinding` | Recompute every non-historical commitment with core forced null, then recompute core with populated commitments. Reject substituted or malformed stored hashes. |
 
-## Fixture gap to resolve before claiming semantic validation
+## Static candidate implementation checkpoint (2026-09-07)
+
+`scripts/recovery-activation-candidate.mjs` now validates the complete static candidate, generates all non-historical commitments and the core, and parses completed bindings by recomputing every hash. It preserves the pinned non-historical G001 policy receipt and the policy/bridge preparation-source relationships. Three failing substitution tests exposed those initially omitted checks before correction.
+
+The positive fixture in `tests/fixtures/recoveryBindingCandidate.ts` supplies every field explicitly. It mixes required public constants with synthetic operational values; it is not an authenticated receipt or a release candidate. Tests reject null or invalid required fields, altered commitments, unsafe policy flags, invalid identifiers/epochs, cross-realm database reuse, and substituted non-historical G001 policy evidence. Independent receiver serialization/hash tests check a complete generated binding, not only a local generator/parser round trip.
+
+This remains static consistency validation. It neither authenticates candidate provenance nor installs, signs, or authorizes a deployment. Authenticated bridge readback, program derivation, atlas/source metadata comparison, schema-specific release classification, and CLI integration remain required. Independent module/atlas coordinates are not forced to the preparation commit.
+
+## Fixture distinction
 
 The service `githubEvidence.test.ts` helper `validBinding` initializes every field to null and populates only the GitHub/arming projection and receipt fields. This is useful for that loader's contract but leaves many gameplay invariant fields null. Copying it as the local validator's positive acceptance fixture would omit the broader Task 1 requirements.
 
-Build a complete, explicitly synthetic local positive fixture containing every required gameplay and recovery field; independently substitute each field. Never install that fixture into `config/releases/0.4.0-sealed-launch.json` or use it as live evidence. The checked-in release binding remains schema 1 with deployment approval false.
+The complete local fixture now addresses that data-shape gap. Never install it into `config/releases/0.4.0-sealed-launch.json` or use it as live evidence. The checked-in release binding remains schema 1 with deployment approval false.
 
-Remaining implementation: complete semantic validator, sanitized static generator, schema-1 compatibility verification, source/evidence integration, then the source-bound attestation command. Full Task 1 remains incomplete.
+Remaining implementation: independently authenticated metadata/source integration, schema-1 compatibility verification and release-command integration, then the source-bound attestation command. Full Task 1 remains incomplete.

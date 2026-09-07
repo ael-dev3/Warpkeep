@@ -1,11 +1,24 @@
 // @vitest-environment node
 import { expect, it } from 'vitest';
+import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
 import { RECOVERY_BINDING_KEYS_V2, recoveryReceiptCommitmentV2, recoveryAuthorizationCoreSha256, parseRecoveryBindingDocumentV2 } from '../scripts/recovery-binding-projection.mjs';
 
 // Projection fixture only: deliberately not an authorized or deployable binding.
 function projection(): Record<string, string | null> {
   return Object.fromEntries(RECOVERY_BINDING_KEYS_V2.map(key => [key, null]));
 }
+
+it('has a complete synthetic candidate with nulls only for historical evidence and pending hashes', () => {
+  const candidate = recoveryBindingCandidate();
+  expect(Object.keys(candidate)).toEqual(RECOVERY_BINDING_KEYS_V2);
+  const permittedNulls = RECOVERY_BINDING_KEYS_V2.filter(key => key.endsWith('Commitment')
+    || key === 'g001FreezePublishReceiptDigest' || key === 'recoveryAuthorizationCoreSha256');
+  expect(Object.keys(candidate).filter(key => candidate[key] === null)).toEqual(permittedNulls);
+  expect(candidate.g001PlayerAccessEnabled).toBe(true);
+  expect(candidate.g002PlayerAccessEnabled).toBe(false);
+  expect(candidate.ptrOwnerEnabled).toBe(true);
+  expect(candidate.ptrAdmissionsOpen).toBe(false);
+});
 
 it('excludes populated core and receipt commitments from receipt hashing', () => {
   const input = projection();
