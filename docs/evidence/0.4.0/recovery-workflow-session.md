@@ -373,3 +373,29 @@ remain available in WSL. Unrelated containers were not changed.
 This tests the directory implementation, not production registration, job
 authorization, or storage survival after container destruction. Production
 directory provisioning/lifecycle and entrypoint composition remain required.
+
+## 2026-09-07: artifact-to-claim preparation composition
+
+`prepare-recovery-workflow-claim.ts` connects the existing artifact verification,
+fixed run-directory allocation and persisted session startup without accepting
+caller inputs. It derives directory coordinates from the verified artifact
+context, requests the session with that same binding/context/root, and requires
+its strict boundary check before returning only `{claimPersisted:true}`.
+This is not a deployment permit: the later deployment step must independently
+repeat the current status and strict receipt checks. No deployment effect exists
+in this composition.
+
+If startup returns a reconciliation-only session, preparation cannot succeed.
+Failure after receiving a session attempts only reconciliation and still returns
+the fixed preparation error; it never reissues or reports success after a failed
+check. Ambiguous startup without a returned receipt is not retried. Session
+references are disposed, and existing private disk state is left for recovery.
+
+At `0423051`, seven mocked composition tests plus 12 artifact-composition tests
+passed (19 total); service TypeScript passed. The module builder gained a fixed
+claim entrypoint with the exact expected export and two explicit external helper
+imports. Four packaging/native-child tests passed on Windows and Linux,
+including repeatable claim-module builds, native import and pre-I/O rejection
+of overrides. Targeted strict TypeScript passed. No real issue/claim request,
+production directory allocation or deployment occurred. The protected Actions
+step, deployment-time entrypoint and full workflow reconciliation remain unfinished.
