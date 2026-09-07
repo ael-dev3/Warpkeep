@@ -141,6 +141,19 @@ try {
   invokedDirectly = Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 } catch { /* Embedded importers need not supply a filesystem entry point. */ }
 if (invokedDirectly) {
-  process.stderr.write('WARPKEEP_DEPLOYMENT_ATTESTATION_CLI_NOT_IMPLEMENTED\n');
-  process.exitCode = 1;
+  try {
+    if (process.argv.length !== 3 || !['--write', '--check'].includes(process.argv[2])) fail();
+    const { readRecoveryAttestationSource } = await import('./recovery-attestation-source.mjs');
+    const repositoryRoot = process.cwd();
+    const identity = readRecoveryAttestationSource(repositoryRoot);
+    const options = { distRoot: join(repositoryRoot, 'dist'), identity };
+    const result = process.argv[2] === '--write'
+      ? installWarpkeepDeploymentAttestation(options)
+      : verifyWarpkeepDeploymentAttestation(options);
+    if (JSON.stringify(readRecoveryAttestationSource(repositoryRoot)) !== JSON.stringify(identity)) fail();
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+  } catch {
+    process.stderr.write('WARPKEEP_DEPLOYMENT_ATTESTATION_INVALID\n');
+    process.exitCode = 1;
+  }
 }

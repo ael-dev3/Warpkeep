@@ -1,5 +1,6 @@
 // @vitest-environment node
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -62,3 +63,25 @@ it.each(['--assume-unchanged', '--skip-worktree'])('rejects hidden index changes
   writeFileSync(join(root, 'source.js'), 'hidden change');
   expect(() => readRecoveryAttestationSource(root)).toThrow();
 });
+
+const cli = fileURLToPath(new URL('../scripts/generate-warpkeep-deployment-attestation.mjs', import.meta.url));
+function command(...args: string[]) {
+  return spawnSync(process.execPath, [cli, ...args], { cwd: root, encoding: 'utf8', timeout: 15000, windowsHide: true });
+}
+it.skipIf(process.platform !== 'linux')('writes and checks the fixed dist artifact through the real CLI', () => {
+  mkdirSync(join(root, 'dist')); writeFileSync(join(root, 'dist/index.html'), 'synthetic build');
+  const written = command('--write');
+  expect(written.status).toBe(0); expect(written.stderr).toBe('');
+  expect(JSON.parse(written.stdout)).toEqual({ deploymentAttestationSha256: expect.stringMatching(/^[a-f0-9]{64}$/) });
+  const checked = command('--check');
+  expect(checked.status).toBe(0); expect(checked.stdout).toBe(written.stdout);
+  expect(command('--write').status).toBe(1);
+  writeFileSync(join(root, 'dist/index.html'), 'changed build');
+  expect(command('--check').status).toBe(1);
+});
+it.each([[], ['--write', '--identity=caller'], ['--dist=/tmp/other'], ['--check', '--write']])
+  ('rejects CLI overrides: %j', (...args) => {
+    const result = command(...args);
+    expect(result.status).toBe(1); expect(result.stdout).toBe('');
+    expect(result.stderr).toBe('WARPKEEP_DEPLOYMENT_ATTESTATION_INVALID\n');
+  });

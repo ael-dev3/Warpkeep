@@ -19,12 +19,12 @@ const identity = Object.freeze({ candidateCommit: 'a'.repeat(40), candidateTree:
   sourceClosureProfile: 'warpkeep-0.4.0-recovery-source-closure-v1', sourceClosureSha256: 'd'.repeat(64) });
 let root: string;
 
-it('does not report successful CLI verification before source-bound command integration exists', () => {
+it('does not report successful CLI verification for the unfinished checkout', () => {
   const script = fileURLToPath(new URL('../scripts/generate-warpkeep-deployment-attestation.mjs', import.meta.url));
   const result = spawnSync(process.execPath, [script, '--check'], { encoding: 'utf8', timeout: 10000 });
   expect(result.error).toBeUndefined();
   expect(result.status).toBe(1);
-  expect(result.stderr).toBe('WARPKEEP_DEPLOYMENT_ATTESTATION_CLI_NOT_IMPLEMENTED\n');
+  expect(result.stderr).toBe('WARPKEEP_DEPLOYMENT_ATTESTATION_INVALID\n');
   expect(result.stdout).toBe('');
 });
 
