@@ -132,3 +132,11 @@ the isolated Docker network and allowlisting proxy remain necessary. The image
 still is not registered and carries no production credentials. Other clients
 and embedded Actions runtimes need actual integration verification; setting
 their conventional proxy variables alone is not proof of their behavior.
+
+The harness also executes the image's actual `/usr/bin/git` with a 25-second
+process deadline and bounded low-speed timeout. It reads only the public
+Warpkeep `refs/heads/main` advertisement, requires exactly one canonical ref
+line, and repeats with the proxy stopped to require failure and empty stdout.
+Both checks passed using image defaults with no credential, checkout, host
+mount, or environment override. This verifies Git HTTPS transport, not an
+authenticated checkout, protected-main authority, or Actions job identity.

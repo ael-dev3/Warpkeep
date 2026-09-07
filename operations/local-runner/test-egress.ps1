@@ -54,10 +54,12 @@ try {
             Get-Content -Raw (Join-Path $PSScriptRoot 'node-proxy-smoke.mjs') |
                 & wsl -d Ubuntu-24.04 --exec docker run --rm --interactive --network $taskInternal --ip 172.30.240.3 --dns 127.0.0.1 --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --memory 256m --cpus 1 --entrypoint /opt/node-v22.22.3-linux-x64/bin/node $taskRunnerImage --input-type=module -
             if ($LASTEXITCODE -ne 0) { throw 'Pinned Node proxy probe failed' }
+            Invoke-TaskProbe 'git-proxy-smoke.py'
         }
         Invoke-TaskDocker @('stop', '--timeout', '5', $taskProxy)
         if (-not $taskPrivateAddress) {
             Invoke-TaskProbe 'proxy-smoke.py' @('--unavailable')
+            Invoke-TaskProbe 'git-proxy-smoke.py' @('--unavailable')
             Invoke-TaskProbe 'network-smoke.py'
         }
         Invoke-TaskDocker @('rm', $taskProxy)
