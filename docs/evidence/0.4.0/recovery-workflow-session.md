@@ -271,3 +271,26 @@ This is an unprivileged packaging diagnostic, not an attested production compile
 or final installed artifact. The temporary module/layout was removed. Linux
 execution, actual archive ingestion through the compiled module, final source
 closure inclusion, and the protected Actions entrypoint remain unverified.
+
+## 2026-09-07: Linux loading and cross-platform module convergence
+
+The clean diagnostic Linux checkout was fast-forwarded to the committed source
+and tested with Node 22.22.3. Both packaging/native-child tests passed on Linux
+as well as Windows. Initial output differed only after discovering different
+dependency resolution locations: Windows used the service pnpm tree and Linux
+used the existing diagnostic root dependency tree. Both resolved fflate 0.8.3;
+both entry files had SHA-256
+`8d75534a30a0580608e1271c13d70943ed4cd3589fddff7b1197748036a5116e`.
+
+The builder now removes source-path comments through esbuild whitespace
+minification, avoiding installation-path differences in emitted bytes. At source
+`a58f938`, independently built Windows and WSL outputs both measured 49,154 bytes
+with SHA-256
+`002673aa7cdb46d91e4bee23e92fce05f6c46fe2d8c8a1fb4ed5a710755fcfce`.
+Both platforms again passed the two packaging/native-child tests. No final
+generated artifact was installed and no production operation occurred.
+
+This establishes module loading and observed byte convergence in these two
+diagnostic environments, not complete dependency/toolchain attestation, compiled
+archive-ingestion success, protected Actions execution, or full release-family
+convergence. Those requirements remain outstanding.
