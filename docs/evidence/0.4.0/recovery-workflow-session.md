@@ -674,3 +674,33 @@ run at `2346198adf74c1be49cda47f3f35ee7e549badda` passed all 968 tests across
 `../../.git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run --maxWorkers=1`.
 This is the Windows Node test suite, not the separate workerd/runtime suite or
 live acceptance. The earlier full runs remain recorded as failures.
+
+## Schema-2 routing comparison — 2026-09-07
+
+`98212b8` adds an explicit schema-2 branch in the existing Pages classifier.
+It retains exact clean-checkout checks and validates the complete recovery
+binding and committed single-parent, three-file activation child through
+`readRecoveryAttestationSource`. Its output is `sealed-g002-recovery`, not the
+historical `sealed-g002` lane and not deployment authority. Schema-1 parsing and
+classification still use the previous path. Fourteen Linux source/CLI tests
+passed, including actual Git activation-child routing and stale/untracked denial.
+`2f2c1dc` marks the two fixed-`/usr/bin/git` routing tests Linux-only.
+
+The full legacy suite was compared in separate Linux checkouts with identical
+diagnostic dependencies and the fixed Node 22.22.3 executable:
+
+- Before routing, `3fe5d062769fe4a36a954a40510cb3b5c259c3f5`: 95 passed, 58 failed.
+- After routing, `98212b8`: 95 passed, 58 failed.
+- Comparing all failed assertion full names produced zero differences.
+
+Reports remain at `/tmp/warpkeep-routing-baseline.nsA1QEbM/baseline.json` and
+`current.json` in WSL. Command: root Vitest `run tests/sealedLaunchVerifier.test.ts
+--maxWorkers=1 --reporter=json --outputFile=<report>`. The comparison proves no
+additional failing test names in this suite, not general compatibility or a
+green release. Existing authority/source and G001 monitor-state failures remain.
+Earlier Windows runs also failed due to fixed Linux Git requirements and Git
+timeouts/locked fixture cleanup; they are not counted as passing evidence.
+
+No recovery job is wired in the Pages workflow yet. Final release preparation,
+authenticated protected-main/live authority, postflight, and deployment remain
+separate mandatory work.
