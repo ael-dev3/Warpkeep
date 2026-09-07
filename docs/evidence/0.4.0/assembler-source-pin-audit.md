@@ -45,3 +45,50 @@ named source-pin positions and finalization slice, with missing/duplicate-slot,
 byte-preservation and dependency-order tests. Integrate this before complete
 closure generation; leave installation and release authority to the complete
 native transaction. Full-family convergence remains unproved.
+
+## Source-pin derivation implementation
+
+`scripts/local-prepared-source-pins.mjs` implements that internal two-file
+subset. It reads only fixed source paths with the existing bounded reader,
+rejects invalid UTF-8 and noncanonical/duplicate/missing pin declarations,
+derives the generator bootstrap pin first, then the seven verifier source pins
+and exact finalization slice. It returns bytes without installing them, accepts
+no source map or hash override, and leaves historical constants untouched.
+
+Test-first evidence: with the explicit rejecting API stub, the positive
+dependency-order test failed and eight rejection cases passed. After implementation
+and additional file/newline tests: Windows 12 passed, 1 native symlink skip;
+native Linux 13 passed (142 ms); pinned TypeScript build exited 0.
+
+```text
+.git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/localPreparedSourcePins.test.ts
+.git/ci-node-22.22.3/node.exe node_modules/typescript/bin/tsc -b
+wsl -d Ubuntu-24.04 -- /tmp/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/.superpowers/release-journal-linux-check.mjs --source-pins
+```
+
+Real source derivation at the audited baseline plus this helper returned:
+
+| Output | Bytes | SHA-256 |
+| --- | ---: | --- |
+| activation generator | 44946 | 5ae40f565d47981699ab4aa71811a7060140594594cdf85ad254041dc9818237 |
+| sealed-launch verifier | 189301 | a89be31e2f7a091f69f07e4ae0224a91915e3c5cf6d6f9955169f069896c8306 |
+
+The generator remains unchanged because its bootstrap pin was already correct.
+A disposable diagnostic loaded the returned verifier and supplied real current
+source files plus both generated outputs to `verifySealedLaunchSources`.
+On Windows it stops at the observation-envelope check (which invokes `/bin/sh`).
+On Linux it passes that check and stops at `SEALED_LAUNCH_G002_ROOT_ABI_INVALID`.
+Reproduce with pinned Linux Node running the ignored
+`.superpowers/source-pin-verifier-probe.mjs`. This executes static source
+verification only, not authenticated checkout/history or deployment verification.
+
+No production or frozen artifact files were replaced. The G002 ABI failure,
+remaining generated consumer/test pins, whole-family transaction and convergence
+remain required. The source helper is not the complete release assembler.
+
+The next failure is concrete: `verifyGenesis002RootAbiSource` still expects
+only lifecycle and atlas-import exports. The committed G002 root additionally
+registers the existing six gameplay operations and their explicit canonical
+names. This is an outdated ABI expectation, not a hash slot. It requires a
+separate bounded verifier correction against the approved gameplay ABI and
+closed-admission checks; source-pin generation must not silently rewrite it.
