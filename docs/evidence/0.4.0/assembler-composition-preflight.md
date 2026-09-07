@@ -107,3 +107,35 @@ remain unfinished. No generated release files or production services changed.
 Fresh GitHub inspection: run `34066214945` is now completed/failure. Linux and
 aggregate Verify failed; native-contract, release-recovery, SpacetimeDB module,
 and auth bridge succeeded. It remains a failed release integration gate.
+
+## Fixed all-realm Linux execution — 2026-09-07
+
+The original all-realm process completed with exit 0, using the same profile,
+source commit `4b29017122d74cc94ad5c529c855cd3119f34724`, and source tree
+`ee96a46448bf39beb6ef6ccc4de1322ce43942f3` as the bundle run above:
+
+```text
+wsl -d Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-binding-runtime.mjs --all-realms
+```
+
+| Lane | Binding files | Module bundle SHA-256 | Dependency closure SHA-256 |
+| --- | ---: | --- | --- |
+| G001 current (zero-diff check) | 180 | 7811ce8485cb101e9bd864ca801ade3823353389832921554c757a847d8cf48a | fcc9b32282ff947da96738a15735aa809919f9229e2861d9a53cb0c98acb6e62 |
+| G002 generated | 50 | 0037a0979a460aea8607a36fccd649d4311046925faeb3d8186276ac0a6ccbd3 | 3135e65b47acf95b174adcf10d9453955afabde9f122382a0166b0a9d5bc26d5 |
+| PTR generated | 25 | c5c2cc46d428e85c87352c341d1a5235a69336a960f566b0a91a484deba3ec4e | acd9fe64d963d38715183a0451e6cc21b25abbfed5092c787d7e01842ab91901 |
+
+The G001 compatibility branch also completed its actual isolated proof:
+
+- Baseline bundle: `179103343455b16a02cbb55205e867c6d4590cf7e9bb614c611d91f15e215801`.
+- Frozen bundle: `a2d7f204ed591aadb98696225d68332ee573519187e0989e68f528da8064cd49`.
+- Baseline descriptor: `cb7d69d2bed316702ffa1aa8696a4e1ca1934a775b8312129b305a9c33eb0e03`.
+- Frozen descriptor: `cf3cbfff9087c04bd9de553410adb49100c40dbdecebc59e265f83cb904dd04d`.
+- Checked frozen writers: `admin_allow_fid`, `admin_admit_founder_v1`,
+  `admin_disable_fid`, `admin_bump_auth_epoch`, `access_request_submit_v1`,
+  `admin_reset_access_request_v1`.
+
+The run captured its committed source before later development commits; it did
+not silently switch to their HEAD. These results establish matching producer
+source identities, not a complete installed candidate. The CLI returned metadata
+and did not install generated bindings into the editable repository. Live G001
+baseline/preservation and actual-owner PTR gameplay remain separate unpassed gates.
