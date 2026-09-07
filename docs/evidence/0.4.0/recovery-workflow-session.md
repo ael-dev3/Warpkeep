@@ -721,3 +721,29 @@ is identical. The remaining failures encounter the G001 admission-monitor
 current-state guard before the intended downstream authority assertions. Do not
 refresh production source pins merely to make these tests pass; required operating
 sources and their review must precede the final release freeze.
+
+### Source-pin causal diagnosis — 2026-09-07
+
+The monitor's committed Linux bytes hash to
+`50776faaeb1ccd0c7357e6058ed90ac5a4ad5ad043444126089bdd45d1fd4560`;
+the legacy verifier still expects
+`10c8286a38ac81a5672280dcede60f712a95bc78af2f263e3ee8cc40d4afd5ac`.
+`git show 50169a5 -- scripts/genesis001-admission-monitor-current-state.mjs`
+shows the September 1 producer-local return/export change; the verifier had no
+change in that commit. The current assembler already includes this exact source
+in `derivePreparedSourcePins` rather than needing a new hash override mechanism.
+
+A read-only in-memory diagnostic at `9c4af62` on native Linux Node 22.22.3 derived
+both prospective source outputs, evaluated the derived verifier with
+`vm.SourceTextModule` (real imported dependencies and its normal module directory),
+and called `verifySealedLaunchSources` with every fixed source path read from that
+checkout, substituting only the two derived outputs in memory. It returned
+`phase: preparation`, `packageVersion: 0.3.43`, `pagesDeploymentApproved: false`,
+null realm identities/releases, and `ptrPresentationEnabled: false`, exit 0.
+No source files were installed, no receipts were substituted, and no production
+operation ran. This isolates the stale generated pins as the immediate obstacle
+to this checked-in-source verification; it does not establish that the full
+legacy suite passes after preparation or that local production execution works.
+The monitor still depends on macOS launchctl/plutil, so this source-check result
+does not satisfy the required no-Mac operating boundary. Final preparation and
+the Linux production workflow remain outstanding.
