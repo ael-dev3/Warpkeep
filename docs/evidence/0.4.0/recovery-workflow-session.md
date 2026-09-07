@@ -861,3 +861,20 @@ explicit runtime string narrowing corrected them and the final root TypeScript
 check exited 0. The copied-verifier test now resolves the added real dependency
 from its repository path. Native CLI recovery-build execution and actual workflow
 integration still need verification; the legacy full suite remains nongreen.
+
+### Native recovery build CLI verification — 2026-09-07
+
+At `317c14e`, all 15 recovery source/CLI tests passed on native Linux Node
+22.22.3. The new fixture commits the actual verifier and its real dependencies
+before creating the exact three-file activation child. It invokes the real
+`--phase=pages-build` subprocess, verifies the recovery-lane/PTR output, and
+requires exit 1 with empty stdout for PTR targeting the G001 database. The
+recovery CLI now uses a bounded fixed-path binding read rather than loading
+unrelated historical source files merely to retrieve that binding; schema-1
+retains its old read path. Binding bytes are erased after parsing.
+
+Command: root Vitest `run tests/recoveryAttestationSource.test.ts --maxWorkers=1`
+in the Linux diagnostic checkout. The fixture uses synthetic workflow environment
+strings and no credentials or network authority. It is not authenticated Actions
+execution and grants no deployment authority. Actual workflow wiring, production
+runner provisioning, final preparation, and live acceptance remain outstanding.
