@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { expect, it } from 'vitest';
 import { buildRecoveryWorkflowArtifactModule as build } from '../scripts/build-recovery-workflow-artifact-module.mjs';
+import { recoveryArtifactNativeFixture } from './fixtures/recoveryArtifactNativeFixture';
 
 it('builds repeatable module bytes and loads in a separate native Node process', async () => {
   const first = await build(), second = await build();
@@ -32,3 +33,50 @@ it('builds repeatable module bytes and loads in a separate native Node process',
 it('rejects build overrides', async () => {
   await expect(Reflect.apply(build, null, [{ entryPoint: 'other' }])).rejects.toThrow('RECOVERY_WORKFLOW_ARTIFACT_BUILD_INVALID');
 });
+it('ingests a real compressed fixture through the compiled parser in a native child', async () => {
+  const built = await build(), fixture = recoveryArtifactNativeFixture();
+  const root = mkdtempSync(join(tmpdir(), 'warpkeep-artifact-ingestion-'));
+  try {
+    const scripts = join(root, 'scripts'); mkdirSync(scripts);
+    // Only independently tested source/API/dist boundaries are synthetic here.
+    // The compiled download transport, ZIP/TAR parser and digest comparisons are real.
+    writeFileSync(join(scripts, 'recovery-workflow-run-context.mjs'), `export async function readRecoveryWorkflowArtifactMetadata() { return ${JSON.stringify(fixture.metadata)}; }`);
+    writeFileSync(join(scripts, 'recovery-attestation-source.mjs'), `export function readRecoveryAttestationSource() { return ${JSON.stringify(fixture.identity)}; }`);
+    writeFileSync(join(scripts, 'generate-warpkeep-deployment-attestation.mjs'), `export function verifyWarpkeepDeploymentAttestation() { return {deploymentAttestationSha256: ${JSON.stringify(fixture.expected.deploymentAttestationSha256)}}; }`);
+    writeFileSync(join(scripts, 'local-binding-bounded-file.mjs'), `export function readLocalBindingBoundedFile() { return {body: Buffer.from('test-binding')}; }`);
+    const directory = join(root, 'services/release-recovery/scripts'); mkdirSync(directory, { recursive: true });
+    const output = join(directory, 'read-recovery-workflow-artifact.bundle.mjs'); writeFileSync(output, built.bytes);
+    const program = `import assert from 'node:assert/strict';
+      import {readFileSync} from 'node:fs';
+      process.on('uncaughtException', error => { process.stderr.write(error.message); process.exitCode = 1; });
+      const fixture = JSON.parse(readFileSync(0, 'utf8'));
+      const {readRecoveryWorkflowArtifact: read} = await import(${JSON.stringify(pathToFileURL(output).href)});
+      const target = 'https://results-receiver.actions.githubusercontent.com/test-artifact.zip';
+      let calls = 0, corrupt = false;
+      globalThis.fetch = async (url, init) => {
+        calls++;
+        if (String(url).endsWith('/zip')) {
+          assert.equal(init.headers.authorization, 'Bearer test-only-token');
+          assert.equal(init.redirect, 'manual');
+          const r = new Response(null, {status: 302, headers: {location: target}});
+          Object.defineProperty(r, 'url', {value: String(url)}); return r;
+        }
+        assert.equal(String(url), target); assert.equal(init.headers, undefined);
+        const bytes = Buffer.from(fixture.zip, 'base64');
+        if (corrupt) bytes[0] ^= 1;
+        const r = new Response(bytes, {headers: {'content-type':'application/zip','content-length':String(bytes.length)}});
+        Object.defineProperty(r, 'url', {value: target}); return r;
+      };
+      const result = await read(); const context = JSON.parse(result.contextSource);
+      for (const [key, value] of Object.entries(fixture.expected)) assert.equal(context[key], value);
+      assert.equal(calls, 2); assert.equal(result.bindingSource, 'test-binding');
+      corrupt = true;
+      await assert.rejects(read(), {message: 'RECOVERY_WORKFLOW_ARTIFACT_INVALID'});
+      assert.equal(calls, 4); process.stdout.write('native-archive-ok');`;
+    const child = spawnSync(process.execPath, ['--input-type=module', '--eval', program], {
+      cwd: root, input: JSON.stringify({ zip: fixture.zip.toString('base64'), expected: fixture.expected }),
+      encoding: 'utf8', timeout: 10000, maxBuffer: 32768, windowsHide: true,
+      env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, GITHUB_TOKEN: 'test-only-token' } });
+    expect(child.status, child.stderr).toBe(0); expect(child.stdout).toBe('native-archive-ok');
+  } finally { rmSync(root, { recursive: true, force: true }); built.bytes.fill(0); }
+}, 30000);
