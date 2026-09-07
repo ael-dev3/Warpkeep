@@ -94,6 +94,8 @@ export function deriveOperationBundlePackageSourceGraph(root: string): Readonly<
   modules: readonly Readonly<Record<string, unknown>>[];
 }>;
 
+export function captureFixedRecoveryBundleSource(input: Parameters<typeof captureFixedOperationBundleSource>[0]):
+  ReturnType<typeof captureFixedOperationBundleSource>;
 export function captureFixedOperationBundleSource(input: Readonly<{
   repositoryRoot: string;
   operationRoot: string;

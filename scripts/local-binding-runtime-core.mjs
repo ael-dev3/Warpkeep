@@ -1036,10 +1036,19 @@ function snapshotCommittedSource(
   };
 }
 
-export function captureFixedOperationBundleSource({ repositoryRoot, operationRoot, environment, gitIdentity }) {
+export function captureFixedOperationBundleSource(input) {
+  return captureBundleSource(input, OPERATION_BUNDLE_CONTROL_FILES);
+}
+
+export function captureFixedRecoveryBundleSource(input) {
+  return captureBundleSource(input, [...OPERATION_BUNDLE_CONTROL_FILES,
+    'scripts/recovery-workflow-bundle-engine.mjs', 'scripts/local-recovery-bundle-runtime.mjs']);
+}
+
+function captureBundleSource({ repositoryRoot, operationRoot, environment, gitIdentity }, controlFiles) {
   const source = snapshotCommittedSource(
     repositoryRoot, operationRoot, environment, gitIdentity, true,
-    OPERATION_BUNDLE_CONTROL_FILES,
+    controlFiles,
   );
   const materializationControlRoot = join(operationRoot, 'operation-materialization');
   mkdirSync(materializationControlRoot, { mode: 0o700 });
