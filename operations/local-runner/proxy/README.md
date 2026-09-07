@@ -87,3 +87,18 @@ These are credential-free network tests, not authenticated job admission.
 DNS rebinding race coverage, full Actions endpoint connectivity, job-specific
 authorization, persistent private handoff/log handling, and runner registration
 remain unfinished. IP filtering alone is not a credential or repository boundary.
+
+### Actual listener verification
+
+`proxy-listener-smoke.py` now examines `/proc/net/tcp` and `/proc/net/tcp6`
+inside the disposable proxy's network namespace. It requires exactly the
+`172.30.240.2:3128` IPv4 listener and rejects wildcard or IPv6 proxy listeners.
+The observer runs non-root from the fixed runner image, with read-only root,
+all capabilities dropped, no-new-privileges, and no host mounts or credentials.
+It shares only the test proxy's network namespace, never the host namespace.
+
+The complete updated `test-egress.ps1` passed on 2026-09-07, including this
+kernel-listener check and all earlier connectivity/denial assertions. Test
+resources with suffix `f7916413d9c8` were removed by the harness. This proves the
+observed listener scope, not job admission, DNS race resistance, or production
+network readiness; those remaining requirements above are unchanged.

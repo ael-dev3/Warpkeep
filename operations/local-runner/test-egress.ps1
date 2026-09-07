@@ -43,6 +43,11 @@ try {
         Invoke-TaskProbe 'proxy-smoke.py' @('--ready')
         if ($taskPrivateAddress) { Invoke-TaskProbe 'proxy-smoke.py' @('--private-resolution') }
         else {
+            # Inspect actual kernel listeners in the proxy namespace. No host
+            # namespace, mount, credential, or additional capability is supplied.
+            Get-Content -Raw (Join-Path $PSScriptRoot 'proxy-listener-smoke.py') |
+                & wsl -d Ubuntu-24.04 --exec docker run --rm --interactive --network "container:$taskProxy" --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --memory 256m --cpus 1 --entrypoint /usr/bin/python3 $taskRunnerImage -
+            if ($LASTEXITCODE -ne 0) { throw 'Proxy listener probe failed' }
             Invoke-TaskProbe 'proxy-smoke.py' @('--unauthorized-client') '172.30.240.4'
             Invoke-TaskProbe 'network-smoke.py'
             Invoke-TaskProbe 'proxy-smoke.py'
