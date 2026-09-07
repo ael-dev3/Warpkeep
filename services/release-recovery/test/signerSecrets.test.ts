@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { base64UrlEncode } from '../src/protocol.js'
 
 afterEach(() => {
-  for (const module of ['recoveryPublicKey', 'githubOidc', 'githubEvidence', 'realmEvidence']) vi.doUnmock(`../src/${module}.js`)
+  for (const module of ['recoveryPublicKey', 'githubOidc', 'githubEvidence', 'realmEvidence', 'reconciliationEvidence']) vi.doUnmock(`../src/${module}.js`)
   vi.resetModules()
 })
 
@@ -61,7 +61,7 @@ it('validates the actual key self-check against test-only ephemeral pins and sna
 it('issues through real ledger and crypto, retries retained bytes with fresh identity verification, and rejects changed locators', async () => {
   const { input } = await fixture()
   const { arming } = await import('./signerControlFixture.js')
-  const { createLedgerV2Control, reconcileLedgerV2Control, installLedgerV2Arming, applyLedgerV2Event } = await import('../src/ledgerV2.js')
+  const { createLedgerV2Control, reconcileLedgerV2Control, installLedgerV2Arming, applyLedgerV2Event, readClaimedProjection } = await import('../src/ledgerV2.js')
   const { githubEvidenceMetadataSha256 } = await import('../src/githubEvidenceMetadata.js')
   const armed = arming()
   let time = 1000
@@ -93,8 +93,12 @@ it('issues through real ledger and crypto, retries retained bytes with fresh ide
   vi.doMock('../src/githubOidc.js', () => ({ verifyGitHubWorkflowIdentity: verifyIdentity }))
   vi.doMock('../src/githubEvidence.js', () => ({ loadGitHubCandidateEvidence: loadEvidence, recheckGitHubEvidenceMetadata: recheck }))
   vi.doMock('../src/realmEvidence.js', () => ({ observeRecoveryRealmEvidence: observe }))
+  const readProof = vi.fn(async (projection: import('../src/ledgerV2.js').LedgerSignerClaimProjection): Promise<import('../src/ledgerV2.js').LedgerV2ReconciliationProof> => ({
+    outcome: 'completed', rowBindingDigest: projection.rowBindingDigest, deployStepConclusion: 'success', matchingPagesDeployment: true, deploymentAttestationMatches: true,
+  }))
+  vi.doMock('../src/reconciliationEvidence.js', () => ({ createDeploymentReconciliationProofReader: () => readProof }))
   const { RecoverySigner } = await import('../src/signer.js')
-  const { verifyRecoveryAuthorizationJws, verifyRecoveryClaimJws } = await import('../src/crypto.js')
+  const { verifyRecoveryAuthorizationJws, verifyRecoveryClaimJws, verifyRecoveryTerminalJws } = await import('../src/crypto.js')
   type Ledger = import('../src/signerIssue.js').SignerIssueRuntime['requestLedger'] extends (...args: never[]) => infer R ? R : never
   const issued = () => {
     if (row?.state !== 'issued') throw new Error('test expected issued')
@@ -115,14 +119,25 @@ it('issues through real ledger and crypto, retries retained bytes with fresh ide
       if (row.state !== 'claimed') throw new Error('test expected claimed')
       return { authorization: row.authorization, authorizationJwsSha256: row.authorizationJwsSha256, claim: row.claim, revision: row.revision }
     },
+    async readClaimedProjection() { return readClaimedProjection(row!) },
+    async readTerminalProjection() {
+      if (row?.state !== 'completed' && row?.state !== 'not-deployed') throw new Error('RECOVERY_LEDGER_TERMINAL_UNAVAILABLE')
+      return readClaimedProjection(row)
+    },
+    async complete(value) {
+      row = await applyLedgerV2Event(row!, { type: 'complete', proof: value.proof, now: value.now })
+      if (row.state !== 'completed' && row.state !== 'not-deployed') throw new Error('test expected terminal')
+      return { state: row.state, requestId: armed.requestId, outcome: row.outcome, completedAt: row.completedAt, revision: row.revision }
+    },
   }
   const requestLedger = vi.fn(() => ledger)
   // Observation transport is mocked above; this sentinel must never be used as a real service.
   const observation = {} as import('../src/signerIssue.js').SignerIssueRuntime['observation']
+  const runtime = { githubApp: { GITHUB_APP_ID: '1', GITHUB_APP_INSTALLATION_ID: '2', GITHUB_APP_PRIVATE_KEY_PEM: 'test-only-unused' },
+    fetch: vi.fn(() => { throw new Error('unexpected network') }), observation, requestLedger }
   const signer = new RecoverySigner({ RECOVERY_ENABLED: 'true', RECOVERY_AUTHORIZATION_EPOCH: '3', RECOVERY_ARMING_MANIFEST: JSON.stringify(armed) }, input,
     { async reconcileControl(value) { time += 1; controlState = reconcileLedgerV2Control(controlState, value); return controlState } },
-    () => time, { githubApp: { GITHUB_APP_ID: '1', GITHUB_APP_INSTALLATION_ID: '2', GITHUB_APP_PRIVATE_KEY_PEM: 'test-only-unused' },
-      fetch: vi.fn(() => { throw new Error('unexpected network') }), observation, requestLedger })
+    () => time, runtime)
   const request = { requestId: armed.requestId, candidateCommit: identity.workflowSha, sourceVerifyRunId: '456', sourceVerifyRunAttempt: '2', artifactId: '123', oidcToken: 'test-token-one' }
   const first = await signer.issue(request)
   expect(await verifyRecoveryAuthorizationJws(first.authorizationJws, time)).toMatchObject({ iat: 1002, nbf: 1002, exp: 1902, observedFrom: 990 })
@@ -209,6 +224,32 @@ it('issues through real ledger and crypto, retries retained bytes with fresh ide
   expect(observe).toHaveBeenLastCalledWith(expect.objectContaining({ phase: 'claim', sequence: 2, candidateCommit: request.candidateCommit }))
   expect(verifyIdentity).toHaveBeenLastCalledWith(expect.objectContaining({ token: 'test-fresh-claim-token' }))
   await expect(signer.claim(claimRequest)).rejects.toThrow('RECOVERY_LEDGER_ALREADY_CLAIMED')
+  const noControlWrites = { reconcileControl: vi.fn(async () => { throw new Error('postflight must not reconcile control') }) }
+  const postflight = new RecoverySigner({ RECOVERY_ENABLED: 'false', RECOVERY_AUTHORIZATION_EPOCH: '4', RECOVERY_ARMING_MANIFEST: JSON.stringify({ ...armed, authorizationEpoch: 4 }) },
+    input, noControlWrites, () => time, runtime)
+  const completeRequest = { ...request, oidcToken: 'test-fresh-completion-token', claimReceiptJws: claimed.claimReceiptJws }
+  await expect(postflight.terminal({ requestId: armed.requestId })).rejects.toThrow('RECOVERY_LEDGER_TERMINAL_UNAVAILABLE')
+  time = 2402
+  await expect(postflight.complete(completeRequest)).rejects.toThrow('RECOVERY_CLAIM_RECEIPT_TIME_INVALID')
+  expect(readProof).not.toHaveBeenCalled()
+  time = 1400 // receipt is expired for deployment, but within stored postflight deadline
+  await expect(postflight.complete({ ...completeRequest, authorizationJws: lastIssue.authorizationJws })).rejects.toThrow()
+  await expect(postflight.reconcile({ ...completeRequest, artifactId: '124' })).rejects.toThrow('RECOVERY_CLAIM_RECEIPT_MISMATCH')
+  verifyIdentity.mockResolvedValueOnce({ ...identity, pagesRunAttempt: '2' })
+  await expect(postflight.complete(completeRequest)).rejects.toThrow('RECOVERY_CLAIM_RECEIPT_MISMATCH')
+  readProof.mockResolvedValueOnce({ outcome: 'ambiguous' })
+  await expect(postflight.complete(completeRequest)).rejects.toThrow('RECOVERY_LEDGER_COMPLETION_NOT_PROVEN')
+  expect((row as unknown as { state: string }).state).toBe('claimed')
+  const completed = await postflight.complete(completeRequest)
+  expect(await verifyRecoveryTerminalJws(completed.terminalJws, time)).toMatchObject({ outcome: 'completed', completedAt: 1400, authorizationEpoch: 3 })
+  const beforeTerminal = row
+  const proofCalls = readProof.mock.calls.length
+  expect(await verifyRecoveryTerminalJws((await postflight.terminal({ requestId: armed.requestId })).terminalJws, time)).toMatchObject({ outcome: 'completed' })
+  expect(row).toBe(beforeTerminal)
+  await postflight.reconcile({ ...completeRequest, oidcToken: 'test-fresh-reconcile-token' })
+  expect(readProof).toHaveBeenCalledTimes(proofCalls)
+  expect(noControlWrites.reconcileControl).not.toHaveBeenCalled()
+  expect(Object.hasOwn(row!, 'authorizationJws')).toBe(false)
 })
 
 it('rejects equal decoded secrets, malformed encoding, duplicate JSON, extra keys and mismatched key material', async () => {

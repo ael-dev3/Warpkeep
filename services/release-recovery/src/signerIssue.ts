@@ -15,7 +15,7 @@ export type SignerIssueRuntime = Readonly<{
   fetch: typeof fetch
   observation: Pick<ObserveRecoveryRealmEvidenceInput, 'bridge' | 'pins' | 'expectedRawModuleDefV10Fixtures'>
   requestLedger(requestId: string): Pick<ReleaseRecoveryAuthorizationLedgerV2,
-    'status' | 'installArming' | 'reserveIssue' | 'finalizeIssue' | 'readIssued' | 'claim'>
+    'status' | 'installArming' | 'reserveIssue' | 'finalizeIssue' | 'readIssued' | 'claim' | 'readClaimedProjection' | 'readTerminalProjection' | 'complete'>
 }>
 
 function clock(now: () => number): number {

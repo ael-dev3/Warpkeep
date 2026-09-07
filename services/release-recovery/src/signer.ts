@@ -6,6 +6,7 @@ import { parseSignerControl, reconcileSignerControl } from './signerControl.js'
 import { validateSignerSecrets } from './signerSecrets.js'
 import { issueRecoveryAuthorization, type SignerIssueRuntime } from './signerIssue.js'
 import { claimRecoveryAuthorization } from './signerClaim.js'
+import { completeRecoveryAuthorization, readRecoveryTerminal } from './signerCompletion.js'
 
 type ControlLedger = Parameters<typeof reconcileSignerControl>[1]
 
@@ -48,5 +49,23 @@ export class RecoverySigner {
       iat, nbf: iat, exp: iat + 60,
     }, secrets.privateJwk)
     return Object.freeze({ statusJws })
+  }
+
+  async complete(request: unknown, ...extra: unknown[]) {
+    if (extra.length !== 0) githubFail('RECOVERY_SIGNER_REQUEST_INVALID')
+    if (this.issueRuntime === undefined) githubFail('RECOVERY_SIGNER_CONFIGURATION_INVALID')
+    return completeRecoveryAuthorization('complete', request, this.control, this.secrets, this.issueRuntime, this.now)
+  }
+
+  async reconcile(request: unknown, ...extra: unknown[]) {
+    if (extra.length !== 0) githubFail('RECOVERY_SIGNER_REQUEST_INVALID')
+    if (this.issueRuntime === undefined) githubFail('RECOVERY_SIGNER_CONFIGURATION_INVALID')
+    return completeRecoveryAuthorization('reconcile', request, this.control, this.secrets, this.issueRuntime, this.now)
+  }
+
+  async terminal(request: unknown, ...extra: unknown[]) {
+    if (extra.length !== 0) githubFail('RECOVERY_SIGNER_REQUEST_INVALID')
+    if (this.issueRuntime === undefined) githubFail('RECOVERY_SIGNER_CONFIGURATION_INVALID')
+    return readRecoveryTerminal(request, this.control, this.secrets, this.issueRuntime, this.now)
   }
 }

@@ -1401,6 +1401,18 @@ export class ReleaseRecoveryAuthorizationLedgerV2 extends DurableObject<SignerEn
     })
   }
 
+  async readTerminalProjection(input: LedgerV2ProjectionInput): Promise<LedgerSignerClaimProjection> {
+    return this.#withPublicErrors(async () => {
+      const name = this.#assertRole('request')
+      const source = exactData(input, ['requestId'], 'RECOVERY_LEDGER_EVENT_INVALID')
+      if (source.requestId !== name) fail('RECOVERY_LEDGER_REQUEST_ID_MISMATCH')
+      const record = await this.#loadRecord()
+      if (record === undefined || (record.state !== 'completed' && record.state !== 'not-deployed')) fail('RECOVERY_LEDGER_TERMINAL_UNAVAILABLE')
+      // Terminal lookup must not schedule/repair alarms or mutate any record.
+      return rpcSnapshot(projectClaimedLedgerV2Row(record))
+    })
+  }
+
   async status(...args: []): Promise<LedgerV2StatusResult> {
     return this.#withPublicErrors(async () => {
       if (args.length !== 0) fail('RECOVERY_LEDGER_EVENT_INVALID')

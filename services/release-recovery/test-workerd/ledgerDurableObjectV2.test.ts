@@ -500,6 +500,27 @@ describe('ReleaseRecoveryAuthorizationLedgerV2 Workerd adapter', () => {
     expect(durable.payloadCount).toBe(0)
   })
 
+  it('reads terminal projection without changing SQL or repairing a leftover alarm', async () => {
+    const { request } = await issueAndClaim()
+    await expect(runInDurableObject(request, instance => instance.readTerminalProjection({ requestId: REQUEST_ID }))).rejects.toThrow('RECOVERY_LEDGER_TERMINAL_UNAVAILABLE')
+    const projection = await request.readClaimedProjection({ requestId: REQUEST_ID })
+    await request.complete({ requestId: REQUEST_ID, proof: {
+      outcome: 'completed', rowBindingDigest: projection.rowBindingDigest,
+      deployStepConclusion: 'success', matchingPagesDeployment: true, deploymentAttestationMatches: true,
+    }, now: NOW + 3 })
+    await expect(runInDurableObject(request, instance => instance.readTerminalProjection({ requestId: OTHER_REQUEST_ID }))).rejects.toThrow('RECOVERY_LEDGER_REQUEST_ID_MISMATCH')
+    await runInDurableObject(request, async (instance, state) => {
+      const alarm = (NOW + 2000) * 1000
+      await state.storage.setAlarm(alarm)
+      const before = state.storage.sql.exec<{ record_json: string }>('SELECT record_json FROM recovery_v2_authorization WHERE singleton_key = 1').one().record_json
+      const result = await instance.readTerminalProjection({ requestId: REQUEST_ID })
+      expect(result).toMatchObject({ state: 'completed', terminal: { outcome: 'completed', completedAt: NOW + 3 } })
+      expect(await state.storage.getAlarm()).toBe(alarm)
+      expect(state.storage.sql.exec<{ record_json: string }>('SELECT record_json FROM recovery_v2_authorization WHERE singleton_key = 1').one().record_json).toBe(before)
+      expect(result).not.toHaveProperty('authorizationJws')
+    })
+  })
+
   it('persists reconciliation-required before the injected reader and accepts a row-bound completed proof', async () => {
     const { request } = await issueAndClaim()
     const alarmAt = NOW + 2 + 1_200
