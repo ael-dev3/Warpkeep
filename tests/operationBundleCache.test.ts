@@ -12,6 +12,9 @@ const ESBUILD_SRI = 'sha512-HrJrvZv5ayxBzPfwphOoNzkzOIIlifzk0KJrGK2c8R4+LKpMtpYL
 const LINUX_X64_SRI = 'sha512-u/anNYF2mmVOEDwLtnQ1wOr3EZ9sTNGLWrsYGYwHWzGA3Si84IOkHXlbWTD1NB+9/1lcnweYKO54uhxZydNzfA==';
 const ESBUILD_BODY = Buffer.from('fixture:esbuild-0.28.1');
 const LINUX_X64_BODY = Buffer.from('fixture:@esbuild/linux-x64-0.28.1');
+const FFLATE_URL = 'https://registry.npmjs.org/fflate/-/fflate-0.8.3.tgz';
+const FFLATE_SRI = 'sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==';
+const FFLATE_BODY = Buffer.from('fixture:fflate-0.8.3');
 
 type Directory = { mode: number; uid: number; symbolic?: boolean; escaped?: boolean };
 type Archive = { body: Buffer; mode: number; uid: number; symbolic?: boolean };
@@ -56,6 +59,7 @@ vi.mock('node:crypto', async () => {
         update(value: Buffer) { chunks.push(Buffer.from(value)); return this; },
         digest(encoding: 'hex') {
           const body = Buffer.concat(chunks);
+          if (body.equals(Buffer.from('fixture:fflate-0.8.3'))) return digestHex('sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==');
           if (body.equals(esbuildBody)) return digestHex('sha512-HrJrvZv5ayxBzPfwphOoNzkzOIIlifzk0KJrGK2c8R4+LKpMtpYLQeUdjnwjWv/LZlkH2laZk+4w78pi99D4Vw==');
           if (body.equals(linuxX64Body)) return digestHex('sha512-u/anNYF2mmVOEDwLtnQ1wOr3EZ9sTNGLWrsYGYwHWzGA3Si84IOkHXlbWTD1NB+9/1lcnweYKO54uhxZydNzfA==');
           return actual.createHash('sha512').update(body).digest(encoding);
@@ -275,10 +279,46 @@ async function bootstrap() {
 }
 
 describe('fixed Linux operation compiler archive bootstrap', () => {
+  function addRecoveryPin() {
+    (boundary.lock.packages as Record<string, unknown>)['node_modules/fflate'] = {
+      version: '0.8.3', resolved: FFLATE_URL, integrity: FFLATE_SRI,
+    };
+    boundary.downloads.set(FFLATE_URL, FFLATE_BODY);
+  }
+
+  it('bootstraps exactly three recovery archives and reuses them without transport', async () => {
+    addRecoveryPin();
+    const { bootstrapRecoveryBundleCache: recovery } = await module_();
+    await expect(recovery()).resolves.toEqual({
+      profile: 'warpkeep-recovery-bundle-cache-bootstrap-linux-x64-v1', packageCount: 3, installedCount: 3,
+    });
+    expect(boundary.fetches).toEqual([ESBUILD_URL, LINUX_X64_URL, FFLATE_URL]);
+    boundary.fetches.length = 0;
+    await expect(recovery()).resolves.toMatchObject({packageCount: 3, installedCount: 0});
+    expect(boundary.fetches).toEqual([]);
+    await expect(bootstrap()).resolves.toMatchObject({packageCount: 2, installedCount: 0});
+  });
+
+  it('rejects missing recovery pins and caller overrides before transport', async () => {
+    const { bootstrapRecoveryBundleCache: recovery } = await module_();
+    await expect(recovery()).rejects.toMatchObject({code: 'OPERATION_BUNDLE_CACHE_LOCK_INVALID'});
+    await expect(Reflect.apply(recovery, null, [undefined])).rejects.toMatchObject({code: 'OPERATION_BUNDLE_CACHE_ARGUMENTS_INVALID'});
+    expect(boundary.fetches).toEqual([]); expect(boundary.archives.size).toBe(0);
+  });
+
+  it('preserves and rejects corrupted recovery cache bytes without replacing them', async () => {
+    addRecoveryPin();
+    const { bootstrapRecoveryBundleCache: recovery } = await module_();
+    await recovery();
+    const cached = boundary.archives.get(archivePath(FFLATE_SRI))!;
+    cached.body = Buffer.from('corrupt'); boundary.fetches.length = 0;
+    await expect(recovery()).rejects.toMatchObject({code: 'OPERATION_BUNDLE_CACHE_ARCHIVE_INVALID'});
+    expect(cached.body.toString()).toBe('corrupt'); expect(boundary.fetches).toEqual([]);
+  });
   it('rejects explicit undefined before side effects and exposes no authority seam', async () => {
     const module = await module_();
     expect(Object.keys(module).sort()).toEqual([
-      'OperationBundleCacheError', 'bootstrapOperationBundleCache',
+      'OperationBundleCacheError', 'bootstrapOperationBundleCache', 'bootstrapRecoveryBundleCache',
     ]);
     await expect((module.bootstrapOperationBundleCache as unknown as
       (value: unknown) => Promise<unknown>)(undefined))

@@ -34,6 +34,11 @@ const FIXED_PACKAGES = Object.freeze([
     integrity: 'sha512-u/anNYF2mmVOEDwLtnQ1wOr3EZ9sTNGLWrsYGYwHWzGA3Si84IOkHXlbWTD1NB+9/1lcnweYKO54uhxZydNzfA==',
   }),
 ]);
+const RECOVERY_PACKAGES = Object.freeze([...FIXED_PACKAGES, Object.freeze({
+  key: 'node_modules/fflate', name: 'fflate', version: '0.8.3',
+  resolved: 'https://registry.npmjs.org/fflate/-/fflate-0.8.3.tgz',
+  integrity: 'sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==',
+})]);
 
 export class OperationBundleCacheError extends Error {
   constructor(code, options) {
@@ -110,12 +115,13 @@ function readFixedLock() {
   }
 }
 
-function selectFixedPackages(lock) {
+function selectFixedPackages(lock, recovery) {
+  const packages = recovery ? RECOVERY_PACKAGES : FIXED_PACKAGES;
   const records = lock?.packages;
   if (records === null || typeof records !== 'object' || Array.isArray(records)) {
     fail('OPERATION_BUNDLE_CACHE_LOCK_INVALID');
   }
-  for (const package_ of FIXED_PACKAGES) {
+  for (const package_ of packages) {
     const record = records[package_.key];
     if (record === null || typeof record !== 'object' || Array.isArray(record)
         || record.version !== package_.version
@@ -131,7 +137,7 @@ function selectFixedPackages(lock) {
       || JSON.stringify(companion.cpu) !== JSON.stringify(['x64'])) {
     fail('OPERATION_BUNDLE_CACHE_LOCK_INVALID');
   }
-  return FIXED_PACKAGES;
+  return packages;
 }
 
 function archiveIdentity(cacheRoot, integrity) {
@@ -211,11 +217,11 @@ function validateBaseNamespace() {
     join(ROOT, 'cache')]) privateDirectory(path);
 }
 
-async function runBootstrap() {
+async function runBootstrap(recovery) {
   validateHost();
   validateBaseNamespace();
   const nodeIdentity = attestNode();
-  const packages = selectFixedPackages(readFixedLock());
+  const packages = selectFixedPackages(readFixedLock(), recovery);
   const cacheRoot = ensurePrivateChild(join(ROOT, 'cache'), 'operation-bundles');
   let installedCount = 0;
   for (const package_ of packages) {
@@ -241,13 +247,22 @@ async function runBootstrap() {
   validateBaseNamespace();
   for (const package_ of packages) archiveIdentity(cacheRoot, package_.integrity);
   attestNode(nodeIdentity);
-  return Object.freeze({ profile: PROFILE, packageCount: packages.length, installedCount });
+  return Object.freeze({ profile: recovery ? 'warpkeep-recovery-bundle-cache-bootstrap-linux-x64-v1' : PROFILE,
+    packageCount: packages.length, installedCount });
 }
 
 export async function bootstrapOperationBundleCache(...arguments_) {
+  return bootstrap(arguments_, false);
+}
+
+export async function bootstrapRecoveryBundleCache(...arguments_) {
+  return bootstrap(arguments_, true);
+}
+
+async function bootstrap(arguments_, recovery) {
   if (arguments_.length !== 0) fail('OPERATION_BUNDLE_CACHE_ARGUMENTS_INVALID');
   try {
-    return await runBootstrap();
+    return await runBootstrap(recovery);
   } catch (error) {
     if (error instanceof OperationBundleCacheError) throw error;
     fail(typeof error?.message === 'string' && /^OPERATION_BUNDLE_CACHE_[A-Z0-9_]+$/u.test(error.message)
