@@ -197,13 +197,30 @@ Remaining verification/publication limitations:
   started tests: the session's new filesystem restrictions deny Vite's temporary
   config write under the external shared dependency junction. Do not report those
   suites as passed or modify that shared tree to bypass the restriction.
-- The standalone license verifier stopped at its committed-policy cleanliness
-  precondition while CONTRIBUTING was being edited. Rerun after the documentation
-  checkpoint; preserve unrelated dirty manifests and report any remaining blocker.
+- The standalone license verifier initially stopped at its committed-policy
+  cleanliness precondition in the dirty working checkout. After committing the
+  documentation, a clean detached local worktree at `125bce95957bb55945904f2bb8a33acaa93fcca8`
+  passed `node scripts/verify-license-policy.mjs` (exit 0), and its Git status
+  remained clean. This verifies the actual documentation checkpoint without
+  staging or modifying unrelated dirty manifests. It does not replace the blocked
+  Vitest suite or verify the whole release.
 - Fresh GitHub status inspection was denied at the socket/network layer before
   authentication. Network permission requests returned no grant. The earlier
   remote/CI snapshots remain historical; no new push or current remote equality
   is proved. Re-login is not a fix for this network restriction.
+- The outgoing-history Gitleaks check for `c42f6e6..555e505` could not launch:
+  the session denied the existing WSL scanner with `Wsl/Service/E_ACCESSDENIED`.
+  No clean scan is claimed for that range. Re-run the configured scanner before
+  publishing; do not substitute a visual diff review for the required scan.
+
+Saved local commits, none newly verified on GitHub:
+
+- `1feb1054f6649fbef26224e5039ccecbea6f04d9`: recovery consumer rejection and
+  additional candidate-mutation tests; 39 Linux component tests recorded above.
+- `125bce95957bb55945904f2bb8a33acaa93fcca8`: reviewed README/project direction,
+  architecture, agent rails and audit notes; clean-checkout license verification.
+- `555e505c10fbd33b495304f73af53f44bdae541c`: healthy refresh scene/focus correction
+  and integration regressions. App and Vite-configuration noEmit checks passed.
 
 Finish permitted local review/checkpoint work, then restore legitimate test and
 GitHub access before claiming the documentation is fully verified/published or
