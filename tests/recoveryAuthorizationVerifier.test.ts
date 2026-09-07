@@ -1,5 +1,8 @@
 // @vitest-environment node
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
+import { PassThrough, Readable } from 'node:stream';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { beforeAll, expect, it, vi } from 'vitest';
 import { recoveryAuthorizationFixture } from './fixtures/recoveryAuthorizationFixture';
 const kid = 'warpkeep-0.4.0-recovery-2026-09-03-1';
@@ -15,9 +18,11 @@ function token(value: unknown) {
   return `${input}.${signature.toString('base64url')}`;
 }
 let verify: typeof import('../scripts/verify-recovery-authorization-jws.mjs').verifyRecoveryAuthorization;
+let verifyInput: typeof import('../scripts/verify-recovery-authorization-jws.mjs').verifyRecoveryAuthorizationFromStdin;
 beforeAll(async () => {
   vi.doMock('../scripts/recovery-public-key.mjs', () => ({ RECOVERY_KEY_ID: kid, RECOVERY_PUBLIC_JWK: jwk, RECOVERY_KEY_THUMBPRINT: thumbprint }));
   verify = (await import('../scripts/verify-recovery-authorization-jws.mjs')).verifyRecoveryAuthorization;
+  verifyInput = (await import('../scripts/verify-recovery-authorization-jws.mjs')).verifyRecoveryAuthorizationFromStdin;
 });
 it('verifies signed authorization against the static binding and independent runtime context', () => {
   const f = recoveryAuthorizationFixture(); const compact = token(f.payload);
@@ -72,4 +77,60 @@ it('rejects a modified static binding before deriving claim expectations', () =>
   const f = recoveryAuthorizationFixture(); const binding = JSON.parse(f.bindingSource);
   binding.g001PlayerAccessEnabled = false;
   expect(() => verify(token(f.payload), `${JSON.stringify(binding, null, 2)}\n`, JSON.stringify(f.context), 1100)).toThrow('RECOVERY_AUTHORIZATION_INVALID');
+});
+function inputEnvelope() {
+  const f = recoveryAuthorizationFixture();
+  return { authorizationJws: token(f.payload), bindingSource: f.bindingSource, expectedSource: JSON.stringify(f.context) };
+}
+it('verifies private binary input and clears its consumed bytes', async () => {
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(1100000);
+  const bytes = Buffer.from(JSON.stringify(inputEnvelope()));
+  const input = Readable.from([bytes]);
+  try {
+    const result = await verifyInput(input);
+    expect(result.issuedAt).toBe(1010); expect(result.expiresAt).toBe(1910);
+    expect(JSON.parse(result.claimExpectedSource).artifactId).toBe('789');
+    expect(bytes.every(byte => byte === 0)).toBe(true); expect(input.destroyed).toBe(true);
+  } finally { clock.mockRestore(); }
+});
+it('samples authorization expiry after the producer finishes', async () => {
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(1100000);
+  const input = new PassThrough();
+  try {
+    const rejected = expect(verifyInput(input)).rejects.toThrow('RECOVERY_AUTHORIZATION_INVALID');
+    input.write(Buffer.from(JSON.stringify(inputEnvelope())));
+    clock.mockReturnValue(1910000); input.end(); await rejected;
+  } finally { clock.mockRestore(); input.destroy(); }
+});
+it('rejects malformed, noncanonical and oversized private envelopes', async () => {
+  const envelope = inputEnvelope();
+  for (const source of ['', 'private-sentinel', 'A'.repeat(2162689), JSON.stringify(envelope, null, 2),
+    `\ufeff${JSON.stringify(envelope)}`, JSON.stringify({ ...envelope, now: 1100 }),
+    JSON.stringify(Object.fromEntries(Object.entries(envelope).reverse())),
+    JSON.stringify(envelope).replace('{', '{"authorizationJws":"private-sentinel",')]) {
+    const input = Readable.from([Buffer.from(source)]);
+    await expect(verifyInput(input)).rejects.toThrowError(/^RECOVERY_AUTHORIZATION_INVALID$/);
+    expect(input.destroyed).toBe(true);
+  }
+});
+it('rejects text streams and caller clock overrides', async () => {
+  await expect(verifyInput(Readable.from(['private-sentinel']))).rejects.toThrow('RECOVERY_AUTHORIZATION_INVALID');
+  await expect(Reflect.apply(verifyInput, null, [Readable.from([]), 1100])).rejects.toThrow('RECOVERY_AUTHORIZATION_INVALID');
+});
+it('destroys unfinished input after five seconds and redacts producer errors', async () => {
+  vi.useFakeTimers();
+  const input = new PassThrough();
+  try {
+    const rejected = expect(verifyInput(input)).rejects.toThrow('RECOVERY_AUTHORIZATION_INVALID');
+    input.write(Buffer.from('private-sentinel'));
+    await vi.advanceTimersByTimeAsync(5000); await rejected; expect(input.destroyed).toBe(true);
+  } finally { vi.useRealTimers(); input.destroy(); }
+  const broken = new PassThrough();
+  const rejected = expect(verifyInput(broken)).rejects.toThrowError(/^RECOVERY_AUTHORIZATION_INVALID$/);
+  broken.destroy(new Error('private-sentinel')); await rejected;
+});
+it.each([[], ['--check'], ['--now', '1100'], ['--token', 'private-sentinel']])('CLI rejects private input or overrides without echo: %j', (...argv) => {
+  const result = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/verify-recovery-authorization-jws.mjs', import.meta.url)), ...argv],
+    { input: 'private-sentinel', encoding: 'utf8', timeout: 10000 });
+  expect(result.status).toBe(1); expect(result.stdout).toBe(''); expect(result.stderr).toBe('RECOVERY_AUTHORIZATION_INVALID\n');
 });

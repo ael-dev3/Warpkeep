@@ -1,4 +1,5 @@
 import { createHash, generateKeyPairSync, webcrypto } from 'node:crypto'
+import { Readable } from 'node:stream'
 import { expect, it, vi } from 'vitest'
 import { signRecoveryAuthorizationJws, signRecoveryClaimJws } from '../src/crypto.js'
 import { RECOVERY_KEY_ID } from '../src/recoveryPublicKey.js'
@@ -19,10 +20,13 @@ it('binds a service-signed authorization to its exact service-signed claim', asy
   vi.doMock('../../../scripts/recovery-public-key.mjs', () => ({
     RECOVERY_KEY_ID, RECOVERY_PUBLIC_JWK: publicJwk, RECOVERY_KEY_THUMBPRINT: thumbprint,
   }))
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(1100000)
   try {
-    const { verifyRecoveryAuthorization } = await import('../../../scripts/verify-recovery-authorization-jws.mjs')
-    const { verifyRecoveryClaimReceipt } = await import('../../../scripts/verify-recovery-claim-receipt.mjs')
-    const result = verifyRecoveryAuthorization(authorization, fixture.bindingSource, JSON.stringify(fixture.context), 1100)
+    const { verifyRecoveryAuthorizationFromStdin } = await import('../../../scripts/verify-recovery-authorization-jws.mjs')
+    const { verifyRecoveryClaimReceipt, verifyRecoveryClaimReceiptFromStdin } = await import('../../../scripts/verify-recovery-claim-receipt.mjs')
+    const result = await verifyRecoveryAuthorizationFromStdin(Readable.from([Buffer.from(JSON.stringify({
+      authorizationJws: authorization, bindingSource: fixture.bindingSource, expectedSource: JSON.stringify(fixture.context),
+    }))]))
     const expected = JSON.parse(result.claimExpectedSource)
     const independentDigest = Buffer.from(await webcrypto.subtle.digest('SHA-256', new TextEncoder().encode(authorization))).toString('hex')
     expect(expected.authorizationJwsSha256).toBe(independentDigest)
@@ -34,9 +38,14 @@ it('binds a service-signed authorization to its exact service-signed claim', asy
     expect(verifyRecoveryClaimReceipt(claim, result.claimExpectedSource, 1101)).toEqual({
       authorizationEpoch: fixture.payload.authorizationEpoch, claimSequence: 1, issuedAt: 1100, expiresAt: 1220,
     })
+    clock.mockReturnValue(1101000)
+    await expect(verifyRecoveryClaimReceiptFromStdin(Readable.from([Buffer.from(JSON.stringify({
+      claimReceiptJws: claim, expectedSource: result.claimExpectedSource,
+    }))]))).resolves.toEqual({ authorizationEpoch: fixture.payload.authorizationEpoch, claimSequence: 1, issuedAt: 1100, expiresAt: 1220 })
     expect(() => verifyRecoveryClaimReceipt(claim, result.claimExpectedSource, 1220)).toThrow('RECOVERY_CLAIM_INVALID')
     expect(() => verifyRecoveryClaimReceipt(claim, JSON.stringify({ ...expected, artifactId: '790' }), 1101)).toThrow('RECOVERY_CLAIM_INVALID')
   } finally {
+    clock.mockRestore()
     vi.doUnmock('../../../scripts/recovery-public-key.mjs'); vi.resetModules()
   }
 })

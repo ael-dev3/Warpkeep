@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { Readable } from 'node:stream';
 import { parseRecoveryBindingV2 } from './recovery-activation-candidate.mjs';
 import { verifyRecoverySignedPayload } from './recovery-authorization-protocol.mjs';
 const CONTEXT_KEYS = ['pagesRunId', 'pagesRunAttempt', 'sourceVerifyRunId', 'sourceVerifyRunAttempt',
@@ -69,6 +70,44 @@ export function verifyRecoveryAuthorization(...args) {
     return Object.freeze({ claimExpectedSource, issuedAt: p.iat, expiresAt: p.exp });
   } catch { fail(); }
 }
+/** Private canonical envelope, consumed once; no caller-selected clock or key. */
+export async function verifyRecoveryAuthorizationFromStdin(...args) {
+  const [input] = args;
+  // Accommodates escaped canonical binding JSON plus bounded signed object/context.
+  const bytes = Buffer.alloc(2 * 1048576 + 65536);
+  let length = 0;
+  let timer;
+  try {
+    if (args.length !== 1 || !(input instanceof Readable) || input.isTTY
+      || input.destroyed || input.readableDidRead || input.readableEncoding) fail();
+    timer = setTimeout(() => input.destroy(new Error('RECOVERY_AUTHORIZATION_INVALID')), 5000);
+    for await (const chunk of input) {
+      try {
+        if (!Buffer.isBuffer(chunk) || chunk.length > bytes.length - length) fail();
+        chunk.copy(bytes, length); length += chunk.length;
+      } finally { if (Buffer.isBuffer(chunk)) chunk.fill(0); }
+    }
+    const source = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, length));
+    const envelope = JSON.parse(source);
+    if (envelope === null || typeof envelope !== 'object' || Array.isArray(envelope)
+      || Object.keys(envelope).join(',') !== 'authorizationJws,bindingSource,expectedSource'
+      || JSON.stringify(envelope) !== source) fail();
+    return verifyRecoveryAuthorization(envelope.authorizationJws, envelope.bindingSource, envelope.expectedSource, Math.floor(Date.now() / 1000));
+  } catch { fail(); }
+  finally {
+    clearTimeout(timer); bytes.fill(0);
+    if (input instanceof Readable) input.destroy();
+  }
+}
 let direct = false;
 try { direct = Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url); } catch { /* imported */ }
-if (direct) { process.stderr.write('RECOVERY_AUTHORIZATION_CLI_NOT_IMPLEMENTED\n'); process.exitCode = 1; }
+if (direct) {
+  try {
+    if (process.argv.length !== 2) fail();
+    const result = await verifyRecoveryAuthorizationFromStdin(process.stdin);
+    // Never emit the private authorization-derived claim context on stdout.
+    process.stdout.write(`${JSON.stringify({ issuedAt: result.issuedAt, expiresAt: result.expiresAt })}\n`);
+  } catch {
+    process.stdin.destroy(); process.stderr.write('RECOVERY_AUTHORIZATION_INVALID\n'); process.exitCode = 1;
+  }
+}
