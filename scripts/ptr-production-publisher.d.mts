@@ -126,7 +126,7 @@ export function verifyPtrGeneratedAbi(input: Readonly<{
   publicTables: readonly string[];
 }>): Readonly<{
   reducerCount: 9;
-  procedureCount: 7;
+  procedureCount: 12;
   tableCount: 0;
   publicTableCount: 0;
   ownerProvisionReducerCount: 1;

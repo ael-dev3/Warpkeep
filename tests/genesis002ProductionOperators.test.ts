@@ -57,9 +57,9 @@ function sourceArtifact() {
     moduleTreeId: MODULE_TREE_ID,
     childEnvironment: { PATH: '/usr/bin:/bin' },
     abi: {
-      reducerCount: 18,
+      reducerCount: 8,
       procedureCount: 7,
-      tableCount: 23,
+      tableCount: 30,
       activationReducerCount: 0,
     },
     assertSourceAndArtifact: vi.fn(),

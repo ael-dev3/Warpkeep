@@ -42,7 +42,7 @@ function artifact() {
     artifactPath: '/private/artifact.js',
     artifactDescriptor: 3,
     childEnvironment: { PATH: '/usr/bin:/bin' },
-    abi: { reducerCount: 9, procedureCount: 7 },
+    abi: { reducerCount: 9, procedureCount: 12 },
     assertSourceAndArtifact: vi.fn(),
     assertArtifact: vi.fn(),
     cleanup: vi.fn(),

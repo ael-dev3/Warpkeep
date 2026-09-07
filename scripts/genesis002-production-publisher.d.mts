@@ -126,9 +126,9 @@ export function verifyGenesis002GeneratedAbi(input: Readonly<{
   tables: readonly string[];
   publicTables: readonly string[];
 }>): Readonly<{
-  reducerCount: 18;
+  reducerCount: 8;
   procedureCount: 7;
-  tableCount: 23;
+  tableCount: 30;
   publicTableCount: 0;
   activationReducerCount: 0;
 }>;
