@@ -73,6 +73,8 @@ const CONTROL_FILES = Object.freeze([
   'scripts/genesis001-frozen-publisher-core.ts',
 ]);
 const OPERATION_BUNDLE_CONTROL_FILES = Object.freeze([
+  'scripts/local-release-workspace.mjs',
+  'scripts/local-release-candidate-lock.mjs',
   'scripts/local-release-artifact-inputs.mjs',
   'package-lock.json',
   'scripts/local-binding-bounded-file.mjs',
