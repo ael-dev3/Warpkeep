@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { expect, it } from 'vitest';
-import { buildRecoveryWorkflowArtifactModule as build } from '../scripts/build-recovery-workflow-artifact-module.mjs';
+import { buildRecoveryWorkflowArtifactModule as build, buildRecoveryWorkflowClaimModule as buildClaim } from '../scripts/build-recovery-workflow-artifact-module.mjs';
 import { recoveryArtifactNativeFixture } from './fixtures/recoveryArtifactNativeFixture';
 
 it('builds repeatable module bytes and loads in a separate native Node process', async () => {
@@ -32,7 +32,28 @@ it('builds repeatable module bytes and loads in a separate native Node process',
 }, 30000);
 it('rejects build overrides', async () => {
   await expect(Reflect.apply(build, null, [{ entryPoint: 'other' }])).rejects.toThrow('RECOVERY_WORKFLOW_ARTIFACT_BUILD_INVALID');
+  await expect(Reflect.apply(buildClaim, null, [{ entryPoint: 'other' }])).rejects.toThrow('RECOVERY_WORKFLOW_ARTIFACT_BUILD_INVALID');
 });
+it('packages claim preparation for native import without running authority requests', async () => {
+  const first = await buildClaim(), second = await buildClaim();
+  expect(first.sha256).toBe(second.sha256);
+  const root = mkdtempSync(join(tmpdir(), 'warpkeep-claim-module-'));
+  try {
+    symlinkSync(resolve('scripts'), join(root, 'scripts'), process.platform === 'win32' ? 'junction' : 'dir');
+    const directory = join(root, 'services/release-recovery/scripts'); mkdirSync(directory, { recursive: true });
+    const output = join(directory, 'prepare-recovery-workflow-claim.bundle.mjs'); writeFileSync(output, first.bytes);
+    const program = `import assert from 'node:assert/strict';
+      const m = await import(${JSON.stringify(pathToFileURL(output).href)});
+      assert.deepEqual(Object.keys(m), ['prepareRecoveryWorkflowClaim']);
+      globalThis.fetch = () => { throw new Error('NETWORK_MUST_NOT_RUN'); };
+      await assert.rejects(m.prepareRecoveryWorkflowClaim({ override: true }), {message: 'RECOVERY_WORKFLOW_CLAIM_PREPARATION_INVALID'});
+      process.stdout.write('native-claim-module-ok');`;
+    const child = spawnSync(process.execPath, ['--input-type=module', '--eval', program], {
+      cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 32768, windowsHide: true,
+      env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot } });
+    expect(child.status, child.stderr).toBe(0); expect(child.stdout).toBe('native-claim-module-ok');
+  } finally { rmSync(root, { recursive: true, force: true }); first.bytes.fill(0); second.bytes.fill(0); }
+}, 30000);
 it('ingests a real compressed fixture through the compiled parser in a native child', async () => {
   const built = await build(), fixture = recoveryArtifactNativeFixture();
   const root = mkdtempSync(join(tmpdir(), 'warpkeep-artifact-ingestion-'));
