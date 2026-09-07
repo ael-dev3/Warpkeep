@@ -1,3 +1,4 @@
+import { types } from 'node:util';
 import {
   sourceCommitFromSealedRealmsProductionAuthority,
 } from './sealed-realms-production-source-authority.mjs';
@@ -55,39 +56,75 @@ function exactRunIdentity(runId, runAttempt) {
   return Object.freeze({ runId, runAttempt: attempt });
 }
 
-async function boundedGithubJson(response, expectedUrl) {
-  let responseOrigin;
-  try { responseOrigin = new URL(response?.url).origin; } catch {
-    fail('SEALED_REALMS_WORKFLOW_AUTHORITY_GITHUB_RESPONSE_INVALID');
-  }
-  if (
-    !(response instanceof Response)
-    || response.redirected
-    || response.status !== 200
-    || response.url !== expectedUrl
-    || responseOrigin !== GITHUB_ORIGIN
-    || !/^application\/json(?:;\s*charset=utf-8)?$/iu.test(
-      response.headers.get('content-type') ?? '',
-    )
-  ) fail('SEALED_REALMS_WORKFLOW_AUTHORITY_GITHUB_RESPONSE_INVALID');
-  const length = response.headers.get('content-length');
-  if (
-    length !== null
-    && (!/^[0-9]+$/u.test(length)
-      || Number(length) > MAXIMUM_GITHUB_RESPONSE_BYTES)
-  ) fail('SEALED_REALMS_WORKFLOW_AUTHORITY_GITHUB_RESPONSE_INVALID');
+async function boundedGithubJson(response, expectedUrl, signal) {
+  let reader;
   let bytes;
+  let onAbort;
+  let complete = false;
+  const chunks = [];
   try {
-    bytes = Buffer.from(await response.arrayBuffer());
-    if (bytes.byteLength > MAXIMUM_GITHUB_RESPONSE_BYTES) {
+    let responseOrigin;
+    try { responseOrigin = new URL(response?.url).origin; } catch {
       fail('SEALED_REALMS_WORKFLOW_AUTHORITY_GITHUB_RESPONSE_INVALID');
     }
+    if (
+      !(response instanceof Response)
+      || response.redirected
+      || response.status !== 200
+      || response.url !== expectedUrl
+      || responseOrigin !== GITHUB_ORIGIN
+      || !/^application\/json(?:;\s*charset=utf-8)?$/iu.test(
+        response.headers.get('content-type') ?? '',
+      )
+    ) fail('SEALED_REALMS_WORKFLOW_AUTHORITY_GITHUB_RESPONSE_INVALID');
+    const length = response.headers.get('content-length');
+    if (
+      length !== null
+      && (!/^[0-9]+$/u.test(length)
+        || Number(length) > MAXIMUM_GITHUB_RESPONSE_BYTES)
+    ) fail('SEALED_REALMS_WORKFLOW_AUTHORITY_GITHUB_RESPONSE_INVALID');
+    if (response.body === null || signal.aborted) {
+      fail('SEALED_REALMS_WORKFLOW_AUTHORITY_GITHUB_RESPONSE_INVALID');
+    }
+    reader = response.body.getReader();
+    const aborted = new Promise((_resolve, reject) => {
+      onAbort = () => reject(new SealedRealmsProductionWorkflowAuthorityError(
+        'SEALED_REALMS_WORKFLOW_AUTHORITY_GITHUB_RESPONSE_INVALID',
+      ));
+      signal.addEventListener('abort', onAbort, { once: true });
+      if (signal.aborted) onAbort();
+    });
+    let total = 0;
+    while (true) {
+      const chunk = await Promise.race([reader.read(), aborted]);
+      if (chunk.done) { complete = true; break; }
+      if (!types.isUint8Array(chunk.value)) {
+        fail('SEALED_REALMS_WORKFLOW_AUTHORITY_GITHUB_RESPONSE_INVALID');
+      }
+      total += chunk.value.byteLength;
+      if (total > MAXIMUM_GITHUB_RESPONSE_BYTES
+        || (length !== null && total > Number(length))) {
+        fail('SEALED_REALMS_WORKFLOW_AUTHORITY_GITHUB_RESPONSE_INVALID');
+      }
+      chunks.push(Buffer.from(chunk.value));
+    }
+    if (length !== null && total !== Number(length)) {
+      fail('SEALED_REALMS_WORKFLOW_AUTHORITY_GITHUB_RESPONSE_INVALID');
+    }
+    bytes = Buffer.concat(chunks, total);
     return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
   } catch (error) {
     if (error instanceof SealedRealmsProductionWorkflowAuthorityError) throw error;
     fail('SEALED_REALMS_WORKFLOW_AUTHORITY_GITHUB_RESPONSE_INVALID');
   } finally {
+    if (onAbort !== undefined) signal.removeEventListener('abort', onAbort);
+    if (!complete) {
+      try { void (reader === undefined ? response?.body?.cancel() : reader.cancel())?.catch(() => {}); }
+      catch { /* Cleanup cannot replace the bounded failure. */ }
+    }
+    try { reader?.releaseLock(); } catch { /* A cancelled pending read may still be settling. */ }
     bytes?.fill(0);
+    for (const chunk of chunks) chunk.fill(0);
   }
 }
 
@@ -118,11 +155,11 @@ async function reattest(state, inactiveClaimRun) {
         signal: controller.signal,
       });
     } catch {
-      fail('SEALED_REALMS_WORKFLOW_AUTHORITY_ATTESTATION_UNAVAILABLE');
-    } finally {
       clearTimeout(timer);
+      fail('SEALED_REALMS_WORKFLOW_AUTHORITY_ATTESTATION_UNAVAILABLE');
     }
-    return boundedGithubJson(response, url);
+    try { return await boundedGithubJson(response, url, controller.signal); }
+    finally { clearTimeout(timer); }
   };
   const [branch, run, claimRun] = await Promise.all([
     request(`/repos/${SEALED_REALMS_PRODUCTION_REPOSITORY}/branches/main`),

@@ -112,6 +112,94 @@ function requireExports(module: WorkflowAuthorityModule) {
 }
 
 describe('sealed-realms protected workflow authority', () => {
+  it('cancels an oversized chunked GitHub body before buffering it completely', async () => {
+    const module = await workflowAuthorityModule();
+    const remote = github();
+    const cancel = vi.fn();
+    let chunks = 0;
+    const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (!url.endsWith('/branches/main')) return remote.fetchImpl(input, init);
+      const result = new Response(new ReadableStream({
+        pull(controller) { chunks += 1; controller.enqueue(new Uint8Array(300 * 1024)); },
+        cancel,
+      }), { headers: { 'content-type': 'application/json' } });
+      Object.defineProperty(result, 'url', { value: url });
+      return result;
+    };
+    await expect(module.issueSealedRealmsProductionWorkflowPermit!({ sourceAuthority: sourceAuthority(),
+      githubToken: 'github-sealed-realms-owner-token', runId: '1001', runAttempt: '1', fetchImpl,
+    })).rejects.toThrow('SEALED_REALMS_WORKFLOW_AUTHORITY_GITHUB_RESPONSE_INVALID');
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(chunks).toBeLessThanOrEqual(3);
+  });
+
+  it('keeps the request deadline active through a stalled response body', async () => {
+    const module = await workflowAuthorityModule();
+    const remote = github();
+    const cancel = vi.fn(() => new Promise<void>(() => {}));
+    vi.useFakeTimers();
+    try {
+      const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input);
+        if (!url.endsWith('/branches/main')) return remote.fetchImpl(input, init);
+        const result = new Response(new ReadableStream({ cancel }), {
+          headers: { 'content-type': 'application/json' },
+        });
+        Object.defineProperty(result, 'url', { value: url });
+        return result;
+      };
+      const pending = module.issueSealedRealmsProductionWorkflowPermit!({ sourceAuthority: sourceAuthority(),
+        githubToken: 'github-sealed-realms-owner-token', runId: '1001', runAttempt: '1', fetchImpl,
+      });
+      const rejected = expect(pending).rejects.toThrow('SEALED_REALMS_WORKFLOW_AUTHORITY_GITHUB_RESPONSE_INVALID');
+      await vi.advanceTimersByTimeAsync(10_001);
+      await rejected;
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it.each(['1', '500'])('rejects a mismatched declared body length %s', async length => {
+    const module = await workflowAuthorityModule();
+    const remote = github();
+    const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
+      const result = await remote.fetchImpl(input, init);
+      if (String(input).endsWith('/branches/main')) result.headers.set('content-length', length);
+      return result;
+    };
+    await expect(module.issueSealedRealmsProductionWorkflowPermit!({ sourceAuthority: sourceAuthority(),
+      githubToken: 'github-sealed-realms-owner-token', runId: '1001', runAttempt: '1', fetchImpl,
+    })).rejects.toThrow('SEALED_REALMS_WORKFLOW_AUTHORITY_GITHUB_RESPONSE_INVALID');
+  });
+
+  it('clears the request timer when fetching rejects before headers', async () => {
+    const module = await workflowAuthorityModule();
+    vi.useFakeTimers();
+    try {
+      await expect(module.issueSealedRealmsProductionWorkflowPermit!({ sourceAuthority: sourceAuthority(),
+        githubToken: 'github-sealed-realms-owner-token', runId: '1001', runAttempt: '1',
+        fetchImpl: async () => { throw new Error('private upstream failure details'); },
+      })).rejects.toThrow('SEALED_REALMS_WORKFLOW_AUTHORITY_ATTESTATION_UNAVAILABLE');
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('rejects invalid UTF-8 instead of replacing malformed bytes in authenticated metadata', async () => {
+    const module = await workflowAuthorityModule();
+    const remote = github();
+    const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (!url.endsWith('/branches/main')) return remote.fetchImpl(input, init);
+      const result = new Response(new Uint8Array([0xff]), { headers: { 'content-type': 'application/json' } });
+      Object.defineProperty(result, 'url', { value: url });
+      return result;
+    };
+    await expect(module.issueSealedRealmsProductionWorkflowPermit!({ sourceAuthority: sourceAuthority(),
+      githubToken: 'github-sealed-realms-owner-token', runId: '1001', runAttempt: '1', fetchImpl,
+    })).rejects.toThrow('SEALED_REALMS_WORKFLOW_AUTHORITY_GITHUB_RESPONSE_INVALID');
+  });
+
   it('issues only an opaque permit after exact GitHub attestation and re-attests every phase', async () => {
     const module = await workflowAuthorityModule();
     if (!requireExports(module)) return;
