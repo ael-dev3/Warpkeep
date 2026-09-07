@@ -71,3 +71,37 @@ This proves the source-pin derivation resolves that suite against the described
 candidate. It does not make the unrefrozen development checkout fully green,
 complete the activation generator capability, or establish live authority.
 The regenerated production files remain confined to the diagnostic checkout.
+
+## Current-source CI checkpoint — 2026-09-07 16:15 UTC
+
+[Verify run 34140355528](https://github.com/ael-dev3/Warpkeep/actions/runs/34140355528)
+tests source `2f8c9fd4da081bfa886d412522a03752264fab46`. Its completed Linux
+job `101800722504` reports **6 failed files, 581 passed, 1 skipped** in
+1,421.20 seconds. The five suites in the table above still fail. The sixth is
+`preparedClosureCompilerLifecycle.test.ts`: its simultaneous import/disposal
+failure fixture threw on an earlier valid graph root before reaching the
+intended invalid import.
+
+Local commit `16232f6` targets the disposal injection at the invalid-import
+file and asserts that exactly one injected disposal failure occurred. It does
+not change production validation. All 12 lifecycle tests pass on Windows and
+in the isolated Linux dependency-repair checkout; root typecheck also passes.
+This fix is not part of the CI source above and needs the next CI run.
+
+The predecessor run `34139910959` also had a 10-second timeout in
+`greaterRealmProductionPublisher.test.ts` for post-gate SIGKILL ambiguity.
+That file is not among the failures in `34140355528`; recurrence is unproven.
+No timeout or publish-safety assertion was relaxed.
+
+The auth-bridge, native-contract and release-recovery jobs passed in the
+current run. SpacetimeDB verification was still running when inspected;
+this is not an aggregate CI pass. Retrieve the completed Linux evidence with:
+
+```powershell
+gh api repos/ael-dev3/Warpkeep/actions/jobs/101800722504/logs
+```
+
+Next-action boundary: the five existing failure families still need complete
+candidate derivation and authenticated activation-generator integration.
+Repeated CI retries alone cannot resolve them. Keep their assertions intact;
+do not install a final freeze before gameplay and operating sources are ready.
