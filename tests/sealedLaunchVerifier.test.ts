@@ -473,6 +473,21 @@ describe('0.4.0 sealed-launch verifier', () => {
     expect(() => verify!(widened)).toThrow(
       'SEALED_LAUNCH_G002_ROOT_ABI_INVALID',
     );
+    const mutations = [
+      root.replace('  initializeGameplay04KeepV1,', ''),
+      root.replace('  getGameplay04KeepV1,', ''),
+      root.replace('  dispatchGameplay04WorkerV1,', ''),
+      root.replace('  recallGameplay04WorkerV1,', ''),
+      root.replace("export { startGameplay04BuildingV1 } from './gameplayConstruction';", ''),
+      root.replace("export { runGameplay04ScheduleV1 } from './gameplaySchedule';", ''),
+      root.replace("'run_gameplay_04_schedule_v_1'", "'run_gameplay04_schedule_v1'"),
+      root.replace('canonicalName: name', "canonicalName: 'bootstrap_player'"),
+      `${root}\nexport { bootstrapPlayer } from './lifecycle';`,
+    ];
+    for (const mutated of mutations) {
+      expect(mutated).not.toBe(root);
+      expect(() => verify!(mutated)).toThrow('SEALED_LAUNCH_G002_ROOT_ABI_INVALID');
+    }
   });
 
   it('verifies the Task 6C publication, ownerless import, and owner ancestry transition', () => {
