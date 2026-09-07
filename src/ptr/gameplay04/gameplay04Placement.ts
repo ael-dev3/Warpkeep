@@ -24,7 +24,7 @@ export function rotatePlacement04(draft: Placement04): Placement04 {
 }
 
 const MESSAGES: Readonly<Record<PlacementResult04['reason'], string>> = Object.freeze({
-  valid: 'Ready to build.', invalid: 'Choose a valid building placement.', 'off-grid': 'Use the half-metre placement grid.',
+  valid: 'Placement is valid.', invalid: 'Choose a valid building placement.', 'off-grid': 'Use the half-metre placement grid.',
   rotation: 'Use quarter-turn rotations.', outside: 'Keep the building inside the buildable grounds.',
   reserved: 'Keep roads and civic space clear.', occupied: 'Leave space between buildings.',
   'duplicate-kind': 'This building already exists. Select it to upgrade.', 'invalid-state': 'Refresh the keep before placing a building.',

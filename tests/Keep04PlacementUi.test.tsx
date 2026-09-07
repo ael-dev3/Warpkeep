@@ -9,8 +9,25 @@ import type { Placement04 } from '../spacetimedb/gameplay04/placement';
 import type { Controller04, Snapshot04 } from '../src/ptr/gameplay04/createGameplay04Controller';
 import { decodeState04 } from '../src/ptr/gameplay04/gameplay04State';
 import { presentState04 } from '../src/ptr/gameplay04/gameplay04Presentation';
-import { ATLAS04, SCOPE04, MILL_PLACEMENT04, wireWithBuilding04 } from './fixtures/gameplay04Client';
+import { ATLAS04, SCOPE04, MILL_PLACEMENT04, wireWithBuilding04, constructingWire04, freshWire04 } from './fixtures/gameplay04Client';
 afterEach(cleanup);
+
+it.each(['busy', 'shortage'] as const)('does not present a legal site as build-ready with %s', reason => {
+  const wire = reason === 'busy' ? constructingWire04() : freshWire04();
+  if (reason === 'busy') Object.assign(wire, { food: 10000n, wood: 10000n, stone: 10000n, gold: 10000n });
+  const snapshot: Snapshot04 = { phase: 'ready', problem: 'none', view: presentState04(decodeState04(wire, SCOPE04), ATLAS04, Date.now()) };
+  const controller: Controller04 = { getSnapshot: () => snapshot, subscribe: () => () => {}, refresh: vi.fn(async () => {}), setAtlas: vi.fn(), submit: vi.fn(async () => {}), retryPending: vi.fn(async () => {}), dispose: vi.fn() };
+  render(<Keep04Screen snapshot={snapshot} controller={controller}
+    selection={{ panel: 'buildings', selectedKind: 'lumber-camp', draft: { kind: 'lumber-camp', x: 20_000_000n, z: -20_000_000n, rotation: 0 } }}
+    onSelectionChange={vi.fn()} onBack={vi.fn()} quality="reduced" reducedMotion onFindResources={vi.fn()} onReturnToWorld={vi.fn()} />);
+  const confirm = screen.getByRole('button', { name: 'Confirm placement' });
+  expect(confirm).toBeDisabled();
+  fireEvent.click(confirm); expect(controller.submit).not.toHaveBeenCalled();
+  if (reason === 'busy') expect(screen.getByText('Builder busy')).toBeVisible();
+  else expect(screen.getAllByRole('button', { name: /Find (food|wood|stone)/ }).length).toBeGreaterThan(0);
+  expect(screen.queryByText(/ready to build/i)).not.toBeInTheDocument();
+  expect(screen.getByText('Placement is valid.')).toBeVisible();
+});
 
 it('maps taps to the half-meter grid, exposes exclusions and gives keyboard/touch equivalent nudges and rotations', () => {
   let latest: Placement04 | null = MILL_PLACEMENT04;
