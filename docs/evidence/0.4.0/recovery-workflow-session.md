@@ -115,3 +115,23 @@ Windows adapter/session run: 21 tests passed with one Linux-only skip;
 targeted strict TypeScript passed. Eight adapter tests cover the normal path,
 missing/substituted/expired storage, ambiguity, verifier failure, concurrency
 and disposal. No live request was sent.
+
+## 2026-09-07: native cross-process signature and persistence probe
+
+`tests/fixtures/recoveryClaimHandoffNativeProbe.mjs` passed on WSL Ubuntu with
+Node 22.22.3 using `node --experimental-vm-modules
+tests/fixtures/recoveryClaimHandoffNativeProbe.mjs` from the repository.
+Eight child-process scenarios check write, independent deployment reopen,
+exclusive-write rejection, deployment expiry, post-expiry reconciliation,
+reconciliation deadline, changed artifact context, and wrong signing key.
+The persisted file's 0600 permissions are also checked. All children terminate
+before the next starts; the parent removes its owned temporary directory.
+
+This runs the actual handoff, claim verifier and signature protocol source with
+real filesystem operations and real EC signature verification. Only the public
+key module and clock are substituted inside a test-only VM. The ephemeral test
+private key stays in parent memory; test inputs pass through stdin and child
+stdout contains only an acceptance boolean. The result reports eight passing
+scenarios and no production credentials used. It does not verify genuine OIDC,
+the reconciliation network adapter, runner restart orchestration, or workflow
+installation. Those release integration requirements remain outstanding.
