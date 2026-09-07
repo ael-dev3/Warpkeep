@@ -19,6 +19,33 @@ async function fixture() {
   } }
 }
 
+it('composes signed status with real control transitions and rejects invalid secrets before ledger access', async () => {
+  const { input } = await fixture()
+  const { RecoverySigner } = await import('../src/signer.js')
+  const { verifyRecoveryStatusJws } = await import('../src/crypto.js')
+  const { createLedgerV2Control, reconcileLedgerV2Control } = await import('../src/ledgerV2.js')
+  const { arming } = await import('./signerControlFixture.js')
+  let state = createLedgerV2Control({ authorizationEpoch: 3 })
+  const ledger = { reconcileControl: vi.fn(async (value: Parameters<typeof reconcileLedgerV2Control>[1]) => {
+    state = reconcileLedgerV2Control(state, value)
+    return state
+  }) }
+  const control = { RECOVERY_ENABLED: 'true', RECOVERY_AUTHORIZATION_EPOCH: '3', RECOVERY_ARMING_MANIFEST: JSON.stringify(arming()) }
+  const signer = new RecoverySigner(control, input, ledger, () => 1000)
+  const response = await signer.status()
+  expect(Object.keys(response)).toEqual(['statusJws'])
+  expect(await verifyRecoveryStatusJws(response.statusJws, 1000)).toMatchObject({ enabled: true, authorizationEpoch: 3, iat: 1000, exp: 1060 })
+  await expect(verifyRecoveryStatusJws(response.statusJws, 1060)).rejects.toThrow('RECOVERY_JWS_TIME_INVALID')
+  const disabled = new RecoverySigner({ ...control, RECOVERY_ENABLED: 'false' }, input, ledger, () => 1001)
+  expect(await verifyRecoveryStatusJws((await disabled.status()).statusJws, 1001)).toMatchObject({ enabled: false })
+  await expect(signer.status()).rejects.toThrow('RECOVERY_LEDGER_ARMING_ALREADY_USED')
+  ledger.reconcileControl.mockClear()
+  await expect(new RecoverySigner(control, {}, ledger, () => 1000).status()).rejects.toThrow('RECOVERY_SIGNER_SECRETS_INVALID')
+  await expect(new RecoverySigner(control, input, ledger, () => NaN).status()).rejects.toThrow('RECOVERY_SIGNER_TIME_INVALID')
+  await expect((signer.status as (...args: unknown[]) => Promise<unknown>)({ enabled: true })).rejects.toThrow('RECOVERY_SIGNER_REQUEST_INVALID')
+  expect(ledger.reconcileControl).not.toHaveBeenCalled()
+})
+
 it('validates the actual key self-check against test-only ephemeral pins and snapshots output', async () => {
   const { validateSignerSecrets, input, privateJwk } = await fixture()
   const result = await validateSignerSecrets(input)
