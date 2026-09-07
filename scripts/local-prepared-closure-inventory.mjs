@@ -64,13 +64,19 @@ function pathsValid(paths) {
 
 /** Internal source transformation only; never installation or release authority. */
 export function derivePreparedClosureInventorySource(options) {
+  return deriveInventory(options, false);
+}
+
+function deriveInventory(options, expandBundles) {
   let body;
   try {
-    if (options === null || typeof options !== 'object' || Object.getPrototypeOf(options) !== Object.prototype
-      || Reflect.ownKeys(options).length !== 1 || !Object.hasOwn(options, 'repositoryRoot')
-      || !Object.hasOwn(Object.getOwnPropertyDescriptor(options, 'repositoryRoot'), 'value')
-      || typeof options.repositoryRoot !== 'string') fail();
-    const paths = deriveAuthBridgeNotificationPreparedDeployClosurePaths(options);
+    repositoryOption(options);
+    const scanned = deriveAuthBridgeNotificationPreparedDeployClosurePaths(options);
+    pathsValid(scanned);
+    // The generated policy changes only this fixed static set, not graph roots
+    // or traversal semantics. Compute its exact union without loading executable
+    // candidate source or accepting a caller-selected inventory override.
+    const paths = expandBundles ? [...new Set([...scanned, ...BUNDLE_MEMBERS])].sort() : scanned;
     pathsValid(paths);
     const opened = readLocalBindingBoundedFile(resolve(options.repositoryRoot, PATH), { maximumBytes: MAX_BYTES, minimumBytes: 1 });
     body = opened.body;
@@ -119,11 +125,26 @@ const escapePattern = text => text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 
 /** Derive the inventory-dependent subset, never a complete installed candidate. */
 export function derivePreparedClosureInventoryAndCounts(options) {
+  return deriveCounts(options, false);
+}
+
+/** One consistent prospective policy/inventory/count family; no installation. */
+export function derivePreparedClosurePolicyInventoryAndCounts(options) {
+  return deriveCounts(options, true);
+}
+
+function deriveCounts(options, expandBundles) {
   const owned = [];
   try {
-    const inventory = derivePreparedClosureInventorySource(options);
+    const files = [];
+    if (expandBundles) {
+      const policy = derivePreparedClosurePolicySource(options);
+      owned.push(policy.bytes);
+      files.push(policy);
+    }
+    const inventory = deriveInventory(options, expandBundles);
     owned.push(inventory.bytes);
-    const files = [{ path: inventory.path, bytes: inventory.bytes }];
+    files.push({ path: inventory.path, bytes: inventory.bytes });
     for (const [path, slots] of COUNT_CONSUMERS) {
       const opened = readLocalBindingBoundedFile(resolve(options.repositoryRoot, path), { maximumBytes: MAX_BYTES, minimumBytes: 1 });
       let source;

@@ -25,3 +25,31 @@ Verification on Windows with pinned Node 22.22.3:
 This is a generation step, not a final policy installation or release freeze.
 Complete-family composition, native installation with independent verification,
 and whole-family convergence remain required. No production state changed.
+
+## Connected policy/inventory/count derivation
+
+`derivePreparedClosurePolicyInventoryAndCounts` now returns all eight related
+files together: the policy, verifier inventory, and six count-consumer files.
+It combines the validated scanned inventory with the exact nine static bundle
+members. This matches the policy's additive static-list transformation without
+executing generated candidate code or accepting caller-selected member paths.
+Existing graph traversal and existing security members are unchanged.
+
+The expanded set is validated again after union, including the 2,048-member
+bound and case-fold collisions. A missing later consumer fails the whole call;
+no partial policy output is returned. Owned result buffers are cleared on failure.
+
+Fresh evidence:
+
+- Focused suite: 34 passed, one Windows symlink skip; strict targeted types passed.
+- Tests cover consistent updates to every count, convergence with both the old
+  and expanded scanner inventory, case collisions, aggregate member overflow,
+  and missing later consumers.
+- Read-only real-worktree derivation produced eight files and 1,086 members.
+  Every output passed the transaction installer's shared path allowlist.
+- The resulting verifier source was 110,699 bytes with SHA-256
+  `06e96aff16f24e46bc29aa521d8258b0b6deb3e5dde99a78cf96b8604d706a55`.
+
+This does not yet connect bindings, source pins, workflow/manifest generation,
+native transaction publication, and independent post-install verification into
+one complete assembler invocation. Those remain mandatory before release freeze.

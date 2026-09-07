@@ -15,3 +15,9 @@ export function derivePreparedClosurePolicySource(options: Readonly<{ repository
   path: 'scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs';
   bytes: Uint8Array;
 }>;
+
+/** Fixed expanded policy, inventory and all count consumers, derived together. */
+export function derivePreparedClosurePolicyInventoryAndCounts(options: Readonly<{ repositoryRoot: string }>): Readonly<{
+  memberCount: number;
+  files: readonly Readonly<{ path: string; bytes: Uint8Array }>[];
+}>;

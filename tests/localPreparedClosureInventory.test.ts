@@ -7,7 +7,7 @@ const scanner = vi.hoisted(() => ({ paths: ['scripts/a.mjs', 'src/b.ts'] }));
 vi.mock('../scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs', () => ({
   deriveAuthBridgeNotificationPreparedDeployClosurePaths: () => scanner.paths,
 }));
-import { derivePreparedClosurePolicySource, derivePreparedClosureInventorySource, derivePreparedClosureInventoryAndCounts } from '../scripts/local-prepared-closure-inventory.mjs';
+import { derivePreparedClosurePolicySource, derivePreparedClosurePolicyInventoryAndCounts, derivePreparedClosureInventorySource, derivePreparedClosureInventoryAndCounts } from '../scripts/local-prepared-closure-inventory.mjs';
 const declaration = (paths: string[], newline = '\n') => `export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =${newline}  Object.freeze([${newline}${paths.map(path => `    '${path}',${newline}`).join('')}  ]);`;
 let root: string;
 let path: string;
@@ -110,6 +110,46 @@ function writeConsumers() {
   writeFileSync(path, declaration(['scripts/a.mjs']));
   for (const [name, body] of Object.entries(countConsumers)) writeFileSync(join(root, name), `${body}\n// unrelated 997 and 1027\n`);
 }
+it('derives expanded policy, inventory and every count together and converges before or after scanner expansion', () => {
+  writeConsumers();
+  const originalPolicy = policyDeclaration(['scripts/a.mjs']);
+  writeFileSync(join(root, policyPath), originalPolicy);
+  const result = derivePreparedClosurePolicyInventoryAndCounts({ repositoryRoot: root });
+  expect(result.files).toHaveLength(8);
+  expect(result.memberCount).toBe(11);
+  const inventory = result.files.find(file => file.path.endsWith('deploy-closure.mjs'))!;
+  expect(Buffer.from(inventory.bytes).toString()).toBe(declaration([...scanner.paths, ...bundleMembers].sort()));
+  for (const [name, body] of Object.entries(countConsumers)) {
+    const file = result.files.find(file => file.path === name)!;
+    expect(Buffer.from(file.bytes).toString()).toBe(`${body.replace(/997|1027/gu, '11')}\n// unrelated 997 and 1027\n`);
+    expect(readFileSync(join(root, name), 'utf8')).toBe(`${body}\n// unrelated 997 and 1027\n`);
+  }
+  expect(readFileSync(join(root, policyPath), 'utf8')).toBe(originalPolicy);
+  for (const file of result.files) writeFileSync(join(root, file.path), file.bytes);
+  expect(derivePreparedClosurePolicyInventoryAndCounts({ repositoryRoot: root })).toEqual(result);
+  scanner.paths = [...scanner.paths, ...bundleMembers].sort();
+  expect(derivePreparedClosurePolicyInventoryAndCounts({ repositoryRoot: root })).toEqual(result);
+});
+it('rejects a case-colliding scanned bundle path rather than dropping it from the expanded family', () => {
+  writeConsumers();
+  writeFileSync(join(root, policyPath), policyDeclaration(['scripts/a.mjs']));
+  scanner.paths = [bundleMembers[0].toUpperCase()];
+  expect(() => derivePreparedClosurePolicyInventoryAndCounts({ repositoryRoot: root })).toThrow();
+});
+it('rejects expansion above the total member limit', () => {
+  writeConsumers();
+  writeFileSync(join(root, policyPath), policyDeclaration(['scripts/a.mjs']));
+  scanner.paths = Array.from({ length: 2040 }, (_, index) => `src/file${String(index).padStart(4, '0')}.ts`);
+  expect(() => derivePreparedClosurePolicyInventoryAndCounts({ repositoryRoot: root })).toThrow();
+});
+it('does not return a policy-only partial result when a later count consumer is missing', () => {
+  writeConsumers();
+  const original = policyDeclaration(['scripts/a.mjs']);
+  writeFileSync(join(root, policyPath), original);
+  rmSync(join(root, 'tests/greaterRealmReleaseGateDeployBoundary.test.ts'));
+  expect(() => derivePreparedClosurePolicyInventoryAndCounts({ repositoryRoot: root })).toThrow();
+  expect(readFileSync(join(root, policyPath), 'utf8')).toBe(original);
+});
 it('derives all eleven count slots together without touching unrelated numbers or source files', () => {
   writeConsumers();
   const result = derivePreparedClosureInventoryAndCounts({ repositoryRoot: root });
