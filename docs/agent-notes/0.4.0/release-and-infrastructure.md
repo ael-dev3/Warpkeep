@@ -1,17 +1,17 @@
 # Release engineering, CI and infrastructure audit
 
-Original source inspection: 2026-09-07, local
-`781e51e364d1e5a7319ca2364744c8730e83b0d6`. Current caller status below includes
-the source integration following `a4ec99f`, with the fixed Linux sealed-preflight
-caller/workflow, canonical candidate and historical inspection, plus the earlier
-assembler and receipt projection. Runner infrastructure was verified online on
-September 8 at 02:39 UTC; separate sealed-operation roots were then provisioned.
-The original
-provider/process and CI observations below retain their dates and source scope.
-Authenticated provider and local-process observations were refreshed on September 7
-around 21:48–21:51 UTC. Later publication state belongs in the
-[execution handoff](execution-handoff.md). Provider observations expire; reverify
-the relevant account, target and operating source before effects.
+Current implementation includes the published Linux sealed-preflight/Worker
+checkpoint `1e90b2e`, its verified generated-only family `de10f83`, and the
+reviewed recovery-policy repair `1f91470`. Native prepare/check and compiled
+G002/PTR table-schema comparison passed for exact `1e90b2e`. The repaired policy
+suite passed all 159 cases with app/config types; current-source preparation and
+GitHub CI remain distinct from those results. See the
+[execution handoff](execution-handoff.md) for the selected publication source.
+
+The original September 7 audit was at `781e51e`; its dated provider/process/CI
+observations below retain that scope. Later September 8 entries supersede only
+the specific facts they rechecked. Provider observations expire; reverify the
+relevant account, target and operating source before effects.
 
 Use this map to connect implementation to its next real caller. It supplements
 the single [release checklist](../../operations/0.4.0-release-checklist.md), not a
@@ -53,6 +53,58 @@ safe inspection commands are maintained in
 [infra access](../../operations/0.4.0-infra-access.md). Do not rebuild a fresh-create
 plan on the assumption that those databases are absent, and do not treat their
 existence as evidence that current gameplay or owner provisioning is deployed.
+
+
+### Existing G002/PTR update evidence — September 8
+
+Authenticated schema and identity reads at 02:50 UTC confirmed the exact existing
+G002 and PTR targets. Their live schemas lack the new gameplay tables. A detailed
+comparison of retained source declarations found no change in ordered columns,
+algebraic types, primary keys, indexes, constraints, sequences or private access.
+A subsequent locked Linux build from exact source `1e90b2e` passed the complete
+compiled table-schema comparison at 03:30 UTC, with an independent descriptor
+replay. Every existing canonical table object and its reachable types match;
+the added gameplay tables' private access, keys, indexes, sequence and actual
+schedule target also match the source contract. PTR's sanitized browser bindings
+contain no table descriptors and are not the comparison authority. The owned
+in-memory loopback instance used no player rows and was stopped afterward.
+Current program identity, populated migration and retained writes still require
+their own evidence.
+
+At 02:59 UTC, one ordinary authenticated `st_module` metadata query per target was
+denied: `INVALID_GENESIS_002_ADMIN_SESSION` and `INVALID_PTR_OWNER_SESSION`. The
+requests asked for program hash/version only. No player rows, program bytes or
+mutation were requested; the ordinary connection lifecycle was invoked, so zero
+application effects were not independently established. That route was stopped
+without retries or substitute authority. GET metadata's `initial_program` is
+historical and must not be described as the current loaded program. A supported
+SQL observer must satisfy both application admission and provider query authority.
+A separate provider planning route is under source/protocol review; no live
+planning request or current-program conclusion has been made through that route.
+
+A separate native experiment on pinned SpacetimeDB 2.6.1 verified the update
+protocol using synthetic modules in a private loopback network namespace. Valid
+additive updates and forward replacements preserved exact old and new test rows,
+including writes after planning. The token-checking policy rejected a stale
+predecessor, changed candidate, absent token and wrong target. `Compatible`
+ignored the token. Returning to the exact old program made its old token valid
+again, so the token supplies neither a deployment epoch nor a row snapshot.
+
+This protocol evidence does not establish a Warpkeep migration. The fresh-only
+publishers and their receipts must retain their existing meanings. Connect a
+distinct existing-target update variant through authenticated observation,
+compiled compatibility, data-preserving recovery, durable reconciliation and the
+canonical receipt consumer. Do not replay import/owner creation or rewrite old
+receipts as evidence for a new module. The [engineering evidence](../../evidence/0.4.0/release-engineering.md)
+records the preparation and diagnostic scope.
+
+The historical creation record identifies module source `799814b` and exact
+published bundle SHA-256 values. A bounded search of known local project/artifact
+roots found no retained file matching either value. The historical source and
+locked inputs are available for an isolated reconstruction, but a current dist
+file or matching schema must not substitute for authenticated predecessor bytes.
+The original pre-gameplay program is not automatically a safe rollback: recovery
+must preserve newer tables and writes as well.
 
 ## Windows/WSL working environment and process evidence
 

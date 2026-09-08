@@ -1,21 +1,38 @@
 # Continue Warpkeep 0.4
 
-Refreshed 2026-09-08 (Europe/Budapest), following published `a4ec99f` and the
-reviewed Linux sealed-preflight caller/workflow integration. Earlier
-`772d3a4`, `f558bd5` and `781e51e` entries retain their exact historical scope.
-Read actual Git refs and dated evidence for generated-family publication and
-native execution results; a newer source change requires its own derivation.
+Refreshed 2026-09-08 (Europe/Budapest). Exact `1e90b2e` includes the fixed Linux
+sealed-preflight caller and selected-Worker navigation. Its complete native
+prepare and independent rebuilding check passed; generated-only commit
+`de10f83` integrates the authenticated output delta. Policy repair `1f91470`
+then aligns verification with the existing deploy/read-only-recovery workflow.
+The repaired suite passed all 159 cases and both type checks passed. This newer
+source and documentation need their own selected-source preparation/check. Dated earlier entries retain their historical scope.
 Read the [handoff index](README.md) for product intent and the
 [infrastructure audit](release-and-infrastructure.md) for dated provider/CI facts.
 The owner requested the GitHub/profile/repository refresh before game shipping.
 
 ## Resume from the actual development checkout
 
-The `a4ec99f` development checkpoint was pushed without force after its six-commit
-outgoing secret scan passed; local and GitHub refs matched. Its separate CodeQL
-security check passed with zero annotations. The Linux and database jobs were
-still running at that observation; do not infer a complete Verify pass. The next
-Linux caller/workflow source requires its own preparation and independent check.
+The published `1e90b2e` checkpoint has successful CodeQL analysis and security
+checks. Its main Linux test batch passed, but the dedicated PreparedWorkflow suite
+failed 13 cases because its validator and tests had drifted from the already
+published deploy/read-only-recovery workflow. The separate source repair now
+passes its full affected suite; a fresh GitHub run must verify the new checkpoint.
+Do not infer a full Verify pass from scoped results. The entire database CI job
+passed at 03:47 UTC, including module/binding verification, exporter compatibility,
+relocation/rollback, populated gathering and dependency audit. Auth bridge,
+native contract and release recovery also passed. The aggregate Verify result
+remains failed because the separate Linux job failed.
+
+Native preparation QA covered 499 unique passing cases across the documented
+overlay and clean synthetic Git topologies, with 25 privileged namespace skips;
+app/config types passed. The generated export contains no source/test overlay.
+Fresh G002/PTR compilation and independent descriptor replay preserve every old
+table's complete schema and validate the added gameplay descriptors. The separate
+native protocol experiment demonstrates update-token and synthetic row-preservation
+behavior. Neither result establishes actual current provider program, populated
+Warpkeep migration, live authority or owner acceptance. Follow the dated evidence
+and actual GitHub refs before operating or publishing another checkpoint.
 Read [the runner guide](../../operations/0.4.0-linux-runner.md) for installed
 account/private-root facts and [dated evidence](../../evidence/0.4.0/release-engineering.md)
 for synthetic native tests versus real protected operating acceptance.

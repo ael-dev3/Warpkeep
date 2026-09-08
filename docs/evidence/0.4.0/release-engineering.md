@@ -1,7 +1,20 @@
-# Remaining release-engineering execution gaps
+# Release engineering: implementation and evidence
 
-Inventory 2026-09-06; inspected checkout based on `c7f3c4d`.
-**R12 incomplete.** This names executable gaps, not permission to bypass fences.
+Current reading point: the September 8 entries at the end of this record cover
+the published Linux preflight/Worker source `1e90b2e`, its completed native
+prepare/check and generated-only integration `de10f83`, plus compiled G002/PTR
+table-schema compatibility and synthetic update-protocol validation. The
+[execution handoff](../../agent-notes/0.4.0/execution-handoff.md) gives the next
+connected work and actual publication/check status. **0.4 is not shipped.**
+
+Each dated section retains its exact source and scope. Earlier missing-component
+entries are history when a later section demonstrates their implementation;
+component success does not establish unrecorded production acceptance.
+
+## Historical execution inventory — September 6
+
+Inspected checkout `c7f3c4d`; R12 was incomplete. These are the observed gaps at
+that source, not a statement that every gap remains present in current code.
 
 | Component | Observed unfinished behavior | Required completion evidence |
 | --- | --- | --- |
@@ -687,3 +700,152 @@ becoming busy, invalid or busy chooser values, and target/duration reset on scop
 replacement. Integrated application and Vite-config types passed with the Linux
 caller/workflow changes. No server economy, automatic dispatch or live owner
 evidence was introduced.
+
+
+## Current-source preparation and existing-target protocol — 2026-09-08
+
+Native `prepare` and the independent rebuilding `check` both exited 0 for
+`1e90b2e4a67208c5ea70fd8589ec56ddacee2226`, source tree
+`ee1ce7b49a8b5f49205c3a82049d8c41fdc6287f`. Their complete returned results agree.
+Journal SHA-256 is
+`1a362293715d58dc863f81bf8017a961ba976faa06826e6cc4f21a063f6be8b4`;
+generated-family SHA-256 is
+`f6b6a8b425b449d9dd20c1115274cec5abf8e1d5a0ca1e91d82385e04af5b95b`.
+The closure manifest is
+`74db0de3fdc3d46943e579210b2bbedf1fd75b3b068146e0364250d7888cdb8d`.
+The actual logs and exit records were independently re-read and hashed after
+completion. These results remain `finalReleasePrepared:false`; generated-output
+QA, publication and real release authority are separate outcomes.
+
+During the check, new Windows-to-WSL command launches stalled and then returned
+`Wsl/Service/E_UNEXPECTED`. Bounded read-only UNC observations confirmed the
+actual Linux check and successive compiler children continued. The native check
+completed successfully at 03:21 UTC. Explicit Linux-directory/direct-exec command
+access subsequently recovered without restarting WSL or interrupting the guest.
+The failed control calls are neither failed compiler tests nor positive evidence.
+Do not restart an operation from an old process note without checking its actual
+log, exit record and process identity.
+
+Separately, twelve native provider-protocol assertions passed at 03:24 UTC against
+official SpacetimeDB 2.6.1, pinned Node 22.22.3 and SDK 2.6.1. The test used its own
+private Linux network namespace, local signing keys, synthetic owner and in-memory
+loopback server. Its compiled old/new table boundary matched; all observed program
+hashes were checked against exact compiled bytes, and preserved rows were compared
+in full. The server stopped and its local keys were removed.
+
+The tested harness SHA-256 is
+`5b806dcc0d51e54744798883f0f0c62544190db73c0a1d6d432e3f40bb939bdb`;
+result SHA-256 is
+`c3a3a0fac696d259dd75b05e4e0080945083b66c8df3e996544cd1492f45ad10`.
+Retained native and Windows harness/result/module inventories match byte for byte.
+The fixture's copied repository helpers match source `a4ec99f`; its dependency
+copies contain no escaping symlinks. Earlier staging and wire-decoding failures
+were retained separately and do not count as successful assertions.
+
+The experiment confirms that `Compatible` ignores the migration token. The
+token-checking policy rejects wrong target, changed candidate, stale predecessor
+and missing token without changing the tested state. An approved additive update
+and compatible forward replacement preserve exact pre-update, post-update and
+after-plan writes. ABA restores the original token's validity. The token is not
+an epoch, authorization credential or postflight receipt. This agrees with the
+[official migration-policy source](https://github.com/clockworklabs/SpacetimeDB/blob/v2.6.1/crates/schema/src/auto_migrate.rs#L79).
+
+The diagnostic's flag classifier is not a production additive-plan validator.
+This in-memory toy experiment does not prove Warpkeep's real migration, private
+population, schedules, application admission, crash durability, uncertain PUT
+reconciliation or recovery artifact. No live database or persistence source was
+changed. Read the [infrastructure boundary](../../agent-notes/0.4.0/release-and-infrastructure.md)
+for the real schema observations and denied current-program queries.
+
+## Integrated Linux preflight family and compiled schema — 2026-09-08
+
+Generated-only commit `de10f83103c45ba90f8375c922ab96b30779a864` has the exact
+prepared input `1e90b2e` as its parent. Its tree is
+`264d1e8725d1e618e17f92232bb18122e7359dda`. Every journal-approved output was
+reopened and checked against its size/hash before staging only the nine changed
+paths. The exact export SHA-256 is
+`3b7de8a375e918c0ba8d0ecc410b4d3d629aa56d8dfe73b8f001cf362fd568f7`.
+
+The requested release/Worker coverage passed 499 unique tests across explicitly
+separate Git topologies, with 25 privileged namespace cases skipped under normal
+UID1000. Nineteen suites passed with the generated overlay; LiveReceipt correctly
+rejected that dirty checkout, then passed all 20 cases in a clean synthetic child
+with identical tracked source/output bytes. The synthetic commit was not exported
+or treated as the preparation input. Both app and Vite-config type checks passed.
+An extra unchanged PreparedWorkflow baseline reproduced the 13 CI failures;
+it is not included in the passing coverage claim. No source guard was relaxed.
+
+Separately, G002 and PTR were freshly compiled from exact `1e90b2e` through the
+actual locked Linux build callbacks. Both real noEmit/build operations passed.
+The retained G002 module SHA-256 is
+`0037a0979a460aea8607a36fccd649d4311046925faeb3d8186276ac0a6ccbd3`;
+PTR is `c5c2cc46d428e85c87352c341d1a5235a69336a960f566b0a91a484deba3ec4e`.
+Each had one successful compile; this diagnostic is not a separate two-build
+reproducibility result. Temporary source-mode staging failures were corrected
+only inside scratch fixtures before compilation, with fixed helper checks intact.
+
+Their fresh RawModuleDef descriptions on an owned in-memory loopback instance
+preserve every existing canonical table object and reachable typespace from the
+02:50 UTC provider captures. G002's old boundary SHA-256 is
+`7e568010e2c2babed106e577a64ed7f866a92258337bd2aae4fac93aee8c7d21`;
+PTR's is `2b0463765c1c076e6c987774df65f6f8a45554c5b5d7ae16604d1c05cb2cf922`.
+The comparison keeps numeric type references and complete nested declarations.
+All added gameplay table descriptors match their declared private access,
+primary/index/unique keys and schedule sequence. The scheduler resolves to the
+exact `run_gameplay_04_schedule_v_1` reducer and row argument. Independent
+read-only replay passed both complete object comparisons and every new descriptor.
+
+This diagnostic used ordinary loopback, not a private network namespace; no
+player rows were seeded or read. Its server and temporary credentials were
+removed and cleanup independently checked. It closes compiled table-schema
+compatibility only. Actual current provider program, populated migration,
+post-update writes/recovery, procedure behavior, timers and owner play remain
+unverified. The native protocol experiment above has separate synthetic scope.
+Neither result is a deployed-state or final-release claim.
+
+## Exact 1e90b2e GitHub CI result — 2026-09-08
+
+[Verify 34181594471](https://github.com/ael-dev3/Warpkeep/actions/runs/34181594471)
+completed with failure. Auth bridge, native contract, release recovery and the
+entire database job passed. The latter includes its real module/generated-binding
+verification, synthetic exporter/server compatibility, connected relocation and
+rollback, populated gathering rehearsal and dependency audit. It completed at
+03:47 UTC; earlier running-state notes are superseded for this exact source.
+
+Linux's main batch passed 9,266 tests across 596 files, with 146 tests and two
+files skipped. Its later dedicated PreparedWorkflow suite passed 105 cases and
+failed 13; the accompanying canary closure suite passed. The subsequent Linux
+static checks, type checks, build and audit did not run. Both the CodeQL analysis
+workflow and separate security check passed for this source. A new source repair
+must earn its own required checks; these results cannot be relabelled as that run.
+
+## Prepared recovery workflow policy repair — 2026-09-08
+
+Source-only commit `1f91470e879550a4c5610f3ac6d97b5f2fad41fd` changes the static policy verifier and its affected
+suite. The published YAML already selected deployment or explicit read-only
+recovery; its old verifier still required deployment invocation/credentials in
+both steps and an obsolete final condition. That drift originated with the
+earlier workflow change `326cc9c`. The repaired verifier checks each actual
+operation, recovery's smaller credential relay and verified result, and the
+complete terminal outcome step. Credential/scrub uses are paired to their real
+functions so preserved global string totals cannot conceal a missing use.
+
+The three source-owner workflow comparison hashes were mechanically derived from
+unchanged committed `1e90b2e` YAML and independently reviewed. Its four generated
+bootstrap slots retain their existing canonical projection. Exact comparison
+with `de10f83` confirms unchanged operation behavior after that projection; no
+workflow, generated output, admission gate, authority, timeout or credential
+boundary was widened. Declaration tests now compare exact executable/declaration
+pairs and explicit exceptions; the existing generated member-count slot remains
+owned by its generator. Negative closure cases establish a valid baseline and
+verify actual set changes before asserting the current exact rejection.
+
+All 159 native cases passed in the final complete run: the 118 existing cases and
+41 new cases, including execution of the real configured final shell and targeted
+recovery/outcome/credential mutations. Both app and Vite-config noEmit checks
+passed. Tests ran in an owned Linux fixture with a copied pinned Node executable
+matching its actual test UID; this is not operating-runner authority. Earlier
+fixture UID/indentation errors and superseded runs were retained, then corrected
+without weakening source checks. The final exact two-path export SHA-256 is
+`a8cbf046c147f4dbfc0881827780b2d9c27de084803433cdbecc478a60fb1e2d`.
+This source repair needs its own generated family and required CI result.
