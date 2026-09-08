@@ -1,175 +1,101 @@
 # Warpkeep 0.4 recovery evidence
 
-Status on 2026-09-08: **complete integrated recovery acceptance remains open**.
-This record distinguishes source-file recovery, hosting recovery, protocol
-experiments and recovery of persistent game state. Success in one does not prove
-the others.
+Status on 2026-09-08: **integrated production recovery acceptance remains open**.
+Recovery must preserve legitimate player writes made both before and after an
+update. Restoring an old database snapshot over later progress is unacceptable.
+Source-file recovery, frontend hosting recovery and persistent-world recovery
+have separate implementations and acceptance evidence.
 
-## Required result
+## What has been verified
 
-The [release checklist](../../operations/0.4.0-release-checklist.md) requires
-recovery tested in isolation before deployment, compatible with the deployed
-schema and preserving legitimate writes made before and after deployment. An old
-database snapshot must not overwrite subsequent player progress.
-
-Possession of the exact historical G002/PTR executable is not itself this
-requirement. It would strengthen a faithful historical-artifact rehearsal, but a
-tested forward-compatible replacement can preserve state without reinstalling old
-code. Fresh authenticated current-program identity is still needed at an actual
-update boundary. A reconstructed schema-equivalent fixture must not be described
-as the exact deployed predecessor.
-
-## Evidence available
-
-| Evidence | Established scope | Remaining limit |
+| Evidence | Result | Limit |
 | --- | --- | --- |
-| Native preparation transaction and journal recovery | Restores candidate source files and retains verifiable transaction/recovery records. | Does not restore a deployed game or prove player-write preservation. |
-| Pages recovery caller and authorization protocol | Connects selected frontend artifacts, claims and postflight to the hosting recovery boundary. | The recovery signer is not a database administrator or realm rollback API. |
-| Native SpacetimeDB 2.6.1 protocol experiment | Actual compiled toy modules preserve complete fixture rows through additive update and forward replacement; wrong/stale target/program/token cases refuse, and ABA behavior is observed. | Synthetic in-memory protocol evidence, not a populated Warpkeep migration or crash-durability result. |
-| Compiled G002/PTR schema comparison | Exact `1e90b2e` candidates preserve the captured old table/type boundary and declare the intended private gameplay additions. | No player rows were populated or migrated by that comparison. |
-| Authenticated 04:02 UTC provider planning | Supports the loaded-program fingerprints and expected additive plans at the captured snapshots. | No publication or row-preservation test; no continuous-currentness or no-effect inference. |
+| Native preparation transaction recovery | Candidate source files and transaction journals can be recovered and verified. | Does not recover a deployed world. |
+| Pages recovery caller | Selected frontend artifacts, authorization claims and postflight are connected to hosting recovery. | The recovery signer is not a realm database administrator. |
+| Pinned SpacetimeDB protocol experiment | Compiled toy modules preserve fixture rows through additive update and replacement; wrong or stale identities and tokens refuse. | Synthetic protocol fixture, separate from real Warpkeep state. |
+| Populated Warpkeep A-to-B rehearsal | Real importers populate G002/PTR; updates preserve all old rows and complete table boundaries; PTR gathering and construction settle on actual timers. | Historical A is reconstructed source, and external player identity is synthetic. |
+| Lost-acknowledgement reconciliation | The host accepts one update; a fresh adapter reopens durable records and confirms preservation without another PUT. | Adapter reopening occurs within one isolated process/runtime, not after host restart. |
+| V2 inspection contention | Two competing OS processes share one exclusive predecessor slot; one succeeds and the other refuses. | Partial-record crash recovery and production activity remain outside that proof. |
 
-The [engineering record](release-engineering.md) retains exact commits, artifact
-hashes, test results and their limits. The first historical-source reconstruction
-did not match the recorded original bundle hashes. Those files remain diagnostic
-fixtures, not recovered original executables or selected recovery artifacts.
+The populated direct-protocol rehearsal completed at 08:24 UTC and a dispatcher
+draft rehearsal at 08:40 UTC. The v1 acknowledgement-loss attempt first recovered
+both updates but later timed out polling gathering schedules. A separately retained
+instrumented run completed the full journey at 09:25 UTC without changing game code
+or timeouts. The original timeout remains unexplained; this is not a timeout fix.
 
-## Actual-module continuation
+The repository-owned Linux harness passed the dispatcher, continuation and v2
+update suites under UID 1000 and UID 1001. The unsupported-runtime case is skipped
+inside the supported namespace. Restoring the former UID restriction caused the
+required UID 1001 native check to fail. Publisher/reconciliation regression and
+app/configuration type checks also passed. Current development and CI are tracked
+in the [agent handoff](../../agent-notes/0.4.0/README.md).
 
-The next isolated experiment uses retained compiled Warpkeep modules, synthetic
-local authority and representative valid atlas/owner/gameplay state. First confirm
-the `799814b5` historical fixture's complete compiled schema, import through the real
-reducers, update to the exact retained `1e90b2e` candidate without deletion, and compare
-retained state. Exercise real gathering and construction with unmodified policy
-timings, then verify continued settlement and single credit through containment
-and resume. Its first attempt created only the local historical G002 fixture and
-confirmed the complete table boundary, then stopped on
-`INVALID_GENESIS_002_ADMIN_SESSION` before private reads, import or update. The
-G002 bridge token omitted the module's required `hex_identity` on direct HTTP.
-Source `95ce45c` corrects the producer and passed actual pinned-host HTTP and SDK
-interoperability, with all module guards retained. The SDK separately exchanges
-its token before subscribing; that host-signed replacement includes the computed
-identity, explaining the earlier successful loopback CI. Its fixture did not prove
-direct-HTTP interoperability. Disposable servers and signing files were cleaned
-up. The original failed preservation attempt remains failed; populated migration
-and recovery acceptance remain open.
+## Useful code replacement
 
+The disposable native rehearsal completed at `2026-09-08T11:12:35.729Z` from source `923e024d20d49b3d35396c225f53833013dbc4bc`.
 
-The 05:09–05:10 UTC rehearsal remains a retained failed attempt: it stopped at
-PTR inspection because the historical parser rejects the SDK's exchanged identity
-claim. Source `c5392e0` accepts only the original exact shapes or those shapes plus
-the SDK identity, validates that field and binds it to the authenticated sender.
-All existing owner/database/epoch and absolute-session checks remain enforced.
-The historical A artifacts were not modified; their import, provisioning and
-owner bootstrap use the actual host HTTP lifecycle with the original signed JWT.
+A synthetic B artifact rejects city-mill construction immediately after the actual owner and atlas checks, before construction mutates state. Gathering remains unchanged and earns spendable resources. The rejected construction leaves every table unchanged. Another accepted worker command creates later progress and a real pending schedule.
 
-The new rehearsal completed at 08:24 UTC. Real exporters/importers populated both
-historical realms, followed by token-bound A-to-B updates that preserved every
-existing row and complete table boundary. The updated PTR then completed gathering,
-construction, issuance containment, autonomous timer settlement, expired-session
-refusal and fresh-session resume. An explicit accepted-command retry changed no
-rows. This is actual module behavior with synthetic local authority and persistent
-test data; production owner play and code-replacement recovery remain unproven.
-The server, temporary signing files and CLI snapshot were cleaned up.
+The actual dispatcher installs correct C with an injected lost acknowledgement, then a fresh adapter reopens its durable records and reconciles completion without a second PUT. C references B’s exact accepted inspection and completion digests. Program identity changes; the complete schema and every post-B row remain unchanged. A longer valid route and observed arrival deadline keep this comparison inside a quiescent interval without changing game timers.
 
-PTR's existing auth-bridge issuance switch can stop new owner sessions while
-already-issued leases drain. It leaves the enabled database anchor and schedules
-intact. Re-enabling issuance can restore fresh authority to the same keep. This is
-access containment and resume, not a repair for defective database code; the
-recovery-ready observer must not claim readiness while its enabled-PTR prerequisite
-is false. Permanent owner suspension has no inverse and stops that anchor's
-scheduler, so it is unsuitable as reversible maintenance.
+The same construction succeeds under C using a fresh sequence/revision. Worker and building settlement continue while fresh session issuance is disabled. The expired lease receives `INVALID_PTR_OWNER_SESSION`; a renewed lease returns the completed keep, and the explicit accepted-command retry changes no rows. Server termination, signing-file removal and CLI-snapshot cleanup all pass.
 
-A code-replacement recovery experiment needs a useful compatible recovery artifact
-and actual evidence that old and newly accepted writes survive it, timers continue,
-retries retain their identity and normal service resumes on the same persistent
-data. No such PTR maintenance artifact is implemented or accepted by this record.
-An arbitrary rebuild with identical behavior does not establish that result.
+Fault B SHA-256: `db8b615a55191693db6465a117eefdfb3d0640494f79f700540814587f359f0d`. Correct C SHA-256: `5e954be30fd2fa7505d6619855bc7d09d333a3f27ec2c9fd113a2cae92f1b87a`. The fault was compiled twice with identical output, and its complete registered module description matches C. Private result SHA-256: `4632e8dc908a399a8d8319ce9f233d15b26afa9435af8fd90c2c6670d2304d46`; final driver SHA-256: `441df5905afb17b97c8dee7194ab6367040c5086f3896fec3c0afa15449cccb1`. Exact source, helper, schema, receipt and row records remain in the private rehearsal evidence.
 
-Existing G002/PTR fresh-create publishers and receipts continue to mean fresh
-creation. Existing-target update, preservation and reconciliation must be connected
-explicitly; do not remove refusal checks, rerun owner/import creation or fabricate
-fresh/empty facts. An uncertain update cannot be retried merely because an old
-program hash is observed afterward.
+This proves a useful repair on real Warpkeep code and populated disposable state. It does not prove production workflow authority, preservation during concurrent writes, process/host restart or the final integrated release.
 
+## Artifact and authority boundaries
 
-## Populated realm update and PTR access resume — 2026-09-08
+Historical A was rebuilt from `799814b5de3b3379c42961e86af595b7e5f82ac6`.
+Its compiled schema matches the saved baseline, but its executable is not the
+exact originally deployed artifact. Retained G002 B comes from `1e90b2e`; the
+correct PTR artifact includes the reviewed `c5392e0` SDK-identity compatibility
+correction. Its compiled source bodies match the corresponding paths at `923e024`.
 
-The private-network SpacetimeDB 2.6.1 rehearsal passed at 08:24:55 UTC from
-diagnostic source `d7798e6145c19536eefbf328f64d68d5b15b1e1f`.
-Historical A remains the reconstruction of `799814b5`, not the exact originally
-deployed artifact. G002 B is retained from `1e90b2e`; PTR B is newly compiled from
-the reviewed `c5392e0` authentication correction. Every retained PTR/shared source
-body matched the diagnostic checkout before execution. Its compiled SHA-256 is
-`5e954be30fd2fa7505d6619855bc7d09d333a3f27ec2c9fd113a2cae92f1b87a`.
+The historical PTR module uses original bridge-signed HTTP tokens for import,
+provisioning and bootstrap. The corrected module additionally accepts the SDK's
+host-exchanged identity claim, validates it and binds it to the authenticated
+sender. Owner, database, epoch and absolute-session checks remain enforced.
+Earlier HTTP/SDK admission failures and the fixes are retained in the
+[release engineering record](release-engineering.md).
 
-Both real export/import engines populated their historical realm. PTR provisioning
-and protected bootstrap used the original bridge-signed token over actual HTTP;
-the new module accepted the generated SDK client's exchanged token. Provider
-planning and token-checked updates preserved all existing rows and canonical
-schemas. New gameplay tables started empty. Gathering then earned spendable
-resources and construction completed on real timers. Disabling new PTR issuance
-left accepted work settling autonomously, with no owner reads. The expired lease
-received the explicit module freshness refusal. Renewed bridge authority returned
-the completed keep; reading it and retrying one accepted command changed no rows.
-The local G001 admission gate checks and final G002 state remained unchanged.
+The isolated rehearsal uses a persistent disposable database, a private network
+namespace, a synthetic administrator and synthetic external identity/workflow
+responses. It cannot establish production administrator ownership or actual-owner
+play. G001 checks concern the local bridge admission gate; they do not substitute
+for live G001 state and gameplay preservation. Raw rows, credentials, private
+records and signing material stay outside Git and Desktop deliverables.
 
-The evidence uses synthetic external identity/admission and a disposable database
-owned by its synthetic administrator. It does not establish production SQL
-ownership, actual-owner acceptance, frontend command transfer or a useful C
-maintenance artifact. Issuance containment is reversible access control, not a
-repair for defective module code. Existing-update adapter integration and recovery
-that preserves writes accepted after deployment remain required.
+## Operating behavior
 
-The complete private diagnostic result SHA-256 is
-`a4ee8a6bd4147d7b658139833aca1cda05607ed873719c8d471a1d455d3d8fcc`. Its driver SHA-256 is
-`c9f2180eb1e0f119541b770a95ce98c30f3aaf1e02c6e787996329dcb21c7745`. Result records retain exact artifact, schema and helper hashes;
-private row snapshots stay outside Git and the Desktop delivery bundle. Cleanup
-confirmed server termination, signing-file removal and CLI-snapshot removal.
+PTR's issuance switch denies fresh leases while preserving its enabled database
+anchor and schedules. Already accepted work can settle autonomously. An expired
+lease is refused by the module; a fresh lease resumes the same keep. An explicit
+accepted-command retry must produce no second dispatch or credit. This server
+idempotence probe does not claim automatic command-envelope transfer between
+frontend sessions.
 
+Issuance containment is reversible access control. It does not itself repair
+faulty game code. Permanent owner suspension stops the anchor's scheduler and has
+no inverse; it is unsuitable for reversible maintenance. Recovery readiness must
+not be reported while its enabled-PTR prerequisite is false.
 
-At 08:40 UTC, a second native run replaced the direct update calls with the actual
-existing-update dispatcher and adapter draft, which remain local work outside the
-committed source checkpoint. Both populated realm updates passed
-through durable continuation/submission/completion records, followed by the same
-gathering, construction, session-expiry and access-resume checks. Every draft input
-body matched before and after, and both completion records were reopened. Workflow
-and source authority were explicit fixtures; native database and HTTP behavior
-were real. The production adapter factory remains unavailable pending its genuine
-authority and operating callers. This does not establish code-replacement recovery.
+Existing updates use explicit inspect/apply operations and separate records from
+fresh creation. Submission is recorded before the token-bound PUT; an uncertain
+response is reconciled through fresh program, schema and row observations. Do not
+rerun import or provisioning, fabricate empty-state facts, or retry a mutation
+merely because an old program hash is observed. V2 does not reinterpret v1 records.
 
-## Connected synthetic update records and concurrency — 2026-09-08
+## Remaining acceptance
 
-The G002/PTR lane dispatchers now own explicit update-inspect/update-apply
-operations. They use opaque continuations and a separate synthetic record family,
-mark submission before the token-bound PUT, and reconcile an uncertain response
-through fresh program/schema/row observations without sending another update.
-Creation, import, owner provisioning and G001 behavior keep their existing paths.
-The production update factory remains unavailable.
+The production update factory and genuine supported-runner authority must be
+connected to the operating callers and canonical activation consumers. Complete
+the actual release-family verification and production preservation evidence using
+fresh authenticated identities and compatible artifacts. Exact row equality in a
+quiescent synthetic window does not establish preservation during continuing
+production activity.
 
-Independent review found that simultaneous inspections could write competing
-randomized records for one predecessor and permanently fork the chain. A two-process
-barrier reproduced two records where one was required. The v2 record family uses
-one exclusive storage slot per predecessor while retaining the full inspection
-digest in continuation bindings. Tests cover differing candidate contenders and
-an inspection after an accepted update: exactly one inspector succeeds, the other
-receives a file-exists refusal, and a fresh dispatcher applies the selected update
-once. The reviewer accepted the correction. V2 has its own private namespace and
-does not reinterpret or resume the earlier v1 diagnostic records.
-
-The repository-owned Linux launcher passed the dispatcher, continuation and update
-suites as both UID 1000 and UID 1001: 124 passed, with the unsupported-runtime case
-intentionally skipped inside the supported namespace. Restoring the old UID 1000
-restriction caused the UID 1001 run to fail its required-native check. The ordinary
-publisher/reconciliation regression suites passed 54 tests; app and configuration
-type checks passed after installing the matching isolated bridge dependencies.
-
-The earlier v1 native acknowledgement-loss experiment recovered both populated
-realm updates with one PUT per realm. Its first whole-game run subsequently timed
-out polling gathering schedules. A separate instrumented run completed the full
-timer/session journey unchanged at 09:25 UTC; the timeout cause remains unresolved.
-Those real-module observations remain v1 evidence, not a v2 host-restart claim.
-Atomic inspection contention does not establish recovery from a partially written
-record or prove preservation under continuing production activity. Genuine Linux
-operating authority, activation consumers, useful code-replacement recovery and
-actual-owner acceptance remain unfinished.
+Process/host restart, partial-record crash recovery, actual-owner play and the
+integrated frontend/service/module recovery journey remain unproved. A passing
+isolated rehearsal is one component of [release requirement R16](../../operations/0.4.0-release-checklist.md),
+not a completed release or authorization to treat a diagnostic artifact as live.

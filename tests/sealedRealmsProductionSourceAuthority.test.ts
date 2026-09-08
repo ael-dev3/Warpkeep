@@ -98,7 +98,32 @@ describe('sealed-realms production source authority', () => {
     expect(fixture.calls).toContainEqual([
       'rev-parse', '--verify', 'refs/remotes/origin/main^{commit}',
     ]);
-    expect(SEALED_REALMS_OPERATIONS).toHaveLength(20);
+    expect(SEALED_REALMS_OPERATIONS).toEqual([
+      'preflight',
+      'g001-policy-observe',
+      'g001-census-first',
+      'g001-census-second-inspect',
+      'g001-census-second-suspend',
+      'g001-current-state',
+      'g002-publish-inspect',
+      'g002-publish-apply',
+      'g002-import-inspect',
+      'g002-import-apply',
+      'g002-live-inspect',
+      'ptr-publish-inspect',
+      'ptr-publish-apply',
+      'ptr-import-inspect',
+      'ptr-import-apply',
+      'ptr-owner-provision-inspect',
+      'ptr-owner-provision',
+      'ptr-live-inspect',
+      'activation-evidence-inspect',
+      'activation-evidence-generate',
+      'g002-update-inspect',
+      'g002-update-apply',
+      'ptr-update-inspect',
+      'ptr-update-apply',
+    ]);
   });
 
   it.each([S, A, '0'.repeat(40), '', undefined, 0, false])(

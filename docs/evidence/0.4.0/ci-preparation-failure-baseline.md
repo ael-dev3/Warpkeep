@@ -1,5 +1,39 @@
 # Preparation and CI evidence
 
+## September 8: keep the verifier's operation contract aligned
+
+Source `923e024d20d49b3d35396c225f53833013dbc4bc` completed native preparation
+and an independent rebuild with matching outputs. Candidate app/configuration
+type checks passed. Its affected-suite run still failed the same authority
+contract as [Linux CI](https://github.com/ael-dev3/Warpkeep/actions/runs/34216993098/job/102031096933):
+the static verifier expected the earlier operation list, and a source-authority
+test asserted the earlier list length. Regenerated hashes alone could not repair
+that semantic mismatch. No generated delta from this candidate was accepted.
+
+The authored correction adds only the four existing G002/PTR update operations
+to the verifier's exact expected list, in producer order. The activated read-only
+operation list and runtime authority producer remain unchanged. The test now
+compares exact operation membership instead of an arbitrary count.
+
+New cases derive source pins through `derivePreparedSourcePins` and assert that
+the loaded verifier pin matches the changed source before testing membership.
+The valid list passes; removal of each update operation, an unknown replacement
+and expansion of activated authority refuse. This distinguishes a semantic
+authorization check from a rejection caused only by a stale hash.
+
+Focused source-authority tests passed 21 cases. The selected verifier checks
+passed 18 cases, with 147 unrelated cases unselected; targeted strict TypeScript
+also passed. The authored verifier contains only the four operation additions;
+all generated pins remain at their prior values until the complete source-bound
+pipeline derives them. Independent review found no blocking issue.
+
+A source-pin-only diagnostic advances past this authority check and then reaches
+the G001 envelope-generation mismatch. It is not a complete-family or full-verifier
+pass. Regenerate from the corrected committed source, run candidate tests, and
+publish only the authentic verified output delta. Run these authority and
+source-pin semantic checks before another expensive preparation when changing
+operation membership; retain the full family checks afterward.
+
 ## September 8: Python bytecode contaminated the exact checkout
 
 At `5f06cb80c906ac0535fc32c80b415e8e85964b56`, the

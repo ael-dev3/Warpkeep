@@ -1,5 +1,8 @@
 // @vitest-environment node
 
+import { createHash } from 'node:crypto';
+import { derivePreparedSourcePins } from '../scripts/local-prepared-source-pins.mjs';
+
 import {
   chmodSync,
   copyFileSync,
@@ -798,6 +801,45 @@ describe('0.4.0 sealed-launch verifier', () => {
     expect(() => verifySealedLaunchSources(hostile, 'preparation'))
       .toThrow('SEALED_LAUNCH_G002_PUBLISHER_CLI_INVALID');
   });
+
+  it.each(['valid', 'g002-update-inspect', 'g002-update-apply', 'ptr-update-inspect',
+    'ptr-update-apply', 'unknown-update', 'activated-update'])(
+    'checks exact update authorization membership after deriving current pins: %s', async mutation => {
+      const fixtureRoot = mkdtempSync(resolve(tmpdir(), 'warpkeep-update-allowlist-'));
+      const authorityPath = 'scripts/sealed-realms-production-source-authority.mjs';
+      try {
+        for (const path of new Set([...Object.values(SEALED_LAUNCH_SOURCE_PATHS),
+          'scripts/verify-0.4.0-sealed-launch.mjs', 'tests/sealedLaunchActivationGenerator.test.ts'])) {
+          const destination = resolve(fixtureRoot, path);
+          mkdirSync(dirname(destination), { recursive: true });
+          writeFileSync(destination, source(path));
+        }
+        const original = source(authorityPath);
+        const changed = mutation === 'valid' ? original
+          : mutation === 'unknown-update' ? original.replace("'ptr-update-apply'", "'ptr-update-delete'")
+          : mutation === 'activated-update' ? original.replace("'ptr-live-inspect',\n]);", "'ptr-live-inspect',\n  'ptr-update-apply',\n]);")
+          : original.replace(`  '${mutation}',\n`, '');
+        if (mutation !== 'valid') expect(changed).not.toBe(original);
+        writeFileSync(resolve(fixtureRoot, authorityPath), changed);
+        // Derive the real pin overlay from the changed files. Matching pins must
+        // not turn an altered authorization list into an accepted contract.
+        const generated = derivePreparedSourcePins({ repositoryRoot: fixtureRoot });
+        const verifier = generated.files.find(file => file.path === 'scripts/verify-0.4.0-sealed-launch.mjs')!;
+        const fixture = resolve(fixtureRoot, 'verify-update-allowlist.mjs');
+        writeFileSync(fixture, Buffer.from(verifier.bytes).toString('utf8')
+          .replace("'./local-binding-bounded-file.mjs'", JSON.stringify(pathToFileURL(resolve(repositoryRoot, 'scripts/local-binding-bounded-file.mjs')).href))
+          .replace("'./recovery-attestation-source.mjs'", JSON.stringify(pathToFileURL(resolve(repositoryRoot, 'scripts/recovery-attestation-source.mjs')).href))
+          .replace("'./recovery-activation-candidate.mjs'", JSON.stringify(pathToFileURL(resolve(repositoryRoot, 'scripts/recovery-activation-candidate.mjs')).href))
+          + '\nexport { verifySealedRealmsProductionSourceAuthority as verify, SEALED_REALMS_SOURCE_AUTHORITY_SOURCE_SHA256 as pin };\n');
+        const loaded = await import(pathToFileURL(fixture).href);
+        expect(loaded.pin).toBe(createHash('sha256').update(changed).digest('hex'));
+        const inputs = { sealedRealmsProductionSourceAuthoritySource: changed,
+          sealedRealmsProductionSourceAuthorityDeclaration: source('scripts/sealed-realms-production-source-authority.d.mts') };
+        if (mutation === 'valid') expect(() => loaded.verify(inputs)).not.toThrow();
+        else expect(() => loaded.verify(inputs)).toThrow('SEALED_LAUNCH_SOURCE_AUTHORITY_INVALID');
+      } finally { rmSync(fixtureRoot, { recursive: true, force: true }); }
+    },
+  );
 
   it.each([
     (value: string) => value.replace(

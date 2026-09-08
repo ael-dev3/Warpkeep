@@ -18,7 +18,9 @@ which records the current checkpoint, preparation, CI and environment details.
 - **The core loop works in a populated native rehearsal.** Real realm modules
   imported their atlases and preserved existing state through updates. PTR earned
   resources, completed construction on real timers and resumed completed state
-  after session expiry without duplicate effects. The existing-update adapter is
+  after session expiry without duplicate effects. A later useful code-replacement
+  rehearsal preserved resources and pending work earned under faulty code, restored
+  construction, and passed timer/session/retry checks under corrected code. The existing-update adapter is
   now connected to the G002/PTR dispatchers for isolated synthetic tests, with
   durable acknowledgement recovery and serialized concurrent inspections. Its
   Linux test launcher passed its dedicated hosted CI step at `5aa6fdb`.
@@ -32,15 +34,18 @@ which records the current checkpoint, preparation, CI and environment details.
   assembler connects fixed compilers, generated consumers, independent rebuilding
   checks and candidate recovery. Linux recovery and sealed preflight callers are
   connected and the dedicated runner is installed. Remaining operating callers,
-  genuine provider/signer authority and useful code-replacement recovery still
-  need completion. An isolated update rehearsal does not supply those credentials
+  genuine provider/signer authority and production code-replacement integration
+  still need completion. An isolated update rehearsal does not supply those credentials
   or establish a release-ready production adapter.
-- **Resume from the diagnosed build corrections.** The YAML boundary test now
-  avoids leaving Python bytecode in the checkout. Isolated operation bundles now
-  materialize the update protocol's locked hash dependency. Read the
-  [CI and preparation evidence](../../evidence/0.4.0/ci-preparation-failure-baseline.md),
-  then run fresh source-bound preparation and candidate verification. The failed
-  `5aa6fdb` preparation did not produce an accepted generated family.
+- **Resume from the verified source and precise CI failure.** The Python bytecode
+  and isolated Keccak dependency corrections are published at `923e024`. Native
+  preparation and independent rebuilding passed there, but candidate tests exposed
+  an obsolete verifier operation list in addition to earlier source pins. The
+  verifier now recognizes the existing update operations; focused tests derive
+  current pins before checking exact membership and rejecting altered authority.
+  Read the [CI and preparation evidence](../../evidence/0.4.0/ci-preparation-failure-baseline.md),
+  then regenerate and verify the complete family from the corrected source.
+  The `923e024` candidate is not an accepted final release family.
 - **Preserve each realm's purpose.** Keep G001 progress, access and normal timers
   alongside its agreed admission freeze; keep G002 sealed; use the actual owner's
   isolated PTR for the new playable journey. Read the dated

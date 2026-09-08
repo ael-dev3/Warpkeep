@@ -13,7 +13,25 @@ machine it is at
 `C:/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree`.
 `origin` is a local baseline repository; equality with it does not prove GitHub sync.
 
-Source `d7798e6145c19536eefbf328f64d68d5b15b1e1f` completed full native
+At `923e024`, the isolated dependency correction completed native preparation
+and its independent rebuilding check. Candidate QA then identified the stale
+source-authority operation contract; that generated family is not accepted.
+The current authored correction aligns the verifier with the existing update
+operations and tests semantic rejection after authentic pin derivation. Complete
+fresh preparation from the corrected source instead of installing hand-edited
+pins or relabeling the older candidate. Check any running process through its
+actual handle before starting another one.
+
+The populated native B-to-C recovery passed at 11:12 UTC on September 8. It fixed
+a synthetic construction fault while preserving earned resources and pending
+work, then passed autonomous settlement, expiry and retry checks. Its authority
+was synthetic and its preservation interval quiescent. Next connect a distinct
+production update receipt to the activation consumer, then the actual factory,
+workflow runtime and fixed Linux caller. Do not represent a populated update as
+the existing fresh-publish receipt. See [recovery](../../evidence/0.4.0/recovery.md)
+and [CI evidence](../../evidence/0.4.0/ci-preparation-failure-baseline.md).
+
+Earlier source `d7798e6145c19536eefbf328f64d68d5b15b1e1f` completed full native
 preparation and an independent rebuilding check. Generated-only commit
 `582f498b0cd86117bdf8c5ea5d0cf8a2d1a741fd` integrates the verified output delta. Candidate QA passed
 the affected release/recovery/UI suites and both type checks with source and
