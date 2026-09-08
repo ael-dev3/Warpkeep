@@ -1305,18 +1305,21 @@ describe('notification-bridge-prepared protected workflow', () => {
       'src/greater-realm/greaterRealmTransport.ts',
       'src/spacetime/greaterRealmProviderBridge.ts',
     ]));
-    const declarationOptional = new Set([
+    const declarationlessEntrypoints = [
       'scripts/farcaster-miniapp-contract.mjs',
+      'scripts/recovery-workflow-prepare-claim.mjs',
       'scripts/validate-pages-deploy-config.mjs',
       'scripts/verify-alpha-production.mjs',
       'scripts/verify-auth-bridge-notification-prepared-receipt.mjs',
       'scripts/verify-production-dist-exclusions.mjs',
-    ]);
-    expect(paths.filter(path => path.endsWith('.mjs')).length).toBe(
-      paths.filter(path => path.endsWith('.d.mts')).length
-        + declarationOptional.size
-        + RETAINED_TYPE_ONLY_DECLARATION_PATHS.length,
-    );
+      'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs',
+      ...RETAINED_TYPE_ONLY_DECLARATION_PATHS.map(path => path.replace(/\.d\.mts$/u, '.mjs')),
+    ].sort();
+    const pathSet = new Set(paths);
+    expect(paths.filter(path => path.endsWith('.mjs')
+      && !pathSet.has(path.replace(/\.mjs$/u, '.d.mts')))).toEqual(declarationlessEntrypoints);
+    expect(paths.filter(path => path.endsWith('.d.mts')
+      && !pathSet.has(path.replace(/\.d\.mts$/u, '.mjs')))).toEqual([]);
     expect(verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: root,
     })).toMatchObject({
@@ -1594,6 +1597,9 @@ describe('notification-bridge-prepared protected workflow', () => {
 
   it('rejects an extra manifest member', () => {
     const extra = createPolicyFixture();
+    expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
+      repositoryRoot: extra,
+    })).not.toThrow();
     const extraManifestPath = resolve(
       extra,
       AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH,
@@ -1604,6 +1610,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       members: Array<{ path: string; digestProfile: string; sha256: string }>;
     };
     const extraPath = '.github/workflows/codeql.yml';
+    expect(extraManifest.members.some(member => member.path === extraPath)).toBe(false);
     mkdirSync(dirname(resolve(extra, extraPath)), { recursive: true });
     cpSync(resolve(repositoryRoot, extraPath), resolve(extra, extraPath));
     extraManifest.members.push({
@@ -1619,13 +1626,18 @@ describe('notification-bridge-prepared protected workflow', () => {
     writeFileSync(extraManifestPath, `${JSON.stringify(extraManifest, null, 2)}\n`);
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: extra,
-    })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
+    })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
   }, 90_000);
 
   it('rejects a newly imported local closure member', () => {
     const imported = createPolicyFixture();
+    expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
+      repositoryRoot: imported,
+    })).not.toThrow();
     const importedDependency = 'scripts/atomic-install-file-family.mjs';
     const importedDeclaration = 'scripts/atomic-install-file-family.d.mts';
+    const before = deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot: imported });
+    expect(before).not.toContain(importedDependency);
     for (const path of [importedDependency, importedDeclaration]) {
       mkdirSync(dirname(resolve(imported, path)), { recursive: true });
       cpSync(resolve(repositoryRoot, path), resolve(imported, path));
@@ -1638,9 +1650,11 @@ describe('notification-bridge-prepared protected workflow', () => {
       entrypoint,
       `import './atomic-install-file-family.mjs';\n${readFileSync(entrypoint, 'utf8')}`,
     );
+    expect(deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot: imported }))
+      .toEqual([...before, importedDependency, importedDeclaration].sort());
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: imported,
-    })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_TOO_LARGE');
+    })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
   }, 90_000);
 
   it('rejects an unreviewed installed import', () => {
@@ -2089,19 +2103,28 @@ describe('notification-bridge-prepared protected workflow', () => {
 
   it('rejects missing or unreviewed preflight check inputs', () => {
     const missing = createPolicyFixture();
+    expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
+      repositoryRoot: missing,
+    })).not.toThrow();
     rmSync(resolve(missing, 'services/auth-bridge/vitest.workerd.config.ts'));
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: missing,
     })).toThrow(/AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_/u);
 
     const extra = createPolicyFixture();
+    expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
+      repositoryRoot: extra,
+    })).not.toThrow();
+    const before = deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot: extra });
     writeFileSync(
       resolve(extra, 'services/auth-bridge/test/unreviewed.test.ts'),
       'export const unreviewed = true\n',
     );
+    expect(deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot: extra }))
+      .toEqual([...before, 'services/auth-bridge/test/unreviewed.test.ts'].sort());
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: extra,
-    })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_TOO_LARGE');
+    })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
   }, 180_000);
 
   it('loads separated credentials only into the guarded no-argv entrypoint', () => {
@@ -2359,12 +2382,10 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(workflow()).not.toContain(
       'run: pnpm --dir services/auth-bridge install',
     );
-    // Task 6D's exact credential-count policy stays frozen until Task 7
-    // refreezes the narrowed recovery closure, so this interval must fail closed.
+    // The published deploy and read-only recovery branches each satisfy their
+    // own exact credential and invocation contract before either can launch.
     expect(() => preparedPolicyTestSeams
-      .assertProtectedWorkflowExecutionBoundary(workflow())).toThrow(
-      'AUTH_BRIDGE_PREPARED_CREDENTIAL_BOUNDARY_INVALID',
-    );
+      .assertProtectedWorkflowExecutionBoundary(workflow())).not.toThrow();
   });
 
   it.skipIf(process.platform === 'win32')(
@@ -3150,6 +3171,137 @@ return Object.freeze({ outcome: 'verified-read-only-recovery' });
       'AUTH_BRIDGE_PREPARED_DEPLOY_OR_RECOVERY_UNVERIFIED',
     );
   });
+
+  it.each([
+    ['deploy invocation restored', '.runAuthBridgeNotificationPreparedReadOnlyRecovery();', '.runAuthBridgeNotificationPreparedDeploy();'],
+    ['canary identity relayed', "          GITHUB_TOKEN: ${{ github.token }}", "          GITHUB_TOKEN: ${{ github.token }}\n          WARPKEEP_PLAYER_CANARY_OWNER_FID: ${{ secrets.WARPKEEP_PLAYER_CANARY_OWNER_FID }}"],
+    ['PTR target relayed', "          GITHUB_TOKEN: ${{ github.token }}", "          GITHUB_TOKEN: ${{ github.token }}\n          WARPKEEP_PTR_SPACETIMEDB_DATABASE: ${{ secrets.WARPKEEP_PTR_SPACETIMEDB_DATABASE }}"],
+    ['incorrect recovery result', "result?.outcome !== 'verified-read-only-recovery'", "result?.outcome !== 'unverified'"],
+    ['disabled recovery result check', "if (result?.outcome !== 'verified-read-only-recovery') {", 'if (false) {'],
+    ['failed-deploy recovery selection', "        if: ${{ inputs.operation == 'recover-expired-authority-read-only' }}", "        if: ${{ steps.deploy.outcome == 'failure' }}"],
+    ['wrong admin descriptor', "['WARPKEEP_PRODUCTION_ADMIN_TOKEN', 33]", "['WARPKEEP_PRODUCTION_ADMIN_TOKEN', 35]"],
+    ['failed recovery made successful', "fail('AUTH_BRIDGE_PREPARED_READ_ONLY_RECOVERY_INVALID');", 'return;'],
+  ])('rejects %s in the read-only recovery step', (_label, before, after) => {
+    const source = workflow();
+    expect(() => preparedPolicyTestSeams.assertProtectedWorkflowExecutionBoundary(source))
+      .not.toThrow();
+    const start = source.indexOf('      - name: Recover expired authority without deployment\n');
+    const end = source.indexOf('      - name: Require a verified deployment or recovery\n');
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    const recovery = source.slice(start, end);
+    expect(recovery.split(before)).toHaveLength(2);
+    const mutated = source.slice(0, start) + recovery.replace(before, after) + source.slice(end);
+    expect(() => preparedPolicyTestSeams.assertProtectedWorkflowExecutionBoundary(mutated))
+      .toThrow('AUTH_BRIDGE_PREPARED_CREDENTIAL_BOUNDARY_INVALID');
+  });
+
+  it.each([
+    ['conditional final step', '        if: ${{ always() }}', "        if: ${{ steps.deploy.outcome == 'failure' }}"],
+    ['ignored final failure', '        if: ${{ always() }}', '        if: ${{ always() }}\n        continue-on-error: true'],
+    ['wrong selected operation', 'WARPKEEP_OPERATION: ${{ inputs.operation }}', 'WARPKEEP_OPERATION: deploy'],
+    ['conclusion instead of raw deploy outcome', 'DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}', 'DEPLOY_OUTCOME: ${{ steps.deploy.conclusion }}'],
+    ['invented attempted signal', 'DEPLOYMENT_ATTEMPTED: ${{ steps.deploy.outputs.attempted }}', "DEPLOYMENT_ATTEMPTED: 'true'"],
+    ['wrong recovery outcome', 'RECOVERY_OUTCOME: ${{ steps.recovery.outcome }}', 'RECOVERY_OUTCOME: ${{ steps.deploy.outcome }}'],
+    ['unprotected shell', '/bin/bash --noprofile --norc -p -e -o pipefail {0}', '/bin/bash --noprofile --norc -e -o pipefail {0}'],
+    ['early success', '          set -euo pipefail', '          set -euo pipefail\n          exit 0'],
+    ['inverted recovery selection', '"$WARPKEEP_OPERATION" ==', '"$WARPKEEP_OPERATION" !='],
+    ['recovery branch widened', '&& "$RECOVERY_OUTCOME"', '|| "$RECOVERY_OUTCOME"'],
+    ['failed recovery accepted', '"$RECOVERY_OUTCOME" == \'success\'', '"$RECOVERY_OUTCOME" == \'failure\''],
+    ['unattempted deploy accepted', '"$DEPLOYMENT_ATTEMPTED" == \'true\'', '"$DEPLOYMENT_ATTEMPTED" == \'false\''],
+    ['deploy branch widened', '&& "$DEPLOY_OUTCOME"', '|| "$DEPLOY_OUTCOME"'],
+    ['failed deploy accepted', '"$DEPLOY_OUTCOME" == \'success\'', '"$DEPLOY_OUTCOME" == \'failure\''],
+    ['failure reported as success', '          exit 1\n', '          exit 0\n'],
+    ['nonterminal outcome step', '          exit 1\n', '          exit 1\n\n      - name: Unreviewed final step\n        run: true\n'],
+  ])('rejects %s in the complete final outcome contract', (_label, before, after) => {
+    const source = workflow();
+    expect(() => preparedPolicyTestSeams.assertProtectedWorkflowExecutionBoundary(source))
+      .not.toThrow();
+    const start = source.indexOf('      - name: Require a verified deployment or recovery\n');
+    expect(start).toBeGreaterThan(0);
+    const final = source.slice(start);
+    expect(final.split(before)).toHaveLength(2);
+    const mutated = source.slice(0, start) + final.replace(before, after);
+    expect(() => preparedPolicyTestSeams.assertProtectedWorkflowExecutionBoundary(mutated))
+      .toThrow('AUTH_BRIDGE_PREPARED_RECOVERY_POLICY_INVALID');
+  });
+
+  it.each([
+    ['deploy', 'success', 'true', 'skipped', 0],
+    ['deploy', 'success', 'false', 'skipped', 1],
+    ['deploy', 'success', '', 'skipped', 1],
+    ['deploy', 'failure', 'true', 'skipped', 1],
+    ['deploy', 'cancelled', 'true', 'skipped', 1],
+    ['deploy', 'skipped', 'true', 'skipped', 1],
+    ['deploy', '', 'true', 'skipped', 1],
+    ['deploy', 'skipped', '', 'skipped', 1],
+    ['deploy', 'failure', 'true', 'success', 1],
+    ['recover-expired-authority-read-only', 'skipped', '', 'success', 0],
+    ['recover-expired-authority-read-only', 'skipped', '', 'failure', 1],
+    ['recover-expired-authority-read-only', 'skipped', '', 'cancelled', 1],
+    ['recover-expired-authority-read-only', 'skipped', '', 'skipped', 1],
+    ['recover-expired-authority-read-only', 'skipped', '', '', 1],
+    ['unreviewed', 'skipped', '', 'success', 1],
+  ] as const)('executes final outcome shell for %s / %s / attempted=%s / recovery=%s', (
+    operation, deployOutcome, attempted, recoveryOutcome, expectedStatus,
+  ) => {
+    const final = preparedJob().steps?.find(candidate => (
+      candidate.name === 'Require a verified deployment or recovery'
+    ));
+    expect(final?.run).toBeTypeOf('string');
+    expect(final?.shell).toBeTypeOf('string');
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'warpkeep-prepared-final-outcome-')));
+    temporaryDirectories.push(root);
+    const script = resolve(root, 'final-outcome.sh');
+    writeFileSync(script, final!.run!);
+    // Execute the actual configured shell argv and actual YAML script body.
+    const shell = final!.shell!.split(' ').map(argument => argument === '{0}' ? script : argument);
+    const result = spawnSync(shell[0], shell.slice(1), {
+      cwd: root,
+      env: {
+        PATH: '/usr/bin:/bin',
+        WARPKEEP_OPERATION: operation,
+        DEPLOY_OUTCOME: deployOutcome,
+        DEPLOYMENT_ATTEMPTED: attempted,
+        RECOVERY_OUTCOME: recoveryOutcome,
+      },
+      encoding: 'utf8',
+      timeout: 5_000,
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(expectedStatus);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toBe(expectedStatus === 0
+      ? '' : 'AUTH_BRIDGE_PREPARED_DEPLOY_OR_RECOVERY_UNVERIFIED\n');
+  });
+
+  it.each([
+    'apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
+    'adminToken: values.WARPKEEP_PRODUCTION_ADMIN_TOKEN',
+  ])('rejects moving recovery credential use into a deploy comment: %s', binding => {
+    const root = createPolicyFixture();
+    expect(() => verifyAuthBridgeNotificationPreparedStaticPolicy({ repositoryRoot: root }))
+      .not.toThrow();
+    const path = 'scripts/auth-bridge-notification-prepared-deploy.mjs';
+    const before = readFileSync(resolve(root, path), 'utf8');
+    const recoveryUse = `\n      ${binding},\n`;
+    const start = before.indexOf('async function runProductionAuthBridgeNotificationPreparedReadOnlyRecovery({');
+    const end = before.indexOf('export async function runAuthBridgeNotificationPreparedReadOnlyRecovery(');
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    const recovery = before.slice(start, end);
+    expect(recovery.split(recoveryUse)).toHaveLength(2);
+    const after = (before.slice(0, start)
+      + recovery.replace(recoveryUse, `\n      ${binding.split(':')[0]}: undefined,\n`)
+      + before.slice(end))
+      .replace('\nconst invokedPath = process.argv[1]',
+        `\n// ${binding}\nconst invokedPath = process.argv[1]`);
+    expect(before.split(binding)).toHaveLength(3);
+    expect(after.split(binding)).toHaveLength(3);
+    mutatePreparedClosureMember(root, path, before, after);
+    expect(() => verifyAuthBridgeNotificationPreparedStaticPolicy({ repositoryRoot: root }))
+      .toThrow('AUTH_BRIDGE_PREPARED_GUARDED_ENTRYPOINT_INVALID');
+  }, 180_000);
 
   it('attests the installed tree after install and before any protected secret', () => {
     const source = workflow();

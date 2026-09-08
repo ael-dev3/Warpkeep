@@ -15,6 +15,9 @@ const PROTECTED_DEPLOY_ENTRYPOINT =
   "'scripts/auth-bridge-notification-prepared-deploy.mjs';";
 const PROTECTED_DEPLOY_RUN =
   'await entrypoint.runAuthBridgeNotificationPreparedDeploy();';
+const PROTECTED_RECOVERY_RUN =
+  'const result = await entrypoint\n'
+    + '              .runAuthBridgeNotificationPreparedReadOnlyRecovery();';
 const PROTECTED_NODE_LAUNCH =
   'exec -c "$node_executable" --input-type=module <&17 >/dev/null';
 const PROTECTED_BOOTSTRAP_START =
@@ -32,11 +35,11 @@ const OFFICIAL_PNPM_11_7_0_DARWIN_ARM64_SHA256 =
 const NODE_AUTHORITY_STEP_SHA256 =
   '939aee5f19126ee576d2e0c317bd2ec4dff4d51eeede9f3a6613177a0c93e115';
 const PROTECTED_STEP_SHA256 = Object.freeze({
-  deploy: '9c7b2f02f11d32d91fd6d21b572207ac0230a2de98bf6bd6fa72071b82282de4',
-  recovery: 'ec52c875154e2b650a60fd95d9adb60363d321f07b6d29c034a5bdf6bc50cab5',
+  deploy: '10341a77f922aa13c25b2084a57606a5f8f10f8cc2abd851fd23122f32d604d7',
+  recovery: '89a0e5812fc7ee19462ba3287798de2b3b63ba8873a919a23090764099fdb6c2',
 });
 const CANONICAL_WORKFLOW_SHA256 =
-  '2d75cb329bae15deab7bd531abdbe1a2d0aaa387d2d4a913394fff53e2ac54ad';
+  'd6484216c1552d3cc2ed6e70456348038619753f68e44dbedab3b08110a1443f';
 const PROTECTED_NODE_SELECTION =
   '          node_executable="$WARPKEEP_NODE_EXECUTABLE"';
 const PROTECTED_NODE_OUTPUT_BINDING =
@@ -60,6 +63,15 @@ const PROTECTED_NODE_ENVIRONMENT_BINDINGS = Object.freeze([
   'WARPKEEP_PTR_SPACETIMEDB_DATABASE',
   'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
 ]);
+const DEPLOY_ONLY_ENVIRONMENT_BINDINGS = Object.freeze([
+  'WARPKEEP_PLAYER_CANARY_OWNER_FID',
+  'WARPKEEP_PTR_SPACETIMEDB_DATABASE',
+]);
+const PROTECTED_RECOVERY_ENVIRONMENT_BINDINGS = Object.freeze(
+  PROTECTED_NODE_ENVIRONMENT_BINDINGS.filter(
+    name => !DEPLOY_ONLY_ENVIRONMENT_BINDINGS.includes(name),
+  ),
+);
 const PROTECTED_CHILD_CREDENTIAL_SEPARATION = Object.freeze([
   'values.GITHUB_TOKEN\n                === values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
   'values.GITHUB_TOKEN\n                === values.WARPKEEP_PRODUCTION_ADMIN_TOKEN',
@@ -157,6 +169,46 @@ function namedStep(workflow, name, code) {
   const start = workflow.indexOf(nameLine);
   const next = workflow.indexOf('\n      - name:', start + nameLine.length);
   return workflow.slice(start, next < 0 ? workflow.length : next);
+}
+
+function exactSourceRegion(source, start, end, code) {
+  exactOccurrence(source, start, code);
+  exactOccurrence(source, end, code);
+  const startIndex = source.indexOf(start);
+  const endIndex = source.indexOf(end);
+  if (endIndex <= startIndex) fail(code);
+  return source.slice(startIndex, endIndex);
+}
+
+function assertProtectedFinalOutcome(workflow) {
+  const code = 'AUTH_BRIDGE_PREPARED_RECOVERY_POLICY_INVALID';
+  const step = namedStep(workflow, 'Require a verified deployment or recovery', code);
+  const expected = [
+    '      - name: Require a verified deployment or recovery',
+    '        if: ${{ always() }}',
+    `        shell: ${PROTECTED_SECRET_SHELL}`,
+    '        env:',
+    '          WARPKEEP_OPERATION: ${{ inputs.operation }}',
+    '          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}',
+    '          DEPLOYMENT_ATTEMPTED: ${{ steps.deploy.outputs.attempted }}',
+    '          RECOVERY_OUTCOME: ${{ steps.recovery.outcome }}',
+    '        run: |',
+    '          set -euo pipefail',
+    '          if [[ "$WARPKEEP_OPERATION" == \'recover-expired-authority-read-only\' \\',
+    '            && "$RECOVERY_OUTCOME" == \'success\' ]]; then',
+    '            exit 0',
+    '          fi',
+    '          if [[ "$DEPLOYMENT_ATTEMPTED" == \'true\' \\',
+    '            && "$DEPLOY_OUTCOME" == \'success\' ]]; then',
+    '            exit 0',
+    '          fi',
+    '          echo \'AUTH_BRIDGE_PREPARED_DEPLOY_OR_RECOVERY_UNVERIFIED\' >&2',
+    '          exit 1',
+    '',
+  ].join('\n');
+  // Pin the outcome sources, shell, branches and terminal failure together.
+  // Individual literals would also accept dead checks or an early success exit.
+  if (step !== expected || !workflow.endsWith(step)) fail(code);
 }
 
 function assertProtectedPreamble(workflow) {
@@ -420,6 +472,13 @@ function assertProtectedPackageInstallStep(workflow) {
 function assertProtectedSecretStep(workflow, id) {
   const code = 'AUTH_BRIDGE_PREPARED_CREDENTIAL_BOUNDARY_INVALID';
   const step = protectedStep(workflow, id, code);
+  const recovery = id === 'recovery';
+  const environmentBindings = recovery
+    ? PROTECTED_RECOVERY_ENVIRONMENT_BINDINGS
+    : PROTECTED_NODE_ENVIRONMENT_BINDINGS;
+  exactCount(step, recovery
+    ? "        if: ${{ inputs.operation == 'recover-expired-authority-read-only' }}"
+    : "        if: ${{ inputs.operation == 'deploy' }}", 1, code);
   exactCount(step, `        shell: ${PROTECTED_SECRET_SHELL}`, 1, code);
   exactCount(step, '        run: |\n', 1, code);
   exactCount(step, PROTECTED_NODE_OUTPUT_BINDING, 1, code);
@@ -500,7 +559,15 @@ function assertProtectedSecretStep(workflow, id) {
   );
   exactCount(step, 'memberPaths: [entrypointPath]', 1, code);
   exactCount(step, PROTECTED_DEPLOY_ENTRYPOINT, 1, code);
-  exactCount(step, PROTECTED_DEPLOY_RUN, 1, code);
+  exactCount(step, PROTECTED_DEPLOY_RUN, recovery ? 0 : 1, code);
+  exactCount(step, PROTECTED_RECOVERY_RUN, recovery ? 1 : 0, code);
+  if (recovery) {
+    exactCount(step, 'typeof entrypoint.runAuthBridgeNotificationPreparedReadOnlyRecovery', 1, code);
+    exactCount(step, "if (result?.outcome !== 'verified-read-only-recovery') {\n"
+      + "              fail('AUTH_BRIDGE_PREPARED_READ_ONLY_RECOVERY_INVALID');\n"
+      + '            }', 1, code);
+    for (const name of DEPLOY_ONLY_ENVIRONMENT_BINDINGS) exactCount(step, name, 0, code);
+  }
   exactCount(step, PROTECTED_NODE_LAUNCH, 1, code);
   exactCount(step, DIRECT_DEPLOY_ENTRYPOINT, 0, code);
   exactCount(step, 'protected_node_environment=(', 0, code);
@@ -511,7 +578,7 @@ function assertProtectedSecretStep(workflow, id) {
     'valueBody.includes(0x0a)',
     'valueBody.includes(0x0d)',
   ]) exactCount(step, byteCheck, 1, code);
-  for (const [index, name] of PROTECTED_NODE_ENVIRONMENT_BINDINGS.entries()) {
+  for (const [index, name] of environmentBindings.entries()) {
     exactCount(step, `['${name}', ${21 + index}]`, 1, code);
     exactCount(
       step,
@@ -522,9 +589,9 @@ function assertProtectedSecretStep(workflow, id) {
   }
   const unexportBlock = [
     'export -n \\',
-    ...PROTECTED_NODE_ENVIRONMENT_BINDINGS.map((name, index) => (
+    ...environmentBindings.map((name, index) => (
       `            ${name}${
-        index === PROTECTED_NODE_ENVIRONMENT_BINDINGS.length - 1 ? '' : ' \\'
+        index === environmentBindings.length - 1 ? '' : ' \\'
       }`
     )),
   ].join('\n');
@@ -612,6 +679,7 @@ function assertProtectedWorkflowExecutionBoundary(workflow) {
   for (const id of ['deploy', 'recovery']) {
     assertProtectedSecretStep(workflow, id);
   }
+  assertProtectedFinalOutcome(workflow);
   assertCanonicalWorkflowStructure(workflow);
 }
 
@@ -930,7 +998,6 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     '"${git_safe[@]}" symbolic-ref -q HEAD',
     `node_executable='${IMMUTABLE_NODE_22_22_3_DARWIN_ARM64_PATH}'`,
     `pnpm_executable='${IMMUTABLE_PNPM_11_7_0_DARWIN_ARM64_PATH}'`,
-    "if: ${{ always() && steps.deploy.outputs.attempted == 'true' && steps.deploy.outcome != 'success' }}",
     'echo \'AUTH_BRIDGE_PREPARED_DEPLOY_OR_RECOVERY_UNVERIFIED\' >&2',
   ]) exactOccurrence(workflow, exact, 'AUTH_BRIDGE_PREPARED_WORKFLOW_POLICY_INVALID');
 
@@ -965,7 +1032,9 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
 
   exactCount(workflow, PROTECTED_DEPLOY_ENTRYPOINT, 2,
     'AUTH_BRIDGE_PREPARED_GUARDED_ENTRYPOINT_INVALID');
-  exactCount(workflow, PROTECTED_DEPLOY_RUN, 2,
+  exactCount(workflow, PROTECTED_DEPLOY_RUN, 1,
+    'AUTH_BRIDGE_PREPARED_GUARDED_ENTRYPOINT_INVALID');
+  exactCount(workflow, PROTECTED_RECOVERY_RUN, 1,
     'AUTH_BRIDGE_PREPARED_GUARDED_ENTRYPOINT_INVALID');
   exactCount(workflow, PROTECTED_NODE_LAUNCH, 3,
     'AUTH_BRIDGE_PREPARED_GUARDED_ENTRYPOINT_INVALID');
@@ -1037,7 +1106,7 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     exactCount(
       workflow,
       `${secret}: \${{ secrets.${secret} }}`,
-      2,
+      DEPLOY_ONLY_ENVIRONMENT_BINDINGS.includes(secret) ? 1 : 2,
       'AUTH_BRIDGE_PREPARED_CREDENTIAL_BOUNDARY_INVALID',
     );
   }
@@ -1130,13 +1199,13 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     ['const WORKFLOW_REF = `${REPOSITORY}/${WORKFLOW_PATH}@refs/heads/main`;', 1],
     ['withAuthBridgeNotificationPreparedDeployJournal({', 1],
     ['prepareAndWriteAuthBridgeNotificationPreparedReceipt({', 1],
-    ['apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN', 1],
+    ['apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN', 2],
     ['playerCanaryOwnerFid:', 1],
     ['expectedPredecessorBridgeSourceCommit:', 1],
     ['AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT', 2],
     ['values.WARPKEEP_PLAYER_CANARY_OWNER_FID', 3],
     ['values.WARPKEEP_PTR_SPACETIMEDB_DATABASE', 4],
-    ['adminToken: values.WARPKEEP_PRODUCTION_ADMIN_TOKEN', 1],
+    ['adminToken: values.WARPKEEP_PRODUCTION_ADMIN_TOKEN', 2],
     ['executeAuthBridgeNotificationPreparedDeployAdapter({', 1],
     ['createAuthBridgeNotificationPreparedGithubWritePermit({', 2],
     ['verifyAuthBridgeNotificationPreparedInstalledToolchain({', 2],
@@ -1171,13 +1240,35 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     ["'--no-textconv',", 1],
     ["'--exit-code',", 1],
     ["trackedEntries.split('\\n').some(entry => !entry.startsWith('H '))", 1],
-    ['delete environment[name]', 1],
+    ['delete environment[name]', 2],
   ]) exactCount(
     entrypoint,
     exact,
     count,
     'AUTH_BRIDGE_PREPARED_GUARDED_ENTRYPOINT_INVALID',
   );
+  // The read-only recovery caller has its own inspector credentials and scrub
+  // path. Require one use in each real function, not two anywhere in the file.
+  const entrypointCode = 'AUTH_BRIDGE_PREPARED_GUARDED_ENTRYPOINT_INVALID';
+  for (const [start, end] of [
+    ['async function runProductionAuthBridgeNotificationPreparedReadOnlyRecovery({',
+      'export async function runAuthBridgeNotificationPreparedReadOnlyRecovery('],
+    ['export async function runAuthBridgeNotificationPreparedDeploy({',
+      '\nconst invokedPath = process.argv[1]'],
+  ]) {
+    const region = exactSourceRegion(entrypoint, start, end, entrypointCode);
+    exactCount(region, 'apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN', 1, entrypointCode);
+    exactCount(region, 'adminToken: values.WARPKEEP_PRODUCTION_ADMIN_TOKEN', 1, entrypointCode);
+  }
+  for (const [start, end] of [
+    ['function copyAndScrubEnvironment(environment) {',
+      'function copyAndScrubRecoveryEnvironment(environment) {'],
+    ['function copyAndScrubRecoveryEnvironment(environment) {',
+      'function exactRecoveryObject(value, keys) {'],
+  ]) {
+    exactCount(exactSourceRegion(entrypoint, start, end, entrypointCode),
+      'delete environment[name]', 1, entrypointCode);
+  }
   if (
     entrypoint.includes('reportedHome:')
     || entrypoint.includes('ensureAuthBridgeNotificationPreparedPlayerCanarySecret')
