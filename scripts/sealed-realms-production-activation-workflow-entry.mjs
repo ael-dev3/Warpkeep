@@ -3,7 +3,9 @@ import { types } from 'node:util';
 
 import {
   createSealedRealmsProductionAuthBridgeState,
+  createSealedRealmsProductionActivationEvidenceGenerator,
 } from './sealed-realms-production-auth-bridge-state.mjs';
+import { createSealedRealmsProductionActivationRecords } from './sealed-realms-production-activation-records.mjs';
 import {
   createSealedRealmsProductionActivationDispatchContext,
   createSealedRealmsProductionActivationDispatcher,
@@ -113,7 +115,7 @@ function readGit(arguments_) {
   }
 }
 
-/** Reads the complete static release candidate only for private descriptor construction. */
+/** Reads inert checked-in source metadata; this is never a populated recovery candidate. */
 function readBindingCandidate(commit) {
   let parsed;
   try {
@@ -156,6 +158,14 @@ function unavailable() {
   fail('SEALED_REALMS_ACTIVATION_WORKFLOW_ADAPTER_UNAVAILABLE');
 }
 
+/**
+ * The authenticated recovery-core/realm reader is not installed yet. Inert S
+ * JSON, an assembler directory or caller-supplied JSON cannot replace it.
+ */
+function readCanonicalRecoveryCandidate() {
+  fail('SEALED_REALMS_ACTIVATION_WORKFLOW_RECOVERY_CANDIDATE_UNAVAILABLE');
+}
+
 async function buildDispatcher(operation, workflowInputSha) {
   const authority = sourceAuthority(operation, workflowInputSha);
   const githubToken = process.env.GITHUB_TOKEN;
@@ -181,7 +191,15 @@ async function buildDispatcher(operation, workflowInputSha) {
     authenticateImportResult: unavailable,
     resolveOwnerProvisionReceipt: unavailable,
   });
-  const lane = createSealedRealmsProductionActivationLane({ bridgeState });
+  const lane = createSealedRealmsProductionActivationLane({ bridgeState,
+    ...(operation === 'activation-evidence-generate' ? {
+      generator: createSealedRealmsProductionActivationEvidenceGenerator({
+        records: createSealedRealmsProductionActivationRecords({ privateState, authority,
+          readBindingCandidate: readCanonicalRecoveryCandidate }),
+        privateState, authority,
+      }),
+    } : {}),
+  });
   const context = createSealedRealmsProductionActivationDispatchContext({
     readGit,
     readBinding,

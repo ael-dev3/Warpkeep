@@ -4,9 +4,7 @@ import {
   GREATER_REALM_LANDFORM_ID,
 } from './greater-realm-biomes';
 import { GREATER_REALM_WATER_REGIME_ID } from './greater-realm-hydrology-authority';
-import {
-  type IndexedAxialGrid,
-} from './greater-realm-terrain';
+import type { IndexedAxialGrid } from './greater-realm-terrain';
 
 const NEIGHBOR_COUNT = 6;
 const WATER_DRY = GREATER_REALM_WATER_REGIME_ID.DRY;

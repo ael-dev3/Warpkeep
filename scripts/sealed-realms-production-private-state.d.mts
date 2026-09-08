@@ -17,6 +17,8 @@ export type SealedRealmsProductionPrivateState = Readonly<{
     bytes: Uint8Array;
     consume: (descriptor: number) => undefined;
   }>) => Readonly<Record<never, never>>;
+  /** Reads only the fixed private activation descriptor, bounded at 1 MiB. */
+  readActivationDescriptor: () => Uint8Array;
   read: (input: Readonly<{
     root: 'audit' | 'runtime' | 'cache';
     relativePath: string;

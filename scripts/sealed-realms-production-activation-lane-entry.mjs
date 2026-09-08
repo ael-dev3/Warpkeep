@@ -1,6 +1,7 @@
 import {
   assertSealedRealmsProductionAuthBridgeState,
   assertSealedRealmsProductionAuthBridgeStateAuthority,
+  assertSealedRealmsProductionActivationEvidenceGenerator,
 } from './sealed-realms-production-auth-bridge-state.mjs';
 import {
   sourceCommitFromSealedRealmsProductionAuthority,
@@ -8,6 +9,8 @@ import {
 import {
   assertSealedRealmsProductionContinuationStore,
   issueSealedRealmsProductionContinuation,
+  claimSealedRealmsProductionContinuation,
+  reconcileSealedRealmsProductionContinuation,
 } from './sealed-realms-production-continuation.mjs';
 import {
   assertSealedRealmsProductionWorkflowPermit,
@@ -188,19 +191,20 @@ function continuationInput(continuation, authority, binding) {
 }
 
 /**
- * Holds the Task 6D private activation evidence boundary. Generation remains
- * unavailable until separately reviewed capture and activation work supplies
- * its canonical receipt and reconciliation.
+ * Holds the private activation boundary. Generation requires the fixed reader
+ * capability; an unavailable operating adapter cannot be replaced with callbacks.
  */
 export function createSealedRealmsProductionActivationLane(input = {}) {
   if (
     isProxy(input) || input === null || typeof input !== 'object' || Array.isArray(input)
     || Object.getPrototypeOf(input) !== Object.prototype
-    || JSON.stringify(Object.keys(input)) !== JSON.stringify(['bridgeState'])
+    || ![JSON.stringify(['bridgeState']), JSON.stringify(['bridgeState', 'generator'])].includes(JSON.stringify(Object.keys(input)))
     || isProxy(input.bridgeState)
   ) fail('SEALED_REALMS_ACTIVATION_LANE_INPUT_INVALID');
   const { bridgeState } = input;
   const state = assertSealedRealmsProductionAuthBridgeState(bridgeState);
+  const generator = Object.hasOwn(input, 'generator')
+    ? assertSealedRealmsProductionActivationEvidenceGenerator(input.generator) : undefined;
   const execute = async (input = {}) => {
     if (
       isProxy(input) || input === null || typeof input !== 'object' || Array.isArray(input)
@@ -218,7 +222,29 @@ export function createSealedRealmsProductionActivationLane(input = {}) {
     assertSealedRealmsProductionAuthBridgeStateAuthority(state, authority);
     if (authority.mode !== 'S') fail('SEALED_REALMS_ACTIVATION_LANE_SOURCE_MODE_INVALID');
     if (operation === 'activation-evidence-generate') {
-      fail('SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE');
+      if (generator === undefined) return Object.freeze({ status: 'unavailable' });
+      const binding = await state.reopenActivationEvidenceContinuation();
+      const common = continuationInput(continuation, authority, binding);
+      try {
+        await claimSealedRealmsProductionContinuation({
+          ...common,
+          effect: claim => state.consumeActivationEvidenceForContinuation({
+            claim, store: continuation.store, sourceAuthority: authority,
+            kind: 'activation-evidence', runId: continuation.runId,
+            runAttempt: continuation.runAttempt, ...binding, generator,
+          }),
+        });
+      } catch (error) {
+        if (error?.code !== 'SEALED_REALMS_CONTINUATION_AMBIGUOUS') throw error;
+        await reconcileSealedRealmsProductionContinuation({
+          ...common,
+          readOnlyReconcile: reconciliation => state.reconcileActivationEvidenceForContinuation({
+            selection: binding, generator, reconciliation,
+            store: continuation.store, sourceAuthority: authority,
+          }),
+        });
+      }
+      return Object.freeze({ status: 'completed' });
     }
     const binding = await state.inspectActivationEvidenceForContinuation();
     await issueSealedRealmsProductionContinuation(
@@ -266,7 +292,8 @@ export function createSealedRealmsProductionActivationDispatcher(input) {
       if (preparedMember === undefined) {
         throw new SealedRealmsProductionDispatcherError('SEALED_REALMS_DISPATCH_REQUEST_INVALID');
       }
-      const early = earlySealedRealmsProductionDispatchResult(preparedMember.operation);
+      const early = preparedMember.lane === 'activation'
+        ? undefined : earlySealedRealmsProductionDispatchResult(preparedMember.operation);
       if (early !== undefined) {
         consumePrepared(prepared);
         return early;

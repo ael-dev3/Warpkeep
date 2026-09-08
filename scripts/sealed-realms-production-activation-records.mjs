@@ -15,6 +15,7 @@ import {
 import {
   deriveGenesis001SealedLaunchEvidence,
   deriveGenesis001RecoveryLaunchEvidence,
+  validateGenesis001RecoveryLaunchEvidenceAtTime,
   genesis001AdmissionMonitorCurrentStateReceiptDigest,
   genesis001CensusOpaqueProofDigest,
   genesis001FreezePublishReceiptDigest,
@@ -879,10 +880,11 @@ function ptrSealedLiveDigest(receipt) {
  * Reopening additionally proves the fixed historical graph agrees before any
  * descriptor bytes are assembled. No live infrastructure is consulted here.
  */
-function validateReopenedCorpus(state, receipts) {
+function validateReopenedCorpus(state, receipts, verificationTime) {
   try {
     const recovery = state.recoveryCandidate;
-    const derive = recovery ? deriveGenesis001RecoveryLaunchEvidence : deriveGenesis001SealedLaunchEvidence;
+    const derive = recovery ? (verificationTime === undefined ? deriveGenesis001RecoveryLaunchEvidence
+      : value => validateGenesis001RecoveryLaunchEvidenceAtTime(value, verificationTime)) : deriveGenesis001SealedLaunchEvidence;
     const projection = derive({
       preparationSourceCommit: state.preparationSourceCommit,
       ...(recovery ? {} : { freezePublishReceipt: receipts.g001FreezePublishReceipt }),
@@ -995,13 +997,68 @@ export function assertSealedRealmsProductionActivationRecords(records) {
   return records;
 }
 
-/** Recovery-only private input assembly, not a deployment authorization. */
-export function writeSealedRealmsProductionRecoveryActivationDescriptor(input) {
-  const options = exactInput(input, ['records', 'consumeDescriptor']);
-  if (typeof options.consumeDescriptor !== 'function' || isProxy(options.consumeDescriptor)) {
+/** Checks opaque store ownership; matching source strings alone are insufficient. */
+export function assertSealedRealmsProductionActivationRecordsAuthority(input) {
+  const options = exactInput(input, ['records', 'privateState', 'authority']);
+  const state = capabilityState(options.records);
+  const privateState = assertSealedRealmsProductionPrivateState(options.privateState);
+  const sourceCommit = preparationSourceCommitFromSealedRealmsProductionAuthority(options.authority);
+  if (state.privateState !== privateState || state.preparationSourceCommit !== sourceCommit) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+  }
+  return options.records;
+}
+
+/** Validates canonical recovery evidence data; this does not mint receipt authority. */
+export function validateSealedRealmsProductionRecoveryActivationEvidence(envelope, verificationTime) {
+  const members = RECEIPT_MEMBERS.filter(member => member !== 'g001FreezePublishReceipt');
+  exactInput(envelope, ['schemaVersion', 'profile', 'bindingCandidate', ...members]);
+  canonicalJsonTree(envelope);
+  if (envelope.schemaVersion !== 2
+    || envelope.profile !== 'warpkeep-0.4.0-recovery-activation-evidence-v1') {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_INPUT_INVALID');
   }
-  const original = capabilityState(options.records);
+  const candidate = validateRecoveryActivationCandidate(`${JSON.stringify(envelope.bindingCandidate, null, 2)}\n`);
+  const state = Object.freeze({
+    preparationSourceCommit: candidate.preparationSourceCommit,
+    recoveryCandidate: candidate,
+  });
+  const receipts = Object.fromEntries(members.map(member => {
+    const realm = member.startsWith('g002') ? 'g002' : member.startsWith('ptr') ? 'ptr' : undefined;
+    return [member, validateMemberReceipt(member, envelope[member],
+      realm === undefined ? state.preparationSourceCommit : candidate[`${realm}ModuleSourceCommit`],
+      realm === undefined ? state.preparationSourceCommit : candidate[`${realm}AtlasSourceCommit`])];
+  }));
+  validateReopenedCorpus(state, receipts, verificationTime);
+  const compare = (key, value) => {
+    if (candidate[key] !== value) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+  };
+  for (const realm of ['g002', 'ptr']) {
+    const published = receipts[`${realm}PublishReceipt`];
+    compare(`${realm}ModuleSourceCommit`, published.sourceCommit);
+    for (const field of ['databaseIdentity', 'moduleSha256', 'moduleTreeId',
+      'dependencyClosureDigest', 'spacetimeExecutableSha256', 'spacetimeCliConfigSha256',
+      'freshStatusDigest', 'publishReceiptDigest']) {
+      compare(`${realm}${field[0].toUpperCase()}${field.slice(1)}`, published[field]);
+    }
+    compare(`${realm}AtlasImportReceiptDigest`, receipts[`${realm}AtlasImportReceipt`].importReceiptDigest);
+    const live = receipts[`${realm}SealedLiveReceipt`];
+    compare(`${realm}SealedLiveReceiptDigest`, realm === 'g002'
+      ? genesis002SealedLiveReceiptDigest(live) : ptrSealedLiveDigest(live));
+    for (const field of ['atlasId', 'atlasSourceCommit', 'publicReleaseId',
+      'releaseHeaderSha256', 'verificationDigest']) {
+      compare(`${realm}${field[0].toUpperCase()}${field.slice(1)}`, live[field]);
+    }
+  }
+  compare('g002ReleaseSha256', receipts.g002SealedLiveReceipt.releaseSha256);
+  compare('ptrReleaseManifestSha256', receipts.ptrSealedLiveReceipt.releaseManifestSha256);
+  compare('ptrExpectedReleaseSha256', receipts.ptrSealedLiveReceipt.expectedReleaseSha256);
+  compare('ptrOwnerProvisionReceiptDigest', receipts.ptrOwnerProvisionReceipt.provisionReceiptDigest);
+  return candidate;
+}
+
+function readRecoveryActivationEnvelope(records, verificationTime) {
+  const original = capabilityState(records);
   let candidate;
   try {
     const source = original.readBindingCandidate(original.preparationSourceCommit);
@@ -1019,7 +1076,7 @@ export function writeSealedRealmsProductionRecoveryActivationDescriptor(input) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_INCOMPLETE');
   }
   const receipts = Object.fromEntries(members.map(member => [member, readReceipt(state, member)]));
-  validateReopenedCorpus(state, receipts);
+  validateReopenedCorpus(state, receipts, verificationTime);
   const compare = (key, value) => {
     if (candidate[key] !== value) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
   };
@@ -1043,14 +1100,35 @@ export function writeSealedRealmsProductionRecoveryActivationDescriptor(input) {
   compare('ptrReleaseManifestSha256', receipts.ptrSealedLiveReceipt.releaseManifestSha256);
   compare('ptrExpectedReleaseSha256', receipts.ptrSealedLiveReceipt.expectedReleaseSha256);
   compare('ptrOwnerProvisionReceiptDigest', receipts.ptrOwnerProvisionReceipt.provisionReceiptDigest);
+  return { state, envelope: {
+    schemaVersion: 2,
+    profile: 'warpkeep-0.4.0-recovery-activation-evidence-v1',
+    bindingCandidate: candidate,
+    ...receipts,
+  } };
+}
+
+/** Reopens authentic records without writing or exposing their private bodies. */
+export function inspectSealedRealmsProductionRecoveryActivationRecords(records, verificationTime) {
+  const { state, envelope } = readRecoveryActivationEnvelope(records, verificationTime);
+  validateSealedRealmsProductionRecoveryActivationEvidence(envelope, verificationTime);
+  return Object.freeze({
+    sourceCommit: state.preparationSourceCommit, schemaVersion: 2,
+    descriptorSha256: createHash('sha256').update(`${JSON.stringify(envelope, null, 2)}\n`).digest('hex'),
+  });
+}
+
+/** Recovery-only private input assembly, not a deployment authorization. */
+export function writeSealedRealmsProductionRecoveryActivationDescriptor(input) {
+  const options = exactInput(input, ['records', 'consumeDescriptor']);
+  if (typeof options.consumeDescriptor !== 'function' || isProxy(options.consumeDescriptor)) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_INPUT_INVALID');
+  }
+  const { state, envelope } = readRecoveryActivationEnvelope(options.records);
+  validateSealedRealmsProductionRecoveryActivationEvidence(envelope);
   let bytes;
   try {
-    bytes = Buffer.from(`${JSON.stringify({
-      schemaVersion: 2,
-      profile: 'warpkeep-0.4.0-recovery-activation-evidence-v1',
-      bindingCandidate: candidate,
-      ...receipts,
-    }, null, 2)}\n`, 'utf8');
+    bytes = Buffer.from(`${JSON.stringify(envelope, null, 2)}\n`, 'utf8');
     state.privateState.writeCanonicalNoClobberAndConsumeDescriptor({
       bytes,
       // Let the private FD owner reject and observe asynchronous results before

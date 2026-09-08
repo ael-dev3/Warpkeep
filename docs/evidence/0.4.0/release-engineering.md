@@ -164,3 +164,162 @@ locally fabricated workflow identity is not completion.
 Before production effects, verify the G001 baseline and tested recovery preserving
 post-deployment writes; preserve sealed G002 and owner-only PTR. R14–R17 still
 require reviewed integration, real deployment identities and live acceptance.
+
+## 2026-09-08 connected V2 activation generation
+
+The development changes following `5b97c5f` replace the missing generator and
+receipt seam with a fixed V2 implementation. This section supersedes the earlier
+claim that every activation generation route is unavailable. It does **not**
+establish production activation readiness or authorize a populated candidate.
+
+`scripts/generate-0.4.0-recovery-launch-activation.mjs` owns the recovery
+generator. It consumes the exact owner-private descriptor through a synchronous
+file descriptor, validates all twelve non-historical receipt records and their
+G001/G002/PTR relationships, and checks the current bridge confirmation and realm
+import cross-links. Bootstrap tree, blob and SHA-256 derive from immutable Git
+objects at authenticated preparation source S. The fixed source reader requires
+an exact clean S checkout, canonical origin and matching main references; both
+canonical HTTPS origin forms, with and without `.git`, are accepted. It does not
+require Mac-only Git configuration or borrow the legacy generated bootstrap pin.
+
+The original sealed-launch generator retains V1 behavior and re-exports the V2
+entry points. V1 verification remains supported; no historical G001 freeze
+receipt is synthesized for recovery. The V2 public artifact verifier checks
+canonical schema and derived commitments before publication.
+
+The connected caller is `sealed-realms-production-activation-lane-entry.mjs`.
+A configured lane reopens actual bridge evidence, claims its durable activation
+continuation and invokes the fixed generator capability. The bridge state checks
+the claim synchronously before asynchronous work, reauthenticates live bridge
+facts, and revokes the private member in `finally`. There is no caller-selected
+generation callback. A lane without the fixed capability returns `unavailable`
+before reserving a claim.
+
+### Durable result and uncertainty handling
+
+The operation atomically publishes one owner-private family under
+`runtime/sealed-realms-v1/public/`:
+
+- `0.4.0-sealed-launch.json`, the verified public binding;
+- `activation-generation-receipt.json`, its private completion receipt.
+
+The workflow's existing exact-file upload includes only the binding. The receipt
+must not be added to a directory upload. Its canonical profile is
+`warpkeep-sealed-realms-activation-generation-receipt-v1`; fields bind source,
+source authority digest, fixed operation, original GitHub run/attempt, activation
+evidence/chain digests, descriptor/artifact SHA-256, artifact schema/profile,
+generation time and generated outcome. The codec only validates data; a
+caller-created JSON receipt does not establish operation authority.
+
+If the operation result or terminal continuation write is lost, a later
+independently attested run can reconcile only the matching complete family. The
+reader revalidates the original run, receipt, fixed descriptor, reopened receipt
+corpus, bridge chain and mathematically derived binding. Missing, partial, extra,
+changed or retained-lock state is ambiguous and is not repaired or regenerated.
+Reconciliation performs no provider probes or effect replay. G001 freshness is
+validated at the matched generation timestamp; actual generation still uses
+current-time evidence checks. This permits recovery after the original freshness
+window without granting fresh authority to stale evidence.
+
+### Verification performed
+
+The focused Linux run passed **231 tests across eight suites**: activation
+records, bridge state, continuation, private state, V1 generator, public artifact
+verifier, generation receipt codec and fixed V2 source reader. A subsequent
+targeted run passed all **eight connected generation cases**, including four new
+rejections for a wrong original run, extra file, partial family and retained lock.
+The existing successful generation, next-day lost-acknowledgment reconciliation,
+changed artifact and changed descriptor cases also passed. Other tests were
+filtered out in that second run; they were not disabled in source.
+
+All twelve V1 generator tests now use fresh real bridge confirmation and durable
+continuation machinery for each synchronous test body. The former `beforeAll`
+fixture tried to retain an opaque member indefinitely through an unavailable
+callback factory. The replacement requires the existing opaque test capability,
+revokes the member before returning, and explicitly checks that it cannot be
+read afterward. The V2 test-facts entry also requires that capability and rejects
+it outside the test environment. Positive and negative V1 coverage was retained.
+
+Linux verification used Node 22.22.3 and Vitest 4.1.9 in the independent
+`5ddefb0` verification checkout with the exact activation-source/test overlay.
+This is scoped verification, not a claim that the older checkout is the complete
+current source. No shared dependency installation occurred. Windows passed the
+26 pure codec/source-reader tests, application `tsc --noEmit` and scoped diff
+checks. An earlier Windows filesystem-heavy run had timeout failures and stale
+expected-status assertions; the complete Linux suites establish those affected
+contracts on their supported platform.
+
+### Remaining operating dependency
+
+`sealed-realms-production-activation-workflow-entry.mjs` now composes the fixed
+records/generator capability, but its **canonical recovery candidate reader is
+explicitly unavailable**. Its four-field checked-in source projection remains
+inert metadata. A prepared assembler directory is also source, not live recovery
+facts or authorization. Neither is accepted as a populated recovery candidate.
+
+The next implementation must derive the canonical candidate through fixed,
+authenticated recovery-core, source, realm and private-record readers. That
+producer must join independently authenticated recovery authorization/worker
+facts to the actual source S and the exact G001/G002/PTR receipt corpus. The
+workflow's deployment, binding, import and owner-receipt provider adapters are
+also still explicit unavailable functions, and workflow evidence/runtime/runner
+contracts remain separate operating work. Filling their values from caller JSON,
+copying test fixtures or treating local preparation success as authorization
+would bypass the missing work.
+
+No provider mutation, runner registration, live authorization, production
+generation or deployment was performed for this slice. Generated source pins and
+compiled artifacts must still be derived and verified from the final reviewed
+source family by the assembler; no pin was hand-edited here.
+
+## Complete Linux source assembler — 2026-09-08
+
+`scripts/local-release-assembler.mjs` now connects the fixed native producers,
+complete generated consumer derivation, independent candidate comparison,
+durable installation and recovery. The
+[operating runbook](../../operations/0.4.0-local-release-preparation.md) describes
+its `prepare`, `check` and `recover` commands and exact environment. This entry
+records component and diagnostic verification before the first complete
+operating run from the resulting committed source.
+
+The fixed TypeScript scanner inventory was derived from exact archives matching
+the committed auth-bridge lock's SHA-512 integrities. The manifest generator
+reproduced its complete bytes. Scanning worked without repository dependencies;
+repeated attestation checked the complete namespace and detected late metadata,
+binary and namespace changes. Scanner and consumer suites passed **104 tests**.
+The actual legacy generator test bootstrap pin is now included in the generated
+consumer family. Planned files without real generated slots were not invented.
+
+The operation graph suites passed **101 tests**, including disconnected or
+missing inputs, unauthorized relative/package/synthetic edges, absent authority
+modules, newly reachable source, raw-source hashing and repeat-build equality.
+The final diagnostic in-memory compilation of every operation lane and recovery
+succeeded. No compiler input intersected a generated closure/consumer or binding
+output. Generic private record reads retain their existing limit; native bundle
+loaders use their separate bounded artifact reader and exact size/digest checks.
+
+The read-only whole-candidate verifier passed **34 native cases**, with one
+unsupported-platform case skipped. It checks all source and candidate bytes,
+complete generated namespaces, G001 preservation, unexpected files, aliases,
+modes and late identity changes. Transaction recovery passed **21 native cases**
+with one unsupported-host case skipped, including genuine held-lease use.
+
+The assembler's real recovery CLI passed **14 native integration cases** using
+actual Git source/candidate repositories and installer journals. Tests cover
+completed/pending markers, existing-history restarts, no-marker interruption,
+invalid/ambiguous metadata, held locks during archival and preserved user edits.
+An actual child process was killed after history rename and before directory
+sync; resumed recovery re-established durability. Its completion metadata was a
+synthetic journal-bound fixture, not evidence of compilation or preparation.
+CLI argument/import/error boundaries also passed **15 tests** on Windows.
+
+Native checks used WSL Linux x64, UID 1000, the pinned Node 22.22.3 and Vitest
+4.1.9. Fixtures copied exact current source overlays into independent directories;
+shared dependency metadata remained unchanged and caches stayed local. The
+scanner/graph diagnostic used the `5b97c5f` baseline plus current overlays.
+Independent reviews corrected late scanner/candidate mutation checks and the
+history-restart durability gap before these passing runs.
+
+Full native `prepare` and a second independent `check` still need to run from
+the committed integrated source. These tests do not establish a prepared final
+release, populated production evidence, runner readiness or owner acceptance.

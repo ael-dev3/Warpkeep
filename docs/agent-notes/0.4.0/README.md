@@ -7,10 +7,11 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-Updated 2026-09-08 for development checkpoint `c51bb00` and the documentation
-reconciliation with protected main `9eb98e7`. These identify the merge inputs;
-read Git for the resulting commit and publication state. The original audit at
-`781e51e` remains dated evidence. Recheck providers before using its observations.
+Updated 2026-09-08 after the documentation merge `5b97c5f`, PTR host-scope fix
+`d088ec1` and workflow regression correction `0a2f6f9`. This revision adds the
+operating Linux source assembler and recovery activation generation. Read Git
+for the resulting commit and publication state. The original audit at `781e51e`
+remains dated evidence. Recheck providers before using its observations.
 
 - `main` is the public G001 baseline. Current 0.4 implementation is on
   `codex/prepared-keep-bindings-fix`, associated with draft
@@ -20,7 +21,8 @@ read Git for the resulting commit and publication state. The original audit at
   establish a complete live owner journey.
 - Healthy snapshot refresh retains the keep scene and focus (`555e505`). Active
   PTR continuation now obtains fresh scoped authority at hard expiry (`c990a3b`)
-  without replaying commands. Actual owner renewal, meaningful pacing on real
+  without replaying commands. Presentation-only Mini App changes preserve the
+  session; observed identity/authority changes revoke it (`d088ec1`). Actual owner renewal, meaningful pacing on real
   routes, complete visual/device coverage and live acceptance still need evidence.
 - GitHub and configured Cloudflare/SpacetimeDB metadata reads work in the current
   session. Earlier network-denial notes describe an older session.
@@ -28,6 +30,13 @@ read Git for the resulting commit and publication state. The original audit at
   implemented (`c51bb00`); its runner/private state, tracked generated bundle and
   manifest, final source family and live authorization remain unprepared or
   unverified. Other production lanes retain Mac-specific dependencies.
+- The [local source assembler](../../operations/0.4.0-local-release-preparation.md)
+  now connects fixed compilers, complete generated consumers, independent byte
+  verification and durable candidate recovery. The activation lane has a fixed
+  V2 generator and receipt-based reconciliation; its authenticated canonical
+  candidate/provider producer remains unfinished. See the dated
+  [engineering evidence](../../evidence/0.4.0/release-engineering.md) before
+  treating component or diagnostic tests as full preparation.
 - 0.4 is **not shipped**. Preserve the live G001 game and its admission freeze,
   keep G002 closed, and use the isolated owner's PTR for real 0.4 acceptance.
 

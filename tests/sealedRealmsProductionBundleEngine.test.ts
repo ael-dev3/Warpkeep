@@ -1,13 +1,14 @@
 // @vitest-environment node
 
 import {
-  copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync,
+  copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync,
   rmSync, writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { build, type BuildOptions, type Plugin } from 'esbuild';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -20,28 +21,16 @@ import {
 } from '../scripts/build-sealed-realms-production-bundles.mjs';
 
 const REPOSITORY_ROOT = resolve(import.meta.dirname, '..');
-const ACTIVATION_GRAPH_PATHS = [
-  'scripts/auth-bridge-config-attestation.mjs',
-  'scripts/auth-bridge-notification-prepared-deploy-journal.mjs',
-  'scripts/auth-bridge-notification-prepared-receipt.mjs',
-  'scripts/production-admin-token-budget.mjs',
-  'scripts/sealed-realms-production-activation-lane-entry.mjs',
-  'scripts/sealed-realms-production-activation-workflow-entry.mjs',
-  'scripts/sealed-realms-production-auth-bridge-state.mjs',
-  'scripts/sealed-realms-production-continuation.mjs',
-  'scripts/sealed-realms-production-dispatch.mjs',
-  'scripts/sealed-realms-production-private-state.mjs',
-  'scripts/sealed-realms-production-source-authority.mjs',
-  'scripts/sealed-realms-production-workflow-authority.mjs',
-  'scripts/sealed-realms-production-workflow-evidence.mjs',
-  'scripts/sealed-realms-production-workflow-private-state.mjs',
-] as const;
+// A source fixture is deliberately not a second manually maintained graph list.
+// The real compiler determines which of these source modules is reachable.
+const ACTIVATION_SOURCE_FIXTURE_PATHS = readdirSync(join(REPOSITORY_ROOT, 'scripts'))
+  .filter(name => name.endsWith('.mjs')).map(name => `scripts/${name}`);
 const FROZEN_SOURCE_PATH = 'scripts/genesis001-binding-frozen-source.mjs';
 
 function sourceFixture(extraPaths: readonly string[] = []) {
   const parent = realpathSync(mkdtempSync(join(tmpdir(), 'warpkeep-bundle-engine-')));
   const root = join(parent, 'repository');
-  for (const path of [...ACTIVATION_GRAPH_PATHS, ...extraPaths]) {
+  for (const path of new Set([...ACTIVATION_SOURCE_FIXTURE_PATHS, ...extraPaths])) {
     const destination = resolve(root, path);
     mkdirSync(dirname(destination), { recursive: true });
     copyFileSync(resolve(REPOSITORY_ROOT, path), destination);
@@ -77,6 +66,49 @@ function evaluatedBootstrap(source: string, operation: string): string {
 }
 
 describe('sealed-realms production bundle engine', () => {
+  it.each(['disconnected-input', 'missing-import-target', 'unauthorized-external', 'relative-external',
+    'unknown-synthetic-input', 'missing-authority', 'bare-builtin-outside-pinned-yaml'])('rejects %s in a real compiler graph', async kind => {
+    const compiler: typeof build = async options => {
+      const result = await build(options);
+      const inputs = result.metafile!.inputs;
+      const entry = inputs['scripts/sealed-realms-production-activation-workflow-entry.mjs'];
+      if (kind === 'disconnected-input') inputs['scripts/compiler-orphan-fixture.mjs'] = {bytes: 1, imports: []};
+      if (kind === 'missing-import-target') delete inputs['scripts/auth-bridge-config-attestation.mjs'];
+      if (kind === 'unauthorized-external') entry.imports.push({path: 'unreviewed-package', kind: 'import-statement', external: true});
+      if (kind === 'relative-external') entry.imports.push({path: './hidden-runtime.mjs', kind: 'import-statement', external: true});
+      if (kind === 'unknown-synthetic-input') inputs['<unreviewed-define>'] = {bytes: 2, imports: []};
+      if (kind === 'bare-builtin-outside-pinned-yaml') entry.imports.push({path: 'process', kind: 'require-call', external: true});
+      if (kind === 'missing-authority') {
+        const removed = 'scripts/sealed-realms-production-source-authority.mjs';
+        delete inputs[removed];
+        for (const input of Object.values(inputs)) input.imports = input.imports.filter(edge => edge.path !== removed);
+      }
+      return result;
+    };
+    await expect(buildSealedRealmOperationBundle({lane: 'activation', sourceRoot: REPOSITORY_ROOT, build: compiler}))
+      .rejects.toMatchObject({code: 'SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID'});
+  });
+
+  it('derives newly reachable source membership without changing a stored count and hashes raw source bytes', async () => {
+    const local = sourceFixture();
+    const entry = join(local.root, 'scripts/sealed-realms-production-activation-workflow-entry.mjs');
+    const extra = 'scripts/compiler-extra-fixture.mjs';
+    try {
+      const baseline = await buildSealedRealmOperationBundle({lane: 'activation', sourceRoot: local.root, build});
+      writeFileSync(join(local.root, extra), 'export const unusedFixtureValue = 1;\n');
+      writeFileSync(entry, `import './compiler-extra-fixture.mjs';\n${readFileSync(entry, 'utf8')}`);
+      const changed = await buildSealedRealmOperationBundle({lane: 'activation', sourceRoot: local.root, build});
+      expect(changed.graphManifest.map(file => file.path)).toEqual([...baseline.graphManifest.map(file => file.path), extra].sort());
+      for (const member of changed.graphManifest) {
+        const bytes = readFileSync(join(local.root, member.path));
+        expect(member).toMatchObject({byteLength: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex')});
+      }
+      const repeated = await buildSealedRealmOperationBundle({lane: 'activation', sourceRoot: local.root, build});
+      expect(repeated.graphManifest).toEqual(changed.graphManifest);
+      expect(repeated.bytes).toEqual(changed.bytes);
+    } finally { local.cleanup(); }
+  });
+
   it('imports in an isolated directory where bare third-party resolution is unavailable', () => {
     const local = sourceFixture();
     const isolatedEngine = join(local.parent, 'sealed-realms-production-bundle-engine.mjs');

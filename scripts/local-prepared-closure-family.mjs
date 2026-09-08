@@ -8,7 +8,7 @@ import { isPreparedReleaseOutputPath } from './local-release-recovery-journal.mj
 const VERIFIER = 'scripts/auth-bridge-notification-prepared-deploy-closure.mjs';
 const MANIFEST = 'scripts/auth-bridge-notification-prepared-deploy-closure-v1.json';
 const SOURCE_PIN_OUTPUTS = ['scripts/generate-0.4.0-sealed-launch-activation.mjs',
-  'scripts/verify-0.4.0-sealed-launch.mjs'];
+  'scripts/verify-0.4.0-sealed-launch.mjs', 'tests/sealedLaunchActivationGenerator.test.ts'];
 const WORKFLOWS = ['.github/workflows/deploy-pages.yml', '.github/workflows/notification-bridge-b0.yml',
   '.github/workflows/notification-bridge-prepared.yml'];
 const INVENTORY = /^export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =\r?\n  Object\.freeze\(\[\r?\n(?:    '[A-Za-z0-9._/-]+',\r?\n)+  \]\);/gm;
@@ -64,7 +64,9 @@ export async function derivePreparedClosureFamily(...args) {
     owned.push(...pins.files.map(file => file.bytes));
     if (JSON.stringify(pins.files.map(file => file.path)) !== JSON.stringify(SOURCE_PIN_OUTPUTS)) fail();
     for (const file of pins.files) {
-      if (!paths.includes(file.path) || outputs.has(file.path)) fail();
+      // Generated regression-fixture pins are part of the installation family,
+      // but tests are deliberately outside the executable protected closure.
+      if ((!file.path.startsWith('tests/') && !paths.includes(file.path)) || outputs.has(file.path)) fail();
       outputs.set(file.path, file.bytes);
     }
     const bodies = new Map();
@@ -92,7 +94,7 @@ export async function derivePreparedClosureFamily(...args) {
     }
     const files = [...outputs].sort(([left], [right]) => left < right ? -1 : 1)
       .map(([path, bytes]) => Object.freeze({ path, bytes }));
-    if (files.length !== 14 || files.some(file => !isPreparedReleaseOutputPath(file.path))) fail();
+    if (files.length !== 15 || files.some(file => !isPreparedReleaseOutputPath(file.path))) fail();
     const retained = new Set(files.map(file => file.bytes));
     for (const bytes of owned) if (!retained.has(bytes)) bytes.fill(0);
     success = true;

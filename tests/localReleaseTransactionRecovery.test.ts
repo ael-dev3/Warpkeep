@@ -7,7 +7,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { encodePreparedReleaseJournal } from '../scripts/local-release-recovery-journal.mjs';
-import { recoverPreparedReleaseTransaction } from '../scripts/local-release-transaction-recovery.mjs';
+import { recoverPreparedReleaseTransaction, recoverPreparedReleaseTransactionUnderLock } from '../scripts/local-release-transaction-recovery.mjs';
+import { acquirePreparedReleaseCandidateLock } from '../scripts/local-release-candidate-lock.mjs';
 
 const supported = process.platform === 'linux' && process.arch === 'x64'
   && process.getuid?.() === 1000 && process.versions.node === '22.22.3';
@@ -87,6 +88,32 @@ describe.skipIf(!supported)('native prepared release rollback', () => {
     expect(recoverPreparedReleaseTransaction(root, transactionId)).toEqual({ status: 'rolled-back', transactionId });
     expectRestored();
     recoverPreparedReleaseTransaction(root, transactionId); expectRestored();
+  });
+  it('keeps the genuine operating lease held through successful recovery', () => {
+    publish(3);
+    const lease = acquirePreparedReleaseCandidateLock(root);
+    try {
+      expect(recoverPreparedReleaseTransactionUnderLock(root, transactionId, lease)).toEqual({ status: 'rolled-back', transactionId });
+      expectRestored();
+      expect(() => acquirePreparedReleaseCandidateLock(root)).toThrow('LOCAL_RELEASE_LOCK_BUSY');
+      expect(() => lease.assertActive()).not.toThrow();
+    } finally { lease.release(); }
+    const next = acquirePreparedReleaseCandidateLock(root); next.release();
+  });
+  it('keeps the operating lease held after rejection and preserves unexpected bytes', () => {
+    publish(3); writeFileSync(join(root, paths[2]), 'unrelated user change');
+    const lease = acquirePreparedReleaseCandidateLock(root);
+    try {
+      expect(() => recoverPreparedReleaseTransactionUnderLock(root, transactionId, lease)).toThrow();
+      expect(() => acquirePreparedReleaseCandidateLock(root)).toThrow('LOCAL_RELEASE_LOCK_BUSY');
+      expect(readFileSync(join(root, paths[2]), 'utf8')).toBe('unrelated user change');
+    } finally { lease.release(); }
+  });
+  it('rejects a duck-typed operating lease before touching targets', () => {
+    publish(3);
+    expect(() => recoverPreparedReleaseTransactionUnderLock(root, transactionId,
+      { assertActive() {}, release() {} })).toThrow('LOCAL_RELEASE_LOCK_CAPABILITY_INVALID');
+    expect(readFileSync(join(root, paths[0]), 'utf8')).toBe(`new:${paths[0]}`);
   });
   it('leaves all targets untouched when a late target was edited', () => {
     publish(3); writeFileSync(join(root, paths[2]), 'user-edit');

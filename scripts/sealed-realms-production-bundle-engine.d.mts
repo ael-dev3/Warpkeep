@@ -22,7 +22,7 @@ export type SealedRealmsProductionBundleGraphMember = Readonly<{
 export type SealedRealmOperationBundleSpecification = Readonly<{
   entryPath: string;
   basename: string;
-  graphCount: number;
+  requiredGraphPaths: readonly string[];
   factoryExport: SealedRealmsProductionWorkflowFactory;
   factoryFailureCode: SealedRealmsProductionWorkflowFactoryFailure;
   exportNames: readonly [SealedRealmsProductionWorkflowFactory, string];

@@ -638,7 +638,7 @@ export function createSealedRealmsProductionPrivateState(input) {
     }
   };
 
-  const read = ({ root, relativePath }) => {
+  const readBounded = ({ root, relativePath }, maximumBytes) => {
     const target = descendant(root, relativePath, false);
     const parentChain = captureDirectoryChain(
       home, target.directory, owner, allowTestOnlyPlatformMode,
@@ -651,7 +651,7 @@ export function createSealedRealmsProductionPrivateState(input) {
         named, owner, named.size, 'SEALED_REALMS_PRIVATE_STATE_FILE_INVALID',
         allowTestOnlyPlatformMode,
       );
-      if (named.size < 1 || named.size > MAXIMUM_FILE_BYTES) {
+      if (named.size < 1 || named.size > maximumBytes) {
         fail('SEALED_REALMS_PRIVATE_STATE_FILE_INVALID');
       }
       descriptor = openSync(target.path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
@@ -684,6 +684,13 @@ export function createSealedRealmsProductionPrivateState(input) {
       if (descriptor !== undefined) closeSync(descriptor);
     }
   };
+
+  const read = input => readBounded(input, MAXIMUM_FILE_BYTES);
+  function readActivationDescriptor() {
+    if (arguments.length !== 0) fail('SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_INVALID');
+    return readBounded({ root: ACTIVATION_DESCRIPTOR_ROOT,
+      relativePath: ACTIVATION_DESCRIPTOR_RELATIVE_PATH }, MAXIMUM_DESCRIPTOR_BYTES);
+  }
 
   const list = ({ root, relativeDirectory = '.' }) => {
     const rootDirectory = rootPath(root);
@@ -1165,6 +1172,7 @@ export function createSealedRealmsProductionPrivateState(input) {
     write,
     writeCanonicalNoClobberAndConsumeDescriptor,
     read,
+    readActivationDescriptor,
     list,
     exists,
     append,

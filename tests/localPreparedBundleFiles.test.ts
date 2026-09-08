@@ -103,11 +103,9 @@ function fixedGraphManifest(lane: typeof LANES[number], longPaths = false) {
       : `node_modules/warpkeep-fixture/${lane}/${String(index).padStart(3, '0')}.mjs`;
     return { path, byteLength: Buffer.byteLength(path), sha256: sha256(path) };
   });
-  return [...generated, {
-    path: spec.entryPath,
-    byteLength: Buffer.byteLength(spec.entryPath),
-    sha256: sha256(spec.entryPath),
-  }].sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
+  return [...generated, ...engine.getSealedRealmOperationBundleSpecification(lane).requiredGraphPaths.map(path => ({
+    path, byteLength: Buffer.byteLength(path), sha256: sha256(path),
+  }))].sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
 }
 
 function fixture() {
@@ -205,11 +203,15 @@ describe('local prepared bundle files', () => {
     expect(typeof get).toBe('function');
     for (const lane of LANES) {
       const first = get(lane);
-      const { acceptedOperation: _acceptedOperation, ...expectedSpec } = SPECS[lane];
-      expect(first).toEqual(expectedSpec);
+      const { acceptedOperation: _acceptedOperation, graphCount: _fixtureGraphCount,
+        ...expectedSpec } = SPECS[lane];
+      expect(first).toEqual({ ...expectedSpec, requiredGraphPaths: expect.any(Array) });
+      expect(first.requiredGraphPaths).toContain(expectedSpec.entryPath);
+      expect(first.requiredGraphPaths).toContain('scripts/sealed-realms-production-source-authority.mjs');
       expect(get(lane)).toBe(first);
       expect(Object.isFrozen(first)).toBe(true);
       expect(Object.isFrozen(first.exportNames)).toBe(true);
+      expect(Object.isFrozen(first.requiredGraphPaths)).toBe(true);
     }
     expect(() => get('unknown')).toThrow(expect.objectContaining({
       name: 'SealedRealmsProductionBundlesError',
@@ -319,9 +321,9 @@ describe('local prepared bundle files', () => {
       input.bundles.bundles[0].graphManifest = [];
       input.bundles.bundles[0].sourceClosureDigest = sourceClosureDigest('activation', []);
     }],
-    ['rejects a wrong fixed graph count with a recomputed closure digest', input => {
+    ['rejects a missing required authority member with a recomputed closure digest', input => {
       const bundle = input.bundles.bundles[0];
-      const removable = bundle.graphManifest.findIndex(member => member.path !== SPECS.activation.entryPath);
+      const removable = bundle.graphManifest.findIndex(member => member.path === 'scripts/sealed-realms-production-source-authority.mjs');
       bundle.graphManifest.splice(removable, 1);
       bundle.sourceClosureDigest = sourceClosureDigest('activation', bundle.graphManifest);
     }],

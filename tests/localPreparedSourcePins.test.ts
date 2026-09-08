@@ -9,8 +9,10 @@ import { derivePreparedSourcePins } from '../scripts/local-prepared-source-pins.
 const generator = 'scripts/generate-0.4.0-sealed-launch-activation.mjs';
 const verifier = 'scripts/verify-0.4.0-sealed-launch.mjs';
 const bootstrap = 'scripts/greater-realm-production-bootstrap.mjs';
+const generatorTest = 'tests/sealedLaunchActivationGenerator.test.ts';
 const stale = 'a'.repeat(64);
 const pin = (name: string) => `const ${name} =\n  '${stale}';\n`;
+const testAuthority = `const TEST_PREPARATION_BOOTSTRAP_AUTHORITY: Readonly<{\n  preparationSourceCommit: string;\n  moduleTreeId: string;\n  bootstrapBlob: string;\n  bootstrapSha256: string;\n}> = Object.freeze({\n  preparationSourceCommit: PREPARATION_COMMIT,\n  moduleTreeId: '1'.repeat(40),\n  bootstrapBlob: '2'.repeat(40),\n  bootstrapSha256:\n    '${stale}',\n});\n`;
 const sourceNames = [
   ['SEALED_REALMS_SOURCE_AUTHORITY_SOURCE_SHA256', 'scripts/sealed-realms-production-source-authority.mjs'],
   ['SEALED_REALMS_SOURCE_AUTHORITY_DECLARATION_SHA256', 'scripts/sealed-realms-production-source-authority.d.mts'],
@@ -55,6 +57,8 @@ beforeEach(() => {
   writeFileSync(join(root, 'package.json'), `${JSON.stringify({ name: 'warpkeep', version: '0.3.43', private: true, description: '0.3.43' }, null, 2)}\n`);
   writeFileSync(join(root, 'package-lock.json'), `${JSON.stringify({ name: 'warpkeep', version: '0.3.43', lockfileVersion: 3, packages: { '': { name: 'warpkeep', version: '0.3.43' }, 'node_modules/example': { version: '0.3.43' } } }, null, 2)}\n`);
   mkdirSync(join(root, 'scripts'));
+  mkdirSync(join(root, 'tests'));
+  writeFileSync(join(root, generatorTest), `${testAuthority}// historical receipt ${stale}\n`);
   for (const [, path] of inlineSources) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), `// ${path}\n`);
@@ -74,7 +78,7 @@ it('hashes the updated generator after bootstrap derivation and preserves histor
   const original = readFileSync(join(root, verifier), 'utf8');
   const oldGenerator = readFileSync(join(root, generator), 'utf8');
   const result = derivePreparedSourcePins({ repositoryRoot: root });
-  expect(result.files.map(file => file.path)).toEqual([generator, verifier]);
+  expect(result.files.map(file => file.path)).toEqual([generator, verifier, generatorTest]);
   const generated = Buffer.from(result.files[0].bytes).toString();
   expect(generated).toBe(oldGenerator.replace(stale, digest(readFileSync(join(root, bootstrap), 'utf8'))));
   const verified = Buffer.from(result.files[1].bytes).toString();
@@ -96,6 +100,10 @@ it('hashes the updated generator after bootstrap derivation and preserves histor
     expected = expected.replace(pin(name), pin(name).replace(stale, digest(projected)));
   }
   expect(verified).toBe(expected);
+  expect(Buffer.from(result.files[2].bytes).toString()).toBe(
+    `${testAuthority.replace(stale, digest(readFileSync(join(root, bootstrap), 'utf8')))}// historical receipt ${stale}\n`,
+  );
+  expect(readFileSync(join(root, generatorTest), 'utf8')).toBe(`${testAuthority}// historical receipt ${stale}\n`);
   expect(readFileSync(join(root, verifier), 'utf8')).toBe(original);
   expect(readFileSync(join(root, generator), 'utf8')).toBe(oldGenerator);
   for (const file of result.files) writeFileSync(join(root, file.path), file.bytes);
@@ -130,7 +138,7 @@ it.each(['invalid-utf8', 'oversize'])('rejects %s source bytes', kind => {
   expect(() => derivePreparedSourcePins({ repositoryRoot: root })).toThrow('LOCAL_PREPARED_SOURCE_PINS_INVALID');
 });
 it('preserves CRLF while hashing the exact existing finalization projection', () => {
-  for (const path of new Set([...sourceNames.map(([, path]) => path), verifier])) {
+  for (const path of new Set([...sourceNames.map(([, path]) => path), verifier, generatorTest])) {
     writeFileSync(join(root, path), readFileSync(join(root, path), 'utf8').replaceAll('\n', '\r\n'));
   }
   const result = derivePreparedSourcePins({ repositoryRoot: root });
@@ -138,6 +146,18 @@ it('preserves CRLF while hashing the exact existing finalization projection', ()
   const body = Buffer.from(result.files[1].bytes).toString();
   // Existing verifier starts its end marker at LF, retaining the preceding CR.
   expect(body).toContain(digest(finalization.replaceAll('\n', '\r\n') + '\r'));
+});
+it.each(['missing', 'duplicate', 'expression', 'changed-authority'])('rejects a %s bootstrap test pin without emitting a partial family', kind => {
+  let body = testAuthority;
+  if (kind === 'missing') body = '// missing fixture';
+  if (kind === 'duplicate') body += testAuthority;
+  if (kind === 'expression') body = body.replace(`'${stale}'`, 'callerDigest()');
+  if (kind === 'changed-authority') body = body.replace("'1'.repeat(40)", "'3'.repeat(40)");
+  writeFileSync(join(root, generatorTest), body);
+  const before = readFileSync(join(root, generator));
+  expect(() => derivePreparedSourcePins({ repositoryRoot: root })).toThrow('LOCAL_PREPARED_SOURCE_PINS_INVALID');
+  expect(readFileSync(join(root, generatorTest), 'utf8')).toBe(body);
+  expect(readFileSync(join(root, generator))).toEqual(before);
 });
 it.skipIf(process.platform === 'win32')('rejects a source symlink and preserves its target', () => {
   const target = join(root, 'target.mjs');

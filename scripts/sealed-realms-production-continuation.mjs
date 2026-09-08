@@ -864,6 +864,8 @@ export async function reconcileSealedRealmsProductionContinuation(input) {
     evidenceDigest: binding.evidenceDigest,
     receiptDigests: binding.receiptDigests,
     predecessorDigests: binding.predecessorDigests,
+    claimRunId: claimed.record.claimRunId,
+    claimRunAttempt: claimed.record.claimRunAttempt,
   });
   activeReconciliations.set(reconciliation, reconciliationMember);
   let classification;
@@ -1005,6 +1007,24 @@ export function assertSealedRealmsProductionContinuationClaim(input) {
     ) fail('SEALED_REALMS_CONTINUATION_CLAIM_INVALID');
   } catch {
     fail('SEALED_REALMS_CONTINUATION_CLAIM_INVALID');
+  }
+  return true;
+}
+
+/** Checks a receipt's original run against a live read-only reconciliation scope. */
+export function assertSealedRealmsProductionContinuationReconciliation(input) {
+  const options = exactInput(input, [
+    'reconciliation', 'store', 'sourceAuthority', 'kind', 'subject', 'evidenceDigest',
+    'receiptDigests', 'predecessorDigests', 'claimRunId', 'claimRunAttempt',
+  ]);
+  const member = activeReconciliations.get(options.reconciliation);
+  if (member === undefined || member.store !== options.store
+    || member.sourceAuthority !== options.sourceAuthority || member.kind !== options.kind
+    || member.subject !== options.subject || member.evidenceDigest !== options.evidenceDigest
+    || !sameArray(member.receiptDigests, options.receiptDigests)
+    || !sameArray(member.predecessorDigests, options.predecessorDigests)
+    || member.claimRunId !== options.claimRunId || member.claimRunAttempt !== options.claimRunAttempt) {
+    fail('SEALED_REALMS_CONTINUATION_RECONCILIATION_INVALID');
   }
   return true;
 }

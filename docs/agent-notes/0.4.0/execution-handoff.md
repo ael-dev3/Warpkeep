@@ -1,9 +1,10 @@
 # Continue Warpkeep 0.4
 
-Refreshed 2026-09-08 (Europe/Budapest) from development checkpoint `c51bb00`,
-including active PTR continuation at `c990a3b`, during documentation reconciliation
-with protected main `9eb98e7`. The original `781e51e` inspection remains historical
-evidence; these merge inputs do not identify the final merge or publication state.
+Refreshed 2026-09-08 (Europe/Budapest), after documentation merge `5b97c5f` and
+published development checkpoint `0a2f6f9`. The original `781e51e` inspection
+remains historical evidence. The source work in this revision adds complete
+Linux preparation and the V2 generation/receipt path; read Git and the dated
+evidence for its subsequent publication and actual native execution results.
 Read the [handoff index](README.md) for product intent and the
 [infrastructure audit](release-and-infrastructure.md) for dated provider/CI facts.
 The owner requested the GitHub/profile/repository refresh before game shipping.
@@ -83,12 +84,38 @@ private authoring repositories accurately describe their planned roles.
 Continue publishing reviewed source through the same procedure; none of these
 source/documentation updates establishes that 0.4 is deployed.
 
-This documentation reconciliation uses development
-`c51bb00455d7f4db28828d5c6bd9ee9b5b05a1b2` and protected main
-`9eb98e78bc975e29ced16d92c2060ab833ad9b46`. It preserves the implemented PTR
-continuation and recovery caller while incorporating the main documentation
-refresh. Inspect the resulting merge commit, outgoing range and exact GitHub ref
-before recording a new synchronization result; no final merge hash is assumed here.
+The documentation reconciliation merged development `c51bb00` and protected
+main `9eb98e7` into `5b97c5f`. Subsequent PTR scope and workflow test fixes were
+published at `0a2f6f9039c78b505472ddb14b0cec6923945390`; local and GitHub refs matched
+with no divergence. The outgoing two-commit secret scan passed. This records a
+publication checkpoint, not the state of later working changes.
+
+## Complete source preparation and remaining activation work
+
+Use the [operating assembler runbook](../../operations/0.4.0-local-release-preparation.md).
+The fixed CLI accepts `prepare`, `check` and `recover`; it does not accept an
+arbitrary source, compiler or deployment callback. A retained candidate includes
+the complete generated family, a native recovery journal and independent source
+and candidate byte checks. `check` regenerates expected files from fresh source.
+Recovery keeps the lease while restoring prior bytes and archiving completion
+metadata, including after a killed process resumes.
+
+The scanner derives its installed file inventory from lock-authenticated archives.
+The bundle engine validates the actual closed reachable graph and required
+authority modules instead of a stale stored member count. The V2 generator is
+separate from the legacy generator's generated pins, resolving their compiler
+dependency cycle. Its private receipt allows uncertainty reconciliation without
+repeating provider calls or generation. The actual authenticated canonical
+candidate/provider adapter remains missing; prepared source does not provide
+those live facts.
+
+Verify run `34170072520` at `5b97c5f` completed with a failed aggregate check:
+root Linux reported 68 failures, 8,864 passes and 76 skips. Recovery,
+native-contract and auth-bridge passed; the module job was cancelled. The three
+workflow-layout failures were repaired and their focused suite passed at
+`0a2f6f9`; source-pin/closure and obsolete activation-fixture failures motivated
+the current complete-family and generator work. Recheck CI at the new exact
+source. Do not label this earlier run green or infer skipped build results.
 
 The [earlier execution record](https://github.com/ael-dev3/Warpkeep/blob/781e51e364d1e5a7319ca2364744c8730e83b0d6/docs/agent-notes/0.4.0/execution-handoff.md)
 preserves historical test commands and exact limitations. Later evidence must

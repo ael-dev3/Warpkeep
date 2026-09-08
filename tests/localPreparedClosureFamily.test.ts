@@ -29,7 +29,7 @@ afterEach(() => vi.restoreAllMocks());
 it('connects the actual verifier engine to manifest and workflow generation (existing-inventory fixture)', async () => {
   fixture();
   const result = await derivePreparedClosureFamily({ repositoryRoot: root });
-  expect(result.files).toHaveLength(14);
+  expect(result.files).toHaveLength(15);
   expect(result.memberCount).toBe(state.count);
   const manifest = result.files.find(file => file.path.endsWith('deploy-closure-v1.json'))!;
   expect(createHash('sha256').update(manifest.bytes).digest('hex')).toBe(result.manifestSha256);
@@ -43,6 +43,10 @@ it('connects the actual verifier engine to manifest and workflow generation (exi
   const generator = result.files.find(file => file.path === 'scripts/generate-0.4.0-sealed-launch-activation.mjs')!;
   const launchVerifier = result.files.find(file => file.path === 'scripts/verify-0.4.0-sealed-launch.mjs')!;
   expect(Buffer.from(launchVerifier.bytes).toString()).toContain(createHash('sha256').update(generator.bytes).digest('hex'));
+  const fixturePin = result.files.find(file => file.path === 'tests/sealedLaunchActivationGenerator.test.ts')!;
+  const bootstrapDigest = createHash('sha256').update(readFileSync(resolve(root, 'scripts/greater-realm-production-bootstrap.mjs'))).digest('hex');
+  expect(Buffer.from(fixturePin.bytes).toString()).toMatch(new RegExp(`bootstrapSha256:\\r?\\n    '${bootstrapDigest}'`));
+  expect(members.some((member: { path: string }) => member.path === fixturePin.path)).toBe(false);
   for (const workflow of result.files.filter(file => file.path.startsWith('.github/'))) {
     expect(Buffer.from(workflow.bytes).toString()).toContain(result.manifestSha256);
   }
@@ -75,7 +79,7 @@ it('uses the newly expanded literal inventory, including all nine synthetic bund
   // The coordinator owns read buffers, never the actual working files.
   expect(readFileSync(resolve(root, verifierPath)).length).toBeGreaterThan(0);
 });
-it('converges across all fourteen source/pin/manifest/workflow outputs using a read-overlay fixture', async () => {
+it('converges across all fifteen source/pin/test/manifest/workflow outputs using a read-overlay fixture', async () => {
   fixture();
   const first = await derivePreparedClosureFamily({ repositoryRoot: root });
   const overlay = new Map(first.files.map(file => [resolve(root, file.path), file.bytes]));

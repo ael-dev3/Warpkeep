@@ -1,7 +1,9 @@
 import type { SealedRealmsProductionPrivateState } from './sealed-realms-production-private-state.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
+import type { SealedRealmsProductionActivationRecords } from './sealed-realms-production-activation-records.mjs';
 import type {
   SealedRealmsProductionContinuationClaim,
+  SealedRealmsProductionContinuationReconciliation,
   SealedRealmsProductionContinuationKind,
   SealedRealmsProductionContinuationStore,
 } from './sealed-realms-production-continuation.mjs';
@@ -24,6 +26,9 @@ export type SealedRealmsProductionAuthBridgeStateTestCapability = Readonly<{
 }>;
 export function createSealedRealmsProductionAuthBridgeStateTestCapability():
   SealedRealmsProductionAuthBridgeStateTestCapability;
+export function assertSealedRealmsProductionAuthBridgeStateTestCapability(
+  capability: unknown,
+): SealedRealmsProductionAuthBridgeStateTestCapability;
 
 export type SealedRealmsAdmissionSuspensionObservation = Readonly<{
   postNoRedirect: true;
@@ -206,8 +211,17 @@ export type SealedRealmsProductionAuthBridgeState = Readonly<{
     SealedRealmsProductionBridgeContinuationBinding
   >;
   consumeActivationEvidenceForContinuation: (
-    input: SealedRealmsProductionBridgeContinuationClaim,
+    input: SealedRealmsProductionBridgeContinuationClaim & Readonly<{
+      generator: SealedRealmsProductionActivationEvidenceGenerator;
+    }>,
   ) => Promise<Readonly<Record<never, never>>>;
+  reconcileActivationEvidenceForContinuation: (input: Readonly<{
+    selection: SealedRealmsProductionBridgeContinuationBinding;
+    generator: SealedRealmsProductionActivationEvidenceGenerator;
+    reconciliation: SealedRealmsProductionContinuationReconciliation;
+    store: SealedRealmsProductionContinuationStore;
+    sourceAuthority: SealedRealmsProductionSourceAuthority;
+  }>) => Readonly<{ outcome: 'effect-applied'; observationDigest: string }>;
 }>;
 
 export function createSealedRealmsProductionAuthBridgeState(options: Readonly<{
@@ -253,14 +267,24 @@ export function assertSealedRealmsProductionAuthBridgeStateAuthority(
 ): SealedRealmsProductionAuthBridgeState;
 
 export function createSealedRealmsProductionActivationEvidenceGenerator(input: Readonly<{
-  generate: (input: Readonly<{
-    member: SealedRealmsActivationEvidenceMember;
-  }>) => unknown | Promise<unknown>;
+  records: SealedRealmsProductionActivationRecords;
+  privateState: SealedRealmsProductionPrivateState;
+  authority: SealedRealmsProductionSourceAuthority;
+  testOnlyCapability?: SealedRealmsProductionAuthBridgeStateTestCapability;
+  testOnlyPreparationBootstrapAuthority?: import('./generate-0.4.0-recovery-launch-activation.mjs').RecoveryActivationBootstrapFacts;
 }>): SealedRealmsProductionActivationEvidenceGenerator;
 
 export function assertSealedRealmsProductionActivationEvidenceGenerator(
   generator: unknown,
 ): SealedRealmsProductionActivationEvidenceGenerator;
+
+export function consumeSealedRealmsProductionActivationEvidenceForTesting(
+  input: SealedRealmsProductionBridgeContinuationClaim & Readonly<{
+    confirmation: SealedRealmsActivationEvidenceConfirmation;
+    testOnlyCapability: SealedRealmsProductionAuthBridgeStateTestCapability;
+    verify: (member: SealedRealmsActivationEvidenceMember) => undefined;
+  }>,
+): Promise<Readonly<Record<never, never>>>;
 
 export function assertSealedRealmsProductionActivationEvidenceMember(
   member: unknown,

@@ -389,7 +389,7 @@ async function runMockedProductionOrchestration(scenario: OrchestrationScenario)
         const body = Buffer.from(`bundle:${request.lane}`);
         const realSpec = getSealedRealmOperationBundleSpecification(request.lane);
         const graphManifest = fileMode
-          ? [realSpec.entryPath, ...Array.from({ length: realSpec.graphCount - 1 }, (_, i) => `scripts/fixture-${String(i).padStart(3, '0')}.mjs`)]
+          ? [...realSpec.requiredGraphPaths, 'scripts/fixture-extra.mjs']
             .sort().map(path => ({ path, byteLength: 1, sha256: digest('a') }))
           : [{ path: 'scripts/a.mjs', byteLength: 1, sha256: digest('a') }];
         return {

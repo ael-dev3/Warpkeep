@@ -18,7 +18,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../scripts/genesis001-sealed-launch-adoption.mjs', async () => {
   const actual = await vi.importActual<typeof import(
@@ -93,8 +93,8 @@ import {
   issueSealedRealmsProductionWorkflowPermit,
 } from '../scripts/sealed-realms-production-workflow-authority.mjs';
 import {
-  consumeSealedRealmsProductionActivationEvidenceForGenerator,
-  createSealedRealmsProductionActivationEvidenceGenerator,
+  consumeSealedRealmsProductionActivationEvidenceForTesting,
+  readSealedRealmsProductionActivationEvidenceMember,
   createSealedRealmsProductionAuthBridgeState,
   createSealedRealmsProductionAuthBridgeStateTestCapability,
 } from '../scripts/sealed-realms-production-auth-bridge-state.mjs';
@@ -172,8 +172,6 @@ const BRIDGE_SUSPENSION_BODY = JSON.stringify({
   },
 });
 let activationEvidenceMember: object;
-let releaseActivationEvidenceMember: (() => void) | undefined;
-let activationEvidenceConsumption: Promise<unknown> | undefined;
 let activationEvidenceHome: string | undefined;
 
 function bridgeSuspensionResponse() {
@@ -324,7 +322,7 @@ async function applyGateThroughRealContinuation(
   });
 }
 
-beforeAll(async () => {
+async function withActivationEvidence(verify: () => void) {
   const home = mkdtempSync(join(tmpdir(), 'warpkeep-activation-member-'));
   activationEvidenceHome = home;
   for (const root of [
@@ -430,33 +428,33 @@ beforeAll(async () => {
     privateState, bridge, 'ptr', () => { importAdopted.ptr = true; },
   );
   const activation = await bridge.inspectActivationEvidence();
-  let memberReady!: () => void;
-  const ready = new Promise<void>(resolveReady => { memberReady = resolveReady; });
-  let release!: () => void;
-  const held = new Promise<void>(resolveHeld => { release = resolveHeld; });
-  releaseActivationEvidenceMember = release;
-  const generator = createSealedRealmsProductionActivationEvidenceGenerator({
-    generate: async ({ member }) => {
-      activationEvidenceMember = member;
-      memberReady();
-      await held;
-    },
-  });
-  activationEvidenceConsumption =
-    consumeSealedRealmsProductionActivationEvidenceForGenerator({
-      confirmation: activation.confirmation,
-      generator,
+  const binding = await bridge.reopenActivationEvidenceContinuation();
+  const inspect = await continuationContext(privateState, 'activation-evidence-inspect');
+  await issueSealedRealmsProductionContinuation({ store: inspect.store, permit: inspect.permit,
+    sourceAuthority: inspect.authority, kind: 'activation-evidence', runId: inspect.runId,
+    runAttempt: inspect.runAttempt, ...binding });
+  const generate = await continuationContext(privateState, 'activation-evidence-generate');
+  try {
+    await claimSealedRealmsProductionContinuation({ store: generate.store, permit: generate.permit,
+      sourceAuthority: generate.authority, kind: 'activation-evidence', runId: generate.runId,
+      runAttempt: generate.runAttempt, ...binding,
+      effect: claim => consumeSealedRealmsProductionActivationEvidenceForTesting({ claim,
+        store: generate.store, sourceAuthority: generate.authority, kind: 'activation-evidence',
+        runId: generate.runId, runAttempt: generate.runAttempt, ...binding,
+        confirmation: activation.confirmation,
+        testOnlyCapability: createSealedRealmsProductionAuthBridgeStateTestCapability(),
+        verify: member => { activationEvidenceMember = member; verify(); return undefined; },
+      }),
     });
-  await ready;
-});
-
-afterAll(async () => {
-  releaseActivationEvidenceMember?.();
-  await activationEvidenceConsumption;
-  if (activationEvidenceHome !== undefined) {
-    rmSync(activationEvidenceHome, { recursive: true, force: true });
+    expect(() => readSealedRealmsProductionActivationEvidenceMember(activationEvidenceMember)).toThrow();
+  } finally {
+    if (activationEvidenceHome !== undefined) rmSync(activationEvidenceHome, { recursive: true, force: true });
   }
-});
+}
+
+function activationIt(name: string, verify: () => void) {
+  it(name, () => withActivationEvidence(verify), 30000);
+}
 
 function sortedCanonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortedCanonical);
@@ -1192,7 +1190,7 @@ afterEach(() => {
 });
 
 describe('sealed 0.4.0 activation binding generator', () => {
-  it('rejects caller-provided bridge receipts and bridge authority fields', () => {
+  activationIt('rejects caller-provided bridge receipts and bridge authority fields', () => {
     const rawBridge = evidenceEnvelope();
     rawBridge.authBridgeSuspensionPrivateReceipt =
       authBridgeSuspensionPrivateReceipt();
@@ -1215,7 +1213,7 @@ describe('sealed 0.4.0 activation binding generator', () => {
     }
   });
 
-  it('requires the exact 19-key private envelope and no caller bridge authority', () => {
+  activationIt('requires the exact 19-key private envelope and no caller bridge authority', () => {
     const envelope = evidenceEnvelope() as Record<string, unknown>;
     expect(Object.keys(envelope)).toEqual([
       'schemaVersion',
@@ -1243,7 +1241,7 @@ describe('sealed 0.4.0 activation binding generator', () => {
     expect(candidate.admissionRequestSuspensionReceiptDigest).toBeNull();
   });
 
-  it('binds bridge cross-links and PTR deployment authority to the realm evidence', () => {
+  activationIt('binds bridge cross-links and PTR deployment authority to the realm evidence', () => {
     const g002Drift = evidenceEnvelope();
     const { importReceiptDigest: _g002Digest, ...g002Body } =
       g002Drift.g002AtlasImportReceipt;
@@ -1297,7 +1295,7 @@ describe('sealed 0.4.0 activation binding generator', () => {
     }
   });
 
-  it('derives every G1/G2 field and commitment from one exact evidence envelope', () => {
+  activationIt('derives every G1/G2 field and commitment from one exact evidence envelope', () => {
     const descriptor = inputDescriptor(canonical(descriptorEvidenceEnvelope()));
     try {
       const result = process.platform === 'win32'
@@ -1477,7 +1475,7 @@ describe('sealed 0.4.0 activation binding generator', () => {
     }
   });
 
-  it('rejects noncanonical, extra-field, or non-private evidence files', () => {
+  activationIt('rejects noncanonical, extra-field, or non-private evidence files', () => {
     const descriptorEnvelope = descriptorEvidenceEnvelope();
     const reorderedEntries = Object.entries(descriptorEnvelope);
     [reorderedEntries[5], reorderedEntries[6]] = [
@@ -1501,7 +1499,7 @@ describe('sealed 0.4.0 activation binding generator', () => {
     }
   });
 
-  it('rejects PTR import receipts outside the operator numeric bounds', () => {
+  activationIt('rejects PTR import receipts outside the operator numeric bounds', () => {
     for (const patch of [
       { importEpoch: (1n << 64n).toString() },
       { operationsSubmitted: 4_097 },
@@ -1526,7 +1524,7 @@ describe('sealed 0.4.0 activation binding generator', () => {
     }
   });
 
-  it('rejects invalid UTF-8, oversized, hard-linked, or non-regular input', () => {
+  activationIt('rejects invalid UTF-8, oversized, hard-linked, or non-regular input', () => {
     const invalidUtf8 = inputDescriptor(new Uint8Array([0xc3, 0x28]));
     const oversized = inputDescriptor(new Uint8Array((1 * 1_024 * 1_024) + 1));
     const hardLinkDirectory = mkdtempSync(join(
@@ -1568,7 +1566,7 @@ describe('sealed 0.4.0 activation binding generator', () => {
     }
   });
 
-  it('rejects prefilled G1/G2 values and inconsistent individually valid receipts', () => {
+  activationIt('rejects prefilled G1/G2 values and inconsistent individually valid receipts', () => {
     const baseline = createBindingFromEvidence(
       evidenceEnvelope(),
     );
@@ -1618,7 +1616,7 @@ describe('sealed 0.4.0 activation binding generator', () => {
     }
   });
 
-  it('rejects forged, colliding, populated, or privacy-unsafe PTR receipts', () => {
+  activationIt('rejects forged, colliding, populated, or privacy-unsafe PTR receipts', () => {
     const redigestPublish = (
       receipt: ReturnType<typeof ptrPublishReceipt>,
     ) => {
@@ -1706,7 +1704,7 @@ describe('sealed 0.4.0 activation binding generator', () => {
     }
   });
 
-  it('forbids test-only preparation authority outside the test environment', () => {
+  activationIt('forbids test-only preparation authority outside the test environment', () => {
     const previous = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
     try {
@@ -1720,7 +1718,7 @@ describe('sealed 0.4.0 activation binding generator', () => {
     }
   });
 
-  it('rejects missing, reordered, extra, swapped, or stale receipt evidence', () => {
+  activationIt('rejects missing, reordered, extra, swapped, or stale receipt evidence', () => {
     const reorderedEnvelope = Object.fromEntries(
       Object.entries(evidenceEnvelope()).reverse(),
     ) as ReturnType<typeof evidenceEnvelope>;

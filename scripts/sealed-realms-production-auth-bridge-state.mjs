@@ -17,7 +17,22 @@ import {
 } from './sealed-realms-production-source-authority.mjs';
 import {
   assertSealedRealmsProductionContinuationClaim,
+  assertSealedRealmsProductionContinuationReconciliation,
 } from './sealed-realms-production-continuation.mjs';
+import { types } from 'node:util';
+import {
+  assertSealedRealmsProductionActivationRecordsAuthority,
+  inspectSealedRealmsProductionRecoveryActivationRecords,
+  writeSealedRealmsProductionRecoveryActivationDescriptor,
+} from './sealed-realms-production-activation-records.mjs';
+import { generateRecoveryLaunchActivationBindingFromDescriptor, validateRecoveryLaunchActivationProjection } from './generate-0.4.0-recovery-launch-activation.mjs';
+import { verifySealedRealmsPublicActivationBytes } from './verify-sealed-realms-public-activation-artifact.mjs';
+import {
+  ACTIVATION_GENERATION_RECEIPT_PROFILE,
+  activationGenerationReceiptBytes,
+  activationGenerationReceiptDigest,
+  parseActivationGenerationReceipt,
+} from './sealed-realms-production-activation-generation-receipt.mjs';
 
 export const SEALED_REALMS_AUTH_BRIDGE_AUTHORITY_PROFILE =
   'warpkeep-sealed-realms-auth-bridge-import-authority-v1';
@@ -48,6 +63,14 @@ const gateConfirmations = new WeakMap();
 const activationConfirmations = new WeakMap();
 const consumedActivationConfirmations = new WeakSet();
 const activationEvidenceMembers = new WeakMap();
+const activationGenerators = new WeakMap();
+const activationSelections = new WeakMap();
+const GENERATION_ARTIFACT = '0.4.0-sealed-launch.json';
+const GENERATION_RECEIPT = 'activation-generation-receipt.json';
+const GENERATION_CLAIM_KEYS = [
+  'claim', 'store', 'sourceAuthority', 'kind', 'runId', 'runAttempt',
+  'subject', 'evidenceDigest', 'receiptDigests', 'predecessorDigests',
+];
 const ownerProvisionConfirmations = new WeakMap();
 const ownerProvisionChainClaims = new WeakMap();
 
@@ -90,6 +113,13 @@ export function createSealedRealmsProductionAuthBridgeStateTestCapability() {
   }
   const capability = Object.freeze({});
   testOnlyCapabilities.add(capability);
+  return capability;
+}
+
+export function assertSealedRealmsProductionAuthBridgeStateTestCapability(capability) {
+  if (process.env.NODE_ENV !== 'test' || !testOnlyCapabilities.has(capability)) {
+    fail('SEALED_REALMS_AUTH_BRIDGE_TEST_ONLY_FORBIDDEN');
+  }
   return capability;
 }
 
@@ -2139,18 +2169,22 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
       if (error instanceof SealedRealmsProductionAuthBridgeStateError) throw error;
       fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
     } finally { bytes.fill(0); }
-    const established = await establish();
-    const chain = established.chain;
+    // Reopening is read-only even when a previous generation is uncertain or expired.
+    const chainDigest = authorityChainDigest(receipt.deploymentAuthority);
+    const relativePath = chainPath(chainDigest);
+    const selected = authorityChainCatalog().find(entry => entry.relativePath === relativePath);
+    if (selected === undefined) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+    const chain = selected.chain;
     if (
       chain.phase !== 'complete' || chain.g002Final === null || chain.g002Cross === null
       || chain.ptrFinal === null || chain.ptrCross === null
     ) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
     const member = Object.freeze({
       sourceCommit,
-      relativePath: established.relativePath,
+      relativePath,
       receiptDigest,
       observedAt: receipt.activationGate?.observedAt,
-      chainDigest: established.chainDigest,
+      chainDigest,
       privateState,
       now,
       deploymentDigest: chain.deployment.digest,
@@ -2169,13 +2203,43 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     return member;
   };
 
-  const reopenActivationEvidenceContinuation = async () => activationContinuationBinding(
-    await reopenActivationContinuationMember(),
-  );
+  const reopenActivationEvidenceContinuation = async () => {
+    const member = await reopenActivationContinuationMember();
+    const binding = activationContinuationBinding(member);
+    activationSelections.set(binding, member);
+    return binding;
+  };
 
   const consumeActivationEvidenceForContinuation = async (input = {}) => {
-    void input;
-    fail('SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE');
+    const options = captureGenerationInput(input, [...GENERATION_CLAIM_KEYS, 'generator']);
+    requireContinuationClaim(options, 'activation-evidence', 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+    const generator = requireActivationGenerator(options.generator, privateState, sourceCommit);
+    const member = await reopenActivationContinuationMember();
+    requireGenerationBinding(options, member);
+    const confirmation = Object.freeze({});
+    activationConfirmations.set(confirmation, member);
+    await generateActivationEvidence(confirmation, generator, options, member);
+    return Object.freeze({});
+  };
+
+  const reconcileActivationEvidenceForContinuation = (input = {}) => {
+    const options = captureGenerationInput(input, ['selection', 'generator', 'reconciliation', 'store', 'sourceAuthority']);
+    const member = activationSelections.get(options.selection);
+    if (member === undefined || member.privateState !== privateState || member.sourceCommit !== sourceCommit) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+    }
+    activationSelections.delete(options.selection);
+    const generator = requireActivationGenerator(options.generator, privateState, sourceCommit);
+    const completion = readGenerationCompletion(generator, member);
+    assertSealedRealmsProductionContinuationReconciliation({
+      reconciliation: options.reconciliation, store: options.store, sourceAuthority: options.sourceAuthority,
+      kind: 'activation-evidence', ...activationContinuationBinding(member),
+      claimRunId: completion.receipt.runId, claimRunAttempt: completion.receipt.runAttempt,
+    });
+    if (options.sourceAuthority.authorityDigest !== completion.receipt.sourceAuthorityDigest) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+    }
+    return Object.freeze({ outcome: 'effect-applied', observationDigest: completion.digest });
   };
 
   const state = Object.freeze({
@@ -2199,6 +2263,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     inspectActivationEvidenceForContinuation,
     reopenActivationEvidenceContinuation,
     consumeActivationEvidenceForContinuation,
+    reconcileActivationEvidenceForContinuation,
   });
   bridgeStates.add(state);
   bridgeStateSources.set(state, sourceCommit);
@@ -2406,22 +2471,229 @@ async function consumeActivationEvidenceConfirmation(confirmation) {
   return opaqueMember;
 }
 
-/**
- * Task 6E has not supplied the canonical generator receipt and non-mutating
- * reconciliation contract yet, so generator authority is intentionally absent.
- */
-export function createSealedRealmsProductionActivationEvidenceGenerator(input) {
-  void input;
-  fail('SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE');
+function captureGenerationInput(input, keys) {
+  if (types.isProxy(input) || input === null || typeof input !== 'object'
+    || Object.getPrototypeOf(input) !== Object.prototype) {
+    fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(input);
+  if (JSON.stringify(Reflect.ownKeys(descriptors)) !== JSON.stringify(keys)
+    || keys.some(key => !descriptors[key].enumerable || !Object.hasOwn(descriptors[key], 'value'))) {
+    fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
+  }
+  return Object.freeze(Object.fromEntries(keys.map(key => {
+    const value = descriptors[key].value;
+    if (['receiptDigests', 'predecessorDigests'].includes(key)) {
+      if (types.isProxy(value) || !Array.isArray(value)
+        || Object.getPrototypeOf(value) !== Array.prototype) fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
+      const items = Object.getOwnPropertyDescriptors(value);
+      if (Reflect.ownKeys(items).length !== value.length + 1
+        || Array.from({ length: value.length }, (_, index) => items[index])
+          .some(item => item === undefined || !Object.hasOwn(item, 'value') || !item.enumerable)) {
+        fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
+      }
+      return [key, Object.freeze(Array.from({ length: value.length }, (_, index) => items[index].value))];
+    }
+    return [key, value];
+  })));
 }
 
-/**
- * No activation-generator capability can be asserted before Task 6E installs
- * its independently attested authority contract.
- */
+/** Captures fixed readers, never a caller-supplied generator or receipt callback. */
+export function createSealedRealmsProductionActivationEvidenceGenerator(input) {
+  if (types.isProxy(input) || input === null || typeof input !== 'object'
+    || Object.getPrototypeOf(input) !== Object.prototype) fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
+  if (!types.isProxy(input) && input !== null && typeof input === 'object'
+    && Object.hasOwn(input, 'generate')) fail('SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE');
+  const testing = Object.hasOwn(input ?? {}, 'testOnlyCapability');
+  const options = captureGenerationInput(input, ['records', 'privateState', 'authority',
+    ...(testing ? ['testOnlyCapability', 'testOnlyPreparationBootstrapAuthority'] : [])]);
+  if (testing) assertSealedRealmsProductionAuthBridgeStateTestCapability(options.testOnlyCapability);
+  assertSealedRealmsProductionActivationRecordsAuthority({ records: options.records, privateState: options.privateState, authority: options.authority });
+  let completedAt;
+  if (options.privateState.list({ root: 'runtime' }).includes('public')) {
+    const bytes = options.privateState.read({ root: 'runtime', relativePath: `public/${GENERATION_RECEIPT}` });
+    try { completedAt = parseActivationGenerationReceipt(bytes).generatedAt; } finally { bytes.fill(0); }
+  }
+  inspectSealedRealmsProductionRecoveryActivationRecords(options.records, completedAt);
+  const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(options.authority);
+  if (options.authority.mode !== 'S'
+    || preparationSourceCommitFromSealedRealmsProductionAuthority(options.authority) !== sourceCommit) {
+    fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
+  }
+  const generator = Object.freeze({});
+  activationGenerators.set(generator, Object.freeze({ ...options, sourceCommit }));
+  return generator;
+}
+
 export function assertSealedRealmsProductionActivationEvidenceGenerator(generator) {
-  void generator;
-  fail('SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE');
+  if (!activationGenerators.has(generator)) fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
+  return generator;
+}
+
+/** Exercises a synchronous legacy verifier inside a genuine claim, only in tests. */
+export async function consumeSealedRealmsProductionActivationEvidenceForTesting(input) {
+  const options = captureGenerationInput(input, [...GENERATION_CLAIM_KEYS,
+    'confirmation', 'testOnlyCapability', 'verify']);
+  if (process.env.NODE_ENV !== 'test' || !testOnlyCapabilities.has(options.testOnlyCapability)
+    || types.isProxy(options.verify) || typeof options.verify !== 'function') {
+    fail('SEALED_REALMS_AUTH_BRIDGE_TEST_ONLY_FORBIDDEN');
+  }
+  requireContinuationClaim(options, 'activation-evidence', 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+  const member = activationConfirmations.get(options.confirmation);
+  if (member === undefined) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+  requireGenerationBinding(options, member);
+  const opaque = await consumeActivationEvidenceConfirmation(options.confirmation);
+  try {
+    const result = options.verify(opaque);
+    if (result !== undefined) {
+      if (result instanceof Promise) result.catch(() => undefined);
+      fail('SEALED_REALMS_AUTH_BRIDGE_TEST_ONLY_FORBIDDEN');
+    }
+  } finally { activationEvidenceMembers.delete(opaque); }
+  return Object.freeze({});
+}
+
+function requireActivationGenerator(generator, privateState, sourceCommit) {
+  assertSealedRealmsProductionActivationEvidenceGenerator(generator);
+  const member = activationGenerators.get(generator);
+  if (member.privateState !== privateState || member.sourceCommit !== sourceCommit) {
+    fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
+  }
+  return member;
+}
+
+function requireGenerationBinding(options, member) {
+  if (options.sourceAuthority.mode !== 'S' || options.sourceAuthority.operation !== 'activation-evidence-generate'
+    || sourceCommitFromSealedRealmsProductionAuthority(options.sourceAuthority) !== member.sourceCommit
+    || options.subject !== 'activation-evidence:0.4.0' || options.evidenceDigest !== member.receiptDigest
+    || JSON.stringify(options.predecessorDigests) !== JSON.stringify([member.chainDigest])
+    || JSON.stringify(options.receiptDigests) !== JSON.stringify([member.deploymentDigest,
+      member.g002GateDigest, member.g002CrossDigest, member.ptrGateDigest, member.ptrCrossDigest])) {
+    fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+  }
+}
+
+function readGenerationCompletion(generator, member) {
+  const state = generator.privateState;
+  const rootNames = state.list({ root: 'runtime' });
+  if (rootNames.some(name => name === 'public.family.lock' || name.startsWith('public.stage.'))
+    || JSON.stringify(state.list({ root: 'runtime', relativeDirectory: 'public' }))
+      !== JSON.stringify([GENERATION_ARTIFACT, GENERATION_RECEIPT].sort())) {
+    fail('SEALED_REALMS_ACTIVATION_GENERATION_AMBIGUOUS');
+  }
+  let receiptBytes;
+  let artifactBytes;
+  let descriptorBytes;
+  try {
+    receiptBytes = state.read({ root: 'runtime', relativePath: `public/${GENERATION_RECEIPT}` });
+    const receipt = parseActivationGenerationReceipt(receiptBytes);
+    artifactBytes = state.read({ root: 'runtime', relativePath: `public/${GENERATION_ARTIFACT}` });
+    const checked = verifySealedRealmsPublicActivationBytes(artifactBytes);
+    try { if (!checked.equals(Buffer.from(artifactBytes))) fail('SEALED_REALMS_ACTIVATION_GENERATION_AMBIGUOUS'); }
+    finally { checked.fill(0); }
+    descriptorBytes = state.readActivationDescriptor();
+    const corpus = inspectSealedRealmsProductionRecoveryActivationRecords(generator.records, receipt.generatedAt);
+    const bridge = reopenGenerationBridgeEvidence(member);
+    const expected = validateRecoveryLaunchActivationProjection(
+      JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(descriptorBytes)), bridge, receipt.generatedAt,
+    );
+    const artifact = JSON.parse(Buffer.from(artifactBytes).toString('utf8'));
+    if (receipt.sourceCommit !== member.sourceCommit
+      || receipt.sourceAuthorityDigest !== generator.authority.authorityDigest
+      || receipt.activationEvidenceDigest !== member.receiptDigest
+      || receipt.activationChainDigest !== member.chainDigest
+      || receipt.descriptorSha256 !== digest(descriptorBytes)
+      || receipt.descriptorSha256 !== corpus.descriptorSha256
+      || receipt.artifactSha256 !== digest(artifactBytes)
+      || receipt.artifactSha256 !== digest(Buffer.from(`${JSON.stringify(expected, null, 2)}\n`))
+      || receipt.artifactSchemaVersion !== artifact.schemaVersion || receipt.artifactProfile !== artifact.profile
+      || artifact.preparationSourceCommit !== member.sourceCommit
+      || Date.parse(receipt.generatedAt) < Date.parse(member.observedAt)
+      || Date.parse(receipt.generatedAt) - Date.parse(member.observedAt) >= 5 * 60 * 1000) {
+      fail('SEALED_REALMS_ACTIVATION_GENERATION_AMBIGUOUS');
+    }
+    return Object.freeze({ receipt, digest: activationGenerationReceiptDigest(receiptBytes) });
+  } finally {
+    receiptBytes?.fill(0);
+    artifactBytes?.fill(0);
+    descriptorBytes?.fill(0);
+  }
+}
+
+function reopenGenerationBridgeEvidence(member) {
+  const receiptBytes = member.privateState.read({ root: 'runtime',
+    relativePath: `bridge/activation-evidence/auth-bridge-suspension-${member.receiptDigest}.json` });
+  let chainBytes;
+  try {
+    if (createHash('sha256').update(SUSPENSION_RECEIPT_PREFIX).update(receiptBytes).digest('hex') !== member.receiptDigest) {
+      fail('SEALED_REALMS_ACTIVATION_GENERATION_AMBIGUOUS');
+    }
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(receiptBytes);
+    const receipt = JSON.parse(source);
+    if (`${JSON.stringify(receipt)}\n` !== source) fail('SEALED_REALMS_ACTIVATION_GENERATION_AMBIGUOUS');
+    validateActivationReceipt(receipt, member);
+    chainBytes = member.privateState.read({ root: 'runtime', relativePath: member.relativePath });
+    const chain = parseAuthorityChain(chainBytes, member.sourceCommit);
+    if (chain.phase !== 'complete' || chain.deployment.digest !== member.deploymentDigest
+      || chain.g002Final?.digest !== member.g002GateDigest || chain.g002Cross?.digest !== member.g002CrossDigest
+      || chain.ptrFinal?.digest !== member.ptrGateDigest || chain.ptrCross?.digest !== member.ptrCrossDigest) {
+      fail('SEALED_REALMS_ACTIVATION_GENERATION_AMBIGUOUS');
+    }
+    return receipt;
+  } finally { receiptBytes.fill(0); chainBytes?.fill(0); }
+}
+
+async function generateActivationEvidence(confirmation, generator, options, member) {
+  const state = generator.privateState;
+  if (state.list({ root: 'runtime' }).some(name => name === 'public'
+    || name === 'public.family.lock' || name.startsWith('public.stage.'))) {
+    fail('SEALED_REALMS_ACTIVATION_GENERATION_AMBIGUOUS');
+  }
+  let opaqueMember;
+  let artifactBytes;
+  let receiptBytes;
+  let descriptorBytes;
+  try {
+    opaqueMember = await consumeActivationEvidenceConfirmation(confirmation);
+    writeSealedRealmsProductionRecoveryActivationDescriptor({
+      records: generator.records,
+      consumeDescriptor: descriptor => {
+        const binding = generateRecoveryLaunchActivationBindingFromDescriptor(descriptor, opaqueMember,
+          options.sourceAuthority, generator.testOnlyCapability === undefined ? undefined : {
+            capability: generator.testOnlyCapability, facts: generator.testOnlyPreparationBootstrapAuthority,
+          });
+        artifactBytes = verifySealedRealmsPublicActivationBytes(Buffer.from(`${JSON.stringify(binding, null, 2)}\n`));
+      },
+    });
+    const generatedAt = currentTime(member.now);
+    if (generatedAt.getTime() < Date.parse(member.observedAt)
+      || generatedAt.getTime() - Date.parse(member.observedAt) >= 5 * 60 * 1000) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_EXPIRED');
+    }
+    descriptorBytes = state.readActivationDescriptor();
+    const artifact = JSON.parse(artifactBytes.toString('utf8'));
+    receiptBytes = activationGenerationReceiptBytes({
+      schemaVersion: 1, profile: ACTIVATION_GENERATION_RECEIPT_PROFILE,
+      sourceCommit: member.sourceCommit, sourceAuthorityDigest: options.sourceAuthority.authorityDigest,
+      operation: 'activation-evidence-generate', runId: options.runId, runAttempt: Number(options.runAttempt),
+      activationEvidenceDigest: member.receiptDigest, activationChainDigest: member.chainDigest,
+      descriptorSha256: digest(descriptorBytes), artifactSha256: digest(artifactBytes),
+      artifactSchemaVersion: artifact.schemaVersion, artifactProfile: artifact.profile,
+      generatedAt: generatedAt.toISOString(), outcome: 'generated',
+    });
+    // Both files remain owner-private. The workflow uploads only the fixed JSON
+    // artifact; its receipt companion is never a public workflow artifact.
+    state.writeFamily({ root: 'runtime', relativeDirectory: 'public', members: [
+      { basename: GENERATION_ARTIFACT, bytes: artifactBytes },
+      { basename: GENERATION_RECEIPT, bytes: receiptBytes },
+    ] });
+    readGenerationCompletion(generator, member);
+  } finally {
+    if (opaqueMember !== undefined) activationEvidenceMembers.delete(opaqueMember);
+    artifactBytes?.fill(0);
+    receiptBytes?.fill(0);
+    descriptorBytes?.fill(0);
+  }
 }
 
 /** Verifies an opaque member handed only to a captured Task 6E generator. */

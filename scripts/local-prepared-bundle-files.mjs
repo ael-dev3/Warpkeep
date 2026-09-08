@@ -225,8 +225,9 @@ export function derivePreparedOperationBundleFiles(input) {
           || !sameArray(load.exportNames, spec.exportNames)
           || load.factoryFailureCode !== spec.factoryFailureCode) fail();
       const graphManifest = copyGraphManifest(bundle.graphManifest);
-      if (graphManifest.length !== spec.graphCount
-          || !graphManifest.some(member => member.path === spec.entryPath)) fail();
+      // The fixed compiler validates complete reachable membership; this data
+      // projection retains its exact manifest/digest and required authority roots.
+      if (spec.requiredGraphPaths.some(path => !graphManifest.some(member => member.path === path))) fail();
       if (bundle.sourceClosureDigest
           !== deriveSealedRealmOperationBundleSourceClosureDigest(lane, graphManifest)) fail();
       validateDeclaration(declarationBytes, spec);

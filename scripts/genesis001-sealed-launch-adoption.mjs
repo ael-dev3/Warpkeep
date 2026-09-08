@@ -880,6 +880,11 @@ export function deriveGenesis001SealedLaunchEvidence(value) {
 
 /** Validates current G001 evidence only; this projection is not recovery authorization. */
 export function deriveGenesis001RecoveryLaunchEvidence(value) {
+  return validateGenesis001RecoveryLaunchEvidenceAtTime(value, new Date().toISOString());
+}
+
+/** Pure historical validation for matching a durable generation receipt; no new authorization. */
+export function validateGenesis001RecoveryLaunchEvidenceAtTime(value, verificationTimestamp) {
   const evidence = plainRecord(value, [
     'preparationSourceCommit',
     'policyObservationBootstrapReceipt',
@@ -889,7 +894,8 @@ export function deriveGenesis001RecoveryLaunchEvidence(value) {
     'admittedPlayerCensusPrivateReceipt',
   ], true);
   if (!COMMIT.test(evidence.preparationSourceCommit ?? '')) fail();
-  return deriveGenesis001NonHistoricalEvidence(evidence, new Date(), null);
+  const timestamp = exactTimestamp(verificationTimestamp);
+  return deriveGenesis001NonHistoricalEvidence(evidence, new Date(timestamp), null);
 }
 
 export function deriveGenesis001SealedLaunchEvidenceForTesting(

@@ -65,6 +65,11 @@ export function deriveGenesis001RecoveryLaunchEvidence(
   g001FreezePublishReceiptDigest: null;
 }>;
 
+/** Historical data validation only; does not authorize another operation. */
+export function validateGenesis001RecoveryLaunchEvidenceAtTime(
+  value: unknown, verificationTimestamp: string,
+): ReturnType<typeof deriveGenesis001RecoveryLaunchEvidence>;
+
 export function deriveGenesis001SealedLaunchEvidenceForTesting(
   value: unknown,
   authority: Readonly<{

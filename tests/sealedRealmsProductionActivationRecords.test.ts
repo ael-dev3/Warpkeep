@@ -77,6 +77,11 @@ import {
   writeSealedRealmsProductionRecoveryActivationDescriptor,
 } from '../scripts/sealed-realms-production-activation-records.mjs';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
+import { recoveryActivationBridge, recoveryProtectedContext, recoveryOperationAuthority, recoveryActivationDispatcher, RECOVERY_TEST_VERSION } from './fixtures/recoveryActivationBridge';
+import { createSealedRealmsProductionActivationEvidenceGenerator, createSealedRealmsProductionAuthBridgeStateTestCapability } from '../scripts/sealed-realms-production-auth-bridge-state.mjs';
+import { issueSealedRealmsProductionContinuation, claimSealedRealmsProductionContinuation, reconcileSealedRealmsProductionContinuation } from '../scripts/sealed-realms-production-continuation.mjs';
+import { parseActivationGenerationReceipt, activationGenerationReceiptBytes } from '../scripts/sealed-realms-production-activation-generation-receipt.mjs';
+import { verifySealedRealmsPublicActivationBytes } from '../scripts/verify-sealed-realms-public-activation-artifact.mjs';
 import * as activationRecordsModule from '../scripts/sealed-realms-production-activation-records.mjs';
 import {
   authenticateSealedRealmsProductionSourceAuthority,
@@ -942,6 +947,43 @@ function privateStateFixture(options: Readonly<{
   });
 }
 
+function recoveryCandidateForReceipts(receipts: ReturnType<typeof fullCorpus>) {
+  const candidate = recoveryBindingCandidate();
+  Object.assign(candidate, {
+    preparationSourceCommit: FIXTURE_SOURCE_COMMIT,
+    recoveryAuthWorkerSourceCommit: FIXTURE_SOURCE_COMMIT,
+    authBridgeSourceCommit: FIXTURE_SOURCE_COMMIT,
+  }, deriveGenesis001RecoveryLaunchEvidence({
+    preparationSourceCommit: FIXTURE_SOURCE_COMMIT,
+    policyObservationBootstrapReceipt: receipts.g001PolicyObservationBootstrapReceipt,
+    censusPrivacySafePrivateReceipt: receipts.g001CensusPrivacySafePrivateReceipt,
+    admissionMonitorSuspensionReceipt: receipts.g001AdmissionMonitorSuspensionReceipt,
+    admissionMonitorCurrentStateReceipt: receipts.g001AdmissionMonitorCurrentStateReceipt,
+    admittedPlayerCensusPrivateReceipt: receipts.g001AdmittedPlayerCensusPrivateReceipt,
+  }));
+  for (const realm of ['g002', 'ptr'] as const) {
+    const published = receipts[`${realm}PublishReceipt`] as Record<string, unknown>;
+    for (const field of ['databaseIdentity', 'moduleSha256', 'moduleTreeId',
+      'dependencyClosureDigest', 'spacetimeExecutableSha256', 'spacetimeCliConfigSha256',
+      'freshStatusDigest', 'publishReceiptDigest']) {
+      candidate[`${realm}${field[0]!.toUpperCase()}${field.slice(1)}`] = published[field] as string;
+    }
+    candidate[`${realm}ModuleSourceCommit`] = published.sourceCommit as string;
+    candidate[`${realm}AtlasImportReceiptDigest`] = receipts[`${realm}AtlasImportReceipt`].importReceiptDigest;
+    const live = receipts[`${realm}SealedLiveReceipt`] as Record<string, unknown>;
+    candidate[`${realm}SealedLiveReceiptDigest`] = realm === 'g002'
+      ? genesis002SealedLiveReceiptDigest(live) : ptrSealedLiveReceiptDigest(live);
+    for (const field of ['atlasId', 'atlasSourceCommit', 'publicReleaseId', 'releaseHeaderSha256', 'verificationDigest']) {
+      candidate[`${realm}${field[0]!.toUpperCase()}${field.slice(1)}`] = live[field] as string;
+    }
+  }
+  candidate.g002ReleaseSha256 = receipts.g002SealedLiveReceipt.releaseSha256;
+  candidate.ptrReleaseManifestSha256 = receipts.ptrSealedLiveReceipt.releaseManifestSha256;
+  candidate.ptrExpectedReleaseSha256 = receipts.ptrSealedLiveReceipt.expectedReleaseSha256;
+  candidate.ptrOwnerProvisionReceiptDigest = receipts.ptrOwnerProvisionReceipt.provisionReceiptDigest;
+  return candidate;
+}
+
 function runtimePath(home: string, relativePath: string) {
   return join(
     home,
@@ -959,6 +1001,102 @@ afterEach(() => {
   for (const home of temporaryHomes.splice(0)) {
     rmSync(home, { recursive: true, force: true });
   }
+});
+
+describe('connected recovery activation generation', () => {
+  it.skipIf(typeof process.getuid !== 'function').each(['complete', 'lost-acknowledgment', 'changed-artifact',
+    'changed-descriptor', 'wrong-run', 'extra-file', 'partial-family', 'retained-lock'])(
+    'uses the fixed generator and reconciles exact durable evidence: %s', async scenario => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-08-28T12:02:00.000Z'));
+      try {
+        const state = privateStateFixture();
+        const receipts = fullCorpus();
+        const candidate = recoveryCandidateForReceipts(receipts);
+        const { bridge, probes } = await recoveryActivationBridge(state, temporaryHomes.at(-1)!, receipts);
+        const binding = await bridge.inspectActivationEvidenceForContinuation();
+        candidate.admissionRequestSuspensionReceiptDigest = binding.evidenceDigest;
+        candidate.recoveryAuthWorkerVersionId = RECOVERY_TEST_VERSION;
+        for (const member of Object.keys(receipts) as ActivationRecordMember[]) {
+          if (member !== 'g001FreezePublishReceipt') writeActivationRecord(state, member, receipts[member]);
+        }
+        const records = createSealedRealmsProductionActivationRecords({ privateState: state,
+          authority: recoveryOperationAuthority('activation-evidence-generate'),
+          readBindingCandidate: () => `${JSON.stringify(candidate, null, 2)}\n` });
+        const createGenerator = () => createSealedRealmsProductionActivationEvidenceGenerator({ records,
+          privateState: state, authority: recoveryOperationAuthority('activation-evidence-generate'),
+          testOnlyCapability: createSealedRealmsProductionAuthBridgeStateTestCapability(),
+          testOnlyPreparationBootstrapAuthority: {
+            preparationSourceCommit: FIXTURE_SOURCE_COMMIT,
+            moduleTreeId: receipts.g001PolicyObservationBootstrapReceipt.moduleTreeId,
+            bootstrapBlob: receipts.g001PolicyObservationBootstrapReceipt.bootstrapBlob,
+            bootstrapSha256: receipts.g001PolicyObservationBootstrapReceipt.bootstrapSha256,
+          },
+        });
+        const generator = createGenerator();
+        const inspect = await recoveryProtectedContext(state, 'activation-evidence-inspect', '81001');
+        await issueSealedRealmsProductionContinuation({ ...inspect, ...binding });
+        const generate = await recoveryProtectedContext(state, 'activation-evidence-generate', '81002');
+        const operation = scenario === 'complete'
+          ? (await recoveryActivationDispatcher(state, bridge, generator, '81002')).dispatch({
+            operation: 'activation-evidence-generate', workflowInputSha: FIXTURE_SOURCE_COMMIT,
+          }) : claimSealedRealmsProductionContinuation({ ...generate, ...binding,
+          effect: async claim => {
+            await bridge.consumeActivationEvidenceForContinuation({ claim, store: generate.store,
+              sourceAuthority: generate.sourceAuthority, kind: 'activation-evidence', runId: generate.runId,
+              runAttempt: generate.runAttempt, ...binding, generator });
+            if (scenario !== 'complete') throw new Error('operation result lost after durable publication');
+          },
+        });
+        if (scenario === 'complete') await expect(operation).resolves.toEqual({ operation: 'activation-evidence-generate', status: 'completed' });
+        else await expect(operation).rejects.toMatchObject({ code: 'SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS' });
+        const artifact = state.read({ root: 'runtime', relativePath: 'public/0.4.0-sealed-launch.json' });
+        const receiptBytes = state.read({ root: 'runtime', relativePath: 'public/activation-generation-receipt.json' });
+        const receipt = parseActivationGenerationReceipt(receiptBytes);
+        expect(receipt.runId).toBe('81002');
+        expect(receipt.artifactSchemaVersion).toBe(2);
+        expect(receipt.activationEvidenceDigest).toBe(binding.evidenceDigest);
+        expect(receipt.artifactSha256).toBe(createHash('sha256').update(artifact).digest('hex'));
+        const checked = verifySealedRealmsPublicActivationBytes(artifact);
+        expect(JSON.parse(checked.toString()).g001FreezePublishReceiptDigest).toBeNull();
+        checked.fill(0); artifact.fill(0); receiptBytes.fill(0);
+        if (scenario === 'complete') {
+          await expect(claimSealedRealmsProductionContinuation({ ...generate, ...binding,
+            effect: () => { throw new Error('must never replay'); } })).rejects.toMatchObject({ code: 'SEALED_REALMS_CONTINUATION_TERMINAL' });
+          return;
+        }
+        if (scenario === 'changed-artifact') {
+          const path = runtimePath(temporaryHomes.at(-1)!, 'public/0.4.0-sealed-launch.json');
+          writeFileSync(path, `${readFileSync(path, 'utf8')}\n`, { mode: 0o600 });
+        }
+        if (scenario === 'changed-descriptor') {
+          writeFileSync(fixedDescriptorPath(temporaryHomes.at(-1)!), '{}\n', { mode: 0o600 });
+        }
+        if (scenario === 'wrong-run') {
+          writeFileSync(runtimePath(temporaryHomes.at(-1)!, 'public/activation-generation-receipt.json'),
+            activationGenerationReceiptBytes({ ...receipt, runId: '81099' }), { mode: 0o600 });
+        }
+        if (scenario === 'extra-file') state.write({ root: 'runtime', relativePath: 'public/extra.json', bytes: Buffer.from('{}\n') });
+        if (scenario === 'partial-family') state.remove({ root: 'runtime', relativePath: 'public/0.4.0-sealed-launch.json' });
+        if (scenario === 'retained-lock') state.write({ root: 'runtime', relativePath: 'public.family.lock', bytes: Buffer.from('{}\n') });
+        vi.setSystemTime(new Date('2026-08-29T12:02:00.000Z'));
+        const before = probes();
+        const resumedGenerator = createGenerator();
+        const selected = await bridge.reopenActivationEvidenceContinuation();
+        const reconcile = await recoveryProtectedContext(state, 'activation-evidence-generate', '81003', new Set(['81002']));
+        const reconciliation = scenario === 'lost-acknowledgment'
+          ? (await recoveryActivationDispatcher(state, bridge, resumedGenerator, '81003', new Set(['81002']))).dispatch({
+            operation: 'activation-evidence-generate', workflowInputSha: FIXTURE_SOURCE_COMMIT,
+          }) : reconcileSealedRealmsProductionContinuation({ ...reconcile, ...selected,
+          readOnlyReconcile: token => bridge.reconcileActivationEvidenceForContinuation({ selection: selected,
+            generator: resumedGenerator, reconciliation: token, store: reconcile.store,
+            sourceAuthority: reconcile.sourceAuthority }),
+        });
+        if (scenario === 'lost-acknowledgment') await expect(reconciliation).resolves.toEqual({ operation: 'activation-evidence-generate', status: 'completed' });
+        else await expect(reconciliation).rejects.toMatchObject({ code: 'SEALED_REALMS_CONTINUATION_RECONCILIATION_AMBIGUOUS' });
+        expect(probes()).toBe(before);
+      } finally { vi.useRealTimers(); }
+    }, 30000);
 });
 
 describe('sealed-realms activation descriptor records', () => {

@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { closeSync, constants, fchmodSync, fsyncSync, lstatSync,
   openSync, readdirSync, realpathSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
-import { acquirePreparedReleaseCandidateLock } from './local-release-candidate-lock.mjs';
+import { acquirePreparedReleaseCandidateLock, assertPreparedReleaseCandidateLock } from './local-release-candidate-lock.mjs';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { decodePreparedReleaseJournal, planPreparedReleaseRollback } from './local-release-recovery-journal.mjs';
 
@@ -30,10 +30,11 @@ function syncPath(path, isDirectory) {
 }
 
 /** Restore only a recorded prepared transaction; never mint release authority. */
-export function recoverPreparedReleaseTransaction(...args) {
-  const [candidateRoot, transactionId] = args;
-  if (args.length !== 2 || typeof transactionId !== 'string' || !/^[0-9a-f]{32}$/u.test(transactionId)) fail();
-  const lock = acquirePreparedReleaseCandidateLock(candidateRoot);
+function recover(candidateRoot, transactionId, suppliedLock) {
+  if (typeof transactionId !== 'string' || !/^[0-9a-f]{32}$/u.test(transactionId)) fail();
+  const ownsLock = suppliedLock === undefined;
+  if (!ownsLock) assertPreparedReleaseCandidateLock(suppliedLock, candidateRoot);
+  const lock = ownsLock ? acquirePreparedReleaseCandidateLock(candidateRoot) : suppliedLock;
   let primary;
   let result;
   try {
@@ -192,7 +193,19 @@ export function recoverPreparedReleaseTransaction(...args) {
     guard(); terminal(terminalPath); priorFamily(observations());
     result = Object.freeze({ status: 'rolled-back', transactionId });
   } catch (error) { primary = error; }
-  try { lock.release(); } catch (error) { primary ??= error; }
+  if (ownsLock) { try { lock.release(); } catch (error) { primary ??= error; } }
   if (primary !== undefined) fail();
   return result;
+}
+
+export function recoverPreparedReleaseTransaction(...args) {
+  if (args.length !== 2) fail();
+  return recover(args[0], args[1], undefined);
+}
+
+/** Preserve a genuine caller-held lease across rollback and its operating
+ * completion record. The lease remains held on both success and failure. */
+export function recoverPreparedReleaseTransactionUnderLock(...args) {
+  if (args.length !== 3 || args[2] === undefined) fail();
+  return recover(args[0], args[1], args[2]);
 }

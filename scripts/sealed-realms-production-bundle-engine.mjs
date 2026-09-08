@@ -1,12 +1,31 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { isBuiltin } from 'node:module';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
+
+function requiredGraphPaths(lane) {
+  return Object.freeze([
+    `scripts/sealed-realms-production-${lane}-workflow-entry.mjs`,
+    `scripts/sealed-realms-production-${lane}-lane-entry.mjs`,
+    ...['continuation', 'dispatch', 'private-state', 'source-authority',
+      'workflow-authority', 'workflow-evidence', 'workflow-private-state']
+      .map(name => `scripts/sealed-realms-production-${name}.mjs`),
+    ...(lane === 'g001' ? [] : [
+      'scripts/sealed-realms-production-auth-bridge-state.mjs',
+      'scripts/sealed-realms-production-activation-records.mjs',
+      'scripts/sealed-realms-production-activation-generation-receipt.mjs',
+      'scripts/generate-0.4.0-recovery-launch-activation.mjs',
+      'scripts/verify-sealed-realms-public-activation-artifact.mjs',
+    ]),
+    ...(['g002', 'ptr'].includes(lane) ? ['scripts/sealed-realms-production-reconciliation.mjs'] : []),
+  ].sort());
+}
 
 const LANE_SPECS = Object.freeze({
   activation: Object.freeze({
     entryPath: 'scripts/sealed-realms-production-activation-workflow-entry.mjs',
     basename: 'sealed-realms-production-activation-lane.bundle.mjs',
-    graphCount: 14,
+    requiredGraphPaths: requiredGraphPaths('activation'),
     factoryExport: 'createSealedRealmsProductionActivationWorkflowRuntime',
     factoryFailureCode: 'SEALED_REALMS_ACTIVATION_WORKFLOW_INPUT_INVALID',
     exportNames: Object.freeze([
@@ -17,7 +36,7 @@ const LANE_SPECS = Object.freeze({
   g001: Object.freeze({
     entryPath: 'scripts/sealed-realms-production-g001-workflow-entry.mjs',
     basename: 'sealed-realms-production-g001-lane.bundle.mjs',
-    graphCount: 12,
+    requiredGraphPaths: requiredGraphPaths('g001'),
     factoryExport: 'createSealedRealmsProductionG001WorkflowRuntime',
     factoryFailureCode: 'SEALED_REALMS_G001_WORKFLOW_INPUT_INVALID',
     exportNames: Object.freeze([
@@ -28,7 +47,7 @@ const LANE_SPECS = Object.freeze({
   g002: Object.freeze({
     entryPath: 'scripts/sealed-realms-production-g002-workflow-entry.mjs',
     basename: 'sealed-realms-production-g002-lane.bundle.mjs',
-    graphCount: 131,
+    requiredGraphPaths: requiredGraphPaths('g002'),
     factoryExport: 'createSealedRealmsProductionG002WorkflowRuntime',
     factoryFailureCode: 'SEALED_REALMS_G002_WORKFLOW_INPUT_INVALID',
     exportNames: Object.freeze([
@@ -39,7 +58,7 @@ const LANE_SPECS = Object.freeze({
   ptr: Object.freeze({
     entryPath: 'scripts/sealed-realms-production-ptr-workflow-entry.mjs',
     basename: 'sealed-realms-production-ptr-lane.bundle.mjs',
-    graphCount: 131,
+    requiredGraphPaths: requiredGraphPaths('ptr'),
     factoryExport: 'createSealedRealmsProductionPtrWorkflowRuntime',
     factoryFailureCode: 'SEALED_REALMS_PTR_WORKFLOW_INPUT_INVALID',
     exportNames: Object.freeze([
@@ -91,6 +110,7 @@ function portablePath(path) {
 }
 
 const PATH_TRANSFORMS = Object.freeze({
+  'scripts/generate-0.4.0-recovery-launch-activation.mjs': [['/dev/null', 3], ['/usr/bin/false', 1], ['/usr/bin:/bin', 1], ['/usr/bin/git', 1]],
   'scripts/sealed-realms-production-g001-lane-entry.mjs': [['/private/var/db/warpkeep/runtime/node-v22.22.3-darwin-arm64/bin/node', 1], ['/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node', 1], ['/dev/null', 2], ['/usr/bin/false', 1], ['/usr/bin:/bin', 1], ['/usr/bin/env', 1], ['/bin/sh', 1], ['/usr/bin/git', 1], ['/usr/bin/plutil', 1], ['/bin/launchctl', 2]],
   'scripts/atlas/greater-realm-git.ts': [['/dev/null', 1], ['/Library/Developer/CommandLineTools/usr/bin/git', 1], ['/usr/bin/git', 2], ['C:\\Program Files\\Git\\cmd\\git.exe', 1], ['C:\\Program Files\\Git\\bin\\git.exe', 1]],
   'scripts/genesis002-production-publisher.mjs': [['/usr/bin:/bin', 2], ['/dev/fd/3', 1]],
@@ -200,13 +220,70 @@ function fixedTransformPlugin(sourceRoot) {
 }
 
 function graphManifest(metafile, spec, sourceRoot) {
-  const paths = Object.keys(metafile.inputs)
-    .filter(path => !path.startsWith('<'))
-    .map(portablePath)
-    .sort();
-  if (paths.length !== spec.graphCount || !paths.includes(spec.entryPath)) {
+  // Cardinality is a derived fact, never a substitute for membership. The pinned
+  // compiler reports the closed import graph from this lane's fixed entry; reject
+  // missing edge targets, disconnected inputs and unauthorized external inputs.
+  // The native producer separately compares two complete independently built
+  // manifests and verifies every source byte against the captured source tree.
+  const inputs = new Map();
+  const aliases = new Set();
+  const virtual = '<define:process.argv>';
+  const validPath = path => typeof path === 'string' && path.length > 0 && path.length <= 512
+    && /^[A-Za-z0-9@._/-]+$/u.test(path)
+    && path.split('/').every(part => part && part !== '.' && part !== '..')
+    && (path.startsWith('scripts/') || path.startsWith('spacetimedb/') || path.startsWith('node_modules/yaml/'));
+  if (metafile.inputs === null || typeof metafile.inputs !== 'object' || Array.isArray(metafile.inputs)) {
     fail('SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID');
   }
+  for (const [raw, record] of Object.entries(metafile.inputs)) {
+    const path = portablePath(raw);
+    if ((path !== virtual && !validPath(path)) || aliases.has(path.toLowerCase())
+      || !Number.isSafeInteger(record?.bytes) || record.bytes < 0 || record.bytes > 4 * 1024 * 1024
+      || !Array.isArray(record.imports) || record.imports.length > 1024 || inputs.size >= 257) {
+      fail('SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID');
+    }
+    if (path === virtual && (record.bytes !== 2 || record.imports.length !== 0)) {
+      fail('SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID');
+    }
+    aliases.add(path.toLowerCase()); inputs.set(path, record);
+  }
+  const paths = [...inputs.keys()].filter(path => path !== virtual).sort();
+  if (paths.length < 1 || paths.length > 256
+    || spec.requiredGraphPaths.some(path => !inputs.has(path))) fail('SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID');
+  const yamlBuiltinRequires = new Map([
+    ['node_modules/yaml/dist/log.js', 'process'],
+    ['node_modules/yaml/dist/compose/composer.js', 'process'],
+    ['node_modules/yaml/dist/parse/parser.js', 'process'],
+    ['node_modules/yaml/dist/schema/yaml-1.1/binary.js', 'buffer'],
+  ]);
+  for (const [sourcePath, record] of inputs) {
+    for (const edge of record.imports) {
+      if (typeof edge?.path !== 'string' || !['import-statement', 'dynamic-import', 'require-call', 'require-resolve'].includes(edge.kind)
+        || ![undefined, false, true].includes(edge.external)) fail('SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID');
+      if (edge.path === virtual) {
+        // esbuild marks its injected define module external in import records,
+        // but records the exact synthetic body in inputs. It is still reachable
+        // graph data, not an allowed runtime external import.
+        if (edge.external !== true || edge.kind !== 'import-statement' || !inputs.has(virtual)) {
+          fail('SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID');
+        }
+      } else if (edge.external === true) {
+        const pinnedYamlBuiltin = yamlBuiltinRequires.get(sourcePath) === edge.path && edge.kind === 'require-call';
+        if ((!edge.path.startsWith('node:') && !pinnedYamlBuiltin) || !isBuiltin(edge.path)) {
+          fail('SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID');
+        }
+      } else if (!inputs.has(portablePath(edge.path))) fail('SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID');
+    }
+  }
+  const reached = new Set();
+  const pending = [spec.entryPath];
+  while (pending.length > 0) {
+    const path = pending.pop();
+    if (reached.has(path)) continue;
+    reached.add(path);
+    for (const edge of inputs.get(path).imports) if (edge.external !== true || edge.path === virtual) pending.push(portablePath(edge.path));
+  }
+  if (reached.size !== inputs.size) fail('SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID');
   const sourceRootPrefix = sourceRoot.endsWith(sep) ? sourceRoot : `${sourceRoot}${sep}`;
   const entries = paths.map((path) => {
     const absolute = resolve(sourceRoot, path);

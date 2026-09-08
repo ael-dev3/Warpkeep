@@ -1,0 +1,31 @@
+export type PreparedLinuxReleaseSource = Readonly<{
+  schemaVersion: 1;
+  profile: 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
+  status: 'prepared-source-candidate';
+  sourceCommit: string;
+  sourceTree: string;
+  transactionId: string;
+  journalSha256: string;
+  familySha256: string;
+  closureManifestSha256: string;
+  scannerManifestSha256: string;
+  checkedSourceFiles: number;
+  checkedCandidateFiles: number;
+  outputFiles: number;
+  preservedSourceFiles: number;
+  checkedBundleInputs: number;
+  checkedRecoveryInputs: number;
+  finalReleasePrepared: false;
+  handle: string;
+  candidateRoot: string;
+}>;
+export function preparePreparedLinuxReleaseSource(): Promise<PreparedLinuxReleaseSource>;
+export function checkPreparedLinuxReleaseSource(handle: string): Promise<PreparedLinuxReleaseSource>;
+export function recoverPreparedLinuxReleaseSource(handle: string): Readonly<{
+  status: 'rolled-back';
+  transactionId: string;
+  handle: string;
+  sourceCommit: string;
+  sourceTree: string;
+  finalReleasePrepared: false;
+}>;

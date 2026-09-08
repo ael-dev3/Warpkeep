@@ -1266,3 +1266,5 @@ if (
     process.exitCode = 1;
   });
 }
+
+export { createRecoveryLaunchActivationBindingFromEvidence, generateRecoveryLaunchActivationBindingFromDescriptor, validateRecoveryLaunchActivationProjection } from './generate-0.4.0-recovery-launch-activation.mjs';

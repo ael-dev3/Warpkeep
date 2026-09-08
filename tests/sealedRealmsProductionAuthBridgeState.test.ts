@@ -1075,7 +1075,7 @@ describe('sealed-realms auth bridge state', () => {
         bridgeOptions(local) as never,
       );
       const generate = vi.fn();
-      expect(() => createSealedRealmsProductionActivationEvidenceGenerator({ generate }))
+      expect(() => createSealedRealmsProductionActivationEvidenceGenerator({ generate } as never))
         .toThrow(expect.objectContaining({
           code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
         }));
@@ -1086,7 +1086,7 @@ describe('sealed-realms auth bridge state', () => {
         code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
       });
       await expect(bridge.consumeActivationEvidenceForContinuation({} as never))
-        .rejects.toMatchObject({ code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE' });
+        .rejects.toMatchObject({ code: 'SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID' });
       expect(generate).not.toHaveBeenCalled();
     } finally {
       local.cleanup();
@@ -1108,14 +1108,14 @@ describe('sealed-realms auth bridge state', () => {
     }
   });
 
-  it('keeps activation generation unavailable before reopen, claim, or generator effect', async () => {
+  it('keeps unconfigured activation generation unavailable before reopening or reserving a claim', async () => {
     const local = fixture();
     try {
       const bridge = createSealedRealmsProductionAuthBridgeState(
         bridgeOptions(local) as never,
       );
       const generate = vi.fn();
-      expect(() => createSealedRealmsProductionActivationEvidenceGenerator({ generate }))
+      expect(() => createSealedRealmsProductionActivationEvidenceGenerator({ generate } as never))
         .toThrow(expect.objectContaining({
           code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
         }));
@@ -1136,13 +1136,13 @@ describe('sealed-realms auth bridge state', () => {
       });
       await expect(dispatcher.dispatch(request)).resolves.toEqual({
         operation: 'activation-evidence-generate',
-        status: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
+        status: 'unavailable',
       });
       // The transition fails before reopen/claim, so the same protected run is
       // not stranded behind a reserved effect and still fails at the fixed gate.
       await expect(dispatcher.dispatch(request)).resolves.toEqual({
         operation: 'activation-evidence-generate',
-        status: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
+        status: 'unavailable',
       });
       expect(generate).not.toHaveBeenCalled();
     } finally {
@@ -2345,7 +2345,7 @@ describe('sealed-realms auth bridge state', () => {
     } finally { local.cleanup(); }
   });
 
-  it('reopens exact activation evidence while every generator route remains unavailable', async () => {
+  it('reopens exact activation evidence while refusing forged generation callbacks or claims', async () => {
     const local = fixture();
     try {
       const inspector = await completeBridge(local);
@@ -2355,13 +2355,13 @@ describe('sealed-realms auth bridge state', () => {
       const restarted = createSealedRealmsProductionAuthBridgeState(bridgeOptions(local) as never);
       await expect(restarted.reopenActivationEvidenceContinuation()).resolves.toEqual(binding);
       const generate = vi.fn();
-      expect(() => createSealedRealmsProductionActivationEvidenceGenerator({ generate }))
+      expect(() => createSealedRealmsProductionActivationEvidenceGenerator({ generate } as never))
         .toThrow(expect.objectContaining({
           code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
         }));
       await expect(restarted.consumeActivationEvidenceForContinuation({} as never))
         .rejects.toMatchObject({
-          code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
+          code: 'SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID',
         });
       expect(generate).not.toHaveBeenCalled();
     } finally { local.cleanup(); }
@@ -2645,7 +2645,7 @@ describe('sealed-realms auth bridge state', () => {
         { activationLane: activationGenerate },
       )).resolves.toEqual({
         operation: 'activation-evidence-generate',
-        status: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
+        status: 'unavailable',
       });
       expect(ownerProvision).toHaveBeenCalledTimes(1);
     } finally {

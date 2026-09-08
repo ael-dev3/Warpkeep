@@ -4,3 +4,5 @@ export class SealedRealmsPublicActivationArtifactVerificationError
 }
 
 export function verifySealedRealmsPublicActivationArtifact(): Buffer;
+/** Format/privacy validation only; does not authenticate a deployment. */
+export function verifySealedRealmsPublicActivationBytes(input: Uint8Array): Buffer;

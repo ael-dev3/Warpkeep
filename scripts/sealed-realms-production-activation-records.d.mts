@@ -21,6 +21,23 @@ export function assertSealedRealmsProductionActivationRecords(
   records: unknown,
 ): SealedRealmsProductionActivationRecords;
 
+export function assertSealedRealmsProductionActivationRecordsAuthority(input: Readonly<{
+  records: SealedRealmsProductionActivationRecords;
+  privateState: SealedRealmsProductionPrivateState;
+  authority: SealedRealmsProductionSourceAuthority;
+}>): SealedRealmsProductionActivationRecords;
+
+/** Data validation only; does not establish producer or deployment authority. */
+export function validateSealedRealmsProductionRecoveryActivationEvidence(
+  envelope: unknown,
+  verificationTime?: string,
+): Readonly<Record<string, unknown>>;
+
+export function inspectSealedRealmsProductionRecoveryActivationRecords(
+  records: SealedRealmsProductionActivationRecords,
+  verificationTime?: string,
+): Readonly<{ sourceCommit: string; schemaVersion: 2; descriptorSha256: string }>;
+
 /** Reads a canonical schema-2 candidate and twelve non-historical private records. */
 export function writeSealedRealmsProductionRecoveryActivationDescriptor(input: Readonly<{
   records: SealedRealmsProductionActivationRecords;

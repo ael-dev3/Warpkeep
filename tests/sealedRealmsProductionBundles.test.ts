@@ -11,6 +11,8 @@ import {
 } from '../scripts/build-sealed-realms-production-bundles.mjs';
 import type { SealedRealmsProductionBundleLane } from
   '../scripts/build-sealed-realms-production-bundles.mjs';
+import { getSealedRealmOperationBundleSpecification } from '../scripts/sealed-realms-production-bundle-engine.mjs';
+import { readLocalBindingBoundedFile } from '../scripts/local-binding-bounded-file.mjs';
 import {
   createSealedRealmsProductionPrivateState,
 } from '../scripts/sealed-realms-production-private-state.mjs';
@@ -21,7 +23,6 @@ const NODE_ATTESTATION = {
   sha256: '5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c',
   teamId: 'HX7739G8FX',
 } as const;
-const GRAPH_COUNTS = { activation: 14, g001: 12, g002: 131, ptr: 131 } as const;
 const ENTRY_PATHS = {
   activation: 'scripts/sealed-realms-production-activation-workflow-entry.mjs',
   g001: 'scripts/sealed-realms-production-g001-workflow-entry.mjs',
@@ -79,6 +80,7 @@ function fixture(testOnlyFsync: (path: string) => void = () => {}) {
     chmodSync(root, 0o700);
   }
   return {
+    bundleDirectory: join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'cache', 'sealed-realms-v1', 'bundles'),
     state: createSealedRealmsProductionPrivateState({
       reportedHome: home,
       testOnlyOwnerUid: statSync(home).uid,
@@ -101,7 +103,9 @@ describe('sealed-realms production bundles', () => {
       const factory = module[request.factoryExport];
       expect(typeof factory).toBe('function');
       await expect(factory({})).rejects.toThrow(request.factoryFailureCode);
-      expect(request.graphManifest).toHaveLength(GRAPH_COUNTS[request.lane]);
+      const paths = request.graphManifest.map(member => member.path);
+      expect(paths).toEqual([...new Set(paths)].sort());
+      expect(paths).toEqual(expect.arrayContaining([...getSealedRealmOperationBundleSpecification(request.lane).requiredGraphPaths]));
       expect(request.graphManifest.some(member => member.path === ENTRY_PATHS[request.lane])).toBe(true);
       for (const path of PRIVATE_WORKFLOW_MEMBERS) {
         expect(request.graphManifest.some(member => member.path === path)).toBe(true);
@@ -142,7 +146,15 @@ describe('sealed-realms production bundles', () => {
       expect(loadHook).toHaveBeenCalledTimes(4);
       let observedLegitimateRegex = false;
       for (const lane of ['activation', 'g001', 'g002', 'ptr'] as const satisfies readonly SealedRealmsProductionBundleLane[]) {
-        const bytes = local.state.read({ root: 'cache', relativePath: `bundles/${BASENAMES[lane]}` });
+        const loaded = loadHook.mock.calls.find(([request]) => request.lane === lane)![0];
+        // Use the native bundle loader's bounded reader. Ordinary private JSON
+        // records deliberately retain their smaller 512 KiB read limit.
+        const { body: bytes } = readLocalBindingBoundedFile(join(local.bundleDirectory, BASENAMES[lane]), {
+          maximumBytes: 4 * 1024 * 1024, minimumBytes: 1,
+          expectedBytes: loaded.bytes.byteLength, expectedSha256: loaded.byteDigest,
+          expectedUid: statSync(local.bundleDirectory).uid,
+          ...(process.platform === 'win32' ? {} : { expectedMode: 0o600 }),
+        });
         const source = bytes.toString('utf8');
         expect(source.length).toBeGreaterThan(1_000);
         expect(source).not.toContain('sourceMappingURL');

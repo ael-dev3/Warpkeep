@@ -1,4 +1,4 @@
-import type { SealedRealmsProductionAuthBridgeState } from './sealed-realms-production-auth-bridge-state.mjs';
+import type { SealedRealmsProductionAuthBridgeState, SealedRealmsProductionActivationEvidenceGenerator } from './sealed-realms-production-auth-bridge-state.mjs';
 import type {
   SealedRealmsProductionDispatchContextInput,
   SealedRealmsProductionDispatcher,
@@ -15,6 +15,7 @@ export function createSealedRealmsProductionActivationDispatchContext(
 ): SealedRealmsProductionActivationDispatchContext;
 export function createSealedRealmsProductionActivationLane(input: Readonly<{
   bridgeState: SealedRealmsProductionAuthBridgeState;
+  generator?: SealedRealmsProductionActivationEvidenceGenerator;
 }>): SealedRealmsProductionActivationLane;
 export function assertSealedRealmsProductionActivationLane(
   lane: unknown,

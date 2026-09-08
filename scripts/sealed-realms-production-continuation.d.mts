@@ -111,3 +111,16 @@ export function assertSealedRealmsProductionContinuationClaim(input: Readonly<{
   receiptDigests: readonly string[];
   predecessorDigests: readonly string[];
 }>): true;
+
+export function assertSealedRealmsProductionContinuationReconciliation(input: Readonly<{
+  reconciliation: SealedRealmsProductionContinuationReconciliation;
+  store: SealedRealmsProductionContinuationStore;
+  sourceAuthority: SealedRealmsProductionSourceAuthority;
+  kind: SealedRealmsProductionContinuationKind;
+  subject: string;
+  evidenceDigest: string;
+  receiptDigests: readonly string[];
+  predecessorDigests: readonly string[];
+  claimRunId: string;
+  claimRunAttempt: number;
+}>): true;

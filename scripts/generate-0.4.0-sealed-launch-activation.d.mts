@@ -42,3 +42,5 @@ export function generateSealedLaunchActivationBindingFromDescriptor(
   }>,
   activationEvidenceMember?: SealedRealmsActivationEvidenceMember,
 ): Readonly<Record<string, unknown>>;
+
+export { createRecoveryLaunchActivationBindingFromEvidence, generateRecoveryLaunchActivationBindingFromDescriptor, validateRecoveryLaunchActivationProjection } from './generate-0.4.0-recovery-launch-activation.mjs';

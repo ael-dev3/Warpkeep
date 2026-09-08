@@ -10,6 +10,7 @@ import {
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { parseRecoveryBindingV2 } from './recovery-activation-candidate.mjs';
 
 const SHA256 = /^[0-9a-f]{64}$/u;
 const COMMIT = /^[0-9a-f]{40}$/u;
@@ -321,16 +322,19 @@ function readFixedArtifactBytes() {
   }
 }
 
-export function verifySealedRealmsPublicActivationArtifact() {
-  if (arguments.length !== 0) {
-    fail('SEALED_REALMS_PUBLIC_ACTIVATION_ARGUMENT_INVALID');
+/** Pure format/privacy validation; these bytes confer no deployment authority. */
+export function verifySealedRealmsPublicActivationBytes(input) {
+  if (!(input instanceof Uint8Array) || input.byteLength < MINIMUM_ARTIFACT_BYTES
+    || input.byteLength > MAXIMUM_ARTIFACT_BYTES) {
+    fail('SEALED_REALMS_PUBLIC_ACTIVATION_FILE_SIZE_INVALID');
   }
-  const bytes = readFixedArtifactBytes();
+  const bytes = Buffer.from(input);
   let source;
   let binding;
   try {
     source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-    binding = exactRecord(JSON.parse(source));
+    const parsed = JSON.parse(source);
+    binding = parsed?.schemaVersion === 2 ? parseRecoveryBindingV2(source) : exactRecord(parsed);
   } catch (error) {
     if (error instanceof SealedRealmsPublicActivationArtifactVerificationError) {
       throw error;
@@ -341,8 +345,15 @@ export function verifySealedRealmsPublicActivationArtifact() {
     !Buffer.from(source, 'utf8').equals(bytes)
     || `${JSON.stringify(binding, null, 2)}\n` !== source
   ) fail('SEALED_REALMS_PUBLIC_ACTIVATION_NONCANONICAL');
-  verifyBinding(binding);
+  if (binding.schemaVersion === 1) verifyBinding(binding);
   return bytes;
+}
+
+export function verifySealedRealmsPublicActivationArtifact() {
+  if (arguments.length !== 0) {
+    fail('SEALED_REALMS_PUBLIC_ACTIVATION_ARGUMENT_INVALID');
+  }
+  return verifySealedRealmsPublicActivationBytes(readFixedArtifactBytes());
 }
 
 if (process.argv[1] !== undefined

@@ -5,6 +5,7 @@ import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 const GENERATOR = 'scripts/generate-0.4.0-sealed-launch-activation.mjs';
 const VERIFIER = 'scripts/verify-0.4.0-sealed-launch.mjs';
 const BOOTSTRAP = 'scripts/greater-realm-production-bootstrap.mjs';
+const GENERATOR_TEST = 'tests/sealedLaunchActivationGenerator.test.ts';
 const MAX_BYTES = 4 * 1024 * 1024;
 const INLINE_PINS = [
   ['genesis002ContractSource', 'spacetimedb/genesis002/src/contract.ts', 1],
@@ -60,6 +61,15 @@ function replaceInlinePins(source, sources) {
   }
   return source.replace(pattern, (_match, before, key, after) => `${before}${digests.get(key)}${after}`);
 }
+function replaceBootstrapTestPin(source, digest) {
+  // This fixture's commit/tree/blob are deliberately synthetic, but the generator
+  // requires its bootstrap hash to match the current generated production pin.
+  // Keep every other receipt and historical authority byte unchanged.
+  const header = /^const TEST_PREPARATION_BOOTSTRAP_AUTHORITY: Readonly<\{/gm;
+  const pattern = /^(const TEST_PREPARATION_BOOTSTRAP_AUTHORITY: Readonly<\{\r?\n  preparationSourceCommit: string;\r?\n  moduleTreeId: string;\r?\n  bootstrapBlob: string;\r?\n  bootstrapSha256: string;\r?\n\}> = Object\.freeze\(\{\r?\n  preparationSourceCommit: PREPARATION_COMMIT,\r?\n  moduleTreeId: '1'\.repeat\(40\),\r?\n  bootstrapBlob: '2'\.repeat\(40\),\r?\n  bootstrapSha256:\r?\n    ')[a-f0-9]{64}(',\r?\n\}\);)(?=\r?$)/gm;
+  if ([...source.matchAll(header)].length !== 1 || [...source.matchAll(pattern)].length !== 1) fail();
+  return source.replace(pattern, (_match, before, after) => `${before}${digest}${after}`);
+}
 function packageStructurePins(sources) {
   const packageText = sources.get('package.json');
   const lockText = sources.get('package-lock.json');
@@ -90,7 +100,7 @@ export function derivePreparedSourcePins(options) {
       || !Object.hasOwn(Object.getOwnPropertyDescriptor(options, 'repositoryRoot'), 'value')
       || typeof options.repositoryRoot !== 'string') fail();
     const sources = new Map();
-    for (const path of new Set([...SOURCE_PINS.map(([, path]) => path), ...INLINE_PINS.map(([, path]) => path), VERIFIER, 'package.json', 'package-lock.json'])) {
+    for (const path of new Set([...SOURCE_PINS.map(([, path]) => path), ...INLINE_PINS.map(([, path]) => path), VERIFIER, GENERATOR_TEST, 'package.json', 'package-lock.json'])) {
       const { body } = readLocalBindingBoundedFile(resolve(options.repositoryRoot, path), { maximumBytes: MAX_BYTES, minimumBytes: 1 });
       try {
         const text = new TextDecoder('utf-8', { fatal: true }).decode(body);
@@ -109,13 +119,14 @@ export function derivePreparedSourcePins(options) {
 
     // The verifier must hash the newly derived generator, never its old bytes.
     sources.set(GENERATOR, replacePin(sources.get(GENERATOR), 'EXPECTED_BOOTSTRAP_SHA256', sha(bootstrap)));
+    sources.set(GENERATOR_TEST, replaceBootstrapTestPin(sources.get(GENERATOR_TEST), sha(bootstrap)));
     let verifier = sources.get(VERIFIER);
     for (const [name, path] of SOURCE_PINS) verifier = replacePin(verifier, name, sha(sources.get(path)));
     verifier = replacePin(verifier, 'GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_FINALIZATION_SHA256', finalizationDigest);
     verifier = replaceInlinePins(verifier, sources);
     for (const [name, digest] of packageStructurePins(sources)) verifier = replacePin(verifier, name, digest);
     sources.set(VERIFIER, verifier);
-    const files = [GENERATOR, VERIFIER].map(path => {
+    const files = [GENERATOR, VERIFIER, GENERATOR_TEST].map(path => {
       const bytes = new Uint8Array(Buffer.from(sources.get(path)));
       owned.push(bytes);
       if (bytes.length > MAX_BYTES) fail();
