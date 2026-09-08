@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { readRecoveryAttestationSource, readRecoveryActivationGitSource } from './recovery-attestation-source.mjs';
-import { parseRecoveryBindingV2 } from './recovery-activation-candidate.mjs';
+import { parseRecoveryBinding } from './recovery-activation-candidate.mjs';
 
 export const SEALED_LAUNCH_PROFILE = 'warpkeep-0.4.0-sealed-launch-v1';
 export const GENESIS_001_DATABASE_IDENTITY =
@@ -4451,7 +4451,7 @@ export function createSealedLaunchActivationBinding(candidate) {
 
 function parseNativeSealedLaunchBinding(source) {
   const schema = parseJson(source, 'SEALED_LAUNCH_BINDING_INVALID')?.schemaVersion;
-  if (schema === 2) return parseRecoveryBindingV2(source);
+  if (schema === 2 || schema === 3) return parseRecoveryBinding(source);
   return parseBinding(source);
 }
 
@@ -4488,7 +4488,7 @@ export function verifySealedLaunchSources(sources, requestedPhase = 'checked-in'
 export function classifySealedLaunchPagesSources(sources) {
   const result = verifySealedLaunchSources(sources, 'checked-in');
   if (result.phase !== 'activation') return 'sealed-launch-blocked';
-  return result.schemaVersion === 2 ? 'sealed-g002-recovery' : 'sealed-g002';
+  return (result.schemaVersion === 2 || result.schemaVersion === 3) ? 'sealed-g002-recovery' : 'sealed-g002';
 }
 
 const FORBIDDEN_PTR_PAGES_ENVIRONMENT_KEYS = Object.freeze([
@@ -4508,8 +4508,8 @@ export function verifySealedLaunchPagesBuildEnvironment({
 }) {
   let binding;
   if (typeof bindingSource === 'string' && bindingSource.length <= 2 * 1024 * 1024
-      && JSON.parse(bindingSource)?.schemaVersion === 2) {
-    binding = parseRecoveryBindingV2(bindingSource);
+      && [2, 3].includes(JSON.parse(bindingSource)?.schemaVersion)) {
+    binding = parseRecoveryBinding(bindingSource);
   } else {
     binding = parseBinding(bindingSource);
     verifyActivationBinding(binding);
@@ -4979,14 +4979,14 @@ export function classifySealedLaunchPagesDeployLane({
   try { schema = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bindingFile.body)).schemaVersion; }
   catch { fail('SEALED_LAUNCH_BINDING_INVALID'); }
   finally { bindingFile.body.fill(0); }
-  if (schema === 2) {
-    // Routing is not deployment authority. This verifies the complete v2 binding
+  if (schema === 2 || schema === 3) {
+    // Routing is not deployment authority. This verifies the complete versioned recovery binding
     // and exact committed activation child; the recovery job must additionally
     // authenticate current protected main, artifacts, live state and signed claim.
     const identity = readRecoveryAttestationSource(repositoryRoot);
     if (identity.candidateCommit !== candidatePagesSourceCommit) fail('SEALED_LAUNCH_CHECKOUT_INVALID');
     assertExactCheckout(repositoryRoot, candidatePagesSourceCommit);
-    return Object.freeze({ profile: 'warpkeep-0.4.0-sealed-launch-v2', candidatePagesSourceCommit,
+    return Object.freeze({ profile: schema === 2 ? 'warpkeep-0.4.0-sealed-launch-v2' : 'warpkeep-0.4.0-sealed-launch-ptr-update-v3', candidatePagesSourceCommit,
       mode: 'sealed-g002-recovery' });
   }
   const sources = readSources(repositoryRoot);

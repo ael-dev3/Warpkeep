@@ -17,7 +17,8 @@ import {
 } from '../src/config.js'
 import { serializeExactObject, sha256Hex, type JsonValue } from '../src/protocol.js'
 import { RECOVERY_KEY_ID, RECOVERY_KEY_THUMBPRINT } from '../src/recoveryPublicKey.js'
-import { createRecoveryActivationBinding, parseRecoveryBindingV2 } from '../../../scripts/recovery-activation-candidate.mjs'
+import { createRecoveryActivationBinding, createRecoveryActivationBindingV3, parseRecoveryBindingV2 } from '../../../scripts/recovery-activation-candidate.mjs'
+import { RECOVERY_BINDING_KEYS_V3 as ROOT_BINDING_KEYS_V3 } from '../../../scripts/recovery-binding-projection.mjs'
 import { recoveryBindingCandidate } from '../../../tests/fixtures/recoveryBindingCandidate.js'
 
 const REPOSITORY = 'ael-dev3/Warpkeep'
@@ -368,7 +369,7 @@ function zip(body: Uint8Array): Uint8Array {
   return new Uint8Array([...local, ...body, ...central, ...eocd])
 }
 
-async function validBinding(useLocalGenerator = false): Promise<Readonly<{ bytes: Uint8Array; core: string }>> {
+async function validBinding(useLocalGenerator: boolean | 3 = false): Promise<Readonly<{ bytes: Uint8Array; core: string }>> {
   const binding: Record<string, JsonValue> = Object.create(null)
   for (const key of RECOVERY_BINDING_KEYS_V2) binding[key] = null
   Object.assign(binding, {
@@ -432,7 +433,13 @@ async function validBinding(useLocalGenerator = false): Promise<Readonly<{ bytes
     for (const [key, value] of Object.entries(binding)) {
       if (value !== null) candidate[key] = value as string | number | boolean
     }
-    const generated = createRecoveryActivationBinding(`${JSON.stringify(candidate, null, 2)}\n`)
+    const generated = useLocalGenerator === 3
+      ? createRecoveryActivationBindingV3(`${JSON.stringify(Object.fromEntries(ROOT_BINDING_KEYS_V3.map(key => [key,
+        key === 'schemaVersion' ? 3 : key === 'profile' ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3'
+          : key === 'ptrExistingUpdateReceiptDigest' ? '93'.repeat(32)
+            : key === 'ptrExistingUpdateReceiptCommitment' ? null : candidate[key],
+      ])), null, 2)}\n`)
+      : createRecoveryActivationBinding(`${JSON.stringify(candidate, null, 2)}\n`)
     return {
       bytes: encoder.encode(`${JSON.stringify(generated, null, 2)}\n`),
       core: generated.recoveryAuthorizationCoreSha256 as string,
@@ -515,7 +522,7 @@ jobs:
 `)
 }
 
-async function makeFixture(useLocalGenerator = false): Promise<Readonly<{
+async function makeFixture(useLocalGenerator: boolean | 3 = false): Promise<Readonly<{
   state: State
   input: Parameters<typeof loadGitHubCandidateEvidence>[0]
   calls: string[]
@@ -846,6 +853,44 @@ describe('GitHub candidate evidence', () => {
     const bytes = new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey))
     privateKeyPem = createPrivateKey({ key: Buffer.from(bytes), format: 'der', type: 'pkcs8' })
       .export({ format: 'pem', type: 'pkcs1' }).toString()
+  })
+
+  it('loads root-produced V3 update binding through the actual receiver evidence chain', async () => {
+    const fixture = await makeFixture(3)
+    const evidence = await loadGitHubCandidateEvidence(fixture.input)
+    expect(evidence.recoveryBindingBytes).toEqual(fixture.state.bindingBytes)
+    const binding = JSON.parse(new TextDecoder().decode(evidence.recoveryBindingBytes))
+    expect(binding.schemaVersion).toBe(3)
+    expect(binding.ptrExistingUpdateReceiptDigest).toBe('93'.repeat(32))
+    expect(binding).not.toHaveProperty('ptrPublishReceiptDigest')
+    expect(binding).not.toHaveProperty('ptrFreshStatusDigest')
+    expect(evidence.realmBinding).toEqual(expectedRealmBinding(binding.recoveryAuthorizationCoreSha256))
+  })
+
+  it.each([
+    (binding: JsonObject) => { binding.ptrExistingUpdateReceiptDigest = '94'.repeat(32) },
+    (binding: JsonObject) => { binding.ptrExistingUpdateReceiptCommitment = '95'.repeat(32) },
+    (binding: JsonObject) => { binding.ptrOwnerProvisionReceiptDigest = '96'.repeat(32) },
+    (binding: JsonObject) => { binding.ptrAtlasImportReceiptDigest = '97'.repeat(32) },
+    (binding: JsonObject) => { binding.schemaVersion = 2 },
+    (binding: JsonObject) => { binding.profile = 'warpkeep-0.4.0-sealed-launch-v2' },
+    (binding: JsonObject) => { binding.ptrFreshStatusDigest = '98'.repeat(32) },
+    (binding: JsonObject) => { delete binding.ptrExistingUpdateReceiptCommitment },
+  ])('rejects substituted or mixed-version V3 binding %#', async mutate => {
+    const fixture = await makeFixture(3)
+    await replaceBinding(fixture, mutate)
+    await expect(loadGitHubCandidateEvidence(fixture.input)).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  })
+
+  it('rejects a fully regenerated V3 receipt substitution against the original armed core', async () => {
+    const fixture = await makeFixture(3)
+    await replaceBinding(fixture, binding => {
+      const candidate: JsonObject = { ...binding, recoveryAuthorizationCoreSha256: null,
+        ptrExistingUpdateReceiptDigest: '94'.repeat(32) }
+      for (const key of Object.keys(candidate)) if (key.endsWith('Commitment')) candidate[key] = null
+      Object.assign(binding, createRecoveryActivationBindingV3(`${JSON.stringify(candidate, null, 2)}\n`))
+    })
+    await expect(loadGitHubCandidateEvidence(fixture.input)).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
   })
 
   it('loads a realistic authenticated GitHub evidence chain and returns copied bytes and actual tree', async () => {

@@ -1,4 +1,4 @@
-import { parseRecoveryBindingV2 } from './recovery-activation-candidate.mjs';
+import { parseRecoveryBinding } from './recovery-activation-candidate.mjs';
 import { readRecoveryClaimHandoffForDeployment } from './recovery-claim-handoff.mjs';
 import { requestRecovery } from './recovery-authorization-client.mjs';
 import { verifyRecoveryStatus } from './verify-recovery-status.mjs';
@@ -13,7 +13,7 @@ export async function checkPersistedRecoveryDeploymentBoundary(...args) {
   try {
     if (args.length !== 3) fail();
     const [privateRoot, bindingSource, contextSource] = args;
-    const binding = parseRecoveryBindingV2(bindingSource);
+    const binding = parseRecoveryBinding(bindingSource);
     retained = readRecoveryClaimHandoffForDeployment(privateRoot, contextSource);
     const expected = JSON.parse(retained.expectedSource);
     if (expected.requestId !== binding.recoveryAuthorizationRequestId

@@ -116,9 +116,18 @@ correct or make the synthetic quiescent adapter a production adapter. See the
 [confirmation path](https://github.com/clockworklabs/SpacetimeDB/blob/baca5cdf77577ed4e3f30da48a5158189c4ea43f/crates/client-api/src/routes/database.rs#L1053).
 
 A separate official 2.10.0 Linux toolset was downloaded and verified against its
-release asset SHA-256. The pinned preparation toolchain remains unchanged. A real
-2.10.0 compatibility rehearsal is running; final settlement and access checks
-remain pending. This is separate from production acceptance.
+release asset SHA-256. The pinned preparation toolchain remains unchanged. The real
+2.10.0 compatibility rehearsal passed at `2026-09-08T12:40:50.891Z` from published
+source `826ed94995c5d7389c0b3c03a30004e0d8e59de8`. It retained the attested 2.6.1
+CLI and exact compiled artifacts while selecting the separately verified 2.10.0
+host. Both A-to-B updates and B-to-C repair recovered lost responses without
+resubmission. Earned resources, pending work, successful construction after repair,
+autonomous timers, expired access, renewed access and exact retry all passed.
+Independent complete snapshot/receipt/hash readback and cleanup passed. Private
+result SHA-256: `af2af12212f170e53ef1f08b98df53144b9338385caa3221943ffa876c28f9ac`.
+This used synthetic identity/workflow authority and reconstructed historical A.
+It predates the later v3 definition adapter and is separate from production,
+concurrent-write and host-restart acceptance.
 
 ## Remaining acceptance
 

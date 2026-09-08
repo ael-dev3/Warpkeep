@@ -7,6 +7,8 @@ import { tmpdir } from 'node:os';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
 import { createRecoveryActivationBinding } from '../scripts/recovery-activation-candidate.mjs';
+import { createRecoveryActivationBindingV3 } from '../scripts/recovery-activation-candidate.mjs';
+import { RECOVERY_BINDING_KEYS_V3 } from '../scripts/recovery-binding-projection.mjs';
 import { readRecoveryAttestationSource } from '../scripts/recovery-attestation-source.mjs';
 import { classifySealedLaunchPagesDeployLane } from '../scripts/verify-0.4.0-sealed-launch.mjs';
 import { SEALED_REALMS_OPERATIONS, SEALED_REALMS_ACTIVATED_OPERATIONS,
@@ -52,6 +54,37 @@ it('derives identity from a real committed three-file activation child', () => {
   expect(result.candidateCommit).toBe(git('rev-parse', 'HEAD'));
   expect(result.candidateTree).toBe(git('rev-parse', 'HEAD^{tree}'));
   expect(result.recoveryAuthorizationCoreSha256).toMatch(/^[a-f0-9]{64}$/);
+});
+
+function commitPtrUpdateBinding() {
+  const path = 'config/releases/0.4.0-sealed-launch.json';
+  const values = JSON.parse(readFileSync(join(root, path), 'utf8'));
+  for (const key of Object.keys(values)) if (key.endsWith('Commitment')) values[key] = null;
+  Object.assign(values, { schemaVersion: 3, profile: 'warpkeep-0.4.0-sealed-launch-ptr-update-v3',
+    recoveryAuthorizationCoreSha256: null, ptrExistingUpdateReceiptDigest: '9'.repeat(64),
+    ptrExistingUpdateReceiptCommitment: null });
+  const candidate = Object.fromEntries(RECOVERY_BINDING_KEYS_V3.map(key => [key, values[key]]));
+  json(path, createRecoveryActivationBindingV3(`${JSON.stringify(candidate, null, 2)}\n`));
+  git('add', path);
+  git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--amend', '--no-edit', '--quiet');
+  const head = git('rev-parse', 'HEAD');
+  git('update-ref', 'refs/remotes/origin/main', head);
+  return head;
+}
+
+it('authenticates a committed update binding and its preparation parent', () => {
+  const head = commitPtrUpdateBinding();
+  expect(readRecoveryAttestationSource(root).candidateCommit).toBe(head);
+  const verified: string[] = [];
+  expect(sourceAuthority('preflight', verified).mode).toBe('A');
+  expect(verified).toEqual([git('rev-parse', 'HEAD^'), head]);
+});
+
+it.skipIf(process.platform !== 'linux')('routes a committed update binding through the native recovery lane', () => {
+  const head = commitPtrUpdateBinding();
+  expect(classifySealedLaunchPagesDeployLane({ repositoryRoot: root, candidatePagesSourceCommit: head }))
+    .toEqual({ profile: 'warpkeep-0.4.0-sealed-launch-ptr-update-v3', candidatePagesSourceCommit: head,
+      mode: 'sealed-g002-recovery' });
 });
 
 function sourceAuthority(operation: (typeof SEALED_REALMS_OPERATIONS)[number], verified: string[] = []) {

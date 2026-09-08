@@ -5,6 +5,27 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Populated PTR update integration
+
+Recovery now has an explicit schema-3 public binding for an existing PTR update.
+The public artifact verifier, signed authorization consumer, service evidence
+parser and committed-source/Pages routing use version dispatch. Schema 2 remains
+the fresh path with unchanged canonical bytes and hash domains. Schema 3 replaces
+fresh/publish receipt slots with an update receipt commitment and retains legacy
+zero-table and admission invariants; those counters are not gameplay04 progress.
+
+This is consumer support, not production update enablement. The private producer
+must still capture authentic update completion and cross-bind current artifacts,
+historical import/owner provenance and current live observations. The actual
+Linux artifact/schema and provider-owner credential capabilities must then be
+connected inside the existing workflow runtime. Hermes game-admin JWTs are not
+provider module-update credentials. Follow the [connected implementation plan](../../superpowers/plans/2026-09-08-ptr-update-recovery.md).
+
+The separate official 2.10.0 disposable recovery rehearsal passed from `826ed94`
+at 12:40 UTC on September 8. It preserved earned resources and pending work through
+repair and passed timers, expiry, renewed access and exact retry. It predates the
+later synthetic v3 definition policy and does not prove production acceptance.
+
 ## Start from the actual checkout
 
 The development branch is `codex/prepared-keep-bindings-fix`, tracked by

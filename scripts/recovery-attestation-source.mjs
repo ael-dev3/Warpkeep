@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { resolve, join } from 'node:path';
-import { parseRecoveryBindingV2 } from './recovery-activation-candidate.mjs';
+import { parseRecoveryBinding } from './recovery-activation-candidate.mjs';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 
 const BINDING = 'config/releases/0.4.0-sealed-launch.json';
@@ -9,7 +9,7 @@ const FILES = [BINDING, 'package-lock.json', 'package.json'];
 const fail = () => { throw new Error('RECOVERY_ATTESTATION_SOURCE_INVALID'); };
 const hex = value => typeof value === 'string' && /^[0-9a-f]{40}$/u.test(value);
 
-/** Committed V2 structure only; the caller separately authenticates Git/Verify or deployment authority. */
+/** Committed versioned recovery structure only; the caller separately authenticates Git/Verify or deployment authority. */
 export function readRecoveryActivationGitSource(readGit, candidateCommit) {
   if (typeof readGit !== 'function' || !hex(candidateCommit)) fail();
   const git = args => {
@@ -27,7 +27,7 @@ export function readRecoveryActivationGitSource(readGit, candidateCommit) {
   if (line(['rev-parse', '--verify', `${candidateCommit}^{commit}`]) !== candidateCommit) fail();
   const candidateTree = line(['rev-parse', '--verify', `${candidateCommit}^{tree}`]);
   if (!hex(candidateTree)) fail();
-  const binding = parseRecoveryBindingV2(git(['show', `${candidateCommit}:${BINDING}`]));
+  const binding = parseRecoveryBinding(git(['show', `${candidateCommit}:${BINDING}`]));
   const parents = line(['rev-list', '--parents', '-n', '1', candidateCommit]).split(' ');
   if (parents.length !== 2 || parents[0] !== candidateCommit || parents[1] !== binding.preparationSourceCommit) fail();
   const parent = parents[1];

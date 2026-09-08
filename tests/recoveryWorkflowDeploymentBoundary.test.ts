@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ binding: vi.fn(), read: vi.fn(), request: vi.fn(), status: vi.fn(), claim: vi.fn() }));
-vi.mock('../scripts/recovery-activation-candidate.mjs', () => ({ parseRecoveryBindingV2: mocks.binding }));
+vi.mock('../scripts/recovery-activation-candidate.mjs', () => ({ parseRecoveryBinding: mocks.binding }));
 vi.mock('../scripts/recovery-claim-handoff.mjs', () => ({ readRecoveryClaimHandoffForDeployment: mocks.read }));
 vi.mock('../scripts/recovery-authorization-client.mjs', () => ({ requestRecovery: mocks.request }));
 vi.mock('../scripts/verify-recovery-status.mjs', () => ({ verifyRecoveryStatus: mocks.status }));

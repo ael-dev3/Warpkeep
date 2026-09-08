@@ -10,7 +10,7 @@ import {
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { parseRecoveryBindingV2 } from './recovery-activation-candidate.mjs';
+import { parseRecoveryBinding } from './recovery-activation-candidate.mjs';
 
 const SHA256 = /^[0-9a-f]{64}$/u;
 const COMMIT = /^[0-9a-f]{40}$/u;
@@ -334,7 +334,7 @@ export function verifySealedRealmsPublicActivationBytes(input) {
   try {
     source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
     const parsed = JSON.parse(source);
-    binding = parsed?.schemaVersion === 2 ? parseRecoveryBindingV2(source) : exactRecord(parsed);
+    binding = parsed?.schemaVersion === 1 ? exactRecord(parsed) : parseRecoveryBinding(source);
   } catch (error) {
     if (error instanceof SealedRealmsPublicActivationArtifactVerificationError) {
       throw error;

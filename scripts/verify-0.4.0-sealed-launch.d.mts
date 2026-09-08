@@ -96,8 +96,8 @@ export function verifySealedLaunchSources(
   sources: Readonly<Record<string, string>>,
   requestedPhase?: 'preparation' | 'activation' | 'checked-in',
 ): Readonly<{
-  schemaVersion: 1 | 2;
-  profile: typeof SEALED_LAUNCH_PROFILE | 'warpkeep-0.4.0-sealed-launch-v2';
+  schemaVersion: 1 | 2 | 3;
+  profile: typeof SEALED_LAUNCH_PROFILE | 'warpkeep-0.4.0-sealed-launch-v2' | 'warpkeep-0.4.0-sealed-launch-ptr-update-v3';
   phase: 'preparation' | 'activation';
   packageVersion: '0.3.43' | '0.4.0';
   pagesDeploymentApproved: boolean;
@@ -123,7 +123,7 @@ export function classifySealedLaunchPagesDeployLane(input: Readonly<{
   repositoryRoot?: string;
   candidatePagesSourceCommit: string;
 }>): Readonly<{
-  profile: typeof SEALED_LAUNCH_PROFILE | 'warpkeep-0.4.0-sealed-launch-v2';
+  profile: typeof SEALED_LAUNCH_PROFILE | 'warpkeep-0.4.0-sealed-launch-v2' | 'warpkeep-0.4.0-sealed-launch-ptr-update-v3';
   candidatePagesSourceCommit: string;
   mode: 'sealed-launch-blocked' | 'sealed-g002' | 'sealed-g002-recovery';
 }>;

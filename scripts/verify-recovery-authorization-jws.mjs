@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Readable } from 'node:stream';
-import { parseRecoveryBindingV2 } from './recovery-activation-candidate.mjs';
+import { parseRecoveryBinding } from './recovery-activation-candidate.mjs';
 import { verifyRecoverySignedPayload } from './recovery-authorization-protocol.mjs';
 const CONTEXT_KEYS = ['pagesRunId', 'pagesRunAttempt', 'sourceVerifyRunId', 'sourceVerifyRunAttempt',
   'candidateCommit', 'candidateTree', 'artifactId', 'githubArtifactArchiveSha256',
@@ -38,7 +38,7 @@ export function verifyRecoveryAuthorization(...args) {
       || Object.keys(expected).length !== CONTEXT_KEYS.length
       || CONTEXT_KEYS.some((key, index) => Object.keys(expected)[index] !== key)
       || JSON.stringify(expected) !== expectedSource) fail();
-    const binding = parseRecoveryBindingV2(bindingSource);
+    const binding = parseRecoveryBinding(bindingSource);
     const p = verifyRecoverySignedPayload(compact, 'authorization');
     if (CONTEXT_KEYS.some(key => p[key] !== expected[key])
       || Object.entries(BINDING_FIELDS).some(([key, source]) => p[key] !== binding[source])) fail();

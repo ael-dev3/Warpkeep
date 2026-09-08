@@ -200,6 +200,20 @@ const RECEIPT_SNAPSHOT_KEYS = BINDING_KEYS.filter(key => !COMMITMENT_KEYS.has(ke
 export const RECOVERY_BINDING_KEYS_V2: readonly string[] = Object.freeze([...BINDING_KEYS])
 export const RECOVERY_RECEIPT_COMMITMENT_DIGESTS: Readonly<Record<string, string>> = RECEIPT_COMMITMENTS
 
+// V3 changes only PTR publication evidence; all other fields retain their order.
+export const RECOVERY_BINDING_KEYS_V3: readonly string[] = Object.freeze(BINDING_KEYS.flatMap(key =>
+  key === 'ptrPublishReceiptDigest' ? ['ptrExistingUpdateReceiptDigest', 'ptrExistingUpdateReceiptCommitment']
+    : ['ptrPublishReceiptCommitment', 'ptrFreshStatusDigest', 'ptrFreshStatusCommitment'].includes(key) ? [] : [key],
+))
+export const RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V3: Readonly<Record<string, string>> = Object.freeze(
+  Object.fromEntries(Object.entries(RECEIPT_COMMITMENTS).flatMap(([key, value]) =>
+    key === 'ptrPublishReceiptCommitment' ? [['ptrExistingUpdateReceiptCommitment', 'ptrExistingUpdateReceiptDigest']]
+      : key === 'ptrFreshStatusCommitment' ? [] : [[key, value]],
+  )),
+)
+const V3_COMMITMENT_KEYS = new Set(['g001FreezePublishReceiptCommitment', ...Object.keys(RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V3)])
+const V3_RECEIPT_SNAPSHOT_KEYS = RECOVERY_BINDING_KEYS_V3.filter(key => !V3_COMMITMENT_KEYS.has(key))
+
 export type GitHubCandidateEvidence = Readonly<{
   currentMainCommit: string
   parentCommit: string
@@ -764,9 +778,14 @@ async function validateBinding(
   bindingRequestId: unknown,
 ): Promise<RecoveryRealmBindingProjection> {
   const binding = parseGitHubJsonObject(bytes, 'RECOVERY_GITHUB_EVIDENCE_INVALID', [])
+  if (binding.schemaVersion !== 2 && binding.schemaVersion !== 3) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  const update = binding.schemaVersion === 3
+  const bindingKeys = update ? RECOVERY_BINDING_KEYS_V3 : BINDING_KEYS
+  const receiptKeys = update ? V3_RECEIPT_SNAPSHOT_KEYS : RECEIPT_SNAPSHOT_KEYS
+  const commitments = update ? RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V3 : RECEIPT_COMMITMENTS
   if (
-    Object.keys(binding).length !== BINDING_KEYS.length
-    || BINDING_KEYS.some((key, index) => Object.keys(binding)[index] !== key)
+    Object.keys(binding).length !== bindingKeys.length
+    || bindingKeys.some((key, index) => Object.keys(binding)[index] !== key)
   ) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   let canonical: Uint8Array
   try {
@@ -776,8 +795,7 @@ async function validateBinding(
   }
   if (!equalBytes(bytes, canonical)) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   if (
-    binding.schemaVersion !== 2
-    || binding.profile !== BINDING_PROFILE
+    binding.profile !== (update ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' : BINDING_PROFILE)
     || binding.authorizationMode !== AUTHORIZATION_MODE
     || binding.authorizationMode !== armed.authorizationMode
     || binding.recoveryAuthorizationProfile !== AUTHORIZATION_PROFILE
@@ -829,14 +847,14 @@ async function validateBinding(
 
   const source = jsonRecord(binding)
   const receiptSnapshot: Record<string, JsonValue> = Object.create(null)
-  for (const key of RECEIPT_SNAPSHOT_KEYS) {
+  for (const key of receiptKeys) {
     receiptSnapshot[key] = key === 'recoveryAuthorizationCoreSha256' ? null : source[key]!
   }
-  for (const [commitmentKey, digestKey] of Object.entries(RECEIPT_COMMITMENTS)) {
+  for (const [commitmentKey, digestKey] of Object.entries(commitments)) {
     if (!sha(source[digestKey]) || !sha(source[commitmentKey])) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     const expected = await sha256Hex(
-      `warpkeep.0.4.0.recovery-sealed-launch.${commitmentKey}.v2\n`,
-      serializeExactObject(RECEIPT_SNAPSHOT_KEYS, receiptSnapshot as never),
+      `warpkeep.0.4.0.recovery-sealed-launch.${commitmentKey}.v${update ? 3 : 2}\n`,
+      serializeExactObject(receiptKeys, receiptSnapshot as never),
     )
     if (source[commitmentKey] !== expected) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   }
@@ -844,10 +862,10 @@ async function validateBinding(
     githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   }
   const coreProjection: Record<string, JsonValue> = Object.create(null)
-  for (const key of BINDING_KEYS) coreProjection[key] = key === 'recoveryAuthorizationCoreSha256' ? null : source[key]!
+  for (const key of bindingKeys) coreProjection[key] = key === 'recoveryAuthorizationCoreSha256' ? null : source[key]!
   const expectedCore = await sha256Hex(
-    'warpkeep.0.4.0.recovery-authorization-core.v1\n',
-    serializeExactObject(BINDING_KEYS, coreProjection as never),
+    `warpkeep.0.4.0.recovery-authorization-core.v${update ? 3 : 1}\n`,
+    serializeExactObject(bindingKeys, coreProjection as never),
   )
   if (binding.recoveryAuthorizationCoreSha256 !== expectedCore) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   const realmBinding = bindingRealmProjection(binding)

@@ -1,4 +1,4 @@
-// Fixed schema-2 wire fields mirrored from the recovery receiver; no runtime Worker dependency.
+// Fixed versioned wire fields mirrored from the recovery receiver; no runtime Worker dependency.
 import { createHash } from 'node:crypto';
 import { types } from 'node:util';
 const V1_AFTER_PREPARATION = [
@@ -103,12 +103,12 @@ const RECEIPT_COMMITMENTS = Object.freeze({
 export const RECOVERY_BINDING_KEYS_V2 = Object.freeze([...BINDING_KEYS]);
 const commitmentKeys = new Set(['g001FreezePublishReceiptCommitment', ...Object.keys(RECEIPT_COMMITMENTS)]);
 function fail() { throw new Error('RECOVERY_BINDING_PROJECTION_INVALID'); }
-function snapshot(input) {
+function snapshot(input, keys = BINDING_KEYS) {
   if (types.isProxy(input) || !input || typeof input !== 'object'
       || ![Object.prototype, null].includes(Object.getPrototypeOf(input))) fail();
   const descriptors = Object.getOwnPropertyDescriptors(input);
-  if (Reflect.ownKeys(descriptors).length !== BINDING_KEYS.length) fail();
-  return Object.fromEntries(BINDING_KEYS.map(key => {
+  if (Reflect.ownKeys(descriptors).length !== keys.length) fail();
+  return Object.fromEntries(keys.map(key => {
     const descriptor = descriptors[key];
     if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) fail();
     const value = descriptor.value;
@@ -149,4 +149,65 @@ export function parseRecoveryBindingDocumentV2(source) {
   const captured = snapshot(parsed);
   if (`${JSON.stringify(captured, null, 2)}\n` !== source) fail();
   return Object.freeze(captured);
+}
+
+const freshPtrKeys = new Set(['ptrPublishReceiptDigest', 'ptrPublishReceiptCommitment',
+  'ptrFreshStatusDigest', 'ptrFreshStatusCommitment']);
+export const RECOVERY_BINDING_KEYS_V3 = Object.freeze(BINDING_KEYS.flatMap(key =>
+  key === 'ptrPublishReceiptDigest' ? ['ptrExistingUpdateReceiptDigest', 'ptrExistingUpdateReceiptCommitment']
+    : freshPtrKeys.has(key) ? [] : [key]));
+const receiptCommitmentsV3 = new Set(Object.keys(RECEIPT_COMMITMENTS).flatMap(key =>
+  key === 'ptrPublishReceiptCommitment' ? ['ptrExistingUpdateReceiptCommitment']
+    : key === 'ptrFreshStatusCommitment' ? [] : [key]));
+const commitmentKeysV3 = new Set(['g001FreezePublishReceiptCommitment', ...receiptCommitmentsV3]);
+const profiles = Object.freeze({ 2: 'warpkeep-0.4.0-sealed-launch-v2', 3: 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' });
+
+function bindingVersion(input) {
+  if (types.isProxy(input) || !input || typeof input !== 'object'
+    || ![Object.prototype, null].includes(Object.getPrototypeOf(input))) fail();
+  const descriptors = Object.getOwnPropertyDescriptors(input);
+  for (const key of ['schemaVersion', 'profile']) {
+    if (!descriptors[key]?.enumerable || !Object.hasOwn(descriptors[key], 'value')) fail();
+  }
+  const version = descriptors.schemaVersion.value;
+  if ((version !== 2 && version !== 3) || descriptors.profile.value !== profiles[version]) fail();
+  return version;
+}
+export function recoveryBindingKeys(version) {
+  if (version !== 2 && version !== 3) fail();
+  return version === 2 ? RECOVERY_BINDING_KEYS_V2 : RECOVERY_BINDING_KEYS_V3;
+}
+function snapshotV3(input) {
+  if (bindingVersion(input) !== 3) fail();
+  return snapshot(input, RECOVERY_BINDING_KEYS_V3);
+}
+/** Hash projection only; no receipt authenticity or deployment authority. */
+export function recoveryReceiptCommitmentV3(commitmentKey, input) {
+  if (typeof commitmentKey !== 'string' || !receiptCommitmentsV3.has(commitmentKey)) fail();
+  return digest(`warpkeep.0.4.0.recovery-sealed-launch.${commitmentKey}.v3\n`,
+    RECOVERY_BINDING_KEYS_V3.filter(key => !commitmentKeysV3.has(key)), snapshotV3(input));
+}
+export function recoveryReceiptCommitment(commitmentKey, input) {
+  return bindingVersion(input) === 2 ? recoveryReceiptCommitmentV2(commitmentKey, input)
+    : recoveryReceiptCommitmentV3(commitmentKey, input);
+}
+export function recoveryAuthorizationCoreSha256V3(input) {
+  return digest('warpkeep.0.4.0.recovery-authorization-core.v3\n', RECOVERY_BINDING_KEYS_V3, snapshotV3(input));
+}
+export function recoveryAuthorizationCoreSha256ForBinding(input) {
+  return bindingVersion(input) === 2 ? recoveryAuthorizationCoreSha256(input) : recoveryAuthorizationCoreSha256V3(input);
+}
+function decode(source) {
+  if (typeof source !== 'string' || source.length > 1024 * 1024) fail();
+  try { return JSON.parse(source); } catch { fail(); }
+}
+/** Canonical V3 wire decoding only; semantic policy and authority are separate. */
+export function parseRecoveryBindingDocumentV3(source) {
+  const captured = snapshotV3(decode(source));
+  if (`${JSON.stringify(captured, null, 2)}\n` !== source) fail();
+  return Object.freeze(captured);
+}
+/** Explicit version dispatch; never falls back from an invalid V3 document. */
+export function parseRecoveryBindingDocument(source) {
+  return bindingVersion(decode(source)) === 2 ? parseRecoveryBindingDocumentV2(source) : parseRecoveryBindingDocumentV3(source);
 }

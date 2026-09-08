@@ -171,13 +171,14 @@ function activatedBinding(readBinding, readGit, preparationCommit, activationCom
       'schemaVersion', 'profile', 'pagesDeploymentApproved', 'preparationSourceCommit',
     ])
     || !((binding.schemaVersion === 1 && binding.profile === 'warpkeep-0.4.0-sealed-launch-v1')
-      || (binding.schemaVersion === 2 && binding.profile === 'warpkeep-0.4.0-sealed-launch-v2'))
+      || (binding.schemaVersion === 2 && binding.profile === 'warpkeep-0.4.0-sealed-launch-v2')
+      || (binding.schemaVersion === 3 && binding.profile === 'warpkeep-0.4.0-sealed-launch-ptr-update-v3'))
     || binding.pagesDeploymentApproved !== true
     || binding.preparationSourceCommit !== preparationCommit
   ) fail('SEALED_REALMS_SOURCE_AUTHORITY_BINDING_INVALID');
-  if (binding.schemaVersion === 2) {
+  if (binding.schemaVersion === 2 || binding.schemaVersion === 3) {
     // Four caller fields cannot authenticate a recovery binding. Read the full
-    // immutable Git blob and validate its native V2 structure and S/A history.
+    // immutable Git blob and validate its native versioned recovery structure and S/A history.
     try {
       const committed = readRecoveryActivationGitSource(readGit, activationCommit);
       if (committed.binding.preparationSourceCommit !== preparationCommit

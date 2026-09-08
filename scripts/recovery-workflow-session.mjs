@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { parseRecoveryBindingV2 } from './recovery-activation-candidate.mjs';
+import { parseRecoveryBinding } from './recovery-activation-candidate.mjs';
 import { requestFreshRecoveryOidc } from './recovery-workflow-oidc.mjs';
 import { requestRecovery } from './recovery-authorization-client.mjs';
 import { verifyRecoveryAuthorization } from './verify-recovery-authorization-jws.mjs';
@@ -32,7 +32,7 @@ export async function beginRecoveryWorkflowSession(...args) {
           || !(key.endsWith('Id') || key.endsWith('Attempt') ? /^[1-9][0-9]{0,19}$/u
             : key.startsWith('candidate') ? /^[a-f0-9]{40}$/u : /^[a-f0-9]{64}$/u).test(context[key]))
         || context.pagesRunId === context.sourceVerifyRunId) fail();
-    const binding = parseRecoveryBindingV2(bindingSource);
+    const binding = parseRecoveryBinding(bindingSource);
     preflightRecoveryClaimHandoff(privateRoot);
     const locators = Object.freeze({ requestId: binding.recoveryAuthorizationRequestId,
       candidateCommit: context.candidateCommit, sourceVerifyRunId: context.sourceVerifyRunId,
