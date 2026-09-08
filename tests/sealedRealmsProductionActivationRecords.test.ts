@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { execFileSync } from 'node:child_process';
 import {
   createHash,
 } from 'node:crypto';
@@ -73,17 +74,21 @@ import {
 } from '../scripts/sealed-realms-production-private-state.mjs';
 import {
   createSealedRealmsProductionActivationRecords,
+  inspectSealedRealmsProductionRecoveryActivationRecords,
   readSealedRealmsProductionRecoveryReceiptProjection,
   writeSealedRealmsProductionActivationDescriptor,
   writeSealedRealmsProductionRecoveryActivationDescriptor,
 } from '../scripts/sealed-realms-production-activation-records.mjs';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
+import { createRecoveryActivationBinding } from '../scripts/recovery-activation-candidate.mjs';
 import { recoveryActivationBridge, recoveryProtectedContext, recoveryOperationAuthority, recoveryActivationDispatcher, RECOVERY_TEST_VERSION } from './fixtures/recoveryActivationBridge';
 import { createSealedRealmsProductionActivationEvidenceGenerator, createSealedRealmsProductionAuthBridgeStateTestCapability } from '../scripts/sealed-realms-production-auth-bridge-state.mjs';
 import { issueSealedRealmsProductionContinuation, claimSealedRealmsProductionContinuation, reconcileSealedRealmsProductionContinuation } from '../scripts/sealed-realms-production-continuation.mjs';
 import { parseActivationGenerationReceipt, activationGenerationReceiptBytes } from '../scripts/sealed-realms-production-activation-generation-receipt.mjs';
 import { verifySealedRealmsPublicActivationBytes } from '../scripts/verify-sealed-realms-public-activation-artifact.mjs';
 import * as activationRecordsModule from '../scripts/sealed-realms-production-activation-records.mjs';
+import { inspectSealedRealmsProductionRecoveryCandidate, readSealedRealmsProductionRecoveryCandidate }
+  from '../scripts/sealed-realms-production-recovery-candidate.mjs';
 import {
   authenticateSealedRealmsProductionSourceAuthority,
 } from '../scripts/sealed-realms-production-source-authority.mjs';
@@ -94,7 +99,7 @@ const FIXED_DESCRIPTOR_RELATIVE_PATH =
 const G001_DATABASE_IDENTITY =
   'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
 const G001_MAXIMUM_ROWS = 4_096;
-const FIXTURE_SOURCE_COMMIT = 'a'.repeat(40);
+let FIXTURE_SOURCE_COMMIT = 'a'.repeat(40);
 const FIXTURE_G001_FREEZE_SOURCE_COMMIT =
   'd945256b217fa13ade944b9ed9880e8463b46123';
 const FIXTURE_G001_BASELINE = '2ae51984e1fa6ce5b0028c1a250359fed79d819b';
@@ -260,7 +265,8 @@ function fullLengthFramed(hash: ReturnType<typeof createHash>, label: string, va
   hash.update(length).update(valueBytes);
 }
 
-function fullG001PolicyBootstrapReceipt() {
+function fullG001PolicyBootstrapReceipt(coordinates: Partial<{ moduleTreeId: string;
+  bootstrapBlob: string; bootstrapSha256: string }> = {}) {
   const receipt = {
     profile: 'warpkeep-greater-realm-production-bootstrap-v1',
     protectedCommit: FIXTURE_SOURCE_COMMIT,
@@ -278,6 +284,7 @@ function fullG001PolicyBootstrapReceipt() {
     },
     policyObservationReceipt: fullG001PolicyObservation(),
     policyObservationReceiptLinkSha256: '',
+    ...coordinates,
   };
   const hash = createHash('sha256');
   fullLengthFramed(hash, 'domain', 'warpkeep-production-g001-policy-observation-bootstrap-link-v1');
@@ -1092,6 +1099,13 @@ describe('connected recovery activation generation', () => {
         if (scenario === 'retained-lock') state.write({ root: 'runtime', relativePath: 'public.family.lock', bytes: Buffer.from('{}\n') });
         vi.setSystemTime(new Date('2026-08-29T12:02:00.000Z'));
         const before = probes();
+        if (['changed-artifact', 'changed-descriptor', 'extra-file', 'partial-family', 'retained-lock'].includes(scenario)) {
+          // Historical candidate inspection now authenticates the completed
+          // family before a resumable generator can be constructed.
+          expect(createGenerator).toThrow('SEALED_REALMS_ACTIVATION_RECORDS_READ_CONTEXT_INVALID');
+          expect(probes()).toBe(before);
+          return;
+        }
         const resumedGenerator = createGenerator();
         const selected = await bridge.reopenActivationEvidenceContinuation();
         const reconcile = await recoveryProtectedContext(state, 'activation-evidence-generate', '81003', new Set(['81002']));
@@ -1108,6 +1122,181 @@ describe('connected recovery activation generation', () => {
         expect(probes()).toBe(before);
       } finally { vi.useRealTimers(); }
     }, 30000);
+});
+
+describe('fixed recovery candidate source/receipt derivation', () => {
+  it.each(['missing-live-inputs', 'bootstrap-tree', 'bootstrap-blob', 'bootstrap-sha',
+    'missing-record', 'wrong-private-store', 'wrong-operation', 'changed-head',
+    'replacement-objects', 'caller-facts', 'expired-records', 'historical-context',
+    'historical-forged-time', 'historical-malformed-time', 'historical-changed-completion',
+    'historical-late-changed-completion', 'historical-replaced-corpus'])(
+    'derives actual committed source and private records without inventing live facts: %s', scenario => {
+      const originalCwd = process.cwd();
+      const originalCommit = FIXTURE_SOURCE_COMMIT;
+      const repository = mkdtempSync(join(tmpdir(), 'recovery-candidate-source-'));
+      temporaryHomes.push(repository);
+      const bootstrapBytes = readFileSync(join(originalCwd, 'scripts/greater-realm-production-bootstrap.mjs'));
+      const inert = readFileSync(join(originalCwd, 'config/releases/0.4.0-sealed-launch.json'));
+      const git = (args: readonly string[]) => execFileSync('git', ['-c', 'commit.gpgsign=false',
+        '-c', 'user.name=Candidate Fixture', '-c', 'user.email=candidate@example.invalid', ...args],
+      { cwd: repository, encoding: 'utf8', timeout: 10000 }).trimEnd();
+      vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-08-28T12:02:00.000Z'));
+      try {
+        mkdirSync(join(repository, 'scripts'), { recursive: true });
+        mkdirSync(join(repository, 'config/releases'), { recursive: true });
+        writeFileSync(join(repository, 'scripts/greater-realm-production-bootstrap.mjs'), bootstrapBytes);
+        writeFileSync(join(repository, 'config/releases/0.4.0-sealed-launch.json'), inert);
+        git(['init', '--quiet']); git(['add', '.']); git(['commit', '--quiet', '-m', 'real preparation objects']);
+        FIXTURE_SOURCE_COMMIT = git(['rev-parse', 'HEAD']);
+        git(['update-ref', 'refs/remotes/origin/main', FIXTURE_SOURCE_COMMIT]);
+        const sourceTree = git(['rev-parse', 'HEAD^{tree}']);
+        const bootstrapBlob = git(['rev-parse', 'HEAD:scripts/greater-realm-production-bootstrap.mjs']);
+        const bootstrapSha256 = createHash('sha256').update(bootstrapBytes).digest('hex');
+        const state = privateStateFixture();
+        const privateHome = temporaryHomes.at(-1)!;
+        const receipts = fullCorpus();
+        receipts.g001PolicyObservationBootstrapReceipt = fullG001PolicyBootstrapReceipt({
+          moduleTreeId: scenario === 'bootstrap-tree' ? 'e'.repeat(40) : sourceTree,
+          bootstrapBlob: scenario === 'bootstrap-blob' ? 'e'.repeat(40) : bootstrapBlob,
+          bootstrapSha256: scenario === 'bootstrap-sha' ? 'e'.repeat(64) : bootstrapSha256,
+        });
+        for (const member of Object.keys(receipts) as ActivationRecordMember[]) {
+          if (member !== 'g001FreezePublishReceipt') writeActivationRecord(state, member, receipts[member]);
+        }
+        const authority = authenticateSealedRealmsProductionSourceAuthority({
+          operation: scenario === 'wrong-operation' ? 'g002-publish-apply' : 'activation-evidence-generate',
+          workflowInputSha: FIXTURE_SOURCE_COMMIT, readGit: args => `${git(args)}\n`,
+          readBinding: commit => {
+            const binding = JSON.parse(git(['show', `${commit}:config/releases/0.4.0-sealed-launch.json`]));
+            return { schemaVersion: binding.schemaVersion, profile: binding.profile,
+              pagesDeploymentApproved: binding.pagesDeploymentApproved, preparationSourceCommit: binding.preparationSourceCommit };
+          }, verifyEvidence: verifiedSha => ({ verifiedSha }),
+        });
+        let records: ReturnType<typeof createSealedRealmsProductionActivationRecords>;
+        const historical = scenario.startsWith('historical-');
+        let savedContext: Parameters<typeof inspectSealedRealmsProductionRecoveryCandidate>[0]['readContext'];
+        let candidateDocument = '';
+        let callbackCalls = 0;
+        let alterCompletion = false;
+        let alterCompletionAfterRead = false;
+        const replaceCompletion = () => {
+          const bytes = state.read({ root: 'runtime', relativePath: 'public/activation-generation-receipt.json' });
+          let replacement: Buffer | undefined;
+          try {
+            replacement = activationGenerationReceiptBytes({ ...parseActivationGenerationReceipt(bytes), runId: '99999' });
+            writeFileSync(runtimePath(privateHome, 'public/activation-generation-receipt.json'), replacement, { mode: 0o600 });
+          } finally { bytes.fill(0); replacement?.fill(0); }
+        };
+        const completeFixtureCandidate = historical ? recoveryCandidateForReceipts(receipts) : undefined;
+        records = createSealedRealmsProductionActivationRecords({ privateState: state, authority,
+          readBindingCandidate: (_source, _projection, readContext) => {
+            callbackCalls++;
+            savedContext = readContext;
+            if (alterCompletion) replaceCompletion();
+            const options = { records, privateState: state, authority, readContext };
+            if (!historical) return readSealedRealmsProductionRecoveryCandidate(options);
+            // Real fixed reader/callback consumes authenticated historical context.
+            // Fixture-only missing provider fields remain distinct from that proof.
+            const derived = inspectSealedRealmsProductionRecoveryCandidate(options);
+            expect(() => readSealedRealmsProductionRecoveryCandidate(options)).toThrow('SEALED_REALMS_RECOVERY_CANDIDATE_INPUTS_MISSING');
+            const otherRecords = createSealedRealmsProductionActivationRecords({ privateState: state, authority });
+            expect(() => inspectSealedRealmsProductionRecoveryCandidate({ ...options, records: otherRecords }))
+              .toThrow('SEALED_REALMS_ACTIVATION_RECORDS_READ_CONTEXT_INVALID');
+            candidateDocument = `${JSON.stringify({ ...completeFixtureCandidate, ...derived.facts }, null, 2)}\n`;
+            if (alterCompletionAfterRead) replaceCompletion();
+            return candidateDocument;
+          } });
+        const options = { records, privateState: scenario === 'wrong-private-store' ? privateStateFixture() : state, authority };
+        if (scenario === 'missing-record') state.remove({ root: 'runtime',
+          relativePath: `activation-evidence/records/${ACTIVATION_RECORD_NAMES.ptrSealedLiveReceipt}` });
+        if (scenario === 'changed-head') git(['commit', '--quiet', '--allow-empty', '-m', 'source changed']);
+        if (scenario === 'expired-records') vi.setSystemTime(new Date('2026-08-29T12:02:00.000Z'));
+        if (scenario === 'replacement-objects') {
+          writeFileSync(join(repository, 'scripts/greater-realm-production-bootstrap.mjs'), 'substituted bytes\n');
+          git(['add', '.']); const replacement = git(['commit-tree', git(['write-tree']), '-m', 'substituted view']);
+          git(['replace', FIXTURE_SOURCE_COMMIT, replacement]);
+          expect(git(['show', 'HEAD:scripts/greater-realm-production-bootstrap.mjs'])).toBe('substituted bytes');
+        }
+        process.chdir(repository);
+        if (historical) {
+          writeSealedRealmsProductionRecoveryActivationDescriptor({ records, consumeDescriptor: () => undefined });
+          const descriptor = state.readActivationDescriptor();
+          const artifact = Buffer.from(`${JSON.stringify(createRecoveryActivationBinding(candidateDocument), null, 2)}\n`);
+          const generatedAt = '2026-08-28T12:02:00.000Z';
+          const completion = activationGenerationReceiptBytes({ schemaVersion: 1,
+            profile: 'warpkeep-sealed-realms-activation-generation-receipt-v1', sourceCommit: FIXTURE_SOURCE_COMMIT,
+            sourceAuthorityDigest: authority.authorityDigest, operation: 'activation-evidence-generate',
+            runId: '81002', runAttempt: 1,
+            activationEvidenceDigest: JSON.parse(candidateDocument).admissionRequestSuspensionReceiptDigest,
+            activationChainDigest: 'f'.repeat(64), descriptorSha256: createHash('sha256').update(descriptor).digest('hex'),
+            artifactSha256: createHash('sha256').update(artifact).digest('hex'), artifactSchemaVersion: 2,
+            artifactProfile: 'warpkeep-0.4.0-sealed-launch-v2', generatedAt, outcome: 'generated' });
+          state.write({ root: 'runtime', relativePath: 'public/0.4.0-sealed-launch.json', bytes: artifact });
+          state.write({ root: 'runtime', relativePath: 'public/activation-generation-receipt.json', bytes: completion });
+          descriptor.fill(0); artifact.fill(0); completion.fill(0);
+          vi.setSystemTime(new Date('2026-08-29T12:02:00.000Z'));
+          if (scenario === 'historical-replaced-corpus') {
+            const path = runtimePath(privateHome, `activation-evidence/records/${ACTIVATION_RECORD_NAMES.g002SealedLiveReceipt}`);
+            const wrapper = JSON.parse(readFileSync(path, 'utf8'));
+            wrapper.receipt.releaseHeaderSha256 = 'e'.repeat(64);
+            wrapper.bodyDigest = createHash('sha256').update(`${JSON.stringify(wrapper.receipt)}\n`).digest('hex');
+            wrapper.semanticDigest = activationRecordSemanticDigest('g002SealedLiveReceipt', wrapper.bodyDigest);
+            writeFileSync(path, `${JSON.stringify(wrapper)}\n`, { mode: 0o600 });
+            // A separately valid historical corpus still cannot replace the
+            // exact corpus retained by completed generation evidence.
+            expect(readSealedRealmsProductionRecoveryReceiptProjection(records, generatedAt)
+              .g002ReleaseHeaderSha256).toBe('e'.repeat(64));
+          }
+          expect(() => inspectSealedRealmsProductionRecoveryCandidate(options)).toThrow();
+          expect(() => inspectSealedRealmsProductionRecoveryCandidate({ ...options,
+            readContext: { verificationTime: generatedAt } as never })).toThrow('SEALED_REALMS_ACTIVATION_RECORDS_READ_CONTEXT_INVALID');
+          const before = callbackCalls;
+          alterCompletion = scenario === 'historical-changed-completion';
+          alterCompletionAfterRead = scenario === 'historical-late-changed-completion';
+          const time = scenario === 'historical-forged-time' ? '2026-08-28T12:02:01.000Z'
+            : scenario === 'historical-malformed-time' ? 'not-a-time' : generatedAt;
+          if (scenario === 'historical-context') {
+            expect(inspectSealedRealmsProductionRecoveryActivationRecords(records, time)).toMatchObject({
+              sourceCommit: FIXTURE_SOURCE_COMMIT, schemaVersion: 2 });
+            expect(callbackCalls).toBe(before + 1);
+          } else {
+            expect(() => inspectSealedRealmsProductionRecoveryActivationRecords(records, time)).toThrow();
+            if (!alterCompletion && !alterCompletionAfterRead) expect(callbackCalls).toBe(before);
+          }
+          expect(() => inspectSealedRealmsProductionRecoveryCandidate({ ...options, readContext: savedContext })).toThrow();
+          expect(() => writeSealedRealmsProductionRecoveryActivationDescriptor({ records, consumeDescriptor: () => undefined })).toThrow();
+          return;
+        }
+        if (scenario === 'caller-facts') {
+          expect(() => inspectSealedRealmsProductionRecoveryCandidate({ ...options,
+            providerFacts: { recoveryAuthorizationEpoch: 1 } } as never)).toThrow();
+        } else if (['missing-live-inputs', 'replacement-objects'].includes(scenario)) {
+          const derived = inspectSealedRealmsProductionRecoveryCandidate(options);
+          expect(Object.isFrozen(derived.facts)).toBe(true); expect(Object.isFrozen(derived.missingFields)).toBe(true);
+          expect(derived.facts).toMatchObject({ preparationSourceCommit: FIXTURE_SOURCE_COMMIT,
+            preparationSourceTree: sourceTree, g001FreezePublishReceiptDigest: null,
+            g001PlayerAccessEnabled: true, ptrOwnerProvisioned: true });
+          expect(derived.missingFields).toEqual([
+            'recoveryAuthorizationRequestId', 'recoveryAuthorizationEpoch', 'recoveryAuthWorkerVersionId',
+            'recoveryAuthWorkerSourceCommit', 'recoveryAuthWorkerConfigIdentity', 'recoveryAuthWorkerConfigEpoch',
+            'sourceClosureSha256', 'g001ExpectedProgramKeccak256', 'authBridgeSourceCommit',
+            'admissionRequestSuspensionReceiptDigest', 'g002ExpectedProgramKeccak256',
+            'g002PublicApprovalReceiptId', 'ptrExpectedProgramKeccak256', 'ptrPublicApprovalReceiptId',
+          ]);
+          for (const key of derived.missingFields) expect(Object.hasOwn(derived.facts, key)).toBe(false);
+          expect(() => readSealedRealmsProductionRecoveryCandidate(options)).toThrow('SEALED_REALMS_RECOVERY_CANDIDATE_INPUTS_MISSING');
+          try { readSealedRealmsProductionRecoveryCandidate(options); }
+          catch (error) { expect(error).toMatchObject({ missingFields: derived.missingFields }); }
+        } else expect(() => inspectSealedRealmsProductionRecoveryCandidate(options)).toThrow();
+        const consume = vi.fn(() => undefined);
+        expect(() => writeSealedRealmsProductionRecoveryActivationDescriptor({ records, consumeDescriptor: consume })).toThrow();
+        expect(consume).not.toHaveBeenCalled();
+        expect(() => state.read({ root: 'runtime', relativePath: FIXED_DESCRIPTOR_RELATIVE_PATH })).toThrow();
+      } finally {
+        process.chdir(originalCwd); FIXTURE_SOURCE_COMMIT = originalCommit;
+        bootstrapBytes.fill(0); inert.fill(0); vi.useRealTimers();
+      }
+    });
 });
 
 describe('sealed-realms activation descriptor records', () => {

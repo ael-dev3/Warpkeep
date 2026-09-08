@@ -57,6 +57,20 @@ function fail() { throw new Error('RECOVERY_ACTIVATION_CANDIDATE_INVALID'); }
 const hex = (value, length) => typeof value === 'string' && new RegExp(`^[a-f0-9]{${length}}$`, 'u').test(value);
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(value);
 
+/** Fixed wire policy only. Missing live/source fields are deliberately absent. */
+export function recoveryActivationCandidatePolicy() {
+  if (arguments.length !== 0) fail();
+  return Object.freeze(Object.fromEntries(RECOVERY_BINDING_KEYS_V2.flatMap(key => {
+    if (Object.hasOwn(fixed, key)) return [[key, fixed[key]]];
+    if (trueKeys.has(key)) return [[key, true]];
+    if (falseKeys.has(key)) return [[key, false]];
+    if (zeroKeys.has(key)) return [[key, 0]];
+    if (key.endsWith('Commitment') || key === 'recoveryAuthorizationCoreSha256'
+      || key === 'g001FreezePublishReceiptDigest') return [[key, null]];
+    return [];
+  })));
+}
+
 /** Static candidate consistency only. Does not authenticate receipt/source data or authorize deployment. */
 export function validateRecoveryActivationCandidate(source) {
   const binding = parseRecoveryBindingDocumentV2(source);

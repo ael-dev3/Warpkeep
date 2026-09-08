@@ -25,7 +25,8 @@ import {
 import {
   verifyGenesis001AdmittedPlayerCensusReceipt,
 } from './genesis001-admitted-player-census.mjs';
-import { validateRecoveryActivationCandidate } from './recovery-activation-candidate.mjs';
+import { createRecoveryActivationBinding, validateRecoveryActivationCandidate } from './recovery-activation-candidate.mjs';
+import { parseActivationGenerationReceipt } from './sealed-realms-production-activation-generation-receipt.mjs';
 
 const isProxy = types.isProxy;
 const SHA256 = /^[a-f0-9]{64}$/u;
@@ -34,6 +35,7 @@ const RECORD_PROFILE = 'warpkeep-sealed-realms-activation-record-v1';
 const EVIDENCE_PROFILE = 'warpkeep-0.4.0-sealed-launch-activation-evidence-v1';
 const RECORD_DIRECTORY = 'activation-evidence/records';
 const recordsCapabilities = new WeakMap();
+const candidateReadContexts = new WeakMap();
 
 const RECEIPT_MEMBERS = Object.freeze([
   'g001FreezePublishReceipt',
@@ -1097,6 +1099,65 @@ export function readSealedRealmsProductionRecoveryReceiptProjection(records, ver
   return readRecoveryReceiptCorpus(records, verificationTime).projection;
 }
 
+/** Same reopened corpus, with only the policy producer's immutable Git coordinates. */
+export function readSealedRealmsProductionRecoveryCandidateRecords(records, context) {
+  if (arguments.length < 1 || arguments.length > 2) fail('SEALED_REALMS_ACTIVATION_RECORDS_INPUT_INVALID');
+  let verificationTime;
+  if (context !== undefined) {
+    const scope = candidateReadContexts.get(context);
+    if (scope === undefined || scope.records !== records) fail('SEALED_REALMS_ACTIVATION_RECORDS_READ_CONTEXT_INVALID');
+    verificationTime = scope.verificationTime;
+    if (verificationTime !== undefined
+      && JSON.stringify(readCompletedGenerationBinding(records, verificationTime)) !== JSON.stringify(scope.completion)) {
+      fail('SEALED_REALMS_ACTIVATION_RECORDS_READ_CONTEXT_INVALID');
+    }
+  }
+  const { receipts, projection } = readRecoveryReceiptCorpus(records, verificationTime);
+  const bootstrap = receipts.g001PolicyObservationBootstrapReceipt;
+  return Object.freeze({ projection, bootstrap: Object.freeze({
+    preparationSourceCommit: bootstrap.protectedCommit,
+    preparationSourceTree: bootstrap.moduleTreeId,
+    bootstrapBlob: bootstrap.bootstrapBlob,
+    bootstrapSha256: bootstrap.bootstrapSha256,
+  }) });
+}
+
+// Historical candidate reads are data inspection only. Their time must come from
+// the exact completed private family, never a timestamp supplied to a candidate.
+function readCompletedGenerationBinding(records, verificationTime) {
+  const state = capabilityState(records);
+  const digest = bytes => createHash('sha256').update(bytes).digest('hex');
+  let receiptBytes, descriptorBytes, artifactBytes;
+  try {
+    const names = state.privateState.list({ root: 'runtime' });
+    if (names.some(name => name === 'public.family.lock' || name.startsWith('public.stage.'))
+      || JSON.stringify(state.privateState.list({ root: 'runtime', relativeDirectory: 'public' }))
+        !== JSON.stringify(['0.4.0-sealed-launch.json', 'activation-generation-receipt.json'])) fail();
+    receiptBytes = state.privateState.read({ root: 'runtime', relativePath: 'public/activation-generation-receipt.json' });
+    const receipt = parseActivationGenerationReceipt(receiptBytes);
+    if (receipt.generatedAt !== verificationTime || Date.parse(receipt.generatedAt) > Date.now()
+      || receipt.sourceCommit !== state.preparationSourceCommit
+      || receipt.sourceAuthorityDigest !== state.sourceAuthorityDigest || receipt.artifactSchemaVersion !== 2) fail();
+    descriptorBytes = state.privateState.readActivationDescriptor();
+    artifactBytes = state.privateState.read({ root: 'runtime', relativePath: 'public/0.4.0-sealed-launch.json' });
+    if (receipt.descriptorSha256 !== digest(descriptorBytes) || receipt.artifactSha256 !== digest(artifactBytes)) fail();
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(descriptorBytes);
+    const envelope = JSON.parse(source);
+    if (`${JSON.stringify(envelope, null, 2)}\n` !== source) fail();
+    const candidate = validateSealedRealmsProductionRecoveryActivationEvidence(envelope, receipt.generatedAt);
+    if (candidate.preparationSourceCommit !== state.preparationSourceCommit
+      || receipt.activationEvidenceDigest !== candidate.admissionRequestSuspensionReceiptDigest) fail();
+    const { receipts } = readRecoveryReceiptCorpus(records, receipt.generatedAt);
+    if (Object.entries(receipts).some(([member, value]) =>
+      JSON.stringify(value) !== JSON.stringify(envelope[member]))) fail();
+    const expected = Buffer.from(`${JSON.stringify(createRecoveryActivationBinding(`${JSON.stringify(candidate, null, 2)}\n`), null, 2)}\n`);
+    try { if (!expected.equals(artifactBytes)) fail(); } finally { expected.fill(0); }
+    return Object.freeze({ receiptSha256: digest(receiptBytes), descriptorSha256: receipt.descriptorSha256,
+      artifactSha256: receipt.artifactSha256 });
+  } catch { fail('SEALED_REALMS_ACTIVATION_RECORDS_READ_CONTEXT_INVALID'); }
+  finally { receiptBytes?.fill(0); descriptorBytes?.fill(0); artifactBytes?.fill(0); }
+}
+
 /** Validates canonical recovery evidence data; this does not mint receipt authority. */
 export function validateSealedRealmsProductionRecoveryActivationEvidence(envelope, verificationTime) {
   const members = RECEIPT_MEMBERS.filter(member => member !== 'g001FreezePublishReceipt');
@@ -1130,8 +1191,11 @@ function readRecoveryActivationEnvelope(records, verificationTime) {
   // authorize its own receipt coordinates.
   const { state, receipts, projection } = readRecoveryReceiptCorpus(records, verificationTime);
   let candidate;
+  const context = Object.freeze({});
+  const completion = verificationTime === undefined ? undefined : readCompletedGenerationBinding(records, verificationTime);
+  candidateReadContexts.set(context, Object.freeze({ records, verificationTime, completion }));
   try {
-    const source = state.readBindingCandidate(state.preparationSourceCommit, projection);
+    const source = state.readBindingCandidate(state.preparationSourceCommit, projection, context);
     // The recovery reader consumes canonical source bytes, never caller objects/getters.
     if (typeof source !== 'string') fail('SEALED_REALMS_ACTIVATION_RECORDS_BINDING_INVALID');
     candidate = validateRecoveryActivationCandidate(source);
@@ -1139,6 +1203,11 @@ function readRecoveryActivationEnvelope(records, verificationTime) {
       fail('SEALED_REALMS_ACTIVATION_RECORDS_BINDING_INVALID');
     }
   } catch { fail('SEALED_REALMS_ACTIVATION_RECORDS_BINDING_INVALID'); }
+  finally { candidateReadContexts.delete(context); }
+  if (completion !== undefined
+    && JSON.stringify(readCompletedGenerationBinding(records, verificationTime)) !== JSON.stringify(completion)) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_READ_CONTEXT_INVALID');
+  }
   for (const [key, value] of Object.entries(projection)) {
     if (candidate[key] !== value) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
   }

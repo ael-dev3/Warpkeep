@@ -15,13 +15,16 @@ export type SealedRealmsProductionActivationRecords = Readonly<{
 export type SealedRealmsProductionRecoveryReceiptProjection = Readonly<
   Record<string, string | number | boolean | null>
 >;
+declare const recoveryCandidateReadContext: unique symbol;
+export type SealedRealmsRecoveryCandidateReadContext = Readonly<{ [recoveryCandidateReadContext]: true }>;
 
 export function createSealedRealmsProductionActivationRecords(input: Readonly<{
   privateState: SealedRealmsProductionPrivateState;
   authority: SealedRealmsProductionSourceAuthority;
   /** Required for descriptors; omitted for candidate-independent receipt reads. */
   readBindingCandidate?: (preparationSourceCommit: string,
-    receiptProjection?: SealedRealmsProductionRecoveryReceiptProjection) => unknown;
+    receiptProjection?: SealedRealmsProductionRecoveryReceiptProjection,
+    readContext?: SealedRealmsRecoveryCandidateReadContext) => unknown;
 }>): SealedRealmsProductionActivationRecords;
 
 export function assertSealedRealmsProductionActivationRecords(
@@ -39,6 +42,14 @@ export function readSealedRealmsProductionRecoveryReceiptProjection(
   records: SealedRealmsProductionActivationRecords,
   verificationTime?: string,
 ): SealedRealmsProductionRecoveryReceiptProjection;
+
+/** Current corpus, or a callback-scoped completed receipt time; data only, never authority. */
+export function readSealedRealmsProductionRecoveryCandidateRecords(
+  records: SealedRealmsProductionActivationRecords,
+  context?: SealedRealmsRecoveryCandidateReadContext,
+): Readonly<{ projection: SealedRealmsProductionRecoveryReceiptProjection;
+  bootstrap: Readonly<{ preparationSourceCommit: string; preparationSourceTree: string;
+    bootstrapBlob: string; bootstrapSha256: string }> }>;
 
 /** Data validation only; does not establish producer or deployment authority. */
 export function validateSealedRealmsProductionRecoveryActivationEvidence(

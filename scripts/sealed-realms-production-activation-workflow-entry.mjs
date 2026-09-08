@@ -6,6 +6,7 @@ import {
   createSealedRealmsProductionActivationEvidenceGenerator,
 } from './sealed-realms-production-auth-bridge-state.mjs';
 import { createSealedRealmsProductionActivationRecords } from './sealed-realms-production-activation-records.mjs';
+import { readSealedRealmsProductionRecoveryCandidate } from './sealed-realms-production-recovery-candidate.mjs';
 import {
   createSealedRealmsProductionActivationDispatchContext,
   createSealedRealmsProductionActivationDispatcher,
@@ -162,14 +163,6 @@ function unavailable() {
   fail('SEALED_REALMS_ACTIVATION_WORKFLOW_ADAPTER_UNAVAILABLE');
 }
 
-/**
- * The authenticated recovery-core/realm reader is not installed yet. Inert S
- * JSON, an assembler directory or caller-supplied JSON cannot replace it.
- */
-function readCanonicalRecoveryCandidate() {
-  fail('SEALED_REALMS_ACTIVATION_WORKFLOW_RECOVERY_CANDIDATE_UNAVAILABLE');
-}
-
 async function buildDispatcher(operation, workflowInputSha, evidence) {
   const verifyEvidence = commit => verifySealedRealmsProductionWorkflowEvidence(evidence, commit);
   const authority = sourceAuthority(operation, workflowInputSha, verifyEvidence);
@@ -196,11 +189,18 @@ async function buildDispatcher(operation, workflowInputSha, evidence) {
     authenticateImportResult: unavailable,
     resolveOwnerProvisionReceipt: unavailable,
   });
+  // The fixed reader reopens the opaque records and immutable S itself. Missing
+  // recovery/provider facts remain an explicit failure, never caller defaults.
+  let records;
+  if (operation === 'activation-evidence-generate') {
+    records = createSealedRealmsProductionActivationRecords({ privateState, authority,
+      readBindingCandidate: (_source, _projection, readContext) =>
+        readSealedRealmsProductionRecoveryCandidate({ records, privateState, authority, readContext }) });
+  }
   const lane = createSealedRealmsProductionActivationLane({ bridgeState,
     ...(operation === 'activation-evidence-generate' ? {
       generator: createSealedRealmsProductionActivationEvidenceGenerator({
-        records: createSealedRealmsProductionActivationRecords({ privateState, authority,
-          readBindingCandidate: readCanonicalRecoveryCandidate }),
+        records,
         privateState, authority,
       }),
     } : {}),
