@@ -646,6 +646,94 @@ describe('Greater Realm scene runtime', () => {
     runtime.dispose();
   });
 
+  it('seeds streamed water with the resident phase before another ambient tick', () => {
+    const runtime = createGreaterRealmSceneRuntime({ deviceClass: 'desktop', graphicsProfile: 'balanced' });
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: viewChunks().slice(0, 1) });
+    runtime.flushUploads();
+    runtime.update(9);
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: viewChunks() });
+    runtime.flushUploads();
+    const clocks: number[] = [];
+    runtime.group.traverse((object) => {
+      if (!(object instanceof THREE.Mesh) || !object.name.startsWith('greater-realm-water:')) return;
+      const shader = {
+        uniforms: THREE.UniformsUtils.clone(THREE.ShaderLib.standard.uniforms),
+        vertexShader: THREE.ShaderLib.standard.vertexShader,
+        fragmentShader: THREE.ShaderLib.standard.fragmentShader
+      };
+      object.material.onBeforeCompile(shader as Parameters<THREE.MeshStandardMaterial['onBeforeCompile']>[0], {} as THREE.WebGLRenderer);
+      clocks.push(shader.uniforms.greaterRealmWaterTime!.value);
+    });
+    expect(clocks).toEqual([9, 9]);
+    runtime.dispose();
+  });
+
+  it('fills only returned wet hexes, meeting their boundaries without adding geometry or changing water levels', () => {
+    const runtime = createGreaterRealmSceneRuntime({ deviceClass: 'desktop', graphicsProfile: 'balanced' });
+    const chunk = navigableLocalVesselChunk();
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: [{ chunk, distanceChunks: 0 }] });
+    runtime.flushUploads();
+    const plan = createGreaterRealmChunkPresentationPlan({ chunk, cellSize: 1, graphicsProfile: 'balanced' });
+    let water: THREE.BufferGeometry | undefined;
+    runtime.group.traverse((object) => {
+      if (object instanceof THREE.Mesh && object.name.startsWith('greater-realm-water:')) water = object.geometry;
+    });
+    const positions = water!.getAttribute('position');
+    expect(positions.count).toBe(plan.waterCells.length * 18);
+    expect(Object.keys(water!.attributes).sort()).toEqual(['normal', 'position']);
+    for (const [index, cell] of plan.waterCells.entries()) {
+      const x = Math.sqrt(3) * (cell.atlasQ + cell.atlasR / 2);
+      const z = 1.5 * cell.atlasR;
+      for (let offset = 0; offset < 18; offset += 1) {
+        const vertex = index * 18 + offset;
+        const radius = Math.hypot(positions.getX(vertex) - x, positions.getZ(vertex) - z);
+        expect(radius).toBeCloseTo(offset % 3 === 0 ? 0 : 1, 6);
+        expect(positions.getY(vertex)).toBeCloseTo((cell.hydroSurfaceMilli ?? cell.elevation) / 1000 + 0.035, 6);
+      }
+    }
+    runtime.dispose();
+  });
+
+  it('keeps water chunks on the host clock and freezes them across motion and visibility changes', () => {
+    const runtime = createGreaterRealmSceneRuntime({ deviceClass: 'desktop', graphicsProfile: 'balanced' });
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: viewChunks() });
+    runtime.flushUploads();
+    const waters: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>[] = [];
+    runtime.group.traverse((object) => {
+      if (object instanceof THREE.Mesh && object.name.startsWith('greater-realm-water:')) waters.push(object);
+    });
+    expect(waters).toHaveLength(2);
+    const clocks = waters.map((mesh) => {
+      const shader = {
+        uniforms: THREE.UniformsUtils.clone(THREE.ShaderLib.standard.uniforms),
+        vertexShader: THREE.ShaderLib.standard.vertexShader,
+        fragmentShader: THREE.ShaderLib.standard.fragmentShader
+      };
+      mesh.material.onBeforeCompile(shader as Parameters<THREE.MeshStandardMaterial['onBeforeCompile']>[0], {} as THREE.WebGLRenderer);
+      return shader.uniforms.greaterRealmWaterTime!;
+    });
+    const positions = waters.map((mesh) => Array.from(mesh.geometry.getAttribute('position').array));
+    const before = runtime.getTelemetry();
+    runtime.update(9);
+    expect(clocks.map((clock) => clock.value)).toEqual([9, 9]);
+    runtime.setReducedMotion(true);
+    runtime.update(42);
+    expect(clocks.map((clock) => clock.value)).toEqual([0, 0]);
+    runtime.setReducedMotion(false);
+    runtime.setDocumentVisible(false);
+    runtime.update(55);
+    expect(clocks.map((clock) => clock.value)).toEqual([0, 0]);
+    runtime.setDocumentVisible(true);
+    runtime.update(60);
+    expect(clocks.map((clock) => clock.value)).toEqual([60, 60]);
+    expect(waters.map((mesh) => Array.from(mesh.geometry.getAttribute('position').array))).toEqual(positions);
+    expect(runtime.getTelemetry().drawCallCount).toBe(before.drawCallCount);
+    const disposals = waters.map((mesh) => vi.spyOn(mesh.material, 'dispose'));
+    runtime.dispose();
+    runtime.dispose();
+    disposals.forEach((dispose) => expect(dispose).toHaveBeenCalledTimes(1));
+  });
+
   it('turns moving water and ephemeral actors static under reduced motion', () => {
     const runtime = createGreaterRealmSceneRuntime({
       deviceClass: 'desktop',

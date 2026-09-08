@@ -32,13 +32,13 @@ No reference code, textures or other assets were copied.
   390px mobile profiles. Existing total frame, transfer and memory gates govern;
   visual similarity does not justify higher budgets or a phone-performance claim.
 
-Status: inspiration studied and recorded; no water implementation changed. Apply
-only as bounded polish within existing visual coverage. This note does not add a
-separate engine or silently expand the finite release acceptance checklist.
+Status updated 2026-09-08: the bounded adaptation is implemented in the actual
+0.4 runtime. See the [water implementation and rendered evidence](../agent-notes/0.4.0/gameplay-and-visuals.md#continuous-greater-realm-water--2026-09-08).
+Physical-device and final performance acceptance remain separate.
 
 ## Renderer routing clarification — 2026-09-07
 
-The actual 0.4/PTR world water is currently created by `waterMesh` in
+At the September 7 inspection, the actual 0.4/PTR world water was created by `waterMesh` in
 `src/greater-realm/createGreaterRealmSceneRuntime.ts`, with standard materials
 and bounded color/opacity animation. `realmWaterLayer.ts` is consumed by the
 legacy G001 renderer, not that 0.4 path. Its analytic shading is a reuse reference,

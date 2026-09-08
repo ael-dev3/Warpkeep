@@ -27,7 +27,7 @@ this page keeps precise mechanics, implementation routes and evidence limits.
 | G002 | Gameplay deliberately denies access before storage | Fresh live denial and no-unauthorized-write evidence; admissions TBD |
 | Verdant Citadel | Distinct 0.4 keep composition, materials, dressing, progression and fallback paths exist | Complete final-source visual matrix and small-screen readability |
 | Voxels | Bounded reusable mesher, world adapters and generated keep dressing are connected | Final whole-path visual/performance acceptance |
-| 0.4 water | Public-cell geometry with standard material and restrained color/opacity animation | Further polish against the reference study and strategic-camera evidence |
+| 0.4 water | Continuous returned wet hexes, world-coordinate swells/ripples and shared host-clock lifecycle | Final-source visual matrix, physical-device and agreed performance evidence |
 | Shipping | Substantial implementation and local evidence exist | Final operating composition, deployment and live acceptance; see release notes |
 
 Neither a closed G002 gate nor missing acceptance is automatically a broken
@@ -50,7 +50,7 @@ remains the acceptance ledger; this page does not add a competing set of gates.
 | Keep decisions, placement and presentation | [`Keep04Screen.tsx`](../../../src/components/keep04/Keep04Screen.tsx), [`Keep04BuildingPanel.tsx`](../../../src/components/keep04/Keep04BuildingPanel.tsx), [`Keep04WorkerPanel.tsx`](../../../src/components/keep04/Keep04WorkerPanel.tsx), [`Keep04SceneHost.tsx`](../../../src/components/keep04/Keep04SceneHost.tsx) |
 | Art profile, buildings and asset lifetime | [`keep04VisualProfile.ts`](../../../src/components/keep04/keep04VisualProfile.ts), [`createKeep04Scene.ts`](../../../src/components/keep04/createKeep04Scene.ts), [`createKeep04Buildings.ts`](../../../src/components/keep04/createKeep04Buildings.ts), [`loadKeep04Assets.ts`](../../../src/components/keep04/loadKeep04Assets.ts) |
 | Decorative voxel surface and keep dressing | [`voxelSurfaceMesh.ts`](../../../src/components/realm/voxelSurfaceMesh.ts), [`keep04VoxelDressing.ts`](../../../src/components/keep04/keep04VoxelDressing.ts), [`planKeep04DressingSource.ts`](../../../src/components/keep04/planKeep04DressingSource.ts) |
-| Actual PTR/world water | [`createGreaterRealmSceneRuntime.ts`](../../../src/greater-realm/createGreaterRealmSceneRuntime.ts), `waterMesh` and its chunk material update |
+| Actual PTR/world water | [`createGreaterRealmSceneRuntime.ts`](../../../src/greater-realm/createGreaterRealmSceneRuntime.ts), `waterMesh` and [`greaterRealmWaterSurface.ts`](../../../src/greater-realm/greaterRealmWaterSurface.ts) |
 
 The historical [`inner-keep-construction.md`](../../design/inner-keep-construction.md)
 describes a different dormant V1 policy. Do not use its economy discounts or
@@ -291,3 +291,34 @@ measured acceptance. Use current tests and source as foundations. If improving
 the game requires a design correction, record its player benefit, consequences
 and verification rather than treating historical implementation choices as
 permanent limits or restarting working systems without a reason.
+
+## Continuous Greater Realm water — 2026-09-08
+
+`greaterRealmWaterSurface.ts` now supplies the actual scene runtime's water
+material. World-coordinate swells, restrained ripples and soft highlights replace
+whole-chunk color/opacity pulsing. Adjacent returned wet hexes meet at their exact
+cell boundaries; the previous inset exposed artificial dry seams inside a water
+body. No cell is inferred or added, and water height, boats and navigation retain
+their existing owners. The material keeps standard lighting/fog in one pass,
+adds no texture or vertex attribute, and reduces fine detail on the reduced profile.
+
+The existing host clock controls motion. Newly uploaded chunks receive the same
+effective time as resident chunks before rendering, including between ambient
+ticks. Reduced motion, visibility, context rebuilding and single disposal retain
+their existing lifecycle. If shader insertion points change, the material keeps
+its usable standard fallback.
+
+Both water/scene suites passed **43 tests** on Windows and native Linux. App/config
+types passed after explicitly typing minimal renderer test fixtures. Independent
+review caught the streaming phase issue; its new regression now covers the
+original failure before another animation tick. Geometry checks cover exact wet
+cell extents, unchanged attributes/counts/heights and preservation during motion.
+
+Rendered review used the actual runtime and world-screen host with synthetic
+public fixtures, plus a wider neighboring-water fixture. Desktop and 390×844
+views rendered without observed shader errors; balanced, high, reduced-detail
+and reduced-motion surfaces were inspected. Forced context loss/restoration
+returned a rendered surface, and runtime disposal released all fixture geometries.
+The wide fixture retained four GPU draws; this is a small-scene observation, not
+a frame-time, physical-phone or whole-game performance result. Authentic owner
+play, final-source visual coverage and agreed performance workloads remain open.

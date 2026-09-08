@@ -7,12 +7,12 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-Updated 2026-09-08 after the operating Linux source assembler and recovery
-activation generation at `772d3a4`, followed by receipt projection and PTR
-closure-test correction at `f558bd5`. Both were published with GitHub ref equality.
-Read Git and the execution handoff for later source-family checkpoints.
-The original audit at `781e51e`
-remains dated evidence. Recheck providers before using its observations.
+Updated 2026-09-08 for the source integration following `1277cc8`: real S/V2
+source authentication, durable G001 policy capture, fixed GitHub Verify readback,
+CI regressions and continuous Greater Realm water. The earlier generated family
+was prepared from `f558bd5`; it cannot attest these new compiled inputs. Read the
+[execution handoff](execution-handoff.md) and dated evidence for actual preparation,
+verification and publication results. The original `781e51e` audit is historical.
 
 - `main` is the public G001 baseline. Current 0.4 implementation is on
   `codex/prepared-keep-bindings-fix`, associated with draft

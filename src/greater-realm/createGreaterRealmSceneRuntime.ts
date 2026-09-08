@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+
+import { createGreaterRealmWaterSurface, type GreaterRealmWaterSurface } from './greaterRealmWaterSurface';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 import { axialToWorld, worldToNearestAxial } from '../game/map/hexCoordinates';
@@ -142,7 +144,7 @@ type ChunkRenderResource = Readonly<{
   signature: string;
   group: THREE.Group;
   plan: GreaterRealmChunkPresentationPlan;
-  waterMaterials: readonly THREE.MeshStandardMaterial[];
+  waterSurfaces: readonly GreaterRealmWaterSurface[];
   actors: readonly ActorRenderRef[];
   voxelTriangleCount: number;
   voxelQuadCount: number;
@@ -370,29 +372,22 @@ function waterMesh(plan: GreaterRealmChunkPresentationPlan, cellSize: number) {
   for (const cell of plan.waterCells) {
     const world = axialToWorld({ q: cell.atlasQ, r: cell.atlasR }, cellSize);
     const y = (cell.hydroSurfaceMilli ?? cell.elevation) / 1_000 + 0.035;
-    hexTriangles(positions, undefined, { x: world.x, y, z: world.z }, cellSize * 0.93);
+    // Fill exactly the returned wet hex; an inset invents dry seams inside a water body.
+    hexTriangles(positions, undefined, { x: world.x, y, z: world.z }, cellSize);
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
-  const first = plan.waterCells[0]!;
-  const material = new THREE.MeshStandardMaterial({
-    color: '#3e8797',
-    roughness: 0.3,
-    metalness: 0.02,
-    transparent: true,
-    opacity: 0.72,
-    depthWrite: true,
-    fog: true
+  const surface = createGreaterRealmWaterSurface({
+    cellSize,
+    graphicsProfile: plan.voxelTerrainPlan.graphicsProfile
   });
-  material.userData.greaterRealmPhase = (
-    (first.bankVariant ^ first.presentationVariant) >>> 0
-  ) / 0x1_0000_0000;
+  const material = surface.material;
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = `greater-realm-water:${plan.chunkHandle}`;
   mesh.raycast = () => {};
-  return Object.freeze({ mesh, material });
+  return Object.freeze({ mesh, surface });
 }
 
 function chunkGroundPosition(
@@ -843,7 +838,7 @@ function buildChunkResource(selected: SelectedChunk, cellSize: number): ChunkRen
     signature: selected.signature,
     group,
     plan: selected.plan,
-    waterMaterials: Object.freeze(water ? [water.material] : []),
+    waterSurfaces: Object.freeze(water ? [water.surface] : []),
     actors: actors.refs,
     voxelTriangleCount,
     voxelQuadCount,
@@ -921,6 +916,7 @@ export function createGreaterRealmSceneRuntime(
   let reducedMotion = Boolean(options.reducedMotion);
   let contextLost = false;
   let documentVisible = true;
+  let waterVisualTime = 0;
   let cellSize = 1;
   let selected = new Map<string, SelectedChunk>();
   let pending = new Map<string, SelectedChunk>();
@@ -1263,15 +1259,11 @@ export function createGreaterRealmSceneRuntime(
     if (disposed || contextLost || uploaded.size === 0) return false;
     const active = animationActive();
     const time = active && Number.isFinite(elapsedSeconds) ? Math.max(0, elapsedSeconds) : 0;
+    waterVisualTime = time;
     const touchedMeshes = new Set<THREE.InstancedMesh>();
     const ambientBoatsMoved = updateAmbientBoatMatrices(time, active);
     for (const resource of uploaded.values()) {
-      for (const material of resource.waterMaterials) {
-        const phase = Number(material.userData.greaterRealmPhase ?? 0);
-        const wave = Math.sin(time * 0.72 + phase * Math.PI * 2);
-        material.opacity = 0.7 + wave * 0.035;
-        material.color.setHSL(0.535 + wave * 0.008, 0.48, 0.42 + wave * 0.018);
-      }
+      for (const surface of resource.waterSurfaces) surface.update(time);
       for (const ref of resource.actors) {
         const actor = ref.actor;
         sampleRealmLivingEnvironment(time, actor.position.x, actor.position.z, livingSample);
@@ -1318,7 +1310,7 @@ export function createGreaterRealmSceneRuntime(
     return active && (
       ambientBoatsMoved
       || touchedMeshes.size > 0
-      || [...uploaded.values()].some((resource) => resource.waterMaterials.length > 0)
+      || [...uploaded.values()].some((resource) => resource.waterSurfaces.length > 0)
     );
   };
 
@@ -1509,6 +1501,8 @@ export function createGreaterRealmSceneRuntime(
           continue;
         }
         const resource = buildChunkResource(row, cellSize);
+        // Uploads can render between capped ambient ticks. Match resident chunks immediately.
+        resource.waterSurfaces.forEach((surface) => surface.update(waterVisualTime));
         uploaded.set(row.plan.chunkHandle, resource);
         for (const cell of resource.plan.terrainCells) {
           uploadedTerrainCells.set(

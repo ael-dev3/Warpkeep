@@ -182,7 +182,11 @@ The world route passes through
 [canvas host](../src/components/realm/createGreaterRealmWorldCanvasHost.ts), and
 [`createGreaterRealmSceneRuntime.ts`](../src/greater-realm/createGreaterRealmSceneRuntime.ts).
 The atlas bridge, chunk stream and presentation plan connect bounded server data
-to the visible scene. That runtime owns the actual 0.4 world water. G001's
+to the visible scene. That runtime owns the actual 0.4 world water, using
+[`greaterRealmWaterSurface.ts`](../src/greater-realm/greaterRealmWaterSurface.ts)
+for a single lit surface with world-coordinate waves and a shared host clock.
+Water polygons fill only explicitly returned wet hexes; shading does not move
+their authoritative surface heights. G001's
 [`realmWaterLayer.ts`](../src/components/realm/realmWaterLayer.ts) belongs to its
 preserved renderer and is a reference, not an already connected 0.4 water layer.
 

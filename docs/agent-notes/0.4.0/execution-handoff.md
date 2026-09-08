@@ -132,13 +132,15 @@ The earlier `772d3a4` candidate was restored through the real recovery CLI, then
 its entire baseline was independently verified. Its archived completion cannot
 authorize the newer family. See the engineering record for exact commitments.
 
-The connected review then found source-authentication defects: preparation
-metadata must remain null, and the V2 activation binding needs its own recovery
-authentication path. G001 durable policy-observation adoption also needs original
-terminal cleanup evidence. These fixes are being developed separately; this
-generated checkpoint does not claim them. Current GitHub CI additionally found
-host-profile and stale activation-fixture failures. Keep their triage separate
-from the passing native preparation and scoped generated-source verification.
+The later source integration following `1277cc8` fixes inert S and full V2
+authentication, G001 policy capture/terminal adoption, fixed GitHub Verify
+readback and the observed host/activation-fixture regressions. Its combined
+native release run passed 731 tests across 20 suites with two expected skips;
+app/config types passed. Diagnostic generated pins were restored before source
+export. The integrated water change has separate native and rendered evidence.
+Fresh full preparation must derive from the new committed source; the retained
+`f558bd5` family remains evidence for its actual input only. Production callers,
+provider facts and signer authorization remain incomplete.
 
 The [Linux runner runbook](../../operations/0.4.0-linux-runner.md) records actual
 GitHub registration and an enabled service running as UID/GID 1001. At 00:28 UTC
