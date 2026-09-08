@@ -45,4 +45,5 @@ exec /usr/bin/setpriv --reuid="$fixture_uid" --regid="$fixture_gid" --clear-grou
   NODE_ENV=test NO_COLOR=1 WARPKEEP_REQUIRE_SYNTHETIC_NETWORK=1 \
   "$node" node_modules/vitest/vitest.mjs run \
   tests/sealedRealmsExistingUpdate.test.ts tests/sealedRealmsProductionContinuation.test.ts \
-  tests/sealedRealmsProductionDispatcher.test.ts --maxWorkers=1 --no-cache
+  tests/sealedRealmsProductionDispatcher.test.ts \
+  tests/ptrProductionExistingUpdateContinuation.test.ts --maxWorkers=1 --no-cache

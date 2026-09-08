@@ -5,6 +5,19 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Joined production update continuation checks
+
+The dedicated production-adapter test now uses the real source issuer, workflow
+permit, private-state persistence, continuation store, claim/reconciliation,
+PTR lane and dispatcher. Only artifact issuance and external provider transport
+are fixture boundaries. Cases cover direct completion, lost-response recovery
+without a second update, live predecessor refusal, run revocation before sending,
+and the synchronously scoped claim. It is included in the fixed native CI suite.
+
+Windows passed three boundary checks with four native cases skipped; strict
+types and source review passed. Native CI must establish the joined POSIX path.
+Neither mocked provider responses nor fixture authority prove a live update.
+
 ## PTR runtime constructor and bundle integration
 
 The genuine PTR workflow runtime now admits update inspection/application and
