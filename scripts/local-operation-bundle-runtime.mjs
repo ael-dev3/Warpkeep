@@ -10,9 +10,9 @@ import {
 
 const WSL_PATH = 'C:/Windows/System32/wsl.exe';
 const WSL_ARGUMENTS = Object.freeze([
-  '--distribution', 'Ubuntu-24.04', '--user', 'snapmeter', '--',
+  '--distribution', 'WarpkeepRunner', '--user', 'warpkeep', '--',
   '/usr/bin/env', '-i', 'LANG=C.UTF-8', 'LC_ALL=C.UTF-8',
-  '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
+  '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
   '/mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-operation-bundle-runtime.mjs',
 ]);
 

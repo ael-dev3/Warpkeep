@@ -14,7 +14,7 @@ import {
 } from '../scripts/local-binding-runtime-core.mjs';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
-const fixedRoot = '/home/snapmeter/.warpkeep/release-preparation-v1';
+const fixedRoot = '/home/warpkeep/.warpkeep/release-preparation-v1';
 
 function workerRequest(profile: 'ptr' | 'genesis002'): Record<string, any> {
   const operation = `${fixedRoot}/runs/binding-${'9'.repeat(32)}`;

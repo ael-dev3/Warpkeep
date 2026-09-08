@@ -9,7 +9,7 @@ import {
   validateLocalBindingWorkerRequest,
 } from '../scripts/local-binding-runtime-core.mjs';
 
-const FIXED_ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
+const FIXED_ROOT = '/home/warpkeep/.warpkeep/release-preparation-v1';
 
 function genesis001WorkerRequest(): Record<string, unknown> {
   const operation = `${FIXED_ROOT}/runs/binding-${'9'.repeat(32)}`;

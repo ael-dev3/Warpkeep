@@ -8,7 +8,7 @@ import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { derivePreparedClosureScannerArchiveFiles } from './local-prepared-closure-scanner-archive.mjs';
 import { assertPreparedClosureScannerNamespace as attest } from './local-prepared-closure-scanner-namespace.mjs';
 
-const ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
+const ROOT = '/home/warpkeep/.warpkeep/release-preparation-v1';
 const TOOLCHAIN = `${ROOT}/toolchain`;
 const DESTINATION = `${TOOLCHAIN}/typescript-7.0.2-linux-x64`;
 const CACHE = `${ROOT}/cache/closure-scanner`;

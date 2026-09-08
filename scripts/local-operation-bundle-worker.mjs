@@ -9,8 +9,8 @@ import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { installLocalBindingNativeTsHooks } from './local-binding-native-ts-hooks.mjs';
 import { verifyLocalBindingBootstrapSource } from './local-binding-runtime-core.mjs';
 
-const NODE_PATH = '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node';
-const RUNS_ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1/runs';
+const NODE_PATH = '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node';
+const RUNS_ROOT = '/home/warpkeep/.warpkeep/release-preparation-v1/runs';
 const MAX_REQUEST = 1024 * 1024;
 const MAX_ARTIFACT = 4 * 1024 * 1024;
 const LANES = new Set(['activation', 'g001', 'g002', 'ptr']);
@@ -79,13 +79,13 @@ function readRequest() {
       || value.packageGraph?.root !== value.sourceRoot
       || value.packageGraph?.entry !== 'scripts/local-operation-bundle-packages.ts'
       || !Array.isArray(value.packageGraph?.modules) || value.packageGraph.modules.length === 0
-      || value.yaml?.root !== '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/yaml-2.9.0/package'
+      || value.yaml?.root !== '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/yaml-2.9.0/package'
       || value.yaml?.entry !== 'dist/index.js' || !Array.isArray(value.yaml?.files)
       || !Array.isArray(value.controls) || value.controls.length === 0
       || !isAbsolute(value.materializationRoot ?? '') || !inside(operationRoot, value.materializationRoot)
       || !new RegExp(`^${value.lane}-[12]$`, 'u').test(relative(operationRoot, cycleRoot))
       || relative(cycleRoot, value.materializationRoot) !== 'source'
-      || value.cacheRoot !== '/home/snapmeter/.warpkeep/release-preparation-v1/cache/operation-bundles'
+      || value.cacheRoot !== '/home/warpkeep/.warpkeep/release-preparation-v1/cache/operation-bundles'
       || value.handoffPath !== join(cycleRoot, 'artifact.mjs')) {
     fail('OPERATION_BUNDLE_WORKER_REQUEST_INVALID');
   }

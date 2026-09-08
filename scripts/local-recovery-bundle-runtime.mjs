@@ -7,7 +7,7 @@ import { captureFixedRecoveryBundleSource, deriveOperationBundlePackageSourceGra
   validateLocalBindingYamlManifest, runLocalBindingBoundedProcess } from './local-binding-runtime-core.mjs';
 import { installLocalBindingNativeTsHooks } from './local-binding-native-ts-hooks.mjs';
 
-const ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
+const ROOT = '/home/warpkeep/.warpkeep/release-preparation-v1';
 const NODE = `${ROOT}/toolchain/node-v22.22.3-linux-x64/bin/node`;
 const PROFILE = 'warpkeep-recovery-bundle-preparation-linux-x64-v1';
 const BUNDLE_PATH = 'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs';

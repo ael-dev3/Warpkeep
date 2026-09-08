@@ -176,7 +176,7 @@ describe('fixed recovery fixture host preflight', () => {
       if (args.includes('/usr/bin/git') && args.at(-1) === '--version') {
         return success('git version 2.43.0\n')
       }
-      if (args.includes('/bin/sh')) return success('Ubuntu-24.04\n')
+      if (args.includes('/bin/sh')) return success('WarpkeepRunner\n')
       throw new Error(`unexpected synthetic boundary: ${JSON.stringify(args)}`)
     })
 
@@ -187,7 +187,7 @@ describe('fixed recovery fixture host preflight', () => {
       profile: 'warpkeep-release-recovery-wsl-host-guest-preflight-v1',
       executableSha256: '27cc8dd52be326e138a89f8889241b1d8c51dd1978b22eb70be77036ccdee3c2',
       wslVersion: '2.7.11.0',
-      distribution: 'Ubuntu-24.04',
+      distribution: 'WarpkeepRunner',
       osReleaseSha256: '01af466feb100306498c86aa6bad1815e33036019aa34d4362c20f374ea5c829',
       kernelReleaseSha256: '600c01e56d5afd93f0ecd74ff4ebb5ef91623d779bbba04388a866c3b581fc92',
       gitSha256: '2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668',

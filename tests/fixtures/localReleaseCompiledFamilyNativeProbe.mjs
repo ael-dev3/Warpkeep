@@ -66,7 +66,7 @@ try {
         if (pinned === undefined || pinned.bytes !== member.byteLength || pinned.sha256 !== member.sha256) {
           throw new Error('LOCAL_RELEASE_COMPILED_PROBE_DEPENDENCY_INVALID');
         }
-        path = join('/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/yaml-2.9.0/package', pinned.path);
+        path = join('/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/yaml-2.9.0/package', pinned.path);
       }
       readLocalBindingBoundedFile(path, {
         maximumBytes: 8 * 1024 * 1024, expectedUid: 1000,

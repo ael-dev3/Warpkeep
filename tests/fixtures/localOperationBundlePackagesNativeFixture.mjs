@@ -14,7 +14,7 @@ import {
 } from '../../scripts/local-binding-runtime-core.mjs';
 import { installLocalBindingNativeTsHooks } from '../../scripts/local-binding-native-ts-hooks.mjs';
 
-const ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
+const ROOT = '/home/warpkeep/.warpkeep/release-preparation-v1';
 const FIXED_CACHE = `${ROOT}/cache/operation-bundles`;
 const YAML_ROOT = `${ROOT}/toolchain/yaml-2.9.0/package`;
 const ESBUILD_SRI = 'sha512-HrJrvZv5ayxBzPfwphOoNzkzOIIlifzk0KJrGK2c8R4+LKpMtpYLQeUdjnwjWv/LZlkH2laZk+4w78pi99D4Vw==';

@@ -40,7 +40,7 @@ function artifact(overrides: Record<string, unknown> = {}) {
     exportNames: ['createSealedRealmsProductionActivationWorkflowRuntime', 'runSealedRealmsProductionActivationOperation'],
     factoryExport: 'createSealedRealmsProductionActivationWorkflowRuntime',
     factoryFailureCode: 'SEALED_REALMS_ACTIVATION_WORKFLOW_INPUT_INVALID',
-    handoffPath: '/home/snapmeter/.warpkeep/release-preparation-v1/runs/operation-bundle-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activation-1/artifact.mjs',
+    handoffPath: '/home/warpkeep/.warpkeep/release-preparation-v1/runs/operation-bundle-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activation-1/artifact.mjs',
     ...overrides,
   };
 }
@@ -67,7 +67,7 @@ describe('fixed Linux operation bundle runtime boundaries', () => {
     const linux = vi.spyOn(process, 'platform', 'get').mockReturnValue('linux');
     const architecture = vi.spyOn(process, 'arch', 'get').mockReturnValue('x64');
     const executable = vi.spyOn(process, 'execPath', 'get').mockReturnValue(
-      '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
+      '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
     );
     const arguments_ = vi.spyOn(process, 'execArgv', 'get').mockReturnValue([]);
     Object.defineProperty(process, 'getuid', { configurable: true, value: () => 1000 });
@@ -432,7 +432,7 @@ async function runMockedProductionOrchestration(scenario: OrchestrationScenario)
     vi.spyOn(process, 'platform', 'get').mockReturnValue('linux'),
     vi.spyOn(process, 'arch', 'get').mockReturnValue('x64'),
     vi.spyOn(process, 'execPath', 'get').mockReturnValue(
-      '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
+      '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
     ),
     vi.spyOn(process, 'execArgv', 'get').mockReturnValue([]),
   ];

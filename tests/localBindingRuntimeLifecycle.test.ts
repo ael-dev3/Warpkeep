@@ -22,7 +22,7 @@ import {
   createGenesis002Fixture,
 } from './fixtures/genesis002LockedSourceBuildFixture';
 
-const FIXED_ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
+const FIXED_ROOT = '/home/warpkeep/.warpkeep/release-preparation-v1';
 
 const boundary = vi.hoisted(() => ({
   request: undefined as Record<string, unknown> | undefined,
@@ -56,7 +56,7 @@ const boundary = vi.hoisted(() => ({
 
 vi.mock('node:fs', async () => {
   const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
-  const compilerVersionRoot = '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v24.19.0-linux-x64';
+  const compilerVersionRoot = '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v24.19.0-linux-x64';
   const compilerBinRoot = `${compilerVersionRoot}/bin`;
   const compilerDirectories = new Set([compilerVersionRoot, compilerBinRoot]);
   const compilerDirectoryState = (path: string) => ({

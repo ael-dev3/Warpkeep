@@ -46,14 +46,14 @@ const currentSnapshotSecurityEligibility = selectCurrentSnapshotSecurityEligibil
 const nativeOwnerAuthorized = process.platform === 'win32' || process.getuid?.() === 1000;
 
 function canonicalWorkerRequest() {
-  const operation = `/home/snapmeter/.warpkeep/release-preparation-v1/runs/binding-${'9'.repeat(32)}`;
+  const operation = `/home/warpkeep/.warpkeep/release-preparation-v1/runs/binding-${'9'.repeat(32)}`;
   return {
     schemaVersion: 1, profile: 'warpkeep-local-binding-worker-v1', nonce: 'a'.repeat(32),
     sourceCommit: '1'.repeat(40), sourceTree: '2'.repeat(40),
     repositoryRoot: `${operation}/source`,
-    dependencyCacheRoot: '/home/snapmeter/.warpkeep/release-preparation-v1/cache/ptr',
+    dependencyCacheRoot: '/home/warpkeep/.warpkeep/release-preparation-v1/cache/ptr',
     materializationRoot: `${operation}/cycle-1/builds`,
-    nodePath: '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
+    nodePath: '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
     cliPath: join(operation, 'cli', 'spacetimedb-cli'),
     handoffPath: `${operation}/cycle-1/handoff/bundle.js`,
     graph: { root: `${operation}/source`, entry: 'scripts/ptr-binding-linux-locked-source-build.ts', modules: [
@@ -61,7 +61,7 @@ function canonicalWorkerRequest() {
         dev: '1', ino: '2', mode: '33152', uid: '1000', nlink: '1', size: '1', mtimeNs: '3', ctimeNs: '4',
       } },
     ] },
-    yaml: { root: '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/yaml-2.9.0/package', entry: 'dist/index.js', files: [
+    yaml: { root: '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/yaml-2.9.0/package', entry: 'dist/index.js', files: [
       { path: 'dist/index.js', mode: 420, bytes: 1, sha256: '4'.repeat(64) },
     ] },
   };
@@ -210,7 +210,7 @@ describe('fixed local PTR binding runtime', () => {
   it('ignores ordinary ambient values but rejects actual preload authority', () => {
     const host = {
       platform: 'linux', arch: 'x64', uid: 1000,
-      execPath: '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
+      execPath: '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
       execArgv: ['--experimental-vm-modules'], nodeOptions: undefined,
       ambient: { HOME: '/hostile/home', PATH: '/hostile/bin', TMPDIR: '/hostile/tmp', SPACETIME_BIN: '/hostile/cli' },
     };
@@ -305,7 +305,7 @@ describe('fixed local PTR binding runtime', () => {
     })).toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_REQUEST_INVALID' }));
     expect(() => validateLocalBindingWorkerRequest({
       ...request,
-      cliPath: '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/spacetime-2.6.1/spacetimedb-cli',
+      cliPath: '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/spacetime-2.6.1/spacetimedb-cli',
     })).toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_REQUEST_INVALID' }));
     expect(() => validateLocalBindingWorkerRequest({ ...request, database: 'production' }))
       .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_REQUEST_INVALID' }));
@@ -316,7 +316,7 @@ describe('fixed local PTR binding runtime', () => {
     const current = {
       ...request,
       profile: 'warpkeep-local-binding-genesis001-current-worker-v1',
-      dependencyCacheRoot: '/home/snapmeter/.warpkeep/release-preparation-v1/cache/genesis002',
+      dependencyCacheRoot: '/home/warpkeep/.warpkeep/release-preparation-v1/cache/genesis002',
       graph: {
         ...request.graph,
         entry: 'scripts/genesis001-current-binding-linux-locked-source-build.ts',
@@ -329,7 +329,7 @@ describe('fixed local PTR binding runtime', () => {
     expect(validateLocalBindingWorkerRequest(current)).toEqual(current);
     for (const mutation of [
       { profile: 'warpkeep-local-binding-genesis001-worker-v1' },
-      { dependencyCacheRoot: '/home/snapmeter/.warpkeep/release-preparation-v1/cache/ptr' },
+      { dependencyCacheRoot: '/home/warpkeep/.warpkeep/release-preparation-v1/cache/ptr' },
       { graph: { ...current.graph, entry: 'scripts/genesis001-binding-linux-locked-source-build.ts' } },
     ]) {
       expect(() => validateLocalBindingWorkerRequest({ ...current, ...mutation }))
@@ -341,7 +341,7 @@ describe('fixed local PTR binding runtime', () => {
     const commit = '1'.repeat(40);
     const tree = '2'.repeat(40);
     const repositoryRoot = '/private/existing-repository';
-    const root = `/home/snapmeter/.warpkeep/release-preparation-v1/runs/binding-${'8'.repeat(32)}/source`;
+    const root = `/home/warpkeep/.warpkeep/release-preparation-v1/runs/binding-${'8'.repeat(32)}/source`;
     const commands: Array<{ cwd: string; args: readonly string[] }> = [];
     const chmod = vi.fn();
     const attest = vi.fn();
@@ -382,7 +382,7 @@ describe('fixed local PTR binding runtime', () => {
     const tree = '2'.repeat(40);
     const input = {
       repositoryRoot: '/private/existing-repository',
-      root: `/home/snapmeter/.warpkeep/release-preparation-v1/runs/binding-${'7'.repeat(32)}/source`,
+      root: `/home/warpkeep/.warpkeep/release-preparation-v1/runs/binding-${'7'.repeat(32)}/source`,
       commit,
       tree,
     };
@@ -458,7 +458,7 @@ describe('fixed local PTR binding runtime', () => {
   });
 
   it('accepts one canonical bounded worker result bound to nonce and handoff', () => {
-    const handoff = '/home/snapmeter/.warpkeep/release-preparation-v1/runs/op/handoff/bundle.js';
+    const handoff = '/home/warpkeep/.warpkeep/release-preparation-v1/runs/op/handoff/bundle.js';
     const result = {
       schemaVersion: 1, profile: 'warpkeep-local-binding-worker-result-v1', nonce: 'a'.repeat(32),
       sourceCommit: '1'.repeat(40), sourceTree: '2'.repeat(40), moduleTreeId: '3'.repeat(40),
@@ -473,7 +473,7 @@ describe('fixed local PTR binding runtime', () => {
   });
 
   it('accepts only the distinct current G001 worker result profile', () => {
-    const handoff = '/home/snapmeter/.warpkeep/release-preparation-v1/runs/op/handoff/bundle.js';
+    const handoff = '/home/warpkeep/.warpkeep/release-preparation-v1/runs/op/handoff/bundle.js';
     const result = {
       schemaVersion: 1, profile: 'warpkeep-local-binding-genesis001-current-worker-result-v1',
       nonce: 'a'.repeat(32), sourceCommit: '1'.repeat(40), sourceTree: '2'.repeat(40),

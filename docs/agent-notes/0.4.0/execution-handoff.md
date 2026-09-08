@@ -5,6 +5,25 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Dedicated local Linux runner
+
+Active local launchers, workers, cache/bootstrap paths and service fixture
+policies now agree on WarpkeepRunner, user warpkeep and /home/warpkeep. Exact
+UID, file modes, executable hashes, attestation and no-clobber checks remain
+unchanged. The separate historical GitHub Actions runner has not been migrated.
+
+Ubuntu 24.04.4 now executes commands as warpkeep UID/GID 1000. Home mode0750
+and private build directories mode0700 are verified; WSL still reports a systemd
+user-session warning. Pinned toolchain setup, fresh attestations, native bundles
+and current-source preparation remain unfinished.
+
+Independent review verified runtime changes are only the intended fixed path,
+account and distro substitutions. Focused local checks passed205 cases; the
+one timing failure passed on an isolated rerun at its original timeout. Seven
+service checks and strict types passed. An archive-based Git-object composition
+test remains unverified because it requires a physical repository. No WSL call
+was substituted into those tests and no native readiness is inferred from them.
+
 ## Preparation receipts reach the recovery candidate
 
 The generation runtime now obtains a signed preparation receipt through the

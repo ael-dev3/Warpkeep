@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildRecoveryWorkflowModule } from './recovery-workflow-bundle-engine.mjs';
 
-const ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
+const ROOT = '/home/warpkeep/.warpkeep/release-preparation-v1';
 let compiler;
 try {
   if (process.platform !== 'linux' || process.arch !== 'x64' || process.getuid?.() !== 1000

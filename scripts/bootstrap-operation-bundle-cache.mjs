@@ -11,7 +11,7 @@ import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { downloadLocalPreparationArchive } from './local-preparation-archive-download.mjs';
 
 const PROFILE = 'warpkeep-operation-bundle-cache-bootstrap-linux-x64-v1';
-const ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
+const ROOT = '/home/warpkeep/.warpkeep/release-preparation-v1';
 const NODE_PATH = `${ROOT}/toolchain/node-v22.22.3-linux-x64/bin/node`;
 const NODE_BYTES = 124819136;
 const NODE_SHA256 = 'e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2';

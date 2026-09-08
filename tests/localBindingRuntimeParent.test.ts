@@ -7,7 +7,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const FIXED_ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
+const FIXED_ROOT = '/home/warpkeep/.warpkeep/release-preparation-v1';
 const boundary = vi.hoisted(() => ({
   physicalRoot: '',
   scenario: 'success',
@@ -23,7 +23,7 @@ const boundary = vi.hoisted(() => ({
 function translated(path: import('node:fs').PathLike): import('node:fs').PathLike {
   if (typeof path !== 'string') return path;
   const normalized = path.replaceAll('\\', '/');
-  const fixed = '/home/snapmeter/.warpkeep/release-preparation-v1';
+  const fixed = '/home/warpkeep/.warpkeep/release-preparation-v1';
   const offset = normalized.endsWith(fixed) ? normalized.length - fixed.length
     : normalized.indexOf(`${fixed}/`);
   if (offset >= 0 && (offset === 0 || /^[A-Za-z]:$/u.test(normalized.slice(0, offset)))) {

@@ -103,7 +103,7 @@ const FIXED_GUEST_ENVIRONMENT_ARGUMENTS = Object.freeze([
   'TZ=UTC',
   'NO_COLOR=1',
   'CI=1',
-  'WSL_DISTRO_NAME=Ubuntu-24.04',
+  'WSL_DISTRO_NAME=WarpkeepRunner',
   'PATH=/usr/bin:/bin:/usr/sbin',
 ])
 const LOWER_HEX_40 = /^[0-9a-f]{40}$/u
@@ -1255,7 +1255,7 @@ export async function preflightFixedWslHostAndGuest(input) {
     const policy = request.policy
     if (
       policy.executable !== FIXED_WSL_EXECUTABLE
-      || policy.distribution !== 'Ubuntu-24.04'
+      || policy.distribution !== 'WarpkeepRunner'
       || policy.executableBytes !== 274_432
       || policy.executableSha256 !== '27cc8dd52be326e138a89f8889241b1d8c51dd1978b22eb70be77036ccdee3c2'
     ) fail()
@@ -1417,7 +1417,7 @@ export async function bootstrapFixedWslToolchain(input) {
     exactPlatformAttestation(request.platform, {
       executableSha256: '27cc8dd52be326e138a89f8889241b1d8c51dd1978b22eb70be77036ccdee3c2',
       wslVersion: '2.7.11.0',
-      distribution: 'Ubuntu-24.04',
+      distribution: 'WarpkeepRunner',
       guestOsReleaseSha256: '01af466feb100306498c86aa6bad1815e33036019aa34d4362c20f374ea5c829',
       guestKernelReleaseSha256: '600c01e56d5afd93f0ecd74ff4ebb5ef91623d779bbba04388a866c3b581fc92',
       gitSha256: '2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668',
@@ -1430,32 +1430,32 @@ export async function bootstrapFixedWslToolchain(input) {
       FIXED_GUEST_BOOTSTRAP_PROGRAM,
       toolchain.bootstrapProgramBytes,
       toolchain.bootstrapProgramSha256,
-      'Ubuntu-24.04',
+      'WarpkeepRunner',
     )
     installFixedGuestProgram(
       'release-recovery-wsl-materialize.mjs',
       FIXED_GUEST_MATERIALIZER_PROGRAM,
       toolchain.materializerProgramBytes,
       toolchain.materializerProgramSha256,
-      'Ubuntu-24.04',
+      'WarpkeepRunner',
     )
     attestFixedGuestProgram(
       FIXED_GUEST_BOOTSTRAP_PROGRAM,
       toolchain.bootstrapProgramBytes,
       toolchain.bootstrapProgramSha256,
-      'Ubuntu-24.04',
+      'WarpkeepRunner',
     )
     attestFixedGuestProgram(
       FIXED_GUEST_MATERIALIZER_PROGRAM,
       toolchain.materializerProgramBytes,
       toolchain.materializerProgramSha256,
-      'Ubuntu-24.04',
+      'WarpkeepRunner',
     )
     const result = exactObject(canonicalJsonCommand(
       FIXED_WSL_EXECUTABLE,
       [
         '--distribution',
-        'Ubuntu-24.04',
+        'WarpkeepRunner',
         '--user',
         'root',
         '--exec',
@@ -1503,13 +1503,13 @@ export async function bootstrapFixedWslToolchain(input) {
         `${FIXED_GUEST_STATE_ROOT}/toolchains/linux-x64.json`,
         '400',
         512 * 1024,
-        'Ubuntu-24.04',
+        'WarpkeepRunner',
       )
       catalogBytes = readFixedGuestArtifact(
         `${FIXED_GUEST_STATE_ROOT}/cache-catalog-v2.json`,
         '400',
         8 * 1024 * 1024,
-        'Ubuntu-24.04',
+        'WarpkeepRunner',
       )
       if (
         sha256(manifestBytes) !== result.manifestSha256

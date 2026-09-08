@@ -25,7 +25,7 @@ import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { runGenesis001NodeBoundedProcess } from './bootstrap-genesis001-local-node-process.mjs';
 
 const PROFILE = 'warpkeep-genesis001-local-node-bootstrap-linux-x64-v1';
-const ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
+const ROOT = '/home/warpkeep/.warpkeep/release-preparation-v1';
 const TOOLCHAIN = `${ROOT}/toolchain`;
 const RUNS = `${ROOT}/runs`;
 const CACHE_PARENT = `${ROOT}/cache`;
@@ -104,8 +104,8 @@ const PROCESS_STDERR_LIMIT = 64 * 1_024;
 const PREPARATION_DIRECTORY_POLICY = Object.freeze([
   Object.freeze({ path: '/', uid: 0, mode: 0o755 }),
   Object.freeze({ path: '/home', uid: 0, mode: 0o755 }),
-  Object.freeze({ path: '/home/snapmeter', uid: 1000, mode: 0o750 }),
-  Object.freeze({ path: '/home/snapmeter/.warpkeep', uid: 1000, mode: 0o700 }),
+  Object.freeze({ path: '/home/warpkeep', uid: 1000, mode: 0o750 }),
+  Object.freeze({ path: '/home/warpkeep/.warpkeep', uid: 1000, mode: 0o700 }),
   Object.freeze({ path: ROOT, uid: 1000, mode: 0o700 }),
   Object.freeze({ path: TOOLCHAIN, uid: 1000, mode: 0o700 }),
   Object.freeze({ path: `${TOOLCHAIN}/node-v22.22.3-linux-x64`, uid: 1000, mode: 0o700 }),
@@ -315,7 +315,7 @@ function selectedPolicy(source) {
   const selected = policy?.nodeReleases?.[VERSION];
   if (policy?.schemaVersion !== 1
       || policy?.profile !== 'warpkeep-release-recovery-wsl-toolchain-source-policy-v1'
-      || policy?.distribution !== 'Ubuntu-24.04'
+      || policy?.distribution !== 'WarpkeepRunner'
       || policy?.platform !== 'linux' || policy?.architecture !== 'x64'
       || selected === null || typeof selected !== 'object'
       || Object.entries(RECORD).some(([key, value]) => selected[key] !== value)) {

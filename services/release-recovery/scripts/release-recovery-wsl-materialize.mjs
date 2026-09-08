@@ -625,7 +625,7 @@ export function validateToolchainManifestBytes(bytes, toolchain, realmCoordinate
     || manifest.profile !== 'warpkeep-release-recovery-wsl-linux-x64-toolchain-v1'
     || manifest.platform !== 'linux'
     || manifest.architecture !== 'x64'
-    || manifest.distribution !== 'Ubuntu-24.04'
+    || manifest.distribution !== 'WarpkeepRunner'
     || manifest.recoveryBuildProfile
       !== 'warpkeep-release-recovery-cross-platform-program-build-v1'
     || manifest.sourcePolicySha256 !== toolchain.sourcePolicySha256
@@ -866,7 +866,7 @@ function buildEnvironment(cleanRoot, nodeExecutable) {
     TZ: 'UTC',
     NO_COLOR: '1',
     CI: '1',
-    WSL_DISTRO_NAME: 'Ubuntu-24.04',
+    WSL_DISTRO_NAME: 'WarpkeepRunner',
     PATH: dirname(nodeExecutable),
   }
   for (const path of [values.HOME, values.XDG_CACHE_HOME, values.XDG_CONFIG_HOME,

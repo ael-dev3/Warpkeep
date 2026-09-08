@@ -55,7 +55,7 @@ export const WSL_EXECUTION_POLICY = Object.freeze({
   executableProductVersion: '10.0.26100.8737',
   executableSha256: '27cc8dd52be326e138a89f8889241b1d8c51dd1978b22eb70be77036ccdee3c2',
   wslVersion: '2.7.11.0',
-  distribution: 'Ubuntu-24.04',
+  distribution: 'WarpkeepRunner',
   guestOsReleaseBytes: 400,
   guestOsReleaseSha256: '01af466feb100306498c86aa6bad1815e33036019aa34d4362c20f374ea5c829',
   guestKernelRelease: '6.18.33.2-microsoft-standard-WSL2\n',

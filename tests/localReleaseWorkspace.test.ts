@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { join } from 'node:path';
 
-const fixedNode = '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node';
+const fixedNode = '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node';
 const profile = 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
 
 afterEach(() => {

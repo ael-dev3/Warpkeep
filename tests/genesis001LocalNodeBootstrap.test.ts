@@ -3,8 +3,8 @@
 import { createHash } from 'node:crypto';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
-const HOME = '/home/snapmeter';
+const ROOT = '/home/warpkeep/.warpkeep/release-preparation-v1';
+const HOME = '/home/warpkeep';
 const WARPKEEP = `${HOME}/.warpkeep`;
 const TOOLCHAIN = `${ROOT}/toolchain`;
 const RUNS = `${ROOT}/runs`;
@@ -25,7 +25,7 @@ const TEST_DRIVER_PLATFORM = process.platform;
 const NATIVE_LANE_ENV = 'WARPKEEP_GENESIS001_NODE_NATIVE_TESTS';
 const NATIVE_LANE_VALUE = process.env[NATIVE_LANE_ENV];
 const NATIVE_LANE_REQUESTED = NATIVE_LANE_VALUE === '1';
-const NATIVE_NODE_UNC = '\\\\wsl.localhost\\Ubuntu-24.04\\home\\snapmeter\\.warpkeep\\release-preparation-v1\\toolchain\\node-v24.19.0-linux-x64\\bin\\node';
+const NATIVE_NODE_UNC = '\\\\wsl.localhost\\WarpkeepRunner\\home\\warpkeep\\.warpkeep\\release-preparation-v1\\toolchain\\node-v24.19.0-linux-x64\\bin\\node';
 
 if (NATIVE_LANE_VALUE !== undefined && !NATIVE_LANE_REQUESTED) {
   throw new Error(`${NATIVE_LANE_ENV}_INVALID`);
@@ -304,7 +304,7 @@ vi.mock('node:https', () => ({
 
 vi.mock('node:os', () => ({ release: () => '6.18.33.2-microsoft-standard-WSL2' }));
 
-function policyBody() { return Buffer.from(JSON.stringify({ schemaVersion: 1, profile: 'warpkeep-release-recovery-wsl-toolchain-source-policy-v1', distribution: 'Ubuntu-24.04', platform: 'linux', architecture: 'x64', nodeReleases: { '24.19.0': RECORD } })); }
+function policyBody() { return Buffer.from(JSON.stringify({ schemaVersion: 1, profile: 'warpkeep-release-recovery-wsl-toolchain-source-policy-v1', distribution: 'WarpkeepRunner', platform: 'linux', architecture: 'x64', nodeReleases: { '24.19.0': RECORD } })); }
 function provenanceBody() { return Buffer.from(`${JSON.stringify({ schemaVersion: 1, profile: 'warpkeep-genesis001-local-node-bootstrap-linux-x64-v1', nodeVersion: '24.19.0', signerFingerprint: FINGERPRINT, publicKeySha256: RECORD.publicKeySha256, shasumsSha256: RECORD.shasumsSha256, signatureSha256: RECORD.signatureSha256, archiveSha256: RECORD.archiveSha256, archiveMemberSha256: RECORD.archiveMemberSha256 })}\n`); }
 function addDirectory(path: string, mode = 0o700, uid = 1000) { boundary.directories.set(path, { mode, uid, ino: boundary.nextIno++, mtimeNs: 1n }); }
 function addFile(path: string, body: Buffer, mode = 0o400, uid = 1000,
@@ -486,7 +486,7 @@ describe('Genesis 001 fixed Node 24 bootstrap', () => {
   });
 
   it.runIf(NATIVE_LANE_REQUESTED)(
-    `native-only (${NATIVE_LANE_ENV}=1; Windows/Ubuntu-24.04 and exact installed Node24 required): rejects a size-correct non-UTF-8 member with the wrong SHA-256`,
+    `native-only (${NATIVE_LANE_ENV}=1; Windows/WarpkeepRunner and exact installed Node24 required): rejects a size-correct non-UTF-8 member with the wrong SHA-256`,
     async () => {
       boundary.files.delete(FINAL_NODE); boundary.directories.delete(FINAL_BIN); boundary.directories.delete(FINAL_VERSION);
       boundary.processScenario = 'wrong-member-hash';
@@ -498,7 +498,7 @@ describe('Genesis 001 fixed Node 24 bootstrap', () => {
   );
 
   it.runIf(NATIVE_LANE_REQUESTED)(
-    `native-only (${NATIVE_LANE_ENV}=1; Windows/Ubuntu-24.04 and exact installed Node24 required): fails a fresh exclusive installation when the full binary cannot be fsynced`,
+    `native-only (${NATIVE_LANE_ENV}=1; Windows/WarpkeepRunner and exact installed Node24 required): fails a fresh exclusive installation when the full binary cannot be fsynced`,
     async () => {
       boundary.files.delete(FINAL_NODE); boundary.directories.delete(FINAL_BIN); boundary.directories.delete(FINAL_VERSION);
       boundary.processScenario = 'fresh-member';

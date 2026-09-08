@@ -1,5 +1,21 @@
 # Release engineering, CI and infrastructure audit
 
+## Dedicated local preparation namespace
+
+The current source selects WSL `WarpkeepRunner`, intended user `warpkeep`
+(UID/GID 1000), and `/home/warpkeep/.warpkeep/release-preparation-v1` across
+local parents/workers and the fixture toolchain policy. Its installation
+completed; after initial connection timeouts, Ubuntu 24.04.4 now runs commands
+as `warpkeep` UID/GID 1000. Home/private directory modes are verified. A systemd
+user-session warning persists; pinned tools, fresh attestations and native
+current-source preparation remain pending.
+No fallback into another project's distro is supported. Existing tool hashes,
+UID/mode checks and private history remain intact. Source/mock verification
+must not be presented as a working guest, regenerated native bundles or a
+migration of the separate registered Actions runner. Use the current
+[local preparation guide](../../operations/0.4.0-local-release-preparation.md);
+the earlier observations below retain their original scope.
+
 Exact `b306eed` includes the Linux preflight, reviewed recovery-policy repair and
 current source guidance. Full native preparation and independent check passed;
 generated-only commit `ba12a7f` integrates the output delta. Clean

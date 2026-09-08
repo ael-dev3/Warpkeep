@@ -14,7 +14,7 @@ import { recoverPreparedReleaseTransaction, recoverPreparedReleaseTransactionUnd
 import { verifyPreparedReleaseCandidateBytes } from './local-release-candidate-verification.mjs';
 import { validateLocalBindingYamlManifest } from './local-binding-runtime-core.mjs';
 
-const ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
+const ROOT = '/home/warpkeep/.warpkeep/release-preparation-v1';
 const RUNS = `${ROOT}/runs`;
 const NODE = `${ROOT}/toolchain/node-v22.22.3-linux-x64/bin/node`;
 const NODE_SHA = 'e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2';

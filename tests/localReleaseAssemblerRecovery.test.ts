@@ -6,7 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { installPreparedReleaseTransaction } from '../scripts/local-release-transaction-install.mjs';
 
-const runtimeRoot = '/home/snapmeter/.warpkeep/release-preparation-v1';
+const runtimeRoot = '/home/warpkeep/.warpkeep/release-preparation-v1';
 const runs = `${runtimeRoot}/runs`;
 const node = `${runtimeRoot}/toolchain/node-v22.22.3-linux-x64/bin/node`;
 const supported = process.platform === 'linux' && process.arch === 'x64'

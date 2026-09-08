@@ -3,11 +3,11 @@ import { existsSync } from 'node:fs';
 
 export const CURRENT_SNAPSHOT_WSL_PATH = 'C:/Windows/System32/wsl.exe';
 const PREPARED_NODE_PATH = [
-  '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain',
+  '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain',
   'node-v22.22.3-linux-x64/bin/node',
 ].join('/');
 const WSL_PREFIX = Object.freeze([
-  '--distribution', 'Ubuntu-24.04', '--user', 'snapmeter', '--',
+  '--distribution', 'WarpkeepRunner', '--user', 'warpkeep', '--',
 ]);
 const CLEAN_PREFIX = Object.freeze([
   '/usr/bin/env', '-i', 'LANG=C.UTF-8', 'LC_ALL=C.UTF-8',

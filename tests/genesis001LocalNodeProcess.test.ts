@@ -9,9 +9,9 @@ import { describe, expect, it } from 'vitest';
 const NATIVE_LANE_ENV = 'WARPKEEP_GENESIS001_NODE_NATIVE_TESTS';
 const NATIVE_LANE_VALUE = process.env[NATIVE_LANE_ENV];
 const NATIVE_LANE_REQUESTED = NATIVE_LANE_VALUE === '1';
-const DISTRIBUTION = 'Ubuntu-24.04';
-const USER = 'snapmeter';
-const BOOTSTRAP_NODE = '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node';
+const DISTRIBUTION = 'WarpkeepRunner';
+const USER = 'warpkeep';
+const BOOTSTRAP_NODE = '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node';
 
 if (NATIVE_LANE_VALUE !== undefined && !NATIVE_LANE_REQUESTED) {
   throw new Error(`${NATIVE_LANE_ENV}_INVALID`);

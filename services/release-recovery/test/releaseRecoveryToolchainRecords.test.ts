@@ -32,7 +32,7 @@ function sourcePolicy(): Record<string, unknown> {
   return {
     schemaVersion: 1,
     profile: 'warpkeep-release-recovery-wsl-toolchain-source-policy-v1',
-    distribution: 'Ubuntu-24.04',
+    distribution: 'WarpkeepRunner',
     platform: 'linux',
     architecture: 'x64',
     recoveryBuildProfile: 'warpkeep-release-recovery-cross-platform-program-build-v1',
@@ -220,7 +220,7 @@ function evidence(policy: any, policySha256: string): Record<string, unknown> {
     profile: 'warpkeep-release-recovery-wsl-linux-x64-toolchain-v1',
     platform: 'linux',
     architecture: 'x64',
-    distribution: 'Ubuntu-24.04',
+    distribution: 'WarpkeepRunner',
     recoveryBuildProfile: policy.recoveryBuildProfile,
     sourcePolicySha256: policySha256,
     hostGuest: { ...policy.hostGuest, platformVerified: true },
@@ -331,6 +331,20 @@ function materializerCatalogEntries(manifest: any): Map<string, Record<string, u
 }
 
 describe('release recovery full toolchain records', () => {
+  it('refuses old-distribution policies and manifests instead of reinterpreting historical evidence', async () => {
+    const records = await import('../scripts/release-recovery-toolchain-records.mjs') as any
+    const policy = sourcePolicy()
+    expect(policy.distribution).toBe('WarpkeepRunner')
+    const policyBytes = Buffer.from(`${JSON.stringify(policy)}\n`)
+    const parsed = records.parseToolchainSourcePolicyBytes(policyBytes)
+    expect(() => records.parseToolchainSourcePolicyBytes(Buffer.from(JSON.stringify({ ...policy, distribution: 'Ubuntu-24.04' }))))
+      .toThrow()
+    const manifest = evidence(policy, digest(policyBytes.toString()))
+    expect(records.validateToolchainEvidence(manifest, parsed, sources())).toEqual(manifest)
+    expect(() => records.validateToolchainEvidence({ ...manifest, distribution: 'Ubuntu-24.04' }, parsed, sources()))
+      .toThrow()
+  })
+
   it('strictly accepts complete source policy and acyclic full evidence', async () => {
     const records = await import('../scripts/release-recovery-toolchain-records.mjs') as any
     const policy = sourcePolicy()

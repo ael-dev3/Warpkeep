@@ -68,7 +68,7 @@ describe('release recovery WSL bootstrap source', () => {
     const wslHarnessPath = `/mnt/${HARNESS_PATH[0]!.toLowerCase()}${HARNESS_PATH
       .slice(2)
       .replaceAll('\\', '/')}`
-    const wslArguments = ['--distribution', 'Ubuntu-24.04']
+    const wslArguments = ['--distribution', 'WarpkeepRunner']
     if (ROOT_LINUX_HARNESS_MODES.has(mode)) {
       wslArguments.push('--user', 'root')
     }

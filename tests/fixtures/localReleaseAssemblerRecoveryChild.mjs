@@ -5,7 +5,7 @@ import { join } from 'node:path';
 const [handle, mode] = process.argv.slice(2);
 if (!/^release-workspace-[a-f0-9]{32}$/u.test(handle)
   || !['audit-sync', 'kill-history-rename'].includes(mode)) throw new Error('FIXTURE_ARGUMENTS_INVALID');
-const operationRoot = join('/home/snapmeter/.warpkeep/release-preparation-v1/runs', handle);
+const operationRoot = join('/home/warpkeep/.warpkeep/release-preparation-v1/runs', handle);
 const history = join(operationRoot, 'prepared-source.history.json');
 const { acquirePreparedReleaseCandidateLock } = await import('../../scripts/local-release-candidate-lock.mjs');
 const originalRename = fs.renameSync;

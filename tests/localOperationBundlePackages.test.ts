@@ -196,9 +196,9 @@ describe('fixed operation bundle compiler packages', () => {
     const repositoryRoot = resolve(import.meta.dirname, '..');
     const linuxRoot = `/mnt/${repositoryRoot[0]!.toLowerCase()}${repositoryRoot.slice(2).replaceAll('\\', '/')}`;
     const result = spawnSync('C:/Windows/System32/wsl.exe', [
-      '--distribution', 'Ubuntu-24.04', '--user', 'snapmeter', '--',
+      '--distribution', 'WarpkeepRunner', '--user', 'warpkeep', '--',
       '/usr/bin/env', '-i', 'LANG=C.UTF-8', 'LC_ALL=C.UTF-8',
-      '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
+      '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
       '--no-warnings', '--experimental-vm-modules',
       `${linuxRoot}/tests/fixtures/localOperationBundlePackagesNativeFixture.mjs`, linuxRoot, scenario,
     ], {encoding: 'utf8', env: {}, maxBuffer: 64 * 1024, timeout: 60000});
@@ -227,9 +227,9 @@ describe('fixed operation bundle compiler packages', () => {
     const linuxRoot = `/mnt/${repositoryRoot[0]!.toLowerCase()}${repositoryRoot.slice(2).replaceAll('\\', '/')}`;
     const fixture = `${linuxRoot}/tests/fixtures/localOperationBundlePackagesNativeFixture.mjs`;
     const result = spawnSync('C:/Windows/System32/wsl.exe', [
-      '--distribution', 'Ubuntu-24.04', '--user', 'snapmeter', '--',
+      '--distribution', 'WarpkeepRunner', '--user', 'warpkeep', '--',
       '/usr/bin/env', '-i', 'LANG=C.UTF-8', 'LC_ALL=C.UTF-8',
-      '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
+      '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
       '--no-warnings', '--experimental-vm-modules', fixture, linuxRoot, scenario,
     ], { encoding: 'utf8', env: {}, maxBuffer: 64 * 1024, timeout: 60_000 });
     expect(result.status, result.stderr).toBe(0);

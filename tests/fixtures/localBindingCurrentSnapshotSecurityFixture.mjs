@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 
 import { localBindingRuntimeTestSeams } from '../../scripts/local-binding-runtime-core.mjs';
 
-const RUNS_ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1/runs';
+const RUNS_ROOT = '/home/warpkeep/.warpkeep/release-preparation-v1/runs';
 const operationRoot = join(RUNS_ROOT, `binding-${randomBytes(16).toString('hex')}`);
 const repositoryRoot = join(operationRoot, 'fixture-repository');
 const ambientRoot = join(operationRoot, 'ambient');

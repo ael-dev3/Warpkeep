@@ -282,7 +282,7 @@ export function validateToolchainSourcePolicy(value) {
   if (
     policy.schemaVersion !== 1
     || policy.profile !== 'warpkeep-release-recovery-wsl-toolchain-source-policy-v1'
-    || policy.distribution !== 'Ubuntu-24.04'
+    || policy.distribution !== 'WarpkeepRunner'
     || policy.platform !== 'linux'
     || policy.architecture !== 'x64'
     || policy.recoveryBuildProfile
@@ -528,7 +528,7 @@ export function validateToolchainEvidence(value, parsedPolicy, sourceCoordinates
     || manifest.profile !== 'warpkeep-release-recovery-wsl-linux-x64-toolchain-v1'
     || manifest.platform !== 'linux'
     || manifest.architecture !== 'x64'
-    || manifest.distribution !== 'Ubuntu-24.04'
+    || manifest.distribution !== 'WarpkeepRunner'
     || manifest.recoveryBuildProfile !== policy.recoveryBuildProfile
     || manifest.sourcePolicySha256 !== parsed.sha256
     || manifest.signaturesVerified !== true

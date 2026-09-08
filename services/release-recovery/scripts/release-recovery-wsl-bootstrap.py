@@ -276,7 +276,7 @@ def validate_source_policy(value: object) -> dict[str, object]:
         policy["schemaVersion"] != 1
         or policy["profile"]
         != "warpkeep-release-recovery-wsl-toolchain-source-policy-v1"
-        or policy["distribution"] != "Ubuntu-24.04"
+        or policy["distribution"] != "WarpkeepRunner"
         or policy["platform"] != "linux"
         or policy["architecture"] != "x64"
         or policy["recoveryBuildProfile"]
@@ -2467,7 +2467,7 @@ def _build_manifest(
         "profile": "warpkeep-release-recovery-wsl-linux-x64-toolchain-v1",
         "platform": "linux",
         "architecture": "x64",
-        "distribution": "Ubuntu-24.04",
+        "distribution": "WarpkeepRunner",
         "recoveryBuildProfile": policy["recoveryBuildProfile"],
         "sourcePolicySha256": parsed["sourcePolicySha256"],
         "hostGuest": {**policy["hostGuest"], "platformVerified": True},
@@ -2559,7 +2559,7 @@ def _validate_manifest_identity(
         != "warpkeep-release-recovery-wsl-linux-x64-toolchain-v1"
         or manifest["platform"] != "linux"
         or manifest["architecture"] != "x64"
-        or manifest["distribution"] != "Ubuntu-24.04"
+        or manifest["distribution"] != "WarpkeepRunner"
         or manifest["recoveryBuildProfile"]
         != parsed["sourcePolicy"]["recoveryBuildProfile"]
         or manifest["sourcePolicySha256"] != parsed["sourcePolicySha256"]
@@ -2882,7 +2882,7 @@ def main() -> None:
         "TZ": "UTC",
         "NO_COLOR": "1",
         "CI": "1",
-        "WSL_DISTRO_NAME": "Ubuntu-24.04",
+        "WSL_DISTRO_NAME": "WarpkeepRunner",
         "PATH": "/usr/bin:/bin:/usr/sbin",
     }
     if (

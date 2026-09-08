@@ -5,7 +5,7 @@ import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { derivePreparedClosureScannerArchiveFiles } from './local-prepared-closure-scanner-archive.mjs';
 
 const REPOSITORY = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const CACHE = '/home/snapmeter/.warpkeep/release-preparation-v1/cache/closure-scanner';
+const CACHE = '/home/warpkeep/.warpkeep/release-preparation-v1/cache/closure-scanner';
 function fail() { throw new Error('LOCAL_PREPARED_CLOSURE_SCANNER_MANIFEST_INVALID'); }
 
 /** Reproducible source inventory derivation, never runtime authority or install.

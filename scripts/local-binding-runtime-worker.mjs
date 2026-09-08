@@ -23,7 +23,7 @@ const STANDALONE_BYTES = 130219584;
 const STANDALONE_SHA256 = 'a9185a737c9b739896c8f51326e1c3aedefba80a0f01def76ce26f358d5c187b';
 const NODE_BYTES = 124819136;
 const NODE_SHA256 = 'e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2';
-const GENESIS001_NODE_PATH = '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v24.19.0-linux-x64/bin/node';
+const GENESIS001_NODE_PATH = '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v24.19.0-linux-x64/bin/node';
 const GENESIS001_NODE_BYTES = 125989464;
 const GENESIS001_NODE_SHA256 = 'bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12';
 const GIT_PATH = '/usr/bin/git';
@@ -350,7 +350,7 @@ function runGenesis002Build(request, lane, materializedRoot, moduleRoot) {
 
 function assertWorkerHost() {
   if (process.argv.length !== 2 || process.platform !== 'linux' || process.arch !== 'x64'
-      || process.getuid?.() !== 1000 || process.execPath !== '/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node'
+      || process.getuid?.() !== 1000 || process.execPath !== '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node'
       || process.env.NODE_OPTIONS || JSON.stringify(process.execArgv) !== JSON.stringify(['--experimental-vm-modules'])) {
     fail('LOCAL_BINDING_WORKER_HOST_INVALID');
   }

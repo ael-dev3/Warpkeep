@@ -2,7 +2,7 @@
 
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const ROOT = '/home/snapmeter/.warpkeep/release-preparation-v1';
+const ROOT = '/home/warpkeep/.warpkeep/release-preparation-v1';
 const NODE_PATH = `${ROOT}/toolchain/node-v22.22.3-linux-x64/bin/node`;
 const CACHE_ROOT = `${ROOT}/cache/operation-bundles`;
 const ORIGINAL_GETUID = Object.getOwnPropertyDescriptor(process, 'getuid');
