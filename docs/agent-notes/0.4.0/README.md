@@ -37,15 +37,14 @@ which records the current checkpoint, preparation, CI and environment details.
   genuine provider/signer authority and production code-replacement integration
   still need completion. An isolated update rehearsal does not supply those credentials
   or establish a release-ready production adapter.
-- **Resume from the verified source and precise CI failure.** The Python bytecode
-  and isolated Keccak dependency corrections are published at `923e024`. Native
-  preparation and independent rebuilding passed there, but candidate tests exposed
-  an obsolete verifier operation list in addition to earlier source pins. The
-  verifier now recognizes the existing update operations; focused tests derive
-  current pins before checking exact membership and rejecting altered authority.
-  Read the [CI and preparation evidence](../../evidence/0.4.0/ci-preparation-failure-baseline.md),
-  then regenerate and verify the complete family from the corrected source.
-  The `923e024` candidate is not an accepted final release family.
+- **Resume from current evidence.** The source-family correction and subsequent
+  recovery work are published; the earlier `923e024` preparation is historical.
+  Native frozen G001/current G002 program-artifact generation and the dedicated
+  PTR cache installer have passed. Signed preparation observation reaches the
+  candidate through its genuine source/private-state owner. The program-hash
+  consumer is reviewed but still needs operation-bundle integration. Follow the
+  [execution handoff](execution-handoff.md) for the active source and exact native
+  run; do not restart old jobs or treat previous candidate artifacts as current.
 - **Preserve each realm's purpose.** Keep G001 progress, access and normal timers
   alongside its agreed admission freeze; keep G002 sealed; use the actual owner's
   isolated PTR for the new playable journey. Read the dated

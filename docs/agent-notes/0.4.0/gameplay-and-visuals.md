@@ -17,6 +17,77 @@ and use the completed improvement on a later journey or project. Read
 [product direction](../../design/warpkeep-direction.md) for the player promise;
 this page keeps precise mechanics, implementation routes and evidence limits.
 
+## September 8 visual foundation and complete reference coverage
+
+At `ebd5fb1`, the owner direction prioritizes a professional mobile visual
+foundation with simple interaction. Preserve the useful existing loop; deeper
+simulation and elaborate editing remain later work. The full Desktop handoff
+reference library informs one coherent Verdant Citadel, rather than a collection
+of imported mechanics or rendering engines.
+
+Published forest grouping and moss/earth terrace tops improve separation between
+buildings and their setting. Matched empty/mature desktop and narrow-mobile views,
+including reduced quality, retained rendering resource counts and had no horizontal
+overflow. Focused scene/dressing tests and types passed. The screenshots use the
+actual Keep04 renderer with synthetic state and software rendering; they do not
+prove physical-phone performance or authenticated owner usability.
+
+The mapping below records lessons from the supplied handoff research, not a new
+live audit of external projects. It retains open art questions rather than claiming
+that every reference has already received final visual acceptance. Abbreviations
+identify actual 0.4 owners: **K** keep composition, **B** building assembly,
+**P** visual profile/camera, **H** scene host/lifecycle, **A** Greater Realm atlas,
+**W** greaterRealmWaterSurface, **U** keep panels and gameplay presentation.
+See the source routing table below for their entry points.
+
+| Reference(s), all preserved from handoff | Existing 0.4 implementation | Visible gap/question | Mobile-conscious application now |
+|---|---|---|---|
+| Owner Astra voxel-engine Reddit | K/A use existing bounded greedy mesher and generated dressing | Meshing exists; surface rhythm and chunky joins still need art review | Refine a few material groups and terrace edges; retain bounded merged faces, no editable terrain |
+| Owner Verdant Forest | K has two tinted, instanced tree bands, 18/12/6 trees by profile | Two repeated rear bands may read as a row rather than layered habitat | Curate gaps, grouped crowns and near/far value separation using the same instance budget |
+| Owner Pelagic Ocean | W now supplies two broad swells, fine ripple, teal/sky accents | Actual atlas-distance highlight scale and calm shoreline still need comparison | Tune existing single-pass slope/color amplitude at matching camera; preserve reduced branch and unchanged wet-cell footprint |
+| Owner Dream Loop + Vesper demo | Representative scene harness and prior 390/600/1440 comparisons already exist | Latest atlas/keep material family lacks one coherent current target and retained critique | Matching-resolution current/target captures, independent concise critique, carry unresolved items; no realism mandate or numerical gate |
+| TUMBLE meadow | K instancing; A feature batching/quality limits | Meadow-to-forest transition and selective quiet areas need composition attention | Sparse authored foreground clumps and one shared motion rhythm only where visible; no wildlife simulation |
+| The Long Silence | H pauses hidden work and respects reduced motion | Constant visual activity can obscure status even without audio | Keep broad quiet regions and finite confirmed-completion emphasis; sound design remains a later opt-in layer |
+| Starfall | Separate scene host, profile and presentation-plan owners | Scene, HUD and selected target need a shared hierarchy at narrow size | Reserve negative space and contrast for selections; retain existing gesture and performance boundaries |
+| Operation Ironhold | U exposes travel/gather/return; atlas owns journey visualization | Journey feedback can compete with terrain rather than read over it | One consistent route/activity accent and phase styling from current state; no new automation mechanics |
+| Three.js Water Pro | W already avoids expensive ocean geometry | Rivers currently share broad water language; directional distinction merits a capture | Restrained directional visual cues for returned river/stream data; no new fluid simulation/reflection stack |
+| Snowflow | A includes Frostmere palette and authoritative regional data | Cold ground can read as a flat biome tint | A few stable pale top-facing/retained-snow groups in presentation only; no weather simulation |
+| Desert Dusky | A Sunscar warm palette and bounded props | Warm regions need silhouette and value hierarchy, not uniform orange | Layer two or three terrain tones, sparse silhouettes and quiet open space using existing geometry |
+| SimonDev material demonstrations | K/P standard materials and directional lighting; A vertex colors | Material response can look uniformly rough/flat | Distinguish masonry, roof and timber through restrained roughness/value changes before adding textures |
+| Procedural Terrains demo + ZyFou engine | A uses authoritative heights/presentation plans and streaming | Large-scale landform readability is more important than local noise | Shape visual bands from existing elevation; precompute display detail, do not replace world geography |
+| three-stylized + stylized-components | K instancing and A batched terrain/features | Grass/ground cover should bridge forms without hiding targets | Study inexpensive instanced silhouettes and coherent wind; do not install whole shader packages by default |
+| Selo Empire | U already distinguishes costs, incoming/confirmed return, Builder busy and benefit | Visual hierarchy across these explanations can still be too text-heavy | Consistent resource icons, spacing and status tone; preserve actual semantics and offline progression, no logistics expansion |
+| Widelands | U separates spendable return from estimates; catalog deficits | “On the way” and available resources need instantly different presentation | Small visual grouping and contextual explanation within existing panels; no economy dashboard |
+| Townscaper | B six families; K 0.45s scale reveal | A level increase may look like a badge/dressing change at overview scale | A restrained family-specific silhouette/material progression pass with fixed footprints; no freeform building system |
+| Tiny Glade | Pale stone, dark timber, teal roofs, warm scaffold light, reused authored assets | Six buildings and ground props must feel like one authored place | Harmonize proportions/material groups and contact with ground; improve only visible details at mobile camera |
+| Red Blob Mapgen4 | A regional colors, river/stream plans, coast cells and chunks | Macro geography may lose priority amid repeated decorative detail | Strengthen river/coast/ridge contrast and selected outlines with current map data; generation stays separate |
+| EZ-Tree | Two existing tree assets, instanced and tinted in K | Repeated crowns offer limited natural variation | First curate transforms/tints; if assets are insufficient, author a tiny offline crown kit with matching low-detail silhouettes and measured payload |
+| InstancedMesh2 | K already uses InstancedMesh; A streams/batches chunks | No evidence yet that per-instance culling improves this workload | Profile existing batches first; retain simple grass/voxel batches, consider medium-prop LOD only if measurements justify it |
+| Razarion | Healthy refresh preserves keep scene; H context/reduced fallback | Returning should show stable place and honest connection state | Polish loading/re-entry visual continuity and subdued stale/refresh badges; no new tutorial or reconnect protocol |
+| A Small World | Deterministic keep dressing and atlas visual plan; W single pass | Biome identity and focal silhouette need current representative comparison | Seeded QA views, curated palettes and quiet backgrounds; selective reflection only after simpler water is visibly insufficient |
+| Dorfromantik | Existing gather/build/return purpose and readable regions | Calm art must still expose the next relevant object | Clear selected-site/route accent, subdued irrelevant terrain, coherent completed-state treatment; no quest system |
+| Luminous Lake | W layered normals/quality branch, no CPU vertex-wave loop | Water tint/highlight relationship remains a material-review task | Borrow tint and broad/fine scale relationship; avoid live cube reflections and per-frame CPU grid deformation |
+| Binary Greedy Meshing v2 | Existing material-aware bounded voxel mesher and generated dressing | Potential edge/precision artifacts should be judged at actual scale | Inspect chunk seams and merged surfaces; no native-throughput comparison or engine rewrite |
+| Grassworks (secondary lead) | Existing grass/feature batching | Dense grass is not automatically useful at strategic scale | Visual study of density gradients only; no WebGPU dependency or unreviewed licensed package |
+| noa (secondary lead) | Warpkeep already owns voxel presentation separately from rules | A replacement engine would expand scope without a visible foundation gain | Study mesher organization only; no Babylon/physics/editable-world migration |
+| Mistwood Cottage (secondary lead) | K diorama and existing prefab loading budgets | Cozy scene density may hide excessive payload | Borrow restrained cottage/vegetation grouping; do not import unreviewed heavy media |
+| Older map/castle/tree/Worker/resource attachments + Warpkeep-Assets | Current loaded prefabs, dressing and atlas assets have existing catalogs | Original image URLs are not all recoverable; fresh authorship must not erase credits | Use cataloged silhouettes and provenance as the starting kit; no guessed URLs or relabeling reused models |
+
+### Background reference applications
+
+| Group | How it informs this foundation |
+|---|---|
+| Tectonic structure DOI13614; uplift/fluvial erosion DOI12820; Priority-Flood DOI2013.04.024; tile erosion arXiv2210.14496 | Background for coherent relief/drainage. Current atlas data remains authority; use it to organize visual landforms, not introduce live erosion. |
+| Crytek height-fog course; Three WebGPU manual/API and TSL | Atmospheric depth and rendering-architecture research. Current WebGL/standard-material/reduced path is real; do not require a WebGPU migration for art polish. |
+| FFXIV chat tabs; Fortnite chat/reporting; Minecraft reporting/1.19.1/accessibility; Forge of Empires chat/reporting; Travian interaction/reporting | Historical communication/accessibility context. Apply legible labels, contrast, target sizes and calm hierarchy now. Chat channels, moderation/reporting flows and social mechanics are not new visual-foundation tasks. |
+
+
+The forest rows' proposed grouping and the terrace separation pass are now
+implemented at the checkpoint above. Further work should concentrate on building
+proportions, coherent material response, geographic hierarchy, selected-site and
+construction views, loading/resume behavior and actual-device measurements.
+Avoid repeating the completed forest/terrace changes as unfinished work.
+
 ## Current state at a glance
 
 The September 8 keep-to-atlas navigation correction preserves the specific Worker
