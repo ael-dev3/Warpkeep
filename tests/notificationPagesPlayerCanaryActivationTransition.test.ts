@@ -223,7 +223,8 @@ describe('notification Pages player-canary activation transition', () => {
       candidatePagesSourceCommit: c7,
       activationAuthority: Object.freeze({}),
     })).toThrow('PRODUCTION_PLAYER_CANARY_ACTIVATION_AUTHORITY_REQUIRED');
-  }, 30_000);
+  // Both committed trees contain the full generated source inventory.
+  }, 60_000);
 
   it('rejects missing/extra paths and identity, gate, or binding decoys', () => {
     const transition = fixture();
@@ -262,5 +263,5 @@ describe('notification Pages player-canary activation transition', () => {
         transition.sources['scripts/production-player-canary-release-binding.mjs']
           .replace(transition.c6, HEAD),
     });
-  });
+  }, 60_000);
 });

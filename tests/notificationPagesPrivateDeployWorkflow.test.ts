@@ -5,6 +5,8 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
+import { classifySealedLaunchPagesSources, SEALED_LAUNCH_SOURCE_PATHS } from
+  '../scripts/verify-0.4.0-sealed-launch.mjs';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
 const workflowPath = resolve(repositoryRoot, '.github/workflows/deploy-pages.yml');
@@ -80,9 +82,11 @@ describe('notification Pages private deployment workflow', () => {
     const privateToolchain = job(source, 'private-toolchain', 'private-deploy');
     const privateDeploy = job(source, 'private-deploy');
 
-    expect(verifier).toContain(
-      "return result.phase === 'activation' ? 'sealed-g002' : 'sealed-launch-blocked';",
+    const selectedSources = Object.fromEntries(
+      Object.entries(SEALED_LAUNCH_SOURCE_PATHS).map(([key, path]) =>
+        [key, readFileSync(resolve(repositoryRoot, path), 'utf8')]),
     );
+    expect(classifySealedLaunchPagesSources(selectedSources)).toBe('sealed-launch-blocked');
     expect(classify).not.toMatch(
       /(?:actions\/(?:upload|deploy)-pages|environment:|pages:\s*write|id-token:\s*write|secrets\.|npm ci)/u,
     );

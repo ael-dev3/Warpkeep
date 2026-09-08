@@ -394,8 +394,12 @@ describe('local prepared bundle files', () => {
       input.entryDeclarations.set(declarationPath(SPECS.activation.entryPath),
         Uint8Array.from([0xc3, 0x28]));
     }],
-    ['rejects CR declaration bytes', input => replaceDeclaration(input, 'activation',
-      source => source.replace('\n', '\r\n'))],
+    ['rejects CR declaration bytes', input => replaceDeclaration(input, 'activation', source => {
+      const firstLf = source.indexOf('\n');
+      expect(firstLf).toBeGreaterThanOrEqual(0);
+      // One mixed line ending is sufficient corruption; retain the other lines.
+      return `${source.slice(0, firstLf)}\r${source.slice(firstLf)}`;
+    })],
     ['rejects NUL declaration bytes', input => replaceDeclaration(input, 'activation',
       source => `${source}\0`)],
     ['rejects additional external declaration imports', input => replaceDeclaration(input,

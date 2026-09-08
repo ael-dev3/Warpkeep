@@ -119,10 +119,8 @@ function setFixtureMode(path: string, mode: number): void {
     chmodSync(path, mode);
     return;
   }
-  const result = spawnSync(bashExecutable, [
-    '--noprofile', '--norc', '-c', 'chmod "$2" "$1"', 'bash',
-    path,
-    mode.toString(8),
+  const result = spawnSync(join(gitForWindowsDirectory, 'usr', 'bin', 'chmod.exe'), [
+    mode.toString(8), '--', path,
   ], { encoding: 'utf8' });
   if (result.status !== 0 || result.signal !== null) {
     throw new Error(`failed to set fixture mode for ${path}`);
@@ -131,8 +129,8 @@ function setFixtureMode(path: string, mode: number): void {
 
 function fixtureMode(path: string): number {
   if (process.platform !== 'win32') return statSync(path).mode & 0o777;
-  const result = spawnSync(bashExecutable, [
-    '--noprofile', '--norc', '-c', '/usr/bin/stat -c %a -- "$1"', 'bash', path,
+  const result = spawnSync(join(gitForWindowsDirectory, 'usr', 'bin', 'stat.exe'), [
+    '-c', '%a', '--', path,
   ], { encoding: 'utf8' });
   if (result.status !== 0 || result.signal !== null) {
     throw new Error(`failed to read fixture mode for ${path}`);

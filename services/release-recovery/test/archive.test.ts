@@ -805,8 +805,10 @@ describe('Pages recovery archive validator', () => {
     const oversizedTar = concat(tarFile(ATTESTATION_PATH, oversized), new Uint8Array(1024))
     await expect(inspect(oversizedTar)).rejects.toThrowError('RECOVERY_GITHUB_ARCHIVE_INVALID')
     const text = new TextDecoder().decode(attestation)
+    expect(text[0]).toBe('{')
     for (const raw of [
-      text.replace('{', '{"schemaVersion":1,'),
+      // Deliberately duplicate one root key; preserve every nested object byte.
+      `{"schemaVersion":1,${text.slice(1)}`,
       text.replace(/\}$/u, ',"extra":null}'),
       ` ${text}`,
       text.replace('"profile"', '"movedProfile"').replace('"warpkeep-deployment-attestation-v1"', '"profile":"warpkeep-deployment-attestation-v1"'),

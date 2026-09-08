@@ -58,7 +58,12 @@ it('uses the newly expanded literal inventory, including all nine synthetic bund
       `scripts/sealed-realms-production-${lane}-lane.bundle.${suffix}`)),
     'scripts/sealed-realms-production-bundle-manifest-v1.json',
   ];
-  const paths = [...AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS, ...bundles].sort();
+  // Current source already contains the generated family. Model the prior
+  // inventory explicitly, then add the nine new members exactly once.
+  const baseline = AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS
+    .filter(path => !bundles.includes(path));
+  const paths = [...baseline, ...bundles].sort();
+  expect(new Set(paths).size).toBe(paths.length);
   const verifier = state.files.find(file => file.path === verifierPath)!;
   verifier.bytes = Buffer.from(Buffer.from(verifier.bytes).toString().replace(
     /^export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =\r?\n  Object\.freeze\(\[\r?\n(?:    '[A-Za-z0-9._/-]+',\r?\n)+  \]\);/gm,
@@ -78,6 +83,19 @@ it('uses the newly expanded literal inventory, including all nine synthetic bund
   for (const path of bundles) expect(manifest.members.some((member: { path: string }) => member.path === path)).toBe(true);
   // The coordinator owns read buffers, never the actual working files.
   expect(readFileSync(resolve(root, verifierPath)).length).toBeGreaterThan(0);
+});
+it('rejects duplicate members instead of silently deduplicating the generated inventory', async () => {
+  fixture();
+  const paths = [...AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS,
+    AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS[0]!].sort();
+  const verifier = state.files.find(file => file.path === verifierPath)!;
+  verifier.bytes = Buffer.from(Buffer.from(verifier.bytes).toString().replace(
+    /^export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =\r?\n  Object\.freeze\(\[\r?\n(?:    '[A-Za-z0-9._/-]+',\r?\n)+  \]\);/gm,
+    `export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =\n  Object.freeze([\n${paths.map(path => `    '${path}',\n`).join('')}  ]);`,
+  ));
+  state.count = paths.length;
+  await expect(derivePreparedClosureFamily({ repositoryRoot: root })).rejects.toThrow('LOCAL_PREPARED_CLOSURE_FAMILY_INVALID');
+  expect(state.files.every(file => file.bytes.every(byte => byte === 0))).toBe(true);
 });
 it('converges across all fifteen source/pin/test/manifest/workflow outputs using a read-overlay fixture', async () => {
   fixture();

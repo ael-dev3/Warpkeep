@@ -22,10 +22,13 @@ it('parses exact deploy control and preserves every arming field', () => {
   expect(parseSignerControl({ ...config(), RECOVERY_ENABLED: 'true' }).enabled).toBe(true)
 })
 it('rejects coercion, epoch mismatch, duplicate manifest keys and missing authority', () => {
+  const manifest = config().RECOVERY_ARMING_MANIFEST
+  expect(manifest[0]).toBe('{')
   for (const change of [ { RECOVERY_ENABLED: 'TRUE' }, { RECOVERY_ENABLED: true },
     { RECOVERY_AUTHORIZATION_EPOCH: '03' }, { RECOVERY_AUTHORIZATION_EPOCH: '4' },
     { RECOVERY_AUTHORIZATION_EPOCH: '9007199254740992' }, { RECOVERY_ARMING_MANIFEST: '{}' },
-    { RECOVERY_ARMING_MANIFEST: config().RECOVERY_ARMING_MANIFEST.replace('{', '{"authorizationEpoch":3,') },
+    // Duplicate only the root field, without changing any nested JSON.
+    { RECOVERY_ARMING_MANIFEST: `{"authorizationEpoch":3,${manifest.slice(1)}` },
     { RECOVERY_ARMING_MANIFEST: 'x'.repeat(32769) }, { extra: 'secret' } ]) {
     expect(() => parseSignerControl({ ...config(), ...change })).toThrow('RECOVERY_SIGNER_CONTROL_INVALID')
   }

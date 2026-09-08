@@ -104,10 +104,12 @@ it('samples authorization expiry after the producer finishes', async () => {
 });
 it('rejects malformed, noncanonical and oversized private envelopes', async () => {
   const envelope = inputEnvelope();
+  const canonical = JSON.stringify(envelope);
+  expect(canonical[0]).toBe('{');
   for (const source of ['', 'private-sentinel', 'A'.repeat(2162689), JSON.stringify(envelope, null, 2),
     `\ufeff${JSON.stringify(envelope)}`, JSON.stringify({ ...envelope, now: 1100 }),
     JSON.stringify(Object.fromEntries(Object.entries(envelope).reverse())),
-    JSON.stringify(envelope).replace('{', '{"authorizationJws":"private-sentinel",')]) {
+    `{"authorizationJws":"private-sentinel",${canonical.slice(1)}`]) {
     const input = Readable.from([Buffer.from(source)]);
     await expect(verifyInput(input)).rejects.toThrowError(/^RECOVERY_AUTHORIZATION_INVALID$/);
     expect(input.destroyed).toBe(true);

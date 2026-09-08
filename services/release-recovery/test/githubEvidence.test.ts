@@ -1246,9 +1246,16 @@ describe('GitHub candidate evidence', () => {
   })
 
   it.each([
-    ['CRLF', (wire: string) => wire.replace('\n', '\r\n')],
+    ['CRLF', (wire: string) => {
+      expect(wire[60]).toBe('\n')
+      // Corrupt only the first 60-column line ending, retaining later LF bytes.
+      return `${wire.slice(0, 60)}\r${wire.slice(60)}`
+    }],
     ['space', (wire: string) => `${wire.slice(0, 10)} ${wire.slice(11)}`],
-    ['blank line', (wire: string) => wire.replace('\n', '\n\n')],
+    ['blank line', (wire: string) => {
+      expect(wire[60]).toBe('\n')
+      return `${wire.slice(0, 60)}\n${wire.slice(60)}`
+    }],
     ['irregular nonfinal width', (wire: string) => `${wire.replace(/\n/gu, '').slice(0, 59)}\n${wire.replace(/\n/gu, '').slice(59)}\n`],
     ['missing final LF', (wire: string) => wire.slice(0, -1)],
     ['extra final LF', (wire: string) => `${wire}\n`],

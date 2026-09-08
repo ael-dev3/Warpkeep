@@ -254,11 +254,12 @@ it('issues through real ledger and crypto, retries retained bytes with fresh ide
 
 it('rejects equal decoded secrets, malformed encoding, duplicate JSON, extra keys and mismatched key material', async () => {
   const { validateSignerSecrets, input, privateJwk } = await fixture()
+  expect(input.RECOVERY_SIGNING_PRIVATE_JWK[0]).toBe('{')
   const cases: unknown[] = [
     { ...input, RELEASE_RECOVERY_RPC_SECRET: privateJwk.d },
     { ...input, RELEASE_RECOVERY_RPC_SECRET: input.RELEASE_RECOVERY_RPC_SECRET + '=' },
     { ...input, RELEASE_RECOVERY_RPC_SECRET: 'A'.repeat(42) + 'B' },
-    { ...input, RECOVERY_SIGNING_PRIVATE_JWK: input.RECOVERY_SIGNING_PRIVATE_JWK.replace('{', '{"d":"duplicate",') },
+    { ...input, RECOVERY_SIGNING_PRIVATE_JWK: `{"d":"duplicate",${input.RECOVERY_SIGNING_PRIVATE_JWK.slice(1)}` },
     { ...input, RECOVERY_SIGNING_PRIVATE_JWK: JSON.stringify({ ...privateJwk, d: input.RELEASE_RECOVERY_RPC_SECRET }) },
     { ...input, RECOVERY_SIGNING_PRIVATE_JWK: JSON.stringify({ ...privateJwk, x: input.RELEASE_RECOVERY_RPC_SECRET }) },
     { ...input, RECOVERY_SIGNING_PRIVATE_JWK: ' '.repeat(4097) },

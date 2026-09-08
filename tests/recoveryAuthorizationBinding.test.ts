@@ -94,8 +94,9 @@ it.each(['duplicate', 'reordered', 'compact', 'missing-newline', 'extra', 'malfo
   'rejects noncanonical document: %s', variant => {
     const input = projection();
     const canonical = `${JSON.stringify(input, null, 2)}\n`;
+    expect(canonical[0]).toBe('{');
     const documents: Record<string, string> = {
-      duplicate: canonical.replace('{', '{"schemaVersion":null,'),
+      duplicate: `{"schemaVersion":null,${canonical.slice(1)}`,
       reordered: `${JSON.stringify(Object.fromEntries(Object.entries(input).reverse()), null, 2)}\n`,
       compact: JSON.stringify(input),
       'missing-newline': canonical.trimEnd(),

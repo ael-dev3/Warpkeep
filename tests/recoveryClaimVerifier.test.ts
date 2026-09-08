@@ -154,9 +154,11 @@ it('terminates an incomplete private envelope after five seconds', async () => {
 });
 it('rejects duplicate, reordered, BOM-prefixed and noncanonical envelope bytes', async () => {
   const envelope = { claimReceiptJws: token(), expectedSource: JSON.stringify(expected()) };
+  const canonical = JSON.stringify(envelope);
+  expect(canonical[0]).toBe('{');
   for (const source of [JSON.stringify(envelope, null, 2), `\ufeff${JSON.stringify(envelope)}`,
     JSON.stringify({ expectedSource: envelope.expectedSource, claimReceiptJws: envelope.claimReceiptJws }),
-    JSON.stringify(envelope).replace('{', '{"claimReceiptJws":"private-sentinel",')]) {
+    `{"claimReceiptJws":"private-sentinel",${canonical.slice(1)}`]) {
     await expect(verifyInput(Readable.from([Buffer.from(source)]))).rejects.toThrow('RECOVERY_CLAIM_INVALID');
   }
 });

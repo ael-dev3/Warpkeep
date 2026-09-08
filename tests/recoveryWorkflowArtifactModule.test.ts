@@ -39,13 +39,13 @@ it('builds repeatable module bytes and loads in a separate native Node process',
     symlinkSync(resolve('scripts'), join(root, 'scripts'), process.platform === 'win32' ? 'junction' : 'dir');
     const directory = join(root, 'services/release-recovery/scripts'); mkdirSync(directory, { recursive: true });
     const output = join(directory, 'read-recovery-workflow-artifact.bundle.mjs'); writeFileSync(output, first.bytes);
-    const program = `const m = await import(${JSON.stringify(pathToFileURL(output).href)});
+    const program = `const m = await import(process.argv[1]);
       if (Object.keys(m).join(',') !== 'readRecoveryWorkflowArtifact') throw new Error('EXPORTS');
       globalThis.fetch = () => { throw new Error('NETWORK_MUST_NOT_RUN'); };
       try { await m.readRecoveryWorkflowArtifact({ override: true }); throw new Error('ACCEPTED'); }
       catch (e) { if (e.message !== 'RECOVERY_WORKFLOW_ARTIFACT_INVALID') throw e; }
       process.stdout.write('native-module-ok');`;
-    const child = spawnSync(process.execPath, ['--input-type=module', '--eval', program], {
+    const child = spawnSync(process.execPath, ['--input-type=module', '--eval', program, pathToFileURL(output).href], {
       cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 32768,
       env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot }, windowsHide: true });
     expect(child.status, child.stderr).toBe(0); expect(child.stdout).toBe('native-module-ok');
@@ -64,12 +64,12 @@ it('packages claim preparation for native import without running authority reque
     const directory = join(root, 'services/release-recovery/scripts'); mkdirSync(directory, { recursive: true });
     const output = join(directory, 'prepare-recovery-workflow-claim.bundle.mjs'); writeFileSync(output, first.bytes);
     const program = `import assert from 'node:assert/strict';
-      const m = await import(${JSON.stringify(pathToFileURL(output).href)});
+      const m = await import(process.argv[1]);
       assert.deepEqual(Object.keys(m), ['prepareRecoveryWorkflowClaim']);
       globalThis.fetch = () => { throw new Error('NETWORK_MUST_NOT_RUN'); };
       await assert.rejects(m.prepareRecoveryWorkflowClaim({ override: true }), {message: 'RECOVERY_WORKFLOW_CLAIM_PREPARATION_INVALID'});
       process.stdout.write('native-claim-module-ok');`;
-    const child = spawnSync(process.execPath, ['--input-type=module', '--eval', program], {
+    const child = spawnSync(process.execPath, ['--input-type=module', '--eval', program, pathToFileURL(output).href], {
       cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 32768, windowsHide: true,
       env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot } });
     expect(child.status, child.stderr).toBe(0); expect(child.stdout).toBe('native-claim-module-ok');
@@ -82,9 +82,24 @@ it('ingests a real compressed fixture through the compiled parser in a native ch
     const scripts = join(root, 'scripts'); mkdirSync(scripts);
     // Only independently tested source/API/dist boundaries are synthetic here.
     // The compiled download transport, ZIP/TAR parser and digest comparisons are real.
-    writeFileSync(join(scripts, 'recovery-workflow-run-context.mjs'), `export async function readRecoveryWorkflowArtifactMetadata() { return ${JSON.stringify(fixture.metadata)}; }`);
-    writeFileSync(join(scripts, 'recovery-attestation-source.mjs'), `export function readRecoveryAttestationSource() { return ${JSON.stringify(fixture.identity)}; }`);
-    writeFileSync(join(scripts, 'generate-warpkeep-deployment-attestation.mjs'), `export function verifyWarpkeepDeploymentAttestation() { return ${JSON.stringify({ deploymentAttestationSha256: fixture.expected.deploymentAttestationSha256, contentManifestSha256: fixture.expected.contentManifestSha256 })}; }`);
+    writeFileSync(join(scripts, 'native-artifact-fixture.json'), JSON.stringify({
+      metadata: fixture.metadata, identity: fixture.identity,
+      attestation: { deploymentAttestationSha256: fixture.expected.deploymentAttestationSha256,
+        contentManifestSha256: fixture.expected.contentManifestSha256 },
+    }));
+    // Synthetic values remain JSON data; module source is fixed executable code.
+    writeFileSync(join(scripts, 'recovery-workflow-run-context.mjs'), `import { readFileSync } from 'node:fs';
+      export async function readRecoveryWorkflowArtifactMetadata() {
+        return JSON.parse(readFileSync(new URL('./native-artifact-fixture.json', import.meta.url), 'utf8')).metadata;
+      }`);
+    writeFileSync(join(scripts, 'recovery-attestation-source.mjs'), `import { readFileSync } from 'node:fs';
+      export function readRecoveryAttestationSource() {
+        return JSON.parse(readFileSync(new URL('./native-artifact-fixture.json', import.meta.url), 'utf8')).identity;
+      }`);
+    writeFileSync(join(scripts, 'generate-warpkeep-deployment-attestation.mjs'), `import { readFileSync } from 'node:fs';
+      export function verifyWarpkeepDeploymentAttestation() {
+        return JSON.parse(readFileSync(new URL('./native-artifact-fixture.json', import.meta.url), 'utf8')).attestation;
+      }`);
     writeFileSync(join(scripts, 'local-binding-bounded-file.mjs'), `export function readLocalBindingBoundedFile() { return {body: Buffer.from('test-binding')}; }`);
     const directory = join(root, 'services/release-recovery/scripts'); mkdirSync(directory, { recursive: true });
     const output = join(directory, 'read-recovery-workflow-artifact.bundle.mjs'); writeFileSync(output, built.bytes);
@@ -92,7 +107,7 @@ it('ingests a real compressed fixture through the compiled parser in a native ch
       import {readFileSync} from 'node:fs';
       process.on('uncaughtException', error => { process.stderr.write(error.message); process.exitCode = 1; });
       const fixture = JSON.parse(readFileSync(0, 'utf8'));
-      const {readRecoveryWorkflowArtifact: read} = await import(${JSON.stringify(pathToFileURL(output).href)});
+      const {readRecoveryWorkflowArtifact: read} = await import(process.argv[1]);
       const target = 'https://results-receiver.actions.githubusercontent.com/test-artifact.zip';
       let calls = 0, corrupt = false;
       globalThis.fetch = async (url, init) => {
@@ -115,7 +130,7 @@ it('ingests a real compressed fixture through the compiled parser in a native ch
       corrupt = true;
       await assert.rejects(read(), {message: 'RECOVERY_WORKFLOW_ARTIFACT_INVALID'});
       assert.equal(calls, 4); process.stdout.write('native-archive-ok');`;
-    const child = spawnSync(process.execPath, ['--input-type=module', '--eval', program], {
+    const child = spawnSync(process.execPath, ['--input-type=module', '--eval', program, pathToFileURL(output).href], {
       cwd: root, input: JSON.stringify({ zip: fixture.zip.toString('base64'), expected: fixture.expected }),
       encoding: 'utf8', timeout: 10000, maxBuffer: 32768, windowsHide: true,
       env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, GITHUB_TOKEN: 'test-only-token' } });
