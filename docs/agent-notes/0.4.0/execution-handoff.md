@@ -26,7 +26,7 @@ or completed protected workflow from registration alone.
 
 ## Linux G001 protected closure — September 9
 
-The published Windows/GitHub checkpoint `051a189` now names and verifies the
+The published Windows/GitHub checkpoint `5c210ce` now names and verifies the
 complete Linux G001 spawned-program family in the protected source closure:
 launcher, materializer, child, policy boundary, receipt codecs, runtime
 helpers, YAML manifest, synthetic G002 entry, workflow evidence codec and
