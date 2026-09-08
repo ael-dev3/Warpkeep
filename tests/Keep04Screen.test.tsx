@@ -6,7 +6,7 @@ import { Keep04Screen, type Keep04UiSelection } from '../src/components/keep04/K
 import type { Controller04, Snapshot04 } from '../src/ptr/gameplay04/createGameplay04Controller';
 import { presentState04 } from '../src/ptr/gameplay04/gameplay04Presentation';
 import { decodeState04 } from '../src/ptr/gameplay04/gameplay04State';
-import { ATLAS04, SCOPE04, freshWire04, assignmentWire04, constructingWire04 } from './fixtures/gameplay04Client';
+import { ATLAS04, SCOPE04, freshWire04, assignmentWire04, constructingWire04, wireWithBuilding04 } from './fixtures/gameplay04Client';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 function setup(wire = freshWire04(), phase: Snapshot04['phase'] = 'ready') {
@@ -91,6 +91,22 @@ it('requests resources for the worker named on its card without submitting a com
   fireEvent.click(screen.getByRole('button', { name: 'Find resources for Worker 3' }));
   expect(find).toHaveBeenCalledWith(null, 2);
   expect(controller.submit).not.toHaveBeenCalled();
+});
+
+it('keeps the construction estimate in the building card and waits for confirmed completion', () => {
+  vi.useFakeTimers(); vi.setSystemTime(100_001);
+  const wire = constructingWire04();
+  const { controller, snapshot, rerender } = setup(wire); openMill();
+  const card = () => within(screen.getByRole('article', { name: 'City Mill' }));
+  expect(card().getByText('20 s')).toBeVisible();
+  act(() => { vi.advanceTimersByTime(20_000); });
+  expect(card().getByText('Awaiting Realm update')).toBeVisible();
+  expect(card().getByText('Under construction')).toBeVisible();
+  expect(controller.submit).not.toHaveBeenCalled();
+  const completed = wireWithBuilding04('city-mill', 1); completed.revision = wire.revision + 1n;
+  rerender({ ...snapshot, view: presentState04(decodeState04(completed, SCOPE04), ATLAS04, Date.now()) });
+  expect(card().queryByText('Awaiting Realm update')).not.toBeInTheDocument();
+  expect(card().getByText('Completed level 1')).toBeVisible();
 });
 
 it('keeps the Builder busy after estimated zero and never finishes from the UI clock', () => {

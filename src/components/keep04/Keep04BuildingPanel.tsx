@@ -4,6 +4,7 @@ import type { Placement04 } from '../../../spacetimedb/gameplay04/placement';
 import { buildingBenefit04, buildingDeficits04, quoteBuilding04, type View04 } from '../../ptr/gameplay04/gameplay04Presentation';
 import type { BuildQuote04 } from '../../ptr/gameplay04/ptrGameplay04Types';
 import type { Snapshot04 } from '../../ptr/gameplay04/createGameplay04Controller';
+import { estimatedTime04 } from './Keep04WorkerPanel';
 
 export const BUILDING_NAMES04: Readonly<Record<Building04, string>> = Object.freeze({
   'city-mill': 'City Mill', 'lumber-camp': 'Lumber Camp', 'city-stoneworks': 'City Stoneworks',
@@ -14,7 +15,8 @@ const KINDS04 = Object.keys(BUILDING_NAMES04) as Building04[];
 const costText = (cost: Cost04) => RESOURCES04.filter(resource => cost[resource] > 0n).map(resource => `${resource} ${cost[resource]}`).join(' · ');
 const secondsText = (micros: bigint) => `${Number(micros) / 1_000_000} s`;
 
-export function Keep04BuildingPanel({ view, selectedKind, draft, enabled, problem, onSelect, onConfirm, onCancelDraft, onFindResources, onViewSite, reviewHeadingRef }: Readonly<{
+export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedKind, draft, enabled, problem, onSelect, onConfirm, onCancelDraft, onFindResources, onViewSite, reviewHeadingRef }: Readonly<{
+  nowMs?: number;
   view: View04; selectedKind: Building04 | null; draft: Placement04 | null; enabled: boolean; problem: Snapshot04['problem'];
   onSelect: (kind: Building04) => void; onConfirm: (quote: BuildQuote04) => void;
   onCancelDraft: () => void; onFindResources: (resource: Resource04) => void;
@@ -67,7 +69,9 @@ export function Keep04BuildingPanel({ view, selectedKind, draft, enabled, proble
     return <article key={kind} aria-label={BUILDING_NAMES04[kind]} className="keep04-card" data-selected={selectedKind === kind}>
       <button type="button" aria-pressed={selectedKind === kind} onClick={() => onSelect(kind)}>{BUILDING_NAMES04[kind]}</button>
       <p className="keep04-badge">{level > 0 ? `Completed level ${level}` : project ? 'Under construction' : 'Not built'}</p>
-      {project ? <p>Building level {project.targetLevel}</p> : maximum ? <p>Maximum level</p> : <>
+      {project ? <><p>Building level {project.targetLevel}</p>
+        <p>Estimated build time: <span>{estimatedTime04(project.completesAtMicros, nowMs)}</span></p>
+      </> : maximum ? <p>Maximum level</p> : <>
         <p>Cost: {costText(buildingCost04(kind, level + 1))}</p>
         <p>Build duration: {secondsText(buildingDuration04(level + 1, levels))}</p>
       </>}

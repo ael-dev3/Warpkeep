@@ -172,7 +172,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
             ? <Keep04WorkerPanel view={view} enabled={ready} nowMs={nowMs} onFindResources={onFindResources} onRecall={ordinal => {
               if (view.atlas) void controller.submit({ kind: 'recall', workerOrdinal: ordinal, atlasRevision: view.atlas.revision });
             }} />
-            : <Keep04BuildingPanel view={view} selectedKind={selection.selectedKind} draft={selection.draft} enabled={ready} problem={problem}
+            : <Keep04BuildingPanel view={view} nowMs={nowMs} selectedKind={selection.selectedKind} draft={selection.draft} enabled={ready} problem={problem}
               onSelect={selectBuilding} onConfirm={quote => { void controller.submit({ kind: 'build', quote }); }} onFindResources={onFindResources}
               onViewSite={viewSite} reviewHeadingRef={reviewHeading}
               onCancelDraft={() => { onSelectionChange({ ...selection, selectedKind: null, draft: null }); closeButton.current?.focus(); }} />}

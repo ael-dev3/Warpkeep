@@ -5,6 +5,22 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Construction time in the building review
+
+An active building card now shows its construction estimate, so opening the
+Buildings panel on a compact screen no longer leaves the timer behind in the
+scene. It uses the existing screen clock and the same estimate formatter.
+Reaching zero displays Awaiting Realm update; only confirmed state removes
+construction and exposes the completed level. No additional timer or command
+submission was introduced.
+
+The screen, benefits and accessibility suites passed 40 tests, including a
+countdown-to-zero-to-confirmed-completion regression. Focused strict types
+passed. Independent source review found no blocker; actual synthetic 320/390
+pixel captures showed the updating estimate, readable cards and reachable
+controls. These are desktop browser captures, not owner/device acceptance.
+Seven production evidence inputs and the generator consumer remain unfinished.
+
 ## Verdant Citadel backdrop and loading continuity
 
 A cooler muted green backdrop separates the pale terrace and warm grounds more
