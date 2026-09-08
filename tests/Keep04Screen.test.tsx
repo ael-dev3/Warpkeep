@@ -98,7 +98,7 @@ it('keeps the Builder busy after estimated zero and never finishes from the UI c
   const { controller } = setup(constructingWire04()); openMill();
   expect(screen.getByText('Builder busy')).toBeVisible();
   expect(screen.getAllByText('Awaiting Realm update').length).toBeGreaterThan(0);
-  expect(screen.getByRole('button', { name: /Confirm upgrade/ })).toBeDisabled();
+  expect(screen.queryByRole('button', { name: /Confirm upgrade/ })).not.toBeInTheDocument();
   act(() => { vi.advanceTimersByTime(5000); }); expect(controller.submit).not.toHaveBeenCalled();
   expect(within(screen.getByRole('article', { name: 'City Mill' })).getByText('Under construction')).toBeVisible();
 });

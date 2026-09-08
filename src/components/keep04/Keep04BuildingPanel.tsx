@@ -25,6 +25,7 @@ export function Keep04BuildingPanel({ view, selectedKind, draft, enabled, proble
   const levels = { 'city-mill': completed.mill, 'lumber-camp': completed.lumberCamp, 'city-stoneworks': completed.stoneworks,
     'city-goldworks': completed.goldworks, 'city-barracks': completed.barracks, 'grand-covenant-cathedral': completed.cathedral };
   const existing = view.buildings.find(building => building.kind === selectedKind);
+  const selectedProject = view.state.project?.kind === selectedKind ? view.state.project : undefined;
   const placement = existing?.placement ?? (draft?.kind === selectedKind ? draft : null);
   const candidate = useMemo(() => {
     if (!selectedKind || !placement) return null;
@@ -58,20 +59,21 @@ export function Keep04BuildingPanel({ view, selectedKind, draft, enabled, proble
     setReviewed({ realmKey, draftKey, quote: candidate, problem }); setSent(false); setSubmissionLeftReady(false); sentRef.current = false;
   }
   function card(kind: Building04) {
+    const project = view.state.project?.kind === kind ? view.state.project : undefined;
     const level = levels[kind]; const maximum = level === 5;
     const benefit = buildingBenefit04(view, kind); const missing = buildingDeficits04(view, kind);
     const firstDeficit = RESOURCES04.find(resource => missing[resource] > 0n);
     const value = (amount: bigint) => benefit.unit === 'micros' ? secondsText(amount) : amount.toString();
     return <article key={kind} aria-label={BUILDING_NAMES04[kind]} className="keep04-card" data-selected={selectedKind === kind}>
       <button type="button" aria-pressed={selectedKind === kind} onClick={() => onSelect(kind)}>{BUILDING_NAMES04[kind]}</button>
-      <p className="keep04-badge">{level > 0 ? `Completed level ${level}` : view.state.project?.kind === kind ? 'Under construction' : 'Not built'}</p>
-      {maximum ? <p>Maximum level</p> : <>
+      <p className="keep04-badge">{level > 0 ? `Completed level ${level}` : project ? 'Under construction' : 'Not built'}</p>
+      {project ? <p>Building level {project.targetLevel}</p> : maximum ? <p>Maximum level</p> : <>
         <p>Cost: {costText(buildingCost04(kind, level + 1))}</p>
         <p>Build duration: {secondsText(buildingDuration04(level + 1, levels))}</p>
       </>}
-      {!maximum && <p>{firstDeficit ? `Missing: ${costText(missing)}` : 'Resources ready'}</p>}
-      <p>{benefit.label}</p><p>Current: {value(benefit.current)}{!maximum && <> → Next: {value(benefit.next)}</>}</p>
-      {firstDeficit && <button type="button" onClick={() => onFindResources(firstDeficit)}>Find {firstDeficit}</button>}
+      {!maximum && !project && <p>{firstDeficit ? `Missing: ${costText(missing)}` : 'Resources ready'}</p>}
+      <p>{benefit.label}</p><p>Current: {value(benefit.current)}{!maximum && <> → {project ? 'On completion' : 'Next'}: {value(benefit.next)}</>}</p>
+      {!project && firstDeficit && <button type="button" onClick={() => onFindResources(firstDeficit)}>Find {firstDeficit}</button>}
     </article>;
   }
   return <section aria-label="Buildings" className="keep04-building-panel">
@@ -79,11 +81,15 @@ export function Keep04BuildingPanel({ view, selectedKind, draft, enabled, proble
     <p>Benefits apply after completion. Each expedition keeps the gathering rate it began with.</p>
     {view.state.project !== undefined && <p className="keep04-badge">Builder busy</p>}
     {selectedKind && <section aria-labelledby={reviewId} className="keep04-selected-review">
-      <h3 id={reviewId} ref={reviewHeadingRef} tabIndex={-1}>{existing ? 'Upgrade' : 'Place'} {BUILDING_NAMES04[selectedKind]}</h3>
+      <h3 id={reviewId} ref={reviewHeadingRef} tabIndex={-1}>{selectedProject ? 'Construction underway ·' : existing ? 'Upgrade' : 'Place'} {BUILDING_NAMES04[selectedKind]}</h3>
       {onViewSite && <button type="button" onClick={onViewSite}>{existing ? 'View site' : 'Adjust placement'}</button>}
       {card(selectedKind)}
       <div className="keep04-primary-action">
       {placement && <p>{existing ? 'Permanent site' : 'Draft'}: x {Number(placement.x) / 1_000_000} m · z {Number(placement.z) / 1_000_000} m · {placement.rotation / 1000}°</p>}
+      {selectedProject ? <>
+        <p role="status">Resources for this construction are already committed.</p>
+        <p>The new benefit applies when construction completes. {selectedProject.targetLevel < 5 ? 'Review the next upgrade after completion.' : 'This is the final building level.'}</p>
+      </> : <>
       <p>Permanent placement: construction cannot be cancelled and spent resources are not refunded.</p>
       {changedRealm && <><p role="status">Review updated costs and confirm again</p><button type="button" disabled={!enabled} onClick={review}>Review updated costs</button></>}
       {!placement && <p role="status">No valid draft selected. Choose a building site.</p>}
@@ -92,6 +98,7 @@ export function Keep04BuildingPanel({ view, selectedKind, draft, enabled, proble
         sentRef.current = true; setSent(true); onConfirm(reviewed.quote);
       }}>{existing ? 'Confirm upgrade' : 'Confirm placement'}</button>
       {!existing && <button type="button" onClick={onCancelDraft}>Cancel draft · free</button>}
+      </>}
       </div>
     </section>}
     {selectedKind && <h3>Other buildings</h3>}
