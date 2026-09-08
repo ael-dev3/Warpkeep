@@ -18,7 +18,10 @@ export function Keep04WorkerPanel({ view, enabled, nowMs, onRecall, onFindResour
       <p className="keep04-badge">{worker.phase}{worker.resource ? ` · ${worker.resource}` : ''}</p>
       {worker.capturedYield !== null && <p>Gathering rate: {worker.capturedYield.toString()} every 10 seconds</p>}
       {worker.returnsAtMicros !== null && <p>Estimated return time: <span>{estimatedTime04(worker.returnsAtMicros, nowMs)}</span></p>}
-      {worker.lastCredited !== null && <p>Last return credited: {worker.lastCredited.toString()} · overflow: {worker.lastOverflow?.toString() ?? '0'}</p>}
+      {worker.lastCredited !== null && worker.lastReturnResource !== null && <>
+        <p>Last return: {worker.lastCredited.toString()} {worker.lastReturnResource} added</p>
+        {worker.lastOverflow !== null && worker.lastOverflow > 0n && <p>{worker.lastOverflow.toString()} {worker.lastReturnResource} could not be stored because the resource limit was reached.</p>}
+      </>}
       {worker.phase === 'idle'
         ? <button type="button" onClick={() => onFindResources(null, worker.ordinal)}>Find resources for Worker {worker.ordinal + 1}</button>
         : <button type="button" disabled={!enabled || view.atlas === null || worker.phase === 'returning'} onClick={() => onRecall(worker.ordinal)}>Recall Worker {worker.ordinal + 1}</button>}

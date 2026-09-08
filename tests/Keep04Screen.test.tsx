@@ -181,3 +181,39 @@ it('recovers every repeated same-revision rejection with a separate explicit rev
     }
   }
 });
+
+it('names each confirmed return resource independently of a new assignment and explains capped storage', () => {
+  const wire = freshWire04();
+  wire.workers[0] = { ordinal: 0, assignmentRevision: 1n, assignment: undefined,
+    lastReturn: { assignmentRevision: 1n, resource: 'food', returnedAtMicros: 64_000_000n, earned: 60n, credited: 40n, overflow: 20n } };
+  wire.workers[1] = { ordinal: 1, assignmentRevision: 2n,
+    assignment: { ...assignmentWire04(), resource: 'wood' },
+    lastReturn: { assignmentRevision: 1n, resource: 'stone', returnedAtMicros: 0n, earned: 30n, credited: 30n, overflow: 0n } };
+  setup(wire); fireEvent.click(screen.getByRole('button', { name: 'Manage Workers' }));
+  const first = within(screen.getByRole('article', { name: 'Worker 1' }));
+  expect(first.getByText('Last return: 40 food added')).toBeVisible();
+  expect(first.getByText('20 food could not be stored because the resource limit was reached.')).toBeVisible();
+  const second = within(screen.getByRole('article', { name: 'Worker 2' }));
+  expect(second.getByText('outbound · wood')).toBeVisible();
+  expect(second.getByText('Last return: 30 stone added')).toBeVisible();
+  expect(second.queryByText(/could not be stored|overflow/i)).not.toBeInTheDocument();
+  expect(within(screen.getByRole('article', { name: 'Worker 3' })).queryByText(/Last return/)).not.toBeInTheDocument();
+});
+
+it('shows returned credit only after a confirmed state update, never when the estimated return clock expires', () => {
+  vi.useFakeTimers(); vi.setSystemTime(0);
+  const wire = freshWire04(); wire.workers[0].assignmentRevision = 1n;
+  wire.workers[0].assignment = { ...assignmentWire04(), earned: 60n, phase: 'returning' };
+  const { snapshot, rerender, controller } = setup(wire);
+  fireEvent.click(screen.getByRole('button', { name: 'Manage Workers' }));
+  act(() => { vi.advanceTimersByTime(70_000); });
+  expect(screen.queryByText(/Last return:/)).not.toBeInTheDocument();
+  expect(screen.getByText('Awaiting Realm update')).toBeVisible();
+  expect(screen.getByText('Pending 60')).toBeVisible();
+  wire.revision = 2n; wire.food = 60n; wire.workers[0].assignment = undefined;
+  wire.workers[0].lastReturn = { assignmentRevision: 1n, resource: 'food', returnedAtMicros: 64_000_000n, earned: 60n, credited: 60n, overflow: 0n };
+  rerender({ ...snapshot, view: presentState04(decodeState04(wire, SCOPE04), ATLAS04, Date.now()) });
+  expect(within(screen.getByRole('article', { name: 'Worker 1' })).getByText('Last return: 60 food added')).toBeVisible();
+  expect(screen.queryByText('Pending 60')).not.toBeInTheDocument();
+  expect(controller.submit).not.toHaveBeenCalled();
+});

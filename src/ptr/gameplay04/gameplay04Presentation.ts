@@ -18,7 +18,7 @@ export type BuildingView04 = Readonly<{
 export type WorkerView04 = Readonly<{
   ordinal: number; assignmentRevision: bigint; phase: 'idle' | 'outbound' | 'gathering' | 'returning';
   resource: Resource04 | null; route: readonly Readonly<{ q: number; r: number }>[];
-  returnsAtMicros: bigint | null; capturedYield: bigint | null; lastCredited: bigint | null; lastOverflow: bigint | null;
+  returnsAtMicros: bigint | null; capturedYield: bigint | null; lastReturnResource: Resource04 | null; lastCredited: bigint | null; lastOverflow: bigint | null;
 }>;
 
 export const PENDING_LABEL04 = 'pending · not spendable';
@@ -44,6 +44,7 @@ export function presentState04(state: State04, atlas: Atlas04 | null, receivedAt
       phase: (assignment?.phase ?? 'idle') as WorkerView04['phase'], resource: (assignment?.resource ?? null) as Resource04 | null,
       route: Object.freeze((assignment?.route ?? []).map(point => Object.freeze({ q: point.q, r: point.r }))),
       returnsAtMicros: assignment?.returnsAt ?? null, capturedYield: assignment?.yieldPerQuantum ?? null,
+      lastReturnResource: (worker.lastReturn?.resource ?? null) as Resource04 | null,
       lastCredited: worker.lastReturn?.credited ?? null, lastOverflow: worker.lastReturn?.overflow ?? null,
     });
   });

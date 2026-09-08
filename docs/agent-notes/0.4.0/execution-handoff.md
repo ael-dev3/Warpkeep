@@ -5,6 +5,22 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Confirmed Worker return feedback
+
+Worker cards name the resource from the last confirmed return, independently of
+any new expedition. Nonzero overflow explains that the resource limit prevented
+storage; zero overflow adds no warning. The view uses the decoded last-return
+record, and advancing the UI clock cannot invent a credit or clear pending goods.
+No server rewards, timers, persistence or commands changed.
+
+The author passed 110 presentation, screen, accessibility and surface-host tests;
+root independently passed 62 presentation/screen cases. Focused strict types
+passed. Actual component renders at 320px and 390px fit without horizontal
+overflow, including a current expedition with a different previous-return
+resource. This is fixture presentation evidence, not authenticated owner play or
+actual-device acceptance. Full-app types still require the separate auth-bridge
+compiler sync API dependency; no full-app type success is claimed.
+
 ## Authenticated bridge facts in recovery candidate generation
 
 The production activation runtime passes its actual bridge-state capability into the recovery candidate reader. The reader reopens the retained suspension receipt and its validated authority chain to obtain worker version, worker source, bridge source and suspension receipt digest. It checks exact source/private-state ownership, permits the existing linked recovery predecessor, and reopens the chain/catalog before returning facts. These are retained evidence facts, not a fresh provider observation or permission to perform effects.
