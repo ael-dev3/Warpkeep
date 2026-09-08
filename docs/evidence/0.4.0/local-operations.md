@@ -1,6 +1,23 @@
 # Local operations evidence
 
-2026-09-06 authenticated read-only inventory. **Not deployment evidence.**
+2026-09-09 authenticated/read-only inventory. **Not deployment evidence.**
+
+## Current local execution checkpoint — 2026-09-09
+
+The Windows/GitHub source head is `61de3a1`; the dedicated Linux operating
+checkout is `d6cfc5c` and has matching native preparation/rebuild provenance.
+Linux G001 policy preparation, the privileged caller suite, and bounded
+source/private-record scenarios passed. A dedicated GitHub Actions runner was
+registered as `warpkeep-wsl-production-01` (runner id 22) but is offline: its
+service installation timed out while the WSL PID 1 remained in a kernel wait.
+Only the dedicated `WarpkeepRunner` distro termination was requested after the
+protected jobs finished; no other distro was restarted. No provider secret was
+read, no production workflow was dispatched, and no live mutation was made.
+
+The remaining operating gap is concrete: the Linux G001 native materializer and
+child have been source-reviewed and tested in bounded native scenarios, but
+their execution inside the assembled WarpkeepRunner artifact and the generated
+closure audit are still required before R11–R13 can close.
 
 ## GitHub runner gap
 

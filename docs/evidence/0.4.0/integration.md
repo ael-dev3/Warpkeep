@@ -1,6 +1,22 @@
 # 0.4.0 integration evidence
 
-Updated 2026-09-06. R14 remains incomplete; source publication is not production deployment.
+Updated 2026-09-09. R14 remains incomplete; source publication is not production deployment.
+
+## Current checkpoint — 2026-09-09
+
+The published Windows/GitHub head is `61de3a166fdbeba3bcbcbb8d854f708717c778fc`
+on `codex/prepared-keep-bindings-fix`, and `git ls-remote` matches it. PR #228
+remains a draft. The checkpoint includes portrait keep framing, the truthful
+workflow-runtime provenance expectation, Linux G001 receipt/adoption/activation
+consumers, credential-boundary evidence refresh, the fixed native preparation
+caller, and the shared production-admin transport extraction.
+
+The current Verify run is still in progress. Its auth-bridge and
+release-recovery jobs have reproduced the existing dependency-audit failures
+seen on the preceding d6 baseline; native-contract is green and the Linux and
+SpacetimeDB jobs are still running. This is a live CI observation, not a final
+R14 result. Local source-range Gitleaks for the four published commits is clean;
+the repository's historical scanner findings remain a separate issue.
 
 ## Published development checkpoints
 

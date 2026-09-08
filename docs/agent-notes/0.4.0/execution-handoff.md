@@ -749,7 +749,7 @@ visual improvement, not physical-device or complete visual acceptance.
 
 The keep now omits repeated zero-pending amounts and shows one quiet no-return status. Nonzero incoming amounts remain explicitly unspendable; balances and command semantics are unchanged. All 21 Keep04Screen tests and app/test types passed. Fresh empty/mature desktop and 390px synthetic renderer captures had no horizontal overflow. Nonzero pending and confirmed-return behavior are covered by component tests; physical-device performance remains unverified.
 
-At source c104f7b6368635ab6ae36da6ce02c3aa5a9c412d, full native Linux prepare and the separate rebuilding check both exited successfully with identical family f23eb885a62eea112e943b70a692b785da0a28b7b873fe2f0e39a59c1508740e. This is a prepared source candidate, with finalReleasePrepared false. It is not deployed and predates this UI change. Dedicated Linux caller/private-state integration is still under review.
+At the earlier source `c104f7b6368635ab6ae36da6ce02c3aa5a9c412d`, full native Linux prepare and the separate rebuilding check both exited successfully with identical family `f23eb885a62eea112e943b70a692b785da0a28b7b873fe2f0e39a59c1508740e`. That candidate had `finalReleasePrepared: false`, was not deployed, and predates the current UI and Linux G001 integration. The current published Windows/GitHub checkpoint is `61de3a1`; native materializer/child execution and generated-closure audit remain open.
 
 ## Dedicated Linux caller and private-state integration
 

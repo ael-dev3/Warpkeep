@@ -1,5 +1,24 @@
 # Verdant Citadel visual acceptance — partial
 
+## 2026-09-09 source-render matrix checkpoint
+
+The current published source is `61de3a1`. Actual renderer synthetic captures
+covered the empty, mature, legal-placement, blocked-placement, construction,
+completed and schematic-fallback states at desktop and 390px portrait profiles.
+The portrait WebGL canvas now uses the available keep panel width while the
+toolbar remains padded; desktop, short-landscape and fallback geometry are
+unchanged. A real browser center-pick traversed the resized canvas raycast and
+selected-site inspection rendered correctly. The change does not alter asset
+count, geometry or scene quality settings. It is a source-render comparison,
+not physical-phone performance, live owner play or final R04/R05 acceptance.
+
+The handoff reference library is represented in the current visual plan and
+source notes: voxel composition, Verdant Forest, Pelagic water/material cues,
+terrain/atmosphere studies, settlement/rendering research and Dream Loop's
+iteration discipline. The implementation deliberately uses the existing
+bounded renderer, authored assets and lightweight water instead of importing
+new engines or unverified heavy media.
+
 ## 2026-09-07 interactive construction check
 
 Inspected the existing local synthetic preview at
