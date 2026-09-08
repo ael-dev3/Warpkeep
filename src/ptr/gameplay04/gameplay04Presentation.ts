@@ -109,7 +109,7 @@ export function buildingBenefit04(view: View04, kind: Building04): Readonly<{
   if (kind === 'city-barracks') return Object.freeze({ label: 'Travel time per edge', current: travelPerEdge04(completed), next: travelPerEdge04(next), unit: 'micros' });
   if (kind === 'grand-covenant-cathedral') return Object.freeze({ label: 'Future level-one build duration', current: buildingDuration04(1, completed), next: buildingDuration04(1, next), unit: 'micros' });
   const [resource, label] = ECONOMY[kind];
-  return Object.freeze({ label: `${label} per 10-second quantum`, current: gatheringYield04(resource, completed), next: gatheringYield04(resource, next), unit: 'per-quantum' });
+  return Object.freeze({ label: `${label} every 10 seconds`, current: gatheringYield04(resource, completed), next: gatheringYield04(resource, next), unit: 'per-quantum' });
 }
 
 export function buildingDeficits04(view: View04, kind: Building04): Cost04 {

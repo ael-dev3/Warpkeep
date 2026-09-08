@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { useState } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { Keep04Schematic } from '../src/components/keep04/Keep04Schematic';
@@ -65,7 +65,12 @@ it.each([1, 5])('preserves the exact upgrade transform and a numeric completed-l
   expect(screen.getAllByText(`Completed level ${level}`).length).toBeGreaterThan(0);
   expect(screen.queryByRole('button', { name: 'Rotate 90°' })).not.toBeInTheDocument();
   const confirm = screen.getByRole('button', { name: /Confirm upgrade/ });
-  if (level === 5) { expect(confirm).toBeDisabled(); expect(screen.getAllByText('Maximum level').length).toBeGreaterThan(0); }
+  if (level === 5) {
+    expect(confirm).toBeDisabled(); expect(screen.getAllByText('Maximum level').length).toBeGreaterThan(0);
+    const mill = within(screen.getByRole('article', { name: 'City Mill' }));
+    expect(mill.getByText('Current: 20')).toBeVisible();
+    expect(mill.queryByText(/Next:|Missing:|Cost:|Build duration:/)).not.toBeInTheDocument();
+  }
   else { fireEvent.click(confirm); expect(controller.submit).toHaveBeenCalledWith(expect.objectContaining({ kind: 'build', quote: expect.objectContaining({ placement: { ...MILL_PLACEMENT04, rotation: 90_000 } }) })); }
 });
 

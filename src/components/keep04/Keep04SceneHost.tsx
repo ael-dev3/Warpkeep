@@ -239,6 +239,6 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
     {mode === 'loading' && <p role="status">Preparing the citadel. Placement controls remain available below.</p>}
     {mode === 'webgl' && <><p>{inspectedKind ? `Inspecting ${BUILDING_NAMES04[inspectedKind]}` : 'Whole grounds'} · Drag to pan · Scroll to zoom</p>
       {!hasSite && <p>Select a building or draft to inspect its site.</p>}
-      <small>Existing pinned Hegemony models · Verdant Citadel composition and material treatment.</small></>}
+    </>}
   </section>;
 }

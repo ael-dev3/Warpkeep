@@ -69,14 +69,14 @@ export function Keep04BuildingPanel({ view, selectedKind, draft, enabled, proble
         <p>Cost: {costText(buildingCost04(kind, level + 1))}</p>
         <p>Build duration: {secondsText(buildingDuration04(level + 1, levels))}</p>
       </>}
-      <p>Missing: {costText(missing)}</p>
-      <p>{benefit.label}</p><p>Current: {value(benefit.current)} → Next: {value(benefit.next)}</p>
+      {!maximum && <p>Missing: {costText(missing)}</p>}
+      <p>{benefit.label}</p><p>Current: {value(benefit.current)}{!maximum && <> → Next: {value(benefit.next)}</>}</p>
       {firstDeficit && <button type="button" onClick={() => onFindResources(firstDeficit)}>Find {firstDeficit}</button>}
     </article>;
   }
   return <section aria-label="Buildings" className="keep04-building-panel">
     <h2>Buildings</h2>
-    <p>Benefits apply after completion. Existing expeditions keep their captured rates.</p>
+    <p>Benefits apply after completion. Each expedition keeps the gathering rate it began with.</p>
     {view.state.project !== undefined && <p className="keep04-badge">Builder busy</p>}
     {selectedKind && <section aria-labelledby={reviewId} className="keep04-selected-review">
       <h3 id={reviewId} ref={reviewHeadingRef} tabIndex={-1}>{existing ? 'Upgrade' : 'Place'} {BUILDING_NAMES04[selectedKind]}</h3>

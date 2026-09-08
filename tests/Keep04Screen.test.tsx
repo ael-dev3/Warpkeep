@@ -71,7 +71,7 @@ it.each(['loading', 'pending', 'uncertain', 'failed', 'disposed'] as const)('blo
 
 it('initializes only with the initialize intent', () => {
   const { controller } = setup(freshWire04(), 'uninitialized');
-  fireEvent.click(screen.getByRole('button', { name: 'Initialize keep' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Establish keep' }));
   expect(controller.submit).toHaveBeenCalledWith({ kind: 'initialize' });
 });
 
@@ -82,7 +82,7 @@ it('keeps one panel open, restores opener focus with Escape, and retains explici
   openMill(); expect(screen.queryByRole('region', { name: 'Workers' })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Back' })); fireEvent.click(screen.getByRole('button', { name: 'Return to world' })); expect(back).toHaveBeenCalledTimes(2);
   fireEvent.click(screen.getByRole('button', { name: 'Find resources' })); expect(find).toHaveBeenCalledWith(null);
-  expect(screen.getByText(/previous action may have completed/i)).toBeVisible();
+  expect(screen.getByText(/resources become available when workers return/i)).toBeVisible();
 });
 
 it('keeps the Builder busy after estimated zero and never finishes from the UI clock', () => {
@@ -99,7 +99,7 @@ it('shows captured Worker rates and allows recall only before returning with atl
   const wire = freshWire04(); wire.workers[0].assignmentRevision = 1n; wire.workers[0].assignment = { ...assignmentWire04(), phase: 'gathering' };
   wire.workers[1].assignmentRevision = 1n; wire.workers[1].assignment = { ...assignmentWire04(), phase: 'returning', earned: 60n };
   const { controller } = setup(wire); fireEvent.click(screen.getByRole('button', { name: /Worker 1/ }));
-  expect(screen.getAllByText('Captured yield: 10 per 10-second quantum').length).toBe(2);
+  expect(screen.getAllByText('Gathering rate: 10 every 10 seconds').length).toBe(2);
   fireEvent.click(screen.getByRole('button', { name: 'Recall Worker 1' }));
   expect(controller.submit).toHaveBeenCalledWith({ kind: 'recall', workerOrdinal: 0, atlasRevision: 3n });
   expect(screen.getByRole('button', { name: 'Recall Worker 2' })).toBeDisabled();

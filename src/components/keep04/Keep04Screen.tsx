@@ -127,10 +127,10 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
       <button ref={backButton} type="button" onClick={onBack}>Back</button>
       <div><p className="keep04-eyebrow">VERDANT CITADEL</p><h1>Your keep</h1></div>
     </header>
-    <p className="keep04-reentry">A previous action may have completed while you were away. Keep state is refreshed from the Realm.</p>
+    <p className="keep04-reentry">Your progress is saved in the Realm. Resources become available when Workers return.</p>
     {!visible && <section className="keep04-state" aria-label="Keep status">
-      <p role="status">{phase === 'uninitialized' ? 'Your keep is ready to initialize.' : phase === 'uncertain' ? 'Outcome unknown. Check the Realm or retry the same request.' : phase === 'failed' ? 'The keep could not be refreshed.' : phase === 'disposed' ? 'Keep authority is no longer available.' : phase === 'pending' ? 'Request pending. Awaiting Realm update.' : 'Loading keep from the Realm…'}</p>
-      {phase === 'uninitialized' && <button type="button" onClick={() => { void controller.submit({ kind: 'initialize' }); }}>Initialize keep</button>}
+      <p role="status">{phase === 'uninitialized' ? 'Your grounds are ready. Establish your keep to begin.' : phase === 'uncertain' ? 'Outcome unknown. Check the Realm or retry the same request.' : phase === 'failed' ? 'The keep could not be refreshed.' : phase === 'disposed' ? 'Your keep session has ended.' : phase === 'pending' ? 'Request pending. Awaiting Realm update.' : 'Loading keep from the Realm…'}</p>
+      {phase === 'uninitialized' && <button type="button" onClick={() => { void controller.submit({ kind: 'initialize' }); }}>Establish keep</button>}
       {phase === 'uncertain' && <><button type="button" onClick={() => { void controller.refresh(); }}>Check outcome</button><button type="button" onClick={() => { void controller.retryPending(); }}>Retry same request</button></>}
       {phase === 'failed' && <button type="button" onClick={() => { void controller.refresh(); }}>Refresh keep</button>}
     </section>}

@@ -11,15 +11,15 @@ it('quotes exact level-one Mill cost and duration and benefit 10 to 12', () => {
   const view = viewOf(); const quote = quoteBuilding04(view, 'city-mill', MILL_PLACEMENT04);
   expect(quote).toEqual({ revision: 1n, atlasRevision: 3n, policyVersion: view.state.policyVersion, layoutDigest: view.state.layoutDigest,
     kind: 'city-mill', targetLevel: 1, placement: MILL_PLACEMENT04, cost: { food: 20n, wood: 40n, stone: 20n, gold: 0n }, durationMicros: 120_000_000n });
-  expect(buildingBenefit04(view, 'city-mill')).toEqual({ label: 'Food per 10-second quantum', current: 10n, next: 12n, unit: 'per-quantum' });
+  expect(buildingBenefit04(view, 'city-mill')).toEqual({ label: 'Food every 10 seconds', current: 10n, next: 12n, unit: 'per-quantum' });
   expect(expectDeepFrozen04(quote)).toBe(true); expect(expectDeepFrozen04(view)).toBe(true);
 });
 
 const benefitCases: readonly [Building04, readonly bigint[], string, string][] = [
-  ['city-mill', [10n, 12n, 14n, 16n, 18n, 20n], 'per-quantum', 'Food per 10-second quantum'],
-  ['lumber-camp', [10n, 12n, 14n, 16n, 18n, 20n], 'per-quantum', 'Wood per 10-second quantum'],
-  ['city-stoneworks', [10n, 12n, 14n, 16n, 18n, 20n], 'per-quantum', 'Stone per 10-second quantum'],
-  ['city-goldworks', [10n, 12n, 14n, 16n, 18n, 20n], 'per-quantum', 'Gold per 10-second quantum'],
+  ['city-mill', [10n, 12n, 14n, 16n, 18n, 20n], 'per-quantum', 'Food every 10 seconds'],
+  ['lumber-camp', [10n, 12n, 14n, 16n, 18n, 20n], 'per-quantum', 'Wood every 10 seconds'],
+  ['city-stoneworks', [10n, 12n, 14n, 16n, 18n, 20n], 'per-quantum', 'Stone every 10 seconds'],
+  ['city-goldworks', [10n, 12n, 14n, 16n, 18n, 20n], 'per-quantum', 'Gold every 10 seconds'],
   ['city-barracks', [2_000_000n, 1_900_000n, 1_800_000n, 1_700_000n, 1_600_000n, 1_500_000n], 'micros', 'Travel time per edge'],
   ['grand-covenant-cathedral', [120_000_000n, 114_000_000n, 108_000_000n, 102_000_000n, 96_000_000n, 90_000_000n], 'micros', 'Future level-one build duration'],
 ];
