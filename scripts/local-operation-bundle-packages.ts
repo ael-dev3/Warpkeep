@@ -1,3 +1,4 @@
+import { OPERATION_BUNDLE_NOBLE_PACKAGE } from './local-operation-bundle-noble-v1.mjs';
 import { createHash } from 'node:crypto';
 import {
   chmodSync, closeSync, constants, existsSync, fchmodSync, fstatSync, fsyncSync,
@@ -11,7 +12,7 @@ import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 const MAX_ARCHIVE_BYTES = 32 * 1024 * 1024;
 const MAX_LOCK_BYTES = 4 * 1024 * 1024;
 
-type PackageKey = 'node_modules/esbuild' | 'node_modules/@esbuild/linux-x64' | 'node_modules/fflate';
+type PackageKey = 'node_modules/esbuild' | 'node_modules/@esbuild/linux-x64' | 'node_modules/fflate' | 'node_modules/@noble/hashes';
 type FileExpectation = Readonly<{ path: string; bytes: number; executable: boolean }>;
 type NamespaceRecord = Readonly<{ path: string; mode: number; bytes: number; sha256: string }>;
 type SafeArchive = Readonly<{
@@ -58,8 +59,7 @@ export class OperationBundlePackagesError extends Error {
   }
 }
 
-// Recovery's archive parser adds one fixed dependency. Historical operation
-// bundle namespaces remain the original compiler pair plus YAML.
+// Recovery retains the compiler pair plus YAML and its archive parser dependency.
 const RECOVERY_ARCHIVE_PACKAGE = Object.freeze({
   key: 'node_modules/fflate' as const,
   name: 'fflate', version: '0.8.3',
@@ -107,7 +107,7 @@ function sriDigest(integrity: string): string {
   return digest;
 }
 
-export function selectFixedOperationBundlePackages(lock: unknown) {
+function selectFixedCompilerPackages(lock: unknown) {
   if (!exactObject(lock) || !exactObject(lock.packages)) {
     fail('OPERATION_BUNDLE_PACKAGES_LOCK_INVALID');
   }
@@ -130,7 +130,19 @@ export function selectFixedOperationBundlePackages(lock: unknown) {
   return FIXED_PACKAGES;
 }
 
+export function selectFixedOperationBundlePackages(lock: unknown) {
+  const compiler = selectFixedCompilerPackages(lock);
+  const spec = OPERATION_BUNDLE_NOBLE_PACKAGE;
+  const record = (lock as { packages: Record<string, unknown> }).packages[spec.key];
+  if (!exactObject(record) || record.version !== spec.version || record.resolved !== spec.resolved
+      || record.integrity !== spec.integrity || record.dependencies !== undefined) {
+    fail('OPERATION_BUNDLE_PACKAGES_LOCK_INVALID');
+  }
+  return Object.freeze([...compiler, spec]);
+}
+
 function specFor(key: PackageKey) {
+  if (key === OPERATION_BUNDLE_NOBLE_PACKAGE.key) return OPERATION_BUNDLE_NOBLE_PACKAGE;
   if (key === RECOVERY_ARCHIVE_PACKAGE.key) return RECOVERY_ARCHIVE_PACKAGE;
   const spec = FIXED_PACKAGES.find(candidate => candidate.key === key);
   if (spec === undefined) fail('OPERATION_BUNDLE_PACKAGES_ARCHIVE_INVALID');
@@ -138,7 +150,7 @@ function specFor(key: PackageKey) {
 }
 
 export function selectFixedRecoveryBundlePackages(lock: unknown) {
-  const compiler = selectFixedOperationBundlePackages(lock);
+  const compiler = selectFixedCompilerPackages(lock);
   const record = (lock as { packages: Record<string, unknown> }).packages[RECOVERY_ARCHIVE_PACKAGE.key];
   if (!exactObject(record) || record.version !== RECOVERY_ARCHIVE_PACKAGE.version
     || record.resolved !== RECOVERY_ARCHIVE_PACKAGE.resolved || record.integrity !== RECOVERY_ARCHIVE_PACKAGE.integrity) {
@@ -177,6 +189,7 @@ export function validateFixedOperationBundleArchive(key: PackageKey, parsed: Saf
       fail('OPERATION_BUNDLE_PACKAGES_ARCHIVE_INVALID');
     }
     const body = parsed.uncompressed.subarray(entry.offset, entry.offset + entry.size);
+    if ('sha256' in expected && sha256(body) !== expected.sha256) fail('OPERATION_BUNDLE_PACKAGES_ARCHIVE_INVALID');
     records.push(Object.freeze({
       path: `${key.slice('node_modules/'.length)}/${entry.path}`,
       mode: expected.executable ? 0o500 : 0o400,

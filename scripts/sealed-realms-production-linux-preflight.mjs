@@ -15,7 +15,8 @@ const MANIFEST = 'scripts/sealed-realms-production-bundle-manifest-v1.json';
 const YAML_MANIFEST = 'scripts/local-binding-runtime-yaml-v1.json';
 const SELF = 'scripts/sealed-realms-production-linux-preflight.mjs';
 const BOOTSTRAP_MEMBERS = Object.freeze([SELF, 'scripts/local-binding-bounded-file.mjs',
-  'scripts/sealed-realms-production-bundle-engine.mjs', 'scripts/auth-bridge-notification-prepared-deploy-closure.mjs']);
+  'scripts/sealed-realms-production-bundle-engine.mjs', 'scripts/local-operation-bundle-noble-v1.mjs',
+  'scripts/auth-bridge-notification-prepared-deploy-closure.mjs']);
 const LANES = ['activation', 'g001', 'g002', 'ptr'];
 const PROFILE = 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
 const NODE_SHA256 = 'e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2';

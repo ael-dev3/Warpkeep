@@ -1,3 +1,4 @@
+import { OPERATION_BUNDLE_NOBLE_GRAPH_FILES } from './local-operation-bundle-noble-v1.mjs';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { closeSync, constants, fchmodSync, fsyncSync, lstatSync, openSync, readdirSync,
@@ -169,6 +170,14 @@ function verifyCompiledInputs(inputs, candidateRoot) {
   let checkedBundleInputs = 0;
   for (const bundle of bundleManifest.bundles) {
     for (const member of bundle.graphManifest) {
+      // These package bytes are verified against the immutable archive inventory;
+      // the isolated producer reattests the full package namespace after compiling.
+      if (member.path.startsWith('node_modules/@noble/hashes/')) {
+        const pinned = OPERATION_BUNDLE_NOBLE_GRAPH_FILES.find(file => member.path === `node_modules/@noble/hashes/${file.path}`);
+        if (!pinned || pinned.bytes !== member.byteLength || pinned.sha256 !== member.sha256) fail('DEPENDENCY_INVALID');
+        checkedBundleInputs++;
+        continue;
+      }
       let path = join(candidateRoot, member.path);
       if (member.path.startsWith('node_modules/')) {
         const prefix = 'node_modules/yaml/';

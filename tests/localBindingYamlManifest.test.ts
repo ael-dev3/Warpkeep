@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -88,8 +88,12 @@ describe('local binding YAML authority manifest', () => {
   });
 
   it('rejects traversal, links and wrong package metadata after exact archive attestation', () => {
-    const result = spawnSync(python(), [boundaryHarness, generator], { encoding: 'utf8', timeout: 10000, maxBuffer: 1024 * 1024 });
+    const fixture = generatorFixture();
+    const sourceDirectory = dirname(fixture.script);
+    const before = readdirSync(sourceDirectory).sort();
+    const result = spawnSync(python(), ['-B', boundaryHarness, fixture.script], { encoding: 'utf8', timeout: 10000, maxBuffer: 1024 * 1024 });
     expect(result.status, result.stderr).toBe(0);
     expect(result.stderr).toContain('Ran 3 tests');
+    expect(readdirSync(sourceDirectory).sort()).toEqual(before);
   });
 });

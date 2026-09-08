@@ -12,6 +12,9 @@ const ESBUILD_SRI = 'sha512-HrJrvZv5ayxBzPfwphOoNzkzOIIlifzk0KJrGK2c8R4+LKpMtpYL
 const LINUX_X64_SRI = 'sha512-u/anNYF2mmVOEDwLtnQ1wOr3EZ9sTNGLWrsYGYwHWzGA3Si84IOkHXlbWTD1NB+9/1lcnweYKO54uhxZydNzfA==';
 const ESBUILD_BODY = Buffer.from('fixture:esbuild-0.28.1');
 const LINUX_X64_BODY = Buffer.from('fixture:@esbuild/linux-x64-0.28.1');
+const NOBLE_URL = 'https://registry.npmjs.org/@noble/hashes/-/hashes-1.8.0.tgz';
+const NOBLE_SRI = 'sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==';
+const NOBLE_BODY = Buffer.from('fixture:@noble/hashes-1.8.0');
 const FFLATE_URL = 'https://registry.npmjs.org/fflate/-/fflate-0.8.3.tgz';
 const FFLATE_SRI = 'sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==';
 const FFLATE_BODY = Buffer.from('fixture:fflate-0.8.3');
@@ -59,6 +62,7 @@ vi.mock('node:crypto', async () => {
         update(value: Buffer) { chunks.push(Buffer.from(value)); return this; },
         digest(encoding: 'hex') {
           const body = Buffer.concat(chunks);
+          if (body.equals(Buffer.from('fixture:@noble/hashes-1.8.0'))) return digestHex('sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==');
           if (body.equals(Buffer.from('fixture:fflate-0.8.3'))) return digestHex('sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==');
           if (body.equals(esbuildBody)) return digestHex('sha512-HrJrvZv5ayxBzPfwphOoNzkzOIIlifzk0KJrGK2c8R4+LKpMtpYLQeUdjnwjWv/LZlkH2laZk+4w78pi99D4Vw==');
           if (body.equals(linuxX64Body)) return digestHex('sha512-u/anNYF2mmVOEDwLtnQ1wOr3EZ9sTNGLWrsYGYwHWzGA3Si84IOkHXlbWTD1NB+9/1lcnweYKO54uhxZydNzfA==');
@@ -215,6 +219,7 @@ function fixtureLock() {
   return {
     lockfileVersion: 3,
     packages: {
+      'node_modules/@noble/hashes': { version: '1.8.0', resolved: NOBLE_URL, integrity: NOBLE_SRI },
       'node_modules/esbuild': {
         version: '0.28.1', resolved: ESBUILD_URL, integrity: ESBUILD_SRI,
         optionalDependencies: { '@esbuild/linux-x64': '0.28.1', '@esbuild/win32-x64': '0.28.1' },
@@ -233,6 +238,7 @@ function fixtureLock() {
 }
 
 function seedValidCache() {
+  boundary.archives.set(archivePath(NOBLE_SRI), { body: Buffer.from(NOBLE_BODY), mode: 0o400, uid: 1000 });
   boundary.archives.set(archivePath(ESBUILD_SRI), { body: Buffer.from(ESBUILD_BODY), mode: 0o400, uid: 1000 });
   boundary.archives.set(archivePath(LINUX_X64_SRI), { body: Buffer.from(LINUX_X64_BODY), mode: 0o400, uid: 1000 });
 }
@@ -254,6 +260,7 @@ beforeEach(() => {
     `${ROOT}/toolchain/node-v22.22.3-linux-x64/bin`, `${ROOT}/cache`]) {
     boundary.directories.set(path, { mode: 0o700, uid: 1000 });
   }
+  boundary.downloads.set(NOBLE_URL, NOBLE_BODY);
   boundary.downloads.set(ESBUILD_URL, ESBUILD_BODY);
   boundary.downloads.set(LINUX_X64_URL, LINUX_X64_BODY);
   boundary.lock = fixtureLock();
@@ -296,7 +303,15 @@ describe('fixed Linux operation compiler archive bootstrap', () => {
     boundary.fetches.length = 0;
     await expect(recovery()).resolves.toMatchObject({packageCount: 3, installedCount: 0});
     expect(boundary.fetches).toEqual([]);
-    await expect(bootstrap()).resolves.toMatchObject({packageCount: 2, installedCount: 0});
+    await expect(bootstrap()).resolves.toMatchObject({packageCount: 3, installedCount: 1});
+  });
+
+  it.each(['missing', 'version', 'integrity'])('rejects %s Keccak pin before transport', async kind => {
+    const records = boundary.lock.packages as Record<string, any>;
+    if (kind === 'missing') delete records['node_modules/@noble/hashes'];
+    else records['node_modules/@noble/hashes'][kind] += '-changed';
+    await expect(bootstrap()).rejects.toMatchObject({code: 'OPERATION_BUNDLE_CACHE_LOCK_INVALID'});
+    expect(boundary.fetches).toEqual([]);
   });
 
   it('rejects missing recovery pins and caller overrides before transport', async () => {
@@ -360,12 +375,12 @@ describe('fixed Linux operation compiler archive bootstrap', () => {
     const result = await bootstrap();
     expect(result).toEqual({
       profile: 'warpkeep-operation-bundle-cache-bootstrap-linux-x64-v1',
-      packageCount: 2,
-      installedCount: 2,
+      packageCount: 3,
+      installedCount: 3,
     });
     expect(Object.isFrozen(result)).toBe(true);
-    expect(boundary.fetches).toEqual([ESBUILD_URL, LINUX_X64_URL]);
-    expect(boundary.archives.size).toBe(2);
+    expect(boundary.fetches).toEqual([ESBUILD_URL, LINUX_X64_URL, NOBLE_URL]);
+    expect(boundary.archives.size).toBe(3);
   });
 
   it.each([

@@ -1,4 +1,68 @@
-# Preparation CI failure baseline — 2026-09-07
+# Preparation and CI evidence
+
+## September 8: Python bytecode contaminated the exact checkout
+
+At `5f06cb80c906ac0535fc32c80b415e8e85964b56`, the
+[Linux job](https://github.com/ael-dev3/Warpkeep/actions/runs/34207699954/job/102001022993)
+passed its main and serial test stages, then failed the checked-in sealed-launch
+verifier with `SEALED_LAUNCH_CHECKOUT_INVALID`. CodeQL and the module,
+native-contract, auth-bridge and release-recovery jobs passed at that source.
+
+A fresh Linux checkout with matching locked dependencies reproduced the
+post-suite rejection. The YAML generator boundary test imported the repository's
+Python generator and left an untracked bytecode file under `scripts/__pycache__/`.
+HEAD, tracked-file flags, tracked diffs and ignored protected-source probes passed;
+the untracked-file probe identified the residue. The original reproduction was
+retained without cleanup, and the verifier was not weakened.
+
+The corrected boundary test imports an exact copied generator fixture with Python
+`-B` and checks that its source-directory inventory is unchanged. Against base
+`5aa6fdb7c8e9bd49e27c70df8c3eb64025c2e5ca`, the new regression failed without
+`-B`; the corrected suite passed all four tests. Exact post-test probes found no
+untracked or ignored protected files and no changes beyond the intended test edit.
+This verifies the producing invocation; full CI at the integrated correction still
+requires fresh readback.
+
+The diagnostic main suite also encountered a separate ten-second timeout in the
+terminal-generation live-receipt case. It passed unchanged when selected alone.
+That supports load-sensitive timing, not an assertion correction or a timeout
+fix. The source and timeout were left unchanged.
+
+## September 8: materialize the update protocol's locked hash dependency
+
+Native preparation of `5aa6fdb7c8e9bd49e27c70df8c3eb64025c2e5ca` stopped before
+generated-family derivation. A focused build exposed the underlying G002 error:
+`@noble/hashes/sha3` could not be resolved. Root test dependencies supplied it,
+but the isolated operation-bundle materializer supplied only its compiler and
+YAML packages. No candidate outputs from that failed preparation were integrated.
+
+The materializer now includes the root-locked Noble package. Its complete file
+inventory was derived from the integrity-verified archive and independently
+compared with that archive. Package extraction retains exact membership, byte
+hashes, owner/mode/link checks and post-compilation re-attestation. Bundle and
+assembler graph verification accept only the pinned ESM files used by Keccak.
+Recovery retains its separate compiler, YAML and archive-parser package set.
+
+Isolated native fixtures copy tracked source without existing dependencies or
+build outputs. G002 and PTR each produced identical bytes across two builds;
+the real bundle loader accepted each from a package-free directory and observed
+the expected unavailable-factory input rejection. The recovery bundle also built
+reproducibly. Negative cases cover substituted lock records, missing/duplicate
+archive members, same-length corruption, graph-byte mutation and post-use package
+mutation. The known Keccak empty-input vector passed. This establishes the
+dependency/build correction, not production update authority or a prepared release.
+
+Focused package/cache/engine and runtime integration suites passed, as did app,
+configuration and focused strict TypeScript checks. The Windows preflight run
+passed six cases and skipped its 25 privileged native cases; it is not evidence
+that those skipped cases ran. Independent review confirmed the archive inventory,
+graph restrictions and the exact manifest addition to preflight attestation.
+
+Full source-bound preparation, independent rebuilding and candidate verification
+must run again after integrating the reviewed correction. Generated manifests
+remain owned by that pipeline.
+
+## Historical baseline — September 7
 
 Authenticated GitHub CLI inspection of [Verify run 34107302925](https://github.com/ael-dev3/Warpkeep/actions/runs/34107302925)
 at source `c801ec536e9a3b4685b798198d8319291cf98b36` found a completed failure,

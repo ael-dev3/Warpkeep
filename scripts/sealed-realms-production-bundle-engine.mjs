@@ -1,3 +1,4 @@
+import { OPERATION_BUNDLE_NOBLE_GRAPH_FILES } from './local-operation-bundle-noble-v1.mjs';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
@@ -231,7 +232,8 @@ function graphManifest(metafile, spec, sourceRoot) {
   const validPath = path => typeof path === 'string' && path.length > 0 && path.length <= 512
     && /^[A-Za-z0-9@._/-]+$/u.test(path)
     && path.split('/').every(part => part && part !== '.' && part !== '..')
-    && (path.startsWith('scripts/') || path.startsWith('spacetimedb/') || path.startsWith('node_modules/yaml/'));
+    && (path.startsWith('scripts/') || path.startsWith('spacetimedb/') || path.startsWith('node_modules/yaml/')
+      || OPERATION_BUNDLE_NOBLE_GRAPH_FILES.some(file => path === `node_modules/@noble/hashes/${file.path}`));
   if (metafile.inputs === null || typeof metafile.inputs !== 'object' || Array.isArray(metafile.inputs)) {
     fail('SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID');
   }
@@ -291,6 +293,10 @@ function graphManifest(metafile, spec, sourceRoot) {
       fail('SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID');
     }
     const bytes = readFileSync(absolute);
+    if (path.startsWith('node_modules/@noble/hashes/')) {
+      const pinned = OPERATION_BUNDLE_NOBLE_GRAPH_FILES.find(file => path === `node_modules/@noble/hashes/${file.path}`);
+      if (!pinned || pinned.bytes !== bytes.length || pinned.sha256 !== digest(bytes)) fail('SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID');
+    }
     return Object.freeze({ path, byteLength: bytes.byteLength, sha256: digest(bytes) });
   });
   return Object.freeze(entries);

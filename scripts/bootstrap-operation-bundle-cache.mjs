@@ -1,3 +1,4 @@
+import { OPERATION_BUNDLE_NOBLE_PACKAGE } from './local-operation-bundle-noble-v1.mjs';
 import { createHash } from 'node:crypto';
 import {
   chmodSync, closeSync, constants, existsSync, fsyncSync, lstatSync, mkdirSync,
@@ -116,7 +117,7 @@ function readFixedLock() {
 }
 
 function selectFixedPackages(lock, recovery) {
-  const packages = recovery ? RECOVERY_PACKAGES : FIXED_PACKAGES;
+  const packages = recovery ? RECOVERY_PACKAGES : [...FIXED_PACKAGES, OPERATION_BUNDLE_NOBLE_PACKAGE];
   const records = lock?.packages;
   if (records === null || typeof records !== 'object' || Array.isArray(records)) {
     fail('OPERATION_BUNDLE_CACHE_LOCK_INVALID');

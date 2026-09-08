@@ -86,6 +86,7 @@ const OPERATION_BUNDLE_CONTROL_FILES = Object.freeze([
   'scripts/local-binding-runtime-process.mjs',
   'scripts/local-operation-bundle-load.mjs',
   'scripts/local-operation-bundle-packages.ts',
+  'scripts/local-operation-bundle-noble-v1.mjs',
   'scripts/local-operation-bundle-runtime-core.mjs',
   'scripts/local-operation-bundle-runtime.mjs',
   'scripts/local-operation-bundle-worker.mjs',

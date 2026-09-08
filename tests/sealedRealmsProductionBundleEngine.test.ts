@@ -113,6 +113,7 @@ describe('sealed-realms production bundle engine', () => {
     const local = sourceFixture();
     const isolatedEngine = join(local.parent, 'sealed-realms-production-bundle-engine.mjs');
     copyFileSync(resolve(REPOSITORY_ROOT, 'scripts/sealed-realms-production-bundle-engine.mjs'), isolatedEngine);
+    copyFileSync(resolve(REPOSITORY_ROOT, 'scripts/local-operation-bundle-noble-v1.mjs'), join(local.parent, 'local-operation-bundle-noble-v1.mjs'));
     const program = [
       "let bareRejected = false;",
       "try { await import('esbuild'); } catch (error) { bareRejected = error?.code === 'ERR_MODULE_NOT_FOUND'; }",

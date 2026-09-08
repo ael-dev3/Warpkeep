@@ -21,7 +21,8 @@ which records the current checkpoint, preparation, CI and environment details.
   after session expiry without duplicate effects. The existing-update adapter is
   now connected to the G002/PTR dispatchers for isolated synthetic tests, with
   durable acknowledgement recovery and serialized concurrent inspections. Its
-  Linux test launcher has a dedicated hosted CI step. External identity/workflow authority was synthetic;
+  Linux test launcher passed its dedicated hosted CI step at `5aa6fdb`.
+  External identity/workflow authority was synthetic;
   actual-owner play and production delivery remain to be accepted.
 - **The player experience needs integrated observation.** Keep/atlas navigation,
   selected Worker continuity, healthy refresh and scoped session renewal are
@@ -34,6 +35,12 @@ which records the current checkpoint, preparation, CI and environment details.
   genuine provider/signer authority and useful code-replacement recovery still
   need completion. An isolated update rehearsal does not supply those credentials
   or establish a release-ready production adapter.
+- **Resume from the diagnosed build corrections.** The YAML boundary test now
+  avoids leaving Python bytecode in the checkout. Isolated operation bundles now
+  materialize the update protocol's locked hash dependency. Read the
+  [CI and preparation evidence](../../evidence/0.4.0/ci-preparation-failure-baseline.md),
+  then run fresh source-bound preparation and candidate verification. The failed
+  `5aa6fdb` preparation did not produce an accepted generated family.
 - **Preserve each realm's purpose.** Keep G001 progress, access and normal timers
   alongside its agreed admission freeze; keep G002 sealed; use the actual owner's
   isolated PTR for the new playable journey. Read the dated
