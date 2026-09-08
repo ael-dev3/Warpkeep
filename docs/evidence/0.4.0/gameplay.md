@@ -65,3 +65,34 @@ on actual atlas routes. Record the first economy building **and improved return
 within ten minutes**, all six effects/progression, reconnect/background/switching
 and failure behavior. Do not infer these outcomes from fixture time advancement,
 button availability, test totals or a successful source push.
+
+## Nested panel closure — 2026-09-08
+
+The real keep host treated the child screen's explicit close request as one Back
+step. Closing or pressing Escape from a building review therefore left the
+catalogue open; closing Workers after switching from placement reopened the prior
+building panel. Component-only selection tests did not expose the history-backed
+caller mismatch.
+
+Source commit `0d98599c1f26ecc74c4182fc587cd21278c3af63` adds traversal to an exact existing ancestor and closes to the
+keep root. It retains the separate Back action, browser-history serialization,
+lost-popstate watchdog and session reset. Closing discards the placement draft;
+Forward may revisit a presentation route but cannot restore that draft or submit
+a command. Focus returns to the opener and the panel's expanded state closes.
+
+The actual host, screen and navigation hook reproduced the original defect with
+synthetic ready state and no gameplay submissions. The exact five-path repair
+passed 96 tests across the host, screen, navigation and HUD suites on native Linux,
+with app/configuration noEmit checks and independent source review. Tests cover
+Close/Escape in browser and Mini App modes, nested placement/Worker panels, focus,
+Back/Forward, absent ancestors, concurrent traversal attempts and identity reset.
+A pre-existing viewport-refresh React `act` warning remained; no tests failed.
+
+The reviewed patch SHA-256 is
+`a88d74dea4ca87a3284aa2e53632d30a28b52cd80cf7280f9e2bb2752940c3ca`.
+Its test input was exact `b306eed` plus that source patch in an independent checkout
+with owned dependency copies. No server behavior, physical-device performance,
+rendered visual acceptance or authenticated owner play is established by these DOM
+tests. The changed runtime bytes also require their actual generated source
+manifest/workflow references; the publication record identifies that derivation
+separately from full native source preparation.

@@ -1,12 +1,13 @@
 # Release engineering, CI and infrastructure audit
 
-Current implementation includes the published Linux sealed-preflight/Worker
-checkpoint `1e90b2e`, its verified generated-only family `de10f83`, and the
-reviewed recovery-policy repair `1f91470`. Native prepare/check and compiled
-G002/PTR table-schema comparison passed for exact `1e90b2e`. The repaired policy
-suite passed all 159 cases with app/config types; current-source preparation and
-GitHub CI remain distinct from those results. See the
-[execution handoff](execution-handoff.md) for the selected publication source.
+Exact `b306eed` includes the Linux preflight, reviewed recovery-policy repair and
+current source guidance. Full native preparation and independent check passed;
+generated-only commit `ba12a7f` integrates the output delta. Clean
+candidate QA passed 658 tests across the two complete release/policy runs, with 25
+privileged namespace skips; app/configuration types passed. The later panel fix
+`0d98599` has separate scoped UI/type and incremental-closure evidence.
+Required GitHub CI and final release preparation remain distinct. Follow the
+[execution handoff](execution-handoff.md) and actual remote for current source.
 
 The original September 7 audit was at `781e51e`; its dated provider/process/CI
 observations below retain that scope. Later September 8 entries supersede only
@@ -68,8 +69,9 @@ the added gameplay tables' private access, keys, indexes, sequence and actual
 schedule target also match the source contract. PTR's sanitized browser bindings
 contain no table descriptors and are not the comparison authority. The owned
 in-memory loopback instance used no player rows and was stopped afterward.
-Current program identity, populated migration and retained writes still require
-their own evidence.
+This comparison did not observe the loaded program or populate rows. The later
+04:02 UTC planning observation below supplies scoped program-hash evidence;
+populated migration and retained-write recovery remain separate work.
 
 At 02:59 UTC, one ordinary authenticated `st_module` metadata query per target was
 denied: `INVALID_GENESIS_002_ADMIN_SESSION` and `INVALID_PTR_OWNER_SESSION`. The
@@ -79,8 +81,12 @@ application effects were not independently established. That route was stopped
 without retries or substitute authority. GET metadata's `initial_program` is
 historical and must not be described as the current loaded program. A supported
 SQL observer must satisfy both application admission and provider query authority.
-A separate provider planning route is under source/protocol review; no live
-planning request or current-program conclusion has been made through that route.
+A separate fixed, authenticated provider planning diagnostic succeeded at
+04:02 UTC, supporting the initial-program fingerprint at each planning snapshot.
+Complete metadata/schema matched before and after; expected additive plans had no
+client-breaking or major-upgrade flags. No publication or player-row request was
+made. This supersedes the earlier absence of a program-hash observation, while
+preserving the SQL denial and the snapshot's explicit limits.
 
 A separate native experiment on pinned SpacetimeDB 2.6.1 verified the update
 protocol using synthetic modules in a private loopback network namespace. Valid
@@ -98,13 +104,22 @@ canonical receipt consumer. Do not replay import/owner creation or rewrite old
 receipts as evidence for a new module. The [engineering evidence](../../evidence/0.4.0/release-engineering.md)
 records the preparation and diagnostic scope.
 
-The historical creation record identifies module source `799814b` and exact
-published bundle SHA-256 values. A bounded search of known local project/artifact
-roots found no retained file matching either value. The historical source and
-locked inputs are available for an isolated reconstruction, but a current dist
-file or matching schema must not substitute for authenticated predecessor bytes.
-The original pre-gameplay program is not automatically a safe rollback: recovery
-must preserve newer tables and writes as well.
+The historical creation record identifies module source `799814b` and recorded
+bundle hashes. A bounded artifact search found no matching retained bytes, and
+one isolated historical-source rebuild per realm did not reproduce those hashes.
+Those files are diagnostic fixtures, not the original deployed executables. Exact
+predecessor possession is not an explicit general recovery requirement: R16
+requires compatible recovery preserving existing and subsequent writes. Do not
+restore a pre-gameplay schema or old snapshot over newer state.
+
+The first actual-module local preservation experiment confirmed the reconstructed
+G002 table boundary but stopped at admin authentication before any import/update.
+The existing G002 parser requires `hex_identity`; the bridge's G002 producer omits
+it, and the pinned provider forwards the original payload. The old loopback test
+added that field itself. This is a bridge/module contract mismatch under repair,
+not a reason to weaken module guards or treat the failed experiment as acceptance.
+Its disposable server and local signing files were cleaned up. See the canonical
+[recovery evidence](../../evidence/0.4.0/recovery.md) for scope and continuation.
 
 ## Windows/WSL working environment and process evidence
 

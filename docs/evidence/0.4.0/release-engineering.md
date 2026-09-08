@@ -849,3 +849,114 @@ fixture UID/indentation errors and superseded runs were retained, then corrected
 without weakening source checks. The final exact two-path export SHA-256 is
 `a8cbf046c147f4dbfc0881827780b2d9c27de084803433cdbecc478a60fb1e2d`.
 This source repair needs its own generated family and required CI result.
+
+## Existing-program planning and recovery direction — 2026-09-08
+
+At 04:02 UTC, a fixed owner-authenticated diagnostic called the documented
+`pre_publish` endpoint once for each existing G002/PTR immutable identity with
+the retained exact `1e90b2e` compiled candidate. Its complete metadata and schema
+captures matched the pinned earlier baseline before and after planning. Both
+plans contained the intended private gameplay tables and schedule, with
+client-breaking and major-upgrade flags false. No publication, SQL or player-row
+request was made. Schema/planning access can start a dormant host and normal
+scheduling; this is not a claim of zero application or infrastructure effects.
+
+For each response, the returned migration token matched the independently
+calculated Keccak256 of immutable identity, recorded initial-program hash and
+candidate-program hash in the provider's documented hexadecimal encoding.
+Independent retained readbacks recomputed both results from the exact candidate
+bytes. Under the authenticated provider semantics and collision-resistance
+assumption, this supports the recorded initial hash as the loaded old program at
+the planning snapshot. It does not prove continuous currentness after the
+response, an update epoch, original source provenance, retained executable bytes,
+row preservation or completed publication. A program can change and change back,
+restoring the same token; that cannot establish no effect after an uncertain PUT.
+
+The diagnostic used the configured CLI's normal credential export through bounded
+private pipes. Credentials and identity-bearing response headers were not retained
+or printed. Fixed transport, target/candidate hashes, duplicate-key and response
+validation, token decoding, owner assertions and marker-before-request behavior
+were reviewed before the one-shot operation. No retries or redirects were allowed.
+The retained diagnostic SHA-256 is
+`1e7b4d5ff9a88ae4177776bc154815b09451b71dd565348fff5f7dad61bd6a50`;
+sanitized result SHA-256 is
+`9caa0de3a9a1b355a4b11640d5887d56d4f93cba9d286381a834d310cfdcdd6e`.
+This is local diagnostic evidence, not an authenticated production-producer
+receipt, current-source observation, consumed permit or release authority.
+
+No supported deployed-byte download route was found in the inspected exact
+SpacetimeDB 2.6.1 public API/CLI/dashboard sources. The system-table SQL route
+remains behind the already-denied application connection lifecycle; it was not
+retried. A bounded local artifact search found no matching original bundle.
+One isolated build per realm from historical module source `799814b5` completed
+but did not match the recorded publication SHA-256. The original Windows build
+used parent dependency resolution and path-sensitive inline source maps; the
+Linux reconstruction did not reproduce that environment. These are reconstructed
+historical-source fixtures, not recovered original executables.
+
+The missing original executable limits an exact deployed-artifact rehearsal.
+It is **not an explicit general recovery prerequisite** in `AGENTS.md` or R16.
+The requirement is isolated, schema-compatible recovery that preserves existing
+and subsequent writes. A useful forward-recovery design can meet that requirement
+without restoring a pre-gameplay executable or snapshot. Actual-module populated
+migration and forward-recovery testing remains unfinished; label a historical
+schema-equivalent fixture honestly and retain fresh authenticated old-program
+binding at the actual update boundary.
+
+The connected fresh-create publishers and V1 receipts must retain their present
+meaning. Existing updates need explicit target/predecessor/candidate observation,
+preservation evidence and uncertain-outcome reconciliation. They cannot pass by
+removing the existing-target refusal, asserting `freshDatabase:true`, rerunning
+owner/import creation or rewriting historical receipts to a new module hash.
+
+## Verified recovery-policy source family — 2026-09-08
+
+Full native preparation and an independent rebuilding check both passed for
+`b306eedd8c4fe8f32661d89abc32f04938a5aa8e`, tree
+`92a5abb1fdf4d38a916611debfe8ff745d574e5f`. Their complete result commitments agree.
+Journal SHA-256 is `b64a5ae6875b3fa12fc2a2652dce146822ae5b3441d71667ee25dae350464edb`;
+family SHA-256 is `e7d4f39733bcb9e67ce22316a3250e1c59b99a8636e9815e79098c6c6b312f3e`.
+The operating result explicitly retains `finalReleasePrepared:false`.
+
+Clean candidate QA passed 499 cases across twenty suites with 25 privileged
+namespace skips, followed by all 159 prepared-workflow cases. App and configuration
+noEmit checks passed. The source-sensitive tests used an explicitly synthetic
+clean Git child; export retained the original b306 source HEAD. Every tracked
+source/test body and all journal-approved outputs matched before and after QA.
+Dependencies were copied into owned exact-lock fixtures; no shared install,
+source overlay or validation relaxation was used.
+
+Root reopened all journal outputs and compared their actual bytes/hashes and
+changed Git blobs before integrating only the six changed generated files at
+`ba12a7ff9539a5fd460251a73662a51f28935012`. Its tree matches the verified clean QA tree. Exact patch
+SHA-256: `61ddf5fc886e8f995c24e80bda62e1198cafa8fb47671ac3244076cb4f798727`.
+The selected input was locally committed when this preparation began; older
+scratch filenames containing “published” do not prove it had already been pushed.
+
+Panel fix `0d98599c1f26ecc74c4182fc587cd21278c3af63` is later source work with separate scoped tests. Its
+affected source manifest/workflow references are derived incrementally through
+their existing owner; this does not relabel the combined source as fully prepared.
+See [gameplay evidence](gameplay.md) and the actual publication record. Required
+CI, populated recovery, real owner play and live deployment remain separate.
+
+## Navigation source closure — 2026-09-08
+
+From exact `0d98599c1f26ecc74c4182fc587cd21278c3af63`, the existing closure owner
+derived the complete consumer family in an owned Linux checkout. An independent
+clone passed the real installed-closure verifier and reproduced all fifteen
+outputs byte for byte. Every tracked source body, accepted preparation output,
+reviewed UI input and scanner/config identity was checked before and after.
+The original b306 candidate and journal were not opened by this caller.
+
+Generated-only commit `cd6d89b5455a658a724601c3f7cc86f33f36cc27` installs the four
+changed outputs: two runtime-file hashes in the closure manifest and that
+manifest's three workflow pins. There are no inventory membership, count,
+compiler-input or compiled-bundle changes. Closure manifest SHA-256 is
+`4fdfca65f38beb3f530e75b9151260d2948fd89cb289ca5e3a1e8be9d2cf0ec9`;
+reviewed export patch SHA-256 is
+`7f5bf5ff937d4f0be6df96433880e6436eaf0ff0dbff2f711394da2142275fc9`.
+Root compared the exported bytes with the verification clone before integration.
+
+This is incremental development evidence. It does not extend b306's full native
+preparation to later source, rerun the retained UI/policy tests, establish required
+CI success or authorize a deployment. Final release preparation remains open.
