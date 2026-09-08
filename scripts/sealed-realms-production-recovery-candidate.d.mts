@@ -6,7 +6,8 @@ type Input = Readonly<{ records: SealedRealmsProductionActivationRecords;
   privateState: SealedRealmsProductionPrivateState; authority: SealedRealmsProductionSourceAuthority;
   bridgeState?: SealedRealmsProductionAuthBridgeState;
   readContext?: SealedRealmsRecoveryCandidateReadContext }>;
-/** Data only. Selects V3 from exclusive existing-update corpus evidence; V2 remains unchanged. */
+/** Data only. Selects V3 from exclusive update evidence and preserves V2 wire output.
+ * Reopens the configured producer workspace; missing or invalid releases refuse inspection. */
 export function inspectSealedRealmsProductionRecoveryCandidate(input: Input): Readonly<{
   facts: Readonly<Record<string, string | number | boolean | null>>; missingFields: readonly string[] }>;
 /** Throws with fixed missingFields schema names until actual producer facts exist. */

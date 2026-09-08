@@ -1,3 +1,5 @@
+// Approval I/O is isolated here; the real joined proof lives in sealedRealmsRecoveryApprovalProducer.test.ts.
+vi.mock('../scripts/sealed-realms-production-recovery-approval-facts.ts', () => ({ readSealedRealmsProductionRecoveryApprovalFacts: () => ({}) }));
 // @vitest-environment node
 import { createHash } from "node:crypto";
 import {

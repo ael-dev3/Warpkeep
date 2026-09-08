@@ -1,3 +1,4 @@
+import { readSealedRealmsProductionRecoveryApprovalFacts } from './sealed-realms-production-recovery-approval-facts.ts';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
@@ -83,13 +84,16 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
     ? readSealedRealmsProductionRecoveryBridgeFacts({ bridgeState: options.bridgeState, privateState: options.privateState, authority: options.authority })
     : Object.freeze({});
   const bridge = readBridge();
+  const readApprovals = () => readSealedRealmsProductionRecoveryApprovalFacts({ records: options.records,
+    privateState: options.privateState, authority: options.authority, readContext: options.readContext });
+  const approvals = readApprovals();
   const actual = source(commit);
   if (JSON.stringify(corpus.bootstrap) !== JSON.stringify(actual)) fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID');
   const update = Object.hasOwn(corpus.projection, 'ptrExistingUpdateReceiptDigest');
   if (update && Object.hasOwn(corpus.projection, 'ptrPublishReceiptDigest')) fail();
   const keys = update ? RECOVERY_BINDING_KEYS_V3 : RECOVERY_BINDING_KEYS_V2;
   const facts = { ...(update ? recoveryActivationCandidatePolicyForVersion(3) : recoveryActivationCandidatePolicy()) };
-  for (const projection of [corpus.projection, bridge, {
+  for (const projection of [corpus.projection, bridge, approvals, {
     preparationSourceCommit: actual.preparationSourceCommit, preparationSourceTree: actual.preparationSourceTree }]) {
     for (const [key, value] of Object.entries(projection)) {
       if (!keys.includes(key) || (Object.hasOwn(facts, key) && facts[key] !== value)) fail();
@@ -98,6 +102,7 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
   }
   if (JSON.stringify(corpus) !== JSON.stringify(readSealedRealmsProductionRecoveryCandidateRecords(options.records, options.readContext))
     || JSON.stringify(bridge) !== JSON.stringify(readBridge())
+    || JSON.stringify(approvals) !== JSON.stringify(readApprovals())
     || JSON.stringify(actual) !== JSON.stringify(source(commit))) fail();
   const ordered = Object.freeze(Object.fromEntries(keys
     .filter(key => Object.hasOwn(facts, key)).map(key => [key, facts[key]])));

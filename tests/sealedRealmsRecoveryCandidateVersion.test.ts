@@ -1,9 +1,10 @@
+vi.mock('../scripts/sealed-realms-production-recovery-approval-facts.ts', () => ({ readSealedRealmsProductionRecoveryApprovalFacts: seams.approvals }));
 // @vitest-environment node
 import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
-const seams = vi.hoisted(() => ({ git: vi.fn(), corpus: vi.fn(), bridge: vi.fn(), records: new WeakSet<object>() }));
+const seams = vi.hoisted(() => ({ git: vi.fn(), corpus: vi.fn(), approvals: vi.fn(), bridge: vi.fn(), records: new WeakSet<object>() }));
 vi.mock('node:child_process', () => ({ execFileSync: seams.git }));
 // Isolate corpus/source I/O, not candidate policy or source authority validation.
 vi.mock('../scripts/sealed-realms-production-activation-records.mjs', () => ({
@@ -29,6 +30,7 @@ function fixture(version: 2 | 3) {
   const bootstrap = { preparationSourceCommit: commit, preparationSourceTree: tree, bootstrapBlob: blob,
     bootstrapSha256: createHash('sha256').update(body).digest('hex') };
   const corpus = { bootstrap, projection: candidate };
+  seams.approvals.mockReturnValue({g002PublicApprovalReceiptId:candidate.g002PublicApprovalReceiptId,ptrPublicApprovalReceiptId:candidate.ptrPublicApprovalReceiptId});
   seams.corpus.mockImplementation(() => structuredClone(corpus));
   seams.git.mockImplementation((_executable, argv) => {
     const args = argv.slice(6);
@@ -99,4 +101,8 @@ it('rejects bridge changes across candidate derivation and supplied undefined or
 it('rejects corpus source duplicates that conflict with authenticated source', () => {
   const f=fixture(3); f.corpus.projection.preparationSourceCommit='f'.repeat(40);
   expect(() => inspectSealedRealmsProductionRecoveryCandidate(f.input)).toThrow();
+});
+
+it('rejects approval facts inconsistent with the selected corpus projection',()=>{
+ const f=fixture(3);seams.approvals.mockReturnValue({g002PublicApprovalReceiptId:'different',ptrPublicApprovalReceiptId:f.candidate.ptrPublicApprovalReceiptId});expect(()=>inspectSealedRealmsProductionRecoveryCandidate(f.input)).toThrow();
 });

@@ -5,6 +5,31 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Approval evidence from the actual private releases
+
+The real recovery candidate reopens the existing private Greater Realm workspace
+and derives G002/PTR approval IDs through the production release readers. Realm,
+source, public release and release/header digests must match authenticated corpus
+receipts; PTR also matches the manifest digest. The reader reopens both releases
+and the corpus, rechecks ownership and refuses replacement or conflicting facts.
+The existing-only opener never creates missing directories. Missing or invalid
+workspace evidence now refuses candidate inspection instead of supplying defaults.
+
+A genuine generated-release, private-corpus and bridge test exercises the actual
+candidate and leaves seven producer inputs missing: recovery authorization request
+ID/epoch, worker configuration identity/epoch, source-closure SHA256, and G001/G002
+expected program Keccak256. The production generator consumer remains closed.
+No provider calls, realm initialization, admission change or deployment occurred.
+
+Verification passed 53 tests across the focused reader/candidate, affected corpus
+contracts and genuine combined producer suites, plus strict types. Root
+independently passed 20 reader/workspace tests. Activation, G002 and PTR bundles
+build and import under Node22 with the actual connected activation runtime.
+Independent review found no blocking runtime issue. Windows test permission-mode
+emulation is explicit; native Unix permission behavior and owner play remain
+separate. Earlier timeout failures are retained; only the heavy test's Windows
+budget changed, not production timeouts.
+
 ## Confirmed Worker return feedback
 
 Worker cards name the resource from the last confirmed return, independently of
@@ -25,9 +50,9 @@ compiler sync API dependency; no full-app type success is claimed.
 
 The production activation runtime passes its actual bridge-state capability into the recovery candidate reader. The reader reopens the retained suspension receipt and its validated authority chain to obtain worker version, worker source, bridge source and suspension receipt digest. It checks exact source/private-state ownership, permits the existing linked recovery predecessor, and reopens the chain/catalog before returning facts. These are retained evidence facts, not a fresh provider observation or permission to perform effects.
 
-Candidate assembly merges corpus, bridge and source projections separately so a conflicting duplicate cannot be silently overwritten. It rechecks each input before returning. Callers inspecting only the corpus can still identify incomplete inputs. The final generator projection independently cross-checks G002/PTR import receipt links against the bridge history.
+Candidate assembly merges corpus, bridge and source projections separately so a conflicting duplicate cannot be silently overwritten. It rechecks each input before returning. The later approval integration above requires retained workspace evidence even during inspection. The final generator projection independently cross-checks G002/PTR import receipt links against the bridge history.
 
-A genuine private bridge/corpus fixture reduces the missing inputs from thirteen to nine: recovery authorization request ID and epoch; worker configuration identity and epoch; source-closure SHA256; G001/G002 expected program Keccak256; and G002/PTR public approval receipt IDs. No default values replace those producers. The production generator consumer remains unavailable, and this change does not deploy or initialize a realm.
+At the earlier bridge-only integration checkpoint, a genuine private bridge/corpus fixture reduced missing inputs from thirteen to nine: recovery authorization request ID and epoch; worker configuration identity and epoch; source-closure SHA256; G001/G002 expected program Keccak256; and G002/PTR public approval receipt IDs. No default values replace those producers. The production generator consumer remains unavailable, and this change does not deploy or initialize a realm.
 
 Verification: the final bridge/candidate/runtime integration suite passed 13 tests and focused strict types. Root independently passed the candidate/runtime checks and all 40 workflow runtime tests. The bridge reader received independent review; its recovery case passed, with earlier Windows timeout evidence retained. The real full-source activation bundle builds and imports under plain Node 22. The relocated bundle fixture now copies the real compiler graph and required package metadata, fixing an incomplete fixture also reproduced on the unchanged baseline. Windows-only fixture timeouts accommodate observed filesystem/compiler setup; production validation and Linux timing limits remain unchanged.
 
@@ -57,7 +82,8 @@ synthetic fixture evidence; they are not live provider or owner-play proof.
 
 At the earlier V3 checkpoint, corpus-only inspection identified thirteen missing
 producer fields. The connected bridge reader described above now supplies four
-of them, leaving nine. The PTR program hash comes from the completed update
+of them, leaving nine at that checkpoint. The approval reader above now reduces
+that set to seven. The PTR program hash comes from the completed update
 receipt. A synthetically complete test candidate does not establish operating
 readiness; the remaining inputs still need their actual producers.
 
