@@ -2,7 +2,7 @@
 
 ## 2026-09-09 source-render matrix checkpoint
 
-The current published source is `a0b5060`. Actual renderer synthetic captures
+The current published source is `4410b2a`. Actual renderer synthetic captures
 covered the empty, mature, legal-placement, blocked-placement, construction,
 completed and schematic-fallback states at desktop and 390px portrait profiles.
 The portrait WebGL canvas now uses the available keep panel width while the
@@ -11,6 +11,12 @@ unchanged. A real browser center-pick traversed the resized canvas raycast and
 selected-site inspection rendered correctly. The change does not alter asset
 count, geometry or scene quality settings. It is a source-render comparison,
 not physical-phone performance, live owner play or final R04/R05 acceptance.
+
+The current mobile polish keeps the same interaction surface while improving the
+narrow resource strip: two balanced columns, explicit safe-area insets and quiet
+surface contrast keep balances legible without adding a second mobile layout. The
+focused Keep04 UI/scene run passed 66 tests after this styling pass; visual
+captures and physical-device measurements remain separate acceptance evidence.
 
 The handoff reference library is represented in the current visual plan and
 source notes: voxel composition, Verdant Forest, Pelagic water/material cues,

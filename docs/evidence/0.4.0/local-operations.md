@@ -4,7 +4,7 @@
 
 ## Current local execution checkpoint — 2026-09-09
 
-The Windows/GitHub source head is `5c210ce`; the dedicated Linux operating
+The Windows/GitHub source head is `4410b2a`; the dedicated Linux operating
 checkout is `d6cfc5c` and has matching native preparation/rebuild provenance.
 Linux G001 policy preparation, the privileged caller suite, and bounded
 source/private-record scenarios passed. A dedicated GitHub Actions runner was

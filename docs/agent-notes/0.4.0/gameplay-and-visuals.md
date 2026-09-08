@@ -1,10 +1,10 @@
 # Gameplay and visual implementation notes
 
 Updated 2026-09-09 against the published 0.4 checkpoint at
-`65e3fa4fb37b82d48a1ad138f4a7a32323417e9a`, including the inspected working files.
-This refresh is source/document inspection, with no new test run, authenticated
-owner session or production call. Earlier executed results keep their original
-source and limitations in the [execution handoff](execution-handoff.md).
+`4410b2a3fd9120a9750490bb93b1a1ebde4f953b`, including the inspected working files.
+This refresh includes the focused Keep04 UI/scene run (66 tests passed); it has
+no authenticated owner session or production call. Earlier executed results
+keep their original source and limitations in the [execution handoff](execution-handoff.md).
 The earlier `1600f4b` audit is the origin of findings G01–G03 and V01–V02;
 G01 is now fixed in source by `555e505` and is not unfinished implementation.
 The 2026-09-08 continuation update below supersedes G02's implementation gap;
@@ -19,11 +19,17 @@ this page keeps precise mechanics, implementation routes and evidence limits.
 
 ## Visual foundation and complete reference coverage
 
-At `ebd5fb1`, the owner direction prioritizes a professional mobile visual
+At `4410b2a`, the owner direction prioritizes a professional mobile visual
 foundation with simple interaction. Preserve the useful existing loop; deeper
 simulation and elaborate editing remain later work. The full Desktop handoff
 reference library informs one coherent Verdant Citadel, rather than a collection
 of imported mechanics or rendering engines.
+
+The current narrow-screen surface now presents resources as two readable columns
+with safe-area padding and keeps the same scene, schematic and command order as
+desktop. The visual treatment adds restrained depth and contrast to the resource,
+scene and action surfaces without changing gameplay authority, renderer budgets or
+the existing touch and keyboard gestures.
 
 Published forest grouping and moss/earth terrace tops improve separation between
 buildings and their setting. The current source-render matrix covers empty,
