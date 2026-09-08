@@ -625,3 +625,54 @@ bytes and scanner rules remain unchanged. Real Gitleaks 8.30.1 regression passed
 22 accepted cases and all 33 required negative findings, including altered values
 and unchanged values at a lookalike path. The six native scanner unit tests passed.
 The actual outgoing commit range must also pass before publication.
+
+## Published checkpoint and supported Linux preflight — 2026-09-08
+
+Checkpoint `a4ec99f8202d34ef067c28461ea7200066b943f4` published six reviewed
+commits after the actual outgoing first-parent/merge-aware Gitleaks scan passed.
+Fetch after non-forced publication verified local/GitHub equality. The maintained
+main, profile, assets, water and editor repository refs were also fetched and
+equal. Its [CodeQL analysis](https://github.com/ael-dev3/Warpkeep/actions/runs/34180632901)
+passed, and the separate [CodeQL security check](https://github.com/ael-dev3/Warpkeep/runs/101919500304)
+passed with zero annotations. This clears the earlier 14 reported annotations
+on this source. Three service/native Verify jobs passed; Linux and database jobs
+were still active when inspected. The earlier b4df database build/binding step
+passed before the next push cancelled its later recovery stage; that cancelled
+job is not a full module-lane pass.
+
+The next source connects a dedicated Linux preflight executable to the sealed
+workflow. It preserves protected main/manual `operate` identity, read-only
+permissions, environment and shared non-cancelling production lock. Unsupported
+operations refuse before checkout. The shell checks actual account, fixed Git,
+Node bytes and committed bootstrap files, then retains the token only in the
+environment. The caller authenticates actual prepared ancestry, G001 source graph,
+bundle/declaration and imported bytes, and invokes the genuine bundled runtime
+factory and operation with source/runtime rechecks around both awaits. It accepts
+no provider bag, digest/path/factory override or mutation operation.
+
+Independent caller review found no blocker within this preflight scope. All 31
+native caller tests passed, with no skips, and application types passed. The tests
+use the completed b4df generated bundle in an independent source snapshot,
+real UID/GID 1001 inside a private mount namespace and fixed synthetic GET-only
+GitHub responses. They exercise the actual factory/run plus runtime, graph,
+import replacement, workflow and private-root rejection. The actual retained
+journal authenticated all 101 before/after output bytes, with exactly 18 changes;
+copied dependencies had no symlink outside their respective isolated roots.
+Normal unprivileged CI skips the 25 privileged namespace cases; its ordinary
+caller suite does not repeat this full native proof. The workflow's 67 native
+tests passed, including real shell syntax/guards, ignored startup injection,
+source/token transport and every unsupported operation; application types passed.
+The workflow changes none of the static verifier's selected source bytes. An exact
+a4ec source diagnostic also passed the actual preparation-mode static verifier.
+These are local composition results, not live GitHub job or provider evidence.
+
+The registered Linux runner remained online/idle with its systemd service active
+as UID/GID 1001. Its separate sealed-operation roots were initially absent and
+then created as empty owner-only directories with checked no-follow descriptors,
+exact ownership/modes, no ACL and fsync. No credentials, keys, receipts or authority
+records were created. The fixed caller continues to require existing roots rather
+than provisioning them. The account remains noninteractive. A successful future
+`preflight-inspected` result establishes operating prerequisite inspection only;
+real provider adapters, signer authorization, owner acceptance and live release
+proof remain unfinished. The newly combined source requires fresh preparation
+and independent check; b4df's completed family is not relabelled as that result.

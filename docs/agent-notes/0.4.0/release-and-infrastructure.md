@@ -2,9 +2,11 @@
 
 Original source inspection: 2026-09-07, local
 `781e51e364d1e5a7319ca2364744c8730e83b0d6`. Current caller status below includes
-the source integration following `b4df426`, with fixed canonical candidate and
-historical inspection, plus the earlier assembler and receipt projection. Runner
-infrastructure was verified online on September 8 at 00:28 UTC; the original
+the source integration following `a4ec99f`, with the fixed Linux sealed-preflight
+caller/workflow, canonical candidate and historical inspection, plus the earlier
+assembler and receipt projection. Runner infrastructure was verified online on
+September 8 at 02:39 UTC; separate sealed-operation roots were then provisioned.
+The original
 provider/process and CI observations below retain their dates and source scope.
 Authenticated provider and local-process observations were refreshed on September 7
 around 21:48–21:51 UTC. Later publication state belongs in the
@@ -96,6 +98,7 @@ callers remain separate migration work.
 | Publisher ABI checks | `genesis002-production-publisher.mjs` and `ptr-production-publisher.mjs` corrected for real generated gameplay ABI | Fresh-create publishers still reject existing targets; both realms are confirmed to exist |
 | Recovery Pages caller | `deploy-pages.yml` implements the Linux build/attestation/artifact/claim/boundary/deploy/postflight job at `c51bb00`; runner22 and its UID1001 private directory are now provisioned | Install/review the selected current generated source and bundle family, genuine activation inputs, signer private/control state and live authorization; no recovery job has yet established acceptance |
 | Recovery Worker split | `services/release-recovery` gateway route and private signer/service binding, durable ledger, disabled gate | Configuration files do not prove deployed Workers, installed keys or armed authorization |
+| Linux sealed preflight | Fixed authenticated G001 caller connected through `sealed-realms-production.yml`, with actual runtime/source/bundle/Verify/private-root checks | Only preflight is supported; other sealed operations refuse. Native synthetic tests do not establish a protected dispatch, provider readiness or launch authorization |
 
 Read [compiled family evidence](../../evidence/0.4.0/local-release-compiled-family-probe.md),
 [recovery validation map](../../evidence/0.4.0/recovery-binding-validation-map.md),

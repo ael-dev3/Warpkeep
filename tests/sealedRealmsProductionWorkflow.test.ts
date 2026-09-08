@@ -1,7 +1,9 @@
 // @vitest-environment node
 
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
@@ -23,8 +25,7 @@ type VerificationJob = {
 const verification = () => parse(workflow('verify.yml')) as { permissions?: unknown; env?: unknown; jobs: Record<string, VerificationJob> };
 
 describe('sealed-realms production workflow authority', () => {
-  const hardenedShell =
-    '/usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}';
+  const hardenedShell = '/bin/bash --noprofile --norc -p -e -o pipefail {0}';
   it('admits only the exact manual source commit and 20 ordered operations', () => {
     const source = workflow('sealed-realms-production.yml');
     const document = parse(source) as {
@@ -48,77 +49,181 @@ describe('sealed-realms production workflow authority', () => {
     expect(document.permissions).toEqual({ actions: 'read', contents: 'read' });
   });
 
-  it('uses only the protected exclusive runner and one bounded public result line', () => {
+  const production = () => parse(workflow('sealed-realms-production.yml')) as {
+    jobs: Record<string, VerificationJob>;
+  };
+  const operationStep = (name: string) => {
+    const step = production().jobs.operate.steps.find(candidate => candidate.name === name);
+    expect(step).toBeDefined();
+    return step!;
+  };
+  const guardName = 'Require installed Linux preflight authority';
+  const executeName = 'Attest runtime and execute authenticated preflight';
+  const refusalName = 'Refuse operations without a supported Linux caller';
+
+  it('uses the protected Linux runner and keeps the exact manual-main job identity', () => {
     const source = workflow('sealed-realms-production.yml');
-    const document = parse(source) as {
-      jobs?: Record<string, {
-        environment?: string;
-        'runs-on'?: string[];
-        'timeout-minutes'?: number;
-      }>;
-    };
-    expect(Object.keys(document.jobs ?? {})).toEqual(['operate']);
-    expect(document.jobs?.operate).toMatchObject({
+    const document = production();
+    expect(Object.keys(document.jobs)).toEqual(['operate']);
+    const job = document.jobs.operate;
+    expect(job).toMatchObject({
       environment: 'notification-bridge-prepared',
-      'runs-on': [
-        'self-hosted', 'macOS', 'ARM64', 'warpkeep-production-admin',
-        'warpkeep-repository-exclusive',
-      ],
+      'runs-on': ['self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive'],
     });
-    expect(document.jobs?.operate?.['timeout-minutes']).toBeGreaterThan(0);
-    expect(source.match(/WARPKEEP_OPERATION_RESULT /gu)).toHaveLength(1);
-    expect(source).toContain('Refuse stale closure before sealed-realms dispatch');
-    expect(source).toContain('SEALED_REALMS_TASK_7_CLOSURE_UNAVAILABLE');
-    expect(source).toContain('exit 1');
-    expect(source).not.toMatch(
-      /(?:node|node_executable).*sealed-realms-production-dispatch\.mjs/iu,
-    );
+    expect(job.if?.trim().split(/\s*&&\s*/u)).toEqual([
+      "github.event_name == 'workflow_dispatch'", "github.repository == 'ael-dev3/Warpkeep'",
+      "github.ref == 'refs/heads/main'", 'github.sha == inputs.source_commit',
+    ]);
+    expect(job['timeout-minutes']).toBe(30);
+    expect(job.steps.map(step => step.name)).toEqual([refusalName, guardName,
+      'Checkout exact selected authority', 'Setup exact Linux preflight Node', executeName]);
+    expect(job.steps[2]).toMatchObject({ with: { ref: '${{ inputs.source_commit }}',
+      'fetch-depth': 0, 'persist-credentials': false } });
+    expect(job.steps[3]).toMatchObject({
+      uses: 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020',
+      with: { 'node-version': '22.22.3' },
+    });
+    for (const step of job.steps.slice(1)) expect(step.if).toBe("${{ inputs.operation == 'preflight' }}");
+    expect(job.steps[0].if).toBe("${{ inputs.operation != 'preflight' }}");
+    for (const step of job.steps.filter(step => step.run)) expect(step.shell).toBe(hardenedShell);
+    for (const step of job.steps) expect(step).not.toHaveProperty('continue-on-error');
     expect(source).not.toMatch(/(?:npm|pnpm|npx|tsx) (?:ci|install|run)/u);
-    expect(source).not.toMatch(/console\.log|set -x|printenv|env\s*$/mu);
-    expect(source).toContain('persist-credentials: false');
-    for (const reference of source.matchAll(/uses:\s*([^\s]+)/gu)) {
-      expect(reference[1]).toMatch(/@[0-9a-f]{40}$/u);
+    expect(source).not.toMatch(/console\.log|set -x|printenv|^\s*env\s*$/mu);
+    expect(source).not.toMatch(/macOS|ARM64|darwin|codesign|actions\/(?:upload|deploy)-artifact|activation-artifact/u);
+    for (const reference of source.matchAll(/uses:\s*([^\s]+)/gu)) expect(reference[1]).toMatch(/@[0-9a-f]{40}$/u);
+  });
+
+  it('requires installed account and private state without provisioning authority', () => {
+    const guard = operationStep(guardName).run!;
+    for (const required of ["test \"$RUNNER_OS\" = 'Linux'", "test \"$RUNNER_ARCH\" = 'X64'",
+      "test \"$RUNNER_NAME\" = 'warpkeep-wsl-production-01'", "test \"$(/usr/bin/id -u)\" = '1001'",
+      "test \"$(/usr/bin/id -g)\" = '1001'", "test \"$(/usr/bin/id -un)\" = 'runner'",
+      "test \"$(/usr/bin/id -ru)\" = '1001'", "test \"$(/usr/bin/id -rg)\" = '1001'",
+      "test \"$GITHUB_REF\" = 'refs/heads/main'", "test \"$GITHUB_JOB\" = 'operate'",
+      '/home/runner/actions-runner', "'1001:1001:700'", 'audit/private runtime cache',
+      '/home/runner/Library/Application Support/Warpkeep/operations/$suffix']) expect(guard).toContain(required);
+    expect(guard).not.toMatch(/mkdir|mktemp|install |chmod|chown/u);
+    expect(guard.indexOf('SEALED_REALMS_LINUX_AMBIENT_OVERRIDE_INVALID')).toBeLessThan(guard.indexOf('/usr/bin/id -u'));
+  });
+
+  it('attests fixed runtime bytes and immutable bootstrap source before calling preflight', () => {
+    const execute = operationStep(executeName).run!;
+    for (const required of [
+      'e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2',
+      '2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668',
+      '124819136:1', '1001:1001:1:700:124819136', '$RUNNER_TEMP/warpkeep-sealed-preflight-node.XXXXXX',
+      "'0:0:1:755'",
+      'test -f "$source_node" && test ! -L "$source_node"', 'check_parents "${source_node%/*}"',
+      'GIT_NO_REPLACE_OBJECTS=1', '--no-replace-objects --no-optional-locks', 'core.hooksPath=/dev/null',
+      "'HEAD^{commit}'", "'refs/remotes/origin/main^{commit}'", 'status --porcelain=v1 --untracked-files=all',
+      'scripts/sealed-realms-production-linux-preflight.mjs', 'scripts/local-binding-bounded-file.mjs',
+      'scripts/sealed-realms-production-bundle-engine.mjs', 'scripts/auth-bridge-notification-prepared-deploy-closure.mjs',
+      '1001:1001:1:644', 'git_source ls-tree', 'git_source show "$WARPKEEP_SOURCE_COMMIT:$path" | /usr/bin/cmp --silent -- "$path" -',
+      'exec "$private_root/node" scripts/sealed-realms-production-linux-preflight.mjs',
+      '--operation=preflight "--source=$GITHUB_SHA"',
+    ]) expect(execute).toContain(required);
+    const call = execute.indexOf('exec "$private_root/node"');
+    expect(call).toBeGreaterThan(execute.indexOf('/usr/bin/cmp --silent'));
+    expect(call).toBeGreaterThan(execute.lastIndexOf('/usr/bin/sha256sum --check --strict --status -'));
+    expect(execute).not.toMatch(/--eval|--input-type|--import|expected-digest|WARPKEEP_NODE_EXECUTABLE/u);
+    expect(execute).not.toMatch(/\bnode\s+--version/u);
+  });
+
+  it('maps the read-only token only to the caller environment and retains exact run context', () => {
+    const job = production().jobs.operate;
+    const execute = operationStep(executeName);
+    expect(job.steps.filter(step => (step.env as Record<string, unknown> | undefined)?.GITHUB_TOKEN)).toEqual([execute]);
+    expect(execute.env).toEqual({ WARPKEEP_SOURCE_COMMIT: '${{ inputs.source_commit }}', GITHUB_TOKEN: '${{ github.token }}' });
+    const allowlist = execute.run!.match(/PATH\|HOME\|LANG\|LC_ALL\|[^\n]+(?=\) ;;)/u)?.[0].split('|');
+    expect(allowlist).toEqual(['PATH', 'HOME', 'LANG', 'LC_ALL', 'RUNNER_OS', 'RUNNER_ARCH', 'RUNNER_NAME', 'RUNNER_TEMP',
+      'GITHUB_ACTIONS', 'GITHUB_REPOSITORY', 'GITHUB_REF', 'GITHUB_SHA', 'GITHUB_EVENT_NAME', 'GITHUB_JOB',
+      'GITHUB_WORKFLOW', 'GITHUB_WORKFLOW_REF', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_TOKEN']);
+    expect(execute.run).toContain('*) unset "$key" ;;');
+    expect(execute.run).not.toContain('GITHUB_TOKEN=');
+    expect(execute.run).not.toContain('$GITHUB_TOKEN');
+    expect(workflow('sealed-realms-production.yml')).not.toContain('secrets.');
+  });
+
+  function runShell(source: string, environment: Record<string, string>, syntaxOnly = false) {
+    const directory = mkdtempSync(join(tmpdir(), 'sealed-workflow-shell-'));
+    try {
+      const script = join(directory, 'step.sh');
+      writeFileSync(script, source);
+      return spawnSync('/bin/bash', ['--noprofile', '--norc', '-p', '-e', '-o', 'pipefail', ...(syntaxOnly ? ['-n'] : []), script],
+        { env: { PATH: '/usr/bin:/bin', ...environment }, encoding: 'utf8', timeout: 10_000, maxBuffer: 4096 });
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  }
+
+  it.runIf(process.platform === 'linux')('parses every executable workflow step with native Bash', () => {
+    for (const step of production().jobs.operate.steps.filter(candidate => candidate.run)) {
+      const result = runShell(step.run!, {}, true);
+      expect(result.error).toBeUndefined(); expect(result.status).toBe(0);
+      expect(result.stdout).toBe(''); expect(result.stderr).toBe('');
     }
   });
 
-  it('strips ambient shell bootstrap authority before the terminal fence', () => {
-    const document = parse(workflow('sealed-realms-production.yml')) as {
-      jobs?: Record<string, {
-        steps?: Array<{ name?: string; shell?: string; run?: string }>;
-      }>;
-    };
-    const fence = document.jobs?.operate?.steps?.find(
-      step => step.name === 'Refuse stale closure before sealed-realms dispatch',
-    );
-    expect(fence).toBeDefined();
-    expect(fence?.shell).toBe(hardenedShell);
-    expect(fence?.run).toContain('SEALED_REALMS_TASK_7_CLOSURE_UNAVAILABLE');
-    expect(fence?.run).toContain('exit 1');
+  it.runIf(process.platform === 'linux')('ignores an actual ambient startup script before rejecting its presence', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sealed-workflow-startup-'));
+    try {
+      const startup = join(directory, 'startup.sh');
+      const sentinel = join(directory, 'must-not-exist');
+      writeFileSync(startup, 'printf executed > "$WARPKEEP_STARTUP_SENTINEL"\n');
+      const result = runShell(operationStep(guardName).run!, { BASH_ENV: startup, WARPKEEP_STARTUP_SENTINEL: sentinel });
+      expect(result.status).toBe(1); expect(result.stdout).toBe('');
+      expect(result.stderr).toBe('SEALED_REALMS_LINUX_AMBIENT_OVERRIDE_INVALID\n');
+      expect(existsSync(sentinel)).toBe(false);
+    } finally { rmSync(directory, { recursive: true, force: true }); }
   });
 
-  it('verifies and uploads only the fixed public activation path', () => {
-    const source = workflow('sealed-realms-production.yml');
-    const immutableNode =
-      '/private/var/db/warpkeep/runtime/node-v22.22.3-darwin-arm64/bin/node';
-    expect(source).toContain(
-      '"$node_executable" scripts/verify-sealed-realms-public-activation-artifact.mjs',
-    );
-    expect(source).toContain(immutableNode);
-    expect(source).toContain('/usr/bin/codesign --verify --strict --verbose=4');
-    expect(source).toContain(
-      "'5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c'",
-    );
-    expect(source).not.toContain(
-      'node scripts/verify-sealed-realms-public-activation-artifact.mjs',
-    );
-    expect(source).toContain("github.event.inputs.operation == 'activation-evidence-generate'");
-    expect(source.match(/actions\/upload-artifact@/gu)).toHaveLength(1);
-    expect(source).toContain('${{ steps.activation-artifact.outputs.path }}');
-    expect(source).toContain('mktemp -d');
-    expect(source).not.toMatch(/\bmv\s+(?:-[^\s]+\s+)*--?/u);
-    expect(source).not.toMatch(/>\s*"\$artifact"/u);
-    expect(source).not.toMatch(/artifact-path|candidate-path|expected-digest/iu);
+  it.runIf(process.platform === 'linux')('preserves the authenticated source and token through the actual environment pruning block', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sealed-workflow-transport-'));
+    try {
+      // This fixed shell executable checks transport only; it is not Node or a
+      // substitute for the caller's native runtime/source/evidence checks.
+      writeFileSync(join(directory, 'node'), `#!/bin/sh
+set -eu
+test "$#" = 3
+test "$1" = scripts/sealed-realms-production-linux-preflight.mjs
+test "$2" = --operation=preflight
+test "$3" = "--source=$GITHUB_SHA"
+test -n "$GITHUB_TOKEN"
+test "\${WARPKEEP_SOURCE_COMMIT+x}" != x
+test "\${WARPKEEP_UNRELATED+x}" != x
+printf '%s\\n' fixed-argument-transport-ok
+`, { mode: 0o700 });
+      const execute = operationStep(executeName).run!;
+      const transport = execute.slice(execute.lastIndexOf('while IFS= read -r key; do'));
+      const result = runShell('set -eu\nprivate_root="$WARPKEEP_FIXTURE_BIN"\n' + transport, {
+        WARPKEEP_FIXTURE_BIN: directory, WARPKEEP_SOURCE_COMMIT: 'a'.repeat(40), GITHUB_SHA: 'a'.repeat(40),
+        GITHUB_TOKEN: 'private-test-token-never-in-argv', WARPKEEP_UNRELATED: 'must-be-cleared',
+      });
+      expect(result.error).toBeUndefined(); expect(result.status).toBe(0); expect(result.stderr).toBe('');
+      expect(result.stdout).toBe('fixed-argument-transport-ok\n');
+    } finally { rmSync(directory, { recursive: true, force: true }); }
   });
+
+  it.runIf(process.platform === 'linux').each(SEALED_REALMS_OPERATIONS.filter(operation => operation !== 'preflight'))(
+    'refuses %s without loading source or echoing caller data', operation => {
+      const refusal = operationStep(refusalName);
+      const result = runShell(refusal.run!, { WARPKEEP_OPERATION: operation, WARPKEEP_SOURCE_COMMIT: 'private-invalid-source' });
+      expect(result.error).toBeUndefined(); expect(result.status).toBe(1); expect(result.stderr).toBe('');
+      expect(result.stdout).toBe('WARPKEEP_OPERATION_RESULT {"status":"SEALED_REALMS_LINUX_OPERATION_UNAVAILABLE"}\n');
+      expect(refusal.run).not.toMatch(/node|git|source_commit|\$WARPKEEP/u);
+    },
+  );
+
+  it.runIf(process.platform === 'linux').each(['NODE_OPTIONS', 'NODE_PATH', 'NODE_EXTRA_CA_CERTS',
+    'ESBUILD_BINARY_PATH', 'TS_NODE_PROJECT', 'BUN_OPTIONS', 'LD_PRELOAD', 'DYLD_INSERT_LIBRARIES',
+    'GIT_CONFIG_COUNT', 'GIT_OBJECT_DIRECTORY', 'GIT_REPLACE_REF_BASE', 'BASH_ENV', 'ENV', 'OPENSSL_CONF',
+    'SSL_CERT_FILE', 'PYTHONPATH', 'VITEST'])(
+    'rejects even empty exported %s before any host, source or Node work', key => {
+      for (const name of [guardName, executeName]) {
+        const result = runShell(operationStep(name).run!, { [key]: '' });
+        expect(result.error).toBeUndefined(); expect(result.status).toBe(1); expect(result.stdout).toBe('');
+        expect(result.stderr).toBe('SEALED_REALMS_LINUX_AMBIENT_OVERRIDE_INVALID\n');
+      }
+    },
+  );
 
   it('shares one non-cancelling state lock with B0, prepared, and Pages', () => {
     const names = [

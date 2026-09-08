@@ -7,7 +7,7 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-Updated 2026-09-08 following published `b4df426`: the fixed recovery candidate
+Updated 2026-09-08 following published `a4ec99f`: the fixed recovery candidate
 reader and authenticated historical continuation, bounded source-inventory CI
 corrections and clearer keep feedback are integrated. The earlier source added
 real S/V2 authentication, durable G001 capture, GitHub Verify readback and continuous
@@ -30,9 +30,11 @@ verification and publication results. The original `781e51e` audit is historical
   session. Earlier network-denial notes describe an older session.
 - G002 and PTR databases already exist. The Linux recovery Pages caller is
   implemented (`c51bb00`). Its [registered Linux runner](../../operations/0.4.0-linux-runner.md)
-  was online and idle on September 8, with the dedicated account and private root
-  installed. Signer authorization, live provider inputs and operating acceptance
-  remain unfinished. Other production lanes retain Mac-specific dependencies.
+  was online and idle on September 8, with its dedicated account and separate
+  recovery/sealed-operation roots installed. The sealed workflow now connects a
+  fixed Linux preflight caller; all other sealed operations explicitly refuse.
+  Signer authorization, live provider inputs and operating acceptance remain
+  unfinished. Durable Pages and notification lanes retain Mac dependencies.
 - The [local source assembler](../../operations/0.4.0-local-release-preparation.md)
   now connects fixed compilers, complete generated consumers, independent byte
   verification and durable candidate recovery. The activation lane has a fixed

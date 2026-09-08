@@ -1,7 +1,7 @@
 # Continue Warpkeep 0.4
 
-Refreshed 2026-09-08 (Europe/Budapest), following published `b4df426` and the
-reviewed recovery-candidate, CI and player-feedback integration. Earlier
+Refreshed 2026-09-08 (Europe/Budapest), following published `a4ec99f` and the
+reviewed Linux sealed-preflight caller/workflow integration. Earlier
 `772d3a4`, `f558bd5` and `781e51e` entries retain their exact historical scope.
 Read actual Git refs and dated evidence for generated-family publication and
 native execution results; a newer source change requires its own derivation.
@@ -10,6 +10,15 @@ Read the [handoff index](README.md) for product intent and the
 The owner requested the GitHub/profile/repository refresh before game shipping.
 
 ## Resume from the actual development checkout
+
+The `a4ec99f` development checkpoint was pushed without force after its six-commit
+outgoing secret scan passed; local and GitHub refs matched. Its separate CodeQL
+security check passed with zero annotations. The Linux and database jobs were
+still running at that observation; do not infer a complete Verify pass. The next
+Linux caller/workflow source requires its own preparation and independent check.
+Read [the runner guide](../../operations/0.4.0-linux-runner.md) for installed
+account/private-root facts and [dated evidence](../../evidence/0.4.0/release-engineering.md)
+for synthetic native tests versus real protected operating acceptance.
 
 The primary branch is `codex/prepared-keep-bindings-fix`. On the owner's current
 Windows machine its working directory is
