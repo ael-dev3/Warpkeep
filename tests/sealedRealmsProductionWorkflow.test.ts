@@ -26,7 +26,7 @@ const verification = () => parse(workflow('verify.yml')) as { permissions?: unkn
 
 describe('sealed-realms production workflow authority', () => {
   const hardenedShell = '/bin/bash --noprofile --norc -p -e -o pipefail {0}';
-  it('admits only the exact manual source commit and 20 ordered operations', () => {
+  it('admits the exact manual source commit and excludes synthetic-only update choices', () => {
     const source = workflow('sealed-realms-production.yml');
     const document = parse(source) as {
       on?: { workflow_dispatch?: { inputs?: Record<string, unknown> } };
@@ -44,7 +44,11 @@ describe('sealed-realms production workflow authority', () => {
       required: true,
       default: 'preflight',
       type: 'choice',
-      options: [...SEALED_REALMS_OPERATIONS],
+      // These dispatcher operations belong to isolated fixtures until their
+      // operating factory and Linux update caller are connected.
+      options: SEALED_REALMS_OPERATIONS.filter(operation => ![
+        'g002-update-inspect', 'g002-update-apply', 'ptr-update-inspect', 'ptr-update-apply',
+      ].includes(operation)),
     });
     expect(document.permissions).toEqual({ actions: 'read', contents: 'read' });
   });
@@ -280,12 +284,12 @@ printf '%s\\n' fixed-argument-transport-ok
     expect(job.steps[1]).toBe(guard);
   });
 
-  it('installs both exact runtime trees between private Node staging and re-attestation before all three serial native suites', () => {
+  it('installs both exact runtime trees and re-attests Node before the isolated and ordinary native suites', () => {
     const document = verification(); const steps = document.jobs['native-contract'].steps;
     const expectedNames = ['Checkout', 'Require disposable X64 Linux authority', 'Setup Node',
       'Setup pinned pnpm for bridge runtime-contract tests', 'Stage Node in a runner-private toolchain path',
       'Install dependencies', 'Install exact bridge runtime-test toolchain', 'Re-attest runner-private Node after dependency install',
-      'Verify native production contracts'];
+      'Verify isolated existing-update dispatch and recovery', 'Verify native production contracts'];
     expect(steps.map(step => step.name)).toEqual(expectedNames);
     expect(steps[2]).toMatchObject({ uses: 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020', with: { 'node-version': '22.22.3', cache: 'npm' } });
     expect(steps[3]).toMatchObject({ uses: 'pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271', with: { version: '11.7.0', run_install: false } });
@@ -297,7 +301,8 @@ printf '%s\\n' fixed-argument-transport-ok
       const linux = document.jobs.linux.steps.find(step => step.name === expectedNames[index]);
       expect(linux).toBeDefined(); expect(steps[index]).toEqual(linux);
     }
-    expect(steps[8].run?.trim().split(/\s+/u)).toEqual(['npm', 'test', '--',
+    expect(steps[8].run?.trim()).toBe('bash scripts/test-sealed-realms-existing-update-linux.sh');
+    expect(steps[9].run?.trim().split(/\s+/u)).toEqual(['npm', 'test', '--',
       'tests/sealedRealmsPublicActivationArtifactVerifier.test.ts',
       'tests/authBridgeNotificationPreparedReceipt.test.ts',
       'tests/authBridgeNotificationPreparedDeployRuntime.test.ts', '--maxWorkers=1']);

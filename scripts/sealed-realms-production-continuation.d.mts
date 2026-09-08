@@ -17,6 +17,8 @@ export const SEALED_REALMS_PRODUCTION_CONTINUATION_KINDS: readonly [
   'ptr-import',
   'ptr-owner-provision',
   'activation-evidence',
+  'g002-update',
+  'ptr-update',
 ];
 export type SealedRealmsProductionContinuationKind =
   (typeof SEALED_REALMS_PRODUCTION_CONTINUATION_KINDS)[number];

@@ -237,6 +237,8 @@ const FIXED_KINDS = Object.freeze([
   { kind: 'ptr-import', issue: 'ptr-import-inspect', claim: 'ptr-import-apply' },
   { kind: 'ptr-owner-provision', issue: 'ptr-owner-provision-inspect', claim: 'ptr-owner-provision' },
   { kind: 'activation-evidence', issue: 'activation-evidence-inspect', claim: 'activation-evidence-generate' },
+  { kind: 'g002-update', issue: 'g002-update-inspect', claim: 'g002-update-apply' },
+  { kind: 'ptr-update', issue: 'ptr-update-inspect', claim: 'ptr-update-apply' },
 ]);
 
 const BINDING = Object.freeze({

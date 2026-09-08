@@ -27,11 +27,15 @@ import {
   earlySealedRealmsProductionDispatchResult,
   rejectSealedRealmsProductionLaneFailure,
 } from './sealed-realms-production-dispatch.mjs';
+import {
+  assertSealedRealmsExistingUpdateAdapter,
+} from './sealed-realms-production-existing-update.mjs';
 import { types } from 'node:util';
 
 const isProxy = types.isProxy;
 
 const OPERATIONS = new Set([
+  'ptr-update-inspect', 'ptr-update-apply',
   'ptr-publish-inspect', 'ptr-publish-apply', 'ptr-import-inspect',
   'ptr-import-apply', 'ptr-owner-provision-inspect', 'ptr-owner-provision',
   'ptr-live-inspect',
@@ -231,7 +235,7 @@ async function classifyReconciliation(reconciliation, evidenceDigest, inspect) {
 export function createSealedRealmsProductionPtrLane(input) {
   const options = record(input, 'SEALED_REALMS_PTR_LANE_INPUT_INVALID');
   const allowed = [
-    'reconciler', 'bridgeState', 'createPublishMarker', 'publish', 'importCore',
+    'existingUpdate', 'reconciler', 'bridgeState', 'createPublishMarker', 'publish', 'importCore',
     'inspectOwnerProvision', 'provisionOwner', 'liveInspect',
   ];
   if (
@@ -253,6 +257,8 @@ export function createSealedRealmsProductionPtrLane(input) {
   ) fail('SEALED_REALMS_PTR_LANE_INPUT_INVALID');
   const reconciler = assertSealedRealmsProductionPublicationReconciler(options.reconciler);
   const bridgeState = assertSealedRealmsProductionAuthBridgeState(options.bridgeState);
+  const existingUpdate = options.existingUpdate === undefined ? undefined
+    : assertSealedRealmsExistingUpdateAdapter(options.existingUpdate, 'ptr');
 
   const execute = async (input = {}) => {
     const request = record(input, 'SEALED_REALMS_PTR_LANE_REQUEST_INVALID');
@@ -271,6 +277,27 @@ export function createSealedRealmsProductionPtrLane(input) {
     assertSealedRealmsProductionAuthBridgeStateAuthority(bridgeState, authority);
     if (authority.mode !== 'S' && operation !== 'ptr-live-inspect') {
       fail('SEALED_REALMS_PTR_LANE_SOURCE_MODE_INVALID');
+    }
+    if (operation === 'ptr-update-inspect' || operation === 'ptr-update-apply') {
+      if (existingUpdate === undefined) fail('SEALED_REALMS_PTR_UPDATE_UNAVAILABLE');
+      assertSealedRealmsExistingUpdateAdapter(existingUpdate, 'ptr');
+      const kind = 'ptr-update';
+      if (operation === 'ptr-update-inspect') {
+        const binding = await existingUpdate.inspectForContinuation({ authority });
+        await issueSealedRealmsProductionContinuation(continuationInput(continuation, authority, kind, binding));
+        return Object.freeze({ status: 'update-inspected' });
+      }
+      const binding = existingUpdate.reopenContinuation({ authority });
+      const result = await claimOrReconcile({ continuation, authority, kind, binding,
+        effect: claim => existingUpdate.consumeContinuationEntry({
+          claim, store: continuation.store, permit: continuation.permit, sourceAuthority: authority, kind,
+          runId: continuation.runId, runAttempt: continuation.runAttempt, ...binding, selection: binding,
+        }),
+        reconcile: reconciliation => existingUpdate.reconcileContinuation({
+          reconciliation, store: continuation.store, sourceAuthority: authority, selection: binding,
+        }),
+      });
+      return Object.freeze({ status: result.status });
     }
     if (operation === 'ptr-publish-inspect') {
       const marker = await options.createPublishMarker(Object.freeze({ sourceCommit }));

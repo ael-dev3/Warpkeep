@@ -8,6 +8,7 @@
 *.yaml text eol=lf
 *.yml text eol=lf
 docs/operations/*.sh.txt text eol=lf
+scripts/test-sealed-realms-existing-update-linux.sh text eol=lf
 
 # SpacetimeDB CLI 2.6.1 emits a terminal blank line in these generated files.
 # Keep the CLI output byte-for-byte verifiable without treating it as hand-written whitespace.

@@ -22,6 +22,8 @@ export const SEALED_REALMS_PRODUCTION_CONTINUATION_KINDS = Object.freeze([
   'ptr-import',
   'ptr-owner-provision',
   'activation-evidence',
+  'g002-update',
+  'ptr-update',
 ]);
 
 const CONTINUATION_TTL_MILLISECONDS = 24 * 60 * 60 * 1_000;
@@ -65,6 +67,8 @@ const SPECS = Object.freeze({
     claimOperation: 'ptr-owner-provision',
     lane: 'ptr',
   }),
+  'g002-update': Object.freeze({ issueOperation: 'g002-update-inspect', claimOperation: 'g002-update-apply', lane: 'g002' }),
+  'ptr-update': Object.freeze({ issueOperation: 'ptr-update-inspect', claimOperation: 'ptr-update-apply', lane: 'ptr' }),
   'activation-evidence': Object.freeze({
     issueOperation: 'activation-evidence-inspect',
     claimOperation: 'activation-evidence-generate',
@@ -178,7 +182,13 @@ function digest(...values) {
   return hash.digest('hex');
 }
 
-function scopeDigest(authorityDigest, kind) {
+function scopeDigest(authorityDigest, kind, evidenceDigest) {
+  // Updates are repeatable, but each exact inspection remains single-use.
+  // The update adapter separately validates the complete predecessor chain.
+  if (kind === 'g002-update' || kind === 'ptr-update') {
+    if (!SHA256.test(evidenceDigest ?? '')) fail('SEALED_REALMS_CONTINUATION_INPUT_INVALID');
+    return digest('warpkeep.sealed-realms.update-continuation-scope.v1', authorityDigest, kind, evidenceDigest);
+  }
   return digest('warpkeep.sealed-realms.continuation-scope.v1', authorityDigest, kind);
 }
 
@@ -560,7 +570,7 @@ export async function issueSealedRealmsProductionContinuation(input) {
   const authority = authorityInfo(options.sourceAuthority, spec.issueOperation);
   const run = exactRun(options.runId, options.runAttempt);
   const binding = bindingFrom(options);
-  const scope = scopeDigest(authority.authorityDigest, options.kind);
+  const scope = scopeDigest(authority.authorityDigest, options.kind, binding.evidenceDigest);
   const existing = inventory(state, scope);
   if (existing.sealed) fail('SEALED_REALMS_CONTINUATION_TERMINAL');
   if (existing.unresolved?.claimed !== undefined) {
@@ -629,7 +639,7 @@ export async function claimSealedRealmsProductionContinuation(input) {
   const authority = authorityInfo(options.sourceAuthority, spec.claimOperation);
   const run = exactRun(options.runId, options.runAttempt);
   const binding = bindingFrom(options);
-  const scope = scopeDigest(authority.authorityDigest, options.kind);
+  const scope = scopeDigest(authority.authorityDigest, options.kind, binding.evidenceDigest);
   const current = inventory(state, scope);
   if (current.sealed) fail('SEALED_REALMS_CONTINUATION_TERMINAL');
   if (current.unresolved === undefined) fail('SEALED_REALMS_CONTINUATION_MISSING');
@@ -813,7 +823,7 @@ export async function reconcileSealedRealmsProductionContinuation(input) {
   const authority = authorityInfo(options.sourceAuthority, spec.claimOperation);
   const run = exactRun(options.runId, options.runAttempt);
   const binding = bindingFrom(options);
-  const scope = scopeDigest(authority.authorityDigest, options.kind);
+  const scope = scopeDigest(authority.authorityDigest, options.kind, binding.evidenceDigest);
   const current = inventory(state, scope);
   if (current.sealed) fail('SEALED_REALMS_CONTINUATION_TERMINAL');
   if (current.unresolved === undefined) fail('SEALED_REALMS_CONTINUATION_MISSING');
@@ -975,7 +985,7 @@ export function assertSealedRealmsProductionContinuationClaim(input) {
     const authority = authorityInfo(options.sourceAuthority, spec.claimOperation);
     const run = exactRun(options.runId, options.runAttempt);
     const binding = bindingFrom(options);
-    const scope = scopeDigest(authority.authorityDigest, options.kind);
+    const scope = scopeDigest(authority.authorityDigest, options.kind, binding.evidenceDigest);
     const current = inventory(state, scope);
     const group = current.groups.find(
       value => value.issued.recordDigest === member.recordDigest,

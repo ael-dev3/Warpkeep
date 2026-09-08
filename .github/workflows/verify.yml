@@ -434,6 +434,9 @@ jobs:
           echo "$WARPKEEP_PRIVATE_NODE_SHA256  $WARPKEEP_PRIVATE_NODE" \
             | sha256sum --check --strict -
 
+      - name: Verify isolated existing-update dispatch and recovery
+        run: bash scripts/test-sealed-realms-existing-update-linux.sh
+
       - name: Verify native production contracts
         run: >-
           npm test --

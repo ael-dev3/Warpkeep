@@ -22,6 +22,7 @@ const G001_OPERATIONS = new Set([
   'g001-current-state',
 ]);
 const G002_OPERATIONS = new Set([
+  'g002-update-inspect', 'g002-update-apply',
   'g002-publish-inspect',
   'g002-publish-apply',
   'g002-import-inspect',
@@ -29,6 +30,7 @@ const G002_OPERATIONS = new Set([
   'g002-live-inspect',
 ]);
 const PTR_OPERATIONS = new Set([
+  'ptr-update-inspect', 'ptr-update-apply',
   'ptr-publish-inspect',
   'ptr-publish-apply',
   'ptr-import-inspect',
@@ -52,6 +54,7 @@ const SAFE_STATUSES = new Set([
   'owner-provisioned',
   'preflight-inspected',
   'publish-inspected',
+  'update-inspected',
   'submitted',
   'unavailable',
 ]);

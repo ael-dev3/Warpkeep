@@ -162,6 +162,25 @@ and remaining code-replacement and production-authority work.
 
 ## Windows/WSL working environment and process evidence
 
+For the connected synthetic existing-update tests, run
+`bash scripts/test-sealed-realms-existing-update-linux.sh` from an isolated Linux
+x64 checkout with the locked root dependencies installed and the pinned Node on
+`PATH`. The hosted `native-contract` job invokes this launcher. It requires
+passwordless sudo to create disposable mount/network namespaces, retains the
+actual pre-unshare network identity, then drops to the original non-root UID/GID
+with no supplementary groups or capabilities and an empty inherited environment.
+Only loopback is enabled. A missing native boundary fails the job instead of
+silently skipping the update tests.
+
+On WSL where the ordinary account lacks passwordless sudo, the same script accepts
+an explicit root invocation with `--as UID GID NODE REPOSITORY`; use the actual
+checkout owner's numeric UID/GID and canonical absolute Node/repository paths.
+The script verifies repository ownership before dropping privileges and runs only
+the fixed test suites. Do not install dependencies in a shared worktree junction.
+This fixture launcher grants no production credentials or deployment authority.
+See the dated [recovery evidence](../../evidence/0.4.0/recovery.md) for v2 record
+semantics and the separate scope of earlier native-module experiments.
+
 | Check on September 7 | Observation | Practical consequence |
 | --- | --- | --- |
 | Checkout/remotes | HEAD `781e51e`; `upstream` is GitHub; `origin` is a local temporary baseline repository | Use explicit `upstream` and a reviewed SHA; the displayed ahead count against `origin` is misleading |

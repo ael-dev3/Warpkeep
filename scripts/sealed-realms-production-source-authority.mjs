@@ -22,6 +22,10 @@ export const SEALED_REALMS_OPERATIONS = Object.freeze([
   'ptr-live-inspect',
   'activation-evidence-inspect',
   'activation-evidence-generate',
+  'g002-update-inspect',
+  'g002-update-apply',
+  'ptr-update-inspect',
+  'ptr-update-apply',
 ]);
 
 export const SEALED_REALMS_ACTIVATED_OPERATIONS = Object.freeze([

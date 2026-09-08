@@ -1,0 +1,14 @@
+export const UPDATE_HASH: RegExp;
+export function updateSha256(bytes: Uint8Array): string;
+export function updateProgramHash(bytes: Uint8Array): string;
+export function updateCanonical(value: unknown): string;
+export function updateDigest(value: unknown): string;
+export function updateExact(value: unknown, keys: readonly string[]): Record<string, unknown>;
+export function parseExistingUpdateJson(bytes: Uint8Array): any;
+export function decodeExistingUpdateToken(value: unknown): string;
+export function existingUpdateTokenDigest(identity: string, predecessor: string, candidate: string): string;
+export function parseExistingUpdatePlan(bytes: Uint8Array, identity: string, predecessor: string, candidate: string): Readonly<{ token: string; planDigest: string }>;
+export function parseExistingUpdateSql(bytes: Uint8Array): Readonly<{ schema: unknown; rows: any[]; rowsDigest: string; count: number }>;
+export function parseExistingUpdateProgram(bytes: Uint8Array): string;
+export function parseExistingUpdateSchema(bytes: Uint8Array): Readonly<{ names: readonly string[]; digest: string; tableSchemas: Readonly<Record<string, string>> }>;
+export function parseExistingUpdateSuccess(bytes: Uint8Array, identity: string): string;

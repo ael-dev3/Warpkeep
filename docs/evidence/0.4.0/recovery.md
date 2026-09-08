@@ -137,3 +137,39 @@ body matched before and after, and both completion records were reopened. Workfl
 and source authority were explicit fixtures; native database and HTTP behavior
 were real. The production adapter factory remains unavailable pending its genuine
 authority and operating callers. This does not establish code-replacement recovery.
+
+## Connected synthetic update records and concurrency — 2026-09-08
+
+The G002/PTR lane dispatchers now own explicit update-inspect/update-apply
+operations. They use opaque continuations and a separate synthetic record family,
+mark submission before the token-bound PUT, and reconcile an uncertain response
+through fresh program/schema/row observations without sending another update.
+Creation, import, owner provisioning and G001 behavior keep their existing paths.
+The production update factory remains unavailable.
+
+Independent review found that simultaneous inspections could write competing
+randomized records for one predecessor and permanently fork the chain. A two-process
+barrier reproduced two records where one was required. The v2 record family uses
+one exclusive storage slot per predecessor while retaining the full inspection
+digest in continuation bindings. Tests cover differing candidate contenders and
+an inspection after an accepted update: exactly one inspector succeeds, the other
+receives a file-exists refusal, and a fresh dispatcher applies the selected update
+once. The reviewer accepted the correction. V2 has its own private namespace and
+does not reinterpret or resume the earlier v1 diagnostic records.
+
+The repository-owned Linux launcher passed the dispatcher, continuation and update
+suites as both UID 1000 and UID 1001: 124 passed, with the unsupported-runtime case
+intentionally skipped inside the supported namespace. Restoring the old UID 1000
+restriction caused the UID 1001 run to fail its required-native check. The ordinary
+publisher/reconciliation regression suites passed 54 tests; app and configuration
+type checks passed after installing the matching isolated bridge dependencies.
+
+The earlier v1 native acknowledgement-loss experiment recovered both populated
+realm updates with one PUT per realm. Its first whole-game run subsequently timed
+out polling gathering schedules. A separate instrumented run completed the full
+timer/session journey unchanged at 09:25 UTC; the timeout cause remains unresolved.
+Those real-module observations remain v1 evidence, not a v2 host-restart claim.
+Atomic inspection contention does not establish recovery from a partially written
+record or prove preservation under continuing production activity. Genuine Linux
+operating authority, activation consumers, useful code-replacement recovery and
+actual-owner acceptance remain unfinished.

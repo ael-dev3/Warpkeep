@@ -27,11 +27,15 @@ import {
   earlySealedRealmsProductionDispatchResult,
   rejectSealedRealmsProductionLaneFailure,
 } from './sealed-realms-production-dispatch.mjs';
+import {
+  assertSealedRealmsExistingUpdateAdapter,
+} from './sealed-realms-production-existing-update.mjs';
 import { types } from 'node:util';
 
 const isProxy = types.isProxy;
 
 const OPERATIONS = new Set([
+  'g002-update-inspect', 'g002-update-apply',
   'g002-publish-inspect', 'g002-publish-apply', 'g002-import-inspect',
   'g002-import-apply', 'g002-live-inspect',
 ]);
@@ -230,7 +234,7 @@ async function classifyReconciliation(reconciliation, evidenceDigest, inspect) {
 export function createSealedRealmsProductionG002Lane(input) {
   const options = record(input, 'SEALED_REALMS_G002_LANE_INPUT_INVALID');
   const allowed = [
-    'reconciler', 'bridgeState', 'createPublishMarker', 'publish', 'importCore', 'liveInspect',
+    'existingUpdate', 'reconciler', 'bridgeState', 'createPublishMarker', 'publish', 'importCore', 'liveInspect',
   ];
   if (
     Object.keys(options).some(key => !allowed.includes(key))
@@ -247,6 +251,8 @@ export function createSealedRealmsProductionG002Lane(input) {
   ) fail('SEALED_REALMS_G002_LANE_INPUT_INVALID');
   const reconciler = assertSealedRealmsProductionPublicationReconciler(options.reconciler);
   const bridgeState = assertSealedRealmsProductionAuthBridgeState(options.bridgeState);
+  const existingUpdate = options.existingUpdate === undefined ? undefined
+    : assertSealedRealmsExistingUpdateAdapter(options.existingUpdate, 'g002');
 
   const execute = async (input = {}) => {
     const request = record(input, 'SEALED_REALMS_G002_LANE_REQUEST_INVALID');
@@ -265,6 +271,27 @@ export function createSealedRealmsProductionG002Lane(input) {
     assertSealedRealmsProductionAuthBridgeStateAuthority(bridgeState, authority);
     if (authority.mode !== 'S' && operation !== 'g002-live-inspect') {
       fail('SEALED_REALMS_G002_LANE_SOURCE_MODE_INVALID');
+    }
+    if (operation === 'g002-update-inspect' || operation === 'g002-update-apply') {
+      if (existingUpdate === undefined) fail('SEALED_REALMS_G002_UPDATE_UNAVAILABLE');
+      assertSealedRealmsExistingUpdateAdapter(existingUpdate, 'g002');
+      const kind = 'g002-update';
+      if (operation === 'g002-update-inspect') {
+        const binding = await existingUpdate.inspectForContinuation({ authority });
+        await issueSealedRealmsProductionContinuation(continuationInput(continuation, authority, kind, binding));
+        return Object.freeze({ status: 'update-inspected' });
+      }
+      const binding = existingUpdate.reopenContinuation({ authority });
+      const result = await claimOrReconcile({ continuation, authority, kind, binding,
+        effect: claim => existingUpdate.consumeContinuationEntry({
+          claim, store: continuation.store, permit: continuation.permit, sourceAuthority: authority, kind,
+          runId: continuation.runId, runAttempt: continuation.runAttempt, ...binding, selection: binding,
+        }),
+        reconcile: reconciliation => existingUpdate.reconcileContinuation({
+          reconciliation, store: continuation.store, sourceAuthority: authority, selection: binding,
+        }),
+      });
+      return Object.freeze({ status: result.status });
     }
     if (operation === 'g002-publish-inspect') {
       const marker = await options.createPublishMarker(Object.freeze({ sourceCommit }));

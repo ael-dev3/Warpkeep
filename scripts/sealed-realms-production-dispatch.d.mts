@@ -27,6 +27,7 @@ export type SealedRealmsProductionSafeStatus =
   | 'owner-provisioned'
   | 'preflight-inspected'
   | 'publish-inspected'
+  | 'update-inspected'
   | 'submitted'
   | 'unavailable';
 

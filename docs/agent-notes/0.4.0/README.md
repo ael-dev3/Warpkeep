@@ -18,9 +18,10 @@ which records the current checkpoint, preparation, CI and environment details.
 - **The core loop works in a populated native rehearsal.** Real realm modules
   imported their atlases and preserved existing state through updates. PTR earned
   resources, completed construction on real timers and resumed completed state
-  after session expiry without duplicate effects. A separate local existing-update
-  adapter draft also passed through its dispatcher and durable records; that draft
-  is not yet integrated. External identity/workflow authority was synthetic;
+  after session expiry without duplicate effects. The existing-update adapter is
+  now connected to the G002/PTR dispatchers for isolated synthetic tests, with
+  durable acknowledgement recovery and serialized concurrent inspections. Its
+  Linux test launcher has a dedicated hosted CI step. External identity/workflow authority was synthetic;
   actual-owner play and production delivery remain to be accepted.
 - **The player experience needs integrated observation.** Keep/atlas navigation,
   selected Worker continuity, healthy refresh and scoped session renewal are
