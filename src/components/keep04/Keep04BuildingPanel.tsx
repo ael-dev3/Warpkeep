@@ -11,7 +11,7 @@ export const BUILDING_NAMES04: Readonly<Record<Building04, string>> = Object.fre
 });
 export const RESOURCES04 = ['food', 'wood', 'stone', 'gold'] as const;
 const KINDS04 = Object.keys(BUILDING_NAMES04) as Building04[];
-const costText = (cost: Cost04) => RESOURCES04.map(resource => `${resource} ${cost[resource]}`).join(' · ');
+const costText = (cost: Cost04) => RESOURCES04.filter(resource => cost[resource] > 0n).map(resource => `${resource} ${cost[resource]}`).join(' · ');
 const secondsText = (micros: bigint) => `${Number(micros) / 1_000_000} s`;
 
 export function Keep04BuildingPanel({ view, selectedKind, draft, enabled, problem, onSelect, onConfirm, onCancelDraft, onFindResources, onViewSite, reviewHeadingRef }: Readonly<{
@@ -64,12 +64,12 @@ export function Keep04BuildingPanel({ view, selectedKind, draft, enabled, proble
     const value = (amount: bigint) => benefit.unit === 'micros' ? secondsText(amount) : amount.toString();
     return <article key={kind} aria-label={BUILDING_NAMES04[kind]} className="keep04-card" data-selected={selectedKind === kind}>
       <button type="button" aria-pressed={selectedKind === kind} onClick={() => onSelect(kind)}>{BUILDING_NAMES04[kind]}</button>
-      <p className="keep04-badge">Completed level {level}</p>
+      <p className="keep04-badge">{level > 0 ? `Completed level ${level}` : view.state.project?.kind === kind ? 'Under construction' : 'Not built'}</p>
       {maximum ? <p>Maximum level</p> : <>
         <p>Cost: {costText(buildingCost04(kind, level + 1))}</p>
         <p>Build duration: {secondsText(buildingDuration04(level + 1, levels))}</p>
       </>}
-      {!maximum && <p>Missing: {costText(missing)}</p>}
+      {!maximum && <p>{firstDeficit ? `Missing: ${costText(missing)}` : 'Resources ready'}</p>}
       <p>{benefit.label}</p><p>Current: {value(benefit.current)}{!maximum && <> → Next: {value(benefit.next)}</>}</p>
       {firstDeficit && <button type="button" onClick={() => onFindResources(firstDeficit)}>Find {firstDeficit}</button>}
     </article>;

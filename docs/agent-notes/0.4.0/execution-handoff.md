@@ -53,6 +53,16 @@ machine's default Node/npm do not match the project's required versions.
 
 ## What works and what still needs proof
 
+The September 8 mobile catalog review improved first-build readability: unbuilt
+sites and construction now have distinct labels, cost/shortage lists omit unused
+resources, and affordable cards say "Resources ready". Construction eligibility
+still comes from the authoritative quote, including the busy Builder check.
+The affected Benefits, Screen, Accessibility and PlacementUi suites passed; the
+catalog was inspected at a 390-pixel browser viewport using empty and completed
+keep fixtures. This is presentation evidence, not authenticated owner play or
+physical-device performance acceptance. The whole-grounds camera still makes a
+small keep difficult to appreciate; continue the rendered composition review.
+
 | Area | Implemented and verified scope | Next useful evidence |
 | --- | --- | --- |
 | Core loop | Server-owned gathering, construction and progression connect to the PTR controller and keep UI. Building choices explain benefits; confirmed returns become spendable. | Actual owner first improvement and the better return it enables on real routes. |

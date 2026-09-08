@@ -35,7 +35,7 @@ it('shows four Workers and spendable resources; pending returns never fund perma
   expect(screen.getByText(/construction cannot be cancelled/i)).toBeVisible();
   expect(screen.getByText(/spent resources are not refunded/i)).toBeVisible();
   expect(screen.getByRole('button', { name: /Confirm placement/ })).toBeDisabled();
-  expect(screen.getByText('Missing: food 20 · wood 40 · stone 20 · gold 0')).toBeVisible();
+  expect(screen.getByText('Missing: food 20 · wood 40 · stone 20')).toBeVisible();
   fireEvent.click(screen.getAllByRole('button', { name: 'Find food' })[0]); expect(find).toHaveBeenCalledWith('food');
   expect(controller.submit).not.toHaveBeenCalled();
 });
@@ -100,7 +100,7 @@ it('keeps the Builder busy after estimated zero and never finishes from the UI c
   expect(screen.getAllByText('Awaiting Realm update').length).toBeGreaterThan(0);
   expect(screen.getByRole('button', { name: /Confirm upgrade/ })).toBeDisabled();
   act(() => { vi.advanceTimersByTime(5000); }); expect(controller.submit).not.toHaveBeenCalled();
-  expect(screen.getAllByText('Completed level 0').length).toBeGreaterThan(0);
+  expect(within(screen.getByRole('article', { name: 'City Mill' })).getByText('Under construction')).toBeVisible();
 });
 
 it('shows captured Worker rates and allows recall only before returning with atlas authority', () => {
