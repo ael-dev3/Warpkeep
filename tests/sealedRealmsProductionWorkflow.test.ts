@@ -79,7 +79,7 @@ describe('sealed-realms production workflow authority', () => {
     expect(document.jobs.operate.permissions).toEqual({actions:'read',contents:'read','id-token':'write'});
     expect(document.jobs.operate.if).toContain("inputs.operation == 'activation-evidence-generate'");
     expect(document.jobs.operate_readonly.permissions).toBeUndefined();
-    expect(document.jobs.operate_readonly.if).toContain('["preflight","activation-evidence-inspect"]');
+    expect(document.jobs.operate_readonly.if).toContain('["preflight","activation-evidence-inspect","g001-policy-observe"]');
     expect(document.jobs.unsupported.steps[0].run).toContain('SEALED_REALMS_LINUX_OPERATION_UNAVAILABLE');
     const source=workflow('sealed-realms-production.yml');
     expect(source).not.toMatch(/(?:npm|pnpm|npx|tsx) (?:ci|install|run)/u);

@@ -9,6 +9,8 @@ export function runLocalBindingBoundedProcess(
     cwd: string;
     env: Readonly<Record<string, string | undefined>>;
     fd3?: string;
+    /** Caller-owned open descriptor duplicated to child FD4; never copied into argv or environment. */
+    inheritedFd4?: number;
     timeout: number;
     maxOutput: number;
     containProcessGroup?: boolean;

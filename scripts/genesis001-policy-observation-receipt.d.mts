@@ -64,3 +64,9 @@ export function executeGenesis001PolicyObservation(input: Readonly<{
   repositoryRoot: string;
   testOnlyDependencies?: Genesis001PolicyObservationTestDependencies;
 }>): Promise<Genesis001PolicyObservationReceipt>;
+
+export function executeGenesis001PolicyObservationFromDescriptor(input: Readonly<{
+  sourceCommit: string;
+  repositoryRoot: string;
+  descriptor: 4;
+}>): Promise<Genesis001PolicyObservationReceipt>;

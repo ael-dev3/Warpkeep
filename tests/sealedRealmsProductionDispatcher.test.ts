@@ -1,3 +1,4 @@
+import { linuxG001PolicyExecution } from './fixtures/linuxG001PolicyReceipt';
 import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 // @vitest-environment node
 
@@ -16,6 +17,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+const nativePolicyFixture = vi.hoisted(() => ({ execute: vi.fn(), preparation: Object.freeze({}), evidence: Object.freeze({}) }));
+// This suite tests dispatch/private-record semantics. Native process proof is separate.
+vi.mock('../scripts/genesis001-linux-policy-native.mjs', () => ({
+  executeFixedLinuxG001PolicyObservation: nativePolicyFixture.execute,
+  assertFixedLinuxG001PolicyPreparation: (value: unknown) => { if (value !== nativePolicyFixture.preparation) throw Error('fixture handle invalid'); },
+}));
+
 
 import {
   authenticateSealedRealmsProductionSourceAuthority,
@@ -431,7 +439,13 @@ async function dispatchProtectedG001(
   const dispatcher = await protectedG001Dispatcher(
     lane, operation, authority, privateState, runId, completedRunIds,
   );
-  return dispatcher.dispatch({ operation: operation as never, workflowInputSha: SOURCE });
+  // Historical envelope cases explicitly exercise Darwin behavior on every host.
+  // Private-state fixtures were created under the actual host namespace above.
+  if (operation !== 'g001-policy-observe') return dispatcher.dispatch({ operation: operation as never, workflowInputSha: SOURCE });
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+  Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
+  try { return await dispatcher.dispatch({ operation: operation as never, workflowInputSha: SOURCE }); }
+  finally { Object.defineProperty(process, 'platform', platform); }
 }
 
 async function runProtectedG001(
@@ -564,6 +578,8 @@ async function issueCensusContinuations(scenario: Awaited<ReturnType<typeof cens
 }
 
 function g001PolicyLane(input: Readonly<{
+  linuxPolicyPreparation?: unknown;
+  linuxPolicyEvidence?: unknown;
   launchAuthority?: ReturnType<typeof g001LaunchAuthority>;
   attestDispatcherNode?: () => unknown;
   censusAuthority?: unknown;
@@ -575,6 +591,7 @@ function g001PolicyLane(input: Readonly<{
   }>;
 }>) {
   return createSealedRealmsProductionG001Lane({
+    ...(input.linuxPolicyPreparation === undefined ? {} : { linuxPolicyPreparation: input.linuxPolicyPreparation, linuxPolicyEvidence: input.linuxPolicyEvidence }),
     launchAuthority: input.launchAuthority ?? g001LaunchAuthority(),
     attestDispatcherNode: input.attestDispatcherNode ?? g001Node,
     runEnvelopeChild: input.runEnvelopeChild,
@@ -1848,5 +1865,42 @@ describe('sealed-realms production dispatcher', () => {
       Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: original });
       local.cleanup();
     }
+  });
+});
+
+describe.sequential('Linux policy dispatch with explicit native-result fixture', () => {
+  it.each(['success', 'source-drift', 'native-failure', 'record-race'])('preserves authenticated private evidence on %s', async scenario => {
+    const local = censusPrivateState(scenario === 'record-race' ? phase => { if (phase === 'read-after-open') throw Error('fixture record read refused'); } : undefined);
+    const native = linuxG001PolicyExecution(policyObservationReceipt());
+    const operatorBytes = Buffer.from('reviewed fixture operator');
+    native.operatorSha256 = createHash('sha256').update(operatorBytes).digest('hex');
+    let reads = 0;
+    const launchAuthority = g001LaunchAuthority({ privateState: local.state, readRawGit: args => {
+      if (args[0] === 'rev-parse') { reads += 1; return `${scenario === 'source-drift' && reads > 1 ? '0'.repeat(40) : native.sourceTree}\n`; }
+      if (args[0] === 'ls-tree') return `100644 blob ${native.operatorBlob}\tscripts/genesis001-policy-observation-receipt.mjs\0`;
+      if (args[0] === 'cat-file') return operatorBytes;
+      throw Error('unexpected Git fixture request');
+    } });
+    nativePolicyFixture.execute.mockReset();
+    if (scenario === 'native-failure') nativePolicyFixture.execute.mockRejectedValue(Error('native refused'));
+    else nativePolicyFixture.execute.mockResolvedValue(native);
+    const envelope = vi.fn(async () => { throw Error('Darwin envelope must not execute'); });
+    const lane = g001PolicyLane({ launchAuthority, runEnvelopeChild: envelope, linuxPolicyPreparation: nativePolicyFixture.preparation, linuxPolicyEvidence: nativePolicyFixture.evidence });
+    const dispatcher = await protectedG001Dispatcher(lane, 'g001-policy-observe', g001PolicyAuthority(), local.state, '6901');
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+    try {
+      const result = dispatcher.dispatch({ operation: 'g001-policy-observe', workflowInputSha: SOURCE });
+      if (scenario === 'success') {
+        await expect(result).resolves.toEqual({ operation: 'g001-policy-observe', status: 'completed' });
+        const bytes = local.state.read({ root: 'runtime', relativePath: 'activation-evidence/records/g001-policy-observation-bootstrap-receipt.json' });
+        const record = JSON.parse(bytes.toString()); bytes.fill(0);
+        expect(record.receipt.profile).toBe('warpkeep-g001-linux-policy-observation-v1');
+        expect(record.receipt).not.toHaveProperty('bootstrapBlob');
+        expect(record.sourceAuthorityDigest).toBe(g001PolicyAuthority().authorityDigest);
+      } else await expect(result).rejects.toThrow();
+      expect(envelope).not.toHaveBeenCalled();
+      expect(nativePolicyFixture.execute).toHaveBeenCalledExactlyOnceWith(nativePolicyFixture.preparation, nativePolicyFixture.evidence);
+    } finally { Object.defineProperty(process, 'platform', platform); local.cleanup(); }
   });
 });

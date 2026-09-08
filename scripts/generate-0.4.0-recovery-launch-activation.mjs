@@ -1,3 +1,4 @@
+import { GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE, GENESIS_001_LINUX_POLICY_OPERATOR_PATH } from './genesis001-linux-policy-receipt.mjs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fstatSync, readSync, realpathSync } from 'node:fs';
@@ -40,6 +41,14 @@ function fixedGit(args, binary = false) {
 
 /** S is authenticated separately; these facts come from its immutable Git objects. */
 export function readRecoveryActivationBootstrapAuthority(authority, testOnly) {
+  return readPolicySourceAuthority(authority, testOnly, false);
+}
+
+export function readRecoveryActivationLinuxPolicyAuthority(authority, testOnly) {
+  return readPolicySourceAuthority(authority, testOnly, true);
+}
+
+function readPolicySourceAuthority(authority, testOnly, linux) {
   const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(authority);
   if (authority.mode !== 'S' || authority.operation !== 'activation-evidence-generate') {
     fail('RECOVERY_LAUNCH_ACTIVATION_SOURCE_INVALID');
@@ -56,12 +65,12 @@ export function readRecoveryActivationBootstrapAuthority(authority, testOnly) {
     const facts = wrapper.facts.value;
     if (types.isProxy(facts) || facts === null || Object.getPrototypeOf(facts) !== Object.prototype) fail();
     const descriptors = Object.getOwnPropertyDescriptors(facts);
-    const keys = ['preparationSourceCommit', 'moduleTreeId', 'bootstrapBlob', 'bootstrapSha256'];
+    const keys = ['preparationSourceCommit', 'moduleTreeId', ...(linux ? ['operatorBlob', 'operatorSha256'] : ['bootstrapBlob', 'bootstrapSha256'])];
     if (JSON.stringify(Reflect.ownKeys(descriptors)) !== JSON.stringify(keys)
       || keys.some(key => !Object.hasOwn(descriptors[key], 'value') || !descriptors[key].enumerable)) fail();
     const value = Object.fromEntries(keys.map(key => [key, descriptors[key].value]));
     if (value.preparationSourceCommit !== sourceCommit || !COMMIT.test(value.moduleTreeId)
-      || !COMMIT.test(value.bootstrapBlob) || !SHA256.test(value.bootstrapSha256)) fail();
+      || !COMMIT.test(value[linux ? 'operatorBlob' : 'bootstrapBlob']) || !SHA256.test(value[linux ? 'operatorSha256' : 'bootstrapSha256'])) fail();
     return Object.freeze(value);
   }
   const config = fixedGit(['config', '--local', '--null', '--list'], true);
@@ -87,14 +96,18 @@ export function readRecoveryActivationBootstrapAuthority(authority, testOnly) {
     fail('RECOVERY_LAUNCH_ACTIVATION_SOURCE_INVALID');
   }
   const moduleTreeId = fixedGit(['rev-parse', '--verify', `${sourceCommit}^{tree}`]);
-  const entry = fixedGit(['ls-tree', '-z', sourceCommit, '--', BOOTSTRAP_PATH], true).toString('utf8');
-  const match = /^100644 blob ([a-f0-9]{40})\tscripts\/greater-realm-production-bootstrap\.mjs\0$/u.exec(entry);
+  const operatorPath = linux ? GENESIS_001_LINUX_POLICY_OPERATOR_PATH : BOOTSTRAP_PATH;
+  const entry = fixedGit(['ls-tree', '-z', sourceCommit, '--', operatorPath], true).toString('utf8');
+  const match = /^100644 blob ([a-f0-9]{40})\t([^\0]+)\0$/u.exec(entry);
+  if (match?.[2] !== operatorPath) fail('RECOVERY_LAUNCH_ACTIVATION_SOURCE_INVALID');
   if (!COMMIT.test(moduleTreeId) || match === null) fail('RECOVERY_LAUNCH_ACTIVATION_SOURCE_INVALID');
   const bytes = fixedGit(['cat-file', 'blob', match[1]], true);
   try {
     if (!fixedGit(['config', '--local', '--null', '--list'], true).equals(config)) {
       fail('RECOVERY_LAUNCH_ACTIVATION_SOURCE_INVALID');
     }
+    if (linux) return Object.freeze({ preparationSourceCommit: sourceCommit, moduleTreeId,
+      operatorBlob: match[1], operatorSha256: createHash('sha256').update(bytes).digest('hex') });
     return Object.freeze({ preparationSourceCommit: sourceCommit, moduleTreeId,
       bootstrapBlob: match[1], bootstrapSha256: createHash('sha256').update(bytes).digest('hex') });
   } finally { bytes.fill(0); config.fill(0); }
@@ -126,11 +139,13 @@ export function validateRecoveryLaunchActivationProjection(envelope, bridge, ver
 
 export function createRecoveryLaunchActivationBindingFromEvidence(envelope, member, authority, testOnly) {
   const candidate = validateSealedRealmsProductionRecoveryActivationEvidence(envelope);
-  const source = readRecoveryActivationBootstrapAuthority(authority, testOnly);
   const bootstrap = envelope.g001PolicyObservationBootstrapReceipt;
+  const linux = bootstrap.profile === GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE;
+  const source = linux ? readRecoveryActivationLinuxPolicyAuthority(authority, testOnly)
+    : readRecoveryActivationBootstrapAuthority(authority, testOnly);
   if (candidate.preparationSourceCommit !== source.preparationSourceCommit
-    || bootstrap.moduleTreeId !== source.moduleTreeId || bootstrap.bootstrapBlob !== source.bootstrapBlob
-    || bootstrap.bootstrapSha256 !== source.bootstrapSha256) fail('RECOVERY_LAUNCH_ACTIVATION_SOURCE_INVALID');
+    || bootstrap.moduleTreeId !== source.moduleTreeId || bootstrap[linux ? 'operatorBlob' : 'bootstrapBlob'] !== source[linux ? 'operatorBlob' : 'bootstrapBlob']
+    || bootstrap[linux ? 'operatorSha256' : 'bootstrapSha256'] !== source[linux ? 'operatorSha256' : 'bootstrapSha256']) fail('RECOVERY_LAUNCH_ACTIVATION_SOURCE_INVALID');
   return validateRecoveryLaunchActivationProjection(envelope,
     readSealedRealmsProductionActivationEvidenceMember(member).authBridgeSuspensionPrivateReceipt);
 }

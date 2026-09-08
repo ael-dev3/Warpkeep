@@ -1,3 +1,4 @@
+import { GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE, verifyGenesis001LinuxPolicyReceipt } from './genesis001-linux-policy-receipt.mjs';
 import { createHash } from 'node:crypto';
 import {
   projectGenesis001AdmittedPlayerCensusStablePair,
@@ -373,6 +374,12 @@ function exactPolicyObservationBootstrapReceipt(
   value,
   preparationSourceCommit,
 ) {
+  if (value !== null && typeof value === 'object'
+    && Object.getOwnPropertyDescriptor(value, 'profile')?.value === GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE) {
+    let receipt;
+    try { receipt = verifyGenesis001LinuxPolicyReceipt(value, preparationSourceCommit); } catch { fail(); }
+    return Object.freeze({ receipt, observation: receipt.policyObservationReceipt });
+  }
   const receipt = plainRecord(value, [
     'profile',
     'protectedCommit',

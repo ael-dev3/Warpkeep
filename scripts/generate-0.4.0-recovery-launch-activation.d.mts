@@ -15,9 +15,12 @@ export function validateRecoveryLaunchActivationProjection(
 ): Readonly<Record<string, unknown>>;
 export function createRecoveryLaunchActivationBindingFromEvidence(
   envelope: unknown, member: SealedRealmsActivationEvidenceMember,
-  authority: SealedRealmsProductionSourceAuthority, testOnly?: TestOnlyBootstrapInput,
+  authority: SealedRealmsProductionSourceAuthority, testOnly?: TestOnlyBootstrapInput | Readonly<{ capability: SealedRealmsProductionAuthBridgeStateTestCapability; facts: RecoveryActivationLinuxPolicyFacts }>,
 ): Readonly<Record<string, unknown>>;
 export function generateRecoveryLaunchActivationBindingFromDescriptor(
   descriptor: number, member: SealedRealmsActivationEvidenceMember,
-  authority: SealedRealmsProductionSourceAuthority, testOnly?: TestOnlyBootstrapInput,
+  authority: SealedRealmsProductionSourceAuthority, testOnly?: TestOnlyBootstrapInput | Readonly<{ capability: SealedRealmsProductionAuthBridgeStateTestCapability; facts: RecoveryActivationLinuxPolicyFacts }>,
 ): Readonly<Record<string, unknown>>;
+
+export type RecoveryActivationLinuxPolicyFacts = Readonly<{ preparationSourceCommit: string; moduleTreeId: string; operatorBlob: string; operatorSha256: string }>;
+export function readRecoveryActivationLinuxPolicyAuthority(authority: SealedRealmsProductionSourceAuthority, testOnly?: Readonly<{ capability: SealedRealmsProductionAuthBridgeStateTestCapability; facts: RecoveryActivationLinuxPolicyFacts }>): RecoveryActivationLinuxPolicyFacts;

@@ -1,3 +1,5 @@
+import { linuxG001PolicyReceipt } from './fixtures/linuxG001PolicyReceipt';
+import { genesis001PolicyObservationBootstrapReceiptDigest } from '../scripts/genesis001-sealed-launch-adoption.mjs';
 // @vitest-environment node
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -177,4 +179,21 @@ it("does not turn valid V3 envelope data into generator authority", () => {
   } finally {
     vi.useRealTimers();
   }
+});
+
+it('projects Linux policy evidence and binds its own immutable operator coordinates', () => {
+  const { envelope } = fixture(3);
+  const receipt = linuxG001PolicyReceipt(envelope.g001PolicyObservationBootstrapReceipt.policyObservationReceipt);
+  envelope.g001PolicyObservationBootstrapReceipt = receipt;
+  envelope.bindingCandidate.g001PolicyObservationBootstrapReceiptDigest = genesis001PolicyObservationBootstrapReceiptDigest(receipt);
+  envelope.bindingCandidate.preparationSourceTree = receipt.moduleTreeId;
+  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(NOW));
+  try {
+    expect(validateSealedRealmsProductionRecoveryActivationEvidence(envelope).g001PolicyReceiptDigest).toBe(receipt.policyObservationReceipt.policyReceiptDigest);
+    const authority = recoveryOperationAuthority('activation-evidence-generate');
+    const facts = { preparationSourceCommit: receipt.protectedCommit, moduleTreeId: receipt.moduleTreeId, operatorBlob: receipt.operatorBlob, operatorSha256: receipt.operatorSha256 };
+    const capability = createSealedRealmsProductionAuthBridgeStateTestCapability();
+    expect(() => createRecoveryLaunchActivationBindingFromEvidence(envelope, {} as never, authority, { capability, facts })).toThrow('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_MEMBER_INVALID');
+    expect(() => createRecoveryLaunchActivationBindingFromEvidence(envelope, {} as never, authority, { capability, facts: { ...facts, operatorBlob: '0'.repeat(40) } })).toThrow('RECOVERY_LAUNCH_ACTIVATION_SOURCE_INVALID');
+  } finally { vi.useRealTimers(); }
 });

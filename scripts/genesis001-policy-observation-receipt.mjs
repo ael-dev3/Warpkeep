@@ -1,3 +1,5 @@
+import { closeSync, fstatSync } from 'node:fs';
+import { types } from 'node:util';
 import { isAbsolute, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -16,6 +18,7 @@ import {
 import {
   createGreaterRealmAdminTransportSession,
   readGreaterRealmProductionAdminSecretFile,
+  readGreaterRealmProductionAdminSecret,
 } from './greater-realm-production-transport.ts';
 
 const REPOSITORY_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -170,12 +173,16 @@ export async function executeGenesis001PolicyObservation(input) {
     && process.env.NODE_ENV !== 'test'
   ) fail('GENESIS_001_POLICY_OBSERVATION_TEST_DEPENDENCY_FORBIDDEN');
   const dependencies = input.testOnlyDependencies ?? PRODUCTION_DEPENDENCIES;
+  return observePolicy(input, dependencies, () => dependencies.readAdminSecretFile(input.adminSecretPath));
+}
+
+async function observePolicy(input, dependencies, readSecret) {
   const attestedSource = dependencies.attestProtectedMain(input.repositoryRoot);
   if (attestedSource !== input.sourceCommit) {
     fail('GENESIS_001_POLICY_OBSERVATION_SOURCE_INVALID');
   }
 
-  let adminSecret = dependencies.readAdminSecretFile(input.adminSecretPath);
+  let adminSecret = readSecret();
   let session;
   try {
     session = dependencies.createSession({ adminSecret });
@@ -201,6 +208,54 @@ export async function executeGenesis001PolicyObservation(input) {
   } finally {
     await session.close();
   }
+}
+
+/** Fixed native child boundary. Descriptor ownership transfers on valid input. */
+export async function executeGenesis001PolicyObservationFromDescriptor(input) {
+  const keys = ['sourceCommit', 'repositoryRoot', 'descriptor'];
+  if (arguments.length !== 1 || types.isProxy(input) || input === null || typeof input !== 'object'
+    || Object.getPrototypeOf(input) !== Object.prototype) {
+    fail('GENESIS_001_POLICY_OBSERVATION_INPUT_INVALID');
+  }
+  const fields = Object.getOwnPropertyDescriptors(input);
+  if (Reflect.ownKeys(fields).length !== keys.length
+    || keys.some(key => !fields[key]?.enumerable || !Object.hasOwn(fields[key], 'value'))
+    || typeof input.sourceCommit !== 'string' || !COMMIT.test(input.sourceCommit)
+    || typeof input.repositoryRoot !== 'string' || !isAbsolute(input.repositoryRoot)
+    || resolve(input.repositoryRoot) !== input.repositoryRoot || input.descriptor !== 4) {
+    fail('GENESIS_001_POLICY_OBSERVATION_INPUT_INVALID');
+  }
+  let closed = false;
+  const closeDescriptor = () => {
+    if (!closed) { closed = true; closeSync(4); }
+  };
+  try {
+    if (process.platform !== 'linux' || process.getuid?.() !== 1000) {
+      fail('GENESIS_001_POLICY_OBSERVATION_NATIVE_PROFILE_INVALID');
+    }
+    setGlobalLogLevel('error');
+    return await observePolicy(input, PRODUCTION_DEPENDENCIES, () => {
+      const before = fstatSync(4, { bigint: true });
+      if (!before.isFile() || before.nlink !== 1n || (before.mode & 0o7777n) !== 0o600n
+        || typeof process.getuid !== 'function' || before.uid !== BigInt(process.getuid())
+        || before.size < 32n || before.size > 514n) {
+        fail('GENESIS_001_POLICY_OBSERVATION_SECRET_DESCRIPTOR_INVALID');
+      }
+      let secret = '';
+      try {
+        // The transport's existing explicit-descriptor parser owns bounded reads
+        // and buffer erasure. No environment or alternative descriptor is accepted.
+        secret = readGreaterRealmProductionAdminSecret({ WARPKEEP_ADMIN_TOKEN_SECRET_FD: '3' }, 4);
+        const after = fstatSync(4, { bigint: true });
+        if (['dev', 'ino', 'mode', 'uid', 'nlink', 'size', 'mtimeNs', 'ctimeNs']
+          .some(key => before[key] !== after[key])) {
+          fail('GENESIS_001_POLICY_OBSERVATION_SECRET_DESCRIPTOR_CHANGED');
+        }
+        closeDescriptor();
+        return secret;
+      } finally { secret = ''; }
+    });
+  } finally { closeDescriptor(); }
 }
 
 async function main() {

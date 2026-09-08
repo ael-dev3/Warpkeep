@@ -20,6 +20,7 @@ const BOOTSTRAP_MEMBERS = Object.freeze([SELF, 'scripts/local-binding-bounded-fi
   'scripts/auth-bridge-notification-prepared-deploy-closure.mjs']);
 const OPERATIONS = Object.freeze({
   preflight: Object.freeze({ lane: 'g001', run: 'runSealedRealmsProductionG001Operation', status: 'preflight-inspected' }),
+  'g001-policy-observe': Object.freeze({ lane: 'g001', run: 'runSealedRealmsProductionG001Operation', status: 'completed' }),
   'activation-evidence-inspect': Object.freeze({ lane: 'activation', run: 'runSealedRealmsProductionActivationOperation', status: 'activation-evidence-inspected' }),
   'activation-evidence-generate': Object.freeze({ lane: 'activation', run: 'runSealedRealmsProductionActivationOperation', status: 'completed' }),
 });

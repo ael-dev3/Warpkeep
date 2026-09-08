@@ -14,7 +14,7 @@ import {
 
 const SOURCE_COMMIT = 'a'.repeat(40);
 const OTHER_SOURCE_COMMIT = 'b'.repeat(40);
-const ADMIN_SECRET_PATH = '/private/credentials/g001-admin-secret-private-sentinel';
+const ADMIN_SECRET_PATH = resolve('/private/credentials/g001-admin-secret-private-sentinel');
 const ADMIN_SECRET = 'g001-private-secret-sentinel-000000000000000000000000';
 const POLICY_RECEIPT_DIGEST =
   'acf64ca8f02dcfc1e2a162067d2132d02a7155bebe8895c56a85dbbfefd35b60';
@@ -103,7 +103,7 @@ async function observe(rawPolicy: unknown = CLOSED_POLICY) {
   const receipt = await executeGenesis001PolicyObservation({
     sourceCommit: SOURCE_COMMIT,
     adminSecretPath: ADMIN_SECRET_PATH,
-    repositoryRoot: '/private/protected-main',
+    repositoryRoot: resolve('/private/protected-main'),
     testOnlyDependencies: fixture.dependencies as never,
   });
   return { fixture, receipt };
@@ -116,7 +116,7 @@ describe('Genesis 001 protected live-policy observation', () => {
       'utf8',
     );
     expect(source).toContain("import { setGlobalLogLevel } from 'spacetimedb';");
-    const configure = source.indexOf("setGlobalLogLevel('error');");
+    const configure = source.indexOf("setGlobalLogLevel('error');", source.indexOf('async function main()'));
     const capture = source.indexOf(
       'captureGenesis001PolicyObservationBootstrapAuthority(',
       source.indexOf('async function main()'),
@@ -234,7 +234,7 @@ describe('Genesis 001 protected live-policy observation', () => {
       await expect(executeGenesis001PolicyObservation({
         sourceCommit: SOURCE_COMMIT,
         adminSecretPath: ADMIN_SECRET_PATH,
-        repositoryRoot: '/private/protected-main',
+        repositoryRoot: resolve('/private/protected-main'),
         testOnlyDependencies: fixture.dependencies as never,
       })).rejects.toThrow(/GENESIS_001_POLICY_OBSERVATION_LIVE_POLICY_INVALID/u);
       expect(fixture.close).toHaveBeenCalledOnce();
@@ -248,7 +248,7 @@ describe('Genesis 001 protected live-policy observation', () => {
     await expect(executeGenesis001PolicyObservation({
       sourceCommit: SOURCE_COMMIT,
       adminSecretPath: ADMIN_SECRET_PATH,
-      repositoryRoot: '/private/protected-main',
+      repositoryRoot: resolve('/private/protected-main'),
       testOnlyDependencies: fixture.dependencies as never,
     })).rejects.toThrow('network-private-detail');
     expect(fixture.close).toHaveBeenCalledOnce();
@@ -262,7 +262,7 @@ describe('Genesis 001 protected live-policy observation', () => {
     await expect(executeGenesis001PolicyObservation({
       sourceCommit: SOURCE_COMMIT,
       adminSecretPath: ADMIN_SECRET_PATH,
-      repositoryRoot: '/private/protected-main',
+      repositoryRoot: resolve('/private/protected-main'),
       testOnlyDependencies: fixture.dependencies as never,
     })).rejects.toThrow('refresh-unavailable');
     expect(fixture.inspect).not.toHaveBeenCalled();
@@ -278,7 +278,7 @@ describe('Genesis 001 protected live-policy observation', () => {
     await expect(executeGenesis001PolicyObservation({
       sourceCommit: SOURCE_COMMIT,
       adminSecretPath: ADMIN_SECRET_PATH,
-      repositoryRoot: '/private/protected-main',
+      repositoryRoot: resolve('/private/protected-main'),
       testOnlyDependencies: fixture.dependencies as never,
     })).rejects.toThrow(/GENESIS_001_POLICY_OBSERVATION_SOURCE_INVALID/u);
     expect(fixture.dependencies.readAdminSecretFile).not.toHaveBeenCalled();
@@ -341,7 +341,7 @@ describe('Genesis 001 protected live-policy observation', () => {
     ], {
       encoding: 'utf8',
       env: { PATH: '/usr/bin:/bin' },
-      timeout: 15_000,
+      timeout: process.platform === 'win32' ? 30_000 : 15_000,
     });
     expect(direct.status).toBe(1);
     expect(direct.stdout).toBe('');

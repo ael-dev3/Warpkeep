@@ -57,7 +57,7 @@ export function readSealedRealmsProductionRecoveryCandidateRecords(
   context?: SealedRealmsRecoveryCandidateReadContext,
 ): Readonly<{ projection: SealedRealmsProductionRecoveryReceiptProjection;
   bootstrap: Readonly<{ preparationSourceCommit: string; preparationSourceTree: string;
-    bootstrapBlob: string; bootstrapSha256: string }> }>;
+    bootstrapBlob: string; bootstrapSha256: string }> | Readonly<{ profile: 'warpkeep-g001-linux-policy-observation-v1'; preparationSourceCommit: string; preparationSourceTree: string; operatorBlob: string; operatorSha256: string }> }>;
 
 /** Data validation only; does not establish producer or deployment authority. */
 export function validateSealedRealmsProductionRecoveryActivationEvidence(

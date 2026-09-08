@@ -1,3 +1,4 @@
+import { GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE, GENESIS_001_LINUX_POLICY_OPERATOR_PATH } from './genesis001-linux-policy-receipt.mjs';
 import { readSealedRealmsProductionRecoveryProgramArtifacts } from './sealed-realms-production-recovery-program-artifacts.mjs';
 import { readSealedRealmsProductionRecoverySourceClosure } from './sealed-realms-production-recovery-source-closure.mjs';
 import { readSealedRealmsProductionRecoveryPreparation } from './sealed-realms-production-recovery-preparation.mjs';
@@ -55,7 +56,7 @@ function line(args) {
   catch { fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID'); }
   finally { bytes?.fill(0); }
 }
-function source(commit) {
+function source(commit, linux) {
   let root;
   try { root = realpathSync(process.cwd()); }
   catch { fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID'); }
@@ -63,12 +64,17 @@ function source(commit) {
     || line(['rev-parse', '--verify', 'refs/remotes/origin/main^{commit}']) !== `${commit}\n`
     || line(['rev-parse', '--show-toplevel']) !== `${root}\n`) fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID');
   const tree = line(['rev-parse', '--verify', `${commit}^{tree}`]).trimEnd();
-  const entry = line(['ls-tree', '-z', commit, '--', BOOTSTRAP]);
-  const match = /^100644 blob ([a-f0-9]{40})\tscripts\/greater-realm-production-bootstrap\.mjs\0$/u.exec(entry);
+  const operatorPath = linux ? GENESIS_001_LINUX_POLICY_OPERATOR_PATH : BOOTSTRAP;
+  const entry = line(['ls-tree', '-z', commit, '--', operatorPath]);
+  const match = /^100644 blob ([a-f0-9]{40})\t([^\0]+)\0$/u.exec(entry);
+  if (match?.[2] !== operatorPath) fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID');
   if (!SHA.test(tree) || match === null) fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID');
   let bytes;
   try {
     bytes = git(['cat-file', 'blob', match[1]]);
+    if (linux) return Object.freeze({ profile: GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE,
+      preparationSourceCommit: commit, preparationSourceTree: tree,
+      operatorBlob: match[1], operatorSha256: createHash('sha256').update(bytes).digest('hex') });
     return Object.freeze({ preparationSourceCommit: commit, preparationSourceTree: tree,
       bootstrapBlob: match[1], bootstrapSha256: createHash('sha256').update(bytes).digest('hex') });
   } finally { bytes?.fill(0); }
@@ -102,7 +108,8 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
   const readApprovals = () => readSealedRealmsProductionRecoveryApprovalFacts({ records: options.records,
     privateState: options.privateState, authority: options.authority, readContext: options.readContext });
   const approvals = readApprovals();
-  const actual = source(commit);
+  const linux = corpus.bootstrap.profile === GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE;
+  const actual = source(commit, linux);
   if (JSON.stringify(corpus.bootstrap) !== JSON.stringify(actual)) fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID');
   const update = Object.hasOwn(corpus.projection, 'ptrExistingUpdateReceiptDigest');
   if (update && Object.hasOwn(corpus.projection, 'ptrPublishReceiptDigest')) fail();
@@ -120,7 +127,7 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
     || JSON.stringify(approvals) !== JSON.stringify(readApprovals())
     || JSON.stringify(closure) !== JSON.stringify(readClosure())
     || JSON.stringify(programs) !== JSON.stringify(readPrograms())
-    || JSON.stringify(actual) !== JSON.stringify(source(commit))
+    || JSON.stringify(actual) !== JSON.stringify(source(commit, linux))
     || JSON.stringify(preparation) !== JSON.stringify(readPreparation())) fail();
   const ordered = Object.freeze(Object.fromEntries(keys
     .filter(key => Object.hasOwn(facts, key)).map(key => [key, facts[key]])));

@@ -1,3 +1,4 @@
+import { linuxG001PolicyReceipt } from './fixtures/linuxG001PolicyReceipt';
 // @vitest-environment node
 
 import { createHash } from 'node:crypto';
@@ -1055,4 +1056,15 @@ describe('Genesis 001 sealed-launch adoption', () => {
       new Date('2026-08-28T12:02:30.000Z'),
     )).not.toThrow();
   });
+});
+
+it('derives Linux policy evidence without relabeling Darwin bootstrap fields', () => {
+  const { privateEvidence, authority } = evidence();
+  const historical = deriveGenesis001SealedLaunchEvidenceForTesting(privateEvidence, authority, new Date('2026-08-28T12:02:00.000Z'));
+  const receipt = linuxG001PolicyReceipt(privateEvidence.policyObservationBootstrapReceipt.policyObservationReceipt);
+  const linux = deriveGenesis001SealedLaunchEvidenceForTesting({ ...privateEvidence, policyObservationBootstrapReceipt: receipt }, authority, new Date('2026-08-28T12:02:00.000Z'));
+  expect(linux.g001PolicyReceiptDigest).toBe(historical.g001PolicyReceiptDigest);
+  expect(linux.g001PolicyObservationBootstrapReceiptDigest).toBe(genesis001PolicyObservationBootstrapReceiptDigest(receipt));
+  expect(linux.g001PolicyObservationBootstrapReceiptDigest).not.toBe(historical.g001PolicyObservationBootstrapReceiptDigest);
+  expect(() => deriveGenesis001SealedLaunchEvidenceForTesting({ ...privateEvidence, policyObservationBootstrapReceipt: { ...receipt, operatorBlob: '0'.repeat(40) } }, authority, new Date('2026-08-28T12:02:00.000Z'))).toThrow();
 });

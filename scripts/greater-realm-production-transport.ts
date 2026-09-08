@@ -15,7 +15,7 @@ import {
   readProductionAdminBridgeTrustedTime,
   requestAdminToken,
   withOperationTimeout,
-} from './hermes-admin';
+} from './production-admin-connection';
 import {
   ensureProductionAdminTokenReservation,
   releaseProductionAdminTokenReservation,

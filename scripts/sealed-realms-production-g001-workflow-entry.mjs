@@ -1,3 +1,4 @@
+import { prepareFixedLinuxG001PolicyObservation, disposeFixedLinuxG001PolicyObservation } from './genesis001-linux-policy-native.mjs';
 import { execFileSync } from 'node:child_process';
 import { types } from 'node:util';
 
@@ -108,11 +109,11 @@ function sourceSha(value) {
   return value;
 }
 
-function readGit(arguments_) {
+function readGit(arguments_, binary = false) {
   try {
     return execFileSync(GIT_EXECUTABLE, ['--no-replace-objects', ...arguments_], {
       cwd: process.cwd(),
-      encoding: 'utf8',
+      encoding: binary ? 'buffer' : 'utf8',
       env: GIT_ENVIRONMENT,
       maxBuffer: 2 * 1024 * 1024,
       timeout: 5_000,
@@ -155,7 +156,7 @@ function unavailable() {
   fail('SEALED_REALMS_G001_WORKFLOW_ADAPTER_UNAVAILABLE');
 }
 
-async function buildDispatcher(operation, workflowInputSha, evidence) {
+async function buildDispatcher(operation, workflowInputSha, evidence, linuxPolicyPreparation) {
   const verifyEvidence = commit => verifySealedRealmsProductionWorkflowEvidence(evidence, commit);
   // Fresh fixed Verify evidence precedes source authentication; private state
   // remains behind that source proof and the active workflow permit.
@@ -179,7 +180,7 @@ async function buildDispatcher(operation, workflowInputSha, evidence) {
   const privateState = resolveSealedRealmsProductionWorkflowPrivateState();
   const continuationStore = createSealedRealmsProductionContinuationStore({ privateState });
   const launchAuthority = createSealedRealmsProductionG001LaunchAuthority({
-    readRawGit: readGit,
+    readRawGit: arguments_ => readGit(arguments_, arguments_[0] === 'cat-file'),
     resolveAdminSecretPath: unavailable,
     privateState,
   });
@@ -190,6 +191,7 @@ async function buildDispatcher(operation, workflowInputSha, evidence) {
     now: () => new Date(),
   });
   const lane = createSealedRealmsProductionG001Lane({
+    ...(linuxPolicyPreparation === undefined ? {} : { linuxPolicyPreparation, linuxPolicyEvidence: evidence }),
     launchAuthority,
     attestDispatcherNode: unavailable,
     runEnvelopeChild: unavailable,
@@ -227,16 +229,25 @@ export async function createSealedRealmsProductionG001WorkflowRuntime(input) {
   const workflowInputSha = sourceSha(options.workflowInputSha);
   const evidence = await createSealedRealmsProductionWorkflowEvidence({ workflowInputSha });
   const runtime = Object.freeze({});
+  let linuxPolicyPreparation;
   try {
+    if (operation === 'g001-policy-observe' && process.platform === 'linux') {
+      linuxPolicyPreparation = await prepareFixedLinuxG001PolicyObservation();
+      // Materialization can outlive the evidence TTL. Refresh actual Verify and
+      // current source before issuing a permit or touching the secret descriptor.
+      await refreshSealedRealmsProductionWorkflowEvidence(evidence);
+    }
     runtimes.set(runtime, Object.freeze({
       operation,
       workflowInputSha,
       evidence,
-      dispatcher: await buildDispatcher(operation, workflowInputSha, evidence),
+      linuxPolicyPreparation,
+      dispatcher: await buildDispatcher(operation, workflowInputSha, evidence, linuxPolicyPreparation),
     }));
     return runtime;
   } catch (error) {
     revokeSealedRealmsProductionWorkflowEvidence(evidence);
+    if (linuxPolicyPreparation !== undefined) await disposeFixedLinuxG001PolicyObservation(linuxPolicyPreparation);
     throw error;
   }
 }
@@ -262,5 +273,8 @@ export async function runSealedRealmsProductionG001Operation(input) {
     return await member.dispatcher.dispatch(Object.freeze({ operation, workflowInputSha }));
   } finally {
     revokeSealedRealmsProductionWorkflowEvidence(member.evidence);
+    if (member.linuxPolicyPreparation !== undefined) {
+      await disposeFixedLinuxG001PolicyObservation(member.linuxPolicyPreparation);
+    }
   }
 }

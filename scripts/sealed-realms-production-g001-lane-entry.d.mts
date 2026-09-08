@@ -123,6 +123,8 @@ export function assertSealedRealmsProductionG001CurrentStateReceipt(
 ): SealedRealmsProductionG001CurrentStateReceipt;
 
 export function createSealedRealmsProductionG001Lane(input: Readonly<{
+  linuxPolicyPreparation?: import('./genesis001-linux-policy-native.mjs').Genesis001LinuxPolicyPreparation;
+  linuxPolicyEvidence?: import('./sealed-realms-production-workflow-evidence.mjs').SealedRealmsProductionWorkflowEvidence;
   launchAuthority: SealedRealmsProductionG001LaunchAuthority;
   attestDispatcherNode: () => Readonly<{
     path: '/private/var/db/warpkeep/runtime/node-v22.22.3-darwin-arm64/bin/node';

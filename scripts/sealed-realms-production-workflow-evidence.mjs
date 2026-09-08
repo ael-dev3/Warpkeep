@@ -67,7 +67,7 @@ function localSource(commit) {
 function context(commit) {
   const operation = process.env.WARPKEEP_OPERATION;
   const job = operation === 'activation-evidence-generate' ? 'operate'
-    : ['preflight', 'activation-evidence-inspect'].includes(operation) ? 'operate_readonly' : undefined;
+    : ['preflight', 'activation-evidence-inspect', 'g001-policy-observe'].includes(operation) ? 'operate_readonly' : undefined;
   if (job === undefined) fail('SEALED_REALMS_WORKFLOW_EVIDENCE_CONTEXT_INVALID');
   const fixed = { GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: REPOSITORY,
     GITHUB_REF: 'refs/heads/main', GITHUB_SHA: commit, GITHUB_EVENT_NAME: 'workflow_dispatch',

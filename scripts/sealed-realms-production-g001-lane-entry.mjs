@@ -1,3 +1,5 @@
+import { executeFixedLinuxG001PolicyObservation, assertFixedLinuxG001PolicyPreparation } from './genesis001-linux-policy-native.mjs';
+import { createGenesis001LinuxPolicyReceipt, verifyGenesis001LinuxPolicyReceipt, GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE, GENESIS_001_LINUX_POLICY_OPERATOR_PATH } from './genesis001-linux-policy-receipt.mjs';
 import { createHash } from 'node:crypto';
 import { userInfo } from 'node:os';
 import { posix } from 'node:path';
@@ -1213,6 +1215,33 @@ function exactPolicyObservation(output, receipt) {
   return value;
 }
 
+async function runFixedLinuxPolicyObservation(authority, launchAuthority, preparation, evidence) {
+  assertFixedLinuxG001PolicyPreparation(preparation);
+  const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(authority);
+  const capability = launchAuthorities.get(launchAuthority);
+  if (capability === undefined) fail('SEALED_REALMS_G001_LAUNCH_AUTHORITY_INVALID');
+  const readSource = async () => {
+    const tree = exactRawGitCommit(await rawGitText(capability.readRawGit,
+      ['rev-parse', '--verify', `${sourceCommit}^{tree}`]));
+    const entry = await rawGitText(capability.readRawGit,
+      ['ls-tree', '-z', sourceCommit, '--', GENESIS_001_LINUX_POLICY_OPERATOR_PATH]);
+    const match = /^100644 blob ([a-f0-9]{40})\t([^\0]+)\0$/u.exec(entry);
+    if (match?.[2] !== GENESIS_001_LINUX_POLICY_OPERATOR_PATH) fail('SEALED_REALMS_G001_LAUNCH_AUTHORITY_INVALID');
+    const bytes = await rawGitBytes(capability.readRawGit, ['cat-file', 'blob', match[1]]);
+    try { return Object.freeze({ tree, blob: match[1], sha256: digestBytes(bytes) }); }
+    finally { bytes.fill(0); }
+  };
+  const before = await readSource();
+  const receipt = createGenesis001LinuxPolicyReceipt(await executeFixedLinuxG001PolicyObservation(preparation, evidence), sourceCommit);
+  const after = await readSource();
+  if (JSON.stringify(before) !== JSON.stringify(after) || receipt.moduleTreeId !== before.tree
+    || receipt.operatorBlob !== before.blob || receipt.operatorSha256 !== before.sha256) {
+    fail('SEALED_REALMS_G001_LAUNCH_AUTHORITY_INVALID');
+  }
+  captureG001ActivationRecord(capability, authority, receipt);
+  reopenPolicyObservationRecord(capability.privateState, authority, receipt, receipt.cleanup.runId);
+}
+
 // Only the fixed producer owns capture and reopening. Neither dispatch input nor
 // a persistence callback may supply a record or acknowledge that one was stored.
 function reopenPolicyObservationRecord(privateState, authority, receipt, runId, terminal) {
@@ -1241,6 +1270,14 @@ function reopenPolicyObservationRecord(privateState, authority, receipt, runId, 
         'warpkeep.sealed-realms.activation-record.v1', POLICY_ACTIVATION_MEMBER,
         sourceCommit, sourceCommit, authority.operation, authority.authorityDigest, record.bodyDigest, '',
       ].join('\n')).digest('hex')) fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+    if (receipt.profile === GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE) {
+      const observation = verifyGenesis001LinuxPolicyReceipt(record.receipt, sourceCommit);
+      if (JSON.stringify(observation) !== JSON.stringify(receipt)
+        || observation.cleanup.runId !== runId || terminal !== undefined) {
+        fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+      }
+      return;
+    }
     const observation = exactPolicyObservation(body.toString('utf8'), receipt);
     if (observation.launchCleanup.runId !== runId) fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
     if (terminal !== undefined && (
@@ -1770,7 +1807,7 @@ function reopenCurrentStateReceipt(privateState, sourceCommit, secondMember) {
 export function createSealedRealmsProductionG001Lane(input) {
   const options = allowedObject(input, [
     'launchAuthority', 'attestDispatcherNode', 'runEnvelopeChild',
-    'censusAuthority', 'currentState', 'preflight', 'currentStateOperator',
+    'censusAuthority', 'currentState', 'preflight', 'currentStateOperator', 'linuxPolicyPreparation', 'linuxPolicyEvidence',
   ], 'SEALED_REALMS_G001_LANE_INPUT_INVALID');
   if (
     isProxy(options.launchAuthority)
@@ -1787,6 +1824,7 @@ export function createSealedRealmsProductionG001Lane(input) {
     || typeof options.currentStateOperator !== 'function'
     || typeof options.preflight !== 'function'
   ) fail('SEALED_REALMS_G001_LANE_INPUT_INVALID');
+  if (options.linuxPolicyPreparation !== undefined) assertFixedLinuxG001PolicyPreparation(options.linuxPolicyPreparation);
   const currentState = currentStateConfiguration(options.currentState);
 
   const execute = async (input = {}) => {
@@ -1835,6 +1873,10 @@ export function createSealedRealmsProductionG001Lane(input) {
     }
     requireWebSocket();
     if (operation === 'g001-policy-observe') {
+      if (process.platform === 'linux') {
+        await runFixedLinuxPolicyObservation(authority, options.launchAuthority, options.linuxPolicyPreparation, options.linuxPolicyEvidence);
+        return Object.freeze({ status: 'completed' });
+      }
       await runAuthenticatedFrozenEnvelope({
         authority,
         launchAuthority: options.launchAuthority,

@@ -1,3 +1,4 @@
+import { GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE, verifyGenesis001LinuxPolicyReceipt } from './genesis001-linux-policy-receipt.mjs';
 import { createHash } from 'node:crypto';
 import { types } from 'node:util';
 
@@ -506,6 +507,11 @@ function validateG001Receipt(member, receipt, preparationSourceCommit) {
     return;
   }
   if (member === 'g001PolicyObservationBootstrapReceipt') {
+    if (receipt.profile === GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE) {
+      try { verifyGenesis001LinuxPolicyReceipt(receipt, preparationSourceCommit); }
+      catch { fail('SEALED_REALMS_ACTIVATION_RECORDS_RECEIPT_INVALID'); }
+      return;
+    }
     const value = exactReceipt(receipt, [
       'profile', 'protectedCommit', 'moduleTreeId', 'bootstrapBlob', 'bootstrapSha256',
       'moduleArchiveCount', 'command', 'launchCleanup', 'policyObservationReceipt',
@@ -1254,6 +1260,15 @@ export function readSealedRealmsProductionRecoveryCandidateRecords(records, cont
   }
   const { receipts, projection } = readRecoveryReceiptCorpus(records, verificationTime);
   const bootstrap = receipts.g001PolicyObservationBootstrapReceipt;
+  if (bootstrap.profile === GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE) {
+    return Object.freeze({ projection, bootstrap: Object.freeze({
+      profile: GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE,
+      preparationSourceCommit: bootstrap.protectedCommit,
+      preparationSourceTree: bootstrap.moduleTreeId,
+      operatorBlob: bootstrap.operatorBlob,
+      operatorSha256: bootstrap.operatorSha256,
+    }) });
+  }
   return Object.freeze({ projection, bootstrap: Object.freeze({
     preparationSourceCommit: bootstrap.protectedCommit,
     preparationSourceTree: bootstrap.moduleTreeId,

@@ -13,11 +13,18 @@ const TERMINATION_POLL = 20;
 
 export function runLocalBindingBoundedProcess(executable, args, options) {
   return new Promise((resolvePromise, reject) => {
+    if (options.inheritedFd4 !== undefined
+      && (!Number.isSafeInteger(options.inheritedFd4) || options.inheritedFd4 < 3)) {
+      reject(new LocalBindingRuntimeProcessError('LOCAL_BINDING_RUNTIME_PROCESS_DESCRIPTOR_INVALID'));
+      return;
+    }
     const containProcessGroup = options.containProcessGroup === true && process.platform !== 'win32';
     const child = spawn(executable, args, {
       cwd: options.cwd, env: options.env, shell: false,
       detached: containProcessGroup,
-      stdio: options.fd3 === undefined ? ['ignore', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe', 'pipe'],
+      stdio: options.inheritedFd4 !== undefined
+        ? ['ignore', 'pipe', 'pipe', options.fd3 === undefined ? 'ignore' : 'pipe', options.inheritedFd4]
+        : options.fd3 === undefined ? ['ignore', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe', 'pipe'],
     });
     const output = { stdout: [], stderr: [], stdoutBytes: 0, stderrBytes: 0 };
     let settled = false;
