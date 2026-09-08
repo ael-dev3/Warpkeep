@@ -454,7 +454,7 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
     } finally { repository.cleanup(); privateHome.cleanup(); }
   }, FIXTURE_TIMEOUT);
 
-  it('refuses activation generation from an empty authenticated record corpus without runtime or output', async () => {
+  it('refuses activation generation when fixture program provenance does not match the operating source', async () => {
     const repository = repositoryFixture('S');
     const privateHome = privateHomeFixture();
     const verifiedCommits = installEvidenceVerifier();
@@ -471,7 +471,7 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
         await expect(factory({
           operation: 'activation-evidence-generate', workflowInputSha: repository.sourceCommit,
         }).then((value: unknown) => { runtime = value; })).rejects.toMatchObject({
-          code: 'SEALED_REALMS_ACTIVATION_RECORDS_INCOMPLETE',
+          message: 'SEALED_REALMS_RECOVERY_PROGRAM_ARTIFACTS_INVALID',
         });
       });
       expect(runtime).toBeUndefined();
