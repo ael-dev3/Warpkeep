@@ -26,7 +26,7 @@ or completed protected workflow from registration alone.
 
 ## Linux G001 policy integration — September 9
 
-Published at `1d6c3a1` on `upstream/codex/prepared-keep-bindings-fix`, this
+Published at `57b7113` on `upstream/codex/prepared-keep-bindings-fix`, this
 checkpoint connects the Linux G001 read-only policy lane to its receipt,
 adoption, activation-record and recovery consumers. It keeps the historical
 Darwin receipt profile distinct, refreshes the opaque workflow evidence scope at
@@ -749,7 +749,7 @@ visual improvement, not physical-device or complete visual acceptance.
 
 The keep now omits repeated zero-pending amounts and shows one quiet no-return status. Nonzero incoming amounts remain explicitly unspendable; balances and command semantics are unchanged. All 21 Keep04Screen tests and app/test types passed. Fresh empty/mature desktop and 390px synthetic renderer captures had no horizontal overflow. Nonzero pending and confirmed-return behavior are covered by component tests; physical-device performance remains unverified.
 
-At the earlier source `c104f7b6368635ab6ae36da6ce02c3aa5a9c412d`, full native Linux prepare and the separate rebuilding check both exited successfully with identical family `f23eb885a62eea112e943b70a692b785da0a28b7b873fe2f0e39a59c1508740e`. That candidate had `finalReleasePrepared: false`, was not deployed, and predates the current UI and Linux G001 integration. The current published Windows/GitHub checkpoint is `61de3a1`; native materializer/child execution and generated-closure audit remain open.
+At the earlier source `c104f7b6368635ab6ae36da6ce02c3aa5a9c412d`, full native Linux prepare and the separate rebuilding check both exited successfully with identical family `f23eb885a62eea112e943b70a692b785da0a28b7b873fe2f0e39a59c1508740e`. That candidate had `finalReleasePrepared: false`, was not deployed, and predates the current UI and Linux G001 integration. The current published Windows/GitHub checkpoint is `57b7113`; native materializer/child execution and generated-closure audit remain open.
 
 ## Dedicated Linux caller and private-state integration
 
