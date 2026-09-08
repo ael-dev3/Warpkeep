@@ -150,8 +150,8 @@ function validateSpacetime(value) {
 
 const SYSTEM_TOOL_EXPECTATIONS = Object.freeze({
   git: Object.freeze(['git', '1:2.43.0-1ubuntu7.3', '/usr/bin/git', '2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668']),
-  gpg: Object.freeze(['gpg', '2.4.4-2ubuntu17.4', '/usr/bin/gpg', '7ecb1341104b0ee1107fe908abce37e24546de1db0848b29c75f59f72094f4e8']),
-  gpgv: Object.freeze(['gpgv', '2.4.4-2ubuntu17.4', '/usr/bin/gpgv', '097b577cdf8b51dcc1fb42417d5ef3ca2e22b36a8ad16c9df4bd083a38fe476c']),
+  gpg: Object.freeze(['gpg', '2.4.4-2ubuntu17.6', '/usr/bin/gpg', '403e04c779ad9fab3895c405f8c53d35ab59fa8e3b8bbe3437f61bc41f468dd4']),
+  gpgv: Object.freeze(['gpgv', '2.4.4-2ubuntu17.6', '/usr/bin/gpgv', 'f14d026b9eae172c432e015bce227483293b4966f2f3fdcfa582f71d3dbb2ae8']),
   unshare: Object.freeze(['util-linux', '2.39.3-9ubuntu6.6', '/usr/bin/unshare', 'a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c']),
   ip: Object.freeze(['iproute2', '6.1.0-1ubuntu6.2', '/usr/sbin/ip', '81a95d97c70f3677d1883b9d8fe13b1771ab208d5bca56bc447aaaff0b0480e0']),
 })

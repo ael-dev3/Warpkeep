@@ -10,6 +10,7 @@ const RECONCILIATION_PROOF_IMPORT = /(?:^|\/)reconciliationProof\.js(?:\?.*)?$/u
 const PREPARATION_INERT_DATA = fileURLToPath(new URL('./test-workerd/preparationInertData.fake.ts', import.meta.url))
 
 export default defineConfig({
+  define: { __WARPKEEP_PREPARATION_TEST_RESET_TIMEOUT__: process.platform === 'win32' ? '30000' : '10000' },
   plugins: [
     {
       name: 'warpkeep-test-reconciliation-proof-fake',

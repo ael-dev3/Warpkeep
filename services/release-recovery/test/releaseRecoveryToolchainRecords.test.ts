@@ -92,8 +92,8 @@ function sourcePolicy(): Record<string, unknown> {
     },
     systemTools: {
       git: { package: 'git', version: '1:2.43.0-1ubuntu7.3', path: '/usr/bin/git', sha256: '2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668' },
-      gpg: { package: 'gpg', version: '2.4.4-2ubuntu17.4', path: '/usr/bin/gpg', sha256: '7ecb1341104b0ee1107fe908abce37e24546de1db0848b29c75f59f72094f4e8' },
-      gpgv: { package: 'gpgv', version: '2.4.4-2ubuntu17.4', path: '/usr/bin/gpgv', sha256: '097b577cdf8b51dcc1fb42417d5ef3ca2e22b36a8ad16c9df4bd083a38fe476c' },
+      gpg: { package: 'gpg', version: '2.4.4-2ubuntu17.6', path: '/usr/bin/gpg', sha256: '403e04c779ad9fab3895c405f8c53d35ab59fa8e3b8bbe3437f61bc41f468dd4' },
+      gpgv: { package: 'gpgv', version: '2.4.4-2ubuntu17.6', path: '/usr/bin/gpgv', sha256: 'f14d026b9eae172c432e015bce227483293b4966f2f3fdcfa582f71d3dbb2ae8' },
       unshare: { package: 'util-linux', version: '2.39.3-9ubuntu6.6', path: '/usr/bin/unshare', sha256: 'a23c8863860669003dc4660039fe642f5795c8c2195898ebc5d01afa1ac3d11c' },
       ip: { package: 'iproute2', version: '6.1.0-1ubuntu6.2', path: '/usr/sbin/ip', sha256: '81a95d97c70f3677d1883b9d8fe13b1771ab208d5bca56bc447aaaff0b0480e0' },
     },
@@ -331,6 +331,24 @@ function materializerCatalogEntries(manifest: any): Map<string, Record<string, u
 }
 
 describe('release recovery full toolchain records', () => {
+  it('requires the verified GPG package and executable pair without accepting old or mixed tuples', async () => {
+    const records = await import('../scripts/release-recovery-toolchain-records.mjs') as any
+    const current = sourcePolicy()
+    expect(() => records.parseToolchainSourcePolicyBytes(Buffer.from(`${JSON.stringify(current)}\n`))).not.toThrow()
+    for (const [tool, oldHash] of [
+      ['gpg', '7ecb1341104b0ee1107fe908abce37e24546de1db0848b29c75f59f72094f4e8'],
+      ['gpgv', '097b577cdf8b51dcc1fb42417d5ef3ca2e22b36a8ad16c9df4bd083a38fe476c'],
+    ]) {
+      for (const change of [{ version: '2.4.4-2ubuntu17.4' }, { sha256: oldHash },
+        { version: '2.4.4-2ubuntu17.4', sha256: oldHash }]) {
+        const changed = structuredClone(current)
+        const tools = changed.systemTools as Record<string, Record<string, unknown>>
+        tools[tool!] = { ...tools[tool!], ...change }
+        expect(() => records.parseToolchainSourcePolicyBytes(Buffer.from(`${JSON.stringify(changed)}\n`))).toThrow()
+      }
+    }
+  })
+
   it('refuses old-distribution policies and manifests instead of reinterpreting historical evidence', async () => {
     const records = await import('../scripts/release-recovery-toolchain-records.mjs') as any
     const policy = sourcePolicy()

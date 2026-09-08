@@ -137,12 +137,12 @@ const SYSTEM_TOOL_EVIDENCE = Object.freeze({
     sha256: GIT_SHA256,
   }),
   gpg: Object.freeze({
-    package: 'gpg', version: '2.4.4-2ubuntu17.4', path: '/usr/bin/gpg',
-    sha256: '7ecb1341104b0ee1107fe908abce37e24546de1db0848b29c75f59f72094f4e8',
+    package: 'gpg', version: '2.4.4-2ubuntu17.6', path: '/usr/bin/gpg',
+    sha256: '403e04c779ad9fab3895c405f8c53d35ab59fa8e3b8bbe3437f61bc41f468dd4',
   }),
   gpgv: Object.freeze({
-    package: 'gpgv', version: '2.4.4-2ubuntu17.4', path: '/usr/bin/gpgv',
-    sha256: '097b577cdf8b51dcc1fb42417d5ef3ca2e22b36a8ad16c9df4bd083a38fe476c',
+    package: 'gpgv', version: '2.4.4-2ubuntu17.6', path: '/usr/bin/gpgv',
+    sha256: 'f14d026b9eae172c432e015bce227483293b4966f2f3fdcfa582f71d3dbb2ae8',
   }),
   unshare: Object.freeze({
     package: 'util-linux', version: '2.39.3-9ubuntu6.6', path: '/usr/bin/unshare',

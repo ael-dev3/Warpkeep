@@ -1,3 +1,4 @@
+import type { PreparationConfigurationService } from './signerPreparationObservation.js'
 import { RecoverySigner } from './signer.js'
 import type { ReleaseRecoveryAuthorizationLedgerV2 } from './ledgerDurableObjectV2.js'
 import type { ReleaseRecoveryObservationService } from './realmEvidence.js'
@@ -16,7 +17,7 @@ export interface RecoverySignerEnvironment {
   GITHUB_APP_ID: string
   GITHUB_APP_INSTALLATION_ID: string
   GITHUB_APP_PRIVATE_KEY_PEM: string
-  AUTH_BRIDGE_OBSERVER: ReleaseRecoveryObservationService
+  AUTH_BRIDGE_OBSERVER: ReleaseRecoveryObservationService & PreparationConfigurationService
   RECOVERY_LEDGER_V2: DurableObjectNamespace<ReleaseRecoveryAuthorizationLedgerV2>
 }
 

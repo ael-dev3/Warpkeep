@@ -345,7 +345,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f51898f9fe28f36574c2322de8efaee0ad97a735e0225bccd867deb5a24ff056"
+      "sha256": "91c503deb7eb7f17287acfb1c73c30758df083b4063c9113526350a2bd5f672e"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -1150,7 +1150,7 @@
     {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "7e2f472580903c13b3e0de8589caa3d34212a5a8bd8e4a3600fac1628d541c0d"
+      "sha256": "b6ab154d9bb0725a3021fe6901a314e87b5f039c0c86bafca8a2f91d41044f10"
     },
     {
       "path": "scripts/production-player-canary-admin-transport.ts",
@@ -2000,7 +2000,7 @@
     {
       "path": "services/auth-bridge/src/index.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "95b51e06551f6df49afc611455215cd6638d33d97b10292c37c03c94eb8c0648"
+      "sha256": "ffe99224226aa04ea5854a95dfa1323b2dc10e5bd456b3452c6060d24e93327b"
     },
     {
       "path": "services/auth-bridge/src/jwt.ts",
@@ -2026,6 +2026,11 @@
       "path": "services/auth-bridge/src/releaseRecoveryConfig.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "c36c2d27a6d1b26baa0efbdbca5c18dbddf52c2e4a56e8e023ded89509810868"
+    },
+    {
+      "path": "services/auth-bridge/src/releaseRecoveryConfiguration.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "9cc97ff4aa8258ff7c38d54bb7b0a926e7ac375e2609625ffc2b05dd4ab279b3"
     },
     {
       "path": "services/auth-bridge/src/releaseRecoveryObservation.ts",
@@ -2138,9 +2143,19 @@
       "sha256": "3c180aed03badf1621e92a8587380720fb8646273f10a45b81c22739ede799b7"
     },
     {
+      "path": "services/auth-bridge/test/recoveryConfigurationFixture.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "851f06847dfefe1fb54d26d28b240cbbadc7458ef5de4ddaa288b6be85e1331d"
+    },
+    {
       "path": "services/auth-bridge/test/releaseRecoveryConfig.test.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "a27ac076c94f4db15b3fbe13cc9b7d222bd2aabc5230f261c634daca83980977"
+    },
+    {
+      "path": "services/auth-bridge/test/releaseRecoveryConfiguration.test.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "15fa5187ebec2d1bc06e53706a7f0a7fb0cda18350417ba986b2bd9c51955ffe"
     },
     {
       "path": "services/auth-bridge/test/releaseRecoveryObservation.test.ts",

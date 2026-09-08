@@ -5,6 +5,29 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Signed preparation configuration observation
+
+The recovery service now exposes a separate signed configuration observation for
+an exact reserved preparation intent. It reads deployed auth-bridge configuration
+through a private RPC, rechecks authenticated GitHub source/run identity after
+that RPC, and checks the disabled authorization epoch before and after signing.
+It does not arm recovery or establish realm readiness. The durable reservation
+receipt remains unchanged. Actual gateway/signer/SQLite composition has six
+passing cases; selected service/auth tests and scoped types pass. Full auth types
+still need the missing quick-auth dependency in the verification donor.
+
+Downstream candidate consumption is unfinished: the published candidate still
+lacks four inputs until the configuration observation consumer and native module
+hash producers are connected. No production deployment is claimed.
+
+WarpkeepRunner now has verified Node22 and authenticated Ubuntu package updates
+matching the existing local bootstrap pins. The recovery fixture GPG policy is
+aligned to the same package version and exact binary hashes. The actual Node24
+bootstrap revealed an overlong GPG socket path in its private temporary directory;
+a bounded directory-name fix is being verified. Native builds remain pending.
+Generated deployment closure outputs were regenerated and reproduced identically;
+this is source consistency evidence, not an operating bundle or live release.
+
 ## Dedicated local Linux runner
 
 Active local launchers, workers, cache/bootstrap paths and service fixture

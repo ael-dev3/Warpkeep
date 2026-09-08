@@ -1235,6 +1235,21 @@ export class ReleaseRecoveryAuthorizationLedgerV2 extends DurableObject<SignerEn
     })
   }
 
+  async assertPreparationObservationIntent(input: PreparationIntent): Promise<Readonly<{ intent: PreparationIntent }>> {
+    return this.#withPublicErrors(async () => {
+      this.#assertRole('control')
+      const intent = snapshotPreparationIntent(input)
+      const result = this.ctx.storage.transactionSync(() => {
+        const current = this.#loadControl()
+        if (current === undefined) fail('RECOVERY_LEDGER_STORAGE_FAILED')
+        assertPreparationControl(current, intent.authorizationEpoch)
+        const existing = this.#loadPreparation(intent.authorizationEpoch)
+        if (existing === null || JSON.stringify(existing.intent) !== JSON.stringify(intent)) fail('RECOVERY_LEDGER_CONTROL_INVALID')
+        return { intent: existing.intent }
+      })
+      return rpcSnapshot(result)
+    })
+  }
   async finalizePreparationIntent(input: Readonly<{ intent: PreparationIntent; preparationReceiptJws: string }>): Promise<Readonly<{ preparationReceiptJws: string }>> {
     return this.#withPublicErrors(async () => {
       this.#assertRole('control')
