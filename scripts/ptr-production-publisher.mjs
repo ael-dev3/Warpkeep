@@ -24,6 +24,7 @@ import { withPtrLockedSourceBuild } from './ptr-binding-locked-source-build.ts';
 import { withPtrLinuxLockedSourceBuild } from './ptr-binding-linux-locked-source-build.ts';
 import { assertProductionAdminTrustedAncestors } from './production-admin-token-budget.mjs';
 import { attestPinnedSpacetimeCli } from './spacetime-cli-attestation.mjs';
+import { describePtrArtifact } from './ptr-artifact-description.mjs';
 
 export const PTR_PRODUCTION_TARGET = Object.freeze({
   uri: 'https://maincloud.spacetimedb.com',
@@ -981,6 +982,13 @@ export function preparePtrSourceBuiltArtifact(input) {
     const abi = verifyPtrGeneratedAbi(generatedAbi(
       readFileSync(join(generated, 'index.ts'), 'utf8'),
     ));
+    const artifactDescription = describePtrArtifact({
+      artifactDescriptor: descriptor,
+      artifactSha256: sourceBuild.result,
+      assertArtifact: () => exactArtifactIdentity(artifactPath, descriptor, identity),
+      cli,
+      spawn: input.spawn ?? spawnSync,
+    });
     const cliConfig = input.cliConfigSourcePath === undefined
       ? undefined
       : stageCliConfig(input.cliConfigSourcePath, directory);
@@ -1001,6 +1009,7 @@ export function preparePtrSourceBuiltArtifact(input) {
     return Object.freeze({
       sourceCommit: input.sourceCommit,
       moduleSha256: sourceBuild.result,
+      artifactDescription,
       artifactPath,
       publishArtifactPath: '/dev/fd/3',
       artifactDescriptor: descriptor,

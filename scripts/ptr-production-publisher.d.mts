@@ -1,3 +1,4 @@
+import type { PtrArtifactDescription } from './ptr-artifact-description.mjs';
 export const PTR_PRODUCTION_TARGET: Readonly<{
   uri: 'https://maincloud.spacetimedb.com';
   databaseAlias: 'warpkeep-ptr';
@@ -148,6 +149,7 @@ export function preparePtrSourceBuiltArtifact(input: Readonly<{
 }>): Readonly<{
   sourceCommit: string;
   moduleSha256: string;
+  artifactDescription: PtrArtifactDescription;
   artifactPath: string;
   publishArtifactPath: '/dev/fd/3';
   artifactDescriptor: number;

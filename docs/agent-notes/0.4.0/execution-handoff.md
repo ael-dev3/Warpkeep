@@ -5,6 +5,25 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Exact-artifact module description
+
+The PTR artifact helper now derives the registered RawV10 description through
+the attested standalone executable, reading its existing private artifact
+descriptor before CLI credentials are staged. Separate digests retain raw output
+identity and canonical schema identity. Explicit keyed collections normalize
+runtime ordering differences; typespace, columns, variants and function order
+remain significant. Unknown sections, duplicate identities and unsupported
+views, RLS, HTTP and defaults refuse explicitly. This identifies a supported
+complete description; it does not authorize a migration.
+
+Windows focused tests and strict types passed. The real historical standalone
+extraction fixtures are retained with provenance. New native publisher integration
+checks and a fresh current-artifact extraction remain pending WSL recovery; the
+prior successful Linux build did not execute this new integration. Production
+provider authority, migration policy and private receipt composition remain
+unfinished. Generate a fresh source-bound family after the integrated source is
+ready; never apply an older source's generated outputs.
+
 ## Supported Linux artifact build
 
 The actual PTR artifact helper now selects the existing Linux x64 locked builder,

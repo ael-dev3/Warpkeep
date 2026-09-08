@@ -24,10 +24,10 @@
 
 Files: scripts/recovery-binding-projection.mjs and declaration; scripts/recovery-activation-candidate.mjs and declaration; services/release-recovery/src/githubEvidence.ts; recovery-attestation-source.mjs; recovery-workflow-session.mjs; recovery-workflow-deployment-boundary.mjs; verify-recovery-authorization-jws.mjs; verify-sealed-realms-public-activation-artifact.mjs; verify-0.4.0-sealed-launch.mjs; sealed-realms-production-source-authority.mjs. Corresponding tests own parity and actual caller coverage.
 
-- [ ] Test schema3/profile `warpkeep-0.4.0-sealed-launch-ptr-update-v3`, replacing only the four PTR fresh/publish digest/commitment fields with `ptrExistingUpdateReceiptDigest` and `ptrExistingUpdateReceiptCommitment` in the same field position.
-- [ ] Implement explicit version dispatch, separate v3 receipt/core hash domains and exact existing v2 behavior.
-- [ ] Prove root/service parity, actual signed-authorization consumption, public-artifact validation, source ancestry and routing. Reject mixed versions, receipt substitution and unsafe admission values.
-- [ ] Review source and affected tests before publication; state that private producer integration remains unfinished if that is still true.
+- [x] Test schema3/profile `warpkeep-0.4.0-sealed-launch-ptr-update-v3`, replacing only the four PTR fresh/publish digest/commitment fields with `ptrExistingUpdateReceiptDigest` and `ptrExistingUpdateReceiptCommitment` in the same field position.
+- [x] Implement explicit version dispatch, separate v3 receipt/core hash domains and exact existing v2 behavior.
+- [x] Prove root/service parity, actual signed-authorization consumption, public-artifact validation, source ancestry and routing. Reject mixed versions, receipt substitution and unsafe admission values.
+- [x] Review source and affected tests before publication; state that private producer integration remains unfinished if that is still true.
 
 ## 2. Private update receipt through activation
 
@@ -51,6 +51,27 @@ Files: sealed-realms-production-existing-update.mjs, sealed-realms-production-pt
 
 ## Evidence and status
 
-Base is published `af68cae8f6e6f60cb8a5252e6b5c14f5c336c9d9`. The separate official 2.10.0 disposable recovery rehearsal passed from `826ed94`, including earned/pending progress, repair, timers, expiry and exact retry. It is not production acceptance or a test of the later v3 definition adapter.
+Public binding and consumer support was published in `63d4e60`; the actual Linux artifact builder followed in `880bd09`. Root/service parity, signed/public consumers, native committed-source routing and independent review passed. The full release verifier still requires regeneration of the changed source-bound family; consumer checks do not establish complete release verification.
+
+The separate official 2.10.0 disposable recovery rehearsal passed from `826ed94`, including earned/pending progress, repair, timers, expiry and exact retry. It is not production acceptance or a test of the later v3 definition adapter. Windows results, logs and independent readback evidence survive; the temporary native database and row snapshots subsequently became unavailable during WSL interruption.
 
 Historical production notes record initial PTR creation without atlas import or owner provisioning. The public schema does not establish row contents or current ownership. No authentic import/owner corpus has yet been found in the inspected retained evidence. First authenticate current state: if initialization is absent, perform real import/provisioning; if populated, establish actual continuity without inventing historical receipt digests.
+
+### Provider authority implementation findings
+
+The existing `stageCliConfig` in `ptr-production-publisher.mjs` creates a private,
+reattested configuration snapshot; this protects configuration integrity but does
+not prove provider authorization. Official CLI 2.6.1 `login show --token` reads the
+configured provider token without network access. It can return success when no
+login exists, and its decoded identity is unsigned. Parse the expected successful
+output strictly, keep it private and report fixed errors: CLI decoding failures
+can contain the token. Do not fall back to a command that creates a new login.
+
+The provider's fixed-target `pre_publish` checks `UpdateDatabase` authorization;
+the subsequent PUT checks it separately. Metadata describes the initial program,
+not the current program. An opaque provider capability should own the staged-token
+transport and target checks; a separate module-admin capability owns protected
+Warpkeep observations. Derive both inside the existing workflow's authenticated
+source, permit, private state and continuation. Literal owner identity equality is
+a principal policy to state explicitly, not a substitute for server authorization
+or an accurate description of every delegated permission supported upstream.
