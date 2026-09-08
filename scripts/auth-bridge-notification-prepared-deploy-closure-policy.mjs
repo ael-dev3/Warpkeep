@@ -146,6 +146,9 @@ const CHECK_SOURCE_DIRECTORIES = Object.freeze([
   'services/auth-bridge/test',
   'services/auth-bridge/test-workerd',
 ]);
+// G001 Linux policy observation is a two-process workflow. Keep every
+// dispatched program and its fixed runtime helpers in the protected source
+// closure so the assembled candidate can prove the exact child program set.
 const STATIC_SECURITY_INPUTS = Object.freeze([
   '.github/workflows/deploy-pages.yml',
   '.github/workflows/notification-bridge-b0.yml',
@@ -164,6 +167,20 @@ const STATIC_SECURITY_INPUTS = Object.freeze([
   'scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json',
   'scripts/auth-bridge-notification-prepared-release-binding.d.mts',
   'scripts/auth-bridge-notification-prepared-release-binding.mjs',
+  'scripts/genesis001-linux-policy-native.mjs',
+  'scripts/genesis001-linux-policy-materializer.mjs',
+  'scripts/genesis001-linux-policy-child.mjs',
+  'scripts/genesis001-linux-policy-boundary.mjs',
+  'scripts/local-binding-runtime-process.mjs',
+  'scripts/local-binding-runtime-core.mjs',
+  'scripts/local-binding-native-ts-hooks.mjs',
+  'scripts/local-binding-runtime-cli-snapshot.mjs',
+  'scripts/local-program-artifact.mjs',
+  'scripts/spacetime-binding-tree.mjs',
+  'scripts/local-binding-runtime-yaml-v1.json',
+  'scripts/genesis002-binding-linux-locked-source-build.ts',
+  'scripts/sealed-realms-production-workflow-evidence.mjs',
+  'scripts/sealed-realms-production-workflow-evidence-json.mjs',
   'scripts/greater-realm-downstream-release-policy.ts',
   'scripts/greater-realm-production-bootstrap.mjs',
   'scripts/greater-realm-production-publisher-core.ts',
