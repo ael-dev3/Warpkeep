@@ -54,14 +54,14 @@ it.each(['high', 'balanced', 'reduced'] as const)('shares deeply frozen %s plan 
   } finally { second.geometry.dispose(); }
 });
 
-// Captured from the unchanged full planner/palette/grid-scale pipeline at 4bbc0f9.
+// Position, normal and index bytes retain the planner/grid-scale baseline at 4bbc0f9.
 it.each(['high', 'balanced', 'reduced'] as const)('preserves exact baseline %s geometry bytes', quality => {
   const { geometry } = createKeep04Dressing(quality);
   const hash = (array: ArrayBufferView) => createHash('sha256').update(Buffer.from(array.buffer, array.byteOffset, array.byteLength)).digest('hex');
   try {
     expect(hash(geometry.getAttribute('position').array)).toBe('7f1006cbda6e65f2da6965b3608f0cbdd502fc19723d90b19ca5cf231813c1fa');
     expect(hash(geometry.getAttribute('normal').array)).toBe('54c9cd5a6e6df4e301eff8c8c15260fb238cea678f9b54fbd8b77ab8894f32d9');
-    expect(hash(geometry.getAttribute('color').array)).toBe('f4771d4bf6dd802a419b1ebf30bc0c880bf3ef3fffc25f3e587890c9c3acb5fc');
+    expect(geometry.getAttribute('color').array.byteLength).toBe(480);
     expect(hash(geometry.index!.array)).toBe('d5a2015fb9c44d21652756acdc47bfde6b0a71e275bf5cece9c72f077fd0fc66');
   } finally { geometry.dispose(); }
 });
@@ -104,4 +104,24 @@ it.each(['high', 'balanced', 'reduced'] as const)('exactly matches the full offl
     mergedQuadCount: 40, triangleCount: 80, uploadBytes: 3840,
     signature: quality === 'high' ? 'voxel-surface-v1:db3eb7f79af670a3' : 'voxel-surface-v1:ee0a4d811f16597d' });
   expect(createVoxelSurfaceMeshData(generated)).toStrictEqual(createVoxelSurfaceMeshData(offline));
+});
+
+
+it.each(['high', 'balanced', 'reduced'] as const)('separates vegetated %s terrace tops from retaining stone without adding resources', quality => {
+  const { geometry } = createKeep04Dressing(quality);
+  try {
+    const normals = geometry.getAttribute('normal');
+    const colors = geometry.getAttribute('color');
+    const top = Array.from({ length: normals.count }, (_, index) => index).find(index => normals.getY(index) > .9)!;
+    const wall = Array.from({ length: normals.count }, (_, index) => index).find(index => normals.getY(index) === 0)!;
+    expect(top).toBeDefined(); expect(wall).toBeDefined();
+    // Ground-cover tops recede; warm stone still explains the retaining edges.
+    expect(colors.getY(top)).toBeGreaterThan(colors.getX(top));
+    const luminance = (index: number) => .2126 * colors.getX(index) + .7152 * colors.getY(index) + .0722 * colors.getZ(index);
+    expect(luminance(top)).toBeLessThan(luminance(wall) * .75);
+    expect(colors.count).toBe(normals.count);
+    expect(colors.array.byteLength).toBe(480);
+    expect(Object.keys(geometry.attributes).sort()).toEqual(['color', 'normal', 'position']);
+    expect(geometry.groups).toHaveLength(0);
+  } finally { geometry.dispose(); }
 });

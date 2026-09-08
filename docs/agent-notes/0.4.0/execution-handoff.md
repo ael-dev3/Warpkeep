@@ -35,7 +35,8 @@ The opaque recovery consumer remains under integration. The paired native diagno
 pinned archives in cache/ptr. The reviewed [PTR cache bootstrap](../../operations/ptr-local-binding-cache.md)
 now follows its own committed lock with integrity and no-clobber checks. Focused
 tests and types pass. Actual installation at 40b676a verified all selected PTR
-archives; the normal paired native workflow is now running.
+archives. The paired run was interrupted without retained terminal success;
+its process is absent and a logged rerun is required.
 Generated deployment closure outputs were regenerated and reproduced identically;
 this is source consistency evidence, not an operating bundle or live release.
 
@@ -688,3 +689,8 @@ final freshness checks. The complete joined fixture passed: reservation and
 configuration inputs reduce the missing set from six to the two native program
 hashes. Earlier Windows timeouts are retained; only duplicate test inspections
 were removed. Native program-hash consumption remains under integration.
+
+Terrace tops now use muted ground cover with subdued retaining stone. Matching
+desktop/mobile and reduced-quality captures preserve rendering resources and
+show no horizontal overflow; focused tests and types pass. This is a modest
+visual improvement, not physical-device or complete visual acceptance.

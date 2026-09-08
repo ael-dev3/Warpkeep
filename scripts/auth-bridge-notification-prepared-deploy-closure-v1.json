@@ -3480,7 +3480,7 @@
     {
       "path": "src/components/keep04/keep04VoxelDressing.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b5d70af8e2a6dfb25a4123c7cf5896e963dbbcbc2e56c157d04892da0204ffa8"
+      "sha256": "b2ad27379704b82ddef1a290deca75e9c88dc77dd00fc6f377b8f8ec29911e2a"
     },
     {
       "path": "src/components/keep04/loadKeep04Assets.ts",

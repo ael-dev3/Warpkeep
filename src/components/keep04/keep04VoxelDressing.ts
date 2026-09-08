@@ -17,9 +17,12 @@ export function createKeep04Dressing(quality: Quality04) {
   const data = createVoxelSurfaceMeshData(plan.surfacePlan); const geometry = new THREE.BufferGeometry();
   try {
     const colors = data.colors.slice();
-    const palette = [new THREE.Color(P.masonry), new THREE.Color(P.masonry).multiplyScalar(0.8)];
+    // Ground-cover tops let the keep and civic path lead the scene; warm stone
+    // remains on the retaining faces. Reuse the existing vertex-color upload.
+    const terraceTop = new THREE.Color(P.ground).lerp(new THREE.Color(P.forestNear), 0.18);
+    const palette = [new THREE.Color(P.masonry).multiplyScalar(0.82), new THREE.Color(P.masonry).multiplyScalar(0.62)];
     plan.surfacePlan.quads.forEach((quad, index) => {
-      const c = palette[quad.material === 0 ? 0 : 1];
+      const c = quad.direction === 2 ? terraceTop : palette[quad.material === 0 ? 0 : 1];
       for (let v = 0; v < 4; v++) colors.set([Math.round(c.r * 255), Math.round(c.g * 255), Math.round(c.b * 255)], (index * 4 + v) * 3);
     });
     geometry.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
