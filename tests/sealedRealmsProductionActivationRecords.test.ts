@@ -73,6 +73,7 @@ import {
 } from '../scripts/sealed-realms-production-private-state.mjs';
 import {
   createSealedRealmsProductionActivationRecords,
+  readSealedRealmsProductionRecoveryReceiptProjection,
   writeSealedRealmsProductionActivationDescriptor,
   writeSealedRealmsProductionRecoveryActivationDescriptor,
 } from '../scripts/sealed-realms-production-activation-records.mjs';
@@ -739,7 +740,7 @@ function activationRecordSemanticDigest(
     FIXTURE_SOURCE_COMMIT,
     FIXTURE_SOURCE_COMMIT,
     operation,
-    'b'.repeat(64),
+    fullRecordAuthority().authorityDigest,
     bodyDigest,
   ]) hash.update(value).update('\n');
   return hash.digest('hex');
@@ -760,7 +761,7 @@ function writeActivationRecord(
     preparationSourceCommit: FIXTURE_SOURCE_COMMIT,
     sourceCommit: FIXTURE_SOURCE_COMMIT,
     operation,
-    sourceAuthorityDigest: 'b'.repeat(64),
+    sourceAuthorityDigest: fullRecordAuthority().authorityDigest,
     bodyDigest,
     receipt,
     semanticDigest: activationRecordSemanticDigest(member, bodyDigest, operation),
@@ -1012,7 +1013,10 @@ describe('connected recovery activation generation', () => {
       try {
         const state = privateStateFixture();
         const receipts = fullCorpus();
-        const candidate = recoveryCandidateForReceipts(receipts);
+        const candidate = recoveryBindingCandidate();
+        candidate.preparationSourceCommit = FIXTURE_SOURCE_COMMIT;
+        candidate.recoveryAuthWorkerSourceCommit = FIXTURE_SOURCE_COMMIT;
+        candidate.authBridgeSourceCommit = FIXTURE_SOURCE_COMMIT;
         const { bridge, probes } = await recoveryActivationBridge(state, temporaryHomes.at(-1)!, receipts);
         const binding = await bridge.inspectActivationEvidenceForContinuation();
         candidate.admissionRequestSuspensionReceiptDigest = binding.evidenceDigest;
@@ -1022,7 +1026,14 @@ describe('connected recovery activation generation', () => {
         }
         const records = createSealedRealmsProductionActivationRecords({ privateState: state,
           authority: recoveryOperationAuthority('activation-evidence-generate'),
-          readBindingCandidate: () => `${JSON.stringify(candidate, null, 2)}\n` });
+          readBindingCandidate: (sourceCommit, projection) => {
+            expect(sourceCommit).toBe(FIXTURE_SOURCE_COMMIT);
+            expect(projection).toBeDefined();
+            expect(Object.isFrozen(projection)).toBe(true);
+            // The connected generator consumes the private-record projection,
+            // while the distinct recovery/bridge inputs remain independently supplied.
+            return `${JSON.stringify({ ...candidate, ...projection }, null, 2)}\n`;
+          } });
         const createGenerator = () => createSealedRealmsProductionActivationEvidenceGenerator({ records,
           privateState: state, authority: recoveryOperationAuthority('activation-evidence-generate'),
           testOnlyCapability: createSealedRealmsProductionAuthBridgeStateTestCapability(),
@@ -1100,6 +1111,129 @@ describe('connected recovery activation generation', () => {
 });
 
 describe('sealed-realms activation descriptor records', () => {
+  it('derives only frozen scalar facts without a candidate reader or descriptor write', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-08-28T12:02:00.000Z'));
+    try {
+      const state = privateStateFixture();
+      const receipts = fullCorpus();
+      for (const member of Object.keys(receipts) as ActivationRecordMember[]) {
+        if (member !== 'g001FreezePublishReceipt') writeActivationRecord(state, member, receipts[member]);
+      }
+      const records = createSealedRealmsProductionActivationRecords({
+        privateState: state, authority: fullRecordAuthority(),
+      });
+      const projection = readSealedRealmsProductionRecoveryReceiptProjection(records);
+      const expected = recoveryCandidateForReceipts(receipts);
+      expect(Object.isFrozen(projection)).toBe(true);
+      expect(projection).toMatchObject({ preparationSourceCommit: FIXTURE_SOURCE_COMMIT,
+        g001FreezePublishReceiptDigest: null, g001PlayerAccessEnabled: true,
+        g001AdmissionStateMutationsEnabled: false, g002ModuleSourceCommit: FIXTURE_SOURCE_COMMIT,
+        g002AtlasReady: true, ptrOwnerProvisioned: true, ptrAdmissionsOpen: false });
+      for (const [key, value] of Object.entries(projection)) {
+        expect(['string', 'number', 'boolean'].includes(typeof value) || value === null).toBe(true);
+        expect(value).toBe(expected[key]);
+      }
+      for (const absent of ['sourceAuthorityDigest', 'recoveryAuthorizationRequestId', 'sourceClosureSha256',
+        'g001ExpectedProgramKeccak256', 'g002PublicApprovalReceiptId', 'ptrPublicApprovalReceiptId',
+        'privateBlindingNonceHex', 'ownerOpaqueProofDigest']) expect(projection).not.toHaveProperty(absent);
+      expect(() => state.read({ root: 'runtime', relativePath: FIXED_DESCRIPTOR_RELATIVE_PATH })).toThrow();
+      expect(() => writeSealedRealmsProductionRecoveryActivationDescriptor({ records, consumeDescriptor: () => undefined }))
+        .toThrow('SEALED_REALMS_ACTIVATION_RECORDS_BINDING_INVALID');
+      expect(() => readSealedRealmsProductionRecoveryReceiptProjection(projection as never))
+        .toThrow('SEALED_REALMS_ACTIVATION_RECORDS_CAPABILITY_INVALID');
+    } finally { vi.useRealTimers(); }
+  });
+
+  it.each(['authority-digest', 'producer-source', 'operation', 'body', 'semantic',
+    'module-source', 'atlas-source', 'database', 'owner-proof', 'missing', 'historical'])(
+    'rejects unauthenticated or inconsistent records before invoking candidate construction: %s', scenario => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-08-28T12:02:00.000Z'));
+      try {
+        const state = privateStateFixture();
+        const receipts = fullCorpus();
+        for (const member of Object.keys(receipts) as ActivationRecordMember[]) {
+          if (member !== 'g001FreezePublishReceipt') writeActivationRecord(state, member, receipts[member]);
+        }
+        const reader = vi.fn(() => { throw new Error('candidate must not be requested'); });
+        const records = createSealedRealmsProductionActivationRecords({ privateState: state,
+          authority: fullRecordAuthority(), readBindingCandidate: reader });
+        const path = runtimePath(temporaryHomes.at(-1)!, `activation-evidence/records/${ACTIVATION_RECORD_NAMES.ptrSealedLiveReceipt}`);
+        const wrapper = JSON.parse(readFileSync(path, 'utf8'));
+        if (scenario === 'authority-digest') wrapper.sourceAuthorityDigest = 'e'.repeat(64);
+        if (scenario === 'producer-source') wrapper.sourceCommit = 'e'.repeat(40);
+        if (scenario === 'operation') wrapper.operation = 'ptr-owner-provision';
+        if (scenario === 'module-source') wrapper.receipt.moduleSourceCommit = 'e'.repeat(40);
+        if (scenario === 'atlas-source') wrapper.receipt.atlasSourceCommit = 'e'.repeat(40);
+        if (scenario === 'database') wrapper.receipt.databaseIdentity = 'e'.repeat(64);
+        if (scenario === 'owner-proof') wrapper.receipt.ownerOpaqueProofDigest = 'e'.repeat(64);
+        wrapper.bodyDigest = createHash('sha256').update(`${JSON.stringify(wrapper.receipt)}\n`).digest('hex');
+        if (scenario === 'body') wrapper.bodyDigest = 'e'.repeat(64);
+        wrapper.semanticDigest = createHash('sha256').update([
+          'warpkeep.sealed-realms.activation-record.v1', wrapper.member, wrapper.preparationSourceCommit,
+          wrapper.sourceCommit, wrapper.operation, wrapper.sourceAuthorityDigest, wrapper.bodyDigest, '',
+        ].join('\n')).digest('hex');
+        if (scenario === 'semantic') wrapper.semanticDigest = 'e'.repeat(64);
+        writeFileSync(path, `${JSON.stringify(wrapper)}\n`, { mode: 0o600 });
+        if (scenario === 'missing') state.remove({ root: 'runtime',
+          relativePath: `activation-evidence/records/${ACTIVATION_RECORD_NAMES.ptrSealedLiveReceipt}` });
+        if (scenario === 'historical') writeActivationRecord(state, 'g001FreezePublishReceipt', receipts.g001FreezePublishReceipt);
+        expect(() => readSealedRealmsProductionRecoveryReceiptProjection(records)).toThrow();
+        expect(() => writeSealedRealmsProductionRecoveryActivationDescriptor({ records, consumeDescriptor: () => undefined })).toThrow();
+        expect(reader).not.toHaveBeenCalled();
+        expect(() => state.read({ root: 'runtime', relativePath: FIXED_DESCRIPTOR_RELATIVE_PATH })).toThrow();
+      } finally { vi.useRealTimers(); }
+    });
+
+  it('uses current time for a new projection and the receipt time only for historical inspection', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-08-29T12:02:00.000Z'));
+    try {
+      const state = privateStateFixture();
+      const receipts = fullCorpus();
+      for (const member of Object.keys(receipts) as ActivationRecordMember[]) {
+        if (member !== 'g001FreezePublishReceipt') writeActivationRecord(state, member, receipts[member]);
+      }
+      const reader = vi.fn(() => { throw new Error('historical data grants no generation authority'); });
+      const records = createSealedRealmsProductionActivationRecords({ privateState: state,
+        authority: fullRecordAuthority(), readBindingCandidate: reader });
+      expect(() => readSealedRealmsProductionRecoveryReceiptProjection(records)).toThrow();
+      const projection = readSealedRealmsProductionRecoveryReceiptProjection(records, '2026-08-28T12:02:00.000Z');
+      expect(projection.g001PlayerAccessEnabled).toBe(true);
+      expect(() => writeSealedRealmsProductionRecoveryActivationDescriptor({ records, consumeDescriptor: () => undefined })).toThrow();
+      expect(reader).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('rejects record replacement during candidate construction even when both snapshots validate', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-08-28T12:02:00.000Z'));
+    try {
+      const state = privateStateFixture();
+      const receipts = fullCorpus();
+      for (const member of Object.keys(receipts) as ActivationRecordMember[]) {
+        if (member !== 'g001FreezePublishReceipt') writeActivationRecord(state, member, receipts[member]);
+      }
+      const candidate = recoveryCandidateForReceipts(receipts);
+      const records = createSealedRealmsProductionActivationRecords({ privateState: state,
+        authority: fullRecordAuthority(), readBindingCandidate: (_source, projection) => {
+          const path = runtimePath(temporaryHomes.at(-1)!, `activation-evidence/records/${ACTIVATION_RECORD_NAMES.g002SealedLiveReceipt}`);
+          const wrapper = JSON.parse(readFileSync(path, 'utf8'));
+          wrapper.receipt.releaseHeaderSha256 = 'e'.repeat(64);
+          wrapper.bodyDigest = createHash('sha256').update(`${JSON.stringify(wrapper.receipt)}\n`).digest('hex');
+          wrapper.semanticDigest = activationRecordSemanticDigest('g002SealedLiveReceipt', wrapper.bodyDigest);
+          writeFileSync(path, `${JSON.stringify(wrapper)}\n`, { mode: 0o600 });
+          expect(readSealedRealmsProductionRecoveryReceiptProjection(records).g002ReleaseHeaderSha256).toBe('e'.repeat(64));
+          return `${JSON.stringify({ ...candidate, ...projection }, null, 2)}\n`;
+        } });
+      const consume = vi.fn(() => undefined);
+      expect(() => writeSealedRealmsProductionRecoveryActivationDescriptor({ records, consumeDescriptor: consume }))
+        .toThrow('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+      expect(consume).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
+
   it.each(['valid', 'independent', 'module-source', 'atlas-source', 'digest', 'missing', 'historical',
     'database', 'module-bytes', 'module-tree', 'atlas-header', 'owner-receipt', 'async-consumer'])(
     'validates the twelve-record recovery descriptor: %s', (scenario) => {

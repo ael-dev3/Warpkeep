@@ -40,7 +40,17 @@ const PTR_OPERATOR_MEMBERS = Object.freeze([
 ]);
 
 const PTR_BROWSER_MEMBERS = Object.freeze([
+  'src/ptr/PtrGameplay04SurfaceHost.tsx',
   'src/ptr/PtrRealmProvider.tsx',
+  'src/ptr/PtrSessionContinuation.css',
+  'src/ptr/PtrSessionContinuation.tsx',
+  'src/ptr/gameplay04/createGameplay04Controller.ts',
+  'src/ptr/gameplay04/gameplay04Placement.ts',
+  'src/ptr/gameplay04/gameplay04Presentation.ts',
+  'src/ptr/gameplay04/gameplay04State.ts',
+  'src/ptr/gameplay04/ptrGameplay04Errors.ts',
+  'src/ptr/gameplay04/ptrGameplay04Types.ts',
+  'src/ptr/gameplay04/useGameplay04Controller.ts',
   'src/ptr/ptrGreaterRealmBridge.ts',
   'src/ptr/ptrRealmAuthClient.ts',
   'src/ptr/ptrRealmConfig.ts',
@@ -59,13 +69,18 @@ const PTR_GENERATED_BINDING_MEMBERS = Object.freeze([
   'spacetimedb/ptr/generated-bindings/admin_stage_greater_realm_release_v_1_reducer.ts',
   'spacetimedb/ptr/generated-bindings/admin_suspend_ptr_owner_v_1_reducer.ts',
   'spacetimedb/ptr/generated-bindings/admin_verify_greater_realm_batch_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/dispatch_gameplay_04_worker_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_gameplay_04_keep_v_1_procedure.ts',
   'spacetimedb/ptr/generated-bindings/get_ptr_owner_status_v_1_procedure.ts',
   'spacetimedb/ptr/generated-bindings/get_realm_atlas_bootstrap_v_1_procedure.ts',
   'spacetimedb/ptr/generated-bindings/get_realm_atlas_chunk_v_1_procedure.ts',
   'spacetimedb/ptr/generated-bindings/get_realm_atlas_resource_locations_v_1_procedure.ts',
   'spacetimedb/ptr/generated-bindings/get_realm_atlas_window_v_1_procedure.ts',
   'spacetimedb/ptr/generated-bindings/index.ts',
+  'spacetimedb/ptr/generated-bindings/initialize_gameplay_04_keep_v_1_procedure.ts',
   'spacetimedb/ptr/generated-bindings/plan_realm_route_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/recall_gameplay_04_worker_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/start_gameplay_04_building_v_1_procedure.ts',
   'spacetimedb/ptr/generated-bindings/types.ts',
 ]);
 

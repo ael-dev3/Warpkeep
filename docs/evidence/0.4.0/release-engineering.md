@@ -323,3 +323,40 @@ history-restart durability gap before these passing runs.
 Full native `prepare` and a second independent `check` still need to run from
 the committed integrated source. These tests do not establish a prepared final
 release, populated production evidence, runner readiness or owner acceptance.
+
+## Recovery receipt projection — 2026-09-08
+
+The V2 record reader now authenticates its complete private receipt corpus before
+constructing a recovery candidate. It returns frozen scalar facts to the existing
+candidate callback, compares every overlapping candidate field, then reopens the
+corpus to reject replacement during construction. Source and authority digests
+must match the authenticated preparation source. Realm identities, module and
+atlas sources, imports, sealed state and owner proof must agree across records.
+V1 behavior is preserved. Historical inspection does not grant fresh generation
+authority, and a projection alone supplies neither authorization nor missing
+worker/source facts.
+
+The connected generator, records, bridge state and continuation suites passed
+**191 tests on Linux without skips**. The fixture used the retained independent
+`5ddefb0` checkout with the exact current activation overlay; unchanged runtime
+companions were compared to development `772d3a4`. Application TypeScript and
+scoped diff checks also passed. A Windows filesystem-heavy diagnostic had one
+timeout; the supported Linux run completed all selected cases.
+
+The records runtime is compiled into the activation, G002 and PTR operation
+bundles, and its runtime/declaration bytes belong to the prepared source closure.
+The source family therefore must be regenerated after this change is committed.
+The earlier native candidate built from `772d3a4` cannot attest these later bytes.
+Do not carry forward its generated hashes or relabel its source commit.
+
+### Next operating producer
+
+The G001 policy observation lane already authenticates its frozen child envelope,
+source/bootstrap coordinates, cleanup result and exact policy observation, but
+its persistence adapter remains unavailable. Connect that authenticated result
+to the existing private record writer for the fixed policy-observation member.
+Lost-acknowledgment adoption must reopen and validate the matching durable
+record; lifecycle completion alone cannot replace missing evidence or justify
+replaying an effect. The workflow Verify reader, live transport adapters,
+remaining realm receipt captures and canonical recovery inputs remain separate
+unfinished callers.

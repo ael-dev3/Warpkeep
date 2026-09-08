@@ -11,10 +11,17 @@ export type SealedRealmsProductionActivationRecords = Readonly<{
   readonly [sealedRealmsActivationRecordsBrand]: true;
 }>;
 
+/** Scalar receipt facts only; neither producer authority nor recovery authorization. */
+export type SealedRealmsProductionRecoveryReceiptProjection = Readonly<
+  Record<string, string | number | boolean | null>
+>;
+
 export function createSealedRealmsProductionActivationRecords(input: Readonly<{
   privateState: SealedRealmsProductionPrivateState;
   authority: SealedRealmsProductionSourceAuthority;
-  readBindingCandidate: (preparationSourceCommit: string) => unknown;
+  /** Required for descriptors; omitted for candidate-independent receipt reads. */
+  readBindingCandidate?: (preparationSourceCommit: string,
+    receiptProjection?: SealedRealmsProductionRecoveryReceiptProjection) => unknown;
 }>): SealedRealmsProductionActivationRecords;
 
 export function assertSealedRealmsProductionActivationRecords(
@@ -26,6 +33,12 @@ export function assertSealedRealmsProductionActivationRecordsAuthority(input: Re
   privateState: SealedRealmsProductionPrivateState;
   authority: SealedRealmsProductionSourceAuthority;
 }>): SealedRealmsProductionActivationRecords;
+
+/** Reopens the exact S-bound V2 corpus without a candidate, private bodies or writes. */
+export function readSealedRealmsProductionRecoveryReceiptProjection(
+  records: SealedRealmsProductionActivationRecords,
+  verificationTime?: string,
+): SealedRealmsProductionRecoveryReceiptProjection;
 
 /** Data validation only; does not establish producer or deployment authority. */
 export function validateSealedRealmsProductionRecoveryActivationEvidence(

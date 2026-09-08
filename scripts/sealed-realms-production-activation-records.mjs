@@ -6,6 +6,7 @@ import {
 } from './sealed-realms-production-private-state.mjs';
 import {
   preparationSourceCommitFromSealedRealmsProductionAuthority,
+  sourceCommitFromSealedRealmsProductionAuthority,
 } from './sealed-realms-production-source-authority.mjs';
 import {
   genesis002ProductionImportReceiptDigest,
@@ -795,6 +796,13 @@ function parseRecord(bytes, state, expectedMember) {
     || !SHA256.test(value.bodyDigest ?? '')
     || !SHA256.test(value.semanticDigest ?? '')
   ) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+  // Recovery wrappers describe producing operations at S, even when the
+  // published module or atlas was built from a separately authenticated source.
+  // A self-consistent wrapper from another authority is not this store's record.
+  if (state.recoveryRecords && (value.sourceCommit !== state.preparationSourceCommit
+    || value.sourceAuthorityDigest !== state.sourceAuthorityDigest)) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+  }
   let body;
   try {
     body = exactBody(value.receipt);
@@ -810,9 +818,13 @@ function parseRecord(bytes, state, expectedMember) {
     const realm = expectedMember.startsWith('g002') ? 'g002'
       : expectedMember.startsWith('ptr') ? 'ptr' : null;
     const coordinates = state.recoveryCandidate;
-    const moduleSource = coordinates && realm
+    const moduleSource = state.recoveryRecords && realm
+      ? requireCommit(receipt.sourceCommit ?? receipt.moduleSourceCommit)
+      : coordinates && realm
       ? coordinates[`${realm}ModuleSourceCommit`] : state.preparationSourceCommit;
-    const atlasSource = coordinates && realm
+    const atlasSource = state.recoveryRecords && realm
+      ? requireCommit(receipt.atlasSourceCommit ?? moduleSource)
+      : coordinates && realm
       ? coordinates[`${realm}AtlasSourceCommit`] : state.preparationSourceCommit;
     validateMemberReceipt(expectedMember, receipt, moduleSource, atlasSource);
     if (coordinates && realm && Object.hasOwn(receipt, 'atlasSourceCommit')
@@ -881,11 +893,12 @@ function ptrSealedLiveDigest(receipt) {
  * descriptor bytes are assembled. No live infrastructure is consulted here.
  */
 function validateReopenedCorpus(state, receipts, verificationTime) {
+  let projection;
   try {
-    const recovery = state.recoveryCandidate;
+    const recovery = state.recoveryRecords || state.recoveryCandidate;
     const derive = recovery ? (verificationTime === undefined ? deriveGenesis001RecoveryLaunchEvidence
       : value => validateGenesis001RecoveryLaunchEvidenceAtTime(value, verificationTime)) : deriveGenesis001SealedLaunchEvidence;
-    const projection = derive({
+    projection = derive({
       preparationSourceCommit: state.preparationSourceCommit,
       ...(recovery ? {} : { freezePublishReceipt: receipts.g001FreezePublishReceipt }),
       policyObservationBootstrapReceipt: receipts.g001PolicyObservationBootstrapReceipt,
@@ -894,7 +907,8 @@ function validateReopenedCorpus(state, receipts, verificationTime) {
       admissionMonitorCurrentStateReceipt: receipts.g001AdmissionMonitorCurrentStateReceipt,
       admittedPlayerCensusPrivateReceipt: receipts.g001AdmittedPlayerCensusPrivateReceipt,
     });
-    if (recovery && Object.entries(projection).some(([key, value]) => recovery[key] !== value)) {
+    if (state.recoveryCandidate && Object.entries(projection)
+      .some(([key, value]) => state.recoveryCandidate[key] !== value)) {
       fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
     }
   } catch {
@@ -966,12 +980,20 @@ function validateReopenedCorpus(state, receipts, verificationTime) {
     || ptrPublish.admissionSurfacePresent !== ptrLive.admissionSurfacePresent
     || ptrPublish.accessRequestSurfacePresent !== ptrLive.accessRequestSurfacePresent
   ) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+  if (state.recoveryRecords && new Set([
+    projection.g001DatabaseIdentity, publish.databaseIdentity, ptrPublish.databaseIdentity,
+  ]).size !== 3) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+  return projection;
 }
 
 /** Creates an opaque fixed-record store bound to one authenticated preparation source. */
 export function createSealedRealmsProductionActivationRecords(input) {
-  const options = exactInput(input, ['privateState', 'authority', 'readBindingCandidate']);
-  if (typeof options.readBindingCandidate !== 'function' || isProxy(options.readBindingCandidate)) {
+  const hasCandidateReader = input !== null && typeof input === 'object'
+    && !isProxy(input) && Object.hasOwn(input, 'readBindingCandidate');
+  const options = exactInput(input, ['privateState', 'authority',
+    ...(hasCandidateReader ? ['readBindingCandidate'] : [])]);
+  if (hasCandidateReader && (typeof options.readBindingCandidate !== 'function'
+    || isProxy(options.readBindingCandidate))) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_INPUT_INVALID');
   }
   const privateState = assertSealedRealmsProductionPrivateState(options.privateState);
@@ -987,6 +1009,9 @@ export function createSealedRealmsProductionActivationRecords(input) {
   recordsCapabilities.set(records, Object.freeze({
     privateState,
     preparationSourceCommit,
+    sourceCommit: sourceCommitFromSealedRealmsProductionAuthority(options.authority),
+    sourceMode: options.authority.mode,
+    sourceAuthorityDigest: options.authority.authorityDigest,
     readBindingCandidate: options.readBindingCandidate,
   }));
   return records;
@@ -1009,6 +1034,69 @@ export function assertSealedRealmsProductionActivationRecordsAuthority(input) {
   return options.records;
 }
 
+function recoveryReceiptProjection(state, receipts, g001) {
+  const projection = { preparationSourceCommit: state.preparationSourceCommit, ...g001 };
+  const copy = (prefix, source, fields) => {
+    for (const field of fields) {
+      projection[`${prefix}${field[0].toUpperCase()}${field.slice(1)}`] = source[field];
+    }
+  };
+  for (const realm of ['g002', 'ptr']) {
+    const published = receipts[`${realm}PublishReceipt`];
+    const live = receipts[`${realm}SealedLiveReceipt`];
+    projection[`${realm}ModuleSourceCommit`] = published.sourceCommit;
+    copy(realm, published, ['databaseIdentity', 'moduleSha256', 'moduleTreeId',
+      'dependencyClosureDigest', 'spacetimeExecutableSha256', 'spacetimeCliConfigSha256',
+      'freshStatusDigest', 'publishReceiptDigest']);
+    projection[`${realm}AtlasImportReceiptDigest`] = receipts[`${realm}AtlasImportReceipt`].importReceiptDigest;
+    projection[`${realm}SealedLiveReceiptDigest`] = realm === 'g002'
+      ? genesis002SealedLiveReceiptDigest(live) : ptrSealedLiveDigest(live);
+    copy(realm, live, ['atlasId', 'atlasSourceCommit', 'publicReleaseId',
+      'releaseHeaderSha256', 'verificationDigest', 'allowedFids', 'accessRequests',
+      'playersV1', 'playersV2', 'ownershipBindings', 'castles', 'realmProfiles',
+      'termsAcceptances', 'markAccounts', 'resourceAccounts', 'activationRows',
+      'workerSystemRows', 'atlasFinalized', 'atlasWritesClosedByFinalization']);
+    projection[`${realm}Claims`] = live.claimRows;
+    projection[`${realm}Occupancies`] = live.occupancyRows;
+    projection[`${realm}AtlasReady`] = live.atlasState === 'ready';
+    projection[`${realm}PresentationEnabled`] = live.playerPresentationEnabled;
+  }
+  copy('g002', receipts.g002PublishReceipt, ['playerAccessEnabled', 'admissionMutationsEnabled',
+    'atlasImportMutationsEnabled', 'atlasActivationMutationsEnabled']);
+  copy('g002', receipts.g002SealedLiveReceipt, ['releaseSha256', 'founders']);
+  projection.admissionNotificationsEnabled = receipts.g002SealedLiveReceipt.admissionNotificationsEnabled;
+  copy('ptr', receipts.ptrSealedLiveReceipt, ['releaseManifestSha256', 'expectedReleaseSha256',
+    'releaseVersion', 'publicAtlasRows', 'publicRegionRows', 'atlasImportsExact',
+    'atlasImportMutationsCompiled', 'atlasActivationMutationsCompiled', 'ownerAnchorRows',
+    'ownerProvisioned', 'ownerEnabled', 'admissionsOpen', 'accessRequestsOpen',
+    'admissionSurfacePresent', 'accessRequestSurfacePresent']);
+  projection.ptrOwnerProvisionReceiptDigest = receipts.ptrOwnerProvisionReceipt.provisionReceiptDigest;
+  // Only scalar binding facts leave this reader: no census bodies, nonces,
+  // owner proof, private filenames or source capability are projected.
+  return Object.freeze(projection);
+}
+
+function readRecoveryReceiptCorpus(records, verificationTime) {
+  const original = capabilityState(records);
+  if (original.sourceMode !== 'S' || original.sourceCommit !== original.preparationSourceCommit) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+  }
+  const state = Object.freeze({ ...original, recoveryRecords: true });
+  const members = RECEIPT_MEMBERS.filter(member => member !== 'g001FreezePublishReceipt');
+  const names = state.privateState.list({ root: 'runtime', relativeDirectory: RECORD_DIRECTORY });
+  if (JSON.stringify(names) !== JSON.stringify(members.map(member => RECEIPT_BASENAMES[member]).sort())) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_INCOMPLETE');
+  }
+  const receipts = Object.fromEntries(members.map(member => [member, readReceipt(state, member)]));
+  const g001 = validateReopenedCorpus(state, receipts, verificationTime);
+  return { state, receipts, projection: recoveryReceiptProjection(state, receipts, g001) };
+}
+
+/** Source-bound private-record data only; this projection grants no authority. */
+export function readSealedRealmsProductionRecoveryReceiptProjection(records, verificationTime) {
+  return readRecoveryReceiptCorpus(records, verificationTime).projection;
+}
+
 /** Validates canonical recovery evidence data; this does not mint receipt authority. */
 export function validateSealedRealmsProductionRecoveryActivationEvidence(envelope, verificationTime) {
   const members = RECEIPT_MEMBERS.filter(member => member !== 'g001FreezePublishReceipt');
@@ -1029,77 +1117,37 @@ export function validateSealedRealmsProductionRecoveryActivationEvidence(envelop
       realm === undefined ? state.preparationSourceCommit : candidate[`${realm}ModuleSourceCommit`],
       realm === undefined ? state.preparationSourceCommit : candidate[`${realm}AtlasSourceCommit`])];
   }));
-  validateReopenedCorpus(state, receipts, verificationTime);
-  const compare = (key, value) => {
+  const g001 = validateReopenedCorpus(state, receipts, verificationTime);
+  for (const [key, value] of Object.entries(recoveryReceiptProjection(state, receipts, g001))) {
     if (candidate[key] !== value) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
-  };
-  for (const realm of ['g002', 'ptr']) {
-    const published = receipts[`${realm}PublishReceipt`];
-    compare(`${realm}ModuleSourceCommit`, published.sourceCommit);
-    for (const field of ['databaseIdentity', 'moduleSha256', 'moduleTreeId',
-      'dependencyClosureDigest', 'spacetimeExecutableSha256', 'spacetimeCliConfigSha256',
-      'freshStatusDigest', 'publishReceiptDigest']) {
-      compare(`${realm}${field[0].toUpperCase()}${field.slice(1)}`, published[field]);
-    }
-    compare(`${realm}AtlasImportReceiptDigest`, receipts[`${realm}AtlasImportReceipt`].importReceiptDigest);
-    const live = receipts[`${realm}SealedLiveReceipt`];
-    compare(`${realm}SealedLiveReceiptDigest`, realm === 'g002'
-      ? genesis002SealedLiveReceiptDigest(live) : ptrSealedLiveDigest(live));
-    for (const field of ['atlasId', 'atlasSourceCommit', 'publicReleaseId',
-      'releaseHeaderSha256', 'verificationDigest']) {
-      compare(`${realm}${field[0].toUpperCase()}${field.slice(1)}`, live[field]);
-    }
   }
-  compare('g002ReleaseSha256', receipts.g002SealedLiveReceipt.releaseSha256);
-  compare('ptrReleaseManifestSha256', receipts.ptrSealedLiveReceipt.releaseManifestSha256);
-  compare('ptrExpectedReleaseSha256', receipts.ptrSealedLiveReceipt.expectedReleaseSha256);
-  compare('ptrOwnerProvisionReceiptDigest', receipts.ptrOwnerProvisionReceipt.provisionReceiptDigest);
   return candidate;
 }
 
 function readRecoveryActivationEnvelope(records, verificationTime) {
-  const original = capabilityState(records);
+  // Reopen the producing corpus before asking for recovery-core/source inputs.
+  // The reader can now consume these facts without constructing a candidate to
+  // authorize its own receipt coordinates.
+  const { state, receipts, projection } = readRecoveryReceiptCorpus(records, verificationTime);
   let candidate;
   try {
-    const source = original.readBindingCandidate(original.preparationSourceCommit);
+    const source = state.readBindingCandidate(state.preparationSourceCommit, projection);
     // The recovery reader consumes canonical source bytes, never caller objects/getters.
     if (typeof source !== 'string') fail('SEALED_REALMS_ACTIVATION_RECORDS_BINDING_INVALID');
     candidate = validateRecoveryActivationCandidate(source);
-    if (candidate.preparationSourceCommit !== original.preparationSourceCommit) {
+    if (candidate.preparationSourceCommit !== state.preparationSourceCommit) {
       fail('SEALED_REALMS_ACTIVATION_RECORDS_BINDING_INVALID');
     }
   } catch { fail('SEALED_REALMS_ACTIVATION_RECORDS_BINDING_INVALID'); }
-  const state = Object.freeze({ ...original, recoveryCandidate: candidate });
-  const members = RECEIPT_MEMBERS.filter(member => member !== 'g001FreezePublishReceipt');
-  const names = state.privateState.list({ root: 'runtime', relativeDirectory: RECORD_DIRECTORY });
-  if (JSON.stringify(names) !== JSON.stringify(members.map(member => RECEIPT_BASENAMES[member]).sort())) {
-    fail('SEALED_REALMS_ACTIVATION_RECORDS_INCOMPLETE');
-  }
-  const receipts = Object.fromEntries(members.map(member => [member, readReceipt(state, member)]));
-  validateReopenedCorpus(state, receipts, verificationTime);
-  const compare = (key, value) => {
+  for (const [key, value] of Object.entries(projection)) {
     if (candidate[key] !== value) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
-  };
-  for (const realm of ['g002', 'ptr']) {
-    const published = receipts[`${realm}PublishReceipt`];
-    for (const field of ['databaseIdentity', 'moduleSha256', 'moduleTreeId',
-      'dependencyClosureDigest', 'spacetimeExecutableSha256', 'spacetimeCliConfigSha256',
-      'freshStatusDigest', 'publishReceiptDigest']) {
-      compare(`${realm}${field[0].toUpperCase()}${field.slice(1)}`, published[field]);
-    }
-    compare(`${realm}AtlasImportReceiptDigest`, receipts[`${realm}AtlasImportReceipt`].importReceiptDigest);
-    const live = receipts[`${realm}SealedLiveReceipt`];
-    compare(`${realm}SealedLiveReceiptDigest`, realm === 'g002'
-      ? genesis002SealedLiveReceiptDigest(live) : ptrSealedLiveDigest(live));
-    for (const field of ['atlasId', 'atlasSourceCommit', 'publicReleaseId',
-      'releaseHeaderSha256', 'verificationDigest']) {
-      compare(`${realm}${field[0].toUpperCase()}${field.slice(1)}`, live[field]);
-    }
   }
-  compare('g002ReleaseSha256', receipts.g002SealedLiveReceipt.releaseSha256);
-  compare('ptrReleaseManifestSha256', receipts.ptrSealedLiveReceipt.releaseManifestSha256);
-  compare('ptrExpectedReleaseSha256', receipts.ptrSealedLiveReceipt.expectedReleaseSha256);
-  compare('ptrOwnerProvisionReceiptDigest', receipts.ptrOwnerProvisionReceipt.provisionReceiptDigest);
+  // Candidate construction must not replace a member while it consumes the
+  // snapshot. This comparison retains no credentials or mutation envelope.
+  const reopened = readRecoveryReceiptCorpus(records, verificationTime);
+  if (JSON.stringify(receipts) !== JSON.stringify(reopened.receipts)) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+  }
   return { state, envelope: {
     schemaVersion: 2,
     profile: 'warpkeep-0.4.0-recovery-activation-evidence-v1',
