@@ -5,6 +5,20 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Regenerated sealed-launch source pins
+
+The established source-pin generator refreshes the authority implementation,
+authority declaration and PTR publisher hashes to their reviewed current source.
+This repairs stale verification after existing-update and V3 PTR support. The
+other generated source-pin outputs were already current. Historical source diffs
+were reviewed, and independent whole-family derivation produced identical bytes.
+Validation rules and hostile tests remain intact.
+
+Source-pin derivation passed 25 tests and authority passed 21. The four-suite
+Windows run passed 154 cases, failed 67 and skipped one: failures were missing
+Linux shell/Git executables and fixture timeouts. These are not passing coverage;
+native CI and the remaining generated operating family still need verification.
+
 ## Complete preparation-source inventory
 
 The generation runtime now derives a complete inventory of the authenticated

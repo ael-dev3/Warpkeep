@@ -40,9 +40,9 @@ const GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_FINALIZATION_SHA256 =
 // accepting decoy tokens or an early-return control-flow bypass before Task 7
 // freezes the complete dispatcher closure.
 const SEALED_REALMS_SOURCE_AUTHORITY_SOURCE_SHA256 =
-  '72fb3f921848a6d3533a234fb656200092743d3b4f624d2a81f010d6306d0db1';
+  '027bc84d679cbb1f8d283aa8eea0328d5a18909eab46a6f9e63566d4ee6b224a';
 const SEALED_REALMS_SOURCE_AUTHORITY_DECLARATION_SHA256 =
-  '25621ab3491c51e017b996a5d3d3e45a7330ea235315038666e889f131d02a90';
+  '6c9593ccedfc9de0ebe1f4564f28a7b0034d1deff47a317a0c9b26c20161da82';
 const GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_SOURCE_SHA256 =
   'be9efaf1ecad13c2cd94bfb457353b8946f12b3304f47b34e8b9422041712c1a';
 const GENESIS_001_POLICY_OBSERVATION_SOURCE_SHA256 =
@@ -1464,7 +1464,7 @@ function verifyPtrOwnerAuthority(sources) {
     [sources.ptrOwnerProvisionOperatorSource,
       '40144be3eba3fb4beb0c3b7eccdba4a2c2fd6c72a09ef158eae31413b52e9f78'],
     [sources.ptrPublisherCoreSource,
-      'bc499e3bc7c7ea8df7668513f61afe8ef26193cdc71ce27e77f8ec3527e280f1'],
+      'e8e456ed0933e2a47ea3c28904606974298b077cfb864211cd19e286ecfbb463'],
     [sources.ptrPublisherCliSource,
       '8a261a4e2a23a51f80101060e168107f144a3c9811ce22450ea741b25739afa4'],
   ]) {
