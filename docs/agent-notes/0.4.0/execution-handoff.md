@@ -5,6 +5,19 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Activation-record test fixture repair
+
+Fixed candidate and historical-context tests now build genuine G002/PTR private
+release artifacts and derive their approval identifiers through production
+validators. Receipt links and digests follow those generated releases. The
+mandatory approval reader and its negative assertions remain intact; a duplicate
+same-error read was removed without removing either assertion.
+
+Focused strict types passed. Standalone real release generation/write/validation
+passed, but the Windows integration runs timed out in candidate reads or cleanup.
+No full test pass is claimed; Linux CI must establish the repaired scenario result.
+This changes test fixtures only and performs no realm operations.
+
 ## Generated deployment source inventory
 
 The established generator now includes the current PTR existing-update helpers

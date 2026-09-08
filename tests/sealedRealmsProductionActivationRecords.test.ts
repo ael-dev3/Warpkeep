@@ -10,6 +10,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   statSync,
@@ -19,7 +20,53 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setImmediate } from 'node:timers';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Only the fixed-candidate fixture uses Windows equivalents for POSIX owner modes
+// and the fixed Linux Git executable. Production readers and all receipt bytes stay real.
+const candidatePlatformFixture = vi.hoisted(() => ({ active: false, gitExecutable: '' }));
+vi.mock('node:fs', async (importOriginal) => {
+  const fs = await importOriginal<typeof import('node:fs')>();
+  const mode = <T extends import('node:fs').Stats | import('node:fs').BigIntStats | undefined>(
+    status: T,
+  ): T => {
+    if (
+      status !== undefined &&
+      candidatePlatformFixture.active &&
+      process.platform === 'win32' &&
+      typeof status.mode === 'number'
+    )
+      Object.defineProperty(status, 'mode', {
+        value: (status.mode & ~0o777) | (status.isDirectory() ? 0o700 : 0o600),
+      });
+    return status;
+  };
+  return {
+    ...fs,
+    lstatSync: (...args: Parameters<typeof fs.lstatSync>) => mode(fs.lstatSync(...args)),
+    fstatSync: (...args: Parameters<typeof fs.fstatSync>) => mode(fs.fstatSync(...args)),
+  };
+});
+vi.mock('node:child_process', async (importOriginal) => {
+  const cp = await importOriginal<typeof import('node:child_process')>();
+  return {
+    ...cp,
+    execFileSync: (...args: Parameters<typeof cp.execFileSync>) => {
+      if (
+        candidatePlatformFixture.active &&
+        process.platform === 'win32' &&
+        args[0] === '/usr/bin/git'
+      ) {
+        const result = cp.execFileSync(candidatePlatformFixture.gitExecutable, args[1], args[2]);
+        if (Array.isArray(args[1]) && args[1].includes('--show-toplevel'))
+          return Buffer.from(`${realpathSync(process.cwd())}\n`);
+        return result;
+      }
+      return cp.execFileSync(...args);
+    },
+  };
+});
+import { createRecoveryApprovalReleaseFixture } from './fixtures/recoveryApprovalReleases';
 
 vi.mock('../scripts/genesis001-sealed-launch-adoption.mjs', async () => {
   const actual = await vi.importActual<typeof import(
@@ -1125,6 +1172,37 @@ describe('connected recovery activation generation', () => {
 });
 
 describe('fixed recovery candidate source/receipt derivation', () => {
+  let releaseRoot: string;
+  let releases: ReturnType<typeof createRecoveryApprovalReleaseFixture>;
+  beforeAll(
+    () => {
+      releaseRoot = mkdtempSync(join(tmpdir(), 'activation-records-approval-releases-'));
+      releases = createRecoveryApprovalReleaseFixture(join(releaseRoot, 'private'));
+      if (process.platform === 'win32')
+        candidatePlatformFixture.gitExecutable = execFileSync('where.exe', ['git'], {
+          encoding: 'utf8',
+          timeout: 60000,
+          windowsHide: true,
+        })
+          .trim()
+          .split(/\r?\n/)[0];
+    },
+    process.platform === 'win32' ? 300000 : 120000,
+  );
+  beforeEach(() => {
+    candidatePlatformFixture.active = true;
+    vi.stubEnv('WARPKEEP_GREATER_REALM_WORKSPACE', releases.workspaceRoot);
+  });
+  afterEach(() => {
+    candidatePlatformFixture.active = false;
+    vi.unstubAllEnvs();
+  });
+  afterAll(
+    () => {
+      if (releaseRoot) rmSync(releaseRoot, { recursive: true, force: true });
+    },
+    process.platform === 'win32' ? 60000 : 10000,
+  );
   it.each(['missing-live-inputs', 'bootstrap-tree', 'bootstrap-blob', 'bootstrap-sha',
     'missing-record', 'wrong-private-store', 'wrong-operation', 'changed-head',
     'replacement-objects', 'caller-facts', 'expired-records', 'historical-context',
@@ -1155,6 +1233,44 @@ describe('fixed recovery candidate source/receipt derivation', () => {
         const state = privateStateFixture();
         const privateHome = temporaryHomes.at(-1)!;
         const receipts = fullCorpus();
+        for (const [realm, release, header] of [
+          ['g002', releases.g002, releases.g002HeaderSha256],
+          ['ptr', releases.ptr, releases.ptrHeaderSha256],
+        ] as const) {
+          for (const receipt of [
+            receipts[`${realm}AtlasImportReceipt`],
+            receipts[`${realm}SealedLiveReceipt`],
+          ])
+            Object.assign(receipt, {
+              atlasId: release.atlasId,
+              atlasSourceCommit: release.sourceCommit,
+              publicReleaseId: release.publicReleaseId,
+            });
+          receipts[`${realm}AtlasImportReceipt`].expectedReleaseSha256 = release.releaseSha256;
+          receipts[`${realm}SealedLiveReceipt`].releaseHeaderSha256 = header;
+        }
+        receipts.g002SealedLiveReceipt.releaseSha256 = releases.g002.releaseSha256;
+        for (const receipt of [receipts.ptrAtlasImportReceipt, receipts.ptrSealedLiveReceipt])
+          Object.assign(receipt, {
+            expectedReleaseSha256: releases.ptr.releaseSha256,
+            releaseHeaderSha256: releases.ptrHeaderSha256,
+            releaseManifestSha256: releases.ptrManifestSha256,
+          });
+        const without = <T extends object, K extends keyof T>(value: T, key: K) => {
+          const { [key]: _omitted, ...body } = value;
+          return body;
+        };
+        receipts.g002AtlasImportReceipt.importReceiptDigest = genesis002ProductionImportReceiptDigest(
+          without(receipts.g002AtlasImportReceipt, 'importReceiptDigest'),
+        );
+        receipts.ptrAtlasImportReceipt.importReceiptDigest = ptrProductionAtlasImportReceiptDigest(
+          without(receipts.ptrAtlasImportReceipt, 'importReceiptDigest'),
+        );
+        receipts.ptrOwnerProvisionReceipt.atlasImportReceiptDigest =
+          receipts.ptrAtlasImportReceipt.importReceiptDigest;
+        receipts.ptrOwnerProvisionReceipt.provisionReceiptDigest = ptrOwnerProvisionReceiptDigest(
+          without(receipts.ptrOwnerProvisionReceipt, 'provisionReceiptDigest'),
+        );
         receipts.g001PolicyObservationBootstrapReceipt = fullG001PolicyBootstrapReceipt({
           moduleTreeId: scenario === 'bootstrap-tree' ? 'e'.repeat(40) : sourceTree,
           bootstrapBlob: scenario === 'bootstrap-blob' ? 'e'.repeat(40) : bootstrapBlob,
@@ -1275,18 +1391,23 @@ describe('fixed recovery candidate source/receipt derivation', () => {
           expect(Object.isFrozen(derived.facts)).toBe(true); expect(Object.isFrozen(derived.missingFields)).toBe(true);
           expect(derived.facts).toMatchObject({ preparationSourceCommit: FIXTURE_SOURCE_COMMIT,
             preparationSourceTree: sourceTree, g001FreezePublishReceiptDigest: null,
-            g001PlayerAccessEnabled: true, ptrOwnerProvisioned: true });
+            g001PlayerAccessEnabled: true, ptrOwnerProvisioned: true,
+            g002PublicApprovalReceiptId: releases.g002.publicApprovalReceiptId, ptrPublicApprovalReceiptId: releases.ptr.publicApprovalReceiptId });
           expect(derived.missingFields).toEqual([
             'recoveryAuthorizationRequestId', 'recoveryAuthorizationEpoch', 'recoveryAuthWorkerVersionId',
             'recoveryAuthWorkerSourceCommit', 'recoveryAuthWorkerConfigIdentity', 'recoveryAuthWorkerConfigEpoch',
             'sourceClosureSha256', 'g001ExpectedProgramKeccak256', 'authBridgeSourceCommit',
             'admissionRequestSuspensionReceiptDigest', 'g002ExpectedProgramKeccak256',
-            'g002PublicApprovalReceiptId', 'ptrExpectedProgramKeccak256', 'ptrPublicApprovalReceiptId',
+            'ptrExpectedProgramKeccak256',
           ]);
           for (const key of derived.missingFields) expect(Object.hasOwn(derived.facts, key)).toBe(false);
-          expect(() => readSealedRealmsProductionRecoveryCandidate(options)).toThrow('SEALED_REALMS_RECOVERY_CANDIDATE_INPUTS_MISSING');
+          let refusal: unknown;
           try { readSealedRealmsProductionRecoveryCandidate(options); }
-          catch (error) { expect(error).toMatchObject({ missingFields: derived.missingFields }); }
+          catch (error) { refusal = error; }
+          expect(refusal).toMatchObject({
+            message: 'SEALED_REALMS_RECOVERY_CANDIDATE_INPUTS_MISSING',
+            missingFields: derived.missingFields,
+          });
         } else expect(() => inspectSealedRealmsProductionRecoveryCandidate(options)).toThrow();
         const consume = vi.fn(() => undefined);
         expect(() => writeSealedRealmsProductionRecoveryActivationDescriptor({ records, consumeDescriptor: consume })).toThrow();
