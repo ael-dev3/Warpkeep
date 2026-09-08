@@ -89,12 +89,87 @@ export function existingUpdateTokenDigest(identity, predecessor, candidate) {
   if (![identity, predecessor, candidate].every(value => UPDATE_HASH.test(value))) fail();
   return updateProgramHash(Buffer.from(identity + predecessor + candidate, 'utf8'));
 }
+// This validates visible 2.6.1 formatter output, not every migration step:
+// UpdateView and some RLS steps are omitted. Production additionally needs a
+// complete old/new definition boundary and the executing host contract.
+function assertVisibleAddTablePlan(text) {
+  const header = `${'━'.repeat(60)}\nDatabase Migration Plan\n${'━'.repeat(60)}\n\n`;
+  if (!text.startsWith(header)) fail();
+  const id = '[A-Za-z_][A-Za-z0-9_]{0,127}';
+  const lines = text.slice(header.length).split('\n');
+  const tables = new Set();
+  let cursor = 0;
+  const type = value => {
+    let offset = 0;
+    const take = token => {
+      if (!value.startsWith(token, offset)) return false;
+      offset += token.length; return true;
+    };
+    const parse = depth => {
+      if (depth > 64) fail();
+      if (take('Array<')) { parse(depth + 1); if (!take('>')) fail(); return; }
+      if (take('(')) {
+        if (take(')') || take('|)')) return;
+        const names = new Set(); let separator;
+        for (;;) {
+          const name = /^(?:[A-Za-z_][A-Za-z0-9_]{0,127}|0|[1-9][0-9]*): /u.exec(value.slice(offset));
+          if (!name || names.has(name[0])) fail();
+          names.add(name[0]); offset += name[0].length;
+          parse(depth + 1);
+          if (take(')')) return;
+          const next = take(', ') ? ',' : take(' | ') ? '|' : null;
+          if (next === null || (separator && next !== separator)) fail();
+          separator = next;
+        }
+      }
+      const scalar = /^(?:Bool|[IU](?:256|128|64|32|16|8)|F(?:32|64)|String)/u.exec(value.slice(offset));
+      if (!scalar) fail();
+      offset += scalar[0].length;
+    };
+    parse(0); if (offset !== value.length) fail();
+  };
+  while (cursor < lines.length - 1) {
+    const table = new RegExp(`^▸ Created user table: (${id}) \\((?:private|public)\\)$`, 'u').exec(lines[cursor++]);
+    if (!table || tables.has(table[1]) || tables.size >= 128) fail();
+    tables.add(table[1]);
+    const columns = new Set();
+    const sections = ['Columns:', 'Unique constraints:', 'Indexes:', 'Auto-increment constraints:', 'Schedule:'];
+    let previous = -1;
+    while (lines[cursor] !== '') {
+      const section = sections.indexOf(lines[cursor++]?.slice(4));
+      if (section < 0 || section <= previous || lines[cursor - 1] !== `    ${sections[section]}`) fail();
+      previous = section;
+      const names = new Set(); let count = 0;
+      while (lines[cursor]?.startsWith('        • ')) {
+        const entry = lines[cursor++].slice(10); count++;
+        if (section === 0) {
+          const match = new RegExp(`^(${id}): (.+)$`, 'u').exec(entry);
+          if (!match || columns.has(match[1])) fail();
+          columns.add(match[1]); type(match[2]);
+        } else if (section === 4) {
+          if (count !== 1 || !new RegExp(`^Calls reducer: ${id}$`, 'u').test(entry)) fail();
+        } else {
+          const match = new RegExp(`^(${id}) on ${section === 3 ? `(${id})` : '\\[([^\\]]+)\\]'}$`, 'u').exec(entry);
+          if (!match || names.has(match[1])) fail();
+          names.add(match[1]);
+          const selected = match[2].split(', ');
+          if (selected.some(name => !columns.has(name)) || new Set(selected).size !== selected.length) fail();
+        }
+      }
+      if (count === 0) fail();
+    }
+    cursor++;
+  }
+  if (cursor !== lines.length - 1 || lines[cursor] !== '') fail();
+}
+
 export function parseExistingUpdatePlan(bytes, identity, predecessor, candidate) {
   const result = updateExact(parseExistingUpdateJson(bytes), ['AutoMigrate']);
   const plan = updateExact(result.AutoMigrate, ['break_clients', 'major_version_upgrade', 'migrate_plan', 'token']);
   if (plan.break_clients !== false || plan.major_version_upgrade !== false
     || typeof plan.migrate_plan !== 'string' || Buffer.byteLength(plan.migrate_plan) > 128 * 1024
     || decodeExistingUpdateToken(plan.token) !== existingUpdateTokenDigest(identity, predecessor, candidate)) fail();
+  assertVisibleAddTablePlan(plan.migrate_plan);
   return Object.freeze({ token: plan.token, planDigest: updateDigest(result), observation: result });
 }
 

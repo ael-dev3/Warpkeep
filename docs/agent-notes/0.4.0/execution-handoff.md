@@ -51,6 +51,14 @@ verification checkout. Use the pinned toolchain described in the
 [development workflow](../../engineering/development-workflow.md); the current
 machine's default Node/npm do not match the project's required versions.
 
+Existing-update planning now rejects unsupported visible migration operations
+and malformed plan text, while retaining token and fixed-target checks. Captured
+native no-op and AddTable plans pass, as do the native adapter tests. This is a
+conservative visible-text check: SpacetimeDB omits some view/RLS changes from that
+text. Complete production definition checks and update receipt integration remain
+unfinished; the production factory is still unavailable. See the
+[fixture provenance and limits](../../../tests/fixtures/existing-update-plans-2.6.1.md).
+
 ## What works and what still needs proof
 
 The September 8 mobile catalog review improved first-build readability: unbuilt

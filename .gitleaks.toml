@@ -181,3 +181,11 @@ condition = "AND"
 regexTarget = "secret"
 paths = ['''^services/release-recovery/test/githubEvidence\.test\.ts$''']
 regexes = ['''^-----BEGIN RSA PRIVATE KEY-----\\nAAAA\\n-----END RSA PRIVATE KEY-----\x27,\n {6}\x60-----BEGIN RSA PRIVATE KEY-----$''']
+
+[[allowlists]]
+description = "Exact public migration hashes in captured disposable SpacetimeDB plan fixtures; not authentication tokens"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^tests/fixtures/existing-update-plans-2\.6\.1\.json$''']
+regexes = ['''^0x7ef6acb8a31a3d56066794ee11705e277ef70c4fde804344f939b882d18b42af$''', '''^0x18f26b10d4fb11b55d124d5504f6aaa196d57cbf7c13be7bd55e8c87e809bc3d$''', '''^0x6385db21eec370c093aeec904c5a619d1d3edadf13b27e291d4c53f7fa0e2244$''']

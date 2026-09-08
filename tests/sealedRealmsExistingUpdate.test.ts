@@ -1,4 +1,5 @@
 // @vitest-environment node
+import observedPlans from './fixtures/existing-update-plans-2.6.1.json';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { readSyntheticNetworkIdentity } from '../scripts/sealed-realms-synthetic-network.mjs';
@@ -19,6 +20,7 @@ import type { SyntheticExistingUpdateAdapter } from '../scripts/sealed-realms-pr
 import { decodeExistingUpdateToken, existingUpdateTokenDigest, parseExistingUpdateJson, parseExistingUpdatePlan,
   parseExistingUpdateSuccess, updateCanonical, updateProgramHash, updateDigest } from '../scripts/sealed-realms-existing-update-protocol.mjs';
 
+const PLAN_HEADER = `${'━'.repeat(60)}\nDatabase Migration Plan\n${'━'.repeat(60)}\n\n`;
 const SOURCE = '1'.repeat(40), ID = 'd'.repeat(64);
 const A = Buffer.from('synthetic module A'), B = Buffer.from('synthetic module B'), C = Buffer.from('synthetic module C');
 const SECRET = ['synthetic', 'local', 'fixture', 'credential'].join('.');
@@ -80,7 +82,7 @@ async function fixture(lane: 'g002' | 'ptr' = 'g002') {
     if (url.pathname.endsWith('/pre_publish')) {
       state.plans++; const candidate = updateProgramHash(body);
       const value = { AutoMigrate: { break_clients: false as boolean | string, major_version_upgrade: false,
-        migrate_plan: 'synthetic additive table plan', token: wire(existingUpdateTokenDigest(ID, state.program, candidate)) } };
+        migrate_plan: `${PLAN_HEADER}▸ Created user table: ${candidate === updateProgramHash(B) ? 'gameplay04_receipt_v1' : 'maintenance'} (private)\n    Columns:\n        • key: String\n        • value: U64\n\n`, token: wire(existingUpdateTokenDigest(ID, state.program, candidate)) } };
       if (state.mode === 'wrong-token') value.AutoMigrate.token = wire('a'.repeat(64));
       if (state.mode === 'string-flag') value.AutoMigrate.break_clients = 'false';
       state.planChange?.(); send(value); return;
@@ -184,9 +186,72 @@ describe('existing-update native protocol', () => {
     }
   });
   it('rejects a string migration flag and a changed state token', () => {
-    const plan = { AutoMigrate: { break_clients: false as boolean | string, major_version_upgrade: false, migrate_plan: '', token: wire(existingUpdateTokenDigest(ID, updateProgramHash(A), updateProgramHash(B))) } };
+    const plan = { AutoMigrate: { break_clients: false as boolean | string, major_version_upgrade: false, migrate_plan: PLAN_HEADER, token: wire(existingUpdateTokenDigest(ID, updateProgramHash(A), updateProgramHash(B))) } };
     expect(parseExistingUpdatePlan(bytes(plan), ID, updateProgramHash(A), updateProgramHash(B))).toHaveProperty('planDigest');
     plan.AutoMigrate.break_clients = 'false'; expect(() => parseExistingUpdatePlan(bytes(plan), ID, updateProgramHash(A), updateProgramHash(B))).toThrow();
+  });
+
+  it.each(observedPlans)('accepts captured pinned native plan $name', sample => {
+    const result = parseExistingUpdatePlan(bytes(sample.response), sample.databaseIdentity, sample.predecessorProgram, sample.candidateProgram);
+    expect(result.planDigest).toBe(updateDigest(sample.response));
+    expect(result.token).toBe(sample.response.AutoMigrate.token);
+  });
+  it.each([
+    '▸ Created user table: empty (public)\n\n',
+    '▸ Created user table: sample (private)\n    Columns:\n        • key: U64\n        • data: Array<(0: Bool, 1: (some: String | none: ()))>\n        • never: (|)\n    Unique constraints:\n        • sample_key on [key]\n    Indexes:\n        • sample_data on [key, data]\n    Auto-increment constraints:\n        • sample_seq on key\n    Schedule:\n        • Calls reducer: run_sample\n\n',
+  ])('accepts supported formatter structures %#', suffix => {
+    const sample = observedPlans[0];
+    const response = { AutoMigrate: { ...sample.response.AutoMigrate, migrate_plan: PLAN_HEADER + suffix } };
+    expect(parseExistingUpdatePlan(bytes(response), sample.databaseIdentity, sample.predecessorProgram, sample.candidateProgram).planDigest).toBe(updateDigest(response));
+  });
+  it('keeps all program/target token bindings and strict flags despite accepted text', () => {
+    const sample = observedPlans[0];
+    const args = [sample.databaseIdentity, sample.predecessorProgram, sample.candidateProgram] as const;
+    for (let index = 0; index < args.length; index++) {
+      const changed = [...args]; changed[index] = 'e'.repeat(64);
+      expect(() => parseExistingUpdatePlan(bytes(sample.response), changed[0], changed[1], changed[2])).toThrow();
+    }
+    for (const patch of [{ break_clients: true }, { major_version_upgrade: true }, { token: '0x1' }]) {
+      expect(() => parseExistingUpdatePlan(bytes({ AutoMigrate: { ...sample.response.AutoMigrate, ...patch } }), ...args)).toThrow();
+    }
+  });
+  it.each([
+    '', 'synthetic additive table plan', PLAN_HEADER.trimEnd(), `${PLAN_HEADER}unexpected`,
+    `${PLAN_HEADER}▸ Removed table: notes\n\n`,
+    `${PLAN_HEADER}▸ Changed access for table notes (private → public)\n`,
+    `${PLAN_HEADER}▸ Created index notes_id on [id] of table notes\n`,
+    `${PLAN_HEADER}▸ Removed schedule for table notes calling reducer run_notes\n`,
+    `${PLAN_HEADER}▸ Created user table: notes (private)\n    Unknown section:\n        • id: U32\n\n`,
+    `${PLAN_HEADER}▸ Created system table: notes (private)\n\n`,
+  ])('rejects unsupported migration plan text %#', text => {
+    const sample = observedPlans[0];
+    const response = { AutoMigrate: { ...sample.response.AutoMigrate, migrate_plan: text } };
+    expect(() => parseExistingUpdatePlan(bytes(response), sample.databaseIdentity, sample.predecessorProgram, sample.candidateProgram))
+      .toThrow('SEALED_REALMS_EXISTING_UPDATE_PROTOCOL_INVALID');
+  });
+  it.each([
+    (text: string) => `${text}▸ Removed table: old_state\n\n`,
+    (text: string) => text.replace('    Columns:', '    Columns:\n▸ Removed table: old_state'),
+    (text: string) => text.replace('• building_id: String', '• building_id: Mystery'),
+    (text: string) => text.replace('• building_id: String', '• building_id: Array<U64'),
+    (text: string) => text.replace('• building_id: String', '• building_id: String\n        • building_id: U64'),
+    (text: string) => text.replace('on [building_id]', 'on [unknown_column]'),
+    (text: string) => text.replace('    Indexes:', '    Columns:'),
+    (text: string) => text.replace('private)', 'private)\u001b[0m'),
+    (text: string) => text.replaceAll('\n', '\r\n'),
+    (text: string) => text + text.slice(PLAN_HEADER.length),
+    (text: string) => text.replace('String', `${'Array<'.repeat(65)}U64${'>'.repeat(65)}`),
+    (text: string) => text.replace('on [building_id]', 'on [building_id, building_id]'),
+    (text: string) => text.replace('    Columns:\n', '    Columns:\n    Indexes:\n'),
+    (text: string) => text.replace('• building_id: String', '• building_id: (x: U64, y: String | z: Bool)'),
+    (text: string) => text.replace('• building_id: String', '• building_id: (x: U64, x: String)'),
+    (text: string) => text.replace('• Calls reducer: run_gameplay_04_schedule_v_1', '• Calls reducer: run_gameplay_04_schedule_v_1\n        • Calls reducer: another'),
+    (text: string) => text.slice(0, -1),
+  ])('rejects hostile edits to the captured additive plan %#', mutate => {
+    const sample = observedPlans[0];
+    const response = { AutoMigrate: { ...sample.response.AutoMigrate, migrate_plan: mutate(sample.response.AutoMigrate.migrate_plan) } };
+    expect(() => parseExistingUpdatePlan(bytes(response), sample.databaseIdentity, sample.predecessorProgram, sample.candidateProgram))
+      .toThrow('SEALED_REALMS_EXISTING_UPDATE_PROTOCOL_INVALID');
   });
   it.skipIf(supported)('refuses unsupported runtime before reading credentials or any response', () => {
     let read = 0;

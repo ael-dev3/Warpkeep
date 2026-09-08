@@ -1,0 +1,9 @@
+# Native existing-update plan fixtures
+
+`existing-update-plans-2.6.1.json` captures actual `AutoMigrate` responses from the isolated local SpacetimeDB 2.6.1 code-replacement recovery rehearsal on 2026-09-08. The cases are PTR A to synthetic-fault B, PTR B to corrected C (no visible schema steps), and G002 A to B. Database identities are disposable local fixture identities, not production targets. Tokens are public program/target bindings, not credentials.
+
+The retained rehearsal result is identified by SHA-256 `4632e8dc908a399a8d8319ce9f233d15b26afa9435af8fd90c2c6670d2304d46`. Source fields come directly from each inspection record: `binding.databaseIdentity`, `before.program`, `binding.candidateProgram`, and `plan.observation`; the `name` field is a descriptive test label. The original inspection digests and extraction provenance remain in local development evidence.
+
+The parser accepts only the pinned uncolored header and visible user-table creation sections. It checks nested supported algebraic types, section order, duplicate names and column references. It rejects unknown visible operations and malformed output. Its supported type syntax is deliberately conservative; unsupported formatter forms must be reviewed before expanding it.
+
+**Acceptance is not a complete migration safety attestation.** In official 2.6.1 commit `052c83fe984a4c4eb7bb4f9afa5c6b1903891d87`, `crates/schema/src/auto_migrate/formatter.rs` omits `UpdateView` entirely and conditionally omits RLS steps when `extract_rls_info` returns no display data. The existing table schema boundary also excludes top-level views, row-level security and unrelated module fields. Production requires a complete old/new definition policy and verified executing-host semantics in addition to this visible-text validation. The production update factory remains unavailable.
