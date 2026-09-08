@@ -1,9 +1,9 @@
 # Release engineering, CI and infrastructure audit
 
 Original source inspection: 2026-09-07, local
-`781e51e364d1e5a7319ca2364744c8730e83b0d6`. Current caller status below was updated
-on 2026-09-08 through development `f558bd5`, including the activation generator
-and assembler at `772d3a4` and the subsequent receipt-first projection. Runner
+`781e51e364d1e5a7319ca2364744c8730e83b0d6`. Current caller status below includes
+the source integration following `b4df426`, with fixed canonical candidate and
+historical inspection, plus the earlier assembler and receipt projection. Runner
 infrastructure was verified online on September 8 at 00:28 UTC; the original
 provider/process and CI observations below retain their dates and source scope.
 Authenticated provider and local-process observations were refreshed on September 7
@@ -90,7 +90,7 @@ callers remain separate migration work.
 | Candidate installation/recovery | `local-release-transaction-install.mjs`, candidate lock and transaction recovery: Linux identity/fsync, dirty refusal, crash recovery | Candidate-file recovery is not production database recovery preserving later player writes |
 | Closure/inventory/source pins | `local-prepared-closure-family.mjs` and source-pin/manifest/policy derivation | Mechanically regenerate all consumers together after required source changes; no typed-in hashes/counts |
 | Static recovery candidate | `recovery-activation-candidate.mjs`, `recovery-binding-projection.mjs` | Canonical schema and consistent digests do not authenticate provenance or grant deployment authority |
-| Recovery private descriptor | `sealed-realms-production-activation-records.mjs`; `f558bd5` validates the twelve S-bound records first, projects frozen scalar candidate facts, checks overlap and reopens the corpus | Canonical recovery-core/realm candidate reader and genuine provider-backed receipt captures remain missing in the operating workflow |
+| Recovery private descriptor | `sealed-realms-production-activation-records.mjs` validates the S-bound corpus; the fixed `sealed-realms-production-recovery-candidate.mjs` derives Git/bootstrap/corpus facts and authenticates completed historical inspection | Real recovery/Worker/module/approval facts and provider-backed receipt captures remain missing; canonical shape alone is not their provenance |
 | Activation generation and completion | `772d3a4` connects the fixed V2 generator, branded evidence consumption, atomic public artifact/private generation receipt and read-only reconciliation through the activation lane | The workflow's source-evidence and provider adapters still refuse unavailable authority; implemented generation does not manufacture those inputs |
 | G001 producer-local capture | `sealed-realms-production-g001-lane-entry.mjs`: stable applicant pair, admitted capture at suspend, S-mode current-state capture | Other producer/adapters remain unavailable; A-mode inspection must preserve original preparation capture |
 | Publisher ABI checks | `genesis002-production-publisher.mjs` and `ptr-production-publisher.mjs` corrected for real generated gameplay ABI | Fresh-create publishers still reject existing targets; both realms are confirmed to exist |
@@ -130,10 +130,12 @@ for the combined native results and the separate generated-family boundary.
 3. The fixed activation dispatcher/lane, generator/assert/consume paths and durable
    completion/reconciliation are implemented at `772d3a4`; receipt-first candidate
    projection follows at `f558bd5`. The operating workflow's
-   `readCanonicalRecoveryCandidate` still explicitly refuses unavailable recovery
-   core/realm facts. The legacy early-dispatch Task6E refusal also remains; it is
-   not evidence that every activation path is absent. Supply the real authenticated
-   inputs and supported workflow context, not arbitrary callbacks or fixture JSON.
+   `readCanonicalRecoveryCandidate` now invokes the fixed canonical reader, which
+   still rejects missing real recovery-core/realm facts. Completed historical
+   inspection uses authenticated receipt time through an opaque callback scope;
+   fresh descriptor creation cannot borrow that historical authority. The legacy
+   early-dispatch Task6E refusal remains a separate path. Supply actual producer
+   evidence and supported workflow context, not arbitrary callbacks or fixture JSON.
 4. G002/PTR publishers are **fresh-create only** and reject existing aliases.
    Existing-state baseline, exact immutable target, schema-compatible data-preserving update,
    no-delete publication, ambiguous-outcome reconciliation and authenticated
@@ -144,7 +146,7 @@ for the combined native results and the separate generated-family boundary.
    build, installed attestation, unique artifact and adjacent claim → fresh boundary
    → pinned Pages deploy → mandatory postflight under the non-cancelling production
    lock. Runner22 is online and its UID1001 private directory exists. The selected
-   `f558bd5` source family now passed full native prepare/check and was integrated
+   `b4df426` source family passed full native prepare/check and was integrated
    with this handoff. Later runtime changes require fresh derivation. Genuine
    activation inputs and live signer authorization remain missing. Private signer
    keys/control/ledger state and accepted run-specific claims are not supplied by
@@ -181,8 +183,9 @@ Useful source anchors for the next operating slice:
 - The bridge state's fixed generation path now calls
   `writeSealedRealmsProductionRecoveryActivationDescriptor`, and the V2 generator
   calls `createRecoveryActivationBinding`. The remaining gap is the workflow's
-  authenticated canonical candidate/provider readers, not missing calls between
-  these implemented components.
+  authentic provider facts, not missing calls between these implemented
+  components. The canonical reader is connected; its real producer inputs and
+  bridge evidence ordering remain unfinished.
 
 ## Recovery descriptor review boundary
 
@@ -199,9 +202,11 @@ The fixed V2 generator and atomic generation-receipt path are connected. Read-on
 reconciliation checks the retained artifact/receipt pair against reopened records
 and original-run evidence without generating again. These checks do not supply
 missing provider-backed recovery-core facts, live realm observations, source
-workflow verification, public approval or bridge attestations. The operating
-candidate adapter remains unavailable; matching caller-selected values is not
-provenance.
+workflow verification, public approval or bridge attestations. The fixed operating
+candidate adapter is connected after the later source integration. It rejects
+incomplete producer facts; matching caller-selected values is not provenance.
+Authenticated historical inspection does not replace final bridge, workflow-run
+and evidence-chain reconciliation.
 
 The historical `1feb105` recovery consumer repair lets the private FD owner observe and
 reject an asynchronous result before closing the handle; async consumption remains

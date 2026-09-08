@@ -1,10 +1,10 @@
 # Continue Warpkeep 0.4
 
-Refreshed 2026-09-08 (Europe/Budapest), after published development checkpoints
-`772d3a4` (operating assembler and V2 generator) and `f558bd5` (receipt projection
-and PTR closure expectations). The original `781e51e` inspection remains
-historical evidence. Read Git and the dated evidence for later generated-family
-publication and native execution results.
+Refreshed 2026-09-08 (Europe/Budapest), following published `b4df426` and the
+reviewed recovery-candidate, CI and player-feedback integration. Earlier
+`772d3a4`, `f558bd5` and `781e51e` entries retain their exact historical scope.
+Read actual Git refs and dated evidence for generated-family publication and
+native execution results; a newer source change requires its own derivation.
 Read the [handoff index](README.md) for product intent and the
 [infrastructure audit](release-and-infrastructure.md) for dated provider/CI facts.
 The owner requested the GitHub/profile/repository refresh before game shipping.
@@ -105,9 +105,9 @@ The bundle engine validates the actual closed reachable graph and required
 authority modules instead of a stale stored member count. The V2 generator is
 separate from the legacy generator's generated pins, resolving their compiler
 dependency cycle. Its private receipt allows uncertainty reconciliation without
-repeating provider calls or generation. The actual authenticated canonical
-candidate/provider adapter remains missing; prepared source does not provide
-those live facts.
+repeating provider calls or generation. The fixed canonical candidate reader is
+now connected, including authenticated historical inspection. Real provider
+producers remain missing; prepared source does not provide those live facts.
 
 Verify run `34170072520` at `5b97c5f` completed with a failed aggregate check:
 root Linux reported 68 failures, 8,864 passes and 76 skips. Recovery,
@@ -138,9 +138,12 @@ readback and the observed host/activation-fixture regressions. Its combined
 native release run passed 731 tests across 20 suites with two expected skips;
 app/config types passed. Diagnostic generated pins were restored before source
 export. The integrated water change has separate native and rendered evidence.
-Fresh full preparation must derive from the new committed source; the retained
-`f558bd5` family remains evidence for its actual input only. Production callers,
-provider facts and signer authorization remain incomplete.
+Full native prepare/check subsequently passed for exact `b4df426`; its generated
+family is committed at `e789815`. Independent generated-family QA passed 325
+tests and app/config types. A separate classifier-test overlay passed eight
+cases and remains outside the generated family. The newer candidate, inventory,
+security-fixture and keep changes require their own next source derivation.
+Production callers, provider facts and signer authorization remain incomplete.
 
 The [Linux runner runbook](../../operations/0.4.0-linux-runner.md) records actual
 GitHub registration and an enabled service running as UID/GID 1001. At 00:28 UTC
@@ -191,7 +194,7 @@ cleanup, private-store extraction, or production mutation was used for this stud
 
    The recovery Pages caller is composed in `deploy-pages.yml` at `c51bb00` and
    validated against the real source-evidence contract. Its supported Linux runner
-   and private account/root are installed. The generated family from `f558bd5`
+   and private account/root are installed. The generated family from `b4df426`
    passed full native prepare/check and is integrated with this checkpoint.
    Complete authenticated source/provider adapters, remaining receipt producers,
    Linux callers and release-specific signer authorization; derive again after

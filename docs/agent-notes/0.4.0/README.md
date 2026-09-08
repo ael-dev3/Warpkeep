@@ -7,10 +7,11 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-Updated 2026-09-08 for the source integration following `1277cc8`: real S/V2
-source authentication, durable G001 policy capture, fixed GitHub Verify readback,
-CI regressions and continuous Greater Realm water. The earlier generated family
-was prepared from `f558bd5`; it cannot attest these new compiled inputs. Read the
+Updated 2026-09-08 following published `b4df426`: the fixed recovery candidate
+reader and authenticated historical continuation, bounded source-inventory CI
+corrections and clearer keep feedback are integrated. The earlier source added
+real S/V2 authentication, durable G001 capture, GitHub Verify readback and continuous
+Greater Realm water. Generated families attest their exact recorded inputs. Read the
 [execution handoff](execution-handoff.md) and dated evidence for actual preparation,
 verification and publication results. The original `781e51e` audit is historical.
 
@@ -36,11 +37,12 @@ verification and publication results. The original `781e51e` audit is historical
   now connects fixed compilers, complete generated consumers, independent byte
   verification and durable candidate recovery. The activation lane has a fixed
   V2 generator and receipt-based reconciliation. The receipt reader now resolves
-  its candidate-construction cycle; authenticated canonical candidate/provider
-  producers remain unfinished. See the dated
+  its candidate-construction cycle. The fixed canonical reader derives authenticated
+  Git/bootstrap/corpus facts and supports completed historical inspection; real
+  recovery, Worker, module and approval producers remain unfinished. See the dated
   [engineering evidence](../../evidence/0.4.0/release-engineering.md) before
-  assessing the completed native prepare/check from `f558bd5`, subsequent
-  generated-source integration and separate remaining operating/CI defects.
+  assessing the completed native prepare/check from `b4df426`, its generated
+  integration at `e789815` and the separate remaining operating/CI defects.
 - 0.4 is **not shipped**. Preserve the live G001 game and its admission freeze,
   keep G002 closed, and use the isolated owner's PTR for real 0.4 acceptance.
 

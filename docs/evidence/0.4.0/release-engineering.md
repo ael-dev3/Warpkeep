@@ -512,3 +512,105 @@ integration. The sealed production workflow still contains its explicit closure
 fence, Darwin-specific runtime and missing token mapping. Remaining private/live
 provider adapters, canonical recovery facts, data-preserving existing-database
 updates, signer authorization and actual owner acceptance remain unfinished.
+
+## Fixed recovery candidate and historical inspection — 2026-09-08
+
+The source integration following `b4df426` connects the actual activation workflow
+callback to `sealed-realms-production-recovery-candidate.mjs`. The reader derives
+source/tree/bootstrap facts from fixed immutable Git reads, reopens the scoped
+private corpus and checks canonical policy fields. It does not accept a generic
+provider bag or substitute plausible values for missing deployment evidence.
+Recovery request/epoch, Worker version/source/configuration, source-closure,
+realm program identities, bridge source, suspension digest and approval records
+still require genuine producer evidence. Incomplete inputs cannot emit a descriptor.
+
+Independent review found and resolved a historical-continuation defect: the
+outer reconciliation used completed receipt time while the newly connected
+reader reopened records at the current clock. The revised path first authenticates
+the fixed completed receipt, descriptor and public V2 artifact, including source,
+authority, byte commitments, exact creation time and all private receipt bodies.
+Only that callback receives an opaque, records-bound historical read context.
+It expires after callback use and rechecks retained evidence afterward. Direct
+and fresh-generation reads still use current time; caller timestamps, reused or
+cross-record contexts and replaced completion/corpus data reject. Final bridge,
+workflow-run and evidence-chain reconciliation remains mandatory.
+
+The full revised eight-path candidate patch passed **156 native Linux tests**
+across activation records, workflow evidence and V2 runtime suites, with app
+noEmit exit 0. Regressions invoke the actual fixed reader after freshness expiry
+and exercise replacement before/after derivation and independently valid but
+different corpus data. Independent review found no remaining blocker within this
+scope. The initial candidate export without historical support was superseded;
+it must not be applied alongside the revised patch. This is local evidence,
+not live provider provenance or activation approval.
+
+## Whole-source inventory and current CI — 2026-09-08
+
+The tracked source inventory exceeded the notification verifier's former file
+and aggregate ceilings after real generated bundles grew. Its inventory now
+permits at most 1 MiB per file and 64 MiB aggregate. The separate presentation
+parser limit remains 512 KiB. Git inventory/object/size/path, UTF-8, AST, immutable
+source and authorization checks remain in place. Tests read the real committed
+tree and reject a file one byte over its ceiling and an aggregate over its limit.
+The closure fixture now removes the generated members from its modeled baseline
+before adding them once; duplicate production members still reject and owned
+buffers are cleared.
+
+All 65 cases across the four affected Linux suites were exercised successfully:
+64 passed in the clean committed-source run, and its one test-local timeout was
+corrected and rerun successfully. Only scoped test budgets changed for measured
+whole-tree Git/TypeScript traversal; no application, network or global test timeout
+changed. App noEmit passed. The reviewed integration also passed app and
+Vite-config noEmit together with the player-feedback changes.
+
+At exact `b4df426`, [Verify 34177573424](https://github.com/ael-dev3/Warpkeep/actions/runs/34177573424)
+reported a failed Linux job: 9,121 passed, 74 failed and 121 skipped. Of those
+failures, 62 stop at stale generated source pins or inventories, 11 concern the
+inventory/fixture defects above, and one requires replacing an obsolete literal
+classifier-source expectation with behavior. Do not relabel that run successful
+from focused local passes. Its database job was still running when inspected.
+CodeQL's analysis workflow completed, but its separate
+[security check](https://github.com/ael-dev3/Warpkeep/runs/101910854549) reported
+nine high and five medium findings in test fixtures/helpers. The reviewed
+ten-file correction preserves deliberate one-key and mixed-line-ending corruption
+through explicit splices, uses direct Windows tool argument arrays, and passes
+fixture values as JSON data and module URLs as arguments to fixed child code.
+No negative assertion, alert or check was removed, dismissed or suppressed.
+The affected native suites passed 567 root and 333 recovery-service tests;
+application and service noEmit checks passed. A Windows path diagnostic retained
+the prior filesystem mode behavior with spaces, an apostrophe and shell
+metacharacters. Actual CodeQL clearance still requires a new GitHub analysis.
+Fresh source-family derivation and passing checks on the selected final source
+remain required.
+
+## Rebuilt source family from b4df426 — 2026-09-08
+
+The actual native assembler completed prepare and a separate independent check
+from source `b4df4263b1f640c264b5c2cf1d3a81a1c1e2bebd`, tree
+`72f0b59486e78b6d60cd486b00590a9c83ca8c35`. Both exited 0 and returned identical
+candidate, journal, family, closure and scanner commitments. The generated-only
+commit is `e789815012225bbe9ea30f14f3eaefdaac4bd339`.
+
+| Derived commitment | SHA-256 |
+| --- | --- |
+| Journal | `c6b4cca8caa837254cd68a7268cb3d7ff153cd697f07dd0ed901c3795d23e31b` |
+| Source family | `4431712afbc064a031829483a457f9445ab0579542b52c6580354fa029d5f8e3` |
+| Closure manifest | `45cd8446ea57f5c8b63b3e9b2f5accba551727cf4228bd7121672968cc2325ff` |
+| Exact generated patch | `46eb4ca073e94b2baefc77aab1c500c13ec7e01d1eeab8a038a629b6daf6bef7` |
+
+The journal admitted 101 outputs; only 18 differed from committed input. All
+3,008 candidate files and 2,907 preserved source files were checked, alongside
+the actual bundle/recovery input sets. A fresh native QA checkout received only
+the journal-approved outputs. Ten complete release suites passed **325 tests**
+with no skips, and app/config noEmit passed. Before/after source and generated
+snapshots matched. Integration verified every output's canonical Git bytes
+against its journal size/hash and staged only the exact changed allowlist.
+
+A separate copied test overlay replaced the obsolete Pages classifier source
+substring check with execution of the actual classifier over its complete fixed
+source map. Its eight tests passed, including the preparation-blocked result and
+existing workflow boundaries. That test belongs to the next source checkpoint;
+it was excluded from the generated export. The newer candidate reader, inventory
+fixes, security helpers and keep feedback likewise do not belong to this prepared
+input. Their next combined source needs fresh derivation. The result remains
+`finalReleasePrepared:false`; no production authorization or deployment occurred.

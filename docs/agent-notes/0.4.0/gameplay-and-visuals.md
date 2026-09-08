@@ -322,3 +322,24 @@ returned a rendered surface, and runtime disposal released all fixture geometrie
 The wide fixture retained four GPU draws; this is a small-scene observation, not
 a frame-time, physical-phone or whole-game performance result. Authentic owner
 play, final-source visual coverage and agreed performance workloads remain open.
+
+## Clearer keep feedback — 2026-09-08
+
+The ready keep now explains saved progress and resource return instead of showing
+an uncertain-action warning on every visit. First-time entry says **Establish
+keep** and still submits only the existing initialize intent. The scene no longer
+prints an engineering asset caption; asset files and provenance credits remain
+unchanged. Uncertain outcomes retain their explicit check and same-request retry.
+
+Building and Worker panels describe gathering rates in seconds and explain that
+an expedition retains its starting rate. Completed maximum-level cards show the
+current benefit without a fictional next benefit or a list of zero shortages.
+Server rates, balances, spendability, placements and command authorization are
+unchanged. Maximum-level upgrade confirmation remains disabled.
+
+Six existing component/presentation suites passed 114 tests, including placement,
+benefits, refresh/focus, recall authority, scene lifecycle and initialization.
+The app type check passed. The actual synthetic keep rendered at desktop and
+390×844; the mobile catalog retained reachable controls and displayed the revised
+benefits. These observations do not establish physical-device performance or the
+authenticated owner's journey.
