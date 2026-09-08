@@ -5,6 +5,27 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Preparation receipts reach the recovery candidate
+
+The generation runtime now obtains a signed preparation receipt through the
+fixed workflow OIDC transport, verifies its signature and source binding, and
+retains exact bytes in the owned private workspace. Its disposable capability
+supplies the actual reserved request ID and epoch to the candidate. Source,
+ownership, conflicting facts and receipt bytes are rechecked on reads; failure
+and completion dispose the capability.
+
+The genuine joined fixture passed and reduced missing candidate inputs from six
+to four: Worker configuration identity/epoch and G001/G002 expected program
+hashes remain. Receipt/transport/ownership passed 24 tests; candidate/runtime
+checks passed 21. Strict types and a real operation bundle/plain-Node import
+passed. Windows fixture Git I/O used a test-only compatibility adapter; production
+and Linux bounds remain unchanged. The established deployment manifest generator
+produced unchanged outputs; this does not prove native operating bundle readiness.
+
+Live generation still needs the deployed preparation policy/service, workflow
+OIDC permission and supported caller, remaining producers and the production
+generator consumer. No live reservation, deployment or realm mutation is claimed.
+
 ## Activation-record test fixture repair
 
 Fixed candidate and historical-context tests now build genuine G002/PTR private

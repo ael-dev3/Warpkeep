@@ -1,0 +1,20 @@
+{
+  "intent": {
+    "schemaVersion": 1,
+    "profile": "warpkeep-recovery-preparation-intent-v1",
+    "requestId": "123e4567-e89b-42d3-a456-426614174000",
+    "authorizationEpoch": 3,
+    "repository": "ael-dev3/Warpkeep",
+    "repositoryId": "1273513252",
+    "repositoryOwnerId": "183124839",
+    "preparationCommit": "cccccccccccccccccccccccccccccccccccccccc",
+    "preparationTree": "dddddddddddddddddddddddddddddddddddddddd",
+    "policyDigest": "d018582216b3443d0605c77ebebfa98f91fc4d00daddfecd7c9ffe9f01ffcc0d",
+    "configuredArmingDigest": null,
+    "runId": "9007199254740995",
+    "runAttempt": "2",
+    "checkRunId": "9007199254740993",
+    "createdAt": 1700000000
+  },
+  "preparationReceiptJws": "eyJhbGciOiJFUzI1NiIsInR5cCI6IndhcnBrZWVwLXJlY292ZXJ5LXByZXBhcmF0aW9uLXJlY2VpcHQrandzIiwia2lkIjoid2FycGtlZXAtMC40LjAtcmVjb3ZlcnktMjAyNi0wOS0wMy0xIn0.eyJzY2hlbWFWZXJzaW9uIjoxLCJwcm9maWxlIjoid2FycGtlZXAtcmVjb3ZlcnktcHJlcGFyYXRpb24tcmVjZWlwdC12MSIsImlzcyI6Imh0dHBzOi8vcmVsZWFzZS1hdXRoLndhcnBrZWVwLmNvbSIsImF1ZCI6Imh0dHBzOi8vcmVsZWFzZS1hdXRoLndhcnBrZWVwLmNvbS9wcmVwYXJhdGlvbiIsInB1cnBvc2UiOiJhY3RpdmF0aW9uLWV2aWRlbmNlLXByZXBhcmF0aW9uIiwiaW50ZW50Ijp7InNjaGVtYVZlcnNpb24iOjEsInByb2ZpbGUiOiJ3YXJwa2VlcC1yZWNvdmVyeS1wcmVwYXJhdGlvbi1pbnRlbnQtdjEiLCJyZXF1ZXN0SWQiOiIxMjNlNDU2Ny1lODliLTQyZDMtYTQ1Ni00MjY2MTQxNzQwMDAiLCJhdXRob3JpemF0aW9uRXBvY2giOjMsInJlcG9zaXRvcnkiOiJhZWwtZGV2My9XYXJwa2VlcCIsInJlcG9zaXRvcnlJZCI6IjEyNzM1MTMyNTIiLCJyZXBvc2l0b3J5T3duZXJJZCI6IjE4MzEyNDgzOSIsInByZXBhcmF0aW9uQ29tbWl0IjoiY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjYyIsInByZXBhcmF0aW9uVHJlZSI6ImRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGQiLCJwb2xpY3lEaWdlc3QiOiJkMDE4NTgyMjE2YjM0NDNkMDYwNWM3N2ViZWJmYTk4ZjkxZmM0ZDAwZGFkZGZlY2Q3YzlmZmU5ZjAxZmZjYzBkIiwiY29uZmlndXJlZEFybWluZ0RpZ2VzdCI6bnVsbCwicnVuSWQiOiI5MDA3MTk5MjU0NzQwOTk1IiwicnVuQXR0ZW1wdCI6IjIiLCJjaGVja1J1bklkIjoiOTAwNzE5OTI1NDc0MDk5MyIsImNyZWF0ZWRBdCI6MTcwMDAwMDAwMH19.OddNBNwGqFsvueyFu9rRrZ-ENBGhJaRCRfPwh4ArfZxcALKsKmfr5TxPans-NS5aFQn-VsPNWym-4eJEfhIOqQ"
+}

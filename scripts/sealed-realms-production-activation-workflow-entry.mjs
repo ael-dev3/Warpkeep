@@ -1,4 +1,5 @@
 import { createSealedRealmsProductionRecoverySourceClosure, disposeSealedRealmsProductionRecoverySourceClosure } from './sealed-realms-production-recovery-source-closure.mjs';
+import { createSealedRealmsProductionRecoveryPreparation, disposeSealedRealmsProductionRecoveryPreparation } from './sealed-realms-production-recovery-preparation.mjs';
 import { execFileSync } from 'node:child_process';
 import { types } from 'node:util';
 
@@ -195,9 +196,10 @@ async function buildDispatcher(operation, workflowInputSha, evidence, lifecycle)
   let records;
   if (operation === 'activation-evidence-generate') {
     lifecycle.sourceClosure = await createSealedRealmsProductionRecoverySourceClosure({ privateState, authority });
+    lifecycle.preparation = await createSealedRealmsProductionRecoveryPreparation({ privateState, authority });
     records = createSealedRealmsProductionActivationRecords({ privateState, authority,
       readBindingCandidate: (_source, _projection, readContext) =>
-        readSealedRealmsProductionRecoveryCandidate({ records, privateState, authority, bridgeState, readContext, sourceClosure: lifecycle.sourceClosure }) });
+        readSealedRealmsProductionRecoveryCandidate({ records, privateState, authority, bridgeState, readContext, sourceClosure: lifecycle.sourceClosure, preparation: lifecycle.preparation }) });
   }
   const lane = createSealedRealmsProductionActivationLane({ bridgeState,
     ...(operation === 'activation-evidence-generate' ? {
@@ -226,7 +228,7 @@ export async function createSealedRealmsProductionActivationWorkflowRuntime(inpu
   const workflowInputSha = sourceSha(options.workflowInputSha);
   const evidence = await createSealedRealmsProductionWorkflowEvidence({ workflowInputSha });
   const runtime = Object.freeze({});
-  const lifecycle = { sourceClosure: undefined };
+  const lifecycle = { sourceClosure: undefined, preparation: undefined };
   try {
     runtimes.set(runtime, Object.freeze({
       operation,
@@ -234,9 +236,11 @@ export async function createSealedRealmsProductionActivationWorkflowRuntime(inpu
       evidence,
       dispatcher: await buildDispatcher(operation, workflowInputSha, evidence, lifecycle),
       sourceClosure: lifecycle.sourceClosure,
+      preparation: lifecycle.preparation,
     }));
     return runtime;
   } catch (error) {
+    if (lifecycle.preparation !== undefined) disposeSealedRealmsProductionRecoveryPreparation(lifecycle.preparation);
     if (lifecycle.sourceClosure !== undefined) disposeSealedRealmsProductionRecoverySourceClosure(lifecycle.sourceClosure);
     revokeSealedRealmsProductionWorkflowEvidence(evidence);
     throw error;
@@ -264,6 +268,7 @@ export async function runSealedRealmsProductionActivationOperation(input) {
     await refreshSealedRealmsProductionWorkflowEvidence(member.evidence);
     return await member.dispatcher.dispatch(Object.freeze({ operation, workflowInputSha }));
   } finally {
+    if (member.preparation !== undefined) disposeSealedRealmsProductionRecoveryPreparation(member.preparation);
     if (member.sourceClosure !== undefined) disposeSealedRealmsProductionRecoverySourceClosure(member.sourceClosure);
     revokeSealedRealmsProductionWorkflowEvidence(member.evidence);
   }

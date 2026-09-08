@@ -2,6 +2,9 @@
 import { beforeEach, expect, it, vi } from "vitest";
 const f = vi.hoisted(() => ({
   sourceClosure: Object.freeze({}),
+  preparation: Object.freeze({}),
+  prepare: vi.fn(),
+  disposePreparation: vi.fn(),
   dispose: vi.fn(),
   revoke: vi.fn(),
   dispatch: vi.fn(),
@@ -84,7 +87,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   f.failStage = "";
   f.dispatch.mockReset();
+  f.prepare.mockResolvedValue(f.preparation);
 });
+vi.mock('../scripts/sealed-realms-production-recovery-preparation.mjs', () => ({
+  createSealedRealmsProductionRecoveryPreparation: f.prepare,
+  disposeSealedRealmsProductionRecoveryPreparation: f.disposePreparation,
+}));
 import {
   createSealedRealmsProductionActivationWorkflowRuntime,
   runSealedRealmsProductionActivationOperation,
@@ -100,8 +108,10 @@ it("passes the constructed runtime bridge into the real candidate callback with 
     authority: f.authority,
     bridgeState: f.bridge,
     sourceClosure: f.sourceClosure,
+    preparation: f.preparation,
     readContext: f.context,
   });
+  expect(f.prepare).toHaveBeenCalledExactlyOnceWith({ privateState: f.state, authority: f.authority });
 });
 
 it.each(["records", "generator", "lane", "context"])(
@@ -115,6 +125,7 @@ it.each(["records", "generator", "lane", "context"])(
       }),
     ).rejects.toThrow("fixture failure");
     expect(f.dispose).toHaveBeenCalledExactlyOnceWith(f.sourceClosure);
+    expect(f.disposePreparation).toHaveBeenCalledExactlyOnceWith(f.preparation);
     expect(f.revoke).toHaveBeenCalledOnce();
   },
 );
@@ -136,6 +147,7 @@ it.each([false, true])(
     if (failed) await expect(operation).rejects.toThrow("dispatch failure");
     else await operation;
     expect(f.dispose).toHaveBeenCalledExactlyOnceWith(f.sourceClosure);
+    expect(f.disposePreparation).toHaveBeenCalledExactlyOnceWith(f.preparation);
     expect(f.revoke).toHaveBeenCalledOnce();
   },
 );
@@ -155,5 +167,13 @@ it("disposes closure when evidence refresh fails before dispatch", async () => {
   ).rejects.toThrow("fixture refresh failure");
   expect(f.dispatch).not.toHaveBeenCalled();
   expect(f.dispose).toHaveBeenCalledExactlyOnceWith(f.sourceClosure);
+  expect(f.disposePreparation).toHaveBeenCalledExactlyOnceWith(f.preparation);
+  expect(f.revoke).toHaveBeenCalledOnce();
+});
+it('disposes the existing closure and revokes evidence when preparation authentication fails', async () => {
+  f.prepare.mockRejectedValueOnce(Error('preparation failure'));
+  await expect(createSealedRealmsProductionActivationWorkflowRuntime({ operation: 'activation-evidence-generate', workflowInputSha: 'a'.repeat(40) })).rejects.toThrow('preparation failure');
+  expect(f.dispose).toHaveBeenCalledExactlyOnceWith(f.sourceClosure);
+  expect(f.disposePreparation).not.toHaveBeenCalled();
   expect(f.revoke).toHaveBeenCalledOnce();
 });
