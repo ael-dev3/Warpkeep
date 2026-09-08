@@ -25,7 +25,9 @@ matching the existing local bootstrap pins. The recovery fixture GPG policy is
 aligned to the same package version and exact binary hashes. The actual Node24
 bootstrap revealed an overlong GPG socket path in its private temporary directory;
 the reviewed directory-name fix now retains full random entropy within the Linux
-socket limit. Its focused suite passes; actual native bootstrap and builds remain pending.
+socket limit. Its focused suite and the actual Linux Node24 bootstrap pass. The
+frozen G001 native lane completed both reproducible build cycles at cf1fbaa;
+Genesis002/PTR native validation and retained program-hash integration remain pending.
 Generated deployment closure outputs were regenerated and reproduced identically;
 this is source consistency evidence, not an operating bundle or live release.
 
@@ -37,9 +39,13 @@ UID, file modes, executable hashes, attestation and no-clobber checks remain
 unchanged. The separate historical GitHub Actions runner has not been migrated.
 
 Ubuntu 24.04.4 now executes commands as warpkeep UID/GID 1000. Home mode0750
-and private build directories mode0700 are verified; WSL still reports a systemd
-user-session warning. Pinned toolchain setup, fresh attestations, native bundles
-and current-source preparation remain unfinished.
+and private build directories mode0700 are verified. Node22/24, SpacetimeDB2.6.1,
+YAML and pinned operation/recovery/G002 dependency caches are installed and checked.
+The cloud-init datasource disk probe stalled startup; the dedicated guest now has
+/etc/cloud/cloud-init.disabled and, after restarting only WarpkeepRunner, reports
+systemd running without the user-session warning. This guest-specific setting is
+reversible by removing that marker when cloud provisioning is actually needed.
+Native bundles and current-source preparation remain unfinished.
 
 Independent review verified runtime changes are only the intended fixed path,
 account and distro substitutions. Focused local checks passed205 cases; the

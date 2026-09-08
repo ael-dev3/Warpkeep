@@ -123,10 +123,17 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
         instances.add(forest);
         forest.name = `forest-band:${band}`; forest.castShadow = quality === 'high'; forest.receiveShadow = true;
         for (let i = 0; i < count; i++) {
-          const t = count === 1 ? .5 : i / (count - 1);
-          const x = -49 + t * 94 + Math.sin(i * 2.17 + band * .9) * 2.7;
-          const z = -46.5 - band * 6 - (i % 3) * 1.4 - Math.abs(Math.sin(i * 1.71 + band)) * 1.1;
-          const size = prefab ? (band === 0 ? 1.6 : 2.1) + (i % 3) * .12 : 1;
+          // Each quality keeps all three crown groups; extra trees fill their
+          // edges instead of closing the quiet gaps between them.
+          const cluster = i % 3; const slot = Math.floor(i / 3);
+          const members = Math.ceil((count - cluster) / 3);
+          const spread = members === 1 ? 0 : slot / (members - 1) - .5;
+          const anchors = band === 0 ? [-43, -6, 34] : [-38, 0, 39];
+          const x = anchors[cluster] + spread * (band === 0 ? 7.8 : 9.3);
+          const z = (band === 0 ? -48 : -55) - [0, 2, .8][cluster]
+            - [0, 2.3, .7][(slot + band) % 3];
+          const size = prefab ? (band === 0 ? 1.5 : 1.92)
+            + [.08, .3, 0, .18][(i + band) % 4] : 1;
           const transform = new THREE.Matrix4().compose(new THREE.Vector3(x, -2 - band, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), i * 1.7), new THREE.Vector3(size, size, size));
           forest.setMatrixAt(i, transform);
         }

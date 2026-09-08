@@ -3465,7 +3465,7 @@
     {
       "path": "src/components/keep04/createKeep04Scene.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "cada81453edbd229ba2f37b458301d36f3859daa0b9e08fa60cc51a834582fb1"
+      "sha256": "59029def9c5a7b33575482121dd8d9a73cc56adae95259951c44f4db957030ec"
     },
     {
       "path": "src/components/keep04/keep04DressingPlans.generated.ts",

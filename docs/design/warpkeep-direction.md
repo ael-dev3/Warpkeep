@@ -12,6 +12,26 @@ The Inner Keep turns the results into decisions and a growing home. These scales
 should feel like one game: a shortage suggests a journey; a successful journey
 makes a building possible; a completed building improves what happens next.
 
+## Owner clarification - 8 September 2026
+
+0.4 prioritizes a professional visual foundation optimized for mobile, with
+simple interaction. Preserve the useful gather/build/return loop and reliable
+persistent state; defer deeper simulation, elaborate editing and additional
+interaction systems. Delivery remains part of the release.
+
+Account for the complete handoff reference library: voxel presentation, Verdant
+Forest, Pelagic, earlier terrain/atmosphere/game-craft studies, additional
+settlement/forest/rendering research, and Dream Loop. Apply their relevant lessons
+as one cohesive Verdant Citadel. This does not require importing every engine,
+asset, mechanic or costly effect. Track reference applications and visible gaps
+against actual Keep04 and Greater Realm source and rendered captures.
+
+Prioritize proportions, silhouettes, layered vegetation, geographic hierarchy,
+lightweight water, coherent materials and lighting, calm UI and transitions.
+Compare matching desktop and narrow mobile views. Verify loading, frame pacing,
+memory, touch legibility, reduced motion and background/resume; distinguish
+emulation from physical-device results. Credit reused assets accurately.
+
 ## The current release target: 0.4
 
 Make one evening satisfying and tomorrow's return meaningful through
