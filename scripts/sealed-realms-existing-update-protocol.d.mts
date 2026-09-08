@@ -10,5 +10,6 @@ export function existingUpdateTokenDigest(identity: string, predecessor: string,
 export function parseExistingUpdatePlan(bytes: Uint8Array, identity: string, predecessor: string, candidate: string): Readonly<{ token: string; planDigest: string }>;
 export function parseExistingUpdateSql(bytes: Uint8Array): Readonly<{ schema: unknown; rows: any[]; rowsDigest: string; count: number }>;
 export function parseExistingUpdateProgram(bytes: Uint8Array): string;
-export function parseExistingUpdateSchema(bytes: Uint8Array): Readonly<{ names: readonly string[]; digest: string; tableSchemas: Readonly<Record<string, string>> }>;
+export const EXISTING_UPDATE_DEFINITION_POLICY: 'warpkeep-raw-module-v9-no-views-rls-defaults-v1';
+export function parseExistingUpdateSchema(bytes: Uint8Array): Readonly<{ names: readonly string[]; definitionPolicy: typeof EXISTING_UPDATE_DEFINITION_POLICY; digest: string; tableSchemas: Readonly<Record<string, string>> }>;
 export function parseExistingUpdateSuccess(bytes: Uint8Array, identity: string): string;

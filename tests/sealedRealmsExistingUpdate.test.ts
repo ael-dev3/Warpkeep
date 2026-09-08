@@ -27,8 +27,8 @@ const SECRET = ['synthetic', 'local', 'fixture', 'credential'].join('.');
 const bytes = (value: unknown) => Buffer.from(JSON.stringify(value));
 const wire = (value: string) => `0x${Buffer.from(value, 'hex').reverse().toString('hex')}`;
 function schema(names: string[]) {
-  return { tables: names.map((name, product_type_ref) => ({ name, product_type_ref, primary_key: [0],
-    table_type: 'User', table_access: 'Private', indexes: [], constraints: [], sequences: [], schedule: null })),
+  return { reducers: [], types: [], misc_exports: [], row_level_security: [], tables: names.map((name, product_type_ref) => ({ name, product_type_ref, primary_key: [0],
+    table_type: { User: [] }, table_access: { Private: [] }, indexes: [], constraints: [], sequences: [], schedule: { none: [] } })),
   typespace: { types: names.map(() => ({ Product: { elements: [{ name: { some: 'key' }, algebraic_type: { String: [] } },
     { name: { some: 'value' }, algebraic_type: { U64: [] } }] } })) } };
 }
@@ -57,7 +57,7 @@ async function fixture(lane: 'g002' | 'ptr' = 'g002') {
   const privateState = createSealedRealmsProductionPrivateState({ reportedHome: home,
     testOnlyOwnerUid: statSync(root).uid, testOnlyAllowPlatformMode: true });
   const state = { program: updateProgramHash(A), names: ['ledger'], rows: { ledger: [['earned', 9]] } as Record<string, unknown[][]>,
-    puts: 0, plans: 0, mode: '', planChange: undefined as (() => void) | undefined, beforePut: undefined as (() => void) | undefined };
+    schemaChange: undefined as ((value: ReturnType<typeof schema>) => unknown) | undefined, puts: 0, plans: 0, mode: '', planChange: undefined as (() => void) | undefined, beforePut: undefined as (() => void) | undefined };
   const trace: string[] = [], runStatus = new Map<string, 'in_progress' | 'completed'>();
   const runRevoked = new Set<string>(); let runSequence = 300;
   const server = createServer(async (request, res) => {
@@ -68,7 +68,7 @@ async function fixture(lane: 'g002' | 'ptr' = 'g002') {
     if (request.headers.authorization !== `Bearer ${SECRET}` || !url.pathname.startsWith(`/v1/database/${ID}`)) { res.writeHead(403); res.end(); return; }
     if (state.mode === 'reflect') { send({ reflected: SECRET }); return; }
     if (state.mode === 'redirect') { res.writeHead(302, { Location: 'http://127.0.0.1:1/' }); res.end(); return; }
-    if (url.pathname.endsWith('/schema')) { send(schema(state.names)); return; }
+    if (url.pathname.endsWith('/schema')) { send(state.schemaChange ? state.schemaChange(schema(state.names)) : schema(state.names)); return; }
     if (url.pathname.endsWith('/sql')) {
       const query = body.toString();
       const program = query === 'SELECT program_hash FROM st_module';
@@ -156,7 +156,7 @@ async function fixture(lane: 'g002' | 'ptr' = 'g002') {
   };
   return { root, origin, privateState, state, trace, make, dispatcher, inspect, runStatus, runRevoked,
     setTokenHook: (hook: () => void) => { tokenHook = hook; },
-    directory: join(home, 'Library/Application Support/Warpkeep/operations/runtime', SEALED_REALMS_PRIVATE_STATE_VERSION, 'existing-updates-synthetic-v2', lane, ID),
+    directory: join(home, 'Library/Application Support/Warpkeep/operations/runtime', SEALED_REALMS_PRIVATE_STATE_VERSION, 'existing-updates-synthetic-v3', lane, ID),
     async cleanup() { for (const adapter of adapters) adapter.dispose(); server.closeAllConnections();
       await new Promise<void>(resolve => server.close(() => resolve()));
       if (!root.startsWith(join(tmpdir(), 'warpkeep-existing-update-test-'))) throw new Error('Invalid cleanup root');
@@ -263,6 +263,68 @@ describe('existing-update native protocol', () => {
 });
 
 describe('actual update dispatcher, private continuation and isolated HTTP adapter', () => {
+  native.each(['candidate', 'observed', 'repeated', 'before-apply'])('rejects hidden views at %s before module submission', async phase => {
+    const f = await fixture();
+    const changed = (value: unknown) => ({ ...(value as object), misc_exports: [{ View: { name: 'hidden_view' } }] });
+    try {
+      if (phase === 'candidate') {
+        let credentials = 0;
+        expect(() => f.make(B, { candidateSchemaBytes: bytes(changed(schema(['ledger', 'gameplay04_receipt_v1']))), readAdminToken: () => { credentials++; return SECRET; } })).toThrow();
+        expect(credentials).toBe(0);
+      } else {
+        const adapter = f.make();
+        if (phase === 'observed') f.state.schemaChange = changed;
+        if (phase === 'repeated') f.state.planChange = () => { f.state.schemaChange = changed; };
+        if (phase === 'before-apply') {
+          await f.inspect(adapter);
+          f.state.schemaChange = changed;
+          await expect((await f.dispatcher('g002-update-apply', adapter)).call()).rejects.toThrow();
+        } else await expect(f.inspect(adapter)).rejects.toThrow();
+      }
+      expect(f.state.puts).toBe(0);
+      expect(f.state.rows.ledger).toEqual([['earned', 9]]);
+    } finally { await f.cleanup(); }
+  });
+  native('does not silently attest or ignore older synthetic records', async () => {
+    const f = await fixture();
+    try {
+      const legacy = f.directory.replace('existing-updates-synthetic-v3', 'existing-updates-synthetic-v2');
+      mkdirSync(legacy, { recursive: true, mode: 0o700 });
+      writeFileSync(join(legacy, `${'a'.repeat(64)}.inspection.json`), 'preserved old evidence', { mode: 0o600 });
+      const adapter = f.make();
+      await expect(f.inspect(adapter)).rejects.toThrow('SEALED_REALMS_DISPATCH_LANE_FAILED');
+      await expect(adapter.inspectForContinuation({ authority: authority('g002-update-inspect') })).rejects.toThrow('LEGACY_RECORDS_UNSUPPORTED');
+      expect(f.state.puts).toBe(0); expect(f.trace).toEqual([]);
+      expect(readFileSync(join(legacy, `${'a'.repeat(64)}.inspection.json`), 'utf8')).toBe('preserved old evidence');
+    } finally { await f.cleanup(); }
+  });
+  native.each(['missing-policy', 'wrong-policy', 'old-profile'])('rejects %s while reopening durable inspection', async changed => {
+    const f = await fixture();
+    try {
+      const adapter = f.make(); await f.inspect(adapter);
+      const filename = join(f.directory, readdirSync(f.directory).find(name => name.endsWith('.inspection.json'))!);
+      const record = JSON.parse(readFileSync(filename, 'utf8'));
+      if (changed === 'missing-policy') delete record.value.before.definitionPolicy;
+      else if (changed === 'wrong-policy') record.value.before.definitionPolicy = 'table-only';
+      else record.profile = 'warpkeep-synthetic-quiescent-existing-update-v2';
+      record.inspectionDigest = updateDigest(record.value);
+      writeFileSync(filename, `${updateCanonical(record)}\n`);
+      expect(() => adapter.reopenContinuation({ authority: authority('g002-update-apply') })).toThrow(changed === 'missing-policy' ? 'PROTOCOL_INVALID' : 'RECORD_INVALID');
+      expect(f.state.puts).toBe(0);
+    } finally { await f.cleanup(); }
+  });
+  native('rejects a postflight procedure-description mismatch even with unchanged tables', async () => {
+    const f = await fixture();
+    try {
+      const adapter = f.make(); await f.inspect(adapter);
+      f.state.beforePut = () => { f.state.schemaChange = value => ({ ...value,
+        misc_exports: [{ Procedure: { name: 'unexpected_procedure', params: { elements: [] }, return_type: { String: [] } } }] }); };
+      await expect((await f.dispatcher('g002-update-apply', adapter)).call()).rejects.toThrow('SEALED_REALMS_DISPATCH_LANE_FAILED');
+      expect(f.state.puts).toBe(1);
+      expect(adapter.inspectResult()).toBeUndefined();
+    } finally { await f.cleanup(); }
+  });
+
   native.each([false, true])('serializes independent inspections after an accepted predecessor=%s', async afterAccepted => {
     const f = await fixture();
     const children: ReturnType<typeof spawn>[] = [];
@@ -320,7 +382,7 @@ describe('actual update dispatcher, private continuation and isolated HTTP adapt
       const apply = await f.dispatcher(`${lane}-update-apply`, adapter);
       expect(await apply.call()).toEqual({ operation: `${lane}-update-apply`, status: 'completed' });
       expect(f.state.puts).toBe(1); expect(f.state.rows.ledger).toEqual([['earned', 9]]);
-      expect(adapter.inspectResult()).toMatchObject({ profile: 'warpkeep-synthetic-quiescent-existing-update-v2', outcome: 'observed-preserved-candidate' });
+      expect(adapter.inspectResult()).toMatchObject({ profile: 'warpkeep-synthetic-quiescent-existing-update-v3', outcome: 'observed-preserved-candidate' });
       const duplicate = await f.dispatcher(`${lane}-update-apply`, adapter); await expect(duplicate.call()).rejects.toThrow(); expect(f.state.puts).toBe(1);
       expect(f.trace.every(value => value.includes(`/v1/database/${ID}`))).toBe(true);
     } finally { await f.cleanup(); }

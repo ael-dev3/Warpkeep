@@ -196,14 +196,92 @@ export function parseExistingUpdateProgram(bytes) {
     || result.rows.length !== 1 || !Array.isArray(result.rows[0]) || result.rows[0].length !== 1) fail();
   return decodeExistingUpdateToken(result.rows[0][0]);
 }
+export const EXISTING_UPDATE_DEFINITION_POLICY = 'warpkeep-raw-module-v9-no-views-rls-defaults-v1';
+
+// Supported RawModuleDefV9 envelope. Views (including unchanged definitions
+// whose bodies may be recomputed), RLS, defaults and unknown exports are not
+// admitted. Reducer/procedure application changes do not themselves migrate
+// stored rows; retain their descriptions in the full candidate commitment.
+function assertExistingUpdateDefinition(value) {
+  updateExact(value, ['typespace', 'tables', 'reducers', 'types', 'misc_exports', 'row_level_security']);
+  updateExact(value.typespace, ['types']);
+  const list = entries => { if (!Array.isArray(entries) || entries.length > 4096) fail(); return entries; };
+  const name = text => { if (typeof text !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]{0,127}$/u.test(text)) fail(); };
+  const unit = value => { if (!Array.isArray(value) || value.length !== 0) fail(); };
+  const variant = value => {
+    if (!value || Object.getPrototypeOf(value) !== Object.prototype || Object.keys(value).length !== 1) fail();
+    return Object.keys(value)[0];
+  };
+  const option = (value, check) => {
+    const tag = variant(value);
+    if (tag === 'none') unit(value.none);
+    else if (tag === 'some') check(value.some);
+    else fail();
+  };
+  const types = list(value.typespace.types);
+  const ref = index => { if (!Number.isSafeInteger(index) || index < 0 || index >= types.length) fail(); };
+  const product = (value, key, depth) => {
+    updateExact(value, [key]);
+    for (const member of list(value[key])) {
+      updateExact(member, ['name', 'algebraic_type']);
+      option(member.name, name); algebraic(member.algebraic_type, depth + 1);
+    }
+  };
+  const algebraic = (value, depth = 0) => {
+    if (depth > 64) fail();
+    const tag = variant(value);
+    if (tag === 'Ref') ref(value.Ref);
+    else if (tag === 'Product') product(value.Product, 'elements', depth);
+    else if (tag === 'Sum') product(value.Sum, 'variants', depth);
+    else if (tag === 'Array') algebraic(value.Array, depth + 1);
+    else if (/^(?:Bool|[IU](?:8|16|32|64|128|256)|F(?:32|64)|String)$/u.test(tag)) unit(value[tag]);
+    else fail();
+  };
+  types.forEach(type => algebraic(type));
+  for (const type of list(value.types)) {
+    updateExact(type, ['name', 'ty', 'custom_ordering']);
+    updateExact(type.name, ['scope', 'name']);
+    list(type.name.scope).forEach(name); name(type.name.name); ref(type.ty);
+    if (typeof type.custom_ordering !== 'boolean') fail();
+  }
+  for (const reducer of list(value.reducers)) {
+    updateExact(reducer, ['name', 'params', 'lifecycle']);
+    name(reducer.name); product(reducer.params, 'elements', 0);
+    option(reducer.lifecycle, lifecycle => {
+      const tag = variant(lifecycle);
+      if (!['Init', 'OnConnect', 'OnDisconnect'].includes(tag)) fail();
+      unit(lifecycle[tag]);
+    });
+  }
+  for (const entry of list(value.misc_exports)) {
+    updateExact(entry, ['Procedure']);
+    updateExact(entry.Procedure, ['name', 'params', 'return_type']);
+    name(entry.Procedure.name); product(entry.Procedure.params, 'elements', 0); algebraic(entry.Procedure.return_type);
+  }
+  if (list(value.row_level_security).length !== 0) fail();
+  for (const table of list(value.tables)) {
+    updateExact(table, ['name', 'product_type_ref', 'primary_key', 'indexes', 'constraints', 'sequences', 'schedule', 'table_type', 'table_access']);
+    name(table.name); ref(table.product_type_ref);
+    updateExact(table.table_type, ['User']); unit(table.table_type.User);
+    const access = variant(table.table_access);
+    if (!['Public', 'Private'].includes(access)) fail(); unit(table.table_access[access]);
+    for (const index of list(table.indexes)) updateExact(index, ['name', 'accessor_name', 'algorithm']);
+    for (const constraint of list(table.constraints)) updateExact(constraint, ['name', 'data']);
+    for (const sequence of list(table.sequences)) updateExact(sequence, ['name', 'column', 'start', 'min_value', 'max_value', 'increment']);
+    option(table.schedule, schedule => { updateExact(schedule, ['name', 'reducer_name', 'scheduled_at_column']); });
+  }
+}
+
 export function parseExistingUpdateSchema(bytes) {
   const value = parseExistingUpdateJson(bytes);
+  assertExistingUpdateDefinition(value);
   if (!value || !Array.isArray(value.tables) || value.tables.length < 1 || value.tables.length > 128) fail();
   const names = value.tables.map(table => table.name).sort();
   if (new Set(names).size !== names.length || names.some(name => typeof name !== 'string' || !/^[a-z][a-z0-9_]{0,127}$/u.test(name))) fail();
   const boundary = selected => canonicalTableSchemaBoundary({ ...value, tables: value.tables.filter(table => selected.includes(table.name)) }, selected);
   const tableSchemas = Object.fromEntries(names.map(name => [name, updateDigest(boundary([name]))]));
-  return Object.freeze({ names: Object.freeze(names), digest: updateDigest(boundary(names)), tableSchemas: Object.freeze(tableSchemas) });
+  return Object.freeze({ names: Object.freeze(names), definitionPolicy: EXISTING_UPDATE_DEFINITION_POLICY,
+    digest: updateDigest({ definitionPolicy: EXISTING_UPDATE_DEFINITION_POLICY, definition: value }), tableSchemas: Object.freeze(tableSchemas) });
 }
 export function parseExistingUpdateSuccess(bytes, identity) {
   const result = updateExact(parseExistingUpdateJson(bytes), ['Success']);

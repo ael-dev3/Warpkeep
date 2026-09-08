@@ -86,6 +86,40 @@ response is reconciled through fresh program, schema and row observations. Do no
 rerun import or provisioning, fabricate empty-state facts, or retry a mutation
 merely because an old program hash is observed. V2 does not reinterpret v1 records.
 
+## Executing-host compatibility (September 8)
+
+A credential-free GET to Maincloud's `/v1/health` at 12:20 UTC reported
+`spacetimedb-cloud` version `2.10.0`. A separate read of the fixed PTR's
+`schema?version=9` succeeded: it retains the six-field module definition, procedure
+exports and empty row-level security used by the current compatibility work.
+These reads performed no SQL, migration planning, module update or player command.
+A service health version does not identify every database replica's exact binary
+or durability configuration.
+
+The earlier native recovery proof used 2.6.1. Official 2.10.0 source at
+`baca5cdf77577ed4e3f30da48a5158189c4ea43f` still replans and checks the migration
+policy, then changes the program and schema within the same serializable write
+transaction. The AddTable branch creates the new table; it does not rewrite old
+rows. Keep the old table definitions and reachable row types intact, reject
+unsupported transformations, and check the full module definition rather than
+only the displayed plan. See the [host transaction](https://github.com/clockworklabs/SpacetimeDB/blob/baca5cdf77577ed4e3f30da48a5158189c4ea43f/crates/core/src/host/wasm_common/module_host_actor.rs#L647)
+and [migration implementation](https://github.com/clockworklabs/SpacetimeDB/blob/baca5cdf77577ed4e3f30da48a5158189c4ea43f/crates/engine/src/update.rs#L144).
+
+The publish endpoint waits for the committed transaction and its configured
+durability watcher. A lost response can still follow a successful update;
+reconciliation must distinguish observed installation from a received durable
+acknowledgement. Later legitimate gameplay writes must not invalidate a historical
+production receipt. These source semantics support a production design without
+requiring a new game-wide pause or row-revision subsystem solely to establish
+non-destructive migration. They do not prove arbitrary candidate game code is
+correct or make the synthetic quiescent adapter a production adapter. See the
+[confirmation path](https://github.com/clockworklabs/SpacetimeDB/blob/baca5cdf77577ed4e3f30da48a5158189c4ea43f/crates/client-api/src/routes/database.rs#L1053).
+
+A separate official 2.10.0 Linux toolset was downloaded and verified against its
+release asset SHA-256. The pinned preparation toolchain remains unchanged. A real
+2.10.0 compatibility rehearsal is running; final settlement and access checks
+remain pending. This is separate from production acceptance.
+
 ## Remaining acceptance
 
 The production update factory and genuine supported-runner authority must be
@@ -99,3 +133,19 @@ Process/host restart, partial-record crash recovery, actual-owner play and the
 integrated frontend/service/module recovery journey remain unproved. A passing
 isolated rehearsal is one component of [release requirement R16](../../operations/0.4.0-release-checklist.md),
 not a completed release or authorization to treat a diagnostic artifact as live.
+
+## Complete definition policy
+
+The synthetic v3 adapter binds all six RawModuleDefV9 fields. It preserves old
+table definitions and reachable row types, requires empty row-level security,
+and permits only procedure declarations in miscellaneous exports. Views, column
+defaults and unknown declarations refuse. Procedure and reducer changes remain
+possible, and their complete descriptions are checked after replacement. This
+policy does not establish the correctness of arbitrary candidate game code.
+
+Retained v2 records are explicitly refused before network activity; they are not
+promoted into stronger v3 evidence. Native adapter tests passed 88 cases with one
+platform skip; Windows passed 60 with 29 native skips, and focused strict types
+passed. These tests use isolated HTTP fixtures. Captured real A/B definitions
+and the separately observed public PTR definition also pass offline checks.
+The production factory and populated activation-receipt integration remain open.

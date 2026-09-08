@@ -11,12 +11,12 @@ import {
 } from './sealed-realms-production-continuation.mjs';
 import { attestSealedRealmsProductionWorkflowPermit } from './sealed-realms-production-workflow-authority.mjs';
 import {
-  UPDATE_HASH, updateCanonical, updateDigest, updateExact, updateProgramHash, updateSha256,
+  EXISTING_UPDATE_DEFINITION_POLICY, UPDATE_HASH, updateCanonical, updateDigest, updateExact, updateProgramHash, updateSha256,
   parseExistingUpdateJson, parseExistingUpdatePlan, parseExistingUpdateProgram,
   parseExistingUpdateSchema, parseExistingUpdateSql, parseExistingUpdateSuccess,
 } from './sealed-realms-existing-update-protocol.mjs';
 
-const PROFILE = 'warpkeep-synthetic-quiescent-existing-update-v2';
+const PROFILE = 'warpkeep-synthetic-quiescent-existing-update-v3';
 const adapters = new WeakMap();
 const selections = new WeakMap();
 const productionIdentities = new Set([
@@ -35,7 +35,8 @@ function timestamp(value) {
     || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString() !== value) fail('RECORD_INVALID');
 }
 function snapshotShape(value) {
-  updateExact(value, ['program', 'schemaDigest', 'tables']);
+  updateExact(value, ['program', 'schemaDigest', 'definitionPolicy', 'tables']);
+  if (value.definitionPolicy !== EXISTING_UPDATE_DEFINITION_POLICY) fail('RECORD_INVALID');
   if (!UPDATE_HASH.test(value.program) || !UPDATE_HASH.test(value.schemaDigest)
     || !Array.isArray(value.tables) || value.tables.length < 1 || value.tables.length > 128) fail('RECORD_INVALID');
   let previous = '';
@@ -97,11 +98,12 @@ export function createSyntheticExistingUpdateAdapter(value) {
   };
   state.candidateSha256 = updateSha256(state.candidate);
   state.candidateProgram = updateProgramHash(state.candidate);
-  state.directory = `existing-updates-synthetic-v2/${state.lane}/${state.databaseIdentity}`;
+  state.directory = `existing-updates-synthetic-v3/${state.lane}/${state.databaseIdentity}`;
+  const legacyDirectory = `existing-updates-synthetic-v2/${state.lane}/${state.databaseIdentity}`;
   const bound = Object.freeze({ profile: PROFILE, lane: state.lane, sourceCommit: state.sourceCommit,
     origin: state.origin, databaseIdentity: state.databaseIdentity, runtimeDigest: updateDigest(state.runtime),
     candidateSha256: state.candidateSha256, candidateProgram: state.candidateProgram,
-    candidateSchemaDigest: state.schema.digest });
+    candidateSchemaDigest: state.schema.digest, definitionPolicy: state.schema.definitionPolicy });
   const file = (digest, kind) => `${state.directory}/${digest}.${kind}.json`;
   // All contenders for a predecessor occupy the same O_EXCL slot, even when
   // they select different candidates. The full inspection digest still binds
@@ -133,6 +135,9 @@ export function createSyntheticExistingUpdateAdapter(value) {
     return record;
   };
   const inventory = () => {
+    // Earlier records attest only tables and visible plan text. Keep them intact;
+    // do not start a new chain that silently presents them as full definitions.
+    if (state.privateState.list({ root: 'runtime', relativeDirectory: legacyDirectory }).length !== 0) fail('LEGACY_RECORDS_UNSUPPORTED');
     const names = state.privateState.list({ root: 'runtime', relativeDirectory: state.directory });
     const records = new Map();
     for (const name of names) {
@@ -152,6 +157,7 @@ export function createSyntheticExistingUpdateAdapter(value) {
       updateExact(old.binding, Object.keys(bound));
       if (old.binding.profile !== PROFILE || old.binding.lane !== state.lane
         || old.binding.databaseIdentity !== state.databaseIdentity || !UPDATE_HASH.test(old.attemptId)
+        || old.binding.definitionPolicy !== EXISTING_UPDATE_DEFINITION_POLICY
         || old.binding.origin !== state.origin || old.binding.runtimeDigest !== bound.runtimeDigest
         || !/^[a-f0-9]{40}$/u.test(old.binding.sourceCommit)
         || ![old.binding.candidateSha256, old.binding.candidateProgram, old.binding.candidateSchemaDigest].every(digest => UPDATE_HASH.test(digest))) fail('RECORD_INVALID');
@@ -258,7 +264,7 @@ export function createSyntheticExistingUpdateAdapter(value) {
         rowsDigest: value.rowsDigest, count: value.count });
     }
     if (before !== await program()) fail('PROGRAM_CHANGED_DURING_READ');
-    return { program: before, schemaDigest: schema.digest, tables };
+    return { program: before, schemaDigest: schema.digest, definitionPolicy: schema.definitionPolicy, tables };
   }
   function preserved(inspection, after) {
     const before = inspection.before;
