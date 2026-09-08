@@ -2,6 +2,9 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { describePtrArtifact } from '../scripts/ptr-artifact-description.mjs';
+import { updateProgramHash } from '../scripts/sealed-realms-existing-update-protocol.mjs';
 import { resolve } from 'node:path';
 
 import {
@@ -20,17 +23,32 @@ import { PtrProductionReceiptFileError } from '../scripts/ptr-production-receipt
 const DATABASE_IDENTITY = '1'.repeat(64);
 const G002_IDENTITY = '2'.repeat(64);
 const SOURCE_COMMIT = 'a'.repeat(40);
-const MODULE_SHA256 = 'b'.repeat(64);
+const MODULE_BYTES = Buffer.from('synthetic CLI artifact fixture');
+const MODULE_SHA256 = createHash('sha256').update(MODULE_BYTES).digest('hex');
 const MODULE_TREE_ID = 'c'.repeat(40);
 const DEPENDENCY_DIGEST = 'd'.repeat(64);
 const SPACETIME_DIGEST = 'e'.repeat(64);
 const CLI_CONFIG_DIGEST = 'f'.repeat(64);
 const ADMIN_SECRET = 's'.repeat(48);
 
+// CLI dependency fixture only: no actual compiled module or executable authority.
+// Use the real decoder so newly required description provenance stays complete.
+const ARTIFACT_DESCRIPTION = describePtrArtifact({
+  artifactDescriptor: 3,
+  artifactSha256: MODULE_SHA256,
+  assertArtifact: () => {},
+  cli: { directory: resolve('/private/fixture-cli'), verify: () => {},
+    provenance: { standaloneExecutableSha256: SPACETIME_DIGEST } },
+  spawn: () => ({ status: 0, signal: null, stderr: Buffer.alloc(0),
+    stdout: readFileSync(new URL('./fixtures/ptr-artifact-description-2.6.1/first.json', import.meta.url)) }),
+});
+
 function artifact() {
   return {
     sourceCommit: SOURCE_COMMIT,
     moduleSha256: MODULE_SHA256,
+    moduleProgramHash: updateProgramHash(MODULE_BYTES),
+    artifactDescription: ARTIFACT_DESCRIPTION,
     moduleTreeId: MODULE_TREE_ID,
     dependencyClosureDigest: DEPENDENCY_DIGEST,
     spacetimeExecutableSha256: SPACETIME_DIGEST,
@@ -188,8 +206,9 @@ describe('PTR production publisher CLI', () => {
       artifactDigest: MODULE_SHA256,
       toolchainDigest:
         'fe719e82be69a991c0b250c8791cfe4d526890d187f383f50d011afaa4246c09',
+      // Plan vector commits MODULE_BYTES via MODULE_SHA256 and the fixed publish argv.
       publishPlanDigest:
-        '7534fcff25ab8767ce4ccfdadca50197ffd6ee4493308b6d5b79144ce8dba276',
+        '89cd8fd7e59d8129213a41eebbee6d3aceb3e333eeac5e9a60eebd299584e314',
       confirmationDigest,
       attemptNonce: '8'.repeat(64),
       markedAt: '2026-08-30T12:34:56.789Z',
@@ -262,8 +281,9 @@ describe('PTR production publisher CLI', () => {
       artifactDigest: MODULE_SHA256,
       toolchainDigest:
         'fe719e82be69a991c0b250c8791cfe4d526890d187f383f50d011afaa4246c09',
+      // Plan vector commits MODULE_BYTES via MODULE_SHA256 and the fixed publish argv.
       publishPlanDigest:
-        '7534fcff25ab8767ce4ccfdadca50197ffd6ee4493308b6d5b79144ce8dba276',
+        '89cd8fd7e59d8129213a41eebbee6d3aceb3e333eeac5e9a60eebd299584e314',
       confirmationDigest,
       attemptNonce: '8'.repeat(64),
       markedAt: '2026-08-30T12:34:56.789Z',
