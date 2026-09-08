@@ -5,6 +5,20 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Native inspector loading correction
+
+The native CI run for `0201ca4` failed its two separate-process inspection races.
+The new production adapter import reaches TypeScript build helpers; the synthetic
+child launched plain Node and failed on an extensionless TypeScript import before
+reaching the barrier. The source-level child now uses the locked `tsx` loader.
+An always-running child import check covers this dependency graph, and early
+child failures retain their original error instead of becoming a barrier timeout.
+The barrier duration and native preservation/concurrency assertions are unchanged.
+
+Windows regression checks and focused strict types passed. Native concurrency
+must still pass CI; production uses generated Node22 bundles and requires fresh
+bundle verification separately. This correction does not enable deployment.
+
 ## Production PTR update adapter implementation
 
 The existing production factory now constructs an adapter from genuine source,

@@ -50,6 +50,46 @@ if (process.env.WARPKEEP_REQUIRE_SYNTHETIC_NETWORK === '1' && !supported) {
   throw new Error('Required isolated existing-update coverage is unavailable');
 }
 
+// Share the exact child launch contract with the always-running import regression.
+function startInspector(arguments_: string[]) {
+  const child = spawn(process.execPath, ['--import', 'tsx', join(process.cwd(), 'tests/fixtures/sealedRealmsExistingUpdateInspector.mjs'), ...arguments_],
+    { env: { ...process.env, NODE_ENV: 'test' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  let failure: Error | undefined, completed = false;
+  const outcome = new Promise<string>((resolve, reject) => {
+    let output = '', errors = '';
+    child.stdout!.on('data', chunk => { output += chunk; });
+    child.stderr!.on('data', chunk => { errors += chunk; });
+    child.once('error', reject);
+    child.once('close', (code, signal) => code === 0 ? resolve(output.trim())
+      : reject(new Error(`Inspector exited ${code} (${signal ?? 'no signal'}): ${errors}`)));
+  });
+  void outcome.then(() => { completed = true; }, error => { failure = error; });
+  return { child, outcome, assertRunning() {
+    if (failure) throw failure;
+    if (completed) throw new Error('Inspector exited successfully before predecessor barrier');
+  } };
+}
+async function waitForInspectorBarrier(inspectors: ReturnType<typeof startInspector>[], ready: () => boolean) {
+  const deadline = Date.now() + 8000;
+  while (!ready()) {
+    for (const inspector of inspectors) inspector.assertRunning();
+    if (Date.now() >= deadline) throw new Error('Inspectors did not reach the same predecessor barrier');
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+}
+it('imports the real inspector dependency graph in a separate Node process without native isolation', async () => {
+  const inspector = startInspector(['--import-only']);
+  try { expect(await inspector.outcome).toBe('inspector-imported'); }
+  finally { if (inspector.child.exitCode === null && inspector.child.signalCode === null) inspector.child.kill('SIGKILL'); }
+});
+it('reports a terminal child error before masking it as a predecessor barrier timeout', async () => {
+  const inspector = startInspector(['unused', 'invalid-label']);
+  try {
+    await expect(waitForInspectorBarrier([inspector], () => false)).rejects.toThrow('Invalid test process label');
+    await expect(inspector.outcome).rejects.toThrow('Invalid test process label');
+  } finally { if (inspector.child.exitCode === null && inspector.child.signalCode === null) inspector.child.kill('SIGKILL'); }
+});
+
 async function fixture(lane: 'g002' | 'ptr' = 'g002') {
   const root = mkdtempSync(join(tmpdir(), 'warpkeep-existing-update-test-')); chmodSync(root, 0o700);
   const home = join(root, 'home');
@@ -340,24 +380,13 @@ describe('actual update dispatcher, private continuation and isolated HTTP adapt
         writeFileSync(configuration, bytes({ root: f.root, origin: f.origin, lane: 'g002', sourceCommit: SOURCE,
           databaseIdentity: ID, candidateBase64: candidate.toString('base64'), credential: SECRET,
           schema: schema(candidate.equals(C) ? ['ledger', 'gameplay04_receipt_v1', 'maintenance'] : ['ledger', 'gameplay04_receipt_v1']) }), { mode: 0o600 });
-        const child = spawn(process.execPath, [join(process.cwd(), 'tests/fixtures/sealedRealmsExistingUpdateInspector.mjs'), configuration, label],
-          { env: { ...process.env, NODE_ENV: 'test' }, stdio: ['ignore', 'pipe', 'pipe'] });
-        children.push(child);
-        return new Promise<string>((resolve, reject) => {
-          let output = '', errors = '';
-          child.stdout!.on('data', chunk => { output += chunk; });
-          child.stderr!.on('data', chunk => { errors += chunk; });
-          child.once('error', reject);
-          child.once('exit', code => code === 0 ? resolve(output.trim()) : reject(new Error(`Inspector exited ${code}: ${errors}`)));
-        });
+        const inspector = startInspector([configuration, label]);
+        children.push(inspector.child);
+        return inspector;
       });
       // Observe all rejection paths immediately while the parent serves both HTTP clients.
-      const settled = Promise.allSettled(outcomes);
-      const deadline = Date.now() + 8000;
-      while (!['first', 'second'].every(label => existsSync(join(f.root, `${label}.ready`)))) {
-        if (Date.now() >= deadline) throw new Error('Inspectors did not reach the same predecessor barrier');
-        await new Promise(resolve => setTimeout(resolve, 10));
-      }
+      const settled = Promise.allSettled(outcomes.map(inspector => inspector.outcome));
+      await waitForInspectorBarrier(outcomes, () => ['first', 'second'].every(label => existsSync(join(f.root, `${label}.ready`))));
       writeFileSync(join(f.root, 'release-inspectors'), '', { flag: 'wx', mode: 0o600 });
       const results = await settled;
       expect(results.every(result => result.status === 'fulfilled')).toBe(true);

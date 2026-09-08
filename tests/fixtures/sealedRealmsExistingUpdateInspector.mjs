@@ -5,6 +5,10 @@ import { createSealedRealmsProductionPrivateState } from '../../scripts/sealed-r
 import { authenticateSealedRealmsProductionSourceAuthority } from '../../scripts/sealed-realms-production-source-authority.mjs';
 import { createSyntheticExistingUpdateAdapter } from '../../scripts/sealed-realms-production-existing-update.mjs';
 
+// Import-only mode exercises all real static dependencies without native operations.
+if (process.argv[2] === '--import-only') {
+  process.stdout.write('inspector-imported\n');
+} else {
 const [configuration, label] = process.argv.slice(2);
 if (!['first', 'second'].includes(label)) throw new Error('Invalid test process label');
 const input = JSON.parse(readFileSync(configuration, 'utf8'));
@@ -37,3 +41,5 @@ try {
 } catch (error) {
   process.stdout.write(`${error.code ?? 'inspection-refused'}\n`);
 } finally { adapter.dispose(); }
+
+}
