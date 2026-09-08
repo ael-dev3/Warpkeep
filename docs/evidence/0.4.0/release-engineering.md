@@ -614,3 +614,14 @@ it was excluded from the generated export. The newer candidate reader, inventory
 fixes, security helpers and keep feedback likewise do not belong to this prepared
 input. Their next combined source needs fresh derivation. The result remains
 `finalReleasePrepared:false`; no production authorization or deployment occurred.
+
+## G001 compiled public-value scanner scope — 2026-09-08
+
+The independently rebuilt G001 bundle contains the same public boolean schema
+key and recovery verification-key thumbprint already allowed in the other fixed
+lane bundles. The existing two scanner exceptions now include only its exact
+anchored path, retaining the exact values, rule scope and AND condition. Generated
+bytes and scanner rules remain unchanged. Real Gitleaks 8.30.1 regression passed
+22 accepted cases and all 33 required negative findings, including altered values
+and unchanged values at a lookalike path. The six native scanner unit tests passed.
+The actual outgoing commit range must also pass before publication.

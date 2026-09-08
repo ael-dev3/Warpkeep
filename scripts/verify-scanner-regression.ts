@@ -31,6 +31,7 @@ function fixture() {
     ['scripts/sealed-realms-production-activation-records.mjs', [schema]],
     ['services/release-recovery/src/recoveryPublicKey.ts', [thumbprint]],
     ['scripts/sealed-realms-production-activation-lane.bundle.mjs', [schema, thumbprint]],
+    ['scripts/sealed-realms-production-g001-lane.bundle.mjs', [schema, thumbprint]],
     ['scripts/sealed-realms-production-g002-lane.bundle.mjs', [schema, thumbprint]],
     ['scripts/sealed-realms-production-ptr-lane.bundle.mjs', [schema, thumbprint]],
   ];
@@ -41,6 +42,9 @@ function fixture() {
   const wrongValues = [...hashes, fid, owner, schema, thumbprint];
   files.set('wrong-public-values.ts', wrongValues.map((value, index) => `const API_KEY_${index} = '${value}';\n`).join(''));
   wrongValues.forEach((_, index) => expected.push(`generic-api-key:wrong-public-values.ts:${index + 1}`));
+  const wrongBundlePath = 'scripts/sealed-realms-production-g001-lane.bundle.mjs.copy';
+  files.set(wrongBundlePath, [schema, thumbprint].map((value, index) => `const API_KEY_${index} = '${value}';\n`).join(''));
+  [schema, thumbprint].forEach((_, index) => expected.push(`generic-api-key:${wrongBundlePath}:${index + 1}`));
   const rpc = ['AAECAwQFBgcICQoL', 'DA0ODxAREhMUFRYX', 'GBkaGxwdHh8'].join('');
   const rpcPath = 'services/auth-bridge/test/releaseRecoveryConfig.test.ts';
   files.set(rpcPath, `const RPC_CREDENTIAL = '${rpc}';\nconst OTHER_RPC_CREDENTIAL = '${rpc}x';\n`);
