@@ -1,17 +1,25 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import { Identity } from 'spacetimedb';
 import { genesis002AdminClaims, adminClaims, ptrAtlasAdminClaims } from '../services/auth-bridge/src/jwt';
 import { spacetimeIdentityFromClaims } from '../services/auth-bridge/src/spacetimeIdentity';
 import { readFreshGenesis002AdminClaims } from '../spacetimedb/genesis002/src/adminPolicy';
-import { requireGenesis002Admin } from '../spacetimedb/genesis002/src/auth';
 import type { Genesis002Context } from '../spacetimedb/genesis002/src/population';
 import type { BridgeConfig } from '../services/auth-bridge/src/config';
 
 // Node cannot initialize the server-only SDK runtime. Keep only its error
 // constructor boundary here; the actual auth function and parser remain intact.
 // The separate pinned-host diagnostic verifies the real server integration.
-vi.mock('spacetimedb/server', () => ({ SenderError: class SenderError extends Error {} }));
+// Resolve from the actual module importer: CI installs its own pnpm SDK copy,
+// whose server entry differs from the root application's SDK entry.
+const moduleRequire = createRequire(new URL('../spacetimedb/genesis002/src/auth.ts', import.meta.url));
+// The pinned SDK exports this ESM server entry; its advertised CJS server entry
+// is absent, so resolving the server with require.resolve is not supported.
+const serverEntry = join(dirname(moduleRequire.resolve('spacetimedb')), 'server/index.mjs');
+vi.doMock(serverEntry, () => ({ SenderError: class SenderError extends Error {} }));
+const { requireGenesis002Admin } = await import('../spacetimedb/genesis002/src/auth');
 
 const ISSUER = 'https://auth.warpkeep.com';
 const NOW = 1_800_000_000;
