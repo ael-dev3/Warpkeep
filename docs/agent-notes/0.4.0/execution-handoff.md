@@ -5,6 +5,25 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Portrait keep framing — September 9
+
+The portrait WebGL scene now uses the available panel width while retaining
+padded controls. Matched actual-renderer synthetic captures cover empty/mature,
+placement, construction, completed and fallback states. Portrait picking and
+selected-site inspection worked; desktop, short landscape and fallback dimensions
+were unchanged. Scene resources were unchanged, but the wider backing canvas
+increased pixel area by about 7.4% at the measured profile. This is a readability
+improvement, not physical-phone performance acceptance. Building/material cohesion,
+final visual coverage, live owner play and deployment remain unfinished.
+
+At preceding source `d6cfc5c`, native release preparation and its independent
+rebuild both passed with matching source/artifact provenance. The privileged Linux
+caller suite passed 31 cases; the bounded source/private-record rerun passed all
+17 selected scenarios with unchanged assertions. Final release preparation is
+still false. Runner registration succeeded, but service installation timed out
+in systemd; dedicated-distro recovery is underway. Do not claim an online runner
+or completed protected workflow from registration alone.
+
 ## Signed preparation configuration observation
 
 The recovery service now exposes a separate signed configuration observation for

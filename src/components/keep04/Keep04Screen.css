@@ -114,3 +114,11 @@
   .keep04 .keep04-draft { stroke: Highlight; }
   .keep04 .keep04-draft[data-valid="false"] { fill: Canvas; stroke: CanvasText; stroke-dasharray: 1 .7; }
 }
+/* Portrait overview uses the panel width; keep controls and fallback inset. */
+@media (max-width: 760px) and (orientation: portrait) {
+  .keep04 .keep04-scene[data-mode="webgl"] .keep04-scene-canvas {
+    width: calc(100% + 24px);
+    margin-inline: -12px;
+    border-radius: 0;
+  }
+}

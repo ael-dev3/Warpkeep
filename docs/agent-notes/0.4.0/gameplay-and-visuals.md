@@ -17,7 +17,7 @@ and use the completed improvement on a later journey or project. Read
 [product direction](../../design/warpkeep-direction.md) for the player promise;
 this page keeps precise mechanics, implementation routes and evidence limits.
 
-## September 8 visual foundation and complete reference coverage
+## Visual foundation and complete reference coverage
 
 At `ebd5fb1`, the owner direction prioritizes a professional mobile visual
 foundation with simple interaction. Preserve the useful existing loop; deeper
@@ -43,7 +43,7 @@ See the source routing table below for their entry points.
 | Reference(s), all preserved from handoff | Existing 0.4 implementation | Visible gap/question | Mobile-conscious application now |
 |---|---|---|---|
 | Owner Astra voxel-engine Reddit | K/A use existing bounded greedy mesher and generated dressing | Meshing exists; surface rhythm and chunky joins still need art review | Refine a few material groups and terrace edges; retain bounded merged faces, no editable terrain |
-| Owner Verdant Forest | K has two tinted, instanced tree bands, 18/12/6 trees by profile | Two repeated rear bands may read as a row rather than layered habitat | Curate gaps, grouped crowns and near/far value separation using the same instance budget |
+| Owner Verdant Forest | K has tinted, instanced tree groups with curated gaps and near/far separation | Review remaining repetition against building silhouettes and selected-site views | Preserve layered composition and profile budgets while refining only visibly repetitive groups |
 | Owner Pelagic Ocean | W now supplies two broad swells, fine ripple, teal/sky accents | Actual atlas-distance highlight scale and calm shoreline still need comparison | Tune existing single-pass slope/color amplitude at matching camera; preserve reduced branch and unchanged wet-cell footprint |
 | Owner Dream Loop + Vesper demo | Representative scene harness and prior 390/600/1440 comparisons already exist | Latest atlas/keep material family lacks one coherent current target and retained critique | Matching-resolution current/target captures, independent concise critique, carry unresolved items; no realism mandate or numerical gate |
 | TUMBLE meadow | K instancing; A feature batching/quality limits | Meadow-to-forest transition and selective quiet areas need composition attention | Sparse authored foreground clumps and one shared motion rhythm only where visible; no wildlife simulation |
@@ -87,6 +87,15 @@ implemented at the checkpoint above. Further work should concentrate on building
 proportions, coherent material response, geographic hierarchy, selected-site and
 construction views, loading/resume behavior and actual-device measurements.
 Avoid repeating the completed forest/terrace changes as unfinished work.
+
+September 9 review against the complete Desktop handoff confirmed this coverage
+and the owner's simple-interaction scope. At `2e91f27`, the resource panel also
+removed repeated zero-pending labels while retaining positive incoming amounts
+and spendable balances. Matched synthetic empty/mature views supported that change;
+physical-phone performance remains unverified. The portrait canvas now uses the scene panel width, preserving the padded
+toolbar and desktop/landscape layouts. Camera tightening and roof recoloring require their own
+evidence: tall edge placements must remain visible, and mixed vertex-colored
+building meshes cannot be globally tinted without also changing walls and timber.
 
 ## Current state at a glance
 
@@ -296,9 +305,11 @@ integration/smoke/connected tooling. Existing atlas/G001 probes are not substitu
 ### V01 — water polish must target the renderer actually used by 0.4
 
 The [Pelagic study](../../operations/2026-09-06-water-visual-reference.md) is visual
-inspiration, not copied source or completed implementation. Actual 0.4/PTR water
-comes from `src/greater-realm/createGreaterRealmSceneRuntime.ts` (`waterMesh`),
-using per-cell geometry and a standard material with color/opacity animation.
+inspiration, not copied source. Actual 0.4/PTR water comes from
+`src/greater-realm/createGreaterRealmSceneRuntime.ts` (`waterMesh`), which now uses
+`greaterRealmWaterSurface.ts` for a continuous single-pass surface with layered
+swells and ripples. The September 8 implementation and its bounded evidence are
+recorded below; the earlier color/opacity-only implementation is superseded.
 The richer analytic wave/foam shader in `src/components/realm/realmWaterLayer.ts` is
 used by legacy G001 `createRealmScene.ts`, not this runtime.
 
