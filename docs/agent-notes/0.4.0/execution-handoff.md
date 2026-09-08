@@ -39,14 +39,11 @@ or live-module substitutions and invalid continuation run facts are rejected.
 Tests use real private-state and semantic validators where described, with
 synthetic fixture evidence; they are not live provider or owner-play proof.
 
-The actual corpus-to-candidate test identifies thirteen still-missing fields:
-recovery authorization request ID and epoch; auth-worker version ID, source,
-configuration identity and configuration epoch; source-closure digest; G001 and
-G002 program hashes; auth-bridge source and suspension digest; G002 and PTR public
-approval IDs. The PTR program hash now comes from the completed update receipt.
-Four bridge fields already have an authenticated chain owner but need a connected
-reader; other fields need their actual producers. A synthetically complete test
-candidate is not evidence that this operating path is complete.
+At the earlier V3 checkpoint, corpus-only inspection identified thirteen missing
+producer fields. The connected bridge reader described above now supplies four
+of them, leaving nine. The PTR program hash comes from the completed update
+receipt. A synthetically complete test candidate does not establish operating
+readiness; the remaining inputs still need their actual producers.
 
 Final root Windows checks passed 44 V3, writer, generator and bundle tests,
 plus focused strict types. Selected V2 descriptor regressions passed 43 tests
@@ -81,8 +78,8 @@ skipped), plus lifecycle, bundle and existing runtime regression checks. Focused
 strict types and independent reviews passed. The previous published native
 integration passed all eight cases; newly extended receipt assertions need new
 native CI. This is development integration, not a live activation. Private V3
-corpus/generator support and authenticated import/owner continuity remain
-unfinished. Gameplay, Verdant Citadel polish and live release acceptance remain
+corpus/generator data support was completed in the later checkpoint above;
+authenticated historical import/owner continuity remains unfinished. Gameplay, Verdant Citadel polish and live release acceptance remain
 part of the full 0.4 objective.
 
 ## Joined production update continuation checks
