@@ -1,3 +1,4 @@
+import type { SealedRealmsProductionRecoveryProgramArtifacts } from './sealed-realms-production-recovery-program-artifacts.mjs';
 import type { SealedRealmsProductionRecoverySourceClosure } from './sealed-realms-production-recovery-source-closure.mjs';
 import type { SealedRealmsProductionRecoveryPreparation } from './sealed-realms-production-recovery-preparation.mjs';
 import type { SealedRealmsProductionAuthBridgeState } from './sealed-realms-production-auth-bridge-state.mjs';
@@ -7,6 +8,7 @@ import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-prod
 type Input = Readonly<{ records: SealedRealmsProductionActivationRecords;
   privateState: SealedRealmsProductionPrivateState; authority: SealedRealmsProductionSourceAuthority;
   sourceClosure?: SealedRealmsProductionRecoverySourceClosure;
+  programArtifacts?: SealedRealmsProductionRecoveryProgramArtifacts;
   preparation?: SealedRealmsProductionRecoveryPreparation;
   bridgeState?: SealedRealmsProductionAuthBridgeState;
   readContext?: SealedRealmsRecoveryCandidateReadContext }>;

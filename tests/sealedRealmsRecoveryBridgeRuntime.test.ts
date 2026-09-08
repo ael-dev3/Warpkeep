@@ -1,6 +1,9 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from "vitest";
 const f = vi.hoisted(() => ({
+  programArtifacts: Object.freeze({}),
+  programs: vi.fn(),
+  disposePrograms: vi.fn(),
   sourceClosure: Object.freeze({}),
   preparation: Object.freeze({}),
   prepare: vi.fn(),
@@ -88,6 +91,7 @@ beforeEach(() => {
   f.failStage = "";
   f.dispatch.mockReset();
   f.prepare.mockResolvedValue(f.preparation);
+  f.programs.mockReset().mockResolvedValue(f.programArtifacts);
 });
 vi.mock('../scripts/sealed-realms-production-recovery-preparation.mjs', () => ({
   createSealedRealmsProductionRecoveryPreparation: f.prepare,
@@ -108,9 +112,11 @@ it("passes the constructed runtime bridge into the real candidate callback with 
     authority: f.authority,
     bridgeState: f.bridge,
     sourceClosure: f.sourceClosure,
+    programArtifacts: f.programArtifacts,
     preparation: f.preparation,
     readContext: f.context,
   });
+  expect(f.programs.mock.invocationCallOrder[0]).toBeLessThan(f.prepare.mock.invocationCallOrder[0]);
   expect(f.prepare).toHaveBeenCalledExactlyOnceWith({ privateState: f.state, authority: f.authority });
 });
 
@@ -124,7 +130,7 @@ it.each(["records", "generator", "lane", "context"])(
         workflowInputSha: "a".repeat(40),
       }),
     ).rejects.toThrow("fixture failure");
-    expect(f.dispose).toHaveBeenCalledExactlyOnceWith(f.sourceClosure);
+    expect(f.dispose).toHaveBeenCalledExactlyOnceWith(f.sourceClosure); expect(f.disposePrograms).toHaveBeenCalledExactlyOnceWith(f.programArtifacts);
     expect(f.disposePreparation).toHaveBeenCalledExactlyOnceWith(f.preparation);
     expect(f.revoke).toHaveBeenCalledOnce();
   },
@@ -146,7 +152,7 @@ it.each([false, true])(
     });
     if (failed) await expect(operation).rejects.toThrow("dispatch failure");
     else await operation;
-    expect(f.dispose).toHaveBeenCalledExactlyOnceWith(f.sourceClosure);
+    expect(f.dispose).toHaveBeenCalledExactlyOnceWith(f.sourceClosure); expect(f.disposePrograms).toHaveBeenCalledExactlyOnceWith(f.programArtifacts);
     expect(f.disposePreparation).toHaveBeenCalledExactlyOnceWith(f.preparation);
     expect(f.revoke).toHaveBeenCalledOnce();
   },
@@ -166,14 +172,25 @@ it("disposes closure when evidence refresh fails before dispatch", async () => {
     }),
   ).rejects.toThrow("fixture refresh failure");
   expect(f.dispatch).not.toHaveBeenCalled();
-  expect(f.dispose).toHaveBeenCalledExactlyOnceWith(f.sourceClosure);
+  expect(f.dispose).toHaveBeenCalledExactlyOnceWith(f.sourceClosure); expect(f.disposePrograms).toHaveBeenCalledExactlyOnceWith(f.programArtifacts);
   expect(f.disposePreparation).toHaveBeenCalledExactlyOnceWith(f.preparation);
   expect(f.revoke).toHaveBeenCalledOnce();
 });
 it('disposes the existing closure and revokes evidence when preparation authentication fails', async () => {
   f.prepare.mockRejectedValueOnce(Error('preparation failure'));
   await expect(createSealedRealmsProductionActivationWorkflowRuntime({ operation: 'activation-evidence-generate', workflowInputSha: 'a'.repeat(40) })).rejects.toThrow('preparation failure');
-  expect(f.dispose).toHaveBeenCalledExactlyOnceWith(f.sourceClosure);
+  expect(f.dispose).toHaveBeenCalledExactlyOnceWith(f.sourceClosure); expect(f.disposePrograms).toHaveBeenCalledExactlyOnceWith(f.programArtifacts);
   expect(f.disposePreparation).not.toHaveBeenCalled();
+  expect(f.revoke).toHaveBeenCalledOnce();
+});
+vi.mock('../scripts/sealed-realms-production-recovery-program-artifacts.mjs', () => ({
+  createSealedRealmsProductionRecoveryProgramArtifacts: f.programs,
+  disposeSealedRealmsProductionRecoveryProgramArtifacts: f.disposePrograms,
+}));
+it('builds fixed programs before acquiring expiring preparation and stops before preparation on build failure', async () => {
+  f.programs.mockRejectedValueOnce(Error('program failure'));
+  await expect(createSealedRealmsProductionActivationWorkflowRuntime({ operation: 'activation-evidence-generate', workflowInputSha: 'a'.repeat(40) })).rejects.toThrow('program failure');
+  expect(f.prepare).not.toHaveBeenCalled();
+  expect(f.disposePrograms).not.toHaveBeenCalled();
   expect(f.revoke).toHaveBeenCalledOnce();
 });

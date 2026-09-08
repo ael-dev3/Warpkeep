@@ -1,3 +1,4 @@
+import { readSealedRealmsProductionRecoveryProgramArtifacts } from './sealed-realms-production-recovery-program-artifacts.mjs';
 import { readSealedRealmsProductionRecoverySourceClosure } from './sealed-realms-production-recovery-source-closure.mjs';
 import { readSealedRealmsProductionRecoveryPreparation } from './sealed-realms-production-recovery-preparation.mjs';
 import { readSealedRealmsProductionRecoveryApprovalFacts } from './sealed-realms-production-recovery-approval-facts.ts';
@@ -33,7 +34,7 @@ function input(value) {
   if (types.isProxy(value) || value === null || typeof value !== 'object'
     || Object.getPrototypeOf(value) !== Object.prototype) fail();
   const descriptors = Object.getOwnPropertyDescriptors(value);
-  const keys = ['records', 'privateState', 'authority', ...(Object.hasOwn(descriptors, 'bridgeState') ? ['bridgeState'] : []), ...(Object.hasOwn(descriptors, 'readContext') ? ['readContext'] : []), ...(Object.hasOwn(descriptors, 'sourceClosure') ? ['sourceClosure'] : []), ...(Object.hasOwn(descriptors, 'preparation') ? ['preparation'] : [])];
+  const keys = ['records', 'privateState', 'authority', ...(Object.hasOwn(descriptors, 'bridgeState') ? ['bridgeState'] : []), ...(Object.hasOwn(descriptors, 'readContext') ? ['readContext'] : []), ...(Object.hasOwn(descriptors, 'sourceClosure') ? ['sourceClosure'] : []), ...(Object.hasOwn(descriptors, 'preparation') ? ['preparation'] : []), ...(Object.hasOwn(descriptors, 'programArtifacts') ? ['programArtifacts'] : [])];
   if (Reflect.ownKeys(descriptors).length !== keys.length) fail();
   return Object.fromEntries(keys.map(key => {
     if (!descriptors[key]?.enumerable || !Object.hasOwn(descriptors[key], 'value')) fail();
@@ -94,6 +95,10 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
     ? readSealedRealmsProductionRecoveryPreparation({ capability: options.preparation, privateState: options.privateState, authority: options.authority })
     : Object.freeze({});
   const preparation = readPreparation();
+  const readPrograms = () => Object.hasOwn(options, 'programArtifacts')
+    ? readSealedRealmsProductionRecoveryProgramArtifacts({ capability: options.programArtifacts, privateState: options.privateState, authority: options.authority, records: options.records, ...(options.readContext === undefined ? {} : { readContext: options.readContext }) })
+    : Object.freeze({});
+  const programs = readPrograms();
   const readApprovals = () => readSealedRealmsProductionRecoveryApprovalFacts({ records: options.records,
     privateState: options.privateState, authority: options.authority, readContext: options.readContext });
   const approvals = readApprovals();
@@ -103,7 +108,7 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
   if (update && Object.hasOwn(corpus.projection, 'ptrPublishReceiptDigest')) fail();
   const keys = update ? RECOVERY_BINDING_KEYS_V3 : RECOVERY_BINDING_KEYS_V2;
   const facts = { ...(update ? recoveryActivationCandidatePolicyForVersion(3) : recoveryActivationCandidatePolicy()) };
-  for (const projection of [corpus.projection, bridge, approvals, closure, preparation, {
+  for (const projection of [corpus.projection, bridge, approvals, closure, preparation, programs, {
     preparationSourceCommit: actual.preparationSourceCommit, preparationSourceTree: actual.preparationSourceTree }]) {
     for (const [key, value] of Object.entries(projection)) {
       if (!keys.includes(key) || (Object.hasOwn(facts, key) && facts[key] !== value)) fail();
@@ -114,6 +119,7 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
     || JSON.stringify(bridge) !== JSON.stringify(readBridge())
     || JSON.stringify(approvals) !== JSON.stringify(readApprovals())
     || JSON.stringify(closure) !== JSON.stringify(readClosure())
+    || JSON.stringify(programs) !== JSON.stringify(readPrograms())
     || JSON.stringify(actual) !== JSON.stringify(source(commit))
     || JSON.stringify(preparation) !== JSON.stringify(readPreparation())) fail();
   const ordered = Object.freeze(Object.fromEntries(keys

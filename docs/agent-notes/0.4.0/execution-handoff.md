@@ -31,12 +31,16 @@ The new --program-artifacts mode retains exact reproducible frozen G001 and curr
 G002 module bytes, SHA256 and Keccak256 through the attested package path. Focused
 parent/helper tests and strict types pass. Actual native program-artifact execution
 at 0e0b0e4 completed both reproducible G001/G002 lanes and the pinned Keccak path.
-The opaque recovery consumer remains under integration. The paired native diagnostic reached PTR and found missing
+The opaque recovery consumer is now connected to the actual candidate and workflow
+lifecycle, with genuine corpus crosslinks and final preparation freshness preserved.
+Its focused checks use a mocked native producer; actual native artifact production
+has separate success evidence. Full authenticated workflow execution remains pending. The paired native diagnostic reached PTR and found missing
 pinned archives in cache/ptr. The reviewed [PTR cache bootstrap](../../operations/ptr-local-binding-cache.md)
 now follows its own committed lock with integrity and no-clobber checks. Focused
 tests and types pass. Actual installation at 40b676a verified all selected PTR
-archives. The paired run was interrupted without retained terminal success;
-its process is absent and a logged rerun is required.
+archives. The normal logged paired rerun at ebd5fb1 passed both reproducible
+G002/PTR lanes and binding generation. Its retained output is native build evidence,
+not deployed program equality or owner acceptance.
 Generated deployment closure outputs were regenerated and reproduced identically;
 this is source consistency evidence, not an operating bundle or live release.
 
@@ -688,7 +692,10 @@ the genuine source/private-state capability, with exact receipt retention and
 final freshness checks. The complete joined fixture passed: reservation and
 configuration inputs reduce the missing set from six to the two native program
 hashes. Earlier Windows timeouts are retained; only duplicate test inspections
-were removed. Native program-hash consumption remains under integration.
+were removed. The new program capability supplies those fields from its fixed native producer
+and authenticated source/corpus ownership. The actual bundle now constructs and
+imports with corrected checkout paths; existing engine regression checks pass.
+Native execution of the fully bundled workflow remains to be established.
 
 Terrace tops now use muted ground cover with subdued retaining stone. Matching
 desktop/mobile and reduced-quality captures preserve rendering resources and

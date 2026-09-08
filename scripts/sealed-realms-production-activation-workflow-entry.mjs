@@ -1,3 +1,4 @@
+import { createSealedRealmsProductionRecoveryProgramArtifacts, disposeSealedRealmsProductionRecoveryProgramArtifacts } from './sealed-realms-production-recovery-program-artifacts.mjs';
 import { createSealedRealmsProductionRecoverySourceClosure, disposeSealedRealmsProductionRecoverySourceClosure } from './sealed-realms-production-recovery-source-closure.mjs';
 import { createSealedRealmsProductionRecoveryPreparation, disposeSealedRealmsProductionRecoveryPreparation } from './sealed-realms-production-recovery-preparation.mjs';
 import { execFileSync } from 'node:child_process';
@@ -196,10 +197,11 @@ async function buildDispatcher(operation, workflowInputSha, evidence, lifecycle)
   let records;
   if (operation === 'activation-evidence-generate') {
     lifecycle.sourceClosure = await createSealedRealmsProductionRecoverySourceClosure({ privateState, authority });
+    lifecycle.programArtifacts = await createSealedRealmsProductionRecoveryProgramArtifacts({ privateState, authority });
     lifecycle.preparation = await createSealedRealmsProductionRecoveryPreparation({ privateState, authority });
     records = createSealedRealmsProductionActivationRecords({ privateState, authority,
       readBindingCandidate: (_source, _projection, readContext) =>
-        readSealedRealmsProductionRecoveryCandidate({ records, privateState, authority, bridgeState, readContext, sourceClosure: lifecycle.sourceClosure, preparation: lifecycle.preparation }) });
+        readSealedRealmsProductionRecoveryCandidate({ records, privateState, authority, bridgeState, readContext, sourceClosure: lifecycle.sourceClosure, programArtifacts: lifecycle.programArtifacts, preparation: lifecycle.preparation }) });
   }
   const lane = createSealedRealmsProductionActivationLane({ bridgeState,
     ...(operation === 'activation-evidence-generate' ? {
@@ -228,7 +230,7 @@ export async function createSealedRealmsProductionActivationWorkflowRuntime(inpu
   const workflowInputSha = sourceSha(options.workflowInputSha);
   const evidence = await createSealedRealmsProductionWorkflowEvidence({ workflowInputSha });
   const runtime = Object.freeze({});
-  const lifecycle = { sourceClosure: undefined, preparation: undefined };
+  const lifecycle = { sourceClosure: undefined, preparation: undefined, programArtifacts: undefined };
   try {
     runtimes.set(runtime, Object.freeze({
       operation,
@@ -237,10 +239,12 @@ export async function createSealedRealmsProductionActivationWorkflowRuntime(inpu
       dispatcher: await buildDispatcher(operation, workflowInputSha, evidence, lifecycle),
       sourceClosure: lifecycle.sourceClosure,
       preparation: lifecycle.preparation,
+      programArtifacts: lifecycle.programArtifacts,
     }));
     return runtime;
   } catch (error) {
     if (lifecycle.preparation !== undefined) disposeSealedRealmsProductionRecoveryPreparation(lifecycle.preparation);
+    if (lifecycle.programArtifacts !== undefined) disposeSealedRealmsProductionRecoveryProgramArtifacts(lifecycle.programArtifacts);
     if (lifecycle.sourceClosure !== undefined) disposeSealedRealmsProductionRecoverySourceClosure(lifecycle.sourceClosure);
     revokeSealedRealmsProductionWorkflowEvidence(evidence);
     throw error;
@@ -269,6 +273,7 @@ export async function runSealedRealmsProductionActivationOperation(input) {
     return await member.dispatcher.dispatch(Object.freeze({ operation, workflowInputSha }));
   } finally {
     if (member.preparation !== undefined) disposeSealedRealmsProductionRecoveryPreparation(member.preparation);
+    if (member.programArtifacts !== undefined) disposeSealedRealmsProductionRecoveryProgramArtifacts(member.programArtifacts);
     if (member.sourceClosure !== undefined) disposeSealedRealmsProductionRecoverySourceClosure(member.sourceClosure);
     revokeSealedRealmsProductionWorkflowEvidence(member.evidence);
   }

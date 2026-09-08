@@ -111,6 +111,7 @@ function portablePath(path) {
 }
 
 const PATH_TRANSFORMS = Object.freeze({
+  'scripts/local-binding-runtime-core.mjs': [['core.hooksPath=/dev/null', 1], ['/home/warpkeep/.warpkeep/release-preparation-v1', 1], ['/usr/bin/git', 1], ['/dev/null', 2]],
   'scripts/sealed-realms-production-ptr-workflow-entry.mjs': [['/home/runner', 1]],
   'scripts/ptr-artifact-description.mjs': [['/usr/bin:/bin', 1], ['/dev/fd/3', 1]],
   'scripts/generate-0.4.0-recovery-launch-activation.mjs': [['/dev/null', 3], ['/usr/bin/false', 1], ['/usr/bin:/bin', 1], ['/usr/bin/git', 1]],
@@ -162,6 +163,22 @@ function pathFreeSourceLiterals(source, sourcePath) {
       valueBootstrap,
       `${codePointExpression('const value=loaded.')} + operation + ${codePointExpression('({repoRoot:process.argv[2],destination:process.argv[3]});')}`,
     );
+  }
+  if (sourcePath === 'scripts/local-binding-runtime-core.mjs') {
+    const substitutions = [
+      ["resolve(dirname(fileURLToPath(import.meta.url)), '..')", 'process.cwd()'],
+      ["import('warpkeep:operation-bundle-packages')", `import(${codePointExpression('warpkeep:operation-bundle-packages')})`],
+      ['/sourceMappingURL/u.test(source)', `new RegExp(${codePointExpression('sourceMappingURL')}, 'u').test(source)`],
+    ];
+    for (const [expected, replacement] of substitutions) {
+      if (exactCount(rewritten, expected) !== 1) fail('SEALED_REALMS_BUNDLES_SOURCE_INVALID');
+      rewritten = rewritten.replace(expected, replacement);
+    }
+  }
+  if (sourcePath === 'scripts/sealed-realms-production-recovery-program-artifacts.mjs') {
+    const expected = 'realpathSync(new URL("..", import.meta.url))';
+    if (exactCount(rewritten, expected) !== 1) fail('SEALED_REALMS_BUNDLES_SOURCE_INVALID');
+    rewritten = rewritten.replace(expected, 'realpathSync(process.cwd())');
   }
   return rewritten;
 }
