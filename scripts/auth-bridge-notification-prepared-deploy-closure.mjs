@@ -1117,6 +1117,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'src/greater-realm/greaterRealmPublicContract.ts',
     'src/greater-realm/greaterRealmRuntimePolicy.ts',
     'src/greater-realm/greaterRealmTransport.ts',
+    'src/greater-realm/greaterRealmWaterSurface.ts',
     'src/greater-realm/greaterRealmWorkerControl.ts',
     'src/legal/alphaTermsPolicy.ts',
     'src/legal/publicDocuments.ts',

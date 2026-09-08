@@ -345,7 +345,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "69232b443b17b9e1317c6010ed2b9712b1825dd48417a7bb1b1d356038297029"
+      "sha256": "4076624bc57a9ace651008f35d459f0db9964d5c773abad871e2e3ea52725171"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -1150,7 +1150,7 @@
     {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c7a3f7c5f1d4d4cb3afec9577c6589bdda813b945a4a5cf91392c434610ff2bd"
+      "sha256": "feb030ef797691b270031af14be52bee2c09e0b14d6333f1e3eb1bdd776c3047"
     },
     {
       "path": "scripts/production-player-canary-admin-transport.ts",
@@ -1405,12 +1405,12 @@
     {
       "path": "scripts/recovery-attestation-source.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "4c29f3f3daa03b7ef4e66230ee9528bdef1e71c68b1a1881aa359e072fe8b539"
+      "sha256": "6cba5082eb915b4a04eb909f6893bfc16e80823dead1c4d98b1c6c10147eae94"
     },
     {
       "path": "scripts/recovery-attestation-source.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b5e1985429e9e3a44ce6e5589fa649e9e01ecc53700bbece206577e50dd20d35"
+      "sha256": "786d89ae2d236c22f3005fa88932c1d78f85b2e77897528d0f5aa36a9121e3fb"
     },
     {
       "path": "scripts/recovery-authorization-client.d.mts",
@@ -1465,7 +1465,7 @@
     {
       "path": "scripts/recovery-workflow-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "4a7df88f84fa2693db6ae2f45cfa562b366fce27a12b25aeed4378ed952ec548"
+      "sha256": "dd71497aeadf53aa8ad90aaab4b03adc903aece454f38b1643cee3f875573562"
     },
     {
       "path": "scripts/recovery-workflow-check-deployment.d.mts",
@@ -1600,7 +1600,7 @@
     {
       "path": "scripts/sealed-realms-production-activation-lane.bundle.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "1178737a1fdeca5092625cbd8fd0d896e95f03601ca5a8c1a1edcb087cd22e73"
+      "sha256": "a1cbdccfeaaccc0f74be2d6dcda56ba2c5fa9c14996ef0cc9b42ba4d1f302c94"
     },
     {
       "path": "scripts/sealed-realms-production-activation-records.d.mts",
@@ -1625,7 +1625,7 @@
     {
       "path": "scripts/sealed-realms-production-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ef10ac5498646f86c6af8edfe659a74f77ad3c0d7e0545493f9d481890d1c999"
+      "sha256": "38cf30c0e29d8a999dec38590ac22ec4cd9eb011683770c2447abe8af889cdd3"
     },
     {
       "path": "scripts/sealed-realms-production-continuation.d.mts",
@@ -1645,7 +1645,7 @@
     {
       "path": "scripts/sealed-realms-production-g001-lane.bundle.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "317a07ec1b3d92af8ca717424735cb5b7184eed1ea1b20914fc8d6d776a074a5"
+      "sha256": "8bcbafb70fa847a9b5a2d2a848d028d122685c2f6f99ce9320a12e479fe5470a"
     },
     {
       "path": "scripts/sealed-realms-production-g002-lane.bundle.d.mts",
@@ -1655,17 +1655,17 @@
     {
       "path": "scripts/sealed-realms-production-g002-lane.bundle.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "5e3473f8edac354577a6ce678f6ae79dde8380eabf145d6f7c26427278b04c4e"
+      "sha256": "a0ae2dd7c4c35f627e230e39631b05c2b03d02ef9235c4405549f8d6163e8db8"
     },
     {
       "path": "scripts/sealed-realms-production-private-state.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "89c815f4c5b271cc82ae89eb5c2a1b0ad747d18f122a80bbed80cd4c0ac3a140"
+      "sha256": "2ea7805ca70ab4dd781810f0a2fbbbdb8ba609f337b5a1d679e86c10d36d2319"
     },
     {
       "path": "scripts/sealed-realms-production-private-state.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "71ebbd68f1026b7ab86e6ba1efcc40599b62de574708bef551b3a9fe55b14fe1"
+      "sha256": "b8c4a7256272da365965cc3b3bc8f163485f84724ab646c9b2f468a9e40576de"
     },
     {
       "path": "scripts/sealed-realms-production-ptr-lane.bundle.d.mts",
@@ -1675,17 +1675,17 @@
     {
       "path": "scripts/sealed-realms-production-ptr-lane.bundle.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ecd4d26749dffaa50e08b4825fb848a6bb3e5a4ecfc1f8db92ba4f836a61a6ef"
+      "sha256": "618ea04d559e0aaee888da1398d032b8298a5ccfec10f7192fca66a8246cbdb8"
     },
     {
       "path": "scripts/sealed-realms-production-source-authority.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e06c540bf17a13b364b32d52a89ec3e6c3d288665dc7d9ef06a22e07a58b494c"
+      "sha256": "25621ab3491c51e017b996a5d3d3e45a7330ea235315038666e889f131d02a90"
     },
     {
       "path": "scripts/sealed-realms-production-source-authority.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2b0013d56f2c5be80fef56d0d85d481ecbc663f30814bc61792e21df811403e5"
+      "sha256": "72fb3f921848a6d3533a234fb656200092743d3b4f624d2a81f010d6306d0db1"
     },
     {
       "path": "scripts/sealed-realms-production-workflow-authority.d.mts",
@@ -1745,12 +1745,12 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "aca4d033cad21314878b71112022979816db756abd6ca8043db9d7b3cab2c9b8"
+      "sha256": "ea67d2940c2a5bcb364da5efa99a93599b5edcb517096e8c589248b90d43585c"
     },
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "36107fd6217748985d9709783cbfa4e77c71d4432aa62be7d87dda5baa6fd0af"
+      "sha256": "5b450da6f6ec1e4f88ad82b5b5917afcfcb2b9c55cbc86e4ad289fa33a6462ac"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",
@@ -4575,7 +4575,7 @@
     {
       "path": "src/greater-realm/createGreaterRealmSceneRuntime.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8cdf163db398194527c5369e7d64ae43100ec6289038ce187013981ffad6ce8e"
+      "sha256": "d9673559a3f7b71b6ae167c171e76147b0b1a5253f16b4d60a80203f45b0eec1"
     },
     {
       "path": "src/greater-realm/greaterRealmChunkStream.ts",
@@ -4606,6 +4606,11 @@
       "path": "src/greater-realm/greaterRealmTransport.ts",
       "digestProfile": "reviewed-release-transition-projection-sha256-v1",
       "sha256": "54c093c2992b40424bff0564354374185607cbb7784a11f05c410128aa9a961a"
+    },
+    {
+      "path": "src/greater-realm/greaterRealmWaterSurface.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "7ae776769392ef977c97e37a385bb05605e8912875fe0a56cdb0376b63d41394"
     },
     {
       "path": "src/greater-realm/greaterRealmWorkerControl.ts",
