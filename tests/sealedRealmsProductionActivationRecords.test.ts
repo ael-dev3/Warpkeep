@@ -1,3 +1,4 @@
+import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 // @vitest-environment node
 
 import { execFileSync } from 'node:child_process';
@@ -986,9 +987,9 @@ function privateStateFixture(options: Readonly<{
   const home = mkdtempSync(join(tmpdir(), 'warpkeep-activation-records-'));
   temporaryHomes.push(home);
   for (const root of [
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'audit', 'private'),
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'runtime'),
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'cache'),
+    join(sealedRealmsPrivateBase(home), 'audit', 'private'),
+    join(sealedRealmsPrivateBase(home), 'runtime'),
+    join(sealedRealmsPrivateBase(home), 'cache'),
   ]) {
     mkdirSync(root, { recursive: true, mode: 0o700 });
     chmodSync(root, 0o700);
@@ -1040,9 +1041,7 @@ function recoveryCandidateForReceipts(receipts: ReturnType<typeof fullCorpus>) {
 }
 
 function runtimePath(home: string, relativePath: string) {
-  return join(
-    home,
-    'Library', 'Application Support', 'Warpkeep', 'operations', 'runtime',
+  return join(sealedRealmsPrivateBase(home), 'runtime',
     'sealed-realms-v1',
     ...relativePath.split('/'),
   );

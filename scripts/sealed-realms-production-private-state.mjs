@@ -17,7 +17,7 @@ import {
 } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { userInfo } from 'node:os';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 
 export const SEALED_REALMS_PRIVATE_STATE_VERSION = 'sealed-realms-v1';
 export const SEALED_REALMS_PRIVATE_ROOT_NAMES = Object.freeze([
@@ -25,6 +25,7 @@ export const SEALED_REALMS_PRIVATE_ROOT_NAMES = Object.freeze([
 ]);
 
 const DIRECTORY_MODE = 0o700;
+const LINUX_HOME = posix.join('/', 'home', 'warpkeep');
 const FILE_MODE = 0o600;
 const MAXIMUM_FILE_BYTES = 512 * 1_024;
 // Activation descriptors are a single fixed, internally-authenticated artifact.
@@ -143,6 +144,8 @@ function exactHomeDirectory(path, owner) {
     || status.isSymbolicLink()
     || status.uid !== owner
     || canonical !== path
+    || (process.platform === 'linux' && path === LINUX_HOME
+      && (status.uid !== 1000 || status.gid !== 1000 || (status.mode & 0o7777) !== 0o750))
   ) fail('SEALED_REALMS_PRIVATE_STATE_HOME_INVALID');
   return canonical;
 }
@@ -359,19 +362,31 @@ export function createSealedRealmsProductionPrivateState(input) {
   const requestedHome = resolve(options.reportedHome);
   if (!testOnlyMode) {
     let actualHome;
-    try { actualHome = resolve(userInfo().homedir); } catch {
+    let account;
+    try { account = userInfo(); actualHome = resolve(account.homedir); } catch {
       fail('SEALED_REALMS_PRIVATE_STATE_HOME_INVALID');
     }
     if (requestedHome !== actualHome) {
       fail('SEALED_REALMS_PRIVATE_STATE_HOME_INVALID');
     }
+    if (process.platform === 'linux' && (
+      requestedHome !== LINUX_HOME || account.username !== 'warpkeep'
+      || account.uid !== 1000 || account.gid !== 1000
+      || process.getuid?.() !== 1000 || process.geteuid?.() !== 1000
+      || process.getgid?.() !== 1000 || process.getegid?.() !== 1000
+    )) fail('SEALED_REALMS_PRIVATE_STATE_OWNER_INVALID');
   }
   const owner = assertedOwner(options.testOnlyOwnerUid);
   const home = exactHomeDirectory(requestedHome, owner);
+  // Linux uses one dedicated account-owned namespace. Never probe or migrate
+  // the historical desktop roots; empty provisioning conveys no authority.
+  const base = process.platform === 'linux'
+    ? join(home, '.warpkeep', 'private', SEALED_REALMS_PRIVATE_STATE_VERSION)
+    : join(home, 'Library', 'Application Support', 'Warpkeep', 'operations');
   const roots = Object.freeze({
-    audit: join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'audit', 'private'),
-    runtime: join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'runtime'),
-    cache: join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'cache'),
+    audit: join(base, 'audit', 'private'),
+    runtime: join(base, 'runtime'),
+    cache: join(base, 'cache'),
   });
   for (const root of Object.values(roots)) {
     assertAncestors(home, root, owner, allowTestOnlyPlatformMode);

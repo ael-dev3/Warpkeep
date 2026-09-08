@@ -1,3 +1,4 @@
+import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 // @vitest-environment node
 // Only artifact issuance and external provider I/O are seams. Every authority,
 // private-state, claim, reconciliation, lane and dispatcher implementation is real.
@@ -184,7 +185,7 @@ function fixture() {
   const home = join(root, "home");
   for (const suffix of ["audit/private", "runtime", "cache"])
     mkdirSync(
-      join(home, "Library/Application Support/Warpkeep/operations", suffix),
+      join(sealedRealmsPrivateBase(home), suffix),
       { recursive: true, mode: 0o700 },
     );
   const privateState = createSealedRealmsProductionPrivateState({
@@ -193,9 +194,7 @@ function fixture() {
   });
   const store = createSealedRealmsProductionContinuationStore({ privateState });
   const gh = github();
-  const runtime = join(
-    home,
-    "Library/Application Support/Warpkeep/operations/runtime",
+  const runtime = join(sealedRealmsPrivateBase(home), 'runtime',
     SEALED_REALMS_PRIVATE_STATE_VERSION,
   );
   const updateDirectory = `existing-updates-production-v1/ptr/${ID}`;
@@ -595,7 +594,7 @@ it("constructs the real PTR reconciler with genuine platform-mode private state"
     rmSync(root, { recursive: true });
   });
   const home = join(root, "home");
-  for (const suffix of ["audit/private", "runtime", "cache"]) mkdirSync(join(home, "Library/Application Support/Warpkeep/operations", suffix), { recursive: true, mode: 0o700 });
+  for (const suffix of ["audit/private", "runtime", "cache"]) mkdirSync(join(sealedRealmsPrivateBase(home), suffix), { recursive: true, mode: 0o700 });
   const privateState = createSealedRealmsProductionPrivateState({ reportedHome: home, testOnlyOwnerUid: statSync(root).uid, testOnlyAllowPlatformMode: true });
   expect(() => createSealedRealmsProductionPublicationReconciler({ privateState, lane: "ptr", postflight: () => { throw Error("No provider call expected"); } })).not.toThrow();
   expect(seams.request).not.toHaveBeenCalled();

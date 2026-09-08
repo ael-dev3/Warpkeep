@@ -1,3 +1,4 @@
+import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 import * as bridgeModule from "../scripts/sealed-realms-production-auth-bridge-state.mjs";
 // @vitest-environment node
 
@@ -215,29 +216,14 @@ function suspendedResponse(headers: Record<string, string> = {}) {
 function fixture() {
   const home = mkdtempSync(join(tmpdir(), "warpkeep-auth-bridge-chain-"));
   for (const root of [
-    join(
-      home,
-      "Library",
-      "Application Support",
-      "Warpkeep",
-      "operations",
+    join(sealedRealmsPrivateBase(home),
       "audit",
       "private",
     ),
-    join(
-      home,
-      "Library",
-      "Application Support",
-      "Warpkeep",
-      "operations",
+    join(sealedRealmsPrivateBase(home),
       "runtime",
     ),
-    join(
-      home,
-      "Library",
-      "Application Support",
-      "Warpkeep",
-      "operations",
+    join(sealedRealmsPrivateBase(home),
       "cache",
     ),
   ]) {

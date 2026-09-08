@@ -1,3 +1,4 @@
+import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 // @vitest-environment node
 
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, statSync } from 'node:fs';
@@ -72,15 +73,15 @@ function buildCapability() {
 function fixture(testOnlyFsync: (path: string) => void = () => {}) {
   const home = mkdtempSync(join(tmpdir(), 'warpkeep-sealed-bundle-'));
   for (const root of [
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'audit', 'private'),
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'runtime'),
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'cache'),
+    join(sealedRealmsPrivateBase(home), 'audit', 'private'),
+    join(sealedRealmsPrivateBase(home), 'runtime'),
+    join(sealedRealmsPrivateBase(home), 'cache'),
   ]) {
     mkdirSync(root, { recursive: true, mode: 0o700 });
     chmodSync(root, 0o700);
   }
   return {
-    bundleDirectory: join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'cache', 'sealed-realms-v1', 'bundles'),
+    bundleDirectory: join(sealedRealmsPrivateBase(home), 'cache', 'sealed-realms-v1', 'bundles'),
     state: createSealedRealmsProductionPrivateState({
       reportedHome: home,
       testOnlyOwnerUid: statSync(home).uid,

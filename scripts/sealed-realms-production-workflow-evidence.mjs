@@ -65,9 +65,13 @@ function localSource(commit) {
 }
 
 function context(commit) {
+  const operation = process.env.WARPKEEP_OPERATION;
+  const job = operation === 'activation-evidence-generate' ? 'operate'
+    : ['preflight', 'activation-evidence-inspect'].includes(operation) ? 'operate_readonly' : undefined;
+  if (job === undefined) fail('SEALED_REALMS_WORKFLOW_EVIDENCE_CONTEXT_INVALID');
   const fixed = { GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: REPOSITORY,
     GITHUB_REF: 'refs/heads/main', GITHUB_SHA: commit, GITHUB_EVENT_NAME: 'workflow_dispatch',
-    GITHUB_JOB: 'operate', GITHUB_WORKFLOW: 'Sealed Realms Production',
+    GITHUB_JOB: job, GITHUB_WORKFLOW: 'Sealed Realms Production',
     GITHUB_WORKFLOW_REF: `${REPOSITORY}/${WORKFLOW_PATH}@refs/heads/main` };
   if (Object.entries(fixed).some(([key, value]) => process.env[key] !== value)) {
     fail('SEALED_REALMS_WORKFLOW_EVIDENCE_CONTEXT_INVALID');
@@ -79,7 +83,7 @@ function context(commit) {
     || typeof token !== 'string' || !/^\S{20,4096}$/u.test(token)) {
     fail('SEALED_REALMS_WORKFLOW_EVIDENCE_CONTEXT_INVALID');
   }
-  return { runId, runAttempt, token };
+  return { runId, runAttempt, token, operation, job };
 }
 
 function record(value) {

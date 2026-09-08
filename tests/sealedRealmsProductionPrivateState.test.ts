@@ -1,3 +1,4 @@
+import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 import {
   chmodSync,
   existsSync,
@@ -24,9 +25,9 @@ import {
 function privateHome() {
   const home = mkdtempSync(join(tmpdir(), 'warpkeep-sealed-realms-private-'));
   const roots = [
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'audit', 'private'),
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'runtime'),
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'cache'),
+    join(sealedRealmsPrivateBase(home), 'audit', 'private'),
+    join(sealedRealmsPrivateBase(home), 'runtime'),
+    join(sealedRealmsPrivateBase(home), 'cache'),
   ];
   for (const root of roots) {
     mkdirSync(root, { recursive: true, mode: 0o700 });
@@ -46,7 +47,7 @@ describe('sealed-realms private state', () => {
       const state = createSealedRealmsProductionPrivateState({ reportedHome: fixture.home,
         testOnlyOwnerUid: fixture.ownerUid, testOnlyFsync: () => {}, testOnlyAllowPlatformMode: true });
       const runId = `run-${'a'.repeat(32)}`;
-      const admin = join(fixture.home, '.warpkeep');
+      const admin = join(fixture.home, '.warpkeep', 'private', 'production-admin-v1');
       expect(() => state.readG001PolicyTerminal(runId)).toThrow(/SEALED_REALMS_PRIVATE_STATE_/u);
       expect(existsSync(admin)).toBe(false);
       for (const value of [undefined, null, {}, { runId }, `${runId}/../other`, '../terminal', `${runId}.json`, 'run-A']) {
@@ -54,7 +55,7 @@ describe('sealed-realms private state', () => {
       }
       expect(() => Reflect.apply(state.readG001PolicyTerminal, undefined, [runId, 'other']))
         .toThrow('SEALED_REALMS_PRIVATE_STATE_TERMINAL_INVALID');
-      const directory = join(admin, 'private', 'production-admin-v1', 'bootstrap-run-lifecycle-v1');
+      const directory = join(admin, 'bootstrap-run-lifecycle-v1');
       mkdirSync(directory, { recursive: true, mode: 0o700 });
       writeFileSync(join(directory, `${runId}-terminal.json`), '{"fixture":"terminal"}\n', { mode: 0o600 });
       const bytes = state.readG001PolicyTerminal(runId);
@@ -137,8 +138,7 @@ describe('sealed-realms private state', () => {
   it('fails closed without a pre-existing exact root and redacts private paths', () => {
     const fixture = privateHome();
     try {
-      rmSync(join(
-        fixture.home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'cache',
+      rmSync(join(sealedRealmsPrivateBase(fixture.home), 'cache',
       ), { recursive: true, force: true });
       let message = '';
       try {
@@ -255,8 +255,7 @@ describe('sealed-realms private state', () => {
       });
       const relativePath = 'bridge/hard-link/receipt.json';
       state.write({ root: 'runtime', relativePath, bytes: Buffer.from('{"a":1}\n') });
-      const target = join(
-        fixture.home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'runtime',
+      const target = join(sealedRealmsPrivateBase(fixture.home), 'runtime',
         'sealed-realms-v1', 'bridge', 'hard-link', 'receipt.json',
       );
       linkSync(target, `${target}.linked`);
@@ -304,7 +303,7 @@ describe('sealed-realms private state', () => {
         reportedHome: fixture.home, testOnlyOwnerUid: fixture.ownerUid + 1,
         testOnlyFsync: () => {}, testOnlyAllowPlatformMode: true,
       })).toThrow(/OWNER|HOME_INVALID/u);
-      const runtime = join(fixture.home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'runtime');
+      const runtime = join(sealedRealmsPrivateBase(fixture.home), 'runtime');
       if (process.platform !== 'win32') {
         chmodSync(runtime, 0o755);
         expect(() => createSealedRealmsProductionPrivateState({
@@ -363,7 +362,7 @@ describe('sealed-realms private state', () => {
           }
         },
       });
-      const base = join(fixture.home, 'Library', 'Application Support', 'Warpkeep', 'operations',
+      const base = join(sealedRealmsPrivateBase(fixture.home),
         'runtime', 'sealed-realms-v1', 'race-final');
       state.write({ root: 'runtime', relativePath: 'race-final/seed.json', bytes: Buffer.from('{}\n') });
       target = join(base, 'write.json'); armed = true;
@@ -382,7 +381,7 @@ describe('sealed-realms private state', () => {
     let mode: 'create' | 'remove' = 'create';
     let removeTarget = '';
     try {
-      const runtime = join(fixture.home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'runtime');
+      const runtime = join(sealedRealmsPrivateBase(fixture.home), 'runtime');
       const state = createSealedRealmsProductionPrivateState({
         reportedHome: fixture.home, testOnlyOwnerUid: fixture.ownerUid,
         testOnlyAllowPlatformMode: true,
@@ -409,7 +408,7 @@ describe('sealed-realms private state', () => {
           if (armed && /[\\/]remove-race$/u.test(path)) { armed = false; writeFileSync(removeTarget, '{}\n'); }
         },
       });
-      removeTarget = join(second.home, 'Library', 'Application Support', 'Warpkeep', 'operations',
+      removeTarget = join(sealedRealmsPrivateBase(second.home),
         'runtime', 'sealed-realms-v1', 'remove-race', 'value.json');
       state.write({ root: 'runtime', relativePath: 'remove-race/value.json', bytes: Buffer.from('{}\n') });
       armed = true;

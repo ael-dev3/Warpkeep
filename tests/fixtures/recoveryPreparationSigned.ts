@@ -31,7 +31,7 @@ export function preparationTransportFixture(change?: (url: string, init: Request
   const now = Math.floor(Date.now() / 1000);
   const observation = signedPreparationObservationFixture(f.intent, { observedFrom: now, observedThrough: now, issuedAt: now, expiresAt: now + 90, ...observationDelta });
   for (const [key, value] of Object.entries({ GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
-    GITHUB_REF: 'refs/heads/main', GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_JOB: 'operate',
+    GITHUB_REF: 'refs/heads/main', GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_JOB: 'operate', WARPKEEP_OPERATION: 'activation-evidence-generate',
     GITHUB_WORKFLOW_REF: 'ael-dev3/Warpkeep/.github/workflows/sealed-realms-production.yml@refs/heads/main',
     GITHUB_SHA: f.intent.preparationCommit, GITHUB_RUN_ID: '12', GITHUB_RUN_ATTEMPT: '2',
     ACTIONS_ID_TOKEN_REQUEST_URL: 'https://example.actions.githubusercontent.com/token?api-version=2',

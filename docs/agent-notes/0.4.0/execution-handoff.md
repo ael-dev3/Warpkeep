@@ -707,3 +707,11 @@ visual improvement, not physical-device or complete visual acceptance.
 The keep now omits repeated zero-pending amounts and shows one quiet no-return status. Nonzero incoming amounts remain explicitly unspendable; balances and command semantics are unchanged. All 21 Keep04Screen tests and app/test types passed. Fresh empty/mature desktop and 390px synthetic renderer captures had no horizontal overflow. Nonzero pending and confirmed-return behavior are covered by component tests; physical-device performance remains unverified.
 
 At source c104f7b6368635ab6ae36da6ce02c3aa5a9c412d, full native Linux prepare and the separate rebuilding check both exited successfully with identical family f23eb885a62eea112e943b70a692b785da0a28b7b873fe2f0e39a59c1508740e. This is a prepared source candidate, with finalReleasePrepared false. It is not deployed and predates this UI change. Dedicated Linux caller/private-state integration is still under review.
+
+## Dedicated Linux caller and private-state integration
+
+The operating workflow now uses the dedicated warpkeep UID/GID1000 profile and fixed native Node toolchain. Preflight and activation inspection run without OIDC; activation generation alone receives job-level OIDC. Exact operation/job context is retained and refreshed. Other realm provider operations still refuse because their real adapters remain unconnected.
+
+Linux private records use the fixed account-owned .warpkeep/private/sealed-realms-v1 namespace; the public artifact reader follows it. Existing record descendants and non-Linux layout remain. No credentials or private records were migrated.
+
+Combined app/test types and 57 focused tests passed on Windows;14 POSIX tests skipped. Separate operation/context/workflow checks and independent source review passed with documented Windows fixture seams. Corrected native caller fixtures passed6 portable cases;25 privileged cases still require Linux execution. Full candidate preparation/check at preceding c104 source does not validate these new changes. Native verification, runner registration, genuine operating authority and real provider adapters remain unfinished.

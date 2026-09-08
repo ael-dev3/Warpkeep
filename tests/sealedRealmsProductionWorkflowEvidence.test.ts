@@ -1,3 +1,4 @@
+import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 // @vitest-environment node
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -11,6 +12,20 @@ import {
   verifySealedRealmsProductionWorkflowEvidence as verify,
 } from '../scripts/sealed-realms-production-workflow-evidence.mjs';
 import { parseWorkflowEvidenceJson } from '../scripts/sealed-realms-production-workflow-evidence-json.mjs';
+
+// Windows-only test launcher adapter: preserve real Git objects and commands,
+// but supply Windows executable discovery to the production Linux Git environment.
+// This does not exercise or change native Linux executable/environment attestation.
+vi.mock('node:child_process', async importOriginal => {
+  const actual=await importOriginal<typeof import('node:child_process')>();
+  return {...actual, execFileSync: ((file: string,args: string[],options: any) => {
+    if(process.platform === 'win32' && file === 'git' && options?.env?.PATH === '/usr/bin:/bin') {
+      const executable=actual.execFileSync('where.exe',['git.exe'],{encoding:'utf8',windowsHide:true}).trim().split(/\r?\n/)[0];
+      return actual.execFileSync(executable,args,{...options,env:{...options.env,PATH:process.env.PATH,SystemRoot:process.env.SystemRoot}});
+    }
+    return actual.execFileSync(file,args,options);
+  })};
+});
 
 const API = 'https://api.github.com/repos/ael-dev3/Warpkeep';
 const BINDING = 'config/releases/0.4.0-sealed-launch.json';
@@ -28,7 +43,7 @@ function response(url: string, value: unknown, raw?: string) {
 }
 function git(root: string, args: string[]) {
   return execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'user.name=Evidence Fixture',
-    '-c', 'user.email=evidence@example.invalid', ...args], { cwd: root, encoding: 'utf8', timeout: 5_000 }).trim();
+    '-c', 'user.email=evidence@example.invalid', ...args], { cwd: root, encoding: 'utf8', timeout: process.platform === 'win32' ? 30_000 : 5_000 }).trim();
 }
 const repository = () => ({ id: 1273513252, name: 'Warpkeep', full_name: 'ael-dev3/Warpkeep',
   default_branch: 'main', archived: false, disabled: false, owner: { id: 183124839, login: 'ael-dev3' } });
@@ -62,7 +77,7 @@ function fixture(activated = false) {
   git(root, ['update-ref', 'refs/remotes/origin/main', commit]);
   process.chdir(root);
   for (const [key, value] of Object.entries({ GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
-    GITHUB_REF: 'refs/heads/main', GITHUB_SHA: commit, GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_JOB: 'operate',
+    GITHUB_REF: 'refs/heads/main', GITHUB_SHA: commit, GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_JOB: 'operate_readonly', WARPKEEP_OPERATION: 'preflight',
     GITHUB_WORKFLOW: 'Sealed Realms Production', GITHUB_WORKFLOW_REF: 'ael-dev3/Warpkeep/.github/workflows/sealed-realms-production.yml@refs/heads/main',
     GITHUB_RUN_ID: '7001', GITHUB_RUN_ATTEMPT: '1', GITHUB_TOKEN: 'fixture-' + 'x'.repeat(32) })) vi.stubEnv(key, value);
   const operation = run(commit, 7001, 30, true);
@@ -98,6 +113,26 @@ afterEach(() => {
 });
 
 describe.sequential('fixed workflow Verify evidence', () => {
+  it.each([
+    ['activation-evidence-generate', 'operate_readonly'],
+    ['activation-evidence-inspect', 'operate'],
+    ['preflight', 'operate'],
+    ['arbitrary', 'operate_readonly'],
+  ])('rejects mismatched operation/job before GitHub reads: %s/%s', async (operation, job) => {
+    const commit='a'.repeat(40), fetch=vi.fn();
+    for(const [key,value] of Object.entries({GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'ael-dev3/Warpkeep',GITHUB_REF:'refs/heads/main',GITHUB_SHA:commit,GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_JOB:job,GITHUB_WORKFLOW:'Sealed Realms Production',GITHUB_WORKFLOW_REF:'ael-dev3/Warpkeep/.github/workflows/sealed-realms-production.yml@refs/heads/main',GITHUB_RUN_ID:'7001',GITHUB_RUN_ATTEMPT:'1',GITHUB_TOKEN:'x'.repeat(32),WARPKEEP_OPERATION:operation}))vi.stubEnv(key,value);
+    vi.stubGlobal('fetch',fetch);
+    await expect(create({ workflowInputSha: commit })).rejects.toThrow('SEALED_REALMS_WORKFLOW_EVIDENCE_CONTEXT_INVALID');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('invalidates captured evidence when the operation changes within the same readonly job', async () => {
+    const f = fixture(); const scope = await create({ workflowInputSha: f.commit });
+    vi.stubEnv('WARPKEEP_OPERATION', 'activation-evidence-inspect');
+    expect(() => verify(scope, f.commit)).toThrow(/WORKFLOW_EVIDENCE/u);
+    await expect(refresh(scope)).rejects.toThrow('SEALED_REALMS_WORKFLOW_EVIDENCE_UNAVAILABLE');
+    revoke(scope);
+  }, process.platform === 'win32' ? 60000 : 10000);
+
   it.each([false, true])('loads source and actual activated-parent proofs through fixed GETs: %s', async activated => {
     const f = fixture(activated); const scope = await create({ workflowInputSha: f.commit });
     expect(Object.keys(scope)).toEqual([]); expect(Object.isFrozen(scope)).toBe(true);
@@ -263,7 +298,7 @@ describe.sequential('fixed workflow Verify evidence', () => {
 async function privateResolver() {
   const home = mkdtempSync(join(tmpdir(), 'workflow-evidence-private-')); roots.push(home);
   const directories = ['runtime', 'cache', 'audit/private'].map(name =>
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', name));
+    join(sealedRealmsPrivateBase(home), name));
   for (const directory of directories) mkdirSync(directory, { recursive: true, mode: 0o700 });
   const resolved: unknown[] = [];
   vi.doMock('../scripts/sealed-realms-production-workflow-private-state.mjs', async () => {
@@ -286,7 +321,13 @@ const ENTRY_CASES = [
 ] as const;
 describe.sequential('actual workflow composition with fixed Verify transport', () => {
   it.each(ENTRY_CASES)('refreshes %s evidence before its actual dispatcher and preserves runtime guards', async (lane, label, operation, runName) => {
-    const f = fixture(); const privateState = await privateResolver();
+    const f = fixture(); vi.stubEnv('WARPKEEP_OPERATION', operation);
+    if (lane === 'g002' || lane === 'ptr') {
+      const module = await import(`../scripts/sealed-realms-production-${lane}-workflow-entry.mjs`);
+      await expect(module[`createSealedRealmsProduction${label}WorkflowRuntime`]({operation,workflowInputSha:f.commit})).rejects.toThrow('SEALED_REALMS_WORKFLOW_EVIDENCE_CONTEXT_INVALID');
+      expect(f.fetch).not.toHaveBeenCalled(); return;
+    }
+    const privateState = await privateResolver();
     vi.stubGlobal('WebSocket', class WebSocket {});
     const module = await import(`../scripts/sealed-realms-production-${lane}-workflow-entry.mjs`);
     const factory = module[`createSealedRealmsProduction${label}WorkflowRuntime`];
@@ -313,11 +354,11 @@ describe.sequential('actual workflow composition with fixed Verify transport', (
     expect(privateState.resolved).toHaveLength(1);
     for (const directory of privateState.directories) expect(readdirSync(directory)).toEqual([]);
   });
-  it('keeps missing activation records a failure after genuine fixed GitHub evidence readback', async () => {
-    const f = fixture(); const privateState = await privateResolver();
+  it('rejects missing fixed program provenance after genuine fixed GitHub evidence readback', async () => {
+    const f = fixture(); vi.stubEnv('WARPKEEP_OPERATION','activation-evidence-generate'); vi.stubEnv('GITHUB_JOB','operate'); const privateState = await privateResolver();
     const module = await import('../scripts/sealed-realms-production-activation-workflow-entry.mjs');
     await expect(module.createSealedRealmsProductionActivationWorkflowRuntime({ operation: 'activation-evidence-generate', workflowInputSha: f.commit }))
-      .rejects.toThrow('SEALED_REALMS_ACTIVATION_RECORDS_INCOMPLETE');
+      .rejects.toThrow('SEALED_REALMS_RECOVERY_PROGRAM_ARTIFACTS_INVALID');
     expect(privateState.resolved).toHaveLength(1);
     for (const directory of privateState.directories) expect(readdirSync(directory)).toEqual([]);
     expect(f.fetch.mock.calls.every(([, options]) => options.method === 'GET')).toBe(true);

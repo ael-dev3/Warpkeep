@@ -35,20 +35,20 @@ it('the executable returns one bounded public input failure without echoing argu
   expect(child.stderr).toBe('{"operation":"preflight","status":"failed","phase":"input"}\n');
 });
 
-// Real UID1001, Node, filesystem and immutable compiled bundle in an isolated
+// Real UID1000, Node, filesystem and immutable compiled bundle in an isolated
 // mount namespace. Normal unprivileged CI keeps these privileged cases skipped;
 // the bounded native proof runs them as root with an explicit prepared donor.
 describe.skipIf(!native).sequential('native fixed Linux preflight', () => {
   let outer: string, home: string, repo: string, node: string, baseline: string;
   let actualHomeIdentity: { dev: number; ino: number; uid: number; mode: number };
-  const operationRoot = () => join(home, 'Library/Application Support/Warpkeep/operations');
+  const operationRoot = () => join(home, '.warpkeep/private/sealed-realms-v1');
   function privateDirectory(path: string) {
     mkdirSync(path, { recursive: true, mode: 0o700 });
     let current = path;
-    while (current.startsWith(home)) { chmodSync(current, 0o700); chownSync(current, 1001, 1001); if (current === home) break; current = dirname(current); }
+    while (current.startsWith(home)) { chmodSync(current, current === home ? 0o750 : 0o700); chownSync(current, 1000, 1000); if (current === home) break; current = dirname(current); }
   }
   function chownTree(path: string) {
-    const status = lstatSync(path); lchownSync(path, 1001, 1001);
+    const status = lstatSync(path); lchownSync(path, 1000, 1000);
     if (status.isDirectory()) for (const name of readdirSync(path)) chownTree(join(path, name));
   }
   function privateInventory(path = operationRoot()): string[] {
@@ -62,43 +62,45 @@ describe.skipIf(!native).sequential('native fixed Linux preflight', () => {
     const replacement = `${node}.replacement`;
     copyFileSync(process.execPath, replacement);
     if (append) writeFileSync(replacement, Buffer.concat([readFileSync(replacement), Buffer.from('\n')]));
-    chmodSync(replacement, 0o700); chownSync(replacement, 1001, 1001); renameSync(replacement, node);
+    chmodSync(replacement, 0o500); chownSync(replacement, 1000, 1000); renameSync(replacement, node);
   }
-  function capture(scenario: string, overrides: Record<string, string> = {}, uid = 1001) {
+  function capture(scenario: string, overrides: Record<string, string> = {}, uid = 1000) {
     const commit = command(['rev-parse', 'HEAD'], repo);
     command(['update-ref', 'refs/remotes/origin/main', commit], repo);
     const environment = { PATH: '/usr/bin:/bin', LANG: 'C', LC_ALL: 'C',
       RUNNER_OS: 'Linux', RUNNER_ARCH: 'X64', RUNNER_NAME: 'warpkeep-wsl-production-01',
-      RUNNER_TEMP: '/home/runner/actions-runner/_work/_temp', GITHUB_ACTIONS: 'true',
+      RUNNER_TEMP: '/home/warpkeep/actions-runner/_work/_temp', GITHUB_ACTIONS: 'true',
       GITHUB_REPOSITORY: 'ael-dev3/Warpkeep', GITHUB_REF: 'refs/heads/main', GITHUB_SHA: commit,
-      GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_JOB: 'operate', GITHUB_WORKFLOW: 'Sealed Realms Production',
+      GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_JOB: 'operate_readonly', WARPKEEP_OPERATION: 'preflight', GITHUB_WORKFLOW: 'Sealed Realms Production',
       GITHUB_WORKFLOW_REF: 'ael-dev3/Warpkeep/.github/workflows/sealed-realms-production.yml@refs/heads/main',
       GITHUB_RUN_ID: '7001', GITHUB_RUN_ATTEMPT: '1', GITHUB_TOKEN: 'native-fixture-' + 'x'.repeat(32), ...overrides };
-    const shell = 'mount --make-rprivate / && mount --bind "$1" /home/runner && cd /home/runner/actions-runner/_work/Warpkeep/Warpkeep && exec setpriv --reuid="$2" --regid="$2" --clear-groups /home/runner/actions-runner/_work/_temp/warpkeep-sealed-preflight-node.fixtur/node /home/runner/process.mjs "$3"';
+    const shell = 'mount --make-rprivate / && mount --bind "$1" /home/warpkeep && cd /home/warpkeep/actions-runner/_work/Warpkeep/Warpkeep && exec setpriv --reuid="$2" --regid="$2" --clear-groups /home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /home/warpkeep/process.mjs "$3"';
     const result = spawnSync('/usr/bin/unshare', ['--mount', '/bin/sh', '-c', shell, 'native-preflight', home, String(uid), scenario],
       { encoding: 'utf8', env: environment, timeout: 90_000, maxBuffer: 16 * 1024 });
     expect(result.signal).toBeNull(); expect(result.error).toBeUndefined(); expect(result.stderr).toBe('');
     return { status: result.status, output: JSON.parse(result.stdout) };
   }
   beforeAll(() => {
-    const actual = lstatSync('/home/runner');
+    const actual = lstatSync('/home/warpkeep');
     actualHomeIdentity = { dev: actual.dev, ino: actual.ino, uid: actual.uid, mode: actual.mode };
     outer = mkdtempSync(join(tmpdir(), 'sealed-linux-preflight-')); home = join(outer, 'home');
-    privateDirectory(join(home, 'actions-runner/_work/_temp/warpkeep-sealed-preflight-node.fixtur'));
+    privateDirectory(join(home, 'actions-runner/_work/_temp'));
+    privateDirectory(join(home, '.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin'));
     repo = join(home, 'actions-runner/_work/Warpkeep/Warpkeep');
     command(['clone', '--quiet', '--no-hardlinks', donor!, repo], root);
     command(['checkout', '--quiet', '--detach', 'HEAD'], repo);
     command(['remote', 'set-url', 'origin', 'https://github.com/ael-dev3/Warpkeep.git'], repo);
     baseline = command(['rev-parse', 'HEAD'], repo);
     chownTree(repo);
-    node = join(home, 'actions-runner/_work/_temp/warpkeep-sealed-preflight-node.fixtur/node');
-    copyFileSync(process.execPath, node); chmodSync(node, 0o700); chownSync(node, 1001, 1001);
+    node = join(home, '.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node');
+    copyFileSync(process.execPath, node); chmodSync(node, 0o500); chownSync(node, 1000, 1000);
     copyFileSync(join(root, 'tests/fixtures/sealedRealmsLinuxPreflightProcess.mjs'), join(home, 'process.mjs'));
-    chmodSync(join(home, 'process.mjs'), 0o644); chownSync(join(home, 'process.mjs'), 1001, 1001);
+    chmodSync(join(home, 'process.mjs'), 0o644); chownSync(join(home, 'process.mjs'), 1000, 1000);
     for (const path of ['audit/private', 'runtime', 'cache']) privateDirectory(join(operationRoot(), path));
+    chmodSync(home, 0o750);
   }, 90_000);
   afterAll(() => {
-    const actual = lstatSync('/home/runner');
+    const actual = lstatSync('/home/warpkeep');
     expect({ dev: actual.dev, ino: actual.ino, uid: actual.uid, mode: actual.mode }).toEqual(actualHomeIdentity);
     if (outer && resolve(outer).startsWith(`${resolve(tmpdir())}/sealed-linux-preflight-`)) rmSync(outer, { recursive: true });
   });
@@ -130,9 +132,10 @@ describe.skipIf(!native).sequential('native fixed Linux preflight', () => {
           : scenario === 'wrong-job' ? { GITHUB_JOB: 'other' } : {};
         const result = capture(scenario, override);
         expect(result.status).toBe(1);
-        expect(['workflow', 'bundle', 'source']).toContain(result.output.phase);
+        if (scenario === 'wrong-job') expect(result.output.phase).toBe('runtime');
+        else expect(['workflow', 'bundle', 'source']).toContain(result.output.phase);
         if (['changed-import', 'extra-export'].includes(scenario)) expect(result.output.calls).toBe(0);
-      } finally { command(['restore', '--source', baseline, '--worktree', '--', 'scripts/sealed-realms-production-g001-workflow-entry.mjs'], repo); chownSync(join(repo, 'scripts/sealed-realms-production-g001-workflow-entry.mjs'), 1001, 1001); }
+      } finally { command(['restore', '--source', baseline, '--worktree', '--', 'scripts/sealed-realms-production-g001-workflow-entry.mjs'], repo); chownSync(join(repo, 'scripts/sealed-realms-production-g001-workflow-entry.mjs'), 1000, 1000); }
     }, 90_000);
   it.each(['mode', 'owner', 'symlink', 'missing'])('rejects %s private roots without provisioning or writing', scenario => {
     const path = join(operationRoot(), 'runtime');
@@ -148,10 +151,10 @@ describe.skipIf(!native).sequential('native fixed Linux preflight', () => {
       privateDirectory(path);
     }
   }, 90_000);
-  it.each(['node-mode', 'node-owner', 'node-bytes'])('rejects actual immutable runtime mismatch: %s', scenario => {
+  it.each(['node-mode', 'node-group', 'node-bytes'])('rejects actual immutable runtime mismatch: %s', scenario => {
     try {
       if (scenario === 'node-mode') chmodSync(node, 0o755);
-      if (scenario === 'node-owner') { chownSync(node, 1000, 1000); chmodSync(node, 0o755); }
+      if (scenario === 'node-group') { chownSync(node, 1000, 0); chmodSync(node, 0o500); }
       if (scenario === 'node-bytes') replaceNode(true);
       const result = capture('complete'); expect(result).toEqual({ status: 1, output: { phase: 'runtime', calls: 0, onlyReadRequests: true } });
     } finally { replaceNode(); }
@@ -177,6 +180,6 @@ describe.skipIf(!native).sequential('native fixed Linux preflight', () => {
         command(['add', '--', 'scripts/sealed-realms-production-bundle-manifest-v1.json'], repo);
         command(['commit', '--quiet', '-m', 'adversarial fixture'], repo);
         const result = capture('complete'); expect(result.status).toBe(1); expect(result.output.phase).toBe('bundle'); expect(result.output.calls).toBe(0);
-      } finally { command(['reset', '--hard', baseline], repo); chownTree(join(repo, '.git')); chownSync(path, 1001, 1001); }
+      } finally { command(['reset', '--hard', baseline], repo); chownTree(join(repo, '.git')); chownSync(path, 1000, 1000); }
     }, 90_000);
 });

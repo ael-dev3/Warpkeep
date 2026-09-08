@@ -1,3 +1,4 @@
+import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 // @vitest-environment node
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -165,29 +166,14 @@ function privateFixture() {
     join(tmpdir(), 'warpkeep-sealed-realms-continuation-'),
   );
   for (const root of [
-    join(
-      home,
-      'Library',
-      'Application Support',
-      'Warpkeep',
-      'operations',
+    join(sealedRealmsPrivateBase(home),
       'audit',
       'private',
     ),
-    join(
-      home,
-      'Library',
-      'Application Support',
-      'Warpkeep',
-      'operations',
+    join(sealedRealmsPrivateBase(home),
       'runtime',
     ),
-    join(
-      home,
-      'Library',
-      'Application Support',
-      'Warpkeep',
-      'operations',
+    join(sealedRealmsPrivateBase(home),
       'cache',
     ),
   ]) {

@@ -1,3 +1,4 @@
+import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 // @vitest-environment node
 // Real private record/source brands, receipt validation and candidate merge.
 // Only native builds, Git/source I/O and unrelated approval lookup are isolated.
@@ -223,7 +224,7 @@ function corpus(
   roots.push(home);
   for (const suffix of ["audit/private", "runtime", "cache"])
     mkdirSync(
-      join(home, "Library/Application Support/Warpkeep/operations", suffix),
+      join(sealedRealmsPrivateBase(home), suffix),
       { recursive: true, mode: 0o700 },
     );
   const privateState = createSealedRealmsProductionPrivateState({

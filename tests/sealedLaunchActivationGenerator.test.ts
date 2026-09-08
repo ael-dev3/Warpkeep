@@ -1,3 +1,4 @@
+import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 // @vitest-environment node
 
 import {
@@ -326,9 +327,9 @@ async function withActivationEvidence(verify: () => void) {
   const home = mkdtempSync(join(tmpdir(), 'warpkeep-activation-member-'));
   activationEvidenceHome = home;
   for (const root of [
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'audit', 'private'),
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'runtime'),
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'cache'),
+    join(sealedRealmsPrivateBase(home), 'audit', 'private'),
+    join(sealedRealmsPrivateBase(home), 'runtime'),
+    join(sealedRealmsPrivateBase(home), 'cache'),
   ]) {
     mkdirSync(root, { recursive: true, mode: 0o700 });
     chmodSync(root, 0o700);

@@ -1,3 +1,4 @@
+import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 // @vitest-environment node
 import { preparationTransportFixture } from './fixtures/recoveryPreparationSigned.js';
 import { createHash, createPrivateKey, sign } from 'node:crypto';
@@ -108,7 +109,7 @@ function ownedFixture() {
   const authority = authenticateSealedRealmsProductionSourceAuthority({ operation: 'activation-evidence-generate', workflowInputSha: commit,
     readGit: () => commit + '\n', readBinding: () => ({ schemaVersion: 1, profile: 'warpkeep-0.4.0-sealed-launch-v1', pagesDeploymentApproved: false, preparationSourceCommit: null }),
     verifyEvidence: verifiedSha => ({ verifiedSha }) });
-  for (const suffix of ['audit/private', 'runtime', 'cache']) mkdirSync(join(home, 'Library/Application Support/Warpkeep/operations', suffix), { recursive: true, mode: 0o700 });
+  for (const suffix of ['audit/private', 'runtime', 'cache']) mkdirSync(join(sealedRealmsPrivateBase(home), suffix), { recursive: true, mode: 0o700 });
   const privateState = createSealedRealmsProductionPrivateState({ reportedHome: home, testOnlyOwnerUid: statSync(home).uid,
     testOnlyAllowPlatformMode: true, testOnlyFsync: () => {} });
   vi.spyOn(process, 'cwd').mockReturnValue(root);
@@ -130,7 +131,7 @@ it('owns a real signed service receipt in genuine private storage and authentica
     'https://release-auth.warpkeep.com/v1/recovery/prepare',
     'https://release-auth.warpkeep.com/v1/recovery/preparation-observation',
   ]);
-  const observationFile = join(f.home, 'Library/Application Support/Warpkeep/operations/runtime', SEALED_REALMS_PRIVATE_STATE_VERSION,
+  const observationFile = join(sealedRealmsPrivateBase(f.home), 'runtime', SEALED_REALMS_PRIVATE_STATE_VERSION,
     `recovery-preparation/${f.commit}/3/observations/${createHash('sha256').update(response.observationCompact).digest('hex')}.jws`);
   const retainedObservation = readFileSync(observationFile);
   writeFileSync(observationFile, `${response.compact}\n`);

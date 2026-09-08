@@ -1,3 +1,4 @@
+import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 // @vitest-environment node
 
 import { Buffer } from 'node:buffer';
@@ -171,9 +172,9 @@ function privateHomeFixture() {
   const home = mkdtempSync(join(tmpdir(), 'warpkeep-workflow-private-'));
   chmodSync(home, 0o700);
   for (const root of [
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'audit', 'private'),
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'runtime'),
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'cache'),
+    join(sealedRealmsPrivateBase(home), 'audit', 'private'),
+    join(sealedRealmsPrivateBase(home), 'runtime'),
+    join(sealedRealmsPrivateBase(home), 'cache'),
   ]) {
     mkdirSync(root, { recursive: true, mode: 0o700 });
     chmodSync(root, 0o700);
@@ -459,9 +460,9 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
     const verifiedCommits = installEvidenceVerifier();
     const privateResolutions = installPrivateResolver(privateHome.home);
     const github = installWorkflowContext(repository.sourceCommit);
-    const runtimeRoot = join(privateHome.home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'runtime');
-    const auditRoot = join(privateHome.home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'audit', 'private');
-    const cacheRoot = join(privateHome.home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'cache');
+    const runtimeRoot = join(sealedRealmsPrivateBase(privateHome.home), 'runtime');
+    const auditRoot = join(sealedRealmsPrivateBase(privateHome.home), 'audit', 'private');
+    const cacheRoot = join(sealedRealmsPrivateBase(privateHome.home), 'cache');
     let runtime: unknown;
     try {
       await inRepository(repository.repositoryRoot, async () => {
@@ -687,12 +688,7 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
         await expect(run({ runtime, operation, workflowInputSha: repository.sourceCommit }))
           .rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
       });
-      const runtimeRoot = join(
-        privateHome.home,
-        'Library',
-        'Application Support',
-        'Warpkeep',
-        'operations',
+      const runtimeRoot = join(sealedRealmsPrivateBase(privateHome.home),
         'runtime',
       );
       expect(readdirSync(runtimeRoot)).toEqual([]);

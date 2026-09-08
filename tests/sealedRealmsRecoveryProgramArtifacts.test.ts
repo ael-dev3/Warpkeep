@@ -1,3 +1,4 @@
+import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 // @vitest-environment node
 // The fixed native producer and source I/O are seams here; private/source brands are real.
 import { createHash } from "node:crypto";
@@ -53,7 +54,7 @@ function fixture() {
   roots.push(home);
   for (const path of ["audit/private", "runtime", "cache"])
     mkdirSync(
-      join(home, "Library/Application Support/Warpkeep/operations", path),
+      join(sealedRealmsPrivateBase(home), path),
       { recursive: true, mode: 0o700 },
     );
   const privateState = createSealedRealmsProductionPrivateState({

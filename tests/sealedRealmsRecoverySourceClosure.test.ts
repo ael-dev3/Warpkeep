@@ -1,3 +1,4 @@
+import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 // @vitest-environment node
 import { execFileSync } from "node:child_process";
 import {
@@ -31,7 +32,7 @@ afterEach(
 function state(home: string) {
   for (const p of ["audit/private", "runtime", "cache"])
     mkdirSync(
-      join(home, "Library/Application Support/Warpkeep/operations", p),
+      join(sealedRealmsPrivateBase(home), p),
       { recursive: true, mode: 0o700 },
     );
   return createSealedRealmsProductionPrivateState({

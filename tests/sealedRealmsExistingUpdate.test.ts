@@ -1,3 +1,4 @@
+import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 // @vitest-environment node
 import observedPlans from './fixtures/existing-update-plans-2.6.1.json';
 import { createServer } from 'node:http';
@@ -93,7 +94,7 @@ it('reports a terminal child error before masking it as a predecessor barrier ti
 async function fixture(lane: 'g002' | 'ptr' = 'g002') {
   const root = mkdtempSync(join(tmpdir(), 'warpkeep-existing-update-test-')); chmodSync(root, 0o700);
   const home = join(root, 'home');
-  for (const suffix of ['audit/private', 'runtime', 'cache']) mkdirSync(join(home, 'Library/Application Support/Warpkeep/operations', suffix), { recursive: true, mode: 0o700 });
+  for (const suffix of ['audit/private', 'runtime', 'cache']) mkdirSync(join(sealedRealmsPrivateBase(home), suffix), { recursive: true, mode: 0o700 });
   const privateState = createSealedRealmsProductionPrivateState({ reportedHome: home,
     testOnlyOwnerUid: statSync(root).uid, testOnlyAllowPlatformMode: true });
   const state = { program: updateProgramHash(A), names: ['ledger'], rows: { ledger: [['earned', 9]] } as Record<string, unknown[][]>,
@@ -196,7 +197,7 @@ async function fixture(lane: 'g002' | 'ptr' = 'g002') {
   };
   return { root, origin, privateState, state, trace, make, dispatcher, inspect, runStatus, runRevoked,
     setTokenHook: (hook: () => void) => { tokenHook = hook; },
-    directory: join(home, 'Library/Application Support/Warpkeep/operations/runtime', SEALED_REALMS_PRIVATE_STATE_VERSION, 'existing-updates-synthetic-v3', lane, ID),
+    directory: join(sealedRealmsPrivateBase(home), 'runtime', SEALED_REALMS_PRIVATE_STATE_VERSION, 'existing-updates-synthetic-v3', lane, ID),
     async cleanup() { for (const adapter of adapters) adapter.dispose(); server.closeAllConnections();
       await new Promise<void>(resolve => server.close(() => resolve()));
       if (!root.startsWith(join(tmpdir(), 'warpkeep-existing-update-test-'))) throw new Error('Invalid cleanup root');

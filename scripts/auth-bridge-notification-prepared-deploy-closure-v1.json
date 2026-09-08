@@ -1720,7 +1720,7 @@
     {
       "path": "scripts/sealed-realms-production-private-state.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b8c4a7256272da365965cc3b3bc8f163485f84724ab646c9b2f468a9e40576de"
+      "sha256": "3c2b6d4490d0a8fecb587bdfc2da17ff20155a692821c2b17e8b4dd512ecf90b"
     },
     {
       "path": "scripts/sealed-realms-production-ptr-lane.bundle.d.mts",
@@ -1910,7 +1910,7 @@
     {
       "path": "scripts/verify-sealed-realms-public-activation-artifact.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d411977857f4b617079e43767a61b4de7560aaf7678963d0e63e63cee9d75718"
+      "sha256": "30c1de0a298aafe009db99fcc632bf439dd3b5b712ee248178c1946e6d55a6a2"
     },
     {
       "path": "scripts/warpkeep-package-version.d.mts",

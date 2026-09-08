@@ -182,8 +182,13 @@ describe.skipIf(process.platform === 'win32')(
     let home: string;
     let artifactPath: string;
     let priorHome: string | undefined;
+    let priorPlatform: PropertyDescriptor;
 
     beforeEach(() => {
+      // Exercise the retained desktop path on a real POSIX filesystem. The
+      // dedicated Linux fixed-path probe is covered in its own suite.
+      priorPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+      Object.defineProperty(process, 'platform', { ...priorPlatform, value: 'darwin' });
       priorHome = process.env.HOME;
       home = mkdtempSync(resolve(tmpdir(), 'warpkeep-public-activation-'));
       process.env.HOME = home;
@@ -194,6 +199,7 @@ describe.skipIf(process.platform === 'win32')(
     });
 
     afterEach(() => {
+      Object.defineProperty(process, 'platform', priorPlatform);
       if (priorHome === undefined) delete process.env.HOME;
       else process.env.HOME = priorHome;
       rmSync(home, { force: true, recursive: true });

@@ -1,3 +1,4 @@
+import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 // @vitest-environment node
 
 import { createHash } from 'node:crypto';
@@ -330,9 +331,9 @@ function g001Authority(operation:
 function censusPrivateState(testOnlyRace?: (phase: string, path: string) => void) {
   const home = mkdtempSync(join(tmpdir(), 'warpkeep-g001-census-'));
   for (const root of [
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'audit', 'private'),
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'runtime'),
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'cache'),
+    join(sealedRealmsPrivateBase(home), 'audit', 'private'),
+    join(sealedRealmsPrivateBase(home), 'runtime'),
+    join(sealedRealmsPrivateBase(home), 'cache'),
   ]) {
     mkdirSync(root, { recursive: true, mode: 0o700 });
     chmodSync(root, 0o700);
@@ -1212,7 +1213,7 @@ describe('sealed-realms production dispatcher', () => {
         if (scenario === 'lost-acknowledgment') await expect(initial).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
         else await expect(initial).resolves.toEqual({ operation: 'g001-policy-observe', status: 'completed' });
         expect(firstRunner).toHaveBeenCalledTimes(2);
-        const recordPath = join(local.home, 'Library', 'Application Support', 'Warpkeep', 'operations',
+        const recordPath = join(sealedRealmsPrivateBase(local.home),
           'runtime', 'sealed-realms-v1', ...POLICY_RECORD_PATH.split('/'));
         const record = JSON.parse(readFileSync(recordPath, 'utf8'));
         const runId = record.receipt.launchCleanup.runId;

@@ -1,3 +1,4 @@
+import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 // Approval I/O is isolated here; the real joined proof lives in sealedRealmsRecoveryApprovalProducer.test.ts.
 vi.mock('../scripts/sealed-realms-production-recovery-approval-facts.ts', () => ({ readSealedRealmsProductionRecoveryApprovalFacts: () => ({}) }));
 // @vitest-environment node
@@ -67,7 +68,7 @@ function corpus(
   roots.push(home);
   for (const suffix of ["audit/private", "runtime", "cache"])
     mkdirSync(
-      join(home, "Library/Application Support/Warpkeep/operations", suffix),
+      join(sealedRealmsPrivateBase(home), suffix),
       { recursive: true, mode: 0o700 },
     );
   const privateState = createSealedRealmsProductionPrivateState({

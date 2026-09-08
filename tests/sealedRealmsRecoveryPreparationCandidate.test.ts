@@ -1,3 +1,4 @@
+import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 import { createSealedRealmsProductionRecoveryPreparation, disposeSealedRealmsProductionRecoveryPreparation } from '../scripts/sealed-realms-production-recovery-preparation.mjs';
 import { preparationTransportFixture } from './fixtures/recoveryPreparationSigned.js';
 // Reuses the complete source-closure producer fixture without changing its owner file.
@@ -224,7 +225,7 @@ function corpus(
   roots.push(home);
   for (const suffix of ["audit/private", "runtime", "cache"])
     mkdirSync(
-      join(home, "Library/Application Support/Warpkeep/operations", suffix),
+      join(sealedRealmsPrivateBase(home), suffix),
       { recursive: true, mode: 0o700 },
     );
   const privateState = createSealedRealmsProductionPrivateState({

@@ -1,3 +1,4 @@
+import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 import { createHash } from 'node:crypto';
 import {
   chmodSync,
@@ -173,9 +174,9 @@ async function workflowPermit(
 function privateFixture() {
   const home = mkdtempSync(join(tmpdir(), 'warpkeep-sealed-realms-continuation-'));
   for (const root of [
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'audit', 'private'),
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'runtime'),
-    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'cache'),
+    join(sealedRealmsPrivateBase(home), 'audit', 'private'),
+    join(sealedRealmsPrivateBase(home), 'runtime'),
+    join(sealedRealmsPrivateBase(home), 'cache'),
   ]) {
     mkdirSync(root, { recursive: true, mode: 0o700 });
     chmodSync(root, 0o700);
@@ -192,8 +193,7 @@ function privateFixture() {
 }
 
 function recordNames(home: string) {
-  const root = join(
-    home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'runtime',
+  const root = join(sealedRealmsPrivateBase(home), 'runtime',
     'sealed-realms-v1', 'continuations',
   );
   if (!readdirSync(join(root, '..')).includes('continuations')) return [];
@@ -204,8 +204,7 @@ function recordNames(home: string) {
 }
 
 function issuedPath(home: string) {
-  const root = join(
-    home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'runtime',
+  const root = join(sealedRealmsPrivateBase(home), 'runtime',
     'sealed-realms-v1', 'continuations',
   );
   const scope = readdirSync(root)[0]!;

@@ -57,55 +57,45 @@ describe('sealed-realms production workflow authority', () => {
     jobs: Record<string, VerificationJob>;
   };
   const operationStep = (name: string) => {
-    const step = production().jobs.operate.steps.find(candidate => candidate.name === name);
+    const step = (name === 'Refuse unwired provider operations' ? production().jobs.unsupported : production().jobs.operate).steps.find(candidate => candidate.name === name);
     expect(step).toBeDefined();
     return step!;
   };
-  const guardName = 'Require installed Linux preflight authority';
-  const executeName = 'Attest runtime and execute authenticated preflight';
-  const refusalName = 'Refuse operations without a supported Linux caller';
+  const guardName = 'Require installed Linux operation authority';
+  const executeName = 'Attest runtime and execute authenticated operation';
+  const refusalName = 'Refuse unwired provider operations';
 
-  it('uses the protected Linux runner and keeps the exact manual-main job identity', () => {
-    const source = workflow('sealed-realms-production.yml');
-    const document = production();
-    expect(Object.keys(document.jobs)).toEqual(['operate']);
-    const job = document.jobs.operate;
-    expect(job).toMatchObject({
-      environment: 'notification-bridge-prepared',
-      'runs-on': ['self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive'],
-    });
-    expect(job.if?.trim().split(/\s*&&\s*/u)).toEqual([
-      "github.event_name == 'workflow_dispatch'", "github.repository == 'ael-dev3/Warpkeep'",
-      "github.ref == 'refs/heads/main'", 'github.sha == inputs.source_commit',
-    ]);
-    expect(job['timeout-minutes']).toBe(30);
-    expect(job.steps.map(step => step.name)).toEqual([refusalName, guardName,
-      'Checkout exact selected authority', 'Setup exact Linux preflight Node', executeName]);
-    expect(job.steps[2]).toMatchObject({ with: { ref: '${{ inputs.source_commit }}',
-      'fetch-depth': 0, 'persist-credentials': false } });
-    expect(job.steps[3]).toMatchObject({
-      uses: 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020',
-      with: { 'node-version': '22.22.3' },
-    });
-    for (const step of job.steps.slice(1)) expect(step.if).toBe("${{ inputs.operation == 'preflight' }}");
-    expect(job.steps[0].if).toBe("${{ inputs.operation != 'preflight' }}");
-    for (const step of job.steps.filter(step => step.run)) expect(step.shell).toBe(hardenedShell);
-    for (const step of job.steps) expect(step).not.toHaveProperty('continue-on-error');
+  it('separates generation OIDC from readonly operations on the exact protected runner', () => {
+    const document=production();expect(Object.keys(document.jobs)).toEqual(['operate_readonly','operate','unsupported']);
+    const common=["github.event_name == 'workflow_dispatch'", "github.repository == 'ael-dev3/Warpkeep'", "github.ref == 'refs/heads/main'", 'github.sha == inputs.source_commit'];
+    for(const name of ['operate_readonly','operate']) {
+      const job=document.jobs[name];for(const expression of common)expect(job.if).toContain(expression);
+      expect(job).toMatchObject({environment:'notification-bridge-prepared','runs-on':['self-hosted','Linux','X64','warpkeep-production-admin','warpkeep-repository-exclusive']});
+      expect(job.steps.map(step=>step.name)).toEqual([guardName,'Checkout exact selected authority',executeName]);
+      expect(job.steps[1]).toMatchObject({with:{ref:'${{ inputs.source_commit }}','fetch-depth':0,'persist-credentials':false}});
+      expect(job.env).toEqual({WARPKEEP_OPERATION:'${{ inputs.operation }}'});
+      for(const step of job.steps.filter(step=>step.run))expect(step.shell).toBe(hardenedShell);
+    }
+    expect(document.jobs.operate.permissions).toEqual({actions:'read',contents:'read','id-token':'write'});
+    expect(document.jobs.operate.if).toContain("inputs.operation == 'activation-evidence-generate'");
+    expect(document.jobs.operate_readonly.permissions).toBeUndefined();
+    expect(document.jobs.operate_readonly.if).toContain('["preflight","activation-evidence-inspect"]');
+    expect(document.jobs.unsupported.steps[0].run).toContain('SEALED_REALMS_LINUX_OPERATION_UNAVAILABLE');
+    const source=workflow('sealed-realms-production.yml');
     expect(source).not.toMatch(/(?:npm|pnpm|npx|tsx) (?:ci|install|run)/u);
     expect(source).not.toMatch(/console\.log|set -x|printenv|^\s*env\s*$/mu);
-    expect(source).not.toMatch(/macOS|ARM64|darwin|codesign|actions\/(?:upload|deploy)-artifact|activation-artifact/u);
-    for (const reference of source.matchAll(/uses:\s*([^\s]+)/gu)) expect(reference[1]).toMatch(/@[0-9a-f]{40}$/u);
+    for(const reference of source.matchAll(/uses:\s*([^\s]+)/gu))expect(reference[1]).toMatch(/@[0-9a-f]{40}$/u);
   });
 
   it('requires installed account and private state without provisioning authority', () => {
     const guard = operationStep(guardName).run!;
     for (const required of ["test \"$RUNNER_OS\" = 'Linux'", "test \"$RUNNER_ARCH\" = 'X64'",
-      "test \"$RUNNER_NAME\" = 'warpkeep-wsl-production-01'", "test \"$(/usr/bin/id -u)\" = '1001'",
-      "test \"$(/usr/bin/id -g)\" = '1001'", "test \"$(/usr/bin/id -un)\" = 'runner'",
-      "test \"$(/usr/bin/id -ru)\" = '1001'", "test \"$(/usr/bin/id -rg)\" = '1001'",
+      "test \"$RUNNER_NAME\" = 'warpkeep-wsl-production-01'", "test \"$(/usr/bin/id -u)\" = '1000'",
+      "test \"$(/usr/bin/id -g)\" = '1000'", "test \"$(/usr/bin/id -un)\" = 'warpkeep'",
+      "test \"$(/usr/bin/id -ru)\" = '1000'", "test \"$(/usr/bin/id -rg)\" = '1000'",
       "test \"$GITHUB_REF\" = 'refs/heads/main'", "test \"$GITHUB_JOB\" = 'operate'",
-      '/home/runner/actions-runner', "'1001:1001:700'", 'audit/private runtime cache',
-      '/home/runner/Library/Application Support/Warpkeep/operations/$suffix']) expect(guard).toContain(required);
+      '/home/warpkeep/actions-runner', "'1000:1000:700'", 'audit/private runtime cache',
+      '/home/warpkeep/.warpkeep/private/sealed-realms-v1/$suffix']) expect(guard).toContain(required);
     expect(guard).not.toMatch(/mkdir|mktemp|install |chmod|chown/u);
     expect(guard.indexOf('SEALED_REALMS_LINUX_AMBIENT_OVERRIDE_INVALID')).toBeLessThan(guard.indexOf('/usr/bin/id -u'));
   });
@@ -115,18 +105,18 @@ describe('sealed-realms production workflow authority', () => {
     for (const required of [
       'e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2',
       '2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668',
-      '124819136:1', '1001:1001:1:700:124819136', '$RUNNER_TEMP/warpkeep-sealed-preflight-node.XXXXXX',
+      '1000:1000:1:500:124819136', '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
       "'0:0:1:755'",
-      'test -f "$source_node" && test ! -L "$source_node"', 'check_parents "${source_node%/*}"',
+      'test -f "$source_node" && test -x "$source_node" && test ! -L "$source_node"', 'check_parents "${source_node%/*}"',
       'GIT_NO_REPLACE_OBJECTS=1', '--no-replace-objects --no-optional-locks', 'core.hooksPath=/dev/null',
       "'HEAD^{commit}'", "'refs/remotes/origin/main^{commit}'", 'status --porcelain=v1 --untracked-files=all',
       'scripts/sealed-realms-production-linux-preflight.mjs', 'scripts/local-binding-bounded-file.mjs',
       'scripts/sealed-realms-production-bundle-engine.mjs', 'scripts/auth-bridge-notification-prepared-deploy-closure.mjs',
-      '1001:1001:1:644', 'git_source ls-tree', 'git_source show "$WARPKEEP_SOURCE_COMMIT:$path" | /usr/bin/cmp --silent -- "$path" -',
-      'exec "$private_root/node" scripts/sealed-realms-production-linux-preflight.mjs',
-      '--operation=preflight "--source=$GITHUB_SHA"',
+      '1000:1000:1:644', 'git_source ls-tree', 'git_source show "$WARPKEEP_SOURCE_COMMIT:$path" | /usr/bin/cmp --silent -- "$path" -',
+      'exec "$source_node" scripts/sealed-realms-production-linux-preflight.mjs',
+      '"--operation=$WARPKEEP_OPERATION" "--source=$GITHUB_SHA"',
     ]) expect(execute).toContain(required);
-    const call = execute.indexOf('exec "$private_root/node"');
+    const call = execute.indexOf('exec "$source_node"');
     expect(call).toBeGreaterThan(execute.indexOf('/usr/bin/cmp --silent'));
     expect(call).toBeGreaterThan(execute.lastIndexOf('/usr/bin/sha256sum --check --strict --status -'));
     expect(execute).not.toMatch(/--eval|--input-type|--import|expected-digest|WARPKEEP_NODE_EXECUTABLE/u);
@@ -141,7 +131,7 @@ describe('sealed-realms production workflow authority', () => {
     const allowlist = execute.run!.match(/PATH\|HOME\|LANG\|LC_ALL\|[^\n]+(?=\) ;;)/u)?.[0].split('|');
     expect(allowlist).toEqual(['PATH', 'HOME', 'LANG', 'LC_ALL', 'RUNNER_OS', 'RUNNER_ARCH', 'RUNNER_NAME', 'RUNNER_TEMP',
       'GITHUB_ACTIONS', 'GITHUB_REPOSITORY', 'GITHUB_REF', 'GITHUB_SHA', 'GITHUB_EVENT_NAME', 'GITHUB_JOB',
-      'GITHUB_WORKFLOW', 'GITHUB_WORKFLOW_REF', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_TOKEN']);
+      'GITHUB_WORKFLOW', 'GITHUB_WORKFLOW_REF', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_TOKEN', 'WARPKEEP_OPERATION', 'ACTIONS_ID_TOKEN_REQUEST_URL', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN']);
     expect(execute.run).toContain('*) unset "$key" ;;');
     expect(execute.run).not.toContain('GITHUB_TOKEN=');
     expect(execute.run).not.toContain('$GITHUB_TOKEN');
@@ -188,7 +178,7 @@ describe('sealed-realms production workflow authority', () => {
 set -eu
 test "$#" = 3
 test "$1" = scripts/sealed-realms-production-linux-preflight.mjs
-test "$2" = --operation=preflight
+test "$2" = "--operation=$WARPKEEP_OPERATION"
 test "$3" = "--source=$GITHUB_SHA"
 test -n "$GITHUB_TOKEN"
 test "\${WARPKEEP_SOURCE_COMMIT+x}" != x
@@ -197,16 +187,16 @@ printf '%s\\n' fixed-argument-transport-ok
 `, { mode: 0o700 });
       const execute = operationStep(executeName).run!;
       const transport = execute.slice(execute.lastIndexOf('while IFS= read -r key; do'));
-      const result = runShell('set -eu\nprivate_root="$WARPKEEP_FIXTURE_BIN"\n' + transport, {
+      const result = runShell('set -eu\nsource_node="$WARPKEEP_FIXTURE_BIN/node"\n' + transport, {
         WARPKEEP_FIXTURE_BIN: directory, WARPKEEP_SOURCE_COMMIT: 'a'.repeat(40), GITHUB_SHA: 'a'.repeat(40),
-        GITHUB_TOKEN: 'private-test-token-never-in-argv', WARPKEEP_UNRELATED: 'must-be-cleared',
+        WARPKEEP_OPERATION: 'activation-evidence-generate', GITHUB_TOKEN: 'private-test-token-never-in-argv', WARPKEEP_UNRELATED: 'must-be-cleared',
       });
       expect(result.error).toBeUndefined(); expect(result.status).toBe(0); expect(result.stderr).toBe('');
       expect(result.stdout).toBe('fixed-argument-transport-ok\n');
     } finally { rmSync(directory, { recursive: true, force: true }); }
   });
 
-  it.runIf(process.platform === 'linux').each(SEALED_REALMS_OPERATIONS.filter(operation => operation !== 'preflight'))(
+  it.runIf(process.platform === 'linux').each(SEALED_REALMS_OPERATIONS.filter(operation => !['preflight','activation-evidence-inspect','activation-evidence-generate'].includes(operation)))(
     'refuses %s without loading source or echoing caller data', operation => {
       const refusal = operationStep(refusalName);
       const result = runShell(refusal.run!, { WARPKEEP_OPERATION: operation, WARPKEEP_SOURCE_COMMIT: 'private-invalid-source' });

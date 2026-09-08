@@ -8,7 +8,7 @@ import {
   readSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
-import { resolve } from 'node:path';
+import { posix, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseRecoveryBinding } from './recovery-activation-candidate.mjs';
 
@@ -271,7 +271,10 @@ function readFixedArtifactBytes() {
   if (typeof process.getuid !== 'function') {
     fail('SEALED_REALMS_PUBLIC_ACTIVATION_PLATFORM_UNSUPPORTED');
   }
-  const path = resolve(homedir(), ...ARTIFACT_RELATIVE_PATH);
+  const path = process.platform === 'linux'
+    ? posix.join('/', 'home', 'warpkeep', '.warpkeep', 'private', 'sealed-realms-v1',
+      'runtime', 'sealed-realms-v1', 'public', '0.4.0-sealed-launch.json')
+    : resolve(homedir(), ...ARTIFACT_RELATIVE_PATH);
   const before = lstatSync(path, { bigint: true });
   const uid = BigInt(process.getuid());
   if (

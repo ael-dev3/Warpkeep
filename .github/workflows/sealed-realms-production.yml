@@ -43,12 +43,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  operate:
+  operate_readonly:
     if: >-
       github.event_name == 'workflow_dispatch' &&
       github.repository == 'ael-dev3/Warpkeep' &&
       github.ref == 'refs/heads/main' &&
-      github.sha == inputs.source_commit
+      github.sha == inputs.source_commit &&
+      contains(fromJSON('["preflight","activation-evidence-inspect"]'), inputs.operation)
     environment: notification-bridge-prepared
     runs-on:
       - self-hosted
@@ -56,17 +57,11 @@ jobs:
       - X64
       - warpkeep-production-admin
       - warpkeep-repository-exclusive
-    timeout-minutes: 30
+    timeout-minutes: 120
+    env:
+      WARPKEEP_OPERATION: ${{ inputs.operation }}
     steps:
-      - name: Refuse operations without a supported Linux caller
-        if: ${{ inputs.operation != 'preflight' }}
-        shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
-        run: |
-          printf '%s\n' 'WARPKEEP_OPERATION_RESULT {"status":"SEALED_REALMS_LINUX_OPERATION_UNAVAILABLE"}'
-          exit 1
-
-      - name: Require installed Linux preflight authority
-        if: ${{ inputs.operation == 'preflight' }}
+      - name: Require installed Linux operation authority
         env:
           WARPKEEP_SOURCE_COMMIT: ${{ inputs.source_commit }}
         shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
@@ -85,49 +80,44 @@ jobs:
           test "$RUNNER_OS" = 'Linux'
           test "$RUNNER_ARCH" = 'X64'
           test "$RUNNER_NAME" = 'warpkeep-wsl-production-01'
-          test "$(/usr/bin/id -u)" = '1001'
-          test "$(/usr/bin/id -g)" = '1001'
-          test "$(/usr/bin/id -ru)" = '1001'
-          test "$(/usr/bin/id -rg)" = '1001'
-          test "$(/usr/bin/id -un)" = 'runner'
+          test "$(/usr/bin/id -u)" = '1000'
+          test "$(/usr/bin/id -g)" = '1000'
+          test "$(/usr/bin/id -ru)" = '1000'
+          test "$(/usr/bin/id -rg)" = '1000'
+          test "$(/usr/bin/id -un)" = 'warpkeep'
           test "$GITHUB_EVENT_NAME" = 'workflow_dispatch'
           test "$GITHUB_REPOSITORY" = 'ael-dev3/Warpkeep'
           test "$GITHUB_REF" = 'refs/heads/main'
-          test "$GITHUB_JOB" = 'operate'
+          test "$GITHUB_JOB" = 'operate_readonly'
           test "$GITHUB_SHA" = "$WARPKEEP_SOURCE_COMMIT"
           [[ "$WARPKEEP_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
-          for path in /home/runner /home/runner/actions-runner; do
+          test "$(/usr/bin/stat -c '%u:%g:%a' -- /home/warpkeep)" = '1000:1000:750'
+          test "$(/usr/bin/realpath -- /home/warpkeep)" = '/home/warpkeep'
+          test ! -L /home/warpkeep
+          for path in /home/warpkeep/actions-runner; do
             test -d "$path" && test ! -L "$path"
             test "$(/usr/bin/realpath -- "$path")" = "$path"
-            test "$(/usr/bin/stat -c '%u:%g:%a' -- "$path")" = '1001:1001:700'
+            test "$(/usr/bin/stat -c '%u:%g:%a' -- "$path")" = '1000:1000:700'
           done
-          [[ "$RUNNER_TEMP" == /home/runner/actions-runner/* ]]
+          [[ "$RUNNER_TEMP" == /home/warpkeep/actions-runner/* ]]
           test "$(/usr/bin/realpath -- "$RUNNER_TEMP")" = "$RUNNER_TEMP"
           test -d "$RUNNER_TEMP" && test ! -L "$RUNNER_TEMP"
           # Existing authority is required. Preflight never provisions it.
           for suffix in audit/private runtime cache; do
-            path="/home/runner/Library/Application Support/Warpkeep/operations/$suffix"
+            path="/home/warpkeep/.warpkeep/private/sealed-realms-v1/$suffix"
             test -d "$path" && test ! -L "$path"
             test "$(/usr/bin/realpath -- "$path")" = "$path"
-            test "$(/usr/bin/stat -c '%u:%g:%a' -- "$path")" = '1001:1001:700'
+            test "$(/usr/bin/stat -c '%u:%g:%a' -- "$path")" = '1000:1000:700'
           done
 
       - name: Checkout exact selected authority
-        if: ${{ inputs.operation == 'preflight' }}
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ inputs.source_commit }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Setup exact Linux preflight Node
-        if: ${{ inputs.operation == 'preflight' }}
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22.22.3
-
-      - name: Attest runtime and execute authenticated preflight
-        if: ${{ inputs.operation == 'preflight' }}
+      - name: Attest runtime and execute authenticated operation
         env:
           WARPKEEP_SOURCE_COMMIT: ${{ inputs.source_commit }}
           GITHUB_TOKEN: ${{ github.token }}
@@ -151,7 +141,7 @@ jobs:
               test -d "$component" && test ! -L "$component"
               test "$(/usr/bin/realpath -- "$component")" = "$component"
               IFS=: read -r owner mode < <(/usr/bin/stat -c '%u:%a' -- "$component")
-              [[ "$owner" == '0' || "$owner" == '1001' ]]
+              [[ "$owner" == '0' || "$owner" == '1000' ]]
               [[ "$mode" =~ ^[0-7]{3,4}$ ]]
               test "$((8#$mode & 0022))" = '0'
               if [[ "$component" == '/' ]]; then break; fi
@@ -180,41 +170,206 @@ jobs:
           for path in \
             scripts/sealed-realms-production-linux-preflight.mjs \
             scripts/local-binding-bounded-file.mjs \
+            scripts/local-operation-bundle-noble-v1.mjs \
             scripts/sealed-realms-production-bundle-engine.mjs \
             scripts/auth-bridge-notification-prepared-deploy-closure.mjs; do
             test -f "$path" && test ! -L "$path"
-            test "$(/usr/bin/stat -c '%u:%g:%h:%a' -- "$path")" = '1001:1001:1:644'
+            test "$(/usr/bin/stat -c '%u:%g:%h:%a' -- "$path")" = '1000:1000:1:644'
             entry="$(git_source ls-tree "$WARPKEEP_SOURCE_COMMIT" -- "$path")"
             [[ "$entry" =~ ^100644\ blob\ [0-9a-f]{40}$'\t' ]] && test "${entry#*$'\t'}" = "$path"
             git_source show "$WARPKEEP_SOURCE_COMMIT:$path" | /usr/bin/cmp --silent -- "$path" -
           done
-          source_node="$(command -v node)"
-          test -f "$source_node" && test ! -L "$source_node"
+          source_node='/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node'
+          test -f "$source_node" && test -x "$source_node" && test ! -L "$source_node"
           test "$(/usr/bin/realpath -- "$source_node")" = "$source_node"
-          [[ "$RUNNER_TOOL_CACHE" == /* ]]
-          test -d "$RUNNER_TOOL_CACHE" && test ! -L "$RUNNER_TOOL_CACHE"
-          test "$(/usr/bin/realpath -- "$RUNNER_TOOL_CACHE")" = "$RUNNER_TOOL_CACHE"
-          [[ "$source_node" == "$RUNNER_TOOL_CACHE/"* ]]
           check_parents "${source_node%/*}"
-          node_sha='e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2'
-          test "$(/usr/bin/stat -c '%s:%h' -- "$source_node")" = '124819136:1'
-          printf '%s  %s\n' "$node_sha" "$source_node" | /usr/bin/sha256sum --check --strict --status -
-          private_root="$(/usr/bin/mktemp -d "$RUNNER_TEMP/warpkeep-sealed-preflight-node.XXXXXX")"
-          /usr/bin/chmod 0700 "$private_root"
-          /usr/bin/install -m 0700 "$source_node" "$private_root/node"
-          test "$(/usr/bin/stat -c '%u:%g:%a' -- "$private_root")" = '1001:1001:700'
-          test "$(/usr/bin/stat -c '%u:%g:%h:%a:%s' -- "$private_root/node")" = '1001:1001:1:700:124819136'
-          printf '%s  %s\n' "$node_sha" "$source_node" "$node_sha" "$private_root/node" | /usr/bin/sha256sum --check --strict --status -
+          test "$(/usr/bin/stat -c '%u:%g:%h:%a:%s' -- "$source_node")" = '1000:1000:1:500:124819136'
+          printf '%s  %s\n' 'e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2' "$source_node" | /usr/bin/sha256sum --check --strict --status -
           # No credentials or caller-selected hashes enter argv. The fixed CLI
-          # accepts only preflight, reopens authority and emits bounded public JSON.
+          # accepts only the fixed supported operations, reopens authority and emits bounded public JSON.
           # Retain the token as an inherited environment value, never an env
           # utility argument visible in another process's command line.
           while IFS= read -r key; do
             case "$key" in
-              PATH|HOME|LANG|LC_ALL|RUNNER_OS|RUNNER_ARCH|RUNNER_NAME|RUNNER_TEMP|GITHUB_ACTIONS|GITHUB_REPOSITORY|GITHUB_REF|GITHUB_SHA|GITHUB_EVENT_NAME|GITHUB_JOB|GITHUB_WORKFLOW|GITHUB_WORKFLOW_REF|GITHUB_RUN_ID|GITHUB_RUN_ATTEMPT|GITHUB_TOKEN) ;;
+              PATH|HOME|LANG|LC_ALL|RUNNER_OS|RUNNER_ARCH|RUNNER_NAME|RUNNER_TEMP|GITHUB_ACTIONS|GITHUB_REPOSITORY|GITHUB_REF|GITHUB_SHA|GITHUB_EVENT_NAME|GITHUB_JOB|GITHUB_WORKFLOW|GITHUB_WORKFLOW_REF|GITHUB_RUN_ID|GITHUB_RUN_ATTEMPT|GITHUB_TOKEN|WARPKEEP_OPERATION) ;;
               *) unset "$key" ;;
             esac
           done < <(compgen -e)
-          export PATH=/usr/bin:/bin HOME=/home/runner LANG=C LC_ALL=C
-          exec "$private_root/node" scripts/sealed-realms-production-linux-preflight.mjs \
-            --operation=preflight "--source=$GITHUB_SHA"
+          export PATH=/usr/bin:/bin HOME=/home/warpkeep LANG=C LC_ALL=C
+          exec "$source_node" scripts/sealed-realms-production-linux-preflight.mjs \
+            "--operation=$WARPKEEP_OPERATION" "--source=$GITHUB_SHA"
+
+  operate:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'ael-dev3/Warpkeep' &&
+      github.ref == 'refs/heads/main' &&
+      github.sha == inputs.source_commit &&
+      inputs.operation == 'activation-evidence-generate'
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    environment: notification-bridge-prepared
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - warpkeep-production-admin
+      - warpkeep-repository-exclusive
+    timeout-minutes: 120
+    env:
+      WARPKEEP_OPERATION: ${{ inputs.operation }}
+    steps:
+      - name: Require installed Linux operation authority
+        env:
+          WARPKEEP_SOURCE_COMMIT: ${{ inputs.source_commit }}
+        shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          # Privileged Bash ignores startup files and exported functions. Reject
+          # ambient overrides before checkout, setup actions or any Node process.
+          while IFS= read -r key; do
+            case "$key" in
+              NODE_*|ESBUILD_*|TS_NODE_*|BUN_*|LD_*|DYLD_*|GIT_*|BASH_ENV|ENV|OPENSSL_CONF|SSL_CERT_*|PYTHONPATH|VITEST|PS4|SHELLOPTS|BASHOPTS)
+                echo 'SEALED_REALMS_LINUX_AMBIENT_OVERRIDE_INVALID' >&2
+                exit 1
+                ;;
+            esac
+          done < <(compgen -e)
+          test "$RUNNER_OS" = 'Linux'
+          test "$RUNNER_ARCH" = 'X64'
+          test "$RUNNER_NAME" = 'warpkeep-wsl-production-01'
+          test "$(/usr/bin/id -u)" = '1000'
+          test "$(/usr/bin/id -g)" = '1000'
+          test "$(/usr/bin/id -ru)" = '1000'
+          test "$(/usr/bin/id -rg)" = '1000'
+          test "$(/usr/bin/id -un)" = 'warpkeep'
+          test "$GITHUB_EVENT_NAME" = 'workflow_dispatch'
+          test "$GITHUB_REPOSITORY" = 'ael-dev3/Warpkeep'
+          test "$GITHUB_REF" = 'refs/heads/main'
+          test "$GITHUB_JOB" = 'operate'
+          test "$GITHUB_SHA" = "$WARPKEEP_SOURCE_COMMIT"
+          [[ "$WARPKEEP_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test "$(/usr/bin/stat -c '%u:%g:%a' -- /home/warpkeep)" = '1000:1000:750'
+          test "$(/usr/bin/realpath -- /home/warpkeep)" = '/home/warpkeep'
+          test ! -L /home/warpkeep
+          for path in /home/warpkeep/actions-runner; do
+            test -d "$path" && test ! -L "$path"
+            test "$(/usr/bin/realpath -- "$path")" = "$path"
+            test "$(/usr/bin/stat -c '%u:%g:%a' -- "$path")" = '1000:1000:700'
+          done
+          [[ "$RUNNER_TEMP" == /home/warpkeep/actions-runner/* ]]
+          test "$(/usr/bin/realpath -- "$RUNNER_TEMP")" = "$RUNNER_TEMP"
+          test -d "$RUNNER_TEMP" && test ! -L "$RUNNER_TEMP"
+          # Existing authority is required. Preflight never provisions it.
+          for suffix in audit/private runtime cache; do
+            path="/home/warpkeep/.warpkeep/private/sealed-realms-v1/$suffix"
+            test -d "$path" && test ! -L "$path"
+            test "$(/usr/bin/realpath -- "$path")" = "$path"
+            test "$(/usr/bin/stat -c '%u:%g:%a' -- "$path")" = '1000:1000:700'
+          done
+
+      - name: Checkout exact selected authority
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Attest runtime and execute authenticated operation
+        env:
+          WARPKEEP_SOURCE_COMMIT: ${{ inputs.source_commit }}
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          umask 077
+          while IFS= read -r key; do
+            case "$key" in
+              NODE_*|ESBUILD_*|TS_NODE_*|BUN_*|LD_*|DYLD_*|GIT_*|BASH_ENV|ENV|OPENSSL_CONF|SSL_CERT_*|PYTHONPATH|VITEST|PS4|SHELLOPTS|BASHOPTS)
+                echo 'SEALED_REALMS_LINUX_AMBIENT_OVERRIDE_INVALID' >&2
+                exit 1
+                ;;
+            esac
+          done < <(compgen -e)
+          [[ "$WARPKEEP_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test "$WARPKEEP_SOURCE_COMMIT" = "$GITHUB_SHA"
+          check_parents() {
+            local component="$1" owner mode
+            while true; do
+              test -d "$component" && test ! -L "$component"
+              test "$(/usr/bin/realpath -- "$component")" = "$component"
+              IFS=: read -r owner mode < <(/usr/bin/stat -c '%u:%a' -- "$component")
+              [[ "$owner" == '0' || "$owner" == '1000' ]]
+              [[ "$mode" =~ ^[0-7]{3,4}$ ]]
+              test "$((8#$mode & 0022))" = '0'
+              if [[ "$component" == '/' ]]; then break; fi
+              component="${component%/*}"
+              if [[ -z "$component" ]]; then component='/'; fi
+            done
+          }
+          check_parents "$RUNNER_TEMP"
+          check_parents '/usr/bin'
+          test -f /usr/bin/git && test -x /usr/bin/git && test ! -L /usr/bin/git
+          test "$(/usr/bin/stat -c '%u:%g:%h:%a' -- /usr/bin/git)" = '0:0:1:755'
+          printf '%s\n' '2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668  /usr/bin/git' | /usr/bin/sha256sum --check --strict --status -
+          git_source() {
+            /usr/bin/env -i PATH=/usr/bin:/bin HOME=/dev/null LANG=C LC_ALL=C \
+              GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+              GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null GIT_TERMINAL_PROMPT=0 \
+              /usr/bin/git --no-replace-objects --no-optional-locks \
+              -c core.fsmonitor=false -c core.untrackedCache=false -c core.hooksPath=/dev/null "$@"
+          }
+          test "$(git_source rev-parse --verify 'HEAD^{commit}')" = "$WARPKEEP_SOURCE_COMMIT"
+          test "$(git_source rev-parse --verify 'refs/remotes/origin/main^{commit}')" = "$WARPKEEP_SOURCE_COMMIT"
+          test -z "$(git_source status --porcelain=v1 --untracked-files=all)"
+          check_parents "$PWD/scripts"
+          # These are the complete static local imports executed by the caller
+          # before its own source, bundle and live Verify evidence checks.
+          for path in \
+            scripts/sealed-realms-production-linux-preflight.mjs \
+            scripts/local-binding-bounded-file.mjs \
+            scripts/local-operation-bundle-noble-v1.mjs \
+            scripts/sealed-realms-production-bundle-engine.mjs \
+            scripts/auth-bridge-notification-prepared-deploy-closure.mjs; do
+            test -f "$path" && test ! -L "$path"
+            test "$(/usr/bin/stat -c '%u:%g:%h:%a' -- "$path")" = '1000:1000:1:644'
+            entry="$(git_source ls-tree "$WARPKEEP_SOURCE_COMMIT" -- "$path")"
+            [[ "$entry" =~ ^100644\ blob\ [0-9a-f]{40}$'\t' ]] && test "${entry#*$'\t'}" = "$path"
+            git_source show "$WARPKEEP_SOURCE_COMMIT:$path" | /usr/bin/cmp --silent -- "$path" -
+          done
+          source_node='/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node'
+          test -f "$source_node" && test -x "$source_node" && test ! -L "$source_node"
+          test "$(/usr/bin/realpath -- "$source_node")" = "$source_node"
+          check_parents "${source_node%/*}"
+          test "$(/usr/bin/stat -c '%u:%g:%h:%a:%s' -- "$source_node")" = '1000:1000:1:500:124819136'
+          printf '%s  %s\n' 'e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2' "$source_node" | /usr/bin/sha256sum --check --strict --status -
+          # No credentials or caller-selected hashes enter argv. The fixed CLI
+          # accepts only the fixed supported operations, reopens authority and emits bounded public JSON.
+          # Retain the token as an inherited environment value, never an env
+          # utility argument visible in another process's command line.
+          while IFS= read -r key; do
+            case "$key" in
+              PATH|HOME|LANG|LC_ALL|RUNNER_OS|RUNNER_ARCH|RUNNER_NAME|RUNNER_TEMP|GITHUB_ACTIONS|GITHUB_REPOSITORY|GITHUB_REF|GITHUB_SHA|GITHUB_EVENT_NAME|GITHUB_JOB|GITHUB_WORKFLOW|GITHUB_WORKFLOW_REF|GITHUB_RUN_ID|GITHUB_RUN_ATTEMPT|GITHUB_TOKEN|WARPKEEP_OPERATION|ACTIONS_ID_TOKEN_REQUEST_URL|ACTIONS_ID_TOKEN_REQUEST_TOKEN) ;;
+              *) unset "$key" ;;
+            esac
+          done < <(compgen -e)
+          export PATH=/usr/bin:/bin HOME=/home/warpkeep LANG=C LC_ALL=C
+          exec "$source_node" scripts/sealed-realms-production-linux-preflight.mjs \
+            "--operation=$WARPKEEP_OPERATION" "--source=$GITHUB_SHA"
+
+  unsupported:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'ael-dev3/Warpkeep' &&
+      github.ref == 'refs/heads/main' &&
+      github.sha == inputs.source_commit &&
+      !contains(fromJSON('["preflight","activation-evidence-inspect","activation-evidence-generate"]'), inputs.operation)
+    runs-on: [self-hosted, Linux, X64, warpkeep-production-admin, warpkeep-repository-exclusive]
+    steps:
+      - name: Refuse unwired provider operations
+        shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        run: |
+          printf '%s\n' 'WARPKEEP_OPERATION_RESULT {"status":"SEALED_REALMS_LINUX_OPERATION_UNAVAILABLE"}'
+          exit 1
