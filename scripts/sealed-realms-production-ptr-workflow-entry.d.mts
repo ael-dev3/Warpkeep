@@ -3,6 +3,8 @@ import type {
 } from './sealed-realms-production-dispatch.mjs';
 
 type PtrOperation =
+  | 'ptr-update-inspect'
+  | 'ptr-update-apply'
   | 'ptr-publish-inspect'
   | 'ptr-publish-apply'
   | 'ptr-import-inspect'

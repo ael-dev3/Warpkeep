@@ -1,5 +1,11 @@
 import { execFileSync } from 'node:child_process';
 import { types } from 'node:util';
+import { lstatSync, realpathSync } from 'node:fs';
+import { userInfo } from 'node:os';
+import { basename, dirname, isAbsolute } from 'node:path';
+import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
+import { preparePtrSourceBuiltArtifact } from './ptr-production-publisher.mjs';
+import { createPtrProductionExistingUpdateAdapter } from './ptr-production-existing-update-adapter.mjs';
 import {
   createSealedRealmsProductionAuthBridgeState,
 } from './sealed-realms-production-auth-bridge-state.mjs';
@@ -33,6 +39,8 @@ import {
 } from './sealed-realms-production-workflow-authority.mjs';
 
 const OPERATIONS = new Set([
+  'ptr-update-inspect',
+  'ptr-update-apply',
   'ptr-publish-inspect',
   'ptr-publish-apply',
   'ptr-import-inspect',
@@ -49,6 +57,7 @@ const SOURCE_BINDING_KEYS = Object.freeze([
 const GIT_EXECUTABLE = process.platform === 'win32'
   ? 'git'
   : String.fromCodePoint(47, 117, 115, 114, 47, 98, 105, 110, 47, 103, 105, 116);
+const SYSTEM_PATH = String.fromCodePoint(47, 117, 115, 114, 47, 98, 105, 110, 58, 47, 98, 105, 110);
 const GIT_ENVIRONMENT = process.platform === 'win32'
   ? undefined
   : Object.freeze({
@@ -58,7 +67,7 @@ const GIT_ENVIRONMENT = process.platform === 'win32'
     HOME: String.fromCodePoint(47, 100, 101, 118, 47, 110, 117, 108, 108),
     LANG: 'C',
     LC_ALL: 'C',
-    PATH: String.fromCodePoint(47, 117, 115, 114, 47, 98, 105, 110, 58, 47, 98, 105, 110),
+    PATH: SYSTEM_PATH,
     TZ: 'UTC',
   });
 const runtimes = new WeakMap();
@@ -168,6 +177,50 @@ function unavailable() {
   fail('SEALED_REALMS_PTR_WORKFLOW_ADAPTER_UNAVAILABLE');
 }
 
+// These are the existing publisher's explicit configuration inputs. No PATH,
+// HOME or other account's preparation installation supplies a fallback.
+function updateConfiguration(expectedNode) {
+  try {
+    const account = userInfo();
+    if (process.platform !== 'linux' || process.arch !== 'x64'
+      || process.getuid?.() !== 1001 || process.geteuid?.() !== 1001
+      || process.getgid?.() !== 1001 || process.getegid?.() !== 1001
+      || account.uid !== 1001 || account.gid !== 1001
+      || account.username !== 'runner' || account.homedir !== '/home/runner') throw 0;
+    const paths = {
+      dependencyCacheRoot: process.env.WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT,
+      cliConfigSourcePath: process.env.WARPKEEP_SPACETIME_CLI_CONFIG_PATH,
+      executable: process.env.SPACETIME_BIN,
+      nodePath: process.execPath,
+    };
+    for (const [kind, path] of Object.entries(paths)) {
+      if (typeof path !== 'string' || !isAbsolute(path) || realpathSync(path) !== path) throw 0;
+      const status = lstatSync(path);
+      if (status.isSymbolicLink()) throw 0;
+      if (kind === 'dependencyCacheRoot') {
+        if (!status.isDirectory() || status.uid !== 1001 || (status.mode & 0o7777) !== 0o700) throw 0;
+      } else if (!status.isFile() || status.nlink !== 1
+        || (kind === 'cliConfigSourcePath'
+          ? status.uid !== 1001 || (status.mode & 0o7777) !== 0o600
+          : ![0, 1001].includes(status.uid) || (status.mode & 0o022) !== 0)) throw 0;
+      for (let parent = dirname(path);; parent = dirname(parent)) {
+        const ancestor = lstatSync(parent);
+        if (!ancestor.isDirectory() || ancestor.isSymbolicLink() || realpathSync(parent) !== parent
+          || ![0, 1001].includes(ancestor.uid) || (ancestor.mode & 0o022) !== 0) throw 0;
+        if (dirname(parent) === parent) break;
+      }
+    }
+    if (basename(paths.nodePath) !== 'node') throw 0;
+    const node = readLocalBindingBoundedFile(paths.nodePath, {
+      maximumBytes: 124819136, expectedBytes: 124819136,
+      expectedSha256: 'e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2',
+      expectedUid: 1001, expectedMode: 0o700, requireExecutable: true,
+      discardBody: true, expectedIdentity: expectedNode,
+    });
+    return Object.freeze({ ...paths, nodeIdentity: node.identity });
+  } catch { fail('SEALED_REALMS_PTR_WORKFLOW_UPDATE_CONFIG_INVALID'); }
+}
+
 function createPublishMarker() {
   // Task 5 owns the first real marker/publisher integration. No publisher or
   // prepare effect is reachable while the fixed marker adapter is unavailable.
@@ -226,6 +279,7 @@ async function buildDispatcher(operation, workflowInputSha, evidence) {
   const verifyEvidence = commit => verifySealedRealmsProductionWorkflowEvidence(evidence, commit);
   const authority = sourceAuthority(operation, workflowInputSha, verifyEvidence);
   const bridgeAuthority = bridgeAuthorityFromSourceAuthority(authority, operation, verifyEvidence);
+  const configuration = operation.startsWith('ptr-update-') ? updateConfiguration() : undefined;
   const githubToken = process.env.GITHUB_TOKEN;
   const runId = process.env.GITHUB_RUN_ID;
   const runAttempt = process.env.GITHUB_RUN_ATTEMPT;
@@ -238,43 +292,75 @@ async function buildDispatcher(operation, workflowInputSha, evidence) {
   });
   const privateState = resolveSealedRealmsProductionWorkflowPrivateState();
   const continuationStore = createSealedRealmsProductionContinuationStore({ privateState });
-  const bridgeState = createSealedRealmsProductionAuthBridgeState({
-    authority: bridgeAuthority,
-    privateState,
-    repositoryRoot: process.cwd(),
-    deploymentAttester: unavailable,
-    bindingAttester: unavailable,
-    fetchImpl: globalThis.fetch,
-    inspectImportReceipt: unavailable,
-    authenticateImportResult: unavailable,
-    resolveOwnerProvisionReceipt: unavailable,
-  });
-  const reconciler = createSealedRealmsProductionPublicationReconciler({
-    privateState,
-    lane: 'ptr',
-    postflight: unavailable,
-  });
-  const lane = createSealedRealmsProductionPtrLane({
-    reconciler,
-    bridgeState,
-    createPublishMarker,
-    publish: unavailable,
-    importCore: unavailable,
-    inspectOwnerProvision: unavailable,
-    provisionOwner: unavailable,
-    liveInspect: unavailable,
-  });
-  const context = createSealedRealmsProductionPtrDispatchContext({
-    readGit,
-    readBinding,
-    verifyEvidence,
-    permit,
-    continuationStore,
-    runId,
-    runAttempt,
-    sourceAuthority: authority,
-  });
-  return createSealedRealmsProductionPtrDispatcher({ context, lane });
+  let artifact, existingUpdate, cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    try { existingUpdate?.dispose(); }
+    finally { artifact?.cleanup(); }
+  };
+  try {
+    if (configuration !== undefined) {
+      const reattestSource = () => {
+        const current = sourceAuthority(operation, workflowInputSha, verifyEvidence);
+        const commit = sourceCommitFromSealedRealmsProductionAuthority(current);
+        if (current.mode !== 'S' || commit !== workflowInputSha) fail('SEALED_REALMS_PTR_WORKFLOW_SOURCE_INVALID');
+        const reopened = updateConfiguration(configuration.nodeIdentity);
+        if (JSON.stringify(reopened) !== JSON.stringify(configuration)) fail('SEALED_REALMS_PTR_WORKFLOW_UPDATE_CONFIG_INVALID');
+        return commit;
+      };
+      artifact = preparePtrSourceBuiltArtifact({
+        sourceCommit: sourceCommitFromSealedRealmsProductionAuthority(authority),
+        reattestSource,
+        dependencyCacheRoot: configuration.dependencyCacheRoot,
+        cliConfigSourcePath: configuration.cliConfigSourcePath,
+        executable: configuration.executable,
+        environment: Object.freeze({ PATH: `${dirname(configuration.nodePath)}:${SYSTEM_PATH}` }),
+      });
+      existingUpdate = createPtrProductionExistingUpdateAdapter({ authority, privateState, artifact });
+    }
+    const bridgeState = createSealedRealmsProductionAuthBridgeState({
+      authority: bridgeAuthority,
+      privateState,
+      repositoryRoot: process.cwd(),
+      deploymentAttester: unavailable,
+      bindingAttester: unavailable,
+      fetchImpl: globalThis.fetch,
+      inspectImportReceipt: unavailable,
+      authenticateImportResult: unavailable,
+      resolveOwnerProvisionReceipt: unavailable,
+    });
+    const reconciler = createSealedRealmsProductionPublicationReconciler({
+      privateState,
+      lane: 'ptr',
+      postflight: unavailable,
+    });
+    const lane = createSealedRealmsProductionPtrLane({
+      ...(existingUpdate === undefined ? {} : { existingUpdate }),
+      reconciler,
+      bridgeState,
+      createPublishMarker,
+      publish: unavailable,
+      importCore: unavailable,
+      inspectOwnerProvision: unavailable,
+      provisionOwner: unavailable,
+      liveInspect: unavailable,
+    });
+    const context = createSealedRealmsProductionPtrDispatchContext({
+      readGit,
+      readBinding,
+      verifyEvidence,
+      permit,
+      continuationStore,
+      runId,
+      runAttempt,
+      sourceAuthority: authority,
+    });
+    return { dispatcher: createSealedRealmsProductionPtrDispatcher({ context, lane }), cleanup };
+  } catch (error) {
+    try { cleanup(); } catch { fail('SEALED_REALMS_PTR_WORKFLOW_CLEANUP_FAILED'); }
+    throw error;
+  }
 }
 
 export async function createSealedRealmsProductionPtrWorkflowRuntime(input) {
@@ -288,7 +374,7 @@ export async function createSealedRealmsProductionPtrWorkflowRuntime(input) {
       operation,
       workflowInputSha,
       evidence,
-      dispatcher: await buildDispatcher(operation, workflowInputSha, evidence),
+      ...await buildDispatcher(operation, workflowInputSha, evidence),
     }));
     return runtime;
   } catch (error) {
@@ -316,6 +402,8 @@ export async function runSealedRealmsProductionPtrOperation(input) {
     await refreshSealedRealmsProductionWorkflowEvidence(member.evidence);
     return await member.dispatcher.dispatch(Object.freeze({ operation, workflowInputSha }));
   } finally {
-    revokeSealedRealmsProductionWorkflowEvidence(member.evidence);
+    try { member.cleanup(); }
+    catch { fail('SEALED_REALMS_PTR_WORKFLOW_CLEANUP_FAILED'); }
+    finally { revokeSealedRealmsProductionWorkflowEvidence(member.evidence); }
   }
 }

@@ -5,6 +5,34 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## PTR runtime constructor and bundle integration
+
+The genuine PTR workflow runtime now admits update inspection/application and
+constructs its source-built artifact and production adapter internally. It reuses
+the real lane's workflow permit and continuation store. The runtime disposes the
+adapter and cleans the artifact after consumed execution or construction failure;
+workflow evidence is revoked even when cleanup fails.
+
+Configuration is explicit: `WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT`,
+`WARPKEEP_SPACETIME_CLI_CONFIG_PATH` and `SPACETIME_BIN`. Paths must satisfy the
+existing Linux runner account and ownership policy. The current Node executable
+is checked against the pinned Linux runtime and its canonical directory leads
+the build PATH. Source and configuration are rechecked by artifact attestation.
+These configuration locations are not claimed to be provisioned on the runner.
+
+The real bundle engine now handles the newly reachable artifact-description and
+runner paths through its existing exact portability transforms. A regression
+builds that graph and imports the generated result using plain Node. Lifecycle,
+bundle and existing workflow regression checks, strict types and independent
+review cover the implementation. Mocked lifecycle boundaries do not establish an
+authenticated provider update or native artifact preparation.
+
+The operating workflow still permits preflight only. Next connect the real
+adapter/continuation integration evidence, authenticated private V3 completion
+records and current owner/atlas observations before enabling the operating path.
+Historical import/owner receipts must keep their original coordinates; the new
+module belongs in the current update receipt, not rewritten historical evidence.
+
 ## Native inspector loading correction
 
 The native CI run for `0201ca4` failed its two separate-process inspection races.
@@ -15,8 +43,8 @@ An always-running child import check covers this dependency graph, and early
 child failures retain their original error instead of becoming a barrier timeout.
 The barrier duration and native preservation/concurrency assertions are unchanged.
 
-Windows regression checks and focused strict types passed. Native concurrency
-must still pass CI; production uses generated Node22 bundles and requires fresh
+Windows regression checks and focused strict types passed. Native CI at `846adb5` passed both isolated update/recovery and production
+contract jobs; production uses generated Node22 bundles and requires fresh
 bundle verification separately. This correction does not enable deployment.
 
 ## Production PTR update adapter implementation

@@ -187,3 +187,24 @@ passed. These tests use isolated HTTP fixtures. Captured real A/B definitions
 and the separately observed public PTR definition also pass offline checks.
 The production factory is implemented separately with complete RawV10 comparison;
 its workflow and populated activation-receipt integration remain open.
+
+## PTR workflow constructor and generated-bundle integration
+
+The actual PTR runtime constructs the artifact and adapter for update operations
+using its authenticated source, workflow permit and private continuation store.
+Explicit runner configuration, pinned Node, source/configuration reattestation
+and deterministic cleanup are implemented. The operating workflow remains
+preflight-only; no live provider transition is claimed.
+
+Root verification includes a real bundle-engine build, plain Node import and
+invalid-input rejection. This caught newly reachable literal paths omitted from
+the portability transform. Existing strict path checks remain intact. A separate
+review caught an import-time Windows PATH dependency in the mocked lifecycle
+tests; the final unconditional system-path constant resolves it. Failed
+intermediate results are not counted as successful final verification.
+
+Native CI for `846adb5` passed isolated update/recovery (168 cases, one skip) and
+native production contracts (105 cases). Those results precede the constructor
+change. New constructor checks use mocked dependency boundaries; real joined
+continuation/provider execution, private V3 activation lineage, fresh preparation
+and actual-owner release acceptance remain outstanding.

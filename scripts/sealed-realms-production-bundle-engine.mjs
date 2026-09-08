@@ -111,6 +111,8 @@ function portablePath(path) {
 }
 
 const PATH_TRANSFORMS = Object.freeze({
+  'scripts/sealed-realms-production-ptr-workflow-entry.mjs': [['/home/runner', 1]],
+  'scripts/ptr-artifact-description.mjs': [['/usr/bin:/bin', 1], ['/dev/fd/3', 1]],
   'scripts/generate-0.4.0-recovery-launch-activation.mjs': [['/dev/null', 3], ['/usr/bin/false', 1], ['/usr/bin:/bin', 1], ['/usr/bin/git', 1]],
   'scripts/sealed-realms-production-g001-lane-entry.mjs': [['/private/var/db/warpkeep/runtime/node-v22.22.3-darwin-arm64/bin/node', 1], ['/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node', 1], ['/dev/null', 2], ['/usr/bin/false', 1], ['/usr/bin:/bin', 1], ['/usr/bin/env', 1], ['/bin/sh', 1], ['/usr/bin/git', 1], ['/usr/bin/plutil', 1], ['/bin/launchctl', 2]],
   'scripts/atlas/greater-realm-git.ts': [['/dev/null', 1], ['/Library/Developer/CommandLineTools/usr/bin/git', 1], ['/usr/bin/git', 2], ['C:\\Program Files\\Git\\cmd\\git.exe', 1], ['C:\\Program Files\\Git\\bin\\git.exe', 1]],
