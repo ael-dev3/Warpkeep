@@ -5,7 +5,7 @@ import { types } from 'node:util';
 import { readSealedRealmsProductionActivationEvidenceMember, assertSealedRealmsProductionAuthBridgeStateTestCapability } from './sealed-realms-production-auth-bridge-state.mjs';
 import { sourceCommitFromSealedRealmsProductionAuthority } from './sealed-realms-production-source-authority.mjs';
 import { validateSealedRealmsProductionRecoveryActivationEvidence } from './sealed-realms-production-activation-records.mjs';
-import { createRecoveryActivationBinding } from './recovery-activation-candidate.mjs';
+import { createRecoveryActivationBindingFromCandidate } from './recovery-activation-candidate.mjs';
 
 const MAXIMUM_CANDIDATE_BYTES = 1024 * 1024;
 const COMMIT = /^[a-f0-9]{40}$/u;
@@ -121,7 +121,7 @@ export function validateRecoveryLaunchActivationProjection(envelope, bridge, ver
     || candidate.admissionRequestSuspensionReceiptDigest !== bridgeDigest
     || !(Date.parse(bridge.activationGate.observedAt)
       >= Date.parse(envelope.g001AdmissionMonitorCurrentStateReceipt.observedAt))) fail();
-  return createRecoveryActivationBinding(`${JSON.stringify(candidate, null, 2)}\n`);
+  return createRecoveryActivationBindingFromCandidate(`${JSON.stringify(candidate, null, 2)}\n`);
 }
 
 export function createRecoveryLaunchActivationBindingFromEvidence(envelope, member, authority, testOnly) {

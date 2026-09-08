@@ -5,8 +5,8 @@ import { types } from 'node:util';
 import { assertSealedRealmsProductionActivationRecordsAuthority,
   readSealedRealmsProductionRecoveryCandidateRecords } from './sealed-realms-production-activation-records.mjs';
 import { sourceCommitFromSealedRealmsProductionAuthority } from './sealed-realms-production-source-authority.mjs';
-import { recoveryActivationCandidatePolicy, validateRecoveryActivationCandidate } from './recovery-activation-candidate.mjs';
-import { RECOVERY_BINDING_KEYS_V2 } from './recovery-binding-projection.mjs';
+import { recoveryActivationCandidatePolicy, recoveryActivationCandidatePolicyForVersion, validateRecoveryActivationCandidate, validateRecoveryActivationCandidateV3 } from './recovery-activation-candidate.mjs';
+import { RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3 } from './recovery-binding-projection.mjs';
 
 const BOOTSTRAP = 'scripts/greater-realm-production-bootstrap.mjs';
 const GIT = String.fromCodePoint(47, 117, 115, 114, 47, 98, 105, 110, 47, 103, 105, 116);
@@ -79,18 +79,21 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
   const corpus = readSealedRealmsProductionRecoveryCandidateRecords(options.records, options.readContext);
   const actual = source(commit);
   if (JSON.stringify(corpus.bootstrap) !== JSON.stringify(actual)) fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID');
-  const facts = { ...recoveryActivationCandidatePolicy() };
+  const update = Object.hasOwn(corpus.projection, 'ptrExistingUpdateReceiptDigest');
+  if (update && Object.hasOwn(corpus.projection, 'ptrPublishReceiptDigest')) fail();
+  const keys = update ? RECOVERY_BINDING_KEYS_V3 : RECOVERY_BINDING_KEYS_V2;
+  const facts = { ...(update ? recoveryActivationCandidatePolicyForVersion(3) : recoveryActivationCandidatePolicy()) };
   for (const [key, value] of Object.entries({ ...corpus.projection,
     preparationSourceCommit: actual.preparationSourceCommit, preparationSourceTree: actual.preparationSourceTree })) {
-    if (!RECOVERY_BINDING_KEYS_V2.includes(key) || (Object.hasOwn(facts, key) && facts[key] !== value)) fail();
+    if (!keys.includes(key) || (Object.hasOwn(facts, key) && facts[key] !== value)) fail();
     facts[key] = value;
   }
   if (JSON.stringify(corpus) !== JSON.stringify(readSealedRealmsProductionRecoveryCandidateRecords(options.records, options.readContext))
     || JSON.stringify(actual) !== JSON.stringify(source(commit))) fail();
-  const ordered = Object.freeze(Object.fromEntries(RECOVERY_BINDING_KEYS_V2
+  const ordered = Object.freeze(Object.fromEntries(keys
     .filter(key => Object.hasOwn(facts, key)).map(key => [key, facts[key]])));
   return Object.freeze({ facts: ordered,
-    missingFields: Object.freeze(RECOVERY_BINDING_KEYS_V2.filter(key => !Object.hasOwn(ordered, key))) });
+    missingFields: Object.freeze(keys.filter(key => !Object.hasOwn(ordered, key))) });
 }
 
 /** The real workflow reader cannot emit candidate bytes while authenticated inputs are missing. */
@@ -99,6 +102,7 @@ export function readSealedRealmsProductionRecoveryCandidate(inputValue) {
   const derived = inspectSealedRealmsProductionRecoveryCandidate(inputValue);
   if (derived.missingFields.length !== 0) fail('SEALED_REALMS_RECOVERY_CANDIDATE_INPUTS_MISSING', derived.missingFields);
   const document = `${JSON.stringify(derived.facts, null, 2)}\n`;
-  validateRecoveryActivationCandidate(document);
+  if (derived.facts.schemaVersion === 3) validateRecoveryActivationCandidateV3(document);
+  else validateRecoveryActivationCandidate(document);
   return document;
 }

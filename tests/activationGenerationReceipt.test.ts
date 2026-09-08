@@ -24,6 +24,21 @@ describe('activation generation receipt codec', () => {
     const changed = activationGenerationReceiptBytes({ ...receipt(), runId: '81003' });
     expect(activationGenerationReceiptDigest(changed)).not.toBe(activationGenerationReceiptDigest(bytes));
   });
+  it('round trips the exact PTR-update V3 artifact profile', () => {
+    const value = { ...receipt(), artifactSchemaVersion: 3, artifactProfile: 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' } as const;
+    const bytes = activationGenerationReceiptBytes(value);
+    expect(parseActivationGenerationReceipt(bytes)).toEqual(value);
+    expect(activationGenerationReceiptDigest(bytes)).not.toBe(activationGenerationReceiptDigest(activationGenerationReceiptBytes(receipt())));
+  });
+  it.each([
+    [3, 'warpkeep-0.4.0-sealed-launch-v3'],
+    [2, 'warpkeep-0.4.0-sealed-launch-ptr-update-v3'],
+    [3, 'warpkeep-0.4.0-sealed-launch-v2'],
+    [4, 'warpkeep-0.4.0-sealed-launch-ptr-update-v3'],
+    ['3', 'warpkeep-0.4.0-sealed-launch-ptr-update-v3'],
+  ])('rejects mismatched artifact schema %s and profile %s', (artifactSchemaVersion, artifactProfile) => {
+    expect(() => activationGenerationReceiptBytes({ ...receipt(), artifactSchemaVersion, artifactProfile } as never)).toThrow();
+  });
   it.each([
     ['runId', 81002], ['runAttempt', '1'], ['runAttempt', 1001], ['sourceCommit', 'a'.repeat(39)],
     ['operation', 'activation-evidence-inspect'], ['artifactSchemaVersion', 1], ['outcome', 'pending'],

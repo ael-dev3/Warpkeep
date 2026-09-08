@@ -45,7 +45,7 @@ export function writeSealedRealmsProductionPtrExistingUpdateRecord(input: Readon
   completion: PtrExistingUpdateCompletion;
 }>): Readonly<{ receiptDigest: string; recordDigest: string }>;
 
-/** Reopens the exact S-bound V2 corpus without a candidate, private bodies or writes. */
+/** Reopens the exact S-bound V2 or V3 corpus without a candidate, private bodies or writes. */
 export function readSealedRealmsProductionRecoveryReceiptProjection(
   records: SealedRealmsProductionActivationRecords,
   verificationTime?: string,
@@ -68,9 +68,9 @@ export function validateSealedRealmsProductionRecoveryActivationEvidence(
 export function inspectSealedRealmsProductionRecoveryActivationRecords(
   records: SealedRealmsProductionActivationRecords,
   verificationTime?: string,
-): Readonly<{ sourceCommit: string; schemaVersion: 2; descriptorSha256: string }>;
+): Readonly<{ sourceCommit: string; schemaVersion: 2 | 3; descriptorSha256: string }>;
 
-/** Reads a canonical schema-2 candidate and twelve non-historical private records. */
+/** Reads a canonical schema-2 or schema-3 candidate and twelve non-historical private records. */
 export function writeSealedRealmsProductionRecoveryActivationDescriptor(input: Readonly<{
   records: SealedRealmsProductionActivationRecords;
   consumeDescriptor: (descriptor: number) => undefined;

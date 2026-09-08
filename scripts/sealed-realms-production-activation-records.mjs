@@ -25,7 +25,7 @@ import {
 import {
   verifyGenesis001AdmittedPlayerCensusReceipt,
 } from './genesis001-admitted-player-census.mjs';
-import { createRecoveryActivationBinding, validateRecoveryActivationCandidate } from './recovery-activation-candidate.mjs';
+import { createRecoveryActivationBindingFromCandidate, validateRecoveryActivationCandidateDocument } from './recovery-activation-candidate.mjs';
 import { parseActivationGenerationReceipt } from './sealed-realms-production-activation-generation-receipt.mjs';
 import { readPtrExistingUpdateCompletion } from './ptr-production-existing-update-adapter.mjs';
 import { updateDigest } from './sealed-realms-existing-update-protocol.mjs';
@@ -68,6 +68,7 @@ const PRODUCING_OPERATIONS = Object.freeze({
   g002AtlasImportReceipt: 'g002-import-apply',
   g002SealedLiveReceipt: 'g002-live-inspect',
   ptrPublishReceipt: 'ptr-publish-apply',
+  ptrExistingUpdateReceipt: 'ptr-update-apply',
   ptrAtlasImportReceipt: 'ptr-import-apply',
   ptrOwnerProvisionReceipt: 'ptr-owner-provision',
   ptrSealedLiveReceipt: 'ptr-live-inspect',
@@ -84,10 +85,17 @@ const RECEIPT_BASENAMES = Object.freeze({
   g002AtlasImportReceipt: 'g002-atlas-import-receipt.json',
   g002SealedLiveReceipt: 'g002-sealed-live-receipt.json',
   ptrPublishReceipt: 'ptr-publish-receipt.json',
+  ptrExistingUpdateReceipt: 'ptr-existing-update-receipt.json',
   ptrAtlasImportReceipt: 'ptr-atlas-import-receipt.json',
   ptrOwnerProvisionReceipt: 'ptr-owner-provision-receipt.json',
   ptrSealedLiveReceipt: 'ptr-sealed-live-receipt.json',
 });
+
+const RECOVERY_MEMBERS_V2 = Object.freeze(RECEIPT_MEMBERS.filter(member => member !== 'g001FreezePublishReceipt'));
+const RECOVERY_MEMBERS_V3 = Object.freeze(RECOVERY_MEMBERS_V2.map(member =>
+  member === 'ptrPublishReceipt' ? 'ptrExistingUpdateReceipt' : member));
+const RECOVERY_PROFILE_V2 = 'warpkeep-0.4.0-recovery-activation-evidence-v1';
+const RECOVERY_PROFILE_V3 = 'warpkeep-0.4.0-recovery-activation-evidence-ptr-update-v1';
 
 const G002_PUBLISH_RECEIPT_KEYS = Object.freeze([
   'schemaVersion', 'profile', 'databaseIdentity', 'database', 'moduleIdentity',
@@ -611,6 +619,78 @@ function validatePtrPublishReceipt(receipt, preparationSourceCommit) {
   ) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECEIPT_INVALID');
 }
 
+// This validates receipt data, not ownership of the continuation records. Only
+// the opaque completed-update writer captures this fixed private member.
+function validatePtrExistingUpdateReceipt(receipt, sourceCommit) {
+  exactReceipt(receipt, ['schemaVersion', 'profile', 'binding', 'inspectionDigest',
+    'inspectionRecordDigest', 'submissionRecordDigest', 'acknowledgementRecordDigest',
+    'completionRecordDigest', 'predecessorDigest', 'predecessorReceiptDigest', 'beforeProgram',
+    'preservation', 'planDigest', 'installedPlanDigest', 'inspectionHostObservationDigest',
+    'acknowledgement', 'responseDigest', 'submission', 'completionObservedAt', 'continuation']);
+  const binding = exactReceipt(receipt.binding, ['sourceCommit', 'databaseIdentity',
+    'candidateProgram', 'candidateSha256', 'candidateDescriptionDigest', 'moduleTreeId',
+    'dependencyClosureDigest', 'cliDigest', 'cliConfigDigest']);
+  // These two subrecords were reopened from updateCanonical storage.
+  const preservation = exactReceipt(receipt.preservation, ['addedTables', 'candidateDigest',
+    'candidatePreservationDigest', 'classification', 'priorDigest', 'priorPreservationDigest', 'profile']);
+  const submission = exactReceipt(receipt.submission, ['observedAt', 'runAttempt', 'runId']);
+  const continuation = exactReceipt(receipt.continuation, ['scopeDigest', 'issuedRecordDigest',
+    'claimRecordDigest', 'terminalRecordDigest', 'claimRunId', 'claimRunAttempt',
+    'terminalRunId', 'terminalRunAttempt', 'outcome', 'observationDigest', 'terminalAt']);
+  for (const key of ['databaseIdentity', 'candidateProgram', 'candidateSha256',
+    'candidateDescriptionDigest', 'dependencyClosureDigest', 'cliDigest', 'cliConfigDigest']) requireSha(binding[key]);
+  requireCommit(binding.moduleTreeId);
+  for (const key of ['inspectionDigest', 'inspectionRecordDigest', 'submissionRecordDigest',
+    'completionRecordDigest', 'beforeProgram', 'planDigest', 'installedPlanDigest',
+    'inspectionHostObservationDigest']) requireSha(receipt[key]);
+  for (const key of ['priorDigest', 'candidateDigest', 'priorPreservationDigest', 'candidatePreservationDigest']) requireSha(preservation[key]);
+  for (const key of ['scopeDigest', 'issuedRecordDigest', 'claimRecordDigest', 'terminalRecordDigest']) requireSha(continuation[key]);
+  for (const key of ['predecessorDigest', 'predecessorReceiptDigest', 'acknowledgementRecordDigest', 'responseDigest']) {
+    if (receipt[key] !== null) requireSha(receipt[key]);
+  }
+  if (continuation.observationDigest !== null) requireSha(continuation.observationDigest);
+  const iso = value => typeof value === 'string' && Number.isFinite(Date.parse(value))
+    && new Date(value).toISOString() === value;
+  const run = value => typeof value === 'string' && /^[1-9][0-9]{0,19}$/u.test(value);
+  const attempt = value => Number.isSafeInteger(value) && value > 0 && value <= 1_000;
+  if (receipt.schemaVersion !== 1 || receipt.profile !== 'warpkeep-ptr-existing-update-receipt-v1'
+    || binding.sourceCommit !== sourceCommit
+    || binding.databaseIdentity !== 'c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e'
+    || receipt.beforeProgram === binding.candidateProgram
+    || (receipt.predecessorDigest === null) !== (receipt.predecessorReceiptDigest === null)
+    || preservation.profile !== 'warpkeep-ptr-raw-v10-stable-row-schema-v1'
+    || preservation.candidateDigest !== binding.candidateDescriptionDigest
+    || preservation.priorPreservationDigest !== preservation.candidatePreservationDigest
+    || !Array.isArray(preservation.addedTables)
+    || preservation.addedTables.some(name => typeof name !== 'string' || name.length === 0)
+    || JSON.stringify(preservation.addedTables) !== JSON.stringify([...new Set(preservation.addedTables)].sort())
+    || preservation.classification !== (preservation.addedTables.length ? 'tables-preserved-with-additions' : 'tables-preserved')
+    || !['received', 'not-received'].includes(receipt.acknowledgement)
+    || (receipt.acknowledgement === 'received') !== (receipt.acknowledgementRecordDigest !== null)
+    || (receipt.acknowledgement === 'received') !== (receipt.responseDigest !== null)
+    || !run(submission.runId) || !attempt(submission.runAttempt)
+    || continuation.claimRunId !== submission.runId || continuation.claimRunAttempt !== submission.runAttempt
+    || !run(continuation.terminalRunId) || !attempt(continuation.terminalRunAttempt)
+    || (continuation.outcome === 'completed' && (continuation.terminalRunId !== continuation.claimRunId
+      || continuation.terminalRunAttempt !== continuation.claimRunAttempt))
+    || !['completed', 'reconciled-effect-applied'].includes(continuation.outcome)
+    || (continuation.outcome === 'completed' && continuation.observationDigest !== null)
+    || (continuation.outcome === 'reconciled-effect-applied' && continuation.terminalRunId === continuation.claimRunId)
+    || (continuation.outcome === 'reconciled-effect-applied' && continuation.observationDigest !== receipt.completionRecordDigest)
+    || !iso(submission.observedAt) || !iso(receipt.completionObservedAt) || !iso(continuation.terminalAt)
+    || Date.parse(submission.observedAt) > Date.parse(receipt.completionObservedAt)
+    || Date.parse(receipt.completionObservedAt) > Date.parse(continuation.terminalAt)
+  ) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECEIPT_INVALID');
+}
+
+function ptrUpdateModuleFacts(receipt) {
+  const binding = receipt.binding;
+  return { sourceCommit: binding.sourceCommit, databaseIdentity: binding.databaseIdentity,
+    moduleSha256: binding.candidateSha256, moduleTreeId: binding.moduleTreeId,
+    dependencyClosureDigest: binding.dependencyClosureDigest,
+    spacetimeExecutableSha256: binding.cliDigest, spacetimeCliConfigSha256: binding.cliConfigDigest };
+}
+
 function validatePtrAtlasImportReceipt(receipt, preparationSourceCommit, atlasSourceCommit = preparationSourceCommit) {
   const body = receiptWithoutDigest(receipt, PTR_IMPORT_RESULT_KEYS, PTR_IMPORT_RECEIPT_KEYS);
   if (
@@ -688,6 +768,10 @@ function validatePtrSealedLiveReceipt(receipt, preparationSourceCommit, atlasSou
  */
 function validateMemberReceipt(member, receipt, preparationSourceCommit, atlasSourceCommit = preparationSourceCommit) {
   try {
+    if (member === 'ptrExistingUpdateReceipt') {
+      validatePtrExistingUpdateReceipt(receipt, preparationSourceCommit);
+      return receipt;
+    }
     if (member.startsWith('g001')) {
       validateG001Receipt(member, receipt, preparationSourceCommit);
       return receipt;
@@ -823,7 +907,7 @@ function parseRecord(bytes, state, expectedMember) {
       : expectedMember.startsWith('ptr') ? 'ptr' : null;
     const coordinates = state.recoveryCandidate;
     const moduleSource = state.recoveryRecords && realm
-      ? requireCommit(receipt.sourceCommit ?? receipt.moduleSourceCommit)
+      ? requireCommit(expectedMember === 'ptrExistingUpdateReceipt' ? receipt.binding?.sourceCommit : receipt.sourceCommit ?? receipt.moduleSourceCommit)
       : coordinates && realm
       ? coordinates[`${realm}ModuleSourceCommit`] : state.preparationSourceCommit;
     const atlasSource = state.recoveryRecords && realm
@@ -944,7 +1028,16 @@ function validateReopenedCorpus(state, receipts, verificationTime) {
     || imported.atlasWritesClosedByFinalization !== live.atlasWritesClosedByFinalization
   ) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
 
-  const ptrPublish = receipts.ptrPublishReceipt;
+  const update = receipts.ptrExistingUpdateReceipt;
+  const ptrPublish = update ? ptrUpdateModuleFacts(update) : receipts.ptrPublishReceipt;
+  // Current-S initialization is the supported V3 path. Historical producer
+  // coordinates need an authenticated continuity anchor, not rewritten wrappers.
+  if (update && (Date.parse(update.continuation.terminalAt) > (verificationTime === undefined ? Date.now() : Date.parse(verificationTime))
+    || update.binding.sourceCommit !== state.preparationSourceCommit
+    || receipts.ptrAtlasImportReceipt.moduleSourceCommit !== state.preparationSourceCommit
+    || receipts.ptrOwnerProvisionReceipt.moduleSourceCommit !== state.preparationSourceCommit)) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+  }
   const ptrImported = receipts.ptrAtlasImportReceipt;
   const ptrOwner = receipts.ptrOwnerProvisionReceipt;
   const ptrLive = receipts.ptrSealedLiveReceipt;
@@ -953,11 +1046,11 @@ function validateReopenedCorpus(state, receipts, verificationTime) {
     ptrPublish.databaseIdentity !== ptrImported.databaseIdentity
     || ptrPublish.databaseIdentity !== ptrOwner.databaseIdentity
     || ptrPublish.databaseIdentity !== ptrLive.databaseIdentity
-    || ptrPublish.databaseAlias !== ptrOwner.databaseAlias
-    || ptrPublish.databaseAlias !== ptrLive.databaseAlias
-    || ptrPublish.moduleIdentity !== ptrImported.moduleIdentity
-    || ptrPublish.moduleIdentity !== ptrOwner.moduleIdentity
-    || ptrPublish.moduleIdentity !== ptrLive.moduleIdentity
+    || (!update && ptrPublish.databaseAlias !== ptrOwner.databaseAlias)
+    || (!update && ptrPublish.databaseAlias !== ptrLive.databaseAlias)
+    || (!update && ptrPublish.moduleIdentity !== ptrImported.moduleIdentity)
+    || (!update && ptrPublish.moduleIdentity !== ptrOwner.moduleIdentity)
+    || (!update && ptrPublish.moduleIdentity !== ptrLive.moduleIdentity)
     || ptrPublish.sourceCommit !== ptrImported.moduleSourceCommit
     || ptrPublish.sourceCommit !== ptrOwner.moduleSourceCommit
     || ptrPublish.sourceCommit !== ptrLive.moduleSourceCommit
@@ -981,8 +1074,8 @@ function validateReopenedCorpus(state, receipts, verificationTime) {
     || ptrOwner.ownerAnchorRows !== ptrLive.ownerAnchorRows
     || ptrOwner.ownerProvisioned !== ptrLive.ownerProvisioned
     || ptrOwner.ownerEnabled !== ptrLive.ownerEnabled
-    || ptrPublish.admissionSurfacePresent !== ptrLive.admissionSurfacePresent
-    || ptrPublish.accessRequestSurfacePresent !== ptrLive.accessRequestSurfacePresent
+    || (!update && ptrPublish.admissionSurfacePresent !== ptrLive.admissionSurfacePresent)
+    || (!update && ptrPublish.accessRequestSurfacePresent !== ptrLive.accessRequestSurfacePresent)
   ) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
   if (state.recoveryRecords && new Set([
     projection.g001DatabaseIdentity, publish.databaseIdentity, ptrPublish.databaseIdentity,
@@ -1053,6 +1146,7 @@ export function writeSealedRealmsProductionPtrExistingUpdateRecord(input) {
     completion: options.completion, authority: options.authority, privateState: state.privateState,
   });
   const member = 'ptrExistingUpdateReceipt';
+  validateMemberReceipt(member, receipt, sourceCommit);
   const body = exactBody(receipt);
   let bytes;
   try {
@@ -1084,12 +1178,17 @@ function recoveryReceiptProjection(state, receipts, g001) {
     }
   };
   for (const realm of ['g002', 'ptr']) {
-    const published = receipts[`${realm}PublishReceipt`];
+    const updated = realm === 'ptr' && receipts.ptrExistingUpdateReceipt;
+    const published = updated ? ptrUpdateModuleFacts(updated) : receipts[`${realm}PublishReceipt`];
     const live = receipts[`${realm}SealedLiveReceipt`];
     projection[`${realm}ModuleSourceCommit`] = published.sourceCommit;
     copy(realm, published, ['databaseIdentity', 'moduleSha256', 'moduleTreeId',
       'dependencyClosureDigest', 'spacetimeExecutableSha256', 'spacetimeCliConfigSha256',
-      'freshStatusDigest', 'publishReceiptDigest']);
+      ...(updated ? [] : ['freshStatusDigest', 'publishReceiptDigest'])]);
+    if (updated) {
+      projection.ptrExistingUpdateReceiptDigest = updateDigest(updated);
+      projection.ptrExpectedProgramKeccak256 = updated.binding.candidateProgram;
+    }
     projection[`${realm}AtlasImportReceiptDigest`] = receipts[`${realm}AtlasImportReceipt`].importReceiptDigest;
     projection[`${realm}SealedLiveReceiptDigest`] = realm === 'g002'
       ? genesis002SealedLiveReceiptDigest(live) : ptrSealedLiveDigest(live);
@@ -1123,9 +1222,10 @@ function readRecoveryReceiptCorpus(records, verificationTime) {
   if (original.sourceMode !== 'S' || original.sourceCommit !== original.preparationSourceCommit) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
   }
-  const state = Object.freeze({ ...original, recoveryRecords: true });
-  const members = RECEIPT_MEMBERS.filter(member => member !== 'g001FreezePublishReceipt');
-  const names = state.privateState.list({ root: 'runtime', relativeDirectory: RECORD_DIRECTORY });
+  const names = original.privateState.list({ root: 'runtime', relativeDirectory: RECORD_DIRECTORY });
+  const version = names.includes(RECEIPT_BASENAMES.ptrExistingUpdateReceipt) ? 3 : 2;
+  const members = version === 3 ? RECOVERY_MEMBERS_V3 : RECOVERY_MEMBERS_V2;
+  const state = Object.freeze({ ...original, recoveryRecords: true, recoveryVersion: version });
   if (JSON.stringify(names) !== JSON.stringify(members.map(member => RECEIPT_BASENAMES[member]).sort())) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_INCOMPLETE');
   }
@@ -1177,7 +1277,7 @@ function readCompletedGenerationBinding(records, verificationTime) {
     const receipt = parseActivationGenerationReceipt(receiptBytes);
     if (receipt.generatedAt !== verificationTime || Date.parse(receipt.generatedAt) > Date.now()
       || receipt.sourceCommit !== state.preparationSourceCommit
-      || receipt.sourceAuthorityDigest !== state.sourceAuthorityDigest || receipt.artifactSchemaVersion !== 2) fail();
+      || receipt.sourceAuthorityDigest !== state.sourceAuthorityDigest || ![2, 3].includes(receipt.artifactSchemaVersion)) fail();
     descriptorBytes = state.privateState.readActivationDescriptor();
     artifactBytes = state.privateState.read({ root: 'runtime', relativePath: 'public/0.4.0-sealed-launch.json' });
     if (receipt.descriptorSha256 !== digest(descriptorBytes) || receipt.artifactSha256 !== digest(artifactBytes)) fail();
@@ -1185,12 +1285,13 @@ function readCompletedGenerationBinding(records, verificationTime) {
     const envelope = JSON.parse(source);
     if (`${JSON.stringify(envelope, null, 2)}\n` !== source) fail();
     const candidate = validateSealedRealmsProductionRecoveryActivationEvidence(envelope, receipt.generatedAt);
-    if (candidate.preparationSourceCommit !== state.preparationSourceCommit
+    if (candidate.schemaVersion !== receipt.artifactSchemaVersion
+      || candidate.preparationSourceCommit !== state.preparationSourceCommit
       || receipt.activationEvidenceDigest !== candidate.admissionRequestSuspensionReceiptDigest) fail();
     const { receipts } = readRecoveryReceiptCorpus(records, receipt.generatedAt);
     if (Object.entries(receipts).some(([member, value]) =>
       JSON.stringify(value) !== JSON.stringify(envelope[member]))) fail();
-    const expected = Buffer.from(`${JSON.stringify(createRecoveryActivationBinding(`${JSON.stringify(candidate, null, 2)}\n`), null, 2)}\n`);
+    const expected = Buffer.from(`${JSON.stringify(createRecoveryActivationBindingFromCandidate(`${JSON.stringify(candidate, null, 2)}\n`), null, 2)}\n`);
     try { if (!expected.equals(artifactBytes)) fail(); } finally { expected.fill(0); }
     return Object.freeze({ receiptSha256: digest(receiptBytes), descriptorSha256: receipt.descriptorSha256,
       artifactSha256: receipt.artifactSha256 });
@@ -1200,14 +1301,17 @@ function readCompletedGenerationBinding(records, verificationTime) {
 
 /** Validates canonical recovery evidence data; this does not mint receipt authority. */
 export function validateSealedRealmsProductionRecoveryActivationEvidence(envelope, verificationTime) {
-  const members = RECEIPT_MEMBERS.filter(member => member !== 'g001FreezePublishReceipt');
+  const version = envelope !== null && typeof envelope === 'object' && !isProxy(envelope)
+    ? Object.getOwnPropertyDescriptor(envelope, 'schemaVersion')?.value : undefined;
+  const members = version === 3 ? RECOVERY_MEMBERS_V3 : RECOVERY_MEMBERS_V2;
   exactInput(envelope, ['schemaVersion', 'profile', 'bindingCandidate', ...members]);
   canonicalJsonTree(envelope);
-  if (envelope.schemaVersion !== 2
-    || envelope.profile !== 'warpkeep-0.4.0-recovery-activation-evidence-v1') {
+  if (![2, 3].includes(version)
+    || envelope.profile !== (version === 3 ? RECOVERY_PROFILE_V3 : RECOVERY_PROFILE_V2)) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_INPUT_INVALID');
   }
-  const candidate = validateRecoveryActivationCandidate(`${JSON.stringify(envelope.bindingCandidate, null, 2)}\n`);
+  const candidate = validateRecoveryActivationCandidateDocument(`${JSON.stringify(envelope.bindingCandidate, null, 2)}\n`);
+  if (candidate.schemaVersion !== version) fail('SEALED_REALMS_ACTIVATION_RECORDS_INPUT_INVALID');
   const state = Object.freeze({
     preparationSourceCommit: candidate.preparationSourceCommit,
     recoveryCandidate: candidate,
@@ -1238,8 +1342,9 @@ function readRecoveryActivationEnvelope(records, verificationTime) {
     const source = state.readBindingCandidate(state.preparationSourceCommit, projection, context);
     // The recovery reader consumes canonical source bytes, never caller objects/getters.
     if (typeof source !== 'string') fail('SEALED_REALMS_ACTIVATION_RECORDS_BINDING_INVALID');
-    candidate = validateRecoveryActivationCandidate(source);
-    if (candidate.preparationSourceCommit !== state.preparationSourceCommit) {
+    candidate = validateRecoveryActivationCandidateDocument(source);
+    if (candidate.schemaVersion !== state.recoveryVersion
+      || candidate.preparationSourceCommit !== state.preparationSourceCommit) {
       fail('SEALED_REALMS_ACTIVATION_RECORDS_BINDING_INVALID');
     }
   } catch { fail('SEALED_REALMS_ACTIVATION_RECORDS_BINDING_INVALID'); }
@@ -1258,8 +1363,8 @@ function readRecoveryActivationEnvelope(records, verificationTime) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
   }
   return { state, envelope: {
-    schemaVersion: 2,
-    profile: 'warpkeep-0.4.0-recovery-activation-evidence-v1',
+    schemaVersion: state.recoveryVersion,
+    profile: state.recoveryVersion === 3 ? RECOVERY_PROFILE_V3 : RECOVERY_PROFILE_V2,
     bindingCandidate: candidate,
     ...receipts,
   } };
@@ -1270,7 +1375,7 @@ export function inspectSealedRealmsProductionRecoveryActivationRecords(records, 
   const { state, envelope } = readRecoveryActivationEnvelope(records, verificationTime);
   validateSealedRealmsProductionRecoveryActivationEvidence(envelope, verificationTime);
   return Object.freeze({
-    sourceCommit: state.preparationSourceCommit, schemaVersion: 2,
+    sourceCommit: state.preparationSourceCommit, schemaVersion: envelope.schemaVersion,
     descriptorSha256: createHash('sha256').update(`${JSON.stringify(envelope, null, 2)}\n`).digest('hex'),
   });
 }

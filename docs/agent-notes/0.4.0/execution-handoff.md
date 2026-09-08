@@ -5,6 +5,52 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Private PTR-update activation integration
+
+The private activation path supports the PTR-update V3 binding family. It reopens
+the exact completed-update record, derives the current PTR module coordinates,
+checks atlas initialization, owner provisioning and current live observations,
+and feeds those facts to the real candidate builder. The generator recognizes
+a fully validated V3 envelope; the operating candidate still lacks producer facts. The
+actual opaque update writer validates the same receipt format before persistence.
+V2 remains a distinct supported family with unchanged canonical output.
+
+The supported V3 initialization path uses authentic records produced under the
+current preparation source. Historical atlas or owner wrappers without an
+authenticated prior-release anchor are refused rather than rewritten. This does
+not establish historical continuity, perform initialization, or deploy the game.
+Those operational integrations and evidence remain unfinished.
+
+The generation-receipt codec and completed-family readback recognize the exact
+V3 schema/profile pair. Mixed inventories, incompatible receipt families, source
+or live-module substitutions and invalid continuation run facts are rejected.
+Tests use real private-state and semantic validators where described, with
+synthetic fixture evidence; they are not live provider or owner-play proof.
+
+The actual corpus-to-candidate test identifies thirteen still-missing fields:
+recovery authorization request ID and epoch; auth-worker version ID, source,
+configuration identity and configuration epoch; source-closure digest; G001 and
+G002 program hashes; auth-bridge source and suspension digest; G002 and PTR public
+approval IDs. The PTR program hash now comes from the completed update receipt.
+Four bridge fields already have an authenticated chain owner but need a connected
+reader; other fields need their actual producers. A synthetically complete test
+candidate is not evidence that this operating path is complete.
+
+Final root Windows checks passed 44 V3, writer, generator and bundle tests,
+plus focused strict types. Selected V2 descriptor regressions passed 43 tests
+with 26 cases not selected. Two fixed-Linux-Git failures reproduced unchanged
+in the exact baseline; native and full Linux CI remain separately required.
+Independent review corrected attempt bounds and reconciliation-run checks.
+
+The production generator-member consumer also remains closed with
+`SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE`; its genuine lifetime must be
+connected after the required producer facts are available.
+
+Before shipping, complete actual PTR initialization and owner access, provision
+the operating workflow, perform native preparation and live acceptance, and
+continue gameplay and Verdant Citadel polish. Keep G001 progress and its agreed
+admission freeze intact; G002 remains sealed.
+
 ## Completed PTR update capture
 
 The actual PTR runtime now captures an opaque, source-bound completed update

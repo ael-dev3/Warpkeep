@@ -4,7 +4,7 @@ import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-prod
 type Input = Readonly<{ records: SealedRealmsProductionActivationRecords;
   privateState: SealedRealmsProductionPrivateState; authority: SealedRealmsProductionSourceAuthority;
   readContext?: SealedRealmsRecoveryCandidateReadContext }>;
-/** Data only; incomplete facts never authorize a candidate or deployment. */
+/** Data only. Selects V3 from exclusive existing-update corpus evidence; V2 remains unchanged. */
 export function inspectSealedRealmsProductionRecoveryCandidate(input: Input): Readonly<{
   facts: Readonly<Record<string, string | number | boolean | null>>; missingFields: readonly string[] }>;
 /** Throws with fixed missingFields schema names until actual producer facts exist. */
