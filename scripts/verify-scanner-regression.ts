@@ -30,6 +30,9 @@ function fixture() {
     ['services/release-recovery/src/githubEvidence.ts', [schema]],
     ['scripts/sealed-realms-production-activation-records.mjs', [schema]],
     ['services/release-recovery/src/recoveryPublicKey.ts', [thumbprint]],
+    ['scripts/sealed-realms-production-activation-lane.bundle.mjs', [schema, thumbprint]],
+    ['scripts/sealed-realms-production-g002-lane.bundle.mjs', [schema, thumbprint]],
+    ['scripts/sealed-realms-production-ptr-lane.bundle.mjs', [schema, thumbprint]],
   ];
   for (const [path, values] of groups) {
     files.set(path, values.map((value, index) => `const API_KEY_${index} = '${value}';\nconst MUTATED_API_KEY_${index} = '${value.slice(0, -1)}b';\n`).join(''));

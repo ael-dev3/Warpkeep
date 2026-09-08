@@ -147,7 +147,7 @@ description = "Public sealed-launch boolean schema key in recovery evidence and 
 targetRules = ["generic-api-key"]
 condition = "AND"
 regexTarget = "secret"
-paths = ['''^services/release-recovery/src/githubEvidence\.ts$''','''^scripts/sealed-realms-production-activation-records\.mjs$''','''^scripts/recovery-binding-projection\.mjs$''','''^scripts/recovery-activation-candidate\.mjs$''']
+paths = ['''^services/release-recovery/src/githubEvidence\.ts$''','''^scripts/sealed-realms-production-activation-records\.mjs$''','''^scripts/recovery-binding-projection\.mjs$''','''^scripts/recovery-activation-candidate\.mjs$''','''^scripts/sealed-realms-production-activation-lane\.bundle\.mjs$''','''^scripts/sealed-realms-production-g002-lane\.bundle\.mjs$''','''^scripts/sealed-realms-production-ptr-lane\.bundle\.mjs$''']
 regexes = ['''^g002AdmissionMutationsEnabled$''']
 
 [[allowlists]]
@@ -155,7 +155,7 @@ description = "Public recovery verification-key thumbprint, not private signing 
 targetRules = ["generic-api-key"]
 condition = "AND"
 regexTarget = "secret"
-paths = ['''^services/release-recovery/src/recoveryPublicKey\.ts$''','''^scripts/recovery-activation-candidate\.mjs$''','''^tests/fixtures/recoveryBindingCandidate\.ts$''','''^scripts/recovery-public-key\.mjs$''']
+paths = ['''^services/release-recovery/src/recoveryPublicKey\.ts$''','''^scripts/recovery-activation-candidate\.mjs$''','''^tests/fixtures/recoveryBindingCandidate\.ts$''','''^scripts/recovery-public-key\.mjs$''','''^scripts/sealed-realms-production-activation-lane\.bundle\.mjs$''','''^scripts/sealed-realms-production-g002-lane\.bundle\.mjs$''','''^scripts/sealed-realms-production-ptr-lane\.bundle\.mjs$''']
 regexes = ['''^jJpfIbYjQL5LxwND5zk1MUOqN1B3vOh_ydTAOoUnuR8$''']
 
 [[allowlists]]
