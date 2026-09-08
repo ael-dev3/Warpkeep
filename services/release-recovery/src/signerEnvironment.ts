@@ -7,6 +7,7 @@ import { githubFail } from './config.js'
 import { createSignerObservationService } from './signerObservationService.js'
 
 export interface RecoverySignerEnvironment {
+  RECOVERY_PREPARATION_POLICY?: string
   RECOVERY_ENABLED: string
   RECOVERY_AUTHORIZATION_EPOCH: string
   RECOVERY_ARMING_MANIFEST: string

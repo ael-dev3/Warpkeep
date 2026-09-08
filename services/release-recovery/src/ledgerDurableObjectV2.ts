@@ -1,6 +1,10 @@
 import { DurableObject } from 'cloudflare:workers'
+import { assertPreparationArming, assertPreparationControl, choosePreparationIntent, snapshotPreparationIntent,
+  snapshotPreparationReservation, type PreparationIntent, type PreparationReservationInput } from './preparationIntent.js'
+import { verifyPreparationReceipt } from './preparationReceipt.js'
 
 import type { GitHubAppEnvironment, RecoveryArmingTuple } from './config.js'
+import { RecoveryGitHubError } from './config.js'
 import type { RecoveryAuthorizationPayload } from './crypto.js'
 import {
   GITHUB_EVIDENCE_METADATA_KEYS,
@@ -188,6 +192,25 @@ const RECORD_KEYS = Object.freeze({
 
 const RECOVERY_LEDGER_V2_SQL_SCHEMA = `
 PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS recovery_v2_preparation_intents (
+  authorization_epoch INTEGER PRIMARY KEY CHECK (authorization_epoch > 0),
+  request_id TEXT NOT NULL UNIQUE,
+  intent_json TEXT NOT NULL CHECK (json_valid(intent_json)),
+  receipt_jws TEXT
+);
+CREATE TRIGGER IF NOT EXISTS recovery_v2_preparation_immutable_update
+BEFORE UPDATE ON recovery_v2_preparation_intents
+WHEN NEW.authorization_epoch <> OLD.authorization_epoch OR NEW.request_id <> OLD.request_id
+  OR NEW.intent_json <> OLD.intent_json OR OLD.receipt_jws IS NOT NULL OR NEW.receipt_jws IS NULL
+BEGIN
+  SELECT RAISE(ABORT, 'RECOVERY_PREPARATION_IMMUTABLE');
+END;
+CREATE TRIGGER IF NOT EXISTS recovery_v2_preparation_immutable_delete
+BEFORE DELETE ON recovery_v2_preparation_intents
+BEGIN
+  SELECT RAISE(ABORT, 'RECOVERY_PREPARATION_IMMUTABLE');
+END;
 
 CREATE TABLE IF NOT EXISTS recovery_v2_control (
   singleton_key INTEGER PRIMARY KEY CHECK (singleton_key = 1),
@@ -1162,9 +1185,81 @@ export class ReleaseRecoveryAuthorizationLedgerV2 extends DurableObject<SignerEn
       return await operation()
     } catch (error) {
       if (error instanceof RecoveryLedgerV2Error) throw new Error(error.code)
+      if (error instanceof RecoveryGitHubError && /^RECOVERY_PREPARATION_[A-Z_]+$/u.test(error.code)) throw new Error(error.code)
       if (error instanceof CasConflict) throw new Error('RECOVERY_LEDGER_CONFLICT')
       throw new Error('RECOVERY_LEDGER_STORAGE_FAILED')
     }
+  }
+
+  #loadPreparation(epoch: number): Readonly<{ intent: PreparationIntent; preparationReceiptJws: string | null }> | null {
+    const rows = this.ctx.storage.sql.exec<{ authorization_epoch: number; request_id: string; intent_json: string; receipt_jws: string | null }>(
+      'SELECT authorization_epoch, request_id, intent_json, receipt_jws FROM recovery_v2_preparation_intents WHERE authorization_epoch = ?', epoch,
+    ).toArray()
+    if (rows.length === 0) return null
+    if (rows.length !== 1) fail('RECOVERY_LEDGER_STORAGE_FAILED')
+    const row = rows[0]!
+    const intent = snapshotPreparationIntent(JSON.parse(row.intent_json))
+    if (JSON.stringify(intent) !== row.intent_json || intent.authorizationEpoch !== row.authorization_epoch
+      || intent.requestId !== row.request_id || (row.receipt_jws !== null && typeof row.receipt_jws !== 'string')) fail('RECOVERY_LEDGER_STORAGE_FAILED')
+    return Object.freeze({ intent, preparationReceiptJws: row.receipt_jws })
+  }
+
+  async reservePreparationIntent(input: PreparationReservationInput): Promise<Readonly<{ intent: PreparationIntent; preparationReceiptJws: string | null }>> {
+    return this.#withPublicErrors(async () => {
+      this.#assertRole('control')
+      const source = snapshotPreparationReservation(input)
+      const result = this.ctx.storage.transactionSync(() => {
+        let control = this.#loadControl()
+        if (control === undefined) {
+          control = createLedgerV2Control({ authorizationEpoch: source.policy.authorizationEpoch })
+          this.#insertControl(control)
+        } else if (source.policy.authorizationEpoch > control.authorizationEpoch && !control.enabled) {
+          const next = reconcileLedgerV2Control(control, { enabled: false, authorizationEpoch: source.policy.authorizationEpoch })
+          this.#updateControl(control, next)
+          control = next
+        }
+        const existing = this.#loadPreparation(source.policy.authorizationEpoch)
+        const intent = choosePreparationIntent(source, control, existing?.intent ?? null, () => crypto.randomUUID())
+        if (existing !== null) return existing
+        this.ctx.storage.sql.exec('INSERT INTO recovery_v2_preparation_intents (authorization_epoch, request_id, intent_json, receipt_jws) VALUES (?, ?, ?, NULL)',
+          intent.authorizationEpoch, intent.requestId, JSON.stringify(intent)).toArray()
+        return { intent, preparationReceiptJws: null }
+      })
+      if (result.preparationReceiptJws !== null) await verifyPreparationReceipt(result.preparationReceiptJws, result.intent)
+      this.ctx.storage.transactionSync(() => {
+        const current = this.#loadControl()
+        if (current === undefined) fail('RECOVERY_LEDGER_STORAGE_FAILED')
+        assertPreparationControl(current, result.intent.authorizationEpoch)
+      })
+      return rpcSnapshot(result)
+    })
+  }
+
+  async finalizePreparationIntent(input: Readonly<{ intent: PreparationIntent; preparationReceiptJws: string }>): Promise<Readonly<{ preparationReceiptJws: string }>> {
+    return this.#withPublicErrors(async () => {
+      this.#assertRole('control')
+      const source = exactData(input, ['intent', 'preparationReceiptJws'], 'RECOVERY_LEDGER_CONTROL_INVALID')
+      const intent = snapshotPreparationIntent(source.intent)
+      await verifyPreparationReceipt(source.preparationReceiptJws, intent)
+      const result = this.ctx.storage.transactionSync(() => {
+        const current = this.#loadControl()
+        if (current === undefined) fail('RECOVERY_LEDGER_STORAGE_FAILED')
+        assertPreparationControl(current, intent.authorizationEpoch)
+        const existing = this.#loadPreparation(intent.authorizationEpoch)
+        if (existing === null || JSON.stringify(existing.intent) !== JSON.stringify(intent)) fail('RECOVERY_LEDGER_STORAGE_FAILED')
+        if (existing.preparationReceiptJws !== null) return { preparationReceiptJws: existing.preparationReceiptJws }
+        this.ctx.storage.sql.exec('UPDATE recovery_v2_preparation_intents SET receipt_jws = ? WHERE authorization_epoch = ? AND receipt_jws IS NULL',
+          source.preparationReceiptJws as string, intent.authorizationEpoch).toArray()
+        return { preparationReceiptJws: source.preparationReceiptJws as string }
+      })
+      await verifyPreparationReceipt(result.preparationReceiptJws, intent)
+      this.ctx.storage.transactionSync(() => {
+        const current = this.#loadControl()
+        if (current === undefined) fail('RECOVERY_LEDGER_STORAGE_FAILED')
+        assertPreparationControl(current, intent.authorizationEpoch)
+      })
+      return rpcSnapshot(result)
+    })
   }
 
   async reconcileControl(input: LedgerV2ControlInput): Promise<LedgerV2ControlState> {
@@ -1182,6 +1277,10 @@ export class ReleaseRecoveryAuthorizationLedgerV2 extends DurableObject<SignerEn
       }
       let result: LedgerV2ControlState | undefined
       this.ctx.storage.transactionSync(() => {
+        if (source.enabled === true) {
+          const reserved = this.#loadPreparation(source.authorizationEpoch as number)
+          if (reserved !== null) assertPreparationArming(reserved.intent, source.arming as RecoveryArmingTuple)
+        }
         const current = this.#loadControl()
         if (current === undefined) {
           const initial = createLedgerV2Control({

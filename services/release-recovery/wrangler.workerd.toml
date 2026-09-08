@@ -10,6 +10,11 @@ binding = "RECOVERY_GATEWAY_TEST_SIGNER"
 service = "warpkeep-release-recovery-ledger-test"
 entrypoint = "RecoveryGatewayTestSigner"
 
+[[services]]
+binding = "RECOVERY_PREPARATION_ACTUAL_SIGNER"
+service = "warpkeep-release-recovery-ledger-test"
+entrypoint = "RecoveryPreparationTestSigner"
+
 [[durable_objects.bindings]]
 name = "RECOVERY_LEDGER"
 class_name = "ReleaseRecoveryAuthorizationLedger"

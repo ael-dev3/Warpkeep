@@ -5,6 +5,31 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Recovery preparation service
+
+The gateway now exposes POST /v1/recovery/prepare through the private signer.
+It authenticates the protected workflow identity and current source using OIDC
+and GitHub App observations, then reserves an immutable preparation intent in
+the fixed recovery control Durable Object. A separate deployment-owned policy
+must explicitly enable preparation while recovery remains disabled. The signed
+receipt is preparation data; it does not arm recovery or authorize deployment.
+Retries preserve the first receipt, and later arming must match the reserved
+coordinates. Source, epoch and token freshness checks precede durable writes.
+
+The normalized service change passed 198 focused tests and both strict type
+projects. Actual signer RPC and SQLite Durable Object checks passed before
+line-ending-only normalization; the matching-manifest retry also passed against
+the actual DO. Independent runtime review found no blocking issues. Broad legacy
+suites remain non-green due to recorded timeout/reset and environment failures;
+these focused results do not establish full regression or production readiness.
+
+The downstream receipt-to-candidate connection, workflow OIDC permissions and
+deployed preparation policy remain unfinished. Six published candidate inputs
+are still missing. No preparation policy or realm was changed in production.
+The dedicated WarpkeepRunner Ubuntu installation succeeded, but its first boot
+failed with Wsl/Service/CreateInstance/HCS_E_CONNECTION_TIMEOUT. Native local
+build verification remains pending; other projects' WSL instances are preserved.
+
 ## Regenerated sealed-launch source pins
 
 The established source-pin generator refreshes the authority implementation,

@@ -357,6 +357,7 @@ describe('ReleaseRecoveryAuthorizationLedgerV2 Workerd adapter', () => {
       'recovery_v2_authorization_payload',
       'recovery_v2_claim_binding',
       'recovery_v2_control',
+      'recovery_v2_preparation_intents',
     ])
     expect(tables).not.toContain('recovery_authorization')
     const v1Tables = await runInDurableObject(v1, async (_instance, state) => (

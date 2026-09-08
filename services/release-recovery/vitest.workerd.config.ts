@@ -7,6 +7,7 @@ const TEST_RECONCILIATION_PROOF_FAKE = fileURLToPath(
 )
 const LEDGER_DURABLE_OBJECT_IMPORTER = /(?:^|\/)src\/ledgerDurableObject\.ts(?:\?.*)?$/u
 const RECONCILIATION_PROOF_IMPORT = /(?:^|\/)reconciliationProof\.js(?:\?.*)?$/u
+const PREPARATION_INERT_DATA = fileURLToPath(new URL('./test-workerd/preparationInertData.fake.ts', import.meta.url))
 
 export default defineConfig({
   plugins: [
@@ -16,6 +17,10 @@ export default defineConfig({
       resolveId(source, importer) {
         const normalizedSource = source.replaceAll('\\', '/')
         const normalizedImporter = importer?.replaceAll('\\', '/')
+        if (normalizedImporter?.endsWith('/src/index-signer.ts')
+          && /^\.\.\/fixtures\/spacetime\/(?:manifest|g001\.raw-module-def-v10|g002\.raw-module-def-v10|ptr\.raw-module-def-v10)\.json$/u.test(normalizedSource)) {
+          return PREPARATION_INERT_DATA
+        }
         if (
           LEDGER_DURABLE_OBJECT_IMPORTER.test(normalizedImporter ?? '')
           && RECONCILIATION_PROOF_IMPORT.test(normalizedSource)

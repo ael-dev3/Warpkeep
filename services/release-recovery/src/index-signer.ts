@@ -1,3 +1,4 @@
+import { prepareRecoveryFromEnvironment } from './signerPreparation.js'
 import { WorkerEntrypoint } from 'cloudflare:workers'
 import manifest from '../fixtures/spacetime/manifest.json'
 import g001 from '../fixtures/spacetime/g001.raw-module-def-v10.json'
@@ -8,6 +9,8 @@ import { signerFromEnvironment, type RecoverySignerEnvironment } from './signerE
 export { ReleaseRecoveryAuthorizationLedgerV2 } from './ledgerDurableObjectV2.js'
 
 export class ReleaseRecoverySignerEntrypoint extends WorkerEntrypoint<RecoverySignerEnvironment> {
+  async prepare(request: unknown, ...extra: unknown[]) { return prepareRecoveryFromEnvironment(this.env, request, extra) }
+
   #signer() { return signerFromEnvironment(this.env, { manifest, g001, g002, ptr }) }
   async status(...args: []) { return this.#signer().status(...args) }
   async issue(request: unknown, ...extra: unknown[]) { return this.#signer().issue(request, ...extra) }

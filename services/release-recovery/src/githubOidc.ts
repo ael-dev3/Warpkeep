@@ -505,85 +505,7 @@ export async function verifyGitHubWorkflowIdentity(input: Readonly<{
     || nowSeconds < 1
   ) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
 
-  const segments = token.split('.')
-  if (
-    segments.length !== 3
-    || segments[0]!.length > 2_048
-    || segments[1]!.length > 32_768
-    || segments[2]!.length > 2_048
-  ) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
-  const header = parseGitHubJsonObject(
-    decodeBase64Url(segments[0]!),
-    'RECOVERY_GITHUB_OIDC_INVALID',
-    [],
-  )
-  const claims = parseGitHubJsonObject(
-    decodeBase64Url(segments[1]!),
-    'RECOVERY_GITHUB_OIDC_INVALID',
-    [],
-  )
-  if (
-    !exactKeys(header, ['alg', 'kid', 'typ'], ['x5t'])
-    || header.alg !== 'RS256'
-    || header.typ !== 'JWT'
-    || typeof header.kid !== 'string'
-    || !/^[A-Za-z0-9._:-]{1,256}$/u.test(header.kid)
-    || (header.x5t !== undefined && (
-      typeof header.x5t !== 'string'
-      || decodeBase64Url(header.x5t).length !== 20
-    ))
-  ) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
-
-  const discovery = await json(
-    fetchImplementation as typeof fetch,
-    GITHUB_OIDC_DISCOVERY_URL,
-    {},
-    'RECOVERY_GITHUB_OIDC_HTTP_INVALID',
-  )
-  assertDiscovery(discovery)
-  const jwks = await json(
-    fetchImplementation as typeof fetch,
-    GITHUB_OIDC_JWKS_URL,
-    {},
-    'RECOVERY_GITHUB_OIDC_HTTP_INVALID',
-  )
-  if (!exactKeys(jwks, ['keys']) || !Array.isArray(jwks.keys)) {
-    githubFail('RECOVERY_GITHUB_OIDC_HTTP_INVALID')
-  }
-  if (jwks.keys.length < 1 || jwks.keys.length > 16) {
-    githubFail('RECOVERY_GITHUB_OIDC_HTTP_INVALID')
-  }
-  const validatedKeys = jwks.keys.map(value => safeRsaJwk(value))
-  if (
-    new Set(validatedKeys.map(key => key.kid)).size !== validatedKeys.length
-    || new Set(validatedKeys.map(key => `${key.jwk.n}.${key.jwk.e}`)).size !== validatedKeys.length
-  ) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
-  const matchingKeys = validatedKeys.filter(value => value.kid === header.kid)
-  if (matchingKeys.length !== 1) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
-  if (header.x5t !== undefined && matchingKeys[0]!.x5t !== header.x5t) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
-
-  try {
-    const signature = Uint8Array.from(decodeBase64Url(segments[2]!))
-    if (signature.byteLength !== matchingKeys[0]!.signatureLength) {
-      githubFail('RECOVERY_GITHUB_OIDC_INVALID')
-    }
-    const key = await crypto.subtle.importKey(
-      'jwk',
-      matchingKeys[0]!.jwk,
-      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-      false,
-      ['verify'],
-    )
-    const valid = await crypto.subtle.verify(
-      'RSASSA-PKCS1-v1_5',
-      key,
-      signature,
-      encoder.encode(`${segments[0]}.${segments[1]}`),
-    )
-    if (!valid) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
-  } catch {
-    githubFail('RECOVERY_GITHUB_OIDC_INVALID')
-  }
+  const claims = await verifyGitHubOidcSignature(token, fetchImplementation as typeof fetch)
 
   if (!exactKeys(claims, REQUIRED_CLAIMS, OPTIONAL_CLAIMS)) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
   const issuedAt = claims.iat
@@ -716,4 +638,90 @@ export async function verifyGitHubWorkflowIdentity(input: Readonly<{
     checkRunId,
     oidcJti: claims.jti,
   })
+}
+
+/** Cryptographic issuer verification only; each purpose must validate its complete claims and GitHub metadata. */
+export async function verifyGitHubOidcSignature(token: string, fetchImplementation: typeof fetch): Promise<GitHubJsonObject> {
+  if (typeof token !== 'string' || token.length < 1 || token.length > 65_536) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
+  const segments = token.split('.')
+  if (
+    segments.length !== 3
+    || segments[0]!.length > 2_048
+    || segments[1]!.length > 32_768
+    || segments[2]!.length > 2_048
+  ) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
+  const header = parseGitHubJsonObject(
+    decodeBase64Url(segments[0]!),
+    'RECOVERY_GITHUB_OIDC_INVALID',
+    [],
+  )
+  const claims = parseGitHubJsonObject(
+    decodeBase64Url(segments[1]!),
+    'RECOVERY_GITHUB_OIDC_INVALID',
+    [],
+  )
+  if (
+    !exactKeys(header, ['alg', 'kid', 'typ'], ['x5t'])
+    || header.alg !== 'RS256'
+    || header.typ !== 'JWT'
+    || typeof header.kid !== 'string'
+    || !/^[A-Za-z0-9._:-]{1,256}$/u.test(header.kid)
+    || (header.x5t !== undefined && (
+      typeof header.x5t !== 'string'
+      || decodeBase64Url(header.x5t).length !== 20
+    ))
+  ) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
+
+  const discovery = await json(
+    fetchImplementation as typeof fetch,
+    GITHUB_OIDC_DISCOVERY_URL,
+    {},
+    'RECOVERY_GITHUB_OIDC_HTTP_INVALID',
+  )
+  assertDiscovery(discovery)
+  const jwks = await json(
+    fetchImplementation as typeof fetch,
+    GITHUB_OIDC_JWKS_URL,
+    {},
+    'RECOVERY_GITHUB_OIDC_HTTP_INVALID',
+  )
+  if (!exactKeys(jwks, ['keys']) || !Array.isArray(jwks.keys)) {
+    githubFail('RECOVERY_GITHUB_OIDC_HTTP_INVALID')
+  }
+  if (jwks.keys.length < 1 || jwks.keys.length > 16) {
+    githubFail('RECOVERY_GITHUB_OIDC_HTTP_INVALID')
+  }
+  const validatedKeys = jwks.keys.map(value => safeRsaJwk(value))
+  if (
+    new Set(validatedKeys.map(key => key.kid)).size !== validatedKeys.length
+    || new Set(validatedKeys.map(key => `${key.jwk.n}.${key.jwk.e}`)).size !== validatedKeys.length
+  ) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
+  const matchingKeys = validatedKeys.filter(value => value.kid === header.kid)
+  if (matchingKeys.length !== 1) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
+  if (header.x5t !== undefined && matchingKeys[0]!.x5t !== header.x5t) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
+
+  try {
+    const signature = Uint8Array.from(decodeBase64Url(segments[2]!))
+    if (signature.byteLength !== matchingKeys[0]!.signatureLength) {
+      githubFail('RECOVERY_GITHUB_OIDC_INVALID')
+    }
+    const key = await crypto.subtle.importKey(
+      'jwk',
+      matchingKeys[0]!.jwk,
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+      false,
+      ['verify'],
+    )
+    const valid = await crypto.subtle.verify(
+      'RSASSA-PKCS1-v1_5',
+      key,
+      signature,
+      encoder.encode(`${segments[0]}.${segments[1]}`),
+    )
+    if (!valid) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
+  } catch {
+    githubFail('RECOVERY_GITHUB_OIDC_INVALID')
+  }
+
+  return claims
 }
