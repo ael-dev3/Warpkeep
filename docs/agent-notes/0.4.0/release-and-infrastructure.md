@@ -113,13 +113,40 @@ requires compatible recovery preserving existing and subsequent writes. Do not
 restore a pre-gameplay schema or old snapshot over newer state.
 
 The first actual-module local preservation experiment confirmed the reconstructed
-G002 table boundary but stopped at admin authentication before any import/update.
-The existing G002 parser requires `hex_identity`; the bridge's G002 producer omits
-it, and the pinned provider forwards the original payload. The old loopback test
-added that field itself. This is a bridge/module contract mismatch under repair,
-not a reason to weaken module guards or treat the failed experiment as acceptance.
-Its disposable server and local signing files were cleaned up. See the canonical
-[recovery evidence](../../evidence/0.4.0/recovery.md) for scope and continuation.
+G002 table boundary but stopped at direct-HTTP admin authentication before any
+import/update. The bridge token lacked the module-required `hex_identity` claim.
+Source `95ce45c` now derives and signs that claim for G002 only; the unmodified
+module and pinned host passed native positive and rejection tests. Focused tests
+and all four affected type checks passed. No live provider change was made.
+
+The transport distinction matters: direct HTTP forwards the original JWT payload,
+whereas the pinned SDK first exchanges it at `/v1/identity/websocket-token`. That
+endpoint signs a temporary token containing the computed identity. The earlier
+SDK loopback did run successfully in CI; its projected-identity fixture did not
+cover the failing direct-HTTP path. Native SQL evidence uses a synthetic Hermes
+principal that also owns its disposable database, so it does not establish private
+SQL access on the differently owned production database. Continue from the
+[recovery evidence](../../evidence/0.4.0/recovery.md).
+
+
+The subsequent isolated rehearsal at 05:09–05:10 UTC verified both historical
+compiled schema boundaries and completed G002's real atlas import. It then failed
+at PTR import inspection before any PTR import writes or module update. PTR's
+strict claim sets reject the identity added by the SDK token exchange; offline
+tests reproduced this with all three actual PTR token producers. A separate PTR
+module correction is under review. The historical artifacts remain unchanged.
+No additive migration, owner gameplay or recovery acceptance is established.
+The disposable server was stopped and signing files and CLI snapshot removed;
+the failed attempt and its persistent disposable database are retained.
+
+
+The complete generated consumer family for `95ce45c` was independently reproduced
+and verified. Commit `6a5123ed7fde3e5e6b21114b895477f8c6b43a03` installs its
+reviewed generated changes. All affected suites passed: 432 cases, no skips,
+including the complete prepared-workflow suite. Tracked source and generated
+output bytes remained unchanged during QA. Retained compiled inputs and bundles
+were verified without rebuilding; full preparation remains scoped to `b306eed`.
+Final release preparation and required published-source CI remain separate.
 
 ## Windows/WSL working environment and process evidence
 

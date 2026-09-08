@@ -40,7 +40,7 @@ machine's default Node/npm do not match the project's required versions.
 | Navigation and continuity | Selected Worker survives keep-to-atlas navigation. Close/Escape closes nested panels to the keep; Back stays separate. Healthy refresh preserves scene/focus. Active expiry renews scoped authority and reconnects without replaying commands. | Actual owner foreground/resume, uncertain command and realm-switch journey. |
 | Verdant Citadel | Current keep presentation and coherent Greater Realm water have scoped tests and synthetic rendered evidence. | Integrated visual review, lower quality/motion settings and physical-device performance. |
 | Linux delivery | Complete source preparation, independent byte check, recovery and the fixed sealed preflight caller are connected. The supported runner is installed. | Remaining operating callers, authentic provider inputs and release-specific signer/runner authorization. |
-| Existing databases | Compiled candidates preserve the captured old schema; authenticated planning supported deployed-program fingerprints at the recorded snapshots. | Correct the G002 bridge/module token mismatch, then complete populated actual-module migration, write-preserving recovery and connected update receipts. |
+| Existing databases | Compiled candidates preserve the captured old schema; authenticated planning supported deployed-program fingerprints at the recorded snapshots. | The direct-HTTP G002 token correction passed native interoperability. Complete populated actual-module migration, write-preserving recovery and connected update receipts. |
 | GitHub checks | The `1e90b2e` database, auth, native, recovery and CodeQL jobs passed. Its Linux job failed in the old PreparedWorkflow verifier; the repair passed its complete affected native suite. | Required checks on the newly published source. |
 
 These are separate scopes. A local fixture, generated source family, successful
@@ -73,6 +73,33 @@ recovery that preserves existing and subsequent writes. Evaluate a useful forwar
 recovery path; do not restore an old snapshot or call a schema-equivalent fixture
 the exact deployed predecessor. Fresh authenticated program identity still belongs
 at the actual update boundary.
+
+G002 authentication has two transport paths. Direct HTTP uses the original bridge
+JWT; the SDK exchanges it for a host-signed temporary token before WebSocket
+subscription. Source `95ce45c` adds the correctly derived signed identity to the
+G002 bridge token, preserving the existing module guards. Native HTTP and SDK
+interoperability passed with synthetic local authority. This does not grant
+production SQL ownership or establish a populated migration.
+
+
+The subsequent isolated rehearsal at 05:09–05:10 UTC verified both historical
+compiled schema boundaries and completed G002's real atlas import. It then failed
+at PTR import inspection before any PTR import writes or module update. PTR's
+strict claim sets reject the identity added by the SDK token exchange; offline
+tests reproduced this with all three actual PTR token producers. A separate PTR
+module correction is under review. The historical artifacts remain unchanged.
+No additive migration, owner gameplay or recovery acceptance is established.
+The disposable server was stopped and signing files and CLI snapshot removed;
+the failed attempt and its persistent disposable database are retained.
+
+
+The complete generated consumer family for `95ce45c` was independently reproduced
+and verified. Commit `6a5123ed7fde3e5e6b21114b895477f8c6b43a03` installs its
+reviewed generated changes. All affected suites passed: 432 cases, no skips,
+including the complete prepared-workflow suite. Tracked source and generated
+output bytes remained unchanged during QA. Retained compiled inputs and bundles
+were verified without rebuilding; full preparation remains scoped to `b306eed`.
+Final release preparation and required published-source CI remain separate.
 
 ## Continue in useful increments
 

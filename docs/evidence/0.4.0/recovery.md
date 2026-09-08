@@ -45,10 +45,25 @@ timings, then verify continued settlement and single credit through containment
 and resume. Its first attempt created only the local historical G002 fixture and
 confirmed the complete table boundary, then stopped on
 `INVALID_GENESIS_002_ADMIN_SESSION` before private reads, import or update. The
-G002 bridge producer omits the module's required `hex_identity`; the pinned host
-does not add it. The old loopback test supplied it itself. A compatible bridge-side
-correction and actual native revalidation are in progress. The stopped server and
-local signing files were cleaned up; migration/recovery acceptance remains open.
+G002 bridge token omitted the module's required `hex_identity` on direct HTTP.
+Source `95ce45c` corrects the producer and passed actual pinned-host HTTP and SDK
+interoperability, with all module guards retained. The SDK separately exchanges
+its token before subscribing; that host-signed replacement includes the computed
+identity, explaining the earlier successful loopback CI. Its fixture did not prove
+direct-HTTP interoperability. Disposable servers and signing files were cleaned
+up. The original failed preservation attempt remains failed; populated migration
+and recovery acceptance remain open.
+
+
+The subsequent isolated rehearsal at 05:09–05:10 UTC verified both historical
+compiled schema boundaries and completed G002's real atlas import. It then failed
+at PTR import inspection before any PTR import writes or module update. PTR's
+strict claim sets reject the identity added by the SDK token exchange; offline
+tests reproduced this with all three actual PTR token producers. A separate PTR
+module correction is under review. The historical artifacts remain unchanged.
+No additive migration, owner gameplay or recovery acceptance is established.
+The disposable server was stopped and signing files and CLI snapshot removed;
+the failed attempt and its persistent disposable database are retained.
 
 PTR's existing auth-bridge issuance switch can stop new owner sessions while
 already-issued leases drain. It leaves the enabled database anchor and schedules

@@ -960,3 +960,85 @@ Root compared the exported bytes with the verification clone before integration.
 This is incremental development evidence. It does not extend b306's full native
 preparation to later source, rerun the retained UI/policy tests, establish required
 CI success or authorize a deployment. Final release preparation remains open.
+
+
+## G002 direct-HTTP identity correction — 2026-09-08
+
+Source `95ce45c0fd823f2d1b0c37872b8fa13a7bae5774` corrects a transport-specific
+authentication mismatch. The bridge's original G002 admin JWT omitted
+`hex_identity`, while the module's strict claim parser and sender comparison
+require it. Direct HTTP forwards that original signed payload. The producer now
+derives the identity from the existing issuer/subject using the exact pinned
+SpacetimeDB 2.6.1 BLAKE3/checksum construction and includes it in the signature.
+The existing locked `@noble/hashes` version becomes a direct service dependency.
+G001/PTR claim schemas and all module authorization guards remain unchanged.
+
+The earlier statement that the host never supplies this field was too broad.
+The pinned SDK's `src/sdk/ws.ts` first calls `/v1/identity/websocket-token`, then
+subscribes with the replacement token. The endpoint re-signs the validated claims
+for a short lifetime and serializes the computed identity. Raw-payload forwarding
+after that exchange therefore receives an already enriched token. Official
+2.6.1 identity/auth/subscribe sources and the actual SDK call chain explain this
+distinction; a direct-HTTP request performs no such exchange.
+
+The completed old CI log confirms that private loopback ran and finalized its
+atlas successfully at 03:14–03:15 UTC in PR `1e90b2e`'s merge checkout `f77d88b`.
+It was neither skipped nor a no-op. The earlier projected-identity fixture modeled
+that SDK path but did not verify the original bridge JWT against direct HTTP.
+The corrected fixture now uses the actual producer, and a route regression checks
+the real signature plus unchanged module parser, including signed-field tampering.
+
+Focused native tests passed 61 root and 258 service cases. Service, workerd, app
+and configuration noEmit checks all passed. Pinned pnpm validated the exact lock
+offline in an owned checkout. Direct dependency resolution remained inside that
+service's owned package tree. The real root-only loopback import also succeeded
+without a service installation, using the root's existing exact dependency.
+The reviewed nine-path patch SHA-256 is
+`7b39ed86840549a0afeae52397c591215047ffe3b56997c8313c9bfd071af0f0`.
+
+A separate private-network native oracle passed at 05:01 UTC using the retained
+historical G002 artifact and actual bridge minting. Direct HTTP entered the
+unmodified lifecycle successfully; the generated SDK client exchanged its token,
+reported the same sender identity and called the protected status procedure.
+Missing identity, wrong audience and extra claims received the expected module
+403 refusal. Two correctly signed wrong-identity cases and unsigned payload
+tampering received host 401 refusals. The public error may reflect OIDC fallback;
+tests do not require exposure of the internal validator message. Program rows
+and source hashes matched after the probes. The final result SHA-256 is
+`b654e76f6e234aca59ce23f2fbc8c6ad41724f51f1e1463daeaa2a627d367686`.
+
+The first oracle attempt stopped after HTTP success on a harness URL-object
+handling error; the second stopped on an overly specific public-error expectation
+after its positive and module-negative probes. Both were retained separately.
+The final run completed every intended case; all disposable servers were stopped,
+signing files and CLI snapshots removed, with no cleanup failures.
+
+This uses synthetic authority. Hermes also owns the disposable database, so SQL
+success is not evidence of private-query authority on a production database owned
+by another principal. The protected procedure, HTTP lifecycle and SDK exchange
+are separately established. No live provider request, module update, populated
+migration, recovery completion or owner-play acceptance is claimed. The original
+failed populated rehearsal remains failed and can now continue with the corrected
+bridge in a fresh isolated fixture. Generated consumers and publication are
+recorded separately from this source and interoperability evidence.
+
+## G002 generated source family and rehearsal continuation — 2026-09-08
+
+The complete generated consumer family for `95ce45c` was independently reproduced
+and verified. Commit `6a5123ed7fde3e5e6b21114b895477f8c6b43a03` installs its
+reviewed generated changes. All affected suites passed: 432 cases, no skips,
+including the complete prepared-workflow suite. Tracked source and generated
+output bytes remained unchanged during QA. Retained compiled inputs and bundles
+were verified without rebuilding; full preparation remains scoped to `b306eed`.
+Final release preparation and required published-source CI remain separate.
+
+
+The subsequent isolated rehearsal at 05:09–05:10 UTC verified both historical
+compiled schema boundaries and completed G002's real atlas import. It then failed
+at PTR import inspection before any PTR import writes or module update. PTR's
+strict claim sets reject the identity added by the SDK token exchange; offline
+tests reproduced this with all three actual PTR token producers. A separate PTR
+module correction is under review. The historical artifacts remain unchanged.
+No additive migration, owner gameplay or recovery acceptance is established.
+The disposable server was stopped and signing files and CLI snapshot removed;
+the failed attempt and its persistent disposable database are retained.
