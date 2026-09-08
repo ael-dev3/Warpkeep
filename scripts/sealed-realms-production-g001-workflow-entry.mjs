@@ -18,6 +18,9 @@ import {
   authenticateSealedRealmsProductionSourceAuthority,
 } from './sealed-realms-production-source-authority.mjs';
 import {
+  createSealedRealmsProductionWorkflowEvidence,
+  refreshSealedRealmsProductionWorkflowEvidence,
+  revokeSealedRealmsProductionWorkflowEvidence,
   verifySealedRealmsProductionWorkflowEvidence,
 } from './sealed-realms-production-workflow-evidence.mjs';
 import {
@@ -48,6 +51,7 @@ const GIT_ENVIRONMENT = process.platform === 'win32'
   : Object.freeze({
     GIT_CONFIG_GLOBAL: String.fromCodePoint(47, 100, 101, 118, 47, 110, 117, 108, 108),
     GIT_CONFIG_NOSYSTEM: '1',
+    GIT_NO_REPLACE_OBJECTS: '1',
     HOME: String.fromCodePoint(47, 100, 101, 118, 47, 110, 117, 108, 108),
     LANG: 'C',
     LC_ALL: 'C',
@@ -106,11 +110,11 @@ function sourceSha(value) {
 
 function readGit(arguments_) {
   try {
-    return execFileSync(GIT_EXECUTABLE, [...arguments_], {
+    return execFileSync(GIT_EXECUTABLE, ['--no-replace-objects', ...arguments_], {
       cwd: process.cwd(),
       encoding: 'utf8',
       env: GIT_ENVIRONMENT,
-      maxBuffer: 128 * 1_024,
+      maxBuffer: 2 * 1024 * 1024,
       timeout: 5_000,
       windowsHide: true,
     });
@@ -151,15 +155,16 @@ function unavailable() {
   fail('SEALED_REALMS_G001_WORKFLOW_ADAPTER_UNAVAILABLE');
 }
 
-async function buildDispatcher(operation, workflowInputSha) {
-  // Evidence is deliberately the first gate. Production cannot read workflow
-  // credentials or contact GitHub until Tasks 7-9 install exact bundle evidence.
+async function buildDispatcher(operation, workflowInputSha, evidence) {
+  const verifyEvidence = commit => verifySealedRealmsProductionWorkflowEvidence(evidence, commit);
+  // Fresh fixed Verify evidence precedes source authentication; private state
+  // remains behind that source proof and the active workflow permit.
   const authority = authenticateSealedRealmsProductionSourceAuthority({
     operation,
     workflowInputSha,
     readGit,
     readBinding,
-    verifyEvidence: verifySealedRealmsProductionWorkflowEvidence,
+    verifyEvidence,
   });
   const githubToken = process.env.GITHUB_TOKEN;
   const runId = process.env.GITHUB_RUN_ID;
@@ -176,7 +181,7 @@ async function buildDispatcher(operation, workflowInputSha) {
   const launchAuthority = createSealedRealmsProductionG001LaunchAuthority({
     readRawGit: readGit,
     resolveAdminSecretPath: unavailable,
-    persistPolicyObservation: unavailable,
+    privateState,
   });
   const censusAuthority = createSealedRealmsProductionG001CensusAuthority({
     privateState,
@@ -205,7 +210,7 @@ async function buildDispatcher(operation, workflowInputSha) {
   const context = createSealedRealmsProductionG001DispatchContext({
     readGit,
     readBinding,
-    verifyEvidence: verifySealedRealmsProductionWorkflowEvidence,
+    verifyEvidence,
     permit,
     continuationStore,
     runId,
@@ -220,13 +225,20 @@ export async function createSealedRealmsProductionG001WorkflowRuntime(input) {
   const options = exactObject(input, ['operation', 'workflowInputSha']);
   const operation = operationName(options.operation);
   const workflowInputSha = sourceSha(options.workflowInputSha);
+  const evidence = await createSealedRealmsProductionWorkflowEvidence({ workflowInputSha });
   const runtime = Object.freeze({});
-  runtimes.set(runtime, Object.freeze({
-    operation,
-    workflowInputSha,
-    dispatcher: await buildDispatcher(operation, workflowInputSha),
-  }));
-  return runtime;
+  try {
+    runtimes.set(runtime, Object.freeze({
+      operation,
+      workflowInputSha,
+      evidence,
+      dispatcher: await buildDispatcher(operation, workflowInputSha, evidence),
+    }));
+    return runtime;
+  } catch (error) {
+    revokeSealedRealmsProductionWorkflowEvidence(evidence);
+    throw error;
+  }
 }
 
 /** Consumes the runtime before the dispatch await; it cannot be replayed. */
@@ -245,5 +257,10 @@ export async function runSealedRealmsProductionG001Operation(input) {
   if (member.workflowInputSha !== workflowInputSha) fail('SEALED_REALMS_G001_WORKFLOW_SOURCE_INVALID');
   runtimes.delete(options.runtime);
   consumedRuntimes.add(options.runtime);
-  return member.dispatcher.dispatch(Object.freeze({ operation, workflowInputSha }));
+  try {
+    await refreshSealedRealmsProductionWorkflowEvidence(member.evidence);
+    return await member.dispatcher.dispatch(Object.freeze({ operation, workflowInputSha }));
+  } finally {
+    revokeSealedRealmsProductionWorkflowEvidence(member.evidence);
+  }
 }

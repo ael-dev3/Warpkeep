@@ -6,6 +6,7 @@ import {
   chmodSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   readdirSync,
   rmSync,
   statSync,
@@ -15,9 +16,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
+import { createRecoveryActivationBinding } from '../scripts/recovery-activation-candidate.mjs';
 
 const SWAPPED_SOURCE = 'b'.repeat(40);
 const BINDING_PATH = 'config/releases/0.4.0-sealed-launch.json';
+const INERT_BINDING_SOURCE = readFileSync(new URL(`../${BINDING_PATH}`, import.meta.url), 'utf8');
 const EVIDENCE_MODULE = '../scripts/sealed-realms-production-workflow-evidence.mjs';
 const PRIVATE_RESOLVER_MODULE = '../scripts/sealed-realms-production-workflow-private-state.mjs';
 const PRIVATE_STATE_MODULE = '../scripts/sealed-realms-production-private-state.mjs';
@@ -59,12 +63,9 @@ const ENTRIES = Object.freeze([
     path: '../scripts/sealed-realms-production-activation-workflow-entry.mjs',
     factory: 'createSealedRealmsProductionActivationWorkflowRuntime',
     run: 'runSealedRealmsProductionActivationOperation',
-    operation: 'activation-evidence-generate',
+    operation: 'activation-evidence-inspect',
     crossedOperation: 'preflight',
-    expected: Object.freeze({
-      operation: 'activation-evidence-generate',
-      status: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
-    }),
+    expectedFailure: 'SEALED_REALMS_DISPATCH_LANE_FAILED',
   }),
 ] as const);
 
@@ -96,17 +97,16 @@ function git(repositoryRoot: string, arguments_: readonly string[], input?: stri
   }).trim();
 }
 
-function binding(preparationSourceCommit: string, pagesDeploymentApproved: boolean) {
+function binding(preparationSourceCommit: string | null, pagesDeploymentApproved: boolean) {
   return `${JSON.stringify({
-    schemaVersion: 1,
-    profile: 'warpkeep-0.4.0-sealed-launch-v1',
+    ...JSON.parse(INERT_BINDING_SOURCE),
     pagesDeploymentApproved,
     preparationSourceCommit,
   })}\n`;
 }
 
 function repositoryFixture(
-  mode: 'S' | 'A',
+  mode: 'S' | 'A' | 'V2',
   options: Readonly<{ extraActivationPath?: boolean; invalidParentBinding?: boolean }> = {},
 ) {
   const repositoryRoot = mkdtempSync(join(tmpdir(), 'warpkeep-workflow-repository-'));
@@ -116,39 +116,38 @@ function repositoryFixture(
   git(repositoryRoot, ['config', 'core.autocrlf', 'false']);
   const bindingFile = join(repositoryRoot, ...BINDING_PATH.split('/'));
   mkdirSync(join(repositoryRoot, 'config', 'releases'), { recursive: true });
-  writeFileSync(bindingFile, binding('0'.repeat(40), false), 'utf8');
+  // Commit the real inert source bytes before learning their Git commit ID.
+  // A malformed-parent case is explicit; ordinary S needs no replacement refs.
+  writeFileSync(bindingFile, options.invalidParentBinding === true
+    ? binding(SWAPPED_SOURCE, false) : INERT_BINDING_SOURCE, 'utf8');
   writeFileSync(join(repositoryRoot, 'package.json'), '{"fixture":1}\n', 'utf8');
   writeFileSync(join(repositoryRoot, 'package-lock.json'), '{"fixture":1}\n', 'utf8');
+  if (mode === 'V2') {
+    for (const path of ['package.json', 'package-lock.json']) {
+      writeFileSync(join(repositoryRoot, path), readFileSync(new URL(`../${path}`, import.meta.url)));
+    }
+  }
   git(repositoryRoot, ['add', '--', BINDING_PATH, 'package.json', 'package-lock.json']);
-  git(repositoryRoot, ['commit', '--quiet', '-m', 'placeholder preparation source']);
+  git(repositoryRoot, ['commit', '--quiet', '-m', 'inert preparation source']);
   const preparationSourceCommit = git(repositoryRoot, ['rev-parse', 'HEAD']);
 
-  // Git's replacement-object mechanism gives the real git adapters a logical
-  // commit whose immutable name is also the exact binding value. This avoids
-  // mocking child_process while preserving the self-binding source invariant.
-  writeFileSync(
-    bindingFile,
-    binding(
-      options.invalidParentBinding === true ? SWAPPED_SOURCE : preparationSourceCommit,
-      false,
-    ),
-    'utf8',
-  );
-  git(repositoryRoot, ['add', '--', BINDING_PATH]);
-  const replacementTree = git(repositoryRoot, ['write-tree']);
-  const replacementCommit = git(
-    repositoryRoot,
-    ['commit-tree', replacementTree],
-    'logical preparation source\n',
-  );
-  git(repositoryRoot, ['reset', '--hard', preparationSourceCommit]);
-  git(repositoryRoot, ['replace', preparationSourceCommit, replacementCommit]);
-
   let sourceCommit = preparationSourceCommit;
-  if (mode === 'A') {
+  if (mode === 'A' || mode === 'V2') {
     writeFileSync(bindingFile, binding(preparationSourceCommit, true), 'utf8');
     writeFileSync(join(repositoryRoot, 'package.json'), '{"fixture":2}\n', 'utf8');
     writeFileSync(join(repositoryRoot, 'package-lock.json'), '{"fixture":2}\n', 'utf8');
+    if (mode === 'V2') {
+      const candidate = recoveryBindingCandidate();
+      Object.assign(candidate, { preparationSourceCommit, preparationSourceTree: git(repositoryRoot, ['rev-parse', 'HEAD^{tree}']),
+        g001PolicySourceCommit: preparationSourceCommit, authBridgeSourceCommit: preparationSourceCommit });
+      writeFileSync(bindingFile, `${JSON.stringify(createRecoveryActivationBinding(`${JSON.stringify(candidate, null, 2)}\n`), null, 2)}\n`);
+      for (const path of ['package.json', 'package-lock.json']) {
+        const value = JSON.parse(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'));
+        value.version = '0.4.0';
+        if (path === 'package-lock.json') value.packages[''].version = '0.4.0';
+        writeFileSync(join(repositoryRoot, path), `${JSON.stringify(value, null, 2)}\n`);
+      }
+    }
     const activationPaths = [BINDING_PATH, 'package.json', 'package-lock.json'];
     if (options.extraActivationPath === true) {
       writeFileSync(join(repositoryRoot, 'unexpected.txt'), 'unexpected\n', 'utf8');
@@ -189,7 +188,10 @@ function installEvidenceVerifier(
 ) {
   const verifiedCommits: string[] = [];
   vi.doMock(EVIDENCE_MODULE, () => ({
-    verifySealedRealmsProductionWorkflowEvidence: (commit: string) => {
+    createSealedRealmsProductionWorkflowEvidence: async () => Object.freeze({}),
+    refreshSealedRealmsProductionWorkflowEvidence: async () => undefined,
+    revokeSealedRealmsProductionWorkflowEvidence: () => undefined,
+    verifySealedRealmsProductionWorkflowEvidence: (_scope: unknown, commit: string) => {
       verifiedCommits.push(commit);
       return Object.freeze({ verifiedSha: transform(commit) });
     },
@@ -294,6 +296,22 @@ afterEach(() => {
 });
 
 describe.sequential('sealed-realms production workflow runtime composition', () => {
+  it('constructs S from exact checked-in inert bytes without replacement objects', () => {
+    const repository = repositoryFixture('S');
+    try {
+      expect(JSON.parse(INERT_BINDING_SOURCE)).toMatchObject({
+        schemaVersion: 1, profile: 'warpkeep-0.4.0-sealed-launch-v1',
+        pagesDeploymentApproved: false, preparationSourceCommit: null,
+      });
+      expect(git(repository.repositoryRoot, ['show', `${repository.sourceCommit}:${BINDING_PATH}`]))
+        .toBe(INERT_BINDING_SOURCE.trim());
+      expect(git(repository.repositoryRoot, ['for-each-ref', '--format=%(refname)', 'refs/replace/']))
+        .toBe('');
+      expect(git(repository.repositoryRoot, ['--no-replace-objects', 'rev-parse', 'HEAD']))
+        .toBe(repository.sourceCommit);
+    } finally { repository.cleanup(); }
+  });
+
   it.each(ENTRIES)('$lane production construction fails closed before private-state resolution', async entry => {
     const repository = repositoryFixture('S');
     const privateHome = privateHomeFixture();
@@ -307,7 +325,7 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
           operation: entry.operation,
           workflowInputSha: repository.sourceCommit,
         })).rejects.toMatchObject({
-          code: 'SEALED_REALMS_SOURCE_AUTHORITY_VERIFY_INVALID',
+          code: 'SEALED_REALMS_WORKFLOW_EVIDENCE_CONTEXT_INVALID',
         });
       });
       expect(privateResolutions).toEqual([]);
@@ -371,8 +389,9 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
     }
   }, FIXTURE_TIMEOUT);
 
-  it.each(LIVE_ENTRIES)('$lane constructs the real historical-S bridge only from an authenticated A parent', async entry => {
-    const repository = repositoryFixture('A');
+  it.each(LIVE_ENTRIES.flatMap(entry => ['A', 'V2'].map(mode => ({ ...entry, mode: mode as 'A' | 'V2' }))))(
+    '$lane constructs the historical-S bridge from an authenticated $mode parent', async entry => {
+    const repository = repositoryFixture(entry.mode);
     const privateHome = privateHomeFixture();
     const verifiedCommits = installEvidenceVerifier();
     const privateResolutions = installPrivateResolver(privateHome.home);
@@ -403,6 +422,70 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
         repository.sourceCommit,
       ]);
       expect(privateResolutions).toHaveLength(1);
+    } finally {
+      repository.cleanup();
+      privateHome.cleanup();
+    }
+  }, FIXTURE_TIMEOUT);
+
+  it.each(ENTRIES)('$lane ignores real Git replacement objects that disguise invalid committed source', async entry => {
+    const repository = repositoryFixture('S');
+    const privateHome = privateHomeFixture();
+    const verifiedCommits = installEvidenceVerifier();
+    const privateResolutions = installPrivateResolver(privateHome.home);
+    try {
+      writeFileSync(join(repository.repositoryRoot, BINDING_PATH), binding(SWAPPED_SOURCE, false));
+      git(repository.repositoryRoot, ['add', BINDING_PATH]);
+      git(repository.repositoryRoot, ['commit', '--quiet', '-m', 'invalid source must remain invalid']);
+      const invalid = git(repository.repositoryRoot, ['rev-parse', 'HEAD']);
+      git(repository.repositoryRoot, ['update-ref', 'refs/remotes/origin/main', invalid]);
+      git(repository.repositoryRoot, ['replace', invalid, repository.sourceCommit]);
+      // Ordinary Git now lies about the binding at the same unchanged HEAD SHA.
+      expect(git(repository.repositoryRoot, ['show', `HEAD:${BINDING_PATH}`])).toBe(INERT_BINDING_SOURCE.trim());
+      await inRepository(repository.repositoryRoot, async () => {
+        const module = await loadEntry(entry.path);
+        await expect(functionExport(module, entry.factory)({ operation: entry.operation, workflowInputSha: invalid }))
+          .rejects.toMatchObject({ code: 'SEALED_REALMS_SOURCE_AUTHORITY_BINDING_INVALID' });
+      });
+      expect(verifiedCommits).toEqual([]);
+      expect(privateResolutions).toEqual([]);
+    } finally { repository.cleanup(); privateHome.cleanup(); }
+  }, FIXTURE_TIMEOUT);
+
+  it('refuses activation generation from an empty authenticated record corpus without runtime or output', async () => {
+    const repository = repositoryFixture('S');
+    const privateHome = privateHomeFixture();
+    const verifiedCommits = installEvidenceVerifier();
+    const privateResolutions = installPrivateResolver(privateHome.home);
+    const github = installWorkflowContext(repository.sourceCommit);
+    const runtimeRoot = join(privateHome.home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'runtime');
+    const auditRoot = join(privateHome.home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'audit', 'private');
+    const cacheRoot = join(privateHome.home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'cache');
+    let runtime: unknown;
+    try {
+      await inRepository(repository.repositoryRoot, async () => {
+        const module = await loadEntry('../scripts/sealed-realms-production-activation-workflow-entry.mjs');
+        const factory = functionExport(module, 'createSealedRealmsProductionActivationWorkflowRuntime');
+        await expect(factory({
+          operation: 'activation-evidence-generate', workflowInputSha: repository.sourceCommit,
+        }).then((value: unknown) => { runtime = value; })).rejects.toMatchObject({
+          code: 'SEALED_REALMS_ACTIVATION_RECORDS_INCOMPLETE',
+        });
+      });
+      expect(runtime).toBeUndefined();
+      expect(verifiedCommits).toEqual([repository.sourceCommit]);
+      expect(privateResolutions).toHaveLength(1);
+      expect(readdirSync(runtimeRoot)).toEqual([]);
+      expect(readdirSync(auditRoot)).toEqual([]);
+      expect(readdirSync(cacheRoot)).toEqual([]);
+      // Only the mocked read-only workflow permit lookups precede refusal.
+      expect(github).toHaveBeenCalledTimes(2);
+      expect(github.mock.calls.map(([request]) => String(request))).toEqual([
+        'https://api.github.com/repos/ael-dev3/Warpkeep/branches/main',
+        'https://api.github.com/repos/ael-dev3/Warpkeep/actions/runs/7001',
+      ]);
+      expect((github.mock.calls as unknown as Array<[unknown, RequestInit]>).map(([, options]) => options.method))
+        .toEqual(['GET', 'GET']);
     } finally {
       repository.cleanup();
       privateHome.cleanup();

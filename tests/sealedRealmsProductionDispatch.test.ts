@@ -56,7 +56,7 @@ function sourceAuthority(operation = 'preflight') {
       schemaVersion: 1,
       profile: 'warpkeep-0.4.0-sealed-launch-v1',
       pagesDeploymentApproved: false,
-      preparationSourceCommit: S,
+      preparationSourceCommit: null,
     }),
     verifyEvidence: commit => ({ verifiedSha: commit }),
   });
@@ -97,7 +97,7 @@ function github(sourceCommit: string) {
   });
 }
 
-function privateFixture() {
+function privateFixture(createState = createSealedRealmsProductionPrivateState) {
   const home = mkdtempSync(join(tmpdir(), 'warpkeep-dispatch-task5-'));
   for (const root of [
     join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'audit', 'private'),
@@ -107,7 +107,7 @@ function privateFixture() {
     mkdirSync(root, { recursive: true, mode: 0o700 });
     chmodSync(root, 0o700);
   }
-  const privateState = createSealedRealmsProductionPrivateState({
+  const privateState = createState({
     reportedHome: home,
     testOnlyOwnerUid: statSync(home).uid,
     testOnlyFsync: () => {},
@@ -150,7 +150,7 @@ function dispatcherInput(extra: Readonly<Record<string, unknown>> = {}) {
       schemaVersion: 1,
       profile: 'warpkeep-0.4.0-sealed-launch-v1',
       pagesDeploymentApproved: false,
-      preparationSourceCommit: S,
+      preparationSourceCommit: null,
     }),
     verifyEvidence: (commit: string) => ({ verifiedSha: commit }),
     ...extra,
@@ -158,12 +158,14 @@ function dispatcherInput(extra: Readonly<Record<string, unknown>> = {}) {
 }
 
 function g001LaneInput(preflight = vi.fn(async () => undefined)) {
+  const fixture = privateFixture();
+  cleanups.push(fixture.cleanup);
   return Object.freeze({
     input: {
       launchAuthority: createSealedRealmsProductionG001LaunchAuthority({
         readRawGit: () => `${S}\n`,
         resolveAdminSecretPath: () => ({ sourceCommit: S, path: '/private/unreachable' }),
-        persistPolicyObservation: () => undefined,
+        privateState: fixture.privateState,
       }),
       attestDispatcherNode: () => { throw new Error('unreachable'); },
       runEnvelopeChild: () => { throw new Error('unreachable'); },
@@ -243,7 +245,9 @@ describe('sealed-realms production dispatch continuation boundary', () => {
 
   it('rejects an authentic lane branded by a different bundled lane graph', async () => {
     const laneBuild = await esbuild({
-      entryPoints: ['scripts/sealed-realms-production-g001-lane-entry.mjs'],
+      stdin: { contents: `export * from './scripts/sealed-realms-production-g001-lane-entry.mjs';
+        export { createSealedRealmsProductionPrivateState } from './scripts/sealed-realms-production-private-state.mjs';`,
+        resolveDir: process.cwd() },
       absWorkingDir: process.cwd(),
       bundle: true,
       format: 'esm',
@@ -254,11 +258,13 @@ describe('sealed-realms production dispatch continuation boundary', () => {
     const bundledLane = await import(
       `data:text/javascript;base64,${Buffer.from(laneBuild.outputFiles[0]!.contents).toString('base64')}`
     );
+    const bundledFixture = privateFixture(bundledLane.createSealedRealmsProductionPrivateState);
+    cleanups.push(bundledFixture.cleanup);
     const lane = bundledLane.createSealedRealmsProductionG001Lane({
       launchAuthority: bundledLane.createSealedRealmsProductionG001LaunchAuthority({
         readRawGit: () => `${S}\n`,
         resolveAdminSecretPath: () => ({ sourceCommit: S, path: '/private/unreachable' }),
-        persistPolicyObservation: () => undefined,
+        privateState: bundledFixture.privateState,
       }),
       attestDispatcherNode: () => { throw new Error('unreachable'); },
       runEnvelopeChild: () => { throw new Error('unreachable'); },

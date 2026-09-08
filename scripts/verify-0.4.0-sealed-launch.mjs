@@ -10,7 +10,7 @@ import {
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
-import { readRecoveryAttestationSource } from './recovery-attestation-source.mjs';
+import { readRecoveryAttestationSource, readRecoveryActivationGitSource } from './recovery-attestation-source.mjs';
 import { parseRecoveryBindingV2 } from './recovery-activation-candidate.mjs';
 
 export const SEALED_LAUNCH_PROFILE = 'warpkeep-0.4.0-sealed-launch-v1';
@@ -109,8 +109,9 @@ const GENESIS_001_POLICY_OBSERVATION_ENVELOPE_SUBSTITUTIONS = Object.freeze([
   ]),
 ]);
 export const GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS = Object.freeze([
-  'package.json',
-  'package-lock.json',
+  // The frozen module is materialized from 2ae:spacetimedb/**; its dependency
+  // owner is spacetimedb/package.json plus pnpm-lock.yaml. Repository-root
+  // browser/operator tooling is checked separately by verifyPackageVersions.
   'spacetimedb/package.json',
   'spacetimedb/pnpm-lock.yaml',
   'spacetimedb/pnpm-workspace.yaml',
@@ -4111,7 +4112,7 @@ function verifySealedRealmsProductionSourceAuthority(sources) {
     'const authenticatedPreparationSourceCommits = new WeakMap();',
     "JSON.stringify(Object.keys(value)) !== JSON.stringify(['verifiedSha'])",
     'value.verifiedSha !== commit',
-    "binding.preparationSourceCommit !== commit",
+    "binding.preparationSourceCommit !== null",
     "binding.preparationSourceCommit !== preparationCommit",
     'authenticatePreparationParent(',
     'authenticatedAuthorities.has(authority)',
@@ -4444,12 +4445,18 @@ export function createSealedLaunchActivationBinding(candidate) {
   return Object.freeze(binding);
 }
 
+function parseNativeSealedLaunchBinding(source) {
+  const schema = parseJson(source, 'SEALED_LAUNCH_BINDING_INVALID')?.schemaVersion;
+  if (schema === 2) return parseRecoveryBindingV2(source);
+  return parseBinding(source);
+}
+
 export function verifySealedLaunchSources(sources, requestedPhase = 'checked-in') {
   if (!['preparation', 'activation', 'checked-in'].includes(requestedPhase)) {
     fail('SEALED_LAUNCH_PHASE_INVALID');
   }
   verifyStaticSources(sources);
-  const binding = parseBinding(sources.bindingJson);
+  const binding = parseNativeSealedLaunchBinding(sources.bindingJson);
   let phase = requestedPhase;
   if (phase === 'checked-in') {
     phase = binding.pagesDeploymentApproved ? 'activation' : 'preparation';
@@ -4459,11 +4466,11 @@ export function verifySealedLaunchSources(sources, requestedPhase = 'checked-in'
     verifyPreparationBinding(binding);
   } else {
     verifyPackageVersions(sources, '0.4.0');
-    verifyActivationBinding(binding);
+    if (binding.schemaVersion === 1) verifyActivationBinding(binding);
   }
   return Object.freeze({
-    schemaVersion: 1,
-    profile: SEALED_LAUNCH_PROFILE,
+    schemaVersion: binding.schemaVersion,
+    profile: binding.profile,
     phase,
     packageVersion: phase === 'preparation' ? '0.3.43' : '0.4.0',
     pagesDeploymentApproved: binding.pagesDeploymentApproved,
@@ -4476,7 +4483,8 @@ export function verifySealedLaunchSources(sources, requestedPhase = 'checked-in'
 
 export function classifySealedLaunchPagesSources(sources) {
   const result = verifySealedLaunchSources(sources, 'checked-in');
-  return result.phase === 'activation' ? 'sealed-g002' : 'sealed-launch-blocked';
+  if (result.phase !== 'activation') return 'sealed-launch-blocked';
+  return result.schemaVersion === 2 ? 'sealed-g002-recovery' : 'sealed-g002';
 }
 
 const FORBIDDEN_PTR_PAGES_ENVIRONMENT_KEYS = Object.freeze([
@@ -4529,12 +4537,20 @@ export function verifySealedLaunchActivationHistory({
   candidateActivationCommit,
   isAncestor,
   parentsOf,
-  historicalPathChanges,
   sourceProjection,
   activationDelta,
+  readGit,
 }) {
-  const binding = parseBinding(bindingSource);
-  verifyActivationBinding(binding);
+  const binding = parseNativeSealedLaunchBinding(bindingSource);
+  if (binding.schemaVersion === 1) verifyActivationBinding(binding);
+  else {
+    try {
+      const committed = readRecoveryActivationGitSource(readGit, candidateActivationCommit);
+      if (`${JSON.stringify(committed.binding, null, 2)}\n` !== bindingSource) {
+        fail('SEALED_LAUNCH_ACTIVATION_HISTORY_INVALID');
+      }
+    } catch { fail('SEALED_LAUNCH_ACTIVATION_HISTORY_INVALID'); }
+  }
   const parents = typeof parentsOf === 'function'
     ? parentsOf(candidateActivationCommit)
     : undefined;
@@ -4564,12 +4580,8 @@ export function verifySealedLaunchActivationHistory({
     || !Array.isArray(parents)
     || parents.length !== 1
     || parents[0] !== binding.preparationSourceCommit
-    || typeof historicalPathChanges !== 'function'
-    || historicalPathChanges(
-      GENESIS_001_FREEZE_PUBLISH_SOURCE_COMMIT,
-      binding.preparationSourceCommit,
-      GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS,
-    ) !== false
+    // Exact current S bytes, not whether an earlier commit touched and restored
+    // them, determine the frozen source supplied to this activation child.
     || !Buffer.isBuffer(historicalProjection)
     || historicalProjection.byteLength < 1
     || !Buffer.isBuffer(preparationProjection)
@@ -4983,9 +4995,6 @@ export function classifySealedLaunchPagesDeployLane({
         gitIsAncestor(repositoryRoot, ancestor, descendant)
       ),
       parentsOf: commit => gitParentsOf(repositoryRoot, commit),
-      historicalPathChanges: (ancestor, descendant, paths) => (
-        gitHistoricalPathChanges(repositoryRoot, ancestor, descendant, paths)
-      ),
       sourceProjection: (commit, paths) => (
         gitSourceProjection(repositoryRoot, commit, paths)
       ),
@@ -5026,7 +5035,7 @@ function main(arguments_, environment) {
     }
     if (phase === 'preparation' || phase === 'checked-in') {
       const candidatePreparationCommit = result.phase === 'activation'
-        ? parseBinding(sources.bindingJson).preparationSourceCommit
+        ? parseNativeSealedLaunchBinding(sources.bindingJson).preparationSourceCommit
         : candidateCheckoutCommit;
       verifyGenesis001PreparationProjection({
         repositoryRoot: REPOSITORY_ROOT,
@@ -5039,18 +5048,11 @@ function main(arguments_, environment) {
       verifySealedLaunchActivationHistory({
         bindingSource: sources.bindingJson,
         candidateActivationCommit,
+        readGit: arguments_ => gitRaw(arguments_, REPOSITORY_ROOT, 2 * 1024 * 1024),
         isAncestor: (ancestor, descendant) => (
           gitIsAncestor(REPOSITORY_ROOT, ancestor, descendant)
         ),
         parentsOf: commit => gitParentsOf(REPOSITORY_ROOT, commit),
-        historicalPathChanges: (ancestor, descendant, paths) => (
-          gitHistoricalPathChanges(
-            REPOSITORY_ROOT,
-            ancestor,
-            descendant,
-            paths,
-          )
-        ),
         sourceProjection: (commit, paths) => (
           gitSourceProjection(REPOSITORY_ROOT, commit, paths)
         ),
@@ -5063,6 +5065,7 @@ function main(arguments_, environment) {
         ),
       });
     }
+    if (candidateCheckoutCommit !== undefined) assertExactCheckout(REPOSITORY_ROOT, candidateCheckoutCommit);
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
   }

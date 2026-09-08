@@ -38,13 +38,10 @@ export function createSealedLaunchActivationBinding(
 export function verifySealedLaunchActivationHistory(input: Readonly<{
   bindingSource: string;
   candidateActivationCommit: string;
+  /** Required for V2: binds the complete canonical document to actual immutable S/A Git objects. */
+  readGit?: (arguments_: readonly string[]) => Uint8Array | string;
   isAncestor: (ancestor: string, descendant: string) => boolean;
   parentsOf: (commit: string) => readonly string[];
-  historicalPathChanges: (
-    ancestor: string,
-    descendant: string,
-    paths: readonly string[],
-  ) => boolean;
   sourceProjection: (commit: string, paths: readonly string[]) => Buffer;
   activationDelta: (
     preparationCommit: string,
@@ -99,8 +96,8 @@ export function verifySealedLaunchSources(
   sources: Readonly<Record<string, string>>,
   requestedPhase?: 'preparation' | 'activation' | 'checked-in',
 ): Readonly<{
-  schemaVersion: 1;
-  profile: typeof SEALED_LAUNCH_PROFILE;
+  schemaVersion: 1 | 2;
+  profile: typeof SEALED_LAUNCH_PROFILE | 'warpkeep-0.4.0-sealed-launch-v2';
   phase: 'preparation' | 'activation';
   packageVersion: '0.3.43' | '0.4.0';
   pagesDeploymentApproved: boolean;
@@ -112,7 +109,7 @@ export function verifySealedLaunchSources(
 
 export function classifySealedLaunchPagesSources(
   sources: Readonly<Record<string, string>>,
-): 'sealed-launch-blocked' | 'sealed-g002';
+): 'sealed-launch-blocked' | 'sealed-g002' | 'sealed-g002-recovery';
 
 export function verifySealedLaunchPagesBuildEnvironment(input: Readonly<{
   bindingSource: string;
@@ -131,3 +128,12 @@ export function classifySealedLaunchPagesDeployLane(input: Readonly<{
   mode: 'sealed-launch-blocked' | 'sealed-g002' | 'sealed-g002-recovery';
 }>;
 export function verifyGenesis002PrivateSchemaSources(schemaSource: string, gameplaySource: string): void;
+export function verifyGenesis001PreparationProjection(input: Readonly<{
+  repositoryRoot: string;
+  candidatePreparationCommit: string;
+  sources?: Readonly<Record<string, string>>;
+}>): Readonly<{
+  candidatePreparationCommit: string;
+  genesis001FreezePublishSourceCommit: string;
+  genesis001ProjectionSha256: string;
+}>;

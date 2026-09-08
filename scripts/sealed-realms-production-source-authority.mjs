@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readRecoveryActivationGitSource } from './recovery-attestation-source.mjs';
 
 export const SEALED_REALMS_OPERATIONS = Object.freeze([
   'preflight',
@@ -147,11 +148,12 @@ function preparationBinding(readBinding, commit) {
     || binding.schemaVersion !== 1
     || binding.profile !== 'warpkeep-0.4.0-sealed-launch-v1'
     || binding.pagesDeploymentApproved !== false
-    || binding.preparationSourceCommit !== commit
+    // Committed S metadata stays inert; Git and Verify supply its identity.
+    || binding.preparationSourceCommit !== null
   ) fail('SEALED_REALMS_SOURCE_AUTHORITY_BINDING_INVALID');
 }
 
-function activatedBinding(readBinding, preparationCommit, activationCommit) {
+function activatedBinding(readBinding, readGit, preparationCommit, activationCommit) {
   let binding;
   try { binding = readBinding(activationCommit); } catch {
     fail('SEALED_REALMS_SOURCE_AUTHORITY_BINDING_INVALID');
@@ -164,11 +166,22 @@ function activatedBinding(readBinding, preparationCommit, activationCommit) {
     || JSON.stringify(Object.keys(binding)) !== JSON.stringify([
       'schemaVersion', 'profile', 'pagesDeploymentApproved', 'preparationSourceCommit',
     ])
-    || binding.schemaVersion !== 1
-    || binding.profile !== 'warpkeep-0.4.0-sealed-launch-v1'
+    || !((binding.schemaVersion === 1 && binding.profile === 'warpkeep-0.4.0-sealed-launch-v1')
+      || (binding.schemaVersion === 2 && binding.profile === 'warpkeep-0.4.0-sealed-launch-v2'))
     || binding.pagesDeploymentApproved !== true
     || binding.preparationSourceCommit !== preparationCommit
   ) fail('SEALED_REALMS_SOURCE_AUTHORITY_BINDING_INVALID');
+  if (binding.schemaVersion === 2) {
+    // Four caller fields cannot authenticate a recovery binding. Read the full
+    // immutable Git blob and validate its native V2 structure and S/A history.
+    try {
+      const committed = readRecoveryActivationGitSource(readGit, activationCommit);
+      if (committed.binding.preparationSourceCommit !== preparationCommit
+        || Object.keys(binding).some(key => committed.binding[key] !== binding[key])) {
+        fail('SEALED_REALMS_SOURCE_AUTHORITY_BINDING_INVALID');
+      }
+    } catch { fail('SEALED_REALMS_SOURCE_AUTHORITY_BINDING_INVALID'); }
+  }
 }
 
 function authenticatePreparationParent(readGit, readBinding, verifyEvidence, preparationCommit) {
@@ -279,7 +292,7 @@ export function authenticateSealedRealmsProductionSourceAuthority(input) {
     const parents = readParents(options.readGit, head);
     if (parents.length !== 1) fail('SEALED_REALMS_SOURCE_AUTHORITY_A_PARENT_INVALID');
     preparationCommit = parents[0];
-    activatedBinding(options.readBinding, preparationCommit, head);
+    activatedBinding(options.readBinding, options.readGit, preparationCommit, head);
     authenticatePreparationParent(
       options.readGit,
       options.readBinding,

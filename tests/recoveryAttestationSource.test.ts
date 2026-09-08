@@ -9,6 +9,11 @@ import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
 import { createRecoveryActivationBinding } from '../scripts/recovery-activation-candidate.mjs';
 import { readRecoveryAttestationSource } from '../scripts/recovery-attestation-source.mjs';
 import { classifySealedLaunchPagesDeployLane } from '../scripts/verify-0.4.0-sealed-launch.mjs';
+import { SEALED_REALMS_OPERATIONS, SEALED_REALMS_ACTIVATED_OPERATIONS,
+  authenticateSealedRealmsProductionSourceAuthority,
+  sourceCommitFromSealedRealmsProductionAuthority,
+  preparationSourceCommitFromSealedRealmsProductionAuthority,
+} from '../scripts/sealed-realms-production-source-authority.mjs';
 
 let root: string;
 const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8', windowsHide: true, timeout: 10000 }).trim();
@@ -23,7 +28,8 @@ beforeEach(() => {
     'recovery-attestation-source.mjs', 'recovery-activation-candidate.mjs', 'recovery-binding-projection.mjs']) {
     copyFileSync(fileURLToPath(new URL(`../scripts/${file}`, import.meta.url)), join(root, 'scripts', file));
   }
-  json('config/releases/0.4.0-sealed-launch.json', { preparation: true });
+  copyFileSync(fileURLToPath(new URL('../config/releases/0.4.0-sealed-launch.json', import.meta.url)),
+    join(root, 'config/releases/0.4.0-sealed-launch.json'));
   json('package.json', { name: 'warpkeep', version: '0.3.43' });
   json('package-lock.json', { name: 'warpkeep', version: '0.3.43', lockfileVersion: 3, requires: true,
     packages: { '': { name: 'warpkeep', version: '0.3.43' } } });
@@ -37,6 +43,7 @@ beforeEach(() => {
   json('package-lock.json', { name: 'warpkeep', version: '0.4.0', lockfileVersion: 3, requires: true,
     packages: { '': { name: 'warpkeep', version: '0.4.0' } } });
   commit();
+  git('update-ref', 'refs/remotes/origin/main', git('rev-parse', 'HEAD'));
 }, 30000);
 afterEach(() => rmSync(root, { recursive: true, force: true }), 30000);
 
@@ -45,6 +52,65 @@ it('derives identity from a real committed three-file activation child', () => {
   expect(result.candidateCommit).toBe(git('rev-parse', 'HEAD'));
   expect(result.candidateTree).toBe(git('rev-parse', 'HEAD^{tree}'));
   expect(result.recoveryAuthorizationCoreSha256).toMatch(/^[a-f0-9]{64}$/);
+});
+
+function sourceAuthority(operation: (typeof SEALED_REALMS_OPERATIONS)[number], verified: string[] = []) {
+  return authenticateSealedRealmsProductionSourceAuthority({ operation,
+    workflowInputSha: git('rev-parse', 'HEAD'),
+    readGit: args => execFileSync('git', [...args], { cwd: root, maxBuffer: 2 * 1024 * 1024 }),
+    readBinding: source => {
+      const value = JSON.parse(git('show', `${source}:config/releases/0.4.0-sealed-launch.json`));
+      return Object.fromEntries(['schemaVersion', 'profile', 'pagesDeploymentApproved', 'preparationSourceCommit']
+        .map(key => [key, value[key]]));
+    },
+    // This is deterministic structural coverage, not successful provider evidence.
+    verifyEvidence: source => { verified.push(source); return { verifiedSha: source }; },
+  });
+}
+
+it('authenticates genuine V2 Git bytes and both S/A coordinates without widening A operations', () => {
+  const candidate = git('rev-parse', 'HEAD');
+  const parent = git('rev-parse', 'HEAD^');
+  expect(git('for-each-ref', 'refs/replace')).toBe('');
+  for (const operation of SEALED_REALMS_ACTIVATED_OPERATIONS) {
+    const verified: string[] = [];
+    const authority = sourceAuthority(operation, verified);
+    expect(authority.mode).toBe('A');
+    expect(sourceCommitFromSealedRealmsProductionAuthority(authority)).toBe(candidate);
+    expect(preparationSourceCommitFromSealedRealmsProductionAuthority(authority)).toBe(parent);
+    expect(verified).toEqual([parent, candidate]);
+  }
+  for (const operation of SEALED_REALMS_OPERATIONS.filter(value => !SEALED_REALMS_ACTIVATED_OPERATIONS.includes(value as never))) {
+    expect(() => sourceAuthority(operation)).toThrow('SEALED_REALMS_SOURCE_AUTHORITY_A_OPERATION_FORBIDDEN');
+  }
+});
+
+it.each(['preparationSourceTree', 'preparationSourceCommit', 'recoveryAuthorizationCoreSha256',
+  'noncanonical', 'extra-field'])( 'rejects committed V2 binding corruption before Verify: %s', field => {
+  const file = 'config/releases/0.4.0-sealed-launch.json';
+  const binding = JSON.parse(readFileSync(join(root, file), 'utf8'));
+  if (field === 'noncanonical') writeFileSync(join(root, file), JSON.stringify(binding));
+  else {
+    binding[field] = field === 'extra-field' ? true : 'a'.repeat(field.endsWith('Sha256') ? 64 : 40);
+    // A validly recomputed core with an incorrect source tree still fails Git identity.
+    if (field === 'preparationSourceTree') {
+      binding.recoveryAuthorizationCoreSha256 = null;
+      for (const key of Object.keys(binding)) if (key.endsWith('Commitment')) binding[key] = null;
+      json(file, createRecoveryActivationBinding(`${JSON.stringify(binding, null, 2)}\n`));
+    } else json(file, binding);
+  }
+  git('add', '.'); git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--amend', '--no-edit', '--quiet');
+  git('update-ref', 'refs/remotes/origin/main', git('rev-parse', 'HEAD'));
+  const verified: string[] = [];
+  expect(() => sourceAuthority('preflight', verified)).toThrow('SEALED_REALMS_SOURCE_AUTHORITY_BINDING_INVALID');
+  expect(verified).toEqual([]);
+});
+
+it('rejects a V2 source whose package behavior changes alongside the version', () => {
+  json('package.json', { name: 'warpkeep', version: '0.4.0', scripts: { postinstall: 'unreviewed' } });
+  git('add', '.'); git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--amend', '--no-edit', '--quiet');
+  git('update-ref', 'refs/remotes/origin/main', git('rev-parse', 'HEAD'));
+  expect(() => sourceAuthority('preflight')).toThrow('SEALED_REALMS_SOURCE_AUTHORITY_BINDING_INVALID');
 });
 // The Pages classifier intentionally uses the fixed /usr/bin/git boundary.
 it.skipIf(process.platform !== 'linux')('routes an exact schema-2 activation child only to the recovery lane', () => {

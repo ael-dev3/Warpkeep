@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statfsSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -13,6 +13,10 @@ import { derivePreparedClosureScannerManifest } from '../scripts/local-prepared-
 
 const integrity = (bytes: Buffer) => `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
 const roots: string[] = [];
+// Namespace attestation intentionally belongs to the native preparation owner
+// and filesystem. Other CI hosts exercise rejection before any bounded read.
+const supportedNamespaceHost = process.platform === 'linux' && process.arch === 'x64'
+  && process.getuid?.() === 1000 && statfsSync(tmpdir()).type === 0xef53;
 afterEach(() => { vi.restoreAllMocks(); for (const root of roots.splice(0)) rmSync(root, {recursive: true}); });
 function checksum(header: Buffer) {
   header.fill(32, 148, 156);
@@ -129,12 +133,22 @@ function namespaceFixture() {
   });
   return {root, records};
 }
-it.skipIf(process.platform !== 'linux')('accepts only the complete private namespace without mutating it', () => {
+it.skipIf(!supportedNamespaceHost)('accepts only the complete private namespace without mutating it', () => {
   const {root, records} = namespaceFixture();
+  const read = vi.spyOn(boundedFiles, 'readLocalBindingBoundedFile');
   assertPreparedClosureScannerNamespace(root, records);
+  expect(read).toHaveBeenCalledTimes(records.length);
   expect(readFileSync(join(root, records[0].path), 'utf8')).toBe('native-executable-fixture');
 });
-it.skipIf(process.platform !== 'linux').each(['native-binary', 'extra-file', 'ancestor', 'symlink'])('rejects late %s replacement during another real bounded read', kind => {
+it.skipIf(supportedNamespaceHost)('rejects an unsupported namespace host before reading package bodies', () => {
+  const {root, records} = namespaceFixture();
+  const read = vi.spyOn(boundedFiles, 'readLocalBindingBoundedFile');
+  expect(() => assertPreparedClosureScannerNamespace(root, records))
+    .toThrow('LOCAL_PREPARED_CLOSURE_SCANNER_NAMESPACE_INVALID');
+  expect(read).not.toHaveBeenCalled();
+  expect(readFileSync(join(root, records[0].path), 'utf8')).toBe('native-executable-fixture');
+});
+it.skipIf(!supportedNamespaceHost).each(['native-binary', 'extra-file', 'ancestor', 'symlink'])('rejects late %s replacement during another real bounded read', kind => {
   const {root, records} = namespaceFixture();
   const native = join(root, records[0].path);
   const read = boundedFiles.readLocalBindingBoundedFile;

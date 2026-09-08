@@ -108,29 +108,18 @@ still does not prove its missing caller exists.
 
 ## Concrete stops in current execution paths
 
-The September 8 connected-source review found two additional contract defects
-in `f558bd5`. The source authenticator requires preparation metadata to contain
-its own commit, while the committed metadata and preparation verifier require
-`preparationSourceCommit:null`. Existing fixture projections and Git replacement
-objects conceal this mismatch. The correction must keep source identity in the
-authenticated Git/Verify result and exercise ordinary, inert committed metadata.
-Separately, activated-source authentication accepts only schema 1/profile v1,
-while the recovery generator produces schema 2/profile v2. V2 needs its own
-authenticated recovery binding path; relabeling it as V1 is not compatible.
-Corrections are being developed in isolated checkouts and are not part of the
-generated `f558bd5` source family recorded here.
-
-The G001 durable policy-observation implementation is also under isolated review.
-Completed lifecycle adoption must bind both cleanup digests to the real retained
-terminal record. A self-consistent wrapper with the same run ID is insufficient;
-missing evidence must not trigger effect replay. Follow the later engineering
-record before treating this new producer as integrated.
+The source integration following `1277cc8` resolves the inert S/full V2
+authentication mismatch, fixed GitHub Verify evidence loading and G001 durable
+policy capture/adoption. The actual CLI preserves the frozen module snapshot
+while correctly separating repository-root browser packages from its dependency
+owner. Read the [executed engineering evidence](../../evidence/0.4.0/release-engineering.md)
+for the combined native results and the separate generated-family boundary.
 
 1. `.github/workflows/sealed-realms-production.yml` still emits
    `SEALED_REALMS_TASK_7_CLOSURE_UNAVAILABLE` and contains macOS/Darwin runtime
-   contracts. `sealed-realms-production-workflow-evidence.mjs` rejects valid SHA
-   syntax with `SEALED_REALMS_TASK_7_WORKFLOW_EVIDENCE_UNAVAILABLE`. Supply real
-   protected Verify evidence, not a caller's plausible commit string.
+   contracts. The fixed Verify reader is implemented and tested through the real
+   workflow factories; the executable lane still needs its real token mapping and
+   supported attested runtime. A fixture or local source pass cannot supply them.
 2. G001 workflow-entry adapters for private admin resolution, policy/census,
    suspension, dispatcher attestation, child execution and fixed observation are
    disconnected. G002/PTR workflow entries still lack operating marker, deployment,
@@ -177,7 +166,7 @@ record before treating this new producer as integrated.
 Useful source anchors for the next operating slice:
 
 - G001 entry: `sealed-realms-production-g001-workflow-entry.mjs` wires
-  `resolveAdminSecretPath`, policy persistence, census collect/suspend, dispatcher
+  `resolveAdminSecretPath`, census collect/suspend, dispatcher
   attestation, child execution and fixed current-state observation to
   `unavailable`. Its lane helper is not an operating workflow by itself.
 - G002/PTR entries: `sealed-realms-production-g002-workflow-entry.mjs` and

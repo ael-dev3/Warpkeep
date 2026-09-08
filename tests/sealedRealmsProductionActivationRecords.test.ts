@@ -695,7 +695,7 @@ function fullRecordAuthority() {
         schemaVersion: candidate.schemaVersion,
         profile: candidate.profile,
         pagesDeploymentApproved: candidate.pagesDeploymentApproved,
-        preparationSourceCommit: candidate.preparationSourceCommit,
+        preparationSourceCommit: null,
       };
     },
     verifyEvidence: verifiedSha => ({ verifiedSha }),
@@ -1360,7 +1360,7 @@ describe('sealed-realms activation descriptor records', () => {
         schemaVersion: 1,
         profile: 'warpkeep-0.4.0-sealed-launch-v1',
         pagesDeploymentApproved: false,
-        preparationSourceCommit: source,
+        preparationSourceCommit: null,
       }),
       verifyEvidence: verifiedSha => ({ verifiedSha }),
     });

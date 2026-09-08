@@ -89,10 +89,7 @@ export function createSealedRealmsProductionG001LaunchAuthority(input: Readonly<
     sourceCommit: string;
     path: string;
   }>>;
-  persistPolicyObservation: (input: Readonly<{
-    sourceCommit: string;
-    bytes: Uint8Array;
-  }>) => unknown | Promise<unknown>;
+  privateState: import('./sealed-realms-production-private-state.mjs').SealedRealmsProductionPrivateState;
 }>): SealedRealmsProductionG001LaunchAuthority;
 
 export function createSealedRealmsProductionG001CensusAuthority(input: Readonly<{

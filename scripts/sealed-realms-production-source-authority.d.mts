@@ -48,6 +48,7 @@ export function authenticateSealedRealmsProductionSourceAuthority(input: Readonl
   operation: (typeof SEALED_REALMS_OPERATIONS)[number];
   workflowInputSha: string;
   readGit: (arguments_: readonly string[]) => Uint8Array | string;
+  /** S keeps a null pin. A pins its S parent; V2 also validates the complete committed Git document. */
   readBinding: (commit: string) => Readonly<Record<string, unknown>>;
   verifyEvidence: (commit: string) => Readonly<{ verifiedSha: string }>;
 }>): SealedRealmsProductionSourceAuthority;

@@ -83,7 +83,7 @@ function operationAuthority(operation: string, sourceCommit = SOURCE) {
       schemaVersion: 1,
       profile: 'warpkeep-0.4.0-sealed-launch-v1',
       pagesDeploymentApproved: false,
-      preparationSourceCommit: sourceCommit,
+      preparationSourceCommit: null,
     }),
     verifyEvidence: (verifiedSha: string) => ({ verifiedSha }),
   });
@@ -318,7 +318,7 @@ async function protectedDispatcher(
       schemaVersion: 1,
       profile: 'warpkeep-0.4.0-sealed-launch-v1',
       pagesDeploymentApproved: false,
-      preparationSourceCommit: sourceCommit,
+      preparationSourceCommit: null,
     }),
     verifyEvidence: (verifiedSha: string) => ({ verifiedSha }),
     permit: context.continuation.permit,
@@ -470,7 +470,7 @@ function fixture() {
       schemaVersion: 1,
       profile: 'warpkeep-0.4.0-sealed-launch-v1',
       pagesDeploymentApproved: false,
-      preparationSourceCommit: SOURCE,
+      preparationSourceCommit: null,
     }),
     verifyEvidence: verifiedSha => ({ verifiedSha }),
   });

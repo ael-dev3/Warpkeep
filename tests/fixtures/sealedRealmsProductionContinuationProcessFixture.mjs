@@ -107,7 +107,7 @@ function sourceAuthority(operationName, sourceCommit = SOURCE) {
       schemaVersion: 1,
       profile: 'warpkeep-0.4.0-sealed-launch-v1',
       pagesDeploymentApproved: false,
-      preparationSourceCommit: sourceCommit,
+      preparationSourceCommit: null,
     }),
     verifyEvidence: verifiedSha => ({ verifiedSha }),
   });
@@ -408,7 +408,7 @@ async function g001Lane() {
   const launchAuthority = createSealedRealmsProductionG001LaunchAuthority({
     readRawGit: () => `${SOURCE}\n`,
     resolveAdminSecretPath: () => ({ sourceCommit: SOURCE, path: '/private/task5-secret' }),
-    persistPolicyObservation: () => undefined,
+    privateState,
   });
   const censusAuthority = createSealedRealmsProductionG001CensusAuthority({
     privateState,
@@ -516,7 +516,7 @@ async function run() {
       schemaVersion: 1,
       profile: 'warpkeep-0.4.0-sealed-launch-v1',
       pagesDeploymentApproved: false,
-      preparationSourceCommit: sourceCommit,
+      preparationSourceCommit: null,
     }),
     verifyEvidence: verifiedSha => ({ verifiedSha }),
     permit: protectedContext.continuation.permit,

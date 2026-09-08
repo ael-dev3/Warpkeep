@@ -218,7 +218,7 @@ function activationSourceAuthority(operation: string) {
       schemaVersion: 1,
       profile: 'warpkeep-0.4.0-sealed-launch-v1',
       pagesDeploymentApproved: false,
-      preparationSourceCommit: PREPARATION_COMMIT,
+      preparationSourceCommit: null,
     }),
     verifyEvidence: verifiedSha => ({ verifiedSha }),
   });

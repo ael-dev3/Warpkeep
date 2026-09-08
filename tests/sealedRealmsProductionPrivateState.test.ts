@@ -1,5 +1,6 @@
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   linkSync,
   mkdtempSync,
@@ -39,6 +40,68 @@ function privateHome() {
 }
 
 describe('sealed-realms private state', () => {
+  it('reads only a fixed bootstrap-owned G001 terminal without creating its parent roots', () => {
+    const fixture = privateHome();
+    try {
+      const state = createSealedRealmsProductionPrivateState({ reportedHome: fixture.home,
+        testOnlyOwnerUid: fixture.ownerUid, testOnlyFsync: () => {}, testOnlyAllowPlatformMode: true });
+      const runId = `run-${'a'.repeat(32)}`;
+      const admin = join(fixture.home, '.warpkeep');
+      expect(() => state.readG001PolicyTerminal(runId)).toThrow(/SEALED_REALMS_PRIVATE_STATE_/u);
+      expect(existsSync(admin)).toBe(false);
+      for (const value of [undefined, null, {}, { runId }, `${runId}/../other`, '../terminal', `${runId}.json`, 'run-A']) {
+        expect(() => state.readG001PolicyTerminal(value as never)).toThrow('SEALED_REALMS_PRIVATE_STATE_TERMINAL_INVALID');
+      }
+      expect(() => Reflect.apply(state.readG001PolicyTerminal, undefined, [runId, 'other']))
+        .toThrow('SEALED_REALMS_PRIVATE_STATE_TERMINAL_INVALID');
+      const directory = join(admin, 'private', 'production-admin-v1', 'bootstrap-run-lifecycle-v1');
+      mkdirSync(directory, { recursive: true, mode: 0o700 });
+      writeFileSync(join(directory, `${runId}-terminal.json`), '{"fixture":"terminal"}\n', { mode: 0o600 });
+      const bytes = state.readG001PolicyTerminal(runId);
+      try { expect(bytes.toString('utf8')).toBe('{"fixture":"terminal"}\n'); }
+      finally { bytes.fill(0); }
+    } finally { fixture.cleanup(); }
+  });
+
+  it.each(['oversize', 'empty', 'hard-link', 'file-replaced', 'parent-replaced', 'file-symlink',
+    'parent-symlink', 'file-mode', 'parent-mode'])(
+    'rejects an unsafe fixed G001 terminal without exposing its path: %s', scenario => {
+      if (process.platform === 'win32' && ['file-symlink', 'parent-symlink', 'file-mode', 'parent-mode'].includes(scenario)) return;
+      const fixture = privateHome();
+      try {
+        const runId = `run-${'a'.repeat(32)}`;
+        const directory = join(fixture.home, '.warpkeep', 'private', 'production-admin-v1', 'bootstrap-run-lifecycle-v1');
+        const path = join(directory, `${runId}-terminal.json`);
+        mkdirSync(directory, { recursive: true, mode: 0o700 });
+        const original = Buffer.from('{"private":"terminal"}\n');
+        writeFileSync(path, original, { mode: 0o600 });
+        const state = createSealedRealmsProductionPrivateState({ reportedHome: fixture.home,
+          testOnlyOwnerUid: fixture.ownerUid, testOnlyFsync: () => {},
+          ...(process.platform === 'win32' ? { testOnlyAllowPlatformMode: true as const } : {}),
+          testOnlyRace: (phase, target) => {
+            if (phase !== 'read-after-open' || target !== path) return;
+            if (scenario === 'file-replaced') { renameSync(path, `${path}.saved`); writeFileSync(path, original, { mode: 0o600 }); }
+            if (scenario === 'parent-replaced') {
+              renameSync(directory, `${directory}.saved`); mkdirSync(directory, { mode: 0o700 });
+              writeFileSync(path, original, { mode: 0o600 });
+            }
+          },
+        });
+        if (scenario === 'oversize') writeFileSync(path, Buffer.alloc(32 * 1_024 + 1, 65));
+        if (scenario === 'empty') writeFileSync(path, Buffer.alloc(0));
+        if (scenario === 'hard-link') linkSync(path, `${path}.linked`);
+        if (scenario === 'file-symlink') { renameSync(path, `${path}.saved`); symlinkSync(`${path}.saved`, path); }
+        if (scenario === 'parent-symlink') { renameSync(directory, `${directory}.saved`); symlinkSync(`${directory}.saved`, directory); }
+        if (scenario === 'file-mode') chmodSync(path, 0o644);
+        if (scenario === 'parent-mode') chmodSync(directory, 0o755);
+        let caught: unknown;
+        try { state.readG001PolicyTerminal(runId); } catch (error) { caught = error; }
+        expect(caught).toBeInstanceOf(SealedRealmsProductionPrivateStateError);
+        expect(String(caught)).not.toContain(fixture.home);
+        expect(String(caught)).not.toContain('"private"');
+      } finally { fixture.cleanup(); }
+    });
+
   it('creates only sealed-realms-v1 descendants and writes no-clobber canonical private bytes', () => {
     const fixture = privateHome();
     const fsync = vi.fn();

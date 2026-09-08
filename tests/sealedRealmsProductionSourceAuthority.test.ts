@@ -1,4 +1,7 @@
+// @vitest-environment node
+
 import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 
 import {
   SEALED_REALMS_ACTIVATED_OPERATIONS,
@@ -54,11 +57,14 @@ function gitFixture(options: Readonly<{
 }
 
 function preparationBinding() {
+  const candidate = JSON.parse(readFileSync(
+    new URL('../config/releases/0.4.0-sealed-launch.json', import.meta.url), 'utf8',
+  ));
   return Object.freeze({
-    schemaVersion: 1,
-    profile: 'warpkeep-0.4.0-sealed-launch-v1',
-    pagesDeploymentApproved: false,
-    preparationSourceCommit: S,
+    schemaVersion: candidate.schemaVersion,
+    profile: candidate.profile,
+    pagesDeploymentApproved: candidate.pagesDeploymentApproved,
+    preparationSourceCommit: candidate.preparationSourceCommit,
   });
 }
 
@@ -73,9 +79,10 @@ function activatedBinding(commit?: string) {
 }
 
 describe('sealed-realms production source authority', () => {
-  it('authenticates S from fixed raw Git queries and a bounded Verify adapter', () => {
+  it('authenticates actual inert null metadata using Git identity and bounded Verify evidence', () => {
     const fixture = gitFixture();
     const verifyEvidence = vi.fn((commit: string) => ({ verifiedSha: commit }));
+    expect(preparationBinding().preparationSourceCommit).toBeNull();
 
     const authority = authenticateSealedRealmsProductionSourceAuthority({
       operation: 'g002-publish-inspect',
@@ -86,11 +93,36 @@ describe('sealed-realms production source authority', () => {
     });
 
     expect(sourceCommitFromSealedRealmsProductionAuthority(authority)).toBe(S);
+    expect(preparationSourceCommitFromSealedRealmsProductionAuthority(authority)).toBe(S);
     expect(verifyEvidence).toHaveBeenCalledWith(S);
     expect(fixture.calls).toContainEqual([
       'rev-parse', '--verify', 'refs/remotes/origin/main^{commit}',
     ]);
     expect(SEALED_REALMS_OPERATIONS).toHaveLength(20);
+  });
+
+  it.each([S, A, '0'.repeat(40), '', undefined, 0, false])(
+    'rejects non-null or malformed S pins before Verify (%s)', pin => {
+      const verifyEvidence = vi.fn((commit: string) => ({ verifiedSha: commit }));
+      expect(() => authenticateSealedRealmsProductionSourceAuthority({
+        operation: 'preflight', workflowInputSha: S, readGit: gitFixture().git,
+        readBinding: () => ({ ...preparationBinding(), preparationSourceCommit: pin }), verifyEvidence,
+      })).toThrow('SEALED_REALMS_SOURCE_AUTHORITY_BINDING_INVALID');
+      expect(verifyEvidence).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects a V2 four-field projection without the actual full committed binding', () => {
+    const verifyEvidence = vi.fn((commit: string) => ({ verifiedSha: commit }));
+    expect(() => authenticateSealedRealmsProductionSourceAuthority({
+      operation: 'preflight', workflowInputSha: A,
+      readGit: gitFixture({ head: A, protectedMain: A, parents: [S] }).git,
+      readBinding: commit => commit === S ? preparationBinding() : {
+        ...activatedBinding(A), schemaVersion: 2, profile: 'warpkeep-0.4.0-sealed-launch-v2',
+      },
+      verifyEvidence,
+    })).toThrow('SEALED_REALMS_SOURCE_AUTHORITY_BINDING_INVALID');
+    expect(verifyEvidence).not.toHaveBeenCalled();
   });
 
   it('requires an exact activated three-file regular diff and narrows A', () => {

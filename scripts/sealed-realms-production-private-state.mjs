@@ -638,8 +638,7 @@ export function createSealedRealmsProductionPrivateState(input) {
     }
   };
 
-  const readBounded = ({ root, relativePath }, maximumBytes) => {
-    const target = descendant(root, relativePath, false);
+  const readFixedTarget = (target, maximumBytes) => {
     const parentChain = captureDirectoryChain(
       home, target.directory, owner, allowTestOnlyPlatformMode,
     );
@@ -685,7 +684,19 @@ export function createSealedRealmsProductionPrivateState(input) {
     }
   };
 
+  const readBounded = ({ root, relativePath }, maximumBytes) =>
+    readFixedTarget(descendant(root, relativePath, false), maximumBytes);
   const read = input => readBounded(input, MAXIMUM_FILE_BYTES);
+  // This is an existing bootstrap-owned tombstone, never a selectable root or
+  // a write target. Reading it does not issue source or launch authority.
+  function readG001PolicyTerminal(runId) {
+    if (arguments.length !== 1 || typeof runId !== 'string'
+      || !/^run-[a-f0-9]{32}$/u.test(runId)) {
+      fail('SEALED_REALMS_PRIVATE_STATE_TERMINAL_INVALID');
+    }
+    const directory = join(home, '.warpkeep', 'private', 'production-admin-v1', 'bootstrap-run-lifecycle-v1');
+    return readFixedTarget({ directory, path: join(directory, `${runId}-terminal.json`) }, 32 * 1_024);
+  }
   function readActivationDescriptor() {
     if (arguments.length !== 0) fail('SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_INVALID');
     return readBounded({ root: ACTIVATION_DESCRIPTOR_ROOT,
@@ -1173,6 +1184,7 @@ export function createSealedRealmsProductionPrivateState(input) {
     writeCanonicalNoClobberAndConsumeDescriptor,
     read,
     readActivationDescriptor,
+    readG001PolicyTerminal,
     list,
     exists,
     append,

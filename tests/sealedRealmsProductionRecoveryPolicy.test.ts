@@ -84,7 +84,7 @@ function authority(operation: string) {
       schemaVersion: 1,
       profile: 'warpkeep-0.4.0-sealed-launch-v1',
       pagesDeploymentApproved: false,
-      preparationSourceCommit: S,
+      preparationSourceCommit: null,
     }),
     verifyEvidence: (commit: string) => ({ verifiedSha: commit }),
   });
@@ -247,7 +247,7 @@ function g001Lane(
   const launchAuthority = createSealedRealmsProductionG001LaunchAuthority({
     readRawGit: () => `${S}\n`,
     resolveAdminSecretPath: () => ({ sourceCommit: S, path: '/private/task5-secret' }),
-    persistPolicyObservation: () => undefined,
+    privateState,
   });
   const censusAuthority = createSealedRealmsProductionG001CensusAuthority({
     privateState,
@@ -285,7 +285,7 @@ async function dispatchG001(
       schemaVersion: 1,
       profile: 'warpkeep-0.4.0-sealed-launch-v1',
       pagesDeploymentApproved: false,
-      preparationSourceCommit: S,
+      preparationSourceCommit: null,
     }),
     verifyEvidence: (commit: string) => ({ verifiedSha: commit }),
     permit: run.permit,
@@ -475,7 +475,7 @@ describe('sealed-realms production recovery policy', () => {
       schemaVersion: 1,
       profile: 'warpkeep-0.4.0-sealed-launch-v1',
       pagesDeploymentApproved: commit === activation,
-      preparationSourceCommit: S,
+      preparationSourceCommit: commit === activation ? S : null,
     });
     const verifyEvidence = (commit: string) => ({ verifiedSha: commit });
     try {

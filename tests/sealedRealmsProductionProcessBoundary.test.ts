@@ -258,7 +258,7 @@ describe('sealed-realms continuation across actual process boundaries', () => {
       expectCompleted(
         freshProcess(local.home, 'activation-evidence-generate', '10532'),
         'activation-evidence-generate',
-        'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
+        'unavailable',
       );
       expect(local.control().counts).toEqual({
         g002Import: 1,

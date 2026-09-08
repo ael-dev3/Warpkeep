@@ -404,7 +404,6 @@ function validActivationHistoryChecks() {
   ];
   return {
     parentsOf: () => ['7'.repeat(40)],
-    historicalPathChanges: () => false,
     sourceProjection: () => Buffer.from('same-g001-projection'),
     activationDelta: () => ({
       changedPaths: [
@@ -785,7 +784,7 @@ describe('0.4.0 sealed-launch verifier', () => {
     ),
     (value: string) => value.replace('value.verifiedSha !== commit', 'false'),
     (value: string) => value.replace(
-      'binding.preparationSourceCommit !== commit',
+      'binding.preparationSourceCommit !== null',
       'false',
     ),
     (value: string) => value.replace('authenticatedAuthorities = new WeakSet()', 'authenticatedAuthorities = new Set()'),
@@ -2246,6 +2245,7 @@ export function createPtrAtlasImportTransport(`,
       .filter(([key]) => key.startsWith('ptr') && key !== 'ptrPresentationEnabled')
       .every(([, value]) => value === null)).toBe(true);
     expect(preparationBinding.ptrPresentationEnabled).toBe(false);
+    expect(preparationBinding.preparationSourceCommit).toBeNull();
     expect(verifySealedLaunchSources(checkedInSources(), 'preparation')).toMatchObject({
       phase: 'preparation',
       packageVersion: '0.3.43',
@@ -2254,6 +2254,11 @@ export function createPtrAtlasImportTransport(`,
     expect(classifySealedLaunchPagesSources(checkedInSources())).toBe(
       'sealed-launch-blocked',
     );
+
+    const selfPinned = checkedInSources();
+    selfPinned.bindingJson = canonical({ ...preparationBinding, preparationSourceCommit: '7'.repeat(40) });
+    expect(() => verifySealedLaunchSources(selfPinned, 'preparation'))
+      .toThrow('SEALED_LAUNCH_PREPARATION_BINDING_INVALID');
 
     const failOpenSources = checkedInSources();
     const failOpenBinding = JSON.parse(failOpenSources.bindingJson) as Record<string, unknown>;
@@ -2442,10 +2447,8 @@ export function createPtrAtlasImportTransport(`,
     );
   });
 
-  it('requires a one-parent three-file activation and an untouched exact G001 history projection', () => {
+  it('requires a one-parent three-file activation and the exact current G001 source projection', () => {
     expect(GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS).toEqual([
-      'package.json',
-      'package-lock.json',
       'spacetimedb/package.json',
       'spacetimedb/pnpm-lock.yaml',
       'spacetimedb/pnpm-workspace.yaml',
@@ -2507,7 +2510,6 @@ export function createPtrAtlasImportTransport(`,
       },
       { parentsOf: () => ['7'.repeat(40), '8'.repeat(40)] },
       { parentsOf: () => ['8'.repeat(40)] },
-      { historicalPathChanges: () => true },
       {
         sourceProjection: (commit: string) => Buffer.from(
           commit === '7'.repeat(40) ? 'changed' : 'historical',
@@ -2551,20 +2553,18 @@ export function createPtrAtlasImportTransport(`,
       })).toThrow();
     }
     for (const protectedPath of GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS) {
-      const historicalPathChanges = vi.fn((
-        _ancestor: string,
-        _descendant: string,
-        paths: readonly string[],
-      ) => paths.includes(protectedPath));
+      const sourceProjection = vi.fn((commit: string, paths: readonly string[]) => Buffer.from(
+        commit === '7'.repeat(40) && paths.includes(protectedPath) ? 'changed current source' : 'frozen source',
+      ));
       expect(() => verifySealedLaunchActivationHistory({
         ...valid,
-        historicalPathChanges,
+        sourceProjection,
       }), protectedPath).toThrow();
-      expect(historicalPathChanges).toHaveBeenCalledWith(
+      expect(sourceProjection).toHaveBeenCalledWith(
         'd945256b217fa13ade944b9ed9880e8463b46123',
-        '7'.repeat(40),
         GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS,
       );
+      expect(sourceProjection).toHaveBeenCalledWith('7'.repeat(40), GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS);
     }
   });
 

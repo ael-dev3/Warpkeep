@@ -77,7 +77,7 @@ function sourceAuthority(operation: string, sourceCommit = S) {
       schemaVersion: 1,
       profile: 'warpkeep-0.4.0-sealed-launch-v1',
       pagesDeploymentApproved: false,
-      preparationSourceCommit: sourceCommit,
+      preparationSourceCommit: null,
     }),
     verifyEvidence: commit => ({ verifiedSha: commit }),
   });

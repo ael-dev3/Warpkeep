@@ -20,6 +20,9 @@ import {
   sourceCommitFromSealedRealmsProductionAuthority,
 } from './sealed-realms-production-source-authority.mjs';
 import {
+  createSealedRealmsProductionWorkflowEvidence,
+  refreshSealedRealmsProductionWorkflowEvidence,
+  revokeSealedRealmsProductionWorkflowEvidence,
   verifySealedRealmsProductionWorkflowEvidence,
 } from './sealed-realms-production-workflow-evidence.mjs';
 import {
@@ -51,6 +54,7 @@ const GIT_ENVIRONMENT = process.platform === 'win32'
   : Object.freeze({
     GIT_CONFIG_GLOBAL: String.fromCodePoint(47, 100, 101, 118, 47, 110, 117, 108, 108),
     GIT_CONFIG_NOSYSTEM: '1',
+    GIT_NO_REPLACE_OBJECTS: '1',
     HOME: String.fromCodePoint(47, 100, 101, 118, 47, 110, 117, 108, 108),
     LANG: 'C',
     LC_ALL: 'C',
@@ -109,11 +113,11 @@ function sourceSha(value) {
 
 function readGit(arguments_) {
   try {
-    return execFileSync(GIT_EXECUTABLE, [...arguments_], {
+    return execFileSync(GIT_EXECUTABLE, ['--no-replace-objects', ...arguments_], {
       cwd: process.cwd(),
       encoding: 'utf8',
       env: GIT_ENVIRONMENT,
-      maxBuffer: 128 * 1_024,
+      maxBuffer: 2 * 1024 * 1024,
       timeout: 5_000,
       windowsHide: true,
     });
@@ -150,13 +154,13 @@ function readBinding(commit) {
   ));
 }
 
-function sourceAuthority(operation, workflowInputSha) {
+function sourceAuthority(operation, workflowInputSha, verifyEvidence) {
   return authenticateSealedRealmsProductionSourceAuthority({
     operation,
     workflowInputSha,
     readGit,
     readBinding,
-    verifyEvidence: verifySealedRealmsProductionWorkflowEvidence,
+    verifyEvidence,
   });
 }
 
@@ -176,7 +180,7 @@ function exactGitArguments(value, expected) {
     && value.every((member, index) => member === expected[index]);
 }
 
-function bridgeAuthorityFromSourceAuthority(authority, operation) {
+function bridgeAuthorityFromSourceAuthority(authority, operation, verifyEvidence) {
   const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(authority);
   const preparationSourceCommit =
     preparationSourceCommitFromSealedRealmsProductionAuthority(authority);
@@ -207,7 +211,7 @@ function bridgeAuthorityFromSourceAuthority(authority, operation) {
     if (commit !== preparationSourceCommit) {
       fail('SEALED_REALMS_PTR_WORKFLOW_SOURCE_INVALID');
     }
-    return verifySealedRealmsProductionWorkflowEvidence(commit);
+    return verifyEvidence(commit);
   };
   return authenticateSealedRealmsProductionSourceAuthority({
     operation,
@@ -218,9 +222,10 @@ function bridgeAuthorityFromSourceAuthority(authority, operation) {
   });
 }
 
-async function buildDispatcher(operation, workflowInputSha) {
-  const authority = sourceAuthority(operation, workflowInputSha);
-  const bridgeAuthority = bridgeAuthorityFromSourceAuthority(authority, operation);
+async function buildDispatcher(operation, workflowInputSha, evidence) {
+  const verifyEvidence = commit => verifySealedRealmsProductionWorkflowEvidence(evidence, commit);
+  const authority = sourceAuthority(operation, workflowInputSha, verifyEvidence);
+  const bridgeAuthority = bridgeAuthorityFromSourceAuthority(authority, operation, verifyEvidence);
   const githubToken = process.env.GITHUB_TOKEN;
   const runId = process.env.GITHUB_RUN_ID;
   const runAttempt = process.env.GITHUB_RUN_ATTEMPT;
@@ -262,7 +267,7 @@ async function buildDispatcher(operation, workflowInputSha) {
   const context = createSealedRealmsProductionPtrDispatchContext({
     readGit,
     readBinding,
-    verifyEvidence: verifySealedRealmsProductionWorkflowEvidence,
+    verifyEvidence,
     permit,
     continuationStore,
     runId,
@@ -276,13 +281,20 @@ export async function createSealedRealmsProductionPtrWorkflowRuntime(input) {
   const options = exactObject(input, ['operation', 'workflowInputSha']);
   const operation = operationName(options.operation);
   const workflowInputSha = sourceSha(options.workflowInputSha);
+  const evidence = await createSealedRealmsProductionWorkflowEvidence({ workflowInputSha });
   const runtime = Object.freeze({});
-  runtimes.set(runtime, Object.freeze({
-    operation,
-    workflowInputSha,
-    dispatcher: await buildDispatcher(operation, workflowInputSha),
-  }));
-  return runtime;
+  try {
+    runtimes.set(runtime, Object.freeze({
+      operation,
+      workflowInputSha,
+      evidence,
+      dispatcher: await buildDispatcher(operation, workflowInputSha, evidence),
+    }));
+    return runtime;
+  } catch (error) {
+    revokeSealedRealmsProductionWorkflowEvidence(evidence);
+    throw error;
+  }
 }
 
 export async function runSealedRealmsProductionPtrOperation(input) {
@@ -300,5 +312,10 @@ export async function runSealedRealmsProductionPtrOperation(input) {
   if (member.workflowInputSha !== workflowInputSha) fail('SEALED_REALMS_PTR_WORKFLOW_SOURCE_INVALID');
   runtimes.delete(options.runtime);
   consumedRuntimes.add(options.runtime);
-  return member.dispatcher.dispatch(Object.freeze({ operation, workflowInputSha }));
+  try {
+    await refreshSealedRealmsProductionWorkflowEvidence(member.evidence);
+    return await member.dispatcher.dispatch(Object.freeze({ operation, workflowInputSha }));
+  } finally {
+    revokeSealedRealmsProductionWorkflowEvidence(member.evidence);
+  }
 }

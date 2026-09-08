@@ -19,6 +19,8 @@ export type SealedRealmsProductionPrivateState = Readonly<{
   }>) => Readonly<Record<never, never>>;
   /** Reads only the fixed private activation descriptor, bounded at 1 MiB. */
   readActivationDescriptor: () => Uint8Array;
+  /** Read-only bootstrap-owned terminal at one fixed private path; bounded at 32 KiB. */
+  readG001PolicyTerminal: (runId: string) => Buffer;
   read: (input: Readonly<{
     root: 'audit' | 'runtime' | 'cache';
     relativePath: string;

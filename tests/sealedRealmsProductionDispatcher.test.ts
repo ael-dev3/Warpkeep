@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
   mkdirSync,
@@ -8,11 +9,12 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   authenticateSealedRealmsProductionSourceAuthority,
@@ -58,6 +60,9 @@ const MODULE_TREE = 'b'.repeat(40);
 const BOOTSTRAP_BLOB = 'c'.repeat(40);
 const BOOTSTRAP_SHA256 = 'be9efaf1ecad13c2cd94bfb457353b8946f12b3304f47b34e8b9422041712c1a';
 const ADMIN_SECRET_PATH = '/private/warpkeep/admin-secret';
+const POLICY_RECORD_PATH = 'activation-evidence/records/g001-policy-observation-bootstrap-receipt.json';
+const privateCleanups = new Set<() => void>();
+afterEach(() => { for (const cleanup of privateCleanups) cleanup(); });
 const BOOTSTRAP_BYTES = readFileSync(
   new URL('../scripts/greater-realm-production-bootstrap.mjs', import.meta.url),
 );
@@ -72,13 +77,14 @@ function lifecycleSummary(runId: string, input: Readonly<{
 }> = {}) {
   return {
     authorityPhase: input.authorityPhase ?? null,
-    authorityPublication: null,
+    authorityPublication: input.authorityPhase === 'complete' ? 'installed' : null,
     blockers: [],
     childState: 'absent',
     containmentEligible: false,
     launchPhase: null,
-    launchPublication: null,
-    ownerState: 'dead',
+    launchPublication: input.runState === 'absent' ? 'absent' : null,
+    // The frozen envelope reports a completed owner as terminal, not dead.
+    ownerState: input.authorityPhase === 'complete' ? 'terminal' : 'dead',
     processGroupState: 'absent',
     repairableLaunchTemporaryCount: 0,
     repairablePartialAuthorityCount: 0,
@@ -201,13 +207,54 @@ function bootstrapPolicyObservationReceipt(input: Readonly<{
   };
 }
 
+function completedPolicyTerminal(home: string, runId: string) {
+  const directory = join(home, '.warpkeep', 'private', 'production-admin-v1', 'bootstrap-run-lifecycle-v1');
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  mkdirSync(join(directory, '..', 'bootstrap-runs-v1'), { mode: 0o700 });
+  const path = join(directory, `${runId}-terminal.json`);
+  const argumentHash = createHash('sha256');
+  updateLengthFramed(argumentHash, 'domain', 'warpkeep-production-launch-arguments-v1');
+  updateLengthFramed(argumentHash, 'command', 'g001-policy-observe');
+  const finalRecord = {
+    schemaVersion: 1, profile: 'warpkeep-greater-realm-production-launch-lifecycle-v1',
+    runId, ordinal: 7, phase: 'complete', previousRecordSha256: '1'.repeat(64),
+    pid: 1234, processStartIdentity: 'fixture-process-identity', protectedMain: SOURCE,
+    moduleTree: MODULE_TREE, bootstrapBlob: BOOTSTRAP_BLOB, bootstrapSha256: BOOTSTRAP_SHA256,
+    command: 'g001-policy-observe', commandArgumentsSha256: argumentHash.digest('hex'),
+    runDev: '1', runIno: '42', launchRecordSha256: '2'.repeat(64),
+    containedChildPid: null, containedChildProcessStartIdentity: null, containedChildPgid: null,
+    containmentConfirmationSha256: null, cleanupConfirmationSha256: 'e'.repeat(64),
+    cleanupTreeInventorySha256: 'd'.repeat(64), cleanupReason: 'completed-current-owner',
+  };
+  const terminal = { schemaVersion: 1, profile: 'warpkeep-greater-realm-production-launch-terminal-v1',
+    runId, finalLifecycleRecordSha256: '', finalLifecycleRecord: finalRecord };
+  const persist = () => {
+    terminal.finalLifecycleRecordSha256 = createHash('sha256')
+      .update(`${JSON.stringify(canonical(terminal.finalLifecycleRecord))}\n`).digest('hex');
+    writeFileSync(path, `${JSON.stringify(canonical(terminal))}\n`, { mode: 0o600 });
+  };
+  persist();
+  return { path, terminal, persist };
+}
+
+function completedPolicyDetail(runId: string) {
+  const summary = lifecycleSummary(runId, { authorityPhase: 'complete', runState: 'absent' });
+  return canonical({ ...summary, cleanupEligible: false, deletionEligible: false,
+    confirmationDigest: 'e'.repeat(64), profile: 'warpkeep-greater-realm-production-launch-lifecycle-v1',
+    treeInventory: { state: 'absent', entryCount: 0, byteCount: 0,
+      digest: createHash('sha256').update(`${JSON.stringify(canonical({
+        state: 'absent', entryCount: 0, byteCount: 0, entries: [],
+      }))}\n`).digest('hex') },
+  });
+}
+
 function g001LaunchAuthority(input: Readonly<{
   readRawGit?: (args: readonly string[]) => string | Uint8Array;
   resolveAdminSecretPath?: (context: Readonly<{ sourceCommit: string }>) => Readonly<{
     sourceCommit: string;
     path: string;
   }>;
-  persistPolicyObservation?: (input: Readonly<{ sourceCommit: string; bytes: Uint8Array }>) => unknown;
+  privateState?: ReturnType<typeof createSealedRealmsProductionPrivateState>;
 }> = {}) {
   return createSealedRealmsProductionG001LaunchAuthority({
     readRawGit: input.readRawGit ?? ((args) => {
@@ -233,7 +280,7 @@ function g001LaunchAuthority(input: Readonly<{
       sourceCommit,
       path: ADMIN_SECRET_PATH,
     })),
-    persistPolicyObservation: input.persistPolicyObservation ?? (() => {}),
+    privateState: input.privateState ?? censusPrivateState().state,
   });
 }
 
@@ -246,7 +293,7 @@ function g001PolicyAuthority() {
       schemaVersion: 1,
       profile: 'warpkeep-0.4.0-sealed-launch-v1',
       pagesDeploymentApproved: false,
-      preparationSourceCommit: SOURCE,
+      preparationSourceCommit: null,
     }),
     verifyEvidence: verifiedSha => ({ verifiedSha }),
   });
@@ -274,13 +321,13 @@ function g001Authority(operation:
       schemaVersion: 1,
       profile: 'warpkeep-0.4.0-sealed-launch-v1',
       pagesDeploymentApproved: false,
-      preparationSourceCommit: SOURCE,
+      preparationSourceCommit: null,
     }),
     verifyEvidence: verifiedSha => ({ verifiedSha }),
   });
 }
 
-function censusPrivateState() {
+function censusPrivateState(testOnlyRace?: (phase: string, path: string) => void) {
   const home = mkdtempSync(join(tmpdir(), 'warpkeep-g001-census-'));
   for (const root of [
     join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'audit', 'private'),
@@ -290,14 +337,18 @@ function censusPrivateState() {
     mkdirSync(root, { recursive: true, mode: 0o700 });
     chmodSync(root, 0o700);
   }
+  const cleanup = () => { privateCleanups.delete(cleanup); rmSync(home, { recursive: true, force: true }); };
+  privateCleanups.add(cleanup);
   return {
+    home,
     state: createSealedRealmsProductionPrivateState({
       reportedHome: home,
       testOnlyOwnerUid: statSync(home).uid,
       testOnlyFsync: () => {},
       testOnlyAllowPlatformMode: true,
+      ...(testOnlyRace === undefined ? {} : { testOnlyRace }),
     }),
-    cleanup: () => rmSync(home, { recursive: true, force: true }),
+    cleanup,
   };
 }
 
@@ -356,7 +407,7 @@ async function protectedG001Dispatcher(
       schemaVersion: 1,
       profile: 'warpkeep-0.4.0-sealed-launch-v1',
       pagesDeploymentApproved: false,
-      preparationSourceCommit: SOURCE,
+      preparationSourceCommit: null,
     }),
     verifyEvidence: verifiedSha => ({ verifiedSha }),
     permit,
@@ -562,7 +613,7 @@ async function dispatcherFixture(operation = 'preflight') {
       schemaVersion: 1,
       profile: 'warpkeep-0.4.0-sealed-launch-v1',
       pagesDeploymentApproved: false,
-      preparationSourceCommit: SOURCE,
+      preparationSourceCommit: null,
     }),
     verifyEvidence: verifiedSha => ({ verifiedSha }),
   });
@@ -583,7 +634,7 @@ async function dispatcherFixture(operation = 'preflight') {
       schemaVersion: 1,
       profile: 'warpkeep-0.4.0-sealed-launch-v1',
       pagesDeploymentApproved: false,
-      preparationSourceCommit: SOURCE,
+      preparationSourceCommit: null,
     }),
     verifyEvidence,
     permit,
@@ -672,7 +723,7 @@ describe('sealed-realms production dispatcher', () => {
         schemaVersion: 1,
         profile: 'warpkeep-0.4.0-sealed-launch-v1',
         pagesDeploymentApproved: false,
-        preparationSourceCommit: SOURCE,
+        preparationSourceCommit: null,
       }),
       verifyEvidence: verifiedSha => ({ verifiedSha }),
     });
@@ -745,7 +796,7 @@ describe('sealed-realms production dispatcher', () => {
         schemaVersion: 1,
         profile: 'warpkeep-0.4.0-sealed-launch-v1',
         pagesDeploymentApproved: false,
-        preparationSourceCommit: SOURCE,
+        preparationSourceCommit: null,
       }),
       verifyEvidence: verifiedSha => ({ verifiedSha }),
     });
@@ -817,7 +868,7 @@ describe('sealed-realms production dispatcher', () => {
         schemaVersion: 1,
         profile: 'warpkeep-0.4.0-sealed-launch-v1',
         pagesDeploymentApproved: false,
-        preparationSourceCommit: SOURCE,
+        preparationSourceCommit: null,
       }),
       verifyEvidence: verifiedSha => ({ verifiedSha }),
     });
@@ -990,9 +1041,9 @@ describe('sealed-realms production dispatcher', () => {
     }
   });
 
-  it('adopts a completed absent frozen launch without opening policy observation or a private receipt', async () => {
+  it('rejects a completed absent frozen launch when its private policy record is missing', async () => {
     const runId = `run-${'a'.repeat(32)}`;
-    const persistPolicyObservation = vi.fn();
+    const local = censusPrivateState();
     const runner = vi.fn(async () => ({
       status: 0,
       stdout: `${JSON.stringify({
@@ -1002,7 +1053,7 @@ describe('sealed-realms production dispatcher', () => {
       stderr: '',
     }));
     const lane = g001PolicyLane({
-      launchAuthority: g001LaunchAuthority({ persistPolicyObservation }),
+      launchAuthority: g001LaunchAuthority({ privateState: local.state }),
       runEnvelopeChild: runner,
     });
     const original = globalThis.WebSocket;
@@ -1010,9 +1061,9 @@ describe('sealed-realms production dispatcher', () => {
     try {
       await expect(runProtectedG001(
         lane, 'g001-policy-observe', g001PolicyAuthority(), '6009',
-      )).resolves.toEqual({ operation: 'g001-policy-observe', status: 'completed' });
+      )).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
       expect(runner).toHaveBeenCalledTimes(1);
-      expect(persistPolicyObservation).not.toHaveBeenCalled();
+      expect(() => local.state.read({ root: 'runtime', relativePath: POLICY_RECORD_PATH })).toThrow();
     } finally {
       Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: original });
     }
@@ -1034,7 +1085,7 @@ describe('sealed-realms production dispatcher', () => {
     Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: function WebSocket() {} });
     try {
       for (const makeReceipt of cases) {
-        const persistPolicyObservation = vi.fn();
+        const local = censusPrivateState();
         let invocation = 0;
         const runner = vi.fn(async () => ({
           status: 0,
@@ -1044,21 +1095,19 @@ describe('sealed-realms production dispatcher', () => {
           stderr: '',
         }));
         const lane = g001PolicyLane({
-          launchAuthority: g001LaunchAuthority({ persistPolicyObservation }),
+          launchAuthority: g001LaunchAuthority({ privateState: local.state }),
           runEnvelopeChild: runner,
         });
         await expect(runProtectedG001(
           lane, 'g001-policy-observe', g001PolicyAuthority(), '6010',
         )).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
-        expect(persistPolicyObservation).not.toHaveBeenCalled();
+        expect(() => local.state.read({ root: 'runtime', relativePath: POLICY_RECORD_PATH })).toThrow();
       }
 
-      const persisted: Uint8Array[] = [];
+      const local = censusPrivateState();
       let invocation = 0;
       const lane = g001PolicyLane({
-        launchAuthority: g001LaunchAuthority({
-          persistPolicyObservation: ({ bytes }) => { persisted.push(Buffer.from(bytes)); },
-        }),
+        launchAuthority: g001LaunchAuthority({ privateState: local.state }),
         runEnvelopeChild: async () => ({
           status: 0,
           stdout: `${JSON.stringify(invocation++ === 0
@@ -1070,12 +1119,174 @@ describe('sealed-realms production dispatcher', () => {
       await expect(runProtectedG001(
         lane, 'g001-policy-observe', g001PolicyAuthority(), '6011',
       )).resolves.toEqual({ operation: 'g001-policy-observe', status: 'completed' });
-      expect(persisted).toHaveLength(1);
-      expect(Buffer.from(persisted[0]).toString('utf8')).toContain('policyObservationReceiptLinkSha256');
+      const persisted = local.state.read({ root: 'runtime', relativePath: POLICY_RECORD_PATH });
+      try {
+        const wrapper = JSON.parse(persisted.toString('utf8'));
+        expect(wrapper).toMatchObject({ schemaVersion: 1, profile: 'warpkeep-sealed-realms-activation-record-v1',
+          member: 'g001PolicyObservationBootstrapReceipt', preparationSourceCommit: SOURCE,
+          sourceCommit: SOURCE, operation: 'g001-policy-observe', sourceAuthorityDigest: g001PolicyAuthority().authorityDigest });
+        expect(wrapper.receipt).toEqual(bootstrapPolicyObservationReceipt());
+        expect(wrapper.bodyDigest).toBe(createHash('sha256').update(`${JSON.stringify(wrapper.receipt)}\n`).digest('hex'));
+        expect(wrapper.semanticDigest).toBe(createHash('sha256').update([
+          'warpkeep.sealed-realms.activation-record.v1', wrapper.member, SOURCE, SOURCE,
+          wrapper.operation, wrapper.sourceAuthorityDigest, wrapper.bodyDigest, '',
+        ].join('\n')).digest('hex'));
+      } finally { persisted.fill(0); }
     } finally {
       Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: original });
     }
   });
+
+  it('requires opaque private state and rejects the old caller-selected persistence surface', () => {
+    const input = { readRawGit: () => `${SOURCE}\n`,
+      resolveAdminSecretPath: () => ({ sourceCommit: SOURCE, path: ADMIN_SECRET_PATH }) };
+    expect(() => createSealedRealmsProductionG001LaunchAuthority({ ...input, privateState: {} } as never))
+      .toThrow('SEALED_REALMS_G001_LAUNCH_AUTHORITY_INPUT_INVALID');
+    expect(() => createSealedRealmsProductionG001LaunchAuthority({ ...input, persistPolicyObservation: () => undefined } as never))
+      .toThrow('SEALED_REALMS_G001_LAUNCH_AUTHORITY_INPUT_INVALID');
+  });
+
+  it.skipIf(process.platform === 'win32')('adopts a retained receipt using the actual frozen read-only terminal inspector', async () => {
+    const local = censusPrivateState();
+    const runId = `run-${'f'.repeat(32)}`;
+    const program = /<<'WKGR_LAUNCH_LIFECYCLE_PY'\n([\s\S]*?)\nWKGR_LAUNCH_LIFECYCLE_PY\n/u
+      .exec(ENVELOPE_BYTES.toString('utf8'))?.[1];
+    expect(program).toBeTypeOf('string');
+    let invoked = false;
+    const capture = g001PolicyLane({ launchAuthority: g001LaunchAuthority({ privateState: local.state }),
+      runEnvelopeChild: async () => {
+        if (!invoked) { invoked = true; return { status: 0, stdout: `${JSON.stringify(emptyLifecycleInventory())}\n`, stderr: '' }; }
+        completedPolicyTerminal(local.home, runId);
+        return { status: 0, stdout: `${JSON.stringify(bootstrapPolicyObservationReceipt())}\n`, stderr: '' };
+      } });
+    const runner = vi.fn(async (request: { args: readonly string[] }) => {
+      const detailed = request.args.at(-1) === runId;
+      expect(request.args.at(detailed ? -2 : -1)).toBe('launch-run-inspect');
+      const result = spawnSync('/usr/bin/python3', ['-I', '-S', '-B', '-', 'inspect', local.home,
+        ...(detailed ? [runId] : [])], { input: `${program}\n`, encoding: 'utf8',
+        env: { PATH: '/usr/bin:/bin' }, timeout: 10_000 });
+      expect(result.status, result.stderr).toBe(0);
+      return { status: result.status!, stdout: result.stdout, stderr: result.stderr };
+    });
+    const original = globalThis.WebSocket;
+    Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: function WebSocket() {} });
+    try {
+      await expect(runProtectedG001(capture, 'g001-policy-observe', g001PolicyAuthority(), '6014'))
+        .resolves.toEqual({ operation: 'g001-policy-observe', status: 'completed' });
+      const resume = g001PolicyLane({ launchAuthority: g001LaunchAuthority({ privateState: local.state }), runEnvelopeChild: runner });
+      await expect(runProtectedG001(resume, 'g001-policy-observe', g001PolicyAuthority(), '6015'))
+        .resolves.toEqual({ operation: 'g001-policy-observe', status: 'completed' });
+      expect(runner).toHaveBeenCalledTimes(2);
+    } finally { Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: original }); }
+  });
+
+  it.each(['adopted', 'lost-acknowledgment', 'authority', 'producer-source', 'operation', 'bootstrap',
+    'tree', 'cleanup-run', 'cleanup-state', 'player-access', 'body', 'semantic', 'noncanonical',
+    'cleanup-confirmation', 'cleanup-inventory', 'terminal-missing', 'terminal-run', 'terminal-source',
+    'terminal-tree', 'terminal-blob', 'terminal-bootstrap', 'terminal-command', 'terminal-arguments',
+    'terminal-reason', 'terminal-extra', 'terminal-malformed', 'terminal-digest', 'terminal-confirmation',
+    'terminal-inventory', 'detail-confirmation', 'detail-inventory', 'detail-run',
+    'no-lifecycle', 'pending-lifecycle', 'blocked-lifecycle', 'nonterminal-owner', 'partial-terminal'])(
+    'reopens only the matching durable policy capture without replay: %s', async scenario => {
+      let loseReadAcknowledgment = scenario === 'lost-acknowledgment';
+      const local = censusPrivateState((phase, path) => {
+        if (loseReadAcknowledgment && phase === 'read-after-open' && path.endsWith('g001-policy-observation-bootstrap-receipt.json')) {
+          loseReadAcknowledgment = false;
+          throw new Error('simulated acknowledgment loss after the private record was written');
+        }
+      });
+      let invocation = 0;
+      let terminalFixture: ReturnType<typeof completedPolicyTerminal>;
+      const firstRunner = vi.fn(async () => {
+        if (invocation++ === 0) return { status: 0, stdout: `${JSON.stringify(emptyLifecycleInventory())}\n`, stderr: '' };
+        // Simulate the fixed bootstrap result and its independently owned terminal.
+        terminalFixture = completedPolicyTerminal(local.home, `run-${'f'.repeat(32)}`);
+        return { status: 0, stdout: `${JSON.stringify(bootstrapPolicyObservationReceipt())}\n`, stderr: '' };
+      });
+      const firstLane = g001PolicyLane({ launchAuthority: g001LaunchAuthority({ privateState: local.state }),
+        runEnvelopeChild: firstRunner });
+      const original = globalThis.WebSocket;
+      Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: function WebSocket() {} });
+      try {
+        const initial = runProtectedG001(firstLane, 'g001-policy-observe', g001PolicyAuthority(), '6012');
+        if (scenario === 'lost-acknowledgment') await expect(initial).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+        else await expect(initial).resolves.toEqual({ operation: 'g001-policy-observe', status: 'completed' });
+        expect(firstRunner).toHaveBeenCalledTimes(2);
+        const recordPath = join(local.home, 'Library', 'Application Support', 'Warpkeep', 'operations',
+          'runtime', 'sealed-realms-v1', ...POLICY_RECORD_PATH.split('/'));
+        const record = JSON.parse(readFileSync(recordPath, 'utf8'));
+        const runId = record.receipt.launchCleanup.runId;
+        if (scenario === 'authority') record.sourceAuthorityDigest = '0'.repeat(64);
+        if (scenario === 'producer-source') record.sourceCommit = SWAPPED_SOURCE;
+        if (scenario === 'operation') record.operation = 'g001-current-state';
+        if (scenario === 'bootstrap') record.receipt = bootstrapPolicyObservationReceipt({ sha256: '0'.repeat(64) });
+        if (scenario === 'tree') record.receipt = bootstrapPolicyObservationReceipt({ tree: '0'.repeat(40) });
+        if (scenario === 'cleanup-run') record.receipt = bootstrapPolicyObservationReceipt({ cleanup: {
+          ...record.receipt.launchCleanup, runId: `run-${'0'.repeat(32)}` } });
+        if (scenario === 'cleanup-state') record.receipt = bootstrapPolicyObservationReceipt({ cleanup: {
+          ...record.receipt.launchCleanup, outcome: 'pending' } });
+        if (scenario === 'cleanup-confirmation') record.receipt = bootstrapPolicyObservationReceipt({ cleanup: {
+          ...record.receipt.launchCleanup, cleanupConfirmationSha256: '0'.repeat(64) } });
+        if (scenario === 'cleanup-inventory') record.receipt = bootstrapPolicyObservationReceipt({ cleanup: {
+          ...record.receipt.launchCleanup, treeInventorySha256: '0'.repeat(64) } });
+        if (scenario === 'player-access') record.receipt = bootstrapPolicyObservationReceipt({ policy: {
+          ...policyObservationReceipt(), policy: { ...policyObservationReceipt().policy, playerAccessEnabled: false } } });
+        record.bodyDigest = createHash('sha256').update(`${JSON.stringify(record.receipt)}\n`).digest('hex');
+        if (scenario === 'body') record.bodyDigest = '0'.repeat(64);
+        record.semanticDigest = createHash('sha256').update([
+          'warpkeep.sealed-realms.activation-record.v1', record.member, record.preparationSourceCommit,
+          record.sourceCommit, record.operation, record.sourceAuthorityDigest, record.bodyDigest, '',
+        ].join('\n')).digest('hex');
+        if (scenario === 'semantic') record.semanticDigest = '0'.repeat(64);
+        const persisted = `${JSON.stringify(record)}\n${scenario === 'noncanonical' ? '\n' : ''}`;
+        if (scenario !== 'adopted' && scenario !== 'lost-acknowledgment') writeFileSync(recordPath, persisted, { mode: 0o600 });
+        const before = readFileSync(recordPath);
+        const terminal = terminalFixture!.terminal;
+        const finalRecord = terminal.finalLifecycleRecord;
+        if (scenario === 'terminal-run') terminal.runId = `run-${'0'.repeat(32)}`;
+        if (scenario === 'terminal-source') finalRecord.protectedMain = '0'.repeat(40);
+        if (scenario === 'terminal-tree') finalRecord.moduleTree = '0'.repeat(40);
+        if (scenario === 'terminal-blob') finalRecord.bootstrapBlob = '0'.repeat(40);
+        if (scenario === 'terminal-bootstrap') finalRecord.bootstrapSha256 = '0'.repeat(64);
+        if (scenario === 'terminal-command') finalRecord.command = 'observe-other';
+        if (scenario === 'terminal-arguments') finalRecord.commandArgumentsSha256 = '0'.repeat(64);
+        if (scenario === 'terminal-reason') finalRecord.cleanupReason = 'confirmed-dead-owner';
+        if (scenario === 'terminal-confirmation') finalRecord.cleanupConfirmationSha256 = '0'.repeat(64);
+        if (scenario === 'terminal-inventory') finalRecord.cleanupTreeInventorySha256 = '0'.repeat(64);
+        if (scenario === 'terminal-extra') Object.assign(finalRecord, { unexpected: true });
+        terminalFixture!.persist();
+        if (scenario === 'terminal-digest') writeFileSync(terminalFixture!.path,
+          `${JSON.stringify(canonical({ ...terminal, finalLifecycleRecordSha256: '0'.repeat(64) }))}\n`);
+        if (scenario === 'terminal-malformed') writeFileSync(terminalFixture!.path, '{"private":"malformed"');
+        if (scenario === 'terminal-missing') rmSync(terminalFixture!.path);
+        const summary = lifecycleSummary(runId, { authorityPhase: scenario === 'pending-lifecycle' ? 'launch-installed' : 'complete',
+          runState: scenario === 'pending-lifecycle' ? 'present' : 'absent' });
+        const detail = completedPolicyDetail(runId) as Record<string, unknown>;
+        if (scenario === 'detail-confirmation') detail.confirmationDigest = '0'.repeat(64);
+        if (scenario === 'detail-inventory') (detail.treeInventory as Record<string, unknown>).digest = '0'.repeat(64);
+        if (scenario === 'detail-run') detail.runId = `run-${'0'.repeat(32)}`;
+        const runner = vi.fn(async (request: { args: readonly string[] }) => ({ status: 0, stdout: `${JSON.stringify(request.args.at(-1) === runId ? detail : {
+          profile: 'warpkeep-greater-realm-production-launch-lifecycle-v1',
+          runs: scenario === 'no-lifecycle' ? [] : [{ ...summary,
+            authorityPublication: scenario === 'partial-terminal' ? 'installed-with-partial' : summary.authorityPublication,
+            ownerState: scenario === 'nonterminal-owner' ? 'dead' : summary.ownerState,
+            blockers: scenario === 'blocked-lifecycle' ? ['active-child'] : [] }],
+        })}\n`, stderr: '' }));
+        // Recreate the launch authority and lane; no process-local receipt token
+        // can stand in for the durable record or its authenticated launch identity.
+        const resumedLane = g001PolicyLane({ launchAuthority: g001LaunchAuthority({ privateState: local.state }), runEnvelopeChild: runner });
+        const resumed = runProtectedG001(resumedLane, 'g001-policy-observe', g001PolicyAuthority(), '6013');
+        if (scenario === 'adopted' || scenario === 'lost-acknowledgment') {
+          await expect(resumed).resolves.toEqual({ operation: 'g001-policy-observe', status: 'completed' });
+        } else await expect(resumed).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+        expect(runner).toHaveBeenCalledTimes(['no-lifecycle', 'pending-lifecycle', 'blocked-lifecycle',
+          'nonterminal-owner', 'partial-terminal'].includes(scenario) ? 1 : 2);
+        expect(runner.mock.calls[0]?.[0].args.at(-1)).toBe('launch-run-inspect');
+        for (const [request] of runner.mock.calls) expect(request.args.at(-1) === 'launch-run-inspect'
+          || (request.args.at(-2) === 'launch-run-inspect' && request.args.at(-1) === runId)).toBe(true);
+        expect(readFileSync(recordPath).equals(before)).toBe(true);
+      } finally { Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: original }); }
+    });
 
   it('persists and consumes stable composite G001 census evidence before one monitor suspension', async () => {
     const local = censusPrivateState();
@@ -1367,7 +1578,7 @@ describe('sealed-realms production dispatcher', () => {
         schemaVersion: 1,
         profile: 'warpkeep-0.4.0-sealed-launch-v1',
         pagesDeploymentApproved: false,
-        preparationSourceCommit: SOURCE,
+        preparationSourceCommit: null,
       }),
       verifyEvidence: verifiedSha => ({ verifiedSha }),
     });
@@ -1456,7 +1667,7 @@ describe('sealed-realms production dispatcher', () => {
             schemaVersion: 1,
             profile: 'warpkeep-0.4.0-sealed-launch-v1',
             pagesDeploymentApproved: false,
-            preparationSourceCommit: SOURCE,
+            preparationSourceCommit: null,
           }),
           verifyEvidence: verifiedSha => ({ verifiedSha }),
         }),
@@ -1530,7 +1741,7 @@ describe('sealed-realms production dispatcher', () => {
         schemaVersion: 1,
         profile: 'warpkeep-0.4.0-sealed-launch-v1',
         pagesDeploymentApproved: false,
-        preparationSourceCommit: SOURCE,
+        preparationSourceCommit: null,
       }),
       verifyEvidence: verifiedSha => ({ verifiedSha }),
     });

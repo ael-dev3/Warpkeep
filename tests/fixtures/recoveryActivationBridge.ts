@@ -18,7 +18,7 @@ export function recoveryOperationAuthority(operation: string) {
   return authenticateSealedRealmsProductionSourceAuthority({
     operation: operation as never, workflowInputSha: SOURCE, readGit: () => `${SOURCE}\n`,
     readBinding: () => ({ schemaVersion: 1, profile: 'warpkeep-0.4.0-sealed-launch-v1',
-      pagesDeploymentApproved: false, preparationSourceCommit: SOURCE }),
+      pagesDeploymentApproved: false, preparationSourceCommit: null }),
     verifyEvidence: verifiedSha => ({ verifiedSha }),
   });
 }
@@ -57,7 +57,7 @@ export async function recoveryActivationDispatcher(state: SealedRealmsProduction
   return createSealedRealmsProductionActivationDispatcher({
     context: createSealedRealmsProductionActivationDispatchContext({
       readGit: () => `${SOURCE}\n`, readBinding: () => ({ schemaVersion: 1,
-        profile: 'warpkeep-0.4.0-sealed-launch-v1', pagesDeploymentApproved: false, preparationSourceCommit: SOURCE }),
+        profile: 'warpkeep-0.4.0-sealed-launch-v1', pagesDeploymentApproved: false, preparationSourceCommit: null }),
       verifyEvidence: verifiedSha => ({ verifiedSha }), permit: context.permit,
       continuationStore: context.store, runId, runAttempt: '1', sourceAuthority: context.sourceAuthority,
     }),

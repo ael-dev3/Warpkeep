@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
@@ -182,19 +182,29 @@ describe('fixed local PTR binding runtime', () => {
     expect(direct.stdout).toBe('');
     expect(direct.stderr).toBe('LOCAL_BINDING_RUNTIME_ARGUMENTS_INVALID\n');
 
-    const currentWrongHost = spawnSync(process.execPath, [
-      join(repositoryRoot, 'scripts', 'local-binding-runtime.mjs'), '--genesis001-current-check',
-    ], { encoding: 'utf8' });
-    expect(currentWrongHost.status).toBe(1);
-    expect(currentWrongHost.stdout).toBe('');
-    expect(currentWrongHost.stderr).toBe('LOCAL_BINDING_RUNTIME_HOST_INVALID\n');
-
-    const allRealmsWrongHost = spawnSync(process.execPath, [
-      join(repositoryRoot, 'scripts', 'local-binding-runtime.mjs'), '--all-realms',
-    ], { encoding: 'utf8' });
-    expect(allRealmsWrongHost.status).toBe(1);
-    expect(allRealmsWrongHost.stdout).toBe('');
-    expect(allRealmsWrongHost.stderr).toBe('LOCAL_BINDING_RUNTIME_HOST_INVALID\n');
+    // The suite can itself run under the supported native preparation owner.
+    // An identical private Node copy gives these calls an invalid executable
+    // path even when the ambient process is the genuine pinned runtime.
+    const wrongHostRoot = mkdtempSync(join(tmpdir(), 'warpkeep-wrong-host-node-'));
+    try {
+      chmodSync(wrongHostRoot, 0o700);
+      const wrongHostNode = join(wrongHostRoot, process.platform === 'win32' ? 'node.exe' : 'node');
+      copyFileSync(process.execPath, wrongHostNode);
+      chmodSync(wrongHostNode, 0o500);
+      expect(createHash('sha256').update(readFileSync(wrongHostNode)).digest('hex'))
+        .toBe(createHash('sha256').update(readFileSync(process.execPath)).digest('hex'));
+      for (const operation of ['--genesis001-current-check', '--all-realms']) {
+        const wrongHost = spawnSync(wrongHostNode, [
+          join(repositoryRoot, 'scripts', 'local-binding-runtime.mjs'), operation,
+        ], { encoding: 'utf8', timeout: 10_000 });
+        expect(wrongHost.error).toBeUndefined();
+        expect(wrongHost.status).toBe(1);
+        expect(wrongHost.stdout).toBe('');
+        expect(wrongHost.stderr).toBe('LOCAL_BINDING_RUNTIME_HOST_INVALID\n');
+      }
+    } finally {
+      rmSync(wrongHostRoot, { recursive: true, force: true });
+    }
   });
 
   it('ignores ordinary ambient values but rejects actual preload authority', () => {
@@ -715,12 +725,19 @@ describe('fixed local PTR binding runtime', () => {
             containProcessGroup: true,
           },
         );
+        // Observe rejection before waiting for the child to publish its PIDs.
+        // The outcome promise always resolves, so even an early process failure
+        // cannot escape as an unhandled rejection while the fixture is polled.
+        const outcome = pending.then(
+          result => ({ status: 'fulfilled' as const, result }),
+          error => ({ status: 'rejected' as const, error }),
+        );
         const deadline = Date.now() + 3_000;
         while (!existsSync(pidPath) && Date.now() < deadline) {
           await new Promise(resolvePromise => setTimeout(resolvePromise, 10));
         }
         pids = JSON.parse(readFileSync(pidPath, 'utf8'));
-        await expect(pending).rejects.toMatchObject({ code });
+        expect(await outcome).toMatchObject({ status: 'rejected', error: { code } });
         expect(exists(pids!.parent)).toBe(false);
         expect(exists(pids!.descendant)).toBe(false);
         if (scenario === 'success-descendant') expect(existsSync(evidencePath)).toBe(true);

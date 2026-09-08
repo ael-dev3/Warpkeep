@@ -456,3 +456,59 @@ negative findings, including changed values in all three bundles and unchanged
 wrong-path checks. The complete scanner regression suite passed six cases in a
 fresh Linux clone of `ff813f9` with only the three scanner files overlaid.
 Independent review found no broad suppression; the outgoing scan then passed.
+
+## Source authority, durable policy capture and Verify readback — 2026-09-08
+
+The reviewed source integration follows `1277cc8`. Preparation metadata remains
+strictly null; actual Git identity and exact protected Verify evidence establish
+its source. Native V2 activation is now authenticated through the canonical full
+binding, actual sole parent/tree, exact three regular-file delta and version-only
+package transition. The four read-only operations available after activation are
+unchanged. Every workflow Git reader ignores replacement objects.
+
+The actual Verify CLI exposed an incorrect G001 history projection. The frozen
+materializer extracts `2ae5198:spacetimedb/**`, and the immutable artifact's root
+manifest is `spacetimedb/package.json`. Repository-root browser packages do not
+own that frozen build. Only those two root package files were removed from the
+G001 projection; their exact structures remain independently checked. Module
+source, locks, manifests, workspace and frozen operators retain current snapshot
+equality, with ancestry and exact activation delta checks. A reverted historical
+edit no longer fails an otherwise identical final snapshot. The frozen
+materializer, its toolchain and pinned artifact identities are unchanged.
+
+G001 policy capture now writes the authenticated frozen child result through the
+existing fixed private writer and reopens it before completion. Lost-acknowledgment
+adoption binds the retained terminal record, original cleanup commitments,
+source/bootstrap/command/run and durable wrapper. Missing or altered evidence
+fails before replay. The terminal reader is bounded, owner-checked and read-only;
+it does not create a caller-selected path or generalized writer.
+
+The four actual workflow factories now load fixed read-only GitHub evidence into
+an opaque, expiring scope, refresh it before dispatch reauthentication and revoke
+it on completion or failure. The latest authenticated Verify run for the exact
+push/main source must succeed; an older green run cannot mask a newer failure or
+pending run. Current run/attempt and discovery are reopened to detect races.
+Repository/owner/workflow/source identities, bounded strict JSON, fixed origin,
+redirect rejection and timeouts are enforced. Tests use synthetic HTTP responses;
+no production authorization or live token readback is claimed by those tests.
+
+Related CI regressions preserve the real containment and effect assertions:
+promise rejection handlers are attached before process polling, a byte-identical
+Node executable at the wrong path exercises the host rejection, and supported
+Linux scanner races remain enabled. Unsupported hosts test their explicit
+rejection. The obsolete early-activation error expectation was corrected.
+
+Independent reviews found no blocking issue in the source-authority, policy,
+Verify transport or CI patches. A fresh native Linux clone with the complete
+reviewed source passed **731 tests across 20 suites**, with two expected platform
+skips and no unhandled errors. App and Vite-config noEmit checks passed. The
+actual source-pin generator ran only for diagnostic verifier tests; its outputs
+were restored and byte-checked before exporting source. These tests establish
+connected local contracts, not a new prepared family or deployed release.
+
+The previously published generated family still identifies `f558bd5`. This new
+compiled source requires fresh complete native prepare/check and generated-output
+integration. The sealed production workflow still contains its explicit closure
+fence, Darwin-specific runtime and missing token mapping. Remaining private/live
+provider adapters, canonical recovery facts, data-preserving existing-database
+updates, signer authorization and actual owner acceptance remain unfinished.
