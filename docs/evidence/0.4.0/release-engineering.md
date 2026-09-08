@@ -1033,12 +1033,69 @@ were verified without rebuilding; full preparation remains scoped to `b306eed`.
 Final release preparation and required published-source CI remain separate.
 
 
-The subsequent isolated rehearsal at 05:09–05:10 UTC verified both historical
-compiled schema boundaries and completed G002's real atlas import. It then failed
-at PTR import inspection before any PTR import writes or module update. PTR's
-strict claim sets reject the identity added by the SDK token exchange; offline
-tests reproduced this with all three actual PTR token producers. A separate PTR
-module correction is under review. The historical artifacts remain unchanged.
-No additive migration, owner gameplay or recovery acceptance is established.
-The disposable server was stopped and signing files and CLI snapshot removed;
-the failed attempt and its persistent disposable database are retained.
+The 05:09–05:10 UTC rehearsal remains a retained failed attempt: it stopped at
+PTR inspection because the historical parser rejects the SDK's exchanged identity
+claim. Source `c5392e0` accepts only the original exact shapes or those shapes plus
+the SDK identity, validates that field and binds it to the authenticated sender.
+All existing owner/database/epoch and absolute-session checks remain enforced.
+The historical A artifacts were not modified; their import, provisioning and
+owner bootstrap use the actual host HTTP lifecycle with the original signed JWT.
+
+The new rehearsal completed at 08:24 UTC. Real exporters/importers populated both
+historical realms, followed by token-bound A-to-B updates that preserved every
+existing row and complete table boundary. The updated PTR then completed gathering,
+construction, issuance containment, autonomous timer settlement, expired-session
+refusal and fresh-session resume. An explicit accepted-command retry changed no
+rows. This is actual module behavior with synthetic local authority and persistent
+test data; production owner play and code-replacement recovery remain unproven.
+The server, temporary signing files and CLI snapshot were cleaned up.
+
+
+## PTR SDK identity and release verification — 2026-09-08
+
+Source `c5392e0` corrects the PTR SDK exchange boundary while preserving original
+direct-HTTP claims. Native tests exercised the protected atlas procedure with the
+actual exchanged token and rejected wrong audiences, extra claims, mismatched
+identities and unsigned tampering. Focused tests and module/application/configuration
+type checks passed. Source `d7798e6` updates the exact release-parser contract for
+that one optional identity field; the focused verifier suite passed.
+
+Full preparation and independent checking of `c5392e0` succeeded, but its candidate
+QA correctly rejected the old parser contract. That family was not integrated.
+A fresh preparation from `d7798e6` and its independent rebuilding check both
+passed. Generated-only commit `582f498b0cd86117bdf8c5ea5d0cf8a2d1a741fd` contains the verified
+family. All affected candidate suites and both type checks passed, while complete
+tracked bodies and journal outputs remained unchanged. This is source-candidate
+acceptance; `finalReleasePrepared` remains false. See [recovery evidence](recovery.md) for the completed populated
+module update, real timer settlement and access-resume rehearsal.
+
+Published `00c0399` CI completed with successful module, auth, native, recovery and
+CodeQL jobs. Linux's only failed suite was `genesis002BridgeClaims.test.ts`: its
+root SDK mock missed the separately installed module SDK, which cannot initialize
+its server runtime in Node. The failure reproduced with the locked CI workspace
+layout. Resolving the ESM mock from the actual module importer passes both that
+layout and the root-only layout. It changes test resolution, not game authority.
+
+
+At 08:40 UTC, a second native run replaced the direct update calls with the actual
+existing-update dispatcher and adapter draft, which remain local work outside the
+committed source checkpoint. Both populated realm updates passed
+through durable continuation/submission/completion records, followed by the same
+gathering, construction, session-expiry and access-resume checks. Every draft input
+body matched before and after, and both completion records were reopened. Workflow
+and source authority were explicit fixtures; native database and HTTP behavior
+were real. The production adapter factory remains unavailable pending its genuine
+authority and operating callers. This does not establish code-replacement recovery.
+
+
+The accepted source-candidate journal SHA-256 is
+`1edb25eac1d4a10c434c4b88f40a39c76e479ff97be7af9c7bcea638178e19c8` and the complete family SHA-256 is
+`40773aacfaed31ac2faeb7edf65562d96e60369207ad0d717bb4ca02abd9999d`. Prepare/check logs matched the same exact result.
+Both app and configuration type checks exited successfully. Retained test summaries:
+
+- Tests  513 passed | 25 skipped (538)
+- Tests  159 passed (159)
+
+The test-only CI correction is committed as `0ab958f7bc088f61fcf9e7a63e7cadeda31d50c1`. Both supported
+dependency layouts passed its focused suite. Required checks on the published
+checkpoint still need their own fresh GitHub readback.

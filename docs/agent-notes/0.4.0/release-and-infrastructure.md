@@ -129,15 +129,22 @@ SQL access on the differently owned production database. Continue from the
 [recovery evidence](../../evidence/0.4.0/recovery.md).
 
 
-The subsequent isolated rehearsal at 05:09–05:10 UTC verified both historical
-compiled schema boundaries and completed G002's real atlas import. It then failed
-at PTR import inspection before any PTR import writes or module update. PTR's
-strict claim sets reject the identity added by the SDK token exchange; offline
-tests reproduced this with all three actual PTR token producers. A separate PTR
-module correction is under review. The historical artifacts remain unchanged.
-No additive migration, owner gameplay or recovery acceptance is established.
-The disposable server was stopped and signing files and CLI snapshot removed;
-the failed attempt and its persistent disposable database are retained.
+The 05:09–05:10 UTC rehearsal remains a retained failed attempt: it stopped at
+PTR inspection because the historical parser rejects the SDK's exchanged identity
+claim. Source `c5392e0` accepts only the original exact shapes or those shapes plus
+the SDK identity, validates that field and binds it to the authenticated sender.
+All existing owner/database/epoch and absolute-session checks remain enforced.
+The historical A artifacts were not modified; their import, provisioning and
+owner bootstrap use the actual host HTTP lifecycle with the original signed JWT.
+
+The new rehearsal completed at 08:24 UTC. Real exporters/importers populated both
+historical realms, followed by token-bound A-to-B updates that preserved every
+existing row and complete table boundary. The updated PTR then completed gathering,
+construction, issuance containment, autonomous timer settlement, expired-session
+refusal and fresh-session resume. An explicit accepted-command retry changed no
+rows. This is actual module behavior with synthetic local authority and persistent
+test data; production owner play and code-replacement recovery remain unproven.
+The server, temporary signing files and CLI snapshot were cleaned up.
 
 
 The complete generated consumer family for `95ce45c` was independently reproduced
@@ -147,6 +154,11 @@ including the complete prepared-workflow suite. Tracked source and generated
 output bytes remained unchanged during QA. Retained compiled inputs and bundles
 were verified without rebuilding; full preparation remains scoped to `b306eed`.
 Final release preparation and required published-source CI remain separate.
+
+The 08:19–08:24 UTC populated rehearsal subsequently passed actual G002/PTR
+A-to-B preservation and PTR timer/session-containment behavior. See the dated
+[recovery evidence](../../evidence/0.4.0/recovery.md) for its source/artifact scopes
+and remaining code-replacement and production-authority work.
 
 ## Windows/WSL working environment and process evidence
 

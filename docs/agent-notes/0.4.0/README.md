@@ -7,46 +7,37 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-Updated 2026-09-08 following published `a4ec99f`: the fixed recovery candidate
-reader and authenticated historical continuation, bounded source-inventory CI
-corrections and clearer keep feedback are integrated. The earlier source added
-real S/V2 authentication, durable G001 capture, GitHub Verify readback and continuous
-Greater Realm water. Generated families attest their exact recorded inputs. Read the
-[execution handoff](execution-handoff.md) and dated evidence for actual preparation,
-verification and publication results. The original `781e51e` audit is historical.
+Updated September 8. The GitHub/profile/ecosystem refresh is complete. Continue
+the connected game and delivery work from the [execution handoff](execution-handoff.md),
+which records the current checkpoint, preparation, CI and environment details.
 
-- `main` is the public G001 baseline. Current 0.4 implementation is on
+- **Development and live release are separate.** Active 0.4 work is on
   `codex/prepared-keep-bindings-fix`, associated with draft
-  [PR #228](https://github.com/ael-dev3/Warpkeep/pull/228).
-- The server-owned gameplay core, typed client, realm isolation, and keep
-  presentation are substantial working foundations. Their presence does not
-  establish a complete live owner journey.
-- Healthy snapshot refresh retains the keep scene and focus (`555e505`). Active
-  PTR continuation now obtains fresh scoped authority at hard expiry (`c990a3b`)
-  without replaying commands. Presentation-only Mini App changes preserve the
-  session; observed identity/authority changes revoke it (`d088ec1`). Actual owner renewal, meaningful pacing on real
-  routes, complete visual/device coverage and live acceptance still need evidence.
-- GitHub and configured Cloudflare/SpacetimeDB metadata reads work in the current
-  session. Earlier network-denial notes describe an older session.
-- G002 and PTR databases already exist. The Linux recovery Pages caller is
-  implemented (`c51bb00`). Its [registered Linux runner](../../operations/0.4.0-linux-runner.md)
-  was online and idle on September 8, with its dedicated account and separate
-  recovery/sealed-operation roots installed. The sealed workflow now connects a
-  fixed Linux preflight caller; all other sealed operations explicitly refuse.
-  Signer authorization, live provider inputs and operating acceptance remain
-  unfinished. Durable Pages and notification lanes retain Mac dependencies.
-- The [local source assembler](../../operations/0.4.0-local-release-preparation.md)
-  now connects fixed compilers, complete generated consumers, independent byte
-  verification and durable candidate recovery. The activation lane has a fixed
-  V2 generator and receipt-based reconciliation. The receipt reader now resolves
-  its candidate-construction cycle. The fixed canonical reader derives authenticated
-  Git/bootstrap/corpus facts and supports completed historical inspection; real
-  recovery, Worker, module and approval producers remain unfinished. See the dated
-  [engineering evidence](../../evidence/0.4.0/release-engineering.md) before
-  assessing the completed native prepare/check from `b4df426`, its generated
-  integration at `e789815` and the separate remaining operating/CI defects.
-- 0.4 is **not shipped**. Preserve the live G001 game and its admission freeze,
-  keep G002 closed, and use the isolated owner's PTR for real 0.4 acceptance.
+  [PR #228](https://github.com/ael-dev3/Warpkeep/pull/228). `main` remains the public
+  G001 baseline. The integrated 0.4 release is not yet shipped.
+- **The core loop works in a populated native rehearsal.** Real realm modules
+  imported their atlases and preserved existing state through updates. PTR earned
+  resources, completed construction on real timers and resumed completed state
+  after session expiry without duplicate effects. A separate local existing-update
+  adapter draft also passed through its dispatcher and durable records; that draft
+  is not yet integrated. External identity/workflow authority was synthetic;
+  actual-owner play and production delivery remain to be accepted.
+- **The player experience needs integrated observation.** Keep/atlas navigation,
+  selected Worker continuity, healthy refresh and scoped session renewal are
+  implemented. Continue rendered Verdant Citadel review, useful progression,
+  foreground/resume and physical-device performance with the actual owner.
+- **Delivery has working foundations and specific gaps.** The local source
+  assembler connects fixed compilers, generated consumers, independent rebuilding
+  checks and candidate recovery. Linux recovery and sealed preflight callers are
+  connected and the dedicated runner is installed. Remaining operating callers,
+  genuine provider/signer authority and useful code-replacement recovery still
+  need completion. An isolated update rehearsal does not supply those credentials
+  or establish a release-ready production adapter.
+- **Preserve each realm's purpose.** Keep G001 progress, access and normal timers
+  alongside its agreed admission freeze; keep G002 sealed; use the actual owner's
+  isolated PTR for the new playable journey. Read the dated
+  [release evidence](../../evidence/0.4.0/release-engineering.md) and
+  [recovery evidence](../../evidence/0.4.0/recovery.md) for the precise verified scope.
 
 ## Find the right starting point
 
