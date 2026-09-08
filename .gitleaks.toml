@@ -155,7 +155,7 @@ description = "Public recovery verification-key thumbprint, not private signing 
 targetRules = ["generic-api-key"]
 condition = "AND"
 regexTarget = "secret"
-paths = ['''^services/release-recovery/src/recoveryPublicKey\.ts$''','''^scripts/recovery-activation-candidate\.mjs$''','''^tests/fixtures/recoveryBindingCandidate\.ts$''','''^scripts/recovery-public-key\.mjs$''','''^scripts/sealed-realms-production-activation-lane\.bundle\.mjs$''','''^scripts/sealed-realms-production-g001-lane\.bundle\.mjs$''','''^scripts/sealed-realms-production-g002-lane\.bundle\.mjs$''','''^scripts/sealed-realms-production-ptr-lane\.bundle\.mjs$''']
+paths = ['''^services/release-recovery/src/recoveryPublicKey\.ts$''','''^scripts/recovery-activation-candidate\.mjs$''','''^tests/fixtures/recoveryBindingCandidate\.ts$''','''^tests/fixtures/ptrV3ActivationCorpus\.json$''','''^scripts/recovery-public-key\.mjs$''','''^scripts/sealed-realms-production-activation-lane\.bundle\.mjs$''','''^scripts/sealed-realms-production-g001-lane\.bundle\.mjs$''','''^scripts/sealed-realms-production-g002-lane\.bundle\.mjs$''','''^scripts/sealed-realms-production-ptr-lane\.bundle\.mjs$''']
 regexes = ['''^jJpfIbYjQL5LxwND5zk1MUOqN1B3vOh_ydTAOoUnuR8$''']
 
 [[allowlists]]
@@ -163,7 +163,7 @@ description = "Exact synthetic Worker version UUID in the non-deployable recover
 targetRules = ["generic-api-key"]
 condition = "AND"
 regexTarget = "secret"
-paths = ['''^tests/fixtures/recoveryBindingCandidate\.ts$''']
+paths = ['''^tests/fixtures/recoveryBindingCandidate\.ts$''','''^tests/fixtures/ptrV3ActivationCorpus\.json$''']
 regexes = ['''^123e4567-e89b-42d3-a456-426614174002$''']
 
 [[allowlists]]
