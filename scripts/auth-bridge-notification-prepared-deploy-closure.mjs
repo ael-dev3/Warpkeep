@@ -595,6 +595,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'services/auth-bridge/src/sessionFamily.ts',
     'services/auth-bridge/src/spacetimeAccessRequestResolver.ts',
     'services/auth-bridge/src/spacetimeAuthEpochResolver.ts',
+    'services/auth-bridge/src/spacetimeIdentity.ts',
     'services/auth-bridge/src/spacetimeQaObserverResolver.ts',
     'services/auth-bridge/src/spacetimeReleaseRecoveryResolver.ts',
     'services/auth-bridge/src/types.ts',

@@ -345,7 +345,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "4076624bc57a9ace651008f35d459f0db9964d5c773abad871e2e3ea52725171"
+      "sha256": "95fbc232b5df60cd46650edb48763ed27816bad079c8c35edafb15036012c59c"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -560,7 +560,7 @@
     {
       "path": "scripts/genesis002-private-loopback-verifier.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ee8808198bc99484cf5e45f7189ae0822728df09a34c9a820c33780209d9e76b"
+      "sha256": "2e87ab6c51a5f385dec5fc97915696610d2da5749abae066083cdcdae045ee6a"
     },
     {
       "path": "scripts/genesis002-production-import-core.ts",
@@ -1150,7 +1150,7 @@
     {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "feb030ef797691b270031af14be52bee2c09e0b14d6333f1e3eb1bdd776c3047"
+      "sha256": "484a7b00bbb2ba9d5b084e1a73abdd5002bcf5d11c803ea5bac3ea7aa4dd794c"
     },
     {
       "path": "scripts/production-player-canary-admin-transport.ts",
@@ -1750,7 +1750,7 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "5b450da6f6ec1e4f88ad82b5b5917afcfcb2b9c55cbc86e4ad289fa33a6462ac"
+      "sha256": "eb00bdc1e75ad7010dbeff8693e68915e77e743c10113cee989dc0b027a35bc3"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",
@@ -1900,12 +1900,12 @@
     {
       "path": "services/auth-bridge/package.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "99a6adee8792df6f6648321d8913916344ba1041481f5b01ca321a5cd363708b"
+      "sha256": "34b3ec31561429f6bcf5dcccfe047a64288cd7f54d9e946c36df3de721f3b29f"
     },
     {
       "path": "services/auth-bridge/pnpm-lock.yaml",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e162613375a2a5534a631d38e9cf2d2b9a66bdeb4ff05be63376afaf57f7fde9"
+      "sha256": "433571bc0d623143a58d1e12ea203b5d74dee71b2103ba3b4728f45659d6dbfb"
     },
     {
       "path": "services/auth-bridge/pnpm-workspace.yaml",
@@ -1950,7 +1950,7 @@
     {
       "path": "services/auth-bridge/src/jwt.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e59b158f670883f60be7de82def402ae3e39a9bf98f07e7c4281ee5460144903"
+      "sha256": "09a214ca186ec4fce8bd5bdc848612ddc61180d2f40a0b28e5761e95ea2b573f"
     },
     {
       "path": "services/auth-bridge/src/miniAppWebhook.ts",
@@ -1998,6 +1998,11 @@
       "sha256": "9eef06e78a2a59e6831fbc8675d80632134a868c18b02df457b59aedfaab0561"
     },
     {
+      "path": "services/auth-bridge/src/spacetimeIdentity.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "b938b59dc90ea28bf01c72a3bf164c810b4c6c3590df173037a2fda920e14732"
+    },
+    {
       "path": "services/auth-bridge/src/spacetimeQaObserverResolver.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "bef51b22925685025e3378d2c9a7d03739e63d552ecda9a273c4acc313e64c90"
@@ -2010,7 +2015,7 @@
     {
       "path": "services/auth-bridge/src/types.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "7347c5eec517dd50566f6b81428656283350ed40bb407a696e7188dc87ab0094"
+      "sha256": "57176e6ec34d4a2191b5dc9f93638ccb43c7926bcef9925eb7b8ee38370833af"
     },
     {
       "path": "services/auth-bridge/test-workerd/authBridge.workerd.test.ts",
@@ -2055,7 +2060,7 @@
     {
       "path": "services/auth-bridge/test/genesis002AdminToken.test.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9ea1f100286034ccfccc14518b4c5f6e237b86b2eec3ea9eee1921fa6d065c44"
+      "sha256": "a1f25cf716d76b761165466840a4a33c12a94cb5c4cd5b7569f3d036bcc8c63e"
     },
     {
       "path": "services/auth-bridge/test/miniAppWebhook.test.ts",

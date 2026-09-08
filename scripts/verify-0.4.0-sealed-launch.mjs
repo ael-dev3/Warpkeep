@@ -1007,7 +1007,7 @@ function verifyGenesis002Policy(sources) {
     [sources.authBridgeConfigSource,
       '39036b69b0264eb712ae4ac08b29c6e2854488488e632b246fd77eac1ad50b65'],
     [sources.authBridgeJwtSource,
-      'e59b158f670883f60be7de82def402ae3e39a9bf98f07e7c4281ee5460144903'],
+      '09a214ca186ec4fce8bd5bdc848612ddc61180d2f40a0b28e5761e95ea2b573f'],
     [sources.authBridgeSource,
       '75bae3f93146fe841a98a633c4646f6746a76d373b4df5769e209243f088fb11'],
     [sources.genesis002PublisherCoreSource,
@@ -1436,9 +1436,9 @@ function verifyPtrOwnerAuthority(sources) {
   // adds these sources to the authenticated closure and refreezes it.
   for (const [source, expectedSha256] of [
     [sources.authBridgeTypesSource,
-      '7347c5eec517dd50566f6b81428656283350ed40bb407a696e7188dc87ab0094'],
+      '57176e6ec34d4a2191b5dc9f93638ccb43c7926bcef9925eb7b8ee38370833af'],
     [sources.authBridgeJwtSource,
-      'e59b158f670883f60be7de82def402ae3e39a9bf98f07e7c4281ee5460144903'],
+      '09a214ca186ec4fce8bd5bdc848612ddc61180d2f40a0b28e5761e95ea2b573f'],
     [sources.authBridgeSource,
       '75bae3f93146fe841a98a633c4646f6746a76d373b4df5769e209243f088fb11'],
     [sources.ptrOwnerPolicySource,
