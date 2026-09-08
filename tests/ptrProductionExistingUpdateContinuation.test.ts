@@ -23,7 +23,8 @@ vi.mock("../scripts/ptr-update-provider-credentials.mjs", () => ({
   requestPtrUpdateProvider: seams.request,
   disposePtrUpdateProviderCredentials: () => {},
 }));
-vi.mock("../scripts/ptr-production-publisher.mjs", () => ({
+vi.mock("../scripts/ptr-production-publisher.mjs", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../scripts/ptr-production-publisher.mjs")>(),
   assertPtrSourceBuiltArtifact: (value: {
     assertSourceAndArtifact: () => void;
   }) => {
@@ -537,3 +538,17 @@ native(
     expect(f.records().map((record) => record.kind)).toEqual(["inspection"]);
   },
 );
+
+it("constructs the real PTR reconciler with genuine platform-mode private state", () => {
+  // Construction only: Windows mode relaxation grants no POSIX fsync/claim proof.
+  const root = mkdtempSync(join(tmpdir(), "warpkeep-ptr-codec-construction-"));
+  cleanup.push(() => {
+    if (!root.startsWith(join(tmpdir(), "warpkeep-ptr-codec-construction-"))) throw Error("Invalid fixture cleanup");
+    rmSync(root, { recursive: true });
+  });
+  const home = join(root, "home");
+  for (const suffix of ["audit/private", "runtime", "cache"]) mkdirSync(join(home, "Library/Application Support/Warpkeep/operations", suffix), { recursive: true, mode: 0o700 });
+  const privateState = createSealedRealmsProductionPrivateState({ reportedHome: home, testOnlyOwnerUid: statSync(root).uid, testOnlyAllowPlatformMode: true });
+  expect(() => createSealedRealmsProductionPublicationReconciler({ privateState, lane: "ptr", postflight: () => { throw Error("No provider call expected"); } })).not.toThrow();
+  expect(seams.request).not.toHaveBeenCalled();
+});
