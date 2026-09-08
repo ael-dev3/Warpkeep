@@ -1,10 +1,11 @@
 // @vitest-environment node
+import { preparationTransportFixture } from './fixtures/recoveryPreparationSigned.js';
 import { createHash, createPrivateKey, sign } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, statSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createSealedRealmsProductionPrivateState } from '../scripts/sealed-realms-production-private-state.mjs';
+import { createSealedRealmsProductionPrivateState, SEALED_REALMS_PRIVATE_STATE_VERSION } from '../scripts/sealed-realms-production-private-state.mjs';
 import { authenticateSealedRealmsProductionSourceAuthority } from '../scripts/sealed-realms-production-source-authority.mjs';
 import { afterEach, expect, it, vi } from 'vitest';
 vi.mock('../scripts/recovery-public-key.mjs', () => ({
@@ -70,24 +71,7 @@ const transportPath = '../scripts/sealed-realms-production-recovery-preparation-
 const transport = await import(/* @vite-ignore */ transportPath).catch(() => ({})) as Record<string, any>;
 const roots: string[] = [];
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); });
-function transportFixture(change?: (url: string, init: RequestInit) => Response | undefined, delta: Record<string, unknown> = {}) {
-  const f = fixture(delta);
-  for (const [key, value] of Object.entries({ GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
-    GITHUB_REF: 'refs/heads/main', GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_JOB: 'operate',
-    GITHUB_WORKFLOW_REF: 'ael-dev3/Warpkeep/.github/workflows/sealed-realms-production.yml@refs/heads/main',
-    GITHUB_SHA: f.intent.preparationCommit, GITHUB_RUN_ID: '12', GITHUB_RUN_ATTEMPT: '2',
-    ACTIONS_ID_TOKEN_REQUEST_URL: 'https://example.actions.githubusercontent.com/token?api-version=2',
-    ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'test-only-oidc-request-credential' })) vi.stubEnv(key, value);
-  const requests: { url: string; init: RequestInit }[] = [];
-  vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
-    requests.push({ url, init });
-    const response = change?.(url, init) ?? new Response(JSON.stringify(url.startsWith('https://release-auth.')
-      ? { preparationReceiptJws: f.compact } : { value: 'signed.oidc.fixture' }), { headers: { 'content-type': 'application/json' } });
-    Object.defineProperty(response, 'url', { value: url });
-    return response;
-  });
-  return { ...f, requests };
-}
+const transportFixture = preparationTransportFixture;
 it('uses the fixed OIDC audience and preparation endpoint without exporting request credentials', async () => {
   expect(transport.requestSealedRealmsProductionRecoveryPreparation).toBeTypeOf('function');
   const f = transportFixture();
@@ -102,6 +86,17 @@ it('uses the fixed OIDC audience and preparation endpoint without exporting requ
   expect(f.requests.every(x => x.init.redirect === 'error')).toBe(true);
 });
 const capabilityPath = '../scripts/sealed-realms-production-recovery-preparation.mjs';
+it('acquires a fresh OIDC token for the fixed observation endpoint and refuses receipt substitution', async () => {
+  const f = transportFixture();
+  expect(await transport.requestSealedRealmsProductionRecoveryPreparationObservation('c'.repeat(40))).toBe(f.observationCompact);
+  expect(f.requests.map(x => x.url)).toEqual([
+    'https://example.actions.githubusercontent.com/token?api-version=2&audience=https%3A%2F%2Frelease-auth.warpkeep.com%2Fpreparation',
+    'https://release-auth.warpkeep.com/v1/recovery/preparation-observation',
+  ]);
+  transportFixture(url => url.startsWith('https://release-auth.')
+    ? Response.json({ preparationReceiptJws: f.compact }) : undefined);
+  await expect(transport.requestSealedRealmsProductionRecoveryPreparationObservation('c'.repeat(40))).rejects.toThrow();
+});
 const capabilityModule = await import(/* @vite-ignore */ capabilityPath).catch(() => ({})) as Record<string, any>;
 function ownedFixture() {
   const root = mkdtempSync(join(tmpdir(), 'warpkeep-preparation-source-'));
@@ -126,14 +121,38 @@ it('owns a real signed service receipt in genuine private storage and authentica
   const cap = await capabilityModule.createSealedRealmsProductionRecoveryPreparation(options);
   const read = () => capabilityModule.readSealedRealmsProductionRecoveryPreparation({ capability: cap, ...options });
   expect(Object.keys(cap)).toEqual([]);
-  expect(read()).toEqual({ recoveryAuthorizationRequestId: response.intent.requestId, recoveryAuthorizationEpoch: 3 });
+  expect(read()).toEqual({ recoveryAuthorizationRequestId: response.intent.requestId, recoveryAuthorizationEpoch: 3,
+    recoveryAuthWorkerVersionId: response.observation.bridgeWorkerVersionId,
+    recoveryAuthWorkerSourceCommit: response.observation.bridgeSourceCommit,
+    recoveryAuthWorkerConfigIdentity: response.observation.bridgeConfigIdentity,
+    recoveryAuthWorkerConfigEpoch: response.observation.bridgeConfigEpoch });
+  expect(response.requests.map(x => x.url).filter(url => url.startsWith('https://release-auth.'))).toEqual([
+    'https://release-auth.warpkeep.com/v1/recovery/prepare',
+    'https://release-auth.warpkeep.com/v1/recovery/preparation-observation',
+  ]);
+  const observationFile = join(f.home, 'Library/Application Support/Warpkeep/operations/runtime', SEALED_REALMS_PRIVATE_STATE_VERSION,
+    `recovery-preparation/${f.commit}/3/observations/${createHash('sha256').update(response.observationCompact).digest('hex')}.jws`);
+  const retainedObservation = readFileSync(observationFile);
+  writeFileSync(observationFile, `${response.compact}\n`);
+  expect(read).toThrow();
+  writeFileSync(observationFile, retainedObservation);
   const retry = await capabilityModule.createSealedRealmsProductionRecoveryPreparation(options);
   expect(capabilityModule.readSealedRealmsProductionRecoveryPreparation({ capability: retry, ...options })).toEqual(read());
+  const clock = vi.spyOn(Date, 'now');
+  clock.mockReturnValue(response.observation.expiresAt * 1000);
+  expect(read).toThrow();
+  clock.mockReturnValue((response.observation.issuedAt - 1) * 1000);
+  expect(read).toThrow();
+  clock.mockRestore();
   expect(() => capabilityModule.readSealedRealmsProductionRecoveryPreparation({ capability: { ...cap }, ...options })).toThrow();
   expect(() => capabilityModule.readSealedRealmsProductionRecoveryPreparation({ capability: cap, ...options, authority: { ...f.authority } })).toThrow();
   transportFixture(undefined, { preparationCommit: f.commit, preparationTree: f.tree, requestId: '123e4567-e89b-42d3-a456-426614174001' });
   await expect(capabilityModule.createSealedRealmsProductionRecoveryPreparation(options)).rejects.toThrow('SEALED_REALMS_RECOVERY_PREPARATION_INVALID');
-  expect(read()).toEqual({ recoveryAuthorizationRequestId: response.intent.requestId, recoveryAuthorizationEpoch: 3 });
+  expect(read()).toEqual({ recoveryAuthorizationRequestId: response.intent.requestId, recoveryAuthorizationEpoch: 3,
+    recoveryAuthWorkerVersionId: response.observation.bridgeWorkerVersionId,
+    recoveryAuthWorkerSourceCommit: response.observation.bridgeSourceCommit,
+    recoveryAuthWorkerConfigIdentity: response.observation.bridgeConfigIdentity,
+    recoveryAuthWorkerConfigEpoch: response.observation.bridgeConfigEpoch });
   capabilityModule.disposeSealedRealmsProductionRecoveryPreparation(cap);
   expect(read).toThrow();
   writeFileSync(join(f.root, 'source'), 'changed');
@@ -153,6 +172,27 @@ it('refuses source drift after OIDC acquisition before the service can reserve',
     { preparationCommit: f.commit, preparationTree: f.tree });
   await expect(capabilityModule.createSealedRealmsProductionRecoveryPreparation({ privateState: f.privateState, authority: f.authority })).rejects.toThrow();
   expect(response.requests).toHaveLength(1);
+}, 60000);
+it('refuses a foreign signed observation after retaining the genuine reservation', async () => {
+  const f = ownedFixture();
+  const response = transportFixture(undefined, { preparationCommit: f.commit, preparationTree: f.tree },
+    { intent: { requestId: 'foreign' } });
+  await expect(capabilityModule.createSealedRealmsProductionRecoveryPreparation({ privateState: f.privateState, authority: f.authority })).rejects.toThrow();
+  expect(response.requests).toHaveLength(4);
+  expect(f.privateState.list({ root: 'runtime', relativeDirectory: `recovery-preparation/${f.commit}` })).toEqual(['3.jws']);
+}, 60000);
+it('rechecks source after the observation OIDC await before sending the observation request', async () => {
+  const f = ownedFixture();
+  let oidcRequests = 0;
+  const response = transportFixture(url => {
+    if (!url.startsWith('https://release-auth.') && ++oidcRequests === 2) {
+      writeFileSync(join(f.root, 'source'), 'changed during observation OIDC');
+    }
+    return undefined;
+  }, { preparationCommit: f.commit, preparationTree: f.tree });
+  await expect(capabilityModule.createSealedRealmsProductionRecoveryPreparation({ privateState: f.privateState, authority: f.authority })).rejects.toThrow();
+  expect(response.requests).toHaveLength(3);
+  expect(response.requests.some(request => request.url.endsWith('/preparation-observation'))).toBe(false);
 }, 60000);
 it.each(['GITHUB_SHA', 'GITHUB_EVENT_NAME', 'ACTIONS_ID_TOKEN_REQUEST_URL', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN'])('refuses missing or mismatched %s before transport', async key => {
   const f = transportFixture(); vi.stubEnv(key, '');

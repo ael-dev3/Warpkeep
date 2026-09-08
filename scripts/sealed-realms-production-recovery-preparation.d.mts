@@ -7,6 +7,8 @@ type Owner = Readonly<{ privateState: SealedRealmsProductionPrivateState; author
 export function createSealedRealmsProductionRecoveryPreparation(input: Owner): Promise<SealedRealmsProductionRecoveryPreparation>;
 export function readSealedRealmsProductionRecoveryPreparation(input: Owner & Readonly<{ capability: SealedRealmsProductionRecoveryPreparation }>): Readonly<{
   recoveryAuthorizationRequestId: string; recoveryAuthorizationEpoch: number;
+  recoveryAuthWorkerVersionId: string; recoveryAuthWorkerSourceCommit: string;
+  recoveryAuthWorkerConfigIdentity: string; recoveryAuthWorkerConfigEpoch: number;
 }>;
 /** Revokes in-process access; keeps immutable private evidence for an authenticated service retry. */
 export function disposeSealedRealmsProductionRecoveryPreparation(capability: SealedRealmsProductionRecoveryPreparation): void;

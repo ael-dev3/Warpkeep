@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { types } from 'node:util';
@@ -5,7 +6,8 @@ import { assertSealedRealmsProductionPrivateState } from './sealed-realms-produc
 import { sourceCommitFromSealedRealmsProductionAuthority } from './sealed-realms-production-source-authority.mjs';
 import { assertRecoverySourceClosureSnapshot } from './recovery-source-closure.mjs';
 import { verifySealedRealmsProductionRecoveryPreparationReceipt } from './sealed-realms-production-recovery-preparation-receipt.mjs';
-import { requestSealedRealmsProductionRecoveryPreparation } from './sealed-realms-production-recovery-preparation-transport.mjs';
+import { requestSealedRealmsProductionRecoveryPreparation, requestSealedRealmsProductionRecoveryPreparationObservation } from './sealed-realms-production-recovery-preparation-transport.mjs';
+import { verifySealedRealmsProductionRecoveryPreparationObservation } from './sealed-realms-production-recovery-preparation-observation-receipt.mjs';
 const owners = new WeakMap();
 const fail = () => { throw Error('SEALED_REALMS_RECOVERY_PREPARATION_INVALID'); };
 function capture(input, keys) {
@@ -37,21 +39,48 @@ function attest(state) {
   if (owner(state.privateState, state.authority) !== state.commit || process.cwd() !== state.root || realpathSync(state.root) !== state.root) fail();
   assertRecoverySourceClosureSnapshot({ repositoryRoot: state.root, sourceCommit: state.commit, sourceTree: state.tree });
 }
-function retained(state) {
+function readExact(state, path, compact) {
   let bytes;
   try {
-    bytes = state.privateState.read({ root: 'runtime', relativePath: state.path });
+    bytes = state.privateState.read({ root: 'runtime', relativePath: path });
     if (bytes.length > 16385) fail();
     const source = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
-    if (source !== `${state.compact}\n`) fail();
-    const intent = verifySealedRealmsProductionRecoveryPreparationReceipt(state.compact);
-    if (intent.preparationCommit !== state.commit || intent.preparationTree !== state.tree) fail();
-    return Object.freeze({ recoveryAuthorizationRequestId: intent.requestId, recoveryAuthorizationEpoch: intent.authorizationEpoch });
+    if (source !== `${compact}\n`) fail();
   } finally { bytes?.fill(0); }
 }
-/** Authenticates the current service reservation, retains its exact signed bytes, and owns only two candidate facts. */
+function retainedIntent(state) {
+  readExact(state, state.path, state.compact);
+  const intent = verifySealedRealmsProductionRecoveryPreparationReceipt(state.compact);
+  if (intent.preparationCommit !== state.commit || intent.preparationTree !== state.tree) fail();
+  return intent;
+}
+function retained(state) {
+  const intent = retainedIntent(state);
+  readExact(state, state.observationPath, state.observationCompact);
+  const observation = verifySealedRealmsProductionRecoveryPreparationObservation(
+    state.observationCompact, state.compact, Math.floor(Date.now() / 1000));
+  return Object.freeze({
+    recoveryAuthorizationRequestId: intent.requestId, recoveryAuthorizationEpoch: intent.authorizationEpoch,
+    recoveryAuthWorkerVersionId: observation.bridgeWorkerVersionId,
+    recoveryAuthWorkerSourceCommit: observation.bridgeSourceCommit,
+    recoveryAuthWorkerConfigIdentity: observation.bridgeConfigIdentity,
+    recoveryAuthWorkerConfigEpoch: observation.bridgeConfigEpoch,
+  });
+}
+function fresh(state) {
+  const now = Math.floor(Date.now() / 1000);
+  if (!Number.isSafeInteger(now) || now < state.observationIssuedAt || now >= state.observationExpiresAt) fail();
+}
+function persist(state, path, compact) {
+  const bytes = Buffer.from(`${compact}\n`);
+  try {
+    try { state.privateState.write({ root: 'runtime', relativePath: path, bytes }); }
+    catch { if (!state.privateState.exists({ root: 'runtime', relativePath: path })) fail(); }
+    readExact(state, path, compact);
+  } finally { bytes.fill(0); }
+}
+/** Retains exact reservation and fresh configuration signatures under the genuine source/private owner. */
 export async function createSealedRealmsProductionRecoveryPreparation(input) {
-  let bytes;
   try {
     if (arguments.length !== 1) fail();
     const { privateState, authority } = capture(input, ['privateState', 'authority']);
@@ -64,16 +93,24 @@ export async function createSealedRealmsProductionRecoveryPreparation(input) {
     const intent = verifySealedRealmsProductionRecoveryPreparationReceipt(compact);
     if (intent.preparationCommit !== commit || intent.preparationTree !== state.tree) fail();
     const path = `recovery-preparation/${commit}/${intent.authorizationEpoch}.jws`;
-    const retainedState = { ...state, path, compact };
-    bytes = Buffer.from(`${compact}\n`);
-    try { privateState.write({ root: 'runtime', relativePath: path, bytes }); }
-    catch { if (!privateState.exists({ root: 'runtime', relativePath: path })) fail(); }
-    retained(retainedState);
+    const reservationState = { ...state, path, compact };
+    persist(state, path, compact);
+    retainedIntent(reservationState);
     attest(state);
+    const observationCompact = await requestSealedRealmsProductionRecoveryPreparationObservation(commit, () => {
+      attest(state); retainedIntent(reservationState);
+    });
+    attest(state); retainedIntent(reservationState);
+    const observation = verifySealedRealmsProductionRecoveryPreparationObservation(observationCompact, compact, Math.floor(Date.now() / 1000));
+    const digest = createHash('sha256').update(observationCompact).digest('hex');
+    const observationPath = `recovery-preparation/${commit}/${intent.authorizationEpoch}/observations/${digest}.jws`;
+    persist(state, observationPath, observationCompact);
+    const retainedState = { ...reservationState, observationPath, observationCompact,
+      observationIssuedAt: observation.issuedAt, observationExpiresAt: observation.expiresAt };
+    retained(retainedState); attest(state); fresh(retainedState);
     const capability = Object.freeze({}); owners.set(capability, Object.freeze(retainedState));
     return capability;
   } catch { fail(); }
-  finally { bytes?.fill(0); }
 }
 export function readSealedRealmsProductionRecoveryPreparation(input) {
   try {
@@ -82,7 +119,7 @@ export function readSealedRealmsProductionRecoveryPreparation(input) {
     if (types.isProxy(capability)) fail();
     const state = owners.get(capability);
     if (!state || state.privateState !== privateState || state.authority !== authority) fail();
-    attest(state); const facts = retained(state); attest(state); return facts;
+    attest(state); const facts = retained(state); attest(state); fresh(state); return facts;
   } catch { fail(); }
 }
 export function disposeSealedRealmsProductionRecoveryPreparation(capability) { owners.delete(capability); }

@@ -114,8 +114,8 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
     || JSON.stringify(bridge) !== JSON.stringify(readBridge())
     || JSON.stringify(approvals) !== JSON.stringify(readApprovals())
     || JSON.stringify(closure) !== JSON.stringify(readClosure())
-    || JSON.stringify(preparation) !== JSON.stringify(readPreparation())
-    || JSON.stringify(actual) !== JSON.stringify(source(commit))) fail();
+    || JSON.stringify(actual) !== JSON.stringify(source(commit))
+    || JSON.stringify(preparation) !== JSON.stringify(readPreparation())) fail();
   const ordered = Object.freeze(Object.fromEntries(keys
     .filter(key => Object.hasOwn(facts, key)).map(key => [key, facts[key]])));
   return Object.freeze({ facts: ordered,

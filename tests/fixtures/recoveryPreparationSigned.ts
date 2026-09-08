@@ -1,4 +1,4 @@
-import { createHash, createPrivateKey, sign } from 'node:crypto';
+import { createHash, createPrivateKey, createPublicKey, sign } from 'node:crypto';
 import { vi } from 'vitest';
 // Synthetic signed receipt, matching the actual service codec; no production credentials.
 const key = createPrivateKey({ format: 'jwk', key: { kty: 'EC', crv: 'P-256',
@@ -26,8 +26,10 @@ export function signedPreparationFixture(delta: Record<string, unknown> = {}) {
   if (s > order / 2n) Buffer.from((order - s).toString(16).padStart(64, '0'), 'hex').copy(signature, 32);
   return { compact: `${input}.${signature.toString('base64url')}`, intent };
 }
-export function preparationTransportFixture(change?: (url: string, init: RequestInit) => Response | undefined, delta: Record<string, unknown> = {}) {
+export function preparationTransportFixture(change?: (url: string, init: RequestInit) => Response | undefined, delta: Record<string, unknown> = {}, observationDelta: Record<string, unknown> = {}) {
   const f = signedPreparationFixture(delta);
+  const now = Math.floor(Date.now() / 1000);
+  const observation = signedPreparationObservationFixture(f.intent, { observedFrom: now, observedThrough: now, issuedAt: now, expiresAt: now + 90, ...observationDelta });
   for (const [key, value] of Object.entries({ GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
     GITHUB_REF: 'refs/heads/main', GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_JOB: 'operate',
     GITHUB_WORKFLOW_REF: 'ael-dev3/Warpkeep/.github/workflows/sealed-realms-production.yml@refs/heads/main',
@@ -38,9 +40,42 @@ export function preparationTransportFixture(change?: (url: string, init: Request
   vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
     requests.push({ url, init });
     const response = change?.(url, init) ?? new Response(JSON.stringify(url.startsWith('https://release-auth.')
-      ? { preparationReceiptJws: f.compact } : { value: 'signed.oidc.fixture' }), { headers: { 'content-type': 'application/json' } });
+      ? url.endsWith('/preparation-observation') ? { preparationObservationJws: observation.compact } : { preparationReceiptJws: f.compact } : { value: 'signed.oidc.fixture' }), { headers: { 'content-type': 'application/json' } });
     Object.defineProperty(response, 'url', { value: url });
     return response;
   });
-  return { ...f, requests };
+  return { ...f, observation: observation.observation, observationCompact: observation.compact, requests };
+}
+
+// Public test-key module for purpose-separated codec tests; no new key material.
+const publicJwk = createPublicKey(key.export({ format: 'pem', type: 'pkcs8' })).export({ format: 'jwk' });
+export const recoveryPreparationTestPublicKey = {
+  RECOVERY_KEY_ID: 'warpkeep-0.4.0-recovery-2026-09-03-1',
+  RECOVERY_PUBLIC_JWK: publicJwk,
+  RECOVERY_KEY_THUMBPRINT: createHash('sha256').update(JSON.stringify({
+    crv: publicJwk.crv, kty: publicJwk.kty, x: publicJwk.x, y: publicJwk.y,
+  })).digest('base64url'),
+};
+export function signedPreparationObservationFixture(
+  intent: ReturnType<typeof signedPreparationFixture>['intent'],
+  delta: Record<string, unknown> = {}, headerDelta: Record<string, unknown> = {},
+) {
+  const observation = {
+    schemaVersion: 1, profile: 'warpkeep-recovery-preparation-observation-v1',
+    iss: 'https://release-auth.warpkeep.com', aud: 'https://release-auth.warpkeep.com/preparation-observation',
+    purpose: 'activation-evidence-worker-configuration', intent,
+    bridgeService: 'warpkeep-auth-bridge', bridgeWorkerVersion: 'warpkeep-auth-bridge-release-recovery-v1',
+    observedFrom: 1700000010, observedThrough: 1700000011,
+    bridgeWorkerVersionId: '123e4567-e89b-42d3-a456-426614174002', bridgeSourceCommit: 'b'.repeat(40),
+    bridgeConfigIdentity: 'a'.repeat(64), bridgeConfigEpoch: 5,
+    issuedAt: 1700000012, expiresAt: 1700000101, ...delta,
+  };
+  const header = { alg: 'ES256', typ: 'warpkeep-recovery-preparation-observation+jws',
+    kid: recoveryPreparationTestPublicKey.RECOVERY_KEY_ID, ...headerDelta };
+  const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const input = `${encode(header)}.${encode(observation)}`;
+  const signature = sign('sha256', Buffer.from(input), { key, dsaEncoding: 'ieee-p1363' });
+  const s = BigInt(`0x${signature.subarray(32).toString('hex')}`);
+  if (s > order / 2n) Buffer.from((order - s).toString(16).padStart(64, '0'), 'hex').copy(signature, 32);
+  return { compact: `${input}.${signature.toString('base64url')}`, observation };
 }

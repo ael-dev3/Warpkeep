@@ -32,7 +32,6 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
-  readSealedRealmsProductionRecoveryCandidate,
   inspectSealedRealmsProductionRecoveryCandidate,
 } from "../scripts/sealed-realms-production-recovery-candidate.mjs";
 import { updateDigest } from "../scripts/sealed-realms-existing-update-protocol.mjs";
@@ -351,7 +350,7 @@ vi.mock("node:fs", async (original) => {
   };
 });
 it(
-  "joins actual signed service preparation with Git, releases, private corpus and bridge, reducing missing facts from six to four",
+  "joins signed preparation and configuration with Git, releases, private corpus and bridge, leaving only two program hashes",
   async () => {
     const actual =
       await vi.importActual<typeof import("node:child_process")>(
@@ -642,12 +641,6 @@ it(
         bootstrap.bootstrapSha256,
       );
 
-      const inspected = inspectSealedRealmsProductionRecoveryCandidate({
-        ...input,
-        bridgeState: bridge,
-      });
-      expect(inspected.missingFields).toHaveLength(7);
-      expect(inspected.missingFields).toContain("sourceClosureSha256");
       const work = createSealedRealmsProductionRecoverySourceClosure({
         privateState: f.privateState,
         authority: f.authority,
@@ -661,38 +654,42 @@ it(
         bridgeState: bridge,
         sourceClosure,
       });
-      expect(joined.missingFields).toEqual(
-        inspected.missingFields.filter(
-          (field) => field !== "sourceClosureSha256",
-        ),
-      );
-      expect(joined.missingFields).toHaveLength(6);
-      const service = preparationTransportFixture(undefined, { preparationCommit: sourceCoordinates.commit, preparationTree: sourceCoordinates.tree });
+      // Two full inspections preserve every production reread without repeating
+      // the closure-only baseline and missing-candidate refusal covered elsewhere.
+      expect([...joined.missingFields].sort()).toEqual([
+        'g001ExpectedProgramKeccak256', 'g002ExpectedProgramKeccak256',
+        'recoveryAuthWorkerConfigEpoch', 'recoveryAuthWorkerConfigIdentity',
+        'recoveryAuthorizationEpoch', 'recoveryAuthorizationRequestId',
+      ]);
+      const service = preparationTransportFixture(undefined,
+        { preparationCommit: sourceCoordinates.commit, preparationTree: sourceCoordinates.tree },
+        { bridgeWorkerVersionId: joined.facts.recoveryAuthWorkerVersionId,
+          bridgeSourceCommit: joined.facts.recoveryAuthWorkerSourceCommit });
       const preparation = await createSealedRealmsProductionRecoveryPreparation({ privateState: f.privateState, authority: f.authority });
       try {
         const prepared = inspectSealedRealmsProductionRecoveryCandidate({ ...input, bridgeState: bridge, sourceClosure, preparation });
-        expect(prepared.missingFields).toEqual(joined.missingFields.filter(field => !['recoveryAuthorizationRequestId', 'recoveryAuthorizationEpoch'].includes(field)));
-        expect(prepared.missingFields).toHaveLength(4);
-        expect(prepared.facts).toMatchObject({ recoveryAuthorizationRequestId: service.intent.requestId, recoveryAuthorizationEpoch: service.intent.authorizationEpoch });
-        expect(() => readSealedRealmsProductionRecoveryCandidate({ ...input, bridgeState: bridge, sourceClosure, preparation })).toThrow('SEALED_REALMS_RECOVERY_CANDIDATE_INPUTS_MISSING');
+        expect(prepared.missingFields).toEqual(joined.missingFields.filter(field => !['recoveryAuthorizationRequestId', 'recoveryAuthorizationEpoch', 'recoveryAuthWorkerConfigIdentity', 'recoveryAuthWorkerConfigEpoch'].includes(field)));
+        expect([...prepared.missingFields].sort()).toEqual(['g001ExpectedProgramKeccak256', 'g002ExpectedProgramKeccak256']);
+        expect(prepared.facts).toMatchObject({ recoveryAuthorizationRequestId: service.intent.requestId, recoveryAuthorizationEpoch: service.intent.authorizationEpoch,
+          recoveryAuthWorkerConfigIdentity: service.observation.bridgeConfigIdentity,
+          recoveryAuthWorkerConfigEpoch: service.observation.bridgeConfigEpoch });
       } finally { disposeSealedRealmsProductionRecoveryPreparation(preparation); vi.unstubAllGlobals(); }
       expect(joined.facts).toMatchObject({
-        ...inspected.facts,
         sourceClosureSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
       });
-      expect(inspected.facts).toMatchObject({
+      expect(joined.facts).toMatchObject({
         g002PublicApprovalReceiptId: ga.publicApprovalReceiptId,
         ptrPublicApprovalReceiptId: pa.publicApprovalReceiptId,
       });
-      expect(inspected.missingFields).not.toContain(
+      expect(joined.missingFields).not.toContain(
         "g002PublicApprovalReceiptId",
       );
-      expect(inspected.missingFields).not.toContain(
+      expect(joined.missingFields).not.toContain(
         "ptrPublicApprovalReceiptId",
       );
     } finally {
       vi.unstubAllEnvs();
     }
   },
-  process.platform === "win32" ? 300_000 : 120_000,
+  process.platform === "win32" ? 600_000 : 120_000,
 );

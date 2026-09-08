@@ -4,6 +4,7 @@ const CONTEXT = Object.freeze({ GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'ael-
   GITHUB_REF: 'refs/heads/main', GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_JOB: 'operate',
   GITHUB_WORKFLOW_REF: 'ael-dev3/Warpkeep/.github/workflows/sealed-realms-production.yml@refs/heads/main' });
 const ENDPOINT = 'https://release-auth.warpkeep.com/v1/recovery/prepare';
+const OBSERVATION_ENDPOINT = 'https://release-auth.warpkeep.com/v1/recovery/preparation-observation';
 const AUDIENCE = 'https://release-auth.warpkeep.com/preparation';
 async function request(target, init, key, milliseconds) {
   const buffer = Buffer.alloc(32768), controller = new AbortController();
@@ -37,7 +38,7 @@ async function request(target, init, key, milliseconds) {
     if (declared !== null && Number(declared) !== length) fail();
     const raw = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(buffer.subarray(0, length));
     // Both fixed APIs return exactly one string member. This grammar rejects duplicate keys before JSON.parse.
-    const match = /^[ \t\r\n]*\{[ \t\r\n]*"(value|preparationReceiptJws)"[ \t\r\n]*:[ \t\r\n]*("(?:[^"\\\u0000-\u001f]|\\(?:["\\/bfnrt]|u[0-9a-fA-F]{4}))*")[ \t\r\n]*\}[ \t\r\n]*$/u.exec(raw);
+    const match = /^[ \t\r\n]*\{[ \t\r\n]*"(value|preparationReceiptJws|preparationObservationJws)"[ \t\r\n]*:[ \t\r\n]*("(?:[^"\\\u0000-\u001f]|\\(?:["\\/bfnrt]|u[0-9a-fA-F]{4}))*")[ \t\r\n]*\}[ \t\r\n]*$/u.exec(raw);
     if (match === null || match[1] !== key) fail();
     const compact = JSON.parse(match[2]);
     if (typeof compact !== 'string' || compact.length > 16384 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u.test(compact)) fail();
@@ -48,10 +49,10 @@ async function request(target, init, key, milliseconds) {
   }
 }
 /** Fixed transport only. The private owner authenticates the returned service signature and source binding. */
-export async function requestSealedRealmsProductionRecoveryPreparation(preparationCommit, beforeSend = () => {}) {
+async function requestPurpose(preparationCommit, beforeSend, endpoint, responseKey) {
   let credential, oidcToken;
   try {
-    if (arguments.length < 1 || arguments.length > 2 || typeof beforeSend !== 'function' || typeof preparationCommit !== 'string' || !/^[a-f0-9]{40}$/u.test(preparationCommit)
+    if (typeof beforeSend !== 'function' || typeof preparationCommit !== 'string' || !/^[a-f0-9]{40}$/u.test(preparationCommit)
       || Object.entries(CONTEXT).some(([key, value]) => process.env[key] !== value)
       || process.env.GITHUB_SHA !== preparationCommit
       || !/^[1-9][0-9]{0,19}$/u.test(process.env.GITHUB_RUN_ID ?? '')
@@ -70,9 +71,20 @@ export async function requestSealedRealmsProductionRecoveryPreparation(preparati
     credential = undefined;
     // Supplied by the private owner, not the workflow constructor's caller.
     if (beforeSend() !== undefined) fail();
-    return await request(ENDPOINT, { method: 'POST', headers: { 'content-type': 'application/json',
+    return await request(endpoint, { method: 'POST', headers: { 'content-type': 'application/json',
       accept: 'application/json', 'accept-encoding': 'identity', 'cache-control': 'no-store' },
-    body: JSON.stringify({ oidcToken, preparationCommit }) }, 'preparationReceiptJws', 110000);
+    body: JSON.stringify({ oidcToken, preparationCommit }) }, responseKey, 110000);
   } catch { fail(); }
   finally { credential = undefined; oidcToken = undefined; }
+}
+
+/** Reserves intent through the fixed preparation service. No caller-selected endpoint or purpose. */
+export async function requestSealedRealmsProductionRecoveryPreparation(preparationCommit, beforeSend = () => {}) {
+  if (arguments.length < 1 || arguments.length > 2) fail();
+  return requestPurpose(preparationCommit, beforeSend, ENDPOINT, 'preparationReceiptJws');
+}
+/** Observes current configuration for the service-owned reservation, using a fresh workflow token. */
+export async function requestSealedRealmsProductionRecoveryPreparationObservation(preparationCommit, beforeSend = () => {}) {
+  if (arguments.length < 1 || arguments.length > 2) fail();
+  return requestPurpose(preparationCommit, beforeSend, OBSERVATION_ENDPOINT, 'preparationObservationJws');
 }

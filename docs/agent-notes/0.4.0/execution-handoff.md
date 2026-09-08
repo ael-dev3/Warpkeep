@@ -29,11 +29,13 @@ socket limit. Its focused suite and the actual Linux Node24 bootstrap pass. The
 frozen G001 native lane completed both reproducible build cycles at cf1fbaa;
 The new --program-artifacts mode retains exact reproducible frozen G001 and current
 G002 module bytes, SHA256 and Keccak256 through the attested package path. Focused
-parent/helper tests and strict types pass; its actual native run and opaque recovery
-consumer remain pending. The paired native diagnostic reached PTR and found missing
+parent/helper tests and strict types pass. Actual native program-artifact execution
+at 0e0b0e4 completed both reproducible G001/G002 lanes and the pinned Keccak path.
+The opaque recovery consumer remains under integration. The paired native diagnostic reached PTR and found missing
 pinned archives in cache/ptr. The reviewed [PTR cache bootstrap](../../operations/ptr-local-binding-cache.md)
 now follows its own committed lock with integrity and no-clobber checks. Focused
-tests and types pass; actual native installation and paired validation remain pending.
+tests and types pass. Actual installation at 40b676a verified all selected PTR
+archives; the normal paired native workflow is now running.
 Generated deployment closure outputs were regenerated and reproduced identically;
 this is source consistency evidence, not an operating bundle or live release.
 
@@ -679,3 +681,10 @@ Root tests use Vitest; module and service tests have separate runners. Root
 `tsc --noEmit` alone does not traverse referenced projects: run the real package
 typecheck or both app/config checks. Verify selected tests and exit status, and
 label fixtures, emulation, real devices and authenticated owner play distinctly.
+
+Signed preparation observation now reaches the actual recovery candidate through
+the genuine source/private-state capability, with exact receipt retention and
+final freshness checks. The complete joined fixture passed: reservation and
+configuration inputs reduce the missing set from six to the two native program
+hashes. Earlier Windows timeouts are retained; only duplicate test inspections
+were removed. Native program-hash consumption remains under integration.

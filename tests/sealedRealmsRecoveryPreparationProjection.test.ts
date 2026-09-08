@@ -65,3 +65,37 @@ it('projects the preparation capability synchronously and refuses changed or con
   seams.preparation.mockReturnValueOnce(facts).mockReturnValue({ ...facts, recoveryAuthorizationEpoch: 999 });
   expect(() => inspectSealedRealmsProductionRecoveryCandidate(options)).toThrow();
 });
+it('joins signed configuration with the same bridge and refuses foreign version or source', () => {
+  const f = fixture(3), preparation = Object.freeze({}) as never, bridgeState = Object.freeze({}) as never;
+  const facts = Object.fromEntries(['recoveryAuthWorkerVersionId', 'recoveryAuthWorkerSourceCommit',
+    'recoveryAuthWorkerConfigIdentity', 'recoveryAuthWorkerConfigEpoch'].map(key => [key, f.candidate[key]]));
+  delete f.corpus.projection.recoveryAuthWorkerConfigIdentity;
+  delete f.corpus.projection.recoveryAuthWorkerConfigEpoch;
+  delete f.corpus.projection.g001ExpectedProgramKeccak256;
+  delete f.corpus.projection.g002ExpectedProgramKeccak256;
+  seams.bridge.mockReturnValue({ recoveryAuthWorkerVersionId: facts.recoveryAuthWorkerVersionId,
+    recoveryAuthWorkerSourceCommit: facts.recoveryAuthWorkerSourceCommit });
+  expect(inspectSealedRealmsProductionRecoveryCandidate({ ...f.input, bridgeState }).missingFields).toHaveLength(4);
+  seams.preparation.mockReturnValue(facts);
+  const input = { ...f.input, bridgeState, preparation };
+  expect(inspectSealedRealmsProductionRecoveryCandidate(input).missingFields).toEqual([
+    'g001ExpectedProgramKeccak256', 'g002ExpectedProgramKeccak256']);
+  for (const key of ['recoveryAuthWorkerVersionId', 'recoveryAuthWorkerSourceCommit']) {
+    seams.preparation.mockReturnValue({ ...facts, [key]: 'foreign' });
+    expect(() => inspectSealedRealmsProductionRecoveryCandidate(input)).toThrow();
+  }
+});
+it('refuses observation expiry during the final source snapshot', () => {
+  const f = fixture(3), preparation = Object.freeze({}) as never;
+  let snapshots = 0, expired = false;
+  const git = seams.git.getMockImplementation()!;
+  seams.git.mockImplementation((...args) => {
+    if (args[1].includes('cat-file') && ++snapshots === 2) expired = true;
+    return git(...args);
+  });
+  seams.preparation.mockImplementation(() => {
+    if (expired) throw Error('observation expired');
+    return { recoveryAuthorizationRequestId: f.candidate.recoveryAuthorizationRequestId };
+  });
+  expect(() => inspectSealedRealmsProductionRecoveryCandidate({ ...f.input, preparation })).toThrow('observation expired');
+});
