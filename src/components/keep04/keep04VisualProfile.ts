@@ -3,7 +3,7 @@ import * as THREE from 'three';
 export type Quality04 = 'high' | 'balanced' | 'reduced';
 export const KEEP04_VISUAL_PROFILE = Object.freeze({
   masonry: '#d7d2ba', timber: '#514237', roofTeal: '#397d7d', warpViolet: '#8d6ac8',
-  forestNear: '#52694b', distantHaze: '#a3b3a1', ground: '#7a8063',
+  forestNear: '#52694b', distantHaze: '#71897f', ground: '#7a8063',
   budgets: Object.freeze({
     high: { draws: 180, triangles: 300000, hardDraws: 650, hardTriangles: 900000, transferBytes: 12 * 1048576, trees: 18, cells: 8192, faces: 32768, quads: 2048, grid: 2 },
     balanced: { draws: 120, triangles: 180000, hardDraws: 550, hardTriangles: 520000, transferBytes: 8 * 1048576, trees: 12, cells: 4096, faces: 16384, quads: 1024, grid: 4 },

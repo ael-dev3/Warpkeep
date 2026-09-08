@@ -67,7 +67,7 @@
 .keep04 .keep04-selected-review { margin-bottom: 16px; }
 .keep04 .keep04-selected-review > button { margin-bottom: 8px; }
 .keep04 .keep04-scene-toolbar { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; }
-.keep04 .keep04-scene-canvas { position: relative; width: 100%; height: clamp(220px, 43vw, 620px); overflow: hidden; border-radius: 8px; background: #a3b3a1; }
+.keep04 .keep04-scene-canvas { position: relative; width: 100%; height: clamp(220px, 43vw, 620px); overflow: hidden; border-radius: 8px; background: #71897f; }
 .keep04 .keep04-scene[data-mode="fallback"] .keep04-scene-canvas { height: 0; }
 .keep04 .keep04-primary-action button { width: 100%; margin-top: 8px; }
 .keep04 .keep04-confirm:not(:disabled) { background: #e1d4b5; color: #18251e; border-color: #e1d4b5; font-weight: 700; }

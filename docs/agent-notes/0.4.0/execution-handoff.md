@@ -5,6 +5,21 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Verdant Citadel backdrop and loading continuity
+
+A cooler muted green backdrop separates the pale terrace and warm grounds more
+clearly. The WebGL background and fog share the visual profile, and the loading
+canvas now uses the same color. Existing lighting, assets, geometry and mobile
+framing remain intact.
+
+Actual synthetic renders cover empty and mature keeps at narrow balanced,
+narrow reduced and wide high quality. The scene suites passed 74 tests before
+the matching loading CSS change; 47 accessibility/host tests passed afterward.
+A paused-model-loading browser capture verified the transition into WebGL with
+matching background and stable canvas height. Render resource counts were
+unchanged in these captures; this is not a device-performance benchmark or owner
+acceptance. No production deployment or realm operation occurred.
+
 ## Mobile keep framing
 
 Compact screens now give the keep scene more vertical space, making the grounds
