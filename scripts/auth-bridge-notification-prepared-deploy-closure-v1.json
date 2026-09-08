@@ -1060,7 +1060,7 @@
     {
       "path": "scripts/notification-pages-live-receipt.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9406290e6f3fa118c2c62f20db2a7bb89986bd31f261d8a5b403f250ed496589"
+      "sha256": "91a2d057ce5503bf8851f3c2a0dc0b4d7108d899aacc64ac3d28ffe7bd9f5acf"
     },
     {
       "path": "scripts/notification-pages-live-release-binding.d.mts",
@@ -1395,12 +1395,12 @@
     {
       "path": "scripts/recovery-activation-candidate.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2e888d5f8f0e0632bc1177e6d078352544b4fc991251c68f8cc870ac42beecda"
+      "sha256": "25aa539d34e2e945cffcb2030a8c9fa75f5abfeda5bfcb61daee16a4681946c6"
     },
     {
       "path": "scripts/recovery-activation-candidate.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f8bead103914c222a514d3f17f5f4a5f62145c406b469d413cd7cd9abb6bea02"
+      "sha256": "311a6f40e9ca06d3be8d14665e7c11e5ed6e48463cf6a8c4f0563dfdf78350c8"
     },
     {
       "path": "scripts/recovery-attestation-source.d.mts",
@@ -1465,7 +1465,7 @@
     {
       "path": "scripts/recovery-workflow-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "dd71497aeadf53aa8ad90aaab4b03adc903aece454f38b1643cee3f875573562"
+      "sha256": "f3535a9dfc2e4bf8b7d1c27281a4fd572f27c3dfe858f6fb76ff9b1f70fc78c0"
     },
     {
       "path": "scripts/recovery-workflow-check-deployment.d.mts",
@@ -1600,17 +1600,17 @@
     {
       "path": "scripts/sealed-realms-production-activation-lane.bundle.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a1cbdccfeaaccc0f74be2d6dcda56ba2c5fa9c14996ef0cc9b42ba4d1f302c94"
+      "sha256": "6ba0b153d80d0149460e628d7d645e478444c84b97e55a980f4356ad104b741c"
     },
     {
       "path": "scripts/sealed-realms-production-activation-records.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "84b03630d3836351bab139d886662d3f70e021ae361285c6392cc3c645ebd524"
+      "sha256": "c0f52bc818e33725ef955d60ca129e00eca0b380bbd94593b51f72e5f2bb9267"
     },
     {
       "path": "scripts/sealed-realms-production-activation-records.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "66c0db031179b4bb1014db0abbb15b128bbe3438c6080ece58d2f8a3f2e5862b"
+      "sha256": "aa613c593af8f61ab800d86442b7edf170d493d474fac261fd4a90d5744b4614"
     },
     {
       "path": "scripts/sealed-realms-production-auth-bridge-state.d.mts",
@@ -1625,7 +1625,7 @@
     {
       "path": "scripts/sealed-realms-production-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "38cf30c0e29d8a999dec38590ac22ec4cd9eb011683770c2447abe8af889cdd3"
+      "sha256": "8226e40a7f11d3ffe032ec79471135610d73cc8961cbcbb834baafdc74bf1008"
     },
     {
       "path": "scripts/sealed-realms-production-continuation.d.mts",
@@ -1655,7 +1655,7 @@
     {
       "path": "scripts/sealed-realms-production-g002-lane.bundle.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a0ae2dd7c4c35f627e230e39631b05c2b03d02ef9235c4405549f8d6163e8db8"
+      "sha256": "c16c433c646620b62bbb0bfa020fc5587c48fbced7652062a6effa1b8577ddf5"
     },
     {
       "path": "scripts/sealed-realms-production-private-state.d.mts",
@@ -1675,7 +1675,7 @@
     {
       "path": "scripts/sealed-realms-production-ptr-lane.bundle.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "618ea04d559e0aaee888da1398d032b8298a5ccfec10f7192fca66a8246cbdb8"
+      "sha256": "524f817bc99849366997e0964321c33992d5dbc7bb6b32b2215cfd7b4ba60a34"
     },
     {
       "path": "scripts/sealed-realms-production-source-authority.d.mts",
@@ -3355,12 +3355,12 @@
     {
       "path": "src/components/keep04/Keep04BuildingPanel.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e732856eec127215a1ea9c5ae04d41c9b954887c4346471c8f9f8c0559c9fde1"
+      "sha256": "ace1514b3c0c383154674d7a39eddc8484c2906e288692091138e110e3acd998"
     },
     {
       "path": "src/components/keep04/Keep04SceneHost.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "57f7c496863d1436c7c8981d8e20dc4d5e67daf5ee9a084bcc08d6efc1981045"
+      "sha256": "dcd4843dd66a9826420bfaee034cd26b95966a01c3f51a60abe94910a4cc81e3"
     },
     {
       "path": "src/components/keep04/Keep04Schematic.tsx",
@@ -3375,12 +3375,12 @@
     {
       "path": "src/components/keep04/Keep04Screen.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "25ea8ac2c849c5f9612ccd52a0918323e30d444c724fa7c7ce1e29374eb9b8bf"
+      "sha256": "4173c58daea5682745f5d2ff90c4fee62c75017c4c2154ee8fea7b2371f15fcf"
     },
     {
       "path": "src/components/keep04/Keep04WorkerPanel.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "dd81f08e574a1c9508399dd3bd36cb6704e324abf0b712d59149e54851ac098d"
+      "sha256": "8bc9c784b410f8978f38f2ebfd0ac0736d2a729559c9713b2121d5f41c5b0fc0"
     },
     {
       "path": "src/components/keep04/createKeep04Buildings.ts",
@@ -4705,7 +4705,7 @@
     {
       "path": "src/ptr/PtrGameplay04SurfaceHost.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b76502f7bd8b1a88cd31a038aab714ee89dad098da0459cf2e12a31e3769852f"
+      "sha256": "78b104c12d7ef624f6345acf57d6db5250a585814a0dc13ff9ff3512c4f4ee11"
     },
     {
       "path": "src/ptr/PtrRealmProvider.tsx",
@@ -4735,7 +4735,7 @@
     {
       "path": "src/ptr/gameplay04/gameplay04Presentation.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "43a3f5e02058f0f88b2850ce12d227443e006eaa09c834aeef2120d80dd9b420"
+      "sha256": "e263ac3fa3ade71d6df297a73281c74ce35e709371a839713631d36fae55c972"
     },
     {
       "path": "src/ptr/gameplay04/gameplay04State.ts",
