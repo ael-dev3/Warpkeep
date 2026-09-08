@@ -23,6 +23,8 @@ const pagesRootTestRun = 'npm test -- --maxWorkers=2';
 interface WorkflowStep {
   name?: string;
   run?: string;
+  uses?: string;
+  with?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -42,6 +44,14 @@ function workflowJob(workflowName: string, jobName: string): WorkflowJob {
   const job = document.jobs?.[jobName];
   if (job === undefined) throw new Error(`workflow job ${jobName} missing`);
   return job;
+}
+
+function workflowJobSource(workflowName: string, jobName: string): string {
+  const source = workflow(workflowName);
+  const jobs = [...source.matchAll(/^  ([a-z0-9-]+):\s*$/gm)];
+  const index = jobs.findIndex(match => match[1] === jobName);
+  if (index < 0) throw new Error(`workflow job ${jobName} missing`);
+  return source.slice(jobs[index].index, jobs[index + 1]?.index);
 }
 
 function allWorkflows() {
@@ -149,9 +159,18 @@ describe('GitHub workflow security policy', () => {
     expect(build.indexOf(ptrPagesBuildGate)).toBeLessThan(
       build.indexOf('\n      - name: Install\n'),
     );
-    expect(source.match(
-      /scripts\/verify-0\.4\.0-sealed-launch\.mjs/g,
-    )).toHaveLength(4);
+    const pages = parse(source) as { jobs: Record<string, WorkflowJob> };
+    const verificationPhases = Object.fromEntries(Object.entries(pages.jobs)
+      .flatMap(([name, job]) => {
+        const phases = (job.steps ?? []).flatMap(step => [...(step.run ?? '')
+          .matchAll(/scripts\/verify-0\.4\.0-sealed-launch\.mjs --phase=([a-z-]+)/g)]
+          .map(match => match[1]));
+        return phases.length ? [[name, phases]] : [];
+      }));
+    expect(verificationPhases).toEqual({
+      classify: ['pages'], build: ['pages-build'], deploy: ['activation'],
+      'verify-live': ['activation'], 'deploy-recovery': ['pages-build'],
+    });
     expect(build.indexOf('npm run verify:sealed-launch:activation')).toBeLessThan(
       build.indexOf('npm run build'),
     );
@@ -167,7 +186,7 @@ describe('GitHub workflow security policy', () => {
     const postflightStart = source.indexOf('  verify-live:');
     const concurrency = source.slice(concurrencyStart, jobsStart);
     const deploy = source.slice(deployStart, postflightStart);
-    const postflight = source.slice(postflightStart);
+    const postflight = workflowJobSource('deploy-pages.yml', 'verify-live');
 
     expect(concurrencyStart).toBeGreaterThan(-1);
     expect(concurrencyStart).toBeLessThan(jobsStart);
@@ -247,15 +266,20 @@ describe('GitHub workflow security policy', () => {
 
   it('builds and verifies the exact successful Verify head SHA', () => {
     const source = workflow('deploy-pages.yml');
-    const checkoutCount = (source.match(/actions\/checkout@/g) ?? []).length;
-    const exactRefCount = (
-      source.match(/ref:\s*\$\{\{ github\.event\.workflow_run\.head_sha \}\}/g) ?? []
-    ).length;
-
-    expect(checkoutCount).toBe(6);
-    expect(exactRefCount).toBe(checkoutCount);
-    expect(source.match(/fetch-depth:\s*0/g)).toHaveLength(checkoutCount - 1);
-    expect(source.match(/fetch-depth:\s*1/g)).toHaveLength(1);
+    const pages = parse(source) as { jobs: Record<string, WorkflowJob> };
+    expect(Object.keys(pages.jobs).sort()).toEqual([
+      'build', 'classify', 'deploy', 'deploy-recovery', 'private-deploy',
+      'private-toolchain', 'verify-live',
+    ]);
+    for (const [name, job] of Object.entries(pages.jobs)) {
+      const checkouts = job.steps?.filter(step => step.uses?.startsWith('actions/checkout@')) ?? [];
+      expect(checkouts, `${name} must check out its own verified source`).toHaveLength(1);
+      expect(checkouts[0].with).toMatchObject({
+        ref: '${{ github.event.workflow_run.head_sha }}',
+        'fetch-depth': name === 'private-toolchain' ? 1 : 0,
+        'persist-credentials': false,
+      });
+    }
     expect(source).toContain(
       'VITE_WARPKEEP_BUILD_SHA: ${{ github.event.workflow_run.head_sha }}',
     );
@@ -266,11 +290,7 @@ describe('GitHub workflow security policy', () => {
   });
 
   it('runs bounded read-only live verification and fails closed on auth mode ambiguity', () => {
-    const source = workflow('deploy-pages.yml');
-    const liveVerification = source.slice(
-      source.indexOf('  verify-live:'),
-      source.indexOf('  private-deploy:'),
-    );
+    const liveVerification = workflowJobSource('deploy-pages.yml', 'verify-live');
 
     expect(liveVerification).toContain('needs: deploy');
     expect(liveVerification).toContain(

@@ -120,6 +120,21 @@ production changes or fence removals were performed during this inspection.
 
 ## Scope and acceptance boundaries
 
+### Pages workflow regression coverage
+
+Verify run `34170072520` at `5b97c5f` reported three additional root-suite
+failures after the Linux recovery Pages job was added. Two assertions counted
+workflow-wide checkout/verifier occurrences; the third read past `verify-live`
+into the new deployment job and attributed its write permission to postflight.
+
+The tests now inspect every named job's exact verified source checkout, fetch
+depth and disabled credential persistence, compare the required verification
+phases by job, and bound postflight source to its own job. All **17 workflow
+security tests passed** on Windows with Node 22.22.3. This correction changes no
+workflow permissions or deployment behavior. The same CI run still reports
+source-pin/closure and activation-fixture failures; a passing focused test is
+not a green full Verify run or a live deployment.
+
 ### No-Mac execution boundary reinspection
 
 At `78a0a7a`, production migration is not just a runner-label change:
