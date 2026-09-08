@@ -666,6 +666,33 @@ describe('0.4.0 sealed-launch verifier', () => {
     }
   });
 
+  it.each(['ptrOwnerPolicySource', 'ptrAuthSource'] as const)(
+    'pins the complete SDK identity authority bytes: %s',
+    field => {
+      const checkedIn = checkedInSources();
+      expect(() => verifySealedLaunchSources(checkedIn, 'preparation')).not.toThrow();
+      const hostile = { ...checkedIn, [field]: `${checkedIn[field]}\n` };
+      expect(() => verifySealedLaunchSources(hostile, 'preparation'))
+        .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+    },
+  );
+
+  it.each([
+    'PTR_ADMIN_EXACT_CLAIM_KEYS',
+    'PTR_OWNER_EXACT_CLAIM_KEYS',
+    'PTR_ATLAS_ADMIN_EXACT_CLAIM_KEYS',
+  ])('rejects widening the SDK identity exception for %s', claimKeys => {
+    const checkedIn = checkedInSources();
+    const from = `keys.length !== ${claimKeys}.length + Number(keys.includes('hex_identity'))`;
+    const hostile = {
+      ...checkedIn,
+      ptrOwnerPolicySource: checkedIn.ptrOwnerPolicySource.replace(from, 'false'),
+    };
+    expect(hostile.ptrOwnerPolicySource).not.toBe(checkedIn.ptrOwnerPolicySource);
+    expect(() => sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics(hostile))
+      .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+  });
+
   it('accepts the exact disjoint G002 administrator authority sources', () => {
     expect(verifySealedLaunchSources(checkedInSources(), 'preparation')).toMatchObject({
       phase: 'preparation',

@@ -1871,10 +1871,10 @@ function contractExactPtrRecordParser(
   const record = payload as JsonRecord;
   const keys = Reflect.ownKeys(record);
   if (
-    keys.length !== ${claimKeysName}.length
+    keys.length !== ${claimKeysName}.length + Number(keys.includes('hex_identity'))
     || keys.some(key => (
       typeof key !== 'string'
-      || !(${claimKeysName} as readonly string[]).includes(key)
+      || (key !== 'hex_identity' && !(${claimKeysName} as readonly string[]).includes(key))
     ))
   ) throw new PtrOwnerPolicyError('${denialCode}');
   return record;
