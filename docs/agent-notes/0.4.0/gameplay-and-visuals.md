@@ -1,7 +1,7 @@
 # Gameplay and visual implementation notes
 
-Updated 2026-09-07 against the active 0.4 worktree at
-`781e51e364d1e5a7319ca2364744c8730e83b0d6`, including the inspected working files.
+Updated 2026-09-09 against the published 0.4 checkpoint at
+`65e3fa4fb37b82d48a1ad138f4a7a32323417e9a`, including the inspected working files.
 This refresh is source/document inspection, with no new test run, authenticated
 owner session or production call. Earlier executed results keep their original
 source and limitations in the [execution handoff](execution-handoff.md).
@@ -26,11 +26,14 @@ reference library informs one coherent Verdant Citadel, rather than a collection
 of imported mechanics or rendering engines.
 
 Published forest grouping and moss/earth terrace tops improve separation between
-buildings and their setting. Matched empty/mature desktop and narrow-mobile views,
-including reduced quality, retained rendering resource counts and had no horizontal
-overflow. Focused scene/dressing tests and types passed. The screenshots use the
-actual Keep04 renderer with synthetic state and software rendering; they do not
-prove physical-phone performance or authenticated owner usability.
+buildings and their setting. The current source-render matrix covers empty,
+mature, legal placement, blocked placement, construction, completion and
+schematic fallback at desktop and 390px portrait profiles. The portrait WebGL
+canvas uses the available scene-panel width while the toolbar remains padded;
+desktop, short-landscape and fallback geometry are unchanged. Focused
+scene/dressing tests and types passed. These captures use the actual Keep04
+renderer with synthetic state and software rendering; they do not prove
+physical-phone performance or authenticated owner usability.
 
 The mapping below records lessons from the supplied handoff research, not a new
 live audit of external projects. It retains open art questions rather than claiming
@@ -45,7 +48,7 @@ See the source routing table below for their entry points.
 | Owner Astra voxel-engine Reddit | K/A use existing bounded greedy mesher and generated dressing | Meshing exists; surface rhythm and chunky joins still need art review | Refine a few material groups and terrace edges; retain bounded merged faces, no editable terrain |
 | Owner Verdant Forest | K has tinted, instanced tree groups with curated gaps and near/far separation | Review remaining repetition against building silhouettes and selected-site views | Preserve layered composition and profile budgets while refining only visibly repetitive groups |
 | Owner Pelagic Ocean | W now supplies two broad swells, fine ripple, teal/sky accents | Actual atlas-distance highlight scale and calm shoreline still need comparison | Tune existing single-pass slope/color amplitude at matching camera; preserve reduced branch and unchanged wet-cell footprint |
-| Owner Dream Loop + Vesper demo | Representative scene harness and prior 390/600/1440 comparisons already exist | Latest atlas/keep material family lacks one coherent current target and retained critique | Matching-resolution current/target captures, independent concise critique, carry unresolved items; no realism mandate or numerical gate |
+| Owner Dream Loop + Vesper demo | Representative scene harness plus the current 390/600/1440 comparison workflow exist | The latest matrix now has a coherent keep target; a final retained critique and physical-device comparison remain | Keep matching-resolution captures, independent concise critique and carried-forward issues; no realism mandate or arbitrary numeric gate |
 | TUMBLE meadow | K instancing; A feature batching/quality limits | Meadow-to-forest transition and selective quiet areas need composition attention | Sparse authored foreground clumps and one shared motion rhythm only where visible; no wildlife simulation |
 | The Long Silence | H pauses hidden work and respects reduced motion | Constant visual activity can obscure status even without audio | Keep broad quiet regions and finite confirmed-completion emphasis; sound design remains a later opt-in layer |
 | Starfall | Separate scene host, profile and presentation-plan owners | Scene, HUD and selected target need a shared hierarchy at narrow size | Reserve negative space and contrast for selections; retain existing gesture and performance boundaries |
@@ -115,7 +118,7 @@ passed. This is not authenticated owner play or physical-device evidence.
 | PTR integration | Scoped capability, real adapters and active-session renewal through fresh authorization/reconnect/preflight | Actual-owner renewal and complete live acceptance |
 | Healthy refresh | Verified scene/focus retained while new commands stay disabled; regression added in `555e505` | Final browser/device/performance proof for the integrated release |
 | G002 | Gameplay deliberately denies access before storage | Fresh live denial and no-unauthorized-write evidence; admissions TBD |
-| Verdant Citadel | Distinct 0.4 keep composition, materials, dressing, progression and fallback paths exist | Complete final-source visual matrix and small-screen readability |
+| Verdant Citadel | Distinct 0.4 keep composition, materials, dressing, progression, mobile framing and fallback paths exist | Physical-device readability/performance and final integrated-source acceptance |
 | Voxels | Bounded reusable mesher, world adapters and generated keep dressing are connected | Final whole-path visual/performance acceptance |
 | 0.4 water | Continuous returned wet hexes, world-coordinate swells/ripples and shared host-clock lifecycle | Final-source visual matrix, physical-device and agreed performance evidence |
 | Shipping | Substantial implementation and local evidence exist | Final operating composition, deployment and live acceptance; see release notes |
