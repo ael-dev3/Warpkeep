@@ -479,7 +479,8 @@ async function ensureEvidenceFile(record, key, authority) {
 function createOperation() {
   directory(RUNS);
   for (let attempt = 0; attempt < 4; attempt += 1) {
-    const name = `node-v24.19.0-${randomBytes(16).toString('hex')}`;
+    // Leave room for GPG's Unix socket names while retaining all 128 random bits.
+    const name = `n-${randomBytes(16).toString('base64url')}`;
     const path = join(RUNS, name);
     try {
       mkdirSync(path, { mode: 0o700 });

@@ -24,7 +24,8 @@ WarpkeepRunner now has verified Node22 and authenticated Ubuntu package updates
 matching the existing local bootstrap pins. The recovery fixture GPG policy is
 aligned to the same package version and exact binary hashes. The actual Node24
 bootstrap revealed an overlong GPG socket path in its private temporary directory;
-a bounded directory-name fix is being verified. Native builds remain pending.
+the reviewed directory-name fix now retains full random entropy within the Linux
+socket limit. Its focused suite passes; actual native bootstrap and builds remain pending.
 Generated deployment closure outputs were regenerated and reproduced identically;
 this is source consistency evidence, not an operating bundle or live release.
 

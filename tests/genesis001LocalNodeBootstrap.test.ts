@@ -348,6 +348,29 @@ afterAll(() => { if (ORIGINAL_GETUID === undefined) delete (process as { getuid?
 async function bootstrap() { const module = await import('../scripts/bootstrap-genesis001-local-node.mjs'); return module.bootstrapGenesis001LocalNode(); }
 
 describe('Genesis 001 fixed Node 24 bootstrap', () => {
+  it('keeps actual GPG socket paths within Linux sockaddr_un without reducing run entropy', async () => {
+    await bootstrap();
+    const calls = boundary.executions.filter(value => value.executable === '/usr/bin/gpg');
+    expect(calls.length).toBeGreaterThan(0);
+    const homes = calls.map(call => call.arguments[call.arguments.indexOf('--homedir') + 1]);
+    expect(new Set(homes).size).toBe(1);
+    const home = normalized(homes[0]);
+    for (const socket of ['S.gpg-agent', 'S.gpg-agent.extra', 'S.gpg-agent.browser', 'S.gpg-agent.ssh']) {
+      // Linux sun_path is 108 bytes including the pathname's terminating NUL.
+      expect(Buffer.byteLength(`${home}/${socket}\0`, 'utf8')).toBeLessThanOrEqual(108);
+    }
+    const operation = home.slice(0, -'/gnupg'.length);
+    expect(operation.startsWith(`${RUNS}/`)).toBe(true);
+    const name = operation.slice(RUNS.length + 1);
+    expect(name).toMatch(/^n-[A-Za-z0-9_-]{22}$/);
+    const nonce = Buffer.from(name.slice(2), 'base64url');
+    expect(nonce.byteLength).toBe(16);
+    expect(nonce.toString('base64url')).toBe(name.slice(2));
+    expect(calls.every(call => normalized(call.env.GNUPGHOME) === home
+      && normalized(call.env.HOME) === operation)).toBe(true);
+    expect(boundary.directories.has(operation)).toBe(false);
+  });
+
   it('rejects explicit undefined before importing or running the core', async () => {
     const module = await import('../scripts/bootstrap-genesis001-local-node.mjs');
     expect(Object.keys(module).sort()).toEqual(['Genesis001LocalNodeBootstrapError', 'bootstrapGenesis001LocalNode']);
