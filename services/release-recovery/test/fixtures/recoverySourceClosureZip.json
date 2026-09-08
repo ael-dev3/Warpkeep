@@ -1,0 +1,5 @@
+{
+  "provenance": "Exact actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 bundled createZipUploadStream, compression0, fs.lstat mode controlled to100600 on Windows. Not a native Linux capture.",
+  "actionBundleSha256": "0165b8a75330f3228f2c7a234b4ff8a107b9139c2b519147f4c8e9fe99b262d8",
+  "base64": "UEsDBBQACAAAAM+NKF0AAAAAAAAAAAAAAAAfAAAAcmVjb3Zlcnktc291cmNlLWNsb3N1cmUtdjEuanNvbnt9ClBLBwgGsKHdAwAAAAMAAABQSwECLQMUAAgAAADPjShdBrCh3QMAAAADAAAAHwAAAAAAAAAAACAAgIEAAAAAcmVjb3Zlcnktc291cmNlLWNsb3N1cmUtdjEuanNvblBLBQYAAAAAAQABAE0AAABQAAAAAAA="
+}

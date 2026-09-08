@@ -1,10 +1,11 @@
+vi.mock('../scripts/sealed-realms-production-recovery-source-closure.mjs', () => ({ readSealedRealmsProductionRecoverySourceClosure: seams.closure }));
 vi.mock('../scripts/sealed-realms-production-recovery-approval-facts.ts', () => ({ readSealedRealmsProductionRecoveryApprovalFacts: seams.approvals }));
 // @vitest-environment node
 import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
-const seams = vi.hoisted(() => ({ git: vi.fn(), corpus: vi.fn(), approvals: vi.fn(), bridge: vi.fn(), records: new WeakSet<object>() }));
+const seams = vi.hoisted(() => ({ closure: vi.fn(), git: vi.fn(), corpus: vi.fn(), approvals: vi.fn(), bridge: vi.fn(), records: new WeakSet<object>() }));
 vi.mock('node:child_process', () => ({ execFileSync: seams.git }));
 // Isolate corpus/source I/O, not candidate policy or source authority validation.
 vi.mock('../scripts/sealed-realms-production-activation-records.mjs', () => ({
@@ -19,7 +20,7 @@ import { inspectSealedRealmsProductionRecoveryCandidate, readSealedRealmsProduct
 import { RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3 } from '../scripts/recovery-binding-projection.mjs';
 import { validateRecoveryActivationCandidate, validateRecoveryActivationCandidateV3 } from '../scripts/recovery-activation-candidate.mjs';
 const encode = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
-beforeEach(() => { seams.git.mockReset(); seams.corpus.mockReset(); seams.bridge.mockReset(); });
+beforeEach(() => { seams.closure.mockReset(); seams.git.mockReset(); seams.corpus.mockReset(); seams.bridge.mockReset(); });
 function fixture(version: 2 | 3) {
   const old = recoveryBindingCandidate();
   const keys = version === 2 ? RECOVERY_BINDING_KEYS_V2 : RECOVERY_BINDING_KEYS_V3;
@@ -105,4 +106,22 @@ it('rejects corpus source duplicates that conflict with authenticated source', (
 
 it('rejects approval facts inconsistent with the selected corpus projection',()=>{
  const f=fixture(3);seams.approvals.mockReturnValue({g002PublicApprovalReceiptId:'different',ptrPublicApprovalReceiptId:f.candidate.ptrPublicApprovalReceiptId});expect(()=>inspectSealedRealmsProductionRecoveryCandidate(f.input)).toThrow();
+});
+
+it('merges source closure capability facts and rereads without permitting corpus conflicts', () => {
+  const f = fixture(3);
+  const sourceClosure = Object.freeze({}) as never;
+  const digest = f.candidate.sourceClosureSha256;
+  const options = { ...f.input, sourceClosure };
+  delete f.corpus.projection.sourceClosureSha256;
+  expect(inspectSealedRealmsProductionRecoveryCandidate(f.input).missingFields).toEqual(['sourceClosureSha256']);
+  seams.closure.mockReturnValue({ sourceClosureSha256: digest });
+  expect(inspectSealedRealmsProductionRecoveryCandidate(options).missingFields).toEqual([]);
+  expect(seams.closure).toHaveBeenCalledTimes(2);
+  expect(seams.closure).toHaveBeenCalledWith({ capability: sourceClosure, privateState: f.input.privateState, authority: f.input.authority });
+  f.corpus.projection.sourceClosureSha256 = 'f'.repeat(64);
+  expect(() => inspectSealedRealmsProductionRecoveryCandidate(options)).toThrow();
+  delete f.corpus.projection.sourceClosureSha256;
+  seams.closure.mockReturnValueOnce({ sourceClosureSha256: digest }).mockReturnValue({ sourceClosureSha256: 'e'.repeat(64) });
+  expect(() => inspectSealedRealmsProductionRecoveryCandidate(options)).toThrow();
 });

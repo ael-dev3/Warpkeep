@@ -1046,3 +1046,118 @@ export async function inspectPagesArtifact(
     githubFail(CODE)
   }
 }
+
+// Separate fixed JSON wrapper for upload-artifact@ea165f8, compression-level 0.
+// Its stored stream has a signed data descriptor and the producer's 0600 mode.
+// Do not broaden the independent Pages TAR policy to accommodate this format.
+export async function inspectRecoverySourceClosureArtifact(
+  response: Response,
+  transportExpectedInput: PagesArtifactTransportExpected,
+  timingInput?: PagesArtifactTiming,
+): Promise<Readonly<{ bytes: Uint8Array; githubArtifactArchiveSha256: string }>> {
+  let source: ArchiveSource | undefined
+  let body: ReadableStream<Uint8Array> | null | undefined
+  try {
+    body = response.body
+    if (body === null) githubFail(CODE)
+    const expected = snapshotTransportExpected(transportExpectedInput)
+    const name = 'recovery-source-closure-v1.json'
+    const maxBody = 16 * 1024 * 1024
+    // All wrapper fields are fixed size; no extras, comments or ZIP64.
+    const overhead = 30 + name.length + 16 + 46 + name.length + 22
+    if (
+      expected === undefined ||
+      expected.archiveByteLength <= overhead ||
+      expected.archiveByteLength > maxBody + overhead
+    )
+      githubFail(CODE)
+    const configured = snapshotTiming(timingInput)
+    const remaining = githubArchiveRemainingMilliseconds(response)
+    if (remaining === 0) githubFail(CODE)
+    const timing =
+      remaining === undefined
+        ? configured
+        : {
+            ...configured,
+            totalTimeoutMilliseconds: Math.min(configured.totalTimeoutMilliseconds, remaining),
+          }
+    source = new ArchiveSource(response, body, timing, expected)
+    const bytes = new Uint8Array(expected.archiveByteLength)
+    for (let offset = 0; offset < bytes.length;) {
+      const part = await source.readSome(Math.min(64 * 1024, bytes.length - offset))
+      if (part.length === 0) githubFail(CODE)
+      bytes.set(part, offset)
+      offset += part.length
+    }
+    const githubArtifactArchiveSha256 = await source.finish()
+    const end = bytes.length - 22
+    if (
+      u32(bytes, end) !== EOCD_SIGNATURE ||
+      u16(bytes, end + 4) !== 0 ||
+      u16(bytes, end + 6) !== 0 ||
+      u16(bytes, end + 8) !== 1 ||
+      u16(bytes, end + 10) !== 1 ||
+      u16(bytes, end + 20) !== 0
+    )
+      githubFail(CODE)
+    const central = u32(bytes, end + 16)
+    if (central !== end - (46 + name.length) || u32(bytes, end + 12) !== 46 + name.length) githubFail(CODE)
+    const bodyStart = 30 + name.length
+    const size = central - bodyStart - 16
+    if (
+      size < 1 ||
+      size > maxBody ||
+      u32(bytes, 0) !== LOCAL_SIGNATURE ||
+      u16(bytes, 4) !== 20 ||
+      u16(bytes, 6) !== 8 ||
+      u16(bytes, 8) !== 0 ||
+      u32(bytes, 14) !== 0 ||
+      u32(bytes, 18) !== 0 ||
+      u32(bytes, 22) !== 0 ||
+      u16(bytes, 26) !== name.length ||
+      u16(bytes, 28) !== 0 ||
+      decoder.decode(bytes.subarray(30, bodyStart)) !== name
+    )
+      githubFail(CODE)
+    validateDosTime(u16(bytes, 10), u16(bytes, 12))
+    const content = bytes.subarray(bodyStart, bodyStart + size)
+    const crc = new Crc32()
+    crc.update(content)
+    const checksum = crc.digest()
+    const descriptorOffset = central - 16
+    if (
+      u32(bytes, descriptorOffset) !== DESCRIPTOR_SIGNATURE ||
+      u32(bytes, descriptorOffset + 4) !== checksum ||
+      u32(bytes, descriptorOffset + 8) !== size ||
+      u32(bytes, descriptorOffset + 12) !== size ||
+      u32(bytes, central) !== CENTRAL_SIGNATURE ||
+      u16(bytes, central + 4) !== 0x032d ||
+      u16(bytes, central + 6) !== 20 ||
+      u16(bytes, central + 8) !== 8 ||
+      u16(bytes, central + 10) !== 0 ||
+      u16(bytes, central + 12) !== u16(bytes, 10) ||
+      u16(bytes, central + 14) !== u16(bytes, 12) ||
+      u32(bytes, central + 16) !== checksum ||
+      u32(bytes, central + 20) !== size ||
+      u32(bytes, central + 24) !== size ||
+      u16(bytes, central + 28) !== name.length ||
+      u16(bytes, central + 30) !== 0 ||
+      u16(bytes, central + 32) !== 0 ||
+      u16(bytes, central + 34) !== 0 ||
+      u16(bytes, central + 36) !== 0 ||
+      u32(bytes, central + 38) !== 0x8180_0020 ||
+      u32(bytes, central + 42) !== 0 ||
+      decoder.decode(bytes.subarray(central + 46, end)) !== name
+    )
+      githubFail(CODE)
+    return Object.freeze({ bytes: Uint8Array.from(content), githubArtifactArchiveSha256 })
+  } catch {
+    if (source !== undefined) source.cancel()
+    else if (body != null) {
+      try {
+        void body.cancel().catch(() => undefined)
+      } catch {}
+    }
+    githubFail(CODE)
+  }
+}

@@ -1,3 +1,4 @@
+import { validateRecoverySourceClosureArtifact } from './recoverySourceClosure.js'
 import {
   GITHUB_REPOSITORY,
   RECOVERY_REALM_BINDING_PROJECTION_KEYS,
@@ -14,7 +15,7 @@ import {
   snapshotRecoveryArmingTuple,
   snapshotRecoveryRealmBindingProjection,
 } from './config.js'
-import { inspectPagesArtifact } from './archive.js'
+import { inspectPagesArtifact, inspectRecoverySourceClosureArtifact } from './archive.js'
 import {
   githubRedirect,
   json,
@@ -1117,6 +1118,226 @@ async function loadStableArtifact(
   return Object.freeze({ projection, etag: first.etag })
 }
 
+const SOURCE_ARTIFACT_PATH =
+  '${{ runner.temp }}/warpkeep-recovery-source-closure-v1/recovery-source-closure-v1.json'
+
+const SOURCE_ARTIFACT_NAME = 'warpkeep-recovery-source-closure-v1'
+const RUN_FIELDS = [
+  'id',
+  'run_attempt',
+  'workflow_id',
+  '/repository/id',
+  '/repository/owner/id',
+  '/head_repository/id',
+] as const
+const ARTIFACT_FIELDS = [
+  '/artifacts/*/id',
+  '/artifacts/*/workflow_run/id',
+  '/artifacts/*/workflow_run/repository_id',
+  '/artifacts/*/workflow_run/head_repository_id',
+] as const
+
+function validateSourceClosureWorkflow(bytes: Uint8Array): void {
+  try {
+    const source = utf8.decode(bytes)
+    const document = parseDocument(source, {
+      schema: 'core',
+      strict: true,
+      uniqueKeys: true,
+      prettyErrors: false,
+    })
+    if (document.errors.length || document.warnings.length) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const root = objectValue(document.toJS({ maxAliasCount: 0 }))
+    const job = objectValue(objectValue(root.jobs).linux)
+    if (
+      root.name !== 'Verify' ||
+      job['runs-on'] !== 'ubuntu-latest' ||
+      job.if !== undefined ||
+      job['continue-on-error'] !== undefined ||
+      job.needs !== undefined ||
+      !Array.isArray(job.steps)
+    )
+      githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const steps = job.steps.map(objectValue)
+    const derives = steps.filter(
+      (step) => step.name === 'Derive complete recovery preparation source inventory',
+    )
+    const uploads = steps.filter((step) => step.name === 'Retain recovery preparation source inventory')
+    const checkouts = steps.filter(
+      (step) => typeof step.uses === 'string' && step.uses.startsWith('actions/checkout@'),
+    )
+    if (derives.length !== 1 || uploads.length !== 1 || checkouts.length !== 1)
+      githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const derive = derives[0]!
+    const upload = uploads[0]!
+    const checkout = checkouts[0]!
+    const condition = "github.event_name == 'push' && github.ref == 'refs/heads/main'"
+    if (
+      JSON.stringify(Object.keys(derive).sort()) !== JSON.stringify(['if', 'name', 'run']) ||
+      derive.if !== condition ||
+      derive.run !== 'node scripts/generate-recovery-source-closure.mjs --write' ||
+      JSON.stringify(Object.keys(upload).sort()) !== JSON.stringify(['if', 'name', 'uses', 'with']) ||
+      upload.if !== condition ||
+      upload.uses !== 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' ||
+      checkout.uses !== 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0' ||
+      checkout.if !== undefined ||
+      checkout['continue-on-error'] !== undefined ||
+      steps.indexOf(checkout) >= steps.indexOf(derive) ||
+      steps.indexOf(upload) !== steps.indexOf(derive) + 1
+    )
+      githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const checkoutWith = objectValue(checkout.with)
+    if (
+      JSON.stringify(Object.keys(checkoutWith).sort()) !==
+        JSON.stringify(['fetch-depth', 'persist-credentials']) ||
+      checkoutWith['fetch-depth'] !== 0 ||
+      checkoutWith['persist-credentials'] !== false
+    )
+      githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const settings = objectValue(upload.with)
+    if (
+      JSON.stringify(Object.keys(settings).sort()) !==
+        JSON.stringify(['compression-level', 'if-no-files-found', 'name', 'path', 'retention-days']) ||
+      settings.name !== SOURCE_ARTIFACT_NAME ||
+      settings.path !== SOURCE_ARTIFACT_PATH ||
+      settings['if-no-files-found'] !== 'error' ||
+      settings['compression-level'] !== 0 ||
+      settings['retention-days'] !== 30
+    )
+      githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  } catch {
+    githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  }
+}
+
+async function loadPreparationSourceClosure(
+  fetchImplementation: typeof fetch,
+  init: RequestInit,
+  token: string,
+  preparationCommit: string,
+  preparationTree: string,
+  tree: ReadonlyMap<string, TreeEntry>,
+  pagesRunId: string,
+): Promise<string> {
+  const workflow = tree.get(VERIFY_WORKFLOW_PATH)
+  if (workflow === undefined) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  validateSourceClosureWorkflow(await loadStableTreeBlob(fetchImplementation, init, workflow))
+  // S is derived from A's authenticated sole parent, never from a caller run ID.
+  // Bound both discovery and artifact probes; malformed evidence fails closed.
+  const list = await jsonWithMetadata(
+    fetchImplementation,
+    API +
+      '/actions/workflows/verify.yml/runs?head_sha=' +
+      preparationCommit +
+      '&branch=main&event=push&per_page=20&page=1',
+    init,
+    'RECOVERY_GITHUB_EVIDENCE_INVALID',
+    200,
+    RUN_FIELDS.map((field) => '/workflow_runs/*/' + (field.startsWith('/') ? field.slice(1) : field)),
+  )
+  if (
+    list.link !== null ||
+    !Array.isArray(list.value.workflow_runs) ||
+    !Number.isSafeInteger(list.value.total_count) ||
+    list.value.total_count !== list.value.workflow_runs.length ||
+    list.value.workflow_runs.length > 20
+  )
+    githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  const runs = list.value.workflow_runs.map(objectValue)
+  const seen = new Set<string>()
+  for (const run of runs) {
+    if (!positive(run.id) || !positive(run.run_attempt) || seen.has(run.id))
+      githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    seen.add(run.id)
+  }
+  const candidates = runs
+    .filter((run) => run.status === 'completed' && run.conclusion === 'success')
+    .sort((a, b) => (BigInt(a.id as string) > BigInt(b.id as string) ? -1 : 1))
+  for (const run of candidates)
+    validateSourceVerify(run, run.id as string, run.run_attempt as string, preparationCommit, pagesRunId)
+  for (const candidate of candidates.slice(0, 3)) {
+    const runId = candidate.id as string
+    const attempt = candidate.run_attempt as string
+    const current = await json(
+      fetchImplementation,
+      API + '/actions/runs/' + runId,
+      init,
+      'RECOVERY_GITHUB_EVIDENCE_INVALID',
+      200,
+      RUN_FIELDS,
+    )
+    validateSourceVerify(current, runId, attempt, preparationCommit, pagesRunId)
+    if (current.workflow_id !== candidate.workflow_id) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const listed = await jsonWithMetadata(
+      fetchImplementation,
+      API + '/actions/runs/' + runId + '/artifacts?name=' + SOURCE_ARTIFACT_NAME + '&per_page=100&page=1',
+      init,
+      'RECOVERY_GITHUB_EVIDENCE_INVALID',
+      200,
+      ARTIFACT_FIELDS,
+    )
+    if (
+      listed.link !== null ||
+      !Array.isArray(listed.value.artifacts) ||
+      listed.value.total_count !== listed.value.artifacts.length ||
+      listed.value.artifacts.length > 1
+    )
+      githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    if (listed.value.artifacts.length === 0) continue
+    const raw = objectValue(listed.value.artifacts[0])
+    if (!positive(raw.id)) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    if (raw.expired === true) continue
+    const projection = artifactProjection(raw, raw.id, SOURCE_ARTIFACT_NAME, runId, preparationCommit)
+    const stable = await loadStableArtifact(
+      fetchImplementation,
+      init,
+      raw.id,
+      SOURCE_ARTIFACT_NAME,
+      runId,
+      preparationCommit,
+    )
+    if (!sameArtifact(projection, stable.projection)) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const response = await githubRedirect(fetchImplementation, projection.archiveUrl, 'Bearer ' + token)
+    let archive: Awaited<ReturnType<typeof inspectRecoverySourceClosureArtifact>>
+    try {
+      archive = await inspectRecoverySourceClosureArtifact(response, { archiveByteLength: projection.size })
+    } catch {
+      githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    }
+    if (projection.digest !== 'sha256:' + archive.githubArtifactArchiveSha256)
+      githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const digest = await validateRecoverySourceClosureArtifact(archive.bytes, {
+      sourceCommit: preparationCommit,
+      sourceTree: preparationTree,
+      tree,
+    })
+    // Artifact metadata has a run ID, not an attempt. Do not invent an attempt
+    // binding: require the observed successful run attempt to remain stable.
+    const after = await json(
+      fetchImplementation,
+      API + '/actions/runs/' + runId,
+      init,
+      'RECOVERY_GITHUB_EVIDENCE_INVALID',
+      200,
+      RUN_FIELDS,
+    )
+    validateSourceVerify(after, runId, attempt, preparationCommit, pagesRunId)
+    if (after.workflow_id !== current.workflow_id) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const stableAfter = await loadStableArtifact(
+      fetchImplementation,
+      init,
+      raw.id,
+      SOURCE_ARTIFACT_NAME,
+      runId,
+      preparationCommit,
+    )
+    if (stableAfter.etag !== stable.etag || !sameArtifact(stableAfter.projection, projection))
+      githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    return digest
+  }
+  githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+}
+
 function snapshotIdentity(value: unknown, candidateCommit: string): Readonly<Record<string, unknown>> {
   const identity = snapshotExactDataObject(value, IDENTITY_KEYS, 'RECOVERY_GITHUB_EVIDENCE_INVALID')
   if (
@@ -1217,6 +1438,9 @@ export async function loadGitHubCandidateEvidence(input: Readonly<{
     )
     validateSourceVerify(source, sourceVerifyRunId, sourceVerifyRunAttempt, candidateCommit, identity.pagesRunId as string)
 
+    const sourceClosureSha256=await loadPreparationSourceClosure(fetchImplementation,init,token,armed.preparationCommit as string,preparation.tree,preparationTree,identity.pagesRunId as string)
+    if(sourceClosureSha256!==armed.sourceClosureSha256)githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+
     const artifactName = `github-pages-recovery-${identity.pagesRunId as string}-${identity.pagesRunAttempt as string}`
     const listUrl = `${API}/actions/runs/${identity.pagesRunId as string}/artifacts?name=${encodeURIComponent(artifactName)}&per_page=100&page=1`
     const listed = await jsonWithMetadata(fetchImplementation, listUrl, init, 'RECOVERY_GITHUB_EVIDENCE_INVALID', 200, [
@@ -1273,7 +1497,7 @@ export async function loadGitHubCandidateEvidence(input: Readonly<{
       recoveryBindingBytes: Uint8Array.from(bindingBytes),
       realmBinding,
       protectedWorkflowBytes: Uint8Array.from(workflowBytes),
-      sourceClosureSha256: armed.sourceClosureSha256 as string,
+      sourceClosureSha256,
       sourceVerifyRunId,
       sourceVerifyRunAttempt,
       pagesArtifactId: artifactId,

@@ -1,3 +1,4 @@
+import { sourceClosureZip } from './fixtures/sourceClosureZip.js'
 import { createPrivateKey } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { parseDocument } from 'yaml'
@@ -39,7 +40,7 @@ const PAGES_RUN_ID = 41
 const G001 = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
 const G002 = '70'.repeat(32)
 const PTR = '80'.repeat(32)
-const CLOSURE = '60'.repeat(32)
+const CLOSURE = '29a7641a130d49809d9368dbd67500fede63bbacf317d37c35c49d1baaf4f054'
 const BRIDGE_VERSION = 'warpkeep-auth-bridge-release-recovery-v1'
 const BRIDGE_VERSION_ID = '123e4567-e89b-42d3-a456-426614174002'
 const BRIDGE_SOURCE_COMMIT = '1'.repeat(40)
@@ -214,6 +215,16 @@ type State = {
   candidateLockBytes: Uint8Array
   preparationLockBytes: Uint8Array
   source: JsonObject
+  preparationSource: JsonObject
+  preparationRuns: JsonObject[]
+  preparationRunsTotal: number
+  preparationRunsLink: string | null
+  preparationArtifact: JsonObject
+  preparationArtifacts: JsonObject[]
+  preparationArtifactTotal: number
+  preparationArchive: Uint8Array
+  closureBytes: Uint8Array
+  verifyBytes: Uint8Array
   artifact: JsonObject
   listedArtifacts: JsonObject[]
   listTotal: number
@@ -369,7 +380,7 @@ function zip(body: Uint8Array): Uint8Array {
   return new Uint8Array([...local, ...body, ...central, ...eocd])
 }
 
-async function validBinding(useLocalGenerator: boolean | 3 = false): Promise<Readonly<{ bytes: Uint8Array; core: string }>> {
+async function validBinding(useLocalGenerator: boolean | 3 = false, closure = CLOSURE): Promise<Readonly<{ bytes: Uint8Array; core: string }>> {
   const binding: Record<string, JsonValue> = Object.create(null)
   for (const key of RECOVERY_BINDING_KEYS_V2) binding[key] = null
   Object.assign(binding, {
@@ -399,7 +410,7 @@ async function validBinding(useLocalGenerator: boolean | 3 = false): Promise<Rea
     recoveryAuthWorkerConfigIdentity: BRIDGE_CONFIG_IDENTITY,
     recoveryAuthWorkerConfigEpoch: 4,
     sourceClosureProfile: 'warpkeep-0.4.0-recovery-source-closure-v1',
-    sourceClosureSha256: CLOSURE,
+    sourceClosureSha256: closure,
     pagesDeploymentApproved: true,
     preparationSourceCommit: PREPARATION,
     preparationSourceTree: PREPARATION_TREE,
@@ -530,6 +541,8 @@ async function makeFixture(useLocalGenerator: boolean | 3 = false): Promise<Read
 }>> {
   const binding = await validBinding(useLocalGenerator)
   const workflow = workflowBytes()
+  const verifyBytes = new Uint8Array(await readFile(new URL('./fixtures/sourceClosureVerify.yml',import.meta.url)))
+  const verifySha = await blobSha(verifyBytes)
   const packageValue = {
     name: 'warpkeep', private: true, version: '0.4.0',
     scripts: { build: 'vite build', test: 'vitest --run' },
@@ -589,6 +602,16 @@ async function makeFixture(useLocalGenerator: boolean | 3 = false): Promise<Read
     entry('package-lock.json', oldLockSha, oldLockBytes.length),
     entry('package.json', oldPackageSha, oldPackageBytes.length),
   ]
+  candidateTree.push(entry('.github/workflows/verify.yml',verifySha,verifyBytes.length))
+  preparationTree.push(entry('.github/workflows/verify.yml',verifySha,verifyBytes.length))
+  const bodies=new Map([[workflowSha,workflow],[verifySha,verifyBytes],[oldBindingSha,oldBindingBytes],[readmeSha,readmeBytes],[oldLockSha,oldLockBytes],[oldPackageSha,oldPackageBytes]])
+  const closureEntries=await Promise.all(preparationTree.filter(e=>e.type==='blob').sort((a,b)=>Buffer.compare(Buffer.from(a.path),Buffer.from(b.path))).map(async e=>({path:e.path,mode:e.mode,oid:e.sha,byteLength:e.size,sha256:await digest('SHA-256',bodies.get(e.sha)!)})))
+  const closureBytes=encoder.encode(JSON.stringify({schemaVersion:1,profile:'warpkeep-0.4.0-recovery-source-closure-v1',sourceCommit:PREPARATION,sourceTree:PREPARATION_TREE,entries:closureEntries})+'\n')
+  const actualClosure=await digest('SHA-256',new Uint8Array([...encoder.encode('warpkeep.recovery-source-closure.v1\n'),...closureBytes]))
+  expect(actualClosure).toBe(CLOSURE)
+  const preparationArchive=sourceClosureZip(closureBytes)
+  const preparationSource={id:51,run_attempt:1,name:'Verify',path:'.github/workflows/verify.yml',event:'push',status:'completed',conclusion:'success',head_branch:'main',head_sha:PREPARATION,workflow_id:17,workflow_url:API+'/actions/workflows/17',repository:{id:REPOSITORY_ID,full_name:REPOSITORY,owner:{id:OWNER_ID}},head_repository:{id:REPOSITORY_ID}}
+  const preparationArtifact={id:99,node_id:'source-artifact',name:'warpkeep-recovery-source-closure-v1',size_in_bytes:preparationArchive.length,url:API+'/actions/artifacts/99',archive_download_url:API+'/actions/artifacts/99/zip',expired:false,created_at:'2026-09-01T00:00:00Z',expires_at:'2099-12-03T00:00:00Z',digest:'sha256:'+await digest('SHA-256',preparationArchive),workflow_run:{id:51,repository_id:REPOSITORY_ID,head_repository_id:REPOSITORY_ID,head_branch:'main',head_sha:PREPARATION}}
   const emptyManifestSha256 = await digest('SHA-256', encoder.encode('[]'))
   const attestation = encoder.encode(JSON.stringify({
     schemaVersion: 1,
@@ -628,6 +651,7 @@ async function makeFixture(useLocalGenerator: boolean | 3 = false): Promise<Read
     },
   }
   const state: State = {
+    preparationSource,preparationRuns:[preparationSource],preparationRunsTotal:1,preparationRunsLink:null,preparationArtifact,preparationArtifacts:[preparationArtifact],preparationArtifactTotal:1,preparationArchive,closureBytes,verifyBytes,
     repository: {
       id: REPOSITORY_ID, name: 'Warpkeep', full_name: REPOSITORY,
       default_branch: 'main', archived: false, disabled: false,
@@ -702,7 +726,8 @@ async function makeFixture(useLocalGenerator: boolean | 3 = false): Promise<Read
       const candidateLockEntry = state.candidateTree.find(value => value.path === 'package-lock.json')
       const preparationLockEntry = state.preparationTree.find(value => value.path === 'package-lock.json')
       let bytes: Uint8Array
-      if (sha === bindingEntry?.sha) bytes = state.bindingBytes
+      if (sha === state.preparationTree.find(e=>e.path==='.github/workflows/verify.yml')?.sha) bytes=state.verifyBytes
+      else if (sha === bindingEntry?.sha) bytes = state.bindingBytes
       else if (sha === workflowEntry?.sha) bytes = state.workflowBytes
       else if (sha === candidatePackageEntry?.sha) bytes = state.candidatePackageBytes
       else if (sha === preparationPackageEntry?.sha) bytes = state.preparationPackageBytes
@@ -722,6 +747,12 @@ async function makeFixture(useLocalGenerator: boolean | 3 = false): Promise<Read
         url,
       }, 200, etag)
     }
+    if(url.startsWith(API+'/actions/workflows/verify.yml/runs?'))return jsonResponse(url,{total_count:state.preparationRunsTotal,workflow_runs:state.preparationRuns},200,undefined,state.preparationRunsLink)
+    if(url===API+'/actions/runs/51' || url===API+'/actions/runs/51/attempts/1')return jsonResponse(url,state.preparationSource)
+    if(url.startsWith(API+'/actions/runs/51/artifacts?'))return jsonResponse(url,{total_count:state.preparationArtifactTotal,artifacts:state.preparationArtifacts})
+    if(url===API+'/actions/artifacts/99')return jsonResponse(url,state.preparationArtifact,200,'"source-etag"')
+    if(url===API+'/actions/artifacts/99/zip')return withUrl(url,new Response(null,{status:302,headers:{location:'https://objects.githubusercontent.com/source.zip'}}))
+    if(url==='https://objects.githubusercontent.com/source.zip')return withUrl(url,new Response(state.preparationArchive.slice().buffer,{headers:{'content-length':String(state.preparationArchive.length),'content-type':'application/zip'}}))
     if (url === `${API}/actions/runs/${SOURCE_RUN_ID}/attempts/1`) return jsonResponse(url, state.source)
     if (url.startsWith(`${API}/actions/runs/${PAGES_RUN_ID}/artifacts?`)) {
       return jsonResponse(url, { total_count: state.listTotal, artifacts: state.listedArtifacts }, 200, undefined, state.listLink)
@@ -777,6 +808,91 @@ async function makeFixture(useLocalGenerator: boolean | 3 = false): Promise<Read
     fetch: fetchImplementation,
   }
   return { state, input, calls, requestInits }
+}
+
+// Only positive tests that intentionally change S call this. Rebuild all
+// authenticated commitments, not just the inventory under test.
+async function refreshPreparationEvidence(
+  f: Awaited<ReturnType<typeof makeFixture>>,
+  extra = new Map<string, Uint8Array>(),
+): Promise<void> {
+  const bodies = new Map<string, Uint8Array>([
+    [WORKFLOW_PATH, f.state.workflowBytes],
+    ['.github/workflows/verify.yml', f.state.verifyBytes],
+    [BINDING_PATH, encoder.encode('{"schemaVersion":1}\n')],
+    ['README.md', encoder.encode('Warpkeep\n')],
+    ['package.json', f.state.preparationPackageBytes],
+    ['package-lock.json', f.state.preparationLockBytes],
+    ...extra,
+  ])
+  const entries = await Promise.all(
+    f.state.preparationTree
+      .filter((e) => e.type === 'blob')
+      .sort((a, b) => Buffer.compare(Buffer.from(a.path), Buffer.from(b.path)))
+      .map(async (e) => {
+        const bytes = bodies.get(e.path)
+        if (!bytes) throw new Error('missing synthetic body ' + e.path)
+        expect(await blobSha(bytes)).toBe(e.sha)
+        expect(bytes.length).toBe(e.size)
+        return {
+          path: e.path,
+          mode: e.mode,
+          oid: e.sha,
+          byteLength: e.size,
+          sha256: await digest('SHA-256', bytes),
+        }
+      }),
+  )
+  f.state.closureBytes = encoder.encode(
+    JSON.stringify({
+      schemaVersion: 1,
+      profile: 'warpkeep-0.4.0-recovery-source-closure-v1',
+      sourceCommit: PREPARATION,
+      sourceTree: PREPARATION_TREE,
+      entries,
+    }) + '\n',
+  )
+  const closure = await digest(
+    'SHA-256',
+    new Uint8Array([...encoder.encode('warpkeep.recovery-source-closure.v1\n'), ...f.state.closureBytes]),
+  )
+  f.state.preparationArchive = sourceClosureZip(f.state.closureBytes)
+  Object.assign(f.state.preparationArtifact, {
+    size_in_bytes: f.state.preparationArchive.length,
+    digest: 'sha256:' + (await digest('SHA-256', f.state.preparationArchive)),
+  })
+  const binding = await validBinding(false, closure)
+  f.state.bindingBytes = binding.bytes
+  const entry = f.state.candidateTree.find((e) => e.path === BINDING_PATH)!
+  entry.sha = await blobSha(binding.bytes)
+  entry.size = binding.bytes.length
+  Object.assign(f.input, {
+    armed: { ...f.input.armed, sourceClosureSha256: closure, recoveryAuthorizationCoreSha256: binding.core },
+  })
+  const attestation = encoder.encode(
+    JSON.stringify({
+      schemaVersion: 1,
+      profile: 'warpkeep-deployment-attestation-v1',
+      candidateCommit: CANDIDATE,
+      candidateTree: CANDIDATE_TREE,
+      recoveryAuthorizationCoreSha256: binding.core,
+      sourceClosureProfile: 'warpkeep-0.4.0-recovery-source-closure-v1',
+      sourceClosureSha256: closure,
+      releaseVersion: '0.4.0',
+      canonicalOrigin: 'https://warpkeep.com',
+      contentManifestSha256: await digest('SHA-256', encoder.encode('[]')),
+    }),
+  )
+  f.state.archive = zip(
+    new Uint8Array([
+      ...tarEntry('.well-known/warpkeep-deployment-v1.json', attestation),
+      ...new Uint8Array(1024),
+    ]),
+  )
+  Object.assign(f.state.artifact, {
+    size_in_bytes: f.state.archive.length,
+    digest: 'sha256:' + (await digest('SHA-256', f.state.archive)),
+  })
 }
 
 async function replaceBinding(fixture: Awaited<ReturnType<typeof makeFixture>>, mutate: (value: JsonObject) => void): Promise<void> {
@@ -835,6 +951,7 @@ async function installPackageLockSize(
   const pair = packageLockPair(preparationByteLength)
   await replacePackageBlob(fixture, 'package-lock.json', 'preparation', pair.preparation)
   await replacePackageBlob(fixture, 'package-lock.json', 'candidate', pair.candidate)
+  await refreshPreparationEvidence(fixture)
 }
 
 async function rejects(mutator: (fixture: Awaited<ReturnType<typeof makeFixture>>) => void | Promise<void>): Promise<void> {
@@ -930,6 +1047,7 @@ describe('GitHub candidate evidence', () => {
       entry.sha = sha
       entry.size = fixture.state.workflowBytes.length
     }
+    await refreshPreparationEvidence(fixture)
     const evidence = await loadGitHubCandidateEvidence(fixture.input)
     expect(evidence.protectedWorkflowBytes).toEqual(fixture.state.workflowBytes)
   })
@@ -1256,16 +1374,20 @@ describe('GitHub candidate evidence', () => {
 
   it('accepts a bounded realistic 2,419-entry recursive tree response over the generic JSON cap', async () => {
     const fixture = await makeFixture()
+    const extra=new Map<string,Uint8Array>()
+    const generated=encoder.encode('fixture code');const generatedOid=await blobSha(generated)
     const needed = 2_419 - fixture.state.candidateTree.length
     for (let index = 0; index < needed; index += 1) {
       const path = `dist/assets/generated-${index.toString().padStart(4, '0')}-${'x'.repeat(96)}.js`
       const entry = {
-        path, mode: '100644', type: 'blob', sha: '9'.repeat(40), size: 12,
+        path, mode: '100644', type: 'blob', sha: generatedOid, size: generated.length,
         url: `${API}/git/blobs/${'9'.repeat(40)}`,
       }
+      extra.set(path,generated)
       fixture.state.candidateTree.push(entry)
       fixture.state.preparationTree.push({ ...entry })
     }
+    await refreshPreparationEvidence(fixture,extra)
     await expect(loadGitHubCandidateEvidence(fixture.input)).resolves.toBeDefined()
   })
 
@@ -1585,4 +1707,87 @@ describe('GitHub candidate evidence', () => {
       fetch: fixture.input.fetch,
     })).rejects.toThrowError('RECOVERY_GITHUB_EVIDENCE_INVALID')
   })
+
+describe('preparation source artifact connected gate',()=>{
+ it('authenticates internally discovered S while preserving caller A coordinates and Pages metadata',async()=>{
+  const f=await makeFixture(true);const result=await loadGitHubCandidateEvidence(f.input)
+  expect(f.calls).toContain(API+'/actions/runs/51')
+  expect(f.calls).toContain(API+'/actions/artifacts/99/zip')
+  expect(result.sourceVerifyRunId).toBe(String(SOURCE_RUN_ID));expect(result.sourceClosureSha256).toBe(CLOSURE)
+  expect(result.githubMetadata.artifactId).toBe(String(ARTIFACT_ID))
+ })
+ it.each(['missing','duplicate','failed','wrong-head','wrong-repo','truncated','expired','archive-digest','inventory','producer'])('refuses %s S evidence through actual loader',async(kind)=>{
+  const f=await makeFixture(true)
+  if(kind==='missing'){f.state.preparationArtifacts=[];f.state.preparationArtifactTotal=0}
+  if(kind==='duplicate'){f.state.preparationArtifacts.push({...f.state.preparationArtifact});f.state.preparationArtifactTotal=2}
+  if(kind==='failed')f.state.preparationSource.conclusion='failure'
+  if(kind==='wrong-head')f.state.preparationSource.head_sha=CANDIDATE
+  if(kind==='wrong-repo')f.state.preparationSource.head_repository={id:1}
+  if(kind==='truncated')f.state.preparationRunsLink='<next>; rel="next"'
+  if(kind==='expired')f.state.preparationArtifact.expired=true
+  if(kind==='archive-digest')f.state.preparationArtifact.digest='sha256:'+'0'.repeat(64)
+  if(kind==='inventory'){
+   const value=JSON.parse(new TextDecoder().decode(f.state.closureBytes));value.entries.pop();f.state.preparationArchive=sourceClosureZip(encoder.encode(JSON.stringify(value)+'\n'))
+   f.state.preparationArtifact.size_in_bytes=f.state.preparationArchive.length;f.state.preparationArtifact.digest='sha256:'+await digest('SHA-256',f.state.preparationArchive)
+  }
+  if(kind==='producer'){
+   f.state.verifyBytes=encoder.encode(new TextDecoder().decode(f.state.verifyBytes).replace('compression-level: 0','compression-level: 6'))
+   for(const tree of[f.state.candidateTree,f.state.preparationTree]){const e=tree.find(e=>e.path==='.github/workflows/verify.yml')!;e.sha=await blobSha(f.state.verifyBytes);e.size=f.state.verifyBytes.length}
+  }
+  await expect(loadGitHubCandidateEvidence(f.input)).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
+ })
+})
+
+ describe('S discovery bounds and races',()=>{
+  it.each(['missing','expired'])('uses an older successful S run only when the newer artifact is %s',async(kind)=>{
+   const f=await makeFixture(true);const newer={...f.state.preparationSource,id:53};f.state.preparationRuns=[f.state.preparationSource,newer];f.state.preparationRunsTotal=2
+   const original=f.input.fetch;const extraCalls:string[]=[]
+   Object.assign(f.input,{fetch:async(request:RequestInfo|URL,init?:RequestInit)=>{
+    const url=String(request);extraCalls.push(url)
+    if(url===API+'/actions/runs/53')return jsonResponse(url,newer)
+    if(url.startsWith(API+'/actions/runs/53/artifacts?'))return jsonResponse(url,{total_count:kind==='missing'?0:1,artifacts:kind==='missing'?[]:[{...f.state.preparationArtifact,expired:true}]})
+    return original(request,init)
+   }})
+   expect((await loadGitHubCandidateEvidence(f.input)).sourceClosureSha256).toBe(CLOSURE)
+   expect(extraCalls.indexOf(API+'/actions/runs/53')).toBeLessThan(extraCalls.indexOf(API+'/actions/runs/51'))
+  })
+  it('does not probe a fourth successful run after three unavailable artifacts',async()=>{
+   const f=await makeFixture(true);f.state.preparationRuns=[54,53,52,51].map(id=>({...f.state.preparationSource,id}));f.state.preparationRunsTotal=4
+   const original=f.input.fetch;const probed:string[]=[]
+   Object.assign(f.input,{fetch:async(request:RequestInfo|URL,init?:RequestInit)=>{
+    const url=String(request);const match=url.match(/\/actions\/runs\/(5[234])(?:\/artifacts\?.*)?$/u)
+    if(match){if(url.includes('/artifacts?')){probed.push(match[1]!);return jsonResponse(url,{total_count:0,artifacts:[]})}return jsonResponse(url,{...f.state.preparationSource,id:Number(match[1])})}
+    return original(request,init)
+   }})
+   await expect(loadGitHubCandidateEvidence(f.input)).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
+   expect(probed).toEqual(['54','53','52']);expect(f.calls).not.toContain(API+'/actions/runs/51')
+  })
+  it.each(['attempt','workflow','artifact-etag','artifact-body'])('refuses %s drift after source archive download',async(kind)=>{
+   const f=await makeFixture(true);const original=f.input.fetch;let downloaded=false
+   Object.assign(f.input,{fetch:async(request:RequestInfo|URL,init?:RequestInit)=>{
+    const url=String(request)
+    if(downloaded && url===API+'/actions/runs/51' && kind==='attempt')return jsonResponse(url,{...f.state.preparationSource,run_attempt:2})
+    if(downloaded && url===API+'/actions/runs/51' && kind==='workflow')return jsonResponse(url,{...f.state.preparationSource,workflow_id:18,workflow_url:API+'/actions/workflows/18'})
+    if(downloaded && url===API+'/actions/artifacts/99' && kind==='artifact-etag')return jsonResponse(url,f.state.preparationArtifact,200,'"changed"')
+    if(downloaded && url===API+'/actions/artifacts/99' && kind==='artifact-body')return jsonResponse(url,{...f.state.preparationArtifact,node_id:'changed'},200,'"source-etag"')
+    const result=await original(request,init);if(url==='https://objects.githubusercontent.com/source.zip')downloaded=true;return result
+   }})
+   await expect(loadGitHubCandidateEvidence(f.input)).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  })
+  it('does not forward the installation token to the source artifact object host',async()=>{
+   const f=await makeFixture(true);await loadGitHubCandidateEvidence(f.input)
+   const at=f.calls.indexOf('https://objects.githubusercontent.com/source.zip');expect(at).toBeGreaterThan(-1)
+   expect(new Headers(f.requestInits[at]?.headers).has('authorization')).toBe(false)
+  })
+  it.each(['run-duplicate','run-cap','artifact-name','artifact-head','raw-digest'])('rejects %s without another candidate fallback',async(kind)=>{
+   const f=await makeFixture(true)
+   if(kind==='run-duplicate'){f.state.preparationRuns.push({...f.state.preparationSource});f.state.preparationRunsTotal=2}
+   if(kind==='run-cap'){f.state.preparationRuns=Array.from({length:21},(_,i)=>({...f.state.preparationSource,id:100+i}));f.state.preparationRunsTotal=21}
+   if(kind==='artifact-name')f.state.preparationArtifact.name='other'
+   if(kind==='artifact-head')f.state.preparationArtifact.workflow_run={...(f.state.preparationArtifact.workflow_run as JsonObject),head_sha:CANDIDATE}
+   if(kind==='raw-digest'){const value=JSON.parse(new TextDecoder().decode(f.state.closureBytes));value.entries[0].sha256='0'.repeat(64);f.state.preparationArchive=sourceClosureZip(encoder.encode(JSON.stringify(value)+'\n'));Object.assign(f.state.preparationArtifact,{size_in_bytes:f.state.preparationArchive.length,digest:'sha256:'+await digest('SHA-256',f.state.preparationArchive)})}
+   await expect(loadGitHubCandidateEvidence(f.input)).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  })
+ })
+
 })

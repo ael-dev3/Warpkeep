@@ -1,6 +1,11 @@
 // @vitest-environment node
-import { expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 const f = vi.hoisted(() => ({
+  sourceClosure: Object.freeze({}),
+  dispose: vi.fn(),
+  revoke: vi.fn(),
+  dispatch: vi.fn(),
+  failStage: "",
   bridge: Object.freeze({}),
   state: Object.freeze({}),
   authority: Object.freeze({}),
@@ -15,8 +20,10 @@ vi.mock("../scripts/sealed-realms-production-source-authority.mjs", () => ({
 }));
 vi.mock("../scripts/sealed-realms-production-workflow-evidence.mjs", () => ({
   createSealedRealmsProductionWorkflowEvidence: () => ({}),
-  refreshSealedRealmsProductionWorkflowEvidence: vi.fn(),
-  revokeSealedRealmsProductionWorkflowEvidence: vi.fn(),
+  refreshSealedRealmsProductionWorkflowEvidence: () => {
+    if (f.failStage === "refresh") throw Error("fixture refresh failure");
+  },
+  revokeSealedRealmsProductionWorkflowEvidence: f.revoke,
   verifySealedRealmsProductionWorkflowEvidence: vi.fn(),
 }));
 vi.mock("../scripts/sealed-realms-production-workflow-authority.mjs", () => ({
@@ -32,6 +39,7 @@ vi.mock("../scripts/sealed-realms-production-continuation.mjs", () => ({
 vi.mock("../scripts/sealed-realms-production-auth-bridge-state.mjs", () => ({
   createSealedRealmsProductionAuthBridgeState: () => f.bridge,
   createSealedRealmsProductionActivationEvidenceGenerator: () => {
+    if (f.failStage === "generator") throw Error("fixture failure");
     f.callback?.("a".repeat(40), {}, f.context);
     return {};
   },
@@ -40,6 +48,7 @@ vi.mock("../scripts/sealed-realms-production-activation-records.mjs", () => ({
   createSealedRealmsProductionActivationRecords: (options: {
     readBindingCandidate: typeof f.callback;
   }) => {
+    if (f.failStage === "records") throw Error("fixture failure");
     f.callback = options.readBindingCandidate;
     return f.records;
   },
@@ -50,12 +59,36 @@ vi.mock("../scripts/sealed-realms-production-recovery-candidate.mjs", () => ({
 vi.mock(
   "../scripts/sealed-realms-production-activation-lane-entry.mjs",
   () => ({
-    createSealedRealmsProductionActivationDispatchContext: () => ({}),
-    createSealedRealmsProductionActivationLane: () => ({}),
-    createSealedRealmsProductionActivationDispatcher: () => ({}),
+    createSealedRealmsProductionActivationDispatchContext: () => {
+      if (f.failStage === "context") throw Error("fixture failure");
+      return {};
+    },
+    createSealedRealmsProductionActivationLane: () => {
+      if (f.failStage === "lane") throw Error("fixture failure");
+      return {};
+    },
+    createSealedRealmsProductionActivationDispatcher: () => ({
+      dispatch: f.dispatch,
+    }),
   }),
 );
-import { createSealedRealmsProductionActivationWorkflowRuntime } from "../scripts/sealed-realms-production-activation-workflow-entry.mjs";
+vi.mock(
+  "../scripts/sealed-realms-production-recovery-source-closure.mjs",
+  () => ({
+    createSealedRealmsProductionRecoverySourceClosure: async () =>
+      f.sourceClosure,
+    disposeSealedRealmsProductionRecoverySourceClosure: f.dispose,
+  }),
+);
+beforeEach(() => {
+  vi.clearAllMocks();
+  f.failStage = "";
+  f.dispatch.mockReset();
+});
+import {
+  createSealedRealmsProductionActivationWorkflowRuntime,
+  runSealedRealmsProductionActivationOperation,
+} from "../scripts/sealed-realms-production-activation-workflow-entry.mjs";
 it("passes the constructed runtime bridge into the real candidate callback with its owner and read context", async () => {
   await createSealedRealmsProductionActivationWorkflowRuntime({
     operation: "activation-evidence-generate",
@@ -66,6 +99,61 @@ it("passes the constructed runtime bridge into the real candidate callback with 
     privateState: f.state,
     authority: f.authority,
     bridgeState: f.bridge,
+    sourceClosure: f.sourceClosure,
     readContext: f.context,
   });
+});
+
+it.each(["records", "generator", "lane", "context"])(
+  "disposes created closure when %s construction fails",
+  async (stage) => {
+    f.failStage = stage;
+    await expect(
+      createSealedRealmsProductionActivationWorkflowRuntime({
+        operation: "activation-evidence-generate",
+        workflowInputSha: "a".repeat(40),
+      }),
+    ).rejects.toThrow("fixture failure");
+    expect(f.dispose).toHaveBeenCalledExactlyOnceWith(f.sourceClosure);
+    expect(f.revoke).toHaveBeenCalledOnce();
+  },
+);
+it.each([false, true])(
+  "disposes closure after consumed dispatcher error=%s",
+  async (failed) => {
+    const runtime = await createSealedRealmsProductionActivationWorkflowRuntime(
+      {
+        operation: "activation-evidence-generate",
+        workflowInputSha: "a".repeat(40),
+      },
+    );
+    if (failed) f.dispatch.mockRejectedValueOnce(Error("dispatch failure"));
+    const operation = runSealedRealmsProductionActivationOperation({
+      runtime,
+      operation: "activation-evidence-generate",
+      workflowInputSha: "a".repeat(40),
+    });
+    if (failed) await expect(operation).rejects.toThrow("dispatch failure");
+    else await operation;
+    expect(f.dispose).toHaveBeenCalledExactlyOnceWith(f.sourceClosure);
+    expect(f.revoke).toHaveBeenCalledOnce();
+  },
+);
+
+it("disposes closure when evidence refresh fails before dispatch", async () => {
+  const runtime = await createSealedRealmsProductionActivationWorkflowRuntime({
+    operation: "activation-evidence-generate",
+    workflowInputSha: "a".repeat(40),
+  });
+  f.failStage = "refresh";
+  await expect(
+    runSealedRealmsProductionActivationOperation({
+      runtime,
+      operation: "activation-evidence-generate",
+      workflowInputSha: "a".repeat(40),
+    }),
+  ).rejects.toThrow("fixture refresh failure");
+  expect(f.dispatch).not.toHaveBeenCalled();
+  expect(f.dispose).toHaveBeenCalledExactlyOnceWith(f.sourceClosure);
+  expect(f.revoke).toHaveBeenCalledOnce();
 });

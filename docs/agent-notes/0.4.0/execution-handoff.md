@@ -5,6 +5,48 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Complete preparation-source inventory
+
+The generation runtime now derives a complete inventory of the authenticated
+preparation commit's Git blobs and supplies its digest to the actual recovery
+candidate through an owned, disposable capability. It rechecks source, private
+state and authority after asynchronous work and on candidate reads. Conflicting
+facts fail validation. The inventory describes committed bytes; it does not
+claim that Git-filtered checkout bytes are identical to those blobs.
+
+Verify derives and uploads the fixed source inventory on pushes to main. The
+artifact becomes useful evidence only after the complete run succeeds and a
+consumer authenticates its repository, source and run. The recovery service's
+actual GitHub evidence loader now discovers that preparation run, validates the
+fixed producer workflow and artifact, compares the complete inventory with the
+authenticated Git tree, and recomputes the digest. Run and artifact metadata are
+rechecked after download. This supplies an initial source-evidence check; later
+persisted metadata checks still cover the existing Pages evidence only.
+
+The service's loader, archive, canonical inventory and bounded stream suites
+passed 391 tests, and strict service types passed. Independent producer/consumer
+review found no blocking contract mismatch. Tests use synthetic authenticated
+transports; no live artifact acceptance or deployment is claimed. Artifact
+metadata identifies its run but not its attempt, so only observed run-attempt
+stability is claimed. The existing Pages archive parser retains its contract.
+
+The focused integration passed 34 tests, including the actual activation bundle
+and plain Node22 import. Two genuine Git/generated-release/private-corpus tests
+passed and demonstrated that the candidate's missing inputs decrease from seven
+to six solely through the source digest. Two final capability checks and focused
+strict types passed. Windows permission emulation is not native Linux acceptance.
+
+Additional surrounding checks passed 35 workflow, eight bundle, two bridge
+candidate and three bridge-facts cases. Thirteen other cases failed through
+Windows fixture timeouts or their cleanup cascade; they are not passing coverage.
+No semantic or compiler assertion mismatch was observed in these runs. Broader
+published Linux CI also has unresolved source-contract and fixture failures.
+
+Remaining candidate inputs are the authorization request ID and epoch, worker
+configuration identity and epoch, and G001/G002 program hashes. The production
+generator consumer, operating workflow, owner PTR acceptance and live delivery
+remain unfinished. Earlier sections below record their original checkpoints.
+
 ## Construction time in the building review
 
 An active building card now shows its construction estimate, so opening the
