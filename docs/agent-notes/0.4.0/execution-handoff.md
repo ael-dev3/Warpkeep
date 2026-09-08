@@ -31,7 +31,9 @@ The new --program-artifacts mode retains exact reproducible frozen G001 and curr
 G002 module bytes, SHA256 and Keccak256 through the attested package path. Focused
 parent/helper tests and strict types pass; its actual native run and opaque recovery
 consumer remain pending. The paired native diagnostic reached PTR and found missing
-pinned archives in cache/ptr; a reproducible cache bootstrap is being implemented.
+pinned archives in cache/ptr. The reviewed [PTR cache bootstrap](../../operations/ptr-local-binding-cache.md)
+now follows its own committed lock with integrity and no-clobber checks. Focused
+tests and types pass; actual native installation and paired validation remain pending.
 Generated deployment closure outputs were regenerated and reproduced identically;
 this is source consistency evidence, not an operating bundle or live release.
 
