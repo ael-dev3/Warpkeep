@@ -5,6 +5,21 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Generated deployment source inventory
+
+The established generator now includes the current PTR existing-update helpers
+in the protected deployment source inventory and refreshes dependent workflow
+pins and exact inventory assertions. Source bytes were compared to the published
+Git blobs; accidental archive line-ending normalization was corrected before
+derivation. Installed outputs reproduce identically on a second derivation.
+Independent review verified raw-file digests and found no weakened checks.
+
+The targeted PTR membership test and B0 topology checks passed. Native standalone
+ownership verification and rebuilt operating bundles remain unfinished; this
+manifest refresh is not proof of a deployable integrated release. Recovery service,
+auth-bridge, native-contract and CodeQL CI passed on the preceding service commit;
+complete root/module verification and actual owner play remain pending.
+
 ## Recovery preparation service
 
 The gateway now exposes POST /v1/recovery/prepare through the private signer.

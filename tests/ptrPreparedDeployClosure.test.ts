@@ -29,6 +29,8 @@ let fixtureRoot: string;
 
 const PTR_OPERATOR_MEMBERS = Object.freeze([
   'scripts/ptr-production-admin-token.ts',
+  'scripts/ptr-production-existing-update-adapter.d.mts',
+  'scripts/ptr-production-existing-update-adapter.mjs',
   'scripts/ptr-production-import-core.ts',
   'scripts/ptr-production-import-operator.ts',
   'scripts/ptr-production-publisher-cli.ts',
