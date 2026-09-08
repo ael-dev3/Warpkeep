@@ -129,6 +129,34 @@ This used synthetic identity/workflow authority and reconstructed historical A.
 It predates the later v3 definition adapter and is separate from production,
 concurrent-write and host-restart acceptance.
 
+## Production PTR update adapter implementation
+
+The existing production factory now constructs an adapter from genuine source,
+private-state and internally built artifact capabilities. Artifact construction
+derives SHA-256 and program Keccak from the same copied bytes; the capability is
+revoked on cleanup. A separate opaque transport reads the staged provider login,
+uses only the fixed PTR endpoints and never exposes a token accessor. Its decoded
+identity remains a local assertion; successful migration planning supplies the
+server's UpdateDatabase authorization evidence.
+
+Complete RawV10 comparison preserves old tables, reachable row types, names and
+schedules while committing function changes to the full description. A metadata
+initial-program value is only a hypothesis: the authenticated migration token
+must match that predecessor and the actual candidate. Private no-clobber records
+bind inspections, submission, acknowledgement and completion across sources.
+Reconciliation proves the expected installation without comparing mutable player
+rows and never invents a received acknowledgement or blindly repeats a PUT.
+Current supported-host health is rechecked before submission/reconciliation; it
+is a deployment observation, not replica attestation or an atomic version lock.
+
+The combined Windows checks passed 170 tests with 34 native skips; strict types
+and independent policy, credential and adapter review passed. Corruption, delayed
+callbacks after failed no-effect persistence, changed host and lost-response cases
+are covered. Real workflow/continuation execution, activation-corpus selection,
+native artifact verification and live production acceptance remain unfinished.
+The workflow entry still must construct these capabilities under its genuine
+permit; production operation dispatch has not been enabled by this checkpoint.
+
 ## Remaining acceptance
 
 The production update factory and genuine supported-runner authority must be
@@ -157,4 +185,5 @@ promoted into stronger v3 evidence. Native adapter tests passed 88 cases with on
 platform skip; Windows passed 60 with 29 native skips, and focused strict types
 passed. These tests use isolated HTTP fixtures. Captured real A/B definitions
 and the separately observed public PTR definition also pass offline checks.
-The production factory and populated activation-receipt integration remain open.
+The production factory is implemented separately with complete RawV10 comparison;
+its workflow and populated activation-receipt integration remain open.

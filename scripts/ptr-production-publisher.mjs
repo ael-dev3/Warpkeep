@@ -1,3 +1,4 @@
+import { keccak_256 } from '@noble/hashes/sha3';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -814,7 +815,15 @@ function stageCliConfig(sourcePath, directory) {
 }
 
 /** Builds only the committed PTR module and regenerates its exact public ABI. */
+const preparedArtifacts = new WeakSet();
+export function assertPtrSourceBuiltArtifact(value) {
+  if (!preparedArtifacts.has(value)) fail('PTR_PRODUCTION_ARTIFACT_CAPABILITY_INVALID');
+  value.assertSourceAndArtifact();
+  return value;
+}
+
 export function preparePtrSourceBuiltArtifact(input) {
+  let moduleProgramHash;
   if (
     input === null
     || typeof input !== 'object'
@@ -912,6 +921,7 @@ export function preparePtrSourceBuiltArtifact(input) {
           || openedSource.ctimeNs !== sourceBefore.ctimeNs
         ) fail('PTR_PRODUCTION_SOURCE_BUILD_ARTIFACT_INVALID');
         const digest = createHash('sha256');
+        const programDigest = keccak_256.create();
         const buffer = Buffer.allocUnsafe(1024 * 1024);
         let sourceOffset = 0;
         try {
@@ -928,6 +938,7 @@ export function preparePtrSourceBuiltArtifact(input) {
             );
             if (count < 1) fail('PTR_PRODUCTION_SOURCE_BUILD_ARTIFACT_INVALID');
             digest.update(buffer.subarray(0, count));
+            programDigest.update(buffer.subarray(0, count));
             let written = 0;
             while (written < count) {
               const amount = writeSync(
@@ -949,6 +960,7 @@ export function preparePtrSourceBuiltArtifact(input) {
           closeSync(sourceDescriptor);
           sourceDescriptor = undefined;
         }
+        moduleProgramHash = Buffer.from(programDigest.digest()).toString('hex');
         return digest.digest('hex');
       },
     });
@@ -1006,8 +1018,9 @@ export function preparePtrSourceBuiltArtifact(input) {
       exactArtifactIdentity(artifactPath, descriptor, identity);
       cliConfig?.assertCliConfig();
     };
-    return Object.freeze({
+    const preparedArtifact = Object.freeze({
       sourceCommit: input.sourceCommit,
+      moduleProgramHash,
       moduleSha256: sourceBuild.result,
       artifactDescription,
       artifactPath,
@@ -1025,6 +1038,7 @@ export function preparePtrSourceBuiltArtifact(input) {
       cleanup: () => {
         if (cleaned) return;
         cleaned = true;
+        preparedArtifacts.delete(preparedArtifact);
         closeSync(descriptor);
         descriptor = undefined;
         rmSync(directory, { recursive: true, force: false });
@@ -1032,6 +1046,8 @@ export function preparePtrSourceBuiltArtifact(input) {
         cli.cleanup();
       },
     });
+    preparedArtifacts.add(preparedArtifact);
+    return preparedArtifact;
   } catch (error) {
     if (sourceDescriptor !== undefined) closeSync(sourceDescriptor);
     if (descriptor !== undefined) closeSync(descriptor);

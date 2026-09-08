@@ -1,3 +1,4 @@
+import { createPtrProductionExistingUpdateAdapter, isPtrProductionExistingUpdateAdapter } from './ptr-production-existing-update-adapter.mjs';
 import { randomBytes } from 'node:crypto';
 import { lstatSync, realpathSync } from 'node:fs';
 import { readSyntheticNetworkIdentity } from './sealed-realms-synthetic-network.mjs';
@@ -76,8 +77,8 @@ function claimArguments(request) {
     'subject', 'evidenceDigest', 'receiptDigests', 'predecessorDigests'].map(key => [key, request[key]]));
 }
 
-/** Deliberately unavailable until genuine production evidence and consumers exist. */
-export function createSealedRealmsProductionExistingUpdateAdapter() { fail('PRODUCTION_UNAVAILABLE'); }
+/** Requires genuine source, private-state and internally built artifact capabilities. */
+export function createSealedRealmsProductionExistingUpdateAdapter(input) { return createPtrProductionExistingUpdateAdapter(input); }
 
 /** Real protocol on an isolated loopback fixture. Never a production receipt producer. */
 export function createSyntheticExistingUpdateAdapter(value) {
@@ -400,6 +401,7 @@ export function createSyntheticExistingUpdateAdapter(value) {
   return adapter;
 }
 export function assertSealedRealmsExistingUpdateAdapter(adapter, lane) {
+  if (lane === 'ptr' && isPtrProductionExistingUpdateAdapter(adapter)) return adapter;
   if (!adapters.has(adapter) || adapters.get(adapter).lane !== lane) fail('ADAPTER_INVALID');
   return adapter;
 }

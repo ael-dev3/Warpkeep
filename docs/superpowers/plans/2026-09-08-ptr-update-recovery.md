@@ -43,7 +43,7 @@ Files: sealed-realms-production-activation-records.mjs, sealed-realms-production
 Files: sealed-realms-production-existing-update.mjs, sealed-realms-production-ptr-workflow-entry.mjs, sealed-realms-production-ptr-lane-entry.mjs, Linux source-built artifact owner and production workflow entry.
 
 - [x] Select withPtrLinuxLockedSourceBuild in the actual descriptor-bound artifact helper; native build, provenance and cleanup verified. Factory integration remains below.
-- [ ] Derive complete registered schema from exact compiled bytes; generated binding names are insufficient. Compute SHA-256 and program Keccak internally.
+- [x] Derive complete supported RawV10 from exact compiled bytes and compute SHA-256/program Keccak internally. Native verification of the integrated path remains pending.
 - [ ] Derive provider-owner authority from the private validated CLI configuration and cross-check the fixed existing PTR identity. Keep game-admin reads separate.
 - [ ] Persist pre-send intent and authentic successful response digest. Lost-response reconciliation may establish observed installation, never invent a received acknowledgement.
 - [ ] Connect the existing inspect/apply/reconcile hooks, genuine supported-runner permit and cleanup. Enable dispatch only when producer and consumers are connected.
@@ -75,3 +75,15 @@ Warpkeep observations. Derive both inside the existing workflow's authenticated
 source, permit, private state and continuation. Literal owner identity equality is
 a principal policy to state explicitly, not a substitute for server authorization
 or an accurate description of every delegated permission supported upstream.
+
+## Current production adapter implementation
+
+The factory now composes internally built artifact capabilities, the staged-provider
+credential transport, full RawV10 comparison and private update continuation records.
+Tests cover genuine-response recording separately from lost-response installation
+reconciliation, predecessor continuity, cancellation and changed host observations.
+The combined Windows checks passed 170 tests with 34 native skips, strict types
+and independent review. These are implementation checks: the actual workflow must
+still construct the capabilities, activation must consume their authenticated
+private records, and native/live acceptance remains open. See the canonical
+[production adapter evidence](../../evidence/0.4.0/recovery.md#production-ptr-update-adapter-implementation).

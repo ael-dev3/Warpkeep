@@ -34,7 +34,8 @@ vi.mock('../scripts/ptr-binding-linux-locked-source-build.ts', () => ({
     dependencyClosureDigest: 'd'.repeat(64),
   }),
 }));
-import { preparePtrSourceBuiltArtifact } from '../scripts/ptr-production-publisher.mjs';
+import { preparePtrSourceBuiltArtifact, assertPtrSourceBuiltArtifact } from '../scripts/ptr-production-publisher.mjs';
+import { updateProgramHash } from '../scripts/sealed-realms-existing-update-protocol.mjs';
 const schema = readFileSync(
   new URL(
     './fixtures/ptr-artifact-description-2.6.1/first.json',
@@ -124,6 +125,8 @@ describe.skipIf(process.platform !== 'linux' || process.arch !== 'x64')(
           } else {
             const result = prepare();
             try {
+              expect(assertPtrSourceBuiltArtifact(result)).toBe(result);
+              expect(result.moduleProgramHash).toBe(updateProgramHash(artifact));
               expect(result.artifactDescription.artifactSha256).toBe(
                 createHash('sha256').update(artifact).digest('hex'),
               );
@@ -141,6 +144,7 @@ describe.skipIf(process.platform !== 'linux' || process.arch !== 'x64')(
               result.cleanup();
             }
             expect(existsSync(result.artifactPath)).toBe(false);
+            expect(() => assertPtrSourceBuiltArtifact(result)).toThrow();
             expect(state.cleanups).toBe(1);
           }
           expect(extractionCalls).toBe(1);

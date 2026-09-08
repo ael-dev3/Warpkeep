@@ -137,6 +137,8 @@ export function verifyPtrGeneratedAbi(input: Readonly<{
 
 type Spawn = (...arguments_: readonly unknown[]) => unknown;
 
+export function assertPtrSourceBuiltArtifact(value: unknown): ReturnType<typeof preparePtrSourceBuiltArtifact>;
+
 export function preparePtrSourceBuiltArtifact(input: Readonly<{
   sourceCommit: string;
   reattestSource: () => string;
@@ -149,6 +151,7 @@ export function preparePtrSourceBuiltArtifact(input: Readonly<{
 }>): Readonly<{
   sourceCommit: string;
   moduleSha256: string;
+  moduleProgramHash: string;
   artifactDescription: PtrArtifactDescription;
   artifactPath: string;
   publishArtifactPath: '/dev/fd/3';
@@ -164,6 +167,7 @@ export function preparePtrSourceBuiltArtifact(input: Readonly<{
   abi: Readonly<Record<string, number>>;
   assertSourceAndArtifact: () => void;
   assertArtifact: () => void;
+  assertCliConfig?: () => void;
   cleanup: () => void;
 }>;
 

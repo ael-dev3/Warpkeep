@@ -5,6 +5,34 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Production PTR update adapter implementation
+
+The existing production factory now constructs an adapter from genuine source,
+private-state and internally built artifact capabilities. Artifact construction
+derives SHA-256 and program Keccak from the same copied bytes; the capability is
+revoked on cleanup. A separate opaque transport reads the staged provider login,
+uses only the fixed PTR endpoints and never exposes a token accessor. Its decoded
+identity remains a local assertion; successful migration planning supplies the
+server's UpdateDatabase authorization evidence.
+
+Complete RawV10 comparison preserves old tables, reachable row types, names and
+schedules while committing function changes to the full description. A metadata
+initial-program value is only a hypothesis: the authenticated migration token
+must match that predecessor and the actual candidate. Private no-clobber records
+bind inspections, submission, acknowledgement and completion across sources.
+Reconciliation proves the expected installation without comparing mutable player
+rows and never invents a received acknowledgement or blindly repeats a PUT.
+Current supported-host health is rechecked before submission/reconciliation; it
+is a deployment observation, not replica attestation or an atomic version lock.
+
+The combined Windows checks passed 170 tests with 34 native skips; strict types
+and independent policy, credential and adapter review passed. Corruption, delayed
+callbacks after failed no-effect persistence, changed host and lost-response cases
+are covered. Real workflow/continuation execution, activation-corpus selection,
+native artifact verification and live production acceptance remain unfinished.
+The workflow entry still must construct these capabilities under its genuine
+permit; production operation dispatch has not been enabled by this checkpoint.
+
 ## Exact-artifact module description
 
 The PTR artifact helper now derives the registered RawV10 description through
@@ -19,9 +47,10 @@ complete description; it does not authorize a migration.
 Windows focused tests and strict types passed. The real historical standalone
 extraction fixtures are retained with provenance. New native publisher integration
 checks and a fresh current-artifact extraction remain pending WSL recovery; the
-prior successful Linux build did not execute this new integration. Production
-provider authority, migration policy and private receipt composition remain
-unfinished. Generate a fresh source-bound family after the integrated source is
+prior successful Linux build did not execute this new integration. The factory
+now composes provider transport, migration policy and private update records;
+workflow execution and activation receipt selection remain unfinished.
+Generate a fresh source-bound family after the integrated source is
 ready; never apply an older source's generated outputs.
 
 ## Supported Linux artifact build
@@ -32,8 +61,8 @@ Focused platform/race/publisher tests, strict types and independent review passe
 A real Linux build from `af68cae` also passed source/artifact reattestation,
 returned-hash/provenance checks and artifact/materialization cleanup. The runtime
 used the workflow's existing private umask after normal checkout modes.
-This fixes builder selection; complete registered schema extraction and genuine
-provider-owner update credentials remain separate unfinished integrations.
+This proved builder selection. Schema extraction and provider credential handling
+are now implemented as described above, with their native integration still pending.
 
 ## Populated PTR update integration
 
@@ -44,8 +73,8 @@ the fresh path with unchanged canonical bytes and hash domains. Schema 3 replace
 fresh/publish receipt slots with an update receipt commitment and retains legacy
 zero-table and admission invariants; those counters are not gameplay04 progress.
 
-This is consumer support, not production update enablement. The private producer
-must still capture authentic update completion and cross-bind current artifacts,
+This is consumer support, not production update enablement. The activation producer
+must select authentic completion from the new adapter records and cross-bind current artifacts,
 historical import/owner provenance and current live observations. The actual
 Linux artifact/schema and provider-owner credential capabilities must then be
 connected inside the existing workflow runtime. Hermes game-admin JWTs are not
@@ -77,8 +106,8 @@ The populated native B-to-C recovery passed at 11:12 UTC on September 8. It fixe
 a synthetic construction fault while preserving earned resources and pending
 work, then passed autonomous settlement, expiry and retry checks. Its authority
 was synthetic and its preservation interval quiescent. Next connect a distinct
-production update receipt to the activation consumer, then the actual factory,
-workflow runtime and fixed Linux caller. Do not represent a populated update as
+production update receipt to the activation consumer and construct the implemented
+factory inside the workflow runtime and fixed Linux caller. Do not represent a populated update as
 the existing fresh-publish receipt. See [recovery](../../evidence/0.4.0/recovery.md)
 and [CI evidence](../../evidence/0.4.0/ci-preparation-failure-baseline.md).
 
@@ -106,8 +135,8 @@ Existing-update planning now rejects unsupported visible migration operations
 and malformed plan text, while retaining token and fixed-target checks. Captured
 native no-op and AddTable plans pass, as do the native adapter tests. This is a
 conservative visible-text check: SpacetimeDB omits some view/RLS changes from that
-text. Complete production definition checks and update receipt integration remain
-unfinished; the production factory is still unavailable. See the
+text. The production factory now uses a separate complete RawV10 comparison. Its actual
+workflow and activation-receipt integration remain unfinished. See the
 [fixture provenance and limits](../../../tests/fixtures/existing-update-plans-2.6.1.md).
 
 ## What works and what still needs proof
