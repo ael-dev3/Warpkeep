@@ -5,6 +5,23 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Mobile keep framing
+
+Compact screens now give the keep scene more vertical space, making the grounds
+and buildings easier to read. The existing viewport budget, sticky resource and
+navigation header, scene controls and short-landscape minimum remain in effect.
+The wide-screen layout and camera behavior are unchanged.
+
+Fresh actual WebGL renders from the 012bc483 source plus this CSS change show
+the canvas increasing from about 168 to 304 pixels high at a 390-pixel viewport,
+and from 258 to 468 at 600. Browser checks found no horizontal overflow at
+390, 600, 844 and 1440 pixels. Short-landscape checks opened both Buildings and
+Workers with their close controls visible below the sticky header. The three
+focused accessibility, scene-host and visual-profile suites passed 59 tests.
+These are synthetic local QA scenarios, not authenticated owner or device
+acceptance. Production activation and the seven missing producer inputs remain
+unfinished; this change does not deploy or initialize a realm.
+
 ## Approval evidence from the actual private releases
 
 The real recovery candidate reopens the existing private Greater Realm workspace

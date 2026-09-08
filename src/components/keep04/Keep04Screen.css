@@ -97,7 +97,7 @@
   .keep04 .keep04-workspace[data-panel-open="true"] { grid-template-columns: minmax(0, 1fr); }
   .keep04 .keep04-panel { width: 100%; max-height: none; overflow-y: visible; padding-bottom: max(12px, env(safe-area-inset-bottom)); scroll-padding-block: 0; }
   .keep04 .keep04-primary-action { position: static; }
-  .keep04 .keep04-scene-canvas { height: clamp(144px, min(43vw, calc(100dvh - var(--keep04-decision-height, 0px) - var(--keep04-scene-toolbar-height, 0px) - 16px)), 620px); }
+  .keep04 .keep04-scene-canvas { height: clamp(144px, min(78vw, calc(100dvh - var(--keep04-decision-height, 0px) - var(--keep04-scene-toolbar-height, 0px) - 16px)), 620px); }
   .keep04 .keep04-panel, .keep04 .keep04-workspace :is(button, summary, [tabindex]), .keep04 .keep04-dock button { scroll-margin-top: calc(var(--keep04-decision-height, 0px) + 8px); }
 }
 @media (prefers-reduced-motion: reduce) {
