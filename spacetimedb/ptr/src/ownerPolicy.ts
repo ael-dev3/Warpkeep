@@ -66,6 +66,7 @@ export type WarpkeepBaseJwtClaims = Readonly<{
   audience: readonly string[];
   tokenType: string;
   roles: readonly string[];
+  hexIdentity?: string;
 }>;
 
 export type PtrOwnerPolicyErrorCode =
@@ -121,10 +122,10 @@ function strictPtrAdminRecord(payload: unknown): JsonRecord {
   const record = payload as JsonRecord;
   const keys = Reflect.ownKeys(record);
   if (
-    keys.length !== PTR_ADMIN_EXACT_CLAIM_KEYS.length
+    keys.length !== PTR_ADMIN_EXACT_CLAIM_KEYS.length + Number(keys.includes('hex_identity'))
     || keys.some(key => (
       typeof key !== 'string'
-      || !(PTR_ADMIN_EXACT_CLAIM_KEYS as readonly string[]).includes(key)
+      || (key !== 'hex_identity' && !(PTR_ADMIN_EXACT_CLAIM_KEYS as readonly string[]).includes(key))
     ))
   ) throw new PtrOwnerPolicyError('INVALID_PTR_ADMIN_SESSION');
   return record;
@@ -140,10 +141,10 @@ function strictPtrOwnerRecord(payload: unknown): JsonRecord {
   const record = payload as JsonRecord;
   const keys = Reflect.ownKeys(record);
   if (
-    keys.length !== PTR_OWNER_EXACT_CLAIM_KEYS.length
+    keys.length !== PTR_OWNER_EXACT_CLAIM_KEYS.length + Number(keys.includes('hex_identity'))
     || keys.some(key => (
       typeof key !== 'string'
-      || !(PTR_OWNER_EXACT_CLAIM_KEYS as readonly string[]).includes(key)
+      || (key !== 'hex_identity' && !(PTR_OWNER_EXACT_CLAIM_KEYS as readonly string[]).includes(key))
     ))
   ) throw new PtrOwnerPolicyError('INVALID_PTR_OWNER_SESSION');
   return record;
@@ -159,16 +160,26 @@ function strictPtrAtlasAdminRecord(payload: unknown): JsonRecord {
   const record = payload as JsonRecord;
   const keys = Reflect.ownKeys(record);
   if (
-    keys.length !== PTR_ATLAS_ADMIN_EXACT_CLAIM_KEYS.length
+    keys.length !== PTR_ATLAS_ADMIN_EXACT_CLAIM_KEYS.length + Number(keys.includes('hex_identity'))
     || keys.some(key => (
       typeof key !== 'string'
-      || !(PTR_ATLAS_ADMIN_EXACT_CLAIM_KEYS as readonly string[]).includes(key)
+      || (key !== 'hex_identity' && !(PTR_ATLAS_ADMIN_EXACT_CLAIM_KEYS as readonly string[]).includes(key))
     ))
   ) throw new PtrOwnerPolicyError('INVALID_PTR_ATLAS_ADMIN_SESSION');
   return record;
 }
 
 function readBaseClaims(record: JsonRecord): WarpkeepBaseJwtClaims {
+  // SpacetimeDB's SDK exchanges the original JWT for a host-signed token that
+  // includes this identity. Direct HTTP still accepts the original exact shape.
+  // The auth boundary binds a present identity to the actual authenticated sender.
+  const identity = Object.getOwnPropertyDescriptor(record, 'hex_identity');
+  if (identity !== undefined && (
+    !Object.prototype.hasOwnProperty.call(identity, 'value')
+    || identity.enumerable !== true
+    || typeof identity.value !== 'string'
+    || !PTR_DATABASE_IDENTITY.test(identity.value)
+  )) throw new PtrOwnerPolicyError('INVALID_PTR_OWNER_SESSION');
   if (
     record.iss !== WARPKEEP_OIDC_ISSUER
     || record.token_type !== WARPKEEP_TOKEN_TYPE
@@ -184,6 +195,7 @@ function readBaseClaims(record: JsonRecord): WarpkeepBaseJwtClaims {
     audience: Object.freeze([PTR_AUDIENCE]),
     tokenType: WARPKEEP_TOKEN_TYPE,
     roles: Object.freeze([...record.roles]) as readonly string[],
+    ...(identity === undefined ? {} : { hexIdentity: identity.value as string }),
   });
 }
 

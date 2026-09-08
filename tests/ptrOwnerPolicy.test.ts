@@ -24,8 +24,14 @@ import {
   type PtrOwnerAnchorState,
 } from '../spacetimedb/ptr/src/ownerPolicy';
 import * as ownerPolicy from '../spacetimedb/ptr/src/ownerPolicy';
+import { ptrAdminClaims, ptrAtlasAdminClaims, ptrOwnerClaims } from '../services/auth-bridge/src/jwt';
+import { spacetimeIdentityFromClaims } from '../services/auth-bridge/src/spacetimeIdentity';
+import type { BridgeConfig } from '../services/auth-bridge/src/config';
 
 let requirePtrOwner: (ctx: unknown) => unknown;
+let requirePtrAdmin: (ctx: unknown) => unknown;
+let requirePtrAtlasAdmin: (ctx: unknown) => unknown;
+let requirePtrConnection: (ctx: unknown) => void;
 
 beforeAll(async () => {
   const runtimeStub: Plugin = {
@@ -50,7 +56,7 @@ beforeAll(async () => {
   };
   const result = await build({
     stdin: {
-      contents: `export { requirePtrOwner } from './spacetimedb/ptr/src/auth.ts';`,
+      contents: `export { requirePtrOwner, requirePtrAdmin, requirePtrAtlasAdmin, requirePtrConnection } from './spacetimedb/ptr/src/auth.ts';`,
       loader: 'ts',
       resolveDir: resolve(import.meta.dirname, '..'),
       sourcefile: 'ptr-owner-policy-test-entry.ts',
@@ -65,8 +71,14 @@ beforeAll(async () => {
   const encoded = Buffer.from(result.outputFiles[0]!.text).toString('base64');
   const module = await import(`data:text/javascript;base64,${encoded}`) as {
     requirePtrOwner: (ctx: unknown) => unknown;
+    requirePtrAdmin: (ctx: unknown) => unknown;
+    requirePtrAtlasAdmin: (ctx: unknown) => unknown;
+    requirePtrConnection: (ctx: unknown) => void;
   };
   requirePtrOwner = module.requirePtrOwner;
+  requirePtrAdmin = module.requirePtrAdmin;
+  requirePtrAtlasAdmin = module.requirePtrAtlasAdmin;
+  requirePtrConnection = module.requirePtrConnection;
 });
 
 const OWNER_FID = 4_242n;
@@ -140,6 +152,81 @@ function expectOwnerDenial(payload: unknown, nowMicros = NOW_MICROS) {
     },
   );
 }
+
+describe('PTR original and SDK-exchanged claim interoperability', () => {
+  const config = {
+    issuer: 'https://auth.warpkeep.com', ptrEnabled: true,
+    playerCanaryOwnerFid: OWNER_FID.toString(),
+    ptrSpacetimeDb: { audience: PTR_AUDIENCE, database: PTR_DATABASE_IDENTITY },
+  } as BridgeConfig;
+  const profiles = [
+    { name: 'atlas administrator', original: () => ptrAtlasAdminClaims(config, SESSION_IAT),
+      parser: readFreshPtrAtlasAdminClaims, authorize: (ctx: unknown) => requirePtrAtlasAdmin(ctx), error: 'INVALID_PTR_ATLAS_ADMIN_SESSION' },
+    { name: 'provisioning administrator', original: () => ptrAdminClaims(config, SESSION_IAT, OWNER_FID.toString(), OWNER_EPOCH),
+      parser: readFreshPtrAdminClaims, authorize: (ctx: unknown) => requirePtrAdmin(ctx), error: 'INVALID_PTR_ADMIN_SESSION' },
+    { name: 'owner', original: () => ptrOwnerClaims(config, SESSION_IAT, OWNER_FID.toString(), OWNER_EPOCH),
+      parser: readFreshPtrOwnerClaims, authorize: (ctx: unknown) => requirePtrOwner(ctx), error: 'INVALID_PTR_OWNER_SESSION' },
+  ];
+  const context = (payload: unknown, sender: string, nowMicros = NOW_MICROS) => ({
+    senderAuth: { jwt: { fullPayload: payload } },
+    sender: { toHexString: () => sender },
+    timestamp: { microsSinceUnixEpoch: nowMicros },
+    databaseIdentity: { toHexString: () => PTR_DATABASE_IDENTITY },
+    db: { ptrOwnerAnchorV1: { singletonKey: { find: () => ({
+      singletonKey: PTR_OWNER_SINGLETON_KEY, ownerFid: OWNER_FID, authEpoch: OWNER_EPOCH, enabled: true,
+    }) }, count: () => 1n } },
+  });
+  for (const profile of profiles) {
+    test(`${profile.name} accepts the real producer and only its documented optional host identity`, () => {
+      const original = profile.original();
+      const identity = spacetimeIdentityFromClaims(original.iss, original.sub);
+      const exchanged = { ...original, iat: 1_050, exp: 1_110, hex_identity: identity };
+      assert.equal(Object.hasOwn(profile.parser(original, NOW_MICROS), 'hexIdentity'), false);
+      assert.equal(profile.parser(exchanged, NOW_MICROS).hexIdentity, identity);
+      assert.doesNotThrow(() => profile.authorize(context(original, identity)));
+      assert.doesNotThrow(() => profile.authorize(context(exchanged, identity)));
+      assert.doesNotThrow(() => requirePtrConnection(context(exchanged, identity)));
+    });
+    test(`${profile.name} binds a present identity to actual sender`, () => {
+      const original = profile.original();
+      const identity = spacetimeIdentityFromClaims(original.iss, original.sub);
+      assert.throws(() => profile.authorize(context({ ...original, hex_identity: identity }, '2'.repeat(64))), { message: profile.error });
+      assert.throws(() => profile.authorize(context({ ...original, hex_identity: '2'.repeat(64) }, identity)), { message: profile.error });
+    });
+    test(`${profile.name} rejects malformed, hidden or accessor host identities without invoking getters`, () => {
+      const original = profile.original();
+      const identity = spacetimeIdentityFromClaims(original.iss, original.sub);
+      for (const value of [undefined, null, 42, identity.toUpperCase(), identity.slice(1), identity + '0', `0x${identity}`]) {
+        assert.throws(() => profile.parser({ ...original, hex_identity: value }, NOW_MICROS), { message: profile.error });
+      }
+      let getterCalls = 0;
+      const accessor = Object.defineProperty({ ...original }, 'hex_identity', { enumerable: true, get: () => { getterCalls++; return identity; } });
+      const hidden = Object.defineProperty({ ...original }, 'hex_identity', { enumerable: false, value: identity });
+      for (const value of [accessor, hidden]) assert.throws(() => profile.parser(value, NOW_MICROS), { message: profile.error });
+      assert.equal(getterCalls, 0);
+    });
+    test(`${profile.name} retains exact base claims and rejects unrelated extras beside host identity`, () => {
+      const original = profile.original();
+      const exchanged = { ...original, hex_identity: spacetimeIdentityFromClaims(original.iss, original.sub) };
+      const missing = { ...exchanged } as Record<string, unknown>; delete missing.jti;
+      for (const value of [missing, { ...exchanged, unknown_authority: true }, { ...exchanged, aud: ['warpkeep-spacetimedb'] }, { ...exchanged, iss: 'https://other.example' }, { ...exchanged, roles: [] }]) {
+        assert.throws(() => profile.parser(value, NOW_MICROS), { message: profile.error });
+      }
+    });
+  }
+  test('a fresh SDK token never extends the original owner session or changes owner isolation', () => {
+    const original = ptrOwnerClaims(config, SESSION_IAT, OWNER_FID.toString(), OWNER_EPOCH);
+    const identity = spacetimeIdentityFromClaims(original.iss, original.sub);
+    const exchanged = { ...original, iat: SESSION_EXP, exp: SESSION_EXP + 60, hex_identity: identity };
+    assert.throws(() => requirePtrOwner(context(exchanged, identity, BigInt(SESSION_EXP) * 1_000_000n)), { message: 'INVALID_PTR_OWNER_SESSION' });
+    for (const changed of [
+      { ...exchanged, session_exp: SESSION_IAT + 121 },
+      { ...original, hex_identity: identity, ptr_database_identity: '2'.repeat(64) },
+      { ...original, hex_identity: identity, auth_epoch: OWNER_EPOCH + 1 },
+      { ...original, hex_identity: identity, fid: '12345' },
+    ]) assert.throws(() => requirePtrOwner(context(changed, identity)));
+  });
+});
 
 describe('PTR owner JWT policy', () => {
   test('mutually excludes ownerless atlas and owner-bearing provision claims', () => {

@@ -24,10 +24,14 @@ function sender(error: unknown, fallback: string): never {
 
 export function requirePtrAdmin(ctx: PtrContext) {
   try {
-    return readFreshPtrAdminClaims(
+    const claims = readFreshPtrAdminClaims(
       payload(ctx),
       ctx.timestamp.microsSinceUnixEpoch,
     );
+    if (claims.hexIdentity !== undefined && claims.hexIdentity !== ctx.sender.toHexString()) {
+      throw new PtrOwnerPolicyError('INVALID_PTR_ADMIN_SESSION');
+    }
+    return claims;
   } catch (error) {
     return sender(error, 'INVALID_PTR_ADMIN_SESSION');
   }
@@ -35,10 +39,14 @@ export function requirePtrAdmin(ctx: PtrContext) {
 
 export function requirePtrAtlasAdmin(ctx: PtrContext) {
   try {
-    return readFreshPtrAtlasAdminClaims(
+    const claims = readFreshPtrAtlasAdminClaims(
       payload(ctx),
       ctx.timestamp.microsSinceUnixEpoch,
     );
+    if (claims.hexIdentity !== undefined && claims.hexIdentity !== ctx.sender.toHexString()) {
+      throw new PtrOwnerPolicyError('INVALID_PTR_ATLAS_ADMIN_SESSION');
+    }
+    return claims;
   } catch (error) {
     return sender(error, 'INVALID_PTR_ATLAS_ADMIN_SESSION');
   }
@@ -50,6 +58,9 @@ export function requirePtrOwner(ctx: PtrContext) {
       payload(ctx),
       ctx.timestamp.microsSinceUnixEpoch,
     );
+    if (claims.hexIdentity !== undefined && claims.hexIdentity !== ctx.sender.toHexString()) {
+      throw new PtrOwnerPolicyError('INVALID_PTR_OWNER_SESSION');
+    }
     if (claims.databaseIdentity !== ctx.databaseIdentity.toHexString()) {
       throw new PtrOwnerPolicyError('PTR_OWNER_NOT_AUTHORIZED');
     }
