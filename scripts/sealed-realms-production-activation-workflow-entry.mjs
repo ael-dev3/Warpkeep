@@ -195,7 +195,7 @@ async function buildDispatcher(operation, workflowInputSha, evidence) {
   if (operation === 'activation-evidence-generate') {
     records = createSealedRealmsProductionActivationRecords({ privateState, authority,
       readBindingCandidate: (_source, _projection, readContext) =>
-        readSealedRealmsProductionRecoveryCandidate({ records, privateState, authority, readContext }) });
+        readSealedRealmsProductionRecoveryCandidate({ records, privateState, authority, bridgeState, readContext }) });
   }
   const lane = createSealedRealmsProductionActivationLane({ bridgeState,
     ...(operation === 'activation-evidence-generate' ? {

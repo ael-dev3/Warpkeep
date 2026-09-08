@@ -1,8 +1,10 @@
+import type { SealedRealmsProductionAuthBridgeState } from './sealed-realms-production-auth-bridge-state.mjs';
 import type { SealedRealmsProductionActivationRecords, SealedRealmsRecoveryCandidateReadContext } from './sealed-realms-production-activation-records.mjs';
 import type { SealedRealmsProductionPrivateState } from './sealed-realms-production-private-state.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
 type Input = Readonly<{ records: SealedRealmsProductionActivationRecords;
   privateState: SealedRealmsProductionPrivateState; authority: SealedRealmsProductionSourceAuthority;
+  bridgeState?: SealedRealmsProductionAuthBridgeState;
   readContext?: SealedRealmsRecoveryCandidateReadContext }>;
 /** Data only. Selects V3 from exclusive existing-update corpus evidence; V2 remains unchanged. */
 export function inspectSealedRealmsProductionRecoveryCandidate(input: Input): Readonly<{

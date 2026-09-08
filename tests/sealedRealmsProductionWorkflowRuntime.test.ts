@@ -92,7 +92,8 @@ function git(repositoryRoot: string, arguments_: readonly string[], input?: stri
     encoding: 'utf8',
     input,
     maxBuffer: 128 * 1_024,
-    timeout: 5_000,
+    // Windows Git fixture setup exceeded five seconds on the unchanged baseline.
+    timeout: process.platform === 'win32' ? 15_000 : 5_000,
     windowsHide: true,
   }).trim();
 }

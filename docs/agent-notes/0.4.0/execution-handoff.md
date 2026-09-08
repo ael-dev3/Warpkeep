@@ -5,6 +5,18 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Authenticated bridge facts in recovery candidate generation
+
+The production activation runtime passes its actual bridge-state capability into the recovery candidate reader. The reader reopens the retained suspension receipt and its validated authority chain to obtain worker version, worker source, bridge source and suspension receipt digest. It checks exact source/private-state ownership, permits the existing linked recovery predecessor, and reopens the chain/catalog before returning facts. These are retained evidence facts, not a fresh provider observation or permission to perform effects.
+
+Candidate assembly merges corpus, bridge and source projections separately so a conflicting duplicate cannot be silently overwritten. It rechecks each input before returning. Callers inspecting only the corpus can still identify incomplete inputs. The final generator projection independently cross-checks G002/PTR import receipt links against the bridge history.
+
+A genuine private bridge/corpus fixture reduces the missing inputs from thirteen to nine: recovery authorization request ID and epoch; worker configuration identity and epoch; source-closure SHA256; G001/G002 expected program Keccak256; and G002/PTR public approval receipt IDs. No default values replace those producers. The production generator consumer remains unavailable, and this change does not deploy or initialize a realm.
+
+Verification: the final bridge/candidate/runtime integration suite passed 13 tests and focused strict types. Root independently passed the candidate/runtime checks and all 40 workflow runtime tests. The bridge reader received independent review; its recovery case passed, with earlier Windows timeout evidence retained. The real full-source activation bundle builds and imports under plain Node 22. The relocated bundle fixture now copies the real compiler graph and required package metadata, fixing an incomplete fixture also reproduced on the unchanged baseline. Windows-only fixture timeouts accommodate observed filesystem/compiler setup; production validation and Linux timing limits remain unchanged.
+
+Final relocated bundle regression: all 15 tests passed after the fixture repair.
+
 ## Private PTR-update activation integration
 
 The private activation path supports the PTR-update V3 binding family. It reopens

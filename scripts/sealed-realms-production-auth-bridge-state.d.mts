@@ -302,3 +302,15 @@ export function consumeSealedRealmsProductionActivationEvidenceForGenerator(inpu
   confirmation: SealedRealmsActivationEvidenceConfirmation;
   generator: SealedRealmsProductionActivationEvidenceGenerator;
 }>): Promise<Readonly<Record<never, never>>>;
+
+/** Synchronous validated data only; no candidate input or producer authority. */
+export function readSealedRealmsProductionRecoveryBridgeFacts(input: Readonly<{
+  bridgeState: SealedRealmsProductionAuthBridgeState;
+  privateState: SealedRealmsProductionPrivateState;
+  authority: SealedRealmsProductionSourceAuthority;
+}>): Readonly<{
+  recoveryAuthWorkerVersionId: string;
+  recoveryAuthWorkerSourceCommit: string;
+  authBridgeSourceCommit: string;
+  admissionRequestSuspensionReceiptDigest: string;
+}>;

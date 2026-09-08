@@ -58,6 +58,7 @@ const SUSPENSION_RECEIPT_PREFIX =
 const observations = new WeakMap();
 const bridgeStates = new WeakSet();
 const bridgeStateSources = new WeakMap();
+const bridgeFactReaders = new WeakMap();
 const testOnlyCapabilities = new WeakSet();
 const gateConfirmations = new WeakMap();
 const activationConfirmations = new WeakMap();
@@ -2143,7 +2144,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     return activationContinuationBinding(member);
   };
 
-  const reopenActivationContinuationMember = async () => {
+  const readActivationContinuationSnapshot = () => {
     const names = privateState.list({
       root: 'runtime', relativeDirectory: 'bridge/activation-evidence',
     });
@@ -2172,7 +2173,8 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     // Reopening is read-only even when a previous generation is uncertain or expired.
     const chainDigest = authorityChainDigest(receipt.deploymentAuthority);
     const relativePath = chainPath(chainDigest);
-    const selected = authorityChainCatalog().find(entry => entry.relativePath === relativePath);
+    const catalog = authorityChainCatalog();
+    const selected = catalog.find(entry => entry.relativePath === relativePath);
     if (selected === undefined) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
     const chain = selected.chain;
     if (
@@ -2200,7 +2202,42 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
       },
     });
     validateActivationReceipt(receipt, member);
-    return member;
+    return { member, receipt, catalog, selected };
+  };
+
+  const reopenActivationContinuationMember = async () => readActivationContinuationSnapshot().member;
+
+  const readRecoveryBridgeFacts = () => {
+    const read = () => {
+      const snapshot = readActivationContinuationSnapshot();
+      const initial = privateAuthorityRecord(snapshot.selected.chain).value;
+      const remaining = snapshot.catalog.filter(entry => entry !== snapshot.selected);
+      const recovery = initial.completedJournalProfile
+        === 'warpkeep-auth-bridge-notification-prepared-read-only-recovery-v1';
+      if (recovery || remaining.length !== 0) {
+        if (!recovery || remaining.length !== 1) {
+          fail('SEALED_REALMS_AUTH_BRIDGE_CHAIN_CONFLICT');
+        }
+        // Replay the existing linked-predecessor rule against persisted creation
+        // facts; recordedAt is not a live deployment observation or freshness claim.
+        assertRecoveryCoexistence(remaining[0].chain, initial, {
+          sampled: new Date(initial.recordedAt), deployment: initial, binding: initial,
+        });
+      }
+      return snapshot;
+    };
+    const before = read();
+    const after = read();
+    if (JSON.stringify(before.receipt) !== JSON.stringify(after.receipt)
+      || JSON.stringify(before.catalog) !== JSON.stringify(after.catalog)) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_CHAIN_REPLACED');
+    }
+    return Object.freeze({
+      recoveryAuthWorkerVersionId: after.receipt.deploymentAuthority.workerVersionId,
+      recoveryAuthWorkerSourceCommit: after.receipt.deploymentAuthority.bridgeSourceCommit,
+      authBridgeSourceCommit: after.receipt.sourceCommit,
+      admissionRequestSuspensionReceiptDigest: after.member.receiptDigest,
+    });
   };
 
   const reopenActivationEvidenceContinuation = async () => {
@@ -2267,6 +2304,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   });
   bridgeStates.add(state);
   bridgeStateSources.set(state, sourceCommit);
+  bridgeFactReaders.set(state, { privateState, read: readRecoveryBridgeFacts });
   return state;
 }
 
@@ -2723,4 +2761,16 @@ export async function consumeSealedRealmsProductionActivationEvidenceConfirmatio
 export async function consumeSealedRealmsProductionActivationEvidenceForGenerator(input) {
   void input;
   fail('SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE');
+}
+
+/** Reopens existing private evidence; these scalar facts grant no producer authority. */
+export function readSealedRealmsProductionRecoveryBridgeFacts(input) {
+  const options = captureGenerationInput(input, ['bridgeState', 'privateState', 'authority']);
+  assertSealedRealmsProductionAuthBridgeStateAuthority(options.bridgeState, options.authority);
+  const owner = bridgeFactReaders.get(options.bridgeState);
+  if (owner.privateState !== assertSealedRealmsProductionPrivateState(options.privateState)
+    || options.authority.mode !== 'S' || options.authority.operation !== 'activation-evidence-generate') {
+    fail('SEALED_REALMS_AUTH_BRIDGE_SOURCE_MISMATCH');
+  }
+  return owner.read();
 }

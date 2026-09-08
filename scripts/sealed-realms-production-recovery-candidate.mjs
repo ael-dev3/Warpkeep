@@ -8,6 +8,8 @@ import { sourceCommitFromSealedRealmsProductionAuthority } from './sealed-realms
 import { recoveryActivationCandidatePolicy, recoveryActivationCandidatePolicyForVersion, validateRecoveryActivationCandidate, validateRecoveryActivationCandidateV3 } from './recovery-activation-candidate.mjs';
 import { RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3 } from './recovery-binding-projection.mjs';
 
+import { readSealedRealmsProductionRecoveryBridgeFacts } from './sealed-realms-production-auth-bridge-state.mjs';
+
 const BOOTSTRAP = 'scripts/greater-realm-production-bootstrap.mjs';
 const GIT = String.fromCodePoint(47, 117, 115, 114, 47, 98, 105, 110, 47, 103, 105, 116);
 const NULL_PATH = String.fromCodePoint(47, 100, 101, 118, 47, 110, 117, 108, 108);
@@ -28,7 +30,7 @@ function input(value) {
   if (types.isProxy(value) || value === null || typeof value !== 'object'
     || Object.getPrototypeOf(value) !== Object.prototype) fail();
   const descriptors = Object.getOwnPropertyDescriptors(value);
-  const keys = ['records', 'privateState', 'authority', ...(Object.hasOwn(descriptors, 'readContext') ? ['readContext'] : [])];
+  const keys = ['records', 'privateState', 'authority', ...(Object.hasOwn(descriptors, 'bridgeState') ? ['bridgeState'] : []), ...(Object.hasOwn(descriptors, 'readContext') ? ['readContext'] : [])];
   if (Reflect.ownKeys(descriptors).length !== keys.length) fail();
   return Object.fromEntries(keys.map(key => {
     if (!descriptors[key]?.enumerable || !Object.hasOwn(descriptors[key], 'value')) fail();
@@ -77,18 +79,25 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
   const commit = sourceCommitFromSealedRealmsProductionAuthority(options.authority);
   if (options.authority.mode !== 'S' || options.authority.operation !== 'activation-evidence-generate') fail();
   const corpus = readSealedRealmsProductionRecoveryCandidateRecords(options.records, options.readContext);
+  const readBridge = () => Object.hasOwn(options, 'bridgeState')
+    ? readSealedRealmsProductionRecoveryBridgeFacts({ bridgeState: options.bridgeState, privateState: options.privateState, authority: options.authority })
+    : Object.freeze({});
+  const bridge = readBridge();
   const actual = source(commit);
   if (JSON.stringify(corpus.bootstrap) !== JSON.stringify(actual)) fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID');
   const update = Object.hasOwn(corpus.projection, 'ptrExistingUpdateReceiptDigest');
   if (update && Object.hasOwn(corpus.projection, 'ptrPublishReceiptDigest')) fail();
   const keys = update ? RECOVERY_BINDING_KEYS_V3 : RECOVERY_BINDING_KEYS_V2;
   const facts = { ...(update ? recoveryActivationCandidatePolicyForVersion(3) : recoveryActivationCandidatePolicy()) };
-  for (const [key, value] of Object.entries({ ...corpus.projection,
-    preparationSourceCommit: actual.preparationSourceCommit, preparationSourceTree: actual.preparationSourceTree })) {
-    if (!keys.includes(key) || (Object.hasOwn(facts, key) && facts[key] !== value)) fail();
-    facts[key] = value;
+  for (const projection of [corpus.projection, bridge, {
+    preparationSourceCommit: actual.preparationSourceCommit, preparationSourceTree: actual.preparationSourceTree }]) {
+    for (const [key, value] of Object.entries(projection)) {
+      if (!keys.includes(key) || (Object.hasOwn(facts, key) && facts[key] !== value)) fail();
+      facts[key] = value;
+    }
   }
   if (JSON.stringify(corpus) !== JSON.stringify(readSealedRealmsProductionRecoveryCandidateRecords(options.records, options.readContext))
+    || JSON.stringify(bridge) !== JSON.stringify(readBridge())
     || JSON.stringify(actual) !== JSON.stringify(source(commit))) fail();
   const ordered = Object.freeze(Object.fromEntries(keys
     .filter(key => Object.hasOwn(facts, key)).map(key => [key, facts[key]])));

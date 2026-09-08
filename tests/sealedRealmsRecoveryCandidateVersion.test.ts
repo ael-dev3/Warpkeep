@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
-const seams = vi.hoisted(() => ({ git: vi.fn(), corpus: vi.fn(), records: new WeakSet<object>() }));
+const seams = vi.hoisted(() => ({ git: vi.fn(), corpus: vi.fn(), bridge: vi.fn(), records: new WeakSet<object>() }));
 vi.mock('node:child_process', () => ({ execFileSync: seams.git }));
 // Isolate corpus/source I/O, not candidate policy or source authority validation.
 vi.mock('../scripts/sealed-realms-production-activation-records.mjs', () => ({
@@ -12,12 +12,13 @@ vi.mock('../scripts/sealed-realms-production-activation-records.mjs', () => ({
   },
   readSealedRealmsProductionRecoveryCandidateRecords: seams.corpus,
 }));
+vi.mock('../scripts/sealed-realms-production-auth-bridge-state.mjs', () => ({ readSealedRealmsProductionRecoveryBridgeFacts: seams.bridge }));
 import { authenticateSealedRealmsProductionSourceAuthority } from '../scripts/sealed-realms-production-source-authority.mjs';
 import { inspectSealedRealmsProductionRecoveryCandidate, readSealedRealmsProductionRecoveryCandidate } from '../scripts/sealed-realms-production-recovery-candidate.mjs';
 import { RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3 } from '../scripts/recovery-binding-projection.mjs';
 import { validateRecoveryActivationCandidate, validateRecoveryActivationCandidateV3 } from '../scripts/recovery-activation-candidate.mjs';
 const encode = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
-beforeEach(() => { seams.git.mockReset(); seams.corpus.mockReset(); });
+beforeEach(() => { seams.git.mockReset(); seams.corpus.mockReset(); seams.bridge.mockReset(); });
 function fixture(version: 2 | 3) {
   const old = recoveryBindingCandidate();
   const keys = version === 2 ? RECOVERY_BINDING_KEYS_V2 : RECOVERY_BINDING_KEYS_V3;
@@ -72,4 +73,30 @@ it('rejects changed corpus between source reads and forged source authority', ()
   seams.corpus.mockImplementation(() => ({...f.corpus, projection:{...f.candidate,ptrExistingUpdateReceiptDigest:'7'.repeat(64)}}));
   expect(() => inspectSealedRealmsProductionRecoveryCandidate(f.input)).toThrow();
   expect(() => inspectSealedRealmsProductionRecoveryCandidate({...f.input,authority:{...f.input.authority} as never})).toThrow();
+});
+
+it('merges authenticated bridge facts without silently overwriting conflicting corpus or source facts', () => {
+  const f=fixture(3), bridgeState = Object.freeze({});
+  seams.bridge.mockReturnValue({ authBridgeSourceCommit: f.candidate.authBridgeSourceCommit });
+  const options={...f.input, bridgeState: bridgeState as never};
+  expect(inspectSealedRealmsProductionRecoveryCandidate(options).missingFields).toEqual([]);
+  expect(seams.bridge).toHaveBeenCalledTimes(2);
+  expect(seams.bridge).toHaveBeenCalledWith({bridgeState,privateState:f.input.privateState,authority:f.input.authority});
+  seams.bridge.mockReturnValue({ authBridgeSourceCommit: 'f'.repeat(40) });
+  expect(() => inspectSealedRealmsProductionRecoveryCandidate(options)).toThrow();
+  delete f.corpus.projection.authBridgeSourceCommit;
+  seams.bridge.mockReturnValue({ preparationSourceCommit: 'f'.repeat(40) });
+  expect(() => inspectSealedRealmsProductionRecoveryCandidate(options)).toThrow();
+});
+it('rejects bridge changes across candidate derivation and supplied undefined or forged context', () => {
+  const f=fixture(3), options={...f.input,bridgeState:{} as never};
+  delete f.corpus.projection.authBridgeSourceCommit;
+  seams.bridge.mockReturnValueOnce({authBridgeSourceCommit:'a'.repeat(40)}).mockReturnValue({authBridgeSourceCommit:'b'.repeat(40)});
+  expect(() => inspectSealedRealmsProductionRecoveryCandidate(options)).toThrow();
+  seams.bridge.mockImplementation(() => { throw Error('Bridge authority invalid'); });
+  expect(() => inspectSealedRealmsProductionRecoveryCandidate({...f.input,bridgeState:undefined})).toThrow();
+});
+it('rejects corpus source duplicates that conflict with authenticated source', () => {
+  const f=fixture(3); f.corpus.projection.preparationSourceCommit='f'.repeat(40);
+  expect(() => inspectSealedRealmsProductionRecoveryCandidate(f.input)).toThrow();
 });

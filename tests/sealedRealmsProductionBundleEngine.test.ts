@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import {
-  copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync,
+  copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync,
   rmSync, writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -10,7 +10,7 @@ import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { build, type BuildOptions, type Plugin } from 'esbuild';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
   buildSealedRealmOperationBundle,
@@ -20,17 +20,45 @@ import {
   SealedRealmsProductionBundlesError as PublicError,
 } from '../scripts/build-sealed-realms-production-bundles.mjs';
 
+import { OPERATION_BUNDLE_NOBLE_PACKAGE } from '../scripts/local-operation-bundle-noble-v1.mjs';
+
+const FILESYSTEM_BUILD_TIMEOUT = process.platform === 'win32' ? 30_000 : 10_000;
 const REPOSITORY_ROOT = resolve(import.meta.dirname, '..');
 // A source fixture is deliberately not a second manually maintained graph list.
 // The real compiler determines which of these source modules is reachable.
-const ACTIVATION_SOURCE_FIXTURE_PATHS = readdirSync(join(REPOSITORY_ROOT, 'scripts'))
-  .filter(name => name.endsWith('.mjs')).map(name => `scripts/${name}`);
+let activationSourceFixturePaths: readonly string[];
+beforeAll(async () => {
+  const artifact = await buildSealedRealmOperationBundle({ lane: 'activation', sourceRoot: REPOSITORY_ROOT, build });
+  const paths = new Set(artifact.graphManifest.map(member => member.path));
+  // Compiler inputs include consumed JS/TS, while package export/type metadata
+  // also controls resolution. Preserve only those ancestor manifests, not the
+  // dependency installation or an independently maintained source-file list.
+  for (const member of artifact.graphManifest) {
+    if (!member.path.startsWith('node_modules/')) continue;
+    let parent = dirname(member.path);
+    while (parent !== 'node_modules' && parent !== '.') {
+      const manifest = `${parent.replaceAll('\\', '/')}/package.json`;
+      if (existsSync(resolve(REPOSITORY_ROOT, manifest))) {
+        if (manifest.startsWith(`${OPERATION_BUNDLE_NOBLE_PACKAGE.key}/`)) {
+          const relative = manifest.slice(OPERATION_BUNDLE_NOBLE_PACKAGE.key.length + 1);
+          const pinned = OPERATION_BUNDLE_NOBLE_PACKAGE.files.find(file => file.path === relative);
+          const bytes = readFileSync(resolve(REPOSITORY_ROOT, manifest));
+          expect(pinned).toMatchObject({ bytes: bytes.length,
+            sha256: createHash('sha256').update(bytes).digest('hex') });
+        }
+        paths.add(manifest);
+      }
+      parent = dirname(parent);
+    }
+  }
+  activationSourceFixturePaths = [...paths];
+});
 const FROZEN_SOURCE_PATH = 'scripts/genesis001-binding-frozen-source.mjs';
 
 function sourceFixture(extraPaths: readonly string[] = []) {
   const parent = realpathSync(mkdtempSync(join(tmpdir(), 'warpkeep-bundle-engine-')));
   const root = join(parent, 'repository');
-  for (const path of new Set([...ACTIVATION_SOURCE_FIXTURE_PATHS, ...extraPaths])) {
+  for (const path of new Set([...activationSourceFixturePaths, ...extraPaths])) {
     const destination = resolve(root, path);
     mkdirSync(dirname(destination), { recursive: true });
     copyFileSync(resolve(REPOSITORY_ROOT, path), destination);
@@ -147,7 +175,7 @@ describe('sealed-realms production bundle engine', () => {
       firstLocal.cleanup();
       secondLocal.cleanup();
     }
-  });
+  }, FILESYSTEM_BUILD_TIMEOUT);
 
   it('normalizes equivalent absolute source-root spellings before a real activation build', async () => {
     const local = sourceFixture();
@@ -175,7 +203,7 @@ describe('sealed-realms production bundle engine', () => {
         local.root, local.root, local.root,
       ]);
     } finally { local.cleanup(); }
-  });
+  }, FILESYSTEM_BUILD_TIMEOUT);
 
   it('binds graph reads to the supplied source root', async () => {
     const firstLocal = sourceFixture();
@@ -196,7 +224,7 @@ describe('sealed-realms production bundle engine', () => {
       firstLocal.cleanup();
       secondLocal.cleanup();
     }
-  });
+  }, FILESYSTEM_BUILD_TIMEOUT);
 
   it('rejects an invalid lane or relative root before compiler invocation', async () => {
     expect(PublicError).toBe(EngineError);
@@ -235,7 +263,7 @@ describe('sealed-realms production bundle engine', () => {
       expect(Buffer.from(evaluatedBootstrap(transformed, operation)))
         .toEqual(Buffer.from(expected));
     }
-  });
+  }, FILESYSTEM_BUILD_TIMEOUT);
 
   it('fails closed when the frozen-source bootstrap shape changes', async () => {
     const local = sourceFixture([FROZEN_SOURCE_PATH]);
