@@ -20,6 +20,9 @@ importers:
       '@farcaster/quick-auth':
         specifier: 0.0.8
         version: 0.0.8(typescript@7.0.2)
+      '@noble/hashes':
+        specifier: 1.8.0
+        version: 1.8.0
       viem:
         specifier: 2.55.0
         version: 2.55.0(typescript@7.0.2)(zod@3.25.76)

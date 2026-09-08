@@ -17,6 +17,7 @@
   "dependencies": {
     "@farcaster/auth-client": "0.7.1",
     "@farcaster/quick-auth": "0.0.8",
+    "@noble/hashes": "1.8.0",
     "viem": "2.55.0"
   },
   "devDependencies": {

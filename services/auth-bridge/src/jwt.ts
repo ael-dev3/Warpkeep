@@ -20,6 +20,7 @@ import {
   QA_SNAPSHOT_RESOLVER_TOKEN_TTL_SECONDS,
   type BridgeConfig,
 } from './config'
+import { spacetimeIdentityFromClaims } from './spacetimeIdentity'
 
 const encoder = new TextEncoder()
 const MAX_AUTH_EPOCH = 0xffff_ffff
@@ -183,15 +184,18 @@ export function adminClaims(config: BridgeConfig, nowSeconds: number): AdminToke
 
 /** Five-minute Hermes token that grants authority only in sealed Genesis 002. */
 export function genesis002AdminClaims(
-  config: BridgeConfig,
+  config: Pick<BridgeConfig, 'issuer'>,
   nowSeconds: number,
 ): Genesis002AdminTokenClaims {
-  return hermesAdminClaims(
+  const claims = hermesAdminClaims(
     config.issuer,
     GENESIS_002_OIDC_AUDIENCE,
     nowSeconds,
     ADMIN_TOKEN_TTL_SECONDS,
   )
+  // Direct HTTP fullPayload retains the original signed payload. The existing
+  // G002 module also binds this explicit claim to its actual sender.
+  return { ...claims, hex_identity: spacetimeIdentityFromClaims(claims.iss, claims.sub) }
 }
 
 /** Five-minute Hermes token for provisioning only the isolated PTR database. */

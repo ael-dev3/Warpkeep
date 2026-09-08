@@ -31,6 +31,7 @@ import {
 } from './genesis002-production-transport';
 import { DbConnection } from './genesis002_module_bindings';
 import { GENESIS_002_AUDIENCE } from '../spacetimedb/genesis002/src/contract';
+import { genesis002AdminClaims } from '../services/auth-bridge/src/jwt';
 import { attestPinnedSpacetimeCli } from './spacetime-cli-attestation.mjs';
 import {
   runDisposableLocalFullstackCli,
@@ -218,6 +219,19 @@ export function genesis002PrivateLoopbackJwtClaims(
     expiresAt: number;
   }>,
 ) {
+  if (
+    input.subject === 'service:hermes'
+    && input.audience === GENESIS_002_AUDIENCE
+    && input.roles.length === 1
+    && input.roles[0] === 'warpkeep-admin'
+    && input.fid === undefined
+  ) {
+    return Object.freeze({
+      ...genesis002AdminClaims({ issuer: 'https://auth.warpkeep.com' }, times.issuedAt),
+      nbf: times.notBefore,
+      exp: times.expiresAt,
+    });
+  }
   return Object.freeze({
     iss: 'https://auth.warpkeep.com',
     sub: input.subject,

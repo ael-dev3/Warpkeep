@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { createAuthBridge } from '../src/app'
 import { PRODUCTION_SPACETIMEDB_DATABASE } from '../src/config'
 import type { RateLimiter, SafeLogEvent, WorkerEnv } from '../src/types'
+import { readFreshGenesis002AdminClaims } from '../../../spacetimedb/genesis002/src/adminPolicy'
 
 const PATH = '/v1/admin/genesis-002-token'
 const ADMIN_SECRET = 'TEST_ONLY_ADMIN_SECRET_'.repeat(2)
@@ -89,6 +90,21 @@ describe('Genesis 002 administrator token route', () => {
     })
     expect(decodePayload(String(body.token)).aud).not.toContain('warpkeep-spacetimedb')
     expect(decodePayload(String(body.token)).aud).not.toContain('warpkeep-ptr-spacetimedb')
+    const payload = decodePayload(String(body.token))
+    expect(Object.keys(payload).sort()).toEqual([
+      'aud', 'exp', 'hex_identity', 'iat', 'iss', 'jti', 'nbf', 'roles', 'sub', 'token_type',
+    ])
+    const parsed = readFreshGenesis002AdminClaims(payload, 1_800_000_000_000_000n)
+    expect(parsed.hexIdentity).toMatch(/^c200[0-9a-f]{60}$/u)
+    // Verify the real route's signature. No signer stub or projected claim is
+    // inserted between the minted JWT and the unmodified module parser.
+    const { d: _privatePart, ...publicJwk } = privateJwk
+    const publicKey = await crypto.subtle.importKey('jwk', { ...publicJwk, key_ops: ['verify'] }, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify'])
+    const [header, encodedPayload, signature] = String(body.token).split('.')
+    const bytes = (encoded: string) => Uint8Array.from(atob(encoded.replace(/-/gu, '+').replace(/_/gu, '/')), character => character.charCodeAt(0))
+    expect(await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, publicKey, bytes(signature!), new TextEncoder().encode(`${header}.${encodedPayload}`))).toBe(true)
+    const changedPayload = btoa(JSON.stringify({ ...payload, hex_identity: '0'.repeat(64) })).replace(/=/gu, '').replace(/\+/gu, '-').replace(/\//gu, '_')
+    expect(await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, publicKey, bytes(signature!), new TextEncoder().encode(`${header}.${changedPayload}`))).toBe(false)
     expect(h.events).toEqual(['genesis002_admin_token_issued'])
   })
 

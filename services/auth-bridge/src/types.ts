@@ -470,6 +470,7 @@ export interface AdminTokenClaims {
 
 export type Genesis002AdminTokenClaims = Omit<AdminTokenClaims, 'aud'> & Readonly<{
   aud: ['warpkeep-genesis-002-spacetimedb']
+  hex_identity: string
 }>
 
 export type PtrAdminTokenClaims = AdminTokenClaims & Readonly<{

@@ -10,9 +10,9 @@ import {
   readFreshGenesis002AdminClaims,
 } from '../spacetimedb/genesis002/src/adminPolicy';
 
-const SERVER_PROJECTED_IDENTITY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+import { spacetimeIdentityFromClaims } from '../services/auth-bridge/src/spacetimeIdentity';
 
-test('a generic audience makes the local Genesis 002 import fail', () => {
+test('a generic audience is refused with an otherwise complete Genesis 002 admin payload', () => {
   const times = genesis002PrivateLoopbackAdminJwtTimes(2_000_000_000);
   const adminClaims = genesis002PrivateLoopbackJwtClaims({
     subject: 'service:hermes',
@@ -30,6 +30,11 @@ test('a generic audience makes the local Genesis 002 import fail', () => {
   assert.deepEqual(nonAdminClaims.aud, ['warpkeep-spacetimedb']);
   assert.notDeepEqual(nonAdminClaims.aud, adminClaims.aud);
   assert.deepEqual(nonAdminClaims.roles, []);
+  readFreshGenesis002AdminClaims(adminClaims, BigInt(times.issuedAt) * 1_000_000n);
+  assert.throws(() => readFreshGenesis002AdminClaims({
+    ...adminClaims,
+    aud: ['warpkeep-spacetimedb'],
+  }, BigInt(times.issuedAt) * 1_000_000n), /INVALID_GENESIS_002_ADMIN_SESSION/);
 });
 
 test('the synthetic Genesis 002 admin token tolerates 30 seconds of clock skew below the admin cap', () => {
@@ -47,7 +52,7 @@ test('the synthetic Genesis 002 admin token tolerates 30 seconds of clock skew b
   );
 });
 
-test('the synthetic Hermes token excludes the host-projected identity', () => {
+test('the synthetic Hermes token uses the real bridge claims accepted unchanged by G002', () => {
   const times = genesis002PrivateLoopbackAdminJwtTimes(2_000_000_000);
   const outboundClaims = genesis002PrivateLoopbackJwtClaims({
     subject: 'service:hermes',
@@ -57,11 +62,11 @@ test('the synthetic Hermes token excludes the host-projected identity', () => {
 
   assert.equal(
     Object.prototype.hasOwnProperty.call(outboundClaims, 'hex_identity'),
-    false,
+    true,
   );
-  const projectedClaims = readFreshGenesis002AdminClaims({
-    ...outboundClaims,
-    hex_identity: SERVER_PROJECTED_IDENTITY,
-  }, BigInt(times.issuedAt) * 1_000_000n);
-  assert.equal(projectedClaims.hexIdentity, SERVER_PROJECTED_IDENTITY);
+  const parsed = readFreshGenesis002AdminClaims(outboundClaims, BigInt(times.issuedAt) * 1_000_000n);
+  assert.equal(parsed.hexIdentity, spacetimeIdentityFromClaims(parsed.issuer, parsed.subject));
+  assert.ok('hex_identity' in outboundClaims);
+  const { hex_identity: _identity, ...missingIdentity } = outboundClaims;
+  assert.throws(() => readFreshGenesis002AdminClaims(missingIdentity, BigInt(times.issuedAt) * 1_000_000n));
 });
