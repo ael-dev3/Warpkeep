@@ -5,6 +5,17 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Supported Linux artifact build
+
+The actual PTR artifact helper now selects the existing Linux x64 locked builder,
+preserves Darwin arm64 and refuses unsupported runtimes before CLI effects.
+Focused platform/race/publisher tests, strict types and independent review passed.
+A real Linux build from `af68cae` also passed source/artifact reattestation,
+returned-hash/provenance checks and artifact/materialization cleanup. The runtime
+used the workflow's existing private umask after normal checkout modes.
+This fixes builder selection; complete registered schema extraction and genuine
+provider-owner update credentials remain separate unfinished integrations.
+
 ## Populated PTR update integration
 
 Recovery now has an explicit schema-3 public binding for an existing PTR update.

@@ -105,13 +105,18 @@ vi.mock('../scripts/ptr-binding-locked-source-build.ts', () => ({
   withPtrLockedSourceBuild: sourceBuild.ptr,
 }));
 
+vi.mock('../scripts/ptr-binding-linux-locked-source-build.ts', () => ({
+  withPtrLinuxLockedSourceBuild: sourceBuild.ptr,
+}));
+
 import {
   preparePtrSourceBuiltArtifact,
 } from '../scripts/ptr-production-publisher.mjs';
 
 const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs');
 
-describe('PTR publisher private directory races', () => {
+describe.skipIf(!((process.platform === 'linux' && process.arch === 'x64')
+  || (process.platform === 'darwin' && process.arch === 'arm64')))('PTR publisher private directory races', () => {
   it('prepares PTR source builds through the independent PTR closure', () => {
     expect(() => preparePtrSourceBuiltArtifact({
       sourceCommit: 'a'.repeat(40),

@@ -21,6 +21,7 @@ import { isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { withPtrLockedSourceBuild } from './ptr-binding-locked-source-build.ts';
+import { withPtrLinuxLockedSourceBuild } from './ptr-binding-linux-locked-source-build.ts';
 import { assertProductionAdminTrustedAncestors } from './production-admin-token-budget.mjs';
 import { attestPinnedSpacetimeCli } from './spacetime-cli-attestation.mjs';
 
@@ -825,6 +826,12 @@ export function preparePtrSourceBuiltArtifact(input) {
       || !isAbsolute(input.cliConfigSourcePath)
     ))
   ) fail('PTR_PRODUCTION_SOURCE_BUILD_INPUT_INVALID');
+  const buildSource = process.platform === 'linux' && process.arch === 'x64'
+    ? withPtrLinuxLockedSourceBuild
+    : process.platform === 'darwin' && process.arch === 'arm64'
+      ? withPtrLockedSourceBuild
+      : undefined;
+  if (buildSource === undefined) fail('PTR_PRODUCTION_SOURCE_BUILD_RUNTIME_UNSUPPORTED');
   const childEnvironment_ = ptrChildEnvironment(input.environment ?? process.env);
   const cli = attestPinnedSpacetimeCli(
     input.executable ?? process.env.SPACETIME_BIN ?? 'spacetime',
@@ -851,7 +858,7 @@ export function preparePtrSourceBuiltArtifact(input) {
         | (constants.O_NOFOLLOW ?? 0),
       0o600,
     );
-    const sourceBuild = withPtrLockedSourceBuild({
+    const sourceBuild = buildSource({
       repositoryRoot: REPOSITORY_ROOT,
       moduleSourceCommit: input.sourceCommit,
       dependencyCacheRoot: input.dependencyCacheRoot,

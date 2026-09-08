@@ -14,7 +14,7 @@
 
 - Preserve G001 progress and admission freeze; keep G002 sealed and PTR owner-isolated.
 - Keep all applicable legacy zero counters. They are not gameplay04 resource or worker counts.
-- Preserve historical atlas-import and owner-provision records with their original source coordinates.
+- Preserve authentic historical atlas-import and owner-provision records with their original source coordinates when available. Do not invent missing history. Authenticated current state determines whether real initialization or existing-state continuity is needed.
 - Later legitimate gameplay must not invalidate an authentic historical update completion.
 - Synthetic fixtures, public digests and local compatibility tests do not authorize production writes.
 - Never substitute Hermes game-admin tokens for provider-owner update credentials.
@@ -42,7 +42,7 @@ Files: sealed-realms-production-activation-records.mjs, sealed-realms-production
 
 Files: sealed-realms-production-existing-update.mjs, sealed-realms-production-ptr-workflow-entry.mjs, sealed-realms-production-ptr-lane-entry.mjs, Linux source-built artifact owner and production workflow entry.
 
-- [ ] Derive descriptor-bound artifacts with withPtrLinuxLockedSourceBuild; the older publisher helper imports the Darwin alias and cannot be used unchanged.
+- [x] Select withPtrLinuxLockedSourceBuild in the actual descriptor-bound artifact helper; native build, provenance and cleanup verified. Factory integration remains below.
 - [ ] Derive complete registered schema from exact compiled bytes; generated binding names are insufficient. Compute SHA-256 and program Keccak internally.
 - [ ] Derive provider-owner authority from the private validated CLI configuration and cross-check the fixed existing PTR identity. Keep game-admin reads separate.
 - [ ] Persist pre-send intent and authentic successful response digest. Lost-response reconciliation may establish observed installation, never invent a received acknowledgement.
@@ -52,3 +52,5 @@ Files: sealed-realms-production-existing-update.mjs, sealed-realms-production-pt
 ## Evidence and status
 
 Base is published `af68cae8f6e6f60cb8a5252e6b5c14f5c336c9d9`. The separate official 2.10.0 disposable recovery rehearsal passed from `826ed94`, including earned/pending progress, repair, timers, expiry and exact retry. It is not production acceptance or a test of the later v3 definition adapter.
+
+Historical production notes record initial PTR creation without atlas import or owner provisioning. The public schema does not establish row contents or current ownership. No authentic import/owner corpus has yet been found in the inspected retained evidence. First authenticate current state: if initialization is absent, perform real import/provisioning; if populated, establish actual continuity without inventing historical receipt digests.
