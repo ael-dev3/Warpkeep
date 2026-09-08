@@ -5,6 +5,28 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Completed PTR update capture
+
+The actual PTR runtime now captures an opaque, source-bound completed update
+before disposing its artifact and adapter. The receipt reopens private update
+records and the genuine continuation terminal. It records acknowledgement
+separately from observed installation and never invents a lost response.
+
+If the update completed but receipt capture failed, a later apply can recover
+that fixed record after a fresh workflow permit check and genuine completed-head
+proof. This path does not redispatch or send another provider update. Conflicting
+records are preserved and rejected; foreign stores and disposed capabilities
+cannot capture receipts.
+
+Root Windows checks passed 25 completion/adapter/joined tests (four native cases
+skipped), plus lifecycle, bundle and existing runtime regression checks. Focused
+strict types and independent reviews passed. The previous published native
+integration passed all eight cases; newly extended receipt assertions need new
+native CI. This is development integration, not a live activation. Private V3
+corpus/generator support and authenticated import/owner continuity remain
+unfinished. Gameplay, Verdant Citadel polish and live release acceptance remain
+part of the full 0.4 objective.
+
 ## Joined production update continuation checks
 
 The dedicated production-adapter test now uses the real source issuer, workflow

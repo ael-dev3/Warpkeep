@@ -8,6 +8,7 @@ const seams = vi.hoisted(() => ({
   claim: vi.fn(),
   reconcile: vi.fn(),
   permit: vi.fn(),
+  completion: vi.fn(),
 }));
 vi.mock("../scripts/ptr-update-provider-credentials.mjs", () => ({
   createPtrUpdateProviderCredentials: () => Object.freeze({}),
@@ -21,6 +22,7 @@ vi.mock("../scripts/ptr-production-publisher.mjs", () => ({
   },
 }));
 vi.mock("../scripts/sealed-realms-production-source-authority.mjs", () => ({
+  preparationSourceCommitFromSealedRealmsProductionAuthority: (authority: any) => authority.sourceCommit,
   sourceCommitFromSealedRealmsProductionAuthority: (authority: any) =>
     authority.sourceCommit,
 }));
@@ -31,6 +33,7 @@ vi.mock("../scripts/sealed-realms-production-workflow-authority.mjs", () => ({
   attestSealedRealmsProductionWorkflowPermit: seams.permit,
 }));
 vi.mock("../scripts/sealed-realms-production-continuation.mjs", () => ({
+  readSealedRealmsProductionContinuationCompletion: seams.completion,
   assertSealedRealmsProductionContinuationClaim: seams.claim,
   assertSealedRealmsProductionContinuationReconciliation: seams.reconcile,
   classifySealedRealmsProductionContinuationNoEffect: (value: any) => ({
@@ -39,6 +42,8 @@ vi.mock("../scripts/sealed-realms-production-continuation.mjs", () => ({
   }),
 }));
 import { createSealedRealmsProductionExistingUpdateAdapter } from "../scripts/sealed-realms-production-existing-update.mjs";
+import * as completionApi from "../scripts/ptr-production-existing-update-adapter.mjs";
+import * as activationRecords from "../scripts/sealed-realms-production-activation-records.mjs";
 import type { SealedRealmsProductionSourceAuthority } from "../scripts/sealed-realms-production-source-authority.mjs";
 import { canonicalizePtrRawV10 } from "../scripts/ptr-artifact-description.mjs";
 import {
@@ -103,6 +108,7 @@ function fixture() {
   // These are test-only stand-ins for the explicitly mocked capability issuers above.
   const authority = {
     sourceCommit: SOURCE,
+    authorityDigest: '5'.repeat(64),
     mode: "S",
     operation: "ptr-update-inspect",
   } as unknown as SealedRealmsProductionSourceAuthority;
@@ -168,6 +174,7 @@ function fixture() {
       typeof createSealedRealmsProductionExistingUpdateAdapter
     >[0]);
   return {
+    privateState: state,
     authority,
     artifact,
     files,
@@ -201,6 +208,87 @@ function consume(adapter: any, authority: any) {
     selection,
   });
 }
+async function completedFixture() {
+  const f = fixture(), adapter = f.create();
+  await adapter.inspectForContinuation({ authority: f.authority });
+  await consume(adapter, f.authority);
+  const authority = { ...f.authority, operation: 'ptr-update-apply' as const };
+  const terminal = {
+    scopeDigest: '1'.repeat(64), issuedRecordDigest: '2'.repeat(64),
+    claimRecordDigest: '3'.repeat(64), terminalRecordDigest: '4'.repeat(64),
+    claimRunId: '123', claimRunAttempt: 1, terminalRunId: '123', terminalRunAttempt: 1,
+    outcome: 'completed', observationDigest: null, terminalAt: new Date().toISOString(),
+  };
+  seams.completion.mockReturnValue(terminal);
+  return { ...f, adapter, applyAuthority: authority, terminal, store: {} as never };
+}
+it('exports opaque completed-update evidence tied to genuine continuation reopening', async () => {
+  const f = await completedFixture();
+  try {
+    const completion = completionApi.exportPtrExistingUpdateCompletion({ adapter: f.adapter as never, authority: f.applyAuthority, store: f.store });
+    expect(Object.keys(completion)).toEqual([]);
+    const receipt = completionApi.readPtrExistingUpdateCompletion({ completion, authority: f.applyAuthority, privateState: f.privateState as never });
+    expect(receipt.binding.sourceCommit).toBe(SOURCE);
+    expect(receipt.acknowledgement).toBe('received');
+    expect(receipt.continuation.terminalRecordDigest).toBe(f.terminal.terminalRecordDigest);
+    expect(seams.completion).toHaveBeenCalledWith(expect.objectContaining({ store: f.store, privateState: f.privateState, kind: 'ptr-update' }));
+    expect(() => completionApi.readPtrExistingUpdateCompletion({ completion: { ...completion } as never, authority: f.applyAuthority, privateState: f.privateState as never })).toThrow();
+    expect(() => completionApi.readPtrExistingUpdateCompletion({ completion, authority: f.applyAuthority, privateState: {} as never })).toThrow();
+    f.adapter.dispose();
+    expect(() => completionApi.readPtrExistingUpdateCompletion({ completion, authority: f.applyAuthority, privateState: f.privateState as never })).toThrow();
+  } finally { f.adapter.dispose(); }
+});
+it('refuses export while continuation completion is missing or bound to another claim', async () => {
+  const f = await completedFixture();
+  try {
+    seams.completion.mockImplementationOnce(() => { throw Error('No terminal'); });
+    expect(() => completionApi.exportPtrExistingUpdateCompletion({ adapter: f.adapter as never, authority: f.applyAuthority, store: f.store })).toThrow();
+    seams.completion.mockReturnValue({ ...f.terminal, claimRunId: '999' });
+    expect(() => completionApi.exportPtrExistingUpdateCompletion({ adapter: f.adapter as never, authority: f.applyAuthority, store: f.store })).toThrow();
+  } finally { f.adapter.dispose(); }
+});
+it('captures a fixed activation record from opaque completed evidence without accepting caller receipts', async () => {
+  const f = await completedFixture();
+  try {
+    const completion = completionApi.exportPtrExistingUpdateCompletion({ adapter: f.adapter as never, authority: f.applyAuthority, store: f.store });
+    const records = activationRecords.createSealedRealmsProductionActivationRecords({ privateState: f.privateState as never, authority: f.applyAuthority });
+    const captured = activationRecords.writeSealedRealmsProductionPtrExistingUpdateRecord({ records, authority: f.applyAuthority, completion });
+    const stored = JSON.parse(f.files.get('activation-evidence/records/ptr-existing-update-receipt.json')!.toString());
+    expect(stored.member).toBe('ptrExistingUpdateReceipt');
+    expect(stored.operation).toBe('ptr-update-apply');
+    expect(stored.receipt.binding.sourceCommit).toBe(SOURCE);
+    expect(captured.receiptDigest).toBe(updateDigest(stored.receipt));
+    expect(() => activationRecords.writeSealedRealmsProductionPtrExistingUpdateRecord({ records, authority: f.applyAuthority, completion: stored.receipt })).toThrow();
+    expect(activationRecords.writeSealedRealmsProductionPtrExistingUpdateRecord({ records, authority: f.applyAuthority, completion })).toEqual(captured);
+  } finally { f.adapter.dispose(); }
+});
+it('preserves conflicting activation records without writing into another private store', async () => {
+  const f = await completedFixture();
+  try {
+    const completion = completionApi.exportPtrExistingUpdateCompletion({ adapter: f.adapter as never, authority: f.applyAuthority, store: f.store });
+    const records = activationRecords.createSealedRealmsProductionActivationRecords({ privateState: f.privateState as never, authority: f.applyAuthority });
+    const path = 'activation-evidence/records/ptr-existing-update-receipt.json';
+    const previous = Buffer.from('existing record must remain unchanged');
+    f.files.set(path, Buffer.from(previous));
+    expect(() => activationRecords.writeSealedRealmsProductionPtrExistingUpdateRecord({ records, authority: f.applyAuthority, completion })).toThrow();
+    expect(f.files.get(path)).toEqual(previous);
+    const foreign = fixture();
+    const foreignRecords = activationRecords.createSealedRealmsProductionActivationRecords({ privateState: foreign.privateState as never, authority: f.applyAuthority });
+    expect(() => activationRecords.writeSealedRealmsProductionPtrExistingUpdateRecord({ records: foreignRecords, authority: f.applyAuthority, completion })).toThrow();
+    expect(foreign.files.has(path)).toBe(false);
+  } finally { f.adapter.dispose(); }
+});
+it('invalidates exported evidence when the reopened completion changes', async () => {
+  const f = await completedFixture();
+  try {
+    const completion = completionApi.exportPtrExistingUpdateCompletion({ adapter: f.adapter as never, authority: f.applyAuthority, store: f.store });
+    const name = [...f.files.keys()].find(name => name.endsWith('.completion.json'))!;
+    const record = JSON.parse(f.files.get(name)!.toString());
+    record.value.observedAt = new Date(Date.parse(record.value.observedAt) - 1).toISOString();
+    f.files.set(name, Buffer.from(updateCanonical(record)+'\n'));
+    expect(() => completionApi.readPtrExistingUpdateCompletion({ completion, authority: f.applyAuthority, privateState: f.privateState as never })).toThrow();
+  } finally { f.adapter.dispose(); }
+});
 it("proves the initial-program hypothesis through the authenticated migration token", async () => {
   const f = fixture(),
     adapter = f.create();

@@ -1038,3 +1038,47 @@ export function assertSealedRealmsProductionContinuationReconciliation(input) {
   }
   return true;
 }
+
+/** Historical validated data only. This projection is not an effect or writer capability. */
+export function readSealedRealmsProductionContinuationCompletion(input) {
+  const options = exactInput(input, [
+    'store', 'privateState', 'sourceAuthority', 'kind', 'subject',
+    'evidenceDigest', 'receiptDigests', 'predecessorDigests',
+  ]);
+  const state = storeState(options.store);
+  const privateState = assertSealedRealmsProductionPrivateState(options.privateState);
+  if (state.privateState !== privateState) {
+    fail('SEALED_REALMS_CONTINUATION_STORE_INVALID');
+  }
+  const spec = kindSpec(options.kind);
+  const authority = authorityInfo(options.sourceAuthority, spec.claimOperation);
+  const binding = bindingFrom(options);
+  const scope = scopeDigest(authority.authorityDigest, options.kind, binding.evidenceDigest);
+  const current = inventory(state, scope);
+  if (!current.sealed || current.unresolved !== undefined) {
+    fail('SEALED_REALMS_CONTINUATION_MISSING');
+  }
+  for (const group of current.groups) {
+    requireBinding(group.issued.record, authority, binding);
+    if (group.issued.record.kind !== options.kind) {
+      fail('SEALED_REALMS_CONTINUATION_BINDING_INVALID');
+    }
+  }
+  const completed = current.groups.filter(group =>
+    ['completed', 'reconciled-effect-applied'].includes(group.terminal?.record.outcome));
+  if (completed.length !== 1) fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+  const group = completed[0];
+  return Object.freeze({
+    scopeDigest: scope,
+    issuedRecordDigest: group.issued.recordDigest,
+    claimRecordDigest: group.claimed.byteDigest,
+    terminalRecordDigest: group.terminal.byteDigest,
+    claimRunId: group.claimed.record.claimRunId,
+    claimRunAttempt: group.claimed.record.claimRunAttempt,
+    terminalRunId: group.terminal.record.terminalRunId,
+    terminalRunAttempt: group.terminal.record.terminalRunAttempt,
+    outcome: group.terminal.record.outcome,
+    observationDigest: group.terminal.record.observationDigest,
+    terminalAt: group.terminal.record.terminalAt,
+  });
+}

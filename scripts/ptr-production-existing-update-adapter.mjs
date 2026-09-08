@@ -16,6 +16,7 @@ import {
   assertSealedRealmsProductionContinuationClaim,
   assertSealedRealmsProductionContinuationReconciliation,
   classifySealedRealmsProductionContinuationNoEffect,
+  readSealedRealmsProductionContinuationCompletion,
 } from "./sealed-realms-production-continuation.mjs";
 import { attestSealedRealmsProductionWorkflowPermit } from "./sealed-realms-production-workflow-authority.mjs";
 import {
@@ -33,6 +34,7 @@ const TARGET =
   "c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e";
 const DIRECTORY = `existing-updates-production-v1/ptr/${TARGET}`;
 const adapters = new WeakMap();
+const completionCapabilities = new WeakMap();
 const selections = new WeakMap();
 const fail = () => {
   throw new Error("PTR_PRODUCTION_EXISTING_UPDATE_INVALID");
@@ -687,10 +689,71 @@ export function createPtrProductionExistingUpdateAdapter(input) {
       adapters.delete(adapter);
     },
   });
-  adapters.set(adapter, true);
+  const completedEvidence = (current, store) => {
+    assertAuthority(current);
+    if (current.operation !== 'ptr-update-apply' || busy) fail();
+    const head = inventory();
+    if (!head || !head[1].completion || !same(head[1].inspection.value.binding, bound)) fail();
+    const [key, entry] = head;
+    const continuation = readSealedRealmsProductionContinuationCompletion({
+      store, privateState: state, sourceAuthority: current, kind: 'ptr-update',
+      ...select(key, entry),
+    });
+    if (continuation.claimRunId !== entry.submission.value.runId
+      || continuation.claimRunAttempt !== entry.submission.value.runAttempt
+      || Date.parse(continuation.terminalAt) < Date.parse(entry.completion.value.observedAt)
+      || (continuation.outcome === 'reconciled-effect-applied'
+        && continuation.observationDigest !== updateDigest(entry.completion))) fail();
+    const inspection = entry.inspection.value;
+    return freeze({
+      schemaVersion: 1,
+      profile: 'warpkeep-ptr-existing-update-receipt-v1',
+      binding: structuredClone(bound),
+      inspectionDigest: key,
+      inspectionRecordDigest: updateDigest(entry.inspection),
+      submissionRecordDigest: updateDigest(entry.submission),
+      acknowledgementRecordDigest: entry.acknowledgement ? updateDigest(entry.acknowledgement) : null,
+      completionRecordDigest: updateDigest(entry.completion),
+      predecessorDigest: inspection.predecessorDigest,
+      predecessorReceiptDigest: inspection.predecessorReceiptDigest,
+      beforeProgram: inspection.beforeProgram,
+      preservation: structuredClone(inspection.preservation),
+      planDigest: inspection.plan.planDigest,
+      installedPlanDigest: entry.completion.value.installedPlan.planDigest,
+      inspectionHostObservationDigest: updateDigest(inspection.hostObservation),
+      acknowledgement: entry.completion.value.acknowledgement,
+      responseDigest: entry.completion.value.responseDigest,
+      submission: structuredClone(entry.submission.value),
+      completionObservedAt: entry.completion.value.observedAt,
+      continuation: structuredClone(continuation),
+    });
+  };
+  adapters.set(adapter, { privateState: state, completedEvidence });
   return adapter;
 }
 
 export function isPtrProductionExistingUpdateAdapter(value) {
   return adapters.has(value);
+}
+
+/** Grants access only to one reopened completed update and its real terminal lineage. */
+export function exportPtrExistingUpdateCompletion(input) {
+  const { adapter, authority, store } = inputRecord(input, ['adapter', 'authority', 'store']);
+  const owner = adapters.get(adapter);
+  if (!owner) fail();
+  const receipt = owner.completedEvidence(authority, store);
+  const capability = Object.freeze({});
+  completionCapabilities.set(capability, { adapter, owner, authority, store, receiptDigest: updateDigest(receipt) });
+  return capability;
+}
+
+/** Internal writer data access; a copied object, foreign store or disposed owner grants nothing. */
+export function readPtrExistingUpdateCompletion(input) {
+  const { completion, authority, privateState } = inputRecord(input, ['completion', 'authority', 'privateState']);
+  const member = completionCapabilities.get(completion);
+  if (!member || adapters.get(member.adapter) !== member.owner
+    || assertSealedRealmsProductionPrivateState(privateState) !== member.owner.privateState) fail();
+  const receipt = member.owner.completedEvidence(authority, member.store);
+  if (updateDigest(receipt) !== member.receiptDigest) fail();
+  return receipt;
 }

@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
+  attest: vi.fn(),
+  completion: vi.fn(),
+  records: vi.fn(),
+  writeRecord: vi.fn(),
   prepare: vi.fn(),
   adapter: vi.fn(),
   dispose: vi.fn(),
@@ -21,6 +25,11 @@ vi.mock("../scripts/ptr-production-publisher.mjs", () => ({
 }));
 vi.mock("../scripts/ptr-production-existing-update-adapter.mjs", () => ({
   createPtrProductionExistingUpdateAdapter: m.adapter,
+  exportPtrExistingUpdateCompletion: m.completion,
+}));
+vi.mock("../scripts/sealed-realms-production-activation-records.mjs", () => ({
+  createSealedRealmsProductionActivationRecords: m.records,
+  writeSealedRealmsProductionPtrExistingUpdateRecord: m.writeRecord,
 }));
 vi.mock("../scripts/local-binding-bounded-file.mjs", () => ({
   readLocalBindingBoundedFile: m.node,
@@ -50,6 +59,7 @@ vi.mock("../scripts/sealed-realms-production-workflow-evidence.mjs", () => ({
 }));
 vi.mock("../scripts/sealed-realms-production-workflow-authority.mjs", () => ({
   issueSealedRealmsProductionWorkflowPermit: m.issue,
+  attestSealedRealmsProductionWorkflowPermit: m.attest,
 }));
 vi.mock(
   "../scripts/sealed-realms-production-workflow-private-state.mjs",
@@ -124,7 +134,9 @@ beforeEach(() => {
   m.prepare.mockReturnValue({ cleanup: m.cleanup });
   m.adapter.mockReturnValue({ dispose: m.dispose });
   m.lane.mockReturnValue({ lane: true });
-  m.dispatch.mockResolvedValue({ status: "completed" });
+  m.dispatch.mockImplementation(async ({ operation }: { operation: string }) => ({ operation, status: "completed" }));
+  m.completion.mockReturnValue(Object.freeze({ completion: true }));
+  m.records.mockReturnValue(Object.freeze({ records: true }));
 });
 afterEach(() => {
   for (const [key, descriptor] of saved) {
@@ -312,4 +324,64 @@ it("refuses an unattested running Node before builder execution", async () => {
     create({ operation: "ptr-update-inspect", workflowInputSha: sha }),
   ).rejects.toThrow("CONFIG");
   expect(m.prepare).not.toHaveBeenCalled();
+});
+
+it("captures a completed update before disposal using owned authority, store and private state", async () => {
+  const runtime = await create({ operation: "ptr-update-apply", workflowInputSha: sha });
+  m.writeRecord.mockImplementation(() => { expect(m.dispose).not.toHaveBeenCalled(); expect(m.cleanup).not.toHaveBeenCalled(); });
+  const result = await run({ runtime, operation: "ptr-update-apply", workflowInputSha: sha });
+  expect(result).toEqual({ operation: "ptr-update-apply", status: "completed" });
+  expect(m.completion).toHaveBeenCalledExactlyOnceWith({ adapter: m.adapter.mock.results[0].value, authority: m.authenticate.mock.results[0].value, store: { store: true } });
+  expect(m.records).toHaveBeenCalledExactlyOnceWith({ privateState: { private: true }, authority: m.authenticate.mock.results[0].value });
+  expect(m.writeRecord).toHaveBeenCalledExactlyOnceWith({ records: m.records.mock.results[0].value, authority: m.authenticate.mock.results[0].value, completion: m.completion.mock.results[0].value });
+  expect(m.dispose).toHaveBeenCalledOnce(); expect(m.cleanup).toHaveBeenCalledOnce();
+});
+it.each(["unavailable", "submitted", "update-inspected"])('does not capture unsuccessful apply status %s', async status => {
+  m.dispatch.mockResolvedValue({ operation: "ptr-update-apply", status });
+  const runtime = await create({ operation: "ptr-update-apply", workflowInputSha: sha });
+  await run({ runtime, operation: "ptr-update-apply", workflowInputSha: sha });
+  expect(m.completion).not.toHaveBeenCalled(); expect(m.writeRecord).not.toHaveBeenCalled(); expect(m.cleanup).toHaveBeenCalledOnce();
+});
+it('does not capture a different returned operation or an inspection run', async () => {
+  const runtime = await create({ operation: "ptr-update-apply", workflowInputSha: sha });
+  m.dispatch.mockResolvedValue({ operation: "ptr-update-inspect", status: "completed" });
+  await run({ runtime, operation: "ptr-update-apply", workflowInputSha: sha });
+  const inspection = await create({ operation: "ptr-update-inspect", workflowInputSha: sha });
+  await run({ runtime: inspection, operation: "ptr-update-inspect", workflowInputSha: sha });
+  expect(m.completion).not.toHaveBeenCalled(); expect(m.writeRecord).not.toHaveBeenCalled();
+});
+it.each(["dispatch", "completion", "records", "writeRecord"] as const)('propagates %s failure and still disposes and revokes', async phase => {
+  const runtime = await create({ operation: "ptr-update-apply", workflowInputSha: sha });
+  m[phase].mockImplementation(() => { throw Error("synthetic capture failure"); });
+  await expect(run({ runtime, operation: "ptr-update-apply", workflowInputSha: sha })).rejects.toThrow("synthetic capture failure");
+  expect(m.dispose).toHaveBeenCalledOnce(); expect(m.cleanup).toHaveBeenCalledOnce(); expect(m.revoke).toHaveBeenCalledOnce();
+  if (phase !== "writeRecord") expect(m.writeRecord).not.toHaveBeenCalled();
+});
+
+it('retries failed receipt capture from a revalidated terminal without replaying dispatch', async () => {
+  const first = await create({ operation: 'ptr-update-apply', workflowInputSha: sha });
+  m.writeRecord.mockImplementationOnce(() => { throw Error('synthetic disk failure'); });
+  await expect(run({ runtime: first, operation: 'ptr-update-apply', workflowInputSha: sha })).rejects.toThrow('synthetic disk failure');
+  const retry = await create({ operation: 'ptr-update-apply', workflowInputSha: sha });
+  const laneFailure = Object.assign(Error('SEALED_REALMS_DISPATCH_LANE_FAILED'), { code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+  m.dispatch.mockRejectedValue(laneFailure);
+  m.attest.mockImplementation(async () => { expect(m.completion).toHaveBeenCalledTimes(1); });
+  await expect(run({ runtime: retry, operation: 'ptr-update-apply', workflowInputSha: sha })).resolves.toEqual({ operation: 'ptr-update-apply', status: 'completed' });
+  expect(m.dispatch).toHaveBeenCalledTimes(2); expect(m.attest).toHaveBeenCalledOnce(); expect(m.completion).toHaveBeenCalledTimes(2); expect(m.writeRecord).toHaveBeenCalledTimes(2); expect(m.cleanup).toHaveBeenCalledTimes(2);
+});
+it.each(['attestation', 'unresolved'] as const)('preserves original lane failure when retry %s refuses', async refusal => {
+  const runtime = await create({ operation: 'ptr-update-apply', workflowInputSha: sha });
+  const laneFailure = Object.assign(Error('original lane failure'), { code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+  m.dispatch.mockRejectedValue(laneFailure);
+  if (refusal === 'attestation') m.attest.mockRejectedValue(Error('revoked permit'));
+  else m.completion.mockImplementation(() => { throw Error('No genuine completed head'); });
+  await expect(run({ runtime, operation: 'ptr-update-apply', workflowInputSha: sha })).rejects.toBe(laneFailure);
+  expect(m.writeRecord).not.toHaveBeenCalled(); expect(m.records).not.toHaveBeenCalled(); expect(m.dispatch).toHaveBeenCalledOnce(); expect(m.cleanup).toHaveBeenCalledOnce();
+  if (refusal === 'attestation') expect(m.completion).not.toHaveBeenCalled();
+});
+it('does not reinterpret errors from outside the authenticated lane-failure boundary', async () => {
+  const runtime = await create({ operation: 'ptr-update-apply', workflowInputSha: sha });
+  m.dispatch.mockRejectedValue(Error('SEALED_REALMS_DISPATCH_LANE_FAILED'));
+  await expect(run({ runtime, operation: 'ptr-update-apply', workflowInputSha: sha })).rejects.toThrow();
+  expect(m.attest).not.toHaveBeenCalled(); expect(m.completion).not.toHaveBeenCalled(); expect(m.writeRecord).not.toHaveBeenCalled();
 });

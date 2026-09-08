@@ -34,7 +34,11 @@ vi.mock("../scripts/ptr-production-publisher.mjs", async (importOriginal) => ({
     return value;
   },
 }));
-import { createPtrProductionExistingUpdateAdapter } from "../scripts/ptr-production-existing-update-adapter.mjs";
+import { createPtrProductionExistingUpdateAdapter, exportPtrExistingUpdateCompletion, readPtrExistingUpdateCompletion } from "../scripts/ptr-production-existing-update-adapter.mjs";
+import {
+  createSealedRealmsProductionActivationRecords,
+  writeSealedRealmsProductionPtrExistingUpdateRecord,
+} from "../scripts/sealed-realms-production-activation-records.mjs";
 import { canonicalizePtrRawV10 } from "../scripts/ptr-artifact-description.mjs";
 import { authenticateSealedRealmsProductionSourceAuthority } from "../scripts/sealed-realms-production-source-authority.mjs";
 import {
@@ -60,6 +64,7 @@ import {
 import {
   existingUpdateTokenDigest,
   updateProgramHash,
+  updateDigest,
 } from "../scripts/sealed-realms-existing-update-protocol.mjs";
 const SOURCE = "a".repeat(40),
   ID = "c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e";
@@ -361,9 +366,36 @@ function fixture() {
     inspect,
     records,
     continuationTerminals,
+    privateState,
     store,
     gh,
   };
+}
+function captureCompletion(
+  f: ReturnType<typeof fixture>,
+  adapter: ReturnType<typeof createPtrProductionExistingUpdateAdapter>,
+  sourceAuthority: ReturnType<typeof authority>,
+  outcome: "completed" | "reconciled-effect-applied",
+) {
+  const completion = exportPtrExistingUpdateCompletion({ adapter, authority: sourceAuthority, store: f.store });
+  const receipt = readPtrExistingUpdateCompletion({ completion, authority: sourceAuthority, privateState: f.privateState });
+  expect(receipt.continuation.outcome).toBe(outcome);
+  expect(receipt.continuation.claimRunId).toBe(receipt.submission.runId);
+  expect(receipt.binding.candidateProgram).toBe(CANDIDATE);
+  const records = createSealedRealmsProductionActivationRecords({ privateState: f.privateState, authority: sourceAuthority });
+  const captured = writeSealedRealmsProductionPtrExistingUpdateRecord({ records, authority: sourceAuthority, completion });
+  const bytes = f.privateState.read({ root: "runtime", relativePath: "activation-evidence/records/ptr-existing-update-receipt.json" });
+  try {
+    const stored = JSON.parse(bytes.toString());
+    expect(stored.member).toBe("ptrExistingUpdateReceipt");
+    expect(stored.receipt).toEqual(receipt);
+    expect(captured.receiptDigest).toBe(updateDigest(receipt));
+    expect(captured.recordDigest).toBe(createHash("sha256").update(bytes).digest("hex"));
+    expect(() => writeSealedRealmsProductionPtrExistingUpdateRecord({ records, authority: sourceAuthority, completion: stored.receipt })).toThrow();
+  } finally { bytes.fill(0); }
+  const reopened = createSealedRealmsProductionActivationRecords({ privateState: f.privateState, authority: sourceAuthority });
+  expect(writeSealedRealmsProductionPtrExistingUpdateRecord({ records: reopened, authority: sourceAuthority, completion })).toEqual(captured);
+  return { receipt, completion };
 }
 it("uses a genuine workflow permit which refuses a newly terminal GitHub run", async () => {
   const gh = github(),
@@ -415,7 +447,11 @@ native(
       adapter = f.make();
     await f.inspect(adapter);
     const run = await f.dispatcher("ptr-update-apply", adapter);
+    expect(() => exportPtrExistingUpdateCompletion({ adapter, authority: run.sourceAuthority, store: f.store })).toThrow();
     await run.call();
+    const direct = captureCompletion(f, adapter, run.sourceAuthority, "completed");
+    expect(direct.receipt.acknowledgement).toBe("received");
+    expect(direct.receipt.responseDigest).toMatch(/^[a-f0-9]{64}$/);
     expect(f.state.puts).toBe(1);
     expect(
       f
@@ -429,6 +465,8 @@ native(
     adapter.dispose();
     const fresh = f.make(),
       later = await f.dispatcher("ptr-update-apply", fresh);
+    expect(() => readPtrExistingUpdateCompletion({ completion: direct.completion, authority: later.sourceAuthority, privateState: f.privateState })).toThrow();
+    expect(captureCompletion(f, fresh, later.sourceAuthority, "completed").receipt).toEqual(direct.receipt);
     await expect(later.call()).rejects.toThrow();
     expect(f.state.puts).toBe(1);
   },
@@ -454,9 +492,17 @@ native(
     f.gh.status.set(live.runId, "completed");
     f.gh.status.set(run.runId, "completed");
     const recovery = await f.dispatcher("ptr-update-apply", fresh);
+    expect(() => exportPtrExistingUpdateCompletion({ adapter: fresh, authority: recovery.sourceAuthority, store: f.store })).toThrow();
     await recovery.call();
+    const captured = captureCompletion(f, fresh, recovery.sourceAuthority, "reconciled-effect-applied");
+    expect(captured.receipt.acknowledgement).toBe("not-received");
+    expect(captured.receipt.acknowledgementRecordDigest).toBeNull();
+    expect(captured.receipt.responseDigest).toBeNull();
+    expect(captured.receipt.continuation.terminalRunId).toBe(recovery.runId);
+    fresh.dispose();
+    expect(captureCompletion(f, f.make(), recovery.sourceAuthority, "reconciled-effect-applied").receipt).toEqual(captured.receipt);
     expect(f.state.puts).toBe(1);
-    expect(fresh.inspectResult()?.acknowledgement).toBe("not-received");
+    expect(captured.receipt.acknowledgement).toBe("not-received");
     expect(
       f.records().some((record) => record.kind === "acknowledgement"),
     ).toBe(false);
@@ -487,6 +533,8 @@ native(
     expect(f.state.puts).toBe(0);
     expect(f.continuationTerminals()).toHaveLength(1);
     expect(f.continuationTerminals()[0].outcome).toBe("reconciled-no-effect");
+    expect(() => exportPtrExistingUpdateCompletion({ adapter: fresh, authority: recovery.sourceAuthority, store: f.store })).toThrow();
+    expect(f.privateState.exists({ root: "runtime", relativePath: "activation-evidence/records/ptr-existing-update-receipt.json" })).toBe(false);
   },
 );
 native(

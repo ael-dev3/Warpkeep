@@ -5,7 +5,8 @@ import { userInfo } from 'node:os';
 import { basename, dirname, isAbsolute } from 'node:path';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { preparePtrSourceBuiltArtifact } from './ptr-production-publisher.mjs';
-import { createPtrProductionExistingUpdateAdapter } from './ptr-production-existing-update-adapter.mjs';
+import { createPtrProductionExistingUpdateAdapter, exportPtrExistingUpdateCompletion } from './ptr-production-existing-update-adapter.mjs';
+import { createSealedRealmsProductionActivationRecords, writeSealedRealmsProductionPtrExistingUpdateRecord } from './sealed-realms-production-activation-records.mjs';
 import {
   createSealedRealmsProductionAuthBridgeState,
 } from './sealed-realms-production-auth-bridge-state.mjs';
@@ -36,6 +37,7 @@ import {
 } from './sealed-realms-production-workflow-private-state.mjs';
 import {
   issueSealedRealmsProductionWorkflowPermit,
+  attestSealedRealmsProductionWorkflowPermit,
 } from './sealed-realms-production-workflow-authority.mjs';
 
 const OPERATIONS = new Set([
@@ -356,7 +358,27 @@ async function buildDispatcher(operation, workflowInputSha, evidence) {
       runAttempt,
       sourceAuthority: authority,
     });
-    return { dispatcher: createSealedRealmsProductionPtrDispatcher({ context, lane }), cleanup };
+    const writeCompletion = completion => {
+      const records = createSealedRealmsProductionActivationRecords({ privateState, authority });
+      writeSealedRealmsProductionPtrExistingUpdateRecord({ records, authority, completion });
+    };
+    const captureCompletedUpdate = () => writeCompletion(exportPtrExistingUpdateCompletion({
+      adapter: existingUpdate, authority, store: continuationStore,
+    }));
+    const recoverCompletedUpdate = async () => {
+      let completion;
+      try {
+        await attestSealedRealmsProductionWorkflowPermit({
+          permit, sourceAuthority: authority, phase: 'continuation-terminal', runId, runAttempt,
+        });
+        // A normalized lane failure is not completion evidence. Only this
+        // current-head export can prove an already committed effect and terminal.
+        completion = exportPtrExistingUpdateCompletion({ adapter: existingUpdate, authority, store: continuationStore });
+      } catch { return false; }
+      writeCompletion(completion);
+      return true;
+    };
+    return { dispatcher: createSealedRealmsProductionPtrDispatcher({ context, lane }), captureCompletedUpdate, recoverCompletedUpdate, cleanup };
   } catch (error) {
     try { cleanup(); } catch { fail('SEALED_REALMS_PTR_WORKFLOW_CLEANUP_FAILED'); }
     throw error;
@@ -400,7 +422,20 @@ export async function runSealedRealmsProductionPtrOperation(input) {
   consumedRuntimes.add(options.runtime);
   try {
     await refreshSealedRealmsProductionWorkflowEvidence(member.evidence);
-    return await member.dispatcher.dispatch(Object.freeze({ operation, workflowInputSha }));
+    let result;
+    try {
+      result = await member.dispatcher.dispatch(Object.freeze({ operation, workflowInputSha }));
+    } catch (error) {
+      if (operation === 'ptr-update-apply' && error?.code === 'SEALED_REALMS_DISPATCH_LANE_FAILED'
+        && await member.recoverCompletedUpdate()) {
+        return Object.freeze({ operation, status: 'completed' });
+      }
+      throw error;
+    }
+    if (operation === 'ptr-update-apply' && result.operation === operation && result.status === 'completed') {
+      member.captureCompletedUpdate();
+    }
+    return result;
   } finally {
     try { member.cleanup(); }
     catch { fail('SEALED_REALMS_PTR_WORKFLOW_CLEANUP_FAILED'); }

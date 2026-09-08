@@ -126,3 +126,27 @@ export function assertSealedRealmsProductionContinuationReconciliation(input: Re
   claimRunId: string;
   claimRunAttempt: number;
 }>): true;
+
+/** Historical validated data projection; grants no effect or writer authority. */
+export function readSealedRealmsProductionContinuationCompletion(input: Readonly<{
+  store: SealedRealmsProductionContinuationStore;
+  privateState: SealedRealmsProductionPrivateState;
+  sourceAuthority: SealedRealmsProductionSourceAuthority;
+  kind: SealedRealmsProductionContinuationKind;
+  subject: string;
+  evidenceDigest: string;
+  receiptDigests: readonly string[];
+  predecessorDigests: readonly string[];
+}>): Readonly<{
+  scopeDigest: string;
+  issuedRecordDigest: string;
+  claimRecordDigest: string;
+  terminalRecordDigest: string;
+  claimRunId: string;
+  claimRunAttempt: number;
+  terminalRunId: string;
+  terminalRunAttempt: number;
+  outcome: 'completed' | 'reconciled-effect-applied';
+  observationDigest: string | null;
+  terminalAt: string;
+}>;

@@ -27,6 +27,8 @@ import {
 } from './genesis001-admitted-player-census.mjs';
 import { createRecoveryActivationBinding, validateRecoveryActivationCandidate } from './recovery-activation-candidate.mjs';
 import { parseActivationGenerationReceipt } from './sealed-realms-production-activation-generation-receipt.mjs';
+import { readPtrExistingUpdateCompletion } from './ptr-production-existing-update-adapter.mjs';
+import { updateDigest } from './sealed-realms-existing-update-protocol.mjs';
 
 const isProxy = types.isProxy;
 const SHA256 = /^[a-f0-9]{64}$/u;
@@ -1034,6 +1036,44 @@ export function assertSealedRealmsProductionActivationRecordsAuthority(input) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
   }
   return options.records;
+}
+
+/** Only a live adapter-issued completion can create the fixed PTR update record. */
+export function writeSealedRealmsProductionPtrExistingUpdateRecord(input) {
+  const options = exactInput(input, ['records', 'authority', 'completion']);
+  const state = capabilityState(options.records);
+  const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(options.authority);
+  if (options.authority.mode !== 'S' || options.authority.operation !== 'ptr-update-apply'
+    || state.sourceMode !== 'S' || state.sourceCommit !== sourceCommit
+    || state.preparationSourceCommit !== sourceCommit
+    || state.sourceAuthorityDigest !== options.authority.authorityDigest) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+  }
+  const receipt = readPtrExistingUpdateCompletion({
+    completion: options.completion, authority: options.authority, privateState: state.privateState,
+  });
+  const member = 'ptrExistingUpdateReceipt';
+  const body = exactBody(receipt);
+  let bytes;
+  try {
+    const bodyDigest = createHash('sha256').update(body).digest('hex');
+    const record = {
+      schemaVersion: 1, profile: RECORD_PROFILE, member,
+      preparationSourceCommit: sourceCommit, sourceCommit,
+      operation: 'ptr-update-apply', sourceAuthorityDigest: options.authority.authorityDigest,
+      bodyDigest, receipt,
+      semanticDigest: digest('warpkeep.sealed-realms.activation-record.v1', member,
+        sourceCommit, sourceCommit, 'ptr-update-apply', options.authority.authorityDigest, bodyDigest),
+    };
+    bytes = Buffer.from(`${JSON.stringify(record)}\n`, 'utf8');
+    const target = { root: 'runtime', relativePath: `${RECORD_DIRECTORY}/ptr-existing-update-receipt.json` };
+    if (!state.privateState.exists(target)) state.privateState.write({ ...target, bytes });
+    const reopened = state.privateState.read(target);
+    try {
+      if (!reopened.equals(bytes)) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+    } finally { reopened.fill(0); }
+    return Object.freeze({ receiptDigest: updateDigest(receipt), recordDigest: createHash('sha256').update(bytes).digest('hex') });
+  } finally { body.fill(0); bytes?.fill(0); }
 }
 
 function recoveryReceiptProjection(state, receipts, g001) {

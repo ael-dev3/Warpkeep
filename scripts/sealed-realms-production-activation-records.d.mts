@@ -1,5 +1,6 @@
 import type { SealedRealmsProductionPrivateState } from './sealed-realms-production-private-state.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
+import type { PtrExistingUpdateCompletion } from './ptr-production-existing-update-adapter.mjs';
 
 export class SealedRealmsProductionActivationRecordsError extends Error {
   readonly code: string;
@@ -36,6 +37,13 @@ export function assertSealedRealmsProductionActivationRecordsAuthority(input: Re
   privateState: SealedRealmsProductionPrivateState;
   authority: SealedRealmsProductionSourceAuthority;
 }>): SealedRealmsProductionActivationRecords;
+
+/** Fixed private capture only; no caller receipt body, digest or path is accepted. */
+export function writeSealedRealmsProductionPtrExistingUpdateRecord(input: Readonly<{
+  records: SealedRealmsProductionActivationRecords;
+  authority: SealedRealmsProductionSourceAuthority;
+  completion: PtrExistingUpdateCompletion;
+}>): Readonly<{ receiptDigest: string; recordDigest: string }>;
 
 /** Reopens the exact S-bound V2 corpus without a candidate, private bodies or writes. */
 export function readSealedRealmsProductionRecoveryReceiptProjection(
