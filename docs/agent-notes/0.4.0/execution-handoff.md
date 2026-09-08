@@ -24,6 +24,16 @@ still false. Runner registration succeeded, but service installation timed out
 in systemd; dedicated-distro recovery is underway. Do not claim an online runner
 or completed protected workflow from registration alone.
 
+## Linux G001 protected closure — September 9
+
+The published Windows/GitHub checkpoint `051a189` now names and verifies the
+complete Linux G001 spawned-program family in the protected source closure:
+launcher, materializer, child, policy boundary, receipt codecs, runtime
+helpers, YAML manifest, synthetic G002 entry, workflow evidence codec and
+binding-tree utilities. The regenerated closure is stable at 1,193 members;
+the remaining proof is execution of that materializer/child inside the
+assembled Linux artifact and the final-family run.
+
 ## Linux G001 policy integration — September 9
 
 Published at `a0b5060` on `upstream/codex/prepared-keep-bindings-fix`, this
