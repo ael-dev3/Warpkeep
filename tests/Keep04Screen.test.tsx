@@ -233,3 +233,11 @@ it('shows returned credit only after a confirmed state update, never when the es
   expect(screen.queryByText('Pending 60')).not.toBeInTheDocument();
   expect(controller.submit).not.toHaveBeenCalled();
 });
+
+it("keeps zero incoming resources quiet without hiding available balances", () => {
+  setup();
+  const resources = within(screen.getByRole("region", { name: "Resources" }));
+  expect(resources.queryByText("Pending 0")).not.toBeInTheDocument();
+  expect(resources.getByText("No resources awaiting return")).toBeVisible();
+  for (const name of ["Food", "Wood", "Stone", "Gold"]) expect(resources.getByText(name)).toBeVisible();
+});

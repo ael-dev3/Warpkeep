@@ -138,8 +138,8 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
     {view !== null && <div hidden={!visible}>
       <div ref={decisionHeader} className="keep04-decision-header">
         <section className="keep04-resources" aria-label="Resources">
-          {RESOURCES04.map(resource => <div key={resource}><span>{resource[0].toUpperCase() + resource.slice(1)}</span><strong>{view.balances[resource].toString()}</strong><small>Pending {view.pending[resource].toString()}</small></div>)}
-          <p>{PENDING_LABEL04}</p>
+          {RESOURCES04.map(resource => <div key={resource}><span>{resource[0].toUpperCase() + resource.slice(1)}</span><strong>{view.balances[resource].toString()}</strong>{view.pending[resource] > 0n && <small>Pending {view.pending[resource].toString()}</small>}</div>)}
+          <p>{RESOURCES04.some(resource => view.pending[resource] > 0n) ? PENDING_LABEL04 : "No resources awaiting return"}</p>
         </section>
         <nav className="keep04-primary-nav" aria-label="Primary keep actions">
           <button type="button" aria-controls={selection.panel ? panelId : undefined} aria-expanded={selection.panel === 'buildings'} onClick={event => openPanel('buildings', event.currentTarget)}>Open building catalog</button>
