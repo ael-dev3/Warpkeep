@@ -7,10 +7,11 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-Updated 2026-09-08 after the documentation merge `5b97c5f`, PTR host-scope fix
-`d088ec1` and workflow regression correction `0a2f6f9`. This revision adds the
-operating Linux source assembler and recovery activation generation. Read Git
-for the resulting commit and publication state. The original audit at `781e51e`
+Updated 2026-09-08 after the operating Linux source assembler and recovery
+activation generation at `772d3a4`, followed by receipt projection and PTR
+closure-test correction at `f558bd5`. Both were published with GitHub ref equality.
+Read Git and the execution handoff for later source-family checkpoints.
+The original audit at `781e51e`
 remains dated evidence. Recheck providers before using its observations.
 
 - `main` is the public G001 baseline. Current 0.4 implementation is on
@@ -27,16 +28,19 @@ remains dated evidence. Recheck providers before using its observations.
 - GitHub and configured Cloudflare/SpacetimeDB metadata reads work in the current
   session. Earlier network-denial notes describe an older session.
 - G002 and PTR databases already exist. The Linux recovery Pages caller is
-  implemented (`c51bb00`); its runner/private state, tracked generated bundle and
-  manifest, final source family and live authorization remain unprepared or
-  unverified. Other production lanes retain Mac-specific dependencies.
+  implemented (`c51bb00`). Its [registered Linux runner](../../operations/0.4.0-linux-runner.md)
+  was online and idle on September 8, with the dedicated account and private root
+  installed. Signer authorization, live provider inputs and operating acceptance
+  remain unfinished. Other production lanes retain Mac-specific dependencies.
 - The [local source assembler](../../operations/0.4.0-local-release-preparation.md)
   now connects fixed compilers, complete generated consumers, independent byte
   verification and durable candidate recovery. The activation lane has a fixed
-  V2 generator and receipt-based reconciliation; its authenticated canonical
-  candidate/provider producer remains unfinished. See the dated
+  V2 generator and receipt-based reconciliation. The receipt reader now resolves
+  its candidate-construction cycle; authenticated canonical candidate/provider
+  producers remain unfinished. See the dated
   [engineering evidence](../../evidence/0.4.0/release-engineering.md) before
-  treating component or diagnostic tests as full preparation.
+  assessing the completed native prepare/check from `f558bd5`, subsequent
+  generated-source integration and separate remaining operating/CI defects.
 - 0.4 is **not shipped**. Preserve the live G001 game and its admission freeze,
   keep G002 closed, and use the isolated owner's PTR for real 0.4 acceptance.
 

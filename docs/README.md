@@ -23,6 +23,10 @@ guide; `main` and the running game can represent different release stages.
   boundaries and verification owners
 - [Source synchronization](operations/0.4.0-development-sync.md) — checked-out,
   reviewed and published source boundaries
+- [Local source preparation](operations/0.4.0-local-release-preparation.md) — fixed
+  native compilation, independent candidate checks and recoverable installation
+- [Linux production runner](operations/0.4.0-linux-runner.md) — verified installation,
+  maintenance and the remaining operating prerequisites
 - [Repository ecosystem](engineering/repository-ecosystem.md) — game and services,
   asset archive, planned tooling, and public presentation
 

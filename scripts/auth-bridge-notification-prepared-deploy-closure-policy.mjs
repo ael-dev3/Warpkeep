@@ -221,6 +221,18 @@ const STATIC_SECURITY_INPUTS = Object.freeze([
   'src/spacetime/greaterRealmProviderBridge.ts',
   'src/spacetime/playerModuleBindings.ts',
   'vite.config.ts',
+  'scripts/recovery-workflow-bundle-manifest-v1.json',
+  'scripts/recovery-workflow-prepare-claim.mjs',
+  'scripts/sealed-realms-production-activation-lane.bundle.d.mts',
+  'scripts/sealed-realms-production-activation-lane.bundle.mjs',
+  'scripts/sealed-realms-production-bundle-manifest-v1.json',
+  'scripts/sealed-realms-production-g001-lane.bundle.d.mts',
+  'scripts/sealed-realms-production-g001-lane.bundle.mjs',
+  'scripts/sealed-realms-production-g002-lane.bundle.d.mts',
+  'scripts/sealed-realms-production-g002-lane.bundle.mjs',
+  'scripts/sealed-realms-production-ptr-lane.bundle.d.mts',
+  'scripts/sealed-realms-production-ptr-lane.bundle.mjs',
+  'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs',
 ]);
 const ATTESTED_INSTALLED_IMPORTS = new Map([
   ['scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs', new Set([

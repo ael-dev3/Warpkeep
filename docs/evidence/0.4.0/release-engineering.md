@@ -278,9 +278,9 @@ source family by the assembler; no pin was hand-edited here.
 complete generated consumer derivation, independent candidate comparison,
 durable installation and recovery. The
 [operating runbook](../../operations/0.4.0-local-release-preparation.md) describes
-its `prepare`, `check` and `recover` commands and exact environment. This entry
-records component and diagnostic verification before the first complete
-operating run from the resulting committed source.
+its `prepare`, `check` and `recover` commands and exact environment. Component
+and diagnostic verification was followed by the full committed-source operating
+run recorded below.
 
 The fixed TypeScript scanner inventory was derived from exact archives matching
 the committed auth-bridge lock's SHA-512 integrities. The manifest generator
@@ -320,9 +320,47 @@ scanner/graph diagnostic used the `5b97c5f` baseline plus current overlays.
 Independent reviews corrected late scanner/candidate mutation checks and the
 history-restart durability gap before these passing runs.
 
-Full native `prepare` and a second independent `check` still need to run from
-the committed integrated source. These tests do not establish a prepared final
-release, populated production evidence, runner readiness or owner acceptance.
+These component tests preceded the full operating run recorded below. They do
+not establish a prepared final release, populated production evidence, runner
+readiness or owner acceptance.
+
+### Full prepare, independent check and recovery at `772d3a4`
+
+The fixed CLI ran from a clean, separate native Linux checkout of
+`772d3a44b2c4fff9c1626147bc447b85534005eb`, tree
+`bc1758ad4c304da2413bd24461b99ce9e70be815`, under the pinned operating profile.
+Both `prepare` and a subsequent independent `check` completed with exit 0 and
+the same journal/family/closure/scanner commitments. The check compiled expected
+outputs again from fresh captured source and compared the entire retained
+candidate. No dependency directory was installed into the candidate.
+
+| Verified record | SHA-256 |
+| --- | --- |
+| Generated family | `972f113f82dfcb36af6f3846f1afbd46d07589c092c3a7278aa3d5d7ba8f21f5` |
+| Native journal | `d91f1cbe3b3bfe214db78414e4acc9e4400f48fd193654e9ea2858a08a2b210a` |
+| Prepared source closure | `aca6f27059ccd937bbb435feaf27bd817ce5f746d05e86208119e67c7dad55e8` |
+| Installed scanner manifest | `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71` |
+
+The result checked 2,977 source files and 3,001 candidate files, with 101 exact
+generated outputs. These are observed verifier results, not manually maintained
+inventory policy. The result explicitly retained `finalReleasePrepared:false`.
+
+A separate QA clone of this exact source received only the journal-verified
+generated outputs. Four closure/activation suites passed; the remaining PTR
+suite found stale explicit browser and binding members. Updating the real member
+lists passed all eight PTR cases and was committed at `f558bd5`. The test file is
+outside the compiled inputs and prepared closure. All generated hashes and the
+read-only dependency metadata stayed unchanged during QA and patch export.
+
+After retaining that export and the newer source's independent preparation,
+the real `recover` CLI restored the earlier candidate's complete generated
+transaction and returned `rolled-back`, exit 0. The active completion marker was
+absent and its history was retained. A separate full-byte verification against
+the original Git source matched all 2,977 restored files, including the original
+binding namespaces; Git reported no source changes. This proves local candidate
+recovery for this actual family, not live database recovery or preservation of
+post-deployment player writes. The old candidate is now the restored baseline;
+its archived completion is not active preparation authority.
 
 ## Recovery receipt projection — 2026-09-08
 
@@ -360,3 +398,48 @@ record; lifecycle completion alone cannot replace missing evidence or justify
 replaying an effect. The workflow Verify reader, live transport adapters,
 remaining realm receipt captures and canonical recovery inputs remain separate
 unfinished callers.
+
+## Complete generated source at `f558bd5` — 2026-09-08
+
+The operating assembler was repeated from the committed receipt-projection and
+PTR-test source `f558bd5aeb306e783e674eed9bf02df2dbeeeae6`, tree
+`f746972e05e89951f62493682c16c3cd06a0940d`. Native `prepare` and the subsequent
+independent operating `check` both completed with exit 0. The check rebuilt from
+fresh captured source and verified the complete retained candidate. Both runs
+returned exactly the same source, tree, transaction, journal, family, closure,
+scanner and inventory results; neither conferred final release authorization.
+
+| Verified preparation record | SHA-256 |
+| --- | --- |
+| Complete generated family | `f00fe8de0859f6c6af591037ce65f9a25db4d4d5882e5843a42075d25d3286f5` |
+| Native journal | `27977449f89129683602e0daf952992a4847b7a27a747faddf295083cc4a9275` |
+| Prepared source closure | `755b6467e34aaef27e0f2d57f89960b54dc398438edacd93f059bb02ad60fc25` |
+| Installed scanner manifest | `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71` |
+
+The result verified 2,977 source files, 3,001 candidate files and 101 generated
+outputs. The output set contains complete G002/PTR bindings, the operation and
+recovery bundles and manifests, and their derived closure/consumer/source pins.
+G001 source and bindings remain unchanged. These values are measured outputs,
+not new fixed policy counts, and the candidate retains `finalReleasePrepared:false`.
+
+An independent clone of this exact commit plus only the journal-verified outputs
+passed **234 tests across six complete suites**: B0 closure, Greater Realm deploy
+boundary, PTR closure, sealed-launch verifier, V1 activation generator and
+activation records. Application and Vite-config TypeScript checks both passed
+with `--noEmit`, using the pinned Linux TypeScript 7.0.2 and Node 22.22.3. No
+fixture source overlay was present. The source/test bytes, generated family and
+read-only dependency metadata matched before and after. Caches and build-info
+stayed in the QA fixture; the actual candidate remained dependency-free.
+
+The exported patch contains only the 41 changed paths within the 101 verified
+outputs. It passed application checks against the primary checkout, and all 101
+staged Git blobs matched the journal's exact bytes, sizes and modes. Workflow
+changes are generated closure commitments; job permissions and operating phases
+are unchanged. Manifests retain `f558bd5` as compiler input instead of claiming the
+later containing commit supplied those bytes.
+
+This establishes source preparation and scoped regression verification. It does
+not establish live provider receipts, signer authorization, complete current CI,
+owner play, physical-device/performance acceptance or deployment. The canonical
+activation/provider adapters and remaining Linux operating callers still require
+implementation and actual execution.

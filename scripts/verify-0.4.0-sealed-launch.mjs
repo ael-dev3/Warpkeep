@@ -48,15 +48,15 @@ const GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_SOURCE_SHA256 =
 const GENESIS_001_POLICY_OBSERVATION_SOURCE_SHA256 =
   '15ee745ddb38e3bf8206c145b3cc9e6ac4181194b0d93945266f9e90cbb87378';
 const GENESIS_001_ADMISSION_MONITOR_CURRENT_STATE_SOURCE_SHA256 =
-  '10c8286a38ac81a5672280dcede60f712a95bc78af2f263e3ee8cc40d4afd5ac';
+  '50776faaeb1ccd0c7357e6058ed90ac5a4ad5ad043444126089bdd45d1fd4560';
 const GENESIS_001_SEALED_LAUNCH_ADOPTION_SOURCE_SHA256 =
-  'f9b3fc9bb02c9905aaa210daf05f71e2262f157e7bf9669058ce21e915593631';
+  'a8d88d1d3e1d015c893ae402c2ee77ded7852996fbd6cef9b263783087d1ff84';
 const SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_SHA256 =
-  'be5fc56e7fc232b186b5446fc1ac4b71130e1385a0e0783421f9cfa2b6e247df';
+  '885c49d3566c49a9725667134a2c4115fb83e81eef61c780b47f288907a661bf';
 const SEALED_LAUNCH_PACKAGE_STRUCTURE_SHA256 =
-  '22663812042c8f910fdd555b01350a49c5d481013a8a52bbe99246561e58dd31';
+  'ad3407deed8ed6974d3f0333a7bda5fd029bc121fc62f78829eb6dad15561517';
 const SEALED_LAUNCH_LOCK_STRUCTURE_SHA256 =
-  'ceae3fad060d69c711938973c04a70fbda46fbcfeb0e1ad19f87caa0c9252e1f';
+  '24693289474682990bc4011db2775f11d5d5b745d9908d5abac91786a27ed244';
 const RELEASE_VERSION_DIGEST_PLACEHOLDER = '<release-version>';
 const GENESIS_001_POLICY_OBSERVATION_ENVELOPE_HEADER = Buffer.from([
   '# GENESIS 001 POLICY OBSERVATION - SEALED 0.4.0',
@@ -994,7 +994,7 @@ function verifyGenesis002Policy(sources) {
   // transport bound while the later closure update is intentionally deferred.
   for (const [source, expectedSha256] of [
     [sources.genesis002ContractSource,
-      'a8c810ed4f2fe67ce3e8b641f6885f9baef158b0f6a70bcdac5f0a7cf89721b1'],
+      '426dda31764bce8e73b7401caa49472f7424e8fda9eed308e27328460bc8c317'],
     [sources.genesis002AdminPolicySource,
       '90ac5adfe4d4999bf75262e2e7618580cf9a02f155de1ec4368170a61ebd8cad'],
     [sources.genesis002AuthSource,
@@ -1002,17 +1002,17 @@ function verifyGenesis002Policy(sources) {
     [sources.genesis002LifecycleSource,
       'aa142bf3b138c82059f3571a4622a51d6095f36055f61513c7db07a9a2573aa1'],
     [sources.genesis002AtlasImportSource,
-      'ba814224620ebf7ec837e326ca5e495c978da61097c0f88831f0ff013cad7b6c'],
+      'dc242690e0fe20b3af388f71314900d18d614faa163857e2333f8472a2a52517'],
     [sources.authBridgeConfigSource,
       '39036b69b0264eb712ae4ac08b29c6e2854488488e632b246fd77eac1ad50b65'],
     [sources.authBridgeJwtSource,
-      '30776921dc8d7fa237ad73fb2cd4515662ea5f523ee9f380cdaaddf33467dbb7'],
+      'e59b158f670883f60be7de82def402ae3e39a9bf98f07e7c4281ee5460144903'],
     [sources.authBridgeSource,
       '75bae3f93146fe841a98a633c4646f6746a76d373b4df5769e209243f088fb11'],
     [sources.genesis002PublisherCoreSource,
-      'c7e07f7cd5dbeb05b9fd6e237b32b9332e4a8010c59f35cd89e2e3b49aa0a863'],
+      '72b18f04c13691fd9b93552c906fbb1a2f13c8efd4457852a5dc8315861de1dc'],
     [sources.genesis002TransportSource,
-      '39619dae34b4e59bf3b6f7cf4db3577d46ee18fa8e172e527c943467215b6c9a'],
+      '1dfd10a532284fb04150d3c2bc2841bd0ec29853101c86fb5994e4334ae9f509'],
   ]) {
     if (
       typeof source !== 'string'
@@ -1435,15 +1435,15 @@ function verifyPtrOwnerAuthority(sources) {
   // adds these sources to the authenticated closure and refreezes it.
   for (const [source, expectedSha256] of [
     [sources.authBridgeTypesSource,
-      'f4c4c9cd3071f4d85b4ca632133c573b5b9096f954c678d212c30298091dd9a9'],
+      '7347c5eec517dd50566f6b81428656283350ed40bb407a696e7188dc87ab0094'],
     [sources.authBridgeJwtSource,
-      '30776921dc8d7fa237ad73fb2cd4515662ea5f523ee9f380cdaaddf33467dbb7'],
+      'e59b158f670883f60be7de82def402ae3e39a9bf98f07e7c4281ee5460144903'],
     [sources.authBridgeSource,
       '75bae3f93146fe841a98a633c4646f6746a76d373b4df5769e209243f088fb11'],
     [sources.ptrOwnerPolicySource,
-      '8e7103cb72bee2124bd1b0aa45efcc859c89ad2b4147145115805075b9dcb1c4'],
+      '7a06a8099a166c4423046205d250c84e2b3c58e9ac98a30fca95afb69a4e0170'],
     [sources.ptrAuthSource,
-      '7d3fb69d9d8fadc7a6801f146e8ba6e8efb8b66d990762b28dcd7d3f50c7eb89'],
+      'c1d329c148d97a358805474431bbcaa12d0ec586ce794bf6d3c77f7f58fbb42c'],
     [sources.ptrAtlasImportReducersSource,
       '419abecc09643dda84ba00882bb5c0fffa493bfab879fb1031fe59f221803718'],
     [sources.ptrOwnerReducersSource,
@@ -1463,7 +1463,7 @@ function verifyPtrOwnerAuthority(sources) {
     [sources.ptrOwnerProvisionOperatorSource,
       '40144be3eba3fb4beb0c3b7eccdba4a2c2fd6c72a09ef158eae31413b52e9f78'],
     [sources.ptrPublisherCoreSource,
-      '6e53d72915a70b022f8853bd809ca06bea63488ba5c54a19aa664cb9215eb0c2'],
+      'bc499e3bc7c7ea8df7668513f61afe8ef26193cdc71ce27e77f8ec3527e280f1'],
     [sources.ptrPublisherCliSource,
       '8a261a4e2a23a51f80101060e168107f144a3c9811ce22450ea741b25739afa4'],
   ]) {

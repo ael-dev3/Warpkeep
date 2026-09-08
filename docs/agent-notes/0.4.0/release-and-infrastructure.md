@@ -2,8 +2,10 @@
 
 Original source inspection: 2026-09-07, local
 `781e51e364d1e5a7319ca2364744c8730e83b0d6`. Current caller status below was updated
-on 2026-09-08 through development `c51bb00`; the original provider/process and CI
-observations retain their dates and source scope.
+on 2026-09-08 through development `f558bd5`, including the activation generator
+and assembler at `772d3a4` and the subsequent receipt-first projection. Runner
+infrastructure was verified online on September 8 at 00:28 UTC; the original
+provider/process and CI observations below retain their dates and source scope.
 Authenticated provider and local-process observations were refreshed on September 7
 around 21:48–21:51 UTC. Later publication state belongs in the
 [execution handoff](execution-handoff.md). Provider observations expire; reverify
@@ -18,12 +20,12 @@ they are not final-source tests, live owner play or deployed-state proof.
 
 | Surface | Observed / recorded state | What it does not prove |
 | --- | --- | --- |
-| GitHub source | Fresh API reads succeed with repository push/admin permissions; PR #228 is draft/BLOCKED at `c42f6e6`, behind inspected local HEAD | Old socket denial is not current; permission metadata is not a verified new push |
+| GitHub source | September 7 API reads succeeded with repository push/admin permissions; PR #228 was draft/BLOCKED at `c42f6e6`, behind the then-inspected local HEAD | This dated PR observation is not current publication state; follow the execution handoff and verify the actual remote |
 | Frontend | Fresh GitHub Pages settings: workflow build, custom domain `warpkeep.com`, HTTPS enforced, status null | Current served version, healthy 0.4 gameplay or recoverable complete artifact |
 | Auth bridge | Correct `warpkeep-production` Wrangler profile freshly lists `warpkeep-auth-bridge`; newest deployment `ec7c0f41-1404-40f8-9330-3c531afae621`, created 2026-08-28T07:54:39.545445Z, version `79dfceec-9810-4868-afca-5b794d08a9a5` at 100% | Historical wrong-default-account Worker-not-found is superseded; deployment metadata does not attest exact source bytes, configuration or owner authentication |
 | Persistent realms | Fresh authenticated Spacetime CLI 2.6.1 list returns G001, G002 and PTR with immutable identities matching the access ledger | Provider ownership/list/schema access does not grant application-admin or owner authority |
 | G002 private state | Historical private aggregate read returned `INVALID_GENESIS_002_ADMIN_SESSION`; no new private-row read attempted in this audit | Do not infer empty/current state or bypass the denied application boundary |
-| Actions runner | Fresh repository inventory: only runner ID21, old macOS runner, offline/not busy; no registered Windows/Linux production runner returned | Local Docker/WSL does not supply genuine repository job/OIDC identity |
+| Actions runner | September 8: runner ID22, `warpkeep-wsl-production-01`, online/idle with Linux/X64 and the required production labels; persistent systemd service as UID1001; recovery directory provisioned at owner-only mode0700. Existing macOS runner ID21 remains offline | Registration and an empty private directory do not supply live job/OIDC evidence, signer keys, private claims or release authorization |
 
 See [infra access](../../operations/0.4.0-infra-access.md),
 [local operations](../../evidence/0.4.0/local-operations.md) and
@@ -31,6 +33,9 @@ See [infra access](../../operations/0.4.0-infra-access.md),
 dated entries with authenticated fresh account/route/database metadata. Use
 configured credentials through their normal tools; never extract private OS
 credential stores or copy secrets/raw player data into Git, logs or a Desktop bundle.
+The [Linux runner operations guide](../../operations/0.4.0-linux-runner.md)
+records its package provenance, exact unit/account/paths, maintenance commands and
+Windows/WSL availability limitation.
 
 The owning Cloudflare profile now works for the inspected deployment-list
 operation. Use it explicitly; the default profile in this worktree is a different
@@ -63,37 +68,63 @@ Process IDs and ports are ephemeral. Before reusing a server, confirm its PID,
 start time, exact checkout/entrypoint and listening endpoint through a safe
 projection of process metadata. Never kill all Node/Docker/WSL processes or stop
 unrelated services. Do not log full command lines, environment variables or
-authenticated network dumps to identify a process. This audit created no
-persistent server, runner or test process and changed no provider configuration.
+authenticated network dumps to identify a process. The September 7 audit created
+no persistent server, runner or test process and changed no provider configuration.
+The separate September 8 setup registered the Linux runner and enabled/started
+its systemd service without restarting WSL. Its service main PID was 2470710 at
+00:28 UTC; recheck status before relying on that handle. The account, runtime and
+recovery root are distinct from the UID1000 native assembler namespace.
 
 Disposable local Linux execution can test compiler and filesystem behavior.
-Actual production actions that require GitHub OIDC still need a genuine authorized
-supported runner. Local platform support therefore has two separate gaps:
-finish executable Windows/WSL contracts, and install/verify their authentic
-workflow/runner integration. The owner excluded dependence on the Mac runner.
+The supported Linux runner is now registered and available, but no live recovery
+job/OIDC authorization was exercised by setup. Finish the executable operating
+adapters and verify the exact workflow/source/authorization chain on that runner.
+The owner excluded dependence on the Mac runner; legacy Mac-only production
+callers remain separate migration work.
 
 ## Component status and next operating caller
 
 | Component | Implemented / verified support | Remaining integration boundary |
 | --- | --- | --- |
-| Native compiler/family | `local-release-artifact-inputs.mjs`, compiled-family probe; recorded `16c8107` probe compiled 86 files +14 closure outputs, installed 100 files, checked 1,136 members and convergence | Historical diagnostic reports `finalReleasePrepared:false`; rerun complete exact final source/toolchain, not arbitrary overlays |
+| Native compiler/family | `local-release-assembler.mjs` at `772d3a4` connects fixed producers, attested scanner, complete consumer derivation, independent byte verification and durable prepare/check/recover; the `16c8107` probe remains dated historical evidence | Use the exact selected committed source, regenerate after runtime changes such as `f558bd5`, and retain `finalReleasePrepared:false`; a source candidate is not activation or release authority |
 | Candidate installation/recovery | `local-release-transaction-install.mjs`, candidate lock and transaction recovery: Linux identity/fsync, dirty refusal, crash recovery | Candidate-file recovery is not production database recovery preserving later player writes |
 | Closure/inventory/source pins | `local-prepared-closure-family.mjs` and source-pin/manifest/policy derivation | Mechanically regenerate all consumers together after required source changes; no typed-in hashes/counts |
 | Static recovery candidate | `recovery-activation-candidate.mjs`, `recovery-binding-projection.mjs` | Canonical schema and consistent digests do not authenticate provenance or grant deployment authority |
-| Recovery private descriptor | `sealed-realms-production-activation-records.mjs`, recovery export at `1600f4b`, asynchronous-consumer rejection fixed in `1feb105` | No operating production caller; must feed a fixed authenticated generator, not caller-chosen evidence |
+| Recovery private descriptor | `sealed-realms-production-activation-records.mjs`; `f558bd5` validates the twelve S-bound records first, projects frozen scalar candidate facts, checks overlap and reopens the corpus | Canonical recovery-core/realm candidate reader and genuine provider-backed receipt captures remain missing in the operating workflow |
+| Activation generation and completion | `772d3a4` connects the fixed V2 generator, branded evidence consumption, atomic public artifact/private generation receipt and read-only reconciliation through the activation lane | The workflow's source-evidence and provider adapters still refuse unavailable authority; implemented generation does not manufacture those inputs |
 | G001 producer-local capture | `sealed-realms-production-g001-lane-entry.mjs`: stable applicant pair, admitted capture at suspend, S-mode current-state capture | Other producer/adapters remain unavailable; A-mode inspection must preserve original preparation capture |
 | Publisher ABI checks | `genesis002-production-publisher.mjs` and `ptr-production-publisher.mjs` corrected for real generated gameplay ABI | Fresh-create publishers still reject existing targets; both realms are confirmed to exist |
-| Recovery Pages caller | `deploy-pages.yml` implements the Linux build/attestation/artifact/claim/boundary/deploy/postflight job at `c51bb00`, using the fixed recovery helpers | Actual runner/private state, tracked generated bundle/manifest installation, final source family and live authorization acceptance remain outstanding |
+| Recovery Pages caller | `deploy-pages.yml` implements the Linux build/attestation/artifact/claim/boundary/deploy/postflight job at `c51bb00`; runner22 and its UID1001 private directory are now provisioned | Install/review the selected current generated source and bundle family, genuine activation inputs, signer private/control state and live authorization; no recovery job has yet established acceptance |
 | Recovery Worker split | `services/release-recovery` gateway route and private signer/service binding, durable ledger, disabled gate | Configuration files do not prove deployed Workers, installed keys or armed authorization |
 
 Read [compiled family evidence](../../evidence/0.4.0/local-release-compiled-family-probe.md),
 [recovery validation map](../../evidence/0.4.0/recovery-binding-validation-map.md),
 [release engineering](../../evidence/0.4.0/release-engineering.md), and the
-[assembler specification](../../superpowers/specs/2026-09-06-warpkeep-local-release-assembler-design.md)
-through their latest dated entries. Earlier missing-component statements may be
-superseded; a later component pass still does not prove its missing caller exists.
+[local assembler operating guide](../../operations/0.4.0-local-release-preparation.md).
+The [assembler specification](../../superpowers/specs/2026-09-06-warpkeep-local-release-assembler-design.md)
+provides the design boundary. Follow the evidence through its latest dated entries.
+Earlier missing-component statements may be superseded; a later component pass
+still does not prove its missing caller exists.
 
 ## Concrete stops in current execution paths
+
+The September 8 connected-source review found two additional contract defects
+in `f558bd5`. The source authenticator requires preparation metadata to contain
+its own commit, while the committed metadata and preparation verifier require
+`preparationSourceCommit:null`. Existing fixture projections and Git replacement
+objects conceal this mismatch. The correction must keep source identity in the
+authenticated Git/Verify result and exercise ordinary, inert committed metadata.
+Separately, activated-source authentication accepts only schema 1/profile v1,
+while the recovery generator produces schema 2/profile v2. V2 needs its own
+authenticated recovery binding path; relabeling it as V1 is not compatible.
+Corrections are being developed in isolated checkouts and are not part of the
+generated `f558bd5` source family recorded here.
+
+The G001 durable policy-observation implementation is also under isolated review.
+Completed lifecycle adoption must bind both cleanup digests to the real retained
+terminal record. A self-consistent wrapper with the same run ID is insufficient;
+missing evidence must not trigger effect replay. Follow the later engineering
+record before treating this new producer as integrated.
 
 1. `.github/workflows/sealed-realms-production.yml` still emits
    `SEALED_REALMS_TASK_7_CLOSURE_UNAVAILABLE` and contains macOS/Darwin runtime
@@ -107,9 +138,13 @@ superseded; a later component pass still does not prove its missing caller exist
    actual owner inspection/provisioning. Activation bridge/import/owner attesters
    remain unavailable. Trace `sealed-realms-production-*-workflow-entry.mjs` and
    their lane callers rather than merely deleting their throws.
-3. Dispatcher, activation lane and auth-bridge-state generator/assert/consume paths
-   remain fenced. The old callback-style Task6E generator is unavailable. Restoring
-   arbitrary callbacks or weakening the test is not the approved implementation.
+3. The fixed activation dispatcher/lane, generator/assert/consume paths and durable
+   completion/reconciliation are implemented at `772d3a4`; receipt-first candidate
+   projection follows at `f558bd5`. The operating workflow's
+   `readCanonicalRecoveryCandidate` still explicitly refuses unavailable recovery
+   core/realm facts. The legacy early-dispatch Task6E refusal also remains; it is
+   not evidence that every activation path is absent. Supply the real authenticated
+   inputs and supported workflow context, not arbitrary callbacks or fixture JSON.
 4. G002/PTR publishers are **fresh-create only** and reject existing aliases.
    Existing-state baseline, exact immutable target, schema-compatible data-preserving update,
    no-delete publication, ambiguous-outcome reconciliation and authenticated
@@ -119,10 +154,13 @@ superseded; a later component pass still does not prove its missing caller exist
    passes the fixed issuance and reconciliation workflow contracts. It owns the
    build, installed attestation, unique artifact and adjacent claim → fresh boundary
    → pinned Pages deploy → mandatory postflight under the non-cancelling production
-   lock. The supported Linux runner and UID 1001 private state remain unprovisioned;
-   the tracked generated claim bundle/manifest and final derived source family
-   still require installation. Live authorization and deployment acceptance remain
-   unverified. These are operating prerequisites, not an absent workflow caller;
+   lock. Runner22 is online and its UID1001 private directory exists. The selected
+   `f558bd5` source family now passed full native prepare/check and was integrated
+   with this handoff. Later runtime changes require fresh derivation. Genuine
+   activation inputs and live signer authorization remain missing. Private signer
+   keys/control/ledger state and accepted run-specific claims are not supplied by
+   the empty runner directory. Deployment acceptance remains unverified. These
+   are operating prerequisites, not an absent workflow caller;
    see [release engineering evidence](../../evidence/0.4.0/release-engineering.md).
 6. The **native-contract verification job has already migrated** to disposable
    hosted `ubuntu-24.04` and asserts Linux/X64 in `verify.yml`. The old
@@ -130,7 +168,7 @@ superseded; a later component pass still does not prove its missing caller exist
    Production migration remains incomplete: sealed-realms, the two protected
    Pages jobs, and both notification-bridge workflows still name macOS/Darwin
    labels, binaries or toolchain manifests. Changing labels alone is insufficient.
-7. Local runner diagnostics do not establish registered trusted job identity,
+7. Registered runner availability does not establish a particular trusted job identity,
    final network allowlist, attested embedded toolchains or durable private claim
    state. Do not expose a privileged production runner to arbitrary PR code,
    mount host credentials into disposable verification or rename labels to fake
@@ -151,29 +189,32 @@ Useful source anchors for the next operating slice:
   `GENESIS_002_DATABASE_ALREADY_EXISTS`; `ptr-production-publisher.mjs` throws
   `PTR_PRODUCTION_DATABASE_ALREADY_EXISTS`. Implement update/reconciliation with
   a real caller and preservation proof; removing these checks is not an update.
-- Source search found definitions, but no production call site, for
-  `writeSealedRealmsProductionRecoveryActivationDescriptor` and
-  `createRecoveryActivationBinding`. Tests/local diagnostic invocations do not
-  close that integration gap.
+- The bridge state's fixed generation path now calls
+  `writeSealedRealmsProductionRecoveryActivationDescriptor`, and the V2 generator
+  calls `createRecoveryActivationBinding`. The remaining gap is the workflow's
+  authenticated canonical candidate/provider readers, not missing calls between
+  these implemented components.
 
 ## Recovery descriptor review boundary
 
-The new recovery-only writer accepts canonical schema2 candidate bytes and exact
-twelve non-historical producer records. It deliberately does not read the absent
-G001 historical freeze receipt; schema1 remains separate. It cross-checks G001
-policy/census/suspension/current-state semantics and G002/PTR module, atlas,
-publish/import/live/owner linkages, including independently different module and
-atlas source coordinates. Failed validations must not call the descriptor consumer.
+The recovery-only reader at `f558bd5` validates its exact twelve non-historical
+records before constructing a candidate. Each wrapper's source commit and
+authority digest must match the authenticated preparation source S. It derives
+frozen scalar facts, checks every overlapping candidate field and reopens the
+corpus to detect replacement. It cross-checks G001 policy/census/suspension/current
+state and G002/PTR module, atlas, publish/import/live/owner linkages, including
+independently different module and atlas source coordinates. Failed validation
+must not call the descriptor consumer. Schema1 remains a separate preserved path.
 
-Important: record framing checks `sourceAuthorityDigest` for digest shape but this
-reader does not authenticate the original workflow with a provider. Likewise,
-static candidate validation is not independent authentication of program Keccak,
-protected source, atlas provenance, public approval or bridge interlock. No
-production caller was found for this writer or `createRecoveryActivationBinding`.
-The downstream fixed generator must independently establish these coordinates.
-Matching attacker-chosen values in two files is not provenance.
+The fixed V2 generator and atomic generation-receipt path are connected. Read-only
+reconciliation checks the retained artifact/receipt pair against reopened records
+and original-run evidence without generating again. These checks do not supply
+missing provider-backed recovery-core facts, live realm observations, source
+workflow verification, public approval or bridge attestations. The operating
+candidate adapter remains unavailable; matching caller-selected values is not
+provenance.
 
-The committed `1feb105` recovery consumer repair lets the private FD owner observe and
+The historical `1feb105` recovery consumer repair lets the private FD owner observe and
 reject an asynchronous result before closing the handle; async consumption remains
 unsupported. No-clobber descriptor state remains as audit evidence after failure.
 The historical wrapper has a similar thenable-observation risk if touched later;
@@ -208,7 +249,7 @@ are exploitable or newly introduced. Do not dismiss them just because the paths
 are tests, or flatten successful analysis into “CodeQL passed.” Neither result
 verifies a newer local head.
 
-| Failed suite | Current observed cause | Correct next resolution |
+| Failed suite | Observed cause in that run | Resolution identified at that audit |
 | --- | --- | --- |
 | `authBridgeNotificationB0Closure` | 2 failures: derived 1,125 versus recorded 1,027; G002 gameplay source absent from recorded namespace | Full mechanically derived family and exact set tests |
 | `greaterRealmReleaseGateDeployBoundary` | 1 failure: recorded 997 versus comparison 1,027 | Derive corresponding consumer, retain exact boundary |

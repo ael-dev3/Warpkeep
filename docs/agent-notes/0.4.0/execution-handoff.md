@@ -1,10 +1,10 @@
 # Continue Warpkeep 0.4
 
-Refreshed 2026-09-08 (Europe/Budapest), after documentation merge `5b97c5f` and
-published development checkpoint `0a2f6f9`. The original `781e51e` inspection
-remains historical evidence. The source work in this revision adds complete
-Linux preparation and the V2 generation/receipt path; read Git and the dated
-evidence for its subsequent publication and actual native execution results.
+Refreshed 2026-09-08 (Europe/Budapest), after published development checkpoints
+`772d3a4` (operating assembler and V2 generator) and `f558bd5` (receipt projection
+and PTR closure expectations). The original `781e51e` inspection remains
+historical evidence. Read Git and the dated evidence for later generated-family
+publication and native execution results.
 Read the [handoff index](README.md) for product intent and the
 [infrastructure audit](release-and-infrastructure.md) for dated provider/CI facts.
 The owner requested the GitHub/profile/repository refresh before game shipping.
@@ -56,9 +56,9 @@ Development checkpoints may be published while the release remains unfinished.
 - The Linux `deploy-recovery` Pages caller is implemented at `c51bb00`, including
   build, attestation, exact artifact, claim, fresh deployment boundary and mandatory
   postflight. The [release engineering record](../../evidence/0.4.0/release-engineering.md)
-  records local composition checks; runner/private-state provisioning, tracked
-  generated bundle/manifest installation, final source-family preparation and
-  live authorization acceptance remain separate work.
+  records local composition checks. The dedicated Linux runner/account/private
+  root are now installed and the runner was online; tracked generated source,
+  release-specific signer state and live authorization acceptance are separate.
 - Existing PR CodeQL annotations were reviewed against current source. They
   concern unchanged test fixtures and test helpers; no attacker-controlled
   production path was found in that review. Required checks still need legitimate
@@ -117,6 +117,35 @@ workflow-layout failures were repaired and their focused suite passed at
 the current complete-family and generator work. Recheck CI at the new exact
 source. Do not label this earlier run green or infer skipped build results.
 
+The fixed operating `prepare` succeeded from committed `772d3a4`, producing
+the complete journal-bound source family. In a fresh clone with only its exact
+generated outputs, four formerly failing suites passed; the PTR closure suite
+exposed stale explicit browser/binding expectations. Correcting those real
+members passed its eight cases and was published at `f558bd5`. The receipt
+projection in that same commit passed 191 Linux cases and application types.
+A fresh native `prepare` and independent rebuilding `check` subsequently passed
+from exact `f558bd5`. That candidate's journal-verified generated outputs are
+integrated with this handoff checkpoint; their manifests retain the actual
+compiler input `f558bd5`. Six complete closure/activation suites and explicit
+app/config types passed in a separate clone with only those generated outputs.
+The earlier `772d3a4` candidate was restored through the real recovery CLI, then
+its entire baseline was independently verified. Its archived completion cannot
+authorize the newer family. See the engineering record for exact commitments.
+
+The connected review then found source-authentication defects: preparation
+metadata must remain null, and the V2 activation binding needs its own recovery
+authentication path. G001 durable policy-observation adoption also needs original
+terminal cleanup evidence. These fixes are being developed separately; this
+generated checkpoint does not claim them. Current GitHub CI additionally found
+host-profile and stale activation-fixture failures. Keep their triage separate
+from the passing native preparation and scoped generated-source verification.
+
+The [Linux runner runbook](../../operations/0.4.0-linux-runner.md) records actual
+GitHub registration and an enabled service running as UID/GID 1001. At 00:28 UTC
+the exact runner was online and idle. No production job/OIDC identity, signer
+authorization or live deployment was exercised by registration. Do not dispatch
+a recovery deployment merely as a connectivity test.
+
 The [earlier execution record](https://github.com/ael-dev3/Warpkeep/blob/781e51e364d1e5a7319ca2364744c8730e83b0d6/docs/agent-notes/0.4.0/execution-handoff.md)
 preserves historical test commands and exact limitations. Later evidence must
 identify its own source, overlays, environment, and results.
@@ -160,9 +189,11 @@ cleanup, private-store extraction, or production mutation was used for this stud
 
    The recovery Pages caller is composed in `deploy-pages.yml` at `c51bb00` and
    validated against the real source-evidence contract. Its supported Linux runner
-   and private account/state remain unprovisioned; installation of the tracked
-   generated bundle/manifest, final source family and live authorization acceptance
-   remain outstanding. Follow the
+   and private account/root are installed. The generated family from `f558bd5`
+   passed full native prepare/check and is integrated with this checkpoint.
+   Complete authenticated source/provider adapters, remaining receipt producers,
+   Linux callers and release-specific signer authorization; derive again after
+   compiled inputs change. Follow the
    [dated operating gaps](../../evidence/0.4.0/release-engineering.md); do not
    reimplement the caller or treat local WSL identity as workflow evidence.
 4. **Prove preservation and recovery before production effects.** Capture a

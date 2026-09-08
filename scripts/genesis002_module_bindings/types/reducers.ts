@@ -14,6 +14,7 @@ import AdminImportGreaterRealmRegionsV1Reducer from "../admin_import_greater_rea
 import AdminStageGreaterRealmReleaseV1Reducer from "../admin_stage_greater_realm_release_v_1_reducer";
 import AdminVerifyGreaterRealmBatchV1Reducer from "../admin_verify_greater_realm_batch_v_1_reducer";
 import OnConnectReducer from "../on_connect_reducer";
+import RunGameplay04ScheduleV1Reducer from "../run_gameplay_04_schedule_v_1_reducer";
 
 export type AdminBeginGreaterRealmVerificationV1Params = __Infer<typeof AdminBeginGreaterRealmVerificationV1Reducer>;
 export type AdminFinalizeGreaterRealmReleaseV1Params = __Infer<typeof AdminFinalizeGreaterRealmReleaseV1Reducer>;
@@ -23,4 +24,5 @@ export type AdminImportGreaterRealmRegionsV1Params = __Infer<typeof AdminImportG
 export type AdminStageGreaterRealmReleaseV1Params = __Infer<typeof AdminStageGreaterRealmReleaseV1Reducer>;
 export type AdminVerifyGreaterRealmBatchV1Params = __Infer<typeof AdminVerifyGreaterRealmBatchV1Reducer>;
 export type OnConnectParams = __Infer<typeof OnConnectReducer>;
+export type RunGameplay04ScheduleV1Params = __Infer<typeof RunGameplay04ScheduleV1Reducer>;
 
