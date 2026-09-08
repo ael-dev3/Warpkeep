@@ -85,6 +85,14 @@ it('keeps one panel open, restores opener focus with Escape, and retains explici
   expect(screen.getByText(/resources become available when workers return/i)).toBeVisible();
 });
 
+it('requests resources for the worker named on its card without submitting a command', () => {
+  const { find, controller } = setup();
+  fireEvent.click(screen.getByRole('button', { name: 'Manage Workers' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Find resources for Worker 3' }));
+  expect(find).toHaveBeenCalledWith(null, 2);
+  expect(controller.submit).not.toHaveBeenCalled();
+});
+
 it('keeps the Builder busy after estimated zero and never finishes from the UI clock', () => {
   vi.useFakeTimers(); vi.setSystemTime(1000000);
   const { controller } = setup(constructingWire04()); openMill();

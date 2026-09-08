@@ -676,3 +676,14 @@ than provisioning them. The account remains noninteractive. A successful future
 real provider adapters, signer authorization, owner acceptance and live release
 proof remain unfinished. The newly combined source requires fresh preparation
 and independent check; b4df's completed family is not relabelled as that result.
+
+The same next checkpoint fixes the connected keep-to-atlas Worker handoff.
+“Find resources for Worker 3” previously selected Worker 1 in the atlas. An actual
+surface-host regression failed on that mismatch before the fix at both tested
+DOM widths. The source now carries a bounded ordinal as presentation state while
+retaining fresh target review, authoritative idle checks and capability-scope
+reset. All 41 affected surface-host/keep tests passed, including a selected Worker
+becoming busy, invalid or busy chooser values, and target/duration reset on scope
+replacement. Integrated application and Vite-config types passed with the Linux
+caller/workflow changes. No server economy, automatic dispatch or live owner
+evidence was introduced.

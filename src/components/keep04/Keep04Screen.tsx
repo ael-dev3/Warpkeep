@@ -18,7 +18,7 @@ export type Keep04ScreenProps = Readonly<{
   snapshot: Snapshot04; controller: Controller04; selection: Keep04UiSelection;
   onSelectionChange: (selection: Keep04UiSelection) => void; onBack: () => void;
   quality: 'high' | 'balanced' | 'reduced'; reducedMotion: boolean;
-  onFindResources: (resource: Resource04 | null) => void; onReturnToWorld: () => void;
+  onFindResources: (resource: Resource04 | null, workerOrdinal?: number) => void; onReturnToWorld: () => void;
   onSceneObservation?: Keep04SceneHostProps['onObservation']; qaFault?: Keep04SceneHostProps['qaFault'];
 }>;
 

@@ -19,6 +19,16 @@ this page keeps precise mechanics, implementation routes and evidence limits.
 
 ## Current state at a glance
 
+The September 8 keep-to-atlas navigation correction preserves the specific Worker
+selected through “Find resources for Worker …”. Previously the atlas reset to
+Worker 1, which could dispatch a different idle Worker or leave the action disabled
+while that Worker was busy. The selected ordinal is presentation state only: the
+new atlas requires a fresh target, dispatch rechecks the authoritative idle state,
+and a replacement capability clears Worker, target and duration selection. The
+two affected suites passed 41 native DOM tests, including desktop/narrow width
+fixtures and a Worker becoming busy during review; integrated app/config types
+passed. This is not authenticated owner play or physical-device evidence.
+
 | Area | What the source establishes | What remains unknown or unfinished |
 | --- | --- | --- |
 | 0.4 gameplay core | Persistent gathering, returns, construction, upgrades and six completed effects are implemented | Complete genuinely authorized owner journey on the real atlas |

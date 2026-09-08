@@ -8,7 +8,7 @@ export function estimatedTime04(deadline: bigint, nowMs: number): string {
 
 export function Keep04WorkerPanel({ view, enabled, nowMs, onRecall, onFindResources }: Readonly<{
   view: View04; enabled: boolean; nowMs: number;
-  onRecall: (ordinal: number) => void; onFindResources: (resource: Resource04 | null) => void;
+  onRecall: (ordinal: number) => void; onFindResources: (resource: Resource04 | null, workerOrdinal: number) => void;
 }>) {
   return <section aria-label="Workers" className="keep04-worker-panel">
     <h2>Workers</h2>
@@ -20,7 +20,7 @@ export function Keep04WorkerPanel({ view, enabled, nowMs, onRecall, onFindResour
       {worker.returnsAtMicros !== null && <p>Estimated return time: <span>{estimatedTime04(worker.returnsAtMicros, nowMs)}</span></p>}
       {worker.lastCredited !== null && <p>Last return credited: {worker.lastCredited.toString()} · overflow: {worker.lastOverflow?.toString() ?? '0'}</p>}
       {worker.phase === 'idle'
-        ? <button type="button" onClick={() => onFindResources(null)}>Find resources for Worker {worker.ordinal + 1}</button>
+        ? <button type="button" onClick={() => onFindResources(null, worker.ordinal)}>Find resources for Worker {worker.ordinal + 1}</button>
         : <button type="button" disabled={!enabled || view.atlas === null || worker.phase === 'returning'} onClick={() => onRecall(worker.ordinal)}>Recall Worker {worker.ordinal + 1}</button>}
     </article>)}
     <p>Each expedition keeps the gathering rate it began with. Resources become spendable only after the Realm confirms their return.</p>

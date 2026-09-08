@@ -92,6 +92,12 @@ async function setup(generation = 17) {
       }
     },
     returnWorker() { wire.workers[0].assignment = undefined; wire.food = 60n; wire.revision++; },
+    occupyWorker(ordinal: number) {
+      wire.workers[ordinal].assignmentRevision++;
+      wire.workers[ordinal].assignment = { ...assignmentWire04(),
+        route: [{ q: -2, r: 1 }, { q: -1, r: 1 }], destinationCellKey: 'CELL:-1:1' };
+      wire.revision++;
+    },
   };
 }
 
@@ -158,6 +164,87 @@ it('submits the explicitly selected idle ordinal and eight-hour duration', async
   fireEvent.click(screen.getByRole('button', { name: 'Dispatch Worker 3' }));
   await waitFor(() => expect(h.dispatch).toHaveBeenCalledOnce());
   expect(h.dispatch.mock.calls[0][0]).toMatchObject({ workerOrdinal: 2, gatheringDurationMicros: 28_800_000_000n });
+});
+
+it.each([1280, 390])('carries Worker 3 from keep resource navigation into explicit dispatch review with Worker 1 busy (width=%s)', async width => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+  const h = await setup(); h.occupyWorker(0);
+  render(<RealmMapScreen {...h.props} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open keep' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Manage Workers' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Find resources for Worker 3' }));
+  const resource = await screen.findByRole('button', { name: /food at/ });
+  expect(screen.queryByRole('button', { name: /^Dispatch Worker/ })).toBeNull();
+  fireEvent.click(resource);
+  const chooser = screen.getByRole('combobox', { name: 'Idle Worker' }) as HTMLSelectElement;
+  expect(chooser.value).toBe('2');
+  const dispatch = screen.getByRole('button', { name: 'Dispatch Worker 3' }) as HTMLButtonElement;
+  expect(dispatch.disabled).toBe(false); expect(h.dispatch).not.toHaveBeenCalled();
+  fireEvent.click(dispatch);
+  await waitFor(() => expect(h.dispatch).toHaveBeenCalledOnce());
+  expect(h.dispatch.mock.calls[0][0]).toMatchObject({ workerOrdinal: 2, resource: 'food', gatheringDurationMicros: 60_000_000n });
+});
+
+it('requires another explicit worker choice if the requested Worker becomes busy during resource review', async () => {
+  const h = await setup(); h.occupyWorker(0);
+  render(<RealmMapScreen {...h.props} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open keep' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Manage Workers' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Find resources for Worker 3' }));
+  fireEvent.click(await screen.findByRole('button', { name: /food at/ }));
+  const before = h.read.mock.calls.length;
+  h.occupyWorker(2); act(() => window.dispatchEvent(new Event('focus')));
+  await waitFor(() => expect(h.read.mock.calls.length).toBeGreaterThan(before));
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Dispatch Worker 3' }) as HTMLButtonElement).disabled).toBe(true));
+  const chooser = screen.getByRole('combobox', { name: 'Idle Worker' }) as HTMLSelectElement;
+  expect(chooser.value).toBe('2');
+  expect((await screen.findByRole('option', { name: 'Worker 3 · outbound' }) as HTMLOptionElement).disabled).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Dispatch Worker 3' }));
+  expect(h.dispatch).not.toHaveBeenCalled();
+  fireEvent.change(chooser, { target: { value: '1' } });
+  const dispatch = screen.getByRole('button', { name: 'Dispatch Worker 2' }) as HTMLButtonElement;
+  expect(dispatch.disabled).toBe(false);
+  fireEvent.click(dispatch);
+  await waitFor(() => expect(h.dispatch).toHaveBeenCalledOnce());
+  expect(h.dispatch.mock.calls[0][0].workerOrdinal).toBe(1);
+});
+
+it('rejects out-of-range, noncanonical and busy worker selections without replacing the reviewed Worker', async () => {
+  const h = await setup(); h.occupyWorker(0);
+  render(<RealmMapScreen {...h.props} />);
+  fireEvent.click(await screen.findByRole('button', { name: /food at/ }));
+  const chooser = screen.getByRole('combobox', { name: 'Idle Worker' }) as HTMLSelectElement;
+  fireEvent.change(chooser, { target: { value: '2' } });
+  for (const value of ['4', '-1', '1.5', '01', '', 'not-a-worker']) {
+    const invalid = document.createElement('option'); invalid.value = value; chooser.append(invalid);
+    fireEvent.change(chooser, { target: { value } });
+    expect(chooser.value).toBe('2');
+    invalid.remove();
+  }
+  fireEvent.change(chooser, { target: { value: '0' } });
+  expect(chooser.value).toBe('2');
+  expect((screen.getByRole('button', { name: 'Dispatch Worker 3' }) as HTMLButtonElement).disabled).toBe(false);
+  expect(h.dispatch).not.toHaveBeenCalled();
+});
+
+it('resets the requested Worker, selected target and duration under a replacement capability', async () => {
+  const h = await setup();
+  const mounted = render(<RealmMapScreen {...h.props} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open keep' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Manage Workers' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Find resources for Worker 3' }));
+  fireEvent.click(await screen.findByRole('button', { name: /food at/ }));
+  fireEvent.click(screen.getByRole('button', { name: '8 hours' }));
+  expect((screen.getByRole('combobox', { name: 'Idle Worker' }) as HTMLSelectElement).value).toBe('2');
+  const replacement = await setup(18);
+  mounted.rerender(<RealmMapScreen {...replacement.props} />);
+  const resource = await screen.findByRole('button', { name: /food at/ });
+  expect(screen.queryByRole('button', { name: /^Dispatch Worker/ })).toBeNull();
+  fireEvent.click(resource);
+  expect((screen.getByRole('combobox', { name: 'Idle Worker' }) as HTMLSelectElement).value).toBe('0');
+  expect(screen.getByRole('button', { name: '60 seconds' }).getAttribute('aria-pressed')).toBe('true');
+  expect(screen.getByRole('button', { name: '8 hours' }).getAttribute('aria-pressed')).toBe('false');
+  expect(h.dispatch).not.toHaveBeenCalled(); expect(replacement.dispatch).not.toHaveBeenCalled();
 });
 
 it('dispatches selected actual resources, refreshes authoritative return and keeps one controller across world/keep routes', async () => {

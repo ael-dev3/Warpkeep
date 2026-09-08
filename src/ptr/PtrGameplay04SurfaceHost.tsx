@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
-import type { Building04, Resource04 } from '../../spacetimedb/gameplay04/policy';
+import { GAMEPLAY04_WORKER_COUNT, type Building04, type Resource04 } from '../../spacetimedb/gameplay04/policy';
 import type { Placement04 } from '../../spacetimedb/gameplay04/placement';
 import { Keep04Screen, type Keep04UiSelection } from '../components/keep04/Keep04Screen';
 import { GreaterRealmWorldScene, type WorldSelection04 } from '../components/realm/GreaterRealmWorldScene';
@@ -18,6 +18,9 @@ import { PtrSessionRenewalNotice } from './PtrSessionContinuation';
 type Props = RealmMapScreenProps & { ptrGameplay04: PtrGameplay04Capability };
 const BUILDINGS: readonly Building04[] = ['city-mill', 'lumber-camp', 'city-stoneworks', 'city-goldworks', 'city-barracks', 'grand-covenant-cathedral'];
 function buildingKind(value: string): value is Building04 { return BUILDINGS.includes(value as Building04); }
+function isWorkerOrdinal04(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value < GAMEPLAY04_WORKER_COUNT;
+}
 
 /** The outer boundary stays inert for an expired, copied or mismatched capability. */
 export function PtrGameplay04SurfaceHost(props: Props): ReactElement {
@@ -45,6 +48,7 @@ function CurrentSurface(props: Props & { identityKey: string }) {
   const content = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<Placement04 | null>(null);
   const [resourceFocus, setResourceFocus] = useState<Resource04 | null>(null);
+  const [resourceWorkerOrdinal, setResourceWorkerOrdinal] = useState(0);
   const [openPanel, setOpenPanel] = useState<'controls' | 'resources'>();
   const [worldRevision, setWorldRevision] = useState(0);
   useLayoutEffect(() => {
@@ -115,7 +119,10 @@ function CurrentSurface(props: Props & { identityKey: string }) {
     if (value && value.sessionGeneration === props.ptrGameplay04.scope.generation) controller.setAtlas(value.atlas);
   }, [controller, props.ptrGameplay04]);
   const onPhaseChange = useCallback(() => {}, []);
-  function findResources(resource: Resource04 | null) {
+  function findResources(resource: Resource04 | null, workerOrdinal?: number) {
+    // Keep only the requested Worker for this capability's next resource review.
+    // The new world scene still requires a fresh target and current idle state.
+    setResourceWorkerOrdinal(isWorkerOrdinal04(workerOrdinal) ? workerOrdinal : 0);
     setResourceFocus(resource); setOpenPanel('resources'); setDraft(null); surface.closeToRealm();
   }
   if (restoringSurface) return <p role="status">Opening keep…</p>;
@@ -129,7 +136,7 @@ function CurrentSurface(props: Props & { identityKey: string }) {
         identityKey={props.identityKey} ownCastle={props.ptrViewAnchor!} resolvedGraphicsQuality={props.resolvedGraphicsQuality}
         onPhaseChange={onPhaseChange} narrowOpenPanel={openPanel} onNarrowOpenPanelChange={setOpenPanel}
         resourceFocus04={resourceFocus} onGameplay04WorldSelection={worldSelection}
-        renderGameplay04WorldPanel={(value, validate) => <WorldWorkerPanel snapshot={snapshot} controller={controller} selection={value} validateSelection={validate} />} />
+        renderGameplay04WorldPanel={(value, validate) => <WorldWorkerPanel snapshot={snapshot} controller={controller} selection={value} validateSelection={validate} initialWorkerOrdinal={resourceWorkerOrdinal} />} />
       <div className="greater-realm-world__continuity"><button type="button" onClick={handleBack}>Back</button>
         <button type="button" onClick={() => surface.push({ kind: 'inner-keep' })}>Open keep</button>
         {resourceFocus && <button type="button" onClick={() => setResourceFocus(null)}>Show all resources</button>}
@@ -160,11 +167,12 @@ function JourneyRoute({ worker }: { worker: WorkerView04 }) {
   </figure>;
 }
 
-function WorldWorkerPanel({ snapshot, controller, selection, validateSelection }: {
+function WorldWorkerPanel({ snapshot, controller, selection, validateSelection, initialWorkerOrdinal }: {
   snapshot: Snapshot04; controller: Controller04; selection: WorldSelection04 | null;
   validateSelection: (selection: WorldSelection04) => boolean;
+  initialWorkerOrdinal: number;
 }) {
-  const [ordinal, setOrdinal] = useState(0);
+  const [ordinal, setOrdinal] = useState(initialWorkerOrdinal);
   const [duration, setDuration] = useState<bigint>(60_000_000n);
   const view = snapshot.view;
   const target = selection?.target;
@@ -183,7 +191,11 @@ function WorldWorkerPanel({ snapshot, controller, selection, validateSelection }
     {target ? <>
       <p>{target.resource} at {target.q}, {target.r} · {target.locationId}</p>
       <p>Node count is informational. The Realm decides available reservations.</p>
-      <label>Idle Worker <select aria-label="Idle Worker" value={ordinal} onChange={event => setOrdinal(Number(event.target.value))}>
+      <label>Idle Worker <select aria-label="Idle Worker" value={ordinal} onChange={event => {
+        const next = Number(event.target.value);
+        if (event.target.value === String(next) && isWorkerOrdinal04(next)
+          && view?.workers.some(worker => worker.ordinal === next && worker.phase === 'idle')) setOrdinal(next);
+      }}>
         {view?.workers.map(worker => <option key={worker.ordinal} value={worker.ordinal} disabled={worker.phase !== 'idle'}>Worker {worker.ordinal + 1} · {worker.phase}</option>)}
       </select></label>
       <div role="group" aria-label="Gathering duration">{DURATIONS.map(([label, micros]) => <button type="button" key={label} aria-pressed={duration === micros} onClick={() => setDuration(micros)}>{label}</button>)}</div>
