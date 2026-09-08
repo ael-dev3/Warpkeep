@@ -24,6 +24,30 @@ still false. Runner registration succeeded, but service installation timed out
 in systemd; dedicated-distro recovery is underway. Do not claim an online runner
 or completed protected workflow from registration alone.
 
+## Linux G001 policy integration — September 9
+
+Published at `1d6c3a1` on `upstream/codex/prepared-keep-bindings-fix`, this
+checkpoint connects the Linux G001 read-only policy lane to its receipt,
+adoption, activation-record and recovery consumers. It keeps the historical
+Darwin receipt profile distinct, refreshes the opaque workflow evidence scope at
+the final credential boundary, and uses the fixed Linux account, private namespace,
+Node toolchain and descriptor-backed secret handoff. Shared admin transport
+primitives no longer import the unrelated notification/compiler chain.
+
+The development source passed app and Node-side type checks, 21 Linux
+receipt/descriptor/dispatch tests, 15 native lifecycle/descriptor tests and six
+shared-admin transport tests on Windows. The independent Linux record rerun
+passed all 17 selected source/private-record scenarios, and the compiled
+shared-evidence identity regression passed with real Git/verification and explicit
+host/filesystem/compiler/process fixtures. The broader Windows regression retains
+six existing census timeouts; no full-suite pass is claimed.
+
+The native materializer/child has not yet executed in WarpkeepRunner, the generated
+release closure still needs an explicit audit that both spawned files are included,
+and no provider, credential or protected workflow call has run. The dedicated
+runner is registered but not online; systemd recovery remains pending. The source
+is a development checkpoint, not a final-prepared or deployed release.
+
 ## Signed preparation configuration observation
 
 The recovery service now exposes a separate signed configuration observation for
