@@ -414,3 +414,9 @@ export function deriveFixedAllRealmLocalBindingRuntime(): Promise<Readonly<{
     bindings: readonly Readonly<{ path: string; bytes: Uint8Array }>[];
   }>;
 }>>;
+
+export function deriveFixedGenesisProgramArtifacts(): Promise<import('./local-binding-runtime.mjs').GenesisProgramArtifacts>;
+export function executeFixedGenesisProgramArtifactParentCycles(context: Readonly<Record<string, unknown>>): Promise<Readonly<{
+  genesis001: import('./local-program-artifact.mjs').LocalProgramArtifact;
+  genesis002: import('./local-program-artifact.mjs').LocalProgramArtifact;
+}>>;

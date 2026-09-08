@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { createHash } from 'node:crypto';
+import { keccak_256 } from '@noble/hashes/sha3';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -182,7 +183,7 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
           sourceTree: (boundary.scenario === 'genesis002-source-substitution' && genesis002)
             || (boundary.scenario === 'current-source-substitution' && genesis001Current)
             ? '8'.repeat(40) : request.sourceTree,
-          moduleTreeId: '3'.repeat(40),
+          moduleTreeId: genesis001 ? '90deebb5faf4129282f5c35999244f540001b27d' : '3'.repeat(40),
           dependencyClosureDigest: boundary.scenario === 'digest-mismatch' && cycle === 2
             ? '9'.repeat(64) : '4'.repeat(64),
           bundleSha256,
@@ -248,6 +249,7 @@ vi.mock('../scripts/local-binding-bounded-file.mjs', async () => {
 });
 
 import {
+  executeFixedGenesisProgramArtifactParentCycles,
   executeFixedGenesis001CompatibilityParent,
   executeFixedGenesis001CurrentBindingParentCycles,
   executeFixedGenesis001LocalBindingParentCycles,
@@ -401,6 +403,38 @@ function allRealmContext() {
 }
 
 describe('production local binding parent cycles', () => {
+  it('retains exact frozen G001 and G002 artifact bytes after the build workspace is removed', async () => {
+    const value = pairedContext();
+    const graph = {
+      ...value.graph, entry: 'scripts/genesis001-binding-linux-locked-source-build.ts',
+      modules: [{ ...value.graph.modules[0], path: 'scripts/genesis001-binding-linux-locked-source-build.ts' }],
+    };
+    const result = await executeFixedGenesisProgramArtifactParentCycles({
+      ...value, graphs: { genesis001: graph, genesis002: value.graphs.genesis002 }, keccak256: keccak_256,
+    });
+    expect(boundary.requests.map(request => request.profile)).toEqual([
+      'warpkeep-local-binding-genesis001-worker-v1', 'warpkeep-local-binding-genesis001-worker-v1',
+      'warpkeep-local-binding-genesis002-worker-v1', 'warpkeep-local-binding-genesis002-worker-v1',
+    ]);
+    rmSync(value.operationRoot, { recursive: true, force: false });
+    expect(Buffer.from(result.genesis001.artifactBase64, 'base64').toString()).toBe('bundle');
+    expect(Buffer.from(result.genesis002.artifactBase64, 'base64').toString()).toBe('bundle-genesis002');
+    expect(result.genesis001.programKeccak256).toBe(Buffer.from(keccak_256(Buffer.from('bundle'))).toString('hex'));
+    expect(result.genesis002.programArtifactSha256).toBe(createHash('sha256').update('bundle-genesis002').digest('hex'));
+    expect(result.genesis001.moduleSourceCommit).toBe('2ae51984e1fa6ce5b0028c1a250359fed79d819b');
+    expect(result.genesis002.moduleSourceCommit).toBe(value.source.commit);
+  });
+
+  it('refuses a changed second G002 artifact before exposing retained program evidence', async () => {
+    boundary.scenario = 'genesis002-bundle-mismatch';
+    const value = pairedContext();
+    const graph = { ...value.graph, entry: 'scripts/genesis001-binding-linux-locked-source-build.ts',
+      modules: [{ ...value.graph.modules[0], path: 'scripts/genesis001-binding-linux-locked-source-build.ts' }] };
+    await expect(executeFixedGenesisProgramArtifactParentCycles({
+      ...value, graphs: { genesis001: graph, genesis002: value.graphs.genesis002 }, keccak256: keccak_256,
+    })).rejects.toMatchObject({ code: 'LOCAL_BINDING_RUNTIME_REPRODUCIBILITY_FAILED' });
+  });
+
   it.each([999, 1001])('rejects an operation owned by UID %s before copying CLI bytes', uid => {
     const operationRoot = join(`${FIXED_ROOT}/runs`, `binding-${'b'.repeat(32)}`);
     mkdirSync(operationRoot, { recursive: true, mode: 0o700 });

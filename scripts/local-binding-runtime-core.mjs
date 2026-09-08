@@ -4,12 +4,14 @@ import {
   chmodSync, existsSync, lstatSync, mkdirSync,
   readdirSync, realpathSync, rmSync, writeFileSync,
 } from 'node:fs';
-import { stripTypeScriptTypes } from 'node:module';
+import { createRequire, stripTypeScriptTypes } from 'node:module';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as vm from 'node:vm';
 
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
+import { retainLocalProgramArtifact } from './local-program-artifact.mjs';
+import { installLocalBindingNativeTsHooks } from './local-binding-native-ts-hooks.mjs';
 import { bindOperationOwnedCliSnapshot } from './local-binding-runtime-cli-snapshot.mjs';
 import { runLocalBindingBoundedProcess } from './local-binding-runtime-process.mjs';
 
@@ -58,6 +60,7 @@ const CONTROL_FILES = Object.freeze([
   'scripts/local-binding-runtime-process.mjs',
   'scripts/local-binding-runtime.mjs',
   'scripts/local-binding-runtime-core.mjs',
+  'scripts/local-program-artifact.mjs',
   'scripts/local-binding-runtime-worker.mjs',
   'scripts/local-binding-runtime-worker-request.mjs',
   'scripts/local-binding-native-ts-hooks.mjs',
@@ -84,6 +87,7 @@ const OPERATION_BUNDLE_CONTROL_FILES = Object.freeze([
   'scripts/local-binding-runtime-cli-snapshot.mjs',
   'scripts/local-binding-runtime-core.mjs',
   'scripts/local-binding-runtime-process.mjs',
+  'scripts/local-program-artifact.mjs',
   'scripts/local-operation-bundle-load.mjs',
   'scripts/local-operation-bundle-packages.ts',
   'scripts/local-operation-bundle-noble-v1.mjs',
@@ -340,6 +344,7 @@ function equalBytes(left, right) {
 export function assertReproducibleLocalBindingCycles(left, right) {
   if (left.sourceCommit !== right.sourceCommit || left.sourceTree !== right.sourceTree
       || left.dependencyClosureDigest !== right.dependencyClosureDigest
+      || left.moduleTreeId !== right.moduleTreeId
       || left.bundleSha256 !== right.bundleSha256 || !equalBytes(left.bundle, right.bundle)
       || !Array.isArray(left.bindings) || left.bindings.length === 0
       || left.bindings.length !== right.bindings?.length) {
@@ -1178,7 +1183,7 @@ async function executeCycle(context, lane, index) {
   return Object.freeze({
     sourceCommit: result.sourceCommit, sourceTree: result.sourceTree,
     dependencyClosureDigest: result.dependencyClosureDigest,
-    bundleSha256: result.bundleSha256, bundle, bindings,
+    bundleSha256: result.bundleSha256, moduleTreeId: result.moduleTreeId, bundle, bindings,
   });
 }
 
@@ -1245,6 +1250,61 @@ export async function executeFixedPairedLocalBindingParentCycles(context) {
     fail('LOCAL_BINDING_RUNTIME_SOURCE_CHANGED');
   }
   return Object.freeze({ genesis002, ptr });
+}
+
+// Only the fixed frozen G001 lane and the preparation-source G002 lane qualify.
+export async function executeFixedGenesisProgramArtifactParentCycles(context) {
+  const selected = {};
+  for (const [name, lane] of [['genesis001', GENESIS001_LANE], ['genesis002', GENESIS002_LANE]]) {
+    const laneRoot = join(context.operationRoot, name);
+    mkdirSync(laneRoot, { mode: 0o700 });
+    const laneContext = Object.freeze({ ...context, laneRoot, graph: context.graphs[name] });
+    const result = assertReproducibleLocalBindingCycles(
+      await executeCycle(laneContext, lane, 1), await executeCycle(laneContext, lane, 2),
+    );
+    attestComposedLaneSource(context, result);
+    selected[name] = retainLocalProgramArtifact({
+      realm: name, sourceCommit: result.sourceCommit, sourceTree: result.sourceTree,
+      moduleTreeId: result.moduleTreeId, dependencyClosureDigest: result.dependencyClosureDigest,
+      bundle: result.bundle, bundleSha256: result.bundleSha256,
+    }, context.keccak256);
+  }
+  return Object.freeze(selected);
+}
+
+async function loadFixedProgramHasher(source, operationRoot, yaml) {
+  const graph = deriveOperationBundlePackageSourceGraph(source.root);
+  verifyLocalBindingBootstrapSource(source);
+  const hooks = installLocalBindingNativeTsHooks(graph, yaml);
+  let packages;
+  try {
+    packages = await import('warpkeep:operation-bundle-packages');
+    verifyLocalBindingBootstrapSource(source);
+  } finally { hooks.deregister(); }
+  const sourceRoot = join(operationRoot, 'program-hasher');
+  mkdirSync(sourceRoot, { mode: 0o700 });
+  const lockRecord = source.bootstrap.find(record => record.path === 'package-lock.json');
+  if (!lockRecord) fail('LOCAL_BINDING_RUNTIME_SOURCE_CHANGED');
+  const lock = readLocalBindingBoundedFile(join(source.root, lockRecord.path), {
+    maximumBytes: MAX_SOURCE_FILE, expectedBytes: lockRecord.bytes,
+    expectedSha256: lockRecord.sha256, expectedIdentity: lockRecord.identity, expectedUid: 1000,
+  }).body;
+  try { writeFileSync(join(sourceRoot, 'package-lock.json'), lock, { flag: 'wx', mode: 0o600 }); }
+  finally { lock.fill(0); }
+  const namespace = packages.materializeFixedOperationBundlePackages({
+    sourceRoot, cacheRoot: join(ROOT, 'cache', 'operation-bundles'),
+    yamlRoot: yaml.root, yamlManifest: { entry: yaml.entry, files: yaml.files },
+  });
+  const check = () => {
+    verifyLocalBindingBootstrapSource(source);
+    packages.reattestFixedOperationBundlePackages({ sourceRoot, ...namespace });
+  };
+  check();
+  const require = createRequire(join(sourceRoot, 'entry.cjs'));
+  const { keccak_256 } = require(join(namespace.root, '@noble', 'hashes', 'sha3.js'));
+  check();
+  if (typeof keccak_256 !== 'function') fail('LOCAL_BINDING_RUNTIME_PROGRAM_HASHER_INVALID');
+  return bytes => { check(); const result = keccak_256(bytes); check(); return result; };
 }
 
 function attestComposedLaneSource(context, lane) {
@@ -1323,14 +1383,15 @@ export function preserveLocalBindingRuntimePrimaryAndCleanup(primaryError, clean
 }
 
 async function deriveLocalBindingRuntime(mode) {
+  const programArtifacts = mode === 'program-artifacts';
   const allRealms = mode === 'all-realms';
   const paired = mode === 'paired';
   const genesis001 = mode === 'genesis001';
   const genesis001Compatibility = mode === 'genesis001-compatibility';
   const genesis001Current = mode === 'genesis001-current';
-  const needsGenesis001 = genesis001 || genesis001Compatibility || allRealms;
+  const needsGenesis001 = genesis001 || genesis001Compatibility || allRealms || programArtifacts;
   // PTR materialization must not inherit the Windows checkout's Git configuration.
-  const useIndependentSnapshot = mode === 'ptr' || genesis001Current || allRealms;
+  const useIndependentSnapshot = mode === 'ptr' || genesis001Current || allRealms || programArtifacts;
   const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   validateLocalBindingRuntimeHost({
     platform: process.platform,
@@ -1383,13 +1444,17 @@ async function deriveLocalBindingRuntime(mode) {
   try {
     source = snapshotCommittedSource(
       repositoryRoot, operationRoot, environment, gitAuthority.identity, useIndependentSnapshot,
+      programArtifacts ? [...new Set([...CONTROL_FILES, ...OPERATION_BUNDLE_CONTROL_FILES])] : CONTROL_FILES,
     );
     const graph = genesis001Compatibility
       ? deriveGenesis001CompatibilitySourceGraph(source.root)
       : genesis001Current ? deriveGenesis001CurrentLocalBindingSourceGraph(source.root)
       : genesis001 ? deriveGenesis001LocalBindingSourceGraph(source.root)
         : deriveLocalBindingSourceGraph(source.root);
-    const graphs = allRealms ? Object.freeze({
+    const graphs = programArtifacts ? Object.freeze({
+      genesis001: deriveGenesis001LocalBindingSourceGraph(source.root),
+      genesis002: deriveGenesis002LocalBindingSourceGraph(source.root),
+    }) : allRealms ? Object.freeze({
       genesis001Current: deriveGenesis001CurrentLocalBindingSourceGraph(source.root),
       genesis001Compatibility: deriveGenesis001CompatibilitySourceGraph(source.root),
       genesis002: deriveGenesis002LocalBindingSourceGraph(source.root),
@@ -1427,12 +1492,17 @@ async function deriveLocalBindingRuntime(mode) {
     const recordBindingMismatch = (expected, actual) => writeGenesis001CurrentBindingMismatch(
       operationRoot, source, expected, actual,
     );
+    const keccak256 = programArtifacts ? await loadFixedProgramHasher(source, operationRoot, yaml) : undefined;
+    verifyLocalBindingBootstrapSource(source);
+    verifyExecutables();
     const context = Object.freeze({
-      repositoryRoot, operationRoot, environment, source, graph, graphs, yaml, cli,
+      repositoryRoot, operationRoot, environment, source, graph, graphs, yaml, cli, keccak256,
       readBindingTree: readSpacetimeBindingTree, readCommittedBindings,
       recordBindingMismatch, verifyExecutables,
     });
-    const selected = allRealms
+    const selected = programArtifacts
+      ? await executeFixedGenesisProgramArtifactParentCycles(context)
+      : allRealms
       ? await executeFixedAllRealmLocalBindingParentCycles(context)
       : paired
       ? await executeFixedPairedLocalBindingParentCycles(context)
@@ -1470,7 +1540,11 @@ async function deriveLocalBindingRuntime(mode) {
       frozenDescriptorSha256: lane.frozenDescriptorSha256,
       checkedFrozenWriters: Object.freeze([...lane.checkedFrozenWriters]),
     });
-    finalResult = allRealms ? Object.freeze({
+    finalResult = programArtifacts ? Object.freeze({
+      profile: 'warpkeep-local-genesis-program-artifacts-v1',
+      sourceCommit: source.commit, sourceTree: source.tree,
+      genesis001: selected.genesis001, genesis002: selected.genesis002,
+    }) : allRealms ? Object.freeze({
       profile: PROFILE, sourceCommit: source.commit, sourceTree: source.tree,
       genesis001: Object.freeze({
         current: copyCurrent(selected.current),
@@ -1547,4 +1621,8 @@ export function deriveFixedGenesis001CurrentBindingCheck() {
 
 export function deriveFixedAllRealmLocalBindingRuntime() {
   return deriveLocalBindingRuntime('all-realms');
+}
+
+export function deriveFixedGenesisProgramArtifacts() {
+  return deriveLocalBindingRuntime('program-artifacts');
 }

@@ -27,7 +27,11 @@ bootstrap revealed an overlong GPG socket path in its private temporary director
 the reviewed directory-name fix now retains full random entropy within the Linux
 socket limit. Its focused suite and the actual Linux Node24 bootstrap pass. The
 frozen G001 native lane completed both reproducible build cycles at cf1fbaa;
-Genesis002/PTR native validation and retained program-hash integration remain pending.
+The new --program-artifacts mode retains exact reproducible frozen G001 and current
+G002 module bytes, SHA256 and Keccak256 through the attested package path. Focused
+parent/helper tests and strict types pass; its actual native run and opaque recovery
+consumer remain pending. The paired native diagnostic reached PTR and found missing
+pinned archives in cache/ptr; a reproducible cache bootstrap is being implemented.
 Generated deployment closure outputs were regenerated and reproduced identically;
 this is source consistency evidence, not an operating bundle or live release.
 

@@ -165,24 +165,33 @@ export async function derivePreparedGenesis001CurrentLinuxBindingCheck(...argume
   }
 }
 
+/** Retained immutable build bytes and provenance; not a deployment receipt. */
+export async function derivePreparedGenesisProgramArtifacts(...arguments_) {
+  if (arguments_.length !== 0) throw new LocalBindingRuntimeError('LOCAL_BINDING_RUNTIME_ARGUMENTS_INVALID');
+  const { deriveFixedGenesisProgramArtifacts } = await import('./local-binding-runtime-core.mjs');
+  return deriveFixedGenesisProgramArtifacts();
+}
+
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const programArtifacts = process.argv.length === 3 && process.argv[2] === '--program-artifacts';
   const allRealms = process.argv.length === 3 && process.argv[2] === '--all-realms';
   const paired = process.argv.length === 3 && process.argv[2] === '--paired';
   const genesis001 = process.argv.length === 3 && process.argv[2] === '--genesis001';
   const genesis001Compatibility = process.argv.length === 3 && process.argv[2] === '--genesis001-compatibility';
   const genesis001Current = process.argv.length === 3 && process.argv[2] === '--genesis001-current-check';
   if (process.argv.length !== 2 && !allRealms && !paired && !genesis001
-      && !genesis001Compatibility && !genesis001Current) {
+      && !genesis001Compatibility && !genesis001Current && !programArtifacts) {
     process.stderr.write('LOCAL_BINDING_RUNTIME_ARGUMENTS_INVALID\n');
     process.exitCode = 1;
   } else {
-    (allRealms ? derivePreparedAllRealmLinuxBindings()
+    (programArtifacts ? derivePreparedGenesisProgramArtifacts()
+      : allRealms ? derivePreparedAllRealmLinuxBindings()
       : paired ? derivePreparedPairedLinuxBindings()
       : genesis001Compatibility ? derivePreparedGenesis001LinuxCompatibility()
       : genesis001Current ? derivePreparedGenesis001CurrentLinuxBindingCheck()
       : genesis001 ? derivePreparedGenesis001LinuxCompilation()
         : derivePreparedPtrLinuxBindings()).then(result => {
-      const summary = allRealms ? {
+      const summary = programArtifacts ? result : allRealms ? {
         profile: result.profile,
         sourceCommit: result.sourceCommit,
         sourceTree: result.sourceTree,

@@ -93,3 +93,10 @@ export function derivePreparedPairedLinuxBindings(): Promise<PreparedPairedLinux
 export function derivePreparedGenesis001LinuxCompilation(): Promise<PreparedGenesis001LinuxCompilation>;
 export function derivePreparedGenesis001LinuxCompatibility(): Promise<PreparedGenesis001LinuxCompatibility>;
 export function derivePreparedGenesis001CurrentLinuxBindingCheck(): Promise<PreparedGenesis001CurrentLinuxBindingCheck>;
+
+export type GenesisProgramArtifacts = Readonly<{
+  profile: 'warpkeep-local-genesis-program-artifacts-v1'; sourceCommit: string; sourceTree: string;
+  genesis001: import('./local-program-artifact.mjs').LocalProgramArtifact;
+  genesis002: import('./local-program-artifact.mjs').LocalProgramArtifact;
+}>;
+export function derivePreparedGenesisProgramArtifacts(): Promise<GenesisProgramArtifacts>;
