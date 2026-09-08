@@ -1465,7 +1465,7 @@
     {
       "path": "scripts/recovery-workflow-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f3535a9dfc2e4bf8b7d1c27281a4fd572f27c3dfe858f6fb76ff9b1f70fc78c0"
+      "sha256": "9bdb6dd396a6402189cc92c8bdfcd876edccf3795dae8ac0e282c0b67b7949f5"
     },
     {
       "path": "scripts/recovery-workflow-check-deployment.d.mts",
@@ -1625,7 +1625,7 @@
     {
       "path": "scripts/sealed-realms-production-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8226e40a7f11d3ffe032ec79471135610d73cc8961cbcbb834baafdc74bf1008"
+      "sha256": "463ab72c914cdf74a4e28258369e335fe809dadb17f4ee855d53373a1ae7b06b"
     },
     {
       "path": "scripts/sealed-realms-production-continuation.d.mts",
@@ -1785,7 +1785,7 @@
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6bd7ce7a0df0f2ccb940c1b1472f91900b9b6213d5db6de777db2493e7fdac75"
+      "sha256": "c0917e96ce2f58311e96736cf6ef8a1bde5b3acddf2477e5331f9a58c4a03e9c"
     },
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-receipt.mjs",
