@@ -101,7 +101,11 @@ function CurrentSurface(props: Props & { identityKey: string }) {
   };
   function changeSelection(next: Keep04UiSelection) {
     if (snapshot.phase !== 'ready' || !snapshot.view) return;
-    if (next.panel === null) { surface.back(); return; }
+    if (next.panel === null) {
+      setDraft(null);
+      surface.backTo({ kind: 'inner-keep' });
+      return;
+    }
     let nextRoute: RealmSurfaceRoute;
     if (next.panel === 'workers') nextRoute = { kind: 'workers' };
     else if (next.selectedKind !== null && buildingKind(next.selectedKind)) {

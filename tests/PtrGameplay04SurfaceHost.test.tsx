@@ -292,6 +292,55 @@ it('refreshes the world after target rejection with no optimistic assignment or 
   expect(h.read.mock.calls.length).toBeGreaterThan(1);
 });
 
+it.each([
+  [true, 'Close panel', false], [false, 'Close panel', false],
+  [true, 'Escape', false], [false, 'Escape', false],
+  [true, 'Close panel', true], [false, 'Close panel', true],
+  [true, 'Escape', true], [false, 'Escape', true],
+] as const)('closes all nested keep panels, then Back returns to world (miniApp=%s, action=%s, workers=%s)', async (miniApp, action, workers) => {
+  hostValue = { ...hostValue, isMiniApp: miniApp };
+  const h = await setup(); h.fund();
+  const go = vi.spyOn(window.history, 'go');
+  render(<RealmMapScreen {...h.props} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open keep' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Buildings' }));
+  fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Move right 0.5 m' }));
+  if (workers) fireEvent.click(screen.getByRole('button', { name: 'Manage Workers' }));
+  const opener = screen.getByRole('button', { name: workers ? 'Manage Workers' : 'Buildings' });
+  const close = screen.getByRole('button', { name: 'Close panel' });
+  if (action === 'Escape') fireEvent.keyDown(close, { key: 'Escape' });
+  else fireEvent.click(close);
+  if (!miniApp) expect(go).toHaveBeenCalledExactlyOnceWith(workers ? -3 : -2);
+  else expect(go).not.toHaveBeenCalled();
+  await waitFor(() => expect(screen.queryByRole('complementary', { name: 'Command panel' })).toBeNull());
+  expect(screen.getByRole('heading', { name: 'Your keep' })).toBeTruthy();
+  expect(document.activeElement).toBe(opener);
+  expect(screen.getByRole('button', { name: 'Open building catalog' }).getAttribute('aria-expanded')).toBe('false');
+  fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+  await screen.findByRole('button', { name: 'Open keep' });
+  expect(h.props.onRequestReturn).not.toHaveBeenCalled();
+  expect(h.build).not.toHaveBeenCalled(); expect(h.dispatch).not.toHaveBeenCalled();
+});
+
+it('does not restore a closed placement draft through browser Forward', async () => {
+  hostValue = { ...hostValue, isMiniApp: false };
+  const h = await setup(); h.fund();
+  render(<RealmMapScreen {...h.props} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open keep' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Buildings' }));
+  fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Move right 0.5 m' }));
+  expect((screen.getByRole('button', { name: /Confirm placement/ }) as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
+  await waitFor(() => expect(screen.queryByRole('complementary', { name: 'Command panel' })).toBeNull());
+  act(() => window.history.go(2));
+  const confirm = await screen.findByRole('button', { name: /Confirm placement/ }) as HTMLButtonElement;
+  expect(confirm.disabled).toBe(true);
+  fireEvent.click(confirm);
+  expect(h.build).not.toHaveBeenCalled(); expect(h.dispatch).not.toHaveBeenCalled();
+});
+
 it.each([true, false])('backs out of a pending placement, keep and ready world (miniApp=%s) without replay or extra draft history', async miniApp => {
   hostValue = { ...hostValue, isMiniApp: miniApp };
   const h = await setup(); h.fund();
