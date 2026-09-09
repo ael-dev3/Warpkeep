@@ -92,6 +92,22 @@ it('varies the flat legal deck material and staggers fixed-count forest instance
   }
   scene.dispose();
 });
+it('keeps the shallow water treatment outside the legal support deck and within the scenic layer', () => {
+  const scene = createKeep04Scene({ quality: 'balanced', reducedMotion: true, assets: empty() });
+  const water = scene.scene.getObjectByName('moat-water-surface') as THREE.Mesh;
+  const edge = scene.scene.getObjectByName('moat-water-edge') as THREE.Mesh;
+  expect(water).toBeDefined();
+  expect(edge).toBeDefined();
+  const waterBounds = new THREE.Box3().setFromObject(water);
+  expect(waterBounds.max.y).toBeLessThan(0);
+  expect(waterBounds.min.z).toBeLessThan(-40);
+  expect(waterBounds.max.z).toBeLessThan(-40);
+  const colors = water.geometry.getAttribute('color');
+  const blue = Array.from({ length: colors.count }, (_, index) => colors.getZ(index));
+  expect(Math.max(...blue) - Math.min(...blue)).toBeGreaterThan(.04);
+  expect(scene.telemetry().pickTargetCount).toBe(0);
+  scene.dispose();
+});
 it('rejects economics and identity at the visual boundary', () => {
   const scene = createKeep04Scene({ quality: 'reduced', reducedMotion: true, assets: empty() });
   expect(() => scene.reconcile({ ...visual, food: 100n } as VisualState04)).toThrow(/visual/i);
