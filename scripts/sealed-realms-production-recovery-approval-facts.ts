@@ -1,5 +1,6 @@
 import { types } from "node:util";
 import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
 import {
   assertSealedRealmsProductionActivationRecordsAuthority,
   readSealedRealmsProductionRecoveryCandidateRecords,
@@ -12,14 +13,6 @@ import {
   type SealedRealmsProductionSourceAuthority,
 } from "./sealed-realms-production-source-authority.mjs";
 import type { SealedRealmsProductionPrivateState } from "./sealed-realms-production-private-state.mjs";
-import { openExistingGreaterRealmPrivateWorkspace } from "./atlas/greater-realm-private-workspace";
-import {
-  readGenesis002GreaterRealmRuntimeRelease,
-  readPtrGreaterRealmRuntimeRelease,
-  verifyGenesis002GreaterRealmRuntimeReleaseArtifacts,
-  verifyPtrGreaterRealmRuntimeReleaseArtifacts,
-  type GreaterRealmRuntimeReleaseArtifacts,
-} from "./atlas/greater-realm-runtime-release";
 import { greaterRealmProductionImportEngine } from "./greater-realm-production-import-core";
 
 export type SealedRealmsProductionRecoveryApprovalFacts = Readonly<{
@@ -30,6 +23,138 @@ export type SealedRealmsProductionRecoveryApprovalFacts = Readonly<{
 const fail = (): never => {
   throw new Error("SEALED_REALMS_RECOVERY_APPROVAL_FACTS_INVALID");
 };
+type GreaterRealmRuntimeReleaseArtifacts = Readonly<{
+  manifest: Readonly<Record<string, unknown>>;
+  manifestBytes: Buffer;
+  status: Readonly<Record<string, unknown>>;
+  statusBytes: Buffer;
+  chunks: readonly Readonly<{
+    path: string;
+    bytes: Buffer;
+    payload: Readonly<{
+      schema: 'warpkeep.greater-realm.runtime-import-chunk.v1';
+      publicReleaseId: string;
+      chunkHandle: string;
+      importOrdinal: number;
+      cells: readonly Readonly<{
+        cellKey: string;
+        atlasCoordKey: string;
+        releaseOrdinal: number;
+        atlasId: string;
+        chunkHandle: string;
+        regionId: string;
+        componentKey?: string;
+        localQ: number;
+        localR: number;
+        atlasQ: number;
+        atlasR: number;
+        tier: 1;
+        passable: boolean;
+        elevation: number;
+        slope: number;
+        aspect: number;
+        profileCurvature: number;
+        planCurvature: number;
+        ridgeId?: string;
+        geologicalBarrierBand: number;
+        biomeClass: number;
+        landformClass: number;
+        yieldClass: number;
+        movementCost: number;
+        sealedBoundaryMask: number;
+        hydroRegime: number;
+        hydroBodyId?: string;
+        hydroDepthClass: number;
+        hydroSurfaceMilli: number;
+        hydroFlowDirection?: number;
+        flowAccumulation: string;
+        bankVariant: number;
+        hydrologyRevision: number;
+        routeParentDirection?: number;
+        routeDepth?: number;
+        travelClass: number;
+        wetness: number;
+        exposure: number;
+        coastDistance: number;
+        freshwaterDistance: number;
+        temperature: number;
+        moisture: number;
+        habitatClass: number;
+        canopyBasisPoints: number;
+        groundcoverBasisPoints: number;
+        wildflowerBasisPoints: number;
+        featureClass: number;
+        ambienceClass: number;
+        presentationVariant: number;
+      }>[];
+      apronCellKeys: readonly string[];
+      lod1CellKeys: readonly string[];
+      lod2CellKeys: readonly string[];
+      lod3CellKeys: readonly string[];
+      castleSlots: readonly Readonly<{
+        slotId: string;
+        releaseOrdinal: number;
+        atlasId: string;
+        cellKey: string;
+        regionId: string;
+        componentKey: string;
+        tier: 1;
+        regionOrderRank: number;
+        allocationRank: number;
+        active: false;
+        legacySlotId?: number;
+      }>[];
+      resourceNodes: readonly Readonly<{
+        nodeId: string;
+        releaseOrdinal: number;
+        atlasId: string;
+        locationId: string;
+        cellKey: string;
+        regionId: string;
+        componentKey: string;
+        resourceKind: 'food' | 'wood' | 'stone' | 'gold';
+        tier: 1;
+        nodeOrdinal: number;
+        allocationRank: number;
+        legacyCatalogId?: string;
+        policyVersion: string;
+        active: false;
+      }>[];
+      importBatches: Readonly<{
+        castleSlots: readonly Readonly<{
+          batchOrdinal: number;
+          firstRowOrdinal: number;
+          rowCount: number;
+          rowsSha256: string;
+        }>[];
+        resourceNodes: readonly Readonly<{
+          batchOrdinal: number;
+          firstRowOrdinal: number;
+          rowCount: number;
+          rowsSha256: string;
+        }>[];
+      }>;
+      sectionDigests: Readonly<{
+        cellsSha256: string;
+        apronSha256: string;
+        lodSha256: string;
+        castleSlotsSha256: string;
+        resourceNodesSha256: string;
+      }>;
+    }>;
+  }>[];
+}>;
+const require = createRequire(import.meta.url);
+
+function privateWorkspaceModule(): typeof import("./atlas/greater-realm-private-workspace") {
+  const modulePath = `.${String.fromCodePoint(47)}atlas${String.fromCodePoint(47)}greater-realm-private-workspace`;
+  return require(modulePath) as typeof import("./atlas/greater-realm-private-workspace");
+}
+
+function runtimeReleaseModule(): typeof import("./atlas/greater-realm-runtime-release") {
+  const modulePath = `.${String.fromCodePoint(47)}atlas${String.fromCodePoint(47)}greater-realm-runtime-release`;
+  return require(modulePath) as typeof import("./atlas/greater-realm-runtime-release");
+}
 const sha256 = (bytes: Uint8Array | string): string =>
   createHash("sha256").update(bytes).digest("hex");
 
@@ -90,6 +215,13 @@ export function readSealedRealmsProductionRecoveryApprovalFacts(
   assertOwner();
   const repositoryRoot = process.cwd();
   const workspaceRoot = process.env.WARPKEEP_GREATER_REALM_WORKSPACE;
+  const { openExistingGreaterRealmPrivateWorkspace } = privateWorkspaceModule();
+  const {
+    readGenesis002GreaterRealmRuntimeRelease,
+    readPtrGreaterRealmRuntimeRelease,
+    verifyGenesis002GreaterRealmRuntimeReleaseArtifacts,
+    verifyPtrGreaterRealmRuntimeReleaseArtifacts,
+  } = runtimeReleaseModule();
   const workspace = openExistingGreaterRealmPrivateWorkspace({
     repositoryRoot,
     workspaceRoot,

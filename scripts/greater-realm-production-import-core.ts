@@ -1,9 +1,6 @@
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
 
-import {
-  verifyGreaterRealmRuntimeReleaseArtifacts,
-  type GreaterRealmRuntimeReleaseArtifacts,
-} from './atlas/greater-realm-runtime-release';
 import {
   projectGreaterRealmProductionCutoverStatusShape,
   type GreaterRealmProductionCutoverStatus,
@@ -38,6 +35,136 @@ const SHA256 = /^[0-9a-f]{64}$/u;
 const SOURCE_COMMIT = /^[0-9a-f]{40}$/u;
 const VERIFY_DIGEST = /^(?:[0-9a-f]{64}|sha256-v1:[0-9a-f]{64}:[0-9a-f]+:[0-9a-f]*)$/u;
 const U64_MAXIMUM = (1n << 64n) - 1n;
+type GreaterRealmRuntimeReleaseArtifacts = Readonly<{
+  manifest: Readonly<Record<string, unknown>>;
+  manifestBytes: Buffer;
+  status: Readonly<Record<string, unknown>>;
+  statusBytes: Buffer;
+  chunks: readonly Readonly<{
+    path: string;
+    bytes: Buffer;
+    payload: Readonly<{
+      schema: 'warpkeep.greater-realm.runtime-import-chunk.v1';
+      publicReleaseId: string;
+      chunkHandle: string;
+      importOrdinal: number;
+      cells: readonly Readonly<{
+        cellKey: string;
+        atlasCoordKey: string;
+        releaseOrdinal: number;
+        atlasId: string;
+        chunkHandle: string;
+        regionId: string;
+        componentKey?: string;
+        localQ: number;
+        localR: number;
+        atlasQ: number;
+        atlasR: number;
+        tier: 1;
+        passable: boolean;
+        elevation: number;
+        slope: number;
+        aspect: number;
+        profileCurvature: number;
+        planCurvature: number;
+        ridgeId?: string;
+        geologicalBarrierBand: number;
+        biomeClass: number;
+        landformClass: number;
+        yieldClass: number;
+        movementCost: number;
+        sealedBoundaryMask: number;
+        hydroRegime: number;
+        hydroBodyId?: string;
+        hydroDepthClass: number;
+        hydroSurfaceMilli: number;
+        hydroFlowDirection?: number;
+        flowAccumulation: string;
+        bankVariant: number;
+        hydrologyRevision: number;
+        routeParentDirection?: number;
+        routeDepth?: number;
+        travelClass: number;
+        wetness: number;
+        exposure: number;
+        coastDistance: number;
+        freshwaterDistance: number;
+        temperature: number;
+        moisture: number;
+        habitatClass: number;
+        canopyBasisPoints: number;
+        groundcoverBasisPoints: number;
+        wildflowerBasisPoints: number;
+        featureClass: number;
+        ambienceClass: number;
+        presentationVariant: number;
+      }>[];
+      apronCellKeys: readonly string[];
+      lod1CellKeys: readonly string[];
+      lod2CellKeys: readonly string[];
+      lod3CellKeys: readonly string[];
+      castleSlots: readonly Readonly<{
+        slotId: string;
+        releaseOrdinal: number;
+        atlasId: string;
+        cellKey: string;
+        regionId: string;
+        componentKey: string;
+        tier: 1;
+        regionOrderRank: number;
+        allocationRank: number;
+        active: false;
+        legacySlotId?: number;
+      }>[];
+      resourceNodes: readonly Readonly<{
+        nodeId: string;
+        releaseOrdinal: number;
+        atlasId: string;
+        locationId: string;
+        cellKey: string;
+        regionId: string;
+        componentKey: string;
+        resourceKind: 'food' | 'wood' | 'stone' | 'gold';
+        tier: 1;
+        nodeOrdinal: number;
+        allocationRank: number;
+        legacyCatalogId?: string;
+        policyVersion: string;
+        active: false;
+      }>[];
+      importBatches: Readonly<{
+        castleSlots: readonly Readonly<{
+          batchOrdinal: number;
+          firstRowOrdinal: number;
+          rowCount: number;
+          rowsSha256: string;
+        }>[];
+        resourceNodes: readonly Readonly<{
+          batchOrdinal: number;
+          firstRowOrdinal: number;
+          rowCount: number;
+          rowsSha256: string;
+        }>[];
+      }>;
+      sectionDigests: Readonly<{
+        cellsSha256: string;
+        apronSha256: string;
+        lodSha256: string;
+        castleSlotsSha256: string;
+        resourceNodesSha256: string;
+      }>;
+    }>;
+  }>[];
+}>;
+const require = createRequire(import.meta.url);
+
+function verifyGreaterRealmRuntimeReleaseArtifacts(
+  artifacts: GreaterRealmRuntimeReleaseArtifacts,
+): void {
+  const modulePath = `.${String.fromCodePoint(47)}atlas${String.fromCodePoint(47)}greater-realm-runtime-release`;
+  const module = require(modulePath) as typeof import('./atlas/greater-realm-runtime-release');
+  module.verifyGreaterRealmRuntimeReleaseArtifacts(artifacts);
+}
 
 export type GreaterRealmProductionImportStatus = Readonly<{
   present: boolean;
