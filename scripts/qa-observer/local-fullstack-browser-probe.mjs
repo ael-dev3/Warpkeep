@@ -1916,7 +1916,9 @@ async function exerciseLocalInnerKeepCompletionAndSecondStart(session, firstStar
           ? { candidate, lumber, requestKey, submittedPlacement } : undefined;
       });
       if (!secondProject) return { stage: 'inner-keep-second-project' };
-      const worksiteCount = innerKeepRoot.querySelectorAll('.inner-keep-worksite').length;
+      const worksiteCount = innerKeepRoot.querySelectorAll(
+        '.inner-keep-map-building .inner-keep-worksite'
+      ).length;
       const builderCopy = innerKeepRoot.querySelector('.inner-keep-builder')?.textContent ?? '';
       const secondNoFinalModel = secondProject.lumber.querySelector(
         '.inner-keep-building-art, .inner-keep-building-art-fallback'
@@ -2125,7 +2127,9 @@ async function exerciseLocalInnerKeepReloadPersistence(session) {
           && lumber instanceof HTMLButtonElement
           && lumber.getAttribute('data-phase') === 'constructing'
           && lumber.querySelector('.inner-keep-worksite') !== null
-          && candidate.querySelectorAll('.inner-keep-worksite').length === 1
+          && candidate.querySelectorAll(
+            '.inner-keep-map-building .inner-keep-worksite'
+          ).length === 1
           && /BUILDER OCCUPIED/.test(
             candidate.querySelector('.inner-keep-builder')?.textContent ?? ''
           )
