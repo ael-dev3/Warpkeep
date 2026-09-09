@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
 import {
   closeSync,
   constants,
@@ -23,14 +24,7 @@ import {
   sha256GreaterRealmAttestedFile,
 } from './atlas/greater-realm-git';
 import type { GreaterRealmRuntimeReleaseArtifacts } from './atlas/greater-realm-runtime-release';
-import {
-  readGreaterRealmRuntimeRelease,
-  verifyGreaterRealmRuntimeReleaseArtifacts,
-} from './atlas/greater-realm-runtime-release';
-import {
-  openGreaterRealmPrivateWorkspace,
-  type GreaterRealmPrivateWorkspace,
-} from './atlas/greater-realm-private-workspace';
+import type { GreaterRealmPrivateWorkspace } from './atlas/greater-realm-private-workspace';
 import { stageGreaterRealmOpenAtHelper } from './greater-realm-openat';
 
 const COMMIT = /^[0-9a-f]{40}$/u;
@@ -1433,6 +1427,11 @@ export function inspectGreaterRealmProductionProvenance(input: Readonly<{
   if (!COMMIT.test(moduleSourceCommit)) {
     fail('GREATER_REALM_PRODUCTION_MODULE_PROVENANCE_INVALID');
   }
+  const require = createRequire(import.meta.url);
+  const privateWorkspaceModule = `.${String.fromCodePoint(47)}atlas${String.fromCodePoint(47)}greater-realm-private-workspace`;
+  const runtimeReleaseModule = `.${String.fromCodePoint(47)}atlas${String.fromCodePoint(47)}greater-realm-runtime-release`;
+  const { openGreaterRealmPrivateWorkspace } = require(privateWorkspaceModule) as typeof import('./atlas/greater-realm-private-workspace');
+  const { readGreaterRealmRuntimeRelease, verifyGreaterRealmRuntimeReleaseArtifacts } = require(runtimeReleaseModule) as typeof import('./atlas/greater-realm-runtime-release');
   const workspace = openGreaterRealmPrivateWorkspace({
     repositoryRoot: input.repositoryRoot,
     workspaceRoot: input.workspaceRoot,

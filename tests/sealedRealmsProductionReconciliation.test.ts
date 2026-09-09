@@ -47,8 +47,9 @@ function codec(lane: 'g002' | 'ptr') {
   };
 }
 
-vi.mock('../scripts/genesis002-production-publisher.mjs', () => codec('g002'));
-vi.mock('../scripts/ptr-production-publisher.mjs', () => codec('ptr'));
+vi.mock('../scripts/sealed-realms-publication-codec.mjs', () => ({
+  createSealedRealmsPublicationCodec: (options: { lane: 'g002' | 'ptr' }) => codec(options.lane),
+}));
 
 const createSealedRealmsPublicationPossiblySubmittedMarker =
   codec('g002').createSealedRealmsPublicationPossiblySubmittedMarker;

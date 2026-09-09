@@ -23,7 +23,7 @@ import {
 } from './genesis001-binding-frozen-source.mjs';
 import { stageGreaterRealmOpenAtHelper } from './greater-realm-openat';
 import { createGreaterRealmProductionCommitMaterialization } from './greater-realm-production-provenance';
-import { greaterRealmImmutableArtifactTestSeams } from './greater-realm-production-immutable-artifact';
+import { dependencyTreeSnapshot, parseSafeNpmTar } from './ptr-binding-source-validation';
 import { ensureCanonicalProductionAdminStateDirectory } from './production-admin-token-budget.mjs';
 
 const COMMIT = /^[0-9a-f]{40}$/u;
@@ -319,10 +319,6 @@ const GENESIS001_BASELINE_PROFILE = Object.freeze<PtrLockedSourceBuildProfile>({
   }),
 });
 
-// This frozen export retains its historical test-seam name for G001 byte
-// compatibility. PTR consumes only the two pure validators explicitly shared
-// by that surface; no fixture, process override, recovery, or authority seam.
-const { parseSafeNpmTar, dependencyTreeSnapshot } = greaterRealmImmutableArtifactTestSeams;
 type DependencySnapshot = ReturnType<typeof dependencyTreeSnapshot>;
 type SafeNpmTar = ReturnType<typeof parseSafeNpmTar>;
 

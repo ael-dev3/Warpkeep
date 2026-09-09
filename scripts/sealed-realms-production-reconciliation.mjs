@@ -1,15 +1,4 @@
-import {
-  createSealedRealmsPublicationMarkerReconciliation as createGenesis002Reconciliation,
-  createSealedRealmsPublicationPossiblySubmittedMarker as createGenesis002Marker,
-  digestSealedRealmsPublicationPossiblySubmittedMarker as digestGenesis002Marker,
-  parseSealedRealmsPublicationPossiblySubmittedMarker as parseGenesis002Marker,
-} from './genesis002-production-publisher.mjs';
-import {
-  createSealedRealmsPublicationMarkerReconciliation as createPtrReconciliation,
-  createSealedRealmsPublicationPossiblySubmittedMarker as createPtrMarker,
-  digestSealedRealmsPublicationPossiblySubmittedMarker as digestPtrMarker,
-  parseSealedRealmsPublicationPossiblySubmittedMarker as parsePtrMarker,
-} from './ptr-production-publisher.mjs';
+import { createSealedRealmsPublicationCodec } from './sealed-realms-publication-codec.mjs';
 import { assertSealedRealmsProductionPrivateState } from
   './sealed-realms-production-private-state.mjs';
 import {
@@ -33,6 +22,21 @@ function fail(code) {
   throw new SealedRealmsProductionReconciliationError(code);
 }
 
+const g002Codec = createSealedRealmsPublicationCodec({
+  lane: 'g002',
+  alias: 'warpkeep-genesis-002',
+  moduleIdentity: 'warpkeep-genesis-002-sealed-v1',
+  release: '0.4.0',
+  fail,
+});
+const ptrCodec = createSealedRealmsPublicationCodec({
+  lane: 'ptr',
+  alias: 'warpkeep-ptr',
+  moduleIdentity: 'warpkeep-ptr-owner-view-v1',
+  release: '0.4.0-ptr.1',
+  fail,
+});
+
 function exactObject(value, keys, code) {
   if (
     value === null || typeof value !== 'object' || Array.isArray(value)
@@ -45,18 +49,18 @@ function exactObject(value, keys, code) {
 function laneCodec(lane) {
   if (lane === 'g002') {
     return Object.freeze({
-      marker: createGenesis002Marker,
-      parse: parseGenesis002Marker,
-      digest: digestGenesis002Marker,
-      reconciliation: createGenesis002Reconciliation,
+      marker: g002Codec.createSealedRealmsPublicationPossiblySubmittedMarker,
+      parse: g002Codec.parseSealedRealmsPublicationPossiblySubmittedMarker,
+      digest: g002Codec.digestSealedRealmsPublicationPossiblySubmittedMarker,
+      reconciliation: g002Codec.createSealedRealmsPublicationMarkerReconciliation,
     });
   }
   if (lane === 'ptr') {
     return Object.freeze({
-      marker: createPtrMarker,
-      parse: parsePtrMarker,
-      digest: digestPtrMarker,
-      reconciliation: createPtrReconciliation,
+      marker: ptrCodec.createSealedRealmsPublicationPossiblySubmittedMarker,
+      parse: ptrCodec.parseSealedRealmsPublicationPossiblySubmittedMarker,
+      digest: ptrCodec.digestSealedRealmsPublicationPossiblySubmittedMarker,
+      reconciliation: ptrCodec.createSealedRealmsPublicationMarkerReconciliation,
     });
   }
   fail('SEALED_REALMS_RECONCILIATION_LANE_INVALID');

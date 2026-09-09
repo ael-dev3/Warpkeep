@@ -223,9 +223,12 @@ function fixedTransformPlugin(sourceRoot) {
       build.onLoad({ filter: /ptr-production-publisher\.mjs$/ }, args => {
         const source = readFileSync(args.path, 'utf8');
         const expected = "const REPOSITORY_ROOT = realpathSync(resolve(\n  fileURLToPath(new URL('..', import.meta.url)),\n));";
-        if (!source.includes(expected)) fail('SEALED_REALMS_BUNDLES_SOURCE_INVALID');
+        const sourceExpected = source.includes(expected)
+          ? expected
+          : expected.replaceAll('\n', '\r\n');
+        if (!source.includes(sourceExpected)) fail('SEALED_REALMS_BUNDLES_SOURCE_INVALID');
         return {
-          contents: pathFreeSourceLiterals(source.replace(expected,
+          contents: pathFreeSourceLiterals(source.replace(sourceExpected,
             'const REPOSITORY_ROOT = process.cwd();'), 'scripts/ptr-production-publisher.mjs'),
           loader: 'js',
         };
