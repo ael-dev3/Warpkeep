@@ -7,15 +7,37 @@ live release. The current user's direction takes precedence over historical plan
 
 ## Current source checkpoint — 2026-09-09
 
-The current published branch checkpoint is `45413168e2ab14459583beee61c6550b561d2e89`
-on `codex/prepared-keep-bindings-fix`; the functional Verdant Citadel/mobile
-visual checkpoint is the same source. It includes the bounded Keep04 moat
-surface, current reference-to-source notes, the Windows browser-runtime
-adapter, the Vite watcher boundary that keeps disposable Chrome profiles out
-of the source watch graph, and the local-output ignore rules. Historical
-checkpoint labels below retain their original scope and are not current-source
-claims. CodeQL and Verify runs for this exact SHA are still running on GitHub;
-no live release, physical-device acceptance or owner journey is claimed.
+The current published branch checkpoint is `f831966b` on
+`codex/prepared-keep-bindings-fix`; the functional Verdant Citadel/mobile visual
+checkpoint is the same source. It includes the bounded Keep04 moat surface,
+current reference-to-source notes, the Windows browser-runtime adapter, the
+Vite watcher boundary that keeps disposable Chrome profiles out of the source
+watch graph, local-output ignore rules, and the Windows-connected local QA
+hardening described below. Historical checkpoint labels retain their original
+scope and are not current-source claims. CodeQL and Verify runs for this exact
+SHA are still running on GitHub; no live release, physical-device acceptance or
+owner journey is claimed.
+
+## Windows connected local QA — September 9
+
+The pinned SpacetimeDB 2.6.1 Windows CLI is now attested against the reviewed
+CLI, standalone, and update-launcher bytes. The private snapshot uses `.exe`
+members and retains canonical-path, exact-membership, byte-hash, identity, and
+re-attestation checks; Windows ACL metadata is handled without weakening the
+Unix mode contract. The local module copy uses a junction for the pinned
+dependency tree and rewrites only the disposable copy's Genesis 001 admission
+constant. Production `spacetimedb/src/genesis001AccessPolicy.ts` remains sealed.
+
+The disposable SpacetimeDB runtime now completes publication, synthetic founder
+seeding, Inner Keep setup, and process-tree cleanup on Windows. The browser lane
+also keeps Chrome's data directories disposable, retries the initial blank-page
+target, and allows the bounded cold Vite graph transform to finish. Its current
+machine-level limitation is the first connected browser navigation: the
+development graph can take more than the 170-second warmup budget before the
+title gateway becomes ready. The browser probe therefore remains unpassed for
+this checkout even though the server runtime, source/security suite, typecheck,
+and CLI attestation suite pass. Do not claim the full browser journey until a
+fresh run records it.
 
 ## Current native artifact execution — September 9
 
