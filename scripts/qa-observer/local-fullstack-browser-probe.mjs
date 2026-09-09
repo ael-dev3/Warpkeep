@@ -1991,10 +1991,23 @@ async function exerciseLocalInnerKeepCompletionAndSecondStart(session, firstStar
     || value.workerCount !== 4
     || value.publicWorkerCount !== 28
   ) {
+    const safeSecondProjectState = value?.stage === 'inner-keep-second-start-complete'
+      ? ` (placement:${value?.secondPlacement === '29000000:-10000000:0' ? 'ok' : 'invalid'};`
+        + `complete:${value?.completedBuildingRevealed === true ? 'true' : 'false'};`
+        + `discount:${value?.discountBasisPoints === 500 ? 'ok' : 'invalid'}/`
+        + `${value?.discountedFoodCost === 480 ? 'ok' : 'invalid'};`
+        + `worksites:${Number.isSafeInteger(value?.worksiteCount) ? value.worksiteCount : 'invalid'};`
+        + `builder:${value?.builderOccupied === true ? 'true' : 'false'};`
+        + `model:${value?.secondNoFinalModel === true ? 'absent' : 'present'};`
+        + `camera:${value?.cameraPreserved === true ? 'true' : 'false'};`
+        + `scene:${value?.scenePreserved === true ? 'true' : 'false'};`
+        + `workers:${Number.isSafeInteger(value?.workerCount) ? value.workerCount : 'invalid'}/`
+        + `${Number.isSafeInteger(value?.publicWorkerCount) ? value.publicWorkerCount : 'invalid'})`
+      : '';
     throw new LocalFullstackBrowserError(
       `Disposable Inner Keep completion failed at ${
         typeof value?.stage === 'string' ? value.stage : 'runtime'
-      }.`
+      }${safeSecondProjectState}.`
     );
   }
   return Object.freeze({ ...value });
