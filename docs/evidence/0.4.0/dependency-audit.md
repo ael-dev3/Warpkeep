@@ -2,7 +2,7 @@
 
 ## 2026-09-09 remediation checkpoint
 
-Published source: `a3cde3a81b72973ceb258cd59c11a97da6e66479`.
+Published source: `1486b573c72ad1e2127245f56f8cc4f78a4fcdb9`.
 
 The previously failing audit gate was repaired with compatible, bounded pins:
 the root lock now resolves `sharp@0.35.4` and `vitest@4.1.11`; the auth-bridge
@@ -23,6 +23,13 @@ This repairs the dependency portion of R14 locally. The new GitHub Verify and
 CodeQL runs for `a3cde3a` remain authoritative and must complete before R14 is
 called passing; local audits do not prove the assembled Linux, native-contract,
 deployment or live-owner requirements.
+
+The first post-remediation Verify run exposed a separate lock completeness
+issue before tests began: npm 10 required the optional
+`@solana/web3.js`-scoped `utf-8-validate@5.0.10` peer, which was absent from
+the root lock. Commit `1486b57` adds that exact registry entry and passes the
+repository-pinned npm 10.9.8 clean-install dry run. The next Verify run must
+confirm the actual clean install and downstream lanes.
 
 Source inspected: `321940caf0af038f869af78c8b3fc2db695b2e45`.
 The initial failing checkpoint below is retained; see the tested repair below.
