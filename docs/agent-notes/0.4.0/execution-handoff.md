@@ -7,16 +7,15 @@ live release. The current user's direction takes precedence over historical plan
 
 ## Current source checkpoint — 2026-09-09
 
-The reviewed branch checkpoint is `75d577c8086cc6860713977e661181e9852995d1`
-on `codex/prepared-keep-bindings-fix`; the current notes update is published
-after it. The functional Verdant Citadel/mobile visual
-checkpoint remains `0ce25c8`; the current source also contains the dependency,
-private Sharp/libvips, runtime-verifier, sealed-launch source-pin and recovery
-loader repairs plus the reconciled agent-facing evidence files. Historical
-checkpoint labels below retain their original scope and are not current-source
-claims. CodeQL run `34348989688` passed for this checkpoint. Verify run
-`34348989741` has its fast checks and release-recovery green while Linux and
-SpacetimeDB remain in progress.
+The current published branch checkpoint is `1420538e7973072cf662baad5a2be593eb483771`
+on `codex/prepared-keep-bindings-fix`; the functional Verdant Citadel/mobile
+visual checkpoint is the same source. It includes the bounded Keep04 moat
+surface, current reference-to-source notes, the Windows browser-runtime
+adapter, and the Vite watcher boundary that keeps disposable Chrome profiles
+out of the source watch graph. Historical checkpoint labels below retain their
+original scope and are not current-source claims. CodeQL and Verify runs for
+this exact SHA are still running on GitHub; no live release, physical-device
+acceptance or owner journey is claimed.
 No live release, physical-device acceptance or owner journey is claimed.
 
 ## Current native artifact execution — September 9
@@ -45,6 +44,24 @@ were unchanged. Scene resources were unchanged, but the wider backing canvas
 increased pixel area by about 7.4% at the measured profile. This is a readability
 improvement, not physical-phone performance acceptance. Building/material cohesion,
 final visual coverage, live owner play and deployment remain unfinished.
+
+## Windows Keep04 browser boundary — September 9
+
+After the current moat change, the real Windows Vite page was captured through
+`scripts/qa-observer/keep04-windows-capture.mjs` as
+`windows-run-q9Jo7j`. The run produced 36 bounded desktop, landscape and 390px
+portrait cases, guarded all 36 document responses with the exact server CSP,
+verified the installed signed Chrome identity, and verified owned-process
+cleanup. Empty and completed-keep states were spot-checked at desktop and
+portrait sizes; sustained frame time, memory, physical-device behavior and the
+real owner/PTR route remain open.
+
+The first attempt failed closed because Vite watched Chrome's locked profile
+SQLite files and Windows raised `EBUSY`. The fix is intentionally narrow:
+`vite.config.ts` ignores generated `.cache` profiles, and
+`tests/keep04DocumentPolicy.test.ts` locks that contract. The report marks
+`stableSource: false` because this checkout still contains unrelated local
+changes; the capture is rendered development evidence, not release acceptance.
 
 At preceding source `d6cfc5c`, native release preparation and its independent
 rebuild both passed with matching source/artifact provenance. The privileged Linux
