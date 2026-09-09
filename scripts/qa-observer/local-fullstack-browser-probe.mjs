@@ -4276,7 +4276,33 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
         ) ? probe : undefined;
       });
       if (!(publicReadyProbe instanceof HTMLOutputElement)) {
-        return { stage: 'reentry-public-authority' };
+        const probe = document.querySelector('[data-local-fullstack-auth]');
+        return {
+          stage: 'reentry-public-authority',
+          authPhase: probe?.getAttribute('data-local-fullstack-auth') ?? 'missing',
+          backendPhase: probe?.getAttribute('data-local-fullstack-backend') ?? 'missing',
+          deployedWorkerCount: probe?.getAttribute(
+            'data-local-fullstack-deployed-workers'
+          ) ?? 'missing',
+          recallableWorkerCount: probe?.getAttribute(
+            'data-local-fullstack-recallable-workers'
+          ) ?? 'missing',
+          exactDispatchTargetCount: probe?.getAttribute(
+            'data-local-fullstack-exact-dispatch-target-count'
+          ) ?? 'missing',
+          publicOccupationCount: probe?.getAttribute(
+            'data-local-fullstack-public-worker-occupation-count'
+          ) ?? 'missing',
+          privatePhase: probe?.getAttribute(
+            'data-local-fullstack-worker-private-sync'
+          ) ?? 'missing',
+          workerCommands: probe?.getAttribute(
+            'data-local-fullstack-worker-commands'
+          ) ?? 'missing',
+          privateReadGate: document.documentElement.getAttribute(
+            'data-local-fullstack-private-read-gate'
+          ) ?? 'missing'
+        };
       }
       const reentryPublicOccupationCount = numericAttribute(
         publicReadyProbe,
@@ -5363,6 +5389,24 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
             : 'invalid';
         }).join('/')})`
       : '';
+    const safeAuthorityState = safeStage === 'reentry-public-authority'
+      ? ` (${[
+          'authPhase',
+          'backendPhase',
+          'deployedWorkerCount',
+          'recallableWorkerCount',
+          'exactDispatchTargetCount',
+          'publicOccupationCount',
+          'privatePhase',
+          'workerCommands',
+          'privateReadGate'
+        ].map((key) => {
+          const state = value?.[key];
+          return typeof state === 'string' && /^[a-z0-9-]{1,32}$/.test(state)
+            ? state
+            : 'invalid';
+        }).join('/')})`
+      : '';
     const safeWorkerPresentationState =
       safeStage === 'reentry-public-worker-presentation'
         ? ` (${[
@@ -5491,7 +5535,8 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
       : '';
     throw new LocalFullstackBrowserError(
       `Disposable persistent Worker re-entry failed at ${safeStage}${
-        safeOccupationState
+        safeAuthorityState
+          || safeOccupationState
           || safeWorkerPresentationState
           || safeCompletionState
           || safeReconnectState
