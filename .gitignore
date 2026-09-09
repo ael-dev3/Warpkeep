@@ -12,6 +12,8 @@ coverage
 # Machine-local caches and deployment state.
 .cache/
 /artifacts/
+.superpowers/
+**/__pycache__/
 .wrangler/
 .dev.vars*
 !.dev.vars.example
