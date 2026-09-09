@@ -2,8 +2,9 @@
 
 ## 2026-09-09 source-render matrix checkpoint
 
-The current documentation checkpoint is the published branch head; the functional source is
-`43cac019888aefb83fcd3901446fc5af99d39036`, and the functional visual
+The current documentation checkpoint records the CI-reviewed functional source
+`43cac019888aefb83fcd3901446fc5af99d39036`; the documentation and inspiration
+guard follow-up is published after it, and the functional visual
 checkpoint is `0ce25c8`. Actual renderer synthetic captures
 covered the empty, mature, legal-placement, blocked-placement, construction,
 completed and schematic-fallback states at desktop and 390px portrait profiles.

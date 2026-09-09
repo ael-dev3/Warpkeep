@@ -4,8 +4,9 @@ Updated 2026-09-09. R14 remains incomplete; source publication is not production
 
 ## Current checkpoint — 2026-09-09
 
-The published Windows/GitHub head is `43cac019888aefb83fcd3901446fc5af99d39036`
-on `codex/prepared-keep-bindings-fix`, and `git ls-remote` matches it. PR #228
+The CI-reviewed implementation head is `43cac019888aefb83fcd3901446fc5af99d39036`
+on `codex/prepared-keep-bindings-fix`; the documentation and inspiration guard
+follow-up is published after it. PR #228
 remains a draft. The checkpoint includes the portrait keep framing and mobile
 surface polish, the truthful workflow-runtime provenance expectation, Linux
 G001 receipt/adoption/activation consumers, credential-boundary evidence

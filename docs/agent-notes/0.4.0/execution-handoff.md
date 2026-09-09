@@ -7,8 +7,9 @@ live release. The current user's direction takes precedence over historical plan
 
 ## Current source checkpoint — 2026-09-09
 
-Windows and GitHub now match `43cac019888aefb83fcd3901446fc5af99d39036` on
-`codex/prepared-keep-bindings-fix`. The functional Verdant Citadel/mobile visual
+The CI-reviewed implementation checkpoint is `43cac019888aefb83fcd3901446fc5af99d39036`
+on `codex/prepared-keep-bindings-fix`; the documentation and inspiration guard
+follow-up is published after it. The functional Verdant Citadel/mobile visual
 checkpoint remains `0ce25c8`; the current source also contains the dependency,
 private Sharp/libvips, runtime-verifier, sealed-launch source-pin and recovery
 loader repairs plus the reconciled agent-facing evidence files. Historical
