@@ -1,6 +1,7 @@
 import { lstat } from 'node:fs/promises';
+import { lstatSync } from 'node:fs';
 import { spawn } from 'node:child_process';
-import { join, resolve } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 
 import {
   attestStableHeadlessChromeExecutable,
@@ -64,7 +65,14 @@ export async function attestStableFullstackChromeIdentity(expectedIdentity) {
 }
 
 function windowsChromeContract(profileDirectory) {
-  const profile = String(profileDirectory);
+  const profile = resolve(String(profileDirectory));
+  if (!isAbsolute(profile) || profile !== String(profileDirectory)) {
+    throw new Error('The disposable Windows Chrome profile path was not canonical.');
+  }
+  const profileMetadata = lstatSync(profile, { bigint: true });
+  if (!profileMetadata.isDirectory() || profileMetadata.isSymbolicLink()) {
+    throw new Error('The disposable Windows Chrome profile path was unsafe.');
+  }
   const localAppData = join(profile, 'AppData', 'Local');
   const appData = join(profile, 'AppData', 'Roaming');
   const systemRoot = process.env.SystemRoot ?? 'C:/Windows';
