@@ -1,6 +1,6 @@
 # Release engineering: implementation and evidence
 
-Current reading point: the September 9 source checkpoint `096d9c0` sits above the
+Current reading point: the September 9 source checkpoint `206c036` sits above the
 historical entries in this record; the September 8 entries at the end cover
 the published Linux preflight/Worker source `1e90b2e`, its completed native
 prepare/check and generated-only integration `de10f83`, plus compiled G002/PTR
@@ -11,6 +11,19 @@ connected work and actual publication/check status. **0.4 is not shipped.**
 Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
+
+## Current assembled-artifact execution — 2026-09-09
+
+The pinned WarpkeepRunner Ubuntu 24.04 guest executed the current native
+materializer and child worker from source `206c03683c9039b513b878d7b0d3c6770eda2626`
+and tree `ebc91c6cc7bf205de22e331d127b1f2f7b8ba5da`. The operation-bundle runtime
+completed activation, G001, G002 and PTR lanes. The program-artifact path
+completed frozen G001 and current G002, and the all-realms binding run completed
+G001 current/compatibility, G002 and PTR. The compact all-realms receipt is
+retained at `/home/warpkeep/warpkeep-all-realms-206c036.json` in the isolated
+guest. This is local execution evidence only; it does not establish a protected
+GitHub workflow, provider deployment, live owner admission or physical-device
+acceptance.
 
 ## Historical execution inventory — September 6
 

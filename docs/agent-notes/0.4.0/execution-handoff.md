@@ -7,7 +7,7 @@ live release. The current user's direction takes precedence over historical plan
 
 ## Current source checkpoint — 2026-09-09
 
-Windows and GitHub now match `096d9c0a258d0009c6a7a5cd2ce885dee115f100` on
+Windows and GitHub now match `206c03683c9039b513b878d7b0d3c6770eda2626` on
 `codex/prepared-keep-bindings-fix`. The functional Verdant Citadel/mobile visual
 checkpoint remains `0ce25c8`; the current source also contains the dependency,
 private Sharp/libvips, runtime-verifier and sealed-launch source-pin repairs plus
@@ -15,6 +15,22 @@ the reconciled agent-facing evidence files. Historical checkpoint labels below
 retain their original scope and are not current-source claims. The long Linux,
 SpacetimeDB and CodeQL checks for this exact source are running; no live release,
 physical-device acceptance or owner journey is claimed.
+
+## Current native artifact execution — September 9
+
+The pinned WarpkeepRunner Ubuntu 24.04 guest now executes the current source
+head `206c03683c9039b513b878d7b0d3c6770eda2626` (source tree
+`ebc91c6cc7bf205de22e331d127b1f2f7b8ba5da`) through the native materializer and
+child worker. The operation-bundle runtime completed activation, G001, G002 and
+PTR lanes. The program-artifact path completed frozen G001 and current G002,
+retaining exact SHA-256/Keccak bytes. The all-realms binding check also completed
+successfully, covering G001 current and compatibility, G002, and PTR. Its
+compact receipt is retained at `/home/warpkeep/warpkeep-all-realms-206c036.json`.
+
+This closes the previously open local assembled-artifact execution proof. It is
+still local evidence: protected GitHub workflow completion, provider deployment,
+live owner admission, physical-device acceptance and the remaining R11–R13
+gates remain separate requirements.
 
 ## Portrait keep framing — September 9
 

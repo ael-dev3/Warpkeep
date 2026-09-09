@@ -4,21 +4,29 @@
 
 ## Current local execution checkpoint — 2026-09-09
 
-The Windows/GitHub source head is `096d9c0`; the dedicated Linux operating
-checkout is `d6cfc5c` and has matching native preparation/rebuild provenance.
-Linux G001 policy preparation, the privileged caller suite, and bounded
-source/private-record scenarios passed. A dedicated GitHub Actions runner was
-registered as `warpkeep-wsl-production-01` (runner id 22) but is offline: its
-service installation timed out while the WSL PID 1 remained in a kernel wait.
-Only the dedicated `WarpkeepRunner` distro termination was requested after the
-protected jobs finished; no other distro was restarted. No provider secret was
-read, no production workflow was dispatched, and no live mutation was made.
+The Windows/GitHub source head and the dedicated Linux checkout now match
+`206c03683c9039b513b878d7b0d3c6770eda2626` with source tree
+`ebc91c6cc7bf205de22e331d127b1f2f7b8ba5da`. The pinned WarpkeepRunner Ubuntu
+24.04 guest executed the current native materializer/child path successfully;
+the operation-bundle runtime produced activation, G001, G002 and PTR lanes.
+The program-artifact path also completed for both frozen G001 and current G002
+modules, and the all-realms binding run completed without an error.
 
-The protected closure audit now includes the complete Linux G001 native
-launcher, materializer, child, boundary, runtime helpers, synthetic entry,
-workflow evidence codec and source manifest at 1,193 members. The remaining
-operating gap is concrete: the native materializer and child still need to
-execute inside the assembled WarpkeepRunner artifact before R11–R13 can close.
+The compact all-realms result is retained in the local runner at
+`/home/warpkeep/warpkeep-all-realms-206c036.json` and records:
+
+| Lane | Result identity |
+| --- | --- |
+| G001 current | bundle `7811ce8485cb101e9bd864ca801ade3823353389832921554c757a847d8cf48a`; closure `fcc9b32282ff947da96738a15735aa809919f9229e2861d9a53cb0c98acb6e62`; 180 binding files |
+| G001 frozen compatibility | bundle `a2d7f204ed591aadb98696225d68332ee573519187e0989e68f528da8064cd49`; descriptor `cf3cbfff9087c04bd9de553410adb49100c40dbdecebc59e265f83cb904dd04d` |
+| G002 | bundle `0037a0979a460aea8607a36fccd649d4311046925faeb3d8186276ac0a6ccbd3`; closure `3135e65b47acf95b174adcf10d9453955afabde9f122382a0166b0a9d5bc26d5`; 50 bindings |
+| PTR | bundle `0c8b531995779dc5102ece40e7b4d54ffc4af4809f3873b5231716795ee1e5bf`; closure `acd9fe64d963d38715183a0451e6cc21b25abbfed5092c787d7e01842ab91901`; 25 bindings |
+
+The separate program-artifact record uses Node 24.19.0 for frozen G001 and
+Node 22.22.3 for current G002, with artifact SHA-256/Keccak provenance retained
+in the runner output. This closes the local native execution gap for the
+assembled artifact. It does not prove provider deployment, live owner admission,
+physical-device acceptance, or the remaining R11–R13 production gates.
 
 ## GitHub runner gap
 
