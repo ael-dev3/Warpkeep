@@ -7,7 +7,7 @@ live release. The current user's direction takes precedence over historical plan
 
 ## Current source checkpoint — 2026-09-09
 
-Windows and GitHub now match `47a85607e0df68f9c6f491be84e797436c1cbc0e` on
+Windows and GitHub now match `4b51310e47abe6e35288e55cec10fbdfb3d88bd9` on
 `codex/prepared-keep-bindings-fix`. The functional Verdant Citadel/mobile visual
 checkpoint remains `0ce25c8`; the current source also contains the dependency,
 private Sharp/libvips, runtime-verifier and sealed-launch source-pin repairs plus
@@ -48,7 +48,7 @@ assembled Linux artifact and the final-family run.
 ## Linux G001 policy integration — September 9
 
 The Linux G001 policy integration was historically published at `a0b5060` and is
-included in the current source `47a8560` on `upstream/codex/prepared-keep-bindings-fix`.
+included in the current source `4b51310` on `upstream/codex/prepared-keep-bindings-fix`.
 That checkpoint connects the Linux G001 read-only policy lane to its receipt,
 adoption, activation-record and recovery consumers. It keeps the historical
 Darwin receipt profile distinct, refreshes the opaque workflow evidence scope at
@@ -771,7 +771,7 @@ visual improvement, not physical-device or complete visual acceptance.
 
 The keep now omits repeated zero-pending amounts and shows one quiet no-return status. Nonzero incoming amounts remain explicitly unspendable; balances and command semantics are unchanged. All 21 Keep04Screen tests and app/test types passed. Fresh empty/mature desktop and 390px synthetic renderer captures had no horizontal overflow. Nonzero pending and confirmed-return behavior are covered by component tests; physical-device performance remains unverified.
 
-At the earlier source `c104f7b6368635ab6ae36da6ce02c3aa5a9c412d`, full native Linux prepare and the separate rebuilding check both exited successfully with identical family `f23eb885a62eea112e943b70a692b785da0a28b7b873fe2f0e39a59c1508740e`. That candidate had `finalReleasePrepared: false`, was not deployed, and predates the current UI and Linux G001 integration. The current published Windows/GitHub checkpoint is `47a8560`; native materializer/child execution and generated-closure audit remain open.
+At the earlier source `c104f7b6368635ab6ae36da6ce02c3aa5a9c412d`, full native Linux prepare and the separate rebuilding check both exited successfully with identical family `f23eb885a62eea112e943b70a692b785da0a28b7b873fe2f0e39a59c1508740e`. That candidate had `finalReleasePrepared: false`, was not deployed, and predates the current UI and Linux G001 integration. The current published Windows/GitHub checkpoint is `4b51310`; native materializer/child execution and generated-closure audit remain open.
 
 ## Dedicated Linux caller and private-state integration
 

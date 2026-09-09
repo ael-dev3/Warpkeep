@@ -2,7 +2,7 @@
 
 ## 2026-09-09 source-render matrix checkpoint
 
-The current published source is `73a1c57`; the functional visual checkpoint is
+The current published source is `4b51310`; the functional visual checkpoint is
 `0ce25c8`. Actual renderer synthetic captures
 covered the empty, mature, legal-placement, blocked-placement, construction,
 completed and schematic-fallback states at desktop and 390px portrait profiles.

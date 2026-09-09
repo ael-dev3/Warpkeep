@@ -2,7 +2,7 @@
 
 ## Current source checkpoint — 2026-09-09
 
-The active Windows/GitHub source is `47a85607e0df68f9c6f491be84e797436c1cbc0e`
+The active Windows/GitHub source is `4b51310e47abe6e35288e55cec10fbdfb3d88bd9`
 on `codex/prepared-keep-bindings-fix`; the functional visual checkpoint is
 `0ce25c8`. The dependency, private Sharp/libvips, runtime-verifier and
 sealed-launch source-pin repairs are published, and the six agent-facing

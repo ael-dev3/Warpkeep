@@ -1,6 +1,6 @@
 # PR verification backlog repair — 2026-09-07
 
-Current source is `47a85607e0df68f9c6f491be84e797436c1cbc0e`; its Verify and
+Current source is `4b51310e47abe6e35288e55cec10fbdfb3d88bd9`; its Verify and
 CodeQL runs are the active authority for the branch. The historical cleanup and
 run identifiers below retain their original scope.
 
