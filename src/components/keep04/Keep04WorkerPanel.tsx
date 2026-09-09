@@ -1,6 +1,30 @@
 import type { Resource04 } from '../../../spacetimedb/gameplay04/policy';
 import type { View04 } from '../../ptr/gameplay04/gameplay04Presentation';
 
+const JOURNEY_STAGES04 = ['outbound', 'gathering', 'returning'] as const;
+type JourneyStage04 = (typeof JOURNEY_STAGES04)[number];
+const JOURNEY_COPY04: Readonly<Record<JourneyStage04, Readonly<{ label: string; detail: string }>>> = Object.freeze({
+  outbound: Object.freeze({ label: 'Outbound', detail: 'Travelling to the selected resource location.' }),
+  gathering: Object.freeze({ label: 'Gathering', detail: 'The captured rate stays fixed for this journey.' }),
+  returning: Object.freeze({ label: 'Returning', detail: 'Resources unlock when the Realm confirms return.' }),
+});
+
+function WorkerJourneyRail04({ phase }: Readonly<{ phase: JourneyStage04 }>) {
+  const activeIndex = JOURNEY_STAGES04.indexOf(phase);
+  return <div className="keep04-journey" aria-label={`Worker journey: ${phase}`}>
+    <ol aria-label={`Worker journey: ${phase}`}>
+      {JOURNEY_STAGES04.map((stage, index) => {
+        const status = index < activeIndex ? 'complete' : index === activeIndex ? 'active' : 'upcoming';
+        return <li key={stage} data-stage-status={status} aria-label={`${JOURNEY_COPY04[stage].label} · ${status}`} aria-current={status === 'active' ? 'step' : undefined}>
+          <span className="keep04-journey-dot" aria-hidden="true" />
+          <span>{JOURNEY_COPY04[stage].label}</span>
+        </li>;
+      })}
+    </ol>
+    <p className="keep04-journey-detail">{JOURNEY_COPY04[phase].detail}</p>
+  </div>;
+}
+
 export function estimatedTime04(deadline: bigint, nowMs: number): string {
   const seconds = Math.max(0, Math.ceil(Number(deadline) / 1_000_000 - nowMs / 1000));
   return seconds === 0 ? 'Awaiting Realm update' : `${seconds} s`;
@@ -16,6 +40,7 @@ export function Keep04WorkerPanel({ view, enabled, nowMs, onRecall, onFindResour
     {view.workers.map(worker => <article key={worker.ordinal} aria-label={`Worker ${worker.ordinal + 1}`} className="keep04-card">
       <h3>Worker {worker.ordinal + 1}</h3>
       <p className="keep04-badge">{worker.phase}{worker.resource ? ` · ${worker.resource}` : ''}</p>
+      {worker.phase !== 'idle' && <WorkerJourneyRail04 phase={worker.phase} />}
       {worker.capturedYield !== null && <p>Gathering rate: {worker.capturedYield.toString()} every 10 seconds</p>}
       {worker.returnsAtMicros !== null && <p>Estimated return time: <span>{estimatedTime04(worker.returnsAtMicros, nowMs)}</span></p>}
       {worker.lastCredited !== null && worker.lastReturnResource !== null && <>

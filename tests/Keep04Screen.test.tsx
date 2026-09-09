@@ -129,6 +129,31 @@ it('shows captured Worker rates and allows recall only before returning with atl
   expect(screen.getByRole('button', { name: 'Recall Worker 2' })).toBeDisabled();
 });
 
+it('makes the Worker journey stages and return boundary explicit', () => {
+  const wire = freshWire04();
+  wire.workers[0].assignmentRevision = 1n;
+  wire.workers[0].assignment = { ...assignmentWire04(), phase: 'outbound' };
+  wire.workers[1].assignmentRevision = 1n;
+  wire.workers[1].assignment = { ...assignmentWire04(), phase: 'gathering' };
+  wire.workers[2].assignmentRevision = 1n;
+  wire.workers[2].assignment = { ...assignmentWire04(), phase: 'returning', earned: 60n };
+  setup(wire);
+  fireEvent.click(screen.getByRole('button', { name: 'Manage Workers' }));
+
+  const outbound = within(screen.getByRole('article', { name: 'Worker 1' }));
+  expect(outbound.getByRole('list', { name: 'Worker journey: outbound' })).toBeVisible();
+  expect(outbound.getByRole('listitem', { name: 'Outbound · active' })).toHaveAttribute('aria-current', 'step');
+  expect(outbound.getByText('Travelling to the selected resource location.')).toBeVisible();
+
+  const gathering = within(screen.getByRole('article', { name: 'Worker 2' }));
+  expect(gathering.getByRole('listitem', { name: 'Gathering · active' })).toHaveAttribute('aria-current', 'step');
+  expect(gathering.getByText('The captured rate stays fixed for this journey.')).toBeVisible();
+
+  const returning = within(screen.getByRole('article', { name: 'Worker 3' }));
+  expect(returning.getByRole('listitem', { name: 'Returning · active' })).toHaveAttribute('aria-current', 'step');
+  expect(returning.getByText('Resources unlock when the Realm confirms return.')).toBeVisible();
+});
+
 it('retains the reviewed quote across a refresh and requires explicit review after rejection even at the same revision', () => {
   const wire = freshWire04(); Object.assign(wire, { food: 1000n, wood: 1000n, stone: 1000n, gold: 1000n });
   const { snapshot, rerender } = setup(wire); openMill();

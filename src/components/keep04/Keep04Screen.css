@@ -70,6 +70,16 @@
 .keep04 .keep04-card > button:first-child { width: 100%; text-align: left; font-weight: 600; }
 .keep04 .keep04-card p { margin-top: 8px; overflow-wrap: anywhere; }
 .keep04 .keep04-badge { display: inline-block; padding: 2px 7px; border: 1px solid #9dab96; border-radius: 4px; font-size: 14px; }
+.keep04 .keep04-journey { margin: 10px 0 12px; padding: 10px; border: 1px solid rgba(153, 192, 174, .28); border-radius: 8px; background: rgba(13, 29, 25, .42); }
+.keep04 .keep04-journey ol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+.keep04 .keep04-journey li { display: flex; align-items: center; gap: 5px; min-width: 0; color: #9faea3; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+.keep04 .keep04-journey li[data-stage-status="complete"] { color: #b7d5b9; }
+.keep04 .keep04-journey li[data-stage-status="active"] { color: #f2eddf; font-weight: 700; }
+.keep04 .keep04-journey-dot { width: 9px; height: 9px; flex: 0 0 auto; border: 1px solid currentColor; border-radius: 50%; background: transparent; }
+.keep04 .keep04-journey li[data-stage-status="complete"] .keep04-journey-dot { background: #9bc9a5; }
+.keep04 .keep04-journey li[data-stage-status="active"] .keep04-journey-dot { background: #dfc6ff; box-shadow: 0 0 0 3px rgba(223, 198, 255, .18); }
+.keep04 .keep04-journey li[data-stage-status="upcoming"] { opacity: .64; }
+.keep04 .keep04-journey-detail { margin: 8px 0 0 !important; color: var(--keep04-muted); font-size: 13px; }
 .keep04 .keep04-primary-action { position: static; background: #182e2b; padding: 12px 0 max(12px, env(safe-area-inset-bottom)); border-top: 2px solid #dfc6ff; }
 .keep04 .keep04-selected-review { margin-bottom: 16px; }
 .keep04 .keep04-selected-review > button { margin-bottom: 8px; }
@@ -97,6 +107,8 @@
   .keep04 .keep04-resources > div { min-width: 0; overflow-wrap: anywhere; }
   .keep04 .keep04-resources strong { font-size: 20px; }
   .keep04 .keep04-resources > p { font-size: 14px; }
+  .keep04 .keep04-journey { padding: 8px; }
+  .keep04 .keep04-journey li { font-size: 11px; }
   .keep04 .keep04-primary-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .keep04 .keep04-primary-nav button { padding: 6px 8px; }
   /* A single document scroll keeps every card and its confirmation reachable,
