@@ -7,10 +7,9 @@ on `codex/prepared-keep-bindings-fix`; the latest functional source checkpoint
 is `f831966bf3822ca12e6055c7d907c00d0571a8bd`. The dependency, private
 Sharp/libvips, runtime-verifier,
 sealed-launch source-pin and recovery-loader repairs are published, and the
-agent-facing evidence files reconcile to this source. The current GitHub CodeQL
-run `34369121201` and Verify run `34369121284` are pending for this branch;
-older run IDs below retain their original source and acceptance limits and are
-not current-release evidence.
+agent-facing evidence files reconcile to this source. GitHub Verify and CodeQL
+for the current branch are pending; older run IDs below retain their original
+source and acceptance limits and are not current-release evidence.
 
 ## Dedicated local preparation namespace
 

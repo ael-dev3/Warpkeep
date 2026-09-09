@@ -14,8 +14,8 @@ current reference-to-source notes, the Windows browser-runtime adapter, the
 Vite watcher boundary that keeps disposable Chrome profiles out of the source
 watch graph, local-output ignore rules, and the Windows-connected local QA
 hardening described below. Historical checkpoint labels retain their original
-scope and are not current-source claims. CodeQL and Verify runs for this exact
-SHA are still running on GitHub; no live release, physical-device acceptance or
+scope and are not current-source claims. GitHub Verify and CodeQL for the
+current branch are pending; no live release, physical-device acceptance or
 owner journey is claimed.
 
 ## Windows connected local QA — September 9
