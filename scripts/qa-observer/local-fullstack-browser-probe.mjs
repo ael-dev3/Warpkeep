@@ -1390,9 +1390,7 @@ export async function dispatchInnerKeepTouchCompatibilityClick(session, target) 
 async function prepareLocalInnerKeepFirstStart(session) {
   const result = await session.command('Runtime.evaluate', {
     expression: `(async () => {
-      // Keep setup diagnostics below the outer CDP command bound so a missing
-      // presentation surface reports its exact stage instead of timing out.
-      const deadline = performance.now() + 30_000;
+      const deadline = performance.now() + ${PRESENTATION_TIMEOUT_MILLISECONDS};
       const waitFor = async (predicate) => {
         while (performance.now() <= deadline) {
           try {
@@ -1636,7 +1634,7 @@ async function prepareLocalInnerKeepFirstStart(session) {
 async function observeLocalInnerKeepFirstStart(session) {
   const result = await session.command('Runtime.evaluate', {
     expression: `(async () => {
-      const deadline = performance.now() + 30_000;
+      const deadline = performance.now() + ${PRESENTATION_TIMEOUT_MILLISECONDS};
       const waitFor = async (predicate) => {
         while (performance.now() <= deadline) {
           try {
@@ -1757,7 +1755,7 @@ async function exerciseLocalInnerKeepCompletionAndSecondStart(session, firstStar
   const result = await session.command('Runtime.evaluate', {
     expression: `(async () => {
       const expected = ${expected};
-      const deadline = performance.now() + 30_000;
+      const deadline = performance.now() + ${PRESENTATION_TIMEOUT_MILLISECONDS};
       const waitFor = async (predicate) => {
         while (performance.now() <= deadline) {
           try {
