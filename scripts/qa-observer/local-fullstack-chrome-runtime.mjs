@@ -118,7 +118,11 @@ function windowsChromeContract(profileDirectory) {
         SystemRoot: systemRoot,
         TEMP: profile,
         TMP: profile,
-        USERPROFILE: profile,
+        // Current Chrome rejects remote-debugging-pipe when USERPROFILE is
+        // replaced with the disposable data directory. Keep the canonical
+        // Windows user root for path resolution while APPDATA, LOCALAPPDATA,
+        // TEMP, TMP, and --user-data-dir remain fully disposable.
+        USERPROFILE: process.env.USERPROFILE ?? profile,
         WINDIR: process.env.WINDIR ?? systemRoot,
       }),
       shell: false,

@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash, generateKeyPairSync, randomBytes, sign as signBytes } from 'node:crypto';
 import {
   chmod,
@@ -45,6 +45,9 @@ const MAXIMUM_OUTPUT_BYTES = 512 * 1_024;
 const MAXIMUM_RESPONSE_BYTES = 32 * 1_024;
 const COMMAND_TIMEOUT_MILLISECONDS = 120_000;
 const SERVER_STOP_TIMEOUT_MILLISECONDS = 5_000;
+// Windows can create a junction without elevated symlink privileges. It still
+// resolves to the pinned dependency tree and is re-attested before use.
+const NODE_MODULES_LINK_TYPE = process.platform === 'win32' ? 'junction' : 'dir';
 const PROFILE_POLICY_VERSION = 'trusted-snapchain-profile-v3';
 const RESOURCE_POLICY_VERSION = 'genesis-resource-yield-v1';
 const WORKER_PROTOCOL_CAPABILITY = 'generic-castle-workers-v1';
@@ -107,6 +110,14 @@ const PRODUCTION_OIDC_ISSUER = 'https://auth.warpkeep.com';
 const PRODUCTION_OIDC_SOURCE_DECLARATION =
   `export const WARPKEEP_OIDC_ISSUER = '${PRODUCTION_OIDC_ISSUER}';`;
 const PRODUCTION_OIDC_ISSUER_BYTES = Buffer.from(PRODUCTION_OIDC_ISSUER, 'utf8');
+// The live Genesis 001 module is permanently sealed. The disposable local
+// copy needs synthetic founders so the connected QA journey can exercise the
+// same admission, worker, and Inner Keep contracts without touching the
+// production source or database.
+const LOCAL_ADMISSION_POLICY_SOURCE_DECLARATION =
+  '  admissionStateMutationsEnabled: false,';
+const LOCAL_ADMISSION_POLICY_QA_DECLARATION = `  // warpkeep-disposable-admission-policy-v1
+  admissionStateMutationsEnabled: true,`;
 const LOCAL_WORKER_TRAVEL_SOURCE_DECLARATION =
   'export const CASTLE_WORKER_TRAVEL_MICROS_PER_STEP = 30_000_000n;';
 const LOCAL_WORKER_TRAVEL_QA_DECLARATION =
@@ -273,6 +284,23 @@ function collectBounded(stream, terminate) {
   };
 }
 
+function killDisposableProcessTree(pid, signal) {
+  if (process.platform !== 'win32') {
+    return process.kill(-pid, signal);
+  }
+  // Windows has no POSIX process groups. The SpacetimeDB CLI launches the
+  // standalone server as a child, so taskkill's tree mode is required to
+  // release the reviewed snapshot before its private directory is removed.
+  if (signal === 0) return process.kill(pid, 0);
+  const result = spawnSync(
+    'taskkill.exe',
+    ['/PID', String(pid), '/T', '/F'],
+    { stdio: 'ignore', windowsHide: true },
+  );
+  if (result.error) throw result.error;
+  if (result.status !== 0) return process.kill(pid, signal);
+}
+
 export async function runDisposableLocalFullstackCli(executable, arguments_, options) {
   return new Promise((resolveRun, rejectRun) => {
     let settled = false;
@@ -288,7 +316,7 @@ export async function runDisposableLocalFullstackCli(executable, arguments_, opt
     });
     options.onProcess?.(child);
     const terminate = () => {
-      try { process.kill(-child.pid, 'SIGKILL'); } catch {
+      try { killDisposableProcessTree(child.pid, 'SIGKILL'); } catch {
         try { child.kill('SIGKILL'); } catch {
           // The bounded failure remains authoritative.
         }
@@ -484,7 +512,11 @@ async function createLocalModule(runtimeDirectory) {
   const sourceNodeModules = await realpath(join(SOURCE_MODULE, 'node_modules'));
   const nodeModulesMetadata = await stat(sourceNodeModules);
   if (!nodeModulesMetadata.isDirectory()) fail('Pinned module dependencies are unavailable.');
-  await symlink(sourceNodeModules, join(moduleDirectory, 'node_modules'), 'dir');
+  await symlink(
+    sourceNodeModules,
+    join(moduleDirectory, 'node_modules'),
+    NODE_MODULES_LINK_TYPE,
+  );
 
   const configPath = join(moduleDirectory, 'src', 'config.ts');
   const productionConfig = await readFile(configPath, 'utf8');
@@ -498,19 +530,24 @@ async function createLocalModule(runtimeDirectory) {
   }
   await writeFile(configPath, localConfig, { encoding: 'utf8', mode: 0o600 });
 
-  const rewriteCopiedConstant = async (file, source, replacement) => {
+  const rewriteCopiedConstant = async (
+    file,
+    source,
+    replacement,
+    failureMessage = 'Disposable Worker timing separation failed.'
+  ) => {
     const path = join(moduleDirectory, 'src', file);
     const copiedSource = await readFile(path, 'utf8');
     if (
       copiedSource.split(source).length !== 2
       || copiedSource.includes(replacement)
-    ) fail('Disposable Worker timing separation failed.');
+    ) fail(failureMessage);
     const qaSource = copiedSource.replace(source, replacement);
     if (
       qaSource === copiedSource
       || qaSource.includes(source)
       || qaSource.split(replacement).length !== 2
-    ) fail('Disposable Worker timing separation failed.');
+    ) fail(failureMessage);
     await writeFile(path, qaSource, { encoding: 'utf8', mode: 0o600 });
   };
   await rewriteCopiedConstant(
@@ -554,6 +591,12 @@ async function createLocalModule(runtimeDirectory) {
     'innerKeepAuthority.ts',
     LOCAL_INNER_KEEP_SCHEDULE_MATCH_SOURCE_DECLARATION,
     LOCAL_INNER_KEEP_SCHEDULE_MATCH_QA_DECLARATION
+  );
+  await rewriteCopiedConstant(
+    'genesis001AccessPolicy.ts',
+    LOCAL_ADMISSION_POLICY_SOURCE_DECLARATION,
+    LOCAL_ADMISSION_POLICY_QA_DECLARATION,
+    'Disposable admission policy separation failed.'
   );
   return moduleDirectory;
 }
@@ -1001,7 +1044,7 @@ async function waitForLocalWorkerState(readState, predicate, deadlineMillisecond
 export async function terminateLocalFullstackProcessGroup(child, options = {}) {
   if (!child?.pid) return;
   const killProcessGroup = options.killProcessGroup
-    ?? ((pid, signal) => process.kill(-pid, signal));
+    ?? killDisposableProcessTree;
   const killChild = options.killChild
     ?? ((processChild, signal) => processChild.kill(signal));
   const wait = options.wait

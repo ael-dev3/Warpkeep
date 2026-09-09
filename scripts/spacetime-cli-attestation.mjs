@@ -31,25 +31,36 @@ const EXPECTED_LAUNCHER_SHA256 = Object.freeze({
   // The reviewed Linux archive ships the CLI directly rather than through
   // the macOS launcher, so the executable and launcher digests are identical.
   'linux-x64': 'cac13c929049f31cb588c230a0d7fe5f388505b4c64047a68b1d5cfdc811624b',
+  // Windows installs may expose the direct CLI from the reviewed zip, while
+  // the official update launcher remains accepted for PATH-based installs.
+  'win32-x64': '5656c96ad4ffe27b0db1b14cd74164a46a6ff61f3db6f97a055a1594e5bb5f72',
 });
 const EXPECTED_CLI_BINARY_SHA256 = Object.freeze({
   'darwin-arm64': '2e737ddbbd7d337bb19c8fc22da9de44be4b7b2062146e7f65aa3f298d7994d6',
   'linux-x64': 'cac13c929049f31cb588c230a0d7fe5f388505b4c64047a68b1d5cfdc811624b',
+  'win32-x64': '06b0ab6b84135bb741ed33ee07f038b7c6e8b7d9c7520c3e3fd047a4347bc3fc',
 });
 const EXPECTED_STANDALONE_BINARY_SHA256 = Object.freeze({
   'darwin-arm64': '15a0965f1deec6b79f67fc04b616fd1a6b8f633301b0cfd2ebb7f961b919a8fa',
   'linux-x64': 'a9185a737c9b739896c8f51326e1c3aedefba80a0f01def76ce26f358d5c187b',
+  'win32-x64': '5b0621042c529e97c342269de1121bdec2bd8820dcc20364c61ed37ec266e138',
 });
 const MAXIMUM_CLI_BYTES = 128 * 1_024 * 1_024;
 const MAXIMUM_VERSION_OUTPUT_BYTES = 64 * 1_024;
 const SNAPSHOT_DIRECTORY_MODE = 0o700;
 const SNAPSHOT_EXECUTABLE_MODE = 0o500;
-const SNAPSHOT_CLI_FILENAME = 'spacetimedb-cli';
-const SNAPSHOT_STANDALONE_FILENAME = 'spacetimedb-standalone';
+const WINDOWS_HOST = process.platform === 'win32';
+const SNAPSHOT_CLI_FILENAME = process.platform === 'win32'
+  ? 'spacetimedb-cli.exe'
+  : 'spacetimedb-cli';
+const SNAPSHOT_STANDALONE_FILENAME = process.platform === 'win32'
+  ? 'spacetimedb-standalone.exe'
+  : 'spacetimedb-standalone';
 const SNAPSHOT_MEMBERS = Object.freeze([
   SNAPSHOT_CLI_FILENAME,
   SNAPSHOT_STANDALONE_FILENAME,
 ]);
+const STANDALONE_FILENAME = SNAPSHOT_STANDALONE_FILENAME;
 const CHILD_ENVIRONMENT_KEYS = Object.freeze([
   'PATH',
   'HOME',
@@ -73,6 +84,16 @@ class SpacetimeCliAttestationError extends Error {
     super(message);
     this.name = 'SpacetimeCliAttestationError';
   }
+}
+
+function modeBitsMatch(mode, expected) {
+  // Windows exposes ACL-backed files through Node's POSIX compatibility mode
+  // bits, which do not reflect chmod requests. Identity, canonical path,
+  // exact membership and byte re-attestation remain enforced there; Unix keeps
+  // the stricter 0700/0500 mode contract.
+  if (WINDOWS_HOST) return true;
+  const expectedBits = typeof mode === 'bigint' ? BigInt(expected) : expected;
+  return (mode & (typeof mode === 'bigint' ? 0o7777n : 0o7777)) === expectedBits;
 }
 
 function fail(message) {
@@ -99,7 +120,12 @@ function resolveExecutablePath(executable, environment) {
       .split(delimiter)
       .filter(Boolean)
       .map((entry) => join(entry, executable));
-  for (const candidate of candidates) {
+  const platformCandidates = WINDOWS_HOST
+    ? candidates.flatMap((candidate) => candidate.toLowerCase().endsWith('.exe')
+      ? [candidate]
+      : [candidate, `${candidate}.exe`])
+    : candidates;
+  for (const candidate of platformCandidates) {
     try {
       accessSync(candidate, constants.X_OK);
       return realpathSync(candidate);
@@ -170,7 +196,7 @@ function attestSnapshotDirectory(directory, expectedIdentity) {
     const beforeIdentity = bindSnapshotPath(directory, before, 'directory');
     if (
       !before.isDirectory()
-      || (before.mode & 0o7777n) !== BigInt(SNAPSHOT_DIRECTORY_MODE)
+      || !modeBitsMatch(before.mode, SNAPSHOT_DIRECTORY_MODE)
       || before.nlink < 1n
       || (expectedIdentity !== undefined && !identitiesMatch(beforeIdentity, expectedIdentity))
     ) failSnapshotReattestation();
@@ -207,7 +233,7 @@ function attestSnapshotExecutable(path, expectedDigest, expectedIdentity) {
       !before.isFile()
       || before.size < 1n
       || before.size > BigInt(MAXIMUM_CLI_BYTES)
-      || (before.mode & 0o7777n) !== BigInt(SNAPSHOT_EXECUTABLE_MODE)
+      || !modeBitsMatch(before.mode, SNAPSHOT_EXECUTABLE_MODE)
       || before.nlink !== 1n
       || (expectedIdentity !== undefined && !identitiesMatch(beforeIdentity, expectedIdentity))
     ) failSnapshotReattestation();
@@ -292,7 +318,7 @@ function createExecutableSnapshot(sourcePath, expectedDigest) {
     const directoryMetadata = statSync(directory);
     if (
       !directoryMetadata.isDirectory()
-      || (directoryMetadata.mode & 0o777) !== SNAPSHOT_DIRECTORY_MODE
+      || !modeBitsMatch(directoryMetadata.mode, SNAPSHOT_DIRECTORY_MODE)
     ) fail('The private CLI snapshot directory was unsafe.');
     const snapshotPath = join(directory, SNAPSHOT_CLI_FILENAME);
     snapshotDescriptor = openSync(
@@ -308,7 +334,7 @@ function createExecutableSnapshot(sourcePath, expectedDigest) {
     if (
       !snapshotMetadata.isFile()
       || snapshotMetadata.size !== before.size
-      || (snapshotMetadata.mode & 0o777) !== SNAPSHOT_EXECUTABLE_MODE
+      || !modeBitsMatch(snapshotMetadata.mode, SNAPSHOT_EXECUTABLE_MODE)
     ) fail('The private CLI snapshot was unsafe.');
     closeSync(snapshotDescriptor);
     snapshotDescriptor = undefined;
@@ -377,7 +403,7 @@ function installReviewedCompanionExecutable(sourcePath, destinationPath, expecte
     if (
       !destinationMetadata.isFile()
       || destinationMetadata.size !== before.size
-      || (destinationMetadata.mode & 0o777) !== SNAPSHOT_EXECUTABLE_MODE
+      || !modeBitsMatch(destinationMetadata.mode, SNAPSHOT_EXECUTABLE_MODE)
     ) fail('The private SpacetimeDB standalone snapshot was unsafe.');
     closeSync(destinationDescriptor);
     destinationDescriptor = undefined;
@@ -459,10 +485,10 @@ export function attestPinnedSpacetimeCli(
     );
     snapshot = createExecutableSnapshot(reviewedCliPath, expectedDigest);
   }
-  const standalonePath = join(snapshot.directory, SNAPSHOT_STANDALONE_FILENAME);
+  const standalonePath = join(snapshot.directory, STANDALONE_FILENAME);
   try {
     installReviewedCompanionExecutable(
-      join(dirname(reviewedCliPath), 'spacetimedb-standalone'),
+      join(dirname(reviewedCliPath), STANDALONE_FILENAME),
       standalonePath,
       expectedStandaloneDigest,
     );

@@ -153,6 +153,11 @@ const COMMAND_TIMEOUT_MILLISECONDS = 125_000;
 const PRESENTATION_TIMEOUT_MILLISECONDS = 120_000;
 const SCREENSHOT_MAXIMUM_BYTES = 8 * 1_024 * 1_024;
 const TITLE_GATEWAY_CASE_TIMEOUT_MILLISECONDS = 30_000;
+// The first local QA navigation compiles the complete connected presentation
+// graph through Vite. Keep that cold-start bound separate from the per-case
+// transition budget so Windows can finish the transform without weakening
+// the bounded browser probe.
+const TITLE_GATEWAY_INITIAL_LOAD_TIMEOUT_MILLISECONDS = 170_000;
 const TITLE_GATEWAY_FRAME_LIMIT = 360;
 const CONTROLLED_RENDERER_MAXIMUM_STALE_DELETE_WARNINGS = 256;
 
@@ -534,7 +539,7 @@ async function prepareTitleGatewayDepartureFocusCase(session, probeCase) {
   const result = await session.command('Runtime.evaluate', {
     expression: `(async () => {
       const titleTransform = ${titleTransform};
-      const deadline = performance.now() + ${TITLE_GATEWAY_CASE_TIMEOUT_MILLISECONDS};
+      const deadline = performance.now() + ${TITLE_GATEWAY_INITIAL_LOAD_TIMEOUT_MILLISECONDS};
       const waitFor = async (predicate) => {
         while (performance.now() <= deadline) {
           try {
@@ -768,7 +773,7 @@ async function prepareTitleGatewayDepartureFocusCase(session, probeCase) {
     })()`,
     awaitPromise: true,
     returnByValue: true,
-  }, TITLE_GATEWAY_CASE_TIMEOUT_MILLISECONDS);
+  }, TITLE_GATEWAY_INITIAL_LOAD_TIMEOUT_MILLISECONDS + 5_000);
   const value = result?.result?.value;
   if (
     result?.exceptionDetails
@@ -1016,10 +1021,14 @@ async function exerciseTitleGatewayDepartureFocus(
     try {
       await setTitleGatewayCaseEnvironment(session, probeCase);
       stage = 'navigation';
-      await session.command('Page.navigate', { url: titleUrl });
+      // A cold Windows Vite transform can exceed the generic 10 s CDP
+      // command budget; keep the navigation bounded by the probe's 120 s
+      // readiness contract while allowing that first transform to finish.
+      await session.command('Page.navigate', { url: titleUrl }, 60_000);
       await delay(500);
       stage = 'preparation';
       const target = await prepareTitleGatewayDepartureFocusCase(session, probeCase);
+      assertBrowserBoundary?.(probeCase.id);
       if (probeCase.input === 'keyboard') {
         stage = 'keyboard-focus';
         await focusTitleGatewayForKeyboard(session, probeCase);
@@ -1045,6 +1054,7 @@ async function exerciseTitleGatewayDepartureFocus(
       );
       assertBrowserBoundary?.(probeCase.id);
     } catch (error) {
+      assertBrowserBoundary?.(probeCase.id);
       if (error instanceof LocalFullstackBrowserError) throw error;
       const safeDetail = error instanceof Error
         ? error.message
@@ -5961,7 +5971,17 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
         firstFailure ??= error;
       }
       if (runtimeRoot) {
-        try { await rm(runtimeRoot, { recursive: true, force: true }); } catch (error) {
+        // Vite's dependency optimizer can finish its final Windows cache
+        // write just after the server close promise resolves. Let fs.rm
+        // retry the bounded transient before reporting cleanup failure.
+        try {
+          await rm(runtimeRoot, {
+            recursive: true,
+            force: true,
+            maxRetries: 8,
+            retryDelay: 250,
+          });
+        } catch (error) {
           firstFailure ??= error;
         }
       }
@@ -6224,15 +6244,36 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
         }
       }
     }));
+    const selectDisposableBlankPageTarget = async (session) => {
+      const deadline = Date.now() + 10_000;
+      let lastError;
+      let lastTargetCount = -1;
+      while (Date.now() <= deadline) {
+        try {
+          const targets = await session.browserCommand(
+            'Target.getTargets',
+            { filter: [{ type: 'page', exclude: false }, { exclude: true }] },
+            2_000,
+          );
+          lastTargetCount = Array.isArray(targets?.targetInfos)
+            ? targets.targetInfos.length
+            : -1;
+          return selectBlankPageTarget(targets);
+        } catch (error) {
+          lastError = error;
+          await delay(100);
+        }
+      }
+      throw new LocalFullstackBrowserError(
+        `Disposable browser blank target did not become ready (${lastTargetCount}).`,
+      );
+    };
     const connectDisposableDevtools = async (browserProcess, activeState) => {
       const session = createDisposableDevtools(browserProcess, activeState);
       probeStage = 'devtools-open';
       await session.open();
       probeStage = 'target-selection';
-      const target = selectBlankPageTarget(await session.browserCommand(
-        'Target.getTargets',
-        { filter: [{ type: 'page', exclude: false }, { exclude: true }] }
-      ));
+      const target = await selectDisposableBlankPageTarget(session);
       activeState.targetId = target.targetId;
       probeStage = 'target-attach';
       await session.attachToPage(target.targetId);

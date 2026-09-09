@@ -376,6 +376,35 @@ describe('disposable connected local QA dependency and network boundaries', () =
     );
   });
 
+  it('keeps Genesis 001 admissions sealed in production and opens them only in the disposable copy', () => {
+    const launcherSource = readFileSync(
+      resolve(process.cwd(), 'scripts/qa-observer/local-fullstack-spacetime.mjs'),
+      'utf8'
+    );
+    const policySource = readFileSync(
+      resolve(process.cwd(), 'spacetimedb/src/genesis001AccessPolicy.ts'),
+      'utf8'
+    );
+    expect(launcherSource).toContain(
+      "'  admissionStateMutationsEnabled: false,'"
+    );
+    expect(launcherSource).toContain(
+      'warpkeep-disposable-admission-policy-v1'
+    );
+    expect(launcherSource).toContain(
+      "'genesis001AccessPolicy.ts'"
+    );
+    expect(policySource).toContain(
+      '  admissionStateMutationsEnabled: false,'
+    );
+    expect(policySource).not.toContain(
+      'warpkeep-disposable-admission-policy-v1'
+    );
+    expect(policySource).not.toContain(
+      '  admissionStateMutationsEnabled: true,'
+    );
+  });
+
   it('keeps the Inner Keep journey authoritative, loopback-only, and absent from production output', () => {
     const root = process.cwd();
     const launcherSource = readFileSync(

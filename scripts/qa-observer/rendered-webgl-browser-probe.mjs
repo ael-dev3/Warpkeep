@@ -64,7 +64,14 @@ const CODESIGN_EXECUTABLE = '/usr/bin/codesign';
 const execFileAsync = promisify(execFile);
 
 const REPOSITORY_ROOT = resolve(import.meta.dirname, '..', '..');
-const CASE_TIMEOUT_MILLISECONDS = RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS + 5_000;
+// Windows cold-starts may transform the connected local QA graph after the
+// ordinary rendered-WebGL readiness window. Keep one explicit upper bound for
+// all CDP commands so local QA can remain fail-closed without racing that
+// first transform.
+const CASE_TIMEOUT_MILLISECONDS = Math.max(
+  RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS + 5_000,
+  180_000,
+);
 const CDP_COMMAND_TIMEOUT_MILLISECONDS = 10_000;
 const CDP_PIPE_MAXIMUM_OUTBOUND_BYTES = 512 * 1_024;
 const CDP_PIPE_MAXIMUM_INBOUND_BYTES = 16 * 1_024 * 1_024;
