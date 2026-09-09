@@ -2,7 +2,11 @@
 
 ## 2026-09-09 remediation checkpoint
 
-Published source: `0ce25c8f2602aaa65149b46af53fb12345eb8cc9`.
+Published source: `73a1c5755ca6b642dec850324f777589fe506d2c`.
+
+The functional visual checkpoint for the Verdant Citadel remains `0ce25c8`;
+`73a1c57` adds sealed-launch package, lock and PTR publisher source-pin repair
+on top of that presentation state.
 
 The previously failing audit gate was repaired with compatible, bounded pins:
 the root lock now resolves `sharp@0.35.4` and `vitest@4.1.11`; the auth-bridge

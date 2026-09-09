@@ -4,7 +4,7 @@ Updated 2026-09-09. R14 remains incomplete; source publication is not production
 
 ## Current checkpoint — 2026-09-09
 
-The published Windows/GitHub head is `0ce25c8`
+The published Windows/GitHub head is `73a1c57`
 on `codex/prepared-keep-bindings-fix`, and `git ls-remote` matches it. PR #228
 remains a draft. The checkpoint includes the portrait keep framing and mobile
 surface polish, the truthful workflow-runtime provenance expectation, Linux
@@ -16,6 +16,10 @@ security pins required by the service audit lanes, and the complete optional
 peer entry required by root `npm ci`, and the runtime image verifier now tracks
 Sharp's hosted `libvips 8.18.6` tuple. The private Greater Realm Sharp/libvips
 lock and WebP contracts are also refreshed.
+
+The functional visual checkpoint remains `0ce25c8`; `73a1c57` is the subsequent
+sealed-launch source-pin repair and does not claim final visual, device or live
+acceptance.
 
 The first post-pin Verify run for `c8505d7` failed before tests in Linux,
 native-contract and SpacetimeDB because root `npm ci` reported the missing
