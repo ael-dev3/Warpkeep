@@ -1599,7 +1599,7 @@ async function prepareLocalInnerKeepFirstStart(session) {
     })()`,
     awaitPromise: true,
     returnByValue: true,
-  });
+  }, COMMAND_TIMEOUT_MILLISECONDS);
   const value = result?.result?.value;
   if (
     result?.exceptionDetails
@@ -1705,7 +1705,7 @@ async function observeLocalInnerKeepFirstStart(session) {
     })()`,
     awaitPromise: true,
     returnByValue: true,
-  });
+  }, COMMAND_TIMEOUT_MILLISECONDS);
   const value = result?.result?.value;
   if (
     result?.exceptionDetails
@@ -1967,7 +1967,7 @@ async function exerciseLocalInnerKeepCompletionAndSecondStart(session, firstStar
     })()`,
     awaitPromise: true,
     returnByValue: true,
-  });
+  }, COMMAND_TIMEOUT_MILLISECONDS);
   const value = result?.result?.value;
   if (
     result?.exceptionDetails
@@ -2143,7 +2143,7 @@ async function exerciseLocalInnerKeepReloadPersistence(session) {
     })()`,
     awaitPromise: true,
     returnByValue: true,
-  });
+  }, COMMAND_TIMEOUT_MILLISECONDS);
   const value = result?.result?.value;
   if (
     result?.exceptionDetails
