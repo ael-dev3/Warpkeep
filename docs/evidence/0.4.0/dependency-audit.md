@@ -2,7 +2,7 @@
 
 ## 2026-09-09 remediation checkpoint
 
-Published source: `05103e3049b5f0830c473078f9260d14e77944de`.
+Published source: `ce54d6eaf599ce595535d1f056dbb1bdedc1c220`.
 
 The previously failing audit gate was repaired with compatible, bounded pins:
 the root lock now resolves `sharp@0.35.4` and `vitest@4.1.11`; the auth-bridge
@@ -33,8 +33,9 @@ confirm the actual clean install and downstream lanes.
 
 The runtime image verifier now follows the patched root image toolchain:
 `sharp@0.35.4` reports `libvips@8.18.6` in the hosted Linux runner. The
-verifier's explicit tuple was updated in `05103e3`; the remaining PNG and WebP
-decoder expectations are unchanged.
+verifier's explicit tuple was updated in `05103e3`, and the private Greater
+Realm Sharp/libvips lock and WebP contracts were refreshed in `ce54d6e`; the
+remaining PNG and WebP decoder expectations are unchanged.
 
 Source inspected: `321940caf0af038f869af78c8b3fc2db695b2e45`.
 The initial failing checkpoint below is retained; see the tested repair below.

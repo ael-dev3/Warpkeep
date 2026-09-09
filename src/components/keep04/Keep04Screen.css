@@ -41,8 +41,10 @@
 .keep04 .keep04-reentry { color: var(--keep04-muted); max-width: 80ch; }
 .keep04 .keep04-resources { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 12px 16px; margin: 12px 0; border: 1px solid var(--keep04-line); border-radius: 8px; background: var(--keep04-panel); }
 .keep04 .keep04-resources > div { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid rgba(153, 192, 174, .28); border-radius: 8px; background: var(--keep04-panel-soft); }
+.keep04 .keep04-resources > div[data-pending="true"] { border-color: rgba(223, 198, 255, .68); background: linear-gradient(145deg, rgba(62, 61, 83, .82), rgba(31, 61, 54, .78)); }
 .keep04 .keep04-resources > div span { color: #d9e1d4; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
 .keep04 .keep04-resources strong { font-size: 22px; font-variant-numeric: tabular-nums; }
+.keep04 .keep04-resource-pending { color: var(--keep04-accent); font-size: 12px; letter-spacing: .04em; }
 .keep04 .keep04-resources > p { grid-column: 1 / -1; color: var(--keep04-muted); margin: 0; }
 .keep04 .keep04-workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
 .keep04 .keep04-workspace[data-panel-open="true"] { grid-template-columns: minmax(0, 1fr) 320px; }

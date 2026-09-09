@@ -1,7 +1,7 @@
 # Gameplay and visual implementation notes
 
 Updated 2026-09-09 against the published 0.4 checkpoint at
-`05103e3049b5f0830c473078f9260d14e77944de`, including the inspected working files.
+`ce54d6eaf599ce595535d1f056dbb1bdedc1c220`, including the inspected working files.
 This refresh includes the focused Keep04 UI/scene run (66 tests passed); it has
 no authenticated owner session or production call. Earlier executed results
 keep their original source and limitations in the [execution handoff](execution-handoff.md).
@@ -19,7 +19,7 @@ this page keeps precise mechanics, implementation routes and evidence limits.
 
 ## Visual foundation and complete reference coverage
 
-At `05103e3`, the owner direction prioritizes a professional mobile visual
+At `ce54d6e`, the owner direction prioritizes a professional mobile visual
 foundation with simple interaction. Preserve the useful existing loop; deeper
 simulation and elaborate editing remain later work. The full Desktop handoff
 reference library informs one coherent Verdant Citadel, rather than a collection
@@ -30,6 +30,11 @@ with safe-area padding and keeps the same scene, schematic and command order as
 desktop. The visual treatment adds restrained depth and contrast to the resource,
 scene and action surfaces without changing gameplay authority, renderer budgets or
 the existing touch and keyboard gestures.
+
+Incoming resource cards now carry a restrained violet edge and label while their
+spendable balance stays prominent. This borrows the handoff's strategy-clarity
+lesson without adding a second economy view or changing when returned resources
+become spendable.
 
 Published forest grouping and moss/earth terrace tops improve separation between
 buildings and their setting. The current source-render matrix covers empty,
