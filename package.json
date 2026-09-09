@@ -37,6 +37,7 @@
     "stdb:genesis002:verify-private-loopback": "tsx scripts/genesis002-private-loopback-verifier.ts",
     "verify:licenses": "node scripts/verify-license-policy.mjs",
     "verify:atlas-public-boundary": "node scripts/atlas/verify-public-boundary.mjs",
+    "verify:visual-foundation": "vitest --run tests/visualFoundationContract.test.ts",
     "atlas:toolchain-preflight": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs --verify-only",
     "atlas:generate-candidates": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs generate-candidates",
     "atlas:compare-candidates": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs compare-candidates",

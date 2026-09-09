@@ -36,7 +36,7 @@ Every reference in the handoff has one of three dispositions: a concrete lesson
 already represented in the current source, a focused review question for the
 next visual pass, or a deliberate deferral because it would expand the game
 beyond the 0.4 foundation. A disposition is not allowed to imply that source
-code or media was copied.
+code or media was copied; nothing was copied from the references into Warpkeep.
 
 | Reference family | 0.4 decision and source owner |
 | --- | --- |
@@ -60,6 +60,12 @@ The complete URL and provenance inventory remains in the handoff and in
 reference is revisited, update the owning source, the evidence record and the
 disposition together.
 
+The coverage is guarded by `tests/visualFoundationContract.test.ts` and can be
+checked directly with `npm run verify:visual-foundation`. That check protects
+the direction without turning reference names into runtime dependencies: it
+requires each documented family to retain a decision, the mobile/evidence
+boundaries to remain visible, and the cited source owners to stay real paths.
+
 ## Review states and evidence
 
 The visual pass uses the real Keep04 and Greater Realm entry points. Review the
@@ -72,12 +78,13 @@ same authored composition through these player states:
 - a completed improvement whose silhouette and benefit are both apparent;
 - a world-to-keep return, refresh and renderer fallback.
 
-For each state, inspect portrait mobile, short landscape and desktop. Record the
-source checkpoint, quality/reduced-motion profile, browser or device, and what
-was actually observed. A synthetic screenshot proves composition at that
-fixture; it does not prove phone frame pacing, thermal behavior, authentication
-or owner acceptance. The release checklist remains the authority for those
-claims.
+For each state, inspect portrait mobile, short landscape and desktop at matching
+resolutions. Record the source checkpoint, quality/reduced-motion profile,
+browser or device, and what was actually observed. A synthetic screenshot proves
+composition at that fixture; it does not prove phone frame pacing, thermal
+behavior, authentication or owner acceptance. Physical-device results remain a
+separate acceptance record. The release checklist remains the authority for
+those claims.
 
 ## Mobile foundation rules
 
@@ -114,11 +121,11 @@ larger catalogue of references or an arbitrary score.
 
 | Question | Start here |
 | --- | --- |
-| Keep composition, materials and building silhouettes | `src/components/keep04/keep04VisualProfile.ts`, `createKeep04Buildings.ts`, `createKeep04Scene.ts` |
-| Forest and voxel dressing | `src/components/keep04/keep04VoxelDressing.ts`, `planKeep04DressingSource.ts`, `src/components/realm/voxelSurfaceMesh.ts` |
-| Mobile layout, status and focus | `src/components/keep04/Keep04Screen.tsx`, `Keep04Screen.css`, `Keep04BuildingPanel.tsx`, `Keep04WorkerPanel.tsx` |
-| Greater Realm water and quality | `src/greater-realm/greaterRealmWaterSurface.ts`, `createGreaterRealmSceneRuntime.ts` |
-| Rendered evidence and limits | `docs/evidence/0.4.0/visuals.md`, `performance.md`, `docs/operations/0.4.0-release-checklist.md` |
+| Keep composition, materials and building silhouettes | `src/components/keep04/keep04VisualProfile.ts`, `src/components/keep04/createKeep04Buildings.ts`, `src/components/keep04/createKeep04Scene.ts` |
+| Forest and voxel dressing | `src/components/keep04/keep04VoxelDressing.ts`, `src/components/keep04/planKeep04DressingSource.ts`, `src/components/realm/voxelSurfaceMesh.ts` |
+| Mobile layout, status and focus | `src/components/keep04/Keep04Screen.tsx`, `src/components/keep04/Keep04Screen.css`, `src/components/keep04/Keep04BuildingPanel.tsx`, `src/components/keep04/Keep04WorkerPanel.tsx` |
+| Greater Realm water and quality | `src/greater-realm/greaterRealmWaterSurface.ts`, `src/greater-realm/createGreaterRealmSceneRuntime.ts` |
+| Rendered evidence and limits | `docs/evidence/0.4.0/visuals.md`, `docs/evidence/0.4.0/performance.md`, `docs/operations/0.4.0-release-checklist.md` |
 
 If a proposed change cannot be tied to one of these owners and one player
 outcome, it is probably reference collecting rather than 0.4 work.
