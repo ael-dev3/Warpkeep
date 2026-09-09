@@ -45,6 +45,10 @@ const MAXIMUM_OUTPUT_BYTES = 512 * 1_024;
 const MAXIMUM_RESPONSE_BYTES = 32 * 1_024;
 const COMMAND_TIMEOUT_MILLISECONDS = 120_000;
 const SERVER_STOP_TIMEOUT_MILLISECONDS = 5_000;
+// Windows may schedule the disposable server behind the local dev runtime;
+// keep identity readiness bounded without treating that startup contention as
+// a database failure.
+const IDENTITY_READINESS_ATTEMPTS = 240;
 // Windows can create a junction without elevated symlink privileges. It still
 // resolves to the pinned dependency tree and is re-attested before use.
 const NODE_MODULES_LINK_TYPE = process.platform === 'win32' ? 'junction' : 'dir';
@@ -429,7 +433,7 @@ async function callLocalProcedure({
 }
 
 async function acquireDisposableIdentity(server) {
-  for (let attempt = 0; attempt < 80; attempt += 1) {
+  for (let attempt = 0; attempt < IDENTITY_READINESS_ATTEMPTS; attempt += 1) {
     try {
       const response = await fetch(`${server}/v1/identity`, {
         method: 'POST',

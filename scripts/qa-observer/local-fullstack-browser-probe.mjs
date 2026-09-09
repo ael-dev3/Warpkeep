@@ -149,7 +149,7 @@ const TITLE_GATEWAY_CASES = Object.freeze([
     viewport: VIEWPORT,
   }),
 ]);
-const COMMAND_TIMEOUT_MILLISECONDS = 125_000;
+const COMMAND_TIMEOUT_MILLISECONDS = 175_000;
 const PRESENTATION_TIMEOUT_MILLISECONDS = 120_000;
 const SCREENSHOT_MAXIMUM_BYTES = 8 * 1_024 * 1_024;
 const TITLE_GATEWAY_CASE_TIMEOUT_MILLISECONDS = 30_000;
@@ -160,6 +160,50 @@ const TITLE_GATEWAY_CASE_TIMEOUT_MILLISECONDS = 30_000;
 const TITLE_GATEWAY_INITIAL_LOAD_TIMEOUT_MILLISECONDS = 170_000;
 const TITLE_GATEWAY_FRAME_LIMIT = 360;
 const CONTROLLED_RENDERER_MAXIMUM_STALE_DELETE_WARNINGS = 256;
+// Windows can launch the disposable Chrome process while Vite and the local
+// database are still competing for startup resources. Keep this bound local
+// to target discovery so later browser commands remain strictly bounded.
+const LOCAL_FULLSTACK_BROWSER_TARGET_READY_TIMEOUT_MILLISECONDS = 120_000;
+const LOCAL_FULLSTACK_VITE_WARMUP_PATHS = Object.freeze([
+  '/src/dev/fullstackLocalQaMain.tsx',
+  '/src/dev/FullstackLocalQaApp.tsx',
+  '/src/components/WarpkeepExperience.tsx',
+  '/src/components/title/WarpkeepTitleScreen3D.tsx',
+  '/src/components/title/BlackHoleGateway.tsx',
+  '/src/components/title/gatewayActivation.ts',
+  '/src/components/title/gatewayInteraction.ts',
+  '/src/components/title/gatewayPointerProjection.ts',
+  '/src/components/title/gatewayVfx.ts',
+  '/src/components/title/gatewayVfxSpec.ts',
+  '/src/components/title/loadWarpkeepTitle.ts',
+  '/src/components/title/titleDeparturePose.ts',
+  '/src/components/title/titleInteraction.ts',
+  '/src/components/title/titleLayout.ts',
+  '/src/components/title/titlePresentationController.ts',
+  '/src/components/title/titlePresentationMachine.ts',
+  '/src/components/title/titleSceneSpec.ts',
+  '/src/components/title/titleScreenTypes.ts',
+  '/src/components/realm/RealmMapScreen.tsx',
+  '/src/components/realm/createRealmScene.ts',
+  '/src/components/inner-keep/InnerKeepScreen.tsx',
+  '/src/components/inner-keep/createInnerKeepSceneLayer.ts',
+]);
+
+async function warmLocalFullstackViteModules(viteOrigin) {
+  await Promise.all(
+    LOCAL_FULLSTACK_VITE_WARMUP_PATHS.map(async (pathname) => {
+      const response = await fetch(`${viteOrigin}${pathname}`, {
+        headers: { accept: 'application/javascript' },
+      });
+      if (!response.ok) {
+        throw new LocalFullstackBrowserError(
+          `Disposable Vite warmup failed for ${pathname} (${response.status}).`,
+        );
+      }
+      await response.arrayBuffer();
+    }),
+  );
+}
 
 export class LocalFullstackBrowserError extends Error {
   constructor(message) {
@@ -1152,6 +1196,21 @@ async function exerciseRestoredEntryAgreementContinuity(session) {
           return { stage: 'restored-current-menu' };
         }
         enterMenu.click();
+        const enterSelectedRealm = await waitFor(() => {
+          const candidate = document.querySelector(
+            '.realm-choice-selector__action--primary'
+          );
+          return candidate instanceof HTMLButtonElement
+            && !candidate.disabled
+            && candidate.closest('[inert]') == null
+            && visible(candidate)
+            ? candidate
+            : undefined;
+        });
+        if (!(enterSelectedRealm instanceof HTMLButtonElement)) {
+          return { stage: 'restored-current-realm-choice' };
+        }
+        enterSelectedRealm.click();
         const probe = await waitFor(() => {
           const candidate = document.querySelector(
             '[data-local-fullstack-backend]'
@@ -1331,7 +1390,9 @@ export async function dispatchInnerKeepTouchCompatibilityClick(session, target) 
 async function prepareLocalInnerKeepFirstStart(session) {
   const result = await session.command('Runtime.evaluate', {
     expression: `(async () => {
-      const deadline = performance.now() + ${PRESENTATION_TIMEOUT_MILLISECONDS};
+      // Keep setup diagnostics below the outer CDP command bound so a missing
+      // presentation surface reports its exact stage instead of timing out.
+      const deadline = performance.now() + 30_000;
       const waitFor = async (predicate) => {
         while (performance.now() <= deadline) {
           try {
@@ -1362,6 +1423,20 @@ async function prepareLocalInnerKeepFirstStart(session) {
       });
       if (!(enterMenu instanceof HTMLButtonElement)) return { stage: 'inner-keep-menu' };
       enterMenu.click();
+      const enterSelectedRealm = await waitFor(() => {
+        const candidate = document.querySelector(
+          '.realm-choice-selector__action--primary'
+        );
+        return candidate instanceof HTMLButtonElement
+          && !candidate.disabled
+          && candidate.closest('[inert]') == null
+          && visible(candidate)
+          ? candidate : undefined;
+      });
+      if (!(enterSelectedRealm instanceof HTMLButtonElement)) {
+        return { stage: 'inner-keep-realm-choice' };
+      }
+      enterSelectedRealm.click();
       const dialog = await waitFor(() => document.querySelector('[role="dialog"][aria-modal="true"]'));
       if (!(dialog instanceof HTMLElement)) return { stage: 'inner-keep-terms' };
       const checkbox = dialog.querySelector('input[type="checkbox"]');
@@ -1561,7 +1636,7 @@ async function prepareLocalInnerKeepFirstStart(session) {
 async function observeLocalInnerKeepFirstStart(session) {
   const result = await session.command('Runtime.evaluate', {
     expression: `(async () => {
-      const deadline = performance.now() + ${PRESENTATION_TIMEOUT_MILLISECONDS};
+      const deadline = performance.now() + 30_000;
       const waitFor = async (predicate) => {
         while (performance.now() <= deadline) {
           try {
@@ -1682,7 +1757,7 @@ async function exerciseLocalInnerKeepCompletionAndSecondStart(session, firstStar
   const result = await session.command('Runtime.evaluate', {
     expression: `(async () => {
       const expected = ${expected};
-      const deadline = performance.now() + ${PRESENTATION_TIMEOUT_MILLISECONDS};
+      const deadline = performance.now() + 30_000;
       const waitFor = async (predicate) => {
         while (performance.now() <= deadline) {
           try {
@@ -1955,6 +2030,20 @@ async function exerciseLocalInnerKeepReloadPersistence(session) {
       });
       if (!(enterMenu instanceof HTMLButtonElement)) return { stage: 'inner-keep-reload-menu' };
       enterMenu.click();
+      const enterSelectedRealm = await waitFor(() => {
+        const candidate = document.querySelector(
+          '.realm-choice-selector__action--primary'
+        );
+        return candidate instanceof HTMLButtonElement
+          && !candidate.disabled
+          && candidate.closest('[inert]') == null
+          && visible(candidate)
+          ? candidate : undefined;
+      });
+      if (!(enterSelectedRealm instanceof HTMLButtonElement)) {
+        return { stage: 'inner-keep-reload-realm-choice' };
+      }
+      enterSelectedRealm.click();
       const dialog = await waitFor(() => document.querySelector('[role="dialog"][aria-modal="true"]'));
       if (!(dialog instanceof HTMLElement)) return { stage: 'inner-keep-reload-terms' };
       const checkbox = dialog.querySelector('input[type="checkbox"]');
@@ -2122,13 +2211,29 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
         );
         return candidate instanceof HTMLButtonElement
           && !candidate.disabled
-          && candidate.closest('[inert]') === null
+          && candidate.closest('[inert]') == null
           && visible(candidate)
           ? candidate
           : undefined;
       });
       if (!(enterMenu instanceof HTMLButtonElement)) return { stage: 'menu' };
       enterMenu.click();
+
+      const enterSelectedRealm = await waitFor(() => {
+        const candidate = document.querySelector(
+          '.realm-choice-selector__action--primary'
+        );
+        return candidate instanceof HTMLButtonElement
+          && !candidate.disabled
+          && candidate.closest('[inert]') == null
+          && visible(candidate)
+          ? candidate
+          : undefined;
+      });
+      if (!(enterSelectedRealm instanceof HTMLButtonElement)) {
+        return { stage: 'realm-choice' };
+      }
+      enterSelectedRealm.click();
 
       const dialog = await waitFor(() => document.querySelector(
         '[role="dialog"][aria-modal="true"]'
@@ -3762,6 +3867,28 @@ async function exerciseHardReloadWorkerContinuity(session) {
         return { stage: 'hard-reload-menu' };
       }
       enterMenu.click();
+      const enterSelectedRealm = await waitFor(() => {
+        const candidate = document.querySelector(
+          '.realm-choice-selector__action--primary'
+        );
+        if (!(candidate instanceof HTMLButtonElement) || candidate.disabled) {
+          return undefined;
+        }
+        const style = getComputedStyle(candidate);
+        const bounds = candidate.getBoundingClientRect();
+        return style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && Number(style.opacity || '1') > 0
+          && bounds.width > 0
+          && bounds.height > 0
+          && candidate.closest('[inert]') === null
+          ? candidate
+          : undefined;
+      });
+      if (!(enterSelectedRealm instanceof HTMLButtonElement)) {
+        return { stage: 'hard-reload-realm-choice' };
+      }
+      enterSelectedRealm.click();
       let repeatedTermsVisible = false;
       const probe = await waitFor(() => {
         const repeatedTerms = document.querySelector(
@@ -4091,6 +4218,22 @@ async function exercisePersistentWorkerReentry(session, preparedEvidence) {
       });
       if (!(enterMenu instanceof HTMLButtonElement)) return { stage: 'reentry-menu' };
       enterMenu.click();
+
+      const enterSelectedRealm = await waitFor(() => {
+        const candidate = document.querySelector(
+          '.realm-choice-selector__action--primary'
+        );
+        return candidate instanceof HTMLButtonElement
+          && !candidate.disabled
+          && candidate.closest('[inert]') == null
+          && visible(candidate)
+          ? candidate
+          : undefined;
+      });
+      if (!(enterSelectedRealm instanceof HTMLButtonElement)) {
+        return { stage: 'reentry-realm-choice' };
+      }
+      enterSelectedRealm.click();
 
       const dialog = await waitFor(() => document.querySelector(
         '[role="dialog"][aria-modal="true"]'
@@ -5408,6 +5551,21 @@ async function exerciseWorkerPrivateSeamMatrix(session) {
       });
       if (!(enterMenu instanceof HTMLButtonElement)) return { stage: 'seams-menu' };
       enterMenu.click();
+      const enterSelectedRealm = await waitFor(() => {
+        const candidate = document.querySelector(
+          '.realm-choice-selector__action--primary'
+        );
+        return candidate instanceof HTMLButtonElement
+          && !candidate.disabled
+          && candidate.closest('[inert]') == null
+          && visible(candidate)
+          ? candidate
+          : undefined;
+      });
+      if (!(enterSelectedRealm instanceof HTMLButtonElement)) {
+        return { stage: 'seams-realm-choice' };
+      }
+      enterSelectedRealm.click();
       const dialog = await waitFor(() => document.querySelector(
         '[role="dialog"][aria-modal="true"]'
       ));
@@ -6081,6 +6239,11 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
     if (!exactChromeExecutableIdentity(reviewedChromeIdentity, launchedChromeIdentity)) {
       throw new Error('The reviewed Google Chrome executable changed at launch.');
     }
+    // Start the disposable browser before the bounded Vite module prewarm so
+    // a CPU-heavy first transform cannot starve Chrome's private DevTools pipe
+    // during its own process startup.
+    probeStage = 'vite-warmup';
+    await warmLocalFullstackViteModules(viteOrigin);
     let state = {
       targetId: '',
       violation: '',
@@ -6245,7 +6408,8 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
       }
     }));
     const selectDisposableBlankPageTarget = async (session) => {
-      const deadline = Date.now() + 10_000;
+      const deadline = Date.now()
+        + LOCAL_FULLSTACK_BROWSER_TARGET_READY_TIMEOUT_MILLISECONDS;
       let lastError;
       let lastTargetCount = -1;
       while (Date.now() <= deadline) {
@@ -6297,6 +6461,12 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
           screenHeight: VIEWPORT.height,
           deviceScaleFactor: 1,
           mobile: false,
+        }],
+        ['hardware-concurrency-emulation', false, 'Emulation.setHardwareConcurrencyOverride', {
+          // Keep connected QA on the same bounded performance profile used by
+          // constrained mobile hosts; visual assertions still exercise the
+          // real WebGL path and touch/keyboard transitions.
+          hardwareConcurrency: 2,
         }],
         ['motion-emulation', false, 'Emulation.setEmulatedMedia', {
           features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }],
@@ -6616,9 +6786,14 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
       && /^[A-Za-z]+Error$/.test(error.name)
       ? error.name
       : 'failure';
+    const failureDetail = error instanceof Error
+      ? error.message.replace(/[^A-Za-z0-9 .:_()/-]/g, '').slice(0, 120)
+      : '';
     throw new LocalFullstackBrowserError(
       `Disposable browser probe failed closed at ${probeStage}${
-        boundary ? ` (${boundary})` : ` (${failureKind})`
+        boundary
+          ? ` (${boundary})`
+          : ` (${failureKind}${failureDetail ? `: ${failureDetail}` : ''})`
       }.`
     );
   } finally {

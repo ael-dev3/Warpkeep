@@ -254,6 +254,35 @@ function deterministicVisualSeed(
   return hash >>> 0;
 }
 
+function innerKeepVisualReconcileSignature(
+  presentation: InnerKeepPresentation,
+  context: InnerKeepSceneVisualContext | undefined
+) {
+  const buildings = presentation.buildings.map((building) => [
+    building.buildingKey,
+    building.buildingKind,
+    building.phase,
+    building.completedLevel,
+    building.targetLevel,
+    building.revision,
+    building.placement.localXMicrounits,
+    building.placement.localZMicrounits,
+    building.placement.rotationMilliDegrees,
+  ].join(':')).join('|');
+  return [
+    presentation.castleId,
+    presentation.layoutVersion,
+    presentation.projectRevision,
+    presentation.phase,
+    presentation.builder.state,
+    presentation.builder.state === 'busy'
+      ? presentation.builder.buildingKey
+      : '',
+    context?.owningTerrainKind ?? 'unknown',
+    buildings,
+  ].join('|');
+}
+
 function innerKeepEcologyBuildingExclusion(
   buildingKind: InnerKeepBuildingKind,
   placement: InnerKeepPlacementTransform
@@ -877,6 +906,7 @@ export function createInnerKeepSceneLayer(
   let lastElapsedSeconds = 0;
   let lastPresentation: InnerKeepPresentation | null = null;
   let lastVisualContext: InnerKeepSceneVisualContext | undefined;
+  let lastVisualReconcileSignature: string | null = null;
   let currentVisualSeed = 0;
   let runtimeAssetBundle: InnerKeepRuntimeAssetBundle | null = null;
   let authoredPresentation: InnerKeepAuthoredStaticPresentation | null = null;
@@ -1678,12 +1708,18 @@ export function createInnerKeepSceneLayer(
       ) {
         bundle.dispose();
         retainRuntimePresentation(settledBundle);
-        if (lastPresentation) reconcile(lastPresentation, lastVisualContext);
+        if (lastPresentation) {
+          lastVisualReconcileSignature = null;
+          reconcile(lastPresentation, lastVisualContext);
+        }
         else options.requestRender();
         return;
       }
       installRuntimePresentation(bundle, plan, visualSeed);
-      if (lastPresentation) reconcile(lastPresentation, lastVisualContext);
+      if (lastPresentation) {
+        lastVisualReconcileSignature = null;
+        reconcile(lastPresentation, lastVisualContext);
+      }
       else options.requestRender();
     }).catch((error: unknown) => {
       if (disposed || generation !== assetLoadGeneration) return;
@@ -2138,6 +2174,24 @@ export function createInnerKeepSceneLayer(
     if (disposed) return;
     lastPresentation = presentation;
     lastVisualContext = context;
+    const validPresentation = Boolean(
+      presentation && innerKeepPresentationIntegrity(presentation)
+    );
+    const visualSignature = validPresentation
+      ? innerKeepVisualReconcileSignature(presentation!, context)
+      : null;
+    const retryingDegradedRuntimeAssets = (
+      assetStatus === 'degraded'
+      && assetLoadAttemptCount < MAX_RUNTIME_ASSET_LOAD_ATTEMPTS
+    );
+    if (
+      validPresentation
+      && visualSignature === lastVisualReconcileSignature
+      && !retryingDegradedRuntimeAssets
+    ) {
+      return;
+    }
+    lastVisualReconcileSignature = visualSignature;
     clearDynamicPresentation();
     if (!presentation) {
       ambientGroup.visible = false;
