@@ -3,7 +3,7 @@
 Updated 2026-09-09 against the published source checkpoint at
 `096d9c0a258d0009c6a7a5cd2ce885dee115f100`, with functional visual behavior
 anchored at `0ce25c8f2602aaa65149b46af53fb12345eb8cc9` and the inspected working files.
-This refresh includes the focused Keep04 UI/scene run (155 tests across eight
+This refresh includes the focused Keep04 UI/scene run (156 tests across eight
 files), including the accessible Worker Outbound → Gathering → Returning journey
 rail and the reproducible Desktop handoff command; it has
 no authenticated owner session or production call. Earlier executed results

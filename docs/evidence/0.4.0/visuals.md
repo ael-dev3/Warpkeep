@@ -16,7 +16,7 @@ not physical-phone performance, live owner play or final R04/R05 acceptance.
 The current mobile polish keeps the same interaction surface while improving the
 narrow resource strip: two balanced columns, explicit safe-area insets and quiet
 surface contrast keep balances legible without adding a second mobile layout. The
-focused Keep04 UI/scene run passed 66 tests after this styling pass; visual
+focused Keep04 UI/scene run passed 156 tests after this styling pass; visual
 captures and physical-device measurements remain separate acceptance evidence.
 
 The completed-level masonry course treatment is represented in the authored and
