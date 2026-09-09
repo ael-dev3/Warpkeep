@@ -50,7 +50,10 @@ Run the focused Keep04 evidence when changing the keep surface:
 ```powershell
 & .\node_modules\.bin\vitest.cmd run `
   tests/Keep04Screen.test.tsx `
-  tests/keep04InputCssContract.test.ts `
+  tests/Keep04Benefits.test.tsx `
+  tests/Keep04PlacementUi.test.tsx `
+  tests/Keep04Accessibility.test.tsx `
+  tests/Keep04SceneHost.test.tsx `
   tests/keep04Scene.test.ts `
   tests/keep04VisualProfile.test.ts `
   tests/keep04Buildings.test.ts `
@@ -104,8 +107,10 @@ package and cannot substitute for a fresh deployment attestation.
 
 The 0.4 visual foundation is implemented and reviewed through synthetic empty,
 mature, placement, construction, completion and fallback states. Mobile layout,
-safe-area spacing, touch targets, reduced motion, pending-resource semantics and
-the schematic fallback are source-level behavior.
+safe-area spacing, touch targets, reduced motion, pending-resource semantics, the
+accessible Worker Outbound → Gathering → Returning rail and the schematic fallback
+are source-level behavior. The Worker rail is presentation-only; server phase,
+captured yield, return credit and command authority remain authoritative.
 
 The release remains incomplete until the mandatory checklist records the real
 owner PTR journey, measured device performance, final artifact-family

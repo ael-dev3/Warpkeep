@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -16,6 +16,19 @@ describe('credential-free Desktop handoff', () => {
     expect(handoff).toContain('[`integration.md`](integration.md)');
     expect(handoff).toContain('[`release-freeze.md`](release-freeze.md)');
     expect(handoff).toContain('[`recovery.md`](recovery.md)');
+  });
+
+  it('keeps every documented focused Keep04 test path real', () => {
+    const focused = [
+      'tests/Keep04Screen.test.tsx', 'tests/Keep04Benefits.test.tsx',
+      'tests/Keep04PlacementUi.test.tsx', 'tests/Keep04Accessibility.test.tsx',
+      'tests/Keep04SceneHost.test.tsx', 'tests/keep04Scene.test.ts',
+      'tests/keep04VisualProfile.test.ts', 'tests/keep04Buildings.test.ts',
+    ];
+    for (const file of focused) {
+      expect(handoff).toContain(file);
+      expect(existsSync(resolve(process.cwd(), file))).toBe(true);
+    }
   });
 
   it('documents sensitive package exclusions and the unreleased boundary', () => {
