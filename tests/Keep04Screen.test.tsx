@@ -227,6 +227,7 @@ it('shows returned credit only after a confirmed state update, never when the es
   expect(screen.getByText('Awaiting Realm update')).toBeVisible();
   expect(screen.getByText('Pending 60')).toBeVisible();
   expect(screen.getByText('Pending 60').closest('[data-pending="true"]')).not.toBeNull();
+  expect(screen.getByLabelText('Food: 60 pending and not spendable')).toBeVisible();
   wire.revision = 2n; wire.food = 60n; wire.workers[0].assignment = undefined;
   wire.workers[0].lastReturn = { assignmentRevision: 1n, resource: 'food', returnedAtMicros: 64_000_000n, earned: 60n, credited: 60n, overflow: 0n };
   rerender({ ...snapshot, view: presentState04(decodeState04(wire, SCOPE04), ATLAS04, Date.now()) });

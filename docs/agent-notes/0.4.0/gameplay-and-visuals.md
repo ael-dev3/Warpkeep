@@ -6,6 +6,9 @@ anchored at `0ce25c8f2602aaa65149b46af53fb12345eb8cc9` and the inspected working
 This refresh includes the focused Keep04 UI/scene run (66 tests passed); it has
 no authenticated owner session or production call. Earlier executed results
 keep their original source and limitations in the [execution handoff](execution-handoff.md).
+The [visual foundation contract](visual-foundation-contract.md) is the short
+reference-to-source decision layer for continuing the mobile presentation pass;
+the complete URL and provenance inventory remains in the Desktop handoff.
 The earlier `1600f4b` audit is the origin of findings G01–G03 and V01–V02;
 G01 is now fixed in source by `555e505` and is not unfinished implementation.
 The 2026-09-08 continuation update below supersedes G02's implementation gap;

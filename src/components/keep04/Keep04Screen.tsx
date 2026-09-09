@@ -140,10 +140,13 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
         <section className="keep04-resources" aria-label="Resources">
           {RESOURCES04.map(resource => {
             const pending = view.pending[resource] > 0n;
+            const label = resource[0].toUpperCase() + resource.slice(1);
+            const available = view.balances[resource].toString();
+            const incoming = view.pending[resource].toString();
             return <div key={resource} data-pending={pending ? 'true' : undefined}>
-              <span>{resource[0].toUpperCase() + resource.slice(1)}</span>
-              <strong>{view.balances[resource].toString()}</strong>
-              {pending && <small className="keep04-resource-pending">Pending {view.pending[resource].toString()}</small>}
+              <span>{label}</span>
+              <strong aria-label={`${label}: ${available} available`}>{available}</strong>
+              {pending && <small className="keep04-resource-pending" aria-label={`${label}: ${incoming} pending and not spendable`}>Pending {incoming}</small>}
             </div>;
           })}
           <p>{RESOURCES04.some(resource => view.pending[resource] > 0n) ? PENDING_LABEL04 : "No resources awaiting return"}</p>
