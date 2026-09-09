@@ -8,7 +8,7 @@ readability, mobile behavior and iteration quality. It does not turn a visual
 reference into an imported engine, a new economy, or a promise of deep
 interactivity.
 
-The current published source head is `27a33518544ad270d7c7f70d799193a45168e5a9`.
+The current published source head is `33b3b46cd2bdd63695b039465f66351c67457d26`.
 The functional Keep04 visual checkpoint is `0ce25c8f2602aaa65149b46af53fb12345eb8cc9`.
 The 0.4 release remains a development build until the release checklist records
 authenticated owner play, physical-device review and the required delivery
