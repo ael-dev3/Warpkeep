@@ -7,18 +7,19 @@ live release. The current user's direction takes precedence over historical plan
 
 ## Current source checkpoint — 2026-09-09
 
-Windows and GitHub now match `206c03683c9039b513b878d7b0d3c6770eda2626` on
+Windows and GitHub now match `43cac019888aefb83fcd3901446fc5af99d39036` on
 `codex/prepared-keep-bindings-fix`. The functional Verdant Citadel/mobile visual
 checkpoint remains `0ce25c8`; the current source also contains the dependency,
-private Sharp/libvips, runtime-verifier and sealed-launch source-pin repairs plus
-the reconciled agent-facing evidence files. Historical checkpoint labels below
-retain their original scope and are not current-source claims. The long Linux,
-SpacetimeDB and CodeQL checks for this exact source are running; no live release,
-physical-device acceptance or owner journey is claimed.
+private Sharp/libvips, runtime-verifier, sealed-launch source-pin and recovery
+loader repairs plus the reconciled agent-facing evidence files. Historical
+checkpoint labels below retain their original scope and are not current-source
+claims. Verify run `34345600199` is the authority for this head: the fast checks
+and release-recovery are green while Linux and SpacetimeDB remain in progress.
+No live release, physical-device acceptance or owner journey is claimed.
 
 ## Current native artifact execution — September 9
 
-The pinned WarpkeepRunner Ubuntu 24.04 guest now executes the current source
+The pinned WarpkeepRunner Ubuntu 24.04 guest executed the preceding native source
 head `206c03683c9039b513b878d7b0d3c6770eda2626` (source tree
 `ebc91c6cc7bf205de22e331d127b1f2f7b8ba5da`) through the native materializer and
 child worker. The operation-bundle runtime completed activation, G001, G002 and
@@ -57,14 +58,14 @@ The historical published checkpoint `5c210ce` names and verifies the
 complete Linux G001 spawned-program family in the protected source closure:
 launcher, materializer, child, policy boundary, receipt codecs, runtime
 helpers, YAML manifest, synthetic G002 entry, workflow evidence codec and
-binding-tree utilities. The regenerated closure is stable at 1,193 members;
+binding-tree utilities. The regenerated closure is stable at 1,194 members;
 the remaining proof is execution of that materializer/child inside the
 assembled Linux artifact and the final-family run.
 
 ## Linux G001 policy integration — September 9
 
 The Linux G001 policy integration was historically published at `a0b5060` and is
-included in the current source `096d9c0` on `upstream/codex/prepared-keep-bindings-fix`.
+included in the current source `43cac019` on `upstream/codex/prepared-keep-bindings-fix`.
 That checkpoint connects the Linux G001 read-only policy lane to its receipt,
 adoption, activation-record and recovery consumers. It keeps the historical
 Darwin receipt profile distinct, refreshes the opaque workflow evidence scope at

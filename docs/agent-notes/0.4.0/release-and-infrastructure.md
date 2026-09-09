@@ -2,13 +2,14 @@
 
 ## Current source checkpoint — 2026-09-09
 
-The active Windows/GitHub source is `096d9c0a258d0009c6a7a5cd2ce885dee115f100`
+The active Windows/GitHub source is `43cac019888aefb83fcd3901446fc5af99d39036`
 on `codex/prepared-keep-bindings-fix`; the functional visual checkpoint is
-`0ce25c8`. The dependency, private Sharp/libvips, runtime-verifier and
-sealed-launch source-pin repairs are published, and the six agent-facing
-evidence files reconcile to this source. Current Linux, SpacetimeDB and CodeQL
-runs remain the authority for this head; the historical entries below retain
-their original source and acceptance limits.
+`0ce25c8`. The dependency, private Sharp/libvips, runtime-verifier,
+sealed-launch source-pin and recovery-loader repairs are published, and the
+agent-facing evidence files reconcile to this source. Verify run `34345600199`
+is the authority for this head; fast checks and release-recovery are green while
+Linux and SpacetimeDB remain in progress. Historical entries below retain their
+original source and acceptance limits.
 
 ## Dedicated local preparation namespace
 

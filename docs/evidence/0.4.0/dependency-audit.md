@@ -2,7 +2,7 @@
 
 ## 2026-09-09 remediation checkpoint
 
-Published source: `096d9c0a258d0009c6a7a5cd2ce885dee115f100`.
+Published source: `43cac019888aefb83fcd3901446fc5af99d39036`.
 
 Current GitHub state: Dependabot alert #2 (`GHSA-528h-pc64-c93x`) is `fixed`.
 The dated alert investigation later in this record is retained as historical

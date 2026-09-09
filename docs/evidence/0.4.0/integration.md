@@ -4,13 +4,13 @@ Updated 2026-09-09. R14 remains incomplete; source publication is not production
 
 ## Current checkpoint — 2026-09-09
 
-The published Windows/GitHub head is `e37c77f3`
+The published Windows/GitHub head is `43cac019888aefb83fcd3901446fc5af99d39036`
 on `codex/prepared-keep-bindings-fix`, and `git ls-remote` matches it. PR #228
 remains a draft. The checkpoint includes the portrait keep framing and mobile
 surface polish, the truthful workflow-runtime provenance expectation, Linux
 G001 receipt/adoption/activation consumers, credential-boundary evidence
 refresh, the fixed native preparation caller, the shared production-admin
-transport extraction, a regenerated 1,193-member protected closure containing
+transport extraction, a regenerated 1,194-member protected closure containing
 the complete Linux G001 spawned program family, the compatible dependency
 security pins required by the service audit lanes, and the complete optional
 peer entry required by root `npm ci`, and the runtime image verifier now tracks
@@ -22,9 +22,10 @@ documentation-only clarification of the visual-foundation contract's reviewed
 source pin and does not claim final visual, device or live acceptance.
 
 The preceding Verify run passed auth-bridge, native-contract and
-release-recovery. The fresh run for `6af7281b` is still pending across the
-required jobs; R14 remains incomplete until the current run reaches terminal
-passing results and the release-relevant review is reconciled.
+release-recovery. The fresh Verify run `34345600199` for `43cac019` has green
+fast checks and release-recovery; Linux and SpacetimeDB remain pending. R14
+remains incomplete until the current run reaches terminal passing results and
+the release-relevant review is reconciled.
 
 ### Current dependency-alert state — 2026-09-09
 

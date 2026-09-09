@@ -36,6 +36,27 @@ describe('Warpkeep 0.4 visual foundation contract', () => {
       'Travian',
     ];
     for (const family of referenceFamilies) expect(contract).toContain(family);
+    const supportingReferences = [
+      'noa',
+      'three-stylized',
+      'stylized-components',
+      'TUMBLE meadow',
+      'Three.js Water Pro',
+      'Vesper',
+      'procedural terrain research',
+      'SimonDev',
+      'ZyFou',
+      'Tectonic/uplift/erosion studies',
+      'Priority-Flood',
+      'tile-erosion evaluation',
+      'Crytek height fog',
+      'Three.js WebGPU',
+      'TSL',
+      'Grassworks',
+      'Mistwood Cottage',
+      'broader climate studies',
+    ];
+    for (const reference of supportingReferences) expect(contract).toContain(reference);
     expect(contract).toContain('deliberate deferral');
     expect(contract).toContain('not a runtime dependency');
     expect(contract).toContain('nothing was copied');
