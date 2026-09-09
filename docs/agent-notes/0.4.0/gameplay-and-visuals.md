@@ -1,6 +1,6 @@
 # Gameplay and visual implementation notes
 
-Updated 2026-09-09 against documentation checkpoint `0c6cd16` over the
+Updated 2026-09-09 against documentation checkpoint `c3b50a36` over the
 published functional source `206c03683c9039b513b878d7b0d3c6770eda2626`, with visual behavior
 anchored at `0ce25c8f2602aaa65149b46af53fb12345eb8cc9` and the inspected working files.
 This refresh includes the focused Keep04 UI/scene run (161 tests across eight
