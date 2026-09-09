@@ -1,5 +1,29 @@
 # Required dependency audit — 2026-09-07
 
+## 2026-09-09 remediation checkpoint
+
+Published source: `a3cde3a81b72973ceb258cd59c11a97da6e66479`.
+
+The previously failing audit gate was repaired with compatible, bounded pins:
+the root lock now resolves `sharp@0.35.4` and `vitest@4.1.11`; the auth-bridge
+and release-recovery workspaces resolve `vitest@4.1.11`; and both service
+lockfiles override Miniflare's vulnerable `sharp@0.35.3` pin to `0.35.4`.
+The service workspace build-policy files retain the existing `allowBuilds`
+and dependency overrides; no audit threshold was relaxed and no advisory was
+suppressed.
+
+Local validation at this source passed with zero known vulnerabilities for the
+root npm tree and both service pnpm trees. Root `npm audit signatures` also
+passed. Auth-bridge `pnpm run check` passed its type, unit (477 tests) and
+workerd (18 tests) lanes; release-recovery passed its type, Wrangler, unit
+(1,092 tests) and workerd (53 tests) lanes. The expected negative-path error
+prints remain diagnostic output from passing tests, not an exit failure.
+
+This repairs the dependency portion of R14 locally. The new GitHub Verify and
+CodeQL runs for `a3cde3a` remain authoritative and must complete before R14 is
+called passing; local audits do not prove the assembled Linux, native-contract,
+deployment or live-owner requirements.
+
 Source inspected: `321940caf0af038f869af78c8b3fc2db695b2e45`.
 The initial failing checkpoint below is retained; see the tested repair below.
 This is an existing R14 integration gate, not an added product requirement.

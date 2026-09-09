@@ -2,7 +2,7 @@
 
 ## 2026-09-09 source-render matrix checkpoint
 
-The current published source is `4410b2a`. Actual renderer synthetic captures
+The current published source is `a3cde3a`. Actual renderer synthetic captures
 covered the empty, mature, legal-placement, blocked-placement, construction,
 completed and schematic-fallback states at desktop and 390px portrait profiles.
 The portrait WebGL canvas now uses the available keep panel width while the
