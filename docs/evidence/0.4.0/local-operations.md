@@ -22,6 +22,14 @@ The compact all-realms result is retained in the local runner at
 | G002 | bundle `0037a0979a460aea8607a36fccd649d4311046925faeb3d8186276ac0a6ccbd3`; closure `3135e65b47acf95b174adcf10d9453955afabde9f122382a0166b0a9d5bc26d5`; 50 bindings |
 | PTR | bundle `0c8b531995779dc5102ece40e7b4d54ffc4af4809f3873b5231716795ee1e5bf`; closure `acd9fe64d963d38715183a0451e6cc21b25abbfed5092c787d7e01842ab91901`; 25 bindings |
 
+The retained program-artifact manifest records G001 frozen bytes as SHA-256
+`a2d7f204ed591aadb98696225d68332ee573519187e0989e68f528da8064cd49` and
+Keccak-256 `70fe690512101acc1f63c9d2879cf4ee324e5a0a6df6dc0ad2feef6dc769858f`
+(3,439,766 bytes), and G002 current bytes as SHA-256
+`0037a0979a460aea8607a36fccd649d4311046925faeb3d8186276ac0a6ccbd3` and
+Keccak-256 `0ec47634134fa4b0cdd8f55c8c04c1c002ed46c26676973ca7d4db3d0af4c786`
+(3,648,993 bytes).
+
 The separate program-artifact record uses Node 24.19.0 for frozen G001 and
 Node 22.22.3 for current G002, with artifact SHA-256/Keccak provenance retained
 in the runner output. This closes the local native execution gap for the
