@@ -7,16 +7,16 @@ live release. The current user's direction takes precedence over historical plan
 
 ## Current source checkpoint — 2026-09-09
 
-The current published branch tip is `fe6c21d4` on
-`codex/prepared-keep-bindings-fix`; the latest functional source checkpoint is
-`f831966b` (the branch tip only advances the handoff pointer). It includes the bounded Keep04 moat surface,
+The current published branch tip is `55b787e0` on
+`codex/prepared-keep-bindings-fix`. It includes the bounded Keep04 moat surface,
 current reference-to-source notes, the Windows browser-runtime adapter, the
 Vite watcher boundary that keeps disposable Chrome profiles out of the source
-watch graph, local-output ignore rules, and the Windows-connected local QA
-hardening described below. Historical checkpoint labels retain their original
-scope and are not current-source claims. GitHub Verify and CodeQL for the
-current branch are pending; no live release, physical-device acceptance or
-owner journey is claimed.
+watch graph, local-output ignore rules, Windows-connected local QA hardening,
+realm-selection-aware browser journeys, and redundant Inner Keep scene-reconcile
+throttling. Historical checkpoint labels retain their original scope and are not
+current-source claims. GitHub Verify and CodeQL for the current branch are
+pending; no live release, physical-device acceptance or owner journey is
+claimed.
 
 ## Windows connected local QA — September 9
 
@@ -30,14 +30,15 @@ constant. Production `spacetimedb/src/genesis001AccessPolicy.ts` remains sealed.
 
 The disposable SpacetimeDB runtime now completes publication, synthetic founder
 seeding, Inner Keep setup, and process-tree cleanup on Windows. The browser lane
-also keeps Chrome's data directories disposable, retries the initial blank-page
-target, and allows the bounded cold Vite graph transform to finish. Its current
-machine-level limitation is the first connected browser navigation: the
-development graph can take more than the 170-second warmup budget before the
-title gateway becomes ready. The browser probe therefore remains unpassed for
-this checkout even though the server runtime, source/security suite, typecheck,
-and CLI attestation suite pass. Do not claim the full browser journey until a
-fresh run records it.
+keeps Chrome's data directories disposable, starts Chrome before the bounded
+Vite graph prewarm, tolerates slow identity/blank-target startup, and follows
+the explicit realm-directory step before Terms or restored-session checks. A
+connected run has passed the title gateway and restored current-agreement seam;
+the current machine-level limitation is a renderer-thread stall during the
+second Inner Keep project transition. The browser probe therefore remains
+unpassed for this checkout even though the server runtime, focused
+source/security suite (89/89), typecheck and CLI attestation suite pass. Do not
+claim the full browser journey until a fresh run records it.
 
 ## Current native artifact execution — September 9
 
