@@ -8,12 +8,13 @@ readability, mobile behavior and iteration quality. It does not turn a visual
 reference into an imported engine, a new economy, or a promise of deep
 interactivity.
 
-The visual contract is maintained against the current PR #228 source
-`d06cb4c1965742d17a524d24c5998ca1dbc22a81`. Earlier hashes in the dated
-evidence records remain historical anchors; they are not the source to review
-for a new pass. The current functional Keep04 visual checkpoint is the same
-`d06cb4c1965742d17a524d24c5998ca1dbc22a81` source, including the bounded scenic
-moat treatment and the Windows browser-boundary repair.
+The visual contract is maintained against the current PR #228 functional source
+`f831966bf3822ca12e6055c7d907c00d0571a8bd`; the published branch tip is
+`fe6c21d4f7aa9a0960d3a53db26066bcc07d84d2` because the latest commit only
+reconciles the handoff pointer. Earlier hashes in the dated evidence records
+remain historical anchors; they are not the source to review for a new pass.
+The functional Keep04 visual checkpoint includes the bounded scenic moat treatment
+and the Windows browser-boundary repair.
 The 0.4 release remains a development build until the release checklist records
 authenticated owner play, physical-device review and the required delivery
 evidence.

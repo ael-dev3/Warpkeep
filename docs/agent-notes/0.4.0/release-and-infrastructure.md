@@ -2,15 +2,15 @@
 
 ## Current source checkpoint — 2026-09-09
 
-The reviewed branch checkpoint is `75d577c8086cc6860713977e661181e9852995d1`
-on `codex/prepared-keep-bindings-fix`; the current notes update is published
-after it. The functional visual checkpoint is
-`0ce25c8`. The dependency, private Sharp/libvips, runtime-verifier,
+The current published branch tip is `fe6c21d4f7aa9a0960d3a53db26066bcc07d84d2`
+on `codex/prepared-keep-bindings-fix`; the latest functional source checkpoint
+is `f831966bf3822ca12e6055c7d907c00d0571a8bd`. The dependency, private
+Sharp/libvips, runtime-verifier,
 sealed-launch source-pin and recovery-loader repairs are published, and the
-agent-facing evidence files reconcile to this source. CodeQL run `34348989688`
-passed; Verify run `34348989741` is the authority for this checkpoint, with fast
-checks and release-recovery green while Linux and SpacetimeDB remain in progress.
-Historical entries below retain their original source and acceptance limits.
+agent-facing evidence files reconcile to this source. The current GitHub CodeQL
+run `34369121201` and Verify run `34369121284` are pending for this branch;
+older run IDs below retain their original source and acceptance limits and are
+not current-release evidence.
 
 ## Dedicated local preparation namespace
 

@@ -7,9 +7,9 @@ live release. The current user's direction takes precedence over historical plan
 
 ## Current source checkpoint — 2026-09-09
 
-The current published branch checkpoint is `d18e884d` on
-`codex/prepared-keep-bindings-fix`; the functional Verdant Citadel/mobile visual
-checkpoint is the same source. It includes the bounded Keep04 moat surface,
+The current published branch tip is `fe6c21d4` on
+`codex/prepared-keep-bindings-fix`; the latest functional source checkpoint is
+`f831966b` (the branch tip only advances the handoff pointer). It includes the bounded Keep04 moat surface,
 current reference-to-source notes, the Windows browser-runtime adapter, the
 Vite watcher boundary that keeps disposable Chrome profiles out of the source
 watch graph, local-output ignore rules, and the Windows-connected local QA
