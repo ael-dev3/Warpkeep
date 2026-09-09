@@ -127,6 +127,11 @@
   .keep04 { background: Canvas; color: CanvasText; }
   .keep04 button { border: 1px solid ButtonText; }
   .keep04 :focus-visible { outline-color: Highlight; }
+  .keep04 .keep04-journey { border-color: ButtonText; background: Canvas; }
+  .keep04 .keep04-journey li, .keep04 .keep04-journey li[data-stage-status="upcoming"] { color: CanvasText; opacity: 1; }
+  .keep04 .keep04-journey-dot { border-color: CanvasText; box-shadow: none; }
+  .keep04 .keep04-journey li[data-stage-status="complete"] .keep04-journey-dot,
+  .keep04 .keep04-journey li[data-stage-status="active"] .keep04-journey-dot { background: Highlight; }
   .keep04 .keep04-grounds { fill: Canvas; }
   .keep04 .keep04-reserved, .keep04 .keep04-footprint rect, .keep04 .keep04-draft { fill: Canvas; stroke: CanvasText; }
   .keep04 .keep04-map-label, .keep04 .keep04-footprint text { fill: CanvasText; }
