@@ -7,15 +7,16 @@ live release. The current user's direction takes precedence over historical plan
 
 ## Current source checkpoint — 2026-09-09
 
-The CI-reviewed implementation checkpoint is `43cac019888aefb83fcd3901446fc5af99d39036`
-on `codex/prepared-keep-bindings-fix`; the documentation and inspiration guard
-follow-up is published after it. The functional Verdant Citadel/mobile visual
+The reviewed branch checkpoint is `75d577c8086cc6860713977e661181e9852995d1`
+on `codex/prepared-keep-bindings-fix`; the current notes update is published
+after it. The functional Verdant Citadel/mobile visual
 checkpoint remains `0ce25c8`; the current source also contains the dependency,
 private Sharp/libvips, runtime-verifier, sealed-launch source-pin and recovery
 loader repairs plus the reconciled agent-facing evidence files. Historical
 checkpoint labels below retain their original scope and are not current-source
-claims. Verify run `34345600199` is the authority for this head: the fast checks
-and release-recovery are green while Linux and SpacetimeDB remain in progress.
+claims. CodeQL run `34348989688` passed for this checkpoint. Verify run
+`34348989741` has its fast checks and release-recovery green while Linux and
+SpacetimeDB remain in progress.
 No live release, physical-device acceptance or owner journey is claimed.
 
 ## Current native artifact execution — September 9
@@ -66,7 +67,8 @@ assembled Linux artifact and the final-family run.
 ## Linux G001 policy integration — September 9
 
 The Linux G001 policy integration was historically published at `a0b5060` and is
-included in the current source `43cac019` on `upstream/codex/prepared-keep-bindings-fix`.
+included in the reviewed branch checkpoint `75d577c8` on
+`upstream/codex/prepared-keep-bindings-fix`.
 That checkpoint connects the Linux G001 read-only policy lane to its receipt,
 adoption, activation-record and recovery consumers. It keeps the historical
 Darwin receipt profile distinct, refreshes the opaque workflow evidence scope at

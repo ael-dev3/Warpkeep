@@ -2,8 +2,8 @@
 
 ## 2026-09-09 remediation checkpoint
 
-CI-reviewed source: `43cac019888aefb83fcd3901446fc5af99d39036`; the current branch
-also carries the documentation and inspiration-guard follow-up.
+Reviewed branch checkpoint: `75d577c8086cc6860713977e661181e9852995d1`; the current
+notes update is published after it.
 
 Current GitHub state: Dependabot alert #2 (`GHSA-528h-pc64-c93x`) is `fixed`.
 The dated alert investigation later in this record is retained as historical

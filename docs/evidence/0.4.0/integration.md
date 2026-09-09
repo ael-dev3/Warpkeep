@@ -4,9 +4,9 @@ Updated 2026-09-09. R14 remains incomplete; source publication is not production
 
 ## Current checkpoint — 2026-09-09
 
-The CI-reviewed implementation head is `43cac019888aefb83fcd3901446fc5af99d39036`
-on `codex/prepared-keep-bindings-fix`; the documentation and inspiration guard
-follow-up is published after it. PR #228
+The reviewed branch checkpoint is `75d577c8086cc6860713977e661181e9852995d1`
+on `codex/prepared-keep-bindings-fix`; the current notes update is published
+after it. PR #228
 remains a draft. The checkpoint includes the portrait keep framing and mobile
 surface polish, the truthful workflow-runtime provenance expectation, Linux
 G001 receipt/adoption/activation consumers, credential-boundary evidence
@@ -22,11 +22,10 @@ The functional visual checkpoint remains `0ce25c8`; `07c9e8b6` is a
 documentation-only clarification of the visual-foundation contract's reviewed
 source pin and does not claim final visual, device or live acceptance.
 
-The preceding Verify run passed auth-bridge, native-contract and
-release-recovery. The fresh Verify run `34345600199` for `43cac019` has green
-fast checks and release-recovery; Linux and SpacetimeDB remain pending. R14
-remains incomplete until the current run reaches terminal passing results and
-the release-relevant review is reconciled.
+CodeQL run `34348989688` passed. Verify run `34348989741` for `75d577c8` has
+green auth-bridge, native-contract and release-recovery jobs; Linux and
+SpacetimeDB remain in progress. R14 remains incomplete until the current run
+reaches terminal passing results and the release-relevant review is reconciled.
 
 ### Current dependency-alert state — 2026-09-09
 
