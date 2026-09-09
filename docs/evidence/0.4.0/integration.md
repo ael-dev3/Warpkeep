@@ -26,6 +26,14 @@ release-recovery passing. Linux, SpacetimeDB and CodeQL are still in progress;
 R14 remains incomplete until those jobs reach a terminal passing result and the
 release-relevant review is reconciled.
 
+### Current dependency-alert state — 2026-09-09
+
+Authenticated GitHub Dependabot alert #2 (`GHSA-528h-pc64-c93x`) now reports
+`fixed`. The authoritative npm lock resolves the Solana Jayson path to
+`jayson@4.1.3`, and the root npm graph no longer contains `stream-json`.
+The detailed 2026-09-06 reachability investigation below remains useful
+historical evidence; it is no longer an open alert claim.
+
 The first post-pin Verify run for `c8505d7` failed before tests in Linux,
 native-contract and SpacetimeDB because root `npm ci` reported the missing
 optional `utf-8-validate@5.0.10` peer; auth-bridge and release-recovery were

@@ -4,6 +4,10 @@
 
 Published source: `4b51310e47abe6e35288e55cec10fbdfb3d88bd9`.
 
+Current GitHub state: Dependabot alert #2 (`GHSA-528h-pc64-c93x`) is `fixed`.
+The dated alert investigation later in this record is retained as historical
+triage; it is not a current open-alert assertion.
+
 The functional visual checkpoint for the Verdant Citadel remains `0ce25c8`;
 `73a1c57` adds sealed-launch package, lock and PTR publisher source-pin repair
 on top of that presentation state.
