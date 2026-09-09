@@ -1427,7 +1427,7 @@ export function inspectGreaterRealmProductionProvenance(input: Readonly<{
   if (!COMMIT.test(moduleSourceCommit)) {
     fail('GREATER_REALM_PRODUCTION_MODULE_PROVENANCE_INVALID');
   }
-  const loadPrivateModule = createRequire(import.meta.url);
+  const loadPrivateModule = createRequire(resolve(process.cwd(), 'package.json'));
   const tsxRuntime = loadPrivateModule('tsx/cjs/api') as { register: () => void };
   tsxRuntime.register();
   const privateWorkspaceModule = `.${String.fromCodePoint(47)}atlas${String.fromCodePoint(47)}greater-realm-private-workspace`;

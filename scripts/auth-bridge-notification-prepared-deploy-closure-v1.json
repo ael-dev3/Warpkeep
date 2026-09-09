@@ -925,7 +925,7 @@
     {
       "path": "scripts/greater-realm-production-import-core.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "57a2c6c157a82b9148645b3edf10d1f827d4ff1d02a0e090afcbd100976e1dfc"
+      "sha256": "8827689b63f0f2953d765c4cd6f140fd2dacefaef84f988e85624427a0522c72"
     },
     {
       "path": "scripts/greater-realm-production-import-operator.ts",
@@ -950,7 +950,7 @@
     {
       "path": "scripts/greater-realm-production-provenance.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6b19dd0376fb6465d276e0e3d1e42ad64317de73eb3abe1dc46e30f16b9f8477"
+      "sha256": "66b695e408ee4601cfb4536e9811669e62d3c36e768b2d8bc40129092c979c63"
     },
     {
       "path": "scripts/greater-realm-production-publisher-core.ts",

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
 
 import {
   projectGreaterRealmProductionCutoverStatusShape,
@@ -156,7 +157,7 @@ type GreaterRealmRuntimeReleaseArtifacts = Readonly<{
     }>;
   }>[];
 }>;
-const loadPrivateModule = createRequire(import.meta.url);
+const loadPrivateModule = createRequire(resolve(process.cwd(), 'package.json'));
 const tsxRuntime = loadPrivateModule('tsx/cjs/api') as { register: () => void };
 tsxRuntime.register();
 
