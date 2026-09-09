@@ -1,0 +1,114 @@
+# Warpkeep 0.4 credential-free Desktop handoff
+
+Status: **interim development handoff**. This document makes the current
+source, setup and evidence routes reproducible without distributing credentials
+or private player data. It is not a deployment attestation or a final release
+package. The Desktop `Warpkeep - Full Project Handoff.md` remains the product
+and continuation narrative; this file is the compact delivery index.
+
+## Start here
+
+- **Development branch:** `codex/prepared-keep-bindings-fix`
+- **Review:** [PR #228](https://github.com/ael-dev3/Warpkeep/pull/228)
+- **Product direction:** [`docs/design/warpkeep-direction.md`](../../design/warpkeep-direction.md)
+- **Current agent index:** [`docs/agent-notes/0.4.0/README.md`](../../agent-notes/0.4.0/README.md)
+- **Visual foundation:** [`visual-foundation-contract.md`](../../agent-notes/0.4.0/visual-foundation-contract.md)
+- **Release gates:** [`0.4.0-release-checklist.md`](../../operations/0.4.0-release-checklist.md)
+
+The current PR head and the last reviewed source checkpoint are authoritative;
+do not copy a hash from this document into a deployment command. Re-read the
+PR and the Desktop handoff before preparing a new artifact.
+
+## Credential-free setup
+
+Use a fresh checkout when reproducing the published development source. Do not
+run installation into the shared Windows dependency junction.
+
+```powershell
+git clone --branch codex/prepared-keep-bindings-fix https://github.com/ael-dev3/Warpkeep.git
+Set-Location Warpkeep
+node --version       # Node 22.13+ within the Node 22 line
+npm --version        # npm 10.9.8 is the repository package-manager contract
+npm ci
+npm run dev
+```
+
+Open the Vite origin printed by the dev server. The bounded visual fixture is:
+
+```text
+/dev/keep04-qa.html?scenario=all-six-level-five&quality=high
+```
+
+The fixture proves composition and interaction plumbing only. It does not
+connect an owner, authenticate a player, prove mobile frame pacing or establish
+production acceptance.
+
+## Safe verification routes
+
+Run the focused Keep04 evidence when changing the keep surface:
+
+```powershell
+& .\node_modules\.bin\vitest.cmd run `
+  tests/Keep04Screen.test.tsx `
+  tests/keep04InputCssContract.test.ts `
+  tests/keep04Scene.test.ts `
+  tests/keep04VisualProfile.test.ts `
+  tests/keep04Buildings.test.ts `
+  --maxWorkers=1
+```
+
+For release engineering, follow the dated evidence rather than improvising a
+provider command:
+
+- [`integration.md`](integration.md) — PR and CI acceptance.
+- [`local-operations.md`](local-operations.md) — Windows/WSL operating state.
+- [`release-engineering.md`](release-engineering.md) — assembled workflow rails.
+- [`release-freeze.md`](release-freeze.md) — source-family and closure proof.
+- [`recovery.md`](recovery.md) — recovery requirements and limits.
+- [`deployment-attestation-install.md`](deployment-attestation-install.md) —
+  credential-free installation and attestation boundaries.
+
+Local green tests are evidence for their tested surface only. Hosted CI,
+authenticated owner play, physical-device measurements and provider state must
+be recorded separately.
+
+## Realm and authority boundaries
+
+| Realm | 0.4 rule |
+| --- | --- |
+| Genesis 001 | Preserve existing players, state and timers; keep the agreed admission freeze. Never reset or recreate it. |
+| Genesis 002 | Keep sealed and accurately listed as closed; future admissions remain undecided. |
+| Owner PTR | Use the genuine isolated owner route for the playable gather → choose → build → benefit → return journey. |
+
+Cloudflare identity, SpacetimeDB persistence, generated bindings and release
+callers each have separate evidence. A successful CLI login, schema read or
+synthetic fixture does not prove owner admission or production authority.
+
+## Package contents and exclusions
+
+A final Desktop package may contain this index, the exact reviewed source
+manifest, reproducible commands, architecture notes, release/recovery results,
+asset credits and a file/hash manifest. It must exclude:
+
+- provider tokens, Wrangler profiles, signing keys and JWT material;
+- `.env` files, private operation bundles and credential caches;
+- player rows, FIDs, raw receipts and private baseline exports;
+- disposable `node_modules`, build output, screenshots without provenance and
+  unreviewed generated artifacts.
+
+The package must state the source commit, tool versions, evidence dates and
+limitations. A historical artifact or a local emulation is not a rollback
+package and cannot substitute for a fresh deployment attestation.
+
+## Current acceptance boundary
+
+The 0.4 visual foundation is implemented and reviewed through synthetic empty,
+mature, placement, construction, completion and fallback states. Mobile layout,
+safe-area spacing, touch targets, reduced motion, pending-resource semantics and
+the schematic fallback are source-level behavior.
+
+The release remains incomplete until the mandatory checklist records the real
+owner PTR journey, measured device performance, final artifact-family
+execution, G001 preservation, sealed G002 denial, deployment, recovery and
+post-deployment verification. Keep this document as the reproducible package
+index; update it only when those results are actually observed.
