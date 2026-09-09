@@ -7,16 +7,15 @@ live release. The current user's direction takes precedence over historical plan
 
 ## Current source checkpoint — 2026-09-09
 
-The current published branch checkpoint is `1420538e7973072cf662baad5a2be593eb483771`
+The current published branch checkpoint is `45413168e2ab14459583beee61c6550b561d2e89`
 on `codex/prepared-keep-bindings-fix`; the functional Verdant Citadel/mobile
 visual checkpoint is the same source. It includes the bounded Keep04 moat
 surface, current reference-to-source notes, the Windows browser-runtime
-adapter, and the Vite watcher boundary that keeps disposable Chrome profiles
-out of the source watch graph. Historical checkpoint labels below retain their
-original scope and are not current-source claims. CodeQL and Verify runs for
-this exact SHA are still running on GitHub; no live release, physical-device
-acceptance or owner journey is claimed.
-No live release, physical-device acceptance or owner journey is claimed.
+adapter, the Vite watcher boundary that keeps disposable Chrome profiles out
+of the source watch graph, and the local-output ignore rules. Historical
+checkpoint labels below retain their original scope and are not current-source
+claims. CodeQL and Verify runs for this exact SHA are still running on GitHub;
+no live release, physical-device acceptance or owner journey is claimed.
 
 ## Current native artifact execution — September 9
 
