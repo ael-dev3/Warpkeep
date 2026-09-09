@@ -2,7 +2,7 @@
 
 ## 2026-09-09 source-render matrix checkpoint
 
-The current documentation checkpoint is `c3b50a36`; the functional source is
+The current documentation checkpoint is the published branch head; the functional source is
 `206c03683c9039b513b878d7b0d3c6770eda2626`, and the functional visual
 checkpoint is `0ce25c8`. Actual renderer synthetic captures
 covered the empty, mature, legal-placement, blocked-placement, construction,
