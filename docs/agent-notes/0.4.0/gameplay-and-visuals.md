@@ -1,10 +1,11 @@
 # Gameplay and visual implementation notes
 
 Updated 2026-09-09 against the published source checkpoint at
-`5233a23bc287cf8e68a701f17f2ada4ac5ac8622`, with functional visual behavior
+`8115ff0fe65a08e74e79b02716cee492863327e8`, with functional visual behavior
 anchored at `0ce25c8f2602aaa65149b46af53fb12345eb8cc9` and the inspected working files.
-This refresh includes the focused Keep04 UI/scene run (76 tests passed), including
-the accessible Worker Outbound → Gathering → Returning journey rail; it has
+This refresh includes the focused Keep04 UI/scene run (155 tests across eight
+files), including the accessible Worker Outbound → Gathering → Returning journey
+rail and the reproducible Desktop handoff command; it has
 no authenticated owner session or production call. Earlier executed results
 keep their original source and limitations in the [execution handoff](execution-handoff.md).
 The [visual foundation contract](visual-foundation-contract.md) is the short
