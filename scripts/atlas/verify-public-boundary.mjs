@@ -709,6 +709,16 @@ const TRACKED_PRIVATE_SOURCE_ALLOWANCES = new Map([
       true,
     ),
   ])],
+  ['tests/fixtures/ptrV3ActivationCorpus.json', Object.freeze([
+    sourceAllowance(
+      `"${privateFieldName('privateBlindingNonce', 'Hex')}": "${'7'.repeat(64)}"`,
+      2,
+    ),
+    sourceAllowance(
+      `"${privateFieldName('privateBlindingNonce', 'Hex')}": "${'8'.repeat(64)}"`,
+      2,
+    ),
+  ])],
 ]);
 
 export class GreaterRealmPublicBoundaryError extends Error {
