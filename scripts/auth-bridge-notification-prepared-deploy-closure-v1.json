@@ -345,7 +345,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6a12a9ba4ded110abcac7400021a2e51bd128609048976e531a0c48700bca1f0"
+      "sha256": "66d8065a6159e7653768fef4ae39c4eb3d727a56a5f88c5224189f12444ab86c"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -925,7 +925,7 @@
     {
       "path": "scripts/greater-realm-production-import-core.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2f5a018bef9833130bde5182ebcf7af753eca9cd8cb1327af67c7656577c8b1d"
+      "sha256": "57a2c6c157a82b9148645b3edf10d1f827d4ff1d02a0e090afcbd100976e1dfc"
     },
     {
       "path": "scripts/greater-realm-production-import-operator.ts",
@@ -950,7 +950,7 @@
     {
       "path": "scripts/greater-realm-production-provenance.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ee3209eaaff54eb9d1c084de1021aff6da38c3317a4117a5e2fdc708915d0344"
+      "sha256": "6b19dd0376fb6465d276e0e3d1e42ad64317de73eb3abe1dc46e30f16b9f8477"
     },
     {
       "path": "scripts/greater-realm-production-publisher-core.ts",
@@ -1220,7 +1220,7 @@
     {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2b26f81c2cfa40ee40cc1861d483be25c536200f83a1b56c5077d51b4abfd41a"
+      "sha256": "16a9d28f925d481541b9a17950a778bef2b93ae64a93c91779ee305aade6650b"
     },
     {
       "path": "scripts/production-player-canary-admin-transport.ts",
@@ -1386,6 +1386,11 @@
       "path": "scripts/ptr-binding-locked-source-build.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "e375cac4a7d7d7000af5e659807a1a2680893b5645e9ccac825b6176f84c2cc9"
+    },
+    {
+      "path": "scripts/ptr-binding-source-validation.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "ee4e6537a710b159e4691523ba00acb344e423b374e4b7fd1dcbf6d7ae5f8f12"
     },
     {
       "path": "scripts/ptr-owner-provision-operator.ts",

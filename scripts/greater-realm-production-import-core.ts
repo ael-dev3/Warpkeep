@@ -156,13 +156,15 @@ type GreaterRealmRuntimeReleaseArtifacts = Readonly<{
     }>;
   }>[];
 }>;
-const require = createRequire(import.meta.url);
+const loadPrivateModule = createRequire(import.meta.url);
+const tsxRuntime = loadPrivateModule('tsx/cjs/api') as { register: () => void };
+tsxRuntime.register();
 
 function verifyGreaterRealmRuntimeReleaseArtifacts(
   artifacts: GreaterRealmRuntimeReleaseArtifacts,
 ): void {
-  const modulePath = `.${String.fromCodePoint(47)}atlas${String.fromCodePoint(47)}greater-realm-runtime-release`;
-  const module = require(modulePath) as typeof import('./atlas/greater-realm-runtime-release');
+  const modulePath = `.${String.fromCodePoint(47)}atlas${String.fromCodePoint(47)}greater-realm-runtime-release.ts`;
+  const module = loadPrivateModule(modulePath) as typeof import('./atlas/greater-realm-runtime-release');
   module.verifyGreaterRealmRuntimeReleaseArtifacts(artifacts);
 }
 

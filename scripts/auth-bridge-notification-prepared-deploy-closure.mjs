@@ -473,6 +473,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/ptr-binding-linux-locked-source-build.ts',
     'scripts/ptr-binding-locked-source-build-core.ts',
     'scripts/ptr-binding-locked-source-build.ts',
+    'scripts/ptr-binding-source-validation.ts',
     'scripts/ptr-owner-provision-operator.ts',
     'scripts/ptr-production-admin-token.ts',
     'scripts/ptr-production-existing-update-adapter.d.mts',
