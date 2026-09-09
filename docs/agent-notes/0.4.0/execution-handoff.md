@@ -7,7 +7,7 @@ live release. The current user's direction takes precedence over historical plan
 
 ## Current source checkpoint — 2026-09-09
 
-The current published branch checkpoint is `f831966b` on
+The current published branch checkpoint is `d18e884d` on
 `codex/prepared-keep-bindings-fix`; the functional Verdant Citadel/mobile visual
 checkpoint is the same source. It includes the bounded Keep04 moat surface,
 current reference-to-source notes, the Windows browser-runtime adapter, the
