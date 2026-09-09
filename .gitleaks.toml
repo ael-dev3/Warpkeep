@@ -199,6 +199,14 @@ paths = ['''^services/release-recovery/test/preparationReceipt\.test\.ts$''', ''
 regexes = ['''^zbHwk528B5de5kuNzI98k4Y-rljmW6fbkH-aVZomk4M$''']
 
 [[allowlists]]
+description = "Public immutable Genesis 001 source commit and tree identifiers embedded in the generated activation bundle"
+targetRules = ["sourcegraph-access-token"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^scripts/sealed-realms-production-activation-lane\.bundle\.mjs$''']
+regexes = ['''^2ae51984e1fa6ce5b0028c1a250359fed79d819b$''', '''^90deebb5faf4129282f5c35999244f540001b27d$''']
+
+[[allowlists]]
 description = "Exact freshly generated public preparation RPC test key; SPKI SHA256 d01cf2c7368103f04ada8a93bbd9f79aaeca164265a9e975cd0c0dbe0ef7c18d"
 targetRules = ["private-key"]
 condition = "AND"
