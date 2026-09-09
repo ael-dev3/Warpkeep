@@ -1,9 +1,10 @@
 # Gameplay and visual implementation notes
 
 Updated 2026-09-09 against the published source checkpoint at
-`4b51310e47abe6e35288e55cec10fbdfb3d88bd9`, with functional visual behavior
+`5233a23bc287cf8e68a701f17f2ada4ac5ac8622`, with functional visual behavior
 anchored at `0ce25c8f2602aaa65149b46af53fb12345eb8cc9` and the inspected working files.
-This refresh includes the focused Keep04 UI/scene run (66 tests passed); it has
+This refresh includes the focused Keep04 UI/scene run (76 tests passed), including
+the accessible Worker Outbound → Gathering → Returning journey rail; it has
 no authenticated owner session or production call. Earlier executed results
 keep their original source and limitations in the [execution handoff](execution-handoff.md).
 The [visual foundation contract](visual-foundation-contract.md) is the short
@@ -453,3 +454,13 @@ The app type check passed. The actual synthetic keep rendered at desktop and
 390×844; the mobile catalog retained reachable controls and displayed the revised
 benefits. These observations do not establish physical-device performance or the
 authenticated owner's journey.
+
+## Worker journey readability — 2026-09-09
+
+Each active Worker card now presents the same three-stage journey in a compact
+mobile rail: **Outbound**, **Gathering**, then **Returning**. The active stage is
+exposed as an accessible current step, completed stages remain visually settled,
+and the detail copy explains that the captured rate stays fixed and resources
+remain unavailable until the Realm confirms return. This is presentation-only;
+the server phase, captured yield, return credit and recall authority remain the
+source of truth. The change is covered by the 76-test focused run above.
