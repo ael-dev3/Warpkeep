@@ -360,11 +360,11 @@ Small-building readability, landscape/offscreen action coverage and final
 source-bound captures remain. The six-family level matrix and authored-prefab
 footprint checks are now covered by `tests/keep04Buildings.test.ts`, while the
 browser review in `docs/evidence/0.4.0/visuals.md` records the all-six completed
-scene separately from physical-device proof. The expected
-`docs/evidence/0.4.0/renderer.md` remains absent at this snapshot; provide the
-required evidence destination or an explicit approved ledger mapping. Do not
-silently treat a source test or browser capture as closing physical performance
-or authenticated-owner gates.
+scene separately from physical-device proof. The renderer evidence destination
+is now [`docs/evidence/0.4.0/renderer.md`](../../evidence/0.4.0/renderer.md). It
+records the actual owners, fallback/context lifecycle and retained browser
+observations without treating source tests or browser captures as physical
+performance or authenticated-owner acceptance.
 
 ## Acceptance matrix to finish
 

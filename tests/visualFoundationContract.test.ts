@@ -99,6 +99,7 @@ describe('Warpkeep 0.4 visual foundation contract', () => {
       'src/greater-realm/greaterRealmWaterSurface.ts',
       'src/greater-realm/createGreaterRealmSceneRuntime.ts',
       'docs/evidence/0.4.0/visuals.md',
+      'docs/evidence/0.4.0/renderer.md',
       'docs/evidence/0.4.0/performance.md',
       'docs/operations/0.4.0-release-checklist.md',
     ];
