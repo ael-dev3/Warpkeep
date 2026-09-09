@@ -21,10 +21,10 @@ The functional visual checkpoint remains `0ce25c8`; `07c9e8b6` is a
 documentation-only clarification of the visual-foundation contract's reviewed
 source pin and does not claim final visual, device or live acceptance.
 
-The current Verify run for `e37c77f3` has auth-bridge, native-contract and
-release-recovery passing. Linux, SpacetimeDB and CodeQL are still in progress;
-R14 remains incomplete until those jobs reach a terminal passing result and the
-release-relevant review is reconciled.
+The preceding Verify run passed auth-bridge, native-contract and
+release-recovery. The fresh run for `6af7281b` is still pending across the
+required jobs; R14 remains incomplete until the current run reaches terminal
+passing results and the release-relevant review is reconciled.
 
 ### Current dependency-alert state — 2026-09-09
 
