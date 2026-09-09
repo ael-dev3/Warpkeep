@@ -20,15 +20,16 @@ for (const kind of kinds) it.each([1, 2, 3, 4, 5])(`${kind} level %s retains a d
   const spies = [...materials].map(m => vi.spyOn(m, 'dispose'));
   building.dispose(); building.dispose(); spies.forEach(spy => expect(spy).toHaveBeenCalledTimes(1));
 });
-it('keeps authored prefabs inside their footprint while expressing completed level', () => {
+for (const kind of kinds) it(`keeps authored ${kind} prefabs inside their footprint while expressing completed level`, () => {
   const geometry = new THREE.BoxGeometry(2, 3, 2); const material = new THREE.MeshStandardMaterial({ color: '#ffffff' });
   const root = new THREE.Group(); root.add(new THREE.Mesh(geometry, material));
-  const prefab: InnerKeepRuntimePrefab = { id: 'city-mill', root, clips: [], boundsMeters: [2, 3, 2], triangles: 12, drawCalls: 1, animated: false, mounted: false, clone: () => root.clone(true) };
-  const building = createKeep04Building({ kind: 'city-mill', level: 5, constructing: false, quality: 'reduced', prefab });
+  const prefab: InnerKeepRuntimePrefab = { id: kind, root, clips: [], boundsMeters: [2, 3, 2], triangles: 12, drawCalls: 1, animated: false, mounted: false, clone: () => root.clone(true) };
+  const building = createKeep04Building({ kind, level: 5, constructing: false, quality: 'reduced', prefab });
   const size = new THREE.Box3().setFromObject(building.root).getSize(new THREE.Vector3());
+  expect(building.root.getObjectByName('prefab:' + kind)).toBeDefined();
   expect(building.root.getObjectByName('level-expression:5')).toBeDefined();
-  expect(size.x).toBeLessThanOrEqual(KEEP04_FOOTPRINTS['city-mill'][0]);
-  expect(size.z).toBeLessThanOrEqual(KEEP04_FOOTPRINTS['city-mill'][1]);
+  expect(size.x).toBeLessThanOrEqual(KEEP04_FOOTPRINTS[kind][0]);
+  expect(size.z).toBeLessThanOrEqual(KEEP04_FOOTPRINTS[kind][1]);
   building.dispose(); geometry.dispose(); material.dispose();
 });
 it('clones source materials but leaves bundle geometry and textures owned by the bundle', () => {

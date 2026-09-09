@@ -1,9 +1,9 @@
 # Gameplay and visual implementation notes
 
-Updated 2026-09-09 against the published source checkpoint at
-`096d9c0a258d0009c6a7a5cd2ce885dee115f100`, with functional visual behavior
+Updated 2026-09-09 against documentation checkpoint `ccfc56d` over the
+published functional source `206c03683c9039b513b878d7b0d3c6770eda2626`, with visual behavior
 anchored at `0ce25c8f2602aaa65149b46af53fb12345eb8cc9` and the inspected working files.
-This refresh includes the focused Keep04 UI/scene run (156 tests across eight
+This refresh includes the focused Keep04 UI/scene run (161 tests across eight
 files), including the accessible Worker Outbound → Gathering → Returning journey
 rail and the reproducible Desktop handoff command; it has
 no authenticated owner session or production call. Earlier executed results
@@ -16,6 +16,12 @@ G01 is now fixed in source by `555e505` and is not unfinished implementation.
 The 2026-09-08 continuation update below supersedes G02's implementation gap;
 its [executed evidence](../../evidence/0.4.0/isolation-lifecycle.md) has separate
 source, test and browser limits from this original inspection.
+
+The six-family progression matrix is now covered in source tests for every
+policy building kind at levels 1–5, including authored-prefab footprint bounds
+and fallback silhouettes. The 97-test focused building/visual run passed after
+expanding the authored-prefab coverage; rendered browser review remains distinct
+from physical-device and authenticated-owner acceptance.
 
 The current product is **gather → choose → build → benefit → return**: gather
 spendable resources, make a meaningful building choice, see the keep change,
@@ -350,12 +356,15 @@ about 19–25ms to 1.3–2.8ms. Those are useful specific results, not final acc
 See [Windows capture](../../evidence/0.4.0/windows-keep-capture-2026-09-06.md) and
 [visuals](../../evidence/0.4.0/visuals.md), including their remaining limitations.
 
-Small-building readability, landscape/offscreen action coverage, the full
-all-six progression matrix and final source-bound captures remain. Fallback
-geometry tests for every kind/level do not establish prefab readability at mobile
-full-fit. The expected `docs/evidence/0.4.0/renderer.md` was absent at this snapshot;
-provide the required evidence destination or an explicit approved ledger mapping.
-Do not silently treat another passing component note as closing that gate.
+Small-building readability, landscape/offscreen action coverage and final
+source-bound captures remain. The six-family level matrix and authored-prefab
+footprint checks are now covered by `tests/keep04Buildings.test.ts`, while the
+browser review in `docs/evidence/0.4.0/visuals.md` records the all-six completed
+scene separately from physical-device proof. The expected
+`docs/evidence/0.4.0/renderer.md` remains absent at this snapshot; provide the
+required evidence destination or an explicit approved ledger mapping. Do not
+silently treat a source test or browser capture as closing physical performance
+or authenticated-owner gates.
 
 ## Acceptance matrix to finish
 
@@ -366,7 +375,7 @@ Do not silently treat another passing component note as closing that gate.
 | Retry/expiry/reconnect (R08) | Exact envelope/scope tests | Cross-expiry uncertain outcome, background/resume and realm-switch owner journey |
 | G001 preservation (R09) | Narrow freeze guard tests and separate presentation paths | Recorded deployed identities/admitted baseline; real players/timers/reconnect/presentation preserved |
 | G002 closed (R10) | Bundled denial-before-storage tests | Live denial plus authenticated before/after no-unauthorized-write evidence |
-| Art/voxel/fallback (R04/R05) | Integrated mesher, art profile, fixture captures | Empty/placement blocked/legal/construction/completion/all levels; desktop, portrait, landscape, reduced/motion/fallback |
+| Art/voxel/fallback (R04/R05) | Integrated mesher, art profile, six-family level matrix, fixture captures and browser all-six completion review | Final source-bound desktop/mobile captures, physical-device readability/performance, renderer/fallback budgets and reduced/motion proof |
 | Lifecycle/performance (R06) | Cleanup and scheduler tests; diagnostic counters | Final production source/artifact measurements, context cycles, repeated switching, physical-device evidence separately labeled |
 
 ## Performance gates — do not substitute emergency caps
