@@ -4,7 +4,7 @@ Updated 2026-09-09. R14 remains incomplete; source publication is not production
 
 ## Current checkpoint — 2026-09-09
 
-The published Windows/GitHub head is `1486b57`
+The published Windows/GitHub head is `05103e3`
 on `codex/prepared-keep-bindings-fix`, and `git ls-remote` matches it. PR #228
 remains a draft. The checkpoint includes the portrait keep framing and mobile
 surface polish, the truthful workflow-runtime provenance expectation, Linux
@@ -13,13 +13,15 @@ refresh, the fixed native preparation caller, the shared production-admin
 transport extraction, a regenerated 1,193-member protected closure containing
 the complete Linux G001 spawned program family, the compatible dependency
 security pins required by the service audit lanes, and the complete optional
-peer entry required by root `npm ci`.
+peer entry required by root `npm ci`, and the runtime image verifier now tracks
+Sharp's hosted `libvips 8.18.6` tuple.
 
 The first post-pin Verify run for `c8505d7` failed before tests in Linux,
 native-contract and SpacetimeDB because root `npm ci` reported the missing
 optional `utf-8-validate@5.0.10` peer; auth-bridge and release-recovery were
-green. Commit `1486b57` adds the missing lock entry. Its new Verify run and
-CodeQL result must confirm the clean install and downstream lanes. Local
+green. Commit `1486b57` adds the missing lock entry; `05103e3` aligns the
+runtime image verifier with Sharp 0.35.4. Its Verify run and CodeQL result must
+confirm the clean install and downstream lanes. Local
 auth-bridge and release-recovery checks now pass with zero known
 vulnerabilities (477 + 18 and 1,092 + 53 tests respectively), but this is not
 a final R14 result. Local source-range Gitleaks for the four published commits is clean;

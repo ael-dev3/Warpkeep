@@ -1,7 +1,7 @@
 # Gameplay and visual implementation notes
 
 Updated 2026-09-09 against the published 0.4 checkpoint at
-`1486b573c72ad1e2127245f56f8cc4f78a4fcdb9`, including the inspected working files.
+`05103e3049b5f0830c473078f9260d14e77944de`, including the inspected working files.
 This refresh includes the focused Keep04 UI/scene run (66 tests passed); it has
 no authenticated owner session or production call. Earlier executed results
 keep their original source and limitations in the [execution handoff](execution-handoff.md).
@@ -19,7 +19,7 @@ this page keeps precise mechanics, implementation routes and evidence limits.
 
 ## Visual foundation and complete reference coverage
 
-At `1486b57`, the owner direction prioritizes a professional mobile visual
+At `05103e3`, the owner direction prioritizes a professional mobile visual
 foundation with simple interaction. Preserve the useful existing loop; deeper
 simulation and elaborate editing remain later work. The full Desktop handoff
 reference library informs one coherent Verdant Citadel, rather than a collection

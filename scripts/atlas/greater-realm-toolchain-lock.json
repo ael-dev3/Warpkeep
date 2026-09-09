@@ -29,35 +29,35 @@
     },
     "@img/sharp-darwin-arm64": {
       "name": "@img/sharp-darwin-arm64",
-      "version": "0.35.3",
-      "integrity": "sha512-RMnFX7YQsMoh7lWfcM4NEHHymBX/rLuKNPVM84XE9ONPcaSCDgE7CHIHpSgPcO2xcRthgBy1HfNO319mwhIAkg==",
+      "version": "0.35.4",
+      "integrity": "sha512-Uhfl4V4lhP2nbUVF9+hyH1+luj86f1gUFeo8ALYxFoULoU+G87D43BfeMP8XHsk9boxAnCY/bf2EHwhA7MuGsA==",
       "byteCount": 292231,
       "fileCount": 5,
-      "treeSha256": "027ef5a3ac2c792a24bbb60d87fda2a5902ded7ea050237c1c2f8876ebdc5f90"
+      "treeSha256": "5c50cd96ea30fe281c7339b1922506c4c054c704800920eb3369f3f45516dacf"
     },
     "@img/sharp-libvips-darwin-arm64": {
       "name": "@img/sharp-libvips-darwin-arm64",
-      "version": "1.3.2",
-      "integrity": "sha512-9J6ypZFpQBj4YnePGoq/S38w6nz+vqg5WZLrLGY4YuSemdMq47GMLBPO42MzwdGwpg/agZ7xzZcFHa48xlywfg==",
-      "byteCount": 17777811,
+      "version": "1.3.3",
+      "integrity": "sha512-suTBPTDGrI9WodccaDdwZItTSaBYASlBk1NSfElSHrUfzu3szG6lvIF58+WiFvnfzuK8ZBFS5zE00PxqxnRiPg==",
+      "byteCount": 18176351,
       "fileCount": 6,
-      "treeSha256": "8ca735f9fa67541493c37d64942744e648d7a95ab420a5296d3c1d840772d8f1"
+      "treeSha256": "992c83790f1c432b369a2c2892cf638b78bd180efad1443483dcb23cc99a5f38"
     },
     "@img/sharp-libvips-linux-x64": {
       "name": "@img/sharp-libvips-linux-x64",
-      "version": "1.3.2",
-      "integrity": "sha512-ITPEtgffGJ0S6G9dRyw/366tJQqFRcHWPHhC+Stpg3Z8AEMrDrTr2lhdz4f/Y/HMbRh//7Z5mBzEpVdi62Oc3w==",
-      "byteCount": 18207458,
+      "version": "1.3.3",
+      "integrity": "sha512-4vKmvAst9nrowcqquKFAyZJUDolUaIp8uRiN0mWFguJ1IplC9/pitXtlnnlU4aa/eJw3J7i67V+pwUL+wZGdsA==",
+      "byteCount": 18633310,
       "fileCount": 6,
-      "treeSha256": "1fc0aa685ee16615086102bee7f94f8948108d6930ec57dd92ce31654d2899b4"
+      "treeSha256": "f7956af0b49028b48b7719d466e89ecb6ad7c32800324c045a93c839de01b600"
     },
     "@img/sharp-linux-x64": {
       "name": "@img/sharp-linux-x64",
-      "version": "0.35.3",
-      "integrity": "sha512-8pqvxubL2PGdhlPy6GLqzDYMUjyRmKAwKHYKixpdJYBUK7PJ0C029XdsnpFIdgRZG68fZiGdHVWcKPvtiPB4cA==",
+      "version": "0.35.4",
+      "integrity": "sha512-9qvvEAuk8k89TfWUoX2htWjbAMX8p+NxCppjpcg5k6xMsjhBQPTsoIh36h9Qde4WRuGpJeYnOjdosDn/cnv+OA==",
       "byteCount": 427138,
       "fileCount": 5,
-      "treeSha256": "5d7ef18137b930a491f988392406a71a03d548c3c1516b2ac0e57d4efe6506d3"
+      "treeSha256": "7ecd26b1df81c5609cdc363d417040f0978f7886c4135b14e95dbb45c068898c"
     },
     "@typescript/typescript-darwin-arm64": {
       "name": "@typescript/typescript-darwin-arm64",
@@ -109,11 +109,11 @@
     },
     "sharp": {
       "name": "sharp",
-      "version": "0.35.3",
-      "integrity": "sha512-ej0zVHuZGHCiABXcNxeYhpRnPNPAcvbG8RMdBAhDAxLKkCRVSpK3Iyu7qbqw3JMzoj0REeM6f3tJLtVwl0023Q==",
-      "byteCount": 958466,
+      "version": "0.35.4",
+      "integrity": "sha512-n++8XWcj+jCOr2IOl7h8LbKnGBDY4aPbmprMONBNFdn0ImXqpGVv5zliDs0V9HbmbCQLpbuo2ej9rAoOQTvMDA==",
+      "byteCount": 960214,
       "fileCount": 47,
-      "treeSha256": "a54e8ed7908f47ee1ff50cfce305e230d7ec2bafc850ab616b0f7a6fdcc55851"
+      "treeSha256": "c836b93f369c08833fbc97e8c02bb77f35effc919bc5db4eee79c7cc57633933"
     },
     "tsx": {
       "name": "tsx",

@@ -12,8 +12,8 @@ const SUPPORTED_REQUIRED_EXTENSIONS = new Set([
   'KHR_mesh_quantization'
 ]);
 const SHARP_TOOLCHAIN = Object.freeze({
-  sharp: '0.35.3',
-  vips: '8.18.3',
+  sharp: '0.35.4',
+  vips: '8.18.6',
   webp: '1.6.0'
 });
 
