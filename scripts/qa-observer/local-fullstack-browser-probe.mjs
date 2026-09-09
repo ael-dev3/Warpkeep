@@ -9,16 +9,18 @@ import {
 import {
   DevtoolsPipeSession,
   analyzeRenderedWebglPngScreenshot,
-  attestStableHeadlessChromeExecutable,
   cleanupRenderedWebglProbeResources,
   controlledRendererRecoveryWarningKind,
   createLoopbackViteServer,
-  exactChromeExecutableIdentity,
-  readReviewedChromeExecutableIdentity,
   selectBlankPageTarget,
-  spawnHeadlessChromeProbe,
-  terminateHeadlessChromeProcessGroup,
 } from './rendered-webgl-browser-probe.mjs';
+import {
+  attestStableFullstackChromeIdentity,
+  exactChromeExecutableIdentity,
+  readReviewedFullstackChromeIdentity,
+  spawnFullstackChrome,
+  terminateFullstackChrome,
+} from './local-fullstack-chrome-runtime.mjs';
 import { localFullstackBootstrapVitePlugin } from './local-fullstack-bootstrap-vite-plugin.mjs';
 import {
   LOCAL_FULLSTACK_PROFILE_URL,
@@ -5942,6 +5944,7 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
           chrome,
           devtools,
           removeProfile: async () => {},
+          terminate: terminateFullstackChrome,
           vite: vite ?? provisionalVite,
         });
       } catch (error) {
@@ -6049,11 +6052,11 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
     pfpBytes.fill(0);
     assertRunning();
     probeStage = 'chrome-attestation';
-    const reviewedChromeIdentity = await attestStableHeadlessChromeExecutable();
+    const reviewedChromeIdentity = await attestStableFullstackChromeIdentity();
     assertRunning();
     probeStage = 'chrome-launch';
-    chrome = spawnHeadlessChromeProbe(chromeProfile);
-    const launchedChromeIdentity = await readReviewedChromeExecutableIdentity();
+    chrome = spawnFullstackChrome(chromeProfile);
+    const launchedChromeIdentity = await readReviewedFullstackChromeIdentity();
     assertRunning();
     if (!exactChromeExecutableIdentity(reviewedChromeIdentity, launchedChromeIdentity)) {
       throw new Error('The reviewed Google Chrome executable changed at launch.');
@@ -6359,7 +6362,7 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
     }
     probeStage = 'title-browser-stop';
     devtools.close();
-    await terminateHeadlessChromeProcessGroup(chrome);
+    await terminateFullstackChrome(chrome);
     devtools = undefined;
     chrome = undefined;
     probeStage = 'production-shaped-worker-preparation';
@@ -6388,8 +6391,8 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
     chromeProfile = join(runtimeRoot, 'chrome-setup');
     await mkdir(chromeProfile, { mode: 0o700 });
     probeStage = 'setup-browser-launch';
-    chrome = spawnHeadlessChromeProbe(chromeProfile);
-    const setupChromeIdentity = await readReviewedChromeExecutableIdentity();
+    chrome = spawnFullstackChrome(chromeProfile);
+    const setupChromeIdentity = await readReviewedFullstackChromeIdentity();
     if (!exactChromeExecutableIdentity(reviewedChromeIdentity, setupChromeIdentity)) {
       throw new Error('The reviewed Google Chrome executable changed at setup.');
     }
@@ -6453,15 +6456,15 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
     }
     probeStage = 'persistent-worker-isolated-browser-stop';
     devtools.close();
-    await terminateHeadlessChromeProcessGroup(chrome);
+    await terminateFullstackChrome(chrome);
     devtools = undefined;
     chrome = undefined;
     chromeProfile = join(runtimeRoot, 'chrome-reentry');
     await mkdir(chromeProfile, { mode: 0o700 });
     assertRunning();
     probeStage = 'persistent-worker-isolated-browser-launch';
-    chrome = spawnHeadlessChromeProbe(chromeProfile);
-    const reentryChromeIdentity = await readReviewedChromeExecutableIdentity();
+    chrome = spawnFullstackChrome(chromeProfile);
+    const reentryChromeIdentity = await readReviewedFullstackChromeIdentity();
     if (!exactChromeExecutableIdentity(reviewedChromeIdentity, reentryChromeIdentity)) {
       throw new Error('The reviewed Google Chrome executable changed at re-entry.');
     }

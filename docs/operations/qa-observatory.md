@@ -26,13 +26,22 @@ runtime-owned loopback origins. One exact synthetic profile-image URL is
 intercepted and fulfilled from a repository-owned PNG in memory; Chrome's host
 resolver remains offline, so that URL never reaches the public network.
 
-The command requires the repository-pinned SpacetimeDB CLI and the signed Google
-Chrome application at `/Applications/Google Chrome.app`. It does not read a
-Farcaster account, production token, operator credential, Keychain item,
-`.env` file, or browser profile. The temporary database, keys, token, browser
-profile, and Vite cache are deleted on success, failure, or a handled
-termination signal. Screenshots are reduced in memory to aggregate visual
-measurements and are never saved.
+The command requires the repository-pinned SpacetimeDB CLI and a verified local
+Google Chrome installation. On macOS it uses the signed application at
+`/Applications/Google Chrome.app`; on Windows it uses
+`C:\Program Files\Google\Chrome\Application\chrome.exe` and an owned
+process-tree teardown. It does not read a Farcaster account, production token,
+operator credential, Keychain item, `.env` file, or browser profile. The
+temporary database, keys, token, browser profile, and Vite cache are deleted on
+success, failure, or a handled termination signal. Screenshots are reduced in
+memory to aggregate visual measurements and are never saved.
+
+The browser adapter is Windows-ready, but the current reviewed SpacetimeDB
+binary manifest covers only `darwin-arm64` and `linux-x64`. Until a reviewed
+Windows CLI and standalone pair is added to that manifest, Windows runs fail
+closed during CLI attestation before they create a database or browser. Record
+that result as a tooling boundary; do not bypass attestation with an arbitrary
+developer-installed binary.
 
 The broader rendered-fixture lane remains available separately:
 

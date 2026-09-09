@@ -8,7 +8,7 @@ import {
   statSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -157,10 +157,10 @@ function sourceGraph(entry: string, forbidLocalBootstrap = false) {
     }
     for (const specifier of importSpecifiers(source)) {
       const dependency = resolveSourceImport(path, specifier);
-      if (dependency?.startsWith(`${root}/`)) pending.push(dependency);
+      if (dependency && !relative(root, dependency).startsWith('..')) pending.push(dependency);
     }
   }
-  return visited;
+  return new Set([...visited].map((path) => path.replaceAll('\\', '/')));
 }
 
 describe('disposable connected local QA bootstrap', () => {
@@ -799,7 +799,7 @@ describe('disposable connected local QA dependency and network boundaries', () =
       "chromeProfile = join(runtimeRoot, 'chrome-reentry');"
     );
     expect(browserSource).toContain(
-      'await terminateHeadlessChromeProcessGroup(chrome);'
+      'await terminateFullstackChrome(chrome);'
     );
     expect(browserSource).toContain('const setupChromePid = chrome.pid;');
     expect(browserSource).toContain('setupChromePid !== chrome.pid');
@@ -1363,7 +1363,7 @@ describe('disposable connected local QA cleanup lifecycle', () => {
     const lifecycleCapture = browserStart.indexOf(
       'databaseLifecycle = lifecycle;'
     );
-    const chromeSpawn = browserStart.indexOf('chrome = spawnHeadlessChromeProbe(');
+    const chromeSpawn = browserStart.indexOf('chrome = spawnFullstackChrome(');
     const removeSignals = browserStart.lastIndexOf('removeSignalCleanup();');
     const awaitCleanup = browserStart.lastIndexOf('await cleanup();');
     expect(cleanupDeclaration).toBeGreaterThan(-1);
