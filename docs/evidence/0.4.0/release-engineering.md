@@ -1,6 +1,7 @@
 # Release engineering: implementation and evidence
 
-Current reading point: the September 8 entries at the end of this record cover
+Current reading point: the September 9 source checkpoint `47a8560` sits above the
+historical entries in this record; the September 8 entries at the end cover
 the published Linux preflight/Worker source `1e90b2e`, its completed native
 prepare/check and generated-only integration `de10f83`, plus compiled G002/PTR
 table-schema compatibility and synthetic update-protocol validation. The

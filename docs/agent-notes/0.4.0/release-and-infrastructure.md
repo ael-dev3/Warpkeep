@@ -1,5 +1,15 @@
 # Release engineering, CI and infrastructure audit
 
+## Current source checkpoint — 2026-09-09
+
+The active Windows/GitHub source is `47a85607e0df68f9c6f491be84e797436c1cbc0e`
+on `codex/prepared-keep-bindings-fix`; the functional visual checkpoint is
+`0ce25c8`. The dependency, private Sharp/libvips, runtime-verifier and
+sealed-launch source-pin repairs are published, and the six agent-facing
+evidence files reconcile to this source. Current Linux, SpacetimeDB and CodeQL
+runs remain the authority for this head; the historical entries below retain
+their original source and acceptance limits.
+
 ## Dedicated local preparation namespace
 
 The current source selects WSL `WarpkeepRunner`, intended user `warpkeep`

@@ -5,6 +5,17 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Current source checkpoint — 2026-09-09
+
+Windows and GitHub now match `47a85607e0df68f9c6f491be84e797436c1cbc0e` on
+`codex/prepared-keep-bindings-fix`. The functional Verdant Citadel/mobile visual
+checkpoint remains `0ce25c8`; the current source also contains the dependency,
+private Sharp/libvips, runtime-verifier and sealed-launch source-pin repairs plus
+the reconciled agent-facing evidence files. Historical checkpoint labels below
+retain their original scope and are not current-source claims. The long Linux,
+SpacetimeDB and CodeQL checks for this exact source are running; no live release,
+physical-device acceptance or owner journey is claimed.
+
 ## Portrait keep framing — September 9
 
 The portrait WebGL scene now uses the available panel width while retaining
@@ -26,7 +37,7 @@ or completed protected workflow from registration alone.
 
 ## Linux G001 protected closure — September 9
 
-The published Windows/GitHub checkpoint `5c210ce` now names and verifies the
+The historical published checkpoint `5c210ce` names and verifies the
 complete Linux G001 spawned-program family in the protected source closure:
 launcher, materializer, child, policy boundary, receipt codecs, runtime
 helpers, YAML manifest, synthetic G002 entry, workflow evidence codec and
@@ -36,8 +47,9 @@ assembled Linux artifact and the final-family run.
 
 ## Linux G001 policy integration — September 9
 
-Published at `a0b5060` on `upstream/codex/prepared-keep-bindings-fix`, this
-checkpoint connects the Linux G001 read-only policy lane to its receipt,
+The Linux G001 policy integration was historically published at `a0b5060` and is
+included in the current source `47a8560` on `upstream/codex/prepared-keep-bindings-fix`.
+That checkpoint connects the Linux G001 read-only policy lane to its receipt,
 adoption, activation-record and recovery consumers. It keeps the historical
 Darwin receipt profile distinct, refreshes the opaque workflow evidence scope at
 the final credential boundary, and uses the fixed Linux account, private namespace,
@@ -759,7 +771,7 @@ visual improvement, not physical-device or complete visual acceptance.
 
 The keep now omits repeated zero-pending amounts and shows one quiet no-return status. Nonzero incoming amounts remain explicitly unspendable; balances and command semantics are unchanged. All 21 Keep04Screen tests and app/test types passed. Fresh empty/mature desktop and 390px synthetic renderer captures had no horizontal overflow. Nonzero pending and confirmed-return behavior are covered by component tests; physical-device performance remains unverified.
 
-At the earlier source `c104f7b6368635ab6ae36da6ce02c3aa5a9c412d`, full native Linux prepare and the separate rebuilding check both exited successfully with identical family `f23eb885a62eea112e943b70a692b785da0a28b7b873fe2f0e39a59c1508740e`. That candidate had `finalReleasePrepared: false`, was not deployed, and predates the current UI and Linux G001 integration. The current published Windows/GitHub checkpoint is `a0b5060`; native materializer/child execution and generated-closure audit remain open.
+At the earlier source `c104f7b6368635ab6ae36da6ce02c3aa5a9c412d`, full native Linux prepare and the separate rebuilding check both exited successfully with identical family `f23eb885a62eea112e943b70a692b785da0a28b7b873fe2f0e39a59c1508740e`. That candidate had `finalReleasePrepared: false`, was not deployed, and predates the current UI and Linux G001 integration. The current published Windows/GitHub checkpoint is `47a8560`; native materializer/child execution and generated-closure audit remain open.
 
 ## Dedicated Linux caller and private-state integration
 

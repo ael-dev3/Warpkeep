@@ -1,5 +1,9 @@
 # PR verification backlog repair — 2026-09-07
 
+Current source is `47a85607e0df68f9c6f491be84e797436c1cbc0e`; its Verify and
+CodeQL runs are the active authority for the branch. The historical cleanup and
+run identifiers below retain their original scope.
+
 Authenticated inspection found 19 nonterminal Verify runs for PR228, including
 current head `1c8591e7949e625ace7a1b6e981752a028dda704`. There was no Verify
 concurrency policy. Repeated development pushes had left superseded work
