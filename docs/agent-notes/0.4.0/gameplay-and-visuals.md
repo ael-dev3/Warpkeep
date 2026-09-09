@@ -1,8 +1,8 @@
 # Gameplay and visual implementation notes
 
-Updated 2026-09-09 against current PR #228 source `55b787e0` and the inspected
-working files. Earlier source hashes below remain dated evidence anchors, not
-current review targets.
+Updated 2026-09-09 against current PR #228 branch tip `ecffa586` (functional
+visual source `55b787e0`) and the inspected working files. Earlier source hashes
+below remain dated evidence anchors, not current review targets.
 This refresh includes the focused Keep04 UI/scene run (161 tests across eight
 files), including the accessible Worker Outbound → Gathering → Returning journey
 rail and the reproducible Desktop handoff command; it has

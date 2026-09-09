@@ -2,7 +2,7 @@
 
 ## Current source checkpoint — 2026-09-09
 
-The current published branch tip is `55b787e0`
+The current published branch tip is `ecffa586`
 on `codex/prepared-keep-bindings-fix`. The dependency, private
 Sharp/libvips, runtime-verifier,
 sealed-launch source-pin and recovery-loader repairs are published, and the

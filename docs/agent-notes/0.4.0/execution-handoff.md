@@ -7,7 +7,7 @@ live release. The current user's direction takes precedence over historical plan
 
 ## Current source checkpoint — 2026-09-09
 
-The current published branch tip is `55b787e0` on
+The current published branch tip is `ecffa586` on
 `codex/prepared-keep-bindings-fix`. It includes the bounded Keep04 moat surface,
 current reference-to-source notes, the Windows browser-runtime adapter, the
 Vite watcher boundary that keeps disposable Chrome profiles out of the source
