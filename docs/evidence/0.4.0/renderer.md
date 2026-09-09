@@ -14,12 +14,19 @@ The active Keep04 owners are:
   limits, frame cadence, visibility suspension, context recovery, pointer/pinch
   input and renderer disposal.
 - `src/components/keep04/createKeep04Scene.ts` owns the bounded scene graph,
-  authored building reconciliation, pick targets, telemetry and disposal.
+  authored building reconciliation, the static non-interactive moat water
+  treatment, pick targets, telemetry and disposal.
 - `src/components/keep04/keep04VoxelDressing.ts` and
   `src/components/realm/voxelSurfaceMesh.ts` own decorative voxel preparation;
   decorative occupancy never becomes gameplay authority.
 - `src/greater-realm/greaterRealmWaterSurface.ts` owns the single-pass water
   surface used by the 0.4 Greater Realm runtime.
+
+Keep04 water is deliberately a shallow scenic layer outside the legal support
+deck. It uses one bounded vertex-colored plane plus a narrow edge highlight; it
+does not add reflections, editable terrain, per-frame CPU deformation, or a new
+interaction surface. The scene test verifies its position, color variation and
+absence from the pick-target set.
 - `src/components/keep04/Keep04Screen.css` and `Keep04Schematic.tsx` own the
   mobile-safe presentation and usable non-WebGL placement route.
 

@@ -62,6 +62,33 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
     deckGeometry.setAttribute('color', new THREE.BufferAttribute(deckColors, 3));
     const deckMaterial = mat(P.ground); deckMaterial.vertexColors = true;
     mesh(deckGeometry, deckMaterial, 0, -.5, -4).name = 'legal-support-y0';
+    // A shallow, non-interactive moat gives the citadel a readable edge and
+    // carries the water reference into the actual 0.4 keep renderer without
+    // introducing a simulation, reflection pass, or extra interaction lane.
+    const waterGeometry = new THREE.PlaneGeometry(86, 8, quality === 'high' ? 12 : quality === 'balanced' ? 8 : 4, 2);
+    waterGeometry.rotateX(-Math.PI / 2);
+    const waterPositions = waterGeometry.getAttribute('position');
+    const waterColors = new Float32Array(waterPositions.count * 3);
+    for (let i = 0; i < waterPositions.count; i++) {
+      const x = waterPositions.getX(i);
+      const z = waterPositions.getZ(i);
+      const shimmer = .86 + Math.sin(x * .36 + z * .52) * .06 + Math.cos(x * .18 - z * .77) * .04;
+      waterColors.set([.28 * shimmer, .56 * shimmer, .60 * shimmer], i * 3);
+    }
+    waterGeometry.setAttribute('color', new THREE.BufferAttribute(waterColors, 3));
+    const waterMaterial = new THREE.MeshStandardMaterial({
+      color: '#5a9a9b',
+      emissive: '#173d40',
+      emissiveIntensity: .22,
+      metalness: .08,
+      roughness: .2,
+      transparent: true,
+      opacity: quality === 'reduced' ? .78 : .88,
+      vertexColors: true,
+    });
+    materials.add(waterMaterial);
+    mesh(waterGeometry, waterMaterial, 0, -1.03, -44.4).name = 'moat-water-surface';
+    mesh(new THREE.BoxGeometry(86, .08, .18), mat('#b7d2c1'), 0, -.94, -40.45).name = 'moat-water-edge';
     try {
       if (import.meta.env.DEV && options.qaVoxelFailure) throw new Error('QA voxel preparation failure.');
       const preparationStart = performance.now();
