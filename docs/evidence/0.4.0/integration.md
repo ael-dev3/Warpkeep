@@ -4,7 +4,7 @@ Updated 2026-09-09. R14 remains incomplete; source publication is not production
 
 ## Current checkpoint — 2026-09-09
 
-The published Windows/GitHub head is `07c9e8b6`
+The published Windows/GitHub head is `e37c77f3`
 on `codex/prepared-keep-bindings-fix`, and `git ls-remote` matches it. PR #228
 remains a draft. The checkpoint includes the portrait keep framing and mobile
 surface polish, the truthful workflow-runtime provenance expectation, Linux
@@ -21,7 +21,7 @@ The functional visual checkpoint remains `0ce25c8`; `07c9e8b6` is a
 documentation-only clarification of the visual-foundation contract's reviewed
 source pin and does not claim final visual, device or live acceptance.
 
-The current Verify run for `07c9e8b6` has auth-bridge, native-contract and
+The current Verify run for `e37c77f3` has auth-bridge, native-contract and
 release-recovery passing. Linux, SpacetimeDB and CodeQL are still in progress;
 R14 remains incomplete until those jobs reach a terminal passing result and the
 release-relevant review is reconciled.
