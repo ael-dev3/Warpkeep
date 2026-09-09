@@ -8,6 +8,7 @@ const kinds: Building04[] = ['city-mill', 'lumber-camp', 'city-stoneworks', 'cit
 for (const kind of kinds) it.each([1, 2, 3, 4, 5])(`${kind} level %s retains a distinct bounded silhouette and owns its disposal`, level => {
   const building = createKeep04Building({ kind, level, constructing: false, quality: 'reduced' });
   expect(building.root.getObjectByName(`silhouette:${kind}`)).toBeDefined();
+  expect(building.root.getObjectByName(`level-expression:${level}`)).toBeDefined();
   expect(building.root.getObjectByName(`level-badge:${level}`)).toBeDefined();
   expect(building.root.children.filter(child => child.name.startsWith('pennant:'))).toHaveLength(level - 1);
   const size = new THREE.Box3().setFromObject(building.root).getSize(new THREE.Vector3());
@@ -18,6 +19,17 @@ for (const kind of kinds) it.each([1, 2, 3, 4, 5])(`${kind} level %s retains a d
   expect(materials.size).toBeLessThanOrEqual(6);
   const spies = [...materials].map(m => vi.spyOn(m, 'dispose'));
   building.dispose(); building.dispose(); spies.forEach(spy => expect(spy).toHaveBeenCalledTimes(1));
+});
+it('keeps authored prefabs inside their footprint while expressing completed level', () => {
+  const geometry = new THREE.BoxGeometry(2, 3, 2); const material = new THREE.MeshStandardMaterial({ color: '#ffffff' });
+  const root = new THREE.Group(); root.add(new THREE.Mesh(geometry, material));
+  const prefab: InnerKeepRuntimePrefab = { id: 'city-mill', root, clips: [], boundsMeters: [2, 3, 2], triangles: 12, drawCalls: 1, animated: false, mounted: false, clone: () => root.clone(true) };
+  const building = createKeep04Building({ kind: 'city-mill', level: 5, constructing: false, quality: 'reduced', prefab });
+  const size = new THREE.Box3().setFromObject(building.root).getSize(new THREE.Vector3());
+  expect(building.root.getObjectByName('level-expression:5')).toBeDefined();
+  expect(size.x).toBeLessThanOrEqual(KEEP04_FOOTPRINTS['city-mill'][0]);
+  expect(size.z).toBeLessThanOrEqual(KEEP04_FOOTPRINTS['city-mill'][1]);
+  building.dispose(); geometry.dispose(); material.dispose();
 });
 it('clones source materials but leaves bundle geometry and textures owned by the bundle', () => {
   const geometry = new THREE.BoxGeometry(2, 3, 2); const material = new THREE.MeshStandardMaterial({ color: '#ffffff' });

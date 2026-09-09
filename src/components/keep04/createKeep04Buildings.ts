@@ -131,6 +131,24 @@ export function createKeep04Building(options: Readonly<{
       for (const x of [-8, 8]) cone(2.4, 7, P.warpViolet, x, 10.5, 0);
     }
   }
+  // Completed levels need to read from the keep camera even when an authored
+  // prefab is available. These restrained masonry courses are a single merged
+  // presentation layer: they stay inside the policy footprint, add no pick
+  // targets, and cost nothing after construction because they are static.
+  if (!constructing && level > 0) {
+    const expression = new THREE.Group(); expression.name = `level-expression:${level}`; root.add(expression);
+    const tierHeight = 0.12;
+    for (let tier = 0; tier < level; tier++) {
+      const inset = 0.7 + tier * 0.18;
+      const widthInset = 1.4 + tier * 0.36;
+      const depthInset = 1.4 + tier * 0.36;
+      const y = tierHeight * (tier + 1) - tierHeight / 2;
+      box(Math.max(1, width - widthInset), tierHeight, 0.18, P.masonry, 0, y, depth / 2 - inset);
+      box(Math.max(1, width - widthInset), tierHeight, 0.18, P.masonry, 0, y, -depth / 2 + inset);
+      box(0.18, tierHeight, Math.max(1, depth - depthInset), P.masonry, width / 2 - inset, y, 0);
+      box(0.18, tierHeight, Math.max(1, depth - depthInset), P.masonry, -width / 2 + inset, y, 0);
+    }
+  }
   // Seven-segment mesh numerals: no browser canvas/texture dependency and no collision growth.
   const badge = new THREE.Group(); badge.name = `level-badge:${level}`; root.add(badge);
   const bx = -width * 0.3; const bz = depth / 2 - 0.45;
