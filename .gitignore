@@ -11,6 +11,7 @@ coverage
 
 # Machine-local caches and deployment state.
 .cache/
+/artifacts/
 .wrangler/
 .dev.vars*
 !.dev.vars.example

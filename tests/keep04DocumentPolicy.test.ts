@@ -42,3 +42,7 @@ it('never installs the middleware for production build or preview hooks', async 
   const selected = await plugin('serve'); expect(selected).toBeDefined();
   expect(selected!.apply).toBe('serve'); expect(selected!.configurePreviewServer).toBeUndefined();
 });
+it('keeps disposable Chrome profiles outside the Vite source watcher', async () => {
+  const configured = await (config as UserConfigFn)({ command: 'serve', mode: 'development' });
+  expect(configured.server?.watch?.ignored).toEqual(expect.arrayContaining(['**/.cache/**']));
+});

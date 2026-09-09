@@ -2,11 +2,11 @@
 
 ## Scope and source
 
-This record covers the CI-reviewed implementation checkpoint
-`43cac019888aefb83fcd3901446fc5af99d39036`; the current branch also carries the
-documentation and inspiration-guard follow-up. It records the 0.4 renderer
-foundation and its intentional recovery paths. It does not claim a physical
-phone result, authenticated owner play, or a final performance gate.
+This record covers the current PR #228 implementation checkpoint
+`d06cb4c1965742d17a524d24c5998ca1dbc22a81`; older hashes in dated evidence are
+historical anchors only. It records the 0.4 renderer foundation and its
+intentional recovery paths. It does not claim a physical phone result,
+authenticated owner play, or a final performance gate.
 
 The active Keep04 owners are:
 

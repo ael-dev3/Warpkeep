@@ -14,6 +14,21 @@ evidence boundary, not a claim that the live owner journey is complete.
   state was created. The repository's pinned SpacetimeDB attestation currently
   has reviewed binaries for `darwin-arm64` and `linux-x64`, but no Windows
   binary record.
+- The Windows synthetic Keep04 browser lane then captured run
+  `windows-run-q9Jo7j`: 36 bounded cases, 36 exact server-policy document
+  guards, a valid installed Chrome identity, and verified owned-process cleanup.
+  Desktop and 390px portrait outputs were spot-checked, including empty and
+  completed-keep states. This is rendered evidence of the current page, not
+  owner/device acceptance: the checkout had unrelated substantive changes, so
+  the report correctly marks `stableSource: false`, and sustained performance
+  was not measured.
+
+The first rerun failed because Vite watched the disposable Chrome profile's
+locked SQLite files and Windows raised `EBUSY`. `vite.config.ts` now excludes
+the generated `.cache` profile surface from the source watcher; the exact
+policy response and this regression are covered by
+`tests/keep04DocumentPolicy.test.ts`. Generated capture output is ignored by
+the repository and remains available locally for review.
 
 The local browser lane now has a platform boundary for both supported browser
 hosts. macOS continues to use the signed Chrome application contract. Windows

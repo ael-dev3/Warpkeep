@@ -113,6 +113,13 @@ export default defineConfig(({ command }) => ({
   server: {
     fs: {
       deny: [...WARPKEEP_LOCAL_VITE_FS_DENY]
+    },
+    // Browser QA profiles live under the ignored repository cache. Watching
+    // Chrome's live SQLite files makes Windows fail with EBUSY and can abort
+    // the dev server while a capture is still establishing its document
+    // policy. Keep generated QA state out of Vite's source watcher.
+    watch: {
+      ignored: ['**/.cache/**']
     }
   },
   // Vite's React development preamble is an inline module. The public build

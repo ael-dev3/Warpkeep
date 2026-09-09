@@ -1,8 +1,9 @@
 # Gameplay and visual implementation notes
 
-Updated 2026-09-09 against the published documentation branch head over the
-published functional source `206c03683c9039b513b878d7b0d3c6770eda2626`, with visual behavior
-anchored at `0ce25c8f2602aaa65149b46af53fb12345eb8cc9` and the inspected working files.
+Updated 2026-09-09 against current PR #228 source
+`d06cb4c1965742d17a524d24c5998ca1dbc22a81` and the inspected working files.
+Earlier source hashes below remain dated evidence anchors, not current review
+targets.
 This refresh includes the focused Keep04 UI/scene run (161 tests across eight
 files), including the accessible Worker Outbound → Gathering → Returning journey
 rail and the reproducible Desktop handoff command; it has
@@ -31,7 +32,7 @@ this page keeps precise mechanics, implementation routes and evidence limits.
 
 ## Visual foundation and complete reference coverage
 
-At functional visual checkpoint `0ce25c8`, the owner direction prioritizes a professional mobile visual
+At current functional visual checkpoint `d06cb4c`, the owner direction prioritizes a professional mobile visual
 foundation with simple interaction. Preserve the useful existing loop; deeper
 simulation and elaborate editing remain later work. The full Desktop handoff
 reference library informs one coherent Verdant Citadel, rather than a collection
