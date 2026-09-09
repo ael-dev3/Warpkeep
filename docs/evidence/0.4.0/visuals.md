@@ -2,7 +2,7 @@
 
 ## 2026-09-09 source-render matrix checkpoint
 
-The current published source is `4b51310`; the functional visual checkpoint is
+The current published source is `096d9c0`; the functional visual checkpoint is
 `0ce25c8`. Actual renderer synthetic captures
 covered the empty, mature, legal-placement, blocked-placement, construction,
 completed and schematic-fallback states at desktop and 390px portrait profiles.
@@ -19,7 +19,9 @@ surface contrast keep balances legible without adding a second mobile layout. Th
 focused Keep04 UI/scene run passed 66 tests after this styling pass; visual
 captures and physical-device measurements remain separate acceptance evidence.
 
-The handoff reference library is represented in the current visual plan and
+The completed-level masonry course treatment is represented in the authored and
+fallback keep paths and remains bounded by the existing footprint and geometry
+budgets. The handoff reference library is represented in the current visual plan and
 source notes: voxel composition, Verdant Forest, Pelagic water/material cues,
 terrain/atmosphere studies, settlement/rendering research and Dream Loop's
 iteration discipline. The implementation deliberately uses the existing

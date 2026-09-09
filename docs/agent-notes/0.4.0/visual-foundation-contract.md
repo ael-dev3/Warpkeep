@@ -8,7 +8,7 @@ readability, mobile behavior and iteration quality. It does not turn a visual
 reference into an imported engine, a new economy, or a promise of deep
 interactivity.
 
-The visual contract was reviewed against published source `447858a3bf8beaac9190bc77087c972e60ef0d66`.
+The visual contract was reviewed against published source `096d9c0a258d0009c6a7a5cd2ce885dee115f100`.
 The live branch head is maintained in the Desktop handoff's current checkpoint
 and PR #228; a documentation-only change does not change the reviewed scene
 evidence below.
@@ -45,7 +45,7 @@ code or media was copied.
 | Pelagic; Three.js Water Pro; Luminous Lake | Keep one lightweight water surface with broad world-aligned movement, fine ripples, calm shoreline color and restrained sky highlights. Directional river cues may be tuned from existing data. Avoid displaced grids, live reflections and CPU-per-frame deformation. The active owner is `greaterRealmWaterSurface.ts`. |
 | Dream Loop and Vesper | Treat visual iteration as a repeatable critic loop: capture the real scene, compare against the Verdant Citadel target, name the most visible mismatch, make the smallest source change, and capture again. The process is documented below; Dream Loop is not a runtime dependency. |
 | Selo Empire; Widelands | Make available, incoming, blocked, committed and completed states answer “what is missing?”, “what is returning?”, “what happens next?” and “what improves afterward?” in the existing Worker and building panels. Do not import their larger logistics simulations. |
-| Townscaper; Tiny Glade | Make each completed building level read as a cohesive silhouette and material change with a short, calm reveal. Keep fixed policy footprints and Warpkeep's own strategic purpose; do not add freeform construction. |
+| Townscaper; Tiny Glade | Make each completed building level read as a cohesive silhouette and material change with a short, calm reveal. The keep now adds bounded merged masonry courses to authored prefabs and fallback silhouettes alongside its level badge and pennants. Keep fixed policy footprints and Warpkeep's own strategic purpose; do not add freeform construction. |
 | Mapgen4; procedural terrain research; SimonDev; ZyFou | Give the atlas a readable hierarchy of coast, water, ridges, climate bands and selected routes using authoritative atlas data. Generation remains separate from presentation, and no live erosion or replacement geography is introduced for visual polish. |
 | Tectonic/uplift/erosion studies; Priority-Flood; tile-erosion evaluation; Crytek height fog; Three.js WebGPU and TSL references | Use these as bounded review lenses for landform continuity, drainage plausibility, atmospheric separation and renderer capability. Keep the current authoritative terrain data, WebGL fallback and quality profiles; do not add live erosion, a WebGPU migration or a shader-language rewrite to 0.4. |
 | InstancedMesh2 | Measure current batches before adopting per-instance culling or LOD. Use it only when a real keep or atlas workload shows a visible benefit; simple grass and voxel faces should remain simple when most instances are visible. |

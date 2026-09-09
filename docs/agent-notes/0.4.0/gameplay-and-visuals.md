@@ -1,7 +1,7 @@
 # Gameplay and visual implementation notes
 
 Updated 2026-09-09 against the published source checkpoint at
-`8115ff0fe65a08e74e79b02716cee492863327e8`, with functional visual behavior
+`096d9c0a258d0009c6a7a5cd2ce885dee115f100`, with functional visual behavior
 anchored at `0ce25c8f2602aaa65149b46af53fb12345eb8cc9` and the inspected working files.
 This refresh includes the focused Keep04 UI/scene run (155 tests across eight
 files), including the accessible Worker Outbound → Gathering → Returning journey
@@ -78,8 +78,8 @@ See the source routing table below for their entry points.
 | three-stylized + stylized-components | K instancing and A batched terrain/features | Grass/ground cover should bridge forms without hiding targets | Study inexpensive instanced silhouettes and coherent wind; do not install whole shader packages by default |
 | Selo Empire | U already distinguishes costs, incoming/confirmed return, Builder busy and benefit | Visual hierarchy across these explanations can still be too text-heavy | Consistent resource icons, spacing and status tone; preserve actual semantics and offline progression, no logistics expansion |
 | Widelands | U separates spendable return from estimates; catalog deficits | “On the way” and available resources need instantly different presentation | Small visual grouping and contextual explanation within existing panels; no economy dashboard |
-| Townscaper | B six families; K 0.45s scale reveal | A level increase may look like a badge/dressing change at overview scale | A restrained family-specific silhouette/material progression pass with fixed footprints; no freeform building system |
-| Tiny Glade | Pale stone, dark timber, teal roofs, warm scaffold light, reused authored assets | Six buildings and ground props must feel like one authored place | Harmonize proportions/material groups and contact with ground; improve only visible details at mobile camera |
+| Townscaper | B six families; K 0.45s scale reveal and bounded merged masonry courses per completed level | Authored models need a level cue that survives the overview camera | The level expression stays inside fixed footprints, uses one static merged presentation layer, and adds no freeform building system |
+| Tiny Glade | Pale stone, dark timber, teal roofs, warm scaffold light, reused authored assets | Six buildings and ground props must feel like one authored place | Harmonize proportions/material groups and contact with ground; completed-level courses now support the mobile silhouette without per-frame work |
 | Red Blob Mapgen4 | A regional colors, river/stream plans, coast cells and chunks | Macro geography may lose priority amid repeated decorative detail | Strengthen river/coast/ridge contrast and selected outlines with current map data; generation stays separate |
 | EZ-Tree | Two existing tree assets, instanced and tinted in K | Repeated crowns offer limited natural variation | First curate transforms/tints; if assets are insufficient, author a tiny offline crown kit with matching low-detail silhouettes and measured payload |
 | InstancedMesh2 | K already uses InstancedMesh; A streams/batches chunks | No evidence yet that per-instance culling improves this workload | Profile existing batches first; retain simple grass/voxel batches, consider medium-prop LOD only if measurements justify it |
@@ -102,8 +102,8 @@ See the source routing table below for their entry points.
 | FFXIV chat tabs; Fortnite chat/reporting; Minecraft reporting/1.19.1/accessibility; Forge of Empires chat/reporting; Travian interaction/reporting | Historical communication/accessibility context. Apply legible labels, contrast, target sizes and calm hierarchy now. Chat channels, moderation/reporting flows and social mechanics are not new visual-foundation tasks. |
 
 
-The forest rows' proposed grouping and the terrace separation pass are now
-implemented at the checkpoint above. Further work should concentrate on building
+The forest rows' proposed grouping, terrace separation pass and completed-level
+silhouette treatment are now implemented at the checkpoint above. Further work should concentrate on building
 proportions, coherent material response, geographic hierarchy, selected-site and
 construction views, loading/resume behavior and actual-device measurements.
 Avoid repeating the completed forest/terrace changes as unfinished work.
