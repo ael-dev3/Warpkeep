@@ -268,3 +268,18 @@ it("keeps zero incoming resources quiet without hiding available balances", () =
   expect(resources.getByText("No resources awaiting return")).toBeVisible();
   for (const name of ["Food", "Wood", "Stone", "Gold"]) expect(resources.getByText(name)).toBeVisible();
 });
+
+it('keeps the gather-to-return loop legible while the player makes a decision', () => {
+  setup();
+  const loop = () => screen.getByRole('region', { name: 'Keep loop' });
+  expect(within(loop()).getByRole('listitem', { name: 'Choose · active' })).toHaveAttribute('aria-current', 'step');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Manage Workers' }));
+  expect(within(loop()).getByRole('listitem', { name: 'Gather · active' })).toHaveAttribute('aria-current', 'step');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Buildings' }));
+  fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
+  expect(within(loop()).getByRole('listitem', { name: 'Build · active' })).toHaveAttribute('aria-current', 'step');
+  expect(within(loop()).getByText('Set a permanent site and review its cost before confirming.')).toBeVisible();
+});

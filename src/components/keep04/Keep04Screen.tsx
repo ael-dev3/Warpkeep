@@ -5,6 +5,7 @@ import type { Controller04, Snapshot04 } from '../../ptr/gameplay04/createGamepl
 import { initialPlacement04 } from '../../ptr/gameplay04/gameplay04Placement';
 import { PENDING_LABEL04 } from '../../ptr/gameplay04/gameplay04Presentation';
 import { Keep04BuildingPanel, RESOURCES04 } from './Keep04BuildingPanel';
+import { activeKeep04LoopStage04, Keep04LoopRail } from './Keep04LoopRail';
 import { Keep04Schematic } from './Keep04Schematic';
 import { Keep04SceneHost, type Keep04SceneHostProps } from './Keep04SceneHost';
 import { evaluatePlacement04 } from '../../../spacetimedb/gameplay04/placement';
@@ -156,6 +157,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
           <button type="button" aria-controls={selection.panel ? panelId : undefined} aria-expanded={selection.panel === 'workers'} onClick={event => openPanel('workers', event.currentTarget)}>Manage Workers</button>
         </nav>
       </div>
+      <Keep04LoopRail stage={activeKeep04LoopStage04(selection, view)} />
       {problem === 'capacity' && <p role="status">That resource location is full. Find another location.</p>}
       {problem === 'target' && <p role="status">That resource location changed. Choose a current Realm location.</p>}
       <div className="keep04-workspace" data-panel-open={selection.panel !== null}>

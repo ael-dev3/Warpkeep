@@ -60,7 +60,8 @@ from mistaking an alias for an unreviewed or omitted reference.
 ## Current checkpoint (`b6fe024e` functional source; current docs tip)
 
 The presentation contract is now exercised end to end: the atlas/keep entry,
-worker setup, outbound → gathering → returning rail, resource disclosure,
+worker setup, outbound → gathering → returning rail, gather → choose → build →
+benefit → return loop rail, resource disclosure,
 individual recall, Recall All, automatic settlement and node reuse all remain
 readable at narrow widths. Setup evidence is deliberately labelled as a
 progressed snapshot; strict fresh-browser re-entry still owns the continuity,
@@ -180,7 +181,7 @@ larger catalogue of references or an arbitrary score.
 | --- | --- |
 | Keep composition, materials and building silhouettes | `src/components/keep04/keep04VisualProfile.ts`, `src/components/keep04/createKeep04Buildings.ts`, `src/components/keep04/createKeep04Scene.ts` |
 | Forest and voxel dressing | `src/components/keep04/keep04VoxelDressing.ts`, `src/components/keep04/planKeep04DressingSource.ts`, `src/components/realm/voxelSurfaceMesh.ts` |
-| Mobile layout, status and focus | `src/components/keep04/Keep04Screen.tsx`, `src/components/keep04/Keep04Screen.css`, `src/components/keep04/Keep04BuildingPanel.tsx`, `src/components/keep04/Keep04WorkerPanel.tsx` |
+| Mobile layout, status and focus | `src/components/keep04/Keep04Screen.tsx`, `src/components/keep04/Keep04Screen.css`, `src/components/keep04/Keep04LoopRail.tsx`, `src/components/keep04/Keep04BuildingPanel.tsx`, `src/components/keep04/Keep04WorkerPanel.tsx` |
 | Greater Realm water and quality | `src/greater-realm/greaterRealmWaterSurface.ts`, `src/greater-realm/createGreaterRealmSceneRuntime.ts` |
 | Rendered evidence and limits | `docs/evidence/0.4.0/visuals.md`, `docs/evidence/0.4.0/renderer.md`, `docs/evidence/0.4.0/performance.md`, `docs/operations/0.4.0-release-checklist.md` |
 

@@ -110,6 +110,7 @@ describe('Warpkeep 0.4 visual foundation contract', () => {
       'src/components/keep04/keep04VoxelDressing.ts',
       'src/components/keep04/Keep04Screen.tsx',
       'src/components/keep04/Keep04Screen.css',
+      'src/components/keep04/Keep04LoopRail.tsx',
       'src/components/keep04/Keep04BuildingPanel.tsx',
       'src/components/keep04/Keep04WorkerPanel.tsx',
       'src/greater-realm/greaterRealmWaterSurface.ts',
