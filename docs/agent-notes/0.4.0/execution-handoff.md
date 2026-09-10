@@ -43,6 +43,20 @@ secondary rendering studies. These references shape composition, palette,
 material response, terrain hierarchy and review method; they do not introduce
 copied code/media, deep simulation, freeform editing or arbitrary content counts.
 
+### G001 history and the reviewed operator refreeze
+
+The G001 adoption history still anchors the frozen module and its original
+build recipe at `d945256b217fa13ade944b9ed9880e8463b46123`. Four shared operator
+helpers were subsequently refactored for the current Linux/Windows delivery
+rails: `greater-realm-production-provenance.ts`,
+`greater-realm-production-transport.ts`, `hermes-admin.ts`, and
+`spacetime-cli-attestation.mjs`. The sealed-launch verifier retains the complete
+historical projection and, when those four bytes differ, requires every other
+projection path to remain byte-identical to the historical freeze while
+requiring the four helpers to match the explicitly reviewed refreeze commit
+`f6036cb93711f1358eda9c7a5804457665a864c9`. A later operator change must be
+reviewed and pinned as a new refreeze; it cannot pass through a broad exception.
+
 ## Windows connected local QA — September 9
 
 The pinned SpacetimeDB 2.6.1 Windows CLI is now attested against the reviewed

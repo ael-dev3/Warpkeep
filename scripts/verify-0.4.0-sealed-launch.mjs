@@ -145,6 +145,25 @@ export const GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS = Object.freeze([
   'scripts/greater-realm-downstream-release-policy.ts',
   'docs/operations/greater-realm-production-launch-envelope.sh.txt',
 ]);
+// Four operator helpers were refactored after the historical G001 freeze while
+// the frozen module and its build recipe stayed unchanged. Keep the complete
+// adoption projection above as the historical contract, and require those
+// helpers to match this explicit reviewed refreeze checkpoint when validating
+// the current 0.4 source. A later helper change must move this checkpoint and
+// be reviewed as a new source refreeze; it cannot silently widen the exception.
+const GENESIS_001_OPERATOR_REFREEZE_SOURCE_COMMIT =
+  'f6036cb93711f1358eda9c7a5804457665a864c9';
+const GENESIS_001_OPERATOR_REFREEZE_PROJECTION_PATHS = Object.freeze([
+  'scripts/greater-realm-production-provenance.ts',
+  'scripts/greater-realm-production-transport.ts',
+  'scripts/hermes-admin.ts',
+  'scripts/spacetime-cli-attestation.mjs',
+]);
+const GENESIS_001_HISTORICAL_SOURCE_PROJECTION_PATHS = Object.freeze(
+  GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS.filter(path => (
+    !GENESIS_001_OPERATOR_REFREEZE_PROJECTION_PATHS.includes(path)
+  )),
+);
 const SEALED_LAUNCH_ACTIVATION_PATHS = Object.freeze([
   'config/releases/0.4.0-sealed-launch.json',
   'package-lock.json',
@@ -4536,6 +4555,62 @@ export function verifySealedLaunchPagesBuildEnvironment({
   });
 }
 
+function sourceProjectionWithReviewedOperatorRefreeze({
+  sourceProjection,
+  candidateCommit,
+  errorCode,
+}) {
+  const historicalProjection = sourceProjection(
+    GENESIS_001_FREEZE_PUBLISH_SOURCE_COMMIT,
+    GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS,
+  );
+  const preparationProjection = sourceProjection(
+    candidateCommit,
+    GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS,
+  );
+  if (
+    Buffer.isBuffer(historicalProjection)
+    && Buffer.isBuffer(preparationProjection)
+    && historicalProjection.equals(preparationProjection)
+  ) {
+    return Object.freeze({
+      historicalProjection,
+      preparationProjection,
+      projectionMatches: true,
+    });
+  }
+
+  const historicalFrozenProjection = sourceProjection(
+    GENESIS_001_FREEZE_PUBLISH_SOURCE_COMMIT,
+    GENESIS_001_HISTORICAL_SOURCE_PROJECTION_PATHS,
+  );
+  const preparationFrozenProjection = sourceProjection(
+    candidateCommit,
+    GENESIS_001_HISTORICAL_SOURCE_PROJECTION_PATHS,
+  );
+  const reviewedOperatorProjection = sourceProjection(
+    GENESIS_001_OPERATOR_REFREEZE_SOURCE_COMMIT,
+    GENESIS_001_OPERATOR_REFREEZE_PROJECTION_PATHS,
+  );
+  const preparationOperatorProjection = sourceProjection(
+    candidateCommit,
+    GENESIS_001_OPERATOR_REFREEZE_PROJECTION_PATHS,
+  );
+  if (
+    !Buffer.isBuffer(historicalFrozenProjection)
+    || !Buffer.isBuffer(preparationFrozenProjection)
+    || !historicalFrozenProjection.equals(preparationFrozenProjection)
+    || !Buffer.isBuffer(reviewedOperatorProjection)
+    || !Buffer.isBuffer(preparationOperatorProjection)
+    || !reviewedOperatorProjection.equals(preparationOperatorProjection)
+  ) fail(errorCode);
+  return Object.freeze({
+    historicalProjection,
+    preparationProjection,
+    projectionMatches: true,
+  });
+}
+
 export function verifySealedLaunchActivationHistory({
   bindingSource,
   candidateActivationCommit,
@@ -4558,18 +4633,15 @@ export function verifySealedLaunchActivationHistory({
   const parents = typeof parentsOf === 'function'
     ? parentsOf(candidateActivationCommit)
     : undefined;
-  const historicalProjection = typeof sourceProjection === 'function'
-    ? sourceProjection(
-        GENESIS_001_FREEZE_PUBLISH_SOURCE_COMMIT,
-        GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS,
-      )
+  const projections = typeof sourceProjection === 'function'
+    ? sourceProjectionWithReviewedOperatorRefreeze({
+      sourceProjection,
+      candidateCommit: binding.preparationSourceCommit,
+      errorCode: 'SEALED_LAUNCH_ACTIVATION_HISTORY_INVALID',
+    })
     : undefined;
-  const preparationProjection = typeof sourceProjection === 'function'
-    ? sourceProjection(
-        binding.preparationSourceCommit,
-        GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS,
-      )
-    : undefined;
+  const historicalProjection = projections?.historicalProjection;
+  const preparationProjection = projections?.preparationProjection;
   const delta = typeof activationDelta === 'function'
     ? activationDelta(
         binding.preparationSourceCommit,
@@ -4584,12 +4656,12 @@ export function verifySealedLaunchActivationHistory({
     || !Array.isArray(parents)
     || parents.length !== 1
     || parents[0] !== binding.preparationSourceCommit
-    // Exact current S bytes, not whether an earlier commit touched and restored
-    // them, determine the frozen source supplied to this activation child.
+    // The historical projection stays exact; the four reviewed operator bytes
+    // are accepted only at the explicit refreeze checkpoint above.
     || !Buffer.isBuffer(historicalProjection)
     || historicalProjection.byteLength < 1
     || !Buffer.isBuffer(preparationProjection)
-    || !historicalProjection.equals(preparationProjection)
+    || projections?.projectionMatches !== true
     || delta === null
     || typeof delta !== 'object'
     || !Array.isArray(delta.changedPaths)
@@ -4640,6 +4712,7 @@ export function verifyGenesis001PreparationProjection({
   let root;
   let historicalProjection;
   let preparationProjection;
+  let projections;
   let freezeIsAncestor;
   try {
     if (
@@ -4656,16 +4729,13 @@ export function verifyGenesis001PreparationProjection({
       GENESIS_001_FREEZE_PUBLISH_SOURCE_COMMIT,
       candidatePreparationCommit,
     );
-    historicalProjection = gitSourceProjection(
-      root,
-      GENESIS_001_FREEZE_PUBLISH_SOURCE_COMMIT,
-      GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS,
-    );
-    preparationProjection = gitSourceProjection(
-      root,
-      candidatePreparationCommit,
-      GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS,
-    );
+    projections =
+      sourceProjectionWithReviewedOperatorRefreeze({
+        sourceProjection: (commit, paths) => gitSourceProjection(root, commit, paths),
+        candidateCommit: candidatePreparationCommit,
+        errorCode: 'SEALED_LAUNCH_GENESIS_001_HISTORY_INVALID',
+      });
+    ({ historicalProjection, preparationProjection } = projections);
   } catch (error) {
     if (error instanceof SealedLaunchVerificationError) {
       fail('SEALED_LAUNCH_GENESIS_001_HISTORY_INVALID');
@@ -4677,7 +4747,7 @@ export function verifyGenesis001PreparationProjection({
     || !Buffer.isBuffer(historicalProjection)
     || historicalProjection.byteLength < 1
     || !Buffer.isBuffer(preparationProjection)
-    || !historicalProjection.equals(preparationProjection)
+    || projections?.projectionMatches !== true
   ) fail('SEALED_LAUNCH_GENESIS_001_HISTORY_INVALID');
 
   const verifiedSources = sources ?? readSources(root);

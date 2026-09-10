@@ -14,6 +14,15 @@ lane passed on the functional source checkpoint with the warning boundary and
 re-entry diagnostics enabled; a fresh
 run is still required after any further source change for release evidence.
 
+The sealed-launch history check preserves the original G001 freeze at
+`d945256b217fa13ade944b9ed9880e8463b46123`. The four operator helpers that were
+refactored for the current delivery rails are checked against the reviewed
+refreeze `f6036cb93711f1358eda9c7a5804457665a864c9`; every other adoption
+projection path must still match the historical freeze. This keeps the G001
+module/build authority immutable while allowing the reviewed cross-platform
+operator corrections to be shipped. Any later helper change requires another
+explicit refreeze.
+
 ## Connected QA checkpoint — 2026-09-10
 
 The passing lane covered title/Terms continuity, realm entry, Inner Keep setup,

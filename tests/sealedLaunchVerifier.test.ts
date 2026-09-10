@@ -2768,6 +2768,60 @@ export function createPtrAtlasImportTransport(`,
     }
   });
 
+  it('accepts the reviewed operator-helper refreeze while retaining the historical G001 projection', () => {
+    const operatorRefreezeCommit =
+      'f6036cb93711f1358eda9c7a5804457665a864c9';
+    const operatorRefreezePaths = [
+      'scripts/greater-realm-production-provenance.ts',
+      'scripts/greater-realm-production-transport.ts',
+      'scripts/hermes-admin.ts',
+      'scripts/spacetime-cli-attestation.mjs',
+    ];
+    const sourceProjection = vi.fn((commit: string, paths: readonly string[]) => {
+      if (paths.length === GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS.length) {
+        return Buffer.from(commit === 'd945256b217fa13ade944b9ed9880e8463b46123'
+          ? 'historical full projection'
+          : 'current full projection');
+      }
+      if (paths.length === operatorRefreezePaths.length
+        && paths.every(path => operatorRefreezePaths.includes(path))) {
+        return Buffer.from(commit === operatorRefreezeCommit || commit === '7'.repeat(40)
+          ? 'reviewed operator projection'
+          : 'unexpected operator projection');
+      }
+      return Buffer.from('unchanged historical G001 projection');
+    });
+    expect(() => verifySealedLaunchActivationHistory({
+      bindingSource: canonical(activationBinding()),
+      candidateActivationCommit: 'f'.repeat(40),
+      isAncestor: () => true,
+      ...validActivationHistoryChecks(),
+      sourceProjection,
+    })).not.toThrow();
+
+    const driftedProjection = vi.fn((commit: string, paths: readonly string[]) => {
+      if (paths.length === GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS.length) {
+        return Buffer.from(commit === 'd945256b217fa13ade944b9ed9880e8463b46123'
+          ? 'historical full projection'
+          : 'current full projection');
+      }
+      if (paths.length === operatorRefreezePaths.length
+        && paths.every(path => operatorRefreezePaths.includes(path))) {
+        return Buffer.from('reviewed operator projection');
+      }
+      return Buffer.from(commit === 'd945256b217fa13ade944b9ed9880e8463b46123'
+        ? 'unchanged historical G001 projection'
+        : 'unexpected frozen G001 drift');
+    });
+    expect(() => verifySealedLaunchActivationHistory({
+      bindingSource: canonical(activationBinding()),
+      candidateActivationCommit: 'f'.repeat(40),
+      isAncestor: () => true,
+      ...validActivationHistoryChecks(),
+      sourceProjection: driftedProjection,
+    })).toThrow('SEALED_LAUNCH_ACTIVATION_HISTORY_INVALID');
+  });
+
   it('rejects protected worktree drift hidden by tracked index flags', () => {
     const fixtureParent = mkdtempSync(resolve(tmpdir(), 'warpkeep-checkout-flags-'));
     const fixtureRoot = resolve(fixtureParent, 'repository');

@@ -8,7 +8,7 @@ The reviewed branch is synchronized with upstream on
 `codex/prepared-keep-bindings-fix`; PR #228 remains a draft. The functional
 source lane is `6e2164f1`. The latest Verify and CodeQL checks linked from PR #228
 are the live R14 authority for this tip. The regenerated closure
-manifest is `882fcba311ad46c9f2528cd9d77687d6adaa132b4900caacb418359a3bcc56cd`.
+manifest is `723779a955a961b1968ca86d8d6f9343962350fb4171ae33c42e8ce96bd3e7f2`.
 This is current
 integration status only: no terminal Verify pass, live owner journey,
 physical-device acceptance or production deployment is claimed.
