@@ -7,7 +7,7 @@ live release. The current user's direction takes precedence over historical plan
 
 ## Current source checkpoint — 2026-09-10
 
-The current published implementation checkpoint is `86dca0a8` (functional
+The current published implementation checkpoint is `88e58c8d` (functional
 source checkpoint `6e2164f1`) on `codex/prepared-keep-bindings-fix`. It includes
 the bounded Keep04 moat surface,
 current reference-to-source notes, the Windows browser-runtime adapter, the
@@ -21,7 +21,7 @@ loader fixture-CWD safe, keep the native operation-bundle import outside Vite's
 static resolver, refresh the sealed package/lock identity pins, and refreeze the
 1,194-member notification closure. Historical checkpoint labels retain their
 original scope and are not current-source claims. GitHub Verify and CodeQL for
-`86dca0a8` are the active remote checks; no live release, physical-device
+`88e58c8d` is the active remote check set; no live release, physical-device
 acceptance or owner journey is claimed.
 
 ## Connected journey checkpoint — 2026-09-10

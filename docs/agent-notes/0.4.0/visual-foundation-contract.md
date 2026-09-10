@@ -9,7 +9,7 @@ reference into an imported engine, a new economy, or a promise of deep
 interactivity.
 
 The visual contract is maintained against the current PR #228 implementation
-checkpoint `86dca0a8` (functional source checkpoint `6e2164f1`); earlier hashes
+checkpoint `88e58c8d` (functional source checkpoint `6e2164f1`); earlier hashes
 in dated evidence records remain historical
 anchors and are not the source to review for a new pass. The latest connected
 checkpoint covers the four-worker journey, fresh-browser re-entry, private
@@ -23,7 +23,21 @@ The 0.4 release remains a development build until the release checklist records
 authenticated owner play, physical-device review and the required delivery
 evidence.
 
-## Current checkpoint (`6e2164f1` functional source; `86dca0a8` published head)
+## Handoff coverage audit — 2026-09-10
+
+The attached handoff was rechecked against this contract before continuing the
+0.4 workflow. The mapping covers the voxel and Astra studies; Verdant Forest,
+Pelagic and Dream Loop; settlement and construction references including Selo,
+Widelands, Townscaper and Tiny Glade; terrain, climate and rendering research
+including Mapgen4, EZ-Tree, SimonDev, ZyFou, the erosion and fog papers, WebGPU
+and TSL; performance references including InstancedMesh2 and the grass and
+Mistwood studies; and the atmosphere, reconnect, accessibility and social-UI
+references. Each family has a source owner, a mobile/readability rule and an
+evidence or deferral boundary below. These references guide the Verdant Citadel
+presentation and review process; they do not add deep interactivity, a new
+simulation, or an imported engine to 0.4.
+
+## Current checkpoint (`6e2164f1` functional source; `88e58c8d` published head)
 
 The presentation contract is now exercised end to end: the atlas/keep entry,
 worker setup, outbound → gathering → returning rail, resource disclosure,

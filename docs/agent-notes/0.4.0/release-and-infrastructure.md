@@ -2,15 +2,16 @@
 
 ## Current source checkpoint — 2026-09-10
 
-The current published implementation checkpoint is `86dca0a8` (functional
+The current published implementation checkpoint is `88e58c8d` (functional
 source checkpoint `6e2164f1`) on `codex/prepared-keep-bindings-fix`. The dependency, private
 Sharp/libvips, runtime-verifier,
 sealed-launch source-pin and recovery-loader repairs are published, and the
-agent-facing evidence files reconcile to this source. GitHub Verify and CodeQL
-for this branch must still be checked at the current head; older run IDs below
-retain their original source and acceptance limits and are not current-release
-evidence. The disposable Windows full-stack lane passed on the functional source
-checkpoint with the warning boundary and re-entry diagnostics enabled; a fresh
+agent-facing evidence files reconcile to this source. Verify run `34470001676`
+is pending and CodeQL run `34470001632` is in progress for this exact head.
+Older run IDs below retain their original source and acceptance
+limits and are not current-release evidence. The disposable Windows full-stack
+lane passed on the functional source checkpoint with the warning boundary and
+re-entry diagnostics enabled; a fresh
 run is still required after any further source change for release evidence.
 
 ## Connected QA checkpoint — 2026-09-10

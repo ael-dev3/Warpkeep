@@ -4,11 +4,12 @@ Updated 2026-09-10. R14 remains incomplete; source publication is not production
 
 ## Current checkpoint — 2026-09-10
 
-The reviewed branch head is `86dca0a876d7438c16862e93ab16f15d02cd5307` on
+The reviewed branch head is `88e58c8d5c90e4cfd4ba927796b9c7e4d68c0f2b` on
 `codex/prepared-keep-bindings-fix`; PR #228 remains a draft. The functional
-source lane is `6e2164f1`. Verify run `34447868371` is still in progress with
-auth-bridge, native-contract and release-recovery passed while Linux and
-SpacetimeDB continue. CodeQL run `34447868301` passed. This is current
+source lane is `6e2164f1`. Verify run `34470001676` is pending and CodeQL run
+`34470001632` is in progress for this exact head. The regenerated closure
+manifest is `882fcba311ad46c9f2528cd9d77687d6adaa132b4900caacb418359a3bcc56cd`.
+This is current
 integration status only: no terminal Verify pass, live owner journey,
 physical-device acceptance or production deployment is claimed.
 
