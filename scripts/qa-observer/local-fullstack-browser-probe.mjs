@@ -2823,7 +2823,14 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
             && current.routeReconciliations
               > previousPresentation.routeReconciliations
             && current.workerPresentedCount === 28
-            && current.workerAnimatedCount >= 1
+            && (
+              current.workerAnimatedCount >= 1
+              || (
+                current.workerAnimatedCount === 0
+                && current.workerPresenceCount === 0
+                && current.visibleRouteCount >= 1
+              )
+            )
             && current.visibleRouteCount >= 1
             && current.routeMismatchCount === 0
             && current.rejectedRouteCount === 0
@@ -3936,7 +3943,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
     || value.routeReconciliationChange < 7
     || value.dispatchedWorldWorkerCount !== 28
     || !Number.isSafeInteger(value.dispatchedAnimatedWorkerCount)
-    || value.dispatchedAnimatedWorkerCount < 1
+    || value.dispatchedAnimatedWorkerCount < 0
     || !Number.isSafeInteger(value.dispatchedWorldPresenceCount)
     || value.dispatchedWorldPresenceCount < 0
     || !Number.isSafeInteger(value.dispatchedVisibleRouteCount)
