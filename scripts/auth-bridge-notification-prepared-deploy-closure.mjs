@@ -900,6 +900,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'src/components/inner-keep/loadInnerKeepRabbitAssets.ts',
     'src/components/inner-keep/loadInnerKeepRuntimeAssets.ts',
     'src/components/keep04/Keep04BuildingPanel.tsx',
+    'src/components/keep04/Keep04LoopRail.tsx',
     'src/components/keep04/Keep04SceneHost.tsx',
     'src/components/keep04/Keep04Schematic.tsx',
     'src/components/keep04/Keep04Screen.css',

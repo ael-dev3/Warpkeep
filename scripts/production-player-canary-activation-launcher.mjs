@@ -36,7 +36,7 @@ import {
 
 export const PRODUCTION_PLAYER_CANARY_ACTIVATION_LAUNCHER_PROFILE =
   'warpkeep-production-player-canary-activation-launcher-v1';
-export const EXPECTED_PROTECTED_SOURCE_CLOSURE_MEMBER_COUNT = 1194;
+export const EXPECTED_PROTECTED_SOURCE_CLOSURE_MEMBER_COUNT = 1195;
 
 const REPOSITORY_ROOT = realpathSync(resolve(import.meta.dirname, '..'));
 const COMMIT = /^[0-9a-f]{40}$/u;
