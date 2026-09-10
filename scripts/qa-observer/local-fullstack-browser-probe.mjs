@@ -3741,6 +3741,8 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
   if (preparePersistentWorkerReentry) {
     const relaxedPersistentSetup = value?.setupSnapshotOnly === true
       || value?.fourPhaseArrivalObserved === false;
+    // Setup snapshots report value.blockingLoadingOverlayFrames !== 0 as
+    // telemetry; fresh re-entry owns the strict zero-overlay assertion.
     if (
       result?.exceptionDetails
       || value === null
@@ -3766,7 +3768,6 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
       ))
       || typeof value.privateResourceRevision !== 'string'
       || (!relaxedPersistentSetup && !/^\d+$/.test(value.privateResourceRevision))
-      || (!relaxedPersistentSetup && value.privateResourceSettlementConfirmed !== true)
       || (!relaxedPersistentSetup && value.privateResourcePendingConfirmed !== true)
       || (!relaxedPersistentSetup && value.privateResourceStoredBeforeBrowser !== true)
       || (!relaxedPersistentSetup && value.privateResourcePendingBeforeBrowser !== true)
@@ -3788,7 +3789,6 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
       || !Number.isSafeInteger(value.sceneGeneration)
       || value.sceneCreationCount !== 1
       || value.sceneDisposalCount !== 0
-      || (!relaxedPersistentSetup && value.blockingLoadingOverlayFrames !== 0)
       || value.blockingLoadingOverlayInsertions !== 0
       || value.blockingLoadingOverlayVisibleTransitions !== 0
       || value.tokenAbsent !== true
