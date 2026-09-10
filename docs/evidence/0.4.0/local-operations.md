@@ -17,6 +17,17 @@ The visual aggregate contained 651 samples, 151 cool high-albedo samples and
 synthetic desktop browser/runtime evidence; it does not establish physical-phone
 performance, authenticated owner play or production delivery.
 
+## Rendered WebGL host boundary — 2026-09-10
+
+The generic `npm run qa:rendered-webgl` lane remains the signed macOS observer
+probe because its contract attests `/Applications/Google Chrome.app` with
+`codesign`. Running that command on Windows therefore fails closed before
+renderer work when the macOS executable is absent. Windows coverage uses the
+platform-aware `npm run qa:inner-keep`, `npm run qa:fullstack:local` and
+Keep04 capture lanes; those lanes passed on this checkout. This host selection
+boundary preserves the signed-browser contract and is not a product-renderer
+failure.
+
 ## Windows preparation verifier — 2026-09-10
 
 The published branch tip was cloned into a fresh Windows checkout with
