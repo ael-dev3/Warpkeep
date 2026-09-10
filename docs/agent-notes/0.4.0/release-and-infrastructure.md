@@ -24,8 +24,10 @@ aggregate. The product fix at `RealmMapScreen` exposes localized private-sync
 failure telemetry so recovery is observable without weakening the private gate.
 
 Known repository health item: GitHub currently reports one moderate Dependabot
-vulnerability on the default branch. Inspect and resolve it before a release
-cut; no package or advisory is inferred here.
+alert on the default branch because its lock still carries Vitest 4.1.9. This
+development branch already pins Vitest 4.1.11, the patched release; the alert
+closes when that dependency update reaches `main`. Confirm the alert is closed
+before a release cut.
 
 ## Dedicated local preparation namespace
 
