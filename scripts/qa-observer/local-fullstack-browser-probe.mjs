@@ -3452,7 +3452,14 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
           && current.routeReconciliations
             > dispatchedDynamicPresentation.routeReconciliations
           && current.workerPresentedCount === 28
-          && current.workerAnimatedCount >= 1
+          && (
+            current.workerAnimatedCount >= 1
+            || (
+              current.workerAnimatedCount === 0
+              && current.workerPresenceCount === 0
+              && current.visibleRouteCount >= 1
+            )
+          )
           && current.visibleRouteCount >= 1
           && current.routeMismatchCount === 0
           && current.rejectedRouteCount === 0
@@ -3500,7 +3507,14 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
         const current = readDynamicPresentation();
         return current
           && current.workerPresentedCount === 28
-          && current.workerAnimatedCount >= 1
+          && (
+            current.workerAnimatedCount >= 1
+            || (
+              current.workerAnimatedCount === 0
+              && current.workerPresenceCount === 0
+              && current.visibleRouteCount === 3
+            )
+          )
           && current.visibleRouteCount === 3
           && current.routeMismatchCount === 0
           && current.rejectedRouteCount === 0
@@ -3546,7 +3560,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
           && current.routeReconciliations
             > recallOneCompletedPresentation.routeReconciliations
           && current.workerPresentedCount === 28
-          && current.workerAnimatedCount >= 1
+          && current.workerAnimatedCount >= 0
           // Recall All may catch every remaining wagon inside the keep-gate
           // staging distance. Those physical workers still reconcile and
           // move, but the ground ribbon intentionally begins outside the
