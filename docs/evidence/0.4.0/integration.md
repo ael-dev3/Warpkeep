@@ -1,16 +1,20 @@
 # 0.4.0 integration evidence
 
-Updated 2026-09-10. R14 remains incomplete; source publication is not production deployment.
+Updated 2026-09-10. The completed functional source head passed R14; the
+current documentation-only follow-up is being rechecked. Source publication is
+not production deployment.
 
 ## Current checkpoint — 2026-09-10
 
 The reviewed branch is synchronized with upstream on
 `codex/prepared-keep-bindings-fix`; PR #228 remains a draft. The functional
-source lane is `6e2164f1`. The latest Verify and CodeQL checks linked from PR #228
-are the live R14 authority for this tip. The regenerated closure
+source lane is `b6fe024ecf92ed68bfdc9003093b5a33bb932156`, with documentation
+follow-up at `8ab4f291`. Verify run `34495962510` and CodeQL run `34495962519`
+passed for the functional head; replacement checks for the documentation-only
+follow-up are the current R14 authority. The regenerated closure
 manifest is `723779a955a961b1968ca86d8d6f9343962350fb4171ae33c42e8ce96bd3e7f2`.
-This is current
-integration status only: no terminal Verify pass, live owner journey,
+This is current integration status only: the source-rail pass does not establish
+a live owner journey,
 physical-device acceptance or production deployment is claimed.
 
 ## Historical checkpoint — 2026-09-09
