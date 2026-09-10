@@ -48,9 +48,9 @@ independently checked again from the native checkout. Both lanes returned the sa
 candidate `release-workspace-447cff3cb663d042a1c10db14e426213`. They checked
 3,181 source files, 3,181 candidate files, 101 generated outputs, 444 compiled
 bundle inputs and 7 recovery inputs. `finalReleasePrepared` remains false.
-The later branch head `be43114b` changes documentation only and is synchronized
-in the Windows, GitHub and native checkouts; no native release candidate is
-claimed for that documentation-only commit.
+Later branch commits after this functional checkpoint change documentation only
+and must not be treated as native release candidates without a fresh source
+identity check.
 
 After the closure refreeze, the synchronized native checkout completed both
 release-assembler lanes at `c0e30a37` (`8bc06b320f3cddd53225e5d81b1e5965147e399b`):

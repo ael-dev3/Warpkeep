@@ -1,7 +1,8 @@
 # Release engineering: implementation and evidence
 
-Current reading point: the published development head is
-`5b9ba9657d6e66319f41aabd396faf2a6c947b29`; the September 9 source checkpoint
+Current reading point: the functional source-bound checkpoint is
+`7a542a33`; later branch commits may be documentation-only follow-ups. The
+September 9 source checkpoint
 `206c036` records the latest retained assembled-artifact execution above the
 historical entries in this record; the September 8 entries at the end cover
 the published Linux preflight/Worker source `1e90b2e`, its completed native
