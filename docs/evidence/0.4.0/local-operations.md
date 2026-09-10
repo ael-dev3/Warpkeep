@@ -17,6 +17,15 @@ The visual aggregate contained 651 samples, 151 cool high-albedo samples and
 synthetic desktop browser/runtime evidence; it does not establish physical-phone
 performance, authenticated owner play or production delivery.
 
+## Windows Inner Keep browser QA — 2026-09-10
+
+From the synchronized branch tip (`a3ef1822`, functional source `211b0b1a`),
+`npm run qa:inner-keep` passed all 18 synthetic cases. The lane exercised the
+single-renderer lifecycle, construction and completion states, schematic
+fallback, responsive layouts and browser teardown. It is current Windows
+browser evidence for the mobile visual foundation; it does not establish
+physical-phone frame pacing, thermal behavior or authenticated owner acceptance.
+
 ## Repository-wide test host boundary — 2026-09-10
 
 The focused 0.4 presentation suites, `npm run typecheck`, production build and
