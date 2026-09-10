@@ -272,7 +272,8 @@ export async function runSealedRealmsProductionLinuxPreflight(input) {
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   let options;
   try {
-    if (process.argv.length !== 4 || !/^--operation=(?:preflight|activation-evidence-inspect|activation-evidence-generate)$/u.test(process.argv[2])
+    if (process.argv.length !== 4 || !process.argv[2].startsWith('--operation=')
+      || !Object.hasOwn(OPERATIONS, process.argv[2].slice('--operation='.length))
       || !/^--source=[a-f0-9]{40}$/u.test(process.argv[3])) fail('input');
     options = { operation: process.argv[2].slice('--operation='.length), workflowInputSha: process.argv[3].slice('--source='.length) };
   } catch {

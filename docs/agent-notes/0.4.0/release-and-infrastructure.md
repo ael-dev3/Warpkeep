@@ -1,8 +1,19 @@
 # Release engineering, CI and infrastructure audit
 
-## Current source checkpoint — 2026-09-10
+## Current runner status — 2026-09-10
 
-The current published implementation checkpoint is
+The dedicated `WarpkeepRunner` service is enabled and running as `warpkeep`
+UID/GID 1000. GitHub reported existing runner ID 22 online and idle at 21:20 UTC
+after completing the interrupted helper/marker installation. Empty sealed private
+roots are now provisioned. No credentials or receipts were migrated and no
+protected workflow was dispatched. This supersedes the historical setup and
+offline observations below. Follow the
+[runner guide](../../operations/0.4.0-linux-runner.md) for current paths and the
+remaining recovery deployment/readback integration; R11 is still incomplete.
+
+## Earlier source checkpoint — 2026-09-10
+
+The preceding published implementation checkpoint was
 `5b9ba9657d6e66319f41aabd396faf2a6c947b29`, with functional source at `c4ad7539` and the Windows QA repair published at `84c35a5e`. The dependency, private
 Sharp/libvips, runtime-verifier,
 sealed-launch source-pin and recovery-loader repairs are published, and the

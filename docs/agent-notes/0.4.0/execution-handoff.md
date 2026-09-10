@@ -5,9 +5,33 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
-## Current source checkpoint — 2026-09-10
+## Workflow audit and runner repair — 2026-09-10
 
-The current published implementation checkpoint is
+The workflow is usable for continued development but is not yet sufficient to
+ship. The interrupted dedicated runner installation has been completed:
+`WarpkeepRunner`, `warpkeep` UID/GID 1000, and existing GitHub runner ID 22 were
+verified online/idle with the service enabled/running. Empty sealed private roots
+were provisioned without credentials or receipts. This supersedes the older
+offline/systemd-pending observations below; no protected dispatch was attempted.
+Use the [current runner guide](../../operations/0.4.0-linux-runner.md) for the
+exact account, maintenance commands, evidence and remaining work.
+
+The actual G001 policy workflow exposed a CLI defect: `g001-policy-observe` was
+supported by the dispatcher but absent from its executable parser. The parser
+now uses the dispatch operation map. The new fresh-process regression reproduced
+the input failure before the fix, then reached the required host-attestation
+failure without runner context. Unsupported operations still fail before host work.
+
+Linux recovery Pages and activation-generation callers already exist; generation
+has job OIDC. The remaining integration is genuine recovery service deployment
+and authenticated readback: the recovery bridge projection still relies on the
+legacy prepared receipt/journal chain, and activation's deployment, binding,
+import and owner attesters remain unavailable. Do not treat an offline bootstrap,
+new runner labels or registration as replacement evidence. R11–R13 remain open.
+
+## Earlier source checkpoint — 2026-09-10
+
+The preceding published implementation checkpoint was
 `5b9ba9657d6e66319f41aabd396faf2a6c947b29`, with functional source at `c4ad7539` and the Windows QA repair at `84c35a5e` on
 `codex/prepared-keep-bindings-fix`. It includes
 the bounded Keep04 moat surface,
@@ -130,9 +154,9 @@ At preceding source `d6cfc5c`, native release preparation and its independent
 rebuild both passed with matching source/artifact provenance. The privileged Linux
 caller suite passed 31 cases; the bounded source/private-record rerun passed all
 17 selected scenarios with unchanged assertions. Final release preparation is
-still false. Runner registration succeeded, but service installation timed out
-in systemd; dedicated-distro recovery is underway. Do not claim an online runner
-or completed protected workflow from registration alone.
+still false. At that checkpoint, runner registration succeeded but service
+installation timed out in systemd. The September 10 repair above supersedes the
+service failure; protected workflow completion remains unverified.
 
 ## Linux G001 protected closure — September 9
 

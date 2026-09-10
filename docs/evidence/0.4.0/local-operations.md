@@ -1,6 +1,34 @@
 # Local operations evidence
 
-2026-09-09 authenticated/read-only inventory. **Not deployment evidence.**
+Dated local and authenticated inventory. **Not deployment evidence.**
+
+## Dedicated runner repair — 2026-09-10
+
+At 21:20 UTC, systemd reported the `WarpkeepRunner` service enabled/active/running
+and GitHub reported existing Linux runner ID 22 online/idle. The repair completed
+the existing installation's missing service helper and marker, after verifying
+the unit against its installed official template. The fixed Node 22.22.3 bytes,
+account UID/GID 1000 and path modes were independently checked. Empty sealed
+private directories were subsequently provisioned with checked descriptors,
+no-follow opens, owner-only modes and directory fsync. No credential or receipt
+was created or migrated, and no protected production job was dispatched.
+
+The workflow audit also reproduced a real executable defect: the G001 policy
+operation failed CLI parsing despite being selected by the workflow. A regression
+test failed at `phase: input` before the parser was repaired to share the dispatch
+map. The executable now requires host attestation for that operation. See the
+[runner guide](../../operations/0.4.0-linux-runner.md) for the precise operating
+profile and remaining authenticated recovery composition.
+
+Verification for this repair: pinned Windows Node 22.22.3 ran the four focused
+operation/preflight/dispatch/workflow suites with 43 passing and 66 skipped
+platform/fixture cases. Focused strict test types passed. The actual installed
+Linux Node separately passed nine fresh-process CLI boundary checks with no
+runner environment: all four supported operations stopped at host attestation,
+and five unsupported/prototype names stopped at input. These do not execute a
+privileged prepared operation. A direct Windows prepared-closure invocation
+refused the unsupported POSIX repository boundary; no fresh full native closure
+acceptance is claimed for this repair.
 
 ## Current-head connected rerun — 2026-09-10
 
