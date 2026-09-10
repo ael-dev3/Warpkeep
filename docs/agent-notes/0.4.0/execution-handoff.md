@@ -8,7 +8,7 @@ live release. The current user's direction takes precedence over historical plan
 ## Current source checkpoint — 2026-09-10
 
 The current published implementation checkpoint is `3eb52ee9` (functional source
-checkpoint `53cad795`) on `codex/prepared-keep-bindings-fix`; later commits are
+checkpoint `a11ca0e7`) on `codex/prepared-keep-bindings-fix`; later commits are
 documentation-only overlays. It includes the bounded Keep04 moat surface,
 current reference-to-source notes, the Windows browser-runtime adapter, the
 Vite watcher boundary that keeps disposable Chrome profiles out of the source
@@ -22,15 +22,15 @@ head; no live release, physical-device acceptance or owner journey is claimed.
 
 ## Connected journey checkpoint — 2026-09-10
 
-The disposable Windows full-stack lane passed immediately before the final
-warning-allowlist-only update at the functional source checkpoint. It covered the title gateway,
+The disposable Windows full-stack lane passed on the functional source checkpoint.
+It covered the title gateway,
 restored Terms continuity, synthetic cold auth/bootstrap, Inner Keep setup,
 four-worker dispatch, outbound → gathering → returning re-entry, private-read
 failure/retry seams, timeout/missing/torn/visibility cases, individual recall,
 Recall All, automatic settlement and released-node reuse. The visual aggregate
 contained both cool high-albedo and warm low-green samples with no clipped
 black/white samples. Static security is green at 50/50 after the current head;
-run the connected lane again on the exact tip before declaring release evidence.
+rerun the connected lane after any further source change before declaring release evidence.
 
 The handoff's full inspiration set remains the 0.4 visual rail: owner voxel
 engine, Verdant Forest, Pelagic Ocean, Dream Loop/Vesper, terrain and atmosphere
