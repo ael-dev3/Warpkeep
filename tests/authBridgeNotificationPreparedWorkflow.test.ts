@@ -100,6 +100,20 @@ const RETAINED_TYPE_ONLY_DECLARATION_PATHS = Object.freeze([
   'scripts/production-player-canary-browser-launcher.d.mts',
   'scripts/production-player-canary-release-binding.d.mts',
 ]);
+const G001_LINUX_DECLARATIONLESS_ENTRYPOINTS = Object.freeze([
+  'scripts/genesis001-linux-policy-boundary.mjs',
+  'scripts/genesis001-linux-policy-child.mjs',
+  'scripts/genesis001-linux-policy-materializer.mjs',
+  'scripts/genesis001-linux-policy-native.mjs',
+  'scripts/local-binding-native-ts-hooks.mjs',
+  'scripts/local-binding-runtime-cli-snapshot.mjs',
+  'scripts/local-binding-runtime-core.mjs',
+  'scripts/local-binding-runtime-process.mjs',
+  'scripts/local-program-artifact.mjs',
+  'scripts/sealed-realms-production-workflow-evidence-json.mjs',
+  'scripts/sealed-realms-production-workflow-evidence.mjs',
+  'scripts/spacetime-binding-tree.mjs',
+]);
 const temporaryDirectories: string[] = [];
 
 interface PreparedRuntimeBoundarySources {
@@ -1313,6 +1327,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       'scripts/verify-auth-bridge-notification-prepared-receipt.mjs',
       'scripts/verify-production-dist-exclusions.mjs',
       'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs',
+      ...G001_LINUX_DECLARATIONLESS_ENTRYPOINTS,
       ...RETAINED_TYPE_ONLY_DECLARATION_PATHS.map(path => path.replace(/\.d\.mts$/u, '.mjs')),
     ].sort();
     const pathSet = new Set(paths);
