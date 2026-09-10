@@ -5408,7 +5408,25 @@ async function exercisePersistentWorkerReentry(
           ) ? evidence : undefined;
         }, 10_000);
         if (recallAllReturning === undefined || !lifecycleStable()) {
-          return { stage: 'reentry-recall-all-returning' };
+          const failedRecallEvidence = readContinuityEvidence(publicReadyProbe);
+          return {
+            stage: 'reentry-recall-all-returning',
+            lifecycleStable: lifecycleStable(),
+            recallableWorkers: publicReadyProbe.getAttribute(
+              'data-local-fullstack-recallable-workers'
+            ) ?? 'missing',
+            publicRevisions: failedRecallEvidence.publicRevisions,
+            privateRevisions: failedRecallEvidence.privateRevisions,
+            privateResourceRevision: failedRecallEvidence.privateResourceRevision,
+            privateResourcePending: publicReadyProbe.getAttribute(
+              'data-local-fullstack-private-resource-has-pending'
+            ) ?? 'missing',
+            routeCount: failedRecallEvidence.routes.length,
+            routeStatuses: failedRecallEvidence.routes.map((route) => route.status).join(','),
+            expectedReturningRevisions: expectedPublicAssignmentRevisions,
+            expectedPrivateReturningRevisions: expectedPrivateAssignmentRevisions,
+            reconnectPrivateResourceRevision: reconnectRecovered.privateResourceRevision
+          };
         }
         await new Promise((resolve) => setTimeout(resolve, 640));
         const recallAllProgressed = await waitFor(() => {
