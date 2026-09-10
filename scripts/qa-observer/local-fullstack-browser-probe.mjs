@@ -3027,7 +3027,19 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
             && /^\\d+$/.test(evidence.privateResourceRevision)
             && privateResources?.some((entry) => entry.available > 0n)
             && privateResources?.some((entry) => entry.pending > 0n)
-          ) ? { ...evidence, privateResources } : undefined;
+          ) ? {
+            ...evidence,
+            privateResources,
+            deployedWorkerCount: localStateCount(
+              'data-local-fullstack-deployed-workers'
+            ),
+            recallableWorkerCount: localStateCount(
+              'data-local-fullstack-recallable-workers'
+            ),
+            exactDispatchTargetCount: localStateCount(
+              'data-local-fullstack-exact-dispatch-target-count'
+            )
+          } : undefined;
         }, 65_000);
         if (fourPhaseContinuity === undefined) {
           // The setup browser is deliberately started before the copied
@@ -3233,12 +3245,9 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
         const html = document.documentElement.innerHTML;
         return {
           stage: 'persistent-worker-reentry-prepared',
-          deployedWorkerCount:
-            localStateCount('data-local-fullstack-deployed-workers'),
-          recallableWorkerCount:
-            localStateCount('data-local-fullstack-recallable-workers'),
-          exactDispatchTargetCount:
-            localStateCount('data-local-fullstack-exact-dispatch-target-count'),
+          deployedWorkerCount: fourPhaseContinuity.deployedWorkerCount,
+          recallableWorkerCount: fourPhaseContinuity.recallableWorkerCount,
+          exactDispatchTargetCount: fourPhaseContinuity.exactDispatchTargetCount,
           dispatchedWorkerCount: dispatchedSiteKeys.length,
           dispatchResourceKinds: dispatchResourceKinds.join(','),
           dispatchSiteCoordinates: dispatchedSiteKeys.join(';'),
