@@ -32,7 +32,7 @@ this page keeps precise mechanics, implementation routes and evidence limits.
 
 ## Visual foundation and complete reference coverage
 
-At current functional visual checkpoint `53cad795`, the owner direction prioritizes a professional mobile visual
+At the current functional visual source checkpoint `6e2164f1`, the owner direction prioritizes a professional mobile visual
 foundation with simple interaction. Preserve the useful existing loop; deeper
 simulation and elaborate editing remain later work. The full Desktop handoff
 reference library informs one coherent Verdant Citadel, rather than a collection
