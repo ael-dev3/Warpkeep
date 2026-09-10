@@ -58,7 +58,7 @@ export function windowsChromeLaunchContract(profile) {
     '--disable-background-networking', '--disable-breakpad', '--disable-crash-reporter', '--disable-client-side-phishing-detection',
     '--disable-component-extensions-with-background-pages', '--disable-component-update', '--disable-default-apps', '--disable-domain-reliability',
     '--disable-extensions', '--disable-field-trial-config', '--disable-sync', '--disable-search-engine-choice-screen',
-    '--disable-features=AutofillServerCommunication,CertificateTransparencyComponentUpdater,InterestFeedContentSuggestions,MediaRouter,OptimizationHints,Translate',
+    '--disable-features=AutofillServerCommunication,CertificateTransparencyComponentUpdater,FirstPartySets,InterestFeedContentSuggestions,MediaRouter,OptimizationHints,Translate',
     '--metrics-recording-only', '--mute-audio', '--no-default-browser-check', '--no-first-run', '--no-proxy-server',
     '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1', '--password-store=basic', '--safebrowsing-disable-auto-update', '--window-size=1440,900', 'about:blank'],
     options: { cwd: ROOT, shell: false, windowsHide: true, detached: false, env: { ...SYSTEM_ENV, TEMP: profile, TMP: profile, APPDATA: profile, LOCALAPPDATA: profile }, stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] } };

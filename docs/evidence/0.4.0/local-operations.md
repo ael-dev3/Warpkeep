@@ -21,6 +21,17 @@ passed 166 tests; one symlink-only fixture is skipped because this host does not
 permit creating symlinks. This is local preparation evidence, not deployment,
 owner acceptance, physical-device, or live 0.4 evidence.
 
+## Windows rendered QA profile cleanup — 2026-09-10
+
+The current Windows browser probe initially reached its full scenario set but
+failed while removing the disposable Chrome profile because Chromium still held
+`first_party_sets.db`. The reviewed headless launch contracts now disable the
+First Party Sets feature and the shared teardown removes transiently locked
+profiles with a bounded retry for `EBUSY`, `EPERM` and `EACCES`; persistent
+failures still fail closed. The rerun completed all 18 synthetic Inner Keep
+cases and removed its disposable profile. This changes QA teardown reliability
+only; it is not phone performance, owner gameplay or live-release evidence.
+
 ## Current local execution checkpoint — 2026-09-09
 
 The Windows/GitHub source head and the dedicated Linux checkout now match

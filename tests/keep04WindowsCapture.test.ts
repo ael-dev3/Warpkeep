@@ -17,6 +17,7 @@ it('creates a hidden pipe-only launch with fresh profile paths and no inherited 
   expect(contract.executable).toBe('C:/Program Files/Google/Chrome/Application/chrome.exe');
   expect(contract.options).toMatchObject({ shell: false, windowsHide: true, detached: false, stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] });
   expect(contract.args).toContain('--remote-debugging-pipe');
+  expect(contract.args).toContain('--disable-features=AutofillServerCommunication,CertificateTransparencyComponentUpdater,FirstPartySets,InterestFeedContentSuggestions,MediaRouter,OptimizationHints,Translate');
   expect(contract.args.join(' ')).not.toMatch(/no-sandbox|disable-gpu|use-angle|use-gl|remote-debugging-port|use-mock-keychain/);
   expect(Object.keys(contract.options.env).sort()).toEqual(['APPDATA', 'LOCALAPPDATA', 'SystemRoot', 'TEMP', 'TMP', 'WINDIR'].sort());
   expect(contract.options.env.TEMP).toBe('C:/workspace/.cache/keep04-qa/profile-ABC123');

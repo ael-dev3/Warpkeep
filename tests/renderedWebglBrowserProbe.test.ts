@@ -28,6 +28,7 @@ import {
   attestHeadlessChromeCodeSignature,
   closeRenderedWebglLoopbackServer,
   cleanupRenderedWebglProbeResources,
+  removeDisposableProbeProfile,
   controlledRendererRecoveryWarningKind,
   DevtoolsPipeSession,
   formatRenderedWebglLocalDiagnostic,
@@ -405,6 +406,21 @@ describe('rendered WebGL headless browser probe contract', () => {
     ]);
   });
 
+  it('retries transient Windows profile locks, but preserves permanent removal failures', async () => {
+    let attempts = 0;
+    const wait = vi.fn(async () => {});
+    const busy = Object.assign(new Error('profile is still closing'), { code: 'EBUSY' });
+    await removeDisposableProbeProfile(() => {
+      attempts += 1;
+      if (attempts < 3) throw busy;
+    }, wait);
+    expect(attempts).toBe(3);
+    expect(wait).toHaveBeenCalledTimes(2);
+
+    const denied = Object.assign(new Error('profile cannot be removed'), { code: 'EPERM' });
+    await expect(removeDisposableProbeProfile(() => { throw denied; }, wait)).rejects.toBe(denied);
+  });
+
   it('closes every tracked loopback socket before awaiting Vite shutdown', async () => {
     const calls: string[] = [];
     const normalSocket = { destroy: () => { calls.push('normal-socket'); } };
@@ -532,7 +548,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain(
       'options.disposeCastleLodVisualEvidenceSource(options.castleLodVisualSource)'
     );
-    expect(source).toContain('await attempt(() => options.removeProfile?.());');
+    expect(source).toContain('removeDisposableProbeProfile(');
     expect(source).toContain('onCastleLodVisualBoundary?.(castleLodVisualBoundary)');
     expect(source).toContain("'desktop-high',");
     expect(source).toContain("'full-hd-balanced',");

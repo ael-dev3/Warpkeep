@@ -790,6 +790,10 @@ describe('local Inner Keep QA production boundary', () => {
       resolve(root, 'scripts/qa-observer/inner-keep-browser-probe.mjs'),
       'utf8'
     );
+    const chromeRuntime = readFileSync(
+      resolve(root, 'scripts/qa-observer/local-fullstack-chrome-runtime.mjs'),
+      'utf8'
+    );
     const packageJson = JSON.parse(
       readFileSync(resolve(root, 'package.json'), 'utf8')
     ) as { scripts: Record<string, string> };
@@ -818,6 +822,9 @@ describe('local Inner Keep QA production boundary', () => {
     expect(verifier).toContain('INNER_KEEP_QA_SCENARIO_MANIFEST');
     expect(browserProbe).toContain('attestStableHeadlessChromeExecutable');
     expect(browserProbe).toContain("local-fullstack-chrome-runtime.mjs");
+    expect(chromeRuntime).toContain(
+      '--disable-features=AutofillServerCommunication,CertificateTransparencyComponentUpdater,FirstPartySets,InterestFeedContentSuggestions,MediaRouter,OptimizationHints,Translate'
+    );
     expect(browserProbe).toContain('terminate: terminateChrome');
     expect(browserProbe).toContain('exactChromeExecutableIdentity');
     expect(browserProbe).toContain('DevtoolsPipeSession');

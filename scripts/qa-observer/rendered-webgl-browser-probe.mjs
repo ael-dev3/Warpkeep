@@ -83,6 +83,8 @@ const TERMINATION_GRACE_MILLISECONDS = 5_000;
 // from the process table on a memory-constrained QA host. Verification remains
 // bounded and fail-closed, but does not mistake delayed reaping for a leak.
 const TERMINATION_VERIFICATION_MILLISECONDS = 15_000;
+const PROFILE_REMOVAL_MAX_ATTEMPTS = 24;
+const PROFILE_REMOVAL_RETRY_MILLISECONDS = 250;
 const CODESIGN_TIMEOUT_MILLISECONDS = 15_000;
 const CODESIGN_MAXIMUM_BYTES = 64 * 1_024;
 const CONTROLLED_RENDERER_MAXIMUM_STALE_DELETE_WARNINGS = 256;
@@ -3589,8 +3591,31 @@ export async function cleanupRenderedWebglProbeResources(options = {}) {
       options.disposeCastleLodVisualEvidenceSource(options.castleLodVisualSource);
     }
   });
-  await attempt(() => options.removeProfile?.());
+  await attempt(() => removeDisposableProbeProfile(
+    options.removeProfile,
+    options.waitForProfileRemoval,
+  ));
   if (firstFailure) throw firstFailure;
+}
+
+/**
+ * Chromium can finish its process tree before Windows releases the last
+ * SQLite profile handle. Retry only the transient lock errors, keeping the
+ * profile disposable while still surfacing a persistent teardown failure.
+ */
+export async function removeDisposableProbeProfile(removeProfile, wait = (milliseconds) => new Promise((resolveWait) => setTimeout(resolveWait, milliseconds))) {
+  if (removeProfile === undefined || removeProfile === null) return;
+  if (typeof removeProfile !== 'function' || typeof wait !== 'function') throw new TypeError('Invalid disposable profile removal operation.');
+  for (let attempt = 0; attempt < PROFILE_REMOVAL_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      await removeProfile();
+      return;
+    } catch (error) {
+      const code = error?.code;
+      if (!['EBUSY', 'EPERM', 'EACCES'].includes(code) || attempt === PROFILE_REMOVAL_MAX_ATTEMPTS - 1) throw error;
+      await wait(PROFILE_REMOVAL_RETRY_MILLISECONDS);
+    }
+  }
 }
 
 /**

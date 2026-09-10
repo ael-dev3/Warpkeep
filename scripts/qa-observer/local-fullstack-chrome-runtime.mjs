@@ -94,7 +94,7 @@ function windowsChromeContract(profileDirectory) {
       '--disable-domain-reliability',
       '--disable-extensions',
       '--disable-field-trial-config',
-      '--disable-features=AutofillServerCommunication,CertificateTransparencyComponentUpdater,InterestFeedContentSuggestions,MediaRouter,OptimizationHints,Translate',
+      '--disable-features=AutofillServerCommunication,CertificateTransparencyComponentUpdater,FirstPartySets,InterestFeedContentSuggestions,MediaRouter,OptimizationHints,Translate',
       '--disable-search-engine-choice-screen',
       '--disable-sync',
       '--metrics-recording-only',
