@@ -6966,7 +6966,7 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
           // every other warning fail-closed.
           if (
             params.entry.level === 'warning'
-            && /^WebGL: too many errors; no more errors will be reported to the console for this context\.?$/i
+            && /^WebGL: too many errors\b.*no more errors will be reported to the console for this context\.?$/i
               .test(String(rawWarning))
           ) return;
           const safeWarning = String(rawWarning)
