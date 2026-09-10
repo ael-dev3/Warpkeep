@@ -8,7 +8,7 @@ const LOOP_COPY04: Readonly<Record<Keep04LoopStage04, Readonly<{ label: string; 
   choose: Object.freeze({ label: 'Choose', detail: 'Pick the improvement that makes the next return better.' }),
   build: Object.freeze({ label: 'Build', detail: 'Set a permanent site and review its cost before confirming.' }),
   benefit: Object.freeze({ label: 'Benefit', detail: 'Construction is underway; the new benefit starts after Realm confirmation.' }),
-  return: Object.freeze({ label: 'Return', detail: 'A Worker is on the way home; resources unlock after the Realm confirms return.' }),
+  return: Object.freeze({ label: 'Return', detail: 'A Worker’s result is reserved until the Realm confirms the return.' }),
 });
 
 export type Keep04LoopSelection04 = Readonly<{
@@ -16,6 +16,10 @@ export type Keep04LoopSelection04 = Readonly<{
   selectedKind: string | null;
   draft: unknown;
 }>;
+
+export function keep04LoopDetail04(stage: Keep04LoopStage04): string {
+  return LOOP_COPY04[stage].detail;
+}
 
 export function activeKeep04LoopStage04(selection: Keep04LoopSelection04, view: View04): Keep04LoopStage04 {
   if (view.workers.some(worker => worker.phase === 'returning')
@@ -39,6 +43,6 @@ export function Keep04LoopRail({ stage }: Readonly<{ stage: Keep04LoopStage04 }>
         </li>;
       })}
     </ol>
-    <p className="keep04-loop-detail" role="status">{LOOP_COPY04[stage].detail}</p>
+    <p className="keep04-loop-detail" role="status">{keep04LoopDetail04(stage)}</p>
   </section>;
 }

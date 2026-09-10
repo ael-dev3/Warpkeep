@@ -221,6 +221,12 @@ export function cleanupRenderedWebglProbeResources(options?: Readonly<{
   vite?: Readonly<{ close(): unknown }>;
 }>): Promise<void>;
 
+/** Removes a disposable browser profile with bounded retries for transient Windows locks. */
+export function removeDisposableProbeProfile(
+  removeProfile: () => unknown,
+  wait?: (milliseconds: number) => Promise<unknown>
+): Promise<void>;
+
 export type RenderedWebglActiveWorkerEvidence = Readonly<{
   activeFixtureSelected: true;
   foreignRecordGeneric: true;

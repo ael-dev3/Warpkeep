@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { activeKeep04LoopStage04, KEEP04_LOOP_STAGES04 } from '../src/components/keep04/Keep04LoopRail';
+import { activeKeep04LoopStage04, KEEP04_LOOP_STAGES04, keep04LoopDetail04 } from '../src/components/keep04/Keep04LoopRail';
 import { presentState04 } from '../src/ptr/gameplay04/gameplay04Presentation';
 import { decodeState04 } from '../src/ptr/gameplay04/gameplay04State';
 import { ATLAS04, SCOPE04, assignmentWire04, constructingWire04, freshWire04 } from './fixtures/gameplay04Client';
@@ -21,4 +21,9 @@ it('prioritizes a returning resource and explains an active construction benefit
   expect(activeKeep04LoopStage04(emptySelection, viewOf(returning))).toBe('return');
 
   expect(activeKeep04LoopStage04(emptySelection, viewOf(constructingWire04()))).toBe('benefit');
+});
+
+it('keeps the return message accurate before a Worker is visibly returning', () => {
+  expect(keep04LoopDetail04('return')).toContain('Realm confirms');
+  expect(keep04LoopDetail04('return')).not.toContain('on the way home');
 });
