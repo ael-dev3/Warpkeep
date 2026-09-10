@@ -1,5 +1,23 @@
 # Verdant Citadel visual acceptance — current source, with device gates open
 
+## 2026-09-10 current-head Windows rendered capture
+
+With the controller-owned Vite server running on the fixed loopback origin, the
+current branch head `b6fe024ecf92ed68bfdc9003093b5a33bb932156` completed the
+prescribed Windows Chrome capture as `artifacts/keep04-qa/windows-run-NyaHBr`.
+The full planned keep matrix covered desktop, short landscape, portrait/mobile,
+reduced-motion and fallback states. The source remained stable, every requested
+document received the guarded QA policy, and owned-browser cleanup was verified.
+Chrome used the installed ANGLE/NVIDIA renderer; this is a desktop synthetic
+capture, not a phone or production performance result.
+
+Manual inspection found a coherent Verdant Citadel silhouette, readable level
+progression, layered forest framing, and legible portrait resource and control
+surfaces. The short-landscape images include the synthetic QA controller/status
+strip above the keep, so they are evidence of the scene and renderer rather
+than final production layout acceptance. Physical-device behavior, sustained
+frame pacing, authenticated owner play and live delivery remain open.
+
 ## 2026-09-09 source-render matrix checkpoint
 
 The current documentation checkpoint records the reviewed branch source

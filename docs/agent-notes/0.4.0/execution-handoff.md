@@ -8,7 +8,7 @@ live release. The current user's direction takes precedence over historical plan
 ## Current source checkpoint — 2026-09-10
 
 The current published implementation is the tip of
-`codex/prepared-keep-bindings-fix` (functional source checkpoint `6e2164f1`). It includes
+`codex/prepared-keep-bindings-fix` (`b6fe024ecf92ed68bfdc9003093b5a33bb932156`). It includes
 the bounded Keep04 moat surface,
 current reference-to-source notes, the Windows browser-runtime adapter, the
 Vite watcher boundary that keeps disposable Chrome profiles out of the source
@@ -20,8 +20,9 @@ boundary. The latest release-rail commits also make the private TypeScript
 loader fixture-CWD safe, keep the native operation-bundle import outside Vite's
 static resolver, refresh the sealed package/lock identity pins, and refreeze the
 1,194-member notification closure. Historical checkpoint labels retain their
-original scope and are not current-source claims. GitHub Verify and CodeQL for
-This branch is the active remote check set; no live release, physical-device
+original scope and are not current-source claims. The current Verify run
+`34495962510` and CodeQL run `34495962519` pass at this head. This verifies the
+published source and protected test rails; no live release, physical-device
 acceptance or owner journey is claimed.
 
 ## Connected journey checkpoint — 2026-09-10
