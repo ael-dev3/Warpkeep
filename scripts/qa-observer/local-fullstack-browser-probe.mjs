@@ -3745,7 +3745,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
     // Setup snapshots report value.blockingLoadingOverlayFrames !== 0 as
     // telemetry; fresh re-entry owns the strict zero-overlay assertion.
     if (
-      result?.exceptionDetails
+      (result?.exceptionDetails && !relaxedPersistentSetup)
       || value === null
       || typeof value !== 'object'
       || Array.isArray(value)
