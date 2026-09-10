@@ -6,7 +6,7 @@
 
 The latest recorded run came from synchronized checkout (`f5378daf`, functional
 source `211b0b1a`); the published branch has since advanced to
-`dd85c69cf10b50604b11d596b77cdb3c2629fb46`. `npm run qa:fullstack:local` passed
+`c4ad75399b0ad2effbe4f56354cdef79683db0cf`. `npm run qa:fullstack:local` passed
 at that recorded source. The run repeated the title gateway
 departure/focus matrix, restored Terms continuity, authoritative Inner Keep
 start/completion and discounted construction, hard-reload persistence,
