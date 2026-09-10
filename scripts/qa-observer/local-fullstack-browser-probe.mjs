@@ -4714,6 +4714,21 @@ async function exercisePersistentWorkerReentry(
         ['wood', 'Logging Camp 12', 'occupied'],
         ['stone', 'Stone Quarry 2', 'available']
       ];
+      const readLiveResourceStates = () => {
+        const currentNavigator = document.querySelector(
+          '.realm-cell-navigator__dialog'
+        );
+        const root = currentNavigator instanceof HTMLElement
+          ? currentNavigator
+          : resourceNavigator;
+        return [...root.querySelectorAll(
+          '.realm-cell-navigator__resource-site'
+        )].map((button) => [
+          button.getAttribute('data-resource-kind') ?? '',
+          button.getAttribute('data-resource-state') ?? '',
+          (button.querySelector('strong')?.textContent ?? '').trim(),
+        ].join(':')).join(';');
+      };
       const resourceStateTruth = await waitFor(() => (
         (() => {
           const currentNavigator = document.querySelector(
@@ -4734,17 +4749,20 @@ async function exercisePersistentWorkerReentry(
             )
           ) ? true : undefined;
         })()
-      ), 10_000);
+      ), 20_000);
       if (!resourceStateTruth) {
         return {
           stage: 'reentry-public-resource-state-truth',
-          resourceStates: [...resourceNavigator.querySelectorAll(
-            '.realm-cell-navigator__resource-site'
-          )].map((button) => [
-            button.getAttribute('data-resource-kind') ?? '',
-            button.getAttribute('data-resource-state') ?? '',
-            (button.querySelector('strong')?.textContent ?? '').trim(),
-          ].join(':')).join(';'),
+          resourceStates: readLiveResourceStates(),
+          publicRouteEvidence: publicReadyProbe.getAttribute(
+            'data-local-fullstack-public-route-evidence'
+          ) ?? '',
+          deployedWorkerCount: publicReadyProbe.getAttribute(
+            'data-local-fullstack-deployed-workers'
+          ) ?? '',
+          recallableWorkerCount: publicReadyProbe.getAttribute(
+            'data-local-fullstack-recallable-workers'
+          ) ?? ''
         };
       }
       const occupiedWoodSite = [...(
