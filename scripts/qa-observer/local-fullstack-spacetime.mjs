@@ -1035,14 +1035,24 @@ function parseWorkerControlState(text, expectedFid = BigInt(LOCAL_FULLSTACK_FID)
   return state;
 }
 
-async function waitForLocalWorkerState(readState, predicate, deadlineMilliseconds) {
+async function waitForLocalWorkerState(
+  readState,
+  predicate,
+  deadlineMilliseconds,
+  failureMessage = 'Production-shaped local Worker state did not become ready.'
+) {
   const deadline = Date.now() + deadlineMilliseconds;
+  let lastState;
   while (Date.now() <= deadline) {
     const state = await readState();
+    lastState = state;
     if (predicate(state)) return state;
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
   }
-  fail('Production-shaped local Worker state did not become ready.');
+  const statusSummary = Array.isArray(lastState?.workers)
+    ? lastState.workers.map((worker) => worker.status).join(',')
+    : 'unavailable';
+  fail(`${failureMessage} (${statusSummary})`);
 }
 
 export async function terminateLocalFullstackProcessGroup(child, options = {}) {
@@ -1484,28 +1494,34 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
     });
   };
   let preparedAttestation;
-  const prepareWorkerScenario = async () => {
-    if (preparedAttestation) return preparedAttestation;
+  const seedWorkerScenario = async ({ initial }) => {
     if (!innerKeepJourneyAttested) {
       fail('Disposable Worker preparation requires the completed Inner Keep journey.');
     }
     const idleState = await readControlState();
     if (
-      idleState.revision !== 2n
-      || idleState.workers.some((worker) => (
+      idleState.workers.some((worker) => (
         worker.status !== 'idle'
-        || worker.revision !== 0n
         || worker.resourceKind !== undefined
         || worker.siteId !== undefined
       ))
-    ) fail('Disposable Worker roster did not begin idle.');
+      || (initial && (
+        idleState.revision !== 2n
+        || idleState.workers.some((worker) => worker.revision !== 0n)
+      ))
+    ) fail(initial
+      ? 'Disposable Worker roster did not begin idle.'
+      : 'Disposable Worker roster did not return to idle before re-preparation.');
+    const dispatchKeyPrefix = initial
+      ? 'local-qa-dispatch'
+      : 'local-qa-reentry-dispatch';
     for (const target of LOCAL_FULLSTACK_DISPATCH_TARGETS) {
       const worker = idleState.workers[target.ordinal - 1];
       await callPlayer('dispatch_worker_v1', JSON.stringify([
         worker.workerId,
         target.resourceKind,
         target.siteId,
-        `local-qa-dispatch-${String(target.ordinal).padStart(2, '0')}`,
+        `${dispatchKeyPrefix}-${String(target.ordinal).padStart(2, '0')}`,
       ]));
     }
 
@@ -1522,7 +1538,8 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
           && worker.revision > 0n
         ))
       ),
-      65_000
+      65_000,
+      `${initial ? 'Initial' : 'Re-prepared'} local Worker gathering state did not become ready.`,
     );
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_250));
     const projectedBeforeSettlement = await readControlState();
@@ -1538,7 +1555,8 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
         && state.revision > gatheringState.revision
         && state.workers.every((worker) => worker.revision > 0n)
       ),
-      10_000
+      10_000,
+      `${initial ? 'Initial' : 'Re-prepared'} local Worker settlement did not become ready.`,
     );
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_250));
     const pendingAfterSettlement = await waitForLocalWorkerState(
@@ -1548,12 +1566,15 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
         && state.wood >= settledState.wood
         && state.revision >= settledState.revision
       ),
-      10_000
+      10_000,
+      `${initial ? 'Initial' : 'Re-prepared'} local Worker pending state did not become ready.`,
     );
     const fourthWorker = pendingAfterSettlement.workers[3];
     await callPlayer('recall_worker_v1', JSON.stringify([
       fourthWorker.workerId,
-      'local-qa-recall-worker-04',
+      initial
+        ? 'local-qa-recall-worker-04'
+        : 'local-qa-reentry-recall-worker-04',
     ]));
     const prepared = await waitForLocalWorkerState(
       readControlState,
@@ -1567,7 +1588,8 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
         && state.pendingWood > 0n
         && state.revision > 0n
       ),
-      10_000
+      10_000,
+      `${initial ? 'Initial' : 'Re-prepared'} local Worker return state did not become ready.`,
     );
     const preparedRollout = parseWorkerRollout(
       await callAdmin('admin_get_worker_rollout_status_v2')
@@ -1600,6 +1622,33 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
     });
     return preparedAttestation;
   };
+  const prepareWorkerScenario = async () => {
+    if (preparedAttestation) return preparedAttestation;
+    return seedWorkerScenario({ initial: true });
+  };
+  const reprepareWorkerScenario = async () => {
+    if (!innerKeepJourneyAttested) {
+      fail('Disposable Worker re-preparation requires the completed Inner Keep journey.');
+    }
+    const current = await readControlState();
+    if (current.workers.some((worker) => worker.status !== 'idle')) {
+      await callPlayer('recall_all_workers_v1', JSON.stringify([
+        'local-qa-reentry-recall-all',
+      ]));
+      await waitForLocalWorkerState(
+        readControlState,
+        (state) => state.workers.every((worker) => (
+          worker.status === 'idle'
+          && worker.resourceKind === undefined
+          && worker.siteId === undefined
+        )),
+        65_000,
+        'Disposable Worker roster did not return to idle before re-preparation.',
+      );
+    }
+    preparedAttestation = undefined;
+    return seedWorkerScenario({ initial: false });
+  };
   return Object.freeze({
     seedAttestation: Object.freeze({
       castleCount: Number(active.expectedCastleCount),
@@ -1630,6 +1679,7 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
     attestInnerKeepJourney,
     inspectInnerKeepFirstProject,
     prepareWorkerScenario,
+    reprepareWorkerScenario,
   });
 }
 
@@ -1813,6 +1863,7 @@ export async function startDisposableLocalFullstackSpacetime(options = {}) {
       attestInnerKeepJourney: localRealm.attestInnerKeepJourney,
       inspectInnerKeepFirstProject: localRealm.inspectInnerKeepFirstProject,
       prepareWorkerScenario: localRealm.prepareWorkerScenario,
+      reprepareWorkerScenario: localRealm.reprepareWorkerScenario,
       seedAttestation: localRealm.seedAttestation,
       serverProcess,
     });
