@@ -157,13 +157,24 @@ type GreaterRealmRuntimeReleaseArtifacts = Readonly<{
     }>;
   }>[];
 }>;
-const loadPrivateModule = createRequire(resolve(process.cwd(), 'package.json'));
-const tsxRuntime = loadPrivateModule('tsx/cjs/api') as { register: () => void };
-tsxRuntime.register();
+const registeredPrivatePackageJsonPaths = new Set<string>();
+
+function loadPrivateModule(modulePath: string) {
+  return createRequire(resolve(process.cwd(), 'package.json'))(modulePath);
+}
+
+function ensurePrivateTsxRuntime() {
+  const packageJsonPath = resolve(process.cwd(), 'package.json');
+  if (registeredPrivatePackageJsonPaths.has(packageJsonPath)) return;
+  const tsxRuntime = loadPrivateModule('tsx/cjs/api') as { register: () => void };
+  tsxRuntime.register();
+  registeredPrivatePackageJsonPaths.add(packageJsonPath);
+}
 
 function verifyGreaterRealmRuntimeReleaseArtifacts(
   artifacts: GreaterRealmRuntimeReleaseArtifacts,
 ): void {
+  ensurePrivateTsxRuntime();
   const modulePath = `.${String.fromCodePoint(47)}atlas${String.fromCodePoint(47)}greater-realm-runtime-release.ts`;
   const module = loadPrivateModule(modulePath) as typeof import('./atlas/greater-realm-runtime-release');
   module.verifyGreaterRealmRuntimeReleaseArtifacts(artifacts);

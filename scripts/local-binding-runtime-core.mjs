@@ -1278,7 +1278,8 @@ async function loadFixedProgramHasher(source, operationRoot, yaml) {
   const hooks = installLocalBindingNativeTsHooks(graph, yaml);
   let packages;
   try {
-    packages = await import('warpkeep:operation-bundle-packages');
+    const operationBundlePackagesSpecifier = 'warpkeep:operation-bundle-packages';
+    packages = await import(/* @vite-ignore */ operationBundlePackagesSpecifier);
     verifyLocalBindingBootstrapSource(source);
   } finally { hooks.deregister(); }
   const sourceRoot = join(operationRoot, 'program-hasher');

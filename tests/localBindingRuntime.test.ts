@@ -167,6 +167,7 @@ describe('fixed local PTR binding runtime', () => {
       'derivePreparedGenesis001CurrentLinuxBindingCheck',
       'derivePreparedGenesis001LinuxCompatibility',
       'derivePreparedGenesis001LinuxCompilation',
+      'derivePreparedGenesisProgramArtifacts',
       'derivePreparedPairedLinuxBindings', 'derivePreparedPtrLinuxBindings',
     ]);
     await expect((module.derivePreparedGenesis001LinuxCompatibility as unknown as
