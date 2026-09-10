@@ -8,7 +8,7 @@ live release. The current user's direction takes precedence over historical plan
 ## Current source checkpoint — 2026-09-10
 
 The current published implementation checkpoint is
-`87717f50`, with functional source at `211b0b1a` and the QA contract repair at `1c214e7f` on
+`441c7e82`, with functional source at `211b0b1a` and the QA contract repair at `1c214e7f` on
 `codex/prepared-keep-bindings-fix`. It includes
 the bounded Keep04 moat surface,
 current reference-to-source notes, the Windows browser-runtime adapter, the

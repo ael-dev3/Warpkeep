@@ -7,7 +7,7 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-Updated September 10 against the published development branch at `87717f50`.
+Updated September 10 against the published development branch at `441c7e82`.
 The GitHub/profile/ecosystem refresh is complete. Continue
 the connected game and delivery work from the [execution handoff](execution-handoff.md),
 which records the current checkpoint, preparation, CI and environment details.
@@ -28,7 +28,9 @@ which records the current checkpoint, preparation, CI and environment details.
   External identity/workflow authority was synthetic;
   actual-owner play and production delivery remain to be accepted. The local
   bundled PTR adapter now also proves the improved return is credited once after
-  the first economy building; the real-atlas owner journey is still open.
+  the first economy building; the real-atlas owner journey is still open. The
+  reserved Worker result is also exposed as a polite status update for assistive
+  technology when the authoritative return state changes.
 - **The player experience needs integrated observation.** Keep/atlas navigation,
   selected Worker continuity, healthy refresh and scoped session renewal are
   implemented. Continue rendered Verdant Citadel review, useful progression,
