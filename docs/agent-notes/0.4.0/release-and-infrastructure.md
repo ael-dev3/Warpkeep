@@ -3,7 +3,7 @@
 ## Current source checkpoint — 2026-09-10
 
 The current published implementation checkpoint is
-`9bcef673dd1c772b16b6b9216c9e23718485404b`, with functional source at `211b0b1a` and the QA contract repair published at `1c214e7f`. The dependency, private
+`5b9ba9657d6e66319f41aabd396faf2a6c947b29`, with functional source at `c4ad7539` and the Windows QA repair published at `84c35a5e`. The dependency, private
 Sharp/libvips, runtime-verifier,
 sealed-launch source-pin and recovery-loader repairs are published, and the
 agent-facing evidence files reconcile to this source. The latest Verify and

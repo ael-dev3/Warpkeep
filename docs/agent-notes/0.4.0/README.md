@@ -8,7 +8,7 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 ## Current working state
 
 Updated September 10 against the published development branch at
-`9bcef673dd1c772b16b6b9216c9e23718485404b`.
+`5b9ba9657d6e66319f41aabd396faf2a6c947b29`.
 The GitHub/profile/ecosystem refresh is complete. Continue
 the connected game and delivery work from the [execution handoff](execution-handoff.md),
 which records the current checkpoint, preparation, CI and environment details.
@@ -42,7 +42,7 @@ which records the current checkpoint, preparation, CI and environment details.
   and construction state. It adds no command, resource rule or progression authority;
   validate its mobile treatment with the next rendered capture.
 - **The connected presentation rail is exercised.** The disposable Windows lane
-  passed against current head `9bcef673dd1c772b16b6b9216c9e23718485404b` with the
+  passed against current head `5b9ba9657d6e66319f41aabd396faf2a6c947b29` with the
   final WebGL warning boundary and re-entry diagnostics, covering fresh-browser
   re-entry, four-worker outbound → gathering → returning, private retry seams,
   recall/settlement and released-node reuse. Rerun after any further source
