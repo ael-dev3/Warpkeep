@@ -659,6 +659,14 @@ describe('PTR gameplay keep module adapter', () => {
       gatheringDurationMicros: 60_000_000n,
     }), { sequence: 7n, revision: 11n });
     assert.equal(harness.workers.values().next().value!.assignment.journey.yieldPerQuantum, 12n);
+    const improvedReturnSchedule = [...harness.schedules.values()].find(row => row.lane === 'worker');
+    assert.ok(improvedReturnSchedule, 'improved journey must retain a return schedule');
+    harness.nowMicros = improvedReturnSchedule.scheduledAt.value.microsSinceUnixEpoch;
+    renew();
+    harness.runScheduleByEngine(improvedReturnSchedule);
+    const improvedReturn = read(harness.context());
+    assert.equal(improvedReturn.food, 172n);
+    assert.equal(improvedReturn.workers[0]!.assignment, undefined);
     const snapshot = harness.snapshot();
     assert.deepEqual(start(harness.context(), buildInput), { sequence: 5n, revision: 8n });
     assert.equal(harness.snapshot(), snapshot);

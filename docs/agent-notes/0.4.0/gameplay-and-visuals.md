@@ -320,9 +320,11 @@ return journey, including stable-host account changes; see the
 
 `tests/gameplay04KeepModules.test.ts` invokes actual bundled adapter code through
 `PtrHarness`, with synthetic routes, controlled clock and renewed auth fixtures.
-Its “actual PTR” title means actual adapter, not networked live PTR. The test
-checks the next dispatch captures improved yield, not that the improved return
-is credited within ten minutes on the real atlas.
+Its “actual PTR” title means actual adapter, not networked live PTR. The test now
+checks that the first economy building completes, the next dispatch captures the
+improved yield, and its scheduled return credits that improved result exactly
+once. This closes the local adapter proof while leaving the real-atlas and
+actual-owner ten-minute acceptance open.
 
 Record real route lengths, dispatch/return timestamps, deductions, building
 completion, subsequent improved dispatch **and credited return**, wall time and
