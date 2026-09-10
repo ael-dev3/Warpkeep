@@ -2,7 +2,7 @@
 
 ## 2026-09-10 current-head responsive QA
 
-At published head `178f629bd1bab71d6be5299d5f40720cc945011d`,
+At published head `9bcef673dd1c772b16b6b9216c9e23718485404b`,
 `npm run qa:inner-keep` passed all 18 synthetic cases. The reviewed matrix
 includes the 390x844 portrait profile, short landscape and desktop geometry,
 construction/completion, reduced motion, missing-asset and schematic fallback

@@ -4,7 +4,7 @@
 
 ## Current-head connected rerun — 2026-09-10
 
-Against synchronized head `178f629bd1bab71d6be5299d5f40720cc945011d`,
+Against synchronized head `9bcef673dd1c772b16b6b9216c9e23718485404b`,
 `npm run qa:fullstack:local` passed. The run covered the title-gateway
 departure/focus matrix, exact-current Terms continuity, authoritative Inner
 Keep City Mill start/completion and discounted Lumber Camp start, hard-reload
@@ -22,7 +22,7 @@ deployment acceptance.
 
 The latest recorded run came from synchronized checkout (`f5378daf`, functional
 source `211b0b1a`); the published branch has since advanced to
-`178f629bd1bab71d6be5299d5f40720cc945011d`. `npm run qa:fullstack:local` passed
+`9bcef673dd1c772b16b6b9216c9e23718485404b`. `npm run qa:fullstack:local` passed
 at that recorded source. The run repeated the title gateway
 departure/focus matrix, restored Terms continuity, authoritative Inner Keep
 start/completion and discounted construction, hard-reload persistence,

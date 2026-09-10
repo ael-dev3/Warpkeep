@@ -1,7 +1,7 @@
 # Release engineering: implementation and evidence
 
 Current reading point: the published development head is
-`178f629bd1bab71d6be5299d5f40720cc945011d`; the September 9 source checkpoint
+`9bcef673dd1c772b16b6b9216c9e23718485404b`; the September 9 source checkpoint
 `206c036` records the latest retained assembled-artifact execution above the
 historical entries in this record; the September 8 entries at the end cover
 the published Linux preflight/Worker source `1e90b2e`, its completed native
