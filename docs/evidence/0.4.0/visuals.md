@@ -1,5 +1,19 @@
 # Verdant Citadel visual acceptance — current source, with device gates open
 
+## 2026-09-10 Keep04 loop rail inspection
+
+At source `87c514c2`, the local Keep04 QA route
+`/dev/keep04-qa.html?scenario=empty&quality=balanced` was opened in the Codex
+in-app browser and inspected as rendered DOM and pixels. The new loop rail sat
+between the decision header and the scene, retained the five stages
+**gather → choose → build → benefit → return**, marked **Choose** active for the
+empty state, and exposed its explanatory copy before the placement schematic.
+Opening the building catalog preserved the rail's source order and moved focus
+to the command panel without changing the synthetic controller's state.
+This was a desktop browser inspection without a fixed phone viewport; it is
+visual source evidence only and does not establish physical-device performance,
+authenticated owner play or live release acceptance.
+
 ## 2026-09-10 current-head Windows rendered capture
 
 With the controller-owned Vite server running on the fixed loopback origin, the
