@@ -30,6 +30,14 @@ privileged prepared operation. A direct Windows prepared-closure invocation
 refused the unsupported POSIX repository boundary; no fresh full native closure
 acceptance is claimed for this repair.
 
+At approximately 21:30 UTC, a final availability check found `WarpkeepRunner`
+stopped after interactive commands exited; GitHub consequently reported offline.
+The enabled service restarted successfully when the guest reopened. A hidden
+Windows WSL process now holds this exact guest open for the current session.
+This does not establish availability after Windows sleep/reboot. The
+[runner guide](../../operations/0.4.0-linux-runner.md) includes the idempotent
+startup command and this operational limit.
+
 ## Current-head connected rerun — 2026-09-10
 
 Against synchronized head `5b9ba9657d6e66319f41aabd396faf2a6c947b29`,

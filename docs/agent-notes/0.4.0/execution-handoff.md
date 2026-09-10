@@ -13,6 +13,9 @@ ship. The interrupted dedicated runner installation has been completed:
 verified online/idle with the service enabled/running. Empty sealed private roots
 were provisioned without credentials or receipts. This supersedes the older
 offline/systemd-pending observations below; no protected dispatch was attempted.
+WSL subsequently stopped the guest when interactive commands exited; a hidden
+Windows process now holds it open for this session. Post-reboot/host-sleep
+availability is not established.
 Use the [current runner guide](../../operations/0.4.0-linux-runner.md) for the
 exact account, maintenance commands, evidence and remaining work.
 
