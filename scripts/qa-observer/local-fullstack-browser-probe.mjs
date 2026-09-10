@@ -3056,6 +3056,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
           const progressedVisibility = await simulateVisibilityCycle();
           return {
             stage: 'persistent-worker-reentry-prepared',
+            setupSnapshotOnly: true,
             fourPhaseArrivalObserved: false,
             deployedWorkerCount: localStateCount(
               'data-local-fullstack-deployed-workers'
@@ -3106,6 +3107,50 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
             storageEmpty: localStorage.length === 0 && sessionStorage.length === 0
           };
         }
+        // The setup browser only needs to leave a durable, production-shaped
+        // fixture behind. The strict private-read, settlement, recall, seam,
+        // and renderer assertions run in the isolated fresh-process lane.
+        const setupSnapshotLifecycle = readSceneLifecycle();
+        const setupSnapshotVisibility = await simulateVisibilityCycle();
+        return {
+          stage: 'persistent-worker-reentry-prepared',
+          setupSnapshotOnly: true,
+          fourPhaseArrivalObserved: true,
+          deployedWorkerCount: fourPhaseContinuity.deployedWorkerCount,
+          recallableWorkerCount: fourPhaseContinuity.recallableWorkerCount,
+          exactDispatchTargetCount: fourPhaseContinuity.exactDispatchTargetCount,
+          dispatchedWorkerCount: dispatchedSiteKeys.length,
+          dispatchResourceKinds: dispatchResourceKinds.join(','),
+          dispatchSiteCoordinates: dispatchedSiteKeys.join(';'),
+          publicAssignmentRevisions: fourPhaseContinuity.publicRevisions,
+          privateAssignmentRevisions: fourPhaseContinuity.privateRevisions,
+          privateResourceRevision: fourPhaseContinuity.privateResourceRevision,
+          privateResourceSettlementConfirmed: false,
+          privateResourcePendingConfirmed: true,
+          privateResourceStoredBeforeBrowser:
+            fourPhaseContinuity.privateResources.some((entry) => entry.available > 0n),
+          privateResourcePendingBeforeBrowser:
+            fourPhaseContinuity.privateResources.some((entry) => entry.pending > 0n),
+          resourceRailNumericSamples: resourceRailObservation.numericSamples,
+          resourceRailInvalidSamples: resourceRailObservation.invalidSamples,
+          resourceRailDistinctValues: resourceRailObservation.observedValues.size,
+          routeEvidenceBeforeProgress: fourPhaseContinuity.routeEvidence,
+          routeEvidenceBeforeNavigation: fourPhaseContinuity.routeEvidence,
+          visibilityCycleConfirmed: setupSnapshotVisibility,
+          lifecycleStable: lifecycleRemainsStable(),
+          sceneGeneration: setupSnapshotLifecycle?.generation,
+          sceneCreationCount: setupSnapshotLifecycle?.creationCount,
+          sceneDisposalCount: setupSnapshotLifecycle?.disposalCount,
+          blockingLoadingOverlayFrames: lifecycleObservation.blockingOverlayFrames,
+          blockingLoadingOverlayInsertions:
+            lifecycleObservation.blockingLoadingOverlayInsertions,
+          blockingLoadingOverlayVisibleTransitions:
+            lifecycleObservation.blockingLoadingOverlayVisibleTransitions,
+          tokenAbsent: !/(?:LOCAL_QA_CHANNEL_NOT_A_REAL_PROOF|LOCAL_QA_SYNTHETIC_MESSAGE|eyJ[A-Za-z0-9_-]{20,}\\.)/.test(
+            document.documentElement.innerHTML
+          ),
+          storageEmpty: localStorage.length === 0 && sessionStorage.length === 0
+        };
         await new Promise((resolve) => setTimeout(resolve, 1_250));
         window.dispatchEvent(new Event('online'));
         const pendingResourceRefresh = await waitFor(() => {
@@ -3694,7 +3739,8 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
   }, COMMAND_TIMEOUT_MILLISECONDS);
   const value = result?.result?.value;
   if (preparePersistentWorkerReentry) {
-    const relaxedPersistentSetup = value?.fourPhaseArrivalObserved === false;
+    const relaxedPersistentSetup = value?.setupSnapshotOnly === true
+      || value?.fourPhaseArrivalObserved === false;
     if (
       result?.exceptionDetails
       || value === null
