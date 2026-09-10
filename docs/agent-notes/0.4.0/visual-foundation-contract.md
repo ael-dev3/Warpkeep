@@ -9,9 +9,8 @@ reference into an imported engine, a new economy, or a promise of deep
 interactivity.
 
 The visual contract is maintained against the current PR #228 implementation
-published branch tip (current documentation tip) over functional source
-checkpoint `b6fe024e`; earlier hashes in dated evidence records remain historical
-anchors and are not the source to review for a new pass. The latest connected
+published branch tip `84c35a5e`; earlier hashes in dated evidence records remain
+historical anchors and are not the source to review for a new pass. The latest connected
 checkpoint covers the four-worker journey, fresh-browser re-entry, private
 retry/recovery seams, resource-catalog disclosure, mobile presentation and
 browser-log hygiene. The full disposable Windows lane passed on the functional
@@ -57,7 +56,7 @@ grouped decisions:
 Keeping these names beside the grouped source owners prevents a future agent
 from mistaking an alias for an unreviewed or omitted reference.
 
-## Current checkpoint (`b6fe024e` functional source; current docs tip)
+## Current checkpoint (`84c35a5e` reviewed source)
 
 The presentation contract is now exercised end to end: the atlas/keep entry,
 worker setup, outbound → gathering → returning rail, gather → choose → build →
