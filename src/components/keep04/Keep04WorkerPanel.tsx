@@ -42,7 +42,7 @@ export function Keep04WorkerPanel({ view, enabled, nowMs, onRecall, onFindResour
       <p className="keep04-badge">{worker.phase}{worker.resource ? ` · ${worker.resource}` : ''}</p>
       {worker.phase !== 'idle' && <WorkerJourneyRail04 phase={worker.phase} />}
       {worker.capturedYield !== null && <p>Gathering rate: {worker.capturedYield.toString()} every 10 seconds</p>}
-      {worker.pendingYield !== null && worker.pendingYield > 0n && worker.resource !== null && <p className="keep04-pending-result">Reserved result: {worker.pendingYield.toString()} {worker.resource} · pending until the Realm confirms return.</p>}
+      {worker.pendingYield !== null && worker.pendingYield > 0n && worker.resource !== null && <p className="keep04-pending-result" role="status">Reserved result: {worker.pendingYield.toString()} {worker.resource} · pending until the Realm confirms return.</p>}
       {worker.returnsAtMicros !== null && <p>Estimated return time: <span>{estimatedTime04(worker.returnsAtMicros, nowMs)}</span></p>}
       {worker.lastCredited !== null && worker.lastReturnResource !== null && <>
         <p>Last return: {worker.lastCredited.toString()} {worker.lastReturnResource} added</p>
