@@ -2684,6 +2684,24 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
           resourcesToggle instanceof HTMLButtonElement
           && resourcesToggle.getAttribute('aria-expanded') !== 'true'
         ) resourcesToggle.click();
+        await waitFor(() => (
+          document.querySelector(
+            '.realm-cell-navigator__dialog '
+              + 'button[data-realm-explore-section="resources"]'
+          )?.getAttribute('aria-expanded') === 'true'
+        ), 2_000);
+        for (let page = 0; page < 8; page += 1) {
+          const currentNavigator = document.querySelector(
+            '.realm-cell-navigator__dialog'
+          );
+          const more = currentNavigator?.querySelector(
+            'section.realm-cell-navigator__resources'
+              + ' .realm-cell-navigator__section-more'
+          );
+          if (!(more instanceof HTMLButtonElement)) break;
+          more.click();
+          await new Promise((resolve) => setTimeout(resolve, 64));
+        }
         const resourceSite = await waitFor(() => {
           const currentNavigator = document.querySelector(
             '.realm-cell-navigator__dialog'
@@ -4802,6 +4820,24 @@ async function exercisePersistentWorkerReentry(
         resourcesToggle instanceof HTMLButtonElement
         && resourcesToggle.getAttribute('aria-expanded') !== 'true'
       ) resourcesToggle.click();
+      await waitFor(() => (
+        document.querySelector(
+          '.realm-cell-navigator__dialog '
+            + 'button[data-realm-explore-section="resources"]'
+        )?.getAttribute('aria-expanded') === 'true'
+      ), 2_000);
+      for (let page = 0; page < 8; page += 1) {
+        const currentNavigator = document.querySelector(
+          '.realm-cell-navigator__dialog'
+        );
+        const more = currentNavigator?.querySelector(
+          'section.realm-cell-navigator__resources'
+            + ' .realm-cell-navigator__section-more'
+        );
+        if (!(more instanceof HTMLButtonElement)) break;
+        more.click();
+        await new Promise((resolve) => setTimeout(resolve, 64));
+      }
       const expectedResourceStates = [
         ['gold', 'Gold Mine 2', 'reserved'],
         ['food', 'Wheat Farm 2', 'reserved'],
