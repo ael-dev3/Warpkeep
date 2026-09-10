@@ -6929,10 +6929,10 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
         ) state.backendDiagnostic = value;
         return;
       }
-      if (
-        method === 'Log.entryAdded'
-        && ['error', 'warning'].includes(params?.entry?.level)
-      ) {
+        if (
+          method === 'Log.entryAdded'
+          && ['error', 'warning'].includes(params?.entry?.level)
+        ) {
         const controlledWarningKind = state.controlledRendererRecovery
           ? controlledRendererRecoveryWarningKind(
               params.entry,
@@ -6949,17 +6949,22 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
           state.controlledRendererWarningCount += 1;
           return;
         }
-        if (
-          controlledWarningKind === 'stale-context-warning-throttle'
+          if (
+            controlledWarningKind === 'stale-context-warning-throttle'
           && !state.controlledRendererWarningThrottleSeen
           && state.controlledRendererWarningCount > 0
         ) {
-          state.controlledRendererWarningThrottleSeen = true;
+            state.controlledRendererWarningThrottleSeen = true;
+            return;
+          }
+          const rawWarning = params?.entry?.text ?? params?.entry?.source ?? 'unknown';
+          const safeWarning = String(rawWarning)
+            .split('\n', 1)[0]
+            .replace(/[^A-Za-z0-9 .:_()/-]/g, '')
+            .slice(0, 96) || 'unknown';
+          state.violation = `${params.entry.level === 'warning' ? 'log-warning' : 'log-error'}-${safeWarning}`;
           return;
         }
-        state.violation = params.entry.level === 'warning' ? 'log-warning' : 'log-error';
-        return;
-      }
       if (method === 'Target.targetDestroyed' || method === 'Target.targetCrashed') {
         state.violation = params?.targetId === state.targetId ? 'target-lost' : 'target-id';
         return;
