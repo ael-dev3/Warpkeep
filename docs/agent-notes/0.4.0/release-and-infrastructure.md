@@ -7,11 +7,13 @@ UID/GID 1000. GitHub reported existing runner ID 22 online and idle at 21:20 UTC
 after completing the interrupted helper/marker installation. Empty sealed private
 roots are now provisioned. No credentials or receipts were migrated and no
 protected workflow was dispatched. Native `prepare` and independent `check` pass
-at the current source `7a542a33` with the 1,195-member closure and the full
-3,181-file candidate family; the current candidate is
+for the latest functional source-bound checkpoint `7a542a33` with the 1,195-member
+closure and the full 3,181-file candidate family; the candidate is
 `release-workspace-447cff3cb663d042a1c10db14e426213` and its source tree is
-`c1152bd3697fe77fda63552daf79edaf13278aaa`. This supersedes the historical setup and
-offline observations below. Follow the
+`c1152bd3697fe77fda63552daf79edaf13278aaa`. The current branch head
+`be43114b` is a documentation-only follow-up and is synchronized in all
+checkouts. This supersedes the historical setup and offline observations below.
+Follow the
 [runner guide](../../operations/0.4.0-linux-runner.md) for current paths and the
 remaining recovery deployment/readback integration; R11 is still incomplete.
 

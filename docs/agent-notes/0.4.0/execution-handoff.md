@@ -34,10 +34,12 @@ native runner completed `prepare` and independent `check` at `c0e30a37`, each
 checking 3,181 source/candidate files and 101 generated outputs. The durable
 candidate remains local preparation evidence only; it is not a deployment grant.
 
-After the docs-only publication at `7a542a33`, the same two lanes were rerun
-against the current source and passed with candidate
+After the first documentation-only publication at `7a542a33`, the same two
+lanes were rerun against that source and passed with candidate
 `release-workspace-447cff3cb663d042a1c10db14e426213`, source tree
 `c1152bd3697fe77fda63552daf79edaf13278aaa`, and the same file/output counts.
+The follow-up `be43114b` changes documentation only; it is synchronized in all
+checkouts.
 
 Linux recovery Pages and activation-generation callers already exist; generation
 has job OIDC. The remaining integration is genuine recovery service deployment
