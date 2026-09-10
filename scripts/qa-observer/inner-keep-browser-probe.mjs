@@ -14,6 +14,7 @@ import {
   readReviewedChromeExecutableIdentity,
   selectBlankPageTarget,
   spawnHeadlessChromeProbe,
+  terminateHeadlessChromeProcessGroup,
 } from './rendered-webgl-browser-probe.mjs';
 import { analyzeRenderedWebglPngScreenshot } from './png-visual-aggregate.mjs';
 import {
@@ -22,6 +23,21 @@ import {
   assertInnerKeepQaScenarioEvidence,
   innerKeepQaBrowserCases,
 } from './inner-keep-qa-contract.mjs';
+
+// Reuse the reviewed Windows Chrome identity and process-tree teardown when
+// this standard probe runs on Windows. The generic rendered-WebGL module keeps
+// its original macOS contract for the other probes.
+const windowsChromeRuntime = process.platform === 'win32'
+  ? await import('./local-fullstack-chrome-runtime.mjs')
+  : undefined;
+const attestReviewedChrome = windowsChromeRuntime?.attestStableFullstackChromeIdentity
+  ?? attestStableHeadlessChromeExecutable;
+const readReviewedChrome = windowsChromeRuntime?.readReviewedFullstackChromeIdentity
+  ?? readReviewedChromeExecutableIdentity;
+const spawnChrome = windowsChromeRuntime?.spawnFullstackChrome
+  ?? spawnHeadlessChromeProbe;
+const terminateChrome = windowsChromeRuntime?.terminateFullstackChrome
+  ?? terminateHeadlessChromeProcessGroup;
 
 const CDP_TIMEOUT_MILLISECONDS = 20_000;
 const POLL_MILLISECONDS = 40;
@@ -579,7 +595,7 @@ export async function runInnerKeepBrowserProbe(options = {}) {
   if (onEvidence !== undefined && typeof onEvidence !== 'function') {
     throw new TypeError('Invalid Inner Keep QA evidence callback.');
   }
-  const reviewedChromeIdentity = await attestStableHeadlessChromeExecutable();
+  const reviewedChromeIdentity = await attestReviewedChrome();
   const temporaryProfile = await mkdtemp(join(tmpdir(), 'warpkeep-inner-keep-qa-'));
   let chrome;
   let devtools;
@@ -608,9 +624,9 @@ export async function runInnerKeepBrowserProbe(options = {}) {
       || new Set(cases.map((probeCase) => probeCase.id)).size !== INNER_KEEP_QA_CASE_COUNT
     ) throw new Error('Inner Keep QA case manifest was invalid.');
 
-    await attestStableHeadlessChromeExecutable(reviewedChromeIdentity);
-    chrome = spawnHeadlessChromeProbe(profileDirectory);
-    const launchedIdentity = await readReviewedChromeExecutableIdentity();
+    await attestReviewedChrome(reviewedChromeIdentity);
+    chrome = spawnChrome(profileDirectory);
+    const launchedIdentity = await readReviewedChrome();
     if (!exactChromeExecutableIdentity(reviewedChromeIdentity, launchedIdentity)) {
       throw new Error('The reviewed Google Chrome executable changed at launch.');
     }
@@ -749,6 +765,7 @@ export async function runInnerKeepBrowserProbe(options = {}) {
       chrome,
       devtools,
       removeProfile: () => rm(temporaryProfile, { force: true, recursive: true }),
+      terminate: terminateChrome,
       vite,
     });
   }

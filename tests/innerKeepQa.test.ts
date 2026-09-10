@@ -817,6 +817,8 @@ describe('local Inner Keep QA production boundary', () => {
     expect(verifier).toContain('InnerKeepQaHarness');
     expect(verifier).toContain('INNER_KEEP_QA_SCENARIO_MANIFEST');
     expect(browserProbe).toContain('attestStableHeadlessChromeExecutable');
+    expect(browserProbe).toContain("local-fullstack-chrome-runtime.mjs");
+    expect(browserProbe).toContain('terminate: terminateChrome');
     expect(browserProbe).toContain('exactChromeExecutableIdentity');
     expect(browserProbe).toContain('DevtoolsPipeSession');
     expect(browserProbe).toContain("'Fetch.enable'");

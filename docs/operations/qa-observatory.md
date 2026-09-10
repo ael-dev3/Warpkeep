@@ -64,6 +64,19 @@ does not match its recorded digest.
 
 Neither browser lane needs access to a live Warpkeep service.
 
+For the keep-only visual foundation lane, run:
+
+```sh
+npm run qa:inner-keep
+```
+
+This probe uses the reviewed signed Chrome contract on macOS and the existing
+Windows Chrome identity/process-tree adapter on Windows. It covers the Inner
+Keep construction, completion, fallback, reduced-motion and responsive cases
+without requiring SpacetimeDB. A passing run is synthetic renderer evidence;
+it does not establish physical-phone performance or the authenticated owner
+journey.
+
 ## Change-aware agent check
 
 Run the repository checks relevant to every change since an exact Git base:
