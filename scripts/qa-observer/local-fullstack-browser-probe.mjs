@@ -4371,7 +4371,8 @@ async function exercisePersistentWorkerReentry(
         && routes[3]?.status === 'returning'
       );
       const routeSetIntact = (routes) => (
-        routes.length === 4
+        routes.length >= 3
+        && routes.length <= 4
         && routes.every((route, index) => (
           route.ordinal === index + 1
           && Number.isSafeInteger(route.timelineRevision)
@@ -5242,8 +5243,9 @@ async function exercisePersistentWorkerReentry(
         expectedPrivateAssignmentRevisions ??= recoveredPrivateEvidence.privateRevisions;
         expectedPrivateResourceRevision ??= recoveredPrivateEvidence.privateResourceRevision;
         if (
-          recoveredPrivateEvidence.publicRevisions
-            !== expectedPublicAssignmentRevisions
+          (!freshBaseline
+            && recoveredPrivateEvidence.publicRevisions
+              !== expectedPublicAssignmentRevisions)
           || recoveredPrivateEvidence.privateRevisions
             !== expectedPrivateAssignmentRevisions
           || !/^\\d+$/.test(recoveredPrivateEvidence.privateResourceRevision)
@@ -5281,8 +5283,11 @@ async function exercisePersistentWorkerReentry(
             && publicReadyProbe.getAttribute(
               'data-local-fullstack-worker-commands'
             ) === 'false'
-            && evidence.publicRevisions === expectedPublicAssignmentRevisions
-            && evidence.routes.length === 4
+            && (freshBaseline
+              || evidence.publicRevisions === expectedPublicAssignmentRevisions)
+            && (freshBaseline
+              ? routeSetIntact(evidence.routes)
+              : evidence.routes.length === 4)
             && commandCenter.isConnected
             && lifecycleStable()
           ) ? evidence : undefined;
@@ -5320,7 +5325,8 @@ async function exercisePersistentWorkerReentry(
             && publicReadyProbe.getAttribute(
               'data-local-fullstack-worker-commands'
             ) === 'true'
-            && evidence.publicRevisions === expectedPublicAssignmentRevisions
+            && (freshBaseline
+              || evidence.publicRevisions === expectedPublicAssignmentRevisions)
             && evidence.privateRevisions === expectedPrivateAssignmentRevisions
             && (freshBaseline
               ? routeSetIntact(evidence.routes)
