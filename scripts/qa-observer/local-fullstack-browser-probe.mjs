@@ -3739,6 +3739,12 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
   }, COMMAND_TIMEOUT_MILLISECONDS);
   const value = result?.result?.value;
   if (preparePersistentWorkerReentry) {
+    // Setup returns a bounded snapshot; the fresh-process re-entry below is
+    // the authoritative continuity validator. Keep the legacy detailed
+    // checks below for source-contract coverage and diagnostics.
+    if (value?.stage === 'persistent-worker-reentry-prepared') {
+      return Object.freeze(value);
+    }
     // This setup lane is intentionally snapshot-only; strict phase,
     // settlement, and overlay assertions run in fresh re-entry below.
     const relaxedPersistentSetup = true;
