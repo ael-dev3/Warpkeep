@@ -8,8 +8,9 @@ readability, mobile behavior and iteration quality. It does not turn a visual
 reference into an imported engine, a new economy, or a promise of deep
 interactivity.
 
-The visual contract is maintained against the current PR #228 branch tip
-`3eb52ee9` (functional source checkpoint `53cad795`); earlier hashes in the dated evidence records remain historical
+The visual contract is maintained against the current PR #228 implementation
+checkpoint `3eb52ee9` (functional source checkpoint `53cad795`); later commits on
+the branch are documentation-only overlays and earlier hashes in the dated evidence records remain historical
 anchors and are not the source to review for a new pass. The latest connected
 checkpoint covers the four-worker journey, fresh-browser re-entry, private
 retry/recovery seams, resource-catalog disclosure, mobile presentation and
