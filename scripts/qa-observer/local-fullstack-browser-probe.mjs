@@ -4851,6 +4851,9 @@ async function exercisePersistentWorkerReentry(
           publicRouteEvidence: publicReadyProbe.getAttribute(
             'data-local-fullstack-public-route-evidence'
           ) ?? '',
+          resourceDialogText: (
+            document.querySelector('.realm-cell-navigator__dialog')?.textContent ?? ''
+          ).replace(/\s+/g, ' ').trim().slice(0, 240),
           deployedWorkerCount: publicReadyProbe.getAttribute(
             'data-local-fullstack-deployed-workers'
           ) ?? '',
@@ -5706,11 +5709,12 @@ async function exercisePersistentWorkerReentry(
       ? ` (${[
           value?.resourceStates,
           value?.publicRouteEvidence,
+          value?.resourceDialogText,
           value?.deployedWorkerCount,
           value?.recallableWorkerCount,
         ].map((entry) => (
-          typeof entry === 'string' && /^[A-Za-z0-9 ,:;._-]{0,2048}$/.test(entry)
-            ? entry
+          typeof entry === 'string'
+            ? entry.replace(/[^A-Za-z0-9 ,:;._?()/-]/g, '').slice(0, 2048)
             : Number.isSafeInteger(entry) && entry >= 0 && entry <= 100
               ? String(entry)
               : 'invalid'
