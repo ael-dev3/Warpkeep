@@ -49,10 +49,10 @@ voxel, Verdant Forest, Pelagic, terrain/atmosphere, settlement and Dream Loop
 lessons in one authored Verdant Citadel language, with simple interaction and
 deeper simulation/editing deferred.
 
-The visual aggregate from the passing connected lane recorded 39 colour
-buckets, a 178-step luminance range, no clipped black/white samples, and both
-cool high-albedo and warm low-green spatial samples. These are QA evidence for
-the authored palette, not product content or arbitrary quality targets.
+The connected visual lane recorded a stable authored palette with broad
+luminance separation, no clipped extremes, and both cool high-albedo and warm
+low-green spatial samples. These are QA observations for the scene, not product
+content or arbitrary numeric targets.
 
 ## The visual promise
 
