@@ -5,18 +5,38 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
-## Current source checkpoint — 2026-09-09
+## Current source checkpoint — 2026-09-10
 
-The current published branch tip is `ecffa586` on
+The current published branch tip is `53cad795` on
 `codex/prepared-keep-bindings-fix`. It includes the bounded Keep04 moat surface,
 current reference-to-source notes, the Windows browser-runtime adapter, the
 Vite watcher boundary that keeps disposable Chrome profiles out of the source
 watch graph, local-output ignore rules, Windows-connected local QA hardening,
-realm-selection-aware browser journeys, and redundant Inner Keep scene-reconcile
-throttling. Historical checkpoint labels retain their original scope and are not
-current-source claims. GitHub Verify and CodeQL for the current branch are
-pending; no live release, physical-device acceptance or owner journey is
-claimed.
+realm-selection-aware browser journeys, redundant Inner Keep scene-reconcile
+throttling, private-sync retry telemetry, resource-catalog disclosure/pagination,
+fresh-browser re-entry diagnostics and the narrow WebGL teardown-warning
+boundary. Historical checkpoint labels retain their original scope and are not
+current-source claims. GitHub Verify and CodeQL must still be checked at this
+head; no live release, physical-device acceptance or owner journey is claimed.
+
+## Connected journey checkpoint — 2026-09-10
+
+The disposable Windows full-stack lane passed immediately before the final
+warning-allowlist-only update at `53cad795`. It covered the title gateway,
+restored Terms continuity, synthetic cold auth/bootstrap, Inner Keep setup,
+four-worker dispatch, outbound → gathering → returning re-entry, private-read
+failure/retry seams, timeout/missing/torn/visibility cases, individual recall,
+Recall All, automatic settlement and released-node reuse. The visual aggregate
+contained both cool high-albedo and warm low-green samples with no clipped
+black/white samples. Static security is green at 50/50 after the current head;
+run the connected lane again on the exact tip before declaring release evidence.
+
+The handoff's full inspiration set remains the 0.4 visual rail: owner voxel
+engine, Verdant Forest, Pelagic Ocean, Dream Loop/Vesper, terrain and atmosphere
+research, Townscaper/Tiny Glade settlement language, Mapgen4 geography and the
+secondary rendering studies. These references shape composition, palette,
+material response, terrain hierarchy and review method; they do not introduce
+copied code/media, deep simulation, freeform editing or arbitrary content counts.
 
 ## Windows connected local QA — September 9
 

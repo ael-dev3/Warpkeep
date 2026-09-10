@@ -9,14 +9,35 @@ reference into an imported engine, a new economy, or a promise of deep
 interactivity.
 
 The visual contract is maintained against the current PR #228 branch tip
-`ecffa586` and its functional visual source `55b787e0`; earlier hashes in the
-dated evidence records remain historical anchors and are not the source to
-review for a new pass.
+`53cad795`; earlier hashes in the dated evidence records remain historical
+anchors and are not the source to review for a new pass. The latest connected
+checkpoint covers the four-worker journey, fresh-browser re-entry, private
+retry/recovery seams, resource-catalog disclosure, mobile presentation and
+browser-log hygiene. The full disposable Windows lane passed immediately before
+the final warning-allowlist-only update at this hash; rerun the lane on the
+branch tip before a release cut.
 The functional Keep04 visual checkpoint includes the bounded scenic moat treatment
 and the Windows browser-boundary repair.
 The 0.4 release remains a development build until the release checklist records
 authenticated owner play, physical-device review and the required delivery
 evidence.
+
+## Current checkpoint (`53cad795`)
+
+The presentation contract is now exercised end to end: the atlas/keep entry,
+worker setup, outbound → gathering → returning rail, resource disclosure,
+individual recall, Recall All, automatic settlement and node reuse all remain
+readable at narrow widths. Setup evidence is deliberately labelled as a
+progressed snapshot; strict fresh-browser re-entry still owns the continuity,
+private-gate and settlement proof. The product surface keeps the handoff's
+voxel, Verdant Forest, Pelagic, terrain/atmosphere, settlement and Dream Loop
+lessons in one authored Verdant Citadel language, with simple interaction and
+deeper simulation/editing deferred.
+
+The visual aggregate from the passing connected lane recorded 39 colour
+buckets, a 178-step luminance range, no clipped black/white samples, and both
+cool high-albedo and warm low-green spatial samples. These are QA evidence for
+the authored palette, not product content or arbitrary quality targets.
 
 ## The visual promise
 
