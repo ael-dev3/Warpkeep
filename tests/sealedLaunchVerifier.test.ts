@@ -466,7 +466,7 @@ describe('0.4.0 sealed-launch verifier', () => {
       args: ['-n'],
     });
     expect(shellSyntaxCheckCommand('win32')).toEqual({
-      command: 'bash.exe',
+      command: 'C:/Program Files/Git/usr/bin/bash.exe',
       args: ['-n'],
     });
   });

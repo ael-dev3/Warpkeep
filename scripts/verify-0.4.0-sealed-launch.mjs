@@ -171,7 +171,10 @@ const SEALED_LAUNCH_ACTIVATION_PATHS = Object.freeze([
 ]);
 
 const REPOSITORY_ROOT = realpathSync(resolve(import.meta.dirname, '..'));
-const SYSTEM_GIT = process.platform === 'win32' ? 'git.exe' : '/usr/bin/git';
+const WINDOWS_GIT = 'C:/Program Files/Git/cmd/git.exe';
+const WINDOWS_BASH = 'C:/Program Files/Git/usr/bin/bash.exe';
+const WINDOWS_EXECUTION_PATH = 'C:/Program Files/Git/cmd;C:/Program Files/Git/usr/bin;C:/Windows/System32';
+const SYSTEM_GIT = process.platform === 'win32' ? WINDOWS_GIT : '/usr/bin/git';
 const SHA256 = /^[0-9a-f]{64}$/u;
 const COMMIT = /^[0-9a-f]{40}$/u;
 const PUBLIC_RELEASE_ID = /^GRR-[A-Z2-7]{26}$/u;
@@ -3689,7 +3692,7 @@ function verifyGenesis001LegacyGreaterRealmProductionSeal(sources) {
 
 export function shellSyntaxCheckCommand(platform = process.platform) {
   return platform === 'win32'
-    ? Object.freeze({ command: 'bash.exe', args: Object.freeze(['-n']) })
+    ? Object.freeze({ command: WINDOWS_BASH, args: Object.freeze(['-n']) })
     : Object.freeze({ command: '/bin/sh', args: Object.freeze(['-n']) });
 }
 
@@ -3731,7 +3734,7 @@ function verifyGenesis001PolicyObservationLaunchEnvelope(sources) {
     input: observation,
     encoding: null,
     env: process.platform === 'win32'
-      ? { PATH: process.env.PATH ?? '' }
+      ? { PATH: WINDOWS_EXECUTION_PATH }
       : { PATH: '/usr/bin:/bin' },
     stdio: ['pipe', 'pipe', 'pipe'],
     timeout: 10_000,
@@ -4806,7 +4809,7 @@ function git(arguments_, repositoryRoot) {
       GIT_CONFIG_SYSTEM: '/dev/null',
       GIT_NO_REPLACE_OBJECTS: '1',
       HOME: '/nonexistent',
-      PATH: process.platform === 'win32' ? (process.env.PATH ?? '') : '/usr/bin:/bin',
+      PATH: process.platform === 'win32' ? WINDOWS_EXECUTION_PATH : '/usr/bin:/bin',
     },
     stdio: ['ignore', 'pipe', 'ignore'],
     timeout: 10_000,
@@ -4848,7 +4851,7 @@ function gitRaw(arguments_, repositoryRoot, maximumBytes = 1024 * 1024) {
       GIT_NO_REPLACE_OBJECTS: '1',
       HOME: '/nonexistent',
       LC_ALL: 'C',
-      PATH: process.platform === 'win32' ? (process.env.PATH ?? '') : '/usr/bin:/bin',
+      PATH: process.platform === 'win32' ? WINDOWS_EXECUTION_PATH : '/usr/bin:/bin',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     timeout: 10_000,
