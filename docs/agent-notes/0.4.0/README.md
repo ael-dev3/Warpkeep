@@ -32,10 +32,10 @@ which records the current checkpoint, preparation, CI and environment details.
   implemented. Continue rendered Verdant Citadel review, useful progression,
   foreground/resume and physical-device performance with the actual owner.
 - **The connected presentation rail is exercised.** The disposable Windows lane
-  passed immediately before the final WebGL teardown-warning allowlist-only update
-  at `53cad795`, covering fresh-browser re-entry, four-worker outbound → gathering
-  → returning, private retry seams, recall/settlement and released-node reuse. The
-  exact branch tip still needs a fresh lane run before release evidence is accepted.
+  passed on functional source checkpoint `a11ca0e7` with the final WebGL warning
+  boundary and re-entry diagnostics, covering fresh-browser re-entry, four-worker
+  outbound → gathering → returning, private retry seams, recall/settlement and
+  released-node reuse. Rerun after any further source change before release evidence.
 - **Delivery has working foundations and specific gaps.** The local source
   assembler connects fixed compilers, generated consumers, independent rebuilding
   checks and candidate recovery. Linux recovery and sealed preflight callers are
