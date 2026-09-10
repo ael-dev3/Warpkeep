@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { createElement } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { Keep04QaHarness, serializeKeep04QaObservation } from '../src/dev/Keep04QaHarness';
+import { Keep04QaHarness, serializeKeep04QaObservation, summarizeKeep04FrameIntervals } from '../src/dev/Keep04QaHarness';
 import { KEEP04_QA_SCENARIOS, createKeep04QaScenario } from '../src/dev/keep04QaScenarios';
 import { evaluatePlacement04 } from '../spacetimedb/gameplay04/placement';
 import { spawnSync } from 'node:child_process';
@@ -65,6 +65,20 @@ it('serializes only bounded numeric observations, never arbitrary credentials, o
   expect(JSON.parse(json).rendererTextures).toBeNull();
 });
 
+it('summarizes rendered frame cadence with nearest-rank percentiles and ignores terminal observations', () => {
+  expect(summarizeKeep04FrameIntervals([
+    { event: 'loading', timestampMs: 2 },
+    { event: 'frame', timestampMs: 10 },
+    { event: 'frame', timestampMs: 30 },
+    { event: 'frame', timestampMs: 60 },
+    { event: 'disposed', timestampMs: 90 },
+  ])).toEqual({ sampleCount: 2, p50Ms: 20, p95Ms: 30, p99Ms: 30 });
+  expect(summarizeKeep04FrameIntervals([{ event: 'frame', timestampMs: 12 }, { event: 'fallback', timestampMs: 20 }]))
+    .toEqual({ sampleCount: 0, p50Ms: null, p95Ms: null, p99Ms: null });
+  expect(summarizeKeep04FrameIntervals([{ event: 'frame', timestampMs: -1 }, { event: 'frame', timestampMs: 4 }]))
+    .toEqual({ sampleCount: 0, p50Ms: null, p95Ms: null, p99Ms: null });
+});
+
 it('freezes capture configuration and retains its provenance when idle controls later change', () => {
   vi.stubGlobal('WebGL2RenderingContext', undefined);
   window.history.replaceState({}, '', '/?scenario=fallback&quality=reduced&motion=reduced');
@@ -111,6 +125,7 @@ it('does not reset a running capture and drains queued long tasks before Stop pu
   const report = JSON.parse(mounted.container.querySelector('[data-qa-observation]')!.textContent!);
   expect(report.longTaskSupported).toBe(true);
   expect(report.longTasks).toEqual([{ startTime: queuedAt, duration: 80 }]);
+  expect(report.frameIntervalPercentilesMs).toEqual({ sampleCount: 0, p50Ms: null, p95Ms: null, p99Ms: null });
   expect(report.longTasks).toHaveLength(1); expect(connections).toBe(0);
   expect(report.startedAtMs).toBeLessThanOrEqual(queuedAt); expect(report.stoppedAtMs).toBeGreaterThanOrEqual(queuedAt);
   fireEvent.click(start); fireEvent.click(screen.getByRole('button', { name: 'Stop and publish observation' }));

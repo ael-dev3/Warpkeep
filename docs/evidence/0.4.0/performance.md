@@ -1,8 +1,19 @@
 # 0.4 performance acceptance contract
 
 Established 2026-09-06 before final visual implementation/measurement.
-Status: **budgets established; no final measurements or pass claimed**.
+Status: **budgets established; synthetic cadence reporting added; no final measurements or pass claimed**.
 Scope: final production-build 0.4 world/keep path, not a standalone demo.
+
+## Synthetic observer instrumentation — 2026-09-10
+
+The DEV Keep04 harness now derives nearest-rank p50, p95 and p99 frame-interval
+values from valid rendered RAF timestamps and publishes the sample count with
+each bounded observation. Loading, fallback, disposal and malformed timestamps
+are excluded; a missing sample remains `null` rather than becoming a fabricated
+zero. This makes future Windows/emulated captures easier to review against the
+profiles below, but it is still synthetic instrumentation. It does not measure
+GPU upload, retained heap, production transfer, physical devices or the required
+owner journey, and it does not change any acceptance result.
 
 ## Reference profiles
 

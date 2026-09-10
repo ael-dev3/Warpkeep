@@ -11,6 +11,30 @@ export function createKeep04QaSnapshot(fixture: 'empty' | 'construction' | 'comp
 }
 
 const NUMERIC_FIELDS = ['timestampMs', 'frameWorkMs', 'renderCalls', 'renderTriangles', 'rendererGeometries', 'rendererTextures', 'ownedGeometryBytes', 'ownedTextureBytes', 'voxelPreparationMs', 'pendingRafs', 'activeLoaders', 'activeListeners'] as const;
+export type Keep04FrameIntervalSummary = Readonly<{ sampleCount: number; p50Ms: number | null; p95Ms: number | null; p99Ms: number | null }>;
+const EMPTY_FRAME_INTERVAL_SUMMARY: Keep04FrameIntervalSummary = Object.freeze({ sampleCount: 0, p50Ms: null, p95Ms: null, p99Ms: null });
+
+/** Derives cadence only from valid rendered-frame timestamps; terminal events and
+ * malformed observations never become invented zero-duration samples. */
+export function summarizeKeep04FrameIntervals(records: readonly unknown[]): Keep04FrameIntervalSummary {
+  if (!Array.isArray(records)) return EMPTY_FRAME_INTERVAL_SUMMARY;
+  const intervals: number[] = [];
+  let previous: number | null = null;
+  for (const record of records) {
+    if (record === null || typeof record !== 'object' || Array.isArray(record)) continue;
+    const event = Object.getOwnPropertyDescriptor(record, 'event')?.value;
+    if (event !== 'frame') continue;
+    const timestampMs = Object.getOwnPropertyDescriptor(record, 'timestampMs')?.value;
+    if (typeof timestampMs !== 'number' || !Number.isFinite(timestampMs) || timestampMs < 0) { previous = null; continue; }
+    if (previous !== null && timestampMs >= previous) intervals.push(timestampMs - previous);
+    previous = timestampMs;
+  }
+  if (intervals.length === 0) return EMPTY_FRAME_INTERVAL_SUMMARY;
+  intervals.sort((left, right) => left - right);
+  const nearestRank = (quantile: number) => intervals[Math.max(0, Math.ceil(intervals.length * quantile) - 1)]!;
+  return Object.freeze({ sampleCount: intervals.length, p50Ms: nearestRank(.50), p95Ms: nearestRank(.95), p99Ms: nearestRank(.99) });
+}
+
 export function serializeKeep04QaObservation(value: unknown): string {
   const source = value && typeof value === 'object' ? value : {};
   const result: Record<string, number | string | null> = {};
@@ -119,8 +143,10 @@ export function Keep04QaHarness() {
   }
   function publish() {
     const configuration = capture.current.configuration ?? { scenario: id, quality, fault: fault ?? 'none', reducedMotion };
+    const frameIntervalPercentilesMs = summarizeKeep04FrameIntervals(capture.current.records);
     setLast(JSON.stringify({ synthetic: true, scope: 'DEV keep-only; not production world/keep, owner or phone evidence', ...configuration,
       capacity: CAPACITY, ...capture.current, measuredGpuUploadBytes: null, measuredGpuUploadMs: null, retainedHeapBytes: null,
+      frameIntervalPercentilesMs,
       frameBoundary: 'rendered RAF callback timestamp; event-driven idle gaps are not dropped frames',
       byteProvenance: 'owned bytes are CPU-side estimates; renderer counters are renderer.info',
       lastObservation: capture.current.configuration ? capture.current.lastObservation : output.current?.dataset.lastObservation ? JSON.parse(output.current.dataset.lastObservation) : null }));
