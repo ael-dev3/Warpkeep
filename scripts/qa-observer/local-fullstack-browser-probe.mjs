@@ -4341,7 +4341,18 @@ async function exercisePersistentWorkerReentry(
           ? candidate
           : undefined;
       });
-      if (!(enterMenu instanceof HTMLButtonElement)) return { stage: 'reentry-menu' };
+      if (!(enterMenu instanceof HTMLButtonElement)) {
+        return {
+          stage: 'reentry-menu',
+          url: location.href,
+          title: document.title,
+          readyState: document.readyState,
+          bodyText: (document.body?.textContent ?? '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 240)
+        };
+      }
       enterMenu.click();
 
       const enterSelectedRealm = await waitFor(() => {
@@ -5630,6 +5641,18 @@ async function exercisePersistentWorkerReentry(
               : 'invalid'
         )).join('|')})`
       : '';
+    const safeNavigationState = safeStage === 'reentry-menu'
+      ? ` (${[
+          value?.url,
+          value?.title,
+          value?.readyState,
+          value?.bodyText,
+        ].map((entry) => (
+          typeof entry === 'string'
+            ? entry.replace(/[^A-Za-z0-9 .:/?=#_-]/g, '').slice(0, 240)
+            : 'invalid'
+        )).join('|')})`
+      : '';
     const safeWorkerPresentationState =
       safeStage === 'reentry-public-worker-presentation'
         ? ` (${[
@@ -5770,6 +5793,7 @@ async function exercisePersistentWorkerReentry(
         safeAuthorityState
           || safeOccupationState
           || safeResourceState
+          || safeNavigationState
           || safeWorkerPresentationState
           || safeCompletionState
           || safeReconnectState
