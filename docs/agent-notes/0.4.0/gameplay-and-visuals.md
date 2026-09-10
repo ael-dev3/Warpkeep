@@ -1,7 +1,7 @@
 # Gameplay and visual implementation notes
 
 Updated 2026-09-10 against the current PR #228 development branch
-(functional source checkpoint `6e2164f1`) and the inspected working files;
+(functional source checkpoint `31ad1240`, branch tip `90f5d7df`) and the inspected working files;
 earlier source hashes below remain dated evidence
 anchors, not current review targets.
 This refresh includes the focused Keep04 UI/scene run (161 tests across eight
@@ -32,7 +32,7 @@ this page keeps precise mechanics, implementation routes and evidence limits.
 
 ## Visual foundation and complete reference coverage
 
-At the current functional visual source checkpoint `6e2164f1`, the owner direction prioritizes a professional mobile visual
+At the current functional visual source checkpoint `31ad1240`, the owner direction prioritizes a professional mobile visual
 foundation with simple interaction. Preserve the useful existing loop; deeper
 simulation and elaborate editing remain later work. The full Desktop handoff
 reference library informs one coherent Verdant Citadel, rather than a collection

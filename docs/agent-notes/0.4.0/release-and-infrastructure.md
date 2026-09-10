@@ -3,7 +3,8 @@
 ## Current source checkpoint — 2026-09-10
 
 The current published implementation is the tip of
-`codex/prepared-keep-bindings-fix` (functional source checkpoint `6e2164f1`). The dependency, private
+`codex/prepared-keep-bindings-fix` (`90f5d7df`); the latest functional source checkpoint is
+`31ad1240`. The dependency, private
 Sharp/libvips, runtime-verifier,
 sealed-launch source-pin and recovery-loader repairs are published, and the
 agent-facing evidence files reconcile to this source. The latest Verify and
