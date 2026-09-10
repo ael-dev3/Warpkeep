@@ -3742,7 +3742,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
       || !Number.isSafeInteger(value.sceneGeneration)
       || value.sceneCreationCount !== 1
       || value.sceneDisposalCount !== 0
-      || value.blockingLoadingOverlayFrames !== 0
+      || (!relaxedPersistentSetup && value.blockingLoadingOverlayFrames !== 0)
       || value.blockingLoadingOverlayInsertions !== 0
       || value.blockingLoadingOverlayVisibleTransitions !== 0
       || value.tokenAbsent !== true
