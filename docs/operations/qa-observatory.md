@@ -77,6 +77,12 @@ without requiring SpacetimeDB. A passing run is synthetic renderer evidence;
 it does not establish physical-phone performance or the authenticated owner
 journey.
 
+The sealed-launch preparation verifier is also cross-platform. Its exact shell
+envelope is syntax-checked with `/bin/sh -n` on macOS and Linux and with the
+reviewed `bash.exe -n` command on Windows. If the host shell is unavailable, the
+verifier fails closed; do not replace it with a mutable script or skip the
+check.
+
 ## Change-aware agent check
 
 Run the repository checks relevant to every change since an exact Git base:

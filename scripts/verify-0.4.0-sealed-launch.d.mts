@@ -15,6 +15,11 @@ export class SealedLaunchVerificationError extends Error {
   readonly code: string;
 }
 
+export function shellSyntaxCheckCommand(platform?: string): Readonly<{
+  command: string;
+  args: readonly ['-n'];
+}>;
+
 export function verifyGenesis001AdmittedPlayerCensusBoundary(
   sources: Readonly<{
     genesis001AdmittedPlayerCensusSource: string;

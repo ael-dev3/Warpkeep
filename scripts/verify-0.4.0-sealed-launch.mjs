@@ -171,6 +171,7 @@ const SEALED_LAUNCH_ACTIVATION_PATHS = Object.freeze([
 ]);
 
 const REPOSITORY_ROOT = realpathSync(resolve(import.meta.dirname, '..'));
+const SYSTEM_GIT = process.platform === 'win32' ? 'git.exe' : '/usr/bin/git';
 const SHA256 = /^[0-9a-f]{64}$/u;
 const COMMIT = /^[0-9a-f]{40}$/u;
 const PUBLIC_RELEASE_ID = /^GRR-[A-Z2-7]{26}$/u;
@@ -3686,6 +3687,12 @@ function verifyGenesis001LegacyGreaterRealmProductionSeal(sources) {
   }
 }
 
+export function shellSyntaxCheckCommand(platform = process.platform) {
+  return platform === 'win32'
+    ? Object.freeze({ command: 'bash.exe', args: Object.freeze(['-n']) })
+    : Object.freeze({ command: '/bin/sh', args: Object.freeze(['-n']) });
+}
+
 function verifyGenesis001PolicyObservationLaunchEnvelope(sources) {
   const code = 'SEALED_LAUNCH_G001_POLICY_OBSERVATION_ENVELOPE_INVALID';
   const legacy = exactUtf8Bytes(
@@ -3719,10 +3726,13 @@ function verifyGenesis001PolicyObservationLaunchEnvelope(sources) {
   ]);
   if (!observation.equals(expected)) fail(code);
 
-  const syntax = spawnSync('/bin/sh', ['-n'], {
+  const syntaxCommand = shellSyntaxCheckCommand();
+  const syntax = spawnSync(syntaxCommand.command, syntaxCommand.args, {
     input: observation,
     encoding: null,
-    env: { PATH: '/usr/bin:/bin' },
+    env: process.platform === 'win32'
+      ? { PATH: process.env.PATH ?? '' }
+      : { PATH: '/usr/bin:/bin' },
     stdio: ['pipe', 'pipe', 'pipe'],
     timeout: 10_000,
     maxBuffer: 256 * 1_024,
@@ -4782,7 +4792,7 @@ function readSources(repositoryRoot = REPOSITORY_ROOT) {
 }
 
 function git(arguments_, repositoryRoot) {
-  return spawnSync('/usr/bin/git', [
+  return spawnSync(SYSTEM_GIT, [
     '--no-optional-locks',
     '-c', 'core.fsmonitor=false',
     '-c', 'core.untrackedCache=false',
@@ -4796,7 +4806,7 @@ function git(arguments_, repositoryRoot) {
       GIT_CONFIG_SYSTEM: '/dev/null',
       GIT_NO_REPLACE_OBJECTS: '1',
       HOME: '/nonexistent',
-      PATH: '/usr/bin:/bin',
+      PATH: process.platform === 'win32' ? (process.env.PATH ?? '') : '/usr/bin:/bin',
     },
     stdio: ['ignore', 'pipe', 'ignore'],
     timeout: 10_000,
@@ -4823,7 +4833,7 @@ function gitIsAncestor(repositoryRoot, ancestor, descendant) {
 }
 
 function gitRaw(arguments_, repositoryRoot, maximumBytes = 1024 * 1024) {
-  const result = spawnSync('/usr/bin/git', [
+  const result = spawnSync(SYSTEM_GIT, [
     '--no-optional-locks',
     '-c', 'core.fsmonitor=false',
     '-c', 'core.untrackedCache=false',
@@ -4838,7 +4848,7 @@ function gitRaw(arguments_, repositoryRoot, maximumBytes = 1024 * 1024) {
       GIT_NO_REPLACE_OBJECTS: '1',
       HOME: '/nonexistent',
       LC_ALL: 'C',
-      PATH: '/usr/bin:/bin',
+      PATH: process.platform === 'win32' ? (process.env.PATH ?? '') : '/usr/bin:/bin',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     timeout: 10_000,

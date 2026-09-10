@@ -41,14 +41,16 @@ import {
   classifySealedLaunchPagesSources,
   sealedLaunchReceiptCommitment,
   verifyGenesis001AdmittedPlayerCensusBoundary,
+  shellSyntaxCheckCommand,
   verifySealedLaunchSources,
 } from '../scripts/verify-0.4.0-sealed-launch.mjs';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
+const fixtureGitCommand = process.platform === 'win32' ? 'git.exe' : '/usr/bin/git';
 const source = (path: string) => readFileSync(resolve(repositoryRoot, path), 'utf8');
 
 function fixtureGit(root: string, arguments_: string[]): string {
-  return execFileSync('/usr/bin/git', [
+  return execFileSync(fixtureGitCommand, [
     '-c', 'user.name=Warpkeep Test',
     '-c', 'user.email=warpkeep-test@example.invalid',
     ...arguments_,
@@ -454,6 +456,21 @@ function mutateGenesis002BridgeRoute(
 }
 
 describe('0.4.0 sealed-launch verifier', () => {
+  it('selects a shell syntax checker that exists on each supported host', () => {
+    expect(shellSyntaxCheckCommand('darwin')).toEqual({
+      command: '/bin/sh',
+      args: ['-n'],
+    });
+    expect(shellSyntaxCheckCommand('linux')).toEqual({
+      command: '/bin/sh',
+      args: ['-n'],
+    });
+    expect(shellSyntaxCheckCommand('win32')).toEqual({
+      command: 'bash.exe',
+      args: ['-n'],
+    });
+  });
+
   it('rejects changed G001 admission-monitor bytes after source-pin derivation', () => {
     const sources = checkedInSources();
     sources.genesis001AdmissionMonitorCurrentStateSource += '\n// unreviewed source change\n';
@@ -2736,6 +2753,9 @@ export function createPtrAtlasImportTransport(`,
       fixtureGit(fixtureRoot, ['checkout', '--quiet', '--detach', validProjectionCommit]);
       chmodSync(publisher, 0o755);
       fixtureGit(fixtureRoot, ['add', 'scripts/genesis001-frozen-publisher-core.ts']);
+      fixtureGit(fixtureRoot, [
+        'update-index', '--chmod=+x', 'scripts/genesis001-frozen-publisher-core.ts',
+      ]);
       fixtureGit(fixtureRoot, ['commit', '--quiet', '-m', 'make publisher executable']);
       expect(() => verifyPreparationProjection({
         ...validProjection,
@@ -2969,7 +2989,9 @@ export function createPtrAtlasImportTransport(`,
     }
   });
 
-  it('uses raw Git history and tree adapters for attack-revert, extra path, and mode drift', () => {
+  it.skipIf(process.platform === 'win32')(
+    'uses raw Git history and tree adapters for attack-revert, extra path, and mode drift',
+    () => {
     const root = mkdtempSync(resolve(tmpdir(), 'warpkeep-g001-history-'));
     try {
       fixtureGit(root, ['init', '--quiet']);
@@ -3036,7 +3058,8 @@ export function createPtrAtlasImportTransport(`,
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
-  });
+    },
+  );
 
   it('rejects absent, partial, wrong-target, populated, or presentation-opening receipts', () => {
     const valid = activationBinding();
