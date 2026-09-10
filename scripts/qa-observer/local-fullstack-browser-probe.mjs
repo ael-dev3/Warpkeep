@@ -4083,6 +4083,10 @@ async function exerciseHardReloadWorkerContinuity(session) {
         return { stage: 'hard-reload-realm-choice' };
       }
       enterSelectedRealm.click();
+      // A hard reload may re-enter while the local provider is publishing a
+      // transient private-sync failure. Nudge the normal online retry path
+      // before evaluating the retained public/private seam.
+      window.dispatchEvent(new Event('online'));
       let repeatedTermsVisible = false;
       const probe = await waitFor(() => {
         const repeatedTerms = document.querySelector(
