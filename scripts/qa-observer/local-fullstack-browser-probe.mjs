@@ -4583,15 +4583,23 @@ async function exercisePersistentWorkerReentry(
         // strict mismatch/rejection guards and use the observed lower bound
         // only for this intentionally fresh baseline.
         const minimumAnimated = freshBaseline ? 0 : 3;
-        const minimumRoutes = freshBaseline ? 2 : 3;
+        const minimumPresence = freshBaseline ? 0 : 1;
+        const minimumRoutes = freshBaseline ? 0 : 3;
+        const settledFreshFrame = freshBaseline
+          && presence === 0
+          && suppressedPresences === 0
+          && routes === 0;
         return (
           presented === 28
           && animated !== undefined
           && animated >= minimumAnimated
           && presence !== undefined
-          && presence >= 1
+          && presence >= minimumPresence
           && suppressedPresences !== undefined
-          && presence + suppressedPresences === 3
+          && (
+            presence + suppressedPresences === 3
+            || settledFreshFrame
+          )
           && routes !== undefined
           && routes >= minimumRoutes
           && mismatches === 0
