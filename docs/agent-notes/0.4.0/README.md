@@ -7,7 +7,8 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-Updated September 9. The GitHub/profile/ecosystem refresh is complete. Continue
+Updated September 10 at published checkpoint `b71cee6c`. The GitHub/profile/ecosystem
+refresh is complete. Continue
 the connected game and delivery work from the [execution handoff](execution-handoff.md),
 which records the current checkpoint, preparation, CI and environment details.
 
@@ -30,6 +31,11 @@ which records the current checkpoint, preparation, CI and environment details.
   selected Worker continuity, healthy refresh and scoped session renewal are
   implemented. Continue rendered Verdant Citadel review, useful progression,
   foreground/resume and physical-device performance with the actual owner.
+- **The connected presentation rail is exercised.** The disposable Windows lane
+  passed immediately before the final WebGL teardown-warning allowlist-only update
+  at `53cad795`, covering fresh-browser re-entry, four-worker outbound → gathering
+  → returning, private retry seams, recall/settlement and released-node reuse. The
+  exact branch tip still needs a fresh lane run before release evidence is accepted.
 - **Delivery has working foundations and specific gaps.** The local source
   assembler connects fixed compilers, generated consumers, independent rebuilding
   checks and candidate recovery. Linux recovery and sealed preflight callers are
