@@ -4,6 +4,7 @@ import {
   mkdtempSync,
   writeFileSync,
   mkdirSync,
+  chmodSync,
   rmSync,
   readFileSync,
 } from "node:fs";
@@ -96,6 +97,10 @@ it(
   "includes executable modes and rejects symlink blobs",
   async () => {
     const f = fixture();
+    // Keep the working-tree mode aligned with the executable bit committed
+    // below. Linux reports a mode-only worktree drift when only the index bit
+    // changes, which correctly makes the closure snapshot reject the fixture.
+    chmodSync(join(f.root, "services", "signer.ts"), 0o755);
     f.git(["update-index", "--chmod=+x", "services/signer.ts"]);
     f.git(["commit", "-qm", "executable"]);
     const c = f.git(["rev-parse", "HEAD"]);
