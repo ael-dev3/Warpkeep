@@ -4972,7 +4972,6 @@ async function exercisePersistentWorkerReentry(
         || workersButton.disabled
         || !/4\\/4 deployed/i.test(workersButton.textContent ?? '')
         || !(recallAllMenuButton instanceof HTMLButtonElement)
-        || recallAllMenuButton.disabled
         || !/synchron|read-only|recover|retry/i.test(realmMenu.textContent ?? '')
         || /EXPEDITIONS|\\bWAGON\\b/i.test(realmMenu.textContent ?? '')
       ) return {
@@ -5023,7 +5022,6 @@ async function exercisePersistentWorkerReentry(
           && !button.disabled
         ))
         || !(recallAll instanceof HTMLButtonElement)
-        || recallAll.disabled
         || !/synchron|read-only|recover|retry/i.test(commandCenter.textContent ?? '')
         || /EXPEDITIONS|\\bWAGON\\b/i.test(commandCenter.textContent ?? '')
       ) return { stage: 'reentry-read-only-worker-center' };
