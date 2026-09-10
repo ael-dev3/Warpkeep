@@ -9,6 +9,11 @@ evidence boundary, not a claim that the live owner journey is complete.
   browser-runtime adapter and Windows path normalization were applied.
 - `npm run typecheck -- --pretty false`: passed.
 - `npm run verify:visual-foundation`: 3/3 tests passed.
+- `npm run qa:inner-keep`: 18/18 synthetic Inner Keep browser cases passed on
+  Windows after the platform-aware Chrome adapter was wired into the standard
+  probe. This covers construction, completion, fallback, reduced motion and
+  responsive presentation without a Mac runner or SpacetimeDB. It remains
+  renderer evidence, not owner/device/performance acceptance.
 - `npm run qa:fullstack:local`: reached the disposable runtime and failed
   closed at `cli-attestation` before any database, browser, owner, or player
   state was created. The repository's pinned SpacetimeDB attestation currently
