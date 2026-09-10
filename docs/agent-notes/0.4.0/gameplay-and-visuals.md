@@ -1,7 +1,7 @@
 # Gameplay and visual implementation notes
 
 Updated 2026-09-10 against the current PR #228 development branch
-(functional source checkpoint `31ad1240`, with QA contract repair at `1c214e7f`) and the inspected working files;
+(functional source checkpoint `211b0b1a`, with QA contract repair at `1c214e7f`) and the inspected working files;
 earlier source hashes below remain dated evidence
 anchors, not current review targets.
 This refresh includes the focused Keep04 UI/scene run (161 tests across eight
@@ -32,7 +32,7 @@ this page keeps precise mechanics, implementation routes and evidence limits.
 
 ## Visual foundation and complete reference coverage
 
-At the current functional visual source checkpoint `31ad1240`, the owner direction prioritizes a professional mobile visual
+At the current functional visual source checkpoint `211b0b1a`, the owner direction prioritizes a professional mobile visual
 foundation with simple interaction. Preserve the useful existing loop; deeper
 simulation and elaborate editing remain later work. The full Desktop handoff
 reference library informs one coherent Verdant Citadel, rather than a collection
@@ -47,7 +47,8 @@ the existing touch and keyboard gestures.
 Incoming resource cards now carry a restrained violet edge and label while their
 spendable balance stays prominent. This borrows the handoff's strategy-clarity
 lesson without adding a second economy view or changing when returned resources
-become spendable.
+become spendable. Active Worker cards also name each reserved result and resource,
+so a player can connect the aggregate pending rail to the journey that will unlock it.
 
 Published forest grouping and moss/earth terrace tops improve separation between
 buildings and their setting. The current source-render matrix covers empty,

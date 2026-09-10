@@ -37,7 +37,7 @@ which records the current checkpoint, preparation, CI and environment details.
   and construction state. It adds no command, resource rule or progression authority;
   validate its mobile treatment with the next rendered capture.
 - **The connected presentation rail is exercised.** The disposable Windows lane
-  passed on functional source checkpoint `a11ca0e7` with the final WebGL warning
+  last passed on functional source checkpoint `1c214e7f` with the final WebGL warning
   boundary and re-entry diagnostics, covering fresh-browser re-entry, four-worker
   outbound → gathering → returning, private retry seams, recall/settlement and
   released-node reuse. Rerun after any further source change before release evidence.
