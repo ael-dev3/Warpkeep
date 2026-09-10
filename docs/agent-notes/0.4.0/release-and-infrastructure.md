@@ -2,12 +2,12 @@
 
 ## Current source checkpoint — 2026-09-10
 
-The current published implementation checkpoint is `42e1d818` (functional
-source checkpoint `6e2164f1`) on `codex/prepared-keep-bindings-fix`. The dependency, private
+The current published implementation is the tip of
+`codex/prepared-keep-bindings-fix` (functional source checkpoint `6e2164f1`). The dependency, private
 Sharp/libvips, runtime-verifier,
 sealed-launch source-pin and recovery-loader repairs are published, and the
-agent-facing evidence files reconcile to this source. Verify run `34472503821`
-is pending and CodeQL run `34472504552` is in progress for this exact head.
+agent-facing evidence files reconcile to this source. The latest Verify and
+CodeQL checks for this branch are the live R14 authority on PR #228.
 Older run IDs below retain their original source and acceptance
 limits and are not current-release evidence. The disposable Windows full-stack
 lane passed on the functional source checkpoint with the warning boundary and
