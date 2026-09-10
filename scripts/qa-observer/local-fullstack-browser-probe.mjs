@@ -5609,10 +5609,18 @@ async function exercisePersistentWorkerReentry(
         }).join('/')})`
       : '';
     const safeResourceState = safeStage === 'reentry-public-resource-state-truth'
-      ? ` (${typeof value?.resourceStates === 'string'
-        && /^[A-Za-z0-9 ,:;-]{0,2048}$/.test(value.resourceStates)
-        ? value.resourceStates
-        : 'invalid'})`
+      ? ` (${[
+          value?.resourceStates,
+          value?.publicRouteEvidence,
+          value?.deployedWorkerCount,
+          value?.recallableWorkerCount,
+        ].map((entry) => (
+          typeof entry === 'string' && /^[A-Za-z0-9 ,:;._-]{0,2048}$/.test(entry)
+            ? entry
+            : Number.isSafeInteger(entry) && entry >= 0 && entry <= 100
+              ? String(entry)
+              : 'invalid'
+        )).join('|')})`
       : '';
     const safeWorkerPresentationState =
       safeStage === 'reentry-public-worker-presentation'
