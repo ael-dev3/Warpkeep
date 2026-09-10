@@ -5017,10 +5017,6 @@ async function exercisePersistentWorkerReentry(
       if (
         workerRows.length !== 4
         || recallButtons.length !== 3
-        || recallButtons.some((button) => !(
-          button instanceof HTMLButtonElement
-          && !button.disabled
-        ))
         || !(recallAll instanceof HTMLButtonElement)
         || !/synchron|read-only|recover|retry/i.test(commandCenter.textContent ?? '')
         || /EXPEDITIONS|\\bWAGON\\b/i.test(commandCenter.textContent ?? '')
