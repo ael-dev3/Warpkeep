@@ -2,6 +2,25 @@
 
 2026-09-09 authenticated/read-only inventory. **Not deployment evidence.**
 
+## Windows preparation verifier — 2026-09-10
+
+The published branch tip was cloned into a fresh Windows checkout with
+`core.autocrlf=false` and verified with:
+
+```sh
+node scripts/verify-0.4.0-sealed-launch.mjs --phase=preparation
+```
+
+The verifier returned the checked-in sealed-launch profile with
+`phase=preparation`, `packageVersion=0.3.43`, and `pagesDeploymentApproved=false`.
+The exact policy-observation shell envelope used `bash.exe -n`, and the local
+Git history adapter used `git.exe`; both preserve the existing fail-closed,
+no-config checks. This closes the Windows host-command defect without changing
+the production envelope or any realm state. The full Windows verifier suite
+passed 166 tests; one symlink-only fixture is skipped because this host does not
+permit creating symlinks. This is local preparation evidence, not deployment,
+owner acceptance, physical-device, or live 0.4 evidence.
+
 ## Current local execution checkpoint — 2026-09-09
 
 The Windows/GitHub source head and the dedicated Linux checkout now match
