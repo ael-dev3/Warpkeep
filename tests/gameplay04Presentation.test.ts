@@ -46,8 +46,8 @@ it('preserves captured Worker rates and returned earned totals as pending, never
   const view = viewOf(w);
   expect(view.balances).toEqual({ food: 7n, wood: 0n, stone: 0n, gold: 0n });
   expect(view.pending).toEqual({ food: 30n, wood: 20n, stone: 0n, gold: 0n });
-  expect(view.workers[0]).toMatchObject({ capturedYield: 10n, phase: 'gathering', lastReturnResource: 'food', lastCredited: 40n, lastOverflow: 20n });
-  expect(view.workers[2]).toEqual({ ordinal: 2, assignmentRevision: 0n, phase: 'idle', resource: null, route: [], returnsAtMicros: null, capturedYield: null, lastReturnResource: null, lastCredited: null, lastOverflow: null });
+  expect(view.workers[0]).toMatchObject({ capturedYield: 10n, pendingYield: 30n, phase: 'gathering', lastReturnResource: 'food', lastCredited: 40n, lastOverflow: 20n });
+  expect(view.workers[2]).toEqual({ ordinal: 2, assignmentRevision: 0n, phase: 'idle', resource: null, route: [], returnsAtMicros: null, capturedYield: null, pendingYield: null, lastReturnResource: null, lastCredited: null, lastOverflow: null });
   expect(PENDING_LABEL04).toBe('pending · not spendable');
   expect(expectDeepFrozen04(view)).toBe(true);
 });

@@ -124,6 +124,7 @@ it('shows captured Worker rates and allows recall only before returning with atl
   wire.workers[1].assignmentRevision = 1n; wire.workers[1].assignment = { ...assignmentWire04(), phase: 'returning', earned: 60n };
   const { controller } = setup(wire); fireEvent.click(screen.getByRole('button', { name: /Worker 1/ }));
   expect(screen.getAllByText('Gathering rate: 10 every 10 seconds').length).toBe(2);
+  expect(screen.getByText('Reserved result: 60 food · pending until the Realm confirms return.')).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Recall Worker 1' }));
   expect(controller.submit).toHaveBeenCalledWith({ kind: 'recall', workerOrdinal: 0, atlasRevision: 3n });
   expect(screen.getByRole('button', { name: 'Recall Worker 2' })).toBeDisabled();

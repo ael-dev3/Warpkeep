@@ -80,6 +80,7 @@
 .keep04 .keep04-journey li[data-stage-status="active"] .keep04-journey-dot { background: #dfc6ff; box-shadow: 0 0 0 3px rgba(223, 198, 255, .18); }
 .keep04 .keep04-journey li[data-stage-status="upcoming"] { opacity: .64; }
 .keep04 .keep04-journey-detail { margin: 8px 0 0 !important; color: var(--keep04-muted); font-size: 13px; }
+.keep04 .keep04-pending-result { color: var(--keep04-accent); font-size: 13px; }
 .keep04 .keep04-loop-rail { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(0, 1.6fr); gap: 8px 20px; align-items: center; margin: 16px 0; padding: 12px 14px; border: 1px solid rgba(153, 192, 174, .38); border-radius: 10px; background: linear-gradient(135deg, rgba(29, 62, 53, .86), rgba(18, 39, 34, .9)); }
 .keep04 .keep04-loop-heading h2 { margin: 0; font-size: 16px; line-height: 1.25; }
 .keep04 .keep04-loop-heading .keep04-eyebrow { margin-bottom: 4px; font-size: 10px; }
