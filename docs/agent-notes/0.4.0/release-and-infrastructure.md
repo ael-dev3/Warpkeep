@@ -2,15 +2,15 @@
 
 ## Current source checkpoint — 2026-09-10
 
-The current published branch tip is `53cad795`
-on `codex/prepared-keep-bindings-fix`. The dependency, private
+The current published branch tip is `3eb52ee9` (functional source checkpoint
+`53cad795`) on `codex/prepared-keep-bindings-fix`. The dependency, private
 Sharp/libvips, runtime-verifier,
 sealed-launch source-pin and recovery-loader repairs are published, and the
 agent-facing evidence files reconcile to this source. GitHub Verify and CodeQL
 for this branch must still be checked at the current head; older run IDs below
 retain their original source and acceptance limits and are not current-release
 evidence. The disposable Windows full-stack lane passed immediately before the
-final warning-allowlist-only update at `53cad795`; a fresh run is still required
+final warning-allowlist-only update at the functional source checkpoint; a fresh run is still required
 for release evidence.
 
 ## Connected QA checkpoint — 2026-09-10
