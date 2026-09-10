@@ -5123,7 +5123,27 @@ async function exercisePersistentWorkerReentry(
           ? true
           : undefined
         ), 15_000);
-        if (!privateReady) return { stage: 'reentry-private-retry' };
+        if (!privateReady) {
+          return {
+            stage: 'reentry-private-retry',
+            privateReadGate: document.documentElement.getAttribute(
+              'data-local-fullstack-private-read-gate'
+            ) ?? 'missing',
+            rosterFailure: document.documentElement.getAttribute(
+              'data-local-fullstack-private-roster-failure'
+            ) ?? 'missing',
+            privatePhase: publicReadyProbe.getAttribute(
+              'data-local-fullstack-worker-private-sync'
+            ) ?? 'missing',
+            workerCommands: publicReadyProbe.getAttribute(
+              'data-local-fullstack-worker-commands'
+            ) ?? 'missing',
+            localizedErrorCount: numericAttribute(
+              realm,
+              'data-worker-private-sync-localized-error-count'
+            )
+          };
+        }
         const enabledRecallButtons = [...commandCenter.querySelectorAll(
           '.worker-command-center__recall'
         )];
@@ -5762,6 +5782,21 @@ async function exercisePersistentWorkerReentry(
             : 'invalid'
         )).join('|')})`
       : '';
+    const safePrivateState = safeStage === 'reentry-private-retry'
+      ? ` (${[
+          value?.privateReadGate,
+          value?.rosterFailure,
+          value?.privatePhase,
+          value?.workerCommands,
+          value?.localizedErrorCount,
+        ].map((entry) => (
+          typeof entry === 'string'
+            ? entry.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64)
+            : Number.isSafeInteger(entry) && entry >= 0 && entry <= 100
+              ? String(entry)
+              : 'invalid'
+        )).join('/')})`
+      : '';
     const safeWorkerPresentationState =
       safeStage === 'reentry-public-worker-presentation'
         ? ` (${[
@@ -5903,6 +5938,7 @@ async function exercisePersistentWorkerReentry(
           || safeOccupationState
           || safeResourceState
           || safeNavigationState
+          || safePrivateState
           || safeWorkerPresentationState
           || safeCompletionState
           || safeReconnectState
