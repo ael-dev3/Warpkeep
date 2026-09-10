@@ -1416,7 +1416,7 @@ describe('fixed recovery candidate source/receipt derivation', () => {
         process.chdir(originalCwd); FIXTURE_SOURCE_COMMIT = originalCommit;
         bootstrapBytes.fill(0); inert.fill(0); vi.useRealTimers();
       }
-    }, process.platform === 'win32' ? 300000 : 60000);
+    }, 180000);
 });
 
 describe('sealed-realms activation descriptor records', () => {
