@@ -2721,7 +2721,7 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
             && (button.getAttribute('aria-label') ?? '')
               .startsWith('Inspect ' + site.playerLabel + ', tier ')
           ));
-        }, 5_000);
+        }, 15_000);
         if (!(resourceSite instanceof HTMLButtonElement)) return false;
         const bounds = resourceSite.getBoundingClientRect();
         if (bounds.width < 44 || bounds.height < 44) return false;
@@ -4394,18 +4394,51 @@ async function exercisePersistentWorkerReentry(
           !(navigator instanceof HTMLElement)
           || navigator.querySelector('.realm-cell-navigator__jump') !== null
         ) return false;
-        const resourceSite = [...navigator.querySelectorAll(
-          '.realm-cell-navigator__resource-site'
-            + '[data-resource-kind][data-resource-state="available"]'
-        )].find((button) => (
-          button instanceof HTMLButtonElement
-          && !button.disabled
-          && button.getAttribute('data-resource-kind') === site.resourceKind
-          && (button.querySelector('strong')?.textContent ?? '').trim()
-            === site.playerLabel
-          && (button.getAttribute('aria-label') ?? '')
-            .startsWith('Inspect ' + site.playerLabel + ', tier ')
-        ));
+        const resourcesToggle = navigator.querySelector(
+          'button[data-realm-explore-section="resources"]'
+        );
+        if (
+          resourcesToggle instanceof HTMLButtonElement
+          && resourcesToggle.getAttribute('aria-expanded') !== 'true'
+        ) resourcesToggle.click();
+        await waitFor(() => (
+          document.querySelector(
+            '.realm-cell-navigator__dialog '
+              + 'button[data-realm-explore-section="resources"]'
+          )?.getAttribute('aria-expanded') === 'true'
+        ), 2_000);
+        for (let page = 0; page < 8; page += 1) {
+          const currentNavigator = document.querySelector(
+            '.realm-cell-navigator__dialog'
+          );
+          const more = currentNavigator?.querySelector(
+            'section.realm-cell-navigator__resources'
+              + ' .realm-cell-navigator__section-more'
+          );
+          if (!(more instanceof HTMLButtonElement)) break;
+          more.click();
+          await new Promise((resolve) => setTimeout(resolve, 64));
+        }
+        const resourceSite = await waitFor(() => {
+          const currentNavigator = document.querySelector(
+            '.realm-cell-navigator__dialog'
+          );
+          const root = currentNavigator instanceof HTMLElement
+            ? currentNavigator
+            : navigator;
+          return [...root.querySelectorAll(
+            '.realm-cell-navigator__resource-site'
+              + '[data-resource-kind][data-resource-state="available"]'
+          )].find((button) => (
+            button instanceof HTMLButtonElement
+            && !button.disabled
+            && button.getAttribute('data-resource-kind') === site.resourceKind
+            && (button.querySelector('strong')?.textContent ?? '').trim()
+              === site.playerLabel
+            && (button.getAttribute('aria-label') ?? '')
+              .startsWith('Inspect ' + site.playerLabel + ', tier ')
+          ));
+        }, 15_000);
         if (!(resourceSite instanceof HTMLButtonElement)) return false;
         const bounds = resourceSite.getBoundingClientRect();
         if (bounds.width < 44 || bounds.height < 44) return false;
