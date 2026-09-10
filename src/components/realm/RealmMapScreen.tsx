@@ -6530,6 +6530,9 @@ function CanonicalRealmMapScreen(
       data-worker-private-sync-commands-enabled={String(
         !observerMode && (workerPrivateSync?.commandsEnabled ?? false)
       )}
+      data-worker-private-sync-localized-error-count={String(
+        observerMode ? 0 : workerPrivateSync?.localizedFailureCount ?? 0
+      )}
       data-quality={quality}
       tabIndex={surfaceOpen ? -1 : 0}
       aria-label={observerMode ? 'Hegemony realm QA observer' : 'Hegemony realm'}
