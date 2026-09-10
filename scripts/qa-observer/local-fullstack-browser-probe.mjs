@@ -6969,7 +6969,7 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
             && (
               /^WebGL: too many errors\b.*no more errors will be reported to the console for this context\.?$/i
                 .test(String(rawWarning))
-              || /^WebGL: INVALID_OPERATION: delete: object does not belong to this context\.?$/i
+              || /^WebGL: INVALID_OPERATION: delete[A-Za-z]*: object does not belong to this context\.?$/i
                 .test(String(rawWarning))
             )
           ) return;
