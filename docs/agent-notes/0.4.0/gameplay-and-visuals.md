@@ -1,7 +1,7 @@
 # Gameplay and visual implementation notes
 
 Updated 2026-09-10 against the current PR #228 development branch
-(functional source checkpoint `31ad1240`, branch tip `90f5d7df`) and the inspected working files;
+(functional source checkpoint `31ad1240`, with QA contract repair at `1c214e7f`) and the inspected working files;
 earlier source hashes below remain dated evidence
 anchors, not current review targets.
 This refresh includes the focused Keep04 UI/scene run (161 tests across eight
