@@ -2,6 +2,21 @@
 
 2026-09-09 authenticated/read-only inventory. **Not deployment evidence.**
 
+## Windows connected full-stack QA — 2026-09-10
+
+From the synchronized checkout (`e9f79984`, functional source checkpoint
+`1c214e7f`), `npm run qa:fullstack:local` passed. The run covered the title
+gateway departure/focus matrix (9 cases, 973 frames), restored Terms continuity,
+authoritative Inner Keep City Mill start/completion, discounted Lumber Camp start
+with one Builder, hard-reload persistence, fresh-browser four-phase Worker
+re-entry, delayed/failing private reads, timeout/missing/torn/visibility seams,
+four-worker Gold/Food/Wood/Stone dispatch, individual recall, Recall All,
+automatic settlement, return-completion lifecycle and released-node reuse.
+The visual aggregate contained 651 samples, 151 cool high-albedo samples and
+150 warm low-green samples, with zero clipped black or white samples. This is
+synthetic desktop browser/runtime evidence; it does not establish physical-phone
+performance, authenticated owner play or production delivery.
+
 ## Windows preparation verifier — 2026-09-10
 
 The published branch tip was cloned into a fresh Windows checkout with
