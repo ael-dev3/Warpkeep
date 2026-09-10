@@ -17,6 +17,18 @@ The visual aggregate contained 651 samples, 151 cool high-albedo samples and
 synthetic desktop browser/runtime evidence; it does not establish physical-phone
 performance, authenticated owner play or production delivery.
 
+## Repository-wide test host boundary — 2026-09-10
+
+The focused 0.4 presentation suites, `npm run typecheck`, production build and
+`npm run verify:visual-foundation` pass on the synchronized Windows checkout.
+The repository-wide `npm test` command was also sampled after the `211b0b1a`
+Worker presentation change, but it does not complete green on this host: its
+failures cluster in protected operator, private-publication and signal/lifecycle
+fixtures that require Unix permission and process-group semantics. Those suites
+are covered by the dedicated Linux/CI rails; this Windows result is a host
+capability boundary rather than a failed Keep04 assertion. Rerun the full suite
+in the supported Linux runner before release evidence is sealed.
+
 ## Rendered WebGL host boundary — 2026-09-10
 
 The generic `npm run qa:rendered-webgl` lane remains the signed macOS observer
