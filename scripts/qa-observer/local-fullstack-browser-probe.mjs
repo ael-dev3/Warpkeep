@@ -4370,6 +4370,18 @@ async function exercisePersistentWorkerReentry(
         && routes[2]?.status === 'gathering'
         && routes[3]?.status === 'returning'
       );
+      const routeSetIntact = (routes) => (
+        routes.length === 4
+        && routes.every((route, index) => (
+          route.ordinal === index + 1
+          && Number.isSafeInteger(route.timelineRevision)
+          && Number.isSafeInteger(route.revision)
+          && Number.isSafeInteger(route.worldX)
+          && Number.isSafeInteger(route.worldZ)
+          && Number.isSafeInteger(route.forwardProgress)
+          && Number.isSafeInteger(route.phaseProgress)
+        ))
+      );
       const exactDispatchTargetManifest = Object.freeze({
         gold: Object.freeze({ siteNumber: 2, playerLabel: 'Gold Mine 2' }),
         food: Object.freeze({ siteNumber: 2, playerLabel: 'Wheat Farm 2' }),
@@ -5237,10 +5249,12 @@ async function exercisePersistentWorkerReentry(
           || !/^\\d+$/.test(recoveredPrivateEvidence.privateResourceRevision)
           || BigInt(recoveredPrivateEvidence.privateResourceRevision)
             < BigInt(expectedPrivateResourceRevision)
-          || !routesContinueForward(
-            freshPublicContinuity.routes,
-            recoveredPrivateEvidence.routes
-          )
+          || !(freshBaseline
+            ? routeSetIntact(recoveredPrivateEvidence.routes)
+            : routesContinueForward(
+              freshPublicContinuity.routes,
+              recoveredPrivateEvidence.routes
+            ))
         ) return { stage: 'reentry-private-revision-continuity' };
 
         window.dispatchEvent(new CustomEvent(
@@ -5308,7 +5322,9 @@ async function exercisePersistentWorkerReentry(
             ) === 'true'
             && evidence.publicRevisions === expectedPublicAssignmentRevisions
             && evidence.privateRevisions === expectedPrivateAssignmentRevisions
-            && routesContinueForward(retainedReconnect.routes, evidence.routes)
+            && (freshBaseline
+              ? routeSetIntact(evidence.routes)
+              : routesContinueForward(retainedReconnect.routes, evidence.routes))
             && commandCenter.isConnected
             && lifecycleStable()
           ) ? evidence : undefined;
