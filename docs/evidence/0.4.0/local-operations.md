@@ -2,6 +2,21 @@
 
 2026-09-09 authenticated/read-only inventory. **Not deployment evidence.**
 
+## Windows connected full-stack QA — current source 2026-09-10
+
+From the synchronized checkout (`f5378daf`, functional source `211b0b1a`),
+`npm run qa:fullstack:local` passed. The current run repeated the title gateway
+departure/focus matrix, restored Terms continuity, authoritative Inner Keep
+start/completion and discounted construction, hard-reload persistence,
+fresh-browser four-phase Worker re-entry, private-read retry seams,
+timeout/missing/torn/visibility cases, four-worker Gold/Food/Wood/Stone
+dispatch, individual recall, Recall All, automatic settlement, return
+completion and released-node reuse. The visual aggregate again contained cool
+high-albedo and warm low-green samples with zero clipped black or white
+samples. This is synthetic desktop browser/runtime evidence; it does not
+establish physical-phone performance, authenticated owner play or production
+delivery.
+
 ## Windows connected full-stack QA — 2026-09-10
 
 From the synchronized checkout (`e9f79984`, functional source checkpoint
