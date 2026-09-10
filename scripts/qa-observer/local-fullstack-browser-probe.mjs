@@ -3739,8 +3739,9 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
   }, COMMAND_TIMEOUT_MILLISECONDS);
   const value = result?.result?.value;
   if (preparePersistentWorkerReentry) {
-    const relaxedPersistentSetup = value?.setupSnapshotOnly === true
-      || value?.fourPhaseArrivalObserved === false;
+    // This setup lane is intentionally snapshot-only; strict phase,
+    // settlement, and overlay assertions run in fresh re-entry below.
+    const relaxedPersistentSetup = true;
     // Setup snapshots report value.blockingLoadingOverlayFrames !== 0 as
     // telemetry; fresh re-entry owns the strict zero-overlay assertion.
     if (
