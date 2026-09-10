@@ -57,6 +57,22 @@ describe('Warpkeep 0.4 visual foundation contract', () => {
       'broader climate studies',
     ];
     for (const reference of supportingReferences) expect(contract).toContain(reference);
+    const handoffAliases = [
+      'Custom voxel engine made with GPT Astra',
+      'SimonDev game-development demonstrations',
+      'Procedural Terrains — demonstration',
+      'Procedural Terrains — engine',
+      'Procedural tectonic structure',
+      'Coupled uplift and fluvial erosion',
+      'Priority-Flood drainage',
+      'Tile-based erosion evaluation',
+      'Crytek height-fog / rendering course notes',
+      'Three.js WebGPU renderer guide',
+      'Three.js WebGPU renderer API',
+      'Three.js Shading Language',
+      'Final Fantasy XIV — creating a chat-log tab',
+    ];
+    for (const reference of handoffAliases) expect(contract).toContain(reference);
     expect(contract).toContain('deliberate deferral');
     expect(contract).toContain('not a runtime dependency');
     expect(contract).toContain('nothing was copied');

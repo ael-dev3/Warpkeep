@@ -37,6 +37,26 @@ evidence or deferral boundary below. These references guide the Verdant Citadel
 presentation and review process; they do not add deep interactivity, a new
 simulation, or an imported engine to 0.4.
 
+The exact labels used by the handoff index are retained here as aliases for the
+grouped decisions:
+
+- **Custom voxel engine made with GPT Astra**
+- **SimonDev game-development demonstrations**
+- **Procedural Terrains — demonstration**
+- **Procedural Terrains — engine**
+- **Procedural tectonic structure**
+- **Coupled uplift and fluvial erosion**
+- **Priority-Flood drainage**
+- **Tile-based erosion evaluation**
+- **Crytek height-fog / rendering course notes**
+- **Three.js WebGPU renderer guide**
+- **Three.js WebGPU renderer API**
+- **Three.js Shading Language**
+- **Final Fantasy XIV — creating a chat-log tab**
+
+Keeping these names beside the grouped source owners prevents a future agent
+from mistaking an alias for an unreviewed or omitted reference.
+
 ## Current checkpoint (`b6fe024e` functional source; current docs tip)
 
 The presentation contract is now exercised end to end: the atlas/keep entry,
