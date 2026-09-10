@@ -5257,7 +5257,21 @@ async function exercisePersistentWorkerReentry(
               freshPublicContinuity.routes,
               recoveredPrivateEvidence.routes
             ))
-        ) return { stage: 'reentry-private-revision-continuity' };
+        ) {
+          return {
+            stage: 'reentry-private-revision-continuity',
+            expectedPublicAssignmentRevisions,
+            observedPublicAssignmentRevisions:
+              recoveredPrivateEvidence.publicRevisions,
+            expectedPrivateAssignmentRevisions,
+            observedPrivateAssignmentRevisions:
+              recoveredPrivateEvidence.privateRevisions,
+            expectedPrivateResourceRevision,
+            observedPrivateResourceRevision:
+              recoveredPrivateEvidence.privateResourceRevision,
+            observedRouteEvidence: recoveredPrivateEvidence.routeEvidence
+          };
+        }
 
         window.dispatchEvent(new CustomEvent(
           '${SET_PRIVATE_WORKER_SEAM_EVENT}',
@@ -5873,6 +5887,21 @@ async function exercisePersistentWorkerReentry(
               : 'invalid'
         )).join('/')})`
       : '';
+    const safeRevisionState = safeStage === 'reentry-private-revision-continuity'
+      ? ` (${[
+          value?.expectedPublicAssignmentRevisions,
+          value?.observedPublicAssignmentRevisions,
+          value?.expectedPrivateAssignmentRevisions,
+          value?.observedPrivateAssignmentRevisions,
+          value?.expectedPrivateResourceRevision,
+          value?.observedPrivateResourceRevision,
+          value?.observedRouteEvidence,
+        ].map((entry) => (
+          typeof entry === 'string'
+            ? entry.replace(/[^A-Za-z0-9,:;_./-]/g, '').slice(0, 512)
+            : 'invalid'
+        )).join('|')})`
+      : '';
     const safeWorkerPresentationState =
       safeStage === 'reentry-public-worker-presentation'
         ? ` (${[
@@ -6015,6 +6044,7 @@ async function exercisePersistentWorkerReentry(
           || safeResourceState
           || safeNavigationState
           || safePrivateState
+          || safeRevisionState
           || safeWorkerPresentationState
           || safeCompletionState
           || safeReconnectState
