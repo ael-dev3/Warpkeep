@@ -7,7 +7,7 @@ live release. The current user's direction takes precedence over historical plan
 
 ## Current source checkpoint — 2026-09-10
 
-The current published implementation checkpoint is `69fef647` (functional
+The current published implementation checkpoint is `42e1d818` (functional
 source checkpoint `6e2164f1`) on `codex/prepared-keep-bindings-fix`. It includes
 the bounded Keep04 moat surface,
 current reference-to-source notes, the Windows browser-runtime adapter, the
@@ -21,7 +21,7 @@ loader fixture-CWD safe, keep the native operation-bundle import outside Vite's
 static resolver, refresh the sealed package/lock identity pins, and refreeze the
 1,194-member notification closure. Historical checkpoint labels retain their
 original scope and are not current-source claims. GitHub Verify and CodeQL for
-`69fef647` is the active remote check set; no live release, physical-device
+`42e1d818` is the active remote check set; no live release, physical-device
 acceptance or owner journey is claimed.
 
 ## Connected journey checkpoint — 2026-09-10
@@ -855,7 +855,7 @@ visual improvement, not physical-device or complete visual acceptance.
 
 The keep now omits repeated zero-pending amounts and shows one quiet no-return status. Nonzero incoming amounts remain explicitly unspendable; balances and command semantics are unchanged. All 21 Keep04Screen tests and app/test types passed. Fresh empty/mature desktop and 390px synthetic renderer captures had no horizontal overflow. Nonzero pending and confirmed-return behavior are covered by component tests; physical-device performance remains unverified.
 
-At the earlier source `c104f7b6368635ab6ae36da6ce02c3aa5a9c412d`, full native Linux prepare and the separate rebuilding check both exited successfully with identical family `f23eb885a62eea112e943b70a692b785da0a28b7b873fe2f0e39a59c1508740e`. That candidate had `finalReleasePrepared: false`, was not deployed, and predates the current UI and Linux G001 integration. The note later recorded `096d9c0` as its then-current Windows/GitHub checkpoint; the current published head is `69fef647`. Native materializer/child execution and generated-closure audit remain open.
+At the earlier source `c104f7b6368635ab6ae36da6ce02c3aa5a9c412d`, full native Linux prepare and the separate rebuilding check both exited successfully with identical family `f23eb885a62eea112e943b70a692b785da0a28b7b873fe2f0e39a59c1508740e`. That candidate had `finalReleasePrepared: false`, was not deployed, and predates the current UI and Linux G001 integration. The note later recorded `096d9c0` as its then-current Windows/GitHub checkpoint; the current published head is `42e1d818`. Native materializer/child execution and generated-closure audit remain open.
 
 ## Dedicated Linux caller and private-state integration
 

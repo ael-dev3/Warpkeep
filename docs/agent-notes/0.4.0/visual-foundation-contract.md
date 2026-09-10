@@ -9,7 +9,7 @@ reference into an imported engine, a new economy, or a promise of deep
 interactivity.
 
 The visual contract is maintained against the current PR #228 implementation
-checkpoint `69fef647` (functional source checkpoint `6e2164f1`); earlier hashes
+checkpoint `42e1d818` (functional source checkpoint `6e2164f1`); earlier hashes
 in dated evidence records remain historical
 anchors and are not the source to review for a new pass. The latest connected
 checkpoint covers the four-worker journey, fresh-browser re-entry, private
@@ -37,7 +37,7 @@ evidence or deferral boundary below. These references guide the Verdant Citadel
 presentation and review process; they do not add deep interactivity, a new
 simulation, or an imported engine to 0.4.
 
-## Current checkpoint (`6e2164f1` functional source; `69fef647` published head)
+## Current checkpoint (`6e2164f1` functional source; `42e1d818` published head)
 
 The presentation contract is now exercised end to end: the atlas/keep entry,
 worker setup, outbound → gathering → returning rail, resource disclosure,

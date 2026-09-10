@@ -1,6 +1,6 @@
 # Gameplay and visual implementation notes
 
-Updated 2026-09-10 against current PR #228 implementation checkpoint `69fef647`
+Updated 2026-09-10 against current PR #228 implementation checkpoint `42e1d818`
 (functional source checkpoint `6e2164f1`) and the inspected working files;
 earlier source hashes below remain dated evidence
 anchors, not current review targets.

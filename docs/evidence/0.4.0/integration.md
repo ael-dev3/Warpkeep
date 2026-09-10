@@ -4,10 +4,10 @@ Updated 2026-09-10. R14 remains incomplete; source publication is not production
 
 ## Current checkpoint — 2026-09-10
 
-The reviewed branch head is `69fef64772b479cc274368b587410faed0fd97cd` on
+The reviewed branch head is `42e1d8180eb1753dc366f5ddf4f8870aeb0de451` on
 `codex/prepared-keep-bindings-fix`; PR #228 remains a draft. The functional
-source lane is `6e2164f1`. Verify run `34470619853` is in progress and CodeQL run
-`34470619784` is in progress for this exact head. The regenerated closure
+source lane is `6e2164f1`. Verify run `34472503821` is pending and CodeQL run
+`34472504552` is in progress for this exact head. The regenerated closure
 manifest is `882fcba311ad46c9f2528cd9d77687d6adaa132b4900caacb418359a3bcc56cd`.
 This is current
 integration status only: no terminal Verify pass, live owner journey,
