@@ -1125,7 +1125,7 @@
     {
       "path": "scripts/notification-pages-live-receipt.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "91a2d057ce5503bf8851f3c2a0dc0b4d7108d899aacc64ac3d28ffe7bd9f5acf"
+      "sha256": "15ce6d7bfdf8660500c6e17cfe5c5138ae872b0b3401367c4c73ddc60155af92"
     },
     {
       "path": "scripts/notification-pages-live-release-binding.d.mts",
@@ -1895,7 +1895,7 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9edaffb9667cca4560c241e9f469be7f10d01e3a251cd36a7b0c748ddf0514e5"
+      "sha256": "facda0a932d772f3dae675bc549f92dad051f2e0242b6ec930d5b1fe205a34c2"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",

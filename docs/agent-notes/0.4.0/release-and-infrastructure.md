@@ -2,9 +2,8 @@
 
 ## Current source checkpoint — 2026-09-10
 
-The current published implementation checkpoint is `3eb52ee9` (functional
-source checkpoint `a11ca0e7`) on `codex/prepared-keep-bindings-fix`; later
-commits on the branch are documentation-only overlays. The dependency, private
+The current published implementation checkpoint is `86dca0a8` (functional
+source checkpoint `6e2164f1`) on `codex/prepared-keep-bindings-fix`. The dependency, private
 Sharp/libvips, runtime-verifier,
 sealed-launch source-pin and recovery-loader repairs are published, and the
 agent-facing evidence files reconcile to this source. GitHub Verify and CodeQL

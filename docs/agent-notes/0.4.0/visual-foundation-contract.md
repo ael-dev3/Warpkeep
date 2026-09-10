@@ -9,8 +9,8 @@ reference into an imported engine, a new economy, or a promise of deep
 interactivity.
 
 The visual contract is maintained against the current PR #228 implementation
-checkpoint `3eb52ee9` (functional source checkpoint `a11ca0e7`); later commits on
-the branch are documentation-only overlays and earlier hashes in the dated evidence records remain historical
+checkpoint `86dca0a8` (functional source checkpoint `6e2164f1`); earlier hashes
+in dated evidence records remain historical
 anchors and are not the source to review for a new pass. The latest connected
 checkpoint covers the four-worker journey, fresh-browser re-entry, private
 retry/recovery seams, resource-catalog disclosure, mobile presentation and
@@ -23,7 +23,7 @@ The 0.4 release remains a development build until the release checklist records
 authenticated owner play, physical-device review and the required delivery
 evidence.
 
-## Current checkpoint (`a11ca0e7` functional source; `3eb52ee9` documentation overlay)
+## Current checkpoint (`6e2164f1` functional source; `86dca0a8` published head)
 
 The presentation contract is now exercised end to end: the atlas/keep entry,
 worker setup, outbound → gathering → returning rail, resource disclosure,

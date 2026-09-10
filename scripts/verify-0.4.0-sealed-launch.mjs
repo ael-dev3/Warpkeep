@@ -1464,7 +1464,7 @@ function verifyPtrOwnerAuthority(sources) {
     [sources.ptrOwnerProvisionOperatorSource,
       '40144be3eba3fb4beb0c3b7eccdba4a2c2fd6c72a09ef158eae31413b52e9f78'],
     [sources.ptrPublisherCoreSource,
-      'bac4479db3ac6c778b58b1a318dd81dbbb02b4047868da1b25a132d8f3c0e5da'],
+      'e8e456ed0933e2a47ea3c28904606974298b077cfb864211cd19e286ecfbb463'],
     [sources.ptrPublisherCliSource,
       '8a261a4e2a23a51f80101060e168107f144a3c9811ce22450ea741b25739afa4'],
   ]) {

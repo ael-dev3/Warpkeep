@@ -1,8 +1,18 @@
 # 0.4.0 integration evidence
 
-Updated 2026-09-09. R14 remains incomplete; source publication is not production deployment.
+Updated 2026-09-10. R14 remains incomplete; source publication is not production deployment.
 
-## Current checkpoint — 2026-09-09
+## Current checkpoint — 2026-09-10
+
+The reviewed branch head is `86dca0a876d7438c16862e93ab16f15d02cd5307` on
+`codex/prepared-keep-bindings-fix`; PR #228 remains a draft. The functional
+source lane is `6e2164f1`. Verify run `34447868371` is still in progress with
+auth-bridge, native-contract and release-recovery passed while Linux and
+SpacetimeDB continue. CodeQL run `34447868301` passed. This is current
+integration status only: no terminal Verify pass, live owner journey,
+physical-device acceptance or production deployment is claimed.
+
+## Historical checkpoint — 2026-09-09
 
 The reviewed branch checkpoint is `75d577c8086cc6860713977e661181e9852995d1`
 on `codex/prepared-keep-bindings-fix`; the current notes update is published

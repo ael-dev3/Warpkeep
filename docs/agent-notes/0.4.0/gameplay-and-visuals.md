@@ -1,8 +1,8 @@
 # Gameplay and visual implementation notes
 
-Updated 2026-09-10 against current PR #228 implementation checkpoint `3eb52ee9`
-(functional source checkpoint `a11ca0e7`) and the inspected working files. Later
-commits are documentation-only overlays; earlier source hashes below remain dated evidence
+Updated 2026-09-10 against current PR #228 implementation checkpoint `86dca0a8`
+(functional source checkpoint `6e2164f1`) and the inspected working files;
+earlier source hashes below remain dated evidence
 anchors, not current review targets.
 This refresh includes the focused Keep04 UI/scene run (161 tests across eight
 files), including the accessible Worker Outbound → Gathering → Returning journey
