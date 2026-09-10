@@ -31,6 +31,11 @@ which records the current checkpoint, preparation, CI and environment details.
   selected Worker continuity, healthy refresh and scoped session renewal are
   implemented. Continue rendered Verdant Citadel review, useful progression,
   foreground/resume and physical-device performance with the actual owner.
+- **The keep now names the return loop.** The presentation-only loop rail in
+  `src/components/keep04/Keep04LoopRail.tsx` makes gather → choose → build →
+  benefit → return explicit and derives its active stage from authoritative Worker
+  and construction state. It adds no command, resource rule or progression authority;
+  validate its mobile treatment with the next rendered capture.
 - **The connected presentation rail is exercised.** The disposable Windows lane
   passed on functional source checkpoint `a11ca0e7` with the final WebGL warning
   boundary and re-entry diagnostics, covering fresh-browser re-entry, four-worker
