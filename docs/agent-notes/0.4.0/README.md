@@ -7,7 +7,8 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-Updated September 10 against the published development branch at `c4ad7539`.
+Updated September 10 against the published development branch at
+`178f629bd1bab71d6be5299d5f40720cc945011d`.
 The GitHub/profile/ecosystem refresh is complete. Continue
 the connected game and delivery work from the [execution handoff](execution-handoff.md),
 which records the current checkpoint, preparation, CI and environment details.
@@ -41,10 +42,11 @@ which records the current checkpoint, preparation, CI and environment details.
   and construction state. It adds no command, resource rule or progression authority;
   validate its mobile treatment with the next rendered capture.
 - **The connected presentation rail is exercised.** The disposable Windows lane
-  last passed on functional source checkpoint `211b0b1a` with the final WebGL warning
-  boundary and re-entry diagnostics, covering fresh-browser re-entry, four-worker
-  outbound → gathering → returning, private retry seams, recall/settlement and
-  released-node reuse. Rerun after any further source change before release evidence.
+  passed against current head `178f629bd1bab71d6be5299d5f40720cc945011d` with the
+  final WebGL warning boundary and re-entry diagnostics, covering fresh-browser
+  re-entry, four-worker outbound → gathering → returning, private retry seams,
+  recall/settlement and released-node reuse. Rerun after any further source
+  change before release evidence.
 - **Delivery has working foundations and specific gaps.** The local source
   assembler connects fixed compilers, generated consumers, independent rebuilding
   checks and candidate recovery. Linux recovery and sealed preflight callers are

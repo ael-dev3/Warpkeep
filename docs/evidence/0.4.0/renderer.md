@@ -3,7 +3,7 @@
 ## Scope and source
 
 This record covers the current PR #228 implementation at published head
-`c4ad75399b0ad2effbe4f56354cdef79683db0cf` (functional renderer/UI source
+`178f629bd1bab71d6be5299d5f40720cc945011d` (functional renderer/UI source
 `211b0b1af7f8dc222be836813bbcc8f0885400d6`); older hashes in dated evidence are
 historical anchors only. It records the 0.4 renderer foundation and its
 intentional recovery paths. It does not claim a physical phone result,

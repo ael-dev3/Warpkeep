@@ -2,11 +2,27 @@
 
 2026-09-09 authenticated/read-only inventory. **Not deployment evidence.**
 
+## Current-head connected rerun — 2026-09-10
+
+Against synchronized head `178f629bd1bab71d6be5299d5f40720cc945011d`,
+`npm run qa:fullstack:local` passed. The run covered the title-gateway
+departure/focus matrix, exact-current Terms continuity, authoritative Inner
+Keep City Mill start/completion and discounted Lumber Camp start, hard-reload
+persistence, fresh-browser four-phase Worker re-entry, delayed/failing private
+reads with in-place recovery, timeout/missing/torn/visibility seams, the
+canonical browser realm, four-worker Gold/Food/Wood/Stone dispatch, individual
+recall, Recall All, automatic settlement, return completion and released-node
+reuse. The visual aggregate recorded 39 colour buckets, luminance range 178,
+zero clipped black/white samples, and both cool high-albedo and warm low-green
+sample families. This is disposable local synthetic evidence; it does not
+establish physical-device performance, an authenticated owner journey or live
+deployment acceptance.
+
 ## Windows connected full-stack QA — current source 2026-09-10
 
 The latest recorded run came from synchronized checkout (`f5378daf`, functional
 source `211b0b1a`); the published branch has since advanced to
-`c4ad75399b0ad2effbe4f56354cdef79683db0cf`. `npm run qa:fullstack:local` passed
+`178f629bd1bab71d6be5299d5f40720cc945011d`. `npm run qa:fullstack:local` passed
 at that recorded source. The run repeated the title gateway
 departure/focus matrix, restored Terms continuity, authoritative Inner Keep
 start/completion and discounted construction, hard-reload persistence,

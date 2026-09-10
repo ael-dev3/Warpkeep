@@ -1,5 +1,15 @@
 # Verdant Citadel visual acceptance — current source, with device gates open
 
+## 2026-09-10 current-head responsive QA
+
+At published head `178f629bd1bab71d6be5299d5f40720cc945011d`,
+`npm run qa:inner-keep` passed all 18 synthetic cases. The reviewed matrix
+includes the 390x844 portrait profile, short landscape and desktop geometry,
+construction/completion, reduced motion, missing-asset and schematic fallback
+states. This is current-source browser emulation on the Windows development
+host; it does not establish physical-device performance, authenticated owner
+play or live release acceptance.
+
 ## 2026-09-10 Keep04 loop rail inspection
 
 At source `87c514c2`, the local Keep04 QA route

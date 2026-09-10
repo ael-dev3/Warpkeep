@@ -15,6 +15,12 @@ profiles below, but it is still synthetic instrumentation. It does not measure
 GPU upload, retained heap, production transfer, physical devices or the required
 owner journey, and it does not change any acceptance result.
 
+The same current-head Windows probe (`npm run qa:inner-keep`) passed all 18
+synthetic cases, including the emulated 390x844 responsive path. The probe
+confirms scenario, renderer and overflow contracts only; it does not supply
+the timed production-build, transfer, heap or physical-device measurements
+below.
+
 ## Reference profiles
 
 Observed local hardware: Intel Core i7-12700F, NVIDIA RTX 3090,
