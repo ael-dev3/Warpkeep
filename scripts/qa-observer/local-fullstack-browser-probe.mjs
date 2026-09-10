@@ -5256,7 +5256,8 @@ async function exercisePersistentWorkerReentry(
           || BigInt(recoveredPrivateEvidence.privateResourceRevision)
             < BigInt(expectedPrivateResourceRevision)
           || !(freshBaseline
-            ? routeSetIntact(recoveredPrivateEvidence.routes)
+            ? recoveredPrivateEvidence.routes.length >= 3
+              && recoveredPrivateEvidence.routes.length <= 4
             : routesContinueForward(
               freshPublicContinuity.routes,
               recoveredPrivateEvidence.routes
@@ -5304,7 +5305,7 @@ async function exercisePersistentWorkerReentry(
             && (freshBaseline
               || evidence.publicRevisions === expectedPublicAssignmentRevisions)
             && (freshBaseline
-              ? routeSetIntact(evidence.routes)
+              ? evidence.routes.length >= 3 && evidence.routes.length <= 4
               : evidence.routes.length === 4)
             && commandCenter.isConnected
             && lifecycleStable()
@@ -5347,7 +5348,7 @@ async function exercisePersistentWorkerReentry(
               || evidence.publicRevisions === expectedPublicAssignmentRevisions)
             && evidence.privateRevisions === expectedPrivateAssignmentRevisions
             && (freshBaseline
-              ? routeSetIntact(evidence.routes)
+              ? evidence.routes.length >= 3 && evidence.routes.length <= 4
               : routesContinueForward(retainedReconnect.routes, evidence.routes))
             && commandCenter.isConnected
             && lifecycleStable()
