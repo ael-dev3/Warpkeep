@@ -2677,18 +2677,33 @@ async function exerciseLocalFullstackJourney(session, journeyMode = 'complete') 
           !(navigator instanceof HTMLElement)
           || navigator.querySelector('.realm-cell-navigator__jump') !== null
         ) return false;
-        const resourceSite = [...navigator.querySelectorAll(
-          '.realm-cell-navigator__resource-site'
-            + '[data-resource-kind][data-resource-state="available"]'
-        )].find((button) => (
-          button instanceof HTMLButtonElement
-          && !button.disabled
-          && button.getAttribute('data-resource-kind') === site.resourceKind
-          && (button.querySelector('strong')?.textContent ?? '').trim()
-            === site.playerLabel
-          && (button.getAttribute('aria-label') ?? '')
-            .startsWith('Inspect ' + site.playerLabel + ', tier ')
-        ));
+        const resourcesToggle = navigator.querySelector(
+          'button[data-realm-explore-section="resources"]'
+        );
+        if (
+          resourcesToggle instanceof HTMLButtonElement
+          && resourcesToggle.getAttribute('aria-expanded') !== 'true'
+        ) resourcesToggle.click();
+        const resourceSite = await waitFor(() => {
+          const currentNavigator = document.querySelector(
+            '.realm-cell-navigator__dialog'
+          );
+          const root = currentNavigator instanceof HTMLElement
+            ? currentNavigator
+            : navigator;
+          return [...root.querySelectorAll(
+            '.realm-cell-navigator__resource-site'
+              + '[data-resource-kind][data-resource-state="available"]'
+          )].find((button) => (
+            button instanceof HTMLButtonElement
+            && !button.disabled
+            && button.getAttribute('data-resource-kind') === site.resourceKind
+            && (button.querySelector('strong')?.textContent ?? '').trim()
+              === site.playerLabel
+            && (button.getAttribute('aria-label') ?? '')
+              .startsWith('Inspect ' + site.playerLabel + ', tier ')
+          ));
+        }, 5_000);
         if (!(resourceSite instanceof HTMLButtonElement)) return false;
         const bounds = resourceSite.getBoundingClientRect();
         if (bounds.width < 44 || bounds.height < 44) return false;
@@ -4780,6 +4795,13 @@ async function exercisePersistentWorkerReentry(
       if (!(resourceNavigator instanceof HTMLElement)) {
         return { stage: 'reentry-public-resource-explore' };
       }
+      const resourcesToggle = resourceNavigator.querySelector(
+        'button[data-realm-explore-section="resources"]'
+      );
+      if (
+        resourcesToggle instanceof HTMLButtonElement
+        && resourcesToggle.getAttribute('aria-expanded') !== 'true'
+      ) resourcesToggle.click();
       const expectedResourceStates = [
         ['gold', 'Gold Mine 2', 'reserved'],
         ['food', 'Wheat Farm 2', 'reserved'],
