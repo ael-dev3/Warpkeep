@@ -23,7 +23,9 @@ that remembers your effort and offers another worthwhile decision.
 
 Our aim is a satisfying first session and meaningful choices beyond it.
 Clear feedback, dependable progress, thoughtful pacing and comfortable mobile
-controls are central to that experience.
+controls are central to that experience. The 0.4 scope is a polished visual
+foundation and dependable loop; deeper simulation, freeform editing and social
+systems remain later milestones.
 
 ## The Verdant Citadel
 
