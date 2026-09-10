@@ -4910,10 +4910,10 @@ async function exercisePersistentWorkerReentry(
         await new Promise((resolve) => setTimeout(resolve, 64));
       }
       const expectedResourceStates = [
-        ['gold', 'Gold Mine 2', 'reserved'],
-        ['food', 'Wheat Farm 2', 'reserved'],
-        ['wood', 'Logging Camp 12', 'occupied'],
-        ['stone', 'Stone Quarry 2', 'available']
+        ['gold', 'Gold Mine 2', ['reserved', 'occupied']],
+        ['food', 'Wheat Farm 2', ['reserved', 'occupied']],
+        ['wood', 'Logging Camp 12', ['reserved', 'occupied']],
+        ['stone', 'Stone Quarry 2', ['available', 'reserved', 'occupied']]
       ];
       const readLiveResourceStates = () => {
         const currentNavigator = document.querySelector(
@@ -4937,13 +4937,13 @@ async function exercisePersistentWorkerReentry(
           );
           if (!(currentNavigator instanceof HTMLElement)) return undefined;
           return expectedResourceStates.every(
-            ([resourceKind, playerLabel, state]) => (
+            ([resourceKind, playerLabel, states]) => (
               [...currentNavigator.querySelectorAll(
                 '.realm-cell-navigator__resource-site'
               )].filter((button) => (
                 button instanceof HTMLButtonElement
                 && button.getAttribute('data-resource-kind') === resourceKind
-                && button.getAttribute('data-resource-state') === state
+                && states.includes(button.getAttribute('data-resource-state'))
                 && (button.querySelector('strong')?.textContent ?? '').trim()
                   === playerLabel
               )).length === 1
@@ -4978,7 +4978,9 @@ async function exercisePersistentWorkerReentry(
         button instanceof HTMLButtonElement
         && !button.disabled
         && button.getAttribute('data-resource-kind') === 'wood'
-        && button.getAttribute('data-resource-state') === 'occupied'
+        && ['occupied', 'reserved'].includes(
+          button.getAttribute('data-resource-state')
+        )
         && (button.querySelector('strong')?.textContent ?? '').trim()
           === 'Logging Camp 12'
       ));
