@@ -10,7 +10,9 @@ it('imports the production import core while an isolated fixture owns the cwd', 
   const fixtureCwd = mkdtempSync(join(tmpdir(), 'warpkeep-import-loader-'));
   process.chdir(fixtureCwd);
   try {
-    const imported = await import('../scripts/greater-realm-production-import-core.ts?isolated-cwd');
+    const imported = await import(
+      `${new URL('../scripts/greater-realm-production-import-core.ts', import.meta.url).href}?isolated-cwd`,
+    );
     expect(imported.verifyGreaterRealmProductionImportAuthority).toBeTypeOf('function');
   } finally {
     process.chdir(originalCwd);
