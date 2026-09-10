@@ -480,6 +480,8 @@ const ACTIVE_EVIDENCE_IMPORT_ROOTS = Object.freeze([
   'scripts/greater-realm-production-transport.ts',
   'scripts/greater-realm-production-verifier-core.ts',
   'scripts/greater-realm-production-verifier.ts',
+  'scripts/hermes-admin.ts',
+  'scripts/notification-pages-live-release-binding.mjs',
 ]);
 const HERMES_AUTHORITY_IMPORT_ROOTS = Object.freeze([
   'scripts/hermes-admin.ts',
