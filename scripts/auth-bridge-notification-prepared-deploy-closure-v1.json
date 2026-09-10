@@ -1125,7 +1125,7 @@
     {
       "path": "scripts/notification-pages-live-receipt.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "15ce6d7bfdf8660500c6e17cfe5c5138ae872b0b3401367c4c73ddc60155af92"
+      "sha256": "def66361c80e14b64d8e80548a086a4ac9050403c16822bf338bde0432d2ce5e"
     },
     {
       "path": "scripts/notification-pages-live-release-binding.d.mts",

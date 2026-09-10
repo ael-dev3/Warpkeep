@@ -2684,6 +2684,7 @@ const HERMES_DIRECT_LOCAL_IMPORTS = Object.freeze([
   './founder-admission-authority',
   './hermes-machine-output',
   './notification-pages-live-hermes-authority.mjs',
+  './production-admin-connection',
   './production-admin-token-budget.mjs',
   './profiles/farcaster-profile-policy',
   './profiles/founder-admission-plan',
