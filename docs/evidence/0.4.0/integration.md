@@ -1,17 +1,17 @@
 # 0.4.0 integration evidence
 
-Updated 2026-09-10. The completed functional source head passed R14; the
-current documentation-only follow-up is being rechecked. Source publication is
-not production deployment.
+Updated 2026-09-10. The current reviewed source includes the presentation-only
+keep loop rail, the Windows browser profile teardown repair and the aligned
+handoff/release notes. Source publication is not production deployment.
 
 ## Current checkpoint — 2026-09-10
 
 The reviewed branch is synchronized with upstream on
-`codex/prepared-keep-bindings-fix`; PR #228 remains a draft. The functional
-source lane is `b6fe024ecf92ed68bfdc9003093b5a33bb932156`, with documentation
-follow-up at the current branch tip. Verify run `34495962510` and CodeQL run `34495962519`
-passed for the functional head; replacement checks for the documentation-only
-follow-up are the current R14 authority. The regenerated closure
+`codex/prepared-keep-bindings-fix`; PR #228 remains a draft. The current reviewed
+source lane is `08394e9c79f209a97c28953ddbb7d3e29e3603d4`. Prior Verify run
+`34495962510` and CodeQL run `34495962519` passed for the earlier functional
+head; current Verify run `34513667819` and CodeQL run `34513667863` are the R14
+authority and remain in progress at this checkpoint. The regenerated closure
 manifest is `723779a955a961b1968ca86d8d6f9343962350fb4171ae33c42e8ce96bd3e7f2`.
 This is current integration status only: the source-rail pass does not establish
 a live owner journey,
