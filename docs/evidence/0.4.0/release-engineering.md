@@ -1,6 +1,8 @@
 # Release engineering: implementation and evidence
 
-Current reading point: the September 9 source checkpoint `206c036` sits above the
+Current reading point: the published development head is
+`dd85c69cf10b50604b11d596b77cdb3c2629fb46`; the September 9 source checkpoint
+`206c036` records the latest retained assembled-artifact execution above the
 historical entries in this record; the September 8 entries at the end cover
 the published Linux preflight/Worker source `1e90b2e`, its completed native
 prepare/check and generated-only integration `de10f83`, plus compiled G002/PTR

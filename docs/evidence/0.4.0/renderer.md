@@ -2,8 +2,9 @@
 
 ## Scope and source
 
-This record covers the current PR #228 implementation checkpoint
-`d06cb4c1965742d17a524d24c5998ca1dbc22a81`; older hashes in dated evidence are
+This record covers the current PR #228 implementation at published head
+`dd85c69cf10b50604b11d596b77cdb3c2629fb46` (functional renderer/UI source
+`211b0b1af7f8dc222be836813bbcc8f0885400d6`); older hashes in dated evidence are
 historical anchors only. It records the 0.4 renderer foundation and its
 intentional recovery paths. It does not claim a physical phone result,
 authenticated owner play, or a final performance gate.
