@@ -6,9 +6,9 @@ handoff/release notes. Source publication is not production deployment.
 
 ## Current checkpoint — 2026-09-10
 
-The reviewed branch is synchronized with upstream on
+The reviewed branch is synchronized with upstream at `87717f50` on
 `codex/prepared-keep-bindings-fix`; PR #228 remains a draft. The current reviewed
-functional source lane is `211b0b1a` with the QA contract repair at `1c214e7f`. Prior Verify run
+functional source lane is `211b0b1a` with the QA contract repair at `1c214e7f`; the latest published head adds the exactly-once improved-return adapter proof. Prior Verify run
 `34495962510` and CodeQL run `34495962519` passed for the earlier functional
 head; the current Verify and CodeQL runs attached to PR #228 are the R14
 authority and must be read live before release. The regenerated closure

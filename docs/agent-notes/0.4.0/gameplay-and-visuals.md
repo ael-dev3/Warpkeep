@@ -1,6 +1,6 @@
 # Gameplay and visual implementation notes
 
-Updated 2026-09-10 against the current PR #228 development branch
+Updated 2026-09-10 against the current PR #228 development branch at `87717f50`
 (functional source checkpoint `211b0b1a`, with QA contract repair at `1c214e7f`) and the inspected working files;
 earlier source hashes below remain dated evidence
 anchors, not current review targets.
@@ -32,7 +32,7 @@ this page keeps precise mechanics, implementation routes and evidence limits.
 
 ## Visual foundation and complete reference coverage
 
-At the current functional visual source checkpoint `211b0b1a`, the owner direction prioritizes a professional mobile visual
+At the current published visual source checkpoint `87717f50` (functional renderer/UI source `211b0b1a`), the owner direction prioritizes a professional mobile visual
 foundation with simple interaction. Preserve the useful existing loop; deeper
 simulation and elaborate editing remain later work. The full Desktop handoff
 reference library informs one coherent Verdant Citadel, rather than a collection

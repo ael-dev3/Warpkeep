@@ -9,7 +9,7 @@ reference into an imported engine, a new economy, or a promise of deep
 interactivity.
 
 The visual contract is maintained against the current PR #228 implementation
-published functional source checkpoint `211b0b1a`; the Windows QA repair is
+published at `87717f50`, with functional source checkpoint `211b0b1a`; the Windows QA repair is
 `84c35a5e`. Earlier hashes in dated evidence records remain
 historical anchors and are not the source to review for a new pass. The latest connected
 checkpoint covers the four-worker journey, fresh-browser re-entry, private
@@ -57,7 +57,7 @@ grouped decisions:
 Keeping these names beside the grouped source owners prevents a future agent
 from mistaking an alias for an unreviewed or omitted reference.
 
-## Current checkpoint (`211b0b1a` functional source; `31ad1240` loop rail)
+## Current checkpoint (`87717f50` published head; `211b0b1a` functional source; `31ad1240` loop rail)
 
 The presentation contract is now exercised end to end: the atlas/keep entry,
 worker setup, outbound → gathering → returning rail, gather → choose → build →

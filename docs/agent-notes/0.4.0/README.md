@@ -7,8 +7,8 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-Updated September 10 against the published development branch. The GitHub/profile/ecosystem
-refresh is complete. Continue
+Updated September 10 against the published development branch at `87717f50`.
+The GitHub/profile/ecosystem refresh is complete. Continue
 the connected game and delivery work from the [execution handoff](execution-handoff.md),
 which records the current checkpoint, preparation, CI and environment details.
 
@@ -26,7 +26,9 @@ which records the current checkpoint, preparation, CI and environment details.
   durable acknowledgement recovery and serialized concurrent inspections. Its
   Linux test launcher passed its dedicated hosted CI step at `5aa6fdb`.
   External identity/workflow authority was synthetic;
-  actual-owner play and production delivery remain to be accepted.
+  actual-owner play and production delivery remain to be accepted. The local
+  bundled PTR adapter now also proves the improved return is credited once after
+  the first economy building; the real-atlas owner journey is still open.
 - **The player experience needs integrated observation.** Keep/atlas navigation,
   selected Worker continuity, healthy refresh and scoped session renewal are
   implemented. Continue rendered Verdant Citadel review, useful progression,
@@ -37,7 +39,7 @@ which records the current checkpoint, preparation, CI and environment details.
   and construction state. It adds no command, resource rule or progression authority;
   validate its mobile treatment with the next rendered capture.
 - **The connected presentation rail is exercised.** The disposable Windows lane
-  last passed on functional source checkpoint `1c214e7f` with the final WebGL warning
+  last passed on functional source checkpoint `211b0b1a` with the final WebGL warning
   boundary and re-entry diagnostics, covering fresh-browser re-entry, four-worker
   outbound → gathering → returning, private retry seams, recall/settlement and
   released-node reuse. Rerun after any further source change before release evidence.
