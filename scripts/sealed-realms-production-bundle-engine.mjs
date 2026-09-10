@@ -167,7 +167,10 @@ function pathFreeSourceLiterals(source, sourcePath) {
   if (sourcePath === 'scripts/local-binding-runtime-core.mjs') {
     const substitutions = [
       ["resolve(dirname(fileURLToPath(import.meta.url)), '..')", 'process.cwd()'],
-      ["import('warpkeep:operation-bundle-packages')", `import(${codePointExpression('warpkeep:operation-bundle-packages')})`],
+      [
+        "import(/* @vite-ignore */ operationBundlePackagesSpecifier)",
+        `import(${codePointExpression('warpkeep:operation-bundle-packages')})`,
+      ],
       ['/sourceMappingURL/u.test(source)', `new RegExp(${codePointExpression('sourceMappingURL')}, 'u').test(source)`],
     ];
     for (const [expected, replacement] of substitutions) {
