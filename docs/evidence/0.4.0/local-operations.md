@@ -40,6 +40,15 @@ startup command and this operational limit.
 
 ## Native release assembler — 2026-09-11
 
+The current published head `7a542a33` was then prepared and independently
+checked again from the native checkout. Both lanes returned the same transaction
+`d1266c1a19310ba1f4d669e42d64f520`, source tree
+`c1152bd3697fe77fda63552daf79edaf13278aaa`, family digest
+`77c6ab8bc86910021a307b84c009f7e4fa86555ddadb6aa7a32e03d6f5369c81`, and
+candidate `release-workspace-447cff3cb663d042a1c10db14e426213`. They checked
+3,181 source files, 3,181 candidate files, 101 generated outputs, 444 compiled
+bundle inputs and 7 recovery inputs. `finalReleasePrepared` remains false.
+
 After the closure refreeze, the synchronized native checkout completed both
 release-assembler lanes at `c0e30a37` (`8bc06b320f3cddd53225e5d81b1e5965147e399b`):
 

@@ -6,9 +6,11 @@ The dedicated `WarpkeepRunner` service is enabled and running as `warpkeep`
 UID/GID 1000. GitHub reported existing runner ID 22 online and idle at 21:20 UTC
 after completing the interrupted helper/marker installation. Empty sealed private
 roots are now provisioned. No credentials or receipts were migrated and no
-protected workflow was dispatched. Native `prepare` and independent `check` now
-pass at source `c0e30a37`, including the 1,195-member closure and the full
-3,181-file candidate family. This supersedes the historical setup and
+protected workflow was dispatched. Native `prepare` and independent `check` pass
+at the current source `7a542a33` with the 1,195-member closure and the full
+3,181-file candidate family; the current candidate is
+`release-workspace-447cff3cb663d042a1c10db14e426213` and its source tree is
+`c1152bd3697fe77fda63552daf79edaf13278aaa`. This supersedes the historical setup and
 offline observations below. Follow the
 [runner guide](../../operations/0.4.0-linux-runner.md) for current paths and the
 remaining recovery deployment/readback integration; R11 is still incomplete.
