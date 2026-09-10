@@ -9,7 +9,7 @@ not production deployment.
 The reviewed branch is synchronized with upstream on
 `codex/prepared-keep-bindings-fix`; PR #228 remains a draft. The functional
 source lane is `b6fe024ecf92ed68bfdc9003093b5a33bb932156`, with documentation
-follow-up at `f414b06e`. Verify run `34495962510` and CodeQL run `34495962519`
+follow-up at `cdf81bb1`. Verify run `34495962510` and CodeQL run `34495962519`
 passed for the functional head; replacement checks for the documentation-only
 follow-up are the current R14 authority. The regenerated closure
 manifest is `723779a955a961b1968ca86d8d6f9343962350fb4171ae33c42e8ce96bd3e7f2`.
