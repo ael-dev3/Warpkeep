@@ -5,7 +5,7 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
-## Workflow audit and runner repair — 2026-09-10
+## Workflow audit and runner repair — 2026-09-11
 
 The workflow is usable for continued development but is not yet sufficient to
 ship. The interrupted dedicated runner installation has been completed:
@@ -24,6 +24,15 @@ supported by the dispatcher but absent from its executable parser. The parser
 now uses the dispatch operation map. The new fresh-process regression reproduced
 the input failure before the fix, then reached the required host-attestation
 failure without runner context. Unsupported operations still fail before host work.
+
+The protected closure then exposed a second real drift: the checked-in inventory
+omitted `src/components/keep04/Keep04LoopRail.tsx`. Commit `65f6541d` refroze the
+generated closure and all count consumers at 1,195 members; commit `c0e30a37`
+regenerated the manifest and workflow pins from the native Linux bytes so
+Windows CRLF checkout differences cannot invalidate the Linux authority. The
+native runner completed `prepare` and independent `check` at `c0e30a37`, each
+checking 3,181 source/candidate files and 101 generated outputs. The durable
+candidate remains local preparation evidence only; it is not a deployment grant.
 
 Linux recovery Pages and activation-generation callers already exist; generation
 has job OIDC. The remaining integration is genuine recovery service deployment
@@ -47,7 +56,7 @@ fresh-browser re-entry diagnostics and the narrow WebGL teardown-warning
 boundary. The latest release-rail commits also make the private TypeScript
 loader fixture-CWD safe, keep the native operation-bundle import outside Vite's
 static resolver, refresh the sealed package/lock identity pins, and refreeze the
-1,194-member notification closure. Historical checkpoint labels retain their
+1,195-member notification closure. Historical checkpoint labels retain their
 original scope and are not current-source claims. The current Verify and CodeQL
 runs attached to PR #228 are the R14 authority; read their live conclusions
 before release. Local source and protected test rails pass. No live release,

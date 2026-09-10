@@ -1,12 +1,14 @@
 # Release engineering, CI and infrastructure audit
 
-## Current runner status — 2026-09-10
+## Current runner status — 2026-09-11
 
 The dedicated `WarpkeepRunner` service is enabled and running as `warpkeep`
 UID/GID 1000. GitHub reported existing runner ID 22 online and idle at 21:20 UTC
 after completing the interrupted helper/marker installation. Empty sealed private
 roots are now provisioned. No credentials or receipts were migrated and no
-protected workflow was dispatched. This supersedes the historical setup and
+protected workflow was dispatched. Native `prepare` and independent `check` now
+pass at source `c0e30a37`, including the 1,195-member closure and the full
+3,181-file candidate family. This supersedes the historical setup and
 offline observations below. Follow the
 [runner guide](../../operations/0.4.0-linux-runner.md) for current paths and the
 remaining recovery deployment/readback integration; R11 is still incomplete.
@@ -57,8 +59,10 @@ The current source selects WSL `WarpkeepRunner`, intended user `warpkeep`
 local parents/workers and the fixture toolchain policy. Its installation
 completed; after initial connection timeouts, Ubuntu 24.04.4 now runs commands
 as `warpkeep` UID/GID 1000. Home/private directory modes are verified. A systemd
-user-session warning persists; pinned tools, fresh attestations and native
-current-source preparation remain pending.
+user-session warning persists, and WSL availability still depends on the host
+session, but pinned tools, fresh attestations and native current-source
+preparation/check are now proven. The evidence remains local and does not
+replace protected CI, provider, owner or physical-device acceptance.
 No fallback into another project's distro is supported. Existing tool hashes,
 UID/mode checks and private history remain intact. Source/mock verification
 must not be presented as a working guest, regenerated native bundles or a

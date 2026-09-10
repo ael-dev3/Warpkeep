@@ -38,6 +38,25 @@ This does not establish availability after Windows sleep/reboot. The
 [runner guide](../../operations/0.4.0-linux-runner.md) includes the idempotent
 startup command and this operational limit.
 
+## Native release assembler — 2026-09-11
+
+After the closure refreeze, the synchronized native checkout completed both
+release-assembler lanes at `c0e30a37` (`8bc06b320f3cddd53225e5d81b1e5965147e399b`):
+
+- `prepare` created candidate `release-workspace-3f372602a3f664b8f5aa5931b28c3244`
+  and wrote its owner-private prepared-source marker.
+- Independent `check` rebuilt the family from a fresh draft and returned the
+  same candidate transaction and digests.
+- Both lanes checked 3,181 source files, 3,181 candidate files, 101 generated
+  outputs, 444 compiled bundle inputs and 7 recovery inputs.
+- The closure verifier passed at 1,195 members. The manifest was generated from
+  Linux checkout bytes after the Windows CRLF discrepancy was identified.
+
+This closes local native preparation and restart-safe candidate verification.
+It does not establish GitHub protected workflow completion, recovery-service
+deployment/readback, live Cloudflare or SpacetimeDB authority, owner admission,
+physical-device performance, or final release approval.
+
 ## Current-head connected rerun — 2026-09-10
 
 Against synchronized head `5b9ba9657d6e66319f41aabd396faf2a6c947b29`,
