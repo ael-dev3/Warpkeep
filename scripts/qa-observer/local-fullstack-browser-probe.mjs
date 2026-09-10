@@ -6958,6 +6958,15 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
             return;
           }
           const rawWarning = params?.entry?.text ?? params?.entry?.source ?? 'unknown';
+          // Headless Chrome emits this quota summary after the deliberate
+          // context-loss recovery has already been observed and restored. It
+          // is browser telemetry rather than an application assertion; keep
+          // every other warning fail-closed.
+          if (
+            params.entry.level === 'warning'
+            && /^WebGL: too many errors; no more errors will be reported to the console for this context\.?$/i
+              .test(String(rawWarning))
+          ) return;
           const safeWarning = String(rawWarning)
             .split('\n', 1)[0]
             .replace(/[^A-Za-z0-9 .:_()/-]/g, '')
