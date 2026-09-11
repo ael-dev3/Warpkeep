@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "profile": "warpkeep-auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1",
+  "sourceClosureProfile": "warpkeep-auth-bridge-notification-prepared-deploy-closure-v1",
+  "sourceClosureManifestPath": "scripts/auth-bridge-notification-prepared-deploy-closure-v1.json",
+  "lockfileSha256": "369a7a6de6f874ffe7bb7a79617561daa771ce3dcfe79c35153a4446e614461b",
+  "packageManager": "pnpm@11.7.0",
+  "platform": "linux",
+  "architecture": "x64",
+  "nodeVersion": "v22.22.3",
+  "virtualStorePath": "services/auth-bridge/node_modules/.pnpm",
+  "normalizedShimDirectoryName": ".bin",
+  "normalizedServiceRoot": "$AUTH_BRIDGE_SERVICE_ROOT",
+  "topLevelLinks": [
+    {
+      "path": "typescript",
+      "target": ".pnpm/typescript@7.0.2/node_modules/typescript"
+    },
+    {
+      "path": "wrangler",
+      "target": ".pnpm/wrangler@4.110.0_@cloudflare+workers-types@5.20260708.1_@types+node@26.1.1/node_modules/wrangler"
+    },
+    {
+      "path": "yaml",
+      "target": ".pnpm/yaml@2.9.0/node_modules/yaml"
+    }
+  ],
+  "requiredExecutablePaths": [
+    ".pnpm/@cloudflare+workerd-linux-64@1.20260708.1/node_modules/@cloudflare/workerd-linux-64/bin/workerd",
+    ".pnpm/@esbuild+linux-x64@0.28.1/node_modules/@esbuild/linux-x64/bin/esbuild",
+    ".pnpm/@typescript+typescript-linux-x64@7.0.2/node_modules/@typescript/typescript-linux-x64/lib/tsc",
+    ".pnpm/wrangler@4.110.0_@cloudflare+workers-types@5.20260708.1_@types+node@26.1.1/node_modules/wrangler/bin/wrangler.js"
+  ],
+  "resolverNamespaceEntryCount": 26,
+  "resolverNamespaceDirectoryCount": 7,
+  "resolverNamespaceFileCount": 8,
+  "resolverNamespaceSymbolicLinkCount": 11,
+  "resolverNamespaceSha256": "4c0260b9a342e91186fecaedb16e15e2fa03c99a345b754653eae392b3ec6678",
+  "normalizedShimFileCount": 31,
+  "entryCount": 18141,
+  "directoryCount": 1529,
+  "fileCount": 16373,
+  "symbolicLinkCount": 239,
+  "executableFileCount": 64,
+  "totalFileBytes": 324376726,
+  "treeSha256": "83c29000c0fe5a80966d81851eea8172ca18f384f302e2ff47092df47fc94ee1"
+}

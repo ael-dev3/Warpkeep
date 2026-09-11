@@ -270,6 +270,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/auth-bridge-notification-prepared-deploy.d.mts',
     'scripts/auth-bridge-notification-prepared-deploy.mjs',
     'scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json',
+    'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json',
     'scripts/auth-bridge-notification-prepared-installed-toolchain.d.mts',
     'scripts/auth-bridge-notification-prepared-installed-toolchain.mjs',
     'scripts/auth-bridge-notification-prepared-receipt.d.mts',

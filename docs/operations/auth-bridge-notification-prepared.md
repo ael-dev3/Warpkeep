@@ -352,16 +352,14 @@ workflow byte remains covered. A pin, namespace, verifier, or manifest change
 therefore requires an explicit protected-workflow and manifest refreeze rather
 than blessing the bytes discovered on the persistent runner.
 
-The source closure byte-pins the reviewed
-`auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json`
-authority. That second manifest is generated only during review; the workflow
-has no regeneration or write mode. It binds pnpm 11.7.0, Node 22.22.3 on
-darwin-arm64, the checked lockfile, exact top-level Wrangler, TypeScript, and
-YAML 2.9.0 resolver links, required Wrangler/esbuild/workerd/TypeScript
-executable paths, and a deterministic SHA-256 over 18,153 entries and
-305,064,638 canonical bytes
-in the copy-only, lifecycle-script-free `.pnpm` tree. A second digest fixes all
-24 entries in the complete top-level resolver namespace: root and scoped
+The source closure byte-pins the reviewed Darwin and Linux installed-toolchain
+manifests. Each manifest is generated only during review; the workflow has no
+regeneration or write mode. They bind pnpm 11.7.0, Node 22.22.3, the checked
+lockfile, exact top-level Wrangler, TypeScript, and YAML 2.9.0 resolver links,
+required Wrangler/esbuild/workerd/TypeScript executable paths, and a
+deterministic SHA-256 over the complete copy-only, lifecycle-script-free
+`.pnpm` tree. A second digest fixes every entry in the complete top-level
+resolver namespace: root and scoped
 directories, every package link and exact target, metadata files, and root
 `.bin` shims. Missing, redirected, substituted, or extra resolver entries fail
 closed even when their target bytes exist elsewhere in the attested store.

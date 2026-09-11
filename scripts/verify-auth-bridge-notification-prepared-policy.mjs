@@ -977,6 +977,39 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     || !/^[a-f0-9]{64}$/u.test(installedToolchain.treeSha256 ?? '')
   ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_TOOLCHAIN_INVALID');
 
+  // Linux is the retained production authority. Keep its package-family
+  // manifest checked in beside the historical Darwin profile so the Linux
+  // lane can select it without weakening the exact tree contract.
+  const installedLinuxToolchain = JSON.parse(read(
+    'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json',
+  ));
+  if (
+    installedLinuxToolchain.schemaVersion !== 1
+    || installedLinuxToolchain.profile
+      !== 'warpkeep-auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1'
+    || installedLinuxToolchain.lockfileSha256
+      !== '369a7a6de6f874ffe7bb7a79617561daa771ce3dcfe79c35153a4446e614461b'
+    || installedLinuxToolchain.packageManager !== 'pnpm@11.7.0'
+    || installedLinuxToolchain.platform !== 'linux'
+    || installedLinuxToolchain.architecture !== 'x64'
+    || installedLinuxToolchain.nodeVersion !== 'v22.22.3'
+    || installedLinuxToolchain.resolverNamespaceEntryCount !== 26
+    || installedLinuxToolchain.resolverNamespaceDirectoryCount !== 7
+    || installedLinuxToolchain.resolverNamespaceFileCount !== 8
+    || installedLinuxToolchain.resolverNamespaceSymbolicLinkCount !== 11
+    || installedLinuxToolchain.topLevelLinks?.at(-1)?.path !== 'yaml'
+    || installedLinuxToolchain.topLevelLinks?.at(-1)?.target
+      !== '.pnpm/yaml@2.9.0/node_modules/yaml'
+    || !/^[a-f0-9]{64}$/u.test(
+      installedLinuxToolchain.resolverNamespaceSha256 ?? '',
+    )
+    || !Number.isSafeInteger(installedLinuxToolchain.entryCount)
+    || installedLinuxToolchain.entryCount < 1
+    || !Number.isSafeInteger(installedLinuxToolchain.totalFileBytes)
+    || installedLinuxToolchain.totalFileBytes < 1
+    || !/^[a-f0-9]{64}$/u.test(installedLinuxToolchain.treeSha256 ?? '')
+  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_TOOLCHAIN_INVALID');
+
   const workflow = read('.github/workflows/notification-bridge-prepared.yml');
   for (const exact of [
     "WARPKEEP_BRIDGE_NOTIFICATION_DELIVERY_ENABLED: 'false'",

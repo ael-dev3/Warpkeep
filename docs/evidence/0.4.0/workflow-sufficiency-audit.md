@@ -54,12 +54,12 @@ fresh evidence bound to the final reviewed and deployed source.
   production baseline/preservation proof, G002 denial proof or final live
   release verification is recorded.
 - Legacy durable Pages and notification workflows still target macOS/ARM64;
-  the prepared installed-toolchain verifier also names the Darwin/ARM64
-  package family and immutable `/private/var/db/warpkeep/...` Node/pnpm paths.
-  The Linux runner therefore proves native contracts and recovery checks but
-  cannot yet execute the full prepared production caller. A Linux candidate
-  manifest generated during diagnosis is not an attested release artifact;
-  the no-Mac end-to-end delivery requirement is not met even though the local
+  although the installed-toolchain verifier now has a checked-in Linux x64
+  profile and its manifest has passed candidate and independent verification on
+  the Linux runner. The production callers still use the Darwin/ARM64 profile
+  and immutable `/private/var/db/warpkeep/...` Node/pnpm paths, so the Linux
+  profile is not yet wired into an authenticated deploy/recovery workflow. The
+  no-Mac end-to-end delivery requirement is not met even though the local
   rendered QA tooling is portable.
 - Dependabot currently reports nine alerts on the default branch (three high,
   six moderate); this is a maintenance risk to resolve before a production
@@ -71,9 +71,10 @@ fresh evidence bound to the final reviewed and deployed source.
    signed-history requirement.
 2. Run fresh native preparation/check from the exact reviewed source, then retain
    the resulting family and closure evidence.
-3. Add and attest a real Linux installed-toolchain profile and matching closure,
-   then port the durable notification/recovery callers without weakening their
-   identity, ownership or executable checks.
+3. Wire the attested Linux installed-toolchain profile into a durable
+   notification/recovery workflow and port its callers without weakening their
+   identity, ownership or executable checks; retain the Darwin lane only as an
+   explicitly separate legacy profile.
 4. Complete authenticated recovery deployment and readback before any live
    mutation; capture the G001 baseline and prove G002 remains sealed.
 5. Complete the actual owner PTR journey, lifecycle/isolation checks and fixed

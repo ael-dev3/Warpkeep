@@ -165,6 +165,7 @@ const STATIC_SECURITY_INPUTS = Object.freeze([
   'scripts/auth-bridge-notification-prepared-deploy-closure.d.mts',
   'scripts/auth-bridge-notification-prepared-deploy-closure.mjs',
   'scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json',
+  'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json',
   'scripts/auth-bridge-notification-prepared-release-binding.d.mts',
   'scripts/auth-bridge-notification-prepared-release-binding.mjs',
   'scripts/genesis001-linux-policy-native.mjs',

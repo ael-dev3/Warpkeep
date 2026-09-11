@@ -1,7 +1,11 @@
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_INSTALLED_TOOLCHAIN_PROFILE_ENV:
+  'WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE';
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_INSTALLED_TOOLCHAIN_PROFILE:
-  'warpkeep-auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1';
+  | 'warpkeep-auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1'
+  | 'warpkeep-auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1';
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_PATH:
-  'scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json';
+  | 'scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json'
+  | 'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json';
 
 export class AuthBridgeNotificationPreparedInstalledToolchainError extends Error {
   readonly code: string;
@@ -18,7 +22,9 @@ export function verifyAuthBridgeNotificationPreparedInstalledToolchain(
     wranglerEntrypoint?: string;
   }>,
 ): Readonly<{
-  profile: 'warpkeep-auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1';
+  profile:
+    | 'warpkeep-auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1'
+    | 'warpkeep-auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1';
   sourceClosureManifestSha256: string;
   runnerIdentityDigest: string;
   resolverNamespaceEntryCount: number;
