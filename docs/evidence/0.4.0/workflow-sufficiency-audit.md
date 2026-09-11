@@ -1,8 +1,9 @@
 # 0.4 workflow sufficiency audit
 
-Updated 2026-09-11 (Europe/Budapest) against synchronized head
+Updated 2026-09-11 (Europe/Budapest) against source-bound implementation
 `7d920b9f57ec450071632fdc3f0b560f7526811a` on
-`codex/prepared-keep-bindings-fix`. The Pages private launcher and workflow now
+`codex/prepared-keep-bindings-fix`; documentation-only head
+`762636acaf02b03f2db4271b07cca10330ee18c3` carries this audit. The Pages private launcher and workflow now
 use the retained Linux x64 runner profile, and the closure verifier derives
 toolchain pins per workflow profile. Fresh native preparation/check evidence
 covers this head.

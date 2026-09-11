@@ -2,7 +2,7 @@
 
 Status: **preparation complete; release freeze open**.
 
-The current synchronized source is `7d920b9f57ec450071632fdc3f0b560f7526811a` on `codex/prepared-keep-bindings-fix`. It includes the Linux x64 Pages private lane, per-workflow closure pin derivation, and the native generated family. Native Linux `prepare` and independent `check` converged on the same candidate:
+The source-bound implementation is `7d920b9f57ec450071632fdc3f0b560f7526811a` on `codex/prepared-keep-bindings-fix`; documentation-only head `762636acaf02b03f2db4271b07cca10330ee18c3` carries this record. It includes the Linux x64 Pages private lane, per-workflow closure pin derivation, and the native generated family. Native Linux `prepare` and independent `check` converged on the same candidate:
 
 - Candidate: `release-workspace-69a975071850f1e562b593ffa811904e`
 - Source tree: `2b23068063945029e439dbeb85bf4fa6b80b9735`

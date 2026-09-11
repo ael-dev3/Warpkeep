@@ -9,10 +9,11 @@ is the compact read of what is ready for development and what still blocks a shi
 
 ## Current source-bound state — 2026-09-11
 
-The synchronized head is
+The source-bound implementation is
 `7d920b9f57ec450071632fdc3f0b560f7526811a` on
-`codex/prepared-keep-bindings-fix`; Windows, GitHub and native WSL are clean
-and aligned. The Pages private deployment job now uses Linux x64, and closure
+`codex/prepared-keep-bindings-fix`; documentation-only head
+`762636acaf02b03f2db4271b07cca10330ee18c3` carries this handoff. Windows,
+GitHub and native WSL are clean and aligned at the documentation head. The Pages private deployment job now uses Linux x64, and closure
 pin derivation resolves the Linux and Darwin workflow profiles independently.
 Fresh native `prepare` and independent `check` pass for this exact head. The
 converged candidate is
