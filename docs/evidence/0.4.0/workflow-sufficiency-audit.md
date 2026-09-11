@@ -29,8 +29,12 @@ fresh evidence bound to the final reviewed and deployed source.
 
 ## What is not yet sufficient
 
-- The current-head Verify and CodeQL runs for `4ce970ff` are still pending or in
-  progress; R14 cannot be green until their terminal results are read.
+- The exact current-head Verify run `34591167640` for `57a4cff6` is still in
+  progress, with `auth-bridge`, `native-contract` and `release-recovery`
+  complete and `linux` plus `spacetimedb-module` running. CodeQL run
+  `34591167614` and its required `analyze` check have completed successfully.
+  R14 cannot be green until the remaining Verify jobs reach terminal success and
+  the signed-history requirement is reconciled.
 - Protected `main` requires signed commits. The prepared branch history is
   unsigned, so GitHub reports the pull request as merge-blocked even when the
   code and checks are green.
