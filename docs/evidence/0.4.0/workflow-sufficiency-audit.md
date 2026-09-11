@@ -1,9 +1,10 @@
 # 0.4 workflow sufficiency audit
 
 Updated 2026-09-11 (Europe/Budapest) against source-bound implementation head
-`36369e712fa719ce8b0cc2afd2fb181104a80b1c` on
-`codex/prepared-keep-bindings-fix`; the native preparation evidence cited below
-remains bound to the earlier implementation checkpoint.
+`a5204b80776bc4234c7301e26f77d1e0aaef4deb` on
+`codex/prepared-keep-bindings-fix`; the Linux lane implementation is the
+preceding commit and the native preparation evidence cited below remains bound
+to the earlier implementation checkpoint.
 
 ## Verdict
 

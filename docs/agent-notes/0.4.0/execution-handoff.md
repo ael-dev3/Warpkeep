@@ -10,10 +10,11 @@ is the compact read of what is ready for development and what still blocks a shi
 ## Current source-bound state — 2026-09-11
 
 The current clean branch head is
-`36369e712fa719ce8b0cc2afd2fb181104a80b1c` on
+`a5204b80776bc4234c7301e26f77d1e0aaef4deb` on
 `codex/prepared-keep-bindings-fix`; Windows, GitHub and native WSL are
-synchronized at that commit. It adds the dedicated Linux x64 prepared
-notification workflow, fixed runner entrypoint, pinned pnpm authority and
+synchronized at that commit. The preceding implementation commit adds the
+dedicated Linux x64 prepared notification workflow, fixed runner entrypoint,
+pinned pnpm authority and
 closure-bound Linux toolchain manifest. The earlier source-bound implementation
 head `867c70d7f0d4721df59bdd59967412ba45f02b50` remains the native preparation
 evidence coordinate below; this later workflow head still needs its own fresh
