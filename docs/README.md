@@ -17,6 +17,8 @@ guide; `main` and the running game can represent different release stages.
   release evidence; planned evidence destinations are not passes
 - [Development workflow](engineering/development-workflow.md) — document ownership,
   bounded changes, review, evidence and source publication
+- [Output locations and retention](engineering/development-workflow.md#output-locations-and-retention)
+  — no new Desktop files, reusable workspace output and selective cleanup
 - [Technical architecture](technical-architecture.md) — current subsystem ownership,
   preserved G001 versus separate 0.4, rendering and delivery boundaries
 - [Repository map](agent-notes/0.4.0/repo-map.md) — source entry points, generated

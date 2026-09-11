@@ -477,7 +477,7 @@ metadata and local tooling; it did not rerun the full test suite or deploy.
 
 Required gameplay/visual/operations sources and isolated write-preserving recovery
 proof → complete final family freeze → protected reviewed integration → exact
-deployed artifacts → live verification → Desktop handoff. Required baseline and
+deployed artifacts → live verification → workspace handoff. Required baseline and
 recovery testing must precede production effects, not follow a live release.
 
 R09 must record exact live frontend/service/module/database identities and private
@@ -488,6 +488,9 @@ crash tests do not establish recovery preserving post-deployment player writes.
 
 R17/R18 must link reviewed commit, artifact hashes/IDs, URLs, databases and every
 mandatory result, including owner journey, G001 preservation, sealed G002 denial,
-performance and tested recovery. Ship a credential-free Desktop `Warpkeep 0.4.0`
-package with reproducible commands, results, limitations and file/hash manifest.
+performance and tested recovery. Ship a credential-free package at
+`artifacts/delivery/0.4.0/` in the existing checkout, with reproducible commands,
+results, limitations and file/hash manifest. Follow the
+[output and retention rules](../../engineering/development-workflow.md#output-locations-and-retention);
+do not create new Desktop files or repeated delivery archives.
 No final freeze or live-completion claim was made by this audit.

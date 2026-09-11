@@ -99,6 +99,26 @@ Follow [the development workflow](docs/engineering/development-workflow.md) and
 - Keep README, architecture, source routing and dated notes aligned. Update the
   canonical document for a topic instead of creating another competing plan.
 
+## Keep the workspace compact
+
+- Do not create Warpkeep files, folders, shortcuts, backups or archives on the
+  Desktop, including redirected/OneDrive Desktops. The owner's September 11
+  instruction supersedes older Desktop-package and census-export directions.
+  Read the existing Desktop handoff as a reference; if maintaining it, edit it
+  in place without creating sibling backups.
+- Keep durable notes in their existing repository documents. Use the existing
+  ignored `artifacts/` directory for non-sensitive disposable output and
+  `artifacts/delivery/0.4.0/` for the final credential-free package. Create a
+  package only when needed for delivery, not at every checkpoint.
+- Reuse existing checkouts, attested tools and compatible dependency caches.
+  Avoid duplicate clones, dependency installs, source copies, screenshots and
+  timestamped archives. Preserve the isolation required by release tooling.
+- Before a large build, inspect free space and retained output. After finishing,
+  stop owned processes and remove only verified disposable files owned by that
+  run. Never age-delete active candidates, recovery journals, receipts, private
+  state or unrelated files. Follow the
+  [output and retention rules](docs/engineering/development-workflow.md#output-locations-and-retention).
+
 ## Delivery and handoff
 
 GitHub Pages hosts the frontend, Cloudflare hosts identity/recovery services, and
@@ -109,7 +129,7 @@ required workflow identity must come from the actual supported runner.
 Source synchronization, a green test, deployment and usable player experience are
 different outcomes. The [release acceptance record](docs/operations/0.4.0-release-checklist.md)
 tracks the remaining evidence for preservation, gameplay, visuals, performance,
-operations and the credential-free Desktop package. Keep it current with the
+operations and the credential-free workspace package. Keep it current with the
 user's direction; do not turn historical task labels into new approval layers.
 Inspect the exact selected job and artifact: a successful Pages preparation run
 can deliberately skip deployment and does not establish a live release.
@@ -117,7 +137,7 @@ can deliberately skip deployment and does not establish a live release.
 Recovery must preserve legitimate writes after deployment. Derive complete source
 and artifact inventories; do not type hashes, weaken checks or fabricate old
 evidence to make a release pass. Keep credentials, private player data and sensitive
-operational records out of Git and public/Desktop deliverables. Read
+operational records out of Git and public deliverables. Read
 [asset provenance](ASSETS-LICENSE.md) before changing media and credit reuse accurately.
 
 End each session with what changed, the source and remote checkpoint, what was

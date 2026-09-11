@@ -79,7 +79,10 @@ fresh evidence bound to the final reviewed and deployed source.
 5. Re-run the full rendered matrix on the release authority, then deploy Pages,
    Cloudflare and SpacetimeDB from the same reviewed source.
 6. Perform live G001 preservation, G002 denial and owner-journey verification,
-   and only then mark R01–R18 complete and produce the Desktop handoff.
+   and only then mark R01–R18 complete and produce the workspace handoff at
+   `artifacts/delivery/0.4.0/`. Follow the
+   [output and retention rules](../../engineering/development-workflow.md#output-locations-and-retention);
+   do not create new Desktop output.
 
 Until those records exist, the honest state is **development-ready and
 release-preparation-ready, not ship-ready**.

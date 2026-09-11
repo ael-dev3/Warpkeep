@@ -1,10 +1,17 @@
-# Warpkeep 0.4 credential-free Desktop handoff
+# Warpkeep 0.4 credential-free workspace handoff
 
 Status: **interim development handoff**. This document makes the current
 source, setup and evidence routes reproducible without distributing credentials
 or private player data. It is not a deployment attestation or a final release
-package. The Desktop `Warpkeep - Full Project Handoff.md` remains the product
-and continuation narrative; this file is the compact delivery index.
+package. The existing Desktop `Warpkeep - Full Project Handoff.md` remains a
+reference; this tracked file is the compact delivery index. Its historical
+filename is retained for link compatibility, not as a Desktop output instruction.
+
+The owner's September 11 direction supersedes the former Desktop delivery
+requirement. Keep routine notes in the repository and create the final package
+only at `artifacts/delivery/0.4.0/` beneath the existing checkout, following the
+[output and retention rules](../../engineering/development-workflow.md#output-locations-and-retention).
+Do not create a new Desktop folder, handoff copy, backup or ZIP.
 
 ## Start here
 
@@ -17,12 +24,16 @@ and continuation narrative; this file is the compact delivery index.
 
 The current PR head and the last reviewed source checkpoint are authoritative;
 do not copy a hash from this document into a deployment command. Re-read the
-PR and the Desktop handoff before preparing a new artifact.
+PR and the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
+before preparing a new artifact.
 
 ## Credential-free setup
 
-Use a fresh checkout when reproducing the published development source. Do not
-run installation into the shared Windows dependency junction.
+Reuse a suitable existing independent checkout when reproducing the published
+development source. The commands below are for first-time setup only, from a
+workspace directory outside the Desktop/cloud sync. Do not create another clone
+for routine verification or run installation into the shared Windows dependency
+junction.
 
 ```powershell
 git clone --branch codex/prepared-keep-bindings-fix https://github.com/ael-dev3/Warpkeep.git
@@ -90,15 +101,19 @@ synthetic fixture does not prove owner admission or production authority.
 
 ## Package contents and exclusions
 
-A final Desktop package may contain this index, the exact reviewed source
+A final workspace package may contain this index, the exact reviewed source
 manifest, reproducible commands, architecture notes, release/recovery results,
 asset credits and a file/hash manifest. It must exclude:
 
 - provider tokens, Wrangler profiles, signing keys and JWT material;
 - `.env` files, private operation bundles and credential caches;
 - player rows, FIDs, raw receipts and private baseline exports;
-- disposable `node_modules`, build output, screenshots without provenance and
+- disposable `node_modules`, intermediate build output, screenshots without provenance and
   unreviewed generated artifacts.
+
+Include the actual verified distributable needed to use the release; link
+reproducible source through its reviewed Git commit instead of copying every
+checkout. Update the same delivery location after verifying its replacement.
 
 The package must state the source commit, tool versions, evidence dates and
 limitations. A historical artifact or a local emulation is not a rollback

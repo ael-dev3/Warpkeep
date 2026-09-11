@@ -202,6 +202,15 @@ A missing generated binding, procedure failure, additional or missing field, or
 value mismatch aborts the operation. Independently verify the deployment first;
 the exporter then records evidence only from that already-verified freeze.
 
+**Output policy, September 11:** no new Warpkeep output belongs on a Desktop.
+The legacy direct Hermes writer still contains a Desktop destination and is
+excluded from the current workflow. Do not invoke it or restore that destination
+when porting an operating caller. Use the authenticated production lane's fixed
+owner-private storage; verify the actual destination before running an export.
+Any future caller that reaches the legacy writer must first move its output to
+the appropriate private root and regenerate/verify its source-bound consumers.
+See [output and retention](../engineering/development-workflow.md#output-locations-and-retention).
+
 The historical `--dry-run` and `--confirm` forms required the explicit
 source-bound prerequisite
 `--g001-admission-freeze-attestation`
@@ -229,19 +238,20 @@ Each applicant pass reads the complete bounded census twice and fails closed
 unless both canonical snapshots match exactly. The readiness stage writes
 nothing and emits only a privacy-safe ready status; it never prints count, byte
 size, SHA-256, a path, FIDs, or the report body. The confirmed private stage creates
-one non-overwritable, timestamped mode-0600 TXT file in the actual production
-administrator account's canonical Desktop and a distinct non-overwritable
-mode-0600 raw exporter reference under the canonical
+one non-overwritable, timestamped mode-0600 TXT file. Historically the direct
+writer used the production administrator account's canonical Desktop and a
+distinct non-overwritable mode-0600 raw exporter reference under the canonical
 `Library/Application Support/Warpkeep/operations/audit/private` directory.
-Confirm output contains only `schemaVersion`, `status=written`, and the two
+That Desktop destination is superseded and must not be used. The legacy
+confirmation output contains only `schemaVersion`, `status=written`, and the two
 privacy-safe basenames. Ambient `HOME` is ignored. The writer holds and
 repeatedly re-attests both directories and both destination identities, refuses
 symlinks, cleans exact partial files on failure, and does not overwrite an
 existing timestamp.
 
 When the exact created leaf remains reachable, failed-write cleanup reopens it
-through the held Desktop descriptor, verifies its identity, truncates it to
-zero, and fsyncs it. Portable unlink is still name-based. A hostile process
+through the held destination-directory descriptor, verifies its identity,
+truncates it to zero, and fsyncs it. Portable unlink is still name-based. A hostile process
 running as the same administrator UID could move the inode before cleanup or
 replace the leaf after the final identity check; the former can leave the moved
 private inode behind and the latter can cause the replacement to be unlinked.
@@ -249,9 +259,9 @@ No replacement receives census bytes, which are written only through the held
 expected inode. Run the one-time export only while other processes under that
 administrator account are trusted.
 
-Keep the resulting applicant TXT only on that private Desktop and the raw
-exporter reference only in the private audit directory for the later activation-
-evidence review/generation.
+Retain existing applicant TXT and raw exporter references as private evidence
+for later activation review/generation. Do not create new Desktop exports or
+relocate existing evidence without checking its owning operation and references.
 The raw reference contains count, size, TXT SHA-256, and basename; never print
 or copy it into the repository, logs, shell history, CI artifacts, cloud sync,
 tickets, chat, or release evidence. Neither applicant pass calls an admission

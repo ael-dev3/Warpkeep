@@ -6,7 +6,7 @@ files are synchronized with that branch. Earlier source hashes below remain date
 not current review targets.
 This refresh includes the focused Keep04 UI/scene run (161 tests across eight
 files), including the accessible Worker Outbound → Gathering → Returning journey
-rail and the reproducible Desktop handoff command; it has
+rail and the reproducible workspace handoff command; it has
 no authenticated owner session or production call. Earlier executed results
 keep their original source and limitations in the [execution handoff](execution-handoff.md).
 The [visual foundation contract](visual-foundation-contract.md) is the short

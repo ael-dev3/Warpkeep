@@ -178,7 +178,7 @@ Do not measure during HMR edits: freeze the source for each captured run.
 | Actual owner journey | Not measured: initialize once, real location dispatch/return, Mill placement/completion, captured yield twelve next food expedition, reconnect persistence; elapsed target <=10 minutes |
 | Physical phone | Not measured: device/browser/quality/thermal context, touch, resume/reconnect, frame pacing, fallback |
 | G001 unchanged entry | Unit regressions separate from mandatory actual baseline visual comparison; no visual preservation claim yet |
-| Deployment/final release | Controller-owned release assembly, production verification and Desktop handoff; no freeze or ship claim |
+| Deployment/final release | Controller-owned release assembly, production verification and workspace handoff; no freeze or ship claim. Use the current [output rules](../engineering/development-workflow.md#output-locations-and-retention), with no new Desktop output. |
 
 Keep the established profile gates unchanged: desktop p95 <=33.4ms, mobile
 balanced/landscape <=50ms, reduced <=75ms; input feedback <=100ms; synchronous

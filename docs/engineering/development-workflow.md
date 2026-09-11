@@ -15,6 +15,7 @@ evidence records; product intent belongs in product/specification documents. The
 | Where should an agent investigate? | [Repo map](../agent-notes/0.4.0/repo-map.md), [docs index](../README.md) | Keep navigable; link source rather than copying whole implementations |
 | What passed, failed or remains unknown? | `docs/evidence/0.4.0/`, dated [audit](../agent-notes/0.4.0/README.md) | Date, commit/input, method, results, limitations and next proof |
 | How is an authorized operation executed? | `docs/operations/` and exact fixed scripts/workflows | Preconditions, scope, failure/reconciliation and postflight; no secret values |
+| Where do outputs belong and what can be removed? | [Output locations and retention](#output-locations-and-retention) | Keep the Desktop clear, reuse storage, preserve required evidence |
 | What reached players? | [CHANGELOG](../../CHANGELOG.md), release/deployment ledger | Never mark planned or local-only work released |
 | What may be reused? | [ASSETS-LICENSE](../../ASSETS-LICENSE.md), dated provenance | Preserve file-specific terms and attribution |
 
@@ -52,6 +53,53 @@ Historical plans are context, not an automatic restriction on better solutions.
 7. **Hand off.** State what changed, what passed, what failed or is unverified,
    where evidence lives and the next real caller/gate. Do not invent percentages
    from time spent, line count, test count or number of commits.
+
+## Output locations and retention
+
+The owner's September 11 instruction is to keep new Warpkeep output off the
+Desktop and avoid unnecessary storage growth. This applies to agents, scripts,
+exports and final delivery, including redirected and OneDrive Desktops. Older
+plans that require a Desktop package or private Desktop census are superseded.
+An explicit later request can choose a different destination.
+
+| Material | Destination and lifetime |
+| --- | --- |
+| Durable plans, findings and handoffs | Update the existing owner in `docs/agent-notes/0.4.0/`, `docs/evidence/0.4.0/` or `docs/operations/`. Use Git history instead of sibling backups or another full project summary. |
+| Local non-sensitive logs, screenshots and disposable output | Use the checkout's ignored `artifacts/` tree and stable task directories. Reuse replaceable output after recording needed evidence; do not overwrite captures cited by an acceptance record. |
+| Final credential-free delivery | Keep the tracked [delivery index](../evidence/0.4.0/desktop-handoff.md) current. Materialize one package at `artifacts/delivery/0.4.0/` only when delivery requires it. Keep the last accepted package until its replacement is verified; omit duplicate source trees, dependency folders and archives. |
+| Private release candidates, journals and authenticated evidence | Use the existing fixed private roots required by the operation. On the current WSL host, preparation uses `/home/warpkeep/.warpkeep/release-preparation-v1/`. Never redirect private data into `artifacts/`, Git, the Desktop or cloud sync. |
+| Temporary test fixtures | Use the test runner's owned temporary directory and its cleanup path. Keep only the diagnostics required to resolve a failure; record the path and reason in the existing task notes. |
+| Tools, dependencies and caches | Reuse the attested toolchain and compatible locked caches. Reuse an existing independent verification checkout when suitable; do not create a fresh clone or install for every test. Never mutate a shared dependency junction or relax candidate isolation. |
+
+Before a large build or preparation run, inspect free space on the Windows host
+and, for WSL, inside the guest. Inspect retained run sizes and confirm the actual
+process state before restarting work. Estimate peak space from a comparable run,
+including the draft, final candidate, independent check and temporary compiler
+trees. If that headroom is unavailable or uncertain, inspect/reclaim eligible
+disposable output before starting another large run; do not fill the volume.
+A large advertised WSL virtual disk does not establish free host space.
+
+At task completion, stop owned servers and child processes, retain the active
+candidate and last accepted recovery/evidence set, and remove only known
+agent-owned disposable outputs that are no longer referenced. For each cleanup,
+resolve the absolute target, verify it remains inside the intended disposable
+root, reject symlinks/junctions that escape it, and check that no active process,
+candidate, journal, acceptance record or recovery path needs it. Remove exact
+reviewed targets with native filesystem operations. Do not use blanket
+`git clean`, `reset --hard`, age-based recursive deletion or a global cache purge.
+
+The assembler's `recover` command rolls back a candidate; it is not garbage
+collection. Preserve journals, receipts, ambiguous/interrupted runs, deployed
+artifacts and their recoverable inputs until their owning operation explicitly
+establishes that they can be retired. Never delete those records just because
+they are large or old. Record an unresolved retention decision and its size
+instead of silently generating more copies or destroying evidence.
+
+Routine documentation work does not require another release preparation run.
+Run focused checks for the actual change; rebuild/recheck a release candidate
+when its inputs or required acceptance change. Do not produce an archive or
+Desktop backup for each edit. The existing Desktop handoff may be read or
+updated in place; its location is not an output-directory convention.
 
 ## Evidence record template
 
@@ -107,7 +155,7 @@ or a game redesign merely to improve documentation.
 - **Release shipped:** all mandatory checklist items pass. Required sources are
   complete before final freeze; baseline and isolated write-preserving recovery
   are established before production effects; reviewed artifacts are deployed;
-  live preservation/access/owner/performance results and Desktop package are linked.
+  live preservation/access/owner/performance results and workspace package are linked.
 
 Do not conflate these levels. There is no objective “10/10” score that replaces
 verification. For documentation, readiness means a newcomer can find the target,

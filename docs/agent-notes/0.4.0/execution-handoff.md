@@ -7,15 +7,43 @@ live release. The current user's direction takes precedence over historical plan
 The dated [workflow sufficiency audit](../../evidence/0.4.0/workflow-sufficiency-audit.md)
 is the compact read of what is ready for development and what still blocks a ship.
 
-## Current source-bound state — 2026-09-11
+## Workspace output direction — 2026-09-11
 
-The source-bound implementation is
+The owner requires no new Warpkeep files on the Desktop and limited storage
+growth. Follow the repository-wide
+[output and retention rules](../../engineering/development-workflow.md#output-locations-and-retention).
+Update existing notes, reuse checkouts and attested caches, keep disposable
+non-sensitive output under ignored `artifacts/`, and create the final package
+only at `artifacts/delivery/0.4.0/`. The legacy `desktop-handoff.md` filename is
+retained solely for link compatibility. Older Desktop delivery/export directions
+are superseded; the existing external handoff may be maintained in place without
+new sibling backups.
+
+The September 11 storage inspection found approximately 39 GiB in native
+release-preparation `runs/`, 127 MiB in its cache and 461 MiB in its toolchain.
+These are dated observations, not permanent budgets or evidence of disposable
+content. No authoritative candidate or journal was deleted. Inspect retention
+and peak host/guest space before another preparation; do not repeat a full
+prepare/check cycle solely for this documentation change.
+
+Verification: all 206 local Markdown links in the changed documents resolve,
+the existing handoff suite passed all three checks on Node 22.22.3, and
+`git diff --check` passed. The delivery destination is Git-ignored. This update
+changes workflow guidance and acceptance destinations; it adds no automatic
+deletion service and makes no new runtime or deployment claim.
+
+## Prepared source checkpoint — 2026-09-11
+
+The generated source family was integrated at
 `7d920b9f57ec450071632fdc3f0b560f7526811a` on
-`codex/prepared-keep-bindings-fix`; documentation-only head
-`762636acaf02b03f2db4271b07cca10330ee18c3` carries this handoff. Windows,
-GitHub and native WSL are clean and aligned at the documentation head. The Pages private deployment job now uses Linux x64, and closure
+`codex/prepared-keep-bindings-fix`. Its native preparation and independent check
+used committed input `713c2bfb7d5b0cb00028c3553089d60b53e2897b`.
+Read the current local/GitHub heads through
+[source synchronization](../../operations/0.4.0-development-sync.md); later
+documentation commits are not new preparation inputs.
+The Pages private deployment job now uses Linux x64, and closure
 pin derivation resolves the Linux and Darwin workflow profiles independently.
-Fresh native `prepare` and independent `check` pass for this exact head. The
+Native `prepare` and independent `check` passed for that input source. The
 converged candidate is
 `release-workspace-69a975071850f1e562b593ffa811904e`, source tree
 `2b23068063945029e439dbeb85bf4fa6b80b9735`, transaction
@@ -24,7 +52,7 @@ converged candidate is
 closure manifest
 `c92fc469e86ca8ee285c4057901a9bd41c1be982283d04a82196cf541433702f`.
 The candidate remains preparation evidence only, with `finalReleasePrepared: false`.
-The protected Verify and CodeQL runs attached to this head remain the CI
+The protected Verify and CodeQL runs attached to the current PR head are the CI
 authority; read both at terminal state before claiming CI complete. This
 evidence still does not establish provider deployment, recovery readback, owner
 admission, physical-device performance or final release approval.
@@ -922,7 +950,8 @@ Final release preparation and required published-source CI remain separate.
    owners, scan outgoing commits, push without force and verify GitHub equality.
 5. **Finish deployment and acceptance.** Pass required CI and repository protections,
    deploy exact artifacts, inspect live behavior, and produce the credential-free
-   Desktop delivery package after the usable release is demonstrated.
+   workspace delivery package at `artifacts/delivery/0.4.0/` after the usable
+   release is demonstrated; do not create new Desktop output.
 
 Do not wait for production readiness to publish reviewed development work. Do not
 repeat a full preparation just to restate its status: retain its exact source and
