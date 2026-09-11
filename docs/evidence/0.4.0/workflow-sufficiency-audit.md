@@ -29,22 +29,23 @@ fresh evidence bound to the final reviewed and deployed source.
 
 ## What is not yet sufficient
 
-- The earlier docs-follow-up Verify run `34591167640` for `57a4cff6` was
-  superseded when later documentation commits advanced the branch. The exact
-  current head `f93157db` is the authority: its `auth-bridge`,
-  `native-contract` and `release-recovery` jobs passed at the last check, while
-  `linux`, `spacetimedb-module` and CodeQL/analyze were still running. R14
-  cannot be green until those current-head jobs reach terminal success and the
-  signed-history requirement is reconciled.
+- The earlier docs-follow-up Verify runs were superseded when later commits
+  advanced the branch. The exact current head `cd7203ed3370c201562594f0c85705ff98ec53ae`
+  is the authority. Verify run `34593108463` has `auth-bridge`,
+  `native-contract` and `release-recovery` passing while `linux` and
+  `spacetimedb-module` remain in progress; CodeQL run `34593108436` has
+  completed successfully. R14 cannot be green until the remaining current-head
+  jobs reach terminal success and the signed-history requirement is reconciled.
 - Protected `main` requires signed commits. The prepared branch history is
   unsigned, so GitHub reports the pull request as merge-blocked even when the
   code and checks are green.
 - The full Windows rendered matrix still fails closed on a Chrome runtime
   exception. Linux is the release authority for retained rendered evidence.
-- Fresh native preparation and independent checking now pass from the exact
-  published head `867c70d7`, with a converged candidate, closure and public
-  boundary. This closes the local R13 preparation gap; it does not itself grant
-  deployment authorization or complete the release freeze.
+- Fresh native preparation and independent checking pass for the current
+  source-bound implementation, with a converged candidate, closure and public
+  boundary recorded in the execution handoff. This closes the local R13
+  preparation gap; it does not itself grant deployment authorization or
+  complete the release freeze.
 - The production workflow has no authenticated provider receipts for Cloudflare,
   SpacetimeDB deployment, recovery readback, G002 import/publication or PTR
   owner provisioning. Those operations intentionally remain fail-closed or
