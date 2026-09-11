@@ -1,21 +1,28 @@
 # 0.4.0 integration evidence
 
-Updated 2026-09-10. The current reviewed source includes the presentation-only
-keep loop rail, the Windows browser profile teardown repair and the aligned
-handoff/release notes. Source publication is not production deployment.
+Updated 2026-09-11. The current reviewed source is the synchronized
+`d939c64fee9aaa1be01905a4d3757c5f85974493` head on
+`codex/prepared-keep-bindings-fix`; PR #228 is ready for review. Source
+publication and protected CI are still separate from production deployment.
 
-## Current checkpoint — 2026-09-10
+## Current checkpoint — 2026-09-11
 
-The reviewed branch is synchronized with upstream at `5b9ba9657d6e66319f41aabd396faf2a6c947b29` on
-`codex/prepared-keep-bindings-fix`; PR #228 remains a draft. The current reviewed
-functional source lane is `c4ad7539` with the Windows QA repair at `84c35a5e`; the latest published head adds frame-cadence QA instrumentation and aligned evidence. Prior Verify run
-`34495962510` and CodeQL run `34495962519` passed for the earlier functional
-head; the current Verify and CodeQL runs attached to PR #228 are the R14
-authority and must be read live before release. The regenerated closure
-manifest is `723779a955a961b1968ca86d8d6f9343962350fb4171ae33c42e8ce96bd3e7f2`.
-This is current integration status only: the source-rail pass does not establish
-a live owner journey,
-physical-device acceptance or production deployment is claimed.
+Verify run [34544709145](https://github.com/ael-dev3/Warpkeep/actions/runs/34544709145)
+is the R14 authority for this exact head. At the latest inspection,
+`release-recovery`, `native-contract`, and `auth-bridge` had passed while the
+`linux` and `spacetimedb-module` jobs were still running. CodeQL run
+[34544709136](https://github.com/ael-dev3/Warpkeep/actions/runs/34544709136) had
+passed. Read the terminal conclusions before marking R14 complete.
+
+The focused local sealed-workflow contract suite passed with 11 active tests
+and 41 platform skips using:
+`npm test -- tests/sealedRealmsProductionWorkflow.test.ts --maxWorkers=1`.
+The broader prepared-bridge workflow suite is not a Windows pass: its 65 local
+failures are caused by POSIX-only fixture assumptions (`process.getuid`,
+`/usr/bin/env`, and symlink creation). Those failures do not replace the
+protected Linux native-contract authority; they keep the Windows/no-Mac
+replacement validation open. No live owner journey, physical-device
+acceptance, provider deployment, or production release is claimed here.
 
 ## Historical checkpoint — 2026-09-09
 
