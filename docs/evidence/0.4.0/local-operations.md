@@ -7,10 +7,11 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 Windows and native WSL are synchronized on
 `codex/prepared-keep-bindings-fix` at its current published head. The functional source
 checkpoint is `aef672061e22cebeec66a7d22bda92bcb459d9d1` with generated refreeze
-`4bbe860b`. Every required Verify and CodeQL context is green on the head;
-GitHub still reports the PR merge state as `BLOCKED` because protected `main`
-requires signed commits and this development history is unsigned, so R14
-remains a protection/merge reconciliation gate. The native release
+`4bbe860b`. Protected Verify and CodeQL are the authority for the current head;
+read every required context at terminal state before calling R14 green. GitHub
+still reports the PR merge state as `BLOCKED` because protected `main` requires
+signed commits and this development history is unsigned, so R14 remains a
+protection/merge reconciliation gate. The native release
 evidence below is bound to those exact source coordinates; later documentation
 commits do not create a new release candidate.
 
