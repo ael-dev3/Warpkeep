@@ -19,6 +19,17 @@ component success does not establish unrecorded production acceptance.
 
 ## Current runner alignment — 2026-09-11
 
+The final synchronized branch head `64690fc425640b8ea33388caa5a9c89485ea7ea3`
+was freshly prepared and independently checked on the owner-only Linux x64
+runner. The converged candidate is
+`release-workspace-f16740e2569ed2c63fb0378ad41ca912`, with source tree
+`6d6db937b545b645d2faddd780fc114087ab1fb9`, family digest
+`8c9575659038d0cd0e4c6fe8cb9db746af218f8ddad0bfba81b98630c06a40a6`, closure
+manifest `a0b5892e45fd07f6e821afa826c02f9831dbd6e80b29f1541e4d3bbd2a7e90d0`,
+102 generated outputs and 1,199 protected closure members. The assembler
+returned `finalReleasePrepared: false`; this establishes source-bound
+preparation/convergence, not deployment authorization.
+
 The final isolated marker-safe native pass prepared and independently checked
 candidate `release-workspace-342ea5448bfeb9bdf9dc51c7e31b67e4` from source
 `aef672061e22cebeec66a7d22bda92bcb459d9d1` and source tree

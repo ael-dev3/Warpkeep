@@ -9,26 +9,20 @@ is the compact read of what is ready for development and what still blocks a shi
 
 ## Current source-bound state — 2026-09-11
 
-The current clean branch head is
-`cea2907191cd13c041e71533a2b62cf6641b4ad1` on
+The source-bound implementation head is
+`64690fc425640b8ea33388caa5a9c89485ea7ea3` on
 `codex/prepared-keep-bindings-fix`; Windows, GitHub and native WSL are
-synchronized at that commit. The preceding implementation commit adds the
+synchronized at the branch tip, with later evidence-only commits allowed. The preceding implementation commit adds the
 dedicated Linux x64 prepared notification workflow, fixed runner entrypoint,
-pinned pnpm authority and
-closure-bound Linux toolchain manifest. The earlier source-bound implementation
-head `867c70d7f0d4721df59bdd59967412ba45f02b50` remains the native preparation
-evidence coordinate below; this later workflow head still needs its own fresh
-native preparation before release freeze.
-Native Linux `prepare` and independent `check` passed for candidate
-`release-workspace-b800ee0ee30f970efe56fe6da4efa6fa`, source tree
-`563bbbcca8a173f82d55f7f24514f6c8ddb2d1a1`, transaction
-`9b8a2aedcef4df54a234e69b606ee7ab`, family digest
-`9c822f12ad08ccde44dc63a26c89181e34091f3deaf4abb228094143067ce5a0`, and
-closure manifest `ba9640a0aa3660e65b649717cc1ce1f187a6924fdd847f59af7914c042c65d5d`.
-The run checked 3,186 source/candidate files, 101 generated outputs, 444 bundle
-inputs and 7 recovery inputs; the public activation bundle contains zero private
-marker tokens. The native closure verifier reports 1,195 members and the
-public-boundary verifier passes. `finalReleasePrepared` remains `false`.
+pnpm authority and
+closure-bound Linux toolchain manifest. Fresh native `prepare` and independent
+`check` now pass for this exact head. The converged candidate, source tree,
+transaction and digests are recorded in the local operations evidence; the
+candidate is `release-workspace-f16740e2569ed2c63fb0378ad41ca912`, source tree
+`6d6db937b545b645d2faddd780fc114087ab1fb9`, family
+`8c9575659038d0cd0e4c6fe8cb9db746af218f8ddad0bfba81b98630c06a40a6`, and
+closure manifest `a0b5892e45fd07f6e821afa826c02f9831dbd6e80b29f1541e4d3bbd2a7e90d0`.
+The candidate remains preparation evidence only, with `finalReleasePrepared: false`.
 Protected Verify and CodeQL remain the CI authority and must be read at terminal
 state. This evidence still does not establish provider deployment, recovery
 readback, owner admission, physical-device performance or final release approval.

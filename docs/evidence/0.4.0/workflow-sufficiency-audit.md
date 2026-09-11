@@ -1,10 +1,10 @@
 # 0.4 workflow sufficiency audit
 
 Updated 2026-09-11 (Europe/Budapest) against source-bound implementation head
-`cea2907191cd13c041e71533a2b62cf6641b4ad1` on
-`codex/prepared-keep-bindings-fix`; the Linux lane implementation is the
-preceding commit and the native preparation evidence cited below remains bound
-to the earlier implementation checkpoint.
+`64690fc425640b8ea33388caa5a9c89485ea7ea3` on
+`codex/prepared-keep-bindings-fix`; later commits in this evidence family are
+documentation-only. The Linux lane implementation is bound into this source
+and fresh native preparation/check evidence covers this head.
 
 ## Verdict
 
@@ -23,8 +23,9 @@ fresh evidence bound to the final reviewed and deployed source.
 - The dedicated Linux runner is installed and can run the sealed preflight and
   activation-evidence lanes. G001 policy observation is parsed and fails closed
   when runner or provider authority is missing.
-- Native release preparation and independent checking passed for the earlier
-  functional source checkpoint, with closure and public-boundary verification.
+- Native release preparation and independent checking pass for the final
+  synchronized head, with converged candidate, closure and public-boundary
+  verification recorded in the local operations evidence.
 - The protected CI shape is explicit: `verify`, `auth-bridge`,
   `spacetimedb-module`, `analyze` and `CodeQL` are required contexts.
 
@@ -42,11 +43,10 @@ fresh evidence bound to the final reviewed and deployed source.
   code and checks are green.
 - The full Windows rendered matrix still fails closed on a Chrome runtime
   exception. Linux is the release authority for retained rendered evidence.
-- Fresh native preparation and independent checking pass for the earlier
-  source-bound implementation, with a converged candidate, closure and public
-  boundary recorded in the execution handoff. The new workflow head still needs
-  its own native preparation; neither evidence set grants deployment
-  authorization or completes the release freeze.
+- Fresh native preparation and independent checking now pass for the final
+  synchronized head, with `finalReleasePrepared: false`. This proves candidate
+  convergence and source integrity; it does not grant deployment authorization
+  or complete the release freeze.
 - The production workflow has no authenticated provider receipts for Cloudflare,
   SpacetimeDB deployment, recovery readback, G002 import/publication or PTR
   owner provisioning. Those operations intentionally remain fail-closed or
@@ -69,20 +69,18 @@ fresh evidence bound to the final reviewed and deployed source.
 
 1. Read the terminal current-head protected checks and reconcile the review/
    signed-history requirement.
-2. Run fresh native preparation/check from the exact reviewed source, then retain
-   the resulting family and closure evidence.
-3. Dispatch the new Linux prepared notification/recovery workflow against the
+2. Dispatch the new Linux prepared notification/recovery workflow against the
    exact protected source, capture authenticated deployment/readback evidence,
    then port B0 and Pages private callers without weakening identity,
    ownership or executable checks; retain the Darwin lane only as an explicitly
    separate legacy profile.
-4. Complete authenticated recovery deployment and readback before any live
+3. Complete authenticated recovery deployment and readback before any live
    mutation; capture the G001 baseline and prove G002 remains sealed.
-5. Complete the actual owner PTR journey, lifecycle/isolation checks and fixed
+4. Complete the actual owner PTR journey, lifecycle/isolation checks and fixed
    device/performance measurements.
-6. Re-run the full rendered matrix on the release authority, then deploy Pages,
+5. Re-run the full rendered matrix on the release authority, then deploy Pages,
    Cloudflare and SpacetimeDB from the same reviewed source.
-7. Perform live G001 preservation, G002 denial and owner-journey verification,
+6. Perform live G001 preservation, G002 denial and owner-journey verification,
    and only then mark R01–R18 complete and produce the Desktop handoff.
 
 Until those records exist, the honest state is **development-ready and

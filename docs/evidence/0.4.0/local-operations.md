@@ -5,14 +5,13 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 ## Current source and protected checks — 2026-09-11
 
 Windows and native WSL are synchronized on
-`codex/prepared-keep-bindings-fix` at the current clean branch head
-`cea2907191cd13c041e71533a2b62cf6641b4ad1`. The preceding implementation
+`codex/prepared-keep-bindings-fix`; the source-bound implementation head is
+`64690fc425640b8ea33388caa5a9c89485ea7ea3`. Later commits in this evidence
+family are documentation-only. The preceding implementation
 commit adds the dedicated
 Linux x64 prepared notification workflow, fixed runner, pinned pnpm authority,
-and 1,199-member closure refreeze. The native preparation evidence below is
-bound to the earlier source-bound implementation head
-`867c70d7f0d4721df59bdd59967412ba45f02b50`; it is not a claim that this later
-workflow head has passed a fresh assembler run. Protected Verify and CodeQL
+and 1,199-member closure refreeze. Fresh native preparation and independent
+check now pass for this final synchronized head. Protected Verify and CodeQL
 are the authority for the current head;
 read every required context at terminal state before calling R14 green. GitHub
 still reports the PR merge state as `BLOCKED` because protected `main` requires
@@ -21,10 +20,30 @@ protection/merge reconciliation gate. The native release
 evidence below is bound to those exact source coordinates; later documentation
 commits do not create a new release candidate.
 
-## Current-head native preparation and independent check — 2026-09-11
+## Final synchronized-head native preparation and independent check — 2026-09-11
 
-After repairing the WSL checkout ownership drift, the dedicated Linux assembler
-completed both `prepare` and independent `check` from the exact published head
+The dedicated Linux assembler completed both `prepare` and independent `check`
+from exact source commit
+`64690fc425640b8ea33388caa5a9c89485ea7ea3`. Both lanes converged on candidate
+`release-workspace-f16740e2569ed2c63fb0378ad41ca912`, source tree
+`6d6db937b545b645d2faddd780fc114087ab1fb9`, transaction
+`4208aa73a506dab0c81d6fe404b5a444`, journal SHA-256
+`faade55e2b5dbcc2d2523d3a421d08126427b56d081c6e0d72187920fcfe1eda`, family
+SHA-256 `8c9575659038d0cd0e4c6fe8cb9db746af218f8ddad0bfba81b98630c06a40a6`,
+closure manifest SHA-256
+`a0b5892e45fd07f6e821afa826c02f9831dbd6e80b29f1541e4d3bbd2a7e90d0`, and
+scanner manifest SHA-256
+`edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+The run checked 3,191 source files and 3,191 candidate files, 102 generated
+outputs, 3,089 preserved source files, 444 compiled bundle inputs and 7
+recovery inputs. `finalReleasePrepared` remains `false`: this is fresh
+current-source preparation and convergence evidence, not deployment or release
+authorization.
+
+## Earlier source-bound native preparation and independent check — 2026-09-11
+
+The earlier source-bound native pass after repairing WSL checkout ownership
+drift completed both `prepare` and independent `check` from
 `867c70d7f0d4721df59bdd59967412ba45f02b50`. Both lanes converged on candidate
 `release-workspace-b800ee0ee30f970efe56fe6da4efa6fa`, source tree
 `563bbbcca8a173f82d55f7f24514f6c8ddb2d1a1`, transaction
