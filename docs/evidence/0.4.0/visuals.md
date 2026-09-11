@@ -2,9 +2,8 @@
 
 ## 2026-09-11 current documentation head; source-bound QA
 
-The published documentation head is
-`559d54c78f1defb5ffa3ca1384c5b81966bf8d52`; the responsive QA below was run
-against the preceding functional source-bound checkpoint.
+The responsive QA below was run against the preceding functional source-bound
+checkpoint; inspect PR #228 for the exact current documentation head.
 At that checkpoint,
 `npm run qa:inner-keep` passed all 18 synthetic cases. The reviewed matrix
 includes the 390x844 portrait profile, short landscape and desktop geometry,

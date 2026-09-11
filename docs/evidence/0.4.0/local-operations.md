@@ -4,13 +4,9 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 ## Current source and protected checks — 2026-09-11
 
-Windows, native WSL and upstream are synchronized at
-`559d54c78f1defb5ffa3ca1384c5b81966bf8d52`. Verify run
-[34547852300](https://github.com/ael-dev3/Warpkeep/actions/runs/34547852300)
-and CodeQL run
-[34547852318](https://github.com/ael-dev3/Warpkeep/actions/runs/34547852318)
-are the current protected checks for this documentation head; their terminal
-results remain required before R14. The native release evidence below remains
+Windows, native WSL and upstream are synchronized on
+`codex/prepared-keep-bindings-fix`. The current Verify and CodeQL checks linked
+from PR #228 remain required before R14. The native release evidence below remains
 bound to functional checkpoint `7a542a33`; the intervening commits are
 documentation-only and do not create a new release candidate.
 

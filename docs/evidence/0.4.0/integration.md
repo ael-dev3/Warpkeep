@@ -1,18 +1,15 @@
 # 0.4.0 integration evidence
 
-Updated 2026-09-11. The current reviewed source is the synchronized
-`559d54c78f1defb5ffa3ca1384c5b81966bf8d52` head on
+Updated 2026-09-11. The current reviewed source is the synchronized head on
 `codex/prepared-keep-bindings-fix`; PR #228 is ready for review. Source
 publication and protected CI are still separate from production deployment.
 
 ## Current checkpoint — 2026-09-11
 
-Verify run [34547852300](https://github.com/ael-dev3/Warpkeep/actions/runs/34547852300)
-is the R14 authority for this exact head. At the latest inspection,
+The current Verify run linked from PR #228 is the R14 authority. At the latest inspection,
 `release-recovery`, `native-contract`, and `auth-bridge` had passed while the
-`linux` and `spacetimedb-module` jobs were still running. CodeQL run
-[34547852318](https://github.com/ael-dev3/Warpkeep/actions/runs/34547852318) had
-passed. Read the terminal conclusions before marking R14 complete.
+`linux` and `spacetimedb-module` jobs were still running. CodeQL had passed.
+Read the terminal conclusions before marking R14 complete.
 
 The focused local sealed-workflow contract suite passed with 11 active tests
 and 41 platform skips using:
