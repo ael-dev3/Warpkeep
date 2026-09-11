@@ -1,8 +1,9 @@
 # 0.4 workflow sufficiency audit
 
-Updated 2026-09-11 (Europe/Budapest) against published head
-`4ce970ff43be176c3f4e0e9a6c9d3b22f19b6f83` on
-`codex/prepared-keep-bindings-fix`.
+Updated 2026-09-11 (Europe/Budapest) against source-bound implementation head
+`867c70d7f0d4721df59bdd59967412ba45f02b50` on
+`codex/prepared-keep-bindings-fix`; later branch commits are documentation or
+evidence follow-ups.
 
 ## Verdict
 

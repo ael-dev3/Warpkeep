@@ -9,10 +9,13 @@ is the compact read of what is ready for development and what still blocks a shi
 
 ## Current source-bound state — 2026-09-11
 
-The latest published head is `867c70d7f0d4721df59bdd59967412ba45f02b50` on
-`codex/prepared-keep-bindings-fix`; Windows and native WSL are clean and
-synchronized at that exact head. It includes the portable rendered-WebGL and
-Windows archive/cache workflow repair plus the dated workflow sufficiency audit.
+The source-bound implementation head is
+`867c70d7f0d4721df59bdd59967412ba45f02b50` on
+`codex/prepared-keep-bindings-fix`; later commits on the branch are
+documentation/evidence follow-ups. Windows and native WSL are clean and
+synchronized at the current branch head. The source-bound head includes the
+portable rendered-WebGL and Windows archive/cache workflow repair plus the dated
+workflow sufficiency audit.
 Native Linux `prepare` and independent `check` passed for candidate
 `release-workspace-b800ee0ee30f970efe56fe6da4efa6fa`, source tree
 `563bbbcca8a173f82d55f7f24514f6c8ddb2d1a1`, transaction

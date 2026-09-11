@@ -5,12 +5,12 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 ## Current source and protected checks — 2026-09-11
 
 Windows and native WSL are synchronized on
-`codex/prepared-keep-bindings-fix` at published head
-`a11f023cc6592d7f2915782d1158edee5e895ae6`. That head includes the portable
-rendered-WebGL and Windows archive/cache workflow repair. The functional/native
-release candidate remains source-bound to `aef672061e22cebeec66a7d22bda92bcb459d9d1`
-with generated refreeze `4bbe860b`. Protected Verify and CodeQL are the authority
-for the current head;
+`codex/prepared-keep-bindings-fix` at the current clean branch head. The
+source-bound implementation head is
+`867c70d7f0d4721df59bdd59967412ba45f02b50`; later commits are
+documentation/evidence follow-ups. That source includes the portable
+rendered-WebGL and Windows archive/cache workflow repair. Protected Verify and
+CodeQL are the authority for the current head;
 read every required context at terminal state before calling R14 green. GitHub
 still reports the PR merge state as `BLOCKED` because protected `main` requires
 signed commits and this development history is unsigned, so R14 remains a
