@@ -104,7 +104,7 @@ function assertExactSourceArchive() {
     || metadata.isSymbolicLink()
     || metadata.nlink !== 1
     || metadata.size !== SOURCE_ARCHIVE_BYTES
-    || (metadata.mode & 0o022) !== 0
+    || (process.platform !== 'win32' && (metadata.mode & 0o022) !== 0)
     || (expectedUid !== undefined && metadata.uid !== 0 && metadata.uid !== expectedUid)
   ) throw new Error('The local authorized castle source archive is unavailable.');
   const archive = readFileSync(SOURCE_ARCHIVE);
@@ -118,7 +118,15 @@ function assertExactSourceArchive() {
 }
 
 function unzip(args, encoding = 'buffer') {
-  const result = spawnSync(resolveAttestedSystemUnzip(), args, {
+  const executable = resolveAttestedSystemUnzip();
+  const portableArgs = process.platform === 'win32'
+    ? (args[0] === '-Z1'
+      ? ['-tf', args[1]]
+      : args[0] === '-p'
+        ? ['-xOf', args[1], args[2]]
+        : args)
+    : args;
+  const result = spawnSync(executable, portableArgs, {
     cwd: REPOSITORY_ROOT,
     encoding,
     env: Object.freeze({ LANG: 'C', LC_ALL: 'C', PATH: '/usr/bin:/bin' }),

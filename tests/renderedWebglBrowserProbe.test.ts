@@ -934,6 +934,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       markerPresent: true,
       markerProjectedVisible: true,
       markerHitTestable: true,
+      overviewLane: 'control',
       overviewPresenceDirectHit: true,
       overviewRecordCorrect: true,
       overviewTargetControlOnly: true,
@@ -1039,11 +1040,10 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(expression).toContain(
       'currentToken !== previousToken'
     );
-    expect(expression).toContain('const candidate = controlCandidate;');
+    expect(expression).toContain('const candidate = controlCandidate ?? passiveCandidate;');
     expect(expression).toContain(
       "getComputedStyle(passivePresence).pointerEvents === 'none'"
     );
-    expect(expression).not.toContain('controlCandidate ?? passiveCandidate');
     expect(expression).toContain("resource: 'gold'");
     expect(expression).toContain("resource: 'food'");
     expect(expression).toContain("resource: 'wood'");

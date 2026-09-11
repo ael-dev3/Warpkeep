@@ -3,7 +3,8 @@ import { accessSync, lstatSync } from 'node:fs';
 
 export const SYSTEM_UNZIP_CANDIDATES = Object.freeze({
   darwin: Object.freeze(['/usr/bin/unzip']),
-  linux: Object.freeze(['/usr/bin/unzip'])
+  linux: Object.freeze(['/usr/bin/unzip']),
+  win32: Object.freeze(['C:/Windows/System32/tar.exe'])
 });
 
 export function resolveAttestedSystemUnzip(options = {}) {
@@ -14,7 +15,10 @@ export function resolveAttestedSystemUnzip(options = {}) {
   const failures = [];
 
   for (const path of candidates) {
-    if (typeof path !== 'string' || !path.startsWith('/')) {
+    const absolute = platform === 'win32'
+      ? typeof path === 'string' && /^[A-Za-z]:[\\/]/u.test(path)
+      : typeof path === 'string' && path.startsWith('/');
+    if (!absolute) {
       failures.push(`${String(path)} is not absolute`);
       continue;
     }
@@ -30,15 +34,15 @@ export function resolveAttestedSystemUnzip(options = {}) {
       failures.push(`${path} is not an ordinary non-symlink file`);
       continue;
     }
-    if (typeof details.uid !== 'number' || details.uid !== 0) {
+    if (platform !== 'win32' && (typeof details.uid !== 'number' || details.uid !== 0)) {
       failures.push(`${path} is not owned by root`);
       continue;
     }
-    if ((details.mode & 0o022) !== 0) {
+    if (platform !== 'win32' && (details.mode & 0o022) !== 0) {
       failures.push(`${path} is group- or world-writable`);
       continue;
     }
-    if ((details.mode & 0o111) === 0) {
+    if (platform !== 'win32' && (details.mode & 0o111) === 0) {
       failures.push(`${path} has no executable bit`);
       continue;
     }

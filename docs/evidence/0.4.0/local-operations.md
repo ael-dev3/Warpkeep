@@ -171,16 +171,22 @@ are covered by the dedicated Linux/CI rails; this Windows result is a host
 capability boundary rather than a failed Keep04 assertion. Rerun the full suite
 in the supported Linux runner before release evidence is sealed.
 
-## Rendered WebGL host boundary — 2026-09-10
+## Rendered WebGL host boundary — 2026-09-11
 
-The generic `npm run qa:rendered-webgl` lane remains the signed macOS observer
-probe because its contract attests `/Applications/Google Chrome.app` with
-`codesign`. Running that command on Windows therefore fails closed before
-renderer work when the macOS executable is absent. Windows coverage uses the
-platform-aware `npm run qa:inner-keep`, `npm run qa:fullstack:local` and
-Keep04 capture lanes; those lanes passed on this checkout. This host selection
-boundary preserves the signed-browser contract and is not a product-renderer
-failure.
+The generic `npm run qa:rendered-webgl` lane now has a portable browser
+contract. macOS keeps the reviewed Google application `codesign` attestation;
+Windows uses the fixed installed Chrome executable with stable file identity and
+process-tree teardown; Linux accepts only the fixed reviewed candidates or the
+absolute `WARPKEEP_QA_CHROME` override. The pinned historical castle source
+archive also uses the reviewed Windows `tar.exe` adapter, so the full fixture
+lane no longer stops at a macOS-only path or POSIX cache-directory check.
+
+On this Windows checkout the browser contract suite, archive extraction and
+`npm run qa:inner-keep` pass. The full rendered matrix reaches the real Realm
+fixture but remains red on a Windows Chrome runtime exception during the
+`desktop-high` case; no rendered-release evidence is claimed from that run.
+Rerun the matrix on the supported Linux runner and retain the exact failure
+category if it reproduces. This is an open QA gate, not a release approval.
 
 ## Windows preparation verifier — 2026-09-10
 

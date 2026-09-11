@@ -43,7 +43,8 @@ closed during CLI attestation before they create a database or browser. Record
 that result as a tooling boundary; do not bypass attestation with an arbitrary
 developer-installed binary.
 
-The broader rendered-fixture lane remains available separately:
+The broader rendered-fixture lane is portable across the supported desktop
+hosts:
 
 ```sh
 npm run assets:fetch:castle:source-0.3.4
@@ -58,8 +59,11 @@ castle LOD comparison lane. It exits non-zero if a case fails or the browser
 leaves the local boundary.
 
 The fetch step retrieves the hash-pinned historical castle source used only by
-the LOD comparison lane and stores it in the ignored local asset cache. The QA
-command deliberately fails closed when that exact source archive is absent or
+the LOD comparison lane and stores it in the ignored local asset cache. On
+Windows, the attested system `tar.exe` adapter provides the same list/extract
+operations as `/usr/bin/unzip`; the cache writer retains atomic replacement and
+symlink checks while using Windows ACL semantics for directory ownership. The
+QA command deliberately fails closed when that exact source archive is absent or
 does not match its recorded digest.
 
 Neither browser lane needs access to a live Warpkeep service.

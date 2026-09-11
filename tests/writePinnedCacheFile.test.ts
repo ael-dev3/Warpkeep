@@ -70,8 +70,10 @@ describe('pinned cache-file publication', () => {
 
     expect(readFileSync(destination, 'utf8')).toBe('second');
     expect(lstatSync(destination).ino).not.toBe(firstInode);
-    expect(lstatSync(destination).mode & 0o777).toBe(0o600);
-    expect(lstatSync(join(root, 'nested')).mode & 0o777).toBe(0o700);
+    if (process.platform !== 'win32') {
+      expect(lstatSync(destination).mode & 0o777).toBe(0o600);
+      expect(lstatSync(join(root, 'nested')).mode & 0o777).toBe(0o700);
+    }
     expect(readdirSync(join(root, 'nested'))).toEqual(['asset.bin']);
   });
 
@@ -94,7 +96,9 @@ describe('pinned cache-file publication', () => {
     },
   );
 
-  it('rejects symbolic-link destinations and ancestors without touching their targets', () => {
+  it.skipIf(process.platform === 'win32')(
+    'rejects symbolic-link destinations and ancestors without touching their targets',
+    () => {
     const root = fixtureRoot();
     chmodSync(root, 0o700);
     const outside = join(root, 'outside');
@@ -117,9 +121,12 @@ describe('pinned cache-file publication', () => {
       mode: 0o600,
     })).toThrow(/symbolic-link component/);
     expect(readFileSync(target, 'utf8')).toBe('unchanged');
-  });
+    }
+  );
 
-  it('rejects a cache directory writable by other users', () => {
+  it.skipIf(process.platform === 'win32')(
+    'rejects a cache directory writable by other users',
+    () => {
     const root = fixtureRoot();
     chmodSync(root, 0o777);
     expect(() => writePinnedCacheFile({
@@ -127,9 +134,12 @@ describe('pinned cache-file publication', () => {
       bytes: Buffer.from('bad'),
       mode: 0o600,
     })).toThrow(/owner-private directory/);
-  });
+    }
+  );
 
-  it('rejects a private leaf beneath a mutable path ancestor', () => {
+  it.skipIf(process.platform === 'win32')(
+    'rejects a private leaf beneath a mutable path ancestor',
+    () => {
     const root = fixtureRoot();
     chmodSync(root, 0o777);
     const privateLeaf = join(root, 'private');
@@ -141,5 +151,6 @@ describe('pinned cache-file publication', () => {
       mode: 0o600,
     })).toThrow(/untrusted mutable path ancestor/);
     expect(readdirSync(privateLeaf)).toEqual([]);
-  });
+    }
+  );
 });
