@@ -20,6 +20,13 @@ Post-reboot, pre-logon and host-sleep availability are not established.
 Use the [current runner guide](../../operations/0.4.0-linux-runner.md) for the
 exact account, maintenance commands, evidence and remaining work.
 
+On September 11, a read-only `preflight` dispatch was attempted against
+protected `main` using its exact SHA `9eb98e78bc975e29ced16d92c2060ab833ad9b46`.
+GitHub returned workflow-not-found because `sealed-realms-production.yml` is
+present on this prepared branch but not on that protected main revision. The
+protected preflight therefore becomes runnable only after the prepared branch
+lands; branch-local workflow bytes are not live authority.
+
 The actual G001 policy workflow exposed a CLI defect: `g001-policy-observe` was
 supported by the dispatcher but absent from its executable parser. The parser
 now uses the dispatch operation map. The new fresh-process regression reproduced
