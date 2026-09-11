@@ -1,5 +1,16 @@
 # Release engineering, CI and infrastructure audit
 
+## Current source checkpoint — 2026-09-12
+
+The Windows checkout, GitHub branch and existing WSL checkout are clean and
+synchronized at `de6f8c190aa95da37f0cbff416f7b24d8c6cfe02` on
+`codex/prepared-keep-bindings-fix`. CodeQL run `34653336388` passed. Verify run
+`34653336328` has passed `auth-bridge`, `release-recovery` and
+`native-contract`; its Linux and SpacetimeDB integration jobs remain active.
+No provider deployment, recovery readback, owner PTR acceptance,
+physical-device result or live release is claimed. The current source and CI
+authority are recorded in the [execution handoff](execution-handoff.md).
+
 ## Current runner status — 2026-09-11
 
 PR #228 is ready for review; its current Verify and CodeQL checks are the R14
