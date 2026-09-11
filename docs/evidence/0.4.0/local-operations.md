@@ -5,12 +5,12 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 ## Current source and protected checks — 2026-09-11
 
 Windows and native WSL are synchronized on
-`codex/prepared-keep-bindings-fix`; the current source-bound implementation head
-is `b0e634350ed1ef02e6ee9704421856c7db27d7e0`. This commit makes the Pages
-private deployment launcher accept the retained Linux x64 runner profile while
-preserving the historical Darwin profile, adds focused coverage for both
-profiles, and refreshes the closure pins from native Linux bytes. Fresh native
-preparation and independent check now pass for this committed source.
+`codex/prepared-keep-bindings-fix`; the current head is
+`7d920b9f57ec450071632fdc3f0b560f7526811a`. It migrates the Pages private
+deployment job to Linux x64, makes closure pin derivation profile-aware, and
+refreshes all generated consumers from native Linux bytes while preserving the
+legacy Darwin callers. Fresh native preparation and independent check pass for
+this committed source.
 Protected Verify and CodeQL are the authority for the current head. Read every
 required context at terminal state before calling R14 green; transient run IDs
 are intentionally read directly from GitHub. GitHub
@@ -24,18 +24,18 @@ commits do not create a new release candidate.
 
 The dedicated Linux assembler completed both `prepare` and independent `check`
 from exact source commit
-`b0e634350ed1ef02e6ee9704421856c7db27d7e0`. Both lanes converged on candidate
-`release-workspace-29d221b4fa333fb308ee812d2721545e`, source tree
-`f73be880adfeb18ec19a69136e2d33554d02297f`, transaction
-`54330d68bf1c2512778619985d48ee80`, journal SHA-256
-`a1b224772c5485a0af311c70def0d8246f043524760626e500130094f568fe92`, family
-SHA-256 `acc3f3fed36824a9a8cd7d892af22ca3b654d83e24b649248b24bace6cabc1a7`,
+`7d920b9f57ec450071632fdc3f0b560f7526811a`. Both lanes converged on candidate
+`release-workspace-69a975071850f1e562b593ffa811904e`, source tree
+`2b23068063945029e439dbeb85bf4fa6b80b9735`, transaction
+`5b1ab812dba7456e6c84493fe741efa4`, journal SHA-256
+`324479d8b88cb59b61842b949260a35e9586a3e49f3d9aed912f7c6fd10f2f3d`, family
+SHA-256 `c6c45376b8662f58f602d59c7f41912ebdde6bb4856d519d8a0cdc65e975c67e`,
 closure manifest SHA-256
-`258bb6c3237e2ca386d78358af442d9a6a562f5b21d4bcb18ae1e9caf6f3f2e6`, and
+`c92fc469e86ca8ee285c4057901a9bd41c1be982283d04a82196cf541433702f`, and
 scanner manifest SHA-256
 `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
-The run checked 3,191 source files and 3,191 candidate files, 102 generated
-outputs, 3,089 preserved source files, 444 compiled bundle inputs and 7
+The run checked 3,192 source files and 3,192 candidate files, 102 generated
+outputs, 3,090 preserved source files, 444 compiled bundle inputs and 7
 recovery inputs. `finalReleasePrepared` remains `false`: this is fresh
 current-source preparation and convergence evidence, not deployment or release
 authorization.

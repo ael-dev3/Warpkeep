@@ -9,20 +9,19 @@ is the compact read of what is ready for development and what still blocks a shi
 
 ## Current source-bound state — 2026-09-11
 
-The source-bound implementation head is
-`b0e634350ed1ef02e6ee9704421856c7db27d7e0` on
-`codex/prepared-keep-bindings-fix`; Windows, GitHub and native WSL are
-synchronized at the branch tip, with later evidence-only commits allowed. This
-commit makes the Pages private deployment launcher accept the retained Linux
-x64 runner profile while preserving Darwin behavior and adds focused coverage.
+The synchronized head is
+`7d920b9f57ec450071632fdc3f0b560f7526811a` on
+`codex/prepared-keep-bindings-fix`; Windows, GitHub and native WSL are clean
+and aligned. The Pages private deployment job now uses Linux x64, and closure
+pin derivation resolves the Linux and Darwin workflow profiles independently.
 Fresh native `prepare` and independent `check` pass for this exact head. The
-converged candidate, source tree, transaction and digests are recorded in the
-local operations evidence; the candidate is
-`release-workspace-29d221b4fa333fb308ee812d2721545e`, source tree
-`f73be880adfeb18ec19a69136e2d33554d02297f`, family
-`acc3f3fed36824a9a8cd7d892af22ca3b654d83e24b649248b24bace6cabc1a7`, and
+converged candidate is
+`release-workspace-69a975071850f1e562b593ffa811904e`, source tree
+`2b23068063945029e439dbeb85bf4fa6b80b9735`, transaction
+`5b1ab812dba7456e6c84493fe741efa4`, family
+`c6c45376b8662f58f602d59c7f41912ebdde6bb4856d519d8a0cdc65e975c67e`, and
 closure manifest
-`258bb6c3237e2ca386d78358af442d9a6a562f5b21d4bcb18ae1e9caf6f3f2e6`.
+`c92fc469e86ca8ee285c4057901a9bd41c1be982283d04a82196cf541433702f`.
 The candidate remains preparation evidence only, with `finalReleasePrepared: false`.
 The protected Verify and CodeQL runs attached to this head remain the CI
 authority; read both at terminal state before claiming CI complete. This
@@ -38,10 +37,12 @@ owner-only Linux x64 runner, fixed Node 22.22.3, a reviewed pnpm 11.7.0
 wrapper and isolated store, then rechecks GitHub workflow authority before any
 credentialed deploy or read-only recovery call. The protected source closure is
 now 1,199 members; its current manifest SHA-256 is
-`187b19873ba3a10418fde1da8ebddc63a80198b7482b5a56888d0768481f7714`.
+`c92fc469e86ca8ee285c4057901a9bd41c1be982283d04a82196cf541433702f`.
 The lane is source-verified and pushed, but no authenticated production run or
-recovery readback has been recorded. B0 and Pages private callers remain on the
-legacy Darwin profile until their Linux migration is separately reviewed.
+recovery readback has been recorded. Pages private delivery has since moved to
+the Linux x64 profile with per-workflow closure pin derivation. B0 and the
+legacy prepared caller remain on Darwin until their executable/path migration
+is separately reviewed.
 
 The checked-in `sealed-realms-production.yml` routes only `preflight`,
 `g001-policy-observe`, and activation evidence operations to the installed Linux
