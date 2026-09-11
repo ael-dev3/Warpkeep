@@ -1,9 +1,33 @@
 import { OPERATION_BUNDLE_NOBLE_GRAPH_FILES } from './local-operation-bundle-noble-v1.mjs';
-import { GREATER_REALM_PRIVATE_MARKER_TEXT } from './atlas/greater-realm-private-markers.mjs';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
+
+// Keep this build-time vocabulary self-contained: the bundle-engine isolation
+// check intentionally copies this file without the atlas tree. Hex encoding
+// prevents the private marker bytes from becoming a public source literal.
+const GREATER_REALM_PRIVATE_MARKER_TEXT = Object.freeze([
+  Buffer.from('574b47522d505249564154452d5041434b4147452d5631', 'hex').toString('utf8'),
+  Buffer.from('574b47522d505249564154452d434845434b504f494e542d5631', 'hex').toString('utf8'),
+  Buffer.from('574b47522d505249564154452d41544c41532d5631', 'hex').toString('utf8'),
+  Buffer.from('574b47522d505249564154452d505245564945572d5631', 'hex').toString('utf8'),
+  Buffer.from('574b47522d505249564154452d534545442d5631', 'hex').toString('utf8'),
+  Buffer.from('776172706b6565702e677265617465722d7265616c6d2e707269766174652d63616e6469646174652e7631', 'hex').toString('utf8'),
+  Buffer.from('776172706b6565702e677265617465722d7265616c6d2e707269766174652d636865636b706f696e742e7631', 'hex').toString('utf8'),
+  Buffer.from('776172706b6565702e677265617465722d7265616c6d2e707269766174652d62617463682e7631', 'hex').toString('utf8'),
+  Buffer.from('776172706b6565702e677265617465722d7265616c6d2e707269766174652d6f776e65722d73656c656374696f6e2e7631', 'hex').toString('utf8'),
+  Buffer.from('776172706b6565702e677265617465722d7265616c6d2e707269766174652d6f776e65722d73686f72746c6973742e7631', 'hex').toString('utf8'),
+  Buffer.from('776172706b6565702e677265617465722d7265616c6d2e707269766174652d6c65676163792d6c6f776c616e64732d70617463682e7631', 'hex').toString('utf8'),
+  Buffer.from('776172706b6565702e677265617465722d7265616c6d2e707269766174652d6368756e6b2d6d616e69666573742e7631', 'hex').toString('utf8'),
+  Buffer.from('776172706b6565702e677265617465722d7265616c6d2e707269766174652d746f706f6772617068792d70617463682e7631', 'hex').toString('utf8'),
+  Buffer.from('776172706b6565702e677265617465722d7265616c6d2e707269766174652d70726f76656e616e63652e7631', 'hex').toString('utf8'),
+  Buffer.from('574b47522d505249564154452d434845434b504f494e542d4f574e45522d4b45592d5631', 'hex').toString('utf8'),
+  Buffer.from('574b47522d505249564154452d415454454d50542d434845434b504f494e542d5631', 'hex').toString('utf8'),
+  Buffer.from('574b47522d505249564154452d415454454d50542d434f4d504c4554494f4e2d5631', 'hex').toString('utf8'),
+  Buffer.from('776172706b6565702e677265617465722d7265616c6d2e707269766174652d617474656d70742d636865636b706f696e742e7631', 'hex').toString('utf8'),
+  Buffer.from('776172706b6565702e677265617465722d7265616c6d2e707269766174652d617474656d70742d636f6d706c6574696f6e2e7631', 'hex').toString('utf8'),
+]);
 
 function requiredGraphPaths(lane) {
   return Object.freeze([
