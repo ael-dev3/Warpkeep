@@ -127,7 +127,11 @@ const LINUX_BOOTSTRAP_PIN_BINDINGS = Object.freeze(
 );
 const PAGES_BOOTSTRAP_PIN_BINDINGS = Object.freeze([
   ...BOOTSTRAP_PIN_BINDINGS.slice(0, 3),
-  BOOTSTRAP_PIN_BINDINGS[5],
+  Object.freeze({
+    name: 'WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256',
+    path:
+      'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json',
+  }),
   BOOTSTRAP_PIN_BINDINGS[6],
 ]);
 const BOOTSTRAP_PINNED_WORKFLOWS = new Map([
