@@ -5,10 +5,12 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 ## Current source and protected checks — 2026-09-11
 
 Windows, native WSL and upstream are synchronized on
-`codex/prepared-keep-bindings-fix`. The current Verify and CodeQL checks linked
-from PR #228 remain required before R14. The native release evidence below remains
-bound to functional checkpoint `7a542a33`; the intervening commits are
-documentation-only and do not create a new release candidate.
+`codex/prepared-keep-bindings-fix` at generated refreeze
+`b8a6c5ab811f8ef6b2cf916d1446336428606823` (functional source checkpoint
+`22a834e6d7d0106e5d6cfd535a90692bdfe17ff5`). The current Verify and CodeQL
+checks linked from PR #228 remain required before R14. The native release
+evidence below is bound to those exact source coordinates; later documentation
+commits do not create a new release candidate.
 
 The hidden `Warpkeep Runner Keepalive` task was manually started once after its
 registration and the `WarpkeepRunner` guest remained available. This verifies
@@ -54,17 +56,19 @@ includes the task details, idempotent manual command and limits.
 
 ## Native release assembler — 2026-09-11
 
-The latest functional source-bound checkpoint `7a542a33` was prepared and
-independently checked again from the native checkout. Both lanes returned the same transaction
-`d1266c1a19310ba1f4d669e42d64f520`, source tree
-`c1152bd3697fe77fda63552daf79edaf13278aaa`, family digest
-`77c6ab8bc86910021a307b84c009f7e4fa86555ddadb6aa7a32e03d6f5369c81`, and
-candidate `release-workspace-447cff3cb663d042a1c10db14e426213`. They checked
-3,181 source files, 3,181 candidate files, 101 generated outputs, 444 compiled
-bundle inputs and 7 recovery inputs. `finalReleasePrepared` remains false.
-Later branch commits after this functional checkpoint change documentation only
-and must not be treated as native release candidates without a fresh source
-identity check.
+The latest functional source-bound checkpoint `22a834e6d7d0106e5d6cfd535a90692bdfe17ff5`
+was prepared and independently checked again from the native checkout. Both
+lanes returned candidate `release-workspace-328713ba2532b2dcef3815d7e9d7daa2`,
+source tree `cec3750ef8a363b55b7f71cd55c0522e160be3a7`, family digest
+`c9cf06c09bdd7c52869ecb6b06d091bc912141fae8277c4ad3f963edf43850d8`, closure
+manifest digest `445e5f7131ba85dbbe89edb4b28abff39a9d584f73118fbe3ec35d051908320a`,
+and transaction `58393eda2cb2d4b7c7226f972f5bd1cc`. They checked 3,181 source
+files, 3,181 candidate files, 101 generated outputs, 444 compiled bundle
+inputs and 7 recovery inputs. `finalReleasePrepared` remains false. Generated
+protected-family refreeze `b8a6c5ab811f8ef6b2cf916d1446336428606823` passes the
+native 1,195-member closure verifier. Later branch commits after this
+functional checkpoint change documentation only and must not be treated as
+native release candidates without a fresh source identity check.
 
 After the closure refreeze, the synchronized native checkout completed both
 release-assembler lanes at `c0e30a37` (`8bc06b320f3cddd53225e5d81b1e5965147e399b`):

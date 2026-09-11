@@ -10,13 +10,16 @@ UID/GID 1000. GitHub reported existing runner ID 22 online and idle at 21:20 UTC
 after completing the interrupted helper/marker installation. Empty sealed private
 roots are now provisioned. No credentials or receipts were migrated and no
 protected workflow was dispatched. Native `prepare` and independent `check` pass
-for the latest functional source-bound checkpoint `7a542a33` with the 1,195-member
-closure and the full 3,181-file candidate family; the candidate is
-`release-workspace-447cff3cb663d042a1c10db14e426213` and its source tree is
-`c1152bd3697fe77fda63552daf79edaf13278aaa`. Any later branch commits in this
-section are documentation-only follow-ups and must be checked against the exact
-GitHub head before use. This supersedes the historical setup and offline
-observations below.
+for the latest functional source-bound checkpoint
+`22a834e6d7d0106e5d6cfd535a90692bdfe17ff5` with the 1,195-member closure and
+the full 3,181-file candidate family; the candidate is
+`release-workspace-328713ba2532b2dcef3815d7e9d7daa2` and its source tree is
+`cec3750ef8a363b55b7f71cd55c0522e160be3a7`. Generated protected family
+refreeze `b8a6c5ab811f8ef6b2cf916d1446336428606823` is committed and the native
+closure verifier reports all 1,195 members verified. Any later branch commits
+in this section are documentation-only follow-ups and must be checked against
+the exact GitHub head before use. This supersedes the historical setup and
+offline observations below.
 Follow the
 [runner guide](../../operations/0.4.0-linux-runner.md) for current paths and the
 remaining recovery deployment/readback integration; R11 is still incomplete.

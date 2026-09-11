@@ -1,7 +1,9 @@
 # Release engineering: implementation and evidence
 
 Current reading point: the functional source-bound checkpoint is
-`7a542a33`; later branch commits may be documentation-only follow-ups. The
+`22a834e6d7d0106e5d6cfd535a90692bdfe17ff5`; generated protected-family
+refreeze `b8a6c5ab811f8ef6b2cf916d1446336428606823` follows it. Later branch
+commits may be documentation-only follow-ups. The
 September 9 source checkpoint
 `206c036` records the latest retained assembled-artifact execution above the
 historical entries in this record; the September 8 entries at the end cover
@@ -24,6 +26,21 @@ helper require `warpkeep` UID/GID 1000 and the separate
 `/home/runner` contract remains historical evidence and is not a current
 operating prerequisite. The root is provisioned empty; no recovery claim,
 credential or deployment authorization exists yet.
+
+The native Linux assembler then prepared and independently checked the
+source-bound candidate `release-workspace-328713ba2532b2dcef3815d7e9d7daa2`
+from source `22a834e6d7d0106e5d6cfd535a90692bdfe17ff5`, source tree
+`cec3750ef8a363b55b7f71cd55c0522e160be3a7`, transaction
+`58393eda2cb2d4b7c7226f972f5bd1cc`, family digest
+`c9cf06c09bdd7c52869ecb6b06d091bc912141fae8277c4ad3f963edf43850d8`, and
+closure manifest digest
+`445e5f7131ba85dbbe89edb4b28abff39a9d584f73118fbe3ec35d051908320a`.
+The run checked 3,181 source/candidate files, 101 generated outputs, 444
+compiled bundle inputs and 7 recovery inputs; it intentionally returned
+`finalReleasePrepared: false`. The generated closure was copied into the
+source and committed as `b8a6c5ab`; the native closure verifier now reports
+1,195 members verified. This is preparation and closure evidence, not a
+release grant, provider deployment or owner acceptance.
 
 ## Current assembled-artifact execution — 2026-09-09
 

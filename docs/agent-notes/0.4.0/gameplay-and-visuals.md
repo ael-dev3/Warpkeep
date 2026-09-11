@@ -1,7 +1,7 @@
 # Gameplay and visual implementation notes
 
 Updated 2026-09-11 against the current PR #228 development branch; the
-functional source-bound checkpoint remains `7a542a33` and the inspected working
+functional source-bound checkpoint remains `22a834e6` and the inspected working
 files are synchronized with that branch. Earlier source hashes below remain dated evidence anchors,
 not current review targets.
 This refresh includes the focused Keep04 UI/scene run (161 tests across eight

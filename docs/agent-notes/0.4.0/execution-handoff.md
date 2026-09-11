@@ -5,6 +5,29 @@ The GitHub/profile/ecosystem refresh is complete. Continue the connected game an
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
 
+## Current source-bound state — 2026-09-11
+
+The functional recovery-lane repair is `22a834e6d7d0106e5d6cfd535a90692bdfe17ff5`;
+generated protected-family refreeze `b8a6c5ab811f8ef6b2cf916d1446336428606823`
+is published on `codex/prepared-keep-bindings-fix`. Native Linux `prepare` and
+independent `check` passed for candidate
+`release-workspace-328713ba2532b2dcef3815d7e9d7daa2`, source tree
+`cec3750ef8a363b55b7f71cd55c0522e160be3a7`, and closure manifest
+`445e5f7131ba85dbbe89edb4b28abff39a9d584f73118fbe3ec35d051908320a`; the
+native closure verifier reports 1,195 members. The protected Verify and CodeQL
+runs attached to the published head are the current CI authority and must be
+read at their terminal state. This evidence still does not establish provider
+deployment, recovery readback, owner admission, physical-device performance or
+final release approval.
+
+The checked-in `sealed-realms-production.yml` routes only `preflight`,
+`g001-policy-observe`, and activation evidence operations to the installed Linux
+authority. G002 publication/import/live operations and PTR publication,
+import, owner-provision and live operations remain explicit fail-closed
+`unsupported` cases until their authenticated provider and owner receipts are
+available. This is the intended 0.4 safety boundary, not a completed live
+release workflow.
+
 ## Workflow audit and runner repair — 2026-09-11
 
 The workflow is usable for continued development but is not yet sufficient to
