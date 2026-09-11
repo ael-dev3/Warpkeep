@@ -2,6 +2,13 @@
 
 ## Current runner status — 2026-09-11
 
+The published branch head is
+`246d85ca72c171b8fd98a6c92e1b585463e03f15`; PR #228 is ready for review. Verify
+run [34547379362](https://github.com/ael-dev3/Warpkeep/actions/runs/34547379362)
+and CodeQL run
+[34547379412](https://github.com/ael-dev3/Warpkeep/actions/runs/34547379412)
+are the current R14 checks and must be read at their terminal state.
+
 The dedicated `WarpkeepRunner` service is enabled and running as `warpkeep`
 UID/GID 1000. GitHub reported existing runner ID 22 online and idle at 21:20 UTC
 after completing the interrupted helper/marker installation. Empty sealed private

@@ -1,8 +1,11 @@
 # Verdant Citadel visual acceptance — current source, with device gates open
 
-## 2026-09-10 current-head responsive QA
+## 2026-09-11 current documentation head; source-bound QA
 
-At published head `5b9ba9657d6e66319f41aabd396faf2a6c947b29`,
+The published documentation head is
+`246d85ca72c171b8fd98a6c92e1b585463e03f15`; the responsive QA below was run
+against the preceding functional source-bound checkpoint.
+At that checkpoint,
 `npm run qa:inner-keep` passed all 18 synthetic cases. The reviewed matrix
 includes the 390x844 portrait profile, short landscape and desktop geometry,
 construction/completion, reduced motion, missing-asset and schematic fallback

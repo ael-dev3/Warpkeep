@@ -2,6 +2,23 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Current source and protected checks — 2026-09-11
+
+Windows, native WSL and upstream are synchronized at
+`246d85ca72c171b8fd98a6c92e1b585463e03f15`. Verify run
+[34547379362](https://github.com/ael-dev3/Warpkeep/actions/runs/34547379362)
+and CodeQL run
+[34547379412](https://github.com/ael-dev3/Warpkeep/actions/runs/34547379412)
+are the current protected checks for this documentation head; their terminal
+results remain required before R14. The native release evidence below remains
+bound to functional checkpoint `7a542a33`; the intervening commits are
+documentation-only and do not create a new release candidate.
+
+The hidden `Warpkeep Runner Keepalive` task was manually started once after its
+registration and the `WarpkeepRunner` guest remained available. This verifies
+the task action can hold the guest open in the current session; it does not
+prove pre-logon, sleep or reboot availability.
+
 ## Dedicated runner repair — 2026-09-10
 
 At 21:20 UTC, systemd reported the `WarpkeepRunner` service enabled/active/running

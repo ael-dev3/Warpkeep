@@ -2,10 +2,10 @@
 
 ## Scope and source
 
-This record covers the current PR #228 implementation at published head
-`5b9ba9657d6e66319f41aabd396faf2a6c947b29` (functional renderer/UI source
-`211b0b1af7f8dc222be836813bbcc8f0885400d6`); older hashes in dated evidence are
-historical anchors only. It records the 0.4 renderer foundation and its
+This record covers the current PR #228 implementation at documentation head
+`246d85ca72c171b8fd98a6c92e1b585463e03f15`; the functional renderer/UI source
+remains the source-bound checkpoint recorded below. Older hashes in dated
+evidence are historical anchors only. It records the 0.4 renderer foundation and its
 intentional recovery paths. It does not claim a physical phone result,
 authenticated owner play, or a final performance gate.
 

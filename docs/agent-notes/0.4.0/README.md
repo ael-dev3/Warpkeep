@@ -7,15 +7,20 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-Updated September 10 against the published development branch at
-`5b9ba9657d6e66319f41aabd396faf2a6c947b29`.
+Updated September 11 against the published development branch at
+`246d85ca72c171b8fd98a6c92e1b585463e03f15`.
 The GitHub/profile/ecosystem refresh is complete. Continue
 the connected game and delivery work from the [execution handoff](execution-handoff.md),
 which records the current checkpoint, preparation, CI and environment details.
 
 - **Development and live release are separate.** Active 0.4 work is on
-  `codex/prepared-keep-bindings-fix`, associated with draft
-  [PR #228](https://github.com/ael-dev3/Warpkeep/pull/228). `main` remains the public
+  `codex/prepared-keep-bindings-fix`, associated with ready-for-review
+  [PR #228](https://github.com/ael-dev3/Warpkeep/pull/228). Verify run
+  [34547379362](https://github.com/ael-dev3/Warpkeep/actions/runs/34547379362)
+  and CodeQL run
+  [34547379412](https://github.com/ael-dev3/Warpkeep/actions/runs/34547379412)
+  are the current checks for this documentation head; read their terminal
+  conclusions before R14. `main` remains the public
   G001 baseline. The integrated 0.4 release is not yet shipped.
 - **The core loop works in a populated native rehearsal.** Real realm modules
   imported their atlases and preserved existing state through updates. PTR earned
@@ -42,11 +47,12 @@ which records the current checkpoint, preparation, CI and environment details.
   and construction state. It adds no command, resource rule or progression authority;
   validate its mobile treatment with the next rendered capture.
 - **The connected presentation rail is exercised.** The disposable Windows lane
-  passed against current head `5b9ba9657d6e66319f41aabd396faf2a6c947b29` with the
-  final WebGL warning boundary and re-entry diagnostics, covering fresh-browser
+  passed at the prior functional checkpoint; the published documentation head
+  is now `246d85ca72c171b8fd98a6c92e1b585463e03f15`, so rerun the connected lane
+  after any source change before release evidence. It covered the
+  final WebGL warning boundary and re-entry diagnostics, with fresh-browser
   re-entry, four-worker outbound → gathering → returning, private retry seams,
-  recall/settlement and released-node reuse. Rerun after any further source
-  change before release evidence.
+  recall/settlement and released-node reuse.
 - **Delivery has working foundations and specific gaps.** The local source
   assembler connects fixed compilers, generated consumers, independent rebuilding
   checks and candidate recovery. Linux recovery and sealed preflight callers are
