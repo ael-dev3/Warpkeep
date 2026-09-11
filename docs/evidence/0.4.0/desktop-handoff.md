@@ -66,7 +66,7 @@ provider command:
 - [`integration.md`](integration.md) — PR and CI acceptance.
 - [`local-operations.md`](local-operations.md) — Windows/WSL operating state.
 - [`release-engineering.md`](release-engineering.md) — assembled workflow rails.
-- [`release-freeze.md`](release-freeze.md) — source-family and closure proof.
+- [`local-release-closure-family.md`](local-release-closure-family.md) — source-family and closure proof.
 - [`recovery.md`](recovery.md) — recovery requirements and limits.
 - [`deployment-attestation-install.md`](deployment-attestation-install.md) —
   credential-free installation and attestation boundaries.
