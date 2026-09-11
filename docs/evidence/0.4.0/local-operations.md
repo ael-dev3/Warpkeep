@@ -5,7 +5,7 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 ## Current source and protected checks — 2026-09-11
 
 Windows and native WSL are synchronized on
-`codex/prepared-keep-bindings-fix` at head `e664e2f4`. The functional source
+`codex/prepared-keep-bindings-fix` at its current published head. The functional source
 checkpoint is `aef672061e22cebeec66a7d22bda92bcb459d9d1` with generated refreeze
 `4bbe860b`. Every required Verify and CodeQL context is green on the head;
 GitHub still reports the PR merge state as `BLOCKED` because protected `main`
