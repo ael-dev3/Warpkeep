@@ -3,8 +3,8 @@
 ## Current verification checkpoint — 12 September 2026
 
 The Windows checkout, GitHub development branch and native WSL checkout remain
-clean and synchronized at branch head `d67da6365cb52fa065fe05e0ceb0d2c7475de8d5`
-on `codex/prepared-keep-bindings-fix`; the reviewed runtime source checkpoint is
+clean and synchronized on `codex/prepared-keep-bindings-fix`; the reviewed
+runtime source checkpoint is
 `24e3c136fb5e3839b00c8e8ddb3c780b6f795461`. The Keep04-focused local suite passed 10 test
 files and 139 tests, the PTR gameplay surface suite passed 33 tests, and the
 Greater Realm world/RealmMapScreen suites passed 45 tests. A narrow local browser

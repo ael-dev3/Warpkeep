@@ -3,8 +3,8 @@
 ## Current source checkpoint — 2026-09-12
 
 The Windows checkout, GitHub branch and existing WSL checkout are clean and
-synchronized at branch head `d67da6365cb52fa065fe05e0ceb0d2c7475de8d5` on
-`codex/prepared-keep-bindings-fix`; the reviewed runtime source checkpoint is
+synchronized on `codex/prepared-keep-bindings-fix`; the reviewed runtime source
+checkpoint is
 `24e3c136fb5e3839b00c8e8ddb3c780b6f795461`. Verify and CodeQL are attached to
 the current PR head and remain the CI authority until terminal state. No provider deployment, recovery readback, owner PTR
 acceptance, physical-device result or live release is claimed. The current
