@@ -15,6 +15,16 @@ Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
+## Current runner alignment — 2026-09-11
+
+The checked-in recovery Pages caller is aligned with the currently registered
+Linux runner `warpkeep-wsl-production-01`: the job and its private directory
+helper require `warpkeep` UID/GID 1000 and the separate
+`/home/warpkeep/.warpkeep-recovery-v1` root at mode `0700`. The earlier UID-1001
+`/home/runner` contract remains historical evidence and is not a current
+operating prerequisite. The root is provisioned empty; no recovery claim,
+credential or deployment authorization exists yet.
+
 ## Current assembled-artifact execution — 2026-09-09
 
 The pinned WarpkeepRunner Ubuntu 24.04 guest executed the current native

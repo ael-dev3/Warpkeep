@@ -1,12 +1,12 @@
 import { constants, openSync, closeSync, lstatSync, fstatSync, realpathSync, mkdirSync, fsyncSync } from 'node:fs';
-const ROOT = '/home/runner/.warpkeep-recovery-v1';
+const ROOT = '/home/warpkeep/.warpkeep-recovery-v1';
 const fail = () => { throw new Error('RECOVERY_WORKFLOW_PRIVATE_DIRECTORY_INVALID'); };
-const valid = state => state.isDirectory() && state.uid === 1001n && (state.mode & 0o7777n) === 0o700n;
+const valid = state => state.isDirectory() && state.uid === 1000n && (state.mode & 0o7777n) === 0o700n;
 const same = (a, b) => ['dev', 'ino', 'mode', 'uid'].every(key => a[key] === b[key]);
 function directory(args, create) {
   let parent, child;
   try {
-    if (args.length !== 2 || process.platform !== 'linux' || process.getuid() !== 1001
+    if (args.length !== 2 || process.platform !== 'linux' || process.getuid() !== 1000
         || args.some(value => typeof value !== 'string' || !/^[1-9][0-9]{0,15}$/u.test(value))) fail();
     if (realpathSync(ROOT) !== ROOT) fail();
     const original = lstatSync(ROOT, { bigint: true });

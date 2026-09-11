@@ -486,12 +486,12 @@ jobs:
           test "$RUNNER_OS" = 'Linux'
           test "$RUNNER_ARCH" = 'X64'
           test "$RUNNER_NAME" = 'warpkeep-wsl-production-01'
-          test "$(id -u)" = '1001'
-          private_state='/home/runner/.warpkeep-recovery-v1'
+          test "$(id -u)" = '1000'
+          private_state='/home/warpkeep/.warpkeep-recovery-v1'
           test -d "$private_state"
           test ! -L "$private_state"
           test "$(realpath -- "$private_state")" = "$private_state"
-          test "$(stat -c '%u:%a' -- "$private_state")" = '1001:700'
+          test "$(stat -c '%u:%a' -- "$private_state")" = '1000:700'
           for forbidden in BASH_ENV ENV NODE_OPTIONS NODE_PATH NODE_EXTRA_CA_CERTS \
             NODE_TLS_REJECT_UNAUTHORIZED LD_PRELOAD LD_LIBRARY_PATH \
             GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM \
@@ -595,7 +595,7 @@ jobs:
           set -euo pipefail
           test "$(realpath -- "$(command -v node)")" = "$WARPKEEP_RECOVERY_NODE"
           test ! -L "$WARPKEEP_RECOVERY_NODE"
-          test "$(stat -c '%u:%a' -- "$WARPKEEP_RECOVERY_NODE")" = '1001:700'
+          test "$(stat -c '%u:%a' -- "$WARPKEEP_RECOVERY_NODE")" = '1000:700'
           echo "$WARPKEEP_RECOVERY_NODE_SHA256  $WARPKEEP_RECOVERY_NODE" | sha256sum --check --strict -
           test "$(node --version)" = 'v22.22.3'
           node scripts/auth-bridge-notification-prepared-deploy-closure.mjs

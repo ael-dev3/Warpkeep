@@ -21,6 +21,11 @@ Follow the
 [runner guide](../../operations/0.4.0-linux-runner.md) for current paths and the
 remaining recovery deployment/readback integration; R11 is still incomplete.
 
+The recovery Pages lane now uses the same live runner account and its separate
+`/home/warpkeep/.warpkeep-recovery-v1` root (owner `1000:1000`, mode `0700`).
+This replaces the retired UID-1001 `/home/runner` installation contract; the
+historical entries below retain their original scope.
+
 ## Earlier source checkpoint — 2026-09-10
 
 The preceding published implementation checkpoint was
@@ -106,7 +111,7 @@ they are not final-source tests, live owner play or deployed-state proof.
 | Auth bridge | Correct `warpkeep-production` Wrangler profile freshly lists `warpkeep-auth-bridge`; newest deployment `ec7c0f41-1404-40f8-9330-3c531afae621`, created 2026-08-28T07:54:39.545445Z, version `79dfceec-9810-4868-afca-5b794d08a9a5` at 100% | Historical wrong-default-account Worker-not-found is superseded; deployment metadata does not attest exact source bytes, configuration or owner authentication |
 | Persistent realms | Fresh authenticated Spacetime CLI 2.6.1 list returns G001, G002 and PTR with immutable identities matching the access ledger | Provider ownership/list/schema access does not grant application-admin or owner authority |
 | G002 private state | Historical private aggregate read returned `INVALID_GENESIS_002_ADMIN_SESSION`; no new private-row read attempted in this audit | Do not infer empty/current state or bypass the denied application boundary |
-| Actions runner | September 8: runner ID22, `warpkeep-wsl-production-01`, online/idle with Linux/X64 and the required production labels; persistent systemd service as UID1001; recovery directory provisioned at owner-only mode0700. Existing macOS runner ID21 remains offline | Registration and an empty private directory do not supply live job/OIDC evidence, signer keys, private claims or release authorization |
+| Actions runner | Current September 11 state: runner ID22, `warpkeep-wsl-production-01`, online/idle with Linux/X64 and the required production labels; persistent systemd service as UID1000; separate recovery root `/home/warpkeep/.warpkeep-recovery-v1` provisioned owner-only at mode0700. Existing macOS runner ID21 remains offline | Registration and an empty private directory do not supply live job/OIDC evidence, signer keys, private claims or release authorization |
 
 See [infra access](../../operations/0.4.0-infra-access.md),
 [local operations](../../evidence/0.4.0/local-operations.md) and
