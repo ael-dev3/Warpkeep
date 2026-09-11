@@ -436,7 +436,7 @@ function createPublicResourceLayer() {
           nextTargets.push(Object.freeze({
             selection: Object.freeze({
               kind: 'resource',
-              label: `${resource.resourceKind} resource · ${resource.nodeCount} nodes`,
+              label: `${resource.resourceKind} site at ${resource.atlasQ}, ${resource.atlasR}`,
               atlasQ: resource.atlasQ,
               atlasR: resource.atlasR
             }),

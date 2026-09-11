@@ -164,6 +164,21 @@ describe('Greater Realm world canvas host', () => {
     host.control({ kind: 'select-next' });
     const selected = onSelectionChange.mock.calls.at(-1)![0];
     expect(selected).toBeDefined();
+    let resourceSelection: typeof selected;
+    for (let index = 0; index < 32; index += 1) {
+      host.control({ kind: 'select-next' });
+      const latest = onSelectionChange.mock.calls.at(-1)![0];
+      if (latest?.kind === 'resource') resourceSelection = latest;
+      if (
+        resourceSelection !== undefined
+        && latest?.kind === selected.kind
+        && latest.atlasQ === selected.atlasQ
+        && latest.atlasR === selected.atlasR
+      ) break;
+    }
+    expect(resourceSelection).toEqual(expect.objectContaining({ kind: 'resource' }));
+    expect(resourceSelection!.label).toContain('site at');
+    expect(resourceSelection!.label).not.toContain('nodes');
 
     host.updatePolicy(mobilePolicy);
 
