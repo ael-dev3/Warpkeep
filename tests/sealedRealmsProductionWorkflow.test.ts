@@ -245,7 +245,7 @@ printf '%s\\n' fixed-argument-transport-ok
       'linux', 'auth-bridge', 'release-recovery', 'spacetimedb-module', 'native-contract', 'verify',
     ]);
     expect(document.jobs?.verify).toMatchObject({
-      name: 'Verify',
+      name: 'verify',
       needs: ['linux', 'auth-bridge', 'release-recovery', 'spacetimedb-module', 'native-contract'],
     });
     expect(document.jobs?.verify?.if).toContain('always()');

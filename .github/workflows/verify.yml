@@ -462,7 +462,7 @@ jobs:
           --maxWorkers=1
 
   verify:
-    name: Verify
+    name: verify
     needs: [linux, auth-bridge, release-recovery, spacetimedb-module, native-contract]
     if: ${{ always() }}
     runs-on: ubuntu-latest
