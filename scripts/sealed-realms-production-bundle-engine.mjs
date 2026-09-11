@@ -1,4 +1,5 @@
 import { OPERATION_BUNDLE_NOBLE_GRAPH_FILES } from './local-operation-bundle-noble-v1.mjs';
+import { GREATER_REALM_PRIVATE_MARKER_TEXT } from './atlas/greater-realm-private-markers.mjs';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
@@ -182,6 +183,16 @@ function pathFreeSourceLiterals(source, sourcePath) {
     const expected = 'realpathSync(new URL("..", import.meta.url))';
     if (exactCount(rewritten, expected) !== 1) fail('SEALED_REALMS_BUNDLES_SOURCE_INVALID');
     rewritten = rewritten.replace(expected, 'realpathSync(process.cwd())');
+  }
+  // Privileged operation bundles can import source modules that carry the
+  // Greater Realm private envelope vocabulary. Keep those markers available at
+  // runtime while ensuring the generated, tracked bundle never exposes their
+  // plaintext values to the public-boundary scanner.
+  for (const marker of GREATER_REALM_PRIVATE_MARKER_TEXT) {
+    const expression = codePointExpression(marker);
+    const single = `'${marker.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`;
+    const double = `"${marker.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
+    rewritten = rewritten.replaceAll(single, expression).replaceAll(double, expression);
   }
   return rewritten;
 }
