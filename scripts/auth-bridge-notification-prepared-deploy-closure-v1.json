@@ -1175,7 +1175,7 @@
     {
       "path": "scripts/notification-pages-private-deploy-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ac18ecc2371d8bfff17ea8abec9d989085c4992d2ebeb70e7c9947bfac62837e"
+      "sha256": "692420c1a2a1d8d0b76893caaf720be11f2b3dcb559bf777be4a2cc70c59a0c2"
     },
     {
       "path": "scripts/notification-pages-private-deploy-operator.d.mts",
