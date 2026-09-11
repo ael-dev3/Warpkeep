@@ -1585,7 +1585,7 @@
     {
       "path": "scripts/recovery-workflow-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c1ad8e6728edd698542196423520270678471f541094730115a31f2a363d0a69"
+      "sha256": "b27b49d38ed567818c277a0d7c811c69118d3c5a7dcd0e1e80535cd271015bc3"
     },
     {
       "path": "scripts/recovery-workflow-check-deployment.d.mts",
@@ -1730,7 +1730,7 @@
     {
       "path": "scripts/sealed-realms-production-activation-lane.bundle.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "7a5d9e28dd8c8a8609385868655801490893a202616c2033add065795180cbd0"
+      "sha256": "69612d08bd50e9451490590dddebb82a150e5d8719f126d7a8e1fbc339c9cb14"
     },
     {
       "path": "scripts/sealed-realms-production-activation-records.d.mts",
@@ -1755,7 +1755,7 @@
     {
       "path": "scripts/sealed-realms-production-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "adf4f10ef85d59997a6dc9cfbde9ad6d3b839371d81e63106b6f45674bc4cc19"
+      "sha256": "4065adb25dd282c1a97ce18b8d993a2e1b18f079c780e5b3685796f4cf72454e"
     },
     {
       "path": "scripts/sealed-realms-production-continuation.d.mts",
