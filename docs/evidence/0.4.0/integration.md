@@ -6,10 +6,10 @@ publication and protected CI are still separate from production deployment.
 
 ## Current checkpoint — 2026-09-11
 
-The current Verify run linked from PR #228 is the R14 authority. At the latest inspection,
-`release-recovery`, `native-contract`, and `auth-bridge` had passed while the
-`linux` and `spacetimedb-module` jobs were still running. CodeQL had passed.
-Read the terminal conclusions before marking R14 complete.
+The current Verify and CodeQL runs linked from PR #228 are the R14 authority.
+Their jobs must be read at terminal state for the exact current head before
+marking R14 complete; earlier mixed or green results do not transfer to a later
+documentation-only head. This record makes no current-head green claim.
 
 The focused local sealed-workflow contract suite passed with 11 active tests
 and 41 platform skips using:
