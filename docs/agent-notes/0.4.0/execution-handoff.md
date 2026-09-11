@@ -1033,8 +1033,9 @@ The Linux private preparation root currently retains historical run evidence;
 it was not age-deleted because several candidates and receipts remain referenced
 by acceptance records. Future cleanup must name an agent-owned disposable path,
 verify that no operation or process uses it, and record the retention decision.
-The new GitHub Verify run is pending and CodeQL is running for this head; no
-release or authenticated provider operation is claimed. B0 and the legacy
+The new GitHub Verify run is still in progress for this head; CodeQL completed
+successfully in run `34646882569`. No release or authenticated provider
+operation is claimed. B0 and the legacy
 prepared caller still require their separate Darwin-to-Linux migration, and the
 owner PTR journey, physical-device checks, protected deployment and signed-history
 merge remain open.
