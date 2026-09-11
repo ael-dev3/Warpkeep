@@ -63,6 +63,7 @@ export function executeNotificationPagesPrivateDeployPhase(
     runAttempt?: number;
     sourceRunId?: string;
     sourceRunAttempt?: number;
+    runnerProfileName?: 'darwin-arm64' | 'linux-x64';
     reportedHome?: string;
   }>,
   dependencies?: Readonly<Record<string, unknown>>,
@@ -94,6 +95,7 @@ export const notificationPagesPrivateDeployOperatorTestSeams: Readonly<{
     options: Readonly<{
       tokenDescriptor: number;
       fetchImpl: typeof fetch;
+      expectedRunnerProfile?: 'darwin-arm64' | 'linux-x64';
     }>,
   ) => Promise<Readonly<Record<string, unknown>>>;
   repairHandoffTemporaries: (directory: string) => void;

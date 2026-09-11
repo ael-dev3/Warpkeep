@@ -16,7 +16,7 @@ env:
   WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: '80d69d40cd0da1f9a55bec66f2e46ace0ab9b101bd58bc2afd92211d9c394f6f'
   WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '187b19873ba3a10418fde1da8ebddc63a80198b7482b5a56888d0768481f7714'
   WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: 'ab3e72b4d71b6f949f5fb3f3dd1a53548b39184214f5a755975f570c23d9000b'
-  WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: '9bb11880c6a9f4cb69b76b05f7ef5219ded2a86e3a44ee2c4d9371262213a161'
+  WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: 'bcc41d30dbb00ecd612a1fdb5fe87b5e047d8cc777d0af9fc360b40e06bc1de2'
   WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256: '692420c1a2a1d8d0b76893caaf720be11f2b3dcb559bf777be4a2cc70c59a0c2'
 
 concurrency:
@@ -664,8 +664,8 @@ jobs:
       needs.classify.outputs.deployment-lane == 'durable'
     runs-on:
       - self-hosted
-      - macOS
-      - ARM64
+      - Linux
+      - X64
       - warpkeep-production-admin
       - warpkeep-repository-exclusive
     timeout-minutes: 20
@@ -734,7 +734,7 @@ jobs:
           verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256" \
             scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
           verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
-            scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
+            scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json
           verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256" \
             scripts/notification-pages-private-deploy-launcher.mjs
 
@@ -809,7 +809,7 @@ jobs:
           verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256" \
             scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
           verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
-            scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
+            scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json
           verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256" \
             scripts/notification-pages-private-deploy-launcher.mjs
           private_node="$(realpath -- "$(command -v node)")"
@@ -824,6 +824,7 @@ jobs:
             GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
             RUNNER_ARCH="$RUNNER_ARCH" \
             RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE=linux-x64 \
             WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
             WARPKEEP_PRIVATE_NODE="$private_node" \
             "$private_node" \
@@ -839,8 +840,8 @@ jobs:
       needs.classify.outputs.deployment-lane == 'durable'
     runs-on:
       - self-hosted
-      - macOS
-      - ARM64
+      - Linux
+      - X64
       - warpkeep-production-admin
       - warpkeep-repository-exclusive
     timeout-minutes: 20
@@ -969,7 +970,7 @@ jobs:
           verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256" \
             scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
           verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
-            scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
+            scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json
           verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256" \
             scripts/notification-pages-private-deploy-launcher.mjs
 
@@ -992,6 +993,7 @@ jobs:
             GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
             RUNNER_ARCH="$RUNNER_ARCH" \
             RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE=linux-x64 \
             WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
             WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
             WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \
@@ -1021,6 +1023,7 @@ jobs:
             GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
             RUNNER_ARCH="$RUNNER_ARCH" \
             RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE=linux-x64 \
             WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
             WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
             WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \
@@ -1049,6 +1052,7 @@ jobs:
             GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
             RUNNER_ARCH="$RUNNER_ARCH" \
             RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE=linux-x64 \
             WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
             WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
             WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \
@@ -1080,6 +1084,7 @@ jobs:
             GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
             RUNNER_ARCH="$RUNNER_ARCH" \
             RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE=linux-x64 \
             WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
             WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
             WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \
@@ -1114,6 +1119,7 @@ jobs:
             GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
             RUNNER_ARCH="$RUNNER_ARCH" \
             RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE=linux-x64 \
             WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
             WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
             WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \

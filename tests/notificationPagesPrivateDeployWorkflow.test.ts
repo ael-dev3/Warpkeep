@@ -29,8 +29,8 @@ function job(source: string, name: string, next?: string): string {
 
 const privateLabels = [
   'self-hosted',
-  'macOS',
-  'ARM64',
+  'Linux',
+  'X64',
   'warpkeep-production-admin',
   'warpkeep-repository-exclusive',
 ];
@@ -142,6 +142,9 @@ describe('notification Pages private deployment workflow', () => {
     expect(toolchain).toContain('--ignore-scripts');
     expect(toolchain).toContain('--package-import-method=copy');
     expect(toolchain).toContain(
+      'WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE=linux-x64',
+    );
+    expect(toolchain).toContain(
       'scripts/notification-pages-private-deploy-launcher.mjs',
     );
     expect(toolchain).toContain('attest-toolchain');
@@ -150,6 +153,9 @@ describe('notification Pages private deployment workflow', () => {
     );
     expect(privateDeploy).toContain('needs: [classify, build, private-toolchain]');
     expect(privateDeploy).toContain('clean: false');
+    expect(privateDeploy).toContain(
+      'WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE=linux-x64',
+    );
     expect(privateDeploy.match(
       /WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="\$\{\{ needs\.private-toolchain\.outputs\.runner-identity-digest \}\}"/g,
     )).toHaveLength(5);
