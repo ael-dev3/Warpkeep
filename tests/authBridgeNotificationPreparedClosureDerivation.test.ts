@@ -94,6 +94,8 @@ const BOOTSTRAP_WORKFLOWS = Object.freeze({
     ],
   }),
 });
+const PAGES_LINUX_TOOLCHAIN_MANIFEST =
+  'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json';
 const workflowPaths = Object.keys(BOOTSTRAP_WORKFLOWS).sort();
 const temporaryDirectories: string[] = [];
 let fixtureMemberBodies: ReadonlyMap<string, Uint8Array>;
@@ -169,6 +171,10 @@ function expectedWorkflowBodies(
     if (body === undefined) throw new Error(`fixture pin source ${binding.path} missing`);
     return [binding.name, sha256(body)] as const;
   }));
+  const pagesLinuxToolchainBody = memberBodies.get(PAGES_LINUX_TOOLCHAIN_MANIFEST);
+  if (pagesLinuxToolchainBody === undefined) {
+    throw new Error(`fixture pin source ${PAGES_LINUX_TOOLCHAIN_MANIFEST} missing`);
+  }
   return workflowPaths.map(relativePath => {
     const body = memberBodies.get(relativePath);
     if (body === undefined) throw new Error(`fixture workflow ${relativePath} missing`);
@@ -177,7 +183,10 @@ function expectedWorkflowBodies(
     ];
     let source = new TextDecoder('utf-8', { fatal: true }).decode(body);
     for (const name of workflow.names) {
-      const expected = pins.get(name);
+      const expected = relativePath === '.github/workflows/deploy-pages.yml'
+        && name === 'WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256'
+        ? sha256(pagesLinuxToolchainBody)
+        : pins.get(name);
       if (expected === undefined) throw new Error(`fixture pin ${name} missing`);
       source = replaceOnly(
         source,

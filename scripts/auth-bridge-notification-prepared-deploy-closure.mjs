@@ -2044,9 +2044,9 @@ function canonicalReviewedReleaseMemberBodies(memberBodies) {
   }
 }
 
-function readBootstrapPinValues(repository, manifestSha256) {
+function readBootstrapPinValuesForWorkflow(repository, manifestSha256, workflow) {
   const values = new Map();
-  for (const binding of BOOTSTRAP_PIN_BINDINGS) {
+  for (const binding of workflow.bindings) {
     if (binding.path === AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH) {
       values.set(binding.name, manifestSha256);
       continue;
@@ -2059,6 +2059,16 @@ function readBootstrapPinValues(repository, manifestSha256) {
     try { values.set(binding.name, sha256Body(body)); } finally { body.fill(0); }
   }
   return values;
+}
+
+function readBootstrapPinValues(repository, manifestSha256) {
+  return new Map(
+    [...BOOTSTRAP_PINNED_WORKFLOWS.entries()]
+      .map(([memberPath, workflow]) => [
+        memberPath,
+        readBootstrapPinValuesForWorkflow(repository, manifestSha256, workflow),
+      ]),
+  );
 }
 
 function inspectPinnedWorkflowBody(memberPath, body, expectedPins) {
@@ -2076,7 +2086,7 @@ function inspectPinnedWorkflowBody(memberPath, body, expectedPins) {
       `^\\s*${binding.name}\\s*:`,
       'gmu',
     );
-    const expectedHere = workflow.bindings.includes(binding);
+    const expectedHere = workflow.bindings.some(candidate => candidate.name === binding.name);
     const exactPattern = new RegExp(
       `^${workflow.indentation}${binding.name}: '([a-f0-9]{64})'$`,
       'gmu',
@@ -2138,13 +2148,6 @@ function rewritePinnedWorkflowBody(memberPath, body, finalPins) {
   return Buffer.from(rewritten, 'utf8');
 }
 
-function bootstrapPinsByWorkflow(pinValues) {
-  return new Map(
-    [...BOOTSTRAP_PINNED_WORKFLOWS.keys()]
-      .map(memberPath => [memberPath, pinValues]),
-  );
-}
-
 function canonicalManifestMembers(memberBodies, workflowPinValues) {
   let releaseBodies;
   try {
@@ -2186,9 +2189,13 @@ function canonicalManifestMembers(memberBodies, workflowPinValues) {
   }
 }
 
-function bootstrapPinValuesFromMemberBodies(memberBodies, manifestSha256) {
+function bootstrapPinValuesFromMemberBodies(
+  memberBodies,
+  manifestSha256,
+  bindings = BOOTSTRAP_PIN_BINDINGS,
+) {
   const values = new Map();
-  for (const binding of BOOTSTRAP_PIN_BINDINGS) {
+  for (const binding of bindings) {
     if (binding.path === AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH) {
       values.set(binding.name, manifestSha256);
       continue;
@@ -2263,9 +2270,16 @@ export function deriveAuthBridgeNotificationPreparedDeployClosure(options) {
       || manifestBytes.byteLength > MAX_MANIFEST_BYTES
     ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
     const manifestSha256 = sha256Body(manifestBytes);
-    const finalPins = bootstrapPinValuesFromMemberBodies(
-      ownedBodies,
-      manifestSha256,
+    const finalPinsByWorkflow = new Map(
+      [...BOOTSTRAP_PINNED_WORKFLOWS.entries()]
+        .map(([memberPath, workflow]) => [
+          memberPath,
+          bootstrapPinValuesFromMemberBodies(
+            ownedBodies,
+            manifestSha256,
+            workflow.bindings,
+          ),
+        ]),
     );
     for (const memberPath of BOOTSTRAP_PINNED_WORKFLOWS.keys()) {
       rewrittenWorkflowBodies.set(
@@ -2273,7 +2287,7 @@ export function deriveAuthBridgeNotificationPreparedDeployClosure(options) {
         rewritePinnedWorkflowBody(
           memberPath,
           ownedBodies.get(memberPath),
-          finalPins,
+          finalPinsByWorkflow.get(memberPath),
         ),
       );
     }
@@ -2284,7 +2298,7 @@ export function deriveAuthBridgeNotificationPreparedDeployClosure(options) {
     }
     const installedMembers = canonicalManifestMembers(
       installedBodies,
-      bootstrapPinsByWorkflow(finalPins),
+      finalPinsByWorkflow,
     );
     if (JSON.stringify(installedMembers) !== JSON.stringify(members)) {
       fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH');
@@ -2333,7 +2347,7 @@ export function verifyAuthBridgeNotificationPreparedDeployClosure({
   ) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
   }
-  const expectedPins = readBootstrapPinValues(repository, manifestSha256);
+  const expectedPinsByWorkflow = readBootstrapPinValues(repository, manifestSha256);
   const memberBodies = new Map();
   let aggregateBytes = 0;
   try {
@@ -2353,7 +2367,7 @@ export function verifyAuthBridgeNotificationPreparedDeployClosure({
     }
     const expectedMembers = canonicalManifestMembers(
       memberBodies,
-      bootstrapPinsByWorkflow(expectedPins),
+      expectedPinsByWorkflow,
     );
     if (JSON.stringify(expectedMembers) !== JSON.stringify(manifest.members)) {
       fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH');
