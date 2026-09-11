@@ -1,5 +1,24 @@
 # Continue Warpkeep 0.4
 
+## Current verification checkpoint — 11 September 2026
+
+The Windows checkout, GitHub development branch and native WSL checkout remain
+clean and synchronized at `a3cf5e29d229ce60f5135345b71b1a603ccbd6e5` on
+`codex/prepared-keep-bindings-fix`. The Keep04-focused local suite passed 10 test
+files and 139 tests, covering the scene, mobile screen, placement, accessibility,
+lifecycle and loop rail. A narrow local browser pass also confirmed the title,
+menu, realm directory, sealed G002 state, and fail-closed G001/PTR messages are
+legible and coherent; this is rendered smoke evidence, not physical-device or
+live-owner acceptance.
+
+The protected Verify run `34647751254` is still in progress, with `auth-bridge`,
+`release-recovery` and `native-contract` complete while `linux` and
+`spacetimedb-module` continue. CodeQL run `34647751269` completed successfully.
+Read Verify at terminal state before claiming R14 complete. No authenticated
+provider deployment, recovery readback, owner journey, physical-device result or
+live release is claimed. The existing Desktop handoff was updated in place; no
+new Warpkeep Desktop file, copy, backup or archive was created.
+
 Build a persistent strategy world around **gather → choose → build → benefit → return**.
 The GitHub/profile/ecosystem refresh is complete. Continue the connected game and
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
