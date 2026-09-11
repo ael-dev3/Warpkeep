@@ -1,7 +1,7 @@
 # Gameplay and visual implementation notes
 
 Updated 2026-09-12 against the current PR #228 development branch; the
-source-bound checkpoint is now `46ac897c` and the inspected working files are
+source-bound checkpoint is now `24e3c136` and the inspected working files are
 synchronized with that branch. Earlier source hashes below remain dated
 evidence anchors, not current review targets. The latest focused Keep04 run
 passed 10 files and 139 tests, the PTR gameplay surface suite passed 33 tests,
