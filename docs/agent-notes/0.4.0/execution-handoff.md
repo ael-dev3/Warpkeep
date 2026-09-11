@@ -9,13 +9,15 @@ is the compact read of what is ready for development and what still blocks a shi
 
 ## Current source-bound state — 2026-09-11
 
-The source-bound implementation head is
-`867c70d7f0d4721df59bdd59967412ba45f02b50` on
-`codex/prepared-keep-bindings-fix`; later commits on the branch are
-documentation/evidence follow-ups. Windows and native WSL are clean and
-synchronized at the current branch head. The source-bound head includes the
-portable rendered-WebGL and Windows archive/cache workflow repair plus the dated
-workflow sufficiency audit.
+The current clean branch head is
+`36369e712fa719ce8b0cc2afd2fb181104a80b1c` on
+`codex/prepared-keep-bindings-fix`; Windows, GitHub and native WSL are
+synchronized at that commit. It adds the dedicated Linux x64 prepared
+notification workflow, fixed runner entrypoint, pinned pnpm authority and
+closure-bound Linux toolchain manifest. The earlier source-bound implementation
+head `867c70d7f0d4721df59bdd59967412ba45f02b50` remains the native preparation
+evidence coordinate below; this later workflow head still needs its own fresh
+native preparation before release freeze.
 Native Linux `prepare` and independent `check` passed for candidate
 `release-workspace-b800ee0ee30f970efe56fe6da4efa6fa`, source tree
 `563bbbcca8a173f82d55f7f24514f6c8ddb2d1a1`, transaction
@@ -29,6 +31,20 @@ public-boundary verifier passes. `finalReleasePrepared` remains `false`.
 Protected Verify and CodeQL remain the CI authority and must be read at terminal
 state. This evidence still does not establish provider deployment, recovery
 readback, owner admission, physical-device performance or final release approval.
+
+### Linux prepared notification lane — 2026-09-11
+
+Commit `36369e712fa719ce8b0cc2afd2fb181104a80b1c` adds
+`.github/workflows/notification-bridge-prepared-linux.yml` and
+`scripts/auth-bridge-notification-prepared-linux-runner.mjs`. The lane uses the
+owner-only Linux x64 runner, fixed Node 22.22.3, a reviewed pnpm 11.7.0
+wrapper and isolated store, then rechecks GitHub workflow authority before any
+credentialed deploy or read-only recovery call. The protected source closure is
+now 1,199 members; its current manifest SHA-256 is
+`52bad92b06855d94e12abb5c0bf769f670af8ad7f76f07ed3a19d3ec577dd9ec`.
+The lane is source-verified and pushed, but no authenticated production run or
+recovery readback has been recorded. B0 and Pages private callers remain on the
+legacy Darwin profile until their Linux migration is separately reviewed.
 
 The checked-in `sealed-realms-production.yml` routes only `preflight`,
 `g001-policy-observe`, and activation evidence operations to the installed Linux

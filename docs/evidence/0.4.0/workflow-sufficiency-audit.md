@@ -1,9 +1,9 @@
 # 0.4 workflow sufficiency audit
 
 Updated 2026-09-11 (Europe/Budapest) against source-bound implementation head
-`867c70d7f0d4721df59bdd59967412ba45f02b50` on
-`codex/prepared-keep-bindings-fix`; later branch commits are documentation or
-evidence follow-ups.
+`36369e712fa719ce8b0cc2afd2fb181104a80b1c` on
+`codex/prepared-keep-bindings-fix`; the native preparation evidence cited below
+remains bound to the earlier implementation checkpoint.
 
 ## Verdict
 
@@ -41,11 +41,11 @@ fresh evidence bound to the final reviewed and deployed source.
   code and checks are green.
 - The full Windows rendered matrix still fails closed on a Chrome runtime
   exception. Linux is the release authority for retained rendered evidence.
-- Fresh native preparation and independent checking pass for the current
+- Fresh native preparation and independent checking pass for the earlier
   source-bound implementation, with a converged candidate, closure and public
-  boundary recorded in the execution handoff. This closes the local R13
-  preparation gap; it does not itself grant deployment authorization or
-  complete the release freeze.
+  boundary recorded in the execution handoff. The new workflow head still needs
+  its own native preparation; neither evidence set grants deployment
+  authorization or completes the release freeze.
 - The production workflow has no authenticated provider receipts for Cloudflare,
   SpacetimeDB deployment, recovery readback, G002 import/publication or PTR
   owner provisioning. Those operations intentionally remain fail-closed or

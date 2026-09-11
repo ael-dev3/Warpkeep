@@ -67,6 +67,7 @@ provider command:
 - [`local-operations.md`](local-operations.md) — Windows/WSL operating state.
 - [`release-engineering.md`](release-engineering.md) — assembled workflow rails.
 - [`local-release-closure-family.md`](local-release-closure-family.md) — source-family and closure proof.
+- [`release-freeze.md`](release-freeze.md) — final artifact-family freeze requirements.
 - [`recovery.md`](recovery.md) — recovery requirements and limits.
 - [`deployment-attestation-install.md`](deployment-attestation-install.md) —
   credential-free installation and attestation boundaries.
