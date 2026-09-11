@@ -32,11 +32,9 @@ fresh evidence bound to the final reviewed and deployed source.
 
 ## What is not yet sufficient
 
-- The current-head CodeQL run `34615045766` has passed. Verify run
-  `34615046117` has `auth-bridge`, `native-contract` and `release-recovery`
-  passing while `linux` and `spacetimedb-module` remain in progress; R14
-  cannot be green until Verify reaches terminal success and the signed-history
-  requirement is reconciled.
+- The protected Verify and CodeQL runs attached to the current pull request head
+  are the R14 authority; read both at terminal state before marking CI green.
+  R14 also requires signed-history and protection reconciliation.
 - Protected `main` requires signed commits. The prepared branch history is
   unsigned, so GitHub reports the pull request as merge-blocked even when the
   code and checks are green.

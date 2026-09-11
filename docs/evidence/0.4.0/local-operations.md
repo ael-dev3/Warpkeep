@@ -11,10 +11,9 @@ private deployment launcher accept the retained Linux x64 runner profile while
 preserving the historical Darwin profile, adds focused coverage for both
 profiles, and refreshes the closure pins from native Linux bytes. Fresh native
 preparation and independent check now pass for this committed source.
-Protected Verify and CodeQL are the authority for the current head. Verify run
-`34615046117` is still running its Linux and SpacetimeDB jobs; CodeQL run
-`34615045766` has passed. Read every required context at terminal state before
-calling R14 green. GitHub
+Protected Verify and CodeQL are the authority for the current head. Read every
+required context at terminal state before calling R14 green; transient run IDs
+are intentionally read directly from GitHub. GitHub
 still reports the PR merge state as `BLOCKED` because protected `main` requires
 signed commits and this development history is unsigned, so R14 remains a
 protection/merge reconciliation gate. The native release

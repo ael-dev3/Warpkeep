@@ -6,12 +6,10 @@ publication and protected CI are still separate from production deployment.
 
 ## Current checkpoint — 2026-09-11
 
-The current Verify run `34615046117` and CodeQL run `34615045766` linked from
-PR #228 are the R14 authority for head `b0e634350ed1ef02e6ee9704421856c7db27d7e0`.
-CodeQL has passed; Verify's Linux and SpacetimeDB jobs remain in progress. Read
-Verify at terminal state before marking R14 complete; earlier mixed or green
-results do not transfer to a later head. This record makes no current-head
-green claim.
+The protected Verify and CodeQL runs linked from PR #228 are the R14 authority
+for this head. Read both at terminal state before marking R14 complete; earlier
+mixed or green results do not transfer to a later head. This record makes no
+current-head green claim, and transient run IDs are read directly from GitHub.
 
 The focused local sealed-workflow contract suite passed with 11 active tests
 and 41 platform skips using:
