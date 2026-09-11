@@ -35,7 +35,10 @@ describe('prepared Linux production workflow', () => {
       '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.7.0-linux-x64/pnpm',
     );
     expect(workflow).toContain(
-      'env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY',
+      '-u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY',
+    );
+    expect(workflow).toContain(
+      'PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}',
     );
     expect(workflow).not.toContain('macOS');
     expect(workflow).not.toContain('darwin-arm64');
