@@ -1008,3 +1008,33 @@ The operating workflow now uses the dedicated warpkeep UID/GID1000 profile and f
 Linux private records use the fixed account-owned .warpkeep/private/sealed-realms-v1 namespace; the public artifact reader follows it. Existing record descendants and non-Linux layout remain. No credentials or private records were migrated.
 
 Combined app/test types and 57 focused tests passed on Windows;14 POSIX tests skipped. Separate operation/context/workflow checks and independent source review passed with documented Windows fixture seams. Corrected native caller fixtures passed6 portable cases;25 privileged cases still require Linux execution. Full candidate preparation/check at preceding c104 source does not validate these new changes. Native verification, runner registration, genuine operating authority and real provider adapters remain unfinished.
+
+## 11 September 2026 — workspace output guard
+
+The current development head is `9ace823626515fd2293c952a42bae7b929c90b60` on
+`codex/prepared-keep-bindings-fix`. Windows, GitHub and the native
+`/home/warpkeep/Warpkeep-0.4` checkout are clean and synchronized at this SHA.
+The focused `tests/desktopHandoff.test.ts` suite passes 5/5 and now checks both
+the documented retention rule and the current verification/production workflow
+files. Those workflow files must not contain Desktop, OneDrive or localized
+Desktop output paths, so a future workflow edit fails the suite before it can be
+treated as a valid checkpoint.
+
+The runtime paths already enforce the same boundary: recovery bootstrap rejects
+repository, profile, Desktop, OneDrive and worktree private roots, while Keep04
+QA captures are created beneath the checkout's ignored `artifacts/keep04-qa`
+tree. Routine notes remain in their existing tracked documents, and a final
+credential-free package is created only when delivery needs it under
+`artifacts/delivery/0.4.0/`. No new Warpkeep Desktop file, handoff copy,
+backup or archive was created during this checkpoint; the existing Desktop
+handoff was updated in place to point to this SHA.
+
+The Linux private preparation root currently retains historical run evidence;
+it was not age-deleted because several candidates and receipts remain referenced
+by acceptance records. Future cleanup must name an agent-owned disposable path,
+verify that no operation or process uses it, and record the retention decision.
+The new GitHub Verify run is pending and CodeQL is running for this head; no
+release or authenticated provider operation is claimed. B0 and the legacy
+prepared caller still require their separate Darwin-to-Linux migration, and the
+owner PTR journey, physical-device checks, protected deployment and signed-history
+merge remain open.
