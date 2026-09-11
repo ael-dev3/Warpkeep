@@ -1,9 +1,9 @@
 # Continue Warpkeep 0.4
 
-## Current verification checkpoint — 11 September 2026
+## Current verification checkpoint — 12 September 2026
 
 The Windows checkout, GitHub development branch and native WSL checkout remain
-clean and synchronized at `a3cf5e29d229ce60f5135345b71b1a603ccbd6e5` on
+clean and synchronized at `be95b9cacda46ad55e537b57a09d12d935670dbe` on
 `codex/prepared-keep-bindings-fix`. The Keep04-focused local suite passed 10 test
 files and 139 tests, covering the scene, mobile screen, placement, accessibility,
 lifecycle and loop rail. A narrow local browser pass also confirmed the title,
@@ -11,9 +11,12 @@ menu, realm directory, sealed G002 state, and fail-closed G001/PTR messages are
 legible and coherent; this is rendered smoke evidence, not physical-device or
 live-owner acceptance.
 
-The protected Verify run `34647751254` is still in progress, with `auth-bridge`,
+The latest source change defers the runtime bootstrap behind a React lazy boundary:
+the initial application chunk is about 3.9 kB (down from about 899 kB), while the
+interactive runtime remains deferred until the gateway is entered. The protected
+Verify run `34651509065` is still in progress, with `auth-bridge`,
 `release-recovery` and `native-contract` complete while `linux` and
-`spacetimedb-module` continue. CodeQL run `34647751269` completed successfully.
+`spacetimedb-module` continue. CodeQL run `34651509168` completed successfully.
 Read Verify at terminal state before claiming R14 complete. No authenticated
 provider deployment, recovery readback, owner journey, physical-device result or
 live release is claimed. The existing Desktop handoff was updated in place; no
