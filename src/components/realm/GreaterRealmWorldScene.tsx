@@ -810,7 +810,7 @@ export function GreaterRealmWorldScene({
                   <button
                     key={location.locationId}
                     type="button"
-                    aria-label={`${location.resourceKind} at ${location.atlasQ}, ${location.atlasR} · ${location.nodeCount} nodes`}
+                    aria-label={`${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`}
                     aria-pressed={selectedLocation?.locationId === location.locationId}
                     onClick={() => {
                       if (
@@ -827,7 +827,7 @@ export function GreaterRealmWorldScene({
                       setCommandError(false);
                     }}
                   >
-                    {location.resourceKind} · {location.nodeCount} nodes
+                    {location.resourceKind} site · {location.atlasQ}, {location.atlasR}
                   </button>
                 ))}
               </div>

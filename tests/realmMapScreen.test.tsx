@@ -952,7 +952,7 @@ describe('RealmMapScreen', () => {
 
     const location = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.resourceLocations[0]!;
     const locationButton = (await screen.findAllByRole('button', {
-      name: `${location.resourceKind} at ${location.atlasQ}, ${location.atlasR} · ${location.nodeCount} nodes`
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
     }))[0]!;
     const realm = screen.getByRole('main', { name: 'Greater Realm' });
     expect(realm.getAttribute('aria-live')).toBeNull();

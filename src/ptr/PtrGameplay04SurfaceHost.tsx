@@ -194,7 +194,7 @@ function WorldWorkerPanel({ snapshot, controller, selection, validateSelection, 
     {snapshot.phase === 'failed' && <button onClick={() => void controller.refresh()}>Refresh keep</button>}
     {target ? <>
       <p>{target.resource} at {target.q}, {target.r} · {target.locationId}</p>
-      <p>Node count is informational. The Realm decides available reservations.</p>
+      <p>The Realm decides how many Workers may gather at this site.</p>
       <label>Idle Worker <select aria-label="Idle Worker" value={ordinal} onChange={event => {
         const next = Number(event.target.value);
         if (event.target.value === String(next) && isWorkerOrdinal04(next)

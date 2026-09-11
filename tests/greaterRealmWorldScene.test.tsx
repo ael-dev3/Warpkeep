@@ -189,7 +189,7 @@ it('publishes only current 0.4 selection and rejects retained guards after refre
     },
   };
   const mounted = render(<GreaterRealmWorldScene {...props} />);
-  const resource = await screen.findByRole('button', { name: /food at/ });
+  const resource = await screen.findByRole('button', { name: /food site at/ });
   fireEvent.click(resource);
   expect((selection as WorldSelection04 | null)?.target?.resource).toBe('food');
   const captured = selection!;
@@ -199,13 +199,13 @@ it('publishes only current 0.4 selection and rejects retained guards after refre
   expect(retained(captured)).toBe(false);
   expect((selection as WorldSelection04 | null)?.target).toBeNull();
   expect(guard(selection!)).toBe(true);
-  fireEvent.click(screen.getByRole('button', { name: /food at/ }));
+  fireEvent.click(screen.getByRole('button', { name: /food site at/ }));
   const next = selection!;
   act(() => listener({ ...readySnapshot(), phase: 'bootstrapping' }));
   expect(retained(next)).toBe(false);
   expect(onSelection).toHaveBeenLastCalledWith(null);
   act(() => listener(readySnapshot()));
-  fireEvent.click(screen.getByRole('button', { name: /food at/ }));
+  fireEvent.click(screen.getByRole('button', { name: /food site at/ }));
   const last = selection!;
   mounted.unmount();
   expect(retained(last)).toBe(false);
@@ -268,7 +268,7 @@ describe('Greater Realm world scene lifecycle', () => {
     expect(controlsTrigger.closest('[hidden]')).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'PAN NORTH' })).toBeNull();
     expect(screen.getAllByRole('button', {
-      name: / at -?\d+, -?\d+ · \d+ nodes/
+      name: / site at -?\d+, -?\d+/
     }).length).toBeGreaterThan(0);
 
     resourcesTrigger.focus();
@@ -458,7 +458,7 @@ describe('Greater Realm world scene lifecycle', () => {
       }));
       const location = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.resourceLocations[0]!;
       fireEvent.click(await screen.findByRole('button', {
-        name: `${location.resourceKind} at ${location.atlasQ}, ${location.atlasR} · ${location.nodeCount} nodes`
+        name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
       }));
       const send = screen.getByRole('button', { name: 'SEND WORKER 1' }) as HTMLButtonElement;
       expect(send.disabled).toBe(mode !== 'active');
@@ -488,7 +488,7 @@ describe('Greater Realm world scene lifecycle', () => {
       expect(canvasHostHarness.create.mock.results.at(-1)?.value.applySnapshot)
         .toHaveBeenCalledWith(snapshot);
       expect(screen.queryByRole('button', {
-        name: `${location.resourceKind} at ${location.atlasQ}, ${location.atlasR} · ${location.nodeCount} nodes`
+        name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
       })).toBeNull();
       view.unmount();
     }
@@ -506,7 +506,7 @@ describe('Greater Realm world scene lifecycle', () => {
     }));
     const location = snapshot.resourceLocations[0]!;
     const locationButton = await screen.findByRole('button', {
-      name: `${location.resourceKind} at ${location.atlasQ}, ${location.atlasR} · ${location.nodeCount} nodes`
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
     });
     fireEvent.click(locationButton);
     expect(screen.getByRole('button', { name: 'SEND WORKER 1' })).not.toBeNull();
@@ -520,7 +520,7 @@ describe('Greater Realm world scene lifecycle', () => {
     expect(screen.queryByRole('button', { name: 'SEND WORKER 1' })).toBeNull();
     expect(locationButton.getAttribute('aria-pressed')).toBe('false');
     fireEvent.click(screen.getByRole('button', {
-      name: `${location.resourceKind} at ${location.atlasQ}, ${location.atlasR} · ${location.nodeCount} nodes`
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
     }));
     fireEvent.click(screen.getByRole('button', { name: 'SEND WORKER 1' }));
     await waitFor(() => expect(dispatchWorker).toHaveBeenCalledWith({
@@ -561,7 +561,7 @@ describe('Greater Realm world scene lifecycle', () => {
     }));
     const location = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.resourceLocations[0]!;
     fireEvent.click(await screen.findByRole('button', {
-      name: `${location.resourceKind} at ${location.atlasQ}, ${location.atlasR} · ${location.nodeCount} nodes`
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
     }));
     expect((screen.getByRole('button', {
       name: 'SEND WORKER 2'
@@ -584,7 +584,7 @@ describe('Greater Realm world scene lifecycle', () => {
       renderScene(bridge({ control, recallWorker, dispatchWorker }));
       const location = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.resourceLocations[0]!;
       fireEvent.click(await screen.findByRole('button', {
-        name: `${location.resourceKind} at ${location.atlasQ}, ${location.atlasR} · ${location.nodeCount} nodes`
+        name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
       }));
       expect((screen.getByRole('button', {
         name: 'NO IDLE WORKER'
@@ -620,7 +620,7 @@ describe('Greater Realm world scene lifecycle', () => {
     const view = renderScene(bridge({ dispose: oldRuntimeDispose }));
     const location = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.resourceLocations[0]!;
     expect(await screen.findByRole('button', {
-      name: `${location.resourceKind} at ${location.atlasQ}, ${location.atlasR} · ${location.nodeCount} nodes`
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
     })).not.toBeNull();
     const oldHost = canvasHostHarness.create.mock.results[0]!.value;
 
@@ -636,7 +636,7 @@ describe('Greater Realm world scene lifecycle', () => {
     );
 
     expect(screen.queryByRole('button', {
-      name: `${location.resourceKind} at ${location.atlasQ}, ${location.atlasR} · ${location.nodeCount} nodes`
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
     })).toBeNull();
     expect(oldRuntimeDispose).toHaveBeenCalledOnce();
     expect(oldHost.dispose).toHaveBeenCalledOnce();
@@ -653,7 +653,7 @@ describe('Greater Realm world scene lifecycle', () => {
     const view = renderScene(greaterRealm, { onPhaseChange });
     const location = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.resourceLocations[0]!;
     const locationButton = await screen.findByRole('button', {
-      name: `${location.resourceKind} at ${location.atlasQ}, ${location.atlasR} · ${location.nodeCount} nodes`
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
     });
     fireEvent.click(locationButton);
     expect(screen.getByRole('button', { name: 'SEND WORKER 1' })).not.toBeNull();
@@ -671,7 +671,7 @@ describe('Greater Realm world scene lifecycle', () => {
     );
 
     expect(screen.queryByRole('button', {
-      name: `${location.resourceKind} at ${location.atlasQ}, ${location.atlasR} · ${location.nodeCount} nodes`
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
     })).toBeNull();
     expect(screen.queryByRole('button', { name: 'SEND WORKER 1' })).toBeNull();
     expect(dispatchWorker).not.toHaveBeenCalled();
@@ -704,7 +704,7 @@ describe('Greater Realm world scene lifecycle', () => {
       await Promise.resolve();
     });
     fireEvent.click(screen.getByRole('button', {
-      name: `${location.resourceKind} at ${location.atlasQ}, ${location.atlasR} · ${location.nodeCount} nodes`
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
     }));
     expect((screen.getByRole('button', {
       name: 'SEND WORKER 1'
@@ -716,7 +716,7 @@ describe('Greater Realm world scene lifecycle', () => {
     });
     expect(refreshRelease).toHaveBeenCalledOnce();
     expect(screen.getByRole('button', {
-      name: `${location.resourceKind} at ${location.atlasQ}, ${location.atlasR} · ${location.nodeCount} nodes`
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
     })).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'SEND WORKER 1' })).toBeNull();
 
@@ -731,7 +731,7 @@ describe('Greater Realm world scene lifecycle', () => {
     });
     expect(onPhaseChange).toHaveBeenLastCalledWith('failed');
     expect(screen.getByRole('button', {
-      name: `${location.resourceKind} at ${location.atlasQ}, ${location.atlasR} · ${location.nodeCount} nodes`
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
     })).not.toBeNull();
   });
 
