@@ -1,10 +1,11 @@
 # 0.4 workflow sufficiency audit
 
 Updated 2026-09-11 (Europe/Budapest) against source-bound implementation head
-`64690fc425640b8ea33388caa5a9c89485ea7ea3` on
+`b0e634350ed1ef02e6ee9704421856c7db27d7e0` on
 `codex/prepared-keep-bindings-fix`; later commits in this evidence family are
-documentation-only. The Linux lane implementation is bound into this source
-and fresh native preparation/check evidence covers this head.
+documentation-only. The Pages private launcher now accepts the retained Linux
+x64 runner profile while preserving the Darwin profile. Fresh native
+preparation/check evidence covers this head.
 
 ## Verdict
 
@@ -31,12 +32,10 @@ fresh evidence bound to the final reviewed and deployed source.
 
 ## What is not yet sufficient
 
-- The earlier docs-follow-up Verify runs were superseded when later commits
-  advanced the branch. The last recorded protected snapshot had
-  `auth-bridge`, `native-contract` and `release-recovery` passing; each later
-  documentation-only head requires its own terminal current-head read. R14
-  cannot be green until the latest `verify`, `spacetimedb-module`, `analyze`
-  and `CodeQL` contexts reach terminal success and the signed-history
+- The current-head CodeQL run `34611291885` has passed. Verify run
+  `34611291981` has `auth-bridge`, `native-contract` and `release-recovery`
+  passing while `linux` and `spacetimedb-module` remain in progress; R14
+  cannot be green until Verify reaches terminal success and the signed-history
   requirement is reconciled.
 - Protected `main` requires signed commits. The prepared branch history is
   unsigned, so GitHub reports the pull request as merge-blocked even when the

@@ -10,21 +10,23 @@ is the compact read of what is ready for development and what still blocks a shi
 ## Current source-bound state — 2026-09-11
 
 The source-bound implementation head is
-`64690fc425640b8ea33388caa5a9c89485ea7ea3` on
+`b0e634350ed1ef02e6ee9704421856c7db27d7e0` on
 `codex/prepared-keep-bindings-fix`; Windows, GitHub and native WSL are
-synchronized at the branch tip, with later evidence-only commits allowed. The preceding implementation commit adds the
-dedicated Linux x64 prepared notification workflow, fixed runner entrypoint,
-pnpm authority and
-closure-bound Linux toolchain manifest. Fresh native `prepare` and independent
-`check` now pass for this exact head. The converged candidate, source tree,
-transaction and digests are recorded in the local operations evidence; the
-candidate is `release-workspace-f16740e2569ed2c63fb0378ad41ca912`, source tree
-`6d6db937b545b645d2faddd780fc114087ab1fb9`, family
-`8c9575659038d0cd0e4c6fe8cb9db746af218f8ddad0bfba81b98630c06a40a6`, and
-closure manifest `a0b5892e45fd07f6e821afa826c02f9831dbd6e80b29f1541e4d3bbd2a7e90d0`.
+synchronized at the branch tip, with later evidence-only commits allowed. This
+commit makes the Pages private deployment launcher accept the retained Linux
+x64 runner profile while preserving Darwin behavior and adds focused coverage.
+Fresh native `prepare` and independent `check` pass for this exact head. The
+converged candidate, source tree, transaction and digests are recorded in the
+local operations evidence; the candidate is
+`release-workspace-29d221b4fa333fb308ee812d2721545e`, source tree
+`f73be880adfeb18ec19a69136e2d33554d02297f`, family
+`acc3f3fed36824a9a8cd7d892af22ca3b654d83e24b649248b24bace6cabc1a7`, and
+closure manifest
+`258bb6c3237e2ca386d78358af442d9a6a562f5b21d4bcb18ae1e9caf6f3f2e6`.
 The candidate remains preparation evidence only, with `finalReleasePrepared: false`.
-Protected Verify and CodeQL remain the CI authority and must be read at terminal
-state. This evidence still does not establish provider deployment, recovery
+Protected Verify run `34611291981` and CodeQL run `34611291885` remain the CI
+authority; CodeQL has passed and Verify is still running its Linux and
+SpacetimeDB jobs, so read Verify at terminal state. This evidence still does not establish provider deployment, recovery
 readback, owner admission, physical-device performance or final release approval.
 
 ### Linux prepared notification lane — 2026-09-11
@@ -36,7 +38,7 @@ owner-only Linux x64 runner, fixed Node 22.22.3, a reviewed pnpm 11.7.0
 wrapper and isolated store, then rechecks GitHub workflow authority before any
 credentialed deploy or read-only recovery call. The protected source closure is
 now 1,199 members; its current manifest SHA-256 is
-`52bad92b06855d94e12abb5c0bf769f670af8ad7f76f07ed3a19d3ec577dd9ec`.
+`187b19873ba3a10418fde1da8ebddc63a80198b7482b5a56888d0768481f7714`.
 The lane is source-verified and pushed, but no authenticated production run or
 recovery readback has been recorded. B0 and Pages private callers remain on the
 legacy Darwin profile until their Linux migration is separately reviewed.
