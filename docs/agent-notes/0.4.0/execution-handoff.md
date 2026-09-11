@@ -7,9 +7,12 @@ live release. The current user's direction takes precedence over historical plan
 
 ## Current source-bound state — 2026-09-11
 
-The current source-bound checkpoint is `aef672061e22cebeec66a7d22bda92bcb459d9d1`;
-generated protected-family refreeze `4bbe860b` follows it on
-`codex/prepared-keep-bindings-fix`. Native Linux `prepare` and independent
+The latest published head is `a11f023cc6592d7f2915782d1158edee5e895ae6` on
+`codex/prepared-keep-bindings-fix`; Windows and native WSL are clean and
+synchronized at that exact head. It includes the portable rendered-WebGL and
+Windows archive/cache workflow repair. The native release candidate remains
+source-bound to `aef672061e22cebeec66a7d22bda92bcb459d9d1`; generated protected-family
+refreeze `4bbe860b` follows it. Native Linux `prepare` and independent
 `check` passed for candidate
 `release-workspace-342ea5448bfeb9bdf9dc51c7e31b67e4`, source tree
 `5def926b9ad4f4cd940742a67bb5335f6b21a1ef`, family digest
