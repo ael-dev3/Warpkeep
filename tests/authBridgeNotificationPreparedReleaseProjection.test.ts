@@ -77,7 +77,8 @@ const BOOTSTRAP_WORKFLOWS = Object.freeze({
   '.github/workflows/deploy-pages.yml': Object.freeze({
     indentation: '  ',
     names: [
-      ...BOOTSTRAP_BINDINGS.slice(0, 4).map(binding => binding.name),
+      ...BOOTSTRAP_BINDINGS.slice(0, 3).map(binding => binding.name),
+      'WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256',
       BOOTSTRAP_BINDINGS[6].name,
     ],
   }),

@@ -29,7 +29,7 @@ afterEach(() => vi.restoreAllMocks());
 it('connects the actual verifier engine to manifest and workflow generation (existing-inventory fixture)', async () => {
   fixture();
   const result = await derivePreparedClosureFamily({ repositoryRoot: root });
-  expect(result.files).toHaveLength(15);
+  expect(result.files).toHaveLength(16);
   expect(result.memberCount).toBe(state.count);
   const manifest = result.files.find(file => file.path.endsWith('deploy-closure-v1.json'))!;
   expect(createHash('sha256').update(manifest.bytes).digest('hex')).toBe(result.manifestSha256);
@@ -97,7 +97,7 @@ it('rejects duplicate members instead of silently deduplicating the generated in
   await expect(derivePreparedClosureFamily({ repositoryRoot: root })).rejects.toThrow('LOCAL_PREPARED_CLOSURE_FAMILY_INVALID');
   expect(state.files.every(file => file.bytes.every(byte => byte === 0))).toBe(true);
 });
-it('converges across all fifteen source/pin/test/manifest/workflow outputs using a read-overlay fixture', async () => {
+it('converges across all sixteen source/pin/test/manifest/workflow outputs using a read-overlay fixture', async () => {
   fixture();
   const first = await derivePreparedClosureFamily({ repositoryRoot: root });
   const overlay = new Map(first.files.map(file => [resolve(root, file.path), file.bytes]));
