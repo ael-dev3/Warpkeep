@@ -54,8 +54,13 @@ fresh evidence bound to the final reviewed and deployed source.
   production baseline/preservation proof, G002 denial proof or final live
   release verification is recorded.
 - Legacy durable Pages and notification workflows still target macOS/ARM64;
-  therefore the no-Mac end-to-end delivery requirement is not met even though
-  the local rendered QA tooling is portable.
+  the prepared installed-toolchain verifier also names the Darwin/ARM64
+  package family and immutable `/private/var/db/warpkeep/...` Node/pnpm paths.
+  The Linux runner therefore proves native contracts and recovery checks but
+  cannot yet execute the full prepared production caller. A Linux candidate
+  manifest generated during diagnosis is not an attested release artifact;
+  the no-Mac end-to-end delivery requirement is not met even though the local
+  rendered QA tooling is portable.
 - Dependabot currently reports nine alerts on the default branch (three high,
   six moderate); this is a maintenance risk to resolve before a production
   freeze.
@@ -66,13 +71,16 @@ fresh evidence bound to the final reviewed and deployed source.
    signed-history requirement.
 2. Run fresh native preparation/check from the exact reviewed source, then retain
    the resulting family and closure evidence.
-3. Complete authenticated recovery deployment and readback before any live
+3. Add and attest a real Linux installed-toolchain profile and matching closure,
+   then port the durable notification/recovery callers without weakening their
+   identity, ownership or executable checks.
+4. Complete authenticated recovery deployment and readback before any live
    mutation; capture the G001 baseline and prove G002 remains sealed.
-4. Complete the actual owner PTR journey, lifecycle/isolation checks and fixed
+5. Complete the actual owner PTR journey, lifecycle/isolation checks and fixed
    device/performance measurements.
-5. Re-run the full rendered matrix on the release authority, then deploy Pages,
+6. Re-run the full rendered matrix on the release authority, then deploy Pages,
    Cloudflare and SpacetimeDB from the same reviewed source.
-6. Perform live G001 preservation, G002 denial and owner-journey verification,
+7. Perform live G001 preservation, G002 denial and owner-journey verification,
    and only then mark R01–R18 complete and produce the Desktop handoff.
 
 Until those records exist, the honest state is **development-ready and
