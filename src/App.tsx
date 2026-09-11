@@ -1,19 +1,37 @@
-import { WarpkeepExperience } from './components/WarpkeepExperience';
-import { FarcasterAuthProvider } from './farcaster/FarcasterAuthProvider';
-import { MiniAppHostProvider } from './farcaster/miniapp';
-import { PtrRealmProvider } from './ptr/PtrRealmProvider';
-import { WarpkeepSpacetimeProvider } from './spacetime';
+import { lazy, Suspense } from 'react';
+
+const WarpkeepRuntime = lazy(() => import('./WarpkeepRuntime'));
+
+function RuntimeFallback() {
+  return (
+    <main
+      aria-label="Opening the Warpkeep gateway"
+      role="status"
+      style={{
+        alignItems: 'center',
+        background: '#010207',
+        color: '#f2dfae',
+        display: 'grid',
+        fontFamily: 'Georgia, "Times New Roman", serif',
+        inset: 0,
+        letterSpacing: '0.12em',
+        minHeight: '100vh',
+        padding: '2rem',
+        placeItems: 'center',
+        position: 'fixed',
+        textAlign: 'center',
+        textTransform: 'uppercase',
+      }}
+    >
+      Opening the gateway
+    </main>
+  );
+}
 
 export default function App() {
   return (
-    <MiniAppHostProvider>
-      <PtrRealmProvider>
-        <FarcasterAuthProvider>
-          <WarpkeepSpacetimeProvider>
-            <WarpkeepExperience />
-          </WarpkeepSpacetimeProvider>
-        </FarcasterAuthProvider>
-      </PtrRealmProvider>
-    </MiniAppHostProvider>
+    <Suspense fallback={<RuntimeFallback />}>
+      <WarpkeepRuntime />
+    </Suspense>
   );
 }
