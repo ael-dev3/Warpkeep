@@ -4,6 +4,8 @@ Build a persistent strategy world around **gather → choose → build → benef
 The GitHub/profile/ecosystem refresh is complete. Continue the connected game and
 delivery work; substantial implementation is present, but 0.4 is not yet a verified
 live release. The current user's direction takes precedence over historical plans.
+The dated [workflow sufficiency audit](../../evidence/0.4.0/workflow-sufficiency-audit.md)
+is the compact read of what is ready for development and what still blocks a ship.
 
 ## Current source-bound state — 2026-09-11
 
