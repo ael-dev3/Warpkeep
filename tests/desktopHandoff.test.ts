@@ -8,7 +8,7 @@ const handoff = readFileSync(
   'utf8',
 );
 
-describe('credential-free Desktop handoff', () => {
+describe('credential-free workspace handoff', () => {
   it('keeps reproducible source, setup and evidence routes visible', () => {
     expect(handoff).toContain('codex/prepared-keep-bindings-fix');
     expect(handoff).toContain('npm ci');
@@ -37,5 +37,17 @@ describe('credential-free Desktop handoff', () => {
     expect(handoff).toContain('interim development handoff');
     expect(handoff).toMatch(/does not\s+connect an owner/);
     expect(handoff).toContain('physical-device measurements');
+  });
+
+  it('keeps routine delivery out of the Desktop and bounded to the workspace', () => {
+    const workflow = readFileSync(
+      resolve(process.cwd(), 'docs/engineering/development-workflow.md'),
+      'utf8',
+    );
+    expect(handoff).toContain('Do not create a new Desktop folder, handoff copy, backup or ZIP.');
+    expect(handoff).toContain('artifacts/delivery/0.4.0/');
+    expect(workflow).toMatch(/Older\s+plans that require a Desktop package or private Desktop census are superseded\./u);
+    expect(workflow).toContain('Do not use blanket');
+    expect(workflow).toContain('age-based recursive deletion or a global cache purge.');
   });
 });

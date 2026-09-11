@@ -9,17 +9,19 @@ The dedicated `WarpkeepRunner` service is enabled and running as `warpkeep`
 UID/GID 1000. GitHub reported existing runner ID 22 online and idle at 21:20 UTC
 after completing the interrupted helper/marker installation. Empty sealed private
 roots are now provisioned. No credentials or receipts were migrated and no
-protected workflow was dispatched. Native `prepare` and independent `check` pass
-for source checkpoint
-`aef672061e22cebeec66a7d22bda92bcb459d9d1` with the 1,195-member closure and
-the full 3,181-file candidate family; the candidate is
-`release-workspace-342ea5448bfeb9bdf9dc51c7e31b67e4` and its source tree is
-`5def926b9ad4f4cd940742a67bb5335f6b21a1ef`. Generated protected family
-refreeze `4bbe860b` is committed; the native closure and public-boundary
-verifiers pass and the activation artifact has no private marker tokens. Any later branch commits
-in this section are documentation-only follow-ups and must be checked against
-the exact GitHub head before use. This supersedes the historical setup and
-offline observations below.
+protected workflow was dispatched. Native `prepare` and independent `check`
+passed for preparation input
+`713c2bfb7d5b0cb00028c3553089d60b53e2897b`, producing the generated family
+integrated at `7d920b9f57ec450071632fdc3f0b560f7526811a`, with the 1,199-member
+closure and the full 3,192-file candidate family. The candidate is
+`release-workspace-69a975071850f1e562b593ffa811904e` with source tree
+`2b23068063945029e439dbeb85bf4fa6b80b9735`; family SHA-256 is
+`c6c45376b8662f58f602d59c7f41912ebdde6bb4856d519d8a0cdc65e975c67e` and the
+closure manifest SHA-256 is
+`c92fc469e86ca8ee285c4057901a9bd41c1be982283d04a82196cf541433702f`.
+The candidate remains preparation evidence only. Later branch commits must be
+checked against the exact GitHub head before use. This supersedes the historical
+setup and offline observations below.
 Follow the
 [runner guide](../../operations/0.4.0-linux-runner.md) for current paths and the
 remaining recovery deployment/readback integration; R11 is still incomplete.

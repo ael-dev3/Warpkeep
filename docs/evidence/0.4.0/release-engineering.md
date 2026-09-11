@@ -1,23 +1,21 @@
 # Release engineering: implementation and evidence
 
-Current reading point: the source-bound checkpoint is
-`aef672061e22cebeec66a7d22bda92bcb459d9d1`; generated protected-family
-refreeze `4bbe860b` follows it. Later branch commits may be documentation-only
-follow-ups. The
-September 9 source checkpoint
-`206c036` records the latest retained assembled-artifact execution above the
-historical entries in this record; the September 8 entries at the end cover
-the published Linux preflight/Worker source `1e90b2e`, its completed native
-prepare/check and generated-only integration `de10f83`, plus compiled G002/PTR
-table-schema compatibility and synthetic update-protocol validation. The
-[execution handoff](../../agent-notes/0.4.0/execution-handoff.md) gives the next
-connected work and actual publication/check status. **0.4 is not shipped.**
+Current reading point: fetch the actual
+[development branch](https://github.com/ael-dev3/Warpkeep/tree/codex/prepared-keep-bindings-fix)
+and PR #228 before relying on a live head or CI result. The generated source
+family recorded in this evidence is `7d920b9f57ec450071632fdc3f0b560f7526811a`,
+prepared from native input `713c2bfb7d5b0cb00028c3553089d60b53e2897b`.
+Later documentation and test follow-ups do not create a new release candidate;
+re-run native preparation/check when source-bound inputs change. The retained
+candidate, closure and runner observations below are dated evidence, not current
+deployment authority. The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
+gives the next connected work and actual publication/check status. **0.4 is not shipped.**
 
 Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
-## Current runner alignment — 2026-09-11
+## Recorded runner alignment — 2026-09-11 (source checkpoint 64690fc)
 
 The final synchronized branch head `64690fc425640b8ea33388caa5a9c89485ea7ea3`
 was freshly prepared and independently checked on the owner-only Linux x64

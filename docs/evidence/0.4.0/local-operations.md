@@ -5,13 +5,15 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 ## Current source and protected checks — 2026-09-11
 
 Windows and native WSL are synchronized on
-`codex/prepared-keep-bindings-fix`; the source-bound implementation is
-`7d920b9f57ec450071632fdc3f0b560f7526811a` and documentation-only head
-`762636acaf02b03f2db4271b07cca10330ee18c3` carries this record. It migrates the Pages private
-deployment job to Linux x64, makes closure pin derivation profile-aware, and
-refreshes all generated consumers from native Linux bytes while preserving the
-legacy Darwin callers. Fresh native preparation and independent check pass for
-this committed source.
+`codex/prepared-keep-bindings-fix`. The generated source family is
+`7d920b9f57ec450071632fdc3f0b560f7526811a`, prepared from native input
+`713c2bfb7d5b0cb00028c3553089d60b53e2897b`; later documentation and test
+follow-ups are on the current branch. Read the actual branch/PR head through
+the source-sync procedure before claiming current synchronization. The family
+migrates the Pages private deployment job to Linux x64, makes closure pin
+derivation profile-aware, and refreshes generated consumers from native Linux
+bytes while preserving the legacy Darwin callers. Native preparation and
+independent check passed for that recorded source input.
 Protected Verify and CodeQL are the authority for the current head. Read every
 required context at terminal state before calling R14 green; transient run IDs
 are intentionally read directly from GitHub. GitHub
