@@ -9,7 +9,7 @@ reference into an imported engine, a new economy, or a promise of deep
 interactivity.
 
 The visual contract is maintained against the current PR #228 documentation
-head `246d85ca72c171b8fd98a6c92e1b585463e03f15`; the functional source-bound
+head `559d54c78f1defb5ffa3ca1384c5b81966bf8d52`; the functional source-bound
 checkpoint remains `7a542a33` and the current branch carries documentation-only
 follow-ups. Earlier hashes in dated evidence records remain historical anchors
 and are not the source to review for a new pass. The latest connected

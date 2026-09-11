@@ -3,7 +3,7 @@
 ## 2026-09-11 current documentation head; source-bound QA
 
 The published documentation head is
-`246d85ca72c171b8fd98a6c92e1b585463e03f15`; the responsive QA below was run
+`559d54c78f1defb5ffa3ca1384c5b81966bf8d52`; the responsive QA below was run
 against the preceding functional source-bound checkpoint.
 At that checkpoint,
 `npm run qa:inner-keep` passed all 18 synthetic cases. The reviewed matrix

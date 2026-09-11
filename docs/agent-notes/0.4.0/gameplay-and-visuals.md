@@ -1,7 +1,7 @@
 # Gameplay and visual implementation notes
 
 Updated 2026-09-11 against the current PR #228 development branch at
-`246d85ca72c171b8fd98a6c92e1b585463e03f15`; the functional source-bound
+`559d54c78f1defb5ffa3ca1384c5b81966bf8d52`; the functional source-bound
 checkpoint remains `7a542a33` and the inspected working files are synchronized
 with that branch. Earlier source hashes below remain dated evidence anchors,
 not current review targets.

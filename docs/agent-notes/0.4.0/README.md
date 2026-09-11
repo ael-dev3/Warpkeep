@@ -8,7 +8,7 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 ## Current working state
 
 Updated September 11 against the published development branch at
-`246d85ca72c171b8fd98a6c92e1b585463e03f15`.
+`559d54c78f1defb5ffa3ca1384c5b81966bf8d52`.
 The GitHub/profile/ecosystem refresh is complete. Continue
 the connected game and delivery work from the [execution handoff](execution-handoff.md),
 which records the current checkpoint, preparation, CI and environment details.
@@ -16,9 +16,9 @@ which records the current checkpoint, preparation, CI and environment details.
 - **Development and live release are separate.** Active 0.4 work is on
   `codex/prepared-keep-bindings-fix`, associated with ready-for-review
   [PR #228](https://github.com/ael-dev3/Warpkeep/pull/228). Verify run
-  [34547379362](https://github.com/ael-dev3/Warpkeep/actions/runs/34547379362)
+  [34547852300](https://github.com/ael-dev3/Warpkeep/actions/runs/34547852300)
   and CodeQL run
-  [34547379412](https://github.com/ael-dev3/Warpkeep/actions/runs/34547379412)
+  [34547852318](https://github.com/ael-dev3/Warpkeep/actions/runs/34547852318)
   are the current checks for this documentation head; read their terminal
   conclusions before R14. `main` remains the public
   G001 baseline. The integrated 0.4 release is not yet shipped.
@@ -48,7 +48,7 @@ which records the current checkpoint, preparation, CI and environment details.
   validate its mobile treatment with the next rendered capture.
 - **The connected presentation rail is exercised.** The disposable Windows lane
   passed at the prior functional checkpoint; the published documentation head
-  is now `246d85ca72c171b8fd98a6c92e1b585463e03f15`, so rerun the connected lane
+  is now `559d54c78f1defb5ffa3ca1384c5b81966bf8d52`, so rerun the connected lane
   after any source change before release evidence. It covered the
   final WebGL warning boundary and re-entry diagnostics, with fresh-browser
   re-entry, four-worker outbound → gathering → returning, private retry seams,

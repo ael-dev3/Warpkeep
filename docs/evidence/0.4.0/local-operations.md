@@ -5,10 +5,10 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 ## Current source and protected checks — 2026-09-11
 
 Windows, native WSL and upstream are synchronized at
-`246d85ca72c171b8fd98a6c92e1b585463e03f15`. Verify run
-[34547379362](https://github.com/ael-dev3/Warpkeep/actions/runs/34547379362)
+`559d54c78f1defb5ffa3ca1384c5b81966bf8d52`. Verify run
+[34547852300](https://github.com/ael-dev3/Warpkeep/actions/runs/34547852300)
 and CodeQL run
-[34547379412](https://github.com/ael-dev3/Warpkeep/actions/runs/34547379412)
+[34547852318](https://github.com/ael-dev3/Warpkeep/actions/runs/34547852318)
 are the current protected checks for this documentation head; their terminal
 results remain required before R14. The native release evidence below remains
 bound to functional checkpoint `7a542a33`; the intervening commits are

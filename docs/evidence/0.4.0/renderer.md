@@ -3,7 +3,7 @@
 ## Scope and source
 
 This record covers the current PR #228 implementation at documentation head
-`246d85ca72c171b8fd98a6c92e1b585463e03f15`; the functional renderer/UI source
+`559d54c78f1defb5ffa3ca1384c5b81966bf8d52`; the functional renderer/UI source
 remains the source-bound checkpoint recorded below. Older hashes in dated
 evidence are historical anchors only. It records the 0.4 renderer foundation and its
 intentional recovery paths. It does not claim a physical phone result,
