@@ -50,4 +50,17 @@ describe('credential-free workspace handoff', () => {
     expect(workflow).toContain('Do not use blanket');
     expect(workflow).toContain('age-based recursive deletion or a global cache purge.');
   });
+
+  it('keeps current workflows free of Desktop and cloud-sync output paths', () => {
+    const workflowPaths = [
+      '.github/workflows/verify.yml',
+      '.github/workflows/deploy-pages.yml',
+      '.github/workflows/notification-bridge-prepared-linux.yml',
+      '.github/workflows/sealed-realms-production.yml',
+    ];
+    for (const workflowPath of workflowPaths) {
+      const source = readFileSync(resolve(process.cwd(), workflowPath), 'utf8');
+      expect(source).not.toMatch(/Desktop|OneDrive|Рабочий\s+стол/iu);
+    }
+  });
 });
