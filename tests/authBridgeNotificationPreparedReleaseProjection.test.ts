@@ -99,6 +99,8 @@ const BOOTSTRAP_WORKFLOWS = Object.freeze({
     ],
   }),
 });
+const PAGES_LINUX_TOOLCHAIN_MANIFEST =
+  'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json';
 const REVIEWED_RELEASE_TRANSITION_PATHS =
   AUTH_BRIDGE_RELEASE_TRANSITION_FIXTURE_PATHS;
 const RETAINED_TYPE_ONLY_DECLARATION_PATHS = Object.freeze([
@@ -229,6 +231,9 @@ function createTransitionFixture(sourcePhase = 0): string {
       ? sha256(readFileSync(manifestPath))
       : sha256(readFileSync(resolve(root, binding.path))),
   ]));
+  const pagesLinuxToolchainBody = readFileSync(
+    resolve(root, PAGES_LINUX_TOOLCHAIN_MANIFEST),
+  );
   for (const [relativePath, workflow] of Object.entries(BOOTSTRAP_WORKFLOWS)) {
     const path = resolve(root, relativePath);
     let source = readFileSync(path, 'utf8');
@@ -237,7 +242,10 @@ function createTransitionFixture(sourcePhase = 0): string {
         `^${workflow.indentation}${name}: '([a-f0-9]{64})'$`,
         'mu',
       ))?.[1];
-      const expected = pinValues.get(name);
+      const expected = relativePath === '.github/workflows/deploy-pages.yml'
+        && name === 'WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256'
+        ? sha256(pagesLinuxToolchainBody)
+        : pinValues.get(name);
       if (current === undefined || expected === undefined) {
         throw new Error(`fixture bootstrap pin ${name} was unavailable`);
       }
