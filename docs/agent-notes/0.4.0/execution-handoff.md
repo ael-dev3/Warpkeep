@@ -3,7 +3,7 @@
 ## Current verification checkpoint — 12 September 2026
 
 The Windows checkout, GitHub development branch and native WSL checkout remain
-clean and synchronized at `08df70809064131fcc2eb8e37a1b0be002e60134` on
+clean and synchronized at `46ac897cbdc208187b8da3c492ecf8d019acd923` on
 `codex/prepared-keep-bindings-fix`. The Keep04-focused local suite passed 10 test
 files and 139 tests, the PTR gameplay surface suite passed 33 tests, and the
 Greater Realm world/RealmMapScreen suites passed 45 tests. A narrow local browser
@@ -16,8 +16,9 @@ application chunk is about 3.9 kB (down from about 899 kB), while the interactiv
 runtime remains deferred until the gateway is entered. The Worker review panel
 keeps internal `locationId` in the authority-bound dispatch payload but does not
 render it to players; resource labels use the resource site and coordinates.
-Verify run `34654874426` and CodeQL run `34654874388` are in progress for this
-exact head. Read both at terminal state before claiming R14 complete. No
+Verify run `34655790697` and CodeQL run `34655790626` are the current checks for
+this exact head (Verify is pending; CodeQL is in progress). Read both at
+terminal state before claiming R14 complete. No
 authenticated provider deployment, recovery readback, owner journey,
 physical-device result or live release is claimed. The existing Desktop handoff
 was updated in place; no new Warpkeep Desktop file, copy, backup or archive was

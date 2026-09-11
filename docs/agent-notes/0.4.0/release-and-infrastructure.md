@@ -3,10 +3,10 @@
 ## Current source checkpoint — 2026-09-12
 
 The Windows checkout, GitHub branch and existing WSL checkout are clean and
-synchronized at `08df70809064131fcc2eb8e37a1b0be002e60134` on
-`codex/prepared-keep-bindings-fix`. Verify run `34654874426` and CodeQL run
-`34654874388` are in progress for this exact head and remain the CI authority
-until terminal state. No provider deployment, recovery readback, owner PTR
+synchronized at `46ac897cbdc208187b8da3c492ecf8d019acd923` on
+`codex/prepared-keep-bindings-fix`. Verify run `34655790697` is pending and
+CodeQL run `34655790626` is in progress for this exact head; they remain the CI
+authority until terminal state. No provider deployment, recovery readback, owner PTR
 acceptance, physical-device result or live release is claimed. The current
 source and CI authority are recorded in the [execution handoff](execution-handoff.md).
 
