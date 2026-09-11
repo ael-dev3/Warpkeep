@@ -30,12 +30,12 @@ fresh evidence bound to the final reviewed and deployed source.
 ## What is not yet sufficient
 
 - The earlier docs-follow-up Verify runs were superseded when later commits
-  advanced the branch. The exact current head `cd7203ed3370c201562594f0c85705ff98ec53ae`
-  is the authority. Verify run `34593108463` has `auth-bridge`,
-  `native-contract` and `release-recovery` passing while `linux` and
-  `spacetimedb-module` remain in progress; CodeQL run `34593108436` has
-  completed successfully. R14 cannot be green until the remaining current-head
-  jobs reach terminal success and the signed-history requirement is reconciled.
+  advanced the branch. The last recorded protected snapshot had
+  `auth-bridge`, `native-contract` and `release-recovery` passing; each later
+  documentation-only head requires its own terminal current-head read. R14
+  cannot be green until the latest `verify`, `spacetimedb-module`, `analyze`
+  and `CodeQL` contexts reach terminal success and the signed-history
+  requirement is reconciled.
 - Protected `main` requires signed commits. The prepared branch history is
   unsigned, so GitHub reports the pull request as merge-blocked even when the
   code and checks are green.
