@@ -1,13 +1,14 @@
 # Gameplay and visual implementation notes
 
 Updated 2026-09-12 against the current PR #228 development branch; the
-source-bound checkpoint is now `de6f8c19` and the inspected working files are
+source-bound checkpoint is now `08df7080` and the inspected working files are
 synchronized with that branch. Earlier source hashes below remain dated
 evidence anchors, not current review targets. The latest focused Keep04 run
-passed 10 files and 139 tests, including the accessible Worker Outbound →
-Gathering → Returning journey rail. It has no authenticated owner session or
-production call. Earlier executed results keep their original source and
-limitations in the [execution handoff](execution-handoff.md).
+passed 10 files and 139 tests, the PTR gameplay surface suite passed 33 tests,
+and the Greater Realm world/RealmMapScreen suites passed 45 tests, including the
+accessible Worker Outbound → Gathering → Returning journey rail. It has no
+authenticated owner session or production call. Earlier executed results keep
+their original source and limitations in the [execution handoff](execution-handoff.md).
 The [visual foundation contract](visual-foundation-contract.md) is the short
 reference-to-source decision layer for continuing the mobile presentation pass;
 the complete URL and provenance inventory remains in the Desktop handoff.

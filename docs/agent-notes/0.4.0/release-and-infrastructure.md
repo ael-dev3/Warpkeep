@@ -3,13 +3,12 @@
 ## Current source checkpoint — 2026-09-12
 
 The Windows checkout, GitHub branch and existing WSL checkout are clean and
-synchronized at `de6f8c190aa95da37f0cbff416f7b24d8c6cfe02` on
-`codex/prepared-keep-bindings-fix`. CodeQL run `34653336388` passed. Verify run
-`34653336328` has passed `auth-bridge`, `release-recovery` and
-`native-contract`; its Linux and SpacetimeDB integration jobs remain active.
-No provider deployment, recovery readback, owner PTR acceptance,
-physical-device result or live release is claimed. The current source and CI
-authority are recorded in the [execution handoff](execution-handoff.md).
+synchronized at `08df70809064131fcc2eb8e37a1b0be002e60134` on
+`codex/prepared-keep-bindings-fix`. Verify run `34654874426` and CodeQL run
+`34654874388` are in progress for this exact head and remain the CI authority
+until terminal state. No provider deployment, recovery readback, owner PTR
+acceptance, physical-device result or live release is claimed. The current
+source and CI authority are recorded in the [execution handoff](execution-handoff.md).
 
 ## Current runner status — 2026-09-11
 

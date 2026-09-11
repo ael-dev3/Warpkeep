@@ -3,24 +3,25 @@
 ## Current verification checkpoint — 12 September 2026
 
 The Windows checkout, GitHub development branch and native WSL checkout remain
-clean and synchronized at `be95b9cacda46ad55e537b57a09d12d935670dbe` on
+clean and synchronized at `08df70809064131fcc2eb8e37a1b0be002e60134` on
 `codex/prepared-keep-bindings-fix`. The Keep04-focused local suite passed 10 test
-files and 139 tests, covering the scene, mobile screen, placement, accessibility,
-lifecycle and loop rail. A narrow local browser pass also confirmed the title,
-menu, realm directory, sealed G002 state, and fail-closed G001/PTR messages are
-legible and coherent; this is rendered smoke evidence, not physical-device or
-live-owner acceptance.
+files and 139 tests, the PTR gameplay surface suite passed 33 tests, and the
+Greater Realm world/RealmMapScreen suites passed 45 tests. A narrow local browser
+pass also confirmed the title, menu, realm directory, sealed G002 state, and
+fail-closed G001/PTR messages are legible and coherent; this is rendered smoke
+evidence, not physical-device or live-owner acceptance.
 
-The latest source change defers the runtime bootstrap behind a React lazy boundary:
-the initial application chunk is about 3.9 kB (down from about 899 kB), while the
-interactive runtime remains deferred until the gateway is entered. The protected
-Verify run `34651509065` is still in progress, with `auth-bridge`,
-`release-recovery` and `native-contract` complete while `linux` and
-`spacetimedb-module` continue. CodeQL run `34651509168` completed successfully.
-Read Verify at terminal state before claiming R14 complete. No authenticated
-provider deployment, recovery readback, owner journey, physical-device result or
-live release is claimed. The existing Desktop handoff was updated in place; no
-new Warpkeep Desktop file, copy, backup or archive was created.
+The runtime bootstrap remains deferred behind a React lazy boundary: the initial
+application chunk is about 3.9 kB (down from about 899 kB), while the interactive
+runtime remains deferred until the gateway is entered. The Worker review panel
+keeps internal `locationId` in the authority-bound dispatch payload but does not
+render it to players; resource labels use the resource site and coordinates.
+Verify run `34654874426` and CodeQL run `34654874388` are in progress for this
+exact head. Read both at terminal state before claiming R14 complete. No
+authenticated provider deployment, recovery readback, owner journey,
+physical-device result or live release is claimed. The existing Desktop handoff
+was updated in place; no new Warpkeep Desktop file, copy, backup or archive was
+created.
 
 Build a persistent strategy world around **gather → choose → build → benefit → return**.
 The GitHub/profile/ecosystem refresh is complete. Continue the connected game and
