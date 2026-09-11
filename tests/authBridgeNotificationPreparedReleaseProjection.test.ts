@@ -225,12 +225,12 @@ function createTransitionFixture(sourcePhase = 0): string {
   );
   mkdirSync(dirname(manifestPath), { recursive: true });
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  const pinValues = new Map(BOOTSTRAP_BINDINGS.map(binding => [
+  const pinValues = new Map<string, string>(BOOTSTRAP_BINDINGS.map(binding => [
     binding.name,
     binding.path === AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH
       ? sha256(readFileSync(manifestPath))
       : sha256(readFileSync(resolve(root, binding.path))),
-  ]));
+  ] as [string, string]));
   const pagesLinuxToolchainBody = readFileSync(
     resolve(root, PAGES_LINUX_TOOLCHAIN_MANIFEST),
   );
