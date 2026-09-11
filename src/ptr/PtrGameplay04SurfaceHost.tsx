@@ -193,7 +193,7 @@ function WorldWorkerPanel({ snapshot, controller, selection, validateSelection, 
     {snapshot.phase === 'uncertain' && <><button onClick={() => void controller.refresh()}>Check outcome</button><button onClick={() => void controller.retryPending()}>Retry same request</button></>}
     {snapshot.phase === 'failed' && <button onClick={() => void controller.refresh()}>Refresh keep</button>}
     {target ? <>
-      <p>{target.resource} at {target.q}, {target.r} · {target.locationId}</p>
+      <p>{target.resource} site at {target.q}, {target.r}</p>
       <p>The Realm decides how many Workers may gather at this site.</p>
       <label>Idle Worker <select aria-label="Idle Worker" value={ordinal} onChange={event => {
         const next = Number(event.target.value);
