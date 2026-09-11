@@ -308,7 +308,7 @@ function createPublicCastleLayer(
             kind: 'castle',
             label: castle.castleId === ownCastleId
               ? 'Your castle'
-              : `${publicNames.get(cell?.regionId ?? '') ?? 'Public'} castle ${castle.castleId}`,
+              : `${publicNames.get(cell?.regionId ?? '') ?? 'Public'} castle at ${castle.atlasQ}, ${castle.atlasR}`,
             atlasQ: castle.atlasQ,
             atlasR: castle.atlasR
           }),

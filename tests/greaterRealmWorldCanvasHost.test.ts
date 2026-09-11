@@ -165,10 +165,14 @@ describe('Greater Realm world canvas host', () => {
     const selected = onSelectionChange.mock.calls.at(-1)![0];
     expect(selected).toBeDefined();
     let resourceSelection: typeof selected;
+    let publicCastleSelection: typeof selected;
     for (let index = 0; index < 32; index += 1) {
       host.control({ kind: 'select-next' });
       const latest = onSelectionChange.mock.calls.at(-1)![0];
       if (latest?.kind === 'resource') resourceSelection = latest;
+      if (latest?.kind === 'castle' && latest.label !== 'Your castle') {
+        publicCastleSelection = latest;
+      }
       if (
         resourceSelection !== undefined
         && latest?.kind === selected.kind
@@ -179,6 +183,9 @@ describe('Greater Realm world canvas host', () => {
     expect(resourceSelection).toEqual(expect.objectContaining({ kind: 'resource' }));
     expect(resourceSelection!.label).toContain('site at');
     expect(resourceSelection!.label).not.toContain('nodes');
+    expect(publicCastleSelection).toEqual(expect.objectContaining({ kind: 'castle' }));
+    expect(publicCastleSelection!.label).toContain('castle at');
+    expect(publicCastleSelection!.label).not.toMatch(/castle \d+$/);
 
     host.updatePolicy(mobilePolicy);
 
