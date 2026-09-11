@@ -28,8 +28,11 @@ const FIXED_OUTPUTS = new Set([
   'scripts/recovery-workflow-bundle-manifest-v1.json',
   'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs',
   ...['sealed-realms-production', 'notification-bridge-b0',
-    'notification-bridge-prepared', 'deploy-pages', 'verify']
+    'notification-bridge-prepared', 'notification-bridge-prepared-linux',
+    'deploy-pages', 'verify']
     .map(name => `.github/workflows/${name}.yml`),
+  'scripts/auth-bridge-notification-prepared-linux-runner.mjs',
+  'scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json',
   ...[
     'sealedLaunchActivationGenerator', 'sealedLaunchVerifier',
     'sealedRealmsPublicActivationArtifactVerifier', 'authBridgeNotificationB0Closure',

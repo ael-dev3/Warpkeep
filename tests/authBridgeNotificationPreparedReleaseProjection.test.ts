@@ -60,6 +60,15 @@ const BOOTSTRAP_BINDINGS = Object.freeze([
       'scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json',
   }),
   Object.freeze({
+    name: 'WARPKEEP_PREPARED_PNPM_AUTHORITY_MANIFEST_SHA256',
+    path: 'scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json',
+  }),
+  Object.freeze({
+    name: 'WARPKEEP_PREPARED_LINUX_INSTALLED_TOOLCHAIN_MANIFEST_SHA256',
+    path:
+      'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json',
+  }),
+  Object.freeze({
     name: 'WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256',
     path: 'scripts/notification-pages-private-deploy-launcher.mjs',
   }),
@@ -67,7 +76,10 @@ const BOOTSTRAP_BINDINGS = Object.freeze([
 const BOOTSTRAP_WORKFLOWS = Object.freeze({
   '.github/workflows/deploy-pages.yml': Object.freeze({
     indentation: '  ',
-    names: BOOTSTRAP_BINDINGS.map(binding => binding.name),
+    names: [
+      ...BOOTSTRAP_BINDINGS.slice(0, 4).map(binding => binding.name),
+      BOOTSTRAP_BINDINGS[6].name,
+    ],
   }),
   '.github/workflows/notification-bridge-b0.yml': Object.freeze({
     indentation: '      ',
@@ -76,6 +88,14 @@ const BOOTSTRAP_WORKFLOWS = Object.freeze({
   '.github/workflows/notification-bridge-prepared.yml': Object.freeze({
     indentation: '      ',
     names: BOOTSTRAP_BINDINGS.slice(0, 4).map(binding => binding.name),
+  }),
+  '.github/workflows/notification-bridge-prepared-linux.yml': Object.freeze({
+    indentation: '      ',
+    names: [
+      ...BOOTSTRAP_BINDINGS.slice(0, 3).map(binding => binding.name),
+      BOOTSTRAP_BINDINGS[5].name,
+      BOOTSTRAP_BINDINGS[4].name,
+    ],
   }),
 });
 const REVIEWED_RELEASE_TRANSITION_PATHS =
@@ -452,7 +472,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
     for (let phase = 0; phase <= 7; phase += 1) {
       const root = createTransitionFixture(phase);
       const authority = verify(root);
-      expect(authority.memberCount).toBe(1195);
+      expect(authority.memberCount).toBe(1199);
       manifestDigests.add(authority.manifestSha256);
       for (const relativePath of REVIEWED_RELEASE_TRANSITION_PATHS) {
         const source = readFileSync(resolve(root, relativePath), 'utf8');
@@ -468,7 +488,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
   it('retains one closure authority through every exact reviewed phase', () => {
     const root = createTransitionFixture();
     const baseline = verify(root);
-    expect(baseline.memberCount).toBe(1195);
+    expect(baseline.memberCount).toBe(1199);
     const expectActiveIdentityRejectedBeforeActivation = (): void => {
       setLauncherReleaseIdentity(root, true);
       expect(() => verify(root)).toThrow(
@@ -741,7 +761,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
       replaceFile(root, relativePath, after, before);
     };
 
-    expect(verify(root).memberCount).toBe(1195);
+    expect(verify(root).memberCount).toBe(1199);
     expectIdentityMutationRejected(
       'package.json',
       '  "version": "0.4.0",',
@@ -860,7 +880,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
 
   it('keeps Pages bootstrap pins exact after activation-client projection', () => {
     const root = createTransitionFixture(7);
-    expect(verify(root).memberCount).toBe(1195);
+    expect(verify(root).memberCount).toBe(1199);
     const path = resolve(root, '.github/workflows/deploy-pages.yml');
     const source = readFileSync(path, 'utf8');
     const name = 'WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256';

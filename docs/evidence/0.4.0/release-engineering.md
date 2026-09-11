@@ -78,7 +78,7 @@ that source, not a statement that every gap remains present in current code.
 | `scripts/sealed-realms-production-dispatch.mjs:188` | Activation-evidence operation returns `SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE` | Executable approved generator composition with exact source, receipt ownership and reconciliation checks |
 | `scripts/sealed-realms-production-auth-bridge-state.mjs:2413` | `createSealedRealmsProductionActivationEvidenceGenerator` unconditionally fails; assert at 2422 and generator-consume at 2451 also fail | Canonical authenticated generator receipt and non-mutating reconciliation, valid private capability lifecycle, negative and recovery tests |
 | `scripts/sealed-realms-production-workflow-evidence.mjs:7` | Every syntactically valid commit still throws workflow-evidence unavailable | Genuine workflow-attested Verify evidence bound to exact reviewed source; no caller-SHA self-attestation |
-| Production runner/workflows | Sealed-realms operations now target the authenticated Linux x64 runner; durable notification bridge and Pages private lanes still target macOS/ARM64 | Supported isolated execution with real workflow identity, pinned toolchains and production credential separation |
+| Production runner/workflows | Sealed-realms operations and the prepared notification lane now have authenticated Linux x64 source wiring; B0 and Pages private lanes remain macOS/ARM64 legacy callers | Supported isolated execution with real workflow identity, pinned toolchains and production credential separation |
 
 The opaque activation-member checks and confirmation-consumption logic around the
 generator stubs are existing implementation, not a complete generator. Do not
@@ -210,8 +210,13 @@ At `78a0a7a`, production migration is not just a runner-label change:
 
 - `sealed-realms-production.yml` already selects the dedicated Linux x64 runner
   and checks its fixed owner, checkout and Node executable identity.
-- `notification-bridge-b0.yml` and `notification-bridge-prepared.yml` also bind
-  fixed Darwin Node/pnpm paths and the Darwin installed-toolchain manifest.
+- `notification-bridge-b0.yml` and the historical
+  `notification-bridge-prepared.yml` still bind fixed Darwin Node/pnpm paths
+  and the Darwin installed-toolchain manifest.
+- `notification-bridge-prepared-linux.yml` now binds the dedicated Linux x64
+  runner, fixed Node and pnpm authorities, Linux installed-toolchain manifest,
+  and the profile-aware deployment entrypoint. Its first authenticated run and
+  recovery readback remain outstanding.
 - `deploy-pages.yml` has Linux-aware disposable build setup, but its protected
   execution jobs still select macOS and consume that same Darwin manifest.
 - `auth-bridge-notification-prepared-installed-toolchain.mjs` now carries

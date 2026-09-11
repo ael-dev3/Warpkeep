@@ -13,6 +13,11 @@
       "sha256": "747a735cb6e1093256e479cf24dca19e93748d13ae94abe1c07c651c057f7eea"
     },
     {
+      "path": ".github/workflows/notification-bridge-prepared-linux.yml",
+      "digestProfile": "bootstrap-pin-projection-sha256-v1",
+      "sha256": "d04f773a6443b2cc96d96e95b4f17ce378ee3e1e1ae378d1aee4a88a2172783d"
+    },
+    {
       "path": ".github/workflows/notification-bridge-prepared.yml",
       "digestProfile": "bootstrap-pin-projection-sha256-v1",
       "sha256": "d6484216c1552d3cc2ed6e70456348038619753f68e44dbedab3b08110a1443f"
@@ -335,7 +340,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6974e0cd184008e252416bcb7a0b8371d70951c64ba64c529ac71e181b542f76"
+      "sha256": "4e5cedb54609ddfa7774fffb5e9219fb5b3969200cd717d2e17d7f03ed9736d8"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.d.mts",
@@ -345,7 +350,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2acb3e0a236ec3a2f5fdc5ee298af3ab18ea7977dd1a4e59437360747fc0bc43"
+      "sha256": "80d69d40cd0da1f9a55bec66f2e46ace0ab9b101bd58bc2afd92211d9c394f6f"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -365,7 +370,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f2cb99001f71d4da7fd616fd189184cb2069a70dc2ac9f6a9787307536065d9c"
+      "sha256": "303c2651b28da2d1eea98a98399b0cbf92b2e3477f3be66199db72f5ffbab498"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json",
@@ -386,6 +391,16 @@
       "path": "scripts/auth-bridge-notification-prepared-installed-toolchain.mjs",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "ab3e72b4d71b6f949f5fb3f3dd1a53548b39184214f5a755975f570c23d9000b"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-linux-runner.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "41e5403df8a87c1da8b28a2a7270da161c90d14ed0b1487e953dc20ab8df0a78"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "346661bf89426db64f2911b6b0e7d3f5abf0d717d067b0b6c81602e6c570519a"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-receipt.d.mts",
@@ -1225,7 +1240,7 @@
     {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "82b900c4529454ecaaf75eed31629d586a985da7fb6dd82aeb44f3f3bce3a877"
+      "sha256": "f703c1de4221d8ca61e48e0a41a46a3ea623a6dd91b1f8af015f491b59615a23"
     },
     {
       "path": "scripts/production-player-canary-admin-transport.ts",

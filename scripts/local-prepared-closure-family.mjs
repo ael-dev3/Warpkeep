@@ -10,6 +10,7 @@ const MANIFEST = 'scripts/auth-bridge-notification-prepared-deploy-closure-v1.js
 const SOURCE_PIN_OUTPUTS = ['scripts/generate-0.4.0-sealed-launch-activation.mjs',
   'scripts/verify-0.4.0-sealed-launch.mjs', 'tests/sealedLaunchActivationGenerator.test.ts'];
 const WORKFLOWS = ['.github/workflows/deploy-pages.yml', '.github/workflows/notification-bridge-b0.yml',
+  '.github/workflows/notification-bridge-prepared-linux.yml',
   '.github/workflows/notification-bridge-prepared.yml'];
 const INVENTORY = /^export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =\r?\n  Object\.freeze\(\[\r?\n(?:    '[A-Za-z0-9._/-]+',\r?\n)+  \]\);/gm;
 const MAX_FILE = 4 * 1024 * 1024;
@@ -94,7 +95,7 @@ export async function derivePreparedClosureFamily(...args) {
     }
     const files = [...outputs].sort(([left], [right]) => left < right ? -1 : 1)
       .map(([path, bytes]) => Object.freeze({ path, bytes }));
-    if (files.length !== 15 || files.some(file => !isPreparedReleaseOutputPath(file.path))) fail();
+    if (files.length !== 16 || files.some(file => !isPreparedReleaseOutputPath(file.path))) fail();
     const retained = new Set(files.map(file => file.bytes));
     for (const bytes of owned) if (!retained.has(bytes)) bytes.fill(0);
     success = true;

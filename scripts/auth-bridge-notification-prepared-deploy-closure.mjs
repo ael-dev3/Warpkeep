@@ -105,9 +105,29 @@ const BOOTSTRAP_PIN_BINDINGS = Object.freeze([
       'scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json',
   }),
   Object.freeze({
+    name: 'WARPKEEP_PREPARED_PNPM_AUTHORITY_MANIFEST_SHA256',
+    path: 'scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json',
+  }),
+  Object.freeze({
+    name: 'WARPKEEP_PREPARED_LINUX_INSTALLED_TOOLCHAIN_MANIFEST_SHA256',
+    path:
+      'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json',
+  }),
+  Object.freeze({
     name: 'WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256',
     path: 'scripts/notification-pages-private-deploy-launcher.mjs',
   }),
+]);
+const LINUX_BOOTSTRAP_PIN_BINDINGS = Object.freeze(
+  [
+    ...BOOTSTRAP_PIN_BINDINGS.slice(0, 3),
+    BOOTSTRAP_PIN_BINDINGS[5],
+    BOOTSTRAP_PIN_BINDINGS[4],
+  ],
+);
+const PAGES_BOOTSTRAP_PIN_BINDINGS = Object.freeze([
+  ...BOOTSTRAP_PIN_BINDINGS.slice(0, 4),
+  BOOTSTRAP_PIN_BINDINGS[6],
 ]);
 const BOOTSTRAP_PINNED_WORKFLOWS = new Map([
   ['.github/workflows/notification-bridge-b0.yml', Object.freeze({
@@ -118,9 +138,13 @@ const BOOTSTRAP_PINNED_WORKFLOWS = new Map([
     indentation: '      ',
     bindings: Object.freeze(BOOTSTRAP_PIN_BINDINGS.slice(0, 4)),
   })],
+  ['.github/workflows/notification-bridge-prepared-linux.yml', Object.freeze({
+    indentation: '      ',
+    bindings: LINUX_BOOTSTRAP_PIN_BINDINGS,
+  })],
   ['.github/workflows/deploy-pages.yml', Object.freeze({
     indentation: '  ',
-    bindings: BOOTSTRAP_PIN_BINDINGS,
+    bindings: PAGES_BOOTSTRAP_PIN_BINDINGS,
   })],
 ]);
 
@@ -198,6 +222,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
   Object.freeze([
     '.github/workflows/deploy-pages.yml',
     '.github/workflows/notification-bridge-b0.yml',
+    '.github/workflows/notification-bridge-prepared-linux.yml',
     '.github/workflows/notification-bridge-prepared.yml',
     '.github/workflows/verify.yml',
     'config/releases/0.4.0-sealed-launch.json',
@@ -273,6 +298,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json',
     'scripts/auth-bridge-notification-prepared-installed-toolchain.d.mts',
     'scripts/auth-bridge-notification-prepared-installed-toolchain.mjs',
+    'scripts/auth-bridge-notification-prepared-linux-runner.mjs',
+    'scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json',
     'scripts/auth-bridge-notification-prepared-receipt.d.mts',
     'scripts/auth-bridge-notification-prepared-receipt.mjs',
     'scripts/auth-bridge-notification-prepared-release-binding.d.mts',

@@ -56,6 +56,15 @@ const BOOTSTRAP_BINDINGS = Object.freeze([
       'scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json',
   }),
   Object.freeze({
+    name: 'WARPKEEP_PREPARED_PNPM_AUTHORITY_MANIFEST_SHA256',
+    path: 'scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json',
+  }),
+  Object.freeze({
+    name: 'WARPKEEP_PREPARED_LINUX_INSTALLED_TOOLCHAIN_MANIFEST_SHA256',
+    path:
+      'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json',
+  }),
+  Object.freeze({
     name: 'WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256',
     path: 'scripts/notification-pages-private-deploy-launcher.mjs',
   }),
@@ -63,7 +72,10 @@ const BOOTSTRAP_BINDINGS = Object.freeze([
 const BOOTSTRAP_WORKFLOWS = Object.freeze({
   '.github/workflows/deploy-pages.yml': Object.freeze({
     indentation: '  ',
-    names: BOOTSTRAP_BINDINGS.map(binding => binding.name),
+    names: [
+      ...BOOTSTRAP_BINDINGS.slice(0, 4).map(binding => binding.name),
+      BOOTSTRAP_BINDINGS[6].name,
+    ],
   }),
   '.github/workflows/notification-bridge-b0.yml': Object.freeze({
     indentation: '      ',
@@ -72,6 +84,14 @@ const BOOTSTRAP_WORKFLOWS = Object.freeze({
   '.github/workflows/notification-bridge-prepared.yml': Object.freeze({
     indentation: '      ',
     names: BOOTSTRAP_BINDINGS.slice(0, 4).map(binding => binding.name),
+  }),
+  '.github/workflows/notification-bridge-prepared-linux.yml': Object.freeze({
+    indentation: '      ',
+    names: [
+      ...BOOTSTRAP_BINDINGS.slice(0, 3).map(binding => binding.name),
+      BOOTSTRAP_BINDINGS[5].name,
+      BOOTSTRAP_BINDINGS[4].name,
+    ],
   }),
 });
 const workflowPaths = Object.keys(BOOTSTRAP_WORKFLOWS).sort();

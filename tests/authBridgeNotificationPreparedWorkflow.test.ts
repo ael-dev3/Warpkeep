@@ -76,6 +76,18 @@ const pagesBootstrapPinFiles = Object.freeze({
   WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256:
     'scripts/notification-pages-private-deploy-launcher.mjs',
 });
+const linuxBootstrapPinFiles = Object.freeze({
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256:
+    'scripts/auth-bridge-notification-prepared-deploy-closure.mjs',
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256:
+    'scripts/auth-bridge-notification-prepared-deploy-closure-v1.json',
+  WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256:
+    'scripts/auth-bridge-notification-prepared-installed-toolchain.mjs',
+  WARPKEEP_PREPARED_LINUX_INSTALLED_TOOLCHAIN_MANIFEST_SHA256:
+    'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json',
+  WARPKEEP_PREPARED_PNPM_AUTHORITY_MANIFEST_SHA256:
+    'scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json',
+});
 const ZERO_SHA256 = '0'.repeat(64);
 const OFFICIAL_NODE_22_22_3_DARWIN_ARM64_SHA256 =
   '5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c';
@@ -93,6 +105,7 @@ const RELEASE_TRANSITION_PATHS = AUTH_BRIDGE_RELEASE_TRANSITION_FIXTURE_PATHS;
 const BOOTSTRAP_PROJECTION_PATHS = new Set([
   '.github/workflows/deploy-pages.yml',
   '.github/workflows/notification-bridge-b0.yml',
+  '.github/workflows/notification-bridge-prepared-linux.yml',
   '.github/workflows/notification-bridge-prepared.yml',
 ]);
 const RETAINED_TYPE_ONLY_DECLARATION_PATHS = Object.freeze([
@@ -110,6 +123,7 @@ const G001_LINUX_DECLARATIONLESS_ENTRYPOINTS = Object.freeze([
   'scripts/local-binding-runtime-core.mjs',
   'scripts/local-binding-runtime-process.mjs',
   'scripts/local-program-artifact.mjs',
+  'scripts/auth-bridge-notification-prepared-linux-runner.mjs',
   'scripts/sealed-realms-production-workflow-evidence-json.mjs',
   'scripts/sealed-realms-production-workflow-evidence.mjs',
   'scripts/spacetime-binding-tree.mjs',
@@ -401,7 +415,9 @@ function canonicalFixtureMember(relativePath: string, source: Buffer): Buffer {
   }
   const names = relativePath === '.github/workflows/deploy-pages.yml'
     ? Object.keys(pagesBootstrapPinFiles)
-    : Object.keys(bootstrapPinFiles);
+    : relativePath === '.github/workflows/notification-bridge-prepared-linux.yml'
+      ? Object.keys(linuxBootstrapPinFiles)
+      : Object.keys(bootstrapPinFiles);
   const indentation = relativePath === '.github/workflows/deploy-pages.yml'
     ? '  '
     : '      ';
@@ -512,7 +528,11 @@ function createPolicyFixture(): string {
   );
   mkdirSync(dirname(manifestPath), { recursive: true });
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  const allPins = new Map(Object.entries(pagesBootstrapPinFiles).map(
+  const allPinFiles = {
+    ...pagesBootstrapPinFiles,
+    ...linuxBootstrapPinFiles,
+  };
+  const allPins = new Map(Object.entries(allPinFiles).map(
     ([name, relativePath]) => [name, createHash('sha256')
       .update(readFileSync(relativePath ===
         AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH
@@ -535,6 +555,11 @@ function createPolicyFixture(): string {
       '.github/workflows/deploy-pages.yml',
       Object.keys(pagesBootstrapPinFiles),
       '  ',
+    ],
+    [
+      '.github/workflows/notification-bridge-prepared-linux.yml',
+      Object.keys(linuxBootstrapPinFiles),
+      '      ',
     ],
   ] as const) {
     const path = resolve(root, relativePath);
@@ -1243,7 +1268,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         guardedRecoveryRequired: true,
         privateReceiptSinkRequired: true,
         installedToolchainByteAttestationRequired: true,
-        executableSecurityClosureMemberCount: 1195,
+        executableSecurityClosureMemberCount: 1199,
       });
   }, 180_000);
 
@@ -1261,7 +1286,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     });
     expect(paths).toEqual(manifest.members.map(member => member.path));
     expect(manifest.schemaVersion).toBe(2);
-    expect(paths).toHaveLength(1195);
+    expect(paths).toHaveLength(1199);
     expect(paths).toEqual(expect.arrayContaining([
       'scripts/auth-bridge-notification-prepared-deploy.mjs',
       'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
@@ -1339,7 +1364,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       repositoryRoot: root,
     })).toMatchObject({
         profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1',
-        memberCount: 1195,
+        memberCount: 1199,
         manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       });
   }, 180_000);

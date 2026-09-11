@@ -40,6 +40,15 @@ const execFileAsync = promisify(execFile);
 const REPOSITORY = 'ael-dev3/Warpkeep';
 const WORKFLOW_PATH = '.github/workflows/notification-bridge-prepared.yml';
 const WORKFLOW_REF = `${REPOSITORY}/${WORKFLOW_PATH}@refs/heads/main`;
+const ACTIVE_TOOLCHAIN_PROFILE_ENV =
+  'WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE';
+const ACTIVE_TOOLCHAIN_PROFILE =
+  process.env[ACTIVE_TOOLCHAIN_PROFILE_ENV] ?? 'darwin-arm64';
+const ACTIVE_WORKFLOW_PATH = ACTIVE_TOOLCHAIN_PROFILE === 'linux-x64'
+  ? '.github/workflows/notification-bridge-prepared-linux.yml'
+  : WORKFLOW_PATH;
+const ACTIVE_WORKFLOW_REF =
+  `${REPOSITORY}/${ACTIVE_WORKFLOW_PATH}@refs/heads/main`;
 const GITHUB_ORIGIN = 'https://api.github.com';
 const SOURCE_COMMIT = /^[a-f0-9]{40}$/u;
 const ACCOUNT_ID = /^[a-f0-9]{32}$/u;
@@ -214,7 +223,7 @@ function copyAndScrubEnvironment(environment) {
     || values.GITHUB_EVENT_NAME !== 'workflow_dispatch'
     || values.GITHUB_REF !== 'refs/heads/main'
     || values.GITHUB_REPOSITORY !== REPOSITORY
-    || values.GITHUB_WORKFLOW_REF !== WORKFLOW_REF
+    || values.GITHUB_WORKFLOW_REF !== ACTIVE_WORKFLOW_REF
     || !SOURCE_COMMIT.test(values.GITHUB_SHA)
     || !RUN_ID.test(values.GITHUB_RUN_ID)
     || !RUN_ID.test(values.GITHUB_RUN_ATTEMPT)
@@ -261,7 +270,7 @@ function copyAndScrubRecoveryEnvironment(environment) {
     || values.GITHUB_EVENT_NAME !== 'workflow_dispatch'
     || values.GITHUB_REF !== 'refs/heads/main'
     || values.GITHUB_REPOSITORY !== REPOSITORY
-    || values.GITHUB_WORKFLOW_REF !== WORKFLOW_REF
+    || values.GITHUB_WORKFLOW_REF !== ACTIVE_WORKFLOW_REF
     || !SOURCE_COMMIT.test(values.GITHUB_SHA)
     || !RUN_ID.test(values.GITHUB_RUN_ID)
     || !RUN_ID.test(values.GITHUB_RUN_ATTEMPT)
@@ -1065,7 +1074,7 @@ export function createAuthBridgeNotificationPreparedGithubWritePermit({
       || run.conclusion !== null
       || run.head_branch !== 'main'
       || run.head_sha !== sourceCommit
-      || run.path !== WORKFLOW_PATH
+      || run.path !== ACTIVE_WORKFLOW_PATH
       || run.repository?.full_name !== REPOSITORY
       || isInterrupted()
     ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_WRITE_PERMIT_REJECTED');
