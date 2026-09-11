@@ -32,8 +32,8 @@ fresh evidence bound to the final reviewed and deployed source.
 
 ## What is not yet sufficient
 
-- The current-head CodeQL run `34611291885` has passed. Verify run
-  `34611291981` has `auth-bridge`, `native-contract` and `release-recovery`
+- The current-head CodeQL run `34615045766` has passed. Verify run
+  `34615046117` has `auth-bridge`, `native-contract` and `release-recovery`
   passing while `linux` and `spacetimedb-module` remain in progress; R14
   cannot be green until Verify reaches terminal success and the signed-history
   requirement is reconciled.

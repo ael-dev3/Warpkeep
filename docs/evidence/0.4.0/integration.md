@@ -6,7 +6,7 @@ publication and protected CI are still separate from production deployment.
 
 ## Current checkpoint — 2026-09-11
 
-The current Verify run `34611291981` and CodeQL run `34611291885` linked from
+The current Verify run `34615046117` and CodeQL run `34615045766` linked from
 PR #228 are the R14 authority for head `b0e634350ed1ef02e6ee9704421856c7db27d7e0`.
 CodeQL has passed; Verify's Linux and SpacetimeDB jobs remain in progress. Read
 Verify at terminal state before marking R14 complete; earlier mixed or green

@@ -24,7 +24,7 @@ local operations evidence; the candidate is
 closure manifest
 `258bb6c3237e2ca386d78358af442d9a6a562f5b21d4bcb18ae1e9caf6f3f2e6`.
 The candidate remains preparation evidence only, with `finalReleasePrepared: false`.
-Protected Verify run `34611291981` and CodeQL run `34611291885` remain the CI
+Protected Verify run `34615046117` and CodeQL run `34615045766` remain the CI
 authority; CodeQL has passed and Verify is still running its Linux and
 SpacetimeDB jobs, so read Verify at terminal state. This evidence still does not establish provider deployment, recovery
 readback, owner admission, physical-device performance or final release approval.
