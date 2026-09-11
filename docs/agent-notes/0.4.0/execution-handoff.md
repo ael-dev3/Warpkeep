@@ -7,18 +7,21 @@ live release. The current user's direction takes precedence over historical plan
 
 ## Current source-bound state — 2026-09-11
 
-The functional recovery-lane repair is `22a834e6d7d0106e5d6cfd535a90692bdfe17ff5`;
-generated protected-family refreeze `b8a6c5ab811f8ef6b2cf916d1446336428606823`
-is published on `codex/prepared-keep-bindings-fix`. Native Linux `prepare` and
-independent `check` passed for candidate
-`release-workspace-328713ba2532b2dcef3815d7e9d7daa2`, source tree
-`cec3750ef8a363b55b7f71cd55c0522e160be3a7`, and closure manifest
-`445e5f7131ba85dbbe89edb4b28abff39a9d584f73118fbe3ec35d051908320a`; the
-native closure verifier reports 1,195 members. The protected Verify and CodeQL
-runs attached to the published head are the current CI authority and must be
-read at their terminal state. This evidence still does not establish provider
-deployment, recovery readback, owner admission, physical-device performance or
-final release approval.
+The current source-bound checkpoint is `aef672061e22cebeec66a7d22bda92bcb459d9d1`;
+generated protected-family refreeze `4bbe860b` follows it on
+`codex/prepared-keep-bindings-fix`. Native Linux `prepare` and independent
+`check` passed for candidate
+`release-workspace-342ea5448bfeb9bdf9dc51c7e31b67e4`, source tree
+`5def926b9ad4f4cd940742a67bb5335f6b21a1ef`, family digest
+`c632804d2990d8f18c7bbf5405775a245139ddddc8fa5a99c01a44a5b69e10df`, and
+closure manifest `0013fc94514cf623b829138d2fe2ed1564dc90498ce84e8cd516bd9aac7dd07b`.
+The run checked 3,181 source/candidate files, 101 outputs, 444 bundle inputs and
+7 recovery inputs; the public activation bundle contains zero private marker
+tokens. The native closure verifier reports 1,195 members and the public-boundary
+verifier passes. Protected Verify and CodeQL remain the CI authority and must be
+read at their terminal state after this head is pushed. This evidence still does
+not establish provider deployment, recovery readback, owner admission,
+physical-device performance or final release approval.
 
 The checked-in `sealed-realms-production.yml` routes only `preflight`,
 `g001-policy-observe`, and activation evidence operations to the installed Linux

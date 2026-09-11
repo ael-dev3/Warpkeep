@@ -1,9 +1,9 @@
 # Release engineering: implementation and evidence
 
-Current reading point: the functional source-bound checkpoint is
-`22a834e6d7d0106e5d6cfd535a90692bdfe17ff5`; generated protected-family
-refreeze `b8a6c5ab811f8ef6b2cf916d1446336428606823` follows it. Later branch
-commits may be documentation-only follow-ups. The
+Current reading point: the source-bound checkpoint is
+`aef672061e22cebeec66a7d22bda92bcb459d9d1`; generated protected-family
+refreeze `4bbe860b` follows it. Later branch commits may be documentation-only
+follow-ups. The
 September 9 source checkpoint
 `206c036` records the latest retained assembled-artifact execution above the
 historical entries in this record; the September 8 entries at the end cover
@@ -19,6 +19,18 @@ component success does not establish unrecorded production acceptance.
 
 ## Current runner alignment — 2026-09-11
 
+The final isolated marker-safe native pass prepared and independently checked
+candidate `release-workspace-342ea5448bfeb9bdf9dc51c7e31b67e4` from source
+`aef672061e22cebeec66a7d22bda92bcb459d9d1` and source tree
+`5def926b9ad4f4cd940742a67bb5335f6b21a1ef`. It produced family digest
+`c632804d2990d8f18c7bbf5405775a245139ddddc8fa5a99c01a44a5b69e10df`, closure
+manifest `0013fc94514cf623b829138d2fe2ed1564dc90498ce84e8cd516bd9aac7dd07b`,
+and scanner manifest `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+The generated family is refrozen in `4bbe860b`. The native closure verifier
+passed 1,195 members, the Greater Realm public-boundary verifier passed 3,181
+tracked paths and 1,324 scanned entries, and the emitted activation bundle has
+no private-marker bytes. `finalReleasePrepared` remains false by design.
+
 The checked-in recovery Pages caller is aligned with the currently registered
 Linux runner `warpkeep-wsl-production-01`: the job and its private directory
 helper require `warpkeep` UID/GID 1000 and the separate
@@ -27,7 +39,7 @@ helper require `warpkeep` UID/GID 1000 and the separate
 operating prerequisite. The root is provisioned empty; no recovery claim,
 credential or deployment authorization exists yet.
 
-The native Linux assembler then prepared and independently checked the
+The earlier native Linux assembler prepared and independently checked the
 source-bound candidate `release-workspace-328713ba2532b2dcef3815d7e9d7daa2`
 from source `22a834e6d7d0106e5d6cfd535a90692bdfe17ff5`, source tree
 `cec3750ef8a363b55b7f71cd55c0522e160be3a7`, transaction

@@ -10,13 +10,13 @@ UID/GID 1000. GitHub reported existing runner ID 22 online and idle at 21:20 UTC
 after completing the interrupted helper/marker installation. Empty sealed private
 roots are now provisioned. No credentials or receipts were migrated and no
 protected workflow was dispatched. Native `prepare` and independent `check` pass
-for the latest functional source-bound checkpoint
-`22a834e6d7d0106e5d6cfd535a90692bdfe17ff5` with the 1,195-member closure and
+for source checkpoint
+`aef672061e22cebeec66a7d22bda92bcb459d9d1` with the 1,195-member closure and
 the full 3,181-file candidate family; the candidate is
-`release-workspace-328713ba2532b2dcef3815d7e9d7daa2` and its source tree is
-`cec3750ef8a363b55b7f71cd55c0522e160be3a7`. Generated protected family
-refreeze `b8a6c5ab811f8ef6b2cf916d1446336428606823` is committed and the native
-closure verifier reports all 1,195 members verified. Any later branch commits
+`release-workspace-342ea5448bfeb9bdf9dc51c7e31b67e4` and its source tree is
+`5def926b9ad4f4cd940742a67bb5335f6b21a1ef`. Generated protected family
+refreeze `4bbe860b` is committed; the native closure and public-boundary
+verifiers pass and the activation artifact has no private marker tokens. Any later branch commits
 in this section are documentation-only follow-ups and must be checked against
 the exact GitHub head before use. This supersedes the historical setup and
 offline observations below.

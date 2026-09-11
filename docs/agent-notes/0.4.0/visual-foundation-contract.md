@@ -9,9 +9,9 @@ reference into an imported engine, a new economy, or a promise of deep
 interactivity.
 
 The visual contract is maintained against the current PR #228 documentation
-head; the functional source-bound checkpoint is
-`22a834e6d7d0106e5d6cfd535a90692bdfe17ff5` and generated protected-family
-refreeze `b8a6c5ab811f8ef6b2cf916d1446336428606823` follows it. Earlier hashes in
+head; the source-bound checkpoint is
+`aef672061e22cebeec66a7d22bda92bcb459d9d1` and generated protected-family
+refreeze `4bbe860b` follows it. Earlier hashes in
 dated evidence records remain historical anchors
 and are not the source to review for a new pass. The latest connected
 checkpoint covers the four-worker journey, fresh-browser re-entry, private

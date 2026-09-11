@@ -4,10 +4,10 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 ## Current source and protected checks — 2026-09-11
 
-Windows, native WSL and upstream are synchronized on
-`codex/prepared-keep-bindings-fix` at generated refreeze
-`b8a6c5ab811f8ef6b2cf916d1446336428606823` (functional source checkpoint
-`22a834e6d7d0106e5d6cfd535a90692bdfe17ff5`). The current Verify and CodeQL
+Windows and native WSL are synchronized on
+`codex/prepared-keep-bindings-fix` at source checkpoint
+`aef672061e22cebeec66a7d22bda92bcb459d9d1` with generated refreeze `4bbe860b`.
+The current Verify and CodeQL
 checks linked from PR #228 remain required before R14. The native release
 evidence below is bound to those exact source coordinates; later documentation
 commits do not create a new release candidate.
@@ -56,7 +56,19 @@ includes the task details, idempotent manual command and limits.
 
 ## Native release assembler — 2026-09-11
 
-The latest functional source-bound checkpoint `22a834e6d7d0106e5d6cfd535a90692bdfe17ff5`
+The final marker-safe pass prepared and independently checked candidate
+`release-workspace-342ea5448bfeb9bdf9dc51c7e31b67e4` from source tree
+`5def926b9ad4f4cd940742a67bb5335f6b21a1ef`. Its family digest is
+`c632804d2990d8f18c7bbf5405775a245139ddddc8fa5a99c01a44a5b69e10df` and its
+closure manifest digest is
+`0013fc94514cf623b829138d2fe2ed1564dc90498ce84e8cd516bd9aac7dd07b`.
+The pass checked 3,181 source/candidate files, 101 generated outputs, 444
+compiled bundle inputs and 7 recovery inputs. The closure verifier passed 1,195
+members; the public-boundary verifier passed; and the activation artifact had
+zero private marker tokens. This is still preparation evidence, not a release
+grant.
+
+The earlier functional source-bound checkpoint `22a834e6d7d0106e5d6cfd535a90692bdfe17ff5`
 was prepared and independently checked again from the native checkout. Both
 lanes returned candidate `release-workspace-328713ba2532b2dcef3815d7e9d7daa2`,
 source tree `cec3750ef8a363b55b7f71cd55c0522e160be3a7`, family digest
