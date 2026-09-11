@@ -9,24 +9,23 @@ is the compact read of what is ready for development and what still blocks a shi
 
 ## Current source-bound state — 2026-09-11
 
-The latest published head is `a11f023cc6592d7f2915782d1158edee5e895ae6` on
+The latest published head is `867c70d7f0d4721df59bdd59967412ba45f02b50` on
 `codex/prepared-keep-bindings-fix`; Windows and native WSL are clean and
 synchronized at that exact head. It includes the portable rendered-WebGL and
-Windows archive/cache workflow repair. The native release candidate remains
-source-bound to `aef672061e22cebeec66a7d22bda92bcb459d9d1`; generated protected-family
-refreeze `4bbe860b` follows it. Native Linux `prepare` and independent
-`check` passed for candidate
-`release-workspace-342ea5448bfeb9bdf9dc51c7e31b67e4`, source tree
-`5def926b9ad4f4cd940742a67bb5335f6b21a1ef`, family digest
-`c632804d2990d8f18c7bbf5405775a245139ddddc8fa5a99c01a44a5b69e10df`, and
-closure manifest `0013fc94514cf623b829138d2fe2ed1564dc90498ce84e8cd516bd9aac7dd07b`.
-The run checked 3,181 source/candidate files, 101 outputs, 444 bundle inputs and
-7 recovery inputs; the public activation bundle contains zero private marker
-tokens. The native closure verifier reports 1,195 members and the public-boundary
-verifier passes. Protected Verify and CodeQL remain the CI authority and must be
-read at their terminal state after this head is pushed. This evidence still does
-not establish provider deployment, recovery readback, owner admission,
-physical-device performance or final release approval.
+Windows archive/cache workflow repair plus the dated workflow sufficiency audit.
+Native Linux `prepare` and independent `check` passed for candidate
+`release-workspace-b800ee0ee30f970efe56fe6da4efa6fa`, source tree
+`563bbbcca8a173f82d55f7f24514f6c8ddb2d1a1`, transaction
+`9b8a2aedcef4df54a234e69b606ee7ab`, family digest
+`9c822f12ad08ccde44dc63a26c89181e34091f3deaf4abb228094143067ce5a0`, and
+closure manifest `ba9640a0aa3660e65b649717cc1ce1f187a6924fdd847f59af7914c042c65d5d`.
+The run checked 3,186 source/candidate files, 101 generated outputs, 444 bundle
+inputs and 7 recovery inputs; the public activation bundle contains zero private
+marker tokens. The native closure verifier reports 1,195 members and the
+public-boundary verifier passes. `finalReleasePrepared` remains `false`.
+Protected Verify and CodeQL remain the CI authority and must be read at terminal
+state. This evidence still does not establish provider deployment, recovery
+readback, owner admission, physical-device performance or final release approval.
 
 The checked-in `sealed-realms-production.yml` routes only `preflight`,
 `g001-policy-observe`, and activation evidence operations to the installed Linux

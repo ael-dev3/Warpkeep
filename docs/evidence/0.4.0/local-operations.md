@@ -18,6 +18,25 @@ protection/merge reconciliation gate. The native release
 evidence below is bound to those exact source coordinates; later documentation
 commits do not create a new release candidate.
 
+## Current-head native preparation and independent check — 2026-09-11
+
+After repairing the WSL checkout ownership drift, the dedicated Linux assembler
+completed both `prepare` and independent `check` from the exact published head
+`867c70d7f0d4721df59bdd59967412ba45f02b50`. Both lanes converged on candidate
+`release-workspace-b800ee0ee30f970efe56fe6da4efa6fa`, source tree
+`563bbbcca8a173f82d55f7f24514f6c8ddb2d1a1`, transaction
+`9b8a2aedcef4df54a234e69b606ee7ab`, journal SHA-256
+`f30d99e461b81a6b3e464e5e522e9797412eee2c3f90ba3ec11a246662b15bc6`, family
+SHA-256 `9c822f12ad08ccde44dc63a26c89181e34091f3deaf4abb228094143067ce5a0`,
+closure manifest SHA-256
+`ba9640a0aa3660e65b649717cc1ce1f187a6924fdd847f59af7914c042c65d5d`, and
+scanner manifest SHA-256
+`edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+The run checked 3,186 source files and 3,186 candidate files, 101 generated
+outputs, 3,085 preserved source files, 444 compiled bundle inputs and 7
+recovery inputs. `finalReleasePrepared` remains `false`: this is current-source
+preparation and convergence evidence, not deployment or release authorization.
+
 The hidden `Warpkeep Runner Keepalive` task was manually started once after its
 registration and the `WarpkeepRunner` guest remained available. This verifies
 the task action can hold the guest open in the current session; it does not

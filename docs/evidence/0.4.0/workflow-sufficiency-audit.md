@@ -35,8 +35,10 @@ fresh evidence bound to the final reviewed and deployed source.
   code and checks are green.
 - The full Windows rendered matrix still fails closed on a Chrome runtime
   exception. Linux is the release authority for retained rendered evidence.
-- The native candidate was prepared from `aef67206`; the later portability and
-  documentation heads require a fresh native preparation/check before R13.
+- Fresh native preparation and independent checking now pass from the exact
+  published head `867c70d7`, with a converged candidate, closure and public
+  boundary. This closes the local R13 preparation gap; it does not itself grant
+  deployment authorization or complete the release freeze.
 - The production workflow has no authenticated provider receipts for Cloudflare,
   SpacetimeDB deployment, recovery readback, G002 import/publication or PTR
   owner provisioning. Those operations intentionally remain fail-closed or
