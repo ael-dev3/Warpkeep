@@ -6,7 +6,7 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 Windows and native WSL are synchronized on
 `codex/prepared-keep-bindings-fix` at the current clean branch head
-`a5204b80776bc4234c7301e26f77d1e0aaef4deb`. The preceding implementation
+`cea2907191cd13c041e71533a2b62cf6641b4ad1`. The preceding implementation
 commit adds the dedicated
 Linux x64 prepared notification workflow, fixed runner, pinned pnpm authority,
 and 1,199-member closure refreeze. The native preparation evidence below is

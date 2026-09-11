@@ -10,7 +10,7 @@ is the compact read of what is ready for development and what still blocks a shi
 ## Current source-bound state — 2026-09-11
 
 The current clean branch head is
-`a5204b80776bc4234c7301e26f77d1e0aaef4deb` on
+`cea2907191cd13c041e71533a2b62cf6641b4ad1` on
 `codex/prepared-keep-bindings-fix`; Windows, GitHub and native WSL are
 synchronized at that commit. The preceding implementation commit adds the
 dedicated Linux x64 prepared notification workflow, fixed runner entrypoint,
