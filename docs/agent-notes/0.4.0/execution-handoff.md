@@ -2,6 +2,17 @@
 
 ## Current review and next work — 12 September 2026
 
+The Windows development branch is now `codex/0.4-pending-panel-dismissal`, based
+on published PR #240 head `9ac3ee3628a8586fd1338c4f036f46bad414fca9`.
+Its focused follow-up fixes the real host's rejected Close/Escape request during
+a pending command or refresh; see the [gameplay evidence](../../evidence/0.4.0/gameplay.md#panel-dismissal-during-a-request-or-refresh--2026-09-12).
+All eight new integration cases reproduced the defect and then passed; the full
+host/screen selection passed 68 tests, both type projects passed and independent
+review found no actionable defect. This changes a prepared-closure member, so
+publish the reviewed source first, then prepare/check its own complete family.
+Keep this follow-up separate while PR #240's hosted checks use unchanged `9ac3ee36`.
+Resolve the live branches and dependent PR base before later protected integration.
+
 Corrected source `3710f139b3572ae0a742d582d0d79d8aa88d9476` completed native
 preparation `91889` and independent rebuilding check `80884`, both exit zero
 with all returned fields equal. Candidate
@@ -12,10 +23,11 @@ all outputs and preserved source were checked. Generated-only staging matches
 tree `4795a1fe2bb6b6eeb5851c538a352b454aa66596`. Its seven changed paths carry
 only manifests and workflow pins; compiled bodies and count fixtures are stable.
 The targeted signature regression passed all seven selected cases (`30348`);
-156 other cases were filtered. Next, publish this integration checkpoint, then
-fast-forward the idle native checkout and run all 163 prepared-workflow cases
-plus its affected generated consumers. Read current-head hosted checks before
-normal protected integration. Do not rerun either completed preparation command.
+156 other cases were filtered. Published integration `9ac3ee36` subsequently
+passed all 365 native cases across eight suites, including all 163 prepared-
+workflow cases, without skips (`81593`, exit zero, 289.91 seconds). The native
+checkout remained clean at that source. Its hosted checks and normal protected
+integration remain required. Do not rerun either completed preparation command.
 
 The source at `9e098f75` has now completed actual native preparation `67204`
 and independent rebuilding check `6320`, both exit zero with every result field
@@ -45,7 +57,7 @@ assertions or restart the completed Windows run.
 The operating checkout can synchronize after publication because its native
 preparation/check processes have completed. Do not restart completed runs.
 
-The current working branch is `codex/0.4-bridge-predecessor-repair` in
+The release-integration branch remains `codex/0.4-bridge-predecessor-repair` in
 [PR #240](https://github.com/ael-dev3/Warpkeep/pull/240), integrating the pending
 PR #237–239 source against main. Published `b319e38b` includes a normal merge of
 N3 with the exact repair tree preserved; its only conflict was older handoff

@@ -3,6 +3,38 @@
 Recorded 2026-09-06. **R02/R03/R07 remain incomplete.** The following accepted
 source components and local fixture tests are not a live owner playtest.
 
+## Panel dismissal during a request or refresh — 2026-09-12
+
+Inspection of the real PTR host at `9ac3ee36` exposed a caller mismatch that the
+standalone screen test missed. The screen kept Close/Escape available during a
+pending command or refresh, but the host rejected its dismissal request before
+handling `panel: null`. Focus moved to the opener while the panel stayed open.
+
+The host now handles dismissal before its ready/view guard. Dismissal clears
+only the local placement draft and traverses to the existing keep ancestor.
+The same controller, pending command and last confirmed scene/resources remain.
+Opening panels, selecting buildings and issuing commands retain their existing
+readiness and authority checks.
+
+Eight integrated regressions exercise the actual `RealmMapScreen` host and
+controller across browser/MiniApp, Close/Escape and held mutation/refresh cases.
+All eight first failed at the panel-removal assertion, then passed after the
+one-line guard move. They check retained scene/resource DOM, balances, opener
+focus, unchanged pending signal, no extra read or replay, and held-refresh
+completion without reopening. An initial missing matcher registration failed
+before those behavioral assertions; that setup attempt is not the red result.
+
+Pinned Windows Node 22.22.3 passed all 68 host/screen tests without skips, plus
+both explicit app and Node TypeScript noEmit projects. Independent review found
+no actionable defect. The pre-existing viewport-refresh test still emits React
+`act` warnings; the new cases do not. These are controlled DOM tests, not a
+physical-device or authenticated-owner acceptance record.
+
+The change is developed separately on `codex/0.4-pending-panel-dismissal`, based
+on the published PR #240 integration. The host is a prepared-closure member, so
+its new bytes still require canonical complete-family preparation/check and
+integration before release acceptance. Do not hand-edit its manifest digest.
+
 ## Reviewed source checkpoints
 
 | Component | Accepted commits | Evidence and limits |

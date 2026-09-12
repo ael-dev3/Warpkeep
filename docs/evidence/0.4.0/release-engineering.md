@@ -53,10 +53,14 @@ Authenticated application to the unchanged Windows compiler input verified all
 output bytes/OIDs, exact changed paths and unchanged HEAD/index/preserved source.
 Generated-only staging reproduced that exact tree before documentation was
 added. Existing ignored operator helpers changed only their input coordinates;
-no candidate, output digest or generated body was hand-edited. The complete
-163-case prepared-workflow suite and affected native generated consumers must
-now run on the published integration checkpoint. Earlier G's 448 passing cases
-remain evidence for G, not a substitute for this new source's verification.
+no candidate, output digest or generated body was hand-edited. Published
+integration `9ac3ee3628a8586fd1338c4f036f46bad414fca9` passed all 365 native
+tests across eight suites without skips (session `81593`, exit zero, 289.91
+seconds), including all 163 prepared-workflow cases and its affected generated
+consumers. The native checkout remained clean afterward. All 30 doc-facing
+tests, file policy, diff checks and the entire outgoing secret scan also passed.
+Earlier G's 448 passing cases remain evidence for G. Current-head hosted checks
+and normal protected integration remain required; no provider deployment occurred.
 
 The public entry-point audit replaced retired development links in the game's
 README, Assets README and Water Engine README. Water main is
