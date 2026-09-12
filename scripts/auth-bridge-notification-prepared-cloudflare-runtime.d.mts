@@ -122,6 +122,24 @@ export function inspectAuthBridgeNotificationPreparedRecoveryAuthority(
   inspectedAt: string;
 }>>;
 
+export function inspectAuthBridgeNotificationPreparedRecoverySource(
+  input: Readonly<{
+    contract: Readonly<Record<string, unknown>>;
+    workerVersionId: string;
+    ptrSpacetimeDbDatabase: string;
+    apiToken: string;
+    fetchImpl: typeof fetch;
+    now: Date;
+  }>,
+): Promise<Readonly<{
+  workerVersionId: string;
+  bridgeSourceCommit: string;
+  sourceDigest: string;
+  ptrDatabaseIdentity: string;
+  oldestObservedAt: string;
+  inspectedAt: string;
+}>>;
+
 export function buildAuthBridgeNotificationPreparedWranglerMultipart(
   options: Readonly<{
     contract: Readonly<Record<string, unknown>>;

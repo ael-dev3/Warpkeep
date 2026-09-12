@@ -21,6 +21,7 @@ import {
   AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_OIDC_AUDIENCE,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_WRANGLER_VERSION,
+  authBridgeNotificationPreparedVersionContract,
 } from './auth-bridge-notification-prepared-deploy-adapter.mjs';
 import {
   verifyAuthBridgePreparedRpcRoleAttestation,
@@ -447,6 +448,7 @@ function parseAuthBridgeNotificationPreparedMultipartParts(body, contentType) {
     modules.push(Object.freeze({
       name: disposition.filename ?? disposition.field,
       field: disposition.field,
+      filename: disposition.filename,
       contentType: type,
       bytes,
       byteStart,
@@ -473,6 +475,27 @@ export function parseAuthBridgeNotificationPreparedMultipart(body, contentType) 
     contentType: partContentType,
     bytes,
   })));
+}
+
+function versionContentModules({ body, contentType, entrypoint }) {
+  const parts = parseAuthBridgeNotificationPreparedMultipartParts(body, contentType);
+  const metadataParts = parts.filter(part => part.field === 'metadata');
+  if (metadataParts.length > 1 || metadataParts.some(part =>
+    part.filename !== undefined || part.contentType !== 'application/json')) {
+    fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_MULTIPART_METADATA_INVALID');
+  }
+  // Only a non-executable metadata form field may be excluded from the byte
+  // inventory. Its entrypoint must agree with the version-content response.
+  if (metadataParts.length === 1) {
+    let metadata;
+    try { metadata = JSON.parse(metadataParts[0].bytes.toString('utf8')); } catch {
+      fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_MULTIPART_METADATA_INVALID');
+    }
+    if (!isRecord(metadata) || metadata.main_module !== entrypoint) {
+      fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_MULTIPART_METADATA_INVALID');
+    }
+  }
+  return parts.filter(part => part.field !== 'metadata');
 }
 
 export function inspectAuthBridgeNotificationPreparedMultipart(body, contentType) {
@@ -2005,6 +2028,168 @@ function exactWorkerScript(result, contract) {
   return script;
 }
 
+async function attestCloudflareInfrastructure(api, contract) {
+  const basePath = `${API_PREFIX}/accounts/${contract.accountId}/workers/scripts/${contract.workerName}`;
+  const [scriptsResponse, domainResponse, subdomainResponse, routeResponse,
+    settingsResponse] = await Promise.all([
+    api.json(`${API_PREFIX}/accounts/${contract.accountId}/workers/scripts`),
+    api.json(`${API_PREFIX}/accounts/${contract.accountId}/workers/domains?service=${encodeURIComponent(contract.workerName)}`),
+    api.json(`${basePath}/subdomain`),
+    api.json(`${API_PREFIX}/accounts/${contract.accountId}/workers/services/${contract.workerName}/environments/production/routes?show_zonename=true`),
+    api.json(`${basePath}/script-settings`),
+  ]);
+  const script = exactWorkerScript(scriptsResponse.result, contract);
+  exactDomain(domainResponse, contract);
+  exactRoutes(routeResponse.result);
+  exactScriptSettings(settingsResponse.result);
+  if (!exactKeys(subdomainResponse.result, ['enabled', 'previews_enabled'])
+    || subdomainResponse.result.enabled !== false
+    || subdomainResponse.result.previews_enabled !== false) {
+    fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_SUBDOMAIN_MISMATCH');
+  }
+  return script;
+}
+
+/** Authenticate the original uploaded bytes and configuration without rebuilding
+ * a historical Worker or providing any mutation capability. The caller owns
+ * receipt/journal authentication and live deployment/identity reconciliation.
+ */
+export async function inspectAuthBridgeNotificationPreparedRecoverySource(input) {
+  if (!exactKeys(input, ['contract', 'workerVersionId', 'ptrSpacetimeDbDatabase',
+    'apiToken', 'fetchImpl', 'now'])
+    || !VERSION_ID.test(input.workerVersionId ?? '')
+    || !SPACETIMEDB_DATABASE_IDENTITY.test(input.ptrSpacetimeDbDatabase ?? '')
+    || input.ptrSpacetimeDbDatabase === PRODUCTION_SPACETIMEDB_DATABASE
+    || !SECRET_TOKEN.test(input.apiToken ?? '')
+    || typeof input.fetchImpl !== 'function'
+    || !(input.now instanceof Date) || !Number.isFinite(input.now.getTime())) {
+    fail('AUTH_BRIDGE_PREPARED_RECOVERY_SOURCE_INPUT_INVALID');
+  }
+  const supplied = assertContract(input.contract);
+  const { workerVersionId, ptrSpacetimeDbDatabase, apiToken, fetchImpl } = input;
+  if (!['true', 'false'].includes(supplied.variables.PUBLIC_AUTH_ENABLED)
+    || !['true', 'false'].includes(supplied.variables.ACCESS_EXPECTED_FID_REQUIRED)) {
+    fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_CONTRACT_INVALID');
+  }
+  const contract = authBridgeNotificationPreparedVersionContract({
+    accountId: supplied.accountId, zoneId: supplied.zoneId,
+    sourceCommit: supplied.sourceCommit, sourceDigest: supplied.sourceDigest,
+    beforeModes: {
+      bridgeSourceCommit: supplied.predecessorSourceCommit,
+      publicAuthEnabled: supplied.variables.PUBLIC_AUTH_ENABLED === 'true',
+      accessExpectedFidRequired: supplied.variables.ACCESS_EXPECTED_FID_REQUIRED === 'true',
+    },
+  });
+  if (!exactJson(supplied, contract)) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_CONTRACT_INVALID');
+
+  const started = performance.now();
+  const startedAt = input.now.getTime();
+  const currentTime = () => new Date(startedAt + Math.max(0, performance.now() - started));
+  const observed = [];
+  const basePath = `${API_PREFIX}/accounts/${contract.accountId}/workers/scripts/${contract.workerName}`;
+  const contentPath = `${basePath}/content/v2?version=${workerVersionId}`;
+  const paths = new Set([
+    `${API_PREFIX}/accounts/${contract.accountId}/workers/scripts`,
+    `${API_PREFIX}/accounts/${contract.accountId}/workers/domains?service=${encodeURIComponent(contract.workerName)}`,
+    `${basePath}/subdomain`,
+    `${API_PREFIX}/accounts/${contract.accountId}/workers/services/${contract.workerName}/environments/production/routes?show_zonename=true`,
+    `${basePath}/script-settings`, `${basePath}/versions/${workerVersionId}`, contentPath,
+  ].map(path => `${AUTH_BRIDGE_NOTIFICATION_PREPARED_CLOUDFLARE_API_ORIGIN}${path}`));
+  const pending = new Set();
+  // Hold the timeout through the response body, and reject oversized streaming
+  // responses before buffering them. createApi then applies its usual parsers.
+  const readOnlyFetch = async (url, options) => {
+    if (!paths.has(url) || options.method !== 'GET' || options.body !== undefined) {
+      fail('AUTH_BRIDGE_PREPARED_RECOVERY_SOURCE_REQUEST_INVALID');
+    }
+    const controller = new AbortController();
+    pending.add(controller);
+    let reader;
+    let timer;
+    const pieces = [];
+    let body;
+    const expired = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new AuthBridgeNotificationPreparedCloudflareRuntimeError(
+          'AUTH_BRIDGE_PREPARED_CLOUDFLARE_REQUEST_FAILED'));
+      }, REQUEST_TIMEOUT_MILLISECONDS);
+    });
+    const read = async () => {
+      const response = await fetchImpl(url, { ...options, signal: controller.signal });
+      validateResponse(response);
+      if (response.url !== url || response.status !== 200 || response.body === null) {
+        fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_RESPONSE_INVALID');
+      }
+      const date = recoveryResponseObservedAt(response, currentTime());
+      const maximum = url.endsWith(contentPath) ? MAX_MULTIPART_BYTES : MAX_JSON_BYTES;
+      const advertised = response.headers.get('content-length');
+      if (advertised !== null && (!/^[0-9]+$/u.test(advertised) || Number(advertised) > maximum)) {
+        fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_RESPONSE_TOO_LARGE');
+      }
+      reader = response.body.getReader();
+      let size = 0;
+      while (true) {
+        const part = await reader.read();
+        if (controller.signal.aborted) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_REQUEST_FAILED');
+        if (part.done) break;
+        size += part.value.byteLength;
+        if (size > maximum) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_RESPONSE_TOO_LARGE');
+        pieces.push(Buffer.from(part.value));
+      }
+      body = Buffer.concat(pieces, size);
+      const buffered = new Response(body, { status: response.status, headers: response.headers });
+      Object.defineProperty(buffered, 'url', { value: url });
+      observed.push(date);
+      return buffered;
+    };
+    try { return await Promise.race([read(), expired]); }
+    finally {
+      clearTimeout(timer); controller.abort(); pending.delete(controller);
+      if (reader !== undefined) void reader.cancel().catch(() => {});
+      for (const piece of pieces) piece.fill(0);
+      body?.fill(0);
+    }
+  };
+  const api = createApi({ apiToken, fetchImpl: readOnlyFetch,
+    requestTimeoutMilliseconds: REQUEST_TIMEOUT_MILLISECONDS });
+  let remote;
+  try {
+    const script = await attestCloudflareInfrastructure(api, contract);
+    if (script.migration_tag !== 'v5') fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_MIGRATION_MISMATCH');
+    const detail = await api.json(`${basePath}/versions/${workerVersionId}`);
+    if (detail.result?.id !== workerVersionId) {
+      fail('AUTH_BRIDGE_PREPARED_RECOVERY_VERSION_MISMATCH');
+    }
+    if (!SHA256_HEX.test(detail.result?.resources?.script?.etag ?? '')) {
+      fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_SOURCE_UNVERIFIED');
+    }
+    remote = await api.multipart(contentPath);
+    const modules = versionContentModules(remote);
+    // Wrangler's fixed src/index.ts entry compiles to index.js; the source
+    // filename itself is never a Cloudflare executable-module identity.
+    if (remote.entrypoint !== 'index.js' || modules.filter(module =>
+      module.field === 'index.js' && module.name === 'index.js').length !== 1) {
+      fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_SOURCE_UNVERIFIED');
+    }
+    const sourceDigest = authBridgeNotificationPreparedSourceDigest(modules);
+    const version = projectVersion(detail.result, contract, sourceDigest, ptrSpacetimeDbDatabase);
+    const inspectedAt = currentTime();
+    if (Date.parse(version.createdAt) > inspectedAt.getTime()) {
+      fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_INVALID');
+    }
+    for (const value of observed) recoveryFreshTime(value, inspectedAt);
+    return Object.freeze({
+      workerVersionId, bridgeSourceCommit: contract.sourceCommit,
+      sourceDigest, ptrDatabaseIdentity: ptrSpacetimeDbDatabase,
+      oldestObservedAt: [...observed].sort()[0], inspectedAt: inspectedAt.toISOString(),
+    });
+  } finally {
+    remote?.body.fill(0);
+    for (const controller of pending) controller.abort();
+  }
+}
+
 /**
  * Concrete Cloudflare read/write adapter. Wrangler is invoked only with
  * `--dry-run` to serialize the exact multipart body. Each write below is one
@@ -2082,31 +2267,7 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
   }
   const basePath = `${API_PREFIX}/accounts/${contract.accountId}/workers/scripts/${contract.workerName}`;
 
-  const attestInfrastructure = async () => {
-    const [scriptsResponse, domainResponse, subdomainResponse, routeResponse,
-      settingsResponse] =
-      await Promise.all([
-        api.json(`${API_PREFIX}/accounts/${contract.accountId}/workers/scripts`),
-        api.json(
-          `${API_PREFIX}/accounts/${contract.accountId}/workers/domains?service=${encodeURIComponent(contract.workerName)}`,
-        ),
-        api.json(`${basePath}/subdomain`),
-        api.json(
-          `${API_PREFIX}/accounts/${contract.accountId}/workers/services/${contract.workerName}/environments/production/routes?show_zonename=true`,
-        ),
-        api.json(`${basePath}/script-settings`),
-      ]);
-    const script = exactWorkerScript(scriptsResponse.result, contract);
-    exactDomain(domainResponse, contract);
-    exactRoutes(routeResponse.result);
-    exactScriptSettings(settingsResponse.result);
-    if (
-      !exactKeys(subdomainResponse.result, ['enabled', 'previews_enabled'])
-      || subdomainResponse.result.enabled !== false
-      || subdomainResponse.result.previews_enabled !== false
-    ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_SUBDOMAIN_MISMATCH');
-    return script;
-  };
+  const attestInfrastructure = () => attestCloudflareInfrastructure(api, contract);
 
   const prepareMultipart = async () => {
     if (preparedMultipart !== undefined) return preparedMultipart;
@@ -2144,11 +2305,7 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
     );
     let remoteDigest;
     try {
-      const remoteParts = parseAuthBridgeNotificationPreparedMultipart(
-        remote.body,
-        remote.contentType,
-      );
-      const remoteModules = remoteParts.filter(part => part.field !== 'metadata');
+      const remoteModules = versionContentModules(remote);
       remoteDigest = authBridgeNotificationPreparedSourceDigest(remoteModules);
       if (
         remote.entrypoint !== local.metadata.main_module

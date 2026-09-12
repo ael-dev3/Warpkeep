@@ -1,10 +1,51 @@
 # Warpkeep 0.4 recovery evidence
 
-Status on 2026-09-08: **integrated production recovery acceptance remains open**.
+Status on 2026-09-12: **integrated production recovery acceptance remains open**.
 Recovery must preserve legitimate player writes made both before and after an
 update. Restoring an old database snapshot over later progress is unacceptable.
 Source-file recovery, frontend hosting recovery and persistent-world recovery
 have separate implementations and acceptance evidence.
+
+## Authenticated Worker recovery source — 2026-09-12
+
+The actual prepared-bridge recovery caller now derives the original uploaded
+module digest from its authenticated durable journal. It validates the complete
+record lineage and preserves the distinction between the original completion
+and later read-only recovery heads. It reconstructs the reviewed configuration
+from the original source and authenticated receipt, then reads Cloudflare's
+actual version content, bindings, routes, domain, namespaces and runtime settings.
+It does not rebuild a historical Worker to invent its deployed digest.
+
+Each source/configuration read is composed with the existing live deployment,
+public/private attestation and PTR checks. The configured public PTR identity
+must match retained and observed authority. Original upload, latest journal and
+pinned prior receipt are reopened after remote reads; source and live observation
+freshness are retained through the durable-write boundaries. Canonical recovery
+descendants may advance the latest head without changing original-upload identity.
+
+Independent review found executable multipart bytes could be disguised as a
+metadata field and excluded from hashing. Recovery and ordinary version reads
+now share a validator that permits only one optional JSON metadata form field
+without a filename and with the matching executable entrypoint. A realistic
+HTTP-shaped regression reproduced the acceptance before the correction and now
+rejects it; genuine module responses with and without metadata still pass.
+
+The dedicated `warpkeep` Linux account (UID 1000), pinned Node 22.22.3 and the
+reviewed source overlay passed all 178 tests across the complete deployment
+runtime, recovery-source and receipt suites, with no skipped cases. Windows
+build-mode TypeScript and tracked file-size checks also passed. Native tests
+exercise actual journals and HTTP response parsers with controlled providers;
+they do not establish production credentials, private receipt presence or a
+successful live recovery. The source must be prepared and independently checked
+again before release; the completed `27700d61` family predates this change.
+
+A separate existing retention limitation remains: after one recovery leaves
+both original and recovered authority files, a later renewal's authority writer
+allows only its immediate prior and new filename. The retained original then
+causes `AUTH_BRIDGE_PREPARED_RECOVERY_CHAIN_CONFLICT`. Resolve this through
+authenticated ancestor handling, preserving history, before claiming repeated
+recovery acceptance. Also exercise response timing against actual provider reads;
+the legacy live reader still samples one reference time for multiple requests.
 
 ## What has been verified
 

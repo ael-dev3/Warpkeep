@@ -26,12 +26,18 @@ import {
   writePrivateAuthBridgeNotificationPreparedReceipt,
 } from './auth-bridge-notification-prepared-receipt.mjs';
 import {
+  resolveAuthBridgeNotificationPreparedOriginalUploadAuthority,
   resolveAuthBridgeNotificationPreparedRecoveryJournalAuthority,
   writeAuthBridgeNotificationPreparedReadOnlyRecoveryHead,
 } from './auth-bridge-notification-prepared-deploy-journal.mjs';
 import {
   inspectAuthBridgeNotificationPreparedRecoveryAuthority,
+  inspectAuthBridgeNotificationPreparedRecoverySource,
 } from './auth-bridge-notification-prepared-cloudflare-runtime.mjs';
+import {
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
+  authBridgeNotificationPreparedVersionContract,
+} from './auth-bridge-notification-prepared-deploy-adapter.mjs';
 import {
   createSealedRealmsProductionPrivateState,
 } from './sealed-realms-production-private-state.mjs';
@@ -256,6 +262,7 @@ function copyAndScrubRecoveryEnvironment(environment) {
     'WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID',
     'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
     'WARPKEEP_AUTH_BRIDGE_ZONE_ID', 'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
+    'WARPKEEP_PTR_SPACETIMEDB_DATABASE',
   ];
   const values = Object.fromEntries(required.map(name => [name, environment[name]]));
   for (const name of [
@@ -280,6 +287,8 @@ function copyAndScrubRecoveryEnvironment(environment) {
     || !ACCOUNT_ID.test(values.WARPKEEP_AUTH_BRIDGE_ZONE_ID)
     || !SECRET.test(values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN)
     || !SECRET.test(values.WARPKEEP_PRODUCTION_ADMIN_TOKEN)
+    || !SPACETIMEDB_DATABASE_IDENTITY.test(values.WARPKEEP_PTR_SPACETIMEDB_DATABASE)
+    || values.WARPKEEP_PTR_SPACETIMEDB_DATABASE === PRODUCTION_SPACETIMEDB_DATABASE
     || values.GITHUB_TOKEN === values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN
     || values.GITHUB_TOKEN === values.WARPKEEP_PRODUCTION_ADMIN_TOKEN
     || values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN
@@ -852,7 +861,8 @@ export const authBridgeNotificationPreparedDeployTestSeams = Object.freeze({
     const runtimeKeys = [
       'attestCheckout', 'copyEnvironment', 'clock', 'home',
       'createPrivateState', 'createGithubWritePermit',
-      'resolveJournal', 'resolvePrior', 'inspect', 'resolveFreshReceipt',
+      'resolveJournal', 'resolveOriginalUpload', 'resolvePrior', 'inspectSource',
+      'inspect', 'resolveFreshReceipt',
       'verifyReceipt', 'resolveExpiredReceipt', 'resolvePendingReceipt',
       'writeReceipt', 'readReceipt', 'writeHead', 'createAuthorityChain',
     ];
@@ -1111,7 +1121,10 @@ async function runProductionAuthBridgeNotificationPreparedReadOnlyRecovery({
       createAuthBridgeNotificationPreparedGithubWritePermit,
     resolveJournal:
       resolveAuthBridgeNotificationPreparedRecoveryJournalAuthority,
+    resolveOriginalUpload:
+      resolveAuthBridgeNotificationPreparedOriginalUploadAuthority,
     resolvePrior: resolveRecoveryPriorAuthority,
+    inspectSource: inspectAuthBridgeNotificationPreparedRecoverySource,
     inspect: inspectAuthBridgeNotificationPreparedRecoveryAuthority,
     resolveFreshReceipt:
       resolveFreshAuthBridgeNotificationPreparedReceiptByDigest,
@@ -1186,16 +1199,113 @@ async function runProductionAuthBridgeNotificationPreparedReadOnlyRecovery({
     now: sampleClock(),
   });
   const firstPrior = resolvePinnedPriorAuthority();
-  const inspect = ({ expected, now }) =>
-    runtime.inspect({
-      expected,
+  const priorValue = isRecord(firstPrior.value) ? firstPrior.value : firstPrior;
+  const priorReceipt = parseAuthBridgeNotificationPreparedReceipt(firstPrior.receipt);
+  if (
+    canonicalAuthBridgeNotificationPreparedReceiptPublication(priorReceipt).receiptDigest
+      !== priorValue.preparedReceiptDigest
+    || priorReceipt.bridgeSourceCommit !== values.GITHUB_SHA
+    || priorValue.ptrDatabaseIdentity !== values.WARPKEEP_PTR_SPACETIMEDB_DATABASE
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_PRIOR_AUTHORITY_INVALID');
+  const priorSnapshot = JSON.stringify(firstPrior);
+  const firstUpload = runtime.resolveOriginalUpload({ repositoryRoot: repository });
+  if (!isRecord(firstUpload)) fail('AUTH_BRIDGE_PREPARED_RECOVERY_AUTHORITY_DRIFT');
+  const uploadIdentity = upload => JSON.stringify([
+    upload.sourceCommit, upload.workerVersionId, upload.sourceDigest,
+    upload.uploadRecordDigest, upload.completedJournalHeadDigest,
+  ]);
+  const originalIdentity = uploadIdentity(firstUpload);
+  // Historical bytes come only from the authenticated original upload. Every
+  // round binds them to the current journal, receipt and configured PTR, then
+  // reopens those authorities after the remote reads have finished.
+  const inspect = async ({ expected, now }) => {
+    const journal = runtime.resolveJournal({ repositoryRoot: repository });
+    const upload = runtime.resolveOriginalUpload({ repositoryRoot: repository });
+    const beforePrior = resolvePinnedPriorAuthority();
+    const uploadSnapshot = JSON.stringify(upload);
+    const journalSnapshot = JSON.stringify(journal);
+    if (
+      !isRecord(upload)
+      || upload.sourceCommit !== values.GITHUB_SHA
+      || upload.workerVersionId !== expected.workerVersionId
+      || upload.sourceCommit !== expected.bridgeSourceCommit
+      || !SHA256.test(upload.sourceDigest ?? '')
+      || !SHA256.test(upload.uploadRecordDigest ?? '')
+      || !SHA256.test(upload.completedJournalHeadDigest ?? '')
+      || upload.journalHeadDigest !== journal.journalHeadDigest
+      || journal.sourceCommit !== upload.sourceCommit
+      || journal.workerVersionId !== upload.workerVersionId
+      || uploadIdentity(upload) !== originalIdentity
+      || JSON.stringify(beforePrior) !== priorSnapshot
+    ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_AUTHORITY_DRIFT');
+    const contract = authBridgeNotificationPreparedVersionContract({
+      accountId: values.WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID,
+      zoneId: values.WARPKEEP_AUTH_BRIDGE_ZONE_ID,
+      sourceCommit: upload.sourceCommit,
+      sourceDigest: upload.sourceDigest,
+      beforeModes: {
+        bridgeSourceCommit: AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
+        publicAuthEnabled: priorReceipt.publicAuthEnabledBefore,
+        accessExpectedFidRequired: priorReceipt.accessExpectedFidRequiredBefore,
+      },
+    });
+    const source = await runtime.inspectSource({
+      contract,
+      workerVersionId: expected.workerVersionId,
+      ptrSpacetimeDbDatabase: values.WARPKEEP_PTR_SPACETIMEDB_DATABASE,
+      apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN,
+      fetchImpl,
       now,
+    });
+    const liveStartedAt = sampleClock();
+    if (liveStartedAt.getTime() < now.getTime()) {
+      fail('AUTH_BRIDGE_PREPARED_RECOVERY_CLOCK_STALE');
+    }
+    assertRecoveryInspectionFreshAt(source, liveStartedAt);
+    if (
+      source.workerVersionId !== upload.workerVersionId
+      || source.bridgeSourceCommit !== upload.sourceCommit
+      || source.sourceDigest !== upload.sourceDigest
+      || source.ptrDatabaseIdentity !== priorValue.ptrDatabaseIdentity
+      || recoveryTimestamp(source.inspectedAt) < source.oldestObservedAt
+      || Date.parse(source.inspectedAt) < now.getTime()
+      || Date.parse(source.inspectedAt) > liveStartedAt.getTime()
+    ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_AUTHORITY_DRIFT');
+    const live = await runtime.inspect({
+      expected,
+      now: liveStartedAt,
       accountId: values.WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID,
       zoneId: values.WARPKEEP_AUTH_BRIDGE_ZONE_ID,
       apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN,
       adminToken: values.WARPKEEP_PRODUCTION_ADMIN_TOKEN,
       fetchImpl,
     });
+    const completedAt = sampleClock();
+    if (completedAt.getTime() < liveStartedAt.getTime()) {
+      fail('AUTH_BRIDGE_PREPARED_RECOVERY_CLOCK_STALE');
+    }
+    assertRecoveryInspectionFreshAt(source, completedAt);
+    assertRecoveryInspectionFreshAt(live, completedAt);
+    assertRecoveryInspectionRound(live);
+    if (
+      live.workerVersionId !== upload.workerVersionId
+      || live.bridgeSourceCommit !== upload.sourceCommit
+      || live.ptrDatabaseIdentity !== source.ptrDatabaseIdentity
+      || canonicalAuthBridgeReleaseAttestationDigest(live.liveAttestation)
+        !== priorReceipt.liveAttestationDigest
+      || live.publicAttestationDigest !== priorReceipt.liveAttestationDigest
+      || JSON.stringify(runtime.resolveOriginalUpload({ repositoryRoot: repository }))
+        !== uploadSnapshot
+      || JSON.stringify(runtime.resolveJournal({ repositoryRoot: repository }))
+        !== journalSnapshot
+      || JSON.stringify(resolvePinnedPriorAuthority()) !== priorSnapshot
+    ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_AUTHORITY_DRIFT');
+    return Object.freeze({
+      ...live,
+      oldestObservedAt: source.oldestObservedAt < live.oldestObservedAt
+        ? source.oldestObservedAt : live.oldestObservedAt,
+    });
+  };
   if (firstPrior.pendingRecoveryHead !== undefined) {
     const pendingHead = firstPrior.pendingRecoveryHead;
     const persisted = runtime.resolveFreshReceipt({

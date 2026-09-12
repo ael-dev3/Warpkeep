@@ -38,6 +38,7 @@ import {
 import {
   AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_STATE_CHILD,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_READ_ONLY_RECOVERY_PROFILE,
+  resolveAuthBridgeNotificationPreparedOriginalUploadAuthority,
   resolveAuthBridgeNotificationPreparedRecoveryJournalAuthority,
   resolveExistingAuthBridgeNotificationPreparedDeployJournal,
   writeAuthBridgeNotificationPreparedReadOnlyRecoveryHead,
@@ -624,7 +625,7 @@ describe('auth-bridge prepared protected environment', () => {
     }
   });
 
-  it('requires and immediately scrubs the GitHub write token for recovery', () => {
+  it('requires the exact PTR identity and immediately scrubs recovery credentials', () => {
     const environment: NodeJS.ProcessEnv = {
       GITHUB_ACTIONS: 'true',
       GITHUB_EVENT_NAME: 'workflow_dispatch',
@@ -642,12 +643,14 @@ describe('auth-bridge prepared protected environment', () => {
       WARPKEEP_AUTH_BRIDGE_ZONE_ID: ZONE_ID,
       WARPKEEP_PRODUCTION_ADMIN_TOKEN:
         'production-recovery-test-token-value',
+      WARPKEEP_PTR_SPACETIMEDB_DATABASE: PTR_DATABASE,
     };
     const validEnvironment = { ...environment };
 
     const values = authBridgeNotificationPreparedDeployTestSeams
       .copyAndScrubRecoveryEnvironment(environment);
     expect(values.GITHUB_TOKEN).toBe('github-recovery-test-token-value');
+    expect(values.WARPKEEP_PTR_SPACETIMEDB_DATABASE).toBe(PTR_DATABASE);
     for (const name of [
       'GITHUB_TOKEN',
       'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
@@ -661,7 +664,7 @@ describe('auth-bridge prepared protected environment', () => {
       .toThrow(/RECOVERY_ENVIRONMENT_INVALID/u);
 
     const reusedCredential = {
-      ...environment,
+      ...validEnvironment,
       GITHUB_TOKEN: 'shared-recovery-test-token-value',
       WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN:
         'shared-recovery-test-token-value',
@@ -672,10 +675,242 @@ describe('auth-bridge prepared protected environment', () => {
       .copyAndScrubRecoveryEnvironment(reusedCredential))
       .toThrow(/RECOVERY_ENVIRONMENT_INVALID/u);
     expect(reusedCredential).not.toHaveProperty('GITHUB_TOKEN');
+    for (const invalid of [undefined, 'warpkeep-ptr', '9'.repeat(63), 'A'.repeat(64), MAIN_DATABASE]) {
+      const hostile = {
+        ...validEnvironment,
+        WARPKEEP_PTR_SPACETIMEDB_DATABASE: invalid,
+      };
+      expect(() => authBridgeNotificationPreparedDeployTestSeams
+        .copyAndScrubRecoveryEnvironment(hostile))
+        .toThrow('AUTH_BRIDGE_PREPARED_RECOVERY_ENVIRONMENT_INVALID');
+      for (const key of ['GITHUB_TOKEN', 'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
+        'WARPKEEP_PRODUCTION_ADMIN_TOKEN']) {
+        expect(hostile).not.toHaveProperty(key);
+      }
+    }
   });
 });
 
 describe('auth-bridge prepared durable deployment journal', () => {
+  describe('original upload source authority', () => {
+    const nativeIt = it.skipIf(process.platform === 'win32');
+
+    async function completedUpload(options: {
+      omitUpload?: boolean;
+      omitCompletion?: boolean;
+      uncertainRelease?: boolean;
+      predecessor?: Record<string, unknown>;
+      upload?: Record<string, unknown>;
+      uploaded?: Record<string, unknown>;
+      release?: Record<string, unknown>;
+      completed?: Record<string, unknown>;
+    } = {}) {
+      const home = temporaryHome();
+      const value = contract('d'.repeat(64));
+      await withAuthBridgeNotificationPreparedDeployJournal({
+        ...journalOptions(home, value),
+        operation: async journal => {
+          await journal.prepared(value);
+          await journal.remoteReconcileStarted({
+            predecessorDeploymentId: OLD_DEPLOYMENT_ID,
+            predecessorVersionId: OLD_VERSION_ID,
+            sourceCommit: SOURCE_COMMIT,
+            sourceDigest: value.sourceDigest,
+            versionTag: value.versionTag,
+            ...options.predecessor,
+          });
+          if (!options.omitUpload) await journal.uploadInvoked({
+            sourceCommit: SOURCE_COMMIT,
+            sourceDigest: value.sourceDigest,
+            uploadMode: 'version',
+            versionTag: value.versionTag,
+            ...options.upload,
+          });
+          await journal.uploaded({ ...version(value), ...options.uploaded });
+          if (options.uncertainRelease) {
+            const release = {
+              sourceCommit: SOURCE_COMMIT,
+              versionId: VERSION_ID,
+              versionTag: value.versionTag,
+              ...options.release,
+            };
+            await journal.releaseUncertain(release);
+            await journal.releaseInvoked(release);
+          }
+          if (!options.omitCompletion) {
+            await journal.completed({ ...deployment(), ...options.completed });
+          }
+        },
+      });
+      const directory = join(home, '.warpkeep', 'private', 'production-admin-v1',
+        AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_STATE_CHILD);
+      return {
+        value,
+        directory,
+        input: { repositoryRoot: realpathSync(process.cwd()), reportedHome: home },
+      };
+    }
+
+    function recoveryHead(journalHeadDigest: string, overrides: Record<string, unknown> = {}) {
+      return {
+        schemaVersion: 1,
+        profile: AUTH_BRIDGE_NOTIFICATION_PREPARED_READ_ONLY_RECOVERY_PROFILE,
+        sourceCommit: SOURCE_COMMIT,
+        runId: '1002',
+        runAttempt: 1,
+        priorPreparedReceiptDigest: '1'.repeat(64),
+        priorCompletedJournalHeadDigest: journalHeadDigest,
+        preparedReceiptDigest: '2'.repeat(64),
+        deploymentId: OLD_DEPLOYMENT_ID,
+        workerVersionId: VERSION_ID,
+        bridgeSourceCommit: SOURCE_COMMIT,
+        ptrDatabaseIdentity: PTR_DATABASE,
+        ptrBindingDigest: '3'.repeat(64),
+        controlPlaneAttestationDigest: '4'.repeat(64),
+        publicAttestationDigest: '5'.repeat(64),
+        privateAttestationDigest: '6'.repeat(64),
+        ptrBindingAttestationDigest: '7'.repeat(64),
+        completedAt: NOW.toISOString(),
+        noDeploy: true,
+        outcome: 'verified-read-only-recovery',
+        ...overrides,
+      } as const;
+    }
+
+    function snapshot(directory: string) {
+      return new Map(readdirSync(directory).sort().map(name => [
+        name, readFileSync(join(directory, name)),
+      ] as const));
+    }
+
+    nativeIt.each([false, true])(
+      'derives the original upload bytes through completed release recovery=%s without writes',
+      async uncertainRelease => {
+        const fixture = await completedUpload({ uncertainRelease });
+        const before = snapshot(fixture.directory);
+        const digestFor = (phase: string) => createHash('sha256')
+          .update([...before].find(([name]) => name.endsWith(`-${phase}.json`))![1])
+          .digest('hex');
+        const result = resolveAuthBridgeNotificationPreparedOriginalUploadAuthority(fixture.input);
+        expect(result).toEqual({
+          sourceCommit: SOURCE_COMMIT,
+          workerVersionId: VERSION_ID,
+          sourceDigest: fixture.value.sourceDigest,
+          uploadRecordDigest: digestFor('upload-invoked'),
+          completedJournalHeadDigest: digestFor('completed'),
+          journalHeadDigest: digestFor('completed'),
+        });
+        expect(Object.isFrozen(result)).toBe(true);
+        expect(snapshot(fixture.directory)).toEqual(before);
+        expect(resolveExistingAuthBridgeNotificationPreparedDeployJournal(fixture.input))
+          .not.toHaveProperty('sourceDigest');
+        expect(resolveAuthBridgeNotificationPreparedRecoveryJournalAuthority(fixture.input))
+          .not.toHaveProperty('sourceDigest');
+      },
+    );
+
+    nativeIt('retains the original digest through two canonical recovery descendants', async () => {
+      const fixture = await completedUpload();
+      const original = resolveAuthBridgeNotificationPreparedOriginalUploadAuthority(fixture.input);
+      let latest = original.journalHeadDigest;
+      for (let index = 0; index < 2; index += 1) {
+        latest = writeAuthBridgeNotificationPreparedReadOnlyRecoveryHead({
+          ...fixture.input,
+          head: recoveryHead(latest, {
+            runId: String(1002 + index),
+            priorPreparedReceiptDigest: String(1 + index).repeat(64),
+            preparedReceiptDigest: String(2 + index).repeat(64),
+          }),
+          processIdentity: 'test-process-start-identity',
+        }).journalHeadDigest;
+      }
+      const before = snapshot(fixture.directory);
+      expect(resolveAuthBridgeNotificationPreparedOriginalUploadAuthority(fixture.input))
+        .toEqual({ ...original, journalHeadDigest: latest });
+      expect(latest).not.toBe(original.completedJournalHeadDigest);
+      expect(snapshot(fixture.directory)).toEqual(before);
+    });
+
+    nativeIt.each([
+      ['missing invocation', { omitUpload: true }],
+      ['incomplete deployment', { omitCompletion: true }],
+      ['predecessor digest mismatch', { predecessor: { sourceDigest: 'e'.repeat(64) } }],
+      ['invocation digest mismatch', { upload: { sourceDigest: 'e'.repeat(64) } }],
+      ['invocation source crossing', { upload: { sourceCommit: 'e'.repeat(40) } }],
+      ['invocation tag mismatch', { upload: { versionTag: 'another-operation' } }],
+      ['uploaded digest mismatch', { uploaded: { sourceDigest: 'e'.repeat(64) } }],
+      ['uploaded source crossing', { uploaded: { sourceCommit: 'e'.repeat(40) } }],
+      ['uploaded version crossing', { uploaded: { versionId: OLD_VERSION_ID } }],
+      ['completed source crossing', { completed: { sourceCommit: 'e'.repeat(40) } }],
+      ['completed version crossing', { completed: { versionId: OLD_VERSION_ID } }],
+      ['completed tag mismatch', { completed: { versionTag: 'another-operation' } }],
+      ['release source crossing', { uncertainRelease: true, release: { sourceCommit: 'e'.repeat(40) } }],
+      ['release version crossing', { uncertainRelease: true, release: { versionId: OLD_VERSION_ID } }],
+    ] as const)('rejects %s without repairing or rewriting history', async (_name, options) => {
+      const fixture = await completedUpload(options);
+      const before = snapshot(fixture.directory);
+      expect(() => resolveAuthBridgeNotificationPreparedOriginalUploadAuthority(fixture.input))
+        .toThrow(/ORIGINAL_UPLOAD_AUTHORITY_INVALID|EXISTING_STATE_AMBIGUOUS/u);
+      expect(snapshot(fixture.directory)).toEqual(before);
+    });
+
+    nativeIt.each(['changed prepared contract', 'unanchored prepared record'] as const)(
+      'rejects a digest-linked history with %s', async variant => {
+        const fixture = await completedUpload();
+        let previousDigest: string | null = null;
+        for (const [name, bytes] of snapshot(fixture.directory)) {
+          const record = JSON.parse(bytes.toString('utf8'));
+          if (record.phase === 'prepared') {
+            if (variant === 'changed prepared contract') {
+              record.payload.contract.sourceDigest = 'e'.repeat(64);
+            } else previousDigest = 'e'.repeat(64);
+          }
+          record.previousRecordDigest = previousDigest;
+          const rewritten = Buffer.from(`${JSON.stringify(record)}\n`);
+          previousDigest = createHash('sha256').update(rewritten).digest('hex');
+          writeFileSync(join(fixture.directory, name), rewritten);
+        }
+        const before = snapshot(fixture.directory);
+        // Existing callers keep their original shape/semantics. The new reader
+        // additionally authenticates the original prepared contract and root.
+        expect(resolveExistingAuthBridgeNotificationPreparedDeployJournal(fixture.input))
+          .toMatchObject({ sourceCommit: SOURCE_COMMIT, workerVersionId: VERSION_ID });
+        expect(() => resolveAuthBridgeNotificationPreparedOriginalUploadAuthority(fixture.input))
+          .toThrow('AUTH_BRIDGE_PREPARED_ORIGINAL_UPLOAD_AUTHORITY_INVALID');
+        expect(snapshot(fixture.directory)).toEqual(before);
+      },
+    );
+
+    nativeIt.each([
+      ['source crossing', { sourceCommit: 'e'.repeat(40), bridgeSourceCommit: 'e'.repeat(40) }],
+      ['version crossing', { workerVersionId: OLD_VERSION_ID }],
+      ['unlinked predecessor', { priorCompletedJournalHeadDigest: 'e'.repeat(64) }],
+    ] as const)('rejects a canonical recovery descendant with %s', async (_name, overrides) => {
+      const fixture = await completedUpload();
+      const original = resolveAuthBridgeNotificationPreparedOriginalUploadAuthority(fixture.input);
+      // A well-formed, content-addressed fixture must still prove its lineage.
+      const body = Buffer.from(`${JSON.stringify(recoveryHead(original.journalHeadDigest, overrides))}\n`);
+      const digest = createHash('sha256').update(body).digest('hex');
+      writeFileSync(join(fixture.directory, `auth-bridge-prepared-read-only-recovery-${digest}.json`),
+        body, { mode: 0o600, flag: 'wx' });
+      const before = snapshot(fixture.directory);
+      expect(() => resolveAuthBridgeNotificationPreparedOriginalUploadAuthority(fixture.input))
+        .toThrow(/EXISTING_STATE_INVALID|EXISTING_STATE_AMBIGUOUS/u);
+      expect(snapshot(fixture.directory)).toEqual(before);
+    });
+
+    it('refuses caller-supplied authority fields and accessor inputs before reading state', () => {
+      for (const field of ['sourceDigest', 'journalPath', 'includeOriginalUpload', 'sourceCommit']) {
+        const getter = vi.fn(() => 'd'.repeat(64));
+        const options = { repositoryRoot: realpathSync(process.cwd()) };
+        Object.defineProperty(options, field, { enumerable: true, get: getter });
+        expect(() => resolveAuthBridgeNotificationPreparedOriginalUploadAuthority(options))
+          .toThrow('AUTH_BRIDGE_PREPARED_ORIGINAL_UPLOAD_AUTHORITY_INPUT_INVALID');
+        expect(getter).not.toHaveBeenCalled();
+      }
+    });
+  });
+
   it.skipIf(process.platform === 'win32')(
   'publishes one canonical completed read-only recovery head and adopts its exact bytes', async () => {
     const home = temporaryHome();
@@ -1228,7 +1463,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       accessExpectedFidRequiredAfter: false,
       hermesExecutionApproved: false,
       pagesPresentationEnabled: false,
-      liveAttestationDigest: '1'.repeat(64),
+      liveAttestationDigest: canonicalAuthBridgeReleaseAttestationDigest(liveAttestation),
       preparedAt: '2026-08-11T00:00:00.000Z',
       expiresAt: '2026-08-12T00:00:00.000Z',
     } as const;
@@ -1263,7 +1498,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       ptrDatabaseIdentity: PTR_DATABASE,
       ptrBindingDigest: '3'.repeat(64),
       controlPlaneAttestationDigest: '4'.repeat(64),
-      publicAttestationDigest: '5'.repeat(64),
+      publicAttestationDigest: canonicalAuthBridgeReleaseAttestationDigest(liveAttestation),
       privateAttestationDigest: '6'.repeat(64),
       ptrBindingAttestationDigest: '7'.repeat(64),
       oldestObservedAt: NOW.toISOString(),
@@ -1334,6 +1569,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
           'cloudflare-recovery-test-token-value',
         WARPKEEP_PRODUCTION_ADMIN_TOKEN:
           'production-recovery-test-token-value',
+        WARPKEEP_PTR_SPACETIMEDB_DATABASE: PTR_DATABASE,
       })),
       clock: vi.fn(() => NOW),
       home: vi.fn(() => 'C:\\recovery-home'),
@@ -1343,9 +1579,22 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         recordFinalReread('journal');
         return currentJournal;
       }),
+      resolveOriginalUpload: vi.fn(() => {
+        recordFinalReread('original');
+        return { sourceCommit: SOURCE_COMMIT, workerVersionId: VERSION_ID,
+          sourceDigest: 'd'.repeat(64), uploadRecordDigest: 'e'.repeat(64),
+          completedJournalHeadDigest: 'a'.repeat(64),
+          journalHeadDigest: currentJournal.journalHeadDigest };
+      }),
       resolvePrior: vi.fn(() => {
         recordFinalReread('prior');
         return priorAuthority;
+      }),
+      inspectSource: vi.fn(async ({ now }: { now: Date }) => {
+        if (permitActive) events.push('inspectSourceAfterPermit');
+        return { workerVersionId: VERSION_ID, bridgeSourceCommit: SOURCE_COMMIT,
+          sourceDigest: 'd'.repeat(64), ptrDatabaseIdentity: PTR_DATABASE,
+          oldestObservedAt: now.toISOString(), inspectedAt: now.toISOString() };
       }),
       inspect: vi.fn(async () => {
         if (permitActive) events.push('inspectAfterPermit');
@@ -1394,6 +1643,189 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     };
   }
 
+  function durableRecoveryEvents(events: readonly string[]) {
+    return events.filter(event => !['reread:original', 'reread:journal',
+      'reread:prior', 'inspectSourceAfterPermit'].includes(event));
+  }
+
+  function expectNoRecoveryWrites(recovery: ReturnType<typeof createRecoveryWritePermitHarness>) {
+    expect(recovery.writeReceipt).not.toHaveBeenCalled();
+    expect(recovery.writeHead).not.toHaveBeenCalled();
+    expect(recovery.createAuthorityChain).not.toHaveBeenCalled();
+  }
+
+  it('attests historical upload bytes with the authenticated receipt modes before reading live authority', async () => {
+    const recovery = createRecoveryWritePermitHarness();
+    await expect(recovery.run()).resolves.toEqual({ outcome: 'verified-read-only-recovery' });
+    const sourceCalls = recovery.runtime.inspectSource.mock.calls as unknown as Array<[Record<string, unknown>]>;
+    expect(sourceCalls.length).toBeGreaterThan(0);
+    for (const [input] of sourceCalls) {
+      expect(input).toEqual({
+        contract: contract('d'.repeat(64)),
+        workerVersionId: VERSION_ID,
+        ptrSpacetimeDbDatabase: PTR_DATABASE,
+        apiToken: 'cloudflare-recovery-test-token-value',
+        fetchImpl: expect.any(Function),
+        now: NOW,
+      });
+    }
+    expect(recovery.runtime.inspectSource.mock.invocationCallOrder[0])
+      .toBeLessThan(recovery.runtime.inspect.mock.invocationCallOrder[0]);
+    const initialJournal = recovery.runtime.resolveJournal.mock.results[0].value;
+    for (const [input] of recovery.runtime.resolvePrior.mock.calls as unknown as Array<[{ journal: unknown }]>) {
+      expect(input.journal).toEqual(initialJournal);
+    }
+  });
+
+  it.each([
+    ['workerVersionId', OLD_VERSION_ID],
+    ['bridgeSourceCommit', '8'.repeat(40)],
+    ['sourceDigest', '8'.repeat(64)],
+    ['ptrDatabaseIdentity', '8'.repeat(64)],
+    ['inspectedAt', new Date(NOW.getTime() + 1).toISOString()],
+  ])('rejects a recovery source observation with changed %s before live reads or writes', async (field, value) => {
+    const recovery = createRecoveryWritePermitHarness();
+    const inspectSource = recovery.runtime.inspectSource.getMockImplementation()!;
+    recovery.runtime.inspectSource.mockImplementation(async input => ({
+      ...await inspectSource(input), [field]: value,
+    }));
+    await expect(recovery.run()).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_RECOVERY_AUTHORITY_DRIFT',
+    });
+    expect(recovery.runtime.inspect).not.toHaveBeenCalled();
+    expectNoRecoveryWrites(recovery);
+  });
+
+  it.each(['initial inspection', 'final inspection after permit'] as const)(
+    'propagates a recovery source inspection failure during %s without durable writes', async phase => {
+      const recovery = createRecoveryWritePermitHarness();
+      const inspectSource = recovery.runtime.inspectSource.getMockImplementation()!;
+      const failure = Object.assign(new Error('remote source bytes do not match original upload'), {
+        code: 'AUTH_BRIDGE_PREPARED_RECOVERY_SOURCE_DIGEST_MISMATCH',
+      });
+      recovery.runtime.inspectSource.mockImplementation(async input => {
+        if (phase === 'initial inspection' || recovery.permit.mock.calls.length > 0) throw failure;
+        return inspectSource(input);
+      });
+      await expect(recovery.run()).rejects.toBe(failure);
+      expect(recovery.runtime.inspect).toHaveBeenCalledTimes(phase === 'initial inspection' ? 0 : 1);
+      expectNoRecoveryWrites(recovery);
+    },
+  );
+
+  it.each([
+    ['original upload source bytes', 'source'],
+    ['original upload record', 'live'],
+    ['original completed head', 'source'],
+    ['current journal', 'source'],
+    ['current journal', 'live'],
+    ['pinned prior authority', 'source'],
+    ['pinned prior authority', 'live'],
+  ] as const)('rejects %s changing during the %s read before durable recovery writes', async (authority, boundary) => {
+    const recovery = createRecoveryWritePermitHarness();
+    let changed = false;
+    const originalUpload = recovery.runtime.resolveOriginalUpload.getMockImplementation()!;
+    const originalJournal = recovery.runtime.resolveJournal.getMockImplementation()!;
+    const originalPrior = recovery.runtime.resolvePrior.getMockImplementation()!;
+    recovery.runtime.resolveOriginalUpload.mockImplementation(() => {
+      const value = originalUpload();
+      if (!changed) return value;
+      if (authority === 'original upload source bytes') return { ...value, sourceDigest: '8'.repeat(64) };
+      if (authority === 'original upload record') return { ...value, uploadRecordDigest: '8'.repeat(64) };
+      if (authority === 'original completed head') return { ...value, completedJournalHeadDigest: '8'.repeat(64) };
+      return value;
+    });
+    recovery.runtime.resolveJournal.mockImplementation(() => changed && authority === 'current journal'
+      ? { ...originalJournal(), runAttempt: 2 } : originalJournal());
+    recovery.runtime.resolvePrior.mockImplementation(() => changed && authority === 'pinned prior authority'
+      ? { ...originalPrior(), ptrBindingDigest: '8'.repeat(64) } : originalPrior());
+    const inspectSource = recovery.runtime.inspectSource.getMockImplementation()!;
+    recovery.runtime.inspectSource.mockImplementation(async input => {
+      const observation = await inspectSource(input);
+      if (boundary === 'source') changed = true;
+      return observation;
+    });
+    const inspect = recovery.runtime.inspect.getMockImplementation()!;
+    recovery.runtime.inspect.mockImplementation(async () => {
+      const observation = await inspect();
+      if (boundary === 'live') changed = true;
+      return observation;
+    });
+    await expect(recovery.run()).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_RECOVERY_AUTHORITY_DRIFT',
+    });
+    expectNoRecoveryWrites(recovery);
+  });
+
+  it.each(['configured PTR', 'prior receipt bytes'] as const)(
+    'rejects recovery with mismatched %s before remote reads or durable writes', async variant => {
+      const recovery = createRecoveryWritePermitHarness();
+      if (variant === 'configured PTR') {
+        const environment = recovery.runtime.copyEnvironment();
+        recovery.runtime.copyEnvironment.mockReturnValue({
+          ...environment, WARPKEEP_PTR_SPACETIMEDB_DATABASE: '8'.repeat(64),
+        });
+      } else {
+        const prior = recovery.runtime.resolvePrior();
+        recovery.runtime.resolvePrior.mockReturnValue({
+          ...prior, receipt: { ...prior.receipt, liveAttestationDigest: '8'.repeat(64) },
+        });
+      }
+      await expect(recovery.run()).rejects.toMatchObject({
+        code: 'AUTH_BRIDGE_PREPARED_RECOVERY_PRIOR_AUTHORITY_INVALID',
+      });
+      expect(recovery.runtime.inspectSource).not.toHaveBeenCalled();
+      expect(recovery.runtime.inspect).not.toHaveBeenCalled();
+      expectNoRecoveryWrites(recovery);
+    },
+  );
+
+  it.each(['public digest', 'live PTR'] as const)(
+    'rejects a changed %s after the historical source read without durable writes', async variant => {
+      const recovery = createRecoveryWritePermitHarness();
+      const inspect = recovery.runtime.inspect.getMockImplementation()!;
+      recovery.runtime.inspect.mockImplementation(async () => ({
+        ...await inspect(),
+        ...(variant === 'public digest'
+          ? { publicAttestationDigest: '8'.repeat(64) }
+          : { ptrDatabaseIdentity: '8'.repeat(64) }),
+      }));
+      await expect(recovery.run()).rejects.toMatchObject({
+        code: 'AUTH_BRIDGE_PREPARED_RECOVERY_AUTHORITY_DRIFT',
+      });
+      expect(recovery.runtime.inspectSource).toHaveBeenCalledOnce();
+      expectNoRecoveryWrites(recovery);
+    },
+  );
+
+  it.each([
+    ['source', 5 * 60 * 1_000, 'ATTESTATION_STALE'],
+    ['live', 5 * 60 * 1_000, 'ATTESTATION_STALE'],
+    ['source', -1_000, 'CLOCK_STALE'],
+    ['live', -1_000, 'CLOCK_STALE'],
+  ] as const)('samples fresh time after the %s read and rejects a %s ms drift', async (boundary, elapsed, code) => {
+    const recovery = createRecoveryWritePermitHarness();
+    let currentTime = NOW;
+    recovery.runtime.clock.mockImplementation(() => currentTime);
+    const inspectSource = recovery.runtime.inspectSource.getMockImplementation()!;
+    recovery.runtime.inspectSource.mockImplementation(async input => {
+      const observation = await inspectSource(input);
+      if (boundary === 'source') currentTime = new Date(NOW.getTime() + elapsed);
+      return observation;
+    });
+    const inspect = recovery.runtime.inspect.getMockImplementation()!;
+    recovery.runtime.inspect.mockImplementation(async () => {
+      const observation = await inspect();
+      if (boundary === 'live') currentTime = new Date(NOW.getTime() + elapsed);
+      return observation;
+    });
+    await expect(recovery.run()).rejects.toMatchObject({
+      code: `AUTH_BRIDGE_PREPARED_RECOVERY_${code}`,
+    });
+    if (boundary === 'source') expect(recovery.runtime.inspect).not.toHaveBeenCalled();
+    expectNoRecoveryWrites(recovery);
+  });
+
   it('sandwiches each durable recovery write between two permits and a final inspection', async () => {
     const successful = createRecoveryWritePermitHarness();
 
@@ -1413,7 +1845,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     for (let call = 1; call <= 6; call += 1) {
       expect(successful.permit).toHaveBeenNthCalledWith(call, 'recovery');
     }
-    expect(successful.events).toEqual([
+    expect(durableRecoveryEvents(successful.events)).toEqual(durableRecoveryEvents([
       'permit:recovery', 'inspectAfterPermit',
       'permit:recovery',
       'reread:prior', 'reread:priorReceipt',
@@ -1427,7 +1859,19 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       'reread:prior', 'reread:priorReceipt',
       'reread:receipt', 'reread:journal', 'reread:journal',
       'createAuthorityChain',
-    ]);
+    ]));
+    let previousWrite = -1;
+    for (const write of ['writeReceipt', 'writeHead', 'createAuthorityChain']) {
+      const at = successful.events.indexOf(write, previousWrite + 1);
+      const guardedRound = successful.events.slice(previousWrite + 1, at);
+      expect(guardedRound).toEqual(expect.arrayContaining([
+        'reread:original', 'reread:journal', 'reread:prior',
+        'inspectSourceAfterPermit', 'inspectAfterPermit',
+      ]));
+      expect(guardedRound.indexOf('inspectSourceAfterPermit'))
+        .toBeLessThan(guardedRound.indexOf('inspectAfterPermit'));
+      previousWrite = at;
+    }
 
     for (const [failedCall, expectedEvents, writes] of [
       [1, ['permit:recovery'], [0, 0, 0]],
@@ -1472,7 +1916,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     ] as const) {
       const denied = createRecoveryWritePermitHarness({ failPermitCall: failedCall });
       await expect(denied.run()).rejects.toThrow('recovery permit denied');
-      expect(denied.events).toEqual(expectedEvents);
+      expect(durableRecoveryEvents(denied.events)).toEqual(durableRecoveryEvents(expectedEvents));
       expect(denied.writeReceipt).toHaveBeenCalledTimes(writes[0]);
       expect(denied.writeHead).toHaveBeenCalledTimes(writes[1]);
       expect(denied.createAuthorityChain).toHaveBeenCalledTimes(writes[2]);
@@ -1567,6 +2011,13 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     } as const;
     const publication =
       canonicalAuthBridgeNotificationPreparedReceiptPublication(receipt);
+    const pendingPriorReceipt = {
+      ...receipt,
+      preparedAt: '2026-08-11T00:00:00.000Z',
+      expiresAt: '2026-08-12T00:00:00.000Z',
+    };
+    const pendingPriorPublication =
+      canonicalAuthBridgeNotificationPreparedReceiptPublication(pendingPriorReceipt);
     const journal = {
       schemaVersion: 1,
       journalHeadDigest: 'a'.repeat(64),
@@ -1575,14 +2026,14 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       predecessorDigest: 'b'.repeat(64),
       runId: '1002', runAttempt: 1, completedAt: NOW.toISOString(),
       sourceCommit: SOURCE_COMMIT, workerVersionId: VERSION_ID,
-      priorPreparedReceiptDigest: 'c'.repeat(64),
+      priorPreparedReceiptDigest: pendingPriorPublication.receiptDigest,
       preparedReceiptDigest: publication.receiptDigest,
       deploymentId: OLD_DEPLOYMENT_ID,
       ptrDatabaseIdentity: PTR_DATABASE,
       ptrBindingDigest: '3'.repeat(64),
       bridgeSourceCommit: SOURCE_COMMIT,
       controlPlaneAttestationDigest: '4'.repeat(64),
-      publicAttestationDigest: '5'.repeat(64),
+      publicAttestationDigest: receipt.liveAttestationDigest,
       privateAttestationDigest: '6'.repeat(64),
       ptrBindingAttestationDigest: '7'.repeat(64),
       noDeploy: true,
@@ -1606,7 +2057,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       bridgeSourceCommit: SOURCE_COMMIT, ptrDatabaseIdentity: PTR_DATABASE,
       ptrBindingDigest: '3'.repeat(64),
       controlPlaneAttestationDigest: '4'.repeat(64),
-      publicAttestationDigest: '5'.repeat(64),
+      publicAttestationDigest: receipt.liveAttestationDigest,
       privateAttestationDigest: '6'.repeat(64),
       ptrBindingAttestationDigest: '7'.repeat(64),
       liveAttestation,
@@ -1633,13 +2084,25 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         WARPKEEP_AUTH_BRIDGE_ZONE_ID: ZONE_ID,
         WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: 'x'.repeat(24),
         WARPKEEP_PRODUCTION_ADMIN_TOKEN: 'y'.repeat(24),
+        WARPKEEP_PTR_SPACETIMEDB_DATABASE: PTR_DATABASE,
       })),
       clock: vi.fn(() => NOW),
       home: vi.fn(() => 'C:\\production-home'),
       createPrivateState: vi.fn(() => privateState),
       createGithubWritePermit,
       resolveJournal: vi.fn(() => journal),
+      resolveOriginalUpload: vi.fn(() => ({
+        sourceCommit: SOURCE_COMMIT, workerVersionId: VERSION_ID,
+        sourceDigest: 'd'.repeat(64), uploadRecordDigest: 'e'.repeat(64),
+        completedJournalHeadDigest: journal.predecessorDigest,
+        journalHeadDigest: journal.journalHeadDigest,
+      })),
       resolvePrior: vi.fn(() => prior),
+      inspectSource: vi.fn(async ({ now }: { now: Date }) => ({
+        workerVersionId: VERSION_ID, bridgeSourceCommit: SOURCE_COMMIT,
+        sourceDigest: 'd'.repeat(64), ptrDatabaseIdentity: PTR_DATABASE,
+        oldestObservedAt: now.toISOString(), inspectedAt: now.toISOString(),
+      })),
       inspect: vi.fn(async () => inspection),
       resolveFreshReceipt: vi.fn(() => ({
         receipt, receiptDigest: publication.receiptDigest,
@@ -1675,6 +2138,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         WARPKEEP_AUTH_BRIDGE_ZONE_ID: ZONE_ID,
         WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: 'x'.repeat(24),
         WARPKEEP_PRODUCTION_ADMIN_TOKEN: 'y'.repeat(24),
+        WARPKEEP_PTR_SPACETIMEDB_DATABASE: PTR_DATABASE,
       })),
       createGithubWritePermit: sourceDriftPermitFactory,
       writeReceipt: sourceDriftWriteReceipt,
@@ -1781,6 +2245,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
 
     const pendingHeadPrior = {
       ...prior,
+      receipt: pendingPriorReceipt,
       value: {
         ...prior.value,
         preparedReceiptDigest: journal.priorPreparedReceiptDigest,
@@ -1942,7 +2407,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     const laterInspection = {
       ...inspection,
       controlPlaneAttestationDigest: '8'.repeat(64),
-      publicAttestationDigest: '9'.repeat(64),
+      publicAttestationDigest: receipt.liveAttestationDigest,
       privateAttestationDigest: 'a'.repeat(64),
       ptrBindingAttestationDigest: 'b'.repeat(64),
       oldestObservedAt: later.toISOString(),
@@ -2044,7 +2509,6 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
 
     const oldReceipt = {
       ...receipt,
-      liveAttestationDigest: '1'.repeat(64),
       preparedAt: '2026-08-10T00:00:00.000Z',
       expiresAt: '2026-08-11T00:00:00.000Z',
     };
@@ -2096,6 +2560,12 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     const receiptOnlyRuntime = {
       ...runtime,
       resolveJournal: vi.fn(() => currentJournal),
+      resolveOriginalUpload: vi.fn(() => ({
+        sourceCommit: SOURCE_COMMIT, workerVersionId: VERSION_ID,
+        sourceDigest: 'd'.repeat(64), uploadRecordDigest: 'e'.repeat(64),
+        completedJournalHeadDigest: normalJournal.journalHeadDigest,
+        journalHeadDigest: currentJournal.journalHeadDigest,
+      })),
       resolvePrior: vi.fn(() => oldPrior),
       resolveFreshReceipt: forbidden,
       resolveExpiredReceipt: vi.fn(() => ({
@@ -2140,7 +2610,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         return {
           ...inspection,
           controlPlaneAttestationDigest: attestationDigest('control'),
-          publicAttestationDigest: attestationDigest('public'),
+          publicAttestationDigest: receipt.liveAttestationDigest,
           privateAttestationDigest: attestationDigest('private'),
           ptrBindingAttestationDigest: attestationDigest('ptr'),
           oldestObservedAt: observedAt,

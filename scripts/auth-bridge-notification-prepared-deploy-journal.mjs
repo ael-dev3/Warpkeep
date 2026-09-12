@@ -988,6 +988,54 @@ function existingJournalDirectory({ repositoryRoot, reportedHome }) {
   return Object.freeze({ directory: parent, uid });
 }
 
+function originalUploadAuthority(records, resolved) {
+  const phases = records.map(record => record.value.phase);
+  const expected = phases.includes('release-invoked')
+    ? ['prepared', 'remote-reconcile-started', 'upload-invoked', 'uploaded',
+      'release-uncertain', 'release-invoked', 'completed']
+    : ['prepared', 'remote-reconcile-started', 'upload-invoked', 'uploaded', 'completed'];
+  if (JSON.stringify(phases) !== JSON.stringify(expected)) {
+    fail('AUTH_BRIDGE_PREPARED_ORIGINAL_UPLOAD_AUTHORITY_INVALID');
+  }
+  const prepared = records[0];
+  const predecessor = records[1].value.payload;
+  const upload = records[2];
+  const uploaded = records[3].value.payload;
+  const completed = records.at(-1);
+  const contract = prepared.value.payload.contract;
+  const { sourceCommit, sourceDigest, versionTag } = upload.value.payload;
+  if (
+    !isRecord(contract)
+    || prepared.value.previousRecordDigest !== null
+    || digestValue(contract) !== prepared.value.contractDigest
+    || versionTag !== `notification-prepared-${sourceCommit}`
+    || [contract, predecessor, uploaded].some(value => (
+      value.sourceCommit !== sourceCommit
+      || value.sourceDigest !== sourceDigest
+      || value.versionTag !== versionTag
+    ))
+    || completed.value.payload.sourceCommit !== sourceCommit
+    || completed.value.payload.versionTag !== versionTag
+    || completed.value.payload.versionId !== uploaded.versionId
+    || resolved.sourceCommit !== sourceCommit
+    || resolved.workerVersionId !== uploaded.versionId
+    || records.filter(record => ['release-uncertain', 'release-invoked']
+      .includes(record.value.phase)).some(record => (
+      record.value.payload.sourceCommit !== sourceCommit
+      || record.value.payload.versionId !== uploaded.versionId
+      || record.value.payload.versionTag !== versionTag
+    ))
+  ) fail('AUTH_BRIDGE_PREPARED_ORIGINAL_UPLOAD_AUTHORITY_INVALID');
+  return Object.freeze({
+    sourceCommit,
+    workerVersionId: uploaded.versionId,
+    sourceDigest,
+    uploadRecordDigest: upload.digest,
+    completedJournalHeadDigest: completed.digest,
+    journalHeadDigest: resolved.journalHeadDigest,
+  });
+}
+
 /**
  * Authenticates the sole completed existing journal without opening a lock,
  * repairing a publication, or accepting a journal name/digest from the caller.
@@ -995,7 +1043,7 @@ function existingJournalDirectory({ repositoryRoot, reportedHome }) {
 function resolveExistingAuthBridgeNotificationPreparedDeployJournalInternal({
   repositoryRoot,
   reportedHome,
-} = {}, allowLock = false, includeRecoveryAuthority = false) {
+} = {}, allowLock = false, includeRecoveryAuthority = false, includeOriginalUpload = false) {
   const state = existingJournalDirectory({ repositoryRoot, reportedHome });
   let names;
   try {
@@ -1090,6 +1138,7 @@ function resolveExistingAuthBridgeNotificationPreparedDeployJournalInternal({
     recoveryAuthority = next.value;
     pending.splice(pending.indexOf(next), 1);
   }
+  if (includeOriginalUpload) return originalUploadAuthority(records, resolved);
   if (!includeRecoveryAuthority) return resolved;
   return Object.freeze({
     ...resolved,
@@ -1128,6 +1177,30 @@ export function resolveAuthBridgeNotificationPreparedRecoveryJournalAuthority(
 ) {
   return resolveExistingAuthBridgeNotificationPreparedDeployJournalInternal(
     options,
+    false,
+    true,
+  );
+}
+
+/**
+ * Derives the original upload digest from the same authenticated completed
+ * history as its latest recovery descendant. No caller-selected source digest,
+ * journal path or repair operation is accepted.
+ */
+export function resolveAuthBridgeNotificationPreparedOriginalUploadAuthority(options = {}) {
+  if (arguments.length !== 1 || !isRecord(options)
+    || Object.getPrototypeOf(options) !== Object.prototype) {
+    fail('AUTH_BRIDGE_PREPARED_ORIGINAL_UPLOAD_AUTHORITY_INPUT_INVALID');
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(options);
+  if (Reflect.ownKeys(descriptors).some(key => (
+    !['repositoryRoot', 'reportedHome'].includes(key)
+    || !Object.hasOwn(descriptors[key], 'value')
+    || descriptors[key].enumerable !== true
+  ))) fail('AUTH_BRIDGE_PREPARED_ORIGINAL_UPLOAD_AUTHORITY_INPUT_INVALID');
+  return resolveExistingAuthBridgeNotificationPreparedDeployJournalInternal(
+    options,
+    false,
     false,
     true,
   );

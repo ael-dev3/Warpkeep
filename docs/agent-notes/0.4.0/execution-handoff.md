@@ -14,6 +14,16 @@ source edits were preserved. This is source-bound preparation evidence with
 owns the exact digests. New recovery implementation must receive its own final
 source preparation after integration; this candidate does not certify it.
 
+The next source change connects authenticated original-upload bytes and full
+Cloudflare configuration inspection to the actual recovery caller. Independent
+review also closed executable-module disguises in multipart metadata for both
+recovery and ordinary version reads. The complete native runtime/source/receipt
+suites passed 178 tests under UID 1000 with pinned Node 22.22.3, without skips;
+build-mode types and file-size policy passed. See the
+[recovery evidence](../../evidence/0.4.0/recovery.md) for scope and remaining
+repeat-renewal ancestor handling and real-provider timing work. Controlled tests
+do not substitute for production receipts or live recovery.
+
 Continuous publication is required in `AGENTS.md` and the
 [sync procedure](../../operations/0.4.0-development-sync.md): commit and push
 each completed development change and all authored durable work at handoff.
@@ -58,8 +68,8 @@ private receipts, Cloudflare bytes or a live 0.4 deployment. Runner22 is online.
 See the [workflow audit](../../evidence/0.4.0/workflow-sufficiency-audit.md)
 for the genuine remaining provider, PTR and recovery gaps.
 
-Next: complete actual recovery source/configuration attestation and its native
-tests, then prepare/check the composed source. Finish normal protected preparation-only
+Next: prepare/check the composed recovery source, preserve authenticated ancestor
+history through repeat renewal, and exercise genuine provider reads. Finish normal protected preparation-only
 promotion and main CI, then exercise the existing sealed `preflight`. Follow
 with real shared bridge attesters in the sealed entry points. Workflow edits
 change protected closure members; old candidate hashes and fixture-generated

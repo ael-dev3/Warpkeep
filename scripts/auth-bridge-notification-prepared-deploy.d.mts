@@ -4,7 +4,11 @@ import type {
 } from './auth-bridge-notification-prepared-receipt.mjs';
 import type {
   AuthBridgeNotificationPreparedReadOnlyRecoveryHead,
+  resolveAuthBridgeNotificationPreparedOriginalUploadAuthority,
 } from './auth-bridge-notification-prepared-deploy-journal.mjs';
+import type {
+  inspectAuthBridgeNotificationPreparedRecoverySource,
+} from './auth-bridge-notification-prepared-cloudflare-runtime.mjs';
 
 export class AuthBridgeNotificationPreparedDeployEntrypointError extends Error {
   readonly code: string;
@@ -233,6 +237,7 @@ type AuthBridgeNotificationPreparedRecoveryEnvironment = Readonly<{
   WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: string;
   WARPKEEP_AUTH_BRIDGE_ZONE_ID: string;
   WARPKEEP_PRODUCTION_ADMIN_TOKEN: string;
+  WARPKEEP_PTR_SPACETIMEDB_DATABASE: string;
 }>;
 type AuthBridgeNotificationPreparedDeployEnvironment = Readonly<{
     GITHUB_ACTIONS: string;
@@ -269,6 +274,8 @@ type AuthBridgeNotificationPreparedProductionRecoveryRuntime = Readonly<{
   resolveJournal: (input: Readonly<{
     repositoryRoot: string;
   }>) => AuthBridgeNotificationPreparedRecoverySourceJournal;
+  resolveOriginalUpload:
+    typeof resolveAuthBridgeNotificationPreparedOriginalUploadAuthority;
   resolvePrior: (input: Readonly<{
     privateState: AuthBridgeNotificationPreparedRecoveryPrivateState;
     sourceCommit: string;
@@ -280,6 +287,7 @@ type AuthBridgeNotificationPreparedProductionRecoveryRuntime = Readonly<{
     phase?: 'g002' | 'ptr' | 'complete';
     pendingRecoveryHead?: AuthBridgeNotificationPreparedRecoveryJournal;
   }>;
+  inspectSource: typeof inspectAuthBridgeNotificationPreparedRecoverySource;
   inspect: (input: Readonly<{
     expected: Readonly<{
       workerVersionId: string;

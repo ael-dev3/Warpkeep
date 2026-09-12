@@ -54,6 +54,23 @@ export function resolveExistingAuthBridgeNotificationPreparedDeployJournal(
   workerVersionId: string;
 }>;
 
+export function resolveAuthBridgeNotificationPreparedOriginalUploadAuthority(
+  options: Readonly<{
+    repositoryRoot: string;
+    /** Test-only substitute for the OS account home. */
+    reportedHome?: string;
+  }>,
+): Readonly<{
+  sourceCommit: string;
+  workerVersionId: string;
+  sourceDigest: string;
+  uploadRecordDigest: string;
+  /** Original deployment completion, before any read-only recovery heads. */
+  completedJournalHeadDigest: string;
+  /** Latest completed deployment or canonical recovery descendant. */
+  journalHeadDigest: string;
+}>;
+
 export function writeAuthBridgeNotificationPreparedReadOnlyRecoveryHead(
   options: Readonly<{
     head: AuthBridgeNotificationPreparedReadOnlyRecoveryHead;

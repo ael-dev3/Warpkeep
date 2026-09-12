@@ -1,11 +1,12 @@
 # 0.4 workflow sufficiency audit
 
-Updated 2026-09-12 (Europe/Budapest). The release-path audit read published head
+Updated 2026-09-12 (Europe/Budapest). The initial release-path audit read published head
 `2ffdcc96ea3474908d2158ee817b4a384b274523` on
 `codex/prepared-keep-bindings-fix`; concurrent working-tree changes are not
-covered by that checkpoint. The latest recorded native preparation/check input
-is `03cb8b8fc2c0c59bcb58c4303b2082dead6325d9`. Later gameplay and workflow
-changes require fresh preparation before release. For historical source/test
+covered by that checkpoint. The latest completed native preparation/check input
+is `27700d617d7085098b6f1ab8ee3d8cf9cdc40e23`, published as a checked generated
+family in `fd21ae25`. Later recovery source changes require fresh preparation
+before release. For historical source/test
 head `95945bea`, Verify run `34665737857` completed successfully across Linux,
 SpacetimeDB, release-recovery, auth-bridge, native-contract and aggregate
 verification; CodeQL `34665737866` is also successful. The Pages
@@ -22,8 +23,10 @@ fresh evidence bound to the final reviewed and deployed source.
 
 ## What is working
 
-- Windows, GitHub and native WSL have a documented synchronization procedure;
-  verify their actual commit and worktree state at each publication checkpoint.
+- Windows, GitHub and native WSL have a continuous publication procedure:
+  completed changes and authored durable handoff work are committed and pushed
+  immediately, with a quiet 15-minute thread check for missed publication.
+  Verify actual remote equality; keep active native build inputs immutable.
 - The local foundation passes typecheck, build, visual-foundation checks and the
   focused gameplay/recovery suites recorded in the release evidence.
 - The rendered WebGL observer now has a reviewed macOS/Windows/Linux boundary;
@@ -32,7 +35,7 @@ fresh evidence bound to the final reviewed and deployed source.
   activation-evidence lanes. G001 policy observation is parsed and fails closed
   when runner or provider authority is missing.
 - Native release preparation and independent checking passed for recorded input
-  `03cb8b8f`, with converged candidate, closure and public-boundary verification.
+  `27700d61`, with converged candidate and authenticated generated output export.
   That historical candidate does not attest later source edits.
 - The protected CI shape is explicit: `verify`, `auth-bridge`,
   `spacetimedb-module`, `analyze` and `CodeQL` are required contexts.
