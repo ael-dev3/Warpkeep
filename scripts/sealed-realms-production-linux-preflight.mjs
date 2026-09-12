@@ -196,7 +196,7 @@ function bundle(commit, lane) {
   for (const member of selected.graphManifest) {
     exact(member, ['path', 'byteLength', 'sha256'], 'bundle');
     if (typeof member.path !== 'string' || (!/^(?:scripts|spacetimedb|node_modules\/yaml|node_modules\/@noble\/hashes)\/[A-Za-z0-9._/-]+$/u.test(member.path)
-      && !(lane === 'ptr' && SEALED_REALMS_PTR_OBSERVATION_GRAPH_PATHS.includes(member.path)))
+      && !(spec.requiredGraphPaths.includes(member.path) && SEALED_REALMS_PTR_OBSERVATION_GRAPH_PATHS.includes(member.path)))
       || member.path.split('/').some(part => !part || part === '.' || part === '..')
       || member.path <= previous || aliases.has(member.path.toLowerCase())
       || !Number.isSafeInteger(member.byteLength) || member.byteLength < 1 || member.byteLength > 4 * 1024 * 1024

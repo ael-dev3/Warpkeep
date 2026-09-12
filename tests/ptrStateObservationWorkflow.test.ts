@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { expect, it } from 'vitest';
 
-it('routes PTR state observation through its protected OIDC job without provider credentials', () => {
+it('scopes PTR observation and update OIDC to their protected jobs', () => {
   const workflow = parse(readFileSync('.github/workflows/sealed-realms-production.yml', 'utf8'));
   expect(workflow.on.workflow_dispatch.inputs.operation.options).toContain('ptr-state-inspect');
   const job = workflow.jobs.observe_ptr;
@@ -19,6 +19,19 @@ it('routes PTR state observation through its protected OIDC job without provider
   expect(body).toContain('scripts/sealed-realms-production-linux-preflight.mjs');
   expect(body).toContain('ACTIONS_ID_TOKEN_REQUEST_URL|ACTIONS_ID_TOKEN_REQUEST_TOKEN');
   expect(body).not.toMatch(/secrets\.|SPACETIME_BIN|CLI_CONFIG|DEPENDENCY_CACHE|CLOUDFLARE/);
+  expect(workflow.permissions?.['id-token']).not.toBe('write');
   expect(workflow.jobs.operate_readonly.permissions?.['id-token']).not.toBe('write');
-  expect(workflow.jobs.operate_ptr.permissions?.['id-token']).not.toBe('write');
+  // Updates obtain signed pre/post observations in their existing protected job.
+  const update = workflow.jobs.operate_ptr;
+  expect(update.permissions).toEqual({ 'actions': 'read', 'contents': 'read', 'id-token': 'write' });
+  expect(update.environment).toBe('notification-bridge-prepared');
+  expect(update['runs-on']).toEqual(['self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive']);
+  expect(update.if.replace(/\s+/gu, ' ').trim()).toBe([
+    "github.event_name == 'workflow_dispatch'",
+    "github.repository == 'ael-dev3/Warpkeep'",
+    "github.ref == 'refs/heads/main'",
+    'github.sha == inputs.source_commit',
+    'contains(fromJSON(\'["ptr-update-inspect","ptr-update-apply"]\'), inputs.operation)',
+  ].join(' && '));
+  expect(JSON.stringify(update)).toContain('ACTIONS_ID_TOKEN_REQUEST_URL|ACTIONS_ID_TOKEN_REQUEST_TOKEN');
 });

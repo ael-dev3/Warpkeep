@@ -19,6 +19,60 @@ Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
+## Observation bundle membership repair — 2026-09-13
+
+Native preparation `85601` at published `c0916553` is terminal with exit one.
+It stopped during `compiling-bindings-and-bundles`, before a complete family or
+completion marker existed. Retain failed draft
+`release-workspace-986cef68a29e38909e501d5597762c94`, candidate
+`release-workspace-9b1ca606f0056d85ea369bee27287867` and operation namespace
+`operation-bundle-61483bf47e68120dd88302b61147e238` for diagnosis; none is accepted
+for export or independent release checking. No deployment occurred.
+
+An in-memory diagnostic reused that namespace's exact retained source and pinned
+native compiler, with the actual engine's `write: false`. Activation and G002 both
+failed with `SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID`; each reached the exact
+six existing recovery observation service modules. G001 compiled with no service
+inputs, and PTR compiled with those six. The V4 shared activation-record reader
+made the verifier reachable in activation and G002, while the graph policy still
+allowed it only in PTR. The top-level assembler masked the underlying code as
+`LOCAL_RELEASE_ASSEMBLER_FAILED`; the diagnostic establishes the specific cause.
+
+The builder and fixed Linux preflight now use the selected specification's
+required graph membership plus the existing exact service inventory. Activation,
+G002 and PTR require the observation wrapper and all six verifier modules. G001
+remains excluded, and no general service-directory allowance was introduced.
+Connected foreign-service and missing-verifier regressions retain graph closure,
+so their rejection does not depend on an orphan or a nonexistent source file.
+
+The new real-build regressions first failed for activation and G002 (session
+`33759`, two intended failures and nine passes, exit one). After the source repair,
+five owning compiler/bundle suites passed all 34 tests (`10185`, 29.22 seconds,
+exit zero). Preflight's Windows selection passed nine cases and skipped 43 native
+cases. The new native positive must traverse source, graph, closure and attested
+activation import before rejecting absent workflow authority. Its prepared-graph
+and rejection cases still need a newly generated coherent donor; Windows success
+is not native preflight acceptance. A call-through file-open observation requires
+native graph negatives to stop before the outer closure manifest is opened; a
+stale outer closure cannot mask a graph validator regression. G002 has no operation
+in the fixed preflight caller; its graph checks do not invent one.
+
+The obsolete OIDC assertion first reproduced its hosted failure, then the repaired
+scoped job contract and neighboring observation/workflow suites passed 116 tests
+across four files (40 native-only Windows skips, `68724`, 105.78 seconds, exit
+zero). Root build-mode and strict targeted types, file-size policy and diff checks
+passed. Independent source review found no actionable production defect; the
+native fixture acceptance remains explicitly pending regeneration.
+
+Hosted Verify `34718759226` at `c0916553` is terminal: Linux and the aggregate gate
+failed, while both services, module, native-contract and CodeQL passed. The Linux
+failures include the same observation graph restriction, the already-recorded
+stale generated source pin and an obsolete test denying OIDC to `operate_ptr`.
+Signed pre/post update observations intentionally require that job's scoped OIDC
+permission. Keep the production permission and verify its protected job boundary.
+The next published repair must precede a fresh preparation and independent check;
+no typed pin replacement or old family certifies it.
+
 ## PTR retained adoption and recovery consumers — 2026-09-12
 
 This follow-up on `codex/0.4-ptr-state-adoption` reuses the existing private update

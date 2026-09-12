@@ -39,8 +39,11 @@ export const SEALED_REALMS_PTR_OBSERVATION_GRAPH_PATHS = Object.freeze([
 ]);
 
 function requiredGraphPaths(lane) {
+  // Activation and G002 share the retained-adoption reader with PTR, so their
+  // closed graphs require the same observation verifier. G001 stays independent.
   return Object.freeze([
-    ...(lane === 'ptr' ? ['scripts/ptr-production-state-observation.mjs', ...SEALED_REALMS_PTR_OBSERVATION_GRAPH_PATHS] : []),
+    ...(['activation', 'g002', 'ptr'].includes(lane)
+      ? ['scripts/ptr-production-state-observation.mjs', ...SEALED_REALMS_PTR_OBSERVATION_GRAPH_PATHS] : []),
     `scripts/sealed-realms-production-${lane}-workflow-entry.mjs`,
     `scripts/sealed-realms-production-${lane}-lane-entry.mjs`,
     ...['continuation', 'dispatch', 'private-state', 'source-authority',
@@ -305,7 +308,7 @@ function graphManifest(metafile, spec, sourceRoot) {
     && path.split('/').every(part => part && part !== '.' && part !== '..')
     && (path.startsWith('scripts/') || path.startsWith('spacetimedb/') || path.startsWith('node_modules/yaml/')
       || OPERATION_BUNDLE_NOBLE_GRAPH_FILES.some(file => path === `node_modules/@noble/hashes/${file.path}`)
-      || (spec.entryPath === LANE_SPECS.ptr.entryPath && SEALED_REALMS_PTR_OBSERVATION_GRAPH_PATHS.includes(path)));
+      || (spec.requiredGraphPaths.includes(path) && SEALED_REALMS_PTR_OBSERVATION_GRAPH_PATHS.includes(path)));
   if (metafile.inputs === null || typeof metafile.inputs !== 'object' || Array.isArray(metafile.inputs)) {
     fail('SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID');
   }
