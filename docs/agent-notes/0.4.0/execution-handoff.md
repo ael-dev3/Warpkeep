@@ -2,11 +2,14 @@
 
 ## Current review and next work — 12 September 2026
 
-The active delivery branch is `codex/0.4-ptr-state-adoption` in the reused
+The active delivery branch is `codex/0.4-ptr-state-adoption` /
+[PR #244](https://github.com/ael-dev3/Warpkeep/pull/244) in the reused
 `C:/Temp/warpkeep-clean-ci` checkout, based on PR #243's published `789db360`.
 The connected private V4 capture now spans the real update caller, claim reader,
 Node client, OIDC signer and immutable private-state writer. Focused Windows and
-Workerd checks passed with documented native-only limits; the [owning evidence](../../evidence/0.4.0/release-engineering.md#ptr-existing-state-capture--2026-09-12)
+Workerd checks passed. Native `c5fbb2dd` then passed all 230 owning cases in nine
+suites without skips, and the full native service suite passed 1,194 cases in
+44 suites; the [owning evidence](../../evidence/0.4.0/release-engineering.md#ptr-existing-state-capture--2026-09-12)
 records accepted tests and remaining integration. No service was deployed and no
 App or credential was created. The V4 envelope is separate from the existing V3
 activation corpus; bridge/activation/recovery consumption remains unfinished.
@@ -212,7 +215,7 @@ generation await the requested action-time confirmation. The dedicated
 installation/key supply remains unresolved; no App or credential was created.
 
 Existing-state adoption is a distinct V4 path. The connected private capture is
-implemented with focused acceptance; native filesystem verification, bridge state, activation and recovery
+implemented with focused Windows, Workerd and native acceptance; bridge state, activation and recovery
 consumers remain unfinished. The implementation keeps the standalone observation
 contract and V3 completion/terminal bytes intact.
 Collect a separately typed update observation inside `ptr-update-apply`, after

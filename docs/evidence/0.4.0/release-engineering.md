@@ -73,9 +73,32 @@ Verification before publication:
   runtime or private writer. Review added a final pre-sidecar reopen after crypto
   before submission, with its regression passing.
 
+Native acceptance at published `c5fbb2ddaf700391dfda4c211f12b68f663252d3`
+passed all 230 tests in nine suites without skips (session `73013`, 17.68 seconds,
+exit zero). The selection includes real adapter/continuation/observation tests,
+workflow authority, runtime lifecycle and V3 activation records. The first native
+run at `01122bf1` had 229 passes and one test-only failure: the lifecycle fixture
+expected Windows `git` where Linux correctly selected `/usr/bin/git`. Its platform-
+aware expectation was corrected, Windows lifecycle 42/42 passed again, the change
+was scanned/published, and the complete native selection then passed. No runtime
+guard or timeout changed. The owning code was published at `b8ff4c04`; exact public
+test-key fingerprint exceptions were added only for two new fixture locations
+at `01122bf1` after the initial outgoing scan identified those public fingerprints.
+The complete outgoing range then passed secret scanning before publication.
+
+The full release-recovery service suite also passed natively at `c5fbb2dd`:
+1,194 tests in 44 suites, no skips or failures (session `79440`, 22.43 seconds,
+exit zero). It used pinned Node 22.22.3 and the existing compatible root Vitest
+4.1.11 under the service's own configuration; no service installation was added.
+The two Windows linked-checkout failures are environmental limits of that run.
+The native host test verifies Linux refusal; it does not certify the positive
+standalone Windows Git-object-database path. Workerd acceptance remains the three
+actual transport cases already verified on Windows.
+
 The runtime lifecycle tests mock orchestration boundaries; they do not establish
-cryptographic authority. Native filesystem acceptance, generated-family refresh,
-current-head hosted checks, deployment and downstream V4 consumers remain open.
+cryptographic authority. Native acceptance above closes the recorded POSIX
+limits for the selected tests. Generated-family refresh, current-head hosted
+checks, deployment and downstream V4 consumers remain open.
 No provider mutation, deployment, credential, generated family, clone, or package
 installation was created by this change. Prior prepared families certify their
 recorded inputs, not this new source.
