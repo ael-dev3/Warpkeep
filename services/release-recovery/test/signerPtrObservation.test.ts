@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { observePtrFromEnvironment } from '../src/signerPtrObservation.js'
+import * as updateSigner from '../src/signerPtrObservation.js'
+import { verifyHistoricalPtrUpdateObservation, verifyPtrUpdateObservationPair } from '../src/ptrObservation.js'
 import { verifyPtrObservation } from '../src/ptrObservation.js'
 import { preparationPrivateJwk } from './preparationFixture.js'
 import { ptrObservationOidcFixture } from './ptrObservationOidcFixture.js'
@@ -14,9 +16,21 @@ vi.mock('../src/recoveryPublicKey.js', () => ({
 }))
 
 async function fixture(options: Readonly<{ mutateAfterBridge?: (env: Record<string, unknown>) => void,
-  bridge?: unknown, oidcMutate?: NonNullable<Parameters<typeof ptrObservationOidcFixture>[0]>['mutate'] }> = {}) {
-  const now = 1_800_000_000
-  const oidc = await ptrObservationOidcFixture({ now, mutate: options.oidcMutate })
+  bridge?: unknown, now?: number, update?: boolean, reconciliationRun?: boolean,
+  oidcMutate?: NonNullable<Parameters<typeof ptrObservationOidcFixture>[0]>['mutate'] }> = {}) {
+  const now = options.now ?? 1_800_000_000
+  const oidc = await ptrObservationOidcFixture({ now,
+    ...(options.reconciliationRun ? { runId: '9007199254740997', checkRunId: '9007199254740999',
+      requestId: '223e4567-e89b-42d3-a456-426614174000' } : {}),
+    claims: options.update ? { aud: 'https://release-auth.warpkeep.com/ptr-update-observation' } : undefined,
+    mutate(url, value) {
+      if (options.update) {
+        if (url.includes('/jobs?')) for (const job of value.jobs as Record<string, unknown>[])
+          if (job.name === 'observe_ptr') job.name = 'operate_ptr'
+        if (value.name === 'observe_ptr') value.name = 'operate_ptr'
+      }
+      options.oidcMutate?.(url, value)
+    } })
   const requests: unknown[] = []
   const env: Record<string, any> = {
     RECOVERY_ENABLED: 'false', RECOVERY_AUTHORIZATION_EPOCH: String(PTR_OBSERVATION_EPOCH),
@@ -109,5 +123,79 @@ describe('read-only existing PTR observation signer', () => {
         expect(String(error)).not.toContain('must-not-escape')
       }
     }
+  })
+})
+
+const updateCommon = { bindingDigest: '1'.repeat(64), inspectionDigest: '2'.repeat(64), inspectionRecordDigest: '3'.repeat(64),
+  predecessorDigest: null, predecessorReceiptDigest: null, beforeProgram: 'a'.repeat(64), candidateProgram: 'b'.repeat(64),
+  scopeDigest: '4'.repeat(64), issuedRecordDigest: '5'.repeat(64), claimRecordDigest: '6'.repeat(64),
+  claimRunId: '9007199254740995', claimRunAttempt: '2' }
+function updateRequest(oidc: Awaited<ReturnType<typeof ptrObservationOidcFixture>>) {
+  return { oidcToken: oidc.token, sourceCommit: oidc.sourceCommit, requestId: oidc.requestId,
+    context: { ...updateCommon, phase: 'pre' as const } }
+}
+describe('PTR update observation signer composition', () => {
+  it('signs genuine pre/post observations through the fixed service while an expired retained pre remains historical evidence', async () => {
+    expect(typeof updateSigner.observePtrUpdateFromEnvironment).toBe('function')
+    const first = await fixture({ update: true })
+    const pre = await updateSigner.observePtrUpdateFromEnvironment(first.env as never, updateRequest(first.oidc))
+    expect(first.requests).toHaveLength(1)
+    const preData = await verifyHistoricalPtrUpdateObservation(pre.ptrUpdateObservationJws)
+    expect(preData.context.phase).toBe('pre')
+    const now = first.now + 120, changed = ptrObservationBridgeFixture(now)
+    changed.ptr.programKeccak256 = updateCommon.candidateProgram
+    changed.requestId = '223e4567-e89b-42d3-a456-426614174000'
+    const second = await fixture({ update: true, now, bridge: changed, reconciliationRun: true })
+    const postRequest = { ...updateRequest(second.oidc), context: { ...updateCommon, phase: 'post' as const,
+      preObservationJwsSha256: Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pre.ptrUpdateObservationJws))).toString('hex'),
+      completionReceiptDigest: '7'.repeat(64), completionRecordDigest: '8'.repeat(64), terminalRecordDigest: '9'.repeat(64),
+      terminalRunId: '9007199254740997', terminalRunAttempt: '2', terminalOutcome: 'reconciled-effect-applied' as const,
+      terminalAt: new Date((now - 1) * 1000).toISOString() }, preObservationJws: pre.ptrUpdateObservationJws }
+    const post = await updateSigner.observePtrUpdateFromEnvironment(second.env as never, postRequest)
+    const pair = await verifyPtrUpdateObservationPair(pre.ptrUpdateObservationJws, post.ptrUpdateObservationJws)
+    expect(pair.post.observation.ptr.programKeccak256).toBe('b'.repeat(64))
+    expect(pair.post.identity).toMatchObject({ runId: '9007199254740997', checkRunId: '9007199254740999' })
+    expect(pair.post.context.claimRunId).toBe('9007199254740995')
+    expect(second.requests).toHaveLength(1)
+  })
+  it('refuses a different original claim run before calling the observer', async () => {
+    const { env, oidc, requests } = await fixture({ update: true })
+    const request = updateRequest(oidc)
+    await expect(updateSigner.observePtrUpdateFromEnvironment(env as never,
+      { ...request, context: { ...request.context, claimRunId: '11' } })).rejects.toThrow('RECOVERY_PTR_UPDATE_OBSERVATION_UNAVAILABLE')
+    expect(requests).toHaveLength(0)
+  })
+  it('fails closed with missing deployment credentials, widened arguments or standalone OIDC and never calls the bridge', async () => {
+    const { env, oidc, requests } = await fixture({ update: true })
+    const request = updateRequest(oidc)
+    for (const action of [
+      () => updateSigner.observePtrUpdateFromEnvironment({ ...env, GITHUB_APP_PRIVATE_KEY_PEM: '' } as never, request),
+      () => updateSigner.observePtrUpdateFromEnvironment({ ...env, RECOVERY_ENABLED: 'true' } as never, request),
+      () => updateSigner.observePtrUpdateFromEnvironment(env as never, request, ['private-extra']),
+    ]) await expect(action()).rejects.toThrow('RECOVERY_PTR_UPDATE_OBSERVATION_UNAVAILABLE')
+    expect(requests).toHaveLength(0)
+    const standalone = await fixture()
+    await expect(updateSigner.observePtrUpdateFromEnvironment(standalone.env as never, updateRequest(standalone.oidc)))
+      .rejects.toThrow('RECOVERY_PTR_UPDATE_OBSERVATION_UNAVAILABLE')
+    expect(standalone.requests).toHaveLength(0)
+  })
+  it.each(['epoch', 'job', 'expiry'])('rechecks %s after awaited private/crypto work', async kind => {
+    let refreshedBranches = 0
+    const { env, oidc, now } = await fixture({ update: true,
+      mutateAfterBridge: kind === 'epoch' ? value => { value.RECOVERY_AUTHORIZATION_EPOCH = '9' } : undefined,
+      oidcMutate: kind === 'job' ? (url, value) => {
+        if (url.endsWith('/branches/main') && ++refreshedBranches === 2) value.protected = false
+      } : undefined })
+    if (kind === 'expiry') {
+      const verify = crypto.subtle.verify.bind(crypto.subtle)
+      vi.spyOn(crypto.subtle, 'verify').mockImplementation(async (algorithm, key, signature, data) => {
+        const valid = await verify(algorithm, key, signature, data)
+        const header = Buffer.from(new TextDecoder().decode(data).split('.')[0]!, 'base64url').toString()
+        if (header.includes('warpkeep-recovery-ptr-update-observation+jws')) vi.mocked(Date.now).mockReturnValue((now + 90) * 1000)
+        return valid
+      })
+    }
+    await expect(updateSigner.observePtrUpdateFromEnvironment(env as never, updateRequest(oidc)))
+      .rejects.toThrow('RECOVERY_PTR_UPDATE_OBSERVATION_UNAVAILABLE')
   })
 })

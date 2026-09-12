@@ -6,9 +6,11 @@ import { parse as parseYaml } from 'yaml';
 import { tmpdir } from 'node:os';
 import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 import { createSealedRealmsProductionPrivateState } from '../scripts/sealed-realms-production-private-state.mjs';
-import { observePtrProductionState } from '../scripts/ptr-production-state-observation.mjs';
-import { capturePtrBridgeObservation, signPtrObservation } from '../services/release-recovery/src/ptrObservation';
+import { observePtrProductionState, requestPtrProductionUpdateObservation } from '../scripts/ptr-production-state-observation.mjs';
+import { capturePtrBridgeObservation, signPtrObservation, signPtrUpdateObservation,
+  verifyPtrUpdateObservationPair } from '../services/release-recovery/src/ptrObservation';
 import { preparationPrivateJwk } from '../services/release-recovery/test/preparationFixture';
+import { createPtrUpdateObservationTransportFixture } from './helpers/ptrUpdateObservationFixture';
 vi.mock('../services/release-recovery/src/recoveryPublicKey.js', () => ({
   RECOVERY_KEY_ID: 'warpkeep-0.4.0-recovery-2026-09-03-1',
   RECOVERY_KEY_THUMBPRINT: 'zbHwk528B5de5kuNzI98k4Y-rljmW6fbkH-aVZomk4M',
@@ -160,5 +162,155 @@ describe('PTR observation workflow caller',()=>{
         await expect(observePtrProductionState(f.input)).rejects.toThrow('PTR_PRODUCTION_STATE_OBSERVATION_FAILED');
         expect(f.privateState.exists({root:'audit',relativePath:'ptr-state-observations/'+identity.sourceCommit+'/'+identity.runId+'-2-'+identity.requestId+'.jws'})).toBe(false);
       } finally {f.cleanup();}
+  });
+});
+
+const updateGateway = 'https://release-auth.warpkeep.com/v1/recovery/ptr-update-observation';
+const updateAudience = 'https://release-auth.warpkeep.com/ptr-update-observation';
+const updateOidcUrl = 'https://pipelines.actions.githubusercontent.com/token?audience=' + encodeURIComponent(updateAudience);
+const commonUpdate = {
+  bindingDigest: '1'.repeat(64), inspectionDigest: '2'.repeat(64), inspectionRecordDigest: '3'.repeat(64),
+  predecessorDigest: null, predecessorReceiptDigest: null, beforeProgram: 'a'.repeat(64), candidateProgram: 'b'.repeat(64),
+  scopeDigest: '4'.repeat(64), issuedRecordDigest: '5'.repeat(64), claimRecordDigest: '6'.repeat(64),
+  claimRunId: identity.runId, claimRunAttempt: identity.runAttempt,
+};
+const preContext = () => ({ ...commonUpdate, phase: 'pre' as const });
+const updateToken = ['e30', Buffer.from(JSON.stringify({ jti: identity.requestId, aud: updateAudience,
+  sha: identity.sourceCommit, run_id: identity.runId, run_attempt: identity.runAttempt })).toString('base64url'), 'fixture'].join('.');
+const updateJob = () => ({ ...job(), name: 'operate_ptr',
+  labels: parseYaml(readFileSync('.github/workflows/sealed-realms-production.yml','utf8')).jobs.operate_ptr['runs-on'] });
+
+async function setupUpdate(context: Parameters<typeof signPtrUpdateObservation>[1] = preContext(),
+  preObservationJws?: string) {
+  for (const [key,value] of Object.entries({ GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
+    GITHUB_REF: 'refs/heads/main', GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_JOB: 'operate_ptr',
+    GITHUB_WORKFLOW_REF: 'ael-dev3/Warpkeep/.github/workflows/sealed-realms-production.yml@refs/heads/main',
+    GITHUB_SHA: identity.sourceCommit, GITHUB_RUN_ID: identity.runId, GITHUB_RUN_ATTEMPT: identity.runAttempt,
+    WARPKEEP_OPERATION: 'ptr-update-apply',
+    GITHUB_TOKEN: 'fixture-github-token', ACTIONS_ID_TOKEN_REQUEST_URL: 'https://pipelines.actions.githubusercontent.com/token',
+    ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'fixture-oidc-token' })) vi.stubEnv(key,value);
+  const post = context.phase === 'post';
+  vi.spyOn(Date, 'now').mockReturnValue((post ? 113 : 108) * 1000);
+  const observed = bridge();
+  if (post) Object.assign(observed, { observedFrom: 108, observedThrough: 110 });
+  observed.ptr.programKeccak256 = context.phase === 'pre' ? context.beforeProgram : context.candidateProgram;
+  const captured = capturePtrBridgeObservation(observed, expected, post ? 107 : 99, post ? 111 : 106);
+  const compact = await signPtrUpdateObservation(identity, context, captured, post ? 112 : 107, preparationPrivateJwk,
+    preObservationJws);
+  const reattest = vi.fn(async()=>{});
+  const fetchMock = vi.fn(async(url:string, init?:RequestInit) => {
+    if (url === updateOidcUrl) return reply(url,{value:updateToken});
+    if (url === jobsUrl) return reply(url, {total_count:1,jobs:[updateJob()]});
+    if (url === updateGateway) {
+      expect(JSON.parse(String(init?.body))).toEqual({
+        oidcToken:updateToken, sourceCommit:identity.sourceCommit, requestId:identity.requestId, context,
+        ...(preObservationJws === undefined ? {} : { preObservationJws }),
+      });
+      return reply(url,{ptrUpdateObservationJws:compact});
+    }
+    throw new Error('unexpected request');
+  });
+  vi.stubGlobal('fetch',fetchMock);
+  const baseInput = {
+    reattest, sourceCommit:identity.sourceCommit, sourceTree:identity.sourceTree,
+    runId:identity.runId, runAttempt:identity.runAttempt,
+  };
+  const input = (context.phase === 'post'
+    ? { ...baseInput, context, preObservationJws }
+    : { ...baseInput, context }) as Parameters<typeof requestPtrProductionUpdateObservation>[0];
+  return { compact, reattest, fetchMock, input };
+}
+
+describe('PTR update observation workflow caller',()=>{
+  it('returns a fresh signed pre observation bound to the exact operate_ptr attempt and context',async()=>{
+    const transport=createPtrUpdateObservationTransportFixture(identity);
+    transport.install();
+    const reattest=vi.fn(async()=>{});
+    const result=await requestPtrProductionUpdateObservation(transport.callerInput(reattest,preContext()));
+    expect(result.observation).toMatchObject({ identity, context:preContext(), purpose:'existing-ptr-update-observation' });
+    expect(reattest.mock.calls.length).toBeGreaterThanOrEqual(7);
+    expect(transport.requests.map(request=>request.url)).toEqual([updateOidcUrl,jobsUrl,updateGateway]);
+  });
+
+  it('rejects non-plain input and context without invoking getters or transport',async()=>{
+    const f=await setupUpdate();
+    const getter=vi.fn(()=>preContext());
+    const input=Object.defineProperty({ ...f.input },'context',{get:getter,enumerable:true});
+    await expect(requestPtrProductionUpdateObservation(input)).rejects.toThrow('PTR_PRODUCTION_STATE_OBSERVATION_FAILED');
+    expect(getter).not.toHaveBeenCalled();
+    await expect(requestPtrProductionUpdateObservation(new Proxy(f.input,{}))).rejects.toThrow(
+      'PTR_PRODUCTION_STATE_OBSERVATION_FAILED');
+    await expect(requestPtrProductionUpdateObservation({ ...f.input, extra: true } as never)).rejects.toThrow(
+      'PTR_PRODUCTION_STATE_OBSERVATION_FAILED');
+    await expect(requestPtrProductionUpdateObservation({
+      ...f.input, context: new Proxy(preContext(), {}),
+    })).rejects.toThrow('PTR_PRODUCTION_STATE_OBSERVATION_FAILED');
+    expect(f.fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each(['wrong-job','inspect-operation','wrong-context','wrong-pre-pair','stale-after-reattest','redirect','oversized'])(
+    'refuses %s before returning signed update evidence',async scenario=>{
+      let f=await setupUpdate();
+      const original=f.fetchMock.getMockImplementation()!;
+      if(scenario==='wrong-job') f.fetchMock.mockImplementation(async(url:string,init?:RequestInit)=>
+        url===jobsUrl?reply(url,{total_count:1,jobs:[{...updateJob(),name:'observe_ptr'}]}):original(url,init));
+      if(scenario==='inspect-operation') vi.stubEnv('WARPKEEP_OPERATION','ptr-update-inspect');
+      if(scenario==='wrong-context') {
+        const changed={...preContext(),bindingDigest:'f'.repeat(64)};
+        const observed=bridge(); observed.ptr.programKeccak256=changed.beforeProgram;
+        const signed=await signPtrUpdateObservation(identity,changed,
+          capturePtrBridgeObservation(observed,expected,99,106),107,preparationPrivateJwk);
+        f.fetchMock.mockImplementation(async(url:string,init?:RequestInit)=>
+          url===updateGateway?reply(url,{ptrUpdateObservationJws:signed}):original(url,init));
+      }
+      if(scenario==='wrong-pre-pair') {
+        const ownObserved=bridge(); ownObserved.ptr.programKeccak256=commonUpdate.beforeProgram;
+        const ownPre=await signPtrUpdateObservation(identity,preContext(),
+          capturePtrBridgeObservation(ownObserved,expected,99,106),107,preparationPrivateJwk);
+        const foreign={...commonUpdate,bindingDigest:'f'.repeat(64),phase:'pre' as const};
+        const observed=bridge(); observed.ptr.programKeccak256=foreign.beforeProgram;
+        const pre=await signPtrUpdateObservation(identity,foreign,
+          capturePtrBridgeObservation(observed,expected,99,106),107,preparationPrivateJwk);
+        const postContext={...foreign,phase:'post' as const,
+          preObservationJwsSha256:Buffer.from(await crypto.subtle.digest('SHA-256',Buffer.from(pre))).toString('hex'),
+          completionReceiptDigest:'7'.repeat(64),completionRecordDigest:'8'.repeat(64),terminalRecordDigest:'9'.repeat(64),
+          terminalRunId:identity.runId,terminalRunAttempt:identity.runAttempt,terminalOutcome:'completed' as const,
+          terminalAt:'1970-01-01T00:01:47.000Z'};
+        const postObserved=bridge(); Object.assign(postObserved,{observedFrom:108,observedThrough:110});
+        postObserved.ptr.programKeccak256=postContext.candidateProgram;
+        const post=await signPtrUpdateObservation(identity,postContext,
+          capturePtrBridgeObservation(postObserved,expected,107,112),
+          112,preparationPrivateJwk,pre);
+        f=await setupUpdate(postContext,pre);
+        f.input={...f.input,preObservationJws:ownPre} as typeof f.input;
+        const nextOriginal=f.fetchMock.getMockImplementation()!;
+        f.fetchMock.mockImplementation(async(url:string,init?:RequestInit)=>
+          url===updateGateway?reply(url,{ptrUpdateObservationJws:post}):nextOriginal(url,init));
+      }
+      if(scenario==='stale-after-reattest') f.reattest.mockImplementation(async()=>{
+        if(f.fetchMock.mock.calls.some(([url])=>url===updateGateway)) vi.spyOn(Date,'now').mockReturnValue(195000);
+      });
+      if(scenario==='redirect') f.fetchMock.mockImplementation(async(url:string,init?:RequestInit)=>
+        url===updateGateway?reply(updateGateway+'/redirect',{ptrUpdateObservationJws:f.compact}):original(url,init));
+      if(scenario==='oversized') f.fetchMock.mockImplementation(async(url:string,init?:RequestInit)=>
+        url===updateGateway?reply(url,{ptrUpdateObservationJws:'x'.repeat(17000)}):original(url,init));
+      await expect(requestPtrProductionUpdateObservation(f.input)).rejects.toThrow(
+        'PTR_PRODUCTION_STATE_OBSERVATION_FAILED');
+      if(['wrong-job','inspect-operation'].includes(scenario))
+        expect(f.fetchMock.mock.calls.some(([url])=>url===updateGateway)).toBe(false);
     });
+
+  it('accepts a post only when it forms the exact signed pair supplied in the request',async()=>{
+    const preFixture=await setupUpdate();
+    const pre=(await requestPtrProductionUpdateObservation(preFixture.input)).compact;
+    vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks();
+    const digest=Buffer.from(await crypto.subtle.digest('SHA-256',Buffer.from(pre))).toString('hex');
+    const postContext={...commonUpdate,phase:'post' as const,preObservationJwsSha256:digest,
+      completionReceiptDigest:'7'.repeat(64),completionRecordDigest:'8'.repeat(64),terminalRecordDigest:'9'.repeat(64),
+      terminalRunId:identity.runId,terminalRunAttempt:identity.runAttempt,terminalOutcome:'completed' as const,
+      terminalAt:'1970-01-01T00:01:47.000Z'};
+    const postFixture=await setupUpdate(postContext,pre);
+    const result=await requestPtrProductionUpdateObservation(postFixture.input);
+    expect((await verifyPtrUpdateObservationPair(pre,result.compact)).post).toEqual(result.observation);
+  });
 });

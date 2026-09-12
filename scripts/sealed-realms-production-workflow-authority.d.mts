@@ -8,6 +8,7 @@ export const SEALED_REALMS_PRODUCTION_WORKFLOW_PATH:
 export const SEALED_REALMS_PRODUCTION_WORKFLOW_PHASES: readonly [
   'permit-issue',
   'ptr-observation',
+  'ptr-update-observation',
   'continuation-issue',
   'continuation-claim',
   'continuation-effect',

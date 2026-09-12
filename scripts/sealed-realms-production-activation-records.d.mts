@@ -1,6 +1,6 @@
 import type { SealedRealmsProductionPrivateState } from './sealed-realms-production-private-state.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
-import type { PtrExistingUpdateCompletion } from './ptr-production-existing-update-adapter.mjs';
+import type { PtrExistingUpdateCompletion, PtrExistingStateAdoption } from './ptr-production-existing-update-adapter.mjs';
 
 export class SealedRealmsProductionActivationRecordsError extends Error {
   readonly code: string;
@@ -44,6 +44,13 @@ export function writeSealedRealmsProductionPtrExistingUpdateRecord(input: Readon
   authority: SealedRealmsProductionSourceAuthority;
   completion: PtrExistingUpdateCompletion;
 }>): Readonly<{ receiptDigest: string; recordDigest: string }>;
+
+/** Private signed V4 evidence only; does not authorize an effect or activate V3. */
+export function writeSealedRealmsProductionPtrExistingStateAdoptionRecord(input: Readonly<{
+  records: SealedRealmsProductionActivationRecords;
+  authority: SealedRealmsProductionSourceAuthority;
+  adoption: PtrExistingStateAdoption;
+}>): Promise<Readonly<{ receiptDigest: string; recordDigest: string }>>;
 
 /** Reopens the exact S-bound V2 or V3 corpus without a candidate, private bodies or writes. */
 export function readSealedRealmsProductionRecoveryReceiptProjection(

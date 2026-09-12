@@ -1,4 +1,6 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
+import { requestPtrProductionUpdateObservation } from './ptr-production-state-observation.mjs';
+import { verifyHistoricalPtrUpdateObservation, verifyPtrUpdateObservationPair } from '../services/release-recovery/src/ptrObservation.ts';
 import { types } from "node:util";
 import { assertPtrSourceBuiltArtifact } from "./ptr-production-publisher.mjs";
 import {
@@ -13,7 +15,7 @@ import {
 import { assertSealedRealmsProductionPrivateState } from "./sealed-realms-production-private-state.mjs";
 import { sourceCommitFromSealedRealmsProductionAuthority } from "./sealed-realms-production-source-authority.mjs";
 import {
-  assertSealedRealmsProductionContinuationClaim,
+  readSealedRealmsProductionContinuationClaimBinding,
   assertSealedRealmsProductionContinuationReconciliation,
   classifySealedRealmsProductionContinuationNoEffect,
   readSealedRealmsProductionContinuationCompletion,
@@ -35,6 +37,14 @@ const TARGET =
 const DIRECTORY = `existing-updates-production-v1/ptr/${TARGET}`;
 const adapters = new WeakMap();
 const completionCapabilities = new WeakMap();
+const adoptionCapabilities = new WeakMap();
+const OBSERVATION_DIRECTORY = `ptr-update-observation-v4/${TARGET}`;
+const jwsDigest = compact => createHash('sha256').update(compact, 'utf8').digest('hex');
+const actualSeconds = () => Math.floor(Date.now() / 1000);
+const requireFresh = observation => {
+  const now = actualSeconds();
+  if (!Number.isSafeInteger(now) || now < 1 || now < observation.issuedAt || now >= observation.expiresAt) fail();
+};
 const selections = new WeakMap();
 const fail = () => {
   throw new Error("PTR_PRODUCTION_EXISTING_UPDATE_INVALID");
@@ -109,11 +119,18 @@ const hostObservation = (value) => {
 
 /** Real provider transport and private continuation records; no synthetic receipts. */
 export function createPtrProductionExistingUpdateAdapter(input) {
-  const { authority, privateState, artifact } = inputRecord(input, [
+  const { authority, privateState, artifact, observation } = inputRecord(input, [
     "authority",
     "privateState",
     "artifact",
+    "observation",
   ]);
+  const observationConfiguration = inputRecord(observation, ['sourceTree', 'runId', 'runAttempt']);
+  if (Object.values(observationConfiguration).some(value => typeof value !== 'string')
+    || !/^[a-f0-9]{40}$/u.test(observationConfiguration.sourceTree)
+    || !/^[1-9][0-9]{0,19}$/u.test(observationConfiguration.runId)
+    || !/^[1-9][0-9]{0,3}$/u.test(observationConfiguration.runAttempt)
+    || Number(observationConfiguration.runAttempt) > 1000) fail();
   const sourceCommit =
     sourceCommitFromSealedRealmsProductionAuthority(authority);
   const built = assertPtrSourceBuiltArtifact(artifact);
@@ -150,6 +167,60 @@ export function createPtrProductionExistingUpdateAdapter(input) {
     cliDigest: built.spacetimeExecutableSha256,
     cliConfigDigest: built.spacetimeCliConfigSha256,
   });
+  const observationPath = (claimRecordDigest, phase) => {
+    digest(claimRecordDigest);
+    if (!['pre', 'post'].includes(phase)) fail();
+    return { root: 'runtime', relativePath: `${OBSERVATION_DIRECTORY}/${claimRecordDigest}.${phase}.json` };
+  };
+  const readObservationBytes = (claimRecordDigest, phase) => {
+    const bytes = state.read(observationPath(claimRecordDigest, phase));
+    try {
+      if (bytes.length > 32768) fail();
+      const record = updateExact(parseExistingUpdateJson(bytes), ['profile', 'compact']);
+      if (record.profile !== 'warpkeep-ptr-update-observation-sidecar-v1'
+        || typeof record.compact !== 'string' || record.compact.length > 24576
+        || bytes.toString('utf8') !== `${updateCanonical(record)}\n`) fail();
+      return record.compact;
+    } finally { bytes.fill(0); }
+  };
+  const writeObservation = (claimRecordDigest, phase, compact) => {
+    const location = observationPath(claimRecordDigest, phase);
+    const bytes = Buffer.from(`${updateCanonical({ profile: 'warpkeep-ptr-update-observation-sidecar-v1', compact })}\n`);
+    try {
+      if (!state.exists(location)) {
+        try { state.write({ ...location, bytes }); }
+        catch (error) {
+          if (error?.code !== 'SEALED_REALMS_PRIVATE_STATE_FILE_EXISTS') throw error;
+        }
+      }
+      if (readObservationBytes(claimRecordDigest, phase) !== compact) fail();
+    } finally { bytes.fill(0); }
+  };
+  const commonContext = (key, entry, claim) => freeze({
+    bindingDigest: updateDigest(bound), inspectionDigest: key,
+    inspectionRecordDigest: updateDigest(entry.inspection),
+    predecessorDigest: entry.inspection.value.predecessorDigest,
+    predecessorReceiptDigest: entry.inspection.value.predecessorReceiptDigest,
+    beforeProgram: entry.inspection.value.beforeProgram, candidateProgram: bound.candidateProgram,
+    scopeDigest: claim.scopeDigest, issuedRecordDigest: claim.issuedRecordDigest,
+    claimRecordDigest: claim.claimRecordDigest, claimRunId: claim.claimRunId,
+    claimRunAttempt: String(claim.claimRunAttempt),
+  });
+  const validateObservation = async (compact, context, fresh = false) => {
+    const value = await verifyHistoricalPtrUpdateObservation(compact);
+    if (value.identity.sourceCommit !== sourceCommit
+      || value.identity.sourceTree !== observationConfiguration.sourceTree || !same(value.context, context)) fail();
+    if (fresh) requireFresh(value);
+    return value;
+  };
+  const observationReattester = (current, permit, runId, runAttempt) => async () => {
+    assertAuthority(current);
+    if (current.operation !== 'ptr-update-apply'
+      || runId !== observationConfiguration.runId || String(runAttempt) !== observationConfiguration.runAttempt) fail();
+    await attestSealedRealmsProductionWorkflowPermit({ permit, sourceAuthority: current,
+      phase: 'ptr-update-observation', runId, runAttempt });
+    assertAuthority(current);
+  };
   const path = (key, kind) => `${DIRECTORY}/${key}.${kind}.json`;
   const present = (key, kind) =>
     state.exists({ root: "runtime", relativePath: path(key, kind) });
@@ -556,7 +627,7 @@ export function createPtrProductionExistingUpdateAdapter(input) {
         "selection",
       ]);
       const [key, entry] = chosen(input.selection, input.sourceAuthority);
-      assertSealedRealmsProductionContinuationClaim(claimFields(input));
+      const claimBinding = readSealedRealmsProductionContinuationClaimBinding(claimFields(input));
       if (
         input.kind !== "ptr-update" ||
         input.evidenceDigest !== key ||
@@ -566,6 +637,8 @@ export function createPtrProductionExistingUpdateAdapter(input) {
         entry["not-submitted"]
       )
         fail();
+      if (input.runId !== observationConfiguration.runId
+        || String(input.runAttempt) !== observationConfiguration.runAttempt) fail();
       busy = true;
       const lease = Object.freeze({ key });
       execution = lease;
@@ -586,6 +659,23 @@ export function createPtrProductionExistingUpdateAdapter(input) {
         )
           fail();
         await observeSupportedHost(input.sourceAuthority);
+        const context = freeze({ ...commonContext(key, entry, claimBinding), phase: 'pre' });
+        const location = observationPath(claimBinding.claimRecordDigest, 'pre');
+        const reattest = observationReattester(input.sourceAuthority, input.permit, input.runId, input.runAttempt);
+        let preCompact;
+        if (state.exists(location)) {
+          preCompact = readObservationBytes(claimBinding.claimRecordDigest, 'pre');
+        } else {
+          const observed = await requestPtrProductionUpdateObservation({ reattest, sourceCommit,
+            ...observationConfiguration, context });
+          preCompact = observed.compact;
+          const pre = await validateObservation(preCompact, context, true);
+          await reattest();
+          requireFresh(pre);
+          if (execution !== lease || Date.now() < Date.parse(claimBinding.claimedAt)
+            || Date.now() >= Date.parse(claimBinding.expiresAt)) fail();
+          writeObservation(claimBinding.claimRecordDigest, 'pre', preCompact);
+        }
         const response = await request(
           input.sourceAuthority,
           {
@@ -600,6 +690,13 @@ export function createPtrProductionExistingUpdateAdapter(input) {
                 runAttempt: input.runAttempt,
               });
               if (execution !== lease) fail();
+              if (readObservationBytes(claimBinding.claimRecordDigest, 'pre') !== preCompact) fail();
+              const pre = await validateObservation(preCompact, context, true);
+              assertAuthority(input.sourceAuthority);
+              if (execution !== lease) fail();
+              requireFresh(pre);
+              if (Date.now() < Date.parse(claimBinding.claimedAt)
+                || Date.now() >= Date.parse(claimBinding.expiresAt)) fail();
               const active = chosen(input.selection, input.sourceAuthority);
               if (
                 active[1].submission ||
@@ -607,11 +704,16 @@ export function createPtrProductionExistingUpdateAdapter(input) {
                 active[1]["not-submitted"]
               )
                 fail();
+              if (readObservationBytes(claimBinding.claimRecordDigest, 'pre') !== preCompact) fail();
+              requireFresh(pre);
+              if (Date.now() >= Date.parse(claimBinding.expiresAt)) fail();
               write(key, "submission", key, {
                 runId: input.runId,
                 runAttempt: Number(input.runAttempt),
                 observedAt: stamp(),
               });
+              requireFresh(pre);
+              if (Date.now() >= Date.parse(claimBinding.expiresAt)) fail();
             },
           },
           (bytes) => ({
@@ -728,7 +830,71 @@ export function createPtrProductionExistingUpdateAdapter(input) {
       continuation: structuredClone(continuation),
     });
   };
-  adapters.set(adapter, { privateState: state, completedEvidence });
+  const adoptionContext = receipt => freeze({
+    bindingDigest: updateDigest(receipt.binding), inspectionDigest: receipt.inspectionDigest,
+    inspectionRecordDigest: receipt.inspectionRecordDigest, predecessorDigest: receipt.predecessorDigest,
+    predecessorReceiptDigest: receipt.predecessorReceiptDigest, beforeProgram: receipt.beforeProgram,
+    candidateProgram: receipt.binding.candidateProgram, scopeDigest: receipt.continuation.scopeDigest,
+    issuedRecordDigest: receipt.continuation.issuedRecordDigest, claimRecordDigest: receipt.continuation.claimRecordDigest,
+    claimRunId: receipt.continuation.claimRunId, claimRunAttempt: String(receipt.continuation.claimRunAttempt),
+  });
+  const postContext = (receipt, preCompact) => freeze({ ...adoptionContext(receipt), phase: 'post',
+    preObservationJwsSha256: jwsDigest(preCompact), completionReceiptDigest: updateDigest(receipt),
+    completionRecordDigest: receipt.completionRecordDigest, terminalRecordDigest: receipt.continuation.terminalRecordDigest,
+    terminalRunId: receipt.continuation.terminalRunId, terminalRunAttempt: String(receipt.continuation.terminalRunAttempt),
+    terminalOutcome: receipt.continuation.outcome, terminalAt: receipt.continuation.terminalAt });
+  const readAdoption = async (current, store) => {
+    const receipt = completedEvidence(current, store), claimDigest = receipt.continuation.claimRecordDigest;
+    const preCompact = readObservationBytes(claimDigest, 'pre'), postCompact = readObservationBytes(claimDigest, 'post');
+    const pair = await verifyPtrUpdateObservationPair(preCompact, postCompact);
+    if (!same(pair.pre.context, { ...adoptionContext(receipt), phase: 'pre' })
+      || !same(pair.post.context, postContext(receipt, preCompact))
+      || [pair.pre, pair.post].some(value => value.identity.sourceCommit !== sourceCommit
+        || value.identity.sourceTree !== observationConfiguration.sourceTree)
+      || pair.pre.identity.runId !== receipt.continuation.claimRunId
+      || pair.pre.identity.runAttempt !== String(receipt.continuation.claimRunAttempt)
+      || pair.pre.observation.observedThrough * 1000 > Date.parse(receipt.submission.observedAt)
+      || pair.post.observation.observedFrom * 1000 < Date.parse(receipt.continuation.terminalAt)) fail();
+    if (!same(receipt, completedEvidence(current, store))
+      || preCompact !== readObservationBytes(claimDigest, 'pre')
+      || postCompact !== readObservationBytes(claimDigest, 'post')) fail();
+    return freeze({ schemaVersion: 4, profile: 'warpkeep-ptr-existing-state-adoption-v1',
+      sourceCommit, sourceTree: observationConfiguration.sourceTree, completionReceipt: receipt,
+      preObservationJws: preCompact, postObservationJws: postCompact });
+  };
+  let capturingAdoption = false;
+  const captureAdoption = async (current, store, permit, runId, runAttempt) => {
+    if (capturingAdoption) fail();
+    capturingAdoption = true;
+    try {
+      const receipt = completedEvidence(current, store), claimDigest = receipt.continuation.claimRecordDigest;
+      // A committed effect without its original pre statement cannot be adopted.
+      const preCompact = readObservationBytes(claimDigest, 'pre');
+      await validateObservation(preCompact, { ...adoptionContext(receipt), phase: 'pre' });
+      if (state.exists(observationPath(claimDigest, 'post'))) return await readAdoption(current, store);
+      const context = postContext(receipt, preCompact);
+      const reattest = observationReattester(current, permit, runId, runAttempt);
+      // Bridge times are whole seconds; wait for the first representable instant
+      // after the authentic millisecond terminal, without changing either time.
+      const delay = Math.ceil(Date.parse(receipt.continuation.terminalAt) / 1000) * 1000 - Date.now();
+      if (!Number.isFinite(delay) || delay > 1000) fail();
+      if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay));
+      await reattest();
+      const observed = await requestPtrProductionUpdateObservation({ reattest, sourceCommit,
+        sourceTree: observationConfiguration.sourceTree, runId, runAttempt: String(runAttempt), context,
+        preObservationJws: preCompact });
+      const post = await validateObservation(observed.compact, context, true);
+      await verifyPtrUpdateObservationPair(preCompact, observed.compact);
+      await reattest();
+      if (!same(receipt, completedEvidence(current, store))
+        || preCompact !== readObservationBytes(claimDigest, 'pre')
+        || post.observation.observedFrom * 1000 < Date.parse(receipt.continuation.terminalAt)) fail();
+      requireFresh(post);
+      writeObservation(claimDigest, 'post', observed.compact);
+      return await readAdoption(current, store);
+    } finally { capturingAdoption = false; }
+  };
+  adapters.set(adapter, { privateState: state, completedEvidence, captureAdoption, readAdoption });
   return adapter;
 }
 
@@ -756,4 +922,27 @@ export function readPtrExistingUpdateCompletion(input) {
   const receipt = member.owner.completedEvidence(authority, member.store);
   if (updateDigest(receipt) !== member.receiptDigest) fail();
   return receipt;
+}
+
+/** Post-terminal capture only; this capability carries validated data, never effect authority. */
+export async function capturePtrExistingUpdateAdoption(input) {
+  const { adapter, authority, store, permit, runId, runAttempt } = inputRecord(input,
+    ['adapter', 'authority', 'store', 'permit', 'runId', 'runAttempt']);
+  const owner = adapters.get(adapter);
+  if (!owner) fail();
+  const envelope = await owner.captureAdoption(authority, store, permit, runId, runAttempt);
+  if (adapters.get(adapter) !== owner) fail();
+  const adoption = Object.freeze({});
+  adoptionCapabilities.set(adoption, { adapter, owner, store, digest: updateDigest(envelope) });
+  return adoption;
+}
+
+export async function readPtrExistingStateAdoption(input) {
+  const { adoption, authority, privateState } = inputRecord(input, ['adoption', 'authority', 'privateState']);
+  const member = adoptionCapabilities.get(adoption);
+  if (!member || adapters.get(member.adapter) !== member.owner
+    || assertSealedRealmsProductionPrivateState(privateState) !== member.owner.privateState) fail();
+  const envelope = await member.owner.readAdoption(authority, member.store);
+  if (adapters.get(member.adapter) !== member.owner || updateDigest(envelope) !== member.digest) fail();
+  return envelope;
 }

@@ -2,6 +2,15 @@
 
 ## Current review and next work — 12 September 2026
 
+The active delivery branch is `codex/0.4-ptr-state-adoption` in the reused
+`C:/Temp/warpkeep-clean-ci` checkout, based on PR #243's published `789db360`.
+The connected private V4 capture now spans the real update caller, claim reader,
+Node client, OIDC signer and immutable private-state writer. Focused Windows and
+Workerd checks passed with documented native-only limits; the [owning evidence](../../evidence/0.4.0/release-engineering.md#ptr-existing-state-capture--2026-09-12)
+records accepted tests and remaining integration. No service was deployed and no
+App or credential was created. The V4 envelope is separate from the existing V3
+activation corpus; bridge/activation/recovery consumption remains unfinished.
+
 The latest visual development is `codex/0.4-building-hierarchy` /
 [PR #243](https://github.com/ael-dev3/Warpkeep/pull/243), in reused linked checkout
 `C:/Temp/warpkeep-clean-ci`. Source `75c04680` passed all 138 owning tests,
@@ -202,9 +211,10 @@ account. Creation/installation on only `ael-dev3/Warpkeep` and service-key
 generation await the requested action-time confirmation. The dedicated
 installation/key supply remains unresolved; no App or credential was created.
 
-Existing-state adoption remains an unimplemented, distinct V4 path through update
-completion, bridge state, activation and recovery consumers. The reviewed design
-keeps the standalone observation contract and V3 completion/terminal bytes intact.
+Existing-state adoption is a distinct V4 path. The connected private capture is
+implemented with focused acceptance; native filesystem verification, bridge state, activation and recovery
+consumers remain unfinished. The implementation keeps the standalone observation
+contract and V3 completion/terminal bytes intact.
 Collect a separately typed update observation inside `ptr-update-apply`, after
 the authentic claim and before submission. An adapter-owned private sidecar keyed
 by the claim-record digest retains that exact pre-observation. After genuine V3
@@ -213,13 +223,29 @@ pre-JWS, completion and terminal digests. A separate V4 adoption envelope reopen
 the opaque completion and both signed statements. This avoids a circular digest
 dependency or replacing a missing pre-observation after an effect.
 Bind source, candidate, inspection, predecessor and claim throughout; distinguish
-the current reconciliation job from original claim/terminal identities. The new
-fixed `operate_ptr` verifier and apply-only observation permit must not widen
+the current reconciliation job from original claim/terminal identities. The distinct
+fixed `operate_ptr` verifier and apply-only observation permit do not widen
 `observe_ptr`; never dispatch the standalone job inside shared concurrency.
 Compare owner/atlas/admission commitments under unchanged observer configuration
 and pepper scope. Historical signature validation authenticates retained data;
 new effects still require fresh evidence and actual-clock checks after awaits.
 Do not synthesize import/provision history or claim equality of every gameplay row.
+
+The synchronous claim-binding reader shares the genuine claim validator and does
+not extend its callback lifetime. Remote pre-capture occurs before entering the
+provider's bounded `beforeSend` callback. That callback reopens the original signed
+pre-state, checks the actual clock and claim expiry, then writes the unchanged V3
+submission. Both observation sidecars are immutable and keyed by the authentic
+claim-record digest under `runtime/ptr-update-observation-v4/<PTR>/`. The separate
+adoption file uses the authentic completion-receipt digest under
+`runtime/ptr-existing-state-adoptions-v4/`. A missing pre-state after an effect is
+a refusal, never a new pre-capture. A retained authentic post may be reopened after
+its freshness window because it is historical evidence, not new effect authority.
+The runtime awaits post-capture and persistence before disposal; an already
+completed update can retry failed evidence persistence without repeating its PUT.
+The shared `operate_ptr` job receives OIDC capability for inspection and apply;
+only the actual apply claim and opaque apply-only permit permit this client path.
+The service authenticates the named job, not an unproven workflow input.
 
 PR #236 passed every required check at `92d363ce` and merged by the normal
 protected expected-head squash into signed, verified main

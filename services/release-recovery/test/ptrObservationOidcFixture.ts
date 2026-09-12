@@ -8,11 +8,15 @@ export async function ptrObservationOidcFixture(options: Readonly<{
   now?: number
   claims?: Record<string, unknown>
   jobCount?: number
+  runId?: string
+  checkRunId?: string
+  requestId?: string
   mutate?: (url: string, value: Record<string, unknown>) => void
 }> = {}) {
   const now = options.now ?? Math.floor(Date.now() / 1000)
   const sourceCommit = 'c'.repeat(40), sourceTree = 'd'.repeat(40)
-  const requestId = '123e4567-e89b-42d3-a456-426614174000', checkRunId = '9007199254740993'
+  const requestId = options.requestId ?? '123e4567-e89b-42d3-a456-426614174000'
+  const checkRunId = options.checkRunId ?? '9007199254740993', runId = options.runId ?? '9007199254740995'
   const pair = await crypto.subtle.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048,
     publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['sign', 'verify'])
   const jwk = await crypto.subtle.exportKey('jwk', pair.publicKey)
@@ -24,7 +28,7 @@ export async function ptrObservationOidcFixture(options: Readonly<{
     repository_id: '1273513252', repository_owner_id: '183124839', ref: 'refs/heads/main', sha: sourceCommit,
     ref_protected: 'true', workflow: 'Sealed Realms Production', workflow_ref: workflowRef,
     workflow_sha: sourceCommit, environment: environmentName, event_name: 'workflow_dispatch', runner_environment: 'self-hosted',
-    run_id: '9007199254740995', run_attempt: '2', jti: requestId,
+    run_id: runId, run_attempt: '2', jti: requestId,
     iat: now - 5, nbf: now - 5, exp: now + 300, ...options.claims }
   const encoder = new TextEncoder()
   const unsigned = `${base64UrlEncode(encoder.encode(JSON.stringify({ alg: 'RS256', kid: 'fixture', typ: 'JWT' })))}.${base64UrlEncode(encoder.encode(JSON.stringify(claims)))}`
@@ -73,7 +77,7 @@ export async function ptrObservationOidcFixture(options: Readonly<{
       else throw new Error(`unexpected fixture URL: ${url}`)
     }
     options.mutate?.(url, body)
-    const serialized = JSON.stringify(body).replaceAll('"__CHECK__"', '9007199254740993').replaceAll('"__RUN__"', '9007199254740995')
+    const serialized = JSON.stringify(body).replaceAll('"__CHECK__"', checkRunId).replaceAll('"__RUN__"', runId)
     const response = new Response(serialized, { status, headers: { 'content-type': 'application/json' } })
     Object.defineProperty(response, 'url', { value: url })
     return response

@@ -11,6 +11,7 @@ import {
   readdirSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -36,6 +37,14 @@ vi.mock("../scripts/ptr-production-publisher.mjs", async (importOriginal) => ({
   },
 }));
 import { createPtrProductionExistingUpdateAdapter, exportPtrExistingUpdateCompletion, readPtrExistingUpdateCompletion } from "../scripts/ptr-production-existing-update-adapter.mjs";
+import { capturePtrExistingUpdateAdoption, readPtrExistingStateAdoption } from '../scripts/ptr-production-existing-update-adapter.mjs';
+import * as adoptionWriter from '../scripts/sealed-realms-production-activation-records.mjs';
+import { createPtrUpdateObservationTransportFixture } from './helpers/ptrUpdateObservationFixture';
+vi.mock('../services/release-recovery/src/recoveryPublicKey.js', () => ({
+  RECOVERY_KEY_ID: 'warpkeep-0.4.0-recovery-2026-09-03-1',
+  RECOVERY_KEY_THUMBPRINT: 'zbHwk528B5de5kuNzI98k4Y-rljmW6fbkH-aVZomk4M',
+  RECOVERY_PUBLIC_JWK: { kty: 'EC', crv: 'P-256', x: 'WH7HKo4O4eNz7FE1vrGVNDAOMZ4y15Hz5UhLwBZQMUE', y: 'nqmP_QGGfKiOK99bEqu6_r9cKtcn4pYdmiDiKsBD2AA' },
+}));
 import {
   createSealedRealmsProductionActivationRecords,
   writeSealedRealmsProductionPtrExistingUpdateRecord,
@@ -169,8 +178,15 @@ const cleanup: (() => void)[] = [];
 afterEach(() => {
   for (const close of cleanup.splice(0).reverse()) close();
   seams.request.mockReset();
+  vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs();
 });
-function fixture() {
+function fixture(platformMode = false, race?: (phase: string, path: string) => void) {
+  const fixtureNow = Math.floor(Date.now() / 1000);
+  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(fixtureNow * 1000);
+  const observationRun = (runId: string) => ({ sourceCommit: SOURCE, sourceTree: 'b'.repeat(40), runId,
+    runAttempt: '1', checkRunId: '9001', requestId: '123e4567-e89b-42d3-a456-426614174000' });
+  const observations = createPtrUpdateObservationTransportFixture(observationRun('502'), { nowSeconds: fixtureNow });
+  observations.install();
   const root = mkdtempSync(join(tmpdir(), "warpkeep-ptr-real-continuation-"));
   const adapters = new Set<
     ReturnType<typeof createPtrProductionExistingUpdateAdapter>
@@ -191,6 +207,8 @@ function fixture() {
   const privateState = createSealedRealmsProductionPrivateState({
     reportedHome: home,
     testOnlyOwnerUid: statSync(root).uid,
+    ...(platformMode ? { testOnlyAllowPlatformMode: true, testOnlyFsync: () => {} } : {}),
+    ...(race ? { testOnlyRace: race } : {}),
   });
   const store = createSealedRealmsProductionContinuationStore({ privateState });
   const gh = github();
@@ -267,11 +285,13 @@ function fixture() {
       return { bytes: encode(body), claimedProviderIdentity: "2".repeat(64) };
     },
   );
-  const make = () => {
+  const make = (runId = '502') => {
+    observations.useRun(observationRun(runId));
     const adapter = createPtrProductionExistingUpdateAdapter({
       authority: authority("ptr-update-inspect"),
       privateState,
       artifact: artifact as never,
+      observation: { sourceTree: 'b'.repeat(40), runId, runAttempt: '1' },
     });
     adapters.add(adapter);
     return adapter;
@@ -360,6 +380,9 @@ function fixture() {
     );
   }
   return {
+    runtime,
+    observations,
+    observationRun,
     state,
     make,
     dispatcher,
@@ -420,6 +443,7 @@ it("rejects a transparent production authority before artifact or provider use",
       authority: { mode: "S", operation: "ptr-update-inspect" } as never,
       privateState: {} as never,
       artifact: {} as never,
+      observation: { sourceTree: 'b'.repeat(40), runId: '502', runAttempt: '1' },
     }),
   ).toThrow();
   expect(seams.request).not.toHaveBeenCalled();
@@ -600,3 +624,102 @@ it("constructs the real PTR reconciler with genuine platform-mode private state"
   expect(() => createSealedRealmsProductionPublicationReconciler({ privateState, lane: "ptr", postflight: () => { throw Error("No provider call expected"); } })).not.toThrow();
   expect(seams.request).not.toHaveBeenCalled();
 });
+
+it('captures signed V4 adoption through real claim, terminal and private writer without changing V3 records', async () => {
+  const f = fixture(process.platform !== 'linux'), adapter = f.make();
+  await f.inspect(adapter);
+  const run = await f.dispatcher('ptr-update-apply', adapter);
+  await run.call();
+  const completed = captureCompletion(f, adapter, run.sourceAuthority, 'completed');
+  const v3 = JSON.stringify(f.records());
+  f.observations.setNowSeconds(Math.ceil(Date.parse(completed.receipt.continuation.terminalAt) / 1000) + 5);
+  const adoption = await capturePtrExistingUpdateAdoption({ adapter, authority: run.sourceAuthority, store: f.store,
+    permit: run.permit, runId: run.runId, runAttempt: run.runAttempt });
+  const envelope = await readPtrExistingStateAdoption({ adoption, authority: run.sourceAuthority, privateState: f.privateState });
+  expect(envelope.completionReceipt).toEqual(completed.receipt);
+  expect(envelope.schemaVersion).toBe(4);
+  expect(JSON.stringify(f.records())).toBe(v3);
+  const writer = (adoptionWriter as Record<string, any>).writeSealedRealmsProductionPtrExistingStateAdoptionRecord;
+  expect(writer).toBeTypeOf('function');
+  const records = createSealedRealmsProductionActivationRecords({ privateState: f.privateState, authority: run.sourceAuthority });
+  const written = await writer({ records, authority: run.sourceAuthority, adoption });
+  expect(written.receiptDigest).toMatch(/^[a-f0-9]{64}$/);
+  expect(await writer({ records, authority: run.sourceAuthority, adoption })).toEqual(written);
+  expect(f.state.puts).toBe(1);
+  expect(JSON.stringify(f.records())).toBe(v3);
+  const claimDigest = envelope.completionReceipt.continuation.claimRecordDigest;
+  const postPath = join(f.runtime, 'ptr-update-observation-v4', ID, `${claimDigest}.post.json`);
+  const saved = readFileSync(postPath);
+  writeFileSync(postPath, Buffer.from('{}\n'));
+  await expect(readPtrExistingStateAdoption({ adoption, authority: run.sourceAuthority, privateState: f.privateState })).rejects.toThrow();
+  await expect(writer({ records, authority: run.sourceAuthority, adoption })).rejects.toThrow();
+  writeFileSync(postPath, saved);
+  await expect(readPtrExistingStateAdoption({ adoption: { ...adoption } as never, authority: run.sourceAuthority, privateState: f.privateState })).rejects.toThrow();
+  adapter.dispose();
+  await expect(readPtrExistingStateAdoption({ adoption, authority: run.sourceAuthority, privateState: f.privateState })).rejects.toThrow();
+}, 30000);
+
+it('reopens the original pre after lost acknowledgement, preserves distinct reconciliation identities, and reuses expired post without a second PUT', async () => {
+  const f = fixture(process.platform !== 'linux'), adapter = f.make();
+  await f.inspect(adapter);
+  f.state.lost = true;
+  const original = await f.dispatcher('ptr-update-apply', adapter);
+  await expect(original.call()).rejects.toThrow('SEALED_REALMS_DISPATCH_LANE_FAILED');
+  expect(f.state.puts).toBe(1);
+  f.gh.status.set(original.runId, 'completed'); adapter.dispose();
+  const fresh = f.make('503'), reconciliation = await f.dispatcher('ptr-update-apply', fresh);
+  await reconciliation.call();
+  const receipt = captureCompletion(f, fresh, reconciliation.sourceAuthority, 'reconciled-effect-applied').receipt;
+  f.observations.setNowSeconds(Math.ceil(Date.parse(receipt.continuation.terminalAt) / 1000) + 5);
+  const adoption = await capturePtrExistingUpdateAdoption({ adapter: fresh, authority: reconciliation.sourceAuthority,
+    store: f.store, permit: reconciliation.permit, runId: reconciliation.runId, runAttempt: reconciliation.runAttempt });
+  const envelope = await readPtrExistingStateAdoption({ adoption, authority: reconciliation.sourceAuthority, privateState: f.privateState });
+  expect(envelope.completionReceipt.continuation).toMatchObject({ claimRunId: original.runId, terminalRunId: reconciliation.runId });
+  expect(envelope.completionReceipt.responseDigest).toBeNull();
+  const requestCount = f.observations.requests.length;
+  fresh.dispose();
+  const retryAdapter = f.make('504'), retry = await f.dispatcher('ptr-update-apply', retryAdapter);
+  f.observations.setNowSeconds(Math.ceil(Date.parse(receipt.continuation.terminalAt) / 1000) + 200);
+  const reused = await capturePtrExistingUpdateAdoption({ adapter: retryAdapter, authority: retry.sourceAuthority,
+    store: f.store, permit: retry.permit, runId: retry.runId, runAttempt: retry.runAttempt });
+  expect(await readPtrExistingStateAdoption({ adoption: reused, authority: retry.sourceAuthority, privateState: f.privateState })).toEqual(envelope);
+  expect(f.observations.requests).toHaveLength(requestCount);
+  expect(f.state.puts).toBe(1);
+  const prePath = join(f.runtime, 'ptr-update-observation-v4', ID, `${receipt.continuation.claimRecordDigest}.pre.json`);
+  rmSync(prePath);
+  await expect(capturePtrExistingUpdateAdoption({ adapter: retryAdapter, authority: retry.sourceAuthority,
+    store: f.store, permit: retry.permit, runId: retry.runId, runAttempt: retry.runAttempt })).rejects.toThrow();
+  expect(f.observations.requests).toHaveLength(requestCount);
+  expect(f.state.puts).toBe(1);
+}, 30000);
+
+it('refuses the effect if the authentic pre sidecar cannot be durably installed', async () => {
+  const f = fixture(process.platform !== 'linux', (phase, path) => {
+    if (phase === 'write-before-open' && path.endsWith('.pre.json')) throw Error('fixture disk failure');
+  });
+  const adapter = f.make(); await f.inspect(adapter);
+  const run = await f.dispatcher('ptr-update-apply', adapter);
+  await expect(run.call()).rejects.toThrow('SEALED_REALMS_DISPATCH_LANE_FAILED');
+  expect(f.state.puts).toBe(0);
+  expect(f.records().map(value => value.kind).sort()).toEqual(['inspection', 'not-submitted']);
+}, 30000);
+
+it('reopens pre bytes after asynchronous signature verification before submission', async () => {
+  const f = fixture(process.platform !== 'linux'), adapter = f.make();
+  await f.inspect(adapter);
+  let changed = false;
+  const verify = crypto.subtle.verify.bind(crypto.subtle);
+  vi.spyOn(crypto.subtle, 'verify').mockImplementation(async (...args) => {
+    const valid = await verify(...args);
+    let names: readonly string[] = [];
+    try { names = f.privateState.list({ root: 'runtime', relativeDirectory: `ptr-update-observation-v4/${ID}` }); } catch { /* pre is not installed yet */ }
+    const name = names.find(value => value.endsWith('.pre.json'));
+    if (name && !changed) { writeFileSync(join(f.runtime, 'ptr-update-observation-v4', ID, name), '{}\n'); changed = true; }
+    return valid;
+  });
+  const run = await f.dispatcher('ptr-update-apply', adapter);
+  await expect(run.call()).rejects.toThrow('SEALED_REALMS_DISPATCH_LANE_FAILED');
+  expect(changed).toBe(true);
+  expect(f.state.puts).toBe(0);
+  expect(f.records().map(value => value.kind).sort()).toEqual(['inspection', 'not-submitted']);
+}, 30000);

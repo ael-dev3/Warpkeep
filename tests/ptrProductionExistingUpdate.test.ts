@@ -1,7 +1,13 @@
 // @vitest-environment node
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { createPtrUpdateObservationTransportFixture } from './helpers/ptrUpdateObservationFixture';
+vi.mock('../services/release-recovery/src/recoveryPublicKey.js', () => ({
+  RECOVERY_KEY_ID: 'warpkeep-0.4.0-recovery-2026-09-03-1',
+  RECOVERY_KEY_THUMBPRINT: 'zbHwk528B5de5kuNzI98k4Y-rljmW6fbkH-aVZomk4M',
+  RECOVERY_PUBLIC_JWK: { kty: 'EC', crv: 'P-256', x: 'WH7HKo4O4eNz7FE1vrGVNDAOMZ4y15Hz5UhLwBZQMUE', y: 'nqmP_QGGfKiOK99bEqu6_r9cKtcn4pYdmiDiKsBD2AA' },
+}));
 const seams = vi.hoisted(() => ({
   request: vi.fn(),
   dispose: vi.fn(),
@@ -35,6 +41,12 @@ vi.mock("../scripts/sealed-realms-production-workflow-authority.mjs", () => ({
 vi.mock("../scripts/sealed-realms-production-continuation.mjs", () => ({
   readSealedRealmsProductionContinuationCompletion: seams.completion,
   assertSealedRealmsProductionContinuationClaim: seams.claim,
+  readSealedRealmsProductionContinuationClaimBinding: (value: any) => {
+    seams.claim(value);
+    return { scopeDigest: '1'.repeat(64), issuedRecordDigest: '2'.repeat(64), claimRecordDigest: '3'.repeat(64),
+      claimRunId: value.runId, claimRunAttempt: Number(value.runAttempt),
+      claimedAt: new Date(Date.now() - 1000).toISOString(), expiresAt: new Date(Date.now() + 60000).toISOString() };
+  },
   assertSealedRealmsProductionContinuationReconciliation: seams.reconcile,
   classifySealedRealmsProductionContinuationNoEffect: (value: any) => ({
     outcome: "no-effect",
@@ -83,8 +95,12 @@ const plan = (prior: string, candidate = candidateProgram) => ({
 beforeEach(() => {
   vi.resetAllMocks();
 });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
 function fixture() {
+  const observationTransport = createPtrUpdateObservationTransportFixture({ sourceCommit: SOURCE, sourceTree: 'b'.repeat(40),
+    runId: '123', runAttempt: '1', checkRunId: '9001', requestId: '123e4567-e89b-42d3-a456-426614174000' }, { nowSeconds: Math.floor(Date.now() / 1000) });
+  observationTransport.install();
   const files = new Map<string, Buffer>();
   let rejectNoEffectWrite = false;
   const state = {
@@ -170,6 +186,7 @@ function fixture() {
       authority,
       privateState: state,
       artifact,
+      observation: { sourceTree: 'b'.repeat(40), runId: '123', runAttempt: '1' },
     } as unknown as Parameters<
       typeof createSealedRealmsProductionExistingUpdateAdapter
     >[0]);
@@ -222,6 +239,20 @@ async function completedFixture() {
   seams.completion.mockReturnValue(terminal);
   return { ...f, adapter, applyAuthority: authority, terminal, store: {} as never };
 }
+it('requires fixed observation coordinates before constructing an update adapter', () => {
+  const f = fixture();
+  expect(() => completionApi.createPtrProductionExistingUpdateAdapter({
+    authority: f.authority, privateState: f.privateState as never, artifact: f.artifact as never,
+  } as never)).toThrow('PTR_PRODUCTION_EXISTING_UPDATE_INVALID');
+});
+it.each([{ sourceTree: 'bad' }, { runId: 123 }, { runId: '0' }, { runAttempt: 1 },
+  { runAttempt: '1001' }, { callback: () => ({}) }])('rejects invalid observation configuration %j', changed => {
+  const f = fixture();
+  expect(() => completionApi.createPtrProductionExistingUpdateAdapter({
+    authority: f.authority, privateState: f.privateState as never, artifact: f.artifact as never,
+    observation: { sourceTree: 'b'.repeat(40), runId: '123', runAttempt: '1', ...changed },
+  } as never)).toThrow('PTR_PRODUCTION_EXISTING_UPDATE_INVALID');
+});
 it('exports opaque completed-update evidence tied to genuine continuation reopening', async () => {
   const f = await completedFixture();
   try {
@@ -384,7 +415,9 @@ it.each([false, true])(
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    seams.permit.mockImplementationOnce(() => gate);
+    // The delayed work is the actual provider pre-send phase, not the earlier
+    // signed-observation permission checks introduced by V4.
+    seams.permit.mockImplementation(({ phase }) => phase === 'continuation-effect' ? gate : Promise.resolve());
     if (failedWrite) f.failNoEffectWrite();
     const real = seams.request.getMockImplementation()!;
     let delayed!: Promise<unknown>;

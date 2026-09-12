@@ -19,6 +19,68 @@ Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
+## PTR existing-state capture — 2026-09-12
+
+Development branch `codex/0.4-ptr-state-adoption` builds on PR #243 head
+`789db3602571ccd4cb840e335e923f547e01791b`. This is connected private evidence
+capture; production rollout and downstream V4 activation remain open.
+
+The actual `ptr-update-apply` caller now requires a signed pre-observation after
+its genuine continuation claim and before submission. It captures signed post-
+state only after the unchanged V3 completion and terminal exist, binds their exact
+digests, and awaits separate private V4 persistence before cleanup. Missing pre-
+evidence after an effect cannot be reconstructed. Immutable post evidence can be
+reused historically on retry; new observations require fresh actual-clock checks
+after asynchronous authority and signature work. The V3 corpus and standalone
+`observe_ptr` wire contract retain their previous schemas.
+
+The two signatures bind the source/tree, before/candidate program, inspection,
+predecessor, authentic claim and completion/terminal lineage. Original claim,
+terminal and present observation runs stay distinct. The service derives the
+current `operate_ptr` identity from signed GitHub OIDC and actual job evidence.
+The local opaque permit and real claim provide apply authority; job-level OIDC
+alone does not prove that a workflow input selected apply.
+
+Pair validation compares PTR owner, atlas, admission and stable HMAC commitments
+under unchanged bridge configuration, version, authorization epoch and pepper
+scope. Source audit confirmed that the stable sealed-state and owner HMACs exclude
+program identity and expiring session timestamps. Those changing values are not
+compared through whole-response hashes. This proves the named invariants; it does
+not claim equality of every gameplay row or create historical import/provision
+receipts.
+
+Verification before publication:
+
+- Lifecycle regressions reproduced five missing configuration/await/failure cases,
+  then all 42 lifecycle tests passed. Root's combined lifecycle and continuation
+  selection passed 70 tests in two suites (session `68923`, 14.64 seconds).
+- Four adapter/continuation suites passed 64 tests with four explicitly native-
+  only skips (session `76371`, 37.51 seconds). The real signed transport joined
+  claim, terminal, adapter and private writer; it covered lost-response recovery
+  with one PUT, retained post reuse, missing/tampered evidence, copied capability,
+  disposal, pre-write failure and pre mutation during signature verification.
+- The client/workflow selection passed 61 tests with 40 expected Windows POSIX
+  skips. The client itself passed all 30 cases. Actual ES256 signatures and an
+  external transport fixture are used; legacy authority-mocked tests and the
+  Windows filesystem-mode substitute are explicitly limited evidence.
+- Service update suites passed 108 tests; three real Workerd transport cases and
+  service/Workerd types passed. A broader service run had 1,191 passes and two
+  fixed-host fixture failures: this linked checkout has a `.git` file, while the
+  unchanged source-host guard requires a real `.git/objects` directory. Neither
+  the guard nor its tests was weakened. Native acceptance remains outstanding.
+- Root build-mode TypeScript, tracked-size policy and diff checks passed.
+  Independent reviews found no remaining actionable defect in the service,
+  runtime or private writer. Review added a final pre-sidecar reopen after crypto
+  before submission, with its regression passing.
+
+The runtime lifecycle tests mock orchestration boundaries; they do not establish
+cryptographic authority. Native filesystem acceptance, generated-family refresh,
+current-head hosted checks, deployment and downstream V4 consumers remain open.
+No provider mutation, deployment, credential, generated family, clone, or package
+installation was created by this change. Prior prepared families certify their
+recorded inputs, not this new source.
+
+
 ## Occupied-entry source family — 2026-09-12
 
 The occupied-entry framing source and its review notes at

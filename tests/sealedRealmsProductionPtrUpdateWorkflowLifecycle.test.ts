@@ -3,6 +3,9 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   attest: vi.fn(),
   completion: vi.fn(),
+  adoption: vi.fn(),
+  writeAdoption: vi.fn(),
+  git: vi.fn(),
   records: vi.fn(),
   writeRecord: vi.fn(),
   prepare: vi.fn(),
@@ -36,15 +39,18 @@ vi.mock("../scripts/ptr-production-publisher.mjs", () => ({
 vi.mock("../scripts/ptr-production-existing-update-adapter.mjs", () => ({
   createPtrProductionExistingUpdateAdapter: m.adapter,
   exportPtrExistingUpdateCompletion: m.completion,
+  capturePtrExistingUpdateAdoption: m.adoption,
 }));
 vi.mock("../scripts/sealed-realms-production-activation-records.mjs", () => ({
   createSealedRealmsProductionActivationRecords: m.records,
   writeSealedRealmsProductionPtrExistingUpdateRecord: m.writeRecord,
+  writeSealedRealmsProductionPtrExistingStateAdoptionRecord: m.writeAdoption,
 }));
 vi.mock("../scripts/local-binding-bounded-file.mjs", () => ({
   readLocalBindingBoundedFile: m.node,
 }));
 vi.mock("node:fs", () => ({ lstatSync: m.lstat, realpathSync: m.realpath }));
+vi.mock("node:child_process", () => ({ execFileSync: m.git }));
 vi.mock("node:os", () => ({
   userInfo: () => m.account,
 }));
@@ -100,6 +106,9 @@ const sha = "a".repeat(40);
 const saved = new Map<string, PropertyDescriptor | undefined>();
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.stubEnv("GITHUB_RUN_ID", "12345");
+  vi.stubEnv("GITHUB_RUN_ATTEMPT", "2");
+  m.git.mockReturnValue("b".repeat(40));
   for (const [key, value] of Object.entries({
     platform: "linux",
     arch: "x64",
@@ -164,6 +173,8 @@ beforeEach(() => {
   m.dispatch.mockImplementation(async ({ operation }: { operation: string }) => ({ operation, status: "completed" }));
   m.completion.mockReturnValue(Object.freeze({ completion: true }));
   m.records.mockReturnValue(Object.freeze({ records: true }));
+  m.adoption.mockResolvedValue(Object.freeze({ adoption: true }));
+  m.writeAdoption.mockResolvedValue({ receiptDigest: "c".repeat(64), recordDigest: "d".repeat(64) });
 });
 afterEach(() => {
   for (const [key, descriptor] of saved) {
@@ -496,4 +507,55 @@ it('does not reinterpret errors from outside the authenticated lane-failure boun
   m.dispatch.mockRejectedValue(Error('SEALED_REALMS_DISPATCH_LANE_FAILED'));
   await expect(run({ runtime, operation: 'ptr-update-apply', workflowInputSha: sha })).rejects.toThrow();
   expect(m.attest).not.toHaveBeenCalled(); expect(m.completion).not.toHaveBeenCalled(); expect(m.writeRecord).not.toHaveBeenCalled();
+});
+
+
+it('binds update observation to the verified source tree and current workflow attempt', async () => {
+  await create({ operation: 'ptr-update-apply', workflowInputSha: sha });
+  expect(m.git).toHaveBeenCalledWith('git', ['--no-replace-objects', 'rev-parse', `${sha}^{tree}`], expect.any(Object));
+  expect(m.adapter).toHaveBeenCalledWith(expect.objectContaining({
+    observation: { sourceTree: 'b'.repeat(40), runId: '12345', runAttempt: '2' },
+  }));
+});
+
+it.each(['completed', 'recovered'] as const)('awaits signed adoption and private persistence before cleanup for %s updates', async path => {
+  const runtime = await create({ operation: 'ptr-update-apply', workflowInputSha: sha });
+  if (path === 'recovered') m.dispatch.mockRejectedValue(Object.assign(Error('lane'), { code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' }));
+  let releaseAdoption!: (value: object) => void;
+  let releaseWrite!: () => void;
+  const adoption = Object.freeze({ adoption: true });
+  m.adoption.mockReturnValue(new Promise(resolve => { releaseAdoption = resolve; }));
+  m.writeAdoption.mockReturnValue(new Promise<void>(resolve => { releaseWrite = resolve; }));
+  const running = run({ runtime, operation: 'ptr-update-apply', workflowInputSha: sha });
+  await vi.waitFor(() => expect(m.adoption).toHaveBeenCalledOnce());
+  expect(m.writeRecord).toHaveBeenCalledOnce();
+  expect(m.adoption).toHaveBeenCalledWith({ adapter: m.adapter.mock.results[0].value,
+    authority: m.authenticate.mock.results[0].value, store: { store: true },
+    permit: { permit: true }, runId: '12345', runAttempt: '2' });
+  expect(m.writeAdoption).not.toHaveBeenCalled();
+  expect(m.dispose).not.toHaveBeenCalled(); expect(m.cleanup).not.toHaveBeenCalled();
+  releaseAdoption(adoption);
+  await vi.waitFor(() => expect(m.writeAdoption).toHaveBeenCalledExactlyOnceWith({
+    records: m.records.mock.results[0].value, authority: m.authenticate.mock.results[0].value, adoption,
+  }));
+  expect(m.dispose).not.toHaveBeenCalled(); expect(m.cleanup).not.toHaveBeenCalled();
+  releaseWrite();
+  await expect(running).resolves.toEqual({ operation: 'ptr-update-apply', status: 'completed' });
+  expect(m.dispose).toHaveBeenCalledOnce(); expect(m.cleanup).toHaveBeenCalledOnce();
+});
+
+it.each(['adoption', 'writeAdoption'] as const)('surfaces %s rejection after a genuine completed head without replaying the effect', async phase => {
+  const runtime = await create({ operation: 'ptr-update-apply', workflowInputSha: sha });
+  m.dispatch.mockRejectedValue(Object.assign(Error('lane'), { code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' }));
+  const failure = Error('signed adoption persistence failed');
+  m[phase].mockRejectedValue(failure);
+  await expect(run({ runtime, operation: 'ptr-update-apply', workflowInputSha: sha })).rejects.toBe(failure);
+  expect(m.dispatch).toHaveBeenCalledOnce(); expect(m.writeRecord).toHaveBeenCalledOnce();
+  expect(m.cleanup).toHaveBeenCalledOnce(); expect(m.revoke).toHaveBeenCalledOnce();
+});
+
+it('does not request or persist signed adoption during update inspection', async () => {
+  const runtime = await create({ operation: 'ptr-update-inspect', workflowInputSha: sha });
+  await run({ runtime, operation: 'ptr-update-inspect', workflowInputSha: sha });
+  expect(m.adoption).not.toHaveBeenCalled(); expect(m.writeAdoption).not.toHaveBeenCalled();
 });

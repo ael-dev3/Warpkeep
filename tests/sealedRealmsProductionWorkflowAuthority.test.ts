@@ -216,6 +216,43 @@ describe('sealed-realms protected workflow authority', () => {
     }
   });
 
+  it('permits update observation only for apply while preserving its continuation phases', async () => {
+    const module = await workflowAuthorityModule();
+    for (const operation of [
+      'ptr-update-apply',
+      'ptr-update-inspect',
+      'ptr-state-inspect',
+      'ptr-live-inspect',
+      'g002-publish-inspect',
+    ]) {
+      const authority = sourceAuthority(operation);
+      const remote = github();
+      const permit = await module.issueSealedRealmsProductionWorkflowPermit!({
+        sourceAuthority: authority,
+        githubToken: 'github-sealed-realms-owner-token',
+        runId: '1001',
+        runAttempt: '1',
+        fetchImpl: remote.fetchImpl,
+      });
+      const attest = (phase: string) => module.attestSealedRealmsProductionWorkflowPermit!({
+        permit,
+        sourceAuthority: authority,
+        phase,
+        runId: '1001',
+        runAttempt: '1',
+      });
+      if (operation === 'ptr-update-apply') {
+        await expect(attest('ptr-update-observation')).resolves.toBe(true);
+        await expect(attest('continuation-effect')).resolves.toBe(true);
+        await expect(attest('continuation-terminal')).resolves.toBe(true);
+      } else {
+        await expect(attest('ptr-update-observation')).rejects.toThrow(
+          'SEALED_REALMS_WORKFLOW_AUTHORITY_PERMIT_INVALID',
+        );
+      }
+    }
+  });
+
   it('issues only an opaque permit after exact GitHub attestation and re-attests every phase', async () => {
     const module = await workflowAuthorityModule();
     if (!requireExports(module)) return;

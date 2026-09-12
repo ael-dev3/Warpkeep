@@ -6,8 +6,8 @@ import { basename, dirname, isAbsolute } from 'node:path';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { preparePtrSourceBuiltArtifact } from './ptr-production-publisher.mjs';
 import { observePtrProductionState } from './ptr-production-state-observation.mjs';
-import { createPtrProductionExistingUpdateAdapter, exportPtrExistingUpdateCompletion } from './ptr-production-existing-update-adapter.mjs';
-import { createSealedRealmsProductionActivationRecords, writeSealedRealmsProductionPtrExistingUpdateRecord } from './sealed-realms-production-activation-records.mjs';
+import { createPtrProductionExistingUpdateAdapter, exportPtrExistingUpdateCompletion, capturePtrExistingUpdateAdoption } from './ptr-production-existing-update-adapter.mjs';
+import { createSealedRealmsProductionActivationRecords, writeSealedRealmsProductionPtrExistingUpdateRecord, writeSealedRealmsProductionPtrExistingStateAdoptionRecord } from './sealed-realms-production-activation-records.mjs';
 import { createSealedRealmsProductionBridgeProvider } from './sealed-realms-production-bridge-provider.mjs';
 import {
   createSealedRealmsProductionAuthBridgeState,
@@ -350,7 +350,9 @@ async function buildDispatcher(operation, workflowInputSha, evidence) {
         executable: configuration.executable,
         environment: Object.freeze({ PATH: `${dirname(configuration.nodePath)}:${SYSTEM_PATH}` }),
       });
-      existingUpdate = createPtrProductionExistingUpdateAdapter({ authority, privateState, artifact });
+      existingUpdate = createPtrProductionExistingUpdateAdapter({ authority, privateState, artifact,
+        observation: { sourceTree: readGit(['rev-parse', `${workflowInputSha}^{tree}`]).trim(), runId, runAttempt },
+      });
     }
     const bridgeState = createSealedRealmsProductionAuthBridgeState({
       authority: bridgeAuthority,
@@ -390,9 +392,15 @@ async function buildDispatcher(operation, workflowInputSha, evidence) {
       runAttempt,
       sourceAuthority: authority,
     });
-    const writeCompletion = completion => {
+    const writeCompletion = async completion => {
       const records = createSealedRealmsProductionActivationRecords({ privateState, authority });
       writeSealedRealmsProductionPtrExistingUpdateRecord({ records, authority, completion });
+      // The lane has already persisted both completion and its terminal. Keep
+      // that V3 evidence if post-observation fails, so a retry need not replay.
+      const adoption = await capturePtrExistingUpdateAdoption({
+        adapter: existingUpdate, authority, store: continuationStore, permit, runId, runAttempt,
+      });
+      await writeSealedRealmsProductionPtrExistingStateAdoptionRecord({ records, authority, adoption });
     };
     const captureCompletedUpdate = () => writeCompletion(exportPtrExistingUpdateCompletion({
       adapter: existingUpdate, authority, store: continuationStore,
@@ -407,7 +415,7 @@ async function buildDispatcher(operation, workflowInputSha, evidence) {
         // current-head export can prove an already committed effect and terminal.
         completion = exportPtrExistingUpdateCompletion({ adapter: existingUpdate, authority, store: continuationStore });
       } catch { return false; }
-      writeCompletion(completion);
+      await writeCompletion(completion);
       return true;
     };
     return { dispatcher: createSealedRealmsProductionPtrDispatcher({ context, lane }), captureCompletedUpdate, recoverCompletedUpdate, cleanup };
@@ -465,7 +473,7 @@ export async function runSealedRealmsProductionPtrOperation(input) {
       throw error;
     }
     if (operation === 'ptr-update-apply' && result.operation === operation && result.status === 'completed') {
-      member.captureCompletedUpdate();
+      await member.captureCompletedUpdate();
     }
     return result;
   } finally {

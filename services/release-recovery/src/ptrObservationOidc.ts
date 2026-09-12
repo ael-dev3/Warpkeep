@@ -1,9 +1,10 @@
+import { types } from 'node:util'
 import { commit, githubFail, snapshotExactDataObject, type GitHubAppEnvironment } from './config.js'
 import { mintGitHubInstallationToken } from './githubEvidence.js'
 import { verifyGitHubOidcSignature } from './githubOidc.js'
 import { json, type GitHubJsonObject } from './http.js'
 import { PTR_OBSERVATION_AUDIENCE, PTR_OBSERVATION_JOB, snapshotPtrObservationIdentity,
-  type PtrObservationIdentity } from './ptrObservation.js'
+  PTR_UPDATE_OBSERVATION_AUDIENCE, PTR_UPDATE_OBSERVATION_JOB, type PtrObservationIdentity } from './ptrObservation.js'
 
 const CODE = 'RECOVERY_PTR_OBSERVATION_OIDC_INVALID'
 const API = 'https://api.github.com/repos/ael-dev3/Warpkeep'
@@ -47,6 +48,21 @@ export async function verifyPtrObservationWorkflowIdentity(input: Readonly<{
   fetch: typeof fetch
   nowSeconds: number
 }>): Promise<Readonly<{ identity: PtrObservationIdentity; expiresAt: number }>> {
+  return verifyObservationWorkflowIdentity(input, PTR_OBSERVATION_AUDIENCE, PTR_OBSERVATION_JOB)
+}
+
+/** Authenticates operate_ptr, not its selected workflow input or a local claim.
+ * The caller's opaque continuation and apply-only permit remain separate. */
+export async function verifyPtrUpdateObservationWorkflowIdentity(
+  input: Parameters<typeof verifyPtrObservationWorkflowIdentity>[0],
+): Promise<Readonly<{ identity: PtrObservationIdentity; expiresAt: number }>> {
+  if (types.isProxy(input)) githubFail(CODE)
+  return verifyObservationWorkflowIdentity(input, PTR_UPDATE_OBSERVATION_AUDIENCE, PTR_UPDATE_OBSERVATION_JOB)
+}
+
+// No caller-selectable audience, job or profile is exported.
+async function verifyObservationWorkflowIdentity(input: Parameters<typeof verifyPtrObservationWorkflowIdentity>[0],
+  audience: string, jobName: string): Promise<Readonly<{ identity: PtrObservationIdentity; expiresAt: number }>> {
   const source = snapshotExactDataObject(input,
     ['token', 'sourceCommit', 'requestId', 'environment', 'fetch', 'nowSeconds'], CODE)
   if (typeof source.token !== 'string' || !commit(source.sourceCommit) || typeof source.requestId !== 'string'
@@ -54,7 +70,7 @@ export async function verifyPtrObservationWorkflowIdentity(input: Readonly<{
     || !Number.isSafeInteger(source.nowSeconds) || (source.nowSeconds as number) < 1) githubFail(CODE)
   const fetcher = source.fetch as typeof fetch, now = source.nowSeconds as number, sha = source.sourceCommit
   const claims = await verifyGitHubOidcSignature(source.token, fetcher)
-  if (claims.iss !== 'https://token.actions.githubusercontent.com' || claims.aud !== PTR_OBSERVATION_AUDIENCE
+  if (claims.iss !== 'https://token.actions.githubusercontent.com' || claims.aud !== audience
     || claims.sub !== `repo:ael-dev3/Warpkeep:environment:${ENVIRONMENT}`
     || claims.repository !== 'ael-dev3/Warpkeep' || claims.repository_id !== '1273513252'
     || claims.repository_owner_id !== '183124839' || claims.ref !== 'refs/heads/main'
@@ -103,20 +119,20 @@ export async function verifyPtrObservationWorkflowIdentity(input: Readonly<{
       || typeof job.name !== 'string' || job.name.length < 1 || job.name.length > 256
       || typeof job.check_run_url !== 'string' || job.check_run_url !== `${API}/check-runs/${job.id}`) githubFail(CODE)
     ids.add(job.id)
-    if (job.name === PTR_OBSERVATION_JOB) targets.push(job)
+    if (job.name === jobName) targets.push(job)
     else if (job.status !== 'completed' || job.conclusion !== 'skipped') githubFail(CODE)
   }
   if (targets.length !== 1) githubFail(CODE)
   const job = targets[0]!, observedLabels = job.labels, checkRunId = job.id as string
   const checkUrl = `${API}/check-runs/${checkRunId}`
-  if (job.name !== PTR_OBSERVATION_JOB || job.status !== 'in_progress' || job.conclusion !== null
+  if (job.name !== jobName || job.status !== 'in_progress' || job.conclusion !== null
     || job.check_run_url !== checkUrl || job.runner_name !== 'warpkeep-wsl-production-01'
     || job.runner_group_name !== 'Default' || !Array.isArray(observedLabels)
     || observedLabels.length !== LABELS.length || new Set(observedLabels).size !== LABELS.length
     || LABELS.some(label => !observedLabels.includes(label))) githubFail(CODE)
 
   const check = await json(fetcher, checkUrl, init, CODE, 200, ['/id', '/app/id', '/check_suite/id'])
-  if (check.id !== checkRunId || check.head_sha !== sha || check.name !== PTR_OBSERVATION_JOB
+  if (check.id !== checkRunId || check.head_sha !== sha || check.name !== jobName
     || check.status !== 'in_progress' || check.conclusion !== null || check.url !== checkUrl
     || object(check.app).id !== '15368' || object(check.app).slug !== 'github-actions'
     || object(check.check_suite).id !== run.check_suite_id) githubFail(CODE)

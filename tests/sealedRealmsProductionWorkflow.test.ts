@@ -86,7 +86,7 @@ describe('sealed-realms production workflow authority', () => {
     expect(document.jobs.operate.if).toContain("inputs.operation == 'activation-evidence-generate'");
     expect(document.jobs.operate_readonly.permissions).toBeUndefined();
     expect(document.jobs.operate_readonly.if).toContain('["preflight","activation-evidence-inspect","g001-policy-observe"]');
-    expect(document.jobs.operate_ptr.permissions).toEqual({actions:'read',contents:'read'});
+    expect(document.jobs.operate_ptr.permissions).toEqual({actions:'read',contents:'read','id-token':'write'});
     expect(document.jobs.operate_ptr.if).toContain('["ptr-update-inspect","ptr-update-apply"]');
     expect(document.jobs.unsupported.steps[0].run).toContain('SEALED_REALMS_LINUX_OPERATION_UNAVAILABLE');
     expect(document.jobs.unsupported.if).toContain('"ptr-update-inspect","ptr-update-apply"');
@@ -109,13 +109,13 @@ describe('sealed-realms production workflow authority', () => {
     expect(jobStep('observe_ptr', guardName).run).toContain("test \"$GITHUB_JOB\" = 'observe_ptr'");
   });
 
-  it('routes PTR updates through a dedicated exact-source job without OIDC or provider secrets', () => {
+  it('routes PTR updates through a dedicated exact-source job with bounded OIDC and no provider secrets', () => {
     const job = production().jobs.operate_ptr;
     const common = ["github.event_name == 'workflow_dispatch'", "github.repository == 'ael-dev3/Warpkeep'",
       "github.ref == 'refs/heads/main'", 'github.sha == inputs.source_commit'];
     for (const expression of common) expect(job.if).toContain(expression);
     expect(job).toMatchObject({
-      permissions: { actions: 'read', contents: 'read' },
+      permissions: { actions: 'read', contents: 'read', 'id-token': 'write' },
       environment: 'notification-bridge-prepared',
       'runs-on': ['self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive'],
       'timeout-minutes': 120,
@@ -145,12 +145,12 @@ describe('sealed-realms production workflow authority', () => {
     expect(execute.env).not.toHaveProperty('WARPKEEP_PRODUCTION_ADMIN_TOKEN');
     expect(execute.env).not.toHaveProperty('WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN');
     expect(execute.env).not.toHaveProperty('WARPKEEP_PTR_SPACETIMEDB_DATABASE');
-    expect(job.permissions).not.toHaveProperty('id-token');
     const allowlist = execute.run!.match(/PATH\|HOME\|LANG\|LC_ALL\|[^\n]+(?=\) ;;)/u)?.[0].split('|');
     expect(allowlist).toEqual(['PATH', 'HOME', 'LANG', 'LC_ALL', 'RUNNER_OS', 'RUNNER_ARCH', 'RUNNER_NAME', 'RUNNER_TEMP',
       'GITHUB_ACTIONS', 'GITHUB_REPOSITORY', 'GITHUB_REF', 'GITHUB_SHA', 'GITHUB_EVENT_NAME', 'GITHUB_JOB',
       'GITHUB_WORKFLOW', 'GITHUB_WORKFLOW_REF', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_TOKEN', 'WARPKEEP_OPERATION',
-      'WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT', 'WARPKEEP_SPACETIME_CLI_CONFIG_PATH', 'SPACETIME_BIN']);
+      'WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT', 'WARPKEEP_SPACETIME_CLI_CONFIG_PATH', 'SPACETIME_BIN',
+      'ACTIONS_ID_TOKEN_REQUEST_URL', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN']);
     expect(execute.run).toContain('*) unset "$key" ;;');
     expect(execute.run).not.toContain('GITHUB_TOKEN=');
     expect(execute.run).not.toContain('$GITHUB_TOKEN');
@@ -353,6 +353,9 @@ test -n "$GITHUB_TOKEN"
 test "$WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT" = /home/warpkeep/.warpkeep/release-preparation-v1/cache/ptr
 test "$WARPKEEP_SPACETIME_CLI_CONFIG_PATH" = /home/warpkeep/.warpkeep/private/production-admin-v1/spacetime-cli.toml
 test "$SPACETIME_BIN" = /home/warpkeep/.warpkeep/release-preparation-v1/toolchain/spacetime-2.6.1/spacetimedb-cli
+test "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" = fixture-oidc-token
+test "$ACTIONS_ID_TOKEN_REQUEST_URL" = https://fixture.actions.githubusercontent.com/token
+test "\${WARPKEEP_PRODUCTION_ADMIN_TOKEN+x}" != x
 test "\${WARPKEEP_SOURCE_COMMIT+x}" != x
 test "\${WARPKEEP_UNRELATED+x}" != x
 printf '%s\\n' ptr-fixed-argument-transport-ok
@@ -361,10 +364,13 @@ printf '%s\\n' ptr-fixed-argument-transport-ok
       const transport = execute.slice(execute.lastIndexOf('while IFS= read -r key; do'));
       const result = runShell('set -eu\nsource_node="$WARPKEEP_FIXTURE_BIN/node"\n' + transport, {
         WARPKEEP_FIXTURE_BIN: directory, WARPKEEP_SOURCE_COMMIT: 'a'.repeat(40), GITHUB_SHA: 'a'.repeat(40),
-        WARPKEEP_OPERATION: 'ptr-update-inspect', GITHUB_TOKEN: 'private-test-token-never-in-argv',
+        WARPKEEP_OPERATION: 'ptr-update-apply', GITHUB_TOKEN: 'private-test-token-never-in-argv',
         WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT: '/home/warpkeep/.warpkeep/release-preparation-v1/cache/ptr',
         WARPKEEP_SPACETIME_CLI_CONFIG_PATH: '/home/warpkeep/.warpkeep/private/production-admin-v1/spacetime-cli.toml',
         SPACETIME_BIN: '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/spacetime-2.6.1/spacetimedb-cli',
+        ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'fixture-oidc-token',
+        ACTIONS_ID_TOKEN_REQUEST_URL: 'https://fixture.actions.githubusercontent.com/token',
+        WARPKEEP_PRODUCTION_ADMIN_TOKEN: 'must-be-cleared',
         WARPKEEP_UNRELATED: 'must-be-cleared',
       });
       expect(result.error).toBeUndefined(); expect(result.status).toBe(0); expect(result.stderr).toBe('');

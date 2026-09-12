@@ -1,3 +1,4 @@
+import { types } from 'node:util'
 import { assertRecoveryPrivateKeyMatchesPinned, P256_HALF_ORDER, P256_ORDER } from './crypto.js'
 import { githubFail, snapshotExactDataObject } from './config.js'
 import { parseGitHubJsonObject } from './http.js'
@@ -213,4 +214,168 @@ export async function verifyPtrObservation(compact: unknown, expectedIdentity: P
   const key = await crypto.subtle.importKey('jwk', RECOVERY_PUBLIC_JWK, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify'])
   if (!await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, signature, encoder.encode(`${parts[0]}.${parts[1]}`))) githubFail(CODE)
   return expected
+}
+
+// The update statement is a different protocol. Neither it nor historical
+// signature verification is a continuation claim or an adoption capability.
+export const PTR_UPDATE_OBSERVATION_AUDIENCE = 'https://release-auth.warpkeep.com/ptr-update-observation'
+export const PTR_UPDATE_OBSERVATION_PATH = '/v1/recovery/ptr-update-observation'
+export const PTR_UPDATE_OBSERVATION_JOB = 'operate_ptr'
+export const PTR_UPDATE_OBSERVATION_PROFILE = 'warpkeep-recovery-ptr-update-observation-v1'
+export const PTR_UPDATE_OBSERVATION_TYP = 'warpkeep-recovery-ptr-update-observation+jws'
+export const PTR_UPDATE_OBSERVATION_PURPOSE = 'existing-ptr-update-observation'
+const UPDATE_CODE = 'RECOVERY_PTR_UPDATE_OBSERVATION_INVALID'
+const UPDATE_COMMON_KEYS = ['bindingDigest', 'inspectionDigest', 'inspectionRecordDigest', 'predecessorDigest',
+  'predecessorReceiptDigest', 'beforeProgram', 'candidateProgram', 'scopeDigest', 'issuedRecordDigest',
+  'claimRecordDigest', 'claimRunId', 'claimRunAttempt'] as const
+const UPDATE_POST_KEYS = ['preObservationJwsSha256', 'completionReceiptDigest', 'completionRecordDigest',
+  'terminalRecordDigest', 'terminalRunId', 'terminalRunAttempt', 'terminalOutcome', 'terminalAt'] as const
+export type PtrUpdateObservationCommonContext = Readonly<{
+  bindingDigest: string; inspectionDigest: string; inspectionRecordDigest: string
+  predecessorDigest: string | null; predecessorReceiptDigest: string | null
+  beforeProgram: string; candidateProgram: string; scopeDigest: string; issuedRecordDigest: string
+  claimRecordDigest: string; claimRunId: string; claimRunAttempt: string
+}>
+export type PtrUpdateObservationContext = PtrUpdateObservationCommonContext & (Readonly<{ phase: 'pre' }> | Readonly<{
+  phase: 'post'; preObservationJwsSha256: string; completionReceiptDigest: string; completionRecordDigest: string
+  terminalRecordDigest: string; terminalRunId: string; terminalRunAttempt: string
+  terminalOutcome: 'completed' | 'reconciled-effect-applied'; terminalAt: string
+}>)
+export type PtrUpdateObservationRequest = Readonly<{ oidcToken: string; sourceCommit: string; requestId: string }> & (
+  Readonly<{ context: Extract<PtrUpdateObservationContext, { phase: 'pre' }> }> |
+  Readonly<{ context: Extract<PtrUpdateObservationContext, { phase: 'post' }>; preObservationJws: string }>)
+
+function updateExact(value: unknown, keys: readonly string[]) {
+  if (types.isProxy(value)) githubFail(UPDATE_CODE)
+  return snapshotExactDataObject(value, keys, UPDATE_CODE)
+}
+function updateVariant(value: unknown, common: readonly string[], additional: readonly string[]) {
+  try { return updateExact(value, common) } catch { return updateExact(value, [...common, ...additional]) }
+}
+function canonicalTime(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(value)) return false
+  const parsed = Date.parse(value)
+  return Number.isSafeInteger(parsed) && parsed > 0 && new Date(parsed).toISOString() === value
+}
+export function snapshotPtrUpdateObservationContext(value: unknown): PtrUpdateObservationContext {
+  const o = updateVariant(value, [...UPDATE_COMMON_KEYS, 'phase'], UPDATE_POST_KEYS)
+  for (const key of UPDATE_COMMON_KEYS) {
+    if (key === 'predecessorDigest' || key === 'predecessorReceiptDigest') {
+      if (o[key] !== null && !matches(o[key], HASH)) githubFail(UPDATE_CODE)
+    } else if (!matches(o[key], key === 'claimRunId' || key === 'claimRunAttempt' ? ID : HASH)) githubFail(UPDATE_CODE)
+  }
+  if ((o.predecessorDigest === null) !== (o.predecessorReceiptDigest === null)) githubFail(UPDATE_CODE)
+  if (o.phase === 'pre') updateExact(o, [...UPDATE_COMMON_KEYS, 'phase'])
+  else if (o.phase === 'post') {
+    updateExact(o, [...UPDATE_COMMON_KEYS, 'phase', ...UPDATE_POST_KEYS])
+    for (const key of UPDATE_POST_KEYS.slice(0, 4)) if (!matches(o[key], HASH)) githubFail(UPDATE_CODE)
+    if (!matches(o.terminalRunId, ID) || !matches(o.terminalRunAttempt, ID) || !canonicalTime(o.terminalAt)
+      || !['completed', 'reconciled-effect-applied'].includes(o.terminalOutcome as string)
+      || (o.terminalOutcome === 'completed'
+        && (o.terminalRunId !== o.claimRunId || o.terminalRunAttempt !== o.claimRunAttempt))) githubFail(UPDATE_CODE)
+  } else githubFail(UPDATE_CODE)
+  return Object.freeze({ ...o }) as PtrUpdateObservationContext
+}
+export function snapshotPtrUpdateObservationRequest(value: unknown): PtrUpdateObservationRequest {
+  const o = updateVariant(value, ['oidcToken', 'sourceCommit', 'requestId', 'context'], ['preObservationJws'])
+  const identity = snapshotPtrObservationRequest({ oidcToken: o.oidcToken, sourceCommit: o.sourceCommit, requestId: o.requestId })
+  const context = snapshotPtrUpdateObservationContext(o.context)
+  if (context.phase === 'pre') {
+    updateExact(o, ['oidcToken', 'sourceCommit', 'requestId', 'context'])
+    return Object.freeze({ ...identity, context })
+  }
+  updateExact(o, ['oidcToken', 'sourceCommit', 'requestId', 'context', 'preObservationJws'])
+  if (typeof o.preObservationJws !== 'string' || o.preObservationJws.length < 1 || o.preObservationJws.length > 16384
+    || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u.test(o.preObservationJws)) githubFail(UPDATE_CODE)
+  return Object.freeze({ ...identity, context, preObservationJws: o.preObservationJws })
+}
+function updatePayload(identity: PtrObservationIdentity, context: PtrUpdateObservationContext, observation: unknown, issuedAt: number) {
+  const ownedIdentity = snapshotPtrObservationIdentity(updateExact(identity, IDENTITY_KEYS))
+  const selected = payload(ownedIdentity, observation, issuedAt), ownedContext = snapshotPtrUpdateObservationContext(context)
+  if (ownedContext.phase === 'pre'
+    ? ownedContext.claimRunId !== selected.identity.runId || ownedContext.claimRunAttempt !== selected.identity.runAttempt
+      || selected.observation.ptr.programKeccak256 !== ownedContext.beforeProgram
+    : selected.observation.ptr.programKeccak256 !== ownedContext.candidateProgram
+      || Date.parse(ownedContext.terminalAt) > selected.observation.observedFrom * 1000) githubFail(UPDATE_CODE)
+  return Object.freeze({ schemaVersion: 1 as const, profile: PTR_UPDATE_OBSERVATION_PROFILE,
+    iss: selected.iss, aud: PTR_UPDATE_OBSERVATION_AUDIENCE, purpose: PTR_UPDATE_OBSERVATION_PURPOSE,
+    identity: selected.identity, context: ownedContext, observation: selected.observation,
+    issuedAt: selected.issuedAt, expiresAt: selected.expiresAt })
+}
+export type PtrUpdateObservation = Readonly<ReturnType<typeof updatePayload>>
+const updateHeader = () => ({ alg: 'ES256', typ: PTR_UPDATE_OBSERVATION_TYP, kid: RECOVERY_KEY_ID })
+async function compactSha256(value: string) {
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(value)))
+  return Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join('')
+}
+async function validateUpdatePair(preCompact: string, pre: PtrUpdateObservation, post: PtrUpdateObservation) {
+  if (pre.context.phase !== 'pre' || post.context.phase !== 'post'
+    || pre.identity.sourceCommit !== post.identity.sourceCommit || pre.identity.sourceTree !== post.identity.sourceTree
+    || UPDATE_COMMON_KEYS.some(key => pre.context[key] !== post.context[key])
+    || post.context.preObservationJwsSha256 !== await compactSha256(preCompact)
+    || pre.issuedAt * 1000 > Date.parse(post.context.terminalAt)
+    || pre.observation.recoveryAuthorizationEpoch !== post.observation.recoveryAuthorizationEpoch
+    || COORDINATE_KEYS.filter(key => key !== 'observedFrom' && key !== 'observedThrough')
+      .some(key => pre.observation[key] !== post.observation[key])
+    || PTR_KEYS.filter(key => key !== 'programKeccak256')
+      .some(key => pre.observation.ptr[key] !== post.observation.ptr[key])) githubFail(UPDATE_CODE)
+}
+
+/** Pins canonical bytes and signature, including internally valid intervals, but
+ * grants no present-time freshness or private receipt/claim authority. */
+export async function verifyHistoricalPtrUpdateObservation(compact: unknown): Promise<PtrUpdateObservation> {
+  if (typeof compact !== 'string' || compact.length > 16384) githubFail(UPDATE_CODE)
+  const parts = compact.split('.')
+  if (parts.length !== 3 || parts[0] !== base64UrlEncode(encoder.encode(JSON.stringify(updateHeader())))) githubFail(UPDATE_CODE)
+  const raw = updateExact(parseGitHubJsonObject(decode(parts[1]!), UPDATE_CODE, []),
+    ['schemaVersion', 'profile', 'iss', 'aud', 'purpose', 'identity', 'context', 'observation', 'issuedAt', 'expiresAt'])
+  const expected = updatePayload(raw.identity as PtrObservationIdentity, raw.context as PtrUpdateObservationContext,
+    raw.observation, raw.issuedAt as number)
+  if (parts[1] !== base64UrlEncode(encoder.encode(JSON.stringify(expected)))) githubFail(UPDATE_CODE)
+  const signature = decode(parts[2]!)
+  if (signature.length !== 64) githubFail(UPDATE_CODE)
+  const r = integer(signature.subarray(0, 32)), s = integer(signature.subarray(32))
+  if (r < 1n || r >= P256_ORDER || s < 1n || s > P256_HALF_ORDER) githubFail(UPDATE_CODE)
+  const key = await crypto.subtle.importKey('jwk', RECOVERY_PUBLIC_JWK, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify'])
+  if (!await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, signature,
+    encoder.encode(`${parts[0]}.${parts[1]}`))) githubFail(UPDATE_CODE)
+  return expected
+}
+export async function verifyPtrUpdateObservation(compact: unknown, expectedIdentity: PtrObservationIdentity,
+  expectedContext: PtrUpdateObservationContext, nowSeconds: number): Promise<PtrUpdateObservation> {
+  const identity = snapshotPtrObservationIdentity(updateExact(expectedIdentity, IDENTITY_KEYS)), context = snapshotPtrUpdateObservationContext(expectedContext)
+  const result = await verifyHistoricalPtrUpdateObservation(compact)
+  if (JSON.stringify(result.identity) !== JSON.stringify(identity) || JSON.stringify(result.context) !== JSON.stringify(context)
+    || !positive(nowSeconds) || nowSeconds < result.issuedAt || nowSeconds >= result.expiresAt) githubFail(UPDATE_CODE)
+  return result
+}
+export async function verifyPtrUpdateObservationPair(preCompact: unknown, postCompact: unknown): Promise<Readonly<{
+  pre: PtrUpdateObservation; post: PtrUpdateObservation
+}>> {
+  const pre = await verifyHistoricalPtrUpdateObservation(preCompact), post = await verifyHistoricalPtrUpdateObservation(postCompact)
+  await validateUpdatePair(preCompact as string, pre, post)
+  return Object.freeze({ pre, post })
+}
+export async function signPtrUpdateObservation(identity: PtrObservationIdentity, context: PtrUpdateObservationContext,
+  observation: CapturedPtrBridgeObservation, issuedAt: number, privateJwk: JsonWebKey, preObservationJws?: string): Promise<string> {
+  if (!captured.has(observation)) githubFail(UPDATE_CODE)
+  const body = updatePayload(identity, context, observation, issuedAt)
+  if (body.context.phase === 'post') {
+    const pre = await verifyHistoricalPtrUpdateObservation(preObservationJws)
+    await validateUpdatePair(preObservationJws!, pre, body)
+  } else if (preObservationJws !== undefined) githubFail(UPDATE_CODE)
+  await assertRecoveryPrivateKeyMatchesPinned(privateJwk)
+  const key = await crypto.subtle.importKey('jwk', privateJwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign'])
+  const input = `${base64UrlEncode(encoder.encode(JSON.stringify(updateHeader())))}.${base64UrlEncode(encoder.encode(JSON.stringify(body)))}`
+  const signature = new Uint8Array(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, encoder.encode(input)))
+  if (signature.length !== 64) githubFail(UPDATE_CODE)
+  const r = integer(signature.subarray(0, 32)); let s = integer(signature.subarray(32))
+  if (r < 1n || r >= P256_ORDER || s < 1n || s >= P256_ORDER) githubFail(UPDATE_CODE)
+  if (s > P256_HALF_ORDER) {
+    s = P256_ORDER - s
+    for (let index = 63; index >= 32; index--) { signature[index] = Number(s & 255n); s >>= 8n }
+  }
+  const compact = `${input}.${base64UrlEncode(signature)}`
+  if (compact.length > 16384) githubFail(UPDATE_CODE)
+  return compact
 }

@@ -4,6 +4,20 @@ import { createRecoveryGateway } from '../src/gateway.js'
 import { snapshotSignerRequest } from '../src/signerRequests.js'
 import { createSignerObservationService } from '../src/signerObservationService.js'
 import type { ReleaseRecoveryObservationRequest } from '../src/realmEvidence.js'
+import { snapshotPtrUpdateObservationContext } from '../src/ptrObservation.js'
+
+it('exposes the separate actual signer RPC and rejects invalid or extra arguments without public authority', async () => {
+  // Catch expected exceptions inside the test worker, following the existing
+  // preparation probe; do not suppress Workerd runtime failures.
+  for (const extra of [[], ['unexpected']]) {
+    const result = await env.RECOVERY_PREPARATION_ACTUAL_SIGNER.probeInvalidPtrUpdate({}, ...extra)
+    try { expect(result.code).toBe('RECOVERY_PTR_UPDATE_OBSERVATION_UNAVAILABLE') }
+    finally { result[Symbol.dispose]() }
+  }
+  const trap = vi.fn(() => [])
+  expect(() => snapshotPtrUpdateObservationContext(new Proxy({}, { ownKeys: trap }))).toThrow()
+  expect(trap).not.toHaveBeenCalled()
+})
 
 it('transports recovery and PTR observation endpoint contracts through a real named Worker service binding', async () => {
   const log = vi.fn()
@@ -23,6 +37,15 @@ it('transports recovery and PTR observation endpoint contracts through a real na
   const ptrResponse = await gateway.fetch(new Request(root + 'ptr-observation', { method: 'POST',
     headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ptrObservation) }))
   expect(await ptrResponse.json()).toEqual({ ptrObservationJws: 'test-only-ptr-observation' })
+  const update = { ...ptrObservation, context: {
+    bindingDigest: '1'.repeat(64), inspectionDigest: '2'.repeat(64), inspectionRecordDigest: '3'.repeat(64),
+    predecessorDigest: null, predecessorReceiptDigest: null, beforeProgram: 'a'.repeat(64), candidateProgram: 'b'.repeat(64),
+    scopeDigest: '4'.repeat(64), issuedRecordDigest: '5'.repeat(64), claimRecordDigest: '6'.repeat(64),
+    claimRunId: '1', claimRunAttempt: '1', phase: 'pre' } }
+  const updateResponse = await gateway.fetch(new Request(root + 'ptr-update-observation', { method: 'POST',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(update) }))
+  expect(updateResponse.status).toBe(200)
+  expect(await updateResponse.json()).toEqual({ ptrUpdateObservationJws: 'test-only-ptr-update-observation' })
   for (const endpoint of ['issue', 'claim', 'complete', 'reconcile']) {
     const request = { ...issue, ...(endpoint === 'issue' ? {} : endpoint === 'claim' ? { authorizationJws: 'test-only-authorization' } : { claimReceiptJws: 'test-only-claim' }) }
     const response = await gateway.fetch(new Request(root + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) }))
@@ -31,7 +54,7 @@ it('transports recovery and PTR observation endpoint contracts through a real na
     expect(response.headers.has('Access-Control-Allow-Origin')).toBe(false)
   }
   expect(await (await gateway.fetch(new Request(root + 'requests/' + requestId))).json()).toEqual({ terminalJws: 'test-only-terminal' })
-  expect(log).toHaveBeenCalledTimes(7)
+  expect(log).toHaveBeenCalledTimes(8)
   expect(JSON.stringify(log.mock.calls)).not.toMatch(/test-only-|oidcToken|authorizationJws|claimReceiptJws/u)
 })
 

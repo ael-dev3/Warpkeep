@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { verifyPtrObservationWorkflowIdentity } from '../src/ptrObservationOidc.js'
 import { ptrObservationOidcFixture } from './ptrObservationOidcFixture.js'
+import * as observationOidc from '../src/ptrObservationOidc.js'
 
 async function verify(options: Parameters<typeof ptrObservationOidcFixture>[0] = {}) {
   const { calls, ...input } = await ptrObservationOidcFixture(options)
@@ -44,4 +45,52 @@ describe('existing PTR observation GitHub authentication', () => {
       } })).rejects.toThrow()
     },
   )
+})
+
+async function updateFixture(options: Parameters<typeof ptrObservationOidcFixture>[0] = {}) {
+  return ptrObservationOidcFixture({ ...options,
+    claims: { aud: 'https://release-auth.warpkeep.com/ptr-update-observation', ...options.claims },
+    mutate(url, value) {
+      if (url.includes('/jobs?')) for (const job of value.jobs as Record<string, unknown>[])
+        if (job.name === 'observe_ptr') job.name = 'operate_ptr'
+      if (value.name === 'observe_ptr') value.name = 'operate_ptr'
+      options.mutate?.(url, value)
+    } })
+}
+describe('separate PTR update observation GitHub authentication', () => {
+  it('authenticates the exact operate_ptr job with a distinct audience and lossless original job coordinates', async () => {
+    expect(typeof observationOidc.verifyPtrUpdateObservationWorkflowIdentity).toBe('function')
+    const { calls, ...input } = await updateFixture({ jobCount: 101 })
+    const result = await observationOidc.verifyPtrUpdateObservationWorkflowIdentity(input)
+    expect(result.identity).toMatchObject({ runId: '9007199254740995', checkRunId: '9007199254740993', runAttempt: '2' })
+    expect(calls.filter(url => url.includes('/jobs?'))).toHaveLength(2)
+    await expect(verifyPtrObservationWorkflowIdentity(input)).rejects.toThrow()
+  })
+  it('rejects a proxy before reading its selected identity or transport', async () => {
+    const { calls: _calls, ...input } = await updateFixture()
+    let trapped = false
+    await expect(observationOidc.verifyPtrUpdateObservationWorkflowIdentity(new Proxy(input, {
+      ownKeys(target) { trapped = true; return Reflect.ownKeys(target) },
+    }))).rejects.toThrow()
+    expect(trapped).toBe(false)
+  })
+  it.each(['audience', 'observe-job', 'foreign-event', 'active-sibling', 'duplicate-target', 'wrong-runner', 'rerun', 'branch-moved', 'wrong-tree'])(
+    'refuses mismatched update identity: %s', async kind => {
+      const { calls: _calls, ...input } = await updateFixture({
+        claims: kind === 'audience' ? { aud: 'https://release-auth.warpkeep.com/ptr-observation' }
+          : kind === 'foreign-event' ? { event_name: 'pull_request' } : {},
+        mutate(url, value) {
+          if (url.includes('/jobs?')) {
+            const jobs = value.jobs as Record<string, unknown>[]
+            if (kind === 'observe-job') jobs.at(-1)!.name = 'observe_ptr'
+            if (kind === 'active-sibling') Object.assign(jobs[0]!, { status: 'in_progress', conclusion: null })
+            if (kind === 'duplicate-target') jobs[0]!.name = 'operate_ptr'
+            if (kind === 'wrong-runner') jobs.at(-1)!.runner_name = 'untrusted'
+          }
+          if (kind === 'rerun' && url.endsWith('/actions/runs/9007199254740995')) value.run_attempt = 3
+          if (kind === 'branch-moved' && url.endsWith('/branches/main')) value.commit = { sha: 'e'.repeat(40) }
+          if (kind === 'wrong-tree' && url.includes('/git/commits/')) value.tree = { sha: 'bad' }
+        } })
+      await expect(observationOidc.verifyPtrUpdateObservationWorkflowIdentity(input)).rejects.toThrow()
+    })
 })

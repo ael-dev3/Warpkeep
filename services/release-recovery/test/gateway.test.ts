@@ -6,6 +6,7 @@ const requestId = '123e4567-e89b-42d3-a456-426614174000'
 const issue = { requestId, candidateCommit: 'a'.repeat(40), sourceVerifyRunId: '1', sourceVerifyRunAttempt: '1', artifactId: '2', oidcToken: 'private-opaque-token' }
 function fixture() {
   const signer = { ptrObservation: vi.fn(async () => ({ ptrObservationJws: 'opaque-ptr-observation' })),
+    ptrUpdateObservation: vi.fn(async () => ({ ptrUpdateObservationJws: 'opaque-update-observation' })),
     status: vi.fn(async () => ({ statusJws: 'opaque-status' })), issue: vi.fn(async () => ({ authorizationJws: 'opaque-authorization' })),
     claim: vi.fn(async () => ({ claimReceiptJws: 'opaque-claim' })), complete: vi.fn(async () => ({ terminalJws: 'opaque-terminal' })),
     reconcile: vi.fn(async () => ({ terminalJws: 'opaque-terminal' })), terminal: vi.fn(async () => ({ terminalJws: 'opaque-terminal' })) }
@@ -15,6 +16,29 @@ function fixture() {
 const post = (path: string, body: string | Uint8Array = JSON.stringify(issue), headers = {}) => new Request(origin + path,
   { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: body as BodyInit })
 afterEach(() => vi.useRealTimers())
+
+it('routes exact nested PTR update context only to its separate private method without leaking it', async () => {
+  const { gateway, signer, log } = fixture()
+  const value = { oidcToken: 'private.opaque.token', sourceCommit: 'a'.repeat(40), requestId,
+    context: { bindingDigest: '1'.repeat(64), inspectionDigest: '2'.repeat(64), inspectionRecordDigest: '3'.repeat(64),
+      predecessorDigest: null, predecessorReceiptDigest: null, beforeProgram: 'a'.repeat(64), candidateProgram: 'b'.repeat(64),
+      scopeDigest: '4'.repeat(64), issuedRecordDigest: '5'.repeat(64), claimRecordDigest: '6'.repeat(64),
+      claimRunId: '1', claimRunAttempt: '1', phase: 'pre' } }
+  const response = await gateway.fetch(post('/v1/recovery/ptr-update-observation', JSON.stringify(value)))
+  expect(response.status).toBe(200)
+  expect(await response.json()).toEqual({ ptrUpdateObservationJws: 'opaque-update-observation' })
+  expect(signer.ptrUpdateObservation).toHaveBeenCalledExactlyOnceWith(value)
+  expect(signer.ptrObservation).not.toHaveBeenCalled()
+  for (const changed of [{ ...value, preObservationJws: 'a.b.c' },
+    { ...value, context: { ...value.context, unexpected: true } }]) {
+    expect((await gateway.fetch(post('/v1/recovery/ptr-update-observation', JSON.stringify(changed)))).status).toBe(400)
+  }
+  expect((await gateway.fetch(post('/v1/recovery/ptr-observation', JSON.stringify(value)))).status).toBe(400)
+  signer.ptrUpdateObservation.mockRejectedValueOnce(new Error('private-claim-record'))
+  const unavailable = await gateway.fetch(post('/v1/recovery/ptr-update-observation', JSON.stringify(value)))
+  expect(await unavailable.json()).toEqual({ code: 'RECOVERY_PTR_UPDATE_OBSERVATION_UNAVAILABLE', requestId })
+  expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|opaque|bindingDigest|claimRecordDigest|sourceCommit/u)
+})
 
 it('routes only the exact PTR observation request and returns only its opaque signed statement', async () => {
   const { gateway, signer, log } = fixture()

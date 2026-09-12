@@ -28,7 +28,7 @@ import {
 } from './genesis001-admitted-player-census.mjs';
 import { createRecoveryActivationBindingFromCandidate, validateRecoveryActivationCandidateDocument } from './recovery-activation-candidate.mjs';
 import { parseActivationGenerationReceipt } from './sealed-realms-production-activation-generation-receipt.mjs';
-import { readPtrExistingUpdateCompletion } from './ptr-production-existing-update-adapter.mjs';
+import { readPtrExistingUpdateCompletion, readPtrExistingStateAdoption } from './ptr-production-existing-update-adapter.mjs';
 import { updateDigest } from './sealed-realms-existing-update-protocol.mjs';
 
 const isProxy = types.isProxy;
@@ -1174,6 +1174,53 @@ export function writeSealedRealmsProductionPtrExistingUpdateRecord(input) {
     } finally { reopened.fill(0); }
     return Object.freeze({ receiptDigest: updateDigest(receipt), recordDigest: createHash('sha256').update(bytes).digest('hex') });
   } finally { body.fill(0); bytes?.fill(0); }
+}
+
+/** Separate private V4 evidence; never adds a member to the V3 activation corpus. */
+export async function writeSealedRealmsProductionPtrExistingStateAdoptionRecord(input) {
+  const options = exactInput(input, ['records', 'authority', 'adoption']);
+  const state = capabilityState(options.records);
+  const assertOwner = () => {
+    const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(options.authority);
+    assertSealedRealmsProductionPrivateState(state.privateState);
+    if (capabilityState(options.records) !== state
+      || options.authority.mode !== 'S' || options.authority.operation !== 'ptr-update-apply'
+      || state.sourceMode !== 'S' || state.sourceCommit !== sourceCommit
+      || state.preparationSourceCommit !== sourceCommit
+      || state.sourceAuthorityDigest !== options.authority.authorityDigest) {
+      fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+    }
+    return sourceCommit;
+  };
+  const sourceCommit = assertOwner();
+  // The reader reopens the authentic completion/terminal and exact signed pair.
+  // Retained signatures establish historical evidence, not new effect authority.
+  const envelope = await readPtrExistingStateAdoption({
+    adoption: options.adoption, authority: options.authority, privateState: state.privateState,
+  });
+  if (assertOwner() !== sourceCommit || envelope.sourceCommit !== sourceCommit) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+  }
+  validateMemberReceipt('ptrExistingUpdateReceipt', envelope.completionReceipt, sourceCommit);
+  const receiptDigest = updateDigest(envelope.completionReceipt);
+  const bytes = exactBody(envelope);
+  try {
+    const target = { root: 'runtime', relativePath: `ptr-existing-state-adoptions-v4/${receiptDigest}.json` };
+    if (!state.privateState.exists(target)) {
+      try { state.privateState.write({ ...target, bytes }); }
+      catch (error) {
+        // Only an immutable same-name race can be resolved by exact reopening.
+        // Partial writes and durability/ownership failures remain visible.
+        if (error?.code !== 'SEALED_REALMS_PRIVATE_STATE_FILE_EXISTS') throw error;
+      }
+    }
+    const reopened = state.privateState.read(target);
+    try {
+      if (!reopened.equals(bytes)) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+    } finally { reopened.fill(0); }
+    assertOwner();
+    return Object.freeze({ receiptDigest, recordDigest: createHash('sha256').update(bytes).digest('hex') });
+  } finally { bytes.fill(0); }
 }
 
 function recoveryReceiptProjection(state, receipts, g001) {
