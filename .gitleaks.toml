@@ -199,12 +199,24 @@ paths = ['''^services/release-recovery/test/preparationReceipt\.test\.ts$''', ''
 regexes = ['''^zbHwk528B5de5kuNzI98k4Y-rljmW6fbkH-aVZomk4M$''']
 
 [[allowlists]]
-description = "Public immutable Genesis 001 source commit and tree identifiers embedded in the generated activation bundle"
+description = "Exact public Git commit, tree and blob identifiers embedded in the generated activation bundle"
 targetRules = ["sourcegraph-access-token"]
 condition = "AND"
 regexTarget = "secret"
 paths = ['''^scripts/sealed-realms-production-activation-lane\.bundle\.mjs$''']
-regexes = ['''^2ae51984e1fa6ce5b0028c1a250359fed79d819b$''', '''^90deebb5faf4129282f5c35999244f540001b27d$''']
+regexes = [
+  '''^2ae51984e1fa6ce5b0028c1a250359fed79d819b$''',
+  '''^90deebb5faf4129282f5c35999244f540001b27d$''',
+  '''^d945256b217fa13ade944b9ed9880e8463b46123$''',
+  '''^052c83fe984a4c4eb7bb4f9afa5c6b1903891d87$''',
+  '''^c50182e99ed2e2fab1ca994c905818d383782cfc$''',
+  '''^faf7214653f1248a3f9231fd6a13dda130821014$''',
+  '''^649efdebd25528f593aff612ca8aef6f761d1e94$''',
+  '''^a640febaa07fad295f2de4b4416b7a22910eb2e6$''',
+  '''^308f901d91a1fb68d90f157a2ec164ed1acaf51d$''',
+  '''^f23643c0d07e91847cadd5445a294d965ad76e1c$''',
+  '''^331de3638901501635f5974dfa52adfbd33ecb85$''',
+]
 
 [[allowlists]]
 description = "Exact freshly generated public preparation RPC test key; SPKI SHA256 d01cf2c7368103f04ada8a93bbd9f79aaeca164265a9e975cd0c0dbe0ef7c18d"
