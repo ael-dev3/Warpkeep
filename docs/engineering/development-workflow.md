@@ -48,8 +48,9 @@ Historical plans are context, not an automatic restriction on better solutions.
    Close actionable findings or explicitly record why they remain blocking.
 6. **Record and publish source.** Add concise evidence tied to source and inputs;
    review/secret-scan exact outgoing commits, push without force and verify remote
-   identity for every completed development change. Include its implementation,
-   tests and owning notes in the same checkpoint where practical. Before yielding,
+   identity for every reviewable development checkpoint. Include implementation,
+   tests and owning notes together where practical. During longer changes, publish
+   bounded unfinished checkpoints before switching work items. Before yielding,
    publish all agent-authored durable work, including unfinished source labeled
    with its actual limits. Do not wait for full hosted CI or production readiness;
    publication remains separate from PR approval, main integration and deployment.
@@ -73,6 +74,26 @@ If publication fails, preserve the work and record the exact reason, then resume
 sync when it clears. A running native build retains its pinned operating source
 and is synchronized after it releases that source. A periodic app check provides
 recovery for missed publications; the active developer still publishes directly.
+
+## Choose the verification environment
+
+Use Windows for the editable source, types, portable tests and rendered browser
+checks. Run the prepared deployment and source-authority suites in the existing
+native `WarpkeepRunner` checkout as `warpkeep` with the pinned Node toolchain.
+Their real contract requires POSIX UID/mode checks, `/usr/bin/git`, executable
+shells and symlink semantics. A direct Windows run can reject its fixture before
+the intended assertion and spend minutes repeatedly starting the native TypeScript
+parser. This does not justify changing the production checks or their assertions.
+
+In particular, run `authBridgeNotificationPreparedWorkflow`,
+`authBridgeNotificationPreparedReleaseProjection` and
+`greaterRealmReleaseGateDeployBoundary` on Linux for acceptance. Some portable
+cases can run on Windows, but partial passes do not cover their native contracts.
+Follow the actual selected process to its exit code; publish its source and
+platform limits honestly. Reuse the existing native checkout after its active
+prepare/check releases the input, rather than installing into shared Windows
+dependency junctions or making another clone. The [execution handoff](../agent-notes/0.4.0/execution-handoff.md)
+records current run identities and owning results.
 
 ## Output locations and retention
 
@@ -155,6 +176,14 @@ Root Vitest selects `tests/**`, not `spacetimedb/tests/**`. Run module Node/tsx,
 types and build scripts separately. Auth bridge and recovery services likewise
 own separate scripts/lockfiles. Inspect each package's actual commands before
 running; do not assume root checks transitively verify every package or `.mjs` file.
+
+Run service checks from the service directory using its own installed test runner.
+Invoking root Vitest against a service with a separate dependency tree can load
+two Vitest instances and fail before test discovery. Keep cross-service tests in
+the package that owns the exercised producer and its external dependencies.
+An installed sibling package can hide imports that fail in CI, where each service
+job installs only its own locked dependencies. Preserve that boundary; do not add
+unrelated installs merely to make a misplaced test compile.
 
 When keep phases, panels or navigation change, include
 `tests/PtrGameplay04SurfaceHost.test.tsx` alongside the affected `Keep04` and

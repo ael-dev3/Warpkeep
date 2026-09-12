@@ -188,6 +188,17 @@ export function projectAuthBridgeNotificationPreparedCloudflareVersion(
 export function createAuthBridgeNotificationPreparedCloudflareRuntime(
   options: Readonly<{
     contract: Readonly<Record<string, unknown>>;
+    predecessorSourceAuthority: Readonly<{
+      sourceDigest: string;
+      entrypoint: string;
+      modules: readonly Readonly<{
+        field: string;
+        name: string;
+        contentType: string;
+        size: number;
+        sha256: string;
+      }>[];
+    }>;
     apiToken: string;
     playerCanaryOwnerFid: string;
     ptrSpacetimeDbDatabase: string;

@@ -2,15 +2,13 @@
 
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main),
 the current working PR and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
-PR #228 is merged and its branch retired. The latest completed
-native preparation/check input is
-`8033e01cc911f510fafb1770fdb0c0f0f3d2b3ac`. Preparation, independent rebuilding
-and guarded export completed successfully for the mobile layout and corrected
-recovery policy. Exact identities and export scope are recorded below. That
-retained family does not include the subsequent Linux PTR caller or pending-keep
-presentation changes.
-Final-head CI and protected promotion remain separate
-requirements. Older synchronized heads below are historical checkpoints.
+PR #228 is merged and its branch retired. Actual M1
+`c4b95505b73705d120aff3f3318d2bd5151f6565` completed native preparation,
+independent checking and guarded export. PR #235 integrated its checked generated
+family into signed main `7b102f9f` (M2); later product source follows separately.
+The retained `8033e01c` family below is historical and predates the Linux PTR
+caller and pending-keep changes. Each later source change needs its own CI and
+protected integration. Older synchronized heads below are historical checkpoints.
 The generated source families recorded below are dated, source-bound evidence;
 documentation and test follow-ups do not create a new release candidate. The
 retained candidate, closure and runner observations below are not current
@@ -20,6 +18,302 @@ gives the next connected work and actual publication/check status. **0.4 is not 
 Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
+
+## Prepared-policy family refresh — 2026-09-12
+
+Source `3710f139b3572ae0a742d582d0d79d8aa88d9476`, tree
+`228bceec2a81dd41fb88f2f88a7af5ff75e1df91`, corrects the one stale helper
+signature expectation described below. Native targeted session `30348` passed
+all seven affected cases in 54.41 seconds, exit zero; 156 other cases were
+filtered, not disabled. Independent review confirmed that the runtime guards
+and regression assertions were preserved.
+
+Native preparation `91889` and independent rebuilding check `80884` both
+completed with exit zero; all 19 returned fields matched. Retained candidate:
+`release-workspace-baf068853796d70d5c6b480a15116d05`.
+
+- Transaction: `74a77e9a2e6a262dc4a63d4bce04e1af`.
+- Journal SHA-256: `a679f9545c05cab12446770d4dd6515d349630f7e599bb10a5494a388a9ebac8`.
+- Complete-family SHA-256: `a6e2cc8293796d90c172d3fa754f6c76f32fb3715dd81d3e36661a2b1b0460c1`.
+- Closure-manifest SHA-256: `f380eb136a37d5c237a55293645aa1308794212cbf16eaea5c83a904314fc47d`.
+- Scanner-manifest SHA-256: `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+
+Both runs authenticated 3,213 source/candidate files, 102 generated outputs,
+3,111 preserved files, 460 bundle inputs and seven recovery inputs.
+`finalReleasePrepared` remains false. The reviewed export authenticated the
+complete family, normal indexes and retained evidence, then round-tripped its
+7,703-byte patch. Patch SHA-256:
+`44137df79aeefda09d4d918948df883039effdf15bf122eebf838f50b277bba7`.
+All seven changed paths are derived manifests or their four workflow pins;
+compiled bundles, declarations, bindings and count fixtures did not change.
+Independent review reconstructed every output and the complete generated tree
+`4795a1fe2bb6b6eeb5851c538a352b454aa66596`.
+
+Authenticated application to the unchanged Windows compiler input verified all
+output bytes/OIDs, exact changed paths and unchanged HEAD/index/preserved source.
+Generated-only staging reproduced that exact tree before documentation was
+added. Existing ignored operator helpers changed only their input coordinates;
+no candidate, output digest or generated body was hand-edited. The complete
+163-case prepared-workflow suite and affected native generated consumers must
+now run on the published integration checkpoint. Earlier G's 448 passing cases
+remain evidence for G, not a substitute for this new source's verification.
+
+The public entry-point audit replaced retired development links in the game's
+README, Assets README and Water Engine README. Water main is
+`9d42fb786b9fe2dbed9e9a5103c9c692d5612567`; Assets PR #34 passed its required
+checks and merged normally into signed main
+`4a47038ae837cc5eba5227e726d3ce1f89e70f79`, with exact reviewed tree equality.
+Both owning local checkouts matched their live GitHub refs. The sync procedure
+now explicitly fetches the authorized native ref, including development inputs.
+No new Desktop file, clone or dependency tree was created.
+
+## Bridge/PTR source family — 2026-09-12
+
+Published compiler input `9e098f7594bd76e3afcf0b1c6d79f106d8a6a4b7`
+(tree `3abb7a974ed729d6cffbcc0ff89718da1bb8f2bf`) completed native preparation
+session `67204` and independent rebuilding check `6320`, both exit zero. Every
+returned field matched, including source, transaction, verification counts and
+`finalReleasePrepared: false`. The retained final candidate is
+`release-workspace-54312911486fdf55e97e67414ec67b38`.
+
+- Transaction: `323655434cbf165c5c5a691b61f69096`.
+- Journal SHA-256: `6c55dad6c9c5d08bbd18eebed4e3866ce9971c1628a20bcc4ccbc5d728bd784d`.
+- Complete-family SHA-256: `f48e8d7281b5e0090695bd429b9d49dcd98a06afa00ee3d904bf21a5727ca88d`.
+- Closure-manifest SHA-256: `f16c9375a1c4981da057a3fe1d20c86436a22f73e5f6b847453995c7ef623c15`.
+- Scanner-manifest SHA-256: `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+
+Both runs checked all 3,213 source/candidate files, 102 generated outputs,
+3,111 preserved source files, 460 compiled bundle inputs and seven recovery
+inputs. These are verification facts, not product scope or release acceptance.
+The refreshed family carries the PTR observation and prepared-bridge source
+inventory through all compiled lanes, generated source pins, manifests, workflow
+consumers and count fixtures. The G001 and G002/PTR generated binding bytes remain
+unchanged. No counts, hashes or generated source identities were hand-edited.
+
+The reviewed operator composition reacquired the candidate lock, authenticated
+completion and its sole journal, retained backups and every output, and rechecked
+the entire source/candidate. Its captured-byte temporary index produced tree
+`5426f0d7c3311ef3b669cf635b170358175769c2`. A binary-patch round trip reproduced
+that tree; both normal indexes and retained evidence stayed unchanged, and the
+owned temporary index was removed before final reattestation. All 102 outputs
+were authenticated; 19 paths differed from the committed input. The patch was
+4,447,026 bytes with SHA-256
+`57259d0aa8b41ad25786380ac84eaa8a28146ba09bfdb3bb1485b64eee26adaa`.
+
+On the clean Windows checkout at that exact input, patch checking preceded plain
+application. All output sizes, hashes and Git blob IDs matched; the full changed
+path set was exact, and HEAD identity, branch state, normal index and every
+non-output source file stayed unchanged. The export and receiver helpers remain
+ignored operator artifacts; no Desktop file, clone or dependency tree was created.
+An initial exporter guard incorrectly required the assembler-created `.git`
+directory to be mode 0700; the observed 0755 directory satisfies the existing
+lock's non-writable contract. The receiver's isolated Git invocation also needed
+the already-authorized exact Windows safe-directory entry. Both attempts stopped
+before applying source; the corrected composition passed without changing
+candidate permissions or global Git policy.
+
+The family and owning notes were published as
+`4b96ae380b6fdb348d26eaf74464638e2e346aff` after the full outgoing range passed
+the secret scan. GitHub/Windows equality was verified, then the clean idle native
+checkout fast-forwarded to that exact commit. Native session `89197` passed all
+448 tests across the 15 runtime, closure and generated-consumer suites without
+skips in 38.75 seconds. This includes the downstream source-pin/count failures
+recorded before generation. Checked-in and preparation CLI verification passed;
+the source classifier returned `sealed-launch-blocked`. A direct `--phase=pages`
+invocation without its GitHub environment rejected with
+`SEALED_LAUNCH_PAGES_ENVIRONMENT_INVALID`, as required; it is not a production
+workflow run. No fabricated workflow environment was supplied.
+
+Both Windows TypeScript projects passed after application. All 30 tests in
+`projectLinks`, `publicLegalDocuments` and `keep04DocumentPolicy` passed; the
+tracked file-size policy and diff whitespace checks passed. These checks do not
+stand in for the separate affected native/hosted verification.
+
+The supplemental Windows session `31279` later ended with 283 passes, 78
+failures and four skips across eight files in 672.91 seconds. Three suites failed
+before their intended native assertions: the closure repository requires
+`process.getuid`, fixtures call `/usr/bin/git`, and Windows rejected symlink
+creation with `EPERM`. This is a recorded failed Windows invocation, not a pass.
+The same projection and deployment-boundary suites passed on native G above.
+The separate native prepared-workflow suite `81300` completed at `42b660fd`
+with 156 passes and seven failures in 233.32 seconds, without skips. These seven
+were an actual source-policy mismatch: the static verifier expected
+`exactApiScriptAttestation(script, code)`, while the repaired runtime takes
+`exactApiScriptAttestation(script, expectedNamedHandlers, code)`. Its initial
+baseline failure caused six later credential-comment checks to fail before their
+mutation assertions. The verifier now requires the actual three-argument shape;
+no credential check, production guard or test assertion is relaxed. The completed
+targeted recheck and fresh whole-family preparation/check are recorded above.
+The development workflow also makes the platform routing explicit.
+
+This is development-source preparation and integration, not deployment. Read
+[PR #240](https://github.com/ael-dev3/Warpkeep/pull/240) for the current published
+head and its verification. Full current-head hosted checks, protected-main
+ancestry, provider/owner authority, live preservation and final release acceptance
+remain separate. Preserve the original compiler-input identities in this family
+through later commits and follow the [local preparation procedure](../../operations/0.4.0-local-release-preparation.md)
+for subsequent protected-source preparation.
+
+## Existing PTR observation integration — 2026-09-12
+
+The new read-only operation reaches the existing private bridge observer through
+a dedicated GitHub job, recovery gateway and private signer. GitHub OIDC `jti`
+binds the request; the signer derives the real check-run identity from the
+attempt's complete GitHub jobs inventory and independently verifies the check,
+workflow, current attempt and protected main. It rechecks authority after the
+bridge RPC, validates the original full response and signs a narrow PTR projection.
+The caller verifies the pinned signature and exact source/run/request identity,
+then writes and reopens the canonical JWS only in the existing private audit root.
+Recovery stays disabled, and this path does not issue import/provision/adoption
+receipts or invoke a realm mutation.
+
+Focused tests exercise the actual auth-bridge response construction and signed
+contract, OIDC/job evidence, signer and gateway. The complete release-recovery
+unit suite passed 1,143 tests in 44 files on pinned Node 22.22.3; both service
+TypeScript projects passed. All seven Worker runtime suites passed their 53 tests
+in 65.87 seconds using the service-local Vitest runner and its existing dependency
+tree. An earlier invocation incorrectly used root Vitest and failed before test
+discovery because the service loaded a different Vitest peer snapshot; this was
+an invocation error, not a Windows limitation. No dependency install was needed.
+
+The broader root owning run passed 181 tests in nine suites before the final
+job-ID parser correction. After that correction, four focused caller/workflow/
+compiled-bundle suites passed 51 tests and root build-mode types passed. Review
+caught and corrected a runner-label mismatch using the actual workflow as fixture
+input. The caller now reads GitHub integer IDs without precision loss and checks
+the job ID, run and attempt against the exact check URL and current context;
+large-ID and mismatched-identity regressions cover that boundary. Freshness is
+checked again after asynchronous signature verification before evidence is stored.
+The signer also checks the authenticated validity window after crypto completes.
+A regression first reproduced an expired statement escaping within the longer
+request/OIDC budget, then passed after the correction. Final focused service
+verification passed 59 tests across contract, OIDC, signer and gateway, and both
+service type projects passed again. Record subsequent final-source/Linux checks
+and publication in the actual PR.
+
+The final workflow audit reproduced two omitted owning-contract failures: the
+new operation's vocabulary order differed from dispatch choices, and the workflow
+test omitted `observe_ptr`. Source and declaration now append the operation in
+the existing order, retaining the strict ordered assertion. Workflow coverage
+includes its exact job/permissions, runtime guards and environment pruning;
+dispatcher cases exercise successful observation and wrong-job/result/export
+refusals. The three affected suites passed 50 tests on Windows with 40 Linux-only
+cases skipped; root types passed. Include those Linux cases in native validation.
+
+The first outgoing scan correctly stopped publication on three occurrences of
+the existing preparation test key's public thumbprint in the new tests. The
+fixture's public coordinates were checked against the original test key and
+confirmed distinct from the production key pin. This is public fixture metadata,
+not private signing material. The scoped scanner correction permits only that
+exact value, the `generic-api-key` rule and the three exact test paths. The real
+scanner regression first reproduced the three unexpected findings, then passed
+40 allowed cases and 78 mandatory detections, including changed values and the
+unchanged value at copied paths. All seven scanner tests and the Node-project
+typecheck passed. Keep both source and correction commits in the outgoing scan;
+do not bypass scanning or rewrite the source checkpoint to hide the finding.
+
+At published `937c0128`, native session `80114` passed all 396 tests in 17 owning
+and affected graph suites without skips in 10.39 seconds. The checkout stayed
+clean and unchanged. PR #239 then exposed a separate clean-install boundary:
+Verify `34699623347`, recovery job `103568959219`, failed service typechecking
+because the new producer-compatibility test imported auth-bridge source while
+that job installs only recovery dependencies. The missing module was the bridge's
+`@noble/hashes/blake3`. Local sibling installations had masked that dependency.
+The compatibility regression now lives in the auth bridge's existing test suite,
+with recovery contract tests retaining their own dependency boundary. The recovery
+compiler graph contains no auth-bridge paths; the shared capture imports only its
+internal recovery files. Both services' Node and workerd type projects passed,
+along with 35 focused recovery and 13 auth-bridge tests. This preserves the real
+producer check without adding unrelated service installs to CI. Fresh hosted
+verification remains the authoritative clean-install result for the correction.
+
+Authenticated provider inventory found only the existing auth bridge, with B0
+source and public authentication enabled; neither recovery Worker nor the
+required PTR/canary/recovery bridge bindings is deployed. The existing private
+Windows bootstrap validates and its public key matches the source pin. Full
+bootstrap and live bridge-key verification remain incomplete. See the
+[provider record](../../agent-notes/0.4.0/release-and-infrastructure.md#current-provider-configuration--september-12).
+No live PTR observation, preservation result or deployment is established.
+
+Normal merge commits reconciled M2 into PRs #236, #237 and #238 without changing
+their reviewed trees. Their published heads are respectively `92d363ce`,
+`7bc5992c` and `23ec4731`; full outgoing scans and local/live comparisons passed.
+The clean idle native checkout was synchronized to the last of those before
+the new observation work began. None of these updates moved protected M2.
+
+## M1 family and runner availability — 2026-09-12
+
+Final K Verify `34694406086` and CodeQL `34694406081` passed. Normal protected
+expected-head squash merged PR #235 at 13:33:31 UTC into signed, valid M2
+`7b102f9f`, with sole parent R and tree exactly equal to reviewed K `93a976b0`.
+Actual M2 main push Verify `34696760924` subsequently reached terminal success.
+The first sealed workflow dispatch `34699447213`, created at 14:29:45 UTC, ran
+against that exact protected main. Its actual `operate_readonly` job
+`103568496530` passed and emitted exactly
+`{"operation":"preflight","status":"preflight-inspected"}`; all other jobs
+were skipped. Live main was rechecked unchanged afterward. This proves the
+installed Linux runtime, private-root, source/family and GitHub authority path.
+It does not establish provider credentials, owner state, deployment or release
+acceptance. Later source requires its own current-main evidence and preparation.
+
+M1 prepare `30088` and independent check `8359` both exited zero; every result
+field matched for `release-workspace-99438dc2cc576e073df09bc44f930bc6`. The
+guarded export and receiver authenticated the full output family and preserved
+non-output source. Generated source `d452b055` was normally merged with the
+scanner repair, then protected main `2dc1f519`, yielding `3c4eb264` without
+changing the authenticated family. PR #235 contains only its generated paths.
+Its producer manifests retain M1's source and tree. The native owning workflow,
+bundle-engine and closure-derivation suites passed 194 tests without skips;
+the checked-in sealed-launch and prepared-policy verifiers passed again at
+`3c4eb264`. This remains preparation evidence with `finalReleasePrepared: false`.
+Protected integration, main CI and actual sealed preflight are verified above;
+provider and player acceptance remain separate requirements.
+
+The September 12 runner check found GitHub registration 22 offline, with
+`WarpkeepRunner` absent from the running distro list. Opening the guest started
+its healthy enabled service. The existing Windows keepalive task was `Ready`
+with last result 1; that result alone does not identify the original exit cause.
+The stored task also had the default 72-hour limit and only a logon trigger.
+The task was recovered and adjusted to `PT0S`, `StartWhenAvailable`, and an
+indefinite five-minute time trigger alongside its original logon trigger.
+Its existing action, interactive limited principal, hidden setting, battery
+policy, `IgnoreNew`, restart settings and disabled host-wake setting were preserved.
+
+Readback caught the new trigger's default `StopAtDurationEnd: true`; it was set
+to false and re-read before the controlled task restart. The runner was verified
+online and idle before that restart. A temporary hidden guest hold preserved
+the WSL lifetime during the handoff. The new keepalive instance started at
+13:20:18 UTC. The 13:20:26 trigger left the same Windows launcher/WSL child pair
+running and created no duplicate. GitHub still reported online and idle after
+the temporary hold expired. The task's last result became `0x800710E0` for that
+overlapping trigger while the active instance remained running; inspect current
+process, service and GitHub state before interpreting a last-result field.
+
+No runner registration, credential, private receipt, game state or deployment
+was changed. The [runner guide](../../operations/0.4.0-linux-runner.md) owns
+maintenance and recovery instructions. This proves the observed session's
+recovery and duplicate prevention, not availability through host sleep/reboot
+or arbitrary future runner failures.
+
+## Independent frozen-source mutation cases — 2026-09-12
+
+Historical R main Verify `34694304468` failed only the Linux root-test step:
+`genesis001BindingFrozenSource.test.ts` combined four independent materializations
+and mutation checks in one callback, which completed in 10,749 ms and exceeded
+the default 10,000 ms budget. There was no failed behavioral assertion. The
+nearby corrupt-object diagnostics belong to a separate passing negative test.
+The generated family in M2 does not alter this test or the production materializer.
+
+The test now gives extra entries, changed bytes, same-byte inode replacement and
+directory symlink replacement separate names and one materialization each. All
+existing error and destination-retention assertions remain; the inode case also
+asserts retention. The default timeout, Linux condition, shared private-parent
+cleanup and production implementation are unchanged. Independent source review
+confirmed the split preserves the test contract. PR #238 published `e18cf0c5`;
+native session `93630` then passed all 11 tests without skips in 20.92 seconds.
+The split cases took 880, 877, 920 and 854 ms. The later published M2 ancestry
+reconciliation `23ec4731` retains the same tree. This correction does not claim
+that a global CI run or authenticated release acceptance has passed.
 
 ## Protected source integration and history scanner — 2026-09-12
 

@@ -41,6 +41,9 @@ import {
   authBridgeNotificationPreparedVersionContract,
 } from './auth-bridge-notification-prepared-deploy-adapter.mjs';
 import {
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_B0_SOURCE_AUTHORITY,
+} from './auth-bridge-notification-prepared-b0-source.mjs';
+import {
   createSealedRealmsProductionPrivateState,
 } from './sealed-realms-production-private-state.mjs';
 
@@ -2145,6 +2148,8 @@ export async function runAuthBridgeNotificationPreparedDeploy({
             operation: async journal => {
               const runtime = createAuthBridgeNotificationPreparedCloudflareRuntime({
                 contract,
+                predecessorSourceAuthority:
+                  AUTH_BRIDGE_NOTIFICATION_PREPARED_B0_SOURCE_AUTHORITY,
                 apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN,
                 playerCanaryOwnerFid:
                   values.WARPKEEP_PLAYER_CANARY_OWNER_FID,

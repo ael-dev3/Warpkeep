@@ -9,6 +9,8 @@ import {
 import type { ReleaseRecoveryConfig } from '../src/releaseRecoveryConfig'
 import type { SpacetimeReleaseRecoveryResolution } from '../src/spacetimeReleaseRecoveryResolver'
 import type { WorkerEnv } from '../src/types'
+import { bridgeEnv } from './recoveryConfigurationFixture.js'
+import { capturePtrBridgeObservation } from '../../release-recovery/src/ptrObservation.js'
 
 const RPC_CREDENTIAL = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
 const REQUEST_ID = '123e4567-e89b-42d3-a456-426614174000'
@@ -173,6 +175,32 @@ async function observationFailure(
 }
 
 describe('release recovery realm observation boundary', () => {
+  it('constructs the real producer envelope accepted by the shared PTR observation contract', async () => {
+    const ptrDatabase = 'c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e'
+    const env = bridgeEnv({ PTR_SPACETIMEDB_DATABASE: ptrDatabase,
+      GENESIS_002_SPACETIMEDB_DATABASE: G002_DATABASE })
+    const resolution = { ...RESOLUTION, ptr: { ...PTR, databaseIdentity: ptrDatabase } }
+    // Configuration, RPC credential validation and response construction are real;
+    // only the network resolver is replaced. This belongs to auth-bridge's package.
+    const response = await observeReleaseRecoveryState(env, { ...REQUEST,
+      rpcCredential: env.RELEASE_RECOVERY_RPC_SECRET! }, {
+      clockMilliseconds: () => RESOLUTION.observedThrough * 1000,
+      createResolver: () => ({ resolve: async () => resolution }),
+    })
+    const captured = capturePtrBridgeObservation(response, { requestId: REQUEST.requestId,
+      candidateCommit: REQUEST.candidateCommit, recoveryAuthorizationEpoch: REQUEST.recoveryAuthorizationEpoch },
+    RESOLUTION.observedFrom, RESOLUTION.observedThrough)
+    expect(captured.ptr).toEqual(response.ptr)
+    expect(captured.bridgeConfigIdentity).toBe(response.bridgeConfigIdentity)
+    expect(captured.upstreamResponseDigests).toEqual({
+      programIdentityBeforeTranscriptHmacSha256: response.upstreamResponseDigests.programIdentityBeforeTranscriptHmacSha256,
+      ptrAdminStatusResponseHmacSha256: response.upstreamResponseDigests.ptrAdminStatusResponseHmacSha256,
+      ptrOwnerStatusResponseHmacSha256: response.upstreamResponseDigests.ptrOwnerStatusResponseHmacSha256,
+      programIdentityAfterTranscriptHmacSha256: response.upstreamResponseDigests.programIdentityAfterTranscriptHmacSha256,
+    })
+    expect(JSON.stringify(captured)).not.toContain(env.RELEASE_RECOVERY_RPC_SECRET)
+    expect(JSON.stringify(captured)).not.toContain(':"12345"')
+  })
   it('returns only exact immutable correlation, bridge, realm, and response-digest evidence', async () => {
     const result = await observeReleaseRecoveryState(
       {} as WorkerEnv,

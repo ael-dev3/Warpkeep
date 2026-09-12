@@ -11,6 +11,9 @@ import {
   createAuthBridgeNotificationPreparedCloudflareRuntime,
   inspectAuthBridgeNotificationPreparedRecoverySource,
 } from '../scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs';
+import {
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_B0_SOURCE_AUTHORITY,
+} from '../scripts/auth-bridge-notification-prepared-b0-source.mjs';
 
 const ACCOUNT = 'a'.repeat(32);
 const ZONE = 'b'.repeat(32);
@@ -47,6 +50,7 @@ const NAMED_HANDLERS = [
   'SpacetimeHttpAuthEpochResolver', 'SpacetimeHttpQaObserverResolver',
   'admissionNotificationDeliveryContractDigest', 'admissionNotificationDeliveryContractVector',
   'createAuthBridge', 'createMiniAppWebhookVerifier', 'serializeAdmissionNotificationDeliveryContract',
+  'ReleaseRecoveryObservationEntrypoint',
 ];
 type Contract = Readonly<Record<string, unknown>> & Readonly<{
   variables: Readonly<Record<string, string>>;
@@ -78,6 +82,7 @@ function fixture() {
     },
   }) as Contract;
   const bindings: Record<string, string>[] = [
+    { name: 'CF_VERSION_METADATA', type: 'version_metadata' },
     ...Object.entries(contract.variables).map(([name, text]) => ({ name, type: 'plain_text', text })),
     { name: 'PTR_SPACETIMEDB_DATABASE', type: 'plain_text', text: PTR },
     ...contract.secretBindingNames.map(name => ({ name, type: 'secret_text' })),
@@ -200,6 +205,7 @@ describe('original prepared Worker source and configuration recovery inspection'
     const uploadMetadata = {
       main_module: 'index.js',
       bindings: [
+        { name: 'CF_VERSION_METADATA', type: 'version_metadata' },
         ...Object.entries(value.variables).map(([name, text]) => ({ name, type: 'plain_text', text })),
         ...value.durableObjectBindings.map(binding => ({ name: binding.name, type: 'durable_object_namespace', class_name: binding.className })),
       ],
@@ -210,7 +216,8 @@ describe('original prepared Worker source and configuration recovery inspection'
     };
     const commandRunner = vi.fn(async () => { throw new Error('No local rebuild during version inspection'); });
     const runtime = createAuthBridgeNotificationPreparedCloudflareRuntime({
-      contract: value, apiToken: f.options.apiToken, playerCanaryOwnerFid: '123456', ptrSpacetimeDbDatabase: PTR,
+      contract: value, predecessorSourceAuthority: AUTH_BRIDGE_NOTIFICATION_PREPARED_B0_SOURCE_AUTHORITY,
+      apiToken: f.options.apiToken, playerCanaryOwnerFid: '123456', ptrSpacetimeDbDatabase: PTR,
       repositoryRoot: realpathSync(process.cwd()), serviceRoot: realpathSync(join(process.cwd(), 'services/auth-bridge')),
       nodeExecutable: process.execPath, wranglerEntrypoint: process.execPath,
       multipartBody: appendMetadata(multipart(), JSON.stringify(uploadMetadata)),

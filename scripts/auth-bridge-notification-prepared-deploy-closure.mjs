@@ -66,6 +66,15 @@ const GAMEPLAY04_SHARED_SOURCE_MEMBER_PATHS = new Set([
   'spacetimedb/gameplay04/workerState.ts',
   'spacetimedb/gameplay04/workers.ts',
 ]);
+// Exact verifier dependencies reached by the PTR observation entrypoint.
+const PTR_OBSERVATION_SHARED_SOURCE_MEMBER_PATHS = new Set([
+  'services/release-recovery/src/config.ts',
+  'services/release-recovery/src/crypto.ts',
+  'services/release-recovery/src/http.ts',
+  'services/release-recovery/src/protocol.ts',
+  'services/release-recovery/src/ptrObservation.ts',
+  'services/release-recovery/src/recoveryPublicKey.ts',
+]);
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
 const MAX_MANIFEST_BYTES = 256 * 1_024;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
@@ -287,6 +296,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/auth-bridge-notification-b0-deploy-journal.mjs',
     'scripts/auth-bridge-notification-b0-deploy.d.mts',
     'scripts/auth-bridge-notification-b0-deploy.mjs',
+    'scripts/auth-bridge-notification-prepared-b0-source.d.mts',
+    'scripts/auth-bridge-notification-prepared-b0-source.mjs',
     'scripts/auth-bridge-notification-prepared-cloudflare-runtime.d.mts',
     'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',
     'scripts/auth-bridge-notification-prepared-deploy-adapter.d.mts',
@@ -518,6 +529,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/ptr-production-publisher.mjs',
     'scripts/ptr-production-receipt-file.ts',
     'scripts/ptr-production-release-receipts.ts',
+    'scripts/ptr-production-state-observation.d.mts',
+    'scripts/ptr-production-state-observation.mjs',
     'scripts/ptr-production-transport.ts',
     'scripts/ptr-update-definition-policy.d.mts',
     'scripts/ptr-update-definition-policy.mjs',
@@ -691,6 +704,12 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'services/auth-bridge/vitest.workerd.config.ts',
     'services/auth-bridge/wrangler.toml',
     'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs',
+    'services/release-recovery/src/config.ts',
+    'services/release-recovery/src/crypto.ts',
+    'services/release-recovery/src/http.ts',
+    'services/release-recovery/src/protocol.ts',
+    'services/release-recovery/src/ptrObservation.ts',
+    'services/release-recovery/src/recoveryPublicKey.ts',
     'spacetimedb/gameplay04/commands.ts',
     'spacetimedb/gameplay04/construction.ts',
     'spacetimedb/gameplay04/keep.ts',
@@ -1475,6 +1494,7 @@ function permittedMemberPath(memberPath) {
   return typeof memberPath === 'string'
     && (MEMBER_PATH.test(memberPath)
       || GAMEPLAY04_SHARED_SOURCE_MEMBER_PATHS.has(memberPath)
+      || PTR_OBSERVATION_SHARED_SOURCE_MEMBER_PATHS.has(memberPath)
       || memberPath === 'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs')
     && (!memberPath.startsWith('spacetimedb/ptr/')
       || PTR_MODULE_MEMBER_PATH.test(memberPath)

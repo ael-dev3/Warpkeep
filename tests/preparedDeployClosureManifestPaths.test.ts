@@ -15,7 +15,7 @@ function manifest(path: string): Buffer {
   }, null, 2)}\n`);
 }
 
-describe('prepared source manifest PTR namespace', () => {
+describe('prepared source manifest PTR and observation verifier namespaces', () => {
   it.each([
     'spacetimedb/ptr/src/ownerPolicy.ts',
     'spacetimedb/ptr/package.json',
@@ -23,6 +23,12 @@ describe('prepared source manifest PTR namespace', () => {
     'spacetimedb/ptr/tsconfig.json',
     'spacetimedb/ptr/.gitignore',
     'spacetimedb/ptr/generated-bindings/get_ptr_owner_status_v_1_procedure.ts',
+    'services/release-recovery/src/config.ts',
+    'services/release-recovery/src/crypto.ts',
+    'services/release-recovery/src/http.ts',
+    'services/release-recovery/src/protocol.ts',
+    'services/release-recovery/src/ptrObservation.ts',
+    'services/release-recovery/src/recoveryPublicKey.ts',
   ])('accepts protected source or explicitly allowed ABI: %s', path => {
     expect(seams.parseManifest(manifest(path))).toMatchObject({
       members: [{ path }],
@@ -35,6 +41,9 @@ describe('prepared source manifest PTR namespace', () => {
     'spacetimedb/ptr/.env',
     'spacetimedb/ptr/src/../private.ts',
     'spacetimedb/ptr/src//ownerPolicy.ts',
+    'services/release-recovery/src/signerPtrObservation.ts',
+    'services/release-recovery/src/gateway.ts',
+    'services/release-recovery/private/signing-key.jwk',
   ])('rejects an unapproved or noncanonical path: %s', path => {
     expect(() => seams.parseManifest(manifest(path)))
       .toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');

@@ -2,6 +2,179 @@
 
 ## Current review and next work — 12 September 2026
 
+Corrected source `3710f139b3572ae0a742d582d0d79d8aa88d9476` completed native
+preparation `91889` and independent rebuilding check `80884`, both exit zero
+with all returned fields equal. Candidate
+`release-workspace-baf068853796d70d5c6b480a15116d05` and its full digests are
+recorded in the [prepared-policy evidence](../../evidence/0.4.0/release-engineering.md#prepared-policy-family-refresh--2026-09-12).
+The authenticated complete family was applied to the unchanged Windows input;
+all outputs and preserved source were checked. Generated-only staging matches
+tree `4795a1fe2bb6b6eeb5851c538a352b454aa66596`. Its seven changed paths carry
+only manifests and workflow pins; compiled bodies and count fixtures are stable.
+The targeted signature regression passed all seven selected cases (`30348`);
+156 other cases were filtered. Next, publish this integration checkpoint, then
+fast-forward the idle native checkout and run all 163 prepared-workflow cases
+plus its affected generated consumers. Read current-head hosted checks before
+normal protected integration. Do not rerun either completed preparation command.
+
+The source at `9e098f75` has now completed actual native preparation `67204`
+and independent rebuilding check `6320`, both exit zero with every result field
+equal. The complete authenticated family was exported and applied to that exact
+Windows input, verifying all generated outputs, the exact changed-path set and
+unchanged HEAD/index/preserved source. [The release-engineering record](../../evidence/0.4.0/release-engineering.md#bridgeptr-source-family--2026-09-12)
+owns the retained candidate and full digests. Published integration
+`4b96ae380b6fdb348d26eaf74464638e2e346aff` passed all 448 native tests in 15
+owning and downstream suites without skips (session `89197`, 38.75 seconds,
+exit zero). Checked-in/preparation verification passed and the actual source
+classifier returned `sealed-launch-blocked`. Full current-head hosted checks and
+normal protected integration remain required; this does not establish deployment.
+Both Windows TypeScript projects and all 30 tests in the three doc-facing suites
+passed after application, as did tracked file-size and diff checks. The broader
+Windows generated-consumer run `31279` completed with 283 passes, 78 failures
+and four skips. Its three failing suites require POSIX ownership, `/usr/bin/git`
+and symlink semantics; the native projection/boundary suites passed in the 448
+cases above. The native prepared-workflow run `81300` completed at `42b660fd`
+with 156 passes and seven failures, no skips. A static-policy literal still
+expected the old two-argument `exactApiScriptAttestation` signature, while the
+repaired runtime correctly accepts a separate `expectedNamedHandlers` parameter.
+The baseline refusal cascaded into six credential-comment regressions. The narrow
+policy expectation is corrected without changing their assertions; the targeted
+recheck and complete family above validate that correction's preparation. The [verification environment guidance](../../engineering/development-workflow.md#choose-the-verification-environment)
+now routes those contracts through the existing native lane. Do not weaken their
+assertions or restart the completed Windows run.
+The operating checkout can synchronize after publication because its native
+preparation/check processes have completed. Do not restart completed runs.
+
+The current working branch is `codex/0.4-bridge-predecessor-repair` in
+[PR #240](https://github.com/ael-dev3/Warpkeep/pull/240), integrating the pending
+PR #237–239 source against main. Published `b319e38b` includes a normal merge of
+N3 with the exact repair tree preserved; its only conflict was older handoff
+status, resolved to the reviewed descendant's completed evidence. It repairs the prepared bridge deployer's
+comparison of historical B0 settings and bytes with the new candidate. The
+production caller supplies a fixed, authenticated B0 module inventory; candidate
+upload/readback stays bound to its independently built source, version metadata
+and recovery export. The [prepared transition procedure](../../operations/auth-bridge-notification-prepared.md#prepared-transition-for-04)
+owns the exact distinction and provider provenance. No provider mutation or
+protected bridge dispatch has occurred. At `b319e38b`, native Linux passed all
+202 cases in the five runtime/adapter/receipt/recovery-source/workflow suites
+without skips. The actual credential-free Wrangler dry run now accepts the same
+candidate bytes that previously failed. The wider closure selection found 15
+inventory failures from the earlier PTR observation graph/order. The correction
+adds the explicit observation root, permits only its six verifier dependencies
+and restores canonical member order. Independent review, Windows closure cases
+and direct derived/fixed inventory equality passed. Native session `44084` at
+published `b3ac5d28fc2bbd30a89530992671d845ad128639` passed all 246 tests in the
+eight owning suites without skips in 9.51 seconds, exit zero. Windows, GitHub and
+the clean idle native checkout matched that implementation checkpoint. Read the
+final PR head and its hosted checks before claiming the source accepted or
+deployed; later documentation publication does not replace this test identity.
+
+The downstream native check at the same source (session `38666`) passed 131
+and failed 70 cases across seven suites. The remaining failures identify stale
+generator-owned source pins, count fixtures and the checked manifest, plus a
+missing `ptr-state-inspect` entry in the sealed verifier's exact operation list.
+The structural declaration now includes that operation, with all eight
+derived-pin membership cases passing and the activated subset unchanged.
+Preserve the rejection checks. The completed preparation/check and authenticated
+family above now replace those stale generated consumers. Run the affected
+verification on the integrated source and read its current PR checks. Do not type
+in counts/hashes or copy part of an older candidate. Development-source generation
+does not replace later protected-source and deployment acceptance.
+
+Q's read-only `ptr-state-inspect` connects the Linux workflow, recovery gateway,
+private signer and existing auth-bridge observer. Its authenticated, pinned PTR
+projection remains private. Current observation cannot replace historical
+import/owner evidence or authorize an update. Service unit tests, both service
+type projects, all seven Worker runtime suites, compiled caller checks and root
+types passed for that implementation. Q's hosted service, native-contract and
+CodeQL checks passed. Its Linux job `103572463255` later failed 90 cases across
+nine suites because the expanded source inventory was not accepted by the
+derivation/path validators. The bridge/observation runtime had no independent
+failure in that result. PR #240 carries the inventory correction and must prove
+the affected downstream consumers as well as the focused runtime cases.
+The signer and gateway are not deployed, and the live bridge lacks their
+observation bindings. Preserve G001 public authentication in the later rollout.
+
+The owner's continuous-sync follow-up now requires immediate reviewable
+checkpoints, including bounded unfinished work before switching work items.
+AGENTS, contributor guidance and the canonical development/sync procedures agree;
+the existing 15-minute app check has the same rule and remains a fallback. Its
+stale main-only input wording is corrected: an active build retains its exact
+published compiler input, including an authorized development commit. Fresh
+owning-remote fetches found the profile, assets, water-engine and private editor
+checkouts clean and equal; all nine local development branch histories are
+already backed by live branches or retained PR history. The navigation follow-up
+also synchronized Water Engine main `9d42fb7` and Assets main `4a47038` after
+PR #34's required checks and normal signed merge. Current entry links now avoid
+the retired prepared-keep branch. Use
+the current live PR head for the latest source; a development push is not a
+release or a pass for checks still running.
+
+The next service integration needs a guarded successor to the existing
+notification-prepared bridge deployer. That historical adapter can install PTR
+and canary settings but cannot supply the recovery observer bindings. Preserve
+its authenticated predecessor, public modes and existing secrets; install the
+observer configuration, disabled private signer and secretless gateway in that
+order. The existing recovery key, RPC secret and census pepper must be reused.
+Full bootstrap verification still lacks the local canary owner carrier. The
+authenticated account's GitHub Apps settings showed no registered Apps during
+this review. The owner subsequently completed GitHub's “Confirm access” step.
+The private “Warpkeep Release Evidence” App
+form is prepared with read-only Actions, Checks, Contents, Deployments, Metadata
+and Pages access, webhooks disabled and installation restricted to the owner's
+account. Creation/installation on only `ael-dev3/Warpkeep` and service-key
+generation await the requested action-time confirmation. The dedicated
+installation/key supply remains unresolved; no App or credential was created.
+
+Existing-state adoption must be a distinct V4 path through update completion,
+bridge state, activation and recovery consumers. Bind signed pre/post observations
+to the actual update job, candidate and continuation; the standalone observation
+job cannot run inside that update's shared production concurrency. Compare owner
+and atlas commitments under the same observer configuration/pepper scope. Retained
+signatures need a separate historical-data verifier, while new actions require
+fresh evidence. Do not synthesize old import/provision receipts or claim equality
+of every gameplay row from the current observation projection.
+
+PR #236 passed every required check at `92d363ce` and merged by the normal
+protected expected-head squash into signed, verified main
+`a2929bb6a3646b2812eacc7482e056eb1abb8be3` (N3). Its tree
+`8d39fe13fa18a22bfca698ae3d9bcc9624c98a7a` exactly matches the reviewed PR tree;
+its sole parent is M2. Main Verify `34701912470` is still running. PR #237
+automatically retargeted main and remains at `7bc5992c`; PR #238 is `23ec4731`,
+and PR #239 is Q. Resolve their live status before integrating the remaining
+source. Reconcile published ancestry normally; never reset or force the stack.
+Windows and the clean idle native checkout matched Q before this new repair.
+M2's full main Verify and sealed preflight are historical evidence for M2;
+N3 and later source need their own checks and fresh generated family.
+
+The published follow-up on `codex/0.4-frozen-source-test-isolation` separates four
+independent frozen-source mutation checks into named Linux cases. Historical R
+main Verify `34694304468` exceeded the default ten-second budget only in the
+combined four-materialization callback; no behavioral assertion failed. Each
+case now retains that default budget, its original rejection assertion and a
+destination-retention assertion, including the previously missing inode check.
+The shared cleanup and production materializer are unchanged. Native session
+`93630` at original `e18cf0c5` passed all 11 tests without skips in 20.92 seconds;
+the four split cases each completed in under one second. T2 has exactly the same
+tree. This focused pass does not establish a full CI pass for either source.
+
+Runner availability source `e57b5e38` is published in PR #237 on
+`codex/0.4-runner-availability`, stacked on navigation `e6fca66f` / PR #236.
+Windows and the clean idle native checkout were verified equal to its live head.
+GitHub runner 22 was offline
+because `WarpkeepRunner` had stopped; the enabled service started normally when
+the guest opened. Its existing Windows keepalive task had exited with code 1.
+The task was recovered, given an indefinite execution limit and a recurring
+single-instance retry, then restarted under the new definition while idle.
+GitHub reports it online again. Use the [runner maintenance procedure](../../operations/0.4.0-linux-runner.md)
+to distinguish scheduling, guest/service health and actual GitHub availability.
+Preserve active jobs; disable recurring starts before planned maintenance.
+
+The published operational correction changes no generated family or game authority.
+The existing M1 candidate remains retained after PR #235's integration. The receipt
+integration
+audit below is now recorded in [release and infrastructure](release-and-infrastructure.md#existing-ptr-evidence-continuity).
+
 PR #228 merged normally at 11:30:54 UTC to signed main
 `c4b95505b73705d120aff3f3318d2bd5151f6565` (**M1**). Its tree
 `24f5ceb4e36814b0a2bdb691adb59591db676611` exactly matches reviewed `820e6111`.
@@ -23,29 +196,37 @@ was exported from exact M1 and all 102 output files, their bytes and Git objects
 source paths were checked. Generated checkpoint `654f1b57` incorporated the
 published repair, then exact `3c4eb264` incorporated protected R without changing
 tree `93a976b0`. The native checked-in sealed-launch and prepared-policy verifiers
-passed again at that final checkpoint. It is published in PR #235 against R;
-Verify `34694406086` and CodeQL `34694406081` are active. Earlier Verify
+passed again at that final checkpoint. CodeQL `34694406081` and Verify
+`34694406086` both passed at exact `3c4eb264`. PR #235 then merged normally by
+protected expected-head squash at 13:33:31 UTC into signed, valid main
+`7b102f9f` (**M2**), whose sole parent is R and tree exactly equals `93a976b0`.
+The actual M2 main push Verify `34696760924` reached terminal success. The first
+sealed dispatch `34699447213`, created at 14:29:45 UTC, then passed its real
+`operate_readonly` job `103568496530` and returned exact `preflight-inspected`.
+Live protected main remained M2. The earlier R timeout is separate from this pass.
+Earlier Verify
 `34693755154` at `654f1b57` was cancelled by the later publication and is not
 terminal evidence for the final head. No protection or release gate was weakened.
 
-Windows now carries the separate desktop-navigation source change on
+PR #236 publishes the separate desktop-navigation source `e6fca66f` on
 `codex/0.4-keep-navigation`, based on `3c4eb264`. It makes the existing top
 navigation visible on desktop and resets the compact-media bottom margin,
 preserving the mobile layout. Actual desktop, portrait, landscape and narrow
 browser checks covered the buttons, panel close, opener focus restoration and
-horizontal overflow; 88 tests in four suites passed in session `27992`. Complete
-and publish this work through its own PR stacked on `codex/0.4-prepared-source`;
-resolve its resulting commit and PR from live refs rather than adding an unverified
-identifier here. Do not fold it into PR #235. After PR #235 integrates, reconcile
-the product PR with actual main. The CSS is a protected-closure source change and
+horizontal overflow; 88 tests in four suites passed in session `27992`. Its full
+outgoing scan, explicit publication and Windows/native/live equality passed.
+GitHub retargeted PR #236 to main after PR #235 integrated. The normal ancestry
+reconciliation and its propagation through later stacked PRs are complete,
+with unchanged reviewed trees and the published heads recorded above.
+The CSS is a protected-closure source change and
 needs normal source integration followed by a fresh generated closure before any
 later deployment.
 
-First complete PR #235 through the normal protected squash to **M2**, require that
-exact M2's Verify success, then dispatch one sealed `preflight` from main and
-require `preflight-inspected`. The navigation branch remains separately backed-up
-product source. After its publication, the clean native development checkout may
-fast-forward to that reviewed head while the M1 candidate, journal and artifact
+Do not repeat M2's completed preflight to obtain authority for later source.
+Continue the reviewed product/observation source integration, its exact main CI
+and fresh generated family, alongside the authentic service configuration and
+existing-state adoption work. Keep the clean idle native checkout synchronized with the current
+published development head while the M1 candidate, journal and artifact
 remain retained evidence. No live release is established.
 
 ### Pre-merge route correction
