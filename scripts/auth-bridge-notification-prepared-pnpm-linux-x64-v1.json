@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "profile": "warpkeep-auth-bridge-notification-prepared-pnpm-linux-x64-v1",
+  "packageManager": "pnpm@11.7.0",
+  "platform": "linux",
+  "architecture": "x64",
+  "nodeVersion": "v22.22.3",
+  "pnpmExecutable": "/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.7.0-linux-x64/pnpm",
+  "pnpmExecutableSha256": "5eb52f5b7fe3c4ef589393f81f33b28482f7657109239de7bc5dc4e4e56aafc4",
+  "pnpmPackagePath": "/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.7.0-linux-x64/package/bin/pnpm.cjs",
+  "pnpmPackageSha256": "67b035e322203961795e8e34ca63a08c37a4386eda94107fb3d28f3246d882ad",
+  "archiveSha256": "deafa7ec98a1218b6a047289b92fbe2395c1e22d3495bb711653013218ee15ee"
+}

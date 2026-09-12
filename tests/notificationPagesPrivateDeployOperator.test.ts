@@ -300,7 +300,10 @@ function githubAuthorityFetch(overrides: {
   }) as unknown as typeof fetch;
 }
 
-async function adjudicateWithToken(fetchImpl: typeof fetch) {
+async function adjudicateWithToken(
+  fetchImpl: typeof fetch,
+  expectedRunnerProfile: 'darwin-arm64' | 'linux-x64' = 'darwin-arm64',
+) {
   const directory = home();
   const tokenPath = join(directory, 'github-token');
   writeFileSync(tokenPath, `${'g'.repeat(40)}\n`, { mode: 0o600 });
@@ -311,7 +314,7 @@ async function adjudicateWithToken(fetchImpl: typeof fetch) {
         candidatePagesSourceCommit: CANDIDATE,
         runAttempt: 1,
         runId: '41',
-      }, { fetchImpl, tokenDescriptor });
+      }, { fetchImpl, tokenDescriptor, expectedRunnerProfile });
   } finally {
     closeSync(tokenDescriptor);
   }
@@ -606,6 +609,28 @@ describe('notification Pages private deployment operator', () => {
 
   it('derives abandonment proof only from the exact completed skipped action', async () => {
     await expect(adjudicateWithToken(githubAdjudicationFetch()))
+      .resolves.toMatchObject({
+        candidatePagesSourceCommit: CANDIDATE,
+        deployStepConclusion: 'skipped',
+        markerStepConclusion: 'success',
+        runAttempt: 1,
+        runId: '41',
+      });
+  });
+
+  it('adjudicates a skipped action on the retained Linux x64 runner profile', async () => {
+    const fetchImpl = githubAdjudicationFetch({
+      job: {
+        labels: [
+          'self-hosted',
+          'Linux',
+          'X64',
+          'warpkeep-production-admin',
+          'warpkeep-repository-exclusive',
+        ],
+      },
+    });
+    await expect(adjudicateWithToken(fetchImpl, 'linux-x64'))
       .resolves.toMatchObject({
         candidatePagesSourceCommit: CANDIDATE,
         deployStepConclusion: 'skipped',

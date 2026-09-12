@@ -210,14 +210,26 @@ skip delivery and continue admission. Roll them out in this order:
    partial exports fail closed. B0 is
    therefore a separate deployment of that exact reviewed source/configuration
    at `v5`, not a migration-tag-only change. The guarded transition then uploads
-   a nondeploying strict-inheritance version whose ephemeral multipart omits
-   `keep_bindings`, pins each of the established six secrets to that exact
-   predecessor version with an `inherit` descriptor, and adds only the canary
-   secret as explicit `secret_text`. Candidate inspection
-   attests exactly seven, and the exact predecessor is rechecked immediately
-   before the sole deployment POST. It never mutates the legacy `/secrets`
-   endpoint; ambiguous upload recovery reconciles the candidate without a
-   cleanup mutation. Never
+   one nondeploying version whose multipart retains exactly
+   `keep_bindings: ["secret_text", "secret_key"]`, contains no `inherit`
+   descriptors, and adds only the canary secret as explicit `secret_text`.
+   Before preparation and again as the final provider read before upload, the
+   unfiltered latest Worker version must equal the exact fully attested live B0
+   predecessor; the repository-exclusive writer lane remains held through
+   candidate reconciliation. Cloudflare provides no conditional predecessor
+   token for the POST, so no dashboard, API, Wrangler, or other out-of-band
+   Worker upload may occur until reconciliation finishes. Candidate inspection
+   attests exactly seven and proves its immutable version number is exactly the
+   predecessor number plus one. Candidate reconciliation is authorized only in
+   the same runtime immediately after its sole POST. A fresh run that sees a
+   bare `upload-invoked` marker or terminal upload adjudication performs zero
+   provider I/O and requires operator adjudication; it cannot adopt or release
+   a candidate. In the authorized same-runtime path, the candidate must still
+   be the unfiltered latest version immediately before release. The exact predecessor is rechecked
+   before that final latest-version read and the sole deployment
+   POST. It never mutates the legacy `/secrets`
+   endpoint; same-runtime ambiguity reconciliation never performs a second
+   upload or cleanup mutation. Never
    store or print the FID value in source, argv, artifacts, receipts, or journal
    records.
    Preserve the undeployed `dfa24a4` version 47 and its unresolved

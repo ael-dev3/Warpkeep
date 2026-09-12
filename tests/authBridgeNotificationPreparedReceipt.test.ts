@@ -9,6 +9,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   rmSync,
   statSync,
@@ -31,6 +32,7 @@ import {
   AUTH_BRIDGE_NOTIFICATION_DELIVERY_CONTRACT_DIGEST,
   AUTH_BRIDGE_RELEASE_ATTESTATION_URL,
   canonicalAuthBridgeReleaseAttestationDigest,
+  createAuthBridgeNotificationPreparedReadOnlyRecoveryReceipt,
   fetchFreshAuthBridgeReleaseAttestation,
   ensureAuthBridgeNotificationPreparedReceiptDirectory,
   inspectPrivateAuthBridgeNotificationPreparedReceipt,
@@ -38,10 +40,16 @@ import {
   parseAuthBridgeNotificationPreparedReceipt,
   prepareAuthBridgeNotificationPreparedReceipt,
   readPrivateAuthBridgeNotificationPreparedReceipt,
+  resolveExpiredAuthBridgeNotificationPreparedReceiptByDigest,
+  resolveExistingAuthBridgeNotificationPreparedReceipt,
   verifyAuthBridgeNotificationPreparedReceipt,
   writePrivateAuthBridgeNotificationPreparedReceipt,
   type AuthBridgeNotificationPreparedReceipt,
 } from '../scripts/auth-bridge-notification-prepared-receipt.mjs';
+import {
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_STATE_CHILD,
+  resolveExistingAuthBridgeNotificationPreparedDeployJournal,
+} from '../scripts/auth-bridge-notification-prepared-deploy-journal.mjs';
 
 const NOW = new Date('2026-08-11T12:00:00.000Z');
 const ADMIN_TOKEN = 'test-admin-token-that-is-long-enough-for-production';
@@ -57,6 +65,8 @@ const SECONDARY_FINGERPRINT = farcasterRpcEndpointFingerprint(
   DEFAULT_FARCASTER_RPC_SECONDARY_URL,
 );
 const HUB_FINGERPRINTS = ['1'.repeat(64), '2'.repeat(64)] as const;
+const PTR_DATABASE = 'b'.repeat(64);
+const PTR_AUDIENCE = 'warpkeep-ptr-spacetimedb';
 
 const RELEASE_HEADERS = Object.freeze({
   'content-type': 'application/json; charset=utf-8',
@@ -94,7 +104,7 @@ function releaseAttestation(overrides: Record<string, unknown> = {}) {
     schemaVersion: 1 as const,
     profile: 'warpkeep-admission-notification-bridge-v1' as const,
     bridgeSourceCommit: SOURCE_COMMIT,
-    notificationDeliveryEnabled: true as const,
+    notificationDeliveryEnabled: false as const,
     notificationTransportConfigured: true as const,
     admissionNotificationStoreConfigured: true as const,
     notificationClientCount: 1 as const,
@@ -162,7 +172,7 @@ function privateBody({
     accessRequestResolverTimeoutMilliseconds: 5_000,
     accessRequestStatusProcedure: 'access_request_get_status_v1',
     accessRequestSubmitProcedure: 'access_request_submit_v1',
-    approvalNotificationsEnabled: prepared,
+    approvalNotificationsEnabled: false,
     miniAppNotificationClientFids: [9_152],
     miniAppWebhookPath: '/v1/farcaster/miniapp/webhook',
     admissionNotificationPath: '/v1/admin/admission-notification',
@@ -171,6 +181,9 @@ function privateBody({
     admissionNotificationStatusPath: '/v1/admin/admission-notification-status',
     publicAuthEnabled,
     accessExpectedFidRequired,
+    ptrEnabled: prepared,
+    ptrSpacetimeDbDatabase: prepared ? PTR_DATABASE : null,
+    ptrAudience: prepared ? PTR_AUDIENCE : null,
     qaObserverEnabled: false,
     qaObserverSpacetimeDbUri: null,
     qaObserverSpacetimeDbDatabase: null,
@@ -221,6 +234,7 @@ async function authenticatedReceipt() {
   const fetchMock = preparationFetch();
   const prepared = await prepareAuthBridgeNotificationPreparedReceipt({
     adminToken: ADMIN_TOKEN,
+    expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
     deploy,
     expectedBridgeSourceCommit: SOURCE_COMMIT,
     fetchImpl: fetchMock as typeof fetch,
@@ -240,7 +254,7 @@ function receipt(
     bridgeSourceCommit: SOURCE_COMMIT,
     notificationDeliveryContractDigest: DELIVERY_CONTRACT_DIGEST,
     notificationClientCount: 1,
-    notificationDeliveryEnabled: true,
+    notificationDeliveryEnabled: false,
     notificationTransportConfigured: true,
     admissionNotificationStoreConfigured: true,
     publicAuthEnabledBefore: true,
@@ -258,6 +272,31 @@ function receipt(
 }
 
 describe('auth bridge notification-prepared receipt ABI', () => {
+  it('reissues an expired receipt only from a fresh unchanged public attestation', () => {
+    const prior = receipt({
+      preparedAt: '2026-08-10T00:00:00.000Z',
+      expiresAt: '2026-08-11T00:00:00.000Z',
+    });
+    const recovered = createAuthBridgeNotificationPreparedReadOnlyRecoveryReceipt({
+      priorReceipt: prior,
+      liveAttestation: releaseAttestation(),
+      preparedAt: NOW,
+      now: NOW,
+    });
+
+    expect(recovered).toEqual(receipt());
+    expect(Object.keys(recovered)).toEqual(
+      AUTH_BRIDGE_NOTIFICATION_PREPARED_RECEIPT_KEYS,
+    );
+    expect(JSON.stringify(recovered)).not.toContain('adminToken');
+    expect(() => createAuthBridgeNotificationPreparedReadOnlyRecoveryReceipt({
+      priorReceipt: prior,
+      liveAttestation: releaseAttestation({ bridgeSourceCommit: 'b'.repeat(40) }),
+      preparedAt: NOW,
+      now: NOW,
+    })).toThrow('AUTH_BRIDGE_PREPARED_RECOVERY_ATTESTATION_MISMATCH');
+  });
+
   it('parses only the exact ordered object and preserves the reviewed digest vector', () => {
     const value = receipt();
     expect(Object.keys(value)).toEqual(
@@ -428,6 +467,7 @@ describe('fresh public release-attestation binding', () => {
   it('prepares and verifies unchanged auth modes against a second fresh response', async () => {
     const { prepared, deploy, fetchMock } = await authenticatedReceipt();
     expect(prepared).toEqual(receipt());
+    expect(JSON.stringify(prepared)).not.toContain(PTR_DATABASE);
     expect(deploy).toHaveBeenCalledExactlyOnceWith({
       bridgeSourceCommit: SOURCE_COMMIT,
       publicAuthEnabled: true,
@@ -453,6 +493,7 @@ describe('fresh public release-attestation binding', () => {
     const deploy = vi.fn(async () => undefined);
     const prepared = await prepareAuthBridgeNotificationPreparedReceipt({
       adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
       deploy,
       expectedBridgeSourceCommit: SOURCE_COMMIT,
       expectedPredecessorBridgeSourceCommit: PREDECESSOR_SOURCE_COMMIT,
@@ -467,10 +508,37 @@ describe('fresh public release-attestation binding', () => {
     expect(prepared.bridgeSourceCommit).toBe(SOURCE_COMMIT);
   });
 
+  it('rejects any notification-enabled private or public prepared post-state', async () => {
+    const enabledPrivate = privateBody({ prepared: true });
+    enabledPrivate.approvalNotificationsEnabled = true;
+    await expect(prepareAuthBridgeNotificationPreparedReceipt({
+      adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
+      deploy: vi.fn(async () => undefined),
+      expectedBridgeSourceCommit: SOURCE_COMMIT,
+      fetchImpl: preparationFetch({ postPrivate: enabledPrivate }) as typeof fetch,
+      clock: () => NOW,
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+    });
+
+    await expect(prepareAuthBridgeNotificationPreparedReceipt({
+      adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
+      deploy: vi.fn(async () => undefined),
+      expectedBridgeSourceCommit: SOURCE_COMMIT,
+      fetchImpl: preparationFetch({
+        publicBody: releaseAttestation({ notificationDeliveryEnabled: true }),
+      }) as typeof fetch,
+      clock: () => NOW,
+    })).rejects.toThrow('AUTH_BRIDGE_PREPARED_PUBLIC_POSTSTATE_INVALID');
+  });
+
   it('cannot prepare writable evidence without authenticated preserved pre-state', async () => {
     const deploy = vi.fn(async () => undefined);
     await expect(prepareAuthBridgeNotificationPreparedReceipt({
       adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
       deploy,
       expectedBridgeSourceCommit: SOURCE_COMMIT,
       fetchImpl: preparationFetch({
@@ -488,6 +556,7 @@ describe('fresh public release-attestation binding', () => {
     const fetchMock = preparationFetch();
     await expect(prepareAuthBridgeNotificationPreparedReceipt({
       adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
       deploy: failedDeploy,
       expectedBridgeSourceCommit: SOURCE_COMMIT,
       fetchImpl: fetchMock as typeof fetch,
@@ -496,14 +565,57 @@ describe('fresh public release-attestation binding', () => {
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
+  it('requires B0-disabled PRE state and the exact protected PTR database in POST state', async () => {
+    const missingExpectedFetch = preparationFetch();
+    await expect(prepareAuthBridgeNotificationPreparedReceipt({
+      adminToken: ADMIN_TOKEN,
+      deploy: vi.fn(async () => undefined),
+      expectedBridgeSourceCommit: SOURCE_COMMIT,
+      fetchImpl: missingExpectedFetch as typeof fetch,
+      clock: () => NOW,
+    } as never)).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_INPUT_INVALID',
+    });
+    expect(missingExpectedFetch).not.toHaveBeenCalled();
+
+    for (const responses of [
+      { prePrivate: privateBody({ prepared: true }) },
+      {
+        postPrivate: privateBody({ prepared: true }) as Record<string, unknown>,
+        mutate: true,
+      },
+    ]) {
+      if (responses.mutate) {
+        responses.postPrivate!.ptrSpacetimeDbDatabase = 'c'.repeat(64);
+      }
+      const deploy = vi.fn(async () => undefined);
+      const fetchMock = preparationFetch(responses);
+      await expect(prepareAuthBridgeNotificationPreparedReceipt({
+        adminToken: ADMIN_TOKEN,
+        expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
+        deploy,
+        expectedBridgeSourceCommit: SOURCE_COMMIT,
+        fetchImpl: fetchMock as typeof fetch,
+        clock: () => NOW,
+      })).rejects.toMatchObject({
+        code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+      });
+      if (responses.prePrivate) expect(deploy).not.toHaveBeenCalled();
+    }
+  });
+
   it('keeps predecessor compatibility unavailable to the prepared PRE read', async () => {
     const predecessor = privateBody({ prepared: false });
     delete predecessor.admissionNotificationRecoveryPath;
+    delete predecessor.ptrEnabled;
+    delete predecessor.ptrSpacetimeDbDatabase;
+    delete predecessor.ptrAudience;
     const deploy = vi.fn(async () => undefined);
     const fetchMock = preparationFetch({ prePrivate: predecessor });
 
     await expect(prepareAuthBridgeNotificationPreparedReceipt({
       adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
       deploy,
       expectedBridgeSourceCommit: SOURCE_COMMIT,
       fetchImpl: fetchMock as typeof fetch,
@@ -528,6 +640,7 @@ describe('fresh public release-attestation binding', () => {
       const deploy = vi.fn(async () => undefined);
       await expect(prepareAuthBridgeNotificationPreparedReceipt({
         adminToken: ADMIN_TOKEN,
+        expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
         deploy,
         expectedBridgeSourceCommit: SOURCE_COMMIT,
         fetchImpl,
@@ -573,6 +686,144 @@ describe('fresh public release-attestation binding', () => {
 });
 
 describe('private production-admin prepared receipt storage', () => {
+  it.skipIf(process.platform === 'win32')(
+    'resolves only the exact digest-addressed expired receipt and rejects a fresh competitor',
+    async () => {
+      const home = temporaryHome();
+      const { prepared } = await authenticatedReceipt();
+      const written = writePrivateAuthBridgeNotificationPreparedReceipt({
+        receipt: prepared,
+        repositoryRoot: realpathSync(process.cwd()),
+        reportedHome: home,
+        now: NOW,
+      });
+      const expiredAt = new Date('2026-08-15T00:00:00.000Z');
+      expect(resolveExpiredAuthBridgeNotificationPreparedReceiptByDigest({
+        receiptDigest: written.receiptDigest,
+        expectedSourceCommit: SOURCE_COMMIT,
+        repositoryRoot: realpathSync(process.cwd()),
+        reportedHome: home,
+        now: expiredAt,
+      })).toMatchObject({ receiptDigest: written.receiptDigest });
+
+      const recovered = createAuthBridgeNotificationPreparedReadOnlyRecoveryReceipt({
+        priorReceipt: prepared,
+        liveAttestation: releaseAttestation(),
+        preparedAt: expiredAt,
+        now: expiredAt,
+      });
+      writePrivateAuthBridgeNotificationPreparedReceipt({
+        receipt: recovered,
+        repositoryRoot: realpathSync(process.cwd()),
+        reportedHome: home,
+        now: expiredAt,
+      });
+      expect(() => resolveExpiredAuthBridgeNotificationPreparedReceiptByDigest({
+        receiptDigest: written.receiptDigest,
+        expectedSourceCommit: SOURCE_COMMIT,
+        repositoryRoot: realpathSync(process.cwd()),
+        reportedHome: home,
+        now: expiredAt,
+      })).toThrow('AUTH_BRIDGE_PREPARED_RECOVERY_RECEIPT_AMBIGUOUS');
+    },
+  );
+  it('enumerates exactly one existing eligible receipt without creating or repairing state', async () => {
+    const home = temporaryHome('warpkeep-bridge-read-only-');
+    const { prepared } = await authenticatedReceipt();
+    const written = writePrivateAuthBridgeNotificationPreparedReceipt({
+      receipt: prepared,
+      repositoryRoot: process.cwd(),
+      reportedHome: home,
+      now: NOW,
+    });
+    const directory = dirname(written.path);
+    const before = readdirSync(directory).sort();
+
+    expect(resolveExistingAuthBridgeNotificationPreparedReceipt({
+      repositoryRoot: process.cwd(),
+      reportedHome: home,
+      expectedSourceCommit: SOURCE_COMMIT,
+      now: NOW,
+    })).toEqual({ receipt: receipt(), receiptDigest: written.receiptDigest });
+    expect(readdirSync(directory).sort()).toEqual(before);
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'resolves a canonical receipt-only state and rejects the missing completed journal without changing bytes',
+    async () => {
+      const home = temporaryHome('warpkeep-bridge-read-only-orphan-receipt-');
+      const { prepared } = await authenticatedReceipt();
+      const written = writePrivateAuthBridgeNotificationPreparedReceipt({
+        receipt: prepared,
+        repositoryRoot: process.cwd(),
+        reportedHome: home,
+        now: NOW,
+      });
+      const directory = dirname(written.path);
+      const before = new Map(readdirSync(directory).sort().map(name => [
+        name,
+        readFileSync(join(directory, name)),
+      ] as const));
+
+      expect(resolveExistingAuthBridgeNotificationPreparedReceipt({
+        repositoryRoot: process.cwd(),
+        reportedHome: home,
+        expectedSourceCommit: SOURCE_COMMIT,
+        now: NOW,
+      })).toEqual({ receipt: receipt(), receiptDigest: written.receiptDigest });
+      expect(() => resolveExistingAuthBridgeNotificationPreparedDeployJournal({
+        repositoryRoot: realpathSync(process.cwd()),
+        reportedHome: home,
+      })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_INVALID');
+
+      const unsafeJournalDirectory = join(
+        dirname(directory),
+        AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_STATE_CHILD,
+      );
+      symlinkSync(join(home, 'missing-journal-target'), unsafeJournalDirectory);
+      expect(() => resolveExistingAuthBridgeNotificationPreparedDeployJournal({
+        repositoryRoot: realpathSync(process.cwd()),
+        reportedHome: home,
+      })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_DIRECTORY_INVALID');
+      expect(lstatSync(unsafeJournalDirectory).isSymbolicLink()).toBe(true);
+
+      expect(readdirSync(directory).sort()).toEqual([...before.keys()]);
+      for (const [name, bytes] of before) {
+        expect(readFileSync(join(directory, name))).toEqual(bytes);
+      }
+    },
+  );
+
+  it.skipIf(process.platform === 'win32')(
+    'rejects two eligible prepared receipts without invoking deployment or changing bytes', async () => {
+    const home = temporaryHome('warpkeep-bridge-read-only-duplicate-');
+    const first = await authenticatedReceipt();
+    const secondDeploy = vi.fn(async () => undefined);
+    const second = await prepareAuthBridgeNotificationPreparedReceipt({
+      adminToken: ADMIN_TOKEN, expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
+      deploy: secondDeploy, expectedBridgeSourceCommit: SOURCE_COMMIT,
+      fetchImpl: preparationFetch() as typeof fetch,
+      clock: () => new Date(NOW.getTime() + 1),
+    });
+    const firstWritten = writePrivateAuthBridgeNotificationPreparedReceipt({
+      receipt: first.prepared, repositoryRoot: process.cwd(), reportedHome: home, now: NOW,
+    });
+    writePrivateAuthBridgeNotificationPreparedReceipt({
+      receipt: second, repositoryRoot: process.cwd(), reportedHome: home,
+      now: new Date(NOW.getTime() + 1),
+    });
+    const directory = dirname(firstWritten.path);
+    const before = readdirSync(directory).sort();
+    expect(() => resolveExistingAuthBridgeNotificationPreparedReceipt({
+      repositoryRoot: process.cwd(), reportedHome: home,
+      expectedSourceCommit: SOURCE_COMMIT, now: new Date(NOW.getTime() + 1),
+    })).toThrow(/MULTIPLE|STATE_INVALID|AMBIGUOUS/u);
+    expect(readdirSync(directory).sort()).toEqual(before);
+    expect(first.deploy).toHaveBeenCalledTimes(1);
+    expect(secondDeploy).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it('rejects arbitrary parsed receipts without authenticated predeploy evidence', () => {
     expect(() => writePrivateAuthBridgeNotificationPreparedReceipt({
       receipt: receipt() as never,
@@ -585,6 +836,7 @@ describe('private production-admin prepared receipt storage', () => {
   it('does not install authenticated evidence after its expiry', async () => {
     const prepared = await prepareAuthBridgeNotificationPreparedReceipt({
       adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
       deploy: vi.fn(async () => undefined),
       expectedBridgeSourceCommit: SOURCE_COMMIT,
       fetchImpl: preparationFetch() as typeof fetch,

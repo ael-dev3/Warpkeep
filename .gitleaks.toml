@@ -28,12 +28,20 @@ regexes = ['''^018f7b44-5f2f-4c54-8c0d-3f521d46b193$''']
 paths = ['''^tests/realmChatSendIdempotency\.test\.ts$''']
 
 [[allowlists]]
+description = "One non-secret UUID used only as a historical additive-migration Realm Chat request fixture"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^018f7b44-5f2f-7c54-8c0d-3f521d46b194$''']
+paths = ['''^spacetimedb/migration-fixtures/additive-v15-schema/src/index\.ts$''']
+
+[[allowlists]]
 description = "Public Farcaster custody address inside the signed domain-association header"
 targetRules = ["generic-api-key"]
 condition = "AND"
 regexTarget = "secret"
 regexes = ['''^0x7a9E6965FCF1ad2cfbff67f0C0aA102F0DEa23d4$''']
-paths = ['''^public/\.well-known/farcaster\.json$''']
+paths = ['''^(?:public|dist)/\.well-known/farcaster\.json$''']
 
 [[allowlists]]
 description = "Fixed owner-private launch directory label, never credential material"
@@ -85,3 +93,163 @@ condition = "AND"
 regexTarget = "secret"
 regexes = ['''^g002PublishReceiptDigest$''']
 paths = ['''^tests/sealedLaunchActivationGenerator\.test\.ts$''']
+
+[[allowlists]]
+description = "One non-secret UUID used only as a sealed-launch negative authority-field fixture"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^123e4567-e89b-42d3-a456-426614174000$''']
+paths = ['''^tests/sealedLaunchActivationGenerator\.test\.ts$''']
+
+[[allowlists]]
+description = "Non-secret sealed-launch boolean schema key in public activation artifact verification"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^g002AdmissionMutationsEnabled$''']
+paths = ['''^scripts/verify-sealed-realms-public-activation-artifact\.mjs$''']
+
+[[allowlists]]
+description = "Two public toolchain key SHA-256 records in the audited recovery records, WSL preparation and fixture test"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/release-recovery/scripts/release-recovery-toolchain-records\.mjs$''','''^services/release-recovery/scripts/prepare-release-recovery-wsl-toolchain\.mjs$''','''^services/release-recovery/test/releaseRecoverySpacetimeFixtures\.test\.ts$''']
+regexes = ['''^5115095e2f8010c75da052ecb1cfb3af630e084f0f8daa93a863557b01b0f90a$''','''^e31e1aa40a8331f01d753cef475f7b9eab934fc25f5f0b36995bfd80bd66ad27$''']
+
+[[allowlists]]
+description = "Fixed synthetic private-fid label in the recovery Realm evidence redaction test"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/release-recovery/test/realmEvidence\.test\.ts$''']
+regexes = ['''^private-fid-123456$''']
+
+[[allowlists]]
+description = "Fixed sequential-byte RPC credential fixture in the bridge recovery configuration test"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/auth-bridge/test/releaseRecoveryConfig\.test\.ts$''']
+regexes = ['''^AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8$''']
+
+[[allowlists]]
+description = "Fixed synthetic owner label inside the bridge observation URL-redaction test"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/auth-bridge/test/releaseRecoveryObservation\.test\.ts$''']
+regexes = ['''^secret-owner-fid-12345$''']
+
+[[allowlists]]
+description = "Public sealed-launch boolean schema key in recovery evidence and activation record validation"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/release-recovery/src/githubEvidence\.ts$''','''^scripts/sealed-realms-production-activation-records\.mjs$''','''^scripts/recovery-binding-projection\.mjs$''','''^scripts/recovery-activation-candidate\.mjs$''','''^scripts/sealed-realms-production-activation-lane\.bundle\.mjs$''','''^scripts/sealed-realms-production-g001-lane\.bundle\.mjs$''','''^scripts/sealed-realms-production-g002-lane\.bundle\.mjs$''','''^scripts/sealed-realms-production-ptr-lane\.bundle\.mjs$''']
+regexes = ['''^g002AdmissionMutationsEnabled$''']
+
+[[allowlists]]
+description = "Public recovery verification-key thumbprint, not private signing material"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/release-recovery/src/recoveryPublicKey\.ts$''','''^scripts/recovery-activation-candidate\.mjs$''','''^tests/fixtures/recoveryBindingCandidate\.ts$''','''^tests/fixtures/ptrV3ActivationCorpus\.json$''','''^scripts/recovery-public-key\.mjs$''','''^scripts/sealed-realms-production-activation-lane\.bundle\.mjs$''','''^scripts/sealed-realms-production-g001-lane\.bundle\.mjs$''','''^scripts/sealed-realms-production-g002-lane\.bundle\.mjs$''','''^scripts/sealed-realms-production-ptr-lane\.bundle\.mjs$''']
+regexes = ['''^jJpfIbYjQL5LxwND5zk1MUOqN1B3vOh_ydTAOoUnuR8$''']
+
+[[allowlists]]
+description = "Exact synthetic Worker version UUID in the non-deployable recovery candidate fixture"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^tests/fixtures/recoveryBindingCandidate\.ts$''','''^tests/fixtures/ptrV3ActivationCorpus\.json$''']
+regexes = ['''^123e4567-e89b-42d3-a456-426614174002$''']
+
+[[allowlists]]
+description = "One fixed expired test-key-signed recovery status JWT in the crypto fixture test"
+targetRules = ["jwt"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/release-recovery/test/crypto\.test\.ts$''']
+regexes = ['''^eyJhbGciOiJFUzI1NiIsInR5cCI6IndhcnBrZWVwLTAuNC4wLXJlY292ZXJ5LXN0YXR1cytqd3QiLCJraWQiOiJ3YXJwa2VlcC0wLjQuMC1yZWNvdmVyeS0yMDI2LTA5LTAzLTEifQ\.eyJzY2hlbWFWZXJzaW9uIjoxLCJwcm9maWxlIjoid2FycGtlZXAtMC40LjAtcmVjb3Zlcnktc3RhdHVzLXYxIiwiaXNzIjoiaHR0cHM6Ly9yZWxlYXNlLWF1dGgud2FycGtlZXAuY29tIiwiYXVkIjoid2FycGtlZXAtMC40LjAtc2VhbGVkLWxhdW5jaCIsInN1YiI6IndhcnBrZWVwLTAuNC4wLXJlY292ZXJ5LWNvbnRyb2wtc3RhdHVzIiwia2lkIjoid2FycGtlZXAtMC40LjAtcmVjb3ZlcnktMjAyNi0wOS0wMy0xIiwiZW5hYmxlZCI6dHJ1ZSwiYXV0aG9yaXphdGlvbkVwb2NoIjo3LCJpYXQiOjEwMDAsIm5iZiI6MTAwMCwiZXhwIjoxMDYwfQ\.-KXyra7BGffHXoMvcsPr7lArwRAMOsgJ2YHidcQeEsRGnaXM2BFD9G9O-ri-OtNMVfxk20hcHfVTC1YfpaVLgg$''']
+
+[[allowlists]]
+description = "Exact cross-line match of two deliberately malformed RSA-key literals in the recovery evidence test"
+targetRules = ["private-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/release-recovery/test/githubEvidence\.test\.ts$''']
+regexes = ['''^-----BEGIN RSA PRIVATE KEY-----\\nAAAA\\n-----END RSA PRIVATE KEY-----\x27,\n {6}\x60-----BEGIN RSA PRIVATE KEY-----$''']
+
+[[allowlists]]
+description = "Exact public migration hashes in captured disposable SpacetimeDB plan fixtures; not authentication tokens"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^tests/fixtures/existing-update-plans-2\.6\.1\.json$''']
+regexes = ['''^0x7ef6acb8a31a3d56066794ee11705e277ef70c4fde804344f939b882d18b42af$''', '''^0x18f26b10d4fb11b55d124d5504f6aaa196d57cbf7c13be7bd55e8c87e809bc3d$''', '''^0x6385db21eec370c093aeec904c5a619d1d3edadf13b27e291d4c53f7fa0e2244$''']
+
+[[allowlists]]
+description = "Exact public verification thumbprint of the preparation test signing key"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/release-recovery/test/preparationReceipt\.test\.ts$''', '''^services/release-recovery/test/signerPreparation\.test\.ts$''', '''^services/release-recovery/test-workerd/preparationComposition\.test\.ts$''', '''^services/release-recovery/test-workerd/preparationIntent\.test\.ts$''']
+regexes = ['''^zbHwk528B5de5kuNzI98k4Y-rljmW6fbkH-aVZomk4M$''']
+
+[[allowlists]]
+description = "Public immutable Genesis 001 source commit and tree identifiers embedded in the generated activation bundle"
+targetRules = ["sourcegraph-access-token"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^scripts/sealed-realms-production-activation-lane\.bundle\.mjs$''']
+regexes = ['''^2ae51984e1fa6ce5b0028c1a250359fed79d819b$''', '''^90deebb5faf4129282f5c35999244f540001b27d$''']
+
+[[allowlists]]
+description = "Exact freshly generated public preparation RPC test key; SPKI SHA256 d01cf2c7368103f04ada8a93bbd9f79aaeca164265a9e975cd0c0dbe0ef7c18d"
+targetRules = ["private-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/release-recovery/test-workerd/preparationAppKey\.fake\.ts$''']
+regexes = ['''^\Q-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDyEx7s+L47iiMe\noTbSNJN4+I1jbUAu1gh2wF/1MljrM09FMEiEpX+IjccfD/uS3imqoDtSbw0XnEg5\nZvw1a5NozlYDRA87dIWqt3OixgODd2/1eNc+b2ruFVTfRa10QkLKkE/h9NB4W0Qa\nz8PC2SqyyK/3S5usaqK7Ce868oBqGM2mLWJAfkb1M2Cy5+XoLOk+2Gux8X1rGsrh\nOjuM0jBtZP8tq+2xClq1dB2VCXQmFT3wcUcBf3Ao5nXK8f1FNmlAtFMghsHMUO8o\nTyi+eDYiwIDjMFPsf0ElrgA2539Nr2xD3k54fFJ69UAxVziGiQDdYgka0StczFpN\nZ4oyWi+VAgMBAAECggEAENSUf1xR+ZjClVQXGClQoYYCaonDfx4ha4Q3h7gu53dj\nSQew2wwYoFlfIUE+t/jbQ8ItLa+L5PrYKKmI2nv2vUAvSb3XI0aYLoTftM74mpDY\nx2PV70DW2ePAyV8yTpV2yFedPjQDtIJ/6y9LyIXJyrFaTqLCmYu2cbOgnuQSWo3p\nSdXakGB2f25LGT+M1gQyTJBYr6FdVEgS6jptDAXfj+zqu8wOF4QDK2b76lgkS3CM\nx71qjZu5pP/ggcc2+mdFHLFJNPRQFZZUx3eVEXxhUDyQmUvzkZCEfQa1MRGRhajI\nA66OUsdNUvTrgMc+Yq/tJ/JucSjcViPAjAbghMr7dwKBgQD/YB+G9bjzvsL9REu/\n2Y43cEVJpBt9WPCGxpuT0IwTsbcLAML4CUL4+0LxkOA/vpJ3a0x2v+kJxBQcET0/\nTxENzuYys1NRGdZhh87eGqIR97uIiSI5bQYQ377dpqrm0v/oXmDJOuPYKiNFm9Kd\nTckUJ9GEdTJ9mLKieKUbYkWk9wKBgQDyqqu1sT95l4kp5dnciYwqFMSPeQDJSKsj\nz0IwmewSzMneOUhAxMqvqJkX8Lff9Lyan+BIAoi0gRvdv3POwPRO48BBR8gZelsu\nqP4cylpokJshNHcslo9Zl/qj8D1ZWCTRCdZKQdvHo0F6KmPtK03oujHa8I00t/zp\n3/jtozCI0wKBgQDMLGDoeRr3HcQt02WwrFKs9kEfQGqODAa56p5GTs0/ja1nyaMX\nxefawqBiHE9+B3J4sbu/kW3S1gax7gKG1EMxRAL99CufwsWI0pjNMIP1U5iG8AUB\n3q2j3g9ujStEQtxBPvuox0GU+ROcOpnoFGG4kKFNgpnsmqHvjf+LZkWCPwKBgHPl\nV0TbdnlYCkZcZISTnMGsUYREQj/f2PytS+tyV/FSpUbhDMUCN9tVJmjsqqTnefxP\nRwqdSzUKRIjPmzuvo/7Zf0SuR78DVPEf/N07N5qhFbXyHMjKz4P2tdn+Lw6wrkS3\n8gRdF95s9iSmgjsPZ5Iy+wSZxpbbGIuKUJUOT2vJAoGBAJNUukDlzR+JCpiPvG+N\nqBYQOJgOHwxx9MJys5988fL7N+mEg/c6DyNNQYjpGIfEmX9ki5J495w8p9wAe9x0\n0wfDjrVRZyaBxzeW3iDK1dJVSzdTGEqPTQSC2h872Pmwqvb6Vddkr2Iyk0xF6Lu1\nj/VsntM138xKjZKQ91qCxyri\n-----END PRIVATE KEY-----\E$''']
+
+[[allowlists]]
+description = "Exact existing public preparation test-key thumbprint in root receipt and joined fixtures"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^tests/sealedRealmsRecoveryPreparationReceipt\.test\.ts$''', '''^tests/sealedRealmsRecoveryPreparationCandidate\.test\.ts$''']
+regexes = ['''^zbHwk528B5de5kuNzI98k4Y-rljmW6fbkH-aVZomk4M$''']
+
+[[allowlists]]
+description = "Exact synthetic service-produced preparation codec vector signed with the existing public test key"
+targetRules = ["jwt"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^tests/fixtures/recoveryPreparationServiceVector\.json$''']
+regexes = ['''^\QeyJhbGciOiJFUzI1NiIsInR5cCI6IndhcnBrZWVwLXJlY292ZXJ5LXByZXBhcmF0aW9uLXJlY2VpcHQrandzIiwia2lkIjoid2FycGtlZXAtMC40LjAtcmVjb3ZlcnktMjAyNi0wOS0wMy0xIn0.eyJzY2hlbWFWZXJzaW9uIjoxLCJwcm9maWxlIjoid2FycGtlZXAtcmVjb3ZlcnktcHJlcGFyYXRpb24tcmVjZWlwdC12MSIsImlzcyI6Imh0dHBzOi8vcmVsZWFzZS1hdXRoLndhcnBrZWVwLmNvbSIsImF1ZCI6Imh0dHBzOi8vcmVsZWFzZS1hdXRoLndhcnBrZWVwLmNvbS9wcmVwYXJhdGlvbiIsInB1cnBvc2UiOiJhY3RpdmF0aW9uLWV2aWRlbmNlLXByZXBhcmF0aW9uIiwiaW50ZW50Ijp7InNjaGVtYVZlcnNpb24iOjEsInByb2ZpbGUiOiJ3YXJwa2VlcC1yZWNvdmVyeS1wcmVwYXJhdGlvbi1pbnRlbnQtdjEiLCJyZXF1ZXN0SWQiOiIxMjNlNDU2Ny1lODliLTQyZDMtYTQ1Ni00MjY2MTQxNzQwMDAiLCJhdXRob3JpemF0aW9uRXBvY2giOjMsInJlcG9zaXRvcnkiOiJhZWwtZGV2My9XYXJwa2VlcCIsInJlcG9zaXRvcnlJZCI6IjEyNzM1MTMyNTIiLCJyZXBvc2l0b3J5T3duZXJJZCI6IjE4MzEyNDgzOSIsInByZXBhcmF0aW9uQ29tbWl0IjoiY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjYyIsInByZXBhcmF0aW9uVHJlZSI6ImRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGQiLCJwb2xpY3lEaWdlc3QiOiJkMDE4NTgyMjE2YjM0NDNkMDYwNWM3N2ViZWJmYTk4ZjkxZmM0ZDAwZGFkZGZlY2Q3YzlmZmU5ZjAxZmZjYzBkIiwiY29uZmlndXJlZEFybWluZ0RpZ2VzdCI6bnVsbCwicnVuSWQiOiI5MDA3MTk5MjU0NzQwOTk1IiwicnVuQXR0ZW1wdCI6IjIiLCJjaGVja1J1bklkIjoiOTAwNzE5OTI1NDc0MDk5MyIsImNyZWF0ZWRBdCI6MTcwMDAwMDAwMH19.OddNBNwGqFsvueyFu9rRrZ-ENBGhJaRCRfPwh4ArfZxcALKsKmfr5TxPans-NS5aFQn-VsPNWym-4eJEfhIOqQ\E$''']
+
+[[allowlists]]
+description = "Public existing preparation test key thumbprint in configuration observation tests"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/release-recovery/test/preparationObservation\.test\.ts$''', '''^services/release-recovery/test-workerd/preparationObservation\.test\.ts$''']
+regexes = ['''^zbHwk528B5de5kuNzI98k4Y-rljmW6fbkH-aVZomk4M$''']
+
+[[allowlists]]
+description = "Deterministic bytes 0 through 31 test RPC credential, reused from releaseRecoveryConfig tests"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/auth-bridge/test/recoveryConfigurationFixture\.ts$''', '''^services/auth-bridge/test/releaseRecoveryConfiguration\.test\.ts$''', '''^services/release-recovery/test-workerd/preparationObservation\.test\.ts$''']
+regexes = ['''^AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8$''']
+
+[[allowlists]]
+description = "Exact synthetic test-key-signed reservation and expired observation service vectors"
+targetRules = ["jwt"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^tests/fixtures/recoveryPreparationObservationServiceVector\.json$''']
+regexes = ['''^\QeyJhbGciOiJFUzI1NiIsInR5cCI6IndhcnBrZWVwLXJlY292ZXJ5LXByZXBhcmF0aW9uLXJlY2VpcHQrandzIiwia2lkIjoid2FycGtlZXAtMC40LjAtcmVjb3ZlcnktMjAyNi0wOS0wMy0xIn0.eyJzY2hlbWFWZXJzaW9uIjoxLCJwcm9maWxlIjoid2FycGtlZXAtcmVjb3ZlcnktcHJlcGFyYXRpb24tcmVjZWlwdC12MSIsImlzcyI6Imh0dHBzOi8vcmVsZWFzZS1hdXRoLndhcnBrZWVwLmNvbSIsImF1ZCI6Imh0dHBzOi8vcmVsZWFzZS1hdXRoLndhcnBrZWVwLmNvbS9wcmVwYXJhdGlvbiIsInB1cnBvc2UiOiJhY3RpdmF0aW9uLWV2aWRlbmNlLXByZXBhcmF0aW9uIiwiaW50ZW50Ijp7InNjaGVtYVZlcnNpb24iOjEsInByb2ZpbGUiOiJ3YXJwa2VlcC1yZWNvdmVyeS1wcmVwYXJhdGlvbi1pbnRlbnQtdjEiLCJyZXF1ZXN0SWQiOiIxMjNlNDU2Ny1lODliLTQyZDMtYTQ1Ni00MjY2MTQxNzQwMDAiLCJhdXRob3JpemF0aW9uRXBvY2giOjMsInJlcG9zaXRvcnkiOiJhZWwtZGV2My9XYXJwa2VlcCIsInJlcG9zaXRvcnlJZCI6IjEyNzM1MTMyNTIiLCJyZXBvc2l0b3J5T3duZXJJZCI6IjE4MzEyNDgzOSIsInByZXBhcmF0aW9uQ29tbWl0IjoiY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjYyIsInByZXBhcmF0aW9uVHJlZSI6ImRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGQiLCJwb2xpY3lEaWdlc3QiOiJkMDE4NTgyMjE2YjM0NDNkMDYwNWM3N2ViZWJmYTk4ZjkxZmM0ZDAwZGFkZGZlY2Q3YzlmZmU5ZjAxZmZjYzBkIiwiY29uZmlndXJlZEFybWluZ0RpZ2VzdCI6bnVsbCwicnVuSWQiOiI5MDA3MTk5MjU0NzQwOTk1IiwicnVuQXR0ZW1wdCI6IjIiLCJjaGVja1J1bklkIjoiOTAwNzE5OTI1NDc0MDk5MyIsImNyZWF0ZWRBdCI6MTcwMDAwMDAwMH19._8emJhPfPbMFwcO40_KFlq0XCr1l8AKvLdCjdZGBcFN24QWe9hD8JE1-dgFDTUXdH9qiSSqah8_ABHJe9X9C2g\E$''', '''^\QeyJhbGciOiJFUzI1NiIsInR5cCI6IndhcnBrZWVwLXJlY292ZXJ5LXByZXBhcmF0aW9uLW9ic2VydmF0aW9uK2p3cyIsImtpZCI6IndhcnBrZWVwLTAuNC4wLXJlY292ZXJ5LTIwMjYtMDktMDMtMSJ9.eyJzY2hlbWFWZXJzaW9uIjoxLCJwcm9maWxlIjoid2FycGtlZXAtcmVjb3ZlcnktcHJlcGFyYXRpb24tb2JzZXJ2YXRpb24tdjEiLCJpc3MiOiJodHRwczovL3JlbGVhc2UtYXV0aC53YXJwa2VlcC5jb20iLCJhdWQiOiJodHRwczovL3JlbGVhc2UtYXV0aC53YXJwa2VlcC5jb20vcHJlcGFyYXRpb24tb2JzZXJ2YXRpb24iLCJwdXJwb3NlIjoiYWN0aXZhdGlvbi1ldmlkZW5jZS13b3JrZXItY29uZmlndXJhdGlvbiIsImludGVudCI6eyJzY2hlbWFWZXJzaW9uIjoxLCJwcm9maWxlIjoid2FycGtlZXAtcmVjb3ZlcnktcHJlcGFyYXRpb24taW50ZW50LXYxIiwicmVxdWVzdElkIjoiMTIzZTQ1NjctZTg5Yi00MmQzLWE0NTYtNDI2NjE0MTc0MDAwIiwiYXV0aG9yaXphdGlvbkVwb2NoIjozLCJyZXBvc2l0b3J5IjoiYWVsLWRldjMvV2FycGtlZXAiLCJyZXBvc2l0b3J5SWQiOiIxMjczNTEzMjUyIiwicmVwb3NpdG9yeU93bmVySWQiOiIxODMxMjQ4MzkiLCJwcmVwYXJhdGlvbkNvbW1pdCI6ImNjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2MiLCJwcmVwYXJhdGlvblRyZWUiOiJkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkIiwicG9saWN5RGlnZXN0IjoiZDAxODU4MjIxNmIzNDQzZDA2MDVjNzdlYmViZmE5OGY5MWZjNGQwMGRhZGRmZWNkN2M5ZmZlOWYwMWZmY2MwZCIsImNvbmZpZ3VyZWRBcm1pbmdEaWdlc3QiOm51bGwsInJ1bklkIjoiOTAwNzE5OTI1NDc0MDk5NSIsInJ1bkF0dGVtcHQiOiIyIiwiY2hlY2tSdW5JZCI6IjkwMDcxOTkyNTQ3NDA5OTMiLCJjcmVhdGVkQXQiOjE3MDAwMDAwMDB9LCJicmlkZ2VTZXJ2aWNlIjoid2FycGtlZXAtYXV0aC1icmlkZ2UiLCJicmlkZ2VXb3JrZXJWZXJzaW9uIjoid2FycGtlZXAtYXV0aC1icmlkZ2UtcmVsZWFzZS1yZWNvdmVyeS12MSIsIm9ic2VydmVkRnJvbSI6MTcwMDAwMDAxMCwib2JzZXJ2ZWRUaHJvdWdoIjoxNzAwMDAwMDExLCJicmlkZ2VXb3JrZXJWZXJzaW9uSWQiOiIxMjNlNDU2Ny1lODliLTQyZDMtYTQ1Ni00MjY2MTQxNzQwMDIiLCJicmlkZ2VTb3VyY2VDb21taXQiOiJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiIiwiYnJpZGdlQ29uZmlnSWRlbnRpdHkiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwiYnJpZGdlQ29uZmlnRXBvY2giOjUsImlzc3VlZEF0IjoxNzAwMDAwMDEyLCJleHBpcmVzQXQiOjE3MDAwMDAxMDF9.0-B_fqgNBzsOpQtaN6sHJb40CCM3HV6tomCSrLdVmMVwAn7i0SQ9fUBsB75xmeA6FvHFPHpF7ZJS7ypfMunsIQ\E$''']

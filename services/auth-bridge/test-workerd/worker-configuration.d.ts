@@ -1,4 +1,5 @@
 interface AuthBridgeBindings {
+  CF_VERSION_METADATA: WorkerVersionMetadata
   CHALLENGE_REPLAY_GUARD: DurableObjectNamespace<
     import('../src/index').ChallengeReplayGuard
   >

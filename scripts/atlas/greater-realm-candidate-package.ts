@@ -209,8 +209,8 @@ const PRIVATE_TOPOGRAPHY_ENCODING_VERSION =
 const PRIVATE_PINNED_TOOLCHAIN = Object.freeze({
   configuredNodeEngine: '>=22.13 <23',
   configuredPackageManager: 'npm@10.9.8',
-  libvips: '8.18.3',
-  sharp: '0.35.3',
+  libvips: '8.18.6',
+  sharp: '0.35.4',
   tsx: '4.23.0',
   typescript: '7.0.2',
 });

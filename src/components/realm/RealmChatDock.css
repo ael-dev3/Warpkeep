@@ -401,6 +401,12 @@
   inset: auto auto max(0.75rem, var(--realm-safe-bottom)) max(0.75rem, var(--realm-safe-left));
 }
 
+.realm-map-screen--greater-realm .realm-chat-dock[data-compact="true"][data-open="false"] {
+  right: max(0.75rem, var(--realm-safe-right));
+  bottom: max(0.75rem, var(--realm-safe-bottom));
+  left: auto;
+}
+
 .realm-chat-dock[data-compact="true"] .realm-fullscreen-surface {
   pointer-events: auto;
 }

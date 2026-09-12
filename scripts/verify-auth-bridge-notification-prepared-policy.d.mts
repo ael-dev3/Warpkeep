@@ -1,3 +1,12 @@
+/** Requires the caller to authenticate the enclosing release closure first. */
+export function verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+  sources: Readonly<{
+    adapterSource: string;
+    journalSource: string;
+    runtimeSource: string;
+  }>,
+): true;
+
 export function verifyAuthBridgeNotificationPreparedStaticPolicy(
   options?: Readonly<{ repositoryRoot?: string }>,
 ): Readonly<{

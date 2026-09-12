@@ -34,33 +34,23 @@ import {
 } from "spacetimedb";
 
 // Import all reducer arg schemas
-import AcceptAlphaTermsV1Reducer from "./accept_alpha_terms_v_1_reducer";
-import AdminAdmitFounderForAccessRequestV2Reducer from "./admin_admit_founder_for_access_request_v_2_reducer";
-import AdminAdmitFounderV1Reducer from "./admin_admit_founder_v_1_reducer";
-import AdminAllowFidReducer from "./admin_allow_fid_reducer";
-import AdminAllowFidForAccessRequestV1Reducer from "./admin_allow_fid_for_access_request_v_1_reducer";
 import AdminBeginGreaterRealmVerificationV1Reducer from "./admin_begin_greater_realm_verification_v_1_reducer";
-import AdminBumpAuthEpochReducer from "./admin_bump_auth_epoch_reducer";
-import AdminDisableFidReducer from "./admin_disable_fid_reducer";
 import AdminFinalizeGreaterRealmReleaseV1Reducer from "./admin_finalize_greater_realm_release_v_1_reducer";
 import AdminImportGreaterRealmChunkV1Reducer from "./admin_import_greater_realm_chunk_v_1_reducer";
 import AdminImportGreaterRealmComponentsV1Reducer from "./admin_import_greater_realm_components_v_1_reducer";
 import AdminImportGreaterRealmRegionsV1Reducer from "./admin_import_greater_realm_regions_v_1_reducer";
-import AdminResetAccessRequestV1Reducer from "./admin_reset_access_request_v_1_reducer";
 import AdminStageGreaterRealmReleaseV1Reducer from "./admin_stage_greater_realm_release_v_1_reducer";
-import AdminUpsertRealmProfileV1Reducer from "./admin_upsert_realm_profile_v_1_reducer";
 import AdminVerifyGreaterRealmBatchV1Reducer from "./admin_verify_greater_realm_batch_v_1_reducer";
-import BootstrapPlayerReducer from "./bootstrap_player_reducer";
-import BootstrapPlayerV2Reducer from "./bootstrap_player_v_2_reducer";
+import RunGameplay04ScheduleV1Reducer from "./run_gameplay_04_schedule_v_1_reducer";
 
 // Import all procedure arg schemas
-import * as AccessRequestGetStatusV1Procedure from "./access_request_get_status_v_1_procedure";
-import * as AccessRequestSubmitV1Procedure from "./access_request_submit_v_1_procedure";
 import * as AdminGetGreaterRealmImportPlanV1Procedure from "./admin_get_greater_realm_import_plan_v_1_procedure";
 import * as AdminGetGreaterRealmStatusV1Procedure from "./admin_get_greater_realm_status_v_1_procedure";
-import * as AuthResolverGetFidAdmissionV2Procedure from "./auth_resolver_get_fid_admission_v_2_procedure";
-import * as GetMyAdmissionStatusV2Procedure from "./get_my_admission_status_v_2_procedure";
-import * as GetRealmStatusV1Procedure from "./get_realm_status_v_1_procedure";
+import * as DispatchGameplay04WorkerV1Procedure from "./dispatch_gameplay_04_worker_v_1_procedure";
+import * as GetGameplay04KeepV1Procedure from "./get_gameplay_04_keep_v_1_procedure";
+import * as InitializeGameplay04KeepV1Procedure from "./initialize_gameplay_04_keep_v_1_procedure";
+import * as RecallGameplay04WorkerV1Procedure from "./recall_gameplay_04_worker_v_1_procedure";
+import * as StartGameplay04BuildingV1Procedure from "./start_gameplay_04_building_v_1_procedure";
 
 // Import all table schema definitions
 import AccessRequestV1Row from "./access_request_v_1_table";
@@ -68,6 +58,13 @@ import AdminAuditRow from "./admin_audit_table";
 import AllowedFidRow from "./allowed_fid_table";
 import AlphaTermsAcceptanceV1Row from "./alpha_terms_acceptance_v_1_table";
 import CastleRow from "./castle_table";
+import Gameplay04BuildingV1Row from "./gameplay_04_building_v_1_table";
+import Gameplay04KeepV1Row from "./gameplay_04_keep_v_1_table";
+import Gameplay04ProjectV1Row from "./gameplay_04_project_v_1_table";
+import Gameplay04ReceiptV1Row from "./gameplay_04_receipt_v_1_table";
+import Gameplay04ReservationV1Row from "./gameplay_04_reservation_v_1_table";
+import Gameplay04WorkerV1Row from "./gameplay_04_worker_v_1_table";
+import Gameplay04ScheduleV1Row from "./gameplay_04_schedule_v_1_table";
 import GreaterRealmActivationV1Row from "./greater_realm_activation_v_1_table";
 import GreaterRealmCastleClaimV1Row from "./greater_realm_castle_claim_v_1_table";
 import GreaterRealmCastleSlotV1Row from "./greater_realm_castle_slot_v_1_table";
@@ -157,6 +154,98 @@ const tablesSchema = __schema({
       { name: 'castle_tile_key_key', constraint: 'unique', columns: ['tileKey'] },
     ],
   }, CastleRow),
+  gameplay04BuildingV1: __table({
+    name: 'gameplay04_building_v1',
+    indexes: [
+      { accessor: 'buildingId', name: 'gameplay04_building_v1_building_id_idx_btree', algorithm: 'btree', columns: [
+        'buildingId',
+      ] },
+      { accessor: 'keepId', name: 'gameplay04_building_v1_keep_id_idx_btree', algorithm: 'btree', columns: [
+        'keepId',
+      ] },
+    ],
+    constraints: [
+      { name: 'gameplay04_building_v1_building_id_key', constraint: 'unique', columns: ['buildingId'] },
+    ],
+  }, Gameplay04BuildingV1Row),
+  gameplay04KeepV1: __table({
+    name: 'gameplay04_keep_v1',
+    indexes: [
+      { accessor: 'keepId', name: 'gameplay04_keep_v1_keep_id_idx_btree', algorithm: 'btree', columns: [
+        'keepId',
+      ] },
+    ],
+    constraints: [
+      { name: 'gameplay04_keep_v1_keep_id_key', constraint: 'unique', columns: ['keepId'] },
+    ],
+  }, Gameplay04KeepV1Row),
+  gameplay04ProjectV1: __table({
+    name: 'gameplay04_project_v1',
+    indexes: [
+      { accessor: 'keepId', name: 'gameplay04_project_v1_keep_id_idx_btree', algorithm: 'btree', columns: [
+        'keepId',
+      ] },
+    ],
+    constraints: [
+      { name: 'gameplay04_project_v1_keep_id_key', constraint: 'unique', columns: ['keepId'] },
+    ],
+  }, Gameplay04ProjectV1Row),
+  gameplay04ReceiptV1: __table({
+    name: 'gameplay04_receipt_v1',
+    indexes: [
+      { accessor: 'keepId', name: 'gameplay04_receipt_v1_keep_id_idx_btree', algorithm: 'btree', columns: [
+        'keepId',
+      ] },
+      { accessor: 'receiptId', name: 'gameplay04_receipt_v1_receipt_id_idx_btree', algorithm: 'btree', columns: [
+        'receiptId',
+      ] },
+    ],
+    constraints: [
+      { name: 'gameplay04_receipt_v1_receipt_id_key', constraint: 'unique', columns: ['receiptId'] },
+    ],
+  }, Gameplay04ReceiptV1Row),
+  gameplay04ReservationV1: __table({
+    name: 'gameplay04_reservation_v1',
+    indexes: [
+      { accessor: 'keepId', name: 'gameplay04_reservation_v1_keep_id_idx_btree', algorithm: 'btree', columns: [
+        'keepId',
+      ] },
+      { accessor: 'nodeId', name: 'gameplay04_reservation_v1_node_id_idx_btree', algorithm: 'btree', columns: [
+        'nodeId',
+      ] },
+    ],
+    constraints: [
+      { name: 'gameplay04_reservation_v1_node_id_key', constraint: 'unique', columns: ['nodeId'] },
+    ],
+  }, Gameplay04ReservationV1Row),
+  gameplay04_schedule_v1: __table({
+    name: 'gameplay04_schedule_v1',
+    indexes: [
+      { accessor: 'keepId', name: 'gameplay04_schedule_v1_keep_id_idx_btree', algorithm: 'btree', columns: [
+        'keepId',
+      ] },
+      { accessor: 'scheduleId', name: 'gameplay04_schedule_v1_schedule_id_idx_btree', algorithm: 'btree', columns: [
+        'scheduleId',
+      ] },
+    ],
+    constraints: [
+      { name: 'gameplay04_schedule_v1_schedule_id_key', constraint: 'unique', columns: ['scheduleId'] },
+    ],
+  }, Gameplay04ScheduleV1Row),
+  gameplay04WorkerV1: __table({
+    name: 'gameplay04_worker_v1',
+    indexes: [
+      { accessor: 'keepId', name: 'gameplay04_worker_v1_keep_id_idx_btree', algorithm: 'btree', columns: [
+        'keepId',
+      ] },
+      { accessor: 'workerId', name: 'gameplay04_worker_v1_worker_id_idx_btree', algorithm: 'btree', columns: [
+        'workerId',
+      ] },
+    ],
+    constraints: [
+      { name: 'gameplay04_worker_v1_worker_id_key', constraint: 'unique', columns: ['workerId'] },
+    ],
+  }, Gameplay04WorkerV1Row),
   greaterRealmActivationV1: __table({
     name: 'greater_realm_activation_v1',
     indexes: [
@@ -523,35 +612,25 @@ const tablesSchema = __schema({
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
-  __reducerSchema("accept_alpha_terms_v1", AcceptAlphaTermsV1Reducer),
-  __reducerSchema("admin_admit_founder_for_access_request_v2", AdminAdmitFounderForAccessRequestV2Reducer),
-  __reducerSchema("admin_admit_founder_v1", AdminAdmitFounderV1Reducer),
-  __reducerSchema("admin_allow_fid", AdminAllowFidReducer),
-  __reducerSchema("admin_allow_fid_for_access_request_v1", AdminAllowFidForAccessRequestV1Reducer),
   __reducerSchema("admin_begin_greater_realm_verification_v1", AdminBeginGreaterRealmVerificationV1Reducer),
-  __reducerSchema("admin_bump_auth_epoch", AdminBumpAuthEpochReducer),
-  __reducerSchema("admin_disable_fid", AdminDisableFidReducer),
   __reducerSchema("admin_finalize_greater_realm_release_v1", AdminFinalizeGreaterRealmReleaseV1Reducer),
   __reducerSchema("admin_import_greater_realm_chunk_v1", AdminImportGreaterRealmChunkV1Reducer),
   __reducerSchema("admin_import_greater_realm_components_v1", AdminImportGreaterRealmComponentsV1Reducer),
   __reducerSchema("admin_import_greater_realm_regions_v1", AdminImportGreaterRealmRegionsV1Reducer),
-  __reducerSchema("admin_reset_access_request_v1", AdminResetAccessRequestV1Reducer),
   __reducerSchema("admin_stage_greater_realm_release_v1", AdminStageGreaterRealmReleaseV1Reducer),
-  __reducerSchema("admin_upsert_realm_profile_v1", AdminUpsertRealmProfileV1Reducer),
   __reducerSchema("admin_verify_greater_realm_batch_v1", AdminVerifyGreaterRealmBatchV1Reducer),
-  __reducerSchema("bootstrap_player", BootstrapPlayerReducer),
-  __reducerSchema("bootstrap_player_v2", BootstrapPlayerV2Reducer),
+  __reducerSchema("run_gameplay_04_schedule_v_1", RunGameplay04ScheduleV1Reducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
 const proceduresSchema = __procedures(
-  __procedureSchema("access_request_get_status_v_1", AccessRequestGetStatusV1Procedure.params, AccessRequestGetStatusV1Procedure.returnType),
-  __procedureSchema("access_request_submit_v_1", AccessRequestSubmitV1Procedure.params, AccessRequestSubmitV1Procedure.returnType),
   __procedureSchema("admin_get_greater_realm_import_plan_v_1", AdminGetGreaterRealmImportPlanV1Procedure.params, AdminGetGreaterRealmImportPlanV1Procedure.returnType),
   __procedureSchema("admin_get_greater_realm_status_v_1", AdminGetGreaterRealmStatusV1Procedure.params, AdminGetGreaterRealmStatusV1Procedure.returnType),
-  __procedureSchema("auth_resolver_get_fid_admission_v_2", AuthResolverGetFidAdmissionV2Procedure.params, AuthResolverGetFidAdmissionV2Procedure.returnType),
-  __procedureSchema("get_my_admission_status_v_2", GetMyAdmissionStatusV2Procedure.params, GetMyAdmissionStatusV2Procedure.returnType),
-  __procedureSchema("get_realm_status_v1", GetRealmStatusV1Procedure.params, GetRealmStatusV1Procedure.returnType),
+  __procedureSchema("dispatch_gameplay04_worker_v1", DispatchGameplay04WorkerV1Procedure.params, DispatchGameplay04WorkerV1Procedure.returnType),
+  __procedureSchema("get_gameplay04_keep_v1", GetGameplay04KeepV1Procedure.params, GetGameplay04KeepV1Procedure.returnType),
+  __procedureSchema("initialize_gameplay04_keep_v1", InitializeGameplay04KeepV1Procedure.params, InitializeGameplay04KeepV1Procedure.returnType),
+  __procedureSchema("recall_gameplay04_worker_v1", RecallGameplay04WorkerV1Procedure.params, RecallGameplay04WorkerV1Procedure.returnType),
+  __procedureSchema("start_gameplay04_building_v1", StartGameplay04BuildingV1Procedure.params, StartGameplay04BuildingV1Procedure.returnType),
 );
 
 /** The remote SpacetimeDB module schema, both runtime and type information. */
@@ -606,3 +685,4 @@ export class DbConnection extends __DbConnectionImpl<typeof REMOTE_MODULE> {
     return new SubscriptionBuilder(this);
   };
 }
+

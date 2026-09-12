@@ -34,6 +34,7 @@ function outputDescriptor(): { close: () => void; descriptor: number } {
 function environment(
   descriptor: number,
   includeRunner = true,
+  profile?: 'darwin-arm64' | 'linux-x64',
 ): NodeJS.ProcessEnv {
   return {
     CI: 'true',
@@ -56,6 +57,9 @@ function environment(
       WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT: '2',
       WARPKEEP_SOURCE_VERIFY_RUN_ID: '51',
     } : {}),
+    ...(profile === undefined ? {} : {
+      WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE: profile,
+    }),
   };
 }
 
@@ -179,6 +183,46 @@ describe('notification Pages private deploy launcher', () => {
       );
       expect(order).toEqual(['source', 'toolchain', 'source']);
       expect(mocked.loadOperator).not.toHaveBeenCalled();
+    } finally {
+      output.close();
+    }
+  });
+
+  it('accepts the retained Linux x64 runner profile', async () => {
+    const output = outputDescriptor();
+    try {
+      const order: string[] = [];
+      const mocked = authorities(order);
+      const linux = environment(output.descriptor, false, 'linux-x64');
+      linux.RUNNER_OS = 'Linux';
+      linux.RUNNER_ARCH = 'X64';
+      await runNotificationPagesPrivateDeployLauncher(
+        ['attest-toolchain'],
+        linux,
+        mocked,
+      );
+      expect(order).toEqual(['source', 'toolchain', 'source']);
+      expect(mocked.loadOperator).not.toHaveBeenCalled();
+    } finally {
+      output.close();
+    }
+  });
+
+  it('rejects an unsupported runner profile before any attestation', async () => {
+    const output = outputDescriptor();
+    try {
+      const mocked = authorities([]);
+      const invalid = environment(output.descriptor, false);
+      invalid.WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE =
+        'windows-x64';
+      await expect(runNotificationPagesPrivateDeployLauncher(
+        ['attest-toolchain'],
+        invalid,
+        mocked,
+      )).rejects.toMatchObject({
+        code: 'NOTIFICATION_PAGES_DEPLOY_LAUNCHER_PROFILE_INVALID',
+      });
+      expect(mocked.attestSourceClosure).not.toHaveBeenCalled();
     } finally {
       output.close();
     }

@@ -33,6 +33,10 @@ export interface DurableObjectNamespace {
   get(id: DurableObjectId): DurableObjectStub
 }
 
+export interface WorkerVersionMetadata {
+  readonly id: string
+}
+
 export interface WorkerEnv {
   /** Exact public HTTPS issuer. Required; no production URL is assumed. */
   ISSUER?: string
@@ -60,10 +64,28 @@ export interface WorkerEnv {
    * the production player canary exchange. It must never be a Worker var.
    */
   PLAYER_CANARY_OWNER_FID?: string
+  /** Independent fail-closed gate for the owner-only Public Test Realm. */
+  PTR_ENABLED?: string
+  /** Exact immutable SpacetimeDB identity for the isolated PTR database. */
+  PTR_SPACETIMEDB_DATABASE?: string
+  /** Exact dedicated PTR audience. It must never equal a gameplay or QA audience. */
+  PTR_OIDC_AUDIENCE?: string
   /** Non-secret Maincloud origin used only by the Worker auth-epoch lookup. */
   SPACETIMEDB_URI?: string
   /** Non-secret database name used only by the Worker auth-epoch lookup. */
   SPACETIMEDB_DATABASE?: string
+  /** Exact immutable SpacetimeDB identity for sealed Genesis 002 recovery observation. */
+  GENESIS_002_SPACETIMEDB_DATABASE?: string
+  /** Independent 32-byte bridge-to-signer recovery RPC credential. */
+  RELEASE_RECOVERY_RPC_SECRET?: string
+  /** Independent 32-byte key for privacy-preserving recovery census commitments. */
+  RELEASE_RECOVERY_CENSUS_PEPPER?: string
+  /** Protected-deployer injected source commit for the recovery observer deployment. */
+  RELEASE_RECOVERY_BRIDGE_SOURCE_COMMIT?: string
+  /** Positive reviewed epoch for the exact recovery observer configuration. */
+  RELEASE_RECOVERY_BRIDGE_CONFIG_EPOCH?: string
+  /** Cloudflare runtime Version Metadata; its id is the actual deployed Worker version. */
+  CF_VERSION_METADATA?: WorkerVersionMetadata
   /** Candidate dedicated QA origin; production-pinned and independently reviewed before activation. */
   QA_OBSERVER_SPACETIMEDB_URI?: string
   /** Candidate dedicated QA database; distinct from gameplay and reviewed as identity-free before use. */
@@ -118,6 +140,8 @@ export type SafeLogEvent =
   | 'quick_auth_verifier_unavailable'
   | 'player_canary_exchange_succeeded'
   | 'player_canary_exchange_rejected'
+  | 'ptr_exchange_succeeded'
+  | 'ptr_exchange_rejected'
   | 'exchange_binding_missing'
   | 'exchange_binding_invalid'
   | 'exchange_binding_mismatch'
@@ -131,6 +155,12 @@ export type SafeLogEvent =
   | 'session_revoke_failed'
   | 'admin_token_issued'
   | 'admin_token_rejected'
+  | 'genesis002_admin_token_issued'
+  | 'genesis002_admin_token_rejected'
+  | 'ptr_admin_token_issued'
+  | 'ptr_admin_token_rejected'
+  | 'ptr_atlas_admin_token_issued'
+  | 'ptr_atlas_admin_token_rejected'
   | 'admin_probe_rejected'
   | 'config_attestation_issued'
   | 'config_attestation_rejected'
@@ -435,6 +465,40 @@ export interface AdminTokenClaims {
   iat: number
   nbf: number
   exp: number
+  jti: string
+}
+
+export type Genesis002AdminTokenClaims = Omit<AdminTokenClaims, 'aud'> & Readonly<{
+  aud: ['warpkeep-genesis-002-spacetimedb']
+  hex_identity: string
+}>
+
+export type PtrAdminTokenClaims = AdminTokenClaims & Readonly<{
+  ptr_owner_fid: string
+  ptr_owner_auth_epoch: number
+}>
+
+export type PtrAtlasAdminTokenClaims = Omit<AdminTokenClaims, 'aud'> & Readonly<{
+  aud: ['warpkeep-ptr-spacetimedb']
+}>
+
+export interface PtrOwnerTokenClaims {
+  iss: string
+  sub: string
+  aud: [string]
+  token_type: 'spacetime-access'
+  auth_version: 2
+  realm_id: 'PTR'
+  fid: string
+  auth_epoch: number
+  ptr_database_identity: string
+  roles: ['warpkeep-ptr-owner']
+  iat: number
+  nbf: number
+  exp: number
+  /** Original PTR session window, preserved when SpacetimeDB re-signs a connection token. */
+  session_iat: number
+  session_exp: number
   jti: string
 }
 

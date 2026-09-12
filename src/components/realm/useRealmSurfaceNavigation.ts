@@ -66,6 +66,7 @@ export type RealmSurfaceNavigation = Readonly<{
   push: (route: RealmSurfaceRoute) => void;
   replace: (route: RealmSurfaceRoute) => void;
   back: () => void;
+  backTo: (route: RealmSurfaceRoute) => void;
   closeToRealm: () => void;
 }>;
 
@@ -258,6 +259,28 @@ export function useRealmSurfaceNavigation({
     setStack(nextStack);
   }, [beginHistoryTraversal, clearHistoryTraversalPending]);
 
+  const backTo = useCallback((route: RealmSurfaceRoute) => {
+    const previous = stackRef.current;
+    let index = previous.length - 1;
+    while (index >= 0 && !sameRealmSurfaceRoute(previous[index], route)) index--;
+    // Only traverse to an existing ancestor of this session. Never synthesize
+    // a route or replace an entry while leaving hidden panels behind it.
+    if (index < 0 || index === previous.length - 1) return;
+    if (historyEnabledRef.current) {
+      if (!beginHistoryTraversal()) return;
+      try {
+        window.history.go(index + 1 - previous.length);
+      } catch {
+        clearHistoryTraversalPending();
+      }
+      return;
+    }
+    const nextStack = Object.freeze(previous.slice(0, index + 1));
+    setMotion('backward');
+    stackRef.current = nextStack;
+    setStack(nextStack);
+  }, [beginHistoryTraversal, clearHistoryTraversalPending]);
+
   const closeToRealm = useCallback(() => {
     const depth = stackRef.current.length;
     if (depth === 0) return;
@@ -284,6 +307,7 @@ export function useRealmSurfaceNavigation({
     push,
     replace,
     back,
+    backTo,
     closeToRealm
   });
 }

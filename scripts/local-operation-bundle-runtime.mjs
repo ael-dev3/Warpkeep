@@ -1,0 +1,80 @@
+import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+
+import {
+  derivePreparedLinuxOperationBundlesCore,
+  derivePreparedLinuxOperationBundleFilesCore,
+  OperationBundleRuntimeError,
+  parseOperationBundleCliMetadata,
+} from './local-operation-bundle-runtime-core.mjs';
+
+const WSL_PATH = 'C:/Windows/System32/wsl.exe';
+const WSL_ARGUMENTS = Object.freeze([
+  '--distribution', 'WarpkeepRunner', '--user', 'warpkeep', '--',
+  '/usr/bin/env', '-i', 'LANG=C.UTF-8', 'LC_ALL=C.UTF-8',
+  '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
+  '/mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-operation-bundle-runtime.mjs',
+]);
+
+function fail(code, cause) {
+  throw new OperationBundleRuntimeError(code, cause === undefined ? undefined : { cause });
+}
+
+export async function derivePreparedLinuxOperationBundles(...arguments_) {
+  if (arguments_.length !== 0) fail('OPERATION_BUNDLE_RUNTIME_ARGUMENTS_INVALID');
+  if (process.platform !== 'linux') fail('OPERATION_BUNDLE_RUNTIME_HOST_INVALID');
+  return derivePreparedLinuxOperationBundlesCore();
+}
+
+export async function derivePreparedLinuxOperationBundleFiles(...arguments_) {
+  if (arguments_.length !== 0) fail('OPERATION_BUNDLE_RUNTIME_ARGUMENTS_INVALID');
+  if (process.platform !== 'linux') fail('OPERATION_BUNDLE_RUNTIME_HOST_INVALID');
+  return derivePreparedLinuxOperationBundleFilesCore();
+}
+
+function metadata(result) {
+  return Object.freeze({
+    profile: result.profile,
+    sourceCommit: result.sourceCommit,
+    sourceTree: result.sourceTree,
+    bundles: Object.freeze(result.bundles.map(bundle => Object.freeze({
+      lane: bundle.lane,
+      basename: bundle.basename,
+      bundleBytes: bundle.bytes.byteLength,
+      byteDigest: bundle.byteDigest,
+      sourceClosureDigest: bundle.sourceClosureDigest,
+      graphCount: bundle.graphManifest.length,
+      exportCount: bundle.exportNames.length,
+      load: bundle.load,
+    }))),
+  });
+}
+
+async function cli() {
+  if (process.platform === 'win32') {
+    const child = spawnSync(WSL_PATH, WSL_ARGUMENTS, {
+      env: {}, encoding: 'utf8', shell: false, windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024,
+      timeout: 45 * 60_000,
+    });
+    if (child.status !== 0 || child.signal !== null || child.error !== undefined || child.stderr !== '') {
+      fail('OPERATION_BUNDLE_RUNTIME_WSL_FAILED', child.error);
+    }
+    return parseOperationBundleCliMetadata(child.stdout);
+  }
+  return metadata(await derivePreparedLinuxOperationBundles());
+}
+
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  if (process.argv.length !== 2) {
+    process.stderr.write('OPERATION_BUNDLE_RUNTIME_ARGUMENTS_INVALID\n');
+    process.exitCode = 1;
+  } else {
+    cli().then(result => process.stdout.write(`${JSON.stringify(result)}\n`)).catch(error => {
+      process.stderr.write(`${error?.code ?? error?.message ?? 'OPERATION_BUNDLE_RUNTIME_FAILED'}\n`);
+      process.exitCode = 1;
+    });
+  }
+}
+
+export { OperationBundleRuntimeError };

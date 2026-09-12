@@ -1,0 +1,811 @@
+import { createHash } from 'node:crypto';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { spawn, spawnSync } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { derivePreparedPtrLinuxBindings } from '../scripts/local-binding-runtime.mjs';
+import {
+  assertReproducibleLocalBindingCycles,
+  parseLocalBindingWorkerResult,
+  parseGenesis001CurrentCommittedBindingListing,
+  localBindingRuntimeTestSeams,
+  runLocalBindingBoundedProcess,
+  validateLocalBindingRuntimeHost,
+  verifyLocalBindingBootstrapSource,
+  validateLocalBindingWorkerRequest,
+  validateLocalBindingYamlManifest,
+} from '../scripts/local-binding-runtime-core.mjs';
+import {
+  copyLocalBindingBoundedFile,
+  readLocalBindingBoundedFile,
+} from '../scripts/local-binding-bounded-file.mjs';
+import { preserveLocalBindingWorkerBundle } from '../scripts/local-binding-runtime-worker-result.mjs';
+import {
+  CurrentSnapshotHarnessError,
+  runBoundedNativeProcess,
+  runCurrentSnapshotSecurityFixture,
+  selectCurrentSnapshotSecurityEligibility,
+} from './fixtures/localBindingCurrentSnapshotHarness.mjs';
+
+const repositoryRoot = resolve(import.meta.dirname, '..');
+const manifest = JSON.parse(readFileSync(
+  join(repositoryRoot, 'scripts', 'local-binding-runtime-yaml-v1.json'), 'utf8',
+));
+const boundedFixture = join(repositoryRoot, 'tests', 'fixtures', 'localBindingBoundedFileFixture.mjs');
+const processFixture = join(repositoryRoot, 'tests', 'fixtures', 'localBindingProcessFixture.mjs');
+const sourceGraphFixture = join(repositoryRoot, 'tests', 'fixtures', 'localBindingSourceGraphFixture.mjs');
+const workerRequestFixture = join(repositoryRoot, 'tests', 'fixtures', 'localBindingWorkerRequestFixture.mjs');
+const currentSnapshotSecurityFixture = join(
+  repositoryRoot, 'tests', 'fixtures', 'localBindingCurrentSnapshotSecurityFixture.mjs',
+);
+const currentSnapshotSecurityEligibility = selectCurrentSnapshotSecurityEligibility();
+const nativeOwnerAuthorized = process.platform === 'win32' || process.getuid?.() === 1000;
+
+function canonicalWorkerRequest() {
+  const operation = `/home/warpkeep/.warpkeep/release-preparation-v1/runs/binding-${'9'.repeat(32)}`;
+  return {
+    schemaVersion: 1, profile: 'warpkeep-local-binding-worker-v1', nonce: 'a'.repeat(32),
+    sourceCommit: '1'.repeat(40), sourceTree: '2'.repeat(40),
+    repositoryRoot: `${operation}/source`,
+    dependencyCacheRoot: '/home/warpkeep/.warpkeep/release-preparation-v1/cache/ptr',
+    materializationRoot: `${operation}/cycle-1/builds`,
+    nodePath: '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
+    cliPath: join(operation, 'cli', 'spacetimedb-cli'),
+    handoffPath: `${operation}/cycle-1/handoff/bundle.js`,
+    graph: { root: `${operation}/source`, entry: 'scripts/ptr-binding-linux-locked-source-build.ts', modules: [
+      { path: 'scripts/ptr-binding-linux-locked-source-build.ts', format: 'typescript', imports: [], bytes: 1, sha256: '3'.repeat(64), identity: {
+        dev: '1', ino: '2', mode: '33152', uid: '1000', nlink: '1', size: '1', mtimeNs: '3', ctimeNs: '4',
+      } },
+    ] },
+    yaml: { root: '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/yaml-2.9.0/package', entry: 'dist/index.js', files: [
+      { path: 'dist/index.js', mode: 420, bytes: 1, sha256: '4'.repeat(64) },
+    ] },
+  };
+}
+
+function runWorkerRequestFd3(source: string): Promise<Readonly<{
+  code: number | null;
+  stdout: string;
+  stderr: string;
+  pipeError?: string;
+}>> {
+  return new Promise((resolvePromise, reject) => {
+    const child = spawn(process.execPath, [workerRequestFixture], {
+      stdio: ['ignore', 'pipe', 'pipe', 'pipe'],
+    });
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    const control = child.stdio[3] as import('node:stream').Writable;
+    let code: number | null;
+    let childClosed = false;
+    let controlClosed = false;
+    let pipeError: string | undefined;
+    const complete = () => {
+      if (childClosed && controlClosed) resolvePromise({
+        code, stdout: Buffer.concat(stdout).toString(), stderr: Buffer.concat(stderr).toString(),
+        ...(pipeError === undefined ? {} : { pipeError }),
+      });
+    };
+    child.stdout!.on('data', chunk => stdout.push(chunk));
+    child.stderr!.on('data', chunk => stderr.push(chunk));
+    child.on('error', reject);
+    child.on('close', status => {
+      code = status;
+      childClosed = true;
+      complete();
+    });
+    control.on('error', error => {
+      pipeError = typeof (error as NodeJS.ErrnoException).code === 'string'
+        ? (error as NodeJS.ErrnoException).code : 'UNKNOWN_PIPE_ERROR';
+    });
+    control.on('close', () => {
+      controlClosed = true;
+      complete();
+    });
+    control.end(source);
+  });
+}
+
+afterEach(() => {
+  vi.doUnmock('../scripts/local-binding-runtime-core.mjs');
+  vi.resetModules();
+});
+
+describe('fixed local PTR binding runtime', () => {
+  it('marks unsupported hosts and missing fixed WSL launcher as unavailable without probing', () => {
+    const unexpectedProbe = () => { throw new Error('UNEXPECTED_PROBE'); };
+    expect(selectCurrentSnapshotSecurityEligibility({
+      platform: 'linux', launcherExists: true, probe: unexpectedProbe,
+    })).toEqual({ eligible: false, reason: 'WINDOWS_WSL_REQUIRED' });
+    expect(selectCurrentSnapshotSecurityEligibility({
+      platform: 'win32', launcherExists: false, probe: unexpectedProbe,
+    })).toEqual({ eligible: false, reason: 'FIXED_WSL_LAUNCHER_MISSING' });
+  });
+
+  it('marks a timed out or failed prepared-runtime probe as explicitly unavailable', () => {
+    expect(selectCurrentSnapshotSecurityEligibility({
+      platform: 'win32', launcherExists: true,
+      probe() { throw new CurrentSnapshotHarnessError('CURRENT_SNAPSHOT_HARNESS_TIMEOUT'); },
+    })).toEqual({ eligible: false, reason: 'PREPARED_WSL_RUNTIME_PROBE_TIMEOUT' });
+    expect(selectCurrentSnapshotSecurityEligibility({
+      platform: 'win32', launcherExists: true,
+      probe() { throw new CurrentSnapshotHarnessError('CURRENT_SNAPSHOT_HARNESS_LAUNCH_FAILED'); },
+    })).toEqual({ eligible: false, reason: 'PREPARED_WSL_RUNTIME_UNAVAILABLE' });
+    expect(selectCurrentSnapshotSecurityEligibility({
+      platform: 'win32', launcherExists: true,
+      probe: () => ({ stdout: 'v22.21.0\n', stderr: '' }),
+    })).toEqual({ eligible: false, reason: 'PREPARED_WSL_NODE_VERSION_INVALID' });
+  });
+
+  it('selects only the exact prepared WSL Node prerequisite', () => {
+    expect(selectCurrentSnapshotSecurityEligibility({
+      platform: 'win32', launcherExists: true,
+      probe: () => ({ stdout: 'v22.22.3\n', stderr: '' }),
+    })).toEqual({ eligible: true });
+  });
+
+  it.each([
+    ['timeout', process.execPath, ['--eval', 'setInterval(() => {}, 1000)'], 100,
+      'CURRENT_SNAPSHOT_HARNESS_TIMEOUT'],
+    ['launch error', join(tmpdir(), 'missing-current-snapshot-launcher'), [], 1_000,
+      'CURRENT_SNAPSHOT_HARNESS_LAUNCH_FAILED'],
+    ['nonzero exit', process.execPath, ['--eval', 'process.exit(7)'], 1_000,
+      'CURRENT_SNAPSHOT_HARNESS_PROCESS_FAILED'],
+  ])('bounds native harness %s failures', (_label, executable, args, timeoutMs, code) => {
+    expect(() => runBoundedNativeProcess(executable, args, { timeoutMs }))
+      .toThrowError(expect.objectContaining({ code }));
+  });
+
+  it('exposes only the fixed no-argument candidate API and rejects authority arguments first', async () => {
+    const module = await import('../scripts/local-binding-runtime.mjs');
+    expect(Object.keys(module).sort()).toEqual([
+      'LocalBindingRuntimeError', 'derivePreparedAllRealmLinuxBindings',
+      'derivePreparedGenesis001CurrentLinuxBindingCheck',
+      'derivePreparedGenesis001LinuxCompatibility',
+      'derivePreparedGenesis001LinuxCompilation',
+      'derivePreparedGenesisProgramArtifacts',
+      'derivePreparedPairedLinuxBindings', 'derivePreparedPtrLinuxBindings',
+    ]);
+    await expect((module.derivePreparedGenesis001LinuxCompatibility as unknown as
+      (input: unknown) => Promise<unknown>)(undefined))
+      .rejects.toMatchObject({ code: 'LOCAL_BINDING_RUNTIME_ARGUMENTS_INVALID' });
+    await expect((derivePreparedPtrLinuxBindings as unknown as (input: unknown) => Promise<unknown>)({
+      root: '/tmp/other',
+    })).rejects.toMatchObject({ code: 'LOCAL_BINDING_RUNTIME_ARGUMENTS_INVALID' });
+    const direct = spawnSync(process.execPath, [
+      join(repositoryRoot, 'scripts', 'local-binding-runtime.mjs'), '--root=/tmp/other',
+    ], { encoding: 'utf8' });
+    expect(direct.status).toBe(1);
+    expect(direct.stdout).toBe('');
+    expect(direct.stderr).toBe('LOCAL_BINDING_RUNTIME_ARGUMENTS_INVALID\n');
+
+    // The suite can itself run under the supported native preparation owner.
+    // An identical private Node copy gives these calls an invalid executable
+    // path even when the ambient process is the genuine pinned runtime.
+    const wrongHostRoot = mkdtempSync(join(tmpdir(), 'warpkeep-wrong-host-node-'));
+    try {
+      chmodSync(wrongHostRoot, 0o700);
+      const wrongHostNode = join(wrongHostRoot, process.platform === 'win32' ? 'node.exe' : 'node');
+      copyFileSync(process.execPath, wrongHostNode);
+      chmodSync(wrongHostNode, 0o500);
+      expect(createHash('sha256').update(readFileSync(wrongHostNode)).digest('hex'))
+        .toBe(createHash('sha256').update(readFileSync(process.execPath)).digest('hex'));
+      for (const operation of ['--genesis001-current-check', '--all-realms']) {
+        const wrongHost = spawnSync(wrongHostNode, [
+          join(repositoryRoot, 'scripts', 'local-binding-runtime.mjs'), operation,
+        ], { encoding: 'utf8', timeout: 10_000 });
+        expect(wrongHost.error).toBeUndefined();
+        expect(wrongHost.status).toBe(1);
+        expect(wrongHost.stdout).toBe('');
+        expect(wrongHost.stderr).toBe('LOCAL_BINDING_RUNTIME_HOST_INVALID\n');
+      }
+    } finally {
+      rmSync(wrongHostRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('ignores ordinary ambient values but rejects actual preload authority', () => {
+    const host = {
+      platform: 'linux', arch: 'x64', uid: 1000,
+      execPath: '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
+      execArgv: ['--experimental-vm-modules'], nodeOptions: undefined,
+      ambient: { HOME: '/hostile/home', PATH: '/hostile/bin', TMPDIR: '/hostile/tmp', SPACETIME_BIN: '/hostile/cli' },
+    };
+    expect(() => validateLocalBindingRuntimeHost(host)).not.toThrow();
+    expect(() => validateLocalBindingRuntimeHost({ ...host, execArgv: [] })).not.toThrow();
+    expect(() => validateLocalBindingRuntimeHost({ ...host, nodeOptions: '--require=/hostile/preload.cjs' }))
+      .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_RUNTIME_HOST_INVALID' }));
+    expect(() => validateLocalBindingRuntimeHost({ ...host, execArgv: ['--experimental-vm-modules', '--import=/hostile.mjs'] }))
+      .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_RUNTIME_HOST_INVALID' }));
+  });
+
+  const invalidSourceGraphs: readonly [string, string, { outside?: boolean; ambiguous?: boolean }][] = [
+    ['graph escape', "import '../../outside.mjs';\n", { outside: true }],
+    ['ambiguous extension', "import './dependency';\n", { ambiguous: true }],
+    ['missing source', "import './missing';\n", {}],
+  ];
+
+  it.each(invalidSourceGraphs)('rejects source derivation %s before evaluation', (_label, entry, setup) => {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), 'warpkeep-source-graph-'));
+    const root = join(fixtureRoot, 'repository');
+    try {
+      mkdirSync(root);
+      mkdirSync(join(root, 'scripts'));
+      writeFileSync(join(root, 'scripts', 'ptr-binding-linux-locked-source-build.ts'), entry);
+      if (setup.outside) writeFileSync(join(dirname(root), 'outside.mjs'), 'export {};\n');
+      if (setup.ambiguous) {
+        writeFileSync(join(root, 'scripts', 'dependency.ts'), 'export {};\n');
+        writeFileSync(join(root, 'scripts', 'dependency.mjs'), 'export {};\n');
+      }
+      const result = spawnSync(process.execPath, [
+        '--experimental-vm-modules', sourceGraphFixture, root,
+      ], { encoding: 'utf8' });
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain('LOCAL_BINDING_RUNTIME_SOURCE_GRAPH_INVALID');
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('derives a real TypeScript enum and parameter-property source without evaluation', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-source-graph-'));
+    try {
+      mkdirSync(join(root, 'scripts'));
+      writeFileSync(join(root, 'scripts', 'ptr-binding-linux-locked-source-build.ts'),
+        'export enum Tone { Low = 3 }\nexport class Box { constructor(public value: Tone) {} }\n');
+      const result = spawnSync(process.execPath, [
+        '--experimental-vm-modules', sourceGraphFixture, root,
+      ], { encoding: 'utf8' });
+      expect(result.status, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual({
+        modules: ['scripts/ptr-binding-linux-locked-source-build.ts'],
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('does not mistake an inert import string in authenticated source for dynamic authority', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-source-graph-'));
+    try {
+      mkdirSync(join(root, 'scripts'));
+      writeFileSync(join(root, 'scripts', 'ptr-binding-linux-locked-source-build.ts'),
+        'export const childSource = "await import(process.argv[1]);";\n');
+      const result = spawnSync(process.execPath, [
+        '--experimental-vm-modules', sourceGraphFixture, root,
+      ], { encoding: 'utf8' });
+      expect(result.status, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual({
+        modules: ['scripts/ptr-binding-linux-locked-source-build.ts'],
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('independently validates canonical YAML authority framing and rejects mutations', () => {
+    expect(validateLocalBindingYamlManifest(`${JSON.stringify(manifest, null, 2)}\n`)).toEqual(manifest);
+    const changed = structuredClone(manifest);
+    changed.files[0].sha256 = '0'.repeat(64);
+    expect(() => validateLocalBindingYamlManifest(`${JSON.stringify(changed, null, 2)}\n`))
+      .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_RUNTIME_YAML_MANIFEST_INVALID' }));
+    expect(() => validateLocalBindingYamlManifest(JSON.stringify(manifest)))
+      .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_RUNTIME_YAML_MANIFEST_INVALID' }));
+  });
+
+  it('validates the fixed fd3 request schema and rejects injected coordinates', () => {
+    const request = canonicalWorkerRequest();
+    expect(validateLocalBindingWorkerRequest(request)).toEqual(request);
+    expect(() => validateLocalBindingWorkerRequest({
+      ...request,
+      cliPath: '/tmp/warpkeep-cli-attestation-abcdef/spacetimedb-cli',
+    })).toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_REQUEST_INVALID' }));
+    expect(() => validateLocalBindingWorkerRequest({
+      ...request,
+      cliPath: '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/spacetime-2.6.1/spacetimedb-cli',
+    })).toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_REQUEST_INVALID' }));
+    expect(() => validateLocalBindingWorkerRequest({ ...request, database: 'production' }))
+      .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_REQUEST_INVALID' }));
+  });
+
+  it('binds the current G001 request to its fixed graph and G002 cache only', () => {
+    const request = canonicalWorkerRequest();
+    const current = {
+      ...request,
+      profile: 'warpkeep-local-binding-genesis001-current-worker-v1',
+      dependencyCacheRoot: '/home/warpkeep/.warpkeep/release-preparation-v1/cache/genesis002',
+      graph: {
+        ...request.graph,
+        entry: 'scripts/genesis001-current-binding-linux-locked-source-build.ts',
+        modules: [{
+          ...request.graph.modules[0],
+          path: 'scripts/genesis001-current-binding-linux-locked-source-build.ts',
+        }],
+      },
+    };
+    expect(validateLocalBindingWorkerRequest(current)).toEqual(current);
+    for (const mutation of [
+      { profile: 'warpkeep-local-binding-genesis001-worker-v1' },
+      { dependencyCacheRoot: '/home/warpkeep/.warpkeep/release-preparation-v1/cache/ptr' },
+      { graph: { ...current.graph, entry: 'scripts/genesis001-binding-linux-locked-source-build.ts' } },
+    ]) {
+      expect(() => validateLocalBindingWorkerRequest({ ...current, ...mutation }))
+        .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_REQUEST_INVALID' }));
+    }
+  });
+
+  it('initializes the current G001 snapshot as a local-only independent clone of the captured commit', () => {
+    const commit = '1'.repeat(40);
+    const tree = '2'.repeat(40);
+    const repositoryRoot = '/private/existing-repository';
+    const root = `/home/warpkeep/.warpkeep/release-preparation-v1/runs/binding-${'8'.repeat(32)}/source`;
+    const commands: Array<{ cwd: string; args: readonly string[] }> = [];
+    const chmod = vi.fn();
+    const attest = vi.fn();
+    const result = localBindingRuntimeTestSeams.initializeGenesis001CurrentIndependentSnapshot({
+      repositoryRoot, root, commit, tree,
+    }, {
+      git(cwd, args) {
+        commands.push({ cwd, args: [...args] });
+        if (args[0] === 'rev-parse' && args.at(-1) === 'HEAD') return commit;
+        if (args[0] === 'rev-parse' && args.at(-1) === 'HEAD^{tree}') return tree;
+        return '';
+      },
+      chmod,
+      attest,
+    });
+    expect(result).toEqual({ root, commit, tree, kind: 'independent-clone' });
+    expect(commands).toEqual([
+      { cwd: repositoryRoot, args: [
+        'clone', '--local', '--no-hardlinks', '--no-checkout', '--no-tags', '--', repositoryRoot, root,
+      ] },
+      { cwd: root, args: [
+        'config', '--no-includes', '--local', '--unset-all', 'remote.origin.tagOpt',
+      ] },
+      { cwd: root, args: [
+        'config', '--no-includes', '--local', '--replace-all', 'remote.origin.url',
+        'https://github.com/ael-dev3/Warpkeep.git',
+      ] },
+      { cwd: root, args: ['checkout', '--detach', '--force', commit] },
+      { cwd: root, args: ['rev-parse', '--verify', 'HEAD'] },
+      { cwd: root, args: ['rev-parse', '--verify', 'HEAD^{tree}'] },
+    ]);
+    expect(chmod).toHaveBeenCalledWith(root, 0o700);
+    expect(attest).toHaveBeenCalledWith(root);
+  });
+
+  it('fails a current G001 independent snapshot on clone, identity, or context rejection', () => {
+    const commit = '1'.repeat(40);
+    const tree = '2'.repeat(40);
+    const input = {
+      repositoryRoot: '/private/existing-repository',
+      root: `/home/warpkeep/.warpkeep/release-preparation-v1/runs/binding-${'7'.repeat(32)}/source`,
+      commit,
+      tree,
+    };
+    const cloneFailure = Object.assign(new Error('LOCAL_BINDING_RUNTIME_GIT_FAILED'), {
+      code: 'LOCAL_BINDING_RUNTIME_GIT_FAILED',
+    });
+    expect(() => localBindingRuntimeTestSeams.initializeGenesis001CurrentIndependentSnapshot(input, {
+      git() { throw cloneFailure; }, chmod: vi.fn(), attest: vi.fn(),
+    })).toThrow(cloneFailure);
+
+    expect(() => localBindingRuntimeTestSeams.initializeGenesis001CurrentIndependentSnapshot(input, {
+      git(_cwd, args) {
+        if (args[0] === 'rev-parse' && args.at(-1) === 'HEAD') return '3'.repeat(40);
+        if (args[0] === 'rev-parse' && args.at(-1) === 'HEAD^{tree}') return tree;
+        return '';
+      },
+      chmod: vi.fn(), attest: vi.fn(),
+    })).toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_RUNTIME_SOURCE_CHANGED' }));
+
+    const contextFailure = Object.assign(new Error('LOCAL_BINDING_RUNTIME_GIT_CONTEXT_INVALID'), {
+      code: 'LOCAL_BINDING_RUNTIME_GIT_CONTEXT_INVALID',
+    });
+    expect(() => localBindingRuntimeTestSeams.initializeGenesis001CurrentIndependentSnapshot(input, {
+      git(_cwd, args) {
+        if (args[0] === 'rev-parse' && args.at(-1) === 'HEAD') return commit;
+        if (args[0] === 'rev-parse' && args.at(-1) === 'HEAD^{tree}') return tree;
+        return '';
+      },
+      chmod: vi.fn(), attest() { throw contextFailure; },
+    })).toThrow(contextFailure);
+  });
+
+  it.skipIf(!currentSnapshotSecurityEligibility.eligible)(
+    `closes ambient Git hook and template authority before the current snapshot clone${
+      currentSnapshotSecurityEligibility.eligible
+        ? '' : ` [unavailable: ${currentSnapshotSecurityEligibility.reason}]`
+    }`, () => {
+      const fixture = currentSnapshotSecurityFixture
+        .replaceAll('\\', '/')
+        .replace(/^([A-Za-z]):/u, (_match, drive: string) => `/mnt/${drive.toLowerCase()}`);
+      const result = runCurrentSnapshotSecurityFixture(fixture);
+      expect(JSON.parse(result.stdout)).toEqual({
+        systemHookRan: false,
+        globalHookRan: false,
+        templateHookRan: false,
+        systemTemplateHookPresent: false,
+        globalTemplateHookPresent: false,
+        contextCode: 'LOCAL_BINDING_RUNTIME_GIT_CONTEXT_INVALID',
+        forbiddenCheckoutPresent: false,
+      });
+    }, 35_000);
+
+  it('reads one canonical request from real fd3 and rejects malformed framing early', async () => {
+    const canonical = `${JSON.stringify(canonicalWorkerRequest())}\n`;
+    await expect(runWorkerRequestFd3(canonical)).resolves.toEqual({
+      code: 0, stdout: `${'a'.repeat(32)}\n`, stderr: '',
+    });
+    const malformedRequests: readonly [string, boolean][] = [
+      [canonical.trimEnd(), false],
+      [` ${canonical}`, false],
+      [`${JSON.stringify({ ...canonicalWorkerRequest(), extra: true })}\n`, false],
+      [`${'x'.repeat(1024 * 1024 + 1)}\n`, true],
+    ];
+    for (const [malformed, mayClosePipeEarly] of malformedRequests) {
+      const result = await runWorkerRequestFd3(malformed);
+      expect(result.code).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toContain('LOCAL_BINDING_WORKER_REQUEST_INVALID');
+      if (mayClosePipeEarly) {
+        expect([undefined, 'ECONNRESET', 'EPIPE', 'EOF']).toContain(result.pipeError);
+      } else expect(result.pipeError).toBeUndefined();
+    }
+  });
+
+  it('accepts one canonical bounded worker result bound to nonce and handoff', () => {
+    const handoff = '/home/warpkeep/.warpkeep/release-preparation-v1/runs/op/handoff/bundle.js';
+    const result = {
+      schemaVersion: 1, profile: 'warpkeep-local-binding-worker-result-v1', nonce: 'a'.repeat(32),
+      sourceCommit: '1'.repeat(40), sourceTree: '2'.repeat(40), moduleTreeId: '3'.repeat(40),
+      dependencyClosureDigest: '4'.repeat(64), bundleSha256: '5'.repeat(64), bundleBytes: 17,
+      handoffPath: handoff,
+    };
+    expect(parseLocalBindingWorkerResult(`${JSON.stringify(result)}\n`, 'a'.repeat(32), handoff)).toEqual(result);
+    expect(() => parseLocalBindingWorkerResult(`${JSON.stringify({ ...result, nonce: 'b'.repeat(32) })}\n`, 'a'.repeat(32), handoff))
+      .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_RESULT_INVALID' }));
+    expect(() => parseLocalBindingWorkerResult(`${JSON.stringify(result)}\nextra`, 'a'.repeat(32), handoff))
+      .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_RESULT_INVALID' }));
+  });
+
+  it('accepts only the distinct current G001 worker result profile', () => {
+    const handoff = '/home/warpkeep/.warpkeep/release-preparation-v1/runs/op/handoff/bundle.js';
+    const result = {
+      schemaVersion: 1, profile: 'warpkeep-local-binding-genesis001-current-worker-result-v1',
+      nonce: 'a'.repeat(32), sourceCommit: '1'.repeat(40), sourceTree: '2'.repeat(40),
+      moduleTreeId: '3'.repeat(40), dependencyClosureDigest: '4'.repeat(64),
+      bundleSha256: '5'.repeat(64), bundleBytes: 17, handoffPath: handoff,
+    };
+    expect(parseLocalBindingWorkerResult(
+      `${JSON.stringify(result)}\n`, 'a'.repeat(32), handoff,
+      'warpkeep-local-binding-genesis001-current-worker-v1',
+    )).toEqual(result);
+    expect(() => parseLocalBindingWorkerResult(
+      `${JSON.stringify({ ...result, profile: 'warpkeep-local-binding-genesis001-worker-result-v1' })}\n`,
+      'a'.repeat(32), handoff, 'warpkeep-local-binding-genesis001-current-worker-v1',
+    )).toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_WORKER_RESULT_INVALID' }));
+  });
+
+  it.each([
+    ['link', ['120000 blob ' + '1'.repeat(40) + ' 1\tsrc/spacetime/module_bindings/index.ts']],
+    ['noncanonical path', ['100644 blob ' + '1'.repeat(40) + ' 1\tsrc/spacetime/module_bindings/.hidden.ts']],
+    ['case-colliding directory', [
+      '100644 blob ' + '1'.repeat(40) + ' 1\tsrc/spacetime/module_bindings/Types/a.ts',
+      '100644 blob ' + '2'.repeat(40) + ' 1\tsrc/spacetime/module_bindings/types/b.ts',
+      '100644 blob ' + '3'.repeat(40) + ' 1\tsrc/spacetime/module_bindings/index.ts',
+    ]],
+    ['non-TypeScript member', ['100644 blob ' + '1'.repeat(40) + ' 1\tsrc/spacetime/module_bindings/index.js']],
+  ])('rejects committed current binding listing %s', (_label, records) => {
+    const listing = Buffer.from(`${records.join('\0')}\0`);
+    expect(() => parseGenesis001CurrentCommittedBindingListing(listing))
+      .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_RUNTIME_EXPECTED_BINDINGS_INVALID' }));
+  });
+
+  it('requires byte-identical bundles, binding paths and bytes across two full cycles', () => {
+    const cycle = {
+      sourceCommit: '1'.repeat(40), sourceTree: '2'.repeat(40),
+      dependencyClosureDigest: '3'.repeat(64), bundleSha256: '4'.repeat(64),
+      bundle: Uint8Array.of(1, 2), bindings: [{ path: 'index.ts', bytes: Uint8Array.of(3) }],
+    };
+    expect(assertReproducibleLocalBindingCycles(cycle, structuredClone(cycle))).toEqual(cycle);
+    const changed = structuredClone(cycle);
+    changed.bindings[0].bytes[0] = 9;
+    expect(() => assertReproducibleLocalBindingCycles(cycle, changed))
+      .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_RUNTIME_REPRODUCIBILITY_FAILED' }));
+  });
+
+  it('returns defensive candidates through the actual public entrypoint with its fixed core mocked', async () => {
+    const internal = Uint8Array.of(7, 8, 9);
+    vi.doMock('../scripts/local-binding-runtime-core.mjs', () => ({
+      deriveFixedLocalBindingRuntime: async () => ({
+        profile: 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1',
+        sourceCommit: '1'.repeat(40), sourceTree: '2'.repeat(40),
+        bundleSha256: '3'.repeat(64), dependencyClosureDigest: '4'.repeat(64),
+        bindings: [{ path: 'spacetimedb/ptr/generated-bindings/index.ts', bytes: internal }],
+      }),
+    }));
+    const entrypoint = await import('../scripts/local-binding-runtime.mjs');
+    const result = await entrypoint.derivePreparedPtrLinuxBindings();
+    internal[0] = 99;
+    expect(result).toEqual({
+      profile: 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1',
+      sourceCommit: '1'.repeat(40), sourceTree: '2'.repeat(40),
+      bundleSha256: '3'.repeat(64), dependencyClosureDigest: '4'.repeat(64),
+      bindings: [{ path: 'spacetimedb/ptr/generated-bindings/index.ts', bytes: Uint8Array.of(7, 8, 9) }],
+    });
+  });
+
+  it('bounds a descriptor read to checked size plus one byte when the file grows', async () => {
+    const result = spawnSync(process.execPath, [
+      '--experimental-test-module-mocks', boundedFixture, 'growth',
+    ], { encoding: 'utf8' });
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({ code: 'LOCAL_BINDING_BOUNDED_FILE_CHANGED' });
+  });
+
+  it('preserves the primary bounded-read failure together with close failure', async () => {
+    const result = spawnSync(process.execPath, [
+      '--experimental-test-module-mocks', boundedFixture, 'combined',
+    ], { encoding: 'utf8' });
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      primary: 'primary read failure', close: 'close failure',
+    });
+  });
+
+  it('rejects a group/world-writable executable before use', () => {
+    const result = spawnSync(process.execPath, [
+      '--experimental-test-module-mocks', boundedFixture, 'writable-executable',
+    ], { encoding: 'utf8' });
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({ code: 'LOCAL_BINDING_BOUNDED_FILE_INVALID' });
+  });
+
+  it('rejects a bounded executable digest mismatch before use', () => {
+    const result = spawnSync(process.execPath, [
+      '--experimental-test-module-mocks', boundedFixture, 'digest',
+    ], { encoding: 'utf8' });
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({ code: 'LOCAL_BINDING_BOUNDED_FILE_CHANGED' });
+  });
+
+  it('copies an exact source through bounded descriptors into an exclusive destination', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-bounded-copy-'));
+    try {
+      const source = join(root, 'source');
+      const destination = join(root, 'destination');
+      const body = Buffer.from('operation-owned-cli-snapshot');
+      writeFileSync(source, body);
+      const result = copyLocalBindingBoundedFile(source, destination, {
+        maximumBytes: 1024,
+        expectedBytes: body.length,
+        expectedSha256: createHash('sha256').update(body).digest('hex'),
+        destinationMode: 0o600,
+      });
+      expect(result.bytes).toBe(body.length);
+      expect(readFileSync(destination)).toEqual(body);
+      expect(() => copyLocalBindingBoundedFile(source, destination, {
+        maximumBytes: 1024,
+        expectedBytes: body.length,
+        expectedSha256: createHash('sha256').update(body).digest('hex'),
+        destinationMode: 0o600,
+      })).toThrow();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it(nativeOwnerAuthorized
+    ? 'returns the checked handoff identity used to bind later consumers'
+    : 'rejects an unauthorized native owner without publishing a handoff', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-checked-handoff-'));
+    try {
+      const source = join(root, 'source.js');
+      const handoffRoot = join(root, 'handoff');
+      const handoffPath = join(handoffRoot, 'bundle.js');
+      mkdirSync(handoffRoot);
+      writeFileSync(source, 'checked-bundle');
+      if (!nativeOwnerAuthorized) {
+        expect(() => preserveLocalBindingWorkerBundle({ bundlePath: source, handoffRoot, handoffPath }))
+          .toThrowError(expect.objectContaining({ message: 'LOCAL_BINDING_WORKER_HANDOFF_INVALID' }));
+        expect(existsSync(handoffPath)).toBe(false);
+        expect(readFileSync(source, 'utf8')).toBe('checked-bundle');
+        return;
+      }
+      const result = preserveLocalBindingWorkerBundle({
+        bundlePath: source, handoffRoot, handoffPath,
+      }) as unknown as Readonly<{
+        path: string; sha256: string; byteLength: number;
+        bytes: Uint8Array; identity: Readonly<Record<string, string>>;
+      }>;
+      expect(result.path).toBe(handoffPath);
+      expect(result.byteLength).toBe(Buffer.byteLength('checked-bundle'));
+      expect(Buffer.from(result.bytes).toString()).toBe('checked-bundle');
+      expect(result.identity).toEqual(expect.objectContaining({ nlink: '1', size: String(result.byteLength) }));
+      expect(() => readLocalBindingBoundedFile(handoffPath, {
+        maximumBytes: 1024, expectedBytes: result.byteLength,
+        expectedSha256: result.sha256, expectedIdentity: result.identity as never,
+      })).not.toThrow();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    ['output', 5, 1_000, 'LOCAL_BINDING_RUNTIME_PROCESS_OUTPUT_LIMIT'],
+    ['nonzero', 1024, 1_000, 'LOCAL_BINDING_RUNTIME_PROCESS_FAILED'],
+    ['signal', 1024, 1_000, 'LOCAL_BINDING_RUNTIME_PROCESS_FAILED'],
+    ['timeout', 1024, 50, 'LOCAL_BINDING_RUNTIME_PROCESS_TIMEOUT'],
+  ])('fails closed for bounded child %s behavior', async (scenario, maxOutput, timeout, code) => {
+    await expect(runLocalBindingBoundedProcess(process.execPath, [processFixture, scenario], {
+      cwd: repositoryRoot, env: { PATH: process.env.PATH }, maxOutput, timeout,
+    })).rejects.toMatchObject({ code });
+  });
+
+  it('accepts only a clean zero-exit bounded child result', async () => {
+    await expect(runLocalBindingBoundedProcess(process.execPath, [processFixture, 'success'], {
+      cwd: repositoryRoot, env: { PATH: process.env.PATH }, maxOutput: 1024, timeout: 1_000,
+    })).resolves.toEqual({ stdout: 'ok', stderr: '' });
+  });
+
+  it.each([false, true])(
+    'independently bounds failed termination when a child never closes (group=%s)', async containProcessGroup => {
+      vi.useFakeTimers();
+      const originalKill = process.kill;
+      const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+      const stdout = new PassThrough();
+      const stderr = new PassThrough();
+      const child = Object.assign(new EventEmitter(), {
+        pid: 4242, stdout, stderr, stdio: [null, stdout, stderr],
+        kill() {
+          throw Object.assign(new Error('CONTROLLED_KILL_DENIED'), { code: 'EPERM' });
+        },
+      });
+      Object.defineProperty(process, 'platform', { ...originalPlatform, value: 'linux' });
+      process.kill = ((pid: number, signal?: NodeJS.Signals | number) => {
+        if (signal === undefined || signal === 0) return true;
+        throw Object.assign(new Error(`CONTROLLED_KILL_DENIED:${pid}`), { code: 'EPERM' });
+      }) as typeof process.kill;
+      vi.resetModules();
+      vi.doMock('node:child_process', () => ({
+        default: { spawn: () => child },
+        spawn: () => child,
+      }));
+      try {
+        const modulePath = '../scripts/local-binding-runtime-process.mjs';
+        const processModule = await import(modulePath);
+        const pending = processModule.runLocalBindingBoundedProcess('/controlled/child', [], {
+          cwd: repositoryRoot, env: {}, maxOutput: 1024, timeout: 10, containProcessGroup,
+        });
+        const outcome = Promise.race([
+          pending.catch((error: unknown) => error),
+          new Promise(resolvePromise => setTimeout(() => resolvePromise('UNSETTLED'), 6_000)),
+        ]);
+        await vi.advanceTimersByTimeAsync(6_001);
+        expect(await outcome).toMatchObject({
+          code: 'LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED',
+          cause: expect.objectContaining({ code: 'LOCAL_BINDING_RUNTIME_PROCESS_TIMEOUT' }),
+        });
+      } finally {
+        vi.doUnmock('node:child_process');
+        vi.resetModules();
+        vi.useRealTimers();
+        process.kill = originalKill;
+        Object.defineProperty(process, 'platform', originalPlatform);
+        stdout.destroy();
+        stderr.destroy();
+      }
+    },
+  );
+
+  it.skipIf(process.platform !== 'linux').each([
+    ['timeout-descendant', 150, 'LOCAL_BINDING_RUNTIME_PROCESS_TIMEOUT'],
+    ['failure-descendant', 1_000, 'LOCAL_BINDING_RUNTIME_PROCESS_FAILED'],
+    ['success-descendant', 1_000, 'LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED'],
+  ] as const)(
+    'settles process-group scenario %s only after its live descendant is gone', async (scenario, timeout, code) => {
+      const root = mkdtempSync(join(tmpdir(), 'warpkeep-process-group-timeout-'));
+      const pidPath = join(root, 'pids.json');
+      const evidencePath = join(root, 'proof', 'retained-evidence');
+      let pids: { parent: number; descendant: number } | undefined;
+      const exists = (pid: number) => {
+        try { process.kill(pid, 0); return true; } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false;
+          throw error;
+        }
+      };
+      try {
+        const pending = runLocalBindingBoundedProcess(
+          process.execPath, [processFixture, scenario, pidPath, evidencePath], {
+            cwd: root, env: { PATH: process.env.PATH }, maxOutput: 1024, timeout,
+            containProcessGroup: true,
+          },
+        );
+        // Observe rejection before waiting for the child to publish its PIDs.
+        // The outcome promise always resolves, so even an early process failure
+        // cannot escape as an unhandled rejection while the fixture is polled.
+        const outcome = pending.then(
+          result => ({ status: 'fulfilled' as const, result }),
+          error => ({ status: 'rejected' as const, error }),
+        );
+        const deadline = Date.now() + 3_000;
+        while (!existsSync(pidPath) && Date.now() < deadline) {
+          await new Promise(resolvePromise => setTimeout(resolvePromise, 10));
+        }
+        pids = JSON.parse(readFileSync(pidPath, 'utf8'));
+        expect(await outcome).toMatchObject({ status: 'rejected', error: { code } });
+        expect(exists(pids!.parent)).toBe(false);
+        expect(exists(pids!.descendant)).toBe(false);
+        if (scenario === 'success-descendant') expect(existsSync(evidencePath)).toBe(true);
+      } finally {
+        for (const pid of [pids?.descendant, pids?.parent]) {
+          if (pid !== undefined && exists(pid)) process.kill(pid, 'SIGKILL');
+        }
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it('rejects a child that exits successfully before accepting its complete fd3 request', async () => {
+    await expect(runLocalBindingBoundedProcess(process.execPath, [processFixture, 'fd3-early-exit'], {
+      cwd: repositoryRoot, env: { PATH: process.env.PATH }, fd3: 'x'.repeat(4 * 1024 * 1024),
+      maxOutput: 1024, timeout: 1_000,
+    })).rejects.toMatchObject({ code: 'LOCAL_BINDING_RUNTIME_PROCESS_FAILED' });
+  });
+
+  it('accepts a child only after the complete fd3 request is written and read', async () => {
+    await expect(runLocalBindingBoundedProcess(process.execPath, [processFixture, 'fd3-success'], {
+      cwd: repositoryRoot, env: { PATH: process.env.PATH }, fd3: 'canonical-request\n',
+      maxOutput: 1024, timeout: 1_000,
+    })).resolves.toEqual({ stdout: 'canonical-request\n', stderr: '' });
+  });
+
+  it.skipIf(process.platform !== 'linux')(
+    nativeOwnerAuthorized
+      ? 'rejects a captured bootstrap module replacement before worker evaluation'
+      : 'rejects an unauthorized native owner before accepting bootstrap evidence',
+    () => {
+      const root = mkdtempSync(join(tmpdir(), 'warpkeep-bootstrap-identity-'));
+      try {
+        chmodSync(root, 0o700);
+        const path = join(root, 'worker.mjs');
+        const replacement = join(root, 'replacement.mjs');
+        const body = Buffer.from('export const value = 1;\n');
+        writeFileSync(path, body, { mode: 0o600 });
+        if (!nativeOwnerAuthorized) {
+          const observed = readLocalBindingBoundedFile(path, {
+            maximumBytes: 1024, expectedBytes: body.length,
+          });
+          observed.body.fill(0);
+          expect(() => verifyLocalBindingBootstrapSource({ root, bootstrap: [{
+            path: 'worker.mjs', bytes: body.length,
+            sha256: createHash('sha256').update(body).digest('hex'), identity: observed.identity,
+          }] })).toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_BOUNDED_FILE_CHANGED' }));
+          expect(readFileSync(path)).toEqual(body);
+          return;
+        }
+        const captured = readLocalBindingBoundedFile(path, {
+          maximumBytes: 1024, expectedBytes: body.length,
+          expectedSha256: createHash('sha256').update(body).digest('hex'), expectedUid: 1000,
+        });
+        captured.body.fill(0);
+        const source = { root, bootstrap: [{
+          path: 'worker.mjs', bytes: body.length,
+          sha256: createHash('sha256').update(body).digest('hex'), identity: captured.identity,
+        }] };
+        expect(() => verifyLocalBindingBootstrapSource(source)).not.toThrow();
+        writeFileSync(replacement, 'export const value = 2;\n', { mode: 0o600 });
+        renameSync(replacement, path);
+        expect(() => verifyLocalBindingBootstrapSource(source))
+          .toThrowError(expect.objectContaining({ code: 'LOCAL_BINDING_BOUNDED_FILE_CHANGED' }));
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+});

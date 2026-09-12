@@ -1,0 +1,80 @@
+Task 1 Fix round 1 — fresh credential-free build/generation output
+Date: 2026-09-06
+Provenance: commands executed by /root/gameplay04_persistent_construction in Warpkeep-0.4.0-worktree after the review test additions, based on HEAD 999a60c. This is fresh post-fix evidence; it does not reconstruct the earlier unretained console output.
+
+COMMAND
+& 'C:/Users/heyas/AppData/Local/Programs/SpacetimeDB/2.6.1/spacetime.exe' build --module-path spacetimedb/ptr
+OUTPUT
+Build finished successfully.
+EXIT 0
+
+COMMAND
+& 'C:/Users/heyas/AppData/Local/Programs/SpacetimeDB/2.6.1/spacetime.exe' build --module-path spacetimedb/genesis002
+OUTPUT
+Build finished successfully.
+EXIT 0
+
+COMMAND
+& 'C:/Users/heyas/AppData/Local/Programs/SpacetimeDB/2.6.1/spacetime.exe' generate --lang typescript --out-dir .git/gameplay04-construction-fix1-abi/ptr --module-path spacetimedb/ptr
+OUTPUT
+Generating TypeScript module bindings for module spacetimedb\ptr
+Build finished successfully.
+Skipping private tables during codegen: access_request_v1, admin_audit, allowed_fid, alpha_terms_acceptance_v1, castle, gameplay04_building_v1, gameplay04_keep_v1, gameplay04_project_v1, gameplay04_receipt_v1, gameplay04_reservation_v1, gameplay04_schedule_v1, gameplay04_worker_v1, greater_realm_activation_v1, greater_realm_castle_claim_v1, greater_realm_castle_slot_v1, greater_realm_cell_occupancy_v1, greater_realm_cell_v1, greater_realm_chunk_v1, greater_realm_navigation_component_v1, greater_realm_release_v1, greater_realm_resource_node_v1, mark_account_v1, player, player_ownership_v2, player_v2, ptr_owner_anchor_v1, realm_atlas_v1, realm_atlas_visible_region_v1, realm_profile_v1, realm_worker_system_v2, resource_account_v1.
+Writing file .git\gameplay04-construction-fix1-abi\ptr\admin_begin_greater_realm_verification_v_1_reducer.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\admin_finalize_greater_realm_release_v_1_reducer.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\admin_import_greater_realm_chunk_v_1_reducer.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\admin_import_greater_realm_components_v_1_reducer.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\admin_import_greater_realm_regions_v_1_reducer.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\admin_provision_ptr_owner_v_1_reducer.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\admin_stage_greater_realm_release_v_1_reducer.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\admin_suspend_ptr_owner_v_1_reducer.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\admin_verify_greater_realm_batch_v_1_reducer.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\admin_get_greater_realm_status_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\dispatch_gameplay_04_worker_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\get_gameplay_04_keep_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\get_ptr_owner_status_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\get_realm_atlas_bootstrap_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\get_realm_atlas_chunk_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\get_realm_atlas_resource_locations_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\get_realm_atlas_window_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\initialize_gameplay_04_keep_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\plan_realm_route_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\recall_gameplay_04_worker_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\start_gameplay_04_building_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\index.ts
+Creating directory .git\gameplay04-construction-fix1-abi\ptr\types
+Writing file .git\gameplay04-construction-fix1-abi\ptr\types/reducers.ts
+Creating directory .git\gameplay04-construction-fix1-abi\ptr\types
+Writing file .git\gameplay04-construction-fix1-abi\ptr\types/procedures.ts
+Writing file .git\gameplay04-construction-fix1-abi\ptr\types.ts
+Generate finished successfully.
+EXIT 0
+
+COMMAND
+& 'C:/Users/heyas/AppData/Local/Programs/SpacetimeDB/2.6.1/spacetime.exe' generate --lang typescript --out-dir .git/gameplay04-construction-fix1-abi/genesis002 --module-path spacetimedb/genesis002
+OUTPUT
+Generating TypeScript module bindings for module spacetimedb\genesis002
+Build finished successfully.
+Skipping private tables during codegen: access_request_v1, admin_audit, allowed_fid, alpha_terms_acceptance_v1, castle, gameplay04_building_v1, gameplay04_keep_v1, gameplay04_project_v1, gameplay04_receipt_v1, gameplay04_reservation_v1, gameplay04_schedule_v1, gameplay04_worker_v1, greater_realm_activation_v1, greater_realm_castle_claim_v1, greater_realm_castle_slot_v1, greater_realm_cell_occupancy_v1, greater_realm_cell_v1, greater_realm_chunk_v1, greater_realm_navigation_component_v1, greater_realm_release_v1, greater_realm_resource_node_v1, mark_account_v1, player, player_ownership_v2, player_v2, realm_atlas_v1, realm_atlas_visible_region_v1, realm_profile_v1, realm_worker_system_v2, resource_account_v1.
+Writing file .git\gameplay04-construction-fix1-abi\genesis002\admin_begin_greater_realm_verification_v_1_reducer.ts
+Writing file .git\gameplay04-construction-fix1-abi\genesis002\admin_finalize_greater_realm_release_v_1_reducer.ts
+Writing file .git\gameplay04-construction-fix1-abi\genesis002\admin_import_greater_realm_chunk_v_1_reducer.ts
+Writing file .git\gameplay04-construction-fix1-abi\genesis002\admin_import_greater_realm_components_v_1_reducer.ts
+Writing file .git\gameplay04-construction-fix1-abi\genesis002\admin_import_greater_realm_regions_v_1_reducer.ts
+Writing file .git\gameplay04-construction-fix1-abi\genesis002\admin_stage_greater_realm_release_v_1_reducer.ts
+Writing file .git\gameplay04-construction-fix1-abi\genesis002\admin_verify_greater_realm_batch_v_1_reducer.ts
+Writing file .git\gameplay04-construction-fix1-abi\genesis002\admin_get_greater_realm_import_plan_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\genesis002\admin_get_greater_realm_status_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\genesis002\dispatch_gameplay_04_worker_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\genesis002\get_gameplay_04_keep_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\genesis002\initialize_gameplay_04_keep_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\genesis002\recall_gameplay_04_worker_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\genesis002\start_gameplay_04_building_v_1_procedure.ts
+Writing file .git\gameplay04-construction-fix1-abi\genesis002\index.ts
+Creating directory .git\gameplay04-construction-fix1-abi\genesis002\types
+Writing file .git\gameplay04-construction-fix1-abi\genesis002\types/reducers.ts
+Creating directory .git\gameplay04-construction-fix1-abi\genesis002\types
+Writing file .git\gameplay04-construction-fix1-abi\genesis002\types/procedures.ts
+Writing file .git\gameplay04-construction-fix1-abi\genesis002\types.ts
+Generate finished successfully.
+EXIT 0

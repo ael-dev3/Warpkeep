@@ -28,6 +28,24 @@ const B0_CLOSURE_PATHS = [
   'scripts/verify-auth-bridge-notification-b0-policy.d.mts',
   'scripts/verify-auth-bridge-notification-b0-policy.mjs',
 ] as const;
+const G001_LINUX_POLICY_CLOSURE_PATHS = [
+  'scripts/genesis001-linux-policy-native.mjs',
+  'scripts/genesis001-linux-policy-materializer.mjs',
+  'scripts/genesis001-linux-policy-child.mjs',
+  'scripts/genesis001-linux-policy-boundary.mjs',
+  'scripts/genesis001-linux-policy-receipt.mjs',
+  'scripts/genesis001-linux-policy-receipt.d.mts',
+  'scripts/genesis002-binding-linux-locked-source-build.ts',
+  'scripts/local-binding-native-ts-hooks.mjs',
+  'scripts/local-binding-runtime-cli-snapshot.mjs',
+  'scripts/local-binding-runtime-core.mjs',
+  'scripts/local-binding-runtime-process.mjs',
+  'scripts/local-binding-runtime-yaml-v1.json',
+  'scripts/local-program-artifact.mjs',
+  'scripts/sealed-realms-production-workflow-evidence.mjs',
+  'scripts/sealed-realms-production-workflow-evidence-json.mjs',
+  'scripts/spacetime-binding-tree.mjs',
+] as const;
 
 describe('notification bridge B0 security closure topology', () => {
   it('keeps the derived and builtins-only closure namespaces equal', () => {
@@ -37,11 +55,19 @@ describe('notification bridge B0 security closure topology', () => {
     expect(derived).toEqual(
       AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS,
     );
-    expect(derived).toHaveLength(956);
+    expect(derived).toHaveLength(1202);
   }, 120_000);
 
   it('includes every B0 effect, recovery, workflow, policy, and ABI path', () => {
     for (const path of B0_CLOSURE_PATHS) {
+      expect(
+        AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS,
+      ).toContain(path);
+    }
+  });
+
+  it('keeps the complete Linux G001 spawned-program family in the protected closure', () => {
+    for (const path of G001_LINUX_POLICY_CLOSURE_PATHS) {
       expect(
         AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS,
       ).toContain(path);

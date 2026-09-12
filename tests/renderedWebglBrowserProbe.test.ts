@@ -28,6 +28,7 @@ import {
   attestHeadlessChromeCodeSignature,
   closeRenderedWebglLoopbackServer,
   cleanupRenderedWebglProbeResources,
+  removeDisposableProbeProfile,
   controlledRendererRecoveryWarningKind,
   DevtoolsPipeSession,
   formatRenderedWebglLocalDiagnostic,
@@ -405,6 +406,21 @@ describe('rendered WebGL headless browser probe contract', () => {
     ]);
   });
 
+  it('retries transient Windows profile locks, but preserves permanent removal failures', async () => {
+    let attempts = 0;
+    const wait = vi.fn(async () => {});
+    const busy = Object.assign(new Error('profile is still closing'), { code: 'EBUSY' });
+    await removeDisposableProbeProfile(() => {
+      attempts += 1;
+      if (attempts < 3) throw busy;
+    }, wait);
+    expect(attempts).toBe(3);
+    expect(wait).toHaveBeenCalledTimes(2);
+
+    const denied = Object.assign(new Error('profile cannot be removed'), { code: 'EPERM' });
+    await expect(removeDisposableProbeProfile(() => { throw denied; }, wait)).rejects.toBe(denied);
+  });
+
   it('closes every tracked loopback socket before awaiting Vite shutdown', async () => {
     const calls: string[] = [];
     const normalSocket = { destroy: () => { calls.push('normal-socket'); } };
@@ -532,7 +548,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain(
       'options.disposeCastleLodVisualEvidenceSource(options.castleLodVisualSource)'
     );
-    expect(source).toContain('await attempt(() => options.removeProfile?.());');
+    expect(source).toContain('removeDisposableProbeProfile(');
     expect(source).toContain('onCastleLodVisualBoundary?.(castleLodVisualBoundary)');
     expect(source).toContain("'desktop-high',");
     expect(source).toContain("'full-hd-balanced',");
@@ -918,6 +934,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       markerPresent: true,
       markerProjectedVisible: true,
       markerHitTestable: true,
+      overviewLane: 'control',
       overviewPresenceDirectHit: true,
       overviewRecordCorrect: true,
       overviewTargetControlOnly: true,
@@ -1023,11 +1040,10 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(expression).toContain(
       'currentToken !== previousToken'
     );
-    expect(expression).toContain('const candidate = controlCandidate;');
+    expect(expression).toContain('const candidate = controlCandidate ?? passiveCandidate;');
     expect(expression).toContain(
       "getComputedStyle(passivePresence).pointerEvents === 'none'"
     );
-    expect(expression).not.toContain('controlCandidate ?? passiveCandidate');
     expect(expression).toContain("resource: 'gold'");
     expect(expression).toContain("resource: 'food'");
     expect(expression).toContain("resource: 'wood'");
@@ -1863,7 +1879,8 @@ describe('rendered WebGL headless browser probe contract', () => {
     );
   });
 
-  it('accepts only bounded stale Three.js deletion warnings during controlled recovery', () => {
+  // This fixture deliberately asserts canonical macOS/POSIX profile normalization.
+  it.skipIf(process.platform === 'win32')('accepts only bounded stale Three.js deletion warnings during controlled recovery', () => {
     const origin = 'http://127.0.0.1:41733';
     const profile = '/private/tmp/warpkeep-webgl-qa-exact';
     const sourceUrl = `${origin}/@fs${profile}/vite-cache/deps/`
@@ -2310,7 +2327,8 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(() => renderedWebglBrowserProbeCases(0)).toThrow(/port/i);
   });
 
-  it('spawns only new headless Chrome with a disposable isolated profile', () => {
+  // This fixture deliberately asserts the macOS/POSIX crash-dump path shape.
+  it.skipIf(process.platform === 'win32')('spawns only new headless Chrome with a disposable isolated profile', () => {
     const profile = '/private/tmp/warpkeep-webgl-test';
     const contract = headlessChromeProbeContract(profile);
     expect(contract.executable).toBe(RENDERED_WEBGL_QA_CHROME);

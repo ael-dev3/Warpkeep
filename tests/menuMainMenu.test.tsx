@@ -95,6 +95,7 @@ describe('WarpkeepMainMenu', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     expect(onRequestEnterRealm).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
 
     const terms = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
     const continueButton = within(terms).getByRole('button', {
@@ -115,28 +116,34 @@ describe('WarpkeepMainMenu', () => {
   it('refreshes anchored notices and lets patch notes replace them without stealing focus', () => {
     render(<WarpkeepMainMenu active onRequestReturn={vi.fn()} />);
     const enterRealm = screen.getByRole('button', { name: 'ENTER REALM' });
-    const patchNotes = getPatchNotesTrigger();
 
     enterRealm.focus();
     fireEvent.click(enterRealm);
+    const enterSelected = screen.getByRole('button', { name: 'ENTER SELECTED REALM' });
+    fireEvent.click(enterSelected);
     const firstNotice = screen.getByRole('status', { name: '' });
     expect(firstNotice.textContent).toContain('living frontier');
-    expect(document.activeElement).toBe(enterRealm);
-    expect(enterRealm.getAttribute('aria-describedby')).toBe('warpkeep-menu-notice-enter-realm');
+    expect(document.activeElement).toBe(screen.getByRole('heading', {
+      name: 'CHOOSE YOUR REALM'
+    }));
+    expect(enterSelected.getAttribute('aria-describedby')).toBeNull();
 
-    fireEvent.click(enterRealm);
+    fireEvent.click(enterSelected);
     const refreshedNotice = screen.getByRole('status', { name: '' });
     expect(refreshedNotice).not.toBe(firstNotice);
     expect(refreshedNotice.textContent).toContain('living frontier');
 
-    act(() => patchNotes.focus());
+    fireEvent.click(screen.getByRole('button', { name: 'BACK' }));
+
+    const restoredPatchNotes = getPatchNotesTrigger();
+    act(() => restoredPatchNotes.focus());
     expect(screen.getByRole('status').textContent).toContain('living frontier');
     expect(screen.queryByRole('region', { name: 'THE REALM STANDS READY' })).toBeNull();
 
-    fireEvent.click(patchNotes, { detail: 0 });
+    fireEvent.click(restoredPatchNotes, { detail: 0 });
     expect(screen.queryByRole('status')).toBeNull();
     expect(screen.getByRole('region', { name: 'THE REALM STANDS READY' })).not.toBeNull();
-    expect(document.activeElement).toBe(patchNotes);
+    expect(document.activeElement).toBe(restoredPatchNotes);
   });
 
   it('opens the dramatic credits roll and uses Escape/back to return without leaving the menu notice open', () => {

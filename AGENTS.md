@@ -2,99 +2,149 @@
 
 Build a persistent strategy game around a real person, a permanent keep and a
 world worth returning to. Connect **gather → choose → build → benefit → return**
-into a satisfying experience, then improve it through observed play.
+into a satisfying experience, then ship and improve it through observed play.
 
-This is durable repository guidance. The current user's instructions take
-precedence. Handoffs, old plans and acceptance records provide context and
-evidence; they do not silently restrict a newer task or create additional
-permission requirements.
+This file is durable repository guidance. The current user's instructions take
+precedence. Handoffs, old plans and acceptance records provide context and evidence;
+they do not create new permissions or silently restrict a newer product direction.
 
 ## Orient before changing things
 
-1. Read [README.md](README.md) and the [ecosystem map](docs/engineering/ecosystem-map.md).
-2. Inspect the actual checkout, branch, remote, scoped diff and relevant CI.
-   `main` contains the G001 baseline and release preparation. Active 0.4 work is on
-   `codex/prepared-keep-bindings-fix`; its gameplay core, owner PTR and `keep04`
-   presentation are absent from this default-branch baseline.
-3. For 0.4 work, read the instructions in that checkout, its
-   [handoff](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/README.md)
-   and [source map](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/repo-map.md).
-   Work in the intended branch; do not recreate an implementation because it is
-   missing from `main`.
-4. Read the real caller, state owner and tests before editing. Distinguish
-   implemented, verified, deployed and unknown behavior. Verify running work
-   through its actual process or job handle before restarting it.
+1. Read [README.md](README.md) for the promise and
+   [the 0.4 handoff](docs/agent-notes/0.4.0/README.md) for the current work.
+2. Inspect the actual checkout, branch, scoped diff, remote and relevant CI.
+   Active 0.4 work is on `codex/prepared-keep-bindings-fix`; do not confuse main,
+   a development checkout, a generated candidate and the deployed application.
+3. Use [the repository map](docs/agent-notes/0.4.0/repo-map.md) to find the real
+   caller, state owner and tests. Verify reported running work through its actual
+   process/job handle before restarting it. A stale lock or journal is not proof.
+4. Read source and current evidence before redoing a feature or repeating an old
+   failure. Record what is implemented, verified, deployed or still unknown.
 
-## Product and engineering judgment
+Use the [branch entry map](docs/engineering/ecosystem-map.md) to distinguish
+the published baseline from active development, and the
+[repository ecosystem](docs/engineering/repository-ecosystem.md) for related
+repositories and asset handoffs.
 
-- Favor useful choices, visible benefits, clear feedback and reliable return
-  visits over feature count or implementation complexity. Improve weak mechanics
-  and architecture when it materially helps the game; explain significant changes
-  through the player problem, tradeoffs and verification.
-- Continue The Verdant Citadel's pale masonry, dark timber, teal roofs, warm
-  activity and layered natural framing. Review the actual rendered experience,
-  mobile interaction and fallback states. Shader complexity is not visual quality.
-- Keep marketing focused on the experience. Put tuning values, map capacities
-  and performance limits in their technical owners rather than repeating them
-  as permanent product promises.
-- Use independent bounded collaborators where useful, with explicit file
-  ownership. Integrate and review their work.
+## Product and design judgment
 
-## Preserve authority and compatibility
+- Favor useful player decisions, visible benefits, clear resource feedback and
+  reliable return visits over feature count or implementation complexity.
+- Improve or replace weak mechanics and architecture when that materially helps
+  the game or delivery. Preserve useful foundations; explain significant changes
+  through the problem, chosen behavior, tradeoffs and verification.
+- Continue **The Verdant Citadel**: pale masonry, dark timber, teal roofs, warm
+  activity, restrained warp accents and layered natural framing. Review the actual
+  render path and mobile experience. A complex shader is not visual acceptance.
+- Keep marketing and onboarding focused on the experience. Put tunable map sizes,
+  capacities, economy values and performance limits in their technical owners,
+  rather than repeating them as permanent product promises.
+- Use independent bounded collaborators when useful, with explicit file ownership.
+  Integrate and review their results; delegation does not establish correctness.
 
-Preserve established G001 player progress, access and normal timers alongside the
+## Know the system you are changing
+
+| Work | Primary implementation |
+| --- | --- |
+| New gameplay rules | `spacetimedb/gameplay04/`, with realm-specific transaction/auth adapters |
+| Owner session and gameplay controller | `src/ptr/`, especially `src/ptr/gameplay04/` |
+| New personal keep | `src/components/keep04/` |
+| New atlas and water presentation | `src/greater-realm/`, especially `createGreaterRealmSceneRuntime.ts` |
+| Preserved G001 gameplay and renderer | `spacetimedb/src/`, `src/spacetime/`, `src/components/realm/createRealmScene.ts` |
+| Player identity | `services/auth-bridge/` |
+| Delivery and recovery | `scripts/`, `.github/workflows/`, `services/release-recovery/` |
+
+Legacy `inner-keep` and G001 water are not the current `keep04`/Greater Realm
+implementation. Read [the architecture](docs/technical-architecture.md) before
+crossing those boundaries.
+
+Preserve existing G001 progress, access and normal timers alongside the agreed
 new-admission freeze. G002 remains sealed while future admissions are undecided.
-Use the isolated owner PTR on the development branch for the new gameplay journey.
-Do not substitute administrator authority or invented identities for player access.
+Use the owner's isolated PTR for the new playable journey. Never invent a player,
+token, receipt or substitute administrator authority for actual player access.
 
 The server owns resources, ownership, routes, completion and command outcomes.
-Keep transactions atomic, retries exact and realm/session/database boundaries
-explicit. Recheck authority after asynchronous work. Keep healthy UI refreshes
-stable without exposing unconfirmed commands. Decorative geometry must not change
-game authority. Preserve additive deployed schema compatibility and generate
-bindings and manifests through their actual tools.
+Schema changes must preserve existing player data and compatible readers; inspect
+the actual migration, deployment and recovery path before changing persisted state.
+Preserve atomic settlement, exact retry identity, stale-quote reconciliation,
+monotonic state and realm/session/database/epoch isolation. Recheck authority after
+asynchronous work. Healthy refresh should preserve scene and focus without making
+unconfirmed commands available. Decorative geometry must not silently change game
+authority. Generated bindings and release manifests come from their generators.
 
-Legacy G001 Inner Keep construction and gathering are a different policy generation
-from 0.4 return-credit and building benefits. Current source routes live in the
-[ecosystem map](docs/engineering/ecosystem-map.md); do not cross those boundaries
-because filenames or historical plans look similar.
+## Work, verify and publish
 
-## Work and verify
+Follow [the development workflow](docs/engineering/development-workflow.md) and
+[source synchronization](docs/operations/0.4.0-development-sync.md).
 
-- Complete a coherent change through its real caller, inspect the scoped diff
-  and run checks appropriate to the behavior. Preserve unrelated work. Do not
-  weaken tests, security checks, CI or artifact verification to obtain a pass.
-- Use [CONTRIBUTING.md](CONTRIBUTING.md) for baseline setup and verification.
-  Inspect shared `node_modules` links or junctions before installing; use an
-  independent checkout when installation would affect another task.
-- Root Vitest owns `tests/**`; the SpacetimeDB package has a separate Node/tsx
-  runner, and services have their own checks. Root `tsconfig.json` references
-  projects: use `npm run typecheck`, not root `tsc --noEmit` as a substitute.
-- For visuals, inspect rendered views, loading/failure, background/resume and
-  cleanup. Describe whether evidence came from a fixture, emulation, a physical
-  device or authenticated play. Measure workloads before claiming performance.
-- Keep one canonical document per topic. Update product intent, architecture,
-  source routing and dated evidence where each belongs. Verify links and
-  generation labels when changing docs.
+- Make a coherent improvement, test the affected behavior and inspect the diff.
+  Complete the real caller and integration, not only an unused helper.
+- Inspect dependency paths before installing. Existing worktrees may share a
+  `node_modules` junction; install into an independent verification checkout.
+- Root Vitest owns `tests/**`; module tests use their separate Node/tsx runner.
+  Services own their own checks. Root `tsc --noEmit` alone does not traverse this
+  repository's referenced projects. Use package build-mode types or explicit
+  app and Vite-config noEmit checks. Confirm selected tests and exit codes.
+- For visual changes, inspect rendered views, progression, loading/failure,
+  background/resume and cleanup. Distinguish fixtures, emulation, actual devices
+  and authenticated owner play. Measure the agreed workloads before claiming
+  performance. Review authority, persistence and recovery changes independently.
+- Commit and push every completed local development change as part of that
+  change, including code, tests, documentation, configuration and approved assets.
+  Before yielding or ending a session, publish all agent-authored durable work,
+  including honestly labeled unfinished source. Do not wait for release readiness
+  or full hosted CI to back up development. Fetch first, scan the outgoing range,
+  push an explicit non-forced refspec and verify remote equality. Preserve private
+  data and active atomic generation; record any exact publication blocker and
+  resume publication as soon as it clears. Synchronize idle native checkouts;
+  keep an active build's operating source pinned until it finishes.
+- Preserve unrelated edits and private artifacts. Stage exact reviewed paths;
+  never sweep an entire dirty worktree into a commit or force-overwrite new remote
+  work. A clean-looking status is not worth losing work.
+- Keep README, architecture, source routing and dated notes aligned. Update the
+  canonical document for a topic instead of creating another competing plan.
 
-## Publication and handoff
+## Keep the workspace compact
 
-Source publication, successful verification, deployment and usable gameplay are
-different outcomes. The Pages workflow classifies verified source before selecting
-a deployment lane; a green workflow with skipped deployment jobs is not a release.
-Consult the actual scripts and target configuration before operating Cloudflare,
-SpacetimeDB or Pages. Historical runbooks are context, not an instruction to deploy.
+- Do not create Warpkeep files, folders, shortcuts, backups or archives on the
+  Desktop, including redirected/OneDrive Desktops. The owner's September 11
+  instruction supersedes older Desktop-package and census-export directions.
+  Read the existing Desktop handoff as a reference; if maintaining it, edit it
+  in place without creating sibling backups.
+- Keep durable notes in their existing repository documents. Use the existing
+  ignored `artifacts/` directory for non-sensitive disposable output and
+  `artifacts/delivery/0.4.0/` for the final credential-free package. Create a
+  package only when needed for delivery, not at every checkpoint.
+- Reuse existing checkouts, attested tools and compatible dependency caches.
+  Avoid duplicate clones, dependency installs, source copies, screenshots and
+  timestamped archives. Preserve the isolation required by release tooling.
+- Before a large build, inspect free space and retained output. After finishing,
+  stop owned processes and remove only verified disposable files owned by that
+  run. Never age-delete active candidates, recovery journals, receipts, private
+  state or unrelated files. Follow the
+  [output and retention rules](docs/engineering/development-workflow.md#output-locations-and-retention).
 
-Keep reviewed source checkpoints visible when publication is part of the task.
-Fetch first, scan the outgoing range, stage exact reviewed paths and push the
-explicit branch without force. Verify remote equality and preserve unrelated edits.
-Do not fabricate artifact hashes or evidence, bypass production checks, or discard
-legitimate writes to make recovery convenient.
+## Delivery and handoff
 
-Keep credentials, private player data and sensitive receipts out of Git, public
-reports and handoff packages. Read [asset provenance](ASSETS-LICENSE.md) before
-changing media, preserve file-specific terms and credit reuse accurately.
+GitHub Pages hosts the frontend, Cloudflare hosts identity/recovery services, and
+SpacetimeDB hosts persistent realms. Verify configured accounts and immutable
+targets. Complete the Windows/WSL/Linux operating path without a Mac dependency;
+required workflow identity must come from the actual supported runner.
 
-End with what changed, the source and remote checkpoint, what was actually
-verified, any remaining issue and the next useful action. Do not claim the full
-release is complete from a documentation change or a local test result.
+Source synchronization, a green test, deployment and usable player experience are
+different outcomes. The [release acceptance record](docs/operations/0.4.0-release-checklist.md)
+tracks the remaining evidence for preservation, gameplay, visuals, performance,
+operations and the credential-free workspace package. Keep it current with the
+user's direction; do not turn historical task labels into new approval layers.
+Inspect the exact selected job and artifact: a successful Pages preparation run
+can deliberately skip deployment and does not establish a live release.
+
+Recovery must preserve legitimate writes after deployment. Derive complete source
+and artifact inventories; do not type hashes, weaken checks or fabricate old
+evidence to make a release pass. Keep credentials, private player data and sensitive
+operational records out of Git and public deliverables. Read
+[asset provenance](ASSETS-LICENSE.md) before changing media and credit reuse accurately.
+
+End each session with what changed, the source and remote checkpoint, what was
+actually verified, the exact remaining issue and the next useful action. Keep the
+full release goal active until the deployed game and required evidence support it.

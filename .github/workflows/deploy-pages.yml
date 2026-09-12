@@ -13,17 +13,17 @@ permissions:
 # exclusive jobs. The source-closure manifest canonicalizes only these exact
 # values, so changing any protected executable requires an explicit refreeze.
 env:
-  WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: 'cb96a0772cf614ea997da153e7769deaad0094750b46fcb6c5ec10d17568d742'
-  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '47f74e885e68d31612add8b51bbb7efbeb40b9f671084a579999fa7bd2352579'
-  WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: '8789b2a4c1e63eb9822ae7a4e15688ce78fe9c9f07adb82cd1982d5cab70b3ac'
-  WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: '9bb11880c6a9f4cb69b76b05f7ef5219ded2a86e3a44ee2c4d9371262213a161'
-  WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256: 'ac18ecc2371d8bfff17ea8abec9d989085c4992d2ebeb70e7c9947bfac62837e'
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: '5c915e5e42915a037ab3b48f1155395aa058a7085e0709fe7f79eca2df66f8d7'
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '3853461dd7d3384182b750e7ea86db9007800bac8a61f5e678a491a17bf90fa1'
+  WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: 'ab3e72b4d71b6f949f5fb3f3dd1a53548b39184214f5a755975f570c23d9000b'
+  WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: 'bcc41d30dbb00ecd612a1fdb5fe87b5e047d8cc777d0af9fc360b40e06bc1de2'
+  WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256: '692420c1a2a1d8d0b76893caaf720be11f2b3dcb559bf777be4a2cc70c59a0c2'
 
 concurrency:
   # This workflow-scoped lock is retained through build, deployment, and the
   # matching live postflight. A newer verified-main run may replace another
   # pending run, but it must not cancel the run that owns this critical section.
-  group: pages-main
+  group: warpkeep-production-state
   cancel-in-progress: false
 
 jobs:
@@ -71,7 +71,7 @@ jobs:
       needs.classify.outputs.deployment-lane == 'sealed-g002'
     runs-on: ubuntu-latest
     # Match Verify's bounded allowance for the complete root security suite.
-    timeout-minutes: 45
+    timeout-minutes: 75
     permissions:
       contents: read
       pages: read
@@ -82,8 +82,11 @@ jobs:
       VITE_WARPKEEP_REPOSITORY_URL: https://github.com/ael-dev3/Warpkeep
       VITE_WARPKEEP_CANONICAL_ORIGIN: https://warpkeep.com
       VITE_WARPKEEP_SHARED_ALPHA_ENABLED: ${{ vars.WARPKEEP_SHARED_ALPHA_ENABLED }}
-      # Presentation remains immutable-off until a separately reviewed release.
+      # Admission notifications remain immutable-off in the sealed launch.
       VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false'
+      # PTR presentation is activation-bound to one immutable Maincloud identity.
+      VITE_WARPKEEP_PTR_ENABLED: 'true'
+      VITE_PTR_SPACETIMEDB_DATABASE: ${{ vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE }}
       VITE_WARPKEEP_AUTH_BRIDGE_URL: ${{ vars.WARPKEEP_AUTH_BRIDGE_URL || '' }}
       VITE_WARPKEEP_OIDC_ISSUER: ${{ vars.WARPKEEP_OIDC_ISSUER || '' }}
       VITE_WARPKEEP_OIDC_AUDIENCE: ${{ vars.WARPKEEP_OIDC_AUDIENCE || 'warpkeep-spacetimedb' }}
@@ -188,11 +191,27 @@ jobs:
           echo "WARPKEEP_PRIVATE_NODE=$private_bin/node" >> "$GITHUB_ENV"
           echo "WARPKEEP_PRIVATE_NODE_SHA256=$staged_sha" >> "$GITHUB_ENV"
 
+      - name: Validate exact activation-bound PTR build inputs
+        env:
+          WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages-build
+
       - name: Install
         run: npm ci
 
       - name: Install exact bridge runtime-test toolchain
         run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
+
+      - name: Validate PTR lock and install SpacetimeDB module dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e spacetimedb/ptr/node_modules
+          pnpm --dir spacetimedb/ptr install \
+            --frozen-lockfile --lockfile-only --ignore-workspace
+          test ! -e spacetimedb/ptr/node_modules
+          pnpm --dir spacetimedb install --frozen-lockfile
+          test ! -e spacetimedb/ptr/node_modules
 
       - name: Re-attest runner-private Node after dependency install
         shell: bash
@@ -220,8 +239,48 @@ jobs:
             [[ "$actual_sha" == "$WARPKEEP_PRIVATE_NODE_SHA256" ]]
           fi
 
+      - name: Install pinned SpacetimeDB CLI
+        env:
+          SPACETIMEDB_CLI_SHA256: cb03bb4706dc6bd6ef080c9bbd220a6e7d10430a65e7be2ba6be27ec7e3a9118
+          SPACETIMEDB_CLI_VERSION: 2.6.1
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/spacetime-${SPACETIMEDB_CLI_VERSION}.tar.gz"
+          bin_dir="$RUNNER_TEMP/spacetime-bin"
+          curl --fail --location --proto '=https' --tlsv1.2 --retry 3 \
+            --output "$archive" \
+            "https://github.com/clockworklabs/SpacetimeDB/releases/download/v${SPACETIMEDB_CLI_VERSION}/spacetime-x86_64-unknown-linux-gnu.tar.gz"
+          echo "${SPACETIMEDB_CLI_SHA256}  ${archive}" | sha256sum --check --strict -
+          mkdir -p "$bin_dir"
+          tar -xzf "$archive" -C "$bin_dir" spacetimedb-cli spacetimedb-standalone
+          mv "$bin_dir/spacetimedb-cli" "$bin_dir/spacetime"
+          echo "$bin_dir" >> "$GITHUB_PATH"
+          "$bin_dir/spacetime" --version
+
+      - name: Prepare exact offline YAML archive for manifest tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive=".git/yaml-2.9.0.tgz"
+          test ! -e "$archive"
+          curl --fail --proto '=https' --tlsv1.2 --max-time 30 \
+            --max-filesize 112086 --output "$archive" \
+            'https://registry.npmjs.org/yaml/-/yaml-2.9.0.tgz'
+          test "$(wc -c < "$archive")" -eq 112086
+          echo "008fa204cb1ba700e0272ba045abbf09a6ffe63456e8146ba97cac6c2ad1ef91  $archive" \
+            | sha256sum --check --strict -
+
       - name: Test
-        run: npm test -- --maxWorkers=2
+        run: |
+          npm test -- \
+            --exclude tests/authBridgeNotificationPreparedWorkflow.test.ts \
+            --exclude tests/productionPlayerCanaryClosure.test.ts \
+            --maxWorkers=2
+          npm test -- \
+            tests/authBridgeNotificationPreparedWorkflow.test.ts \
+            tests/productionPlayerCanaryClosure.test.ts \
+            --maxWorkers=1 \
+            --testTimeout=180000
 
       - name: Typecheck
         run: npm run typecheck
@@ -436,6 +495,219 @@ jobs:
             attempt=$((attempt + 1))
           done
 
+  # Recovery owns its build and artifact in the same protected job. Source
+  # routing alone grants no deployment authority: the signer independently
+  # verifies this job, its runner, the artifact and the live realm invariants.
+  deploy-recovery:
+    needs: classify
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      needs.classify.outputs.deployment-lane == 'sealed-g002-recovery'
+    runs-on: [self-hosted, Linux, X64, warpkeep-production-admin, warpkeep-repository-exclusive]
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.recovery-deployment.outputs.page_url }}
+    env:
+      DEPLOY_BASE: '/'
+      VITE_WARPKEEP_RELEASE_CHANNEL: alpha
+      VITE_WARPKEEP_BUILD_SHA: ${{ github.event.workflow_run.head_sha }}
+      VITE_WARPKEEP_REPOSITORY_URL: https://github.com/ael-dev3/Warpkeep
+      VITE_WARPKEEP_CANONICAL_ORIGIN: https://warpkeep.com
+      VITE_WARPKEEP_SHARED_ALPHA_ENABLED: ${{ vars.WARPKEEP_SHARED_ALPHA_ENABLED }}
+      VITE_WARPKEEP_PTR_ENABLED: 'true'
+      VITE_PTR_SPACETIMEDB_DATABASE: ${{ vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE }}
+      VITE_WARPKEEP_AUTH_BRIDGE_URL: ${{ vars.WARPKEEP_AUTH_BRIDGE_URL || '' }}
+      VITE_WARPKEEP_OIDC_ISSUER: ${{ vars.WARPKEEP_OIDC_ISSUER || '' }}
+      VITE_WARPKEEP_OIDC_AUDIENCE: ${{ vars.WARPKEEP_OIDC_AUDIENCE || 'warpkeep-spacetimedb' }}
+      VITE_SPACETIMEDB_URI: ${{ vars.WARPKEEP_SPACETIMEDB_URI || 'https://maincloud.spacetimedb.com' }}
+      VITE_SPACETIMEDB_DATABASE: c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e
+    steps:
+      - name: Require the installed recovery runner and private state
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = 'Linux'
+          test "$RUNNER_ARCH" = 'X64'
+          test "$RUNNER_NAME" = 'warpkeep-wsl-production-01'
+          test "$(id -u)" = '1000'
+          private_state='/home/warpkeep/.warpkeep-recovery-v1'
+          test -d "$private_state"
+          test ! -L "$private_state"
+          test "$(realpath -- "$private_state")" = "$private_state"
+          test "$(stat -c '%u:%a' -- "$private_state")" = '1000:700'
+          for forbidden in BASH_ENV ENV NODE_OPTIONS NODE_PATH NODE_EXTRA_CA_CERTS \
+            NODE_TLS_REJECT_UNAUTHORIZED LD_PRELOAD LD_LIBRARY_PATH \
+            GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM \
+            GIT_DIR GIT_EXEC_PATH GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+            GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_REPLACE_REF_BASE GIT_WORK_TREE; do
+            if [[ -n "${!forbidden+x}" ]]; then
+              echo 'RECOVERY_RUNNER_AMBIENT_OVERRIDE_INVALID' >&2
+              exit 1
+            fi
+          done
+          # The legacy notification parser owns the one source-selected YAML
+          # flag in jobs.build.env. Recovery always builds with notifications off.
+          printf '%s\n' 'VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED=false' >> "$GITHUB_ENV"
+
+      - name: Checkout exact verified recovery source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup exact recovery Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.22.3
+
+      - name: Setup the pinned recovery build package manager
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0
+          run_install: false
+
+      - name: Stage the recovery runtime in a private path
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_node="$(command -v node)"
+          test ! -L "$source_node"
+          source_node="$(realpath -- "$source_node")"
+          case "$source_node" in
+            "$RUNNER_TOOL_CACHE"/*) ;;
+            *) echo 'RECOVERY_NODE_TOOL_CACHE_INVALID' >&2; exit 1 ;;
+          esac
+          test "$("$source_node" --version)" = 'v22.22.3'
+          private_root="$(mktemp -d "$RUNNER_TEMP/warpkeep-recovery-node.XXXXXX")"
+          chmod 0700 "$private_root"
+          source_sha="$(sha256sum "$source_node" | cut -d ' ' -f 1)"
+          install -m 0700 "$source_node" "$private_root/node"
+          echo "$source_sha  $source_node" | sha256sum --check --strict -
+          echo "$source_sha  $private_root/node" | sha256sum --check --strict -
+          echo "$private_root" >> "$GITHUB_PATH"
+          echo "WARPKEEP_RECOVERY_NODE=$private_root/node" >> "$GITHUB_ENV"
+          echo "WARPKEEP_RECOVERY_NODE_SHA256=$source_sha" >> "$GITHUB_ENV"
+
+      - name: Verify current protected main and installed recovery source
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readRecoveryWorkflowRunContext } from './scripts/recovery-workflow-run-context.mjs';
+          import { readRecoveryAttestationSource } from './scripts/recovery-attestation-source.mjs';
+          const context = await readRecoveryWorkflowRunContext();
+          if (readRecoveryAttestationSource(process.cwd()).candidateCommit !== context.candidateCommit) {
+            throw new Error('RECOVERY_SOURCE_CONTEXT_INVALID');
+          }
+          NODE
+          # The reviewed preparation installs these files. Authorization never
+          # compiles a replacement or creates production private state.
+          for path in \
+            scripts/recovery-workflow-bundle-manifest-v1.json \
+            services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs; do
+            git ls-files --error-unmatch -- "$path" >/dev/null
+            test -f "$path"
+            test ! -L "$path"
+          done
+          node scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+
+      - name: Validate recovery build inputs
+        shell: bash
+        env:
+          WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          case "$VITE_WARPKEEP_SHARED_ALPHA_ENABLED" in
+            true | false) ;;
+            *) echo 'RECOVERY_SHARED_ALPHA_INPUT_INVALID' >&2; exit 1 ;;
+          esac
+          node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages-build
+
+      - name: Install exact recovery build dependencies
+        run: npm ci
+
+      - name: Install the recovery build validation parser
+        run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
+
+      - name: Re-attest the recovery runtime and source before build
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(realpath -- "$(command -v node)")" = "$WARPKEEP_RECOVERY_NODE"
+          test ! -L "$WARPKEEP_RECOVERY_NODE"
+          test "$(stat -c '%u:%a' -- "$WARPKEEP_RECOVERY_NODE")" = '1000:700'
+          echo "$WARPKEEP_RECOVERY_NODE_SHA256  $WARPKEEP_RECOVERY_NODE" | sha256sum --check --strict -
+          test "$(node --version)" = 'v22.22.3'
+          node scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+          npm run validate:pages-config
+
+      - name: Build the verified recovery release
+        run: npm run build
+        env:
+          GITHUB_PAGES: 'true'
+
+      - name: Verify recovery release metadata and install its attestation
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run verify:miniapp:release
+          node scripts/generate-warpkeep-deployment-attestation.mjs --write
+          node scripts/generate-warpkeep-deployment-attestation.mjs --check
+          echo "$WARPKEEP_RECOVERY_NODE_SHA256  $WARPKEEP_RECOVERY_NODE" | sha256sum --check --strict -
+          node scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+
+      - name: Setup recovery Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Upload exact recovery artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          name: github-pages-recovery-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ./dist
+          include-hidden-files: true
+
+      - name: Prepare private recovery claim
+        id: recovery-claim
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/recovery-workflow-prepare-claim.mjs
+
+      - name: Check recovery deployment boundary
+        id: recovery-boundary
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/recovery-workflow-check-deployment.mjs
+
+      - name: Deploy recovery-authorized release to GitHub Pages
+        id: recovery-deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+        with:
+          artifact_name: github-pages-recovery-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Verify recovery live postflight
+        id: recovery-postflight
+        if: ${{ always() && steps.recovery-claim.outcome == 'success' }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/recovery-workflow-postflight.mjs
+
   private-toolchain:
     needs: classify
     if: >-
@@ -443,8 +715,8 @@ jobs:
       needs.classify.outputs.deployment-lane == 'durable'
     runs-on:
       - self-hosted
-      - macOS
-      - ARM64
+      - Linux
+      - X64
       - warpkeep-production-admin
       - warpkeep-repository-exclusive
     timeout-minutes: 20
@@ -513,7 +785,7 @@ jobs:
           verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256" \
             scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
           verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
-            scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
+            scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json
           verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256" \
             scripts/notification-pages-private-deploy-launcher.mjs
 
@@ -588,7 +860,7 @@ jobs:
           verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256" \
             scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
           verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
-            scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
+            scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json
           verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256" \
             scripts/notification-pages-private-deploy-launcher.mjs
           private_node="$(realpath -- "$(command -v node)")"
@@ -603,6 +875,7 @@ jobs:
             GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
             RUNNER_ARCH="$RUNNER_ARCH" \
             RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE=linux-x64 \
             WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
             WARPKEEP_PRIVATE_NODE="$private_node" \
             "$private_node" \
@@ -618,8 +891,8 @@ jobs:
       needs.classify.outputs.deployment-lane == 'durable'
     runs-on:
       - self-hosted
-      - macOS
-      - ARM64
+      - Linux
+      - X64
       - warpkeep-production-admin
       - warpkeep-repository-exclusive
     timeout-minutes: 20
@@ -748,7 +1021,7 @@ jobs:
           verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256" \
             scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
           verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
-            scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
+            scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json
           verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256" \
             scripts/notification-pages-private-deploy-launcher.mjs
 
@@ -771,6 +1044,7 @@ jobs:
             GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
             RUNNER_ARCH="$RUNNER_ARCH" \
             RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE=linux-x64 \
             WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
             WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
             WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \
@@ -800,6 +1074,7 @@ jobs:
             GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
             RUNNER_ARCH="$RUNNER_ARCH" \
             RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE=linux-x64 \
             WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
             WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
             WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \
@@ -828,6 +1103,7 @@ jobs:
             GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
             RUNNER_ARCH="$RUNNER_ARCH" \
             RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE=linux-x64 \
             WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
             WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
             WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \
@@ -859,6 +1135,7 @@ jobs:
             GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
             RUNNER_ARCH="$RUNNER_ARCH" \
             RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE=linux-x64 \
             WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
             WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
             WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \
@@ -893,6 +1170,7 @@ jobs:
             GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
             RUNNER_ARCH="$RUNNER_ARCH" \
             RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE=linux-x64 \
             WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
             WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
             WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \

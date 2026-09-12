@@ -8,6 +8,7 @@ import {
   readSync,
   realpathSync,
 } from 'node:fs';
+import { registerHooks } from 'node:module';
 import {
   dirname,
   isAbsolute,
@@ -22,11 +23,55 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_PROFILE =
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH =
   'scripts/auth-bridge-notification-prepared-deploy-closure-v1.json';
 
-const MEMBER_PATH = /^(?:docs\/operations\/greater-realm-production-launch-envelope\.sh\.txt|(?:owner-canary\/)?index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|spacetimedb\/(?:package\.json|pnpm-(?:lock|workspace)\.yaml|(?:src|genesis002)\/[A-Za-z0-9._/-]+)|(?:\.github\/workflows|config\/releases|scripts|services\/auth-bridge|src)\/[A-Za-z0-9._/-]+)$/u;
+const MEMBER_PATH = /^(?:docs\/operations\/(?:genesis-001-policy-observation-launch-envelope|greater-realm-production-launch-envelope)\.sh\.txt|(?:owner-canary\/)?index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|spacetimedb\/(?:package\.json|pnpm-(?:lock|workspace)\.yaml|(?:src|genesis002|ptr)\/[A-Za-z0-9._/-]+)|(?:\.github\/workflows|config\/releases|scripts|services\/auth-bridge|src)\/[A-Za-z0-9._/-]+)$/u;
+// This is the exact generated client/operator ABI reached from shipped roots.
+// Backend source/config is protected separately; private table bindings and
+// build output are never admitted by the generated-client allowlist.
+const PTR_MODULE_MEMBER_PATH = /^spacetimedb\/ptr\/(?:src\/[A-Za-z0-9._/-]+\.ts|package\.json|tsconfig\.json|pnpm-lock\.yaml|\.gitignore)$/u;
+const PTR_GENERATED_BINDING_MEMBER_PATHS = new Set([
+  'spacetimedb/ptr/generated-bindings/admin_begin_greater_realm_verification_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_finalize_greater_realm_release_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_get_greater_realm_status_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/admin_import_greater_realm_chunk_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_import_greater_realm_components_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_import_greater_realm_regions_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_provision_ptr_owner_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_stage_greater_realm_release_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_suspend_ptr_owner_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_verify_greater_realm_batch_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/dispatch_gameplay_04_worker_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_gameplay_04_keep_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_ptr_owner_status_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_realm_atlas_bootstrap_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_realm_atlas_chunk_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_realm_atlas_resource_locations_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_realm_atlas_window_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/index.ts',
+  'spacetimedb/ptr/generated-bindings/initialize_gameplay_04_keep_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/plan_realm_route_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/recall_gameplay_04_worker_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/start_gameplay_04_building_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/types.ts',
+]);
+// Exact shared sources reached by the protected client/backend graphs and their
+// type imports. Other gameplay helpers are not admitted merely by location.
+const GAMEPLAY04_SHARED_SOURCE_MEMBER_PATHS = new Set([
+  'spacetimedb/gameplay04/commands.ts',
+  'spacetimedb/gameplay04/construction.ts',
+  'spacetimedb/gameplay04/keep.ts',
+  'spacetimedb/gameplay04/placement.ts',
+  'spacetimedb/gameplay04/policy.ts',
+  'spacetimedb/gameplay04/reconciliation.ts',
+  'spacetimedb/gameplay04/workerJourney.ts',
+  'spacetimedb/gameplay04/workerState.ts',
+  'spacetimedb/gameplay04/workers.ts',
+]);
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
 const MAX_MANIFEST_BYTES = 256 * 1_024;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
-const MAX_MEMBERS = 956;
+const MAX_AGGREGATE_MEMBER_BYTES = 128 * 1_024 * 1_024;
+// Resource bound, independent of the exact frozen member list below.
+const MAX_MEMBERS = 2048;
 const MANIFEST_KEYS = Object.freeze(['schemaVersion', 'profile', 'members']);
 const MEMBER_KEYS = Object.freeze(['path', 'digestProfile', 'sha256']);
 const RAW_FILE_DIGEST_PROFILE = 'raw-file-sha256-v1';
@@ -37,6 +82,9 @@ const REVIEWED_RELEASE_TRANSITION_DIGEST_PROFILE =
 const REVIEWED_RELEASE_TRANSITION_PLUS_BOOTSTRAP_PIN_DIGEST_PROFILE =
   'reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1';
 const authenticatedSourceClosureAuthorities = new WeakSet();
+const authenticatedSourceClosureRawMemberDigests = new WeakMap();
+let activeAttestedModuleLoad;
+let attestedModuleLoadHookRegistered = false;
 const BOOTSTRAP_PIN_CANONICAL_VALUE = '0'.repeat(64);
 const BOOTSTRAP_PIN_BINDINGS = Object.freeze([
   Object.freeze({
@@ -57,9 +105,34 @@ const BOOTSTRAP_PIN_BINDINGS = Object.freeze([
       'scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json',
   }),
   Object.freeze({
+    name: 'WARPKEEP_PREPARED_PNPM_AUTHORITY_MANIFEST_SHA256',
+    path: 'scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json',
+  }),
+  Object.freeze({
+    name: 'WARPKEEP_PREPARED_LINUX_INSTALLED_TOOLCHAIN_MANIFEST_SHA256',
+    path:
+      'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json',
+  }),
+  Object.freeze({
     name: 'WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256',
     path: 'scripts/notification-pages-private-deploy-launcher.mjs',
   }),
+]);
+const LINUX_BOOTSTRAP_PIN_BINDINGS = Object.freeze(
+  [
+    ...BOOTSTRAP_PIN_BINDINGS.slice(0, 3),
+    BOOTSTRAP_PIN_BINDINGS[5],
+    BOOTSTRAP_PIN_BINDINGS[4],
+  ],
+);
+const PAGES_BOOTSTRAP_PIN_BINDINGS = Object.freeze([
+  ...BOOTSTRAP_PIN_BINDINGS.slice(0, 3),
+  Object.freeze({
+    name: 'WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256',
+    path:
+      'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json',
+  }),
+  BOOTSTRAP_PIN_BINDINGS[6],
 ]);
 const BOOTSTRAP_PINNED_WORKFLOWS = new Map([
   ['.github/workflows/notification-bridge-b0.yml', Object.freeze({
@@ -70,9 +143,13 @@ const BOOTSTRAP_PINNED_WORKFLOWS = new Map([
     indentation: '      ',
     bindings: Object.freeze(BOOTSTRAP_PIN_BINDINGS.slice(0, 4)),
   })],
+  ['.github/workflows/notification-bridge-prepared-linux.yml', Object.freeze({
+    indentation: '      ',
+    bindings: LINUX_BOOTSTRAP_PIN_BINDINGS,
+  })],
   ['.github/workflows/deploy-pages.yml', Object.freeze({
     indentation: '  ',
-    bindings: BOOTSTRAP_PIN_BINDINGS,
+    bindings: PAGES_BOOTSTRAP_PIN_BINDINGS,
   })],
 ]);
 
@@ -150,9 +227,11 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
   Object.freeze([
     '.github/workflows/deploy-pages.yml',
     '.github/workflows/notification-bridge-b0.yml',
+    '.github/workflows/notification-bridge-prepared-linux.yml',
     '.github/workflows/notification-bridge-prepared.yml',
     '.github/workflows/verify.yml',
     'config/releases/0.4.0-sealed-launch.json',
+    'docs/operations/genesis-001-policy-observation-launch-envelope.sh.txt',
     'docs/operations/greater-realm-production-launch-envelope.sh.txt',
     'index.html',
     'owner-canary/index.html',
@@ -221,8 +300,11 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/auth-bridge-notification-prepared-deploy.d.mts',
     'scripts/auth-bridge-notification-prepared-deploy.mjs',
     'scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json',
+    'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json',
     'scripts/auth-bridge-notification-prepared-installed-toolchain.d.mts',
     'scripts/auth-bridge-notification-prepared-installed-toolchain.mjs',
+    'scripts/auth-bridge-notification-prepared-linux-runner.mjs',
+    'scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json',
     'scripts/auth-bridge-notification-prepared-receipt.d.mts',
     'scripts/auth-bridge-notification-prepared-receipt.mjs',
     'scripts/auth-bridge-notification-prepared-release-binding.d.mts',
@@ -232,9 +314,19 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/entry-agreement-policy.mjs',
     'scripts/farcaster-miniapp-contract.mjs',
     'scripts/founder-admission-authority.ts',
+    'scripts/generate-0.4.0-recovery-launch-activation.d.mts',
+    'scripts/generate-0.4.0-recovery-launch-activation.mjs',
     'scripts/generate-0.4.0-sealed-launch-activation.d.mts',
     'scripts/generate-0.4.0-sealed-launch-activation.mjs',
+    'scripts/generate-warpkeep-deployment-attestation.d.mts',
+    'scripts/generate-warpkeep-deployment-attestation.mjs',
+    'scripts/genesis001-admission-monitor-current-state.d.mts',
+    'scripts/genesis001-admission-monitor-current-state.mjs',
     'scripts/genesis001-admission-monitor-suspension.ts',
+    'scripts/genesis001-admitted-player-census.d.mts',
+    'scripts/genesis001-admitted-player-census.mjs',
+    'scripts/genesis001-binding-frozen-source.d.mts',
+    'scripts/genesis001-binding-frozen-source.mjs',
     'scripts/genesis001-census-privacy-safe-receipt.d.mts',
     'scripts/genesis001-census-privacy-safe-receipt.mjs',
     'scripts/genesis001-frozen-materializer.d.mts',
@@ -242,8 +334,19 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/genesis001-frozen-publisher-core.ts',
     'scripts/genesis001-frozen-publisher-runtime.ts',
     'scripts/genesis001-frozen-publisher.ts',
+    'scripts/genesis001-linux-policy-boundary.mjs',
+    'scripts/genesis001-linux-policy-child.mjs',
+    'scripts/genesis001-linux-policy-materializer.mjs',
+    'scripts/genesis001-linux-policy-native.mjs',
+    'scripts/genesis001-linux-policy-receipt.d.mts',
+    'scripts/genesis001-linux-policy-receipt.mjs',
+    'scripts/genesis001-policy-observation-receipt.d.mts',
+    'scripts/genesis001-policy-observation-receipt.mjs',
+    'scripts/genesis001-sealed-launch-adoption.d.mts',
+    'scripts/genesis001-sealed-launch-adoption.mjs',
     'scripts/genesis002-activation-receipts.d.mts',
     'scripts/genesis002-activation-receipts.mjs',
+    'scripts/genesis002-binding-linux-locked-source-build.ts',
     'scripts/genesis002-private-loopback-verifier.ts',
     'scripts/genesis002-production-import-core.ts',
     'scripts/genesis002-production-import-operator.ts',
@@ -253,36 +356,29 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/genesis002-production-transport.ts',
     'scripts/genesis002-sealed-live-receipt.d.mts',
     'scripts/genesis002-sealed-live-receipt.mjs',
-    'scripts/genesis002_module_bindings/accept_alpha_terms_v_1_reducer.ts',
-    'scripts/genesis002_module_bindings/access_request_get_status_v_1_procedure.ts',
-    'scripts/genesis002_module_bindings/access_request_submit_v_1_procedure.ts',
     'scripts/genesis002_module_bindings/access_request_v_1_table.ts',
-    'scripts/genesis002_module_bindings/admin_admit_founder_for_access_request_v_2_reducer.ts',
-    'scripts/genesis002_module_bindings/admin_admit_founder_v_1_reducer.ts',
-    'scripts/genesis002_module_bindings/admin_allow_fid_for_access_request_v_1_reducer.ts',
-    'scripts/genesis002_module_bindings/admin_allow_fid_reducer.ts',
     'scripts/genesis002_module_bindings/admin_audit_table.ts',
     'scripts/genesis002_module_bindings/admin_begin_greater_realm_verification_v_1_reducer.ts',
-    'scripts/genesis002_module_bindings/admin_bump_auth_epoch_reducer.ts',
-    'scripts/genesis002_module_bindings/admin_disable_fid_reducer.ts',
     'scripts/genesis002_module_bindings/admin_finalize_greater_realm_release_v_1_reducer.ts',
     'scripts/genesis002_module_bindings/admin_get_greater_realm_import_plan_v_1_procedure.ts',
     'scripts/genesis002_module_bindings/admin_get_greater_realm_status_v_1_procedure.ts',
     'scripts/genesis002_module_bindings/admin_import_greater_realm_chunk_v_1_reducer.ts',
     'scripts/genesis002_module_bindings/admin_import_greater_realm_components_v_1_reducer.ts',
     'scripts/genesis002_module_bindings/admin_import_greater_realm_regions_v_1_reducer.ts',
-    'scripts/genesis002_module_bindings/admin_reset_access_request_v_1_reducer.ts',
     'scripts/genesis002_module_bindings/admin_stage_greater_realm_release_v_1_reducer.ts',
-    'scripts/genesis002_module_bindings/admin_upsert_realm_profile_v_1_reducer.ts',
     'scripts/genesis002_module_bindings/admin_verify_greater_realm_batch_v_1_reducer.ts',
     'scripts/genesis002_module_bindings/allowed_fid_table.ts',
     'scripts/genesis002_module_bindings/alpha_terms_acceptance_v_1_table.ts',
-    'scripts/genesis002_module_bindings/auth_resolver_get_fid_admission_v_2_procedure.ts',
-    'scripts/genesis002_module_bindings/bootstrap_player_reducer.ts',
-    'scripts/genesis002_module_bindings/bootstrap_player_v_2_reducer.ts',
     'scripts/genesis002_module_bindings/castle_table.ts',
-    'scripts/genesis002_module_bindings/get_my_admission_status_v_2_procedure.ts',
-    'scripts/genesis002_module_bindings/get_realm_status_v_1_procedure.ts',
+    'scripts/genesis002_module_bindings/dispatch_gameplay_04_worker_v_1_procedure.ts',
+    'scripts/genesis002_module_bindings/gameplay_04_building_v_1_table.ts',
+    'scripts/genesis002_module_bindings/gameplay_04_keep_v_1_table.ts',
+    'scripts/genesis002_module_bindings/gameplay_04_project_v_1_table.ts',
+    'scripts/genesis002_module_bindings/gameplay_04_receipt_v_1_table.ts',
+    'scripts/genesis002_module_bindings/gameplay_04_reservation_v_1_table.ts',
+    'scripts/genesis002_module_bindings/gameplay_04_schedule_v_1_table.ts',
+    'scripts/genesis002_module_bindings/gameplay_04_worker_v_1_table.ts',
+    'scripts/genesis002_module_bindings/get_gameplay_04_keep_v_1_procedure.ts',
     'scripts/genesis002_module_bindings/greater_realm_activation_v_1_table.ts',
     'scripts/genesis002_module_bindings/greater_realm_castle_claim_v_1_table.ts',
     'scripts/genesis002_module_bindings/greater_realm_castle_slot_v_1_table.ts',
@@ -293,6 +389,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/genesis002_module_bindings/greater_realm_release_v_1_table.ts',
     'scripts/genesis002_module_bindings/greater_realm_resource_node_v_1_table.ts',
     'scripts/genesis002_module_bindings/index.ts',
+    'scripts/genesis002_module_bindings/initialize_gameplay_04_keep_v_1_procedure.ts',
     'scripts/genesis002_module_bindings/mark_account_v_1_table.ts',
     'scripts/genesis002_module_bindings/player_ownership_v_2_table.ts',
     'scripts/genesis002_module_bindings/player_table.ts',
@@ -301,7 +398,10 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/genesis002_module_bindings/realm_atlas_visible_region_v_1_table.ts',
     'scripts/genesis002_module_bindings/realm_profile_v_1_table.ts',
     'scripts/genesis002_module_bindings/realm_worker_system_v_2_table.ts',
+    'scripts/genesis002_module_bindings/recall_gameplay_04_worker_v_1_procedure.ts',
     'scripts/genesis002_module_bindings/resource_account_v_1_table.ts',
+    'scripts/genesis002_module_bindings/run_gameplay_04_schedule_v_1_reducer.ts',
+    'scripts/genesis002_module_bindings/start_gameplay_04_building_v_1_procedure.ts',
     'scripts/genesis002_module_bindings/types.ts',
     'scripts/greater-realm-cutover-operation-journal.ts',
     'scripts/greater-realm-cutover-receipts.ts',
@@ -338,6 +438,14 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/inner-keep-rabbit-runtime-contract.mjs',
     'scripts/inner-keep-runtime-asset-contract.d.mts',
     'scripts/inner-keep-runtime-asset-contract.mjs',
+    'scripts/local-binding-bounded-file.d.mts',
+    'scripts/local-binding-bounded-file.mjs',
+    'scripts/local-binding-native-ts-hooks.mjs',
+    'scripts/local-binding-runtime-cli-snapshot.mjs',
+    'scripts/local-binding-runtime-core.mjs',
+    'scripts/local-binding-runtime-process.mjs',
+    'scripts/local-binding-runtime-yaml-v1.json',
+    'scripts/local-program-artifact.mjs',
     'scripts/notification-pages-build-release-validator.d.mts',
     'scripts/notification-pages-build-release-validator.mjs',
     'scripts/notification-pages-deploy-lane.d.mts',
@@ -361,6 +469,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/notification-pages-release-source-parser.d.mts',
     'scripts/notification-pages-release-source-parser.mjs',
     'scripts/private-operator-report.ts',
+    'scripts/production-admin-connection.ts',
     'scripts/production-admin-token-budget.d.mts',
     'scripts/production-admin-token-budget.mjs',
     'scripts/production-player-canary-activation-launcher.mjs',
@@ -392,14 +501,106 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/profiles/profile-plan-artifact.ts',
     'scripts/profiles/profile-transport.ts',
     'scripts/profiles/profiles-operator.ts',
+    'scripts/ptr-artifact-description.d.mts',
+    'scripts/ptr-artifact-description.mjs',
+    'scripts/ptr-binding-linux-locked-source-build.ts',
+    'scripts/ptr-binding-locked-source-build-core.ts',
+    'scripts/ptr-binding-locked-source-build.ts',
+    'scripts/ptr-binding-source-validation.ts',
+    'scripts/ptr-owner-provision-operator.ts',
+    'scripts/ptr-production-admin-token.ts',
+    'scripts/ptr-production-existing-update-adapter.d.mts',
+    'scripts/ptr-production-existing-update-adapter.mjs',
+    'scripts/ptr-production-import-core.ts',
+    'scripts/ptr-production-import-operator.ts',
+    'scripts/ptr-production-publisher-cli.ts',
+    'scripts/ptr-production-publisher.d.mts',
+    'scripts/ptr-production-publisher.mjs',
+    'scripts/ptr-production-receipt-file.ts',
+    'scripts/ptr-production-release-receipts.ts',
+    'scripts/ptr-production-transport.ts',
+    'scripts/ptr-update-definition-policy.d.mts',
+    'scripts/ptr-update-definition-policy.mjs',
+    'scripts/ptr-update-provider-credentials.d.mts',
+    'scripts/ptr-update-provider-credentials.mjs',
     'scripts/publish-spacetime-dev.d.mts',
     'scripts/publish-spacetime-dev.mjs',
+    'scripts/qa-observer/keep04-document-policy.d.mts',
+    'scripts/qa-observer/keep04-document-policy.mjs',
     'scripts/qa-observer/local-fullstack-spacetime.d.mts',
     'scripts/qa-observer/local-fullstack-spacetime.mjs',
     'scripts/qa-observer/local-vite-fs-deny.d.mts',
     'scripts/qa-observer/local-vite-fs-deny.mjs',
+    'scripts/recovery-activation-candidate.d.mts',
+    'scripts/recovery-activation-candidate.mjs',
+    'scripts/recovery-attestation-source.d.mts',
+    'scripts/recovery-attestation-source.mjs',
+    'scripts/recovery-authorization-client.d.mts',
+    'scripts/recovery-authorization-client.mjs',
+    'scripts/recovery-authorization-protocol.d.mts',
+    'scripts/recovery-authorization-protocol.mjs',
+    'scripts/recovery-binding-projection.d.mts',
+    'scripts/recovery-binding-projection.mjs',
+    'scripts/recovery-claim-handoff.d.mts',
+    'scripts/recovery-claim-handoff.mjs',
+    'scripts/recovery-public-key.d.mts',
+    'scripts/recovery-public-key.mjs',
+    'scripts/recovery-workflow-bundle-manifest-v1.json',
+    'scripts/recovery-workflow-check-deployment.d.mts',
+    'scripts/recovery-workflow-check-deployment.mjs',
+    'scripts/recovery-workflow-current-context.d.mts',
+    'scripts/recovery-workflow-current-context.mjs',
+    'scripts/recovery-workflow-deployment-boundary.d.mts',
+    'scripts/recovery-workflow-deployment-boundary.mjs',
+    'scripts/recovery-workflow-live-postflight.d.mts',
+    'scripts/recovery-workflow-live-postflight.mjs',
+    'scripts/recovery-workflow-oidc.d.mts',
+    'scripts/recovery-workflow-oidc.mjs',
+    'scripts/recovery-workflow-postflight.d.mts',
+    'scripts/recovery-workflow-postflight.mjs',
+    'scripts/recovery-workflow-prepare-claim.mjs',
+    'scripts/recovery-workflow-private-directory.d.mts',
+    'scripts/recovery-workflow-private-directory.mjs',
+    'scripts/recovery-workflow-reconcile-current-run.d.mts',
+    'scripts/recovery-workflow-reconcile-current-run.mjs',
+    'scripts/recovery-workflow-reconciliation.d.mts',
+    'scripts/recovery-workflow-reconciliation.mjs',
+    'scripts/recovery-workflow-run-context.d.mts',
+    'scripts/recovery-workflow-run-context.mjs',
+    'scripts/recovery-workflow-session.d.mts',
+    'scripts/recovery-workflow-session.mjs',
+    'scripts/sealed-realms-existing-update-protocol.d.mts',
+    'scripts/sealed-realms-existing-update-protocol.mjs',
+    'scripts/sealed-realms-production-activation-generation-receipt.d.mts',
+    'scripts/sealed-realms-production-activation-generation-receipt.mjs',
+    'scripts/sealed-realms-production-activation-lane.bundle.d.mts',
+    'scripts/sealed-realms-production-activation-lane.bundle.mjs',
+    'scripts/sealed-realms-production-activation-records.d.mts',
+    'scripts/sealed-realms-production-activation-records.mjs',
+    'scripts/sealed-realms-production-auth-bridge-state.d.mts',
+    'scripts/sealed-realms-production-auth-bridge-state.mjs',
+    'scripts/sealed-realms-production-bridge-provider.d.mts',
+    'scripts/sealed-realms-production-bridge-provider.mjs',
+    'scripts/sealed-realms-production-bundle-manifest-v1.json',
+    'scripts/sealed-realms-production-continuation.d.mts',
+    'scripts/sealed-realms-production-continuation.mjs',
+    'scripts/sealed-realms-production-g001-lane.bundle.d.mts',
+    'scripts/sealed-realms-production-g001-lane.bundle.mjs',
+    'scripts/sealed-realms-production-g002-lane.bundle.d.mts',
+    'scripts/sealed-realms-production-g002-lane.bundle.mjs',
+    'scripts/sealed-realms-production-private-state.d.mts',
+    'scripts/sealed-realms-production-private-state.mjs',
+    'scripts/sealed-realms-production-ptr-lane.bundle.d.mts',
+    'scripts/sealed-realms-production-ptr-lane.bundle.mjs',
+    'scripts/sealed-realms-production-source-authority.d.mts',
+    'scripts/sealed-realms-production-source-authority.mjs',
+    'scripts/sealed-realms-production-workflow-authority.d.mts',
+    'scripts/sealed-realms-production-workflow-authority.mjs',
+    'scripts/sealed-realms-production-workflow-evidence-json.mjs',
+    'scripts/sealed-realms-production-workflow-evidence.mjs',
     'scripts/spacetime-additive-migration-proof.d.mts',
     'scripts/spacetime-additive-migration-proof.mjs',
+    'scripts/spacetime-binding-tree.mjs',
     'scripts/spacetime-cli-attestation.d.mts',
     'scripts/spacetime-cli-attestation.mjs',
     'scripts/spacetime-publish-receipt.d.mts',
@@ -420,6 +621,16 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/verify-greater-realm-release-gates.d.mts',
     'scripts/verify-greater-realm-release-gates.mjs',
     'scripts/verify-production-dist-exclusions.mjs',
+    'scripts/verify-recovery-authorization-jws.d.mts',
+    'scripts/verify-recovery-authorization-jws.mjs',
+    'scripts/verify-recovery-claim-receipt.d.mts',
+    'scripts/verify-recovery-claim-receipt.mjs',
+    'scripts/verify-recovery-status.d.mts',
+    'scripts/verify-recovery-status.mjs',
+    'scripts/verify-recovery-terminal.d.mts',
+    'scripts/verify-recovery-terminal.mjs',
+    'scripts/verify-sealed-realms-public-activation-artifact.d.mts',
+    'scripts/verify-sealed-realms-public-activation-artifact.mjs',
     'scripts/warpkeep-package-version.d.mts',
     'scripts/warpkeep-package-version.mjs',
     'scripts/water-revision-operator.ts',
@@ -442,11 +653,16 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'services/auth-bridge/src/miniAppWebhook.ts',
     'services/auth-bridge/src/qaObserver.ts',
     'services/auth-bridge/src/rateLimit.ts',
+    'services/auth-bridge/src/releaseRecoveryConfig.ts',
+    'services/auth-bridge/src/releaseRecoveryConfiguration.ts',
+    'services/auth-bridge/src/releaseRecoveryObservation.ts',
     'services/auth-bridge/src/sessionCookie.ts',
     'services/auth-bridge/src/sessionFamily.ts',
     'services/auth-bridge/src/spacetimeAccessRequestResolver.ts',
     'services/auth-bridge/src/spacetimeAuthEpochResolver.ts',
+    'services/auth-bridge/src/spacetimeIdentity.ts',
     'services/auth-bridge/src/spacetimeQaObserverResolver.ts',
+    'services/auth-bridge/src/spacetimeReleaseRecoveryResolver.ts',
     'services/auth-bridge/src/types.ts',
     'services/auth-bridge/test-workerd/authBridge.workerd.test.ts',
     'services/auth-bridge/test-workerd/tsconfig.json',
@@ -456,31 +672,104 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'services/auth-bridge/test/browserBinding.test.ts',
     'services/auth-bridge/test/challengeStore.test.ts',
     'services/auth-bridge/test/farcaster.test.ts',
+    'services/auth-bridge/test/genesis002AdminToken.test.ts',
     'services/auth-bridge/test/miniAppWebhook.test.ts',
+    'services/auth-bridge/test/ptrOwnerExchange.test.ts',
     'services/auth-bridge/test/qaObserver.test.ts',
     'services/auth-bridge/test/rateLimit.test.ts',
+    'services/auth-bridge/test/recoveryConfigurationFixture.ts',
+    'services/auth-bridge/test/releaseRecoveryConfig.test.ts',
+    'services/auth-bridge/test/releaseRecoveryConfiguration.test.ts',
+    'services/auth-bridge/test/releaseRecoveryObservation.test.ts',
     'services/auth-bridge/test/sessionFamily.test.ts',
     'services/auth-bridge/test/spacetimeAccessRequestResolver.test.ts',
     'services/auth-bridge/test/spacetimeAuthEpochResolver.test.ts',
     'services/auth-bridge/test/spacetimeQaObserverResolver.test.ts',
+    'services/auth-bridge/test/spacetimeReleaseRecoveryResolver.test.ts',
     'services/auth-bridge/tsconfig.json',
     'services/auth-bridge/vitest.config.ts',
     'services/auth-bridge/vitest.workerd.config.ts',
     'services/auth-bridge/wrangler.toml',
+    'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs',
+    'spacetimedb/gameplay04/commands.ts',
+    'spacetimedb/gameplay04/construction.ts',
+    'spacetimedb/gameplay04/keep.ts',
+    'spacetimedb/gameplay04/placement.ts',
+    'spacetimedb/gameplay04/policy.ts',
+    'spacetimedb/gameplay04/reconciliation.ts',
+    'spacetimedb/gameplay04/workerJourney.ts',
+    'spacetimedb/gameplay04/workerState.ts',
+    'spacetimedb/gameplay04/workers.ts',
+    'spacetimedb/genesis002/.gitignore',
     'spacetimedb/genesis002/package.json',
+    'spacetimedb/genesis002/src/adminPolicy.ts',
     'spacetimedb/genesis002/src/atlasImportReducers.ts',
     'spacetimedb/genesis002/src/auth.ts',
     'spacetimedb/genesis002/src/contract.ts',
+    'spacetimedb/genesis002/src/gameplayConstruction.ts',
+    'spacetimedb/genesis002/src/gameplayKeep.ts',
+    'spacetimedb/genesis002/src/gameplaySchedule.ts',
+    'spacetimedb/genesis002/src/gameplayScheduleLink.ts',
+    'spacetimedb/genesis002/src/gameplaySchema.ts',
+    'spacetimedb/genesis002/src/gameplayWorkers.ts',
     'spacetimedb/genesis002/src/index.ts',
     'spacetimedb/genesis002/src/lifecycle.ts',
     'spacetimedb/genesis002/src/policy.ts',
     'spacetimedb/genesis002/src/population.ts',
-    'spacetimedb/genesis002/src/reducers.ts',
     'spacetimedb/genesis002/src/schema.ts',
     'spacetimedb/genesis002/tsconfig.json',
     'spacetimedb/package.json',
     'spacetimedb/pnpm-lock.yaml',
     'spacetimedb/pnpm-workspace.yaml',
+    'spacetimedb/ptr/.gitignore',
+    'spacetimedb/ptr/generated-bindings/admin_begin_greater_realm_verification_v_1_reducer.ts',
+    'spacetimedb/ptr/generated-bindings/admin_finalize_greater_realm_release_v_1_reducer.ts',
+    'spacetimedb/ptr/generated-bindings/admin_get_greater_realm_status_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/admin_import_greater_realm_chunk_v_1_reducer.ts',
+    'spacetimedb/ptr/generated-bindings/admin_import_greater_realm_components_v_1_reducer.ts',
+    'spacetimedb/ptr/generated-bindings/admin_import_greater_realm_regions_v_1_reducer.ts',
+    'spacetimedb/ptr/generated-bindings/admin_provision_ptr_owner_v_1_reducer.ts',
+    'spacetimedb/ptr/generated-bindings/admin_stage_greater_realm_release_v_1_reducer.ts',
+    'spacetimedb/ptr/generated-bindings/admin_suspend_ptr_owner_v_1_reducer.ts',
+    'spacetimedb/ptr/generated-bindings/admin_verify_greater_realm_batch_v_1_reducer.ts',
+    'spacetimedb/ptr/generated-bindings/dispatch_gameplay_04_worker_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/get_gameplay_04_keep_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/get_ptr_owner_status_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/get_realm_atlas_bootstrap_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/get_realm_atlas_chunk_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/get_realm_atlas_resource_locations_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/get_realm_atlas_window_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/index.ts',
+    'spacetimedb/ptr/generated-bindings/initialize_gameplay_04_keep_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/plan_realm_route_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/recall_gameplay_04_worker_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/start_gameplay_04_building_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/types.ts',
+    'spacetimedb/ptr/package.json',
+    'spacetimedb/ptr/pnpm-lock.yaml',
+    'spacetimedb/ptr/src/atlasAuthority.ts',
+    'spacetimedb/ptr/src/atlasImportReducers.ts',
+    'spacetimedb/ptr/src/atlasPolicy.ts',
+    'spacetimedb/ptr/src/atlasReadPolicy.ts',
+    'spacetimedb/ptr/src/atlasReadReducers.ts',
+    'spacetimedb/ptr/src/auth.ts',
+    'spacetimedb/ptr/src/context.ts',
+    'spacetimedb/ptr/src/contract.ts',
+    'spacetimedb/ptr/src/gameplayConstruction.ts',
+    'spacetimedb/ptr/src/gameplayKeep.ts',
+    'spacetimedb/ptr/src/gameplaySchedule.ts',
+    'spacetimedb/ptr/src/gameplayScheduleLink.ts',
+    'spacetimedb/ptr/src/gameplaySchema.ts',
+    'spacetimedb/ptr/src/gameplayWorkers.ts',
+    'spacetimedb/ptr/src/index.ts',
+    'spacetimedb/ptr/src/lifecycle.ts',
+    'spacetimedb/ptr/src/ownerPolicy.ts',
+    'spacetimedb/ptr/src/ownerReducers.ts',
+    'spacetimedb/ptr/src/policy.ts',
+    'spacetimedb/ptr/src/schema.ts',
+    'spacetimedb/ptr/src/schemaContract.ts',
+    'spacetimedb/ptr/src/sha256.ts',
+    'spacetimedb/ptr/tsconfig.json',
     'spacetimedb/src/accessRequestPolicy.ts',
     'spacetimedb/src/adminPolicy.ts',
     'spacetimedb/src/admissionPolicy.ts',
@@ -590,6 +879,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'spacetimedb/src/worldCastleIntegrity.ts',
     'spacetimedb/src/worldSeedPolicy.ts',
     'src/App.tsx',
+    'src/WarpkeepRuntime.tsx',
     'src/build/buildInfo.ts',
     'src/build/buildInfoTypes.ts',
     'src/components/WarpkeepExperience.css',
@@ -645,6 +935,19 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'src/components/inner-keep/innerKeepTownAtmospherePolicy.ts',
     'src/components/inner-keep/loadInnerKeepRabbitAssets.ts',
     'src/components/inner-keep/loadInnerKeepRuntimeAssets.ts',
+    'src/components/keep04/Keep04BuildingPanel.tsx',
+    'src/components/keep04/Keep04LoopRail.tsx',
+    'src/components/keep04/Keep04SceneHost.tsx',
+    'src/components/keep04/Keep04Schematic.tsx',
+    'src/components/keep04/Keep04Screen.css',
+    'src/components/keep04/Keep04Screen.tsx',
+    'src/components/keep04/Keep04WorkerPanel.tsx',
+    'src/components/keep04/createKeep04Buildings.ts',
+    'src/components/keep04/createKeep04Scene.ts',
+    'src/components/keep04/keep04DressingPlans.generated.ts',
+    'src/components/keep04/keep04VisualProfile.ts',
+    'src/components/keep04/keep04VoxelDressing.ts',
+    'src/components/keep04/loadKeep04Assets.ts',
     'src/components/menu/AlphaParticipationTermsDialog.css',
     'src/components/menu/AlphaParticipationTermsDialog.tsx',
     'src/components/menu/CreditsRoll.css',
@@ -726,6 +1029,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'src/components/realm/createTerrainDecorations.ts',
     'src/components/realm/createTerrainGeometry.ts',
     'src/components/realm/greaterRealmSceneStrategy.ts',
+    'src/components/realm/greaterRealmVoxelPresentation.ts',
     'src/components/realm/greaterRealmWorldSnapshotAuthority.ts',
     'src/components/realm/greaterRealmWorldViewPolicy.ts',
     'src/components/realm/hegemonyKeepPrefabRepository.ts',
@@ -801,9 +1105,11 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'src/components/realm/realmWorkerSfxPresentation.ts',
     'src/components/realm/realmWorkerWagonRuntime.ts',
     'src/components/realm/realmWorldPortraitLayout.ts',
+    'src/components/realm/useNarrowRealmPresentation.ts',
     'src/components/realm/useRealmChromeMode.ts',
     'src/components/realm/useRealmSurfaceNavigation.ts',
     'src/components/realm/useRealmWorkerRecallLifecycle.ts',
+    'src/components/realm/voxelSurfaceMesh.ts',
     'src/components/title/BlackHoleGateway.tsx',
     'src/components/title/TitleGatewayHint.tsx',
     'src/components/title/WarpkeepTitleScreen.css',
@@ -881,6 +1187,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'src/greater-realm/greaterRealmPublicContract.ts',
     'src/greater-realm/greaterRealmRuntimePolicy.ts',
     'src/greater-realm/greaterRealmTransport.ts',
+    'src/greater-realm/greaterRealmWaterSurface.ts',
     'src/greater-realm/greaterRealmWorkerControl.ts',
     'src/legal/alphaTermsPolicy.ts',
     'src/legal/publicDocuments.ts',
@@ -899,6 +1206,22 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'src/owner-canary/ownerCanaryProductionRuntime.ts',
     'src/owner-canary/ownerCanaryRuntime.ts',
     'src/owner-canary/ownerCanaryRuntimePlan.ts',
+    'src/ptr/PtrGameplay04SurfaceHost.tsx',
+    'src/ptr/PtrRealmProvider.tsx',
+    'src/ptr/PtrSessionContinuation.css',
+    'src/ptr/PtrSessionContinuation.tsx',
+    'src/ptr/gameplay04/createGameplay04Controller.ts',
+    'src/ptr/gameplay04/gameplay04Placement.ts',
+    'src/ptr/gameplay04/gameplay04Presentation.ts',
+    'src/ptr/gameplay04/gameplay04State.ts',
+    'src/ptr/gameplay04/ptrGameplay04Errors.ts',
+    'src/ptr/gameplay04/ptrGameplay04Types.ts',
+    'src/ptr/gameplay04/useGameplay04Controller.ts',
+    'src/ptr/ptrGreaterRealmBridge.ts',
+    'src/ptr/ptrRealmAuthClient.ts',
+    'src/ptr/ptrRealmConfig.ts',
+    'src/ptr/ptrRealmConnection.ts',
+    'src/ptr/ptrRealmPresentationPolicy.ts',
     'src/release/admissionLaunchPolicy.ts',
     'src/release/realmReleaseIdentity.ts',
     'src/security/publicImageUrl.ts',
@@ -1148,13 +1471,20 @@ function canonicalRepository(repositoryRoot) {
   return repository;
 }
 
+function permittedMemberPath(memberPath) {
+  return typeof memberPath === 'string'
+    && (MEMBER_PATH.test(memberPath)
+      || GAMEPLAY04_SHARED_SOURCE_MEMBER_PATHS.has(memberPath)
+      || memberPath === 'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs')
+    && (!memberPath.startsWith('spacetimedb/ptr/')
+      || PTR_MODULE_MEMBER_PATH.test(memberPath)
+      || PTR_GENERATED_BINDING_MEMBER_PATHS.has(memberPath))
+    && !memberPath.includes('//')
+    && !memberPath.split('/').some(part => part === '.' || part === '..');
+}
+
 function canonicalMemberPath(repository, memberPath, code) {
-  if (
-    typeof memberPath !== 'string'
-    || !MEMBER_PATH.test(memberPath)
-    || memberPath.includes('//')
-    || memberPath.split('/').some(part => part === '.' || part === '..')
-  ) fail(code);
+  if (!permittedMemberPath(memberPath)) fail(code);
   const requested = resolve(repository, memberPath);
   let canonical;
   let status;
@@ -1269,7 +1599,7 @@ function parseManifest(body) {
   for (const member of value.members) {
     if (
       !exactKeys(member, MEMBER_KEYS)
-      || !MEMBER_PATH.test(member.path ?? '')
+      || !permittedMemberPath(member.path)
       || member.digestProfile !== expectedMemberDigestProfile(member.path)
       || !SHA256_HEX.test(member.sha256 ?? '')
       || member.path <= previous
@@ -1290,6 +1620,77 @@ function manifestMemberSetMatchesExpected(manifest) {
 
 function sha256Body(body) {
   return createHash('sha256').update(body).digest('hex');
+}
+
+function boundedAggregateMemberBytes(aggregateBytes, body) {
+  const nextAggregateBytes = aggregateBytes + body.byteLength;
+  if (nextAggregateBytes > MAX_AGGREGATE_MEMBER_BYTES) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_INVALID');
+  }
+  return nextAggregateBytes;
+}
+
+function moduleSourceBody(source) {
+  if (typeof source === 'string') return Buffer.from(source, 'utf8');
+  if (source instanceof ArrayBuffer) {
+    return Buffer.from(new Uint8Array(source));
+  }
+  if (ArrayBuffer.isView(source)) {
+    return Buffer.from(new Uint8Array(
+      source.buffer,
+      source.byteOffset,
+      source.byteLength,
+    ));
+  }
+  fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_SOURCE_INVALID');
+}
+
+function ensureAttestedModuleLoadHook() {
+  if (attestedModuleLoadHookRegistered) return;
+  registerHooks({
+    load(url, context, nextLoad) {
+      const result = nextLoad(url, context);
+      const active = activeAttestedModuleLoad;
+      if (active === undefined) return result;
+      if (url.startsWith('node:')) return result;
+      let moduleUrl;
+      let memberPath;
+      try {
+        moduleUrl = new URL(url);
+        if (
+          moduleUrl.protocol !== 'file:'
+          || moduleUrl.search !== ''
+          || moduleUrl.hash !== ''
+        ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_PATH_INVALID');
+        const modulePath = fileURLToPath(moduleUrl);
+        const difference = relative(active.repositoryRoot, modulePath);
+        if (
+          difference === ''
+          || difference === '..'
+          || difference.startsWith(`..${sep}`)
+          || isAbsolute(difference)
+        ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_PATH_INVALID');
+        memberPath = difference.split(sep).join('/');
+      } catch (error) {
+        if (error instanceof AuthBridgeNotificationPreparedDeployClosureError) {
+          throw error;
+        }
+        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_PATH_INVALID');
+      }
+      const expectedDigest = active.rawMemberDigests.get(memberPath);
+      if (expectedDigest === undefined || result.format !== 'module') {
+        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_UNATTESTED');
+      }
+      const body = moduleSourceBody(result.source);
+      if (sha256Body(body) !== expectedDigest) {
+        body.fill(0);
+        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_DIGEST_MISMATCH');
+      }
+      active.observedMemberPaths.add(memberPath);
+      return { ...result, source: body };
+    },
+  });
+  attestedModuleLoadHookRegistered = true;
 }
 
 function reviewedReleaseSource(body) {
@@ -1355,17 +1756,21 @@ function projectSealedLaunchBinding(body) {
     || value.profile !== 'warpkeep-0.4.0-sealed-launch-v1'
     || typeof value.pagesDeploymentApproved !== 'boolean'
     || value.g002PresentationEnabled !== false
+    || typeof value.ptrPresentationEnabled !== 'boolean'
     || value.legacyGreaterRealmClientPresentationEnabled !== false
     || value.legacyGreaterRealmServerPresentationEnabled !== false
     || value.admissionNotificationsEnabled !== false
   ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID');
   const keys = Object.keys(value);
   const firstOperational = keys.indexOf('preparationSourceCommit');
-  const lastOperational = keys.indexOf('g002AdmissionMutationsEnabled');
+  const lastOperational = keys.indexOf('ptrAccessRequestSurfacePresent');
   if (
     firstOperational !== 3
     || lastOperational <= firstOperational
     || keys[lastOperational + 1] !== 'g002PresentationEnabled'
+    || keys[lastOperational + 2] !== 'ptrPresentationEnabled'
+    || keys.at(-5) !== 'g002PresentationEnabled'
+    || keys.at(-4) !== 'ptrPresentationEnabled'
     || keys.at(-3) !== 'legacyGreaterRealmClientPresentationEnabled'
     || keys.at(-2) !== 'legacyGreaterRealmServerPresentationEnabled'
     || keys.at(-1) !== 'admissionNotificationsEnabled'
@@ -1373,9 +1778,12 @@ function projectSealedLaunchBinding(body) {
   const operationalKeys = keys.slice(firstOperational, lastOperational + 1);
   const nulls = operationalKeys.filter(key => value[key] === null).length;
   const state = value.pagesDeploymentApproved === false
+    && value.ptrPresentationEnabled === false
     && nulls === operationalKeys.length
     ? 'N'
-    : value.pagesDeploymentApproved === true && nulls === 0
+    : value.pagesDeploymentApproved === true
+      && value.ptrPresentationEnabled === true
+      && nulls === 0
       ? 'P'
       : undefined;
   if (state === undefined) {
@@ -1383,6 +1791,7 @@ function projectSealedLaunchBinding(body) {
   }
   const canonical = { ...value, pagesDeploymentApproved: false };
   for (const key of operationalKeys) canonical[key] = null;
+  canonical.ptrPresentationEnabled = false;
   return Object.freeze({
     body: Buffer.from(`${JSON.stringify(canonical, null, 2)}\n`, 'utf8'),
     state,
@@ -1638,9 +2047,9 @@ function canonicalReviewedReleaseMemberBodies(memberBodies) {
   }
 }
 
-function readBootstrapPinValues(repository, manifestSha256) {
+function readBootstrapPinValuesForWorkflow(repository, manifestSha256, workflow) {
   const values = new Map();
-  for (const binding of BOOTSTRAP_PIN_BINDINGS) {
+  for (const binding of workflow.bindings) {
     if (binding.path === AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH) {
       values.set(binding.name, manifestSha256);
       continue;
@@ -1655,7 +2064,17 @@ function readBootstrapPinValues(repository, manifestSha256) {
   return values;
 }
 
-function canonicalPinnedWorkflowBody(memberPath, body, expectedPins) {
+function readBootstrapPinValues(repository, manifestSha256) {
+  return new Map(
+    [...BOOTSTRAP_PINNED_WORKFLOWS.entries()]
+      .map(([memberPath, workflow]) => [
+        memberPath,
+        readBootstrapPinValuesForWorkflow(repository, manifestSha256, workflow),
+      ]),
+  );
+}
+
+function inspectPinnedWorkflowBody(memberPath, body, expectedPins) {
   let source;
   try { source = new TextDecoder('utf-8', { fatal: true }).decode(body); } catch {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_BOOTSTRAP_INVALID');
@@ -1664,13 +2083,13 @@ function canonicalPinnedWorkflowBody(memberPath, body, expectedPins) {
   if (workflow === undefined) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_BOOTSTRAP_INVALID');
   }
-  let canonical = source;
+  const declaredPins = new Map();
   for (const binding of BOOTSTRAP_PIN_BINDINGS) {
     const definitionPattern = new RegExp(
       `^\\s*${binding.name}\\s*:`,
       'gmu',
     );
-    const expectedHere = workflow.bindings.includes(binding);
+    const expectedHere = workflow.bindings.some(candidate => candidate.name === binding.name);
     const exactPattern = new RegExp(
       `^${workflow.indentation}${binding.name}: '([a-f0-9]{64})'$`,
       'gmu',
@@ -1680,18 +2099,234 @@ function canonicalPinnedWorkflowBody(memberPath, body, expectedPins) {
     if (
       definitions.length !== (expectedHere ? 1 : 0)
       || exact.length !== (expectedHere ? 1 : 0)
-      || (expectedHere && exact[0][1] !== expectedPins.get(binding.name))
+      || (
+        expectedHere
+        && expectedPins !== undefined
+        && exact[0][1] !== expectedPins.get(binding.name)
+      )
     ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_BOOTSTRAP_INVALID');
-    if (!expectedHere) continue;
+    if (expectedHere) declaredPins.set(binding.name, exact[0][1]);
+  }
+  return Object.freeze({ source, declaredPins });
+}
+
+function declaredBootstrapPinValues(memberPath, body) {
+  return inspectPinnedWorkflowBody(memberPath, body).declaredPins;
+}
+
+function canonicalPinnedWorkflowBody(memberPath, body, expectedPins) {
+  const { source } = inspectPinnedWorkflowBody(memberPath, body, expectedPins);
+  const workflow = BOOTSTRAP_PINNED_WORKFLOWS.get(memberPath);
+  let canonical = source;
+  for (const binding of workflow.bindings) {
+    const exactPattern = new RegExp(
+      `^${workflow.indentation}${binding.name}: '([a-f0-9]{64})'$`,
+      'gmu',
+    );
     canonical = canonical.replace(
       exactPattern,
       `${workflow.indentation}${binding.name}: '${BOOTSTRAP_PIN_CANONICAL_VALUE}'`,
     );
   }
-  if (canonical === source) {
-    fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_BOOTSTRAP_INVALID');
-  }
   return Buffer.from(canonical, 'utf8');
+}
+
+function rewritePinnedWorkflowBody(memberPath, body, finalPins) {
+  const { source } = inspectPinnedWorkflowBody(memberPath, body);
+  const workflow = BOOTSTRAP_PINNED_WORKFLOWS.get(memberPath);
+  let rewritten = source;
+  for (const binding of workflow.bindings) {
+    const value = finalPins.get(binding.name);
+    if (!SHA256_HEX.test(value ?? '')) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_BOOTSTRAP_INVALID');
+    }
+    rewritten = rewritten.replace(
+      new RegExp(
+        `^${workflow.indentation}${binding.name}: '[a-f0-9]{64}'$`,
+        'gmu',
+      ),
+      `${workflow.indentation}${binding.name}: '${value}'`,
+    );
+  }
+  return Buffer.from(rewritten, 'utf8');
+}
+
+function canonicalManifestMembers(memberBodies, workflowPinValues) {
+  let releaseBodies;
+  try {
+    releaseBodies = canonicalReviewedReleaseMemberBodies(memberBodies);
+    const members = [];
+    for (const memberPath of AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS) {
+      const releaseBody = releaseBodies.get(memberPath);
+      const body = releaseBody ?? memberBodies.get(memberPath);
+      if (body === undefined) {
+        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+      }
+      let canonicalBody = body;
+      try {
+        if (BOOTSTRAP_PINNED_WORKFLOWS.has(memberPath)) {
+          const pinValues = workflowPinValues.get(memberPath);
+          if (pinValues === undefined) {
+            fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_BOOTSTRAP_INVALID');
+          }
+          canonicalBody = canonicalPinnedWorkflowBody(
+            memberPath,
+            body,
+            pinValues,
+          );
+        }
+        members.push({
+          path: memberPath,
+          digestProfile: expectedMemberDigestProfile(memberPath),
+          sha256: sha256Body(canonicalBody),
+        });
+      } finally {
+        if (canonicalBody !== body) canonicalBody.fill(0);
+      }
+    }
+    return members;
+  } finally {
+    if (releaseBodies !== undefined) {
+      for (const body of releaseBodies.values()) body.fill(0);
+    }
+  }
+}
+
+function bootstrapPinValuesFromMemberBodies(
+  memberBodies,
+  manifestSha256,
+  bindings = BOOTSTRAP_PIN_BINDINGS,
+) {
+  const values = new Map();
+  for (const binding of bindings) {
+    if (binding.path === AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH) {
+      values.set(binding.name, manifestSha256);
+      continue;
+    }
+    const body = memberBodies.get(binding.path);
+    if (body === undefined) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+    }
+    values.set(binding.name, sha256Body(body));
+  }
+  return values;
+}
+
+export function deriveAuthBridgeNotificationPreparedDeployClosure(options) {
+  if (!exactKeys(options, ['memberBodies'])) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+  }
+  const { memberBodies } = options;
+  if (
+    !(memberBodies instanceof Map)
+    || memberBodies.size !== AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS.length
+    || memberBodies.size > MAX_MEMBERS
+  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+
+  const expectedPaths = new Set(
+    AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS,
+  );
+  let aggregateBytes = 0;
+  for (const [memberPath, body] of memberBodies) {
+    if (!permittedMemberPath(memberPath) || !expectedPaths.has(memberPath)) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+    }
+    if (
+      !(body instanceof Uint8Array)
+      || body.byteLength < 1
+      || body.byteLength > MAX_MEMBER_BYTES
+    ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_INVALID');
+    aggregateBytes = boundedAggregateMemberBytes(aggregateBytes, body);
+  }
+  for (const memberPath of AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS) {
+    if (!memberBodies.has(memberPath)) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+    }
+  }
+
+  const ownedBodies = new Map();
+  const rewrittenWorkflowBodies = new Map();
+  let manifestBytes;
+  try {
+    for (const memberPath of AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS) {
+      ownedBodies.set(memberPath, Buffer.from(memberBodies.get(memberPath)));
+    }
+
+    const declaredPinsByWorkflow = new Map();
+    for (const memberPath of BOOTSTRAP_PINNED_WORKFLOWS.keys()) {
+      declaredPinsByWorkflow.set(
+        memberPath,
+        declaredBootstrapPinValues(memberPath, ownedBodies.get(memberPath)),
+      );
+    }
+    const members = canonicalManifestMembers(
+      ownedBodies,
+      declaredPinsByWorkflow,
+    );
+    manifestBytes = Buffer.from(`${JSON.stringify({
+      schemaVersion: 2,
+      profile: AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_PROFILE,
+      members,
+    }, null, 2)}\n`, 'utf8');
+    if (
+      manifestBytes.byteLength < 2
+      || manifestBytes.byteLength > MAX_MANIFEST_BYTES
+    ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
+    const manifestSha256 = sha256Body(manifestBytes);
+    const finalPinsByWorkflow = new Map(
+      [...BOOTSTRAP_PINNED_WORKFLOWS.entries()]
+        .map(([memberPath, workflow]) => [
+          memberPath,
+          bootstrapPinValuesFromMemberBodies(
+            ownedBodies,
+            manifestSha256,
+            workflow.bindings,
+          ),
+        ]),
+    );
+    for (const memberPath of BOOTSTRAP_PINNED_WORKFLOWS.keys()) {
+      rewrittenWorkflowBodies.set(
+        memberPath,
+        rewritePinnedWorkflowBody(
+          memberPath,
+          ownedBodies.get(memberPath),
+          finalPinsByWorkflow.get(memberPath),
+        ),
+      );
+    }
+
+    const installedBodies = new Map(ownedBodies);
+    for (const [memberPath, body] of rewrittenWorkflowBodies) {
+      installedBodies.set(memberPath, body);
+    }
+    const installedMembers = canonicalManifestMembers(
+      installedBodies,
+      finalPinsByWorkflow,
+    );
+    if (JSON.stringify(installedMembers) !== JSON.stringify(members)) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH');
+    }
+
+    const workflowBodies = Object.freeze(
+      [...rewrittenWorkflowBodies]
+        .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+        .map(([path, bytes]) => Object.freeze({
+          path,
+          bytes: Buffer.from(bytes),
+        })),
+    );
+    return Object.freeze({
+      profile: AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_PROFILE,
+      memberCount: members.length,
+      manifestBytes: Buffer.from(manifestBytes),
+      manifestSha256,
+      workflowBodies,
+    });
+  } finally {
+    for (const body of ownedBodies.values()) body.fill(0);
+    for (const body of rewrittenWorkflowBodies.values()) body.fill(0);
+    if (manifestBytes !== undefined) manifestBytes.fill(0);
+  }
 }
 
 export function verifyAuthBridgeNotificationPreparedDeployClosure({
@@ -1715,89 +2350,33 @@ export function verifyAuthBridgeNotificationPreparedDeployClosure({
   ) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
   }
-  const expectedPins = readBootstrapPinValues(repository, manifestSha256);
-  const releaseMemberBodies = new Map();
-  let releaseBodies;
+  const expectedPinsByWorkflow = readBootstrapPinValues(repository, manifestSha256);
+  const memberBodies = new Map();
+  let aggregateBytes = 0;
   try {
-    for (const memberPath of Object.values(REVIEWED_RELEASE_SOURCE_PATHS)) {
-      releaseMemberBodies.set(memberPath, readMember(
+    for (const memberPath of AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS) {
+      const body = readMember(
         repository,
         memberPath,
         'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_INVALID',
-      ));
-    }
-    releaseBodies = canonicalReviewedReleaseMemberBodies(releaseMemberBodies);
-    for (const body of releaseMemberBodies.values()) body.fill(0);
-    releaseMemberBodies.clear();
-    for (const member of manifest.members) {
-      const releaseBody = releaseBodies.get(member.path);
-      const body = releaseBody ?? readMember(
-        repository,
-        member.path,
-        'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_INVALID',
       );
-      let canonicalBody;
       try {
-        if (member.digestProfile === RAW_FILE_DIGEST_PROFILE) {
-          if (
-            releaseBody !== undefined
-            || BOOTSTRAP_PINNED_WORKFLOWS.has(member.path)
-          ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
-          canonicalBody = body;
-        } else if (
-          member.digestProfile === BOOTSTRAP_PIN_DIGEST_PROFILE
-        ) {
-          if (
-            releaseBody !== undefined
-            || !BOOTSTRAP_PINNED_WORKFLOWS.has(member.path)
-          ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
-          canonicalBody = canonicalPinnedWorkflowBody(
-            member.path,
-            body,
-            expectedPins,
-          );
-        } else if (
-          member.digestProfile
-            === REVIEWED_RELEASE_TRANSITION_DIGEST_PROFILE
-        ) {
-          if (
-            releaseBody === undefined
-            || BOOTSTRAP_PINNED_WORKFLOWS.has(member.path)
-          ) {
-            fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
-          }
-          canonicalBody = body;
-        } else if (
-          member.digestProfile
-            === REVIEWED_RELEASE_TRANSITION_PLUS_BOOTSTRAP_PIN_DIGEST_PROFILE
-        ) {
-          if (
-            releaseBody === undefined
-            || !BOOTSTRAP_PINNED_WORKFLOWS.has(member.path)
-          ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
-          canonicalBody = canonicalPinnedWorkflowBody(
-            member.path,
-            body,
-            expectedPins,
-          );
-        } else {
-          fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
-        }
-        if (sha256Body(canonicalBody) !== member.sha256) {
-          fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH');
-        }
-      } finally {
-        if (canonicalBody !== undefined && canonicalBody !== body) {
-          canonicalBody.fill(0);
-        }
-        if (releaseBody === undefined) body.fill(0);
+        aggregateBytes = boundedAggregateMemberBytes(aggregateBytes, body);
+        memberBodies.set(memberPath, body);
+      } catch (error) {
+        body.fill(0);
+        throw error;
       }
     }
-  } finally {
-    for (const body of releaseMemberBodies.values()) body.fill(0);
-    if (releaseBodies !== undefined) {
-      for (const body of releaseBodies.values()) body.fill(0);
+    const expectedMembers = canonicalManifestMembers(
+      memberBodies,
+      expectedPinsByWorkflow,
+    );
+    if (JSON.stringify(expectedMembers) !== JSON.stringify(manifest.members)) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH');
     }
+  } finally {
+    for (const body of memberBodies.values()) body.fill(0);
   }
   const authority = Object.freeze({
     profile: AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_PROFILE,
@@ -1807,6 +2386,11 @@ export function verifyAuthBridgeNotificationPreparedDeployClosure({
     ownerUid: process.getuid(),
   });
   authenticatedSourceClosureAuthorities.add(authority);
+  authenticatedSourceClosureRawMemberDigests.set(authority, new Map(
+    manifest.members
+      .filter(member => member.digestProfile === RAW_FILE_DIGEST_PROFILE)
+      .map(member => [member.path, member.sha256]),
+  ));
   return authority;
 }
 
@@ -1820,6 +2404,54 @@ export function assertAuthBridgeNotificationPreparedDeployClosureAuthority(
     || authority.ownerUid !== process.getuid()
   ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_AUTHORITY_INVALID');
   return authority;
+}
+
+export async function importAuthBridgeNotificationPreparedAttestedModules({
+  authority,
+  repositoryRoot,
+  memberPaths,
+} = {}) {
+  const authenticated = assertAuthBridgeNotificationPreparedDeployClosureAuthority(
+    authority,
+    { repositoryRoot },
+  );
+  const rawMemberDigests =
+    authenticatedSourceClosureRawMemberDigests.get(authenticated);
+  if (
+    rawMemberDigests === undefined
+    || !Array.isArray(memberPaths)
+    || memberPaths.length < 1
+    || memberPaths.length > 16
+    || memberPaths.some(memberPath => (
+      typeof memberPath !== 'string'
+      || !rawMemberDigests.has(memberPath)
+    ))
+    || new Set(memberPaths).size !== memberPaths.length
+  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_SET_INVALID');
+  ensureAttestedModuleLoadHook();
+  if (activeAttestedModuleLoad !== undefined) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_LOAD_BUSY');
+  }
+  const observedMemberPaths = new Set();
+  activeAttestedModuleLoad = {
+    repositoryRoot: authenticated.repositoryRoot,
+    rawMemberDigests,
+    observedMemberPaths,
+  };
+  try {
+    const modules = [];
+    for (const memberPath of memberPaths) {
+      modules.push(await import(
+        pathToFileURL(resolve(authenticated.repositoryRoot, memberPath)).href
+      ));
+    }
+    if (memberPaths.some(memberPath => !observedMemberPaths.has(memberPath))) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_NOT_LOADED');
+    }
+    return Object.freeze(modules);
+  } finally {
+    activeAttestedModuleLoad = undefined;
+  }
 }
 
 export const authBridgeNotificationPreparedDeployClosureTestSeams =

@@ -1417,6 +1417,7 @@ function exactPredecessorVersion(result, deployment, contract) {
   const expectedCandidateVariables = [
     ...REVIEWED_LIVE_V5_PLAIN_TEXT_BINDINGS
       .map(({ name, text }) => [name, text]),
+    ['PTR_ENABLED', 'false'],
     ['WARPKEEP_BRIDGE_SOURCE_COMMIT', contract.sourceCommit],
   ].sort(([left], [right]) => left.localeCompare(right, 'en'));
   if (!exactJson(

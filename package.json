@@ -20,7 +20,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && node scripts/generate-inner-keep-browser-asset-catalog.mjs --check && node scripts/verify-runtime-assets.mjs && node scripts/verify-inner-keep-runtime-assets.mjs && node scripts/verify-inner-keep-population-assets.mjs && node scripts/verify-inner-keep-rabbit-assets.mjs && node scripts/verify-hegemony-gold-mine-candidates.mjs && node scripts/verify-hegemony-gold-mine-runtime.mjs && node scripts/verify-hegemony-wheat-farm-runtime-assets.mjs && node scripts/verify-hegemony-logging-camp-runtime-assets.mjs && node scripts/verify-hegemony-stone-quarry-runtime-assets.mjs && node scripts/verify-hegemony-supply-wagon-assets.mjs && node scripts/verify-hegemony-tree-runtime-assets.mjs && vite build && node scripts/verify-inner-keep-runtime-assets.mjs --production-dist && node scripts/verify-inner-keep-population-assets.mjs --production-dist && node scripts/verify-inner-keep-rabbit-assets.mjs --production-dist && node scripts/verify-production-dist-exclusions.mjs && node scripts/atlas/verify-public-boundary.mjs && node scripts/verify-farcaster-miniapp.mjs",
+    "build": "tsx scripts/generate-keep04-voxel-dressing.ts --check && tsc -b && node scripts/generate-inner-keep-browser-asset-catalog.mjs --check && node scripts/verify-runtime-assets.mjs && node scripts/verify-inner-keep-runtime-assets.mjs && node scripts/verify-inner-keep-population-assets.mjs && node scripts/verify-inner-keep-rabbit-assets.mjs && node scripts/verify-hegemony-gold-mine-candidates.mjs && node scripts/verify-hegemony-gold-mine-runtime.mjs && node scripts/verify-hegemony-wheat-farm-runtime-assets.mjs && node scripts/verify-hegemony-logging-camp-runtime-assets.mjs && node scripts/verify-hegemony-stone-quarry-runtime-assets.mjs && node scripts/verify-hegemony-supply-wagon-assets.mjs && node scripts/verify-hegemony-tree-runtime-assets.mjs && vite build && node scripts/verify-inner-keep-runtime-assets.mjs --production-dist && node scripts/verify-inner-keep-population-assets.mjs --production-dist && node scripts/verify-inner-keep-rabbit-assets.mjs --production-dist && node scripts/verify-production-dist-exclusions.mjs && node scripts/atlas/verify-public-boundary.mjs && node scripts/verify-farcaster-miniapp.mjs",
     "preview": "vite preview",
     "check": "npm run verify:licenses && npm run verify:atlas-public-boundary && npm run verify:runtime-assets && npm run verify:file-sizes && npm test && npm run typecheck && npm run build",
     "validate:pages-config": "node scripts/validate-pages-deploy-config.mjs",
@@ -37,6 +37,7 @@
     "stdb:genesis002:verify-private-loopback": "tsx scripts/genesis002-private-loopback-verifier.ts",
     "verify:licenses": "node scripts/verify-license-policy.mjs",
     "verify:atlas-public-boundary": "node scripts/atlas/verify-public-boundary.mjs",
+    "verify:visual-foundation": "vitest --run tests/visualFoundationContract.test.ts",
     "atlas:toolchain-preflight": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs --verify-only",
     "atlas:generate-candidates": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs generate-candidates",
     "atlas:compare-candidates": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs compare-candidates",
@@ -200,6 +201,7 @@
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.2",
     "@farcaster/miniapp-core": "0.6.0",
+    "@noble/hashes": "1.8.0",
     "@types/node": "26.1.1",
     "@types/qrcode": "1.5.6",
     "@types/react": "19.2.17",
@@ -208,11 +210,11 @@
     "@vitejs/plugin-react": "6.0.2",
     "jsdom": "29.1.1",
     "meshoptimizer": "1.1.1",
-    "sharp": "0.35.3",
+    "sharp": "0.35.4",
     "tsx": "4.23.0",
     "typescript": "7.0.2",
     "vite": "8.0.16",
-    "vitest": "4.1.9",
+    "vitest": "4.1.11",
     "yaml": "2.9.0"
   }
 }

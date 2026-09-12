@@ -41,7 +41,18 @@ const SHA256 = /^[0-9a-f]{64}$/u;
 const COMMIT = /^[0-9a-f]{40}$/u;
 const U64_MAXIMUM = (1n << 64n) - 1n;
 const MAXIMUM_OPERATIONS = 4_096;
-const STATUS_KEYS = Object.freeze([
+const REALM_STATUS_KEYS = Object.freeze([
+  'realmId', 'databaseName', 'moduleIdentity', 'releaseVersion', 'launchState',
+  'admissionsOpen', 'accessRequestsOpen', 'admittedPlayers', 'founders',
+  'allowedFids', 'accessRequests', 'playersV1', 'playersV2',
+  'ownershipBindings', 'castles', 'realmProfiles', 'termsAcceptances',
+  'markAccounts', 'resourceAccounts', 'castleClaims', 'cellOccupancies',
+  'activationRows', 'workerSystemRows', 'atlasImportMutationsEnabled',
+  'atlasActivationMutationsEnabled', 'playerPresentationEnabled',
+  'atlasPresent', 'atlasId', 'publicReleaseId', 'atlasState', 'atlasReady',
+  'atlasCellRows', 'atlasSlotRows', 'atlasResourceRows',
+] as const);
+const ATLAS_STATUS_KEYS = Object.freeze([
   'present',
   'atlasId',
   'publicReleaseId',
@@ -86,6 +97,10 @@ const STATUS_KEYS = Object.freeze([
   'importMutationsCompiled',
   'activationMutationsCompiled',
 ] as const);
+const STATUS_KEYS = Object.freeze([
+  ...REALM_STATUS_KEYS,
+  ...ATLAS_STATUS_KEYS.filter(key => !new Set<string>(REALM_STATUS_KEYS).has(key)),
+]);
 
 const OPTIONAL_STRINGS = Object.freeze([
   'atlasId', 'publicReleaseId', 'publicApprovalReceiptId', 'sourceCommit',

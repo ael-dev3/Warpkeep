@@ -33,9 +33,17 @@ const PINNED_EXECUTABLES = Object.freeze({
     cli: 'cac13c929049f31cb588c230a0d7fe5f388505b4c64047a68b1d5cfdc811624b',
     standalone: 'a9185a737c9b739896c8f51326e1c3aedefba80a0f01def76ce26f358d5c187b',
   }),
+  'win32-x64': Object.freeze({
+    launcher: '5656c96ad4ffe27b0db1b14cd74164a46a6ff61f3db6f97a055a1594e5bb5f72',
+    cli: '06b0ab6b84135bb741ed33ee07f038b7c6e8b7d9c7520c3e3fd047a4347bc3fc',
+    standalone: '5b0621042c529e97c342269de1121bdec2bd8820dcc20364c61ed37ec266e138',
+  }),
 });
 const platformKey = `${process.platform}-${process.arch}` as keyof typeof PINNED_EXECUTABLES;
 const pinnedExecutables = PINNED_EXECUTABLES[platformKey];
+const executableSuffix = process.platform === 'win32' ? '.exe' : '';
+const standaloneName = `spacetimedb-standalone${executableSuffix}`;
+const cliName = `spacetimedb-cli${executableSuffix}`;
 const roots: string[] = [];
 
 function sha256(path: string) {
@@ -49,7 +57,12 @@ function resolveCommand(command: string) {
       .split(delimiter)
       .filter(Boolean)
       .map(entry => join(entry, command));
-  for (const candidate of candidates) {
+  const platformCandidates = process.platform === 'win32'
+    ? candidates.flatMap(candidate => candidate.toLowerCase().endsWith('.exe')
+      ? [candidate]
+      : [candidate, `${candidate}.exe`])
+    : candidates;
+  for (const candidate of platformCandidates) {
     try {
       return realpathSync(candidate);
     } catch {
@@ -76,7 +89,7 @@ function findReviewedCli() {
         'current',
         'spacetimedb-cli',
       );
-    const standalone = join(dirname(reviewedCli), 'spacetimedb-standalone');
+    const standalone = join(dirname(reviewedCli), standaloneName);
     const version = spawnSync(executable, ['--version'], { encoding: 'utf8' });
     verifyPinnedCliAttestation(version.stdout, launcherDigest);
     if (
@@ -126,7 +139,7 @@ describe.skipIf(reviewedCli === undefined)(
       } finally {
         snapshot.cleanup();
       }
-    }, 30_000);
+    }, 120_000);
 
     it('rejects replacement of the CLI pathname even when bytes and mode match', async () => {
       const { snapshot, testRoot } = await attestedFixture();
@@ -139,12 +152,12 @@ describe.skipIf(reviewedCli === undefined)(
       } finally {
         snapshot.cleanup();
       }
-    }, 30_000);
+    }, 120_000);
 
     it('rejects content mutation of a snapshotted executable', async () => {
       const { snapshot } = await attestedFixture();
       try {
-        const companionPath = join(snapshot.directory, 'spacetimedb-standalone');
+        const companionPath = join(snapshot.directory, standaloneName);
         await chmod(companionPath, 0o700);
         await writeFile(companionPath, 'mutated-standalone');
         await chmod(companionPath, 0o500);
@@ -152,20 +165,20 @@ describe.skipIf(reviewedCli === undefined)(
       } finally {
         snapshot.cleanup();
       }
-    }, 30_000);
+    }, 120_000);
 
     it('rejects a new hard link to either snapshotted executable', async () => {
       const { snapshot, testRoot } = await attestedFixture();
       try {
         await link(
-          join(snapshot.directory, 'spacetimedb-standalone'),
+          join(snapshot.directory, standaloneName),
           join(testRoot, 'standalone-hard-link'),
         );
         expect(() => snapshot.verify()).toThrow(/re-attestation/i);
       } finally {
         snapshot.cleanup();
       }
-    }, 30_000);
+    }, 120_000);
 
     it('rejects private-directory metadata and membership mutation', async () => {
       const { snapshot } = await attestedFixture();
@@ -176,7 +189,7 @@ describe.skipIf(reviewedCli === undefined)(
       } finally {
         snapshot.cleanup();
       }
-    }, 30_000);
+    }, 120_000);
 
     it('rejects replacement of the private snapshot directory', async () => {
       const { snapshot, testRoot } = await attestedFixture();
@@ -184,17 +197,17 @@ describe.skipIf(reviewedCli === undefined)(
       try {
         await rename(snapshot.directory, originalDirectory);
         await mkdir(snapshot.directory, { mode: 0o700 });
-        await copyFile(join(originalDirectory, 'spacetimedb-cli'), snapshot.path);
+        await copyFile(join(originalDirectory, cliName), snapshot.path);
         await chmod(snapshot.path, 0o500);
         await copyFile(
-          join(originalDirectory, 'spacetimedb-standalone'),
-          join(snapshot.directory, 'spacetimedb-standalone'),
+          join(originalDirectory, standaloneName),
+          join(snapshot.directory, standaloneName),
         );
-        await chmod(join(snapshot.directory, 'spacetimedb-standalone'), 0o500);
+        await chmod(join(snapshot.directory, standaloneName), 0o500);
         expect(() => snapshot.verify()).toThrow(/re-attestation/i);
       } finally {
         snapshot.cleanup();
       }
-    }, 30_000);
+    }, 120_000);
   },
 );

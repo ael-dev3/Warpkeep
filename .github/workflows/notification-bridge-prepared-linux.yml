@@ -1,0 +1,181 @@
+name: Prepare Admission Notification Auth Bridge (Linux)
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Exact protected main commit to prepare
+        required: true
+        type: string
+      operation:
+        description: Deploy or perform expired-authority read-only recovery
+        required: true
+        default: deploy
+        type: choice
+        options:
+          - deploy
+          - recover-expired-authority-read-only
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: warpkeep-production-state
+  cancel-in-progress: false
+
+jobs:
+  notification-bridge-prepared-linux:
+    # The repository-exclusive Linux account retains the owner-only journal
+    # and receipt namespace across restarts. This is the retained production
+    # authority; the historical Darwin lane is explicitly separate.
+    runs-on: [self-hosted, Linux, X64, warpkeep-production-admin, warpkeep-repository-exclusive]
+    timeout-minutes: 45
+    environment:
+      name: notification-bridge-prepared
+    permissions:
+      actions: read
+      contents: read
+    env:
+      WARPKEEP_EXPECTED_SOURCE_COMMIT: ${{ inputs.source_commit }}
+      WARPKEEP_OPERATION: ${{ inputs.operation }}
+      WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE: linux-x64
+      WARPKEEP_BRIDGE_NOTIFICATION_DELIVERY_ENABLED: 'false'
+      WARPKEEP_HERMES_EXECUTION_APPROVED: 'false'
+      WARPKEEP_PAGES_PRESENTATION_ENABLED: 'false'
+      WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: '5c915e5e42915a037ab3b48f1155395aa058a7085e0709fe7f79eca2df66f8d7'
+      WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '3853461dd7d3384182b750e7ea86db9007800bac8a61f5e678a491a17bf90fa1'
+      WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: 'ab3e72b4d71b6f949f5fb3f3dd1a53548b39184214f5a755975f570c23d9000b'
+      WARPKEEP_PREPARED_LINUX_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: 'bcc41d30dbb00ecd612a1fdb5fe87b5e047d8cc777d0af9fc360b40e06bc1de2'
+      WARPKEEP_PREPARED_PNPM_AUTHORITY_MANIFEST_SHA256: '346661bf89426db64f2911b6b0e7d3f5abf0d717d067b0b6c81602e6c570519a'
+
+    steps:
+      - name: Require exact Linux production runner
+        shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u NODE_EXTRA_CA_CERTS -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy -u LD_PRELOAD -u LD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = 'Linux'
+          test "$RUNNER_ARCH" = 'X64'
+          test "$RUNNER_NAME" = 'warpkeep-wsl-production-01'
+          test "$(/usr/bin/id -u)" = '1000'
+          test "$(/usr/bin/id -g)" = '1000'
+          test "$(/usr/bin/id -un)" = 'warpkeep'
+          test "$GITHUB_REPOSITORY" = 'ael-dev3/Warpkeep'
+          test "$GITHUB_EVENT_NAME" = 'workflow_dispatch'
+          test "$GITHUB_REF" = 'refs/heads/main'
+          test "$GITHUB_SHA" = "$WARPKEEP_EXPECTED_SOURCE_COMMIT"
+          [[ "$WARPKEEP_EXPECTED_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test "$WARPKEEP_OPERATION" = 'deploy' || \
+            test "$WARPKEEP_OPERATION" = 'recover-expired-authority-read-only'
+          test "$(/usr/bin/realpath -- /home/warpkeep)" = '/home/warpkeep'
+          test "$(/usr/bin/stat -c '%u:%g:%a' -- /home/warpkeep)" = '1000:1000:750'
+          for suffix in audit/private runtime cache; do
+            path="/home/warpkeep/.warpkeep/private/sealed-realms-v1/$suffix"
+            test -d "$path" && test ! -L "$path"
+            test "$(/usr/bin/realpath -- "$path")" = "$path"
+            test "$(/usr/bin/stat -c '%u:%g:%a' -- "$path")" = '1000:1000:700'
+          done
+
+      - name: Checkout exact protected source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.source_commit }}
+          persist-credentials: false
+          clean: true
+          fetch-depth: 1
+
+      - name: Re-attest detached source and Linux closure pins
+        shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u NODE_EXTRA_CA_CERTS -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy -u LD_PRELOAD -u LD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          git_safe=(/usr/bin/git -c core.fsmonitor=false -c core.untrackedCache=false)
+          test "$("${git_safe[@]} rev-parse --verify HEAD^{commit})" = "$WARPKEEP_EXPECTED_SOURCE_COMMIT"
+          test "$("${git_safe[@]} remote get-url origin)" = 'https://github.com/ael-dev3/Warpkeep'
+          test -z "$("${git_safe[@]} status --porcelain=v1 --untracked-files=all)"
+          if "${git_safe[@]}" symbolic-ref -q HEAD >/dev/null; then
+            echo 'AUTH_BRIDGE_PREPARED_LINUX_CHECKOUT_NOT_DETACHED' >&2
+            exit 1
+          fi
+          verify_sha256() {
+            local expected="$1" path="$2" actual
+            [[ "$expected" =~ ^[0-9a-f]{64}$ ]]
+            actual="$(/usr/bin/sha256sum -- "$path")"
+            actual="${actual%% *}"
+            test "$actual" = "$expected"
+          }
+          verify_sha256 "$WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256" \
+            scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+          verify_sha256 "$WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-deploy-closure-v1.json
+          verify_sha256 "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256" \
+            scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
+          verify_sha256 "$WARPKEEP_PREPARED_LINUX_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json
+          verify_sha256 "$WARPKEEP_PREPARED_PNPM_AUTHORITY_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json
+
+      - name: Install exact Linux auth bridge dependencies
+        shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u NODE_EXTRA_CA_CERTS -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy -u LD_PRELOAD -u LD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          node_executable='/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node'
+          pnpm_executable='/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.7.0-linux-x64/pnpm'
+          test -f "$node_executable" && test ! -L "$node_executable" && test -x "$node_executable"
+          test "$(/usr/bin/stat -c '%u:%g:%a:%h' -- "$node_executable")" = '1000:1000:500:1'
+          test -f "$pnpm_executable" && test ! -L "$pnpm_executable" && test -x "$pnpm_executable"
+          test "$(/usr/bin/stat -c '%u:%g:%a:%h' -- "$pnpm_executable")" = '1000:1000:500:1'
+          test "$(/usr/bin/sha256sum -- "$pnpm_executable" | cut -d ' ' -f1)" = '5eb52f5b7fe3c4ef589393f81f33b28482f7657109239de7bc5dc4e4e56aafc4'
+          for config_path in .npmrc .pnpmfile.cjs .pnpmfile.mjs pnpmfile.cjs pnpmfile.mjs \
+            services/auth-bridge/.npmrc services/auth-bridge/.pnpmfile.cjs \
+            services/auth-bridge/.pnpmfile.mjs services/auth-bridge/pnpmfile.cjs \
+            services/auth-bridge/pnpmfile.mjs; do
+            if [[ -e "$config_path" || -L "$config_path" ]]; then
+              echo 'AUTH_BRIDGE_PREPARED_LINUX_PACKAGE_MANAGER_CONFIG_INVALID' >&2
+              exit 1
+            fi
+          done
+          if /usr/bin/grep -Eq '^[[:space:]]*(configDependencies|globalPnpmfile|pnpmfile|scriptShell|shellEmulator):' \
+            services/auth-bridge/pnpm-workspace.yaml; then
+            echo 'AUTH_BRIDGE_PREPARED_LINUX_PACKAGE_MANAGER_CONFIG_INVALID' >&2
+            exit 1
+          fi
+          install_state="$(/usr/bin/mktemp -d /home/warpkeep/.warpkeep/private/sealed-realms-v1/cache/warpkeep-auth-bridge-pnpm.XXXXXX)"
+          [[ "$install_state" == /home/warpkeep/.warpkeep/private/sealed-realms-v1/cache/warpkeep-auth-bridge-pnpm.* ]]
+          test ! -L "$install_state"
+          trap '/bin/rm -rf -- "$install_state"' EXIT
+          /bin/mkdir -m 700 "$install_state/home" "$install_state/xdg-config" \
+            "$install_state/xdg-cache" "$install_state/xdg-data" \
+            "$install_state/pnpm-home" "$install_state/store" "$install_state/tmp"
+          /usr/bin/env -i \
+            CI=true HOME="$install_state/home" LANG=C LC_ALL=C \
+            NPM_CONFIG_GLOBALCONFIG=/dev/null NPM_CONFIG_USERCONFIG=/dev/null \
+            PATH=/usr/bin:/bin PNPM_HOME="$install_state/pnpm-home" \
+            TMPDIR="$install_state/tmp" XDG_CACHE_HOME="$install_state/xdg-cache" \
+            XDG_CONFIG_HOME="$install_state/xdg-config" XDG_DATA_HOME="$install_state/xdg-data" \
+            "$pnpm_executable" --dir services/auth-bridge install --frozen-lockfile \
+            --ignore-scripts --ignore-pnpmfile --package-import-method=copy \
+            --store-dir "$install_state/store" --verify-store-integrity
+
+      - name: Run attested Linux deployment or recovery
+        shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: ${{ secrets.WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID }}
+          WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: ${{ secrets.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN }}
+          WARPKEEP_AUTH_BRIDGE_ZONE_ID: ${{ secrets.WARPKEEP_AUTH_BRIDGE_ZONE_ID }}
+          WARPKEEP_PLAYER_CANARY_OWNER_FID: ${{ secrets.WARPKEEP_PLAYER_CANARY_OWNER_FID }}
+          WARPKEEP_PTR_SPACETIMEDB_DATABASE: ${{ vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE }}
+          WARPKEEP_PRODUCTION_ADMIN_TOKEN: ${{ secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          for key in GITHUB_TOKEN WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID \
+            WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN WARPKEEP_AUTH_BRIDGE_ZONE_ID \
+            WARPKEEP_PRODUCTION_ADMIN_TOKEN; do
+            value="${!key}"
+            if [[ -z "$value" || "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
+              echo 'AUTH_BRIDGE_PREPARED_LINUX_CREDENTIALS_INVALID' >&2
+              exit 1
+            fi
+          done
+          node_executable='/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node'
+          exec "$node_executable" scripts/auth-bridge-notification-prepared-linux-runner.mjs

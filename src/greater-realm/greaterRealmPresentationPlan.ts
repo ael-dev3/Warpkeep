@@ -1,5 +1,12 @@
 import { POINTY_TOP_AXIAL_DIRECTIONS, axialToWorld } from '../game/map/hexCoordinates';
 import {
+  createGreaterRealmVoxelPrefabPlan,
+  createGreaterRealmVoxelTerrainFallbackPlan,
+  createGreaterRealmVoxelTerrainPlan,
+  type GreaterRealmVoxelPrefabPlan,
+  type GreaterRealmVoxelTerrainPlan
+} from '../components/realm/greaterRealmVoxelPresentation';
+import {
   GREATER_REALM_AMBIENCE_CLASS,
   GREATER_REALM_FEATURE_CLASS,
   GREATER_REALM_HYDRO_REGIME,
@@ -92,6 +99,15 @@ export type GreaterRealmChunkPresentationPlan = Readonly<{
   lod: GreaterRealmChunkDto['lod'];
   cellSize: number;
   terrainCells: readonly GreaterRealmPublicCellDto[];
+  voxelTerrainPlan: GreaterRealmVoxelTerrainPlan;
+  voxelPrefabPlans: readonly GreaterRealmVoxelPrefabPlan[];
+  voxelTerrainFallbackReason?: string;
+  voxelPrefabFallbackReasons: readonly Readonly<{
+    kind: GreaterRealmFeaturePresentation['kind'];
+    reason: string;
+  }>[];
+  terrainReservationBytes: number;
+  featureReservationBytes: number;
   apronCoordinateKeys: readonly string[];
   waterCells: readonly GreaterRealmPublicCellDto[];
   routeSegments: readonly GreaterRealmPresentationSegment[];
@@ -149,6 +165,10 @@ const STATIC_GEOMETRY_BYTES = Object.freeze({
   ruin: 840,
   resource: 768
 });
+
+function featurePrimitiveBytes(kind: GreaterRealmFeaturePresentation['kind']) {
+  return kind === 'lamp-post' ? STATIC_GEOMETRY_BYTES.lampPost : STATIC_GEOMETRY_BYTES[kind];
+}
 
 export const GREATER_REALM_TIER_ONE_REGION_PRESENTATION = Object.freeze({
   T1_LOWLANDS: Object.freeze({ color: '#75935c', accent: '#d6c27a' }),
@@ -445,6 +465,7 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
   chunk: GreaterRealmChunkDto;
   graphicsProfile: GreaterRealmGraphicsProfile;
   cellSize: number;
+  occluderCells?: readonly GreaterRealmPublicCellDto[];
   actorAllowance?: Partial<GreaterRealmActorAllowance>;
 }>): GreaterRealmChunkPresentationPlan {
   const cellSize = Number.isFinite(input.cellSize) && input.cellSize > 0
@@ -553,6 +574,46 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
   const actorKinds = new Set(actors.map((actor) => actor.kind));
   const featureKinds = new Set(features.map((feature) => feature.kind));
   const resourceKinds = new Set(resources.map((resource) => resource.kind));
+  const occluderCells = input.occluderCells ?? cells;
+  let voxelTerrainFallbackReason: string | undefined;
+  let voxelTerrainPlan: GreaterRealmVoxelTerrainPlan;
+  try {
+    voxelTerrainPlan = createGreaterRealmVoxelTerrainPlan({
+      cells, occluderCells, graphicsProfile: input.graphicsProfile, cellSize
+    });
+  } catch (error) {
+    voxelTerrainFallbackReason = error instanceof Error ? error.message : String(error);
+    voxelTerrainPlan = createGreaterRealmVoxelTerrainFallbackPlan({
+      cells,
+      occluderCells,
+      graphicsProfile: input.graphicsProfile,
+      cellSize,
+      reason: voxelTerrainFallbackReason
+    });
+  }
+  const voxelPrefabRows: GreaterRealmVoxelPrefabPlan[] = [];
+  const voxelPrefabFallbackRows: {
+    kind: GreaterRealmFeaturePresentation['kind']; reason: string;
+  }[] = [];
+  for (const kind of featureKinds) {
+    try {
+      voxelPrefabRows.push(createGreaterRealmVoxelPrefabPlan({
+        kind, graphicsProfile: input.graphicsProfile, cellSize
+      }));
+    } catch (error) {
+      voxelPrefabFallbackRows.push(Object.freeze({
+        kind,
+        reason: error instanceof Error ? error.message : String(error)
+      }));
+    }
+  }
+  const voxelPrefabPlans = Object.freeze(voxelPrefabRows);
+  const voxelPrefabFallbackReasons = Object.freeze(voxelPrefabFallbackRows);
+  const terrainReservationBytes = Math.max(voxelTerrainPlan.uploadBytes, cells.length * 648);
+  const featureReservationBytes = [...featureKinds].reduce((total, kind) => {
+    const prefab = voxelPrefabPlans.find((row) => row.kind === kind);
+    return total + Math.max(prefab?.uploadBytes ?? 0, featurePrimitiveBytes(kind));
+  }, 0);
   const drawCallCount = 1
     + Number(waterCells.length > 0)
     + Number(routes.segments.length > 0)
@@ -566,7 +627,7 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
   // Exact-or-conservative GPU buffer accounting for the current Three scene:
   // custom geometry attributes, static primitive attributes/indices, instance
   // matrices/colors, and the separately reviewed flower geometry allowance.
-  const estimatedUploadBytes = cells.length * 648
+  const estimatedUploadBytes = terrainReservationBytes
     + waterCells.length * 432
     + routes.segments.length * 48
     + routes.crossings.length * 76
@@ -575,11 +636,7 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
     + actors.length * 64
     + [...actorKinds].reduce((total, kind) => total + STATIC_GEOMETRY_BYTES[kind], 0)
     + features.length * 64
-    + [...featureKinds].reduce((total, kind) => total + (
-      kind === 'lamp-post'
-        ? STATIC_GEOMETRY_BYTES.lampPost
-        : STATIC_GEOMETRY_BYTES[kind]
-    ), 0)
+    + featureReservationBytes
     + resources.length * 64
     + resourceKinds.size * STATIC_GEOMETRY_BYTES.resource
     + flowerGeometryBytes;
@@ -589,6 +646,12 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
     lod: input.chunk.lod,
     cellSize,
     terrainCells: cells,
+    voxelTerrainPlan,
+    voxelPrefabPlans,
+    ...(voxelTerrainFallbackReason === undefined ? {} : { voxelTerrainFallbackReason }),
+    voxelPrefabFallbackReasons,
+    terrainReservationBytes,
+    featureReservationBytes,
     apronCoordinateKeys,
     waterCells,
     routeSegments: routes.segments,

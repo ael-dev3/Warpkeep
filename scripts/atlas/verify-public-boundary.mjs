@@ -709,6 +709,16 @@ const TRACKED_PRIVATE_SOURCE_ALLOWANCES = new Map([
       true,
     ),
   ])],
+  ['tests/fixtures/ptrV3ActivationCorpus.json', Object.freeze([
+    sourceAllowance(
+      `"${privateFieldName('privateBlindingNonce', 'Hex')}": "${'7'.repeat(64)}"`,
+      2,
+    ),
+    sourceAllowance(
+      `"${privateFieldName('privateBlindingNonce', 'Hex')}": "${'8'.repeat(64)}"`,
+      2,
+    ),
+  ])],
 ]);
 
 export class GreaterRealmPublicBoundaryError extends Error {
@@ -906,6 +916,10 @@ function hardenedGitArguments(repositoryRoot, commandArguments) {
     '--no-optional-locks',
     '--literal-pathspecs',
     `--work-tree=${repositoryRoot}`,
+    // The caller-selected root is canonicalized before this read-only scan.
+    // Sandbox-created checkouts may have a different owner; trust this one
+    // exact directory without loading global configuration or trusting '*'.
+    '-c', `safe.directory=${realpathSync.native(repositoryRoot).replaceAll('\\', '/')}`,
     '-c', 'core.bare=false',
     '-c', 'core.fsmonitor=false',
     '-c', `core.hooksPath=${nullPath}`,

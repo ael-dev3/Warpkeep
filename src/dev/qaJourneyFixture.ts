@@ -135,7 +135,7 @@ export const QA_AUTH_STATE_BY_PHASE = Object.freeze({
   authenticated: Object.freeze({
     phase: 'authenticated',
     identity: QA_SYNTHETIC_IDENTITY,
-    assurance: 'live-client-verified',
+    assurance: 'bridge-oidc-alpha',
     expiresAt: SYNTHETIC_EXPIRY,
     sessionExpiresAt: SYNTHETIC_EXPIRY
   }),

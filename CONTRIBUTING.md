@@ -57,11 +57,13 @@ See [`LICENSING.md`](LICENSING.md),
 
 ## Choose the source you intend to change
 
-`main` contains the Genesis 001 Alpha baseline and release preparation. Active
-0.4 gameplay, the owner PTR, the new keep and local release/recovery work are on
+This development checkout contains 0.4 gameplay, the owner PTR, the new keep and
+local release/recovery work on
 [`codex/prepared-keep-bindings-fix`](https://github.com/ael-dev3/Warpkeep/tree/codex/prepared-keep-bindings-fix).
-Use the [ecosystem map](docs/engineering/ecosystem-map.md) to find the subsystem
-and read [AGENTS.md](AGENTS.md) when working with an agent.
+`main` contains the Genesis 001 Alpha baseline and release preparation. Use the
+[source map](docs/agent-notes/0.4.0/repo-map.md) and
+[architecture](docs/technical-architecture.md) to find the subsystem, then read
+[AGENTS.md](AGENTS.md) and the [current handoff](docs/agent-notes/0.4.0/README.md).
 
 For a new 0.4 checkout:
 
@@ -87,7 +89,7 @@ npm run dev
 Open the address printed by Vite. Follow the checked-out version of the
 [auth bridge guide](services/auth-bridge/README.md) for local authentication;
 production identity and private realm data are not local fixtures. The
-[0.4 development workflow](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/engineering/development-workflow.md)
+[0.4 development workflow](docs/engineering/development-workflow.md)
 describes its current synthetic and connected gameplay paths. Existing worktrees
 may share a `node_modules` link or junction; inspect that before installing and
 use an independent checkout when an install would affect another task.
@@ -107,7 +109,7 @@ repository size, root tests, project types and the production build.
 | Browser, presentation and shared root tooling | Root `tests/**`, `npm run typecheck` and relevant build/asset checks |
 | SpacetimeDB authority | [Module guide](spacetimedb/README.md) and package `verify`; its tests use a separate Node/tsx runner |
 | Identity and sessions | [Auth bridge](services/auth-bridge/README.md) and package `check`, including workerd tests |
-| 0.4 gameplay, recovery and delivery | Development branch's [source map](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/repo-map.md) and package-specific scripts |
+| 0.4 gameplay, recovery and delivery | [Source map](docs/agent-notes/0.4.0/repo-map.md), [recovery service](services/release-recovery/README.md) and package-specific scripts |
 | Documentation and issue forms | Local/branch link checks, `tests/communityIntake.test.ts`, `tests/licensePolicy.test.ts`, scoped diff review |
 
 Root `tsconfig.json` references separate projects; use build-mode

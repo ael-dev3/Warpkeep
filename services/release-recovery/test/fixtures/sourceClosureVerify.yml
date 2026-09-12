@@ -1,0 +1,487 @@
+name: Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# Superseded PR verification must not occupy runners ahead of the current head.
+# Main pushes use unique run IDs: never cancel their verification or share a
+# concurrency group with the separate non-cancelling production deployment.
+concurrency:
+  group: verify-pr-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    # The complete root security suite plus serial signed-closure derivation
+    # can exceed 45 minutes on a cold hosted runner.
+    timeout-minutes: 75
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.22.3
+          cache: npm
+
+      - name: Setup pinned pnpm for bridge runtime-contract tests
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0
+          run_install: false
+
+      - name: Stage Node in a runner-private toolchain path
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_command="$(command -v node)"
+          if [[ -L "$source_command" ]]; then
+            echo 'setup-node resolved through a symbolic link.' >&2
+            exit 1
+          fi
+          source_node="$(realpath -- "$source_command")"
+          case "$source_node" in
+            "$RUNNER_TOOL_CACHE"/*) ;;
+            *)
+              echo 'setup-node resolved outside the hosted tool cache.' >&2
+              exit 1
+              ;;
+          esac
+          if [[ ! -f "$source_node" || ! -x "$source_node" ]]; then
+            echo 'setup-node did not resolve to a regular executable.' >&2
+            exit 1
+          fi
+
+          private_root="$(mktemp -d "$RUNNER_TEMP/warpkeep-node.XXXXXX")"
+          chmod 0700 "$private_root"
+          private_bin="$private_root/bin"
+          install -d -m 0700 "$private_bin"
+          source_sha_before="$(sha256sum "$source_node" | cut -d ' ' -f 1)"
+          install -m 0700 "$source_node" "$private_bin/node"
+          source_sha_after="$(sha256sum "$source_node" | cut -d ' ' -f 1)"
+          staged_sha="$(sha256sum "$private_bin/node" | cut -d ' ' -f 1)"
+          if [[ "$source_sha_before" != "$source_sha_after" || "$source_sha_before" != "$staged_sha" ]]; then
+            echo 'The staged Node executable failed its integrity check.' >&2
+            exit 1
+          fi
+          echo "$private_bin" >> "$GITHUB_PATH"
+          echo "WARPKEEP_PRIVATE_NODE=$private_bin/node" >> "$GITHUB_ENV"
+          echo "WARPKEEP_PRIVATE_NODE_SHA256=$staged_sha" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install exact bridge runtime-test toolchain
+        run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
+
+      - name: Validate PTR lock and install SpacetimeDB module dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e spacetimedb/ptr/node_modules
+          pnpm --dir spacetimedb/ptr install \
+            --frozen-lockfile --lockfile-only --ignore-workspace
+          test ! -e spacetimedb/ptr/node_modules
+          pnpm --dir spacetimedb install --frozen-lockfile
+          test ! -e spacetimedb/ptr/node_modules
+
+      - name: Re-attest runner-private Node after dependency install
+        shell: bash
+        run: |
+          set -euo pipefail
+          resolved_node="$(realpath -- "$(command -v node)")"
+          node_mode="$(stat -c '%a' "$WARPKEEP_PRIVATE_NODE")"
+          if [[ "$resolved_node" != "$WARPKEEP_PRIVATE_NODE" \
+            || ! -f "$WARPKEEP_PRIVATE_NODE" \
+            || ! -x "$WARPKEEP_PRIVATE_NODE" \
+            || -L "$WARPKEEP_PRIVATE_NODE" \
+            || $((8#$node_mode & 0022)) -ne 0 ]]; then
+            echo 'The runner-private Node executable lost its trusted file state.' >&2
+            exit 1
+          fi
+          echo "$WARPKEEP_PRIVATE_NODE_SHA256  $WARPKEEP_PRIVATE_NODE" \
+            | sha256sum --check --strict -
+
+      - name: Scan repository history for secrets
+        env:
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/gitleaks-${GITLEAKS_VERSION}.tar.gz"
+          bin_dir="$RUNNER_TEMP/gitleaks-bin"
+          curl --fail --location --proto '=https' --tlsv1.2 --retry 3 \
+            --output "$archive" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  ${archive}" | sha256sum --check --strict -
+          mkdir -p "$bin_dir"
+          tar -xzf "$archive" -C "$bin_dir" gitleaks
+          node --experimental-strip-types scripts/verify-scanner-regression.ts "$bin_dir/gitleaks"
+          "$bin_dir/gitleaks" git --config .gitleaks.toml --redact --no-banner \
+            --log-opts=HEAD .
+
+      - name: Verify licensing transition state
+        run: npm run verify:licenses
+
+      - name: Verify runtime asset integrity and repository size policy
+        run: |
+          npm run verify:runtime-assets
+          npm run verify:file-sizes
+
+      - name: Install pinned SpacetimeDB CLI
+        env:
+          SPACETIMEDB_CLI_SHA256: cb03bb4706dc6bd6ef080c9bbd220a6e7d10430a65e7be2ba6be27ec7e3a9118
+          SPACETIMEDB_CLI_VERSION: 2.6.1
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/spacetime-${SPACETIMEDB_CLI_VERSION}.tar.gz"
+          bin_dir="$RUNNER_TEMP/spacetime-bin"
+          curl --fail --location --proto '=https' --tlsv1.2 --retry 3 \
+            --output "$archive" \
+            "https://github.com/clockworklabs/SpacetimeDB/releases/download/v${SPACETIMEDB_CLI_VERSION}/spacetime-x86_64-unknown-linux-gnu.tar.gz"
+          echo "${SPACETIMEDB_CLI_SHA256}  ${archive}" | sha256sum --check --strict -
+          mkdir -p "$bin_dir"
+          tar -xzf "$archive" -C "$bin_dir" spacetimedb-cli spacetimedb-standalone
+          mv "$bin_dir/spacetimedb-cli" "$bin_dir/spacetime"
+          echo "$bin_dir" >> "$GITHUB_PATH"
+          "$bin_dir/spacetime" --version
+
+      - name: Prepare exact offline YAML archive for manifest tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive=".git/yaml-2.9.0.tgz"
+          test ! -e "$archive"
+          curl --fail --proto '=https' --tlsv1.2 --max-time 30 \
+            --max-filesize 112086 --output "$archive" \
+            'https://registry.npmjs.org/yaml/-/yaml-2.9.0.tgz'
+          test "$(wc -c < "$archive")" -eq 112086
+          echo "008fa204cb1ba700e0272ba045abbf09a6ffe63456e8146ba97cac6c2ad1ef91  $archive" \
+            | sha256sum --check --strict -
+
+      - name: Run tests
+        run: |
+          npm test -- \
+            --exclude tests/authBridgeNotificationPreparedWorkflow.test.ts \
+            --exclude tests/productionPlayerCanaryClosure.test.ts \
+            --maxWorkers=2
+          npm test -- \
+            tests/authBridgeNotificationPreparedWorkflow.test.ts \
+            tests/productionPlayerCanaryClosure.test.ts \
+            --maxWorkers=1 \
+            --testTimeout=180000
+
+      - name: Verify the two-phase sealed-launch source state
+        run: npm run verify:sealed-launch
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Build GitHub Pages variant
+        run: GITHUB_PAGES=true npm run build
+
+      - name: Build canonical custom-domain Pages variant
+        run: GITHUB_PAGES=true DEPLOY_BASE=/ npm run build
+
+      - name: Audit dependencies
+        run: |
+          npm audit
+          npm audit signatures
+
+      # This immutable data artifact is usable only after the complete Verify run
+      # succeeds; downstream consumers must authenticate its run, owner and S tree.
+      - name: Derive complete recovery preparation source inventory
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: node scripts/generate-recovery-source-closure.mjs --write
+
+      - name: Retain recovery preparation source inventory
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: warpkeep-recovery-source-closure-v1
+          path: ${{ runner.temp }}/warpkeep-recovery-source-closure-v1/recovery-source-closure-v1.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  auth-bridge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0
+
+      - name: Install bridge dependencies
+        run: pnpm --dir services/auth-bridge install --frozen-lockfile
+
+      - name: Verify bridge
+        run: pnpm --dir services/auth-bridge run check
+
+      - name: Audit bridge dependencies
+        run: pnpm --dir services/auth-bridge audit --audit-level low
+
+  release-recovery:
+    # Fixture-only ownership checks use unprivileged user namespaces, whose
+    # capabilities Ubuntu 24.04 restricts with AppArmor. No host policy changes.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.22.3
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0
+          run_install: false
+
+      - name: Install recovery dependencies
+        run: pnpm --dir services/release-recovery install --frozen-lockfile
+
+      - name: Verify recovery service and local Workerd contracts
+        run: pnpm --dir services/release-recovery run check
+
+      - name: Audit recovery dependencies
+        run: pnpm --dir services/release-recovery audit --audit-level low
+
+  spacetimedb-module:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0
+
+      - name: Install root dependencies for generated client verification
+        run: npm ci
+
+      - name: Validate PTR lock and install module dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e spacetimedb/ptr/node_modules
+          pnpm --dir spacetimedb/ptr install \
+            --frozen-lockfile --lockfile-only --ignore-workspace
+          test ! -e spacetimedb/ptr/node_modules
+          pnpm --dir spacetimedb install --frozen-lockfile
+          test ! -e spacetimedb/ptr/node_modules
+
+      - name: Install pinned SpacetimeDB CLI
+        env:
+          SPACETIMEDB_CLI_SHA256: cb03bb4706dc6bd6ef080c9bbd220a6e7d10430a65e7be2ba6be27ec7e3a9118
+          SPACETIMEDB_CLI_VERSION: 2.6.1
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/spacetime-${SPACETIMEDB_CLI_VERSION}.tar.gz"
+          bin_dir="$RUNNER_TEMP/spacetime-bin"
+          curl --fail --location --proto '=https' --tlsv1.2 --retry 3 \
+            --output "$archive" \
+            "https://github.com/clockworklabs/SpacetimeDB/releases/download/v${SPACETIMEDB_CLI_VERSION}/spacetime-x86_64-unknown-linux-gnu.tar.gz"
+          echo "${SPACETIMEDB_CLI_SHA256}  ${archive}" | sha256sum --check --strict -
+          mkdir -p "$bin_dir"
+          tar -xzf "$archive" -C "$bin_dir" spacetimedb-cli spacetimedb-standalone
+          mv "$bin_dir/spacetimedb-cli" "$bin_dir/spacetime"
+          echo "$bin_dir" >> "$GITHUB_PATH"
+          "$bin_dir/spacetime" --version
+
+      - name: Verify module and generated bindings
+        run: |
+          pnpm --dir spacetimedb run verify
+          pnpm --dir spacetimedb/genesis002 run verify
+          pnpm --dir spacetimedb/ptr run verify
+          test ! -e spacetimedb/ptr/node_modules
+          npm run stdb:verify-bindings
+          npm run stdb:genesis002:verify-private-loopback
+          npm run stdb:build-v14-migration-fixture
+          npm run stdb:build-v15-migration-fixture
+          npm run stdb:build-v16-migration-fixture
+          npm run stdb:build-v17-migration-fixture
+          npm run stdb:build-current-candidate-inspection-fixture
+          npm run stdb:verify-worker-migration
+          npm run stdb:verify-access-request-migration
+          npm run stdb:verify-admission-cas-rehearsal
+          npm run stdb:verify-additive-migration
+
+      - name: Prove synthetic Greater Realm exporter/server compatibility
+        timeout-minutes: 10
+        run: timeout --signal=TERM --kill-after=15s 9m npm run stdb:verify-greater-realm-connected-import
+
+      - name: Rehearse connected Greater Realm relocation and rollback
+        timeout-minutes: 22
+        run: timeout --signal=TERM --kill-after=15s 21m npm run stdb:verify-greater-realm-connected-relocation
+
+      - name: Rehearse connected active Greater Realm population and gathering
+        timeout-minutes: 27
+        run: timeout --signal=TERM --kill-after=15s 26m npm run stdb:verify-greater-realm-connected-active-population
+
+      - name: Audit module dependencies
+        run: pnpm --dir spacetimedb audit --audit-level low
+
+  native-contract:
+    # Disposable hosted Linux only; no production runner or environment authority.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Require disposable X64 Linux authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = 'Linux'
+          test "$RUNNER_ARCH" = 'X64'
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.22.3
+          cache: npm
+
+      - name: Setup pinned pnpm for bridge runtime-contract tests
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0
+          run_install: false
+
+      - name: Stage Node in a runner-private toolchain path
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_command="$(command -v node)"
+          if [[ -L "$source_command" ]]; then
+            echo 'setup-node resolved through a symbolic link.' >&2
+            exit 1
+          fi
+          source_node="$(realpath -- "$source_command")"
+          case "$source_node" in
+            "$RUNNER_TOOL_CACHE"/*) ;;
+            *)
+              echo 'setup-node resolved outside the hosted tool cache.' >&2
+              exit 1
+              ;;
+          esac
+          if [[ ! -f "$source_node" || ! -x "$source_node" ]]; then
+            echo 'setup-node did not resolve to a regular executable.' >&2
+            exit 1
+          fi
+
+          private_root="$(mktemp -d "$RUNNER_TEMP/warpkeep-node.XXXXXX")"
+          chmod 0700 "$private_root"
+          private_bin="$private_root/bin"
+          install -d -m 0700 "$private_bin"
+          source_sha_before="$(sha256sum "$source_node" | cut -d ' ' -f 1)"
+          install -m 0700 "$source_node" "$private_bin/node"
+          source_sha_after="$(sha256sum "$source_node" | cut -d ' ' -f 1)"
+          staged_sha="$(sha256sum "$private_bin/node" | cut -d ' ' -f 1)"
+          if [[ "$source_sha_before" != "$source_sha_after" || "$source_sha_before" != "$staged_sha" ]]; then
+            echo 'The staged Node executable failed its integrity check.' >&2
+            exit 1
+          fi
+          echo "$private_bin" >> "$GITHUB_PATH"
+          echo "WARPKEEP_PRIVATE_NODE=$private_bin/node" >> "$GITHUB_ENV"
+          echo "WARPKEEP_PRIVATE_NODE_SHA256=$staged_sha" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install exact bridge runtime-test toolchain
+        run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
+
+      - name: Re-attest runner-private Node after dependency install
+        shell: bash
+        run: |
+          set -euo pipefail
+          resolved_node="$(realpath -- "$(command -v node)")"
+          node_mode="$(stat -c '%a' "$WARPKEEP_PRIVATE_NODE")"
+          if [[ "$resolved_node" != "$WARPKEEP_PRIVATE_NODE" \
+            || ! -f "$WARPKEEP_PRIVATE_NODE" \
+            || ! -x "$WARPKEEP_PRIVATE_NODE" \
+            || -L "$WARPKEEP_PRIVATE_NODE" \
+            || $((8#$node_mode & 0022)) -ne 0 ]]; then
+            echo 'The runner-private Node executable lost its trusted file state.' >&2
+            exit 1
+          fi
+          echo "$WARPKEEP_PRIVATE_NODE_SHA256  $WARPKEEP_PRIVATE_NODE" \
+            | sha256sum --check --strict -
+
+      - name: Verify isolated existing-update dispatch and recovery
+        run: bash scripts/test-sealed-realms-existing-update-linux.sh
+
+      - name: Verify native production contracts
+        run: >-
+          npm test --
+          tests/sealedRealmsPublicActivationArtifactVerifier.test.ts
+          tests/authBridgeNotificationPreparedReceipt.test.ts
+          tests/authBridgeNotificationPreparedDeployRuntime.test.ts
+          --maxWorkers=1
+
+  verify:
+    name: Verify
+    needs: [linux, auth-bridge, release-recovery, spacetimedb-module, native-contract]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Accept every successful verification predecessor
+        if: >-
+          needs.linux.result == 'success' &&
+          needs.auth-bridge.result == 'success' &&
+          needs.release-recovery.result == 'success' &&
+          needs.spacetimedb-module.result == 'success' &&
+          needs.native-contract.result == 'success'
+        run: exit 0
+
+      - name: Reject any unsuccessful verification predecessor
+        if: >-
+          needs.linux.result != 'success' ||
+          needs.auth-bridge.result != 'success' ||
+          needs.release-recovery.result != 'success' ||
+          needs.spacetimedb-module.result != 'success' ||
+          needs.native-contract.result != 'success'
+        run: exit 1

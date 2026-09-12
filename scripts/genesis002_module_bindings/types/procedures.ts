@@ -6,25 +6,26 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all procedure arg schemas
-import * as AccessRequestGetStatusV1Procedure from "../access_request_get_status_v_1_procedure";
-import * as AccessRequestSubmitV1Procedure from "../access_request_submit_v_1_procedure";
 import * as AdminGetGreaterRealmImportPlanV1Procedure from "../admin_get_greater_realm_import_plan_v_1_procedure";
 import * as AdminGetGreaterRealmStatusV1Procedure from "../admin_get_greater_realm_status_v_1_procedure";
-import * as AuthResolverGetFidAdmissionV2Procedure from "../auth_resolver_get_fid_admission_v_2_procedure";
-import * as GetMyAdmissionStatusV2Procedure from "../get_my_admission_status_v_2_procedure";
-import * as GetRealmStatusV1Procedure from "../get_realm_status_v_1_procedure";
+import * as DispatchGameplay04WorkerV1Procedure from "../dispatch_gameplay_04_worker_v_1_procedure";
+import * as GetGameplay04KeepV1Procedure from "../get_gameplay_04_keep_v_1_procedure";
+import * as InitializeGameplay04KeepV1Procedure from "../initialize_gameplay_04_keep_v_1_procedure";
+import * as RecallGameplay04WorkerV1Procedure from "../recall_gameplay_04_worker_v_1_procedure";
+import * as StartGameplay04BuildingV1Procedure from "../start_gameplay_04_building_v_1_procedure";
 
-export type AccessRequestGetStatusV1Args = __Infer<typeof AccessRequestGetStatusV1Procedure.params>;
-export type AccessRequestGetStatusV1Result = __Infer<typeof AccessRequestGetStatusV1Procedure.returnType>;
-export type AccessRequestSubmitV1Args = __Infer<typeof AccessRequestSubmitV1Procedure.params>;
-export type AccessRequestSubmitV1Result = __Infer<typeof AccessRequestSubmitV1Procedure.returnType>;
 export type AdminGetGreaterRealmImportPlanV1Args = __Infer<typeof AdminGetGreaterRealmImportPlanV1Procedure.params>;
 export type AdminGetGreaterRealmImportPlanV1Result = __Infer<typeof AdminGetGreaterRealmImportPlanV1Procedure.returnType>;
 export type AdminGetGreaterRealmStatusV1Args = __Infer<typeof AdminGetGreaterRealmStatusV1Procedure.params>;
 export type AdminGetGreaterRealmStatusV1Result = __Infer<typeof AdminGetGreaterRealmStatusV1Procedure.returnType>;
-export type AuthResolverGetFidAdmissionV2Args = __Infer<typeof AuthResolverGetFidAdmissionV2Procedure.params>;
-export type AuthResolverGetFidAdmissionV2Result = __Infer<typeof AuthResolverGetFidAdmissionV2Procedure.returnType>;
-export type GetMyAdmissionStatusV2Args = __Infer<typeof GetMyAdmissionStatusV2Procedure.params>;
-export type GetMyAdmissionStatusV2Result = __Infer<typeof GetMyAdmissionStatusV2Procedure.returnType>;
-export type GetRealmStatusV1Args = __Infer<typeof GetRealmStatusV1Procedure.params>;
-export type GetRealmStatusV1Result = __Infer<typeof GetRealmStatusV1Procedure.returnType>;
+export type DispatchGameplay04WorkerV1Args = __Infer<typeof DispatchGameplay04WorkerV1Procedure.params>;
+export type DispatchGameplay04WorkerV1Result = __Infer<typeof DispatchGameplay04WorkerV1Procedure.returnType>;
+export type GetGameplay04KeepV1Args = __Infer<typeof GetGameplay04KeepV1Procedure.params>;
+export type GetGameplay04KeepV1Result = __Infer<typeof GetGameplay04KeepV1Procedure.returnType>;
+export type InitializeGameplay04KeepV1Args = __Infer<typeof InitializeGameplay04KeepV1Procedure.params>;
+export type InitializeGameplay04KeepV1Result = __Infer<typeof InitializeGameplay04KeepV1Procedure.returnType>;
+export type RecallGameplay04WorkerV1Args = __Infer<typeof RecallGameplay04WorkerV1Procedure.params>;
+export type RecallGameplay04WorkerV1Result = __Infer<typeof RecallGameplay04WorkerV1Procedure.returnType>;
+export type StartGameplay04BuildingV1Args = __Infer<typeof StartGameplay04BuildingV1Procedure.params>;
+export type StartGameplay04BuildingV1Result = __Infer<typeof StartGameplay04BuildingV1Procedure.returnType>;
+

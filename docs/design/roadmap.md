@@ -1,14 +1,10 @@
 # Warpkeep roadmap
 
-This default-branch overview describes the 0.4 target. Its implementation and
-linked specifications live on [the development branch](https://github.com/ael-dev3/Warpkeep/tree/codex/prepared-keep-bindings-fix);
-main retains the G001 baseline and release preparation.
-
 The next milestone is a rewarding, reliable loop of building and gathering. Broader
 strategy can grow from the choices and relationships it creates. This page
 describes priorities, not a deployment attestation or an ETA.
-Use the [release checklist](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/operations/0.4.0-release-checklist.md) and
-[dated audit](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/README.md) for acceptance and implementation state.
+Use the [release checklist](../operations/0.4.0-release-checklist.md) and
+[dated audit](../agent-notes/0.4.0/README.md) for acceptance and implementation state.
 
 ## Recorded baseline — Genesis 001 Alpha 0.3.43
 
@@ -29,7 +25,7 @@ flag alone does not prove the production change occurred.
 2. Connect gathering to useful construction. Economy buildings improve matching
    yield, Barracks improves travel and Cathedral improves future construction.
    Make costs, shortages, incoming returns, permanent placement and completed
-   benefits clear. The [gameplay notes](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/gameplay-and-visuals.md)
+   benefits clear. The [gameplay notes](../agent-notes/0.4.0/gameplay-and-visuals.md)
    record current mechanics and their implementation sources.
 3. Finish the Verdant Citadel look across required building/placement/progression
    states, with reusable decorative voxel detail, layered forest and lightweight
@@ -43,11 +39,16 @@ flag alone does not prove the production change occurred.
    and publish a reproducible, credential-free handoff.
 
 The core economy, transactional adapters, client command controller and Verdant
-Citadel renderer are implemented. The healthy-refresh scene/focus correction is
-also complete in source. Integrated owner play, final visual coverage, measured
-performance and deployment acceptance remain unfinished; their current evidence
-belongs in the [gameplay audit](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/gameplay-and-visuals.md)
-and the release checklist, rather than being inferred from this roadmap.
+Citadel renderer are implemented. Healthy refresh preserves scene and focus;
+active PTR expiry now obtains fresh scoped authority before restoring a root
+view, without replaying an interrupted action. The Linux recovery Pages caller
+is connected in source. Integrated owner play, final visual coverage, measured
+performance, real runner/source-family preparation and deployment acceptance
+remain unfinished. Current evidence belongs in the
+[gameplay audit](../agent-notes/0.4.0/gameplay-and-visuals.md),
+[session record](../evidence/0.4.0/isolation-lifecycle.md),
+[release engineering record](../evidence/0.4.0/release-engineering.md) and the
+release checklist, rather than being inferred from this roadmap.
 
 Follow representative playable keep → required gameplay/visual/operating coverage
 → final family freeze → protected integration/deployment → live verification →
@@ -55,10 +56,10 @@ handoff. Capture the required G001 baseline and test compatible write-preserving
 recovery before production effects. Do not final-freeze while required source is
 still changing.
 
-The approved [gameplay](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/superpowers/specs/2026-09-05-warpkeep-0.4-gameplay-design.md),
-[keep](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/superpowers/specs/2026-09-06-warpkeep-astra-keep-design.md) and
-[assembler](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/superpowers/specs/2026-09-06-warpkeep-local-release-assembler-design.md)
-specifications define behavior and composition. The [R01–R18 checklist](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/operations/0.4.0-release-checklist.md)
+The approved [gameplay](../superpowers/specs/2026-09-05-warpkeep-0.4-gameplay-design.md),
+[keep](../superpowers/specs/2026-09-06-warpkeep-astra-keep-design.md) and
+[assembler](../superpowers/specs/2026-09-06-warpkeep-local-release-assembler-design.md)
+specifications define behavior and composition. The [R01–R18 checklist](../operations/0.4.0-release-checklist.md)
 defines completion. Some components are verified locally; 0.4 remains unreleased.
 
 ## Historical work is not the current gameplay policy

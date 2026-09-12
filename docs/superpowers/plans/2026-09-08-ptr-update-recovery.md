@@ -1,0 +1,89 @@
+# PTR update recovery implementation plan
+
+> **For agentic workers:** Use superpowers:subagent-driven-development or superpowers:executing-plans to implement the connected tasks below. Current user instructions and AGENTS.md take precedence.
+
+**Goal:** Deliver populated PTR updates through the actual production and recovery callers without erasing later gameplay or misrepresenting historical provisioning.
+
+**Architecture:** Add a distinct schema-3 public recovery binding backed by an authenticated private update receipt. Preserve fresh schema-2 behavior. Derive artifacts and credentials inside the supported Linux workflow and reuse the existing continuation owner.
+
+**Tech stack:** Node ESM, TypeScript, Vitest, Cloudflare recovery service, Linux and SpacetimeDB.
+
+**Spec:** Current user release objective, AGENTS.md and docs/evidence/0.4.0/recovery.md. Earlier private receipt designs are historical; the corrections below supersede their inference that legacy zero counters forbid gameplay progress.
+
+## Constraints
+
+- Preserve G001 progress and admission freeze; keep G002 sealed and PTR owner-isolated.
+- Keep all applicable legacy zero counters. They are not gameplay04 resource or worker counts.
+- Preserve authentic historical atlas-import and owner-provision records with their original source coordinates when available. Do not invent missing history. Authenticated current state determines whether real initialization or existing-state continuity is needed.
+- Later legitimate gameplay must not invalidate an authentic historical update completion.
+- Synthetic fixtures, public digests and local compatibility tests do not authorize production writes.
+- Never substitute Hermes game-admin tokens for provider-owner update credentials.
+- Generate release pins from a committed source; do not hand-edit them.
+
+## 1. Versioned public binding and consumers
+
+Files: scripts/recovery-binding-projection.mjs and declaration; scripts/recovery-activation-candidate.mjs and declaration; services/release-recovery/src/githubEvidence.ts; recovery-attestation-source.mjs; recovery-workflow-session.mjs; recovery-workflow-deployment-boundary.mjs; verify-recovery-authorization-jws.mjs; verify-sealed-realms-public-activation-artifact.mjs; verify-0.4.0-sealed-launch.mjs; sealed-realms-production-source-authority.mjs. Corresponding tests own parity and actual caller coverage.
+
+- [x] Test schema3/profile `warpkeep-0.4.0-sealed-launch-ptr-update-v3`, replacing only the four PTR fresh/publish digest/commitment fields with `ptrExistingUpdateReceiptDigest` and `ptrExistingUpdateReceiptCommitment` in the same field position.
+- [x] Implement explicit version dispatch, separate v3 receipt/core hash domains and exact existing v2 behavior.
+- [x] Prove root/service parity, actual signed-authorization consumption, public-artifact validation, source ancestry and routing. Reject mixed versions, receipt substitution and unsafe admission values.
+- [x] Review source and affected tests before publication; state that private producer integration remains unfinished if that is still true.
+
+## 2. Private update receipt through activation
+
+Files: sealed-realms-production-activation-records.mjs, sealed-realms-production-recovery-candidate.mjs, sealed-realms-production-activation-workflow-entry.mjs and generate-0.4.0-recovery-launch-activation.mjs, with producer-to-consumer tests.
+
+- [ ] Test a distinct update corpus preserving historical import/owner provenance and current sealed-live observation.
+- [ ] Commit current target/artifact/full definition, predecessor and submission/completion lineage, host preservation contract and exact acknowledgement outcome in the private receipt. Cross-check all projected coordinates and historical/current receipt digests.
+- [ ] Select immutable completion records through authenticated continuation lineage; provide no caller-selected raw receipt writer.
+- [ ] Exercise private reopen through candidate generation, public verifier and service parser. Cover later gameplay writes, broken lineage, changed corpus, wrong source/store and synthetic/fresh substitution.
+
+## 3. Actual Linux artifact and update producer
+
+Files: sealed-realms-production-existing-update.mjs, sealed-realms-production-ptr-workflow-entry.mjs, sealed-realms-production-ptr-lane-entry.mjs, Linux source-built artifact owner and production workflow entry.
+
+- [x] Select withPtrLinuxLockedSourceBuild in the actual descriptor-bound artifact helper; native build, provenance and cleanup verified. Factory integration remains below.
+- [x] Derive complete supported RawV10 from exact compiled bytes and compute SHA-256/program Keccak internally. Native verification of the integrated path remains pending.
+- [ ] Derive provider-owner authority from the private validated CLI configuration and cross-check the fixed existing PTR identity. Keep game-admin reads separate.
+- [ ] Persist pre-send intent and authentic successful response digest. Lost-response reconciliation may establish observed installation, never invent a received acknowledgement.
+- [ ] Connect the existing inspect/apply/reconcile hooks, genuine supported-runner permit and cleanup. Enable dispatch only when producer and consumers are connected.
+- [ ] Verify actual-owner play and integrated release preservation, regenerate source-bound release outputs and ship through the actual operating workflow.
+
+## Evidence and status
+
+Public binding and consumer support was published in `63d4e60`; the actual Linux artifact builder followed in `880bd09`. Root/service parity, signed/public consumers, native committed-source routing and independent review passed. The full release verifier still requires regeneration of the changed source-bound family; consumer checks do not establish complete release verification.
+
+The separate official 2.10.0 disposable recovery rehearsal passed from `826ed94`, including earned/pending progress, repair, timers, expiry and exact retry. It is not production acceptance or a test of the later v3 definition adapter. Windows results, logs and independent readback evidence survive; the temporary native database and row snapshots subsequently became unavailable during WSL interruption.
+
+Historical production notes record initial PTR creation without atlas import or owner provisioning. The public schema does not establish row contents or current ownership. No authentic import/owner corpus has yet been found in the inspected retained evidence. First authenticate current state: if initialization is absent, perform real import/provisioning; if populated, establish actual continuity without inventing historical receipt digests.
+
+### Provider authority implementation findings
+
+The existing `stageCliConfig` in `ptr-production-publisher.mjs` creates a private,
+reattested configuration snapshot; this protects configuration integrity but does
+not prove provider authorization. Official CLI 2.6.1 `login show --token` reads the
+configured provider token without network access. It can return success when no
+login exists, and its decoded identity is unsigned. Parse the expected successful
+output strictly, keep it private and report fixed errors: CLI decoding failures
+can contain the token. Do not fall back to a command that creates a new login.
+
+The provider's fixed-target `pre_publish` checks `UpdateDatabase` authorization;
+the subsequent PUT checks it separately. Metadata describes the initial program,
+not the current program. An opaque provider capability should own the staged-token
+transport and target checks; a separate module-admin capability owns protected
+Warpkeep observations. Derive both inside the existing workflow's authenticated
+source, permit, private state and continuation. Literal owner identity equality is
+a principal policy to state explicitly, not a substitute for server authorization
+or an accurate description of every delegated permission supported upstream.
+
+## Current production adapter implementation
+
+The factory now composes internally built artifact capabilities, the staged-provider
+credential transport, full RawV10 comparison and private update continuation records.
+Tests cover genuine-response recording separately from lost-response installation
+reconciliation, predecessor continuity, cancellation and changed host observations.
+The combined Windows checks passed 170 tests with 34 native skips, strict types
+and independent review. These are implementation checks: the actual workflow must
+still construct the capabilities, activation must consume their authenticated
+private records, and native/live acceptance remains open. See the canonical
+[production adapter evidence](../../evidence/0.4.0/recovery.md#production-ptr-update-adapter-implementation).

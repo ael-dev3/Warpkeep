@@ -83,6 +83,60 @@ afterEach(() => {
 });
 
 describe('useRealmSurfaceNavigation serialized browser history', () => {
+  it('keeps ancestor traversal bounded by its watchdog and the current identity session', () => {
+    vi.useFakeTimers();
+    const keep = { kind: 'inner-keep' } as const;
+    const placement = { kind: 'inner-keep-placement', buildingKind: 'city-mill' } as const;
+    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
+    const mounted = render(<NavigationHarness identityKey="fid:close-old" />);
+    act(() => navigation().push(placement));
+    act(() => navigation().backTo(keep));
+    expect(go).not.toHaveBeenCalled(); expectStack([placement]);
+    mounted.rerender(<NavigationHarness identityKey="fid:close-current" />);
+    act(() => navigation().push(keep));
+    const keepState = currentHistoryState();
+    act(() => navigation().push(placement));
+    go.mockImplementationOnce(() => window.history.replaceState(keepState, ''));
+    act(() => navigation().backTo(keep));
+    expectStack([keep, placement]);
+    act(() => vi.advanceTimersByTime(REALM_SURFACE_HISTORY_TRAVERSAL_WATCHDOG_MILLISECONDS));
+    expectStack([keep]);
+    act(() => { navigation().push(placement); navigation().backTo(keep); });
+    mounted.rerender(<NavigationHarness identityKey="fid:close-new" />);
+    act(() => vi.advanceTimersByTime(REALM_SURFACE_HISTORY_TRAVERSAL_WATCHDOG_MILLISECONDS));
+    dispatchPopState(keepState);
+    expectStack([]);
+    act(() => navigation().backTo(keep));
+    expect(go).toHaveBeenCalledTimes(2);
+  });
+
+  it('traverses only to a matching ancestor and serializes panel closure until its popstate', () => {
+    const keep = { kind: 'inner-keep' } as const;
+    const catalogue = { kind: 'inner-keep-catalogue' } as const;
+    const placement = { kind: 'inner-keep-placement', buildingKind: 'city-mill' } as const;
+    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => {});
+    render(<NavigationHarness identityKey="fid:close-panel" />);
+    act(() => navigation().push(keep));
+    const keepState = currentHistoryState();
+    act(() => { navigation().push(catalogue); navigation().push(placement); });
+    act(() => { navigation().backTo(WORKERS); navigation().backTo(placement); });
+    expect(go).not.toHaveBeenCalled();
+    act(() => navigation().backTo(keep));
+    expect(go).toHaveBeenCalledExactlyOnceWith(-2);
+    expectStack([keep, catalogue, placement]);
+    act(() => {
+      navigation().push(WORKERS); navigation().replace(COMMANDS);
+      navigation().back(); navigation().backTo(catalogue); navigation().closeToRealm();
+    });
+    expect(go).toHaveBeenCalledOnce(); expect(back).not.toHaveBeenCalled();
+    expectStack([keep, catalogue, placement]);
+    dispatchPopState(keepState);
+    expectStack([keep]);
+    act(() => navigation().back());
+    expect(back).toHaveBeenCalledOnce();
+  });
+
   it('keeps Back pessimistic and blocks every competing command until its exact popstate', () => {
     const pushState = vi.spyOn(window.history, 'pushState');
     const replaceState = vi.spyOn(window.history, 'replaceState');

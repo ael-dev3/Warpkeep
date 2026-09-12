@@ -10,6 +10,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
+import { existsSync, lstatSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -55,16 +56,45 @@ export {
   SUNSCOURED_SOUTH_RENDERED_TARGET_MANIFEST,
 } from './regional-climate-rendered-evidence.mjs';
 
-export const RENDERED_WEBGL_QA_CHROME =
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-export const RENDERED_WEBGL_QA_CHROME_APP = '/Applications/Google Chrome.app';
-export const RENDERED_WEBGL_QA_CHROME_TEAM_ID = 'EQHXZ8M8AV';
+const WINDOWS_CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+const LINUX_CHROME_CANDIDATES = Object.freeze([
+  '/usr/bin/google-chrome',
+  '/usr/bin/google-chrome-stable',
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
+]);
+const MAC_CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const MAC_CHROME_APP = '/Applications/Google Chrome.app';
+const MAC_CHROME_TEAM_ID = 'EQHXZ8M8AV';
+const PORTABLE_CHROME_TEAM_ID = 'PORTABLE_METADATA';
+
+function reviewedChromeExecutable() {
+  if (process.platform === 'darwin') return MAC_CHROME;
+  if (process.platform === 'win32') return WINDOWS_CHROME;
+  const configured = process.env.WARPKEEP_QA_CHROME;
+  if (configured && isAbsolute(configured) && existsSync(configured)) return configured;
+  return LINUX_CHROME_CANDIDATES.find((candidate) => existsSync(candidate))
+    ?? LINUX_CHROME_CANDIDATES[0];
+}
+
+export const RENDERED_WEBGL_QA_CHROME = reviewedChromeExecutable();
+export const RENDERED_WEBGL_QA_CHROME_APP =
+  process.platform === 'darwin' ? MAC_CHROME_APP : RENDERED_WEBGL_QA_CHROME;
+export const RENDERED_WEBGL_QA_CHROME_TEAM_ID =
+  process.platform === 'darwin' ? MAC_CHROME_TEAM_ID : PORTABLE_CHROME_TEAM_ID;
 
 const CODESIGN_EXECUTABLE = '/usr/bin/codesign';
 const execFileAsync = promisify(execFile);
 
 const REPOSITORY_ROOT = resolve(import.meta.dirname, '..', '..');
-const CASE_TIMEOUT_MILLISECONDS = RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS + 5_000;
+// Windows cold-starts may transform the connected local QA graph after the
+// ordinary rendered-WebGL readiness window. Keep one explicit upper bound for
+// all CDP commands so local QA can remain fail-closed without racing that
+// first transform.
+const CASE_TIMEOUT_MILLISECONDS = Math.max(
+  RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS + 5_000,
+  180_000,
+);
 const CDP_COMMAND_TIMEOUT_MILLISECONDS = 10_000;
 const CDP_PIPE_MAXIMUM_OUTBOUND_BYTES = 512 * 1_024;
 const CDP_PIPE_MAXIMUM_INBOUND_BYTES = 16 * 1_024 * 1_024;
@@ -76,6 +106,11 @@ const TERMINATION_GRACE_MILLISECONDS = 5_000;
 // from the process table on a memory-constrained QA host. Verification remains
 // bounded and fail-closed, but does not mistake delayed reaping for a leak.
 const TERMINATION_VERIFICATION_MILLISECONDS = 15_000;
+const WINDOWS_TASKKILL = 'C:/Windows/System32/taskkill.exe';
+const WINDOWS_TERMINATION_TIMEOUT_MILLISECONDS = 15_000;
+const WINDOWS_TERMINATION_POLL_MILLISECONDS = 50;
+const PROFILE_REMOVAL_MAX_ATTEMPTS = 24;
+const PROFILE_REMOVAL_RETRY_MILLISECONDS = 250;
 const CODESIGN_TIMEOUT_MILLISECONDS = 15_000;
 const CODESIGN_MAXIMUM_BYTES = 64 * 1_024;
 const CONTROLLED_RENDERER_MAXIMUM_STALE_DELETE_WARNINGS = 256;
@@ -670,6 +705,18 @@ export function parseHeadlessChromeCodeSignature(value) {
 }
 
 export async function attestHeadlessChromeCodeSignature(options = {}) {
+  // macOS can verify Google's notarized application with codesign. Windows
+  // and Linux use the fixed executable plus a stable filesystem identity;
+  // returning the same shape keeps the probe contract portable without
+  // inventing a platform signature that was never verified.
+  if (process.platform !== 'darwin' && options.execFileAsync === undefined) {
+    await readReviewedChromeExecutableIdentity();
+    return Object.freeze({
+      executable: RENDERED_WEBGL_QA_CHROME,
+      identifier: 'com.google.Chrome',
+      teamIdentifier: RENDERED_WEBGL_QA_CHROME_TEAM_ID,
+    });
+  }
   const execute = options.execFileAsync ?? execFileAsync;
   const commandOptions = Object.freeze({
     encoding: 'utf8',
@@ -700,8 +747,11 @@ export async function readReviewedChromeExecutableIdentity() {
     !metadata.isFile()
     || metadata.isSymbolicLink()
     || metadata.nlink !== 1n
-    || (metadata.mode & 0o002n) !== 0n
-    || (expectedUid !== undefined && metadata.uid !== 0n && metadata.uid !== expectedUid)
+    || (process.platform !== 'win32' && (metadata.mode & 0o002n) !== 0n)
+    || (process.platform !== 'win32'
+      && expectedUid !== undefined
+      && metadata.uid !== 0n
+      && metadata.uid !== expectedUid)
   ) throw new Error('The reviewed Google Chrome executable is unavailable.');
   return Object.freeze({
     ctimeNs: metadata.ctimeNs.toString(),
@@ -940,6 +990,65 @@ export function renderedWebglBrowserProbeCases(port) {
  */
 export function headlessChromeProbeContract(profileDirectory) {
   const profile = exactPrivateDirectory(profileDirectory);
+  if (process.platform === 'win32') {
+    const profileMetadata = lstatSync(profile, { bigint: true });
+    if (!profileMetadata.isDirectory() || profileMetadata.isSymbolicLink()) {
+      throw new Error('The disposable Windows Chrome profile path was unsafe.');
+    }
+    const localAppData = join(profile, 'AppData', 'Local');
+    const appData = join(profile, 'AppData', 'Roaming');
+    const systemRoot = process.env.SystemRoot ?? 'C:/Windows';
+    const path = process.env.PATH ?? `${systemRoot}/System32`;
+    return Object.freeze({
+      executable: RENDERED_WEBGL_QA_CHROME,
+      args: Object.freeze([
+        '--headless=new',
+        '--remote-debugging-pipe',
+        `--user-data-dir=${profile}`,
+        '--disable-background-networking',
+        '--disable-breakpad',
+        '--disable-crash-reporter',
+        `--crash-dumps-dir=${join(profile, 'crash-dumps')}`,
+        '--disable-client-side-phishing-detection',
+        '--disable-component-extensions-with-background-pages',
+        '--disable-component-update',
+        '--disable-default-apps',
+        '--disable-domain-reliability',
+        '--disable-extensions',
+        '--disable-field-trial-config',
+        '--disable-features=AutofillServerCommunication,CertificateTransparencyComponentUpdater,FirstPartySets,InterestFeedContentSuggestions,MediaRouter,OptimizationHints,Translate',
+        '--disable-search-engine-choice-screen',
+        '--disable-sync',
+        '--metrics-recording-only',
+        '--mute-audio',
+        '--no-default-browser-check',
+        '--no-first-run',
+        '--no-proxy-server',
+        '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1',
+        '--password-store=basic',
+        '--safebrowsing-disable-auto-update',
+        '--window-size=1440,900',
+        'about:blank',
+      ]),
+      options: Object.freeze({
+        cwd: REPOSITORY_ROOT,
+        detached: true,
+        env: Object.freeze({
+          APPDATA: appData,
+          LOCALAPPDATA: localAppData,
+          PATH: path,
+          SystemRoot: systemRoot,
+          TEMP: profile,
+          TMP: profile,
+          USERPROFILE: process.env.USERPROFILE ?? profile,
+          WINDIR: process.env.WINDIR ?? systemRoot,
+        }),
+        shell: false,
+        stdio: Object.freeze(['ignore', 'ignore', 'ignore', 'pipe', 'pipe']),
+        windowsHide: true,
+      }),
+    });
+  }
   return Object.freeze({
     executable: RENDERED_WEBGL_QA_CHROME,
     args: Object.freeze([
@@ -1380,6 +1489,7 @@ export function parseRenderedWebglResourceOccupantEvidence(value) {
     'markerPresent',
     'markerProjectedVisible',
     'markerHitTestable',
+    'overviewLane',
     'overviewPresenceDirectHit',
     'overviewRecordCorrect',
     'overviewTargetControlOnly',
@@ -1427,12 +1537,39 @@ export function parseRenderedWebglResourceOccupantEvidence(value) {
   if (typeof candidate.compactOverviewCullingValid !== 'boolean') {
     throw new TypeError('Invalid rendered WebGL resource occupant evidence shape.');
   }
-  const expectedOverviewValue = !candidate.compactOverviewCullingValid;
+  if (candidate.overviewLane !== 'control' && candidate.overviewLane !== 'presence') {
+    throw new TypeError('Invalid rendered WebGL resource occupant evidence shape.');
+  }
+  const expectedOverviewValues = candidate.compactOverviewCullingValid
+    ? Object.fromEntries([...conditionalOverviewKeys].map((key) => [key, false]))
+    : candidate.overviewLane === 'presence'
+      ? Object.freeze({
+          cameraNeutral: true,
+          cameraNeutralAfterClose: true,
+          cameraAnchorPopulationValid: true,
+          cameraIndependentAnchorCoverage: true,
+          cameraNeutralWhileOpen: true,
+          overviewPresenceDirectHit: false,
+          overviewRecordCorrect: false,
+          overviewTargetControlOnly: false,
+          passivePresenceVisualOnly: true,
+          presenceComputedVisible: true,
+          presenceAvatarGeometryValid: true,
+          presenceGeometryValid: true,
+          overviewControlActivation: false,
+          presenceHitTestable: false,
+          presencePointerActivatable: false,
+          presencePortraitElementPresent: true,
+          presencePortraitReady: true,
+          presenceVisible: true,
+        })
+      : Object.fromEntries([...conditionalOverviewKeys].map((key) => [key, true]));
   const failures = keys.filter((key) => (
     key === 'compactOverviewCullingValid'
+      || key === 'overviewLane'
       ? false
       : conditionalOverviewKeys.has(key)
-        ? candidate[key] !== expectedOverviewValue
+        ? candidate[key] !== expectedOverviewValues[key]
         : candidate[key] !== true
   ));
   if (failures.length > 0) {
@@ -3503,8 +3640,47 @@ function terminateProcessGroup(child, signal) {
   }
 }
 
+function processExists(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code !== 'ESRCH';
+  }
+}
+
+async function terminateWindowsChromeTree(child) {
+  if (!child?.pid || !processExists(child.pid)) return;
+  const killer = spawn(WINDOWS_TASKKILL, ['/PID', String(child.pid), '/T', '/F'], {
+    windowsHide: true,
+    stdio: ['ignore', 'ignore', 'ignore'],
+  });
+  await new Promise((resolveClose) => {
+    killer.once('error', resolveClose);
+    killer.once('close', resolveClose);
+  });
+  const deadline = Date.now() + WINDOWS_TERMINATION_TIMEOUT_MILLISECONDS;
+  while (processExists(child.pid) && Date.now() < deadline) {
+    await delay(WINDOWS_TERMINATION_POLL_MILLISECONDS);
+  }
+  if (processExists(child.pid)) {
+    throw new Error('The disposable Windows Chrome process did not terminate.');
+  }
+}
+
 export async function terminateHeadlessChromeProcessGroup(child, options = {}) {
   if (!child?.pid) return;
+  // Preserve the injectable process-group path used by unit tests and POSIX
+  // callers. The live Windows path must terminate the complete process tree;
+  // process.kill(-pid) is not a process-group operation on Windows.
+  if (
+    process.platform === 'win32'
+    && options.terminateProcessGroup === undefined
+    && options.assertProcessGroupStopped === undefined
+  ) {
+    await terminateWindowsChromeTree(child);
+    return;
+  }
   const terminate = options.terminateProcessGroup ?? terminateProcessGroup;
   const wait = options.wait ?? delay;
   const verificationMilliseconds = options.verificationMilliseconds
@@ -3582,8 +3758,31 @@ export async function cleanupRenderedWebglProbeResources(options = {}) {
       options.disposeCastleLodVisualEvidenceSource(options.castleLodVisualSource);
     }
   });
-  await attempt(() => options.removeProfile?.());
+  await attempt(() => removeDisposableProbeProfile(
+    options.removeProfile,
+    options.waitForProfileRemoval,
+  ));
   if (firstFailure) throw firstFailure;
+}
+
+/**
+ * Chromium can finish its process tree before Windows releases the last
+ * SQLite profile handle. Retry only the transient lock errors, keeping the
+ * profile disposable while still surfacing a persistent teardown failure.
+ */
+export async function removeDisposableProbeProfile(removeProfile, wait = (milliseconds) => new Promise((resolveWait) => setTimeout(resolveWait, milliseconds))) {
+  if (removeProfile === undefined || removeProfile === null) return;
+  if (typeof removeProfile !== 'function' || typeof wait !== 'function') throw new TypeError('Invalid disposable profile removal operation.');
+  for (let attempt = 0; attempt < PROFILE_REMOVAL_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      await removeProfile();
+      return;
+    } catch (error) {
+      const code = error?.code;
+      if (!['EBUSY', 'EPERM', 'EACCES'].includes(code) || attempt === PROFILE_REMOVAL_MAX_ATTEMPTS - 1) throw error;
+      await wait(PROFILE_REMOVAL_RETRY_MILLISECONDS);
+    }
+  }
 }
 
 /**
@@ -7433,6 +7632,9 @@ export async function applyRenderedWebglResourceOccupantInteraction(
       const presenceLayer = document.querySelector('.realm-resource-occupant-presences');
       const controlLayer = marker?.closest('.realm-resource-occupant-markers');
       const castleLayer = document.querySelector('.realm-castle-labels');
+      const worldPresentation = document.querySelector(
+        '.realm-map-screen__world-presentation'
+      );
       const worldMarkerLayer = document.querySelector(
         '.realm-map-screen__world-markers'
       );
@@ -7481,7 +7683,14 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         && presenceLayer instanceof HTMLElement
         && controlLayer instanceof HTMLElement
         && castleLayer instanceof HTMLElement
-        && worldMarkerLayer.parentElement === map
+        && (
+          worldMarkerLayer.parentElement === map
+          || (
+            worldPresentation instanceof HTMLElement
+            && worldMarkerLayer.parentElement === worldPresentation
+            && getComputedStyle(worldPresentation).display === 'contents'
+          )
+        )
         && presenceLayer.parentElement === worldMarkerLayer
         && controlLayer.parentElement === worldMarkerLayer
         && castleLayer.parentElement === worldMarkerLayer
@@ -7795,7 +8004,7 @@ export async function applyRenderedWebglResourceOccupantInteraction(
 
       const overviewFramed = focusedClosed && await frameRealmOverview();
       let overviewPresence;
-      const overviewLane = 'control';
+      let overviewLane = 'control';
       const overviewPresenceReady = overviewFramed && await waitFor(() => {
         const controlCandidate = overviewPreferredKeys
           .map((key) => presentationForKey(
@@ -7807,11 +8016,26 @@ export async function applyRenderedWebglResourceOccupantInteraction(
             && element.getAttribute('data-projected-visible') === 'true'
             && visible(element)
           ));
-        // Passive overflow portraits are visual context only. Record activation
-        // must always use the bounded native-button lane; never fall through to
-        // an aria-hidden presentation when collision admission changes.
-        const candidate = controlCandidate;
-        if (!(candidate instanceof HTMLButtonElement)) return false;
+        const passiveCandidate = overviewPreferredKeys
+          .map((key) => presentationForKey(
+            '.realm-resource-occupant-presence',
+            key
+          ))
+          .find((element) => (
+            element instanceof HTMLElement
+            && element.getAttribute('data-projected-visible') === 'true'
+            && visible(element)
+          ));
+        // Observer mode deliberately keeps peer occupations in a passive,
+        // aria-hidden visual lane. Player mode can retain an interactive
+        // control for an owned/selected occupation. Exercise whichever lane
+        // the product's collision policy admits instead of treating a valid
+        // observer visual composition as a missing control.
+        const candidate = controlCandidate ?? passiveCandidate;
+        if (candidate === passiveCandidate && controlCandidate === undefined) {
+          overviewLane = 'presence';
+        }
+        if (!(candidate instanceof HTMLElement)) return false;
         overviewTargetKey = candidate.getAttribute(
           'data-resource-occupant-key'
         ) ?? '';
@@ -7833,16 +8057,21 @@ export async function applyRenderedWebglResourceOccupantInteraction(
       if (overviewProjectionSettled) {
         // Collision reconciliation may move the same canonical occupation
         // between its passive PFP and single keyboard-control lane while the
-        // projection settles. Reacquire only the control; a passive fallback is
-        // deliberately not activatable.
+        // projection settles. Reacquire the control when available; observer
+        // mode may intentionally retain the passive visual lane.
         const settledControl = presentationForKey(
           'button.realm-resource-occupant-marker',
           overviewTargetKey
         );
-        if (settledControl instanceof HTMLButtonElement) {
+        if (overviewLane === 'control' && settledControl instanceof HTMLButtonElement) {
           overviewPresence = settledControl;
-        } else {
+        } else if (overviewLane === 'control') {
           overviewPresence = undefined;
+        } else {
+          overviewPresence = presentationForKey(
+            '.realm-resource-occupant-presence',
+            overviewTargetKey
+          );
         }
       }
       const passivePresence = [...document.querySelectorAll(
@@ -7914,16 +8143,12 @@ export async function applyRenderedWebglResourceOccupantInteraction(
       const presencePointerActivatable = overviewPresence instanceof HTMLElement
         && presenceLayer instanceof HTMLElement
         && controlLayer instanceof HTMLElement
+        && overviewLane === 'control'
+        && getComputedStyle(presenceLayer).pointerEvents === 'none'
         && getComputedStyle(overviewPresence).pointerEvents === 'auto'
         && getComputedStyle(overviewPresence).cursor === 'pointer'
-        && (
-          overviewLane === 'presence'
-            ? getComputedStyle(presenceLayer).pointerEvents === 'none'
-              && presenceLayer.getAttribute('aria-hidden') === 'true'
-            : overviewPresence instanceof HTMLButtonElement
-              && overviewPresence.closest('.realm-resource-occupant-markers')
-                === controlLayer
-        );
+        && overviewPresence instanceof HTMLButtonElement
+        && overviewPresence.closest('.realm-resource-occupant-markers') === controlLayer;
       const presencePortraitElementPresent =
         overviewPresence instanceof HTMLElement
         && overviewPresence.querySelectorAll(
@@ -7945,7 +8170,8 @@ export async function applyRenderedWebglResourceOccupantInteraction(
             overviewPresenceBounds.top + overviewPresenceBounds.height / 2
           )
         : null;
-      const overviewPresenceDirectHit = overviewPresenceReady
+      const overviewPresenceDirectHit = overviewLane === 'control'
+        && overviewPresenceReady
         && overviewPresence instanceof HTMLElement
         && overviewDirectHit instanceof HTMLElement
         && (overviewDirectHit === overviewPresence
@@ -7959,7 +8185,8 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         '.realm-resource-occupant-presence',
         overviewTargetKey
       );
-      const overviewTargetControlOnly = overviewProjectionSettled
+      const overviewTargetControlOnly = overviewLane === 'control'
+        && overviewProjectionSettled
         && overviewPresenceDirectHit
         && (
           overviewLane === 'presence'
@@ -9317,14 +9544,19 @@ export async function applyRenderedWebglOccupancyStressInteraction(session) {
 }
 
 async function navigateRenderedWebglCase(session, url, state) {
+  const previousLoadEventCount = state.loadedPageEventCount;
   const navigation = await session.command('Page.navigate', { url });
-  const loaderId = exactCdpIdentifier(
-    navigation?.loaderId,
-    'navigation loader id'
-  );
+  // Chrome normally returns a loader id and emits a matching lifecycle event.
+  // Some Windows builds complete a top-level navigation with only the
+  // browser-level Page.loadEventFired notification, so retain that bounded
+  // signal as a portable fallback instead of waiting for an impossible id.
+  const loaderId = navigation?.loaderId === undefined
+    ? undefined
+    : exactCdpIdentifier(navigation.loaderId, 'navigation loader id');
   const deadline = Date.now() + CASE_TIMEOUT_MILLISECONDS;
   while (
-    !state.loadedPageLoaderIds.has(loaderId)
+    !(loaderId !== undefined && state.loadedPageLoaderIds.has(loaderId))
+    && state.loadedPageEventCount <= previousLoadEventCount
     && Date.now() <= deadline
   ) {
     if (state.violation) {
@@ -9334,7 +9566,10 @@ async function navigateRenderedWebglCase(session, url, state) {
     }
     await delay(25);
   }
-  if (!state.loadedPageLoaderIds.delete(loaderId)) {
+  if (loaderId !== undefined && state.loadedPageLoaderIds.delete(loaderId)) return;
+  if (state.loadedPageEventCount > previousLoadEventCount) return;
+  if (loaderId !== undefined) state.loadedPageLoaderIds.delete(loaderId);
+  {
     throw new Error('Rendered WebGL navigation loader did not complete.');
   }
 }
@@ -10147,6 +10382,7 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
       controlledRendererWarningCount: 0,
       controlledRendererWarningThrottleSeen: false,
       loadedPageLoaderIds: new Set(),
+      loadedPageEventCount: 0,
       allowedUrls: new Set([
         ...cases.map((probeCase) => probeCase.url),
         ...cases
@@ -10188,6 +10424,7 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
         return;
       }
       if (method === 'Page.lifecycleEvent' && params?.name === 'load') {
+        state.loadedPageEventCount += 1;
         let loaderId;
         try {
           loaderId = exactCdpIdentifier(
@@ -10202,6 +10439,10 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
         if (state.loadedPageLoaderIds.size > 256) {
           state.violation = 'page-lifecycle-bound';
         }
+        return;
+      }
+      if (method === 'Page.loadEventFired') {
+        state.loadedPageEventCount += 1;
         return;
       }
       if (method === 'Page.windowOpen' || method === 'Page.downloadWillBegin') {

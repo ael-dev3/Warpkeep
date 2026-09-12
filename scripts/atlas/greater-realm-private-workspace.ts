@@ -559,10 +559,28 @@ export type GreaterRealmPrivateWorkspace = Readonly<{
   ): Promise<T>;
 }>;
 
-export function openGreaterRealmPrivateWorkspace(input: Readonly<{
+type GreaterRealmPrivateWorkspaceLocation = Readonly<{
   repositoryRoot: string;
   workspaceRoot?: string;
-}>): GreaterRealmPrivateWorkspace {
+}>;
+
+export function openGreaterRealmPrivateWorkspace(
+  input: GreaterRealmPrivateWorkspaceLocation,
+): GreaterRealmPrivateWorkspace {
+  return openPrivateWorkspace(input, true);
+}
+
+/** Opens an existing workspace without creating any directories or control files. */
+export function openExistingGreaterRealmPrivateWorkspace(
+  input: GreaterRealmPrivateWorkspaceLocation,
+): GreaterRealmPrivateWorkspace {
+  return openPrivateWorkspace(input, false);
+}
+
+function openPrivateWorkspace(
+  input: GreaterRealmPrivateWorkspaceLocation,
+  createRoot: boolean,
+): GreaterRealmPrivateWorkspace {
   if (!isAbsolute(input.repositoryRoot) || !existsSync(input.repositoryRoot)) {
     fail('GREATER_REALM_PRIVATE_REPOSITORY_INVALID');
   }
@@ -593,7 +611,7 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
   const existingAncestorIdentities = new Map(existingAncestorAttestations.map(attestation => (
     [attestation.path, attestation.identity] as const
   )));
-  ensurePrivateWorkspaceRoot(workspaceRoot);
+  if (createRoot) ensurePrivateWorkspaceRoot(workspaceRoot);
 
   const workspaceBoundaryPaths = directoryPaths(workspaceRoot);
   const workspaceBoundary = Object.freeze(workspaceBoundaryPaths.map((path, index) => (

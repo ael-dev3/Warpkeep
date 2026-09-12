@@ -470,6 +470,22 @@ describe('local QA agent', () => {
     await expect(verifyQaAgentScriptContract(repository)).resolves.toBeUndefined();
 
     const packagePath = join(repository, 'package.json');
+    const reviewedPackage = JSON.parse(readFileSync(packagePath, 'utf8'));
+    const voxelCheck = 'tsx scripts/generate-keep04-voxel-dressing.ts --check && ';
+    expect(reviewedPackage.scripts.build.startsWith(voxelCheck)).toBe(true);
+    for (const build of [
+      reviewedPackage.scripts.build.slice(voxelCheck.length),
+      reviewedPackage.scripts.build.replace('--check &&', '&&'),
+      `${reviewedPackage.scripts.build} && node scripts/publish-spacetime-dev.mjs`,
+    ]) {
+      await writeFile(packagePath, JSON.stringify({
+        ...reviewedPackage, scripts: { ...reviewedPackage.scripts, build },
+      }));
+      await expect(verifyQaAgentScriptContract(repository)).rejects.toThrow(
+        /command contract changed without review/i,
+      );
+    }
+    await writeFile(packagePath, JSON.stringify(reviewedPackage));
     const changed = JSON.parse(readFileSync(packagePath, 'utf8'));
     changed.scripts.test = 'node scripts/publish-spacetime-dev.mjs';
     await writeFile(packagePath, `${JSON.stringify(changed)}\n`);

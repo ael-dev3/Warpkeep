@@ -1751,7 +1751,8 @@ describe('activation publish safety', () => {
       .rejects.toThrow(/invalid or private signing key/i);
   });
 
-  it('publishes only an owner-private artifact snapshot after the proven source is replaced', async () => {
+  // Windows cannot faithfully create or inspect the exact POSIX-private snapshot fixture.
+  it.skipIf(process.platform === 'win32')('publishes only an owner-private artifact snapshot after the proven source is replaced', async () => {
     const calls: unknown[][] = [];
     let snapshotPath = '';
     let snapshotDirectory = '';
@@ -1806,7 +1807,8 @@ describe('activation publish safety', () => {
     expect(() => statSync(snapshotDirectory)).toThrow();
   });
 
-  it('executes only the attested CLI snapshot after its source path is replaced', async () => {
+  // Windows cannot faithfully execute the exact POSIX-private CLI snapshot fixture.
+  it.skipIf(process.platform === 'win32')('executes only the attested CLI snapshot after its source path is replaced', async () => {
     const sourceDirectory = await mkdtemp(join(tmpdir(), 'warpkeep-cli-source-'));
     const sourcePath = join(sourceDirectory, 'spacetime-test');
     const original = Buffer.from('#!/bin/sh\nprintf original-cli');
@@ -3746,7 +3748,8 @@ describe('activation publish safety', () => {
     });
   });
 
-  it('rejects a symlink at the canonical proven-artifact path', async () => {
+  // Windows cannot create the required unprivileged symlink fixture.
+  it.skipIf(process.platform === 'win32')('rejects a symlink at the canonical proven-artifact path', async () => {
     await withTestProvenArtifact(async receipt => {
       await rm(provenArtifactPath, { force: true });
       try {
@@ -3758,7 +3761,8 @@ describe('activation publish safety', () => {
     });
   });
 
-  it('kills and rejects a publish whose combined output exceeds the fixed bound', async () => {
+  // This end-to-end fixture requires an exact POSIX-private snapshot before output containment.
+  it.skipIf(process.platform === 'win32')('kills and rejects a publish whose combined output exceeds the fixed bound', async () => {
     await withTestProvenArtifact(async receipt => {
       let snapshotPath = '';
       const child = new EventEmitter() as EventEmitter & {
@@ -4122,7 +4126,8 @@ describe('activation publish safety', () => {
       .toThrow(/production publication is unavailable/i);
   });
 
-  it('binds the repair operator to one recent private successful publication receipt', async () => {
+  // Windows cannot faithfully create or inspect the exact POSIX-private receipt fixture.
+  it.skipIf(process.platform === 'win32')('binds the repair operator to one recent private successful publication receipt', async () => {
     const root = await mkdtemp(join(
       realpathSync(tmpdir()),
       'warpkeep-publish-receipt-',
@@ -5273,7 +5278,8 @@ describe('activation publish safety', () => {
       .toThrow(/expected founder count/i);
   });
 
-  it('escalates a hard deadline and reports unproven containment when close never arrives', async () => {
+  // This end-to-end fixture requires an exact POSIX-private snapshot before process containment.
+  it.skipIf(process.platform === 'win32')('escalates a hard deadline and reports unproven containment when close never arrives', async () => {
     vi.useFakeTimers();
     const child = new EventEmitter() as EventEmitter & { kill: ReturnType<typeof vi.fn> };
     child.kill = vi.fn();

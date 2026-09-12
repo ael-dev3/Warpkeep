@@ -9,9 +9,14 @@ import {
   GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES
 } from '../src/components/realm/createGreaterRealmWorldCanvasHost';
 import { resolveGreaterRealmWorldViewPolicy } from '../src/components/realm/greaterRealmWorldViewPolicy';
+import * as voxelPresentation from '../src/components/realm/greaterRealmVoxelPresentation';
 import { GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE } from '../src/dev/greaterRealmSyntheticTierOneFixture';
-import type { GreaterRealmSceneTelemetry } from '../src/greater-realm/createGreaterRealmSceneRuntime';
+import {
+  createGreaterRealmSceneRuntime,
+  type GreaterRealmSceneTelemetry
+} from '../src/greater-realm/createGreaterRealmSceneRuntime';
 import type { GreaterRealmClientSnapshot } from '../src/greater-realm/greaterRealmClientRuntime';
+import { decodeGreaterRealmChunkDto } from '../src/greater-realm/greaterRealmPublicContract';
 import { GREATER_REALM_GRAPHICS_BUDGETS } from '../src/greater-realm/greaterRealmRuntimePolicy';
 
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -45,7 +50,15 @@ const EMPTY_TELEMETRY: GreaterRealmSceneTelemetry = Object.freeze({
   uploadBytesThisFrame: 0,
   maximumUploadsPerFrame: 2,
   maximumUploadBytesPerFrame: 524_288,
-  skippedByBudgetCount: 0
+  skippedByBudgetCount: 0,
+  voxelMode: 'none',
+  residentVoxelTriangleCount: 0,
+  residentVoxelQuadCount: 0,
+  voxelUploadBytesThisFrame: 0,
+  voxelPreparationMilliseconds: 0,
+  voxelEmissionMillisecondsThisFrame: 0,
+  voxelFallbackCount: 0,
+  voxelFallbackReasons: Object.freeze([])
 });
 
 const UNAVAILABLE_VESSEL = Object.freeze({
@@ -61,6 +74,12 @@ function vesselRuntimeMethods() {
     releaseLocalVessel: vi.fn(() => UNAVAILABLE_VESSEL),
     getLocalVesselState: vi.fn(() => UNAVAILABLE_VESSEL)
   };
+}
+
+function instancePosition(mesh: THREE.InstancedMesh, index = 0) {
+  const matrix = new THREE.Matrix4();
+  mesh.getMatrixAt(index, matrix);
+  return new THREE.Vector3().setFromMatrixPosition(matrix);
 }
 
 function readySnapshot() {
@@ -91,6 +110,320 @@ afterEach(() => {
 });
 
 describe('Greater Realm world canvas host', () => {
+  it('updates responsive rendering policy in one host and retains a returned selection', () => {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    const runtimes: any[] = [];
+    function makeRuntime(
+      options: { deviceClass: 'desktop' | 'mobile'; graphicsProfile: string }
+    ): any {
+      const runtime = {
+        group: new THREE.Group(),
+        setView: vi.fn(), flushUploads: vi.fn(() => 0), update: vi.fn(() => false),
+        startAnimation: vi.fn(), stopAnimation: vi.fn(), setReducedMotion: vi.fn(),
+        setDocumentVisible: vi.fn(), bindCanvas: vi.fn(), getCellAccess: vi.fn(),
+        isCoordinatePassable: vi.fn(() => false), ...vesselRuntimeMethods(),
+        getTelemetry: vi.fn(() => ({
+          ...EMPTY_TELEMETRY,
+          deviceClass: options.deviceClass,
+          graphicsProfile: options.graphicsProfile
+        })),
+        dispose: vi.fn()
+      };
+      runtimes.push(runtime);
+      return runtime;
+    }
+    const renderer = {
+      setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn()
+    };
+    const rendererFactory = vi.fn(() => renderer);
+    const runtimeFactory = vi.fn((options: any) => makeRuntime(options));
+    const onSelectionChange = vi.fn();
+    const desktopPolicy = resolveGreaterRealmWorldViewPolicy({
+      atlasQ: -2, atlasR: 1, viewportWidth: 1_440, coarsePointer: false,
+      farcasterMiniApp: false, resolvedGraphicsQuality: 'cinematic', reducedMotion: false
+    });
+    const mobilePolicy = resolveGreaterRealmWorldViewPolicy({
+      atlasQ: -2, atlasR: 1, viewportWidth: 390, coarsePointer: false,
+      farcasterMiniApp: false, resolvedGraphicsQuality: 'cinematic', reducedMotion: false
+    });
+    const host = createGreaterRealmWorldCanvasHost({
+      canvas,
+      atlasQ: -2,
+      atlasR: 1,
+      ownCastleId: 1,
+      policy: desktopPolicy,
+      rendererFactory,
+      sceneRuntimeFactory: runtimeFactory,
+      onSelectionChange
+    })!;
+
+    host.applySnapshot(readySnapshot());
+    host.control({ kind: 'select-next' });
+    const selected = onSelectionChange.mock.calls.at(-1)![0];
+    expect(selected).toBeDefined();
+    let resourceSelection: typeof selected;
+    let publicCastleSelection: typeof selected;
+    for (let index = 0; index < 32; index += 1) {
+      host.control({ kind: 'select-next' });
+      const latest = onSelectionChange.mock.calls.at(-1)![0];
+      if (latest?.kind === 'resource') resourceSelection = latest;
+      if (latest?.kind === 'castle' && latest.label !== 'Your castle') {
+        publicCastleSelection = latest;
+      }
+      if (
+        resourceSelection !== undefined
+        && latest?.kind === selected.kind
+        && latest.atlasQ === selected.atlasQ
+        && latest.atlasR === selected.atlasR
+      ) break;
+    }
+    expect(resourceSelection).toEqual(expect.objectContaining({ kind: 'resource' }));
+    expect(resourceSelection!.label).toContain('site at');
+    expect(resourceSelection!.label).not.toContain('nodes');
+    expect(publicCastleSelection).toEqual(expect.objectContaining({ kind: 'castle' }));
+    expect(publicCastleSelection!.label).toContain('castle at');
+    expect(publicCastleSelection!.label).not.toMatch(/castle \d+$/);
+
+    host.updatePolicy(mobilePolicy);
+
+    expect(rendererFactory).toHaveBeenCalledOnce();
+    expect(runtimeFactory).toHaveBeenCalledTimes(2);
+    expect(runtimeFactory).toHaveBeenLastCalledWith(expect.objectContaining({
+      deviceClass: 'mobile',
+      graphicsProfile: 'balanced'
+    }));
+    expect(runtimes[0]!.dispose).toHaveBeenCalledOnce();
+    expect(runtimes[1]!.setView).toHaveBeenCalledOnce();
+    expect(onSelectionChange).not.toHaveBeenLastCalledWith(undefined);
+    expect(onSelectionChange.mock.calls.at(-1)![0]).toEqual(selected);
+
+    const outsideReturnedView = {
+      ...readySnapshot(),
+      window: { ...readySnapshot().window!, castles: [] },
+      chunks: [],
+      selectedChunkCount: 0,
+      resourceLocations: []
+    } as GreaterRealmClientSnapshot;
+    host.applySnapshot(outsideReturnedView);
+    expect(onSelectionChange).toHaveBeenLastCalledWith(undefined);
+    host.dispose();
+  });
+
+  it('defers an adaptive runtime swap through context loss and applies it on restoration', () => {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    let contextLost = true;
+    const runtimes: any[] = [];
+    const runtimeFactory = vi.fn(() => {
+      const runtime = {
+        group: new THREE.Group(),
+        setView: vi.fn(), flushUploads: vi.fn(() => 0), update: vi.fn(() => false),
+        startAnimation: vi.fn(), stopAnimation: vi.fn(), setReducedMotion: vi.fn(),
+        setDocumentVisible: vi.fn(), bindCanvas: vi.fn(), getCellAccess: vi.fn(),
+        isCoordinatePassable: vi.fn(() => false), ...vesselRuntimeMethods(),
+        getTelemetry: vi.fn(() => ({ ...EMPTY_TELEMETRY, contextLost })),
+        dispose: vi.fn()
+      };
+      runtimes.push(runtime);
+      return runtime;
+    });
+    const desktopPolicy = resolveGreaterRealmWorldViewPolicy({
+      atlasQ: 0, atlasR: 0, viewportWidth: 1_440, coarsePointer: false,
+      farcasterMiniApp: false, resolvedGraphicsQuality: 'balanced', reducedMotion: false
+    });
+    const mobilePolicy = resolveGreaterRealmWorldViewPolicy({
+      atlasQ: 0, atlasR: 0, viewportWidth: 390, coarsePointer: false,
+      farcasterMiniApp: false, resolvedGraphicsQuality: 'balanced', reducedMotion: false
+    });
+    const host = createGreaterRealmWorldCanvasHost({
+      canvas, atlasQ: 0, atlasR: 0, ownCastleId: 1, policy: desktopPolicy,
+      rendererFactory: () => ({
+        setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn()
+      }),
+      sceneRuntimeFactory: runtimeFactory
+    })!;
+
+    host.applySnapshot(readySnapshot());
+    host.updatePolicy(mobilePolicy);
+    expect(runtimeFactory).toHaveBeenCalledOnce();
+    expect(runtimes[0]!.dispose).not.toHaveBeenCalled();
+
+    contextLost = false;
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(runtimeFactory).toHaveBeenCalledTimes(2);
+    expect(runtimes[0]!.dispose).toHaveBeenCalledOnce();
+    expect(runtimes[1]!.setView).toHaveBeenCalledOnce();
+    host.dispose();
+  });
+
+  it('retries a deferred policy after restore when an earlier swap changed listener order', () => {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    const runtimes: any[] = [];
+    const runtimeFactory = vi.fn(() => {
+      let contextLost = false;
+      let boundCanvas: HTMLCanvasElement | null = null;
+      const handleLoss = () => { contextLost = true; };
+      const handleRestore = () => { contextLost = false; };
+      const bindCanvas = vi.fn((next: HTMLCanvasElement | null) => {
+        boundCanvas?.removeEventListener('webglcontextlost', handleLoss);
+        boundCanvas?.removeEventListener('webglcontextrestored', handleRestore);
+        boundCanvas = next;
+        boundCanvas?.addEventListener('webglcontextlost', handleLoss);
+        boundCanvas?.addEventListener('webglcontextrestored', handleRestore);
+      });
+      const runtime = {
+        group: new THREE.Group(),
+        setView: vi.fn(), flushUploads: vi.fn(() => 0), update: vi.fn(() => false),
+        startAnimation: vi.fn(), stopAnimation: vi.fn(), setReducedMotion: vi.fn(),
+        setDocumentVisible: vi.fn(), bindCanvas, getCellAccess: vi.fn(),
+        isCoordinatePassable: vi.fn(() => false), ...vesselRuntimeMethods(),
+        getTelemetry: vi.fn(() => ({ ...EMPTY_TELEMETRY, contextLost })),
+        dispose: vi.fn(() => bindCanvas(null))
+      };
+      runtimes.push(runtime);
+      return runtime;
+    });
+    const desktopPolicy = resolveGreaterRealmWorldViewPolicy({
+      atlasQ: 0, atlasR: 0, viewportWidth: 1_440, coarsePointer: false,
+      farcasterMiniApp: false, resolvedGraphicsQuality: 'balanced', reducedMotion: false
+    });
+    const mobilePolicy = resolveGreaterRealmWorldViewPolicy({
+      atlasQ: 0, atlasR: 0, viewportWidth: 390, coarsePointer: false,
+      farcasterMiniApp: false, resolvedGraphicsQuality: 'balanced', reducedMotion: false
+    });
+    const host = createGreaterRealmWorldCanvasHost({
+      canvas, atlasQ: 0, atlasR: 0, ownCastleId: 1, policy: desktopPolicy,
+      rendererFactory: () => ({
+        setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn()
+      }),
+      sceneRuntimeFactory: runtimeFactory
+    })!;
+
+    host.updatePolicy(mobilePolicy);
+    expect(runtimeFactory).toHaveBeenCalledTimes(2);
+    canvas.dispatchEvent(new Event('webglcontextlost'));
+    host.updatePolicy(desktopPolicy);
+    expect(runtimeFactory).toHaveBeenCalledTimes(2);
+
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+
+    expect(runtimeFactory).toHaveBeenCalledTimes(3);
+    expect(runtimes[1]!.dispose).toHaveBeenCalledOnce();
+    host.dispose();
+    expect(runtimes[2]!.dispose).toHaveBeenCalledOnce();
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(runtimeFactory).toHaveBeenCalledTimes(3);
+  });
+
+  it('requeues real scene uploads after a swapped runtime loses context during a policy change', () => {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+    const frames = new Map<number, FrameRequestCallback>();
+    let nextFrame = 1;
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const id = nextFrame++;
+      frames.set(id, callback);
+      return id;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      frames.delete(id);
+    });
+    const renderer = {
+      setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn()
+    };
+    const policy = (viewportWidth: number) => resolveGreaterRealmWorldViewPolicy({
+      atlasQ: -2, atlasR: 1, viewportWidth, coarsePointer: false,
+      farcasterMiniApp: false, resolvedGraphicsQuality: 'balanced', reducedMotion: true
+    });
+    const host = createGreaterRealmWorldCanvasHost({
+      canvas, atlasQ: -2, atlasR: 1, ownCastleId: 1, policy: policy(1_440),
+      rendererFactory: () => renderer,
+      sceneRuntimeFactory: (options) => createGreaterRealmSceneRuntime(options)
+    })!;
+    const flushFrames = () => {
+      for (let time = 16; frames.size > 0 && time <= 320; time += 16) {
+        for (const [id, callback] of [...frames]) {
+          frames.delete(id);
+          callback(time);
+        }
+      }
+    };
+
+    host.applySnapshot(readySnapshot());
+    flushFrames();
+    expect(host.getTelemetry().scene.uploadedChunkCount).toBeGreaterThan(0);
+    host.updatePolicy(policy(390));
+    flushFrames();
+    expect(host.getTelemetry().scene.selectedChunkCount).toBeGreaterThan(0);
+    expect(host.getTelemetry().scene.uploadedChunkCount).toBeGreaterThan(0);
+
+    canvas.dispatchEvent(new Event('webglcontextlost'));
+    host.updatePolicy(policy(1_440));
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    flushFrames();
+
+    expect(host.getTelemetry().scene.selectedChunkCount).toBeGreaterThan(0);
+    expect(host.getTelemetry().scene.uploadedChunkCount).toBeGreaterThan(0);
+    host.dispose();
+  });
+
+  it('fails closed and cleans both runtimes when an adaptive swap cannot start', () => {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    const runtimes: any[] = [];
+    const runtimeFactory = vi.fn(() => {
+      const failing = runtimes.length > 0;
+      const runtime = {
+        group: new THREE.Group(),
+        setView: vi.fn(), flushUploads: vi.fn(() => 0), update: vi.fn(() => false),
+        startAnimation: failing
+          ? vi.fn(() => { throw new Error('INJECTED_ADAPTIVE_RUNTIME_FAILURE'); })
+          : vi.fn(),
+        stopAnimation: vi.fn(), setReducedMotion: vi.fn(),
+        setDocumentVisible: vi.fn(), bindCanvas: vi.fn(), getCellAccess: vi.fn(),
+        isCoordinatePassable: vi.fn(() => false), ...vesselRuntimeMethods(),
+        getTelemetry: vi.fn(() => EMPTY_TELEMETRY),
+        dispose: vi.fn()
+      };
+      runtimes.push(runtime);
+      return runtime;
+    });
+    const renderer = {
+      setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn()
+    };
+    const onFailure = vi.fn();
+    const host = createGreaterRealmWorldCanvasHost({
+      canvas, atlasQ: 0, atlasR: 0, ownCastleId: 1,
+      policy: resolveGreaterRealmWorldViewPolicy({
+        atlasQ: 0, atlasR: 0, viewportWidth: 1_440, coarsePointer: false,
+        farcasterMiniApp: false, resolvedGraphicsQuality: 'balanced', reducedMotion: false
+      }),
+      rendererFactory: () => renderer,
+      sceneRuntimeFactory: runtimeFactory,
+      onFailure
+    })!;
+
+    host.updatePolicy(resolveGreaterRealmWorldViewPolicy({
+      atlasQ: 0, atlasR: 0, viewportWidth: 390, coarsePointer: false,
+      farcasterMiniApp: false, resolvedGraphicsQuality: 'balanced', reducedMotion: false
+    }));
+
+    expect(onFailure).toHaveBeenCalledOnce();
+    expect(runtimes[0]!.dispose).toHaveBeenCalledOnce();
+    expect(runtimes[1]!.dispose).toHaveBeenCalledOnce();
+    expect(renderer.dispose).toHaveBeenCalledOnce();
+  });
+
   it('does not construct Three when WebGL 2 preflight fails', () => {
     const canvas = document.createElement('canvas');
     vi.spyOn(canvas, 'getContext').mockReturnValue(null);
@@ -113,6 +446,43 @@ describe('Greater Realm world canvas host', () => {
       rendererFactory
     })).toBeUndefined();
     expect(rendererFactory).not.toHaveBeenCalled();
+  });
+
+  it('falls back to one instanced castle layer when voxel prefab preparation fails', () => {
+    vi.spyOn(voxelPresentation, 'createGreaterRealmVoxelPrefabPlan')
+      .mockImplementation(() => { throw new Error('INJECTED_CASTLE_PREPARATION_FAILURE'); });
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    const runtime = {
+      group: new THREE.Group(),
+      setView: vi.fn(), flushUploads: vi.fn(() => 0), update: vi.fn(() => false),
+      startAnimation: vi.fn(), stopAnimation: vi.fn(), setReducedMotion: vi.fn(),
+      setDocumentVisible: vi.fn(), bindCanvas: vi.fn(), getCellAccess: vi.fn(),
+      isCoordinatePassable: vi.fn(() => false), ...vesselRuntimeMethods(),
+      getTelemetry: vi.fn(() => EMPTY_TELEMETRY), dispose: vi.fn()
+    };
+    const host = createGreaterRealmWorldCanvasHost({
+      canvas,
+      atlasQ: -2,
+      atlasR: 1,
+      ownCastleId: 1,
+      policy: resolveGreaterRealmWorldViewPolicy({
+        atlasQ: -2, atlasR: 1, viewportWidth: 1_440, coarsePointer: false,
+        farcasterMiniApp: false, resolvedGraphicsQuality: 'balanced', reducedMotion: false
+      }),
+      rendererFactory: () => ({
+        setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn()
+      }),
+      sceneRuntimeFactory: () => runtime
+    })!;
+
+    expect(() => host.applySnapshot(readySnapshot())).not.toThrow();
+    expect(host.getTelemetry().publicCastleCount).toBe(2);
+    expect(host.getTelemetry().scene.voxelFallbackReasons.join('|'))
+      .toContain('INJECTED_CASTLE_PREPARATION_FAILURE');
+    host.dispose();
   });
 
   it('fails construction without leaking a created renderer or thrown context probe', () => {
@@ -414,6 +784,11 @@ describe('Greater Realm world canvas host', () => {
       'greater-realm-public-castle-instances'
     ) as THREE.InstancedMesh;
     expect(castleInstances.count).toBe(2);
+    expect(castleInstances.geometry.index).not.toBeNull();
+    expect(castleInstances.geometry.getAttribute('normal').normalized).toBe(true);
+    expect(castleInstances.geometry.getAttribute('color').normalized).toBe(true);
+    expect(castleInstances.geometry.userData.greaterRealmVoxelSignature)
+      .toContain('greater-realm-voxel-prefab-v1');
     expect(renderedScene.getObjectByName(
       'greater-realm-visible-region-landmark-instances'
     )).toBeDefined();
@@ -427,7 +802,7 @@ describe('Greater Realm world canvas host', () => {
       .flatMap((chunk) => [...chunk.coreCells, ...chunk.apronCells])
       .find((cell) => cell.atlasQ === -2 && cell.atlasR === 1)!;
     expect(ownPosition.y).toBeCloseTo(
-      ownCell.elevation / 1_000 + 0.21 * 1.04 + 0.03,
+      ownCell.elevation / 1_000 + 0.03,
       6
     );
     const resourceOnlyPublish = structuredClone(readySnapshot()) as any;
@@ -497,6 +872,161 @@ describe('Greater Realm world canvas host', () => {
       expect.any(Function)
     );
     expect(frames.size).toBe(0);
+  });
+
+  it.each([
+    ['high', 62, 'voxel', 0],
+    ['high', 63, 'voxel', 0.125],
+    ['balanced', 124, 'voxel', 0],
+    ['balanced', 126, 'voxel', 0.25],
+    ['reduced', 249, 'voxel', 0],
+    ['reduced', 251, 'voxel', 0.5],
+    ['high', 62, 'fallback', 0.062],
+    ['high', 63, 'fallback', 0.063],
+    ['balanced', 124, 'fallback', 0.124],
+    ['balanced', 126, 'fallback', 0.126],
+    ['reduced', 249, 'fallback', 0.249],
+    ['reduced', 251, 'fallback', 0.251]
+  ] as const)(
+    'grounds %s castles at elevation %i on the selected %s surface',
+    (graphicsProfile, elevation, terrainMode, expectedSurfaceY) => {
+      const canvas = document.createElement('canvas');
+      vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+      const frames = new Map<number, FrameRequestCallback>();
+      let nextFrame = 1;
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+        const id = nextFrame++;
+        frames.set(id, callback);
+        return id;
+      });
+      vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+        frames.delete(id);
+      });
+      const runtime = {
+        group: new THREE.Group(),
+        setView: vi.fn(),
+        flushUploads: vi.fn(() => 1),
+        update: vi.fn(() => false),
+        startAnimation: vi.fn(),
+        stopAnimation: vi.fn(),
+        setReducedMotion: vi.fn(),
+        setDocumentVisible: vi.fn(),
+        bindCanvas: vi.fn(),
+        getCellAccess: vi.fn(),
+        getTerrainSurfaceY: vi.fn((_chunkHandle: string, cell: any) => (
+          terrainMode === 'voxel' ? expectedSurfaceY : undefined
+        )),
+        isCoordinatePassable: vi.fn(() => false),
+        ...vesselRuntimeMethods(),
+        getTelemetry: vi.fn(() => ({ ...EMPTY_TELEMETRY, voxelMode: terrainMode })),
+        dispose: vi.fn()
+      };
+      const renderer = {
+        setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn()
+      };
+      const snapshot = structuredClone(readySnapshot()) as any;
+      const ownCastle = snapshot.window.castles.find((castle: any) => castle.castleId === 1n);
+      ownCastle.elevation = elevation;
+      const ownCell = snapshot.chunks.flatMap((row: any) => (
+        [...row.chunk.coreCells, ...row.chunk.apronCells]
+      )).find((cell: any) => (
+        cell.atlasQ === ownCastle.atlasQ && cell.atlasR === ownCastle.atlasR
+      ));
+      ownCell.elevation = elevation;
+      const host = createGreaterRealmWorldCanvasHost({
+        canvas,
+        atlasQ: ownCastle.atlasQ,
+        atlasR: ownCastle.atlasR,
+        ownCastleId: 1,
+        policy: {
+          ...resolveGreaterRealmWorldViewPolicy({
+            atlasQ: ownCastle.atlasQ,
+            atlasR: ownCastle.atlasR,
+            viewportWidth: 1_440,
+            coarsePointer: false,
+            farcasterMiniApp: false,
+            resolvedGraphicsQuality: graphicsProfile === 'high'
+              ? 'cinematic'
+              : graphicsProfile === 'reduced' ? 'performance' : 'balanced',
+            reducedMotion: false
+          }),
+          graphicsProfile
+        },
+        rendererFactory: () => renderer,
+        sceneRuntimeFactory: () => runtime
+      })!;
+
+      host.applySnapshot(snapshot);
+      for (const [id, callback] of [...frames]) {
+        frames.delete(id);
+        callback(16);
+      }
+      const scene = renderer.render.mock.calls[0]![0] as THREE.Scene;
+      const castles = scene.getObjectByName(
+        'greater-realm-public-castle-instances'
+      ) as THREE.InstancedMesh;
+      expect(instancePosition(castles).y).toBeCloseTo(expectedSurfaceY + 0.03, 6);
+      expect(runtime.getTerrainSurfaceY).toHaveBeenCalled();
+      host.dispose();
+    }
+  );
+
+  it('grounds a castle from the real neighboring resource that emits its apron cell', () => {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+    const frames = new Map<number, FrameRequestCallback>();
+    let nextFrame = 1;
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const id = nextFrame++;
+      frames.set(id, callback);
+      return id;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      frames.delete(id);
+    });
+    const renderer = {
+      setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn()
+    };
+    const snapshot = structuredClone(readySnapshot()) as any;
+    const ownerRaw = structuredClone(snapshot.chunks[0].chunk) as any;
+    ownerRaw.lod = 1;
+    ownerRaw.coreCells = ownerRaw.coreCells.filter((cell: any) => (
+      cell.atlasQ !== -1 || cell.atlasR !== 1
+    ));
+    snapshot.chunks[0].chunk = decodeGreaterRealmChunkDto(ownerRaw);
+    const host = createGreaterRealmWorldCanvasHost({
+      canvas,
+      atlasQ: -2,
+      atlasR: 1,
+      ownCastleId: 1,
+      policy: resolveGreaterRealmWorldViewPolicy({
+        atlasQ: -2,
+        atlasR: 1,
+        viewportWidth: 1_440,
+        coarsePointer: false,
+        farcasterMiniApp: false,
+        resolvedGraphicsQuality: 'performance',
+        reducedMotion: true
+      }),
+      rendererFactory: () => renderer,
+      sceneRuntimeFactory: (options) => createGreaterRealmSceneRuntime(options)
+    })!;
+
+    host.applySnapshot(snapshot);
+    let frameTime = 16;
+    while (frames.size > 0 && frameTime <= 64) {
+      for (const [id, callback] of [...frames]) {
+        frames.delete(id);
+        callback(frameTime);
+      }
+      frameTime += 16;
+    }
+    const scene = renderer.render.mock.calls.at(-1)![0] as THREE.Scene;
+    const castles = scene.getObjectByName(
+      'greater-realm-public-castle-instances'
+    ) as THREE.InstancedMesh;
+    expect(instancePosition(castles, 1).y).toBeCloseTo(0.03, 6);
+    host.dispose();
   });
 
   it('updates same-revision castle topology in place and ignores unselected chunks', () => {
@@ -664,6 +1194,9 @@ describe('Greater Realm world canvas host', () => {
     expect(capacityTelemetry.scene.uploadBytesThisFrame).toBeLessThanOrEqual(
       budget.maximumUploadBytesPerFrame
     );
+    expect(capacityTelemetry.scene.residentVoxelTriangleCount).toBeGreaterThan(0);
+    expect(capacityTelemetry.scene.residentVoxelQuadCount).toBeGreaterThan(0);
+    expect(capacityTelemetry.scene.voxelMode).toBe('voxel');
     host.dispose();
   });
 

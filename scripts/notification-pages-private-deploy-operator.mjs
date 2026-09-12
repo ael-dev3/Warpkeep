@@ -62,6 +62,20 @@ export const NOTIFICATION_PAGES_ACTIVE_EVIDENCE_MAXIMUM_AGE_MILLISECONDS =
 const REPOSITORY = 'ael-dev3/Warpkeep';
 const WORKFLOW = '.github/workflows/deploy-pages.yml';
 const SOURCE_WORKFLOW = '.github/workflows/verify.yml';
+const TOOLCHAIN_PROFILE_ENVIRONMENT_KEY =
+  'WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE';
+const RUNNER_PROFILES = Object.freeze({
+  'darwin-arm64': Object.freeze({
+    runnerOs: 'macOS',
+    runnerArch: 'ARM64',
+    labels: Object.freeze(['self-hosted', 'macOS', 'ARM64']),
+  }),
+  'linux-x64': Object.freeze({
+    runnerOs: 'Linux',
+    runnerArch: 'X64',
+    labels: Object.freeze(['self-hosted', 'Linux', 'X64']),
+  }),
+});
 const REPOSITORY_ROOT = realpathSync(resolve(import.meta.dirname, '..'));
 const SHA256 = /^[0-9a-f]{64}$/u;
 const COMMIT = /^[0-9a-f]{40}$/u;
@@ -948,10 +962,16 @@ async function fetchExactGitHubJson(path, token, fetchImpl = fetch) {
 
 async function adjudicateSkippedGitHubDeployment(
   request,
-  { tokenDescriptor = 8, fetchImpl = fetch } = {},
+  {
+    tokenDescriptor = 8,
+    fetchImpl = fetch,
+    expectedRunnerProfile = 'darwin-arm64',
+  } = {},
 ) {
+  const runnerProfile = RUNNER_PROFILES[expectedRunnerProfile];
   if (
-    !isRecord(request)
+    runnerProfile === undefined
+    || !isRecord(request)
     || !RUN_ID.test(request.runId ?? '')
     || !Number.isSafeInteger(request.runAttempt)
     || request.runAttempt < 1
@@ -1009,9 +1029,7 @@ async function adjudicateSkippedGitHubDeployment(
     || job.conclusion !== run.conclusion
     || !Array.isArray(job.labels)
     || [
-      'self-hosted',
-      'macOS',
-      'ARM64',
+      ...runnerProfile.labels,
       'warpkeep-production-admin',
       'warpkeep-repository-exclusive',
     ].some(label => !job.labels.includes(label))
@@ -1152,7 +1170,10 @@ async function attestCurrentGitHubDeploymentAuthority(
   });
 }
 
-function defaultDependencies() {
+function defaultDependencies(runnerProfileName = 'darwin-arm64') {
+  if (RUNNER_PROFILES[runnerProfileName] === undefined) {
+    fail('NOTIFICATION_PAGES_DEPLOY_WORKFLOW_ENVIRONMENT_INVALID');
+  }
   for (const name of [
     'reconcileNotificationPagesLiveCandidate',
     'writePrivateNotificationPagesLiveReceipt',
@@ -1180,7 +1201,9 @@ function defaultDependencies() {
     recoverSkippedInvocation: options =>
       recoverNotificationPagesPrivateDeploySkippedInvocation({
         ...options,
-        adjudicate: adjudicateSkippedGitHubDeployment,
+        adjudicate: request => adjudicateSkippedGitHubDeployment(request, {
+          expectedRunnerProfile: runnerProfileName,
+        }),
       }),
     withJournal: withNotificationPagesPrivateDeployJournal,
     writeGen0: expectations => liveReceipt.writePrivateNotificationPagesLiveReceipt({
@@ -1302,6 +1325,7 @@ export async function executeNotificationPagesPrivateDeployPhase({
   runAttempt,
   sourceRunId,
   sourceRunAttempt,
+  runnerProfileName = 'darwin-arm64',
   reportedHome,
 } = {}, injectedDependencies) {
   if (
@@ -1331,7 +1355,8 @@ export async function executeNotificationPagesPrivateDeployPhase({
     || sourceRunAttempt < 1
     || sourceRunAttempt > 1_000
   ) fail('NOTIFICATION_PAGES_DEPLOY_INPUT_INVALID');
-  const dependencies = injectedDependencies ?? defaultDependencies();
+  const dependencies = injectedDependencies
+    ?? defaultDependencies(runnerProfileName);
   dependencies.assertSource(contract.candidatePagesSourceCommit);
   const deploymentAuthorityRequest = Object.freeze({
     candidatePagesSourceCommit: contract.candidatePagesSourceCommit,
@@ -1500,7 +1525,12 @@ export async function executeNotificationPagesPrivateDeployPhase({
 
 function exactWorkflowEnvironment(command, environment) {
   const privateCommand = command !== 'classify';
+  const runnerProfileName = environment[TOOLCHAIN_PROFILE_ENVIRONMENT_KEY]
+    ?? 'darwin-arm64';
+  const runnerProfile = RUNNER_PROFILES[runnerProfileName];
   if (
+    runnerProfile === undefined
+    ||
     environment.GITHUB_ACTIONS !== 'true'
     || environment.CI !== 'true'
     || environment.GITHUB_REPOSITORY !== REPOSITORY
@@ -1510,8 +1540,8 @@ function exactWorkflowEnvironment(command, environment) {
     || typeof environment.WARPKEEP_PAGES_SOURCE_COMMIT !== 'string'
     || !COMMIT.test(environment.WARPKEEP_PAGES_SOURCE_COMMIT)
     || (privateCommand && (
-      environment.RUNNER_OS !== 'macOS'
-      || environment.RUNNER_ARCH !== 'ARM64'
+      environment.RUNNER_OS !== runnerProfile.runnerOs
+      || environment.RUNNER_ARCH !== runnerProfile.runnerArch
     ))
   ) fail('NOTIFICATION_PAGES_DEPLOY_WORKFLOW_ENVIRONMENT_INVALID');
   if (
@@ -1527,6 +1557,7 @@ function exactWorkflowEnvironment(command, environment) {
     runAttempt: Number(environment.GITHUB_RUN_ATTEMPT),
     sourceRunId: environment.WARPKEEP_SOURCE_VERIFY_RUN_ID,
     sourceRunAttempt: Number(environment.WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT),
+    runnerProfileName,
   });
 }
 
@@ -1598,6 +1629,7 @@ export async function runNotificationPagesPrivateDeployOperatorCli(
     runAttempt: input.runAttempt,
     sourceRunId: input.sourceRunId,
     sourceRunAttempt: input.sourceRunAttempt,
+    runnerProfileName: input.runnerProfileName,
   });
   writeWorkflowOutputs(command, result, environment);
 }

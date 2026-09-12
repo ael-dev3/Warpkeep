@@ -1,7 +1,8 @@
 import {
   useId,
   useRef,
-  type KeyboardEvent as ReactKeyboardEvent
+  type KeyboardEvent as ReactKeyboardEvent,
+  type Ref
 } from 'react';
 
 import type { RealmChoice, RealmId } from './realmChoicePolicy';
@@ -9,16 +10,26 @@ import './RealmChoiceSelector.css';
 
 export type RealmChoiceSelectorProps = Readonly<{
   choices: readonly RealmChoice[];
+  busy?: boolean;
   selectedRealmId: RealmId;
   interactive: boolean;
+  headingRef?: Ref<HTMLHeadingElement>;
+  onBack: () => void;
+  onContinue: () => void;
   onSelect: (realmId: RealmId) => void;
+  statusMessage?: string;
 }>;
 
 export function RealmChoiceSelector({
+  busy = false,
   choices,
   selectedRealmId,
   interactive,
-  onSelect
+  headingRef,
+  onBack,
+  onContinue,
+  onSelect,
+  statusMessage
 }: RealmChoiceSelectorProps) {
   const instanceId = useId().replace(/:/g, '');
   const choiceRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -50,8 +61,24 @@ export function RealmChoiceSelector({
   };
 
   return (
-    <section className="realm-choice-selector" aria-label="Realm">
-      <p className="realm-choice-selector__eyebrow">CHOOSE REALM</p>
+    <section
+      aria-labelledby={`realm-choice-heading-${instanceId}`}
+      className="realm-choice-selector"
+    >
+      <header className="realm-choice-selector__header">
+        <p className="realm-choice-selector__eyebrow">REALM DIRECTORY</p>
+        <h2
+          className="realm-choice-selector__heading"
+          id={`realm-choice-heading-${instanceId}`}
+          ref={headingRef}
+          tabIndex={-1}
+        >
+          CHOOSE YOUR REALM
+        </h2>
+        <p className="realm-choice-selector__intro">
+          Select a destination, review its verified access state, then enter explicitly.
+        </p>
+      </header>
       <div aria-label="Choose realm" className="realm-choice-selector__choices" role="radiogroup">
         {choices.map((choice, choiceIndex) => {
           const selected = choice.id === selectedRealmId;
@@ -100,6 +127,32 @@ export function RealmChoiceSelector({
             </div>
           );
         })}
+      </div>
+      <p
+        aria-live="polite"
+        className="realm-choice-selector__status"
+        role={statusMessage ? 'status' : undefined}
+      >
+        {statusMessage ?? '\u00a0'}
+      </p>
+      <div className="realm-choice-selector__actions">
+        <button
+          className="realm-choice-selector__action realm-choice-selector__action--secondary"
+          disabled={!interactive && !busy}
+          onClick={onBack}
+          type="button"
+        >
+          BACK
+        </button>
+        <button
+          aria-busy={busy || undefined}
+          className="realm-choice-selector__action realm-choice-selector__action--primary"
+          disabled={!interactive || busy}
+          onClick={onContinue}
+          type="button"
+        >
+          {busy ? 'CHECKING ACCESS…' : 'ENTER SELECTED REALM'}
+        </button>
       </div>
     </section>
   );

@@ -172,10 +172,17 @@ import {
   type RealmQuality
 } from './realmQuality';
 import {
+  resolvePtrRealmWorldSceneStrategy,
   resolveRealmWorldSceneStrategy,
   resolveRealmWorldSceneStrategyForPolicy,
   type RealmWorldSceneStrategy
 } from './greaterRealmSceneStrategy';
+import type { PtrRealmAuthority } from '../../ptr/ptrRealmAuthClient';
+import { isCurrentPtrGameplay04Capability, type PtrGameplay04Capability } from '../../ptr/ptrRealmConnection';
+import {
+  resolvePtrRealmPresentation,
+  type PtrRealmViewAnchor
+} from '../../ptr/ptrRealmPresentationPolicy';
 import type { RealmIdentity } from './realmTypes';
 import type {
   RealmCastleProjectionFrame,
@@ -292,6 +299,10 @@ import {
   type RealmChatSenderProfile
 } from './RealmChatDock';
 import { GreaterRealmWorldScene } from './GreaterRealmWorldScene';
+import {
+  isNarrowRealmPresentation,
+  useNarrowRealmPresentation
+} from './useNarrowRealmPresentation';
 
 const InnerKeepScreen = lazy(async () => {
   const module = await import('../inner-keep/InnerKeepScreen');
@@ -304,7 +315,7 @@ export {
 } from './realmMapProjectionStability';
 export type { RealmCastleProjection } from './realmMapProjectionStability';
 
-type RealmMapScreenProps = Readonly<{
+export type RealmMapScreenProps = Readonly<{
   identity: RealmIdentity;
   /** Privately branded, exact Genesis 001 renderer authority; absent after cutover. */
   snapshot?: CanonicalWarpkeepRealmSnapshot;
@@ -312,6 +323,17 @@ type RealmMapScreenProps = Readonly<{
   realmContinuity?: WarpkeepRealmContinuityProjection;
   /** Generation-bound v17 bridge; literal gates currently force legacy presentation. */
   greaterRealm?: GreaterRealmProviderBridge;
+  /** Exact memory-branded owner authority for the isolated PTR renderer only. */
+  ptrRealmAuthority?: PtrRealmAuthority;
+  /** Server-projected virtual atlas anchor; it is never a player/castle row. */
+  ptrViewAnchor?: PtrRealmViewAnchor;
+  ptrGameplay04?: PtrGameplay04Capability;
+  /** Memory-only destination across PTR renewal; never a command or route stack. */
+  ptrInitialSurface?: 'world' | 'keep';
+  onPtrSurfaceChange?: (surface: 'world' | 'keep') => void;
+  onPtrCommandStateChange?: (unconfirmed: boolean) => void;
+  ptrContinuationNotice?: boolean;
+  onDismissPtrContinuationNotice?: () => void;
   /** Authenticated caller-only inventory, separate from the public snapshot. */
   resources?: ReadyRealmResourcePresentation;
   /** Exact caller-only Gold expedition procedure projection. */
@@ -539,13 +561,19 @@ const applyDevWorkerProjectionTelemetry = import.meta.env.DEV
   : undefined;
 
 function CanonicalRealmUnavailable({
-  onRequestReturn
-}: Readonly<{ onRequestReturn: () => void }>) {
+  onRequestReturn,
+  realm = 'Genesis 001'
+}: Readonly<{
+  onRequestReturn: () => void;
+  realm?: 'Genesis 001' | 'PTR';
+}>) {
   return (
     <main className="realm-map-screen realm-map-screen--unavailable" role="alert">
       <div className="realm-map-screen__loading">
-        <strong>Genesis 001 is unavailable</strong>
-        <span>The canonical realm records did not pass validation.</span>
+        <strong>{realm} is unavailable</strong>
+        <span>{realm === 'PTR'
+          ? 'The owner authority or atlas anchor did not pass validation.'
+          : 'The canonical realm records did not pass validation.'}</span>
         <button type="button" onClick={onRequestReturn}>Return to Menu</button>
       </div>
     </main>
@@ -559,14 +587,15 @@ function RetiredRealmWorldHost({
   strategy: Exclude<RealmWorldSceneStrategy, { kind: 'legacy-lowlands' }>;
   props: RealmMapScreenProps;
 }>) {
+  const greaterRealmViewAnchor = props.ptrViewAnchor ?? props.realmContinuity?.ownCastle;
   const greaterSceneKey = strategy.kind === 'greater-realm'
-    && props.realmContinuity !== undefined
+    && greaterRealmViewAnchor !== undefined
       ? [
           strategy.bridge.sessionGeneration,
           props.identity.fid,
-          props.realmContinuity.ownCastle.castleId,
-          props.realmContinuity.ownCastle.q,
-          props.realmContinuity.ownCastle.r
+          greaterRealmViewAnchor.castleId,
+          greaterRealmViewAnchor.q,
+          greaterRealmViewAnchor.r
         ].join(':')
       : undefined;
   const [greaterPhaseState, setGreaterPhaseState] = useState<Readonly<{
@@ -586,16 +615,36 @@ function RetiredRealmWorldHost({
     }
   }, [greaterSceneKey]);
   const [innerKeepOpen, setInnerKeepOpen] = useState(false);
+  const narrowPresentation = useNarrowRealmPresentation();
+  const [narrowOpenPanel, setNarrowOpenPanel] =
+    useState<'controls' | 'resources' | 'details'>();
+  const realmDetailsOpen = narrowOpenPanel === 'details';
+  const realmDetailsTriggerRef = useRef<HTMLButtonElement>(null);
   const [catalogueOpen, setCatalogueOpen] = useState(false);
   const [placementBuildingKind, setPlacementBuildingKind] =
     useState<InnerKeepBuildingKind | undefined>();
   const [selectedBuildingKind, setSelectedBuildingKind] =
     useState<InnerKeepBuildingKind | undefined>();
   const [placementDraft, setPlacementDraft] = useState<InnerKeepPlacementDraft | null>(null);
+  useEffect(() => {
+    if (!narrowPresentation) setNarrowOpenPanel(undefined);
+  }, [narrowPresentation]);
+  useEffect(() => {
+    if (!narrowPresentation || !realmDetailsOpen) return undefined;
+    const closeDetails = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.repeat) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setNarrowOpenPanel(undefined);
+      realmDetailsTriggerRef.current?.focus();
+    };
+    document.addEventListener('keydown', closeDetails);
+    return () => document.removeEventListener('keydown', closeDetails);
+  }, [narrowPresentation, realmDetailsOpen]);
   const deviceClass = typeof window !== 'undefined'
-    && (
-      window.innerWidth < 760
-      || window.matchMedia?.('(pointer: coarse)').matches === true
+    && isNarrowRealmPresentation(
+      window.innerWidth,
+      window.matchMedia?.('(pointer: coarse)').matches === true
     )
       ? 'mobile' as const
       : 'desktop' as const;
@@ -689,14 +738,16 @@ function RetiredRealmWorldHost({
       }
       data-greater-realm-client-phase={strategy.kind === 'greater-realm' ? greaterPhase : undefined}
     >
-      {strategy.kind === 'greater-realm' && props.realmContinuity !== undefined ? (
+      {strategy.kind === 'greater-realm' && greaterRealmViewAnchor !== undefined ? (
         <GreaterRealmWorldScene
           bridge={strategy.bridge}
           identityFid={props.identity.fid}
-          identityKey={`${props.identity.fid}:${props.realmContinuity.ownCastle.castleId}:${props.realmContinuity.ownCastle.q}:${props.realmContinuity.ownCastle.r}`}
-          ownCastle={props.realmContinuity.ownCastle}
+          identityKey={`${props.identity.fid}:${greaterRealmViewAnchor.castleId}:${greaterRealmViewAnchor.q}:${greaterRealmViewAnchor.r}`}
+          ownCastle={greaterRealmViewAnchor}
           resolvedGraphicsQuality={props.resolvedGraphicsQuality}
           onPhaseChange={handleGreaterPhaseChange}
+          narrowOpenPanel={narrowOpenPanel === 'details' ? undefined : narrowOpenPanel}
+          onNarrowOpenPanelChange={setNarrowOpenPanel}
         />
       ) : null}
       <div className={strategy.kind === 'greater-realm'
@@ -717,24 +768,70 @@ function RetiredRealmWorldHost({
           : strategy.kind === 'greater-realm' && greaterPhase === 'failed'
             ? 'The public atlas could not be loaded. The retired Lowlands remains hidden.'
             : 'The retired Lowlands surface stays hidden while current authority is prepared.'}</span>
-        {props.resources === undefined ? null : (
-          <span data-testid="retired-realm-resources">
-            Food {props.resources.balances.food.toString()}
-            {' · '}Wood {props.resources.balances.wood.toString()}
-            {' · '}Stone {props.resources.balances.stone.toString()}
-            {' · '}Gold {props.resources.balances.gold.toString()}
-            {' · '}Marks {props.resources.marksBalanceMicros.toString()}
-          </span>
+        {strategy.kind === 'greater-realm' ? (
+          <>
+            <button
+              ref={realmDetailsTriggerRef}
+              type="button"
+              className="greater-realm-world__disclosure-trigger greater-realm-world__details-trigger"
+              hidden={!narrowPresentation}
+              aria-expanded={realmDetailsOpen}
+              aria-controls="greater-realm-world-details-panel"
+              onClick={() => setNarrowOpenPanel((open) => (
+                open === 'details' ? undefined : 'details'
+              ))}
+            >
+              Realm details
+            </button>
+            <div
+              id="greater-realm-world-details-panel"
+              className="greater-realm-world__continuity-details"
+              hidden={narrowPresentation && !realmDetailsOpen}
+            >
+              {props.resources === undefined ? null : (
+                <span data-testid="retired-realm-resources">
+                  Food {props.resources.balances.food.toString()}
+                  {' · '}Wood {props.resources.balances.wood.toString()}
+                  {' · '}Stone {props.resources.balances.stone.toString()}
+                  {' · '}Gold {props.resources.balances.gold.toString()}
+                  {' · '}Marks {props.resources.marksBalanceMicros.toString()}
+                </span>
+              )}
+              {props.workerRoster === undefined ? null : (
+                <span data-testid="retired-realm-workers">
+                  Workers current · {props.workerRoster.workers.length}
+                </span>
+              )}
+            </div>
+            <div className="greater-realm-world__continuity-actions">
+              {props.innerKeep === undefined ? null : (
+                <button type="button" onClick={() => setInnerKeepOpen(true)}>OPEN INNER KEEP</button>
+              )}
+              <button type="button" onClick={props.onRequestReturn}>Return to Menu</button>
+            </div>
+          </>
+        ) : (
+          <>
+            {props.resources === undefined ? null : (
+              <span data-testid="retired-realm-resources">
+                Food {props.resources.balances.food.toString()}
+                {' · '}Wood {props.resources.balances.wood.toString()}
+                {' · '}Stone {props.resources.balances.stone.toString()}
+                {' · '}Gold {props.resources.balances.gold.toString()}
+                {' · '}Marks {props.resources.marksBalanceMicros.toString()}
+              </span>
+            )}
+            {props.workerRoster === undefined ? null : (
+              <span data-testid="retired-realm-workers">
+                Workers current · {props.workerRoster.workers.length}
+              </span>
+            )}
+            {props.innerKeep === undefined ? null : (
+              <button type="button" onClick={() => setInnerKeepOpen(true)}>OPEN INNER KEEP</button>
+            )}
+            <button type="button" onClick={props.onRequestReturn}>Return to Menu</button>
+          </>
         )}
-        {props.workerRoster === undefined ? null : (
-          <span data-testid="retired-realm-workers">
-            Workers current · {props.workerRoster.workers.length}
-          </span>
-        )}
-        {props.innerKeep === undefined ? null : (
-          <button type="button" onClick={() => setInnerKeepOpen(true)}>OPEN INNER KEEP</button>
-        )}
-        <button type="button" onClick={props.onRequestReturn}>Return to Menu</button>
       </div>
       {props.realmChat !== undefined
       && props.onSendRealmChatMessage !== undefined
@@ -759,7 +856,62 @@ function RetiredRealmWorldHost({
  * Invalid or malformed runtime input must not be dereferenced, generate a
  * terrain surface, or register WebGL/browser effects before failing closed.
  */
+const PtrGameplay04SurfaceHost = lazy(() => import('../../ptr/PtrGameplay04SurfaceHost').then(module => ({ default: module.PtrGameplay04SurfaceHost })));
+
 export function RealmMapScreen(props: RealmMapScreenProps) {
+  const ptrBoundaryRequested = props.ptrRealmAuthority !== undefined
+    || props.ptrViewAnchor !== undefined
+    || props.ptrGameplay04 !== undefined;
+  const localQaSurfacePresent = import.meta.env.DEV && (
+    props.localQaWorkerProjectionTelemetry !== undefined
+    || props.localQaLivingVisualTimeSeconds !== undefined
+    || props.localQaGreaterRealmPresentationAllowed !== undefined
+  );
+  const legacySurfacePresent = props.snapshot !== undefined
+    || props.realmContinuity !== undefined
+    || props.resources !== undefined
+    || props.goldExpedition !== undefined
+    || props.onDispatchGoldExpedition !== undefined
+    || props.foodExpedition !== undefined
+    || props.onDispatchFoodExpedition !== undefined
+    || props.woodExpedition !== undefined
+    || props.onDispatchWoodExpedition !== undefined
+    || props.stoneExpedition !== undefined
+    || props.onDispatchStoneExpedition !== undefined
+    || props.workerProjection !== undefined
+    || props.workerRoster !== undefined
+    || props.workerResourceState !== undefined
+    || props.workerPrivateSync !== undefined
+    || props.onRetryWorkerPrivateSync !== undefined
+    || props.onDispatchWorker !== undefined
+    || props.onRecallWorker !== undefined
+    || props.onRecallAllWorkers !== undefined
+    || props.onReturnLegacyExpedition !== undefined
+    || props.innerKeep !== undefined
+    || props.onStartInnerKeepProject !== undefined
+    || props.onRequestInnerKeepSync !== undefined
+    || props.realmChat !== undefined
+    || props.onSendRealmChatMessage !== undefined
+    || props.onReportRealmChatMessage !== undefined
+    || props.onLoadEarlierRealmChat !== undefined
+    || props.presentationMode !== undefined
+    || localQaSurfacePresent;
+  const ptrPresentation = props.ptrRealmAuthority !== undefined
+    && props.ptrViewAnchor !== undefined
+      ? resolvePtrRealmPresentation({
+          authority: props.ptrRealmAuthority,
+          viewAnchor: props.ptrViewAnchor,
+          legacySurfacePresent
+        })
+      : null;
+  if (ptrBoundaryRequested && ptrPresentation === null) {
+    return (
+      <CanonicalRealmUnavailable
+        onRequestReturn={props.onRequestReturn}
+        realm="PTR"
+      />
+    );
+  }
   if (
     (props.snapshot !== undefined
       && !isCanonicalGenesisSnapshot(props.snapshot, props.identity.fid))
@@ -769,15 +921,31 @@ export function RealmMapScreen(props: RealmMapScreenProps) {
   }
   const strategyInput = {
     bridge: props.greaterRealm,
-    legacyAuthorityActive: props.snapshot?.realm.active === true
+    legacyAuthorityActive: ptrPresentation === null
+      && props.snapshot?.realm.active === true
   };
-  const worldSceneStrategy = import.meta.env.DEV
+  const worldSceneStrategy = ptrPresentation !== null
+    ? resolvePtrRealmWorldSceneStrategy(strategyInput, ptrPresentation.authority)
+    : import.meta.env.DEV
     && props.localQaGreaterRealmPresentationAllowed === true
     ? resolveRealmWorldSceneStrategyForPolicy(strategyInput, {
         clientPresentationAllowed: true,
         serverPresentationAllowed: true
       })
     : resolveRealmWorldSceneStrategy(strategyInput);
+  if (props.ptrGameplay04 !== undefined) {
+    if (ptrPresentation === null || worldSceneStrategy.kind !== 'greater-realm'
+      || props.identity.fid !== ptrPresentation.authority.fid
+      || !isCurrentPtrGameplay04Capability(props.ptrGameplay04, ptrPresentation.authority, worldSceneStrategy.bridge.sessionGeneration)
+      || props.ptrGameplay04.scope.databaseIdentity !== ptrPresentation.authority.databaseIdentity
+      || props.ptrGameplay04.scope.anchorQ !== ptrPresentation.viewAnchor.q
+      || props.ptrGameplay04.scope.anchorR !== ptrPresentation.viewAnchor.r) {
+      return <CanonicalRealmUnavailable onRequestReturn={props.onRequestReturn} realm="PTR" />;
+    }
+    return <Suspense fallback={<p role="status">Loading PTR…</p>}>
+      <PtrGameplay04SurfaceHost {...props} ptrGameplay04={props.ptrGameplay04} />
+    </Suspense>;
+  }
   if (worldSceneStrategy.kind !== 'legacy-lowlands') {
     return (
       <RetiredRealmWorldHost
@@ -1059,6 +1227,9 @@ function CanonicalRealmMapScreen(
   const workerProjectionTelemetryEnabled = import.meta.env.DEV
     ? props.localQaWorkerProjectionTelemetry === true
     : false;
+  const localQaLivingVisualTimeSeconds = import.meta.env.DEV
+    ? props.localQaLivingVisualTimeSeconds
+    : undefined;
   const workerProjectionTelemetryEnabledRef = useRef(
     workerProjectionTelemetryEnabled
   );
@@ -5415,7 +5586,7 @@ function CanonicalRealmMapScreen(
         quality: qualitySpec,
         reducedMotion,
         livingVisualTimeSeconds: observerMode
-          ? props.localQaLivingVisualTimeSeconds
+          ? localQaLivingVisualTimeSeconds
           : undefined,
         baseUrl: import.meta.env.BASE_URL || '/',
         isCoordPassable: isSceneCoordPassable,
@@ -5894,7 +6065,7 @@ function CanonicalRealmMapScreen(
     keepCoord,
     markRendererFailure,
     observerMode,
-    props.localQaLivingVisualTimeSeconds,
+    localQaLivingVisualTimeSeconds,
     ownCastle.castleId,
     peerCastles,
     projectedTileMetadata,
@@ -6358,6 +6529,9 @@ function CanonicalRealmMapScreen(
       }
       data-worker-private-sync-commands-enabled={String(
         !observerMode && (workerPrivateSync?.commandsEnabled ?? false)
+      )}
+      data-worker-private-sync-localized-error-count={String(
+        observerMode ? 0 : workerPrivateSync?.localizedFailureCount ?? 0
       )}
       data-quality={quality}
       tabIndex={surfaceOpen ? -1 : 0}

@@ -2,6 +2,10 @@ import * as THREE from 'three';
 
 import { axialToWorld } from '../../game/map/hexCoordinates';
 import {
+  createGreaterRealmVoxelGeometry,
+  createGreaterRealmVoxelPrefabPlan
+} from './greaterRealmVoxelPresentation';
+import {
   createGreaterRealmSceneRuntime,
   type CreateGreaterRealmSceneRuntimeOptions,
   type GreaterRealmLocalVesselMove,
@@ -14,6 +18,7 @@ import type {
 } from '../../greater-realm/greaterRealmClientRuntime';
 import {
   GREATER_REALM_PUBLIC_LIMITS,
+  type GreaterRealmPublicCellDto,
   type GreaterRealmWindowCastleDto
 } from '../../greater-realm/greaterRealmPublicContract';
 import {
@@ -32,7 +37,7 @@ type GreaterRealmRenderer = Readonly<{
   dispose: () => void;
 }>;
 
-/** Cylinder buffers plus 600 matrix/color instance attributes, conservatively aligned. */
+/** Voxel castle buffers plus 600 matrix/color instance attributes. */
 export const GREATER_REALM_CASTLE_UPLOAD_RESERVE_BYTES = 65_536 as const;
 export const GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES = 98_304 as const;
 export const GREATER_REALM_HOST_DRAW_CALL_RESERVE = 6 as const;
@@ -68,6 +73,7 @@ export type GreaterRealmWorldCanvasTelemetry = Readonly<{
 
 export type GreaterRealmWorldCanvasHost = Readonly<{
   applySnapshot: (snapshot: GreaterRealmClientSnapshot) => void;
+  updatePolicy: (policy: GreaterRealmWorldViewPolicy) => void;
   control: (control: GreaterRealmWorldCanvasControl) => void;
   getLocalVesselState: () => GreaterRealmLocalVesselState;
   schedule: () => void;
@@ -101,16 +107,33 @@ type GreaterRealmSelectionTarget = Readonly<{
   world: THREE.Vector3;
 }>;
 
-function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptions) {
+type CastleGroundingRow = Readonly<{
+  castle: GreaterRealmWindowCastleDto;
+  cell?: GreaterRealmPublicCellDto;
+  index: number;
+  size: number;
+  target: GreaterRealmSelectionTarget;
+}>;
+
+function createPublicCastleLayer(
+  options: CreateGreaterRealmWorldCanvasHostOptions,
+  getPolicy: () => GreaterRealmWorldViewPolicy
+) {
   const group = new THREE.Group();
   group.name = 'greater-realm-public-castles';
   let count = 0;
   let appliedSignature: string | undefined;
-  let geometry: THREE.CylinderGeometry | undefined;
+  let geometry: THREE.BufferGeometry | undefined;
   let material: THREE.MeshStandardMaterial | undefined;
   let mesh: THREE.InstancedMesh | undefined;
   let pendingUploadBytes = 0;
+  let voxelTriangleCount = 0;
+  let voxelQuadCount = 0;
+  let voxelUploadBytes = 0;
+  let voxelFallbackReasons: readonly string[] = Object.freeze([]);
   let targets: readonly GreaterRealmSelectionTarget[] = Object.freeze([]);
+  let groundingRows: readonly CastleGroundingRow[] = Object.freeze([]);
+  let groundingSignature: string | undefined;
   const clear = () => {
     group.clear();
     mesh?.dispose();
@@ -121,13 +144,66 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
     material = undefined;
     count = 0;
     pendingUploadBytes = 0;
+    voxelTriangleCount = 0;
+    voxelQuadCount = 0;
+    voxelUploadBytes = 0;
+    voxelFallbackReasons = Object.freeze([]);
     targets = Object.freeze([]);
+    groundingRows = Object.freeze([]);
+    groundingSignature = undefined;
+  };
+  const refreshGrounding = (
+    resolveSurfaceY?: (
+      chunkHandle: string,
+      cell: NonNullable<CastleGroundingRow['cell']>
+    ) => number | undefined
+  ) => {
+    if (mesh === undefined || groundingRows.length === 0) return false;
+    const rows = groundingRows.map((row) => {
+      const surfaceY = row.cell === undefined || resolveSurfaceY === undefined
+        ? row.castle.elevation / 1_000
+        : resolveSurfaceY(row.castle.chunkHandle, row.cell) ?? row.castle.elevation / 1_000;
+      return Object.freeze({ row, surfaceY });
+    });
+    const signature = rows.map(({ row, surfaceY }) => (
+      `${row.castle.castleId}:${surfaceY}`
+    )).join('|');
+    if (signature === groundingSignature) return false;
+    groundingSignature = signature;
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const scale = new THREE.Vector3();
+    const rotation = new THREE.Quaternion();
+    const geometryLift = voxelFallbackReasons.length === 0 ? 0.03 : undefined;
+    for (const { row, surfaceY } of rows) {
+      const world = axialToWorld({ q: row.castle.atlasQ, r: row.castle.atlasR }, 1);
+      position.set(
+        world.x,
+        surfaceY + (geometryLift ?? 0.21 * row.size + 0.03),
+        world.z
+      );
+      scale.set(row.size, row.size, row.size);
+      matrix.compose(position, rotation, scale);
+      mesh.setMatrixAt(row.index, matrix);
+      row.target.world.copy(position);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    pendingUploadBytes = Math.max(
+      pendingUploadBytes,
+      groundingRows.length * 16 * Float32Array.BYTES_PER_ELEMENT
+    );
+    return true;
   };
   return Object.freeze({
     group,
     get count() { return count; },
     get pendingUploadBytes() { return pendingUploadBytes; },
+    get voxelTriangleCount() { return voxelTriangleCount; },
+    get voxelQuadCount() { return voxelQuadCount; },
+    get voxelUploadBytes() { return voxelUploadBytes; },
+    get voxelFallbackReasons() { return voxelFallbackReasons; },
     get targets() { return targets; },
+    refreshGrounding,
     consumePendingUploadBytes: () => {
       const value = pendingUploadBytes;
       pendingUploadBytes = 0;
@@ -143,7 +219,7 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
       );
       const maximum = Math.min(
         GREATER_REALM_PUBLIC_LIMITS.maximumCastlesPerWindow,
-        GREATER_REALM_GRAPHICS_BUDGETS[options.policy.graphicsProfile]
+        GREATER_REALM_GRAPHICS_BUDGETS[getPolicy().graphicsProfile]
           .maximumSceneInstances
       );
       const ownCastleId = BigInt(options.ownCastleId);
@@ -161,18 +237,41 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
       )));
       const signature = [
         snapshot.bootstrap?.revision.toString(),
+        getPolicy().graphicsProfile,
         greaterRealmWindowCastleTopologySignature(castles),
         ...castles.map((castle) => (
-          cellsByCoordinate.get(`${castle.atlasQ},${castle.atlasR}`)?.regionId ?? 'unknown'
+          (() => {
+            const cell = cellsByCoordinate.get(`${castle.atlasQ},${castle.atlasR}`);
+            return cell === undefined
+              ? 'unknown'
+              : [cell.regionId, cell.elevation, cell.hydroRegime, cell.hydroSurfaceMilli].join(':');
+          })()
         ))
       ].join('|');
       if (signature === appliedSignature) return false;
       appliedSignature = signature;
       clear();
       if (castles.length === 0) return true;
-      geometry = new THREE.CylinderGeometry(0.18, 0.25, 0.42, 6);
+      try {
+        const prefab = createGreaterRealmVoxelPrefabPlan({
+          kind: 'castle',
+          graphicsProfile: getPolicy().graphicsProfile,
+          cellSize: 1
+        });
+        geometry = createGreaterRealmVoxelGeometry(prefab);
+        voxelTriangleCount = prefab.surfacePlan.triangleCount;
+        voxelQuadCount = prefab.surfacePlan.mergedQuadCount;
+        voxelUploadBytes = prefab.uploadBytes;
+      } catch (error) {
+        geometry?.dispose();
+        geometry = new THREE.CylinderGeometry(0.18, 0.25, 0.42, 6);
+        voxelFallbackReasons = Object.freeze([
+          `castle:${error instanceof Error ? error.message : String(error)}`
+        ]);
+      }
       material = new THREE.MeshStandardMaterial({
         color: '#ffffff',
+        vertexColors: voxelFallbackReasons.length === 0,
         roughness: 0.68,
         metalness: 0.08,
         fog: true
@@ -184,6 +283,7 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
       const scale = new THREE.Vector3();
       const rotation = new THREE.Quaternion();
       const nextTargets: GreaterRealmSelectionTarget[] = [];
+      const nextGroundingRows: CastleGroundingRow[] = [];
       const publicNames = new Map(snapshot.bootstrap?.regions.map((region) => (
         [region.regionId, region.publicName] as const
       )) ?? []);
@@ -192,7 +292,7 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
         const size = Math.min(1.65, 0.92 + (castle.level - 1) * 0.12);
         position.set(
           world.x,
-          castle.elevation / 1_000 + 0.21 * size + 0.03,
+          castle.elevation / 1_000 + (voxelFallbackReasons.length === 0 ? 0.03 : 0.21 * size + 0.03),
           world.z
         );
         scale.set(size, size, size);
@@ -203,17 +303,19 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
         nextMesh.setColorAt(index, new THREE.Color(
           castle.castleId === ownCastleId ? '#f0d58c' : regionColor
         ));
-        nextTargets.push(Object.freeze({
+        const target = Object.freeze({
           selection: Object.freeze({
             kind: 'castle',
             label: castle.castleId === ownCastleId
               ? 'Your castle'
-              : `${publicNames.get(cell?.regionId ?? '') ?? 'Public'} castle ${castle.castleId}`,
+              : `${publicNames.get(cell?.regionId ?? '') ?? 'Public'} castle at ${castle.atlasQ}, ${castle.atlasR}`,
             atlasQ: castle.atlasQ,
             atlasR: castle.atlasR
           }),
           world: position.clone()
-        }));
+        });
+        nextTargets.push(target);
+        nextGroundingRows.push(Object.freeze({ castle, cell, index, size, target }));
       });
       nextMesh.instanceMatrix.needsUpdate = true;
       if (nextMesh.instanceColor) nextMesh.instanceColor.needsUpdate = true;
@@ -222,6 +324,7 @@ function createPublicCastleLayer(options: CreateGreaterRealmWorldCanvasHostOptio
       group.add(nextMesh);
       count = castles.length;
       targets = Object.freeze(nextTargets);
+      groundingRows = Object.freeze(nextGroundingRows);
       const geometryBytes = Object.values(geometry.attributes).reduce(
         (total, attribute) => total + attribute.array.byteLength,
         geometry.index?.array.byteLength ?? 0
@@ -333,7 +436,7 @@ function createPublicResourceLayer() {
           nextTargets.push(Object.freeze({
             selection: Object.freeze({
               kind: 'resource',
-              label: `${resource.resourceKind} resource · ${resource.nodeCount} nodes`,
+              label: `${resource.resourceKind} site at ${resource.atlasQ}, ${resource.atlasR}`,
               atlasQ: resource.atlasQ,
               atlasR: resource.atlasR
             }),
@@ -512,6 +615,7 @@ function snapshotSignature(
 export function createGreaterRealmWorldCanvasHost(
   options: CreateGreaterRealmWorldCanvasHostOptions
 ): GreaterRealmWorldCanvasHost | undefined {
+  let currentPolicy = options.policy;
   const notifyFailure = () => {
     try {
       options.onFailure?.();
@@ -523,7 +627,7 @@ export function createGreaterRealmWorldCanvasHost(
   try {
     context = options.canvas.getContext('webgl2', {
       alpha: false,
-      antialias: options.policy.graphicsProfile !== 'reduced',
+      antialias: currentPolicy.graphicsProfile !== 'reduced',
       depth: true,
       powerPreference: 'high-performance'
     });
@@ -550,13 +654,13 @@ export function createGreaterRealmWorldCanvasHost(
   scene.fog = new THREE.FogExp2('#172126', 0.0075);
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 2_000);
   const center = axialToWorld({ q: options.atlasQ, r: options.atlasR }, 1);
-  const span = Math.max(32, (options.policy.radius * 2 + 1) * 15 * 1.08);
+  let span = Math.max(32, (currentPolicy.radius * 2 + 1) * 15 * 1.08);
   const cameraTarget = new THREE.Vector3(center.x, 0, center.z);
   let cameraYaw = 0;
   let cameraPitch = Math.PI * 0.22;
   let cameraDistance = span;
   const minimumCameraDistance = 4;
-  const maximumCameraDistance = Math.max(96, span * 4);
+  let maximumCameraDistance = Math.max(96, span * 4);
   const applyCamera = () => {
     const horizontal = Math.cos(cameraPitch) * cameraDistance;
     camera.position.set(
@@ -585,13 +689,15 @@ export function createGreaterRealmWorldCanvasHost(
   const sunlight = new THREE.DirectionalLight('#ffe4b0', 2.2);
   sunlight.position.set(center.x - 25, 48, center.z + 18);
   scene.add(sunlight, worldGroup);
-  const castleLayer = createPublicCastleLayer(options);
+  const castleLayer = createPublicCastleLayer(options, () => currentPolicy);
   const resourceLayer = createPublicResourceLayer();
   const regionLayer = createVisibleRegionLayer();
   worldGroup.add(castleLayer.group, resourceLayer.group, regionLayer.group);
   let selectionTargets: readonly GreaterRealmSelectionTarget[] = Object.freeze([]);
   let selectedTargetIndex = -1;
+  let selectedSelection: GreaterRealmWorldSelection | undefined;
   const publishSelection = (target: GreaterRealmSelectionTarget | undefined) => {
+    selectedSelection = target?.selection;
     try {
       options.onSelectionChange?.(target?.selection);
     } catch {
@@ -607,7 +713,7 @@ export function createGreaterRealmWorldCanvasHost(
   };
 
   const publishTelemetry = (
-    sceneTelemetry = runtime!.getTelemetry(),
+    sceneTelemetry = activeRuntime!.getTelemetry(),
     hostUploadBytesThisFrame = 0,
     castleUploadBytesThisFrame = 0
   ) => {
@@ -615,12 +721,33 @@ export function createGreaterRealmWorldCanvasHost(
     const regionDrawCalls = regionLayer.count > 0 ? 1 : 0;
     const hostDrawCalls = castleDrawCalls + regionDrawCalls + resourceLayer.drawCallCount;
     const hostInstances = castleLayer.count + regionLayer.count + resourceLayer.count;
+    const voxelFallbackReasons = Object.freeze([
+      ...(sceneTelemetry.voxelFallbackReasons ?? []),
+      ...castleLayer.voxelFallbackReasons
+    ]);
+    const residentVoxelTriangleCount = (sceneTelemetry.residentVoxelTriangleCount ?? 0)
+      + castleLayer.voxelTriangleCount;
+    const residentVoxelQuadCount = (sceneTelemetry.residentVoxelQuadCount ?? 0)
+      + castleLayer.voxelQuadCount;
+    const hasVoxelGeometry = residentVoxelQuadCount > 0;
+    const hasAnyGeometry = sceneTelemetry.uploadedChunkCount > 0 || castleLayer.count > 0;
     const combinedSceneTelemetry = Object.freeze({
       ...sceneTelemetry,
       drawCallCount: sceneTelemetry.drawCallCount + hostDrawCalls,
       instanceCount: sceneTelemetry.instanceCount + hostInstances,
       uploadBytesThisFrame: sceneTelemetry.uploadBytesThisFrame
-        + hostUploadBytesThisFrame
+        + hostUploadBytesThisFrame,
+      voxelMode: !hasAnyGeometry
+        ? 'none' as const
+        : voxelFallbackReasons.length === 0
+          ? 'voxel' as const
+          : hasVoxelGeometry ? 'mixed' as const : 'fallback' as const,
+      residentVoxelTriangleCount,
+      residentVoxelQuadCount,
+      voxelUploadBytesThisFrame: (sceneTelemetry.voxelUploadBytesThisFrame ?? 0)
+        + (castleUploadBytesThisFrame > 0 ? castleLayer.voxelUploadBytes : 0),
+      voxelFallbackCount: voxelFallbackReasons.length,
+      voxelFallbackReasons
     });
     const telemetry = Object.freeze({
       renderer: 'webgl' as const,
@@ -640,6 +767,14 @@ export function createGreaterRealmWorldCanvasHost(
       telemetry.scene.drawCallCount,
       telemetry.scene.instanceCount,
       telemetry.scene.uploadBytesThisFrame,
+      telemetry.scene.voxelMode,
+      telemetry.scene.residentVoxelTriangleCount,
+      telemetry.scene.residentVoxelQuadCount,
+      telemetry.scene.voxelUploadBytesThisFrame,
+      telemetry.scene.voxelPreparationMilliseconds,
+      telemetry.scene.voxelEmissionMillisecondsThisFrame,
+      telemetry.scene.voxelFallbackCount,
+      telemetry.scene.voxelFallbackReasons.join('|'),
       telemetry.hostUploadBytesThisFrame,
       telemetry.publicCastleUploadBytesThisFrame,
       telemetry.scene.grassPatchCount,
@@ -664,20 +799,23 @@ export function createGreaterRealmWorldCanvasHost(
   };
   const render = () => {
     frame = 0;
-    const activeRuntime = runtime;
+    const runtimeForFrame = activeRuntime;
     const activeRenderer = renderer;
     if (
       disposed
       || terminalFailure
       || !documentVisible
-      || activeRuntime === undefined
+      || runtimeForFrame === undefined
       || activeRenderer === undefined
     ) {
       return;
     }
     try {
-      activeRuntime.flushUploads();
-      const telemetry = activeRuntime.getTelemetry();
+      runtimeForFrame.flushUploads();
+      castleLayer.refreshGrounding((chunkHandle, cell) => (
+        runtimeForFrame.getTerrainSurfaceY?.(chunkHandle, cell)
+      ));
+      const telemetry = runtimeForFrame.getTelemetry();
       if (
         fitRequested
         && !telemetry.contextLost
@@ -723,21 +861,24 @@ export function createGreaterRealmWorldCanvasHost(
     frame = window.requestAnimationFrame(render);
   }
 
-  try {
-    renderer = (options.rendererFactory ?? defaultRendererFactory)(
-      options.canvas,
-      context
-    );
-    runtime = (options.sceneRuntimeFactory ?? createGreaterRealmSceneRuntime)({
-      deviceClass: options.policy.deviceClass,
-      graphicsProfile: options.policy.graphicsProfile,
-      reducedMotion: options.policy.reducedMotion,
+  const createRuntimeForPolicy = (policy: GreaterRealmWorldViewPolicy) => (
+    (options.sceneRuntimeFactory ?? createGreaterRealmSceneRuntime)({
+      deviceClass: policy.deviceClass,
+      graphicsProfile: policy.graphicsProfile,
+      reducedMotion: policy.reducedMotion,
       localVesselOrigin: { atlasQ: options.atlasQ, atlasR: options.atlasR },
       onInvalidate: schedule,
       reservedDrawCalls: GREATER_REALM_HOST_DRAW_CALL_RESERVE,
       reservedSceneInstances: GREATER_REALM_HOST_INSTANCE_RESERVE,
       reservedUploadBytesPerFrame: GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES
-    });
+    })
+  );
+  try {
+    renderer = (options.rendererFactory ?? defaultRendererFactory)(
+      options.canvas,
+      context
+    );
+    runtime = createRuntimeForPolicy(currentPolicy);
   } catch {
     try { runtime?.dispose(); } catch { /* Continue teardown. */ }
     try { renderer?.dispose(); } catch { /* Continue teardown. */ }
@@ -749,9 +890,9 @@ export function createGreaterRealmWorldCanvasHost(
     return undefined;
   }
 
-  const activeRuntime = runtime;
+  let activeRuntime = runtime;
   const activeRenderer = renderer;
-  camera.userData.greaterRealmReducedMotion = options.policy.reducedMotion;
+  camera.userData.greaterRealmReducedMotion = currentPolicy.reducedMotion;
   const focusSelection = (target: GreaterRealmSelectionTarget) => {
     cameraTarget.set(target.world.x, target.world.y, target.world.z);
     applyCamera();
@@ -979,7 +1120,7 @@ export function createGreaterRealmWorldCanvasHost(
       const height = Math.max(1, Math.round(options.canvas.clientHeight || bounds.height || 1));
       activeRenderer.setPixelRatio(Math.min(
         Math.max(1, window.devicePixelRatio || 1),
-        options.policy.pixelRatioCap
+        currentPolicy.pixelRatioCap
       ));
       activeRenderer.setSize(width, height, false);
       camera.aspect = width / height;
@@ -989,6 +1130,132 @@ export function createGreaterRealmWorldCanvasHost(
     } catch {
       failHost();
     }
+  };
+  let latestSnapshot: GreaterRealmClientSnapshot | undefined;
+  let pendingPolicy: GreaterRealmWorldViewPolicy | undefined;
+  const applySnapshot = (snapshot: GreaterRealmClientSnapshot) => {
+    if (
+      disposed
+      || terminalFailure
+      || snapshot.phase !== 'ready'
+      || snapshot.bootstrap === undefined
+    ) return;
+    const signature = snapshotSignature(snapshot);
+    if (signature === undefined) return;
+    latestSnapshot = snapshot;
+    const surfaceChanged = signature !== appliedSignature;
+    try {
+      const castlesChanged = castleLayer.applySnapshot(snapshot);
+      const resourcesChanged = resourceLayer.applySnapshot(snapshot);
+      const regionsChanged = regionLayer.applySnapshot(snapshot);
+      if (!surfaceChanged && !castlesChanged && !resourcesChanged && !regionsChanged) return;
+      if (surfaceChanged) {
+        fitRequested = true;
+        activeRuntime.setView({
+          revision: snapshot.bootstrap.revision,
+          cellSize: snapshot.cellSize,
+          chunks: snapshot.chunks
+        });
+        appliedSignature = signature;
+        publishLocalVesselState(activeRuntime.getLocalVesselState());
+      }
+      selectionTargets = Object.freeze([
+        ...regionLayer.targets,
+        ...castleLayer.targets,
+        ...resourceLayer.targets
+      ]);
+      const retainedIndex = selectedSelection === undefined
+        ? -1
+        : selectionTargets.findIndex(({ selection }) => (
+            selection.kind === selectedSelection!.kind
+            && selection.atlasQ === selectedSelection!.atlasQ
+            && selection.atlasR === selectedSelection!.atlasR
+          ));
+      selectedTargetIndex = retainedIndex;
+      publishSelection(retainedIndex < 0 ? undefined : selectionTargets[retainedIndex]);
+      schedule();
+    } catch {
+      failHost();
+    }
+  };
+  const samePolicy = (
+    left: GreaterRealmWorldViewPolicy,
+    right: GreaterRealmWorldViewPolicy
+  ) => (
+    left.deviceClass === right.deviceClass
+    && left.graphicsProfile === right.graphicsProfile
+    && left.pixelRatioCap === right.pixelRatioCap
+    && left.radius === right.radius
+    && left.lod === right.lod
+    && left.reducedMotion === right.reducedMotion
+    && left.centerQ === right.centerQ
+    && left.centerR === right.centerR
+  );
+  const updatePolicy = (policy: GreaterRealmWorldViewPolicy) => {
+    if (disposed || terminalFailure) return;
+    if (samePolicy(currentPolicy, policy)) {
+      pendingPolicy = undefined;
+      return;
+    }
+    let contextLost: boolean;
+    try {
+      contextLost = activeRuntime.getTelemetry().contextLost;
+    } catch {
+      failHost();
+      return;
+    }
+    if (contextLost) {
+      pendingPolicy = policy;
+      return;
+    }
+    let nextRuntime: GreaterRealmSceneRuntime | undefined;
+    try {
+      nextRuntime = createRuntimeForPolicy(policy);
+      // A replacement runtime installs its own context-restored listener.
+      // Keep the host retry listener after it so the runtime clears its loss
+      // flag before a deferred policy is evaluated on every replacement cycle.
+      options.canvas.removeEventListener(
+        'webglcontextrestored',
+        applyPendingPolicyAfterContextRestore
+      );
+      nextRuntime.bindCanvas(options.canvas);
+      options.canvas.addEventListener(
+        'webglcontextrestored',
+        applyPendingPolicyAfterContextRestore
+      );
+      nextRuntime.setDocumentVisible(documentVisible);
+      nextRuntime.startAnimation();
+      const previousRuntime = activeRuntime;
+      worldGroup.add(nextRuntime.group);
+      worldGroup.remove(previousRuntime.group);
+      activeRuntime = nextRuntime;
+      currentPolicy = policy;
+      pendingPolicy = undefined;
+      span = Math.max(32, (currentPolicy.radius * 2 + 1) * 15 * 1.08);
+      maximumCameraDistance = Math.max(96, span * 4);
+      camera.userData.greaterRealmReducedMotion = currentPolicy.reducedMotion;
+      appliedSignature = undefined;
+      try { previousRuntime.stopAnimation(); } catch { /* Continue replacement. */ }
+      try { previousRuntime.dispose(); } catch { /* Continue replacement. */ }
+      if (latestSnapshot === undefined) {
+        publishLocalVesselState(activeRuntime.getLocalVesselState());
+      } else {
+        applySnapshot(latestSnapshot);
+      }
+      resize();
+      schedule();
+    } catch {
+      if (nextRuntime !== undefined && nextRuntime !== activeRuntime) {
+        try { worldGroup.remove(nextRuntime.group); } catch { /* Continue cleanup. */ }
+        try { nextRuntime.stopAnimation(); } catch { /* Continue cleanup. */ }
+        try { nextRuntime.dispose(); } catch { /* Continue cleanup. */ }
+      }
+      failHost();
+    }
+  };
+  const applyPendingPolicyAfterContextRestore = () => {
+    const policy = pendingPolicy;
+    if (policy !== undefined) updatePolicy(policy);
   };
   const visibilityChange = () => {
     if (disposed || terminalFailure) return;
@@ -1029,6 +1296,10 @@ export function createGreaterRealmWorldCanvasHost(
     options.canvas.removeEventListener('wheel', wheel);
     options.canvas.removeEventListener('keydown', keyDown);
     options.canvas.removeEventListener('contextmenu', contextMenu);
+    options.canvas.removeEventListener(
+      'webglcontextrestored',
+      applyPendingPolicyAfterContextRestore
+    );
     window.removeEventListener('pointermove', pointerMove);
     window.removeEventListener('pointerup', pointerUp);
     window.removeEventListener('pointercancel', pointerCancel);
@@ -1077,6 +1348,10 @@ export function createGreaterRealmWorldCanvasHost(
     options.canvas.addEventListener('wheel', wheel, { passive: false });
     options.canvas.addEventListener('keydown', keyDown);
     options.canvas.addEventListener('contextmenu', contextMenu);
+    options.canvas.addEventListener(
+      'webglcontextrestored',
+      applyPendingPolicyAfterContextRestore
+    );
     window.addEventListener('pointermove', pointerMove, { passive: false });
     window.addEventListener('pointerup', pointerUp);
     window.addEventListener('pointercancel', pointerCancel);
@@ -1092,43 +1367,8 @@ export function createGreaterRealmWorldCanvasHost(
   }
 
   return Object.freeze({
-    applySnapshot: (snapshot) => {
-      if (
-        disposed
-        || terminalFailure
-        || snapshot.phase !== 'ready'
-        || snapshot.bootstrap === undefined
-      ) return;
-      const signature = snapshotSignature(snapshot);
-      if (signature === undefined) return;
-      const surfaceChanged = signature !== appliedSignature;
-      try {
-        const castlesChanged = castleLayer.applySnapshot(snapshot);
-        const resourcesChanged = resourceLayer.applySnapshot(snapshot);
-        const regionsChanged = regionLayer.applySnapshot(snapshot);
-        if (!surfaceChanged && !castlesChanged && !resourcesChanged && !regionsChanged) return;
-        if (surfaceChanged) {
-          fitRequested = snapshot.phase === 'ready';
-          runtime.setView({
-            revision: snapshot.bootstrap.revision,
-            cellSize: snapshot.cellSize,
-            chunks: snapshot.chunks
-          });
-          appliedSignature = signature;
-          publishLocalVesselState(runtime.getLocalVesselState());
-        }
-        selectionTargets = Object.freeze([
-          ...regionLayer.targets,
-          ...castleLayer.targets,
-          ...resourceLayer.targets
-        ]);
-        selectedTargetIndex = -1;
-        publishSelection(undefined);
-        schedule();
-      } catch {
-        failHost();
-      }
-    },
+    applySnapshot,
+    updatePolicy,
     control,
     getLocalVesselState: () => activeRuntime.getLocalVesselState(),
     schedule,

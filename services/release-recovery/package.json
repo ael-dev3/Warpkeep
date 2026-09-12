@@ -1,0 +1,32 @@
+{
+  "name": "@warpkeep/release-recovery",
+  "private": true,
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "typecheck:workerd": "tsc --noEmit -p test-workerd/tsconfig.json",
+    "test": "vitest run",
+    "test:workerd": "vitest run --config vitest.workerd.config.ts",
+    "check": "tsc --noEmit && tsc --noEmit -p test-workerd/tsconfig.json && wrangler types test-workerd/worker-configuration.d.ts --config wrangler.workerd.toml --include-runtime false --check && vitest run && vitest run --config vitest.workerd.config.ts"
+  },
+  "dependencies": {
+    "@noble/hashes": "1.8.0",
+    "fflate": "0.8.3",
+    "yaml": "2.9.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.18.4",
+    "@cloudflare/workers-types": "5.20260708.1",
+    "@types/node": "26.1.1",
+    "tsx": "4.23.0",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11",
+    "wrangler": "4.110.0"
+  },
+  "engines": {
+    "node": ">=22.13 <23"
+  }
+}

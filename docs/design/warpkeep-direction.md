@@ -1,9 +1,5 @@
 # Warpkeep product direction
 
-This default-branch overview describes the 0.4 target. Its implementation and
-linked specifications live on [the development branch](https://github.com/ael-dev3/Warpkeep/tree/codex/prepared-keep-bindings-fix);
-main retains the G001 baseline and release preparation.
-
 ## The promise
 
 A real person, a permanent keep, and a world worth returning to. Warpkeep is a
@@ -15,6 +11,26 @@ The Greater Realm supplies geography, resource destinations and visible journeys
 The Inner Keep turns the results into decisions and a growing home. These scales
 should feel like one game: a shortage suggests a journey; a successful journey
 makes a building possible; a completed building improves what happens next.
+
+## Owner clarification - 8 September 2026
+
+0.4 prioritizes a professional visual foundation optimized for mobile, with
+simple interaction. Preserve the useful gather/build/return loop and reliable
+persistent state; defer deeper simulation, elaborate editing and additional
+interaction systems. Delivery remains part of the release.
+
+Account for the complete handoff reference library: voxel presentation, Verdant
+Forest, Pelagic, earlier terrain/atmosphere/game-craft studies, additional
+settlement/forest/rendering research, and Dream Loop. Apply their relevant lessons
+as one cohesive Verdant Citadel. This does not require importing every engine,
+asset, mechanic or costly effect. Track reference applications and visible gaps
+against actual Keep04 and Greater Realm source and rendered captures.
+
+Prioritize proportions, silhouettes, layered vegetation, geographic hierarchy,
+lightweight water, coherent materials and lighting, calm UI and transitions.
+Compare matching desktop and narrow mobile views. Verify loading, frame pacing,
+memory, touch legibility, reduced motion and background/resume; distinguish
+emulation from physical-device results. Credit reused assets accurately.
 
 ## The current release target: 0.4
 
@@ -28,7 +44,7 @@ anticipation without making the first session feel empty.
 The current building roles make that loop concrete. Mills, Lumber Camps,
 Stoneworks and Goldworks improve their matching resource yield. Barracks shorten
 travel, and the Cathedral shortens future construction. Their exact costs,
-durations and progression live in the [gameplay notes](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/gameplay-and-visuals.md),
+durations and progression live in the [gameplay notes](../agent-notes/0.4.0/gameplay-and-visuals.md),
 where they can be checked against implementation. A player should understand
 the benefit from the game itself.
 
@@ -69,15 +85,15 @@ admissions TBD; prove playable 0.4 through the actual owner's isolated PTR.
 
 ## How to judge the first release
 
-The [0.4 checklist](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/operations/0.4.0-release-checklist.md) is the single release
+The [0.4 checklist](../operations/0.4.0-release-checklist.md) is the single release
 completion contract. The first economy building **and its improved return** must
 finish within ten minutes on actual atlas routes during owner PTR play.
 All six effects/progression, realm isolation, visual/fallback states and fixed
 performance gates require evidence. Code and synthetic captures alone do not
 satisfy a live acceptance requirement.
 
-Use the [gameplay specification](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/superpowers/specs/2026-09-05-warpkeep-0.4-gameplay-design.md)
-and [Astra keep specification](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/superpowers/specs/2026-09-06-warpkeep-astra-keep-design.md)
+Use the [gameplay specification](../superpowers/specs/2026-09-05-warpkeep-0.4-gameplay-design.md)
+and [Astra keep specification](../superpowers/specs/2026-09-06-warpkeep-astra-keep-design.md)
 as the current implementation baseline. Independent design and engineering
 judgment are encouraged when they make the game better. Explain a substantial
 change in terms of the player problem, alternatives, effect on existing work

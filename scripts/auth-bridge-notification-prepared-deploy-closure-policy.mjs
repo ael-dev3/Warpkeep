@@ -36,11 +36,71 @@ import {
   SEALED_LAUNCH_SOURCE_PATHS,
 } from './verify-0.4.0-sealed-launch.mjs';
 
-const MEMBER_PATH = /^(?:docs\/operations\/greater-realm-production-launch-envelope\.sh\.txt|(?:owner-canary\/)?index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|spacetimedb\/(?:package\.json|pnpm-(?:lock|workspace)\.yaml|(?:src|genesis002)\/[A-Za-z0-9._/-]+)|(?:\.github\/workflows|config\/releases|scripts|services\/auth-bridge|src)\/[A-Za-z0-9._/-]+)$/u;
+const MEMBER_PATH = /^(?:docs\/operations\/(?:genesis-001-policy-observation-launch-envelope|greater-realm-production-launch-envelope)\.sh\.txt|(?:owner-canary\/)?index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|spacetimedb\/(?:package\.json|pnpm-(?:lock|workspace)\.yaml|(?:src|genesis002|ptr)\/[A-Za-z0-9._/-]+)|(?:\.github\/workflows|config\/releases|scripts|services\/auth-bridge|src)\/[A-Za-z0-9._/-]+)$/u;
+// This is the exact generated client/operator ABI reached from shipped roots.
+// Backend source/config is protected separately; private table bindings and
+// build output are never admitted by the generated-client allowlist.
+const PTR_MODULE_MEMBER_PATH = /^spacetimedb\/ptr\/(?:src\/[A-Za-z0-9._/-]+\.ts|package\.json|tsconfig\.json|pnpm-lock\.yaml|\.gitignore)$/u;
+const PTR_GENERATED_BINDING_MEMBER_PATHS = new Set([
+  'spacetimedb/ptr/generated-bindings/admin_begin_greater_realm_verification_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_finalize_greater_realm_release_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_get_greater_realm_status_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/admin_import_greater_realm_chunk_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_import_greater_realm_components_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_import_greater_realm_regions_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_provision_ptr_owner_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_stage_greater_realm_release_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_suspend_ptr_owner_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_verify_greater_realm_batch_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/dispatch_gameplay_04_worker_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_gameplay_04_keep_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_ptr_owner_status_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_realm_atlas_bootstrap_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_realm_atlas_chunk_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_realm_atlas_resource_locations_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_realm_atlas_window_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/index.ts',
+  'spacetimedb/ptr/generated-bindings/initialize_gameplay_04_keep_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/plan_realm_route_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/recall_gameplay_04_worker_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/start_gameplay_04_building_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/types.ts',
+]);
+// Exact shared sources reached by the protected client/backend graphs and their
+// type imports. Other gameplay helpers are not admitted merely by location.
+const GAMEPLAY04_SHARED_SOURCE_MEMBER_PATHS = new Set([
+  'spacetimedb/gameplay04/commands.ts',
+  'spacetimedb/gameplay04/construction.ts',
+  'spacetimedb/gameplay04/keep.ts',
+  'spacetimedb/gameplay04/placement.ts',
+  'spacetimedb/gameplay04/policy.ts',
+  'spacetimedb/gameplay04/reconciliation.ts',
+  'spacetimedb/gameplay04/workerJourney.ts',
+  'spacetimedb/gameplay04/workerState.ts',
+  'spacetimedb/gameplay04/workers.ts',
+]);
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
-const MAX_MEMBERS = 956;
+// Resource bound, not the generated inventory's exact member count.
+const MAX_MEMBERS = 2048;
 const SCRIPT_GRAPH_ROOTS = Object.freeze([
+  // External runtime imports of the fixed compiled recovery claim entrypoint.
+  'scripts/recovery-workflow-run-context.mjs',
+  'scripts/recovery-attestation-source.mjs',
+  'scripts/generate-warpkeep-deployment-attestation.mjs',
+  'scripts/local-binding-bounded-file.mjs',
+  'scripts/recovery-workflow-private-directory.mjs',
+  'scripts/recovery-workflow-session.mjs',
+  'scripts/recovery-workflow-check-deployment.mjs',
+  'scripts/recovery-workflow-reconcile-current-run.mjs',
+  'scripts/recovery-workflow-live-postflight.mjs',
+  'scripts/recovery-workflow-postflight.mjs',
+  'scripts/auth-bridge-notification-b0-cloudflare-runtime.mjs',
+  'scripts/auth-bridge-notification-b0-deploy-adapter.mjs',
+  'scripts/auth-bridge-notification-b0-deploy-journal.mjs',
   'scripts/auth-bridge-notification-b0-deploy.mjs',
+  'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',
+  'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
+  'scripts/auth-bridge-notification-prepared-deploy-journal.mjs',
   'scripts/verify-auth-bridge-notification-b0-policy.mjs',
   'scripts/auth-bridge-notification-prepared-deploy.mjs',
   'scripts/genesis001-frozen-publisher.ts',
@@ -54,6 +114,8 @@ const SCRIPT_GRAPH_ROOTS = Object.freeze([
   'scripts/production-player-canary-activation-launcher.mjs',
   'scripts/production-player-canary-operator.mjs',
   'scripts/production-player-canary-browser-launcher.mjs',
+  'scripts/ptr-production-import-operator.ts',
+  'scripts/ptr-production-publisher-cli.ts',
   'scripts/profiles/profiles-operator.ts',
   'scripts/verify-0.4.0-sealed-launch.mjs',
   'scripts/verify-auth-bridge-notification-prepared-receipt.mjs',
@@ -84,10 +146,14 @@ const CHECK_SOURCE_DIRECTORIES = Object.freeze([
   'services/auth-bridge/test',
   'services/auth-bridge/test-workerd',
 ]);
+// G001 Linux policy observation is a two-process workflow. Keep every
+// dispatched program and its fixed runtime helpers in the protected source
+// closure so the assembled candidate can prove the exact child program set.
 const STATIC_SECURITY_INPUTS = Object.freeze([
   '.github/workflows/deploy-pages.yml',
   '.github/workflows/notification-bridge-b0.yml',
   '.github/workflows/notification-bridge-prepared.yml',
+  '.github/workflows/notification-bridge-prepared-linux.yml',
   '.github/workflows/verify.yml',
   'index.html',
   'owner-canary/index.html',
@@ -100,8 +166,25 @@ const STATIC_SECURITY_INPUTS = Object.freeze([
   'scripts/auth-bridge-notification-prepared-deploy-closure.d.mts',
   'scripts/auth-bridge-notification-prepared-deploy-closure.mjs',
   'scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json',
+  'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json',
+  'scripts/auth-bridge-notification-prepared-linux-runner.mjs',
+  'scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json',
   'scripts/auth-bridge-notification-prepared-release-binding.d.mts',
   'scripts/auth-bridge-notification-prepared-release-binding.mjs',
+  'scripts/genesis001-linux-policy-native.mjs',
+  'scripts/genesis001-linux-policy-materializer.mjs',
+  'scripts/genesis001-linux-policy-child.mjs',
+  'scripts/genesis001-linux-policy-boundary.mjs',
+  'scripts/local-binding-runtime-process.mjs',
+  'scripts/local-binding-runtime-core.mjs',
+  'scripts/local-binding-native-ts-hooks.mjs',
+  'scripts/local-binding-runtime-cli-snapshot.mjs',
+  'scripts/local-program-artifact.mjs',
+  'scripts/spacetime-binding-tree.mjs',
+  'scripts/local-binding-runtime-yaml-v1.json',
+  'scripts/genesis002-binding-linux-locked-source-build.ts',
+  'scripts/sealed-realms-production-workflow-evidence.mjs',
+  'scripts/sealed-realms-production-workflow-evidence-json.mjs',
   'scripts/greater-realm-downstream-release-policy.ts',
   'scripts/greater-realm-production-bootstrap.mjs',
   'scripts/greater-realm-production-publisher-core.ts',
@@ -159,6 +242,18 @@ const STATIC_SECURITY_INPUTS = Object.freeze([
   'src/spacetime/greaterRealmProviderBridge.ts',
   'src/spacetime/playerModuleBindings.ts',
   'vite.config.ts',
+  'scripts/recovery-workflow-bundle-manifest-v1.json',
+  'scripts/recovery-workflow-prepare-claim.mjs',
+  'scripts/sealed-realms-production-activation-lane.bundle.d.mts',
+  'scripts/sealed-realms-production-activation-lane.bundle.mjs',
+  'scripts/sealed-realms-production-bundle-manifest-v1.json',
+  'scripts/sealed-realms-production-g001-lane.bundle.d.mts',
+  'scripts/sealed-realms-production-g001-lane.bundle.mjs',
+  'scripts/sealed-realms-production-g002-lane.bundle.d.mts',
+  'scripts/sealed-realms-production-g002-lane.bundle.mjs',
+  'scripts/sealed-realms-production-ptr-lane.bundle.d.mts',
+  'scripts/sealed-realms-production-ptr-lane.bundle.mjs',
+  'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs',
 ]);
 const ATTESTED_INSTALLED_IMPORTS = new Map([
   ['scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs', new Set([
@@ -186,6 +281,9 @@ const ATTESTED_INSTALLED_REQUIRES = new Map([
   ])],
 ]);
 const ATTESTED_DYNAMIC_IMPORT_EXPRESSIONS = new Map([
+  ['scripts/auth-bridge-notification-prepared-deploy-closure.mjs', new Set([
+    'pathToFileURL(resolve(authenticated.repositoryRoot, memberPath)).href',
+  ])],
   ['scripts/greater-realm-production-bootstrap.mjs', new Set([
     'yamlUrl.href',
   ])],
@@ -218,7 +316,12 @@ function canonicalRepository(repositoryRoot) {
 function canonicalMemberPath(repository, memberPath, code) {
   if (
     typeof memberPath !== 'string'
-    || !MEMBER_PATH.test(memberPath)
+    || (!MEMBER_PATH.test(memberPath)
+      && !GAMEPLAY04_SHARED_SOURCE_MEMBER_PATHS.has(memberPath)
+      && memberPath !== 'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs')
+    || (memberPath.startsWith('spacetimedb/ptr/')
+      && !PTR_GENERATED_BINDING_MEMBER_PATHS.has(memberPath)
+      && !PTR_MODULE_MEMBER_PATH.test(memberPath))
     || memberPath.includes('//')
     || memberPath.split('/').some(part => part === '.' || part === '..')
   ) fail(code);
@@ -262,28 +365,41 @@ function source(repository, memberPath, code) {
   }
 }
 
-function parseSourceFile(value, memberPath) {
+function parseSourceFile(value, memberPath, parser) {
   const code = 'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_SOURCE_INVALID';
   const fileName = `/auth-bridge-prepared-closure/${memberPath}`;
-  let api;
   let snapshot;
   try {
-    api = new TypeScriptAPI({
-      cwd: dirname(fileName),
-      fs: createVirtualFileSystem({ [fileName]: value }),
+    if (parser.api === undefined) {
+      parser.fs = createVirtualFileSystem({});
+      parser.api = new TypeScriptAPI({
+        cwd: '/auth-bridge-prepared-closure',
+        fs: parser.fs,
+      });
+    }
+    // Keep the virtual project file-local as before. Only the native compiler
+    // belongs to the graph: no source or compiler survives another graph scan.
+    const previousFiles = parser.previousFile === undefined
+      ? [] : [parser.previousFile];
+    for (const previous of previousFiles) parser.fs.removeFile(previous);
+    parser.fs.writeFile(fileName, value);
+    snapshot = parser.api.updateSnapshot({
+      openFiles: [fileName],
+      closeFiles: previousFiles,
+      fileChanges: { created: [fileName], deleted: previousFiles },
     });
-    snapshot = api.updateSnapshot({ openFiles: [fileName] });
+    parser.previousFile = fileName;
     const project = snapshot.getDefaultProjectForFile(fileName);
     const sourceFile = project?.program.getSourceFile(fileName);
     if (
       project === undefined
       || sourceFile === undefined
+      || sourceFile.text !== value
       || project.program.getSyntacticDiagnostics(fileName).length !== 0
     ) fail(code);
-    return Object.freeze({ api, snapshot, sourceFile });
+    return Object.freeze({ snapshot, sourceFile });
   } catch (error) {
     try { snapshot?.dispose(); } catch { /* Preserve the primary failure. */ }
-    try { api?.close(); } catch { /* Preserve the primary failure. */ }
     if (error instanceof AuthBridgeNotificationPreparedDeployClosureError) {
       throw error;
     }
@@ -291,10 +407,11 @@ function parseSourceFile(value, memberPath) {
   }
 }
 
-function sourceModuleSpecifiers(value, memberPath) {
-  const parsed = parseSourceFile(value, memberPath);
+function sourceModuleSpecifiers(value, memberPath, parser) {
+  const parsed = parseSourceFile(value, memberPath, parser);
   const specifiers = [];
   const dynamicImportExpressions = new Set();
+  let failed = false;
   try {
     const visit = node => {
       if (isImportDeclaration(node) || isExportDeclaration(node)) {
@@ -349,9 +466,13 @@ function sourceModuleSpecifiers(value, memberPath) {
         !== JSON.stringify([...expectedDynamicImports].sort())
     ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_IMPORT_INVALID');
     return Object.freeze(specifiers);
+  } catch (error) {
+    failed = true;
+    throw error;
   } finally {
-    parsed.snapshot.dispose();
-    parsed.api.close();
+    try { parsed.snapshot.dispose(); } catch (error) {
+      if (!failed) throw error;
+    }
   }
 }
 
@@ -361,15 +482,19 @@ function resolveLocalSpecifier(repository, importer, specifier) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_IMPORT_INVALID');
   }
   const base = resolve(repository, dirname(importer), specifier);
-  const candidates = /\.(?:css|json|mjs|mts|ts|tsx)$/u.test(specifier)
-    ? [base]
-    : [
-      `${base}.mjs`,
-      `${base}.mts`,
-      `${base}.ts`,
-      `${base}.tsx`,
-      resolve(base, 'index.ts'),
-    ];
+  // NodeNext TypeScript spells runtime imports as .js while the protected
+  // source graph contains .ts/.tsx. Do not append a second extension.
+  const candidates = specifier.endsWith('.js')
+    ? [`${base.slice(0, -3)}.ts`, `${base.slice(0, -3)}.tsx`]
+    : /\.(?:css|json|mjs|mts|ts|tsx)$/u.test(specifier)
+      ? [base]
+      : [
+        `${base}.mjs`,
+        `${base}.mts`,
+        `${base}.ts`,
+        `${base}.tsx`,
+        resolve(base, 'index.ts'),
+      ];
   const matches = [];
   for (const candidate of candidates) {
     try {
@@ -392,42 +517,54 @@ function resolveLocalSpecifier(repository, importer, specifier) {
 function deriveLocalGraph(repository, roots) {
   const pending = [...roots];
   const graph = new Set();
-  while (pending.length > 0) {
-    const memberPath = pending.shift();
-    if (memberPath === undefined || graph.has(memberPath)) continue;
-    graph.add(memberPath);
-    if (memberPath.endsWith('.css')) {
+  const parser = {};
+  let failed = false;
+  try {
+    while (pending.length > 0) {
+      const memberPath = pending.shift();
+      if (memberPath === undefined || graph.has(memberPath)) continue;
+      graph.add(memberPath);
+      if (memberPath.endsWith('.css')) {
+        const value = source(
+          repository,
+          memberPath,
+          'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_SOURCE_INVALID',
+        );
+        if (/@import\b|url\s*\(/iu.test(value)) {
+          fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_ASSET_IMPORT_FORBIDDEN');
+        }
+        continue;
+      }
+      if (!/\.(?:mjs|mts|ts|tsx)$/u.test(memberPath)) continue;
       const value = source(
         repository,
         memberPath,
         'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_SOURCE_INVALID',
       );
-      if (/@import\b|url\s*\(/iu.test(value)) {
-        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_ASSET_IMPORT_FORBIDDEN');
-      }
-      continue;
-    }
-    if (!/\.(?:mjs|mts|ts|tsx)$/u.test(memberPath)) continue;
-    const value = source(
-      repository,
-      memberPath,
-      'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_SOURCE_INVALID',
-    );
-    for (const specifier of sourceModuleSpecifiers(value, memberPath)) {
-      if (specifier.includes('/node_modules/')) {
-        if (!ATTESTED_INSTALLED_IMPORTS.get(memberPath)?.has(specifier)) {
-          fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_INSTALLED_IMPORT_INVALID');
+      for (const specifier of sourceModuleSpecifiers(value, memberPath, parser)) {
+        if (specifier.includes('/node_modules/')) {
+          if (!ATTESTED_INSTALLED_IMPORTS.get(memberPath)?.has(specifier)) {
+            fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_INSTALLED_IMPORT_INVALID');
+          }
+          continue;
         }
-        continue;
+        const dependency = resolveLocalSpecifier(repository, memberPath, specifier);
+        if (dependency !== undefined && !graph.has(dependency)) pending.push(dependency);
       }
-      const dependency = resolveLocalSpecifier(repository, memberPath, specifier);
-      if (dependency !== undefined && !graph.has(dependency)) pending.push(dependency);
+      if (graph.size > MAX_MEMBERS) {
+        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_TOO_LARGE');
+      }
     }
-    if (graph.size > MAX_MEMBERS) {
-      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_TOO_LARGE');
+    return graph;
+  } catch (error) {
+    failed = true;
+    throw error;
+  } finally {
+    // Also close on source/import/path failures or failed snapshot disposal.
+    try { parser.api?.close(); } catch (error) {
+      if (!failed) throw error;
     }
   }
-  return graph;
 }
 
 function namespaceMembers(repository, directoryPath, namePattern, code) {
@@ -445,13 +582,57 @@ function namespaceMembers(repository, directoryPath, namePattern, code) {
   }));
 }
 
+function sealedModuleMembers(repository) {
+  const code = 'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_NAMESPACE_INVALID';
+  const members = new Set();
+  const visit = (directoryPath, depth = 0) => {
+    if (depth > 8) fail(code);
+    const directory = resolve(repository, directoryPath);
+    let entries;
+    try {
+      const status = lstatSync(directory);
+      if (!status.isDirectory() || status.isSymbolicLink()
+        || realpathSync(directory) !== directory) fail(code);
+      entries = readdirSync(directory, { withFileTypes: true });
+    } catch { fail(code); }
+    if (entries.length > 256) fail(code);
+    for (const entry of entries) {
+      if (!/^[A-Za-z][A-Za-z0-9._-]*$/u.test(entry.name)) fail(code);
+      const path = `${directoryPath}/${entry.name}`;
+      if (entry.isDirectory() && !entry.isSymbolicLink()) visit(path, depth + 1);
+      else {
+        if (!entry.isFile() || !entry.name.endsWith('.ts')) fail(code);
+        canonicalMemberPath(repository, path, code);
+        members.add(path);
+      }
+      if (members.size > MAX_MEMBERS) fail(code);
+    }
+  };
+  for (const module of ['genesis002', 'ptr']) {
+    const before = members.size;
+    visit(`spacetimedb/${module}/src`);
+    if (members.size === before) fail(code);
+    const metadata = ['.gitignore', 'package.json', 'tsconfig.json'];
+    if (module === 'ptr') metadata.push('pnpm-lock.yaml');
+    for (const name of metadata) {
+      const path = `spacetimedb/${module}/${name}`;
+      canonicalMemberPath(repository, path, code);
+      members.add(path);
+    }
+  }
+  return members;
+}
+
 export function deriveAuthBridgeNotificationPreparedDeployClosurePaths({
   repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..'),
 } = {}) {
   const repository = canonicalRepository(repositoryRoot);
+  const moduleMembers = sealedModuleMembers(repository);
   const scriptGraph = deriveLocalGraph(repository, [
     ...SCRIPT_GRAPH_ROOTS,
     ...SEALED_LAUNCH_SOURCE_GRAPH_ROOTS,
+    // Enumerating backend files alone does not protect their shared imports.
+    'spacetimedb/ptr/src/index.ts',
   ]);
   const workerGraph = deriveLocalGraph(repository, [WORKER_GRAPH_ROOT]);
   const browserGraph = deriveLocalGraph(repository, [BROWSER_GRAPH_ROOT]);
@@ -481,9 +662,15 @@ export function deriveAuthBridgeNotificationPreparedDeployClosurePaths({
     ...browserGraph,
     ...workerMembers,
     ...checkMembers,
+    ...moduleMembers,
   ]);
   for (const memberPath of scriptGraph) {
     if (!memberPath.endsWith('.mjs')) continue;
+    // These declarations are explicitly outside the runtime closure. Requiring
+    // them to exist would make a complete exported closure unverifiable.
+    if (NON_RUNTIME_DECLARATIONS_OUTSIDE_PROTECTED_CLOSURE.has(memberPath)) {
+      continue;
+    }
     const declaration = memberPath.replace(/\.mjs$/u, '.d.mts');
     let declarationPresent = false;
     try {
@@ -494,9 +681,6 @@ export function deriveAuthBridgeNotificationPreparedDeployClosurePaths({
       if (!DECLARATION_OPTIONAL_GRAPH_MEMBERS.has(memberPath)) {
         fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_ABI_MISSING');
       }
-      continue;
-    }
-    if (NON_RUNTIME_DECLARATIONS_OUTSIDE_PROTECTED_CLOSURE.has(memberPath)) {
       continue;
     }
     if (DECLARATION_OPTIONAL_GRAPH_MEMBERS.has(memberPath)) {

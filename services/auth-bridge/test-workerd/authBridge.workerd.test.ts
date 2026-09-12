@@ -1,4 +1,4 @@
-import { env } from 'cloudflare:workers'
+import { env, exports } from 'cloudflare:workers'
 import { runInDurableObject } from 'cloudflare:test'
 import { encodeAbiParameters } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -371,7 +371,7 @@ describe('auth bridge production bindings in workerd', () => {
     const config: BridgeConfig = {
       ...CONFIG,
       bridgeSourceCommit: 'a'.repeat(40),
-      approvalNotificationsEnabled: true,
+      approvalNotificationsEnabled: false,
       miniAppNotifications: notificationConfig,
       publicAuthEnabled: false,
       accessExpectedFidRequired: true,
@@ -397,7 +397,7 @@ describe('auth bridge production bindings in workerd', () => {
       schemaVersion: 1,
       profile: 'warpkeep-admission-notification-bridge-v1',
       bridgeSourceCommit: 'a'.repeat(40),
-      notificationDeliveryEnabled: true,
+      notificationDeliveryEnabled: false,
       notificationTransportConfigured: true,
       admissionNotificationStoreConfigured: true,
       notificationClientCount: 1,
@@ -415,13 +415,13 @@ describe('auth bridge production bindings in workerd', () => {
     expect(before).toBeUndefined()
     expect(after).toBeUndefined()
 
-    const disabled = await createAuthBridge({
-      configReader: () => ({ ...config, approvalNotificationsEnabled: false }),
+    const incomplete = await createAuthBridge({
+      configReader: () => ({ ...config, bridgeSourceCommit: undefined }),
     }).fetch(new Request(
       `https://auth.warpkeep.test${RELEASE_ATTESTATION_PATH}`,
     ), bridgeEnv)
-    expect(disabled.status).toBe(503)
-    expect(await disabled.text()).toBe('{"error":"release_not_prepared"}')
+    expect(incomplete.status).toBe(503)
+    expect(await incomplete.text()).toBe('{"error":"release_not_prepared"}')
   })
 
   it('delivers through Cloudflare-compatible manual redirect handling in workerd', async () => {
@@ -1295,5 +1295,34 @@ describe('auth bridge production bindings in workerd', () => {
       (await state.storage.get('session-family')) !== undefined
     ))
     expect(remains).toBe(false)
+  })
+})
+
+describe('release-recovery named RPC surface', () => {
+  it('keeps the public default export and fails closed without recovery-only configuration', async () => {
+    expect(typeof exports.default.fetch).toBe('function')
+    expect(typeof exports.ReleaseRecoveryObservationEntrypoint.observeReleaseRecoveryState)
+      .toBe('function')
+
+    const outcome = await exports.ReleaseRecoveryObservationEntrypoint
+      .observeReleaseRecoveryState({
+        schemaVersion: 1,
+        profile: 'warpkeep-release-recovery-realm-observation-request-v1',
+        rpcCredential: 'A'.repeat(43),
+        requestId: '01234567-89ab-4cde-8f01-23456789abcd',
+        candidateCommit: 'a'.repeat(40),
+        recoveryAuthorizationEpoch: 1,
+      })
+      .then(
+        value => ({ status: 'fulfilled' as const, value }),
+        error => ({ status: 'rejected' as const, error }),
+      )
+
+    expect(outcome.status).toBe('rejected')
+    if (outcome.status !== 'rejected') throw new Error('expected recovery RPC rejection')
+    expect(outcome.error).toMatchObject({
+      name: 'ReleaseRecoveryObservationError',
+      message: 'RELEASE_RECOVERY_OBSERVATION_FAILED',
+    })
   })
 })

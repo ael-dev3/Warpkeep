@@ -106,7 +106,8 @@
   transform: translate(50%, 0);
 }
 
-.warpkeep-menu[data-menu-surface="farcaster-auth"] .warpkeep-menu-heading {
+.warpkeep-menu[data-menu-surface="farcaster-auth"] .warpkeep-menu-heading,
+.warpkeep-menu[data-menu-surface="realm-choice"] .warpkeep-menu-heading {
   visibility: hidden;
   opacity: 0;
   transform: none;
@@ -259,6 +260,37 @@
   opacity: 0;
   transform: translate3d(0, 0.45rem, 0);
   transition: opacity 220ms ease, transform 320ms cubic-bezier(0.2, 0.78, 0.24, 1);
+}
+
+.warpkeep-menu-realm-rail {
+  display: grid;
+  position: fixed;
+  z-index: 5;
+  inset: 0;
+  place-items: center;
+  place-items: safe center;
+  box-sizing: border-box;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding:
+    max(1rem, calc(env(safe-area-inset-top) + 0.75rem))
+    max(1rem, calc(env(safe-area-inset-right) + 0.75rem))
+    max(1rem, calc(env(safe-area-inset-bottom) + 0.75rem))
+    max(1rem, calc(env(safe-area-inset-left) + 0.75rem));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(108, 55, 130, 0.2), transparent 34rem),
+    linear-gradient(180deg, rgba(13, 9, 18, 0.95), rgba(7, 6, 11, 0.98));
+  opacity: 0;
+  transform: translate3d(0, 0.45rem, 0);
+  transition: opacity 220ms ease, transform 320ms cubic-bezier(0.2, 0.78, 0.24, 1);
+}
+
+.warpkeep-menu--visible .warpkeep-menu-realm-rail {
+  opacity: 1;
+  transform: none;
 }
 
 .warpkeep-menu--visible .warpkeep-menu-auth-rail {
@@ -1040,6 +1072,7 @@ a.warpkeep-menu-build-stamp__build:focus-visible {
   .warpkeep-menu-heading,
   .warpkeep-menu-nav,
   .warpkeep-menu-auth-rail,
+  .warpkeep-menu-realm-rail,
   .warpkeep-menu-identity,
   .warpkeep-menu .warpkeep-menu-back,
   .warpkeep-menu-build-stamp,

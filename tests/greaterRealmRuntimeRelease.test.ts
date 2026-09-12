@@ -33,6 +33,8 @@ import {
   greaterRealmRuntimeReleaseFixtureSeed,
 } from '../scripts/atlas/greater-realm-runtime-release-test-fixture';
 import {
+  GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+  GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH,
   GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_CASTLE_SLOTS,
   GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_RESOURCE_LOCATIONS,
   GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_RESOURCE_NODES,
@@ -40,14 +42,22 @@ import {
   GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
   GREATER_REALM_RUNTIME_FRAMING_SPEC_V1,
   GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH,
+  PTR_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+  PTR_GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH,
+  PTR_GREATER_REALM_RUNTIME_RELEASE_TARGET,
   assertGreaterRealmRuntimeReleaseMatches,
   createGenesis002GreaterRealmRuntimeRelease,
   createGreaterRealmRuntimeRelease,
+  createPtrGreaterRealmRuntimeRelease,
   greaterRealmRuntimeReleaseTestSeams,
   openOrCreateGreaterRealmRuntimeReleaseSeed,
+  openOrCreatePtrGreaterRealmRuntimeReleaseSeed,
+  readPtrGreaterRealmRuntimeRelease,
   readGreaterRealmRuntimeRelease,
+  verifyPtrGreaterRealmRuntimeReleaseArtifacts,
   verifyGreaterRealmRuntimeReleaseArtifacts,
   verifyGenesis002GreaterRealmRuntimeReleaseArtifacts,
+  writePtrGreaterRealmRuntimeRelease,
   writeGreaterRealmRuntimeRelease,
   type GreaterRealmRuntimeCell,
   type GreaterRealmRuntimeChunkPayload,
@@ -567,6 +577,74 @@ describe('Greater Realm declassified runtime release', () => {
       genesis002.manifestBytes.fill(0);
       genesis002.statusBytes.fill(0);
       for (const chunk of genesis002.chunks) chunk.bytes.fill(0);
+    }
+  });
+
+  it('deterministically generates the exact owner-only PTR release target', () => {
+    const first = createPtrGreaterRealmRuntimeRelease({
+      source,
+      sourceCommit: GREATER_REALM_RUNTIME_RELEASE_FIXTURE_SOURCE_COMMIT,
+      releaseSeed: greaterRealmRuntimeReleaseFixtureSeed(),
+    });
+    const second = createPtrGreaterRealmRuntimeRelease({
+      source,
+      sourceCommit: GREATER_REALM_RUNTIME_RELEASE_FIXTURE_SOURCE_COMMIT,
+      releaseSeed: greaterRealmRuntimeReleaseFixtureSeed(),
+    });
+    try {
+      expect(PTR_GREATER_REALM_RUNTIME_RELEASE_TARGET).toEqual({
+        atlasId: 'PTR_GREATER_REALM',
+        releaseVersion: '0.4.0-ptr.1',
+        directory: 'ptr-0.4.0-ptr.1-runtime-release-v1',
+        seedControlPath:
+          'controls/ptr-0.4.0-ptr.1-runtime-release-public-seed-v1.wkgr-control',
+      });
+      expect(first.manifest.atlasId).toBe('PTR_GREATER_REALM');
+      expect(first.manifestBytes).toEqual(second.manifestBytes);
+      expect(first.statusBytes).toEqual(second.statusBytes);
+      expect(first.chunks.map(chunk => ({ path: chunk.path, bytes: chunk.bytes })))
+        .toEqual(second.chunks.map(chunk => ({ path: chunk.path, bytes: chunk.bytes })));
+      expect(first.chunks.every(chunk => (
+        chunk.payload.cells.every(cell => cell.atlasId === 'PTR_GREATER_REALM')
+        && chunk.payload.castleSlots.every(slot => slot.atlasId === 'PTR_GREATER_REALM')
+        && chunk.payload.resourceNodes.every(node => node.atlasId === 'PTR_GREATER_REALM')
+      ))).toBe(true);
+      expect(() => verifyPtrGreaterRealmRuntimeReleaseArtifacts(first)).not.toThrow();
+    } finally {
+      for (const release of [first, second]) {
+        release.manifestBytes.fill(0);
+        release.statusBytes.fill(0);
+        for (const chunk of release.chunks) chunk.bytes.fill(0);
+      }
+    }
+  });
+
+  it('rejects every cross-realm runtime package at the PTR boundary', () => {
+    const genesis002 = createGenesis002GreaterRealmRuntimeRelease({
+      source,
+      sourceCommit: GREATER_REALM_RUNTIME_RELEASE_FIXTURE_SOURCE_COMMIT,
+      releaseSeed: greaterRealmRuntimeReleaseFixtureSeed(),
+    });
+    const ptr = createPtrGreaterRealmRuntimeRelease({
+      source,
+      sourceCommit: GREATER_REALM_RUNTIME_RELEASE_FIXTURE_SOURCE_COMMIT,
+      releaseSeed: greaterRealmRuntimeReleaseFixtureSeed(),
+    });
+    try {
+      expect(() => verifyPtrGreaterRealmRuntimeReleaseArtifacts(artifacts))
+        .toThrow('GREATER_REALM_RUNTIME_RELEASE_MANIFEST_INVALID');
+      expect(() => verifyPtrGreaterRealmRuntimeReleaseArtifacts(genesis002))
+        .toThrow('GREATER_REALM_RUNTIME_RELEASE_MANIFEST_INVALID');
+      expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(ptr))
+        .toThrow('GREATER_REALM_RUNTIME_RELEASE_MANIFEST_INVALID');
+      expect(() => verifyGenesis002GreaterRealmRuntimeReleaseArtifacts(ptr))
+        .toThrow('GREATER_REALM_RUNTIME_RELEASE_MANIFEST_INVALID');
+    } finally {
+      for (const release of [genesis002, ptr]) {
+        release.manifestBytes.fill(0);
+        release.statusBytes.fill(0);
+        for (const chunk of release.chunks) chunk.bytes.fill(0);
+      }
     }
   });
 
@@ -1650,5 +1728,77 @@ describe('Greater Realm declassified runtime release', () => {
     const workspace = openGreaterRealmPrivateWorkspace({ repositoryRoot, workspaceRoot });
     await expect(writeGreaterRealmRuntimeRelease({ workspace, artifacts }))
       .rejects.toThrow('GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_MISSING');
+  });
+
+  it('persists PTR bytes only inside its release-specific private namespace', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-ptr-runtime-release-'));
+    temporaryRoots.push(root);
+    const repositoryRoot = join(root, 'repository');
+    const workspaceRoot = join(root, 'private-workspace');
+    mkdirSync(repositoryRoot, { mode: 0o700 });
+    const workspace = openGreaterRealmPrivateWorkspace({ repositoryRoot, workspaceRoot });
+    const ptrSeed = openOrCreatePtrGreaterRealmRuntimeReleaseSeed(workspace);
+    let ptr: GreaterRealmRuntimeReleaseArtifacts | undefined;
+    try {
+      ptr = createPtrGreaterRealmRuntimeRelease({
+        source,
+        sourceCommit: GREATER_REALM_RUNTIME_RELEASE_FIXTURE_SOURCE_COMMIT,
+        releaseSeed: ptrSeed,
+      });
+    } finally {
+      ptrSeed.fill(0);
+    }
+
+    await expect(writePtrGreaterRealmRuntimeRelease({ workspace, artifacts: ptr! }))
+      .resolves.toBe('installed');
+    await expect(writePtrGreaterRealmRuntimeRelease({ workspace, artifacts }))
+      .rejects.toThrow('GREATER_REALM_RUNTIME_RELEASE_MANIFEST_INVALID');
+    const installed = readPtrGreaterRealmRuntimeRelease(workspace);
+    try {
+      expect(installed.manifestBytes).toEqual(ptr!.manifestBytes);
+      expect(workspace.hasFile(PTR_GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH)).toBe(true);
+      expect(statSync(join(workspaceRoot, PTR_GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH)).mode & 0o777)
+        .toBe(0o600);
+      expect(statSync(join(workspaceRoot, PTR_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY)).mode & 0o777)
+        .toBe(0o700);
+      expect(workspace.hasFile(GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH)).toBe(false);
+      expect(workspace.hasFile(GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH))
+        .toBe(false);
+      expect(() => statSync(join(workspaceRoot, GREATER_REALM_RUNTIME_RELEASE_DIRECTORY)))
+        .toThrow();
+      expect(() => statSync(join(
+        workspaceRoot,
+        GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+      ))).toThrow();
+    } finally {
+      installed.manifestBytes.fill(0);
+      installed.statusBytes.fill(0);
+      for (const chunk of installed.chunks) chunk.bytes.fill(0);
+      ptr!.manifestBytes.fill(0);
+      ptr!.statusBytes.fill(0);
+      for (const chunk of ptr!.chunks) chunk.bytes.fill(0);
+    }
+  });
+
+  it('fails closed when PTR publication lacks its dedicated seed control', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-ptr-runtime-release-no-control-'));
+    temporaryRoots.push(root);
+    const repositoryRoot = join(root, 'repository');
+    const workspaceRoot = join(root, 'private-workspace');
+    mkdirSync(repositoryRoot, { mode: 0o700 });
+    const workspace = openGreaterRealmPrivateWorkspace({ repositoryRoot, workspaceRoot });
+    const ptr = createPtrGreaterRealmRuntimeRelease({
+      source,
+      sourceCommit: GREATER_REALM_RUNTIME_RELEASE_FIXTURE_SOURCE_COMMIT,
+      releaseSeed: greaterRealmRuntimeReleaseFixtureSeed(),
+    });
+    try {
+      await expect(writePtrGreaterRealmRuntimeRelease({ workspace, artifacts: ptr }))
+        .rejects.toThrow('GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_MISSING');
+    } finally {
+      ptr.manifestBytes.fill(0);
+      ptr.statusBytes.fill(0);
+      for (const chunk of ptr.chunks) chunk.bytes.fill(0);
+    }
   });
 });

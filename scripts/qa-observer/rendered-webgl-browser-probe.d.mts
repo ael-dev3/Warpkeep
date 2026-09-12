@@ -1,9 +1,9 @@
 import type { ChildProcess } from 'node:child_process';
 
 export const RENDERED_WEBGL_QA_CHROME:
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-export const RENDERED_WEBGL_QA_CHROME_APP: '/Applications/Google Chrome.app';
-export const RENDERED_WEBGL_QA_CHROME_TEAM_ID: 'EQHXZ8M8AV';
+  string;
+export const RENDERED_WEBGL_QA_CHROME_APP: string;
+export const RENDERED_WEBGL_QA_CHROME_TEAM_ID: string;
 export const RENDERED_WEBGL_QA_CASE_COUNT: 15;
 export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_COUNT: 312;
 export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_MAXIMUM_PRESENCES: 400;
@@ -53,9 +53,9 @@ export function controlledRendererRecoveryWarningKind(
 ): 'stale-context-object-delete' | 'stale-context-warning-throttle' | null;
 
 export function parseHeadlessChromeCodeSignature(value: unknown): Readonly<{
-  executable: typeof RENDERED_WEBGL_QA_CHROME;
+  executable: string;
   identifier: 'com.google.Chrome';
-  teamIdentifier: typeof RENDERED_WEBGL_QA_CHROME_TEAM_ID;
+  teamIdentifier: string;
 }>;
 
 export function attestHeadlessChromeCodeSignature(options?: Readonly<{
@@ -65,9 +65,9 @@ export function attestHeadlessChromeCodeSignature(options?: Readonly<{
     options: Readonly<Record<string, unknown>>
   ) => Promise<Readonly<{ stdout?: string; stderr?: string }>>;
 }>): Promise<Readonly<{
-  executable: typeof RENDERED_WEBGL_QA_CHROME;
+  executable: string;
   identifier: 'com.google.Chrome';
-  teamIdentifier: typeof RENDERED_WEBGL_QA_CHROME_TEAM_ID;
+  teamIdentifier: string;
 }>>;
 
 export type RenderedWebglBrowserProbeQuality = 'high' | 'balanced' | 'reduced';
@@ -116,7 +116,7 @@ export type RenderedWebglBrowserProbeCase = Readonly<{
 }>;
 
 export type HeadlessChromeProbeContract = Readonly<{
-  executable: typeof RENDERED_WEBGL_QA_CHROME;
+  executable: string;
   args: readonly string[];
   options: Readonly<{
     cwd: string;
@@ -220,6 +220,12 @@ export function cleanupRenderedWebglProbeResources(options?: Readonly<{
   terminate?: (child: ChildProcess | undefined) => unknown;
   vite?: Readonly<{ close(): unknown }>;
 }>): Promise<void>;
+
+/** Removes a disposable browser profile with bounded retries for transient Windows locks. */
+export function removeDisposableProbeProfile(
+  removeProfile: () => unknown,
+  wait?: (milliseconds: number) => Promise<unknown>
+): Promise<void>;
 
 export type RenderedWebglActiveWorkerEvidence = Readonly<{
   activeFixtureSelected: true;
@@ -569,6 +575,7 @@ export type RenderedWebglResourceOccupantEvidence = Readonly<{
   markerPresent: true;
   markerProjectedVisible: true;
   markerHitTestable: true;
+  overviewLane: 'control' | 'presence';
   overviewPresenceDirectHit: boolean;
   overviewRecordCorrect: boolean;
   overviewTargetControlOnly: boolean;

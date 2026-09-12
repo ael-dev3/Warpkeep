@@ -1,6 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
+import { WarpkeepMainMenu } from '../components/menu/WarpkeepMainMenu';
+import type { PtrRealmAuthority } from '../components/menu/realmChoicePolicy';
 import { RealmMapScreen } from '../components/realm/RealmMapScreen';
 import type { ReadyWorkerControlState } from '../components/realm/realmWorkerPresentation';
 import { createGreaterRealmClientRuntime } from '../greater-realm/greaterRealmClientRuntime';
@@ -15,6 +17,7 @@ import type { WarpkeepRealmContinuityProjection } from '../spacetime/warpkeepBac
 import { createSyntheticInnerKeepQaPresentation } from './innerKeepQaFixture';
 import { innerKeepQaScenarioById } from './innerKeepQaScenarioManifest.mjs';
 import { assertLocalQaRuntime } from './localQaRuntime';
+import { QA_AUTH_STATES } from './qaJourneyFixture';
 import { createZeroQaResourcePresentation } from './qaResourceFixture';
 import { createRenderedWebglQaActiveWorkerRealm } from './renderedWebglQaFixture';
 import {
@@ -24,6 +27,11 @@ import {
 } from './greaterRealmSyntheticTierOneFixture';
 import '../styles/global.css';
 import './greaterRealmHostQa.css';
+
+const LOCAL_QA_PTR_AUTHORITY: PtrRealmAuthority = Object.freeze({
+  source: 'server-verified',
+  admission: 'admitted'
+});
 
 function graphicsQuality(search: string): GraphicsQualityTier {
   const value = new URLSearchParams(search).get('quality');
@@ -140,37 +148,85 @@ function createFixture() {
   return Object.freeze({ legacyFixture, continuity, bridge });
 }
 
-function start() {
-  assertLocalQaRuntime();
-  const root = ReactDOM.createRoot(document.getElementById('root')!);
-  const fixture = createFixture();
-  const chat = Object.freeze({
+export type GreaterRealmHostQaAppProps = Readonly<{
+  fixture: ReturnType<typeof createFixture>;
+  quality: GraphicsQualityTier;
+  ptrRealmAuthority?: PtrRealmAuthority;
+  onRequestPtrRealm?: () => void;
+}>;
+
+export function GreaterRealmHostQaApp({
+  fixture,
+  quality,
+  ptrRealmAuthority,
+  onRequestPtrRealm
+}: GreaterRealmHostQaAppProps) {
+  const [surface, setSurface] = React.useState<'realm' | 'authenticated-menu'>('realm');
+  const chat = React.useMemo(() => Object.freeze({
     availability: 'ready' as const,
     channelKey: 'realm-chat-local-qa',
     policyVersion: 'local-qa',
     mode: 'active' as const,
     messages: Object.freeze([])
-  });
-  const emptyHistory = Object.freeze({ messages: Object.freeze([]), hasMore: false });
+  }), []);
+  const emptyHistory = React.useMemo(
+    () => Object.freeze({ messages: Object.freeze([]), hasMore: false }),
+    []
+  );
+  const openRealm = React.useCallback(() => setSurface('realm'), []);
+
+  if (surface === 'authenticated-menu') {
+    return (
+      <WarpkeepMainMenu
+        active
+        authState={QA_AUTH_STATES.authenticated}
+        entryAgreementSatisfied
+        onCancelFarcasterSignIn={() => undefined}
+        onRequestAuthenticatedRealm={openRealm}
+        onRequestFarcasterSignIn={() => undefined}
+        onRequestPtrRealm={onRequestPtrRealm ?? openRealm}
+        onRequestReturn={openRealm}
+        onRetryFarcasterSignIn={() => undefined}
+        onSignOut={() => undefined}
+        ptrRealmAuthority={ptrRealmAuthority}
+      />
+    );
+  }
+
+  return (
+    <RealmMapScreen
+      identity={fixture.legacyFixture.identity}
+      realmContinuity={fixture.continuity}
+      greaterRealm={fixture.bridge}
+      localQaGreaterRealmPresentationAllowed
+      resolvedGraphicsQuality={quality}
+      resources={createZeroQaResourcePresentation(fixture.legacyFixture.identity)}
+      workerRoster={fixture.legacyFixture.workerRoster}
+      innerKeep={{
+        ...createSyntheticInnerKeepQaPresentation(innerKeepQaScenarioById('empty')),
+        castleId: BigInt(fixture.continuity.ownCastle.castleId)
+      }}
+      realmChat={chat}
+      onSendRealmChatMessage={async () => undefined}
+      onReportRealmChatMessage={async () => undefined}
+      onLoadEarlierRealmChat={async () => emptyHistory}
+      onRequestReturn={() => setSurface('authenticated-menu')}
+    />
+  );
+}
+
+function start() {
+  assertLocalQaRuntime();
+  const root = ReactDOM.createRoot(document.getElementById('root')!);
+  // Vite re-executes this local-only entry when the QA host itself changes.
+  import.meta.hot?.dispose(() => root.unmount());
+  const fixture = createFixture();
   root.render(
     <React.StrictMode>
-      <RealmMapScreen
-        identity={fixture.legacyFixture.identity}
-        realmContinuity={fixture.continuity}
-        greaterRealm={fixture.bridge}
-        localQaGreaterRealmPresentationAllowed
-        resolvedGraphicsQuality={graphicsQuality(window.location.search)}
-        resources={createZeroQaResourcePresentation(fixture.legacyFixture.identity)}
-        workerRoster={fixture.legacyFixture.workerRoster}
-        innerKeep={{
-          ...createSyntheticInnerKeepQaPresentation(innerKeepQaScenarioById('empty')),
-          castleId: BigInt(fixture.continuity.ownCastle.castleId)
-        }}
-        realmChat={chat}
-        onSendRealmChatMessage={async () => undefined}
-        onReportRealmChatMessage={async () => undefined}
-        onLoadEarlierRealmChat={async () => emptyHistory}
-        onRequestReturn={() => undefined}
+      <GreaterRealmHostQaApp
+        fixture={fixture}
+        quality={graphicsQuality(window.location.search)}
+        ptrRealmAuthority={LOCAL_QA_PTR_AUTHORITY}
       />
     </React.StrictMode>
   );

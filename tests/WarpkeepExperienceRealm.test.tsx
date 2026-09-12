@@ -48,6 +48,7 @@ import {
   WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE,
   type WarpkeepRuntimeConfig
 } from '../src/spacetime/warpkeepConfig';
+import { PtrRealmProvider } from '../src/ptr/PtrRealmProvider';
 import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
 import { createReadyResourceState } from './fixtures/resourceState';
 
@@ -449,8 +450,10 @@ function renderExperience({
       pollIntervalMs={1}
     >
       <WarpkeepSpacetimeProvider config={config} runtime={runtime}>
-        {exposeBackendDisconnect ? <BackendDisconnectProbe /> : null}
-        <WarpkeepExperience />
+        <PtrRealmProvider config={{ availability: 'unavailable' }}>
+          {exposeBackendDisconnect ? <BackendDisconnectProbe /> : null}
+          <WarpkeepExperience />
+        </PtrRealmProvider>
       </WarpkeepSpacetimeProvider>
     </FarcasterAuthProvider>
   );
@@ -473,8 +476,19 @@ async function settle() {
   });
 }
 
+function requestGenesis001Entry() {
+  const enterButton = screen.queryByRole('button', { name: 'ENTER REALM' });
+  if (enterButton) {
+    fireEvent.click(enterButton);
+  }
+  const continueButton = screen.queryByRole('button', { name: 'ENTER SELECTED REALM' });
+  if (continueButton) {
+    fireEvent.click(continueButton);
+  }
+}
+
 async function openAlphaParticipationTerms() {
-  fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+  requestGenesis001Entry();
   await settle();
   return screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
 }
@@ -872,7 +886,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(container.innerHTML).not.toContain('PRIVATE_TEST_CHANNEL_TOKEN_123456');
     expect(container.innerHTML).not.toContain('PRIVATE_TEST_MESSAGE');
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await settle();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
     expectPlayerRealmChrome();
@@ -882,12 +896,12 @@ describe('Warpkeep shared realm admission', () => {
     const backend = createBackendRuntime();
     const { container } = renderExperience({ runtime: backend.runtime });
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await acceptAlphaParticipationTerms();
     await settle();
     await act(async () => vi.advanceTimersByTime(1));
     await settle();
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await settle();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
     expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
@@ -896,7 +910,7 @@ describe('Warpkeep shared realm admission', () => {
     await settle();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     await settle();
 
@@ -910,7 +924,7 @@ describe('Warpkeep shared realm admission', () => {
     vi.mocked(backend.runtime.acceptAlphaTerms).mockReturnValueOnce(acceptance.promise);
     const { container } = renderExperience({ runtime: backend.runtime });
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await acceptAlphaParticipationTerms();
     await settle();
     await act(async () => vi.advanceTimersByTime(1));
@@ -926,7 +940,7 @@ describe('Warpkeep shared realm admission', () => {
     await settle();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     await settle();
 
@@ -1096,7 +1110,7 @@ describe('Warpkeep shared realm admission', () => {
     });
     renderExperience({ runtime: backend.runtime });
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await acceptAlphaParticipationTerms();
     await settle();
     await act(async () => vi.advanceTimersByTime(1));
@@ -1115,7 +1129,7 @@ describe('Warpkeep shared realm admission', () => {
       .mockRejectedValueOnce(new Error('controlled terms failure'));
     renderExperience({ runtime: backend.runtime });
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await acceptAlphaParticipationTerms();
     await settle();
     await act(async () => vi.advanceTimersByTime(1));
@@ -1163,7 +1177,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
     expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await settle();
     await act(async () => vi.advanceTimersByTime(1));
     await settle();
@@ -1225,7 +1239,7 @@ describe('Warpkeep shared realm admission', () => {
 
     expect(bridge.refreshSession).not.toHaveBeenCalled();
     expect(backend.runtime.connect).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await acceptAlphaParticipationTerms();
 
     expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
@@ -1273,7 +1287,7 @@ describe('Warpkeep shared realm admission', () => {
       .mockImplementationOnce(() => reconnect.promise);
     const { container } = renderExperience({ bridge, now: Date.now, runtime: backend.runtime });
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await acceptAlphaParticipationTerms();
     await settle();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
@@ -1318,7 +1332,7 @@ describe('Warpkeep shared realm admission', () => {
 
     returnToMainMenuThroughPlayerProfile();
     await settle();
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     await settle();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
@@ -1349,7 +1363,7 @@ describe('Warpkeep shared realm admission', () => {
       .mockImplementationOnce(() => retryAfterFourSeconds.promise);
     const { container } = renderExperience({ bridge, now: Date.now, runtime: backend.runtime });
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await acceptAlphaParticipationTerms();
     await settle();
 
@@ -1419,7 +1433,7 @@ describe('Warpkeep shared realm admission', () => {
     await settle();
 
     expect(bridge.refreshSession).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await settle();
 
     expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
@@ -1505,7 +1519,7 @@ describe('Warpkeep shared realm admission', () => {
     const backend = createBackendRuntime(['not_admitted', 'ready']);
     const { authority, bridge, container } = renderExperience({ runtime: backend.runtime });
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await acceptAlphaParticipationTerms();
     await settle();
     await act(async () => vi.advanceTimersByTime(1));
@@ -1534,7 +1548,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(bridge.exchangeCompletedSignIn).toHaveBeenCalledTimes(1);
     expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
     expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
@@ -1544,7 +1558,7 @@ describe('Warpkeep shared realm admission', () => {
     const backend = createBackendRuntime(['not_admitted', 'not_admitted', 'ready']);
     const { container } = renderExperience({ runtime: backend.runtime });
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await acceptAlphaParticipationTerms();
     await settle();
     await act(async () => vi.advanceTimersByTime(1));
@@ -1555,7 +1569,7 @@ describe('Warpkeep shared realm admission', () => {
 
     fireEvent.keyDown(document, { key: 'Escape' });
     await settle();
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await acceptAlphaParticipationTerms();
     await settle();
     expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
@@ -1577,7 +1591,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
     expect(window.location.hash).toBe('#menu');
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
     expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
@@ -1594,7 +1608,7 @@ describe('Warpkeep shared realm admission', () => {
       .mockImplementationOnce(() => pendingAdmission);
     const { container } = renderExperience({ runtime: backend.runtime });
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await acceptAlphaParticipationTerms();
     await act(async () => vi.advanceTimersByTime(1));
     await settle();
@@ -1604,7 +1618,7 @@ describe('Warpkeep shared realm admission', () => {
 
     fireEvent.keyDown(document, { key: 'Escape' });
     await settle();
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await acceptAlphaParticipationTerms();
     await settle();
     expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
@@ -1624,7 +1638,7 @@ describe('Warpkeep shared realm admission', () => {
     const { authority } = renderExperience({ runtime: backend.runtime });
     expect(backend.runtime.connect).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await acceptAlphaParticipationTerms();
     await settle();
     await act(async () => vi.advanceTimersByTime(1));
@@ -1689,7 +1703,7 @@ describe('Warpkeep shared realm admission', () => {
       runtime: backend.runtime,
       exposeBackendDisconnect: true
     });
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await acceptAlphaParticipationTerms();
     await settle();
     await act(async () => vi.advanceTimersByTime(1));
@@ -1760,12 +1774,12 @@ describe('Warpkeep shared realm admission', () => {
     });
 
     const { bridge, container } = renderExperience({ runtime: backend.runtime });
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await acceptAlphaParticipationTerms();
     await settle();
     await act(async () => vi.advanceTimersByTime(1));
     await settle();
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
     returnToMainMenuThroughPlayerProfile();
     await settle();
@@ -1798,7 +1812,7 @@ describe('Warpkeep shared realm admission', () => {
       config: { ...TEST_CONFIG, sharedAlphaEnabled: false }
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await settle();
 
     expect(screen.getByRole('status').textContent).toContain(
@@ -1824,7 +1838,7 @@ describe('Warpkeep shared realm admission', () => {
     });
     const { authority } = renderExperience({ runtime: backend.runtime });
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await acceptAlphaParticipationTerms();
     await settle();
     await act(async () => vi.advanceTimersByTime(1));
@@ -1850,7 +1864,7 @@ describe('Warpkeep shared realm admission', () => {
     });
     const { authority } = renderExperience({ runtime: backend.runtime });
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await acceptAlphaParticipationTerms();
     await settle();
     await act(async () => vi.advanceTimersByTime(1));
@@ -1880,7 +1894,7 @@ describe('Warpkeep shared realm admission', () => {
     });
     renderExperience({ runtime: backend.runtime });
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await acceptAlphaParticipationTerms();
     await settle();
     await act(async () => vi.advanceTimersByTime(1));

@@ -1,8 +1,64 @@
-# Warpkeep SpacetimeDB module
+# Warpkeep SpacetimeDB authority
 
-This module is the server authority for Warpkeep's invite-only Alpha. The
-browser renders the realm; it cannot grant admission, choose an owner, supply a
-balance, advance a timer, or decide an expedition outcome.
+SpacetimeDB owns Warpkeep's persistent gameplay. The browser renders the realm;
+it cannot grant admission, choose an owner, supply a balance, advance a timer or
+decide a command outcome. This directory contains distinct realm modules and a
+shared 0.4 rules core; they are not interchangeable deployment targets.
+
+## Choose the module and generation
+
+| Source | Responsibility and current scope |
+| --- | --- |
+| [src](src/index.ts) | Established G001 authority, compatibility tables and earlier prepared features. Preserve existing player state, access and normal timers alongside the new-admission freeze. |
+| [genesis002](genesis002/src/index.ts) | Separate sealed G002 module. Private atlas/import and gameplay-shaped contracts exist, but player gameplay procedures reject with `GENESIS002_GAMEPLAY_CLOSED`; future admissions remain undecided. |
+| [ptr](ptr/src/index.ts) | Separate owner PTR module. Authenticated transaction adapters connect atlas-backed gathering, keep initialization and construction to the 0.4 rules core. |
+| [gameplay04](gameplay04) | Shared pure command, placement, Worker, construction and reconciliation rules. It is not a standalone database or an authentication boundary. |
+
+The playable 0.4 path is the actual owner's PTR session, not G001's dormant Inner
+Keep V1 or G002's closed player API. Its resources become spendable at
+authoritative Worker return; economy buildings improve matching yield, Barracks
+shorten travel and the Cathedral shortens future construction. The older G001
+gathering and construction-discount policies below describe a different generation.
+
+Start with the [architecture](../docs/technical-architecture.md),
+[source map](../docs/agent-notes/0.4.0/repo-map.md) and
+[0.4 handoff](../docs/agent-notes/0.4.0/README.md). Use the
+[gameplay specification](../docs/superpowers/specs/2026-09-05-warpkeep-0.4-gameplay-design.md)
+for intended rules and the [infrastructure audit](../docs/agent-notes/0.4.0/release-and-infrastructure.md)
+for operating gaps and dated evidence. Source implementation does not establish
+current owner play or deployment.
+
+## Source and verification entry points
+
+| Work | Start here |
+| --- | --- |
+| G001 schema, access and Worker authority | [schema](src/index.ts), [access policy](src/genesis001AccessPolicy.ts), [Worker authority](src/castleWorkerAuthority.ts), [module tests](tests) |
+| PTR identity and private atlas | [auth](ptr/src/auth.ts), [owner reducers](ptr/src/ownerReducers.ts), [atlas reads](ptr/src/atlasReadReducers.ts) |
+| 0.4 keep, gathering and construction | [shared core](gameplay04), PTR [keep](ptr/src/gameplayKeep.ts), [Workers](ptr/src/gameplayWorkers.ts), [construction](ptr/src/gameplayConstruction.ts), [schedule](ptr/src/gameplaySchedule.ts) |
+| G002 isolation and closed player surface | [auth](genesis002/src/auth.ts), [policy](genesis002/src/policy.ts), [gameplay boundary](genesis002/src/gameplayKeep.ts) |
+| Transaction-adapter integration tests | Root [keep tests](../tests/gameplay04KeepModules.test.ts), [Worker tests](../tests/gameplay04WorkersModules.test.ts), [construction tests](../tests/gameplay04ConstructionModules.test.ts) |
+
+Each module has its own package and locked dependencies. From the repository root,
+after installing dependencies into the intended independent verification checkout:
+
+```sh
+pnpm --dir spacetimedb run verify
+pnpm --dir spacetimedb/genesis002 run verify
+pnpm --dir spacetimedb/ptr run verify
+npm test -- tests/gameplay04KeepModules.test.ts tests/gameplay04WorkersModules.test.ts tests/gameplay04ConstructionModules.test.ts
+```
+
+Use the pinned SpacetimeDB CLI/package version and package-manager versions.
+G001 `verify` runs types, its separate Node/tsx tests and module build. G002/PTR
+`verify` run their types and module builds; the shared gameplay and adapter suites
+live under repository-root Vitest. One package's successful check is not coverage
+of the other modules. Bindings and recovery schema fixtures must be generated
+through their source-owned tools; follow the source map before changing them.
+
+## G001 reference
+
+The following compatibility, state and legacy feature contracts describe G001.
+They do not activate those features or define the successor 0.4 policy.
 
 ## Compatibility
 
@@ -15,7 +71,7 @@ balance, advance a timer, or decide an expedition outcome.
 | Append-only schema generation | 17 (review-only Greater Realm suffix) |
 | Alpha 0.3.12 suffix | Water refs 37–40; Stone refs 41–45 |
 | Generic worker suffix | refs 47–52; active |
-| Access-request suffix | ref 53; active |
+| Access-request suffix | ref 53 retained; new submissions suspended by current release policy |
 | Daily Marks suffix | private refs 54–55; activation is separate |
 | Inner Keep suffix | refs 56–63; inactive until separate seed, backfill, client, asset, and activation gates |
 | Realm Chat suffix | refs 64–71; review-only and not publishable or activatable by this build |
@@ -116,7 +172,8 @@ Each founded castle has a private Food, Wood, Stone, and Gold account. Passive
 terrain production settles in completed ten-minute server quanta. Gold passive
 terrain production is disabled; Gold comes from its expedition authority.
 
-Gold, Food, Wood, and Stone each have an independent expedition:
+The retained legacy resource-specific model gives Gold, Food, Wood and Stone
+independent expeditions:
 
 - the client submits only a canonical site ID;
 - the provider owns a random idempotency key and reuses it only for the same
@@ -136,6 +193,11 @@ use the same canonical site catalogs, route authority, 60-second quantum, and
 server-time availability without a write; scheduled expiry and explicit
 dispatch/recall commands materialize complete quanta. There is no per-minute
 write loop and no `collect` command for generic workers.
+
+Fresh legacy dispatch is rejected once the generic Worker rollout enters drain
+or active state. Retained tables and earlier expedition contracts are compatibility
+context; trace [reservation authority](src/resourceExpeditionReservationAuthority.ts)
+and the actual rollout state before selecting the live command path.
 
 The active suffix was introduced through separate, attested staging,
 deterministic four-worker backfill, legacy drain, and activation steps.
@@ -187,9 +249,9 @@ capacity, and completion. It settles current Worker accrual, then commits
 deduction, project, Builder, schedule, and transform-bound receipt atomically.
 The four gathering Workers remain independent from the one internal Builder.
 
-The source tree does not make this component playable. A merge to protected
-`main` triggers the existing verified Pages deployment of the compatible,
-dormant client. Module publication, catalog seed, Builder backfill,
+The source tree does not make this component playable. The Pages workflow first
+classifies verified `main` source; its preparation lane can skip deployment.
+A merge alone does not activate the dormant client. Module publication, catalog seed, Builder backfill,
 exact static-and-population runtime-registry verification, and activation
 remain distinct owner-reviewed operations.
 
@@ -297,10 +359,25 @@ data preservation, scheduled lifecycle behavior, and `--delete-data=never`.
 
 ## Production operations
 
-Source code, a green build, a merge, or the presence of an operator does not
-authorize a production read or mutation. During the Greater Realm cutover,
-legacy production npm aliases are deliberate refusal stubs and direct
-TypeScript invocation is prohibited.
+Use the [0.4 infrastructure audit](../docs/agent-notes/0.4.0/release-and-infrastructure.md)
+and [infra access guide](../docs/operations/0.4.0-infra-access.md) to identify the
+actual immutable realm and current operating path. G002 and PTR are recorded as
+already existing; their checked-in fresh-create publishers reject an existing
+target. A schema-compatible, data-preserving update and ambiguous-outcome
+reconciliation must be connected to the real caller before those tools can
+update the existing realms. Do not infer absence, emptiness or deployed gameplay
+from a package version or source tree.
+
+Source publication, local module checks and successful deployment are different
+outcomes. Preserve legitimate writes during updates and recovery; current
+G001/G002/PTR integration status belongs in the linked audit and release evidence.
+
+### Historical G001 v17 operating contract
+
+The following describes the guarded Greater Realm cutover lane and retained
+legacy aliases. It is a reference for that generation, not the complete 0.4
+operating interface. During that cutover, legacy production npm aliases are
+deliberate refusal stubs and direct TypeScript invocation is prohibited.
 
 The only supported production boundary is an exact command row in the reviewed
 [Greater Realm production launch envelope](../docs/operations/greater-realm-production-launch-envelope.sh.txt),

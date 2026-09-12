@@ -1,0 +1,4 @@
+{
+  "canonical": "{\"schemaVersion\":1,\"profile\":\"warpkeep-0.4.0-recovery-source-closure-v1\",\"sourceCommit\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sourceTree\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"entries\":[{\"path\":\"README.md\",\"mode\":\"100644\",\"oid\":\"cccccccccccccccccccccccccccccccccccccccc\",\"byteLength\":9,\"sha256\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},{\"path\":\"bin/run\",\"mode\":\"100755\",\"oid\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"byteLength\":0,\"sha256\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\"}]}\n",
+  "sha256": "1e515695af0ccbb4b465dc3377379da5cb4e96266dc95d0ac32d683d7605b742"
+}

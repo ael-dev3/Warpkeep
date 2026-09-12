@@ -67,6 +67,7 @@ function ForwardNavigationHud() {
         return current.slice(0, -1);
       });
     },
+    backTo: vi.fn(),
     closeToRealm: () => {
       setStack((current) => {
         forwardRouteRef.current = current.at(-1);
@@ -593,6 +594,7 @@ describe('RealmHud', () => {
       push: vi.fn(),
       replace: vi.fn(),
       back: vi.fn(),
+      backTo: vi.fn(),
       closeToRealm: vi.fn()
     };
 
@@ -637,6 +639,7 @@ describe('RealmHud', () => {
       push: vi.fn(),
       replace: vi.fn(),
       back: vi.fn(),
+      backTo: vi.fn(),
       closeToRealm: vi.fn(),
     };
     render(
@@ -780,6 +783,7 @@ describe('RealmHud', () => {
       push: vi.fn(),
       replace: vi.fn(),
       back: vi.fn(),
+      backTo: vi.fn(),
       closeToRealm: vi.fn(),
     };
     render(
@@ -1306,6 +1310,7 @@ describe('RealmHud', () => {
           current.length === 0 ? [route] : [...current.slice(0, -1), route]
         )),
         back: () => setStack((current) => current.slice(0, -1)),
+        backTo: vi.fn(),
         closeToRealm: () => setStack([])
       };
       return (
@@ -1362,6 +1367,7 @@ describe('RealmHud', () => {
       push: vi.fn(),
       replace: vi.fn(),
       back: vi.fn(),
+      backTo: vi.fn(),
       closeToRealm: vi.fn()
     };
     render(

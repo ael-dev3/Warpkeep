@@ -4,6 +4,10 @@ import {
   type GreaterRealmProviderBridge
 } from '../../spacetime/greaterRealmProviderBridge';
 import { GREATER_REALM_SERVER_PRESENTATION_ALLOWED } from '../../greater-realm/greaterRealmTransport';
+import {
+  isCurrentPtrRealmAuthority,
+  type PtrRealmAuthority
+} from '../../ptr/ptrRealmAuthClient';
 
 export type RealmWorldSceneStrategy =
   | Readonly<{
@@ -73,5 +77,24 @@ export function resolveRealmWorldSceneStrategy(
   return resolveRealmWorldSceneStrategyForPolicy(input, {
     clientPresentationAllowed: GREATER_REALM_CLIENT_PRESENTATION_ALLOWED,
     serverPresentationAllowed: GREATER_REALM_SERVER_PRESENTATION_ALLOWED
+  });
+}
+
+/**
+ * Independent PTR selector. A structural object cannot open this branch: the
+ * authority must still carry the private, unexpired brand installed by the
+ * exact owner exchange. Genesis literals remain closed and unchanged.
+ */
+export function resolvePtrRealmWorldSceneStrategy(
+  input: Readonly<{
+    bridge: GreaterRealmProviderBridge | undefined;
+    legacyAuthorityActive: boolean;
+  }>,
+  authority: PtrRealmAuthority
+): RealmWorldSceneStrategy {
+  const ownerAuthorityCurrent = isCurrentPtrRealmAuthority(authority);
+  return resolveRealmWorldSceneStrategyForPolicy(input, {
+    clientPresentationAllowed: ownerAuthorityCurrent,
+    serverPresentationAllowed: ownerAuthorityCurrent
   });
 }

@@ -80,7 +80,7 @@ const verifyingState: FarcasterAuthViewState = {
 const authenticatedState: FarcasterAuthViewState = {
   phase: 'authenticated',
   identity,
-  assurance: 'live-client-verified',
+  assurance: 'bridge-oidc-alpha',
   expiresAt: FUTURE_SESSION_EXPIRY
 };
 
@@ -181,8 +181,19 @@ async function preloadFarcasterPresentation() {
   await settleDeferredPresentation();
 }
 
+function requestGenesis001Entry(detail = 1) {
+  const enterButton = screen.queryByRole('button', { name: 'ENTER REALM' });
+  if (enterButton) {
+    fireEvent.click(enterButton, { detail });
+  }
+  const continueButton = screen.queryByRole('button', { name: 'ENTER SELECTED REALM' });
+  if (continueButton) {
+    fireEvent.click(continueButton, { detail });
+  }
+}
+
 function openAlphaTerms() {
-  fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }), { detail: 0 });
+  requestGenesis001Entry(0);
   return screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
 }
 
@@ -272,7 +283,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     const restoreSession = vi.fn(() => new Promise<boolean>(() => undefined));
     render(menu(callbacks, anonymousState, 'unknown', false, { restoreSession }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
 
     expect(restoreSession).toHaveBeenCalledTimes(1);
     const checkingAccess = screen.getByRole('button', { name: 'CHECKING ACCESS…' });
@@ -285,7 +296,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     );
     expect(screen.queryByRole('region', { name: 'Farcaster sign-in' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'CLAIM YOUR KEEP' })).toBeNull();
-    expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'CHOOSE YOUR REALM' })).not.toBeNull();
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(callbacks.begin).not.toHaveBeenCalled();
     expect(callbacks.cancel).not.toHaveBeenCalled();
@@ -301,7 +312,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     const restoreSession = vi.fn(() => new Promise<boolean>(() => undefined));
     render(menu(callbacks, anonymousState, 'unknown', false, { restoreSession }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     expect(screen.queryByRole('heading', { name: 'RESTORING FARCASTER SESSION' })).toBeNull();
 
     act(() => {
@@ -320,7 +331,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     const restoreSession = vi.fn(async () => false);
     render(menu(callbacks, anonymousState, 'unknown', false, { restoreSession }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
 
     const dialog = await screen.findByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
     const checkbox = within(dialog).getByRole('checkbox', {
@@ -353,7 +364,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       </StrictMode>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
 
     const dialog = await screen.findByRole('dialog', {
       name: 'ALPHA PARTICIPATION TERMS'
@@ -379,7 +390,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       { restoreSession }
     ));
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await act(async () => {
       resolveRestore(true);
       await Promise.resolve();
@@ -417,7 +428,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       { restoreSession }
     ));
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await act(async () => {
       resolveRestore(true);
       await Promise.resolve();
@@ -462,7 +473,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       { restoreSession }
     ));
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await act(async () => {
       resolveRestore(true);
       await Promise.resolve();
@@ -493,7 +504,8 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     }));
     render(menu(callbacks, anonymousState, 'unknown', false, { restoreSession }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
+    fireEvent.click(screen.getByRole('button', { name: 'BACK' }));
     fireEvent.click(screen.getByRole('button', { name: 'Return to Title' }));
 
     expect(callbacks.cancel).toHaveBeenCalledTimes(1);
@@ -518,7 +530,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       { restoreSession }
     ));
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     rendered.unmount();
     await act(async () => {
       await Promise.resolve();
@@ -536,10 +548,11 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     }));
     render(menu(callbacks, anonymousState, 'unknown', false, { restoreSession }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     expect(screen.getByRole('status').textContent).toBe(
       'Checking access. Restoring your saved Farcaster session.'
     );
+    fireEvent.click(screen.getByRole('button', { name: 'BACK' }));
     fireEvent.click(screen.getByRole('button', { name: 'Return to Title' }));
 
     await act(async () => {
@@ -618,14 +631,14 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     dismiss();
     flushAnimationFrames();
 
-    const enterRealm = screen.getByRole('button', { name: 'ENTER REALM' });
+    const realmHeading = screen.getByRole('heading', { name: 'CHOOSE YOUR REALM' });
     expect(callbacks.begin).not.toHaveBeenCalled();
     expect(callbacks.cancel).not.toHaveBeenCalled();
     expect(callbacks.returnToTitle).not.toHaveBeenCalled();
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
-    expect(document.activeElement).toBe(enterRealm);
+    expect(document.activeElement).toBe(realmHeading);
 
-    fireEvent.click(enterRealm, { detail: 0 });
+    requestGenesis001Entry(0);
     expect((screen.getByRole('checkbox', {
       name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
     }) as HTMLInputElement).checked).toBe(false);
@@ -642,7 +655,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
 
     const enterRealm = screen.getByRole('button', { name: 'ENTER REALM' });
-    fireEvent.click(enterRealm, { detail: 0 });
+    requestGenesis001Entry(0);
     expect(callbacks.begin).not.toHaveBeenCalled();
     acceptAlphaTerms();
     await settleDeferredPresentation();
@@ -860,7 +873,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       '.farcaster-identity-badge__portrait canvas'
     )?.dataset.profileImageState).toBe('ready'));
     expect(screen.getByRole('button', { name: 'Return to Title' })).not.toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
     await settleDeferredPresentation();
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(callbacks.begin).not.toHaveBeenCalled();
@@ -904,7 +917,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     ));
 
     await settleDeferredPresentation();
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
 
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(callbacks.enterRealm).toHaveBeenCalledTimes(1);
@@ -944,7 +957,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       name: 'Open Farcaster identity, @keeper'
     }));
     await settleDeferredPresentation();
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
 
     const terms = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
     expect((within(terms).getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
@@ -970,7 +983,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       name: 'Open Farcaster identity, @keeper'
     }));
     await settleDeferredPresentation();
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    requestGenesis001Entry();
 
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(callbacks.enterRealm).toHaveBeenCalledTimes(1);
@@ -1094,7 +1107,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       backendUnavailableMessage: maintenanceMessage
     }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }), { detail: 0 });
+    requestGenesis001Entry(0);
 
     expect(screen.getByText(maintenanceMessage)).not.toBeNull();
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();

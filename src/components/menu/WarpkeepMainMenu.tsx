@@ -37,7 +37,12 @@ import {
   GENESIS_002_ID,
   GENESIS_002_SEALED_NOTICE,
   NEW_ADMISSIONS_SUSPENDED,
+  PTR_ID,
+  PTR_DIRECTORY_ONLY_NOTICE,
+  PTR_NOT_ADMITTED_NOTICE,
+  PTR_UNKNOWN_NOTICE,
   getRealmChoices,
+  type PtrRealmAuthority,
   type RealmId
 } from './realmChoicePolicy';
 import {
@@ -93,6 +98,16 @@ export type WarpkeepMainMenuProps = {
   rememberDevice?: boolean;
   onRememberDeviceChange?: (remember: boolean) => void;
   onRequestAuthenticatedRealm?: (identity: VerifiedFarcasterIdentity) => void;
+  /** Server-provider authority for PTR. Omission and unknown both fail closed. */
+  ptrRealmAuthority?: PtrRealmAuthority;
+  /** True while the PTR provider is checking or preparing a connection. */
+  ptrRealmBusy?: boolean;
+  /** Provider refresh triggered only by explicit PTR Enter when authority is stale. */
+  onCheckRealmAccess?: () => void;
+  /** Revokes any checked or pending PTR authority when its intent is dismissed. */
+  onCancelPtrRealm?: () => void;
+  /** Distinct PTR entry boundary. It is never used for Genesis 001. */
+  onRequestPtrRealm?: () => void;
   /** Fired only after the player checks and submits the Alpha Terms dialog. */
   onAcceptAlphaTermsAttempt?: () => void;
   /**
@@ -128,7 +143,7 @@ type ActiveNotice = {
   refreshKey: number;
 };
 
-type MenuSurface = 'commands' | 'farcaster-auth' | 'settings' | 'credits';
+type MenuSurface = 'commands' | 'realm-choice' | 'farcaster-auth' | 'settings' | 'credits';
 
 type TermsContinuation =
   | 'begin-sign-in'
@@ -146,6 +161,11 @@ type TermsRequest = {
 type SessionRestoreRequest = {
   sequence: number;
   keyboardDriven: boolean;
+};
+
+type PtrRealmStatusAttempt = {
+  generation: number;
+  observedBusy: boolean;
 };
 
 function termsContinueLabel(
@@ -299,6 +319,11 @@ export function WarpkeepMainMenu({
   rememberDevice = false,
   onRememberDeviceChange,
   onRequestAuthenticatedRealm,
+  ptrRealmAuthority,
+  ptrRealmBusy = false,
+  onCheckRealmAccess,
+  onCancelPtrRealm,
+  onRequestPtrRealm,
   onAcceptAlphaTermsAttempt,
   entryAgreementSatisfied = false,
   entryAgreementRequired = false,
@@ -321,6 +346,7 @@ export function WarpkeepMainMenu({
   const commandRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const authHeadingRef = useRef<HTMLHeadingElement>(null);
   const authPrimaryActionRef = useRef<HTMLButtonElement>(null);
+  const realmChoiceHeadingRef = useRef<HTMLHeadingElement>(null);
   const surfaceTriggerRef = useRef<HTMLButtonElement | null>(null);
   const termsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const patchNotesAnchorRef = useRef<HTMLButtonElement | null>(null);
@@ -329,6 +355,8 @@ export function WarpkeepMainMenu({
   const patchNotesCloseTimerRef = useRef<number | null>(null);
   const noticeSequenceRef = useRef(0);
   const sessionRestoreSequenceRef = useRef(0);
+  const ptrRealmStatusGenerationRef = useRef(0);
+  const ptrRealmStatusAttemptRef = useRef<PtrRealmStatusAttempt | null>(null);
   const didFocusOnRevealRef = useRef(false);
   const playbackBlockedRef = useRef(false);
   const didReportVideoReadyRef = useRef(false);
@@ -346,12 +374,17 @@ export function WarpkeepMainMenu({
   const [sessionRestoreRequest, setSessionRestoreRequest] =
     useState<SessionRestoreRequest | null>(null);
   const [selectedRealmId, setSelectedRealmId] = useState<RealmId>(GENESIS_001_ID);
+  const [realmStatusMessage, setRealmStatusMessage] = useState<string>();
   const reducedMotion = useReducedMotionPreference();
   const interactive = interactiveOverride ?? (active && visible);
   const shouldFocusFirstCommand = focusFirstCommand ?? inputModality === 'keyboard';
   const authPanelOpen = surface === 'farcaster-auth';
+  const realmChoiceOpen = surface === 'realm-choice';
+  const commandSurfaceVisible = !authPanelOpen && !realmChoiceOpen;
   const termsOpen = termsRequest !== null;
   const sessionRestorePending = sessionRestoreRequest !== null;
+  const realmChoiceBusy = sessionRestorePending
+    || (ptrRealmBusy && selectedRealmId === PTR_ID);
   const patchNotesOpen = patchNotesState !== 'closed';
   const modalSurfaceOpen = termsOpen || surface === 'settings' || surface === 'credits';
   const authenticatedIdentity = authState.phase === 'authenticated'
@@ -369,13 +402,57 @@ export function WarpkeepMainMenu({
     : undefined;
   const hasCurrentAuthenticatedAccess = useCallback(() => (
     authState.phase === 'authenticated'
-    && authState.expiresAt !== undefined
+    && authState.assurance === 'bridge-oidc-alpha'
+    && typeof authState.expiresAt === 'number'
+    && Number.isFinite(authState.expiresAt)
     && authState.expiresAt > Date.now()
   ), [authState]);
   const realmChoices = useMemo(
-    () => getRealmChoices(hasCurrentAuthenticatedAccess()),
-    [hasCurrentAuthenticatedAccess]
+    () => getRealmChoices(hasCurrentAuthenticatedAccess(), ptrRealmAuthority),
+    [hasCurrentAuthenticatedAccess, ptrRealmAuthority]
   );
+  const invalidatePtrRealmStatusAttempt = useCallback(() => {
+    ptrRealmStatusGenerationRef.current += 1;
+    ptrRealmStatusAttemptRef.current = null;
+  }, []);
+  useEffect(() => {
+    const attempt = ptrRealmStatusAttemptRef.current;
+    if (
+      !attempt
+      || attempt.generation !== ptrRealmStatusGenerationRef.current
+      || selectedRealmId !== PTR_ID
+      || !realmChoiceOpen
+      || realmStatusMessage !== PTR_UNKNOWN_NOTICE
+    ) {
+      return;
+    }
+    if (ptrRealmBusy) {
+      attempt.observedBusy = true;
+      return;
+    }
+    if (!attempt.observedBusy) {
+      ptrRealmStatusAttemptRef.current = null;
+      return;
+    }
+
+    ptrRealmStatusAttemptRef.current = null;
+    if (ptrRealmAuthority?.source !== 'server-verified') return;
+    setRealmStatusMessage(
+      ptrRealmAuthority.admission === 'admitted'
+        ? undefined
+        : PTR_NOT_ADMITTED_NOTICE
+    );
+  }, [
+    ptrRealmAuthority,
+    ptrRealmBusy,
+    realmChoiceOpen,
+    realmStatusMessage,
+    selectedRealmId
+  ]);
+  useEffect(() => () => {
+    ptrRealmStatusGenerationRef.current += 1;
+    ptrRealmStatusAttemptRef.current = null;
+  }, []);
   const canReuseEntryAgreement = useCallback(() => (
     entryAgreementSatisfied && hasCurrentAuthenticatedAccess()
   ), [entryAgreementSatisfied, hasCurrentAuthenticatedAccess]);
@@ -628,9 +705,35 @@ export function WarpkeepMainMenu({
 
   const selectRealm = useCallback((realmId: RealmId) => {
     setActiveNotice(null);
+    setRealmStatusMessage(undefined);
     closePatchNotes();
+    if (realmId !== PTR_ID) {
+      invalidatePtrRealmStatusAttempt();
+      onCancelPtrRealm?.();
+    }
     setSelectedRealmId(realmId);
-  }, [closePatchNotes]);
+  }, [closePatchNotes, invalidatePtrRealmStatusAttempt, onCancelPtrRealm]);
+
+  const openRealmChoice = useCallback((anchorElement: HTMLButtonElement) => {
+    invalidatePtrRealmStatusAttempt();
+    surfaceTriggerRef.current = anchorElement;
+    setActiveNotice(null);
+    setRealmStatusMessage(undefined);
+    closePatchNotes();
+    setSurface('realm-choice');
+  }, [closePatchNotes, invalidatePtrRealmStatusAttempt]);
+
+  const closeRealmChoice = useCallback(() => {
+    invalidatePtrRealmStatusAttempt();
+    invalidateSessionRestore();
+    onCancelPtrRealm?.();
+    surfaceTriggerRef.current = null;
+    setRealmStatusMessage(undefined);
+    setSurface('commands');
+    window.setTimeout(() => {
+      commandRefs.current[0]?.focus({ preventScroll: true });
+    }, 0);
+  }, [invalidatePtrRealmStatusAttempt, invalidateSessionRestore, onCancelPtrRealm]);
 
   const closeCredits = useCallback(() => {
     setSurface('commands');
@@ -687,6 +790,16 @@ export function WarpkeepMainMenu({
     });
     return () => window.cancelAnimationFrame(frame);
   }, [authPanelOpen, interactive]);
+
+  useEffect(() => {
+    if (!interactive || !realmChoiceOpen) {
+      return undefined;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      realmChoiceHeadingRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [interactive, realmChoiceOpen]);
 
   const handleAuthPanelPresentationReady = useCallback(() => {
     if (!interactive || !authPanelOpen) {
@@ -756,6 +869,8 @@ export function WarpkeepMainMenu({
         setActiveNotice(null);
       } else if (authPanelOpen) {
         closeAuthPanel(true);
+      } else if (realmChoiceOpen) {
+        closeRealmChoice();
       } else {
         handleRequestReturn();
       }
@@ -768,9 +883,11 @@ export function WarpkeepMainMenu({
     authPanelOpen,
     closeAuthPanel,
     closePatchNotes,
+    closeRealmChoice,
     handleRequestReturn,
     interactive,
     patchNotesOpen,
+    realmChoiceOpen,
     surface,
     termsOpen
   ]);
@@ -809,13 +926,15 @@ export function WarpkeepMainMenu({
   const denySelectedRealmEntry = useCallback((
     anchorElement?: HTMLButtonElement | null
   ) => {
-    if (selectedRealmId !== GENESIS_002_ID) return false;
+    if (selectedRealmId === GENESIS_001_ID) return false;
     const enterRealmCommand = menuCommands.find(({ id }) => id === 'enter-realm');
     if (anchorElement && enterRealmCommand) {
       openNotice(
         enterRealmCommand,
         anchorElement,
-        GENESIS_002_SEALED_NOTICE
+        selectedRealmId === GENESIS_002_ID
+          ? GENESIS_002_SEALED_NOTICE
+          : PTR_DIRECTORY_ONLY_NOTICE
       );
     }
     return true;
@@ -826,9 +945,18 @@ export function WarpkeepMainMenu({
     anchorElement?: HTMLButtonElement | null
   ) => {
     if (denySelectedRealmEntry(anchorElement)) return false;
+    if (
+      !hasCurrentAuthenticatedAccess()
+      || authenticatedIdentity?.fid !== identity.fid
+    ) return false;
     onRequestAuthenticatedRealm?.(identity);
     return true;
-  }, [denySelectedRealmEntry, onRequestAuthenticatedRealm]);
+  }, [
+    authenticatedIdentity,
+    denySelectedRealmEntry,
+    hasCurrentAuthenticatedAccess,
+    onRequestAuthenticatedRealm
+  ]);
 
   const openAuthPanel = useCallback((keyboardDriven: boolean) => {
     authWasKeyboardDrivenRef.current = keyboardDriven;
@@ -953,32 +1081,52 @@ export function WarpkeepMainMenu({
     sessionRestoreRequest
   ]);
 
-  const handleCommandClick = useCallback((
-    command: MenuCommand,
+  const handleSelectedRealmContinue = useCallback((
     anchorElement: HTMLButtonElement,
     keyboardDriven: boolean
   ) => {
-    if (command.id === 'settings') {
-      openSettings(anchorElement);
+    if (selectedRealmId === GENESIS_002_ID) {
+      setRealmStatusMessage(GENESIS_002_SEALED_NOTICE);
       return;
     }
 
-    if (command.id === 'credits') {
-      openCredits(anchorElement);
+    if (selectedRealmId === PTR_ID) {
+      if (
+        ptrRealmAuthority?.source === 'server-verified'
+        && ptrRealmAuthority.admission === 'admitted'
+      ) {
+        invalidatePtrRealmStatusAttempt();
+        setRealmStatusMessage(undefined);
+        onRequestPtrRealm?.();
+        return;
+      }
+      if (
+        ptrRealmAuthority?.source === 'server-verified'
+        && ptrRealmAuthority.admission === 'not-admitted'
+      ) {
+        invalidatePtrRealmStatusAttempt();
+        setRealmStatusMessage(PTR_NOT_ADMITTED_NOTICE);
+        return;
+      }
+      if (ptrRealmBusy || ptrRealmStatusAttemptRef.current) return;
+      setRealmStatusMessage(PTR_UNKNOWN_NOTICE);
+      if (onCheckRealmAccess) {
+        const generation = ptrRealmStatusGenerationRef.current + 1;
+        ptrRealmStatusGenerationRef.current = generation;
+        ptrRealmStatusAttemptRef.current = { generation, observedBusy: false };
+        onCheckRealmAccess();
+      }
       return;
     }
 
-    if (command.id === 'enter-realm' && selectedRealmId === GENESIS_002_ID) {
-      openNotice(command, anchorElement, GENESIS_002_SEALED_NOTICE);
+    onCancelPtrRealm?.();
+
+    if (backendUnavailableMessage) {
+      setRealmStatusMessage(backendUnavailableMessage);
       return;
     }
 
-    if (command.id === 'enter-realm' && backendUnavailableMessage) {
-      openNotice(command, anchorElement, backendUnavailableMessage);
-      return;
-    }
-
-    if (command.id === 'enter-realm' && farcasterAuthEnabled) {
+    if (farcasterAuthEnabled) {
       if (authenticatedIdentity) {
         if (canReuseEntryAgreement()) {
           setActiveNotice(null);
@@ -996,28 +1144,56 @@ export function WarpkeepMainMenu({
       return;
     }
 
-    if (command.id === 'enter-realm' && onRequestEnterRealm) {
+    if (onRequestEnterRealm) {
       openTerms('legacy-enter', anchorElement, keyboardDriven);
       return;
     }
-    openNotice(command, anchorElement);
+    const enterRealmCommand = menuCommands.find(({ id }) => id === 'enter-realm');
+    if (enterRealmCommand) {
+      openNotice(enterRealmCommand, anchorElement);
+    }
   }, [
     authenticatedIdentity,
-    beginSessionRestore,
-    pendingIdentity,
     backendUnavailableMessage,
-    closePatchNotes,
+    beginSessionRestore,
     canReuseEntryAgreement,
+    closePatchNotes,
     farcasterAuthEnabled,
+    invalidatePtrRealmStatusAttempt,
     onRequestEnterRealm,
-    openCredits,
+    onCancelPtrRealm,
+    onCheckRealmAccess,
+    onRequestPtrRealm,
     openAuthPanel,
-    openSettings,
     openNotice,
     openTerms,
+    pendingIdentity,
+    ptrRealmAuthority,
+    ptrRealmBusy,
     requestSelectedRealmEntry,
     selectedRealmId
   ]);
+
+  const handleCommandClick = useCallback((
+    command: MenuCommand,
+    anchorElement: HTMLButtonElement
+  ) => {
+    if (command.id === 'settings') {
+      openSettings(anchorElement);
+      return;
+    }
+
+    if (command.id === 'credits') {
+      openCredits(anchorElement);
+      return;
+    }
+
+    if (command.id === 'enter-realm') {
+      openRealmChoice(anchorElement);
+      return;
+    }
+    openNotice(command, anchorElement);
+  }, [openCredits, openNotice, openRealmChoice, openSettings]);
 
   const handleRetrySignIn = useCallback(() => {
     const keyboardDriven = lastActionModalityRef.current === 'keyboard';
@@ -1302,7 +1478,7 @@ export function WarpkeepMainMenu({
       <div aria-hidden="true" className="warpkeep-menu-color-grade" />
       <div aria-hidden="true" className="warpkeep-menu-vignette" />
 
-      <header aria-hidden={authPanelOpen} className="warpkeep-menu-heading">
+      <header aria-hidden={!commandSurfaceVisible} className="warpkeep-menu-heading">
         <div aria-hidden="true" className="warpkeep-menu-heading__crest">
           <span />
           <i />
@@ -1317,7 +1493,7 @@ export function WarpkeepMainMenu({
         <p className="warpkeep-menu-tagline">
           BUILD YOUR LEGACY. DEFEND THE REALM. DEFY THE CORE.
         </p>
-        {!authPanelOpen && sessionIdentity ? (
+        {commandSurfaceVisible && sessionIdentity ? (
           <div className="warpkeep-menu-identity">
             <Suspense fallback={null}>
               <FarcasterIdentityBadge
@@ -1333,19 +1509,13 @@ export function WarpkeepMainMenu({
         ) : null}
       </header>
 
-      {!authPanelOpen ? (
+      {commandSurfaceVisible ? (
         <>
           <nav
             aria-label="Hegemony main menu"
             className="warpkeep-menu-nav"
             onKeyDown={handleNavigationKeyDown}
           >
-            <RealmChoiceSelector
-              choices={realmChoices}
-              interactive={interactive && !sessionRestorePending}
-              onSelect={selectRealm}
-              selectedRealmId={selectedRealmId}
-            />
             <ol className="warpkeep-menu-command-list">
               {menuCommands.map((command, commandIndex) => (
                 <li className="warpkeep-menu-command-item" key={command.id}>
@@ -1363,11 +1533,7 @@ export function WarpkeepMainMenu({
                     disabled={!interactive || (
                       command.id === 'enter-realm' && sessionRestorePending
                     )}
-                    onClick={(event) => handleCommandClick(
-                      command,
-                      event.currentTarget,
-                      event.detail === 0
-                    )}
+                    onClick={(event) => handleCommandClick(command, event.currentTarget)}
                     ref={(button) => {
                       commandRefs.current[commandIndex] = button;
                     }}
@@ -1449,6 +1615,25 @@ export function WarpkeepMainMenu({
             />
           ) : null}
         </>
+      ) : realmChoiceOpen ? (
+        <div className="warpkeep-menu-realm-rail">
+          <RealmChoiceSelector
+            busy={realmChoiceBusy}
+            choices={realmChoices}
+            headingRef={realmChoiceHeadingRef}
+            interactive={interactive && !sessionRestorePending}
+            onBack={closeRealmChoice}
+            onContinue={() => handleSelectedRealmContinue(
+              document.activeElement instanceof HTMLButtonElement
+                ? document.activeElement
+                : surfaceTriggerRef.current ?? commandRefs.current[0]!,
+              lastActionModalityRef.current === 'keyboard'
+            )}
+            onSelect={selectRealm}
+            selectedRealmId={selectedRealmId}
+            statusMessage={realmStatusMessage}
+          />
+        </div>
       ) : (
         <div className="warpkeep-menu-auth-rail">
           {sessionRestorePending ? (
@@ -1520,7 +1705,7 @@ export function WarpkeepMainMenu({
         </div>
       )}
 
-      {!authPanelOpen ? (
+      {commandSurfaceVisible ? (
         <button
           aria-label="Return to Title"
           className="warpkeep-menu-back"
@@ -1537,11 +1722,13 @@ export function WarpkeepMainMenu({
       <p
         aria-live="polite"
         className="warpkeep-menu-live-region"
-        role={sessionRestorePending && !authPanelOpen ? 'status' : undefined}
+        role={realmChoiceBusy && realmChoiceOpen ? 'status' : undefined}
       >
-        {interactive && sessionRestorePending && !authPanelOpen
+        {interactive && sessionRestorePending && realmChoiceOpen
           ? 'Checking access. Restoring your saved Farcaster session.'
-          : interactive && !authPanelOpen ? 'Main menu' : ''}
+          : interactive && ptrRealmBusy && realmChoiceOpen
+            ? 'Checking access. Preparing your verified PTR session.'
+          : interactive && commandSurfaceVisible ? 'Main menu' : ''}
       </p>
 
       {activeNotice ? (

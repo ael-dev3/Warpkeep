@@ -26,15 +26,25 @@ runtime-owned loopback origins. One exact synthetic profile-image URL is
 intercepted and fulfilled from a repository-owned PNG in memory; Chrome's host
 resolver remains offline, so that URL never reaches the public network.
 
-The command requires the repository-pinned SpacetimeDB CLI and the signed Google
-Chrome application at `/Applications/Google Chrome.app`. It does not read a
-Farcaster account, production token, operator credential, Keychain item,
-`.env` file, or browser profile. The temporary database, keys, token, browser
-profile, and Vite cache are deleted on success, failure, or a handled
-termination signal. Screenshots are reduced in memory to aggregate visual
-measurements and are never saved.
+The command requires the repository-pinned SpacetimeDB CLI and a verified local
+Google Chrome installation. On macOS it uses the signed application at
+`/Applications/Google Chrome.app`; on Windows it uses
+`C:\Program Files\Google\Chrome\Application\chrome.exe` and an owned
+process-tree teardown. It does not read a Farcaster account, production token,
+operator credential, Keychain item, `.env` file, or browser profile. The
+temporary database, keys, token, browser profile, and Vite cache are deleted on
+success, failure, or a handled termination signal. Screenshots are reduced in
+memory to aggregate visual measurements and are never saved.
 
-The broader rendered-fixture lane remains available separately:
+The browser adapter is Windows-ready, but the current reviewed SpacetimeDB
+binary manifest covers only `darwin-arm64` and `linux-x64`. Until a reviewed
+Windows CLI and standalone pair is added to that manifest, Windows runs fail
+closed during CLI attestation before they create a database or browser. Record
+that result as a tooling boundary; do not bypass attestation with an arbitrary
+developer-installed binary.
+
+The broader rendered-fixture lane is portable across the supported desktop
+hosts:
 
 ```sh
 npm run assets:fetch:castle:source-0.3.4
@@ -49,11 +59,33 @@ castle LOD comparison lane. It exits non-zero if a case fails or the browser
 leaves the local boundary.
 
 The fetch step retrieves the hash-pinned historical castle source used only by
-the LOD comparison lane and stores it in the ignored local asset cache. The QA
-command deliberately fails closed when that exact source archive is absent or
+the LOD comparison lane and stores it in the ignored local asset cache. On
+Windows, the attested system `tar.exe` adapter provides the same list/extract
+operations as `/usr/bin/unzip`; the cache writer retains atomic replacement and
+symlink checks while using Windows ACL semantics for directory ownership. The
+QA command deliberately fails closed when that exact source archive is absent or
 does not match its recorded digest.
 
 Neither browser lane needs access to a live Warpkeep service.
+
+For the keep-only visual foundation lane, run:
+
+```sh
+npm run qa:inner-keep
+```
+
+This probe uses the reviewed signed Chrome contract on macOS and the existing
+Windows Chrome identity/process-tree adapter on Windows. It covers the Inner
+Keep construction, completion, fallback, reduced-motion and responsive cases
+without requiring SpacetimeDB. A passing run is synthetic renderer evidence;
+it does not establish physical-phone performance or the authenticated owner
+journey.
+
+The sealed-launch preparation verifier is also cross-platform. Its exact shell
+envelope is syntax-checked with `/bin/sh -n` on macOS and Linux and with the
+reviewed `bash.exe -n` command on Windows. If the host shell is unavailable, the
+verifier fails closed; do not replace it with a mutable script or skip the
+check.
 
 ## Change-aware agent check
 

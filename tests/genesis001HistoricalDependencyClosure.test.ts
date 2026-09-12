@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   chmodSync,
@@ -12,7 +13,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -45,6 +46,8 @@ const LOCKED_PACKAGES = Object.freeze([
   'typescript@5.6.3',
   'url-polyfill@1.1.14',
 ]);
+const repositoryRoot = realpathSync(resolve(import.meta.dirname, '..'));
+const freezeCommit = 'd945256b217fa13ade944b9ed9880e8463b46123';
 const temporaryDirectories: string[] = [];
 
 afterEach(() => {
@@ -176,6 +179,106 @@ function historicalFixture(extraImporter?: string): Readonly<{
 }
 
 describe('Genesis 001 historical locked dependency closure', () => {
+  it('keeps PTR lock validation outside the frozen parent workspace closure', () => {
+    for (const path of [
+      'spacetimedb/pnpm-lock.yaml',
+      'spacetimedb/pnpm-workspace.yaml',
+    ]) {
+      const frozen = execFileSync('/usr/bin/git', ['show', `${freezeCommit}:${path}`], {
+        cwd: repositoryRoot,
+        encoding: null,
+        env: {
+          GIT_CONFIG_GLOBAL: '/dev/null',
+          GIT_CONFIG_NOSYSTEM: '1',
+          GIT_CONFIG_SYSTEM: '/dev/null',
+          GIT_NO_REPLACE_OBJECTS: '1',
+          PATH: '/usr/bin:/bin',
+        },
+      });
+      expect(readFileSync(resolve(repositoryRoot, path)), path).toEqual(frozen);
+    }
+
+    const ptrLock = parse(readFileSync(
+      resolve(repositoryRoot, 'spacetimedb/ptr/pnpm-lock.yaml'),
+      'utf8',
+    )) as { importers: Record<string, unknown> };
+    expect(Object.keys(ptrLock.importers)).toEqual(['.']);
+    expect(existsSync(resolve(
+      repositoryRoot,
+      'spacetimedb/ptr/pnpm-workspace.yaml',
+    ))).toBe(false);
+
+    const workflow = parse(readFileSync(
+      resolve(repositoryRoot, '.github/workflows/verify.yml'),
+      'utf8',
+    )) as {
+      jobs: Record<string, { steps: Array<{ run?: string }> }>;
+    };
+    const lockOnly = [
+      'pnpm --dir spacetimedb/ptr install \\',
+      '  --frozen-lockfile --lockfile-only --ignore-workspace',
+    ].join('\n');
+    const noLocalInstall = 'test ! -e spacetimedb/ptr/node_modules';
+    const parentInstall = 'pnpm --dir spacetimedb install --frozen-lockfile';
+    for (const job of ['linux', 'spacetimedb-module']) {
+      const commands = workflow.jobs[job]!.steps
+        .map(step => step.run)
+        .filter((run): run is string => typeof run === 'string');
+      const provenance = commands.find(command => command.includes(lockOnly));
+      expect(provenance, job).toBeTypeOf('string');
+      const provenanceLines = provenance!.split('\n');
+      const lockIndex = provenanceLines.indexOf(
+        'pnpm --dir spacetimedb/ptr install \\',
+      );
+      expect(provenanceLines.slice(lockIndex - 1, lockIndex + 5), job).toEqual([
+        noLocalInstall,
+        'pnpm --dir spacetimedb/ptr install \\',
+        '  --frozen-lockfile --lockfile-only --ignore-workspace',
+        noLocalInstall,
+        parentInstall,
+        noLocalInstall,
+      ]);
+      expect(
+        commands.flatMap(command => command.split('\n')).filter(line => (
+          line.trimStart().startsWith('pnpm --dir spacetimedb/ptr install')
+        )),
+        job,
+      ).toEqual(['pnpm --dir spacetimedb/ptr install \\']);
+    }
+
+    const moduleCommands = workflow.jobs['spacetimedb-module']!.steps
+      .map(step => step.run)
+      .filter((run): run is string => typeof run === 'string');
+    const moduleVerification = moduleCommands.find(command => command.includes(
+      'pnpm --dir spacetimedb/ptr run verify',
+    ));
+    expect(moduleVerification).toBeTypeOf('string');
+    expect(moduleVerification!.indexOf('pnpm --dir spacetimedb/ptr run verify'))
+      .toBeLessThan(moduleVerification!.lastIndexOf(noLocalInstall));
+
+    const plan = readFileSync(resolve(
+      repositoryRoot,
+      'docs/superpowers/plans/2026-08-30-warpkeep-0.4.0-preparation.md',
+    ), 'utf8');
+    for (const section of [
+      plan.slice(plan.indexOf('### Task 2:'), plan.indexOf('### Task 3:')),
+      plan.slice(plan.indexOf('### Task 4:'), plan.indexOf('### Task 5:')),
+    ]) {
+      const lines = section.split('\n');
+      const lockIndex = lines.indexOf('pnpm --dir spacetimedb/ptr install \\');
+      expect(lines.slice(lockIndex - 1, lockIndex + 7)).toEqual([
+        noLocalInstall,
+        'pnpm --dir spacetimedb/ptr install \\',
+        '  --frozen-lockfile --lockfile-only --ignore-workspace',
+        noLocalInstall,
+        parentInstall,
+        noLocalInstall,
+        'pnpm --dir spacetimedb/ptr run verify',
+        noLocalInstall,
+      ]);
+    }
+  });
+
   it.skipIf(process.platform !== 'darwin' || process.arch !== 'arm64')(
     'rejects a structurally valid noncanonical historical lock before the operation',
     () => {

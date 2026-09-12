@@ -151,6 +151,7 @@ function variables(sourceCommit, beforeModes) {
       beforeModes.publicAuthEnabled,
       'AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_BEFORE_MODES_INVALID',
     ),
+    PTR_ENABLED: 'false',
     QA_OBSERVER_ENABLED: 'false',
     SPACETIMEDB_DATABASE:
       'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',

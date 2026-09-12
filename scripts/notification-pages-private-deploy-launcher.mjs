@@ -12,6 +12,19 @@ import {
 export const NOTIFICATION_PAGES_PRIVATE_DEPLOY_LAUNCHER_PROFILE =
   'warpkeep-notification-pages-private-deploy-launcher-v1';
 
+const TOOLCHAIN_PROFILE_ENVIRONMENT_KEY =
+  'WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE';
+const RUNNER_PROFILES = Object.freeze({
+  'darwin-arm64': Object.freeze({
+    runnerOs: 'macOS',
+    runnerArch: 'ARM64',
+  }),
+  'linux-x64': Object.freeze({
+    runnerOs: 'Linux',
+    runnerArch: 'X64',
+  }),
+});
+
 const REPOSITORY_ROOT = realpathSync(resolve(import.meta.dirname, '..'));
 const BASE_ENVIRONMENT_KEYS = Object.freeze([
   'CI',
@@ -71,15 +84,33 @@ function fail(code) {
   throw new NotificationPagesPrivateDeployLauncherError(code);
 }
 
+function resolveRunnerProfile(environment) {
+  const requested = environment[TOOLCHAIN_PROFILE_ENVIRONMENT_KEY]
+    ?? 'darwin-arm64';
+  const profile = RUNNER_PROFILES[requested];
+  if (profile === undefined) {
+    fail('NOTIFICATION_PAGES_DEPLOY_LAUNCHER_PROFILE_INVALID');
+  }
+  return Object.freeze({ name: requested, ...profile });
+}
+
 function exactEnvironment(command, environment) {
-  const expectedKeys = command === 'attest-toolchain'
-    ? BASE_ENVIRONMENT_KEYS
-    : OPERATOR_ENVIRONMENT_KEYS;
   if (
     environment === null
     || typeof environment !== 'object'
-    || Object.keys(environment).sort().join('\0')
-      !== [...expectedKeys].sort().join('\0')
+    || Array.isArray(environment)
+  ) fail('NOTIFICATION_PAGES_DEPLOY_LAUNCHER_ENVIRONMENT_INVALID');
+  const runnerProfile = resolveRunnerProfile(environment);
+  const expectedKeys = command === 'attest-toolchain'
+    ? BASE_ENVIRONMENT_KEYS
+    : OPERATOR_ENVIRONMENT_KEYS;
+  const expectedEnvironmentKeys = environment[TOOLCHAIN_PROFILE_ENVIRONMENT_KEY]
+    === undefined
+    ? expectedKeys
+    : [...expectedKeys, TOOLCHAIN_PROFILE_ENVIRONMENT_KEY];
+  if (
+    Object.keys(environment).sort().join('\0')
+      !== [...expectedEnvironmentKeys].sort().join('\0')
     || DANGEROUS_KEYS.some(key => Object.hasOwn(environment, key))
     || environment.CI !== 'true'
     || environment.GITHUB_ACTIONS !== 'true'
@@ -87,8 +118,8 @@ function exactEnvironment(command, environment) {
     || environment.GITHUB_REPOSITORY !== 'ael-dev3/Warpkeep'
     || environment.GITHUB_WORKFLOW_REF
       !== 'ael-dev3/Warpkeep/.github/workflows/deploy-pages.yml@refs/heads/main'
-    || environment.RUNNER_OS !== 'macOS'
-    || environment.RUNNER_ARCH !== 'ARM64'
+    || environment.RUNNER_OS !== runnerProfile.runnerOs
+    || environment.RUNNER_ARCH !== runnerProfile.runnerArch
     || !/^[1-9][0-9]{0,19}$/u.test(environment.GITHUB_RUN_ID ?? '')
     || !/^[1-9][0-9]{0,3}$/u.test(environment.GITHUB_RUN_ATTEMPT ?? '')
     || !/^[0-9a-f]{40}$/u.test(environment.WARPKEEP_PAGES_SOURCE_COMMIT ?? '')

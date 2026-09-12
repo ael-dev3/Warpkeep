@@ -412,7 +412,7 @@ export async function verifyGreaterRealmReleaseGateEnvelope(
       !== authority.notificationPreparedBridgeSourceCommit
     || inspected.liveAttestation.notificationDeliveryContractDigest
       !== AUTH_BRIDGE_NOTIFICATION_DELIVERY_CONTRACT_DIGEST
-    || inspected.liveAttestation.notificationDeliveryEnabled !== true
+    || inspected.liveAttestation.notificationDeliveryEnabled !== false
     || inspected.liveAttestation.notificationTransportConfigured !== true
     || inspected.liveAttestation.admissionNotificationStoreConfigured !== true
     || inspected.liveAttestation.notificationClientCount !== 1

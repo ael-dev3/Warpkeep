@@ -26,6 +26,10 @@ function isTrustedStickySystemDirectory(metadata) {
   );
 }
 
+function isWindows() {
+  return process.platform === 'win32';
+}
+
 function ensurePrivateDestinationDirectory(directory, label) {
   const absolute = resolve(directory);
   const root = parse(absolute).root;
@@ -49,11 +53,13 @@ function ensurePrivateDestinationDirectory(directory, label) {
       throw new Error(`${label} must not contain a non-directory or symbolic-link component.`);
     }
     const untrustedOwner = (
+      !isWindows()
+      &&
       expectedUid !== undefined
       && metadata.uid !== expectedUid
       && metadata.uid !== 0
     );
-    const writableByAnotherUid = (metadata.mode & 0o022) !== 0;
+    const writableByAnotherUid = !isWindows() && (metadata.mode & 0o022) !== 0;
     // Linux /tmp and /var/tmp are root-owned mode-01777 directories. The
     // sticky bit prevents another uid from replacing/removing this process's
     // private child; any pre-created child is still rejected below unless it
@@ -71,8 +77,8 @@ function ensurePrivateDestinationDirectory(directory, label) {
   if (
     !destination?.isDirectory()
     || destination.isSymbolicLink()
-    || (expectedUid !== undefined && destination.uid !== expectedUid)
-    || (destination.mode & 0o077) !== 0
+    || (!isWindows() && expectedUid !== undefined && destination.uid !== expectedUid)
+    || (!isWindows() && (destination.mode & 0o077) !== 0)
   ) throw new Error(`${label} must be an owner-private directory.`);
   return absolute;
 }
@@ -114,7 +120,7 @@ export function writePinnedCacheFile({ destination, bytes, mode, label = 'Pinned
     if (
       !staged.isFile()
       || staged.size !== bytes.byteLength
-      || (staged.mode & 0o777) !== mode
+      || (!isWindows() && (staged.mode & 0o777) !== mode)
       || staged.nlink !== 1
     ) throw new Error(`${label} staged write was invalid.`);
 
@@ -151,7 +157,7 @@ export function writePinnedCacheFile({ destination, bytes, mode, label = 'Pinned
       || published.dev !== staged.dev
       || published.ino !== staged.ino
       || published.size !== bytes.byteLength
-      || (published.mode & 0o777) !== mode
+      || (!isWindows() && (published.mode & 0o777) !== mode)
       || published.nlink !== 1
     ) throw new Error(`${label} published write was invalid.`);
   } finally {

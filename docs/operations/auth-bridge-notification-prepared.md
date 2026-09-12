@@ -263,6 +263,34 @@ checkout before each Cloudflare write, then:
 6. verifies fresh public/private endpoints before installing the content-
    addressed `0600` receipt in the private account-home sink.
 
+For the seventh-secret transition, the prepared runtime requires the exact
+fully attested six-secret B0 version to be both the sole 100% live deployment
+and the latest unfiltered Worker upload. Its candidate multipart retains exact
+`keep_bindings: ["secret_text", "secret_key"]`, contains no `inherit`
+descriptor or inheritance query, and adds only `PLAYER_CANARY_OWNER_FID` as an
+explicit `secret_text` binding. The runtime checks latest-upload equality once
+before the journal enters the upload boundary and again as the final provider
+read immediately before the single Versions API POST. Because Cloudflare does
+not expose a conditional predecessor token for `keep_bindings`, the protected
+repository-exclusive writer lane remains held through upload and candidate
+reconciliation, and dashboard, API, Wrangler, and every other out-of-band
+Worker writer must remain quiescent for the same interval; any observed head
+mismatch fails closed before mutation. The
+candidate is independently re-read and must contain exactly the reviewed
+source/configuration and seven secret bindings. The predecessor and candidate
+detail must prove one immutable sequence step: the candidate number is exactly
+predecessor number plus one; when an upload response is received, it must prove
+the same step. The candidate must remain that unfiltered latest version in
+the final provider read before any deployment POST. Reconciliation is allowed
+only inside the same runtime immediately after its sole Versions API POST. A
+fresh run that encounters bare `upload-invoked` or the append-only terminal
+upload-adjudication phase performs zero provider I/O and requires operator
+adjudication; it cannot adopt or release a candidate. Invalid upload responses
+and definitive provider rejections append that terminal phase using only one
+of two fixed, non-sensitive reason enums before returning their first-run
+error. The authorized same-runtime path never issues a second upload or cleanup
+mutation.
+
 The private PRE-attestation reports only a fixed, non-secret category when it
 cannot establish authority: invalid local input, unreachable endpoint,
 authentication rejection, rate limiting, other HTTP rejection, invalid
@@ -324,16 +352,14 @@ workflow byte remains covered. A pin, namespace, verifier, or manifest change
 therefore requires an explicit protected-workflow and manifest refreeze rather
 than blessing the bytes discovered on the persistent runner.
 
-The source closure byte-pins the reviewed
-`auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json`
-authority. That second manifest is generated only during review; the workflow
-has no regeneration or write mode. It binds pnpm 11.7.0, Node 22.22.3 on
-darwin-arm64, the checked lockfile, exact top-level Wrangler, TypeScript, and
-YAML 2.9.0 resolver links, required Wrangler/esbuild/workerd/TypeScript
-executable paths, and a deterministic SHA-256 over 18,153 entries and
-305,064,638 canonical bytes
-in the copy-only, lifecycle-script-free `.pnpm` tree. A second digest fixes all
-24 entries in the complete top-level resolver namespace: root and scoped
+The source closure byte-pins the reviewed Darwin and Linux installed-toolchain
+manifests. Each manifest is generated only during review; the workflow has no
+regeneration or write mode. They bind pnpm 11.7.0, Node 22.22.3, the checked
+lockfile, exact top-level Wrangler, TypeScript, and YAML 2.9.0 resolver links,
+required Wrangler/esbuild/workerd/TypeScript executable paths, and a
+deterministic SHA-256 over the complete copy-only, lifecycle-script-free
+`.pnpm` tree. A second digest fixes every entry in the complete top-level
+resolver namespace: root and scoped
 directories, every package link and exact target, metadata files, and root
 `.bin` shims. Missing, redirected, substituted, or extra resolver entries fail
 closed even when their target bytes exist elsewhere in the attested store.

@@ -117,6 +117,11 @@ const ATLAS_STATUS_KEYS = Object.freeze([
   'activationMutationsCompiled',
 ]);
 
+const ADMIN_STATUS_KEYS = Object.freeze([
+  ...REALM_STATUS_KEYS,
+  ...ATLAS_STATUS_KEYS.filter(key => !REALM_STATUS_KEYS.includes(key)),
+]);
+
 const ZERO_REALM_FIELDS = Object.freeze([
   'admittedPlayers',
   'founders',
@@ -226,7 +231,7 @@ function requireIdentityInput(input) {
 function verifyRealmStatus(input, value) {
   const status = exactRecord(
     value,
-    REALM_STATUS_KEYS,
+    ADMIN_STATUS_KEYS,
     'GENESIS_002_LIVE_REALM_STATUS_SHAPE_CHANGED',
   );
   for (const field of ZERO_REALM_FIELDS) {
@@ -263,7 +268,7 @@ function verifyRealmStatus(input, value) {
 function verifyAtlasStatus(input, value) {
   const status = exactRecord(
     value,
-    ATLAS_STATUS_KEYS,
+    ADMIN_STATUS_KEYS,
     'GENESIS_002_LIVE_ATLAS_STATUS_SHAPE_CHANGED',
   );
   const importEpoch = requireU64(status.importEpoch, 'GENESIS_002_LIVE_ATLAS_STATUS_INVALID');
@@ -363,7 +368,7 @@ export function verifyGenesis002ImportRealmBoundary(input) {
   ) fail('GENESIS_002_IMPORT_REALM_BOUNDARY_INVALID');
   const status = exactRecord(
     input.realmStatusValue,
-    REALM_STATUS_KEYS,
+    ADMIN_STATUS_KEYS,
     'GENESIS_002_IMPORT_REALM_BOUNDARY_SHAPE_CHANGED',
   );
   for (const field of ZERO_REALM_FIELDS) {
@@ -491,12 +496,12 @@ export function verifyGenesis002FreshPublishStatus(input) {
   ) fail('GENESIS_002_FRESH_PUBLISH_IDENTITY_INVALID');
   const realm = exactRecord(
     input.realmStatusValue,
-    REALM_STATUS_KEYS,
+    ADMIN_STATUS_KEYS,
     'GENESIS_002_FRESH_PUBLISH_REALM_SHAPE_CHANGED',
   );
   const atlas = exactRecord(
     input.atlasStatusValue,
-    ATLAS_STATUS_KEYS,
+    ADMIN_STATUS_KEYS,
     'GENESIS_002_FRESH_PUBLISH_ATLAS_SHAPE_CHANGED',
   );
   for (const field of ZERO_REALM_FIELDS) {

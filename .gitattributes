@@ -1,6 +1,33 @@
+# Release verification hashes repository source/configuration bytes directly.
+# Never let a Windows checkout rewrite those bytes before verification.
+*.ts text eol=lf
+*.tsx text eol=lf
+*.mjs text eol=lf
+*.mts text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+docs/operations/*.sh.txt text eol=lf
+scripts/test-sealed-realms-existing-update-linux.sh text eol=lf
+
 # SpacetimeDB CLI 2.6.1 emits a terminal blank line in these generated files.
 # Keep the CLI output byte-for-byte verifiable without treating it as hand-written whitespace.
-src/spacetime/module_bindings/** whitespace=-blank-at-eof
+src/spacetime/module_bindings/** text eol=lf whitespace=-blank-at-eof
+scripts/genesis002_module_bindings/** text eol=lf whitespace=-blank-at-eof
+spacetimedb/ptr/generated-bindings/** text eol=lf whitespace=-blank-at-eof
+
+# Backend source is inspected by contract tests and release byte commitments.
+# Preserve repository LF bytes on Windows as well as Linux/macOS.
+spacetimedb/src/** text eol=lf
+spacetimedb/migration-fixtures/**/*.ts text eol=lf
+scripts/verify-spacetime-additive-migration.mjs text eol=lf
+src/spacetime/warpkeepConnection.ts text eol=lf
+
+# Generated catalogs are compared byte-for-byte during every production build.
+src/components/inner-keep/innerKeepRuntimeAssetCatalog.generated.ts text eol=lf
+
+# These public evidence records include exact UTF-8 byte commitments.
+docs/evidence/greater-realm/** text eol=lf
 
 # Preserve the canonical CC BY 4.0 legal code byte-for-byte.
 LICENSE-CC-BY-4.0 whitespace=-blank-at-eof

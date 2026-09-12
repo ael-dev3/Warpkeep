@@ -40,6 +40,39 @@ const COMMIT = /^[0-9a-f]{40}$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;
 const SHA512_INTEGRITY = /^sha512-([A-Za-z0-9+/]{86}==)$/u;
 const SAFE_COMMAND_ARGUMENT = /^[\u0020-\u007e]{1,4096}$/u;
+const MAXIMUM_G001_POLICY_OBSERVER_STREAM_BYTES = 16 * 1024;
+const G001_POLICY_OBSERVATION_COMMAND = 'g001-policy-observe';
+const G001_POLICY_OBSERVATION_PROFILE =
+  'warpkeep-genesis-001-live-policy-observation-v1';
+const G001_POLICY_OBSERVATION_DATABASE_IDENTITY =
+  'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
+const G001_POLICY_OBSERVATION_PROCEDURE = 'genesis_001_access_policy_v1';
+const G001_POLICY_SOURCE_BASELINE_COMMIT =
+  '2ae51984e1fa6ce5b0028c1a250359fed79d819b';
+const G001_POLICY_FREEZE_RELEASE_NONCE =
+  '3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00';
+const G001_POLICY_RECEIPT_DIGEST =
+  'acf64ca8f02dcfc1e2a162067d2132d02a7155bebe8895c56a85dbbfefd35b60';
+const G001_POLICY_OBSERVATION_KEYS = Object.freeze([
+  'schemaVersion',
+  'profile',
+  'sourceCommit',
+  'observedAt',
+  'databaseIdentity',
+  'procedure',
+  'mutationSubmitted',
+  'policy',
+  'policyReceiptDigest',
+]);
+const G001_CLOSED_POLICY_KEYS = Object.freeze([
+  'realmId',
+  'releaseVersion',
+  'playerAccessEnabled',
+  'admissionStateMutationsEnabled',
+  'accessRequestSubmissionsEnabled',
+  'sourceBaselineCommit',
+  'freezeReleaseNonce',
+]);
 const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/u;
 const VERSION = /^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:[-+][0-9A-Za-z.-]+)?$/u;
 const MAXIMUM_ARCHIVE_BYTES = 256 * 1024 * 1024;
@@ -465,6 +498,12 @@ const COMMANDS = Object.freeze({
     privateInput: false,
     requiresAdminSecret: true,
   }),
+  'g001-policy-observe': Object.freeze({
+    entrypoint: 'scripts/genesis001-policy-observation-receipt.mjs',
+    exactArguments: Object.freeze(['observe']),
+    privateInput: false,
+    requiresAdminSecret: true,
+  }),
   'hermes-list-pending': Object.freeze({
     entrypoint: 'scripts/hermes-admin.ts',
     exactArguments: Object.freeze(['list-pending-access-requests']),
@@ -579,6 +618,214 @@ function exactKeys(value, expected, code) {
     || actual.some((key, index) => key !== sortedExpected[index])
   ) fail(code);
   return value;
+}
+
+function exactOrderedDataRecord(value, expectedKeys, code) {
+  if (
+    value === null
+    || typeof value !== 'object'
+    || Array.isArray(value)
+    || Object.getPrototypeOf(value) !== Object.prototype
+  ) fail(code);
+  const keys = Reflect.ownKeys(value);
+  const descriptors = Object.values(Object.getOwnPropertyDescriptors(value));
+  if (
+    keys.length !== expectedKeys.length
+    || keys.some((key, index) => key !== expectedKeys[index])
+    || descriptors.some(descriptor => !('value' in descriptor) || descriptor.enumerable !== true)
+  ) fail(code);
+  return value;
+}
+
+function exactG001ObservationTimestamp(value, code) {
+  if (
+    typeof value !== 'string'
+    || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$/u
+      .test(value)
+  ) fail(code);
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== value) fail(code);
+  return value;
+}
+
+function exactGenesis001PolicyObservationReceipt(value, protectedCommit) {
+  const code = 'GREATER_REALM_PRODUCTION_BOOTSTRAP_G001_POLICY_OBSERVATION_OUTPUT_INVALID';
+  if (typeof protectedCommit !== 'string' || !COMMIT.test(protectedCommit)) fail(code);
+  const observation = exactOrderedDataRecord(
+    value,
+    G001_POLICY_OBSERVATION_KEYS,
+    code,
+  );
+  const policy = exactOrderedDataRecord(observation.policy, G001_CLOSED_POLICY_KEYS, code);
+  if (
+    observation.schemaVersion !== 1
+    || observation.profile !== G001_POLICY_OBSERVATION_PROFILE
+    || observation.sourceCommit !== protectedCommit
+    || observation.databaseIdentity !== G001_POLICY_OBSERVATION_DATABASE_IDENTITY
+    || observation.procedure !== G001_POLICY_OBSERVATION_PROCEDURE
+    || observation.mutationSubmitted !== false
+    || observation.policyReceiptDigest !== G001_POLICY_RECEIPT_DIGEST
+    || policy.realmId !== 'GENESIS_001'
+    || policy.releaseVersion !== '0.3.43'
+    || policy.playerAccessEnabled !== true
+    || policy.admissionStateMutationsEnabled !== false
+    || policy.accessRequestSubmissionsEnabled !== false
+    || policy.sourceBaselineCommit !== G001_POLICY_SOURCE_BASELINE_COMMIT
+    || policy.freezeReleaseNonce !== G001_POLICY_FREEZE_RELEASE_NONCE
+  ) fail(code);
+  exactG001ObservationTimestamp(observation.observedAt, code);
+  return Object.freeze({
+    schemaVersion: 1,
+    profile: G001_POLICY_OBSERVATION_PROFILE,
+    sourceCommit: protectedCommit,
+    observedAt: observation.observedAt,
+    databaseIdentity: G001_POLICY_OBSERVATION_DATABASE_IDENTITY,
+    procedure: G001_POLICY_OBSERVATION_PROCEDURE,
+    mutationSubmitted: false,
+    policy: Object.freeze({
+      realmId: 'GENESIS_001',
+      releaseVersion: '0.3.43',
+      playerAccessEnabled: true,
+      admissionStateMutationsEnabled: false,
+      accessRequestSubmissionsEnabled: false,
+      sourceBaselineCommit: G001_POLICY_SOURCE_BASELINE_COMMIT,
+      freezeReleaseNonce: G001_POLICY_FREEZE_RELEASE_NONCE,
+    }),
+    policyReceiptDigest: G001_POLICY_RECEIPT_DIGEST,
+  });
+}
+
+function parseGenesis001PolicyObservationOutput(outputBytes, protectedCommit) {
+  const code = 'GREATER_REALM_PRODUCTION_BOOTSTRAP_G001_POLICY_OBSERVATION_OUTPUT_INVALID';
+  if (
+    !Buffer.isBuffer(outputBytes)
+    || outputBytes.length < 2
+    || outputBytes.length > MAXIMUM_G001_POLICY_OBSERVER_STREAM_BYTES
+    || outputBytes.at(-1) !== 0x0a
+    || outputBytes.subarray(0, -1).includes(0x0a)
+    || outputBytes.includes(0x0d)
+  ) fail(code);
+  let rendered;
+  try {
+    rendered = new TextDecoder('utf-8', { fatal: true }).decode(outputBytes);
+  } catch {
+    fail(code);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(rendered.slice(0, -1));
+  } catch {
+    fail(code);
+  }
+  const receipt = exactGenesis001PolicyObservationReceipt(parsed, protectedCommit);
+  if (`${JSON.stringify(receipt)}\n` !== rendered) fail(code);
+  return receipt;
+}
+
+function createBoundedGenesis001PrivateChildStreamCapture(stream, code, onViolation) {
+  if (
+    stream === null
+    || typeof stream !== 'object'
+    || typeof stream.on !== 'function'
+    || typeof stream.once !== 'function'
+    || typeof stream.removeListener !== 'function'
+  ) fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_OPERATOR_SPAWN_INVALID');
+  let chunks = [];
+  let byteCount = 0;
+  let ended = false;
+  let streamClosed = false;
+  let violation = false;
+  let violationNotified = false;
+  const wipeChunks = () => {
+    for (const chunk of chunks) chunk.fill(0);
+    chunks = [];
+    byteCount = 0;
+  };
+  const markViolation = () => {
+    violation = true;
+    wipeChunks();
+    if (!violationNotified) {
+      violationNotified = true;
+      onViolation();
+    }
+  };
+  const onData = value => {
+    if (violation) {
+      try {
+        if (Buffer.isBuffer(value)) value.fill(0);
+        else if (ArrayBuffer.isView(value)) {
+          new Uint8Array(value.buffer, value.byteOffset, value.byteLength).fill(0);
+        }
+      } catch { /* The stream is already rejected and being contained. */ }
+      return;
+    }
+    let bytes;
+    if (Buffer.isBuffer(value)) {
+      bytes = value;
+    } else if (ArrayBuffer.isView(value)) {
+      bytes = Buffer.from(value.buffer, value.byteOffset, value.byteLength);
+    } else if (typeof value === 'string') {
+      const stringByteLength = Buffer.byteLength(value, 'utf8');
+      if (
+        stringByteLength > MAXIMUM_G001_POLICY_OBSERVER_STREAM_BYTES
+        || byteCount > MAXIMUM_G001_POLICY_OBSERVER_STREAM_BYTES - stringByteLength
+      ) {
+        markViolation();
+        return;
+      }
+      bytes = Buffer.from(value, 'utf8');
+    } else {
+      markViolation();
+      return;
+    }
+    if (
+      bytes.length > MAXIMUM_G001_POLICY_OBSERVER_STREAM_BYTES
+      || byteCount > MAXIMUM_G001_POLICY_OBSERVER_STREAM_BYTES - bytes.length
+    ) {
+      bytes.fill(0);
+      markViolation();
+      return;
+    }
+    let retained;
+    try {
+      retained = Buffer.from(bytes);
+    } finally {
+      bytes.fill(0);
+    }
+    chunks.push(retained);
+    byteCount += bytes.length;
+  };
+  const onEnd = () => { ended = true; };
+  const onClose = () => { streamClosed = true; };
+  const onError = () => { markViolation(); };
+  stream.on('data', onData);
+  stream.once('end', onEnd);
+  stream.once('close', onClose);
+  stream.once('error', onError);
+  return Object.freeze({
+    get violated() { return violation; },
+    consume(consumer) {
+      if (violation || !ended || !streamClosed) fail(code);
+      let output;
+      try {
+        output = Buffer.concat(chunks, byteCount);
+      } finally {
+        wipeChunks();
+      }
+      try {
+        return consumer(output);
+      } finally {
+        output.fill(0);
+      }
+    },
+    dispose() {
+      stream.removeListener('data', onData);
+      stream.removeListener('end', onEnd);
+      stream.removeListener('close', onClose);
+      stream.removeListener('error', onError);
+      wipeChunks();
+    },
+  });
 }
 
 function inside(parent, child) {
@@ -2382,6 +2629,99 @@ async function runOperatorWithPostflightAttestation(operator, postflight) {
   return result;
 }
 
+function genesis001PolicyObservationBootstrapLinkDigest(input) {
+  const hash = createHash('sha256');
+  updateLengthFramed(
+    hash,
+    'domain',
+    'warpkeep-production-g001-policy-observation-bootstrap-link-v1',
+  );
+  updateLengthFramed(hash, 'protectedCommit', input.protectedCommit);
+  updateLengthFramed(hash, 'moduleTreeId', input.moduleTreeId);
+  updateLengthFramed(hash, 'bootstrapBlob', input.bootstrapBlob);
+  updateLengthFramed(hash, 'bootstrapSha256', input.bootstrapSha256);
+  updateLengthFramed(hash, 'command', G001_POLICY_OBSERVATION_COMMAND);
+  updateLengthFramed(
+    hash,
+    'launchCleanup',
+    canonicalLifecycleJson(input.launchCleanup),
+  );
+  updateLengthFramed(
+    hash,
+    'policyObservationReceipt',
+    `${JSON.stringify(input.policyObservationReceipt)}\n`,
+  );
+  return hash.digest('hex');
+}
+
+async function completeBootstrapLaunch(input) {
+  const observesGenesis001 = input.input.commandName === G001_POLICY_OBSERVATION_COMMAND;
+  const requireUninterrupted = () => {
+    if (
+      observesGenesis001
+      && input.interruptedBy?.() !== undefined
+    ) fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_INTERRUPTED');
+  };
+  const operatorResult = await runOperatorWithPostflightAttestation(
+    input.runOperator,
+    input.postflight,
+  );
+  requireUninterrupted();
+  await input.reattestRuntime();
+  requireUninterrupted();
+  let launchRecord = operatorResult;
+  let policyObservationReceipt;
+  if (observesGenesis001) {
+    const result = exactOrderedDataRecord(
+      operatorResult,
+      ['launchRecord', 'policyObservationReceipt'],
+      'GREATER_REALM_PRODUCTION_BOOTSTRAP_G001_POLICY_OBSERVATION_OUTPUT_INVALID',
+    );
+    launchRecord = result.launchRecord;
+    policyObservationReceipt = exactGenesis001PolicyObservationReceipt(
+      result.policyObservationReceipt,
+      input.input.commit,
+    );
+  }
+  const completedLaunchRecord = await input.completeLaunchRecord(launchRecord);
+  requireUninterrupted();
+  if (
+    completedLaunchRecord === null
+    || typeof completedLaunchRecord !== 'object'
+    || completedLaunchRecord.phase !== 'complete'
+  ) fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_LAUNCH_RECORD_INVALID');
+  const launchCleanup = await input.cleanupCompletedRun(completedLaunchRecord);
+  requireUninterrupted();
+  const receipt = Object.freeze({
+    profile: PROFILE,
+    protectedCommit: input.input.commit,
+    moduleTreeId: input.input.tree,
+    bootstrapBlob: input.input.bootstrapBlob,
+    bootstrapSha256: input.input.bootstrapSha256,
+    moduleArchiveCount: input.moduleArchiveCount,
+    command: input.input.commandName,
+    launchCleanup,
+  });
+  if (!observesGenesis001) return receipt;
+  if (
+    launchCleanup === null
+    || typeof launchCleanup !== 'object'
+    || launchCleanup.outcome !== 'cleaned'
+  ) {
+    fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_G001_POLICY_OBSERVATION_CLEANUP_INCOMPLETE');
+  }
+  const linked = Object.freeze({
+    ...receipt,
+    policyObservationReceipt,
+    policyObservationReceiptLinkSha256:
+      genesis001PolicyObservationBootstrapLinkDigest(Object.freeze({
+        ...receipt,
+        policyObservationReceipt,
+      })),
+  });
+  return linked;
+}
+
 function packageNameAndVersion(key) {
   const separator = key.lastIndexOf('@');
   const name = key.slice(0, separator);
@@ -2824,6 +3164,8 @@ async function runFinalOperator(
   spawnImpl = spawn,
   timeoutOptions = {},
 ) {
+  const capturesPolicyObservation =
+    input.commandName === G001_POLICY_OBSERVATION_COMMAND;
   const tsxCli = join(input.cloneRoot, 'node_modules', 'tsx', 'dist', 'cli.mjs');
   const planDirectories = input.command.hermesReleaseRow === undefined
     ? undefined
@@ -2852,7 +3194,12 @@ async function runFinalOperator(
     cwd: input.cloneRoot,
     env: childEnvironment,
     shell: false,
-    stdio: ['ignore', 'inherit', 'inherit', 'pipe'],
+    stdio: [
+      'ignore',
+      capturesPolicyObservation ? 'pipe' : 'inherit',
+      capturesPolicyObservation ? 'pipe' : 'inherit',
+      'pipe',
+    ],
     detached: true,
     windowsHide: true,
   });
@@ -2860,7 +3207,21 @@ async function runFinalOperator(
     child.once('error', rejectPromise);
     child.once('close', (code, signal) => resolvePromise({ code, signal }));
   });
-  if (!Number.isSafeInteger(child.pid) || child.pid < 2 || child.stdio?.[3] === undefined) {
+  const policyObservationStream = capturesPolicyObservation
+    ? child.stdout ?? child.stdio?.[1]
+    : undefined;
+  const policyObservationErrorStream = capturesPolicyObservation
+    ? child.stderr ?? child.stdio?.[2]
+    : undefined;
+  if (
+    !Number.isSafeInteger(child.pid)
+    || child.pid < 2
+    || child.stdio?.[3] === undefined
+    || (capturesPolicyObservation && policyObservationStream === undefined)
+    || (capturesPolicyObservation && policyObservationErrorStream === undefined)
+  ) {
+    child.stdio?.[3]?.end?.();
+    await Promise.race([resultPromise.catch(() => undefined), bootstrapDelay(5_000)]);
     fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_OPERATOR_SPAWN_INVALID');
   }
   let identity;
@@ -2898,6 +3259,27 @@ async function runFinalOperator(
     escalationPromise.catch(rejectContainmentFailure);
     return escalationPromise;
   };
+  let policyObservationContainmentTimer;
+  const containInvalidPrivateOutput = () => {
+    policyObservationContainmentTimer ??= setTimeout(() => {
+      if (bootstrapProcessGroupExists(child.pid)) void escalate('SIGTERM');
+    }, 25);
+    policyObservationContainmentTimer.unref?.();
+  };
+  const policyObservationCapture = capturesPolicyObservation
+    ? createBoundedGenesis001PrivateChildStreamCapture(
+        policyObservationStream,
+        'GREATER_REALM_PRODUCTION_BOOTSTRAP_G001_POLICY_OBSERVATION_OUTPUT_INVALID',
+        containInvalidPrivateOutput,
+      )
+    : undefined;
+  const policyObservationErrorCapture = capturesPolicyObservation
+    ? createBoundedGenesis001PrivateChildStreamCapture(
+        policyObservationErrorStream,
+        'GREATER_REALM_PRODUCTION_BOOTSTRAP_G001_POLICY_OBSERVATION_STDERR_INVALID',
+        containInvalidPrivateOutput,
+      )
+    : undefined;
   signalController.setForwarder(signal => { void escalate(signal); });
   signalController.bindGroup(child.pid);
   let timeout;
@@ -2949,13 +3331,30 @@ async function runFinalOperator(
       }),
     }));
     if (timedOut) fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_OPERATOR_TIMED_OUT');
+    if (policyObservationCapture?.violated === true) {
+      fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_G001_POLICY_OBSERVATION_OUTPUT_INVALID');
+    }
+    if (policyObservationErrorCapture?.violated === true) {
+      fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_G001_POLICY_OBSERVATION_STDERR_INVALID');
+    }
     if (result.signal !== null || result.code !== 0) {
       fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_OPERATOR_FAILED');
     }
     if (!gateReleased || signalController.interruptedBy !== undefined) {
       fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_INTERRUPTED');
     }
-    return launchRecord;
+    if (policyObservationCapture === undefined) return launchRecord;
+    policyObservationErrorCapture.consume(output => {
+      if (output.length !== 0) {
+        fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_G001_POLICY_OBSERVATION_STDERR_INVALID');
+      }
+    });
+    return Object.freeze({
+      launchRecord,
+      policyObservationReceipt: policyObservationCapture.consume(
+        output => parseGenesis001PolicyObservationOutput(output, input.commit),
+      ),
+    });
   } catch (primaryError) {
     let containmentError;
     try {
@@ -2976,6 +3375,11 @@ async function runFinalOperator(
     throw primaryError;
   } finally {
     if (timeout !== undefined) clearTimeout(timeout);
+    if (policyObservationContainmentTimer !== undefined) {
+      clearTimeout(policyObservationContainmentTimer);
+    }
+    policyObservationCapture?.dispose();
+    policyObservationErrorCapture?.dispose();
     signalController.unbindGroup(child.pid);
     signalController.setForwarder(undefined);
   }
@@ -3161,8 +3565,10 @@ export async function runGreaterRealmProductionBootstrap(inputArguments, depende
     if (parserResolver !== undefined) {
       attestHermesSourceParserResolver(input.cloneRoot, parserResolver);
     }
-    launchRecord = await runOperatorWithPostflightAttestation(
-      () => runFinalOperator(
+    return await completeBootstrapLaunch(Object.freeze({
+      input: context,
+      moduleArchiveCount: packages.length,
+      runOperator: () => runFinalOperator(
         context,
         runtime,
         npm,
@@ -3170,31 +3576,30 @@ export async function runGreaterRealmProductionBootstrap(inputArguments, depende
         dependencies.spawn,
         dependencies.operatorTimeouts,
       ),
-      () => {
+      postflight: () => {
         if (parserResolver !== undefined) {
           attestHermesSourceParserResolver(input.cloneRoot, parserResolver);
         }
         attestClone(context, dependencies.spawnSync, allowedIgnoredPaths);
       },
-    );
-    runExact('/usr/bin/codesign', ['--verify', '--deep', '--strict', runtime.appRoot], {
-      env: { PATH: '/usr/bin:/bin' }, spawnSync: dependencies.spawnSync,
-      code: 'GREATER_REALM_PRODUCTION_BOOTSTRAP_RUNTIME_CHANGED',
-    });
-    npmTreeIdentity(runtime.sourceNpmRoot, false);
-    npmTreeIdentity(runtime.stagedNpmRoot, true);
-    launchRecord = writeLaunchRecord(input, Object.freeze({ ...launchRecord, phase: 'complete' }));
-    const launchCleanup = await cleanupCompletedBootstrapRun(input, launchRecord);
-    return Object.freeze({
-      profile: PROFILE,
-      protectedCommit: input.commit,
-      moduleTreeId: input.tree,
-      bootstrapBlob: input.bootstrapBlob,
-      bootstrapSha256: input.bootstrapSha256,
-      moduleArchiveCount: packages.length,
-      command: input.commandName,
-      launchCleanup,
-    });
+      reattestRuntime: () => {
+        runExact('/usr/bin/codesign', ['--verify', '--deep', '--strict', runtime.appRoot], {
+          env: { PATH: '/usr/bin:/bin' }, spawnSync: dependencies.spawnSync,
+          code: 'GREATER_REALM_PRODUCTION_BOOTSTRAP_RUNTIME_CHANGED',
+        });
+        npmTreeIdentity(runtime.sourceNpmRoot, false);
+        npmTreeIdentity(runtime.stagedNpmRoot, true);
+      },
+      completeLaunchRecord: operatorLaunchRecord => writeLaunchRecord(
+        input,
+        Object.freeze({ ...operatorLaunchRecord, phase: 'complete' }),
+      ),
+      cleanupCompletedRun: completedLaunchRecord => cleanupCompletedBootstrapRun(
+        input,
+        completedLaunchRecord,
+      ),
+      interruptedBy: () => signalController.interruptedBy,
+    }));
   } finally {
     signalController.dispose();
   }
@@ -3206,12 +3611,14 @@ export const greaterRealmProductionBootstrapTestSeams = Object.freeze({
   attestInstalledRootDependencyClosure,
   cacheArchivePath,
   cleanupCompletedRun: cleanupCompletedBootstrapRun,
+  completeBootstrapLaunch,
   containProcessGroup: containBootstrapProcessGroup,
   createSignalController: createBootstrapSignalController,
   finalOperatorEnvironment,
   gitBlobOid,
   installHermesSourceParserResolver,
   launchArgumentsDigest,
+  parseGenesis001PolicyObservationOutput,
   parseLaunchRecord,
   parseLaunchLifecycleRecord,
   publishLaunchLifecycleRecord,

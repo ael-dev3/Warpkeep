@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE } from '../src/dev/greaterRealmSyntheticTierOneFixture';
 import { createGreaterRealmSceneRuntime } from '../src/greater-realm/createGreaterRealmSceneRuntime';
 import { GREATER_REALM_CASTLE_UPLOAD_RESERVE_BYTES } from '../src/components/realm/createGreaterRealmWorldCanvasHost';
+import * as voxelPresentation from '../src/components/realm/greaterRealmVoxelPresentation';
 import { createGreaterRealmChunkPresentationPlan } from '../src/greater-realm/greaterRealmPresentationPlan';
 import {
   GREATER_REALM_AMBIENCE_CLASS,
@@ -54,6 +55,40 @@ function shiftedChunk(ordinal: number) {
     location.locationId = `GRL-${BASE32[(ordinal * 2 + index) % 32]!.repeat(26)}`;
   });
   return decodeGreaterRealmChunkDto(raw);
+}
+
+function chunkWithGroundElevation(elevation: number) {
+  const raw = structuredClone(
+    GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0]
+  ) as any;
+  const cell = raw.coreCells.find((row: any) => row.atlasQ === -2 && row.atlasR === 1);
+  cell.elevation = elevation;
+  return decodeGreaterRealmChunkDto(raw);
+}
+
+function crossOwnerApronChunks(neighborFallsBack = false) {
+  const ownerRaw = structuredClone(
+    GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0]
+  ) as any;
+  ownerRaw.lod = 1;
+  ownerRaw.coreCells = ownerRaw.coreCells.filter((cell: any) => (
+    cell.atlasQ !== -1 || cell.atlasR !== 1
+  ));
+  const neighborRaw = structuredClone(
+    GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[1]
+  ) as any;
+  if (neighborFallsBack) {
+    neighborRaw.coreCells.find((cell: any) => (
+      cell.atlasQ === 1 && cell.atlasR === 0
+    )).elevation = -2_147_483_648;
+    neighborRaw.coreCells.find((cell: any) => (
+      cell.atlasQ === 1 && cell.atlasR === 1
+    )).elevation = 2_147_483_647;
+  }
+  return Object.freeze([
+    decodeGreaterRealmChunkDto(ownerRaw),
+    decodeGreaterRealmChunkDto(neighborRaw)
+  ]);
 }
 
 function oceanChunk(ordinal: number) {
@@ -183,6 +218,36 @@ function geometryUploadBytes(root: THREE.Object3D) {
   return bytes;
 }
 
+function voxelDisposalProbe(runtime: ReturnType<typeof createGreaterRealmSceneRuntime>) {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
+  const instances: THREE.InstancedMesh[] = [];
+  runtime.group.traverse((object) => {
+    if (!object.name.startsWith('greater-realm-voxel-')) return;
+    const mesh = object as THREE.Mesh;
+    if (mesh.geometry instanceof THREE.BufferGeometry) geometries.add(mesh.geometry);
+    if (Array.isArray(mesh.material)) mesh.material.forEach((material) => materials.add(material));
+    else if (mesh.material instanceof THREE.Material) materials.add(mesh.material);
+    if (object instanceof THREE.InstancedMesh) instances.push(object);
+  });
+  expect(geometries.size).toBeGreaterThan(0);
+  expect(materials.size).toBeGreaterThan(0);
+  expect(instances.length).toBeGreaterThan(0);
+  const geometryDisposals = [...geometries].map((geometry) => vi.spyOn(geometry, 'dispose'));
+  const materialDisposals = [...materials].map((material) => vi.spyOn(material, 'dispose'));
+  const instanceDisposals = instances.map((instance) => vi.spyOn(instance, 'dispose'));
+  return Object.freeze({
+    geometries,
+    materials,
+    instances: new Set(instances),
+    expectDisposedOnce: () => {
+      geometryDisposals.forEach((dispose) => expect(dispose).toHaveBeenCalledOnce());
+      materialDisposals.forEach((dispose) => expect(dispose).toHaveBeenCalledOnce());
+      instanceDisposals.forEach((dispose) => expect(dispose).toHaveBeenCalledOnce());
+    }
+  });
+}
+
 describe('Greater Realm scene runtime', () => {
   it('uploads bounded per-chunk resources and preserves explicit cell access', () => {
     const invalidate = vi.fn();
@@ -213,10 +278,10 @@ describe('Greater Realm scene runtime', () => {
     expect(runtime.isCoordinatePassable({ atlasQ: 2, atlasR: 2 })).toBe(false);
     expect(runtime.getCellAccess({ atlasQ: 2, atlasR: 2 })?.passable).toBe(false);
     expect(runtime.group.children.some((chunk) => (
-      chunk.children.some((child) => child.name.startsWith('greater-realm-feature-waystone:'))
+      chunk.children.some((child) => child.name.startsWith('greater-realm-voxel-feature-waystone:'))
     ))).toBe(true);
     expect(runtime.group.children.some((chunk) => (
-      chunk.children.some((child) => child.name.startsWith('greater-realm-feature-signpost:'))
+      chunk.children.some((child) => child.name.startsWith('greater-realm-voxel-feature-signpost:'))
     ))).toBe(true);
     expect(runtime.group.children.some((chunk) => (
       chunk.children.some((child) => child.name.startsWith('greater-realm-shoreline-fence:'))
@@ -225,6 +290,273 @@ describe('Greater Realm scene runtime', () => {
     expect(invalidate).toHaveBeenCalled();
     runtime.dispose();
     expect(runtime.group.children).toHaveLength(0);
+  });
+
+  it('creates indexed named voxel terrain and instanced voxel landmark layers', () => {
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop', graphicsProfile: 'high'
+    });
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: viewChunks() });
+    runtime.flushUploads();
+
+    const terrain = runtime.group.getObjectByName(
+      `greater-realm-voxel-terrain:${viewChunks()[0]!.chunk.chunkHandle}`
+    ) as THREE.Mesh;
+    expect(terrain).toBeInstanceOf(THREE.Mesh);
+    expect(terrain.geometry.index).not.toBeNull();
+    expect(terrain.geometry.getAttribute('normal').normalized).toBe(true);
+    expect(terrain.geometry.getAttribute('color').normalized).toBe(true);
+    const waystone = runtime.group.children.flatMap((chunk) => chunk.children).find(
+      (child) => child.name.startsWith('greater-realm-voxel-feature-waystone:')
+    );
+    expect(waystone).toBeInstanceOf(THREE.InstancedMesh);
+    expect((waystone as THREE.InstancedMesh).count).toBeGreaterThan(0);
+    expect(runtime.getTelemetry()).toMatchObject({
+      voxelMode: 'voxel',
+      voxelFallbackCount: 0
+    });
+    expect(runtime.getTelemetry().residentVoxelTriangleCount).toBeGreaterThan(0);
+    expect(runtime.getTelemetry().residentVoxelQuadCount).toBeGreaterThan(0);
+    expect(runtime.getTelemetry().voxelUploadBytesThisFrame).toBeGreaterThan(0);
+    expect(runtime.getTelemetry().voxelUploadBytesThisFrame).toBeLessThanOrEqual(
+      runtime.getTelemetry().uploadBytesThisFrame
+    );
+    expect(Number.isFinite(runtime.getTelemetry().voxelPreparationMilliseconds)).toBe(true);
+    expect(Number.isFinite(runtime.getTelemetry().voxelEmissionMillisecondsThisFrame)).toBe(true);
+    expect(runtime.getTelemetry().voxelPreparationMilliseconds).toBeGreaterThanOrEqual(0);
+    expect(runtime.getTelemetry().voxelEmissionMillisecondsThisFrame).toBeGreaterThanOrEqual(0);
+    runtime.dispose();
+  });
+
+  it.each([
+    ['high', 62, 0],
+    ['high', 63, 0.125],
+    ['balanced', 124, 0],
+    ['balanced', 126, 0.25],
+    ['reduced', 249, 0],
+    ['reduced', 251, 0.5]
+  ] as const)(
+    'grounds voxel landmarks on the %s terrain surface at elevation %i',
+    (graphicsProfile, elevation, expectedSurfaceY) => {
+      const chunk = chunkWithGroundElevation(elevation);
+      const runtime = createGreaterRealmSceneRuntime({
+        deviceClass: 'desktop', graphicsProfile
+      });
+      runtime.setView({
+        revision: 1n,
+        cellSize: 1,
+        chunks: [{ chunk, distanceChunks: 0 }]
+      });
+      runtime.flushUploads();
+
+      const waystone = runtime.group.getObjectByName(
+        `greater-realm-voxel-feature-waystone:${chunk.chunkHandle}`
+      ) as THREE.InstancedMesh;
+      expect(instancePosition(waystone).y).toBeCloseTo(expectedSurfaceY, 6);
+      runtime.dispose();
+    }
+  );
+
+  it.each([
+    ['high', 62, 'preparation'],
+    ['high', 63, 'construction'],
+    ['balanced', 124, 'preparation'],
+    ['balanced', 126, 'construction'],
+    ['reduced', 249, 'preparation'],
+    ['reduced', 251, 'construction']
+  ] as const)(
+    'retains raw %s terrain grounding at elevation %i after %s fallback',
+    (graphicsProfile, elevation, failure) => {
+      const originalGeometry = voxelPresentation.createGreaterRealmVoxelGeometry;
+      const fault = failure === 'preparation'
+        ? vi.spyOn(voxelPresentation, 'createGreaterRealmVoxelTerrainPlan')
+            .mockImplementation(() => { throw new Error('INJECTED_TERRAIN_PREPARATION'); })
+        : vi.spyOn(voxelPresentation, 'createGreaterRealmVoxelGeometry')
+            .mockImplementation((plan) => {
+              if ('emittingCellCount' in plan) {
+                throw new Error('INJECTED_TERRAIN_CONSTRUCTION');
+              }
+              return originalGeometry(plan);
+            });
+      const chunk = chunkWithGroundElevation(elevation);
+      const runtime = createGreaterRealmSceneRuntime({
+        deviceClass: 'desktop', graphicsProfile
+      });
+      runtime.setView({
+        revision: 1n,
+        cellSize: 1,
+        chunks: [{ chunk, distanceChunks: 0 }]
+      });
+      runtime.flushUploads();
+
+      const waystone = runtime.group.getObjectByName(
+        `greater-realm-voxel-feature-waystone:${chunk.chunkHandle}`
+      ) as THREE.InstancedMesh;
+      expect(instancePosition(waystone).y).toBeCloseTo(elevation / 1_000, 6);
+      runtime.dispose();
+      fault.mockRestore();
+    }
+  );
+
+  it('grounds actors and land routes on the selected voxel terrain surface', () => {
+    const chunk = chunkWithGroundElevation(251);
+    const plan = createGreaterRealmChunkPresentationPlan({
+      chunk, graphicsProfile: 'reduced', cellSize: 1
+    });
+    const targetCell = chunk.coreCells.find(
+      (cell) => cell.atlasQ === -2 && cell.atlasR === 1
+    )!;
+    const targetActor = plan.actors.find(
+      (actor) => actor.id.startsWith(`${targetCell.cellKey}/canopy/`)
+    )!;
+    const canopyIndex = plan.actors.filter((actor) => actor.kind === 'canopy')
+      .findIndex((actor) => actor.id === targetActor.id);
+    const targetRoutePoint = plan.routeSegments.flatMap((segment) => [segment.from, segment.to])
+      .find((point) => (
+        Math.abs(point.x - plan.features[0]!.position.x) < 1e-8
+        && Math.abs(point.z - plan.features[0]!.position.z) < 1e-8
+      ))!;
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop', graphicsProfile: 'reduced'
+    });
+    runtime.setView({
+      revision: 1n, cellSize: 1, chunks: [{ chunk, distanceChunks: 0 }]
+    });
+    runtime.flushUploads();
+
+    const canopy = runtime.group.getObjectByName(
+      `greater-realm-canopy:${chunk.chunkHandle}`
+    ) as THREE.InstancedMesh;
+    expect(instancePosition(canopy, canopyIndex).y).toBeCloseTo(0.5, 6);
+    const route = runtime.group.getObjectByName(
+      `greater-realm-routes:${chunk.chunkHandle}`
+    ) as THREE.LineSegments;
+    const positions = route.geometry.getAttribute('position');
+    const routeY = Array.from({ length: positions.count }, (_, index) => index)
+      .filter((index) => (
+        Math.abs(positions.getX(index) - targetRoutePoint.x) < 1e-6
+        && Math.abs(positions.getZ(index) - targetRoutePoint.z) < 1e-6
+      ))
+      .map((index) => positions.getY(index));
+    expect(routeY).toContainEqual(expect.closeTo(0.55, 6));
+    runtime.dispose();
+  });
+
+  it.each([
+    ['voxel', 'reduced', false, 0, 'voxel'],
+    ['fallback', 'balanced', true, undefined, 'mixed']
+  ] as const)(
+    'resolves %s grounding from the selected resource that actually emits an apron cell',
+    (_mode, graphicsProfile, neighborFallsBack, expectedSurfaceY, expectedMode) => {
+      const chunks = crossOwnerApronChunks(neighborFallsBack);
+      const ownerHandle = chunks[0]!.chunkHandle;
+      const emittedCell = chunks[1]!.apronCells.find((cell) => (
+        cell.atlasQ === -1 && cell.atlasR === 1
+      ))!;
+      if (neighborFallsBack) {
+        const neighborPlan = createGreaterRealmChunkPresentationPlan({
+          chunk: chunks[1]!, graphicsProfile, cellSize: 1
+        });
+        expect(neighborPlan.voxelTerrainFallbackReason).toContain('Float32');
+      }
+      const runtime = createGreaterRealmSceneRuntime({
+        deviceClass: 'desktop', graphicsProfile
+      });
+      runtime.setView({
+        revision: 1n,
+        cellSize: 1,
+        chunks: chunks.map((chunk) => ({ chunk, distanceChunks: 0 }))
+      });
+      runtime.flushUploads();
+      runtime.flushUploads();
+
+      expect(runtime.getTelemetry()).toMatchObject({
+        uploadedChunkCount: 2,
+        voxelMode: expectedMode
+      });
+      expect(runtime.getTerrainSurfaceY?.(ownerHandle, emittedCell)).toBe(expectedSurfaceY);
+      runtime.dispose();
+    }
+  );
+
+  it('replaces a chunk when only its filtered full-halo signature changes', () => {
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop', graphicsProfile: 'balanced'
+    });
+    const chunks = viewChunks();
+    runtime.setView({ revision: 1n, cellSize: 1, chunks });
+    runtime.flushUploads();
+    const handle = chunks[0]!.chunk.chunkHandle;
+    const original = runtime.group.getObjectByName(
+      `greater-realm-voxel-terrain:${handle}`
+    ) as THREE.Mesh;
+    const disposeGeometry = vi.spyOn(original.geometry, 'dispose');
+    const changed = structuredClone(chunks) as any[];
+    changed[0].chunk.apronCells[0].presentationVariant += 1;
+
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: changed });
+
+    expect(disposeGeometry).toHaveBeenCalledOnce();
+    expect(runtime.getTelemetry().pendingUploadCount).toBeGreaterThan(0);
+    runtime.flushUploads();
+    expect(runtime.group.getObjectByName(`greater-realm-voxel-terrain:${handle}`))
+      .not.toBe(original);
+    runtime.dispose();
+  });
+
+  it('falls back only at voxel construction and reports the graphics reason truthfully', () => {
+    const createGeometry = vi.spyOn(voxelPresentation, 'createGreaterRealmVoxelGeometry')
+      .mockImplementation(() => {
+        throw new Error('INJECTED_VOXEL_GEOMETRY_FAILURE');
+      });
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop', graphicsProfile: 'high'
+    });
+    runtime.setView({
+      revision: 1n,
+      cellSize: 1,
+      chunks: [{ chunk: viewChunks()[0]!.chunk, distanceChunks: 0 }]
+    });
+    expect(runtime.flushUploads()).toBe(1);
+
+    expect(runtime.group.getObjectByName(
+      `greater-realm-terrain:${viewChunks()[0]!.chunk.chunkHandle}`
+    )).toBeDefined();
+    expect(runtime.getTelemetry()).toMatchObject({
+      voxelMode: 'fallback',
+      residentVoxelTriangleCount: 0,
+      residentVoxelQuadCount: 0
+    });
+    expect(runtime.getTelemetry().voxelFallbackCount).toBeGreaterThan(0);
+    expect(runtime.getTelemetry().voxelFallbackReasons.join('|'))
+      .toContain('INJECTED_VOXEL_GEOMETRY_FAILURE');
+    runtime.dispose();
+    createGeometry.mockRestore();
+  });
+
+  it('keeps bounded voxel preparation failure inside the terrain graphics boundary', () => {
+    const prepareTerrain = vi.spyOn(voxelPresentation, 'createGreaterRealmVoxelTerrainPlan')
+      .mockImplementation(() => {
+        throw new RangeError('INJECTED_VOXEL_PREPARATION_FAILURE');
+      });
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop', graphicsProfile: 'balanced'
+    });
+
+    expect(() => runtime.setView({
+      revision: 1n,
+      cellSize: 1,
+      chunks: [{ chunk: viewChunks()[0]!.chunk, distanceChunks: 0 }]
+    })).not.toThrow();
+    expect(runtime.flushUploads()).toBe(1);
+    expect(runtime.group.getObjectByName(
+      `greater-realm-terrain:${viewChunks()[0]!.chunk.chunkHandle}`
+    )).toBeDefined();
+    expect(runtime.getTelemetry().voxelFallbackReasons.join('|'))
+      .toContain('INJECTED_VOXEL_PREPARATION_FAILURE');
+
+    runtime.dispose();
+    prepareTerrain.mockRestore();
   });
 
   it('drops resources on context loss and rebuilds only after restoration', () => {
@@ -237,6 +569,7 @@ describe('Greater Realm scene runtime', () => {
     runtime.setView({ revision: 1n, cellSize: 1, chunks: viewChunks() });
     runtime.flushUploads();
     expect(runtime.getTelemetry().uploadedChunkCount).toBe(2);
+    const beforeLoss = voxelDisposalProbe(runtime);
 
     const lost = new Event('webglcontextlost', { cancelable: true });
     canvas.dispatchEvent(lost);
@@ -246,13 +579,43 @@ describe('Greater Realm scene runtime', () => {
       uploadedChunkCount: 0,
       pendingUploadCount: 2
     });
+    beforeLoss.expectDisposedOnce();
     expect(runtime.flushUploads()).toBe(0);
 
     canvas.dispatchEvent(new Event('webglcontextrestored'));
     expect(runtime.getTelemetry().contextLost).toBe(false);
     runtime.flushUploads();
     expect(runtime.getTelemetry().uploadedChunkCount).toBe(2);
+    const afterRestore = voxelDisposalProbe(runtime);
+    for (const geometry of afterRestore.geometries) {
+      expect(beforeLoss.geometries.has(geometry)).toBe(false);
+    }
     runtime.dispose();
+    runtime.dispose();
+    afterRestore.expectDisposedOnce();
+  });
+
+  it('disposes exact voxel owners across profile replacement and final double disposal', () => {
+    const high = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop', graphicsProfile: 'high'
+    });
+    high.setView({ revision: 1n, cellSize: 1, chunks: viewChunks() });
+    high.flushUploads();
+    const highOwners = voxelDisposalProbe(high);
+
+    high.dispose();
+    highOwners.expectDisposedOnce();
+
+    const reduced = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop', graphicsProfile: 'reduced'
+    });
+    reduced.setView({ revision: 1n, cellSize: 1, chunks: viewChunks() });
+    reduced.flushUploads();
+    const reducedOwners = voxelDisposalProbe(reduced);
+    reduced.dispose();
+    reduced.dispose();
+
+    reducedOwners.expectDisposedOnce();
   });
 
   it('resolves a detached canvas loss when a fresh canvas is bound', () => {
@@ -283,6 +646,94 @@ describe('Greater Realm scene runtime', () => {
     runtime.dispose();
   });
 
+  it('seeds streamed water with the resident phase before another ambient tick', () => {
+    const runtime = createGreaterRealmSceneRuntime({ deviceClass: 'desktop', graphicsProfile: 'balanced' });
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: viewChunks().slice(0, 1) });
+    runtime.flushUploads();
+    runtime.update(9);
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: viewChunks() });
+    runtime.flushUploads();
+    const clocks: number[] = [];
+    runtime.group.traverse((object) => {
+      if (!(object instanceof THREE.Mesh) || !object.name.startsWith('greater-realm-water:')) return;
+      const shader = {
+        uniforms: THREE.UniformsUtils.clone(THREE.ShaderLib.standard.uniforms),
+        vertexShader: THREE.ShaderLib.standard.vertexShader,
+        fragmentShader: THREE.ShaderLib.standard.fragmentShader
+      };
+      object.material.onBeforeCompile(shader as Parameters<THREE.MeshStandardMaterial['onBeforeCompile']>[0], {} as THREE.WebGLRenderer);
+      clocks.push(shader.uniforms.greaterRealmWaterTime!.value);
+    });
+    expect(clocks).toEqual([9, 9]);
+    runtime.dispose();
+  });
+
+  it('fills only returned wet hexes, meeting their boundaries without adding geometry or changing water levels', () => {
+    const runtime = createGreaterRealmSceneRuntime({ deviceClass: 'desktop', graphicsProfile: 'balanced' });
+    const chunk = navigableLocalVesselChunk();
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: [{ chunk, distanceChunks: 0 }] });
+    runtime.flushUploads();
+    const plan = createGreaterRealmChunkPresentationPlan({ chunk, cellSize: 1, graphicsProfile: 'balanced' });
+    let water: THREE.BufferGeometry | undefined;
+    runtime.group.traverse((object) => {
+      if (object instanceof THREE.Mesh && object.name.startsWith('greater-realm-water:')) water = object.geometry;
+    });
+    const positions = water!.getAttribute('position');
+    expect(positions.count).toBe(plan.waterCells.length * 18);
+    expect(Object.keys(water!.attributes).sort()).toEqual(['normal', 'position']);
+    for (const [index, cell] of plan.waterCells.entries()) {
+      const x = Math.sqrt(3) * (cell.atlasQ + cell.atlasR / 2);
+      const z = 1.5 * cell.atlasR;
+      for (let offset = 0; offset < 18; offset += 1) {
+        const vertex = index * 18 + offset;
+        const radius = Math.hypot(positions.getX(vertex) - x, positions.getZ(vertex) - z);
+        expect(radius).toBeCloseTo(offset % 3 === 0 ? 0 : 1, 6);
+        expect(positions.getY(vertex)).toBeCloseTo((cell.hydroSurfaceMilli ?? cell.elevation) / 1000 + 0.035, 6);
+      }
+    }
+    runtime.dispose();
+  });
+
+  it('keeps water chunks on the host clock and freezes them across motion and visibility changes', () => {
+    const runtime = createGreaterRealmSceneRuntime({ deviceClass: 'desktop', graphicsProfile: 'balanced' });
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: viewChunks() });
+    runtime.flushUploads();
+    const waters: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>[] = [];
+    runtime.group.traverse((object) => {
+      if (object instanceof THREE.Mesh && object.name.startsWith('greater-realm-water:')) waters.push(object);
+    });
+    expect(waters).toHaveLength(2);
+    const clocks = waters.map((mesh) => {
+      const shader = {
+        uniforms: THREE.UniformsUtils.clone(THREE.ShaderLib.standard.uniforms),
+        vertexShader: THREE.ShaderLib.standard.vertexShader,
+        fragmentShader: THREE.ShaderLib.standard.fragmentShader
+      };
+      mesh.material.onBeforeCompile(shader as Parameters<THREE.MeshStandardMaterial['onBeforeCompile']>[0], {} as THREE.WebGLRenderer);
+      return shader.uniforms.greaterRealmWaterTime!;
+    });
+    const positions = waters.map((mesh) => Array.from(mesh.geometry.getAttribute('position').array));
+    const before = runtime.getTelemetry();
+    runtime.update(9);
+    expect(clocks.map((clock) => clock.value)).toEqual([9, 9]);
+    runtime.setReducedMotion(true);
+    runtime.update(42);
+    expect(clocks.map((clock) => clock.value)).toEqual([0, 0]);
+    runtime.setReducedMotion(false);
+    runtime.setDocumentVisible(false);
+    runtime.update(55);
+    expect(clocks.map((clock) => clock.value)).toEqual([0, 0]);
+    runtime.setDocumentVisible(true);
+    runtime.update(60);
+    expect(clocks.map((clock) => clock.value)).toEqual([60, 60]);
+    expect(waters.map((mesh) => Array.from(mesh.geometry.getAttribute('position').array))).toEqual(positions);
+    expect(runtime.getTelemetry().drawCallCount).toBe(before.drawCallCount);
+    const disposals = waters.map((mesh) => vi.spyOn(mesh.material, 'dispose'));
+    runtime.dispose();
+    runtime.dispose();
+    disposals.forEach((dispose) => expect(dispose).toHaveBeenCalledTimes(1));
+  });
+
   it('turns moving water and ephemeral actors static under reduced motion', () => {
     const runtime = createGreaterRealmSceneRuntime({
       deviceClass: 'desktop',
@@ -311,7 +762,7 @@ describe('Greater Realm scene runtime', () => {
     });
     runtime.flushUploads();
     expect(runtime.group.children.some((chunk) => (
-      chunk.children.some((child) => child.name.startsWith('greater-realm-feature-lamp-post:'))
+      chunk.children.some((child) => child.name.startsWith('greater-realm-voxel-feature-lamp-post:'))
     ))).toBe(true);
     expect(runtime.getTelemetry()).toMatchObject({
       ambientBoatCount: 1,

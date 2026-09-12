@@ -1,9 +1,16 @@
 import * as THREE from 'three';
+
+import { createGreaterRealmWaterSurface, type GreaterRealmWaterSurface } from './greaterRealmWaterSurface';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-import { axialToWorld } from '../game/map/hexCoordinates';
+import { axialToWorld, worldToNearestAxial } from '../game/map/hexCoordinates';
 import { createRealmAmbientScheduler, type RealmAmbientScheduler } from '../components/realm/realmAmbientScheduler';
 import { sampleRealmLivingEnvironment } from '../components/realm/realmLivingEnvironment';
+import {
+  createGreaterRealmVoxelGeometry,
+  greaterRealmVoxelSurfaceY,
+  type GreaterRealmVoxelPrefabKind
+} from '../components/realm/greaterRealmVoxelPresentation';
 import {
   greaterRealmCoordinateKey,
   type GreaterRealmAtlasCoordinate,
@@ -18,7 +25,8 @@ import {
   type GreaterRealmCellAccessPresentation,
   type GreaterRealmChunkPresentationPlan,
   type GreaterRealmFeaturePresentation,
-  type GreaterRealmPresentationActor
+  type GreaterRealmPresentationActor,
+  type GreaterRealmPresentationPosition
 } from './greaterRealmPresentationPlan';
 import {
   GREATER_REALM_GRAPHICS_BUDGETS,
@@ -62,6 +70,14 @@ export type GreaterRealmSceneTelemetry = Readonly<{
   maximumUploadsPerFrame: number;
   maximumUploadBytesPerFrame: number;
   skippedByBudgetCount: number;
+  voxelMode: 'none' | 'voxel' | 'mixed' | 'fallback';
+  residentVoxelTriangleCount: number;
+  residentVoxelQuadCount: number;
+  voxelUploadBytesThisFrame: number;
+  voxelPreparationMilliseconds: number;
+  voxelEmissionMillisecondsThisFrame: number;
+  voxelFallbackCount: number;
+  voxelFallbackReasons: readonly string[];
 }>;
 
 export type GreaterRealmLocalVesselState = Readonly<{
@@ -92,6 +108,10 @@ export type GreaterRealmSceneRuntime = Readonly<{
   getCellAccess: (
     coordinate: GreaterRealmAtlasCoordinate
   ) => GreaterRealmCellAccessPresentation | undefined;
+  getTerrainSurfaceY?: (
+    chunkHandle: string,
+    cell: GreaterRealmPublicCellDto
+  ) => number | undefined;
   isCoordinatePassable: (coordinate: GreaterRealmAtlasCoordinate) => boolean;
   selectLocalVessel: () => GreaterRealmLocalVesselState;
   moveLocalVessel: (move: GreaterRealmLocalVesselMove) => GreaterRealmLocalVesselState;
@@ -115,6 +135,7 @@ export type CreateGreaterRealmSceneRuntimeOptions = Readonly<{
 
 type ActorRenderRef = Readonly<{
   actor: GreaterRealmPresentationActor;
+  groundPosition: GreaterRealmPresentationPosition;
   mesh: THREE.InstancedMesh;
   index: number;
 }>;
@@ -123,10 +144,21 @@ type ChunkRenderResource = Readonly<{
   signature: string;
   group: THREE.Group;
   plan: GreaterRealmChunkPresentationPlan;
-  waterMaterials: readonly THREE.MeshStandardMaterial[];
+  waterSurfaces: readonly GreaterRealmWaterSurface[];
   actors: readonly ActorRenderRef[];
+  voxelTriangleCount: number;
+  voxelQuadCount: number;
+  voxelUploadBytes: number;
+  voxelEmissionMilliseconds: number;
+  voxelLayerCount: number;
+  voxelFallbackReasons: readonly string[];
+  usesVoxelTerrain: boolean;
   dispose: () => void;
 }>;
+
+type GroundPosition = (
+  position: GreaterRealmPresentationPosition
+) => GreaterRealmPresentationPosition;
 
 type LocalVesselResource = Readonly<{
   mesh: THREE.Mesh;
@@ -160,6 +192,10 @@ type SelectedChunk = Readonly<{
 
 function finiteDistance(value: number) {
   return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : Number.MAX_SAFE_INTEGER;
+}
+
+function nowMilliseconds() {
+  return globalThis.performance?.now() ?? Date.now();
 }
 
 const GREATER_REALM_BOAT_GEOMETRY_UPLOAD_BYTES = 840;
@@ -298,48 +334,101 @@ function terrainMesh(plan: GreaterRealmChunkPresentationPlan, cellSize: number) 
   return mesh;
 }
 
+function voxelFailureReason(layer: string, error: unknown) {
+  const detail = error instanceof Error ? error.message : String(error);
+  return `${layer}:${detail}`;
+}
+
+function voxelTerrainMesh(plan: GreaterRealmChunkPresentationPlan) {
+  let geometry: THREE.BufferGeometry | undefined;
+  let material: THREE.MeshStandardMaterial | undefined;
+  try {
+    geometry = createGreaterRealmVoxelGeometry(plan.voxelTerrainPlan);
+    material = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.92,
+      metalness: 0,
+      fog: true
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(
+      plan.voxelTerrainPlan.origin.x,
+      plan.voxelTerrainPlan.origin.y,
+      plan.voxelTerrainPlan.origin.z
+    );
+    mesh.name = `greater-realm-voxel-terrain:${plan.chunkHandle}`;
+    mesh.raycast = () => {};
+    return mesh;
+  } catch (error) {
+    geometry?.dispose();
+    material?.dispose();
+    throw error;
+  }
+}
+
 function waterMesh(plan: GreaterRealmChunkPresentationPlan, cellSize: number) {
   if (plan.waterCells.length === 0) return undefined;
   const positions: number[] = [];
   for (const cell of plan.waterCells) {
     const world = axialToWorld({ q: cell.atlasQ, r: cell.atlasR }, cellSize);
     const y = (cell.hydroSurfaceMilli ?? cell.elevation) / 1_000 + 0.035;
-    hexTriangles(positions, undefined, { x: world.x, y, z: world.z }, cellSize * 0.93);
+    // Fill exactly the returned wet hex; an inset invents dry seams inside a water body.
+    hexTriangles(positions, undefined, { x: world.x, y, z: world.z }, cellSize);
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
-  const first = plan.waterCells[0]!;
-  const material = new THREE.MeshStandardMaterial({
-    color: '#3e8797',
-    roughness: 0.3,
-    metalness: 0.02,
-    transparent: true,
-    opacity: 0.72,
-    depthWrite: true,
-    fog: true
+  const surface = createGreaterRealmWaterSurface({
+    cellSize,
+    graphicsProfile: plan.voxelTerrainPlan.graphicsProfile
   });
-  material.userData.greaterRealmPhase = (
-    (first.bankVariant ^ first.presentationVariant) >>> 0
-  ) / 0x1_0000_0000;
+  const material = surface.material;
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = `greater-realm-water:${plan.chunkHandle}`;
   mesh.raycast = () => {};
-  return Object.freeze({ mesh, material });
+  return Object.freeze({ mesh, surface });
 }
 
-function routeLines(plan: GreaterRealmChunkPresentationPlan) {
+function chunkGroundPosition(
+  plan: GreaterRealmChunkPresentationPlan,
+  usesVoxelTerrain: boolean
+): GroundPosition {
+  if (!usesVoxelTerrain) return (position) => position;
+  const cellsByCoordinate = new Map(plan.terrainCells.map((cell) => (
+    [greaterRealmCoordinateKey(cell), cell] as const
+  )));
+  return (position) => {
+    const coordinate = worldToNearestAxial(position, plan.cellSize);
+    const cell = cellsByCoordinate.get(`${coordinate.q},${coordinate.r}`);
+    if (cell === undefined) return position;
+    const surfaceY = greaterRealmVoxelSurfaceY({
+      cell,
+      graphicsProfile: plan.voxelTerrainPlan.graphicsProfile,
+      cellSize: plan.cellSize
+    });
+    return Object.freeze({
+      x: position.x,
+      y: position.y + surfaceY - cell.elevation / 1_000,
+      z: position.z
+    });
+  };
+}
+
+function routeLines(plan: GreaterRealmChunkPresentationPlan, groundPosition: GroundPosition) {
   if (plan.routeSegments.length === 0) return undefined;
   const positions: number[] = [];
   const colors: number[] = [];
   for (const segment of plan.routeSegments) {
+    const followsWater = segment.kind === 'river' || segment.kind === 'stream'
+      || segment.kind === 'boat-lane';
+    const from = followsWater ? segment.from : groundPosition(segment.from);
+    const to = followsWater ? segment.to : groundPosition(segment.to);
     positions.push(
-      segment.from.x, segment.from.y, segment.from.z,
-      segment.to.x, segment.to.y, segment.to.z
+      from.x, from.y, from.z,
+      to.x, to.y, to.z
     );
-    const color = segment.kind === 'river' || segment.kind === 'stream'
-      || segment.kind === 'boat-lane'
+    const color = followsWater
       ? new THREE.Color('#69a7b2')
       : segment.kind === 'track'
         ? new THREE.Color('#786b52')
@@ -362,7 +451,11 @@ function routeLines(plan: GreaterRealmChunkPresentationPlan) {
   return lines;
 }
 
-function crossingMesh(plan: GreaterRealmChunkPresentationPlan, cellSize: number) {
+function crossingMesh(
+  plan: GreaterRealmChunkPresentationPlan,
+  cellSize: number,
+  groundPosition: GroundPosition
+) {
   if (plan.crossings.length === 0) return undefined;
   const geometry = new THREE.BoxGeometry(cellSize * 0.58, 0.06, cellSize * 0.2);
   const material = new THREE.MeshStandardMaterial({
@@ -375,7 +468,8 @@ function crossingMesh(plan: GreaterRealmChunkPresentationPlan, cellSize: number)
   const scale = new THREE.Vector3(1, 1, 1);
   const up = new THREE.Vector3(0, 1, 0);
   plan.crossings.forEach((crossing, index) => {
-    position.set(crossing.position.x, crossing.position.y, crossing.position.z);
+    const grounded = groundPosition(crossing.position);
+    position.set(grounded.x, grounded.y, grounded.z);
     quaternion.setFromAxisAngle(up, crossing.headingRadians);
     matrix.compose(position, quaternion, scale);
     mesh.setMatrixAt(index, matrix);
@@ -420,7 +514,11 @@ function featureColor(kind: GreaterRealmFeaturePresentation['kind']) {
   return '#aa8253';
 }
 
-function featureMeshes(plan: GreaterRealmChunkPresentationPlan) {
+function featureMeshes(
+  plan: GreaterRealmChunkPresentationPlan,
+  groundPosition: GroundPosition,
+  onlyKinds?: ReadonlySet<GreaterRealmFeaturePresentation['kind']>
+) {
   const meshes: THREE.InstancedMesh[] = [];
   const matrix = new THREE.Matrix4();
   const quaternion = new THREE.Quaternion();
@@ -428,6 +526,7 @@ function featureMeshes(plan: GreaterRealmChunkPresentationPlan) {
   const scale = new THREE.Vector3(1, 1, 1);
   const up = new THREE.Vector3(0, 1, 0);
   for (const kind of ['signpost', 'waystone', 'lamp-post', 'ruin'] as const) {
+    if (onlyKinds !== undefined && !onlyKinds.has(kind)) continue;
     const features = plan.features.filter((feature) => feature.kind === kind);
     if (features.length === 0) continue;
     const geometry = featureGeometry(kind);
@@ -440,7 +539,8 @@ function featureMeshes(plan: GreaterRealmChunkPresentationPlan) {
     });
     const mesh = new THREE.InstancedMesh(geometry, material, features.length);
     features.forEach((feature, index) => {
-      position.set(feature.position.x, feature.position.y, feature.position.z);
+      const grounded = groundPosition(feature.position);
+      position.set(grounded.x, grounded.y, grounded.z);
       quaternion.setFromAxisAngle(up, feature.headingRadians);
       matrix.compose(position, quaternion, scale);
       mesh.setMatrixAt(index, matrix);
@@ -453,6 +553,77 @@ function featureMeshes(plan: GreaterRealmChunkPresentationPlan) {
   return Object.freeze(meshes);
 }
 
+function voxelFeatureMeshes(plan: GreaterRealmChunkPresentationPlan, groundPosition: GroundPosition) {
+  const meshes: THREE.InstancedMesh[] = [];
+  const fallbackMeshes: THREE.InstancedMesh[] = [];
+  const failures: string[] = plan.voxelPrefabFallbackReasons.map(
+    (fallback) => voxelFailureReason(`feature-${fallback.kind}`, fallback.reason)
+  );
+  let triangleCount = 0;
+  let quadCount = 0;
+  let uploadBytes = 0;
+  let voxelLayerCount = 0;
+  const matrix = new THREE.Matrix4();
+  const quaternion = new THREE.Quaternion();
+  const position = new THREE.Vector3();
+  const scale = new THREE.Vector3(1, 1, 1);
+  const up = new THREE.Vector3(0, 1, 0);
+  for (const fallback of plan.voxelPrefabFallbackReasons) {
+    featureMeshes(plan, groundPosition, new Set([fallback.kind]))
+      .forEach((mesh) => fallbackMeshes.push(mesh));
+  }
+  for (const prefab of plan.voxelPrefabPlans) {
+    if (prefab.kind === 'castle') continue;
+    const kind = prefab.kind as GreaterRealmVoxelPrefabKind & GreaterRealmFeaturePresentation['kind'];
+    const features = plan.features.filter((feature) => feature.kind === kind);
+    if (features.length === 0) continue;
+    let geometry: THREE.BufferGeometry | undefined;
+    let material: THREE.MeshStandardMaterial | undefined;
+    try {
+      geometry = createGreaterRealmVoxelGeometry(prefab);
+      material = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        emissive: kind === 'lamp-post' ? '#3d290e' : '#000000',
+        emissiveIntensity: kind === 'lamp-post' ? 0.65 : 0,
+        roughness: kind === 'lamp-post' ? 0.55 : 0.9,
+        fog: true
+      });
+      const mesh = new THREE.InstancedMesh(geometry, material, features.length);
+      features.forEach((feature, index) => {
+        const baseLift = kind === 'waystone' ? 0.15 : 0.18;
+        const grounded = groundPosition(feature.position);
+        position.set(grounded.x, grounded.y - baseLift, grounded.z);
+        quaternion.setFromAxisAngle(up, feature.headingRadians);
+        matrix.compose(position, quaternion, scale);
+        mesh.setMatrixAt(index, matrix);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.name = `greater-realm-voxel-feature-${kind}:${plan.chunkHandle}`;
+      mesh.raycast = () => {};
+      meshes.push(mesh);
+      triangleCount += prefab.surfacePlan.triangleCount;
+      quadCount += prefab.surfacePlan.mergedQuadCount;
+      uploadBytes += prefab.uploadBytes;
+      voxelLayerCount += 1;
+    } catch (error) {
+      geometry?.dispose();
+      material?.dispose();
+      failures.push(voxelFailureReason(`feature-${kind}`, error));
+      featureMeshes(plan, groundPosition, new Set([kind]))
+        .forEach((mesh) => fallbackMeshes.push(mesh));
+    }
+  }
+  return Object.freeze({
+    meshes: Object.freeze(meshes),
+    fallbackMeshes: Object.freeze(fallbackMeshes),
+    failures: Object.freeze(failures),
+    triangleCount,
+    quadCount,
+    uploadBytes,
+    voxelLayerCount
+  });
+}
+
 function resourceColor(kind: GreaterRealmChunkPresentationPlan['resources'][number]['kind']) {
   if (kind === 'food') return '#d6b85c';
   if (kind === 'wood') return '#6d8a50';
@@ -460,7 +631,7 @@ function resourceColor(kind: GreaterRealmChunkPresentationPlan['resources'][numb
   return '#d7a94a';
 }
 
-function resourceMeshes(plan: GreaterRealmChunkPresentationPlan) {
+function resourceMeshes(plan: GreaterRealmChunkPresentationPlan, groundPosition: GroundPosition) {
   const meshes: THREE.InstancedMesh[] = [];
   const matrix = new THREE.Matrix4();
   for (const kind of ['food', 'wood', 'stone', 'gold'] as const) {
@@ -473,8 +644,9 @@ function resourceMeshes(plan: GreaterRealmChunkPresentationPlan) {
     const mesh = new THREE.InstancedMesh(geometry, material, rows.length);
     rows.forEach((resource, index) => {
       const size = Math.min(1.4, 0.82 + Math.log2(resource.nodeCount + 1) * 0.08);
+      const grounded = groundPosition(resource.position);
       matrix.makeScale(size, size, size);
-      matrix.setPosition(resource.position.x, resource.position.y, resource.position.z);
+      matrix.setPosition(grounded.x, grounded.y, grounded.z);
       mesh.setMatrixAt(index, matrix);
     });
     mesh.instanceMatrix.needsUpdate = true;
@@ -503,7 +675,7 @@ function actorColor(kind: GreaterRealmPresentationActor['kind']) {
   return '#835f45';
 }
 
-function actorMeshes(plan: GreaterRealmChunkPresentationPlan) {
+function actorMeshes(plan: GreaterRealmChunkPresentationPlan, groundPosition: GroundPosition) {
   const refs: ActorRenderRef[] = [];
   const meshes: THREE.InstancedMesh[] = [];
   const matrix = new THREE.Matrix4();
@@ -523,11 +695,12 @@ function actorMeshes(plan: GreaterRealmChunkPresentationPlan) {
     mesh.name = `greater-realm-${kind}:${plan.chunkHandle}`;
     mesh.raycast = () => {};
     actors.forEach((actor, index) => {
-      position.set(actor.position.x, actor.position.y, actor.position.z);
+      const grounded = kind === 'boat' ? actor.position : groundPosition(actor.position);
+      position.set(grounded.x, grounded.y, grounded.z);
       quaternion.setFromAxisAngle(up, actor.headingRadians);
       matrix.compose(position, quaternion, scale);
       mesh.setMatrixAt(index, matrix);
-      refs.push(Object.freeze({ actor, mesh, index }));
+      refs.push(Object.freeze({ actor, groundPosition: grounded, mesh, index }));
     });
     mesh.instanceMatrix.needsUpdate = true;
     meshes.push(mesh);
@@ -611,17 +784,53 @@ function disposeObject(root: THREE.Object3D) {
 function buildChunkResource(selected: SelectedChunk, cellSize: number): ChunkRenderResource {
   const group = new THREE.Group();
   group.name = `greater-realm-chunk:${selected.plan.chunkHandle}:lod${selected.plan.lod}`;
-  group.add(terrainMesh(selected.plan, cellSize));
+  const voxelFallbackReasons: string[] = [];
+  let voxelTriangleCount = 0;
+  let voxelQuadCount = 0;
+  let voxelUploadBytes = 0;
+  let voxelEmissionMilliseconds = 0;
+  let voxelLayerCount = 0;
+  let usesVoxelTerrain = false;
+  const terrainEmissionStarted = nowMilliseconds();
+  if (selected.plan.voxelTerrainFallbackReason !== undefined) {
+    voxelFallbackReasons.push(voxelFailureReason(
+      'terrain-preparation', selected.plan.voxelTerrainFallbackReason
+    ));
+    group.add(terrainMesh(selected.plan, cellSize));
+  } else {
+    try {
+      group.add(voxelTerrainMesh(selected.plan));
+      voxelTriangleCount += selected.plan.voxelTerrainPlan.surfacePlan.triangleCount;
+      voxelQuadCount += selected.plan.voxelTerrainPlan.surfacePlan.mergedQuadCount;
+      voxelUploadBytes += selected.plan.voxelTerrainPlan.uploadBytes;
+      voxelLayerCount += 1;
+      usesVoxelTerrain = true;
+    } catch (error) {
+      voxelFallbackReasons.push(voxelFailureReason('terrain', error));
+      group.add(terrainMesh(selected.plan, cellSize));
+    }
+  }
+  voxelEmissionMilliseconds += nowMilliseconds() - terrainEmissionStarted;
+  const groundPosition = chunkGroundPosition(selected.plan, usesVoxelTerrain);
   const water = waterMesh(selected.plan, cellSize);
   if (water) group.add(water.mesh);
-  const routes = routeLines(selected.plan);
+  const routes = routeLines(selected.plan, groundPosition);
   if (routes) group.add(routes);
-  const crossings = crossingMesh(selected.plan, cellSize);
+  const crossings = crossingMesh(selected.plan, cellSize, groundPosition);
   if (crossings) group.add(crossings);
-  featureMeshes(selected.plan).forEach((mesh) => group.add(mesh));
-  const actors = actorMeshes(selected.plan);
+  const featureEmissionStarted = nowMilliseconds();
+  const voxelFeatures = voxelFeatureMeshes(selected.plan, groundPosition);
+  voxelEmissionMilliseconds += nowMilliseconds() - featureEmissionStarted;
+  voxelFeatures.meshes.forEach((mesh) => group.add(mesh));
+  voxelFeatures.fallbackMeshes.forEach((mesh) => group.add(mesh));
+  voxelFallbackReasons.push(...voxelFeatures.failures);
+  voxelTriangleCount += voxelFeatures.triangleCount;
+  voxelQuadCount += voxelFeatures.quadCount;
+  voxelUploadBytes += voxelFeatures.uploadBytes;
+  voxelLayerCount += voxelFeatures.voxelLayerCount;
+  const actors = actorMeshes(selected.plan, groundPosition);
   actors.meshes.forEach((mesh) => group.add(mesh));
-  resourceMeshes(selected.plan).forEach((mesh) => group.add(mesh));
+  resourceMeshes(selected.plan, groundPosition).forEach((mesh) => group.add(mesh));
   const boundary = boundaryMesh(selected.plan);
   if (boundary) group.add(boundary);
   let disposed = false;
@@ -629,8 +838,15 @@ function buildChunkResource(selected: SelectedChunk, cellSize: number): ChunkRen
     signature: selected.signature,
     group,
     plan: selected.plan,
-    waterMaterials: Object.freeze(water ? [water.material] : []),
+    waterSurfaces: Object.freeze(water ? [water.surface] : []),
     actors: actors.refs,
+    voxelTriangleCount,
+    voxelQuadCount,
+    voxelUploadBytes,
+    voxelEmissionMilliseconds,
+    voxelLayerCount,
+    voxelFallbackReasons: Object.freeze(voxelFallbackReasons),
+    usesVoxelTerrain,
     dispose: () => {
       if (disposed) return;
       disposed = true;
@@ -642,6 +858,10 @@ function buildChunkResource(selected: SelectedChunk, cellSize: number): ChunkRen
 function planSignature(plan: GreaterRealmChunkPresentationPlan) {
   return [
     plan.revision, plan.lod, plan.cellSize, plan.drawCallCount, plan.instanceCount,
+    plan.voxelTerrainPlan.signature,
+    plan.voxelPrefabPlans.map((prefab) => prefab.signature).join(','),
+    plan.voxelTerrainFallbackReason ?? '',
+    plan.voxelPrefabFallbackReasons.map((row) => `${row.kind}:${row.reason}`).join(','),
     plan.terrainCells.length, plan.sealedEdges.length,
     plan.actors.map((actor) => actor.id).join(','),
     plan.features.map((feature) => feature.id).join(','),
@@ -696,10 +916,15 @@ export function createGreaterRealmSceneRuntime(
   let reducedMotion = Boolean(options.reducedMotion);
   let contextLost = false;
   let documentVisible = true;
+  let waterVisualTime = 0;
   let cellSize = 1;
   let selected = new Map<string, SelectedChunk>();
   let pending = new Map<string, SelectedChunk>();
   const uploaded = new Map<string, ChunkRenderResource>();
+  const uploadedTerrainCells = new Map<string, Readonly<{
+    resource: ChunkRenderResource;
+    cell: GreaterRealmPublicCellDto;
+  }>>();
   const access = new Map<string, GreaterRealmCellAccessPresentation>();
   let boatCells = new Map<string, GreaterRealmBoatCellPresentation>();
   let boatLanes: readonly GreaterRealmBoatLanePresentation[] = Object.freeze([]);
@@ -714,6 +939,9 @@ export function createGreaterRealmSceneRuntime(
   let scheduler: RealmAmbientScheduler | undefined;
   let uploadedThisFrame = 0;
   let uploadBytesThisFrame = 0;
+  let voxelUploadBytesThisFrame = 0;
+  let voxelPreparationMilliseconds = 0;
+  let voxelEmissionMillisecondsThisFrame = 0;
   let skippedByBudgetCount = 0;
   let boundCanvas: HTMLCanvasElement | null = null;
   const matrix = new THREE.Matrix4();
@@ -729,6 +957,12 @@ export function createGreaterRealmSceneRuntime(
     const resource = uploaded.get(handle);
     if (!resource) return;
     uploaded.delete(handle);
+    for (const cell of resource.plan.terrainCells) {
+      const key = greaterRealmCoordinateKey(cell);
+      if (uploadedTerrainCells.get(key)?.resource === resource) {
+        uploadedTerrainCells.delete(key);
+      }
+    }
     group.remove(resource.group);
     resource.dispose();
   };
@@ -954,8 +1188,22 @@ export function createGreaterRealmSceneRuntime(
   };
 
   const telemetry = (): GreaterRealmSceneTelemetry => {
-    const plans = [...uploaded.values()].map((row) => row.plan);
+    const resources = [...uploaded.values()];
+    const plans = resources.map((row) => row.plan);
     const actors = plans.flatMap((plan) => plan.actors);
+    const voxelFallbackReasons = Object.freeze(resources.flatMap(
+      (resource) => resource.voxelFallbackReasons
+    ));
+    const voxelLayerCount = resources.reduce(
+      (total, resource) => total + resource.voxelLayerCount, 0
+    );
+    const voxelMode = resources.length === 0
+      ? 'none' as const
+      : voxelFallbackReasons.length === 0
+        ? 'voxel' as const
+        : voxelLayerCount === 0
+          ? 'fallback' as const
+          : 'mixed' as const;
     const ambientBoatCount = ambientBoatResource?.routes.length ?? 0;
     const localVesselCount = Number(localVesselResource !== undefined);
     return Object.freeze({
@@ -991,7 +1239,19 @@ export function createGreaterRealmSceneRuntime(
       uploadBytesThisFrame,
       maximumUploadsPerFrame: budget.maximumUploadsPerFrame,
       maximumUploadBytesPerFrame: budget.maximumUploadBytesPerFrame,
-      skippedByBudgetCount
+      skippedByBudgetCount,
+      voxelMode,
+      residentVoxelTriangleCount: resources.reduce(
+        (total, resource) => total + resource.voxelTriangleCount, 0
+      ),
+      residentVoxelQuadCount: resources.reduce(
+        (total, resource) => total + resource.voxelQuadCount, 0
+      ),
+      voxelUploadBytesThisFrame,
+      voxelPreparationMilliseconds,
+      voxelEmissionMillisecondsThisFrame,
+      voxelFallbackCount: voxelFallbackReasons.length,
+      voxelFallbackReasons
     });
   };
 
@@ -999,21 +1259,17 @@ export function createGreaterRealmSceneRuntime(
     if (disposed || contextLost || uploaded.size === 0) return false;
     const active = animationActive();
     const time = active && Number.isFinite(elapsedSeconds) ? Math.max(0, elapsedSeconds) : 0;
+    waterVisualTime = time;
     const touchedMeshes = new Set<THREE.InstancedMesh>();
     const ambientBoatsMoved = updateAmbientBoatMatrices(time, active);
     for (const resource of uploaded.values()) {
-      for (const material of resource.waterMaterials) {
-        const phase = Number(material.userData.greaterRealmPhase ?? 0);
-        const wave = Math.sin(time * 0.72 + phase * Math.PI * 2);
-        material.opacity = 0.7 + wave * 0.035;
-        material.color.setHSL(0.535 + wave * 0.008, 0.48, 0.42 + wave * 0.018);
-      }
+      for (const surface of resource.waterSurfaces) surface.update(time);
       for (const ref of resource.actors) {
         const actor = ref.actor;
         sampleRealmLivingEnvironment(time, actor.position.x, actor.position.z, livingSample);
-        let x = actor.position.x;
-        let y = actor.position.y;
-        let z = actor.position.z;
+        let x = ref.groundPosition.x;
+        let y = ref.groundPosition.y;
+        let z = ref.groundPosition.z;
         let yaw = actor.headingRadians;
         let sway = 0;
         if (active) {
@@ -1054,7 +1310,7 @@ export function createGreaterRealmSceneRuntime(
     return active && (
       ambientBoatsMoved
       || touchedMeshes.size > 0
-      || [...uploaded.values()].some((resource) => resource.waterMaterials.length > 0)
+      || [...uploaded.values()].some((resource) => resource.waterSurfaces.length > 0)
     );
   };
 
@@ -1110,6 +1366,10 @@ export function createGreaterRealmSceneRuntime(
         let flowerLayers = 0;
         for (const value of values) {
           if (next.size >= budget.maximumVisibleChunks) break;
+          const occluderCells = Object.freeze([
+            ...value.chunk.coreCells,
+            ...value.chunk.apronCells
+          ]);
           const visibleApron = filterAprons
             ? value.chunk.apronCells.filter((cell) => {
               const key = greaterRealmCoordinateKey(cell);
@@ -1124,6 +1384,7 @@ export function createGreaterRealmSceneRuntime(
             chunk,
             graphicsProfile: options.graphicsProfile,
             cellSize,
+            occluderCells,
             actorAllowance: {
               canopy: budget.canopyCount - canopy,
               grassPatches: budget.grassPatchCount - grassPatches,
@@ -1173,10 +1434,12 @@ export function createGreaterRealmSceneRuntime(
         return next;
       };
 
+      const voxelPreparationStarted = nowMilliseconds();
       const preliminary = buildPlans(ordered, false);
       const acceptedHandles = new Set(preliminary.keys());
       const accepted = ordered.filter((row) => acceptedHandles.has(row.chunk.chunkHandle));
       const next = buildPlans(accepted, true);
+      voxelPreparationMilliseconds = nowMilliseconds() - voxelPreparationStarted;
       skippedByBudgetCount = ordered.length - next.size;
       for (const [handle, resource] of uploaded) {
         if (next.get(handle)?.signature !== resource.signature) removeUploaded(handle);
@@ -1213,6 +1476,8 @@ export function createGreaterRealmSceneRuntime(
     },
     flushUploads: () => {
       uploadedThisFrame = 0;
+      voxelUploadBytesThisFrame = 0;
+      voxelEmissionMillisecondsThisFrame = 0;
       uploadBytesThisFrame = pendingAmbientBoatUploadBytes
         + pendingLocalVesselUploadBytes;
       pendingAmbientBoatUploadBytes = 0;
@@ -1236,12 +1501,22 @@ export function createGreaterRealmSceneRuntime(
           continue;
         }
         const resource = buildChunkResource(row, cellSize);
+        // Uploads can render between capped ambient ticks. Match resident chunks immediately.
+        resource.waterSurfaces.forEach((surface) => surface.update(waterVisualTime));
         uploaded.set(row.plan.chunkHandle, resource);
+        for (const cell of resource.plan.terrainCells) {
+          uploadedTerrainCells.set(
+            greaterRealmCoordinateKey(cell),
+            Object.freeze({ resource, cell })
+          );
+        }
         group.add(resource.group);
         pending.delete(row.plan.chunkHandle);
         uploadedThisFrame += 1;
         chunkUploadBytesThisFrame += row.plan.estimatedUploadBytes;
         uploadBytesThisFrame += row.plan.estimatedUploadBytes;
+        voxelUploadBytesThisFrame += resource.voxelUploadBytes;
+        voxelEmissionMillisecondsThisFrame += resource.voxelEmissionMilliseconds;
       }
       if (pending.size > 0) options.onInvalidate?.();
       return uploadedThisFrame;
@@ -1279,6 +1554,16 @@ export function createGreaterRealmSceneRuntime(
     },
     bindCanvas,
     getCellAccess: (coordinate) => access.get(greaterRealmCoordinateKey(coordinate)),
+    getTerrainSurfaceY: (_chunkHandle, cell) => {
+      const emitted = uploadedTerrainCells.get(greaterRealmCoordinateKey(cell));
+      return emitted === undefined || !emitted.resource.usesVoxelTerrain
+        ? undefined
+        : greaterRealmVoxelSurfaceY({
+            cell: emitted.cell,
+            graphicsProfile: emitted.resource.plan.voxelTerrainPlan.graphicsProfile,
+            cellSize: emitted.resource.plan.cellSize
+          });
+    },
     isCoordinatePassable: (coordinate) => (
       access.get(greaterRealmCoordinateKey(coordinate))?.passable === true
     ),

@@ -19,6 +19,7 @@ import {
   type MiniAppSdk
 } from '../src/farcaster/miniapp';
 import { WarpkeepSpacetimeProvider } from '../src/spacetime/WarpkeepSpacetimeProvider';
+import { PtrRealmProvider } from '../src/ptr/PtrRealmProvider';
 import { NOT_REQUIRED_WORKER_PRIVATE_SYNC_STATUS } from '../src/spacetime/warpkeepBackendTypes';
 import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
 
@@ -29,7 +30,9 @@ function render(ui: ReactElement) {
   return testingLibraryRender(
     <FarcasterAuthProvider>
       <WarpkeepSpacetimeProvider>
-        {ui}
+        <PtrRealmProvider config={{ availability: 'unavailable' }}>
+          {ui}
+        </PtrRealmProvider>
       </WarpkeepSpacetimeProvider>
     </FarcasterAuthProvider>
   );
@@ -97,7 +100,9 @@ function renderVerifiedMiniAppTitle(ui: ReactElement) {
       <MiniAppHostProvider runtime={runtime} sdkLoader={async () => sdk}>
         <FarcasterAuthProvider loadBridgeClient={async () => bridge}>
           <WarpkeepSpacetimeProvider>
-            {ui}
+            <PtrRealmProvider config={{ availability: 'unavailable' }}>
+              {ui}
+            </PtrRealmProvider>
           </WarpkeepSpacetimeProvider>
         </FarcasterAuthProvider>
       </MiniAppHostProvider>

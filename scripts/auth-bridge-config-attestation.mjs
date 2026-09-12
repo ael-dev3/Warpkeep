@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 export const DEFAULT_AUTH_BRIDGE_URL = 'https://auth.warpkeep.com';
 export const DEFAULT_FARCASTER_RPC_PRIMARY_URL = 'https://optimism.drpc.org/';
 export const DEFAULT_FARCASTER_RPC_SECONDARY_URL = 'https://optimism-rpc.publicnode.com/';
+export const AUTH_BRIDGE_PTR_OIDC_AUDIENCE = 'warpkeep-ptr-spacetimedb';
 
 const ATTESTATION_PATH = '/v1/admin/config-attestation';
 const RELEASE_ATTESTATION_PATH = '/v1/release-attestation';
@@ -15,6 +16,8 @@ const REQUEST_TIMEOUT_MILLISECONDS = 10_000;
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
 const SOURCE_COMMIT = /^[a-f0-9]{40}$/u;
 const PUBLIC_KEY_THUMBPRINT = /^[A-Za-z0-9_-]{43}$/u;
+const PRODUCTION_SPACETIMEDB_DATABASE =
+  'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
 const PRIVATE_ATTESTATION_KEYS = Object.freeze([
   'profile',
   'digest',
@@ -43,6 +46,9 @@ const PRIVATE_ATTESTATION_KEYS = Object.freeze([
   'admissionNotificationStatusPath',
   'publicAuthEnabled',
   'accessExpectedFidRequired',
+  'ptrEnabled',
+  'ptrSpacetimeDbDatabase',
+  'ptrAudience',
   'qaObserverEnabled',
   'qaObserverSpacetimeDbUri',
   'qaObserverSpacetimeDbDatabase',
@@ -54,7 +60,12 @@ const PRIVATE_ATTESTATION_KEYS = Object.freeze([
 ]);
 const B0_PREDECESSOR_ATTESTATION_KEYS = Object.freeze(
   PRIVATE_ATTESTATION_KEYS.filter(
-    key => key !== 'admissionNotificationRecoveryPath',
+    key => ![
+      'admissionNotificationRecoveryPath',
+      'ptrEnabled',
+      'ptrSpacetimeDbDatabase',
+      'ptrAudience',
+    ].includes(key),
   ),
 );
 export const AUTH_BRIDGE_RELEASE_ATTESTATION_KEYS = Object.freeze([
@@ -262,13 +273,20 @@ function canonicalTimestampOrNull(value, label) {
   return value;
 }
 
-function readPrivateAttestationModes(body, b0Contract = false) {
-  const currentContract = exactKeys(body, PRIVATE_ATTESTATION_KEYS);
-  const predecessorContract = exactKeys(
+function readPrivateAttestationModes(
+  body,
+  ptrContract = 'current',
+  expectedPtrSpacetimeDbDatabase,
+) {
+  const currentContract = exactOrderedKeys(body, PRIVATE_ATTESTATION_KEYS);
+  const predecessorContract = exactOrderedKeys(
     body,
     B0_PREDECESSOR_ATTESTATION_KEYS,
   );
-  if (!currentContract && (!b0Contract || !predecessorContract)) {
+  if (
+    !currentContract
+    && (ptrContract !== 'b0-compatible' || !predecessorContract)
+  ) {
     fail('the private attestation shape was invalid.');
   }
   if (
@@ -335,6 +353,45 @@ function readPrivateAttestationModes(body, b0Contract = false) {
     body.approvalNotificationsEnabled,
     'the notification delivery mode',
   );
+  if (
+    (ptrContract === 'prepared' && notificationDeliveryEnabled !== false)
+    || (ptrContract === 'b0-current' && notificationDeliveryEnabled !== true)
+  ) fail('the notification delivery mode was invalid.');
+  let ptrEnabled = false;
+  let ptrSpacetimeDbDatabase = null;
+  let ptrAudience = null;
+  if (currentContract) {
+    ptrEnabled = exactBoolean(body.ptrEnabled, 'the PTR mode');
+    ptrSpacetimeDbDatabase = body.ptrSpacetimeDbDatabase;
+    ptrAudience = body.ptrAudience;
+    if (ptrEnabled) {
+      if (
+        typeof ptrSpacetimeDbDatabase !== 'string'
+        || !SHA256_HEX.test(ptrSpacetimeDbDatabase)
+        || ptrSpacetimeDbDatabase === PRODUCTION_SPACETIMEDB_DATABASE
+        || ptrAudience !== AUTH_BRIDGE_PTR_OIDC_AUDIENCE
+      ) fail('the PTR configuration was invalid.');
+    } else if (ptrSpacetimeDbDatabase !== null || ptrAudience !== null) {
+      fail('the PTR configuration was invalid.');
+    }
+  }
+  if (
+    (
+      ptrContract === 'b0-compatible'
+      || ptrContract === 'b0-current'
+      || ptrContract === 'prepared-pre'
+    )
+    && (ptrEnabled || ptrSpacetimeDbDatabase !== null || ptrAudience !== null)
+  ) fail('the PTR configuration was invalid.');
+  if (
+    ptrContract === 'prepared'
+    && (
+      !currentContract
+      || !ptrEnabled
+      || ptrSpacetimeDbDatabase !== expectedPtrSpacetimeDbDatabase
+      || ptrAudience !== AUTH_BRIDGE_PTR_OIDC_AUDIENCE
+    )
+  ) fail('the PTR configuration was invalid.');
   exactBoolean(body.qaObserverEnabled, 'the QA observer mode');
   for (const [value, label] of [
     [body.qaObserverSpacetimeDbUri, 'the QA observer URI'],
@@ -352,6 +409,11 @@ function readPrivateAttestationModes(body, b0Contract = false) {
       || !PUBLIC_KEY_THUMBPRINT.test(body.qaObserverKeyFingerprint)
     )
   ) fail('the QA observer key fingerprint was invalid.');
+  if (
+    ptrEnabled
+    && body.qaObserverSpacetimeDbDatabase !== null
+    && ptrSpacetimeDbDatabase === body.qaObserverSpacetimeDbDatabase
+  ) fail('the PTR configuration was invalid.');
   canonicalTimestampOrNull(
     body.qaObserverKeyRegisteredAt,
     'the QA observer registration',
@@ -367,6 +429,9 @@ function readPrivateAttestationModes(body, b0Contract = false) {
     notificationClientCount: clientFids.length,
     publicAuthEnabled,
     accessExpectedFidRequired,
+    ptrEnabled,
+    ptrSpacetimeDbDatabase,
+    ptrAudience,
   });
 }
 
@@ -376,7 +441,10 @@ async function verifyAuthBridgeRpcRoleAttestationContract({
   expectedPrimaryRpcUrl = DEFAULT_FARCASTER_RPC_PRIMARY_URL,
   expectedSecondaryRpcUrl = DEFAULT_FARCASTER_RPC_SECONDARY_URL,
   fetchImpl = fetch,
-} = {}, b0Contract = false) {
+} = {}, {
+  ptrContract = 'current',
+  expectedPtrSpacetimeDbDatabase,
+} = {}) {
   let bridgeOrigin;
   let credential;
   let primaryUrl;
@@ -398,6 +466,14 @@ async function verifyAuthBridgeRpcRoleAttestationContract({
     if (primaryUrl === secondaryUrl) {
       fail('the expected RPC roles must use distinct endpoints.');
     }
+    if (
+      (ptrContract === 'prepared' || ptrContract === 'prepared-pre')
+      && (
+        typeof expectedPtrSpacetimeDbDatabase !== 'string'
+        || !SHA256_HEX.test(expectedPtrSpacetimeDbDatabase)
+        || expectedPtrSpacetimeDbDatabase === PRODUCTION_SPACETIMEDB_DATABASE
+      )
+    ) fail('the expected PTR database identity was invalid.');
   } catch {
     failPrivateAttestation(
       'AUTH_BRIDGE_PRIVATE_ATTESTATION_INPUT_INVALID',
@@ -473,7 +549,11 @@ async function verifyAuthBridgeRpcRoleAttestationContract({
   let roles;
   try {
     body = await readBoundedJson(response);
-    modes = readPrivateAttestationModes(body, b0Contract);
+    modes = readPrivateAttestationModes(
+      body,
+      ptrContract,
+      expectedPtrSpacetimeDbDatabase,
+    );
     roles = readRoleFingerprints(body.farcasterRpcEndpointRoleFingerprints);
   } catch {
     failPrivateAttestation(
@@ -523,20 +603,47 @@ async function verifyAuthBridgeRpcRoleAttestationContract({
 }
 
 export function verifyAuthBridgeRpcRoleAttestation(options) {
-  return verifyAuthBridgeRpcRoleAttestationContract(options, false);
+  return verifyAuthBridgeRpcRoleAttestationContract(options);
+}
+
+export function verifyAuthBridgePreparedRpcRoleAttestation(options = {}) {
+  return verifyAuthBridgeRpcRoleAttestationContract(options, {
+    ptrContract: 'prepared',
+    expectedPtrSpacetimeDbDatabase:
+      options.expectedPtrSpacetimeDbDatabase,
+  });
+}
+
+export function verifyAuthBridgePreparedPredeployRpcRoleAttestation(
+  options = {},
+) {
+  return verifyAuthBridgeRpcRoleAttestationContract(options, {
+    ptrContract: 'prepared-pre',
+    expectedPtrSpacetimeDbDatabase:
+      options.expectedPtrSpacetimeDbDatabase,
+  });
+}
+
+export function verifyAuthBridgeNotificationB0CurrentRpcRoleAttestation(
+  options,
+) {
+  return verifyAuthBridgeRpcRoleAttestationContract(options, {
+    ptrContract: 'b0-current',
+  });
 }
 
 /**
  * Verifies either the exact private response emitted by the live e8bd065 B0
- * predecessor or the exact current response emitted after B0. The two shapes
- * differ only by the predecessor's deliberate absence of the not-yet-deployed
- * notification-recovery path, allowing same-source journal recovery without
- * weakening the prepared path's current-contract requirement.
+ * predecessor or the exact current response emitted after B0. The predecessor
+ * deliberately lacks the not-yet-deployed notification-recovery and PTR
+ * fields. This compatibility is isolated to the B0 PRE seam.
  */
 export function verifyAuthBridgeNotificationB0RpcRoleAttestation(
   options,
 ) {
-  return verifyAuthBridgeRpcRoleAttestationContract(options, true);
+  return verifyAuthBridgeRpcRoleAttestationContract(options, {
+    ptrContract: 'b0-compatible',
+  });
 }
 
 const RELEASE_SECURITY_HEADERS = Object.freeze({
@@ -574,7 +681,7 @@ export function parseAuthBridgeReleaseAttestation(value) {
     || value.profile !== RELEASE_ATTESTATION_PROFILE
     || typeof value.bridgeSourceCommit !== 'string'
     || !SOURCE_COMMIT.test(value.bridgeSourceCommit)
-    || value.notificationDeliveryEnabled !== true
+    || typeof value.notificationDeliveryEnabled !== 'boolean'
     || value.notificationTransportConfigured !== true
     || value.admissionNotificationStoreConfigured !== true
     || value.notificationClientCount !== 1
@@ -587,7 +694,7 @@ export function parseAuthBridgeReleaseAttestation(value) {
     schemaVersion: 1,
     profile: RELEASE_ATTESTATION_PROFILE,
     bridgeSourceCommit: value.bridgeSourceCommit,
-    notificationDeliveryEnabled: true,
+    notificationDeliveryEnabled: value.notificationDeliveryEnabled,
     notificationTransportConfigured: true,
     admissionNotificationStoreConfigured: true,
     notificationClientCount: 1,
@@ -651,16 +758,21 @@ export async function verifyAuthBridgePreparedConfigAttestation({
   adminToken,
   expectedPrimaryRpcUrl = DEFAULT_FARCASTER_RPC_PRIMARY_URL,
   expectedSecondaryRpcUrl = DEFAULT_FARCASTER_RPC_SECONDARY_URL,
+  expectedPtrSpacetimeDbDatabase,
   expectedReleaseAttestation,
   fetchImpl = fetch,
 } = {}) {
   // Parse every mandatory expectation before either credentialed or public I/O.
   const expected = parseAuthBridgeReleaseAttestation(expectedReleaseAttestation);
-  const privateAttestation = await verifyAuthBridgeRpcRoleAttestation({
+  if (expected.notificationDeliveryEnabled !== false) {
+    fail('the prepared notification delivery mode was invalid.');
+  }
+  const privateAttestation = await verifyAuthBridgePreparedRpcRoleAttestation({
     bridgeUrl,
     adminToken,
     expectedPrimaryRpcUrl,
     expectedSecondaryRpcUrl,
+    expectedPtrSpacetimeDbDatabase,
     fetchImpl,
   });
   if (

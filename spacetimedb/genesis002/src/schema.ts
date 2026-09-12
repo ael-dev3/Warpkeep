@@ -25,6 +25,15 @@ import {
   realmWorkerSystemV2,
   resourceAccountV1,
 } from '../../src/schema';
+import {
+  gameplay04BuildingV1,
+  gameplay04KeepV1,
+  gameplay04ProjectV1,
+  gameplay04ReservationV1,
+  gameplay04ReceiptV1,
+  gameplay04ScheduleV1,
+  gameplay04WorkerV1,
+} from './gameplaySchema';
 
 type TableDefinition = {
   tableAccess: { tag: string };
@@ -89,9 +98,16 @@ const genesis002Tables = {
   realmAtlasVisibleRegionV1:
     makeGenesis002PrivateTable(realmAtlasVisibleRegionV1),
   realmWorkerSystemV2: makeGenesis002PrivateTable(realmWorkerSystemV2),
+  gameplay04KeepV1,
+  gameplay04WorkerV1,
+  gameplay04ReceiptV1,
+  gameplay04ReservationV1,
+  gameplay04BuildingV1,
+  gameplay04ProjectV1,
+  gameplay04_schedule_v1: gameplay04ScheduleV1,
 } as const;
 
-export const GENESIS_002_PRIVATE_TABLE_COUNT = 23 as const;
+export const GENESIS_002_PRIVATE_TABLE_COUNT = 30 as const;
 if (Object.keys(genesis002Tables).length !== GENESIS_002_PRIVATE_TABLE_COUNT) {
   throw new Error('GENESIS_002_PRIVATE_TABLE_SET_INVALID');
 }

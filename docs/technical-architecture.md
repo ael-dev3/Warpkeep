@@ -1,237 +1,271 @@
 # Technical architecture
 
-> **Generation note:** This default-branch reference describes G001 and earlier
-> prepared features. Active 0.4 gameplay, PTR and keep presentation have a separate
-> [architecture](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/technical-architecture.md)
-> and [source map](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/repo-map.md).
-> Use the [ecosystem map](engineering/ecosystem-map.md) to choose the correct
-> generation; descriptions here are not evidence of current production state.
+Warpkeep separates player identity, game rules, persistent state and presentation.
+The browser renders a world and offers decisions; SpacetimeDB decides what those
+decisions do. Cloudflare provides the identity bridge and a separate release
+recovery service. GitHub Pages serves the frontend.
 
-Warpkeep is an admission-gated persistent-world Alpha. The browser renders the
-Realm, a Cloudflare Worker verifies Farcaster sign-in, and SpacetimeDB owns game
-state. These responsibilities stay separate so a compromised or stale browser
-cannot grant admission, claim a castle, or invent resources.
+This document explains those relationships and the current implementation. The
+[repository map](agent-notes/0.4.0/repo-map.md) links individual source and test
+entry points. Dated verification and deployed state belong in the
+[execution handoff](agent-notes/0.4.0/execution-handoff.md) and
+[delivery journal](operations/0.4.0-live-delivery-status.md).
 
-## System overview
+## Runtime responsibilities
 
-### Browser client
+```mermaid
+flowchart LR
+  Farcaster[Farcaster identity] --> Auth[Cloudflare auth bridge]
+  Auth -->|scoped session| Browser[React application]
+  Pages[GitHub Pages] -->|frontend assets| Browser
+  Browser -->|typed command / read| Realm[SpacetimeDB realm adapter]
+  Realm -->|validated facts| Core[Shared 0.4 gameplay core]
+  Core -->|transactional storage interface| Realm
+  Realm --> State[(Private gameplay state)]
+  State -->|scheduled wakeup| Realm
+  Realm -->|validated projection| Browser
+  Browser --> Scene[World or Keep04 renderer]
+```
 
-The React and TypeScript client presents the title, menu, authentication flow,
-and Realm in ordinary browsers and as a Farcaster Mini App. Three.js/WebGL
-renders the Lowlands and founded castles, with responsive CSS and non-WebGL
-fallbacks for constrained devices. Compact screens keep the map full-screen and
-open complex records through one bounded, history-aware destination stack.
+| Component | Responsibility | Principal boundary |
+| --- | --- | --- |
+| React application | Entry, realm selection, navigation, decisions and accessible fallback | Presents validated state; does not grant admission or resources |
+| Three.js presentation | World/keep geometry, animation, loading and graphics lifecycle | Decorative geometry does not determine routes, placement validity or yield |
+| Cloudflare auth bridge | Verify Farcaster identity and issue narrowly scoped sessions | Authentication and realm entitlement are separate decisions |
+| SpacetimeDB realm module | Authenticate each operation, resolve world facts, transact and schedule | Derives owner, database, atlas, time and economic outcomes on the server |
+| Shared 0.4 gameplay core | Deterministic policy, transitions, arithmetic and validation | Uses storage interfaces; does not depend on browser, network or database SDK |
+| Release tooling and recovery service | Build provenance, deployment authorization and reconciliation | Deployment authority is separate from player authority |
 
-The client holds short-lived presentation state. It validates server
-projections before showing the Realm and does not apply optimistic ownership or
-resource changes.
+The browser is hosted at `warpkeep.com`, the auth bridge at `auth.warpkeep.com`.
+G001, G002 and PTR use distinct database identities. Provider configuration and
+live observations are documented in [infrastructure access](operations/0.4.0-infra-access.md).
+A checked-in endpoint or successful CLI login does not establish that every
+component has been deployed or that a player has access to a realm.
 
-### Identity bridge
+## Realm separation and gameplay generations
 
-The Cloudflare Worker independently verifies browser SIWF or an exact-domain
-Mini App Quick Auth bearer. Browser SIWF remains bound to the initiating browser
-and may use a rotating `SameSite=Strict` session; Mini App entry is cookie-free
-and reacquires a host bearer when needed. Both paths issue only short-lived,
-memory-held player access. Farcaster ID (FID) is the identity key; usernames,
-display names, biographies, portraits, and Mini App context are sanitized
-presentation data.
+**Genesis 001** is the established 0.3 world. Its server authority lives in
+[`spacetimedb/src/`](../spacetimedb/src/index.ts), and its browser provider and
+renderer remain separate from the new keep. The compiled
+[access policy](../spacetimedb/src/genesis001AccessPolicy.ts) keeps existing player
+access while closing admission mutations and new requests. Existing gameplay
+continues to change state; preserving the world means preserving its behavior and
+player records, not expecting an idle database or restoring an old snapshot.
 
-Authentication proves identity but does not grant admission or game ownership.
-The bridge issues narrowly scoped claims that SpacetimeDB validates again.
-Implementation and local setup are documented in
-[`services/auth-bridge/README.md`](../services/auth-bridge/README.md).
+**0.4 gameplay** lives in [`spacetimedb/gameplay04/`](../spacetimedb/gameplay04/policy.ts).
+It implements the gather → choose → build → benefit → return loop through storage
+interfaces. Realm adapters provide authentication, atlas topology and an atomic
+transaction. Keep identity includes the immutable database identity and owner;
+G001 balances or ownership do not become 0.4 state through a client-side mapping.
 
-### SpacetimeDB module
+**PTR** is the owner test realm with functioning adapters for initialization,
+state reads, dispatch, recall and construction. Its
+[owner guard](../spacetimedb/ptr/src/auth.ts) checks fresh scoped claims against
+the actual database and enabled owner anchor. The ordinary owner, atlas
+administrator and infrastructure administrator have different capabilities.
 
-SpacetimeDB owns admission, player and castle bindings, the persistent world,
-Terms acceptance, resource accounts, Community Marks, and server-time
-settlement. The prepared Inner Keep suffix also keeps construction policy,
-Builder state, deductions, receipts, and completion under the same authority.
-Public tables expose only what shared presentation needs; ownership,
-administration, balances, Builder state, and receipts remain private.
+**Genesis 002** has its own private schema and the matching 0.4 interface, but its
+[gameplay procedures](../spacetimedb/genesis002/src/gameplayKeep.ts) deliberately
+reject before reading or writing gameplay storage. This is the sealed launch
+behavior; admissions remain undecided. An interface and generated binding can
+therefore exist without enabling a public player journey.
 
-Reducers derive identity and authority from the authenticated caller. The
-browser cannot choose an FID, castle owner, balance, timer, or outcome through
-request fields. Schema changes are additive because deployed tables and
-generated client bindings must remain compatible.
+The generations use different economic rules:
 
-A review-only Realm Chat V1 implementation is isolated from the large Realm
-snapshot. SpacetimeDB owns sender identity, order, time, anti-abuse state,
-history, reporting, and moderation evidence; the browser may subscribe only to
-one body-free status row and obtains bounded recent bodies through a
-caller-authenticated, visibility-gated polling procedure. Independent client and server
-gates plus a blocked production publication lane keep it unavailable pending a
-separate legal and operational activation review.
+| Concern | Preserved G001 authority | Current 0.4 core |
+| --- | --- | --- |
+| Gathering | Generic Workers coexist with retained legacy expedition compatibility; new legacy dispatch closes after Worker rollout | Duration-selected journeys reserve validated atlas location capacity |
+| Spendable resources | Passive settlement and Worker accrual can materialize into the private account during a journey | Earned cargo becomes spendable on authoritative return; credited and overflow amounts are recorded |
+| Construction | Dormant legacy Inner Keep policy emphasizes construction discounts | Economy buildings improve future matching yield; Barracks improves travel; Cathedral improves future construction time |
+| Policy capture | Defined by the retained resource/Worker authority | Journey and project terms are captured when accepted; later building completion does not rewrite them |
 
-The module guide, local commands, and schema notes live in
-[`spacetimedb/README.md`](../spacetimedb/README.md).
+Exact tuning belongs in [0.4 policy](../spacetimedb/gameplay04/policy.ts) and the
+[gameplay specification](superpowers/specs/2026-09-05-warpkeep-0.4-gameplay-design.md),
+not in duplicated architecture tables. The older
+[Inner Keep V1 document](design/inner-keep-construction.md) describes G001-oriented
+work and is not the 0.4 construction contract.
 
-## G001 world and resource model
+## A 0.4 command from selection to persistent result
 
-Genesis 001 contains 10,000 persistent cells and 100 permanent castle sites
-near its founding district. Founded players return to the same castle and can
-inspect public castle and profile presentation for nearby founders.
+The connected browser route runs through
+[`WarpkeepExperience`](../src/components/WarpkeepExperience.tsx),
+[`PtrRealmProvider`](../src/ptr/PtrRealmProvider.tsx) and
+[`PtrGameplay04SurfaceHost`](../src/ptr/PtrGameplay04SurfaceHost.tsx).
+The provider obtains a scoped owner session and constructs the narrow atlas and
+gameplay capabilities in [`ptrRealmConnection.ts`](../src/ptr/ptrRealmConnection.ts).
+Views receive those capabilities rather than arbitrary RPC or credentials.
 
-Each founded castle has a private Food, Wood, Stone, and Gold account. Resource
-settlement is server-authoritative and never reveals another player's balances.
-The source retains earlier passive-production and per-resource expedition paths
-alongside the generic Worker rollout; use the active rollout state and its
-authority code when tracing the behavior of a particular account.
-Community Marks use separate accounting and currently have no spending,
-conversion, transfer, redemption, or reward loop.
+1. A world selection supplies a resource location and atlas revision. A keep
+   selection supplies a building quote and placement. The
+   [controller](../src/ptr/gameplay04/createGameplay04Controller.ts) captures the
+   next command sequence, request key, expected state revision and the relevant
+   policy, atlas and quote assertions.
+2. The connection capability calls the generated PTR procedure and checks its
+   session scope before and after asynchronous work. The
+   [wire types](../src/ptr/gameplay04/ptrGameplay04Types.ts) derive from the actual
+   generated procedure signatures.
+3. The realm adapter authenticates inside `ctx.withTx`. For dispatch,
+   [`gameplayWorkers.ts`](../spacetimedb/ptr/src/gameplayWorkers.ts) resolves the
+   actual destination, resource, location capacity and connected route from the
+   ready private atlas. The client does not supply an authoritative route or rate.
+4. The core checks the command receipt and sequence, reconciles due work for a
+   fresh command, validates the new action and commits state with its receipt.
+   Construction similarly verifies the quoted cost, duration, target and permanent
+   transform in [`construction.ts`](../spacetimedb/gameplay04/construction.ts).
+   A rejected transaction cannot leave partial reconciliation or deductions.
+5. The returned receipt confirms the accepted sequence/revision. The controller
+   rereads authoritative state; the
+   [decoder](../src/ptr/gameplay04/gameplay04State.ts) validates it before the UI
+   receives a new immutable presentation.
 
-Gold Mines, Wheat Farms, Logging Camps, and Stone Quarries are public map
-projections. Generic Workers carry caller-bound assignments with authoritative
-routes, site capacity, timelines and settlement. Fresh legacy per-resource
-dispatch is retired once its Worker rollout reaches drain or active state;
-retained compatibility tables do not define the new command path. Start at
-[Worker authority](../spacetimedb/src/castleWorkerAuthority.ts),
-[Worker reducers](../spacetimedb/src/reducers/castleWorkers.ts) and
-[legacy reservation authority](../spacetimedb/src/resourceExpeditionReservationAuthority.ts).
-Public occupation rows expose bounded shared presentation. Construction, upgrades,
-units, combat, alliances, trading, chat, seasons and governance are not established
-playable features of this G001 baseline.
+The [command protocol](../spacetimedb/gameplay04/commands.ts) retains bounded exact
+receipts and a monotonic accepted sequence. An identical retained retry returns
+its original result. Conflicting payloads reject; an old pruned sequence rejects
+rather than executing again. An unknown network outcome retains the original
+request envelope. A stale quote triggers a new read and a new player confirmation,
+not an automatic resubmission with changed terms.
 
-The inactive Inner Keep V1 foundation defines a continuous buildable interior,
-six unique buildings with five levels, and one internal Builder per founded
-castle. It is separate from the four external gathering Workers. The retained
-v15 compatibility-slot table has zero rows; Barracks and Cathedral begin absent
-alongside the four economy buildings.
+Timers use the same authoritative core. The
+[scheduled adapter](../spacetimedb/ptr/src/gameplaySchedule.ts) validates the exact
+persisted wakeup, assignment/project revision, owner and database before
+reconciling. An authenticated
+[state read](../spacetimedb/ptr/src/gameplayKeep.ts) can also reconcile overdue
+work. [`reconciliation.ts`](../spacetimedb/gameplay04/reconciliation.ts) completes
+due construction and Workers in one transaction and advances the state revision
+when anything changed. Browser clocks animate progress but cannot credit cargo
+or complete a building.
 
-The client submits a building kind, local X/Z microunits, quarter-turn rotation,
-idempotency key, `expectedTargetLevel`, canonical decimal
-`expectedProjectRevision`, `expectedPolicyDigest`, and `expectedLayoutDigest`.
-The four expected values are untrusted quote-and-placement-binding
-compare-and-set assertions. The server derives ownership, the current target,
-current policy digest, and current layout digest. After a prior accepted receipt
-has short-circuited idempotently, a new request verifies policy/layout digests
-and transactionally reconciles any exact overdue project. It validates the
-half-meter-snapped transform inside x `[-44, 44]` / z `[-40, 32]`, rejects
-road/civic exclusions and persisted footprint overlap, then checks target and
-aggregate revision against the reconciled graph. A mismatch rolls the whole
-reducer back before reconciliation, settlement, or deduction can commit. It
-then derives cost, discount, duration, settlement, deduction, and completion.
+## State, sessions and privacy
 
-The [Pages workflow](../.github/workflows/deploy-pages.yml) classifies an exact
-verified `main` source before selecting a deployment lane. Preparation source
-can skip build and deployment; a merge or green workflow alone does not publish
-this dormant client. Module publication, catalog seed, Builder backfill,
-runtime asset verification and activation have their own operating boundaries.
-See the [Inner Keep V1 authority contract](design/inner-keep-construction.md)
-and [future activation runbook](operations/inner-keep-activation.md).
+The 0.4 private schema stores the keep/resource account, Workers, command
+receipts, location reservations, buildings, active project and scheduled wakeups.
+Its definitions live in each realm's `gameplaySchema.ts`; storage adapters decode
+and validate persisted rows before calling the core. Public map presentation comes
+through bounded atlas procedures, not subscriptions to private population or
+resource authority tables.
 
-## Realm presentation
+The [auth bridge](../services/auth-bridge/README.md) verifies ordinary-browser
+Sign In with Farcaster and Mini App Quick Auth through distinct entry paths.
+Browser session rotation and cookie-free Mini App exchange both end in scoped
+credentials which the database verifies again. FID identifies the player;
+usernames, portraits and Mini App context supply presentation, not entitlement.
 
-The client receives a validated public Realm snapshot and the authenticated
-player's private projection. It waits for both before entering the Realm.
-Reconnects may retain public scenery, but private actions remain unavailable
-until caller authority returns.
+Realm, session, database and authentication-epoch changes retire incompatible
+connections, caches and pending capabilities. The controller separately retires
+in-flight reads on disposal. Healthy refresh retains the last validated scene
+while commands are unavailable; failed or ambiguous refresh does not restore
+write authority from cached state. Expiry, delayed responses, unknown outcomes
+and return navigation are part of the connected lifecycle, not only error copy.
 
-Castle models and their landscape bases are shared across founded sites through
-instancing and level-of-detail tiers. Selection, labels, camera focus, culling,
-and accessibility are presentation concerns; coordinates and ownership always
-come from server state.
+An owner already inside PTR can renew at hard expiry through fresh Quick Auth,
+same-FID/database/epoch verification and a new connection/preflight. Renewal
+removes the expired surface; only the world/keep destination and an interrupted-
+action notice survive. Fresh state decides the outcome, and commands are never
+replayed across leases. Menu admission remains an explicit access/entry flow.
+See [session continuation evidence](evidence/0.4.0/isolation-lifecycle.md) for
+verified behavior and the remaining actual-owner/foreground identity coverage.
 
-The shared forest and procedural grass are deterministic presentation layers.
-The coast and twelve rivers are rendered from an activated canonical water
-layout held by SpacetimeDB. Graphics quality may change environmental detail,
-but never world membership, resource placement, or authority.
+G001 Chat, Marks, notifications, observers and canaries retain their own authority
+and activation rules. They are not implicitly enabled by the new keep. Private
+identity proofs, balances and operational receipts do not belong in rendering
+props or public diagnostics. See the [threat model](security/threat-model.md).
 
-The Realm and Inner Keep use one canvas, WebGL renderer, quality policy,
-recovery path, and animation scheduler. Switching to the Inner Keep suspends
-world interaction instead of creating a second graphics context. A functional
-HTML/CSS placement view preserves navigation, the valid-ground map, costs,
-Builder status, and guarded actions when 3D or an optional model is unavailable.
+## World and keep presentation
 
-The installed Inner Keep presentation begins mostly empty, with roads, a civic
-commons, walls, and modest non-functional town dressing. Grand Covenant
-Cathedral and City Barracks appear only as player-built outcomes at persisted
-server transforms. Fixed authored scenery, quality-bounded grass and water,
-and deterministic ambient citizens and patrols remain client-only
-presentation. They never provide unit, chat, resource, reward, or ownership
-authority. Static placement is atomic, loading is bounded and retry-safe, and
-a procedural compound remains available until exact coverage is safe to reveal.
+[`PtrGameplay04SurfaceHost`](../src/ptr/PtrGameplay04SurfaceHost.tsx) selects mutually
+exclusive world and keep surfaces. The invariant is one active canvas/renderer
+with correct disposal and session ownership; the new route does not promise to
+reuse one renderer instance across every world/keep switch.
 
-The 96 x 80 meter palisade surrounds an 88 x 72 meter authoritative support
-rectangle after the four-meter interior setback. Presentation-only dirt aprons
-and district roads make the larger footprint readable. Native placement
-controls use a 0.5-meter snap and 0 / 90 / 180 / 270-degree rotations, while
-the server revalidates the same geometry before accepting a command.
+The world route passes through
+[`GreaterRealmWorldScene`](../src/components/realm/GreaterRealmWorldScene.tsx), its
+[canvas host](../src/components/realm/createGreaterRealmWorldCanvasHost.ts), and
+[`createGreaterRealmSceneRuntime.ts`](../src/greater-realm/createGreaterRealmSceneRuntime.ts).
+The atlas bridge, chunk stream and presentation plan connect bounded server data
+to the visible scene. That runtime owns the actual 0.4 world water, using
+[`greaterRealmWaterSurface.ts`](../src/greater-realm/greaterRealmWaterSurface.ts)
+for a single lit surface with world-coordinate waves and a shared host clock.
+Water polygons fill only explicitly returned wet hexes; shading does not move
+their authoritative surface heights. G001's
+[`realmWaterLayer.ts`](../src/components/realm/realmWaterLayer.ts) belongs to its
+preserved renderer and is a reference, not an already connected 0.4 water layer.
 
-The surrounding-estate policy is a separate client contract and does not
-change the canonical Inner Keep layout digest. One finite deterministic height
-sampler grounds its nine topographic features, connected headwater-rill-lake,
-outer patrol road, grass, trees, animals, trade wagon, and scenic resource
-structures. The compound footprint samples to exactly zero; terrain feathers
-through a rounded 5.5-meter shoulder only beyond the walls. The estate spans
-144 x 144 meters. A separately digested, non-pickable countryside ring extends
-the rendered field to 416 x 544 meters without changing the detailed sampler,
-placement density, canonical layout digest, or server authority. It fades to
-the scene fog and caps crop tufts at 320 / 192 / 96 and procedural hedgerow
-silhouettes at 32 / 20 / 10. Camera focus is presentation-clamped to nine
-meters per axis with reduced screen tracking so the visual boundary remains
-outside supported views. Quality caps detailed grass at 2,400 / 1,400 / 480
-blades and eight Warpkeep-Assets tree species at 72 / 44 / 22 instances.
+The keep route uses [`Keep04Screen`](../src/components/keep04/Keep04Screen.tsx) for
+decisions and accessible schematic fallback, then
+[`Keep04SceneHost`](../src/components/keep04/Keep04SceneHost.tsx) for canvas lifecycle.
+Scene composition, building fallbacks, asset loading, visual profile and voxel
+dressing are separate modules under `src/components/keep04/`. Shared meshing and
+neutral utilities can be reused without importing legacy economic policy.
 
-The same outer policy caps presentation-only resource structures at 8 / 6 / 4
-and rabbits at 10 / 7 / 4, with one trade wagon in every tier. The optional
-exact rabbit layer replaces matching procedural animals only after its local,
-content-addressed model is ready. Terrain, trees, resources, wagon, and
-wildlife report and fail independently, so an optional asset failure cannot
-remove healthy scenery or affect gameplay state. None of these anchors are
-resource nodes or server coordinates, and none can create production,
-balances, Workers, collision, ownership, or rewards.
+Hosts own asynchronous loaders, animation frames, event listeners, context
+recovery and resource disposal. Quality, hidden-page and reduced-motion policies
+bound optional work. Scenery, forest and water do not create server navigation,
+collision or harvesting authority. Generated dressing plans are reproducible;
+asset provenance remains attached to reused models regardless of the new art
+direction. Visual correctness and performance need rendered workloads in addition
+to scene-graph tests; the measurement record is
+[performance evidence](evidence/0.4.0/performance.md).
 
-Runtime assets use immutable filenames and integrity checks. Source packages,
-reference masters, and provenance records stay separate from public runtime
-files. The three Inner Keep installers accept only the exact content-addressed
-static, population, and Lowlands Rabbit selections authorized for runtime use;
-archive publication alone would not have been enough. See
-[`ASSETS-LICENSE.md`](../ASSETS-LICENSE.md) before changing media.
+## Build, publication and recovery
 
-## Security and privacy
+Source publication, candidate assembly and production deployment are separate
+operations. The root [build script](../package.json) performs generated-plan,
+type, asset, Vite and public-output checks. A direct Vite build covers only part of
+that contract. Auth bridge, database modules and recovery service each have their
+own package scripts, lockfiles and deployment boundary.
 
-The main design rules are:
+The local Windows/WSL preparation components build bindings and fixed operation
+bundles from committed source. A
+[matched-artifact coordinator](../scripts/local-release-artifact-inputs.mjs)
+requires producer commit/tree identities to agree. The
+[closure derivation](../scripts/local-prepared-closure-family.mjs) derives dependent
+inventories and source pins. The
+[workspace manager](../scripts/local-release-workspace.mjs) separates immutable
+builder source from a locked candidate, and transactional installation/recovery
+handles generated candidate files. This filesystem recovery is distinct from
+recovering a live database while retaining writes made after deployment.
 
-- treat browser, relay, profile, and network input as untrusted;
-- keep identity, admission, ownership, balances, and timers server-owned;
-- expose the minimum public projection needed by the Realm;
-- keep secrets, proofs, QR payloads, private logs, and operator data out of the
-  repository and browser output;
-- use least-privilege claims and short-lived sessions between services;
-- fail closed when configuration, identity, schema, or projection validation
-  is incomplete.
+The Cloudflare recovery service has an HTTP
+[gateway](../services/release-recovery/src/index-gateway.ts), a private service-bound
+[signer](../services/release-recovery/src/index-signer.ts), independently retrieved
+GitHub/realm evidence, and a Durable Object authorization ledger. Its issue,
+claim, completion and reconciliation operations bind source, artifacts and a real
+workflow execution. A digest alone does not establish who produced evidence.
 
-The current defensive assumptions and residual risks are documented in the
-[`threat model`](security/threat-model.md). Sensitive reports follow
-[`SECURITY.md`](../SECURITY.md).
+The [local assembler](../scripts/local-release-assembler.mjs) is the operating
+Linux entry point for `prepare`, independent `check`, and candidate `recover`.
+Its native runs establish source-bound convergence. They do not authorize a
+provider deployment or establish player acceptance.
 
-## Development and delivery
+The [shared bridge provider](../scripts/sealed-realms-production-bridge-provider.mjs)
+captures source/private-state ownership and credentials, authenticates the fresh
+receipt, completed journal and original upload, then reads actual Cloudflare
+code/configuration and live deployment/PTR attestations. One opaque observation
+supplies both deployment and binding facts. The
+[bridge state](../scripts/sealed-realms-production-auth-bridge-state.mjs)
+consumes it once and reopens its own retained authority before use. Independent
+fact callbacks are test-only. Recovery history retains and verifies canonical
+ancestor links; full storage refuses another renewal before new receipt/head
+publication. Provider and receipt freshness include elapsed request/body time.
 
-Vitest covers client behavior, server-facing decoders, auth bridge logic,
-migration compatibility, and asset contracts. Local rendered-browser fixtures
-exercise responsive WebGL and fallback paths without real users or production
-state.
+The [activation workflow adapter](../scripts/sealed-realms-production-activation-workflow-entry.mjs)
+uses that provider in the supported Linux inspection/generation path. Inspection
+requires an existing completed import chain and writes private suspension and
+continuation evidence. Import and owner producers remain separate unfinished
+work; source wiring is not proof of a successful protected run.
 
-GitHub Actions builds the client, auth bridge, and SpacetimeDB module; runs the
-test and dependency checks; verifies generated bindings and asset provenance;
-and scans code and committed history for security issues. Pages deployment is
-limited to an approved lane from verified `main` and requires the signed static Mini App manifest, exact image
-contract, and hidden `.well-known` upload. Worker publication, database
-publication, data migration, and admission changes remain separate operator
-actions.
+The [Pages workflow](../.github/workflows/deploy-pages.yml) supplies the signer's
+`deploy-recovery` caller with the defined Linux/WSL identity and
+claim → fresh boundary → deployment → postflight sequence. The
+[sealed-realms workflow](../.github/workflows/sealed-realms-production.yml) also
+uses the dedicated Linux runner. Genuine provider credentials/receipts, final
+generated source, protected-main verification, realm publication/import and live
+recovery acceptance remain to be established. See the
+[release engineering record](evidence/0.4.0/release-engineering.md) for dated evidence.
 
-## Repository map
-
-- `src/` — browser application and presentation contracts
-- `services/auth-bridge/` — Farcaster verification and session bridge
-- `spacetimedb/` — server-owned world and player state
-- `scripts/` — build, asset, migration, and local QA tooling
-- `tests/` — frontend and cross-boundary regression tests
-- `docs/design/` — product direction and world design
-- `docs/operations/` — operator and recovery guides
-- `docs/reference/` — asset provenance and review records
-
-For a shorter product view, start with the [README](../README.md) and
-[roadmap](design/roadmap.md). For development checks, see
-[CONTRIBUTING.md](../CONTRIBUTING.md).
+These are implementation interfaces to finish, not reasons to manufacture new
+permission stages. Their current observed execution status and remaining evidence
+belong in the [release audit](agent-notes/0.4.0/release-and-infrastructure.md) and
+[release checklist](operations/0.4.0-release-checklist.md). Changing source or
+passing component tests does not by itself update a hosted service or an existing
+database.

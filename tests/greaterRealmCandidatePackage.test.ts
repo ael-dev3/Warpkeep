@@ -1080,7 +1080,7 @@ describe('Greater Realm owner-only candidate package', () => {
       expect(parsed.atlasId).toBe(GREATER_REALM_ATLAS_ID);
       expect(parsed.toolchainVersions.configuredNodeEngine).toBe('>=22.13 <23');
       expect(parsed.toolchainVersions.configuredPackageManager).toBe('npm@10.9.8');
-      expect(parsed.toolchainVersions.libvips).toBe('8.18.3');
+      expect(parsed.toolchainVersions.libvips).toBe('8.18.6');
       expect(parsed.toolchainVersions.runtimeNode).toBe(process.versions.node);
       expect(isAbsolute(parsed.toolchainVersions.nodeExecutable.path)).toBe(true);
       expect(parsed.toolchainVersions.nodeExecutable.sha256).toMatch(/^[0-9a-f]{64}$/u);
@@ -1092,7 +1092,7 @@ describe('Greater Realm owner-only candidate package', () => {
         manifestSha256: TOOLCHAIN_LOCK_SHA256,
         profile: `${process.platform}-${process.arch}`,
       });
-      expect(parsed.toolchainVersions.sharp.version).toBe('0.35.3');
+      expect(parsed.toolchainVersions.sharp.version).toBe('0.35.4');
       expect(parsed.toolchainVersions.tsx.version).toBe('4.23.0');
       expect(parsed.toolchainVersions.tsx.esbuildVersion).toBe('0.28.1');
       expect(parsed.toolchainVersions.typescript.version).toBe('7.0.2');

@@ -105,6 +105,11 @@ const atlasStatus = () => ({
   activationMutationsCompiled: false,
 });
 
+const adminStatus = () => ({
+  ...realmStatus(),
+  ...atlasStatus(),
+});
+
 const input = () => ({
   databaseIdentity: IDENTITY,
   moduleSourceCommit: MODULE_COMMIT,
@@ -115,8 +120,8 @@ const input = () => ({
   releaseSha256: RELEASE_SHA,
   releaseHeaderSha256: HEADER_SHA,
   verificationDigest: VERIFY_SHA,
-  realmStatusValue: realmStatus(),
-  atlasStatusValue: atlasStatus(),
+  realmStatusValue: adminStatus(),
+  atlasStatusValue: adminStatus(),
 });
 
 describe('Genesis 002 sealed live receipt', () => {
@@ -217,13 +222,13 @@ describe('Genesis 002 sealed live receipt', () => {
     for (const candidate of [
       { ...input(), databaseIdentity: G001 },
       { ...input(), atlasSourceCommit: '8'.repeat(40) },
-      { ...input(), realmStatusValue: { ...realmStatus(), allowedFids: 1n } },
-      { ...input(), realmStatusValue: { ...realmStatus(), workerSystemRows: 1n } },
-      { ...input(), realmStatusValue: { ...realmStatus(), playerPresentationEnabled: true } },
-      { ...input(), atlasStatusValue: { ...atlasStatus(), activationRows: 1n } },
-      { ...input(), atlasStatusValue: { ...atlasStatus(), activationMutationsCompiled: true } },
-      { ...input(), atlasStatusValue: { ...atlasStatus(), state: 'verifying', ready: false } },
-      { ...input(), atlasStatusValue: { ...atlasStatus(), verifiedCellCount: 99 } },
+      { ...input(), realmStatusValue: { ...adminStatus(), allowedFids: 1n } },
+      { ...input(), realmStatusValue: { ...adminStatus(), workerSystemRows: 1n } },
+      { ...input(), realmStatusValue: { ...adminStatus(), playerPresentationEnabled: true } },
+      { ...input(), atlasStatusValue: { ...adminStatus(), activationRows: 1n } },
+      { ...input(), atlasStatusValue: { ...adminStatus(), activationMutationsCompiled: true } },
+      { ...input(), atlasStatusValue: { ...adminStatus(), state: 'verifying', ready: false } },
+      { ...input(), atlasStatusValue: { ...adminStatus(), verifiedCellCount: 99 } },
     ]) {
       expect(() => verifyGenesis002SealedLiveStatus(candidate)).toThrow();
     }
@@ -232,11 +237,11 @@ describe('Genesis 002 sealed live receipt', () => {
   it('rejects shape widening instead of silently ignoring new authority fields', () => {
     expect(() => verifyGenesis002SealedLiveStatus({
       ...input(),
-      realmStatusValue: { ...realmStatus(), admissionsOpenSoon: true },
+      realmStatusValue: { ...adminStatus(), admissionsOpenSoon: true },
     })).toThrow('GENESIS_002_LIVE_REALM_STATUS_SHAPE_CHANGED');
     expect(() => verifyGenesis002SealedLiveStatus({
       ...input(),
-      atlasStatusValue: { ...atlasStatus(), activationReady: true },
+      atlasStatusValue: { ...adminStatus(), activationReady: true },
     })).toThrow('GENESIS_002_LIVE_ATLAS_STATUS_SHAPE_CHANGED');
   });
 
@@ -265,12 +270,13 @@ describe('Genesis 002 sealed live receipt', () => {
       if (typeof value === 'number') return [key, 0];
       return [key, value];
     }));
+    const freshAdmin = { ...freshRealm, ...freshAtlas };
     const result = verifyGenesis002FreshPublishStatus({
       databaseIdentity: IDENTITY,
       moduleSourceCommit: MODULE_COMMIT,
       moduleSha256: MODULE_SHA,
-      realmStatusValue: freshRealm,
-      atlasStatusValue: freshAtlas,
+      realmStatusValue: freshAdmin,
+      atlasStatusValue: freshAdmin,
     });
     expect(result).toMatchObject({
       profile: 'warpkeep-genesis-002-fresh-publish-v1',
@@ -285,8 +291,8 @@ describe('Genesis 002 sealed live receipt', () => {
       databaseIdentity: IDENTITY,
       moduleSourceCommit: MODULE_COMMIT,
       moduleSha256: MODULE_SHA,
-      realmStatusValue: { ...freshRealm, playersV2: 1n },
-      atlasStatusValue: freshAtlas,
+      realmStatusValue: { ...freshAdmin, playersV2: 1n },
+      atlasStatusValue: freshAdmin,
     })).toThrow('GENESIS_002_FRESH_PUBLISH_STATE_INVALID');
   });
 });

@@ -1011,6 +1011,30 @@ afterEach(() => {
 });
 
 describe('notification Pages ongoing live receipt', () => {
+  it('accepts the actual generated source inventory while preserving bounded file and aggregate reads', () => {
+    const inventory = execFileSync('/usr/bin/git', ['ls-tree', '-r', '-z', '--full-tree',
+      '--format=%(objectsize)%x09%(path)', HEAD_COMMIT], { cwd: process.cwd(), encoding: 'utf8', maxBuffer: 2 * 1024 * 1024 });
+    const sizes = inventory.split('\0').filter(Boolean).flatMap(entry => {
+      const tab = entry.indexOf('\t');
+      return /\.(?:[cm]?[jt]s|[jt]sx|css)$/u.test(entry.slice(tab + 1)) ? [Number(entry.slice(0, tab))] : [];
+    });
+    expect(Math.max(...sizes)).toBeGreaterThan(512 * 1024);
+    expect(sizes.reduce((sum, size) => sum + size, 0)).toBeGreaterThan(32 * 1024 * 1024);
+    expect(deriveNotificationPagesLivePresentationSourceClosure({ sourceCommit: HEAD_COMMIT })).toContain('src/App.tsx');
+
+    // Unreachable source still belongs to the authenticated whole-tree inventory.
+    const tooLarge = descendantCommitWithSources(HEAD_COMMIT, {
+      'tests/fixtures/oversize-inventory.mjs': `//${'x'.repeat(1024 * 1024 - 1)}`,
+    });
+    expect(() => deriveNotificationPagesLivePresentationSourceClosure({ sourceCommit: tooLarge }))
+      .toThrow('NOTIFICATION_PAGES_LIVE_PRESENTATION_SOURCE_CLOSURE_INVALID');
+    const aggregate = descendantCommitWithSources(HEAD_COMMIT, Object.fromEntries(Array.from({ length: 32 }, (_, index) => [
+      `tests/fixtures/inventory-growth-${index}.mjs`, `//${'x'.repeat(1024 * 1024 - 2)}`,
+    ])));
+    expect(() => deriveNotificationPagesLivePresentationSourceClosure({ sourceCommit: aggregate }))
+      .toThrow('NOTIFICATION_PAGES_LIVE_PRESENTATION_SOURCE_CLOSURE_INVALID');
+  }, 30000);
+
   it('derives the presentation closure while exempting only the reviewed realm edge', () => {
     const covered = (path: string) =>
       NOTIFICATION_PAGES_LIVE_CANDIDATE_PROTECTED_PATHS.some(protectedPath =>
@@ -1081,7 +1105,8 @@ describe('notification Pages ongoing live receipt', () => {
       predecessorSourceCommit: HEAD_COMMIT,
       candidateSourceCommit: realmOnly,
     })).toContain('src/components/menu/SettingsPanel.tsx');
-  });
+  // Several immutable trees each include the complete generated source inventory.
+  }, 60_000);
 
   it('allows only the two root-binding initializers to change', () => {
     const source = readFileSync(
@@ -1338,7 +1363,7 @@ describe('notification Pages ongoing live receipt', () => {
       chainRootPagesSourceCommit: HEAD_COMMIT,
     });
     expect(replayFetch).toHaveBeenCalledTimes(10);
-  });
+  }, 60_000);
 
   it('accepts decoded gzip lengths but rejects identity truncation', async () => {
     const written = await writeLiveReceipt();
@@ -2337,7 +2362,9 @@ describe('notification Pages ongoing live receipt', () => {
       chainRootPagesSourceCommit: gen0SourceCommit,
     });
     expect(finalPromotionFetch).toHaveBeenCalled();
-  }, 60_000);
+  // This end-to-end fixture validates many full immutable source trees and
+  // repeatedly launches the native syntax reader; keep a finite dedicated budget.
+  }, 300_000);
 
   it('rejects assume-unchanged and skip-worktree protected index flags before network', async () => {
     const protectedPath = 'scripts/notification-pages-live-receipt.mjs';

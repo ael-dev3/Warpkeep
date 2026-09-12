@@ -1,8 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { compareSpacetimeBindingTrees } from './spacetime-binding-tree.mjs';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const modulePath = join(repositoryRoot, 'spacetimedb');
@@ -23,41 +25,6 @@ function generate(output) {
   });
 }
 
-async function filesUnder(root, current = root) {
-  const entries = await readdir(current, { withFileTypes: true });
-  const files = [];
-  for (const entry of entries) {
-    const absolute = join(current, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...await filesUnder(root, absolute));
-    } else if (entry.isFile()) {
-      files.push(relative(root, absolute));
-    }
-  }
-  return files.sort();
-}
-
-async function compareTrees(expectedRoot, actualRoot) {
-  const [expectedFiles, actualFiles] = await Promise.all([
-    filesUnder(expectedRoot),
-    filesUnder(actualRoot)
-  ]);
-  const allFiles = [...new Set([...expectedFiles, ...actualFiles])].sort();
-  const differences = [];
-  for (const file of allFiles) {
-    if (!expectedFiles.includes(file) || !actualFiles.includes(file)) {
-      differences.push(file);
-      continue;
-    }
-    const [expected, actual] = await Promise.all([
-      readFile(join(expectedRoot, file)),
-      readFile(join(actualRoot, file))
-    ]);
-    if (!expected.equals(actual)) differences.push(file);
-  }
-  return differences;
-}
-
 async function main() {
   const committedIndex = await readFile(join(committedDirectory, 'index.ts'), 'utf8');
   if (!committedIndex.includes(`spacetimedb cli version ${PINNED_CLI_VERSION}`)) {
@@ -67,7 +34,7 @@ async function main() {
   const stagingDirectory = await mkdtemp(join(tmpdir(), 'warpkeep-verify-bindings-'));
   try {
     generate(stagingDirectory);
-    const differences = await compareTrees(committedDirectory, stagingDirectory);
+    const differences = await compareSpacetimeBindingTrees(committedDirectory, stagingDirectory);
     if (differences.length > 0) {
       throw new Error(`Generated bindings differ: ${differences.join(', ')}`);
     }

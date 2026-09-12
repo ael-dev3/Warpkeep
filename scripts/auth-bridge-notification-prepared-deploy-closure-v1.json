@@ -5,27 +5,37 @@
     {
       "path": ".github/workflows/deploy-pages.yml",
       "digestProfile": "reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1",
-      "sha256": "06213d31de5a5b90a0eb5352f8856f5e64cf4226301b8286d4aabdfc5c23ebc6"
+      "sha256": "c7ba0e9f91ba0e9b54cdc2e684a701ca9e9986638facd35b20376e397f4211df"
     },
     {
       "path": ".github/workflows/notification-bridge-b0.yml",
       "digestProfile": "bootstrap-pin-projection-sha256-v1",
-      "sha256": "846a555973696f15160250146b4d85b7ac79dcc87d712313f0aeece0a56fd311"
+      "sha256": "747a735cb6e1093256e479cf24dca19e93748d13ae94abe1c07c651c057f7eea"
+    },
+    {
+      "path": ".github/workflows/notification-bridge-prepared-linux.yml",
+      "digestProfile": "bootstrap-pin-projection-sha256-v1",
+      "sha256": "43ca01fb96d6c1836d95172c56deaf76a1b0e4a2f8dc73b73d454e71f2036b15"
     },
     {
       "path": ".github/workflows/notification-bridge-prepared.yml",
       "digestProfile": "bootstrap-pin-projection-sha256-v1",
-      "sha256": "e5cbf4a741c762254e52a69c37933448cc68eb0526a5b4ecfa2ec43b5016bcb9"
+      "sha256": "d6484216c1552d3cc2ed6e70456348038619753f68e44dbedab3b08110a1443f"
     },
     {
       "path": ".github/workflows/verify.yml",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "4b50e9797be11b1f2628cc56b23083ee2e243e9ab3128ae51c4ee8afbbc6dcad"
+      "sha256": "759e68b03d6e1dc381f01da673bb1723ccc449c439a9cc22536d3b22dcb541f8"
     },
     {
       "path": "config/releases/0.4.0-sealed-launch.json",
       "digestProfile": "reviewed-release-transition-projection-sha256-v1",
-      "sha256": "260c50ee0b5e360b5e2b3dddefe7d762e0aa4b6eabea5e6d47248886c4e76394"
+      "sha256": "a42124fc4697f8d6692dc40996a7fa05bb5d7987d545e358e2ceed90fd316c4e"
+    },
+    {
+      "path": "docs/operations/genesis-001-policy-observation-launch-envelope.sh.txt",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "cd06f32e7a479c4e9de3504029a994f6e7a18033d3d6766c2baac3ef59ce2624"
     },
     {
       "path": "docs/operations/greater-realm-production-launch-envelope.sh.txt",
@@ -35,7 +45,7 @@
     {
       "path": "index.html",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "19b0619850267b4ee58b64075c47d46163b1f6ae9946817f3b6c6f71cd339120"
+      "sha256": "4e3adac6c495b8938d560ce9d368153824d2f75c924009fa3bf3498aa7c7166c"
     },
     {
       "path": "owner-canary/index.html",
@@ -45,12 +55,12 @@
     {
       "path": "package-lock.json",
       "digestProfile": "reviewed-release-transition-projection-sha256-v1",
-      "sha256": "6723ef0cad5cc37e8d7f80fa3a7cfe932628333d13f6449674efceabc4e7d1b4"
+      "sha256": "447350351fc934946bc88520275837d623f0260cbc0123c8d49b9a2ba4960ae9"
     },
     {
       "path": "package.json",
       "digestProfile": "reviewed-release-transition-projection-sha256-v1",
-      "sha256": "d61f1d25ba135797acba49d0d019cf67aa759fca489121a953d1cdc86c7ee2a5"
+      "sha256": "74a88dc96245a73f95e2b850c12679ec494fccf6d3d22184645c12e501406e48"
     },
     {
       "path": "public/.well-known/farcaster.json",
@@ -100,7 +110,7 @@
     {
       "path": "scripts/atlas/greater-realm-candidate-package.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "857c3c0d47b532ca5a3e6b2e608031663e5d0ce66288517af405d1faf191fcfe"
+      "sha256": "2416806fca3c27d20d202e8b956b8a44e221b4f361e3ffb04bb20f79db8bc5c0"
     },
     {
       "path": "scripts/atlas/greater-realm-candidate-rejection.ts",
@@ -120,7 +130,7 @@
     {
       "path": "scripts/atlas/greater-realm-cli.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "95b93dce1c809f4453268838c7b3c5540735b756da92a8dc13f616e32d72ee97"
+      "sha256": "0aa26b0cb4dd3ca8c797c83b9f547c1606f3d78d63b36ebad86b702f14305cd8"
     },
     {
       "path": "scripts/atlas/greater-realm-composition.ts",
@@ -130,7 +140,7 @@
     {
       "path": "scripts/atlas/greater-realm-contracts.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "702719c4f85cfbfd0ff14c15348e8260d9bdaa16174c9cf0f6f7c9646db4bbf5"
+      "sha256": "2196c513308d7deec5fe6b22691b76b6e58668a258e1d1884929885f9e483953"
     },
     {
       "path": "scripts/atlas/greater-realm-geology-authority.ts",
@@ -190,7 +200,7 @@
     {
       "path": "scripts/atlas/greater-realm-private-workspace.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "621f5059f842631ed408cd443938b0c737ed88db4c25c2ffb7c563dde26782c2"
+      "sha256": "1c79259c6aeef831bbbc1e6e7aec24908f694ce8039578018710962f01bbb77a"
     },
     {
       "path": "scripts/atlas/greater-realm-relief-structure.ts",
@@ -205,7 +215,7 @@
     {
       "path": "scripts/atlas/greater-realm-runtime-release.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "85b0ee5af2de90f8438006161415a5eeefd6508381e5996a84c53936b31853df"
+      "sha256": "ea75ac3c328e160eb162fab98ea2743fd11613342a16693e09897f6d7d744f8e"
     },
     {
       "path": "scripts/atlas/greater-realm-sanitized-review.ts",
@@ -230,12 +240,12 @@
     {
       "path": "scripts/atlas/greater-realm-toolchain-bootstrap.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f7fdd7aec401f194d5e24ab9ddcacda369496c532aa44fe39783b40298ad0876"
+      "sha256": "953c029510efd55edfb9754f1d3f6c3a1b828821b1db3e4e0fbaf68e15324d12"
     },
     {
       "path": "scripts/atlas/greater-realm-toolchain-bootstrap.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f8c972996c1f42eba7fe124d0655537da583d45f95e1f7e536ee1fc4ed1d0545"
+      "sha256": "e2d8b3d99b92b4e584df70a78fc89124b2276febf179363583c70972f0b78918"
     },
     {
       "path": "scripts/atlas/greater-realm-topographic-qa.ts",
@@ -250,17 +260,17 @@
     {
       "path": "scripts/atlas/greater-realm-topography.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c01cc913e213e123672f52d0339a8bc4062ea0d4fa66118c7aba2b0ed90650a5"
+      "sha256": "d488074472e57f246f8599afede6b627231e5f550d919a921280a21caa5d44ac"
     },
     {
       "path": "scripts/auth-bridge-config-attestation.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f266fd0a99790743bb0f664ac2866e7442c86131f43b07bafbce4defd5ddb34b"
+      "sha256": "56ff7ea29b99d87c29967bc2a4565b85b1daf548930585c60371c741d5819feb"
     },
     {
       "path": "scripts/auth-bridge-config-attestation.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "753768332807389a0faee59df255b2398277f2cdbb2e9c44ffe0152a3b2ea0e6"
+      "sha256": "2553802babb4284f14faf5ee21834bc7254630c56b141758211a84d530283850"
     },
     {
       "path": "scripts/auth-bridge-notification-b0-cloudflare-runtime.d.mts",
@@ -270,7 +280,7 @@
     {
       "path": "scripts/auth-bridge-notification-b0-cloudflare-runtime.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "db8b6e557fe2f521f7aee3d8147098e8ae3ede437dd78d0158220993edffb045"
+      "sha256": "b7c9950e40ea17037af2647e88499b2135bd57d516b52cf4d00ae05226e98005"
     },
     {
       "path": "scripts/auth-bridge-notification-b0-deploy-adapter.d.mts",
@@ -280,7 +290,7 @@
     {
       "path": "scripts/auth-bridge-notification-b0-deploy-adapter.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2db7e6b5fe855e46509b27279a8ac7cd35e88185636eed15706efacc6df010da"
+      "sha256": "9043f3284c763f46271e7cb41eda2d15d61d7c3bb056a3b88aceef55002e68ae"
     },
     {
       "path": "scripts/auth-bridge-notification-b0-deploy-journal.d.mts",
@@ -295,32 +305,32 @@
     {
       "path": "scripts/auth-bridge-notification-b0-deploy.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a4ae3aed381208249118937a2c0303b0d8744184c4b9add85c0a591eefe78e45"
+      "sha256": "bbcaab7cd135fcd9c4ac9168eb4f6eba65aacb08ab1b0806147377031ea5396d"
     },
     {
       "path": "scripts/auth-bridge-notification-b0-deploy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c09374c8942c76f6fd1227ca6ddede86e9f094e801f2b56492445ddef742b200"
+      "sha256": "e89bc4c095530cdee166c8b4d01afa1ef5be11e88ef9ae71c0acc96c3a2cae5b"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-cloudflare-runtime.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0deab7d4f2bdad5959ea952db3b357c7d335b421d38bce724dc83be69097c913"
+      "sha256": "7fef1d6668628fc8f00e28259f7644ad8f6c73a84ca1aac4b1f813198ec7becc"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "23c094caebbc059739f48d74f4024e19ae2bce013e508ce1a67219b206251f95"
+      "sha256": "0e072724622bafb2993dc1f52c3eb2660bea2a6fadc7a67160663c54a5b65f12"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-adapter.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6fc68b7873245b7ae60bb9c521b473718692dbd2fd0d309a17c125227adbea95"
+      "sha256": "f75db5c6095c88ff3db8b3fb4269d6e93f20cb68ab32edaee72285974c6f91b1"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-adapter.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "db10f88d41ed05c4defe899b9b6841ca3bad16a30a6576bc9431ae18b2810c93"
+      "sha256": "b5027bfd1bbdb024eadefdf9db269544452ac6d3ddaea07e5b5c6b45d249ddf0"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure-policy.d.mts",
@@ -330,37 +340,37 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "3c874e32c4249f85d11e33549d2d03f4b22114cc4a97326b5265b83ac7ef2755"
+      "sha256": "4e5cedb54609ddfa7774fffb5e9219fb5b3969200cd717d2e17d7f03ed9736d8"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "4bd4a56dcc3b2facab709325ceb73b0fe7624068527c25ef37af612a6de5a62d"
+      "sha256": "4ee993452ad9cf57549cb75f248e77ae683a5f7a91f40ccd0b4f7cb67e7d556e"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "cb96a0772cf614ea997da153e7769deaad0094750b46fcb6c5ec10d17568d742"
+      "sha256": "5c915e5e42915a037ab3b48f1155395aa058a7085e0709fe7f79eca2df66f8d7"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "10de45e2334ffc0aa81959fcd470345ac036323e8f73c691a210af88567b1814"
+      "sha256": "d6e59c63bff302d464ddfbec73419db472dd047191bb111be36474cef736ff9b"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "790feb4f691dcab7d5afa8de05a5729822ffae65b4069fd0e65de37b75b3f327"
+      "sha256": "db4a05ec8061a01dd6a82607c5860465e813940a22ec0def72bb4d7e1665e515"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "fb569cc0604d11a08de98a0c8b5e47158a7b5da134f1143bbbb37fcd65e95e50"
+      "sha256": "8002c00e0c68447c1a015fef1a0cf7fd19624f667d5006376be689f81d34ffac"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0b302bae9ac019f36e772b71141ad6fdd50739474e1f6df884a75f74440bd393"
+      "sha256": "40673f166d51f2d8e7ae70314973610ea47b968b1b6e9b24c17a04ced514c85c"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json",
@@ -368,24 +378,39 @@
       "sha256": "9bb11880c6a9f4cb69b76b05f7ef5219ded2a86e3a44ee2c4d9371262213a161"
     },
     {
+      "path": "scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "bcc41d30dbb00ecd612a1fdb5fe87b5e047d8cc777d0af9fc360b40e06bc1de2"
+    },
+    {
       "path": "scripts/auth-bridge-notification-prepared-installed-toolchain.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ce1d09e34197096c9d6d82b7fc0ef2306a5036254ef78fdbecc856263342570d"
+      "sha256": "1425cb98aa56cbb04178231937e084c100ea1e3f0b9e0a0681adc3ec40cac0e8"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-installed-toolchain.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8789b2a4c1e63eb9822ae7a4e15688ce78fe9c9f07adb82cd1982d5cab70b3ac"
+      "sha256": "ab3e72b4d71b6f949f5fb3f3dd1a53548b39184214f5a755975f570c23d9000b"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-linux-runner.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "41e5403df8a87c1da8b28a2a7270da161c90d14ed0b1487e953dc20ab8df0a78"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "346661bf89426db64f2911b6b0e7d3f5abf0d717d067b0b6c81602e6c570519a"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-receipt.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "eccbaac02b9db7615f479d15030fab841fa0e18017331e3e2a1012c564d3f4f2"
+      "sha256": "49e8ed44a37be5192152685fa3473a3eb55988cbf3e64c8868868ac6f3a89c69"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-receipt.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "1fdab15f0991cf07add91d7a93d04e30ad42baa9980cf3cefa986047fcf3b43a"
+      "sha256": "846ba27d5b54400a1979038b55b38826636c68cdd82e6ca7822f94407fe27928"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-release-binding.d.mts",
@@ -423,19 +448,69 @@
       "sha256": "abcbf4b28a27ac6470ed37f1aebf56b94d8955050eb649010c741dd19d8f6b1d"
     },
     {
+      "path": "scripts/generate-0.4.0-recovery-launch-activation.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "27efda860acf80df7eb3345253c09811eba105480d70e2935844f9f2c1544c5f"
+    },
+    {
+      "path": "scripts/generate-0.4.0-recovery-launch-activation.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "993000b4d485d54f82fc595ecbbb231d122e9e2f6b818c3ce7e51da0c58e7628"
+    },
+    {
       "path": "scripts/generate-0.4.0-sealed-launch-activation.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "adf639ee5eb1a1d24e8c3c86f683228a01bf56bcfd77adce1140d75369bb23f8"
+      "sha256": "4a3924ef7282d4a4ac307619bd477004b49fd5bb8f289d45e4ef5dd566e03cb6"
     },
     {
       "path": "scripts/generate-0.4.0-sealed-launch-activation.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d3768e7bd556b747a3a2444760a03b733bcbc3e1f0c24d26158f565202c68107"
+      "sha256": "885c49d3566c49a9725667134a2c4115fb83e81eef61c780b47f288907a661bf"
+    },
+    {
+      "path": "scripts/generate-warpkeep-deployment-attestation.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "2ac84f19e2d92897cde6ea6e85b4a3741ad833ef3a75d8c5c668f61aebcfb655"
+    },
+    {
+      "path": "scripts/generate-warpkeep-deployment-attestation.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "12c5eea93da642ec94c3edd07b5bdee23e179f7c55fa4da197139a569a975eae"
+    },
+    {
+      "path": "scripts/genesis001-admission-monitor-current-state.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "c4c7a93ded8d50d0c05967e85a4023155df1fa24734f1e082c4493faa51e49dd"
+    },
+    {
+      "path": "scripts/genesis001-admission-monitor-current-state.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "50776faaeb1ccd0c7357e6058ed90ac5a4ad5ad043444126089bdd45d1fd4560"
     },
     {
       "path": "scripts/genesis001-admission-monitor-suspension.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "aa45bc40dc63c579bf0219e2f678ab042adede24d4c3c7b735d6e2d9c2244ffa"
+    },
+    {
+      "path": "scripts/genesis001-admitted-player-census.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "a5527f2d75b6ec07840ebaaf1624a34f12f46c31b2cf12ed34fa9296b0fcabc4"
+    },
+    {
+      "path": "scripts/genesis001-admitted-player-census.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "1a0bbd0717d9d19094c9e898c9a4c41613670e947fb9d876a3b04179d0719dc5"
+    },
+    {
+      "path": "scripts/genesis001-binding-frozen-source.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "ca703ae9147c13ddda02edf8fded8404135f730157f499c9f91bf5d3396a00aa"
+    },
+    {
+      "path": "scripts/genesis001-binding-frozen-source.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "d4000cb556fa59e330d4e59629c5d0c9ecdafadf6d9d084354ccf0e1593256c0"
     },
     {
       "path": "scripts/genesis001-census-privacy-safe-receipt.d.mts",
@@ -473,6 +548,56 @@
       "sha256": "506934fe091df64c7ff7d5d762024b39b5d9ba58adbf90087ea462e0853ec2d3"
     },
     {
+      "path": "scripts/genesis001-linux-policy-boundary.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "4cfd44b8928c1a45208b23ca8d1f42802bbf6f7446973221de7301816d80d65d"
+    },
+    {
+      "path": "scripts/genesis001-linux-policy-child.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "e6ae1033a4d6746948e32852aafa491bd54072b713e55024d7b11c1f00025a90"
+    },
+    {
+      "path": "scripts/genesis001-linux-policy-materializer.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "ac0cec9d53d2fadfd729829848a7410fba174930211da0e8aa51083ad24d8ff0"
+    },
+    {
+      "path": "scripts/genesis001-linux-policy-native.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "644ae4d2b13186e9981807ae98bfcb7f414f3d0b5ece0064d33ff39468a2c38b"
+    },
+    {
+      "path": "scripts/genesis001-linux-policy-receipt.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "65a07b085f3116680fd2f2d34a2d316f8ca1afe340a4dc4c337022ad8d3f1c09"
+    },
+    {
+      "path": "scripts/genesis001-linux-policy-receipt.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "3908e6fdabc737ce1742caf8c4ac0411a2c785a59b019054f8f6b68f5c8a30d0"
+    },
+    {
+      "path": "scripts/genesis001-policy-observation-receipt.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "db98828df2812c9dd2ceff2209a6759dd7e6af7787068ae1c88bed8c3a93f800"
+    },
+    {
+      "path": "scripts/genesis001-policy-observation-receipt.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "dc501aebb4150ca5eeeaf50fcbdb54e8c8743d7b47434ac607ba0756999746bf"
+    },
+    {
+      "path": "scripts/genesis001-sealed-launch-adoption.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "2e312cbec04649a434074b6329d1c233bdd72a1f414d279d13e7673120027989"
+    },
+    {
+      "path": "scripts/genesis001-sealed-launch-adoption.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "b478b013893352190b5299ee2630a91c65827ebf7909bdbd91d7c6b73f8b52ee"
+    },
+    {
       "path": "scripts/genesis002-activation-receipts.d.mts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "71a1e9fb6d2bcb060832d11538e41f3b40887e6ef30596e6846dc2494e0e296c"
@@ -483,39 +608,44 @@
       "sha256": "1c0fa54386377cf8e8c1300772e9ed1d365c2216674fa646af9d90875685e609"
     },
     {
+      "path": "scripts/genesis002-binding-linux-locked-source-build.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "195a3552635af6f2aefba5506bec68cfa651a59abf8c2f655c51c1d1a09e225c"
+    },
+    {
       "path": "scripts/genesis002-private-loopback-verifier.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0ee6f8c4d2d18d9c2ba9a5842e15dc21cc4daafe11de20bbcd44612f8a668e8b"
+      "sha256": "2e87ab6c51a5f385dec5fc97915696610d2da5749abae066083cdcdae045ee6a"
     },
     {
       "path": "scripts/genesis002-production-import-core.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "601c46f4fbe24ef7fbd5ccfdf5a1bb99ca354a799bef4b54f1a217b087d54c03"
+      "sha256": "df4ed141c80da0ac152fbad99d3f1912cf424e883a062631bf2f14afde0ed88a"
     },
     {
       "path": "scripts/genesis002-production-import-operator.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8bb1b9078026b6d3791a8411ebcb2f715780e0a2bd79038adf882396646f2485"
+      "sha256": "40965439f1a64760a9f5c8c08cc2322763f0a233f43d88bc2220cce106e627a8"
     },
     {
       "path": "scripts/genesis002-production-publisher-cli.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "54af583babdde2a3663d8fad253b1201dcd050a33cb98461b1e16bdb5dcaa339"
+      "sha256": "f1d7156f3ee9f497d36bd6a224efa5dc4f22e2f47c0398623083c3031591be96"
     },
     {
       "path": "scripts/genesis002-production-publisher.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8f8a7292e9e3fba7324f04636bfa5cd679f8a594ffc3c35a6e7a8ff943ec4abe"
+      "sha256": "5833a779778b9610b5c97e2f82ad210d0b5456944d1b403087d2a36df052409f"
     },
     {
       "path": "scripts/genesis002-production-publisher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "db392be21e6eeebbce5166480d80bda36700f9ac82cb2060baeeae413618c656"
+      "sha256": "72b18f04c13691fd9b93552c906fbb1a2f13c8efd4457852a5dc8315861de1dc"
     },
     {
       "path": "scripts/genesis002-production-transport.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9b58aeceabd7f9dd0736080cd41e669b51b26fd839214ec585cace985e1a7480"
+      "sha256": "1dfd10a532284fb04150d3c2bc2841bd0ec29853101c86fb5994e4334ae9f509"
     },
     {
       "path": "scripts/genesis002-sealed-live-receipt.d.mts",
@@ -525,47 +655,12 @@
     {
       "path": "scripts/genesis002-sealed-live-receipt.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "47ef56a76ea21441d93f77434395474fb235b86b19a2ccb2fb00ac149c933364"
-    },
-    {
-      "path": "scripts/genesis002_module_bindings/accept_alpha_terms_v_1_reducer.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "468dff67bac580b65e7ac382b87fc312436f1435ce5e67fb2bf5a8f0dc4371ba"
-    },
-    {
-      "path": "scripts/genesis002_module_bindings/access_request_get_status_v_1_procedure.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "417b26934accc3d6c5debebc58683d948df12c9826d68d34fbb47d631b0e54fd"
-    },
-    {
-      "path": "scripts/genesis002_module_bindings/access_request_submit_v_1_procedure.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "417b26934accc3d6c5debebc58683d948df12c9826d68d34fbb47d631b0e54fd"
+      "sha256": "4062cb2de47b612a6799fb5a01bbf028496cb1bbf75991d1632940bd4ef06b41"
     },
     {
       "path": "scripts/genesis002_module_bindings/access_request_v_1_table.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "4181adee13823a24afc3f20d7663816723f81e9c41de2c3c7491b52ec050bb43"
-    },
-    {
-      "path": "scripts/genesis002_module_bindings/admin_admit_founder_for_access_request_v_2_reducer.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "71c1ff1e5b7179908834be3c1e645fb706eb3c371b1a63d990bdc5bae3915b08"
-    },
-    {
-      "path": "scripts/genesis002_module_bindings/admin_admit_founder_v_1_reducer.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6ac98d06797c8607d55a393888b1e8dda8fdb33cb6dc30c17f513dd2cc1cfc17"
-    },
-    {
-      "path": "scripts/genesis002_module_bindings/admin_allow_fid_for_access_request_v_1_reducer.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a89cb5770af63c94466e0c31956913925498dc0be769671e2aa064d39fb0c5f2"
-    },
-    {
-      "path": "scripts/genesis002_module_bindings/admin_allow_fid_reducer.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8bf48f2fbd91e1a7d9292a16531c6b6beb46c3d1ebc16478f65a1d76c1f45ef2"
     },
     {
       "path": "scripts/genesis002_module_bindings/admin_audit_table.ts",
@@ -576,16 +671,6 @@
       "path": "scripts/genesis002_module_bindings/admin_begin_greater_realm_verification_v_1_reducer.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "b5ad46b2c4e9f48bad605cbba8ab886a2bc9bef9db745c9b4daefb55f484208a"
-    },
-    {
-      "path": "scripts/genesis002_module_bindings/admin_bump_auth_epoch_reducer.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8bf48f2fbd91e1a7d9292a16531c6b6beb46c3d1ebc16478f65a1d76c1f45ef2"
-    },
-    {
-      "path": "scripts/genesis002_module_bindings/admin_disable_fid_reducer.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8bf48f2fbd91e1a7d9292a16531c6b6beb46c3d1ebc16478f65a1d76c1f45ef2"
     },
     {
       "path": "scripts/genesis002_module_bindings/admin_finalize_greater_realm_release_v_1_reducer.ts",
@@ -618,19 +703,9 @@
       "sha256": "74ac862d3d14bc9543221b6b2f4ff644c714446e1c7a061ed0eaa7fd53ca9ca3"
     },
     {
-      "path": "scripts/genesis002_module_bindings/admin_reset_access_request_v_1_reducer.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "93726c9c02e8fae5b7288b2da911bfc9626cdcd35eebc5d2b6ecbc19b155c5e0"
-    },
-    {
       "path": "scripts/genesis002_module_bindings/admin_stage_greater_realm_release_v_1_reducer.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "ff3b2c8f24bbeaa2d98ac899c84a94b6aa976cb6ccc45ecde0c55f0046381606"
-    },
-    {
-      "path": "scripts/genesis002_module_bindings/admin_upsert_realm_profile_v_1_reducer.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "804dda264c6f812e775395e2b46fc1906577a602b23ba1570f97c7ef6c4bac56"
     },
     {
       "path": "scripts/genesis002_module_bindings/admin_verify_greater_realm_batch_v_1_reducer.ts",
@@ -648,34 +723,54 @@
       "sha256": "ae9583c54fca379135f8454ebb00c64ecf38a5e0fc5981ed20057ba3e65f5b29"
     },
     {
-      "path": "scripts/genesis002_module_bindings/auth_resolver_get_fid_admission_v_2_procedure.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "38d2089a3a9c7367f0c92ef0ff50db8f4acc41184197bf84274aa12c02160869"
-    },
-    {
-      "path": "scripts/genesis002_module_bindings/bootstrap_player_reducer.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
-    },
-    {
-      "path": "scripts/genesis002_module_bindings/bootstrap_player_v_2_reducer.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
-    },
-    {
       "path": "scripts/genesis002_module_bindings/castle_table.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "6ce06a0a92c236fe935cc1e4222f0863a1bcbb7abee1de865d15109b216f87b2"
     },
     {
-      "path": "scripts/genesis002_module_bindings/get_my_admission_status_v_2_procedure.ts",
+      "path": "scripts/genesis002_module_bindings/dispatch_gameplay_04_worker_v_1_procedure.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "3a7bc4ba383c3031b4fe4258ae22b47cf8a7b22c95711ef6d2ca298972c856c5"
+      "sha256": "3797947f3305f12a8d70fa3e91acee02ce567a599a8aecbe402503bf26c1ddba"
     },
     {
-      "path": "scripts/genesis002_module_bindings/get_realm_status_v_1_procedure.ts",
+      "path": "scripts/genesis002_module_bindings/gameplay_04_building_v_1_table.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f2f4bf6f9f782f7fb4f5082eb621a64d0c1a3b316363ff02e9f5d9df0c83eef2"
+      "sha256": "892472e23036330ed76dfadf3b32557270f3d94a8ad29809202b6cc3ef487ce7"
+    },
+    {
+      "path": "scripts/genesis002_module_bindings/gameplay_04_keep_v_1_table.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "2e77019216eec84d6ebfc27a5218eb21eb6530e710f86e5796d281409b97d0b3"
+    },
+    {
+      "path": "scripts/genesis002_module_bindings/gameplay_04_project_v_1_table.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "5632199e14a70321e38c9e6589f915814bafd814a2ccb7fbdb426b565bcbe127"
+    },
+    {
+      "path": "scripts/genesis002_module_bindings/gameplay_04_receipt_v_1_table.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "dcb55d708f2cd7b97e4bc1f100ae50c441471b137d3c584e0c450fcf2a72417a"
+    },
+    {
+      "path": "scripts/genesis002_module_bindings/gameplay_04_reservation_v_1_table.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "eb11d585e0a033b83ce7a2204eb83259889f645d14088df7f9e79f632edc226d"
+    },
+    {
+      "path": "scripts/genesis002_module_bindings/gameplay_04_schedule_v_1_table.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "e52a692e82bb8962f150a725d1cfba078431a7cc5669e08148f9f7721197d776"
+    },
+    {
+      "path": "scripts/genesis002_module_bindings/gameplay_04_worker_v_1_table.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "e88d4d95acd7ae196ece6b28ffb74036bf6d27c0114f4d52fbe71dd106900dd4"
+    },
+    {
+      "path": "scripts/genesis002_module_bindings/get_gameplay_04_keep_v_1_procedure.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "fbfb901d274ec7cdae3f5498b1360c07314dfcabd2bfc418bf704047da3cc927"
     },
     {
       "path": "scripts/genesis002_module_bindings/greater_realm_activation_v_1_table.ts",
@@ -725,7 +820,12 @@
     {
       "path": "scripts/genesis002_module_bindings/index.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "137a1338ce029cac6446503babaa9eea2e877ecccfd14f1c4827f747cc8b6aa8"
+      "sha256": "5bd457d304de24636daf272b29daee9109ba9045d863a10cf81670a9eeafbf68"
+    },
+    {
+      "path": "scripts/genesis002_module_bindings/initialize_gameplay_04_keep_v_1_procedure.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "3a498a5277229366ee369647e4e01a6aba7499fe88125dbdb853c050d5be90ef"
     },
     {
       "path": "scripts/genesis002_module_bindings/mark_account_v_1_table.ts",
@@ -768,14 +868,29 @@
       "sha256": "aafc035769380a1ffc17a0970e895c8175a71d997aaab4d2e26b22e33948edfb"
     },
     {
+      "path": "scripts/genesis002_module_bindings/recall_gameplay_04_worker_v_1_procedure.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "b68b4cd107e71393df0ff28c15ce23bc88b79bf0b040ebe618c419aa019a9ff1"
+    },
+    {
       "path": "scripts/genesis002_module_bindings/resource_account_v_1_table.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "b397114248803678a72aa30e40ad2527b3219d8cd32546e7171ab6f3ede09859"
     },
     {
+      "path": "scripts/genesis002_module_bindings/run_gameplay_04_schedule_v_1_reducer.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "bfafdc7717bea9f39f241c15e7b6fa08ec2d3ddc015d6e5c39ee718c1c403431"
+    },
+    {
+      "path": "scripts/genesis002_module_bindings/start_gameplay_04_building_v_1_procedure.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "45f0597980013ef1b83f8c232309970ba6e465b3ace377ae1a65873dd8fd141d"
+    },
+    {
       "path": "scripts/genesis002_module_bindings/types.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9fac009970d955a93c59fe3d2fdc9ca076338deb59f4c743844bad4bd8fdaea6"
+      "sha256": "dbe0f63403bf9d57bb6f44ea72c7bd6a64607e482c4184a4fb1f8b7ea96f4c5d"
     },
     {
       "path": "scripts/greater-realm-cutover-operation-journal.ts",
@@ -820,7 +935,7 @@
     {
       "path": "scripts/greater-realm-production-bootstrap.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b9df406c33b890d0c9153535b36f168fe0c1acbac7e9d52f8d2c3f57af7c98fd"
+      "sha256": "be9efaf1ecad13c2cd94bfb457353b8946f12b3304f47b34e8b9422041712c1a"
     },
     {
       "path": "scripts/greater-realm-production-immutable-artifact.ts",
@@ -830,7 +945,7 @@
     {
       "path": "scripts/greater-realm-production-import-core.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2f5a018bef9833130bde5182ebcf7af753eca9cd8cb1327af67c7656577c8b1d"
+      "sha256": "cba027b4877f370c16a4479f65d7a691302a6558838f63bd8f22d39f900021a9"
     },
     {
       "path": "scripts/greater-realm-production-import-operator.ts",
@@ -855,7 +970,7 @@
     {
       "path": "scripts/greater-realm-production-provenance.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ee3209eaaff54eb9d1c084de1021aff6da38c3317a4117a5e2fdc708915d0344"
+      "sha256": "66b695e408ee4601cfb4536e9811669e62d3c36e768b2d8bc40129092c979c63"
     },
     {
       "path": "scripts/greater-realm-production-publisher-core.ts",
@@ -880,7 +995,7 @@
     {
       "path": "scripts/greater-realm-production-transport.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "96ac6e38d5696c8cd748d18b940f2906698922e84df61269f6506f023deb3ec6"
+      "sha256": "f2f8a5667e992d84b8dc66904d9ac66580d727bd24208955316a000c3fc55949"
     },
     {
       "path": "scripts/greater-realm-production-verifier-core.ts",
@@ -905,7 +1020,7 @@
     {
       "path": "scripts/hermes-admin.ts",
       "digestProfile": "reviewed-release-transition-projection-sha256-v1",
-      "sha256": "9b7f9bf04ee4d1d2098a9e9c0b14a8839c2fc0456f0be04cbcb946b9ef5d24d9"
+      "sha256": "d092912093ebba73c736d011a4e5d125bfe068827da344d59376dffc50c1031c"
     },
     {
       "path": "scripts/hermes-machine-output.ts",
@@ -953,6 +1068,46 @@
       "sha256": "42c068d7e738bc695fe3d7dff1b9b7be6da877221535b7ac45f93aa702347d28"
     },
     {
+      "path": "scripts/local-binding-bounded-file.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "3f1afbd6056ded03639b3dc962c9108b13fcfed1ef04208a4fb6c7968198b985"
+    },
+    {
+      "path": "scripts/local-binding-bounded-file.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "13e01b2e7f858fa076ca6b53fbc99c2e0ba08720d7ee6b966bb1446b68b90682"
+    },
+    {
+      "path": "scripts/local-binding-native-ts-hooks.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "fbf3f6c27e0b9ce533881617d42cdb461450344be09b5f5b9437638d42759e24"
+    },
+    {
+      "path": "scripts/local-binding-runtime-cli-snapshot.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "c368004ef4230a6e5e84be06b528fc521da771940e3c792e3d1d929c09418cb0"
+    },
+    {
+      "path": "scripts/local-binding-runtime-core.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "bb50095cf78a21a8c16cc7aada693e8daf131aaa96f3020fa16c9e0fca9e5671"
+    },
+    {
+      "path": "scripts/local-binding-runtime-process.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "9badcc2acd891240331ef7949dc630951218a263f1dbbce91d8270548acf0528"
+    },
+    {
+      "path": "scripts/local-binding-runtime-yaml-v1.json",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "a55cc03f08013a9591a03ff7270299eb36d7be7bb5f63e7634a5e049924683e4"
+    },
+    {
+      "path": "scripts/local-program-artifact.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "5eb5ec583656abe889fc3a0e8a2d032b5f2beec7aea041e96924b7d4f3607163"
+    },
+    {
       "path": "scripts/notification-pages-build-release-validator.d.mts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "1d9e811491a125dd3c825468f60e42c19aa8da32bd7871d48420f1f694a7a744"
@@ -990,7 +1145,7 @@
     {
       "path": "scripts/notification-pages-live-receipt.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9406290e6f3fa118c2c62f20db2a7bb89986bd31f261d8a5b403f250ed496589"
+      "sha256": "e060570e2956a63b4d50c05747f3f61f1f3ddb4f4b41966e0ff6ea38d94c6515"
     },
     {
       "path": "scripts/notification-pages-live-release-binding.d.mts",
@@ -1010,7 +1165,7 @@
     {
       "path": "scripts/notification-pages-private-deploy-journal.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6e3799023837f7aba106bfd6febcdc86ab0118ae7fe4a8a416e4f904a45c1e4e"
+      "sha256": "b8241e73be8a172935b8e7cb7229ce95fed10464f24a1c2465e7a6eba1330bd5"
     },
     {
       "path": "scripts/notification-pages-private-deploy-launcher.d.mts",
@@ -1020,17 +1175,17 @@
     {
       "path": "scripts/notification-pages-private-deploy-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ac18ecc2371d8bfff17ea8abec9d989085c4992d2ebeb70e7c9947bfac62837e"
+      "sha256": "692420c1a2a1d8d0b76893caaf720be11f2b3dcb559bf777be4a2cc70c59a0c2"
     },
     {
       "path": "scripts/notification-pages-private-deploy-operator.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "636221cb687ccdedc42a0707e012a210ce311f5497e0da100c0d2c9296843453"
+      "sha256": "a4b87de2b93cb8aaeb158f62a043c5b5178cf94cd3c8fe5a75f0895a57d7f0a2"
     },
     {
       "path": "scripts/notification-pages-private-deploy-operator.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0e2d294eff23835961a11ea1e6d1e27e8bd623b26874e1db9f57855a2a3826fd"
+      "sha256": "30719a7b3757fc26780cc48549635a1e743f534186c2b7ce7d279037d144686a"
     },
     {
       "path": "scripts/notification-pages-private-handoff.d.mts",
@@ -1068,6 +1223,11 @@
       "sha256": "630e81733cfd4721aff07510a4e014a229f18c61469c9ba5ea6f0d8d29564d3c"
     },
     {
+      "path": "scripts/production-admin-connection.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "b0013b712547ea0a16ad7bc422f971e6dad3118cc2a55774873ea9909baaf3c8"
+    },
+    {
       "path": "scripts/production-admin-token-budget.d.mts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "081e381def77b755d408c6b20807bd224e0a0d26f353b6db83370ab0e03e647b"
@@ -1080,7 +1240,7 @@
     {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "cbde46f8032c036a8b745d2a1f1706c8d953adc3a8d879131f7a8d62c42581d7"
+      "sha256": "111870c3880f29d75968a7d2a4b03ae024e0338c8804e1b88306a657283aec49"
     },
     {
       "path": "scripts/production-player-canary-admin-transport.ts",
@@ -1223,6 +1383,116 @@
       "sha256": "c88202e7b892f9fd2c58a2aed229876f78c581ccd47d93db9c649e3ba532999f"
     },
     {
+      "path": "scripts/ptr-artifact-description.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "de56d27e1c7ec3fe93ad206300de33fa48d7bbb206240f6af8c21341e0a1d8e0"
+    },
+    {
+      "path": "scripts/ptr-artifact-description.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "79b0e6e7dca53d5efdbc63f2341da54d67986774fd111b50f5c49a86a20391b9"
+    },
+    {
+      "path": "scripts/ptr-binding-linux-locked-source-build.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "91ddf1def2f59121f391dabe39d2797c92dbe5a265104f30ffbe24c23df1ace8"
+    },
+    {
+      "path": "scripts/ptr-binding-locked-source-build-core.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "a484ca4984d061786942d56d0f5c487300976db8c266dd00beed7482b15d055b"
+    },
+    {
+      "path": "scripts/ptr-binding-locked-source-build.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "e375cac4a7d7d7000af5e659807a1a2680893b5645e9ccac825b6176f84c2cc9"
+    },
+    {
+      "path": "scripts/ptr-binding-source-validation.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "ee4e6537a710b159e4691523ba00acb344e423b374e4b7fd1dcbf6d7ae5f8f12"
+    },
+    {
+      "path": "scripts/ptr-owner-provision-operator.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "40144be3eba3fb4beb0c3b7eccdba4a2c2fd6c72a09ef158eae31413b52e9f78"
+    },
+    {
+      "path": "scripts/ptr-production-admin-token.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "e8f77b46fc117a8587f31b85cee646135ec9a5ce5cd21e548b0f67a0f63ed526"
+    },
+    {
+      "path": "scripts/ptr-production-existing-update-adapter.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "fd45d12108b50463e06d768e931a0f40999a708698e25b638332b8795f3a4a64"
+    },
+    {
+      "path": "scripts/ptr-production-existing-update-adapter.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "558a34b70b398ca8528bc16d903e12b1e34ae7de74972fa5359d5167b35c2b0a"
+    },
+    {
+      "path": "scripts/ptr-production-import-core.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "6bfc9c68dd7ac14c9ee97d0c9d4187382614ccf1cb1fc8268474effeeb9d4327"
+    },
+    {
+      "path": "scripts/ptr-production-import-operator.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "cffafcde404530098542374b9ba0ac29b804339aa50d14af912c5d5120b2be53"
+    },
+    {
+      "path": "scripts/ptr-production-publisher-cli.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "8a261a4e2a23a51f80101060e168107f144a3c9811ce22450ea741b25739afa4"
+    },
+    {
+      "path": "scripts/ptr-production-publisher.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "6237b392935fd32871fba55932243e6e2881685cdbe2e0544fa8753c5618adf2"
+    },
+    {
+      "path": "scripts/ptr-production-publisher.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "e8e456ed0933e2a47ea3c28904606974298b077cfb864211cd19e286ecfbb463"
+    },
+    {
+      "path": "scripts/ptr-production-receipt-file.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "2eb39b131a5768e1d9f4b9ba69bc9c53d94bb8d249a5c30af0db0d62ee3c60ab"
+    },
+    {
+      "path": "scripts/ptr-production-release-receipts.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "33becc3d94131f62bbdfb5a8833804003ceed44e441ca85988037f495344f385"
+    },
+    {
+      "path": "scripts/ptr-production-transport.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "c99573418d72ce9f2af357da22e6425f337e38bc0a8871ca83bf7beae6b2b41e"
+    },
+    {
+      "path": "scripts/ptr-update-definition-policy.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "e6fba43a9bff1340ae2cc16b894a6a8abd8afa211d17c403ebe3b5962fc55ab4"
+    },
+    {
+      "path": "scripts/ptr-update-definition-policy.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "257ecc86ba069bab5e9eb01f3016a576cdfc48d52e1f0221f5e1f65dc5223f78"
+    },
+    {
+      "path": "scripts/ptr-update-provider-credentials.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "9bd5a71737b33cdcfaee1f0d3aa878c0164b3718fb34221fb82888176d4566c4"
+    },
+    {
+      "path": "scripts/ptr-update-provider-credentials.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "b004f169642b3b626d0b75c32a28145f291ac9476a4c9e4c6d6f1315d5e09c71"
+    },
+    {
       "path": "scripts/publish-spacetime-dev.d.mts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "8104965443c2ffca615b9142732eb7020261a903564de4bf4dbc34b52842c358"
@@ -1233,6 +1503,16 @@
       "sha256": "83e2aa6765bc2cd62bc0b18fa0482c96318c590557344daac49989d5a51c3ff4"
     },
     {
+      "path": "scripts/qa-observer/keep04-document-policy.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "7d34fdedd079894c9ec94a4aee0271fc6b36349c916221344b79fec636ab1e71"
+    },
+    {
+      "path": "scripts/qa-observer/keep04-document-policy.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "ad4c64df2c629e74a6fa26e0a063a0fff3d9e022d23cb320f8fec3fcdb4bd546"
+    },
+    {
       "path": "scripts/qa-observer/local-fullstack-spacetime.d.mts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "ce1b2b8cf87d109ad22b86ebfa92317ec5237e908d5df0f8df5eeb8ee670f3e6"
@@ -1240,7 +1520,7 @@
     {
       "path": "scripts/qa-observer/local-fullstack-spacetime.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6bb5138baaea19150281d3ff477048c5214145558cf20317b35d5622e6018f86"
+      "sha256": "b8a7e9ccaf385e39ea20be7c1dde8157c96580dbb94c9ffe934adad51953300e"
     },
     {
       "path": "scripts/qa-observer/local-vite-fs-deny.d.mts",
@@ -1253,6 +1533,341 @@
       "sha256": "db083434b0622ee7b3ae916fd20fcfbb7d1d0915f2e5cc919b30aa24389133c9"
     },
     {
+      "path": "scripts/recovery-activation-candidate.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "aac00645ed9802915f5e71e878a7976de73c178b9b38cb022ba076aba58809e7"
+    },
+    {
+      "path": "scripts/recovery-activation-candidate.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "551eb21ede538bacf386853cce9b46edc380be37901080954475d6bf641ef642"
+    },
+    {
+      "path": "scripts/recovery-attestation-source.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "6cba5082eb915b4a04eb909f6893bfc16e80823dead1c4d98b1c6c10147eae94"
+    },
+    {
+      "path": "scripts/recovery-attestation-source.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "9d4e3f2e5f7bc2af5adff9cae295c094e249dd7f8eac6319304a43b3ee16ea77"
+    },
+    {
+      "path": "scripts/recovery-authorization-client.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "0dd042e0d9bf7078aa38e370678ae8c62ce422ba6c72bf063651698f6ab3ea16"
+    },
+    {
+      "path": "scripts/recovery-authorization-client.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "af96c4bfb91cc4855e934c9088c605b4877908c72df3f8242a74926ce3db33cb"
+    },
+    {
+      "path": "scripts/recovery-authorization-protocol.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "7070844b564d249016474226417f7b2e538d79e8daa8afb356d4b41b19e7457a"
+    },
+    {
+      "path": "scripts/recovery-authorization-protocol.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "d9750f32a79acf7d9787b7100b8328cda0a4bdddb5965bd20cead5d0dbc8e7a3"
+    },
+    {
+      "path": "scripts/recovery-binding-projection.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "d67eb628ac6273419b4ce7c25fd749efae17acdb2f9b266b88d7696586e7cf91"
+    },
+    {
+      "path": "scripts/recovery-binding-projection.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "b2298c2f754f9a901de43c882164ebda89725f2ef4546a8d794f722be7c06188"
+    },
+    {
+      "path": "scripts/recovery-claim-handoff.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "afecf6745f36bf9865d321f98c8a8b9c4d7f1aa096343970c1ddaf79a738eeac"
+    },
+    {
+      "path": "scripts/recovery-claim-handoff.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "fe2d5a22240a62c5f196d61c01ef88c4b20883043968ebadd4ed6f93bbe716c4"
+    },
+    {
+      "path": "scripts/recovery-public-key.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "53f7fe62588e91ad2a574eeaffc7979c1f122a43f6e632fa664433078d37eaa0"
+    },
+    {
+      "path": "scripts/recovery-public-key.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "19af421d7fec8698dec05e3931b5859fd4d9433ca0e4632dba23a4ced90a3818"
+    },
+    {
+      "path": "scripts/recovery-workflow-bundle-manifest-v1.json",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "d8b1acfabd589926376785acf53548b0149c9a6e43369408349cf2b015b758b6"
+    },
+    {
+      "path": "scripts/recovery-workflow-check-deployment.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "194b3fbd1a50961eba825946710bd39179d07cdffe908ba72e60c3422caf75ec"
+    },
+    {
+      "path": "scripts/recovery-workflow-check-deployment.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "1cbb1d457a3d895a05b9141277d2940e92820619074e58776253f29999180f05"
+    },
+    {
+      "path": "scripts/recovery-workflow-current-context.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "2663ac01dd03a4af6fc2fdbe51af0c06cc835aee3c7df2d322dbff5da3fecc57"
+    },
+    {
+      "path": "scripts/recovery-workflow-current-context.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "53a13fdab461ab6d5e3c8a0a1bb42084c6c0029d4a9b0f4f699287fd31e1cb7a"
+    },
+    {
+      "path": "scripts/recovery-workflow-deployment-boundary.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "c87812cb0147f737323ef54742ec76b1ffa71d75eaf005f6876859ed1094c0aa"
+    },
+    {
+      "path": "scripts/recovery-workflow-deployment-boundary.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "b5f535e686913418834acc67e7fa5fe9883586517102ebca7e9ca331177fefed"
+    },
+    {
+      "path": "scripts/recovery-workflow-live-postflight.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "fcdbac536cdb587f7a7ddd7b3eba9336e18bac4dadc78b4c17791fa2f31410d4"
+    },
+    {
+      "path": "scripts/recovery-workflow-live-postflight.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "3c4ab7e32230f7c5235d5fbbdd3a1750e7e47847d4badbb73524be5c387f5d44"
+    },
+    {
+      "path": "scripts/recovery-workflow-oidc.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "a87b39a5055adab7e3c223c274eb659b4732fd04d8961dbd10fc844d26be5c35"
+    },
+    {
+      "path": "scripts/recovery-workflow-oidc.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "3b4f1d38cde1561d6bdbe511153c1a5b12e9f35d510ae0c102c6b8e98c0170d1"
+    },
+    {
+      "path": "scripts/recovery-workflow-postflight.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "758dec871dac6cb7de26050fa4495db4fe14c6192b4db0d1120216b41a05454d"
+    },
+    {
+      "path": "scripts/recovery-workflow-postflight.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "44d1b45b37b11d22f8d4e11a260a48b72d03eb4e139907ae3c099e6dad0a1c6e"
+    },
+    {
+      "path": "scripts/recovery-workflow-prepare-claim.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "6430e01b25f04ef0ce20ad44c2ed1c22ce3bc2b4cbcf262d1ddae59b78fd74bd"
+    },
+    {
+      "path": "scripts/recovery-workflow-private-directory.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "c6df70a576fff5b14448e30aa673c42a5bf8a020cf70a419437983ece91a9980"
+    },
+    {
+      "path": "scripts/recovery-workflow-private-directory.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "5fe13b0268b67bbff21ff79e3702849ceefb7fdd84aaf889cb2cb78f651916df"
+    },
+    {
+      "path": "scripts/recovery-workflow-reconcile-current-run.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "d252cc8dd96c14231090612c2dc73a0b09dce4b99b24f79d89cc01b074a12d28"
+    },
+    {
+      "path": "scripts/recovery-workflow-reconcile-current-run.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "22c9749a9965b609e310024e7a6aee617d0c61adb1d8e9fcbab91d11828a4b90"
+    },
+    {
+      "path": "scripts/recovery-workflow-reconciliation.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "95eaeabda2cb477ac05be947e4d901a126e0d070a147aa5b7629e9ba7d4a4dfd"
+    },
+    {
+      "path": "scripts/recovery-workflow-reconciliation.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "d8b1d58d87c8eb523cd3f6d01d097079288a10bdac1e4730c587bd2f1d61372b"
+    },
+    {
+      "path": "scripts/recovery-workflow-run-context.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "8a4ea6dd209cb2433c3968835260d85e54adf3ec0b0d8f17cfe751c111724aea"
+    },
+    {
+      "path": "scripts/recovery-workflow-run-context.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "693c360cf2192ed7eaa1d34f8c29f4e5f4f8f40d7710e473e0f2439ef53f003a"
+    },
+    {
+      "path": "scripts/recovery-workflow-session.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "97c716ec3d963f923e517476600e814ad482ae07f31ef3a689ac6716ccf7c092"
+    },
+    {
+      "path": "scripts/recovery-workflow-session.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "26f0ec9577e357b39065a70f097b5c481e1229d5faf70550ef52080c7e2a167a"
+    },
+    {
+      "path": "scripts/sealed-realms-existing-update-protocol.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "376492254520ee202f70fa85b506afb80e4406050bf0ec5d47502cbedaf44145"
+    },
+    {
+      "path": "scripts/sealed-realms-existing-update-protocol.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "5d16988e1e8228dd8cc8bdcf7e18a2b5348359fa82f057e8b012e768174c8b3f"
+    },
+    {
+      "path": "scripts/sealed-realms-production-activation-generation-receipt.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "a7c554c84164b406d17cd011acd6349d291f55384f07d809db6f4ac6c7792bb1"
+    },
+    {
+      "path": "scripts/sealed-realms-production-activation-generation-receipt.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "12d1ae222a776f05eb85e7c78bdd352b35b9114ca82e9f0fdf84b238e1189f13"
+    },
+    {
+      "path": "scripts/sealed-realms-production-activation-lane.bundle.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "23ed46c4a5b0313e5f3a1217c0dfb9a11ac68430933f03c77c4c6e7d2f7cc8d5"
+    },
+    {
+      "path": "scripts/sealed-realms-production-activation-lane.bundle.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "f248c7ecbbfb28ec7e0cd9369e90300569768fa5e0cf292fecacb29a23273eac"
+    },
+    {
+      "path": "scripts/sealed-realms-production-activation-records.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "803f5d2ec7119ff03fa9895dbb6bab19ec718d35392ed00bfc30afdb6519ddd5"
+    },
+    {
+      "path": "scripts/sealed-realms-production-activation-records.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "abb61045e9e4c51a5479973524faa9f7f194dc10704d4afd3b0d15d31a9bec8e"
+    },
+    {
+      "path": "scripts/sealed-realms-production-auth-bridge-state.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "24e2f7d8d23ca368de41d240d3a3b6bce34a38d1d731fe129c01611f98c6cb0c"
+    },
+    {
+      "path": "scripts/sealed-realms-production-auth-bridge-state.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "101bf312bff5d52cc62ab89340ec721e438f6ef94cba3d0e1cd46bc91f970b1a"
+    },
+    {
+      "path": "scripts/sealed-realms-production-bridge-provider.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "a00ee065aa5a90b35b4949be779ce05370d1e8f263b0d279666dac42eb41289b"
+    },
+    {
+      "path": "scripts/sealed-realms-production-bridge-provider.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "40fdb0a1228940e68569b0f958f3c5b70756a06241aad8eb9a962099341a4a04"
+    },
+    {
+      "path": "scripts/sealed-realms-production-bundle-manifest-v1.json",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "a18ad22a736c8ef037005f1d8fe8414fb749d3bbc7b126f88172905816918a50"
+    },
+    {
+      "path": "scripts/sealed-realms-production-continuation.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "b18d4e3af6488ce71250edd56509e07f990c02e09fd4165513dc3cab4c3e19b7"
+    },
+    {
+      "path": "scripts/sealed-realms-production-continuation.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "1fae6356727e1dc73cc9139f74bfc61d94d9f2aa3e0f9c34d6267040520954ac"
+    },
+    {
+      "path": "scripts/sealed-realms-production-g001-lane.bundle.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "0d245b2c4754d30d379b5ef7d304b6906e3f4c94eb0851b8493751b47ace1dbc"
+    },
+    {
+      "path": "scripts/sealed-realms-production-g001-lane.bundle.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "29d2e084851cae95752856b051f9512b12295946f30390584839ca8fdb7b1eb3"
+    },
+    {
+      "path": "scripts/sealed-realms-production-g002-lane.bundle.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "076d38dbd53fb91800fe1ab4bbddefc4662e453da59a1f4b7afbd165eb0d3e58"
+    },
+    {
+      "path": "scripts/sealed-realms-production-g002-lane.bundle.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "26c1265bf87f8fd1fb6f25fb685b59828b1e842c1de5e83b276245ccffdd46ec"
+    },
+    {
+      "path": "scripts/sealed-realms-production-private-state.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "2ea7805ca70ab4dd781810f0a2fbbbdb8ba609f337b5a1d679e86c10d36d2319"
+    },
+    {
+      "path": "scripts/sealed-realms-production-private-state.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "3c2b6d4490d0a8fecb587bdfc2da17ff20155a692821c2b17e8b4dd512ecf90b"
+    },
+    {
+      "path": "scripts/sealed-realms-production-ptr-lane.bundle.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "7d323547a39d5fe573a217b4aed6e94fefe2a139f484d5d57c5868fae984cb9f"
+    },
+    {
+      "path": "scripts/sealed-realms-production-ptr-lane.bundle.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "d8301e5e1e516be53adce086f78ecdbf1a1f4b9de3eab5b0ab3431a66475ca3f"
+    },
+    {
+      "path": "scripts/sealed-realms-production-source-authority.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "6c9593ccedfc9de0ebe1f4564f28a7b0034d1deff47a317a0c9b26c20161da82"
+    },
+    {
+      "path": "scripts/sealed-realms-production-source-authority.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "027bc84d679cbb1f8d283aa8eea0328d5a18909eab46a6f9e63566d4ee6b224a"
+    },
+    {
+      "path": "scripts/sealed-realms-production-workflow-authority.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "0a8a2699fdb1037cef80908ba9113592b5279a61a68b4f37fddc41967e3f5382"
+    },
+    {
+      "path": "scripts/sealed-realms-production-workflow-authority.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "8ac7337a41c1e058ac8840a1a6136edb2cc5471cc9ec2e1759579448e14dbce1"
+    },
+    {
+      "path": "scripts/sealed-realms-production-workflow-evidence-json.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "79f4ecc588040143545a06b7200b3e9b57120be7a98c372885b4466ec1b74683"
+    },
+    {
+      "path": "scripts/sealed-realms-production-workflow-evidence.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "0351e99c2ae06d0cd09d5fd8edfb7955f3b47e9379451ee622929bc6da74d0db"
+    },
+    {
       "path": "scripts/spacetime-additive-migration-proof.d.mts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "9b0fc5bf748755edd51ef84d070ac65db04a1cfae095148606c38e63e7dc2024"
@@ -1263,6 +1878,11 @@
       "sha256": "d19664bf1dbbfd58b2b97cb1deae89940312e70ea20ba01fc24dee628032ae41"
     },
     {
+      "path": "scripts/spacetime-binding-tree.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "b8d115a965123bf4188d3a088ce0fcf8ecc3b69924d2398ae14a0ae2492c07d2"
+    },
+    {
       "path": "scripts/spacetime-cli-attestation.d.mts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "2345df8c2d71468c6619061ca3823e0a5309d0b1e33dcce72e681357b34b566a"
@@ -1270,7 +1890,7 @@
     {
       "path": "scripts/spacetime-cli-attestation.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "146c09afa250ad3764c528a18977dd73c29fe8ad68d637298f7f3cd9ac98d4b7"
+      "sha256": "2c96c2fa8a08e98905e4a02a232d4d95b78e1452bcd1969100e73e2d45c6f514"
     },
     {
       "path": "scripts/spacetime-publish-receipt.d.mts",
@@ -1300,12 +1920,12 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "079c804e31aa4ef75e7928db6f7a35bcceb88d100af09b3b705f43c0719d4039"
+      "sha256": "9cb7b861d317664d17ac963a25f61c3968eddbb6cccbb5c533cad97b542fa306"
     },
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "53c18013153e74b1f755f905cbca1b82827ba881e82af68d3beaa9d3cde4f5d0"
+      "sha256": "a26838d100e9d2dc89ca1d05518b9f2a9cf7b9509033eb158bd08655daf30b33"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",
@@ -1330,17 +1950,17 @@
     {
       "path": "scripts/verify-auth-bridge-notification-b0-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "51f536efbd1367936aa98351c0f5cdf1b7b096883b9593fb318874195f5d2d9f"
+      "sha256": "473da6f74f568d6c9ca3f9f93b0f8b797b21e11117e751935e5d1e1102a7df88"
     },
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-policy.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "3992cca75b085715fb3db527c360464dcd10a696c036d42e487e072c731ae8dd"
+      "sha256": "1bef805b77f3d9324f22eeb2081411af2c7df22a8715095a34f124d04889df9e"
     },
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "eb774cdbfe8998ce1e13b0076457a60e3b2871146270c92c88c6e4b1409b0a46"
+      "sha256": "edf46932eb0e820dbb2bb75084c1fd6df7a9baa0326f948f1ca9d68d998bba07"
     },
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-receipt.mjs",
@@ -1355,12 +1975,62 @@
     {
       "path": "scripts/verify-greater-realm-release-gates.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "20e2812cebad412ca9700d525fba80c25fbc137e7d8b57482bf2806b22aa6ceb"
+      "sha256": "1f96c290f9cdb9e017890e48a52e04f49f62517c17abc4239376bc8318fa00ea"
     },
     {
       "path": "scripts/verify-production-dist-exclusions.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "47511b3b9ef0925252bd732d27af5d95592c84023a43c652fa7f3ec6b5409468"
+      "sha256": "8f0add0dc8bf6c3b5dd56c523064b46fa0f77f8d7cc9f787aaabc2603449e1a5"
+    },
+    {
+      "path": "scripts/verify-recovery-authorization-jws.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "79831bc7a4740199180fe0a09fa26de5539a271a9e8ecff4ff91ffc9f3605222"
+    },
+    {
+      "path": "scripts/verify-recovery-authorization-jws.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "094cfa1e0849f4a284d12bb93843dcf92eb934a31ef367497d06bc6f45f38d27"
+    },
+    {
+      "path": "scripts/verify-recovery-claim-receipt.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "efd71c38097eee5698422288d3553a044097bb31e2149678a74806cc494624b3"
+    },
+    {
+      "path": "scripts/verify-recovery-claim-receipt.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "0ab86a4d3d8c44ed7b9d0633c332d4fa4d8cb46f93468d2bfce44952c3f2d9d2"
+    },
+    {
+      "path": "scripts/verify-recovery-status.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "1984d0e3b1434c61f71f4a8212208bbc6cf90963cf3ec9f8d046486c3e13f81e"
+    },
+    {
+      "path": "scripts/verify-recovery-status.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "81e00370f4062d5c6f9ecfa679dfd7d532edfd2428d0dc1ec527825baca4029a"
+    },
+    {
+      "path": "scripts/verify-recovery-terminal.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "d1cf6f508d592b346ee768fadef5b5ffb4f62082ea2816f3c7a2b2e75cb0d0b5"
+    },
+    {
+      "path": "scripts/verify-recovery-terminal.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "a735cf444084cb655b9f8de7b5acc0ceefdcc08f562b961429631e443c4f2e5f"
+    },
+    {
+      "path": "scripts/verify-sealed-realms-public-activation-artifact.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "da948b419821b914349f3ae8c61fe2cf019db44c4308e044c5fea9d52f116720"
+    },
+    {
+      "path": "scripts/verify-sealed-realms-public-activation-artifact.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "30c1de0a298aafe009db99fcc632bf439dd3b5b712ee248178c1946e6d55a6a2"
     },
     {
       "path": "scripts/warpkeep-package-version.d.mts",
@@ -1405,17 +2075,17 @@
     {
       "path": "services/auth-bridge/package.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "99a6adee8792df6f6648321d8913916344ba1041481f5b01ca321a5cd363708b"
+      "sha256": "37c87d57397baa5a826db3f912b995f51dbc5caeafea02a72d9602a943752cd3"
     },
     {
       "path": "services/auth-bridge/pnpm-lock.yaml",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e162613375a2a5534a631d38e9cf2d2b9a66bdeb4ff05be63376afaf57f7fde9"
+      "sha256": "369a7a6de6f874ffe7bb7a79617561daa771ce3dcfe79c35153a4446e614461b"
     },
     {
       "path": "services/auth-bridge/pnpm-workspace.yaml",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6af34bc91b7a59efb1c29051b623b9b69df9c58d1f6bb370cdf6b23bc22b60ea"
+      "sha256": "7c16b5a02088ac6f13b5a2fe267538b9a7347c3202d905fad028198a48fe6ca9"
     },
     {
       "path": "services/auth-bridge/src/admissionNotifications.ts",
@@ -1425,7 +2095,7 @@
     {
       "path": "services/auth-bridge/src/app.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2c1feb1912c4a251ae8e85bd7425dc4d05c1c0693bd96c88078635bfccc6f186"
+      "sha256": "75bae3f93146fe841a98a633c4646f6746a76d373b4df5769e209243f088fb11"
     },
     {
       "path": "services/auth-bridge/src/browserBinding.ts",
@@ -1440,7 +2110,7 @@
     {
       "path": "services/auth-bridge/src/config.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9a2a939f1650df8f7ddff4c08252bcce4343cb98aa2152f1cb396a5bb1c0be24"
+      "sha256": "39036b69b0264eb712ae4ac08b29c6e2854488488e632b246fd77eac1ad50b65"
     },
     {
       "path": "services/auth-bridge/src/farcaster.ts",
@@ -1450,12 +2120,12 @@
     {
       "path": "services/auth-bridge/src/index.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "775ab2568c4479a6aaa838893f52484cf5a87e44312374cd7ee846bb3c826155"
+      "sha256": "ffe99224226aa04ea5854a95dfa1323b2dc10e5bd456b3452c6060d24e93327b"
     },
     {
       "path": "services/auth-bridge/src/jwt.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "77edff0a11784b2c27d8ad7e28130bdcbe4f646a200a08248892c120bf64718f"
+      "sha256": "09a214ca186ec4fce8bd5bdc848612ddc61180d2f40a0b28e5761e95ea2b573f"
     },
     {
       "path": "services/auth-bridge/src/miniAppWebhook.ts",
@@ -1471,6 +2141,21 @@
       "path": "services/auth-bridge/src/rateLimit.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "e64866059e2e0e24451a2801c6934b1bafc605f28fda5222677406911d47dd4a"
+    },
+    {
+      "path": "services/auth-bridge/src/releaseRecoveryConfig.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "c36c2d27a6d1b26baa0efbdbca5c18dbddf52c2e4a56e8e023ded89509810868"
+    },
+    {
+      "path": "services/auth-bridge/src/releaseRecoveryConfiguration.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "9cc97ff4aa8258ff7c38d54bb7b0a926e7ac375e2609625ffc2b05dd4ab279b3"
+    },
+    {
+      "path": "services/auth-bridge/src/releaseRecoveryObservation.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "d75b888e9257c7a9c4103f5b6346a4af3aac1c03474e4e86533e48214662ad65"
     },
     {
       "path": "services/auth-bridge/src/sessionCookie.ts",
@@ -1493,19 +2178,29 @@
       "sha256": "9eef06e78a2a59e6831fbc8675d80632134a868c18b02df457b59aedfaab0561"
     },
     {
+      "path": "services/auth-bridge/src/spacetimeIdentity.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "b938b59dc90ea28bf01c72a3bf164c810b4c6c3590df173037a2fda920e14732"
+    },
+    {
       "path": "services/auth-bridge/src/spacetimeQaObserverResolver.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "bef51b22925685025e3378d2c9a7d03739e63d552ecda9a273c4acc313e64c90"
     },
     {
+      "path": "services/auth-bridge/src/spacetimeReleaseRecoveryResolver.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "4ff864b911658ccabb38251dc71e19a586b3df72b5a70ed6f6cd1185049b4843"
+    },
+    {
       "path": "services/auth-bridge/src/types.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b38a02f4e7f6a22065fe6f036bc9400d5b10109ae5e281b779ed0762017afb19"
+      "sha256": "57176e6ec34d4a2191b5dc9f93638ccb43c7926bcef9925eb7b8ee38370833af"
     },
     {
       "path": "services/auth-bridge/test-workerd/authBridge.workerd.test.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "3e4d3d44722fa9170c5683a597f555a2d6749308593d5d2db6bc19f7a5c20cbf"
+      "sha256": "f5bee7c18af69548a8741025305f11f920e1b3548612f341f660b468f1d9c3ee"
     },
     {
       "path": "services/auth-bridge/test-workerd/tsconfig.json",
@@ -1515,7 +2210,7 @@
     {
       "path": "services/auth-bridge/test-workerd/worker-configuration.d.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "80cba2d6042267d0a88d28b753baf176e37d563d29feabb48040ca61fae22aa7"
+      "sha256": "1b202ff3791c1df7c7d32af30aec2fbe8f42a6bdef1979243a18c677f0cbf564"
     },
     {
       "path": "services/auth-bridge/test/admissionNotifications.test.ts",
@@ -1525,7 +2220,7 @@
     {
       "path": "services/auth-bridge/test/app.test.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "96be41e4395138f8da552d2f8ae414b2057b6b21c67db045f45a92fb9e7b329f"
+      "sha256": "939366fb25cfffe5326b7fcff80115d6989ed310577e926d4c1f19664a7a45f4"
     },
     {
       "path": "services/auth-bridge/test/browserBinding.test.ts",
@@ -1543,9 +2238,19 @@
       "sha256": "f5be3d304c9c222eec7193be02fb3decf33b5275ef8ef554feb0e63ea24b4ddf"
     },
     {
+      "path": "services/auth-bridge/test/genesis002AdminToken.test.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "a1f25cf716d76b761165466840a4a33c12a94cb5c4cd5b7569f3d036bcc8c63e"
+    },
+    {
       "path": "services/auth-bridge/test/miniAppWebhook.test.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "7df02aaf1fdf69c549bfdeb0ffb7fbf77747585cf2627f04dfe3a2130cb826ea"
+    },
+    {
+      "path": "services/auth-bridge/test/ptrOwnerExchange.test.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "002b1ea4e4d0204470907749cadba5483b37c2c52c618d58cdffc503c06a4252"
     },
     {
       "path": "services/auth-bridge/test/qaObserver.test.ts",
@@ -1556,6 +2261,26 @@
       "path": "services/auth-bridge/test/rateLimit.test.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "3c180aed03badf1621e92a8587380720fb8646273f10a45b81c22739ede799b7"
+    },
+    {
+      "path": "services/auth-bridge/test/recoveryConfigurationFixture.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "851f06847dfefe1fb54d26d28b240cbbadc7458ef5de4ddaa288b6be85e1331d"
+    },
+    {
+      "path": "services/auth-bridge/test/releaseRecoveryConfig.test.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "a27ac076c94f4db15b3fbe13cc9b7d222bd2aabc5230f261c634daca83980977"
+    },
+    {
+      "path": "services/auth-bridge/test/releaseRecoveryConfiguration.test.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "15fa5187ebec2d1bc06e53706a7f0a7fb0cda18350417ba986b2bd9c51955ffe"
+    },
+    {
+      "path": "services/auth-bridge/test/releaseRecoveryObservation.test.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "6d18a1ed89a7180de540ca99f527f975e30149e492a7aec3e7b76947f404cd14"
     },
     {
       "path": "services/auth-bridge/test/sessionFamily.test.ts",
@@ -1578,9 +2303,14 @@
       "sha256": "f15aebcf5832459de75dbaaaf046ddf8df171fdd240b6dc83a0935cc3e3a4fe8"
     },
     {
+      "path": "services/auth-bridge/test/spacetimeReleaseRecoveryResolver.test.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "e0976580337f60a268838469df88b7a842d43941f8ada7864b84a084120ceb95"
+    },
+    {
       "path": "services/auth-bridge/tsconfig.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b2c9bfdc2e612f7a187f8ad625a81a0ef3e21ac8ac9b8f57d57a7366fa778bcd"
+      "sha256": "4753c5458db7ebec4581f0f12e8cea21f4598f1de3f835d160a8a18f9a033a7c"
     },
     {
       "path": "services/auth-bridge/vitest.config.ts",
@@ -1595,7 +2325,62 @@
     {
       "path": "services/auth-bridge/wrangler.toml",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2d47478907d360263cf88635a4fde55f9c4b5ef3a8e42aee45a68bdd1594c81b"
+      "sha256": "29d39b566f208aa36969f569529fe733e53b191cf0a945937be31c15f7b68713"
+    },
+    {
+      "path": "services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "155f997ce8f7fe40580df0c12dd9c6519820ea2c9d17544441070189f1f71849"
+    },
+    {
+      "path": "spacetimedb/gameplay04/commands.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "d5d37b820196d6e9779eac58dec3b78831656dc7ba9f794ce24a7e13a936ce73"
+    },
+    {
+      "path": "spacetimedb/gameplay04/construction.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "8737bb65fb63f339db1e593956ebbc9139eebc853e42cf2eca087883c0c5c95b"
+    },
+    {
+      "path": "spacetimedb/gameplay04/keep.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "b5ef6b3aa4eb5acb9f34442b6670a6e9f53169392e8500d46873e517e5429bf8"
+    },
+    {
+      "path": "spacetimedb/gameplay04/placement.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "749968bde552659852cb0e8213195e0e7da3a24290f397b5c2742f06354ab65e"
+    },
+    {
+      "path": "spacetimedb/gameplay04/policy.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "9cc4b91ead6e5c6170b4c8ca3bb6aefd310535f89d5e53c3e901f59ad50639ef"
+    },
+    {
+      "path": "spacetimedb/gameplay04/reconciliation.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "1f073d2f701c624f7cad81af9e1ce0c57420649cb22974e3f5c6707e621f499a"
+    },
+    {
+      "path": "spacetimedb/gameplay04/workerJourney.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "68b2682425501b2127703ea550ac51d9382a7e348fcb52554173dc384f014120"
+    },
+    {
+      "path": "spacetimedb/gameplay04/workerState.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "412e1b5ce70feb0795c0c165698999556882f2db8b78e4bc934cae23228d5101"
+    },
+    {
+      "path": "spacetimedb/gameplay04/workers.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "4e548d979f721a3c47f2277d6ce9388f0e2d520ea4513ef40051c72a0da51253"
+    },
+    {
+      "path": "spacetimedb/genesis002/.gitignore",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "58aea3d6b4b0f8799c1e00c3b023898516997f6369ee8e13d8d4b4215f70a62b"
     },
     {
       "path": "spacetimedb/genesis002/package.json",
@@ -1603,24 +2388,59 @@
       "sha256": "0380d91d6026fb9d7db6966df69a6fec92a4a362f3562cc9a4e1803ae17d49d0"
     },
     {
+      "path": "spacetimedb/genesis002/src/adminPolicy.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "90ac5adfe4d4999bf75262e2e7618580cf9a02f155de1ec4368170a61ebd8cad"
+    },
+    {
       "path": "spacetimedb/genesis002/src/atlasImportReducers.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ba814224620ebf7ec837e326ca5e495c978da61097c0f88831f0ff013cad7b6c"
+      "sha256": "dc242690e0fe20b3af388f71314900d18d614faa163857e2333f8472a2a52517"
     },
     {
       "path": "spacetimedb/genesis002/src/auth.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "931e74fd8d2dc66a6e2abdcbbaa18190826bfe4983c95ea24282ba3ae53a6539"
+      "sha256": "fe10ba4216187b09aa695aa21fa3348a235f6c7985a1a62fcf003b6884b83f53"
     },
     {
       "path": "spacetimedb/genesis002/src/contract.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "73a4c30c3323f874da34fbe457ef8905930e0cd8a88ae0ff13946c870b9b8726"
+      "sha256": "426dda31764bce8e73b7401caa49472f7424e8fda9eed308e27328460bc8c317"
+    },
+    {
+      "path": "spacetimedb/genesis002/src/gameplayConstruction.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "4b2036f79a26b8dd3f9816deedf9d21430cba2d9e03052dccd82b9a0372bdbe8"
+    },
+    {
+      "path": "spacetimedb/genesis002/src/gameplayKeep.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "015cc150642c88ba2a90794baebe34943d0c4a79427138c1edff95ba7438c627"
+    },
+    {
+      "path": "spacetimedb/genesis002/src/gameplaySchedule.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "8eb50b87c31d3d93c960aea8fc912674885229a896dbcc35649394d713b2e023"
+    },
+    {
+      "path": "spacetimedb/genesis002/src/gameplayScheduleLink.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "738ac4e2ff0cf4ec3d3e936f2a1a4899b0909d070bd67f752a5b40fe279945d4"
+    },
+    {
+      "path": "spacetimedb/genesis002/src/gameplaySchema.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "a69737318aa6bc1900611943530c0c2e3efb7cb050ccb6eceb0f99fb13844210"
+    },
+    {
+      "path": "spacetimedb/genesis002/src/gameplayWorkers.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "5e25ecc8468121e996d887a1e99c1f1667fcac6aa0b4d8d7c25ee8341741a3de"
     },
     {
       "path": "spacetimedb/genesis002/src/index.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "01970ece23f3d4ea67225765b1d479dc22b8a17e9019fd0524b07d0f464bf527"
+      "sha256": "bf286e9ef4ecb973f888c4aa4e041f3e7f24a4e836df76b80b25fca876e133d3"
     },
     {
       "path": "spacetimedb/genesis002/src/lifecycle.ts",
@@ -1630,22 +2450,17 @@
     {
       "path": "spacetimedb/genesis002/src/policy.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f8cec67b6e9454d5304c7f1a65eeafa1bba715764861093adaf2f54675487521"
+      "sha256": "addffc57f802861e735c35ff06530ca82a0652bf674b8ef1165e7f673aaa3744"
     },
     {
       "path": "spacetimedb/genesis002/src/population.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "5c4a09f5797e000e7f7b9b24b0c1789795c2a8eaa5edfbaabeae8833a7e8fcea"
-    },
-    {
-      "path": "spacetimedb/genesis002/src/reducers.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "849ee07384b076fd62194561c7164d43df7218c653342a149711d309725a5a51"
+      "sha256": "a4816d0d03b278ffadd3f5c051f0110fb883f328c91e3a96e6317cbcef6d7162"
     },
     {
       "path": "spacetimedb/genesis002/src/schema.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9a4241ca428a73157b5b99be9328be6d3c640e9ff32de7cc97aabc338b681083"
+      "sha256": "4efd2dc4e58454a438f5c69886c5b471b7dd4a899f894edc59f115ac2f77381f"
     },
     {
       "path": "spacetimedb/genesis002/tsconfig.json",
@@ -1666,6 +2481,251 @@
       "path": "spacetimedb/pnpm-workspace.yaml",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "003d5fdfc324e70ad4d69799807946c72293666e059b93b42ffe08d13378c3ce"
+    },
+    {
+      "path": "spacetimedb/ptr/.gitignore",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "50558bbb5feab4872a15c0f5e7776810ad591ff71fc340f4d1c3e4269016adc9"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/admin_begin_greater_realm_verification_v_1_reducer.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "0aac8234822e055c0d416736b7726af81e046d009ac7318841330702c5e5509e"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/admin_finalize_greater_realm_release_v_1_reducer.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "b10bb9120a6a40d1ead449da7d695af646f8f1b8250b6c8e4e0cc95b41398cde"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/admin_get_greater_realm_status_v_1_procedure.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "ccf60b2f2f1fd44262a549695869fd7e7c34562e9892b17fa8cb592ea2eb713e"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/admin_import_greater_realm_chunk_v_1_reducer.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "ccc8cbae34b8f3c4cd0faf8b8e987a02273f10ea3217d5c794a9d49fb2d18aa1"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/admin_import_greater_realm_components_v_1_reducer.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "57e63025f48a4edad7c99253f1fab278c603acaa5e22a3925074f1f9ee949a1b"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/admin_import_greater_realm_regions_v_1_reducer.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "a9f8055662abce3d036a838d25124bc5a34e38f5d4ca19572db702a4a19c8048"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/admin_provision_ptr_owner_v_1_reducer.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "edd7a56d01c898f7e4c711a0dfb8c6de3abeeb6d9a68191999a6aae24c599c57"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/admin_stage_greater_realm_release_v_1_reducer.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "f50fe9d02d357e63ef3b620f0f67cf863dbc346c64c1c8df1bb3a10c8b4b07c6"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/admin_suspend_ptr_owner_v_1_reducer.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/admin_verify_greater_realm_batch_v_1_reducer.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "a5e88dbf9f8d6377e368c11e83eaed2fc0eb0e5bcd5a57bbf3d36546cb57313a"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/dispatch_gameplay_04_worker_v_1_procedure.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "3797947f3305f12a8d70fa3e91acee02ce567a599a8aecbe402503bf26c1ddba"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/get_gameplay_04_keep_v_1_procedure.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "fbfb901d274ec7cdae3f5498b1360c07314dfcabd2bfc418bf704047da3cc927"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/get_ptr_owner_status_v_1_procedure.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "9ed8ffd5e7c81b1f76da8f2c17a84d494a7ce44801cc3b7bfe07234c8a6d0c7c"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/get_realm_atlas_bootstrap_v_1_procedure.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "3e595b18f8013cc6ef1d657e89a7f752627738e4f39c44f0b8bb4c1c522678db"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/get_realm_atlas_chunk_v_1_procedure.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "78e0a432c685a1dc35f77a64babd8868e06b65e0f5f967e07f2138b24ddb35e9"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/get_realm_atlas_resource_locations_v_1_procedure.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "ef9fb1f9651808856624a903852796ebc079db61ba6e86927585181566a61068"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/get_realm_atlas_window_v_1_procedure.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "d69a35bc5249bf510e60d0c18315767a83594d1ded30d4d44babb3e42b3cbe1e"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/index.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "4d3737704cee9a614e1ee702c883ea469a2e9056d26509094fef2be993500bdd"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/initialize_gameplay_04_keep_v_1_procedure.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "3a498a5277229366ee369647e4e01a6aba7499fe88125dbdb853c050d5be90ef"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/plan_realm_route_v_1_procedure.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "7ced11a4918d9f64715607da03834dad7f9ef11d93b8ca8fbc0b3bdac3ed42ca"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/recall_gameplay_04_worker_v_1_procedure.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "b68b4cd107e71393df0ff28c15ce23bc88b79bf0b040ebe618c419aa019a9ff1"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/start_gameplay_04_building_v_1_procedure.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "45f0597980013ef1b83f8c232309970ba6e465b3ace377ae1a65873dd8fd141d"
+    },
+    {
+      "path": "spacetimedb/ptr/generated-bindings/types.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "a4ac912fecdcefaa777ee3d3c5fa775e0e76ca71e12fe6caab38f43924f194a0"
+    },
+    {
+      "path": "spacetimedb/ptr/package.json",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "c62a2f986fb79b98651d84c1effa68d1363d93587176e1159861f4c8be71b8f0"
+    },
+    {
+      "path": "spacetimedb/ptr/pnpm-lock.yaml",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "3f42eb162fd66cdd2844cbb1dac5827847494aaaa6f509cc3803a82a25ef137e"
+    },
+    {
+      "path": "spacetimedb/ptr/src/atlasAuthority.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "767424ef8e935e6bad56e9cf7072ba281a6e5be602f468342abb703bf48bd79b"
+    },
+    {
+      "path": "spacetimedb/ptr/src/atlasImportReducers.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "419abecc09643dda84ba00882bb5c0fffa493bfab879fb1031fe59f221803718"
+    },
+    {
+      "path": "spacetimedb/ptr/src/atlasPolicy.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "217f92dc063228ababd147933a3c1bff0d288b3c21167d0a666ab383a75d74a9"
+    },
+    {
+      "path": "spacetimedb/ptr/src/atlasReadPolicy.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "6caa4c5ca4c963984a814ffec5cd5858882d8fcbac982e3ffcc8e8ec11495b49"
+    },
+    {
+      "path": "spacetimedb/ptr/src/atlasReadReducers.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "6db62488035ec210c500a2598d1cb6e0310c5966370db23d25b1aec58886edd0"
+    },
+    {
+      "path": "spacetimedb/ptr/src/auth.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "b1fe368989def0ec640baf6ab8a92f3e5ad69b304dcb8fe693ce841bfe34ccae"
+    },
+    {
+      "path": "spacetimedb/ptr/src/context.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "5b8fa4d98d633c7bea321642be9831855b4586802bba437442894c6671509470"
+    },
+    {
+      "path": "spacetimedb/ptr/src/contract.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "c77aa0eb37866baec6d38d4ab91c9b810dcc873def5bfc5574969b5b03cf61a7"
+    },
+    {
+      "path": "spacetimedb/ptr/src/gameplayConstruction.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "d5dc1f3dc641463c142305f515e30feb42a9e6e4fad039d9adff03587b5eee3e"
+    },
+    {
+      "path": "spacetimedb/ptr/src/gameplayKeep.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "f1ea47e7fd565af3e3a049a861f429f407c68914a248a4eb1cd50d9d356f24c3"
+    },
+    {
+      "path": "spacetimedb/ptr/src/gameplaySchedule.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "7b28e32d0867ed184a2982ea03adf2652b144822bdc4bc6e9a560830707a552c"
+    },
+    {
+      "path": "spacetimedb/ptr/src/gameplayScheduleLink.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "738ac4e2ff0cf4ec3d3e936f2a1a4899b0909d070bd67f752a5b40fe279945d4"
+    },
+    {
+      "path": "spacetimedb/ptr/src/gameplaySchema.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "a69737318aa6bc1900611943530c0c2e3efb7cb050ccb6eceb0f99fb13844210"
+    },
+    {
+      "path": "spacetimedb/ptr/src/gameplayWorkers.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "3a31460cdcd18e6bd2bc0e964faf81063b813d332dcff141bdfbedac39ff11bb"
+    },
+    {
+      "path": "spacetimedb/ptr/src/index.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "6e31a6f5cd754090a48cfc7411219fd26b61e9faf75fbb36dd90187afa407751"
+    },
+    {
+      "path": "spacetimedb/ptr/src/lifecycle.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "f17701778acda1bb3cf84c57ceedfe1a8708babbca5d5becebbd398e9b597b13"
+    },
+    {
+      "path": "spacetimedb/ptr/src/ownerPolicy.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "d9bfaa7bc4edc41b36d762ace0b22bac0765aa8e0efeeb1e363b51a93cf03e43"
+    },
+    {
+      "path": "spacetimedb/ptr/src/ownerReducers.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "b19b568e2ec396d0e205358b62647f506f8188ac444d929891b255b7c577d609"
+    },
+    {
+      "path": "spacetimedb/ptr/src/policy.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "a5f1d62f43379c3f5acc78e2814089e3d8afac0d074834ec10b3d2e619c4624d"
+    },
+    {
+      "path": "spacetimedb/ptr/src/schema.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "c0258dd552380c94c1e0abbe75ac3f93e0f9d6bceefd0aa0e66a58dd4734b3e8"
+    },
+    {
+      "path": "spacetimedb/ptr/src/schemaContract.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "cf099492c7ce4d1a07cb5b70b2d4a16ffc066223b81fcb682b41a7da13d04797"
+    },
+    {
+      "path": "spacetimedb/ptr/src/sha256.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "eedcdac957adf7fedd1cb4412420cb7d660f749d3f08d4d9300e499868676766"
+    },
+    {
+      "path": "spacetimedb/ptr/tsconfig.json",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "8564a16850d82cc340e67c2bf301972db100d7238daf0bf51dbf1e794c12a31a"
     },
     {
       "path": "spacetimedb/src/accessRequestPolicy.ts",
@@ -2210,7 +3270,12 @@
     {
       "path": "src/App.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "163c848e7eda11081e4bedde5a154e13b83293e36350266f759752682500ccdc"
+      "sha256": "ab0b39402ad47d9054b7ba06dfcb7e47b549178608a703f2c9b5eb51b9697431"
+    },
+    {
+      "path": "src/WarpkeepRuntime.tsx",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "f73e4b8bb58d8359913723eeea8ba78dd887384279a3de957bd7155c3a6e72a0"
     },
     {
       "path": "src/build/buildInfo.ts",
@@ -2230,7 +3295,7 @@
     {
       "path": "src/components/WarpkeepExperience.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c31aec2e1d415f908d42ed29786b44dda162c233dac0bc1008de6ff550c0238e"
+      "sha256": "5b141edf2e3bc3885db5a1add89147522168fb8fb841c46138152856d47646c9"
     },
     {
       "path": "src/components/audio/WarpkeepAudioDirector.tsx",
@@ -2360,7 +3425,7 @@
     {
       "path": "src/components/inner-keep/InnerKeepScreen.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "23554c292ec351bb84b6c21482d3f57832e39a1ea86a2109faf34bdf0be188ff"
+      "sha256": "c566ce507a376b4dbc63a140b12d75e76360fd753e5b6a26f9f496b748907e23"
     },
     {
       "path": "src/components/inner-keep/createInnerKeepAuthoredPresentation.ts",
@@ -2395,7 +3460,7 @@
     {
       "path": "src/components/inner-keep/createInnerKeepSceneLayer.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "938d1cd549fc86644847aaa9627f666a132bd0a888e1f42210b77a7665852cfd"
+      "sha256": "a4e513051d042da2a5f0f0fd3815fdc3020871b2448d9d1b3f5fffb1ea35913c"
     },
     {
       "path": "src/components/inner-keep/createInnerKeepTerrainDrapedGeometry.ts",
@@ -2488,6 +3553,71 @@
       "sha256": "d8cce0e9949d12052b3bbce7f89dda24e6daab54b5aeff56ef804948f0c5d3ad"
     },
     {
+      "path": "src/components/keep04/Keep04BuildingPanel.tsx",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "5b2583dda4842b6b341c32999c4267d7b96b5f138d57c2119fab4c171c5aed82"
+    },
+    {
+      "path": "src/components/keep04/Keep04LoopRail.tsx",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "e0e95b916ba2d8d8b870d61e8cae019b1884ff9f2ef8669e08fe38a0f345a56c"
+    },
+    {
+      "path": "src/components/keep04/Keep04SceneHost.tsx",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "dcd4843dd66a9826420bfaee034cd26b95966a01c3f51a60abe94910a4cc81e3"
+    },
+    {
+      "path": "src/components/keep04/Keep04Schematic.tsx",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "ee90b3679205f8fbc766006c8ab14a105cc49e3491020af90536a9bafb136563"
+    },
+    {
+      "path": "src/components/keep04/Keep04Screen.css",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "56af08391600977e4fbabefaf67d9a95cb2e272e070a9a6320f3317876f8840f"
+    },
+    {
+      "path": "src/components/keep04/Keep04Screen.tsx",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "2096c24fbd2ed495330c1df1a33b3c1ab737ad0bf0646be54fade2661a7caa89"
+    },
+    {
+      "path": "src/components/keep04/Keep04WorkerPanel.tsx",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "3c3353e2dc074b88c6a84f60f077ab5897dae65e86c01a41fd4b417be447e9d5"
+    },
+    {
+      "path": "src/components/keep04/createKeep04Buildings.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "907fa10997fb2fbbf7cb99c700aae253de3c0e4d466bd4350ca9003c2c380ead"
+    },
+    {
+      "path": "src/components/keep04/createKeep04Scene.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "9566dfe8d5abe79ae5a793d8f55a29fc70452a266db0df9e688e04d2e39ae656"
+    },
+    {
+      "path": "src/components/keep04/keep04DressingPlans.generated.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "69c4a93da81ef465a087574799e68272c576ccf766ae1ccba681a8bd9d5a7f80"
+    },
+    {
+      "path": "src/components/keep04/keep04VisualProfile.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "c2bb125dbb5fd34855b118828e2df31419cf77993209618528c675d5b1dcc912"
+    },
+    {
+      "path": "src/components/keep04/keep04VoxelDressing.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "b2ad27379704b82ddef1a290deca75e9c88dc77dd00fc6f377b8f8ec29911e2a"
+    },
+    {
+      "path": "src/components/keep04/loadKeep04Assets.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "90c1518c92629b82d04c400b278049a55d8425791771a373a2b6c8cec18df525"
+    },
+    {
       "path": "src/components/menu/AlphaParticipationTermsDialog.css",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "f6030b3eae903eb2cda11b49dc717eb2fd81bc09a4b1a5b5f649bc29774fa18e"
@@ -2525,12 +3655,12 @@
     {
       "path": "src/components/menu/RealmChoiceSelector.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "64f100a9a95680b4f3e14d66f3f39d5aaca2afb73a2f88e70a57213a8864401e"
+      "sha256": "11e3038f7b472600baab9f606249cd643e18a4f6a0312ef20b07a26a1ca16cbf"
     },
     {
       "path": "src/components/menu/RealmChoiceSelector.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "1426940e2fa5826420932e2acd20d9d63203cfc3b812408c3d62250abd4d5eb7"
+      "sha256": "0bfe8ec8df368b482b171fe1cad3afbc1a6280ec981a2a2f252f16b78a7107de"
     },
     {
       "path": "src/components/menu/SettingsPanel.css",
@@ -2550,17 +3680,17 @@
     {
       "path": "src/components/menu/WarpkeepMainMenu.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0d716949de3f9e7364c0ba368d418f4f037ce3541b4c506e8236874959c0a7d9"
+      "sha256": "0c4c43df4ea97eec238530c71e2a3c81e62f9c0865e8d0b7cb3661aa368a343c"
     },
     {
       "path": "src/components/menu/WarpkeepMainMenu.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c4b765f17e7af4225c9dffff090aefa11a91d79e360f01f48addd1b6272f5702"
+      "sha256": "a37cc233c75d24c16ca588528cedddb4fa47cc478f35723ae5ff8f8e9df00855"
     },
     {
       "path": "src/components/menu/latestPatchNotes.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "aab8c056cf4dfe2ca78afc0e7462a8a13434cf61e4c435b02a68ab607885a47c"
+      "sha256": "94168a0594fe528d40ece6991801ed44d1689b7b942ba212eda53cff5f58b781"
     },
     {
       "path": "src/components/menu/menuCommands.ts",
@@ -2570,7 +3700,7 @@
     {
       "path": "src/components/menu/realmChoicePolicy.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a55ea6e3f9b79a37db09953b3e20da4f6e00ee2fd4fea5d300a2732c654d279a"
+      "sha256": "99b0688eb0c23f3aee4832f7eb7a9c358b8fdb8ff685ef871a34d367687f6404"
     },
     {
       "path": "src/components/menu/useModalFocusBoundary.ts",
@@ -2610,7 +3740,7 @@
     {
       "path": "src/components/realm/GreaterRealmWorldScene.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d79c1d0b6ac1ee30c83ce4ca2c12de985ccc6ec5f94acb913d34a6a2e2a35100"
+      "sha256": "36c9d08e88b437610df8860e1e6abc4ce66651e8a6ac77eb0db58ad29155087d"
     },
     {
       "path": "src/components/realm/LoggingCampInspectionPanel.css",
@@ -2640,7 +3770,7 @@
     {
       "path": "src/components/realm/RealmChatDock.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "1df77cf3f3a03d40ff39f524b8158a8021bb16013ade3b46a66cebe31785e7b8"
+      "sha256": "a624aea4da35197f58096334cc43e5f4aa42aa5fcc2a1584a8eed17eca1f7b1a"
     },
     {
       "path": "src/components/realm/RealmChatDock.tsx",
@@ -2665,12 +3795,12 @@
     {
       "path": "src/components/realm/RealmMapScreen.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f12f5d39fb738e01b9a9c769705cd644945cd924be129bb90f504fde04428f14"
+      "sha256": "455846c10e3a3ceb6dbf2694d4e280f270e7db9bb82e805df30e5186c77ef258"
     },
     {
       "path": "src/components/realm/RealmMapScreen.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "943a096adea74ccc4289cc4038cdd14fff9148ec3cd0c2eb9bbc85b2d62d2f47"
+      "sha256": "0746a93020fd0e12f942f4b7d9965dfc5072a97d300b1d5c778ec45e7059b93b"
     },
     {
       "path": "src/components/realm/RealmNodeWorkerDispatch.css",
@@ -2795,7 +3925,7 @@
     {
       "path": "src/components/realm/createGreaterRealmWorldCanvasHost.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "98b070e76691451942ff2f95783fab0126979e1229470ef12606a23d97cc15bc"
+      "sha256": "552ee5b5d72b0f50c24ed15cb11dda1705808f633f1eb3ff277a106b75cd7fc3"
     },
     {
       "path": "src/components/realm/createLowPolyGrassGeometry.ts",
@@ -2890,7 +4020,12 @@
     {
       "path": "src/components/realm/greaterRealmSceneStrategy.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6e8207c1d7e5ce22dcd8573a147e33b73c684b41ef833dda94db01a06c5c103e"
+      "sha256": "0f184c970ca8a55bdfa6efc932b8bce60260e91d02c435152f3dd7054a71eb5a"
+    },
+    {
+      "path": "src/components/realm/greaterRealmVoxelPresentation.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "1ae792456554b71324beb4380bed06be8d5c80c1fe6588f4e01c96b748e187c8"
     },
     {
       "path": "src/components/realm/greaterRealmWorldSnapshotAuthority.ts",
@@ -3268,6 +4403,11 @@
       "sha256": "4f0d3c7a1549d5e6cdecba9f313249a35e76f55f358548c93520bafcc1701d97"
     },
     {
+      "path": "src/components/realm/useNarrowRealmPresentation.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "239eff601147a9a50f13c814e1981040c396bedbd71c0fdc3248e280bde04f71"
+    },
+    {
       "path": "src/components/realm/useRealmChromeMode.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "6c81ecc119d43ca13c98a138d013cc666fcee6edf366847065a76093da7d62f3"
@@ -3275,12 +4415,17 @@
     {
       "path": "src/components/realm/useRealmSurfaceNavigation.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0ebea644da8950ca1b84bb823b8e1f6aef1ae21891fc15b593b325bb77338c76"
+      "sha256": "850ce5b8b6244dd7fe95eccff3d95158e4ed7dbeb1b5f799b6a4ffdbc8e13467"
     },
     {
       "path": "src/components/realm/useRealmWorkerRecallLifecycle.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "21de35ab6e0bc30fc50bf90d79dc132ca82313778a0e2179bad98d56f7e0e3b5"
+    },
+    {
+      "path": "src/components/realm/voxelSurfaceMesh.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "7d690708450e7f6cb971574ba2b523c2ecb35269d07dbb86ee59ba8b8f77273f"
     },
     {
       "path": "src/components/title/BlackHoleGateway.tsx",
@@ -3635,7 +4780,7 @@
     {
       "path": "src/greater-realm/createGreaterRealmSceneRuntime.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6b401b27488e58a06f3ea0d343579f19c7a4c8df9a335295ba36c86b72311905"
+      "sha256": "d9673559a3f7b71b6ae167c171e76147b0b1a5253f16b4d60a80203f45b0eec1"
     },
     {
       "path": "src/greater-realm/greaterRealmChunkStream.ts",
@@ -3650,7 +4795,7 @@
     {
       "path": "src/greater-realm/greaterRealmPresentationPlan.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9e6df4b2f9faac81a1fe781dccd7a26b523edcd5ffb1ebec0d7bab2d2db86dde"
+      "sha256": "b438d69311f397122931e8689a0a1669830b148196a810a035dd08446bb9998d"
     },
     {
       "path": "src/greater-realm/greaterRealmPublicContract.ts",
@@ -3665,7 +4810,12 @@
     {
       "path": "src/greater-realm/greaterRealmTransport.ts",
       "digestProfile": "reviewed-release-transition-projection-sha256-v1",
-      "sha256": "dc1ea60eee92883aec98eaa25c36707b679e55ae345b41c8cc98af898a2913cd"
+      "sha256": "54c093c2992b40424bff0564354374185607cbb7784a11f05c410128aa9a961a"
+    },
+    {
+      "path": "src/greater-realm/greaterRealmWaterSurface.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "7ae776769392ef977c97e37a385bb05605e8912875fe0a56cdb0376b63d41394"
     },
     {
       "path": "src/greater-realm/greaterRealmWorkerControl.ts",
@@ -3758,6 +4908,86 @@
       "sha256": "b46fe6e527ce03806bf2574bcb12d45b2818c9c8419f492b0049c3686bb32cbe"
     },
     {
+      "path": "src/ptr/PtrGameplay04SurfaceHost.tsx",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "eb12ebe4ec9e1c8bc3093127e9fa77aa656c64d0dd387b721d383a541282f096"
+    },
+    {
+      "path": "src/ptr/PtrRealmProvider.tsx",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "5071443c06539860885195781830031c802f2614d4178b0b01b111dbf530b563"
+    },
+    {
+      "path": "src/ptr/PtrSessionContinuation.css",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "0068c1dc78402115ffcddc32fc9f5afc3ed36cc00035afec8efc18666110f780"
+    },
+    {
+      "path": "src/ptr/PtrSessionContinuation.tsx",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "fcc70b850768e6d684e7d0d571366b6ac3bd9739b1ee6f86035a7a07a3a5d77e"
+    },
+    {
+      "path": "src/ptr/gameplay04/createGameplay04Controller.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "075164462495c14d76588bc729e79b4ab60d0282f3e68b73ef7ff752ccd047b1"
+    },
+    {
+      "path": "src/ptr/gameplay04/gameplay04Placement.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "698b14087b5dc966bcbc71d926646b2564c579c8729cfd15a4420fb0245a5351"
+    },
+    {
+      "path": "src/ptr/gameplay04/gameplay04Presentation.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "1ce89bc4ef04106815d9d2ba2c9a422d64ac79fe24d859ec8ffe34ad334b51dc"
+    },
+    {
+      "path": "src/ptr/gameplay04/gameplay04State.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "25dbfc7ba5077517e28f38aed604fbf3b34fce1bcc37b02edf1775500cab3354"
+    },
+    {
+      "path": "src/ptr/gameplay04/ptrGameplay04Errors.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "11ff6a4e4b2a6a5d41666ea65252d5067f17976ad0964b0392e102188ac36bb2"
+    },
+    {
+      "path": "src/ptr/gameplay04/ptrGameplay04Types.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "79919822a646ca12c630347a33601a77f7670e409d26fbe0d62fc320ee0f1c3b"
+    },
+    {
+      "path": "src/ptr/gameplay04/useGameplay04Controller.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "32c495bfe02b8db40069328dcfbcc61b3e7c29670a9906f69fbd62bd6f6c707e"
+    },
+    {
+      "path": "src/ptr/ptrGreaterRealmBridge.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "62392f2694a4d839567b4b0a62897263619239cb34c16ec1f2049c1c39337781"
+    },
+    {
+      "path": "src/ptr/ptrRealmAuthClient.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "75534b2e5f5d1000151d7ba7772d9f465343266c3eccb333476496a8fe04d769"
+    },
+    {
+      "path": "src/ptr/ptrRealmConfig.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "9cbe3cf61d8d848999643de97df4ce112930cfffced99ce2489837f5362296b9"
+    },
+    {
+      "path": "src/ptr/ptrRealmConnection.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "7671cc8f16ef312f5c2569665f4aedf893473944fb6682662d39cf969f160d9d"
+    },
+    {
+      "path": "src/ptr/ptrRealmPresentationPolicy.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "530f0528e2efb58fc0a7b3263c57b36a2afcbb18b12c16d48b2ece5e28e3a5b7"
+    },
+    {
       "path": "src/release/admissionLaunchPolicy.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "35fb33c366623597af384cabc871df4c0e0c134eca76274d2f1909ce143852ae"
@@ -3765,7 +4995,7 @@
     {
       "path": "src/release/realmReleaseIdentity.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0c8ea5b4e9506d4673e0b321523277ec935b383a681854d40709f8955045b6b3"
+      "sha256": "1b20470504e77054280c91894e110e98cb2bcee3db04646d04392fda9c1b6e4c"
     },
     {
       "path": "src/security/publicImageUrl.ts",
@@ -4780,7 +6010,7 @@
     {
       "path": "vite.config.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "41c7f83f53532192a63b49ead92c836582f91fd3f7507a4d30a71c11f22ec993"
+      "sha256": "aebd66d13ed0bf705e1969e3a4345192aae4e313f6259bbf7a4ba2b66d6b3e87"
     }
   ]
 }

@@ -3,25 +3,6 @@ import genesis002 from './schema';
 export default genesis002;
 
 export { onConnect } from './lifecycle';
-
-export {
-  getRealmStatusV1,
-  getMyAdmissionStatusV2,
-  authResolverGetFidAdmissionV2,
-  accessRequestGetStatusV1,
-  accessRequestSubmitV1,
-  adminAllowFid,
-  adminAllowFidForAccessRequestV1,
-  adminAdmitFounderV1,
-  adminAdmitFounderForAccessRequestV2,
-  adminDisableFid,
-  adminBumpAuthEpoch,
-  adminResetAccessRequestV1,
-  bootstrapPlayer,
-  bootstrapPlayerV2,
-  acceptAlphaTermsV1,
-  adminUpsertRealmProfileV1,
-} from './reducers';
 export {
   adminGetGreaterRealmStatusV1,
   adminGetGreaterRealmImportPlanV1,
@@ -33,10 +14,24 @@ export {
   adminVerifyGreaterRealmBatchV1,
   adminFinalizeGreaterRealmReleaseV1,
 } from './atlasImportReducers';
+export {
+  initializeGameplay04KeepV1,
+  getGameplay04KeepV1,
+} from './gameplayKeep';
+export {
+  dispatchGameplay04WorkerV1,
+  recallGameplay04WorkerV1,
+} from './gameplayWorkers';
+export { startGameplay04BuildingV1 } from './gameplayConstruction';
+export { runGameplay04ScheduleV1 } from './gameplaySchedule';
 
-// SpacetimeDB 2.6 otherwise rewrites trailing version digits (`v2` -> `v_2`).
 for (const name of [
-  'get_realm_status_v1',
+  'initialize_gameplay04_keep_v1',
+  'get_gameplay04_keep_v1',
+  'dispatch_gameplay04_worker_v1',
+  'recall_gameplay04_worker_v1',
+  'start_gameplay04_building_v1',
+  'run_gameplay_04_schedule_v_1',
 ]) {
   genesis002.moduleDef.explicitNames.entries.push({
     tag: 'Function',

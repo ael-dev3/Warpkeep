@@ -83,12 +83,18 @@ import {
   assertGreaterRealmRuntimeReleaseMatches,
   createGenesis002GreaterRealmRuntimeRelease,
   createGreaterRealmRuntimeRelease,
+  createPtrGreaterRealmRuntimeRelease,
   openOrCreateGenesis002GreaterRealmRuntimeReleaseSeed,
   openOrCreateGreaterRealmRuntimeReleaseSeed,
+  openOrCreatePtrGreaterRealmRuntimeReleaseSeed,
+  PTR_GREATER_REALM_RUNTIME_RELEASE_TARGET,
   readGenesis002GreaterRealmRuntimeRelease,
   readGreaterRealmRuntimeRelease,
+  readPtrGreaterRealmRuntimeRelease,
+  verifyPtrGreaterRealmRuntimeReleaseArtifacts,
   verifyGenesis002GreaterRealmRuntimeReleaseArtifacts,
   verifyGreaterRealmRuntimeReleaseArtifacts,
+  writePtrGreaterRealmRuntimeRelease,
   writeGenesis002GreaterRealmRuntimeRelease,
   writeGreaterRealmRuntimeRelease,
   type GreaterRealmRuntimeReleaseArtifacts,
@@ -117,6 +123,7 @@ type Command =
   | 'export-sanitized-review'
   | 'verify-sanitized-review'
   | 'export-genesis002-runtime-release'
+  | 'export-ptr-runtime-release'
   | 'export-runtime-release'
   | 'select-candidate';
 
@@ -218,6 +225,7 @@ function parseArguments(argv: readonly string[]): ParsedArguments {
     'export-sanitized-review',
     'verify-sanitized-review',
     'export-genesis002-runtime-release',
+    'export-ptr-runtime-release',
     'export-runtime-release',
     'select-candidate',
   ].includes(commandValue ?? '')) fail('GREATER_REALM_CLI_USAGE');
@@ -301,6 +309,7 @@ function parseArguments(argv: readonly string[]): ParsedArguments {
   } else if (
     command === 'export-runtime-release'
     || command === 'export-genesis002-runtime-release'
+    || command === 'export-ptr-runtime-release'
   ) {
     if (!batchHandle || count || maximumAttempts || candidateHandle || approvalReference || outputPath || inputPath || confirmSelection || abortCheckpoint || resume) {
       fail('GREATER_REALM_CLI_ARGUMENTS_INVALID');
@@ -346,6 +355,9 @@ export const greaterRealmCliArgumentTestSeams = Object.freeze({
   },
   genesis002RuntimeReleaseExport(arguments_: readonly string[]): ParsedArguments {
     return parseArguments(['export-genesis002-runtime-release', ...arguments_]);
+  },
+  ptrRuntimeReleaseExport(arguments_: readonly string[]): ParsedArguments {
+    return parseArguments(['export-ptr-runtime-release', ...arguments_]);
   },
   pendingOwnerReportExport(arguments_: readonly string[]): ParsedArguments {
     return parseArguments(['export-pending-owner-report', ...arguments_]);
@@ -3097,6 +3109,7 @@ async function main(): Promise<void> {
     'retain-pending-owner-report',
     'select-candidate',
     'export-genesis002-runtime-release',
+    'export-ptr-runtime-release',
     'export-runtime-release',
     'export-pending-owner-report',
   ].includes(arguments_.command)
@@ -3324,6 +3337,86 @@ async function main(): Promise<void> {
     process.stdout.write(`${JSON.stringify({
       genesis002RuntimeReleaseExported: true,
       tierOneOnly: true,
+      ...summary,
+      productionUntouched: true,
+    })}\n`);
+    return;
+  }
+  if (arguments_.command === 'export-ptr-runtime-release') {
+    const summary = await workspace.withExclusiveLock(
+      'locks/ptr-0.4.0-ptr.1-runtime-release-v1.lock',
+      async () => {
+        let artifacts: GreaterRealmRuntimeReleaseArtifacts | undefined;
+        const gateState = await inspectGreaterRealmReleaseGateState();
+        assertPendingOwnerRetentionSourcePhase(gateState.phase);
+        const sourceClosure = verifiedRetainedPendingOwnerSourceClosure();
+        const pendingReview = readPendingReview(workspace, arguments_.batchHandle!);
+        const privateBatch = readPrivateBatch(workspace, arguments_.batchHandle!);
+        const retainedBytes = readRetainedPendingOwnerReport(
+          workspace,
+          pendingReview,
+          privateBatch,
+          sourceClosure,
+        );
+        retainedBytes.fill(0);
+        if (
+          lifecycleSourceCommit === undefined
+          || pendingReview.sourceCommit !== lifecycleSourceCommit
+          || sourceCommit() !== lifecycleSourceCommit
+        ) fail('GREATER_REALM_RETAINED_PENDING_OWNER_REPORT_LIFECYCLE_INVALID');
+        const { review, pendingReview: verifiedPendingReview, batch } =
+          await verifyPrivateReviewBatch(
+            workspace,
+            arguments_.batchHandle!,
+            {
+              onVerifiedSelectedCandidate: (candidate, sourceCommit) => {
+                const publicReleaseSeed =
+                  openOrCreatePtrGreaterRealmRuntimeReleaseSeed(workspace);
+                try {
+                  artifacts = createPtrGreaterRealmRuntimeRelease({
+                    source: candidate,
+                    sourceCommit,
+                    releaseSeed: publicReleaseSeed,
+                  });
+                } finally {
+                  publicReleaseSeed.fill(0);
+                }
+              },
+            },
+          );
+        if (
+          review.selectionStatus !== 'selected'
+          || review.selectedCandidateHandle === null
+          || verifiedPendingReview.reportDigest !== pendingReview.reportDigest
+          || batch.sanitizedReviewDigest !== privateBatch.sanitizedReviewDigest
+          || sourceCommit() !== lifecycleSourceCommit
+          || artifacts === undefined
+        ) fail('GREATER_REALM_RUNTIME_RELEASE_SELECTION_REQUIRED');
+        verifyPtrGreaterRealmRuntimeReleaseArtifacts(artifacts);
+        const releaseState = await writePtrGreaterRealmRuntimeRelease({
+          workspace,
+          artifacts,
+        });
+        const installed = readPtrGreaterRealmRuntimeRelease(workspace);
+        return Object.freeze({
+          releaseState,
+          atlasId: installed.manifest.atlasId,
+          ptrReleaseVersion: PTR_GREATER_REALM_RUNTIME_RELEASE_TARGET.releaseVersion,
+          publicReleaseId: installed.manifest.publicReleaseId,
+          releaseSha256: installed.manifest.releaseSha256,
+          regionCount: installed.status.regionCount,
+          componentCount: installed.status.componentCount,
+          chunkCount: installed.status.chunkCount,
+          cellCount: installed.status.cellCount,
+          castleSlotCount: installed.status.castleSlotCount,
+          resourceNodeCount: installed.status.resourceNodeCount,
+        });
+      },
+    );
+    process.stdout.write(`${JSON.stringify({
+      ptrRuntimeReleaseExported: true,
+      tierOneOnly: true,
+      ownerOnly: true,
       ...summary,
       productionUntouched: true,
     })}\n`);

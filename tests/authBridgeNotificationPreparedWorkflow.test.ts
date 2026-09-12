@@ -39,8 +39,14 @@ import {
   verifyAuthBridgeNotificationPreparedInstalledToolchain,
 } from '../scripts/auth-bridge-notification-prepared-installed-toolchain.mjs';
 import {
+  verifyAuthBridgeNotificationPreparedUploadBoundarySources,
   verifyAuthBridgeNotificationPreparedStaticPolicy,
 } from '../scripts/verify-auth-bridge-notification-prepared-policy.mjs';
+import * as preparedPolicyRuntime from
+  '../scripts/verify-auth-bridge-notification-prepared-policy.mjs';
+import {
+  verifyAuthBridgeNotificationB0StaticPolicy,
+} from '../scripts/verify-auth-bridge-notification-b0-policy.mjs';
 import {
   AUTH_BRIDGE_RELEASE_TRANSITION_FIXTURE_PATHS,
   canonicalAuthBridgeReleaseTransitionFixtureSource,
@@ -66,15 +72,47 @@ const bootstrapPinFiles = Object.freeze({
     'scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json',
 });
 const pagesBootstrapPinFiles = Object.freeze({
-  ...bootstrapPinFiles,
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256:
+    'scripts/auth-bridge-notification-prepared-deploy-closure.mjs',
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256:
+    'scripts/auth-bridge-notification-prepared-deploy-closure-v1.json',
+  WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256:
+    'scripts/auth-bridge-notification-prepared-installed-toolchain.mjs',
+  WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256:
+    'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json',
   WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256:
     'scripts/notification-pages-private-deploy-launcher.mjs',
 });
+const linuxBootstrapPinFiles = Object.freeze({
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256:
+    'scripts/auth-bridge-notification-prepared-deploy-closure.mjs',
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256:
+    'scripts/auth-bridge-notification-prepared-deploy-closure-v1.json',
+  WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256:
+    'scripts/auth-bridge-notification-prepared-installed-toolchain.mjs',
+  WARPKEEP_PREPARED_LINUX_INSTALLED_TOOLCHAIN_MANIFEST_SHA256:
+    'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json',
+  WARPKEEP_PREPARED_PNPM_AUTHORITY_MANIFEST_SHA256:
+    'scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json',
+});
 const ZERO_SHA256 = '0'.repeat(64);
+const OFFICIAL_NODE_22_22_3_DARWIN_ARM64_SHA256 =
+  '5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c';
+const IMMUTABLE_NODE_22_22_3_DARWIN_ARM64_PATH =
+  '/private/var/db/warpkeep/runtime/node-v22.22.3-darwin-arm64/bin/node';
+const preparedPolicyTestSeams = (
+  preparedPolicyRuntime as unknown as {
+    authBridgeNotificationPreparedPolicyTestSeams?: {
+      assertProtectedWorkflowExecutionBoundary(workflowSource: string): void;
+    };
+  }
+).authBridgeNotificationPreparedPolicyTestSeams!;
+const TEST_SOURCE_CLOSURE_MANIFEST_SHA256 = 'a'.repeat(64);
 const RELEASE_TRANSITION_PATHS = AUTH_BRIDGE_RELEASE_TRANSITION_FIXTURE_PATHS;
 const BOOTSTRAP_PROJECTION_PATHS = new Set([
   '.github/workflows/deploy-pages.yml',
   '.github/workflows/notification-bridge-b0.yml',
+  '.github/workflows/notification-bridge-prepared-linux.yml',
   '.github/workflows/notification-bridge-prepared.yml',
 ]);
 const RETAINED_TYPE_ONLY_DECLARATION_PATHS = Object.freeze([
@@ -82,7 +120,79 @@ const RETAINED_TYPE_ONLY_DECLARATION_PATHS = Object.freeze([
   'scripts/production-player-canary-browser-launcher.d.mts',
   'scripts/production-player-canary-release-binding.d.mts',
 ]);
+const G001_LINUX_DECLARATIONLESS_ENTRYPOINTS = Object.freeze([
+  'scripts/genesis001-linux-policy-boundary.mjs',
+  'scripts/genesis001-linux-policy-child.mjs',
+  'scripts/genesis001-linux-policy-materializer.mjs',
+  'scripts/genesis001-linux-policy-native.mjs',
+  'scripts/local-binding-native-ts-hooks.mjs',
+  'scripts/local-binding-runtime-cli-snapshot.mjs',
+  'scripts/local-binding-runtime-core.mjs',
+  'scripts/local-binding-runtime-process.mjs',
+  'scripts/local-program-artifact.mjs',
+  'scripts/auth-bridge-notification-prepared-linux-runner.mjs',
+  'scripts/sealed-realms-production-workflow-evidence-json.mjs',
+  'scripts/sealed-realms-production-workflow-evidence.mjs',
+  'scripts/spacetime-binding-tree.mjs',
+]);
 const temporaryDirectories: string[] = [];
+
+interface PreparedRuntimeBoundarySources {
+  adapterSource: string;
+  journalSource: string;
+  runtimeSource: string;
+}
+
+function preparedRuntimeBoundarySources(): PreparedRuntimeBoundarySources {
+  return {
+    adapterSource: readFileSync(resolve(
+      repositoryRoot,
+      'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
+    ), 'utf8'),
+    journalSource: readFileSync(resolve(
+      repositoryRoot,
+      'scripts/auth-bridge-notification-prepared-deploy-journal.mjs',
+    ), 'utf8'),
+    runtimeSource: readFileSync(resolve(
+      repositoryRoot,
+      'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',
+    ), 'utf8'),
+  };
+}
+
+function mutatePreparedBoundarySource(
+  sources: PreparedRuntimeBoundarySources,
+  source: keyof PreparedRuntimeBoundarySources,
+  before: string,
+  after: string,
+): void {
+  expect(sources[source].split(before)).toHaveLength(2);
+  sources[source] = sources[source].replace(before, after);
+}
+
+function mutatePreparedRuntimeSource(
+  sources: PreparedRuntimeBoundarySources,
+  before: string,
+  after: string,
+): void {
+  mutatePreparedBoundarySource(sources, 'runtimeSource', before, after);
+}
+
+function mutatePreparedAdapterSource(
+  sources: PreparedRuntimeBoundarySources,
+  before: string,
+  after: string,
+): void {
+  mutatePreparedBoundarySource(sources, 'adapterSource', before, after);
+}
+
+function mutatePreparedJournalSource(
+  sources: PreparedRuntimeBoundarySources,
+  before: string,
+  after: string,
+): void {
+  mutatePreparedBoundarySource(sources, 'journalSource', before, after);
+}
 
 interface WorkflowStep {
   name?: string;
@@ -91,6 +201,7 @@ interface WorkflowStep {
   ['continue-on-error']?: boolean;
   env?: Record<string, string>;
   run?: string;
+  shell?: string;
   uses?: string;
   with?: Record<string, string>;
 }
@@ -133,6 +244,162 @@ function step(id: string): WorkflowStep {
   return value;
 }
 
+function emulateBsdNodeAttestationForLinux(source: string): string {
+  return source
+    .replaceAll(
+      "/usr/bin/stat -f '%u:%g:%l:%Lp:%HT' -- \"$component\"",
+      "/usr/bin/stat -c '%u:%g:%h:%a:%F' -- \"$component\"",
+    )
+    .replaceAll(
+      '/bin/ls -lde -- "$component"',
+      '/bin/ls -ld -- "$component"',
+    )
+    .replaceAll('Regular File', 'regular file')
+    .replaceAll('Directory', 'directory');
+}
+
+function protectedLaunchForTrustedNode(
+  source: string,
+  nodeExecutable: string,
+  nodeDigest: string,
+  fixtureRoot: string,
+): string {
+  if (dirname(nodeExecutable) !== fixtureRoot) {
+    throw new Error('prepared fixture Node must be a direct child of its private root');
+  }
+  const uid = String(process.getuid?.() ?? 0);
+  const generatedBash = emulateBsdNodeAttestationForLinux(source
+    .replaceAll(IMMUTABLE_NODE_22_22_3_DARWIN_ARM64_PATH, nodeExecutable)
+    .replaceAll(OFFICIAL_NODE_22_22_3_DARWIN_ARM64_SHA256, nodeDigest)
+    .replaceAll(
+      '"$path_uid" != \'0\'',
+      `"$path_uid" != '0' && "$path_uid" != '${uid}'`,
+    )
+    .replaceAll(
+      '"$path_gid" != \'0\'',
+      '0 -ne 0',
+    )
+    .replaceAll(
+      '"$path_mode" != \'555\'',
+      '"$path_mode" != \'555\' && "$path_mode" != \'755\'',
+    )
+    .replaceAll('/usr/bin/codesign --verify --strict --verbose=4 "$executable"', 'true')
+    .replaceAll(
+      'signature="$(/usr/bin/codesign -dv --verbose=4 "$executable" 2>&1)"',
+      "signature='Signature=adhoc'",
+    )
+    .replaceAll(
+      '"$signature" != *$\'TeamIdentifier=HX7739G8FX\'*',
+      () => '"$signature" != *$\'TeamIdentifier=HX7739G8FX\'* '
+        + '&& "$signature" != *$\'Signature=adhoc\'*',
+    ));
+  const declaration = /^verify_immutable_executable_path\(\) \{\n[\s\S]*?^\}/gmu;
+  const functions = [...generatedBash.matchAll(declaration)];
+  const stop = 'if [[ "$component" == \'/\' ]]; then break; fi';
+  if (functions.length !== 1 || functions[0]![0].split(stop).length !== 2) {
+    throw new Error('prepared fixture ancestry boundary invalid');
+  }
+  const quotedRoot = `'${fixtureRoot.replaceAll("'", "'\"'\"'")}'`;
+  return generatedBash.replace(declaration, body => body.replace(
+    stop,
+    () => `if [[ "$component" == ${quotedRoot} || "$component" == '/' ]]; then break; fi`,
+  ));
+}
+
+function protectedLaunchForSameUidSwapTarget(
+  source: string,
+  nodeExecutable: string,
+  nodeDigest: string,
+): string {
+  return emulateBsdNodeAttestationForLinux(source
+    .replaceAll(IMMUTABLE_NODE_22_22_3_DARWIN_ARM64_PATH, nodeExecutable)
+    .replaceAll(OFFICIAL_NODE_22_22_3_DARWIN_ARM64_SHA256, nodeDigest)
+    .replaceAll(
+      '"$signature" != *$\'TeamIdentifier=HX7739G8FX\'*',
+      () => '"$signature" != *$\'TeamIdentifier=HX7739G8FX\'* '
+        + '&& "$signature" != *$\'Signature=adhoc\'*',
+    ));
+}
+
+function writeProtectedLaunchClosureFixture(
+  root: string,
+  entrypointRelativePath: string,
+  manifestSha256 = TEST_SOURCE_CLOSURE_MANIFEST_SHA256,
+): string {
+  const entrypointDigest = createHash('sha256')
+    .update(readFileSync(resolve(root, entrypointRelativePath)))
+    .digest('hex');
+  const closureSource = [
+    "import { createHash } from 'node:crypto';",
+    "import { readFileSync } from 'node:fs';",
+    "import { resolve } from 'node:path';",
+    'const entrypointRelativePath = '
+      + JSON.stringify(entrypointRelativePath)
+      + ';',
+    'const entrypointDigest = ' + JSON.stringify(entrypointDigest) + ';',
+    'const authorities = new WeakSet();',
+    'function fail(code) {',
+    '  const error = new Error(code);',
+    '  error.code = code;',
+    '  throw error;',
+    '}',
+    'export function verifyAuthBridgeNotificationPreparedDeployClosure({ repositoryRoot } = {}) {',
+    '  const repository = resolve(repositoryRoot);',
+    "  if (repository !== process.cwd()) fail('TEST_CLOSURE_REPOSITORY_INVALID');",
+    '  const authority = Object.freeze({ repositoryRoot: repository, manifestSha256: '
+      + JSON.stringify(manifestSha256)
+      + ' });',
+    '  authorities.add(authority);',
+    '  return authority;',
+    '}',
+    'export async function importAuthBridgeNotificationPreparedAttestedModules({ authority, repositoryRoot, memberPaths } = {}) {',
+    '  const repository = resolve(repositoryRoot);',
+    '  if (!authorities.has(authority)',
+    '    || authority.repositoryRoot !== repository) {',
+    "    fail('TEST_CLOSURE_MODULE_SET_INVALID');",
+    '  }',
+    '  if (Array.isArray(memberPaths)',
+    '    && memberPaths.length === 2',
+    "    && memberPaths[0] === 'scripts/auth-bridge-notification-prepared-installed-toolchain.mjs'",
+    "    && memberPaths[1].startsWith('scripts/verify-auth-bridge-notification-')) {",
+    '    return Object.freeze([',
+    '      Object.freeze({',
+    '        verifyAuthBridgeNotificationPreparedInstalledToolchain() {',
+    '          return Object.freeze({',
+    '            sourceClosureManifestSha256: authority.manifestSha256,',
+    "            wranglerEntrypoint: resolve(repository, 'services/auth-bridge/node_modules/wrangler/bin/wrangler.js'),",
+    '          });',
+    '        },',
+    '      }),',
+    '      Object.freeze({',
+    '        verifyAuthBridgeNotificationB0StaticPolicy() {',
+    '          return Object.freeze({ guardedRecoveryRequired: true });',
+    '        },',
+    '        verifyAuthBridgeNotificationPreparedStaticPolicy() {',
+    '          return Object.freeze({ guardedRecoveryRequired: true });',
+    '        },',
+    '      }),',
+    '    ]);',
+    '  }',
+    '  if (JSON.stringify(memberPaths) !== JSON.stringify([entrypointRelativePath])) {',
+    "    fail('TEST_CLOSURE_MODULE_SET_INVALID');",
+    '  }',
+    '  const body = readFileSync(resolve(repository, entrypointRelativePath));',
+    "  if (createHash('sha256').update(body).digest('hex') !== entrypointDigest) {",
+    "    fail('TEST_CLOSURE_MODULE_DIGEST_MISMATCH');",
+    '  }',
+    "  const moduleUrl = 'data:text/javascript;base64,' + body.toString('base64');",
+    '  return Object.freeze([await import(moduleUrl)]);',
+    '}',
+    '',
+  ].join('\n');
+  writeFileSync(
+    resolve(root, 'scripts/auth-bridge-notification-prepared-deploy-closure.mjs'),
+    closureSource,
+  );
+  return createHash('sha256').update(closureSource).digest('hex');
+}
+
 function sourceClosureDigestProfile(relativePath: string): string {
   const release = RELEASE_TRANSITION_PATHS.has(relativePath);
   const bootstrap = BOOTSTRAP_PROJECTION_PATHS.has(relativePath);
@@ -155,7 +422,9 @@ function canonicalFixtureMember(relativePath: string, source: Buffer): Buffer {
   }
   const names = relativePath === '.github/workflows/deploy-pages.yml'
     ? Object.keys(pagesBootstrapPinFiles)
-    : Object.keys(bootstrapPinFiles);
+    : relativePath === '.github/workflows/notification-bridge-prepared-linux.yml'
+      ? Object.keys(linuxBootstrapPinFiles)
+      : Object.keys(bootstrapPinFiles);
   const indentation = relativePath === '.github/workflows/deploy-pages.yml'
     ? '  '
     : '      ';
@@ -266,29 +535,30 @@ function createPolicyFixture(): string {
   );
   mkdirSync(dirname(manifestPath), { recursive: true });
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  const allPins = new Map(Object.entries(pagesBootstrapPinFiles).map(
-    ([name, relativePath]) => [name, createHash('sha256')
-      .update(readFileSync(relativePath ===
-        AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH
-        ? manifestPath
-        : resolve(root, relativePath)))
-      .digest('hex')],
-  ));
-  for (const [relativePath, names, indentation] of [
+  for (const [relativePath, names, indentation, pinFiles] of [
     [
       '.github/workflows/notification-bridge-b0.yml',
       Object.keys(bootstrapPinFiles),
       '      ',
+      bootstrapPinFiles,
     ],
     [
       '.github/workflows/notification-bridge-prepared.yml',
       Object.keys(bootstrapPinFiles),
       '      ',
+      bootstrapPinFiles,
     ],
     [
       '.github/workflows/deploy-pages.yml',
       Object.keys(pagesBootstrapPinFiles),
       '  ',
+      pagesBootstrapPinFiles,
+    ],
+    [
+      '.github/workflows/notification-bridge-prepared-linux.yml',
+      Object.keys(linuxBootstrapPinFiles),
+      '      ',
+      linuxBootstrapPinFiles,
     ],
   ] as const) {
     const path = resolve(root, relativePath);
@@ -298,7 +568,15 @@ function createPolicyFixture(): string {
         `^${indentation}${name}: '([a-f0-9]{64})'$`,
         'mu',
       ))?.[1];
-      const expected = allPins.get(name);
+      const expectedPath = (pinFiles as Record<string, string>)[name];
+      const expected = expectedPath === undefined
+        ? undefined
+        : createHash('sha256')
+          .update(readFileSync(expectedPath ===
+            AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH
+            ? manifestPath
+            : resolve(root, expectedPath)))
+          .digest('hex');
       if (current === undefined || expected === undefined) {
         throw new Error(`fixture bootstrap pin ${name} was unavailable`);
       }
@@ -307,6 +585,124 @@ function createPolicyFixture(): string {
     writeFileSync(path, source);
   }
   return root;
+}
+
+function mutatePreparedClosureMember(
+  root: string,
+  relativePath: string,
+  before: string,
+  after: string,
+): void {
+  const path = resolve(
+    root,
+    relativePath,
+  );
+  const source = readFileSync(path, 'utf8');
+  expect(source.split(before)).toHaveLength(2);
+  writeFileSync(path, source.replace(before, after));
+
+  const manifestPath = resolve(
+    root,
+    AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH,
+  );
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+    schemaVersion: number;
+    profile: string;
+    members: Array<{ path: string; digestProfile: string; sha256: string }>;
+  };
+  const member = manifest.members.find(candidate => candidate.path === relativePath);
+  expect(member?.digestProfile).toBe('raw-file-sha256-v1');
+  member!.sha256 = createHash('sha256').update(readFileSync(path)).digest('hex');
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  const manifestDigest = createHash('sha256')
+    .update(readFileSync(manifestPath))
+    .digest('hex');
+  for (const [workflowRelativePath, indentation] of [
+    ['.github/workflows/notification-bridge-b0.yml', '      '],
+    ['.github/workflows/notification-bridge-prepared.yml', '      '],
+    ['.github/workflows/deploy-pages.yml', '  '],
+    ['.github/workflows/notification-bridge-prepared-linux.yml', '      '],
+  ] as const) {
+    const workflowFixturePath = resolve(root, workflowRelativePath);
+    const workflowSource = readFileSync(workflowFixturePath, 'utf8');
+    const pin = new RegExp(
+      `^${indentation}WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '[a-f0-9]{64}'$`,
+      'mu',
+    );
+    expect([...workflowSource.matchAll(new RegExp(pin.source, 'gmu'))]).toHaveLength(1);
+    writeFileSync(
+      workflowFixturePath,
+      workflowSource.replace(
+        pin,
+        `${indentation}WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '${manifestDigest}'`,
+      ),
+    );
+  }
+}
+
+function refreshPolicyFixtureMember(
+  root: string,
+  relativePath: string,
+): void {
+  const manifestPath = resolve(
+    root,
+    AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH,
+  );
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+    schemaVersion: number;
+    profile: string;
+    members: Array<{ path: string; digestProfile: string; sha256: string }>;
+  };
+  const member = manifest.members.find(candidate => candidate.path === relativePath);
+  expect(member?.digestProfile).toBe(sourceClosureDigestProfile(relativePath));
+  const body = readFileSync(resolve(root, relativePath));
+  const canonical = canonicalFixtureMember(relativePath, body);
+  try {
+    member!.sha256 = createHash('sha256').update(canonical).digest('hex');
+  } finally {
+    if (canonical !== body) canonical.fill(0);
+    body.fill(0);
+  }
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  const manifestDigest = createHash('sha256')
+    .update(readFileSync(manifestPath))
+    .digest('hex');
+  for (const [workflowRelativePath, indentation] of [
+    ['.github/workflows/notification-bridge-b0.yml', '      '],
+    ['.github/workflows/notification-bridge-prepared.yml', '      '],
+    ['.github/workflows/deploy-pages.yml', '  '],
+    ['.github/workflows/notification-bridge-prepared-linux.yml', '      '],
+  ] as const) {
+    const path = resolve(root, workflowRelativePath);
+    const source = readFileSync(path, 'utf8');
+    const pin = new RegExp(
+      `^${indentation}WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '[a-f0-9]{64}'$`,
+      'mu',
+    );
+    expect([...source.matchAll(new RegExp(pin.source, 'gmu'))]).toHaveLength(1);
+    writeFileSync(
+      path,
+      source.replace(
+        pin,
+        `${indentation}WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '${manifestDigest}'`,
+      ),
+    );
+  }
+}
+
+function mutatePreparedRuntime(
+  root: string,
+  before: string,
+  after: string,
+): void {
+  mutatePreparedClosureMember(
+    root,
+    'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',
+    before,
+    after,
+  );
 }
 
 const fixtureWranglerTarget =
@@ -551,6 +947,32 @@ afterEach(() => {
 });
 
 describe('notification-bridge-prepared protected workflow', () => {
+  for (const stepId of ['deploy', 'recovery']) {
+    it.each(['missing function', 'duplicate function', 'missing stop', 'duplicate stop'])(
+      `rejects %s before adapting the ${stepId} fixture ancestry`,
+      mutation => {
+        const source = step(stepId).run ?? '';
+        const stop = 'if [[ "$component" == \'/\' ]]; then break; fi';
+        const changed = mutation === 'missing function'
+          ? source.replace('verify_immutable_executable_path() {', 'different_function() {')
+          : mutation === 'duplicate function'
+            ? `${source}\n${source}`
+            : mutation === 'missing stop'
+              ? source.replace(stop, '')
+              : source.replace(stop, `${stop}\n${stop}`);
+        expect(() => protectedLaunchForTrustedNode(
+          changed, '/private/test-fixture/node', 'a'.repeat(64), '/private/test-fixture',
+        )).toThrow('prepared fixture ancestry boundary invalid');
+      },
+    );
+  }
+
+  it('rejects a selected fixture Node outside its own private root', () => {
+    expect(() => protectedLaunchForTrustedNode(
+      step('deploy').run ?? '', '/another-fixture/node', 'a'.repeat(64), '/private/test-fixture',
+    )).toThrow('prepared fixture Node must be a direct child of its private root');
+  });
+
   it('is manual-only, protected, bounded, and selects only the dedicated persistent runner', () => {
     const source = workflow();
     const document = workflowDocument();
@@ -558,7 +980,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(Object.keys(document.on ?? {})).toEqual(['workflow_dispatch']);
     expect(document.permissions).toEqual({ actions: 'read', contents: 'read' });
     expect(document.concurrency).toEqual({
-      group: 'notification-bridge-prepared',
+      group: 'warpkeep-production-state',
       'cancel-in-progress': false,
     });
     expect(job.environment?.name).toBe('notification-bridge-prepared');
@@ -593,6 +1015,20 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(source).toContain('persist-credentials: false');
     expect(source).toContain('clean: true');
     expect(source).toContain('fetch-depth: 1');
+    expect(source).toContain('- name: Discard prior checkout Git metadata');
+    for (const exact of [
+      "git_metadata=\"$GITHUB_WORKSPACE/.git\"",
+      '/bin/rm -rf -- "$git_metadata"',
+      "GIT_ATTR_NOSYSTEM: '1'",
+      "GIT_CONFIG_COUNT: '2'",
+      'GIT_CONFIG_GLOBAL: /dev/null',
+      'GIT_CONFIG_KEY_0: core.hooksPath',
+      'GIT_CONFIG_KEY_1: init.templateDir',
+      "GIT_CONFIG_NOSYSTEM: '1'",
+      'GIT_CONFIG_VALUE_0: /private/var/empty',
+      'GIT_CONFIG_VALUE_1: /private/var/empty',
+      'set-safe-directory: false',
+    ]) expect(source).toContain(exact);
     expect(source).toContain(
       "origin_url\" != 'https://github.com/ael-dev3/Warpkeep'",
     );
@@ -643,11 +1079,17 @@ describe('notification-bridge-prepared protected workflow', () => {
       'verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256"',
     );
     expect(lastBootstrapIndex).toBeGreaterThan(source.indexOf(
-      'pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts --package-import-method=copy',
+      '      - name: Install exact auth bridge dependencies\n',
     ));
     expect(lastBootstrapIndex).toBeLessThan(source.indexOf(
-      'node scripts/auth-bridge-notification-prepared-deploy-closure.mjs',
+      'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: ${{ secrets.',
     ));
+    expect(source).not.toContain(
+      'node scripts/auth-bridge-notification-prepared-deploy-closure.mjs',
+    );
+    expect(source).not.toContain(
+      'node scripts/auth-bridge-notification-prepared-installed-toolchain.mjs',
+    );
   });
 
   it('pins and orders the Pages A/B/launcher bootstrap before private execution', () => {
@@ -697,11 +1139,11 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(source.match(/diff-index --quiet --cached HEAD --/gu)).toHaveLength(3);
     expect(source.match(/diff-files --quiet --/gu)).toHaveLength(3);
     expect(document.jobs?.['private-toolchain']?.['runs-on']).toEqual([
-      'self-hosted', 'macOS', 'ARM64', 'warpkeep-production-admin',
+      'self-hosted', 'Linux', 'X64', 'warpkeep-production-admin',
       'warpkeep-repository-exclusive',
     ]);
     expect(document.jobs?.['private-deploy']?.['runs-on']).toEqual([
-      'self-hosted', 'macOS', 'ARM64', 'warpkeep-production-admin',
+      'self-hosted', 'Linux', 'X64', 'warpkeep-production-admin',
       'warpkeep-repository-exclusive',
     ]);
   });
@@ -800,7 +1242,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       'utf8',
     );
     expect(source).toContain(
-      "WARPKEEP_BRIDGE_NOTIFICATION_DELIVERY_ENABLED: 'true'",
+      "WARPKEEP_BRIDGE_NOTIFICATION_DELIVERY_ENABLED: 'false'",
     );
     expect(source).toContain(
       "WARPKEEP_HERMES_EXECUTION_APPROVED: 'false'",
@@ -826,7 +1268,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       repositoryRoot: policyRoot,
     }))
       .toEqual({
-        bridgeNotificationDeliveryEnabled: true,
+        bridgeNotificationDeliveryEnabled: false,
         hermesExecutionApproved: false,
         pagesPresentationEnabled: false,
         checkedInWorkerGateEnabled: false,
@@ -835,7 +1277,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         guardedRecoveryRequired: true,
         privateReceiptSinkRequired: true,
         installedToolchainByteAttestationRequired: true,
-        executableSecurityClosureMemberCount: 956,
+        executableSecurityClosureMemberCount: 1202,
       });
   }, 180_000);
 
@@ -853,7 +1295,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     });
     expect(paths).toEqual(manifest.members.map(member => member.path));
     expect(manifest.schemaVersion).toBe(2);
-    expect(paths).toHaveLength(956);
+    expect(paths).toHaveLength(1202);
     expect(paths).toEqual(expect.arrayContaining([
       'scripts/auth-bridge-notification-prepared-deploy.mjs',
       'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
@@ -911,23 +1353,27 @@ describe('notification-bridge-prepared protected workflow', () => {
       'src/greater-realm/greaterRealmTransport.ts',
       'src/spacetime/greaterRealmProviderBridge.ts',
     ]));
-    const declarationOptional = new Set([
+    const declarationlessEntrypoints = [
       'scripts/farcaster-miniapp-contract.mjs',
+      'scripts/recovery-workflow-prepare-claim.mjs',
       'scripts/validate-pages-deploy-config.mjs',
       'scripts/verify-alpha-production.mjs',
       'scripts/verify-auth-bridge-notification-prepared-receipt.mjs',
       'scripts/verify-production-dist-exclusions.mjs',
-    ]);
-    expect(paths.filter(path => path.endsWith('.mjs')).length).toBe(
-      paths.filter(path => path.endsWith('.d.mts')).length
-        + declarationOptional.size
-        + RETAINED_TYPE_ONLY_DECLARATION_PATHS.length,
-    );
+      'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs',
+      ...G001_LINUX_DECLARATIONLESS_ENTRYPOINTS,
+      ...RETAINED_TYPE_ONLY_DECLARATION_PATHS.map(path => path.replace(/\.d\.mts$/u, '.mjs')),
+    ].sort();
+    const pathSet = new Set(paths);
+    expect(paths.filter(path => path.endsWith('.mjs')
+      && !pathSet.has(path.replace(/\.mjs$/u, '.d.mts')))).toEqual(declarationlessEntrypoints);
+    expect(paths.filter(path => path.endsWith('.d.mts')
+      && !pathSet.has(path.replace(/\.d\.mts$/u, '.mjs')))).toEqual([]);
     expect(verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: root,
     })).toMatchObject({
         profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1',
-        memberCount: 956,
+        memberCount: 1202,
         manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       });
   }, 180_000);
@@ -1003,6 +1449,176 @@ describe('notification-bridge-prepared protected workflow', () => {
     }
   }, 300_000);
 
+  it('does not leave concurrent module loads running after attestation fails', () => {
+    const source = readFileSync(resolve(
+      repositoryRoot,
+      'scripts/auth-bridge-notification-prepared-deploy-closure.mjs',
+    ), 'utf8');
+    expect(source).not.toContain('Promise.all(memberPaths.map');
+    expect(source).toContain('for (const memberPath of memberPaths)');
+  });
+
+  it('rejects source bytes replaced after closure attestation before evaluating them', async () => {
+    const root = createPolicyFixture();
+    const validMemberPath = 'scripts/entry-agreement-policy.mjs';
+    const replacedMemberPath = 'scripts/greater-realm-legacy-production-seal.mjs';
+    const marker = '__warpkeepPostAttestationModuleExecuted';
+    const verifierUrl = pathToFileURL(resolve(
+      repositoryRoot,
+      'scripts/auth-bridge-notification-prepared-deploy-closure.mjs',
+    )).href;
+    const program = `
+      import { appendFileSync } from 'node:fs';
+      import { resolve } from 'node:path';
+      import {
+        importAuthBridgeNotificationPreparedAttestedModules,
+        verifyAuthBridgeNotificationPreparedDeployClosure,
+      } from ${JSON.stringify(verifierUrl)};
+      const repositoryRoot = ${JSON.stringify(root)};
+      const validMemberPath = ${JSON.stringify(validMemberPath)};
+      const replacedMemberPath = ${JSON.stringify(replacedMemberPath)};
+      const marker = ${JSON.stringify(marker)};
+      const authority = verifyAuthBridgeNotificationPreparedDeployClosure({
+        repositoryRoot,
+      });
+      const [validModule] =
+        await importAuthBridgeNotificationPreparedAttestedModules({
+          authority,
+          repositoryRoot,
+          memberPaths: [validMemberPath],
+        });
+      if (
+        validModule.WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS
+          !== 'production-approved'
+      ) process.exitCode = 1;
+      appendFileSync(
+        resolve(repositoryRoot, replacedMemberPath),
+        \`\\nglobalThis.\${marker} = true;\\n\`,
+      );
+      let rejected = false;
+      try {
+        await importAuthBridgeNotificationPreparedAttestedModules({
+          authority,
+          repositoryRoot,
+          memberPaths: [replacedMemberPath],
+        });
+      } catch (error) {
+        rejected = error?.code ===
+          'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_DIGEST_MISMATCH';
+      }
+      if (!rejected || globalThis[marker] !== undefined) process.exitCode = 1;
+    `;
+    const result = spawnSync(process.execPath, [
+      '--input-type=module',
+      '--eval',
+      program,
+    ], {
+      cwd: repositoryRoot,
+      encoding: 'utf8',
+      env: {
+        LANG: 'C',
+        LC_ALL: 'C',
+        NODE_ENV: 'production',
+        PATH: '/usr/bin:/bin',
+        TZ: 'UTC',
+      },
+      timeout: 30_000,
+    });
+    expect(result.signal).toBeNull();
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toBe('');
+  }, 90_000);
+
+  it('loads both real attested graphs and rejects a tampered transitive member', () => {
+    const root = createPolicyFixture();
+    const verifierUrl = pathToFileURL(resolve(
+      repositoryRoot,
+      'scripts/auth-bridge-notification-prepared-deploy-closure.mjs',
+    )).href;
+    const preparedMemberPaths = [
+      'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
+      'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',
+      'scripts/auth-bridge-notification-prepared-deploy-journal.mjs',
+    ];
+    const b0MemberPaths = [
+      'scripts/auth-bridge-notification-b0-deploy-adapter.mjs',
+      'scripts/auth-bridge-notification-b0-cloudflare-runtime.mjs',
+      'scripts/auth-bridge-notification-b0-deploy-journal.mjs',
+    ];
+    const preamble = [
+      'import { importAuthBridgeNotificationPreparedAttestedModules,',
+      '  verifyAuthBridgeNotificationPreparedDeployClosure } from '
+        + JSON.stringify(verifierUrl) + ';',
+      'const repositoryRoot = ' + JSON.stringify(root) + ';',
+      'const authority = verifyAuthBridgeNotificationPreparedDeployClosure({',
+      '  repositoryRoot,',
+      '});',
+    ].join('\n');
+    const validProgram = [
+      preamble,
+      'const [preparedAdapter, preparedRuntime, preparedJournal] =',
+      '  await importAuthBridgeNotificationPreparedAttestedModules({',
+      '    authority, repositoryRoot, memberPaths: '
+        + JSON.stringify(preparedMemberPaths) + ',',
+      '  });',
+      "if (preparedAdapter.AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_PROFILE !== 'warpkeep-auth-bridge-notification-prepared-deploy-v1'",
+      "  || preparedRuntime.AUTH_BRIDGE_NOTIFICATION_PREPARED_CLOUDFLARE_API_ORIGIN !== 'https://api.cloudflare.com'",
+      "  || preparedJournal.AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_PROFILE !== 'warpkeep-auth-bridge-notification-prepared-deploy-journal-v3') process.exitCode = 1;",
+      'const [b0Adapter, b0Runtime, b0Journal] =',
+      '  await importAuthBridgeNotificationPreparedAttestedModules({',
+      '    authority, repositoryRoot, memberPaths: '
+        + JSON.stringify(b0MemberPaths) + ',',
+      '  });',
+      "if (b0Adapter.AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_PROFILE !== 'warpkeep-auth-bridge-notification-b0-deploy-v1'",
+      "  || b0Runtime.AUTH_BRIDGE_NOTIFICATION_B0_CLOUDFLARE_API_ORIGIN !== 'https://api.cloudflare.com'",
+      "  || b0Journal.AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_JOURNAL_PROFILE !== 'warpkeep-auth-bridge-notification-b0-deploy-journal-v1') process.exitCode = 1;",
+    ].join('\n');
+    const marker = '__warpkeepTransitiveModuleExecuted';
+    const replacedMemberPath = 'scripts/production-admin-token-budget.mjs';
+    const tamperedProgram = [
+      "import { appendFileSync } from 'node:fs';",
+      "import { resolve } from 'node:path';",
+      preamble,
+      'const marker = ' + JSON.stringify(marker) + ';',
+      'const replacedMemberPath = ' + JSON.stringify(replacedMemberPath) + ';',
+      'appendFileSync(resolve(repositoryRoot, replacedMemberPath), '
+        + JSON.stringify(`\nglobalThis.${marker} = true;\n`) + ');',
+      'let rejected = false;',
+      'try {',
+      '  await importAuthBridgeNotificationPreparedAttestedModules({',
+      '    authority, repositoryRoot, memberPaths: '
+        + JSON.stringify(preparedMemberPaths) + ',',
+      '  });',
+      '} catch (error) {',
+      "  rejected = error?.code === 'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_DIGEST_MISMATCH';",
+      '}',
+      'if (!rejected || globalThis[marker] !== undefined) process.exitCode = 1;',
+    ].join('\n');
+    for (const program of [validProgram, tamperedProgram]) {
+      const result = spawnSync(process.execPath, [
+        '--input-type=module',
+        '--eval',
+        program,
+      ], {
+        cwd: repositoryRoot,
+        encoding: 'utf8',
+        env: {
+          LANG: 'C',
+          LC_ALL: 'C',
+          NODE_ENV: 'production',
+          PATH: '/usr/bin:/bin',
+          TZ: 'UTC',
+        },
+        timeout: 30_000,
+      });
+      expect(result.signal).toBeNull();
+      expect(result.status).toBe(0);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe('');
+    }
+  }, 90_000);
+
   it('rejects a manifest missing a derived closure member', () => {
     const missing = createPolicyFixture();
     const missingManifestPath = resolve(
@@ -1030,6 +1646,9 @@ describe('notification-bridge-prepared protected workflow', () => {
 
   it('rejects an extra manifest member', () => {
     const extra = createPolicyFixture();
+    expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
+      repositoryRoot: extra,
+    })).not.toThrow();
     const extraManifestPath = resolve(
       extra,
       AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH,
@@ -1040,6 +1659,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       members: Array<{ path: string; digestProfile: string; sha256: string }>;
     };
     const extraPath = '.github/workflows/codeql.yml';
+    expect(extraManifest.members.some(member => member.path === extraPath)).toBe(false);
     mkdirSync(dirname(resolve(extra, extraPath)), { recursive: true });
     cpSync(resolve(repositoryRoot, extraPath), resolve(extra, extraPath));
     extraManifest.members.push({
@@ -1055,13 +1675,18 @@ describe('notification-bridge-prepared protected workflow', () => {
     writeFileSync(extraManifestPath, `${JSON.stringify(extraManifest, null, 2)}\n`);
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: extra,
-    })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
+    })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
   }, 90_000);
 
   it('rejects a newly imported local closure member', () => {
     const imported = createPolicyFixture();
+    expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
+      repositoryRoot: imported,
+    })).not.toThrow();
     const importedDependency = 'scripts/atomic-install-file-family.mjs';
     const importedDeclaration = 'scripts/atomic-install-file-family.d.mts';
+    const before = deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot: imported });
+    expect(before).not.toContain(importedDependency);
     for (const path of [importedDependency, importedDeclaration]) {
       mkdirSync(dirname(resolve(imported, path)), { recursive: true });
       cpSync(resolve(repositoryRoot, path), resolve(imported, path));
@@ -1074,9 +1699,11 @@ describe('notification-bridge-prepared protected workflow', () => {
       entrypoint,
       `import './atomic-install-file-family.mjs';\n${readFileSync(entrypoint, 'utf8')}`,
     );
+    expect(deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot: imported }))
+      .toEqual([...before, importedDependency, importedDeclaration].sort());
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: imported,
-    })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_TOO_LARGE');
+    })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
   }, 90_000);
 
   it('rejects an unreviewed installed import', () => {
@@ -1525,24 +2152,34 @@ describe('notification-bridge-prepared protected workflow', () => {
 
   it('rejects missing or unreviewed preflight check inputs', () => {
     const missing = createPolicyFixture();
+    expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
+      repositoryRoot: missing,
+    })).not.toThrow();
     rmSync(resolve(missing, 'services/auth-bridge/vitest.workerd.config.ts'));
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: missing,
     })).toThrow(/AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_/u);
 
     const extra = createPolicyFixture();
+    expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
+      repositoryRoot: extra,
+    })).not.toThrow();
+    const before = deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot: extra });
     writeFileSync(
       resolve(extra, 'services/auth-bridge/test/unreviewed.test.ts'),
       'export const unreviewed = true\n',
     );
+    expect(deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot: extra }))
+      .toEqual([...before, 'services/auth-bridge/test/unreviewed.test.ts'].sort());
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: extra,
-    })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_TOO_LARGE');
+    })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
   }, 180_000);
 
   it('loads separated credentials only into the guarded no-argv entrypoint', () => {
     const source = workflow();
     const expectedEnvironment = {
+      WARPKEEP_NODE_EXECUTABLE: '${{ steps.node-authority.outputs.path }}',
       GITHUB_TOKEN: '${{ github.token }}',
       WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID:
         '${{ secrets.WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID }}',
@@ -1552,11 +2189,18 @@ describe('notification-bridge-prepared protected workflow', () => {
         '${{ secrets.WARPKEEP_AUTH_BRIDGE_ZONE_ID }}',
       WARPKEEP_PLAYER_CANARY_OWNER_FID:
         '${{ secrets.WARPKEEP_PLAYER_CANARY_OWNER_FID }}',
+      WARPKEEP_PTR_SPACETIMEDB_DATABASE:
+        '${{ secrets.WARPKEEP_PTR_SPACETIMEDB_DATABASE }}',
       WARPKEEP_PRODUCTION_ADMIN_TOKEN:
         '${{ secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN }}',
     };
     expect(step('deploy').env).toEqual(expectedEnvironment);
-    expect(step('recovery').env).toEqual(expectedEnvironment);
+    const {
+      WARPKEEP_PLAYER_CANARY_OWNER_FID: _ownerFid,
+      WARPKEEP_PTR_SPACETIMEDB_DATABASE: _ptrDatabase,
+      ...recoveryEnvironment
+    } = expectedEnvironment;
+    expect(step('recovery').env).toEqual(recoveryEnvironment);
     expect(preparedJob().env).not.toHaveProperty('GITHUB_TOKEN');
     expect(preparedJob().env).not.toHaveProperty(
       'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
@@ -1565,14 +2209,20 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(preparedJob().env).not.toHaveProperty(
       'WARPKEEP_PLAYER_CANARY_OWNER_FID',
     );
+    expect(preparedJob().env).not.toHaveProperty(
+      'WARPKEEP_PTR_SPACETIMEDB_DATABASE',
+    );
     expect(source.match(/secrets\./gu)).toHaveLength(10);
     expect(source.match(
       /WARPKEEP_PLAYER_CANARY_OWNER_FID: \$\{\{ secrets\.WARPKEEP_PLAYER_CANARY_OWNER_FID \}\}/gu,
-    )).toHaveLength(2);
+    )).toHaveLength(1);
+    expect(source.match(
+      /WARPKEEP_PTR_SPACETIMEDB_DATABASE: \$\{\{ secrets\.WARPKEEP_PTR_SPACETIMEDB_DATABASE \}\}/gu,
+    )).toHaveLength(1);
     expect(source).not.toMatch(/^\s+PLAYER_CANARY_OWNER_FID:/mu);
     expect(source.match(
       /AUTH_BRIDGE_PREPARED_DEPLOY_CREDENTIALS_INVALID/gu,
-    )).toHaveLength(2);
+    )).toHaveLength(8);
     for (const comparison of [
       '"$GITHUB_TOKEN" == "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN"',
       '"$GITHUB_TOKEN" == "$WARPKEEP_PRODUCTION_ADMIN_TOKEN"',
@@ -1581,9 +2231,21 @@ describe('notification-bridge-prepared protected workflow', () => {
       comparison.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'),
       'gu',
     ))).toHaveLength(2);
-    expect(source.match(
-      /node scripts\/auth-bridge-notification-prepared-deploy\.mjs >\/dev\/null/gu,
-    )).toHaveLength(2);
+    for (const stepId of ['deploy', 'recovery']) {
+      expect((step(stepId).run ?? '').match(
+        /^exec -c "\$node_executable" --input-type=module <&17 >\/dev\/null$/gmu,
+      )).toHaveLength(1);
+    }
+    expect(source).not.toMatch(
+      /exec -c \/bin\/bash --noprofile --norc -p -e -u -o pipefail -c/gu,
+    );
+    expect(source).not.toContain('"GITHUB_TOKEN=$GITHUB_TOKEN"');
+    expect(source).not.toContain(
+      '"WARPKEEP_PRODUCTION_ADMIN_TOKEN=$WARPKEEP_PRODUCTION_ADMIN_TOKEN"',
+    );
+    expect(source).not.toContain(
+      'node scripts/auth-bridge-notification-prepared-deploy.mjs >/dev/null',
+    );
     expect(source).not.toMatch(
       /auth-bridge-notification-prepared-deploy\.mjs\s+--/u,
     );
@@ -1614,7 +2276,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       'const values = copyAndScrubEnvironment(environment);',
     );
     const runtimeImportIndex = entrypoint.indexOf(
-      "import('./auth-bridge-notification-prepared-deploy-adapter.mjs')",
+      'await importAuthBridgeNotificationPreparedAttestedModules({',
     );
     expect(sourceIndex).toBeGreaterThan(0);
     expect(installedIndex).toBeGreaterThan(sourceIndex);
@@ -1622,18 +2284,913 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(scrubIndex).toBeGreaterThan(sourceAfterInstalledIndex);
     expect(runtimeImportIndex).toBeGreaterThan(scrubIndex);
     expect(entrypoint).toContain("'WARPKEEP_PLAYER_CANARY_OWNER_FID'");
+    expect(entrypoint).toContain("'WARPKEEP_PTR_SPACETIMEDB_DATABASE'");
     expect(entrypoint).not.toMatch(
       /process\.(?:stdout|stderr)[\s\S]{0,256}WARPKEEP_PLAYER_CANARY_OWNER_FID/u,
     );
+    expect(entrypoint).not.toMatch(
+      /process\.(?:stdout|stderr)[\s\S]{0,256}WARPKEEP_PTR_SPACETIMEDB_DATABASE/u,
+    );
   });
 
-  it('always attempts guarded recovery after failure and rejects an unverified outcome', () => {
+  it('has one syntactically valid byte-attested bootstrap in each protected launch', () => {
+    const bootstrapStart = "exec 17<<'WARPKEEP_PROTECTED_NODE_BOOTSTRAP'";
+    const finalNodeLaunch =
+      'exec -c "$node_executable" --input-type=module <&17 >/dev/null';
+    for (const stepId of ['deploy', 'recovery']) {
+      const launch = step(stepId).run ?? '';
+      expect(launch.split(bootstrapStart), stepId).toHaveLength(2);
+      expect(launch.match(
+        /^WARPKEEP_PROTECTED_NODE_BOOTSTRAP$/gmu,
+      ), stepId).toHaveLength(1);
+      expect(launch.split(
+        'exec 18< <(printf \'%s\\n\' "$WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256")',
+      ), stepId).toHaveLength(2);
+      expect(launch.split(
+        'exec 19< <(printf \'%s\\n\' "$WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256")',
+      ), stepId).toHaveLength(2);
+      expect(launch.split(
+        'exec 20< scripts/auth-bridge-notification-prepared-deploy-closure.mjs',
+      ), stepId).toHaveLength(2);
+      expect(launch).toContain('fstatSync(descriptor).isFIFO()');
+      expect(launch).toContain(
+        'authority.manifestSha256 !== expectedManifestSha256',
+      );
+      expect(launch.indexOf(
+        'authority.manifestSha256 !== expectedManifestSha256',
+      )).toBeLessThan(launch.indexOf(
+        '.importAuthBridgeNotificationPreparedAttestedModules({',
+      ));
+      expect(launch).toContain("const closureUrl = 'data:text/javascript;base64,'");
+      expect(launch).toContain(
+        '.verifyAuthBridgeNotificationPreparedDeployClosure({',
+      );
+      expect(launch).toContain(
+        '.importAuthBridgeNotificationPreparedAttestedModules({',
+      );
+      expect(launch).toContain('memberPaths: [entrypointPath]');
+      if (stepId === 'deploy') {
+        expect(launch).toContain(
+          'await entrypoint.runAuthBridgeNotificationPreparedDeploy();',
+        );
+        expect(launch).not.toContain(
+          'runAuthBridgeNotificationPreparedReadOnlyRecovery',
+        );
+      } else {
+        expect(launch).toContain(
+          'const result = await entrypoint',
+        );
+        expect(launch).toContain(
+          '.runAuthBridgeNotificationPreparedReadOnlyRecovery();',
+        );
+        expect(launch).toContain(
+          "result?.outcome !== 'verified-read-only-recovery'",
+        );
+        expect(launch).toContain(
+          'AUTH_BRIDGE_PREPARED_READ_ONLY_RECOVERY_INVALID',
+        );
+        expect(launch).not.toContain(
+          'await entrypoint.runAuthBridgeNotificationPreparedDeploy();',
+        );
+      }
+      const manifestAuthorityIndex = launch.indexOf(
+        'authority.manifestSha256 !== expectedManifestSha256',
+      );
+      const toolchainImportIndex = launch.indexOf(
+        'memberPaths: [installedToolchainPath, staticPolicyPath]',
+      );
+      const toolchainVerifyIndex = launch.indexOf(
+        '.verifyAuthBridgeNotificationPreparedInstalledToolchain({',
+      );
+      const policyVerifyIndex = launch.indexOf(
+        'staticPolicy.verifyAuthBridgeNotificationPreparedStaticPolicy({',
+      );
+      const credentialReadIndex = launch.indexOf(
+        'const values = Object.create(null);',
+      );
+      expect(manifestAuthorityIndex, stepId).toBeGreaterThan(0);
+      expect(toolchainImportIndex, stepId).toBeGreaterThan(
+        manifestAuthorityIndex,
+      );
+      expect(toolchainVerifyIndex, stepId).toBeGreaterThan(
+        toolchainImportIndex,
+      );
+      expect(policyVerifyIndex, stepId).toBeGreaterThan(toolchainImportIndex);
+      expect(credentialReadIndex, stepId).toBeGreaterThan(toolchainVerifyIndex);
+      expect(credentialReadIndex, stepId).toBeGreaterThan(policyVerifyIndex);
+      expect(launch.split(finalNodeLaunch), stepId).toHaveLength(2);
+      expect(launch).not.toContain('<<<');
+      expect(launch.split(
+        'verify_immutable_executable_path "$node_executable"',
+      ), stepId).toHaveLength(3);
+      expect(launch).not.toContain(
+        'exec -c "$node_executable" scripts/auth-bridge-notification-prepared-deploy.mjs',
+      );
+      expect(launch).toContain('"$path_nlink" != \'1\'');
+      expect(launch).toContain('$((8#$path_mode & 0022)) -ne 0');
+
+      const root = realpathSync(mkdtempSync(join(
+        tmpdir(),
+        'warpkeep-prepared-protected-launch-syntax-',
+      )));
+      temporaryDirectories.push(root);
+      const runScript = resolve(root, 'run.sh');
+      writeFileSync(runScript, launch);
+      if (process.platform !== 'win32') {
+        const syntax = spawnSync('/bin/bash', ['-n', runScript], {
+          encoding: 'utf8',
+        });
+        expect(syntax.status, `${stepId}: ${syntax.stderr}`).toBe(0);
+      }
+    }
+
+    const authority = step('node-authority').run ?? '';
+    expect(authority).toContain(
+      '/private/var/db/warpkeep/runtime/node-v22.22.3-darwin-arm64/bin/node',
+    );
+    expect(authority).toContain(
+      '/private/var/db/warpkeep/runtime/pnpm-v11.7.0-darwin-arm64/pnpm',
+    );
+    expect(authority).toContain('verify_immutable_executable');
+    expect(authority).toContain('"$path_uid" != \'0\'');
+    expect(authority).toContain('acl_listing');
+    expect(authority).toContain('/usr/bin/codesign --verify --strict');
+    expect(authority).toContain('"$path_nlink" != \'1\'');
+    expect(authority).toContain('$((8#$path_mode & 0022)) -ne 0');
+    expect(authority).toContain(
+      '71867bc41587756fcbcba886effe380ca1f2914fcd166a50d3a26e58545ea034',
+    );
+    expect(workflow()).not.toContain('pnpm/action-setup@');
+    expect(workflow()).not.toContain('actions/setup-node@');
+    expect(workflow()).toContain(
+      'WARPKEEP_PNPM_EXECUTABLE: ${{ steps.node-authority.outputs.pnpm_path }}',
+    );
+    expect(workflow()).toContain('--ignore-pnpmfile');
+    expect(workflow()).toContain('NPM_CONFIG_USERCONFIG=/dev/null');
+    expect(workflow()).toContain('forbidden_package_manager_config=(');
+    expect(workflow()).not.toContain(
+      'run: pnpm --dir services/auth-bridge install',
+    );
+    // The published deploy and read-only recovery branches each satisfy their
+    // own exact credential and invocation contract before either can launch.
+    expect(() => preparedPolicyTestSeams
+      .assertProtectedWorkflowExecutionBoundary(workflow())).not.toThrow();
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'uses a clean allowlisted environment for either secret-bearing launch',
+    () => {
+      for (const stepId of ['deploy', 'recovery']) {
+      const root = realpathSync(mkdtempSync(join(
+        tmpdir(),
+        'warpkeep-protected-node-launch-',
+      )));
+      temporaryDirectories.push(root);
+      const bin = resolve(root, 'bin');
+      const marker = resolve(root, 'sanitized');
+      const hostileNodeMarker = resolve(root, 'hostile-node-ran');
+      const githubOutput = resolve(root, 'github-output');
+      const preload = resolve(root, 'ambient-preload.sh');
+      const preloadMarker = resolve(root, 'preload-ran');
+      const functionMarker = resolve(root, 'imported-function-ran');
+      const runScript = resolve(root, 'run.sh');
+      mkdirSync(bin);
+      writeFileSync(resolve(bin, 'node'), `#!/bin/bash -p
+set -euo pipefail
+/usr/bin/printenv GITHUB_TOKEN > ${JSON.stringify(hostileNodeMarker)}
+`);
+      chmodSync(resolve(bin, 'node'), 0o755);
+      const scripts = resolve(root, 'scripts');
+      mkdirSync(scripts);
+      writeFileSync(
+        resolve(scripts, 'auth-bridge-notification-prepared-deploy.mjs'),
+        `import { writeFileSync } from 'node:fs';
+const forbidden = ${JSON.stringify([
+  'NODE_OPTIONS',
+  'NODE_PATH',
+  'NODE_EXTRA_CA_CERTS',
+  'NODE_TLS_REJECT_UNAUTHORIZED',
+  'NODE_COMPILE_CACHE',
+  'NODE_DISABLE_COMPILE_CACHE',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'ALL_PROXY',
+  'http_proxy',
+  'https_proxy',
+  'all_proxy',
+  'WARPKEEP_HOSTILE_UNKNOWN',
+  'WARPKEEP_NODE_EXECUTABLE',
+  'WARPKEEP_TEST_MARKER',
+])};
+for (const name of forbidden) {
+  if (Object.hasOwn(process.env, name)) process.exit(41);
+}
+const commonRequired = ${JSON.stringify([
+  'GITHUB_TOKEN',
+  'WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID',
+  'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
+  'WARPKEEP_AUTH_BRIDGE_ZONE_ID',
+  'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
+])};
+for (const name of commonRequired) {
+  if (Object.hasOwn(process.env, name)) process.exit(44);
+}
+const deploymentOnly = ${JSON.stringify([
+  'WARPKEEP_PLAYER_CANARY_OWNER_FID',
+  'WARPKEEP_PTR_SPACETIMEDB_DATABASE',
+])};
+function requireDeploymentAuthority(present) {
+  for (const name of commonRequired) {
+    if (!Object.hasOwn(process.env, name)) process.exit(42);
+  }
+  for (const name of deploymentOnly) {
+    if (Object.hasOwn(process.env, name) !== present) process.exit(43);
+  }
+}
+export async function runAuthBridgeNotificationPreparedDeploy() {
+requireDeploymentAuthority(true);
+writeFileSync(${JSON.stringify(marker)}, 'sanitized');
+}
+export async function runAuthBridgeNotificationPreparedReadOnlyRecovery() {
+requireDeploymentAuthority(false);
+writeFileSync(${JSON.stringify(marker)}, 'sanitized');
+return Object.freeze({ outcome: 'verified-read-only-recovery' });
+}
+`,
+      );
+      const closureDigest = writeProtectedLaunchClosureFixture(
+        root,
+        'scripts/auth-bridge-notification-prepared-deploy.mjs',
+      );
+      const trustedNode = resolve(root, 'node');
+      cpSync(realpathSync(process.execPath), trustedNode);
+      chmodSync(trustedNode, 0o555);
+      const trustedNodeDigest = createHash('sha256')
+        .update(readFileSync(trustedNode))
+        .digest('hex');
+      writeFileSync(preload, `printf '%s' "$GITHUB_TOKEN" > "$WARPKEEP_PRELOAD_MARKER"\n`);
+      const protectedRun = step(stepId).run ?? '';
+      expect(protectedRun).toContain(
+        OFFICIAL_NODE_22_22_3_DARWIN_ARM64_SHA256,
+      );
+      writeFileSync(
+        runScript,
+        protectedLaunchForTrustedNode(
+          protectedRun,
+          trustedNode,
+          trustedNodeDigest,
+          root,
+        ),
+      );
+      expect(step(stepId).shell).toBe(
+        '/usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}',
+      );
+      const result = spawnSync('/usr/bin/env', [
+        '-u',
+        'BASH_ENV',
+        '-u',
+        'ENV',
+        '-u',
+        'SHELLOPTS',
+        '-u',
+        'BASHOPTS',
+        '-u',
+        'PS4',
+        '/bin/bash',
+        '--noprofile',
+        '--norc',
+        '-p',
+        '-e',
+        '-o',
+        'pipefail',
+        runScript,
+      ], {
+        cwd: root,
+        encoding: 'utf8',
+        env: {
+          ALL_PROXY: 'http://ambient.invalid',
+          BASH_ENV: preload,
+          'BASH_FUNC_printf%%':
+            '() { /usr/bin/printenv GITHUB_TOKEN > "$WARPKEEP_FUNCTION_MARKER"; }',
+          ENV: preload,
+          GITHUB_ACTIONS: 'true',
+          GITHUB_EVENT_NAME: 'workflow_dispatch',
+          GITHUB_OUTPUT: githubOutput,
+          GITHUB_REF: 'refs/heads/main',
+          GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
+          GITHUB_RUN_ATTEMPT: '1',
+          GITHUB_RUN_ID: '1001',
+          GITHUB_SHA: 'c'.repeat(40),
+          GITHUB_TOKEN: 'github-owner-test-token-value',
+          GITHUB_WORKFLOW_REF:
+            'ael-dev3/Warpkeep/.github/workflows/notification-bridge-prepared.yml@refs/heads/main',
+          HTTP_PROXY: 'http://ambient.invalid',
+          HTTPS_PROXY: 'http://ambient.invalid',
+          NODE_EXTRA_CA_CERTS: '/ambient/ca.pem',
+          NODE_COMPILE_CACHE: resolve(root, 'ambient-node-compile-cache'),
+          NODE_DISABLE_COMPILE_CACHE: '1',
+          NODE_OPTIONS: '--require=/ambient/preload.cjs',
+          NODE_PATH: '/ambient/node_modules',
+          NODE_TLS_REJECT_UNAUTHORIZED: '0',
+          PATH: `${bin}:/usr/bin:/bin`,
+          PS4: 'TRACE:$GITHUB_TOKEN:',
+          SHELLOPTS: 'xtrace',
+          WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: 'a'.repeat(32),
+          WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN:
+            'cloudflare-owner-test-token-value',
+          WARPKEEP_AUTH_BRIDGE_ZONE_ID: 'b'.repeat(32),
+          WARPKEEP_FUNCTION_MARKER: functionMarker,
+          WARPKEEP_PLAYER_CANARY_OWNER_FID: '4242424242',
+          WARPKEEP_PTR_SPACETIMEDB_DATABASE: '9'.repeat(64),
+          WARPKEEP_PRODUCTION_ADMIN_TOKEN:
+            'production-admin-test-token-value',
+          WARPKEEP_PRELOAD_MARKER: preloadMarker,
+          WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256:
+            TEST_SOURCE_CLOSURE_MANIFEST_SHA256,
+          WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: closureDigest,
+          WARPKEEP_TEST_MARKER: marker,
+          WARPKEEP_HOSTILE_UNKNOWN: 'hostile-ambient-value',
+          WARPKEEP_NODE_EXECUTABLE: trustedNode,
+          all_proxy: 'http://ambient.invalid',
+          http_proxy: 'http://ambient.invalid',
+          https_proxy: 'http://ambient.invalid',
+        },
+      });
+      expect(result.signal, stepId).toBeNull();
+      expect(result.status, `${stepId}: ${result.stderr}`).toBe(0);
+      expect(readFileSync(marker, 'utf8'), stepId).toBe('sanitized');
+      expect(() => readFileSync(hostileNodeMarker), stepId).toThrow();
+      expect(() => readFileSync(preloadMarker), stepId).toThrow();
+      expect(() => readFileSync(functionMarker), stepId).toThrow();
+      expect(result.stderr, stepId)
+        .not.toContain('github-owner-test-token-value');
+      }
+    },
+  );
+
+  it('rejects a forged selected Node before it can receive credentials', () => {
+    for (const stepId of ['deploy', 'recovery']) {
+      const root = realpathSync(mkdtempSync(join(
+        tmpdir(),
+        'warpkeep-forged-protected-node-',
+      )));
+      temporaryDirectories.push(root);
+      const forgedNode = resolve(root, 'node');
+      const marker = resolve(root, 'forged-node-ran');
+      const runScript = resolve(root, 'run.sh');
+      const scripts = resolve(root, 'scripts');
+      mkdirSync(scripts);
+      writeFileSync(
+        resolve(scripts, 'auth-bridge-notification-prepared-deploy.mjs'),
+        'export async function runAuthBridgeNotificationPreparedDeploy() {}\n',
+      );
+      const closureDigest = writeProtectedLaunchClosureFixture(
+        root,
+        'scripts/auth-bridge-notification-prepared-deploy.mjs',
+      );
+      writeFileSync(forgedNode, `#!/bin/bash -p
+/usr/bin/printenv GITHUB_TOKEN > ${JSON.stringify(marker)}
+`);
+      chmodSync(forgedNode, 0o755);
+      writeFileSync(runScript, step(stepId).run ?? '');
+      const result = spawnSync('/usr/bin/env', [
+        '-u', 'BASH_ENV', '-u', 'ENV', '-u', 'SHELLOPTS', '-u', 'BASHOPTS',
+        '-u', 'PS4', '/bin/bash', '--noprofile', '--norc', '-p', '-e', '-o',
+        'pipefail', runScript,
+      ], {
+        cwd: root,
+        encoding: 'utf8',
+        env: {
+          GITHUB_ACTIONS: 'true',
+          GITHUB_EVENT_NAME: 'workflow_dispatch',
+          GITHUB_OUTPUT: resolve(root, 'github-output'),
+          GITHUB_REF: 'refs/heads/main',
+          GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
+          GITHUB_RUN_ATTEMPT: '1',
+          GITHUB_RUN_ID: '1001',
+          GITHUB_SHA: 'c'.repeat(40),
+          GITHUB_TOKEN: 'github-forged-node-test-token',
+          GITHUB_WORKFLOW_REF:
+            'ael-dev3/Warpkeep/.github/workflows/notification-bridge-prepared.yml@refs/heads/main',
+          PATH: `${root}:/usr/bin:/bin`,
+          WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: 'a'.repeat(32),
+          WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN:
+            'cloudflare-forged-node-test-token',
+          WARPKEEP_AUTH_BRIDGE_ZONE_ID: 'b'.repeat(32),
+          WARPKEEP_NODE_EXECUTABLE: forgedNode,
+          WARPKEEP_PLAYER_CANARY_OWNER_FID: '4242424242',
+          WARPKEEP_PTR_SPACETIMEDB_DATABASE: '9'.repeat(64),
+          WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256:
+            TEST_SOURCE_CLOSURE_MANIFEST_SHA256,
+          WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: closureDigest,
+          WARPKEEP_PRODUCTION_ADMIN_TOKEN:
+            'production-admin-forged-node-test-token',
+        },
+      });
+      expect(result.signal, stepId).toBeNull();
+      expect(result.status, stepId).not.toBe(0);
+      expect(() => readFileSync(marker), stepId).toThrow();
+      expect(result.stderr, stepId)
+        .not.toContain('github-forged-node-test-token');
+    }
+  });
+
+  it.each(['hard-linked', 'group-writable'] as const)(
+    'rejects a %s selected Node even when its digest is pinned',
+    nodeState => {
+      for (const stepId of ['deploy', 'recovery']) {
+        const root = realpathSync(mkdtempSync(join(
+          tmpdir(),
+          'warpkeep-prepared-untrusted-node-state-',
+        )));
+        temporaryDirectories.push(root);
+        const node = resolve(root, 'node');
+        const marker = resolve(root, 'untrusted-node-ran');
+        const runScript = resolve(root, 'run.sh');
+        cpSync(realpathSync(process.execPath), node);
+        chmodSync(node, nodeState === 'group-writable' ? 0o575 : 0o555);
+        if (nodeState === 'hard-linked') linkSync(node, resolve(root, 'node-alias'));
+        const digest = createHash('sha256')
+          .update(readFileSync(node))
+          .digest('hex');
+        writeFileSync(
+          runScript,
+          protectedLaunchForTrustedNode(
+            step(stepId).run ?? '',
+            node,
+            digest,
+            root,
+          ),
+        );
+        const secret = 'github-prepared-untrusted-node-state-token';
+        const result = spawnSync('/usr/bin/env', [
+          '-u', 'BASH_ENV', '-u', 'ENV', '-u', 'SHELLOPTS', '-u', 'BASHOPTS',
+          '-u', 'PS4', '/bin/bash', '--noprofile', '--norc', '-p', '-e', '-o',
+          'pipefail', runScript,
+        ], {
+          cwd: root,
+          encoding: 'utf8',
+          env: {
+            GITHUB_ACTIONS: 'true',
+            GITHUB_EVENT_NAME: 'workflow_dispatch',
+            GITHUB_OUTPUT: resolve(root, 'github-output'),
+            GITHUB_REF: 'refs/heads/main',
+            GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
+            GITHUB_RUN_ATTEMPT: '1',
+            GITHUB_RUN_ID: '1001',
+            GITHUB_SHA: 'c'.repeat(40),
+            GITHUB_TOKEN: secret,
+            GITHUB_WORKFLOW_REF:
+              'ael-dev3/Warpkeep/.github/workflows/notification-bridge-prepared.yml@refs/heads/main',
+            WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: 'a'.repeat(32),
+            WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN:
+              'cloudflare-prepared-untrusted-node-state-token',
+            WARPKEEP_AUTH_BRIDGE_ZONE_ID: 'b'.repeat(32),
+            WARPKEEP_NODE_EXECUTABLE: node,
+            WARPKEEP_PLAYER_CANARY_OWNER_FID: '4242424242',
+            WARPKEEP_PTR_SPACETIMEDB_DATABASE: '9'.repeat(64),
+            WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256:
+              TEST_SOURCE_CLOSURE_MANIFEST_SHA256,
+            WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: 'd'.repeat(64),
+            WARPKEEP_PRODUCTION_ADMIN_TOKEN:
+              'production-admin-prepared-untrusted-node-state-token',
+          },
+        });
+        expect(result.signal, `${nodeState}:${stepId}`).toBeNull();
+        expect(result.status, `${nodeState}:${stepId}`).not.toBe(0);
+        expect(() => readFileSync(marker), `${nodeState}:${stepId}`).toThrow();
+        expect(result.stderr, `${nodeState}:${stepId}`).toContain(
+          'AUTH_BRIDGE_PREPARED_DEPLOY_NODE_INVALID',
+        );
+        expect(result.stderr, `${nodeState}:${stepId}`).not.toContain(secret);
+      }
+    },
+  );
+
+  it('rejects a same-UID final-swap target before either prepared Node launch', () => {
+    for (const stepId of ['deploy', 'recovery']) {
+      const root = realpathSync(mkdtempSync(join(
+        tmpdir(),
+        'warpkeep-prepared-final-swap-node-',
+      )));
+      temporaryDirectories.push(root);
+      const node = resolve(root, 'node');
+      const runScript = resolve(root, 'run.sh');
+      cpSync(realpathSync(process.execPath), node);
+      chmodSync(node, 0o555);
+      const digest = createHash('sha256')
+        .update(readFileSync(node))
+        .digest('hex');
+      writeFileSync(
+        runScript,
+        protectedLaunchForSameUidSwapTarget(
+          step(stepId).run ?? '',
+          node,
+          digest,
+        ),
+      );
+      const secret = 'github-prepared-final-swap-target-token';
+      const result = spawnSync('/usr/bin/env', [
+        '-u', 'BASH_ENV', '-u', 'ENV', '-u', 'SHELLOPTS', '-u', 'BASHOPTS',
+        '-u', 'PS4', '/bin/bash', '--noprofile', '--norc', '-p', '-e', '-o',
+        'pipefail', runScript,
+      ], {
+        cwd: root,
+        encoding: 'utf8',
+        env: {
+          GITHUB_ACTIONS: 'true',
+          GITHUB_EVENT_NAME: 'workflow_dispatch',
+          GITHUB_OUTPUT: resolve(root, 'github-output'),
+          GITHUB_REF: 'refs/heads/main',
+          GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
+          GITHUB_RUN_ATTEMPT: '1',
+          GITHUB_RUN_ID: '1001',
+          GITHUB_SHA: 'c'.repeat(40),
+          GITHUB_TOKEN: secret,
+          GITHUB_WORKFLOW_REF:
+            'ael-dev3/Warpkeep/.github/workflows/notification-bridge-prepared.yml@refs/heads/main',
+          WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: 'a'.repeat(32),
+          WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN:
+            'cloudflare-prepared-final-swap-target-token',
+          WARPKEEP_AUTH_BRIDGE_ZONE_ID: 'b'.repeat(32),
+          WARPKEEP_NODE_EXECUTABLE: node,
+          WARPKEEP_PLAYER_CANARY_OWNER_FID: '4242424242',
+          WARPKEEP_PTR_SPACETIMEDB_DATABASE: '9'.repeat(64),
+          WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: 'a'.repeat(64),
+          WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: 'd'.repeat(64),
+          WARPKEEP_PRODUCTION_ADMIN_TOKEN:
+            'production-admin-prepared-final-swap-target-token',
+        },
+      });
+      expect(result.signal, stepId).toBeNull();
+      expect(result.status, stepId).not.toBe(0);
+      expect(result.stderr, stepId).toContain(
+        'AUTH_BRIDGE_PREPARED_DEPLOY_NODE_INVALID',
+      );
+      expect(result.stderr, stepId).not.toContain(secret);
+    }
+  });
+
+  it('rejects a byte-mutated prepared entrypoint before either secret launch', () => {
+    for (const stepId of ['deploy', 'recovery']) {
+      const root = realpathSync(mkdtempSync(join(
+        tmpdir(),
+        'warpkeep-prepared-mutated-entrypoint-',
+      )));
+      temporaryDirectories.push(root);
+      const scripts = resolve(root, 'scripts');
+      const marker = resolve(root, 'mutated-entrypoint-ran');
+      const runScript = resolve(root, 'run.sh');
+      mkdirSync(scripts);
+      const entrypoint = resolve(
+        scripts,
+        'auth-bridge-notification-prepared-deploy.mjs',
+      );
+      writeFileSync(
+        entrypoint,
+        'export async function runAuthBridgeNotificationPreparedDeploy() {}\n',
+      );
+      const closureDigest = writeProtectedLaunchClosureFixture(
+        root,
+        'scripts/auth-bridge-notification-prepared-deploy.mjs',
+      );
+      writeFileSync(entrypoint, [
+        "import { writeFileSync } from 'node:fs';",
+        'writeFileSync('
+          + JSON.stringify(marker)
+          + ", 'mutated');",
+        'export async function runAuthBridgeNotificationPreparedDeploy() {}',
+        '',
+      ].join('\n'));
+      const trustedNode = resolve(root, 'node');
+      cpSync(realpathSync(process.execPath), trustedNode);
+      chmodSync(trustedNode, 0o555);
+      const trustedNodeDigest = createHash('sha256')
+        .update(readFileSync(trustedNode))
+        .digest('hex');
+      writeFileSync(
+        runScript,
+        protectedLaunchForTrustedNode(
+          step(stepId).run ?? '',
+          trustedNode,
+          trustedNodeDigest,
+          root,
+        ),
+      );
+      const result = spawnSync('/usr/bin/env', [
+        '-u', 'BASH_ENV', '-u', 'ENV', '-u', 'SHELLOPTS', '-u', 'BASHOPTS',
+        '-u', 'PS4', '/bin/bash', '--noprofile', '--norc', '-p', '-e', '-o',
+        'pipefail', runScript,
+      ], {
+        cwd: root,
+        encoding: 'utf8',
+        env: {
+          GITHUB_ACTIONS: 'true',
+          GITHUB_EVENT_NAME: 'workflow_dispatch',
+          GITHUB_OUTPUT: resolve(root, 'github-output'),
+          GITHUB_REF: 'refs/heads/main',
+          GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
+          GITHUB_RUN_ATTEMPT: '1',
+          GITHUB_RUN_ID: '1001',
+          GITHUB_SHA: 'c'.repeat(40),
+          GITHUB_TOKEN: 'github-prepared-mutated-entrypoint-token',
+          GITHUB_WORKFLOW_REF:
+            'ael-dev3/Warpkeep/.github/workflows/notification-bridge-prepared.yml@refs/heads/main',
+          WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: 'a'.repeat(32),
+          WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN:
+            'cloudflare-prepared-mutated-entrypoint-token',
+          WARPKEEP_AUTH_BRIDGE_ZONE_ID: 'b'.repeat(32),
+          WARPKEEP_NODE_EXECUTABLE: trustedNode,
+          WARPKEEP_PLAYER_CANARY_OWNER_FID: '4242424242',
+          WARPKEEP_PTR_SPACETIMEDB_DATABASE: '9'.repeat(64),
+          WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256:
+            TEST_SOURCE_CLOSURE_MANIFEST_SHA256,
+          WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: closureDigest,
+          WARPKEEP_PRODUCTION_ADMIN_TOKEN:
+            'production-admin-prepared-mutated-entrypoint-token',
+        },
+      });
+      expect(result.signal, stepId).toBeNull();
+      expect(result.status, stepId).not.toBe(0);
+      if (process.platform !== 'win32') {
+        expect(result.stderr, stepId).toContain('TEST_CLOSURE_MODULE_DIGEST_MISMATCH');
+      }
+      expect(() => readFileSync(marker), stepId).toThrow();
+      expect(result.stderr, stepId)
+        .not.toContain('github-prepared-mutated-entrypoint-token');
+    }
+  });
+
+  it('rejects a self-consistent refrozen closure before importing prepared code', () => {
+    for (const stepId of ['deploy', 'recovery']) {
+      const root = realpathSync(mkdtempSync(join(
+        tmpdir(),
+        'warpkeep-prepared-refrozen-closure-',
+      )));
+      temporaryDirectories.push(root);
+      const scripts = resolve(root, 'scripts');
+      const marker = resolve(root, 'refrozen-entrypoint-ran');
+      const runScript = resolve(root, 'run.sh');
+      mkdirSync(scripts);
+      writeFileSync(
+        resolve(scripts, 'auth-bridge-notification-prepared-deploy.mjs'),
+        [
+          "import { writeFileSync } from 'node:fs';",
+          `writeFileSync(${JSON.stringify(marker)}, 'refrozen');`,
+          'export async function runAuthBridgeNotificationPreparedDeploy() {}',
+          '',
+        ].join('\n'),
+      );
+      const closureDigest = writeProtectedLaunchClosureFixture(
+        root,
+        'scripts/auth-bridge-notification-prepared-deploy.mjs',
+        'b'.repeat(64),
+      );
+      const trustedNode = resolve(root, 'node');
+      cpSync(realpathSync(process.execPath), trustedNode);
+      chmodSync(trustedNode, 0o555);
+      const trustedNodeDigest = createHash('sha256')
+        .update(readFileSync(trustedNode))
+        .digest('hex');
+      writeFileSync(
+        runScript,
+        protectedLaunchForTrustedNode(
+          step(stepId).run ?? '',
+          trustedNode,
+          trustedNodeDigest,
+          root,
+        ),
+      );
+      const result = spawnSync('/usr/bin/env', [
+        '-u', 'BASH_ENV', '-u', 'ENV', '-u', 'SHELLOPTS', '-u', 'BASHOPTS',
+        '-u', 'PS4', '/bin/bash', '--noprofile', '--norc', '-p', '-e', '-o',
+        'pipefail', runScript,
+      ], {
+        cwd: root,
+        encoding: 'utf8',
+        env: {
+          GITHUB_ACTIONS: 'true',
+          GITHUB_EVENT_NAME: 'workflow_dispatch',
+          GITHUB_OUTPUT: resolve(root, 'github-output'),
+          GITHUB_REF: 'refs/heads/main',
+          GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
+          GITHUB_RUN_ATTEMPT: '1',
+          GITHUB_RUN_ID: '1001',
+          GITHUB_SHA: 'c'.repeat(40),
+          GITHUB_TOKEN: 'github-prepared-refrozen-token',
+          GITHUB_WORKFLOW_REF:
+            'ael-dev3/Warpkeep/.github/workflows/notification-bridge-prepared.yml@refs/heads/main',
+          WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: 'a'.repeat(32),
+          WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN:
+            'cloudflare-prepared-refrozen-token',
+          WARPKEEP_AUTH_BRIDGE_ZONE_ID: 'b'.repeat(32),
+          WARPKEEP_NODE_EXECUTABLE: trustedNode,
+          WARPKEEP_PLAYER_CANARY_OWNER_FID: '4242424242',
+          WARPKEEP_PTR_SPACETIMEDB_DATABASE: '9'.repeat(64),
+          WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256:
+            TEST_SOURCE_CLOSURE_MANIFEST_SHA256,
+          WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: closureDigest,
+          WARPKEEP_PRODUCTION_ADMIN_TOKEN:
+            'production-admin-prepared-refrozen-token',
+        },
+      });
+      expect(result.signal, stepId).toBeNull();
+      expect(result.status, stepId).not.toBe(0);
+      if (process.platform !== 'win32') {
+        expect(result.stderr, stepId).toContain('AUTH_BRIDGE_PREPARED_DEPLOY_MANIFEST_AUTHORITY_MISMATCH');
+      }
+      expect(() => readFileSync(marker), stepId).toThrow();
+      expect(result.stderr, stepId)
+        .not.toContain('github-prepared-refrozen-token');
+    }
+  });
+
+  it.each([
+    ['LF', '\n'],
+    ['CR', '\r'],
+  ])('rejects a %s-bearing binding before either prepared relay', (_, separator) => {
+    for (const stepId of ['deploy', 'recovery']) {
+      const root = realpathSync(mkdtempSync(join(
+        tmpdir(),
+        'warpkeep-prepared-malformed-binding-',
+      )));
+      temporaryDirectories.push(root);
+      const scripts = resolve(root, 'scripts');
+      const marker = resolve(root, 'entrypoint-ran');
+      const runScript = resolve(root, 'run.sh');
+      mkdirSync(scripts);
+      writeFileSync(
+        resolve(scripts, 'auth-bridge-notification-prepared-deploy.mjs'),
+        [
+          "import { writeFileSync } from 'node:fs';",
+          'export async function runAuthBridgeNotificationPreparedDeploy() {',
+          '  writeFileSync(' + JSON.stringify(marker) + ", 'ran');",
+          '}',
+          '',
+        ].join('\n'),
+      );
+      const closureDigest = writeProtectedLaunchClosureFixture(
+        root,
+        'scripts/auth-bridge-notification-prepared-deploy.mjs',
+      );
+      const trustedNode = resolve(root, 'node');
+      cpSync(realpathSync(process.execPath), trustedNode);
+      chmodSync(trustedNode, 0o555);
+      const trustedNodeDigest = createHash('sha256')
+        .update(readFileSync(trustedNode))
+        .digest('hex');
+      writeFileSync(
+        runScript,
+        protectedLaunchForTrustedNode(
+          step(stepId).run ?? '',
+          trustedNode,
+          trustedNodeDigest,
+          root,
+        ),
+      );
+      const sharedCredential = 'shared-owner-credential-value';
+      const result = spawnSync('/usr/bin/env', [
+        '-u', 'BASH_ENV', '-u', 'ENV', '-u', 'SHELLOPTS', '-u', 'BASHOPTS',
+        '-u', 'PS4', '/bin/bash', '--noprofile', '--norc', '-p', '-e', '-o',
+        'pipefail', runScript,
+      ], {
+        cwd: root,
+        encoding: 'utf8',
+        env: {
+          GITHUB_ACTIONS: 'true',
+          GITHUB_EVENT_NAME: 'workflow_dispatch',
+          GITHUB_OUTPUT: resolve(root, 'github-output'),
+          GITHUB_REF: 'refs/heads/main',
+          GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
+          GITHUB_RUN_ATTEMPT: '1',
+          GITHUB_RUN_ID: '1001',
+          GITHUB_SHA: 'c'.repeat(40),
+          GITHUB_TOKEN:
+            sharedCredential + separator + 'malformed-tail',
+          GITHUB_WORKFLOW_REF:
+            'ael-dev3/Warpkeep/.github/workflows/notification-bridge-prepared.yml@refs/heads/main',
+          WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: 'a'.repeat(32),
+          WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: sharedCredential,
+          WARPKEEP_AUTH_BRIDGE_ZONE_ID: 'b'.repeat(32),
+          WARPKEEP_NODE_EXECUTABLE: trustedNode,
+          WARPKEEP_PLAYER_CANARY_OWNER_FID: '4242424242',
+          WARPKEEP_PTR_SPACETIMEDB_DATABASE: '9'.repeat(64),
+          WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256:
+            TEST_SOURCE_CLOSURE_MANIFEST_SHA256,
+          WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: closureDigest,
+          WARPKEEP_PRODUCTION_ADMIN_TOKEN:
+            'production-admin-prepared-malformed-binding-token',
+        },
+      });
+      expect(result.signal, stepId).toBeNull();
+      expect(result.status, stepId).not.toBe(0);
+      expect(() => readFileSync(marker), stepId).toThrow();
+      expect(result.stderr, stepId).not.toContain(sharedCredential);
+    }
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'rechecks prepared credential separation after protected child reads',
+    () => {
+      for (const stepId of ['deploy', 'recovery']) {
+      const root = realpathSync(mkdtempSync(join(
+        tmpdir(),
+        'warpkeep-prepared-child-credential-separation-',
+      )));
+      temporaryDirectories.push(root);
+      const scripts = resolve(root, 'scripts');
+      const marker = resolve(root, 'entrypoint-ran');
+      const runScript = resolve(root, 'run.sh');
+      mkdirSync(scripts);
+      writeFileSync(
+        resolve(scripts, 'auth-bridge-notification-prepared-deploy.mjs'),
+        [
+          "import { writeFileSync } from 'node:fs';",
+          'export async function runAuthBridgeNotificationPreparedDeploy() {',
+          '  writeFileSync(' + JSON.stringify(marker) + ", 'ran');",
+          '}',
+          'export async function runAuthBridgeNotificationPreparedReadOnlyRecovery() {',
+          '  writeFileSync(' + JSON.stringify(marker) + ", 'ran');",
+          '}',
+          '',
+        ].join('\n'),
+      );
+      const closureDigest = writeProtectedLaunchClosureFixture(
+        root,
+        'scripts/auth-bridge-notification-prepared-deploy.mjs',
+      );
+      const trustedNode = resolve(root, 'node');
+      cpSync(realpathSync(process.execPath), trustedNode);
+      chmodSync(trustedNode, 0o555);
+      const trustedNodeDigest = createHash('sha256')
+        .update(readFileSync(trustedNode))
+        .digest('hex');
+      const launch = step(stepId).run ?? '';
+      const guardStart = launch.indexOf('if [[ -z "$GITHUB_TOKEN" \\');
+      const guardEnd = launch.indexOf('\nfi\n', guardStart) + '\nfi\n'.length;
+      expect(guardStart, stepId).toBeGreaterThan(0);
+      expect(guardEnd, stepId).toBeGreaterThan(guardStart);
+      const withoutOuterCredentialGuard =
+        launch.slice(0, guardStart) + launch.slice(guardEnd);
+      writeFileSync(
+        runScript,
+        protectedLaunchForTrustedNode(
+          withoutOuterCredentialGuard,
+          trustedNode,
+          trustedNodeDigest,
+          root,
+        ),
+      );
+      const sharedCredential = 'shared-prepared-child-credential-value';
+      const result = spawnSync('/usr/bin/env', [
+        '-u', 'BASH_ENV', '-u', 'ENV', '-u', 'SHELLOPTS', '-u', 'BASHOPTS',
+        '-u', 'PS4', '/bin/bash', '--noprofile', '--norc', '-p', '-e', '-o',
+        'pipefail', runScript,
+      ], {
+        cwd: root,
+        encoding: 'utf8',
+        env: {
+          GITHUB_ACTIONS: 'true',
+          GITHUB_EVENT_NAME: 'workflow_dispatch',
+          GITHUB_OUTPUT: resolve(root, 'github-output'),
+          GITHUB_REF: 'refs/heads/main',
+          GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
+          GITHUB_RUN_ATTEMPT: '1',
+          GITHUB_RUN_ID: '1001',
+          GITHUB_SHA: 'c'.repeat(40),
+          GITHUB_TOKEN: sharedCredential,
+          GITHUB_WORKFLOW_REF:
+            'ael-dev3/Warpkeep/.github/workflows/notification-bridge-prepared.yml@refs/heads/main',
+          WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: 'a'.repeat(32),
+          WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: sharedCredential,
+          WARPKEEP_AUTH_BRIDGE_ZONE_ID: 'b'.repeat(32),
+          WARPKEEP_NODE_EXECUTABLE: trustedNode,
+          WARPKEEP_PLAYER_CANARY_OWNER_FID: '4242424242',
+          WARPKEEP_PTR_SPACETIMEDB_DATABASE: '9'.repeat(64),
+          WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256:
+            TEST_SOURCE_CLOSURE_MANIFEST_SHA256,
+          WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: closureDigest,
+          WARPKEEP_PRODUCTION_ADMIN_TOKEN:
+            'production-admin-prepared-child-separation-token',
+        },
+      });
+      expect(result.signal, stepId).toBeNull();
+      expect(result.status, stepId).not.toBe(0);
+      expect(result.stderr, stepId).toContain('AUTH_BRIDGE_PREPARED_DEPLOY_CREDENTIALS_INVALID');
+      expect(() => readFileSync(marker), stepId).toThrow();
+      expect(result.stderr, stepId).not.toContain(sharedCredential);
+      }
+    },
+  );
+
+  it('selects direct recovery and rejects an unverified selected outcome', () => {
     const deploy = step('deploy');
     const recovery = step('recovery');
     const final = preparedJob().steps?.find(candidate => (
       candidate.name === 'Require a verified deployment or recovery'
     ));
     expect(deploy['continue-on-error']).toBe(true);
+    expect(deploy.if).toBe("${{ inputs.operation == 'deploy' }}");
     expect(deploy.run).toContain(
       `printf '%s\\n' 'attempted=true' >> "$GITHUB_OUTPUT"`,
     );
@@ -1642,46 +3199,222 @@ describe('notification-bridge-prepared protected workflow', () => {
       deployRun.indexOf('auth-bridge-notification-prepared-deploy.mjs'),
     );
     expect(recovery.if).toBe(
-      "${{ always() && steps.deploy.outputs.attempted == 'true' && steps.deploy.outcome != 'success' }}",
+      "${{ inputs.operation == 'recover-expired-authority-read-only' }}",
     );
+    expect(recovery.if).not.toContain('steps.deploy');
     expect(recovery['continue-on-error']).toBe(true);
     expect(final?.if).toBe('${{ always() }}');
+    expect(final?.env).toMatchObject({
+      WARPKEEP_OPERATION: '${{ inputs.operation }}',
+      DEPLOY_OUTCOME: '${{ steps.deploy.outcome }}',
+      DEPLOYMENT_ATTEMPTED: '${{ steps.deploy.outputs.attempted }}',
+      RECOVERY_OUTCOME: '${{ steps.recovery.outcome }}',
+    });
+    expect(final?.run).toContain(
+      "$WARPKEEP_OPERATION\" == 'recover-expired-authority-read-only'",
+    );
     expect(final?.run).toContain("$DEPLOY_OUTCOME\" == 'success'");
     expect(final?.run).toContain("$RECOVERY_OUTCOME\" == 'success'");
+    expect(final?.run).toContain("$DEPLOYMENT_ATTEMPTED\" == 'true'");
     expect(final?.run).toContain(
       'AUTH_BRIDGE_PREPARED_DEPLOY_OR_RECOVERY_UNVERIFIED',
     );
   });
 
+  it.each([
+    ['deploy invocation restored', '.runAuthBridgeNotificationPreparedReadOnlyRecovery();', '.runAuthBridgeNotificationPreparedDeploy();'],
+    ['canary identity relayed', "          GITHUB_TOKEN: ${{ github.token }}", "          GITHUB_TOKEN: ${{ github.token }}\n          WARPKEEP_PLAYER_CANARY_OWNER_FID: ${{ secrets.WARPKEEP_PLAYER_CANARY_OWNER_FID }}"],
+    ['PTR target relayed', "          GITHUB_TOKEN: ${{ github.token }}", "          GITHUB_TOKEN: ${{ github.token }}\n          WARPKEEP_PTR_SPACETIMEDB_DATABASE: ${{ secrets.WARPKEEP_PTR_SPACETIMEDB_DATABASE }}"],
+    ['incorrect recovery result', "result?.outcome !== 'verified-read-only-recovery'", "result?.outcome !== 'unverified'"],
+    ['disabled recovery result check', "if (result?.outcome !== 'verified-read-only-recovery') {", 'if (false) {'],
+    ['failed-deploy recovery selection', "        if: ${{ inputs.operation == 'recover-expired-authority-read-only' }}", "        if: ${{ steps.deploy.outcome == 'failure' }}"],
+    ['wrong admin descriptor', "['WARPKEEP_PRODUCTION_ADMIN_TOKEN', 33]", "['WARPKEEP_PRODUCTION_ADMIN_TOKEN', 35]"],
+    ['failed recovery made successful', "fail('AUTH_BRIDGE_PREPARED_READ_ONLY_RECOVERY_INVALID');", 'return;'],
+  ])('rejects %s in the read-only recovery step', (_label, before, after) => {
+    const source = workflow();
+    expect(() => preparedPolicyTestSeams.assertProtectedWorkflowExecutionBoundary(source))
+      .not.toThrow();
+    const start = source.indexOf('      - name: Recover expired authority without deployment\n');
+    const end = source.indexOf('      - name: Require a verified deployment or recovery\n');
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    const recovery = source.slice(start, end);
+    expect(recovery.split(before)).toHaveLength(2);
+    const mutated = source.slice(0, start) + recovery.replace(before, after) + source.slice(end);
+    expect(() => preparedPolicyTestSeams.assertProtectedWorkflowExecutionBoundary(mutated))
+      .toThrow('AUTH_BRIDGE_PREPARED_CREDENTIAL_BOUNDARY_INVALID');
+  });
+
+  it.each([
+    ['conditional final step', '        if: ${{ always() }}', "        if: ${{ steps.deploy.outcome == 'failure' }}"],
+    ['ignored final failure', '        if: ${{ always() }}', '        if: ${{ always() }}\n        continue-on-error: true'],
+    ['wrong selected operation', 'WARPKEEP_OPERATION: ${{ inputs.operation }}', 'WARPKEEP_OPERATION: deploy'],
+    ['conclusion instead of raw deploy outcome', 'DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}', 'DEPLOY_OUTCOME: ${{ steps.deploy.conclusion }}'],
+    ['invented attempted signal', 'DEPLOYMENT_ATTEMPTED: ${{ steps.deploy.outputs.attempted }}', "DEPLOYMENT_ATTEMPTED: 'true'"],
+    ['wrong recovery outcome', 'RECOVERY_OUTCOME: ${{ steps.recovery.outcome }}', 'RECOVERY_OUTCOME: ${{ steps.deploy.outcome }}'],
+    ['unprotected shell', '/bin/bash --noprofile --norc -p -e -o pipefail {0}', '/bin/bash --noprofile --norc -e -o pipefail {0}'],
+    ['early success', '          set -euo pipefail', '          set -euo pipefail\n          exit 0'],
+    ['inverted recovery selection', '"$WARPKEEP_OPERATION" ==', '"$WARPKEEP_OPERATION" !='],
+    ['recovery branch widened', '&& "$RECOVERY_OUTCOME"', '|| "$RECOVERY_OUTCOME"'],
+    ['failed recovery accepted', '"$RECOVERY_OUTCOME" == \'success\'', '"$RECOVERY_OUTCOME" == \'failure\''],
+    ['unattempted deploy accepted', '"$DEPLOYMENT_ATTEMPTED" == \'true\'', '"$DEPLOYMENT_ATTEMPTED" == \'false\''],
+    ['deploy branch widened', '&& "$DEPLOY_OUTCOME"', '|| "$DEPLOY_OUTCOME"'],
+    ['failed deploy accepted', '"$DEPLOY_OUTCOME" == \'success\'', '"$DEPLOY_OUTCOME" == \'failure\''],
+    ['failure reported as success', '          exit 1\n', '          exit 0\n'],
+    ['nonterminal outcome step', '          exit 1\n', '          exit 1\n\n      - name: Unreviewed final step\n        run: true\n'],
+  ])('rejects %s in the complete final outcome contract', (_label, before, after) => {
+    const source = workflow();
+    expect(() => preparedPolicyTestSeams.assertProtectedWorkflowExecutionBoundary(source))
+      .not.toThrow();
+    const start = source.indexOf('      - name: Require a verified deployment or recovery\n');
+    expect(start).toBeGreaterThan(0);
+    const final = source.slice(start);
+    expect(final.split(before)).toHaveLength(2);
+    const mutated = source.slice(0, start) + final.replace(before, after);
+    expect(() => preparedPolicyTestSeams.assertProtectedWorkflowExecutionBoundary(mutated))
+      .toThrow('AUTH_BRIDGE_PREPARED_RECOVERY_POLICY_INVALID');
+  });
+
+  it.each([
+    ['deploy', 'success', 'true', 'skipped', 0],
+    ['deploy', 'success', 'false', 'skipped', 1],
+    ['deploy', 'success', '', 'skipped', 1],
+    ['deploy', 'failure', 'true', 'skipped', 1],
+    ['deploy', 'cancelled', 'true', 'skipped', 1],
+    ['deploy', 'skipped', 'true', 'skipped', 1],
+    ['deploy', '', 'true', 'skipped', 1],
+    ['deploy', 'skipped', '', 'skipped', 1],
+    ['deploy', 'failure', 'true', 'success', 1],
+    ['recover-expired-authority-read-only', 'skipped', '', 'success', 0],
+    ['recover-expired-authority-read-only', 'skipped', '', 'failure', 1],
+    ['recover-expired-authority-read-only', 'skipped', '', 'cancelled', 1],
+    ['recover-expired-authority-read-only', 'skipped', '', 'skipped', 1],
+    ['recover-expired-authority-read-only', 'skipped', '', '', 1],
+    ['unreviewed', 'skipped', '', 'success', 1],
+  ] as const)('executes final outcome shell for %s / %s / attempted=%s / recovery=%s', (
+    operation, deployOutcome, attempted, recoveryOutcome, expectedStatus,
+  ) => {
+    const final = preparedJob().steps?.find(candidate => (
+      candidate.name === 'Require a verified deployment or recovery'
+    ));
+    expect(final?.run).toBeTypeOf('string');
+    expect(final?.shell).toBeTypeOf('string');
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'warpkeep-prepared-final-outcome-')));
+    temporaryDirectories.push(root);
+    const script = resolve(root, 'final-outcome.sh');
+    writeFileSync(script, final!.run!);
+    // Execute the actual configured shell argv and actual YAML script body.
+    const shell = final!.shell!.split(' ').map(argument => argument === '{0}' ? script : argument);
+    const result = spawnSync(shell[0], shell.slice(1), {
+      cwd: root,
+      env: {
+        PATH: '/usr/bin:/bin',
+        WARPKEEP_OPERATION: operation,
+        DEPLOY_OUTCOME: deployOutcome,
+        DEPLOYMENT_ATTEMPTED: attempted,
+        RECOVERY_OUTCOME: recoveryOutcome,
+      },
+      encoding: 'utf8',
+      timeout: 5_000,
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(expectedStatus);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toBe(expectedStatus === 0
+      ? '' : 'AUTH_BRIDGE_PREPARED_DEPLOY_OR_RECOVERY_UNVERIFIED\n');
+  });
+
+  it.each([
+    {
+      inspector: 'source',
+      start: 'const source = await runtime.inspectSource({',
+      end: 'const liveStartedAt = sampleClock();',
+      binding: 'apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
+      totalUses: 3,
+    },
+    {
+      inspector: 'live API',
+      start: 'const live = await runtime.inspect({',
+      end: 'const completedAt = sampleClock();',
+      binding: 'apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
+      totalUses: 3,
+    },
+    {
+      inspector: 'live admin',
+      start: 'const live = await runtime.inspect({',
+      end: 'const completedAt = sampleClock();',
+      binding: 'adminToken: values.WARPKEEP_PRODUCTION_ADMIN_TOKEN',
+      totalUses: 2,
+    },
+  ].flatMap(slot => ['deploy', 'recovery'].map(commentScope => ({ ...slot, commentScope }))))(
+    'rejects moving $inspector credential use into a $commentScope comment',
+    ({ start: callStart, end: callEnd, binding, totalUses, commentScope }) => {
+      const root = createPolicyFixture();
+      expect(() => verifyAuthBridgeNotificationPreparedStaticPolicy({ repositoryRoot: root }))
+        .not.toThrow();
+      const path = 'scripts/auth-bridge-notification-prepared-deploy.mjs';
+      const before = readFileSync(resolve(root, path), 'utf8');
+      const recoveryUse = `\n      ${binding},\n`;
+      const start = before.indexOf(callStart);
+      const end = before.indexOf(callEnd, start);
+      expect(start).toBeGreaterThan(0);
+      expect(end).toBeGreaterThan(start);
+      const call = before.slice(start, end);
+      expect(call.split(recoveryUse)).toHaveLength(2);
+      const commentBoundary = commentScope === 'deploy'
+        ? '\nconst invokedPath = process.argv[1]'
+        : '\n    return Object.freeze({\n      ...live,';
+      expect(before.split(commentBoundary)).toHaveLength(2);
+      const after = (before.slice(0, start)
+        + call.replace(recoveryUse, `\n      ${binding.split(':')[0]}: undefined,\n`)
+        + before.slice(end))
+        .replace(commentBoundary, `\n// ${binding}${commentBoundary}`);
+      expect(before.split(binding)).toHaveLength(totalUses + 1);
+      expect(after.split(binding)).toHaveLength(totalUses + 1);
+      mutatePreparedClosureMember(root, path, before, after);
+      expect(() => verifyAuthBridgeNotificationPreparedStaticPolicy({ repositoryRoot: root }))
+        .toThrow('AUTH_BRIDGE_PREPARED_GUARDED_ENTRYPOINT_INVALID');
+    }, 180_000);
+
   it('attests the installed tree after install and before any protected secret', () => {
     const source = workflow();
     const installIndex = source.indexOf(
-      'pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts --package-import-method=copy',
+      '      - name: Install exact auth bridge dependencies\n',
     );
-    const attestIndex = source.indexOf(
-      'node scripts/auth-bridge-notification-prepared-installed-toolchain.mjs',
-    );
-    const sourceAttestIndex = source.indexOf(
-      'node scripts/auth-bridge-notification-prepared-deploy-closure.mjs',
-    );
-    const sourceReattestIndex = source.indexOf(
-      'node scripts/auth-bridge-notification-prepared-deploy-closure.mjs',
-      attestIndex + 1,
+    const postinstallBootstrapIndex = source.lastIndexOf(
+      'verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256"',
     );
     const secretIndex = source.indexOf(
       'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: ${{ secrets.',
     );
     expect(installIndex).toBeGreaterThan(0);
-    expect(sourceAttestIndex).toBeGreaterThan(installIndex);
-    expect(attestIndex).toBeGreaterThan(sourceAttestIndex);
-    expect(sourceReattestIndex).toBeGreaterThan(attestIndex);
-    expect(secretIndex).toBeGreaterThan(sourceReattestIndex);
-    expect(source.match(
-      /node scripts\/auth-bridge-notification-prepared-installed-toolchain\.mjs/gu,
-    )).toHaveLength(1);
-    expect(source.match(
-      /node scripts\/auth-bridge-notification-prepared-deploy-closure\.mjs/gu,
-    )).toHaveLength(2);
+    expect(postinstallBootstrapIndex).toBeGreaterThan(installIndex);
+    expect(secretIndex).toBeGreaterThan(postinstallBootstrapIndex);
+    expect(source).not.toContain(
+      'node scripts/auth-bridge-notification-prepared-installed-toolchain.mjs',
+    );
+    expect(source).not.toContain(
+      'node scripts/auth-bridge-notification-prepared-deploy-closure.mjs',
+    );
+    for (const stepId of ['deploy', 'recovery']) {
+      const launch = step(stepId).run ?? '';
+      const manifestIndex = launch.indexOf(
+        'authority.manifestSha256 !== expectedManifestSha256',
+      );
+      const preflightIndex = launch.indexOf(
+        'memberPaths: [installedToolchainPath, staticPolicyPath]',
+      );
+      const toolchainIndex = launch.indexOf(
+        '.verifyAuthBridgeNotificationPreparedInstalledToolchain({',
+      );
+      const credentialIndex = launch.indexOf(
+        'const values = Object.create(null);',
+      );
+      expect(manifestIndex, stepId).toBeGreaterThan(0);
+      expect(preflightIndex, stepId).toBeGreaterThan(manifestIndex);
+      expect(toolchainIndex, stepId).toBeGreaterThan(preflightIndex);
+      expect(credentialIndex, stepId).toBeGreaterThan(toolchainIndex);
+    }
   });
 
   it('keeps the A then B bootstrap verifiers builtins-only', () => {
@@ -1729,12 +3462,213 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(() => readFileSync(marker)).toThrow();
     const source = workflow();
     expect(source).not.toContain('pnpm --dir services/auth-bridge run check');
-    expect(source.indexOf(
+    expect(source).not.toContain(
       'node scripts/auth-bridge-notification-prepared-installed-toolchain.mjs',
-    )).toBeLessThan(source.indexOf(
-      'node scripts/auth-bridge-notification-prepared-deploy.mjs >/dev/null',
-    ));
+    );
+    for (const stepId of ['deploy', 'recovery']) {
+      const launch = step(stepId).run ?? '';
+      expect(launch.indexOf(
+        '.verifyAuthBridgeNotificationPreparedInstalledToolchain({',
+      )).toBeLessThan(launch.indexOf('const values = Object.create(null);'));
+    }
   });
+
+  it('rejects an entrypoint that bypasses attested post-closure module loading', () => {
+    const root = createPolicyFixture();
+    mutatePreparedClosureMember(
+      root,
+      'scripts/auth-bridge-notification-prepared-deploy.mjs',
+      "  const [adapter, cloudflareRuntime, deployJournal] =\n"
+        + '    await importAuthBridgeNotificationPreparedAttestedModules({\n'
+        + '      authority: sourceClosureAfterToolchain,\n'
+        + '      repositoryRoot: repository,\n'
+        + '      memberPaths: [\n'
+        + "        'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',\n"
+        + "        'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',\n"
+        + "        'scripts/auth-bridge-notification-prepared-deploy-journal.mjs',\n"
+        + '      ],\n'
+        + '    });',
+      "  const [adapter, cloudflareRuntime, deployJournal] = await Promise.all([\n"
+        + "    import('./auth-bridge-notification-prepared-deploy-adapter.mjs'),\n"
+        + "    import('./auth-bridge-notification-prepared-cloudflare-runtime.mjs'),\n"
+        + "    import('./auth-bridge-notification-prepared-deploy-journal.mjs'),\n"
+        + '  ]);',
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedStaticPolicy({
+      repositoryRoot: root,
+    })).toThrow(/AUTH_BRIDGE_(?:PREPARED_GUARDED_ENTRYPOINT_INVALID|PREPARED_DEPLOY_CLOSURE_IMPORT_INVALID)/u);
+  }, 180_000);
+
+  it.each([
+    ...[
+      {
+        command:
+          'node scripts/auth-bridge-notification-prepared-deploy.mjs >/dev/null',
+        expectedCode:
+          /AUTH_BRIDGE_PREPARED_(?:CREDENTIAL_BOUNDARY|GUARDED_ENTRYPOINT)_INVALID/u,
+        label: 'prepared',
+        verify: verifyAuthBridgeNotificationPreparedStaticPolicy,
+        workflowRelativePath:
+          '.github/workflows/notification-bridge-prepared.yml',
+      },
+      {
+        command:
+          'node scripts/auth-bridge-notification-b0-deploy.mjs >/dev/null',
+        expectedCode:
+          /AUTH_BRIDGE_NOTIFICATION_B0_(?:CREDENTIAL_BOUNDARY|ENTRYPOINT)_INVALID/u,
+        label: 'B0',
+        verify: verifyAuthBridgeNotificationB0StaticPolicy,
+        workflowRelativePath: '.github/workflows/notification-bridge-b0.yml',
+      },
+    ].flatMap(workflowCase => [
+      'direct-entrypoint',
+      'inherited-shell-environment',
+      'alternate-dead-relay',
+      'unsafe-secret-shell',
+      'safe-shell-env-decoy',
+    ].map(mutation => ({ ...workflowCase, mutation }))),
+  ])('rejects $mutation in the $label protected launch', ({
+    command,
+    expectedCode,
+    mutation,
+    verify,
+    workflowRelativePath,
+  }) => {
+    const root = createPolicyFixture();
+    const path = resolve(root, workflowRelativePath);
+    const source = readFileSync(path, 'utf8');
+    const protectedCommand =
+      'exec -c "$node_executable" --input-type=module <&17 >/dev/null';
+    expect(source.split(protectedCommand)).toHaveLength(4);
+    const protectedShell = `        shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}`;
+    expect(source.split(protectedShell)).toHaveLength(12);
+    const deployIndex = source.indexOf('        id: deploy\n');
+    expect(deployIndex).toBeGreaterThan(0);
+    const alternateCommand = command
+      .replace('node scripts/', 'node ./scripts/')
+      .replace(/ >\/dev\/null$/u, '');
+    const protectedEnvStart = `${protectedShell}\n        env:\n`;
+    let mutatedSource: string;
+    switch (mutation) {
+      case 'direct-entrypoint':
+        mutatedSource = source.slice(0, deployIndex)
+          + source.slice(deployIndex).replace(
+            protectedCommand,
+            command.replace(/ >\/dev\/null$/u, ''),
+          );
+        break;
+      case 'inherited-shell-environment':
+        mutatedSource = source.slice(0, deployIndex)
+          + source.slice(deployIndex).replace(
+            '          exec -c "$node_executable"',
+            '          exec "$node_executable"',
+          );
+        break;
+      case 'alternate-dead-relay':
+        mutatedSource = source.slice(0, deployIndex)
+          + source.slice(deployIndex).replace(
+            '          exec 21< <(printf \'%s\\n\' "$GITHUB_ACTIONS")',
+            `          ${alternateCommand}\n          exit 0\n`
+              + '          exec 21< <(printf \'%s\\n\' "$GITHUB_ACTIONS")',
+          );
+        break;
+      case 'unsafe-secret-shell':
+        mutatedSource = source.slice(0, deployIndex)
+          + source.slice(deployIndex).replace(
+            protectedShell,
+            '        shell: bash',
+          );
+        break;
+      case 'safe-shell-env-decoy':
+        expect(source).toContain(protectedEnvStart);
+        mutatedSource = source.slice(0, deployIndex)
+          + source.slice(deployIndex).replace(
+            protectedEnvStart,
+            '        shell: /bin/bash {0}\n'
+              + '        env:\n'
+              + `          WARPKEEP_PROTECTED_SHELL_DECOY: '${protectedShell}'\n`,
+          );
+        break;
+      default:
+        throw new Error(`unknown protected workflow mutation ${mutation}`);
+    }
+    expect(mutatedSource).not.toBe(source);
+    writeFileSync(path, mutatedSource);
+    refreshPolicyFixtureMember(root, workflowRelativePath);
+    expect(() => verify({ repositoryRoot: root })).toThrow(expectedCode);
+  }, 180_000);
+
+  it.each([
+    {
+      entrypoint: 'auth-bridge-notification-prepared-deploy.mjs',
+      expectedCode: /AUTH_BRIDGE_PREPARED_WORKFLOW_STRUCTURE_INVALID/u,
+      guardedStepName: 'Run guarded prepared bridge deployment',
+      label: 'prepared',
+      secretNames: [
+        'WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID',
+        'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
+        'WARPKEEP_AUTH_BRIDGE_ZONE_ID',
+        'WARPKEEP_PLAYER_CANARY_OWNER_FID',
+        'WARPKEEP_PTR_SPACETIMEDB_DATABASE',
+        'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
+      ],
+      verify: verifyAuthBridgeNotificationPreparedStaticPolicy,
+      workflowRelativePath:
+        '.github/workflows/notification-bridge-prepared.yml',
+    },
+    {
+      entrypoint: 'auth-bridge-notification-b0-deploy.mjs',
+      expectedCode: /AUTH_BRIDGE_NOTIFICATION_B0_WORKFLOW_STRUCTURE_INVALID/u,
+      guardedStepName: 'Run guarded B0 bridge deployment',
+      label: 'B0',
+      secretNames: [
+        'WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID',
+        'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
+        'WARPKEEP_AUTH_BRIDGE_ZONE_ID',
+        'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
+      ],
+      verify: verifyAuthBridgeNotificationB0StaticPolicy,
+      workflowRelativePath: '.github/workflows/notification-bridge-b0.yml',
+    },
+  ])('rejects a refrozen unprotected sibling launch in the $label workflow', ({
+    entrypoint,
+    expectedCode,
+    guardedStepName,
+    secretNames,
+    verify,
+    workflowRelativePath,
+  }) => {
+    const root = createPolicyFixture();
+    const path = resolve(root, workflowRelativePath);
+    const source = readFileSync(path, 'utf8');
+    const guardedStep = `      - name: ${guardedStepName}\n`;
+    expect(source.split(guardedStep)).toHaveLength(2);
+    const siblingStep = [
+      '      - name: Unprotected alternate notification launch',
+      '        env:',
+      `          GITHUB_TOKEN: \${{ github['token'] }}`,
+      ...secretNames.map(
+        name => `          ${name}: \${{ secrets['${name}'] }}`,
+      ),
+      `        run: node ./scripts/${entrypoint} >/dev/null`,
+      '',
+    ].join('\n');
+    const mutatedSource = source.replace(
+      guardedStep,
+      siblingStep + guardedStep,
+    );
+    const document = parse(mutatedSource) as {
+      jobs?: Record<string, WorkflowJob>;
+    };
+    expect(Object.values(document.jobs ?? {}).flatMap(
+      job => job.steps ?? [],
+    ).some(stepValue => (
+      stepValue.name === 'Unprotected alternate notification launch'
+    ))).toBe(true);
+    writeFileSync(path, mutatedSource);
+    refreshPolicyFixtureMember(root, workflowRelativePath);
+    expect(() => verify({ repositoryRoot: root })).toThrow(expectedCode);
+  }, 180_000);
 
   it('rejects hosted-runner or direct-secret mutations in the static policy', () => {
     const hosted = createPolicyFixture();
@@ -1767,27 +3701,435 @@ describe('notification-bridge-prepared protected workflow', () => {
     })).toThrow(/AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_/u);
   }, 180_000);
 
+  it('accepts only the reviewed keep-bindings latest-head upload contract', () => {
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      preparedRuntimeBoundarySources(),
+    )).not.toThrow();
+  }, 180_000);
+
+  it.each([
+    {
+      name: 'inherit query',
+      before: '`${basePath}/versions`,\n        {\n          method: \'POST\'',
+      after:
+        '`${basePath}/versions?bindings_inherit=strict`,\n        {\n          method: \'POST\'',
+    },
+    {
+      name: 'inherit descriptor',
+      before:
+        'bindings: Object.freeze([\n        ...local.metadata.bindings,\n        Object.freeze({',
+      after: 'bindings: Object.freeze([\n        ...local.metadata.bindings,\n'
+        + '        Object.freeze({ name: \'ADMIN_TOKEN_SECRET\', type: \'inherit\' }),\n'
+        + '        Object.freeze({',
+    },
+    {
+      name: 'inherit version pin',
+      before:
+        "name: AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,\n          text: playerCanaryOwnerFid,",
+      after:
+        "name: AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,\n"
+        + '          version_id: plan.predecessorVersionId,\n'
+        + '          text: playerCanaryOwnerFid,',
+    },
+  ])('rejects reintroduced $name mechanics', ({ before, after }) => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedRuntimeSource(sources, before, after);
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it.each([
+    {
+      name: 'missing',
+      after: '|| metadata.keep_bindings !== undefined',
+    },
+    {
+      name: 'reordered',
+      after: "|| !exactJson(metadata.keep_bindings, ['secret_key', 'secret_text'])",
+    },
+  ])('rejects $name keep-binding types', ({ after }) => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedRuntimeSource(
+      sources,
+      "|| !exactJson(metadata.keep_bindings, ['secret_text', 'secret_key'])",
+      after,
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it.each([
+    {
+      name: 'filtered latest-version lookup',
+      before: '`${basePath}/versions?page=1&per_page=1`',
+      after: '`${basePath}/versions?deployable=true&page=1&per_page=1`',
+    },
+    {
+      name: 'optional latest-version number',
+      before: '!Number.isSafeInteger(items[0].number)',
+      after: '(items[0].number !== undefined && !Number.isSafeInteger(items[0].number))',
+    },
+    {
+      name: 'overflowing predecessor number',
+      before: 'predecessorVersionNumber >= Number.MAX_SAFE_INTEGER',
+      after: 'predecessorVersionNumber > Number.MAX_SAFE_INTEGER',
+    },
+    {
+      name: 'unsequenced upload response',
+      before: ') !== expectedSuccessorVersionNumber(',
+      after: ') === expectedSuccessorVersionNumber(',
+    },
+    {
+      name: 'unsequenced candidate detail',
+      before: 'candidateVersionNumber !== expectedSuccessorVersionNumber(',
+      after: 'candidateVersionNumber === expectedSuccessorVersionNumber(',
+    },
+    {
+      name: 'missing candidate-list number validation',
+      before: '|| !Number.isSafeInteger(item.number)',
+      after: '|| false /* candidate number unchecked */',
+    },
+    {
+      name: 'candidate no longer latest at release',
+      before: 'latest.versionId !== input.versionId',
+      after: 'latest.versionId === input.versionId',
+    },
+    {
+      name: 'runtime adoption before upload WAL',
+      before: "phase === 'remote-reconcile-started' && candidates.length !== 0",
+      after: "phase === 'upload-invoked' && candidates.length !== 0",
+    },
+  ])('rejects $name lineage mutation', ({ before, after }) => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedRuntimeSource(sources, before, after);
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it('rejects adapter adoption before the upload-invoked WAL marker', () => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedAdapterSource(
+      sources,
+      "startingPhase === 'remote-reconcile-started'\n    && prior.length !== 0",
+      "startingPhase === 'upload-invoked'\n    && prior.length !== 0",
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it.each([
+    {
+      name: 'lineage error removed from invalid upload responses',
+      before:
+        "        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_RESPONSE_INVALID',\n"
+        + "        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_LINEAGE_MISMATCH',",
+      after: "        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_RESPONSE_INVALID',",
+    },
+    {
+      name: 'provider rejection terminal branch is conditionally skipped',
+      before: '    if (isSanitizedProviderRejection(uploadError)) {\n'
+        + '      await journal.uploadAdjudicationRequired(Object.freeze({',
+      after: '    if (uploadError === undefined\n'
+        + '      && isSanitizedProviderRejection(uploadError)) {\n'
+        + '      await journal.uploadAdjudicationRequired(Object.freeze({',
+    },
+  ])('rejects adapter mutation: $name', ({ before, after }) => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedAdapterSource(sources, before, after);
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it('rejects moving predecessor stability after the final release latest check', () => {
+    const sources = preparedRuntimeBoundarySources();
+    const stableThenLatest =
+      '    await assertPredecessorStable(Object.freeze({\n'
+      + '      deploymentId: input.predecessorDeploymentId,\n'
+      + '      versionId: input.predecessorVersionId,\n'
+      + '    }));\n'
+      + '    const latest = await inspectLatestUploadedVersion();';
+    mutatePreparedRuntimeSource(
+      sources,
+      stableThenLatest,
+      '    const latest = await inspectLatestUploadedVersion();\n'
+        + '    await assertPredecessorStable(Object.freeze({\n'
+        + '      deploymentId: input.predecessorDeploymentId,\n'
+        + '      versionId: input.predecessorVersionId,\n'
+        + '    }));',
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it('rejects a missing final latest-head check', () => {
+    const guardedUpload =
+      '      await assertLatestUploadIsPredecessor(Object.freeze({\n'
+      + '        versionId: plan.predecessorVersionId,\n'
+      + '        versionNumber: preparedPredecessorVersionNumber,\n'
+      + '      }));\n';
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedRuntimeSource(
+      sources,
+      guardedUpload,
+      '',
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it('rejects a moved final latest-head check', () => {
+    const guardedUpload =
+      '      await assertLatestUploadIsPredecessor(Object.freeze({\n'
+      + '        versionId: plan.predecessorVersionId,\n'
+      + '        versionNumber: preparedPredecessorVersionNumber,\n'
+      + '      }));\n';
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedRuntimeSource(
+      sources,
+      guardedUpload,
+      '',
+    );
+    mutatePreparedRuntimeSource(
+      sources,
+      "      if (response.resultInfo !== undefined) {",
+      '      await assertLatestUploadIsPredecessor(Object.freeze({\n'
+        + '        versionId: plan.predecessorVersionId,\n'
+        + '        versionNumber: preparedPredecessorVersionNumber,\n'
+        + '      }));\n'
+        + '      if (response.resultInfo !== undefined) {',
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it('rejects a second or retried version-upload POST', () => {
+    // Keep one full closure-authenticated negative case to prove the
+    // production static-policy entrypoint delegates to the source verifier.
+    const root = createPolicyFixture();
+    mutatePreparedRuntime(
+      root,
+      '      const response = await api.json(\n'
+        + '        `${basePath}/versions`,',
+      '      await api.json(\n'
+        + '        `${basePath}/versions`,\n'
+        + '        { method: \'POST\', headers: { \'content-type\': source.contentType }, body, mutation: true },\n'
+        + '      );\n'
+        + '      const response = await api.json(\n'
+        + '        `${basePath}/versions`,',
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedStaticPolicy({
+      repositoryRoot: root,
+    })).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it('rejects a second adapter upload invocation', () => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedAdapterSource(
+      sources,
+      '      upload = await uploadVersion(canonicalContract, uploadPlan);',
+      '      upload = await uploadVersion(canonicalContract, uploadPlan);\n'
+        + '      upload = await uploadVersion(canonicalContract, uploadPlan);',
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it.each([
+    {
+      name: 'nonterminal adjudication ordinal',
+      before: "'upload-adjudication-required': 8,",
+      after: "'upload-adjudication-required': 4,",
+    },
+    {
+      name: 'adjudication phase removed from record grammar',
+      before:
+        "const PHASE_PATTERN = '(prepared|remote-reconcile-started|upload-invoked|uploaded|release-uncertain|release-invoked|completed|upload-adjudication-required)';",
+      after:
+        "const PHASE_PATTERN = '(prepared|remote-reconcile-started|upload-invoked|uploaded|release-uncertain|release-invoked|completed)';",
+    },
+    {
+      name: 'arbitrary adjudication reason',
+      before: "      'definitive-provider-rejection',\n    ].includes(payload.reason)",
+      after: "      'definitive-provider-rejection',\n      payload.reason,\n    ].includes(payload.reason)",
+    },
+    {
+      name: 'adjudication allowed before upload invocation',
+      before:
+        "phase === 'upload-adjudication-required'\n        && previous?.value.phase !== 'upload-invoked'",
+      after:
+        "phase === 'upload-adjudication-required'\n        && previous?.value.phase !== 'remote-reconcile-started'",
+    },
+    {
+      name: 'adjudication API writes a nonterminal phase',
+      before: "return transition('upload-adjudication-required', value);",
+      after: "return transition('uploaded', value);",
+    },
+    {
+      name: 'monotonic ordinal guard permits terminal regression',
+      before: 'previous.ordinal >= ordinal',
+      after: 'previous.ordinal < ordinal',
+    },
+  ])('rejects journal terminal mutation: $name', ({ before, after }) => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedJournalSource(sources, before, after);
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it.each([
+    {
+      name: 'missing invalid-response terminal append',
+      before:
+        '      await journal.uploadAdjudicationRequired(Object.freeze({\n'
+        + "        reason: 'invalid-upload-response',\n"
+        + '      }));',
+      after: '      // adjudication append removed',
+    },
+    {
+      name: 'missing provider-rejection terminal append',
+      before:
+        '      await journal.uploadAdjudicationRequired(Object.freeze({\n'
+        + "        reason: 'definitive-provider-rejection',\n"
+        + '      }));',
+      after: '      // adjudication append removed',
+    },
+    {
+      name: 'restart ignores durable adjudication',
+      before: "if (journalState.phase === 'upload-adjudication-required') {",
+      after: "if (journalState.phase === 'upload-invoked') {",
+    },
+    {
+      name: 'adjudication journal API no longer required',
+      before: "      'uploadAdjudicationRequired',\n",
+      after: '',
+    },
+  ])('rejects adapter terminal mutation: $name', ({ before, after }) => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedAdapterSource(sources, before, after);
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it('rejects runtime reconciliation that fetches after durable adjudication', () => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedRuntimeSource(
+      sources,
+      "    if (phase === 'upload-adjudication-required') {\n"
+        + '      fail(\n'
+        + "        'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',\n"
+        + '        true,\n'
+        + '      );\n'
+        + '    }\n',
+      '',
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it('rejects adapter restart reconciliation from a bare upload-invoked WAL state', () => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedAdapterSource(
+      sources,
+      "  if (journalState.phase === 'upload-invoked') {\n"
+        + '    throw ambiguous(\n'
+        + '      undefined,\n'
+        + "      'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',\n"
+        + '    );\n'
+        + '  }\n',
+      '',
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it.each([
+    {
+      name: 'bare upload-invoked state may fetch candidates',
+      before: 'if (sameRuntimeUploadReconciliationAuthorized !== true) {',
+      after: 'if (sameRuntimeUploadReconciliationAuthorized === undefined) {',
+    },
+    {
+      name: 'same-instance authorization is not consumed before reads',
+      before: '      sameRuntimeUploadReconciliationAuthorized = false;\n'
+        + '    }\n'
+        + "    if (phase === 'remote-reconcile-started') {",
+      after: '    }\n'
+        + "    if (phase === 'remote-reconcile-started') {",
+    },
+    {
+      name: 'upload authorization is not immediately before the sole POST',
+      before: '      sameRuntimeUploadReconciliationAuthorized = true;\n'
+        + '      const response = await api.json(',
+      after: '      const response = await api.json(',
+    },
+    {
+      name: 'dispose retains same-instance upload authorization',
+      before: '      preparedPredecessorVersionNumber = undefined;\n'
+        + '      sameRuntimeUploadReconciliationAuthorized = false;\n'
+        + '    },',
+      after: '      preparedPredecessorVersionNumber = undefined;\n'
+        + '    },',
+    },
+  ])('rejects runtime upload-invoked authorization mutation: $name', ({ before, after }) => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedRuntimeSource(sources, before, after);
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
   it('uses only the exact lockfile toolchain from the protected checkout', () => {
     const source = workflow();
+    expect(source).not.toContain('pnpm/action-setup@');
+    expect(source).not.toContain('actions/setup-node@');
     expect(source).toContain(
-      'pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271',
+      '/private/var/db/warpkeep/runtime/pnpm-v11.7.0-darwin-arm64/pnpm',
     );
-    expect(source).toContain('version: 11.7.0');
     expect(source).toContain(
-      'pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts --package-import-method=copy',
+      '71867bc41587756fcbcba886effe380ca1f2914fcd166a50d3a26e58545ea034',
     );
+    expect(source).toContain('NPM_CONFIG_GLOBALCONFIG=/dev/null');
+    expect(source).toContain('NPM_CONFIG_USERCONFIG=/dev/null');
+    expect(source).toContain('--ignore-scripts');
+    expect(source).toContain('--ignore-pnpmfile');
+    expect(source).toContain('--package-import-method=copy');
+    expect(source).toContain('--verify-store-integrity');
     expect(source).not.toContain('pnpm --dir services/auth-bridge run check');
-    expect(source).toContain(
+    expect(source).not.toContain(
       'node scripts/verify-auth-bridge-notification-prepared-policy.mjs',
     );
-    expect(source).toContain(
+    expect(source).not.toContain(
       'node scripts/auth-bridge-notification-prepared-installed-toolchain.mjs',
     );
-    expect(source.indexOf(
-      'node scripts/auth-bridge-notification-prepared-installed-toolchain.mjs',
-    )).toBeLessThan(source.indexOf(
-      'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: ${{ secrets.',
-    ));
+    for (const stepId of ['deploy', 'recovery']) {
+      const launch = step(stepId).run ?? '';
+      const policyIndex = launch.indexOf(
+        'staticPolicy.verifyAuthBridgeNotificationPreparedStaticPolicy({',
+      );
+      const toolchainIndex = launch.indexOf(
+        '.verifyAuthBridgeNotificationPreparedInstalledToolchain({',
+      );
+      const credentialIndex = launch.indexOf(
+        'const values = Object.create(null);',
+      );
+      expect(policyIndex, stepId).toBeGreaterThan(0);
+      expect(toolchainIndex, stepId).toBeGreaterThan(0);
+      expect(credentialIndex, stepId).toBeGreaterThan(policyIndex);
+      expect(credentialIndex, stepId).toBeGreaterThan(toolchainIndex);
+    }
     expect(source).not.toContain('--print-candidate');
   });
 

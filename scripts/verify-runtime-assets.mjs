@@ -675,8 +675,8 @@ for (const [relativePath, expectedSize, format, expectedBytes, expectedHash] of 
 }
 
 for (const [name, expectedVersion] of Object.entries({
-  sharp: '0.35.3',
-  vips: '8.18.3',
+  sharp: '0.35.4',
+  vips: '8.18.6',
   png: '1.6.58',
   webp: '1.6.0'
 })) {

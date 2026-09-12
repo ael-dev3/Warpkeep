@@ -1,0 +1,280 @@
+import { prepareFixedLinuxG001PolicyObservation, disposeFixedLinuxG001PolicyObservation } from './genesis001-linux-policy-native.mjs';
+import { execFileSync } from 'node:child_process';
+import { types } from 'node:util';
+
+import {
+  createSealedRealmsProductionContinuationStore,
+} from './sealed-realms-production-continuation.mjs';
+import {
+  createSealedRealmsProductionG001DispatchContext,
+  createSealedRealmsProductionG001CensusAuthority,
+  createSealedRealmsProductionG001Dispatcher,
+  createSealedRealmsProductionG001Lane,
+  createSealedRealmsProductionG001LaunchAuthority,
+} from './sealed-realms-production-g001-lane-entry.mjs';
+import {
+  executeGenesis001AdmissionMonitorCurrentState,
+} from './genesis001-admission-monitor-current-state.mjs';
+import {
+  authenticateSealedRealmsProductionSourceAuthority,
+} from './sealed-realms-production-source-authority.mjs';
+import {
+  createSealedRealmsProductionWorkflowEvidence,
+  refreshSealedRealmsProductionWorkflowEvidence,
+  revokeSealedRealmsProductionWorkflowEvidence,
+  verifySealedRealmsProductionWorkflowEvidence,
+} from './sealed-realms-production-workflow-evidence.mjs';
+import {
+  resolveSealedRealmsProductionWorkflowPrivateState,
+} from './sealed-realms-production-workflow-private-state.mjs';
+import {
+  issueSealedRealmsProductionWorkflowPermit,
+} from './sealed-realms-production-workflow-authority.mjs';
+
+const OPERATIONS = new Set([
+  'preflight',
+  'g001-policy-observe',
+  'g001-census-first',
+  'g001-census-second-inspect',
+  'g001-census-second-suspend',
+  'g001-current-state',
+]);
+const COMMIT = /^[0-9a-f]{40}$/u;
+const BINDING_PATH = 'config/releases/0.4.0-sealed-launch.json';
+const SOURCE_BINDING_KEYS = Object.freeze([
+  'schemaVersion', 'profile', 'pagesDeploymentApproved', 'preparationSourceCommit',
+]);
+const GIT_EXECUTABLE = process.platform === 'win32'
+  ? 'git'
+  : String.fromCodePoint(47, 117, 115, 114, 47, 98, 105, 110, 47, 103, 105, 116);
+const GIT_ENVIRONMENT = process.platform === 'win32'
+  ? undefined
+  : Object.freeze({
+    GIT_CONFIG_GLOBAL: String.fromCodePoint(47, 100, 101, 118, 47, 110, 117, 108, 108),
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_NO_REPLACE_OBJECTS: '1',
+    HOME: String.fromCodePoint(47, 100, 101, 118, 47, 110, 117, 108, 108),
+    LANG: 'C',
+    LC_ALL: 'C',
+    PATH: String.fromCodePoint(47, 117, 115, 114, 47, 98, 105, 110, 58, 47, 98, 105, 110),
+    TZ: 'UTC',
+  });
+const runtimes = new WeakMap();
+const consumedRuntimes = new WeakSet();
+const isProxy = types.isProxy;
+
+function fail(code) {
+  const error = new Error(code);
+  error.name = 'SealedRealmsProductionG001WorkflowEntryError';
+  error.code = code;
+  throw error;
+}
+
+function exactObject(value, keys) {
+  let descriptors;
+  try {
+    if (
+      isProxy(value) || value === null || typeof value !== 'object' || Array.isArray(value)
+      || Object.getPrototypeOf(value) !== Object.prototype
+    ) fail('SEALED_REALMS_G001_WORKFLOW_INPUT_INVALID');
+    descriptors = Object.getOwnPropertyDescriptors(value);
+  } catch (error) {
+    if (error?.code === 'SEALED_REALMS_G001_WORKFLOW_INPUT_INVALID') throw error;
+    fail('SEALED_REALMS_G001_WORKFLOW_INPUT_INVALID');
+  }
+  const descriptorKeys = Reflect.ownKeys(descriptors);
+  if (
+    descriptorKeys.length !== keys.length
+    || descriptorKeys.some((key, index) => typeof key !== 'string' || key !== keys[index])
+    || keys.some(key => (
+      !Object.hasOwn(descriptors[key], 'value') || descriptors[key].enumerable !== true
+    ))
+  ) fail('SEALED_REALMS_G001_WORKFLOW_INPUT_INVALID');
+  return Object.freeze(Object.fromEntries(
+    keys.map(key => [key, descriptors[key].value]),
+  ));
+}
+
+function operationName(value) {
+  if (typeof value !== 'string' || !OPERATIONS.has(value)) {
+    fail('SEALED_REALMS_G001_WORKFLOW_OPERATION_INVALID');
+  }
+  return value;
+}
+
+function sourceSha(value) {
+  if (typeof value !== 'string' || !COMMIT.test(value)) {
+    fail('SEALED_REALMS_G001_WORKFLOW_SOURCE_INVALID');
+  }
+  return value;
+}
+
+function readGit(arguments_, binary = false) {
+  try {
+    return execFileSync(GIT_EXECUTABLE, ['--no-replace-objects', ...arguments_], {
+      cwd: process.cwd(),
+      encoding: binary ? 'buffer' : 'utf8',
+      env: GIT_ENVIRONMENT,
+      maxBuffer: 2 * 1024 * 1024,
+      timeout: 5_000,
+      windowsHide: true,
+    });
+  } catch {
+    fail('SEALED_REALMS_G001_WORKFLOW_GIT_INVALID');
+  }
+}
+
+function readBindingCandidate(commit) {
+  let parsed;
+  try {
+    const source = readGit(['show', `${commit}:${BINDING_PATH}`]);
+    if (
+      typeof source !== 'string' || Buffer.byteLength(source, 'utf8') > 16 * 1_024
+      || !source.endsWith('\n') || source.endsWith('\n\n') || source.includes('\0')
+    ) fail('SEALED_REALMS_G001_WORKFLOW_BINDING_INVALID');
+    parsed = JSON.parse(source);
+  } catch (error) {
+    if (error?.code === 'SEALED_REALMS_G001_WORKFLOW_BINDING_INVALID') throw error;
+    fail('SEALED_REALMS_G001_WORKFLOW_BINDING_INVALID');
+  }
+  return parsed;
+}
+
+/** Source authority consumes only this fixed four-key authenticated projection. */
+function readBinding(commit) {
+  const candidate = readBindingCandidate(commit);
+  if (
+    candidate === null || typeof candidate !== 'object' || Array.isArray(candidate)
+    || Object.getPrototypeOf(candidate) !== Object.prototype
+  ) fail('SEALED_REALMS_G001_WORKFLOW_BINDING_INVALID');
+  return Object.freeze(Object.fromEntries(
+    SOURCE_BINDING_KEYS.map(key => [key, candidate[key]]),
+  ));
+}
+
+function unavailable() {
+  fail('SEALED_REALMS_G001_WORKFLOW_ADAPTER_UNAVAILABLE');
+}
+
+async function buildDispatcher(operation, workflowInputSha, evidence, linuxPolicyPreparation) {
+  const verifyEvidence = commit => verifySealedRealmsProductionWorkflowEvidence(evidence, commit);
+  // Fresh fixed Verify evidence precedes source authentication; private state
+  // remains behind that source proof and the active workflow permit.
+  const authority = authenticateSealedRealmsProductionSourceAuthority({
+    operation,
+    workflowInputSha,
+    readGit,
+    readBinding,
+    verifyEvidence,
+  });
+  const githubToken = process.env.GITHUB_TOKEN;
+  const runId = process.env.GITHUB_RUN_ID;
+  const runAttempt = process.env.GITHUB_RUN_ATTEMPT;
+  const permit = await issueSealedRealmsProductionWorkflowPermit({
+    sourceAuthority: authority,
+    githubToken,
+    runId,
+    runAttempt,
+    fetchImpl: globalThis.fetch,
+  });
+  const privateState = resolveSealedRealmsProductionWorkflowPrivateState();
+  const continuationStore = createSealedRealmsProductionContinuationStore({ privateState });
+  const launchAuthority = createSealedRealmsProductionG001LaunchAuthority({
+    readRawGit: arguments_ => readGit(arguments_, arguments_[0] === 'cat-file'),
+    resolveAdminSecretPath: unavailable,
+    privateState,
+  });
+  const censusAuthority = createSealedRealmsProductionG001CensusAuthority({
+    privateState,
+    collect: unavailable,
+    suspend: unavailable,
+    now: () => new Date(),
+  });
+  const lane = createSealedRealmsProductionG001Lane({
+    ...(linuxPolicyPreparation === undefined ? {} : { linuxPolicyPreparation, linuxPolicyEvidence: evidence }),
+    launchAuthority,
+    attestDispatcherNode: unavailable,
+    runEnvelopeChild: unavailable,
+    censusAuthority,
+    currentState: {
+      runChild: unavailable,
+      readFixedFile: unavailable,
+      resolveAccountUid: unavailable,
+      resolveAccountHome: unavailable,
+      testOnlyAdapter: undefined,
+    },
+    preflight: ({ sourceCommit }) => {
+      sourceSha(sourceCommit);
+      return Object.freeze({});
+    },
+    currentStateOperator: executeGenesis001AdmissionMonitorCurrentState,
+  });
+  const context = createSealedRealmsProductionG001DispatchContext({
+    readGit,
+    readBinding,
+    verifyEvidence,
+    permit,
+    continuationStore,
+    runId,
+    runAttempt,
+    sourceAuthority: authority,
+  });
+  return createSealedRealmsProductionG001Dispatcher({ context, lane });
+}
+
+/** Creates one opaque, process-local G001 runtime bound to one source/operation. */
+export async function createSealedRealmsProductionG001WorkflowRuntime(input) {
+  const options = exactObject(input, ['operation', 'workflowInputSha']);
+  const operation = operationName(options.operation);
+  const workflowInputSha = sourceSha(options.workflowInputSha);
+  const evidence = await createSealedRealmsProductionWorkflowEvidence({ workflowInputSha });
+  const runtime = Object.freeze({});
+  let linuxPolicyPreparation;
+  try {
+    if (operation === 'g001-policy-observe' && process.platform === 'linux') {
+      linuxPolicyPreparation = await prepareFixedLinuxG001PolicyObservation();
+      // Materialization can outlive the evidence TTL. Refresh actual Verify and
+      // current source before issuing a permit or touching the secret descriptor.
+      await refreshSealedRealmsProductionWorkflowEvidence(evidence);
+    }
+    runtimes.set(runtime, Object.freeze({
+      operation,
+      workflowInputSha,
+      evidence,
+      linuxPolicyPreparation,
+      dispatcher: await buildDispatcher(operation, workflowInputSha, evidence, linuxPolicyPreparation),
+    }));
+    return runtime;
+  } catch (error) {
+    revokeSealedRealmsProductionWorkflowEvidence(evidence);
+    if (linuxPolicyPreparation !== undefined) await disposeFixedLinuxG001PolicyObservation(linuxPolicyPreparation);
+    throw error;
+  }
+}
+
+/** Consumes the runtime before the dispatch await; it cannot be replayed. */
+export async function runSealedRealmsProductionG001Operation(input) {
+  const options = exactObject(input, ['runtime', 'operation', 'workflowInputSha']);
+  if (isProxy(options.runtime)) fail('SEALED_REALMS_G001_WORKFLOW_INPUT_INVALID');
+  const operation = operationName(options.operation);
+  const workflowInputSha = sourceSha(options.workflowInputSha);
+  const member = runtimes.get(options.runtime);
+  if (member === undefined) {
+    fail(consumedRuntimes.has(options.runtime)
+      ? 'SEALED_REALMS_G001_WORKFLOW_RUNTIME_CONSUMED'
+      : 'SEALED_REALMS_G001_WORKFLOW_RUNTIME_INVALID');
+  }
+  if (member.operation !== operation) fail('SEALED_REALMS_G001_WORKFLOW_OPERATION_INVALID');
+  if (member.workflowInputSha !== workflowInputSha) fail('SEALED_REALMS_G001_WORKFLOW_SOURCE_INVALID');
+  runtimes.delete(options.runtime);
+  consumedRuntimes.add(options.runtime);
+  try {
+    await refreshSealedRealmsProductionWorkflowEvidence(member.evidence);
+    return await member.dispatcher.dispatch(Object.freeze({ operation, workflowInputSha }));
+  } finally {
+    revokeSealedRealmsProductionWorkflowEvidence(member.evidence);
+    if (member.linuxPolicyPreparation !== undefined) {
+      await disposeFixedLinuxG001PolicyObservation(member.linuxPolicyPreparation);
+    }
+  }
+}

@@ -728,8 +728,11 @@ function recoveryHarness({
 }
 
 describe('auth-bridge notification B0 deploy', () => {
-  it('binds only the established six inherited secrets without replaying v5 migration', () => {
+  it('binds only the established six inherited secrets and explicitly disables PTR', () => {
     const value = contract();
+    expect(value.variables.PTR_ENABLED).toBe('false');
+    expect(value.variables).not.toHaveProperty('PTR_SPACETIMEDB_DATABASE');
+    expect(value.variables).not.toHaveProperty('PTR_OIDC_AUDIENCE');
     expect(value.secretBindingNames).toEqual([
       'ADMIN_TOKEN_SECRET',
       'FARCASTER_RPC_URL',
@@ -739,6 +742,7 @@ describe('auth-bridge notification B0 deploy', () => {
       'SIGNING_KEY_JWK',
     ]);
     expect(JSON.stringify(value)).not.toContain('PLAYER_CANARY_OWNER_FID');
+    expect(JSON.stringify(value)).not.toContain('PTR_SPACETIMEDB_DATABASE');
     expect(attestAuthBridgeNotificationB0CandidateMultipartMetadata({
       metadata: candidateMetadata(value),
       contract: value,
@@ -767,6 +771,21 @@ describe('auth-bridge notification B0 deploy', () => {
       contract: value,
       predecessorVersionId: REVIEWED_V5_VERSION_ID,
     })).toThrowError(/(?:MULTIPART_METADATA_MISMATCH|VERSION_BINDING_UNEXPECTED)/u);
+    for (const binding of [
+      { name: 'PTR_ENABLED', type: 'plain_text', text: 'true' },
+      { name: 'PTR_SPACETIMEDB_DATABASE', type: 'plain_text', text: '9'.repeat(64) },
+      { name: 'PTR_OIDC_AUDIENCE', type: 'plain_text', text: 'warpkeep-ptr-spacetimedb' },
+      { name: 'PLAYER_CANARY_OWNER_FID', type: 'inherit' },
+    ]) {
+      expect(() => attestAuthBridgeNotificationB0CandidateMultipartMetadata({
+        metadata: {
+          ...candidateMetadata(value),
+          bindings: [...candidateMetadata(value).bindings, binding],
+        },
+        contract: value,
+        predecessorVersionId: REVIEWED_V5_VERSION_ID,
+      })).toThrowError(/(?:MULTIPART_METADATA_MISMATCH|VERSION_BINDING_UNEXPECTED)/u);
+    }
     expect(() => attestAuthBridgeNotificationB0CandidateMultipartMetadata({
       metadata: {
         ...candidateMetadata(value),
@@ -809,6 +828,8 @@ describe('auth-bridge notification B0 deploy', () => {
         name,
         type: 'inherit',
       })));
+    expect(JSON.stringify(metadata)).not.toContain('PTR_SPACETIMEDB_DATABASE');
+    expect(JSON.stringify(metadata)).not.toContain('PTR_OIDC_AUDIENCE');
     expect(harness.fetchImpl.mock.calls.filter(([, init]) => (
       (init?.method ?? 'GET') === 'POST'
     ))).toHaveLength(1);
@@ -886,7 +907,7 @@ describe('auth-bridge notification B0 deploy', () => {
 
   it('attests the exact exports-absent v47 GET shape and exact optional exports', () => {
     const { candidate, value } = exactDfaV47Candidate();
-    expect(candidate.resources.bindings).toHaveLength(27);
+    expect(candidate.resources.bindings).toHaveLength(28);
     expect((candidate.resources.bindings as Record<string, unknown>[])
       .filter(binding => (
       binding.type === 'durable_object_namespace'
@@ -1168,6 +1189,26 @@ describe('auth-bridge notification B0 deploy', () => {
       contract: value,
       sourceDigest: SOURCE_DIGEST,
     })).toThrowError(/VERSION_BINDING_MISMATCH/u);
+    for (const binding of [
+      { name: 'PTR_SPACETIMEDB_DATABASE', type: 'plain_text', text: '9'.repeat(64) },
+      { name: 'PTR_OIDC_AUDIENCE', type: 'plain_text', text: 'warpkeep-ptr-spacetimedb' },
+      { name: 'PLAYER_CANARY_OWNER_FID', type: 'secret_text' },
+    ]) {
+      expect(() => projectAuthBridgeNotificationB0CloudflareVersion({
+        value: {
+          ...rawCandidateVersion(value),
+          resources: {
+            ...rawCandidateVersion(value).resources,
+            bindings: [
+              ...rawCandidateVersion(value).resources.bindings,
+              binding,
+            ],
+          },
+        },
+        contract: value,
+        sourceDigest: SOURCE_DIGEST,
+      })).toThrowError(/VERSION_BINDING_MISMATCH/u);
+    }
   });
 
   it('ignores retained dfa v47 and releases only the protected successor candidate', async () => {

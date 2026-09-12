@@ -1,10 +1,14 @@
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
-  useState
+  useState,
+  type ReactNode
 } from 'react';
+import type { Resource04 } from '../../../spacetimedb/gameplay04/policy';
+import type { Atlas04, Target04 } from '../../ptr/gameplay04/ptrGameplay04Types';
 
 import {
   GREATER_REALM_MAXIMUM_RESOURCE_AFFORDANCES,
@@ -29,6 +33,7 @@ import {
   isCurrentGreaterRealmSceneSnapshot
 } from './greaterRealmWorldSnapshotAuthority';
 import { resolveGreaterRealmWorldViewPolicy } from './greaterRealmWorldViewPolicy';
+import { useNarrowRealmPresentation } from './useNarrowRealmPresentation';
 
 export { isCurrentGreaterRealmSceneSnapshot } from './greaterRealmWorldSnapshotAuthority';
 
@@ -92,6 +97,12 @@ function useBrowserPresentation() {
   return presentation;
 }
 
+export type WorldSelection04 = Readonly<{
+  sessionGeneration: number;
+  atlas: Atlas04;
+  target: Target04 | null;
+}>;
+
 export type GreaterRealmWorldSceneProps = Readonly<{
   bridge: AvailableGreaterRealmProviderBridge;
   identityFid: number;
@@ -99,6 +110,12 @@ export type GreaterRealmWorldSceneProps = Readonly<{
   ownCastle: Readonly<{ castleId: number; q: number; r: number }>;
   resolvedGraphicsQuality?: GraphicsQualityTier;
   onPhaseChange: (phase: GreaterRealmClientPhase) => void;
+  narrowOpenPanel?: 'controls' | 'resources';
+  onNarrowOpenPanelChange?: (panel: 'controls' | 'resources' | undefined) => void;
+  onGameplay04WorldSelection?: (selection: WorldSelection04 | null) => void;
+  resourceFocus04?: Resource04 | null;
+  /** Public presentation only. The freshness guard is not owner authority or capacity proof. */
+  renderGameplay04WorldPanel?: (selection: WorldSelection04 | null, validateSelection: (selection: WorldSelection04) => boolean) => ReactNode;
 }>;
 
 /**
@@ -111,15 +128,24 @@ export function GreaterRealmWorldScene({
   identityKey,
   ownCastle,
   resolvedGraphicsQuality,
-  onPhaseChange
+  onPhaseChange,
+  narrowOpenPanel,
+  onNarrowOpenPanelChange,
+  onGameplay04WorldSelection,
+  resourceFocus04,
+  renderGameplay04WorldPanel
 }: GreaterRealmWorldSceneProps) {
   const miniAppHost = useMiniAppHost();
   const reducedMotion = useReducedMotionPreference();
   const browser = useBrowserPresentation();
+  const narrowPresentation = useNarrowRealmPresentation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const canvasHostRef = useRef<GreaterRealmWorldCanvasHost | undefined>(undefined);
   const commandGenerationRef = useRef(0);
   const snapshotIdentityKeyRef = useRef<string | undefined>(undefined);
+  const snapshotBridgeRef = useRef<typeof bridge | undefined>(undefined);
+  const gameplaySelectionRef = useRef<WorldSelection04 | null>(null);
+  const gameplayLiveRef = useRef(false);
   const [snapshot, setSnapshot] = useState<GreaterRealmClientSnapshot>();
   const [commandSnapshot, setCommandSnapshot] = useState<GreaterRealmClientSnapshot>();
   const [renderer, setRenderer] = useState<'loading' | 'webgl' | 'unavailable'>('loading');
@@ -131,6 +157,16 @@ export function GreaterRealmWorldScene({
     useState<GreaterRealmResourceSelection>();
   const [pendingWorkerId, setPendingWorkerId] = useState<string>();
   const [commandError, setCommandError] = useState(false);
+  const [localOpenPanel, setLocalOpenPanel] = useState<'controls' | 'resources'>();
+  const openPanel = onNarrowOpenPanelChange === undefined
+    ? localOpenPanel
+    : narrowOpenPanel;
+  const setOpenPanel = (panel: 'controls' | 'resources' | undefined) => {
+    if (onNarrowOpenPanelChange === undefined) setLocalOpenPanel(panel);
+    else onNarrowOpenPanelChange(panel);
+  };
+  const controlsTriggerRef = useRef<HTMLButtonElement>(null);
+  const resourcesTriggerRef = useRef<HTMLButtonElement>(null);
   const controlStatusIsAnnouncement = worldSelection !== undefined
     || localVesselState.status === 'selected'
     || localVesselState.status === 'blocked';
@@ -151,6 +187,22 @@ export function GreaterRealmWorldScene({
     reducedMotion,
     resolvedGraphicsQuality
   ]);
+
+  useEffect(() => {
+    if (!narrowPresentation || openPanel === undefined) return undefined;
+    const closePanel = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.repeat) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const trigger = openPanel === 'controls'
+        ? controlsTriggerRef.current
+        : resourcesTriggerRef.current;
+      setOpenPanel(undefined);
+      trigger?.focus();
+    };
+    document.addEventListener('keydown', closePanel);
+    return () => document.removeEventListener('keydown', closePanel);
+  }, [narrowPresentation, openPanel]);
   const snapshotCurrent = useMemo(() => (
     snapshotIdentityKeyRef.current === identityKey
     && snapshot !== undefined
@@ -227,6 +279,30 @@ export function GreaterRealmWorldScene({
       && location.locationId === resourceSelection.locationId
     )
   );
+  const gameplaySelection = useMemo<WorldSelection04 | null>(() => {
+    const current = commandSnapshotCurrent;
+    if (snapshotBridgeRef.current !== bridge || !current?.bootstrap || current.bootstrap.mode !== 'active' || current.resourceLocationPhase !== 'ready') return null;
+    const atlas = Object.freeze({ atlasId: current.bootstrap.atlasId, revision: current.bootstrap.revision });
+    const target = selectedLocation && current.resourceLocations === publicResourceSource
+      ? Object.freeze({ ...atlas, locationId: selectedLocation.locationId, resource: selectedLocation.resourceKind,
+          q: selectedLocation.atlasQ, r: selectedLocation.atlasR }) : null;
+    return Object.freeze({ sessionGeneration: bridge.sessionGeneration, atlas, target });
+  }, [bridge, commandSnapshotCurrent, publicResourceSource, selectedLocation]);
+  gameplaySelectionRef.current = gameplaySelection;
+  const validateGameplaySelection = useCallback((value: WorldSelection04) => (
+    gameplayLiveRef.current && value === gameplaySelectionRef.current
+  ), []);
+  useLayoutEffect(() => {
+    gameplayLiveRef.current = true;
+    return () => {
+      gameplayLiveRef.current = false;
+      gameplaySelectionRef.current = null;
+      onGameplay04WorldSelection?.(null);
+    };
+  }, [onGameplay04WorldSelection]);
+  useLayoutEffect(() => {
+    onGameplay04WorldSelection?.(gameplaySelection);
+  }, [gameplaySelection, onGameplay04WorldSelection]);
   const workerBridge = bridge;
   const candidateWorkerControl = readWorkerControl(workerBridge);
   const identityFidAuthority = Number.isSafeInteger(identityFid) && identityFid > 0
@@ -323,6 +399,27 @@ export function GreaterRealmWorldScene({
           telemetry.scene.localVesselCount
         );
         canvas.dataset.greaterRealmBoats = String(telemetry.scene.boatCount);
+        canvas.dataset.greaterRealmVoxelMode = telemetry.scene.voxelMode;
+        canvas.dataset.greaterRealmVoxelTriangles = String(
+          telemetry.scene.residentVoxelTriangleCount
+        );
+        canvas.dataset.greaterRealmVoxelQuads = String(
+          telemetry.scene.residentVoxelQuadCount
+        );
+        canvas.dataset.greaterRealmVoxelUploadBytes = String(
+          telemetry.scene.voxelUploadBytesThisFrame
+        );
+        canvas.dataset.greaterRealmVoxelPreparationMilliseconds = String(
+          telemetry.scene.voxelPreparationMilliseconds
+        );
+        canvas.dataset.greaterRealmVoxelEmissionMilliseconds = String(
+          telemetry.scene.voxelEmissionMillisecondsThisFrame
+        );
+        canvas.dataset.greaterRealmVoxelFallbackCount = String(
+          telemetry.scene.voxelFallbackCount
+        );
+        canvas.dataset.greaterRealmVoxelFallbackReasons =
+          telemetry.scene.voxelFallbackReasons.join('|');
         canvas.dataset.greaterRealmPublicResources = String(telemetry.publicResourceCount);
         canvas.dataset.greaterRealmVisibleRegions = String(telemetry.visibleRegionCount);
       },
@@ -344,9 +441,17 @@ export function GreaterRealmWorldScene({
     identityKey,
     ownCastle.castleId,
     ownCastle.q,
-    ownCastle.r,
+    ownCastle.r
+  ]);
+
+  useEffect(() => {
+    canvasHostRef.current?.updatePolicy(policy);
+  }, [
+    policy.centerQ,
+    policy.centerR,
     policy.deviceClass,
     policy.graphicsProfile,
+    policy.lod,
     policy.pixelRatioCap,
     policy.radius,
     policy.reducedMotion
@@ -384,6 +489,8 @@ export function GreaterRealmWorldScene({
       });
       unsubscribe = runtime.subscribe((next) => {
         if (!active) return;
+        // Revoke retained dispatch handlers synchronously, before React renders.
+        gameplaySelectionRef.current = null;
         const generationCurrent = next.sessionGeneration === bridge.sessionGeneration;
         const usable = generationCurrent && isCurrentGreaterRealmSceneSnapshot({
           snapshot: next,
@@ -400,6 +507,7 @@ export function GreaterRealmWorldScene({
           return;
         }
         if (usable) {
+          snapshotBridgeRef.current = bridge;
           snapshotIdentityKeyRef.current = identityKey;
           setSnapshot(next);
           setCommandSnapshot(next);
@@ -509,7 +617,28 @@ export function GreaterRealmWorldScene({
         aria-describedby="greater-realm-world-help greater-realm-world-status"
         data-testid="greater-realm-world-canvas"
       />
-      <div className="greater-realm-world__controls" aria-label="Greater Realm view controls">
+      <div
+        className="greater-realm-world__controls"
+        aria-label="Greater Realm view controls"
+        data-open={openPanel === 'controls'}
+        hidden={narrowPresentation && openPanel === 'resources'}
+      >
+        <button
+          ref={controlsTriggerRef}
+          type="button"
+          className="greater-realm-world__disclosure-trigger"
+          hidden={!narrowPresentation}
+          aria-expanded={openPanel === 'controls'}
+          aria-controls="greater-realm-world-controls-panel"
+          onClick={() => setOpenPanel(openPanel === 'controls' ? undefined : 'controls')}
+        >
+          Map and vessel controls
+        </button>
+        <div
+          id="greater-realm-world-controls-panel"
+          className="greater-realm-world__controls-body"
+          hidden={narrowPresentation && openPanel !== 'controls'}
+        >
         <span id="greater-realm-world-help" className="greater-realm-world__control-help">
           Drag to pan, Shift-drag or right-drag to orbit, and pinch or scroll to zoom.
           Keyboard: arrows or WASD, Q/E, plus/minus, Enter to select.
@@ -625,6 +754,7 @@ export function GreaterRealmWorldScene({
               ? localVesselState.message
               : `${worldSelection.label} at ${worldSelection.atlasQ}, ${worldSelection.atlasR}`}
         </span>
+        </div>
       </div>
       {tierOneRegions.length === 0 ? null : (
         <aside className="greater-realm-world__zone-legend" aria-label="Tier I zones">
@@ -647,22 +777,40 @@ export function GreaterRealmWorldScene({
           </ol>
         </aside>
       )}
-      {publicResources.length === 0 && activeWorkers.length === 0 ? null : (
+      {publicResources.length === 0 && activeWorkers.length === 0 && renderGameplay04WorldPanel === undefined ? null : (
         <aside
           className="greater-realm-world__resources"
+          data-open={openPanel === 'resources'}
+          hidden={narrowPresentation && openPanel === 'controls'}
           aria-label={publicResources.length === 0
             ? 'Greater Realm Worker controls'
             : 'Nearby public resources'}
         >
+          <button
+            ref={resourcesTriggerRef}
+            type="button"
+            className="greater-realm-world__disclosure-trigger"
+            hidden={!narrowPresentation}
+            aria-expanded={openPanel === 'resources'}
+            aria-controls="greater-realm-world-resources-panel"
+            onClick={() => setOpenPanel(openPanel === 'resources' ? undefined : 'resources')}
+          >
+            Nearby resources and workers
+          </button>
+          <div
+            id="greater-realm-world-resources-panel"
+            className="greater-realm-world__resources-body"
+            hidden={narrowPresentation && openPanel !== 'resources'}
+          >
           {publicResources.length === 0 ? null : (
             <>
               <strong>Nearby resources</strong>
               <div className="greater-realm-world__resource-list">
-                {publicResources.map((location) => (
+                {publicResources.filter(location => !resourceFocus04 || location.resourceKind === resourceFocus04).map((location) => (
                   <button
                     key={location.locationId}
                     type="button"
-                    aria-label={`${location.resourceKind} at ${location.atlasQ}, ${location.atlasR} · ${location.nodeCount} nodes`}
+                    aria-label={`${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`}
                     aria-pressed={selectedLocation?.locationId === location.locationId}
                     onClick={() => {
                       if (
@@ -679,11 +827,11 @@ export function GreaterRealmWorldScene({
                       setCommandError(false);
                     }}
                   >
-                    {location.resourceKind} · {location.nodeCount} nodes
+                    {location.resourceKind} site · {location.atlasQ}, {location.atlasR}
                   </button>
                 ))}
               </div>
-              {selectedLocation === undefined ? null : (
+              {selectedLocation === undefined || (renderGameplay04WorldPanel !== undefined && workerControl === undefined) ? null : (
                 <div className="greater-realm-world__worker-command">
                   <span>
                     {selectedLocation.resourceKind} at {selectedLocation.atlasQ}, {selectedLocation.atlasR}
@@ -757,7 +905,9 @@ export function GreaterRealmWorldScene({
               )}
             </div>
           )}
+          {renderGameplay04WorldPanel?.(gameplaySelection, validateGameplaySelection)}
           {commandError ? <span role="alert">Worker command was not accepted.</span> : null}
+          </div>
         </aside>
       )}
       {renderer === 'unavailable' ? (

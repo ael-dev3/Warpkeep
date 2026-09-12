@@ -1,78 +1,125 @@
 # Warpkeep documentation
 
-Start with the [project README](../README.md) for the player experience and the
-[ecosystem map](engineering/ecosystem-map.md) for branches, implementation owners
-and delivery boundaries. This index routes deeper work without duplicating it.
+The root [README](../README.md) is the best starting point for players and new
+contributors. This page routes deeper work without duplicating it.
 
-## Current 0.4 development
+## Current 0.4 — start here
 
-The links in this section deliberately open `codex/prepared-keep-bindings-fix`.
-The default branch contains the G001 baseline and release preparation; it does
-not yet contain the new gameplay core, owner PTR or `keep04` presentation.
-Check the branch and current source before following a development guide.
+These local links describe the active `codex/prepared-keep-bindings-fix`
+checkout. Check the branch and dated evidence before following a development
+guide; `main` and the running game can represent different release stages.
 
-| Question | Development document |
-| --- | --- |
-| What is implemented and what remains? | [0.4 handoff](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/README.md) |
-| Where should I look in source? | [Repository map](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/repo-map.md) and [architecture](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/technical-architecture.md) |
-| How do I work and verify? | [Development workflow](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/engineering/development-workflow.md) and [agent guidance](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/AGENTS.md) |
-| How should the game behave? | [Gameplay specification](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/superpowers/specs/2026-09-05-warpkeep-0.4-gameplay-design.md) and [gameplay/visual review](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/gameplay-and-visuals.md) |
-| What defines the new keep? | [Verdant Citadel specification](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/superpowers/specs/2026-09-06-warpkeep-astra-keep-design.md) |
-| How does the release reach players? | [Release and infrastructure notes](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/agent-notes/0.4.0/release-and-infrastructure.md), [release checklist](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/operations/0.4.0-release-checklist.md) and [source synchronization](https://github.com/ael-dev3/Warpkeep/blob/codex/prepared-keep-bindings-fix/docs/operations/0.4.0-development-sync.md) |
+- [Agent guide](../AGENTS.md) — durable repository rules, authority boundaries,
+  verification and handoff expectations
+- [0.4 agent handoff and quality audit](agent-notes/0.4.0/README.md) — current
+  implementation map, working and unverified behavior, release gaps, and next checks
+- [0.4 release checklist](operations/0.4.0-release-checklist.md) — required
+  release evidence; planned evidence destinations are not passes
+- [Development workflow](engineering/development-workflow.md) — document ownership,
+  bounded changes, review, evidence and source publication
+- [Output locations and retention](engineering/development-workflow.md#output-locations-and-retention)
+  — no new Desktop files, reusable workspace output and selective cleanup
+- [Technical architecture](technical-architecture.md) — current subsystem ownership,
+  preserved G001 versus separate 0.4, rendering and delivery boundaries
+- [Repository map](agent-notes/0.4.0/repo-map.md) — source entry points, generated
+  boundaries and verification owners
+- [Source synchronization](operations/0.4.0-development-sync.md) — checked-out,
+  reviewed and published source boundaries
+- [Local source preparation](operations/0.4.0-local-release-preparation.md) — fixed
+  native compilation, independent candidate checks and recoverable installation
+- [Linux production runner](operations/0.4.0-linux-runner.md) — verified installation,
+  maintenance and the remaining operating prerequisites
+- [Repository ecosystem](engineering/repository-ecosystem.md) — game and services,
+  asset archive, planned tooling, and public presentation
 
 ## Product and contribution
 
-- [Product direction](design/warpkeep-direction.md) — the game's premise,
-  current target and design principles
-- [Roadmap](design/roadmap.md) — recorded baseline, current work and future possibilities
-- [Agent guide](../AGENTS.md) — durable branch-aware working guidance
-- [Contributing](../CONTRIBUTING.md) — setup, verification, review and provenance
+- [Product direction](design/warpkeep-direction.md) — the game's premise and
+  design principles
+- [Roadmap](design/roadmap.md) — what is live, under development, and later
+- [Contributing](../CONTRIBUTING.md) — local setup, checks, privacy, and
+  provenance expectations
 - [Code of Conduct](../CODE_OF_CONDUCT.md) — expectations for project spaces
 
-## Default-branch system references
+## Preserved G001 and dormant V1 references
 
-These documents describe the G001 baseline, prepared components or their named
-historical generation. They are useful references, but do not define the new 0.4
-gameplay policy or prove a feature is deployed. In particular, legacy Inner Keep
-construction discounts differ from 0.4 building benefits and return-time credit.
+These guides describe their named generation, not new 0.4 gameplay authority or
+an instruction to activate unrelated features. Use the settled 0.4 specs below
+for the current release; retain historical contracts and provenance intact.
 
-- [Baseline architecture](technical-architecture.md)
+- [Legacy Inner Keep construction V1](design/inner-keep-construction.md) —
+  dormant G001 construction discounts, distinct from current 0.4 building benefits
+- [Realm Chat V1 implementation](design/realm-chat-v1-implementation.md) —
+  review-only research, SpacetimeDB authority, abuse controls, and rollout gates
+- [Lowlands renderer](design/hegemony-lowlands-terrain.md) — terrain,
+  presentation, and performance principles
+- [Living Realm V1](design/living-realm-v1.md) — coherent environmental motion,
+  bounded surface response, ecology budgets, and fail-closed design
+- [Realm Chat V1 contract](design/realm-chat-v1-contract.md) — dormant authority,
+  legal-review, privacy, moderation, and activation boundaries
+- [Genesis water](design/genesis-water.md) — canonical coast, river, and fog
+  layout
+- [Realm surface relief and analytic waves](design/realm-surface-relief-and-analytic-waves.md)
+  — quality-tiered topographic relief, coherent water derivatives, and clean-room provenance
+- [Lowlands audio](design/lowlands-audio.md) — scene transitions and runtime
+  sound boundaries
+- [Northern Reach reference boundary](design/northern-reach-reference-boundary.md)
+  — the snow-system clean-room and license record
+- [Sunscoured South reference boundary](design/sunscoured-south-reference-boundary.md)
+  — the desert presentation's clean-room boundary
+
+## Current 0.4 specifications and acceptance
+
+- [0.4 gameplay specification](superpowers/specs/2026-09-05-warpkeep-0.4-gameplay-design.md)
+  — settled isolated gameplay; not the older dormant G001 construction-discount policy
+- [Verdant Citadel specification](superpowers/specs/2026-09-06-warpkeep-astra-keep-design.md)
+  — separate 0.4 presentation, mobile usability and accurate asset authorship
+- [Local complete release assembler](superpowers/specs/2026-09-06-warpkeep-local-release-assembler-design.md)
+  — required family derivation, installation/recovery and final-freeze ordering
+- [0.4 performance contract](evidence/0.4.0/performance.md) — fixed profiles,
+  workload and numeric gates; final measurements remain separately required
+
+## Services and operations
+
+Inspect the named runbook's generation, actual script and current authority before
+running an operation. Historical procedures do not replace the 0.4 release path.
+
 - [Farcaster integration](farcaster-integration.md)
 - [Auth bridge](../services/auth-bridge/README.md)
+- [Recovery authorization service](../services/release-recovery/README.md)
+  — gateway, private signer, evidence, local checks and operating integration gaps
 - [SpacetimeDB module](../spacetimedb/README.md)
-- [Legacy Inner Keep construction V1](design/inner-keep-construction.md)
-- [Community Marks policy](gameplay/marks-policy-v1.md)
-- [Realm Chat V1 contract](design/realm-chat-v1-contract.md) and
-  [implementation](design/realm-chat-v1-implementation.md) — dormant feature references
-
-## World presentation and art
-
-- [Lowlands renderer](design/hegemony-lowlands-terrain.md)
-- [Living Realm V1](design/living-realm-v1.md)
-- [Genesis water](design/genesis-water.md) and
-  [surface relief and analytic waves](design/realm-surface-relief-and-analytic-waves.md)
-- [Lowlands audio](design/lowlands-audio.md)
-- [Northern Reach reference boundary](design/northern-reach-reference-boundary.md)
-- [Sunscoured South reference boundary](design/sunscoured-south-reference-boundary.md)
-- [Licensing overview](../LICENSING.md) and [asset provenance](../ASSETS-LICENSE.md)
-
-`docs/reference/` holds dated source, authorization and review records for specific
-assets. It is evidence of their terms and origins, not a general asset library.
-
-## Operations, security and history
-
-Inspect a runbook's generation, actual script and current target before operating
-a service. Historical procedures do not replace the development branch's release
-path. Source flags, local checks and production evidence have different meanings.
-
 - [Greater Realm production cutover](operations/greater-realm-production-cutover.md)
-- [Reviewed launch envelope](operations/greater-realm-production-launch-envelope.sh.txt)
-- [Private atlas generation boundary](security/greater-realm-private-generation.md)
+  — guarded commit-bound tooling and closed release-gate sequence
+- [Reviewed Greater Realm launch envelope](operations/greater-realm-production-launch-envelope.sh.txt)
+  — exact non-executable command-boundary review copy
+- [Greater Realm private-generation boundary](security/greater-realm-private-generation.md)
+  — private atlas generation, public declassification, and threat boundaries
+- [Community Marks policy](gameplay/marks-policy-v1.md)
 - [Daily Marks operations](operations/daily-marks.md)
 - [Local visual QA](operations/qa-observatory.md)
-- [Threat model](security/threat-model.md) and [private security reporting](../SECURITY.md)
+- [Threat model](security/threat-model.md)
+- [Private security reporting](../SECURITY.md)
 - [Operations and recovery](operations/reconstruction/README.md)
-- [Changelog](../CHANGELOG.md) and [versioning](releases/versioning.md)
 
-Git tags, releases, merged pull requests and commit history preserve the detailed
-record. Keep source and evidence labels attached when using an older document.
+## Art and licensing
+
+- [Licensing overview](../LICENSING.md)
+- [Asset provenance](../ASSETS-LICENSE.md)
+- `docs/reference/` contains dated source, authorization, and review records.
+  It is evidence for specific assets, not a general asset library.
+
+## Project history
+
+Current 0.4 intent starts with the product direction and the owner's current goal;
+specifications describe behavior and the release checklist records required proof.
+Current implementation must be checked against source and dated evidence.
+Older design, operations and `superpowers` plans preserve their own generation and
+date. They do not silently reopen scope, prove deployment or override the new
+gameplay policy. The [documentation ownership guide](engineering/development-workflow.md)
+explains where to update each kind of information.
+
+The [changelog](../CHANGELOG.md) summarizes public versions, and the
+[versioning guide](releases/versioning.md) explains tags and builds. Git tags,
+GitHub Releases, merged pull requests, and commit history preserve the detailed
+implementation record.

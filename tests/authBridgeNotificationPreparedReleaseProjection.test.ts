@@ -60,6 +60,15 @@ const BOOTSTRAP_BINDINGS = Object.freeze([
       'scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json',
   }),
   Object.freeze({
+    name: 'WARPKEEP_PREPARED_PNPM_AUTHORITY_MANIFEST_SHA256',
+    path: 'scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json',
+  }),
+  Object.freeze({
+    name: 'WARPKEEP_PREPARED_LINUX_INSTALLED_TOOLCHAIN_MANIFEST_SHA256',
+    path:
+      'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json',
+  }),
+  Object.freeze({
     name: 'WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256',
     path: 'scripts/notification-pages-private-deploy-launcher.mjs',
   }),
@@ -67,7 +76,11 @@ const BOOTSTRAP_BINDINGS = Object.freeze([
 const BOOTSTRAP_WORKFLOWS = Object.freeze({
   '.github/workflows/deploy-pages.yml': Object.freeze({
     indentation: '  ',
-    names: BOOTSTRAP_BINDINGS.map(binding => binding.name),
+    names: [
+      ...BOOTSTRAP_BINDINGS.slice(0, 3).map(binding => binding.name),
+      'WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256',
+      BOOTSTRAP_BINDINGS[6].name,
+    ],
   }),
   '.github/workflows/notification-bridge-b0.yml': Object.freeze({
     indentation: '      ',
@@ -77,7 +90,17 @@ const BOOTSTRAP_WORKFLOWS = Object.freeze({
     indentation: '      ',
     names: BOOTSTRAP_BINDINGS.slice(0, 4).map(binding => binding.name),
   }),
+  '.github/workflows/notification-bridge-prepared-linux.yml': Object.freeze({
+    indentation: '      ',
+    names: [
+      ...BOOTSTRAP_BINDINGS.slice(0, 3).map(binding => binding.name),
+      BOOTSTRAP_BINDINGS[5].name,
+      BOOTSTRAP_BINDINGS[4].name,
+    ],
+  }),
 });
+const PAGES_LINUX_TOOLCHAIN_MANIFEST =
+  'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json';
 const REVIEWED_RELEASE_TRANSITION_PATHS =
   AUTH_BRIDGE_RELEASE_TRANSITION_FIXTURE_PATHS;
 const RETAINED_TYPE_ONLY_DECLARATION_PATHS = Object.freeze([
@@ -202,12 +225,15 @@ function createTransitionFixture(sourcePhase = 0): string {
   );
   mkdirSync(dirname(manifestPath), { recursive: true });
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  const pinValues = new Map(BOOTSTRAP_BINDINGS.map(binding => [
+  const pinValues = new Map<string, string>(BOOTSTRAP_BINDINGS.map(binding => [
     binding.name,
     binding.path === AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH
       ? sha256(readFileSync(manifestPath))
       : sha256(readFileSync(resolve(root, binding.path))),
-  ]));
+  ] as [string, string]));
+  const pagesLinuxToolchainBody = readFileSync(
+    resolve(root, PAGES_LINUX_TOOLCHAIN_MANIFEST),
+  );
   for (const [relativePath, workflow] of Object.entries(BOOTSTRAP_WORKFLOWS)) {
     const path = resolve(root, relativePath);
     let source = readFileSync(path, 'utf8');
@@ -216,7 +242,10 @@ function createTransitionFixture(sourcePhase = 0): string {
         `^${workflow.indentation}${name}: '([a-f0-9]{64})'$`,
         'mu',
       ))?.[1];
-      const expected = pinValues.get(name);
+      const expected = relativePath === '.github/workflows/deploy-pages.yml'
+        && name === 'WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256'
+        ? sha256(pagesLinuxToolchainBody)
+        : pinValues.get(name);
       if (current === undefined || expected === undefined) {
         throw new Error(`fixture bootstrap pin ${name} was unavailable`);
       }
@@ -311,7 +340,7 @@ function setSealedLaunchBinding(root: string, active: boolean): void {
   const value = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
   const keys = Object.keys(value);
   const firstOperational = keys.indexOf('preparationSourceCommit');
-  const lastOperational = keys.indexOf('g002AdmissionMutationsEnabled');
+  const lastOperational = keys.indexOf('ptrAccessRequestSurfacePresent');
   if (firstOperational !== 3 || lastOperational <= firstOperational) {
     throw new Error('fixture sealed launch binding was invalid');
   }
@@ -319,6 +348,7 @@ function setSealedLaunchBinding(root: string, active: boolean): void {
   for (const key of keys.slice(firstOperational, lastOperational + 1)) {
     value[key] = active ? 'reviewed-fixture-value' : null;
   }
+  value.ptrPresentationEnabled = active;
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
@@ -451,7 +481,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
     for (let phase = 0; phase <= 7; phase += 1) {
       const root = createTransitionFixture(phase);
       const authority = verify(root);
-      expect(authority.memberCount).toBe(956);
+      expect(authority.memberCount).toBe(1202);
       manifestDigests.add(authority.manifestSha256);
       for (const relativePath of REVIEWED_RELEASE_TRANSITION_PATHS) {
         const source = readFileSync(resolve(root, relativePath), 'utf8');
@@ -467,7 +497,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
   it('retains one closure authority through every exact reviewed phase', () => {
     const root = createTransitionFixture();
     const baseline = verify(root);
-    expect(baseline.memberCount).toBe(956);
+    expect(baseline.memberCount).toBe(1202);
     const expectActiveIdentityRejectedBeforeActivation = (): void => {
       setLauncherReleaseIdentity(root, true);
       expect(() => verify(root)).toThrow(
@@ -740,7 +770,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
       replaceFile(root, relativePath, after, before);
     };
 
-    expect(verify(root).memberCount).toBe(956);
+    expect(verify(root).memberCount).toBe(1202);
     expectIdentityMutationRejected(
       'package.json',
       '  "version": "0.4.0",',
@@ -768,6 +798,12 @@ describe('auth-bridge reviewed release-transition source projection', () => {
       'public/.well-known/farcaster.json',
       `    "description": "${INERT_FARCASTER_DESCRIPTION}",`,
       `    "description": "${ACTIVE_FARCASTER_DESCRIPTION}",`,
+      'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID',
+    );
+    expectIdentityMutationRejected(
+      'config/releases/0.4.0-sealed-launch.json',
+      '  "ptrPresentationEnabled": true,',
+      '  "ptrPresentationEnabled": false,',
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID',
     );
 
@@ -853,7 +889,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
 
   it('keeps Pages bootstrap pins exact after activation-client projection', () => {
     const root = createTransitionFixture(7);
-    expect(verify(root).memberCount).toBe(956);
+    expect(verify(root).memberCount).toBe(1202);
     const path = resolve(root, '.github/workflows/deploy-pages.yml');
     const source = readFileSync(path, 'utf8');
     const name = 'WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256';

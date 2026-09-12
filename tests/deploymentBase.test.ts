@@ -33,7 +33,7 @@ describe('Warpkeep deployment base and canonical metadata', () => {
     expect(html).toContain('<link rel="canonical" href="https://warpkeep.com/" />');
     expect(html).toContain('<meta property="og:url" content="https://warpkeep.com/" />');
     expect(html).toContain(
-      'content="Warpkeep is a persistent Farcaster strategy world where every admitted founder has a castle in Genesis 001."',
+      'content="Warpkeep is a Farcaster-connected persistent strategy world where Workers gather resources, a permanent keep grows through meaningful choices, and every return moves the Verdant Citadel forward."',
     );
   });
 

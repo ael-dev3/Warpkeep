@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "profile": "warpkeep-recovery-bundle-preparation-linux-x64-v1",
+  "sourceCommit": "8033e01cc911f510fafb1770fdb0c0f0f3d2b3ac",
+  "sourceTree": "0b312c22c550a7f32e8096c4de1174e89b1729f5",
+  "bundle": {
+    "path": "services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs",
+    "byteLength": 50062,
+    "sha256": "155f997ce8f7fe40580df0c12dd9c6519820ea2c9d17544441070189f1f71849"
+  },
+  "compilerInputs": [
+    {
+      "path": "node_modules/fflate/esm/index.mjs",
+      "byteLength": 91765,
+      "sha256": "8d75534a30a0580608e1271c13d70943ed4cd3589fddff7b1197748036a5116e"
+    },
+    {
+      "path": "services/release-recovery/scripts/prepare-recovery-workflow-claim.ts",
+      "byteLength": 1662,
+      "sha256": "7ba22a5f3dc153de13dc11244861a7716531de31b81e6959a54d7fdfa2fed086"
+    },
+    {
+      "path": "services/release-recovery/scripts/read-recovery-workflow-artifact.ts",
+      "byteLength": 3781,
+      "sha256": "215f406c89687a41aeed0611862a00f4daea9fffa94beefb2e96183e37553c6b"
+    },
+    {
+      "path": "services/release-recovery/src/archive.ts",
+      "byteLength": 45196,
+      "sha256": "7cd0584a2fb6d28b5b8904b66f2b6d72d43de6db6f798b3d1ae130d196f447e4"
+    },
+    {
+      "path": "services/release-recovery/src/config.ts",
+      "byteLength": 10995,
+      "sha256": "dc46cbb8ac3178c55e1ef43c7349dcda0c262f7b3f1d207240ac71fae830a932"
+    },
+    {
+      "path": "services/release-recovery/src/http.ts",
+      "byteLength": 17383,
+      "sha256": "e904eb0d9f8dbefa0856ec823b2d66bf333c64495a519b58ac57fa78d04acbe6"
+    },
+    {
+      "path": "services/release-recovery/src/recoveryPublicKey.ts",
+      "byteLength": 383,
+      "sha256": "b599017f42331824c26715e2a8c409228e34c675e9309dbcf6cabf1f46e34e3d"
+    }
+  ]
+}

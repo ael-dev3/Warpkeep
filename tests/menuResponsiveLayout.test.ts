@@ -52,7 +52,7 @@ describe('Warpkeep main-menu responsive layout', () => {
     expect(identity).toContain('position: static;');
     expect(identity).toContain('width: 100%;');
 
-    const headingStart = component.indexOf('<header aria-hidden={authPanelOpen}');
+    const headingStart = component.indexOf('<header aria-hidden={!commandSurfaceVisible}');
     const identityStart = component.indexOf('<div className="warpkeep-menu-identity">');
     const headingEnd = component.indexOf('</header>', headingStart);
     expect(headingStart).toBeGreaterThanOrEqual(0);
@@ -103,9 +103,8 @@ describe('Warpkeep main-menu responsive layout', () => {
     expect(portrait).not.toMatch(
       /\.warpkeep-menu-auth-rail\s*\{[^}]*overflow:\s*hidden;/s
     );
-    expect(css).toMatch(
-      /\[data-menu-surface="farcaster-auth"\] \.warpkeep-menu-heading\s*\{[^}]*visibility:\s*hidden;[^}]*opacity:\s*0;/s
-    );
+    expect(css).toContain('.warpkeep-menu[data-menu-surface="farcaster-auth"] .warpkeep-menu-heading,');
+    expect(css).toContain('.warpkeep-menu[data-menu-surface="realm-choice"] .warpkeep-menu-heading {');
   });
 
   it('keeps a tall direct-entry panel reachable in 667x375 landscape', () => {
@@ -208,33 +207,27 @@ describe('Warpkeep main-menu responsive layout', () => {
     );
   });
 
-  it('keeps both realm names and admission states legible on narrow phones', () => {
+  it('stacks all realm choices and keeps tooltips bounded on narrow phones', () => {
     const css = readFileSync(
       resolve(process.cwd(), 'src/components/menu/RealmChoiceSelector.css'),
       'utf8'
     );
-    const narrowPhone = readCssBlock(css, '@media (max-width: 520px)');
+    const narrowPhone = readCssBlock(css, '@media (max-width: 720px)');
     const tooltip = readCssBlock(css, '.realm-choice-selector__tooltip {');
 
     expect(narrowPhone).toMatch(
-      /\.realm-choice-selector__button\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\);/s
+      /\.realm-choice-selector__choices\s*\{[^}]*grid-template-columns:\s*1fr;/s
     );
     expect(narrowPhone).toMatch(
-      /\.realm-choice-selector__name\s*\{[^}]*overflow:\s*visible;[^}]*text-overflow:\s*clip;/s
+      /\.realm-choice-selector__button\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;/s
     );
     expect(narrowPhone).toMatch(
-      /\.realm-choice-selector__admission\s*\{[^}]*display:\s*flex;[^}]*white-space:\s*nowrap;/s
+      /\.realm-choice-selector__tooltip\s*\{[^}]*max-width:\s*calc\(100vw - 3rem\);/s
     );
-    expect(narrowPhone).toMatch(
-      /\.realm-choice-selector__choice:first-child \.realm-choice-selector__tooltip\s*\{[^}]*right:\s*auto;[^}]*left:\s*0;[^}]*margin-inline:\s*0;/s
-    );
-    expect(narrowPhone).toMatch(
-      /\.realm-choice-selector__choice:last-child \.realm-choice-selector__tooltip\s*\{[^}]*right:\s*0;[^}]*left:\s*auto;[^}]*margin-inline:\s*0;/s
-    );
-    expect(tooltip).toContain('max-width: min(19rem, calc(100vw - 2rem));');
+    expect(tooltip).toContain('max-width: min(20rem, calc(100vw - 2rem));');
   });
 
-  it('keeps complete realm names visible in the desktop menu rail', () => {
+  it('presents all three realms as equal desktop cards', () => {
     const css = readFileSync(
       resolve(process.cwd(), 'src/components/menu/RealmChoiceSelector.css'),
       'utf8'
@@ -243,14 +236,13 @@ describe('Warpkeep main-menu responsive layout', () => {
       css,
       '.warpkeep-menu .realm-choice-selector__button {'
     );
-    const name = readCssBlock(css, '.realm-choice-selector__name {');
     const admission = readCssBlock(css, '.realm-choice-selector__admission {');
+    const choices = readCssBlock(css, '.realm-choice-selector__choices {');
 
-    expect(button).toContain('grid-template-columns: minmax(0, 1fr);');
-    expect(name).toContain('overflow: visible;');
-    expect(name).toContain('text-overflow: clip;');
+    expect(choices).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));');
+    expect(button).toContain('min-height: 9.25rem;');
     expect(admission).toContain('display: flex;');
-    expect(admission).toContain('white-space: nowrap;');
+    expect(admission).toContain('align-items: center;');
   });
 
   it('frees vertical space at 568x320 without hiding the project link', () => {

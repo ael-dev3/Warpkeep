@@ -32,6 +32,7 @@ export function computeGreaterRealmPackageTree(
 }>;
 
 export const greaterRealmToolchainBootstrapTestSeams: Readonly<{
+  assertCommand(command: string): void;
   assertInvocation(
     arguments_: readonly string[],
     environment: Readonly<Record<string, string | undefined>>,

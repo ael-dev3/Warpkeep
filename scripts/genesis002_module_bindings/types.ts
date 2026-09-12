@@ -57,11 +57,311 @@ export const Castle = __t.object("Castle", {
 });
 export type Castle = __Infer<typeof Castle>;
 
-export const Genesis002AccessRequestStatusV1 = __t.object("Genesis002AccessRequestStatusV1", {
-  status: __t.string(),
-  requestedAtMicros: __t.option(__t.u64()),
+export const Gameplay04AssignmentStateV1 = __t.object("Gameplay04AssignmentStateV1", {
+  locationId: __t.string(),
+  destinationCellKey: __t.string(),
+  resource: __t.string(),
+  get route() {
+    return __t.array(Gameplay04RoutePointProjectionV1);
+  },
+  dispatchedAt: __t.i64(),
+  routeEdges: __t.u32(),
+  travelPerEdgeMicros: __t.i64(),
+  gatheringDurationMicros: __t.i64(),
+  yieldPerQuantum: __t.u64(),
+  recalledAt: __t.option(__t.i64()),
+  phase: __t.string(),
+  arrivesAt: __t.i64(),
+  gatheringStopsAt: __t.i64(),
+  returnsAt: __t.i64(),
+  earned: __t.u64(),
 });
-export type Genesis002AccessRequestStatusV1 = __Infer<typeof Genesis002AccessRequestStatusV1>;
+export type Gameplay04AssignmentStateV1 = __Infer<typeof Gameplay04AssignmentStateV1>;
+
+export const Gameplay04AssignmentV1 = __t.object("Gameplay04AssignmentV1", {
+  nodeId: __t.string(),
+  locationId: __t.string(),
+  destinationCellKey: __t.string(),
+  get route() {
+    return __t.array(Gameplay04RoutePointV1);
+  },
+  get journey() {
+    return Gameplay04JourneyV1;
+  },
+});
+export type Gameplay04AssignmentV1 = __Infer<typeof Gameplay04AssignmentV1>;
+
+export const Gameplay04BuildingStateV1 = __t.object("Gameplay04BuildingStateV1", {
+  kind: __t.string(),
+  x: __t.i64(),
+  z: __t.i64(),
+  rotation: __t.u32(),
+  completedLevel: __t.u32(),
+  revision: __t.u64(),
+});
+export type Gameplay04BuildingStateV1 = __Infer<typeof Gameplay04BuildingStateV1>;
+
+export const Gameplay04BuildingV1 = __t.object("Gameplay04BuildingV1", {
+  buildingId: __t.string(),
+  keepId: __t.string(),
+  kind: __t.string(),
+  x: __t.i64(),
+  z: __t.i64(),
+  rotation: __t.u32(),
+  completedLevel: __t.u32(),
+  revision: __t.u64(),
+});
+export type Gameplay04BuildingV1 = __Infer<typeof Gameplay04BuildingV1>;
+
+export const Gameplay04CompletedEffectsV1 = __t.object("Gameplay04CompletedEffectsV1", {
+  foodYieldPerQuantum: __t.u64(),
+  woodYieldPerQuantum: __t.u64(),
+  stoneYieldPerQuantum: __t.u64(),
+  goldYieldPerQuantum: __t.u64(),
+  travelPerEdgeMicros: __t.i64(),
+  levelOneBuildDurationMicros: __t.i64(),
+});
+export type Gameplay04CompletedEffectsV1 = __Infer<typeof Gameplay04CompletedEffectsV1>;
+
+export const Gameplay04CompletedLevelsV1 = __t.object("Gameplay04CompletedLevelsV1", {
+  mill: __t.u32(),
+  lumberCamp: __t.u32(),
+  stoneworks: __t.u32(),
+  goldworks: __t.u32(),
+  barracks: __t.u32(),
+  cathedral: __t.u32(),
+});
+export type Gameplay04CompletedLevelsV1 = __Infer<typeof Gameplay04CompletedLevelsV1>;
+
+export const Gameplay04ConstructionCommandResultV1 = __t.object("Gameplay04ConstructionCommandResultV1", {
+  sequence: __t.u64(),
+  revision: __t.u64(),
+});
+export type Gameplay04ConstructionCommandResultV1 = __Infer<typeof Gameplay04ConstructionCommandResultV1>;
+
+export const Gameplay04ConstructionCostInputV1 = __t.object("Gameplay04ConstructionCostInputV1", {
+  food: __t.u64(),
+  wood: __t.u64(),
+  stone: __t.u64(),
+  gold: __t.u64(),
+});
+export type Gameplay04ConstructionCostInputV1 = __Infer<typeof Gameplay04ConstructionCostInputV1>;
+
+export const Gameplay04CostStateV1 = __t.object("Gameplay04CostStateV1", {
+  food: __t.u64(),
+  wood: __t.u64(),
+  stone: __t.u64(),
+  gold: __t.u64(),
+});
+export type Gameplay04CostStateV1 = __Infer<typeof Gameplay04CostStateV1>;
+
+export const Gameplay04CostV1 = __t.object("Gameplay04CostV1", {
+  food: __t.u64(),
+  wood: __t.u64(),
+  stone: __t.u64(),
+  gold: __t.u64(),
+});
+export type Gameplay04CostV1 = __Infer<typeof Gameplay04CostV1>;
+
+export const Gameplay04InitializeResultV1 = __t.object("Gameplay04InitializeResultV1", {
+  sequence: __t.u64(),
+  revision: __t.u64(),
+});
+export type Gameplay04InitializeResultV1 = __Infer<typeof Gameplay04InitializeResultV1>;
+
+export const Gameplay04JourneyV1 = __t.object("Gameplay04JourneyV1", {
+  resource: __t.string(),
+  dispatchedAt: __t.i64(),
+  routeEdges: __t.u32(),
+  travelPerEdgeMicros: __t.i64(),
+  gatheringDurationMicros: __t.i64(),
+  yieldPerQuantum: __t.u64(),
+  recalledAt: __t.option(__t.i64()),
+});
+export type Gameplay04JourneyV1 = __Infer<typeof Gameplay04JourneyV1>;
+
+export const Gameplay04KeepStateV1 = __t.object("Gameplay04KeepStateV1", {
+  policyVersion: __t.string(),
+  layoutVersion: __t.string(),
+  layoutDigest: __t.string(),
+  revision: __t.u64(),
+  lastAcceptedSequence: __t.u64(),
+  food: __t.u64(),
+  wood: __t.u64(),
+  stone: __t.u64(),
+  gold: __t.u64(),
+  get workers() {
+    return __t.array(Gameplay04WorkerStateV1);
+  },
+  get buildings() {
+    return __t.array(Gameplay04BuildingStateV1);
+  },
+  get project() {
+    return __t.option(Gameplay04ProjectStateV1);
+  },
+  get completedLevels() {
+    return Gameplay04CompletedLevelsV1;
+  },
+  get completedEffects() {
+    return Gameplay04CompletedEffectsV1;
+  },
+});
+export type Gameplay04KeepStateV1 = __Infer<typeof Gameplay04KeepStateV1>;
+
+export const Gameplay04KeepV1 = __t.object("Gameplay04KeepV1", {
+  keepId: __t.string(),
+  databaseIdentity: __t.string(),
+  ownerFid: __t.u64(),
+  atlasId: __t.string(),
+  atlasRevision: __t.u64(),
+  anchorCellKey: __t.string(),
+  policyVersion: __t.string(),
+  revision: __t.u64(),
+  lastAcceptedSequence: __t.u64(),
+  food: __t.u64(),
+  wood: __t.u64(),
+  stone: __t.u64(),
+  gold: __t.u64(),
+  createdAtMicros: __t.i64(),
+});
+export type Gameplay04KeepV1 = __Infer<typeof Gameplay04KeepV1>;
+
+export const Gameplay04ProjectStateV1 = __t.object("Gameplay04ProjectStateV1", {
+  kind: __t.string(),
+  projectRevision: __t.u64(),
+  targetLevel: __t.u32(),
+  startedAtMicros: __t.i64(),
+  completesAtMicros: __t.i64(),
+  get cost() {
+    return Gameplay04CostStateV1;
+  },
+  durationMicros: __t.i64(),
+});
+export type Gameplay04ProjectStateV1 = __Infer<typeof Gameplay04ProjectStateV1>;
+
+export const Gameplay04ProjectV1 = __t.object("Gameplay04ProjectV1", {
+  keepId: __t.string(),
+  projectRevision: __t.u64(),
+  buildingId: __t.string(),
+  targetLevel: __t.u32(),
+  startedAtMicros: __t.i64(),
+  completesAtMicros: __t.i64(),
+  get cost() {
+    return Gameplay04CostV1;
+  },
+  durationMicros: __t.i64(),
+  policyVersion: __t.string(),
+  layoutDigest: __t.string(),
+});
+export type Gameplay04ProjectV1 = __Infer<typeof Gameplay04ProjectV1>;
+
+export const Gameplay04ProjectWakeupV1 = __t.object("Gameplay04ProjectWakeupV1", {
+  buildingId: __t.string(),
+  projectRevision: __t.u64(),
+});
+export type Gameplay04ProjectWakeupV1 = __Infer<typeof Gameplay04ProjectWakeupV1>;
+
+export const Gameplay04ReceiptV1 = __t.object("Gameplay04ReceiptV1", {
+  receiptId: __t.string(),
+  keepId: __t.string(),
+  sequence: __t.u64(),
+  requestKey: __t.string(),
+  fingerprint: __t.string(),
+  resultRevision: __t.u64(),
+});
+export type Gameplay04ReceiptV1 = __Infer<typeof Gameplay04ReceiptV1>;
+
+export const Gameplay04ReservationV1 = __t.object("Gameplay04ReservationV1", {
+  nodeId: __t.string(),
+  keepId: __t.string(),
+  workerId: __t.string(),
+  assignmentRevision: __t.u64(),
+});
+export type Gameplay04ReservationV1 = __Infer<typeof Gameplay04ReservationV1>;
+
+export const Gameplay04ReturnOutcomeProjectionV1 = __t.object("Gameplay04ReturnOutcomeProjectionV1", {
+  assignmentRevision: __t.u64(),
+  resource: __t.string(),
+  returnedAtMicros: __t.i64(),
+  earned: __t.u64(),
+  credited: __t.u64(),
+  overflow: __t.u64(),
+});
+export type Gameplay04ReturnOutcomeProjectionV1 = __Infer<typeof Gameplay04ReturnOutcomeProjectionV1>;
+
+export const Gameplay04ReturnOutcomeV1 = __t.object("Gameplay04ReturnOutcomeV1", {
+  assignmentRevision: __t.u64(),
+  resource: __t.string(),
+  returnedAtMicros: __t.i64(),
+  earned: __t.u64(),
+  credited: __t.u64(),
+  overflow: __t.u64(),
+});
+export type Gameplay04ReturnOutcomeV1 = __Infer<typeof Gameplay04ReturnOutcomeV1>;
+
+export const Gameplay04RoutePointProjectionV1 = __t.object("Gameplay04RoutePointProjectionV1", {
+  q: __t.i32(),
+  r: __t.i32(),
+});
+export type Gameplay04RoutePointProjectionV1 = __Infer<typeof Gameplay04RoutePointProjectionV1>;
+
+export const Gameplay04RoutePointV1 = __t.object("Gameplay04RoutePointV1", {
+  q: __t.i32(),
+  r: __t.i32(),
+});
+export type Gameplay04RoutePointV1 = __Infer<typeof Gameplay04RoutePointV1>;
+
+export const Gameplay04ScheduleV1 = __t.object("Gameplay04ScheduleV1", {
+  scheduleId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+  keepId: __t.string(),
+  lane: __t.string(),
+  get worker() {
+    return __t.option(Gameplay04WorkerWakeupV1);
+  },
+  get project() {
+    return __t.option(Gameplay04ProjectWakeupV1);
+  },
+});
+export type Gameplay04ScheduleV1 = __Infer<typeof Gameplay04ScheduleV1>;
+
+export const Gameplay04WorkerCommandResultV1 = __t.object("Gameplay04WorkerCommandResultV1", {
+  sequence: __t.u64(),
+  revision: __t.u64(),
+});
+export type Gameplay04WorkerCommandResultV1 = __Infer<typeof Gameplay04WorkerCommandResultV1>;
+
+export const Gameplay04WorkerStateV1 = __t.object("Gameplay04WorkerStateV1", {
+  ordinal: __t.u32(),
+  assignmentRevision: __t.u64(),
+  get assignment() {
+    return __t.option(Gameplay04AssignmentStateV1);
+  },
+  get lastReturn() {
+    return __t.option(Gameplay04ReturnOutcomeProjectionV1);
+  },
+});
+export type Gameplay04WorkerStateV1 = __Infer<typeof Gameplay04WorkerStateV1>;
+
+export const Gameplay04WorkerV1 = __t.object("Gameplay04WorkerV1", {
+  workerId: __t.string(),
+  keepId: __t.string(),
+  ordinal: __t.u32(),
+  assignmentRevision: __t.u64(),
+  get assignment() {
+    return __t.option(Gameplay04AssignmentV1);
+  },
+  get lastReturn() {
+    return __t.option(Gameplay04ReturnOutcomeV1);
+  },
+});
+export type Gameplay04WorkerV1 = __Infer<typeof Gameplay04WorkerV1>;
+
+export const Gameplay04WorkerWakeupV1 = __t.object("Gameplay04WorkerWakeupV1", {
+  workerId: __t.string(),
+  assignmentRevision: __t.u64(),
+});
+export type Gameplay04WorkerWakeupV1 = __Infer<typeof Gameplay04WorkerWakeupV1>;
 
 export const Genesis002AdminGreaterRealmImportPlanV1 = __t.object("Genesis002AdminGreaterRealmImportPlanV1", {
   state: __t.string(),
@@ -80,6 +380,38 @@ export const Genesis002AdminGreaterRealmImportPlanV1 = __t.object("Genesis002Adm
 export type Genesis002AdminGreaterRealmImportPlanV1 = __Infer<typeof Genesis002AdminGreaterRealmImportPlanV1>;
 
 export const Genesis002AdminGreaterRealmStatusV1 = __t.object("Genesis002AdminGreaterRealmStatusV1", {
+  realmId: __t.string(),
+  databaseName: __t.string(),
+  moduleIdentity: __t.string(),
+  releaseVersion: __t.string(),
+  launchState: __t.string(),
+  admissionsOpen: __t.bool(),
+  accessRequestsOpen: __t.bool(),
+  admittedPlayers: __t.u64(),
+  founders: __t.u64(),
+  allowedFids: __t.u64(),
+  accessRequests: __t.u64(),
+  playersV1: __t.u64(),
+  playersV2: __t.u64(),
+  ownershipBindings: __t.u64(),
+  castles: __t.u64(),
+  realmProfiles: __t.u64(),
+  termsAcceptances: __t.u64(),
+  markAccounts: __t.u64(),
+  resourceAccounts: __t.u64(),
+  castleClaims: __t.u64(),
+  cellOccupancies: __t.u64(),
+  activationRows: __t.u64(),
+  workerSystemRows: __t.u64(),
+  atlasImportMutationsEnabled: __t.bool(),
+  atlasActivationMutationsEnabled: __t.bool(),
+  playerPresentationEnabled: __t.bool(),
+  atlasPresent: __t.bool(),
+  atlasState: __t.string(),
+  atlasReady: __t.bool(),
+  atlasCellRows: __t.u64(),
+  atlasSlotRows: __t.u64(),
+  atlasResourceRows: __t.u64(),
   present: __t.bool(),
   atlasId: __t.option(__t.string()),
   publicReleaseId: __t.option(__t.string()),
@@ -115,22 +447,14 @@ export const Genesis002AdminGreaterRealmStatusV1 = __t.object("Genesis002AdminGr
   resourceRows: __t.u64(),
   claimRows: __t.u64(),
   occupancyRows: __t.u64(),
-  activationRows: __t.u64(),
   publicAtlasRows: __t.u64(),
   publicRegionRows: __t.u64(),
-  workerSystemRows: __t.u64(),
   importsExact: __t.bool(),
   ready: __t.bool(),
   importMutationsCompiled: __t.bool(),
   activationMutationsCompiled: __t.bool(),
 });
 export type Genesis002AdminGreaterRealmStatusV1 = __Infer<typeof Genesis002AdminGreaterRealmStatusV1>;
-
-export const Genesis002AuthResolverFidAdmissionV2 = __t.object("Genesis002AuthResolverFidAdmissionV2", {
-  state: __t.string(),
-  authEpoch: __t.u32(),
-});
-export type Genesis002AuthResolverFidAdmissionV2 = __Infer<typeof Genesis002AuthResolverFidAdmissionV2>;
 
 export const Genesis002GreaterRealmComponentImportV1 = __t.object("Genesis002GreaterRealmComponentImportV1", {
   componentKey: __t.string(),
@@ -166,44 +490,6 @@ export const Genesis002GreaterRealmRegionImportV1 = __t.object("Genesis002Greate
   active: __t.bool(),
 });
 export type Genesis002GreaterRealmRegionImportV1 = __Infer<typeof Genesis002GreaterRealmRegionImportV1>;
-
-export const Genesis002RealmStatusV1 = __t.object("Genesis002RealmStatusV1", {
-  realmId: __t.string(),
-  databaseName: __t.string(),
-  moduleIdentity: __t.string(),
-  releaseVersion: __t.string(),
-  launchState: __t.string(),
-  admissionsOpen: __t.bool(),
-  accessRequestsOpen: __t.bool(),
-  admittedPlayers: __t.u64(),
-  founders: __t.u64(),
-  allowedFids: __t.u64(),
-  accessRequests: __t.u64(),
-  playersV1: __t.u64(),
-  playersV2: __t.u64(),
-  ownershipBindings: __t.u64(),
-  castles: __t.u64(),
-  realmProfiles: __t.u64(),
-  termsAcceptances: __t.u64(),
-  markAccounts: __t.u64(),
-  resourceAccounts: __t.u64(),
-  castleClaims: __t.u64(),
-  cellOccupancies: __t.u64(),
-  activationRows: __t.u64(),
-  workerSystemRows: __t.u64(),
-  atlasImportMutationsEnabled: __t.bool(),
-  atlasActivationMutationsEnabled: __t.bool(),
-  playerPresentationEnabled: __t.bool(),
-  atlasPresent: __t.bool(),
-  atlasId: __t.option(__t.string()),
-  publicReleaseId: __t.option(__t.string()),
-  atlasState: __t.string(),
-  atlasReady: __t.bool(),
-  atlasCellRows: __t.u64(),
-  atlasSlotRows: __t.u64(),
-  atlasResourceRows: __t.u64(),
-});
-export type Genesis002RealmStatusV1 = __Infer<typeof Genesis002RealmStatusV1>;
 
 export const GreaterRealmActivationV1 = __t.object("GreaterRealmActivationV1", {
   activationId: __t.string(),
@@ -589,3 +875,4 @@ export const ResourceAccountV1 = __t.object("ResourceAccountV1", {
   updatedAt: __t.timestamp(),
 });
 export type ResourceAccountV1 = __Infer<typeof ResourceAccountV1>;
+

@@ -9,21 +9,70 @@ is isolated from the static browser app:
 browser code never receives a signing key, admin secret, Optimism RPC URL,
 resolver JWT, private Hermes JWT, or Maincloud credential.
 
-The current Alpha uses authentication contract v2 and backend protocol 3. The
-checked-in configuration fails closed: `wrangler.toml` keeps
-`PUBLIC_AUTH_ENABLED = "false"` and `APPROVAL_NOTIFICATIONS_ENABLED = "false"`,
-while any production enablement is a separate,
-privately recorded operation. World generation and resource features do not
-change this bridge contract. The QA aggregate parser recognizes only supported
-world tuples and never infers economy readiness from partial counts.
+## Current scope and operating status
+
+This service serves several distinct principals. Authentication establishes an
+identity; the target SpacetimeDB module still decides admission, ownership and
+gameplay authority.
+
+| Surface | Implemented boundary |
+| --- | --- |
+| G001 browser and Mini App | SIWF/session and Quick Auth paths preserve the established player contract. New access-request submissions are suspended in current source; status inspection remains separate. |
+| Owner PTR | A separate Quick Auth exchange verifies the actual configured owner and resolves the live PTR owner epoch. PTR configuration, audience and database remain separate from G001. |
+| G002 and PTR administration | Separate server-only token routes mint narrowly scoped module credentials. Admin access is not a player session or permission to enter the sealed G002 realm. |
+| Release recovery | A private Worker RPC entrypoint supplies bounded realm observations to the recovery signer. This is separate from public authentication and from the HTTP gateway in the recovery package. |
+| Admission notifications and QA observer | Existing gated components retain their detailed contracts below; their presence does not activate them. |
+
+The G001 contract uses authentication v2 and backend protocol 3. PTR has its own
+claims and module contract; use [config](src/config.ts), [JWT claims](src/jwt.ts)
+and the target module rather than extrapolating a G001 world tuple. The QA
+aggregate parser accepts only supported tuples and never infers economy
+readiness from partial counts.
+
+Checked-in [Wrangler configuration](wrangler.toml) has `PUBLIC_AUTH_ENABLED`,
+`PTR_ENABLED` and `APPROVAL_NOTIFICATIONS_ENABLED` set to `"false"`.
+[app.ts](src/app.ts) also sets `ACCESS_REQUEST_SUBMISSIONS_SUSPENDED = true`.
+These are source defaults, not an attestation of deployed settings. The 0.4 goal
+preserves existing G001 access and progress while freezing new admissions;
+source preparation must not be mistaken for permission to pause existing players.
+
+Read the [system architecture](../../docs/technical-architecture.md),
+[0.4 handoff](../../docs/agent-notes/0.4.0/README.md) and
+[infrastructure audit](../../docs/agent-notes/0.4.0/release-and-infrastructure.md)
+for the current integration work and dated provider observations. The
+[infra access guide](../../docs/operations/0.4.0-infra-access.md) identifies the
+intended account and targets without publishing credentials.
 
 The bridge-only notification preparation receipt, verifier, protected manual
 workflow, and current fail-closed deployment dependency are documented in
 [`docs/operations/auth-bridge-notification-prepared.md`](../../docs/operations/auth-bridge-notification-prepared.md).
 
-`https://auth.warpkeep.com` is the canonical bridge coordinate, but its
-existence is not evidence that an arbitrary local v2 source is deployed. Every
-future rollout step requires exact-head verification and recorded authority.
+`https://auth.warpkeep.com` is the canonical bridge coordinate. Its existence
+does not prove that the current source, session behavior or PTR exchange is
+deployed; compare the intended release with actual provider and player evidence.
+
+## Source and verification entry points
+
+| Work | Start here |
+| --- | --- |
+| HTTP routing, admission suspension and PTR exchange | [app.ts](src/app.ts), [route tests](test/app.test.ts), [PTR owner exchange tests](test/ptrOwnerExchange.test.ts) |
+| Configuration and JWT principal separation | [config.ts](src/config.ts), [jwt.ts](src/jwt.ts) |
+| Browser binding and durable session continuity | [browserBinding.ts](src/browserBinding.ts), [sessionFamily.ts](src/sessionFamily.ts), [sessionCookie.ts](src/sessionCookie.ts), [session tests](test/sessionFamily.test.ts) |
+| Recovery observation service | [index.ts](src/index.ts), [releaseRecoveryObservation.ts](src/releaseRecoveryObservation.ts), [resolver](src/spacetimeReleaseRecoveryResolver.ts), [observation tests](test/releaseRecoveryObservation.test.ts) |
+| Real Worker runtime behavior | [workerd suite](test-workerd/authBridge.workerd.test.ts) and [package scripts](package.json) |
+
+From the repository root, in a fresh independent checkout:
+
+```sh
+pnpm --dir services/auth-bridge install --frozen-lockfile
+pnpm --dir services/auth-bridge run check
+```
+
+Use Node 22 and the package's pinned pnpm version. Inspect existing dependency
+links before installing into a worktree. `check` runs both type configurations,
+unit tests and workerd tests. Root browser/session integration tests are separate;
+follow the [repository map](../../docs/agent-notes/0.4.0/repo-map.md) for their
+actual callers. These checks do not establish deployed behavior.
 
 ## Endpoints
 
@@ -37,11 +86,17 @@ future rollout step requires exact-head verification and recorded authority.
 | `POST` | `/v2/farcaster/exchange` | Verifies SIWF and creates a rotating server-side session family. |
 | `POST` | `/v2/farcaster/quick-auth/exchange` | Verifies an exact-domain Mini App bearer and returns tokenless-pending or short-lived authorized access without a cookie. |
 | `POST` | `/v2/farcaster/player-canary/exchange` | Owner-only, forced-fresh Mini App exchange for the isolated production player canary; returns no identity or cookie. |
+| `POST` | `/v2/farcaster/ptr/exchange` | Separately gated owner Quick Auth exchange for the PTR database; verifies owner/epoch and returns scoped access without a cookie. |
+| `POST` | `/v2/access/status` | Caller-bound access status; separate from creating an access request. |
+| `POST` | `/v2/access/request` | Retained request route; new submissions are suspended by the checked-in 0.4 source policy. |
 | `POST` | `/v2/session/refresh` | Rotates the session reference and returns a fresh access token only for an authorized family. |
 | `POST` | `/v2/session/logout` | Revokes the server-side family and expires the cookie; fails closed if durable revocation cannot be confirmed. |
 | `POST` | `/v1/qa/challenge` | Server-only, zero-body 60-second challenge for the one registered read-only QA device. Disabled by default. |
 | `POST` | `/v1/qa/realm-snapshot` | Server-only proof exchange returning one bounded aggregate Realm attestation; the v1 path is a compatibility name. |
 | `POST` | `/v1/admin/token` | Server-only five-minute Hermes/admin JWT. |
+| `POST` | `/v1/admin/genesis-002-token` | Separate server-only G002 admin credential; does not open player admission. |
+| `POST` | `/v1/admin/ptr-token` | Separate server-only PTR administration credential. |
+| `POST` | `/v1/admin/ptr-atlas-token` | Separately scoped PTR atlas administration credential. |
 | `POST` | `/v1/admin/auth-epoch-probe` | Server-only, input-free structured resolver check. |
 | `POST` | `/v1/admin/config-attestation` | Server-only digest of security-relevant runtime configuration. |
 | `POST` | `/v1/farcaster/miniapp/webhook` | Verifies signed add/remove and notification enable/disable events; returns exact `200`. |
@@ -451,12 +506,16 @@ response. Delivery parsing accepts Farcaster's optional additive
 `failedTokens` field, ignores harmless provider metadata, and still rejects
 invalid reasons, contradictory known outcome categories, and token mismatches.
 
-The no-auth `GET /v1/release-attestation` route returns success only for the
-protected bridge-prepared phase. It requires an exact lowercase 40-hex
-`WARPKEEP_BRIDGE_SOURCE_COMMIT` injected by the trusted deployer, notification
-delivery enabled, the complete two-Hub/one-client/independent-secret transport,
-and the `ADMISSION_NOTIFICATIONS` binding. The source binding is intentionally
-absent from checked-in defaults and is not required for ordinary bridge health.
+The no-auth `GET /v1/release-attestation` route returns success only when the
+structural bridge preparation is complete. It requires an exact lowercase
+40-hex `WARPKEEP_BRIDGE_SOURCE_COMMIT` injected by the trusted deployer, the
+complete two-Hub/one-client/independent-secret transport, and the
+`ADMISSION_NOTIFICATIONS` binding, and reports the current notification-delivery
+mode. The protected 0.4 prepared verifier requires that mode to be `false`;
+the retained legacy B0 verifier requires `true`. A successful endpoint response
+alone therefore does not authorize either phase. The source binding is
+intentionally absent from checked-in defaults and is not required for ordinary
+bridge health.
 An incomplete preparation returns only
 `{"error":"release_not_prepared"}` with status `503`; it never reveals which
 requirement is missing. The exact successful response contains only schema and
@@ -523,17 +582,22 @@ secret management, never Vite variables or committed config.
 
 ## Deployment
 
-The checked-in Worker keeps public authentication disabled. A production
-release must preserve that state while the repository checks, disposable
-migration proof, bounded production aggregates, OIDC metadata, resolver probe,
-retired routes, cookie policy, and configuration attestation are verified.
+The current 0.4 release path must preserve established G001 player access,
+suspend new admissions/access requests, keep G002 sealed and connect the actual
+owner PTR session. Verify the configured account, exact Worker version,
+source/configuration attestation, module coordinates and player behavior; local
+default-off configuration and a successful package check do not prove those
+production outcomes.
 
 Database publication, Durable Object migration, managed-secret changes, Worker
 deployment, notification enablement, manifest/frontend deployment, and public enablement are separate operator
-actions. A mismatch stops the release with public authentication disabled;
-historical approval or counts cannot be reused. Follow the current
-[activation runbook](../../docs/operations/alpha-activation.md) rather than
-reconstructing a rollout from this implementation guide.
+actions. Follow the [current infrastructure audit](../../docs/agent-notes/0.4.0/release-and-infrastructure.md)
+and [release checklist](../../docs/operations/0.4.0-release-checklist.md) for the
+real operating caller and remaining evidence. The older
+[Alpha activation runbook](../../docs/operations/alpha-activation.md) records its
+own generation; it does not replace the current preservation and integration work.
+Private recovery observation is documented with the
+[release-recovery service](../release-recovery/README.md).
 
 ## Checks, logs, and admin boundary
 

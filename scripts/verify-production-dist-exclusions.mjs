@@ -83,6 +83,8 @@ const forbiddenContent = Object.freeze([
   '__warpkeepRenderedWebglSfxLifecycleV1',
   'realmLocalQaWorkerProjections',
   'localQaWorkerProjectionTelemetry',
+  'localQaLivingVisualTimeSeconds',
+  'localQaGreaterRealmPresentationAllowed',
   'warpkeep-local-',
   'LOCAL RENDERED WEBGL QA',
   'SYNTHETIC · 100 CASTLES · NO AUTHORITY',

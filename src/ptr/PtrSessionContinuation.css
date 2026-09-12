@@ -1,0 +1,96 @@
+.ptr-session-renewal,
+.ptr-session-notice {
+  box-sizing: border-box;
+  color: #f2eddf;
+  color-scheme: dark;
+  font: 400 1rem/1.5 system-ui, sans-serif;
+  overflow-wrap: anywhere;
+}
+
+.ptr-session-renewal *,
+.ptr-session-notice * { box-sizing: border-box; }
+
+.ptr-session-renewal {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: max(1rem, env(safe-area-inset-top, 0px), var(--fc-safe-area-inset-top, 0px))
+    max(1rem, env(safe-area-inset-right, 0px), var(--fc-safe-area-inset-right, 0px))
+    max(1rem, env(safe-area-inset-bottom, 0px), var(--fc-safe-area-inset-bottom, 0px))
+    max(1rem, env(safe-area-inset-left, 0px), var(--fc-safe-area-inset-left, 0px));
+  overflow: auto;
+  background: radial-gradient(ellipse at 50% 25%, #23473f, transparent 70%), #102520;
+}
+
+.ptr-session-renewal__card {
+  width: min(100%, 30rem);
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  border: 1px solid #698c80;
+  border-top: 3px solid #b6cda5;
+  border-radius: 12px;
+  background: #182e2b;
+  box-shadow: 0 1.5rem 4rem #07171466;
+}
+
+.ptr-session-renewal p { margin: 0 0 1rem; }
+.ptr-session-renewal .ptr-session-renewal__eyebrow {
+  color: #c9d7c6;
+  font-size: 0.75rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.ptr-session-renewal h1 { margin: 0 0 1rem; font-size: clamp(1.4rem, 4vw, 1.85rem); line-height: 1.2; }
+.ptr-session-renewal__detail { color: #cbcdbd; }
+.ptr-session-renewal[data-state="failed"] .ptr-session-renewal__card { border-top-color: #e6c58c; }
+.ptr-session-renewal__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.5rem; }
+
+.ptr-session-renewal button,
+.ptr-session-notice button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.625rem 1rem;
+  border: 1px solid #698c80;
+  border-radius: 6px;
+  background: #23473f;
+  color: #f2eddf;
+  font: inherit;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.ptr-session-renewal .ptr-session-renewal__retry { border-color: #b6cda5; background: #b6cda5; color: #102520; }
+.ptr-session-renewal button:hover,
+.ptr-session-notice button:hover { border-color: #dfc6ff; background: #325b50; color: #f2eddf; }
+.ptr-session-renewal :focus-visible,
+.ptr-session-notice :focus-visible { outline: 3px solid #dfc6ff; outline-offset: 3px; }
+
+.ptr-gameplay-surface { display: flex; flex-direction: column; }
+.ptr-gameplay-surface__content { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
+.ptr-gameplay-surface__content--keep { overflow-y: auto; overscroll-behavior: contain; }
+.ptr-gameplay-surface__content:focus { outline: none; }
+
+.ptr-session-notice {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+  max-height: 45%;
+  padding: max(0.75rem, env(safe-area-inset-top, 0px), var(--fc-safe-area-inset-top, 0px))
+    max(1rem, env(safe-area-inset-right, 0px), var(--fc-safe-area-inset-right, 0px))
+    0.75rem max(1rem, env(safe-area-inset-left, 0px), var(--fc-safe-area-inset-left, 0px));
+  border-bottom: 1px solid #8cae98;
+  background: #23473f;
+  overflow: auto;
+}
+.ptr-session-notice p { flex: 1; margin: 0; font-size: 0.875rem; }
+.ptr-session-notice button { flex: 0 0 auto; }
+
+@media (max-width: 40rem) {
+  .ptr-session-renewal__actions { flex-direction: column; }
+  .ptr-session-notice { align-items: stretch; flex-direction: column; gap: 0.625rem; }
+  .ptr-session-notice button { align-self: flex-start; }
+}

@@ -1,0 +1,127 @@
+import { constants, openSync, closeSync, fstatSync, lstatSync, realpathSync, readSync, writeFileSync, fsyncSync, accessSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { verifyRecoveryClaimReceipt, verifyRecoveryClaimCorrelation } from './verify-recovery-claim-receipt.mjs';
+const NAME = 'recovery-claim-v1.json';
+const LIMIT = 65536;
+const KEYS = ['schemaVersion', 'profile', 'claimReceiptJws', 'expectedSource', 'claimDeadline'];
+const CONTEXT = ['pagesRunId', 'pagesRunAttempt', 'sourceVerifyRunId', 'sourceVerifyRunAttempt',
+  'candidateCommit', 'candidateTree', 'artifactId', 'githubArtifactArchiveSha256',
+  'innerArtifactTarSha256', 'contentManifestSha256', 'deploymentAttestationSha256'];
+const fail = () => { throw new Error('RECOVERY_CLAIM_HANDOFF_INVALID'); };
+const now = () => Math.floor(Date.now() / 1000);
+function directory(root, action) {
+  let fd;
+  try {
+    if (process.platform !== 'linux' || typeof root !== 'string' || resolve(root) !== root || realpathSync(root) !== root) fail();
+    const before = lstatSync(root, { bigint: true });
+    if (!before.isDirectory() || before.uid !== BigInt(process.getuid()) || (before.mode & 0o7777n) !== 0o700n) fail();
+    fd = openSync(root, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+    const opened = fstatSync(fd, { bigint: true });
+    if (opened.dev !== before.dev || opened.ino !== before.ino || opened.mode !== before.mode || opened.uid !== before.uid) fail();
+    const result = action(fd);
+    const after = lstatSync(root, { bigint: true });
+    if (after.dev !== before.dev || after.ino !== before.ino || after.mode !== before.mode || after.uid !== before.uid) fail();
+    return result;
+  } catch { fail(); }
+  finally { if (fd !== undefined) closeSync(fd); }
+}
+
+/** Existing private Linux directory only. Persists no authorization JWS or OIDC token. */
+export function preflightRecoveryClaimHandoff(...args) {
+  if (args.length !== 1) fail();
+  return directory(args[0], fd => {
+    accessSync(`/proc/self/fd/${fd}`, constants.W_OK);
+    if (readdirSync(`/proc/self/fd/${fd}`).length !== 0) fail();
+  });
+}
+
+/** Existing private Linux directory only. Persists no authorization JWS or OIDC token. */
+export function writeRecoveryClaimHandoff(...args) {
+  let bytes;
+  try {
+    if (args.length !== 3) fail();
+    const [root, claimReceiptJws, expectedSource] = args;
+    verifyRecoveryClaimReceipt(claimReceiptJws, expectedSource, now());
+    const { claimDeadline } = verifyRecoveryClaimCorrelation(claimReceiptJws, expectedSource, now());
+    bytes = Buffer.from(JSON.stringify({ schemaVersion: 1, profile: 'warpkeep-recovery-claim-handoff-v1',
+      claimReceiptJws, expectedSource, claimDeadline }));
+    if (bytes.length > LIMIT) fail();
+    return directory(root, fd => {
+      let file, readback;
+      try {
+        file = openSync(`/proc/self/fd/${fd}/${NAME}`, constants.O_RDWR | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+        writeFileSync(file, bytes); fsyncSync(file); fsyncSync(fd);
+        const state = fstatSync(file, { bigint: true });
+        if (!state.isFile() || state.nlink !== 1n || state.uid !== BigInt(process.getuid())
+            || (state.mode & 0o7777n) !== 0o600n || state.size !== BigInt(bytes.length)) fail();
+        readback = Buffer.alloc(bytes.length + 1);
+        let offset = 0, count;
+        while (offset < readback.length && (count = readSync(file, readback, offset, readback.length - offset, offset)) !== 0) offset += count;
+        if (offset !== bytes.length || !readback.subarray(0, offset).equals(bytes)) fail();
+        const byPath = lstatSync(`/proc/self/fd/${fd}/${NAME}`, { bigint: true });
+        if (byPath.dev !== state.dev || byPath.ino !== state.ino || byPath.mode !== state.mode || byPath.nlink !== 1n) fail();
+        verifyRecoveryClaimReceipt(claimReceiptJws, expectedSource, now());
+        return Object.freeze({ claimDeadline });
+      } finally { readback?.fill(0); if (file !== undefined) closeSync(file); }
+    });
+  } catch { fail(); }
+  finally { bytes?.fill(0); }
+}
+
+function read(root, contextSource, deployment, historyOnly = false) {
+  return directory(root, fd => {
+    let file, bytes;
+    try {
+      let context;
+      if (!historyOnly) {
+        if (typeof contextSource !== 'string' || contextSource.length > 16384) fail();
+        context = JSON.parse(contextSource);
+        if (!context || Array.isArray(context) || typeof context !== 'object'
+            || Object.keys(context).join(',') !== CONTEXT.join(',') || JSON.stringify(context) !== contextSource) fail();
+      }
+      file = openSync(`/proc/self/fd/${fd}/${NAME}`, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+      const before = fstatSync(file, { bigint: true });
+      if (!before.isFile() || before.nlink !== 1n || before.uid !== BigInt(process.getuid())
+          || (before.mode & 0o7777n) !== 0o600n || before.size < 2n || before.size > BigInt(LIMIT)) fail();
+      bytes = Buffer.alloc(Number(before.size) + 1);
+      let length = 0, count;
+      while (length < bytes.length && (count = readSync(file, bytes, length, bytes.length - length, length)) !== 0) length += count;
+      const after = fstatSync(file, { bigint: true });
+      if (length !== Number(before.size) || ['dev', 'ino', 'mode', 'uid', 'nlink', 'size', 'mtimeNs', 'ctimeNs'].some(key => before[key] !== after[key])) fail();
+      const byPath = lstatSync(`/proc/self/fd/${fd}/${NAME}`, { bigint: true });
+      if (['dev', 'ino', 'mode', 'uid', 'nlink', 'size', 'mtimeNs', 'ctimeNs'].some(key => before[key] !== byPath[key])) fail();
+      const source = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, length));
+      const value = JSON.parse(source);
+      if (!value || Array.isArray(value) || typeof value !== 'object' || Object.keys(value).join(',') !== KEYS.join(',')
+          || JSON.stringify(value) !== source || value.schemaVersion !== 1 || value.profile !== 'warpkeep-recovery-claim-handoff-v1') fail();
+      const correlation = verifyRecoveryClaimCorrelation(value.claimReceiptJws, value.expectedSource, now());
+      if (correlation.claimDeadline !== value.claimDeadline) fail();
+      const expected = JSON.parse(value.expectedSource);
+      if (historyOnly) {
+        // Signature/schema/deadline verification above precedes projection.
+        // Historical digests are NOT independently current deployment evidence.
+        return Object.freeze({ purpose: 'signed-history-only', contextSource:
+          JSON.stringify(Object.fromEntries(CONTEXT.map(key => [key, expected[key]]))) });
+      }
+      if (CONTEXT.some(key => expected[key] !== context[key])) fail();
+      if (deployment) verifyRecoveryClaimReceipt(value.claimReceiptJws, value.expectedSource, now());
+      // Private return values: caller must not print, summarize or upload them.
+      return Object.freeze({ claimReceiptJws: value.claimReceiptJws, expectedSource: value.expectedSource });
+    } finally { bytes?.fill(0); if (file !== undefined) closeSync(file); }
+  });
+}
+export function readRecoveryClaimHandoffForDeployment(...args) {
+  if (args.length !== 2) fail();
+  return read(...args, true);
+}
+export function readRecoveryClaimHandoffForReconciliation(...args) {
+  if (args.length !== 2) fail();
+  return read(...args, false);
+}
+/** Private historical projection only. Caller must independently revalidate all
+ * current source/run/artifact bindings, then use the strict deployment reader.
+ * Returns neither a receipt nor permission to deploy. */
+export function readRecoveryClaimHandoffHistory(...args) {
+  if (args.length !== 1) fail();
+  return read(args[0], undefined, false, true);
+}

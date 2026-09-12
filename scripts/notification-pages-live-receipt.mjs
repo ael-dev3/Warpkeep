@@ -140,6 +140,7 @@ export const NOTIFICATION_PAGES_LIVE_PROTECTED_PATHS = Object.freeze([
   'scripts/profiles/founder-admission-plan.ts',
   'scripts/profiles/profile-transport.ts',
   'scripts/production-admin-token-budget.mjs',
+  'scripts/production-admin-connection.ts',
   'scripts/production-player-canary-admin-transport.ts',
   'scripts/production-player-canary-baseline-reconciliation.mjs',
   'scripts/production-player-canary-command-authority.mjs',
@@ -202,6 +203,7 @@ export const NOTIFICATION_PAGES_LIVE_CANDIDATE_PROTECTED_PATHS = Object.freeze([
   'scripts/notification-pages-private-handoff.d.mts',
   'scripts/notification-pages-private-handoff.mjs',
   'scripts/production-admin-token-budget.mjs',
+  'scripts/production-admin-connection.ts',
   'scripts/production-player-canary-admin-transport.ts',
   'scripts/production-player-canary-baseline-reconciliation.mjs',
   'scripts/production-player-canary-core.ts',
@@ -284,7 +286,11 @@ const MAX_GIT_TREE_INVENTORY_BYTES = 2 * 1024 * 1024;
 const MAX_GIT_TREE_ENTRIES = 8_192;
 const MAX_GIT_SOURCE_FILES = 4_096;
 const MAX_GIT_SOURCE_FILE_BYTES = 512 * 1024;
-const MAX_GIT_SOURCE_AGGREGATE_BYTES = 32 * 1024 * 1024;
+// The whole tracked source inventory includes generated operation bundles (~575
+// KiB each; ~34 MiB total source at b4df426). Keep bounded growth room without
+// changing the separate 512 KiB presentation/source-parser limit above.
+const MAX_GIT_INVENTORY_SOURCE_FILE_BYTES = 1024 * 1024;
+const MAX_GIT_SOURCE_AGGREGATE_BYTES = 64 * 1024 * 1024;
 const MAX_PRESENTATION_SOURCE_FILES = 512;
 const MAX_PRESENTATION_SOURCE_BYTES = 64 * 1024 * 1024;
 const MAX_CHECKOUT_TREE_BYTES = 4 * 1024 * 1024;
@@ -474,6 +480,8 @@ const ACTIVE_EVIDENCE_IMPORT_ROOTS = Object.freeze([
   'scripts/greater-realm-production-transport.ts',
   'scripts/greater-realm-production-verifier-core.ts',
   'scripts/greater-realm-production-verifier.ts',
+  'scripts/hermes-admin.ts',
+  'scripts/notification-pages-live-release-binding.mjs',
 ]);
 const HERMES_AUTHORITY_IMPORT_ROOTS = Object.freeze([
   'scripts/hermes-admin.ts',
@@ -2678,6 +2686,7 @@ const HERMES_DIRECT_LOCAL_IMPORTS = Object.freeze([
   './founder-admission-authority',
   './hermes-machine-output',
   './notification-pages-live-hermes-authority.mjs',
+  './production-admin-connection',
   './production-admin-token-budget.mjs',
   './profiles/farcaster-profile-policy',
   './profiles/founder-admission-plan',
@@ -2793,7 +2802,7 @@ function exactCommitSourceTree(commit, code) {
       || size === null
     ) fail(code);
     if (
-      size > MAX_GIT_SOURCE_FILE_BYTES
+      size > MAX_GIT_INVENTORY_SOURCE_FILE_BYTES
       || sourceEntries.length >= MAX_GIT_SOURCE_FILES
       || aggregateBytes > MAX_GIT_SOURCE_AGGREGATE_BYTES - size
     ) fail(code);

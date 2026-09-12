@@ -5,6 +5,8 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
+import { classifySealedLaunchPagesSources, SEALED_LAUNCH_SOURCE_PATHS } from
+  '../scripts/verify-0.4.0-sealed-launch.mjs';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
 const workflowPath = resolve(repositoryRoot, '.github/workflows/deploy-pages.yml');
@@ -27,8 +29,8 @@ function job(source: string, name: string, next?: string): string {
 
 const privateLabels = [
   'self-hosted',
-  'macOS',
-  'ARM64',
+  'Linux',
+  'X64',
   'warpkeep-production-admin',
   'warpkeep-repository-exclusive',
 ];
@@ -80,9 +82,11 @@ describe('notification Pages private deployment workflow', () => {
     const privateToolchain = job(source, 'private-toolchain', 'private-deploy');
     const privateDeploy = job(source, 'private-deploy');
 
-    expect(verifier).toContain(
-      "return result.phase === 'activation' ? 'sealed-g002' : 'sealed-launch-blocked';",
+    const selectedSources = Object.fromEntries(
+      Object.entries(SEALED_LAUNCH_SOURCE_PATHS).map(([key, path]) =>
+        [key, readFileSync(resolve(repositoryRoot, path), 'utf8')]),
     );
+    expect(classifySealedLaunchPagesSources(selectedSources)).toBe('sealed-launch-blocked');
     expect(classify).not.toMatch(
       /(?:actions\/(?:upload|deploy)-pages|environment:|pages:\s*write|id-token:\s*write|secrets\.|npm ci)/u,
     );
@@ -138,6 +142,9 @@ describe('notification Pages private deployment workflow', () => {
     expect(toolchain).toContain('--ignore-scripts');
     expect(toolchain).toContain('--package-import-method=copy');
     expect(toolchain).toContain(
+      'WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE=linux-x64',
+    );
+    expect(toolchain).toContain(
       'scripts/notification-pages-private-deploy-launcher.mjs',
     );
     expect(toolchain).toContain('attest-toolchain');
@@ -146,6 +153,9 @@ describe('notification Pages private deployment workflow', () => {
     );
     expect(privateDeploy).toContain('needs: [classify, build, private-toolchain]');
     expect(privateDeploy).toContain('clean: false');
+    expect(privateDeploy).toContain(
+      'WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE=linux-x64',
+    );
     expect(privateDeploy.match(
       /WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="\$\{\{ needs\.private-toolchain\.outputs\.runner-identity-digest \}\}"/g,
     )).toHaveLength(5);

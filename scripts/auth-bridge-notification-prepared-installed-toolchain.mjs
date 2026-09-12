@@ -21,10 +21,62 @@ import {
 } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_INSTALLED_TOOLCHAIN_PROFILE_ENV =
+  'WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE';
+
+const TOOLCHAIN_PROFILES = Object.freeze({
+  'darwin-arm64': Object.freeze({
+    profile:
+      'warpkeep-auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1',
+    manifestPath:
+      'scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json',
+    platform: 'darwin',
+    architecture: 'arm64',
+    requiredExecutablePaths: Object.freeze([
+      '.pnpm/@cloudflare+workerd-darwin-arm64@1.20260708.1/node_modules/@cloudflare/workerd-darwin-arm64/bin/workerd',
+      '.pnpm/@esbuild+darwin-arm64@0.28.1/node_modules/@esbuild/darwin-arm64/bin/esbuild',
+      '.pnpm/@typescript+typescript-darwin-arm64@7.0.2/node_modules/@typescript/typescript-darwin-arm64/lib/tsc',
+      '.pnpm/wrangler@4.110.0_@cloudflare+workers-types@5.20260708.1_@types+node@26.1.1/node_modules/wrangler/bin/wrangler.js',
+    ]),
+  }),
+  'linux-x64': Object.freeze({
+    profile:
+      'warpkeep-auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1',
+    manifestPath:
+      'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json',
+    platform: 'linux',
+    architecture: 'x64',
+    requiredExecutablePaths: Object.freeze([
+      '.pnpm/@cloudflare+workerd-linux-64@1.20260708.1/node_modules/@cloudflare/workerd-linux-64/bin/workerd',
+      '.pnpm/@esbuild+linux-x64@0.28.1/node_modules/@esbuild/linux-x64/bin/esbuild',
+      '.pnpm/@typescript+typescript-linux-x64@7.0.2/node_modules/@typescript/typescript-linux-x64/lib/tsc',
+      '.pnpm/wrangler@4.110.0_@cloudflare+workers-types@5.20260708.1_@types+node@26.1.1/node_modules/wrangler/bin/wrangler.js',
+    ]),
+  }),
+});
+
+const requestedToolchainProfile =
+  process.env[AUTH_BRIDGE_NOTIFICATION_PREPARED_INSTALLED_TOOLCHAIN_PROFILE_ENV]
+  ?? 'darwin-arm64';
+const ACTIVE_TOOLCHAIN_PROFILE = TOOLCHAIN_PROFILES[requestedToolchainProfile];
+if (ACTIVE_TOOLCHAIN_PROFILE === undefined) {
+  throw new Error('AUTH_BRIDGE_PREPARED_TOOLCHAIN_PROFILE_INVALID');
+}
+if (
+  process.env[AUTH_BRIDGE_NOTIFICATION_PREPARED_INSTALLED_TOOLCHAIN_PROFILE_ENV]
+  !== undefined
+  && (
+    ACTIVE_TOOLCHAIN_PROFILE.platform !== process.platform
+    || ACTIVE_TOOLCHAIN_PROFILE.architecture !== process.arch
+  )
+) {
+  throw new Error('AUTH_BRIDGE_PREPARED_TOOLCHAIN_PLATFORM_INVALID');
+}
+
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_INSTALLED_TOOLCHAIN_PROFILE =
-  'warpkeep-auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1';
+  ACTIVE_TOOLCHAIN_PROFILE.profile;
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_PATH =
-  'scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json';
+  ACTIVE_TOOLCHAIN_PROFILE.manifestPath;
 
 const SOURCE_CLOSURE_PROFILE =
   'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1';
@@ -65,12 +117,7 @@ const NORMALIZED_SERVICE_ROOT = '$AUTH_BRIDGE_SERVICE_ROOT';
 const NORMALIZED_PNPM_STORE = '$PNPM_STORE';
 const NORMALIZED_PNPM_VALIDATION_TIME = '$PNPM_VALIDATION_TIME';
 const REQUIRED_TOP_LEVEL_LINKS = Object.freeze(['typescript', 'wrangler', 'yaml']);
-const REQUIRED_EXECUTABLE_PATHS = Object.freeze([
-  '.pnpm/@cloudflare+workerd-darwin-arm64@1.20260708.1/node_modules/@cloudflare/workerd-darwin-arm64/bin/workerd',
-  '.pnpm/@esbuild+darwin-arm64@0.28.1/node_modules/@esbuild/darwin-arm64/bin/esbuild',
-  '.pnpm/@typescript+typescript-darwin-arm64@7.0.2/node_modules/@typescript/typescript-darwin-arm64/lib/tsc',
-  '.pnpm/wrangler@4.110.0_@cloudflare+workers-types@5.20260708.1_@types+node@26.1.1/node_modules/wrangler/bin/wrangler.js',
-]);
+const REQUIRED_EXECUTABLE_PATHS = ACTIVE_TOOLCHAIN_PROFILE.requiredExecutablePaths;
 const WRANGLER_ENTRYPOINT = REQUIRED_EXECUTABLE_PATHS.at(-1);
 const MANIFEST_KEYS = Object.freeze([
   'schemaVersion',

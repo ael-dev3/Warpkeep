@@ -21,6 +21,7 @@ import {
   type WarpkeepBackendRuntime,
   useWarpkeepBackend
 } from '../spacetime/WarpkeepSpacetimeProvider';
+import { PtrRealmProvider } from '../ptr/PtrRealmProvider';
 import { REALM_HEX_SIZE } from '../components/realm/realmMapPresentationHelpers';
 import { resolveRealmWorkerRoutePose } from '../components/realm/realmWorkerRoutePresentation';
 import {
@@ -1082,7 +1083,8 @@ export function FullstackLocalQaApp() {
   const config = useMemo(() => localFullstackQaRuntimeConfig(bootstrap), [bootstrap]);
 
   return (
-    <FarcasterAuthProviderCore
+    <PtrRealmProvider config={Object.freeze({ availability: 'unavailable' })}>
+      <FarcasterAuthProviderCore
       createBrowserBinding={async () => Object.freeze({
         verifier: LOCAL_BINDING_VERIFIER,
         challenge: LOCAL_BINDING_CHALLENGE,
@@ -1109,6 +1111,7 @@ export function FullstackLocalQaApp() {
         <LocalFullstackStateProbe />
         <WarpkeepExperience />
       </WarpkeepSpacetimeProvider>
-    </FarcasterAuthProviderCore>
+      </FarcasterAuthProviderCore>
+    </PtrRealmProvider>
   );
 }
