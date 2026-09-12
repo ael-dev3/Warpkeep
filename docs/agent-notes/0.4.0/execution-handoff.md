@@ -2,8 +2,19 @@
 
 ## Current review and next work — 12 September 2026
 
-The runner availability follow-up on `codex/0.4-runner-availability` follows
-published navigation source `e6fca66f` / PR #236. GitHub runner 22 was offline
+The current follow-up on `codex/0.4-frozen-source-test-isolation` separates four
+independent frozen-source mutation checks into named Linux cases. Historical R
+main Verify `34694304468` exceeded the default ten-second budget only in the
+combined four-materialization callback; no behavioral assertion failed. Each
+case now retains that default budget, its original rejection assertion and a
+destination-retention assertion, including the previously missing inode check.
+The shared cleanup and production materializer are unchanged. Native validation
+and publication results belong in the actual PR; do not infer a full CI pass.
+
+Runner availability source `e57b5e38` is published in PR #237 on
+`codex/0.4-runner-availability`, stacked on navigation `e6fca66f` / PR #236.
+Windows and the clean idle native checkout were verified equal to its live head.
+GitHub runner 22 was offline
 because `WarpkeepRunner` had stopped; the enabled service started normally when
 the guest opened. Its existing Windows keepalive task had exited with code 1.
 The task was recovered, given an indefinite execution limit and a recurring
@@ -12,10 +23,9 @@ GitHub reports it online again. Use the [runner maintenance procedure](../../ope
 to distinguish scheduling, guest/service health and actual GitHub availability.
 Preserve active jobs; disable recurring starts before planned maintenance.
 
-This operational correction changes no generated family or game authority.
-Publish its owning instructions and evidence on its own branch, then synchronize
-the idle native checkout. Resolve its actual PR and SHA from live refs. The
-existing M1 candidate and PR #235 remain unchanged. The receipt integration
+The published operational correction changes no generated family or game authority.
+The existing M1 candidate remains retained after PR #235's integration. The receipt
+integration
 audit below is now recorded in [release and infrastructure](release-and-infrastructure.md#existing-ptr-evidence-continuity).
 
 PR #228 merged normally at 11:30:54 UTC to signed main
@@ -39,8 +49,12 @@ was exported from exact M1 and all 102 output files, their bytes and Git objects
 source paths were checked. Generated checkpoint `654f1b57` incorporated the
 published repair, then exact `3c4eb264` incorporated protected R without changing
 tree `93a976b0`. The native checked-in sealed-launch and prepared-policy verifiers
-passed again at that final checkpoint. It is published in PR #235 against R;
-CodeQL `34694406081` passed; Verify `34694406086` still needs its terminal result.
+passed again at that final checkpoint. CodeQL `34694406081` and Verify
+`34694406086` both passed at exact `3c4eb264`. PR #235 then merged normally by
+protected expected-head squash at 13:33:31 UTC into signed, valid main
+`7b102f9f` (**M2**), whose sole parent is R and tree exactly equals `93a976b0`.
+The actual M2 main push Verify is `34696760924`; its terminal success remains
+required before preflight. The earlier R timeout is separate from M2's CI.
 Earlier Verify
 `34693755154` at `654f1b57` was cancelled by the later publication and is not
 terminal evidence for the final head. No protection or release gate was weakened.
@@ -52,17 +66,18 @@ preserving the mobile layout. Actual desktop, portrait, landscape and narrow
 browser checks covered the buttons, panel close, opener focus restoration and
 horizontal overflow; 88 tests in four suites passed in session `27992`. Its full
 outgoing scan, explicit publication and Windows/native/live equality passed.
-It is stacked on `codex/0.4-prepared-source`; do not fold it into PR #235.
-After PR #235 integrates, reconcile
-the product PR with actual main. The CSS is a protected-closure source change and
+GitHub retargeted PR #236 to main after PR #235 integrated. Reconcile its
+source ancestry with actual M2 without rewriting history, then propagate the
+published ancestry through its later stacked PRs while preserving their trees.
+The CSS is a protected-closure source change and
 needs normal source integration followed by a fresh generated closure before any
 later deployment.
 
-First complete PR #235 through the normal protected squash to **M2**, require that
-exact M2's Verify success, then dispatch one sealed `preflight` from main and
+Require exact M2's main Verify success, then dispatch one sealed `preflight`
+after confirming live main still equals that source, and
 require `preflight-inspected`. The navigation branch remains separately backed-up
-product source. After its publication, the clean native development checkout may
-fast-forward to that reviewed head while the M1 candidate, journal and artifact
+product source. Keep the clean idle native checkout synchronized with the current
+published development head while the M1 candidate, journal and artifact
 remain retained evidence. No live release is established.
 
 ### Pre-merge route correction
