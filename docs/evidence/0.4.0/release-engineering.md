@@ -64,6 +64,18 @@ the already-authorized exact Windows safe-directory entry. Both attempts stopped
 before applying source; the corrected composition passed without changing
 candidate permissions or global Git policy.
 
+The family and owning notes were published as
+`4b96ae380b6fdb348d26eaf74464638e2e346aff` after the full outgoing range passed
+the secret scan. GitHub/Windows equality was verified, then the clean idle native
+checkout fast-forwarded to that exact commit. Native session `89197` passed all
+448 tests across the 15 runtime, closure and generated-consumer suites without
+skips in 38.75 seconds. This includes the downstream source-pin/count failures
+recorded before generation. Checked-in and preparation CLI verification passed;
+the source classifier returned `sealed-launch-blocked`. A direct `--phase=pages`
+invocation without its GitHub environment rejected with
+`SEALED_LAUNCH_PAGES_ENVIRONMENT_INVALID`, as required; it is not a production
+workflow run. No fabricated workflow environment was supplied.
+
 Both Windows TypeScript projects passed after application. All 30 tests in
 `projectLinks`, `publicLegalDocuments` and `keep04DocumentPolicy` passed; the
 tracked file-size policy and diff whitespace checks passed. These checks do not
@@ -71,7 +83,7 @@ stand in for the separate affected native/hosted verification.
 
 This is development-source preparation and integration, not deployment. Read
 [PR #240](https://github.com/ael-dev3/Warpkeep/pull/240) for the current published
-head and its verification. Required current native/hosted checks, protected-main
+head and its verification. Full current-head hosted checks, protected-main
 ancestry, provider/owner authority, live preservation and final release acceptance
 remain separate. Preserve the original compiler-input identities in this family
 through later commits and follow the [local preparation procedure](../../operations/0.4.0-local-release-preparation.md)

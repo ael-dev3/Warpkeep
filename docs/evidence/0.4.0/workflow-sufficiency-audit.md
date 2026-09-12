@@ -10,9 +10,11 @@ Published development input `9e098f75` (S) contains the later runner,
 frozen-source, PTR-observation, bridge-predecessor and closure-inventory repairs.
 Native preparation `67204` and independent check `6320` passed for exact S with
 equal results. Guarded export authenticated the complete 102-output family, and
-application to the Windows checkout changed 19 paths. Native post-integration
-verification and hosted checks remain separate; read the execution handoff and
-live PR for the latest publication and check state.
+application to the Windows checkout changed 19 paths. Published integration
+`4b96ae38` passed all 448 native owning/downstream tests in session `89197`,
+without skips, plus checked-in/preparation verification and the expected blocked
+Pages classification. Read the execution handoff and live PR for current-head
+hosted verification and protected integration; those remain separate.
 [Release engineering](release-engineering.md) owns the exact identities.
 
 Earlier runtime source `44b91b94` passed 519 native tests without skips; the
@@ -52,7 +54,8 @@ fresh evidence bound to the final reviewed and deployed source.
 - Native M1 preparation and checking, protected M2 integration, M2 main Verify
   and the sealed M2 preflight completed successfully. S has its own matching
   native preparation/check and authenticated Windows family integration; its
-  post-integration verification and hosted checks remain open.
+  native integration verification passed at `4b96ae38`, while current-head hosted
+  verification remains open.
 - At published `60097dd7`, the selected eight suites passed all 87 native tests;
   installed closure and Pages `sealed-launch-blocked` classification passed.
   The corrected prepared-workflow suite then passed all 163 native tests on
@@ -66,8 +69,8 @@ fresh evidence bound to the final reviewed and deployed source.
 - The protected Verify and CodeQL runs attached to the current pull request head
   are the R14 authority; read both at terminal state before marking CI green.
   R14 also requires normal protected merge eligibility.
-- Verify S's integrated family on the clean native checkout and require inert
-  preparation with Pages `sealed-launch-blocked`. Then require terminal hosted
+- S's integrated family passed native verification at `4b96ae38`, including
+  inert preparation and Pages `sealed-launch-blocked`. Require terminal hosted
   checks for the exact published head. Earlier native and protected results
   retain their source scope; ordinary notes and unchanged source do not require
   repeating unrelated suites.

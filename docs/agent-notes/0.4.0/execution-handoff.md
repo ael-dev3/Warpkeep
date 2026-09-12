@@ -7,8 +7,12 @@ and independent rebuilding check `6320`, both exit zero with every result field
 equal. The complete authenticated family was exported and applied to that exact
 Windows input, verifying all generated outputs, the exact changed-path set and
 unchanged HEAD/index/preserved source. [The release-engineering record](../../evidence/0.4.0/release-engineering.md#bridgeptr-source-family--2026-09-12)
-owns the retained candidate and full digests. Current native and hosted checks
-must validate the published integration; this does not establish a deployment.
+owns the retained candidate and full digests. Published integration
+`4b96ae380b6fdb348d26eaf74464638e2e346aff` passed all 448 native tests in 15
+owning and downstream suites without skips (session `89197`, 38.75 seconds,
+exit zero). Checked-in/preparation verification passed and the actual source
+classifier returned `sealed-launch-blocked`. Full current-head hosted checks and
+normal protected integration remain required; this does not establish deployment.
 Both Windows TypeScript projects and all 30 tests in the three doc-facing suites
 passed after application, as did tracked file-size and diff checks. The broader
 Windows generated-consumer run is still tracked by actual session `31279`; do
