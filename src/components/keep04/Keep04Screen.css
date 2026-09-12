@@ -110,8 +110,6 @@
   .keep04 { padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
   .keep04 .keep04-workspace[data-panel-open="true"] { grid-template-columns: minmax(0, 1fr); }
   .keep04 .keep04-scene-region { padding: 12px; }
-  .keep04 .keep04-resources { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 10px; }
-  .keep04 .keep04-resources strong { font-size: 20px; }
   .keep04 .keep04-dock > button { flex: 1 1 130px; }
   .keep04 .keep04-loop-rail { grid-template-columns: 1fr; gap: 8px; margin: 12px 0; padding: 10px; }
   .keep04 .keep04-loop-rail ol { gap: 4px; }
@@ -119,15 +117,23 @@
   .keep04 .keep04-loop-detail { font-size: 12px; }
 }
 @media (max-width: 760px), (max-height: 500px) {
+  .keep04 .keep04-header { gap: 12px; margin-bottom: 8px; }
+  .keep04 .keep04-header h1 { margin: 0; font-size: 22px; line-height: 1.2; }
+  .keep04 .keep04-header .keep04-eyebrow { font-size: 10px; letter-spacing: .14em; }
+  .keep04 .keep04-reentry { margin-bottom: 8px; font-size: 13px; line-height: 1.35; }
   .keep04 .keep04-decision-header { position: sticky; top: 0; z-index: 2; padding: max(4px, env(safe-area-inset-top)) 0 8px; margin-bottom: 8px; background: #102520; }
-  .keep04 .keep04-resources { gap: 4px 8px; padding: 6px 8px; margin: 0 0 6px; line-height: 1.3; }
-  .keep04 .keep04-resources > div { min-width: 0; overflow-wrap: anywhere; }
-  .keep04 .keep04-resources strong { font-size: 20px; }
-  .keep04 .keep04-resources > p { font-size: 14px; }
+  .keep04 .keep04-resources { gap: 4px; padding: 6px; margin: 0 0 6px; line-height: 1.3; }
+  .keep04 .keep04-resources > div { min-width: 0; padding: 5px 6px; overflow-wrap: anywhere; }
+  .keep04 .keep04-resources > div span { letter-spacing: .04em; }
+  .keep04 .keep04-resources strong { font-size: 18px; }
+  .keep04 .keep04-resource-pending { letter-spacing: 0; }
+  .keep04 .keep04-resources > p { font-size: 13px; }
   .keep04 .keep04-journey { padding: 8px; }
   .keep04 .keep04-journey li { font-size: 11px; }
   .keep04 .keep04-primary-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .keep04 .keep04-primary-nav button { padding: 6px 8px; }
+  .keep04 .keep04-scene-toolbar { display: grid; grid-template-columns: 44px 44px minmax(64px, .8fr) minmax(0, 1.4fr); gap: 6px; }
+  .keep04 .keep04-scene-toolbar button { padding: 6px; font-size: 14px; line-height: 1.25; }
   /* A single document scroll keeps every card and its confirmation reachable,
      including short landscape. No sticky confirmation covers catalog content. */
   .keep04 .keep04-workspace[data-panel-open="true"] { grid-template-columns: minmax(0, 1fr); }
@@ -135,6 +141,14 @@
   .keep04 .keep04-primary-action { position: static; }
   .keep04 .keep04-scene-canvas { height: clamp(144px, min(78vw, calc(100dvh - var(--keep04-decision-height, 0px) - var(--keep04-scene-toolbar-height, 0px) - 16px)), 620px); }
   .keep04 .keep04-panel, .keep04 .keep04-workspace :is(button, summary, [tabindex]), .keep04 .keep04-dock button { scroll-margin-top: calc(var(--keep04-decision-height, 0px) + 8px); }
+}
+@media (max-width: 359px) {
+  .keep04 .keep04-resources { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .keep04 .keep04-scene-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 600px) and (max-height: 500px) {
+  .keep04 .keep04-decision-header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, .7fr); gap: 8px; align-items: center; }
+  .keep04 .keep04-resources { margin-bottom: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .keep04 *, .keep04 *::before, .keep04 *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

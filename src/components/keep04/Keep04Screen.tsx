@@ -128,7 +128,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
       <button ref={backButton} type="button" onClick={onBack}>Back</button>
       <div><p className="keep04-eyebrow">VERDANT CITADEL</p><h1>Your keep</h1></div>
     </header>
-    <p className="keep04-reentry">Your progress is saved in the Realm. Resources become available when Workers return.</p>
+    <p className="keep04-reentry">Progress saved in the Realm. Resources become available when Workers return.</p>
     {!visible && <section className="keep04-state" aria-label="Keep status">
       <p role="status">{phase === 'uninitialized' ? 'Your grounds are ready. Establish your keep to begin.' : phase === 'uncertain' ? 'Outcome unknown. Check the Realm or retry the same request.' : phase === 'failed' ? 'The keep could not be refreshed.' : phase === 'disposed' ? 'Your keep session has ended.' : phase === 'pending' ? 'Request pending. Awaiting Realm update.' : 'Loading keep from the Realm…'}</p>
       {phase === 'uninitialized' && <button type="button" onClick={() => { void controller.submit({ kind: 'initialize' }); }}>Establish keep</button>}
@@ -157,7 +157,6 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
           <button type="button" aria-controls={selection.panel ? panelId : undefined} aria-expanded={selection.panel === 'workers'} onClick={event => openPanel('workers', event.currentTarget)}>Manage Workers</button>
         </nav>
       </div>
-      <Keep04LoopRail stage={activeKeep04LoopStage04(selection, view)} />
       {problem === 'capacity' && <p role="status">That resource location is full. Find another location.</p>}
       {problem === 'target' && <p role="status">That resource location changed. Choose a current Realm location.</p>}
       <div className="keep04-workspace" data-panel-open={selection.panel !== null}>
@@ -190,6 +189,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
               onCancelDraft={() => { onSelectionChange({ ...selection, selectedKind: null, draft: null }); closeButton.current?.focus(); }} />}
         </aside>}
       </div>
+      <Keep04LoopRail stage={activeKeep04LoopStage04(selection, view)} />
       <nav className="keep04-dock" aria-label="Keep commands">
         {view.workers.map(worker => <button key={worker.ordinal} type="button" onClick={event => openPanel('workers', event.currentTarget)} aria-expanded={selection.panel === 'workers'}>Worker {worker.ordinal + 1} · {worker.phase}</button>)}
         <button ref={buildingsButton} type="button" onClick={event => openPanel('buildings', event.currentTarget)} aria-expanded={selection.panel === 'buildings'}>Buildings</button>

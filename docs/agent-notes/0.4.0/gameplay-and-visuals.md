@@ -1,7 +1,30 @@
 # Gameplay and visual implementation notes
 
 Updated 2026-09-12. Use PR #228 and the [execution handoff](execution-handoff.md)
-for current source and synchronization. The `27700d61` review fixed mobile
+for current source and synchronization. The latest layout pass brings the scene
+above the full loop explanation, compacts the resource header, and keeps the
+building catalog and Worker actions directly available. Normal phone widths use
+four resource columns; widths below 360px use two columns and two toolbar rows.
+Short landscape places the primary actions beside the balances. Exact amounts,
+pending-return wording, touch targets and measured sticky offsets are retained.
+The five affected gameplay/UI suites passed all 64 tests and build-mode types
+passed. Local browser review covered 390px portrait, 320px narrow portrait and
+844px short landscape. The mature keep is now fully visible on ordinary portrait
+entry; narrow and landscape fixtures still require scrolling for a complete view.
+These are synthetic local views, not physical-device or actual-owner evidence.
+
+The preceding guarded capture `artifacts/keep04-qa/windows-run-01TmYS` records
+clean source `72aee27e`, Chrome 152 and hardware rendering. All 36 scenarios had
+no horizontal overflow, but many entry screenshots showed only controls or the
+automatically focused catalog. Scrolled inspection was therefore necessary.
+Its diagnostic review flag remains unresolved (security warnings and one network
+error); capture completion is not a clean-browser acceptance claim. Independent
+visual review found that the cathedral dominates smaller economy buildings and
+that the terrain/background still look like a display platform. Continue with
+building hierarchy and a coherent diorama treatment after this layout correction;
+preserve footprints and do not globally tint mixed wall/roof meshes.
+
+The `27700d61` review fixed mobile
 schematic coordinates, kept active construction at Build, and made other loop
 stages neutral rather than implying completed actions. Actual Chrome portrait
 checks confirmed Build during construction and Benefit when selecting a
@@ -46,9 +69,9 @@ simulation and elaborate editing remain later work. The full Desktop handoff
 reference library informs one coherent Verdant Citadel, rather than a collection
 of imported mechanics or rendering engines.
 
-The current narrow-screen surface now presents resources as two readable columns
-with safe-area padding and keeps the same scene, schematic and command order as
-desktop. The visual treatment adds restrained depth and contrast to the resource,
+The current narrow-screen surface uses four compact resource columns on ordinary
+phones and two below 360px, with safe-area padding and the same scene, schematic
+and command order as desktop. The visual treatment adds restrained depth and contrast to the resource,
 scene and action surfaces without changing gameplay authority, renderer budgets or
 the existing touch and keyboard gestures.
 

@@ -7,8 +7,9 @@ native preparation/check input is
 `7cb573baab40e54f52ab2aeb26c56c9e8f1cf9f5`. Its generated family was exported,
 scanned, published and synchronized at
 `60097dd7491125b09120b700d688278f906f96f6`. The subsequent protected-policy
-correction requires fresh native preparation and independent check; the retained candidate
-does not cover that change. Final-head CI and protected promotion remain separate
+correction passed its full native suite and produced the retained candidate
+recorded below. The newer UI source still needs preparation and independent
+check; older candidates do not cover that change. Final-head CI and protected promotion remain separate
 requirements. Older synchronized heads below are historical checkpoints.
 The generated source families recorded below are dated, source-bound evidence;
 documentation and test follow-ups do not create a new release candidate. The
@@ -82,9 +83,23 @@ deselected. Strict TypeScript passed with explicit Node types. Independent polic
 and Linux PTR-variable wiring reviews found no further defect. Both temporary native
 overlay files were restored to the clean published checkpoint.
 
-The complete updated 163-test native suite is pending after publication. Because
-the verifier is a protected input, its correction requires a new native prepare
-and independent check, followed by guarded export and validation of that family.
+The complete updated suite passed all 163 native tests, with no skips, on clean
+source `72aee27e8dc165994d3893bed9b9151330b8c9f2` in session `75371`.
+Preparation then emitted its completed result for candidate
+`release-workspace-3e7657772125faa459d4fa2d50e96fe0`, source tree
+`82275d6bb3155d316e685236de11fdea1b5a5be2`, transaction
+`290a5f36478428d169cd612878a58473`, journal
+`139919009c0f2c61c4370bc563fb7f4dcd7ef662fff0e4fdb22d0240876436a1`, family
+`f317fb3df155085972ed52231efa3a3f5a84743bf3a61ce8a0beede36e0b140b` and closure
+`ba408e61a83ea13947159cf9d88126625abcf7bcf92950a5667bc2934c5ebe1b`.
+The scanner identity and inventory sizes match the earlier family above.
+The outer shell exited one on a trailing carriage return at line 14, after the
+Node command returned under `set -e`; this is not a successful wrapper exit.
+Session `75371` is terminal. No independent check or export is claimed for this
+candidate: subsequent edits to `Keep04Screen.tsx` and `Keep04Screen.css` change
+raw-hashed closure members. Retain it as source-bound history and prepare the
+new committed UI input instead of independently rebuilding an obsolete family.
+Future Linux command stdin must use LF-only line endings.
 The successful `7cb573ba` candidate above certifies its original input only.
 Preparation remains separate from final-head CI, protected promotion, genuine
 provider execution, owner play, device measurements and live release acceptance.

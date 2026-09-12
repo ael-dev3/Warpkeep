@@ -47,15 +47,32 @@ and PTR source counts. The correction binds credentials to their owning calls:
 source inspection receives the Cloudflare token, and live inspection also
 receives the admin token. The baseline and six credential-relocation regressions
 passed natively in session `34162`; 156 tests were deselected. Strict TypeScript
-also passed. The full 163-test native suite remains pending after publication.
+also passed. The full suite then passed all 163 tests on clean native source
+`72aee27e8dc165994d3893bed9b9151330b8c9f2` in session `75371`, with no skips.
 Independent policy
 and Linux PTR-variable wiring reviews found no further defect. The temporary
 native overlays were restored, leaving the published checkout clean.
 
-This correction changes a protected policy input. Publish it, synchronize the
-idle native checkout, complete the full suite, then run fresh native preparation
-and independent check. The retained `7cb573ba` candidate does not cover this
-policy change. Export the newly checked family, verify its closure and blocked
+Preparation in that same session emitted its completed candidate result for
+`release-workspace-3e7657772125faa459d4fa2d50e96fe0`. The outer shell then exited
+one because of a trailing carriage return after the successful Node command.
+Do not label the wrapper successful. The candidate is retained without an
+independent check or export: the subsequent mobile layout changes two raw-hashed
+closure members, so that candidate cannot cover the new UI source. Its exact
+identities remain in the release engineering record. No active native process
+remains from session `75371`.
+
+The mobile entry correction moves the full loop rail below the workspace,
+compacts resource and scene controls, and keeps exact balances and primary
+actions visible. Its five affected suites passed all 64 tests and build-mode
+types passed; local synthetic portrait/narrow/landscape views were inspected.
+The [visual notes](gameplay-and-visuals.md) retain the capture limitations and
+remaining composition work. No authority or gameplay mechanic changed.
+
+Publish this source, synchronize the idle native checkout, then prepare and
+independently check that committed input. Use LF-only stdin for Linux shell
+scripts to avoid repeating the wrapper error. Do not repeat the unrelated 163
+policy tests for this UI-only change. Export the newly checked family, verify its closure and blocked
 Pages classification, and complete that head's required CI before normal
 protected preparation-only squash promotion. Verify main's own CI and source
 classification afterward.
