@@ -24,8 +24,12 @@ and require its exact terminal result before export. Windows has a separate clea
 `codex/0.4-prepared-source` branch for the checked generated family. The scanner
 configuration, scanner fixture/tests and documentation repair are outside the
 deployment closure; they do not relabel the candidate or change its input.
-The repair passed all six owning tests, the real scanner's 33 allowed fixtures
-and 66 mandatory detections, app/test types and a full-history scan of 435 commits.
+The initial repair passed all six owning tests, the real scanner's 33 allowed
+fixtures and 66 mandatory detections, app/test types and the full M1 history scan.
+Its outgoing scan then stopped on four matches of M1's public commit/tree IDs
+in these source notes. A separate exception covers only those two IDs in the two
+exact evidence documents; its real regression passed 37 allowed fixtures and
+72 mandatory detections. The first commit remains intact for review.
 Changed-document links and the repository size policy passed. Hosted checks for
 the repair still require their own terminal result.
 After successful preparation and independent check, export at exact M1 and

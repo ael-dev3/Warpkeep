@@ -49,6 +49,15 @@ All six owning tests passed. The complete M1 history scan then passed across
 435 commits (48,353,147 bytes); app/test types, file-size policy and 233 local
 document-link targets passed. These checks do not replace the repair's hosted CI.
 
+The outgoing scan of initial repair `1fb1c88d` correctly stopped publication on
+four additional matches: actual M1's public commit and tree IDs in this record
+and the execution handoff. The follow-up retains that commit and adds a separate
+exception for only those two exact values at those two exact paths. The real
+regression first reproduced four unexpected findings, then passed 37 allowed
+fixtures and 72 mandatory detections, including altered values at both paths and
+the unchanged values at an unrelated document. The original bundle exception,
+full-history command and historical fingerprints remain unchanged.
+
 Both clean checkouts deliberately moved to actual M1. Native preparation session
 `30088` exited zero with candidate `release-workspace-99438dc2cc576e073df09bc44f930bc6`.
 The result retains source/tree M1, transaction `71a85ab27d28482e77a030c0b9df7c71`,

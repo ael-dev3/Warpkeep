@@ -77,6 +77,24 @@ function fixture() {
     files.set(path, prefix + publicSourceIds.map(sourceIdLine).join(''));
     publicSourceIds.forEach((_, index) => expected.push(`sourcegraph-access-token:${path}:${firstLine + index}`));
   }
+  // Actual protected M1 commit and its Git tree, independently fixed here.
+  const evidenceSourceIds = [
+    ['c4b95505b73705d120af', 'f3f3318d2bd5151f6565'].join(''),
+    ['24f5ceb4e36814b0a2bd', 'b691adb59591db676611'].join(''),
+  ];
+  const evidenceLine = (value: string) => `Sourcegraph review source: \`${value}\`.\n`;
+  for (const path of ['docs/agent-notes/0.4.0/execution-handoff.md', 'docs/evidence/0.4.0/release-engineering.md']) {
+    files.set(path, evidenceSourceIds.map(value => (
+      evidenceLine(value) + evidenceLine(`${value.slice(0, -1)}0`)
+    )).join(''));
+    evidenceSourceIds.forEach((_, index) => {
+      positives++;
+      expected.push(`sourcegraph-access-token:${path}:${index * 2 + 2}`);
+    });
+  }
+  const unrelatedEvidencePath = 'docs/evidence/0.4.0/unrelated-source.md';
+  files.set(unrelatedEvidencePath, evidenceSourceIds.map(evidenceLine).join(''));
+  evidenceSourceIds.forEach((_, index) => expected.push(`sourcegraph-access-token:${unrelatedEvidencePath}:${index + 1}`));
   const rpc = ['AAECAwQFBgcICQoL', 'DA0ODxAREhMUFRYX', 'GBkaGxwdHh8'].join('');
   const rpcPath = 'services/auth-bridge/test/releaseRecoveryConfig.test.ts';
   files.set(rpcPath, `const RPC_CREDENTIAL = '${rpc}';\nconst OTHER_RPC_CREDENTIAL = '${rpc}x';\n`);

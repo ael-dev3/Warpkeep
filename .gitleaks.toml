@@ -219,6 +219,14 @@ regexes = [
 ]
 
 [[allowlists]]
+description = "Exact public protected M1 commit and tree identifiers in the two source-evidence documents"
+targetRules = ["sourcegraph-access-token"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^docs/agent-notes/0\.4\.0/execution-handoff\.md$''', '''^docs/evidence/0\.4\.0/release-engineering\.md$''']
+regexes = ['''^c4b95505b73705d120aff3f3318d2bd5151f6565$''', '''^24f5ceb4e36814b0a2bdb691adb59591db676611$''']
+
+[[allowlists]]
 description = "Exact freshly generated public preparation RPC test key; SPKI SHA256 d01cf2c7368103f04ada8a93bbd9f79aaeca164265a9e975cd0c0dbe0ef7c18d"
 targetRules = ["private-key"]
 condition = "AND"
