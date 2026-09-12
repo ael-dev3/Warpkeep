@@ -2,9 +2,40 @@
 
 ## Current review and next work — 12 September 2026
 
-The Windows development branch is now `codex/0.4-pending-panel-dismissal`, based
-on published PR #240 head `9ac3ee3628a8586fd1338c4f036f46bad414fca9`.
-Its focused follow-up fixes the real host's rejected Close/Escape request during
+The Windows development branch is `codex/0.4-keep-entry-framing`, published in
+[PR #242](https://github.com/ael-dev3/Warpkeep/pull/242), based on PR #241 head
+`5996629a413f205c0564d570670a650a17f2a63f`. Entry framing at `337a4cc0`
+passed the five-suite 166-case selection, both type projects and independent
+review. Guarded run `windows-run-PSW7Es` retained 36 reviewed images from that
+exact source; [visual evidence](../../evidence/0.4.0/visuals.md#2026-09-12-occupied-entry-framing-and-placement-markers)
+owns the scope, diagnostics and remaining acceptance.
+
+Published review input `d64c8f78442da7ad1bc554c283daf136d670d399` then
+completed native preparation `17954` and independent rebuilding check `10798`,
+both exit zero with all fields equal. The authenticated complete output family
+was independently reconstructed, applied to the unchanged Windows input and
+staged as exact generated tree `f657aa5d007e58a6ded430c3df6bba37112b99e6`.
+Only seven manifest/workflow-pin files changed. The
+[owning family evidence](../../evidence/0.4.0/release-engineering.md#occupied-entry-source-family--2026-09-12)
+records all identities. Do not restart either completed native run or apply an
+older export. This development preparation is not a production deployment.
+Native session `28168` passed all 393 cases in ten owning/generated-consumer
+suites at published integration `eeda6f64`, without skips or failures, using the
+normal timeouts (286.16 seconds). Both sealed verifiers passed in preparation
+state, and native remained clean with no active source consumer. This closes the
+recorded Windows fixture/timeout limits for J; it does not accept later art source.
+
+The reused isolated checkout `C:/Temp/warpkeep-clean-ci` carries
+`codex/0.4-building-hierarchy` / [PR #243](https://github.com/ael-dev3/Warpkeep/pull/243),
+published at `75c0468081583ce6dff9cf7ba02392a58bbb4e54` over D. It reduces the
+cathedral's rendered body and gives completed economic sites craft signs, while
+preserving footprints and gameplay authority. All 138 tests in its five owning
+suites and both type projects passed; independent code review found no blocker.
+Its rendered review remains separate from this D-bound generated family. Keep
+source pinned during capture and batch accepted visual work before preparing the
+next family. PR #240 at `944bb17b` and PR #241 at `5996629a` have now passed
+all hosted checks; resolve actual heads before normal protected integration.
+PR #241's preceding change fixes the real host's rejected Close/Escape request during
 a pending command or refresh; see the [gameplay evidence](../../evidence/0.4.0/gameplay.md#panel-dismissal-during-a-request-or-refresh--2026-09-12).
 All eight new integration cases reproduced the defect and then passed; the full
 host/screen selection passed 68 tests, both type projects passed and independent
@@ -14,10 +45,16 @@ equal. Its authenticated complete family was applied and generated-only staging
 matched `1494fe0d9468b54c30ae47acccadd7038fb83726`; the
 [owning evidence](../../evidence/0.4.0/release-engineering.md#pending-panel-source-family--2026-09-12)
 records the candidate and exact digests. Do not restart either completed run.
-PR #240's Linux job `103590042919` failed one real-parser provider fixture that
-still describes the older Worker; its service, native-contract and CodeQL checks
-passed. Correct and verify that fixture separately, preserving the runtime guards,
-then publish the repair to the parent PR through normal history.
+PR #240's Linux job `103590042919` exposed one real-parser provider fixture that
+still described the older Worker. The corrected test includes version metadata
+and the observation entrypoint, with exact rejection cases when either is absent.
+The failure was reproduced; all 211 owning cases then passed on Windows. The
+test-only correction is published at `5996629a` and normally cherry-picked into
+PR #240 as `944bb17bdeafed920466bbdc4e27511bd8e557e1`; production guards and
+generated outputs are unchanged. Fresh native session `20928` passed all 400
+tests across seven suites without skips at `5996629a` (20.53 seconds, exit zero),
+covering the provider and generated consumers. The native checkout remained clean
+at that published input. Later changed heads still require their own full hosted acceptance.
 Resolve the live branches and dependent PR base before later protected integration.
 
 Corrected source `3710f139b3572ae0a742d582d0d79d8aa88d9476` completed native
@@ -135,7 +172,12 @@ and canary settings but cannot supply the recovery observer bindings. Preserve
 its authenticated predecessor, public modes and existing secrets; install the
 observer configuration, disabled private signer and secretless gateway in that
 order. The existing recovery key, RPC secret and census pepper must be reused.
-Full bootstrap verification still lacks the local canary owner carrier. The
+Full bootstrap verification still lacks the local canary owner carrier. A bounded
+metadata/provenance audit found no retained authenticated owner record from which
+to reconstruct it. The public Mini App association and expected-FID boolean serve
+different roles and cannot supply that identity. The existing protected secret
+remains usable by its workflow lane without disclosure; do not make local
+plaintext reconstruction a new requirement for that lane. The
 authenticated account's GitHub Apps settings showed no registered Apps during
 this review. The owner subsequently completed GitHub's “Confirm access” step.
 The private “Warpkeep Release Evidence” App
