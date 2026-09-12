@@ -361,8 +361,18 @@ it.each([true, false])('backs out of a pending placement, keep and ready world (
   expect(push).toHaveBeenCalledTimes(pushes);
   const confirm = screen.getByRole('button', { name: /Confirm placement/ }) as HTMLButtonElement;
   expect(confirm.disabled).toBe(false);
+  const resources = screen.getByRole('region', { name: 'Resources' });
+  const panel = screen.getByRole('complementary', { name: 'Command panel' });
   fireEvent.click(confirm);
-  await screen.findByText('Request pending. Awaiting Realm update.');
+  const pending = await within(resources).findByRole('status');
+  expect(pending.textContent).toMatch(/Request pending/);
+  expect(pending.textContent).toMatch(/last confirmed keep/);
+  expect(screen.getByRole('region', { name: 'Resources' })).toBe(resources);
+  expect(screen.getByRole('complementary', { name: 'Command panel' })).toBe(panel);
+  expect(screen.getByRole('button', { name: /Confirm placement/ })).toBe(confirm);
+  expect(confirm.disabled).toBe(true);
+  expect(screen.getByRole('button', { name: 'City Mill' }).getAttribute('aria-pressed')).toBe('true');
+  fireEvent.click(confirm);
   expect(h.build).toHaveBeenCalledOnce();
   expect(h.build.mock.calls[0]?.[0]).toMatchObject({ expectedAtlasRevision: fixture.bootstrap.revision });
   const back = (state: unknown) => act(() => {

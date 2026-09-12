@@ -2,6 +2,18 @@
 
 ## Current review and next work — 12 September 2026
 
+Hosted Verify `34686939701` at published `48a38b0f` failed two route integration
+cases after 10,524 root tests passed. Both still expected the retired unavailable
+pending message, although the funded keep now correctly remains visible. The
+same two failures reproduced locally. The corrected test checks accessible pending
+feedback inside the retained Resources region, the same command panel and disabled
+confirmation, preserved City Mill selection, and the original exact-one-build,
+atlas revision and back/history behavior for Mini App and browser. All 113 tests
+in five affected route/screen/scene/accessibility/controller suites then passed
+on pinned Node 22.22.3. No production behavior changed. Include the real route
+suite in future keep-phase verification; the current source still needs its own
+terminal hosted checks before promotion.
+
 The latest delivery correction fixes two integration defects exposed by hosted
 Verify at `a7e19376`: the bundle engine still required the retired PTR home
 literal, and aggregate workflow regex counts concealed a missing job timeout.
@@ -21,28 +33,38 @@ view, uncertainty, failures and expired sessions keep their unavailable behavior
 The [visual evidence](../../evidence/0.4.0/visuals.md#2026-09-12-pending-command-continuity)
 records the reproduced defect, browser checks and their limitations.
 
-Real provider inspection now exposes a separate account-authority issue. Metadata
-confirmed the fixed PTR identity but its owner differed from the saved CLI login;
-a read-only SQL request returned HTTP 403. No atlas or owner state was obtained,
-and no update was attempted. The owner has been asked for the existing authorized
-account/configuration location, without sending tokens. Preserve that config and
-all existing PTR state. The
+Real provider inspection confirmed the fixed PTR identity, while its metadata
+owner differed from the saved CLI login. A bounded follow-up classified the SQL
+403 as `INVALID_PTR_OWNER_SESSION`, the application's session gate. This does not
+prove provider update permission or denial. No atlas or owner state was obtained,
+and no update was attempted. Inspect game state with genuine Warpkeep admin/owner
+session authority and verify provider update authority separately. Preserve the
+existing configuration and PTR state. The
 [provider evidence](../../evidence/0.4.0/release-engineering.md#ptr-provider-read-and-unresolved-account-authority--2026-09-12)
 owns the exact result; a refused read must not become an assumption of empty state.
-Source/UI work can continue while access is resolved. Remaining delivery work is
+The existing protected environment contains the workflow's secret entries, but
+their presence does not establish validity. Source/UI work can continue while
+access is verified. Remaining delivery work is
 authenticated import/adoption continuity, owner/live caller composition, protected
 source/family promotion and real preservation/owner/device acceptance. Overall
 development remains approximately 65%; this is judgment against the full release
 outcome, not a test-count score or a shipped-release claim.
 
-The UI/test/evidence checkpoint was published as `05c9e0f3`, with Windows,
-GitHub and the clean idle native checkout verified equal. Publish the current
-delivery correction through the
+The UI checkpoint `05c9e0f3` and bundle/workflow correction `48a38b0f` were
+published, with Windows, GitHub and the clean idle native checkout verified equal.
+Publish the current route-test and owning-note correction through the
 [sync procedure](../../operations/0.4.0-development-sync.md), synchronize the clean
 idle native checkout, and record the resulting SHA and its own hosted checks in
 PR #228 and the existing external handoff. The retained `8033e01c` family predates
 both this UI source and the Linux PTR caller. Keep final preparation in the normal
 M1/M2 promotion sequence; do not generate another candidate merely to update notes.
+
+The retained candidate also passed a fresh locked integrity check and an isolated
+Git-index patch roundtrip. Existing assembler primitives support export without
+another clone or a new CLI. Follow the
+[integration procedure](../../operations/0.4.0-local-release-preparation.md#integrate-the-reviewed-source)
+with the actual M1 prepare/check identities; do not reuse historical confirmation
+values. This operating-path proof does not replace fresh M1 preparation.
 
 ## Linux PTR workflow and preceding publication
 

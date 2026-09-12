@@ -150,6 +150,14 @@ types and build scripts separately. Auth bridge and recovery services likewise
 own separate scripts/lockfiles. Inspect each package's actual commands before
 running; do not assume root checks transitively verify every package or `.mjs` file.
 
+When keep phases, panels or navigation change, include
+`tests/PtrGameplay04SurfaceHost.test.tsx` alongside the affected `Keep04` and
+controller suites. That real route composition exercises pending commands and
+back navigation in both the Mini App and browser. Assert the retained presentation,
+accessible feedback and command boundary; do not preserve retired copy as a proxy
+for the behavior. Component-only checks missed this integration expectation in
+the September 12 pending-keep change.
+
 For a fresh clone, install from locked manifests. In an existing worktree, first
 check whether dependencies are shared links/junctions. Do not mutate shared trees;
 use suitable isolation. Test processes may write temporary fixtures, caches or

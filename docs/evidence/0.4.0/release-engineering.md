@@ -21,6 +21,38 @@ Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
+## Pending keep route acceptance correction — 2026-09-12
+
+Verify `34686939701` at `48a38b0f` completed Linux job `103535497342` with
+two failures in `tests/PtrGameplay04SurfaceHost.test.tsx`: the Mini App and browser
+pending-placement/back cases still required the old unavailable-state message.
+The actual funded keep remained visible with pending status inside Resources.
+The batch passed 10,524 tests across 656 files, with 181 tests/two files skipped;
+later types/build phases were not run. CodeQL, native contracts, auth bridge and
+recovery passed separately. The module job was still running when diagnosed.
+
+Pinned Node 22.22.3 reproduced exactly two failures and 31 passes in the owning
+route suite (session `30658`, exit one). The corrected assertions verify the live
+status role, retained Resources/command-panel identity, selected building and
+disabled original Confirm button. Clicking that disabled button cannot issue a
+second build. Existing atlas-revision, back/history and no-replay assertions remain.
+All 113 tests in five affected route/screen/scene/accessibility/controller suites
+then passed (session `20563`, exit zero). This corrects integration coverage;
+production rendering, command authority and navigation code are unchanged.
+
+Application/test `tsconfig.app.json` noEmit checking passed with pinned Node,
+as did the owning file-size policy and all 62 local link targets in the changed
+documents. Independent review found no actionable defect. The new publication
+still requires its own hosted results; this scoped pass does not claim a full
+root build or actual-owner acceptance.
+
+The exact CodeQL alert 19 in the Node dispatch fixture was independently reviewed
+and dismissed as a false positive. The flagged `JSON.stringify(lane)` receives
+only fixed `ptr`/`activation` literals; the generated module is base64-loaded via
+Node import and never embedded in HTML. Its pinned Node suite passed 11/11, and
+the resolved review thread and alert state were read back. No broad suppression
+or production escaping change was introduced.
+
 ## Bundle path and workflow timeout correction — 2026-09-12
 
 Verify `34684939145` at `a7e19376` completed its Linux root-test batch with seven
@@ -71,16 +103,31 @@ Credential bytes, raw response bodies and identity values were not published.
 Metadata may be publicly readable, so its success does not prove that the saved
 credential is valid or authorized. The owner mismatch and SQL refusal do not
 establish whether a separate update delegation exists; no update was attempted.
-The next required input is the existing authorized provider account/configuration
-or genuine delegation evidence. The owner has been asked for that account or
-configuration location, without sending tokens. Preserve the existing config and
-PTR while resolving access. A refused read is not evidence that the atlas or
-owner is absent, and does not authorize importing or provisioning them again.
+At `2026-09-12T09:59:15.737Z`, a bounded follow-up identified
+`INVALID_PTR_OWNER_SESSION` in the SQL rejection. That is the application's
+session gate, not proof of provider update denial. Configuration bytes remained
+unchanged. The earlier account/configuration question remains unanswered, but
+unrelated source work does not depend on that answer. Preserve the existing
+config and PTR while verifying provider authority separately. A refused read is
+not evidence that the atlas or owner is absent, and does not authorize importing
+or provisioning them again.
 
 The separate deployed bridge admin-token inspection path could establish atlas
 and owner status through its genuine authority, but its current configuration
 and credentials have not been verified. It is not a substitute for provider update
 permission. Import/adoption and owner/live caller composition remain unfinished.
+
+GitHub metadata confirmed the protected `notification-bridge-prepared` environment
+contains the five expected secret names for Cloudflare account/token/zone, owner
+FID and production admin token. Values were not read. It allows protected branches;
+the dedicated Linux runner was online and idle. These are configuration-presence
+observations, not credential validation or an executed provider operation.
+
+The receipt-location audit found no documented retained PTR atlas/owner/live
+receipt location. The initial creation record at `799814b5` explicitly performed
+no atlas import or owner provisioning at that historical checkpoint. Subsequent
+synthetic rehearsals do not establish current production state; initial-program
+metadata does not replace a current program observation or signed receipt.
 
 ## Linux existing-PTR update caller — 2026-09-12
 
