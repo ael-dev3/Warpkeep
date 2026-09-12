@@ -120,8 +120,12 @@ function fixture() {
     expect(options?.cache).toBe('no-store');
     expect(options?.redirect).toBe('error');
     expect(options?.signal).toBeInstanceOf(AbortSignal);
-    expect(url.startsWith(ORIGIN)).toBe(true);
-    const path = url.slice(ORIGIN.length);
+    const requestUrl = new URL(url);
+    expect(requestUrl.origin).toBe(ORIGIN);
+    expect(requestUrl.username).toBe('');
+    expect(requestUrl.password).toBe('');
+    expect(requestUrl.hash).toBe('');
+    const path = `${requestUrl.pathname}${requestUrl.search}`;
     if (path !== CONTENT && !records.has(path)) throw new Error('Unexpected request');
     const headers = new Headers({ date: state.responseDate,
       'content-type': path === CONTENT
