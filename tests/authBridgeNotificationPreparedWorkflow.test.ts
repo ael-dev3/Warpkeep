@@ -535,38 +535,30 @@ function createPolicyFixture(): string {
   );
   mkdirSync(dirname(manifestPath), { recursive: true });
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  const allPinFiles = {
-    ...pagesBootstrapPinFiles,
-    ...linuxBootstrapPinFiles,
-  };
-  const allPins = new Map(Object.entries(allPinFiles).map(
-    ([name, relativePath]) => [name, createHash('sha256')
-      .update(readFileSync(relativePath ===
-        AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH
-        ? manifestPath
-        : resolve(root, relativePath)))
-      .digest('hex')],
-  ));
-  for (const [relativePath, names, indentation] of [
+  for (const [relativePath, names, indentation, pinFiles] of [
     [
       '.github/workflows/notification-bridge-b0.yml',
       Object.keys(bootstrapPinFiles),
       '      ',
+      bootstrapPinFiles,
     ],
     [
       '.github/workflows/notification-bridge-prepared.yml',
       Object.keys(bootstrapPinFiles),
       '      ',
+      bootstrapPinFiles,
     ],
     [
       '.github/workflows/deploy-pages.yml',
       Object.keys(pagesBootstrapPinFiles),
       '  ',
+      pagesBootstrapPinFiles,
     ],
     [
       '.github/workflows/notification-bridge-prepared-linux.yml',
       Object.keys(linuxBootstrapPinFiles),
       '      ',
+      linuxBootstrapPinFiles,
     ],
   ] as const) {
     const path = resolve(root, relativePath);
@@ -576,7 +568,15 @@ function createPolicyFixture(): string {
         `^${indentation}${name}: '([a-f0-9]{64})'$`,
         'mu',
       ))?.[1];
-      const expected = allPins.get(name);
+      const expectedPath = (pinFiles as Record<string, string>)[name];
+      const expected = expectedPath === undefined
+        ? undefined
+        : createHash('sha256')
+          .update(readFileSync(expectedPath ===
+            AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH
+            ? manifestPath
+            : resolve(root, expectedPath)))
+          .digest('hex');
       if (current === undefined || expected === undefined) {
         throw new Error(`fixture bootstrap pin ${name} was unavailable`);
       }
@@ -1137,11 +1137,11 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(source.match(/diff-index --quiet --cached HEAD --/gu)).toHaveLength(3);
     expect(source.match(/diff-files --quiet --/gu)).toHaveLength(3);
     expect(document.jobs?.['private-toolchain']?.['runs-on']).toEqual([
-      'self-hosted', 'macOS', 'ARM64', 'warpkeep-production-admin',
+      'self-hosted', 'Linux', 'X64', 'warpkeep-production-admin',
       'warpkeep-repository-exclusive',
     ]);
     expect(document.jobs?.['private-deploy']?.['runs-on']).toEqual([
-      'self-hosted', 'macOS', 'ARM64', 'warpkeep-production-admin',
+      'self-hosted', 'Linux', 'X64', 'warpkeep-production-admin',
       'warpkeep-repository-exclusive',
     ]);
   });
