@@ -48,8 +48,9 @@ Historical plans are context, not an automatic restriction on better solutions.
    Close actionable findings or explicitly record why they remain blocking.
 6. **Record and publish source.** Add concise evidence tied to source and inputs;
    review/secret-scan exact outgoing commits, push without force and verify remote
-   identity for every completed development change. Include its implementation,
-   tests and owning notes in the same checkpoint where practical. Before yielding,
+   identity for every reviewable development checkpoint. Include implementation,
+   tests and owning notes together where practical. During longer changes, publish
+   bounded unfinished checkpoints before switching work items. Before yielding,
    publish all agent-authored durable work, including unfinished source labeled
    with its actual limits. Do not wait for full hosted CI or production readiness;
    publication remains separate from PR approval, main integration and deployment.
@@ -155,6 +156,14 @@ Root Vitest selects `tests/**`, not `spacetimedb/tests/**`. Run module Node/tsx,
 types and build scripts separately. Auth bridge and recovery services likewise
 own separate scripts/lockfiles. Inspect each package's actual commands before
 running; do not assume root checks transitively verify every package or `.mjs` file.
+
+Run service checks from the service directory using its own installed test runner.
+Invoking root Vitest against a service with a separate dependency tree can load
+two Vitest instances and fail before test discovery. Keep cross-service tests in
+the package that owns the exercised producer and its external dependencies.
+An installed sibling package can hide imports that fail in CI, where each service
+job installs only its own locked dependencies. Preserve that boundary; do not add
+unrelated installs merely to make a misplaced test compile.
 
 When keep phases, panels or navigation change, include
 `tests/PtrGameplay04SurfaceHost.test.tsx` alongside the affected `Keep04` and

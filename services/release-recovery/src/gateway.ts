@@ -2,9 +2,11 @@ import { snapshotExactDataObject } from './config.js'
 import { parseGitHubJsonObject } from './http.js'
 import { snapshotSignerRequest } from './signerRequests.js'
 import { snapshotPreparationRequest } from './preparationPolicy.js'
+import { snapshotPtrObservationRequest } from './ptrObservation.js'
 
-type Endpoint = 'preparation-observation' | 'prepare' | 'status' | 'issue' | 'claim' | 'complete' | 'reconcile' | 'terminal'
+type Endpoint = 'ptr-observation' | 'preparation-observation' | 'prepare' | 'status' | 'issue' | 'claim' | 'complete' | 'reconcile' | 'terminal'
 export type RecoverySignerService = Readonly<{
+  ptrObservation?(request: Readonly<Record<string, string>>): Promise<unknown>
   preparationObservation?(request: Readonly<Record<string, string>>): Promise<unknown>
   prepare?(request: Readonly<Record<string, string>>): Promise<unknown>
   status(): Promise<unknown>
@@ -20,8 +22,8 @@ export type RecoverySafeLogEvent = Readonly<{
 }>
 const ORIGIN = 'https://release-auth.warpkeep.com'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
-const KEYS = { 'preparation-observation': 'preparationObservationJws', prepare: 'preparationReceiptJws', status: 'statusJws', issue: 'authorizationJws', claim: 'claimReceiptJws', complete: 'terminalJws', reconcile: 'terminalJws', terminal: 'terminalJws' } as const
-const UNAVAILABLE = { 'preparation-observation': 'RECOVERY_PREPARATION_OBSERVATION_UNAVAILABLE', prepare: 'RECOVERY_PREPARATION_UNAVAILABLE', unknown: 'RECOVERY_UNAVAILABLE', status: 'RECOVERY_STATUS_UNAVAILABLE', issue: 'RECOVERY_ISSUE_UNAVAILABLE', claim: 'RECOVERY_CLAIM_UNAVAILABLE',
+const KEYS = { 'ptr-observation': 'ptrObservationJws', 'preparation-observation': 'preparationObservationJws', prepare: 'preparationReceiptJws', status: 'statusJws', issue: 'authorizationJws', claim: 'claimReceiptJws', complete: 'terminalJws', reconcile: 'terminalJws', terminal: 'terminalJws' } as const
+const UNAVAILABLE = { 'ptr-observation': 'RECOVERY_PTR_OBSERVATION_UNAVAILABLE', 'preparation-observation': 'RECOVERY_PREPARATION_OBSERVATION_UNAVAILABLE', prepare: 'RECOVERY_PREPARATION_UNAVAILABLE', unknown: 'RECOVERY_UNAVAILABLE', status: 'RECOVERY_STATUS_UNAVAILABLE', issue: 'RECOVERY_ISSUE_UNAVAILABLE', claim: 'RECOVERY_CLAIM_UNAVAILABLE',
   complete: 'RECOVERY_COMPLETE_UNAVAILABLE', reconcile: 'RECOVERY_RECONCILE_UNAVAILABLE', terminal: 'RECOVERY_TERMINAL_UNAVAILABLE' } as const
 const ERRORS = { 400: 'RECOVERY_REQUEST_INVALID', 403: 'RECOVERY_ORIGIN_FORBIDDEN', 404: 'RECOVERY_ENDPOINT_NOT_FOUND',
   405: 'RECOVERY_METHOD_NOT_ALLOWED', 408: 'RECOVERY_BODY_TIMEOUT', 413: 'RECOVERY_BODY_TOO_LARGE', 415: 'RECOVERY_MEDIA_TYPE_INVALID' } as const
@@ -82,7 +84,7 @@ async function boundedRpc(operation: () => Promise<unknown>, endpoint: Endpoint)
   let timeout: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([operation(), new Promise<never>((_, reject) => {
-      timeout = setTimeout(() => reject(new Error('RECOVERY_RPC_TIMEOUT')), (endpoint === 'prepare' || endpoint === 'preparation-observation') ? 110000 : endpoint === 'issue' ? 390000 : endpoint === 'claim' ? 95000 : 20000)
+      timeout = setTimeout(() => reject(new Error('RECOVERY_RPC_TIMEOUT')), (endpoint === 'prepare' || endpoint === 'preparation-observation' || endpoint === 'ptr-observation') ? 110000 : endpoint === 'issue' ? 390000 : endpoint === 'claim' ? 95000 : 20000)
     })])
   } finally { clearTimeout(timeout) }
 }
@@ -125,7 +127,9 @@ export function createRecoveryGateway(input: Readonly<{ signer: RecoverySignerSe
         const bytes = await bodyBytes(request)
         try {
           const value = parseGitHubJsonObject(bytes, 'RECOVERY_REQUEST_INVALID', [])
-          parsed = (endpoint === 'prepare' || endpoint === 'preparation-observation') ? snapshotPreparationRequest(value) : snapshotSignerRequest(endpoint, value)
+          parsed = endpoint === 'ptr-observation' ? snapshotPtrObservationRequest(value)
+            : (endpoint === 'prepare' || endpoint === 'preparation-observation') ? snapshotPreparationRequest(value)
+              : snapshotSignerRequest(endpoint, value)
         }
         finally { bytes.fill(0) }
         requestId = parsed.requestId ?? null
@@ -135,7 +139,11 @@ export function createRecoveryGateway(input: Readonly<{ signer: RecoverySignerSe
       // Workerd RPC cannot serialize a null-prototype object. Only copy the
       // already-validated string fields; never spread unvalidated request data.
       const rpcRequest = parsed === undefined ? undefined : Object.freeze({ ...parsed })
-      const result = await boundedRpc(() => selected === 'status' ? input.signer.status() : selected === 'preparation-observation' ? (input.signer.preparationObservation?.(rpcRequest!) ?? Promise.reject(new Error('RECOVERY_PREPARATION_OBSERVATION_UNAVAILABLE'))) : selected === 'prepare' ? (input.signer.prepare?.(rpcRequest!) ?? Promise.reject(new Error('RECOVERY_PREPARATION_UNAVAILABLE'))) : input.signer[selected](rpcRequest!), selected)
+      const result = await boundedRpc(() => selected === 'status' ? input.signer.status()
+        : selected === 'ptr-observation' ? (input.signer.ptrObservation?.(rpcRequest!) ?? Promise.reject(new Error('RECOVERY_PTR_OBSERVATION_UNAVAILABLE')))
+          : selected === 'preparation-observation' ? (input.signer.preparationObservation?.(rpcRequest!) ?? Promise.reject(new Error('RECOVERY_PREPARATION_OBSERVATION_UNAVAILABLE')))
+            : selected === 'prepare' ? (input.signer.prepare?.(rpcRequest!) ?? Promise.reject(new Error('RECOVERY_PREPARATION_UNAVAILABLE')))
+              : input.signer[selected](rpcRequest!), selected)
       const key = KEYS[selected]
       const response = rpcResponse(result, key)
       const compact = response[key]

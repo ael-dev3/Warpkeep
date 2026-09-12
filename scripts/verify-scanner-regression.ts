@@ -21,6 +21,9 @@ function fixture() {
   const owner = ['secret-owner-fid-', '12345'].join('');
   const schema = ['g002Admission', 'MutationsEnabled'].join('');
   const thumbprint = ['jJpfIbYjQL5LxwND', '5zk1MUOqN1B3vOh_', 'ydTAOoUnuR8'].join('');
+  const ptrTestThumbprint = ['zbHwk528B5de5kuN', 'zI98k4Y-rljmW6fb', 'kH-aVZomk4M'].join('');
+  const ptrObservationPaths = ['services/release-recovery/test/ptrObservation.test.ts',
+    'services/release-recovery/test/signerPtrObservation.test.ts', 'tests/ptrProductionStateObservation.test.ts'];
   const groups: Array<[string, string[]]> = [
     ['services/release-recovery/scripts/release-recovery-toolchain-records.mjs', hashes],
     ['services/release-recovery/scripts/prepare-release-recovery-wsl-toolchain.mjs', hashes],
@@ -34,6 +37,7 @@ function fixture() {
     ['scripts/sealed-realms-production-g001-lane.bundle.mjs', [schema, thumbprint]],
     ['scripts/sealed-realms-production-g002-lane.bundle.mjs', [schema, thumbprint]],
     ['scripts/sealed-realms-production-ptr-lane.bundle.mjs', [schema, thumbprint]],
+    ...ptrObservationPaths.map(path => [path, [ptrTestThumbprint]] as [string, string[]]),
   ];
   for (const [path, values] of groups) {
     files.set(path, values.map((value, index) => `const API_KEY_${index} = '${value}';\nconst MUTATED_API_KEY_${index} = '${value.slice(0, -1)}b';\n`).join(''));
@@ -45,6 +49,11 @@ function fixture() {
   const wrongBundlePath = 'scripts/sealed-realms-production-g001-lane.bundle.mjs.copy';
   files.set(wrongBundlePath, [schema, thumbprint].map((value, index) => `const API_KEY_${index} = '${value}';\n`).join(''));
   [schema, thumbprint].forEach((_, index) => expected.push(`generic-api-key:${wrongBundlePath}:${index + 1}`));
+  for (const path of ptrObservationPaths) {
+    const copiedPath = `${path}.copy`;
+    files.set(copiedPath, `const API_KEY = '${ptrTestThumbprint}';\n`);
+    expected.push(`generic-api-key:${copiedPath}:1`);
+  }
   // Independently reviewed Git commit/tree/blob IDs, including the upstream
   // SpacetimeDB 2.6.1 commit. The real Sourcegraph rule also matches bare SHA-1
   // values when its sourcegraph keyword appears in the scanned fragment.

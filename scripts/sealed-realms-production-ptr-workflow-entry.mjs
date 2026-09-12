@@ -5,6 +5,7 @@ import { userInfo } from 'node:os';
 import { basename, dirname, isAbsolute } from 'node:path';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { preparePtrSourceBuiltArtifact } from './ptr-production-publisher.mjs';
+import { observePtrProductionState } from './ptr-production-state-observation.mjs';
 import { createPtrProductionExistingUpdateAdapter, exportPtrExistingUpdateCompletion } from './ptr-production-existing-update-adapter.mjs';
 import { createSealedRealmsProductionActivationRecords, writeSealedRealmsProductionPtrExistingUpdateRecord } from './sealed-realms-production-activation-records.mjs';
 import { createSealedRealmsProductionBridgeProvider } from './sealed-realms-production-bridge-provider.mjs';
@@ -42,6 +43,7 @@ import {
 } from './sealed-realms-production-workflow-authority.mjs';
 
 const OPERATIONS = new Set([
+  'ptr-state-inspect',
   'ptr-update-inspect',
   'ptr-update-apply',
   'ptr-publish-inspect',
@@ -283,6 +285,32 @@ function bridgeAuthorityFromSourceAuthority(authority, operation, verifyEvidence
 async function buildDispatcher(operation, workflowInputSha, evidence) {
   const verifyEvidence = commit => verifySealedRealmsProductionWorkflowEvidence(evidence, commit);
   const authority = sourceAuthority(operation, workflowInputSha, verifyEvidence);
+  if (operation === 'ptr-state-inspect') {
+    const runId = process.env.GITHUB_RUN_ID;
+    const runAttempt = process.env.GITHUB_RUN_ATTEMPT;
+    const sourceTree = readGit(['rev-parse', `${workflowInputSha}^{tree}`]).trim();
+    const permit = await issueSealedRealmsProductionWorkflowPermit({ sourceAuthority: authority,
+      githubToken: process.env.GITHUB_TOKEN, runId, runAttempt, fetchImpl: globalThis.fetch });
+    const privateState = resolveSealedRealmsProductionWorkflowPrivateState();
+    const assertSource = () => {
+      const current = sourceAuthority(operation, workflowInputSha, verifyEvidence);
+      if (current.mode !== 'S' || sourceCommitFromSealedRealmsProductionAuthority(current) !== workflowInputSha
+        || readGit(['rev-parse', `${workflowInputSha}^{tree}`]).trim() !== sourceTree
+        || readGit(['status', '--porcelain=v1', '--untracked-files=no']).trim()
+        || readGit(['ls-files', '-v']).split('\n').some(line => line && !line.startsWith('H '))) {
+        fail('SEALED_REALMS_PTR_WORKFLOW_SOURCE_INVALID');
+      }
+    };
+    const reattest = async () => {
+      await refreshSealedRealmsProductionWorkflowEvidence(evidence);
+      assertSource();
+      await attestSealedRealmsProductionWorkflowPermit({ permit, sourceAuthority: authority,
+        phase: 'ptr-observation', runId, runAttempt });
+      assertSource();
+    };
+    return { dispatcher: Object.freeze({ dispatch: () => observePtrProductionState({ privateState,
+      reattest, sourceCommit: workflowInputSha, sourceTree, runId, runAttempt }) }), cleanup: () => {} };
+  }
   const bridgeAuthority = bridgeAuthorityFromSourceAuthority(authority, operation, verifyEvidence);
   const configuration = operation.startsWith('ptr-update-') ? updateConfiguration() : undefined;
   const githubToken = process.env.GITHUB_TOKEN;

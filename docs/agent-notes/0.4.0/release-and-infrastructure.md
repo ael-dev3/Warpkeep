@@ -5,11 +5,28 @@
 Reviewed 0.4 source is now integrated into signed main `c4b95505` through
 PR #228. PR #234 integrated the scoped scanner repair into signed main `2dc1f519`.
 M1 preparation, independent checking and export completed; its generated family
-is published in PR #235. The exact active source, retained identities and CI are owned by the
+was integrated into signed main `7b102f9f` through PR #235. The exact active source, retained identities and CI are owned by the
 [execution handoff](execution-handoff.md). Main now contains the Linux workflows,
 but their presence does not establish successful dispatch or live deployment.
 
 ## Existing PTR evidence continuity
+
+The new `ptr-state-inspect` operation connects a dedicated `observe_ptr` GitHub
+job to `/v1/recovery/ptr-observation`, the private recovery signer and the existing
+`AUTH_BRIDGE_OBSERVER`. It verifies GitHub job OIDC, current protected main,
+attempt-specific job/check identity and the deployed recovery epoch. The signer
+requires recovery to remain disabled, validates the full existing bridge response,
+and signs only the fixed sealed PTR projection with the already-pinned recovery
+key. The caller verifies its identity, signature and freshness before storing and
+reopening it under the existing private audit root.
+
+This operation does not use the provider CLI or expose owner credentials, create
+import/provision receipts, reserve recovery authority or mutate a realm. It is a
+new observation path; `ptr-live-inspect` still requires its original completed
+import/owner chain. The observation can support a later explicit existing-state
+adoption schema, but cannot manufacture historical provenance or demonstrate
+preservation without authentic observations across an actual update. Source
+implementation and tests do not establish that the required services are live.
 
 The September 12 source audit traced the actual missing import/owner/live
 callbacks in `sealed-realms-production-ptr-workflow-entry.mjs`. The retained
@@ -181,11 +198,10 @@ visibility seams, a canonical 10,000-cell realm and the mobile/desktop visual
 aggregate. The product fix at `RealmMapScreen` exposes localized private-sync
 failure telemetry so recovery is observable without weakening the private gate.
 
-Known repository health item: GitHub currently reports one moderate Dependabot
-alert on the default branch because its lock still carries Vitest 4.1.9. This
-development branch already pins Vitest 4.1.11, the patched release; the alert
-closes when that dependency update reaches `main`. Confirm the alert is closed
-before a release cut.
+The earlier Vitest dependency alert is historical. A September 12 authenticated
+query returned no open Dependabot alerts, and actual M2's package manifest pins
+Vitest 4.1.11. This supersedes the earlier claim that the default branch still
+used 4.1.9; it does not replace final-source dependency and release checks.
 
 ## Dedicated local preparation namespace
 
@@ -226,6 +242,45 @@ second acceptance contract. Historical component results remain useful evidence;
 they are not final-source tests, live owner play or deployed-state proof.
 
 ## Hosting and access: separate facts from assumptions
+
+### Current provider configuration — September 12
+
+Fresh authenticated Cloudflare API reads resolved the active `warpkeep.com`
+zone to its owning account, then listed exactly one Worker:
+`warpkeep-auth-bridge`, last modified August 28. Neither
+`warpkeep-release-recovery-signer` nor `warpkeep-release-recovery-gateway`
+is deployed there. Their checked-in configurations and private RPC interfaces
+are implementation, not live services.
+
+The deployed bridge reports source configuration `308f901d` and
+`PUBLIC_AUTH_ENABLED=true`. Its binding inventory contains no PTR, canary or
+release-recovery bindings. In particular, `PTR_ENABLED` and recovery observation
+configuration are absent. Do not deploy a source default that disables existing
+G001 authentication, or claim the new private observer is available from this
+older deployment. Configure and verify the actual bridge, private signer and
+gateway together through their normal deployment path before a live PTR
+observation can succeed.
+
+The protected `notification-bridge-prepared` environment retains the five
+previously configured bridge account/zone, provider token, owner FID and production
+admin secret names. Repository-level and `github-pages` secret inventories are
+empty. Only names and selected non-secret bridge configuration were inspected;
+these inventories do not prove credential validity or deployed GitHub App and
+observer authorization. Preserve existing secrets and verify their intended
+source before provisioning replacements.
+
+The existing private Windows recovery bootstrap was independently located and
+validated by its guarded bootstrap command, which returned `READY existing`.
+Its public signing key matches the recovery key pinned in source. Reuse that
+bootstrap; absence of deployed Workers or Linux bootstrap files is not evidence
+that a new key is needed. The separate local canary-owner file is absent, while
+the protected environment already has an owner-FID secret entry. Full bootstrap
+verification is therefore not claimed. A bounded live bridge JWKS request
+returned HTTP 403, leaving comparison of its retained public key unverified;
+the response does not identify the cause or prove a provider outage. No private
+key, token or owner value was printed, and no provider mutation was performed.
+
+The older observations below retain their stated dates and scope.
 
 | Surface | Observed / recorded state | What it does not prove |
 | --- | --- | --- |
