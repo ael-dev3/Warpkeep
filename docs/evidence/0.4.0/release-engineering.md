@@ -124,6 +124,13 @@ bodies remain synthetic fixtures. The fixed-descriptor generation/lost-acknowled
 restart case is explicitly native-only and remains pending at this publication.
 The generated-family CLI failure above also remains open.
 
+Native run `10513` at published `216fad13` passed the joined public case but failed
+the restart case before its artifact existed (one pass, one failure, 15 deliberately
+filtered cases, 7.04 seconds). The test had accepted generic continuation ambiguity
+before proving generation completed. Its diagnostic now preserves the original
+generator failure and requires completion before simulating lost acknowledgement;
+rerun that exact native case before claiming descriptor/replay acceptance.
+
 ## PTR existing-state capture — 2026-09-12
 
 Development branch `codex/0.4-ptr-state-adoption` builds on PR #243 head

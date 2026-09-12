@@ -985,13 +985,20 @@ it.skipIf(process.platform !== 'linux')('generates and reopens completed V4 evid
   await continuation.issueSealedRealmsProductionContinuation({ store: bridge.store, ...inspected,
     kind: 'activation-evidence', ...binding });
   const generate = await bridge.run('activation-evidence-generate', '88004');
+  let generationFailure: unknown;
+  let generationCompleted = false;
   await expect(continuation.claimSealedRealmsProductionContinuation({ store: bridge.store, ...generate,
     kind: 'activation-evidence', ...binding, effect: async claim => {
-      await bridge.bridgeState.consumeActivationEvidenceForContinuation({ claim, store: bridge.store,
-        sourceAuthority: generate.sourceAuthority, kind: 'activation-evidence', runId: generate.runId,
-        runAttempt: generate.runAttempt, ...binding, generator });
+      try {
+        await bridge.bridgeState.consumeActivationEvidenceForContinuation({ claim, store: bridge.store,
+          sourceAuthority: generate.sourceAuthority, kind: 'activation-evidence', runId: generate.runId,
+          runAttempt: generate.runAttempt, ...binding, generator });
+        generationCompleted = true;
+      } catch (error) { generationFailure = error; throw error; }
       throw Error('Synthetic acknowledgment lost after completed private publication');
     } })).rejects.toMatchObject({ code: 'SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS' });
+  if (generationFailure !== undefined) throw generationFailure;
+  expect(generationCompleted).toBe(true);
   const artifactPath = join(f.runtime, 'public/0.4.0-sealed-launch.json');
   const artifact = readFileSync(artifactPath);
   const generatedReceipt = codec.parseActivationGenerationReceipt(readFileSync(join(f.runtime, 'public/activation-generation-receipt.json')));
