@@ -19,6 +19,57 @@ Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
+## Existing PTR observation integration — 2026-09-12
+
+The new read-only operation reaches the existing private bridge observer through
+a dedicated GitHub job, recovery gateway and private signer. GitHub OIDC `jti`
+binds the request; the signer derives the real check-run identity from the
+attempt's complete GitHub jobs inventory and independently verifies the check,
+workflow, current attempt and protected main. It rechecks authority after the
+bridge RPC, validates the original full response and signs a narrow PTR projection.
+The caller verifies the pinned signature and exact source/run/request identity,
+then writes and reopens the canonical JWS only in the existing private audit root.
+Recovery stays disabled, and this path does not issue import/provision/adoption
+receipts or invoke a realm mutation.
+
+Focused tests exercise the actual auth-bridge response construction and signed
+contract, OIDC/job evidence, signer and gateway. The complete release-recovery
+unit suite passed 1,143 tests in 44 files on pinned Node 22.22.3; both service
+TypeScript projects passed. All seven Worker runtime suites passed their 53 tests
+in 65.87 seconds using the service-local Vitest runner and its existing dependency
+tree. An earlier invocation incorrectly used root Vitest and failed before test
+discovery because the service loaded a different Vitest peer snapshot; this was
+an invocation error, not a Windows limitation. No dependency install was needed.
+
+The broader root owning run passed 181 tests in nine suites before the final
+job-ID parser correction. After that correction, four focused caller/workflow/
+compiled-bundle suites passed 51 tests and root build-mode types passed. Review
+caught and corrected a runner-label mismatch using the actual workflow as fixture
+input. The caller now reads GitHub integer IDs without precision loss and checks
+the job ID, run and attempt against the exact check URL and current context;
+large-ID and mismatched-identity regressions cover that boundary. Freshness is
+checked again after asynchronous signature verification before evidence is stored.
+The signer also checks the authenticated validity window after crypto completes.
+A regression first reproduced an expired statement escaping within the longer
+request/OIDC budget, then passed after the correction. Final focused service
+verification passed 59 tests across contract, OIDC, signer and gateway, and both
+service type projects passed again. Record subsequent final-source/Linux checks
+and publication in the actual PR.
+
+Authenticated provider inventory found only the existing auth bridge, with B0
+source and public authentication enabled; neither recovery Worker nor the
+required PTR/canary/recovery bridge bindings is deployed. The existing private
+Windows bootstrap validates and its public key matches the source pin. Full
+bootstrap and live bridge-key verification remain incomplete. See the
+[provider record](../../agent-notes/0.4.0/release-and-infrastructure.md#current-provider-configuration--september-12).
+No live PTR observation, preservation result or deployment is established.
+
+Normal merge commits reconciled M2 into PRs #236, #237 and #238 without changing
+their reviewed trees. Their published heads are respectively `92d363ce`,
+`7bc5992c` and `23ec4731`; full outgoing scans and local/live comparisons passed.
+The clean idle native checkout was synchronized to the last of those before
+the new observation work began. None of these updates moved protected M2.
+
 ## M1 family and runner availability — 2026-09-12
 
 Final K Verify `34694406086` and CodeQL `34694406081` passed. Normal protected
@@ -80,9 +131,11 @@ directory symlink replacement separate names and one materialization each. All
 existing error and destination-retention assertions remain; the inode case also
 asserts retention. The default timeout, Linux condition, shared private-parent
 cleanup and production implementation are unchanged. Independent source review
-confirmed the split preserves the test contract. Record native execution and
-publication against the resulting PR; this correction does not claim that a
-global CI run or authenticated release acceptance has passed.
+confirmed the split preserves the test contract. PR #238 published `e18cf0c5`;
+native session `93630` then passed all 11 tests without skips in 20.92 seconds.
+The split cases took 880, 877, 920 and 854 ms. The later published M2 ancestry
+reconciliation `23ec4731` retains the same tree. This correction does not claim
+that a global CI run or authenticated release acceptance has passed.
 
 ## Protected source integration and history scanner — 2026-09-12
 

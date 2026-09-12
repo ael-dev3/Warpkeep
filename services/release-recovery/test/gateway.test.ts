@@ -5,7 +5,8 @@ const origin = 'https://release-auth.warpkeep.com'
 const requestId = '123e4567-e89b-42d3-a456-426614174000'
 const issue = { requestId, candidateCommit: 'a'.repeat(40), sourceVerifyRunId: '1', sourceVerifyRunAttempt: '1', artifactId: '2', oidcToken: 'private-opaque-token' }
 function fixture() {
-  const signer = { status: vi.fn(async () => ({ statusJws: 'opaque-status' })), issue: vi.fn(async () => ({ authorizationJws: 'opaque-authorization' })),
+  const signer = { ptrObservation: vi.fn(async () => ({ ptrObservationJws: 'opaque-ptr-observation' })),
+    status: vi.fn(async () => ({ statusJws: 'opaque-status' })), issue: vi.fn(async () => ({ authorizationJws: 'opaque-authorization' })),
     claim: vi.fn(async () => ({ claimReceiptJws: 'opaque-claim' })), complete: vi.fn(async () => ({ terminalJws: 'opaque-terminal' })),
     reconcile: vi.fn(async () => ({ terminalJws: 'opaque-terminal' })), terminal: vi.fn(async () => ({ terminalJws: 'opaque-terminal' })) }
   const log = vi.fn()
@@ -14,6 +15,23 @@ function fixture() {
 const post = (path: string, body: string | Uint8Array = JSON.stringify(issue), headers = {}) => new Request(origin + path,
   { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: body as BodyInit })
 afterEach(() => vi.useRealTimers())
+
+it('routes only the exact PTR observation request and returns only its opaque signed statement', async () => {
+  const { gateway, signer, log } = fixture()
+  const value = { oidcToken: 'private.opaque.token', sourceCommit: 'a'.repeat(40), requestId }
+  const response = await gateway.fetch(post('/v1/recovery/ptr-observation', JSON.stringify(value)))
+  expect(response.status).toBe(200)
+  expect(await response.json()).toEqual({ ptrObservationJws: 'opaque-ptr-observation' })
+  expect(signer.ptrObservation).toHaveBeenCalledExactlyOnceWith(value)
+  expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|opaque|sourceCommit|oidcToken/u)
+  expect((await gateway.fetch(post('/v1/recovery/ptr-observation', JSON.stringify({ ...value, authorizationJws: 'x' })))).status).toBe(400)
+  expect(signer.ptrObservation).toHaveBeenCalledTimes(1)
+  signer.ptrObservation.mockRejectedValueOnce(new Error('private-owner-identity'))
+  const unavailable = await gateway.fetch(post('/v1/recovery/ptr-observation', JSON.stringify(value)))
+  expect(unavailable.status).toBe(503)
+  expect(await unavailable.json()).toEqual({ code: 'RECOVERY_PTR_OBSERVATION_UNAVAILABLE', requestId })
+  expect(JSON.stringify(log.mock.calls)).not.toContain('private-owner-identity')
+})
 
 it('routes all six endpoints with exact opaque payloads and safe responses/logs', async () => {
   const { gateway, signer, log } = fixture()

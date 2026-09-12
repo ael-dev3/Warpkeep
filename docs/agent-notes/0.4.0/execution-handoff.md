@@ -2,14 +2,35 @@
 
 ## Current review and next work — 12 September 2026
 
-The current follow-up on `codex/0.4-frozen-source-test-isolation` separates four
+The current working branch is `codex/0.4-ptr-state-observation`, based on
+published `23ec4731` (T2). It connects a new read-only `ptr-state-inspect`
+operation through the Linux workflow, recovery gateway/private signer and the
+existing auth-bridge observer. The caller authenticates the pinned signed PTR
+projection and retains it privately. This is current-state observation only;
+it cannot replace historical import/owner evidence or authorize an update.
+Service unit tests, both service type projects, all seven Worker runtime suites,
+the compiled caller checks and root types have passed. Final source review,
+Linux owning checks and publication are recorded in the resulting PR. The signer and
+gateway are not deployed, and the live bridge lacks their observation bindings.
+Preserve G001 public authentication when configuring the later service rollout.
+
+Protected M2 was reconciled into the published stack with ordinary merges:
+navigation PR #236 is `92d363ce`, runner PR #237 is `7bc5992c`, and frozen-source
+PR #238 is `23ec4731`. Each retained its previously reviewed tree exactly.
+Windows and the clean idle native checkout matched T2 before this new change.
+Keep M2 stable until its required main Verify and single sealed preflight finish;
+later source needs its own main CI and a fresh generated family.
+
+The published follow-up on `codex/0.4-frozen-source-test-isolation` separates four
 independent frozen-source mutation checks into named Linux cases. Historical R
 main Verify `34694304468` exceeded the default ten-second budget only in the
 combined four-materialization callback; no behavioral assertion failed. Each
 case now retains that default budget, its original rejection assertion and a
 destination-retention assertion, including the previously missing inode check.
-The shared cleanup and production materializer are unchanged. Native validation
-and publication results belong in the actual PR; do not infer a full CI pass.
+The shared cleanup and production materializer are unchanged. Native session
+`93630` at original `e18cf0c5` passed all 11 tests without skips in 20.92 seconds;
+the four split cases each completed in under one second. T2 has exactly the same
+tree. This focused pass does not establish a full CI pass for either source.
 
 Runner availability source `e57b5e38` is published in PR #237 on
 `codex/0.4-runner-availability`, stacked on navigation `e6fca66f` / PR #236.
@@ -53,8 +74,9 @@ passed again at that final checkpoint. CodeQL `34694406081` and Verify
 `34694406086` both passed at exact `3c4eb264`. PR #235 then merged normally by
 protected expected-head squash at 13:33:31 UTC into signed, valid main
 `7b102f9f` (**M2**), whose sole parent is R and tree exactly equals `93a976b0`.
-The actual M2 main push Verify is `34696760924`; its terminal success remains
-required before preflight. The earlier R timeout is separate from M2's CI.
+The actual M2 main push Verify is `34696760924`; its Linux job has passed and
+module verification remains in progress. Overall terminal success is required
+before preflight. The earlier R timeout is separate from M2's CI.
 Earlier Verify
 `34693755154` at `654f1b57` was cancelled by the later publication and is not
 terminal evidence for the final head. No protection or release gate was weakened.
@@ -66,9 +88,9 @@ preserving the mobile layout. Actual desktop, portrait, landscape and narrow
 browser checks covered the buttons, panel close, opener focus restoration and
 horizontal overflow; 88 tests in four suites passed in session `27992`. Its full
 outgoing scan, explicit publication and Windows/native/live equality passed.
-GitHub retargeted PR #236 to main after PR #235 integrated. Reconcile its
-source ancestry with actual M2 without rewriting history, then propagate the
-published ancestry through its later stacked PRs while preserving their trees.
+GitHub retargeted PR #236 to main after PR #235 integrated. The normal ancestry
+reconciliation and its propagation through later stacked PRs are complete,
+with unchanged reviewed trees and the published heads recorded above.
 The CSS is a protected-closure source change and
 needs normal source integration followed by a fresh generated closure before any
 later deployment.

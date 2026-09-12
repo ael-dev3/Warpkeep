@@ -1,10 +1,16 @@
 import { WorkerEntrypoint } from 'cloudflare:workers'
 import { snapshotSignerRequest } from '../src/signerRequests.js'
 import { snapshotPreparationRequest } from '../src/preparationPolicy.js'
+import { snapshotPtrObservationRequest } from '../src/ptrObservation.js'
 import type { ReleaseRecoveryObservationRequest } from '../src/realmEvidence.js'
 
 /** Named RPC transport fixture only. Never exported by either production Worker. */
 export class RecoveryGatewayTestSigner extends WorkerEntrypoint {
+  async ptrObservation(request: unknown) {
+    const value = snapshotPtrObservationRequest(request)
+    if (value.oidcToken !== 'test-only.oidc.token') throw new Error('test-only-private-failure')
+    return { ptrObservationJws: 'test-only-ptr-observation' }
+  }
   async prepare(request: unknown) {
     snapshotPreparationRequest(request)
     return { preparationReceiptJws: 'test-only-preparation' }

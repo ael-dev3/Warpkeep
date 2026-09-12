@@ -5,7 +5,7 @@ import { snapshotSignerRequest } from '../src/signerRequests.js'
 import { createSignerObservationService } from '../src/signerObservationService.js'
 import type { ReleaseRecoveryObservationRequest } from '../src/realmEvidence.js'
 
-it('transports all six endpoint contracts through a real named Worker service binding', async () => {
+it('transports recovery and PTR observation endpoint contracts through a real named Worker service binding', async () => {
   const log = vi.fn()
   const gateway = createRecoveryGateway({ signer: env.RECOVERY_GATEWAY_TEST_SIGNER, log })
   const direct = await env.RECOVERY_GATEWAY_TEST_SIGNER.status()
@@ -15,10 +15,14 @@ it('transports all six endpoint contracts through a real named Worker service bi
   const root = 'https://release-auth.warpkeep.com/v1/recovery/'
   const requestId = '123e4567-e89b-42d3-a456-426614174000'
   const issue = { requestId, candidateCommit: 'a'.repeat(40), sourceVerifyRunId: '1', sourceVerifyRunAttempt: '1', artifactId: '2', oidcToken: 'test-only-oidc' }
+  const ptrObservation = { requestId, sourceCommit: 'a'.repeat(40), oidcToken: 'test-only.oidc.token' }
   await expect(async () => env.RECOVERY_GATEWAY_TEST_SIGNER.issue(snapshotSignerRequest('issue', issue))).rejects.toThrow('Could not serialize')
   const directIssue = await env.RECOVERY_GATEWAY_TEST_SIGNER.issue({ ...snapshotSignerRequest('issue', issue) })
   directIssue[Symbol.dispose]()
   expect(await (await gateway.fetch(new Request(root + 'status'))).json()).toEqual({ statusJws: 'test-only-status' })
+  const ptrResponse = await gateway.fetch(new Request(root + 'ptr-observation', { method: 'POST',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ptrObservation) }))
+  expect(await ptrResponse.json()).toEqual({ ptrObservationJws: 'test-only-ptr-observation' })
   for (const endpoint of ['issue', 'claim', 'complete', 'reconcile']) {
     const request = { ...issue, ...(endpoint === 'issue' ? {} : endpoint === 'claim' ? { authorizationJws: 'test-only-authorization' } : { claimReceiptJws: 'test-only-claim' }) }
     const response = await gateway.fetch(new Request(root + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) }))
@@ -27,7 +31,7 @@ it('transports all six endpoint contracts through a real named Worker service bi
     expect(response.headers.has('Access-Control-Allow-Origin')).toBe(false)
   }
   expect(await (await gateway.fetch(new Request(root + 'requests/' + requestId))).json()).toEqual({ terminalJws: 'test-only-terminal' })
-  expect(log).toHaveBeenCalledTimes(6)
+  expect(log).toHaveBeenCalledTimes(7)
   expect(JSON.stringify(log.mock.calls)).not.toMatch(/test-only-|oidcToken|authorizationJws|claimReceiptJws/u)
 })
 

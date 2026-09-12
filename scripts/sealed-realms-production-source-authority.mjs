@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readRecoveryActivationGitSource } from './recovery-attestation-source.mjs';
 
 export const SEALED_REALMS_OPERATIONS = Object.freeze([
+  'ptr-state-inspect',
   'preflight',
   'g001-policy-observe',
   'g001-census-first',

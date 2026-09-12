@@ -7,6 +7,7 @@ export const SEALED_REALMS_PRODUCTION_WORKFLOW_PATH:
   '.github/workflows/sealed-realms-production.yml';
 export const SEALED_REALMS_PRODUCTION_WORKFLOW_PHASES: readonly [
   'permit-issue',
+  'ptr-observation',
   'continuation-issue',
   'continuation-claim',
   'continuation-effect',
