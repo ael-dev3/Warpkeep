@@ -12,7 +12,7 @@ import { createSealedRealmsProductionPrivateState, SEALED_REALMS_PRIVATE_STATE_V
 import { authenticateSealedRealmsProductionSourceAuthority } from '../scripts/sealed-realms-production-source-authority.mjs';
 import { issueSealedRealmsProductionWorkflowPermit } from '../scripts/sealed-realms-production-workflow-authority.mjs';
 import { createSealedRealmsProductionContinuationStore } from '../scripts/sealed-realms-production-continuation.mjs';
-import { createSealedRealmsProductionAuthBridgeState } from '../scripts/sealed-realms-production-auth-bridge-state.mjs';
+import { createSealedRealmsProductionAuthBridgeState, createSealedRealmsProductionAuthBridgeStateTestCapability } from '../scripts/sealed-realms-production-auth-bridge-state.mjs';
 import { createSealedRealmsProductionPublicationReconciler } from '../scripts/sealed-realms-production-reconciliation.mjs';
 import { createSealedRealmsProductionG002Lane, createSealedRealmsProductionG002DispatchContext, createSealedRealmsProductionG002Dispatcher } from '../scripts/sealed-realms-production-g002-lane-entry.mjs';
 import { createSealedRealmsProductionPtrLane, createSealedRealmsProductionPtrDispatchContext, createSealedRealmsProductionPtrDispatcher } from '../scripts/sealed-realms-production-ptr-lane-entry.mjs';
@@ -179,6 +179,7 @@ async function fixture(lane: 'g002' | 'ptr' = 'g002') {
           path: '.github/workflows/sealed-realms-production.yml', repository: { full_name: 'ael-dev3/Warpkeep' } });
       } });
     const bridgeState = createSealedRealmsProductionAuthBridgeState({ authority: selectedAuthority, privateState, repositoryRoot: process.cwd(),
+      testOnlyCapability: createSealedRealmsProductionAuthBridgeStateTestCapability(),
       deploymentAttester: unavailable, bindingAttester: unavailable, fetchImpl: unavailable,
       inspectImportReceipt: unavailable, authenticateImportResult: unavailable, resolveOwnerProvisionReceipt: unavailable });
     const common = { existingUpdate: adapter, bridgeState,

@@ -22,6 +22,7 @@ import {
 } from '../scripts/sealed-realms-production-reconciliation.mjs';
 import {
   createSealedRealmsProductionAuthBridgeState,
+  createSealedRealmsProductionAuthBridgeStateTestCapability,
 } from '../scripts/sealed-realms-production-auth-bridge-state.mjs';
 import * as dispatchSurface from '../scripts/sealed-realms-production-dispatch.mjs';
 import {
@@ -205,6 +206,7 @@ function bridgeForLaneComposition(
     authority,
     privateState,
     repositoryRoot: process.cwd(),
+    testOnlyCapability: createSealedRealmsProductionAuthBridgeStateTestCapability(),
     deploymentAttester: unavailableCompositionAdapter,
     bindingAttester: unavailableCompositionAdapter,
     fetchImpl: unavailableCompositionAdapter,

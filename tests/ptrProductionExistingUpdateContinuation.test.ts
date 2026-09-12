@@ -55,7 +55,7 @@ import {
   claimSealedRealmsProductionContinuation,
   assertSealedRealmsProductionContinuationClaim,
 } from "../scripts/sealed-realms-production-continuation.mjs";
-import { createSealedRealmsProductionAuthBridgeState } from "../scripts/sealed-realms-production-auth-bridge-state.mjs";
+import { createSealedRealmsProductionAuthBridgeState, createSealedRealmsProductionAuthBridgeStateTestCapability } from "../scripts/sealed-realms-production-auth-bridge-state.mjs";
 import { createSealedRealmsProductionPublicationReconciler } from "../scripts/sealed-realms-production-reconciliation.mjs";
 import {
   createSealedRealmsProductionPtrLane,
@@ -288,6 +288,7 @@ function fixture() {
       authority: run.sourceAuthority,
       privateState,
       repositoryRoot: process.cwd(),
+      testOnlyCapability: createSealedRealmsProductionAuthBridgeStateTestCapability(),
       deploymentAttester: unavailable,
       bindingAttester: unavailable,
       fetchImpl: unavailable,

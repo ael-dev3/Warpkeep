@@ -4,7 +4,7 @@ Current reading point: fetch the actual
 [development branch](https://github.com/ael-dev3/Warpkeep/tree/codex/prepared-keep-bindings-fix)
 and PR #228 before relying on a live head or CI result. The latest completed
 native preparation/check input is
-`27700d617d7085098b6f1ab8ee3d8cf9cdc40e23`. Later source development requires
+`6a74005e5f56997aca41fc40e782092aa6cc4b67`. Later source development requires
 its own preparation; older synchronized heads below are historical checkpoints.
 The generated source families recorded below are dated, source-bound evidence;
 documentation and test follow-ups do not create a new release candidate. The
@@ -15,6 +15,27 @@ gives the next connected work and actual publication/check status. **0.4 is not 
 Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
+
+## Independently reproduced recovery-source candidate — 2026-09-12
+
+Preparation session `81502` and independent check `47903` both exited zero for
+candidate `release-workspace-91f8c69cc3c77a9517e2fa7f8d27863b`, committed source
+`6a74005e5f56997aca41fc40e782092aa6cc4b67` and tree
+`9f6e38fe36c6db8b7ac9e6ff46b16cc627a7e7c3`. Both returned transaction
+`a8c2cedab47fb47f4740bcb5b2fab06a`, journal
+`8c557e06ce7791247690c7b80b9dd2703286ce93ad0498c105f1374c8e5e2c3b`, family
+`7e280fecd07bc3ba257711351f188d672d4a0d658aa9335769b2c18e8078a2ab`, closure
+`c3d51b634806f112a732fdb8abb459ea6fa7820b4a3353d9080a239f4679a289` and scanner
+`edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+
+The comparison authenticated 3,194 source/candidate files, 102 generated outputs,
+3,092 preserved source files, 444 bundle inputs and seven recovery inputs.
+`finalReleasePrepared` remains false. The candidate is retained as source-bound
+evidence; it was not exported over the newer provider/workflow implementation.
+The clean native checkout was synchronized to published `44b91b94` after the
+check ended, then all 519 affected native tests passed without skips. Prepare
+and independently check the composed source before publishing its generated
+family; this earlier candidate cannot certify later closure members.
 
 ## Independently reproduced source family — 2026-09-12
 

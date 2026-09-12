@@ -4,10 +4,13 @@ Updated 2026-09-12 (Europe/Budapest). The initial release-path audit read publis
 `2ffdcc96ea3474908d2158ee817b4a384b274523` on
 `codex/prepared-keep-bindings-fix`; concurrent working-tree changes are not
 covered by that checkpoint. The latest completed native preparation/check input
-is `27700d617d7085098b6f1ab8ee3d8cf9cdc40e23`, published as a checked generated
-family in `fd21ae25`. Later recovery source changes require fresh preparation
-before release. For historical source/test
-head `95945bea`, Verify run `34665737857` completed successfully across Linux,
+is `6a74005e5f56997aca41fc40e782092aa6cc4b67`; its prepare and independent
+check both completed with matching identities. The earlier `27700d61` family
+was published in `fd21ae25`. Newer composed source `44b91b94` passed all 519
+affected native tests without skips, but requires its own preparation/check.
+Hosted native-contract tests exposed old dispatcher/update fixtures lacking
+required test capabilities; their correction keeps the production gate intact.
+For historical source/test head `95945bea`, Verify run `34665737857` completed successfully across Linux,
 SpacetimeDB, release-recovery, auth-bridge, native-contract and aggregate
 verification; CodeQL `34665737866` is also successful. The Pages
 private launcher and workflow use the retained Linux x64 runner profile, and
@@ -26,7 +29,9 @@ fresh evidence bound to the final reviewed and deployed source.
 - Windows, GitHub and native WSL have a continuous publication procedure:
   completed changes and authored durable handoff work are committed and pushed
   immediately, with a quiet 15-minute thread check for missed publication.
-  Verify actual remote equality; keep active native build inputs immutable.
+  The periodic check also covers maintained profile, assets, water-engine and
+  private editor checkouts, each through its own verified remote. Verify actual
+  remote equality; keep active native build inputs immutable.
 - The local foundation passes typecheck, build, visual-foundation checks and the
   focused gameplay/recovery suites recorded in the release evidence.
 - The rendered WebGL observer now has a reviewed macOS/Windows/Linux boundary;
@@ -90,7 +95,8 @@ fresh evidence bound to the final reviewed and deployed source.
   supported Linux caller. Import and owner producers remain unavailable, and
   the production workflow explicitly rejects unsupported realm operations.
   Repeated recovery preserves verified ancestors and timing includes awaited
-  provider reads; native follow-up and live acceptance remain required. Populated
+  provider reads; 519 affected native tests passed on `44b91b94`. Genuine
+  protected provider execution and live acceptance remain required. Populated
   private authority, remaining realm integration and provider readback are still
   no-Mac delivery work.
 - Recheck default-branch dependency alerts before a production freeze; a patched

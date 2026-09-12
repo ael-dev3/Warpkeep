@@ -9,19 +9,26 @@ Windows Node 22.22.3 pass covered seven relevant suites: 193 passed, 42 platform
 skips. This includes real HTTP parsers through the provider and first durable
 authority establishment, workflow/PTR lifecycle contracts and real compiler
 graph checks. Type checks and independent provider/history review passed.
-Run the supported-account native suites after the immutable check below ends;
-the skipped native journal/receipt cases are not evidence yet.
+Source `44b91b94e401ed51512e11ca786bd04f8413d112` then passed all 519 tests
+in twelve affected suites on Linux as `warpkeep` UID 1000 with Node 22.22.3,
+without skips (session `18870`, exit zero). This includes the real private
+journal/receipt path through repeated renewals and pending-head reentry.
+Hosted Verify `34675180672` exposed older update/dispatch test fixtures that
+lacked the newly required test capability; the follow-up updates those fixtures
+without weakening the production constructor. Read the next head's own CI result.
 
 Native preparation of `6a74005e5f56997aca41fc40e782092aa6cc4b67` completed with
 exit zero (session `81502`), candidate
 `release-workspace-91f8c69cc3c77a9517e2fa7f8d27863b`, transaction
-`a8c2cedab47fb47f4740bcb5b2fab06a`. Its independent check is active in session
-`47903`, draft `release-workspace-8686f089876e90c4bb88e17a73dab19e`.
-Read the actual handle before restarting anything and keep the operating WSL
-checkout pinned until it ends. This candidate predates the composed follow-up;
-it cannot certify the new provider/workflow/closure members. After testing the
-composed source, prepare/check that source and publish its complete generated
-family; never relabel the earlier family as current release evidence.
+`a8c2cedab47fb47f4740bcb5b2fab06a`. Independent check `47903` also completed
+with exit zero and identical source, transaction, journal, family and closure
+identities. Both processes are terminal. The clean operating checkout was then
+fast-forwarded to published source `44b91b94` for the native tests above.
+The retained `6a74005e` candidate predates the provider/workflow/closure members;
+it cannot certify them and was not exported over newer source. Prepare/check
+the composed source after the fixture correction, then publish its complete
+generated family. The [release engineering record](../../evidence/0.4.0/release-engineering.md)
+owns the completed candidate identities.
 
 Native preparation and independent check both completed with exit zero from
 `27700d617d7085098b6f1ab8ee3d8cf9cdc40e23`. Sessions `53983` and `60035` are
@@ -41,9 +48,9 @@ review also closed executable-module disguises in multipart metadata for both
 recovery and ordinary version reads. The complete native runtime/source/receipt
 suites passed 178 tests under UID 1000 with pinned Node 22.22.3, without skips;
 build-mode types and file-size policy passed. See the
-[recovery evidence](../../evidence/0.4.0/recovery.md) for scope and remaining
-the subsequent repeat-renewal, provider composition and timing work. Controlled tests
-do not substitute for production receipts or live recovery.
+[recovery evidence](../../evidence/0.4.0/recovery.md) for the original scope
+and subsequent repeat-renewal, provider composition and timing work. Controlled
+tests do not substitute for production receipts or live recovery.
 
 Continuous publication is required in `AGENTS.md` and the
 [sync procedure](../../operations/0.4.0-development-sync.md): commit and push
@@ -89,11 +96,11 @@ private receipts, Cloudflare bytes or a live 0.4 deployment. Runner22 is online.
 See the [workflow audit](../../evidence/0.4.0/workflow-sufficiency-audit.md)
 for the genuine remaining provider, PTR and recovery gaps.
 
-Next: finish native verification and prepare/check the composed recovery/provider
-source, then exercise genuine provider reads. Finish normal protected preparation-only
-promotion and main CI, then exercise the existing sealed `preflight`. Follow
-with real shared bridge attesters in the sealed entry points. Workflow edits
-change protected closure members; old candidate hashes and fixture-generated
+Next: finish the corrected fixture verification, prepare/check the composed
+source and publish its generated family. Finish normal protected preparation-only
+promotion and main CI, then exercise the existing sealed `preflight` and genuine
+shared-provider reads. Complete the remaining initial import/owner producers.
+Workflow edits change protected closure members; old candidate hashes and fixture-generated
 test manifests cannot certify this source. Do not port the retired Mac caller
 or weaken branch rules. Keep G001 preserved and G002 sealed throughout.
 

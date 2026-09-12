@@ -81,9 +81,22 @@ Combined verification on Windows under pinned Node 22.22.3 passed 193 tests in
 seven suites (provider, timing, history, workflow, PTR lifecycle, workflow runtime
 and bundle engine), with 42 platform skips. The compiler tests build and inspect
 the actual reachable source graph. Independent review found no further provider
-or ancestry defect in this change. Supported-account native journal/receipt
-verification remains required; the earlier 178-test Linux pass belongs to
-`6a74005e`, before these follow-ups.
+or ancestry defect in this change. Source
+`44b91b94e401ed51512e11ca786bd04f8413d112` subsequently passed all 519 tests
+in twelve affected suites on Linux under UID 1000 and Node 22.22.3, with no
+skips. The pass includes complete deployment runtime, receipt, source, history,
+timing, bridge state/provider, recovery facts, workflow/PTR lifecycle and bundle
+engine suites. The actual private journal/receipt integration preserves two
+renewals and pending-head reentry. Controlled provider fixtures remain distinct
+from genuine protected provider execution and live recovery acceptance.
+
+Hosted native-contract verification and the subsequent constructor audit found
+three older dispatcher/update fixtures passing independent callbacks without
+a test capability.
+Those fixtures now acquire the real test-only capability. Production continues
+to require the branded provider; the gate is not relaxed to accommodate tests.
+The corrected fixtures passed 67 tests on Windows with 33 native skips, plus
+a standalone strict TypeScript check. The skipped cases need their native run.
 
 ## What has been verified
 
