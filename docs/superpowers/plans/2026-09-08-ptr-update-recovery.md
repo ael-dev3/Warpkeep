@@ -130,3 +130,38 @@ and every claim. Issuance retries reuse frozen authorization; the claim observes
 again and the ledger rejects invariant drift. Gameplay rows and renewable session
 expiry are outside the preservation HMACs; program identity is checked separately.
 This is deliberate preservation of normal gameplay, not a full gameplay-row census.
+
+## Next delivery boundary: existing G002
+
+The reviewed PTR family is published at `70a65b34`; native generated/private
+consumers and preflight passed. Exact-head hosted checks and protected integration
+remain separate. G002 already exists with an older public interface, while genuine
+local publication/import/bridge history was absent from the documented paths.
+Its production update workflow remains unimplemented. A new proof must establish
+an observed existing-state transition, without asserting original publication or
+import execution. Authentic current predecessor observations can support forward
+recovery without the unavailable original executable.
+
+Reuse the existing authenticated realm RPC: it already returns G002 program,
+atlas and sealed-state facts, which the PTR observation projection currently
+validates and discards. Extend the shared signed update-observation machinery
+under a fixed G002 policy, preserving canonical PTR bytes and its existing wrappers.
+Sign the exact G002 projection and HMACs with the existing pre/post claim,
+completion, terminal, source and bridge correlation. Use fixed G002 OIDC job and
+audience rules; a signed observation does not grant mutation authority.
+
+Reuse the production update engine and continuation's existing `g002-update`
+operation with a separate target namespace and evidence discriminator. Derive an
+owned G002 artifact and RawV10 definition from the existing native source builder;
+require compatible schema, authentic predecessor, candidate-bound plan and
+unchanged sealed-state invariants. Preserve uncertain-outcome reconciliation
+without a second submission. Do not weaken the zero-population/closed-admission
+checks to accommodate unexpected live state.
+
+The activation family needs an explicit G002 adoption branch because current V4
+claims original publish/import evidence. Replace only those unavailable claims
+with authenticated G002 adoption and its invariant; retain genuine prepared bridge
+deployment evidence and unchanged G001/PTR semantics. Carry that branch through
+candidate/generator, public binding, approval and recovery issue/claim consumers.
+No new realm RPC, census, preparation-observation version or continuation schema is
+needed. This is the recommended next implementation, not completed functionality.

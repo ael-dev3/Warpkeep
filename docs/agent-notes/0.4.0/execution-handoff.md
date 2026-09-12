@@ -11,10 +11,14 @@ check `52092`, both exit zero with every returned field equal. Its complete fami
 was authenticated and applied; staging the exact generated changes reproduced
 tree `062df4b7044ba918667dc5f38d63edc2d38ddbf1` before adding evidence. The
 [owning record](../../evidence/0.4.0/release-engineering.md#verified-observation-source-family--2026-09-13)
-contains source, candidate and digest identities. Publish this reviewed integration,
-sync the idle native checkout, then run all 52 native preflight cases using that
-committed donor and the owning generated consumers. Resolve actual heads and CI;
-component and preparation success do not certify a release. All old prepare/check
+contains source, candidate and digest identities. Integration `70a65b34` was
+published and synchronized while native was idle. Native `35676` passed all 701
+tests in 18 generated/private suites, and preflight `7574` passed all 52 cases;
+both are closed with exit zero and no skips. The initial preflight clone ownership
+setup failures were resolved with process-only exact donor configuration, leaving
+no persistent config or temporary fixture roots. Both sealed verifiers passed in
+preparation state, with Pages routing `sealed-launch-blocked`. Resolve actual heads
+and CI before protected integration; this does not certify a release. All prepare/check
 handles are terminal, including failed `85601`; do not restart or export that
 failed candidate. Live G002 exists with an older public interface, but genuine
 local G002/bridge receipts were absent from the documented paths. Its production
@@ -24,7 +28,17 @@ progress/admission freeze. PTR evidence cannot substitute for G002 authority.
 
 The active delivery branch is `codex/0.4-ptr-state-adoption` /
 [PR #244](https://github.com/ael-dev3/Warpkeep/pull/244) in the reused
-`C:/Temp/warpkeep-clean-ci` checkout, based on PR #243's published `789db360`.
+`C:/Temp/warpkeep-clean-ci` checkout. The draft PR now targets `main`; the scanner
+coverage follow-up's push will verify that consolidated base. Its seven owning
+tests and real scanner passed after reproducing the two missing-coverage failures.
+PR #240's sole non-ancestor correction `944bb17b` is patch-equivalent to included
+`5996629a`, and its changed file is byte-identical in this integration. Do not
+reapply it. Preserve the reviewed final tip and ancestry with a remotely verified
+non-release `source-history/` tag before normal protected squash. Follow the
+existing M1 preparation/check and M2 generated-family sequence; never deploy M1
+or treat development-family success as final source authority. Read the connected
+plan's [next G002 boundary](../../superpowers/plans/2026-09-08-ptr-update-recovery.md#next-delivery-boundary-existing-g002)
+before implementing additional delivery machinery.
 The published `e9262af0` checkpoint authenticates retained signed PTR adoption
 after producer disposal and carries the separate V4 public/service profile through
 recovery consumers. Its full native service run passed 1,218 tests in 44 suites.

@@ -11,7 +11,7 @@ import { preparationPrivateJwk } from '../services/release-recovery/test/prepara
 import { RECOVERY_PUBLIC_JWK, RECOVERY_KEY_THUMBPRINT } from '../services/release-recovery/src/recoveryPublicKey';
 
 const parents: string[] = [];
-it('proves PTR observation exceptions identify only the existing synthetic public key thumbprint', () => {
+it('proves PTR observation and update exceptions identify only the existing synthetic public key thumbprint', () => {
   const thumbprint = (key: JsonWebKey) => createHash('sha256').update(JSON.stringify({
     crv: key.crv, kty: key.kty, x: key.x, y: key.y,
   })).digest('base64url');
@@ -19,7 +19,8 @@ it('proves PTR observation exceptions identify only the existing synthetic publi
   expect(thumbprint(RECOVERY_PUBLIC_JWK)).toBe(RECOVERY_KEY_THUMBPRINT);
   expect(fixtureThumbprint).not.toBe(RECOVERY_KEY_THUMBPRINT);
   for (const path of ['services/release-recovery/test/ptrObservation.test.ts',
-    'services/release-recovery/test/signerPtrObservation.test.ts', 'tests/ptrProductionStateObservation.test.ts']) {
+    'services/release-recovery/test/signerPtrObservation.test.ts', 'tests/ptrProductionStateObservation.test.ts',
+    'tests/ptrProductionExistingUpdate.test.ts', 'tests/ptrProductionExistingUpdateContinuation.test.ts']) {
     const source = readFileSync(path, 'utf8');
     expect(source.match(/RECOVERY_KEY_THUMBPRINT:\s*'([^']+)'/u)?.[1]).toBe(fixtureThumbprint);
     expect(source).toContain(`x: '${preparationPrivateJwk.x}'`);
@@ -55,7 +56,6 @@ function run(scan: (options: SpawnSyncOptionsWithStringEncoding) => CommandResul
 it('rejects scanner output missing the mandatory negative findings and cleans its fixture', () => {
   const result = run(() => ({ status: 0, stdout: '[]', stderr: '' }));
   expect(result).toMatchObject({ ok: false, reason: 'finding-mismatch', missing: expect.any(Array), unexpected: [] });
-  expect(result.missing).toHaveLength(78);
   expect(result.missing).toEqual(expect.arrayContaining([
     'generic-api-key:scripts/sealed-realms-production-g001-lane.bundle.mjs:2',
     'generic-api-key:scripts/sealed-realms-production-g001-lane.bundle.mjs:4',
@@ -79,11 +79,16 @@ it('rejects scanner output missing the mandatory negative findings and cleans it
     'generic-api-key:services/release-recovery/test/ptrObservation.test.ts.copy:1',
     'generic-api-key:services/release-recovery/test/signerPtrObservation.test.ts.copy:1',
     'generic-api-key:tests/ptrProductionStateObservation.test.ts.copy:1',
+    'generic-api-key:tests/ptrProductionExistingUpdate.test.ts:2',
+    'generic-api-key:tests/ptrProductionExistingUpdateContinuation.test.ts:2',
+    'generic-api-key:tests/ptrProductionExistingUpdate.test.ts.copy:1',
+    'generic-api-key:tests/ptrProductionExistingUpdateContinuation.test.ts.copy:1',
   ]));
+  expect(result.missing).toHaveLength(82);
 });
 it('reports unexpected finding identities without exposing scanner payloads', () => {
   const result = run(() => ({ status: 1, stdout: JSON.stringify([{ RuleID: 'jwt', File: 'unexpected.ts', StartLine: 7, Secret: 'DO-NOT-PRINT', Match: 'DO-NOT-PRINT' }]), stderr: '' }));
-  expect(result.unexpected).toEqual(['jwt:unexpected.ts:7']); expect(result.missing).toHaveLength(78);
+  expect(result.unexpected).toEqual(['jwt:unexpected.ts:7']); expect(result.missing).toHaveLength(82);
   expect(JSON.stringify(result)).not.toContain('DO-NOT-PRINT');
 });
 it('fails closed on scanner failure or malformed output', () => {
