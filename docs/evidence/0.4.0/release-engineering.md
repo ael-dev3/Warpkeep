@@ -19,6 +19,55 @@ Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
+## Verified observation source family — 2026-09-13
+
+Published repair `a7bfa1cf1d92e46f1a1fb0e299ac3a8f1dd1bf76`, source tree
+`9e923580c3fe78128c41ceba3c3b9d56ccb94af3`, completed native preparation
+`31058` and independent rebuilding check `52092`, both exit zero. Every returned
+field matched. Neither run is active and neither should be restarted. The candidate
+is `release-workspace-28752d57576e1e6243c84b35a20790c8`, transaction
+`c77b9fcfa6f25772ec613905b6f9cc62`; `finalReleasePrepared` remains false.
+
+| Evidence | SHA-256 |
+| --- | --- |
+| Journal | `0735f3f21970db1a31f773e54e6c32360b003793f9caf24da8346b58888f1a3c` |
+| Complete output family | `5e0b5ec0b99a9906807ab54e84d0a46b2d30c1b056e5d8a620b932c61fe375b2` |
+| Closure manifest | `a0a670a16981e5f6877c5a888394de3e338a04516f255f53b1e0b6c14b65b401` |
+| Scanner manifest | `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71` |
+| Authenticated export | `4de87c70e0ea8f85c05035fb9ac2ce2938ca8ba07c5b24097deab0303bf191a3` |
+| Exported patch | `133e4fcb4009ddf7b5ca65a6ccfc281522b474fc5e2ca5c26a21ad5375ab5663` |
+
+The guarded exporter authenticated the complete 102-output family and independently
+reconstructed its patch. The receiver applied it to the unchanged published input,
+verified every output and preserved all non-output source and the normal index.
+Subsequent staging of exactly the 13 changed generated paths reproduced tree
+`062df4b7044ba918667dc5f38d63edc2d38ddbf1`, before adding this evidence.
+Independent review confirmed exact export bytes and graph membership: activation
+and G002 add the observation wrapper and six exact service modules, PTR retains
+them, and G001 remains isolated. Workflow changes only refresh closure pins;
+the verifier's source-authority pin now matches its actual source. Root types,
+file-size policy and staged diff checks passed. Native preflight's 52 cases and
+the generated consumers must next run against the committed integration; the
+uncommitted candidate cannot serve as their Git donor. This is development
+preparation, not final release or live deployment acceptance.
+
+Read-only delivery inspection also confirmed that the public alias and exact G002
+identity still resolve to the same database. Its public schema exposes the two
+existing realm administration procedures and no current gameplay04 interfaces;
+those newer procedures in source remain deliberately closed. The public schema
+response hash was `c4470df402f427ad0813900d66209c2ae7bf3ad436c7a9a966a155d876d40e3c`.
+This establishes an older exposed interface, not authenticated sealed-state,
+population, admission or owner evidence. The documented local native runtime and
+prepared-receipt directories were empty; their G002 receipts, publication,
+continuation and bridge lineage paths were absent. The corresponding documented
+same-account Windows runtime paths were absent too. Other storage was not searched.
+G002's initial publisher rejects an existing database, and its production workflow
+adapters remain unavailable. Continue by recovering genuine retained history where
+available or implementing an authenticated existing-G002 state/update path and its
+activation consumers. Never replace G002 provenance with PTR evidence or rerun an
+initial publication over the existing database. The owner-paused scheduler stays
+paused; immediate reviewed development publication continues.
+
 ## Observation bundle membership repair — 2026-09-13
 
 Native preparation `85601` at published `c0916553` is terminal with exit one.

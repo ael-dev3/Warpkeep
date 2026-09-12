@@ -1,21 +1,26 @@
 # Continue Warpkeep 0.4
 
-## Current review and next work — 12 September 2026
+## Current review and next work — 13 September 2026
 
 The owner paused the only saved Codex automation on 13 September 2026; immediate
 reviewed development commits and verified pushes continue. Do not recreate the
 scheduler from historical instructions.
 
-Preparation `85601` at `c0916553` has stopped with exit one; no complete family
-was produced. A real compiler diagnostic confirmed that activation and G002 now
-reach the shared V4 observation verifier, which the old graph policy allowed only
-for PTR. The builder/preflight repair and connected rejection regressions are
-recorded in the [owning evidence](../../evidence/0.4.0/release-engineering.md#observation-bundle-membership-repair--2026-09-13).
-The old failed candidate is retained and must not be exported or checked as a
-completed preparation. Publish the reviewed source repair, synchronize the idle
-native checkout, and prepare/check that exact source before native preflight and
-full generated-consumer acceptance. Hosted `c0916553` Linux/Verify are terminal
-failures; the other required jobs passed. Do not restart historical handles.
+Published repair `a7bfa1cf` completed native preparation `31058` and independent
+check `52092`, both exit zero with every returned field equal. Its complete family
+was authenticated and applied; staging the exact generated changes reproduced
+tree `062df4b7044ba918667dc5f38d63edc2d38ddbf1` before adding evidence. The
+[owning record](../../evidence/0.4.0/release-engineering.md#verified-observation-source-family--2026-09-13)
+contains source, candidate and digest identities. Publish this reviewed integration,
+sync the idle native checkout, then run all 52 native preflight cases using that
+committed donor and the owning generated consumers. Resolve actual heads and CI;
+component and preparation success do not certify a release. All old prepare/check
+handles are terminal, including failed `85601`; do not restart or export that
+failed candidate. Live G002 exists with an older public interface, but genuine
+local G002/bridge receipts were absent from the documented paths. Its production
+workflow adapters are unavailable. The next delivery work needs authenticated
+existing-G002 state/update provenance, preserving its sealed state and G001's
+progress/admission freeze. PTR evidence cannot substitute for G002 authority.
 
 The active delivery branch is `codex/0.4-ptr-state-adoption` /
 [PR #244](https://github.com/ael-dev3/Warpkeep/pull/244) in the reused

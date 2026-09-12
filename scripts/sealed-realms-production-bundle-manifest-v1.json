@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
   "profile": "warpkeep-spacetime-binding-final-preparation-linux-x64-v1",
-  "sourceCommit": "d64c8f78442da7ad1bc554c283daf136d670d399",
-  "sourceTree": "9c63dc57a52fe4c2be51ff66647e27505cdf3231",
+  "sourceCommit": "a7bfa1cf1d92e46f1a1fb0e299ac3a8f1dd1bf76",
+  "sourceTree": "9e923580c3fe78128c41ceba3c3b9d56ccb94af3",
   "bundles": [
     {
       "lane": "activation",
       "path": "scripts/sealed-realms-production-activation-lane.bundle.mjs",
-      "byteLength": 812101,
-      "sha256": "641f0e0797427d45a011f5bffb7084b22f521ec2e29a66575e605cbfcb2d93fc",
-      "sourceClosureDigest": "0bcaa66a092915f0a234f02cb35a952c21145e308e3ba385c442a30240a326dd",
+      "byteLength": 867404,
+      "sha256": "9908ff060caa70cdb5d0b49bbe449b427e57f0898f54848ffe9aa27f699b82f5",
+      "sourceClosureDigest": "223245ae7092497324ead333dfa6184221422effc231adf40705176b259eb007",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -528,8 +528,8 @@
         },
         {
           "path": "scripts/generate-0.4.0-recovery-launch-activation.mjs",
-          "byteLength": 11493,
-          "sha256": "993000b4d485d54f82fc595ecbbb231d122e9e2f6b818c3ce7e51da0c58e7628"
+          "byteLength": 13567,
+          "sha256": "ee4cc2e10087a70421fa5b3097f9f47a7fc2ecce6468106a19fb9f21db279871"
         },
         {
           "path": "scripts/genesis001-admitted-player-census.mjs",
@@ -658,13 +658,18 @@
         },
         {
           "path": "scripts/ptr-production-existing-update-adapter.mjs",
-          "byteLength": 26321,
-          "sha256": "558a34b70b398ca8528bc16d903e12b1e34ae7de74972fa5359d5167b35c2b0a"
+          "byteLength": 39326,
+          "sha256": "11b5c9707d502cd11edf2c0f73a3754da7f3f61e90fefe7143751ea22f3df11f"
         },
         {
           "path": "scripts/ptr-production-publisher.mjs",
           "byteLength": 41405,
           "sha256": "e8e456ed0933e2a47ea3c28904606974298b077cfb864211cd19e286ecfbb463"
+        },
+        {
+          "path": "scripts/ptr-production-state-observation.mjs",
+          "byteLength": 17925,
+          "sha256": "678f4d70a26a708e3a3f53fc2ae00ad685e5855aa2dae454b052b81baa64415f"
         },
         {
           "path": "scripts/ptr-update-definition-policy.mjs",
@@ -678,8 +683,8 @@
         },
         {
           "path": "scripts/recovery-activation-candidate.mjs",
-          "byteLength": 10230,
-          "sha256": "551eb21ede538bacf386853cce9b46edc380be37901080954475d6bf641ef642"
+          "byteLength": 11150,
+          "sha256": "01cf22570246a3087e8377a17dd9477a5e3bb0a5c1e72a56ce5db7d04c9cd165"
         },
         {
           "path": "scripts/recovery-attestation-source.mjs",
@@ -688,8 +693,8 @@
         },
         {
           "path": "scripts/recovery-binding-projection.mjs",
-          "byteLength": 12409,
-          "sha256": "b2298c2f754f9a901de43c882164ebda89725f2ef4546a8d794f722be7c06188"
+          "byteLength": 15298,
+          "sha256": "5048c09ac81524790952b951e78aa9f26299d726ebfce3c984ea0029c89bc27f"
         },
         {
           "path": "scripts/recovery-public-key.mjs",
@@ -713,8 +718,8 @@
         },
         {
           "path": "scripts/sealed-realms-production-activation-generation-receipt.mjs",
-          "byteLength": 3175,
-          "sha256": "12d1ae222a776f05eb85e7c78bdd352b35b9114ca82e9f0fdf84b238e1189f13"
+          "byteLength": 3275,
+          "sha256": "6f84eb7d7de460ef6f9de7663d3f9a96893b61046342b728b0b30ab85a3e5730"
         },
         {
           "path": "scripts/sealed-realms-production-activation-lane-entry.mjs",
@@ -723,18 +728,18 @@
         },
         {
           "path": "scripts/sealed-realms-production-activation-records.mjs",
-          "byteLength": 75541,
-          "sha256": "abb61045e9e4c51a5479973524faa9f7f194dc10704d4afd3b0d15d31a9bec8e"
+          "byteLength": 90441,
+          "sha256": "7ce25ef2a01734ac3446ea7d2e7008ff7ec6ea57763a079018a8d33c464267f3"
         },
         {
           "path": "scripts/sealed-realms-production-activation-workflow-entry.mjs",
-          "byteLength": 12189,
-          "sha256": "191976ce7e75a94ba969ae6068e0d90f75a527141ed31cb052ba310ef7d9788d"
+          "byteLength": 13100,
+          "sha256": "83f9a21541810c862ad23806627fb99ddc5da5687098040a15a261d98ba3d4bd"
         },
         {
           "path": "scripts/sealed-realms-production-auth-bridge-state.mjs",
-          "byteLength": 124001,
-          "sha256": "101bf312bff5d52cc62ab89340ec721e438f6ef94cba3d0e1cd46bc91f970b1a"
+          "byteLength": 128588,
+          "sha256": "fef2be9cc8112c0dd10ffd32bbed77f95c596d51eedd51cb21f28156e184c688"
         },
         {
           "path": "scripts/sealed-realms-production-bridge-provider.mjs",
@@ -743,8 +748,8 @@
         },
         {
           "path": "scripts/sealed-realms-production-continuation.mjs",
-          "byteLength": 41410,
-          "sha256": "1fae6356727e1dc73cc9139f74bfc61d94d9f2aa3e0f9c34d6267040520954ac"
+          "byteLength": 42447,
+          "sha256": "4a1ae8750797bd0cc833c377889537df402cc5b0b561e1f662dbe585319195d1"
         },
         {
           "path": "scripts/sealed-realms-production-dispatch.mjs",
@@ -758,13 +763,13 @@
         },
         {
           "path": "scripts/sealed-realms-production-recovery-approval-facts.ts",
-          "byteLength": 5607,
-          "sha256": "e27be83291dcfeca682f63525cd02f53f455df61e181a7895ba3b932d1170bcb"
+          "byteLength": 5918,
+          "sha256": "6ee82360b3d492ca2e867ec5e462c6146419fbd9f0dd9c4b012ebfa17cba0dca"
         },
         {
           "path": "scripts/sealed-realms-production-recovery-candidate.mjs",
-          "byteLength": 10220,
-          "sha256": "0f1582c14914ff9d03252874921a8b0b39c037093322c11cb36bbb26b10b5f37"
+          "byteLength": 10607,
+          "sha256": "190633393deb28432978c7a94f504c769d7a3b72015fbfcb06e49788c3084b8c"
         },
         {
           "path": "scripts/sealed-realms-production-recovery-preparation-observation-receipt.mjs",
@@ -798,13 +803,13 @@
         },
         {
           "path": "scripts/sealed-realms-production-source-authority.mjs",
-          "byteLength": 12756,
-          "sha256": "fc6b7707602b1ffcb0620362b29d2a48730124b8b823758009d6d01fc58d722f"
+          "byteLength": 12896,
+          "sha256": "edef51010cafd53b33fac020baaed0ac39c9fecef12cf551c48bb648efdbdeaa"
         },
         {
           "path": "scripts/sealed-realms-production-workflow-authority.mjs",
-          "byteLength": 11176,
-          "sha256": "8131742dab155a38a7ee62b517f0c34e2dbfa4a1f639efa83b0cb57ece4895e6"
+          "byteLength": 11304,
+          "sha256": "3c18521291e1e173b0d29a1f1766e644ff4cc1f4a45522ba304f46f05c35c25b"
         },
         {
           "path": "scripts/sealed-realms-production-workflow-evidence-json.mjs",
@@ -840,6 +845,36 @@
           "path": "scripts/verify-sealed-realms-public-activation-artifact.mjs",
           "byteLength": 16426,
           "sha256": "30c1de0a298aafe009db99fcc632bf439dd3b5b712ee248178c1946e6d55a6a2"
+        },
+        {
+          "path": "services/release-recovery/src/config.ts",
+          "byteLength": 12574,
+          "sha256": "2a7fa346e514e492099284dc2ecae0616e6bed78bd23e93ab5a3ed340bc5f626"
+        },
+        {
+          "path": "services/release-recovery/src/crypto.ts",
+          "byteLength": 12317,
+          "sha256": "54b0cec1f5858da1cc5ac828e3f3411f577f232f9fa247794d8661c0065bfb34"
+        },
+        {
+          "path": "services/release-recovery/src/http.ts",
+          "byteLength": 17383,
+          "sha256": "e904eb0d9f8dbefa0856ec823b2d66bf333c64495a519b58ac57fa78d04acbe6"
+        },
+        {
+          "path": "services/release-recovery/src/protocol.ts",
+          "byteLength": 27601,
+          "sha256": "143574742621ed4fc7bf9da8cc78f6a9ceb2842c39da2fa46b64aa4a6333fb48"
+        },
+        {
+          "path": "services/release-recovery/src/ptrObservation.ts",
+          "byteLength": 27962,
+          "sha256": "89a9f407ea2dbb22cce291a60e1fd87c76382d6a5dd3bdd65f50b4b7aadcb6ef"
+        },
+        {
+          "path": "services/release-recovery/src/recoveryPublicKey.ts",
+          "byteLength": 383,
+          "sha256": "b599017f42331824c26715e2a8c409228e34c675e9309dbcf6cabf1f46e34e3d"
         },
         {
           "path": "spacetimedb/src/foodSitePolicy.ts",
@@ -912,9 +947,9 @@
     {
       "lane": "g001",
       "path": "scripts/sealed-realms-production-g001-lane.bundle.mjs",
-      "byteLength": 262950,
-      "sha256": "73cc7b8d2204e862ad6348038438f9081425e28aa01786cd83648091e24323f9",
-      "sourceClosureDigest": "c362ae7be91763dc112d94087fdf4afdfabab9b15cf0f77ec538ab6fe0fefef0",
+      "byteLength": 265197,
+      "sha256": "64030c3948a7518f43ddad0d373ac398f5770a046746fac53f094834b4e12722",
+      "sourceClosureDigest": "cddbab240b79f7a443120271a5ad72e9c39e461decb9655bb383f9de327b8e59",
       "graphManifest": [
         {
           "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
@@ -963,8 +998,8 @@
         },
         {
           "path": "scripts/recovery-activation-candidate.mjs",
-          "byteLength": 10230,
-          "sha256": "551eb21ede538bacf386853cce9b46edc380be37901080954475d6bf641ef642"
+          "byteLength": 11150,
+          "sha256": "01cf22570246a3087e8377a17dd9477a5e3bb0a5c1e72a56ce5db7d04c9cd165"
         },
         {
           "path": "scripts/recovery-attestation-source.mjs",
@@ -973,13 +1008,13 @@
         },
         {
           "path": "scripts/recovery-binding-projection.mjs",
-          "byteLength": 12409,
-          "sha256": "b2298c2f754f9a901de43c882164ebda89725f2ef4546a8d794f722be7c06188"
+          "byteLength": 15298,
+          "sha256": "5048c09ac81524790952b951e78aa9f26299d726ebfce3c984ea0029c89bc27f"
         },
         {
           "path": "scripts/sealed-realms-production-continuation.mjs",
-          "byteLength": 41410,
-          "sha256": "1fae6356727e1dc73cc9139f74bfc61d94d9f2aa3e0f9c34d6267040520954ac"
+          "byteLength": 42447,
+          "sha256": "4a1ae8750797bd0cc833c377889537df402cc5b0b561e1f662dbe585319195d1"
         },
         {
           "path": "scripts/sealed-realms-production-dispatch.mjs",
@@ -1003,13 +1038,13 @@
         },
         {
           "path": "scripts/sealed-realms-production-source-authority.mjs",
-          "byteLength": 12756,
-          "sha256": "fc6b7707602b1ffcb0620362b29d2a48730124b8b823758009d6d01fc58d722f"
+          "byteLength": 12896,
+          "sha256": "edef51010cafd53b33fac020baaed0ac39c9fecef12cf551c48bb648efdbdeaa"
         },
         {
           "path": "scripts/sealed-realms-production-workflow-authority.mjs",
-          "byteLength": 11176,
-          "sha256": "8131742dab155a38a7ee62b517f0c34e2dbfa4a1f639efa83b0cb57ece4895e6"
+          "byteLength": 11304,
+          "sha256": "3c18521291e1e173b0d29a1f1766e644ff4cc1f4a45522ba304f46f05c35c25b"
         },
         {
           "path": "scripts/sealed-realms-production-workflow-evidence-json.mjs",
@@ -1042,9 +1077,9 @@
     {
       "lane": "g002",
       "path": "scripts/sealed-realms-production-g002-lane.bundle.mjs",
-      "byteLength": 543752,
-      "sha256": "4f1fea0bf92947bbff9479c75233ca7d46879ecd5563d1e41dc5fa3f2dfa1cc4",
-      "sourceClosureDigest": "89d56ad1d8ad778a273568477c6e4830044eda26297cf2c12d9a403a449827bf",
+      "byteLength": 583364,
+      "sha256": "9876ce328db213642e8f76feefcaa57bd4c6f1ad1c6dcd10e8bf1536952cdbd9",
+      "sourceClosureDigest": "c6f98144884886199d80e3838029c1c808983cf05bcf4a2bde39888fcb2ee174",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -1458,8 +1493,8 @@
         },
         {
           "path": "scripts/generate-0.4.0-recovery-launch-activation.mjs",
-          "byteLength": 11493,
-          "sha256": "993000b4d485d54f82fc595ecbbb231d122e9e2f6b818c3ce7e51da0c58e7628"
+          "byteLength": 13567,
+          "sha256": "ee4cc2e10087a70421fa5b3097f9f47a7fc2ecce6468106a19fb9f21db279871"
         },
         {
           "path": "scripts/genesis001-admitted-player-census.mjs",
@@ -1533,13 +1568,18 @@
         },
         {
           "path": "scripts/ptr-production-existing-update-adapter.mjs",
-          "byteLength": 26321,
-          "sha256": "558a34b70b398ca8528bc16d903e12b1e34ae7de74972fa5359d5167b35c2b0a"
+          "byteLength": 39326,
+          "sha256": "11b5c9707d502cd11edf2c0f73a3754da7f3f61e90fefe7143751ea22f3df11f"
         },
         {
           "path": "scripts/ptr-production-publisher.mjs",
           "byteLength": 41405,
           "sha256": "e8e456ed0933e2a47ea3c28904606974298b077cfb864211cd19e286ecfbb463"
+        },
+        {
+          "path": "scripts/ptr-production-state-observation.mjs",
+          "byteLength": 17925,
+          "sha256": "678f4d70a26a708e3a3f53fc2ae00ad685e5855aa2dae454b052b81baa64415f"
         },
         {
           "path": "scripts/ptr-update-definition-policy.mjs",
@@ -1553,8 +1593,8 @@
         },
         {
           "path": "scripts/recovery-activation-candidate.mjs",
-          "byteLength": 10230,
-          "sha256": "551eb21ede538bacf386853cce9b46edc380be37901080954475d6bf641ef642"
+          "byteLength": 11150,
+          "sha256": "01cf22570246a3087e8377a17dd9477a5e3bb0a5c1e72a56ce5db7d04c9cd165"
         },
         {
           "path": "scripts/recovery-attestation-source.mjs",
@@ -1563,8 +1603,8 @@
         },
         {
           "path": "scripts/recovery-binding-projection.mjs",
-          "byteLength": 12409,
-          "sha256": "b2298c2f754f9a901de43c882164ebda89725f2ef4546a8d794f722be7c06188"
+          "byteLength": 15298,
+          "sha256": "5048c09ac81524790952b951e78aa9f26299d726ebfce3c984ea0029c89bc27f"
         },
         {
           "path": "scripts/sealed-realms-existing-update-protocol.mjs",
@@ -1573,18 +1613,18 @@
         },
         {
           "path": "scripts/sealed-realms-production-activation-generation-receipt.mjs",
-          "byteLength": 3175,
-          "sha256": "12d1ae222a776f05eb85e7c78bdd352b35b9114ca82e9f0fdf84b238e1189f13"
+          "byteLength": 3275,
+          "sha256": "6f84eb7d7de460ef6f9de7663d3f9a96893b61046342b728b0b30ab85a3e5730"
         },
         {
           "path": "scripts/sealed-realms-production-activation-records.mjs",
-          "byteLength": 75541,
-          "sha256": "abb61045e9e4c51a5479973524faa9f7f194dc10704d4afd3b0d15d31a9bec8e"
+          "byteLength": 90441,
+          "sha256": "7ce25ef2a01734ac3446ea7d2e7008ff7ec6ea57763a079018a8d33c464267f3"
         },
         {
           "path": "scripts/sealed-realms-production-auth-bridge-state.mjs",
-          "byteLength": 124001,
-          "sha256": "101bf312bff5d52cc62ab89340ec721e438f6ef94cba3d0e1cd46bc91f970b1a"
+          "byteLength": 128588,
+          "sha256": "fef2be9cc8112c0dd10ffd32bbed77f95c596d51eedd51cb21f28156e184c688"
         },
         {
           "path": "scripts/sealed-realms-production-bridge-provider.mjs",
@@ -1593,8 +1633,8 @@
         },
         {
           "path": "scripts/sealed-realms-production-continuation.mjs",
-          "byteLength": 41410,
-          "sha256": "1fae6356727e1dc73cc9139f74bfc61d94d9f2aa3e0f9c34d6267040520954ac"
+          "byteLength": 42447,
+          "sha256": "4a1ae8750797bd0cc833c377889537df402cc5b0b561e1f662dbe585319195d1"
         },
         {
           "path": "scripts/sealed-realms-production-dispatch.mjs",
@@ -1628,673 +1668,13 @@
         },
         {
           "path": "scripts/sealed-realms-production-source-authority.mjs",
-          "byteLength": 12756,
-          "sha256": "fc6b7707602b1ffcb0620362b29d2a48730124b8b823758009d6d01fc58d722f"
+          "byteLength": 12896,
+          "sha256": "edef51010cafd53b33fac020baaed0ac39c9fecef12cf551c48bb648efdbdeaa"
         },
         {
           "path": "scripts/sealed-realms-production-workflow-authority.mjs",
-          "byteLength": 11176,
-          "sha256": "8131742dab155a38a7ee62b517f0c34e2dbfa4a1f639efa83b0cb57ece4895e6"
-        },
-        {
-          "path": "scripts/sealed-realms-production-workflow-evidence-json.mjs",
-          "byteLength": 3854,
-          "sha256": "79f4ecc588040143545a06b7200b3e9b57120be7a98c372885b4466ec1b74683"
-        },
-        {
-          "path": "scripts/sealed-realms-production-workflow-evidence.mjs",
-          "byteLength": 13884,
-          "sha256": "30765e27095c5c34b5d6c72db17409b9cec7e150b16e1e5f656e90a8473aac7c"
-        },
-        {
-          "path": "scripts/sealed-realms-production-workflow-private-state.mjs",
-          "byteLength": 660,
-          "sha256": "5e897c92acd19061b74f93c03483b6ed75d897d0c26f26904932ac2cd38c9d5d"
-        },
-        {
-          "path": "scripts/sealed-realms-publication-codec.mjs",
-          "byteLength": 8735,
-          "sha256": "e6cf2104f349574e4e22e857f65efb31c7b117d01d0a379f24439f2d85396701"
-        },
-        {
-          "path": "scripts/sealed-realms-synthetic-network.mjs",
-          "byteLength": 1117,
-          "sha256": "df370fa9919e5c381ad4352f7dc2f4f9f9a85c4f0d4245e46c813405c85238e1"
-        },
-        {
-          "path": "scripts/spacetime-additive-migration-proof.mjs",
-          "byteLength": 6826,
-          "sha256": "d19664bf1dbbfd58b2b97cb1deae89940312e70ea20ba01fc24dee628032ae41"
-        },
-        {
-          "path": "scripts/spacetime-cli-attestation.mjs",
-          "byteLength": 18971,
-          "sha256": "2c96c2fa8a08e98905e4a02a232d4d95b78e1452bcd1969100e73e2d45c6f514"
-        },
-        {
-          "path": "scripts/spacetime-table-schema-attestation.mjs",
-          "byteLength": 6646,
-          "sha256": "4e33b9b3358b8345f9f7a57b6d4206050e84f0c10a815203f11010eed7e8bce4"
-        },
-        {
-          "path": "scripts/verify-sealed-realms-public-activation-artifact.mjs",
-          "byteLength": 16426,
-          "sha256": "30c1de0a298aafe009db99fcc632bf439dd3b5b712ee248178c1946e6d55a6a2"
-        }
-      ],
-      "declaration": {
-        "path": "scripts/sealed-realms-production-g002-lane.bundle.d.mts",
-        "byteLength": 778,
-        "sha256": "076d38dbd53fb91800fe1ab4bbddefc4662e453da59a1f4b7afbd165eb0d3e58"
-      },
-      "exportNames": [
-        "createSealedRealmsProductionG002WorkflowRuntime",
-        "runSealedRealmsProductionG002Operation"
-      ],
-      "factoryExport": "createSealedRealmsProductionG002WorkflowRuntime",
-      "factoryFailureCode": "SEALED_REALMS_G002_WORKFLOW_INPUT_INVALID"
-    },
-    {
-      "lane": "ptr",
-      "path": "scripts/sealed-realms-production-ptr-lane.bundle.mjs",
-      "byteLength": 648416,
-      "sha256": "a46716e5961353b6c7da1b9e43e335da14a8e8fa5204e6cb52f4b0d07eaff7fd",
-      "sourceClosureDigest": "b4f32f5e6eef0f2629ed4e1445bcb360a7e3ae71e534156908ce6b5322bfc897",
-      "graphManifest": [
-        {
-          "path": "node_modules/@noble/hashes/esm/_u64.js",
-          "byteLength": 3081,
-          "sha256": "e48c0cfc10810439a4807b46db136ce603a3fa09b62584f513ef2f3ca496af54"
-        },
-        {
-          "path": "node_modules/@noble/hashes/esm/cryptoNode.js",
-          "byteLength": 482,
-          "sha256": "26f80c6a85b6ef7bfd83b99d95b2b5ba8764397b9465feff32e81ba4e6416619"
-        },
-        {
-          "path": "node_modules/@noble/hashes/esm/sha3.js",
-          "byteLength": 8770,
-          "sha256": "0260b46f92a3a94c7179958600d7f92469ef2c8f5d2e966bd9a838ff815713e9"
-        },
-        {
-          "path": "node_modules/@noble/hashes/esm/utils.js",
-          "byteLength": 10538,
-          "sha256": "4cf4c1e05affedcb4fd584a43d76ae1a3711e34a36e2251b90c27e33ecc74fad"
-        },
-        {
-          "path": "node_modules/yaml/dist/compose/compose-collection.js",
-          "byteLength": 3613,
-          "sha256": "a7db11a1a7987d6412df8adbbb85ccd4370171f82265703b2b6af2d13c45d646"
-        },
-        {
-          "path": "node_modules/yaml/dist/compose/compose-doc.js",
-          "byteLength": 1615,
-          "sha256": "0f388537747b5c1a241639413f17fc2b5f831451b5017d6902e46db6842a5fe4"
-        },
-        {
-          "path": "node_modules/yaml/dist/compose/compose-node.js",
-          "byteLength": 4269,
-          "sha256": "86562c85e4e5737d28b24aae2030b97bc9b672e1f2de5da9e4d25c4571e4345c"
-        },
-        {
-          "path": "node_modules/yaml/dist/compose/compose-scalar.js",
-          "byteLength": 3446,
-          "sha256": "37920472755bdaa76399b6d33872f0015ae1fd9ba7faa031c03d501aa8c3e903"
-        },
-        {
-          "path": "node_modules/yaml/dist/compose/composer.js",
-          "byteLength": 8692,
-          "sha256": "509c0bdb4cef641cc784c130b6cc2b350752f6841798daa1a13cbcaf4fc74c46"
-        },
-        {
-          "path": "node_modules/yaml/dist/compose/resolve-block-map.js",
-          "byteLength": 5071,
-          "sha256": "dcfada448c8fc532ebba96d6788a4b41bb015fc5e697a9544ff429b9c4e4c70a"
-        },
-        {
-          "path": "node_modules/yaml/dist/compose/resolve-block-scalar.js",
-          "byteLength": 7500,
-          "sha256": "af562e2e3cd7ee7b3cb9342984177f6b5c77de73121e87695db3ff635e12d152"
-        },
-        {
-          "path": "node_modules/yaml/dist/compose/resolve-block-seq.js",
-          "byteLength": 1812,
-          "sha256": "18f54a39d73b600ebbd74a343e6671d0d08423f125bd86963b72dc24d6261911"
-        },
-        {
-          "path": "node_modules/yaml/dist/compose/resolve-end.js",
-          "byteLength": 1264,
-          "sha256": "532bf56299183e75bb7c20db75321367c28393b66ecb8ffd540faedd9817f116"
-        },
-        {
-          "path": "node_modules/yaml/dist/compose/resolve-flow-collection.js",
-          "byteLength": 8927,
-          "sha256": "242470b54c0deba1507babba2e879f3005ed2ee3bd53a36affb6ecf82fddd375"
-        },
-        {
-          "path": "node_modules/yaml/dist/compose/resolve-flow-scalar.js",
-          "byteLength": 7386,
-          "sha256": "167fa296e6fb75618bb7b315acaa926d4e88b2b63a9ff139f1a7de9c78db4610"
-        },
-        {
-          "path": "node_modules/yaml/dist/compose/resolve-props.js",
-          "byteLength": 5579,
-          "sha256": "0b49c6af0145c309883dbf24d1a00260c0c090412be10aaa301de126dad15983"
-        },
-        {
-          "path": "node_modules/yaml/dist/compose/util-contains-newline.js",
-          "byteLength": 1081,
-          "sha256": "60182618fc9fa669e74ab74f4231c15b5d24bc52ab0a419684bb827a00d69be6"
-        },
-        {
-          "path": "node_modules/yaml/dist/compose/util-empty-scalar-position.js",
-          "byteLength": 850,
-          "sha256": "460516395ef7e961d5248e047ee6d52084f279b76e8af9f3c2bac92da1c7d656"
-        },
-        {
-          "path": "node_modules/yaml/dist/compose/util-flow-indent-check.js",
-          "byteLength": 547,
-          "sha256": "c7c0c9837a1f828de19eb3ee0947dff39c4f69222c762aed9fa2fe14fc46ee3e"
-        },
-        {
-          "path": "node_modules/yaml/dist/compose/util-map-includes.js",
-          "byteLength": 471,
-          "sha256": "0330dc34072cb499493176b293228631ca8ebaaaddcdc0e63b02bf24f6a25c2d"
-        },
-        {
-          "path": "node_modules/yaml/dist/doc/Document.js",
-          "byteLength": 13114,
-          "sha256": "9bc1c9a56de3902d554e77193125b6aadcfaec743073b3417b22c95a8f7d7923"
-        },
-        {
-          "path": "node_modules/yaml/dist/doc/anchors.js",
-          "byteLength": 2386,
-          "sha256": "ea9a479b1e98d88235ffa6736d0405e2119e9dde7b5249b72185488ab2527261"
-        },
-        {
-          "path": "node_modules/yaml/dist/doc/applyReviver.js",
-          "byteLength": 1950,
-          "sha256": "7271668f41f264e4b9aeb184629cfd11c510b401c5a797fa7194d17a9652976e"
-        },
-        {
-          "path": "node_modules/yaml/dist/doc/createNode.js",
-          "byteLength": 3138,
-          "sha256": "a39d14026d4cc6ff8d76d90db30c41facc26a146ebed30783bcf28e40b5caa65"
-        },
-        {
-          "path": "node_modules/yaml/dist/doc/directives.js",
-          "byteLength": 6237,
-          "sha256": "8f02c3c03571e377e33680b68027d4336234d7a6da3d8c6a8b7f1183c1c428ff"
-        },
-        {
-          "path": "node_modules/yaml/dist/errors.js",
-          "byteLength": 2118,
-          "sha256": "c389d9c448193ce1bcb9641f5eda62cbe56467b2104357d2fc8dd86df88cb07b"
-        },
-        {
-          "path": "node_modules/yaml/dist/index.js",
-          "byteLength": 1769,
-          "sha256": "2d58984e0ae80de4acbd8f009fab332f5ce77d9e1a5f138a3058a0ada6567fb9"
-        },
-        {
-          "path": "node_modules/yaml/dist/log.js",
-          "byteLength": 459,
-          "sha256": "f6ccc3593357801851aa1023b202f842733043ac3b25773048d836f89de8108d"
-        },
-        {
-          "path": "node_modules/yaml/dist/nodes/Alias.js",
-          "byteLength": 3901,
-          "sha256": "80a8109b7cb1d0d73eee18463fdd3095d120fa21f49b282444d90d867e291ea1"
-        },
-        {
-          "path": "node_modules/yaml/dist/nodes/Collection.js",
-          "byteLength": 5221,
-          "sha256": "e2d3ffdc9a997774602e72b296fba641558bc7355c9f12a3ee0502fb1e541306"
-        },
-        {
-          "path": "node_modules/yaml/dist/nodes/Node.js",
-          "byteLength": 1382,
-          "sha256": "b57b42071f7ebab633626858656ec5187617f2290c272e87edc57467ef591215"
-        },
-        {
-          "path": "node_modules/yaml/dist/nodes/Pair.js",
-          "byteLength": 1232,
-          "sha256": "d5dad67916ba0e864a892da63265a062c45c15a191349ef50a540f2ddbae93e5"
-        },
-        {
-          "path": "node_modules/yaml/dist/nodes/Scalar.js",
-          "byteLength": 759,
-          "sha256": "616ac0f6a0a5a6565307a4bb4443691b0dd019c03d6bb8777353750bd3459487"
-        },
-        {
-          "path": "node_modules/yaml/dist/nodes/YAMLMap.js",
-          "byteLength": 5105,
-          "sha256": "d140cfc5aa8d28737bd3c993d977d5a10ab81efe221e36708ac45b3cf18f5dce"
-        },
-        {
-          "path": "node_modules/yaml/dist/nodes/YAMLSeq.js",
-          "byteLength": 3667,
-          "sha256": "9f89417f3cba5f22a4436f67a9ff9dce627344b5874d2ed7957ff9acffb030e4"
-        },
-        {
-          "path": "node_modules/yaml/dist/nodes/addPairToJSMap.js",
-          "byteLength": 2338,
-          "sha256": "e4977864d75c1fdbf7fc78c9f4329406e153deccfff090fd812dae2b27e6c2c2"
-        },
-        {
-          "path": "node_modules/yaml/dist/nodes/identity.js",
-          "byteLength": 1794,
-          "sha256": "1a7cb042ae725ff68d05dc503efbbecbe65281f18b23dfc23f12d1749a440cfe"
-        },
-        {
-          "path": "node_modules/yaml/dist/nodes/toJS.js",
-          "byteLength": 1292,
-          "sha256": "34de93bb4e16abbf317210a7bd1b062ed20acb028cd8395b69b591f433e277b6"
-        },
-        {
-          "path": "node_modules/yaml/dist/parse/cst-scalar.js",
-          "byteLength": 9382,
-          "sha256": "2f72b634348b04b395408ac427fb4f8ee67432244c327561d4b755a28a783b34"
-        },
-        {
-          "path": "node_modules/yaml/dist/parse/cst-stringify.js",
-          "byteLength": 1799,
-          "sha256": "4d14a7a286cff9c1a578ab15839388ea76f77ae79293db25b235394bcc377b51"
-        },
-        {
-          "path": "node_modules/yaml/dist/parse/cst-visit.js",
-          "byteLength": 3986,
-          "sha256": "525535fc05841407420be6505804c74d873eb3aaa9319679896f7a24a474ca01"
-        },
-        {
-          "path": "node_modules/yaml/dist/parse/cst.js",
-          "byteLength": 3242,
-          "sha256": "acc25760d010068844f36f4aefc7fe6f5f6048fd7f8fcc29d4290e154819d1a4"
-        },
-        {
-          "path": "node_modules/yaml/dist/parse/lexer.js",
-          "byteLength": 24149,
-          "sha256": "cb30a2c4628e270ee810530217f3f7bb0f2730ab89f8fbaf1f8a73ccd1883cf5"
-        },
-        {
-          "path": "node_modules/yaml/dist/parse/line-counter.js",
-          "byteLength": 1445,
-          "sha256": "ddfd11ca2cdd42d36bc6c3090a31c21e6bbcc90bf3498bf6aacfbb30c5d79436"
-        },
-        {
-          "path": "node_modules/yaml/dist/parse/parser.js",
-          "byteLength": 35551,
-          "sha256": "0adc5ffa51ffa4c0ceed1f80efa8b188d10f58c7b9389a6d46bc861e6bff34e1"
-        },
-        {
-          "path": "node_modules/yaml/dist/public-api.js",
-          "byteLength": 4187,
-          "sha256": "9b318ac7b3a3751127c74f59dd1dd209230a70ca116000348b82faae189f72f0"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/Schema.js",
-          "byteLength": 1547,
-          "sha256": "d3b1bc956a766e2489c36114366f3b3f89762a257ae05ff6271ee3fc8c2a9bf5"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/common/map.js",
-          "byteLength": 483,
-          "sha256": "769207eaa56e34c113da10cdc22da845f92b4080ff2b921a72847a38d3ac03d8"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/common/null.js",
-          "byteLength": 469,
-          "sha256": "f5d5f694ea3a42ef136e0fbcc674dfd7aa0a3da2b8d62183fb750166a12e52bb"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/common/seq.js",
-          "byteLength": 484,
-          "sha256": "51fc0e8bfc63d1d9c7c66b0370a069bb33e0dad865080ff76802803597b9909a"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/common/string.js",
-          "byteLength": 457,
-          "sha256": "51d0b3aafab2ffa4ad9d86656a3b92c4b4824d0a8806423882ea5f92a1bf8d11"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/core/bool.js",
-          "byteLength": 635,
-          "sha256": "9fa696b1efc38cf8c73a398f30d9f9841658aa5afd0b7a6b0822947c3991ba7a"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/core/float.js",
-          "byteLength": 1510,
-          "sha256": "139e3964f0e626ad3741500faf51d855ff98eafa2d9e7523cac06260e4515382"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/core/int.js",
-          "byteLength": 1407,
-          "sha256": "f0e474254f6877d5dd23bb57017980931ab333a7eaa3d33872247a80d11f754d"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/core/schema.js",
-          "byteLength": 509,
-          "sha256": "481d7c64817b40090d519fb65bd83730dadd4c6baec1440b9bf85d29e52c046e"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/json/schema.js",
-          "byteLength": 1900,
-          "sha256": "9efdd848455f6e0621feb13f3eb762453cb02b09d5e04b6501163cfb26af27ed"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/tags.js",
-          "byteLength": 3239,
-          "sha256": "dba2f42d4dbe8cc8b13f662fd97d253da2da5567e71c47115305efede5a888f2"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/yaml-1.1/binary.js",
-          "byteLength": 2800,
-          "sha256": "15d7b0b8516c8190b191ec9a0adaab16808d09751ef534d7829512944072011f"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/yaml-1.1/bool.js",
-          "byteLength": 841,
-          "sha256": "80a0046224dac3437f22e3b27b0180e1aad82277ab2fee4769094c6d12d67b6f"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/yaml-1.1/float.js",
-          "byteLength": 1626,
-          "sha256": "a90c44db83152e4d902d46f667737dac90aa86b401abdefe89371ac3bd03abfe"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/yaml-1.1/int.js",
-          "byteLength": 2232,
-          "sha256": "5ff72b08fecc3a924d4a76658a304859db5edb4fadf8893ee837aa06bba60a52"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/yaml-1.1/merge.js",
-          "byteLength": 2616,
-          "sha256": "9c85b5e026e4369a96f3f7b5bc6c05da102dfa2968950b17986201cfe0be542c"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/yaml-1.1/omap.js",
-          "byteLength": 2581,
-          "sha256": "3174270cd59c0f0e3ffd73b3b44c4de679efd5c681325b7aac8e0935d547bee8"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/yaml-1.1/pairs.js",
-          "byteLength": 2854,
-          "sha256": "46ba76da72ad65a6202358c486c6a3084ab7c48a8eb5be60d241d9e198c5a9b5"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/yaml-1.1/schema.js",
-          "byteLength": 912,
-          "sha256": "a7320808484dc6d04817b33b2d09b65ead7ffc1c672ab54e068a80972b17702e"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/yaml-1.1/set.js",
-          "byteLength": 3114,
-          "sha256": "e4553b0cbde79090884908f44bb3b4afd04935fc23656a1b87ec1af87f24427a"
-        },
-        {
-          "path": "node_modules/yaml/dist/schema/yaml-1.1/timestamp.js",
-          "byteLength": 3775,
-          "sha256": "b157c946dc1b8854aadc4e7994b268ec8afe6d916721cb3580e0752c7d15a5f7"
-        },
-        {
-          "path": "node_modules/yaml/dist/stringify/foldFlowLines.js",
-          "byteLength": 4885,
-          "sha256": "7819679e80222b80c564ea4a9cf3145fa4d5e28a6cfbac248283ac55b0249761"
-        },
-        {
-          "path": "node_modules/yaml/dist/stringify/stringify.js",
-          "byteLength": 4534,
-          "sha256": "38efb5bc5553e98fee58c825a88131c59184368d8689e3e6f43c652a06e9c167"
-        },
-        {
-          "path": "node_modules/yaml/dist/stringify/stringifyCollection.js",
-          "byteLength": 5718,
-          "sha256": "b55fd3b6e3f1346bbcd1fcdc48a59c089b7a4b0e6fac2b46846f7828f9488600"
-        },
-        {
-          "path": "node_modules/yaml/dist/stringify/stringifyComment.js",
-          "byteLength": 801,
-          "sha256": "490bff57104b7cfdb1893f14528610bb4d0a63c29b314e122233cf308cf96662"
-        },
-        {
-          "path": "node_modules/yaml/dist/stringify/stringifyDocument.js",
-          "byteLength": 3104,
-          "sha256": "dd5ba1813a16b62955c466bce8d1c16254e90b36d688f863c508dc8fe38f2afe"
-        },
-        {
-          "path": "node_modules/yaml/dist/stringify/stringifyNumber.js",
-          "byteLength": 808,
-          "sha256": "26a1980d34a21a80704d356d475a0187a24ebcbeb37a2e3b149d4d791bb65598"
-        },
-        {
-          "path": "node_modules/yaml/dist/stringify/stringifyPair.js",
-          "byteLength": 5470,
-          "sha256": "bc03ae533d85bf9122e87c0a256c841ae7fbf063499bc3034d49fd9f7b200659"
-        },
-        {
-          "path": "node_modules/yaml/dist/stringify/stringifyString.js",
-          "byteLength": 13345,
-          "sha256": "4113b71a9c4c087a197f71452794a6acb9929111f569c973ff4efe7caee8f777"
-        },
-        {
-          "path": "node_modules/yaml/dist/visit.js",
-          "byteLength": 9253,
-          "sha256": "a757e3b924af184b25e2386d1678b1fe341805a516ebf9bccee219b47aebd5e7"
-        },
-        {
-          "path": "scripts/atlas/greater-realm-git.ts",
-          "byteLength": 7914,
-          "sha256": "9427c955774a5124dead1efc2f477f3e99ebd5b5ad97d5840477144518fe8217"
-        },
-        {
-          "path": "scripts/auth-bridge-config-attestation.mjs",
-          "byteLength": 27562,
-          "sha256": "2553802babb4284f14faf5ee21834bc7254630c56b141758211a84d530283850"
-        },
-        {
-          "path": "scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs",
-          "byteLength": 115018,
-          "sha256": "d4d75157175c81af67a78dec77eb70cf880fb4549e22e79d9e87cb2b4d4fee5b"
-        },
-        {
-          "path": "scripts/auth-bridge-notification-prepared-deploy-adapter.mjs",
-          "byteLength": 27311,
-          "sha256": "b5027bfd1bbdb024eadefdf9db269544452ac6d3ddaea07e5b5c6b45d249ddf0"
-        },
-        {
-          "path": "scripts/auth-bridge-notification-prepared-deploy-journal.mjs",
-          "byteLength": 54679,
-          "sha256": "db4a05ec8061a01dd6a82607c5860465e813940a22ec0def72bb4d7e1665e515"
-        },
-        {
-          "path": "scripts/auth-bridge-notification-prepared-receipt.mjs",
-          "byteLength": 55838,
-          "sha256": "846ba27d5b54400a1979038b55b38826636c68cdd82e6ca7822f94407fe27928"
-        },
-        {
-          "path": "scripts/generate-0.4.0-recovery-launch-activation.mjs",
-          "byteLength": 11493,
-          "sha256": "993000b4d485d54f82fc595ecbbb231d122e9e2f6b818c3ce7e51da0c58e7628"
-        },
-        {
-          "path": "scripts/genesis001-admitted-player-census.mjs",
-          "byteLength": 21630,
-          "sha256": "1a0bbd0717d9d19094c9e898c9a4c41613670e947fb9d876a3b04179d0719dc5"
-        },
-        {
-          "path": "scripts/genesis001-binding-frozen-source.mjs",
-          "byteLength": 19321,
-          "sha256": "d4000cb556fa59e330d4e59629c5d0c9ecdafadf6d9d084354ccf0e1593256c0"
-        },
-        {
-          "path": "scripts/genesis001-linux-policy-receipt.mjs",
-          "byteLength": 6251,
-          "sha256": "3908e6fdabc737ce1742caf8c4ac0411a2c785a59b019054f8f6b68f5c8a30d0"
-        },
-        {
-          "path": "scripts/genesis001-sealed-launch-adoption.mjs",
-          "byteLength": 32945,
-          "sha256": "b478b013893352190b5299ee2630a91c65827ebf7909bdbd91d7c6b73f8b52ee"
-        },
-        {
-          "path": "scripts/genesis002-activation-receipts.mjs",
-          "byteLength": 10638,
-          "sha256": "1c0fa54386377cf8e8c1300772e9ed1d365c2216674fa646af9d90875685e609"
-        },
-        {
-          "path": "scripts/greater-realm-openat.ts",
-          "byteLength": 9081,
-          "sha256": "fa22aeeea06950d31756112102cb4ae35f88aa7d82d73f7e5af3deba15366058"
-        },
-        {
-          "path": "scripts/greater-realm-production-provenance.ts",
-          "byteLength": 56766,
-          "sha256": "66b695e408ee4601cfb4536e9811669e62d3c36e768b2d8bc40129092c979c63"
-        },
-        {
-          "path": "scripts/local-binding-bounded-file.mjs",
-          "byteLength": 10104,
-          "sha256": "13e01b2e7f858fa076ca6b53fbc99c2e0ba08720d7ee6b966bb1446b68b90682"
-        },
-        {
-          "path": "scripts/production-admin-token-budget.mjs",
-          "byteLength": 33837,
-          "sha256": "0ac956518ebbed5e893adcb8159c2a4c287d684850921249b18ba6bc9352648e"
-        },
-        {
-          "path": "scripts/ptr-artifact-description.mjs",
-          "byteLength": 10850,
-          "sha256": "79b0e6e7dca53d5efdbc63f2341da54d67986774fd111b50f5c49a86a20391b9"
-        },
-        {
-          "path": "scripts/ptr-binding-linux-locked-source-build.ts",
-          "byteLength": 184,
-          "sha256": "91ddf1def2f59121f391dabe39d2797c92dbe5a265104f30ffbe24c23df1ace8"
-        },
-        {
-          "path": "scripts/ptr-binding-locked-source-build-core.ts",
-          "byteLength": 49970,
-          "sha256": "a484ca4984d061786942d56d0f5c487300976db8c266dd00beed7482b15d055b"
-        },
-        {
-          "path": "scripts/ptr-binding-locked-source-build.ts",
-          "byteLength": 213,
-          "sha256": "e375cac4a7d7d7000af5e659807a1a2680893b5645e9ccac825b6176f84c2cc9"
-        },
-        {
-          "path": "scripts/ptr-binding-source-validation.ts",
-          "byteLength": 13542,
-          "sha256": "ee4e6537a710b159e4691523ba00acb344e423b374e4b7fd1dcbf6d7ae5f8f12"
-        },
-        {
-          "path": "scripts/ptr-production-existing-update-adapter.mjs",
-          "byteLength": 26321,
-          "sha256": "558a34b70b398ca8528bc16d903e12b1e34ae7de74972fa5359d5167b35c2b0a"
-        },
-        {
-          "path": "scripts/ptr-production-publisher.mjs",
-          "byteLength": 41405,
-          "sha256": "e8e456ed0933e2a47ea3c28904606974298b077cfb864211cd19e286ecfbb463"
-        },
-        {
-          "path": "scripts/ptr-production-state-observation.mjs",
-          "byteLength": 10124,
-          "sha256": "c52ac4444615d60152d93436483b665a8fdab8e42f40132d625728ea4728585e"
-        },
-        {
-          "path": "scripts/ptr-update-definition-policy.mjs",
-          "byteLength": 7013,
-          "sha256": "257ecc86ba069bab5e9eb01f3016a576cdfc48d52e1f0221f5e1f65dc5223f78"
-        },
-        {
-          "path": "scripts/ptr-update-provider-credentials.mjs",
-          "byteLength": 8648,
-          "sha256": "b004f169642b3b626d0b75c32a28145f291ac9476a4c9e4c6d6f1315d5e09c71"
-        },
-        {
-          "path": "scripts/recovery-activation-candidate.mjs",
-          "byteLength": 10230,
-          "sha256": "551eb21ede538bacf386853cce9b46edc380be37901080954475d6bf641ef642"
-        },
-        {
-          "path": "scripts/recovery-attestation-source.mjs",
-          "byteLength": 6270,
-          "sha256": "9d4e3f2e5f7bc2af5adff9cae295c094e249dd7f8eac6319304a43b3ee16ea77"
-        },
-        {
-          "path": "scripts/recovery-binding-projection.mjs",
-          "byteLength": 12409,
-          "sha256": "b2298c2f754f9a901de43c882164ebda89725f2ef4546a8d794f722be7c06188"
-        },
-        {
-          "path": "scripts/sealed-realms-existing-update-protocol.mjs",
-          "byteLength": 15215,
-          "sha256": "5d16988e1e8228dd8cc8bdcf7e18a2b5348359fa82f057e8b012e768174c8b3f"
-        },
-        {
-          "path": "scripts/sealed-realms-production-activation-generation-receipt.mjs",
-          "byteLength": 3175,
-          "sha256": "12d1ae222a776f05eb85e7c78bdd352b35b9114ca82e9f0fdf84b238e1189f13"
-        },
-        {
-          "path": "scripts/sealed-realms-production-activation-records.mjs",
-          "byteLength": 75541,
-          "sha256": "abb61045e9e4c51a5479973524faa9f7f194dc10704d4afd3b0d15d31a9bec8e"
-        },
-        {
-          "path": "scripts/sealed-realms-production-auth-bridge-state.mjs",
-          "byteLength": 124001,
-          "sha256": "101bf312bff5d52cc62ab89340ec721e438f6ef94cba3d0e1cd46bc91f970b1a"
-        },
-        {
-          "path": "scripts/sealed-realms-production-bridge-provider.mjs",
-          "byteLength": 15318,
-          "sha256": "40fdb0a1228940e68569b0f958f3c5b70756a06241aad8eb9a962099341a4a04"
-        },
-        {
-          "path": "scripts/sealed-realms-production-continuation.mjs",
-          "byteLength": 41410,
-          "sha256": "1fae6356727e1dc73cc9139f74bfc61d94d9f2aa3e0f9c34d6267040520954ac"
-        },
-        {
-          "path": "scripts/sealed-realms-production-dispatch.mjs",
-          "byteLength": 8162,
-          "sha256": "189633292ff91f7b166d3d1aebeeaeed499039f6dc60b6567c922bf1cbd52fe0"
-        },
-        {
-          "path": "scripts/sealed-realms-production-existing-update.mjs",
-          "byteLength": 26596,
-          "sha256": "64f1d045f20abcc52892f0d102efd7b1d14d95b29ba951055addfb78d3327083"
-        },
-        {
-          "path": "scripts/sealed-realms-production-private-state.mjs",
-          "byteLength": 47088,
-          "sha256": "3c2b6d4490d0a8fecb587bdfc2da17ff20155a692821c2b17e8b4dd512ecf90b"
-        },
-        {
-          "path": "scripts/sealed-realms-production-ptr-lane-entry.mjs",
-          "byteLength": 18657,
-          "sha256": "2468940eba6f3de177f914c59e8886c30033c38ba14631f8a3192ccdba0f55a4"
-        },
-        {
-          "path": "scripts/sealed-realms-production-ptr-workflow-entry.mjs",
-          "byteLength": 19991,
-          "sha256": "f3c9d8e23d0e5631c55ff6d69f2589e52161e2650b94f90c8c6d61292667f421"
-        },
-        {
-          "path": "scripts/sealed-realms-production-reconciliation.mjs",
-          "byteLength": 26951,
-          "sha256": "0ff4add38d8ede2bc28e38b58a1baa158406857a6f401aa2146b66e6773c74e8"
-        },
-        {
-          "path": "scripts/sealed-realms-production-source-authority.mjs",
-          "byteLength": 12756,
-          "sha256": "fc6b7707602b1ffcb0620362b29d2a48730124b8b823758009d6d01fc58d722f"
-        },
-        {
-          "path": "scripts/sealed-realms-production-workflow-authority.mjs",
-          "byteLength": 11176,
-          "sha256": "8131742dab155a38a7ee62b517f0c34e2dbfa4a1f639efa83b0cb57ece4895e6"
+          "byteLength": 11304,
+          "sha256": "3c18521291e1e173b0d29a1f1766e644ff4cc1f4a45522ba304f46f05c35c25b"
         },
         {
           "path": "scripts/sealed-realms-production-workflow-evidence-json.mjs",
@@ -2343,8 +1723,8 @@
         },
         {
           "path": "services/release-recovery/src/config.ts",
-          "byteLength": 10995,
-          "sha256": "dc46cbb8ac3178c55e1ef43c7349dcda0c262f7b3f1d207240ac71fae830a932"
+          "byteLength": 12574,
+          "sha256": "2a7fa346e514e492099284dc2ecae0616e6bed78bd23e93ab5a3ed340bc5f626"
         },
         {
           "path": "services/release-recovery/src/crypto.ts",
@@ -2363,8 +1743,698 @@
         },
         {
           "path": "services/release-recovery/src/ptrObservation.ts",
-          "byteLength": 15837,
-          "sha256": "804dbdc88b675981fa29034124ef722fbf49cc5ce9d56bc77bbeb5d8d9498c3f"
+          "byteLength": 27962,
+          "sha256": "89a9f407ea2dbb22cce291a60e1fd87c76382d6a5dd3bdd65f50b4b7aadcb6ef"
+        },
+        {
+          "path": "services/release-recovery/src/recoveryPublicKey.ts",
+          "byteLength": 383,
+          "sha256": "b599017f42331824c26715e2a8c409228e34c675e9309dbcf6cabf1f46e34e3d"
+        }
+      ],
+      "declaration": {
+        "path": "scripts/sealed-realms-production-g002-lane.bundle.d.mts",
+        "byteLength": 778,
+        "sha256": "076d38dbd53fb91800fe1ab4bbddefc4662e453da59a1f4b7afbd165eb0d3e58"
+      },
+      "exportNames": [
+        "createSealedRealmsProductionG002WorkflowRuntime",
+        "runSealedRealmsProductionG002Operation"
+      ],
+      "factoryExport": "createSealedRealmsProductionG002WorkflowRuntime",
+      "factoryFailureCode": "SEALED_REALMS_G002_WORKFLOW_INPUT_INVALID"
+    },
+    {
+      "lane": "ptr",
+      "path": "scripts/sealed-realms-production-ptr-lane.bundle.mjs",
+      "byteLength": 677395,
+      "sha256": "4206c92f6224c4771e7e958d720f86284c26acd45aa701df208da64f1c95f1d0",
+      "sourceClosureDigest": "a262cc159bc9d74cc4fa7ce7069e66f679d07fe49e4d3ec7432bfa07a4ddce22",
+      "graphManifest": [
+        {
+          "path": "node_modules/@noble/hashes/esm/_u64.js",
+          "byteLength": 3081,
+          "sha256": "e48c0cfc10810439a4807b46db136ce603a3fa09b62584f513ef2f3ca496af54"
+        },
+        {
+          "path": "node_modules/@noble/hashes/esm/cryptoNode.js",
+          "byteLength": 482,
+          "sha256": "26f80c6a85b6ef7bfd83b99d95b2b5ba8764397b9465feff32e81ba4e6416619"
+        },
+        {
+          "path": "node_modules/@noble/hashes/esm/sha3.js",
+          "byteLength": 8770,
+          "sha256": "0260b46f92a3a94c7179958600d7f92469ef2c8f5d2e966bd9a838ff815713e9"
+        },
+        {
+          "path": "node_modules/@noble/hashes/esm/utils.js",
+          "byteLength": 10538,
+          "sha256": "4cf4c1e05affedcb4fd584a43d76ae1a3711e34a36e2251b90c27e33ecc74fad"
+        },
+        {
+          "path": "node_modules/yaml/dist/compose/compose-collection.js",
+          "byteLength": 3613,
+          "sha256": "a7db11a1a7987d6412df8adbbb85ccd4370171f82265703b2b6af2d13c45d646"
+        },
+        {
+          "path": "node_modules/yaml/dist/compose/compose-doc.js",
+          "byteLength": 1615,
+          "sha256": "0f388537747b5c1a241639413f17fc2b5f831451b5017d6902e46db6842a5fe4"
+        },
+        {
+          "path": "node_modules/yaml/dist/compose/compose-node.js",
+          "byteLength": 4269,
+          "sha256": "86562c85e4e5737d28b24aae2030b97bc9b672e1f2de5da9e4d25c4571e4345c"
+        },
+        {
+          "path": "node_modules/yaml/dist/compose/compose-scalar.js",
+          "byteLength": 3446,
+          "sha256": "37920472755bdaa76399b6d33872f0015ae1fd9ba7faa031c03d501aa8c3e903"
+        },
+        {
+          "path": "node_modules/yaml/dist/compose/composer.js",
+          "byteLength": 8692,
+          "sha256": "509c0bdb4cef641cc784c130b6cc2b350752f6841798daa1a13cbcaf4fc74c46"
+        },
+        {
+          "path": "node_modules/yaml/dist/compose/resolve-block-map.js",
+          "byteLength": 5071,
+          "sha256": "dcfada448c8fc532ebba96d6788a4b41bb015fc5e697a9544ff429b9c4e4c70a"
+        },
+        {
+          "path": "node_modules/yaml/dist/compose/resolve-block-scalar.js",
+          "byteLength": 7500,
+          "sha256": "af562e2e3cd7ee7b3cb9342984177f6b5c77de73121e87695db3ff635e12d152"
+        },
+        {
+          "path": "node_modules/yaml/dist/compose/resolve-block-seq.js",
+          "byteLength": 1812,
+          "sha256": "18f54a39d73b600ebbd74a343e6671d0d08423f125bd86963b72dc24d6261911"
+        },
+        {
+          "path": "node_modules/yaml/dist/compose/resolve-end.js",
+          "byteLength": 1264,
+          "sha256": "532bf56299183e75bb7c20db75321367c28393b66ecb8ffd540faedd9817f116"
+        },
+        {
+          "path": "node_modules/yaml/dist/compose/resolve-flow-collection.js",
+          "byteLength": 8927,
+          "sha256": "242470b54c0deba1507babba2e879f3005ed2ee3bd53a36affb6ecf82fddd375"
+        },
+        {
+          "path": "node_modules/yaml/dist/compose/resolve-flow-scalar.js",
+          "byteLength": 7386,
+          "sha256": "167fa296e6fb75618bb7b315acaa926d4e88b2b63a9ff139f1a7de9c78db4610"
+        },
+        {
+          "path": "node_modules/yaml/dist/compose/resolve-props.js",
+          "byteLength": 5579,
+          "sha256": "0b49c6af0145c309883dbf24d1a00260c0c090412be10aaa301de126dad15983"
+        },
+        {
+          "path": "node_modules/yaml/dist/compose/util-contains-newline.js",
+          "byteLength": 1081,
+          "sha256": "60182618fc9fa669e74ab74f4231c15b5d24bc52ab0a419684bb827a00d69be6"
+        },
+        {
+          "path": "node_modules/yaml/dist/compose/util-empty-scalar-position.js",
+          "byteLength": 850,
+          "sha256": "460516395ef7e961d5248e047ee6d52084f279b76e8af9f3c2bac92da1c7d656"
+        },
+        {
+          "path": "node_modules/yaml/dist/compose/util-flow-indent-check.js",
+          "byteLength": 547,
+          "sha256": "c7c0c9837a1f828de19eb3ee0947dff39c4f69222c762aed9fa2fe14fc46ee3e"
+        },
+        {
+          "path": "node_modules/yaml/dist/compose/util-map-includes.js",
+          "byteLength": 471,
+          "sha256": "0330dc34072cb499493176b293228631ca8ebaaaddcdc0e63b02bf24f6a25c2d"
+        },
+        {
+          "path": "node_modules/yaml/dist/doc/Document.js",
+          "byteLength": 13114,
+          "sha256": "9bc1c9a56de3902d554e77193125b6aadcfaec743073b3417b22c95a8f7d7923"
+        },
+        {
+          "path": "node_modules/yaml/dist/doc/anchors.js",
+          "byteLength": 2386,
+          "sha256": "ea9a479b1e98d88235ffa6736d0405e2119e9dde7b5249b72185488ab2527261"
+        },
+        {
+          "path": "node_modules/yaml/dist/doc/applyReviver.js",
+          "byteLength": 1950,
+          "sha256": "7271668f41f264e4b9aeb184629cfd11c510b401c5a797fa7194d17a9652976e"
+        },
+        {
+          "path": "node_modules/yaml/dist/doc/createNode.js",
+          "byteLength": 3138,
+          "sha256": "a39d14026d4cc6ff8d76d90db30c41facc26a146ebed30783bcf28e40b5caa65"
+        },
+        {
+          "path": "node_modules/yaml/dist/doc/directives.js",
+          "byteLength": 6237,
+          "sha256": "8f02c3c03571e377e33680b68027d4336234d7a6da3d8c6a8b7f1183c1c428ff"
+        },
+        {
+          "path": "node_modules/yaml/dist/errors.js",
+          "byteLength": 2118,
+          "sha256": "c389d9c448193ce1bcb9641f5eda62cbe56467b2104357d2fc8dd86df88cb07b"
+        },
+        {
+          "path": "node_modules/yaml/dist/index.js",
+          "byteLength": 1769,
+          "sha256": "2d58984e0ae80de4acbd8f009fab332f5ce77d9e1a5f138a3058a0ada6567fb9"
+        },
+        {
+          "path": "node_modules/yaml/dist/log.js",
+          "byteLength": 459,
+          "sha256": "f6ccc3593357801851aa1023b202f842733043ac3b25773048d836f89de8108d"
+        },
+        {
+          "path": "node_modules/yaml/dist/nodes/Alias.js",
+          "byteLength": 3901,
+          "sha256": "80a8109b7cb1d0d73eee18463fdd3095d120fa21f49b282444d90d867e291ea1"
+        },
+        {
+          "path": "node_modules/yaml/dist/nodes/Collection.js",
+          "byteLength": 5221,
+          "sha256": "e2d3ffdc9a997774602e72b296fba641558bc7355c9f12a3ee0502fb1e541306"
+        },
+        {
+          "path": "node_modules/yaml/dist/nodes/Node.js",
+          "byteLength": 1382,
+          "sha256": "b57b42071f7ebab633626858656ec5187617f2290c272e87edc57467ef591215"
+        },
+        {
+          "path": "node_modules/yaml/dist/nodes/Pair.js",
+          "byteLength": 1232,
+          "sha256": "d5dad67916ba0e864a892da63265a062c45c15a191349ef50a540f2ddbae93e5"
+        },
+        {
+          "path": "node_modules/yaml/dist/nodes/Scalar.js",
+          "byteLength": 759,
+          "sha256": "616ac0f6a0a5a6565307a4bb4443691b0dd019c03d6bb8777353750bd3459487"
+        },
+        {
+          "path": "node_modules/yaml/dist/nodes/YAMLMap.js",
+          "byteLength": 5105,
+          "sha256": "d140cfc5aa8d28737bd3c993d977d5a10ab81efe221e36708ac45b3cf18f5dce"
+        },
+        {
+          "path": "node_modules/yaml/dist/nodes/YAMLSeq.js",
+          "byteLength": 3667,
+          "sha256": "9f89417f3cba5f22a4436f67a9ff9dce627344b5874d2ed7957ff9acffb030e4"
+        },
+        {
+          "path": "node_modules/yaml/dist/nodes/addPairToJSMap.js",
+          "byteLength": 2338,
+          "sha256": "e4977864d75c1fdbf7fc78c9f4329406e153deccfff090fd812dae2b27e6c2c2"
+        },
+        {
+          "path": "node_modules/yaml/dist/nodes/identity.js",
+          "byteLength": 1794,
+          "sha256": "1a7cb042ae725ff68d05dc503efbbecbe65281f18b23dfc23f12d1749a440cfe"
+        },
+        {
+          "path": "node_modules/yaml/dist/nodes/toJS.js",
+          "byteLength": 1292,
+          "sha256": "34de93bb4e16abbf317210a7bd1b062ed20acb028cd8395b69b591f433e277b6"
+        },
+        {
+          "path": "node_modules/yaml/dist/parse/cst-scalar.js",
+          "byteLength": 9382,
+          "sha256": "2f72b634348b04b395408ac427fb4f8ee67432244c327561d4b755a28a783b34"
+        },
+        {
+          "path": "node_modules/yaml/dist/parse/cst-stringify.js",
+          "byteLength": 1799,
+          "sha256": "4d14a7a286cff9c1a578ab15839388ea76f77ae79293db25b235394bcc377b51"
+        },
+        {
+          "path": "node_modules/yaml/dist/parse/cst-visit.js",
+          "byteLength": 3986,
+          "sha256": "525535fc05841407420be6505804c74d873eb3aaa9319679896f7a24a474ca01"
+        },
+        {
+          "path": "node_modules/yaml/dist/parse/cst.js",
+          "byteLength": 3242,
+          "sha256": "acc25760d010068844f36f4aefc7fe6f5f6048fd7f8fcc29d4290e154819d1a4"
+        },
+        {
+          "path": "node_modules/yaml/dist/parse/lexer.js",
+          "byteLength": 24149,
+          "sha256": "cb30a2c4628e270ee810530217f3f7bb0f2730ab89f8fbaf1f8a73ccd1883cf5"
+        },
+        {
+          "path": "node_modules/yaml/dist/parse/line-counter.js",
+          "byteLength": 1445,
+          "sha256": "ddfd11ca2cdd42d36bc6c3090a31c21e6bbcc90bf3498bf6aacfbb30c5d79436"
+        },
+        {
+          "path": "node_modules/yaml/dist/parse/parser.js",
+          "byteLength": 35551,
+          "sha256": "0adc5ffa51ffa4c0ceed1f80efa8b188d10f58c7b9389a6d46bc861e6bff34e1"
+        },
+        {
+          "path": "node_modules/yaml/dist/public-api.js",
+          "byteLength": 4187,
+          "sha256": "9b318ac7b3a3751127c74f59dd1dd209230a70ca116000348b82faae189f72f0"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/Schema.js",
+          "byteLength": 1547,
+          "sha256": "d3b1bc956a766e2489c36114366f3b3f89762a257ae05ff6271ee3fc8c2a9bf5"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/common/map.js",
+          "byteLength": 483,
+          "sha256": "769207eaa56e34c113da10cdc22da845f92b4080ff2b921a72847a38d3ac03d8"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/common/null.js",
+          "byteLength": 469,
+          "sha256": "f5d5f694ea3a42ef136e0fbcc674dfd7aa0a3da2b8d62183fb750166a12e52bb"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/common/seq.js",
+          "byteLength": 484,
+          "sha256": "51fc0e8bfc63d1d9c7c66b0370a069bb33e0dad865080ff76802803597b9909a"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/common/string.js",
+          "byteLength": 457,
+          "sha256": "51d0b3aafab2ffa4ad9d86656a3b92c4b4824d0a8806423882ea5f92a1bf8d11"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/core/bool.js",
+          "byteLength": 635,
+          "sha256": "9fa696b1efc38cf8c73a398f30d9f9841658aa5afd0b7a6b0822947c3991ba7a"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/core/float.js",
+          "byteLength": 1510,
+          "sha256": "139e3964f0e626ad3741500faf51d855ff98eafa2d9e7523cac06260e4515382"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/core/int.js",
+          "byteLength": 1407,
+          "sha256": "f0e474254f6877d5dd23bb57017980931ab333a7eaa3d33872247a80d11f754d"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/core/schema.js",
+          "byteLength": 509,
+          "sha256": "481d7c64817b40090d519fb65bd83730dadd4c6baec1440b9bf85d29e52c046e"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/json/schema.js",
+          "byteLength": 1900,
+          "sha256": "9efdd848455f6e0621feb13f3eb762453cb02b09d5e04b6501163cfb26af27ed"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/tags.js",
+          "byteLength": 3239,
+          "sha256": "dba2f42d4dbe8cc8b13f662fd97d253da2da5567e71c47115305efede5a888f2"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/yaml-1.1/binary.js",
+          "byteLength": 2800,
+          "sha256": "15d7b0b8516c8190b191ec9a0adaab16808d09751ef534d7829512944072011f"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/yaml-1.1/bool.js",
+          "byteLength": 841,
+          "sha256": "80a0046224dac3437f22e3b27b0180e1aad82277ab2fee4769094c6d12d67b6f"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/yaml-1.1/float.js",
+          "byteLength": 1626,
+          "sha256": "a90c44db83152e4d902d46f667737dac90aa86b401abdefe89371ac3bd03abfe"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/yaml-1.1/int.js",
+          "byteLength": 2232,
+          "sha256": "5ff72b08fecc3a924d4a76658a304859db5edb4fadf8893ee837aa06bba60a52"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/yaml-1.1/merge.js",
+          "byteLength": 2616,
+          "sha256": "9c85b5e026e4369a96f3f7b5bc6c05da102dfa2968950b17986201cfe0be542c"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/yaml-1.1/omap.js",
+          "byteLength": 2581,
+          "sha256": "3174270cd59c0f0e3ffd73b3b44c4de679efd5c681325b7aac8e0935d547bee8"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/yaml-1.1/pairs.js",
+          "byteLength": 2854,
+          "sha256": "46ba76da72ad65a6202358c486c6a3084ab7c48a8eb5be60d241d9e198c5a9b5"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/yaml-1.1/schema.js",
+          "byteLength": 912,
+          "sha256": "a7320808484dc6d04817b33b2d09b65ead7ffc1c672ab54e068a80972b17702e"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/yaml-1.1/set.js",
+          "byteLength": 3114,
+          "sha256": "e4553b0cbde79090884908f44bb3b4afd04935fc23656a1b87ec1af87f24427a"
+        },
+        {
+          "path": "node_modules/yaml/dist/schema/yaml-1.1/timestamp.js",
+          "byteLength": 3775,
+          "sha256": "b157c946dc1b8854aadc4e7994b268ec8afe6d916721cb3580e0752c7d15a5f7"
+        },
+        {
+          "path": "node_modules/yaml/dist/stringify/foldFlowLines.js",
+          "byteLength": 4885,
+          "sha256": "7819679e80222b80c564ea4a9cf3145fa4d5e28a6cfbac248283ac55b0249761"
+        },
+        {
+          "path": "node_modules/yaml/dist/stringify/stringify.js",
+          "byteLength": 4534,
+          "sha256": "38efb5bc5553e98fee58c825a88131c59184368d8689e3e6f43c652a06e9c167"
+        },
+        {
+          "path": "node_modules/yaml/dist/stringify/stringifyCollection.js",
+          "byteLength": 5718,
+          "sha256": "b55fd3b6e3f1346bbcd1fcdc48a59c089b7a4b0e6fac2b46846f7828f9488600"
+        },
+        {
+          "path": "node_modules/yaml/dist/stringify/stringifyComment.js",
+          "byteLength": 801,
+          "sha256": "490bff57104b7cfdb1893f14528610bb4d0a63c29b314e122233cf308cf96662"
+        },
+        {
+          "path": "node_modules/yaml/dist/stringify/stringifyDocument.js",
+          "byteLength": 3104,
+          "sha256": "dd5ba1813a16b62955c466bce8d1c16254e90b36d688f863c508dc8fe38f2afe"
+        },
+        {
+          "path": "node_modules/yaml/dist/stringify/stringifyNumber.js",
+          "byteLength": 808,
+          "sha256": "26a1980d34a21a80704d356d475a0187a24ebcbeb37a2e3b149d4d791bb65598"
+        },
+        {
+          "path": "node_modules/yaml/dist/stringify/stringifyPair.js",
+          "byteLength": 5470,
+          "sha256": "bc03ae533d85bf9122e87c0a256c841ae7fbf063499bc3034d49fd9f7b200659"
+        },
+        {
+          "path": "node_modules/yaml/dist/stringify/stringifyString.js",
+          "byteLength": 13345,
+          "sha256": "4113b71a9c4c087a197f71452794a6acb9929111f569c973ff4efe7caee8f777"
+        },
+        {
+          "path": "node_modules/yaml/dist/visit.js",
+          "byteLength": 9253,
+          "sha256": "a757e3b924af184b25e2386d1678b1fe341805a516ebf9bccee219b47aebd5e7"
+        },
+        {
+          "path": "scripts/atlas/greater-realm-git.ts",
+          "byteLength": 7914,
+          "sha256": "9427c955774a5124dead1efc2f477f3e99ebd5b5ad97d5840477144518fe8217"
+        },
+        {
+          "path": "scripts/auth-bridge-config-attestation.mjs",
+          "byteLength": 27562,
+          "sha256": "2553802babb4284f14faf5ee21834bc7254630c56b141758211a84d530283850"
+        },
+        {
+          "path": "scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs",
+          "byteLength": 115018,
+          "sha256": "d4d75157175c81af67a78dec77eb70cf880fb4549e22e79d9e87cb2b4d4fee5b"
+        },
+        {
+          "path": "scripts/auth-bridge-notification-prepared-deploy-adapter.mjs",
+          "byteLength": 27311,
+          "sha256": "b5027bfd1bbdb024eadefdf9db269544452ac6d3ddaea07e5b5c6b45d249ddf0"
+        },
+        {
+          "path": "scripts/auth-bridge-notification-prepared-deploy-journal.mjs",
+          "byteLength": 54679,
+          "sha256": "db4a05ec8061a01dd6a82607c5860465e813940a22ec0def72bb4d7e1665e515"
+        },
+        {
+          "path": "scripts/auth-bridge-notification-prepared-receipt.mjs",
+          "byteLength": 55838,
+          "sha256": "846ba27d5b54400a1979038b55b38826636c68cdd82e6ca7822f94407fe27928"
+        },
+        {
+          "path": "scripts/generate-0.4.0-recovery-launch-activation.mjs",
+          "byteLength": 13567,
+          "sha256": "ee4cc2e10087a70421fa5b3097f9f47a7fc2ecce6468106a19fb9f21db279871"
+        },
+        {
+          "path": "scripts/genesis001-admitted-player-census.mjs",
+          "byteLength": 21630,
+          "sha256": "1a0bbd0717d9d19094c9e898c9a4c41613670e947fb9d876a3b04179d0719dc5"
+        },
+        {
+          "path": "scripts/genesis001-binding-frozen-source.mjs",
+          "byteLength": 19321,
+          "sha256": "d4000cb556fa59e330d4e59629c5d0c9ecdafadf6d9d084354ccf0e1593256c0"
+        },
+        {
+          "path": "scripts/genesis001-linux-policy-receipt.mjs",
+          "byteLength": 6251,
+          "sha256": "3908e6fdabc737ce1742caf8c4ac0411a2c785a59b019054f8f6b68f5c8a30d0"
+        },
+        {
+          "path": "scripts/genesis001-sealed-launch-adoption.mjs",
+          "byteLength": 32945,
+          "sha256": "b478b013893352190b5299ee2630a91c65827ebf7909bdbd91d7c6b73f8b52ee"
+        },
+        {
+          "path": "scripts/genesis002-activation-receipts.mjs",
+          "byteLength": 10638,
+          "sha256": "1c0fa54386377cf8e8c1300772e9ed1d365c2216674fa646af9d90875685e609"
+        },
+        {
+          "path": "scripts/greater-realm-openat.ts",
+          "byteLength": 9081,
+          "sha256": "fa22aeeea06950d31756112102cb4ae35f88aa7d82d73f7e5af3deba15366058"
+        },
+        {
+          "path": "scripts/greater-realm-production-provenance.ts",
+          "byteLength": 56766,
+          "sha256": "66b695e408ee4601cfb4536e9811669e62d3c36e768b2d8bc40129092c979c63"
+        },
+        {
+          "path": "scripts/local-binding-bounded-file.mjs",
+          "byteLength": 10104,
+          "sha256": "13e01b2e7f858fa076ca6b53fbc99c2e0ba08720d7ee6b966bb1446b68b90682"
+        },
+        {
+          "path": "scripts/production-admin-token-budget.mjs",
+          "byteLength": 33837,
+          "sha256": "0ac956518ebbed5e893adcb8159c2a4c287d684850921249b18ba6bc9352648e"
+        },
+        {
+          "path": "scripts/ptr-artifact-description.mjs",
+          "byteLength": 10850,
+          "sha256": "79b0e6e7dca53d5efdbc63f2341da54d67986774fd111b50f5c49a86a20391b9"
+        },
+        {
+          "path": "scripts/ptr-binding-linux-locked-source-build.ts",
+          "byteLength": 184,
+          "sha256": "91ddf1def2f59121f391dabe39d2797c92dbe5a265104f30ffbe24c23df1ace8"
+        },
+        {
+          "path": "scripts/ptr-binding-locked-source-build-core.ts",
+          "byteLength": 49970,
+          "sha256": "a484ca4984d061786942d56d0f5c487300976db8c266dd00beed7482b15d055b"
+        },
+        {
+          "path": "scripts/ptr-binding-locked-source-build.ts",
+          "byteLength": 213,
+          "sha256": "e375cac4a7d7d7000af5e659807a1a2680893b5645e9ccac825b6176f84c2cc9"
+        },
+        {
+          "path": "scripts/ptr-binding-source-validation.ts",
+          "byteLength": 13542,
+          "sha256": "ee4e6537a710b159e4691523ba00acb344e423b374e4b7fd1dcbf6d7ae5f8f12"
+        },
+        {
+          "path": "scripts/ptr-production-existing-update-adapter.mjs",
+          "byteLength": 39326,
+          "sha256": "11b5c9707d502cd11edf2c0f73a3754da7f3f61e90fefe7143751ea22f3df11f"
+        },
+        {
+          "path": "scripts/ptr-production-publisher.mjs",
+          "byteLength": 41405,
+          "sha256": "e8e456ed0933e2a47ea3c28904606974298b077cfb864211cd19e286ecfbb463"
+        },
+        {
+          "path": "scripts/ptr-production-state-observation.mjs",
+          "byteLength": 17925,
+          "sha256": "678f4d70a26a708e3a3f53fc2ae00ad685e5855aa2dae454b052b81baa64415f"
+        },
+        {
+          "path": "scripts/ptr-update-definition-policy.mjs",
+          "byteLength": 7013,
+          "sha256": "257ecc86ba069bab5e9eb01f3016a576cdfc48d52e1f0221f5e1f65dc5223f78"
+        },
+        {
+          "path": "scripts/ptr-update-provider-credentials.mjs",
+          "byteLength": 8648,
+          "sha256": "b004f169642b3b626d0b75c32a28145f291ac9476a4c9e4c6d6f1315d5e09c71"
+        },
+        {
+          "path": "scripts/recovery-activation-candidate.mjs",
+          "byteLength": 11150,
+          "sha256": "01cf22570246a3087e8377a17dd9477a5e3bb0a5c1e72a56ce5db7d04c9cd165"
+        },
+        {
+          "path": "scripts/recovery-attestation-source.mjs",
+          "byteLength": 6270,
+          "sha256": "9d4e3f2e5f7bc2af5adff9cae295c094e249dd7f8eac6319304a43b3ee16ea77"
+        },
+        {
+          "path": "scripts/recovery-binding-projection.mjs",
+          "byteLength": 15298,
+          "sha256": "5048c09ac81524790952b951e78aa9f26299d726ebfce3c984ea0029c89bc27f"
+        },
+        {
+          "path": "scripts/sealed-realms-existing-update-protocol.mjs",
+          "byteLength": 15215,
+          "sha256": "5d16988e1e8228dd8cc8bdcf7e18a2b5348359fa82f057e8b012e768174c8b3f"
+        },
+        {
+          "path": "scripts/sealed-realms-production-activation-generation-receipt.mjs",
+          "byteLength": 3275,
+          "sha256": "6f84eb7d7de460ef6f9de7663d3f9a96893b61046342b728b0b30ab85a3e5730"
+        },
+        {
+          "path": "scripts/sealed-realms-production-activation-records.mjs",
+          "byteLength": 90441,
+          "sha256": "7ce25ef2a01734ac3446ea7d2e7008ff7ec6ea57763a079018a8d33c464267f3"
+        },
+        {
+          "path": "scripts/sealed-realms-production-auth-bridge-state.mjs",
+          "byteLength": 128588,
+          "sha256": "fef2be9cc8112c0dd10ffd32bbed77f95c596d51eedd51cb21f28156e184c688"
+        },
+        {
+          "path": "scripts/sealed-realms-production-bridge-provider.mjs",
+          "byteLength": 15318,
+          "sha256": "40fdb0a1228940e68569b0f958f3c5b70756a06241aad8eb9a962099341a4a04"
+        },
+        {
+          "path": "scripts/sealed-realms-production-continuation.mjs",
+          "byteLength": 42447,
+          "sha256": "4a1ae8750797bd0cc833c377889537df402cc5b0b561e1f662dbe585319195d1"
+        },
+        {
+          "path": "scripts/sealed-realms-production-dispatch.mjs",
+          "byteLength": 8162,
+          "sha256": "189633292ff91f7b166d3d1aebeeaeed499039f6dc60b6567c922bf1cbd52fe0"
+        },
+        {
+          "path": "scripts/sealed-realms-production-existing-update.mjs",
+          "byteLength": 26596,
+          "sha256": "64f1d045f20abcc52892f0d102efd7b1d14d95b29ba951055addfb78d3327083"
+        },
+        {
+          "path": "scripts/sealed-realms-production-private-state.mjs",
+          "byteLength": 47088,
+          "sha256": "3c2b6d4490d0a8fecb587bdfc2da17ff20155a692821c2b17e8b4dd512ecf90b"
+        },
+        {
+          "path": "scripts/sealed-realms-production-ptr-lane-entry.mjs",
+          "byteLength": 18657,
+          "sha256": "2468940eba6f3de177f914c59e8886c30033c38ba14631f8a3192ccdba0f55a4"
+        },
+        {
+          "path": "scripts/sealed-realms-production-ptr-workflow-entry.mjs",
+          "byteLength": 20662,
+          "sha256": "5077e965d665b04c58c89f872ba5b311b3784f03efd4e9119d86e79931d25468"
+        },
+        {
+          "path": "scripts/sealed-realms-production-reconciliation.mjs",
+          "byteLength": 26951,
+          "sha256": "0ff4add38d8ede2bc28e38b58a1baa158406857a6f401aa2146b66e6773c74e8"
+        },
+        {
+          "path": "scripts/sealed-realms-production-source-authority.mjs",
+          "byteLength": 12896,
+          "sha256": "edef51010cafd53b33fac020baaed0ac39c9fecef12cf551c48bb648efdbdeaa"
+        },
+        {
+          "path": "scripts/sealed-realms-production-workflow-authority.mjs",
+          "byteLength": 11304,
+          "sha256": "3c18521291e1e173b0d29a1f1766e644ff4cc1f4a45522ba304f46f05c35c25b"
+        },
+        {
+          "path": "scripts/sealed-realms-production-workflow-evidence-json.mjs",
+          "byteLength": 3854,
+          "sha256": "79f4ecc588040143545a06b7200b3e9b57120be7a98c372885b4466ec1b74683"
+        },
+        {
+          "path": "scripts/sealed-realms-production-workflow-evidence.mjs",
+          "byteLength": 13884,
+          "sha256": "30765e27095c5c34b5d6c72db17409b9cec7e150b16e1e5f656e90a8473aac7c"
+        },
+        {
+          "path": "scripts/sealed-realms-production-workflow-private-state.mjs",
+          "byteLength": 660,
+          "sha256": "5e897c92acd19061b74f93c03483b6ed75d897d0c26f26904932ac2cd38c9d5d"
+        },
+        {
+          "path": "scripts/sealed-realms-publication-codec.mjs",
+          "byteLength": 8735,
+          "sha256": "e6cf2104f349574e4e22e857f65efb31c7b117d01d0a379f24439f2d85396701"
+        },
+        {
+          "path": "scripts/sealed-realms-synthetic-network.mjs",
+          "byteLength": 1117,
+          "sha256": "df370fa9919e5c381ad4352f7dc2f4f9f9a85c4f0d4245e46c813405c85238e1"
+        },
+        {
+          "path": "scripts/spacetime-additive-migration-proof.mjs",
+          "byteLength": 6826,
+          "sha256": "d19664bf1dbbfd58b2b97cb1deae89940312e70ea20ba01fc24dee628032ae41"
+        },
+        {
+          "path": "scripts/spacetime-cli-attestation.mjs",
+          "byteLength": 18971,
+          "sha256": "2c96c2fa8a08e98905e4a02a232d4d95b78e1452bcd1969100e73e2d45c6f514"
+        },
+        {
+          "path": "scripts/spacetime-table-schema-attestation.mjs",
+          "byteLength": 6646,
+          "sha256": "4e33b9b3358b8345f9f7a57b6d4206050e84f0c10a815203f11010eed7e8bce4"
+        },
+        {
+          "path": "scripts/verify-sealed-realms-public-activation-artifact.mjs",
+          "byteLength": 16426,
+          "sha256": "30c1de0a298aafe009db99fcc632bf439dd3b5b712ee248178c1946e6d55a6a2"
+        },
+        {
+          "path": "services/release-recovery/src/config.ts",
+          "byteLength": 12574,
+          "sha256": "2a7fa346e514e492099284dc2ecae0616e6bed78bd23e93ab5a3ed340bc5f626"
+        },
+        {
+          "path": "services/release-recovery/src/crypto.ts",
+          "byteLength": 12317,
+          "sha256": "54b0cec1f5858da1cc5ac828e3f3411f577f232f9fa247794d8661c0065bfb34"
+        },
+        {
+          "path": "services/release-recovery/src/http.ts",
+          "byteLength": 17383,
+          "sha256": "e904eb0d9f8dbefa0856ec823b2d66bf333c64495a519b58ac57fa78d04acbe6"
+        },
+        {
+          "path": "services/release-recovery/src/protocol.ts",
+          "byteLength": 27601,
+          "sha256": "143574742621ed4fc7bf9da8cc78f6a9ceb2842c39da2fa46b64aa4a6333fb48"
+        },
+        {
+          "path": "services/release-recovery/src/ptrObservation.ts",
+          "byteLength": 27962,
+          "sha256": "89a9f407ea2dbb22cce291a60e1fd87c76382d6a5dd3bdd65f50b4b7aadcb6ef"
         },
         {
           "path": "services/release-recovery/src/recoveryPublicKey.ts",
