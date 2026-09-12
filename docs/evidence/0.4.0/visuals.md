@@ -3,7 +3,7 @@
 ## 2026-09-12 building hierarchy development
 
 The preceding mature captures show the cathedral overwhelming economic sites.
-The current prefab fitter expands every building nearly to its policy rectangle;
+The preceding prefab fitter expands every building nearly to its policy rectangle;
 catalog dimensions imply a cathedral around four times the economic models'
 height. Those estimates are source-based, not a measurement of rendered pixels.
 The economy models already fill their available width, so enlarging each whole
