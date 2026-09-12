@@ -877,6 +877,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'spacetimedb/src/worldCastleIntegrity.ts',
     'spacetimedb/src/worldSeedPolicy.ts',
     'src/App.tsx',
+    'src/WarpkeepRuntime.tsx',
     'src/build/buildInfo.ts',
     'src/build/buildInfoTypes.ts',
     'src/components/WarpkeepExperience.css',

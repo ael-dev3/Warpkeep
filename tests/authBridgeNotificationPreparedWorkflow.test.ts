@@ -72,7 +72,14 @@ const bootstrapPinFiles = Object.freeze({
     'scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json',
 });
 const pagesBootstrapPinFiles = Object.freeze({
-  ...bootstrapPinFiles,
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256:
+    'scripts/auth-bridge-notification-prepared-deploy-closure.mjs',
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256:
+    'scripts/auth-bridge-notification-prepared-deploy-closure-v1.json',
+  WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256:
+    'scripts/auth-bridge-notification-prepared-installed-toolchain.mjs',
+  WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256:
+    'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json',
   WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256:
     'scripts/notification-pages-private-deploy-launcher.mjs',
 });
@@ -1268,7 +1275,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         guardedRecoveryRequired: true,
         privateReceiptSinkRequired: true,
         installedToolchainByteAttestationRequired: true,
-        executableSecurityClosureMemberCount: 1199,
+        executableSecurityClosureMemberCount: 1200,
       });
   }, 180_000);
 
@@ -1286,7 +1293,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     });
     expect(paths).toEqual(manifest.members.map(member => member.path));
     expect(manifest.schemaVersion).toBe(2);
-    expect(paths).toHaveLength(1199);
+    expect(paths).toHaveLength(1200);
     expect(paths).toEqual(expect.arrayContaining([
       'scripts/auth-bridge-notification-prepared-deploy.mjs',
       'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
@@ -1364,7 +1371,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       repositoryRoot: root,
     })).toMatchObject({
         profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1',
-        memberCount: 1199,
+        memberCount: 1200,
         manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       });
   }, 180_000);
