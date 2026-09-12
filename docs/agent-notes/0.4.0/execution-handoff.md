@@ -2,12 +2,21 @@
 
 ## Current work: existing G002 update — 13 September 2026
 
-Continue `codex/0.4-g002-existing-state` in the reused isolated checkout
-`C:/Temp/warpkeep-clean-ci`, based on published `27671943`. PR #244 remains
-unchanged at that source and targets `main`; its latest Verify Linux/module jobs
-were still running, while both services, native-contract and CodeQL passed.
-Read the actual current checks before integration. Native remains clean at
-`27671943` until this follow-up is published and its idle source is synchronized.
+Continue `codex/0.4-g002-existing-state` /
+[PR #245](https://github.com/ael-dev3/Warpkeep/pull/245) in the reused isolated
+checkout `C:/Temp/warpkeep-clean-ci`. Producer source `1664405d` is published and
+remote equality is verified. Native session `61892` is closed with exit zero:
+all 356 cases in 13 suites passed without skips at that exact source (38.90s).
+This includes the actual Linux artifact lifecycle and real private-state/
+continuation/restart coverage. Native is clean and idle; synchronize later owning
+notes only after publication. Preserve its persistent RunnerService.
+
+PR #245 is stacked on unchanged PR #244 at `27671943`, which targets `main`.
+At the latest inspection PR #244's Verify Linux/module jobs remained running;
+both services, native-contract and CodeQL passed. PR #245's own Verify run
+`34726421962` passed both services and native-contract; Linux/module and CodeQL
+were still running. Read current terminal conclusions before integration. No
+new generated family or protected merge is certified by these component results.
 The primary Windows checkout retains its own published `758bc482` branch.
 
 The fixed G002 signing service, source-built artifact capability, provider/schema

@@ -59,9 +59,20 @@ The actual G002 workflow constructor has separate lifecycle/runtime/dispatcher
 coverage (123 passed, one deliberate skip), plus fixed-job, permission and
 preflight routing checks. The privileged preflight suite includes a new actual
 G002 bundle import case and requires a freshly generated coherent donor family;
-it remains pending for this source-only checkpoint. Native component execution
-and final results are recorded with the published checkpoint. Generated source manifests
-remain stale for this implementation until the complete source family is rebuilt.
+it remains pending for this source-only checkpoint.
+
+Published producer `1664405dfb7eb9c3ea66a98222c769f08761373f`, tree
+`abc0ca30e3927cbd8e00640f10deb6f97851cf00`, was secret-scanned, pushed and
+verified equal to GitHub before synchronizing the clean idle native checkout.
+Native session `61892` closed with exit zero: **356 passed in 13 suites, no skips**,
+38.90 seconds, using UID 1000 and pinned Node 22.22.3. This exercised actual Linux
+G002 artifact lifecycle, both signed update facades, genuine continuation/storage
+and fresh-owner restart, provider/schema isolation, workflow configuration and
+bundle graph. Native stayed clean and returned to idle with its persistent runner
+intact. The prepared-donor and live provider boundaries were not part of that run.
+
+Generated source manifests remain stale for this implementation until the complete
+source family is rebuilt.
 Activation/public/recovery adoption consumers still need the explicit G002 branch;
 normal protected integration, live update/preservation and owner/mobile acceptance
 remain open. This is a development producer checkpoint, not a deployed release.

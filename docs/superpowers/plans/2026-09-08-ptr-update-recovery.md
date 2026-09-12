@@ -206,3 +206,34 @@ agent moves the native checkout or publishes another agent's unfinished changes.
   consumers, then regenerate/check the complete source family from published
   source. Complete native, protected-main and live preservation/owner acceptance;
   synthetic successful transitions remain implementation evidence only.
+
+### G002 adoption consumer contract
+
+Use an explicit schema 5 for combined G002 and PTR adoption; preserve schema
+2–4 canonical bytes and the existing G002 producer envelope schema 1. The planned
+public discriminator is `warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5`.
+This is the next implementation boundary, not an accepted generated profile.
+
+1. Extend the existing activation-record owner with fixed G002 completion/adoption
+   writers and retained authentication. Persist the authenticated envelope from
+   the real G002 workflow; current producer output retains only journal/sidecars.
+2. Define a dual-adoption corpus that replaces unavailable G002 publish/import/live
+   claims with genuine update and signed sealed-state facts. Bind both realm
+   adoptions to the same source/tree and compatible bridge/configuration/epoch.
+3. Add an explicit bridge branch using the real completed prepared-deployment
+   chain and both adoption digests. Preserve provider attestation and current
+   admission-suspension checks; do not manufacture G002 import gates/cross-links.
+4. Carry the branch through candidate, descriptor, public projection, generation
+   receipts and activation runtime. Derive actual module facts from completed
+   updates and atlas facts from signed state; omit unsupported historical claims.
+5. Extend exact recovery/GitHub/realm projections and supported ledger storage.
+   Compare the G002 sealed-state HMAC with its authenticated adopted baseline
+   during issue/claim; shape validation alone is insufficient. Keep legacy
+   storage rejecting projections it cannot retain faithfully.
+
+Owning files are the existing `sealed-realms-production-activation-records`,
+`sealed-realms-production-auth-bridge-state`, recovery binding/candidate/generator
+modules and service `config`, `githubEvidence`, `realmEvidence` and ledger tests.
+Exercise the joined producer → private writer → bridge → generated public artifact
+→ receiver, including fresh-owner restart and changed signed/private evidence,
+before rebuilding the complete family and accepting the privileged Linux donor.
