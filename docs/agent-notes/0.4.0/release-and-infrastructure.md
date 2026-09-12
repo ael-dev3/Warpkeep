@@ -2,6 +2,14 @@
 
 ## Current source checkpoint — 2026-09-12
 
+Reviewed 0.4 source is now integrated into signed main `c4b95505` through
+PR #228. The new main run exposed a full-history scanner false positive;
+the scoped repair and active independent M1 check are owned by the
+[execution handoff](execution-handoff.md). Main now contains the Linux workflows,
+but their presence does not establish successful dispatch or live deployment.
+
+## Historical release-path audit scope
+
 The initial release-path audit inspected published development head
 `2ffdcc96ea3474908d2158ee817b4a384b274523` on
 `codex/prepared-keep-bindings-fix`; concurrent working-tree edits are not

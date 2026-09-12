@@ -45,6 +45,56 @@ function fixture() {
   const wrongBundlePath = 'scripts/sealed-realms-production-g001-lane.bundle.mjs.copy';
   files.set(wrongBundlePath, [schema, thumbprint].map((value, index) => `const API_KEY_${index} = '${value}';\n`).join(''));
   [schema, thumbprint].forEach((_, index) => expected.push(`generic-api-key:${wrongBundlePath}:${index + 1}`));
+  // Independently reviewed Git commit/tree/blob IDs, including the upstream
+  // SpacetimeDB 2.6.1 commit. The real Sourcegraph rule also matches bare SHA-1
+  // values when its sourcegraph keyword appears in the scanned fragment.
+  const publicSourceIds = [
+    ['2ae51984e1fa6ce5b002', '8c1a250359fed79d819b'].join(''),
+    ['90deebb5faf4129282f5', 'c35999244f540001b27d'].join(''),
+    ['d945256b217fa13ade94', '4b9ed9880e8463b46123'].join(''),
+    ['052c83fe984a4c4eb7bb', '4f9afa5c6b1903891d87'].join(''),
+    ['c50182e99ed2e2fab1ca', '994c905818d383782cfc'].join(''),
+    ['faf7214653f1248a3f92', '31fd6a13dda130821014'].join(''),
+    ['649efdebd25528f593af', 'f612ca8aef6f761d1e94'].join(''),
+    ['a640febaa07fad295f2d', 'e4b4416b7a22910eb2e6'].join(''),
+    ['308f901d91a1fb68d90f', '157a2ec164ed1acaf51d'].join(''),
+    ['f23643c0d07e91847cad', 'd5445a294d965ad76e1c'].join(''),
+    ['331de3638901501635f', '5974dfa52adfbd33ecb85'].join(''),
+  ];
+  const activationPath = 'scripts/sealed-realms-production-activation-lane.bundle.mjs';
+  const sourceIdLine = (value: string) => `const sourcegraphCommit = '${value}';\n`;
+  const activationPrefix = files.get(activationPath)!;
+  files.set(activationPath, activationPrefix + publicSourceIds.map(value => (
+    sourceIdLine(value) + sourceIdLine(`${value.slice(0, -1)}${value.endsWith('0') ? '1' : '0'}`)
+  )).join(''));
+  publicSourceIds.forEach((_, index) => {
+    positives++;
+    expected.push(`sourcegraph-access-token:${activationPath}:${index * 2 + 6}`);
+  });
+  for (const path of [`${activationPath}.copy`, 'scripts/sealed-realms-production-g001-lane.bundle.mjs']) {
+    const prefix = files.get(path) ?? '';
+    const firstLine = prefix.split('\n').length;
+    files.set(path, prefix + publicSourceIds.map(sourceIdLine).join(''));
+    publicSourceIds.forEach((_, index) => expected.push(`sourcegraph-access-token:${path}:${firstLine + index}`));
+  }
+  // Actual protected M1 commit and its Git tree, independently fixed here.
+  const evidenceSourceIds = [
+    ['c4b95505b73705d120af', 'f3f3318d2bd5151f6565'].join(''),
+    ['24f5ceb4e36814b0a2bd', 'b691adb59591db676611'].join(''),
+  ];
+  const evidenceLine = (value: string) => `Sourcegraph review source: \`${value}\`.\n`;
+  for (const path of ['docs/agent-notes/0.4.0/execution-handoff.md', 'docs/evidence/0.4.0/release-engineering.md']) {
+    files.set(path, evidenceSourceIds.map(value => (
+      evidenceLine(value) + evidenceLine(`${value.slice(0, -1)}0`)
+    )).join(''));
+    evidenceSourceIds.forEach((_, index) => {
+      positives++;
+      expected.push(`sourcegraph-access-token:${path}:${index * 2 + 2}`);
+    });
+  }
+  const unrelatedEvidencePath = 'docs/evidence/0.4.0/unrelated-source.md';
+  files.set(unrelatedEvidencePath, evidenceSourceIds.map(evidenceLine).join(''));
+  evidenceSourceIds.forEach((_, index) => expected.push(`sourcegraph-access-token:${unrelatedEvidencePath}:${index + 1}`));
   const rpc = ['AAECAwQFBgcICQoL', 'DA0ODxAREhMUFRYX', 'GBkaGxwdHh8'].join('');
   const rpcPath = 'services/auth-bridge/test/releaseRecoveryConfig.test.ts';
   files.set(rpcPath, `const RPC_CREDENTIAL = '${rpc}';\nconst OTHER_RPC_CREDENTIAL = '${rpc}x';\n`);

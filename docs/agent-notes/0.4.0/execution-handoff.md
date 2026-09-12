@@ -2,6 +2,42 @@
 
 ## Current review and next work — 12 September 2026
 
+PR #228 merged normally at 11:30:54 UTC to signed main
+`c4b95505b73705d120aff3f3318d2bd5151f6565` (**M1**). Its tree
+`24f5ceb4e36814b0a2bdb691adb59591db676611` exactly matches reviewed `820e6111`.
+Verify `34688961992` and CodeQL `34688961994` passed at that reviewed source;
+the old remote branch was retired. Both annotated source-history tags remain
+published, including `source-history/warpkeep-0.4-pr228-820e611148db`.
+
+Main push Verify `34691247637` then failed its full-history Gitleaks step before
+Linux tests. All nine findings were independently matched to public Git commit
+and blob identifiers in the generated activation bundle. The repair on
+`codex/0.4-history-scan-fix` extends the existing exact-value, exact-path,
+Sourcegraph-rule exception and tests altered values and wrong paths. Follow its
+actual open PR for publication and hosted results. Do not weaken the history scan
+or treat successful pre-merge checks as a pass for the later main run.
+
+Native preparation from clean M1 completed successfully in session `30088`,
+candidate `release-workspace-99438dc2cc576e073df09bc44f930bc6`. Independent check
+is running in original session `8359` against unchanged M1; follow that process
+and require its exact terminal result before export. Windows has a separate clean-M1
+`codex/0.4-prepared-source` branch for the checked generated family. The scanner
+configuration, scanner fixture/tests and documentation repair are outside the
+deployment closure; they do not relabel the candidate or change its input.
+The initial repair passed all six owning tests, the real scanner's 33 allowed
+fixtures and 66 mandatory detections, app/test types and the full M1 history scan.
+Its outgoing scan then stopped on four matches of M1's public commit/tree IDs
+in these source notes. A separate exception covers only those two IDs in the two
+exact evidence documents; its real regression passed 37 allowed fixtures and
+72 mandatory detections. The first commit remains intact for review.
+Changed-document links and the repository size policy passed. Hosted checks for
+the repair still require their own terminal result.
+After successful preparation and independent check, export at exact M1 and
+reconcile the reviewed repair before protected generated-family promotion to M2.
+Require final M2 CI before one sealed preflight. No live release is established.
+
+### Pre-merge route correction
+
 Hosted Verify `34686939701` at published `48a38b0f` failed two route integration
 cases after 10,524 root tests passed. Both still expected the retired unavailable
 pending message, although the funded keep now correctly remains visible. The
@@ -11,8 +47,8 @@ confirmation, preserved City Mill selection, and the original exact-one-build,
 atlas revision and back/history behavior for Mini App and browser. All 113 tests
 in five affected route/screen/scene/accessibility/controller suites then passed
 on pinned Node 22.22.3. No production behavior changed. Include the real route
-suite in future keep-phase verification; the current source still needs its own
-terminal hosted checks before promotion.
+suite in future keep-phase verification. Its terminal hosted success and protected
+source promotion are recorded above; later main checks have their own authority.
 
 The latest delivery correction fixes two integration defects exposed by hosted
 Verify at `a7e19376`: the bundle engine still required the retired PTR home
@@ -52,12 +88,12 @@ outcome, not a test-count score or a shipped-release claim.
 
 The UI checkpoint `05c9e0f3` and bundle/workflow correction `48a38b0f` were
 published, with Windows, GitHub and the clean idle native checkout verified equal.
-Publish the current route-test and owning-note correction through the
-[sync procedure](../../operations/0.4.0-development-sync.md), synchronize the clean
-idle native checkout, and record the resulting SHA and its own hosted checks in
-PR #228 and the existing external handoff. The retained `8033e01c` family predates
-both this UI source and the Linux PTR caller. Keep final preparation in the normal
-M1/M2 promotion sequence; do not generate another candidate merely to update notes.
+The route-test correction was published as `820e6111` and integrated through
+PR #228 after terminal checks. Continue each new change through the
+[sync procedure](../../operations/0.4.0-development-sync.md), recording its actual
+working PR and preserving the native input while the independent check runs.
+The retained `8033e01c` family predates this UI source and the Linux PTR caller;
+use the new M1 result after its independent check, not a relabelled old candidate.
 
 The retained candidate also passed a fresh locked integrity check and an isolated
 Git-index patch roundtrip. Existing assembler primitives support export without
