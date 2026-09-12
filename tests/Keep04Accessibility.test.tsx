@@ -43,8 +43,9 @@ it('promotes one complete selected review and connects it to the same schematic 
     rerenderPhase('ready'); fireEvent.resize(window); expect(heading).toHaveFocus();
   }
   expect(controller.submit).not.toHaveBeenCalled();
-  rerenderPhase('pending'); expect(screen.getByRole('button', { name: 'Back' })).toHaveFocus();
-  rerenderPhase('ready'); expect(screen.getByRole('button', { name: 'Close panel' })).toHaveFocus();
+  const reviewedHeading = screen.getByRole('heading', { name: 'Place Grand Covenant Cathedral' });
+  rerenderPhase('pending'); expect(reviewedHeading).toHaveFocus();
+  rerenderPhase('ready'); expect(reviewedHeading).toHaveFocus();
   fireEvent.keyDown(schematic, { key: 'Escape' }); expect(opener).toHaveFocus();
 });
 it('connects persisted-site upgrade review without replacing or editing its schematic', () => {
@@ -200,37 +201,37 @@ it('measures header changes without realigning for resizes or draft edits and pr
       schematic.focus(); fireEvent.keyDown(schematic, { key: 'ArrowRight' });
       expect(schematic).toHaveFocus(); expect(scroll).not.toHaveBeenCalled();
       rerenderPhase('pending');
-      expect(disconnect).toHaveBeenCalledOnce();
-      expect(root.style.getPropertyValue('--keep04-decision-height')).toBe('');
-      bounds.mockClear(); fireEvent.resize(window); expect(bounds).not.toHaveBeenCalled();
+      expect(disconnect).not.toHaveBeenCalled();
+      expect(root.style.getPropertyValue('--keep04-decision-height')).toBe('126px');
+      bounds.mockClear(); fireEvent.resize(window); expect(bounds).toHaveBeenCalledOnce();
       rerenderPhase('ready');
       expect(root.style.getPropertyValue('--keep04-decision-height')).toBe('126px');
-      expect(scroll).toHaveBeenCalledTimes(1);
+      expect(scroll).not.toHaveBeenCalled(); expect(schematic).toHaveFocus();
       fireEvent.click(opener);
-      expect(scroll).toHaveBeenCalledTimes(2);
+      expect(scroll).toHaveBeenCalledTimes(1);
       expect(screen.getByRole('button', { name: 'Close panel' })).toHaveFocus();
       fireEvent.keyDown(schematic, { key: 'Escape' }); expect(opener).toHaveFocus();
       fireEvent.click(screen.getByRole('button', { name: 'Manage Workers' }));
-      expect(scroll).toHaveBeenCalledTimes(3);
+      expect(scroll).toHaveBeenCalledTimes(2);
       // Leave and re-enter the compact CSS branch without remounting the screen.
       removeStyles(); const removeDesktopStyles = applyViewportRules(1280, 900);
       fireEvent.resize(window);
       fireEvent.keyDown(screen.getByRole('button', { name: 'Close panel' }), { key: 'Escape' });
       fireEvent.click(screen.getByRole('button', { name: 'Buildings' }));
-      expect(scroll).toHaveBeenCalledTimes(3);
+      expect(scroll).toHaveBeenCalledTimes(2);
       const desktopOpener = screen.getByRole('button', { name: 'Buildings' });
       desktopOpener.focus(); fireEvent.click(desktopOpener); expect(desktopOpener).toHaveFocus();
       removeDesktopStyles(); const removeLandscapeStyles = applyViewportRules(844, 390);
       fireEvent.resize(window);
       fireEvent.click(screen.getByRole('button', { name: 'Manage Workers' }));
-      expect(scroll).toHaveBeenCalledTimes(4); removeLandscapeStyles();
-      cleanup(); expect(disconnect).toHaveBeenCalledTimes(2);
+      expect(scroll).toHaveBeenCalledTimes(3); removeLandscapeStyles();
+      cleanup(); expect(disconnect).toHaveBeenCalledTimes(1);
       bounds.mockClear(); fireEvent.resize(window); expect(bounds).not.toHaveBeenCalled();
     } finally { delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView; }
   } finally { removeStyles(); }
 });
 
-it.each([[390, 844], [844, 390]])('realigns the restored command panel before focusing Close after command/pending/ready at %ix%i', (width, height) => {
+it.each([[390, 844], [844, 390]])('preserves command focus without scrolling during command/pending/ready at %ix%i', (width, height) => {
   const removeStyles = applyViewportRules(width, height);
   const scroll = vi.fn();
   const originalScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');
@@ -244,21 +245,17 @@ it.each([[390, 844], [844, 390]])('realigns the restored command panel before fo
     const confirm = screen.getByRole('button', { name: 'Confirm upgrade' });
     expect(confirm).toBeEnabled(); confirm.focus(); fireEvent.click(confirm);
     expect(controller.submit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ kind: 'build' }));
-    rerenderPhase('pending');
-    expect(screen.getByRole('button', { name: 'Back' })).toHaveFocus();
-    expect(screen.queryByRole('button', { name: 'Close panel' })).not.toBeInTheDocument();
     scroll.mockClear();
     const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+    rerenderPhase('pending');
+    expect(confirm).toHaveFocus(); expect(confirm).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Close panel' })).toBeVisible();
     rerenderPhase('ready');
-    // jsdom proves the alignment/focus contract and order, not viewport geometry.
-    // Chrome must verify visibility after Back's native focus scrolling.
-    expect(scroll).toHaveBeenCalledExactlyOnceWith({ block: 'start', behavior: 'instant' });
-    expect(scroll.mock.contexts[0]).toBe(screen.getByRole('complementary', { name: 'Command panel' }));
-    expect(screen.getByRole('button', { name: 'Close panel' })).toHaveFocus();
-    expect(focus).toHaveBeenLastCalledWith({ preventScroll: true });
-    expect(scroll.mock.invocationCallOrder[0]).toBeLessThan(focus.mock.invocationCallOrder.at(-1)!);
+    // jsdom verifies no programmatic navigation; Chrome verifies viewport geometry.
+    expect(scroll).not.toHaveBeenCalled(); expect(focus).not.toHaveBeenCalled();
+    expect(confirm).toHaveFocus();
     rerenderPhase('ready'); fireEvent.resize(window);
-    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(scroll).not.toHaveBeenCalled();
     fireEvent.keyDown(screen.getByRole('button', { name: 'Close panel' }), { key: 'Escape' }); expect(opener).toHaveFocus();
   } finally {
     if (originalScroll) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', originalScroll);

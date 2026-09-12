@@ -39,9 +39,9 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   const reviewHeading = useRef<HTMLHeadingElement>(null);
   const selectionNavigation = useRef<Building04 | null>(null);
   const ready = phase === 'ready' && view !== null;
-  // A refresh preserves the last verified scene and local focus, not command
-  // authority. Failures, pending mutations and expired scopes stay unavailable.
-  const visible = (phase === 'ready' || phase === 'refreshing') && view !== null;
+  // Refreshes and pending commands retain the last confirmed view and local
+  // focus. Only ready grants command authority; failures and expired scopes hide it.
+  const visible = (phase === 'ready' || phase === 'refreshing' || phase === 'pending') && view !== null;
   const wasVisible = useRef(visible);
   const activeTimer = visible && (view.state.project !== undefined || view.workers.some(worker => worker.phase !== 'idle'));
   useEffect(() => {
@@ -64,9 +64,8 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
     };
   }, [visible]);
   useEffect(() => {
-    // Pending focus may have scrolled to Back. Align again when ready restores
-    // panel focus; ordinary ready-to-ready polls, resizes and draft edits do
-    // not rerun this effect or disturb the user's scroll.
+    // Align when a panel opens or returns from an unavailable state. Refreshes,
+    // pending commands, resizes and draft edits preserve the user's scroll.
     if (visible && selection.panel && selectionNavigation.current === null) focusPanel();
   }, [selection.panel, visible]);
   useEffect(() => {
@@ -122,7 +121,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
     alignAndFocus(schematic.current.querySelector('svg'));
   }
   return <div ref={root} className="keep04" data-quality={quality} data-reduced-motion={reducedMotion} onKeyDown={event => {
-    if (event.key === 'Escape' && ready && selection.panel) { event.preventDefault(); closePanel(); }
+    if (event.key === 'Escape' && visible && selection.panel) { event.preventDefault(); closePanel(); }
   }}>
     <header className="keep04-header">
       <button ref={backButton} type="button" onClick={onBack}>Back</button>
@@ -151,6 +150,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
             </div>;
           })}
           <p>{RESOURCES04.some(resource => view.pending[resource] > 0n) ? PENDING_LABEL04 : "No resources awaiting return"}</p>
+          {phase === 'pending' && visible && <p role="status">Request pending. Your last confirmed keep stays visible until the Realm updates.</p>}
         </section>
         <nav className="keep04-primary-nav" aria-label="Primary keep actions">
           <button type="button" aria-controls={selection.panel ? panelId : undefined} aria-expanded={selection.panel === 'buildings'} onClick={event => openPanel('buildings', event.currentTarget)}>Open building catalog</button>

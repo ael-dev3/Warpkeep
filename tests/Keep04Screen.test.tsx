@@ -74,7 +74,7 @@ it('submits one frozen quote without local deductions and requires review after 
   expect(screen.getByRole('button', { name: /Confirm placement/ })).toBeEnabled();
 });
 
-it.each(['loading', 'pending', 'uncertain', 'failed', 'disposed'] as const)('blocks new commands in %s', phase => {
+it.each(['loading', 'uncertain', 'failed', 'disposed'] as const)('blocks new commands in %s', phase => {
   const { controller } = setup(freshWire04(), phase);
   expect(screen.queryByRole('button', { name: 'Buildings' })).not.toBeInTheDocument();
   if (phase === 'uncertain') {
@@ -83,6 +83,56 @@ it.each(['loading', 'pending', 'uncertain', 'failed', 'disposed'] as const)('blo
     expect(controller.refresh).toHaveBeenCalledTimes(1); expect(controller.retryPending).toHaveBeenCalledTimes(1);
   } else expect(screen.queryByRole('button', { name: 'Retry same request' })).not.toBeInTheDocument();
   expect(controller.submit).not.toHaveBeenCalled();
+});
+
+it('preserves the confirmed scene and selected review while pending, with every new mutation blocked', () => {
+  const wire = freshWire04(); Object.assign(wire, { food: 1000n, wood: 1000n, stone: 1000n, gold: 1000n });
+  wire.workers[0].assignmentRevision = 1n; wire.workers[0].assignment = { ...assignmentWire04(), phase: 'gathering' };
+  const { controller, snapshot, rerender } = setup(wire); openMill();
+  const scene = screen.getByRole('region', { name: 'Verdant Citadel scene' });
+  const panel = screen.getByRole('complementary', { name: 'Command panel' });
+  const resources = screen.getByRole('region', { name: 'Resources' });
+  const balances = resources.textContent;
+  const confirm = screen.getByRole('button', { name: 'Confirm placement' });
+  confirm.focus(); fireEvent.click(confirm);
+  rerender({ ...snapshot, phase: 'pending' });
+  expect(scene).toBeVisible(); expect(screen.getByRole('region', { name: 'Verdant Citadel scene' })).toBe(scene);
+  expect(panel).toBeVisible(); expect(screen.getByRole('button', { name: 'Confirm placement' })).toBe(confirm);
+  expect(confirm).toHaveFocus(); expect(confirm).toBeDisabled(); fireEvent.click(confirm);
+  expect(resources).toBeVisible(); expect(within(resources).getAllByText('1000')).toHaveLength(4);
+  expect(screen.getByText(/Request pending/)).toHaveAttribute('role', 'status');
+  expect(within(resources).getByRole('status')).toHaveTextContent(/last confirmed keep/);
+  expect(screen.getByRole('button', { name: 'City Mill' })).toHaveAttribute('aria-pressed', 'true');
+  fireEvent.click(screen.getByRole('button', { name: 'Lumber Camp' }));
+  expect(screen.getByRole('button', { name: 'Confirm placement' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm placement' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Manage Workers' }));
+  const recall = screen.getByRole('button', { name: 'Recall Worker 1' });
+  expect(recall).toBeDisabled(); fireEvent.click(recall);
+  expect(controller.submit).toHaveBeenCalledTimes(1);
+  rerender(snapshot);
+  expect(screen.getByRole('region', { name: 'Verdant Citadel scene' })).toBe(scene);
+  expect(screen.getByRole('complementary', { name: 'Command panel' })).toBe(panel);
+  expect(recall).toBeEnabled(); expect(resources.textContent).toBe(balances);
+  expect(screen.queryByText(/Request pending/)).not.toBeInTheDocument();
+});
+
+it('keeps initialization pending unavailable until a confirmed view exists', () => {
+  const { snapshot, rerender, controller } = setup();
+  rerender({ ...snapshot, phase: 'pending', view: null });
+  expect(screen.getByRole('region', { name: 'Keep status' })).toHaveTextContent('Request pending. Awaiting Realm update.');
+  expect(screen.queryByRole('region', { name: 'Resources' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Establish keep' })).not.toBeInTheDocument();
+  expect(controller.submit).not.toHaveBeenCalled();
+});
+
+it('allows Escape to close a pending panel and restore its opener without issuing a command', () => {
+  const { snapshot, rerender, controller } = setup();
+  const opener = screen.getByRole('button', { name: 'Buildings' }); fireEvent.click(opener);
+  rerender({ ...snapshot, phase: 'pending' });
+  fireEvent.keyDown(screen.getByRole('button', { name: 'Close panel' }), { key: 'Escape' });
+  expect(screen.queryByRole('complementary', { name: 'Command panel' })).not.toBeInTheDocument();
+  expect(opener).toHaveFocus(); expect(controller.submit).not.toHaveBeenCalled();
 });
 
 it('initializes only with the initialize intent', () => {

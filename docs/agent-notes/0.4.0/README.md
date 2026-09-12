@@ -43,7 +43,7 @@ which records the current checkpoint, preparation, CI and environment details.
   benefit → return explicit and derives its active stage from authoritative Worker
   and construction state. It now follows the workspace so the scene appears sooner.
   Guarded capture `windows-run-GIPWZ3` records clean stable source `8033e01`, NVIDIA
-  hardware rendering and no horizontal overflow in 36 cases. Seven images were
+  hardware rendering and no horizontal overflow in 36 cases. All 36 images were
   reviewed; narrow/landscape views still require scrolling and cropped confirmation
   controls are not reachability evidence. Browser diagnostic flags remain unresolved.
   See [visual evidence](../../evidence/0.4.0/visuals.md) for exact profiles, reviewed

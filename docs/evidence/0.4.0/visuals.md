@@ -1,5 +1,41 @@
 # Verdant Citadel visual evidence — final acceptance open
 
+## 2026-09-12 pending command continuity
+
+Browser inspection of local source `a7e19376` reproduced a disruptive pending
+transition: confirming a synthetic build hid the resources, scene and command
+panel, removed the renderer and focused Back. The reviewed follow-up keeps the
+last confirmed view mounted through pending and restores command availability
+only after the controller's authoritative read. Its status appears inside the
+resource section of the measured decision header, preserving the existing
+short-landscape resource/navigation columns. Uncertain, failed and expired
+sessions still retire the scene; initialization with no confirmed view stays
+unavailable. This changes presentation and local panel navigation, not authority.
+
+The Codex in-app browser exercised the final working source over `a7e19376`
+through `/dev/keep04-qa.html`, balanced quality and the `mill-placement` scenario.
+The bounded pending simulation suppresses all real commands. At 390×844 and
+844×390, both pending status and disabled confirmation remained visible in the
+scrolled review. The resource balances, selected draft and scene remained present;
+the short-landscape ready return kept the same document scroll and confirmation
+position. The header did not cover confirmation and no horizontal overflow was
+observed. Chrome naturally moved focus to the document when Confirm became
+disabled; this is not browser evidence of focus retention on that disabled button.
+The application no longer moves focus to Back or reopens/realigns the panel on
+an ordinary pending-to-ready transition.
+
+The owning regressions cover same renderer/canvas/loader through a held real
+controller mutation and receipt/read, unchanged balances until that read, blocked
+duplicates, uncertainty cleanup, local Escape/Close behavior and the measured
+header lifecycle. Independent read-only review found no actionable defect.
+Final pinned Node 22.22.3 verification passed all 147 tests in the seven affected
+screen/controller suites (session `37250`, exit zero). Explicit application/test
+and Vite-config TypeScript checks also passed.
+The QA simulation itself establishes neither server correctness nor owner play;
+the controller fixtures remain separate evidence. No screenshot files or Desktop
+output were created. Prior capture diagnostics below, desktop action discovery,
+art hierarchy, physical-device performance and live acceptance remain open.
+
 ## 2026-09-12 guarded Keep04 capture at 8033e01
 
 The retained run `artifacts/keep04-qa/windows-run-GIPWZ3` captured clean source

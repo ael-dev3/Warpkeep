@@ -7,7 +7,8 @@ native preparation/check input is
 `8033e01cc911f510fafb1770fdb0c0f0f3d2b3ac`. Preparation, independent rebuilding
 and guarded export completed successfully for the mobile layout and corrected
 recovery policy. Exact identities and export scope are recorded below. That
-retained family does not include the subsequent Linux PTR caller changes.
+retained family does not include the subsequent Linux PTR caller or pending-keep
+presentation changes.
 Final-head CI and protected promotion remain separate
 requirements. Older synchronized heads below are historical checkpoints.
 The generated source families recorded below are dated, source-bound evidence;
@@ -19,6 +20,31 @@ gives the next connected work and actual publication/check status. **0.4 is not 
 Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
+
+## PTR provider read and unresolved account authority — 2026-09-12
+
+At `2026-09-12T09:26:36.482Z`, a bounded provider check used the already installed
+private CLI configuration and the fixed PTR database. Database metadata returned
+HTTP 200 and confirmed the configured database identity. Its owner identity
+differed from the saved CLI login. The read-only SQL request
+`SELECT COUNT(*) FROM greater_realm_release_v1` returned HTTP 403; no atlas or
+owner state was obtained. The preceding pinned CLI SQL attempt also failed.
+The config remained byte-identical, and no provider mutation was performed.
+Credential bytes, raw response bodies and identity values were not published.
+
+Metadata may be publicly readable, so its success does not prove that the saved
+credential is valid or authorized. The owner mismatch and SQL refusal do not
+establish whether a separate update delegation exists; no update was attempted.
+The next required input is the existing authorized provider account/configuration
+or genuine delegation evidence. The owner has been asked for that account or
+configuration location, without sending tokens. Preserve the existing config and
+PTR while resolving access. A refused read is not evidence that the atlas or
+owner is absent, and does not authorize importing or provisioning them again.
+
+The separate deployed bridge admin-token inspection path could establish atlas
+and owner status through its genuine authority, but its current configuration
+and credentials have not been verified. It is not a substitute for provider update
+permission. Import/adoption and owner/live caller composition remain unfinished.
 
 ## Linux existing-PTR update caller — 2026-09-12
 

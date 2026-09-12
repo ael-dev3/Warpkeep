@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { useEffect, useState } from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { Keep04SceneHost, type Keep04SceneHostProps, type Keep04Observation } from '../src/components/keep04/Keep04SceneHost';
@@ -132,13 +132,21 @@ it.each(['failed', 'malformed', 'expired'] as const)('retires the retained prese
   }
 });
 
-it('keeps pending and uncertain mutation outcomes blocked instead of presenting them as healthy refreshes', async () => {
+it('retains the pending scene with commands blocked and retires it when the outcome becomes uncertain', async () => {
   const h = refreshHarness(); await act(async () => {}); tick();
+  const canvas = h.mounted.container.querySelector('canvas');
+  const control = screen.getByRole('application', { name: 'Keep placement schematic' }); control.focus();
   const mutation = deferred<{ sequence: bigint; revision: bigint }>(); h.mutate.mockReturnValueOnce(mutation.promise);
   let work!: Promise<void>;
   act(() => { work = h.current().controller.submit({ kind: 'recall', workerOrdinal: 0, atlasRevision: ATLAS04.revision }); });
-  expect(h.current().snapshot.phase).toBe('pending'); expect(h.mounted.container.querySelector('canvas')).toBeNull();
+  expect(h.current().snapshot.phase).toBe('pending'); expect(h.mounted.container.querySelector('canvas')).toBe(canvas);
+  expect(control).toHaveFocus(); expect(screen.getByRole('button', { name: 'Confirm placement' })).toBeDisabled();
+  expect(screen.getByText(/Request pending/)).toBeVisible();
+  await act(async () => { await h.current().controller.submit({ kind: 'recall', workerOrdinal: 1, atlasRevision: ATLAS04.revision }); });
+  expect(h.mutate).toHaveBeenCalledTimes(1); expect(renderers).toHaveLength(1);
   await act(async () => { mutation.reject(new Error('unknown outcome')); await work; });
+  expect(h.mounted.container.querySelector('canvas')).toBeNull(); expect(active).toBe(0);
+  expect(screen.getByRole('button', { name: 'Back' })).toHaveFocus();
   const captured = h.mutate.mock.calls[0][0];
   const response = deferred<ReturnType<typeof freshWire04>>(); h.read.mockReturnValueOnce(response.promise);
   act(() => { window.dispatchEvent(new Event('focus')); });
@@ -148,6 +156,42 @@ it('keeps pending and uncertain mutation outcomes blocked instead of presenting 
   h.read.mockResolvedValueOnce({ ...freshWire04(), revision: 2n, lastAcceptedSequence: 2n });
   await act(async () => { await h.current().controller.retryPending(); });
   expect(h.mutate.mock.calls[1][0]).toBe(captured); expect(h.current().snapshot.phase).toBe('ready');
+});
+
+it('retains one scene through a held build and receipt, showing the new project only after the confirmed read', async () => {
+  const wire = freshWire04(); Object.assign(wire, { food: 1000n, wood: 1000n, stone: 1000n, gold: 1000n });
+  const h = refreshHarness(wire); await act(async () => {}); tick();
+  const canvas = h.mounted.container.querySelector('canvas'); const originalScene = renderers[0].scenes[0];
+  const resources = screen.getByRole('region', { name: 'Resources' });
+  const panel = screen.getByRole('complementary', { name: 'Command panel' });
+  const mutation = deferred<{ sequence: bigint; revision: bigint }>(); h.mutate.mockReturnValueOnce(mutation.promise);
+  const response = deferred<ReturnType<typeof freshWire04>>(); h.read.mockReturnValueOnce(response.promise);
+  const confirm = screen.getByRole('button', { name: 'Confirm placement' }); confirm.focus(); fireEvent.click(confirm);
+  expect(h.current().snapshot.phase).toBe('pending'); expect(confirm).toBeDisabled();
+  expect(h.mounted.container.querySelector('canvas')).toBe(canvas); expect(confirm).toHaveFocus();
+  expect(resources).toBeVisible(); expect(within(resources).getAllByText('1000')).toHaveLength(4);
+  expect(screen.queryByText('Under construction')).not.toBeInTheDocument();
+  fireEvent.click(confirm);
+  await act(async () => { await h.current().controller.submit({ kind: 'recall', workerOrdinal: 0, atlasRevision: ATLAS04.revision }); });
+  expect(h.mutate).toHaveBeenCalledTimes(1);
+  await act(async () => { mutation.resolve({ sequence: 2n, revision: 2n }); }); tick(100);
+  expect(h.current().snapshot.phase).toBe('pending'); expect(within(resources).getAllByText('1000')).toHaveLength(4);
+  expect(originalScene.getObjectByName('project:city-mill')).toBeUndefined();
+  expect(h.mounted.container.querySelector('canvas')).toBe(canvas);
+  const confirmed = constructingWire04();
+  Object.assign(confirmed, { revision: 2n, lastAcceptedSequence: 2n, food: 980n, wood: 960n, stone: 980n, gold: 1000n });
+  await act(async () => { response.resolve(confirmed); }); tick(200);
+  expect(h.current().snapshot.phase).toBe('ready');
+  expect(h.mounted.container.querySelector('canvas')).toBe(canvas);
+  expect(screen.getByRole('complementary', { name: 'Command panel' })).toBe(panel);
+  expect(renderers).toHaveLength(1); expect(renderers[0].scenes.at(-1)).toBe(originalScene);
+  expect(loader.loadKeep04Assets).toHaveBeenCalledTimes(1);
+  expect(originalScene.getObjectByName('project:city-mill')).toBeDefined();
+  expect(within(resources).getByLabelText('Food: 980 available')).toBeVisible();
+  expect(within(screen.getByRole('article', { name: 'City Mill' })).getByText('Under construction')).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Confirm placement' })).not.toBeInTheDocument();
+  expect(h.mutate).toHaveBeenCalledTimes(1);
+  h.mounted.unmount(); expect(active).toBe(0); expect(queued.size).toBe(0); expect(observers).toBe(0);
 });
 
 it('reconciles an authoritative construction completion and its reveal in the same scene after polling', async () => {

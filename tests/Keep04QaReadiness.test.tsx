@@ -21,7 +21,7 @@ function armAndSubmit() {
   expect(confirm).toBeEnabled(); confirm.focus(); fireEvent.click(confirm);
   return confirm;
 }
-const expectPending = () => expect(screen.getByRole('region', { name: 'Keep status' })).toHaveTextContent('Request pending. Awaiting Realm update.');
+const expectPending = () => expect(screen.getByText(/Request pending/)).toHaveAttribute('role', 'status');
 function readinessTimerCount() {
   // jsdom queues zero-delay details-toggle events when the actual screen mounts.
   // Drain those DOM events without advancing the 1000ms readiness deadline.
@@ -44,8 +44,12 @@ it('consumes the arm for an actual panel command, restores ready at 1000ms, and 
   const resources = screen.getByRole('region', { name: 'Resources' });
   const balances = resources.textContent;
   const selected = screen.getByRole('button', { name: 'City Mill' });
+  const scene = screen.getByRole('region', { name: 'Verdant Citadel scene' });
+  const panel = screen.getByRole('complementary', { name: 'Command panel' });
   const confirm = armAndSubmit();
-  expectPending(); expect(screen.getByRole('button', { name: 'Back' })).toHaveFocus();
+  expectPending(); expect(confirm).toHaveFocus(); expect(confirm).toBeDisabled();
+  expect(resources).toBeVisible(); expect(panel).toBeVisible(); expect(scene).toBeVisible();
+  expect(within(resources).getAllByText('1000')).toHaveLength(4);
   const toggle = screen.getByRole('checkbox', { name: armLabel });
   expect(toggle).not.toBeChecked(); expect(toggle).toBeDisabled();
   expect(screen.getByText('Synthetic controller: command suppressed. No resources or authority changed.')).toBeVisible();
@@ -59,7 +63,9 @@ it('consumes the arm for an actual panel command, restores ready at 1000ms, and 
   expect(resources.textContent).toBe(balances);
   expect(within(resources).getAllByText('1000')).toHaveLength(4);
   expect(selected).toHaveAttribute('aria-pressed', 'true');
-  expect(screen.getByRole('button', { name: 'Close panel' })).toHaveFocus();
+  expect(screen.getByRole('region', { name: 'Verdant Citadel scene' })).toBe(scene);
+  expect(screen.getByRole('complementary', { name: 'Command panel' })).toBe(panel);
+  expect(confirm).toHaveFocus(); expect(confirm).toBeDisabled();
   expect(toggle).toBeEnabled(); expect(toggle).not.toBeChecked(); expect(readinessTimerCount()).toBe(0);
   // The next different suppressed command does not cycle unless explicitly armed.
   fireEvent.click(screen.getByRole('button', { name: 'Lumber Camp' }));

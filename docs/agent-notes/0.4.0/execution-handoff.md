@@ -2,6 +2,38 @@
 
 ## Current review and next work — 12 September 2026
 
+The latest product change preserves the last confirmed keep during a pending
+command. The actual renderer, resources, selected draft and panel remain mounted;
+mutations remain disabled until an authoritative read restores ready. A concise
+pending status sits inside the measured resource header, visible at scrolled
+confirmation on portrait and short landscape. Initialization without a confirmed
+view, uncertainty, failures and expired sessions keep their unavailable behavior.
+The [visual evidence](../../evidence/0.4.0/visuals.md#2026-09-12-pending-command-continuity)
+records the reproduced defect, browser checks and their limitations.
+
+Real provider inspection now exposes a separate account-authority issue. Metadata
+confirmed the fixed PTR identity but its owner differed from the saved CLI login;
+a read-only SQL request returned HTTP 403. No atlas or owner state was obtained,
+and no update was attempted. The owner has been asked for the existing authorized
+account/configuration location, without sending tokens. Preserve that config and
+all existing PTR state. The
+[provider evidence](../../evidence/0.4.0/release-engineering.md#ptr-provider-read-and-unresolved-account-authority--2026-09-12)
+owns the exact result; a refused read must not become an assumption of empty state.
+Source/UI work can continue while access is resolved. Remaining delivery work is
+authenticated import/adoption continuity, owner/live caller composition, protected
+source/family promotion and real preservation/owner/device acceptance. Overall
+development remains approximately 65%; this is judgment against the full release
+outcome, not a test-count score or a shipped-release claim.
+
+Publish this coherent UI/test/evidence checkpoint through the
+[sync procedure](../../operations/0.4.0-development-sync.md), synchronize the clean
+idle native checkout, and record the resulting SHA and its own hosted checks in
+PR #228 and the existing external handoff. The retained `8033e01c` family predates
+both this UI source and the Linux PTR caller. Keep final preparation in the normal
+M1/M2 promotion sequence; do not generate another candidate merely to update notes.
+
+## Linux PTR workflow and preceding publication
+
 The Linux production caller now connects `ptr-update-inspect` and
 `ptr-update-apply` to the existing source-built artifact, fixed PTR provider,
 continuation and completion-record path. The dedicated `operate_ptr` job has
@@ -28,8 +60,12 @@ pinned CLI binaries and config bytes/metadata were verified, and captured local
 identity values. This does not prove provider permission, current token validity
 or PTR ownership; do not recreate or overwrite that existing config.
 
-This is source integration, not an executed PTR update. Publish it after the
-scoped review and outgoing scan, then follow normal source/family promotion.
+This source integration was published as `a7e19376`; it is not an executed PTR
+update. All 191 tests also passed on the final committed native checkout in
+session `83911` (exit zero). CodeQL `34684939137` completed successfully; Verify
+`34684939145` was still running during the pending-keep work. Read the actual
+published head's checks rather than carrying earlier results forward.
+Follow normal source/family promotion.
 The retained `8033e01c` generated family does not cover these runtime changes;
 the [promotion sequence](../../evidence/0.4.0/release-engineering.md#protected-promotion-and-historical-source-retention)
 requires preparation and independent checking from actual main ancestry before
