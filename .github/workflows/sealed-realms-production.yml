@@ -539,6 +539,7 @@ jobs:
       github.sha == inputs.source_commit &&
       !contains(fromJSON('["preflight","activation-evidence-inspect","activation-evidence-generate","g001-policy-observe","ptr-update-inspect","ptr-update-apply"]'), inputs.operation)
     runs-on: [self-hosted, Linux, X64, warpkeep-production-admin, warpkeep-repository-exclusive]
+    timeout-minutes: 5
     steps:
       - name: Refuse unwired provider operations
         shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}

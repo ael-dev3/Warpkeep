@@ -21,6 +21,42 @@ Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
+## Bundle path and workflow timeout correction — 2026-09-12
+
+Verify `34684939145` at `a7e19376` completed its Linux root-test batch with seven
+failures in three files, 654 files passed and two skipped. Six bundle tests failed
+at the build boundary; the workflow timeout test also failed. The Linux job
+`103530183905` failed at 09:41 UTC before the later `05c9e0f3` UI publication.
+That push cancelled the still-running module job, so the workflow's final
+cancelled conclusion must not hide its actual Linux failures. Later root phases,
+types and builds were not executed. CodeQL at `a7e19376` succeeded separately.
+
+A bounded injected build diagnostic identified the bundle cause: the PTR caller
+required `/home/warpkeep`, while the engine's exact path transform still demanded
+one occurrence of `/home/runner`. The correction changes only that expected
+literal. Exact counts, graph membership, runtime rejection and artifact checks
+remain intact. The bundle regression also checks the emitted path representation;
+its encoding reconstructs the same runtime string and provides no secrecy.
+
+The workflow test counted jobs with a regex that excluded underscore IDs. That
+omitted both `operate_readonly` and `operate_ptr`; the old aggregate comparison
+had accidentally concealed the missing timeout on `unsupported`. The corrected
+policy parses YAML and checks each job's positive integer timeout. The only
+workflow change is a five-minute limit on that refusal-only job; its permissions,
+conditions, runner and rejection command are unchanged.
+
+The original six bundle failures and count mismatch were reproduced before the
+fixes. The parsed policy then independently exposed the missing unsupported-job
+timeout before it was added. Native `warpkeep`/Node 22.22.3 verification passed
+all 127 tests in seven affected suites without skips (session `59734`, exit zero),
+using an exact four-file overlay over clean `05c9e0f3`. Every copied path was
+hash-checked and restored after the run. Subsequent Windows typechecking caught
+a test-only `Uint8Array` decoding mismatch; explicit `Buffer.from` corrected it.
+This does not change production bytes. Independent review found no actionable
+defect. These controlled bundle/workflow checks do not establish a newly prepared
+release family, genuine provider authorization or current-head hosted CI success.
+Publish the correction and read its own checks before protected promotion.
+
 ## PTR provider read and unresolved account authority — 2026-09-12
 
 At `2026-09-12T09:26:36.482Z`, a bounded provider check used the already installed

@@ -2,6 +2,16 @@
 
 ## Current review and next work — 12 September 2026
 
+The latest delivery correction fixes two integration defects exposed by hosted
+Verify at `a7e19376`: the bundle engine still required the retired PTR home
+literal, and aggregate workflow regex counts concealed a missing job timeout.
+The exact transform now agrees with `/home/warpkeep`. Workflow policy parses
+every job, including underscore IDs, and the refusal-only unsupported job has a
+five-minute limit. Native verification passed all 127 affected tests without
+skips; the [release engineering record](../../evidence/0.4.0/release-engineering.md#bundle-path-and-workflow-timeout-correction--2026-09-12)
+owns the failed run, checks and limitations. The prior run is not green: its
+Linux job failed before the subsequent source push cancelled the module job.
+
 The latest product change preserves the last confirmed keep during a pending
 command. The actual renderer, resources, selected draft and panel remain mounted;
 mutations remain disabled until an authoritative read restores ready. A concise
@@ -25,7 +35,9 @@ source/family promotion and real preservation/owner/device acceptance. Overall
 development remains approximately 65%; this is judgment against the full release
 outcome, not a test-count score or a shipped-release claim.
 
-Publish this coherent UI/test/evidence checkpoint through the
+The UI/test/evidence checkpoint was published as `05c9e0f3`, with Windows,
+GitHub and the clean idle native checkout verified equal. Publish the current
+delivery correction through the
 [sync procedure](../../operations/0.4.0-development-sync.md), synchronize the clean
 idle native checkout, and record the resulting SHA and its own hosted checks in
 PR #228 and the existing external handoff. The retained `8033e01c` family predates

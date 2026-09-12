@@ -10,6 +10,7 @@ import { buildSealedRealmOperationBundle } from '../scripts/sealed-realms-produc
 
 it('bundles the reachable PTR update artifact builder and imports it in plain Node', async () => {
   const artifact = await buildSealedRealmOperationBundle({ lane: 'ptr', sourceRoot: process.cwd(), build });
+  expect(Buffer.from(artifact.bytes).toString('utf8')).not.toMatch(/["'`]\/home\//u);
   expect(artifact.graphManifest.map(member => member.path)).toEqual(expect.arrayContaining([
     'scripts/ptr-production-existing-update-adapter.mjs',
     'scripts/ptr-production-publisher.mjs',

@@ -384,12 +384,16 @@ describe('GitHub workflow security policy', () => {
   });
 
   it('bounds every workflow job duration', () => {
-    const jobs = allWorkflows()
-      .map(source => source.slice(source.indexOf('jobs:')))
-      .join('\n');
-    const jobCount = (jobs.match(/^  [a-z0-9-]+:\s*$/gm) ?? []).length;
-    const timeoutCount = (jobs.match(/^    timeout-minutes:\s*[1-9][0-9]*\s*$/gm) ?? []).length;
-    expect(timeoutCount).toBe(jobCount);
+    for (const source of allWorkflows()) {
+      const document = parse(source) as { name: string; jobs: Record<string, WorkflowJob> };
+      expect(Object.keys(document.jobs).length).toBeGreaterThan(0);
+      for (const [name, job] of Object.entries(document.jobs)) {
+        const timeout = job['timeout-minutes'];
+        const context = `${document.name}/${name} must set a positive integer timeout-minutes`;
+        expect(Number.isInteger(timeout), context).toBe(true);
+        expect(timeout, context).toBeGreaterThan(0);
+      }
+    }
   });
 
   it('gives the complete root suite a bounded hosted-runner allowance', () => {
