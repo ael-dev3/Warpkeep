@@ -63,7 +63,7 @@ Verification before publication:
   skips. The client itself passed all 30 cases. Actual ES256 signatures and an
   external transport fixture are used; legacy authority-mocked tests and the
   Windows filesystem-mode substitute are explicitly limited evidence.
-- Service update suites passed 108 tests; three real Workerd transport cases and
+- Service update suites passed 109 tests; three real Workerd transport cases and
   service/Workerd types passed. A broader service run had 1,191 passes and two
   fixed-host fixture failures: this linked checkout has a `.git` file, while the
   unchanged source-host guard requires a real `.git/objects` directory. Neither
