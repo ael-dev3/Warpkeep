@@ -26,8 +26,16 @@ function WorkerJourneyRail04({ phase }: Readonly<{ phase: JourneyStage04 }>) {
 }
 
 export function estimatedTime04(deadline: bigint, nowMs: number): string {
-  const seconds = Math.max(0, Math.ceil(Number(deadline) / 1_000_000 - nowMs / 1000));
-  return seconds === 0 ? 'Awaiting Realm update' : `${seconds} s`;
+  // Realm timestamps are authoritative microseconds and can sit well above
+  // Number's safe integer range once the game has been running for a while.
+  // Keep the countdown exact, including the final partial second, instead of
+  // rounding an epoch-sized bigint through floating point.
+  if (!Number.isFinite(nowMs)) return 'Awaiting Realm update';
+  const nowMicros = BigInt(Math.max(0, Math.trunc(nowMs))) * 1_000n;
+  const remainingMicros = deadline > nowMicros ? deadline - nowMicros : 0n;
+  if (remainingMicros === 0n) return 'Awaiting Realm update';
+  const seconds = (remainingMicros + 999_999n) / 1_000_000n;
+  return `${seconds} s`;
 }
 
 export function Keep04WorkerPanel({ view, enabled, nowMs, onRecall, onFindResources }: Readonly<{

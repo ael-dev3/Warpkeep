@@ -36,7 +36,7 @@ export function Keep04Schematic({ buildings, draft, selectedKind, onSelect, onCh
   return <section className="keep04-schematic" aria-label="Keep grounds">
     <div className="keep04-map-heading"><h2>Citadel grounds</h2><p>Placement schematic · 0.5 m grid</p></div>
     <svg role="application" aria-label="Keep placement schematic" aria-describedby="keep04-map-help" tabIndex={0}
-      viewBox="-44 -40 88 72" preserveAspectRatio="none" onKeyDown={keyboard} onClick={event => {
+      viewBox="-44 -40 88 72" preserveAspectRatio="xMidYMid meet" onKeyDown={keyboard} onClick={event => {
         if (!editable) return;
         const bounds = event.currentTarget.getBoundingClientRect(); if (bounds.width <= 0 || bounds.height <= 0) return;
         const x = -44 + (event.clientX - bounds.left) / bounds.width * 88;

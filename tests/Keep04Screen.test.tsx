@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Keep04Screen, type Keep04UiSelection } from '../src/components/keep04/Keep04Screen';
+import { estimatedTime04 } from '../src/components/keep04/Keep04WorkerPanel';
 import type { Controller04, Snapshot04 } from '../src/ptr/gameplay04/createGameplay04Controller';
 import { presentState04 } from '../src/ptr/gameplay04/gameplay04Presentation';
 import { decodeState04 } from '../src/ptr/gameplay04/gameplay04State';
@@ -23,6 +24,14 @@ function setup(wire = freshWire04(), phase: Snapshot04['phase'] = 'ready') {
   return { controller, back, find, snapshot, rerender: (state: Snapshot04) => rendered.rerender(<Harness state={state} />) };
 }
 const openMill = () => { fireEvent.click(screen.getByRole('button', { name: 'Buildings' })); fireEvent.click(screen.getByRole('button', { name: 'City Mill' })); };
+
+it('keeps Realm countdowns exact for epoch-scale timestamps and invalid clocks', () => {
+  const nowMs = 1_700_000_000_000;
+  const deadline = BigInt(nowMs) * 1_000n + 1_000_001n;
+  expect(estimatedTime04(deadline, nowMs)).toBe('2 s');
+  expect(estimatedTime04(deadline, nowMs + 2_000)).toBe('Awaiting Realm update');
+  expect(estimatedTime04(deadline, Number.NaN)).toBe('Awaiting Realm update');
+});
 
 it('shows four Workers and spendable resources; pending returns never fund permanent placement', () => {
   const wire = freshWire04(); wire.workers[0].assignmentRevision = 1n;

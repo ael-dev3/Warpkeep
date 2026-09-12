@@ -1,5 +1,18 @@
 # Continue Warpkeep 0.4
 
+## Keep04 interaction hardening — 12 September 2026
+
+The current working tree carries a focused follow-up after the `24eea8b2`
+documentation checkpoint. Keep04 countdowns now derive remaining seconds with
+exact bigint arithmetic, so epoch-scale Realm timestamps cannot lose a second
+through floating-point conversion. The placement schematic now preserves its
+88:72 diorama ratio on narrow screens while retaining the same half-meter tap
+mapping and keyboard nudges. The focused Keep04 screen/placement suite passes
+31/31, the visual-foundation contract passes 3/3, TypeScript passes, and the
+production build completes locally. The exact branch head and fresh GitHub
+Verify/CodeQL results must be read after this change before treating R14 as
+complete; no live deployment or physical-device result is implied.
+
 ## Current verification checkpoint — 12 September 2026
 
 The current synchronized development head is
