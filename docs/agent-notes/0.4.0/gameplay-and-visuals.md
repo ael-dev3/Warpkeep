@@ -32,7 +32,8 @@ this page keeps precise mechanics, implementation routes and evidence limits.
 
 ## Visual foundation and complete reference coverage
 
-At the current published visual source checkpoint `5b9ba9657d6e66319f41aabd396faf2a6c947b29` (functional renderer/UI source `211b0b1a`), the owner direction prioritizes a professional mobile visual
+At the current runtime source checkpoint `24e3c136` (latest documentation/test
+head `aa93d855`), the owner direction prioritizes a professional mobile visual
 foundation with simple interaction. Preserve the useful existing loop; deeper
 simulation and elaborate editing remain later work. The full Desktop handoff
 reference library informs one coherent Verdant Citadel, rather than a collection

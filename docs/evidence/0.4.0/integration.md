@@ -1,24 +1,27 @@
 # 0.4.0 integration evidence
 
-Updated 2026-09-11. The current reviewed source is the synchronized head on
-`codex/prepared-keep-bindings-fix`; PR #228 is ready for review. Source
-publication and protected CI are still separate from production deployment.
+Updated 2026-09-12. The current synchronized documentation/test head is
+`aa93d855531d75d8fc11a5404d5a919f131b3fb9` on
+`codex/prepared-keep-bindings-fix`; the reviewed runtime source remains
+`24e3c136fb5e3839b00c8e8ddb3c780b6f795461`. PR #228 is ready for review.
+Source publication and protected CI are still separate from production
+deployment.
 
-## Current checkpoint — 2026-09-11
+## Current checkpoint — 2026-09-12
 
 The protected Verify and CodeQL runs linked from PR #228 are the R14 authority
 for this head. Read both at terminal state before marking R14 complete; earlier
 mixed or green results do not transfer to a later head. This record makes no
 current-head green claim, and transient run IDs are read directly from GitHub.
 
-The focused local sealed-workflow contract suite passed with 11 active tests
-and 41 platform skips using:
+The permission-correct Linux prepared-workflow suite passed all 159/159 cases
+under the dedicated `warpkeep` UID. A root-UID invocation is intentionally
+invalid for this verifier and is excluded. The focused local sealed-workflow
+contract suite passed with 11 active tests and 41 platform skips using:
 `npm test -- tests/sealedRealmsProductionWorkflow.test.ts --maxWorkers=1`.
-The broader prepared-bridge workflow suite is not a Windows pass: its 65 local
-failures are caused by POSIX-only fixture assumptions (`process.getuid`,
-`/usr/bin/env`, and symlink creation). Those failures do not replace the
-protected Linux native-contract authority; they keep the Windows/no-Mac
-replacement validation open. No live owner journey, physical-device
+The earlier Windows POSIX fixture failures are historical environment evidence;
+they do not replace the protected Linux native-contract authority or the
+dedicated Linux result above. No live owner journey, physical-device
 acceptance, provider deployment, or production release is claimed here.
 
 ## Historical checkpoint — 2026-09-09

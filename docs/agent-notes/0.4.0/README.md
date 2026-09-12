@@ -7,7 +7,8 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-Updated September 11 against the published development branch and PR #228.
+Updated September 12 against the published development branch and PR #228 at
+`aa93d855531d75d8fc11a5404d5a919f131b3fb9`.
 The GitHub/profile/ecosystem refresh is complete. Continue
 the connected game and delivery work from the [execution handoff](execution-handoff.md),
 which records the current checkpoint, preparation, CI and environment details.
