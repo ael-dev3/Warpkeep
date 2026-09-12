@@ -4117,6 +4117,7 @@ function verifySealedRealmsProductionSourceAuthority(sources) {
     'g002-update-apply',
     'ptr-update-inspect',
     'ptr-update-apply',
+    'ptr-state-inspect',
   ];
   const activated = [
     'preflight',

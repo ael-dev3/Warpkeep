@@ -126,9 +126,12 @@ unchanged Windows failures and the pinned-Wrangler case. The wider selection
 found 15 source-inventory failures in the two closure suites. The follow-up adds
 the earlier PTR observation entrypoint to graph derivation, permits its exact
 six shared verifier files and restores canonical inventory order. Independent
-review and derivation/equality checks passed; the complete native selection must
-be repeated at the published follow-up. No generated manifest or workflow pin
-was edited for this source correction.
+review and derivation/equality checks passed. Native session `44084` at published
+`b3ac5d28fc2bbd30a89530992671d845ad128639` then passed all 246 tests in the eight
+selected suites without skips in 9.51 seconds, exit zero, leaving the checkout
+clean. This includes the corrected closure cases and exact allowed/denied
+verifier paths. No generated manifest or workflow pin was edited for the source
+correction; full hosted CI remains separate.
 
 The actual unmodified, credential-free Wrangler dry run also passed at
 `b319e38b`, with exact candidate digest

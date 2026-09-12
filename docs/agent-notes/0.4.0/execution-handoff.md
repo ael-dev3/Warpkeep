@@ -19,10 +19,24 @@ candidate bytes that previously failed. The wider closure selection found 15
 inventory failures from the earlier PTR observation graph/order. The correction
 adds the explicit observation root, permits only its six verifier dependencies
 and restores canonical member order. Independent review, Windows closure cases
-and direct derived/fixed inventory equality passed; repeat the native selection
-at the published follow-up. Read the final PR head and its checks
-before claiming the source accepted or deployed. Windows and the clean idle
-native checkout matched published `b319e38b` before that follow-up.
+and direct derived/fixed inventory equality passed. Native session `44084` at
+published `b3ac5d28fc2bbd30a89530992671d845ad128639` passed all 246 tests in the
+eight owning suites without skips in 9.51 seconds, exit zero. Windows, GitHub and
+the clean idle native checkout matched that implementation checkpoint. Read the
+final PR head and its hosted checks before claiming the source accepted or
+deployed; later documentation publication does not replace this test identity.
+
+The downstream native check at the same source (session `38666`) passed 131
+and failed 70 cases across seven suites. The remaining failures identify stale
+generator-owned source pins, count fixtures and the checked manifest, plus a
+missing `ptr-state-inspect` entry in the sealed verifier's exact operation list.
+The structural declaration now includes that operation, with all eight
+derived-pin membership cases passing and the activated subset unchanged.
+Preserve the rejection checks. Publish the source and run the existing native assembler's full `prepare` and
+independent `check`. Integrate only its authenticated complete output family;
+do not type in counts/hashes or copy part of an older candidate. This generation
+is needed before the expanded source can pass PR verification. It does not
+replace later protected-source and deployment acceptance.
 
 Q's read-only `ptr-state-inspect` connects the Linux workflow, recovery gateway,
 private signer and existing auth-bridge observer. Its authenticated, pinned PTR
@@ -30,7 +44,11 @@ projection remains private. Current observation cannot replace historical
 import/owner evidence or authorize an update. Service unit tests, both service
 type projects, all seven Worker runtime suites, compiled caller checks and root
 types passed for that implementation. Q's hosted service, native-contract and
-CodeQL checks passed; full Linux/module checks were still running at this review.
+CodeQL checks passed. Its Linux job `103572463255` later failed 90 cases across
+nine suites because the expanded source inventory was not accepted by the
+derivation/path validators. The bridge/observation runtime had no independent
+failure in that result. PR #240 carries the inventory correction and must prove
+the affected downstream consumers as well as the focused runtime cases.
 The signer and gateway are not deployed, and the live bridge lacks their
 observation bindings. Preserve G001 public authentication in the later rollout.
 
