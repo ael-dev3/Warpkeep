@@ -2,6 +2,22 @@
 
 ## Current review and next work — 12 September 2026
 
+The runner availability follow-up on `codex/0.4-runner-availability` follows
+published navigation source `e6fca66f` / PR #236. GitHub runner 22 was offline
+because `WarpkeepRunner` had stopped; the enabled service started normally when
+the guest opened. Its existing Windows keepalive task had exited with code 1.
+The task was recovered, given an indefinite execution limit and a recurring
+single-instance retry, then restarted under the new definition while idle.
+GitHub reports it online again. Use the [runner maintenance procedure](../../operations/0.4.0-linux-runner.md)
+to distinguish scheduling, guest/service health and actual GitHub availability.
+Preserve active jobs; disable recurring starts before planned maintenance.
+
+This operational correction changes no generated family or game authority.
+Publish its owning instructions and evidence on its own branch, then synchronize
+the idle native checkout. Resolve its actual PR and SHA from live refs. The
+existing M1 candidate and PR #235 remain unchanged. The receipt integration
+audit below is now recorded in [release and infrastructure](release-and-infrastructure.md#existing-ptr-evidence-continuity).
+
 PR #228 merged normally at 11:30:54 UTC to signed main
 `c4b95505b73705d120aff3f3318d2bd5151f6565` (**M1**). Its tree
 `24f5ceb4e36814b0a2bdb691adb59591db676611` exactly matches reviewed `820e6111`.
@@ -24,19 +40,20 @@ source paths were checked. Generated checkpoint `654f1b57` incorporated the
 published repair, then exact `3c4eb264` incorporated protected R without changing
 tree `93a976b0`. The native checked-in sealed-launch and prepared-policy verifiers
 passed again at that final checkpoint. It is published in PR #235 against R;
-Verify `34694406086` and CodeQL `34694406081` are active. Earlier Verify
+CodeQL `34694406081` passed; Verify `34694406086` still needs its terminal result.
+Earlier Verify
 `34693755154` at `654f1b57` was cancelled by the later publication and is not
 terminal evidence for the final head. No protection or release gate was weakened.
 
-Windows now carries the separate desktop-navigation source change on
+PR #236 publishes the separate desktop-navigation source `e6fca66f` on
 `codex/0.4-keep-navigation`, based on `3c4eb264`. It makes the existing top
 navigation visible on desktop and resets the compact-media bottom margin,
 preserving the mobile layout. Actual desktop, portrait, landscape and narrow
 browser checks covered the buttons, panel close, opener focus restoration and
-horizontal overflow; 88 tests in four suites passed in session `27992`. Complete
-and publish this work through its own PR stacked on `codex/0.4-prepared-source`;
-resolve its resulting commit and PR from live refs rather than adding an unverified
-identifier here. Do not fold it into PR #235. After PR #235 integrates, reconcile
+horizontal overflow; 88 tests in four suites passed in session `27992`. Its full
+outgoing scan, explicit publication and Windows/native/live equality passed.
+It is stacked on `codex/0.4-prepared-source`; do not fold it into PR #235.
+After PR #235 integrates, reconcile
 the product PR with actual main. The CSS is a protected-closure source change and
 needs normal source integration followed by a fresh generated closure before any
 later deployment.

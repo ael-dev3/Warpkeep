@@ -2,13 +2,11 @@
 
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main),
 the current working PR and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
-PR #228 is merged and its branch retired. The latest completed
-native preparation/check input is
-`8033e01cc911f510fafb1770fdb0c0f0f3d2b3ac`. Preparation, independent rebuilding
-and guarded export completed successfully for the mobile layout and corrected
-recovery policy. Exact identities and export scope are recorded below. That
-retained family does not include the subsequent Linux PTR caller or pending-keep
-presentation changes.
+PR #228 is merged and its branch retired. Actual M1
+`c4b95505b73705d120aff3f3318d2bd5151f6565` completed native preparation,
+independent checking and guarded export. PR #235 carries its checked generated
+family; later product source follows separately. The retained `8033e01c` family
+below is historical and predates the Linux PTR caller and pending-keep changes.
 Final-head CI and protected promotion remain separate
 requirements. Older synchronized heads below are historical checkpoints.
 The generated source families recorded below are dated, source-bound evidence;
@@ -20,6 +18,46 @@ gives the next connected work and actual publication/check status. **0.4 is not 
 Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
+
+## M1 family and runner availability — 2026-09-12
+
+M1 prepare `30088` and independent check `8359` both exited zero; every result
+field matched for `release-workspace-99438dc2cc576e073df09bc44f930bc6`. The
+guarded export and receiver authenticated the full output family and preserved
+non-output source. Generated source `d452b055` was normally merged with the
+scanner repair, then protected main `2dc1f519`, yielding `3c4eb264` without
+changing the authenticated family. PR #235 contains only its generated paths.
+Its producer manifests retain M1's source and tree. The native owning workflow,
+bundle-engine and closure-derivation suites passed 194 tests without skips;
+the checked-in sealed-launch and prepared-policy verifiers passed again at
+`3c4eb264`. This remains preparation evidence with `finalReleasePrepared: false`.
+Final protected integration, main CI and the actual sealed preflight are separate.
+
+The September 12 runner check found GitHub registration 22 offline, with
+`WarpkeepRunner` absent from the running distro list. Opening the guest started
+its healthy enabled service. The existing Windows keepalive task was `Ready`
+with last result 1; that result alone does not identify the original exit cause.
+The stored task also had the default 72-hour limit and only a logon trigger.
+The task was recovered and adjusted to `PT0S`, `StartWhenAvailable`, and an
+indefinite five-minute time trigger alongside its original logon trigger.
+Its existing action, interactive limited principal, hidden setting, battery
+policy, `IgnoreNew`, restart settings and disabled host-wake setting were preserved.
+
+Readback caught the new trigger's default `StopAtDurationEnd: true`; it was set
+to false and re-read before the controlled task restart. The runner was verified
+online and idle before that restart. A temporary hidden guest hold preserved
+the WSL lifetime during the handoff. The new keepalive instance started at
+13:20:18 UTC. The 13:20:26 trigger left the same Windows launcher/WSL child pair
+running and created no duplicate. GitHub still reported online and idle after
+the temporary hold expired. The task's last result became `0x800710E0` for that
+overlapping trigger while the active instance remained running; inspect current
+process, service and GitHub state before interpreting a last-result field.
+
+No runner registration, credential, private receipt, game state or deployment
+was changed. The [runner guide](../../operations/0.4.0-linux-runner.md) owns
+maintenance and recovery instructions. This proves the observed session's
+recovery and duplicate prevention, not availability through host sleep/reboot
+or arbitrary future runner failures.
 
 ## Protected source integration and history scanner — 2026-09-12
 
