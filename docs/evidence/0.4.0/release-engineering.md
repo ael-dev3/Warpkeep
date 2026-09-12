@@ -77,6 +77,21 @@ unchanged value at copied paths. All seven scanner tests and the Node-project
 typecheck passed. Keep both source and correction commits in the outgoing scan;
 do not bypass scanning or rewrite the source checkpoint to hide the finding.
 
+At published `937c0128`, native session `80114` passed all 396 tests in 17 owning
+and affected graph suites without skips in 10.39 seconds. The checkout stayed
+clean and unchanged. PR #239 then exposed a separate clean-install boundary:
+Verify `34699623347`, recovery job `103568959219`, failed service typechecking
+because the new producer-compatibility test imported auth-bridge source while
+that job installs only recovery dependencies. The missing module was the bridge's
+`@noble/hashes/blake3`. Local sibling installations had masked that dependency.
+The compatibility regression now lives in the auth bridge's existing test suite,
+with recovery contract tests retaining their own dependency boundary. The recovery
+compiler graph contains no auth-bridge paths; the shared capture imports only its
+internal recovery files. Both services' Node and workerd type projects passed,
+along with 35 focused recovery and 13 auth-bridge tests. This preserves the real
+producer check without adding unrelated service installs to CI. Fresh hosted
+verification remains the authoritative clean-install result for the correction.
+
 Authenticated provider inventory found only the existing auth bridge, with B0
 source and public authentication enabled; neither recovery Worker nor the
 required PTR/canary/recovery bridge bindings is deployed. The existing private

@@ -4,9 +4,6 @@ import { capturePtrBridgeObservation, signPtrObservation, snapshotPtrObservation
 import { preparationPrivateJwk } from './preparationFixture.js'
 import { base64UrlEncode, parseRecoveryCompactJws } from '../src/protocol.js'
 import { P256_HALF_ORDER, P256_ORDER } from '../src/crypto.js'
-import { observeReleaseRecoveryState } from '../../auth-bridge/src/releaseRecoveryObservation.js'
-import type { SpacetimeReleaseRecoveryResolution } from '../../auth-bridge/src/spacetimeReleaseRecoveryResolver.js'
-import { bridgeEnv } from '../../auth-bridge/test/recoveryConfigurationFixture.js'
 
 vi.mock('../src/recoveryPublicKey.js', () => ({
   RECOVERY_KEY_ID: 'warpkeep-0.4.0-recovery-2026-09-03-1',
@@ -54,32 +51,6 @@ const capture = () => capturePtrBridgeObservation(bridge(), expected, 99, 106)
 const bytes = (value: string) => Uint8Array.from(Buffer.from(value, 'base64url'))
 
 describe('signed existing PTR state observation', () => {
-  it('accepts the real bridge producer envelope with actual configuration validation', async () => {
-    const fixture = bridge()
-    const env = bridgeEnv({ PTR_SPACETIMEDB_DATABASE: fixture.ptr.databaseIdentity,
-      GENESIS_002_SPACETIMEDB_DATABASE: fixture.g002.databaseIdentity })
-    // Reuse the deployed producer/configuration parser; substitute only the network resolver.
-    const response = await observeReleaseRecoveryState(env, { schemaVersion: 1,
-      profile: 'warpkeep-release-recovery-realm-observation-request-v1',
-      rpcCredential: env.RELEASE_RECOVERY_RPC_SECRET!, ...expected }, {
-      clockMilliseconds: () => 106000,
-      createResolver: () => ({ resolve: async () => ({ observedFrom: fixture.observedFrom,
-        observedThrough: fixture.observedThrough, g001: fixture.g001, g002: fixture.g002, ptr: fixture.ptr,
-        upstreamResponseDigests: fixture.upstreamResponseDigests }) as SpacetimeReleaseRecoveryResolution }),
-    })
-    const captured = capturePtrBridgeObservation(response, expected, 99, 106)
-    const result = await verifyPtrObservation(await signPtrObservation(identity, captured, 107, preparationPrivateJwk), identity, 108)
-    expect(result.observation.ptr).toEqual(response.ptr)
-    expect(result.observation.bridgeConfigIdentity).toBe(response.bridgeConfigIdentity)
-    expect(result.observation.upstreamResponseDigests).toEqual({
-      programIdentityBeforeTranscriptHmacSha256: response.upstreamResponseDigests.programIdentityBeforeTranscriptHmacSha256,
-      ptrAdminStatusResponseHmacSha256: response.upstreamResponseDigests.ptrAdminStatusResponseHmacSha256,
-      ptrOwnerStatusResponseHmacSha256: response.upstreamResponseDigests.ptrOwnerStatusResponseHmacSha256,
-      programIdentityAfterTranscriptHmacSha256: response.upstreamResponseDigests.programIdentityAfterTranscriptHmacSha256,
-    })
-    expect(JSON.stringify(result)).not.toContain(env.RELEASE_RECOVERY_RPC_SECRET)
-    expect(JSON.stringify(result)).not.toContain(':"12345"')
-  })
   it('captures, signs and verifies the exact current request without authorizing adoption', async () => {
     const source = bridge(), observation = capturePtrBridgeObservation(source, expected, 99, 106)
     source.ptr.ownerEnabled = false

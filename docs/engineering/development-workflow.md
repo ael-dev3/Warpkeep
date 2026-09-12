@@ -156,6 +156,14 @@ types and build scripts separately. Auth bridge and recovery services likewise
 own separate scripts/lockfiles. Inspect each package's actual commands before
 running; do not assume root checks transitively verify every package or `.mjs` file.
 
+Run service checks from the service directory using its own installed test runner.
+Invoking root Vitest against a service with a separate dependency tree can load
+two Vitest instances and fail before test discovery. Keep cross-service tests in
+the package that owns the exercised producer and its external dependencies.
+An installed sibling package can hide imports that fail in CI, where each service
+job installs only its own locked dependencies. Preserve that boundary; do not add
+unrelated installs merely to make a misplaced test compile.
+
 When keep phases, panels or navigation change, include
 `tests/PtrGameplay04SurfaceHost.test.tsx` alongside the affected `Keep04` and
 controller suites. That real route composition exercises pending commands and
