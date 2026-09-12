@@ -39,6 +39,18 @@ is not a new Linux port requirement. Pending required checks do not establish
 an independent missing-local-signature blocker. No merge, provider deployment,
 recovery activation or live 0.4 acceptance is claimed by these corrections.
 
+## Existing PTR target configuration — 2026-09-12
+
+The public PTR repository variable was configured after the initial audit and
+read back exactly as
+`c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e`.
+The existing alias `warpkeep-ptr` resolves to that identity in fresh Maincloud
+HTTPS metadata, matching the production update adapter and recorded creation.
+This resolves target configuration only; no realm creation, module publication,
+owner provisioning or receipt acceptance occurred. The currently selected
+Windows CLI identity did not list owned databases, so publisher authority must
+be reconciled through the supported operator configuration before mutation.
+
 ## Historical source/test checkpoint — 2026-09-12
 
 The recorded synchronized documentation/test head was

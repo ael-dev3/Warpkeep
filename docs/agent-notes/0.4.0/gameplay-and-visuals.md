@@ -1,9 +1,16 @@
 # Gameplay and visual implementation notes
 
-Updated 2026-09-12 against the current PR #228 development branch; the
-source-bound checkpoint is now `24e3c136` and the inspected working files are
-synchronized with that branch. Earlier source hashes below remain dated
-evidence anchors, not current review targets. The latest focused Keep04 run
+Updated 2026-09-12. Use PR #228 and the [execution handoff](execution-handoff.md)
+for current source and synchronization. The `27700d61` review fixed mobile
+schematic coordinates, kept active construction at Build, and made other loop
+stages neutral rather than implying completed actions. Actual Chrome portrait
+checks confirmed Build during construction and Benefit when selecting a
+completed improvement, with readable copy and no overflow. Those UI captures
+include scene loading; they do not establish final 3D or physical-device quality.
+
+The following broader suite results retain source checkpoint `24e3c136` and
+their original scope. Earlier hashes are dated evidence anchors, not current
+review targets. That focused Keep04 run
 passed 10 files and 139 tests, the PTR gameplay surface suite passed 33 tests,
 and the Greater Realm world/RealmMapScreen suites passed 45 tests, including the
 accessible Worker Outbound → Gathering → Returning journey rail. It has no

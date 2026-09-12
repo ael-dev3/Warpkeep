@@ -75,11 +75,13 @@ fresh evidence bound to the final reviewed and deployed source.
 - The Linux prepared and sealed workflows are absent from inspected protected
   main `9eb98e78`. The notification environment has existing provider/admin and
   owner secret slots, but this is not proof that their values are valid. The
-  public immutable PTR database identity is absent from repository/environment
-  variables and secret inventories. The working-tree Linux caller now consumes
-  the canonical repository variable, preserving secrets for private credentials.
-  Follow the sealed-launch Phase 1 target binding before prepared deployment;
-  never substitute the G001 database.
+  public immutable PTR database identity was absent at the initial audit. The
+  repository variable `WARPKEEP_PTR_SPACETIMEDB_DATABASE` has since been set and
+  read back as `c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e`.
+  Fresh Maincloud alias metadata agrees with that source-pinned identity and the
+  recorded creation/authenticated inventory. The Linux caller published at
+  `27700d61` consumes this variable; credentials remain secret. This configures
+  the target, not publisher/owner access, the current module or a bridge binding.
 - Deployment/binding, import and owner attesters in the sealed workflow entries
   still use unavailable adapters. The production workflow explicitly rejects
   unsupported realm operations. These integration gaps, populated private
@@ -95,8 +97,10 @@ fresh evidence bound to the final reviewed and deployed source.
 2. Put the reviewed Linux workflows on protected main, verify its own required
    CI and installed generated family, then dispatch the existing read-only
    `preflight` operation to establish the genuine runner/source/private-root path.
-3. Resolve the actual isolated PTR identity and re-attest the existing B0
-   predecessor. Complete the Linux prepared bridge, authenticated recovery
+3. Use the configured isolated PTR identity and re-attest the existing B0
+   predecessor. Verify genuine publisher and owner authority; the current
+   Windows CLI inventory does not establish publisher access. Complete the Linux
+   prepared bridge, authenticated recovery
    deployment/readback and missing sealed-provider producers. Capture the G001
    baseline and preserve the sealed G002 state before player-state mutations.
 4. Complete the actual owner PTR journey, lifecycle/isolation checks and fixed

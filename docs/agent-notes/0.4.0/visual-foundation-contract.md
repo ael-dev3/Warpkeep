@@ -8,11 +8,12 @@ readability, mobile behavior and iteration quality. It does not turn a visual
 reference into an imported engine, a new economy, or a promise of deep
 interactivity.
 
-The visual contract is maintained against the current PR #228 documentation
-head `aa93d855531d75d8fc11a5404d5a919f131b3fb9`; the runtime source-bound
-checkpoint remains `24e3c136fb5e3839b00c8e8ddb3c780b6f795461`. Earlier hashes in
-dated evidence records remain historical anchors
-and are not the source to review for a new pass. The latest connected
+Use the [execution handoff](execution-handoff.md) and PR #228 for current source
+and verification. The rendered evidence below retains its recorded source
+`24e3c136fb5e3839b00c8e8ddb3c780b6f795461`; it does not attest later UI edits.
+The `27700d61` follow-up corrects bordered/letterboxed schematic taps and the
+loop's construction/completion feedback without changing the visual direction.
+Earlier hashes are historical anchors, not the source for a new pass. The recorded connected
 checkpoint covers the four-worker journey, fresh-browser re-entry, private
 retry/recovery seams, resource-catalog disclosure, mobile presentation and
 browser-log hygiene. The full disposable Windows lane passed on the functional
@@ -58,7 +59,7 @@ grouped decisions:
 Keeping these names beside the grouped source owners prevents a future agent
 from mistaking an alias for an unreviewed or omitted reference.
 
-## Current checkpoint (`aa93d855` documentation/test head; `24e3c136` runtime source; `31ad1240` loop rail)
+## Recorded connected presentation (`24e3c136` runtime source; `31ad1240` loop rail)
 
 The presentation contract is now exercised end to end: the atlas/keep entry,
 worker setup, outbound → gathering → returning rail, gather → choose → build →

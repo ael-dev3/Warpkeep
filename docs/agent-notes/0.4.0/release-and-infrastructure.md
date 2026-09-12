@@ -29,12 +29,17 @@ GitHub reported runner22 online and idle. Neither the Linux prepared workflow
 nor `sealed-realms-production.yml` exists on inspected main `9eb98e78`.
 The notification environment contains existing account, provider-token, zone,
 owner-FID and administrator-token secret slots; their presence does not prove
-their values or authority. The public immutable PTR database identity is absent
-from repository/environment variable and secret inventories. Resolve its actual
-target and install the Phase 1 repository variable before prepared deployment.
-The working-tree Linux caller reads this public identifier from `vars`, matching
-the canonical sealed-launch direction; credentials and owner identity remain in
-secrets. This source correction does not populate the actual target binding.
+their values or authority. The public immutable PTR database identity was absent
+at the initial variable/secret inventory. The Phase 1 repository variable
+`WARPKEEP_PTR_SPACETIMEDB_DATABASE` is now configured and read back as
+`c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e`.
+Fresh Maincloud metadata for `warpkeep-ptr` agrees with this source-pinned target
+and its recorded creation/authenticated inventory. The Linux caller published
+at `27700d61` reads it from `vars`; credentials and owner identity remain secret.
+This configures the immutable target but does not deploy the protected bridge
+binding or prove current module, publisher, owner or receipt authority. The
+current Windows CLI inventory returns no databases for its selected identity;
+re-establish genuine publisher access without recreating the existing PTR.
 
 Protected main requires signatures, linear history and strict required checks;
 only squash merges are enabled. PR #228 was `MERGEABLE` but `BLOCKED` with Linux

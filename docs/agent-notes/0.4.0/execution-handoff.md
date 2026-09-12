@@ -2,6 +2,23 @@
 
 ## Current review and next work — 12 September 2026
 
+The implementation checkpoint `27700d617d7085098b6f1ab8ee3d8cf9cdc40e23` is
+published and is the native preparation input. The subsequent notes reconcile
+the configured PTR identity and rendered loop check; they do not change runtime
+source. Windows/GitHub should use the latest documentation commit, while the
+operating WSL checkout stays pinned to the input until preparation/check finishes.
+Then synchronize it through the normal clean-checkout procedure.
+
+Active native preparation: tool session `53983`, observed PID `864599`, input
+`27700d61`, candidate `release-workspace-2efb9231c19a88dd555a6a908533926b`, draft
+`release-workspace-0869763bd4f5fee32d78752021a58960`. Its last reported phase is
+`compiling-bindings-and-bundles`; real worker processes were still active at
+handoff. Read that session/process before starting another run. No completed
+result or independent check is claimed. After preparation succeeds, use the
+existing assembler's `check` with the printed final handle from the same input,
+then review/export the journal's exact generated output set. Preserve receipts
+and active candidates; no Desktop output or blanket cleanup.
+
 Reviewed source base: `2ffdcc96ea3474908d2158ee817b4a384b274523`, followed by
 the placement/workflow patch recorded with this note. Fetch PR #228 to resolve
 the latest immutable branch head and its terminal checks. Do not interpret an
@@ -24,8 +41,11 @@ This changes presentation, not construction timers, costs or resource authority.
 Pages now installs the same root-suite prerequisites as Verify and runs the
 expensive authority tests serially with the same bounded timeout. The Linux
 prepared bridge reads the public PTR database identity from its documented
-repository variable. That variable is currently absent; derive the genuine
-isolated identity before configuring it. Private credentials remain secrets.
+repository variable. The existing target was corroborated by source pins,
+retained creation/inventory evidence and fresh provider metadata, then configured
+as `WARPKEEP_PTR_SPACETIMEDB_DATABASE`; GitHub readback matched the exact PTR
+identity. Private credentials remain secrets. Current publisher, owner and
+module/receipt authority still require verification; do not recreate this realm.
 
 Independent source and GitHub review corrected two obsolete blockers: the
 Linux prepared deployment/recovery caller is already implemented, and absence
