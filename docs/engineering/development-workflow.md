@@ -70,6 +70,14 @@ keep active native preparation pinned. A separate scanner or documentation repai
 does not relabel an earlier candidate: its source identity remains the exact
 committed input. Verify closure membership before deciding whether that repair
 requires a new preparation.
+Batch related closure-relevant source changes before expensive preparation when
+that preserves useful review checkpoints. Publish those checkpoints immediately;
+publication does not require regenerating after each small edit. The final family
+still requires a fresh source-bound preparation and independent check. Reuse only
+supported dependency caches; an older input's compiled family cannot be relabeled
+for a new source. A documentation-only follow-up outside the closure does not
+itself require another preparation.
+
 If publication fails, preserve the work and record the exact reason, then resume
 sync when it clears. A running native build retains its pinned operating source
 and is synchronized after it releases that source. A periodic app check provides
@@ -89,6 +97,10 @@ In particular, run `authBridgeNotificationPreparedWorkflow`,
 `authBridgeNotificationPreparedReleaseProjection` and
 `greaterRealmReleaseGateDeployBoundary` on Linux for acceptance. Some portable
 cases can run on Windows, but partial passes do not cover their native contracts.
+The full `licensePolicy` suite also needs native filesystem semantics for its
+newline-containing path and symbolic-link fixtures. Windows ENOENT/EPERM during
+fixture creation is not a policy acceptance result; retain those rejection tests
+and verify them on Linux. Use the small documentation suites for prose-only work.
 Follow the actual selected process to its exit code; publish its source and
 platform limits honestly. Reuse the existing native checkout after its active
 prepare/check releases the input, rather than installing into shared Windows

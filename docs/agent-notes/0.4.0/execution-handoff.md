@@ -2,36 +2,49 @@
 
 ## Current review and next work — 12 September 2026
 
-The next building-hierarchy pass is isolated on `codex/0.4-building-hierarchy`
-in the reused `C:/Temp/warpkeep-clean-ci` linked worktree, based on published
-`d64c8f78442da7ad1bc554c283daf136d670d399`. Its prior clean checkpoint is retained
-by the live `source-history/warpkeep-0.4-pr228-820e611148db` tag. No clone or
-dependency installation was added. The primary Windows checkout remains on PR
-#242's clean source while native preparation/check owns that input. Keep the
-two indexes and source identities separate when publishing or applying outputs.
-This art pass reduces cathedral model dominance within its unchanged precinct
-and strengthens completed economic buildings' resource signs. Its 138 affected
-cases and both type projects passed; source review found no blocker. Actual rendered
-acceptance is required; the [visual record](../../evidence/0.4.0/visuals.md#2026-09-12-building-hierarchy-development)
-tracks its design, tests and remaining inspection.
+The latest visual development is `codex/0.4-building-hierarchy` /
+[PR #243](https://github.com/ael-dev3/Warpkeep/pull/243), in reused linked checkout
+`C:/Temp/warpkeep-clean-ci`. Source `75c04680` passed all 138 owning tests,
+both type projects and independent source review. Guarded run `windows-run-N8ekUE`
+completed at that exact stable source; all 36 captures were independently reviewed.
+The cathedral is better balanced, and root inspected full scrolled desktop and
+landscape scenes plus selected portrait sites. Overview craft readability, lumber
+sign occlusion, terrain composition, diagnostic warnings and device acceptance
+remain open in the [visual record](../../evidence/0.4.0/visuals.md#rendered-follow-up-at-75c04680).
+The QA tab/server are stopped; viewport override is reset. The failed initial
+cache-location attempt remains retained and is not art acceptance.
+
+The branch normally incorporates the published prepared-family integration
+`eeda6f64ae86d370a652aa4a84e874684bd9740d` from PR #242. That family is bound
+to D, not to the later visual source. Native verification owns the exact published
+family integration until it terminates; do not advance its source mid-run. No new
+clone or package installation was added. Resolve each actual head and its check
+results before protected integration. Keep the full release goal active: 0.4 is
+not shipped, with an engineering estimate around 65% rather than a gate-derived
+completion score. The next connected delivery work remains the observer rollout
+and actual V4 existing-state adoption described below.
 
 The primary Windows branch is `codex/0.4-keep-entry-framing`, published in
 [PR #242](https://github.com/ael-dev3/Warpkeep/pull/242), based on PR #241 head
-`5996629a413f205c0564d570670a650a17f2a63f`. Source
-`337a4cc08739c26445ba272a06c120444e405fc7` adds once-only occupied entry framing
-and a visible construction marker, preserving manual camera ownership and actual
-footprints. Its final five-suite selection passed all 166 cases without skips;
-both type projects and independent source review passed. Guarded run
-`windows-run-PSW7Es` captured that exact clean, stable source. All 36 images were
-reviewed: sparse desktop/portrait readability improves; mature hierarchy, complete
-scrolled views, capture diagnostics and physical-device acceptance remain open.
-The [visual evidence](../../evidence/0.4.0/visuals.md#2026-09-12-occupied-entry-framing-and-placement-markers)
-owns the exact scope and retained digests. Windows and GitHub matched after the
-outgoing secret scan; the idle native checkout then fast-forwarded cleanly to
-`337a4cc0`. The capture browser and owned Vite server are stopped. Generated release
-closure still belongs to the earlier pending-panel input and needs normal
-preparation after this visual source change. Resolve the final documentation
-head before preparing; do not apply the previous input's export to this source.
+`5996629a413f205c0564d570670a650a17f2a63f`. Entry framing at `337a4cc0`
+passed the five-suite 166-case selection, both type projects and independent
+review. Guarded run `windows-run-PSW7Es` retained 36 reviewed images from that
+exact source; [visual evidence](../../evidence/0.4.0/visuals.md#2026-09-12-occupied-entry-framing-and-placement-markers)
+owns the scope, diagnostics and remaining acceptance.
+
+Published review input `d64c8f78442da7ad1bc554c283daf136d670d399` then
+completed native preparation `17954` and independent rebuilding check `10798`,
+both exit zero with all fields equal. The authenticated complete output family
+was independently reconstructed, applied to the unchanged Windows input and
+staged as exact generated tree `f657aa5d007e58a6ded430c3df6bba37112b99e6`.
+Only seven manifest/workflow-pin files changed. The
+[owning family evidence](../../evidence/0.4.0/release-engineering.md#occupied-entry-source-family--2026-09-12)
+records all identities. Do not restart either completed native run or apply an
+older export. This development preparation is not a production deployment.
+
+PR #240 at `944bb17b` and PR #241 at `5996629a` have passed all hosted
+checks; resolve actual heads before normal protected integration.
+
 PR #241's preceding change fixes the real host's rejected Close/Escape request during
 a pending command or refresh; see the [gameplay evidence](../../evidence/0.4.0/gameplay.md#panel-dismissal-during-a-request-or-refresh--2026-09-12).
 All eight new integration cases reproduced the defect and then passed; the full

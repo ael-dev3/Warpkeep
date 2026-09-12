@@ -9,10 +9,10 @@ height. Those estimates are source-based, not a measurement of rendered pixels.
 The economy models already fill their available width, so enlarging each whole
 model would provide little additional identity and consume placement clearance.
 
-The proposed correction uniformly reduces the cathedral's normalized model
+The implemented correction uniformly reduces the cathedral's normalized model
 child, with an equivalent treatment for fallback architecture. Its precinct,
 placement root, scaffold and presentation of completed levels remain unchanged.
-A starting factor of 0.75 is an art candidate subject to actual render review.
+The 0.75 factor improves hierarchy in the rendered review below.
 Completed economic sites gain wider, low craft signs with a resource silhouette
 and their existing level numeral, merged into the owned static decoration layer.
 This adds no asset download, texture, light or draw submission. Mixed vertex-color
@@ -35,6 +35,70 @@ construction/completion, sparse entry, fallback and context recovery. Check
 resource/level readability, hierarchy, footprint clearance, correct picking and
 unchanged budgets. The current entry-framing matrix below does not accept this
 later art change; semantic palette and terrain work remain separate.
+
+### Rendered follow-up at 75c04680
+
+Guarded run `artifacts/keep04-qa/windows-run-N8ekUE` captured exact clean source
+`75c0468081583ce6dff9cf7ba02392a58bbb4e54`, tree
+`43a02e0e56635a26c56cdd37acc866968d5e9cea`, in the reused linked checkout.
+Session `39729` completed normally with exit zero; source stayed unchanged.
+Independent reviewers manually inspected all 36 original images across desktop,
+portrait balanced, portrait reduced and short landscape. The exact profile and
+scenario inventory, PNG dimensions and observation mappings were verified.
+
+Compared with `PSW7Es`, the cathedral occupies less of its precinct and balances
+better against the barracks. Sparse completion retains its model and visible
+wheat/level sign. Placement markers, scaffolding, fallback and context-recovery
+views show no new visible regression. The mature phone overview still cannot
+support reliable craft-symbol or level identification; visible fascia alone is
+not proof of legibility. Fixed page crops omit lower content, particularly in
+landscape, and do not establish complete interaction reachability.
+
+Root separately scrolled the live H fixture in the Codex in-app browser at
+390×844, 844×390 and 1440×900. The complete mature landscape and desktop
+composition was visible, with the grounds, precinct and economic sites intact.
+On portrait, each economic site could be selected through the schematic/list
+and its scene reached through Inspect selected site. The selected mill, stoneworks
+and goldworks signs and level numeral were distinguishable. The lumber selection
+included a foreground neighboring mill and did not establish its own sign's
+readability. Completed cathedral proportions were reviewed at balanced and reduced
+quality. This was synthetic local presentation, not authenticated owner gameplay;
+no new cathedral-construction fixture or physical-device result was produced.
+
+Capture metadata reports no horizontal overflow, 32 WebGL cases with one canvas
+and four intentional fallback cases with none. The observed mature draw-call
+snapshots match the prior run, consistent with the merged decoration design;
+this does not establish frame-time, thermal or physical-device performance.
+The existing 36 security warnings and one network error remain unexplained;
+`reviewRequired` is true, the guard violation is null and stderr is empty. The
+capture handler retains only category/severity/phase, discarding the browser's
+actual log detail; neither a CSP warning nor favicon failure is established.
+A later diagnostic change should retain only bounded allowlisted cause/resource
+categories with privacy tests, preserving the existing limits and rejection rules.
+Raw messages and URLs do not belong in these public-facing artifacts.
+Normal owned-browser cleanup was verified, with no forced close and zero
+remaining owned processes reported; the disposable profile remains retained.
+The separate in-app QA tab was closed, viewport override reset and owned Vite
+server stopped after review.
+
+- Provenance SHA-256: `0eac53c703e24b8cdb64f5251f372713816a958b70ebc8cdd29852d077a55a32`.
+- Observations SHA-256: `f44af5821d504b91191b9bab27bd73365210d12373d849b234de28087fabe7d5`.
+
+The first attempt, `windows-run-X91wm8` / session `40529`, failed before useful
+capture. The local Vite optimizer cache was under `.cache`, which the existing
+filesystem guard intentionally denies. The entry module was served but its two
+React dependency imports returned 404. Moving only the launcher's ignored cache
+location to `artifacts/building-hierarchy-vite-cache` made both exact imports
+return 200; no server security rule, package or tracked source changed. The failed
+run is retained as failure evidence. Use the allowed artifact cache for this
+reused checkout; do not relax the filesystem guard.
+
+This accepts a bounded hierarchy improvement, not final visual release readiness.
+Overview identity, the lumber sign's occlusion, cathedral construction views,
+more natural terrain/precinct composition, capture diagnostics and physical-device
+acceptance remain open. The merged generated family is still bound to D input,
+not this later building source; batch further accepted source changes before the
+next preparation rather than relabeling the existing candidate.
 
 ## 2026-09-12 occupied entry framing and placement markers
 
