@@ -5,8 +5,8 @@ attest the deployed frontend, service or realm.
 
 | Source | Where to begin |
 | --- | --- |
-| [Public main](https://github.com/ael-dev3/Warpkeep/tree/main) | G001 Alpha baseline and release preparation. Its README routes new work to development. Existing G002 import scaffolding does not establish playable 0.4. |
-| This 0.4 development checkout | [README](../../README.md), [current handoff](../agent-notes/0.4.0/README.md) and [execution handoff](../agent-notes/0.4.0/execution-handoff.md). Current implementation and dated evidence are maintained here. |
+| [Public main](https://github.com/ael-dev3/Warpkeep/tree/main) | Integrated 0.4 development source and preserved G001 implementation. Start new changes from main on a working branch; source integration does not establish a live 0.4 release. |
+| Active development work | [README](../../README.md), [current handoff](../agent-notes/0.4.0/README.md) and [execution handoff](../agent-notes/0.4.0/execution-handoff.md). Resolve the working branch and its evidence from current refs and open pull requests. |
 | Generated release candidate | The source identities, closure and manifests produced by the [local preparation components](../superpowers/specs/2026-09-05-warpkeep-local-release-preparation-design.md). A candidate is not a deployed release. |
 | Live deployment | The exact deployed artifacts and configured realm/service identities, checked through the [release acceptance record](../operations/0.4.0-release-checklist.md). |
 

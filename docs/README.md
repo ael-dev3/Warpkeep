@@ -5,9 +5,10 @@ contributors. This page routes deeper work without duplicating it.
 
 ## Current 0.4 — start here
 
-These local links describe the active `codex/prepared-keep-bindings-fix`
-checkout. Check the branch and dated evidence before following a development
-guide; `main` and the running game can represent different release stages.
+These links describe the 0.4 development source integrated into `main`.
+Follow the [execution handoff](agent-notes/0.4.0/execution-handoff.md), current refs
+and open pull requests for active work. Source integration does not establish
+a live 0.4 release; check dated evidence before following a development guide.
 
 - [Agent guide](../AGENTS.md) — durable repository rules, authority boundaries,
   verification and handoff expectations

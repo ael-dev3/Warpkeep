@@ -58,17 +58,18 @@ future exploration, cooperation and strategy without promising unfinished featur
 
 ## Build with us
 
-Active 0.4 development is on
-[`codex/prepared-keep-bindings-fix`](https://github.com/ael-dev3/Warpkeep/tree/codex/prepared-keep-bindings-fix).
-Check your branch before using a development guide; `main` and the running game
-can represent different release stages.
+`main` contains the integrated 0.4 development source. The running game remains
+at a different release stage; 0.4 delivery is unfinished. Follow the
+[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md), current refs and
+open pull requests for active work.
 
 For a fresh independent checkout, use Git, Node 22 (22.13 or newer within that
 major) and npm 10.9.8:
 
 ```sh
-git clone --branch codex/prepared-keep-bindings-fix https://github.com/ael-dev3/Warpkeep.git
+git clone https://github.com/ael-dev3/Warpkeep.git
 cd Warpkeep
+git switch -c my-change
 npm ci
 npm run dev
 ```

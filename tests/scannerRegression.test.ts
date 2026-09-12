@@ -36,17 +36,29 @@ function run(scan: (options: SpawnSyncOptionsWithStringEncoding) => CommandResul
 it('rejects scanner output missing the mandatory negative findings and cleans its fixture', () => {
   const result = run(() => ({ status: 0, stdout: '[]', stderr: '' }));
   expect(result).toMatchObject({ ok: false, reason: 'finding-mismatch', missing: expect.any(Array), unexpected: [] });
-  expect(result.missing).toHaveLength(33);
+  expect(result.missing).toHaveLength(72);
   expect(result.missing).toEqual(expect.arrayContaining([
     'generic-api-key:scripts/sealed-realms-production-g001-lane.bundle.mjs:2',
     'generic-api-key:scripts/sealed-realms-production-g001-lane.bundle.mjs:4',
     'generic-api-key:scripts/sealed-realms-production-g001-lane.bundle.mjs.copy:1',
     'generic-api-key:scripts/sealed-realms-production-g001-lane.bundle.mjs.copy:2',
+    'sourcegraph-access-token:scripts/sealed-realms-production-activation-lane.bundle.mjs:6',
+    'sourcegraph-access-token:scripts/sealed-realms-production-activation-lane.bundle.mjs:26',
+    'sourcegraph-access-token:scripts/sealed-realms-production-activation-lane.bundle.mjs.copy:1',
+    'sourcegraph-access-token:scripts/sealed-realms-production-activation-lane.bundle.mjs.copy:11',
+    'sourcegraph-access-token:scripts/sealed-realms-production-g001-lane.bundle.mjs:5',
+    'sourcegraph-access-token:scripts/sealed-realms-production-g001-lane.bundle.mjs:15',
+    'sourcegraph-access-token:docs/agent-notes/0.4.0/execution-handoff.md:2',
+    'sourcegraph-access-token:docs/agent-notes/0.4.0/execution-handoff.md:4',
+    'sourcegraph-access-token:docs/evidence/0.4.0/release-engineering.md:2',
+    'sourcegraph-access-token:docs/evidence/0.4.0/release-engineering.md:4',
+    'sourcegraph-access-token:docs/evidence/0.4.0/unrelated-source.md:1',
+    'sourcegraph-access-token:docs/evidence/0.4.0/unrelated-source.md:2',
   ]));
 });
 it('reports unexpected finding identities without exposing scanner payloads', () => {
   const result = run(() => ({ status: 1, stdout: JSON.stringify([{ RuleID: 'jwt', File: 'unexpected.ts', StartLine: 7, Secret: 'DO-NOT-PRINT', Match: 'DO-NOT-PRINT' }]), stderr: '' }));
-  expect(result.unexpected).toEqual(['jwt:unexpected.ts:7']); expect(result.missing).toHaveLength(33);
+  expect(result.unexpected).toEqual(['jwt:unexpected.ts:7']); expect(result.missing).toHaveLength(72);
   expect(JSON.stringify(result)).not.toContain('DO-NOT-PRINT');
 });
 it('fails closed on scanner failure or malformed output', () => {

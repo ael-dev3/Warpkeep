@@ -63,6 +63,12 @@ for every edited repository and its actual owning remote. Avoid accumulating
 local-only changes or making extra commits just to repeat an unchanged status.
 An active generated family stays intact until its required check finishes;
 credentials, private evidence and ignored disposable output stay outside Git.
+After a protected squash, check the actual signed main commit and reviewed tree
+before resolving the next working branch. Preserve published source history and
+keep active native preparation pinned. A separate scanner or documentation repair
+does not relabel an earlier candidate: its source identity remains the exact
+committed input. Verify closure membership before deciding whether that repair
+requires a new preparation.
 If publication fails, preserve the work and record the exact reason, then resume
 sync when it clears. A running native build retains its pinned operating source
 and is synchronized after it releases that source. A periodic app check provides

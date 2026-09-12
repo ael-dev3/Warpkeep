@@ -7,18 +7,17 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-Fetch PR #228 for the current immutable head and its own terminal checks;
-this index is a source map, not a synchronization receipt.
+[PR #228](https://github.com/ael-dev3/Warpkeep/pull/228) merged the 0.4 development
+source into `main`; its former development branch is retired. Resolve active
+work through current refs, open pull requests and the execution handoff below.
 The GitHub/profile/ecosystem refresh is complete. Continue
 the connected game and delivery work from the [execution handoff](execution-handoff.md),
 which records the current checkpoint, preparation, CI and environment details.
 
-- **Development and live release are separate.** Active 0.4 work is on
-  `codex/prepared-keep-bindings-fix`, associated with ready-for-review
-  [PR #228](https://github.com/ael-dev3/Warpkeep/pull/228). Its current Verify
-  and CodeQL checks are the R14 authority; read their terminal conclusions
-  before R14. `main` remains the public
-  G001 baseline. The integrated 0.4 release is not yet shipped.
+- **Development and live release are separate.** `main` now contains the 0.4
+  development source alongside preserved G001 behavior. Read Verify and CodeQL
+  terminal conclusions for the exact source under review before R14. The
+  integrated 0.4 release is not yet shipped.
 - **The core loop works in a populated native rehearsal.** Real realm modules
   imported their atlases and preserved existing state through updates. PTR earned
   resources, completed construction on real timers and resumed completed state

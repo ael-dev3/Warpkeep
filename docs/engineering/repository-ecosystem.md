@@ -7,7 +7,7 @@ competing sources of gameplay truth.
 
 | Repository | Responsibility | Current status and handoff |
 | --- | --- | --- |
-| [Warpkeep](https://github.com/ael-dev3/Warpkeep) | Browser/Farcaster game, authoritative gameplay, services, runtime media, validation, and release/recovery operations | Live G001 baseline on `main`; 0.4 development on `codex/prepared-keep-bindings-fix`. Consult current refs and the development handoff. |
+| [Warpkeep](https://github.com/ael-dev3/Warpkeep) | Browser/Farcaster game, authoritative gameplay, services, runtime media, validation, and release/recovery operations | `main` contains integrated 0.4 development source and preserved G001 implementation; live 0.4 delivery remains unfinished. Follow the [execution handoff](../agent-notes/0.4.0/execution-handoff.md), current refs and open pull requests for active work. |
 | [Warpkeep Assets](https://github.com/ael-dev3/Warpkeep-Assets) | Visual source archive, dated releases, manifests, provenance, and file-specific reuse terms | Existing archive. A stored asset is not automatically approved, optimized, or integrated into the game. Runtime adoption needs game-side validation and attribution. |
 | [Warpkeep Water Engine](https://github.com/ael-dev3/Warpkeep-Water-Engine) | Planned home for reusable water rendering work | Placeholder repository. Current water implementation and tests live in Warpkeep; no standalone engine package or public demo is established here. |
 | Ael's GitHub profile | Introduce the person, selected public projects, and links to their canonical documentation | Public presentation. Keep descriptions consistent with project evidence; avoid private project information and unsupported release claims. |

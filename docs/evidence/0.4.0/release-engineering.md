@@ -1,8 +1,8 @@
 # Release engineering: implementation and evidence
 
-Current reading point: fetch the actual
-[development branch](https://github.com/ael-dev3/Warpkeep/tree/codex/prepared-keep-bindings-fix)
-and PR #228 before relying on a live head or CI result. The latest completed
+Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main),
+the current working PR and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
+PR #228 is merged and its branch retired. The latest completed
 native preparation/check input is
 `8033e01cc911f510fafb1770fdb0c0f0f3d2b3ac`. Preparation, independent rebuilding
 and guarded export completed successfully for the mobile layout and corrected
@@ -20,6 +20,59 @@ gives the next connected work and actual publication/check status. **0.4 is not 
 Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
+
+## Protected source integration and history scanner — 2026-09-12
+
+Normal protected squash integrated reviewed `820e6111` into signed main
+`c4b95505b73705d120aff3f3318d2bd5151f6565` at 11:30:54 UTC. GitHub returned
+signature verification `true/valid`; tree `24f5ceb4e36814b0a2bdb691adb59591db676611`
+exactly matches the reviewed source. Verify `34688961992` and CodeQL
+`34688961994` succeeded before the merge. The root suite passed 10,526 tests,
+with 181 tests/two files skipped; its serial checks and module rehearsals also
+passed. The original source is retained by published annotated history tags.
+
+The subsequent main Verify `34691247637` Linux job `103546763151` stopped at
+the full-history Gitleaks scan, before tests. A local pinned 8.30.1 scan reproduced
+all nine findings. Exact in-memory comparison proved they are public commit/blob
+identifiers used by G001 adoption, frozen-source verification, CLI attestation,
+B0 identity and water provenance. Only finding identities and proven public IDs
+were inspected; raw scanner secret/match fields were not printed. The existing
+Sourcegraph exception is extended by exact values on the activation bundle path,
+with independent positive and altered-value/wrong-path regression fixtures.
+The full-history command and `.gitleaksignore` remain unchanged.
+
+The real scanner regression reproduced nine unexpected findings before the
+configuration repair, then passed with 33 allowed fixtures and 66 required
+detections. Every reviewed ID has a single-character mutation at the allowed
+path and an unchanged-value control at both a copied filename and another bundle.
+All six owning tests passed. The complete M1 history scan then passed across
+435 commits (48,353,147 bytes); app/test types, file-size policy and 233 local
+document-link targets passed. These checks do not replace the repair's hosted CI.
+
+The outgoing scan of initial repair `1fb1c88d` correctly stopped publication on
+four additional matches: actual M1's public commit and tree IDs in this record
+and the execution handoff. The follow-up retains that commit and adds a separate
+exception for only those two exact values at those two exact paths. The real
+regression first reproduced four unexpected findings, then passed 37 allowed
+fixtures and 72 mandatory detections, including altered values at both paths and
+the unchanged values at an unrelated document. The original bundle exception,
+full-history command and historical fingerprints remain unchanged.
+
+Both clean checkouts deliberately moved to actual M1. Native preparation session
+`30088` exited zero with candidate `release-workspace-99438dc2cc576e073df09bc44f930bc6`.
+The result retains source/tree M1, transaction `71a85ab27d28482e77a030c0b9df7c71`,
+journal SHA-256 `893cf764bf187cedb2e487eb13dacdb321fb400480aedc121133b4faf92089bb`,
+family `8eda7283eb503ae2ebdcf74abf80d33761158d2be321da5a3329b21766b76f45`,
+closure `266f52fae9ce4095c23919add9c7f3bba20a4b2b0fab75a6b47aa7650e25ea5d`,
+and scanner `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+It verified 3,199 source/candidate files, 102 outputs, 3,097 preserved files,
+453 bundle inputs and seven recovery inputs; `finalReleasePrepared` is false.
+Independent check session `8359` is active from unchanged M1 and must return
+matching identities before export. Scanner configuration, regression fixtures
+and these notes are outside the deployment
+closure. Preserve the candidate's real input and separately reconcile this repair
+before generated-family promotion. No deployment, authenticated owner journey or
+physical-device acceptance follows from source integration or scanner verification.
 
 ## Pending keep route acceptance correction — 2026-09-12
 

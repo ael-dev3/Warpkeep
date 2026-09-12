@@ -57,10 +57,9 @@ See [`LICENSING.md`](LICENSING.md),
 
 ## Choose the source you intend to change
 
-This development checkout contains 0.4 gameplay, the owner PTR, the new keep and
-local release/recovery work on
-[`codex/prepared-keep-bindings-fix`](https://github.com/ael-dev3/Warpkeep/tree/codex/prepared-keep-bindings-fix).
-`main` contains the Genesis 001 Alpha baseline and release preparation. Use the
+`main` contains the integrated 0.4 gameplay, owner PTR, new keep and local
+release/recovery source alongside the preserved Genesis 001 implementation.
+The integrated 0.4 release is not yet shipped. Use the
 [source map](docs/agent-notes/0.4.0/repo-map.md) and
 [architecture](docs/technical-architecture.md) to find the subsystem, then read
 [AGENTS.md](AGENTS.md) and the [current handoff](docs/agent-notes/0.4.0/README.md).
@@ -68,13 +67,15 @@ local release/recovery work on
 For a new 0.4 checkout:
 
 ```sh
-git clone --branch codex/prepared-keep-bindings-fix https://github.com/ael-dev3/Warpkeep.git
+git clone https://github.com/ael-dev3/Warpkeep.git
 cd Warpkeep
+git switch -c my-change
 ```
 
-For baseline work, clone without `--branch`. Inspect your branch, remote and
-existing changes before editing. Target the corresponding branch in a pull
-request; a source checkpoint does not mean the game has been deployed.
+Inspect your branch, remote and existing changes before editing. Follow the
+[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md), current refs and
+open pull requests before continuing existing work. Submit your working branch
+through a pull request to `main`; source integration does not deploy the game.
 
 ## Local setup and verification
 
