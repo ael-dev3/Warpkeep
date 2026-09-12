@@ -11,9 +11,10 @@ The five affected gameplay/UI suites passed all 64 tests and build-mode types
 passed. The subsequent guarded run `artifacts/keep04-qa/windows-run-GIPWZ3`
 records stable clean source `8033e01cc911f510fafb1770fdb0c0f0f3d2b3ac`,
 Chrome 152.0.7977.83 and ANGLE/NVIDIA RTX 3090 hardware rendering. All 36
-synthetic cases recorded no horizontal overflow; seven PNGs were manually
-reviewed. The [visual evidence record](../../evidence/0.4.0/visuals.md) names that
-subset and its viewport crops. The capture still reports `reviewRequired: true`
+synthetic cases recorded no horizontal overflow; all 36 saved PNGs were manually
+reviewed, with the review inventory checked against the existing files. The
+[visual evidence record](../../evidence/0.4.0/visuals.md) retains the initial subset,
+completed review and viewport limits. The capture still reports `reviewRequired: true`
 with 36 security warnings and one network error; their current causes remain
 unverified. Normal browser exit and zero remaining owned processes were verified.
 The retained disposable profile was not deleted after automatic approval review
@@ -27,7 +28,11 @@ The desktop scene was visible but its primary dock remained below the initial
 viewport. Placement fixtures intentionally focus the catalog; a cropped Confirm
 placement button does not establish reachability. These are synthetic local
 views, not physical-device, performance, authenticated-owner or live-release
-acceptance. The complete image matrix and interaction coverage remain open.
+acceptance. The saved image review is complete; useful scene/action views and
+interaction coverage remain open. Desktop primary actions need discoverability,
+the schematic would benefit from compact building names, and phone overview
+needs clearer small-building hierarchy. Separate desktop footprints do not
+establish an overlap defect. Preserve accessible names and authoritative geometry.
 
 The preceding guarded capture `artifacts/keep04-qa/windows-run-01TmYS` records
 clean source `72aee27e`, Chrome 152 and hardware rendering. All 36 scenarios had

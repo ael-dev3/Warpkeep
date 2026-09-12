@@ -12,6 +12,9 @@ const f = vi.hoisted(() => ({
   revoke: vi.fn(),
   dispatch: vi.fn(),
   failStage: "",
+  provider: Object.freeze({}),
+  createProvider: vi.fn(),
+  createBridge: vi.fn(),
   bridge: Object.freeze({}),
   state: Object.freeze({}),
   authority: Object.freeze({}),
@@ -42,8 +45,13 @@ vi.mock(
 vi.mock("../scripts/sealed-realms-production-continuation.mjs", () => ({
   createSealedRealmsProductionContinuationStore: () => ({}),
 }));
+// This suite exercises runtime ownership and cleanup. Provider authentication
+// uses its own real-provider contracts, not this suite's opaque authority stubs.
+vi.mock("../scripts/sealed-realms-production-bridge-provider.mjs", () => ({
+  createSealedRealmsProductionBridgeProvider: f.createProvider,
+}));
 vi.mock("../scripts/sealed-realms-production-auth-bridge-state.mjs", () => ({
-  createSealedRealmsProductionAuthBridgeState: () => f.bridge,
+  createSealedRealmsProductionAuthBridgeState: f.createBridge,
   createSealedRealmsProductionActivationEvidenceGenerator: () => {
     if (f.failStage === "generator") throw Error("fixture failure");
     f.callback?.("a".repeat(40), {}, f.context);
@@ -89,6 +97,9 @@ vi.mock(
 beforeEach(() => {
   vi.clearAllMocks();
   f.failStage = "";
+  f.callback = undefined;
+  f.createProvider.mockReset().mockReturnValue(f.provider);
+  f.createBridge.mockReset().mockReturnValue(f.bridge);
   f.dispatch.mockReset();
   f.prepare.mockResolvedValue(f.preparation);
   f.programs.mockReset().mockResolvedValue(f.programArtifacts);
@@ -106,6 +117,22 @@ it("passes the constructed runtime bridge into the real candidate callback with 
     operation: "activation-evidence-generate",
     workflowInputSha: "a".repeat(40),
   });
+  expect(f.createProvider).toHaveBeenCalledExactlyOnceWith({
+    authority: f.authority,
+    privateState: f.state,
+    repositoryRoot: process.cwd(),
+    fetchImpl: globalThis.fetch,
+  });
+  expect(f.createBridge).toHaveBeenCalledExactlyOnceWith({
+    authority: f.authority,
+    privateState: f.state,
+    repositoryRoot: process.cwd(),
+    bridgeProvider: f.provider,
+    fetchImpl: globalThis.fetch,
+    inspectImportReceipt: expect.any(Function),
+    authenticateImportResult: expect.any(Function),
+    resolveOwnerProvisionReceipt: expect.any(Function),
+  });
   expect(f.read).toHaveBeenCalledExactlyOnceWith({
     records: f.records,
     privateState: f.state,
@@ -118,6 +145,21 @@ it("passes the constructed runtime bridge into the real candidate callback with 
   });
   expect(f.programs.mock.invocationCallOrder[0]).toBeLessThan(f.prepare.mock.invocationCallOrder[0]);
   expect(f.prepare).toHaveBeenCalledExactlyOnceWith({ privateState: f.state, authority: f.authority });
+});
+
+it("revokes evidence without preparing resources when provider authentication fails", async () => {
+  f.createProvider.mockImplementationOnce(() => { throw Error("provider failure"); });
+  await expect(createSealedRealmsProductionActivationWorkflowRuntime({
+    operation: "activation-evidence-generate",
+    workflowInputSha: "a".repeat(40),
+  })).rejects.toThrow("provider failure");
+  expect(f.createBridge).not.toHaveBeenCalled();
+  expect(f.programs).not.toHaveBeenCalled();
+  expect(f.prepare).not.toHaveBeenCalled();
+  expect(f.dispose).not.toHaveBeenCalled();
+  expect(f.disposePrograms).not.toHaveBeenCalled();
+  expect(f.disposePreparation).not.toHaveBeenCalled();
+  expect(f.revoke).toHaveBeenCalledOnce();
 });
 
 it.each(["records", "generator", "lane", "context"])(

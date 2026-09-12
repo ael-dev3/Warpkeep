@@ -13,7 +13,8 @@ and 844×390 balanced. All 36 recorded zero horizontal overflow and received the
 exact guarded QA document policy. This is the actual Keep04 renderer with local
 synthetic state; no gameplay connection or production build was exercised.
 
-Seven PNGs were manually reviewed, not the whole matrix:
+All 36 saved PNGs have now been manually reviewed, with the review inventory
+compared against the existing files. The first pass covered these seven:
 
 - `desktop-mill-placement.png` and `desktop-mill-complete.png`;
 - `mobile-mill-placement.png` and `mobile-mill-constructing.png`;
@@ -31,6 +32,26 @@ Desktop terrain/confirmation edges are also cropped. The reduced fallback and
 landscape entry images are bounded viewport captures, not complete control or
 interaction coverage. The cathedral still dominates the economy buildings;
 terrain/background cohesion and small-building readability remain art work.
+
+The remaining 29 images confirm distinct scaffold/completed silhouettes and
+separate building footprints on desktop. At phone overview scale, the smaller
+economy buildings read as clusters; this is a readability finding, not evidence
+of overlapping footprints. Sparse scenery, flat platform/background treatment
+and the purple/gold cathedral's dominance still need a coherent diorama pass.
+Preserve footprint authority and avoid globally tinting mixed roof/wall meshes.
+
+Desktop entry places primary building/Worker actions below the viewport:
+`Keep04Screen.css` hides `.keep04-primary-nav` except on phone/short-height
+profiles. Restore discoverability in the next product pass. The fallback's
+numbered footprints are intentional ordinal keys, with full accessible names
+and matching named site buttons below the diagram. Compact building labels
+would improve glanceability without replacing those accessible names.
+
+All short-landscape entry PNGs show controls or the focused catalog rather than
+an assessable scene/confirmation. Static reduced-motion/context-cycle captures
+also cannot prove temporal behavior. The full saved image review is complete;
+useful scene/action views and interaction acceptance remain open. No new captures
+or image copies were created for this review.
 
 Separate controller inspection kept the synthetic QA header visible. At 390×844,
 the mature grounds were visible on entry. At 320×740, two resource columns and two
@@ -50,7 +71,7 @@ cleanup verified no remaining owned processes. The disposable profile
 rejected by automatic approval review, and deletion was not retried. Original
 capture files remain unchanged; this document records the later image review.
 
-This refreshes source-bound synthetic presentation evidence. Full image and
+This refreshes source-bound synthetic presentation evidence. Additional views and
 interaction coverage, production performance, physical-phone behavior,
 authenticated owner play and live release acceptance remain open. The current
 development/promotion head belongs to PR #228 and the execution handoff, not this

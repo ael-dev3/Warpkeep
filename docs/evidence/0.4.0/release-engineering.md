@@ -19,6 +19,31 @@ Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
+## Activation lifecycle fixture correction — 2026-09-12
+
+At source `2615518e`, Verify `34680474756` Linux job `103518129259` completed
+its first root-test batch with one failed file: all ten cases in
+`sealedRealmsRecoveryBridgeRuntime.test.ts` reached the newly connected real
+bridge-provider constructor with the suite's opaque authority stub. Its old
+source-authority mock lacked `sourceCommitFromSealedRealmsProductionAuthority`,
+so intended lifecycle assertions were never reached. That batch passed 656 files
+and skipped two; its serial follow-up, types and builds did not run. This is not
+a successful Verify result.
+
+The correction mocks the provider at the existing lifecycle-fixture boundary,
+asserts its exact inputs and handoff into bridge state, and adds early provider
+failure coverage for evidence revocation before resource preparation. Production
+provider checks are unchanged. Independent read-only review found no further
+issue. The corrected runtime, real provider and auth-bridge-state suites passed
+all 177 tests on pinned Windows Node 22.22.3, with no skips (session `18025`,
+exit zero). Explicit application/test TypeScript checking also passed.
+
+Publish this test/documentation correction immediately and read its own hosted
+checks. It does not change the prepared compiler input, generated family or
+deployment authority, and does not require another native preparation. The
+source-history tag at `2615518e` continues to retain the required historical
+operator ancestry; preserve that immutable tag through the eventual squash.
+
 ## Mobile source family and guarded export — 2026-09-12
 
 Native preparation session `35471` and independent check `7224` both exited zero
@@ -64,7 +89,9 @@ ancestor of dispatched main. A squash of this development branch does not make
 
 1. Publish and verify this checked family. Before the first squash, retain its
    reviewed source ancestry with an annotated, non-release `source-history/` tag
-   at the published PR head; verify the remote peeled commit. The PR branch is
+   at the published family checkpoint in the PR's ancestry; verify the remote
+   peeled commit. Test/documentation follow-ups do not require moving that tag.
+   The PR branch is
    automatically deleted on merge, and the preparation projection still reads
    historical commit `f6036cb93711f1358eda9c7a5804457665a864c9`, which is absent
    from current main ancestry. Main Verify fetches tags with full history; the

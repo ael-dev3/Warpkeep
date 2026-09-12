@@ -2,6 +2,30 @@
 
 ## Current review and next work — 12 September 2026
 
+Verify `34680474756` at `2615518e` exposed a single failed root-test suite:
+the activation lifecycle fixture supplied opaque authority stubs to the newly
+connected real bridge-provider constructor. The corrected fixture now mocks
+that boundary, asserts provider-to-state wiring and checks evidence revocation
+before resource preparation on provider failure. Its ten previous cases remain,
+with one new failure-path case. The runtime, real provider and auth-bridge-state
+suites passed all 177 tests on pinned Windows Node 22.22.3 (session `18025`,
+exit zero); explicit application/test types and independent review passed.
+Production authority checks are unchanged. The
+[release engineering record](../../evidence/0.4.0/release-engineering.md)
+retains the failed hosted batch and corrected scope. Publish the correction and
+read the new head's required checks before normal promotion; do not rerun source
+preparation for this test/documentation-only follow-up. The immutable tag at
+`2615518e` already retains the required historical operator ancestry.
+
+All 36 saved mobile/desktop PNGs from `8033e01c` have now been reviewed. The
+[visual record](../../evidence/0.4.0/visuals.md) owns the remaining desktop action
+discoverability, small-building hierarchy, scenery and cropped-view findings.
+This completes the saved-image review, not device, interaction or owner acceptance.
+Continuous publication also resolves the authorized branch through future merges:
+the existing 15-minute check was updated in place, Windows now tracks its verified
+`upstream` publication remote, and maintained repositories were freshly fetched
+and clean. Follow the [sync procedure](../../operations/0.4.0-development-sync.md).
+
 The shared bridge provider is connected to the sealed activation workflow.
 Recovery authenticates original uploaded bytes, preserves the complete retained
 authority chain and samples elapsed time through provider reads and receipt
