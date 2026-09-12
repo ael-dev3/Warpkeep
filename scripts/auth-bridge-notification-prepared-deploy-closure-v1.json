@@ -1625,7 +1625,7 @@
     {
       "path": "scripts/recovery-workflow-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8cf2e6f8a62b94c3fcc21e2cb5778354e99ae849cfcae3676add9e6b91012d1b"
+      "sha256": "b5ced568d403f7fd235e21cb65cada640550aba730062afa9ea090e97ea3006d"
     },
     {
       "path": "scripts/recovery-workflow-check-deployment.d.mts",
@@ -1805,7 +1805,7 @@
     {
       "path": "scripts/sealed-realms-production-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c101c7761aad61ca577f3633c0f5bee75240584ae19e4134c9a7e067c6599a7a"
+      "sha256": "2f09f2383d5f711b55acf9e5b20f1d6cea6251cc45d8dd478203a308b86b58d8"
     },
     {
       "path": "scripts/sealed-realms-production-continuation.d.mts",
@@ -4960,7 +4960,7 @@
     {
       "path": "src/ptr/PtrGameplay04SurfaceHost.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "eb12ebe4ec9e1c8bc3093127e9fa77aa656c64d0dd387b721d383a541282f096"
+      "sha256": "7e7ec77b3d7e8767a4204b6506d606fa38ea0a627fe9ee5f381f797aad2e5635"
     },
     {
       "path": "src/ptr/PtrRealmProvider.tsx",
