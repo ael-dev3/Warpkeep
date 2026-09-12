@@ -129,7 +129,10 @@ the restart case before its artifact existed (one pass, one failure, 15 delibera
 filtered cases, 7.04 seconds). The test had accepted generic continuation ambiguity
 before proving generation completed. Its diagnostic now preserves the original
 generator failure and requires completion before simulating lost acknowledgement;
-rerun that exact native case before claiming descriptor/replay acceptance.
+The diagnostic rerun `48601` at `d7b734bb` exposed
+`SEALED_REALMS_PRIVATE_STATE_FILE_EXISTS`: the test setup had already written the
+immutable descriptor before asking the real generator to write it. The fixture
+must leave that publication to the generator; no-clobber protection stays intact.
 
 ## PTR existing-state capture — 2026-09-12
 

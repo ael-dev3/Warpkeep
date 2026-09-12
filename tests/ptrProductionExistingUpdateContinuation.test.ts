@@ -923,32 +923,32 @@ async function joinedV4ActivationFixture() {
   candidateSource = `${JSON.stringify(Object.fromEntries(RECOVERY_BINDING_KEYS_V4.map(key => [key, values[key]])), null, 2)}\n`;
   const inspected = adoptionWriter.inspectSealedRealmsProductionRecoveryActivationRecords(recordsV4);
   expect(inspected.schemaVersion).toBe(4);
-  let envelope: Record<string, any> = {};
-  adoptionWriter.writeSealedRealmsProductionRecoveryActivationDescriptor({ records: recordsV4, consumeDescriptor: fd => {
-    envelope = JSON.parse(readFileSync(fd, 'utf8'));
-    expect(envelope.profile).toBe('warpkeep-0.4.0-recovery-activation-evidence-ptr-adoption-v1');
-    expect(envelope.ptrExistingStateAdoptionReceipt.completionReceipt).toEqual(receipt);
-    expect(() => (adoptionWriter.validateSealedRealmsProductionRecoveryActivationEvidence as any)(envelope)).toThrow();
-    expect((adoptionWriter.validateSealedRealmsProductionRecoveryActivationEvidence as any)(envelope, undefined, evidence).schemaVersion).toBe(4);
-    return undefined;
-  } });
   expect(f.state.puts).toBe(1);
   return { f, evidence, recordsV4, receipt, written, legacy, bridge, bridgeModule, binding, confirmation,
-    bridgeReceipt, bridgePath, adoptionPath, envelope, candidateSource };
+    bridgeReceipt, bridgePath, adoptionPath, candidateSource };
 }
 
 it('joins retained PTR adoption to genuine G002 bridge authority and the V4 public projection', async () => {
   const joined = await joinedV4ActivationFixture();
+  let envelope: Record<string, any> = {};
+  adoptionWriter.writeSealedRealmsProductionRecoveryActivationDescriptor({ records: joined.recordsV4, consumeDescriptor: fd => {
+    envelope = JSON.parse(readFileSync(fd, 'utf8'));
+    expect(envelope.profile).toBe('warpkeep-0.4.0-recovery-activation-evidence-ptr-adoption-v1');
+    expect(envelope.ptrExistingStateAdoptionReceipt.completionReceipt).toEqual(joined.receipt);
+    expect(() => (adoptionWriter.validateSealedRealmsProductionRecoveryActivationEvidence as any)(envelope)).toThrow();
+    expect((adoptionWriter.validateSealedRealmsProductionRecoveryActivationEvidence as any)(envelope, undefined, joined.evidence).schemaVersion).toBe(4);
+    return undefined;
+  } });
   const { validateRecoveryLaunchActivationProjection } = await import('../scripts/generate-0.4.0-recovery-launch-activation.mjs');
   const { verifySealedRealmsPublicActivationBytes } = await import('../scripts/verify-sealed-realms-public-activation-artifact.mjs');
-  const binding = validateRecoveryLaunchActivationProjection(joined.envelope, joined.bridgeReceipt, undefined, joined.evidence);
+  const binding = validateRecoveryLaunchActivationProjection(envelope, joined.bridgeReceipt, undefined, joined.evidence);
   expect(binding.schemaVersion).toBe(4);
   expect(binding.ptrExistingStateAdoptionReceiptDigest).toBe(joined.written.recordDigest);
   expect(binding.admissionRequestSuspensionReceiptDigest).toBe(joined.binding.evidenceDigest);
   const bytes = Buffer.from(`${JSON.stringify(binding, null, 2)}\n`);
   expect(verifySealedRealmsPublicActivationBytes(bytes)).toEqual(bytes);
-  expect(() => validateRecoveryLaunchActivationProjection(joined.envelope, joined.bridgeReceipt)).toThrow();
-  expect(() => validateRecoveryLaunchActivationProjection(joined.envelope,
+  expect(() => validateRecoveryLaunchActivationProjection(envelope, joined.bridgeReceipt)).toThrow();
+  expect(() => validateRecoveryLaunchActivationProjection(envelope,
     { ...joined.bridgeReceipt, ptrExistingStateAdoptionReceiptDigest: 'f'.repeat(64) }, undefined, joined.evidence)).toThrow();
   for (const target of [joined.bridgePath, joined.adoptionPath]) {
     const saved = readFileSync(target);
