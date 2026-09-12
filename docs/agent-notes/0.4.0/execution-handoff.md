@@ -2,6 +2,21 @@
 
 ## Current verification checkpoint — 12 September 2026
 
+The current synchronized development head is
+`b918d55ae53364c75a687ee583761c1396430686` on
+`codex/prepared-keep-bindings-fix`. This test-only checkpoint refreshes every
+prepared-workflow fixture pin when a closure member is mutated, including the
+Linux prepared launch. The complete
+`authBridgeNotificationPreparedWorkflow.test.ts` suite passed 159/159 under
+the dedicated `warpkeep` UID; a root-UID invocation is intentionally invalid
+for this permission-bound verifier and is not counted.
+
+GitHub Verify run `34664685856` is the current CI authority for this head.
+Release-recovery, auth-bridge and native-contract have passed; Linux and
+SpacetimeDB remain in progress at this update. CodeQL run `34664685866`
+completed successfully. Read Verify at terminal state before treating R14 as
+complete.
+
 The Windows checkout, GitHub development branch and native WSL checkout remain
 clean and synchronized on `codex/prepared-keep-bindings-fix`; the latest
 source checkpoint used for native preparation is
