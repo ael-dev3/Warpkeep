@@ -622,6 +622,7 @@ function mutatePreparedClosureMember(
     ['.github/workflows/notification-bridge-b0.yml', '      '],
     ['.github/workflows/notification-bridge-prepared.yml', '      '],
     ['.github/workflows/deploy-pages.yml', '  '],
+    ['.github/workflows/notification-bridge-prepared-linux.yml', '      '],
   ] as const) {
     const workflowFixturePath = resolve(root, workflowRelativePath);
     const workflowSource = readFileSync(workflowFixturePath, 'utf8');
@@ -672,6 +673,7 @@ function refreshPolicyFixtureMember(
     ['.github/workflows/notification-bridge-b0.yml', '      '],
     ['.github/workflows/notification-bridge-prepared.yml', '      '],
     ['.github/workflows/deploy-pages.yml', '  '],
+    ['.github/workflows/notification-bridge-prepared-linux.yml', '      '],
   ] as const) {
     const path = resolve(root, workflowRelativePath);
     const source = readFileSync(path, 'utf8');
