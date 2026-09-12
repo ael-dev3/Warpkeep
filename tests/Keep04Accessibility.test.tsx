@@ -145,15 +145,27 @@ it.each([[390, 844], [844, 390]])('keeps one decision header and unobscured docu
   } finally { removeStyles(); }
 });
 
-it('preserves the desktop dock and bounded side panel without a sticky resource header', () => {
+it('exposes desktop primary commands and returns focus from the bounded side panel', () => {
   const removeStyles = applyViewportRules(1280, 900);
   try {
-    setup(); fireEvent.click(screen.getByRole('button', { name: 'Buildings' }));
-    expect(getComputedStyle(screen.getByLabelText('Primary keep actions')).display).toBe('none');
+    const { controller } = setup();
+    const commands = screen.getByRole('navigation', { name: 'Primary keep actions' });
+    const catalog = within(commands).getByRole('button', { name: 'Open building catalog' });
+    const workers = within(commands).getByRole('button', { name: 'Manage Workers' });
+    expect(catalog).toBeVisible(); expect(workers).toBeVisible();
     expect(getComputedStyle(screen.getByRole('region', { name: 'Resources' }).parentElement!).position).not.toBe('sticky');
+    fireEvent.click(catalog);
     const panel = screen.getByRole('complementary', { name: 'Command panel' });
     expect(getComputedStyle(panel).width).toBe('320px');
     expect(getComputedStyle(panel).maxHeight).toBe('76vh');
+    fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
+    expect(catalog).toHaveFocus();
+    fireEvent.click(workers);
+    expect(screen.getByRole('complementary', { name: 'Command panel' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
+    expect(workers).toHaveFocus();
+    expect(screen.getByRole('navigation', { name: 'Keep commands' })).toBeVisible();
+    expect(controller.submit).not.toHaveBeenCalled();
   } finally { removeStyles(); }
 });
 

@@ -10,31 +10,43 @@ the old remote branch was retired. Both annotated source-history tags remain
 published, including `source-history/warpkeep-0.4-pr228-820e611148db`.
 
 Main push Verify `34691247637` then failed its full-history Gitleaks step before
-Linux tests. All nine findings were independently matched to public Git commit
-and blob identifiers in the generated activation bundle. The repair on
-`codex/0.4-history-scan-fix` extends the existing exact-value, exact-path,
-Sourcegraph-rule exception and tests altered values and wrong paths. Follow its
-actual open PR for publication and hosted results. Do not weaken the history scan
-or treat successful pre-merge checks as a pass for the later main run.
+Linux tests. The exact public-Git-ID repair passed its real positive, mutation and
+wrong-path regression, the complete history scan, owning tests and documentation
+checks without weakening the history command or `.gitleaksignore`. PR #234
+normally squashed that reviewed repair at 12:40:13 UTC into signed, valid main
+`2dc1f519` (**R**), tree `7fdff63`, with M1 as its parent.
 
-Native preparation from clean M1 completed successfully in session `30088`,
-candidate `release-workspace-99438dc2cc576e073df09bc44f930bc6`. Independent check
-is running in original session `8359` against unchanged M1; follow that process
-and require its exact terminal result before export. Windows has a separate clean-M1
-`codex/0.4-prepared-source` branch for the checked generated family. The scanner
-configuration, scanner fixture/tests and documentation repair are outside the
-deployment closure; they do not relabel the candidate or change its input.
-The initial repair passed all six owning tests, the real scanner's 33 allowed
-fixtures and 66 mandatory detections, app/test types and the full M1 history scan.
-Its outgoing scan then stopped on four matches of M1's public commit/tree IDs
-in these source notes. A separate exception covers only those two IDs in the two
-exact evidence documents; its real regression passed 37 allowed fixtures and
-72 mandatory detections. The first commit remains intact for review.
-Changed-document links and the repository size policy passed. Hosted checks for
-the repair still require their own terminal result.
-After successful preparation and independent check, export at exact M1 and
-reconcile the reviewed repair before protected generated-family promotion to M2.
-Require final M2 CI before one sealed preflight. No live release is established.
+Native M1 preparation session `30088` and independent check session `8359` both
+exited zero with every recorded field equal for candidate
+`release-workspace-99438dc2cc576e073df09bc44f930bc6`. The authenticated family
+was exported from exact M1 and all 102 output files, their bytes and Git objects, and preserved
+source paths were checked. Generated checkpoint `654f1b57` incorporated the
+published repair, then exact `3c4eb264` incorporated protected R without changing
+tree `93a976b0`. The native checked-in sealed-launch and prepared-policy verifiers
+passed again at that final checkpoint. It is published in PR #235 against R;
+Verify `34694406086` and CodeQL `34694406081` are active. Earlier Verify
+`34693755154` at `654f1b57` was cancelled by the later publication and is not
+terminal evidence for the final head. No protection or release gate was weakened.
+
+Windows now carries the separate desktop-navigation source change on
+`codex/0.4-keep-navigation`, based on `3c4eb264`. It makes the existing top
+navigation visible on desktop and resets the compact-media bottom margin,
+preserving the mobile layout. Actual desktop, portrait, landscape and narrow
+browser checks covered the buttons, panel close, opener focus restoration and
+horizontal overflow; 88 tests in four suites passed in session `27992`. Complete
+and publish this work through its own PR stacked on `codex/0.4-prepared-source`;
+resolve its resulting commit and PR from live refs rather than adding an unverified
+identifier here. Do not fold it into PR #235. After PR #235 integrates, reconcile
+the product PR with actual main. The CSS is a protected-closure source change and
+needs normal source integration followed by a fresh generated closure before any
+later deployment.
+
+First complete PR #235 through the normal protected squash to **M2**, require that
+exact M2's Verify success, then dispatch one sealed `preflight` from main and
+require `preflight-inspected`. The navigation branch remains separately backed-up
+product source. After its publication, the clean native development checkout may
+fast-forward to that reviewed head while the M1 candidate, journal and artifact
+remain retained evidence. No live release is established.
 
 ### Pre-merge route correction
 
@@ -91,16 +103,17 @@ published, with Windows, GitHub and the clean idle native checkout verified equa
 The route-test correction was published as `820e6111` and integrated through
 PR #228 after terminal checks. Continue each new change through the
 [sync procedure](../../operations/0.4.0-development-sync.md), recording its actual
-working PR and preserving the native input while the independent check runs.
+working PR and preserving active native inputs and retained evidence.
 The retained `8033e01c` family predates this UI source and the Linux PTR caller;
-use the new M1 result after its independent check, not a relabelled old candidate.
+the exact M1 result now owns PR #235's generated family and remains bound to M1.
 
 The retained candidate also passed a fresh locked integrity check and an isolated
 Git-index patch roundtrip. Existing assembler primitives support export without
 another clone or a new CLI. Follow the
 [integration procedure](../../operations/0.4.0-local-release-preparation.md#integrate-the-reviewed-source)
 with the actual M1 prepare/check identities; do not reuse historical confirmation
-values. This operating-path proof does not replace fresh M1 preparation.
+values. That historical operating-path proof did not replace the fresh M1
+prepare/check/export recorded above.
 
 ## Linux PTR workflow and preceding publication
 

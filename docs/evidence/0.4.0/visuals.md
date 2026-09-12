@@ -1,5 +1,37 @@
 # Verdant Citadel visual evidence — final acceptance open
 
+## 2026-09-12 desktop primary-action discovery
+
+The current navigation follow-up reproduced the desktop finding in the balanced
+`empty` DEV fixture at 1440×900 in the Codex in-app browser: the primary nav had
+`display: none`, leaving Buildings/Find resources at y=2061.195 with scroll zero.
+The CSS correction displays the existing primary nav with flex wrapping on
+desktop; compact media rules retain their grid and zero bottom margin. No controller,
+component TSX, command authority, deployment gate or generated output changed.
+
+After the correction, both primary buttons occupied y=362–406.5 with a minimum
+height of 44.5 pixels and no horizontal overflow. The catalog and Worker panels
+opened from those controls; Close/Escape returned focus to the respective opener.
+At 390×844, the nav remained a grid with zero bottom margin, the header stayed sticky,
+and horizontal overflow was zero. The catalog's Close control began at y=171.09,
+below the header bottom at y=149.89, and closing restored the catalog opener.
+At 844×390, the header retained two columns and the nav retained its grid and
+zero bottom margin. The Worker panel's Close control began at y=121.04 below the
+header bottom at y=99.89; panel overflow stayed visible and Escape restored focus
+to Manage Workers. At 320×740, the grid's buttons were 59 pixels high. Neither
+compact profile had horizontal overflow. These observations resolve desktop
+action discovery in this source; they do not expand the historical capture matrix
+below.
+
+The revised desktop regression failed before the fix, then all 88 tests in four
+affected suites passed (session `27992`, exit zero), covering visible controls,
+panel opening, opener focus and no submitted command. File policy and the diff
+check passed. All browser commands were fixture-suppressed. This is synthetic
+presentation evidence, not physical-device, owner, performance or live acceptance.
+No screenshot files were created.
+The existing `codex/0.4-prepared-source` family remains unchanged; this separate
+CSS follow-up needs a generated-closure refresh before protected deployment.
+
 ## 2026-09-12 pending command continuity
 
 Browser inspection of local source `a7e19376` reproduced a disruptive pending
@@ -33,8 +65,9 @@ screen/controller suites (session `37250`, exit zero). Explicit application/test
 and Vite-config TypeScript checks also passed.
 The QA simulation itself establishes neither server correctness nor owner play;
 the controller fixtures remain separate evidence. No screenshot files or Desktop
-output were created. Prior capture diagnostics below, desktop action discovery,
-art hierarchy, physical-device performance and live acceptance remain open.
+output were created. Desktop action discovery is addressed by the later follow-up
+above. Prior capture diagnostics below, art hierarchy, physical-device performance
+and live acceptance remain open.
 
 ## 2026-09-12 guarded Keep04 capture at 8033e01
 
@@ -76,9 +109,10 @@ of overlapping footprints. Sparse scenery, flat platform/background treatment
 and the purple/gold cathedral's dominance still need a coherent diorama pass.
 Preserve footprint authority and avoid globally tinting mixed roof/wall meshes.
 
-Desktop entry places primary building/Worker actions below the viewport:
-`Keep04Screen.css` hides `.keep04-primary-nav` except on phone/short-height
-profiles. Restore discoverability in the next product pass. The fallback's
+At this historical capture, desktop entry placed primary building/Worker actions
+below the viewport: `Keep04Screen.css` hid `.keep04-primary-nav` except on
+phone/short-height profiles. The desktop follow-up above resolves that finding
+in new source; these saved captures remain unchanged. The fallback's
 numbered footprints are intentional ordinal keys, with full accessible names
 and matching named site buttons below the diagram. Compact building labels
 would improve glanceability without replacing those accessible names.
@@ -110,8 +144,9 @@ capture files remain unchanged; this document records the later image review.
 This refreshes source-bound synthetic presentation evidence. Additional views and
 interaction coverage, production performance, physical-phone behavior,
 authenticated owner play and live release acceptance remain open. The current
-development/promotion head belongs to PR #228 and the execution handoff, not this
-capture's immutable source field.
+development/promotion source belongs to the execution handoff, current refs and
+open pull requests; PR #228 has merged. Preserve this capture's immutable source
+field.
 
 ## 2026-09-11 historical Inner Keep QA
 
