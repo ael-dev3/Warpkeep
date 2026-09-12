@@ -4,10 +4,12 @@ Current reading point: fetch the actual
 [development branch](https://github.com/ael-dev3/Warpkeep/tree/codex/prepared-keep-bindings-fix)
 and PR #228 before relying on a live head or CI result. The latest completed
 native preparation/check input is
-`7cb573baab40e54f52ab2aeb26c56c9e8f1cf9f5`. Its generated family has been
-exported for review; publication, final-head CI and protected promotion must be
-verified separately. Changed runtime/compiler inputs require new preparation;
-older synchronized heads below are historical checkpoints.
+`7cb573baab40e54f52ab2aeb26c56c9e8f1cf9f5`. Its generated family was exported,
+scanned, published and synchronized at
+`60097dd7491125b09120b700d688278f906f96f6`. The subsequent protected-policy
+correction requires fresh native preparation and independent check; the retained candidate
+does not cover that change. Final-head CI and protected promotion remain separate
+requirements. Older synchronized heads below are historical checkpoints.
 The generated source families recorded below are dated, source-bound evidence;
 documentation and test follow-ups do not create a new release candidate. The
 retained candidate, closure and runner observations below are not current
@@ -63,14 +65,29 @@ pinned Node 22.22.3. The selected eight-suite native-boundary invocation exited
 one: 62 passed, 12 skipped and 13 failed at native POSIX repository,
 `/usr/bin/git`, owner-private mode or stdin boundaries. The
 direct closure CLI also refused the Windows repository/platform. Neither result
-is counted as a native pass, and production checks were not relaxed. Rerun those
-eight suites plus the prepared-workflow suite serially in Linux after publication
-and synchronization. Verify the installed closure and explicit preparation/Pages
-classification on that final clean native checkout. The exported classification
-API can check actual HEAD locally without inventing GitHub workflow variables
-or an output descriptor. Preparation
-source remains separate from protected promotion, genuine provider execution,
-owner play, device measurements and live release acceptance.
+is counted as a native pass, and production checks were not relaxed. After
+publication and synchronization, those eight suites passed all 87 tests on the
+clean native checkout. The installed closure and preparation classification also
+passed, with Pages `sealed-launch-blocked`. The exported classification API
+checked actual HEAD locally without inventing GitHub workflow variables or an
+output descriptor.
+
+The full prepared-workflow run (session `36364`, terminal) passed 156 tests and
+failed three because the protected static policy retained stale API-token,
+reviewed-B0 and PTR occurrence counts. The correction checks the separate
+deployment, recovery-source and recovery-live credential uses, including that
+source inspection receives no admin token. The baseline and six targeted
+credential-relocation cases passed natively in session `34162`; 156 tests were
+deselected. Strict TypeScript passed with explicit Node types. Independent policy
+and Linux PTR-variable wiring reviews found no further defect. Both temporary native
+overlay files were restored to the clean published checkpoint.
+
+The complete updated 163-test native suite is pending after publication. Because
+the verifier is a protected input, its correction requires a new native prepare
+and independent check, followed by guarded export and validation of that family.
+The successful `7cb573ba` candidate above certifies its original input only.
+Preparation remains separate from final-head CI, protected promotion, genuine
+provider execution, owner play, device measurements and live release acceptance.
 
 ## Independently reproduced recovery-source candidate — 2026-09-12
 

@@ -3325,32 +3325,56 @@ return Object.freeze({ outcome: 'verified-read-only-recovery' });
   });
 
   it.each([
-    'apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
-    'adminToken: values.WARPKEEP_PRODUCTION_ADMIN_TOKEN',
-  ])('rejects moving recovery credential use into a deploy comment: %s', binding => {
-    const root = createPolicyFixture();
-    expect(() => verifyAuthBridgeNotificationPreparedStaticPolicy({ repositoryRoot: root }))
-      .not.toThrow();
-    const path = 'scripts/auth-bridge-notification-prepared-deploy.mjs';
-    const before = readFileSync(resolve(root, path), 'utf8');
-    const recoveryUse = `\n      ${binding},\n`;
-    const start = before.indexOf('async function runProductionAuthBridgeNotificationPreparedReadOnlyRecovery({');
-    const end = before.indexOf('export async function runAuthBridgeNotificationPreparedReadOnlyRecovery(');
-    expect(start).toBeGreaterThan(0);
-    expect(end).toBeGreaterThan(start);
-    const recovery = before.slice(start, end);
-    expect(recovery.split(recoveryUse)).toHaveLength(2);
-    const after = (before.slice(0, start)
-      + recovery.replace(recoveryUse, `\n      ${binding.split(':')[0]}: undefined,\n`)
-      + before.slice(end))
-      .replace('\nconst invokedPath = process.argv[1]',
-        `\n// ${binding}\nconst invokedPath = process.argv[1]`);
-    expect(before.split(binding)).toHaveLength(3);
-    expect(after.split(binding)).toHaveLength(3);
-    mutatePreparedClosureMember(root, path, before, after);
-    expect(() => verifyAuthBridgeNotificationPreparedStaticPolicy({ repositoryRoot: root }))
-      .toThrow('AUTH_BRIDGE_PREPARED_GUARDED_ENTRYPOINT_INVALID');
-  }, 180_000);
+    {
+      inspector: 'source',
+      start: 'const source = await runtime.inspectSource({',
+      end: 'const liveStartedAt = sampleClock();',
+      binding: 'apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
+      totalUses: 3,
+    },
+    {
+      inspector: 'live API',
+      start: 'const live = await runtime.inspect({',
+      end: 'const completedAt = sampleClock();',
+      binding: 'apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
+      totalUses: 3,
+    },
+    {
+      inspector: 'live admin',
+      start: 'const live = await runtime.inspect({',
+      end: 'const completedAt = sampleClock();',
+      binding: 'adminToken: values.WARPKEEP_PRODUCTION_ADMIN_TOKEN',
+      totalUses: 2,
+    },
+  ].flatMap(slot => ['deploy', 'recovery'].map(commentScope => ({ ...slot, commentScope }))))(
+    'rejects moving $inspector credential use into a $commentScope comment',
+    ({ start: callStart, end: callEnd, binding, totalUses, commentScope }) => {
+      const root = createPolicyFixture();
+      expect(() => verifyAuthBridgeNotificationPreparedStaticPolicy({ repositoryRoot: root }))
+        .not.toThrow();
+      const path = 'scripts/auth-bridge-notification-prepared-deploy.mjs';
+      const before = readFileSync(resolve(root, path), 'utf8');
+      const recoveryUse = `\n      ${binding},\n`;
+      const start = before.indexOf(callStart);
+      const end = before.indexOf(callEnd, start);
+      expect(start).toBeGreaterThan(0);
+      expect(end).toBeGreaterThan(start);
+      const call = before.slice(start, end);
+      expect(call.split(recoveryUse)).toHaveLength(2);
+      const commentBoundary = commentScope === 'deploy'
+        ? '\nconst invokedPath = process.argv[1]'
+        : '\n    return Object.freeze({\n      ...live,';
+      expect(before.split(commentBoundary)).toHaveLength(2);
+      const after = (before.slice(0, start)
+        + call.replace(recoveryUse, `\n      ${binding.split(':')[0]}: undefined,\n`)
+        + before.slice(end))
+        .replace(commentBoundary, `\n// ${binding}${commentBoundary}`);
+      expect(before.split(binding)).toHaveLength(totalUses + 1);
+      expect(after.split(binding)).toHaveLength(totalUses + 1);
+      mutatePreparedClosureMember(root, path, before, after);
+      expect(() => verifyAuthBridgeNotificationPreparedStaticPolicy({ repositoryRoot: root }))
+        .toThrow('AUTH_BRIDGE_PREPARED_GUARDED_ENTRYPOINT_INVALID');
+    }, 180_000);
 
   it('attests the installed tree after install and before any protected secret', () => {
     const source = workflow();

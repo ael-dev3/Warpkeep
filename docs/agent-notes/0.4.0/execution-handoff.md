@@ -32,18 +32,33 @@ exact transaction, family and closure identities, including older candidates.
 not a live release. Test-only and ordinary note changes do not alter the recorded
 compiler input or require another preparation run.
 
-Post-export Windows build-mode types and file-size policy passed. The eight
-selected suites returned 62 passes, 12 skips and 13 failures at native POSIX
-repository, Git, mode or stdin boundaries. The direct closure CLI also refused
-the Windows repository/platform. These invocations are not native passes;
-rerun the eight suites and the prepared-workflow suite serially in Linux after
-publishing and synchronizing the complete generated family. On that clean native
-checkout, verify the installed closure and explicit preparation state, then
-require Pages classification `sealed-launch-blocked`. Complete the final head's
-required CI and normal protected preparation-only squash promotion, then verify
-main's own CI. The
-source classifier on committed `7cb573ba` confirmed inert preparation with Pages
-approval and PTR presentation disabled; recheck the final promoted source.
+The generated checkpoint `60097dd7` was scanned, published and synchronized to
+the clean native checkout. Its closure and preparation classification passed
+with Pages `sealed-launch-blocked`, and the eight selected suites passed all 87
+native tests.
+These results complete the scope that Windows could not verify: its earlier
+invocation returned 62 passes, 12 skips and 13 POSIX-boundary failures. Windows
+build-mode types and file-size policy passed; its closure CLI correctly refused
+the unsupported platform.
+
+The full prepared-workflow suite (session `36364`, terminal) passed 156 tests and
+failed three because static policy still expected the old API-token, reviewed-B0
+and PTR source counts. The correction binds credentials to their owning calls:
+source inspection receives the Cloudflare token, and live inspection also
+receives the admin token. The baseline and six credential-relocation regressions
+passed natively in session `34162`; 156 tests were deselected. Strict TypeScript
+also passed. The full 163-test native suite remains pending after publication.
+Independent policy
+and Linux PTR-variable wiring reviews found no further defect. The temporary
+native overlays were restored, leaving the published checkout clean.
+
+This correction changes a protected policy input. Publish it, synchronize the
+idle native checkout, complete the full suite, then run fresh native preparation
+and independent check. The retained `7cb573ba` candidate does not cover this
+policy change. Export the newly checked family, verify its closure and blocked
+Pages classification, and complete that head's required CI before normal
+protected preparation-only squash promotion. Verify main's own CI and source
+classification afterward.
 
 After promotion, execute the existing protected read-only `preflight` and genuine
 provider reads. Re-attest the retained B0 predecessor before initial prepared

@@ -1232,12 +1232,12 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     ['const WORKFLOW_REF = `${REPOSITORY}/${WORKFLOW_PATH}@refs/heads/main`;', 1],
     ['withAuthBridgeNotificationPreparedDeployJournal({', 1],
     ['prepareAndWriteAuthBridgeNotificationPreparedReceipt({', 1],
-    ['apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN', 2],
+    ['apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN', 3],
     ['playerCanaryOwnerFid:', 1],
     ['expectedPredecessorBridgeSourceCommit:', 1],
-    ['AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT', 2],
+    ['AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT', 4],
     ['values.WARPKEEP_PLAYER_CANARY_OWNER_FID', 3],
-    ['values.WARPKEEP_PTR_SPACETIMEDB_DATABASE', 4],
+    ['values.WARPKEEP_PTR_SPACETIMEDB_DATABASE', 8],
     ['adminToken: values.WARPKEEP_PRODUCTION_ADMIN_TOKEN', 2],
     ['executeAuthBridgeNotificationPreparedDeployAdapter({', 1],
     ['createAuthBridgeNotificationPreparedGithubWritePermit({', 2],
@@ -1280,18 +1280,38 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     count,
     'AUTH_BRIDGE_PREPARED_GUARDED_ENTRYPOINT_INVALID',
   );
-  // The read-only recovery caller has its own inspector credentials and scrub
-  // path. Require one use in each real function, not two anywhere in the file.
+  // Recovery separately inspects the original uploaded source and live state.
+  // Both use Cloudflare credentials; only live state receives the admin token.
+  // Bind each use to its owning call as well as its deployment/recovery scope.
   const entrypointCode = 'AUTH_BRIDGE_PREPARED_GUARDED_ENTRYPOINT_INVALID';
-  for (const [start, end] of [
-    ['async function runProductionAuthBridgeNotificationPreparedReadOnlyRecovery({',
-      'export async function runAuthBridgeNotificationPreparedReadOnlyRecovery('],
-    ['export async function runAuthBridgeNotificationPreparedDeploy({',
-      '\nconst invokedPath = process.argv[1]'],
+  const recoveryRegion = exactSourceRegion(entrypoint,
+    'async function runProductionAuthBridgeNotificationPreparedReadOnlyRecovery({',
+    'export async function runAuthBridgeNotificationPreparedReadOnlyRecovery(',
+    entrypointCode);
+  const deployRegion = exactSourceRegion(entrypoint,
+    'export async function runAuthBridgeNotificationPreparedDeploy({',
+    '\nconst invokedPath = process.argv[1]', entrypointCode);
+  for (const [region, apiUses] of [
+    [recoveryRegion, 2],
+    [deployRegion, 1],
   ]) {
-    const region = exactSourceRegion(entrypoint, start, end, entrypointCode);
-    exactCount(region, 'apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN', 1, entrypointCode);
+    exactCount(region, 'apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN', apiUses, entrypointCode);
     exactCount(region, 'adminToken: values.WARPKEEP_PRODUCTION_ADMIN_TOKEN', 1, entrypointCode);
+  }
+  for (const [start, end, adminUses] of [
+    ['    const source = await runtime.inspectSource({\n',
+      '    const liveStartedAt = sampleClock();', 0],
+    ['    const live = await runtime.inspect({\n',
+      '    const completedAt = sampleClock();', 1],
+  ]) {
+    const inspection = exactSourceRegion(recoveryRegion, start, end, entrypointCode);
+    exactCount(inspection,
+      '\n      apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN,\n',
+      1, entrypointCode);
+    exactCount(inspection, 'adminToken:', adminUses, entrypointCode);
+    exactCount(inspection,
+      '\n      adminToken: values.WARPKEEP_PRODUCTION_ADMIN_TOKEN,\n',
+      adminUses, entrypointCode);
   }
   for (const [start, end] of [
     ['function copyAndScrubEnvironment(environment) {',
