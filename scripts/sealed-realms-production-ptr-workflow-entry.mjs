@@ -7,6 +7,7 @@ import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { preparePtrSourceBuiltArtifact } from './ptr-production-publisher.mjs';
 import { createPtrProductionExistingUpdateAdapter, exportPtrExistingUpdateCompletion } from './ptr-production-existing-update-adapter.mjs';
 import { createSealedRealmsProductionActivationRecords, writeSealedRealmsProductionPtrExistingUpdateRecord } from './sealed-realms-production-activation-records.mjs';
+import { createSealedRealmsProductionBridgeProvider } from './sealed-realms-production-bridge-provider.mjs';
 import {
   createSealedRealmsProductionAuthBridgeState,
 } from './sealed-realms-production-auth-bridge-state.mjs';
@@ -325,8 +326,9 @@ async function buildDispatcher(operation, workflowInputSha, evidence) {
       authority: bridgeAuthority,
       privateState,
       repositoryRoot: process.cwd(),
-      deploymentAttester: unavailable,
-      bindingAttester: unavailable,
+      bridgeProvider: createSealedRealmsProductionBridgeProvider({
+        authority: bridgeAuthority, privateState, repositoryRoot: process.cwd(), fetchImpl: globalThis.fetch,
+      }),
       fetchImpl: globalThis.fetch,
       inspectImportReceipt: unavailable,
       authenticateImportResult: unavailable,

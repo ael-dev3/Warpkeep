@@ -1703,9 +1703,24 @@ describe('sealed-realms auth bridge state', () => {
         privateAttestationDigest: 'e'.repeat(64), ptrBindingAttestationDigest: '2'.repeat(64),
         recordedAt: RECOVERY_NOW.toISOString(),
       };
+      const recoveryHeadDigest = createHash('sha256').update(`${JSON.stringify({
+        schemaVersion: 1, profile: recoveryRecord.completedJournalProfile,
+        sourceCommit: SOURCE, runId: recoveryRecord.runId, runAttempt: recoveryRecord.runAttempt,
+        priorPreparedReceiptDigest: oldPublication.receiptDigest,
+        priorCompletedJournalHeadDigest: recoveryRecord.completedJournalPredecessorDigest,
+        preparedReceiptDigest: recoveryPublication.receiptDigest,
+        deploymentId: DEPLOYMENT_ID, workerVersionId: VERSION_ID, bridgeSourceCommit: SOURCE,
+        ptrDatabaseIdentity: recoveryRecord.ptrDatabaseIdentity, ptrBindingDigest: recoveryRecord.ptrBindingDigest,
+        controlPlaneAttestationDigest: recoveryRecord.controlPlaneAttestationDigest,
+        publicAttestationDigest: recoveryRecord.publicAttestationDigest,
+        privateAttestationDigest: recoveryRecord.privateAttestationDigest,
+        ptrBindingAttestationDigest: recoveryRecord.ptrBindingAttestationDigest,
+        completedAt: recoveryRecord.completedAt, noDeploy: true, outcome: recoveryRecord.completedJournalOutcome,
+      })}\n`).digest('hex');
+      recoveryRecord.completedJournalHeadDigest = recoveryHeadDigest;
       const recoveryChainDigest = createHash('sha256').update(JSON.stringify([
         'warpkeep-sealed-realms-auth-bridge-import-authority-v1', SOURCE,
-        recoveryPublication.receiptDigest, '8'.repeat(64), DEPLOYMENT_ID, VERSION_ID,
+        recoveryPublication.receiptDigest, recoveryHeadDigest, DEPLOYMENT_ID, VERSION_ID,
         '1'.repeat(64),
       ])).digest('hex');
       const recoveryRelativePath = `bridge/auth-bridge-import-authority-${recoveryChainDigest}.jsonl`;
@@ -1727,7 +1742,7 @@ describe('sealed-realms auth bridge state', () => {
           receiptDigest: recoveryPublication.receiptDigest,
         }),
         testOnlyResolveCompletedJournal: () => ({
-          journalHeadDigest: '8'.repeat(64),
+          journalHeadDigest: recoveryHeadDigest,
           profile: 'warpkeep-auth-bridge-notification-prepared-read-only-recovery-v1',
           outcome: 'verified-read-only-recovery',
           predecessorDigest: '3'.repeat(64),

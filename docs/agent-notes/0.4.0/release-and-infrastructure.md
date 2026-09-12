@@ -2,13 +2,15 @@
 
 ## Current source checkpoint — 2026-09-12
 
-The release-path audit inspected published development head
+The initial release-path audit inspected published development head
 `2ffdcc96ea3474908d2158ee817b4a384b274523` on
 `codex/prepared-keep-bindings-fix`; concurrent working-tree edits are not
 attested by that checkpoint. Historical source/test head `95945bea` passed
 Verify run `34665737857` and CodeQL run `34665737866`. The latest recorded
-native preparation/check input is `03cb8b8fc2c0c59bcb58c4303b2082dead6325d9`;
-later gameplay and workflow edits require their own preparation. No provider
+completed native preparation/check input is `27700d61`; preparation from
+`6a74005e` has also completed and its independent check is in progress. The
+subsequent shared provider, repeated-recovery and timing changes require their
+own native verification and final source preparation. No provider
 deployment, recovery readback, owner PTR acceptance, physical-device result or
 live release is claimed. The current source and CI authority are recorded in
 the [execution handoff](execution-handoff.md).
@@ -52,8 +54,15 @@ rewrite development history based only on that earlier assumption.
 The next operating evidence is a protected Linux `preflight` after reviewed
 source promotion, successful main CI and generated-family installation. The
 later prepared bridge, recovery service and realm work require genuine target,
-provider, private-state and owner authority. The unavailable adapters listed
-below remain unfinished integration; source promotion alone does not ship 0.4.
+provider, private-state and owner authority. The current shared bridge provider
+authenticates real bytes/configuration and deployment/PTR observations through
+one receipt/journal/source/private-state context. It is connected to supported
+activation inspection/generation; inspection requires a completed retained
+import chain and writes private suspension/continuation evidence. The workflow
+passes provider credentials only for those activation operations. Import, owner
+and initial realm publication adapters remain unfinished; older unavailable
+deployment/binding entries below describe earlier source. Source promotion
+alone does not ship 0.4.
 
 ## Recorded runner status — 2026-09-11
 
@@ -395,10 +404,12 @@ for the combined native results and the separate generated-family boundary.
    `SEALED_REALMS_LINUX_OPERATION_UNAVAILABLE`. The workflow is absent from
    inspected protected main, so reviewed source promotion and main CI precede a
    genuine protected dispatch. A local fixture cannot supply that job identity.
-2. G002/PTR workflow entries supply `unavailable` for deployment/binding
-   attestation, import evidence, initial publish/import/postflight/live adapters
+2. G002/PTR workflow entries use the shared authenticated bridge provider for
+   deployment/binding observations. They still supply `unavailable` for
+   import evidence, initial publish/import/postflight/live adapters
    and owner receipt resolution; PTR also lacks actual owner inspection and
-   provisioning. Activation shares the missing bridge/import/owner attesters.
+   provisioning. Activation uses the shared bridge observation against retained
+   completed import authority; generating that import/owner authority remains open.
    Complete these real producers and their operating callers; the connected G001
    policy path does not establish other realm operations. Trace
    `sealed-realms-production-*-workflow-entry.mjs` and their lane callers.
@@ -449,13 +460,15 @@ Useful source anchors for the next operating slice:
   `unavailable`. Its lane helper is not an operating workflow by itself.
 - G002/PTR entries: `sealed-realms-production-g002-workflow-entry.mjs` and
   `sealed-realms-production-ptr-workflow-entry.mjs` stop at the fixed marker and
-  inject unavailable deployment/binding/import/publish/postflight/live adapters;
-  PTR also lacks the operating owner inspection/provisioning adapters.
+  use the shared bridge provider but retain unavailable import/publish/postflight/live adapters;
+  PTR also lacks the operating owner inspection/provisioning adapters. Its
+  existing-update path is separate and does not require an unused bridge credential.
 - Existing-target rejection is explicit:
   `genesis002-production-publisher.mjs` throws
   `GENESIS_002_DATABASE_ALREADY_EXISTS`; `ptr-production-publisher.mjs` throws
-  `PTR_PRODUCTION_DATABASE_ALREADY_EXISTS`. Implement update/reconciliation with
-  a real caller and preservation proof; removing these checks is not an update.
+  `PTR_PRODUCTION_DATABASE_ALREADY_EXISTS`. Use the separate update/reconciliation
+  path with real publisher authority and preservation evidence; removing these
+  creation checks is not an update.
 - The bridge state's fixed generation path now calls
   `writeSealedRealmsProductionRecoveryActivationDescriptor`, and the V2 generator
   calls `createRecoveryActivationBinding`. The remaining gap is the workflow's

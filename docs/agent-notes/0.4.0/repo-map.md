@@ -158,31 +158,36 @@ named scripts in alphabetical order. These layers do different work:
 | Derived release family | [closure family](../../../scripts/local-prepared-closure-family.mjs), [inventory](../../../scripts/local-prepared-closure-inventory.mjs), [source pins](../../../scripts/local-prepared-source-pins.mjs) | Generated consumers match the prepared source family; no hand-edited pin/count repair |
 | Candidate installation | [workspace](../../../scripts/local-release-workspace.mjs), [lock](../../../scripts/local-release-candidate-lock.mjs), [transaction install](../../../scripts/local-release-transaction-install.mjs), [transaction recovery](../../../scripts/local-release-transaction-recovery.mjs) | Separate immutable source/candidate, owned filesystem writes and crash recovery |
 | Production operation lanes | [dispatcher](../../../scripts/sealed-realms-production-dispatch.mjs), realm-specific `sealed-realms-production-*-workflow-entry.mjs` and `*-lane-entry.mjs` | Select and execute a fixed G001/G002/PTR/activation operation with its authority/evidence |
+| Shared bridge observation | [provider](../../../scripts/sealed-realms-production-bridge-provider.mjs), [bridge state](../../../scripts/sealed-realms-production-auth-bridge-state.mjs), [original upload journal](../../../scripts/auth-bridge-notification-prepared-deploy-journal.mjs) | Actual uploaded bytes/configuration, live deployment and PTR facts bound to one receipt/journal/source and private-state owner |
 | Hosted frontend | [deploy-pages workflow](../../../.github/workflows/deploy-pages.yml), [sealed launch verifier](../../../scripts/verify-0.4.0-sealed-launch.mjs) | Classify source, build approved frontend output, deploy and verify; a skipped deploy is not a new release |
 | Recovery transport | [gateway entry](../../../services/release-recovery/src/index-gateway.ts), [gateway](../../../services/release-recovery/src/gateway.ts), [private signer entry](../../../services/release-recovery/src/index-signer.ts) | HTTP boundary forwards only the supported protocol to a private service binding |
 | Recovery authorization | [signer environment](../../../services/release-recovery/src/signerEnvironment.ts), [signer control](../../../services/release-recovery/src/signerControl.ts), [GitHub OIDC](../../../services/release-recovery/src/githubOidc.ts), [durable ledger](../../../services/release-recovery/src/ledgerDurableObjectV2.ts) | Independently verified source/artifact/workflow facts and durable issue/claim/completion/reconciliation |
 
-The integrated local family currently has a
-[native probe caller](../../../tests/fixtures/localReleaseCompiledFamilyNativeProbe.mjs).
-It composes real producer outputs, candidate installation and repeated derivation.
-It is a verification fixture, not a supported production assembler command.
+The [local assembler](../../../scripts/local-release-assembler.mjs) provides the
+native operating `prepare`, independent `check` and candidate `recover` commands.
+The [native probe](../../../tests/fixtures/localReleaseCompiledFamilyNativeProbe.mjs)
+remains a verification fixture for producer composition and repeated derivation.
 Useful suites are `localReleaseArtifactInputs`, `localPreparedClosureFamily`,
 `localReleaseWorkspace`, `localReleaseTransactionInstall` and
 `localReleaseTransactionRecovery` under root `tests/`.
 
-Two concrete operating seams remain visible in source:
+Current operating boundaries:
 
 - [`sealed-realms-production-activation-workflow-entry.mjs`](../../../scripts/sealed-realms-production-activation-workflow-entry.mjs)
-  supplies unavailable implementations for deployment/binding attesters, import
-  evidence and owner provision resolution. Its lane interface alone is not the
-  complete provider operation.
+  uses the authenticated shared bridge provider for deployment/binding facts.
+  Its supported Linux activation inspection requires a complete retained import
+  chain and writes private suspension/continuation evidence. Import evidence and
+  owner provision producers remain unfinished; G002/PTR initial delivery stays
+  explicitly unavailable. Existing-update paths need bridge credentials only
+  when they actually request a bridge observation.
 - The [Pages workflow](../../../.github/workflows/deploy-pages.yml) implements
   `deploy-recovery` at `c51bb00`, matching the defined Linux/WSL runner profile in
   [`githubOidc.ts`](../../../services/release-recovery/src/githubOidc.ts) and the
   claim → fresh boundary → deployment → mandatory postflight contract. The actual
-  runner and private state remain unprovisioned; tracked generated bundle/manifest
-  installation, final source-family preparation and live authorization acceptance
-  remain outstanding. Other Pages/sealed-realm lanes retain Mac selections.
+  Linux runner is installed and private directory roots are provisioned; their
+  existence does not prove credentials or receipts. Final source-family
+  preparation, generated installation and live authorization acceptance remain
+  outstanding. The current sealed workflow uses Linux as well.
 
 Recovery service unit tests live in `services/release-recovery/test`; real
 Cloudflare-runtime tests live in `test-workerd`. The

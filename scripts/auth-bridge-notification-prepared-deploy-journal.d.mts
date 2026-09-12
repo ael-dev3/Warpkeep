@@ -34,6 +34,14 @@ export class AuthBridgeNotificationPreparedDeployJournalError extends Error {
   constructor(code: string, deploymentMayHaveChanged?: boolean);
 }
 
+/** Reserves three lifecycle directories within the existing sixteen-entry catalog. */
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_RECOVERY_AUTHORITY_LIMIT: 13;
+
+/** Validate complete chain records first; independently authenticate the returned tip. */
+export function orderAuthBridgeNotificationPreparedRecoveryAuthorityHistory<
+  T extends Readonly<Record<string, unknown>>,
+>(values: readonly T[]): readonly T[];
+
 export function resolveExistingAuthBridgeNotificationPreparedDeployJournal(
   options: Readonly<{
     repositoryRoot: string;

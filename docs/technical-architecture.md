@@ -232,27 +232,36 @@ GitHub/realm evidence, and a Durable Object authorization ledger. Its issue,
 claim, completion and reconciliation operations bind source, artifacts and a real
 workflow execution. A digest alone does not establish who produced evidence.
 
-The source currently exposes specific integration gaps, rather than one finished
-release command:
+The [local assembler](../scripts/local-release-assembler.mjs) is the operating
+Linux entry point for `prepare`, independent `check`, and candidate `recover`.
+Its native runs establish source-bound convergence. They do not authorize a
+provider deployment or establish player acceptance.
 
-- Full local assembly is exercised by a native fixture; the component APIs are
-  not yet a production assembler entry point. The
-  [compiled-family probe](../tests/fixtures/localReleaseCompiledFamilyNativeProbe.mjs)
-  shows the composition and the
-  [assembler specification](superpowers/specs/2026-09-06-warpkeep-local-release-assembler-design.md)
-  describes the intended operating interface.
-- The [activation workflow adapter](../scripts/sealed-realms-production-activation-workflow-entry.mjs)
-  still supplies unavailable attesters for deployment/binding/import/owner facts.
-- The [Pages workflow](../.github/workflows/deploy-pages.yml) now supplies the
-  signer's `deploy-recovery` caller with the defined Linux/WSL identity and
-  claim → fresh boundary → deployment → postflight sequence. Its actual runner,
-  private runtime state, installed generated bundle/manifest, final source family
-  and live authorization
-  remain unprepared or unverified. Other production lanes, including the
-  [sealed-realms workflow](../.github/workflows/sealed-realms-production.yml),
-  still retain Mac selections. The
-  [release engineering record](evidence/0.4.0/release-engineering.md) distinguishes
-  tested workflow composition from operating acceptance.
+The [shared bridge provider](../scripts/sealed-realms-production-bridge-provider.mjs)
+captures source/private-state ownership and credentials, authenticates the fresh
+receipt, completed journal and original upload, then reads actual Cloudflare
+code/configuration and live deployment/PTR attestations. One opaque observation
+supplies both deployment and binding facts. The
+[bridge state](../scripts/sealed-realms-production-auth-bridge-state.mjs)
+consumes it once and reopens its own retained authority before use. Independent
+fact callbacks are test-only. Recovery history retains and verifies canonical
+ancestor links; full storage refuses another renewal before new receipt/head
+publication. Provider and receipt freshness include elapsed request/body time.
+
+The [activation workflow adapter](../scripts/sealed-realms-production-activation-workflow-entry.mjs)
+uses that provider in the supported Linux inspection/generation path. Inspection
+requires an existing completed import chain and writes private suspension and
+continuation evidence. Import and owner producers remain separate unfinished
+work; source wiring is not proof of a successful protected run.
+
+The [Pages workflow](../.github/workflows/deploy-pages.yml) supplies the signer's
+`deploy-recovery` caller with the defined Linux/WSL identity and
+claim → fresh boundary → deployment → postflight sequence. The
+[sealed-realms workflow](../.github/workflows/sealed-realms-production.yml) also
+uses the dedicated Linux runner. Genuine provider credentials/receipts, final
+generated source, protected-main verification, realm publication/import and live
+recovery acceptance remain to be established. See the
+[release engineering record](evidence/0.4.0/release-engineering.md) for dated evidence.
 
 These are implementation interfaces to finish, not reasons to manufacture new
 permission stages. Their current observed execution status and remaining evidence

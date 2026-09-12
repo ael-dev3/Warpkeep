@@ -85,10 +85,14 @@ fresh evidence bound to the final reviewed and deployed source.
   recorded creation/authenticated inventory. The Linux caller published at
   `27700d61` consumes this variable; credentials remain secret. This configures
   the target, not publisher/owner access, the current module or a bridge binding.
-- Deployment/binding, import and owner attesters in the sealed workflow entries
-  still use unavailable adapters. The production workflow explicitly rejects
-  unsupported realm operations. These integration gaps, populated private
-  authority and provider readback remain the no-Mac delivery work.
+- Deployment/binding facts now come from the shared authenticated bridge
+  provider in sealed entries, with activation-only credential wiring through the
+  supported Linux caller. Import and owner producers remain unavailable, and
+  the production workflow explicitly rejects unsupported realm operations.
+  Repeated recovery preserves verified ancestors and timing includes awaited
+  provider reads; native follow-up and live acceptance remain required. Populated
+  private authority, remaining realm integration and provider readback are still
+  no-Mac delivery work.
 - Recheck default-branch dependency alerts before a production freeze; a patched
   development lockfile does not establish default-branch resolution.
 

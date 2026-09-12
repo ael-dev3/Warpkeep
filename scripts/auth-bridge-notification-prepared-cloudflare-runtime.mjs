@@ -48,8 +48,6 @@ const SOURCE_COMMIT = /^[a-f0-9]{40}$/u;
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
 const RECOVERY_STRICT_UTC = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}Z$/u;
 const recoveryRuntimeTestCapabilities = new WeakSet();
-const productionRecoveryCapability = Object.freeze({});
-recoveryRuntimeTestCapabilities.add(productionRecoveryCapability);
 const VERSION_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
 const CLOUDFLARE_UTC = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?Z$/u;
 const SECRET_TOKEN = /^[A-Za-z0-9._~+\-/=]{20,4096}$/u;
@@ -548,6 +546,14 @@ function recoveryResponseObservedAt(response, now) {
 }
 
 async function productionRecoveryInspection(input) {
+  if (!(input.now instanceof Date) || Number.isNaN(input.now.getTime())) {
+    fail('AUTH_BRIDGE_PREPARED_RECOVERY_INPUT_INVALID');
+  }
+  // Own the time origin before any provider can yield or mutate caller state.
+  const startedAt = input.now.getTime();
+  const started = performance.now();
+  const currentTime = () => new Date(startedAt + Math.max(0, performance.now() - started));
+  const observed = [];
   const api = async path => {
     const url =
       `${AUTH_BRIDGE_NOTIFICATION_PREPARED_CLOUDFLARE_API_ORIGIN}${API_PREFIX}${path}`;
@@ -573,7 +579,7 @@ async function productionRecoveryInspection(input) {
       advertised !== null
       && (!/^\d+$/u.test(advertised) || Number(advertised) > MAX_JSON_BYTES)
     ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_CONTROL_PLANE_INVALID');
-    const observedAt = recoveryResponseObservedAt(response, input.now);
+    const observedAt = recoveryResponseObservedAt(response, currentTime());
     const body = await boundedBody(response, MAX_JSON_BYTES);
     let value;
     try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(body)); }
@@ -591,6 +597,8 @@ async function productionRecoveryInspection(input) {
     ) {
       fail('AUTH_BRIDGE_PREPARED_RECOVERY_CONTROL_PLANE_INVALID');
     }
+    recoveryFreshTime(observedAt, currentTime());
+    observed.push(observedAt);
     return Object.freeze({ result: value.result, observedAt });
   };
   const base = `/accounts/${input.accountId}/workers/scripts/warpkeep-auth-bridge`;
@@ -686,12 +694,22 @@ async function productionRecoveryInspection(input) {
       .update(`${JSON.stringify(value)}\n`).digest('hex') };
   };
   const publicReader = async () => {
+    let responseReceivedAt;
+    const publicFetch = async (...args) => {
+      const response = await input.fetchImpl(...args);
+      responseReceivedAt = currentTime();
+      return response;
+    };
     const live = await fetchFreshAuthBridgeReleaseAttestation({
-      fetchImpl: input.fetchImpl, now: input.now,
+      fetchImpl: publicFetch, now: currentTime(),
     });
+    const observedAt = new Date(Date.parse(live.responseDate)).toISOString();
+    // Receipt verification allows its documented clock skew. Recovery requires
+    // an observation no later than its own actual response receipt time.
+    recoveryFreshTime(observedAt, responseReceivedAt);
     return {
       bridgeSourceCommit: live.attestation.bridgeSourceCommit,
-      observedAt: new Date(Date.parse(live.responseDate)).toISOString(),
+      observedAt,
       digest: live.digest,
       liveAttestation: live.attestation,
     };
@@ -706,7 +724,7 @@ async function productionRecoveryInspection(input) {
       if (!(response instanceof Response)) {
         fail('AUTH_BRIDGE_PREPARED_RECOVERY_ATTESTATION_INVALID');
       }
-      privateObservedAt = recoveryResponseObservedAt(response, input.now);
+      privateObservedAt = recoveryResponseObservedAt(response, currentTime());
       return response;
     };
     const value = await verifyAuthBridgePreparedRpcRoleAttestation({
@@ -714,7 +732,6 @@ async function productionRecoveryInspection(input) {
       expectedBridgeSourceCommit: input.expected.bridgeSourceCommit,
       expectedPtrSpacetimeDbDatabase: versionProjection.ptrDatabaseIdentity,
       fetchImpl: privateFetch,
-      now: input.now,
     });
     return {
       bridgeSourceCommit: input.expected.bridgeSourceCommit,
@@ -733,10 +750,9 @@ async function productionRecoveryInspection(input) {
     return { ...value, digest: createHash('sha256')
       .update(`${JSON.stringify(value)}\n`).digest('hex') };
   };
-  return inspectAuthBridgeNotificationPreparedRecoveryAuthority({
-    testOnlyCapability: productionRecoveryCapability,
+  const result = await reconcileRecoveryAuthority({
     expected: input.expected,
-    now: input.now,
+    now: new Date(startedAt),
     enumerateDeployments: deploymentsReader,
     enumerateDeployableVersions: deployableReader,
     inspectVersion,
@@ -744,6 +760,14 @@ async function productionRecoveryInspection(input) {
     inspectPublicAttestation: publicReader,
     inspectPrivateAttestation: privateReader,
     inspectPtrBindingAttestation: ptrReader,
+  }, currentTime);
+  const inspectedAt = currentTime();
+  // Enumeration authority must still be fresh after every later body/read.
+  for (const value of [...observed, result.oldestObservedAt]) recoveryFreshTime(value, inspectedAt);
+  return Object.freeze({
+    ...result,
+    oldestObservedAt: [...observed, result.oldestObservedAt].sort()[0],
+    inspectedAt: inspectedAt.toISOString(),
   });
 }
 
@@ -776,6 +800,10 @@ export async function inspectAuthBridgeNotificationPreparedRecoveryAuthority(
   ]) || !recoveryRuntimeTestCapabilities.has(input.testOnlyCapability)) {
     fail('AUTH_BRIDGE_PREPARED_RECOVERY_INPUT_INVALID');
   }
+  return reconcileRecoveryAuthority(input, () => input.now);
+}
+
+async function reconcileRecoveryAuthority(input, currentTime) {
   const expected = input.expected;
   if (
     !exactKeys(expected, ['workerVersionId', 'bridgeSourceCommit'])
@@ -860,9 +888,10 @@ export async function inspectAuthBridgeNotificationPreparedRecoveryAuthority(
     || ptrAttestation.ptrBindingDigest !== version.ptrBindingDigest
     || !SHA256_HEX.test(ptrAttestation.digest ?? '')
   ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_ATTESTATION_INVALID');
+  const inspectedAt = currentTime();
   for (const attestation of [
     control, publicAttestation, privateAttestation, ptrAttestation,
-  ]) recoveryFreshTime(attestation.observedAt, input.now);
+  ]) recoveryFreshTime(attestation.observedAt, inspectedAt);
   const oldestObservedAt = new Date(Math.min(...[
     control, publicAttestation, privateAttestation, ptrAttestation,
   ].map(attestation => Date.parse(attestation.observedAt)))).toISOString();
@@ -878,7 +907,7 @@ export async function inspectAuthBridgeNotificationPreparedRecoveryAuthority(
     ptrBindingAttestationDigest: ptrAttestation.digest,
     liveAttestation: Object.freeze({ ...publicAttestation.liveAttestation }),
     oldestObservedAt,
-    inspectedAt: input.now.toISOString(),
+    inspectedAt: inspectedAt.toISOString(),
   });
 }
 

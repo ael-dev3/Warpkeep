@@ -39,13 +39,51 @@ they do not establish production credentials, private receipt presence or a
 successful live recovery. The source must be prepared and independently checked
 again before release; the completed `27700d61` family predates this change.
 
-A separate existing retention limitation remains: after one recovery leaves
-both original and recovered authority files, a later renewal's authority writer
-allows only its immediate prior and new filename. The retained original then
-causes `AUTH_BRIDGE_PREPARED_RECOVERY_CHAIN_CONFLICT`. Resolve this through
-authenticated ancestor handling, preserving history, before claiming repeated
-recovery acceptance. Also exercise response timing against actual provider reads;
-the legacy live reader still samples one reference time for multiple requests.
+That review also exposed two operating defects, addressed by the subsequent
+connected change below: repeated renewal rejected a retained original authority,
+and the live reader compared multiple requests against one initial time sample.
+
+## Repeated recovery and sealed provider composition — 2026-09-12
+
+The writer and sealed lifecycle reader now validate the complete retained
+authority history. Each recovery edge reproduces the canonical journal-head
+digest and preserves source, Worker, deployment and PTR identity. Missing,
+foreign, forged and forked history fail. Interrupted head publication can reenter
+at the authenticated tip; already-published authority remains idempotent. Existing
+storage bounds are retained, reserving lifecycle directories, and renewal refuses
+before receipt/head publication when no authority slot remains. No historical
+record is deleted or overwritten to make a recovery pass.
+
+Provider reads now own monotonic elapsed-time sampling for response arrival,
+body completion and final reconciliation. Receipt verification/publication also
+rechecks expiry after awaited work. Regression tests reproduced valid responses
+being falsely treated as future-dated and expiry during an in-flight request;
+the corrected paths preserve the existing future/expiry rules.
+
+The sealed activation caller now uses one authenticated bridge provider instead
+of independent deployment/binding callbacks. Actual source/configuration and
+live observations are bound to original upload, receipt, current journal, source
+and private-state instance. The state consumes an opaque observation once, then
+reopens its own receipt and journal. A controlled HTTP test exercises the real
+parsers and independently reads the first durable authority file, without a
+circular requirement for a previous import authority.
+
+Both activation workflow jobs receive the existing account/zone/provider/admin
+secret slots and public PTR variable only for activation operations, retain them
+through their narrow environment filter, and keep credentials out of command
+arguments. Credentials are captured and scrubbed once, then validated when an
+observation is requested; unrelated update operations do not acquire an extra
+Cloudflare prerequisite. Import/owner producers and actual live acceptance
+remain unfinished. The final source still needs native preparation and an
+independent generated-family check before protected promotion.
+
+Combined verification on Windows under pinned Node 22.22.3 passed 193 tests in
+seven suites (provider, timing, history, workflow, PTR lifecycle, workflow runtime
+and bundle engine), with 42 platform skips. The compiler tests build and inspect
+the actual reachable source graph. Independent review found no further provider
+or ancestry defect in this change. Supported-account native journal/receipt
+verification remains required; the earlier 178-test Linux pass belongs to
+`6a74005e`, before these follow-ups.
 
 ## What has been verified
 

@@ -579,6 +579,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/sealed-realms-production-activation-records.mjs',
     'scripts/sealed-realms-production-auth-bridge-state.d.mts',
     'scripts/sealed-realms-production-auth-bridge-state.mjs',
+    'scripts/sealed-realms-production-bridge-provider.d.mts',
+    'scripts/sealed-realms-production-bridge-provider.mjs',
     'scripts/sealed-realms-production-bundle-manifest-v1.json',
     'scripts/sealed-realms-production-continuation.d.mts',
     'scripts/sealed-realms-production-continuation.mjs',

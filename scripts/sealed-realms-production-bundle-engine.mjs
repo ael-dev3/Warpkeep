@@ -38,6 +38,7 @@ function requiredGraphPaths(lane) {
       .map(name => `scripts/sealed-realms-production-${name}.mjs`),
     ...(lane === 'g001' ? [] : [
       'scripts/sealed-realms-production-auth-bridge-state.mjs',
+      'scripts/sealed-realms-production-bridge-provider.mjs',
       'scripts/sealed-realms-production-activation-records.mjs',
       'scripts/sealed-realms-production-activation-generation-receipt.mjs',
       'scripts/generate-0.4.0-recovery-launch-activation.mjs',

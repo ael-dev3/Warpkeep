@@ -123,19 +123,37 @@ describe('sealed-realms production workflow authority', () => {
     expect(execute).not.toMatch(/\bnode\s+--version/u);
   });
 
-  it('maps the read-only token only to the caller environment and retains exact run context', () => {
-    const job = production().jobs.operate;
-    const execute = operationStep(executeName);
-    expect(job.steps.filter(step => (step.env as Record<string, unknown> | undefined)?.GITHUB_TOKEN)).toEqual([execute]);
-    expect(execute.env).toEqual({ WARPKEEP_SOURCE_COMMIT: '${{ inputs.source_commit }}', GITHUB_TOKEN: '${{ github.token }}' });
-    const allowlist = execute.run!.match(/PATH\|HOME\|LANG\|LC_ALL\|[^\n]+(?=\) ;;)/u)?.[0].split('|');
-    expect(allowlist).toEqual(['PATH', 'HOME', 'LANG', 'LC_ALL', 'RUNNER_OS', 'RUNNER_ARCH', 'RUNNER_NAME', 'RUNNER_TEMP',
-      'GITHUB_ACTIONS', 'GITHUB_REPOSITORY', 'GITHUB_REF', 'GITHUB_SHA', 'GITHUB_EVENT_NAME', 'GITHUB_JOB',
-      'GITHUB_WORKFLOW', 'GITHUB_WORKFLOW_REF', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_TOKEN', 'WARPKEEP_OPERATION', 'ACTIONS_ID_TOKEN_REQUEST_URL', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN']);
-    expect(execute.run).toContain('*) unset "$key" ;;');
-    expect(execute.run).not.toContain('GITHUB_TOKEN=');
-    expect(execute.run).not.toContain('$GITHUB_TOKEN');
-    expect(workflow('sealed-realms-production.yml')).not.toContain('secrets.');
+  it('captures activation credentials only in the exact caller environment and preserves run context', () => {
+    const credentials = {
+      WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: "${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID || '' }}",
+      WARPKEEP_AUTH_BRIDGE_ZONE_ID: "${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_AUTH_BRIDGE_ZONE_ID || '' }}",
+      WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: "${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN || '' }}",
+      WARPKEEP_PRODUCTION_ADMIN_TOKEN: "${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN || '' }}",
+      WARPKEEP_PTR_SPACETIMEDB_DATABASE: "${{ startsWith(inputs.operation, 'activation-evidence-') && vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE || '' }}",
+    };
+    const providerNames = Object.keys(credentials);
+    for (const name of ['operate_readonly', 'operate']) {
+      const job = production().jobs[name];
+      const execute = job.steps.find(step => step.name === executeName)!;
+      expect(job.steps.filter(step => (step.env as Record<string, unknown> | undefined)?.GITHUB_TOKEN)).toEqual([execute]);
+      expect(execute.env).toEqual({ WARPKEEP_SOURCE_COMMIT: '${{ inputs.source_commit }}',
+        GITHUB_TOKEN: '${{ github.token }}', ...credentials });
+      for (const step of job.steps.filter(step => step !== execute)) {
+        for (const key of providerNames) expect(step.env ?? {}).not.toHaveProperty(key);
+      }
+      const allowlist = execute.run!.match(/PATH\|HOME\|LANG\|LC_ALL\|[^\n]+(?=\) ;;)/u)?.[0].split('|');
+      expect(allowlist).toEqual(['PATH', 'HOME', 'LANG', 'LC_ALL', 'RUNNER_OS', 'RUNNER_ARCH', 'RUNNER_NAME', 'RUNNER_TEMP',
+        'GITHUB_ACTIONS', 'GITHUB_REPOSITORY', 'GITHUB_REF', 'GITHUB_SHA', 'GITHUB_EVENT_NAME', 'GITHUB_JOB',
+        'GITHUB_WORKFLOW', 'GITHUB_WORKFLOW_REF', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_TOKEN', 'WARPKEEP_OPERATION',
+        ...providerNames, ...(name === 'operate' ? ['ACTIONS_ID_TOKEN_REQUEST_URL', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN'] : [])]);
+      expect(execute.run).toContain('*) unset "$key" ;;');
+      expect(execute.run).not.toContain('GITHUB_TOKEN=');
+      expect(execute.run).not.toContain('$GITHUB_TOKEN');
+      for (const key of providerNames) expect(execute.run).not.toContain(`$${key}`);
+    }
+    const source = workflow('sealed-realms-production.yml');
+    expect([...source.matchAll(/secrets\.([A-Z_]+)/gu)].map(match => match[1]).sort())
+      .toEqual([...providerNames.slice(0, 4), ...providerNames.slice(0, 4)].sort());
   });
 
   function runShell(source: string, environment: Record<string, string>, syntaxOnly = false) {

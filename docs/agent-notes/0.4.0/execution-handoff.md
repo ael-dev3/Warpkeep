@@ -2,6 +2,27 @@
 
 ## Current review and next work — 12 September 2026
 
+The composed follow-up connects the shared bridge provider to the actual sealed
+activation workflow, preserves authenticated ancestors across repeated recovery,
+and accounts for elapsed provider/body reads and receipt expiry. The combined
+Windows Node 22.22.3 pass covered seven relevant suites: 193 passed, 42 platform
+skips. This includes real HTTP parsers through the provider and first durable
+authority establishment, workflow/PTR lifecycle contracts and real compiler
+graph checks. Type checks and independent provider/history review passed.
+Run the supported-account native suites after the immutable check below ends;
+the skipped native journal/receipt cases are not evidence yet.
+
+Native preparation of `6a74005e5f56997aca41fc40e782092aa6cc4b67` completed with
+exit zero (session `81502`), candidate
+`release-workspace-91f8c69cc3c77a9517e2fa7f8d27863b`, transaction
+`a8c2cedab47fb47f4740bcb5b2fab06a`. Its independent check is active in session
+`47903`, draft `release-workspace-8686f089876e90c4bb88e17a73dab19e`.
+Read the actual handle before restarting anything and keep the operating WSL
+checkout pinned until it ends. This candidate predates the composed follow-up;
+it cannot certify the new provider/workflow/closure members. After testing the
+composed source, prepare/check that source and publish its complete generated
+family; never relabel the earlier family as current release evidence.
+
 Native preparation and independent check both completed with exit zero from
 `27700d617d7085098b6f1ab8ee3d8cf9cdc40e23`. Sessions `53983` and `60035` are
 terminal; do not restart them. Candidate
@@ -14,14 +35,14 @@ source edits were preserved. This is source-bound preparation evidence with
 owns the exact digests. New recovery implementation must receive its own final
 source preparation after integration; this candidate does not certify it.
 
-The next source change connects authenticated original-upload bytes and full
+Source `6a74005e` connects authenticated original-upload bytes and full
 Cloudflare configuration inspection to the actual recovery caller. Independent
 review also closed executable-module disguises in multipart metadata for both
 recovery and ordinary version reads. The complete native runtime/source/receipt
 suites passed 178 tests under UID 1000 with pinned Node 22.22.3, without skips;
 build-mode types and file-size policy passed. See the
 [recovery evidence](../../evidence/0.4.0/recovery.md) for scope and remaining
-repeat-renewal ancestor handling and real-provider timing work. Controlled tests
+the subsequent repeat-renewal, provider composition and timing work. Controlled tests
 do not substitute for production receipts or live recovery.
 
 Continuous publication is required in `AGENTS.md` and the
@@ -68,8 +89,8 @@ private receipts, Cloudflare bytes or a live 0.4 deployment. Runner22 is online.
 See the [workflow audit](../../evidence/0.4.0/workflow-sufficiency-audit.md)
 for the genuine remaining provider, PTR and recovery gaps.
 
-Next: prepare/check the composed recovery source, preserve authenticated ancestor
-history through repeat renewal, and exercise genuine provider reads. Finish normal protected preparation-only
+Next: finish native verification and prepare/check the composed recovery/provider
+source, then exercise genuine provider reads. Finish normal protected preparation-only
 promotion and main CI, then exercise the existing sealed `preflight`. Follow
 with real shared bridge attesters in the sealed entry points. Workflow edits
 change protected closure members; old candidate hashes and fixture-generated

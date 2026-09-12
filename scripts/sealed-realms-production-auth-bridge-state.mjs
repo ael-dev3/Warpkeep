@@ -6,6 +6,7 @@ import {
   resolveExistingAuthBridgeNotificationPreparedReceipt,
 } from './auth-bridge-notification-prepared-receipt.mjs';
 import {
+  orderAuthBridgeNotificationPreparedRecoveryAuthorityHistory,
   resolveExistingAuthBridgeNotificationPreparedDeployJournal,
 } from './auth-bridge-notification-prepared-deploy-journal.mjs';
 import {
@@ -20,6 +21,11 @@ import {
   assertSealedRealmsProductionContinuationReconciliation,
 } from './sealed-realms-production-continuation.mjs';
 import { types } from 'node:util';
+import {
+  assertSealedRealmsProductionBridgeProvider,
+  inspectSealedRealmsProductionBridgeProvider,
+  consumeSealedRealmsProductionBridgeObservation,
+} from './sealed-realms-production-bridge-provider.mjs';
 import {
   assertSealedRealmsProductionActivationRecordsAuthority,
   inspectSealedRealmsProductionRecoveryActivationRecords,
@@ -828,14 +834,16 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   const options = allowedObject(input, [
     'authority', 'privateState', 'repositoryRoot', 'reportedHome',
     'deploymentAttester', 'bindingAttester', 'fetchImpl', 'now', 'randomBytesImpl',
+    'bridgeProvider',
     'inspectImportReceipt', 'authenticateImportResult', 'resolveOwnerProvisionReceipt',
     'testOnlyCapability', 'testOnlyResolvePreparedReceipt',
     'testOnlyResolveCompletedJournal',
   ], 'SEALED_REALMS_AUTH_BRIDGE_STATE_INPUT_INVALID');
   if (
     typeof options.repositoryRoot !== 'string'
-    || typeof options.deploymentAttester !== 'function'
-    || typeof options.bindingAttester !== 'function'
+    || (options.bridgeProvider === undefined
+      ? (typeof options.deploymentAttester !== 'function' || typeof options.bindingAttester !== 'function')
+      : (options.deploymentAttester !== undefined || options.bindingAttester !== undefined))
     || typeof options.fetchImpl !== 'function'
     || typeof options.inspectImportReceipt !== 'function'
     || typeof options.authenticateImportResult !== 'function'
@@ -850,14 +858,20 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   const testOnlyResolvers = options.testOnlyResolvePreparedReceipt !== undefined
     || options.testOnlyResolveCompletedJournal !== undefined;
   const testOnlySeams = testOnlyResolvers
+    || options.deploymentAttester !== undefined
+    || options.bindingAttester !== undefined
     || options.reportedHome !== undefined
     || options.now !== undefined
     || options.randomBytesImpl !== undefined;
   if (
-    (testOnlySeams && !testOnlyCapabilities.has(options.testOnlyCapability))
+    (testOnlySeams && (process.env.NODE_ENV !== 'test'
+      || !testOnlyCapabilities.has(options.testOnlyCapability)))
     || (!testOnlySeams && options.testOnlyCapability !== undefined)
   ) fail('SEALED_REALMS_AUTH_BRIDGE_TEST_ONLY_CAPABILITY_INVALID');
   const privateState = assertSealedRealmsProductionPrivateState(options.privateState);
+  const bridgeProvider = options.bridgeProvider === undefined ? undefined
+    : assertSealedRealmsProductionBridgeProvider(options.bridgeProvider,
+      options.authority, privateState, options.repositoryRoot);
   let ownerClaims = ownerProvisionChainClaims.get(privateState);
   if (ownerClaims === undefined) {
     ownerClaims = new Map();
@@ -912,12 +926,24 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     ) fail('SEALED_REALMS_AUTH_BRIDGE_RECEIPT_INVALID');
     const journal = validateCompletedJournal(journalResolution, sourceCommit);
     try {
-      deployment = await options.deploymentAttester(Object.freeze({
-        sourceCommit,
-        runId: journal.runId,
-        runAttempt: journal.runAttempt,
-      }));
-      binding = await options.bindingAttester(Object.freeze({ sourceCommit }));
+      if (bridgeProvider !== undefined) {
+        const observation = await inspectSealedRealmsProductionBridgeProvider({
+          provider: bridgeProvider, preparedReceiptDigest: receiptPublication.receiptDigest,
+          journalHeadDigest: journal.journalHeadDigest,
+        });
+        ({ deployment, binding } = consumeSealedRealmsProductionBridgeObservation({
+          provider: bridgeProvider, observation,
+          preparedReceiptDigest: receiptPublication.receiptDigest,
+          journalHeadDigest: journal.journalHeadDigest, now: currentTime(now),
+        }));
+      } else {
+        deployment = await options.deploymentAttester(Object.freeze({
+          sourceCommit,
+          runId: journal.runId,
+          runAttempt: journal.runAttempt,
+        }));
+        binding = await options.bindingAttester(Object.freeze({ sourceCommit }));
+      }
     } catch (error) {
       if (error instanceof SealedRealmsProductionAuthBridgeStateError) throw error;
       fail('SEALED_REALMS_AUTH_BRIDGE_ATTESTATION_INVALID');
@@ -1055,19 +1081,17 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
         if (initial.completedJournalOutcome !== 'verified-read-only-recovery') {
           fail('SEALED_REALMS_AUTH_BRIDGE_RECOVERY_CHAIN_INVALID');
         }
-        if (siblings.length === 1) {
-          assertRecoveryCoexistence(siblings[0].chain, initial, facts);
-        } else if (siblings.length !== 0) {
-          fail('SEALED_REALMS_AUTH_BRIDGE_CHAIN_CONFLICT');
-        }
+        if (siblings.length > 0) assertRecoveryCoexistence(siblings.at(-1).chain, initial, facts);
         fail('SEALED_REALMS_AUTH_BRIDGE_RECOVERY_CHAIN_MISSING');
       }
       assertFactsMatchAuthority(facts, existing.chain);
       if (initial.completedJournalOutcome !== 'verified-read-only-recovery') {
         fail('SEALED_REALMS_AUTH_BRIDGE_RECOVERY_CHAIN_INVALID');
       }
-      if (siblings.length !== 1) fail('SEALED_REALMS_AUTH_BRIDGE_CHAIN_CONFLICT');
-      assertRecoveryCoexistence(siblings[0].chain, initial, facts);
+      if (siblings.length < 1 || catalog.at(-1) !== existing) {
+        fail('SEALED_REALMS_AUTH_BRIDGE_CHAIN_CONFLICT');
+      }
+      assertRecoveryCoexistence(siblings.at(-1).chain, initial, facts);
     } else {
       if (siblings.length !== 0) {
         if (existing === undefined && siblings.length === 1) {
@@ -1107,8 +1131,8 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
       current === undefined
       || (!recovery && remaining.length !== 0)
       || (recovery && (
-        remaining.length !== 1
-        || !assertRecoveryCoexistence(remaining[0].chain, initial, facts)
+        remaining.length < 1 || catalog.at(-1) !== current
+        || !assertRecoveryCoexistence(remaining.at(-1).chain, initial, facts)
       ))
     ) fail('SEALED_REALMS_AUTH_BRIDGE_CHAIN_CONFLICT');
     return Object.freeze({ relativePath, chainDigest: derivedDigest, chain });
@@ -1121,6 +1145,9 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
 
   const authorityChainCatalog = () => {
     const names = privateState.list({ root: 'runtime', relativeDirectory: 'bridge' });
+    if (!Array.isArray(names) || names.length > 16 || new Set(names).size !== names.length) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_CHAIN_INVALID');
+    }
     const chains = [];
     for (const name of names) {
       if (/^auth-bridge-import-authority-[a-f0-9]{64}\.jsonl$/u.test(name)) {
@@ -1147,11 +1174,24 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
       const locks = privateState.list({ root: 'runtime', relativeDirectory: 'bridge/locks' });
       if (locks.length !== 0) fail('SEALED_REALMS_AUTH_BRIDGE_CHAIN_BUSY');
     }
-    return Object.freeze(chains.sort((left, right) =>
-      left.relativePath.localeCompare(right.relativePath)));
+    if (chains.length === 0) return Object.freeze(chains);
+    let ordered;
+    try {
+      ordered = orderAuthBridgeNotificationPreparedRecoveryAuthorityHistory(
+        chains.map(entry => privateAuthorityRecord(entry.chain).value),
+      );
+    } catch { fail('SEALED_REALMS_AUTH_BRIDGE_CHAIN_INVALID'); }
+    const catalog = ordered.map(value => chains.find(entry =>
+      privateAuthorityRecord(entry.chain).value === value));
+    for (let index = 1; index < catalog.length; index += 1) {
+      const predecessor = catalog[index - 1].chain;
+      const child = privateAuthorityRecord(catalog[index].chain).value;
+      assertRecoveryChainPredecessor(predecessor, child);
+    }
+    return Object.freeze(catalog);
   };
 
-  const assertRecoveryCoexistence = (oldChain, recoveryInitial, facts) => {
+  const assertRecoveryChainPredecessor = (oldChain, recoveryInitial) => {
     const old = privateAuthorityRecord(oldChain).value;
     const permittedPhase = oldChain.phase === 'complete' || (
       oldChain.phase === 'ptr'
@@ -1159,12 +1199,17 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
       && oldChain.g002Cross !== null
       && oldChain.ptrFinal === null
       && oldChain.ptrCross === null
+    ) || (
+      old.completedJournalProfile
+        === 'warpkeep-auth-bridge-notification-prepared-read-only-recovery-v1'
+      && oldChain.phase === 'g002' && oldChain.records.length === 1
     );
     if (
       !permittedPhase
-      || old.completedJournalProfile
-        !== 'warpkeep-auth-bridge-notification-prepared-deploy-journal-v3'
-      || Date.parse(old.expiresAt) > facts.sampled.getTime()
+      || !['warpkeep-auth-bridge-notification-prepared-deploy-journal-v3',
+        'warpkeep-auth-bridge-notification-prepared-read-only-recovery-v1']
+        .includes(old.completedJournalProfile)
+      || Date.parse(old.expiresAt) > Date.parse(recoveryInitial.preparedAt)
       || recoveryInitial.completedJournalPredecessorDigest !== old.completedJournalHeadDigest
       || recoveryInitial.preparedReceiptDigest === old.preparedReceiptDigest
       || recoveryInitial.completedJournalHeadDigest === old.completedJournalHeadDigest
@@ -1174,6 +1219,14 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
       || old.bridgeSourceCommit !== recoveryInitial.bridgeSourceCommit
       || old.ptrDatabaseIdentity !== recoveryInitial.ptrDatabaseIdentity
       || old.ptrBindingDigest !== recoveryInitial.ptrBindingDigest
+    ) fail('SEALED_REALMS_AUTH_BRIDGE_RECOVERY_CHAIN_INVALID');
+    return true;
+  };
+
+  const assertRecoveryCoexistence = (oldChain, recoveryInitial, facts) => {
+    assertRecoveryChainPredecessor(oldChain, recoveryInitial);
+    if (
+      Date.parse(privateAuthorityRecord(oldChain).value.expiresAt) > facts.sampled.getTime()
       || facts.deployment.deploymentId !== recoveryInitial.deploymentId
       || facts.deployment.workerVersionId !== recoveryInitial.workerVersionId
       || facts.binding.ptrDatabaseIdentity !== recoveryInitial.ptrDatabaseIdentity

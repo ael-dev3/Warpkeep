@@ -1,4 +1,5 @@
 import type { SealedRealmsProductionPrivateState } from './sealed-realms-production-private-state.mjs';
+import type { SealedRealmsProductionBridgeProvider } from './sealed-realms-production-bridge-provider.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
 import type { SealedRealmsProductionActivationRecords } from './sealed-realms-production-activation-records.mjs';
 import type {
@@ -230,12 +231,15 @@ export function createSealedRealmsProductionAuthBridgeState(options: Readonly<{
   repositoryRoot: string;
   /** Test-only substitute for the trusted account home. */
   reportedHome?: string;
-  deploymentAttester: (context: Readonly<{
+  bridgeProvider?: SealedRealmsProductionBridgeProvider;
+  /** Independent projections are test-only and require testOnlyCapability. */
+  deploymentAttester?: (context: Readonly<{
     sourceCommit: string;
     runId: string;
     runAttempt: number;
   }>) => unknown | Promise<unknown>;
-  bindingAttester: (context: Readonly<{ sourceCommit: string }>) => unknown | Promise<unknown>;
+  /** Independent projections are test-only and require testOnlyCapability. */
+  bindingAttester?: (context: Readonly<{ sourceCommit: string }>) => unknown | Promise<unknown>;
   fetchImpl: typeof fetch;
   inspectImportReceipt: (context: Readonly<SealedRealmsBridgeAuthorityContext & {
     lane: 'g002' | 'ptr';

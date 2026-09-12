@@ -121,6 +121,11 @@ jobs:
         env:
           WARPKEEP_SOURCE_COMMIT: ${{ inputs.source_commit }}
           GITHUB_TOKEN: ${{ github.token }}
+          WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: ${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID || '' }}
+          WARPKEEP_AUTH_BRIDGE_ZONE_ID: ${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_AUTH_BRIDGE_ZONE_ID || '' }}
+          WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: ${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN || '' }}
+          WARPKEEP_PRODUCTION_ADMIN_TOKEN: ${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN || '' }}
+          WARPKEEP_PTR_SPACETIMEDB_DATABASE: ${{ startsWith(inputs.operation, 'activation-evidence-') && vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE || '' }}
         shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           set -euo pipefail
@@ -191,7 +196,7 @@ jobs:
           # utility argument visible in another process's command line.
           while IFS= read -r key; do
             case "$key" in
-              PATH|HOME|LANG|LC_ALL|RUNNER_OS|RUNNER_ARCH|RUNNER_NAME|RUNNER_TEMP|GITHUB_ACTIONS|GITHUB_REPOSITORY|GITHUB_REF|GITHUB_SHA|GITHUB_EVENT_NAME|GITHUB_JOB|GITHUB_WORKFLOW|GITHUB_WORKFLOW_REF|GITHUB_RUN_ID|GITHUB_RUN_ATTEMPT|GITHUB_TOKEN|WARPKEEP_OPERATION) ;;
+              PATH|HOME|LANG|LC_ALL|RUNNER_OS|RUNNER_ARCH|RUNNER_NAME|RUNNER_TEMP|GITHUB_ACTIONS|GITHUB_REPOSITORY|GITHUB_REF|GITHUB_SHA|GITHUB_EVENT_NAME|GITHUB_JOB|GITHUB_WORKFLOW|GITHUB_WORKFLOW_REF|GITHUB_RUN_ID|GITHUB_RUN_ATTEMPT|GITHUB_TOKEN|WARPKEEP_OPERATION|WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID|WARPKEEP_AUTH_BRIDGE_ZONE_ID|WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN|WARPKEEP_PRODUCTION_ADMIN_TOKEN|WARPKEEP_PTR_SPACETIMEDB_DATABASE) ;;
               *) unset "$key" ;;
             esac
           done < <(compgen -e)
@@ -281,6 +286,11 @@ jobs:
         env:
           WARPKEEP_SOURCE_COMMIT: ${{ inputs.source_commit }}
           GITHUB_TOKEN: ${{ github.token }}
+          WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: ${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID || '' }}
+          WARPKEEP_AUTH_BRIDGE_ZONE_ID: ${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_AUTH_BRIDGE_ZONE_ID || '' }}
+          WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: ${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN || '' }}
+          WARPKEEP_PRODUCTION_ADMIN_TOKEN: ${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN || '' }}
+          WARPKEEP_PTR_SPACETIMEDB_DATABASE: ${{ startsWith(inputs.operation, 'activation-evidence-') && vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE || '' }}
         shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           set -euo pipefail
@@ -351,7 +361,7 @@ jobs:
           # utility argument visible in another process's command line.
           while IFS= read -r key; do
             case "$key" in
-              PATH|HOME|LANG|LC_ALL|RUNNER_OS|RUNNER_ARCH|RUNNER_NAME|RUNNER_TEMP|GITHUB_ACTIONS|GITHUB_REPOSITORY|GITHUB_REF|GITHUB_SHA|GITHUB_EVENT_NAME|GITHUB_JOB|GITHUB_WORKFLOW|GITHUB_WORKFLOW_REF|GITHUB_RUN_ID|GITHUB_RUN_ATTEMPT|GITHUB_TOKEN|WARPKEEP_OPERATION|ACTIONS_ID_TOKEN_REQUEST_URL|ACTIONS_ID_TOKEN_REQUEST_TOKEN) ;;
+              PATH|HOME|LANG|LC_ALL|RUNNER_OS|RUNNER_ARCH|RUNNER_NAME|RUNNER_TEMP|GITHUB_ACTIONS|GITHUB_REPOSITORY|GITHUB_REF|GITHUB_SHA|GITHUB_EVENT_NAME|GITHUB_JOB|GITHUB_WORKFLOW|GITHUB_WORKFLOW_REF|GITHUB_RUN_ID|GITHUB_RUN_ATTEMPT|GITHUB_TOKEN|WARPKEEP_OPERATION|WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID|WARPKEEP_AUTH_BRIDGE_ZONE_ID|WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN|WARPKEEP_PRODUCTION_ADMIN_TOKEN|WARPKEEP_PTR_SPACETIMEDB_DATABASE|ACTIONS_ID_TOKEN_REQUEST_URL|ACTIONS_ID_TOKEN_REQUEST_TOKEN) ;;
               *) unset "$key" ;;
             esac
           done < <(compgen -e)

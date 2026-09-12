@@ -19,6 +19,10 @@ const m = vi.hoisted(() => ({
   realpath: vi.fn(),
   evidence: vi.fn(),
   node: vi.fn(),
+  provider: vi.fn(),
+  inspectProvider: vi.fn(),
+  bridgeState: vi.fn(),
+  privateState: Object.freeze({ private: true }),
 }));
 vi.mock("../scripts/ptr-production-publisher.mjs", () => ({
   preparePtrSourceBuiltArtifact: m.prepare,
@@ -64,16 +68,18 @@ vi.mock("../scripts/sealed-realms-production-workflow-authority.mjs", () => ({
 vi.mock(
   "../scripts/sealed-realms-production-workflow-private-state.mjs",
   () => ({
-    resolveSealedRealmsProductionWorkflowPrivateState: () => ({
-      private: true,
-    }),
+    resolveSealedRealmsProductionWorkflowPrivateState: () => m.privateState,
   }),
 );
 vi.mock("../scripts/sealed-realms-production-continuation.mjs", () => ({
   createSealedRealmsProductionContinuationStore: () => ({ store: true }),
 }));
 vi.mock("../scripts/sealed-realms-production-auth-bridge-state.mjs", () => ({
-  createSealedRealmsProductionAuthBridgeState: () => ({ bridge: true }),
+  createSealedRealmsProductionAuthBridgeState: m.bridgeState,
+}));
+vi.mock("../scripts/sealed-realms-production-bridge-provider.mjs", () => ({
+  createSealedRealmsProductionBridgeProvider: m.provider,
+  inspectSealedRealmsProductionBridgeProvider: m.inspectProvider,
 }));
 vi.mock("../scripts/sealed-realms-production-reconciliation.mjs", () => ({
   createSealedRealmsProductionPublicationReconciler: () => ({
@@ -131,6 +137,9 @@ beforeEach(() => {
   }));
   m.evidence.mockResolvedValue({ evidence: true });
   m.issue.mockResolvedValue({ permit: true });
+  m.provider.mockReturnValue(Object.freeze({}));
+  m.inspectProvider.mockImplementation(() => { throw new Error("update attempted a bridge observation"); });
+  m.bridgeState.mockReturnValue({ bridge: true });
   m.prepare.mockReturnValue({ cleanup: m.cleanup });
   m.adapter.mockReturnValue({ dispose: m.dispose });
   m.lane.mockReturnValue({ lane: true });
@@ -150,6 +159,21 @@ it.each(["ptr-update-inspect", "ptr-update-apply"] as const)(
   "constructs %s from explicit paths, reattests and cleans up after execution",
   async (operation) => {
     const runtime = await create({ operation, workflowInputSha: sha });
+    expect(m.provider).toHaveBeenCalledOnce();
+    expect(m.provider).toHaveBeenCalledWith({
+      authority: m.authenticate.mock.results[0].value,
+      privateState: m.privateState,
+      repositoryRoot: process.cwd(),
+      fetchImpl: globalThis.fetch,
+    });
+    expect(m.provider.mock.calls[0][0].authority).toBe(m.authenticate.mock.results[0].value);
+    expect(m.provider.mock.calls[0][0].privateState).toBe(m.privateState);
+    expect(m.bridgeState).toHaveBeenCalledWith(expect.objectContaining({
+      bridgeProvider: m.provider.mock.results[0].value,
+      authority: m.authenticate.mock.results[0].value,
+      privateState: m.provider.mock.calls[0][0].privateState,
+    }));
+    expect(m.bridgeState.mock.calls[0][0].bridgeProvider).toBe(m.provider.mock.results[0].value);
     expect(m.prepare).toHaveBeenCalledWith(
       expect.objectContaining({
         sourceCommit: sha,
@@ -180,6 +204,7 @@ it.each(["ptr-update-inspect", "ptr-update-apply"] as const)(
       }),
     );
     await run({ runtime, operation, workflowInputSha: sha });
+    expect(m.inspectProvider).not.toHaveBeenCalled();
     expect(m.dispose).toHaveBeenCalledOnce();
     expect(m.cleanup).toHaveBeenCalledOnce();
     expect(m.revoke).toHaveBeenCalledOnce();

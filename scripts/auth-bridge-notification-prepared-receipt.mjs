@@ -1239,12 +1239,18 @@ function validateFreshResponse(response, now) {
   return date;
 }
 
+function monotonicVerificationTime(now) {
+  const startedAt = dateValue(now, 'AUTH_BRIDGE_PREPARED_VERIFICATION_TIME_INVALID');
+  const started = performance.now();
+  return () => new Date(startedAt + Math.max(0, performance.now() - started));
+}
+
 /** Performs a new, credential-free, cache-bypassing GET to the exact bridge URL. */
 export async function fetchFreshAuthBridgeReleaseAttestation({
   fetchImpl = fetch,
   now = new Date(),
 } = {}) {
-  dateValue(now, 'AUTH_BRIDGE_PREPARED_VERIFICATION_TIME_INVALID');
+  const currentTime = monotonicVerificationTime(now);
   const endpoint = new URL(AUTH_BRIDGE_RELEASE_ATTESTATION_URL);
   if (
     endpoint.protocol !== 'https:'
@@ -1276,8 +1282,9 @@ export async function fetchFreshAuthBridgeReleaseAttestation({
   if (!(response instanceof Response)) {
     fail('AUTH_BRIDGE_PREPARED_ATTESTATION_RESPONSE_INVALID');
   }
-  const responseDate = validateFreshResponse(response, now);
+  const responseDate = validateFreshResponse(response, currentTime());
   const document = await readBoundedCanonicalReleaseAttestation(response);
+  validateFreshResponse(response, currentTime());
   return Object.freeze({ ...document, responseDate });
 }
 
@@ -1444,8 +1451,9 @@ export async function authenticateAuthBridgeNotificationPreparedReceiptForPublic
   fetchImpl = fetch,
   now = new Date(),
 } = {}) {
+  const currentTime = monotonicVerificationTime(now);
   const parsed = parseAuthBridgeNotificationPreparedReceipt(receipt);
-  validateReceiptFreshness(parsed, now);
+  validateReceiptFreshness(parsed, currentTime());
   if (
     typeof expectedBridgeSourceCommit !== 'string'
     || !SOURCE_COMMIT.test(expectedBridgeSourceCommit)
@@ -1465,8 +1473,10 @@ export async function authenticateAuthBridgeNotificationPreparedReceiptForPublic
     || privateAttestation.accessExpectedFidRequired
       !== parsed.accessExpectedFidRequiredAfter
   ) fail('AUTH_BRIDGE_PREPARED_PRIVATE_POSTSTATE_INVALID');
-  const live = await fetchFreshAuthBridgeReleaseAttestation({ fetchImpl, now });
+  validateReceiptFreshness(parsed, currentTime());
+  const live = await fetchFreshAuthBridgeReleaseAttestation({ fetchImpl, now: currentTime() });
   bindReceiptToAttestation(parsed, live);
+  validateReceiptFreshness(parsed, currentTime());
   authenticatedPreparedReceipts.add(parsed);
   return parsed;
 }
@@ -1501,10 +1511,12 @@ export async function verifyAuthBridgeNotificationPreparedReceipt({
   fetchImpl = fetch,
   now = new Date(),
 } = {}) {
+  const currentTime = monotonicVerificationTime(now);
   const parsed = parseAuthBridgeNotificationPreparedReceipt(receipt);
-  validateReceiptFreshness(parsed, now);
-  const live = await fetchFreshAuthBridgeReleaseAttestation({ fetchImpl, now });
+  validateReceiptFreshness(parsed, currentTime());
+  const live = await fetchFreshAuthBridgeReleaseAttestation({ fetchImpl, now: currentTime() });
   bindReceiptToAttestation(parsed, live);
+  validateReceiptFreshness(parsed, currentTime());
   return Object.freeze({ receipt: parsed, liveAttestation: live.attestation });
 }
 

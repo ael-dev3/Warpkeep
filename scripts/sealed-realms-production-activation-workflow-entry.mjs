@@ -3,6 +3,7 @@ import { createSealedRealmsProductionRecoverySourceClosure, disposeSealedRealmsP
 import { createSealedRealmsProductionRecoveryPreparation, disposeSealedRealmsProductionRecoveryPreparation } from './sealed-realms-production-recovery-preparation.mjs';
 import { execFileSync } from 'node:child_process';
 import { types } from 'node:util';
+import { createSealedRealmsProductionBridgeProvider } from './sealed-realms-production-bridge-provider.mjs';
 
 import {
   createSealedRealmsProductionAuthBridgeState,
@@ -185,8 +186,9 @@ async function buildDispatcher(operation, workflowInputSha, evidence, lifecycle)
     authority,
     privateState,
     repositoryRoot: process.cwd(),
-    deploymentAttester: unavailable,
-    bindingAttester: unavailable,
+    bridgeProvider: createSealedRealmsProductionBridgeProvider({
+      authority, privateState, repositoryRoot: process.cwd(), fetchImpl: globalThis.fetch,
+    }),
     fetchImpl: globalThis.fetch,
     inspectImportReceipt: unavailable,
     authenticateImportResult: unavailable,

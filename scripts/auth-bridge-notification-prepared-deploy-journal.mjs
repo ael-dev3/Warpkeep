@@ -564,6 +564,80 @@ function recoveryBody(value) {
   return body;
 }
 
+// The existing private catalog permits sixteen entries. Reserve its three
+// fixed lifecycle directories even before they are first created.
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_RECOVERY_AUTHORITY_LIMIT = 16 - 3;
+
+/**
+ * Orders already authenticated private authority records, proving every retained
+ * recovery edge using the existing canonical journal-head encoding. This is a
+ * byte-history check, not an authority issuer: callers must authenticate each
+ * complete chain and bind the returned tip to their independently read journal.
+ */
+export function orderAuthBridgeNotificationPreparedRecoveryAuthorityHistory(values) {
+  const invalid = () => fail('AUTH_BRIDGE_PREPARED_RECOVERY_ANCESTRY_INVALID');
+  if (!Array.isArray(values) || values.length < 1
+    || values.length > AUTH_BRIDGE_NOTIFICATION_PREPARED_RECOVERY_AUTHORITY_LIMIT
+    || values.some(value => !isRecord(value)
+      || !SHA256_HEX.test(value.completedJournalHeadDigest ?? '')
+      || !SHA256_HEX.test(value.preparedReceiptDigest ?? ''))
+    || new Set(values.map(value => value.completedJournalHeadDigest)).size !== values.length) {
+    invalid();
+  }
+  const roots = values.filter(value => value.completedJournalProfile
+    === AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_PROFILE);
+  if (roots.length !== 1) invalid();
+  const ordered = [roots[0]];
+  const pending = new Set(values.filter(value => value !== roots[0]));
+  while (pending.size !== 0) {
+    const prior = ordered.at(-1);
+    const children = [...pending].filter(value =>
+      value.completedJournalPredecessorDigest === prior.completedJournalHeadDigest);
+    if (children.length !== 1) invalid();
+    const next = children[0];
+    if (next.completedJournalProfile !== AUTH_BRIDGE_NOTIFICATION_PREPARED_READ_ONLY_RECOVERY_PROFILE
+      || next.completedJournalOutcome !== 'verified-read-only-recovery'
+      || next.preparedReceiptDigest === prior.preparedReceiptDigest
+      || ['sourceCommit', 'deploymentId', 'workerVersionId', 'bridgeSourceCommit',
+        'ptrDatabaseIdentity', 'ptrBindingDigest'].some(key => next[key] !== prior[key])) {
+      invalid();
+    }
+    let body;
+    try {
+      strictUtc(prior.expiresAt);
+      strictUtc(next.preparedAt);
+      if (Date.parse(next.preparedAt) < Date.parse(prior.expiresAt)) invalid();
+      body = recoveryBody({
+        schemaVersion: 1,
+        profile: next.completedJournalProfile,
+        sourceCommit: next.sourceCommit,
+        runId: next.runId,
+        runAttempt: next.runAttempt,
+        priorPreparedReceiptDigest: prior.preparedReceiptDigest,
+        priorCompletedJournalHeadDigest: prior.completedJournalHeadDigest,
+        preparedReceiptDigest: next.preparedReceiptDigest,
+        deploymentId: next.deploymentId,
+        workerVersionId: next.workerVersionId,
+        bridgeSourceCommit: next.bridgeSourceCommit,
+        ptrDatabaseIdentity: next.ptrDatabaseIdentity,
+        ptrBindingDigest: next.ptrBindingDigest,
+        controlPlaneAttestationDigest: next.controlPlaneAttestationDigest,
+        publicAttestationDigest: next.publicAttestationDigest,
+        privateAttestationDigest: next.privateAttestationDigest,
+        ptrBindingAttestationDigest: next.ptrBindingAttestationDigest,
+        completedAt: next.completedAt,
+        noDeploy: true,
+        outcome: next.completedJournalOutcome,
+      });
+      if (digestBody(body) !== next.completedJournalHeadDigest) invalid();
+    } catch { invalid(); }
+    finally { body?.fill(0); }
+    ordered.push(next);
+    pending.delete(next);
+  }
+  return Object.freeze(ordered);
+}
+
 function inspectRecoveryFile(directory, name, uid) {
   const match = RECOVERY_FILE.exec(name);
   if (match === null) {

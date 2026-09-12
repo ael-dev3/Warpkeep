@@ -72,6 +72,7 @@ export function inspectAuthBridgeNotificationPreparedRecoveryAuthority(
       workerVersionId: string;
       bridgeSourceCommit: string;
     }>;
+    /** Initial wall-clock snapshot; production reads account for monotonic elapsed time. */
     now: Date;
     accountId: string;
     zoneId: string;

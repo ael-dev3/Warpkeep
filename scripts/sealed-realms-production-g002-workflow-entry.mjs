@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { types } from 'node:util';
+import { createSealedRealmsProductionBridgeProvider } from './sealed-realms-production-bridge-provider.mjs';
 import {
   createSealedRealmsProductionAuthBridgeState,
 } from './sealed-realms-production-auth-bridge-state.mjs';
@@ -240,8 +241,9 @@ async function buildDispatcher(operation, workflowInputSha, evidence) {
     authority: bridgeAuthority,
     privateState,
     repositoryRoot: process.cwd(),
-    deploymentAttester: unavailable,
-    bindingAttester: unavailable,
+    bridgeProvider: createSealedRealmsProductionBridgeProvider({
+      authority: bridgeAuthority, privateState, repositoryRoot: process.cwd(), fetchImpl: globalThis.fetch,
+    }),
     fetchImpl: globalThis.fetch,
     inspectImportReceipt: unavailable,
     authenticateImportResult: unavailable,

@@ -26,6 +26,8 @@ import {
   writePrivateAuthBridgeNotificationPreparedReceipt,
 } from './auth-bridge-notification-prepared-receipt.mjs';
 import {
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_RECOVERY_AUTHORITY_LIMIT,
+  orderAuthBridgeNotificationPreparedRecoveryAuthorityHistory,
   resolveAuthBridgeNotificationPreparedOriginalUploadAuthority,
   resolveAuthBridgeNotificationPreparedRecoveryJournalAuthority,
   writeAuthBridgeNotificationPreparedReadOnlyRecoveryHead,
@@ -562,21 +564,21 @@ function parseRecoveryAuthorityChain(bytesInput, sourceCommit) {
   } finally { bytes.fill(0); }
 }
 
-function resolveRecoveryPriorAuthority({ privateState, sourceCommit, journal, now }) {
+function readRecoveryAuthorityHistory(privateState, sourceCommit) {
   if (
     !isRecord(privateState) || typeof privateState.list !== 'function'
     || typeof privateState.read !== 'function' || !SOURCE_COMMIT.test(sourceCommit ?? '')
-    || !isRecord(journal) || !(now instanceof Date) || Number.isNaN(now.getTime())
   ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_AUTHORITY_INVALID');
   const names = privateState.list({ root: 'runtime', relativeDirectory: 'bridge' });
-  if (!Array.isArray(names) || names.length > 16) {
+  if (!Array.isArray(names) || names.length > 16 || new Set(names).size !== names.length) {
     fail('AUTH_BRIDGE_PREPARED_RECOVERY_AUTHORITY_INVALID');
   }
   const chains = [];
+  const snapshots = new Map();
   for (const name of names) {
     const match = RECOVERY_AUTHORITY_FILE.exec(name);
     if (match === null) {
-      if (!['locks', 'activation-evidence'].includes(name)) {
+      if (!['locks', 'activation-evidence', 'owner-provision-evidence'].includes(name)) {
         fail('AUTH_BRIDGE_PREPARED_RECOVERY_AUTHORITY_INVALID');
       }
       continue;
@@ -594,6 +596,7 @@ function resolveRecoveryPriorAuthority({ privateState, sourceCommit, journal, no
       ])).digest('hex');
       if (digest !== match[1]) fail('AUTH_BRIDGE_PREPARED_RECOVERY_AUTHORITY_INVALID');
       chains.push(chain);
+      snapshots.set(name, createHash('sha256').update(bytes).digest('hex'));
     } finally { bytes.fill?.(0); }
   }
   if (names.includes('locks')) {
@@ -602,6 +605,31 @@ function resolveRecoveryPriorAuthority({ privateState, sourceCommit, journal, no
       fail('AUTH_BRIDGE_PREPARED_RECOVERY_AUTHORITY_BUSY');
     }
   }
+  let ordered;
+  try {
+    ordered = orderAuthBridgeNotificationPreparedRecoveryAuthorityHistory(
+      chains.map(chain => chain.value),
+    );
+  } catch { fail('AUTH_BRIDGE_PREPARED_RECOVERY_AUTHORITY_INVALID'); }
+  return Object.freeze({
+    names,
+    snapshots,
+    chains: Object.freeze(ordered.map(value => chains.find(chain => chain.value === value))),
+  });
+}
+
+function resolveRecoveryPriorAuthority({ privateState, sourceCommit, journal, now }) {
+  if (!isRecord(journal) || !(now instanceof Date) || Number.isNaN(now.getTime())) {
+    fail('AUTH_BRIDGE_PREPARED_RECOVERY_AUTHORITY_INVALID');
+  }
+  const history = readRecoveryAuthorityHistory(privateState, sourceCommit);
+  const { chains } = history;
+  const tip = chains.at(-1);
+  const requireCapacity = () => {
+    if (chains.length >= AUTH_BRIDGE_NOTIFICATION_PREPARED_RECOVERY_AUTHORITY_LIMIT) {
+      fail('AUTH_BRIDGE_PREPARED_RECOVERY_HISTORY_FULL');
+    }
+  };
   const eligible = chains.filter(chain => (
     chain.value.completedJournalHeadDigest === journal.journalHeadDigest
     && chain.value.completedJournalProfile === journal.profile
@@ -632,7 +660,8 @@ function resolveRecoveryPriorAuthority({ privateState, sourceCommit, journal, no
       && chain.value.ptrBindingDigest === journal.ptrBindingDigest
       && Date.parse(chain.value.expiresAt) <= now.getTime()
     ));
-    if (pending.length === 1 && chains.length === 1) {
+    if (pending.length === 1 && pending[0] === tip) {
+      requireCapacity();
       return Object.freeze({
         ...pending[0],
         pendingRecoveryHead: Object.freeze({ ...journal }),
@@ -641,12 +670,13 @@ function resolveRecoveryPriorAuthority({ privateState, sourceCommit, journal, no
   }
   if (
     eligible.length !== 1
-    || (journal.profile
-      === 'warpkeep-auth-bridge-notification-prepared-deploy-journal-v3'
-      && chains.length !== 1)
+    || eligible[0] !== tip
   ) {
     fail('AUTH_BRIDGE_PREPARED_RECOVERY_AUTHORITY_AMBIGUOUS');
   }
+  // Stop before receipt/head publication if a renewal cannot retain its next
+  // authority. Existing fresh history remains readable at the storage bound.
+  if (Date.parse(eligible[0].receipt.expiresAt) <= now.getTime()) requireCapacity();
   return eligible[0];
 }
 
@@ -799,47 +829,56 @@ function createRecoveryAuthorityChain({
     } finally { persisted?.fill?.(0); }
   };
   try {
-    const names = privateState.list({
-      root: 'runtime', relativeDirectory: 'bridge',
-    });
+    const readWriteHistory = () => {
+      try { return readRecoveryAuthorityHistory(privateState, sourceCommit); }
+      catch (error) {
+        if (error?.code === 'AUTH_BRIDGE_PREPARED_RECOVERY_AUTHORITY_BUSY') throw error;
+        fail('AUTH_BRIDGE_PREPARED_RECOVERY_CHAIN_CONFLICT');
+      }
+    };
+    const before = readWriteHistory();
+    const { names } = before;
     const expectedName = relativePath.slice('bridge/'.length);
-    const eligibleNames = names.filter(name => RECOVERY_AUTHORITY_FILE.test(name));
     const oldName = `auth-bridge-import-authority-${recoveryAuthorityChainDigest(prior)}.jsonl`;
+    const priorChain = before.chains.find(chain =>
+      chain.value.completedJournalHeadDigest === prior.completedJournalHeadDigest);
+    const existing = names.includes(expectedName);
+    const expectedTip = existing ? journal.journalHeadDigest : prior.completedJournalHeadDigest;
     if (
-      !Array.isArray(names)
-      || !names.includes(oldName)
-      || eligibleNames.some(name => name !== oldName && name !== expectedName)
+      !names.includes(oldName)
+      || JSON.stringify(priorChain?.value) !== JSON.stringify(prior)
+      || before.chains.at(-1).value.completedJournalHeadDigest !== expectedTip
+      || (existing && before.chains.at(-2)?.value.completedJournalHeadDigest
+        !== prior.completedJournalHeadDigest)
     ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_CHAIN_CONFLICT');
-    if (names.includes('locks')) {
-      const locks = privateState.list({
-        root: 'runtime', relativeDirectory: 'bridge/locks',
-      });
-      if (!Array.isArray(locks) || locks.length !== 0) {
-        fail('AUTH_BRIDGE_PREPARED_RECOVERY_AUTHORITY_BUSY');
+    if (!existing && before.chains.length >= AUTH_BRIDGE_NOTIFICATION_PREPARED_RECOVERY_AUTHORITY_LIMIT) {
+      fail('AUTH_BRIDGE_PREPARED_RECOVERY_HISTORY_FULL');
+    }
+    if (!existing) {
+      try {
+        orderAuthBridgeNotificationPreparedRecoveryAuthorityHistory([
+          ...before.chains.map(chain => chain.value), record,
+        ]);
+      } catch { fail('AUTH_BRIDGE_PREPARED_RECOVERY_CHAIN_CONFLICT'); }
+    }
+    let result = 'unchanged';
+    if (!existing) {
+      try {
+        privateState.write({ root: 'runtime', relativePath, bytes: body });
+        result = 'installed';
+      } catch (error) {
+        if (error?.code !== 'SEALED_REALMS_PRIVATE_STATE_FILE_EXISTS') throw error;
       }
     }
-    if (names.includes(expectedName)) {
-      readExact();
-      return Object.freeze({ relativePath, chainDigest: digest, result: 'unchanged' });
-    }
-    try {
-      privateState.write({ root: 'runtime', relativePath, bytes: body });
-    } catch (error) {
-      if (error?.code !== 'SEALED_REALMS_PRIVATE_STATE_FILE_EXISTS') throw error;
-      readExact();
-      return Object.freeze({ relativePath, chainDigest: digest, result: 'unchanged' });
-    }
     readExact();
-    const after = privateState.list({
-      root: 'runtime', relativeDirectory: 'bridge',
-    });
-    const afterAuthorities = after.filter(name => RECOVERY_AUTHORITY_FILE.test(name));
+    const after = readWriteHistory();
+    const expectedNames = existing ? [...names].sort() : [...names, expectedName].sort();
     if (
-      afterAuthorities.length !== 2
-      || !afterAuthorities.includes(oldName)
-      || !afterAuthorities.includes(expectedName)
+      JSON.stringify([...after.names].sort()) !== JSON.stringify(expectedNames)
+      || after.chains.at(-1).value.completedJournalHeadDigest !== journal.journalHeadDigest
+      || [...before.snapshots].some(([name, snapshot]) => after.snapshots.get(name) !== snapshot)
     ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_CHAIN_CONFLICT');
-    return Object.freeze({ relativePath, chainDigest: digest, result: 'installed' });
+    return Object.freeze({ relativePath, chainDigest: digest, result });
   } finally { body.fill(0); }
 }
 

@@ -137,6 +137,7 @@ export function readPrivateAuthBridgeNotificationPreparedReceipt(
   }>,
 ): AuthBridgeNotificationPreparedReceipt;
 
+/** Validates response freshness after request/body reads using an owned elapsed clock. */
 export function fetchFreshAuthBridgeReleaseAttestation(
   options?: Readonly<{
     fetchImpl?: typeof fetch;
@@ -180,6 +181,7 @@ export function prepareAuthBridgeNotificationB0Receipt(
   }>,
 ): Promise<AuthenticatedAuthBridgeNotificationPreparedReceipt>;
 
+/** Receipt expiry is rechecked after the private/public reads before publication authority is returned. */
 export function authenticateAuthBridgeNotificationPreparedReceiptForPublication(
   options: Readonly<{
     receipt: AuthBridgeNotificationPreparedReceipt;
@@ -190,6 +192,7 @@ export function authenticateAuthBridgeNotificationPreparedReceiptForPublication(
   }>,
 ): Promise<AuthenticatedAuthBridgeNotificationPreparedReceipt>;
 
+/** Receipt expiry is rechecked after awaited public evidence before returning. */
 export function verifyAuthBridgeNotificationPreparedReceipt(
   options: Readonly<{
     receipt: AuthBridgeNotificationPreparedReceipt;
