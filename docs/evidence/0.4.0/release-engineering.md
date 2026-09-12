@@ -2,10 +2,10 @@
 
 Current reading point: fetch the actual
 [development branch](https://github.com/ael-dev3/Warpkeep/tree/codex/prepared-keep-bindings-fix)
-and PR #228 before relying on a live head or CI result. The current development
-head is `95945beaae12e31a3516b6ad42511fe8cff63ef4`; its latest native
-preparation/check input is `03cb8b8fc2c0c59bcb58c4303b2082dead6325d9`, while
-the reviewed runtime source remains `24e3c136fb5e3839b00c8e8ddb3c780b6f795461`.
+and PR #228 before relying on a live head or CI result. The latest completed
+native preparation/check input is
+`27700d617d7085098b6f1ab8ee3d8cf9cdc40e23`. Later source development requires
+its own preparation; older synchronized heads below are historical checkpoints.
 The generated source families recorded below are dated, source-bound evidence;
 documentation and test follow-ups do not create a new release candidate. The
 retained candidate, closure and runner observations below are not current
@@ -15,6 +15,29 @@ gives the next connected work and actual publication/check status. **0.4 is not 
 Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
+
+## Independently reproduced source family — 2026-09-12
+
+The native Linux x64 assembler prepared and independently rebuilt candidate
+`release-workspace-2efb9231c19a88dd555a6a908533926b` from source
+`27700d617d7085098b6f1ab8ee3d8cf9cdc40e23`, tree
+`6ab0cda88d19d1276d9911de2450d33020d91649`. Both commands exited zero and
+returned the same transaction `69181e9a996f65545788eb80aef99f39`, journal digest
+`f0229980585bfcfc2c4bdd7203f60fcde3a02611251745d299d4eb33d171b5c5`, family
+`0b55b6bdc11453b9d679e3065c6ee876ea56ff1e0bde01e00da678fe8e25df6e`, closure
+`69c979a8c333a7c97c92a216367c12e08030c97832487d60c474f5a62883567c` and scanner
+`edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+
+The guarded export validated all 102 journal output bodies and retained source
+backups, compared every local target against committed input through Git newline
+filters, and copied only the eight changed generated bodies. Unchanged outputs
+and concurrent source work stayed byte-identical. The changed family includes
+the four workflow closure pins, closure manifest, recovery and sealed bundle
+manifests, and G001 lane bundle. The latter adds the already-reviewed runtime
+member to its protected inventory. No output was hand-edited or regenerated from
+a fixture. `finalReleasePrepared` remains false. This establishes deterministic
+source preparation only; provider delivery, recovery readback, owner play and
+device acceptance remain open.
 
 ## Recorded runner alignment — 2026-09-11 (source checkpoint 64690fc)
 

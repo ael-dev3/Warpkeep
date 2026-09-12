@@ -2,22 +2,24 @@
 
 ## Current review and next work — 12 September 2026
 
-The implementation checkpoint `27700d617d7085098b6f1ab8ee3d8cf9cdc40e23` is
-published and is the native preparation input. The subsequent notes reconcile
-the configured PTR identity and rendered loop check; they do not change runtime
-source. Windows/GitHub should use the latest documentation commit, while the
-operating WSL checkout stays pinned to the input until preparation/check finishes.
-Then synchronize it through the normal clean-checkout procedure.
+Native preparation and independent check both completed with exit zero from
+`27700d617d7085098b6f1ab8ee3d8cf9cdc40e23`. Sessions `53983` and `60035` are
+terminal; do not restart them. Candidate
+`release-workspace-2efb9231c19a88dd555a6a908533926b` reproduced the same family,
+journal and closure digests. All journal outputs and retained source bodies
+were checked before exporting the eight changed generated files; unrelated
+source edits were preserved. This is source-bound preparation evidence with
+`finalReleasePrepared: false`, not a live release. The
+[release engineering record](../../evidence/0.4.0/release-engineering.md)
+owns the exact digests. New recovery implementation must receive its own final
+source preparation after integration; this candidate does not certify it.
 
-Active native preparation: tool session `53983`, observed PID `864599`, input
-`27700d61`, candidate `release-workspace-2efb9231c19a88dd555a6a908533926b`, draft
-`release-workspace-0869763bd4f5fee32d78752021a58960`. Its last reported phase is
-`compiling-bindings-and-bundles`; real worker processes were still active at
-handoff. Read that session/process before starting another run. No completed
-result or independent check is claimed. After preparation succeeds, use the
-existing assembler's `check` with the printed final handle from the same input,
-then review/export the journal's exact generated output set. Preserve receipts
-and active candidates; no Desktop output or blanket cleanup.
+Continuous publication is required in `AGENTS.md` and the
+[sync procedure](../../operations/0.4.0-development-sync.md): commit and push
+each completed development change and all authored durable work at handoff.
+The thread's 15-minute check supplements immediate publication. Synchronize
+clean idle native checkouts after active runs finish, preserving private state
+and immutable candidates. No Desktop output or blanket cleanup.
 
 Reviewed source base: `2ffdcc96ea3474908d2158ee817b4a384b274523`, followed by
 the placement/workflow patch recorded with this note. Fetch PR #228 to resolve
@@ -56,8 +58,8 @@ private receipts, Cloudflare bytes or a live 0.4 deployment. Runner22 is online.
 See the [workflow audit](../../evidence/0.4.0/workflow-sufficiency-audit.md)
 for the genuine remaining provider, PTR and recovery gaps.
 
-Next: verify/refreeze this source through native `prepare` and independent
-`check`, publish the generated family, finish normal protected preparation-only
+Next: complete actual recovery source/configuration attestation and its native
+tests, then prepare/check the composed source. Finish normal protected preparation-only
 promotion and main CI, then exercise the existing sealed `preflight`. Follow
 with real shared bridge attesters in the sealed entry points. Workflow edits
 change protected closure members; old candidate hashes and fixture-generated
