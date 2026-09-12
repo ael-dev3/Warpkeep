@@ -2,6 +2,20 @@
 
 ## Current review and next work — 12 September 2026
 
+The source at `9e098f75` has now completed actual native preparation `67204`
+and independent rebuilding check `6320`, both exit zero with every result field
+equal. The complete authenticated family was exported and applied to that exact
+Windows input, verifying all generated outputs, the exact changed-path set and
+unchanged HEAD/index/preserved source. [The release-engineering record](../../evidence/0.4.0/release-engineering.md#bridgeptr-source-family--2026-09-12)
+owns the retained candidate and full digests. Current native and hosted checks
+must validate the published integration; this does not establish a deployment.
+Both Windows TypeScript projects and all 30 tests in the three doc-facing suites
+passed after application, as did tracked file-size and diff checks. The broader
+Windows generated-consumer run is still tracked by actual session `31279`; do
+not equate a pending command with a pass or restart it.
+The operating checkout can synchronize after publication because both native
+processes have completed. Do not restart either completed run.
+
 The current working branch is `codex/0.4-bridge-predecessor-repair` in
 [PR #240](https://github.com/ael-dev3/Warpkeep/pull/240), integrating the pending
 PR #237–239 source against main. Published `b319e38b` includes a normal merge of
@@ -32,11 +46,11 @@ generator-owned source pins, count fixtures and the checked manifest, plus a
 missing `ptr-state-inspect` entry in the sealed verifier's exact operation list.
 The structural declaration now includes that operation, with all eight
 derived-pin membership cases passing and the activated subset unchanged.
-Preserve the rejection checks. Publish the source and run the existing native assembler's full `prepare` and
-independent `check`. Integrate only its authenticated complete output family;
-do not type in counts/hashes or copy part of an older candidate. This generation
-is needed before the expanded source can pass PR verification. It does not
-replace later protected-source and deployment acceptance.
+Preserve the rejection checks. The completed preparation/check and authenticated
+family above now replace those stale generated consumers. Run the affected
+verification on the integrated source and read its current PR checks. Do not type
+in counts/hashes or copy part of an older candidate. Development-source generation
+does not replace later protected-source and deployment acceptance.
 
 Q's read-only `ptr-state-inspect` connects the Linux workflow, recovery gateway,
 private signer and existing auth-bridge observer. Its authenticated, pinned PTR
@@ -55,7 +69,12 @@ observation bindings. Preserve G001 public authentication in the later rollout.
 The owner's continuous-sync follow-up now requires immediate reviewable
 checkpoints, including bounded unfinished work before switching work items.
 AGENTS, contributor guidance and the canonical development/sync procedures agree;
-the existing 15-minute app check has the same rule and remains a fallback. Use
+the existing 15-minute app check has the same rule and remains a fallback. Its
+stale main-only input wording is corrected: an active build retains its exact
+published compiler input, including an authorized development commit. Fresh
+owning-remote fetches found the profile, assets, water-engine and private editor
+checkouts clean and equal; all nine local development branch histories are
+already backed by live branches or retained PR history. Use
 the current live PR head for the latest source; a development push is not a
 release or a pass for checks still running.
 

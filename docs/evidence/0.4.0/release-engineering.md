@@ -19,6 +19,64 @@ Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
+## Bridge/PTR source family — 2026-09-12
+
+Published compiler input `9e098f7594bd76e3afcf0b1c6d79f106d8a6a4b7`
+(tree `3abb7a974ed729d6cffbcc0ff89718da1bb8f2bf`) completed native preparation
+session `67204` and independent rebuilding check `6320`, both exit zero. Every
+returned field matched, including source, transaction, verification counts and
+`finalReleasePrepared: false`. The retained final candidate is
+`release-workspace-54312911486fdf55e97e67414ec67b38`.
+
+- Transaction: `323655434cbf165c5c5a691b61f69096`.
+- Journal SHA-256: `6c55dad6c9c5d08bbd18eebed4e3866ce9971c1628a20bcc4ccbc5d728bd784d`.
+- Complete-family SHA-256: `f48e8d7281b5e0090695bd429b9d49dcd98a06afa00ee3d904bf21a5727ca88d`.
+- Closure-manifest SHA-256: `f16c9375a1c4981da057a3fe1d20c86436a22f73e5f6b847453995c7ef623c15`.
+- Scanner-manifest SHA-256: `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+
+Both runs checked all 3,213 source/candidate files, 102 generated outputs,
+3,111 preserved source files, 460 compiled bundle inputs and seven recovery
+inputs. These are verification facts, not product scope or release acceptance.
+The refreshed family carries the PTR observation and prepared-bridge source
+inventory through all compiled lanes, generated source pins, manifests, workflow
+consumers and count fixtures. The G001 and G002/PTR generated binding bytes remain
+unchanged. No counts, hashes or generated source identities were hand-edited.
+
+The reviewed operator composition reacquired the candidate lock, authenticated
+completion and its sole journal, retained backups and every output, and rechecked
+the entire source/candidate. Its captured-byte temporary index produced tree
+`5426f0d7c3311ef3b669cf635b170358175769c2`. A binary-patch round trip reproduced
+that tree; both normal indexes and retained evidence stayed unchanged, and the
+owned temporary index was removed before final reattestation. All 102 outputs
+were authenticated; 19 paths differed from the committed input. The patch was
+4,447,026 bytes with SHA-256
+`57259d0aa8b41ad25786380ac84eaa8a28146ba09bfdb3bb1485b64eee26adaa`.
+
+On the clean Windows checkout at that exact input, patch checking preceded plain
+application. All output sizes, hashes and Git blob IDs matched; the full changed
+path set was exact, and HEAD identity, branch state, normal index and every
+non-output source file stayed unchanged. The export and receiver helpers remain
+ignored operator artifacts; no Desktop file, clone or dependency tree was created.
+An initial exporter guard incorrectly required the assembler-created `.git`
+directory to be mode 0700; the observed 0755 directory satisfies the existing
+lock's non-writable contract. The receiver's isolated Git invocation also needed
+the already-authorized exact Windows safe-directory entry. Both attempts stopped
+before applying source; the corrected composition passed without changing
+candidate permissions or global Git policy.
+
+Both Windows TypeScript projects passed after application. All 30 tests in
+`projectLinks`, `publicLegalDocuments` and `keep04DocumentPolicy` passed; the
+tracked file-size policy and diff whitespace checks passed. These checks do not
+stand in for the separate affected native/hosted verification.
+
+This is development-source preparation and integration, not deployment. Read
+[PR #240](https://github.com/ael-dev3/Warpkeep/pull/240) for the current published
+head and its verification. Required current native/hosted checks, protected-main
+ancestry, provider/owner authority, live preservation and final release acceptance
+remain separate. Preserve the original compiler-input identities in this family
+through later commits and follow the [local preparation procedure](../../operations/0.4.0-local-release-preparation.md)
+for subsequent protected-source preparation.
+
 ## Existing PTR observation integration — 2026-09-12
 
 The new read-only operation reaches the existing private bridge observer through
