@@ -2,12 +2,27 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 
 const workflowPath = '.github/workflows/notification-bridge-prepared-linux.yml';
 const manifestPath =
   'scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json';
 
 describe('prepared Linux production workflow', () => {
+  it('reads the public PTR identity from configuration while preserving private credentials', () => {
+    const workflow = parse(readFileSync(workflowPath, 'utf8')) as {
+      jobs: Record<string, { steps: { name?: string; env?: Record<string, string> }[] }>;
+    };
+    const steps = Object.values(workflow.jobs).flatMap(job => job.steps);
+    const deploy = steps.find(step => step.name === 'Run attested Linux deployment or recovery');
+    expect(deploy?.env).toMatchObject({
+      WARPKEEP_PTR_SPACETIMEDB_DATABASE: '${{ vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE }}',
+      WARPKEEP_PLAYER_CANARY_OWNER_FID: '${{ secrets.WARPKEEP_PLAYER_CANARY_OWNER_FID }}',
+      WARPKEEP_PRODUCTION_ADMIN_TOKEN: '${{ secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN }}',
+      WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: '${{ secrets.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN }}',
+    });
+  });
+
   it('keeps the durable caller on the attested Linux authority', () => {
     const workflow = readFileSync(workflowPath, 'utf8');
     expect(workflow).toContain(

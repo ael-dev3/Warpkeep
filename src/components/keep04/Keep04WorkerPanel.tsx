@@ -26,10 +26,8 @@ function WorkerJourneyRail04({ phase }: Readonly<{ phase: JourneyStage04 }>) {
 }
 
 export function estimatedTime04(deadline: bigint, nowMs: number): string {
-  // Realm timestamps are authoritative microseconds and can sit well above
-  // Number's safe integer range once the game has been running for a while.
-  // Keep the countdown exact, including the final partial second, instead of
-  // rounding an epoch-sized bigint through floating point.
+  // Subtract integer microseconds before rounding to whole seconds; converting
+  // epoch values to floating-point seconds can lose a final partial second.
   if (!Number.isFinite(nowMs)) return 'Awaiting Realm update';
   const nowMicros = BigInt(Math.max(0, Math.trunc(nowMs))) * 1_000n;
   const remainingMicros = deadline > nowMicros ? deadline - nowMicros : 0n;

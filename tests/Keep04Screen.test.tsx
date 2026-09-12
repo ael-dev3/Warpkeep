@@ -33,6 +33,13 @@ it('keeps Realm countdowns exact for epoch-scale timestamps and invalid clocks',
   expect(estimatedTime04(deadline, Number.NaN)).toBe('Awaiting Realm update');
 });
 
+it('preserves partial seconds when large Realm timestamps lose floating-point precision', () => {
+  const nowMs = 9_007_199_254_741;
+  const nowMicros = BigInt(nowMs) * 1_000n;
+  expect(estimatedTime04(nowMicros + 1_000_001n, nowMs)).toBe('2 s');
+  expect(estimatedTime04(nowMicros + 1n, nowMs)).toBe('1 s');
+});
+
 it('shows four Workers and spendable resources; pending returns never fund permanent placement', () => {
   const wire = freshWire04(); wire.workers[0].assignmentRevision = 1n;
   wire.workers[0].assignment = { ...assignmentWire04(), earned: 60n, phase: 'returning' };
@@ -292,5 +299,5 @@ it('keeps the gather-to-return loop legible while the player makes a decision', 
   fireEvent.click(screen.getByRole('button', { name: 'Buildings' }));
   fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
   expect(within(loop()).getByRole('listitem', { name: 'Build · active' })).toHaveAttribute('aria-current', 'step');
-  expect(within(loop()).getByText('Set a permanent site and review its cost before confirming.')).toBeVisible();
+  expect(within(loop()).getByRole('status')).toHaveTextContent('New benefits begin only after the Realm confirms construction is complete.');
 });

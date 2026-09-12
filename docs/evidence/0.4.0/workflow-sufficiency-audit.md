@@ -1,11 +1,12 @@
 # 0.4 workflow sufficiency audit
 
-Updated 2026-09-12 (Europe/Budapest) against development head
-`95945beaae12e31a3516b6ad42511fe8cff63ef4` on
-`codex/prepared-keep-bindings-fix`. The latest native preparation/check input is
-`03cb8b8fc2c0c59bcb58c4303b2082dead6325d9`; later documentation and test
-follow-ups are on the current branch, so fetch the actual PR head before
-judging R14. Verify run `34665737857` completed successfully across Linux,
+Updated 2026-09-12 (Europe/Budapest). The release-path audit read published head
+`2ffdcc96ea3474908d2158ee817b4a384b274523` on
+`codex/prepared-keep-bindings-fix`; concurrent working-tree changes are not
+covered by that checkpoint. The latest recorded native preparation/check input
+is `03cb8b8fc2c0c59bcb58c4303b2082dead6325d9`. Later gameplay and workflow
+changes require fresh preparation before release. For historical source/test
+head `95945bea`, Verify run `34665737857` completed successfully across Linux,
 SpacetimeDB, release-recovery, auth-bridge, native-contract and aggregate
 verification; CodeQL `34665737866` is also successful. The Pages
 private launcher and workflow use the retained Linux x64 runner profile, and
@@ -21,7 +22,8 @@ fresh evidence bound to the final reviewed and deployed source.
 
 ## What is working
 
-- Windows, GitHub and native WSL are synchronized at the exact clean head.
+- Windows, GitHub and native WSL have a documented synchronization procedure;
+  verify their actual commit and worktree state at each publication checkpoint.
 - The local foundation passes typecheck, build, visual-foundation checks and the
   focused gameplay/recovery suites recorded in the release evidence.
 - The rendered WebGL observer now has a reviewed macOS/Windows/Linux boundary;
@@ -29,9 +31,9 @@ fresh evidence bound to the final reviewed and deployed source.
 - The dedicated Linux runner is installed and can run the sealed preflight and
   activation-evidence lanes. G001 policy observation is parsed and fails closed
   when runner or provider authority is missing.
-- Native release preparation and independent checking pass for the final
-  synchronized head, with converged candidate, closure and public-boundary
-  verification recorded in the local operations evidence.
+- Native release preparation and independent checking passed for recorded input
+  `03cb8b8f`, with converged candidate, closure and public-boundary verification.
+  That historical candidate does not attest later source edits.
 - The protected CI shape is explicit: `verify`, `auth-bridge`,
   `spacetimedb-module`, `analyze` and `CodeQL` are required contexts.
 
@@ -39,16 +41,19 @@ fresh evidence bound to the final reviewed and deployed source.
 
 - The protected Verify and CodeQL runs attached to the current pull request head
   are the R14 authority; read both at terminal state before marking CI green.
-  R14 also requires signed-history and protection reconciliation.
-- Protected `main` requires signed commits. The prepared branch history is
-  unsigned, so GitHub reports the pull request as merge-blocked even when the
-  code and checks are green.
-- The full Windows rendered matrix still fails closed on a Chrome runtime
-  exception. Linux is the release authority for retained rendered evidence.
-- Fresh native preparation and independent checking now pass for the final
-  synchronized head, with `finalReleasePrepared: false`. This proves candidate
-  convergence and source integrity; it does not grant deployment authorization
-  or complete the release freeze.
+  R14 also requires normal protected merge eligibility.
+- Protected `main` requires signatures, linear history and strict required
+  checks; the repository permits squash merges only. The API audit found PR #228
+  `MERGEABLE`, `BLOCKED`, zero commits behind main, and Linux/SpacetimeDB checks
+  still running. Current main is a verified GitHub-authored single-parent squash.
+  These observations do not establish missing local signing keys as an
+  independent blocker. Recheck eligibility after terminal CI without changing
+  protections or rewriting development history merely to satisfy an assumption.
+- Final-source rendered and physical-device evidence remains required after
+  runtime changes. Earlier synthetic Windows passes retain their recorded scope.
+- The recorded native candidate has `finalReleasePrepared: false`. It proves
+  candidate convergence and source integrity for its input; it does not grant
+  deployment authorization or complete the release freeze.
 - The production workflow has no authenticated provider receipts for Cloudflare,
   SpacetimeDB deployment, recovery readback, G002 import/publication or PTR
   owner provisioning. Those operations intentionally remain fail-closed or
@@ -60,24 +65,40 @@ fresh evidence bound to the final reviewed and deployed source.
   entrypoint and pinned pnpm authority manifest. Pages private delivery now
   targets Linux x64 and its generic toolchain pin resolves to the Linux
   manifest. No authenticated production run or recovery readback has been
-  completed. B0 and the legacy prepared caller still target Darwin/ARM64 and
-  immutable `/private/var/db/warpkeep/...` paths, so the no-Mac end-to-end
-  delivery requirement remains open.
-- Dependabot currently reports nine alerts on the default branch (three high,
-  six moderate); this is a maintenance risk to resolve before a production
-  freeze.
+  completed. The Linux lane selects its own workflow identity and real Linux
+  executables; it replaces the historical Darwin prepared caller. B0 is an
+  existing predecessor, not another migration to execute. Preserve and
+  authenticate its retained evidence; do not rerun B0. The public bridge
+  attestation still reports reviewed B0 source `308f901d` and enabled
+  notification delivery. Fresh private and Cloudflare source/configuration
+  attestation remains required.
+- The Linux prepared and sealed workflows are absent from inspected protected
+  main `9eb98e78`. The notification environment has existing provider/admin and
+  owner secret slots, but this is not proof that their values are valid. The
+  public immutable PTR database identity is absent from repository/environment
+  variables and secret inventories. The working-tree Linux caller now consumes
+  the canonical repository variable, preserving secrets for private credentials.
+  Follow the sealed-launch Phase 1 target binding before prepared deployment;
+  never substitute the G001 database.
+- Deployment/binding, import and owner attesters in the sealed workflow entries
+  still use unavailable adapters. The production workflow explicitly rejects
+  unsupported realm operations. These integration gaps, populated private
+  authority and provider readback remain the no-Mac delivery work.
+- Recheck default-branch dependency alerts before a production freeze; a patched
+  development lockfile does not establish default-branch resolution.
 
 ## Required order from here
 
-1. Read the terminal current-head protected checks and reconcile the review/
-   signed-history requirement.
-2. Dispatch the Linux prepared notification/recovery workflow and the migrated
-   Pages private lane against the exact protected source, capture authenticated
-   deployment/readback evidence, then port B0 and the legacy prepared caller
-   without weakening identity, ownership or executable checks; retain Darwin
-   only as an explicitly separate legacy profile.
-3. Complete authenticated recovery deployment and readback before any live
-   mutation; capture the G001 baseline and prove G002 remains sealed.
+1. Read terminal checks for the actual published head and reconcile normal
+   protected squash eligibility. Preparation-source promotion and live activation
+   are separate outcomes; do not alter branch protections to promote source.
+2. Put the reviewed Linux workflows on protected main, verify its own required
+   CI and installed generated family, then dispatch the existing read-only
+   `preflight` operation to establish the genuine runner/source/private-root path.
+3. Resolve the actual isolated PTR identity and re-attest the existing B0
+   predecessor. Complete the Linux prepared bridge, authenticated recovery
+   deployment/readback and missing sealed-provider producers. Capture the G001
+   baseline and preserve the sealed G002 state before player-state mutations.
 4. Complete the actual owner PTR journey, lifecycle/isolation checks and fixed
    device/performance measurements.
 5. Re-run the full rendered matrix on the release authority, then deploy Pages,

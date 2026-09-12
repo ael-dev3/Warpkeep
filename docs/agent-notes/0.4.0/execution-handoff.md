@@ -1,21 +1,52 @@
 # Continue Warpkeep 0.4
 
-## Keep04 interaction hardening — 12 September 2026
+## Current review and next work — 12 September 2026
 
-The current working tree carries a focused follow-up after the `24eea8b2`
-documentation checkpoint. Keep04 countdowns now derive remaining seconds with
-exact bigint arithmetic, so epoch-scale Realm timestamps cannot lose a second
-through floating-point conversion. The placement schematic now preserves its
-88:72 diorama ratio on narrow screens while retaining the same half-meter tap
-mapping and keyboard nudges. The focused Keep04 screen/placement suite passes
-31/31, the visual-foundation contract passes 3/3, TypeScript passes, and the
-production build completes locally. The exact branch head and fresh GitHub
-Verify/CodeQL results must be read after this change before treating R14 as
-complete; no live deployment or physical-device result is implied.
+Reviewed source base: `2ffdcc96ea3474908d2158ee817b4a384b274523`, followed by
+the placement/workflow patch recorded with this note. Fetch PR #228 to resolve
+the latest immutable branch head and its terminal checks. Do not interpret an
+older checkpoint below as the current worktree or release candidate.
 
-## Current verification checkpoint — 12 September 2026
+The prior aspect-ratio fix distorted pointer mapping when the SVG had borders
+or letterboxing. Placement now inverts the native screen transform and ignores
+outside-plan taps before snapping. Chrome fixture checks passed at portrait,
+narrow bordered, wide and tall layouts; keyboard movement remains covered.
+This is local browser evidence, not owner or physical-device acceptance.
+Countdown arithmetic is retained, with a regression that fails the old
+floating-point calculation. Contemporary microsecond timestamps do not already
+exceed JavaScript's safe-integer range; that earlier explanation was incorrect.
 
-The current synchronized development head is
+The loop indicator now keeps construction at Build until authoritative
+completion, then shows Benefit when inspecting a completed improvement. Other
+stages are neutral: a returning Worker does not prove a building was completed.
+This changes presentation, not construction timers, costs or resource authority.
+
+Pages now installs the same root-suite prerequisites as Verify and runs the
+expensive authority tests serially with the same bounded timeout. The Linux
+prepared bridge reads the public PTR database identity from its documented
+repository variable. That variable is currently absent; derive the genuine
+isolated identity before configuring it. Private credentials remain secrets.
+
+Independent source and GitHub review corrected two obsolete blockers: the
+Linux prepared deployment/recovery caller is already implemented, and absence
+of a local signing key does not establish a protected squash-merge rejection.
+B0 is a retained predecessor receipt to authenticate, never a workflow to rerun.
+The live public attestation still reports B0 source `308f901d`; it does not prove
+private receipts, Cloudflare bytes or a live 0.4 deployment. Runner22 is online.
+See the [workflow audit](../../evidence/0.4.0/workflow-sufficiency-audit.md)
+for the genuine remaining provider, PTR and recovery gaps.
+
+Next: verify/refreeze this source through native `prepare` and independent
+`check`, publish the generated family, finish normal protected preparation-only
+promotion and main CI, then exercise the existing sealed `preflight`. Follow
+with real shared bridge attesters in the sealed entry points. Workflow edits
+change protected closure members; old candidate hashes and fixture-generated
+test manifests cannot certify this source. Do not port the retired Mac caller
+or weaken branch rules. Keep G001 preserved and G002 sealed throughout.
+
+## Historical verification checkpoint — 12 September 2026
+
+The recorded synchronized development head was
 `95945beaae12e31a3516b6ad42511fe8cff63ef4` on
 `codex/prepared-keep-bindings-fix`. This documentation checkpoint aligns the
 agent-facing evidence with the latest source/test head; the reviewed runtime
@@ -30,8 +61,8 @@ aggregate verification job. CodeQL run `34665737866` also completed
 successfully. This evidence is source/test-head-bound; any later branch commit
 requires its own terminal checks before treating R14 as complete.
 
-The Windows checkout, GitHub development branch and native WSL checkout remain
-clean and synchronized on `codex/prepared-keep-bindings-fix`; the latest
+At that checkpoint, the Windows checkout, GitHub development branch and native
+WSL checkout were synchronized on `codex/prepared-keep-bindings-fix`; the
 source checkpoint used for native preparation is
 `03cb8b8fc2c0c59bcb58c4303b2082dead6325d9`; the reviewed
 runtime source checkpoint is
@@ -47,7 +78,7 @@ application chunk is about 3.9 kB (down from about 899 kB), while the interactiv
 runtime remains deferred until the gateway is entered. The Worker review panel
 keeps internal `locationId` in the authority-bound dispatch payload but does not
 render it to players; resource labels use the resource site and coordinates.
-Native Linux `prepare` and independent `check` now converge on candidate
+Native Linux `prepare` and independent `check` converged on candidate
 `release-workspace-2d70e1808817fcf50990e5a4b84409b9` with family digest
 `841eb93123b88508d82febe883966722d0ffffe46c0cd84b36666a6ed4d2deee`, closure
 manifest `689dc56ab6ae708958093b6c8ffb89dcb7fd4671de82261f1c3bdc77ed4a7f77`,

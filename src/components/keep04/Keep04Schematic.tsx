@@ -38,9 +38,13 @@ export function Keep04Schematic({ buildings, draft, selectedKind, onSelect, onCh
     <svg role="application" aria-label="Keep placement schematic" aria-describedby="keep04-map-help" tabIndex={0}
       viewBox="-44 -40 88 72" preserveAspectRatio="xMidYMid meet" onKeyDown={keyboard} onClick={event => {
         if (!editable) return;
-        const bounds = event.currentTarget.getBoundingClientRect(); if (bounds.width <= 0 || bounds.height <= 0) return;
-        const x = -44 + (event.clientX - bounds.left) / bounds.width * 88;
-        const z = -40 + (event.clientY - bounds.top) / bounds.height * 72;
+        // The native transform includes borders, letterboxing and ancestor transforms.
+        // Ignore the surrounding padding before snapping to the placement grid.
+        const screenTransform = event.currentTarget.getScreenCTM(); if (!screenTransform) return;
+        const { a, b, c, d, e, f } = screenTransform.inverse();
+        const x = a * event.clientX + c * event.clientY + e;
+        const z = b * event.clientX + d * event.clientY + f;
+        if (!Number.isFinite(x) || !Number.isFinite(z) || x < -44 || x > 44 || z < -40 || z > 32) return;
         onChange(Object.freeze({ ...draft, x: BigInt(Math.round(x * 2)) * 500_000n, z: BigInt(Math.round(z * 2)) * 500_000n }));
       }}>
       <rect className="keep04-grounds" x={-44} y={-40} width={88} height={72} />

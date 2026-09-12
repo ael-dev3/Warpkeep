@@ -1,13 +1,54 @@
 # 0.4.0 integration evidence
 
-Updated 2026-09-12. The current synchronized documentation/test head is
+Updated 2026-09-12. Current continuation is recorded in the
+[execution handoff](../../agent-notes/0.4.0/execution-handoff.md); fetch PR #228
+for its immutable head and CI. Source publication, native preparation and
+production deployment are separate outcomes.
+
+## Placement and workflow review — 2026-09-12
+
+Source base `2ffdcc96` plus this patch: native SVG transform mapping fixes
+border/letterbox placement errors; large-timestamp countdown regression covers
+actual floating-point loss. Actual Chrome fixture clicks passed at four layout
+sizes, with outside-plan taps ignored. These observations establish local
+presentation behavior, not physical-device performance or owner play.
+
+The recurring loop indicator distinguishes ongoing Build from confirmed Benefit
+and no longer labels earlier steps completed merely because a Worker is returning.
+Its presentation tests use authoritative state, including overdue construction
+that has not yet been confirmed complete by the Realm.
+
+Pages root-test prerequisites and serial authority-test scheduling now match
+Verify. Linux prepared PTR configuration follows the documented repository
+variable. Independent review found no permission widening. Both workflows are
+protected closure members and require native source-family preparation/check;
+tests that rebuild their own fixture manifests are not that evidence.
+
+Verification of the final patch on pinned Node 22.22.3: the selected Keep04
+screen/placement/loop, workflow security, Pages, Linux prepared configuration,
+closure derivation and document/visual contract suites passed 115 tests across
+10 files, with two Windows POSIX skips. The production build, referenced
+TypeScript projects, runtime/provenance assets, production exclusions, public
+boundary and Farcaster integrity checks passed. The changed documents' 73 local
+links resolved. Independent reviews covered SVG interaction and delivery
+authority; no live acceptance is inferred from these results.
+
+The [workflow audit](workflow-sufficiency-audit.md) records current main/runner
+and provider findings. B0 remains the historical predecessor; its legacy caller
+is not a new Linux port requirement. Pending required checks do not establish
+an independent missing-local-signature blocker. No merge, provider deployment,
+recovery activation or live 0.4 acceptance is claimed by these corrections.
+
+## Historical source/test checkpoint — 2026-09-12
+
+The recorded synchronized documentation/test head was
 `95945beaae12e31a3516b6ad42511fe8cff63ef4` on
 `codex/prepared-keep-bindings-fix`; the reviewed runtime source remains
 `24e3c136fb5e3839b00c8e8ddb3c780b6f795461`. PR #228 is ready for review.
 Source publication and protected CI are still separate from production
 deployment.
 
-## Current checkpoint — 2026-09-12
+### Verification at that checkpoint
 
 The protected Verify run `34665737857` and CodeQL run `34665737866` linked from
 PR #228 completed successfully for this source/test head. Later branch commits

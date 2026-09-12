@@ -71,7 +71,7 @@ jobs:
       needs.classify.outputs.deployment-lane == 'sealed-g002'
     runs-on: ubuntu-latest
     # Match Verify's bounded allowance for the complete root security suite.
-    timeout-minutes: 45
+    timeout-minutes: 75
     permissions:
       contents: read
       pages: read
@@ -202,6 +202,17 @@ jobs:
       - name: Install exact bridge runtime-test toolchain
         run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
 
+      - name: Validate PTR lock and install SpacetimeDB module dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e spacetimedb/ptr/node_modules
+          pnpm --dir spacetimedb/ptr install \
+            --frozen-lockfile --lockfile-only --ignore-workspace
+          test ! -e spacetimedb/ptr/node_modules
+          pnpm --dir spacetimedb install --frozen-lockfile
+          test ! -e spacetimedb/ptr/node_modules
+
       - name: Re-attest runner-private Node after dependency install
         shell: bash
         run: |
@@ -228,8 +239,48 @@ jobs:
             [[ "$actual_sha" == "$WARPKEEP_PRIVATE_NODE_SHA256" ]]
           fi
 
+      - name: Install pinned SpacetimeDB CLI
+        env:
+          SPACETIMEDB_CLI_SHA256: cb03bb4706dc6bd6ef080c9bbd220a6e7d10430a65e7be2ba6be27ec7e3a9118
+          SPACETIMEDB_CLI_VERSION: 2.6.1
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/spacetime-${SPACETIMEDB_CLI_VERSION}.tar.gz"
+          bin_dir="$RUNNER_TEMP/spacetime-bin"
+          curl --fail --location --proto '=https' --tlsv1.2 --retry 3 \
+            --output "$archive" \
+            "https://github.com/clockworklabs/SpacetimeDB/releases/download/v${SPACETIMEDB_CLI_VERSION}/spacetime-x86_64-unknown-linux-gnu.tar.gz"
+          echo "${SPACETIMEDB_CLI_SHA256}  ${archive}" | sha256sum --check --strict -
+          mkdir -p "$bin_dir"
+          tar -xzf "$archive" -C "$bin_dir" spacetimedb-cli spacetimedb-standalone
+          mv "$bin_dir/spacetimedb-cli" "$bin_dir/spacetime"
+          echo "$bin_dir" >> "$GITHUB_PATH"
+          "$bin_dir/spacetime" --version
+
+      - name: Prepare exact offline YAML archive for manifest tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive=".git/yaml-2.9.0.tgz"
+          test ! -e "$archive"
+          curl --fail --proto '=https' --tlsv1.2 --max-time 30 \
+            --max-filesize 112086 --output "$archive" \
+            'https://registry.npmjs.org/yaml/-/yaml-2.9.0.tgz'
+          test "$(wc -c < "$archive")" -eq 112086
+          echo "008fa204cb1ba700e0272ba045abbf09a6ffe63456e8146ba97cac6c2ad1ef91  $archive" \
+            | sha256sum --check --strict -
+
       - name: Test
-        run: npm test -- --maxWorkers=2
+        run: |
+          npm test -- \
+            --exclude tests/authBridgeNotificationPreparedWorkflow.test.ts \
+            --exclude tests/productionPlayerCanaryClosure.test.ts \
+            --maxWorkers=2
+          npm test -- \
+            tests/authBridgeNotificationPreparedWorkflow.test.ts \
+            tests/productionPlayerCanaryClosure.test.ts \
+            --maxWorkers=1 \
+            --testTimeout=180000
 
       - name: Typecheck
         run: npm run typecheck

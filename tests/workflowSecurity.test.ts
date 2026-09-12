@@ -18,7 +18,7 @@ const splitRootTestRun = [
   '  --testTimeout=180000',
   '',
 ].join('\n');
-const pagesRootTestRun = 'npm test -- --maxWorkers=2';
+const pagesRootTestRun = splitRootTestRun;
 
 interface WorkflowStep {
   name?: string;
@@ -402,7 +402,7 @@ describe('GitHub workflow security policy', () => {
       },
       {
         job: workflowJob('deploy-pages.yml', 'build'),
-        timeoutMinutes: 45,
+        timeoutMinutes: 75,
         stepName: 'Test',
         run: pagesRootTestRun,
       },
@@ -422,6 +422,32 @@ describe('GitHub workflow security policy', () => {
     expect(source).toContain('sha256sum --check --strict');
     expect(source).toContain('spacetime-x86_64-unknown-linux-gnu.tar.gz');
     expect(source).toContain('spacetimedb-cli spacetimedb-standalone');
+  });
+
+  it('gives the Pages root suite the same prerequisites as Verify before running it', () => {
+    const verify = workflowJob('verify.yml', 'linux');
+    const pages = workflowJob('deploy-pages.yml', 'build');
+    const steps = pages.steps ?? [];
+    const testsAt = steps.findIndex(step => step.name === 'Test');
+    const reattestAt = steps.findIndex(step => step.name === 'Re-attest runner-private Node after dependency install');
+    expect(testsAt).toBeGreaterThan(reattestAt);
+    for (const name of [
+      'Setup Node',
+      'Setup pinned pnpm for bridge runtime-contract tests',
+      'Install exact bridge runtime-test toolchain',
+      'Validate PTR lock and install SpacetimeDB module dependencies',
+      'Install pinned SpacetimeDB CLI',
+      'Prepare exact offline YAML archive for manifest tests',
+    ]) {
+      const expected = verify.steps?.find(step => step.name === name);
+      expect(expected, `${name} must exist in Verify`).toBeDefined();
+      expect(steps.filter(step => step.name === name), `${name} differs from Verify`).toEqual([expected]);
+      const index = steps.findIndex(step => step.name === name);
+      expect(index, `${name} must precede the root suite`).toBeLessThan(testsAt);
+      if (name.startsWith('Install exact bridge') || name.startsWith('Validate PTR')) {
+        expect(index, `${name} must precede executable re-attestation`).toBeLessThan(reattestAt);
+      }
+    }
   });
 
   it('does not persist checkout credentials and audits every package boundary', () => {

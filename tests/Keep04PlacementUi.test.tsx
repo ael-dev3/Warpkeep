@@ -12,6 +12,21 @@ import { presentState04 } from '../src/ptr/gameplay04/gameplay04Presentation';
 import { ATLAS04, SCOPE04, MILL_PLACEMENT04, wireWithBuilding04, constructingWire04, freshWire04 } from './fixtures/gameplay04Client';
 afterEach(cleanup);
 
+// jsdom has no SVG layout. Supply the native screen transform of a bordered,
+// xMidYMid meet viewport separately from its full bounding rectangle.
+function mockSchematicViewport(map: HTMLElement, width: number, height: number, border = 0) {
+  const left = 30; const top = 50;
+  const scale = Math.min((width - 2 * border) / 88, (height - 2 * border) / 72);
+  const planLeft = left + (width - 88 * scale) / 2;
+  const planTop = top + (height - 72 * scale) / 2;
+  vi.spyOn(map, 'getBoundingClientRect').mockReturnValue({ x: left, y: top, left, top, width, height, right: left + width, bottom: top + height, toJSON: () => {} });
+  Object.defineProperty(map, 'getScreenCTM', { configurable: true, value: () => ({ inverse: () => ({
+    a: 1 / scale, b: 0, c: 0, d: 1 / scale, e: -44 - planLeft / scale, f: -40 - planTop / scale,
+  }) }) });
+  return { left, top, planLeft, planTop, scale,
+    point: (x: number, z: number) => ({ clientX: planLeft + (x + 44) * scale, clientY: planTop + (z + 40) * scale }) };
+}
+
 it.each(['busy', 'shortage'] as const)('does not present a legal site as build-ready with %s', reason => {
   const wire = reason === 'busy' ? constructingWire04() : freshWire04();
   if (reason === 'busy') Object.assign(wire, { food: 10000n, wood: 10000n, stone: 10000n, gold: 10000n });
@@ -38,17 +53,64 @@ it('maps taps to the half-meter grid, exposes exclusions and gives keyboard/touc
       onChange={setDraft} />;
   }
   render(<Harness />); const map = screen.getByRole('application', { name: 'Keep placement schematic' });
-  vi.spyOn(map, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 0, left: 0, top: 0, width: 880, height: 720, right: 880, bottom: 720, toJSON: () => {} });
-  fireEvent.click(map, { clientX: 201, clientY: 201 });
+  const viewport = mockSchematicViewport(map, 880, 720);
+  fireEvent.click(map, viewport.point(-23.9, -19.9));
   expect(latest).toEqual(MILL_PLACEMENT04);
   fireEvent.keyDown(map, { key: 'ArrowRight' }); expect(latest?.x).toBe(-23_500_000n);
   fireEvent.click(screen.getByRole('button', { name: 'Move left 0.5 m' })); expect(latest?.x).toBe(-24_000_000n);
   fireEvent.keyDown(map, { key: 'ArrowUp' }); fireEvent.click(screen.getByRole('button', { name: 'Move down 0.5 m' })); expect(latest?.z).toBe(-20_000_000n);
   fireEvent.keyDown(map, { key: 'r' }); expect(latest?.rotation).toBe(90_000);
   fireEvent.click(screen.getByRole('button', { name: 'Rotate 90°' })); expect(latest?.rotation).toBe(180_000);
-  fireEvent.click(map, { clientX: 440, clientY: 600 }); expect(screen.getByRole('status')).toHaveTextContent('Keep roads and civic space clear.');
+  fireEvent.click(map, viewport.point(0, 20)); expect(screen.getByRole('status')).toHaveTextContent('Keep roads and civic space clear.');
   expect(screen.getByText('Civic commons')).toBeVisible(); expect(screen.getByText('Gate spine')).toBeVisible(); expect(screen.getByText('Gate approach')).toBeVisible();
   expect(screen.getByText('Civic commons').namespaceURI).toBe('http://www.w3.org/1999/xhtml');
+});
+
+it.each([
+  ['wide letterboxed', 600, 240],
+  ['tall letterboxed', 240, 400],
+  ['mobile bordered', 180, 180 * 72 / 88],
+] as const)('places the draft at the rendered point in a %s schematic', (_name, width, height) => {
+  const change = vi.fn();
+  render(<Keep04Schematic buildings={[]} draft={MILL_PLACEMENT04} selectedKind="city-mill" onSelect={vi.fn()} onChange={change} />);
+  const map = screen.getByRole('application', { name: 'Keep placement schematic' });
+  const viewport = mockSchematicViewport(map, width, height, 2);
+  fireEvent.click(map, viewport.point(-24, -20));
+  expect(change).toHaveBeenLastCalledWith(MILL_PLACEMENT04);
+  fireEvent.click(map, viewport.point(18.26, -16.76));
+  expect(change).toHaveBeenLastCalledWith({ ...MILL_PLACEMENT04, x: 18_500_000n, z: -17_000_000n });
+});
+
+it.each([[600, 240], [240, 400]] as const)('ignores border and letterbox taps in a %i by %i schematic', (width, height) => {
+  const change = vi.fn();
+  render(<Keep04Schematic buildings={[]} draft={MILL_PLACEMENT04} selectedKind="city-mill" onSelect={vi.fn()} onChange={change} />);
+  const map = screen.getByRole('application', { name: 'Keep placement schematic' });
+  const viewport = mockSchematicViewport(map, width, height, 2);
+  for (const [clientX, clientY] of [
+    [viewport.left + 1, viewport.top + height / 2],
+    [viewport.left + width - 1, viewport.top + height / 2],
+    [viewport.left + width / 2, viewport.top + 1],
+    [viewport.left + width / 2, viewport.top + height - 1],
+    [viewport.planLeft - 0.1, viewport.top + height / 2],
+    [viewport.planLeft + 88 * viewport.scale + 0.1, viewport.top + height / 2],
+    [viewport.left + width / 2, viewport.planTop - 0.1],
+    [viewport.left + width / 2, viewport.planTop + 72 * viewport.scale + 0.1],
+  ]) fireEvent.click(map, { clientX, clientY });
+  expect(change).not.toHaveBeenCalled();
+  fireEvent.keyDown(map, { key: 'ArrowRight' });
+  expect(change).toHaveBeenCalledWith({ ...MILL_PLACEMENT04, x: -23_500_000n });
+});
+
+it('does not move a draft without a usable rendered transform', () => {
+  const change = vi.fn();
+  render(<Keep04Schematic buildings={[]} draft={MILL_PLACEMENT04} selectedKind="city-mill" onSelect={vi.fn()} onChange={change} />);
+  const map = screen.getByRole('application', { name: 'Keep placement schematic' });
+  const viewport = mockSchematicViewport(map, 880, 720);
+  Object.defineProperty(map, 'getScreenCTM', { value: () => null });
+  fireEvent.click(map, viewport.point(-24, -20));
+  Object.defineProperty(map, 'getScreenCTM', { value: () => ({ inverse: () => ({ a: NaN, b: NaN, c: NaN, d: NaN, e: NaN, f: NaN }) }) });
+  fireEvent.click(map, viewport.point(-24, -20));
+  expect(change).not.toHaveBeenCalled();
 });
 
 it.each([1, 5])('preserves the exact upgrade transform and a numeric completed-level badge at level %i', level => {

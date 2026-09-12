@@ -2,15 +2,53 @@
 
 ## Current source checkpoint — 2026-09-12
 
-The Windows checkout, GitHub branch and existing WSL checkout are clean and
-synchronized on `codex/prepared-keep-bindings-fix` at
-`95945beaae12e31a3516b6ad42511fe8cff63ef4`; the reviewed runtime source
-checkpoint is `24e3c136fb5e3839b00c8e8ddb3c780b6f795461`. Verify run
-`34665737857` and CodeQL run `34665737866` completed successfully for this
-source/test head. No provider
+The release-path audit inspected published development head
+`2ffdcc96ea3474908d2158ee817b4a384b274523` on
+`codex/prepared-keep-bindings-fix`; concurrent working-tree edits are not
+attested by that checkpoint. Historical source/test head `95945bea` passed
+Verify run `34665737857` and CodeQL run `34665737866`. The latest recorded
+native preparation/check input is `03cb8b8fc2c0c59bcb58c4303b2082dead6325d9`;
+later gameplay and workflow edits require their own preparation. No provider
 deployment, recovery readback, owner PTR acceptance, physical-device result or
 live release is claimed. The current source and CI authority are recorded in
 the [execution handoff](execution-handoff.md).
+
+## Release-path audit — 2026-09-12
+
+The dedicated Linux prepared caller selects its own workflow identity, native
+executables and account-home receipt/journal paths. It replaces the historical
+Darwin prepared caller; porting the old workflow is not a release prerequisite.
+B0 is the retained predecessor, not a workflow to rerun. A fresh public GET to
+`https://auth.warpkeep.com/v1/release-attestation` reports reviewed B0 source
+`308f901d91a1fb68d90f157a2ec164ed1acaf51d`, configured notification delivery
+enabled, and public authentication with expected-FID enforcement enabled.
+This is public protocol evidence; retained private evidence and fresh
+Cloudflare source/configuration/secret-binding checks remain necessary.
+
+GitHub reported runner22 online and idle. Neither the Linux prepared workflow
+nor `sealed-realms-production.yml` exists on inspected main `9eb98e78`.
+The notification environment contains existing account, provider-token, zone,
+owner-FID and administrator-token secret slots; their presence does not prove
+their values or authority. The public immutable PTR database identity is absent
+from repository/environment variable and secret inventories. Resolve its actual
+target and install the Phase 1 repository variable before prepared deployment.
+The working-tree Linux caller reads this public identifier from `vars`, matching
+the canonical sealed-launch direction; credentials and owner identity remain in
+secrets. This source correction does not populate the actual target binding.
+
+Protected main requires signatures, linear history and strict required checks;
+only squash merges are enabled. PR #228 was `MERGEABLE` but `BLOCKED` with Linux
+and SpacetimeDB checks running, and was zero commits behind main. Main itself is
+a verified GitHub-authored single-parent squash. These observations do not prove
+that a missing local signing key independently prevents normal protected squash.
+Recheck terminal CI and actual merge eligibility; do not change protections or
+rewrite development history based only on that earlier assumption.
+
+The next operating evidence is a protected Linux `preflight` after reviewed
+source promotion, successful main CI and generated-family installation. The
+later prepared bridge, recovery service and realm work require genuine target,
+provider, private-state and owner authority. The unavailable adapters listed
+below remain unfinished integration; source promotion alone does not ship 0.4.
 
 ## Recorded runner status — 2026-09-11
 
@@ -90,13 +128,14 @@ local parents/workers and the fixture toolchain policy. Its installation
 completed; after initial connection timeouts, Ubuntu 24.04.4 now runs commands
 as `warpkeep` UID/GID 1000. Home/private directory modes are verified. A systemd
 user-session warning persists, and WSL availability still depends on the host
-session, but pinned tools, fresh attestations and native current-source
-preparation/check are now proven. The evidence remains local and does not
+session, but pinned tools, fresh attestations and native preparation/check are
+proven for the recorded source inputs. Later source edits are not covered.
+The evidence remains local and does not
 replace protected CI, provider, owner or physical-device acceptance.
 No fallback into another project's distro is supported. Existing tool hashes,
 UID/mode checks and private history remain intact. Source/mock verification
 must not be presented as a working guest, regenerated native bundles or a
-migration of the separate registered Actions runner. Use the current
+proof of an authenticated Actions job. Use the current
 [local preparation guide](../../operations/0.4.0-local-release-preparation.md);
 the earlier observations below retain their original scope.
 
@@ -306,8 +345,10 @@ Disposable local Linux execution can test compiler and filesystem behavior.
 The supported Linux runner is now registered and available, but no live recovery
 job/OIDC authorization was exercised by setup. Finish the executable operating
 adapters and verify the exact workflow/source/authorization chain on that runner.
-The owner excluded dependence on the Mac runner; legacy Mac-only production
-callers remain separate migration work.
+The owner excluded dependence on the Mac runner. Current Linux callers replace
+the historical Darwin prepared and Pages paths. Preserve the historical B0
+predecessor; do not treat rerunning it or porting its retired caller as current
+release work.
 
 ## Component status and next operating caller
 
@@ -321,9 +362,9 @@ callers remain separate migration work.
 | Activation generation and completion | `772d3a4` connects the fixed V2 generator, branded evidence consumption, atomic public artifact/private generation receipt and read-only reconciliation through the activation lane | The workflow's source-evidence and provider adapters still refuse unavailable authority; implemented generation does not manufacture those inputs |
 | G001 producer-local capture | `sealed-realms-production-g001-lane-entry.mjs`: stable applicant pair, admitted capture at suspend, S-mode current-state capture | Other producer/adapters remain unavailable; A-mode inspection must preserve original preparation capture |
 | Publisher ABI checks | `genesis002-production-publisher.mjs` and `ptr-production-publisher.mjs` corrected for real generated gameplay ABI | Fresh-create publishers still reject existing targets; both realms are confirmed to exist |
-| Recovery Pages caller | `deploy-pages.yml` implements the Linux build/attestation/artifact/claim/boundary/deploy/postflight job at `c51bb00`; runner22 and its UID1001 private directory are now provisioned | Install/review the selected current generated source and bundle family, genuine activation inputs, signer private/control state and live authorization; no recovery job has yet established acceptance |
+| Recovery Pages caller | `deploy-pages.yml` implements Linux build/attestation/artifact/claim/boundary/deploy/postflight; current runner22 uses UID/GID1000 and `/home/warpkeep/.warpkeep-recovery-v1` | Install/review the selected current generated source and bundle family, genuine activation inputs, signer private/control state and live authorization; no recovery job has yet established acceptance |
 | Recovery Worker split | `services/release-recovery` gateway route and private signer/service binding, durable ledger, disabled gate | Configuration files do not prove deployed Workers, installed keys or armed authorization |
-| Linux sealed preflight | Fixed authenticated G001 caller connected through `sealed-realms-production.yml`, with actual runtime/source/bundle/Verify/private-root checks | Only preflight is supported; other sealed operations refuse. Native synthetic tests do not establish a protected dispatch, provider readiness or launch authorization |
+| Linux sealed workflow | `sealed-realms-production.yml` connects preflight, G001 policy observation, activation inspection and activation generation with actual runtime/source/bundle/Verify/private-root checks | Remaining realm operations explicitly refuse; activation generation still needs genuine provider/import/owner producers. Native synthetic tests do not establish a protected dispatch, provider readiness or launch authorization |
 
 Read [compiled family evidence](../../evidence/0.4.0/local-release-compiled-family-probe.md),
 [recovery validation map](../../evidence/0.4.0/recovery-binding-validation-map.md),
@@ -343,18 +384,19 @@ while correctly separating repository-root browser packages from its dependency
 owner. Read the [executed engineering evidence](../../evidence/0.4.0/release-engineering.md)
 for the combined native results and the separate generated-family boundary.
 
-1. `.github/workflows/sealed-realms-production.yml` still emits
-   `SEALED_REALMS_TASK_7_CLOSURE_UNAVAILABLE` and contains macOS/Darwin runtime
-   contracts. The fixed Verify reader is implemented and tested through the real
-   workflow factories; the executable lane still needs its real token mapping and
-   supported attested runtime. A fixture or local source pass cannot supply them.
-2. G001 workflow-entry adapters for private admin resolution, policy/census,
-   suspension, dispatcher attestation, child execution and fixed observation are
-   disconnected. G002/PTR workflow entries still lack operating marker, deployment,
-   import-auth, publish/import/postflight/live adapters; PTR additionally lacks
-   actual owner inspection/provisioning. Activation bridge/import/owner attesters
-   remain unavailable. Trace `sealed-realms-production-*-workflow-entry.mjs` and
-   their lane callers rather than merely deleting their throws.
+1. `.github/workflows/sealed-realms-production.yml` uses the dedicated Linux
+   runtime and supports preflight, G001 policy observation, activation inspection
+   and activation generation. Other operations emit
+   `SEALED_REALMS_LINUX_OPERATION_UNAVAILABLE`. The workflow is absent from
+   inspected protected main, so reviewed source promotion and main CI precede a
+   genuine protected dispatch. A local fixture cannot supply that job identity.
+2. G002/PTR workflow entries supply `unavailable` for deployment/binding
+   attestation, import evidence, initial publish/import/postflight/live adapters
+   and owner receipt resolution; PTR also lacks actual owner inspection and
+   provisioning. Activation shares the missing bridge/import/owner attesters.
+   Complete these real producers and their operating callers; the connected G001
+   policy path does not establish other realm operations. Trace
+   `sealed-realms-production-*-workflow-entry.mjs` and their lane callers.
 3. The fixed activation dispatcher/lane, generator/assert/consume paths and durable
    completion/reconciliation are implemented at `772d3a4`; receipt-first candidate
    projection follows at `f558bd5`. The operating workflow's
@@ -364,16 +406,16 @@ for the combined native results and the separate generated-family boundary.
    fresh descriptor creation cannot borrow that historical authority. The legacy
    early-dispatch Task6E refusal remains a separate path. Supply actual producer
    evidence and supported workflow context, not arbitrary callbacks or fixture JSON.
-4. G002/PTR publishers are **fresh-create only** and reject existing aliases.
-   Existing-state baseline, exact immutable target, schema-compatible data-preserving update,
-   no-delete publication, ambiguous-outcome reconciliation and authenticated
-   postflight are required for a safe update. Removing the refusal or resetting
-   the database is not an update implementation.
+4. The G002/PTR fresh-create publishers reject existing aliases. Separate
+   data-preserving existing-update adapters and synthetic connected rehearsals
+   now exist; they do not prove a production target or authenticated postflight.
+   Bind actual existing-state baselines, immutable targets, compatible schemas,
+   no-delete updates and ambiguous-outcome reconciliation before live use.
 5. `deploy-pages.yml` implements `deploy-recovery` at `c51bb00`; its actual source
    passes the fixed issuance and reconciliation workflow contracts. It owns the
    build, installed attestation, unique artifact and adjacent claim → fresh boundary
    → pinned Pages deploy → mandatory postflight under the non-cancelling production
-   lock. Runner22 is online and its UID1001 private directory exists. The selected
+   lock. Runner22 is online and its UID1000 private recovery directory exists. The selected
    `b4df426` source family passed full native prepare/check and was integrated
    with this handoff. Later runtime changes require fresh derivation. Genuine
    activation inputs and live signer authorization remain missing. Private signer
@@ -384,9 +426,10 @@ for the combined native results and the separate generated-family boundary.
 6. The **native-contract verification job has already migrated** to disposable
    hosted `ubuntu-24.04` and asserts Linux/X64 in `verify.yml`. The old
    local-operations table listing Verify as macOS-dependent is historical.
-   Production migration remains incomplete: sealed-realms, the two protected
-   Pages jobs, and both notification-bridge workflows still name macOS/Darwin
-   labels, binaries or toolchain manifests. Changing labels alone is insufficient.
+   Current sealed, prepared-notification and Pages operating callers use Linux
+   profiles and actual Linux tools. The old B0/Darwin prepared workflows remain
+   historical, separate source. No-Mac acceptance still requires execution and
+   authenticated provider/readback evidence through the supported Linux callers.
 7. Registered runner availability does not establish a particular trusted job identity,
    final network allowlist, attested embedded toolchains or durable private claim
    state. Do not expose a privileged production runner to arbitrary PR code,

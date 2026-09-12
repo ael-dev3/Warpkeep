@@ -7,8 +7,9 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-Updated September 12 against the published development branch and PR #228 at
-`aa93d855531d75d8fc11a5404d5a919f131b3fb9`.
+Updated September 12 after reviewing development checkpoint `2ffdcc96` and its
+placement/workflow corrections. Fetch PR #228 for the current immutable head;
+this index is a source map, not a synchronization receipt.
 The GitHub/profile/ecosystem refresh is complete. Continue
 the connected game and delivery work from the [execution handoff](execution-handoff.md),
 which records the current checkpoint, preparation, CI and environment details.
@@ -52,7 +53,9 @@ which records the current checkpoint, preparation, CI and environment details.
 - **Delivery has working foundations and specific gaps.** The local source
   assembler connects fixed compilers, generated consumers, independent rebuilding
   checks and candidate recovery. Linux recovery and sealed preflight callers are
-  connected and the dedicated runner is installed. Remaining operating callers,
+  connected and the dedicated runner is online. The Linux prepared bridge caller
+  already replaces the old Mac path; authenticate B0's retained receipt without
+  rerunning B0. Protected-main promotion, real sealed-provider composition,
   genuine provider/signer authority and production code-replacement integration
   still need completion. An isolated update rehearsal does not supply those credentials
   or establish a release-ready production adapter.
