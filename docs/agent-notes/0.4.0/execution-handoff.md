@@ -14,6 +14,32 @@ Linux owning checks and publication are recorded in the resulting PR. The signer
 gateway are not deployed, and the live bridge lacks their observation bindings.
 Preserve G001 public authentication when configuring the later service rollout.
 
+The owner's continuous-sync follow-up now requires immediate reviewable
+checkpoints, including bounded unfinished work before switching work items.
+AGENTS, contributor guidance and the canonical development/sync procedures agree;
+the existing 15-minute app check has the same rule and remains a fallback. Use
+the current live PR head for the latest source; a development push is not a
+release or a pass for checks still running.
+
+The next service integration needs a guarded successor to the existing
+notification-prepared bridge deployer. That historical adapter can install PTR
+and canary settings but cannot supply the recovery observer bindings. Preserve
+its authenticated predecessor, public modes and existing secrets; install the
+observer configuration, disabled private signer and secretless gateway in that
+order. The existing recovery key, RPC secret and census pepper must be reused.
+Full bootstrap verification still lacks the local canary owner carrier. The
+authenticated account's GitHub Apps settings showed no registered Apps during
+this review; the dedicated read-only installation/key supply remains unresolved.
+
+Existing-state adoption must be a distinct V4 path through update completion,
+bridge state, activation and recovery consumers. Bind signed pre/post observations
+to the actual update job, candidate and continuation; the standalone observation
+job cannot run inside that update's shared production concurrency. Compare owner
+and atlas commitments under the same observer configuration/pepper scope. Retained
+signatures need a separate historical-data verifier, while new actions require
+fresh evidence. Do not synthesize old import/provision receipts or claim equality
+of every gameplay row from the current observation projection.
+
 Protected M2 was reconciled into the published stack with ordinary merges:
 navigation PR #236 is `92d363ce`, runner PR #237 is `7bc5992c`, and frozen-source
 PR #238 is `23ec4731`. Each retained its previously reviewed tree exactly.

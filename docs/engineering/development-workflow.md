@@ -48,8 +48,9 @@ Historical plans are context, not an automatic restriction on better solutions.
    Close actionable findings or explicitly record why they remain blocking.
 6. **Record and publish source.** Add concise evidence tied to source and inputs;
    review/secret-scan exact outgoing commits, push without force and verify remote
-   identity for every completed development change. Include its implementation,
-   tests and owning notes in the same checkpoint where practical. Before yielding,
+   identity for every reviewable development checkpoint. Include implementation,
+   tests and owning notes together where practical. During longer changes, publish
+   bounded unfinished checkpoints before switching work items. Before yielding,
    publish all agent-authored durable work, including unfinished source labeled
    with its actual limits. Do not wait for full hosted CI or production readiness;
    publication remains separate from PR approval, main integration and deployment.
