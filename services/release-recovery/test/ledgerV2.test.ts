@@ -465,6 +465,26 @@ describe('recovery ledger v2 metadata binding', () => {
 })
 
 describe('recovery ledger v2 lifecycle and signer projection', () => {
+  it('retains V4 arming and rejects adoption baseline drift without changing ledger formats', () => {
+    const tuple = arming({ ptrStateEvidenceProfile: 'warpkeep-ptr-existing-state-adoption-v1',
+      ptrExistingStateAdoptionReceiptDigest: 'b'.repeat(64), ptrExpectedSealedStateHmacSha256: 'e'.repeat(64),
+      ptrExpectedOwnerInvariantHmacSha256: 'f'.repeat(64) })
+    const control = enabledControl(tuple)
+    expect(control.activeArming).toEqual(tuple)
+    const record = armed(tuple, control)
+    expect(record.arming).toEqual(tuple)
+    expect(installLedgerV2Arming(record, { arming: tuple, control })).toBe(record)
+    for (const key of ['ptrExistingStateAdoptionReceiptDigest', 'ptrExpectedSealedStateHmacSha256',
+      'ptrExpectedOwnerInvariantHmacSha256']) {
+      const changed = { ...tuple, [key]: '1'.repeat(64) }
+      expect(() => reconcileLedgerV2Control(control, { enabled: true,
+        authorizationEpoch: tuple.authorizationEpoch, arming: changed })).toThrow('RECOVERY_LEDGER_ARMING_CONFLICT')
+      expect(() => installLedgerV2Arming(record, { arming: changed, control })).toThrow()
+    }
+    expect(() => reconcileLedgerV2Control(control, { enabled: true,
+      authorizationEpoch: tuple.authorizationEpoch, arming: arming() })).toThrow('RECOVERY_LEDGER_ARMING_CONFLICT')
+  })
+
   it('rejects reserve retries with altered committed metadata, its hash, or the payload', async () => {
     const value = await issuing()
     const changedMetadata = { ...githubMetadata, artifactSize: 2 }

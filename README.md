@@ -7,7 +7,7 @@ across the landscape, resources come home, and a keep becomes a place shaped by
 its Keeper's choices. We are building a game that makes the first session
 satisfying and the next visit worthwhile.
 
-[warpkeep.com](https://warpkeep.com/) · [Follow development](https://github.com/ael-dev3/Warpkeep/pull/228)
+[warpkeep.com](https://warpkeep.com/) · [Follow development](https://github.com/ael-dev3/Warpkeep/pulls)
 · [Product direction](docs/design/warpkeep-direction.md) · [Documentation](docs/README.md)
 
 ## The next chapter

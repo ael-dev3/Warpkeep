@@ -81,6 +81,73 @@ This phase prepares notification delivery at `https://auth.warpkeep.com`
 without enabling founder-admission execution or Pages presentation. It is a
 short-lived evidence boundary, not authorization for either later phase.
 
+## Prepared transition for 0.4
+
+Use the protected Linux workflow
+`.github/workflows/notification-bridge-prepared-linux.yml` for the current host.
+Its prepared transition installs the current bridge code and owner PTR bindings
+while preserving the existing public-auth and expected-FID modes. The historical
+B0 source and the new candidate have separate exact contracts:
+
+| Surface | Reviewed B0 predecessor | Prepared candidate |
+| --- | --- | --- |
+| Source | Authenticated deployed B0 module inventory | Exact locally built multipart inventory |
+| Approval notifications | Enabled | Disabled for the admission freeze |
+| PTR and canary | Absent | Fixed PTR audience/database and managed owner secret |
+| Version metadata | Absent | `CF_VERSION_METADATA` |
+| Recovery entrypoint | Absent | `ReleaseRecoveryObservationEntrypoint` export |
+| Existing auth modes, secrets and Durable Objects | Attested live predecessor | Preserved through the transition |
+
+The fixed predecessor byte authority is
+[`auth-bridge-notification-prepared-b0-source.mjs`](../../scripts/auth-bridge-notification-prepared-b0-source.mjs).
+It records the module inventory obtained through authenticated Cloudflare version
+content readback on September 12 from deployed version
+`79dfceec-9810-4868-afca-5b794d08a9a5`, source `308f901d`. Its aggregate digest uses
+the existing multipart-v1 algorithm; the provider's script etag is a separate
+value. The production caller supplies this frozen authority, and the protected
+source closure covers it. Do not substitute the newly built candidate digest,
+accept whatever code happens to be live, or derive predecessor settings from
+the candidate's new bindings.
+
+The September 12 native dry run at `fb5a0b78` reproduced rejection of the current
+version-metadata binding before any provider mutation. Source review also found
+that the predecessor comparison used candidate settings and candidate bytes,
+and candidate export validation retained the old B0 export set. The repaired
+adapter validates the serialized upload and separate predecessor/candidate
+readback, including rejection of additional bindings, exports or source modules.
+Independent review covered the fixed caller and source-closure wiring. The
+Windows-compatible runtime cases (67) and recovery-source cases (43) passed,
+along with both root type projects. A broader Windows selection passed 80,
+failed 12 and skipped three: the receipt/journal tests require POSIX account
+ownership and a Wrangler text assertion expects LF. At published `b319e38b`,
+all 202 tests in the five runtime/adapter/receipt/recovery-source/Linux-workflow
+suites passed on native Linux Node 22.22.3 without skips, including those
+unchanged Windows failures and the pinned-Wrangler case. The wider selection
+found 15 source-inventory failures in the two closure suites. The follow-up adds
+the earlier PTR observation entrypoint to graph derivation, permits its exact
+six shared verifier files and restores canonical inventory order. Independent
+review and derivation/equality checks passed. Native session `44084` at published
+`b3ac5d28fc2bbd30a89530992671d845ad128639` then passed all 246 tests in the eight
+selected suites without skips in 9.51 seconds, exit zero, leaving the checkout
+clean. This includes the corrected closure cases and exact allowed/denied
+verifier paths. No generated manifest or workflow pin was edited for the source
+correction; full hosted CI remains separate.
+
+The actual unmodified, credential-free Wrangler dry run also passed at
+`b319e38b`, with exact candidate digest
+`b735e10d981ab97d366eff5919a81d7fc00255da9d7d66533a1a6d99ef1c2334` and
+`CF_VERSION_METADATA`. It produced the same candidate module bytes that failed
+validation at Q, and removed its owned temporary output. This proves local
+serialization and validation; no provider upload or deployment occurred.
+[PR #240](https://github.com/ael-dev3/Warpkeep/pull/240) integrates the repair and
+pending PTR observation source. Protected integration and a fresh generated
+family are still required before deployment; do not relabel historical output.
+
+A prepared receipt establishes the PTR/canary bridge transition. The recovery
+observer still needs its configured G002 identity, source/configuration epoch,
+RPC secret and census pepper, followed by the private signer and gateway rollout.
+An exported recovery entrypoint alone does not establish live observation.
+
 ## Closed receipt contract
 
 `scripts/auth-bridge-notification-prepared-receipt.mjs` accepts one ordered JSON
@@ -109,8 +176,10 @@ expiresAt
 
 The kind is
 `warpkeep-auth-bridge-notification-prepared-v1`, the origin is exactly
-`https://auth.warpkeep.com`, the notification count is exactly one, and all
-three bridge readiness booleans are true. `hermesExecutionApproved` and
+`https://auth.warpkeep.com`, and the notification count is exactly one.
+`notificationDeliveryEnabled` is false for the admission freeze;
+`notificationTransportConfigured` and `admissionNotificationStoreConfigured`
+are true. `hermesExecutionApproved` and
 `pagesPresentationEnabled` are always false. Public-auth and expected-FID modes
 must each be identical before and after preparation. Times use canonical
 millisecond UTC and expiry must be later than preparation but no more than 24

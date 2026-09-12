@@ -1,14 +1,21 @@
 # 0.4 workflow sufficiency audit
 
-Updated 2026-09-12 (Europe/Budapest). Native preparation `35471` and independent
-check `7224` both exited zero from published source `8033e01c`, returning exactly
-matching candidate, journal, family and closure identities. Guarded export
-`78755` exited zero after authenticating all 102 outputs. It copied seven changed
-files: four workflow closure pins, the closure manifest and the recovery/sealed
-bundle manifests. The other 95 outputs were preserved; compiled bundles, tests
-and bindings did not change. [Release engineering](release-engineering.md) owns
-the exact identities. Publication and final-head verification of the exported
-family remain separate from preparation, protected promotion and live delivery.
+Updated 2026-09-12 (Europe/Budapest). PR #228 established signed main M1 and PR
+#235 integrated M1's checked family into signed main `7b102f9f` (M2). M2's main
+Verify `34696760924` and sealed `preflight` `34699447213` completed
+successfully. PR #236 later integrated desktop navigation into signed main
+`a2929bb6`. These are completed historical, source-bound results.
+
+Published development input `9e098f75` (S) contains the later runner,
+frozen-source, PTR-observation, bridge-predecessor and closure-inventory repairs.
+Native preparation `67204` and independent check `6320` passed for exact S with
+equal results. Guarded export authenticated the complete 102-output family, and
+application to the Windows checkout changed 19 paths. Published integration
+`4b96ae38` passed all 448 native owning/downstream tests in session `89197`,
+without skips, plus checked-in/preparation verification and the expected blocked
+Pages classification. Read the execution handoff and live PR for current-head
+hosted verification and protected integration; those remain separate.
+[Release engineering](release-engineering.md) owns the exact identities.
 
 Earlier runtime source `44b91b94` passed 519 native tests without skips; the
 corrected update/dispatcher fixtures passed 196 native tests with one intentional
@@ -44,9 +51,11 @@ fresh evidence bound to the final reviewed and deployed source.
 - The dedicated Linux runner is installed and can run the sealed preflight and
   activation-evidence lanes. G001 policy observation is parsed and fails closed
   when runner or provider authority is missing.
-- Native release preparation and independent checking passed for `8033e01c`,
-  covering the corrected recovery policy and newer mobile layout. The checked
-  family was exported without compiled bundle, binding or test changes.
+- Native M1 preparation and checking, protected M2 integration, M2 main Verify
+  and the sealed M2 preflight completed successfully. S has its own matching
+  native preparation/check and authenticated Windows family integration; its
+  native integration verification passed at `4b96ae38`, while current-head hosted
+  verification remains open.
 - At published `60097dd7`, the selected eight suites passed all 87 native tests;
   installed closure and Pages `sealed-launch-blocked` classification passed.
   The corrected prepared-workflow suite then passed all 163 native tests on
@@ -60,18 +69,14 @@ fresh evidence bound to the final reviewed and deployed source.
 - The protected Verify and CodeQL runs attached to the current pull request head
   are the R14 authority; read both at terminal state before marking CI green.
   R14 also requires normal protected merge eligibility.
-- Verify the newly published generated family on the clean native checkout and
-  require inert preparation with Pages `sealed-launch-blocked`. The earlier
-  native results above retain their exact source scope; ordinary notes and
-  unchanged source do not require repeating unrelated suites.
-- Protected `main` requires signatures, linear history and strict required
-  checks and resolved conversations; the repository permits squash merges only,
-  with zero required approvals. The API audit at `7cb573ba` found PR #228
-  `MERGEABLE`, `BLOCKED`, zero commits behind main, and Linux/SpacetimeDB checks
-  still running. Main at that audit was a verified GitHub-authored single-parent squash.
-  These observations do not establish missing local signing keys as an
-  independent blocker. Recheck eligibility after terminal CI without changing
-  protections or rewriting development history merely to satisfy an assumption.
+- S's integrated family passed native verification at `4b96ae38`, including
+  inert preparation and Pages `sealed-launch-blocked`. Require terminal hosted
+  checks for the exact published head. Earlier native and protected results
+  retain their source scope; ordinary notes and unchanged source do not require
+  repeating unrelated suites.
+- Protected `main` still requires signatures, linear history, strict required
+  checks and resolved conversations. Recheck eligibility for each current head
+  without changing protections or rewriting development history.
 - The guarded `8033e01c` Windows capture and selected-image review provide fresh
   synthetic mobile-layout evidence. Its diagnostic review remains unresolved;
   composition, final-source acceptance, owner play and physical-device results
@@ -101,10 +106,12 @@ fresh evidence bound to the final reviewed and deployed source.
   provider postflight. Empty Linux private roots do not mandate importing an old
   Mac prepared journal. Recovery still requires genuine retained authority for
   the deployment being recovered.
-- The Linux prepared and sealed workflows are absent from inspected protected
-  main `9eb98e78`. The notification environment has existing provider/admin and
-  owner secret slots, but this is not proof that their values are valid. The
-  public immutable PTR database identity was absent at the initial audit. The
+- The historical inspection of protected main `9eb98e78` found the Linux
+  workflows absent; later M2 protected preflight proves that absence is no
+  longer a current sequencing blocker. The notification environment has
+  existing provider/admin and owner secret slots, but this is not proof that
+  their values are valid. The public immutable PTR database identity was absent
+  at the initial audit. The
   repository variable `WARPKEEP_PTR_SPACETIMEDB_DATABASE` has since been set and
   read back as `c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e`.
   Fresh Maincloud alias metadata agrees with that source-pinned identity and the
@@ -125,23 +132,23 @@ fresh evidence bound to the final reviewed and deployed source.
 
 ## Required order from here
 
-1. Publish the complete checked generated family, verify it on the clean native
-   checkout and require inert preparation with Pages `sealed-launch-blocked`.
-   Read final-head terminal checks and reconcile normal protected squash
-   eligibility, including required conversation resolution. Before the first
-   squash, retain the final published development head with a source-history tag:
-   branch auto-deletion would otherwise remove the normal ref retaining historical
-   `f603` source. This tag is planned, not yet recorded as created.
-2. Complete the normal protected source squash to **M1**. Prepare and independently
-   check actual clean M1 while its own CI runs. The preflight requires the bundle's
-   preparation commit to be an ancestor of dispatched main; the development
-   branch's preparation commit is not preserved as an ancestor by a squash.
-   Do not deploy from interim M1.
-3. Publish only M1's checked generated family through a second protected squash,
-   **M2**, preserving M1 as its ancestor. After M2's own Verify succeeds, dispatch
-   `sealed-realms-production.yml` on main with `source_commit=M2` and
-   `operation=preflight`; require `preflight-inspected`. Generated-only promotion
-   does not by itself require preparing M2 again. Keep existing protections.
+1. Publish the exact reviewed family checkpoint with its completed checks and
+   honest pending results. Synchronize the clean idle native checkout, verify
+   the integrated family and require inert preparation with Pages
+   `sealed-launch-blocked`. Require terminal hosted checks before normal
+   protected integration, including required conversation resolution.
+2. For any later closure-affecting source, first publish the reviewed development
+   input, prepare and independently check that exact clean commit, and integrate
+   its complete authenticated family into the development PR. Preserve the
+   original compiler-input identity in generated manifests; do not hand-edit or
+   reuse a family from another source.
+3. After normal protected source integration, establish the protected-main
+   ancestry and operating authority required by preflight. If squash changes
+   the compiler-input identity, prepare/check the actual protected commit and
+   promote its generated-only family through protections before dispatching
+   `sealed-realms-production.yml`. Require `preflight-inspected`; keep existing
+   protections and do not treat M2's completed preflight as authority for later
+   source.
 4. Use the configured isolated PTR identity and re-attest the existing B0
    predecessor. Verify genuine publisher and owner authority; the current
    Windows CLI inventory does not establish publisher access. Execute the existing

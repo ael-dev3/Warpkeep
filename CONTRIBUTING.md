@@ -77,6 +77,12 @@ Inspect your branch, remote and existing changes before editing. Follow the
 open pull requests before continuing existing work. Submit your working branch
 through a pull request to `main`; source integration does not deploy the game.
 
+Keep local development backed up on its authorized GitHub branch. Follow the
+[source synchronization procedure](docs/operations/0.4.0-development-sync.md) to
+review, commit and push each reviewable checkpoint, including bounded unfinished
+work during longer changes and before handoff. Record pending checks honestly;
+keep credentials, private evidence and disposable build output outside Git.
+
 ## Local setup and verification
 
 The root package requires Node 22 (22.13 or newer within that major) and npm

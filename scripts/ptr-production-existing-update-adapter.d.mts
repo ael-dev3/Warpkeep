@@ -3,6 +3,7 @@ import type { SealedRealmsProductionPrivateState } from "./sealed-realms-product
 import type { SyntheticExistingUpdateAdapter } from "./sealed-realms-production-existing-update.mjs";
 import type { preparePtrSourceBuiltArtifact } from "./ptr-production-publisher.mjs";
 import type { SealedRealmsProductionContinuationStore, readSealedRealmsProductionContinuationCompletion } from "./sealed-realms-production-continuation.mjs";
+import type { SealedRealmsProductionWorkflowPermit } from './sealed-realms-production-workflow-authority.mjs';
 
 declare const productionUpdate: unique symbol;
 export type PtrProductionExistingUpdateAdapter = Readonly<{
@@ -18,6 +19,7 @@ export type PtrProductionExistingUpdateInput = Readonly<{
   authority: SealedRealmsProductionSourceAuthority;
   privateState: SealedRealmsProductionPrivateState;
   artifact: ReturnType<typeof preparePtrSourceBuiltArtifact>;
+  observation: Readonly<{ sourceTree: string; runId: string; runAttempt: string }>;
 }>;
 export function createPtrProductionExistingUpdateAdapter(
   input: PtrProductionExistingUpdateInput,
@@ -50,6 +52,11 @@ export type PtrExistingUpdateReceipt = Readonly<{
   completionObservedAt: string;
   continuation: ReturnType<typeof readSealedRealmsProductionContinuationCompletion>;
 }>;
+export function readPtrExistingUpdateCompletionFromPrivateState(input: Readonly<{
+  authority: SealedRealmsProductionSourceAuthority;
+  privateState: SealedRealmsProductionPrivateState;
+  store: SealedRealmsProductionContinuationStore;
+}>): PtrExistingUpdateReceipt;
 export function exportPtrExistingUpdateCompletion(input: Readonly<{
   adapter: PtrProductionExistingUpdateAdapter;
   authority: SealedRealmsProductionSourceAuthority;
@@ -60,3 +67,28 @@ export function readPtrExistingUpdateCompletion(input: Readonly<{
   authority: SealedRealmsProductionSourceAuthority;
   privateState: SealedRealmsProductionPrivateState;
 }>): PtrExistingUpdateReceipt;
+
+declare const ptrAdoption: unique symbol;
+export type PtrExistingStateAdoption = Readonly<{ [ptrAdoption]: true }>;
+export type PtrExistingStateAdoptionEnvelope = Readonly<{
+  schemaVersion: 4;
+  profile: 'warpkeep-ptr-existing-state-adoption-v1';
+  sourceCommit: string;
+  sourceTree: string;
+  completionReceipt: PtrExistingUpdateReceipt;
+  preObservationJws: string;
+  postObservationJws: string;
+}>;
+export function capturePtrExistingUpdateAdoption(input: Readonly<{
+  adapter: PtrProductionExistingUpdateAdapter;
+  authority: SealedRealmsProductionSourceAuthority;
+  store: SealedRealmsProductionContinuationStore;
+  permit: SealedRealmsProductionWorkflowPermit;
+  runId: string;
+  runAttempt: string;
+}>): Promise<PtrExistingStateAdoption>;
+export function readPtrExistingStateAdoption(input: Readonly<{
+  adoption: PtrExistingStateAdoption;
+  authority: SealedRealmsProductionSourceAuthority;
+  privateState: SealedRealmsProductionPrivateState;
+}>): Promise<PtrExistingStateAdoptionEnvelope>;

@@ -18,8 +18,8 @@ import {
 } from '../src/config.js'
 import { serializeExactObject, sha256Hex, type JsonValue } from '../src/protocol.js'
 import { RECOVERY_KEY_ID, RECOVERY_KEY_THUMBPRINT } from '../src/recoveryPublicKey.js'
-import { createRecoveryActivationBinding, createRecoveryActivationBindingV3, parseRecoveryBindingV2 } from '../../../scripts/recovery-activation-candidate.mjs'
-import { RECOVERY_BINDING_KEYS_V3 as ROOT_BINDING_KEYS_V3 } from '../../../scripts/recovery-binding-projection.mjs'
+import { createRecoveryActivationBinding, createRecoveryActivationBindingV3, createRecoveryActivationBindingV4, parseRecoveryBindingV2 } from '../../../scripts/recovery-activation-candidate.mjs'
+import { RECOVERY_BINDING_KEYS_V3 as ROOT_BINDING_KEYS_V3, RECOVERY_BINDING_KEYS_V4 as ROOT_BINDING_KEYS_V4 } from '../../../scripts/recovery-binding-projection.mjs'
 import { recoveryBindingCandidate } from '../../../tests/fixtures/recoveryBindingCandidate.js'
 
 const REPOSITORY = 'ael-dev3/Warpkeep'
@@ -380,7 +380,7 @@ function zip(body: Uint8Array): Uint8Array {
   return new Uint8Array([...local, ...body, ...central, ...eocd])
 }
 
-async function validBinding(useLocalGenerator: boolean | 3 = false, closure = CLOSURE): Promise<Readonly<{ bytes: Uint8Array; core: string }>> {
+async function validBinding(useLocalGenerator: boolean | 3 | 4 = false, closure = CLOSURE): Promise<Readonly<{ bytes: Uint8Array; core: string }>> {
   const binding: Record<string, JsonValue> = Object.create(null)
   for (const key of RECOVERY_BINDING_KEYS_V2) binding[key] = null
   Object.assign(binding, {
@@ -444,7 +444,17 @@ async function validBinding(useLocalGenerator: boolean | 3 = false, closure = CL
     for (const [key, value] of Object.entries(binding)) {
       if (value !== null) candidate[key] = value as string | number | boolean
     }
-    const generated = useLocalGenerator === 3
+    const generated = useLocalGenerator === 4
+      ? createRecoveryActivationBindingV4(`${JSON.stringify(Object.fromEntries(ROOT_BINDING_KEYS_V4.map(key => [key,
+        key === 'schemaVersion' ? 4 : key === 'profile' ? 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4'
+          : key === 'ptrExistingUpdateReceiptDigest' ? '93'.repeat(32)
+            : key === 'ptrExistingStateAdoptionReceiptDigest' ? '94'.repeat(32)
+              : key === 'ptrExpectedSealedStateHmacSha256' ? '95'.repeat(32)
+                : key === 'ptrExpectedOwnerInvariantHmacSha256' ? '96'.repeat(32)
+                  : key.endsWith('Commitment') ? null : ['ptrSealed', 'ptrPopulationGuardPassed'].includes(key) ? true
+                    : key === 'ptrSingletonOwnerCount' ? 1 : key === 'ptrGeneralAdmissionCount' ? 0 : candidate[key],
+      ])), null, 2)}\n`)
+      : useLocalGenerator === 3
       ? createRecoveryActivationBindingV3(`${JSON.stringify(Object.fromEntries(ROOT_BINDING_KEYS_V3.map(key => [key,
         key === 'schemaVersion' ? 3 : key === 'profile' ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3'
           : key === 'ptrExistingUpdateReceiptDigest' ? '93'.repeat(32)
@@ -533,7 +543,7 @@ jobs:
 `)
 }
 
-async function makeFixture(useLocalGenerator: boolean | 3 = false): Promise<Readonly<{
+async function makeFixture(useLocalGenerator: boolean | 3 | 4 = false): Promise<Readonly<{
   state: State
   input: Parameters<typeof loadGitHubCandidateEvidence>[0]
   calls: string[]
@@ -801,6 +811,12 @@ async function makeFixture(useLocalGenerator: boolean | 3 = false): Promise<Read
     bindingRequestId: REQUEST_ID,
     armed: {
       ...expectedRealmBinding(binding.core),
+      ...(useLocalGenerator === 4 ? {
+        ptrStateEvidenceProfile: 'warpkeep-ptr-existing-state-adoption-v1' as const,
+        ptrExistingStateAdoptionReceiptDigest: '94'.repeat(32),
+        ptrExpectedSealedStateHmacSha256: '95'.repeat(32),
+        ptrExpectedOwnerInvariantHmacSha256: '96'.repeat(32),
+      } : {}),
       bindingPath: BINDING_PATH,
       workflowPath: WORKFLOW_PATH,
     },
@@ -970,6 +986,58 @@ describe('GitHub candidate evidence', () => {
     const bytes = new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey))
     privateKeyPem = createPrivateKey({ key: Buffer.from(bytes), format: 'der', type: 'pkcs8' })
       .export({ format: 'pem', type: 'pkcs1' }).toString()
+  })
+
+  it('loads the root-produced V4 adoption through the actual source, artifact and receiver chain', async () => {
+    const fixture = await makeFixture(4)
+    const evidence = await loadGitHubCandidateEvidence(fixture.input)
+    expect(evidence.recoveryBindingBytes).toEqual(fixture.state.bindingBytes)
+    const binding = JSON.parse(new TextDecoder().decode(evidence.recoveryBindingBytes))
+    expect(binding.schemaVersion).toBe(4)
+    expect(binding.ptrExistingStateAdoptionReceiptDigest).toBe('94'.repeat(32))
+    expect(binding).not.toHaveProperty('ptrAtlasImportReceiptDigest')
+    expect(binding).not.toHaveProperty('ptrOwnerProvisionReceiptDigest')
+    expect(binding).not.toHaveProperty('ptrSealedLiveReceiptDigest')
+    expect(evidence.realmBinding).toEqual({
+      ...expectedRealmBinding(binding.recoveryAuthorizationCoreSha256),
+      ptrStateEvidenceProfile: 'warpkeep-ptr-existing-state-adoption-v1',
+      ptrExistingStateAdoptionReceiptDigest: '94'.repeat(32),
+      ptrExpectedSealedStateHmacSha256: '95'.repeat(32),
+      ptrExpectedOwnerInvariantHmacSha256: '96'.repeat(32),
+    })
+  })
+
+  it.each([
+    (binding: JsonObject) => { binding.ptrExistingStateAdoptionReceiptDigest = '97'.repeat(32) },
+    (binding: JsonObject) => { binding.ptrExistingStateAdoptionReceiptCommitment = '98'.repeat(32) },
+    (binding: JsonObject) => { binding.ptrExpectedSealedStateHmacSha256 = '99'.repeat(32) },
+    (binding: JsonObject) => { binding.ptrExpectedOwnerInvariantHmacSha256 = '99'.repeat(32) },
+    (binding: JsonObject) => { binding.schemaVersion = 3 },
+    (binding: JsonObject) => { binding.profile = 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' },
+    (binding: JsonObject) => { binding.ptrAtlasImportReceiptDigest = '98'.repeat(32) },
+    (binding: JsonObject) => { delete binding.ptrExistingStateAdoptionReceiptCommitment },
+  ])('rejects substituted or mixed-version V4 binding %#', async mutate => {
+    const fixture = await makeFixture(4)
+    await replaceBinding(fixture, mutate)
+    await expect(loadGitHubCandidateEvidence(fixture.input)).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  })
+
+  it.each(['ptrExistingStateAdoptionReceiptDigest', 'ptrExpectedSealedStateHmacSha256',
+    'ptrExpectedOwnerInvariantHmacSha256'])('rejects a regenerated V4 %s substitution against the original arming', async key => {
+    const fixture = await makeFixture(4)
+    await replaceBinding(fixture, binding => {
+      const candidate: JsonObject = { ...binding, recoveryAuthorizationCoreSha256: null, [key]: '97'.repeat(32) }
+      for (const name of Object.keys(candidate)) if (name.endsWith('Commitment')) candidate[name] = null
+      Object.assign(binding, createRecoveryActivationBindingV4(`${JSON.stringify(candidate, null, 2)}\n`))
+    })
+    await expect(loadGitHubCandidateEvidence(fixture.input)).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  })
+
+  it.each(['ptrExistingStateAdoptionReceiptDigest', 'ptrExpectedSealedStateHmacSha256',
+    'ptrExpectedOwnerInvariantHmacSha256'])('rejects independently armed V4 %s drift even with the original core', async key => {
+    const fixture = await makeFixture(4)
+    const input = { ...fixture.input, armed: { ...fixture.input.armed, [key]: '97'.repeat(32) } }
+    await expect(loadGitHubCandidateEvidence(input)).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
   })
 
   it('loads root-produced V3 update binding through the actual receiver evidence chain', async () => {

@@ -11,6 +11,7 @@ import {
   readdirSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -36,6 +37,14 @@ vi.mock("../scripts/ptr-production-publisher.mjs", async (importOriginal) => ({
   },
 }));
 import { createPtrProductionExistingUpdateAdapter, exportPtrExistingUpdateCompletion, readPtrExistingUpdateCompletion } from "../scripts/ptr-production-existing-update-adapter.mjs";
+import { capturePtrExistingUpdateAdoption, readPtrExistingStateAdoption } from '../scripts/ptr-production-existing-update-adapter.mjs';
+import * as adoptionWriter from '../scripts/sealed-realms-production-activation-records.mjs';
+import { createPtrUpdateObservationTransportFixture } from './helpers/ptrUpdateObservationFixture';
+vi.mock('../services/release-recovery/src/recoveryPublicKey.js', () => ({
+  RECOVERY_KEY_ID: 'warpkeep-0.4.0-recovery-2026-09-03-1',
+  RECOVERY_KEY_THUMBPRINT: 'zbHwk528B5de5kuNzI98k4Y-rljmW6fbkH-aVZomk4M',
+  RECOVERY_PUBLIC_JWK: { kty: 'EC', crv: 'P-256', x: 'WH7HKo4O4eNz7FE1vrGVNDAOMZ4y15Hz5UhLwBZQMUE', y: 'nqmP_QGGfKiOK99bEqu6_r9cKtcn4pYdmiDiKsBD2AA' },
+}));
 import {
   createSealedRealmsProductionActivationRecords,
   writeSealedRealmsProductionPtrExistingUpdateRecord,
@@ -169,8 +178,15 @@ const cleanup: (() => void)[] = [];
 afterEach(() => {
   for (const close of cleanup.splice(0).reverse()) close();
   seams.request.mockReset();
+  vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs();
 });
-function fixture() {
+function fixture(platformMode = false, race?: (phase: string, path: string) => void, observationOptions: { sourceTree?: string; bridgeSourceCommit?: string } = {}) {
+  const fixtureNow = Math.floor(Date.now() / 1000);
+  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(fixtureNow * 1000);
+  const observationRun = (runId: string) => ({ sourceCommit: SOURCE, sourceTree: observationOptions.sourceTree ?? 'b'.repeat(40), runId,
+    runAttempt: '1', checkRunId: '9001', requestId: '123e4567-e89b-42d3-a456-426614174000' });
+  const observations = createPtrUpdateObservationTransportFixture(observationRun('502'), { nowSeconds: fixtureNow, bridgeSourceCommit: observationOptions.bridgeSourceCommit });
+  observations.install();
   const root = mkdtempSync(join(tmpdir(), "warpkeep-ptr-real-continuation-"));
   const adapters = new Set<
     ReturnType<typeof createPtrProductionExistingUpdateAdapter>
@@ -191,6 +207,8 @@ function fixture() {
   const privateState = createSealedRealmsProductionPrivateState({
     reportedHome: home,
     testOnlyOwnerUid: statSync(root).uid,
+    ...(platformMode ? { testOnlyAllowPlatformMode: true, testOnlyFsync: () => {} } : {}),
+    ...(race ? { testOnlyRace: race } : {}),
   });
   const store = createSealedRealmsProductionContinuationStore({ privateState });
   const gh = github();
@@ -267,11 +285,13 @@ function fixture() {
       return { bytes: encode(body), claimedProviderIdentity: "2".repeat(64) };
     },
   );
-  const make = () => {
+  const make = (runId = '502') => {
+    observations.useRun(observationRun(runId));
     const adapter = createPtrProductionExistingUpdateAdapter({
       authority: authority("ptr-update-inspect"),
       privateState,
       artifact: artifact as never,
+      observation: { sourceTree: observationOptions.sourceTree ?? 'b'.repeat(40), runId, runAttempt: '1' },
     });
     adapters.add(adapter);
     return adapter;
@@ -360,6 +380,10 @@ function fixture() {
     );
   }
   return {
+    home,
+    runtime,
+    observations,
+    observationRun,
     state,
     make,
     dispatcher,
@@ -420,6 +444,7 @@ it("rejects a transparent production authority before artifact or provider use",
       authority: { mode: "S", operation: "ptr-update-inspect" } as never,
       privateState: {} as never,
       artifact: {} as never,
+      observation: { sourceTree: 'b'.repeat(40), runId: '502', runAttempt: '1' },
     }),
   ).toThrow();
   expect(seams.request).not.toHaveBeenCalled();
@@ -600,3 +625,413 @@ it("constructs the real PTR reconciler with genuine platform-mode private state"
   expect(() => createSealedRealmsProductionPublicationReconciler({ privateState, lane: "ptr", postflight: () => { throw Error("No provider call expected"); } })).not.toThrow();
   expect(seams.request).not.toHaveBeenCalled();
 });
+
+it('captures signed V4 adoption through real claim, terminal and private writer without changing V3 records', async () => {
+  const f = fixture(process.platform !== 'linux'), adapter = f.make();
+  await f.inspect(adapter);
+  const run = await f.dispatcher('ptr-update-apply', adapter);
+  await run.call();
+  const completed = captureCompletion(f, adapter, run.sourceAuthority, 'completed');
+  const v3 = JSON.stringify(f.records());
+  f.observations.setNowSeconds(Math.ceil(Date.parse(completed.receipt.continuation.terminalAt) / 1000) + 5);
+  const adoption = await capturePtrExistingUpdateAdoption({ adapter, authority: run.sourceAuthority, store: f.store,
+    permit: run.permit, runId: run.runId, runAttempt: run.runAttempt });
+  const envelope = await readPtrExistingStateAdoption({ adoption, authority: run.sourceAuthority, privateState: f.privateState });
+  expect(envelope.completionReceipt).toEqual(completed.receipt);
+  expect(envelope.schemaVersion).toBe(4);
+  expect(JSON.stringify(f.records())).toBe(v3);
+  const writer = (adoptionWriter as Record<string, any>).writeSealedRealmsProductionPtrExistingStateAdoptionRecord;
+  expect(writer).toBeTypeOf('function');
+  const records = createSealedRealmsProductionActivationRecords({ privateState: f.privateState, authority: run.sourceAuthority });
+  const written = await writer({ records, authority: run.sourceAuthority, adoption });
+  expect(written.receiptDigest).toMatch(/^[a-f0-9]{64}$/);
+  expect(await writer({ records, authority: run.sourceAuthority, adoption })).toEqual(written);
+  expect(f.state.puts).toBe(1);
+  expect(JSON.stringify(f.records())).toBe(v3);
+  const claimDigest = envelope.completionReceipt.continuation.claimRecordDigest;
+  const postPath = join(f.runtime, 'ptr-update-observation-v4', ID, `${claimDigest}.post.json`);
+  const saved = readFileSync(postPath);
+  writeFileSync(postPath, Buffer.from('{}\n'));
+  await expect(readPtrExistingStateAdoption({ adoption, authority: run.sourceAuthority, privateState: f.privateState })).rejects.toThrow();
+  await expect(writer({ records, authority: run.sourceAuthority, adoption })).rejects.toThrow();
+  writeFileSync(postPath, saved);
+  await expect(readPtrExistingStateAdoption({ adoption: { ...adoption } as never, authority: run.sourceAuthority, privateState: f.privateState })).rejects.toThrow();
+  adapter.dispose();
+  await expect(readPtrExistingStateAdoption({ adoption, authority: run.sourceAuthority, privateState: f.privateState })).rejects.toThrow();
+}, 30000);
+
+it('reopens the original pre after lost acknowledgement, preserves distinct reconciliation identities, and reuses expired post without a second PUT', async () => {
+  const f = fixture(process.platform !== 'linux'), adapter = f.make();
+  await f.inspect(adapter);
+  f.state.lost = true;
+  const original = await f.dispatcher('ptr-update-apply', adapter);
+  await expect(original.call()).rejects.toThrow('SEALED_REALMS_DISPATCH_LANE_FAILED');
+  expect(f.state.puts).toBe(1);
+  f.gh.status.set(original.runId, 'completed'); adapter.dispose();
+  const fresh = f.make('503'), reconciliation = await f.dispatcher('ptr-update-apply', fresh);
+  await reconciliation.call();
+  const receipt = captureCompletion(f, fresh, reconciliation.sourceAuthority, 'reconciled-effect-applied').receipt;
+  f.observations.setNowSeconds(Math.ceil(Date.parse(receipt.continuation.terminalAt) / 1000) + 5);
+  const adoption = await capturePtrExistingUpdateAdoption({ adapter: fresh, authority: reconciliation.sourceAuthority,
+    store: f.store, permit: reconciliation.permit, runId: reconciliation.runId, runAttempt: reconciliation.runAttempt });
+  const envelope = await readPtrExistingStateAdoption({ adoption, authority: reconciliation.sourceAuthority, privateState: f.privateState });
+  expect(envelope.completionReceipt.continuation).toMatchObject({ claimRunId: original.runId, terminalRunId: reconciliation.runId });
+  expect(envelope.completionReceipt.responseDigest).toBeNull();
+  const requestCount = f.observations.requests.length;
+  fresh.dispose();
+  const retryAdapter = f.make('504'), retry = await f.dispatcher('ptr-update-apply', retryAdapter);
+  f.observations.setNowSeconds(Math.ceil(Date.parse(receipt.continuation.terminalAt) / 1000) + 200);
+  const reused = await capturePtrExistingUpdateAdoption({ adapter: retryAdapter, authority: retry.sourceAuthority,
+    store: f.store, permit: retry.permit, runId: retry.runId, runAttempt: retry.runAttempt });
+  expect(await readPtrExistingStateAdoption({ adoption: reused, authority: retry.sourceAuthority, privateState: f.privateState })).toEqual(envelope);
+  expect(f.observations.requests).toHaveLength(requestCount);
+  expect(f.state.puts).toBe(1);
+  const prePath = join(f.runtime, 'ptr-update-observation-v4', ID, `${receipt.continuation.claimRecordDigest}.pre.json`);
+  rmSync(prePath);
+  await expect(capturePtrExistingUpdateAdoption({ adapter: retryAdapter, authority: retry.sourceAuthority,
+    store: f.store, permit: retry.permit, runId: retry.runId, runAttempt: retry.runAttempt })).rejects.toThrow();
+  expect(f.observations.requests).toHaveLength(requestCount);
+  expect(f.state.puts).toBe(1);
+}, 30000);
+
+it('refuses the effect if the authentic pre sidecar cannot be durably installed', async () => {
+  const f = fixture(process.platform !== 'linux', (phase, path) => {
+    if (phase === 'write-before-open' && path.endsWith('.pre.json')) throw Error('fixture disk failure');
+  });
+  const adapter = f.make(); await f.inspect(adapter);
+  const run = await f.dispatcher('ptr-update-apply', adapter);
+  await expect(run.call()).rejects.toThrow('SEALED_REALMS_DISPATCH_LANE_FAILED');
+  expect(f.state.puts).toBe(0);
+  expect(f.records().map(value => value.kind).sort()).toEqual(['inspection', 'not-submitted']);
+}, 30000);
+
+it('reopens pre bytes after asynchronous signature verification before submission', async () => {
+  const f = fixture(process.platform !== 'linux'), adapter = f.make();
+  await f.inspect(adapter);
+  let changed = false;
+  const verify = crypto.subtle.verify.bind(crypto.subtle);
+  vi.spyOn(crypto.subtle, 'verify').mockImplementation(async (...args) => {
+    const valid = await verify(...args);
+    let names: readonly string[] = [];
+    try { names = f.privateState.list({ root: 'runtime', relativeDirectory: `ptr-update-observation-v4/${ID}` }); } catch { /* pre is not installed yet */ }
+    const name = names.find(value => value.endsWith('.pre.json'));
+    if (name && !changed) { writeFileSync(join(f.runtime, 'ptr-update-observation-v4', ID, name), '{}\n'); changed = true; }
+    return valid;
+  });
+  const run = await f.dispatcher('ptr-update-apply', adapter);
+  await expect(run.call()).rejects.toThrow('SEALED_REALMS_DISPATCH_LANE_FAILED');
+  expect(changed).toBe(true);
+  expect(f.state.puts).toBe(0);
+  expect(f.records().map(value => value.kind).sort()).toEqual(['inspection', 'not-submitted']);
+}, 30000);
+
+async function retainedAdoption(observationOptions: { sourceTree?: string; bridgeSourceCommit?: string } = {}) {
+  const f = fixture(process.platform !== 'linux', undefined, observationOptions), adapter = f.make();
+  await f.inspect(adapter);
+  const run = await f.dispatcher('ptr-update-apply', adapter);
+  await run.call();
+  const { receipt } = captureCompletion(f, adapter, run.sourceAuthority, 'completed');
+  f.observations.setNowSeconds(Math.ceil(Date.parse(receipt.continuation.terminalAt) / 1000) + 5);
+  const adoption = await capturePtrExistingUpdateAdoption({ adapter, authority: run.sourceAuthority,
+    store: f.store, permit: run.permit, runId: run.runId, runAttempt: run.runAttempt });
+  const records = createSealedRealmsProductionActivationRecords({ privateState: f.privateState, authority: run.sourceAuthority });
+  const written = await adoptionWriter.writeSealedRealmsProductionPtrExistingStateAdoptionRecord({ records, authority: run.sourceAuthority, adoption });
+  adapter.dispose();
+  return { f, run, receipt, records, written,
+    path: join(f.runtime, 'ptr-existing-state-adoptions-v4', `${written.receiptDigest}.json`) };
+}
+
+it('authenticates retained V4 after producer disposal and rechecks exact private lineage on every read', async () => {
+  const { f, run, receipt, records, written, path } = await retainedAdoption();
+  const authenticate = (adoptionWriter as Record<string, any>).authenticateSealedRealmsProductionPtrExistingStateAdoption;
+  const read = (adoptionWriter as Record<string, any>).readSealedRealmsProductionPtrExistingStateAdoptionEvidence;
+  expect(authenticate).toBeTypeOf('function');
+  expect(read).toBeTypeOf('function');
+  const requests = f.observations.requests.length, providerRequests = seams.request.mock.calls.length;
+  f.observations.setNowSeconds(Math.floor(Date.now() / 1000) + 500);
+  const evidence = await authenticate({ records, authority: run.sourceAuthority, store: f.store });
+  const input = { evidence, privateState: f.privateState, sourceCommit: SOURCE };
+  const reopened = read(input);
+  expect(Object.isFrozen(evidence)).toBe(true);
+  expect(reopened).toMatchObject({ sourceCommit: SOURCE, sourceTree: 'b'.repeat(40),
+    adoptionReceiptDigest: written.recordDigest, completionReceipt: receipt });
+  expect(reopened.pair.post.context.completionReceiptDigest).toBe(written.receiptDigest);
+  expect(Object.isFrozen(reopened.pair.post.observation)).toBe(true);
+  const restartedState = createSealedRealmsProductionPrivateState({ reportedHome: f.home,
+    testOnlyOwnerUid: statSync(f.home).uid,
+    ...(process.platform !== 'linux' ? { testOnlyAllowPlatformMode: true, testOnlyFsync: () => {} } : {}) });
+  const restartedAuthority = authority('ptr-update-apply');
+  const restartedRecords = createSealedRealmsProductionActivationRecords({ privateState: restartedState, authority: restartedAuthority });
+  const restartedStore = createSealedRealmsProductionContinuationStore({ privateState: restartedState });
+  const restartedEvidence = await authenticate({ records: restartedRecords, authority: restartedAuthority, store: restartedStore });
+  expect(read({ evidence: restartedEvidence, privateState: restartedState, sourceCommit: SOURCE })).toEqual(reopened);
+  expect(() => read({ ...input, privateState: restartedState })).toThrow();
+  expect(() => read({ ...input, evidence: { ...evidence } })).toThrow();
+  expect(() => read({ ...input, sourceCommit: 'f'.repeat(40) })).toThrow();
+  expect(() => read({ ...input, privateState: Object.freeze({}) })).toThrow();
+  await expect(authenticate({ records, authority: authority('ptr-update-inspect'), store: f.store })).rejects.toThrow();
+  await expect(authenticate({ records, authority: run.sourceAuthority, store: Object.freeze({}) })).rejects.toThrow();
+  const inventory = join(f.runtime, 'existing-updates-production-v1', 'ptr', ID);
+  const findTerminal = (directory: string): string | undefined => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const fullPath = join(directory, entry.name);
+      if (entry.isDirectory()) { const found = findTerminal(fullPath); if (found) return found; }
+      else if (entry.name.endsWith('.json') && JSON.parse(readFileSync(fullPath, 'utf8')).profile
+        === 'warpkeep-sealed-realms-continuation-terminal-v1') return fullPath;
+    }
+  };
+  const terminalPath = findTerminal(f.runtime);
+  expect(terminalPath).toBeTypeOf('string');
+  const targets = [path, join(f.runtime, 'activation-evidence/records/ptr-existing-update-receipt.json'),
+    join(inventory, readdirSync(inventory).find(name => name.endsWith('.completion.json'))!), terminalPath!];
+  for (const target of targets) {
+    const saved = readFileSync(target);
+    try {
+      writeFileSync(target, '{}\n');
+      expect(() => read(input)).toThrow();
+      await expect(authenticate({ records, authority: run.sourceAuthority, store: f.store })).rejects.toThrow();
+    } finally { writeFileSync(target, saved); }
+    expect(read(input)).toEqual(reopened);
+  }
+  for (const canonicalPath of targets.slice(0, 2)) {
+    const saved = readFileSync(canonicalPath);
+    try {
+      writeFileSync(canonicalPath, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), saved]));
+      await expect(authenticate({ records, authority: run.sourceAuthority, store: f.store })).rejects.toThrow();
+    } finally { writeFileSync(canonicalPath, saved); }
+  }
+  const signedBytes = readFileSync(path);
+  try {
+    const tampered = JSON.parse(signedBytes.toString());
+    const compact = tampered.postObservationJws.split('.');
+    const signature = Buffer.from(compact[2], 'base64url'); signature[0] ^= 1;
+    compact[2] = signature.toString('base64url'); tampered.postObservationJws = compact.join('.');
+    writeFileSync(path, `${JSON.stringify(tampered)}\n`);
+    await expect(authenticate({ records, authority: run.sourceAuthority, store: f.store })).rejects.toThrow();
+  } finally { writeFileSync(path, signedBytes); }
+  expect(f.observations.requests).toHaveLength(requests);
+  expect(seams.request).toHaveBeenCalledTimes(providerRequests);
+  expect(f.state.puts).toBe(1);
+}, 30000);
+
+it('refuses retained V4 changed during asynchronous signature verification', async () => {
+  const { f, run, records, path } = await retainedAdoption();
+  const authenticate = (adoptionWriter as Record<string, any>).authenticateSealedRealmsProductionPtrExistingStateAdoption;
+  expect(authenticate).toBeTypeOf('function');
+  const verify = crypto.subtle.verify.bind(crypto.subtle);
+  let changed = false;
+  vi.spyOn(crypto.subtle, 'verify').mockImplementation(async (...args) => {
+    const valid = await verify(...args);
+    if (!changed) { writeFileSync(path, '{}\n'); changed = true; }
+    return valid;
+  });
+  await expect(authenticate({ records, authority: run.sourceAuthority, store: f.store })).rejects.toThrow();
+  expect(changed).toBe(true);
+  expect(f.state.puts).toBe(1);
+}, 30000);
+
+it('owns a data snapshot of authentication inputs across signature verification and later reads', async () => {
+  const { f, run, records } = await retainedAdoption();
+  const authenticate = (adoptionWriter as Record<string, any>).authenticateSealedRealmsProductionPtrExistingStateAdoption;
+  const read = (adoptionWriter as Record<string, any>).readSealedRealmsProductionPtrExistingStateAdoptionEvidence;
+  const supplied = { records, authority: run.sourceAuthority, store: f.store };
+  const accessed = vi.fn(() => { throw Error('Caller getter must never be invoked'); });
+  const verify = crypto.subtle.verify.bind(crypto.subtle);
+  vi.spyOn(crypto.subtle, 'verify').mockImplementation(async (...args) => {
+    const valid = await verify(...args);
+    for (const key of ['records', 'authority', 'store']) Object.defineProperty(supplied, key,
+      { enumerable: true, configurable: true, get: accessed });
+    return valid;
+  });
+  const evidence = await authenticate(supplied);
+  expect(read({ evidence, privateState: f.privateState, sourceCommit: SOURCE }).sourceCommit).toBe(SOURCE);
+  expect(accessed).not.toHaveBeenCalled();
+  await expect(authenticate(supplied)).rejects.toThrow();
+  const proxy = new Proxy({}, { getPrototypeOf: accessed, ownKeys: accessed });
+  await expect(authenticate(proxy)).rejects.toThrow();
+  expect(() => read(proxy)).toThrow();
+  expect(accessed).not.toHaveBeenCalled();
+}, 30000);
+
+// G001/G002 fixture bodies are synthetic data; PTR adoption below comes through
+// the real signed producer, immutable writer and retained-history authenticator.
+async function joinedV4ActivationFixture() {
+  const { ptrV3ActivationFixture, PTR_V3_FIXTURE_TIME } = await import('./fixtures/ptrV3ActivationFixture');
+  const { RECOVERY_BINDING_KEYS_V4 } = await import('../scripts/recovery-binding-projection.mjs');
+  const { recoveryActivationCandidatePolicyForVersion } = await import('../scripts/recovery-activation-candidate.mjs');
+  const legacy = ptrV3ActivationFixture();
+  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(PTR_V3_FIXTURE_TIME));
+  const { f, run, records, receipt, written, path: adoptionPath } = await retainedAdoption({
+    sourceTree: legacy.candidate.preparationSourceTree, bridgeSourceCommit: SOURCE });
+  const evidence = await adoptionWriter.authenticateSealedRealmsProductionPtrExistingStateAdoption({ records,
+    authority: run.sourceAuthority, store: f.store });
+  const members = [
+    ['g001PolicyObservationBootstrapReceipt', 'g001-policy-observation-bootstrap-receipt.json', 'g001-policy-observe'],
+    ['g001CensusPrivacySafePrivateReceipt', 'g001-census-privacy-safe-private-receipt.json', 'g001-census-second-inspect'],
+    ['g001AdmittedPlayerCensusPrivateReceipt', 'g001-admitted-player-census-private-receipt.json', 'g001-census-second-suspend'],
+    ['g001AdmissionMonitorSuspensionReceipt', 'g001-admission-monitor-suspension-receipt.json', 'g001-census-second-suspend'],
+    ['g001AdmissionMonitorCurrentStateReceipt', 'g001-admission-monitor-current-state-receipt.json', 'g001-current-state'],
+    ['g002PublishReceipt', 'g002-publish-receipt.json', 'g002-publish-apply'],
+    ['g002AtlasImportReceipt', 'g002-atlas-import-receipt.json', 'g002-import-apply'],
+    ['g002SealedLiveReceipt', 'g002-sealed-live-receipt.json', 'g002-live-inspect'],
+  ];
+  for (const [member, filename, operation] of members) {
+    const receipt = legacy.receipts[member];
+    const bodyDigest = createHash('sha256').update(`${JSON.stringify(receipt)}\n`).digest('hex');
+    const semanticDigest = createHash('sha256').update(['warpkeep.sealed-realms.activation-record.v1',
+      member, SOURCE, SOURCE, operation, run.sourceAuthority.authorityDigest, bodyDigest].join('\n') + '\n').digest('hex');
+    f.privateState.write({ root: 'runtime', relativePath: `activation-evidence/records/${filename}`,
+      bytes: Buffer.from(`${JSON.stringify({ schemaVersion: 1, profile: 'warpkeep-sealed-realms-activation-record-v1',
+        member, preparationSourceCommit: SOURCE, sourceCommit: SOURCE, operation,
+        sourceAuthorityDigest: run.sourceAuthority.authorityDigest, bodyDigest, receipt, semanticDigest })}\n`) });
+  }
+  let candidateSource = '';
+  const recordsV4 = createSealedRealmsProductionActivationRecords({ privateState: f.privateState,
+    authority: run.sourceAuthority, readBindingCandidate: () => candidateSource, existingStateAdoption: evidence } as never);
+  const projection = adoptionWriter.readSealedRealmsProductionRecoveryReceiptProjection(recordsV4);
+  expect(projection).toMatchObject({ ptrExistingStateAdoptionReceiptDigest: written.recordDigest,
+    ptrExistingUpdateReceiptDigest: updateDigest(receipt), ptrExpectedProgramKeccak256: CANDIDATE,
+    ptrSingletonOwnerCount: 1, ptrExpectedSealedStateHmacSha256: 'a'.repeat(64),
+    recoveryAuthWorkerSourceCommit: SOURCE, preparationSourceTree: legacy.candidate.preparationSourceTree });
+  for (const absent of ['ptrAtlasImportReceiptDigest', 'ptrOwnerProvisionReceiptDigest', 'ptrSealedLiveReceiptDigest',
+    'ptrReleaseManifestSha256', 'ptrOwnerAnchorRows', 'ptrPresentationEnabled']) expect(projection).not.toHaveProperty(absent);
+  const { createPtrAdoptionBridgeFixture } = await import('./helpers/ptrAdoptionBridgeFixture');
+  const bridgeModule = await import('../scripts/sealed-realms-production-auth-bridge-state.mjs');
+  const retained = adoptionWriter.readSealedRealmsProductionPtrExistingStateAdoptionEvidence({
+    evidence, privateState: f.privateState, sourceCommit: SOURCE });
+  vi.setSystemTime(new Date(retained.pair.post.observation.observedThrough * 1000));
+  const bridge = await createPtrAdoptionBridgeFixture({ privateState: f.privateState, existingStateAdoption: evidence,
+    authority: run.sourceAuthority, sourceCommit: SOURCE,
+    g002AtlasImportReceiptDigest: legacy.receipts.g002AtlasImportReceipt.importReceiptDigest });
+  await expect(bridge.bridgeState.inspect()).resolves.toEqual({ g002Sealed: true, ptrSealed: true, complete: true });
+  const { confirmation } = await bridge.bridgeState.inspectActivationEvidence();
+  const binding = await bridge.bridgeState.reopenActivationEvidenceContinuation();
+  const bridgeFacts = bridgeModule.readSealedRealmsProductionRecoveryBridgeFacts({ bridgeState: bridge.bridgeState,
+    privateState: f.privateState, authority: bridge.sourceAuthorityFor('activation-evidence-generate') });
+  expect(bridgeFacts.admissionRequestSuspensionReceiptDigest).toBe(binding.evidenceDigest);
+  expect(binding.receiptDigests).toHaveLength(4);
+  expect(binding.receiptDigests.at(-1)).toBe(written.recordDigest);
+  const bridgePath = join(f.runtime, 'bridge/activation-evidence', `auth-bridge-suspension-${binding.evidenceDigest}.json`);
+  const bridgeReceipt = JSON.parse(readFileSync(bridgePath, 'utf8'));
+  expect(bridgeReceipt).toMatchObject({ schemaVersion: 4,
+    profile: 'warpkeep-sealed-realms-auth-bridge-suspension-ptr-adoption-private-v1',
+    ptrExistingStateAdoptionReceiptDigest: written.recordDigest,
+    activationGate: { ptrExistingStateAdoptionReceiptDigest: written.recordDigest } });
+  expect(bridgeReceipt).not.toHaveProperty('ptrGate');
+  expect(bridgeReceipt).not.toHaveProperty('ptrImportAuthorityCrossLink');
+  const values: Record<string, unknown> = { ...legacy.candidate, ...recoveryActivationCandidatePolicyForVersion(4), ...projection, ...bridgeFacts };
+  candidateSource = `${JSON.stringify(Object.fromEntries(RECOVERY_BINDING_KEYS_V4.map(key => [key, values[key]])), null, 2)}\n`;
+  const inspected = adoptionWriter.inspectSealedRealmsProductionRecoveryActivationRecords(recordsV4);
+  expect(inspected.schemaVersion).toBe(4);
+  expect(f.state.puts).toBe(1);
+  return { f, evidence, recordsV4, receipt, written, legacy, bridge, bridgeModule, binding, confirmation,
+    bridgeReceipt, bridgePath, adoptionPath, candidateSource };
+}
+
+it('joins retained PTR adoption to genuine G002 bridge authority and the V4 public projection', async () => {
+  const joined = await joinedV4ActivationFixture();
+  let envelope: Record<string, any> = {};
+  adoptionWriter.writeSealedRealmsProductionRecoveryActivationDescriptor({ records: joined.recordsV4, consumeDescriptor: fd => {
+    envelope = JSON.parse(readFileSync(fd, 'utf8'));
+    expect(envelope.profile).toBe('warpkeep-0.4.0-recovery-activation-evidence-ptr-adoption-v1');
+    expect(envelope.ptrExistingStateAdoptionReceipt.completionReceipt).toEqual(joined.receipt);
+    expect(() => (adoptionWriter.validateSealedRealmsProductionRecoveryActivationEvidence as any)(envelope)).toThrow();
+    expect((adoptionWriter.validateSealedRealmsProductionRecoveryActivationEvidence as any)(envelope, undefined, joined.evidence).schemaVersion).toBe(4);
+    return undefined;
+  } });
+  const { validateRecoveryLaunchActivationProjection } = await import('../scripts/generate-0.4.0-recovery-launch-activation.mjs');
+  const { verifySealedRealmsPublicActivationBytes } = await import('../scripts/verify-sealed-realms-public-activation-artifact.mjs');
+  const binding = validateRecoveryLaunchActivationProjection(envelope, joined.bridgeReceipt, undefined, joined.evidence);
+  expect(binding.schemaVersion).toBe(4);
+  expect(binding.ptrExistingStateAdoptionReceiptDigest).toBe(joined.written.recordDigest);
+  expect(binding.admissionRequestSuspensionReceiptDigest).toBe(joined.binding.evidenceDigest);
+  const bytes = Buffer.from(`${JSON.stringify(binding, null, 2)}\n`);
+  expect(verifySealedRealmsPublicActivationBytes(bytes)).toEqual(bytes);
+  expect(() => validateRecoveryLaunchActivationProjection(envelope, joined.bridgeReceipt)).toThrow();
+  expect(() => validateRecoveryLaunchActivationProjection(envelope,
+    { ...joined.bridgeReceipt, ptrExistingStateAdoptionReceiptDigest: 'f'.repeat(64) }, undefined, joined.evidence)).toThrow();
+  for (const target of [joined.bridgePath, joined.adoptionPath]) {
+    const saved = readFileSync(target);
+    try {
+      writeFileSync(target, '{}\n');
+      await expect(joined.bridge.bridgeState.reopenActivationEvidenceContinuation()).rejects.toThrow();
+      expect(() => joined.bridgeModule.readSealedRealmsProductionRecoveryBridgeFacts({ bridgeState: joined.bridge.bridgeState,
+        privateState: joined.f.privateState, authority: joined.bridge.sourceAuthorityFor('activation-evidence-generate') })).toThrow();
+    } finally { writeFileSync(target, saved); }
+  }
+  await expect(joined.bridgeModule.consumeSealedRealmsProductionActivationEvidenceConfirmation(joined.confirmation)).resolves.toEqual({});
+  await expect(joined.bridgeModule.consumeSealedRealmsProductionActivationEvidenceConfirmation(joined.confirmation)).rejects.toThrow();
+  expect(joined.f.state.puts).toBe(1);
+}, 30000);
+
+// The fixed descriptor owner requires genuine POSIX ownership and 0600 file modes.
+it.skipIf(process.platform !== 'linux')('generates and reopens completed V4 evidence after restart without replaying PTR or bridge effects', async () => {
+  const joined = await joinedV4ActivationFixture();
+  const { f, evidence, recordsV4, legacy, bridge, bridgeModule, binding, candidateSource } = joined;
+  const continuation = await import('../scripts/sealed-realms-production-continuation.mjs');
+  const codec = await import('../scripts/sealed-realms-production-activation-generation-receipt.mjs');
+  const generateAuthority = bridge.sourceAuthorityFor('activation-evidence-generate');
+  const createGenerator = (records = recordsV4, privateState = f.privateState, cap = evidence) =>
+    bridgeModule.createSealedRealmsProductionActivationEvidenceGenerator({ records, privateState, authority: generateAuthority,
+      existingStateAdoption: cap,
+      testOnlyCapability: bridgeModule.createSealedRealmsProductionAuthBridgeStateTestCapability(),
+      testOnlyPreparationBootstrapAuthority: { preparationSourceCommit: SOURCE,
+        moduleTreeId: legacy.receipts.g001PolicyObservationBootstrapReceipt.moduleTreeId,
+        bootstrapBlob: legacy.receipts.g001PolicyObservationBootstrapReceipt.bootstrapBlob,
+        bootstrapSha256: legacy.receipts.g001PolicyObservationBootstrapReceipt.bootstrapSha256 },
+    });
+  const generator = createGenerator();
+  const inspected = await bridge.run('activation-evidence-inspect', '88003');
+  await continuation.issueSealedRealmsProductionContinuation({ store: bridge.store, ...inspected,
+    kind: 'activation-evidence', ...binding });
+  const generate = await bridge.run('activation-evidence-generate', '88004');
+  let generationFailure: unknown;
+  let generationCompleted = false;
+  await expect(continuation.claimSealedRealmsProductionContinuation({ store: bridge.store, ...generate,
+    kind: 'activation-evidence', ...binding, effect: async claim => {
+      try {
+        await bridge.bridgeState.consumeActivationEvidenceForContinuation({ claim, store: bridge.store,
+          sourceAuthority: generate.sourceAuthority, kind: 'activation-evidence', runId: generate.runId,
+          runAttempt: generate.runAttempt, ...binding, generator });
+        generationCompleted = true;
+      } catch (error) { generationFailure = error; throw error; }
+      throw Error('Synthetic acknowledgment lost after completed private publication');
+    } })).rejects.toMatchObject({ code: 'SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS' });
+  if (generationFailure !== undefined) throw generationFailure;
+  expect(generationCompleted).toBe(true);
+  const artifactPath = join(f.runtime, 'public/0.4.0-sealed-launch.json');
+  const artifact = readFileSync(artifactPath);
+  const generatedReceipt = codec.parseActivationGenerationReceipt(readFileSync(join(f.runtime, 'public/activation-generation-receipt.json')));
+  expect(generatedReceipt).toMatchObject({ artifactSchemaVersion: 4, artifactProfile: 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4',
+    activationEvidenceDigest: binding.evidenceDigest, runId: '88004' });
+  expect(JSON.parse(artifact.toString()).ptrExistingStateAdoptionReceiptDigest).toBe(joined.written.recordDigest);
+  vi.setSystemTime(new Date(Date.parse(generatedReceipt.generatedAt) + 24 * 60 * 60 * 1000));
+  const restartedState = createSealedRealmsProductionPrivateState({ reportedHome: f.home, testOnlyOwnerUid: statSync(f.home).uid });
+  const restartedStore = createSealedRealmsProductionContinuationStore({ privateState: restartedState });
+  const updateAuthority = authority('ptr-update-apply');
+  const restartedUpdateRecords = createSealedRealmsProductionActivationRecords({ privateState: restartedState, authority: updateAuthority });
+  const restartedEvidence = await adoptionWriter.authenticateSealedRealmsProductionPtrExistingStateAdoption({
+    records: restartedUpdateRecords, authority: updateAuthority, store: restartedStore });
+  const restartedRecords = createSealedRealmsProductionActivationRecords({ privateState: restartedState, authority: generateAuthority,
+    readBindingCandidate: () => candidateSource, existingStateAdoption: restartedEvidence });
+  const restartedBridge = bridge.createBridge(restartedEvidence, restartedState, generateAuthority);
+  const restartedGenerator = createGenerator(restartedRecords, restartedState, restartedEvidence);
+  expect(adoptionWriter.inspectSealedRealmsProductionRecoveryActivationRecords(restartedRecords, generatedReceipt.generatedAt).schemaVersion).toBe(4);
+  for (const target of [artifactPath, joined.bridgePath, joined.adoptionPath]) {
+    const saved = readFileSync(target);
+    try {
+      writeFileSync(target, '{}\n');
+      if (target === joined.bridgePath) await expect(restartedBridge.reopenActivationEvidenceContinuation()).rejects.toThrow();
+      else expect(() => createGenerator(restartedRecords, restartedState, restartedEvidence)).toThrow();
+    } finally { writeFileSync(target, saved); }
+  }
+  const selected = await restartedBridge.reopenActivationEvidenceContinuation();
+  const reconcile = await bridge.run('activation-evidence-generate', '88005', new Set(['88004']));
+  await expect(continuation.reconcileSealedRealmsProductionContinuation({ store: restartedStore, ...reconcile,
+    kind: 'activation-evidence', ...selected,
+    readOnlyReconcile: token => restartedBridge.reconcileActivationEvidenceForContinuation({ selection: selected,
+      generator: restartedGenerator, reconciliation: token, store: restartedStore, sourceAuthority: reconcile.sourceAuthority }),
+  })).resolves.toBeDefined();
+  expect(readFileSync(artifactPath)).toEqual(artifact);
+  expect(f.state.puts).toBe(1);
+}, 30000);

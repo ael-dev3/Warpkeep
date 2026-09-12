@@ -113,12 +113,38 @@ function readPolicySourceAuthority(authority, testOnly, linux) {
   } finally { bytes.fill(0); config.fill(0); }
 }
 
-/** Pure comparison for reopened evidence; neither input grants generator authority. */
-export function validateRecoveryLaunchActivationProjection(envelope, bridge, verificationTime) {
-  const candidate = validateSealedRealmsProductionRecoveryActivationEvidence(envelope, verificationTime);
+function validateRecoveryEvidence(envelope, verificationTime, existingStateAdoption) {
+  const version = envelope !== null && typeof envelope === 'object' && !types.isProxy(envelope)
+    ? Object.getOwnPropertyDescriptor(envelope, 'schemaVersion')?.value : undefined;
+  if ((version === 4) !== (existingStateAdoption !== undefined)) fail();
+  // V4 JSON never supplies its own authenticity. The owner reopens the retained
+  // signed envelope and genuine completed history through this opaque capability.
+  return validateSealedRealmsProductionRecoveryActivationEvidence(envelope, verificationTime, existingStateAdoption);
+}
+
+/** Evidence comparison only, not generator authority; V4 requires retained authenticated evidence. */
+export function validateRecoveryLaunchActivationProjection(envelope, bridge, verificationTime, existingStateAdoption) {
+  const candidate = validateRecoveryEvidence(envelope, verificationTime, existingStateAdoption);
+  const adoption = candidate.schemaVersion === 4;
+  if (adoption) {
+    if (types.isProxy(bridge) || bridge === null || typeof bridge !== 'object'
+      || ![Object.prototype, null].includes(Object.getPrototypeOf(bridge))) fail();
+    const keys = ['schemaVersion', 'profile', 'sourceCommit', 'deploymentAuthority',
+      'g002Gate', 'g002ImportAuthorityCrossLink', 'ptrExistingStateAdoptionReceiptDigest', 'activationGate'];
+    const descriptors = Object.getOwnPropertyDescriptors(bridge);
+    if (JSON.stringify(Reflect.ownKeys(descriptors)) !== JSON.stringify(keys)
+      || keys.some(key => !descriptors[key]?.enumerable || !Object.hasOwn(descriptors[key], 'value'))
+      || bridge.schemaVersion !== 4
+      || bridge.profile !== 'warpkeep-sealed-realms-auth-bridge-suspension-ptr-adoption-private-v1'
+      || bridge.ptrExistingStateAdoptionReceiptDigest !== candidate.ptrExistingStateAdoptionReceiptDigest
+      || bridge.activationGate.ptrExistingStateAdoptionReceiptDigest !== candidate.ptrExistingStateAdoptionReceiptDigest
+      || Object.hasOwn(bridge.activationGate, 'ptrGateDigest')
+      || Object.hasOwn(bridge.activationGate, 'ptrImportAuthorityCrossLinkDigest')) fail();
+  }
   const deployment = bridge.deploymentAuthority;
   const bridgeDigest = createHash('sha256')
-    .update('warpkeep.sealed-realms.auth-bridge-suspension-private-receipt.v1\n')
+    .update(adoption ? 'warpkeep.sealed-realms.auth-bridge-suspension-ptr-adoption-private-receipt.v1\n'
+      : 'warpkeep.sealed-realms.auth-bridge-suspension-private-receipt.v1\n')
     .update(`${JSON.stringify(bridge)}\n`).digest('hex');
   const ptrBindingDigest = createHash('sha256').update('warpkeep.auth-bridge.ptr-binding.v1\n')
     .update(`${JSON.stringify([deployment.workerVersionId, candidate.preparationSourceCommit,
@@ -130,15 +156,15 @@ export function validateRecoveryLaunchActivationProjection(envelope, bridge, ver
     || deployment.ptrDatabaseIdentity !== candidate.ptrDatabaseIdentity
     || deployment.ptrBindingDigest !== ptrBindingDigest
     || bridge.g002ImportAuthorityCrossLink.realmImportReceiptDigest !== candidate.g002AtlasImportReceiptDigest
-    || bridge.ptrImportAuthorityCrossLink.realmImportReceiptDigest !== candidate.ptrAtlasImportReceiptDigest
+    || (!adoption && bridge.ptrImportAuthorityCrossLink.realmImportReceiptDigest !== candidate.ptrAtlasImportReceiptDigest)
     || candidate.admissionRequestSuspensionReceiptDigest !== bridgeDigest
     || !(Date.parse(bridge.activationGate.observedAt)
       >= Date.parse(envelope.g001AdmissionMonitorCurrentStateReceipt.observedAt))) fail();
   return createRecoveryActivationBindingFromCandidate(`${JSON.stringify(candidate, null, 2)}\n`);
 }
 
-export function createRecoveryLaunchActivationBindingFromEvidence(envelope, member, authority, testOnly) {
-  const candidate = validateSealedRealmsProductionRecoveryActivationEvidence(envelope);
+export function createRecoveryLaunchActivationBindingFromEvidence(envelope, member, authority, testOnly, existingStateAdoption) {
+  const candidate = validateRecoveryEvidence(envelope, undefined, existingStateAdoption);
   const bootstrap = envelope.g001PolicyObservationBootstrapReceipt;
   const linux = bootstrap.profile === GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE;
   const source = linux ? readRecoveryActivationLinuxPolicyAuthority(authority, testOnly)
@@ -147,7 +173,8 @@ export function createRecoveryLaunchActivationBindingFromEvidence(envelope, memb
     || bootstrap.moduleTreeId !== source.moduleTreeId || bootstrap[linux ? 'operatorBlob' : 'bootstrapBlob'] !== source[linux ? 'operatorBlob' : 'bootstrapBlob']
     || bootstrap[linux ? 'operatorSha256' : 'bootstrapSha256'] !== source[linux ? 'operatorSha256' : 'bootstrapSha256']) fail('RECOVERY_LAUNCH_ACTIVATION_SOURCE_INVALID');
   return validateRecoveryLaunchActivationProjection(envelope,
-    readSealedRealmsProductionActivationEvidenceMember(member).authBridgeSuspensionPrivateReceipt);
+    readSealedRealmsProductionActivationEvidenceMember(member).authBridgeSuspensionPrivateReceipt,
+    undefined, existingStateAdoption);
 }
 
 function sameFile(left, right) {
@@ -156,7 +183,7 @@ function sameFile(left, right) {
 }
 
 /** The producer supplies one owner-private descriptor to this fixed synchronous reader. */
-export function generateRecoveryLaunchActivationBindingFromDescriptor(descriptor, member, authority, testOnly) {
+export function generateRecoveryLaunchActivationBindingFromDescriptor(descriptor, member, authority, testOnly, existingStateAdoption) {
   if (!Number.isInteger(descriptor) || descriptor < 0 || typeof process.getuid !== 'function') fail();
   const before = fstatSync(descriptor, { bigint: true });
   if (!before.isFile() || before.uid !== BigInt(process.getuid()) || before.nlink !== 1n
@@ -173,6 +200,6 @@ export function generateRecoveryLaunchActivationBindingFromDescriptor(descriptor
     const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, count));
     const envelope = JSON.parse(source);
     if (`${JSON.stringify(envelope, null, 2)}\n` !== source) fail();
-    return createRecoveryLaunchActivationBindingFromEvidence(envelope, member, authority, testOnly);
+    return createRecoveryLaunchActivationBindingFromEvidence(envelope, member, authority, testOnly, existingStateAdoption);
   } finally { bytes.fill(0); }
 }

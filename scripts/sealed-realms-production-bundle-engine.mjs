@@ -29,8 +29,21 @@ const GREATER_REALM_PRIVATE_MARKER_TEXT = Object.freeze([
   Buffer.from('776172706b6565702e677265617465722d7265616c6d2e707269766174652d617474656d70742d636f6d706c6574696f6e2e7631', 'hex').toString('utf8'),
 ]);
 
+export const SEALED_REALMS_PTR_OBSERVATION_GRAPH_PATHS = Object.freeze([
+  'services/release-recovery/src/config.ts',
+  'services/release-recovery/src/crypto.ts',
+  'services/release-recovery/src/http.ts',
+  'services/release-recovery/src/protocol.ts',
+  'services/release-recovery/src/ptrObservation.ts',
+  'services/release-recovery/src/recoveryPublicKey.ts',
+]);
+
 function requiredGraphPaths(lane) {
+  // Activation and G002 share the retained-adoption reader with PTR, so their
+  // closed graphs require the same observation verifier. G001 stays independent.
   return Object.freeze([
+    ...(['activation', 'g002', 'ptr'].includes(lane)
+      ? ['scripts/ptr-production-state-observation.mjs', ...SEALED_REALMS_PTR_OBSERVATION_GRAPH_PATHS] : []),
     `scripts/sealed-realms-production-${lane}-workflow-entry.mjs`,
     `scripts/sealed-realms-production-${lane}-lane-entry.mjs`,
     ...['continuation', 'dispatch', 'private-state', 'source-authority',
@@ -294,7 +307,8 @@ function graphManifest(metafile, spec, sourceRoot) {
     && /^[A-Za-z0-9@._/-]+$/u.test(path)
     && path.split('/').every(part => part && part !== '.' && part !== '..')
     && (path.startsWith('scripts/') || path.startsWith('spacetimedb/') || path.startsWith('node_modules/yaml/')
-      || OPERATION_BUNDLE_NOBLE_GRAPH_FILES.some(file => path === `node_modules/@noble/hashes/${file.path}`));
+      || OPERATION_BUNDLE_NOBLE_GRAPH_FILES.some(file => path === `node_modules/@noble/hashes/${file.path}`)
+      || (spec.requiredGraphPaths.includes(path) && SEALED_REALMS_PTR_OBSERVATION_GRAPH_PATHS.includes(path)));
   if (metafile.inputs === null || typeof metafile.inputs !== 'object' || Array.isArray(metafile.inputs)) {
     fail('SEALED_REALMS_BUNDLES_SOURCE_GRAPH_INVALID');
   }

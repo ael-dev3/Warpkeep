@@ -28,8 +28,9 @@ import {
 } from './genesis001-admitted-player-census.mjs';
 import { createRecoveryActivationBindingFromCandidate, validateRecoveryActivationCandidateDocument } from './recovery-activation-candidate.mjs';
 import { parseActivationGenerationReceipt } from './sealed-realms-production-activation-generation-receipt.mjs';
-import { readPtrExistingUpdateCompletion } from './ptr-production-existing-update-adapter.mjs';
-import { updateDigest } from './sealed-realms-existing-update-protocol.mjs';
+import { readPtrExistingUpdateCompletion, readPtrExistingStateAdoption, readPtrExistingUpdateCompletionFromPrivateState } from './ptr-production-existing-update-adapter.mjs';
+import { updateCanonical, updateDigest } from './sealed-realms-existing-update-protocol.mjs';
+import { verifyPtrUpdateObservationPair } from '../services/release-recovery/src/ptrObservation.ts';
 
 const isProxy = types.isProxy;
 const SHA256 = /^[a-f0-9]{64}$/u;
@@ -38,6 +39,7 @@ const RECORD_PROFILE = 'warpkeep-sealed-realms-activation-record-v1';
 const EVIDENCE_PROFILE = 'warpkeep-0.4.0-sealed-launch-activation-evidence-v1';
 const RECORD_DIRECTORY = 'activation-evidence/records';
 const recordsCapabilities = new WeakMap();
+const retainedPtrAdoptions = new WeakMap();
 const candidateReadContexts = new WeakMap();
 
 const RECEIPT_MEMBERS = Object.freeze([
@@ -95,6 +97,10 @@ const RECEIPT_BASENAMES = Object.freeze({
 const RECOVERY_MEMBERS_V2 = Object.freeze(RECEIPT_MEMBERS.filter(member => member !== 'g001FreezePublishReceipt'));
 const RECOVERY_MEMBERS_V3 = Object.freeze(RECOVERY_MEMBERS_V2.map(member =>
   member === 'ptrPublishReceipt' ? 'ptrExistingUpdateReceipt' : member));
+const RECOVERY_MEMBERS_V4 = Object.freeze([...RECOVERY_MEMBERS_V3.filter(member =>
+  !['ptrAtlasImportReceipt', 'ptrOwnerProvisionReceipt', 'ptrSealedLiveReceipt'].includes(member)),
+  'ptrExistingStateAdoptionReceipt']);
+const RECOVERY_PROFILE_V4 = 'warpkeep-0.4.0-recovery-activation-evidence-ptr-adoption-v1';
 const RECOVERY_PROFILE_V2 = 'warpkeep-0.4.0-recovery-activation-evidence-v1';
 const RECOVERY_PROFILE_V3 = 'warpkeep-0.4.0-recovery-activation-evidence-ptr-update-v1';
 
@@ -868,7 +874,7 @@ function parseRecord(bytes, state, expectedMember) {
   let source;
   let value;
   try {
-    source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    source = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
     value = JSON.parse(source);
   } catch {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
@@ -1035,6 +1041,19 @@ function validateReopenedCorpus(state, receipts, verificationTime) {
   ) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
 
   const update = receipts.ptrExistingUpdateReceipt;
+  if (state.retainedAdoption) {
+    const retained = state.retainedAdoption;
+    const deadline = verificationTime === undefined ? Date.now() : Date.parse(verificationTime);
+    if (!Number.isFinite(deadline) || Date.parse(update.continuation.terminalAt) > deadline
+      || retained.result.pair.post.observation.observedThrough * 1000 > deadline
+      || update.binding.sourceCommit !== state.preparationSourceCommit
+      || JSON.stringify(update) !== JSON.stringify(retained.result.completionReceipt)
+      || JSON.stringify(receipts.ptrExistingStateAdoptionReceipt) !== JSON.stringify(retained.envelope)
+      || new Set([projection.g001DatabaseIdentity, publish.databaseIdentity, update.binding.databaseIdentity]).size !== 3) {
+      fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+    }
+    return projection;
+  }
   const ptrPublish = update ? ptrUpdateModuleFacts(update) : receipts.ptrPublishReceipt;
   // Current-S initialization is the supported V3 path. Historical producer
   // coordinates need an authenticated continuity anchor, not rewritten wrappers.
@@ -1093,8 +1112,10 @@ function validateReopenedCorpus(state, receipts, verificationTime) {
 export function createSealedRealmsProductionActivationRecords(input) {
   const hasCandidateReader = input !== null && typeof input === 'object'
     && !isProxy(input) && Object.hasOwn(input, 'readBindingCandidate');
+  const hasAdoption = input !== null && typeof input === 'object'
+    && !isProxy(input) && Object.hasOwn(input, 'existingStateAdoption');
   const options = exactInput(input, ['privateState', 'authority',
-    ...(hasCandidateReader ? ['readBindingCandidate'] : [])]);
+    ...(hasCandidateReader ? ['readBindingCandidate'] : []), ...(hasAdoption ? ['existingStateAdoption'] : [])]);
   if (hasCandidateReader && (typeof options.readBindingCandidate !== 'function'
     || isProxy(options.readBindingCandidate))) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_INPUT_INVALID');
@@ -1108,6 +1129,8 @@ export function createSealedRealmsProductionActivationRecords(input) {
   } catch {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_INPUT_INVALID');
   }
+  if (hasAdoption) readSealedRealmsProductionPtrExistingStateAdoptionEvidence({
+    evidence: options.existingStateAdoption, privateState, sourceCommit: preparationSourceCommit });
   const records = Object.freeze({});
   recordsCapabilities.set(records, Object.freeze({
     privateState,
@@ -1116,6 +1139,7 @@ export function createSealedRealmsProductionActivationRecords(input) {
     sourceMode: options.authority.mode,
     sourceAuthorityDigest: options.authority.authorityDigest,
     readBindingCandidate: options.readBindingCandidate,
+    ...(hasAdoption ? { existingStateAdoption: options.existingStateAdoption } : {}),
   }));
   return records;
 }
@@ -1176,6 +1200,175 @@ export function writeSealedRealmsProductionPtrExistingUpdateRecord(input) {
   } finally { body.fill(0); bytes?.fill(0); }
 }
 
+/** Separate private V4 evidence; never adds a member to the V3 activation corpus. */
+export async function writeSealedRealmsProductionPtrExistingStateAdoptionRecord(input) {
+  const options = exactInput(input, ['records', 'authority', 'adoption']);
+  const state = capabilityState(options.records);
+  const assertOwner = () => {
+    const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(options.authority);
+    assertSealedRealmsProductionPrivateState(state.privateState);
+    if (capabilityState(options.records) !== state
+      || options.authority.mode !== 'S' || options.authority.operation !== 'ptr-update-apply'
+      || state.sourceMode !== 'S' || state.sourceCommit !== sourceCommit
+      || state.preparationSourceCommit !== sourceCommit
+      || state.sourceAuthorityDigest !== options.authority.authorityDigest) {
+      fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+    }
+    return sourceCommit;
+  };
+  const sourceCommit = assertOwner();
+  // The reader reopens the authentic completion/terminal and exact signed pair.
+  // Retained signatures establish historical evidence, not new effect authority.
+  const envelope = await readPtrExistingStateAdoption({
+    adoption: options.adoption, authority: options.authority, privateState: state.privateState,
+  });
+  if (assertOwner() !== sourceCommit || envelope.sourceCommit !== sourceCommit) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+  }
+  validateMemberReceipt('ptrExistingUpdateReceipt', envelope.completionReceipt, sourceCommit);
+  const receiptDigest = updateDigest(envelope.completionReceipt);
+  const bytes = exactBody(envelope);
+  try {
+    const target = { root: 'runtime', relativePath: `ptr-existing-state-adoptions-v4/${receiptDigest}.json` };
+    if (!state.privateState.exists(target)) {
+      try { state.privateState.write({ ...target, bytes }); }
+      catch (error) {
+        // Only an immutable same-name race can be resolved by exact reopening.
+        // Partial writes and durability/ownership failures remain visible.
+        if (error?.code !== 'SEALED_REALMS_PRIVATE_STATE_FILE_EXISTS') throw error;
+      }
+    }
+    const reopened = state.privateState.read(target);
+    try {
+      if (!reopened.equals(bytes)) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+    } finally { reopened.fill(0); }
+    assertOwner();
+    return Object.freeze({ receiptDigest, recordDigest: createHash('sha256').update(bytes).digest('hex') });
+  } finally { bytes.fill(0); }
+}
+
+
+function retainedAdoptionOwner(options) {
+  const state = capabilityState(options.records);
+  const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(options.authority);
+  assertSealedRealmsProductionPrivateState(state.privateState);
+  if (options.authority.mode !== 'S' || options.authority.operation !== 'ptr-update-apply'
+    || state.sourceMode !== 'S' || state.sourceCommit !== sourceCommit
+    || state.preparationSourceCommit !== sourceCommit
+    || state.sourceAuthorityDigest !== options.authority.authorityDigest) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+  }
+  return state;
+}
+
+/** Reconstruct the original update through the same inventory owner as the producer. */
+function reopenRetainedAdoption(options) {
+  const state = retainedAdoptionOwner(options);
+  const receipt = readPtrExistingUpdateCompletionFromPrivateState({ authority: options.authority,
+    privateState: state.privateState, store: options.store });
+  validateMemberReceipt('ptrExistingUpdateReceipt', receipt, state.sourceCommit);
+  const updateBytes = state.privateState.read({ root: 'runtime',
+    relativePath: receiptPath('ptrExistingUpdateReceipt') });
+  let bytes;
+  try {
+    const storedReceipt = parseRecord(updateBytes, { ...state, recoveryRecords: true }, 'ptrExistingUpdateReceipt');
+    if (updateCanonical(receipt) !== updateCanonical(storedReceipt)) {
+      fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+    }
+    bytes = state.privateState.read({ root: 'runtime',
+      relativePath: `ptr-existing-state-adoptions-v4/${updateDigest(receipt)}.json` });
+    if (bytes.byteLength > 98304) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+    let text, envelope;
+    try {
+      text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+      envelope = JSON.parse(text);
+    } catch { fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID'); }
+    exactInput(envelope, ['schemaVersion', 'profile', 'sourceCommit', 'sourceTree',
+      'completionReceipt', 'preObservationJws', 'postObservationJws']);
+    if (`${JSON.stringify(envelope)}\n` !== text || envelope.schemaVersion !== 4
+      || envelope.profile !== 'warpkeep-ptr-existing-state-adoption-v1'
+      || envelope.sourceCommit !== state.sourceCommit || !COMMIT.test(envelope.sourceTree)
+      || typeof envelope.preObservationJws !== 'string' || typeof envelope.postObservationJws !== 'string'
+      || updateCanonical(envelope.completionReceipt) !== updateCanonical(receipt)) {
+      fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+    }
+    return { state, envelope, adoptionReceiptDigest: createHash('sha256').update(bytes).digest('hex'),
+      updateRecordDigest: createHash('sha256').update(updateBytes).digest('hex') };
+  } finally { updateBytes.fill(0); bytes?.fill(0); }
+}
+
+/** Authentic historical data only: no permit, provider access, effect or activation authority. */
+export async function authenticateSealedRealmsProductionPtrExistingStateAdoption(input) {
+  const supplied = exactInput(input, ['records', 'authority', 'store']);
+  const options = Object.freeze({ records: supplied.records, authority: supplied.authority, store: supplied.store });
+  const initial = reopenRetainedAdoption(options);
+  const envelope = initial.envelope, receipt = envelope.completionReceipt;
+  const pair = await verifyPtrUpdateObservationPair(envelope.preObservationJws, envelope.postObservationJws);
+  const context = {
+    bindingDigest: updateDigest(receipt.binding), inspectionDigest: receipt.inspectionDigest,
+    inspectionRecordDigest: receipt.inspectionRecordDigest, predecessorDigest: receipt.predecessorDigest,
+    predecessorReceiptDigest: receipt.predecessorReceiptDigest, beforeProgram: receipt.beforeProgram,
+    candidateProgram: receipt.binding.candidateProgram, scopeDigest: receipt.continuation.scopeDigest,
+    issuedRecordDigest: receipt.continuation.issuedRecordDigest, claimRecordDigest: receipt.continuation.claimRecordDigest,
+    claimRunId: receipt.continuation.claimRunId, claimRunAttempt: String(receipt.continuation.claimRunAttempt),
+  };
+  const postContext = { ...context, phase: 'post',
+    preObservationJwsSha256: createHash('sha256').update(envelope.preObservationJws, 'utf8').digest('hex'),
+    completionReceiptDigest: updateDigest(receipt), completionRecordDigest: receipt.completionRecordDigest,
+    terminalRecordDigest: receipt.continuation.terminalRecordDigest, terminalRunId: receipt.continuation.terminalRunId,
+    terminalRunAttempt: String(receipt.continuation.terminalRunAttempt), terminalOutcome: receipt.continuation.outcome,
+    terminalAt: receipt.continuation.terminalAt };
+  if (updateCanonical(pair.pre.context) !== updateCanonical({ ...context, phase: 'pre' })
+    || updateCanonical(pair.post.context) !== updateCanonical(postContext)
+    || [pair.pre, pair.post].some(value => value.identity.sourceCommit !== envelope.sourceCommit
+      || value.identity.sourceTree !== envelope.sourceTree)
+    || pair.pre.identity.runId !== receipt.continuation.claimRunId
+    || pair.pre.identity.runAttempt !== String(receipt.continuation.claimRunAttempt)
+    || pair.pre.observation.observedThrough * 1000 > Date.parse(receipt.submission.observedAt)
+    || pair.post.observation.observedFrom * 1000 < Date.parse(receipt.continuation.terminalAt)) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+  }
+  const current = reopenRetainedAdoption(options);
+  if (current.state !== initial.state || current.adoptionReceiptDigest !== initial.adoptionReceiptDigest
+    || current.updateRecordDigest !== initial.updateRecordDigest) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+  }
+  const freeze = value => {
+    if (value && typeof value === 'object') { for (const child of Object.values(value)) freeze(child); Object.freeze(value); }
+    return value;
+  };
+  const evidence = Object.freeze({});
+  retainedPtrAdoptions.set(evidence, { options, state: initial.state, envelope: freeze(envelope),
+    updateRecordDigest: initial.updateRecordDigest,
+    result: freeze({ sourceCommit: envelope.sourceCommit, sourceTree: envelope.sourceTree,
+      adoptionReceiptDigest: initial.adoptionReceiptDigest, completionReceipt: receipt, pair }) });
+  return evidence;
+}
+
+/** Synchronous consumers get only a branded, previously verified and freshly reopened baseline. */
+export function readSealedRealmsProductionPtrExistingStateAdoptionEvidence(input) {
+  const options = exactInput(input, ['evidence', 'privateState', 'sourceCommit']);
+  const member = retainedPtrAdoptions.get(options.evidence);
+  if (!member || assertSealedRealmsProductionPrivateState(options.privateState) !== member.state.privateState
+    || options.sourceCommit !== member.result.sourceCommit) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+  }
+  const current = reopenRetainedAdoption(member.options);
+  if (current.state !== member.state || current.adoptionReceiptDigest !== member.result.adoptionReceiptDigest
+    || current.updateRecordDigest !== member.updateRecordDigest) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+  }
+  return member.result;
+}
+
+function retainedAdoptionForEvidence(evidence, sourceCommit, privateState) {
+  const member = retainedPtrAdoptions.get(evidence);
+  if (!member) fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+  const result = readSealedRealmsProductionPtrExistingStateAdoptionEvidence({ evidence,
+    privateState: privateState ?? member.state.privateState, sourceCommit });
+  return Object.freeze({ result, envelope: member.envelope });
+}
+
 function recoveryReceiptProjection(state, receipts, g001) {
   const projection = { preparationSourceCommit: state.preparationSourceCommit, ...g001 };
   const copy = (prefix, source, fields) => {
@@ -1184,6 +1377,32 @@ function recoveryReceiptProjection(state, receipts, g001) {
     }
   };
   for (const realm of ['g002', 'ptr']) {
+    if (realm === 'ptr' && state.retainedAdoption) {
+      const { result } = state.retainedAdoption;
+      const observation = result.pair.post.observation, live = observation.ptr;
+      const updated = result.completionReceipt;
+      const published = ptrUpdateModuleFacts(updated);
+      projection.ptrModuleSourceCommit = published.sourceCommit;
+      copy('ptr', published, ['databaseIdentity', 'moduleSha256', 'moduleTreeId',
+        'dependencyClosureDigest', 'spacetimeExecutableSha256', 'spacetimeCliConfigSha256']);
+      projection.ptrExistingUpdateReceiptDigest = updateDigest(updated);
+      projection.ptrExistingStateAdoptionReceiptDigest = result.adoptionReceiptDigest;
+      projection.ptrExpectedProgramKeccak256 = updated.binding.candidateProgram;
+      copy('ptr', live, ['atlasSourceCommit', 'atlasId', 'publicReleaseId', 'publicApprovalReceiptId',
+        'releaseVersion', 'expectedReleaseSha256', 'releaseHeaderSha256', 'verificationDigest',
+        'atlasReady', 'sealed', 'populationGuardPassed', 'singletonOwnerCount', 'ownerEnabled',
+        'generalAdmissionCount', 'admissionsOpen', 'accessRequestsOpen']);
+      projection.ptrExpectedSealedStateHmacSha256 = live.sealedStateHmacSha256;
+      projection.ptrExpectedOwnerInvariantHmacSha256 = live.ownerInvariantHmacSha256;
+      Object.assign(projection, { preparationSourceTree: result.sourceTree,
+        recoveryAuthWorker: observation.bridgeService, recoveryAuthWorkerVersion: observation.bridgeWorkerVersion,
+        recoveryAuthWorkerVersionId: observation.bridgeWorkerVersionId,
+        recoveryAuthWorkerSourceCommit: observation.bridgeSourceCommit,
+        recoveryAuthWorkerConfigIdentity: observation.bridgeConfigIdentity,
+        recoveryAuthWorkerConfigEpoch: observation.bridgeConfigEpoch,
+        recoveryAuthorizationEpoch: observation.recoveryAuthorizationEpoch });
+      continue;
+    }
     const updated = realm === 'ptr' && receipts.ptrExistingUpdateReceipt;
     const published = updated ? ptrUpdateModuleFacts(updated) : receipts[`${realm}PublishReceipt`];
     const live = receipts[`${realm}SealedLiveReceipt`];
@@ -1212,6 +1431,7 @@ function recoveryReceiptProjection(state, receipts, g001) {
     'atlasImportMutationsEnabled', 'atlasActivationMutationsEnabled']);
   copy('g002', receipts.g002SealedLiveReceipt, ['releaseSha256', 'founders']);
   projection.admissionNotificationsEnabled = receipts.g002SealedLiveReceipt.admissionNotificationsEnabled;
+  if (state.retainedAdoption) return Object.freeze(projection);
   copy('ptr', receipts.ptrSealedLiveReceipt, ['releaseManifestSha256', 'expectedReleaseSha256',
     'releaseVersion', 'publicAtlasRows', 'publicRegionRows', 'atlasImportsExact',
     'atlasImportMutationsCompiled', 'atlasActivationMutationsCompiled', 'ownerAnchorRows',
@@ -1229,13 +1449,17 @@ function readRecoveryReceiptCorpus(records, verificationTime) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
   }
   const names = original.privateState.list({ root: 'runtime', relativeDirectory: RECORD_DIRECTORY });
-  const version = names.includes(RECEIPT_BASENAMES.ptrExistingUpdateReceipt) ? 3 : 2;
-  const members = version === 3 ? RECOVERY_MEMBERS_V3 : RECOVERY_MEMBERS_V2;
-  const state = Object.freeze({ ...original, recoveryRecords: true, recoveryVersion: version });
-  if (JSON.stringify(names) !== JSON.stringify(members.map(member => RECEIPT_BASENAMES[member]).sort())) {
+  const version = original.existingStateAdoption ? 4 : names.includes(RECEIPT_BASENAMES.ptrExistingUpdateReceipt) ? 3 : 2;
+  const members = version === 4 ? RECOVERY_MEMBERS_V4 : version === 3 ? RECOVERY_MEMBERS_V3 : RECOVERY_MEMBERS_V2;
+  const retainedAdoption = version === 4 ? retainedAdoptionForEvidence(original.existingStateAdoption,
+    original.preparationSourceCommit, original.privateState) : undefined;
+  const state = Object.freeze({ ...original, recoveryRecords: true, recoveryVersion: version, retainedAdoption });
+  const storedMembers = members.filter(member => member !== 'ptrExistingStateAdoptionReceipt');
+  if (JSON.stringify(names) !== JSON.stringify(storedMembers.map(member => RECEIPT_BASENAMES[member]).sort())) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_INCOMPLETE');
   }
-  const receipts = Object.fromEntries(members.map(member => [member, readReceipt(state, member)]));
+  const receipts = Object.fromEntries(members.map(member => [member, member === 'ptrExistingStateAdoptionReceipt'
+    ? retainedAdoption.envelope : readReceipt(state, member)]));
   const g001 = validateReopenedCorpus(state, receipts, verificationTime);
   return { state, receipts, projection: recoveryReceiptProjection(state, receipts, g001) };
 }
@@ -1292,14 +1516,14 @@ function readCompletedGenerationBinding(records, verificationTime) {
     const receipt = parseActivationGenerationReceipt(receiptBytes);
     if (receipt.generatedAt !== verificationTime || Date.parse(receipt.generatedAt) > Date.now()
       || receipt.sourceCommit !== state.preparationSourceCommit
-      || receipt.sourceAuthorityDigest !== state.sourceAuthorityDigest || ![2, 3].includes(receipt.artifactSchemaVersion)) fail();
+      || receipt.sourceAuthorityDigest !== state.sourceAuthorityDigest || ![2, 3, 4].includes(receipt.artifactSchemaVersion)) fail();
     descriptorBytes = state.privateState.readActivationDescriptor();
     artifactBytes = state.privateState.read({ root: 'runtime', relativePath: 'public/0.4.0-sealed-launch.json' });
     if (receipt.descriptorSha256 !== digest(descriptorBytes) || receipt.artifactSha256 !== digest(artifactBytes)) fail();
     const source = new TextDecoder('utf-8', { fatal: true }).decode(descriptorBytes);
     const envelope = JSON.parse(source);
     if (`${JSON.stringify(envelope, null, 2)}\n` !== source) fail();
-    const candidate = validateSealedRealmsProductionRecoveryActivationEvidence(envelope, receipt.generatedAt);
+    const candidate = validateSealedRealmsProductionRecoveryActivationEvidence(envelope, receipt.generatedAt, state.existingStateAdoption);
     if (candidate.schemaVersion !== receipt.artifactSchemaVersion
       || candidate.preparationSourceCommit !== state.preparationSourceCommit
       || receipt.activationEvidenceDigest !== candidate.admissionRequestSuspensionReceiptDigest) fail();
@@ -1315,14 +1539,14 @@ function readCompletedGenerationBinding(records, verificationTime) {
 }
 
 /** Validates canonical recovery evidence data; this does not mint receipt authority. */
-export function validateSealedRealmsProductionRecoveryActivationEvidence(envelope, verificationTime) {
+export function validateSealedRealmsProductionRecoveryActivationEvidence(envelope, verificationTime, existingStateAdoption) {
   const version = envelope !== null && typeof envelope === 'object' && !isProxy(envelope)
     ? Object.getOwnPropertyDescriptor(envelope, 'schemaVersion')?.value : undefined;
-  const members = version === 3 ? RECOVERY_MEMBERS_V3 : RECOVERY_MEMBERS_V2;
+  const members = version === 4 ? RECOVERY_MEMBERS_V4 : version === 3 ? RECOVERY_MEMBERS_V3 : RECOVERY_MEMBERS_V2;
   exactInput(envelope, ['schemaVersion', 'profile', 'bindingCandidate', ...members]);
   canonicalJsonTree(envelope);
-  if (![2, 3].includes(version)
-    || envelope.profile !== (version === 3 ? RECOVERY_PROFILE_V3 : RECOVERY_PROFILE_V2)) {
+  if (![2, 3, 4].includes(version) || (version === 4) !== (existingStateAdoption !== undefined)
+    || envelope.profile !== (version === 4 ? RECOVERY_PROFILE_V4 : version === 3 ? RECOVERY_PROFILE_V3 : RECOVERY_PROFILE_V2)) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_INPUT_INVALID');
   }
   const candidate = validateRecoveryActivationCandidateDocument(`${JSON.stringify(envelope.bindingCandidate, null, 2)}\n`);
@@ -1330,8 +1554,10 @@ export function validateSealedRealmsProductionRecoveryActivationEvidence(envelop
   const state = Object.freeze({
     preparationSourceCommit: candidate.preparationSourceCommit,
     recoveryCandidate: candidate,
+    retainedAdoption: version === 4 ? retainedAdoptionForEvidence(existingStateAdoption, candidate.preparationSourceCommit) : undefined,
   });
   const receipts = Object.fromEntries(members.map(member => {
+    if (member === 'ptrExistingStateAdoptionReceipt') return [member, envelope[member]];
     const realm = member.startsWith('g002') ? 'g002' : member.startsWith('ptr') ? 'ptr' : undefined;
     return [member, validateMemberReceipt(member, envelope[member],
       realm === undefined ? state.preparationSourceCommit : candidate[`${realm}ModuleSourceCommit`],
@@ -1379,7 +1605,7 @@ function readRecoveryActivationEnvelope(records, verificationTime) {
   }
   return { state, envelope: {
     schemaVersion: state.recoveryVersion,
-    profile: state.recoveryVersion === 3 ? RECOVERY_PROFILE_V3 : RECOVERY_PROFILE_V2,
+    profile: state.recoveryVersion === 4 ? RECOVERY_PROFILE_V4 : state.recoveryVersion === 3 ? RECOVERY_PROFILE_V3 : RECOVERY_PROFILE_V2,
     bindingCandidate: candidate,
     ...receipts,
   } };
@@ -1388,7 +1614,7 @@ function readRecoveryActivationEnvelope(records, verificationTime) {
 /** Reopens authentic records without writing or exposing their private bodies. */
 export function inspectSealedRealmsProductionRecoveryActivationRecords(records, verificationTime) {
   const { state, envelope } = readRecoveryActivationEnvelope(records, verificationTime);
-  validateSealedRealmsProductionRecoveryActivationEvidence(envelope, verificationTime);
+  validateSealedRealmsProductionRecoveryActivationEvidence(envelope, verificationTime, state.existingStateAdoption);
   return Object.freeze({
     sourceCommit: state.preparationSourceCommit, schemaVersion: envelope.schemaVersion,
     descriptorSha256: createHash('sha256').update(`${JSON.stringify(envelope, null, 2)}\n`).digest('hex'),
@@ -1402,7 +1628,7 @@ export function writeSealedRealmsProductionRecoveryActivationDescriptor(input) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_INPUT_INVALID');
   }
   const { state, envelope } = readRecoveryActivationEnvelope(options.records);
-  validateSealedRealmsProductionRecoveryActivationEvidence(envelope);
+  validateSealedRealmsProductionRecoveryActivationEvidence(envelope, undefined, state.existingStateAdoption);
   let bytes;
   try {
     bytes = Buffer.from(`${JSON.stringify(envelope, null, 2)}\n`, 'utf8');

@@ -71,3 +71,36 @@ it('independently verifies root-generated V3 bytes and separate receipt/core dom
     serializeExactObject(RECOVERY_BINDING_KEYS_V3, { ...binding, recoveryAuthorizationCoreSha256: null } as never),
   ))
 })
+
+
+it('independently verifies root-generated V4 adoption fields and receipt/core domains', async () => {
+  const local = await import('../../../scripts/recovery-binding-projection.mjs')
+  const receiver = await import('../src/githubEvidence.js')
+  expect(receiver.RECOVERY_BINDING_KEYS_V4).toBeDefined()
+  expect(local.RECOVERY_BINDING_KEYS_V4).toEqual(receiver.RECOVERY_BINDING_KEYS_V4)
+  const prior = recoveryBindingCandidate()
+  const candidate = Object.fromEntries(local.RECOVERY_BINDING_KEYS_V4.map(key => [key,
+    key === 'schemaVersion' ? 4 : key === 'profile' ? 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4'
+      : key === 'ptrExistingUpdateReceiptDigest' ? '93'.repeat(32)
+        : key === 'ptrExistingStateAdoptionReceiptDigest' ? '94'.repeat(32)
+          : key === 'ptrExpectedSealedStateHmacSha256' ? '95'.repeat(32)
+            : key === 'ptrExpectedOwnerInvariantHmacSha256' ? '96'.repeat(32)
+              : key.endsWith('Commitment') ? null : ['ptrSealed', 'ptrPopulationGuardPassed'].includes(key) ? true
+                : key === 'ptrSingletonOwnerCount' ? 1 : key === 'ptrGeneralAdmissionCount' ? 0 : prior[key],
+  ]))
+  const { createRecoveryActivationBindingV4 } = await import('../../../scripts/recovery-activation-candidate.mjs')
+  const binding = createRecoveryActivationBindingV4(`${JSON.stringify(candidate, null, 2)}\n`)
+  const excluded = new Set(['g001FreezePublishReceiptCommitment', ...Object.keys(receiver.RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V4)])
+  const keys = receiver.RECOVERY_BINDING_KEYS_V4.filter(key => !excluded.has(key))
+  const receipt = Object.fromEntries(keys.map(key => [key, key === 'recoveryAuthorizationCoreSha256' ? null : binding[key]!]))
+  for (const key of Object.keys(receiver.RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V4)) {
+    expect(binding[key]).toBe(await sha256Hex(`warpkeep.0.4.0.recovery-sealed-launch.${key}.v4\n`,
+      serializeExactObject(keys, receipt as never)))
+    expect(binding[key]).not.toBe(await sha256Hex(`warpkeep.0.4.0.recovery-sealed-launch.${key}.v3\n`,
+      serializeExactObject(keys, receipt as never)))
+  }
+  expect(binding.recoveryAuthorizationCoreSha256).toBe(await sha256Hex(
+    'warpkeep.0.4.0.recovery-authorization-core.v4\n',
+    serializeExactObject(receiver.RECOVERY_BINDING_KEYS_V4, { ...binding, recoveryAuthorizationCoreSha256: null } as never),
+  ))
+})

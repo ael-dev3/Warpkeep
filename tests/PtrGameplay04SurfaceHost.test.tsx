@@ -1,3 +1,4 @@
+import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -323,6 +324,76 @@ it.each([
   await screen.findByRole('button', { name: 'Open keep' });
   expect(h.props.onRequestReturn).not.toHaveBeenCalled();
   expect(h.build).not.toHaveBeenCalled(); expect(h.dispatch).not.toHaveBeenCalled();
+});
+
+it.each([
+  [true, 'Close panel', 'pending'], [false, 'Close panel', 'pending'],
+  [true, 'Escape', 'pending'], [false, 'Escape', 'pending'],
+  [true, 'Close panel', 'refreshing'], [false, 'Close panel', 'refreshing'],
+  [true, 'Escape', 'refreshing'], [false, 'Escape', 'refreshing'],
+] as const)('dismisses a busy keep panel without releasing command ownership (miniApp=%s, action=%s, phase=%s)', async (miniApp, action, phase) => {
+  hostValue = { ...hostValue, isMiniApp: miniApp };
+  const h = await setup(); h.fund();
+  const commandState = vi.fn();
+  render(<RealmMapScreen {...h.props} onPtrCommandStateChange={commandState} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open keep' }));
+  const opener = await screen.findByRole('button', { name: 'Buildings' });
+  fireEvent.click(opener);
+  fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Move right 0.5 m' }));
+  const confirm = screen.getByRole('button', { name: /Confirm placement/ });
+  expect(confirm).toBeEnabled();
+  const scene = screen.getByRole('region', { name: 'Verdant Citadel scene' });
+  const resources = screen.getByRole('region', { name: 'Resources' });
+  const panel = screen.getByRole('complementary', { name: 'Command panel' });
+  let releaseRefresh!: () => void;
+  if (phase === 'pending') fireEvent.click(confirm);
+  else {
+    const readCurrent = h.read.getMockImplementation()!;
+    h.read.mockImplementationOnce(async () => {
+      await new Promise<void>(resolve => { releaseRefresh = resolve; });
+      return readCurrent();
+    });
+    act(() => window.dispatchEvent(new Event('focus')));
+  }
+  const status = await screen.findByText(phase === 'pending' ? /Request pending/ : /Refreshing keep from the Realm/);
+  expect(status).toHaveAttribute('role', 'status');
+  expect(confirm).toBeDisabled();
+  fireEvent.click(confirm);
+  expect(screen.getByRole('complementary', { name: 'Command panel' })).toBe(panel);
+  const reads = h.read.mock.calls.length;
+  const close = screen.getByRole('button', { name: 'Close panel' }); close.focus();
+  if (action === 'Escape') fireEvent.keyDown(close, { key: 'Escape' });
+  else fireEvent.click(close);
+  await waitFor(() => expect(screen.queryByRole('complementary', { name: 'Command panel' })).toBeNull());
+  expect(screen.getByRole('heading', { name: 'Your keep' })).toBeVisible();
+  expect(opener).toHaveFocus();
+  expect(screen.getByRole('region', { name: 'Verdant Citadel scene' })).toBe(scene);
+  expect(scene).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Resources' })).toBe(resources);
+  for (const resource of ['Food', 'Wood', 'Stone', 'Gold']) {
+    expect(within(resources).getByLabelText(`${resource}: 1000 available`)).toBeVisible();
+  }
+  expect(status).toBeVisible();
+  expect(commandState).toHaveBeenLastCalledWith(phase === 'pending');
+  // Dismissal must not grant a new selection, cancel a held read, or replay a mutation.
+  fireEvent.click(screen.getByRole('button', { name: 'Open building catalog' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Manage Workers' }));
+  act(() => window.dispatchEvent(new Event('focus')));
+  expect(screen.queryByRole('complementary', { name: 'Command panel' })).toBeNull();
+  expect(screen.queryByRole('button', { name: /Confirm placement/ })).toBeNull();
+  expect(h.read).toHaveBeenCalledTimes(reads);
+  expect(h.build).toHaveBeenCalledTimes(phase === 'pending' ? 1 : 0);
+  expect(h.dispatch).not.toHaveBeenCalled();
+  expect(h.props.onRequestReturn).not.toHaveBeenCalled();
+  expect(commandState).toHaveBeenLastCalledWith(phase === 'pending');
+  if (phase === 'refreshing') {
+    await act(async () => { releaseRefresh(); });
+    await waitFor(() => expect(status).not.toBeInTheDocument());
+    expect(screen.queryByRole('complementary', { name: 'Command panel' })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Verdant Citadel scene' })).toBe(scene);
+    expect(h.build).not.toHaveBeenCalled();
+  }
 });
 
 it('does not restore a closed placement draft through browser Forward', async () => {

@@ -28,8 +28,10 @@ function record(input) {
     || typeof value.runId !== 'string' || !RUN_ID.test(value.runId) || !Number.isSafeInteger(value.runAttempt) || value.runAttempt < 1 || value.runAttempt > 1000
     || ['sourceAuthorityDigest', 'activationEvidenceDigest', 'activationChainDigest',
       'descriptorSha256', 'artifactSha256'].some(key => typeof value[key] !== 'string' || !DIGEST.test(value[key]))
-    || ![1, 2, 3].includes(value.artifactSchemaVersion)
-    || value.artifactProfile !== (value.artifactSchemaVersion === 3
+    || ![1, 2, 3, 4].includes(value.artifactSchemaVersion)
+    || value.artifactProfile !== (value.artifactSchemaVersion === 4
+      ? 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4'
+      : value.artifactSchemaVersion === 3
       ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3'
       : `warpkeep-0.4.0-sealed-launch-v${value.artifactSchemaVersion}`)
     || value.outcome !== 'generated' || typeof value.generatedAt !== 'string'

@@ -336,6 +336,33 @@ afterEach(async () => {
 })
 
 describe('ReleaseRecoveryAuthorizationLedgerV2 Workerd adapter', () => {
+  it('preserves exact V4 adoption arming across real control and request eviction', async () => {
+    const tuple = arming({ requestId: OTHER_REQUEST_ID, ptrStateEvidenceProfile: 'warpkeep-ptr-existing-state-adoption-v1',
+      ptrExistingStateAdoptionReceiptDigest: 'b'.repeat(64), ptrExpectedSealedStateHmacSha256: 'e'.repeat(64),
+      ptrExpectedOwnerInvariantHmacSha256: 'f'.repeat(64) })
+    const { control, request } = await enableAndInstall(tuple)
+    const controlStub = env.RECOVERY_LEDGER_V2.getByName(CONTROL_NAME_V2)
+    const retained = await runInDurableObject(request, async (_instance, state) => {
+      const row = state.storage.sql.exec<{ arming_json: string }>(
+        'SELECT arming_json FROM recovery_v2_authorization_arming WHERE singleton_key = 1',
+      ).one()
+      return JSON.parse(row.arming_json)
+    })
+    expect(retained).toEqual(tuple)
+    await evictDurableObject(request)
+    await evictDurableObject(controlStub)
+    await expect(controlStub.reconcileControl({ enabled: true, authorizationEpoch: tuple.authorizationEpoch,
+      arming: tuple })).resolves.toMatchObject({ activeArming: tuple })
+    await expect(request.installArming({ arming: tuple, control })).resolves.toMatchObject({ arming: tuple })
+    for (const key of ['ptrExistingStateAdoptionReceiptDigest', 'ptrExpectedSealedStateHmacSha256',
+      'ptrExpectedOwnerInvariantHmacSha256']) {
+      const changed = { ...tuple, [key]: '1'.repeat(64) }
+      await expect(runInDurableObject(controlStub, instance => instance.reconcileControl({ enabled: true,
+        authorizationEpoch: tuple.authorizationEpoch, arming: changed }))).rejects.toThrow('RECOVERY_LEDGER_ARMING_CONFLICT')
+      await expect(runInDurableObject(request, instance => instance.installArming({ arming: changed, control }))).rejects.toThrow()
+    }
+  })
+
   it('keeps the V1 and V2 bindings, control objects, and SQLite namespaces isolated', async () => {
     expect(env.RECOVERY_LEDGER).toBeDefined()
     expect(env.RECOVERY_LEDGER_V2).toBeDefined()

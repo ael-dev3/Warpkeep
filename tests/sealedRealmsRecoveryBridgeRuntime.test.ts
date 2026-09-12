@@ -16,8 +16,16 @@ const f = vi.hoisted(() => ({
   createProvider: vi.fn(),
   createBridge: vi.fn(),
   bridge: Object.freeze({}),
-  state: Object.freeze({}),
+  state: Object.freeze({ list: vi.fn() }),
   authority: Object.freeze({}),
+  updateAuthority: Object.freeze({}),
+  createAuthority: vi.fn(),
+  store: Object.freeze({}),
+  adoption: Object.freeze({}),
+  authenticateAdoption: vi.fn(),
+  authenticationRecords: Object.freeze({}),
+  createRecords: vi.fn(),
+  createGenerator: vi.fn(),
   records: Object.freeze({}),
   context: Object.freeze({}),
   read: vi.fn(),
@@ -25,7 +33,7 @@ const f = vi.hoisted(() => ({
     undefined | ((a: string, b: object, c: object) => unknown),
 }));
 vi.mock("../scripts/sealed-realms-production-source-authority.mjs", () => ({
-  authenticateSealedRealmsProductionSourceAuthority: () => f.authority,
+  authenticateSealedRealmsProductionSourceAuthority: f.createAuthority,
 }));
 vi.mock("../scripts/sealed-realms-production-workflow-evidence.mjs", () => ({
   createSealedRealmsProductionWorkflowEvidence: () => ({}),
@@ -43,7 +51,7 @@ vi.mock(
   () => ({ resolveSealedRealmsProductionWorkflowPrivateState: () => f.state }),
 );
 vi.mock("../scripts/sealed-realms-production-continuation.mjs", () => ({
-  createSealedRealmsProductionContinuationStore: () => ({}),
+  createSealedRealmsProductionContinuationStore: () => f.store,
 }));
 // This suite exercises runtime ownership and cleanup. Provider authentication
 // uses its own real-provider contracts, not this suite's opaque authority stubs.
@@ -52,20 +60,11 @@ vi.mock("../scripts/sealed-realms-production-bridge-provider.mjs", () => ({
 }));
 vi.mock("../scripts/sealed-realms-production-auth-bridge-state.mjs", () => ({
   createSealedRealmsProductionAuthBridgeState: f.createBridge,
-  createSealedRealmsProductionActivationEvidenceGenerator: () => {
-    if (f.failStage === "generator") throw Error("fixture failure");
-    f.callback?.("a".repeat(40), {}, f.context);
-    return {};
-  },
+  createSealedRealmsProductionActivationEvidenceGenerator: f.createGenerator,
 }));
 vi.mock("../scripts/sealed-realms-production-activation-records.mjs", () => ({
-  createSealedRealmsProductionActivationRecords: (options: {
-    readBindingCandidate: typeof f.callback;
-  }) => {
-    if (f.failStage === "records") throw Error("fixture failure");
-    f.callback = options.readBindingCandidate;
-    return f.records;
-  },
+  createSealedRealmsProductionActivationRecords: f.createRecords,
+  authenticateSealedRealmsProductionPtrExistingStateAdoption: f.authenticateAdoption,
 }));
 vi.mock("../scripts/sealed-realms-production-recovery-candidate.mjs", () => ({
   readSealedRealmsProductionRecoveryCandidate: f.read,
@@ -98,6 +97,20 @@ beforeEach(() => {
   vi.clearAllMocks();
   f.failStage = "";
   f.callback = undefined;
+  f.state.list.mockReset().mockReturnValue([]);
+  f.createAuthority.mockReset().mockImplementation((input: { operation: string }) =>
+    input.operation === "ptr-update-apply" ? f.updateAuthority : f.authority);
+  f.authenticateAdoption.mockReset().mockResolvedValue(f.adoption);
+  f.createRecords.mockReset().mockImplementation((options: { readBindingCandidate?: typeof f.callback }) => {
+    if (f.failStage === "records") throw Error("fixture failure");
+    f.callback = options.readBindingCandidate;
+    return options.readBindingCandidate === undefined ? f.authenticationRecords : f.records;
+  });
+  f.createGenerator.mockReset().mockImplementation(() => {
+    if (f.failStage === "generator") throw Error("fixture failure");
+    f.callback?.("a".repeat(40), {}, f.context);
+    return {};
+  });
   f.createProvider.mockReset().mockReturnValue(f.provider);
   f.createBridge.mockReset().mockReturnValue(f.bridge);
   f.dispatch.mockReset();
@@ -235,4 +248,74 @@ it('builds fixed programs before acquiring expiring preparation and stops before
   expect(f.prepare).not.toHaveBeenCalled();
   expect(f.disposePrograms).not.toHaveBeenCalled();
   expect(f.revoke).toHaveBeenCalledOnce();
+});
+
+
+it.each(["activation-evidence-inspect", "activation-evidence-generate"] as const)(
+  "authenticates retained V4 before constructing the %s bridge and forwards the owned capability",
+  async operation => {
+    f.state.list.mockReturnValue(["ptr-existing-state-adoptions-v4"]);
+    let finish!: (capability: object) => void;
+    f.authenticateAdoption.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const pending = createSealedRealmsProductionActivationWorkflowRuntime({ operation, workflowInputSha: "a".repeat(40) });
+    await vi.waitFor(() => expect(f.authenticateAdoption).toHaveBeenCalledOnce());
+    expect(f.state.list).toHaveBeenCalledExactlyOnceWith({ root: "runtime" });
+    expect(f.createAuthority).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      operation: "ptr-update-apply", workflowInputSha: "a".repeat(40),
+    }));
+    expect(f.authenticateAdoption).toHaveBeenCalledExactlyOnceWith({
+      records: f.authenticationRecords, authority: f.updateAuthority, store: f.store,
+    });
+    expect(f.createRecords).toHaveBeenCalledExactlyOnceWith({ privateState: f.state, authority: f.authority });
+    expect(f.createProvider).not.toHaveBeenCalled();
+    expect(f.createBridge).not.toHaveBeenCalled();
+    expect(f.programs).not.toHaveBeenCalled();
+    expect(f.prepare).not.toHaveBeenCalled();
+    finish(f.adoption);
+    const runtime = await pending;
+    expect(f.createBridge).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      authority: f.authority, privateState: f.state, existingStateAdoption: f.adoption,
+    }));
+    if (operation === "activation-evidence-generate") {
+      expect(f.createRecords).toHaveBeenLastCalledWith({ privateState: f.state, authority: f.authority,
+        readBindingCandidate: expect.any(Function), existingStateAdoption: f.adoption });
+      expect(f.createGenerator).toHaveBeenCalledExactlyOnceWith({ records: f.records,
+        privateState: f.state, authority: f.authority, existingStateAdoption: f.adoption });
+    } else {
+      expect(f.createRecords).toHaveBeenCalledOnce();
+      expect(f.createGenerator).not.toHaveBeenCalled();
+      expect(f.programs).not.toHaveBeenCalled();
+      expect(f.prepare).not.toHaveBeenCalled();
+    }
+    await runSealedRealmsProductionActivationOperation({ runtime, operation, workflowInputSha: "a".repeat(40) });
+  },
+);
+
+it.each(["discovery", "authentication"])("refuses failed V4 %s before provider access or preparation", async stage => {
+  if (stage === "discovery") f.state.list.mockImplementation(() => { throw Error("private discovery failure"); });
+  else {
+    f.state.list.mockReturnValue(["ptr-existing-state-adoptions-v4"]);
+    f.authenticateAdoption.mockRejectedValue(Error("private authentication failure"));
+  }
+  await expect(createSealedRealmsProductionActivationWorkflowRuntime({
+    operation: "activation-evidence-generate", workflowInputSha: "a".repeat(40),
+  })).rejects.toThrow(`private ${stage} failure`);
+  expect(f.createProvider).not.toHaveBeenCalled();
+  expect(f.createBridge).not.toHaveBeenCalled();
+  expect(f.programs).not.toHaveBeenCalled();
+  expect(f.prepare).not.toHaveBeenCalled();
+  expect(f.createGenerator).not.toHaveBeenCalled();
+  expect(f.revoke).toHaveBeenCalledOnce();
+});
+
+it("keeps legacy inspection unchanged when the exact adoption directory is absent", async () => {
+  f.state.list.mockReturnValue(["existing-updates-production-v1", "ptr-update-observation-v4"]);
+  const operation = "activation-evidence-inspect";
+  const runtime = await createSealedRealmsProductionActivationWorkflowRuntime({ operation, workflowInputSha: "a".repeat(40) });
+  expect(f.authenticateAdoption).not.toHaveBeenCalled();
+  expect(f.createAuthority).toHaveBeenCalledOnce();
+  expect(f.createRecords).not.toHaveBeenCalled();
+  expect(f.createGenerator).not.toHaveBeenCalled();
+  expect(f.createBridge.mock.calls[0][0]).not.toHaveProperty("existingStateAdoption");
+  await runSealedRealmsProductionActivationOperation({ runtime, operation, workflowInputSha: "a".repeat(40) });
 });

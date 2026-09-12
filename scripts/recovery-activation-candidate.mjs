@@ -1,8 +1,8 @@
 import {
-  RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3,
-  parseRecoveryBindingDocumentV2, parseRecoveryBindingDocumentV3, parseRecoveryBindingDocument,
-  recoveryReceiptCommitmentV2, recoveryReceiptCommitmentV3,
-  recoveryAuthorizationCoreSha256, recoveryAuthorizationCoreSha256V3,
+  RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3, RECOVERY_BINDING_KEYS_V4,
+  parseRecoveryBindingDocumentV2, parseRecoveryBindingDocumentV3, parseRecoveryBindingDocumentV4, parseRecoveryBindingDocument,
+  recoveryReceiptCommitmentV2, recoveryReceiptCommitmentV3, recoveryReceiptCommitmentV4,
+  recoveryAuthorizationCoreSha256, recoveryAuthorizationCoreSha256V3, recoveryAuthorizationCoreSha256V4,
 } from './recovery-binding-projection.mjs';
 
 const fixed = Object.freeze({
@@ -76,8 +76,8 @@ function candidatePolicy(keys, policy) {
 
 /** Static candidate consistency only. Does not authenticate receipt/source data or authorize deployment. */
 function validateCandidate(source, version) {
-  const binding = version === 2 ? parseRecoveryBindingDocumentV2(source) : parseRecoveryBindingDocumentV3(source);
-  const policy = version === 2 ? fixed : fixedV3;
+  const { parse, policy } = versionPolicy(version);
+  const binding = parse(source);
   for (const [key, value] of Object.entries(binding)) {
     let valid;
     if (Object.hasOwn(policy, key)) valid = value === policy[key];
@@ -108,19 +108,16 @@ const receiptKeys = RECOVERY_BINDING_KEYS_V2.filter(key => key.endsWith('Commitm
 /** Generate static commitments only. Does not install, sign, or authenticate the source evidence. */
 function createBinding(source, version) {
   const binding = { ...validateCandidate(source, version) };
-  const keys = version === 2 ? receiptKeys : receiptKeysV3;
-  const commitment = version === 2 ? recoveryReceiptCommitmentV2 : recoveryReceiptCommitmentV3;
+  const { receiptKeys: keys, commitment, core } = versionPolicy(version);
   for (const key of keys) binding[key] = commitment(key, binding);
-  binding.recoveryAuthorizationCoreSha256 = version === 2 ? recoveryAuthorizationCoreSha256(binding) : recoveryAuthorizationCoreSha256V3(binding);
+  binding.recoveryAuthorizationCoreSha256 = core(binding);
   return Object.freeze(binding);
 }
 
 /** Validate static semantics and hash consistency, not receipt authenticity or live deployment authority. */
 function parseBinding(source, version) {
-  const binding = version === 2 ? parseRecoveryBindingDocumentV2(source) : parseRecoveryBindingDocumentV3(source);
-  const keys = version === 2 ? receiptKeys : receiptKeysV3;
-  const commitment = version === 2 ? recoveryReceiptCommitmentV2 : recoveryReceiptCommitmentV3;
-  const core = version === 2 ? recoveryAuthorizationCoreSha256 : recoveryAuthorizationCoreSha256V3;
+  const { parse, receiptKeys: keys, commitment, core } = versionPolicy(version);
+  const binding = parse(source);
   const candidate = { ...binding, recoveryAuthorizationCoreSha256: null };
   for (const key of keys) candidate[key] = null;
   validateCandidate(`${JSON.stringify(candidate, null, 2)}\n`, version);
@@ -135,6 +132,21 @@ function parseBinding(source, version) {
 const fixedV3 = Object.freeze({ ...fixed, schemaVersion: 3, profile: 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' });
 const receiptKeysV3 = RECOVERY_BINDING_KEYS_V3.filter(key => key.endsWith('Commitment')
   && key !== 'g001FreezePublishReceiptCommitment');
+const fixedV4 = Object.freeze({
+  ...fixed, schemaVersion: 4, profile: 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4',
+  ptrSealed: true, ptrPopulationGuardPassed: true, ptrSingletonOwnerCount: 1, ptrGeneralAdmissionCount: 0,
+});
+const receiptKeysV4 = RECOVERY_BINDING_KEYS_V4.filter(key => key.endsWith('Commitment')
+  && key !== 'g001FreezePublishReceiptCommitment');
+function versionPolicy(version) {
+  if (version === 2) return { keys: RECOVERY_BINDING_KEYS_V2, policy: fixed, receiptKeys,
+    parse: parseRecoveryBindingDocumentV2, commitment: recoveryReceiptCommitmentV2, core: recoveryAuthorizationCoreSha256 };
+  if (version === 3) return { keys: RECOVERY_BINDING_KEYS_V3, policy: fixedV3, receiptKeys: receiptKeysV3,
+    parse: parseRecoveryBindingDocumentV3, commitment: recoveryReceiptCommitmentV3, core: recoveryAuthorizationCoreSha256V3 };
+  if (version === 4) return { keys: RECOVERY_BINDING_KEYS_V4, policy: fixedV4, receiptKeys: receiptKeysV4,
+    parse: parseRecoveryBindingDocumentV4, commitment: recoveryReceiptCommitmentV4, core: recoveryAuthorizationCoreSha256V4 };
+  fail();
+}
 
 // Existing V2 entry points retain their policy, canonical bytes and hash domains.
 export function recoveryActivationCandidatePolicy() {
@@ -145,16 +157,19 @@ export function validateRecoveryActivationCandidate(source) { return validateCan
 export function createRecoveryActivationBinding(source) { return createBinding(source, 2); }
 export function parseRecoveryBindingV2(source) { return parseBinding(source, 2); }
 
-/** V3 static policy only. Legacy zero-population/admission invariants remain. */
+/** Static policy only. V4 requires observed preservation instead of PTR initialization facts. */
 export function recoveryActivationCandidatePolicyForVersion(version) {
-  if (version !== 2 && version !== 3) fail();
-  return version === 2 ? candidatePolicy(RECOVERY_BINDING_KEYS_V2, fixed) : candidatePolicy(RECOVERY_BINDING_KEYS_V3, fixedV3);
+  const { keys, policy } = versionPolicy(version);
+  return candidatePolicy(keys, policy);
 }
 export function validateRecoveryActivationCandidateV3(source) { return validateCandidate(source, 3); }
 export function createRecoveryActivationBindingV3(source) { return createBinding(source, 3); }
 export function parseRecoveryBindingV3(source) { return parseBinding(source, 3); }
+export function validateRecoveryActivationCandidateV4(source) { return validateCandidate(source, 4); }
+export function createRecoveryActivationBindingV4(source) { return createBinding(source, 4); }
+export function parseRecoveryBindingV4(source) { return parseBinding(source, 4); }
 
-/** Static consistency dispatch only; an update receipt digest is not authenticated by hashing it. */
+/** Static consistency dispatch only; a receipt digest is not authenticated by hashing it. */
 export function validateRecoveryActivationCandidateDocument(source) {
   return validateCandidate(source, parseRecoveryBindingDocument(source).schemaVersion);
 }

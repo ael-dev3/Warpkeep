@@ -11,6 +11,9 @@ import {
   RECOVERY_BINDING_PATH,
   RECOVERY_REALM_BINDING_PROJECTION_KEYS,
   RECOVERY_WORKFLOW_PATH,
+  snapshotRecoveryArmingTuple,
+  snapshotRecoveryRealmBindingProjection,
+  recoveryRealmBindingProjectionFromArmed,
   type RecoveryArmingTuple,
   type RecoveryRealmBindingProjection,
 } from '../src/config.js'
@@ -449,6 +452,67 @@ describe('observeRecoveryRealmEvidence', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  function adoptedBinding(): RecoveryRealmBindingProjection {
+    return {
+      ...binding(),
+      ptrStateEvidenceProfile: 'warpkeep-ptr-existing-state-adoption-v1',
+      ptrExistingStateAdoptionReceiptDigest: 'b'.repeat(64),
+      ptrExpectedSealedStateHmacSha256: 'e'.repeat(64),
+      ptrExpectedOwnerInvariantHmacSha256: 'f'.repeat(64),
+    } as RecoveryRealmBindingProjection
+  }
+
+  it('preserves the complete V4 adoption baseline through exact arming snapshots', () => {
+    const adoption = adoptedBinding()
+    expect(snapshotRecoveryRealmBindingProjection(adoption)).toEqual(adoption)
+    expect(recoveryRealmBindingProjectionFromArmed(snapshotRecoveryArmingTuple(armed(adoption)))).toEqual(adoption)
+    for (const key of ['ptrStateEvidenceProfile', 'ptrExistingStateAdoptionReceiptDigest',
+      'ptrExpectedSealedStateHmacSha256', 'ptrExpectedOwnerInvariantHmacSha256']) {
+      const missing = { ...adoption } as MutableRecord
+      delete missing[key]
+      expect(() => snapshotRecoveryRealmBindingProjection(missing)).toThrow()
+      expect(() => snapshotRecoveryRealmBindingProjection({ ...adoption, [key]: 'invalid' })).toThrow()
+    }
+    expect(() => snapshotRecoveryRealmBindingProjection({ ...adoption, extra: true })).toThrow()
+    const getter = vi.fn(() => 'warpkeep-ptr-existing-state-adoption-v1')
+    const accessor = { ...adoption }
+    Object.defineProperty(accessor, 'ptrStateEvidenceProfile', { enumerable: true, get: getter })
+    expect(() => snapshotRecoveryRealmBindingProjection(accessor)).toThrow()
+    expect(getter).not.toHaveBeenCalled()
+  })
+
+  it.each([{ phase: 'issue', sequence: 1 }, { phase: 'claim', sequence: 2 }] as const)(
+    'accepts the preserved PTR baseline only after a fresh $phase observation', async phase => {
+      const input = await testInputs()
+      const adoption = adoptedBinding()
+      const observed = await observeRecoveryRealmEvidence({ ...input, binding: adoption, armed: armed(adoption), ...phase })
+      expect(observed.phase).toBe(phase.phase)
+      expect(observed.ptrSingletonOwnerCount).toBe(1)
+    },
+  )
+
+  it.each(['sealedStateHmacSha256', 'ownerInvariantHmacSha256'])(
+    'rejects changed preserved PTR %s at both issue and claim', async key => {
+      for (const phase of [{ phase: 'issue', sequence: 1 }, { phase: 'claim', sequence: 2 }] as const) {
+        const input = await testInputs(value => { value.ptr[key] = 'a'.repeat(64) })
+        const adoption = adoptedBinding()
+        await expectFailure({ ...input, binding: adoption, armed: armed(adoption), ...phase })
+      }
+    },
+  )
+
+  it('rejects an independently armed adoption baseline substitution before I/O', async () => {
+    const input = await testInputs()
+    const adoption = adoptedBinding()
+    const fetch = vi.fn(input.fetch)
+    for (const key of ['ptrExistingStateAdoptionReceiptDigest', 'ptrExpectedSealedStateHmacSha256',
+      'ptrExpectedOwnerInvariantHmacSha256']) {
+      await expectFailure({ ...input, fetch, binding: adoption,
+        armed: armed({ ...adoption, [key]: '1'.repeat(64) }), phase: 'issue', sequence: 1 })
+    }
+    expect(fetch).not.toHaveBeenCalled()
   })
 
   it('validates adapted RPC evidence unchanged and still rejects extra fields', async () => {

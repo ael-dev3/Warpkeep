@@ -1,7 +1,7 @@
 import type { SealedRealmsProductionPrivateState } from './sealed-realms-production-private-state.mjs';
 import type { SealedRealmsProductionBridgeProvider } from './sealed-realms-production-bridge-provider.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
-import type { SealedRealmsProductionActivationRecords } from './sealed-realms-production-activation-records.mjs';
+import type { SealedRealmsProductionActivationRecords, SealedRealmsProductionPtrExistingStateAdoptionEvidence } from './sealed-realms-production-activation-records.mjs';
 import type {
   SealedRealmsProductionContinuationClaim,
   SealedRealmsProductionContinuationReconciliation,
@@ -13,6 +13,8 @@ export const SEALED_REALMS_AUTH_BRIDGE_AUTHORITY_PROFILE:
   'warpkeep-sealed-realms-auth-bridge-import-authority-v1';
 export const SEALED_REALMS_AUTH_BRIDGE_SUSPENSION_RECEIPT_PROFILE:
   'warpkeep-sealed-realms-auth-bridge-suspension-private-v1';
+export const SEALED_REALMS_AUTH_BRIDGE_ADOPTION_SUSPENSION_RECEIPT_PROFILE:
+  'warpkeep-sealed-realms-auth-bridge-suspension-ptr-adoption-private-v1';
 export const SEALED_REALMS_AUTH_BRIDGE_ACCESS_REQUEST_URL:
   'https://auth.warpkeep.com/v2/access/request';
 
@@ -69,16 +71,17 @@ export type SealedRealmsActivationEvidenceMember = Readonly<{
 }>;
 export type SealedRealmsActivationEvidenceProjection = Readonly<{
   authBridgeSuspensionPrivateReceipt: Readonly<{
-    schemaVersion: 1;
-    profile: 'warpkeep-sealed-realms-auth-bridge-suspension-private-v1';
     sourceCommit: string;
     deploymentAuthority: Readonly<Record<string, unknown>>;
     g002Gate: Readonly<Record<string, unknown>>;
     g002ImportAuthorityCrossLink: Readonly<Record<string, unknown>>;
-    ptrGate: Readonly<Record<string, unknown>>;
-    ptrImportAuthorityCrossLink: Readonly<Record<string, unknown>>;
     activationGate: Readonly<Record<string, unknown>>;
-  }>;
+  } & (
+    | { schemaVersion: 1; profile: 'warpkeep-sealed-realms-auth-bridge-suspension-private-v1';
+        ptrGate: Readonly<Record<string, unknown>>; ptrImportAuthorityCrossLink: Readonly<Record<string, unknown>> }
+    | { schemaVersion: 4; profile: 'warpkeep-sealed-realms-auth-bridge-suspension-ptr-adoption-private-v1';
+        ptrExistingStateAdoptionReceiptDigest: string }
+  )>;
 }>;
 
 declare const sealedRealmsActivationEvidenceGenerator: unique symbol;
@@ -232,6 +235,7 @@ export function createSealedRealmsProductionAuthBridgeState(options: Readonly<{
   /** Test-only substitute for the trusted account home. */
   reportedHome?: string;
   bridgeProvider?: SealedRealmsProductionBridgeProvider;
+  existingStateAdoption?: SealedRealmsProductionPtrExistingStateAdoptionEvidence;
   /** Independent projections are test-only and require testOnlyCapability. */
   deploymentAttester?: (context: Readonly<{
     sourceCommit: string;
@@ -274,6 +278,7 @@ export function createSealedRealmsProductionActivationEvidenceGenerator(input: R
   records: SealedRealmsProductionActivationRecords;
   privateState: SealedRealmsProductionPrivateState;
   authority: SealedRealmsProductionSourceAuthority;
+  existingStateAdoption?: SealedRealmsProductionPtrExistingStateAdoptionEvidence;
   testOnlyCapability?: SealedRealmsProductionAuthBridgeStateTestCapability;
   testOnlyPreparationBootstrapAuthority?: import('./generate-0.4.0-recovery-launch-activation.mjs').RecoveryActivationBootstrapFacts;
 }>): SealedRealmsProductionActivationEvidenceGenerator;

@@ -1,4 +1,5 @@
 import { observePreparationFromEnvironment } from './signerPreparationObservation.js'
+import { observePtrFromEnvironment, observePtrUpdateFromEnvironment } from './signerPtrObservation.js'
 import { prepareRecoveryFromEnvironment } from './signerPreparation.js'
 import { WorkerEntrypoint } from 'cloudflare:workers'
 import manifest from '../fixtures/spacetime/manifest.json'
@@ -10,6 +11,8 @@ import { signerFromEnvironment, type RecoverySignerEnvironment } from './signerE
 export { ReleaseRecoveryAuthorizationLedgerV2 } from './ledgerDurableObjectV2.js'
 
 export class ReleaseRecoverySignerEntrypoint extends WorkerEntrypoint<RecoverySignerEnvironment> {
+  async ptrUpdateObservation(request: unknown, ...extra: unknown[]) { return observePtrUpdateFromEnvironment(this.env, request, extra) }
+  async ptrObservation(request: unknown, ...extra: unknown[]) { return observePtrFromEnvironment(this.env, request, extra) }
   async preparationObservation(request: unknown, ...extra: unknown[]) { return observePreparationFromEnvironment(this.env, request, extra) }
   async prepare(request: unknown, ...extra: unknown[]) { return prepareRecoveryFromEnvironment(this.env, request, extra) }
 
