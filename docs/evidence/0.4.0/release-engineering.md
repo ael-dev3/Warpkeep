@@ -56,6 +56,18 @@ verification passed 59 tests across contract, OIDC, signer and gateway, and both
 service type projects passed again. Record subsequent final-source/Linux checks
 and publication in the actual PR.
 
+The first outgoing scan correctly stopped publication on three occurrences of
+the existing preparation test key's public thumbprint in the new tests. The
+fixture's public coordinates were checked against the original test key and
+confirmed distinct from the production key pin. This is public fixture metadata,
+not private signing material. The scoped scanner correction permits only that
+exact value, the `generic-api-key` rule and the three exact test paths. The real
+scanner regression first reproduced the three unexpected findings, then passed
+40 allowed cases and 78 mandatory detections, including changed values and the
+unchanged value at copied paths. All seven scanner tests and the Node-project
+typecheck passed. Keep both source and correction commits in the outgoing scan;
+do not bypass scanning or rewrite the source checkpoint to hide the finding.
+
 Authenticated provider inventory found only the existing auth bridge, with B0
 source and public authentication enabled; neither recovery Worker nor the
 required PTR/canary/recovery bridge bindings is deployed. The existing private
