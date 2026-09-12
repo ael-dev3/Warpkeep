@@ -4,11 +4,11 @@ Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkee
 the current working PR and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
 PR #228 is merged and its branch retired. Actual M1
 `c4b95505b73705d120aff3f3318d2bd5151f6565` completed native preparation,
-independent checking and guarded export. PR #235 carries its checked generated
-family; later product source follows separately. The retained `8033e01c` family
-below is historical and predates the Linux PTR caller and pending-keep changes.
-Final-head CI and protected promotion remain separate
-requirements. Older synchronized heads below are historical checkpoints.
+independent checking and guarded export. PR #235 integrated its checked generated
+family into signed main `7b102f9f` (M2); later product source follows separately.
+The retained `8033e01c` family below is historical and predates the Linux PTR
+caller and pending-keep changes. Each later source change needs its own CI and
+protected integration. Older synchronized heads below are historical checkpoints.
 The generated source families recorded below are dated, source-bound evidence;
 documentation and test follow-ups do not create a new release candidate. The
 retained candidate, closure and runner observations below are not current
@@ -21,6 +21,12 @@ component success does not establish unrecorded production acceptance.
 
 ## M1 family and runner availability — 2026-09-12
 
+Final K Verify `34694406086` and CodeQL `34694406081` passed. Normal protected
+expected-head squash merged PR #235 at 13:33:31 UTC into signed, valid M2
+`7b102f9f`, with sole parent R and tree exactly equal to reviewed K `93a976b0`.
+Actual M2 main push Verify `34696760924` remains distinct from those PR results.
+No sealed preflight or live release acceptance is established by the merge.
+
 M1 prepare `30088` and independent check `8359` both exited zero; every result
 field matched for `release-workspace-99438dc2cc576e073df09bc44f930bc6`. The
 guarded export and receiver authenticated the full output family and preserved
@@ -31,7 +37,8 @@ Its producer manifests retain M1's source and tree. The native owning workflow,
 bundle-engine and closure-derivation suites passed 194 tests without skips;
 the checked-in sealed-launch and prepared-policy verifiers passed again at
 `3c4eb264`. This remains preparation evidence with `finalReleasePrepared: false`.
-Final protected integration, main CI and the actual sealed preflight are separate.
+Protected integration is verified above; main CI and actual sealed preflight
+remain separate requirements.
 
 The September 12 runner check found GitHub registration 22 offline, with
 `WarpkeepRunner` absent from the running distro list. Opening the guest started
@@ -58,6 +65,24 @@ was changed. The [runner guide](../../operations/0.4.0-linux-runner.md) owns
 maintenance and recovery instructions. This proves the observed session's
 recovery and duplicate prevention, not availability through host sleep/reboot
 or arbitrary future runner failures.
+
+## Independent frozen-source mutation cases — 2026-09-12
+
+Historical R main Verify `34694304468` failed only the Linux root-test step:
+`genesis001BindingFrozenSource.test.ts` combined four independent materializations
+and mutation checks in one callback, which completed in 10,749 ms and exceeded
+the default 10,000 ms budget. There was no failed behavioral assertion. The
+nearby corrupt-object diagnostics belong to a separate passing negative test.
+The generated family in M2 does not alter this test or the production materializer.
+
+The test now gives extra entries, changed bytes, same-byte inode replacement and
+directory symlink replacement separate names and one materialization each. All
+existing error and destination-retention assertions remain; the inode case also
+asserts retention. The default timeout, Linux condition, shared private-parent
+cleanup and production implementation are unchanged. Independent source review
+confirmed the split preserves the test contract. Record native execution and
+publication against the resulting PR; this correction does not claim that a
+global CI run or authenticated release acceptance has passed.
 
 ## Protected source integration and history scanner — 2026-09-12
 
