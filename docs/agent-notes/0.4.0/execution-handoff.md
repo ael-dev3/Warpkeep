@@ -2,6 +2,24 @@
 
 ## Current review and next work — 12 September 2026
 
+The Windows development branch is now `codex/0.4-pending-panel-dismissal`, based
+on published PR #240 head `9ac3ee3628a8586fd1338c4f036f46bad414fca9`.
+Its focused follow-up fixes the real host's rejected Close/Escape request during
+a pending command or refresh; see the [gameplay evidence](../../evidence/0.4.0/gameplay.md#panel-dismissal-during-a-request-or-refresh--2026-09-12).
+All eight new integration cases reproduced the defect and then passed; the full
+host/screen selection passed 68 tests, both type projects passed and independent
+review found no actionable defect. Published input `8aaeda0f` completed native
+preparation `24973` and independent check `93940`, both exit zero with all fields
+equal. Its authenticated complete family was applied and generated-only staging
+matched `1494fe0d9468b54c30ae47acccadd7038fb83726`; the
+[owning evidence](../../evidence/0.4.0/release-engineering.md#pending-panel-source-family--2026-09-12)
+records the candidate and exact digests. Do not restart either completed run.
+PR #240's Linux job `103590042919` failed one real-parser provider fixture that
+still describes the older Worker; its service, native-contract and CodeQL checks
+passed. Correct and verify that fixture separately, preserving the runtime guards,
+then publish the repair to the parent PR through normal history.
+Resolve the live branches and dependent PR base before later protected integration.
+
 Corrected source `3710f139b3572ae0a742d582d0d79d8aa88d9476` completed native
 preparation `91889` and independent rebuilding check `80884`, both exit zero
 with all returned fields equal. Candidate
@@ -12,10 +30,11 @@ all outputs and preserved source were checked. Generated-only staging matches
 tree `4795a1fe2bb6b6eeb5851c538a352b454aa66596`. Its seven changed paths carry
 only manifests and workflow pins; compiled bodies and count fixtures are stable.
 The targeted signature regression passed all seven selected cases (`30348`);
-156 other cases were filtered. Next, publish this integration checkpoint, then
-fast-forward the idle native checkout and run all 163 prepared-workflow cases
-plus its affected generated consumers. Read current-head hosted checks before
-normal protected integration. Do not rerun either completed preparation command.
+156 other cases were filtered. Published integration `9ac3ee36` subsequently
+passed all 365 native cases across eight suites, including all 163 prepared-
+workflow cases, without skips (`81593`, exit zero, 289.91 seconds). The native
+checkout remained clean at that source. Its hosted checks and normal protected
+integration remain required. Do not rerun either completed preparation command.
 
 The source at `9e098f75` has now completed actual native preparation `67204`
 and independent rebuilding check `6320`, both exit zero with every result field
@@ -45,7 +64,7 @@ assertions or restart the completed Windows run.
 The operating checkout can synchronize after publication because its native
 preparation/check processes have completed. Do not restart completed runs.
 
-The current working branch is `codex/0.4-bridge-predecessor-repair` in
+The release-integration branch remains `codex/0.4-bridge-predecessor-repair` in
 [PR #240](https://github.com/ael-dev3/Warpkeep/pull/240), integrating the pending
 PR #237–239 source against main. Published `b319e38b` includes a normal merge of
 N3 with the exact repair tree preserved; its only conflict was older handoff
@@ -126,14 +145,24 @@ account. Creation/installation on only `ael-dev3/Warpkeep` and service-key
 generation await the requested action-time confirmation. The dedicated
 installation/key supply remains unresolved; no App or credential was created.
 
-Existing-state adoption must be a distinct V4 path through update completion,
-bridge state, activation and recovery consumers. Bind signed pre/post observations
-to the actual update job, candidate and continuation; the standalone observation
-job cannot run inside that update's shared production concurrency. Compare owner
-and atlas commitments under the same observer configuration/pepper scope. Retained
-signatures need a separate historical-data verifier, while new actions require
-fresh evidence. Do not synthesize old import/provision receipts or claim equality
-of every gameplay row from the current observation projection.
+Existing-state adoption remains an unimplemented, distinct V4 path through update
+completion, bridge state, activation and recovery consumers. The reviewed design
+keeps the standalone observation contract and V3 completion/terminal bytes intact.
+Collect a separately typed update observation inside `ptr-update-apply`, after
+the authentic claim and before submission. An adapter-owned private sidecar keyed
+by the claim-record digest retains that exact pre-observation. After genuine V3
+completion and terminal records exist, collect post-observation binding the exact
+pre-JWS, completion and terminal digests. A separate V4 adoption envelope reopens
+the opaque completion and both signed statements. This avoids a circular digest
+dependency or replacing a missing pre-observation after an effect.
+Bind source, candidate, inspection, predecessor and claim throughout; distinguish
+the current reconciliation job from original claim/terminal identities. The new
+fixed `operate_ptr` verifier and apply-only observation permit must not widen
+`observe_ptr`; never dispatch the standalone job inside shared concurrency.
+Compare owner/atlas/admission commitments under unchanged observer configuration
+and pepper scope. Historical signature validation authenticates retained data;
+new effects still require fresh evidence and actual-clock checks after awaits.
+Do not synthesize import/provision history or claim equality of every gameplay row.
 
 PR #236 passed every required check at `92d363ce` and merged by the normal
 protected expected-head squash into signed, verified main

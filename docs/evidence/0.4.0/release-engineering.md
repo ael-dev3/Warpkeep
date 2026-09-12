@@ -19,6 +19,41 @@ Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
+## Pending-panel source family — 2026-09-12
+
+The Close/Escape host correction at source
+`8aaeda0fe21e726603208594c2cb6c114873e794`, tree
+`51fb0cf1e02d57b4ba6813aa153255ff31fa0ab6`, completed native preparation
+`24973` and independent rebuilding check `93940`, both exit zero with all 19
+returned fields equal. Retained candidate:
+`release-workspace-88969f8c268f4f0c6bca51f42f11d734`.
+
+- Transaction: `2f0a50a3d65b54694a6922384c74002a`.
+- Journal SHA-256: `d30d993c4da7ece550539e2b5b2bc55c41ae3a450c2d14685e5b5abab05de258`.
+- Complete-family SHA-256: `13bfe8dad242357360e8fbd56d0e6afd0379770f5ffd0730aba2c54dbdb0e004`.
+- Closure-manifest SHA-256: `d15a7b107b1dece31b2d7681389e85411c505f07b9d0e7409360a7bed97c3168`.
+- Scanner-manifest SHA-256: `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+
+Both runs checked 3,213 source/candidate files, 102 outputs, 3,111 preserved
+source files, 460 bundle inputs and seven recovery inputs. The authenticated
+export's SHA-256 is `8e02516e4bdd21a34b1ee7910bdc38f460e155feb04d6c86707c531549dc75f6`;
+its 7,648-byte patch has SHA-256
+`fd645e8c125c58664d5c65b982898515f298ed43d79e5e092a093fd2dec56cfa`.
+The complete output family was verified and applied to the unchanged Windows
+input, preserving HEAD, index and non-output source. Generated-only staging
+matched tree `1494fe0d9468b54c30ae47acccadd7038fb83726` before adding notes.
+Only seven manifests/workflow pins changed; compiled bodies, bindings and count
+fixtures remained unchanged. The ignored reviewed helpers changed only input
+coordinates. No generated digest or body was hand-edited.
+
+This proves repeatable preparation for the UI source, with
+`finalReleasePrepared: false`; it does not establish deployment or owner/device
+acceptance. PR #240's broader Linux job `103590042919` subsequently reported one
+failure in `sealedRealmsProductionBridgeProvider`: its real-parser fixture still
+omits the observer entrypoint and version-metadata binding. That suite was not in
+the earlier 365-case native selection. Keep the hosted failure visible and verify
+its correction separately; the earlier passing subset does not cover it.
+
 ## Prepared-policy family refresh — 2026-09-12
 
 Source `3710f139b3572ae0a742d582d0d79d8aa88d9476`, tree
@@ -53,10 +88,14 @@ Authenticated application to the unchanged Windows compiler input verified all
 output bytes/OIDs, exact changed paths and unchanged HEAD/index/preserved source.
 Generated-only staging reproduced that exact tree before documentation was
 added. Existing ignored operator helpers changed only their input coordinates;
-no candidate, output digest or generated body was hand-edited. The complete
-163-case prepared-workflow suite and affected native generated consumers must
-now run on the published integration checkpoint. Earlier G's 448 passing cases
-remain evidence for G, not a substitute for this new source's verification.
+no candidate, output digest or generated body was hand-edited. Published
+integration `9ac3ee3628a8586fd1338c4f036f46bad414fca9` passed all 365 native
+tests across eight suites without skips (session `81593`, exit zero, 289.91
+seconds), including all 163 prepared-workflow cases and its affected generated
+consumers. The native checkout remained clean afterward. All 30 doc-facing
+tests, file policy, diff checks and the entire outgoing secret scan also passed.
+Earlier G's 448 passing cases remain evidence for G. Current-head hosted checks
+and normal protected integration remain required; no provider deployment occurred.
 
 The public entry-point audit replaced retired development links in the game's
 README, Assets README and Water Engine README. Water main is
