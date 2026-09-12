@@ -79,6 +79,15 @@ const GAMEPLAY04_SHARED_SOURCE_MEMBER_PATHS = new Set([
   'spacetimedb/gameplay04/workerState.ts',
   'spacetimedb/gameplay04/workers.ts',
 ]);
+// Exact verifier dependencies reached by the PTR observation entrypoint.
+const PTR_OBSERVATION_SHARED_SOURCE_MEMBER_PATHS = new Set([
+  'services/release-recovery/src/config.ts',
+  'services/release-recovery/src/crypto.ts',
+  'services/release-recovery/src/http.ts',
+  'services/release-recovery/src/protocol.ts',
+  'services/release-recovery/src/ptrObservation.ts',
+  'services/release-recovery/src/recoveryPublicKey.ts',
+]);
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
 // Resource bound, not the generated inventory's exact member count.
 const MAX_MEMBERS = 2048;
@@ -117,6 +126,7 @@ const SCRIPT_GRAPH_ROOTS = Object.freeze([
   'scripts/production-player-canary-browser-launcher.mjs',
   'scripts/ptr-production-import-operator.ts',
   'scripts/ptr-production-publisher-cli.ts',
+  'scripts/ptr-production-state-observation.mjs',
   'scripts/profiles/profiles-operator.ts',
   'scripts/verify-0.4.0-sealed-launch.mjs',
   'scripts/verify-auth-bridge-notification-prepared-receipt.mjs',
@@ -319,6 +329,7 @@ function canonicalMemberPath(repository, memberPath, code) {
     typeof memberPath !== 'string'
     || (!MEMBER_PATH.test(memberPath)
       && !GAMEPLAY04_SHARED_SOURCE_MEMBER_PATHS.has(memberPath)
+      && !PTR_OBSERVATION_SHARED_SOURCE_MEMBER_PATHS.has(memberPath)
       && memberPath !== 'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs')
     || (memberPath.startsWith('spacetimedb/ptr/')
       && !PTR_GENERATED_BINDING_MEMBER_PATHS.has(memberPath)

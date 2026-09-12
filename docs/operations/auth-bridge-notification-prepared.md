@@ -119,11 +119,26 @@ Independent review covered the fixed caller and source-closure wiring. The
 Windows-compatible runtime cases (67) and recovery-source cases (43) passed,
 along with both root type projects. A broader Windows selection passed 80,
 failed 12 and skipped three: the receipt/journal tests require POSIX account
-ownership and a Wrangler text assertion expects LF. Repeat those unchanged on
-Linux, together with the native pinned-Wrangler case and actual dry run, at the
-published checkpoint. This is local validation. Its
-source commit still requires protected integration and a fresh generated family
-before deployment; the historical generated family must not be relabeled.
+ownership and a Wrangler text assertion expects LF. At published `b319e38b`,
+all 202 tests in the five runtime/adapter/receipt/recovery-source/Linux-workflow
+suites passed on native Linux Node 22.22.3 without skips, including those
+unchanged Windows failures and the pinned-Wrangler case. The wider selection
+found 15 source-inventory failures in the two closure suites. The follow-up adds
+the earlier PTR observation entrypoint to graph derivation, permits its exact
+six shared verifier files and restores canonical inventory order. Independent
+review and derivation/equality checks passed; the complete native selection must
+be repeated at the published follow-up. No generated manifest or workflow pin
+was edited for this source correction.
+
+The actual unmodified, credential-free Wrangler dry run also passed at
+`b319e38b`, with exact candidate digest
+`b735e10d981ab97d366eff5919a81d7fc00255da9d7d66533a1a6d99ef1c2334` and
+`CF_VERSION_METADATA`. It produced the same candidate module bytes that failed
+validation at Q, and removed its owned temporary output. This proves local
+serialization and validation; no provider upload or deployment occurred.
+[PR #240](https://github.com/ael-dev3/Warpkeep/pull/240) integrates the repair and
+pending PTR observation source. Protected integration and a fresh generated
+family are still required before deployment; do not relabel historical output.
 
 A prepared receipt establishes the PTR/canary bridge transition. The recovery
 observer still needs its configured G002 identity, source/configuration epoch,

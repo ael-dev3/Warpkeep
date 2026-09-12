@@ -2,15 +2,27 @@
 
 ## Current review and next work — 12 September 2026
 
-The current working branch is `codex/0.4-bridge-predecessor-repair`, based on
-published `fb5a0b78` (Q / PR #239). It repairs the prepared bridge deployer's
+The current working branch is `codex/0.4-bridge-predecessor-repair` in
+[PR #240](https://github.com/ael-dev3/Warpkeep/pull/240), integrating the pending
+PR #237–239 source against main. Published `b319e38b` includes a normal merge of
+N3 with the exact repair tree preserved; its only conflict was older handoff
+status, resolved to the reviewed descendant's completed evidence. It repairs the prepared bridge deployer's
 comparison of historical B0 settings and bytes with the new candidate. The
 production caller supplies a fixed, authenticated B0 module inventory; candidate
 upload/readback stays bound to its independently built source, version metadata
 and recovery export. The [prepared transition procedure](../../operations/auth-bridge-notification-prepared.md#prepared-transition-for-04)
 owns the exact distinction and provider provenance. No provider mutation or
-protected bridge dispatch has occurred. Tests and publication must be read from
-the actual current PR head before claiming this repair accepted or deployed.
+protected bridge dispatch has occurred. At `b319e38b`, native Linux passed all
+202 cases in the five runtime/adapter/receipt/recovery-source/workflow suites
+without skips. The actual credential-free Wrangler dry run now accepts the same
+candidate bytes that previously failed. The wider closure selection found 15
+inventory failures from the earlier PTR observation graph/order. The correction
+adds the explicit observation root, permits only its six verifier dependencies
+and restores canonical member order. Independent review, Windows closure cases
+and direct derived/fixed inventory equality passed; repeat the native selection
+at the published follow-up. Read the final PR head and its checks
+before claiming the source accepted or deployed. Windows and the clean idle
+native checkout matched published `b319e38b` before that follow-up.
 
 Q's read-only `ptr-state-inspect` connects the Linux workflow, recovery gateway,
 private signer and existing auth-bridge observer. Its authenticated, pinned PTR
