@@ -1,9 +1,23 @@
 # Gameplay and visual implementation notes
 
-Updated 2026-09-12. Use PR #228 and the [execution handoff](execution-handoff.md)
-for current source and synchronization. The latest layout pass brings the scene
-above the full loop explanation, compacts the resource header, and keeps the
-building catalog and Worker actions directly available. Normal phone widths use
+Updated 2026-09-12. Use the [execution handoff](execution-handoff.md), current refs
+and open pull requests for source and synchronization; PR #228 has merged.
+The desktop navigation follow-up resolves the hidden primary-action finding in
+source. The existing building catalog and Worker buttons now appear above the
+scene on desktop, with wrapping; compact profiles retain their grid. In the Codex
+in-app browser at 1440×900, both controls were visible without scrolling, opened
+their panels, and regained focus after Close/Escape. Portrait and short-landscape
+checks retained the sticky header and grid, with panel controls below the header;
+320px width retained readable controls without horizontal overflow. The regression
+reproduced the old failure, then all 88 tests in four affected suites passed. Commands were
+suppressed in the synthetic fixture; physical-device, owner and live acceptance
+remain open. The [new evidence](../../evidence/0.4.0/visuals.md#2026-09-12-desktop-primary-action-discovery)
+records the measurements and scope. This CSS change follows the existing prepared
+family separately and needs a later generated-closure refresh before deployment.
+
+The preceding layout pass brought the scene
+above the full loop explanation, compacted the resource header, and kept the
+building catalog and Worker actions directly available on compact screens. Normal phone widths use
 four resource columns; widths below 360px use two columns and two toolbar rows.
 Short landscape places the primary actions beside the balances. Exact amounts,
 pending-return wording, touch targets and measured sticky offsets are retained.
@@ -29,8 +43,9 @@ viewport. Placement fixtures intentionally focus the catalog; a cropped Confirm
 placement button does not establish reachability. These are synthetic local
 views, not physical-device, performance, authenticated-owner or live-release
 acceptance. The saved image review is complete; useful scene/action views and
-interaction coverage remain open. Desktop primary actions need discoverability,
-the schematic would benefit from compact building names, and phone overview
+interaction coverage remain open. The desktop primary-action finding from this
+capture is resolved by the follow-up above. The schematic would benefit from
+compact building names, and phone overview
 needs clearer small-building hierarchy. Separate desktop footprints do not
 establish an overlap defect. Preserve accessible names and authoritative geometry.
 
