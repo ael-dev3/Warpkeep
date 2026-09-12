@@ -4,21 +4,32 @@
 
 The Windows development branch is `codex/0.4-keep-entry-framing`, published in
 [PR #242](https://github.com/ael-dev3/Warpkeep/pull/242), based on PR #241 head
-`5996629a413f205c0564d570670a650a17f2a63f`. Source
-`337a4cc08739c26445ba272a06c120444e405fc7` adds once-only occupied entry framing
-and a visible construction marker, preserving manual camera ownership and actual
-footprints. Its final five-suite selection passed all 166 cases without skips;
-both type projects and independent source review passed. Guarded run
-`windows-run-PSW7Es` captured that exact clean, stable source. All 36 images were
-reviewed: sparse desktop/portrait readability improves; mature hierarchy, complete
-scrolled views, capture diagnostics and physical-device acceptance remain open.
-The [visual evidence](../../evidence/0.4.0/visuals.md#2026-09-12-occupied-entry-framing-and-placement-markers)
-owns the exact scope and retained digests. Windows and GitHub matched after the
-outgoing secret scan; the idle native checkout then fast-forwarded cleanly to
-`337a4cc0`. The capture browser and owned Vite server are stopped. Generated release
-closure still belongs to the earlier pending-panel input and needs normal
-preparation after this visual source change. Resolve the final documentation
-head before preparing; do not apply the previous input's export to this source.
+`5996629a413f205c0564d570670a650a17f2a63f`. Entry framing at `337a4cc0`
+passed the five-suite 166-case selection, both type projects and independent
+review. Guarded run `windows-run-PSW7Es` retained 36 reviewed images from that
+exact source; [visual evidence](../../evidence/0.4.0/visuals.md#2026-09-12-occupied-entry-framing-and-placement-markers)
+owns the scope, diagnostics and remaining acceptance.
+
+Published review input `d64c8f78442da7ad1bc554c283daf136d670d399` then
+completed native preparation `17954` and independent rebuilding check `10798`,
+both exit zero with all fields equal. The authenticated complete output family
+was independently reconstructed, applied to the unchanged Windows input and
+staged as exact generated tree `f657aa5d007e58a6ded430c3df6bba37112b99e6`.
+Only seven manifest/workflow-pin files changed. The
+[owning family evidence](../../evidence/0.4.0/release-engineering.md#occupied-entry-source-family--2026-09-12)
+records all identities. Do not restart either completed native run or apply an
+older export. This development preparation is not a production deployment.
+
+The reused isolated checkout `C:/Temp/warpkeep-clean-ci` carries
+`codex/0.4-building-hierarchy` / [PR #243](https://github.com/ael-dev3/Warpkeep/pull/243),
+published at `75c0468081583ce6dff9cf7ba02392a58bbb4e54` over D. It reduces the
+cathedral's rendered body and gives completed economic sites craft signs, while
+preserving footprints and gameplay authority. All 138 tests in its five owning
+suites and both type projects passed; independent code review found no blocker.
+Its rendered review remains separate from this D-bound generated family. Keep
+source pinned during capture and batch accepted visual work before preparing the
+next family. PR #240 at `944bb17b` and PR #241 at `5996629a` have now passed
+all hosted checks; resolve actual heads before normal protected integration.
 PR #241's preceding change fixes the real host's rejected Close/Escape request during
 a pending command or refresh; see the [gameplay evidence](../../evidence/0.4.0/gameplay.md#panel-dismissal-during-a-request-or-refresh--2026-09-12).
 All eight new integration cases reproduced the defect and then passed; the full

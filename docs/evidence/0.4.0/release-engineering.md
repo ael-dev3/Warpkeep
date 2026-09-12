@@ -19,6 +19,55 @@ Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
+## Occupied-entry source family — 2026-09-12
+
+The occupied-entry framing source and its review notes at
+`d64c8f78442da7ad1bc554c283daf136d670d399`, tree
+`9c63dc57a52fe4c2be51ff66647e27505cdf3231`, completed native preparation
+`17954` and independent rebuilding check `10798`, both exit zero with every
+returned field equal. Retained candidate:
+`release-workspace-21b05756e466970d46bb20304b4eae48`.
+
+- Transaction: `d525e2254ea162ecff55cddee9f16417`.
+- Journal SHA-256: `38b196cf6b5f40f6c63430930ffc746c3d0c4a6fd0e1be7c6e8dcd3287b4ec23`.
+- Complete-family SHA-256: `972c1d378c8bd83d565ae7e68850cbfa7f5d445c3c1301bc78f6b576e87e797c`.
+- Closure-manifest SHA-256: `b711ff57220e805f03adb29e79dba2b71f40dc4649a603d3b586baca3aab92d3`.
+- Scanner-manifest SHA-256: `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+
+Both runs authenticated 3,213 source/candidate files, 102 outputs, 3,111
+preserved source files, 460 bundle inputs and seven recovery inputs. The ignored
+export is 36,338 bytes, SHA-256
+`b29d93808f53135364e4a354c59f579c30a867d736b673d26dd95f15e04a3547`;
+its 8,058-byte patch has SHA-256
+`735de8c60712ab2f1dbca927640914c3b579ee7c46c8c32f1b73aad79c330cc5`.
+Independent review reconstructed every output and both complete Git trees in
+memory. Exactly seven paths change: four workflow closure pins, two bundle
+manifests' source coordinates and the closure manifest's four corresponding
+member hashes. Compiled bodies, bindings, counts and all other paths are stable.
+
+The guarded receiver applied the complete authenticated family to unchanged
+Windows input D, checking all output bytes/OIDs, preserved source and unchanged
+HEAD/index. Staging only those seven outputs reproduced generated tree
+`f657aa5d007e58a6ded430c3df6bba37112b99e6` before these notes were added.
+The existing ignored helpers changed only their fixed source coordinates.
+No generated hash or body was hand-edited. Both completed native processes and
+their retained candidate must not be restarted or relabeled for newer source.
+
+Windows session `4755` passed 188 generated-consumer cases, skipped one native
+case and timed out after the default ten seconds in the G001 preparation
+projection case; no assertion failure was reported. Session `28137` passed 32
+cases but the broader license-policy suite failed on Windows newline-path and
+symlink fixture creation. The two documentation suites passed. Neither result
+establishes native acceptance, and no timeout or assertion was weakened. Run
+these affected native contracts on the clean published integration.
+
+This is repeatable preparation with `finalReleasePrepared: false`, not a live
+release. Later building-hierarchy source in PR #243 needs its own closure after
+rendered review and batching of the next source changes. Full current-head CI,
+protected integration, live owner play and physical-device acceptance remain
+separate. PR #240 at `944bb17b` and PR #241 at `5996629a` subsequently completed
+all hosted checks successfully (18:53:38 and 18:54:48 UTC respectively).
+
 ## Pending-panel source family — 2026-09-12
 
 The Close/Escape host correction at source

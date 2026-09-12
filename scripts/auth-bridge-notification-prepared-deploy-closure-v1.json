@@ -1625,7 +1625,7 @@
     {
       "path": "scripts/recovery-workflow-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b5ced568d403f7fd235e21cb65cada640550aba730062afa9ea090e97ea3006d"
+      "sha256": "051a99233881b071d984ae60853e1b3e451dff4120828b3cc8dc025d600076c4"
     },
     {
       "path": "scripts/recovery-workflow-check-deployment.d.mts",
@@ -1805,7 +1805,7 @@
     {
       "path": "scripts/sealed-realms-production-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2f09f2383d5f711b55acf9e5b20f1d6cea6251cc45d8dd478203a308b86b58d8"
+      "sha256": "3a618313575ace60b6e969aa80074aa21ed68612878cc619f3d79da823842044"
     },
     {
       "path": "scripts/sealed-realms-production-continuation.d.mts",
@@ -3615,7 +3615,7 @@
     {
       "path": "src/components/keep04/Keep04SceneHost.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "dcd4843dd66a9826420bfaee034cd26b95966a01c3f51a60abe94910a4cc81e3"
+      "sha256": "3df560cd7372ab54c4c9abd69828bacbc9c8ae874f199259b0943bc608bf4929"
     },
     {
       "path": "src/components/keep04/Keep04Schematic.tsx",
@@ -3645,7 +3645,7 @@
     {
       "path": "src/components/keep04/createKeep04Scene.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9566dfe8d5abe79ae5a793d8f55a29fc70452a266db0df9e688e04d2e39ae656"
+      "sha256": "861416158a3c52ecb9f3646a1234ec57f2de48f3082e1a512348d5c504091489"
     },
     {
       "path": "src/components/keep04/keep04DressingPlans.generated.ts",
