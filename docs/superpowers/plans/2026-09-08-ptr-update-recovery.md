@@ -4,7 +4,7 @@
 
 **Goal:** Deliver populated PTR updates through the actual production and recovery callers without erasing later gameplay or misrepresenting historical provisioning.
 
-**Architecture:** Add a distinct schema-3 public recovery binding backed by an authenticated private update receipt. Preserve fresh schema-2 behavior. Derive artifacts and credentials inside the supported Linux workflow and reuse the existing continuation owner.
+**Architecture:** Preserve the existing schema-2 initialization and schema-3 update paths. Add a distinct schema-4 preservation path backed by the real completed update, signed pre/post state and retained continuation. Derive artifacts and credentials inside the supported Linux workflow and reuse its existing owners. Never substitute preservation evidence for an import or provisioning operation.
 
 **Tech stack:** Node ESM, TypeScript, Vitest, Cloudflare recovery service, Linux and SpacetimeDB.
 
@@ -33,9 +33,9 @@ Files: scripts/recovery-binding-projection.mjs and declaration; scripts/recovery
 
 Files: sealed-realms-production-activation-records.mjs, sealed-realms-production-recovery-candidate.mjs, sealed-realms-production-activation-workflow-entry.mjs and generate-0.4.0-recovery-launch-activation.mjs, with producer-to-consumer tests.
 
-- [ ] Test a distinct update corpus preserving historical import/owner provenance and current sealed-live observation.
-- [ ] Commit current target/artifact/full definition, predecessor and submission/completion lineage, host preservation contract and exact acknowledgement outcome in the private receipt. Cross-check all projected coordinates and historical/current receipt digests.
-- [ ] Select immutable completion records through authenticated continuation lineage; provide no caller-selected raw receipt writer.
+- [x] Test a distinct schema-3 update corpus with authentic import/owner provenance and sealed-live observation. The schema-4 path below handles preserved state when that initialization history is absent.
+- [x] Commit current target/artifact/full definition, predecessor and submission/completion lineage, host preservation contract and exact acknowledgement outcome in the private receipt. Cross-check all projected coordinates and historical/current receipt digests.
+- [x] Select immutable completion records through authenticated continuation lineage; provide no caller-selected raw receipt writer.
 - [ ] Exercise private reopen through candidate generation, public verifier and service parser. Cover later gameplay writes, broken lineage, changed corpus, wrong source/store and synthetic/fresh substitution.
 
 ## 3. Actual Linux artifact and update producer
@@ -44,9 +44,9 @@ Files: sealed-realms-production-existing-update.mjs, sealed-realms-production-pt
 
 - [x] Select withPtrLinuxLockedSourceBuild in the actual descriptor-bound artifact helper; native build, provenance and cleanup verified. Factory integration remains below.
 - [x] Derive complete supported RawV10 from exact compiled bytes and compute SHA-256/program Keccak internally. Native verification of the integrated path remains pending.
-- [ ] Derive provider-owner authority from the private validated CLI configuration and cross-check the fixed existing PTR identity. Keep game-admin reads separate.
-- [ ] Persist pre-send intent and authentic successful response digest. Lost-response reconciliation may establish observed installation, never invent a received acknowledgement.
-- [ ] Connect the existing inspect/apply/reconcile hooks, genuine supported-runner permit and cleanup. Enable dispatch only when producer and consumers are connected.
+- [x] Derive provider-owner authority from the private validated CLI configuration and cross-check the fixed existing PTR identity. Keep game-admin reads separate.
+- [x] Persist pre-send intent and authentic successful response digest. Lost-response reconciliation may establish observed installation, never invent a received acknowledgement.
+- [x] Connect the existing inspect/apply/reconcile hooks, genuine supported-runner permit and cleanup. Capture separate private signed state after actual update completion; activation integration remains below.
 - [ ] Verify actual-owner play and integrated release preservation, regenerate source-bound release outputs and ship through the actual operating workflow.
 
 ## Evidence and status
@@ -87,3 +87,46 @@ and independent review. These are implementation checks: the actual workflow mus
 still construct the capabilities, activation must consume their authenticated
 private records, and native/live acceptance remains open. See the canonical
 [production adapter evidence](../../evidence/0.4.0/recovery.md#production-ptr-update-adapter-implementation).
+
+## 4. Preserved-state activation and recovery (current work)
+
+The retained schema-4 envelope uses profile
+`warpkeep-ptr-existing-state-adoption-v1`. Its adoption digest is the SHA-256 of
+its exact persisted JSON bytes including the final LF. The writer's `receiptDigest`
+continues to mean the schema-3 completion receipt digest; `recordDigest` identifies
+this separate schema-4 adoption. Do not interchange them.
+
+- [x] Capture genuine signed pre-state before submission and signed post-state after
+  the unchanged completed/reconciled update and terminal. Keep claim, terminal and
+  present observation jobs distinct. Native acceptance at c5fbb2dd covered the
+  connected producer and existing consumers (230 tests) and service (1,194 tests).
+- [ ] Authenticate retained adoption after producer disposal using the same private
+  update inventory and continuation owner. Verify service signatures and complete
+  context; reopen exact evidence after asynchronous verification and on each
+  synchronous consumer read. Historical evidence does not need present freshness.
+- [ ] Add separate public profile `warpkeep-0.4.0-sealed-launch-ptr-adoption-v4`,
+  with update/adoption commitments, actual module/tool/atlas facts, singleton-owner
+  and closed-admission guards, and expected sealed/owner HMACs. Preserve canonical
+  schema-2/schema-3 bytes. Do not project unavailable raw import/provision fields.
+- [ ] Extend the recovery receiver's exact typed arming projection and mandatory
+  live issue/claim observations. Compare both HMACs under the signed bridge version,
+  source, configuration and authorization-epoch scope. Keep ledger/JWS versions;
+  legacy SQL storage must reject a projection it cannot faithfully retain.
+- [ ] Connect the actual activation workflow, bridge-state owner, candidate and
+  descriptor generator. The distinct bridge receipt retains real G002 and deployment
+  evidence and links genuine PTR adoption instead of fictional import/provision
+  receipts. A synchronous raw descriptor parser must require authenticated opaque
+  evidence for V4; decoded signatures alone never establish authenticity.
+- [ ] Exercise actual retained producer → activation → public artifact → receiver,
+  including restart, malformed signatures, changed bytes/history, wrong authority,
+  scope/HMAC drift and later legitimate gameplay. Review independently.
+- [ ] Regenerate the coherent source-bound release family after the connected batch,
+  verify exact-head CI, integrate through normal protected review and continue live
+  delivery/owner/mobile acceptance. Existing prepared output is historical only.
+
+No additional preserved-live receipt is needed: signed post-state is the immutable
+baseline, while recovery always observes current realm state before initial issue
+and every claim. Issuance retries reuse frozen authorization; the claim observes
+again and the ledger rejects invariant drift. Gameplay rows and renewable session
+expiry are outside the preservation HMACs; program identity is checked separately.
+This is deliberate preservation of normal gameplay, not a full gameplay-row census.

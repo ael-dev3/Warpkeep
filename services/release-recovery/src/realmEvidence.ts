@@ -1,6 +1,6 @@
 import {
   RECOVERY_BINDING_PATH,
-  RECOVERY_REALM_BINDING_PROJECTION_KEYS,
+  recoveryRealmBindingProjectionKeys,
   RECOVERY_WORKFLOW_PATH,
   recoveryRealmBindingProjectionFromArmed,
   snapshotRecoveryArmingTuple,
@@ -463,11 +463,11 @@ function validateStaticInputs(input: ObserveRecoveryRealmEvidenceInput): Readonl
   const armed = snapshotRecoveryArmingTuple(input.armed, RECOVERY_REALM_EVIDENCE_FAILED)
   const armedProjection = recoveryRealmBindingProjectionFromArmed(armed, RECOVERY_REALM_EVIDENCE_FAILED)
   const protectedBindingBytes = serializeExactObject(
-    RECOVERY_REALM_BINDING_PROJECTION_KEYS,
+    recoveryRealmBindingProjectionKeys(binding),
     binding as never,
   )
   const armedBindingBytes = serializeExactObject(
-    RECOVERY_REALM_BINDING_PROJECTION_KEYS,
+    recoveryRealmBindingProjectionKeys(armedProjection),
     armedProjection as never,
   )
   if (!equalBytes(protectedBindingBytes, armedBindingBytes)) fail()
@@ -807,6 +807,10 @@ function capturePtr(
     || !PUBLIC_APPROVAL_ID.test(source.publicApprovalReceiptId)
     || !sha(source.sealedStateHmacSha256)
     || !sha(source.ownerInvariantHmacSha256)
+    || ('ptrStateEvidenceProfile' in binding && binding.ptrStateEvidenceProfile === 'warpkeep-ptr-existing-state-adoption-v1' && (
+      source.sealedStateHmacSha256 !== binding.ptrExpectedSealedStateHmacSha256
+      || source.ownerInvariantHmacSha256 !== binding.ptrExpectedOwnerInvariantHmacSha256
+    ))
   ) fail()
   return Object.freeze({ ...source }) as Readonly<Record<string, JsonValue>>
 }

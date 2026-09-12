@@ -43,7 +43,7 @@ export function createSealedLaunchActivationBinding(
 export function verifySealedLaunchActivationHistory(input: Readonly<{
   bindingSource: string;
   candidateActivationCommit: string;
-  /** Required for V2: binds the complete canonical document to actual immutable S/A Git objects. */
+  /** Required for recovery V2/V3/V4: binds the complete canonical document to immutable S/A Git objects. */
   readGit?: (arguments_: readonly string[]) => Uint8Array | string;
   isAncestor: (ancestor: string, descendant: string) => boolean;
   parentsOf: (commit: string) => readonly string[];
@@ -101,15 +101,16 @@ export function verifySealedLaunchSources(
   sources: Readonly<Record<string, string>>,
   requestedPhase?: 'preparation' | 'activation' | 'checked-in',
 ): Readonly<{
-  schemaVersion: 1 | 2 | 3;
-  profile: typeof SEALED_LAUNCH_PROFILE | 'warpkeep-0.4.0-sealed-launch-v2' | 'warpkeep-0.4.0-sealed-launch-ptr-update-v3';
+  schemaVersion: 1 | 2 | 3 | 4;
+  profile: typeof SEALED_LAUNCH_PROFILE | 'warpkeep-0.4.0-sealed-launch-v2' | 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' | 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4';
   phase: 'preparation' | 'activation';
   packageVersion: '0.3.43' | '0.4.0';
   pagesDeploymentApproved: boolean;
   g001ReleaseVersion: '0.3.43' | null;
   g002DatabaseIdentity: string | null;
   ptrDatabaseIdentity: string | null;
-  ptrPresentationEnabled: boolean;
+  /** V4 carries preserved-state evidence and omits this historical presentation claim. */
+  ptrPresentationEnabled?: boolean;
 }>;
 
 export function classifySealedLaunchPagesSources(
@@ -128,7 +129,7 @@ export function classifySealedLaunchPagesDeployLane(input: Readonly<{
   repositoryRoot?: string;
   candidatePagesSourceCommit: string;
 }>): Readonly<{
-  profile: typeof SEALED_LAUNCH_PROFILE | 'warpkeep-0.4.0-sealed-launch-v2' | 'warpkeep-0.4.0-sealed-launch-ptr-update-v3';
+  profile: typeof SEALED_LAUNCH_PROFILE | 'warpkeep-0.4.0-sealed-launch-v2' | 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' | 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4';
   candidatePagesSourceCommit: string;
   mode: 'sealed-launch-blocked' | 'sealed-g002' | 'sealed-g002-recovery';
 }>;

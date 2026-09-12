@@ -1,10 +1,10 @@
 // @vitest-environment node
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
-import { beforeAll, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
 import { recoveryAuthorizationFixture } from './fixtures/recoveryAuthorizationFixture';
-import { createRecoveryActivationBindingV3 } from '../scripts/recovery-activation-candidate.mjs';
-import { RECOVERY_BINDING_KEYS_V3 } from '../scripts/recovery-binding-projection.mjs';
+import { createRecoveryActivationBindingFromCandidate } from '../scripts/recovery-activation-candidate.mjs';
+import { recoveryBindingKeys } from '../scripts/recovery-binding-projection.mjs';
 import { verifySealedRealmsPublicActivationBytes } from '../scripts/verify-sealed-realms-public-activation-artifact.mjs';
 import { verifySealedLaunchPagesBuildEnvironment } from '../scripts/verify-0.4.0-sealed-launch.mjs';
 
@@ -20,12 +20,15 @@ function token(payload: unknown) {
   Buffer.from((s > order / 2n ? order - s : s).toString(16).padStart(64, '0'), 'hex').copy(signature, 32);
   return `${body}.${signature.toString('base64url')}`;
 }
-function binding(receipt = '9'.repeat(64)) {
-  const values = { ...recoveryBindingCandidate(), schemaVersion: 3,
-    profile: 'warpkeep-0.4.0-sealed-launch-ptr-update-v3',
-    ptrExistingUpdateReceiptDigest: receipt, ptrExistingUpdateReceiptCommitment: null } as Record<string, unknown>;
-  const candidate = Object.fromEntries(RECOVERY_BINDING_KEYS_V3.map(key => [key, values[key]]));
-  return createRecoveryActivationBindingV3(`${JSON.stringify(candidate, null, 2)}\n`);
+function createBinding(version: 3 | 4, receipt = '9'.repeat(64), adoption = '8'.repeat(64)) {
+  const values = { ...recoveryBindingCandidate(), schemaVersion: version,
+    profile: version === 3 ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' : 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4',
+    ptrExistingUpdateReceiptDigest: receipt, ptrExistingUpdateReceiptCommitment: null,
+    ...(version === 4 ? { ptrExistingStateAdoptionReceiptDigest: adoption, ptrExistingStateAdoptionReceiptCommitment: null,
+      ptrSealed: true, ptrPopulationGuardPassed: true, ptrSingletonOwnerCount: 1, ptrGeneralAdmissionCount: 0,
+      ptrExpectedSealedStateHmacSha256: '7'.repeat(64), ptrExpectedOwnerInvariantHmacSha256: '6'.repeat(64) } : {}) } as Record<string, unknown>;
+  const candidate = Object.fromEntries(recoveryBindingKeys(version).map(key => [key, values[key]]));
+  return createRecoveryActivationBindingFromCandidate(`${JSON.stringify(candidate, null, 2)}\n`);
 }
 const document = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 let verify: typeof import('../scripts/verify-recovery-authorization-jws.mjs').verifyRecoveryAuthorization;
@@ -33,37 +36,46 @@ beforeAll(async () => {
   vi.doMock('../scripts/recovery-public-key.mjs', () => ({ RECOVERY_KEY_ID: kid, RECOVERY_PUBLIC_JWK: jwk, RECOVERY_KEY_THUMBPRINT: thumbprint }));
   verify = (await import('../scripts/verify-recovery-authorization-jws.mjs')).verifyRecoveryAuthorization;
 });
-it('accepts an explicit update artifact through the actual public privacy validator', () => {
-  const bytes = Buffer.from(document(binding()));
-  expect(verifySealedRealmsPublicActivationBytes(bytes)).toEqual(bytes);
-});
-it('verifies a signed authorization bound to the update receipt core', () => {
-  const f = recoveryAuthorizationFixture(); const b = binding();
-  const payload = { ...f.payload, recoveryAuthorizationCoreSha256: b.recoveryAuthorizationCoreSha256 };
-  expect(verify(token(payload), document(b), JSON.stringify(f.context), 1100).issuedAt).toBe(1010);
-});
-it('binds the actual Pages build environment to the update PTR identity', () => {
-  const b = binding();
-  const environment = { VITE_WARPKEEP_PTR_ENABLED: 'true', VITE_PTR_SPACETIMEDB_DATABASE: String(b.ptrDatabaseIdentity) };
-  expect(verifySealedLaunchPagesBuildEnvironment({ bindingSource: document(b), environment }))
-    .toEqual({ ptrEnabled: true, ptrDatabaseIdentity: b.ptrDatabaseIdentity });
-  expect(() => verifySealedLaunchPagesBuildEnvironment({ bindingSource: document(b),
-    environment: { ...environment, VITE_PTR_SPACETIMEDB_DATABASE: String(b.g001DatabaseIdentity) } })).toThrow();
-});
-it('rejects a different valid update receipt under the original signed authorization', () => {
-  const f = recoveryAuthorizationFixture(); const b = binding();
-  const payload = { ...f.payload, recoveryAuthorizationCoreSha256: b.recoveryAuthorizationCoreSha256 };
-  expect(() => verify(token(payload), document(binding('8'.repeat(64))), JSON.stringify(f.context), 1100)).toThrow('RECOVERY_AUTHORIZATION_INVALID');
-});
-it('rejects fresh authorization substituted for an update authorization', () => {
-  const f = recoveryAuthorizationFixture();
-  expect(() => verify(token(f.payload), document(binding()), JSON.stringify(f.context), 1100)).toThrow('RECOVERY_AUTHORIZATION_INVALID');
-});
-it.each([
-  { ptrPublishReceiptDigest: 'a'.repeat(64) },
-  { schemaVersion: 2 },
-  { profile: 'warpkeep-0.4.0-sealed-launch-v2' },
-  { ptrAdmissionsOpen: true },
-])('rejects mixed or unsafe public update artifacts %j', change => {
-  expect(() => verifySealedRealmsPublicActivationBytes(Buffer.from(document({ ...binding(), ...change })))).toThrow();
+describe.each([3, 4] as const)('public recovery consumers V%s', version => {
+  const binding = (receipt?: string, adoption?: string) => createBinding(version, receipt, adoption);
+  it('accepts an explicit update artifact through the actual public privacy validator', () => {
+    const bytes = Buffer.from(document(binding()));
+    expect(verifySealedRealmsPublicActivationBytes(bytes)).toEqual(bytes);
+  });
+  it('verifies a signed authorization bound to the update receipt core', () => {
+    const f = recoveryAuthorizationFixture(); const b = binding();
+    const payload = { ...f.payload, recoveryAuthorizationCoreSha256: b.recoveryAuthorizationCoreSha256 };
+    expect(verify(token(payload), document(b), JSON.stringify(f.context), 1100).issuedAt).toBe(1010);
+  });
+  it('binds the actual Pages build environment to the update PTR identity', () => {
+    const b = binding();
+    const environment = { VITE_WARPKEEP_PTR_ENABLED: 'true', VITE_PTR_SPACETIMEDB_DATABASE: String(b.ptrDatabaseIdentity) };
+    expect(verifySealedLaunchPagesBuildEnvironment({ bindingSource: document(b), environment }))
+      .toEqual({ ptrEnabled: true, ptrDatabaseIdentity: b.ptrDatabaseIdentity });
+    expect(() => verifySealedLaunchPagesBuildEnvironment({ bindingSource: document(b),
+      environment: { ...environment, VITE_PTR_SPACETIMEDB_DATABASE: String(b.g001DatabaseIdentity) } })).toThrow();
+  });
+  it('rejects a different valid update receipt under the original signed authorization', () => {
+    const f = recoveryAuthorizationFixture(); const b = binding();
+    const payload = { ...f.payload, recoveryAuthorizationCoreSha256: b.recoveryAuthorizationCoreSha256 };
+    expect(() => verify(token(payload), document(binding('8'.repeat(64))), JSON.stringify(f.context), 1100)).toThrow('RECOVERY_AUTHORIZATION_INVALID');
+  });
+  it('rejects fresh authorization substituted for an update authorization', () => {
+    const f = recoveryAuthorizationFixture();
+    expect(() => verify(token(f.payload), document(binding()), JSON.stringify(f.context), 1100)).toThrow('RECOVERY_AUTHORIZATION_INVALID');
+  });
+  it.each([
+    { ptrPublishReceiptDigest: 'a'.repeat(64) },
+    { schemaVersion: 2 },
+    { profile: 'warpkeep-0.4.0-sealed-launch-v2' },
+    { ptrAdmissionsOpen: true },
+  ])('rejects mixed or unsafe public update artifacts %j', change => {
+    expect(() => verifySealedRealmsPublicActivationBytes(Buffer.from(document({ ...binding(), ...change })))).toThrow();
+  });
+
+  if (version === 4) it('rejects a different adoption envelope under the original signed authorization', () => {
+    const f = recoveryAuthorizationFixture(); const b = binding();
+    const payload = { ...f.payload, recoveryAuthorizationCoreSha256: b.recoveryAuthorizationCoreSha256 };
+    expect(() => verify(token(payload), document(binding(undefined, '7'.repeat(64))), JSON.stringify(f.context), 1100)).toThrow('RECOVERY_AUTHORIZATION_INVALID');
+  });
 });

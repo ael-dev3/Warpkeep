@@ -4484,7 +4484,7 @@ export function createSealedLaunchActivationBinding(candidate) {
 
 function parseNativeSealedLaunchBinding(source) {
   const schema = parseJson(source, 'SEALED_LAUNCH_BINDING_INVALID')?.schemaVersion;
-  if (schema === 2 || schema === 3) return parseRecoveryBinding(source);
+  if (schema === 2 || schema === 3 || schema === 4) return parseRecoveryBinding(source);
   return parseBinding(source);
 }
 
@@ -4514,14 +4514,14 @@ export function verifySealedLaunchSources(sources, requestedPhase = 'checked-in'
     g001ReleaseVersion: binding.g001ReleaseVersion,
     g002DatabaseIdentity: binding.g002DatabaseIdentity,
     ptrDatabaseIdentity: binding.ptrDatabaseIdentity,
-    ptrPresentationEnabled: binding.ptrPresentationEnabled,
+    ...(binding.schemaVersion === 4 ? {} : { ptrPresentationEnabled: binding.ptrPresentationEnabled }),
   });
 }
 
 export function classifySealedLaunchPagesSources(sources) {
   const result = verifySealedLaunchSources(sources, 'checked-in');
   if (result.phase !== 'activation') return 'sealed-launch-blocked';
-  return (result.schemaVersion === 2 || result.schemaVersion === 3) ? 'sealed-g002-recovery' : 'sealed-g002';
+  return [2, 3, 4].includes(result.schemaVersion) ? 'sealed-g002-recovery' : 'sealed-g002';
 }
 
 const FORBIDDEN_PTR_PAGES_ENVIRONMENT_KEYS = Object.freeze([
@@ -4541,7 +4541,7 @@ export function verifySealedLaunchPagesBuildEnvironment({
 }) {
   let binding;
   if (typeof bindingSource === 'string' && bindingSource.length <= 2 * 1024 * 1024
-      && [2, 3].includes(JSON.parse(bindingSource)?.schemaVersion)) {
+      && [2, 3, 4].includes(JSON.parse(bindingSource)?.schemaVersion)) {
     binding = parseRecoveryBinding(bindingSource);
   } else {
     binding = parseBinding(bindingSource);
@@ -5063,14 +5063,15 @@ export function classifySealedLaunchPagesDeployLane({
   try { schema = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bindingFile.body)).schemaVersion; }
   catch { fail('SEALED_LAUNCH_BINDING_INVALID'); }
   finally { bindingFile.body.fill(0); }
-  if (schema === 2 || schema === 3) {
+  if (schema === 2 || schema === 3 || schema === 4) {
     // Routing is not deployment authority. This verifies the complete versioned recovery binding
     // and exact committed activation child; the recovery job must additionally
     // authenticate current protected main, artifacts, live state and signed claim.
     const identity = readRecoveryAttestationSource(repositoryRoot);
     if (identity.candidateCommit !== candidatePagesSourceCommit) fail('SEALED_LAUNCH_CHECKOUT_INVALID');
     assertExactCheckout(repositoryRoot, candidatePagesSourceCommit);
-    return Object.freeze({ profile: schema === 2 ? 'warpkeep-0.4.0-sealed-launch-v2' : 'warpkeep-0.4.0-sealed-launch-ptr-update-v3', candidatePagesSourceCommit,
+    return Object.freeze({ profile: schema === 2 ? 'warpkeep-0.4.0-sealed-launch-v2'
+      : schema === 3 ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' : 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4', candidatePagesSourceCommit,
       mode: 'sealed-g002-recovery' });
   }
   const sources = readSources(repositoryRoot);

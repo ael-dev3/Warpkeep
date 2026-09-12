@@ -28,8 +28,9 @@ import {
 } from './genesis001-admitted-player-census.mjs';
 import { createRecoveryActivationBindingFromCandidate, validateRecoveryActivationCandidateDocument } from './recovery-activation-candidate.mjs';
 import { parseActivationGenerationReceipt } from './sealed-realms-production-activation-generation-receipt.mjs';
-import { readPtrExistingUpdateCompletion, readPtrExistingStateAdoption } from './ptr-production-existing-update-adapter.mjs';
-import { updateDigest } from './sealed-realms-existing-update-protocol.mjs';
+import { readPtrExistingUpdateCompletion, readPtrExistingStateAdoption, readPtrExistingUpdateCompletionFromPrivateState } from './ptr-production-existing-update-adapter.mjs';
+import { updateCanonical, updateDigest } from './sealed-realms-existing-update-protocol.mjs';
+import { verifyPtrUpdateObservationPair } from '../services/release-recovery/src/ptrObservation.ts';
 
 const isProxy = types.isProxy;
 const SHA256 = /^[a-f0-9]{64}$/u;
@@ -38,6 +39,7 @@ const RECORD_PROFILE = 'warpkeep-sealed-realms-activation-record-v1';
 const EVIDENCE_PROFILE = 'warpkeep-0.4.0-sealed-launch-activation-evidence-v1';
 const RECORD_DIRECTORY = 'activation-evidence/records';
 const recordsCapabilities = new WeakMap();
+const retainedPtrAdoptions = new WeakMap();
 const candidateReadContexts = new WeakMap();
 
 const RECEIPT_MEMBERS = Object.freeze([
@@ -868,7 +870,7 @@ function parseRecord(bytes, state, expectedMember) {
   let source;
   let value;
   try {
-    source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    source = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
     value = JSON.parse(source);
   } catch {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
@@ -1221,6 +1223,120 @@ export async function writeSealedRealmsProductionPtrExistingStateAdoptionRecord(
     assertOwner();
     return Object.freeze({ receiptDigest, recordDigest: createHash('sha256').update(bytes).digest('hex') });
   } finally { bytes.fill(0); }
+}
+
+
+function retainedAdoptionOwner(options) {
+  const state = capabilityState(options.records);
+  const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(options.authority);
+  assertSealedRealmsProductionPrivateState(state.privateState);
+  if (options.authority.mode !== 'S' || options.authority.operation !== 'ptr-update-apply'
+    || state.sourceMode !== 'S' || state.sourceCommit !== sourceCommit
+    || state.preparationSourceCommit !== sourceCommit
+    || state.sourceAuthorityDigest !== options.authority.authorityDigest) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+  }
+  return state;
+}
+
+/** Reconstruct the original update through the same inventory owner as the producer. */
+function reopenRetainedAdoption(options) {
+  const state = retainedAdoptionOwner(options);
+  const receipt = readPtrExistingUpdateCompletionFromPrivateState({ authority: options.authority,
+    privateState: state.privateState, store: options.store });
+  validateMemberReceipt('ptrExistingUpdateReceipt', receipt, state.sourceCommit);
+  const updateBytes = state.privateState.read({ root: 'runtime',
+    relativePath: receiptPath('ptrExistingUpdateReceipt') });
+  let bytes;
+  try {
+    const storedReceipt = parseRecord(updateBytes, { ...state, recoveryRecords: true }, 'ptrExistingUpdateReceipt');
+    if (updateCanonical(receipt) !== updateCanonical(storedReceipt)) {
+      fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+    }
+    bytes = state.privateState.read({ root: 'runtime',
+      relativePath: `ptr-existing-state-adoptions-v4/${updateDigest(receipt)}.json` });
+    if (bytes.byteLength > 98304) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+    let text, envelope;
+    try {
+      text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+      envelope = JSON.parse(text);
+    } catch { fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID'); }
+    exactInput(envelope, ['schemaVersion', 'profile', 'sourceCommit', 'sourceTree',
+      'completionReceipt', 'preObservationJws', 'postObservationJws']);
+    if (`${JSON.stringify(envelope)}\n` !== text || envelope.schemaVersion !== 4
+      || envelope.profile !== 'warpkeep-ptr-existing-state-adoption-v1'
+      || envelope.sourceCommit !== state.sourceCommit || !COMMIT.test(envelope.sourceTree)
+      || typeof envelope.preObservationJws !== 'string' || typeof envelope.postObservationJws !== 'string'
+      || updateCanonical(envelope.completionReceipt) !== updateCanonical(receipt)) {
+      fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+    }
+    return { state, envelope, adoptionReceiptDigest: createHash('sha256').update(bytes).digest('hex'),
+      updateRecordDigest: createHash('sha256').update(updateBytes).digest('hex') };
+  } finally { updateBytes.fill(0); bytes?.fill(0); }
+}
+
+/** Authentic historical data only: no permit, provider access, effect or activation authority. */
+export async function authenticateSealedRealmsProductionPtrExistingStateAdoption(input) {
+  const supplied = exactInput(input, ['records', 'authority', 'store']);
+  const options = Object.freeze({ records: supplied.records, authority: supplied.authority, store: supplied.store });
+  const initial = reopenRetainedAdoption(options);
+  const envelope = initial.envelope, receipt = envelope.completionReceipt;
+  const pair = await verifyPtrUpdateObservationPair(envelope.preObservationJws, envelope.postObservationJws);
+  const context = {
+    bindingDigest: updateDigest(receipt.binding), inspectionDigest: receipt.inspectionDigest,
+    inspectionRecordDigest: receipt.inspectionRecordDigest, predecessorDigest: receipt.predecessorDigest,
+    predecessorReceiptDigest: receipt.predecessorReceiptDigest, beforeProgram: receipt.beforeProgram,
+    candidateProgram: receipt.binding.candidateProgram, scopeDigest: receipt.continuation.scopeDigest,
+    issuedRecordDigest: receipt.continuation.issuedRecordDigest, claimRecordDigest: receipt.continuation.claimRecordDigest,
+    claimRunId: receipt.continuation.claimRunId, claimRunAttempt: String(receipt.continuation.claimRunAttempt),
+  };
+  const postContext = { ...context, phase: 'post',
+    preObservationJwsSha256: createHash('sha256').update(envelope.preObservationJws, 'utf8').digest('hex'),
+    completionReceiptDigest: updateDigest(receipt), completionRecordDigest: receipt.completionRecordDigest,
+    terminalRecordDigest: receipt.continuation.terminalRecordDigest, terminalRunId: receipt.continuation.terminalRunId,
+    terminalRunAttempt: String(receipt.continuation.terminalRunAttempt), terminalOutcome: receipt.continuation.outcome,
+    terminalAt: receipt.continuation.terminalAt };
+  if (updateCanonical(pair.pre.context) !== updateCanonical({ ...context, phase: 'pre' })
+    || updateCanonical(pair.post.context) !== updateCanonical(postContext)
+    || [pair.pre, pair.post].some(value => value.identity.sourceCommit !== envelope.sourceCommit
+      || value.identity.sourceTree !== envelope.sourceTree)
+    || pair.pre.identity.runId !== receipt.continuation.claimRunId
+    || pair.pre.identity.runAttempt !== String(receipt.continuation.claimRunAttempt)
+    || pair.pre.observation.observedThrough * 1000 > Date.parse(receipt.submission.observedAt)
+    || pair.post.observation.observedFrom * 1000 < Date.parse(receipt.continuation.terminalAt)) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+  }
+  const current = reopenRetainedAdoption(options);
+  if (current.state !== initial.state || current.adoptionReceiptDigest !== initial.adoptionReceiptDigest
+    || current.updateRecordDigest !== initial.updateRecordDigest) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+  }
+  const freeze = value => {
+    if (value && typeof value === 'object') { for (const child of Object.values(value)) freeze(child); Object.freeze(value); }
+    return value;
+  };
+  const evidence = Object.freeze({});
+  retainedPtrAdoptions.set(evidence, { options, state: initial.state,
+    updateRecordDigest: initial.updateRecordDigest,
+    result: freeze({ sourceCommit: envelope.sourceCommit, sourceTree: envelope.sourceTree,
+      adoptionReceiptDigest: initial.adoptionReceiptDigest, completionReceipt: receipt, pair }) });
+  return evidence;
+}
+
+/** Synchronous consumers get only a branded, previously verified and freshly reopened baseline. */
+export function readSealedRealmsProductionPtrExistingStateAdoptionEvidence(input) {
+  const options = exactInput(input, ['evidence', 'privateState', 'sourceCommit']);
+  const member = retainedPtrAdoptions.get(options.evidence);
+  if (!member || assertSealedRealmsProductionPrivateState(options.privateState) !== member.state.privateState
+    || options.sourceCommit !== member.result.sourceCommit) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+  }
+  const current = reopenRetainedAdoption(member.options);
+  if (current.state !== member.state || current.adoptionReceiptDigest !== member.result.adoptionReceiptDigest
+    || current.updateRecordDigest !== member.updateRecordDigest) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+  }
+  return member.result;
 }
 
 function recoveryReceiptProjection(state, receipts, g001) {

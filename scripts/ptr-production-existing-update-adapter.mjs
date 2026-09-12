@@ -117,6 +117,290 @@ const hostObservation = (value) => {
   return value;
 };
 
+const BINDING_KEYS = Object.freeze([
+  'sourceCommit', 'databaseIdentity', 'candidateProgram', 'candidateSha256',
+  'candidateDescriptionDigest', 'moduleTreeId', 'dependencyClosureDigest', 'cliDigest', 'cliConfigDigest',
+]);
+
+function readUpdateRecord(state, name) {
+  const bytes = state.read({
+    root: "runtime",
+    relativePath: `${DIRECTORY}/${name}`,
+  });
+  try {
+    const value = updateExact(parseExistingUpdateJson(bytes), [
+      "profile",
+      "kind",
+      "inspectionDigest",
+      "value",
+    ]);
+    if (
+      value.profile !== PROFILE ||
+      !same(
+        Buffer.from(`${updateCanonical(value)}\n`).toString(),
+        bytes.toString(),
+      )
+    )
+      fail();
+    digest(value.inspectionDigest);
+    return value;
+  } finally {
+    bytes.fill(0);
+  }
+}
+
+const slot = (predecessorDigest) =>
+  updateDigest({
+    profile: PROFILE,
+    databaseIdentity: TARGET,
+    predecessorDigest,
+  });
+function readUpdateInventory(state) {
+  const records = new Map();
+  for (const name of state.list({
+    root: "runtime",
+    relativeDirectory: DIRECTORY,
+  })) {
+    const match =
+      /^([a-f0-9]{64})\.(inspection|submission|acknowledgement|completion|not-submitted)\.json$/u.exec(
+        name,
+      );
+    if (!match) fail();
+    const record = readUpdateRecord(state, name);
+    if (record.kind !== match[2]) fail();
+    if (!records.has(record.inspectionDigest))
+      records.set(record.inspectionDigest, {});
+    const entry = records.get(record.inspectionDigest);
+    if (entry[record.kind]) fail();
+    entry[record.kind] = record;
+    if (record.kind === "inspection") {
+      if (
+        record.inspectionDigest !== updateDigest(record.value) ||
+        match[1] !== slot(record.value.predecessorDigest)
+      )
+        fail();
+    } else if (match[1] !== record.inspectionDigest) fail();
+  }
+  const used = new Set();
+  for (const [key, entry] of records) {
+    if (!entry.inspection) fail();
+    const value = updateExact(entry.inspection.value, [
+      "binding",
+      "beforeProgram",
+      "beforeDefinition",
+      "candidateDefinition",
+      "plan",
+      "preservation",
+      "hostObservation",
+      "predecessorDigest",
+      "predecessorReceiptDigest",
+      "nonce",
+      "observedAt",
+    ]);
+    updateExact(value.binding, BINDING_KEYS);
+    if (
+      !/^[a-f0-9]{40}$/u.test(value.binding.sourceCommit) ||
+      !/^[a-f0-9]{40}$/u.test(value.binding.moduleTreeId) ||
+      value.binding.databaseIdentity !== TARGET
+    )
+      fail();
+    for (const field of [
+      "candidateProgram",
+      "candidateSha256",
+      "candidateDescriptionDigest",
+      "dependencyClosureDigest",
+      "cliDigest",
+      "cliConfigDigest",
+    ])
+      digest(value.binding[field]);
+    digest(value.nonce);
+    digest(value.beforeProgram);
+    time(value.observedAt);
+    hostObservation(value.hostObservation);
+    const policy = comparePtrUpdateDefinitions({
+      priorServerSchema: Buffer.from(updateCanonical(value.beforeDefinition)),
+      candidateArtifactDefinition: value.candidateDefinition,
+    });
+    if (
+      !same(policy, value.preservation) ||
+      policy.candidateDigest !== value.binding.candidateDescriptionDigest
+    )
+      fail();
+    const checked = parseExistingUpdatePlan(
+      Buffer.from(updateCanonical(value.plan.observation)),
+      TARGET,
+      value.beforeProgram,
+      value.binding.candidateProgram,
+    );
+    if (!same(checked, value.plan)) fail();
+    if (value.predecessorDigest !== null) {
+      digest(value.predecessorDigest);
+      digest(value.predecessorReceiptDigest);
+      if (
+        used.has(value.predecessorDigest) ||
+        value.predecessorDigest === key
+      )
+        fail();
+      used.add(value.predecessorDigest);
+    } else if (value.predecessorReceiptDigest !== null) fail();
+    if (
+      entry["not-submitted"] &&
+      (entry.submission || entry.acknowledgement || entry.completion)
+    )
+      fail();
+    for (const kind of ["submission", "not-submitted"])
+      if (entry[kind]) {
+        const operation = updateExact(entry[kind].value, [
+          "runId",
+          "runAttempt",
+          "observedAt",
+        ]);
+        if (
+          !/^[1-9][0-9]{0,19}$/u.test(operation.runId) ||
+          !Number.isSafeInteger(operation.runAttempt) ||
+          operation.runAttempt < 1
+        )
+          fail();
+        time(operation.observedAt);
+      }
+    if (entry.acknowledgement) {
+      if (!entry.submission) fail();
+      const ack = updateExact(entry.acknowledgement.value, [
+        "response",
+        "responseDigest",
+        "observedAt",
+      ]);
+      if (
+        parseExistingUpdateSuccess(
+          Buffer.from(updateCanonical(ack.response)),
+          TARGET,
+        ) !== ack.responseDigest
+      )
+        fail();
+      time(ack.observedAt);
+    }
+    if (entry.completion) {
+      if (!entry.submission) fail();
+      const terminal = updateExact(entry.completion.value, [
+        "candidateProgram",
+        "candidateDescriptionDigest",
+        "installedPlan",
+        "acknowledgement",
+        "responseDigest",
+        "observedAt",
+      ]);
+      if (
+        terminal.candidateProgram !== value.binding.candidateProgram ||
+        terminal.candidateDescriptionDigest !==
+          value.binding.candidateDescriptionDigest
+      )
+        fail();
+      const installed = parseExistingUpdatePlan(
+        Buffer.from(updateCanonical(terminal.installedPlan.observation)),
+        TARGET,
+        terminal.candidateProgram,
+        terminal.candidateProgram,
+      );
+      if (!same(installed, terminal.installedPlan)) fail();
+      if (
+        terminal.acknowledgement !==
+          (entry.acknowledgement ? "received" : "not-received") ||
+        terminal.responseDigest !==
+          (entry.acknowledgement?.value.responseDigest ?? null)
+      )
+        fail();
+      time(terminal.observedAt);
+    }
+  }
+  for (const entry of records.values()) {
+    const previous = entry.inspection.value.predecessorDigest;
+    if (previous !== null) {
+      const prior = records.get(previous),
+        terminal = prior?.completion ?? prior?.["not-submitted"];
+      if (
+        !terminal ||
+        updateDigest(terminal) !==
+          entry.inspection.value.predecessorReceiptDigest
+      )
+        fail();
+      const expectedProgram =
+        prior.completion?.value.candidateProgram ??
+        prior.inspection.value.beforeProgram;
+      if (entry.inspection.value.beforeProgram !== expectedProgram) fail();
+    }
+  }
+  const heads = [...records].filter(([key]) => !used.has(key));
+  if (records.size && heads.length !== 1) fail();
+  if (heads.length) {
+    let key = heads[0][0];
+    const visited = new Set();
+    while (key !== null) {
+      if (visited.has(key)) fail();
+      visited.add(key);
+      key = records.get(key).inspection.value.predecessorDigest;
+    }
+    if (visited.size !== records.size) fail();
+  }
+  return heads[0];
+}
+
+function continuationSelection(key, entry) {
+  return freeze({
+    subject: `ptr-update:${TARGET}`,
+    evidenceDigest: key,
+    receiptDigests: [entry.inspection.value.plan.planDigest],
+    predecessorDigests:
+      entry.inspection.value.predecessorDigest === null
+        ? []
+        : [
+            entry.inspection.value.predecessorDigest,
+            entry.inspection.value.predecessorReceiptDigest,
+          ].sort(),
+  });
+}
+
+function readCompletedUpdateEvidence(state, current, store, expectedBinding) {
+  const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(current);
+  if (current.mode !== 'S' || current.operation !== 'ptr-update-apply') fail();
+  const head = readUpdateInventory(state);
+  if (!head || !head[1].completion
+    || head[1].inspection.value.binding.sourceCommit !== sourceCommit
+    || (expectedBinding !== undefined && !same(head[1].inspection.value.binding, expectedBinding))) fail();
+  const [key, entry] = head;
+  const continuation = readSealedRealmsProductionContinuationCompletion({
+    store, privateState: state, sourceAuthority: current, kind: 'ptr-update',
+    ...continuationSelection(key, entry),
+  });
+  if (continuation.claimRunId !== entry.submission.value.runId
+    || continuation.claimRunAttempt !== entry.submission.value.runAttempt
+    || Date.parse(continuation.terminalAt) < Date.parse(entry.completion.value.observedAt)
+    || (continuation.outcome === 'reconciled-effect-applied'
+      && continuation.observationDigest !== updateDigest(entry.completion))) fail();
+  const inspection = entry.inspection.value;
+  return freeze({
+    schemaVersion: 1,
+    profile: 'warpkeep-ptr-existing-update-receipt-v1',
+    binding: Object.fromEntries(BINDING_KEYS.map(field => [field, entry.inspection.value.binding[field]])),
+    inspectionDigest: key,
+    inspectionRecordDigest: updateDigest(entry.inspection),
+    submissionRecordDigest: updateDigest(entry.submission),
+    acknowledgementRecordDigest: entry.acknowledgement ? updateDigest(entry.acknowledgement) : null,
+    completionRecordDigest: updateDigest(entry.completion),
+    predecessorDigest: inspection.predecessorDigest,
+    predecessorReceiptDigest: inspection.predecessorReceiptDigest,
+    beforeProgram: inspection.beforeProgram,
+    preservation: structuredClone(inspection.preservation),
+    planDigest: inspection.plan.planDigest,
+    installedPlanDigest: entry.completion.value.installedPlan.planDigest,
+    inspectionHostObservationDigest: updateDigest(inspection.hostObservation),
+    acknowledgement: entry.completion.value.acknowledgement,
+    responseDigest: entry.completion.value.responseDigest,
+    submission: structuredClone(entry.submission.value),
+    completionObservedAt: entry.completion.value.observedAt,
+    continuation: structuredClone(continuation),
+  });
+}
+
 /** Real provider transport and private continuation records; no synthetic receipts. */
 export function createPtrProductionExistingUpdateAdapter(input) {
   const { authority, privateState, artifact, observation } = inputRecord(input, [
@@ -224,32 +508,7 @@ export function createPtrProductionExistingUpdateAdapter(input) {
   const path = (key, kind) => `${DIRECTORY}/${key}.${kind}.json`;
   const present = (key, kind) =>
     state.exists({ root: "runtime", relativePath: path(key, kind) });
-  const read = (name) => {
-    const bytes = state.read({
-      root: "runtime",
-      relativePath: `${DIRECTORY}/${name}`,
-    });
-    try {
-      const value = updateExact(parseExistingUpdateJson(bytes), [
-        "profile",
-        "kind",
-        "inspectionDigest",
-        "value",
-      ]);
-      if (
-        value.profile !== PROFILE ||
-        !same(
-          Buffer.from(`${updateCanonical(value)}\n`).toString(),
-          bytes.toString(),
-        )
-      )
-        fail();
-      digest(value.inspectionDigest);
-      return value;
-    } finally {
-      bytes.fill(0);
-    }
-  };
+  const read = (name) => readUpdateRecord(state, name);
   const write = (key, kind, inspectionDigest, value) => {
     const bytes = Buffer.from(
       `${updateCanonical({ profile: PROFILE, kind, inspectionDigest, value })}\n`,
@@ -263,200 +522,7 @@ export function createPtrProductionExistingUpdateAdapter(input) {
       bytes.fill(0);
     }
   };
-  const slot = (predecessorDigest) =>
-    updateDigest({
-      profile: PROFILE,
-      databaseIdentity: TARGET,
-      predecessorDigest,
-    });
-  const inventory = () => {
-    const records = new Map();
-    for (const name of state.list({
-      root: "runtime",
-      relativeDirectory: DIRECTORY,
-    })) {
-      const match =
-        /^([a-f0-9]{64})\.(inspection|submission|acknowledgement|completion|not-submitted)\.json$/u.exec(
-          name,
-        );
-      if (!match) fail();
-      const record = read(name);
-      if (record.kind !== match[2]) fail();
-      if (!records.has(record.inspectionDigest))
-        records.set(record.inspectionDigest, {});
-      const entry = records.get(record.inspectionDigest);
-      if (entry[record.kind]) fail();
-      entry[record.kind] = record;
-      if (record.kind === "inspection") {
-        if (
-          record.inspectionDigest !== updateDigest(record.value) ||
-          match[1] !== slot(record.value.predecessorDigest)
-        )
-          fail();
-      } else if (match[1] !== record.inspectionDigest) fail();
-    }
-    const used = new Set();
-    for (const [key, entry] of records) {
-      if (!entry.inspection) fail();
-      const value = updateExact(entry.inspection.value, [
-        "binding",
-        "beforeProgram",
-        "beforeDefinition",
-        "candidateDefinition",
-        "plan",
-        "preservation",
-        "hostObservation",
-        "predecessorDigest",
-        "predecessorReceiptDigest",
-        "nonce",
-        "observedAt",
-      ]);
-      updateExact(value.binding, Object.keys(bound));
-      if (
-        !/^[a-f0-9]{40}$/u.test(value.binding.sourceCommit) ||
-        !/^[a-f0-9]{40}$/u.test(value.binding.moduleTreeId) ||
-        value.binding.databaseIdentity !== TARGET
-      )
-        fail();
-      for (const field of [
-        "candidateProgram",
-        "candidateSha256",
-        "candidateDescriptionDigest",
-        "dependencyClosureDigest",
-        "cliDigest",
-        "cliConfigDigest",
-      ])
-        digest(value.binding[field]);
-      digest(value.nonce);
-      digest(value.beforeProgram);
-      time(value.observedAt);
-      hostObservation(value.hostObservation);
-      const policy = comparePtrUpdateDefinitions({
-        priorServerSchema: Buffer.from(updateCanonical(value.beforeDefinition)),
-        candidateArtifactDefinition: value.candidateDefinition,
-      });
-      if (
-        !same(policy, value.preservation) ||
-        policy.candidateDigest !== value.binding.candidateDescriptionDigest
-      )
-        fail();
-      const checked = parseExistingUpdatePlan(
-        Buffer.from(updateCanonical(value.plan.observation)),
-        TARGET,
-        value.beforeProgram,
-        value.binding.candidateProgram,
-      );
-      if (!same(checked, value.plan)) fail();
-      if (value.predecessorDigest !== null) {
-        digest(value.predecessorDigest);
-        digest(value.predecessorReceiptDigest);
-        if (
-          used.has(value.predecessorDigest) ||
-          value.predecessorDigest === key
-        )
-          fail();
-        used.add(value.predecessorDigest);
-      } else if (value.predecessorReceiptDigest !== null) fail();
-      if (
-        entry["not-submitted"] &&
-        (entry.submission || entry.acknowledgement || entry.completion)
-      )
-        fail();
-      for (const kind of ["submission", "not-submitted"])
-        if (entry[kind]) {
-          const operation = updateExact(entry[kind].value, [
-            "runId",
-            "runAttempt",
-            "observedAt",
-          ]);
-          if (
-            !/^[1-9][0-9]{0,19}$/u.test(operation.runId) ||
-            !Number.isSafeInteger(operation.runAttempt) ||
-            operation.runAttempt < 1
-          )
-            fail();
-          time(operation.observedAt);
-        }
-      if (entry.acknowledgement) {
-        if (!entry.submission) fail();
-        const ack = updateExact(entry.acknowledgement.value, [
-          "response",
-          "responseDigest",
-          "observedAt",
-        ]);
-        if (
-          parseExistingUpdateSuccess(
-            Buffer.from(updateCanonical(ack.response)),
-            TARGET,
-          ) !== ack.responseDigest
-        )
-          fail();
-        time(ack.observedAt);
-      }
-      if (entry.completion) {
-        if (!entry.submission) fail();
-        const terminal = updateExact(entry.completion.value, [
-          "candidateProgram",
-          "candidateDescriptionDigest",
-          "installedPlan",
-          "acknowledgement",
-          "responseDigest",
-          "observedAt",
-        ]);
-        if (
-          terminal.candidateProgram !== value.binding.candidateProgram ||
-          terminal.candidateDescriptionDigest !==
-            value.binding.candidateDescriptionDigest
-        )
-          fail();
-        const installed = parseExistingUpdatePlan(
-          Buffer.from(updateCanonical(terminal.installedPlan.observation)),
-          TARGET,
-          terminal.candidateProgram,
-          terminal.candidateProgram,
-        );
-        if (!same(installed, terminal.installedPlan)) fail();
-        if (
-          terminal.acknowledgement !==
-            (entry.acknowledgement ? "received" : "not-received") ||
-          terminal.responseDigest !==
-            (entry.acknowledgement?.value.responseDigest ?? null)
-        )
-          fail();
-        time(terminal.observedAt);
-      }
-    }
-    for (const entry of records.values()) {
-      const previous = entry.inspection.value.predecessorDigest;
-      if (previous !== null) {
-        const prior = records.get(previous),
-          terminal = prior?.completion ?? prior?.["not-submitted"];
-        if (
-          !terminal ||
-          updateDigest(terminal) !==
-            entry.inspection.value.predecessorReceiptDigest
-        )
-          fail();
-        const expectedProgram =
-          prior.completion?.value.candidateProgram ??
-          prior.inspection.value.beforeProgram;
-        if (entry.inspection.value.beforeProgram !== expectedProgram) fail();
-      }
-    }
-    const heads = [...records].filter(([key]) => !used.has(key));
-    if (records.size && heads.length !== 1) fail();
-    if (heads.length) {
-      let key = heads[0][0];
-      const visited = new Set();
-      while (key !== null) {
-        if (visited.has(key)) fail();
-        visited.add(key);
-        key = records.get(key).inspection.value.predecessorDigest;
-      }
-      if (visited.size !== records.size) fail();
-    }
-    return heads[0];
-  };
+  const inventory = () => readUpdateInventory(state);
   const request = async (current, options, parse) => {
     assertAuthority(current);
     const response = await requestPtrUpdateProvider(provider, options);
@@ -482,18 +548,7 @@ export function createPtrProductionExistingUpdateAdapter(input) {
     );
   const select = (key, entry) => {
     if (!same(entry.inspection.value.binding, bound)) fail();
-    const value = freeze({
-      subject: `ptr-update:${TARGET}`,
-      evidenceDigest: key,
-      receiptDigests: [entry.inspection.value.plan.planDigest],
-      predecessorDigests:
-        entry.inspection.value.predecessorDigest === null
-          ? []
-          : [
-              entry.inspection.value.predecessorDigest,
-              entry.inspection.value.predecessorReceiptDigest,
-            ].sort(),
-    });
+    const value = continuationSelection(key, entry);
     selections.set(value, { adapter, key });
     return value;
   };
@@ -793,42 +848,8 @@ export function createPtrProductionExistingUpdateAdapter(input) {
   });
   const completedEvidence = (current, store) => {
     assertAuthority(current);
-    if (current.operation !== 'ptr-update-apply' || busy) fail();
-    const head = inventory();
-    if (!head || !head[1].completion || !same(head[1].inspection.value.binding, bound)) fail();
-    const [key, entry] = head;
-    const continuation = readSealedRealmsProductionContinuationCompletion({
-      store, privateState: state, sourceAuthority: current, kind: 'ptr-update',
-      ...select(key, entry),
-    });
-    if (continuation.claimRunId !== entry.submission.value.runId
-      || continuation.claimRunAttempt !== entry.submission.value.runAttempt
-      || Date.parse(continuation.terminalAt) < Date.parse(entry.completion.value.observedAt)
-      || (continuation.outcome === 'reconciled-effect-applied'
-        && continuation.observationDigest !== updateDigest(entry.completion))) fail();
-    const inspection = entry.inspection.value;
-    return freeze({
-      schemaVersion: 1,
-      profile: 'warpkeep-ptr-existing-update-receipt-v1',
-      binding: structuredClone(bound),
-      inspectionDigest: key,
-      inspectionRecordDigest: updateDigest(entry.inspection),
-      submissionRecordDigest: updateDigest(entry.submission),
-      acknowledgementRecordDigest: entry.acknowledgement ? updateDigest(entry.acknowledgement) : null,
-      completionRecordDigest: updateDigest(entry.completion),
-      predecessorDigest: inspection.predecessorDigest,
-      predecessorReceiptDigest: inspection.predecessorReceiptDigest,
-      beforeProgram: inspection.beforeProgram,
-      preservation: structuredClone(inspection.preservation),
-      planDigest: inspection.plan.planDigest,
-      installedPlanDigest: entry.completion.value.installedPlan.planDigest,
-      inspectionHostObservationDigest: updateDigest(inspection.hostObservation),
-      acknowledgement: entry.completion.value.acknowledgement,
-      responseDigest: entry.completion.value.responseDigest,
-      submission: structuredClone(entry.submission.value),
-      completionObservedAt: entry.completion.value.observedAt,
-      continuation: structuredClone(continuation),
-    });
+    if (busy) fail();
+    return readCompletedUpdateEvidence(state, current, store, bound);
   };
   const adoptionContext = receipt => freeze({
     bindingDigest: updateDigest(receipt.binding), inspectionDigest: receipt.inspectionDigest,
@@ -900,6 +921,13 @@ export function createPtrProductionExistingUpdateAdapter(input) {
 
 export function isPtrProductionExistingUpdateAdapter(value) {
   return adapters.has(value);
+}
+
+/** Reopens retained update/continuation data without creating provider or effect authority. */
+export function readPtrExistingUpdateCompletionFromPrivateState(input) {
+  const { authority, privateState, store } = inputRecord(input, ['authority', 'privateState', 'store']);
+  const state = assertSealedRealmsProductionPrivateState(privateState);
+  return readCompletedUpdateEvidence(state, authority, store);
 }
 
 /** Grants access only to one reopened completed update and its real terminal lineage. */

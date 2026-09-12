@@ -7,11 +7,15 @@ export function parseRecoveryBindingV2(source: string): Readonly<Record<string, 
 /** Fixed wire policy only; never fills absent live/source facts or grants authority. */
 export function recoveryActivationCandidatePolicy(): Readonly<Record<string, string | number | boolean | null>>;
 
-/** Explicit V3 static policy; legacy zero/admission invariants are retained. */
-export function recoveryActivationCandidatePolicyForVersion(version: 2 | 3): Readonly<Record<string, string | number | boolean | null>>;
+/** Static policy only; V4 describes observed preservation without PTR initialization claims. */
+export function recoveryActivationCandidatePolicyForVersion(version: 2 | 3 | 4): Readonly<Record<string, string | number | boolean | null>>;
 export function validateRecoveryActivationCandidateV3(source: string): Readonly<Record<string, string | number | boolean | null>>;
 export function createRecoveryActivationBindingV3(source: string): Readonly<Record<string, string | number | boolean | null>>;
 export function parseRecoveryBindingV3(source: string): Readonly<Record<string, string | number | boolean | null>>;
+/** V4 static consistency only; no signed evidence authentication or live authority. */
+export function validateRecoveryActivationCandidateV4(source: string): Readonly<Record<string, string | number | boolean | null>>;
+export function createRecoveryActivationBindingV4(source: string): Readonly<Record<string, string | number | boolean | null>>;
+export function parseRecoveryBindingV4(source: string): Readonly<Record<string, string | number | boolean | null>>;
 /** Version dispatch for static consistency only; no receipt authentication or live authority. */
 export function validateRecoveryActivationCandidateDocument(source: string): Readonly<Record<string, string | number | boolean | null>>;
 export function createRecoveryActivationBindingFromCandidate(source: string): Readonly<Record<string, string | number | boolean | null>>;

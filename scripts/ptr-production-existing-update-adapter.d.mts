@@ -52,6 +52,11 @@ export type PtrExistingUpdateReceipt = Readonly<{
   completionObservedAt: string;
   continuation: ReturnType<typeof readSealedRealmsProductionContinuationCompletion>;
 }>;
+export function readPtrExistingUpdateCompletionFromPrivateState(input: Readonly<{
+  authority: SealedRealmsProductionSourceAuthority;
+  privateState: SealedRealmsProductionPrivateState;
+  store: SealedRealmsProductionContinuationStore;
+}>): PtrExistingUpdateReceipt;
 export function exportPtrExistingUpdateCompletion(input: Readonly<{
   adapter: PtrProductionExistingUpdateAdapter;
   authority: SealedRealmsProductionSourceAuthority;

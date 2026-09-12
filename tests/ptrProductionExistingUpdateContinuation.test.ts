@@ -380,6 +380,7 @@ function fixture(platformMode = false, race?: (phase: string, path: string) => v
     );
   }
   return {
+    home,
     runtime,
     observations,
     observationRun,
@@ -722,4 +723,132 @@ it('reopens pre bytes after asynchronous signature verification before submissio
   expect(changed).toBe(true);
   expect(f.state.puts).toBe(0);
   expect(f.records().map(value => value.kind).sort()).toEqual(['inspection', 'not-submitted']);
+}, 30000);
+
+async function retainedAdoption() {
+  const f = fixture(process.platform !== 'linux'), adapter = f.make();
+  await f.inspect(adapter);
+  const run = await f.dispatcher('ptr-update-apply', adapter);
+  await run.call();
+  const { receipt } = captureCompletion(f, adapter, run.sourceAuthority, 'completed');
+  f.observations.setNowSeconds(Math.ceil(Date.parse(receipt.continuation.terminalAt) / 1000) + 5);
+  const adoption = await capturePtrExistingUpdateAdoption({ adapter, authority: run.sourceAuthority,
+    store: f.store, permit: run.permit, runId: run.runId, runAttempt: run.runAttempt });
+  const records = createSealedRealmsProductionActivationRecords({ privateState: f.privateState, authority: run.sourceAuthority });
+  const written = await adoptionWriter.writeSealedRealmsProductionPtrExistingStateAdoptionRecord({ records, authority: run.sourceAuthority, adoption });
+  adapter.dispose();
+  return { f, run, receipt, records, written,
+    path: join(f.runtime, 'ptr-existing-state-adoptions-v4', `${written.receiptDigest}.json`) };
+}
+
+it('authenticates retained V4 after producer disposal and rechecks exact private lineage on every read', async () => {
+  const { f, run, receipt, records, written, path } = await retainedAdoption();
+  const authenticate = (adoptionWriter as Record<string, any>).authenticateSealedRealmsProductionPtrExistingStateAdoption;
+  const read = (adoptionWriter as Record<string, any>).readSealedRealmsProductionPtrExistingStateAdoptionEvidence;
+  expect(authenticate).toBeTypeOf('function');
+  expect(read).toBeTypeOf('function');
+  const requests = f.observations.requests.length, providerRequests = seams.request.mock.calls.length;
+  f.observations.setNowSeconds(Math.floor(Date.now() / 1000) + 500);
+  const evidence = await authenticate({ records, authority: run.sourceAuthority, store: f.store });
+  const input = { evidence, privateState: f.privateState, sourceCommit: SOURCE };
+  const reopened = read(input);
+  expect(Object.isFrozen(evidence)).toBe(true);
+  expect(reopened).toMatchObject({ sourceCommit: SOURCE, sourceTree: 'b'.repeat(40),
+    adoptionReceiptDigest: written.recordDigest, completionReceipt: receipt });
+  expect(reopened.pair.post.context.completionReceiptDigest).toBe(written.receiptDigest);
+  expect(Object.isFrozen(reopened.pair.post.observation)).toBe(true);
+  const restartedState = createSealedRealmsProductionPrivateState({ reportedHome: f.home,
+    testOnlyOwnerUid: statSync(f.home).uid,
+    ...(process.platform !== 'linux' ? { testOnlyAllowPlatformMode: true, testOnlyFsync: () => {} } : {}) });
+  const restartedAuthority = authority('ptr-update-apply');
+  const restartedRecords = createSealedRealmsProductionActivationRecords({ privateState: restartedState, authority: restartedAuthority });
+  const restartedStore = createSealedRealmsProductionContinuationStore({ privateState: restartedState });
+  const restartedEvidence = await authenticate({ records: restartedRecords, authority: restartedAuthority, store: restartedStore });
+  expect(read({ evidence: restartedEvidence, privateState: restartedState, sourceCommit: SOURCE })).toEqual(reopened);
+  expect(() => read({ ...input, privateState: restartedState })).toThrow();
+  expect(() => read({ ...input, evidence: { ...evidence } })).toThrow();
+  expect(() => read({ ...input, sourceCommit: 'f'.repeat(40) })).toThrow();
+  expect(() => read({ ...input, privateState: Object.freeze({}) })).toThrow();
+  await expect(authenticate({ records, authority: authority('ptr-update-inspect'), store: f.store })).rejects.toThrow();
+  await expect(authenticate({ records, authority: run.sourceAuthority, store: Object.freeze({}) })).rejects.toThrow();
+  const inventory = join(f.runtime, 'existing-updates-production-v1', 'ptr', ID);
+  const findTerminal = (directory: string): string | undefined => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const fullPath = join(directory, entry.name);
+      if (entry.isDirectory()) { const found = findTerminal(fullPath); if (found) return found; }
+      else if (entry.name.endsWith('.json') && JSON.parse(readFileSync(fullPath, 'utf8')).profile
+        === 'warpkeep-sealed-realms-continuation-terminal-v1') return fullPath;
+    }
+  };
+  const terminalPath = findTerminal(f.runtime);
+  expect(terminalPath).toBeTypeOf('string');
+  const targets = [path, join(f.runtime, 'activation-evidence/records/ptr-existing-update-receipt.json'),
+    join(inventory, readdirSync(inventory).find(name => name.endsWith('.completion.json'))!), terminalPath!];
+  for (const target of targets) {
+    const saved = readFileSync(target);
+    try {
+      writeFileSync(target, '{}\n');
+      expect(() => read(input)).toThrow();
+      await expect(authenticate({ records, authority: run.sourceAuthority, store: f.store })).rejects.toThrow();
+    } finally { writeFileSync(target, saved); }
+    expect(read(input)).toEqual(reopened);
+  }
+  for (const canonicalPath of targets.slice(0, 2)) {
+    const saved = readFileSync(canonicalPath);
+    try {
+      writeFileSync(canonicalPath, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), saved]));
+      await expect(authenticate({ records, authority: run.sourceAuthority, store: f.store })).rejects.toThrow();
+    } finally { writeFileSync(canonicalPath, saved); }
+  }
+  const signedBytes = readFileSync(path);
+  try {
+    const tampered = JSON.parse(signedBytes.toString());
+    const compact = tampered.postObservationJws.split('.');
+    const signature = Buffer.from(compact[2], 'base64url'); signature[0] ^= 1;
+    compact[2] = signature.toString('base64url'); tampered.postObservationJws = compact.join('.');
+    writeFileSync(path, `${JSON.stringify(tampered)}\n`);
+    await expect(authenticate({ records, authority: run.sourceAuthority, store: f.store })).rejects.toThrow();
+  } finally { writeFileSync(path, signedBytes); }
+  expect(f.observations.requests).toHaveLength(requests);
+  expect(seams.request).toHaveBeenCalledTimes(providerRequests);
+  expect(f.state.puts).toBe(1);
+}, 30000);
+
+it('refuses retained V4 changed during asynchronous signature verification', async () => {
+  const { f, run, records, path } = await retainedAdoption();
+  const authenticate = (adoptionWriter as Record<string, any>).authenticateSealedRealmsProductionPtrExistingStateAdoption;
+  expect(authenticate).toBeTypeOf('function');
+  const verify = crypto.subtle.verify.bind(crypto.subtle);
+  let changed = false;
+  vi.spyOn(crypto.subtle, 'verify').mockImplementation(async (...args) => {
+    const valid = await verify(...args);
+    if (!changed) { writeFileSync(path, '{}\n'); changed = true; }
+    return valid;
+  });
+  await expect(authenticate({ records, authority: run.sourceAuthority, store: f.store })).rejects.toThrow();
+  expect(changed).toBe(true);
+  expect(f.state.puts).toBe(1);
+}, 30000);
+
+it('owns a data snapshot of authentication inputs across signature verification and later reads', async () => {
+  const { f, run, records } = await retainedAdoption();
+  const authenticate = (adoptionWriter as Record<string, any>).authenticateSealedRealmsProductionPtrExistingStateAdoption;
+  const read = (adoptionWriter as Record<string, any>).readSealedRealmsProductionPtrExistingStateAdoptionEvidence;
+  const supplied = { records, authority: run.sourceAuthority, store: f.store };
+  const accessed = vi.fn(() => { throw Error('Caller getter must never be invoked'); });
+  const verify = crypto.subtle.verify.bind(crypto.subtle);
+  vi.spyOn(crypto.subtle, 'verify').mockImplementation(async (...args) => {
+    const valid = await verify(...args);
+    for (const key of ['records', 'authority', 'store']) Object.defineProperty(supplied, key,
+      { enumerable: true, configurable: true, get: accessed });
+    return valid;
+  });
+  const evidence = await authenticate(supplied);
+  expect(read({ evidence, privateState: f.privateState, sourceCommit: SOURCE }).sourceCommit).toBe(SOURCE);
+  expect(accessed).not.toHaveBeenCalled();
+  await expect(authenticate(supplied)).rejects.toThrow();
+  const proxy = new Proxy({}, { getPrototypeOf: accessed, ownKeys: accessed });
+  await expect(authenticate(proxy)).rejects.toThrow();
+  expect(() => read(proxy)).toThrow();
+  expect(accessed).not.toHaveBeenCalled();
 }, 30000);

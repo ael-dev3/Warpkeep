@@ -4,6 +4,7 @@ import { bytesToHex } from '@noble/hashes/utils.js'
 import {
   GITHUB_REPOSITORY,
   RECOVERY_REALM_BINDING_PROJECTION_KEYS,
+  recoveryRealmBindingProjectionKeys,
   commit,
   positive,
   sha,
@@ -360,10 +361,12 @@ function sameFlatKeys(
 }
 
 function sameArming(left: RecoveryArmingTuple, right: RecoveryArmingTuple): boolean {
-  return sameFlatKeys(
+  const keys = [...recoveryRealmBindingProjectionKeys(left), 'bindingPath', 'workflowPath']
+  const rightKeys = [...recoveryRealmBindingProjectionKeys(right), 'bindingPath', 'workflowPath']
+  return keys.length === rightKeys.length && keys.every((key, index) => key === rightKeys[index]) && sameFlatKeys(
     left as unknown as Readonly<Record<string, unknown>>,
     right as unknown as Readonly<Record<string, unknown>>,
-    RECOVERY_ARMING_TUPLE_KEYS_V2,
+    keys,
   )
 }
 

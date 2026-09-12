@@ -1,6 +1,8 @@
+import type { SealedRealmsProductionContinuationStore } from './sealed-realms-production-continuation.mjs';
+import type { verifyPtrUpdateObservationPair } from '../services/release-recovery/src/ptrObservation.ts';
 import type { SealedRealmsProductionPrivateState } from './sealed-realms-production-private-state.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
-import type { PtrExistingUpdateCompletion, PtrExistingStateAdoption } from './ptr-production-existing-update-adapter.mjs';
+import type { PtrExistingUpdateCompletion, PtrExistingStateAdoption, PtrExistingUpdateReceipt } from './ptr-production-existing-update-adapter.mjs';
 
 export class SealedRealmsProductionActivationRecordsError extends Error {
   readonly code: string;
@@ -88,3 +90,20 @@ export function writeSealedRealmsProductionActivationDescriptor(input: Readonly<
   records: SealedRealmsProductionActivationRecords;
   consumeDescriptor: (descriptor: number) => undefined;
 }>): Readonly<Record<never, never>>;
+
+/** Opaque retained historical evidence, not an effect or activation capability. */
+declare const retainedPtrAdoptionBrand: unique symbol;
+export type SealedRealmsProductionPtrExistingStateAdoptionEvidence = Readonly<{ [retainedPtrAdoptionBrand]: true }>;
+export function authenticateSealedRealmsProductionPtrExistingStateAdoption(input: Readonly<{
+  records: SealedRealmsProductionActivationRecords;
+  authority: SealedRealmsProductionSourceAuthority;
+  store: SealedRealmsProductionContinuationStore;
+}>): Promise<SealedRealmsProductionPtrExistingStateAdoptionEvidence>;
+export function readSealedRealmsProductionPtrExistingStateAdoptionEvidence(input: Readonly<{
+  evidence: SealedRealmsProductionPtrExistingStateAdoptionEvidence;
+  privateState: SealedRealmsProductionPrivateState;
+  sourceCommit: string;
+}>): Readonly<{ sourceCommit: string; sourceTree: string; adoptionReceiptDigest: string;
+  completionReceipt: PtrExistingUpdateReceipt;
+  pair: Awaited<ReturnType<typeof verifyPtrUpdateObservationPair>>;
+}>;

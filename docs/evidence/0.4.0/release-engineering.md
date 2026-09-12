@@ -19,6 +19,67 @@ Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
+## PTR retained adoption and recovery consumers — 2026-09-12
+
+This follow-up on `codex/0.4-ptr-state-adoption` reuses the existing private update
+inventory and continuation owner to authenticate adoption after its producing
+adapter is disposed. The reader reconstructs the actual completed update, compares
+the fixed V3 record and canonical V4 envelope, verifies both service signatures
+and complete claim/terminal context, then reopens every retained dependency after
+asynchronous verification. Its opaque data capability repeats the private lineage
+and byte checks on every synchronous read. It performs no provider request or write.
+
+Review caught a retained reference to caller-owned input: authentication now takes
+an immutable data snapshot before awaiting signatures. A regression changes the
+original fields into getters during verification and proves they are never invoked.
+Canonical readers also reject a UTF-8 BOM rather than silently stripping it. Bad
+signatures, malformed records, changed private completion/terminal history, copied
+capabilities and foreign authority remain invalid. Expired authentic observations
+remain historical evidence; fresh recovery authorization is a separate operation.
+
+The public schema-4 profile is `warpkeep-0.4.0-sealed-launch-ptr-adoption-v4`.
+Separate receipt/core hash domains preserve the previous V2/V3 canonical output.
+Actual module/tool coordinates and signed atlas/owner/admission facts replace
+unavailable initialization fields. The adoption digest identifies the exact private
+V4 file including LF, not merely its embedded update-completion receipt.
+
+The service keeps the adoption discriminator, digest and both expected HMACs in
+its exact arming projection. Initial issue and every claim compare fresh PTR
+observations against those baselines under the configured bridge/source/epoch
+scope. The JSON ledger retains and compares the extension; the legacy fixed-column
+SQL ledger explicitly rejects it. No ledger or authorization-JWS version changed.
+Independent service/public review found no remaining actionable defect.
+
+Verification is being completed for this source batch. Initial public-family
+acceptance passed 922 tests across three suites with no skips and preserved literal
+V2/V3 vectors. The affected service selection passed 491 tests across 18 suites
+(session `85027`, 12.89 seconds, exit zero), plus service and Workerd typechecks.
+Original adapter regression passed 21/21. Root retained-reader/V3 selection passed
+29 tests with four Windows-only native skips before the final review corrections;
+final owning/native results belong here after those commands complete. Further
+service checks added three independent mismatch/accessor regressions (312 passes
+in the two rerun suites). Actual Workerd eviction/persistence passed all 14 tests
+(session `59571`, 22.47 seconds, exit zero), including reopened adoption data and
+baseline drift rejection. An initial Workerd launch used the wrong Vitest copy
+and collected no tests; the corrected service runner produced this acceptance.
+
+Public consumer tests passed 240 cases with seven explicit Windows/native skips;
+one existing V2 source-authority case reached its unchanged ten-second limit
+under Windows fixture load. The new V4 cases passed, including real signed
+authorization/claim/status through session and persisted deployment boundaries.
+Independent review accepted the explicit V4 S/A, Pages and owner-count dispatch.
+The native CLI/lane cases and unchanged source-authority timeout require native
+acceptance at the published checkpoint. This development publication precedes
+that verification, not a release-ready claim.
+
+This is unfinished release integration: the actual private activation corpus,
+bridge-state receipt, candidate and descriptor generator still need the separate
+V4 branch. They must bind signed global bridge/configuration coordinates and carry
+opaque authenticated evidence into synchronous consumers; JSON-decoded signatures
+alone grant nothing. No generated family or live deployment is certified by these
+consumer tests. The canonical [connected plan](../../superpowers/plans/2026-09-08-ptr-update-recovery.md)
+records the remaining caller work.
+
 ## PTR existing-state capture — 2026-09-12
 
 Development branch `codex/0.4-ptr-state-adoption` builds on PR #243 head

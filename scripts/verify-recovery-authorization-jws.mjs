@@ -20,7 +20,6 @@ const BINDING_FIELDS = Object.freeze({
   g001ReleaseVersion: 'g001ReleaseVersion', g001PlayerAccessEnabled: 'g001PlayerAccessEnabled',
   g001AdmissionStateMutationsEnabled: 'g001AdmissionStateMutationsEnabled',
   g001AccessRequestSubmissionsEnabled: 'g001AccessRequestSubmissionsEnabled', g001BaselineAbiSha256: 'g001BaselineAbiSha256',
-  ptrSingletonOwnerCount: 'ptrOwnerAnchorRows',
 });
 const fail = () => { throw new Error('RECOVERY_AUTHORIZATION_INVALID'); };
 const integer = value => Number.isSafeInteger(value) && value >= 0 && !Object.is(value, -0);
@@ -41,7 +40,9 @@ export function verifyRecoveryAuthorization(...args) {
     const binding = parseRecoveryBinding(bindingSource);
     const p = verifyRecoverySignedPayload(compact, 'authorization');
     if (CONTEXT_KEYS.some(key => p[key] !== expected[key])
-      || Object.entries(BINDING_FIELDS).some(([key, source]) => p[key] !== binding[source])) fail();
+      || Object.entries(BINDING_FIELDS).some(([key, source]) => p[key] !== binding[source])
+      || p.ptrSingletonOwnerCount !== (binding.schemaVersion === 4
+        ? binding.ptrSingletonOwnerCount : binding.ptrOwnerAnchorRows)) fail();
     if (p.schemaVersion !== 1 || p.profile !== 'warpkeep-0.4.0-recovery-authorization-v1'
       || p.aud !== 'warpkeep-0.4.0-sealed-launch' || p.sub !== 'warpkeep-0.4.0-recovery-deployment'
       || p.eventName !== 'workflow_run' || !uuid(p.jti)

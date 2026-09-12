@@ -12,7 +12,21 @@ suites without skips, and the full native service suite passed 1,194 cases in
 44 suites; the [owning evidence](../../evidence/0.4.0/release-engineering.md#ptr-existing-state-capture--2026-09-12)
 records accepted tests and remaining integration. No service was deployed and no
 App or credential was created. The V4 envelope is separate from the existing V3
-activation corpus; bridge/activation/recovery consumption remains unfinished.
+activation corpus. The current follow-up adds authenticated retained evidence after
+producer disposal and a separate V4 public/service recovery profile, including
+fresh baseline checks and faithful ledger storage. The actual private activation
+corpus, bridge-state receipt, candidate and generator are still unfinished; continue
+from the [connected plan](../../superpowers/plans/2026-09-08-ptr-update-recovery.md)
+and [owning follow-up evidence](../../evidence/0.4.0/release-engineering.md#ptr-retained-adoption-and-recovery-consumers--2026-09-12).
+
+PR #242 at `758bc482` and PR #243 at `789db360` passed all hosted checks,
+including their final Verify gates. PR #244 at `fa39c02d` passed both services,
+native-contract and CodeQL; Linux/module jobs were still running at the latest
+inspection. New development commits need their own check results. The browser
+inventory at this continuation contains no tabs: the previously prepared GitHub
+App form is no longer present. No App/install/key was created here; the unanswered
+action-time creation approval remains pending. Do not reconstruct or submit it
+merely because the old handoff mentioned a tab.
 
 The latest visual development is `codex/0.4-building-hierarchy` /
 [PR #243](https://github.com/ael-dev3/Warpkeep/pull/243), in reused linked checkout
