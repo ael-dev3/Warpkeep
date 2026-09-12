@@ -4,14 +4,15 @@
 
 The Windows checkout, GitHub branch and existing WSL checkout are clean and
 synchronized on `codex/prepared-keep-bindings-fix` at
-`aa93d855531d75d8fc11a5404d5a919f131b3fb9`; the reviewed runtime source
-checkpoint is `24e3c136fb5e3839b00c8e8ddb3c780b6f795461`. Verify and CodeQL are
-attached to the current PR head and remain the CI authority until terminal
-state. No provider deployment, recovery readback, owner PTR
-acceptance, physical-device result or live release is claimed. The current
-source and CI authority are recorded in the [execution handoff](execution-handoff.md).
+`95945beaae12e31a3516b6ad42511fe8cff63ef4`; the reviewed runtime source
+checkpoint is `24e3c136fb5e3839b00c8e8ddb3c780b6f795461`. Verify run
+`34665737857` and CodeQL run `34665737866` completed successfully for this
+source/test head. No provider
+deployment, recovery readback, owner PTR acceptance, physical-device result or
+live release is claimed. The current source and CI authority are recorded in
+the [execution handoff](execution-handoff.md).
 
-## Current runner status — 2026-09-11
+## Recorded runner status — 2026-09-11
 
 PR #228 is ready for review; its current Verify and CodeQL checks are the R14
 authority and must be read at their terminal state.

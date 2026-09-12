@@ -1,13 +1,16 @@
 # 0.4 workflow sufficiency audit
 
-Updated 2026-09-11 (Europe/Budapest) against generated source family
-`7d920b9f57ec450071632fdc3f0b560f7526811a`, prepared from native input
-`713c2bfb7d5b0cb00028c3553089d60b53e2897b` on
-`codex/prepared-keep-bindings-fix`. Later documentation and test follow-ups
-are on the current branch; fetch the actual PR head before judging R14. The
-Pages private launcher and workflow now use the retained Linux x64 runner
-profile, and the closure verifier derives toolchain pins per workflow profile.
-Native preparation/check evidence covers the recorded source input.
+Updated 2026-09-12 (Europe/Budapest) against development head
+`95945beaae12e31a3516b6ad42511fe8cff63ef4` on
+`codex/prepared-keep-bindings-fix`. The latest native preparation/check input is
+`03cb8b8fc2c0c59bcb58c4303b2082dead6325d9`; later documentation and test
+follow-ups are on the current branch, so fetch the actual PR head before
+judging R14. Verify run `34665737857` completed successfully across Linux,
+SpacetimeDB, release-recovery, auth-bridge, native-contract and aggregate
+verification; CodeQL `34665737866` is also successful. The Pages
+private launcher and workflow use the retained Linux x64 runner profile, and
+the closure verifier derives toolchain pins per workflow profile. Native
+preparation/check evidence covers the recorded source input.
 
 ## Verdict
 

@@ -1,7 +1,7 @@
 # 0.4.0 integration evidence
 
 Updated 2026-09-12. The current synchronized documentation/test head is
-`aa93d855531d75d8fc11a5404d5a919f131b3fb9` on
+`95945beaae12e31a3516b6ad42511fe8cff63ef4` on
 `codex/prepared-keep-bindings-fix`; the reviewed runtime source remains
 `24e3c136fb5e3839b00c8e8ddb3c780b6f795461`. PR #228 is ready for review.
 Source publication and protected CI are still separate from production
@@ -9,10 +9,10 @@ deployment.
 
 ## Current checkpoint — 2026-09-12
 
-The protected Verify and CodeQL runs linked from PR #228 are the R14 authority
-for this head. Read both at terminal state before marking R14 complete; earlier
-mixed or green results do not transfer to a later head. This record makes no
-current-head green claim, and transient run IDs are read directly from GitHub.
+The protected Verify run `34665737857` and CodeQL run `34665737866` linked from
+PR #228 completed successfully for this source/test head. Later branch commits
+supersede these results and require fresh terminal checks. This record makes no
+provider, owner, device, or live-release claim.
 
 The permission-correct Linux prepared-workflow suite passed all 159/159 cases
 under the dedicated `warpkeep` UID. A root-UID invocation is intentionally

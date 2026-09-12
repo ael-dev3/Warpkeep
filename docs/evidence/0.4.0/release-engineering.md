@@ -2,12 +2,13 @@
 
 Current reading point: fetch the actual
 [development branch](https://github.com/ael-dev3/Warpkeep/tree/codex/prepared-keep-bindings-fix)
-and PR #228 before relying on a live head or CI result. The generated source
-family recorded in this evidence is `7d920b9f57ec450071632fdc3f0b560f7526811a`,
-prepared from native input `713c2bfb7d5b0cb00028c3553089d60b53e2897b`.
-Later documentation and test follow-ups do not create a new release candidate;
-re-run native preparation/check when source-bound inputs change. The retained
-candidate, closure and runner observations below are dated evidence, not current
+and PR #228 before relying on a live head or CI result. The current development
+head is `95945beaae12e31a3516b6ad42511fe8cff63ef4`; its latest native
+preparation/check input is `03cb8b8fc2c0c59bcb58c4303b2082dead6325d9`, while
+the reviewed runtime source remains `24e3c136fb5e3839b00c8e8ddb3c780b6f795461`.
+The generated source families recorded below are dated, source-bound evidence;
+documentation and test follow-ups do not create a new release candidate. The
+retained candidate, closure and runner observations below are not current
 deployment authority. The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
 gives the next connected work and actual publication/check status. **0.4 is not shipped.**
 
