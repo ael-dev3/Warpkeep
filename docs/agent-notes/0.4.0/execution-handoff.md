@@ -19,6 +19,11 @@ Only seven manifest/workflow-pin files changed. The
 [owning family evidence](../../evidence/0.4.0/release-engineering.md#occupied-entry-source-family--2026-09-12)
 records all identities. Do not restart either completed native run or apply an
 older export. This development preparation is not a production deployment.
+Native session `28168` passed all 393 cases in ten owning/generated-consumer
+suites at published integration `eeda6f64`, without skips or failures, using the
+normal timeouts (286.16 seconds). Both sealed verifiers passed in preparation
+state, and native remained clean with no active source consumer. This closes the
+recorded Windows fixture/timeout limits for J; it does not accept later art source.
 
 The reused isolated checkout `C:/Temp/warpkeep-clean-ci` carries
 `codex/0.4-building-hierarchy` / [PR #243](https://github.com/ael-dev3/Warpkeep/pull/243),
@@ -49,7 +54,7 @@ PR #240 as `944bb17bdeafed920466bbdc4e27511bd8e557e1`; production guards and
 generated outputs are unchanged. Fresh native session `20928` passed all 400
 tests across seven suites without skips at `5996629a` (20.53 seconds, exit zero),
 covering the provider and generated consumers. The native checkout remained clean
-at that published input. Full hosted acceptance remains open on each actual head.
+at that published input. Later changed heads still require their own full hosted acceptance.
 Resolve the live branches and dependent PR base before later protected integration.
 
 Corrected source `3710f139b3572ae0a742d582d0d79d8aa88d9476` completed native

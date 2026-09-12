@@ -61,6 +61,20 @@ symlink fixture creation. The two documentation suites passed. Neither result
 establishes native acceptance, and no timeout or assertion was weakened. Run
 these affected native contracts on the clean published integration.
 
+Native session `28168` subsequently passed all 393 tests in ten owning suites
+without skips or failures at exact published integration
+`eeda6f64ae86d370a652aa4a84e874684bd9740d`, tree
+`15ed778543729089c313647ded5c3adbaf68445d` (286.16 seconds, exit zero).
+Pinned Node 22.22.3, an empty inherited environment and one worker retained the
+normal per-test timeout. The Windows-timed G001 projection passed in 1.263
+seconds; all 25 license-policy cases passed. The selection also included all 163
+prepared-workflow cases and the direct generated-family consumers.
+Both checked-in and preparation sealed verifiers then exited zero with the
+expected preparation-state result: Pages deployment unapproved, no live realm
+records and PTR presentation disabled. The checkout remained clean at J, with
+no test/preparation/check process active afterward. This resolves the recorded
+Windows acceptance limits for the D-family integration, not the later art source.
+
 This is repeatable preparation with `finalReleasePrepared: false`, not a live
 release. Later building-hierarchy source in PR #243 needs its own closure after
 rendered review and batching of the next source changes. Full current-head CI,
