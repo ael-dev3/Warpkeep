@@ -89,10 +89,15 @@ Follow [the development workflow](docs/engineering/development-workflow.md) and
   background/resume and cleanup. Distinguish fixtures, emulation, actual devices
   and authenticated owner play. Measure the agreed workloads before claiming
   performance. Review authority, persistence and recovery changes independently.
-- Keep reviewed development commits visible on GitHub at meaningful checkpoints.
-  Fetch first, scan the outgoing range, push an explicit non-forced refspec to the
-  correct upstream branch and verify remote equality. Do not wait for production
-  readiness to publish an honestly labeled development checkpoint.
+- Commit and push every completed local development change as part of that
+  change, including code, tests, documentation, configuration and approved assets.
+  Before yielding or ending a session, publish all agent-authored durable work,
+  including honestly labeled unfinished source. Do not wait for release readiness
+  or full hosted CI to back up development. Fetch first, scan the outgoing range,
+  push an explicit non-forced refspec and verify remote equality. Preserve private
+  data and active atomic generation; record any exact publication blocker and
+  resume publication as soon as it clears. Synchronize idle native checkouts;
+  keep an active build's operating source pinned until it finishes.
 - Preserve unrelated edits and private artifacts. Stage exact reviewed paths;
   never sweep an entire dirty worktree into a commit or force-overwrite new remote
   work. A clean-looking status is not worth losing work.

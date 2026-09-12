@@ -48,11 +48,25 @@ Historical plans are context, not an automatic restriction on better solutions.
    Close actionable findings or explicitly record why they remain blocking.
 6. **Record and publish source.** Add concise evidence tied to source and inputs;
    review/secret-scan exact outgoing commits, push without force and verify remote
-   identity. An unfinished checkpoint is allowed when labeled honestly; this is
-   separate from PR approval, main integration and deployment.
+   identity for every completed development change. Include its implementation,
+   tests and owning notes in the same checkpoint where practical. Before yielding,
+   publish all agent-authored durable work, including unfinished source labeled
+   with its actual limits. Do not wait for full hosted CI or production readiness;
+   publication remains separate from PR approval, main integration and deployment.
 7. **Hand off.** State what changed, what passed, what failed or is unverified,
    where evidence lives and the next real caller/gate. Do not invent percentages
    from time spent, line count, test count or number of commits.
+
+The owner's September 12 direction makes synchronization part of development,
+not an optional later batch. Follow the [synchronization procedure](../operations/0.4.0-development-sync.md)
+for every edited repository and its actual owning remote. Avoid accumulating
+local-only changes or making extra commits just to repeat an unchanged status.
+An active generated family stays intact until its required check finishes;
+credentials, private evidence and ignored disposable output stay outside Git.
+If publication fails, preserve the work and record the exact reason, then resume
+sync when it clears. A running native build retains its pinned operating source
+and is synchronized after it releases that source. A periodic app check provides
+recovery for missed publications; the active developer still publishes directly.
 
 ## Output locations and retention
 
