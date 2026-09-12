@@ -19,6 +19,54 @@ Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
+## Prepared-policy family refresh — 2026-09-12
+
+Source `3710f139b3572ae0a742d582d0d79d8aa88d9476`, tree
+`228bceec2a81dd41fb88f2f88a7af5ff75e1df91`, corrects the one stale helper
+signature expectation described below. Native targeted session `30348` passed
+all seven affected cases in 54.41 seconds, exit zero; 156 other cases were
+filtered, not disabled. Independent review confirmed that the runtime guards
+and regression assertions were preserved.
+
+Native preparation `91889` and independent rebuilding check `80884` both
+completed with exit zero; all 19 returned fields matched. Retained candidate:
+`release-workspace-baf068853796d70d5c6b480a15116d05`.
+
+- Transaction: `74a77e9a2e6a262dc4a63d4bce04e1af`.
+- Journal SHA-256: `a679f9545c05cab12446770d4dd6515d349630f7e599bb10a5494a388a9ebac8`.
+- Complete-family SHA-256: `a6e2cc8293796d90c172d3fa754f6c76f32fb3715dd81d3e36661a2b1b0460c1`.
+- Closure-manifest SHA-256: `f380eb136a37d5c237a55293645aa1308794212cbf16eaea5c83a904314fc47d`.
+- Scanner-manifest SHA-256: `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+
+Both runs authenticated 3,213 source/candidate files, 102 generated outputs,
+3,111 preserved files, 460 bundle inputs and seven recovery inputs.
+`finalReleasePrepared` remains false. The reviewed export authenticated the
+complete family, normal indexes and retained evidence, then round-tripped its
+7,703-byte patch. Patch SHA-256:
+`44137df79aeefda09d4d918948df883039effdf15bf122eebf838f50b277bba7`.
+All seven changed paths are derived manifests or their four workflow pins;
+compiled bundles, declarations, bindings and count fixtures did not change.
+Independent review reconstructed every output and the complete generated tree
+`4795a1fe2bb6b6eeb5851c538a352b454aa66596`.
+
+Authenticated application to the unchanged Windows compiler input verified all
+output bytes/OIDs, exact changed paths and unchanged HEAD/index/preserved source.
+Generated-only staging reproduced that exact tree before documentation was
+added. Existing ignored operator helpers changed only their input coordinates;
+no candidate, output digest or generated body was hand-edited. The complete
+163-case prepared-workflow suite and affected native generated consumers must
+now run on the published integration checkpoint. Earlier G's 448 passing cases
+remain evidence for G, not a substitute for this new source's verification.
+
+The public entry-point audit replaced retired development links in the game's
+README, Assets README and Water Engine README. Water main is
+`9d42fb786b9fe2dbed9e9a5103c9c692d5612567`; Assets PR #34 passed its required
+checks and merged normally into signed main
+`4a47038ae837cc5eba5227e726d3ce1f89e70f79`, with exact reviewed tree equality.
+Both owning local checkouts matched their live GitHub refs. The sync procedure
+now explicitly fetches the authorized native ref, including development inputs.
+No new Desktop file, clone or dependency tree was created.
+
 ## Bridge/PTR source family — 2026-09-12
 
 Published compiler input `9e098f7594bd76e3afcf0b1c6d79f106d8a6a4b7`
@@ -94,9 +142,9 @@ were an actual source-policy mismatch: the static verifier expected
 `exactApiScriptAttestation(script, expectedNamedHandlers, code)`. Its initial
 baseline failure caused six later credential-comment checks to fail before their
 mutation assertions. The verifier now requires the actual three-argument shape;
-no credential check, production guard or test assertion is relaxed. Targeted
-native rechecking and fresh whole-family preparation remain required for this
-new source. The development workflow also makes the platform routing explicit.
+no credential check, production guard or test assertion is relaxed. The completed
+targeted recheck and fresh whole-family preparation/check are recorded above.
+The development workflow also makes the platform routing explicit.
 
 This is development-source preparation and integration, not deployment. Read
 [PR #240](https://github.com/ael-dev3/Warpkeep/pull/240) for the current published

@@ -2,6 +2,21 @@
 
 ## Current review and next work — 12 September 2026
 
+Corrected source `3710f139b3572ae0a742d582d0d79d8aa88d9476` completed native
+preparation `91889` and independent rebuilding check `80884`, both exit zero
+with all returned fields equal. Candidate
+`release-workspace-baf068853796d70d5c6b480a15116d05` and its full digests are
+recorded in the [prepared-policy evidence](../../evidence/0.4.0/release-engineering.md#prepared-policy-family-refresh--2026-09-12).
+The authenticated complete family was applied to the unchanged Windows input;
+all outputs and preserved source were checked. Generated-only staging matches
+tree `4795a1fe2bb6b6eeb5851c538a352b454aa66596`. Its seven changed paths carry
+only manifests and workflow pins; compiled bodies and count fixtures are stable.
+The targeted signature regression passed all seven selected cases (`30348`);
+156 other cases were filtered. Next, publish this integration checkpoint, then
+fast-forward the idle native checkout and run all 163 prepared-workflow cases
+plus its affected generated consumers. Read current-head hosted checks before
+normal protected integration. Do not rerun either completed preparation command.
+
 The source at `9e098f75` has now completed actual native preparation `67204`
 and independent rebuilding check `6320`, both exit zero with every result field
 equal. The complete authenticated family was exported and applied to that exact
@@ -23,12 +38,12 @@ with 156 passes and seven failures, no skips. A static-policy literal still
 expected the old two-argument `exactApiScriptAttestation` signature, while the
 repaired runtime correctly accepts a separate `expectedNamedHandlers` parameter.
 The baseline refusal cascaded into six credential-comment regressions. The narrow
-policy expectation is corrected without changing their assertions; targeted native
-rechecking and a fresh complete source family must validate the correction. The [verification environment guidance](../../engineering/development-workflow.md#choose-the-verification-environment)
+policy expectation is corrected without changing their assertions; the targeted
+recheck and complete family above validate that correction's preparation. The [verification environment guidance](../../engineering/development-workflow.md#choose-the-verification-environment)
 now routes those contracts through the existing native lane. Do not weaken their
 assertions or restart the completed Windows run.
-The operating checkout can synchronize after publication because both native
-processes have completed. Do not restart either completed run.
+The operating checkout can synchronize after publication because its native
+preparation/check processes have completed. Do not restart completed runs.
 
 The current working branch is `codex/0.4-bridge-predecessor-repair` in
 [PR #240](https://github.com/ael-dev3/Warpkeep/pull/240), integrating the pending
@@ -88,7 +103,10 @@ stale main-only input wording is corrected: an active build retains its exact
 published compiler input, including an authorized development commit. Fresh
 owning-remote fetches found the profile, assets, water-engine and private editor
 checkouts clean and equal; all nine local development branch histories are
-already backed by live branches or retained PR history. Use
+already backed by live branches or retained PR history. The navigation follow-up
+also synchronized Water Engine main `9d42fb7` and Assets main `4a47038` after
+PR #34's required checks and normal signed merge. Current entry links now avoid
+the retired prepared-keep branch. Use
 the current live PR head for the latest source; a development push is not a
 release or a pass for checks still running.
 
@@ -100,9 +118,13 @@ observer configuration, disabled private signer and secretless gateway in that
 order. The existing recovery key, RPC secret and census pepper must be reused.
 Full bootstrap verification still lacks the local canary owner carrier. The
 authenticated account's GitHub Apps settings showed no registered Apps during
-this review. App registration is at GitHub's “Confirm access” screen, awaiting
-the owner's authentication; no App, key or new permissions have been created.
-The dedicated read-only installation/key supply remains unresolved.
+this review. The owner subsequently completed GitHub's “Confirm access” step.
+The private “Warpkeep Release Evidence” App
+form is prepared with read-only Actions, Checks, Contents, Deployments, Metadata
+and Pages access, webhooks disabled and installation restricted to the owner's
+account. Creation/installation on only `ael-dev3/Warpkeep` and service-key
+generation await the requested action-time confirmation. The dedicated
+installation/key supply remains unresolved; no App or credential was created.
 
 Existing-state adoption must be a distinct V4 path through update completion,
 bridge state, activation and recovery consumers. Bind signed pre/post observations
