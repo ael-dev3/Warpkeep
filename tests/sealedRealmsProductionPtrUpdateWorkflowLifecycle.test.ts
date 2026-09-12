@@ -103,6 +103,7 @@ import {
   runSealedRealmsProductionPtrOperation as run,
 } from "../scripts/sealed-realms-production-ptr-workflow-entry.mjs";
 const sha = "a".repeat(40);
+const hostGit = process.platform === "win32" ? "git" : "/usr/bin/git";
 const saved = new Map<string, PropertyDescriptor | undefined>();
 beforeEach(() => {
   vi.resetAllMocks();
@@ -512,7 +513,7 @@ it('does not reinterpret errors from outside the authenticated lane-failure boun
 
 it('binds update observation to the verified source tree and current workflow attempt', async () => {
   await create({ operation: 'ptr-update-apply', workflowInputSha: sha });
-  expect(m.git).toHaveBeenCalledWith('git', ['--no-replace-objects', 'rev-parse', `${sha}^{tree}`], expect.any(Object));
+  expect(m.git).toHaveBeenCalledWith(hostGit, ['--no-replace-objects', 'rev-parse', `${sha}^{tree}`], expect.any(Object));
   expect(m.adapter).toHaveBeenCalledWith(expect.objectContaining({
     observation: { sourceTree: 'b'.repeat(40), runId: '12345', runAttempt: '2' },
   }));
