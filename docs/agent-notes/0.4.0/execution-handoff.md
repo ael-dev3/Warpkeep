@@ -2,15 +2,23 @@
 
 ## Current review and next work — 12 September 2026
 
-The Windows development branch is now `codex/0.4-keep-entry-framing`, based on
-published PR #241 head `5996629a413f205c0564d570670a650a17f2a63f`. The current
-visual pass addresses one-time occupied-keep framing and the partly occluded
-construction selection marker. Preserve manual camera ownership and actual
+The Windows development branch is `codex/0.4-keep-entry-framing`, published in
+[PR #242](https://github.com/ael-dev3/Warpkeep/pull/242), based on PR #241 head
+`5996629a413f205c0564d570670a650a17f2a63f`. Source
+`337a4cc08739c26445ba272a06c120444e405fc7` adds once-only occupied entry framing
+and a visible construction marker, preserving manual camera ownership and actual
 footprints. Its final five-suite selection passed all 166 cases without skips;
-both type projects and independent source review passed. Verify the rendered
-sparse and mature keep before accepting the art; the [visual evidence](../../evidence/0.4.0/visuals.md#2026-09-12-occupied-entry-framing-and-placement-markers)
-records the source scope. Generated release closure still belongs to the earlier
-pending-panel input and needs normal preparation after this visual source change.
+both type projects and independent source review passed. Guarded run
+`windows-run-PSW7Es` captured that exact clean, stable source. All 36 images were
+reviewed: sparse desktop/portrait readability improves; mature hierarchy, complete
+scrolled views, capture diagnostics and physical-device acceptance remain open.
+The [visual evidence](../../evidence/0.4.0/visuals.md#2026-09-12-occupied-entry-framing-and-placement-markers)
+owns the exact scope and retained digests. Windows and GitHub matched after the
+outgoing secret scan; the idle native checkout then fast-forwarded cleanly to
+`337a4cc0`. The capture browser and owned Vite server are stopped. Generated release
+closure still belongs to the earlier pending-panel input and needs normal
+preparation after this visual source change. Resolve the final documentation
+head before preparing; do not apply the previous input's export to this source.
 PR #241's preceding change fixes the real host's rejected Close/Escape request during
 a pending command or refresh; see the [gameplay evidence](../../evidence/0.4.0/gameplay.md#panel-dismissal-during-a-request-or-refresh--2026-09-12).
 All eight new integration cases reproduced the defect and then passed; the full

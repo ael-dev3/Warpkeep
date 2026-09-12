@@ -41,10 +41,12 @@ which records the current checkpoint, preparation, CI and environment details.
   `src/components/keep04/Keep04LoopRail.tsx` makes gather → choose → build →
   benefit → return explicit and derives its active stage from authoritative Worker
   and construction state. It now follows the workspace so the scene appears sooner.
-  Guarded capture `windows-run-GIPWZ3` records clean stable source `8033e01`, NVIDIA
-  hardware rendering and no horizontal overflow in 36 cases. All 36 images were
-  reviewed; narrow/landscape views still require scrolling and cropped confirmation
-  controls are not reachability evidence. Browser diagnostic flags remain unresolved.
+  Occupied entry framing now makes early buildings and scaffolds easier to read,
+  while refresh/recovery preserve the player's camera view. Guarded capture
+  `windows-run-PSW7Es` records clean stable source `337a4cc0`, NVIDIA hardware
+  rendering and no horizontal overflow in 36 cases. All 36 images were reviewed;
+  mature building hierarchy and scrolled landscape views still need work. Cropped
+  confirmation controls are not reachability evidence. Diagnostic flags remain open.
   See [visual evidence](../../evidence/0.4.0/visuals.md) for exact profiles, reviewed
   images, retained output and limitations. Physical-device, performance and actual
   owner acceptance remain open.

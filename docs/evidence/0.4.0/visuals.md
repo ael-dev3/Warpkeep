@@ -20,8 +20,54 @@ passing. All eleven selected regressions then passed. The final five-suite run
 passed all 166 cases without skips (10.35 seconds); both TypeScript projects,
 tracked file policy and diff checks passed. Independent source review found no
 actionable defect. The suite retains two pre-existing React act warnings in the
-unrelated Greater Realm refresh fixture. Rendered composition is still pending
-for this source checkpoint; the older matrix below does not validate it.
+unrelated Greater Realm refresh fixture. Successful final type commands produced
+no output, so the intended `*-types-final.log` files were not created; their
+actual terminal receipts record exit zero. Root independently repeated both
+type projects, file policy and the diff check successfully before publication.
+
+### Rendered follow-up at 337a4cc0
+
+Guarded run `artifacts/keep04-qa/windows-run-PSW7Es` captured published source
+`337a4cc08739c26445ba272a06c120444e405fc7`, tree
+`d6f00bf27541d08b4f83117664cb78b47bac9903`. Clean source observations matched
+before and after (`stableSource: true`). Chrome 152.0.7977.83 used ANGLE/NVIDIA
+RTX 3090 hardware rendering. All 36 cases received the exact guarded document
+policy and recorded no horizontal overflow; 32 rendered WebGL and the four
+intentional graphics-unavailable cases showed fallback. The launcher exited zero
+and verified normal browser closure with no remaining owned processes. Its
+disposable profile is retained. The separately owned Vite server was stopped.
+
+All 36 PNGs were manually reviewed: each desktop/high, portrait/balanced,
+portrait/reduced and landscape/balanced profile covers empty, placement, blocked
+placement, constructing, complete, mature, fallback, reduced motion and context
+cycle. The reviewed file inventory equals the capture inventory. Sparse desktop
+and portrait views now show a readable mill or scaffold beside the civic approach;
+the selected border remains visible around the scaffold. Empty/draft entry keeps
+the grounds composition. No new visible overlap or clipping defect was found in
+the inspected views. Fallback copy and visible navigation remain readable.
+
+The mature cathedral still dominates the economic buildings, and empty grounds
+retain a platform-like presentation. Desktop's fixed page capture omits foreground
+buildings below the viewport; short landscape mostly shows the header/toolbar or
+the automatically focused command panel. These crops establish neither camera
+clipping nor complete action reachability. Continue scrolled composition review,
+stronger small-building hierarchy and physical-device acceptance.
+
+The capture reports 36 security warnings and one network error, with no network
+guard violation and no stderr output. Their causes remain unresolved; visual
+review does not clear `reviewRequired`. A separate Codex in-app browser opened the
+same synthetic complete-mill fixture with no captured warning/error logs, and
+explicit Inspect/Fit grounds produced the matching captions. That different
+browser observation does not explain or clear the retained Chrome diagnostics.
+These captures measure no performance workload and establish no owner gameplay,
+production transfer/lifecycle, physical-phone or G001 comparison acceptance.
+
+Retained provenance SHA-256:
+`eaa4bcc29bb87ffffc981994ba5e69895258624bb2bafad7ecba6dd3d5d2338a`.
+Observation SHA-256:
+`84cdcffe98bb29f7526666a0ef3c277c19b456fe741bb947c4df936a019222b1`.
+The immutable machine records still say images require inspection; this dated
+record owns the subsequent manual review, without rewriting those observations.
 
 ## 2026-09-12 desktop primary-action discovery
 
