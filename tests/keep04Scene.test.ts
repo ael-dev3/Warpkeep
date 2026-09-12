@@ -81,6 +81,21 @@ it('inspects settled site bounds without changing geometry, placement or picking
   expect(size.x).toBeCloseTo(9.5, 10); expect(size.y).toBe(0); expect(size.z).toBeCloseTo(11.3, 10);
   scene.reconcile({ buildings: [], selectedKind: null, draft: null, draftValid: false }); expect(scene.selectedSiteBounds()).toBeNull(); scene.dispose();
 });
+it.each([0, 90000] as const)('keeps completed craft fascia and model picks owned by the same authoritative site at rotation %s', rotation => {
+  const scene = createKeep04Scene({ quality: 'reduced', reducedMotion: true, assets: empty() });
+  scene.reconcile({ ...visual, buildings: [{ ...mill, placement: { ...mill.placement, rotation }, phase: 'complete', completedLevel: 5, targetLevel: 5 }] });
+  scene.resize(390, 304); scene.fitSite(scene.selectedSiteBounds()!, 390 / 304);
+  const root = scene.scene.getObjectByName('building:city-mill')!;
+  for (const local of [new THREE.Vector3(-11.3 * .25 + 1.5, 1.55, 9.5 / 2 - .25), new THREE.Vector3(0, 4, 0)]) {
+    const point = local.applyMatrix4(root.matrixWorld).project(scene.camera);
+    expect(scene.pickBuilding(point.x, point.y)).toBe('city-mill');
+  }
+  const marker = scene.scene.getObjectByName('selected-footprint')!;
+  expect(marker.position.toArray()).toEqual([-24, .2, -20]); expect(root.scale.toArray()).toEqual([1, 1, 1]);
+  expect(scene.telemetry().pickTargetCount).toBe(1);
+  scene.reconcile({ buildings: [], selectedKind: null, draft: null, draftValid: true });
+  expect(scene.telemetry().pickTargetCount).toBe(0); scene.dispose();
+});
 it.each(['city-mill', 'lumber-camp', 'city-stoneworks', 'city-goldworks', 'city-barracks', 'grand-covenant-cathedral'] as const)('fits %s level-one/five and scaffold bounds without altering its transform', kind => {
   const scene = createKeep04Scene({ quality: 'reduced', reducedMotion: false, assets: empty() });
   for (const phase of ['constructing', 'complete'] as const) for (const level of [1, 5]) {

@@ -9,6 +9,8 @@ export const KEEP04_FOOTPRINTS: Readonly<Record<Building04, readonly [number, nu
   'city-mill': [11.3, 9.5], 'lumber-camp': [10.6, 8.8], 'city-stoneworks': [11, 9.2],
   'city-goldworks': [11, 9.2], 'city-barracks': [18.5, 15.5], 'grand-covenant-cathedral': [37, 32.02],
 };
+// Model-only hierarchy: the cathedral's precinct and placement stay full-sized.
+const CATHEDRAL_BODY_SCALE = .75;
 
 /** Unique buffer storage and decoded texture/mip allocation, plus graph submissions.
  * Does not claim GPU-driver allocation precision or count shadow passes.
@@ -78,7 +80,8 @@ export function createKeep04Building(options: Readonly<{
     const bounds = new THREE.Box3().setFromObject(model); const size = bounds.getSize(new THREE.Vector3());
     if ([size.x, size.y, size.z].every(n => Number.isFinite(n) && n > 0)) {
       // Uniform scaling preserves authored proportions and leaves decoration clearance.
-      const scale = Math.min((width - 1.2) / size.x, (depth - 1.2) / size.z);
+      const scale = Math.min((width - 1.2) / size.x, (depth - 1.2) / size.z)
+        * (kind === 'grand-covenant-cathedral' ? CATHEDRAL_BODY_SCALE : 1);
       const center = bounds.getCenter(new THREE.Vector3()); model.position.sub(new THREE.Vector3(center.x, bounds.min.y, center.z));
       const normalized = new THREE.Group(); normalized.add(model); normalized.scale.setScalar(scale);
       model.traverse(object => {
@@ -129,6 +132,9 @@ export function createKeep04Building(options: Readonly<{
       box(11, 9, 22, P.masonry); box(24, 7, 8, P.masonry); cone(8.2, 5, P.roofTeal, 0, 11.5, 0);
       box(5, 16, 5, P.masonry, 0, 8, -8); cone(4.2, 12, P.roofTeal, 0, 22, -8);
       for (const x of [-8, 8]) cone(2.4, 7, P.warpViolet, x, 10.5, 0);
+      // Only architecture exists in parts here; later precinct courses and signs
+      // retain their original dimensions, as does the construction branch above.
+      parts.forEach(geometry => geometry.scale(CATHEDRAL_BODY_SCALE, CATHEDRAL_BODY_SCALE, CATHEDRAL_BODY_SCALE));
     }
   }
   // Completed levels need to read from the keep camera even when an authored
@@ -151,11 +157,39 @@ export function createKeep04Building(options: Readonly<{
   }
   // Seven-segment mesh numerals: no browser canvas/texture dependency and no collision growth.
   const badge = new THREE.Group(); badge.name = `level-badge:${level}`; root.add(badge);
-  const bx = -width * 0.3; const bz = depth / 2 - 0.45;
-  box(1.8, 1.8, 0.18, P.timber, bx, 1.4, bz);
+  const craft = !constructing && level > 0 && kind !== 'city-barracks' && kind !== 'grand-covenant-cathedral';
+  const bx = -width * (craft ? .25 : .3); const bz = depth / 2 - .45; const by = craft ? 1.55 : 1.4;
+  if (craft) {
+    // Low craft signs share the existing merged decoration draw. Geometry makes
+    // each resource distinct without recoloring a borrowed roof/wall mesh.
+    box(3.8, 2.1, .18, P.masonry, bx, by, bz);
+    box(3.6, 1.9, .06, P.timber, bx, by, bz + .12);
+    const glyph = (geometry: THREE.BufferGeometry, color: string, x = 0, y = 0) => part(geometry, color, bx - .88 + x, by + y, bz + .28);
+    const polygon = (points: readonly (readonly [number, number])[], color: string, x = 0, y = 0) => {
+      const shape = new THREE.Shape(points.map(([px, py]) => new THREE.Vector2(px, py)));
+      glyph(new THREE.ShapeGeometry(shape), color, x, y);
+    };
+    if (kind === 'city-mill') {
+      glyph(new THREE.BoxGeometry(.1, 1.38, .06), '#e8c772', 0, -.04);
+      for (const y of [-.35, .02, .39]) for (const side of [-1, 1]) {
+        glyph(new THREE.PlaneGeometry(.28, .44).rotateZ(-side * .65), '#f0d58d', side * .21, y);
+      }
+    } else if (kind === 'lumber-camp') {
+      for (const y of [-.44, 0, .44]) {
+        glyph(new THREE.BoxGeometry(1.16, .32, .05), '#bd9166', .06, y);
+        glyph(new THREE.CircleGeometry(.16, 8), '#ead1a1', -.52, y);
+      }
+    } else if (kind === 'city-stoneworks') {
+      const stone = [[-.29, -.18], [-.21, -.25], [.22, -.25], [.3, -.12], [.26, .22], [-.23, .25]] as const;
+      polygon(stone, '#d7e4da', -.34, -.29); polygon(stone, '#b8c8c1', .34, -.29); polygon(stone, '#e2e9db', 0, .31);
+    } else {
+      const ingot = [[-.6, -.22], [.6, -.22], [.44, .22], [-.44, .22]] as const;
+      polygon(ingot, '#e9b753', 0, -.29); polygon(ingot, '#f5d486', 0, .29);
+    }
+  } else box(1.8, 1.8, .18, P.timber, bx, by, bz);
   const digits = ['abcdef', 'bc', 'abdeg', 'abcdg', 'bcfg', 'acdfg'];
   const segments: Record<string, readonly [number, number, number, number]> = { a: [0, .58, .72, .14], b: [.36, .29, .14, .58], c: [.36, -.29, .14, .58], d: [0, -.58, .72, .14], e: [-.36, -.29, .14, .58], f: [-.36, .29, .14, .58], g: [0, 0, .72, .14] };
-  for (const key of digits[level]) { const [x, y, w, h] = segments[key]; box(w, h, .06, P.masonry, bx + x, 1.4 + y, bz + .13); }
+  for (const key of digits[level]) { const [x, y, w, h] = segments[key]; box(w, h, .06, P.masonry, bx + (craft ? .88 : 0) + x, by + y, bz + (craft ? .28 : .13)); }
   for (let i = 0; i < Math.max(0, level - 1); i++) {
     const marker = new THREE.Group(); marker.name = `pennant:${i + 1}`; root.add(marker);
     const x = width * 0.12 + i * .65; box(.1, 2.6, .1, P.timber, x, 1.3, bz - .2);

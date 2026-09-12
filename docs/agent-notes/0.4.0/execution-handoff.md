@@ -2,7 +2,29 @@
 
 ## Current review and next work — 12 September 2026
 
-The Windows development branch is `codex/0.4-keep-entry-framing`, published in
+The latest visual development is `codex/0.4-building-hierarchy` /
+[PR #243](https://github.com/ael-dev3/Warpkeep/pull/243), in reused linked checkout
+`C:/Temp/warpkeep-clean-ci`. Source `75c04680` passed all 138 owning tests,
+both type projects and independent source review. Guarded run `windows-run-N8ekUE`
+completed at that exact stable source; all 36 captures were independently reviewed.
+The cathedral is better balanced, and root inspected full scrolled desktop and
+landscape scenes plus selected portrait sites. Overview craft readability, lumber
+sign occlusion, terrain composition, diagnostic warnings and device acceptance
+remain open in the [visual record](../../evidence/0.4.0/visuals.md#rendered-follow-up-at-75c04680).
+The QA tab/server are stopped; viewport override is reset. The failed initial
+cache-location attempt remains retained and is not art acceptance.
+
+The branch normally incorporates the published prepared-family integration
+`eeda6f64ae86d370a652aa4a84e874684bd9740d` from PR #242. That family is bound
+to D, not to the later visual source. Native verification of the exact published
+family integration passed all 393 cases and both sealed verifiers; it is complete. No new
+clone or package installation was added. Resolve each actual head and its check
+results before protected integration. Keep the full release goal active: 0.4 is
+not shipped, with an engineering estimate around 65% rather than a gate-derived
+completion score. The next connected delivery work remains the observer rollout
+and actual V4 existing-state adoption described below.
+
+The primary Windows branch is `codex/0.4-keep-entry-framing`, published in
 [PR #242](https://github.com/ael-dev3/Warpkeep/pull/242), based on PR #241 head
 `5996629a413f205c0564d570670a650a17f2a63f`. Entry framing at `337a4cc0`
 passed the five-suite 166-case selection, both type projects and independent
@@ -25,16 +47,9 @@ normal timeouts (286.16 seconds). Both sealed verifiers passed in preparation
 state, and native remained clean with no active source consumer. This closes the
 recorded Windows fixture/timeout limits for J; it does not accept later art source.
 
-The reused isolated checkout `C:/Temp/warpkeep-clean-ci` carries
-`codex/0.4-building-hierarchy` / [PR #243](https://github.com/ael-dev3/Warpkeep/pull/243),
-published at `75c0468081583ce6dff9cf7ba02392a58bbb4e54` over D. It reduces the
-cathedral's rendered body and gives completed economic sites craft signs, while
-preserving footprints and gameplay authority. All 138 tests in its five owning
-suites and both type projects passed; independent code review found no blocker.
-Its rendered review remains separate from this D-bound generated family. Keep
-source pinned during capture and batch accepted visual work before preparing the
-next family. PR #240 at `944bb17b` and PR #241 at `5996629a` have now passed
-all hosted checks; resolve actual heads before normal protected integration.
+PR #240 at `944bb17b` and PR #241 at `5996629a` have passed all hosted
+checks; resolve actual heads before normal protected integration.
+
 PR #241's preceding change fixes the real host's rejected Close/Escape request during
 a pending command or refresh; see the [gameplay evidence](../../evidence/0.4.0/gameplay.md#panel-dismissal-during-a-request-or-refresh--2026-09-12).
 All eight new integration cases reproduced the defect and then passed; the full
