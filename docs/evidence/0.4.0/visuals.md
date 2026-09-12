@@ -1,5 +1,41 @@
 # Verdant Citadel visual evidence — final acceptance open
 
+## 2026-09-12 building hierarchy development
+
+The preceding mature captures show the cathedral overwhelming economic sites.
+The current prefab fitter expands every building nearly to its policy rectangle;
+catalog dimensions imply a cathedral around four times the economic models'
+height. Those estimates are source-based, not a measurement of rendered pixels.
+The economy models already fill their available width, so enlarging each whole
+model would provide little additional identity and consume placement clearance.
+
+The proposed correction uniformly reduces the cathedral's normalized model
+child, with an equivalent treatment for fallback architecture. Its precinct,
+placement root, scaffold and presentation of completed levels remain unchanged.
+A starting factor of 0.75 is an art candidate subject to actual render review.
+Completed economic sites gain wider, low craft signs with a resource silhouette
+and their existing level numeral, merged into the owned static decoration layer.
+This adds no asset download, texture, light or draw submission. Mixed vertex-color
+meshes and the separately textured canonical emblem retain their existing colors.
+
+The source is implemented in the reused verification worktree, separate from the
+pinned source being independently rebuilt. Baseline building/scene verification
+passed 89 cases. Nine new regressions then failed with one preservation case
+passing; all ten passed after implementation. The final five-suite selection
+passed all 138 cases without skips (5.04 seconds), and independent source review
+found no blocker. Node types passed. Application types first identified an absent
+pre-existing service TypeScript dependency in this reused checkout; linking the
+existing primary service dependency tree closed that gap, and root's full app
+noEmit check passed. No package was installed or changed. Footprint, prefab
+ownership, disposal, draw limits and same-building picking have regression coverage.
+
+Acceptance must inspect the complete scrolled mature scene in desktop, portrait
+balanced/reduced and landscape, plus individual economy selections, cathedral
+construction/completion, sparse entry, fallback and context recovery. Check
+resource/level readability, hierarchy, footprint clearance, correct picking and
+unchanged budgets. The current entry-framing matrix below does not accept this
+later art change; semantic palette and terrain work remain separate.
+
 ## 2026-09-12 occupied entry framing and placement markers
 
 The source follow-up from `5996629a` chooses an occupied keep's initial camera

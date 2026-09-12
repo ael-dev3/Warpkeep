@@ -2,7 +2,20 @@
 
 ## Current review and next work — 12 September 2026
 
-The Windows development branch is `codex/0.4-keep-entry-framing`, published in
+The next building-hierarchy pass is isolated on `codex/0.4-building-hierarchy`
+in the reused `C:/Temp/warpkeep-clean-ci` linked worktree, based on published
+`d64c8f78442da7ad1bc554c283daf136d670d399`. Its prior clean checkpoint is retained
+by the live `source-history/warpkeep-0.4-pr228-820e611148db` tag. No clone or
+dependency installation was added. The primary Windows checkout remains on PR
+#242's clean source while native preparation/check owns that input. Keep the
+two indexes and source identities separate when publishing or applying outputs.
+This art pass reduces cathedral model dominance within its unchanged precinct
+and strengthens completed economic buildings' resource signs. Its 138 affected
+cases and both type projects passed; source review found no blocker. Actual rendered
+acceptance is required; the [visual record](../../evidence/0.4.0/visuals.md#2026-09-12-building-hierarchy-development)
+tracks its design, tests and remaining inspection.
+
+The primary Windows branch is `codex/0.4-keep-entry-framing`, published in
 [PR #242](https://github.com/ael-dev3/Warpkeep/pull/242), based on PR #241 head
 `5996629a413f205c0564d570670a650a17f2a63f`. Source
 `337a4cc08739c26445ba272a06c120444e405fc7` adds once-only occupied entry framing
