@@ -2,18 +2,16 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Current source and protected checks — 2026-09-11
+## Current source and protected checks — 2026-09-12
 
 Windows and native WSL are synchronized on
-`codex/prepared-keep-bindings-fix`. The generated source family is
-`7d920b9f57ec450071632fdc3f0b560f7526811a`, prepared from native input
-`713c2bfb7d5b0cb00028c3553089d60b53e2897b`; later documentation and test
-follow-ups are on the current branch. Read the actual branch/PR head through
-the source-sync procedure before claiming current synchronization. The family
-migrates the Pages private deployment job to Linux x64, makes closure pin
-derivation profile-aware, and refreshes generated consumers from native Linux
-bytes while preserving the legacy Darwin callers. Native preparation and
-independent check passed for that recorded source input.
+`codex/prepared-keep-bindings-fix`. The current native source family is bound
+to source commit `03cb8b8fc2c0c59bcb58c4303b2082dead6325d9`; read the actual
+branch/PR head through the source-sync procedure before claiming current
+synchronization. The family includes the Linux x64 Pages private deployment
+lane, profile-aware closure pins, and the 1,200-member generated closure while
+preserving the legacy Darwin callers. Native preparation and independent check
+passed for this source input.
 Protected Verify and CodeQL are the authority for the current head. Read every
 required context at terminal state before calling R14 green; transient run IDs
 are intentionally read directly from GitHub. GitHub
@@ -23,22 +21,22 @@ protection/merge reconciliation gate. The native release
 evidence below is bound to those exact source coordinates; later documentation
 commits do not create a new release candidate.
 
-## Latest committed-source native preparation and independent check — 2026-09-11
+## Latest committed-source native preparation and independent check — 2026-09-12
 
 The dedicated Linux assembler completed both `prepare` and independent `check`
 from exact source commit
-`7d920b9f57ec450071632fdc3f0b560f7526811a`. Both lanes converged on candidate
-`release-workspace-69a975071850f1e562b593ffa811904e`, source tree
-`2b23068063945029e439dbeb85bf4fa6b80b9735`, transaction
-`5b1ab812dba7456e6c84493fe741efa4`, journal SHA-256
-`324479d8b88cb59b61842b949260a35e9586a3e49f3d9aed912f7c6fd10f2f3d`, family
-SHA-256 `c6c45376b8662f58f602d59c7f41912ebdde6bb4856d519d8a0cdc65e975c67e`,
+`03cb8b8fc2c0c59bcb58c4303b2082dead6325d9`. Both lanes converged on candidate
+`release-workspace-2d70e1808817fcf50990e5a4b84409b9`, source tree
+`108ef93c482ceb86d4a0a72efd7f3e7e50f7291e`, transaction
+`dbc484aea13d55eb1e994a5f13a640c9`, journal SHA-256
+`48d71bdeb4540329299244d674101b0ed849e4682ee446d9dc42558d1628979b`, family
+SHA-256 `841eb93123b88508d82febe883966722d0ffffe46c0cd84b36666a6ed4d2deee`,
 closure manifest SHA-256
-`c92fc469e86ca8ee285c4057901a9bd41c1be982283d04a82196cf541433702f`, and
+`689dc56ab6ae708958093b6c8ffb89dcb7fd4671de82261f1c3bdc77ed4a7f77`, and
 scanner manifest SHA-256
 `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
-The run checked 3,192 source files and 3,192 candidate files, 102 generated
-outputs, 3,090 preserved source files, 444 compiled bundle inputs and 7
+The run checked 3,193 source files and 3,193 candidate files, 102 generated
+outputs, 3,091 preserved source files, 444 compiled bundle inputs and 7
 recovery inputs. `finalReleasePrepared` remains `false`: this is fresh
 current-source preparation and convergence evidence, not deployment or release
 authorization.

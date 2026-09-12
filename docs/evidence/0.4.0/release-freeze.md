@@ -2,18 +2,23 @@
 
 Status: **preparation complete; release freeze open**.
 
-The generated source family is `7d920b9f57ec450071632fdc3f0b560f7526811a` from native preparation input `713c2bfb7d5b0cb00028c3553089d60b53e2897b` on
-`codex/prepared-keep-bindings-fix`. Later documentation and test follow-ups are on the current branch; read its actual head before claiming a current release candidate. It includes the Linux x64 Pages private lane, per-workflow closure pin derivation, and the native generated family. Native Linux `prepare` and independent `check` converged on the same candidate:
+The current generated source family comes from native preparation input
+`03cb8b8fc2c0c59bcb58c4303b2082dead6325d9` on
+`codex/prepared-keep-bindings-fix`. It includes the Linux x64 Pages private lane,
+per-workflow closure pin derivation, and the synchronized 1,200-member generated
+family. Native Linux `prepare` and independent `check` converged on the same
+candidate:
 
-- Candidate: `release-workspace-69a975071850f1e562b593ffa811904e`
-- Source tree: `2b23068063945029e439dbeb85bf4fa6b80b9735`
-- Transaction: `5b1ab812dba7456e6c84493fe741efa4`
-- Journal SHA-256: `324479d8b88cb59b61842b949260a35e9586a3e49f3d9aed912f7c6fd10f2f3d`
-- Family SHA-256: `c6c45376b8662f58f602d59c7f41912ebdde6bb4856d519d8a0cdc65e975c67e`
-- Candidate closure SHA-256: `c92fc469e86ca8ee285c4057901a9bd41c1be982283d04a82196cf541433702f`
-- Checked source/candidate files: `3,192 / 3,192`
+- Candidate: `release-workspace-2d70e1808817fcf50990e5a4b84409b9`
+- Source tree: `108ef93c482ceb86d4a0a72efd7f3e7e50f7291e`
+- Transaction: `dbc484aea13d55eb1e994a5f13a640c9`
+- Journal SHA-256: `48d71bdeb4540329299244d674101b0ed849e4682ee446d9dc42558d1628979b`
+- Family SHA-256: `841eb93123b88508d82febe883966722d0ffffe46c0cd84b36666a6ed4d2deee`
+- Candidate closure SHA-256: `689dc56ab6ae708958093b6c8ffb89dcb7fd4671de82261f1c3bdc77ed4a7f77`
+- Scanner manifest SHA-256: `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`
+- Checked source/candidate files: `3,193 / 3,193`
 - Generated outputs: `102`
-- Protected closure members: `1,199`
+- Protected closure members: `1,200`
 - `finalReleasePrepared`: `false`
 
 The candidate is reproducible and source-integrity checked. It is not a release authorization, deployment receipt, or live acceptance record. The native evidence and exact reproduction route are maintained in [`local-operations.md`](local-operations.md).

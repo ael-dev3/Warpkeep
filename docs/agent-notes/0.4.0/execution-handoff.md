@@ -3,7 +3,9 @@
 ## Current verification checkpoint — 12 September 2026
 
 The Windows checkout, GitHub development branch and native WSL checkout remain
-clean and synchronized on `codex/prepared-keep-bindings-fix`; the reviewed
+clean and synchronized on `codex/prepared-keep-bindings-fix`; the latest
+source checkpoint used for native preparation is
+`03cb8b8fc2c0c59bcb58c4303b2082dead6325d9`; the reviewed
 runtime source checkpoint is
 `24e3c136fb5e3839b00c8e8ddb3c780b6f795461`. The Keep04-focused local suite passed 10 test
 files and 139 tests, the PTR gameplay surface suite passed 33 tests, and the
@@ -17,6 +19,12 @@ application chunk is about 3.9 kB (down from about 899 kB), while the interactiv
 runtime remains deferred until the gateway is entered. The Worker review panel
 keeps internal `locationId` in the authority-bound dispatch payload but does not
 render it to players; resource labels use the resource site and coordinates.
+Native Linux `prepare` and independent `check` now converge on candidate
+`release-workspace-2d70e1808817fcf50990e5a4b84409b9` with family digest
+`841eb93123b88508d82febe883966722d0ffffe46c0cd84b36666a6ed4d2deee`, closure
+manifest `689dc56ab6ae708958093b6c8ffb89dcb7fd4671de82261f1c3bdc77ed4a7f77`,
+scanner manifest `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`,
+and 1,200 protected members. `finalReleasePrepared` remains `false`.
 Verify and CodeQL are attached to the current PR head; read their live run IDs
 and terminal state from GitHub before claiming R14 complete. No
 authenticated provider deployment, recovery readback, owner journey,
