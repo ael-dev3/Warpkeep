@@ -18,8 +18,8 @@ Protected M2 was reconciled into the published stack with ordinary merges:
 navigation PR #236 is `92d363ce`, runner PR #237 is `7bc5992c`, and frozen-source
 PR #238 is `23ec4731`. Each retained its previously reviewed tree exactly.
 Windows and the clean idle native checkout matched T2 before this new change.
-Keep M2 stable until its required main Verify and single sealed preflight finish;
-later source needs its own main CI and a fresh generated family.
+M2's full main Verify and first sealed preflight have now passed. Later source
+still needs its own main CI and a fresh generated family.
 
 The published follow-up on `codex/0.4-frozen-source-test-isolation` separates four
 independent frozen-source mutation checks into named Linux cases. Historical R
@@ -74,9 +74,10 @@ passed again at that final checkpoint. CodeQL `34694406081` and Verify
 `34694406086` both passed at exact `3c4eb264`. PR #235 then merged normally by
 protected expected-head squash at 13:33:31 UTC into signed, valid main
 `7b102f9f` (**M2**), whose sole parent is R and tree exactly equals `93a976b0`.
-The actual M2 main push Verify is `34696760924`; its Linux job has passed and
-module verification remains in progress. Overall terminal success is required
-before preflight. The earlier R timeout is separate from M2's CI.
+The actual M2 main push Verify `34696760924` reached terminal success. The first
+sealed dispatch `34699447213`, created at 14:29:45 UTC, then passed its real
+`operate_readonly` job `103568496530` and returned exact `preflight-inspected`.
+Live protected main remained M2. The earlier R timeout is separate from this pass.
 Earlier Verify
 `34693755154` at `654f1b57` was cancelled by the later publication and is not
 terminal evidence for the final head. No protection or release gate was weakened.
@@ -95,10 +96,10 @@ The CSS is a protected-closure source change and
 needs normal source integration followed by a fresh generated closure before any
 later deployment.
 
-Require exact M2's main Verify success, then dispatch one sealed `preflight`
-after confirming live main still equals that source, and
-require `preflight-inspected`. The navigation branch remains separately backed-up
-product source. Keep the clean idle native checkout synchronized with the current
+Do not repeat M2's completed preflight to obtain authority for later source.
+Continue the reviewed product/observation source integration, its exact main CI
+and fresh generated family, alongside the authentic service configuration and
+existing-state adoption work. Keep the clean idle native checkout synchronized with the current
 published development head while the M1 candidate, journal and artifact
 remain retained evidence. No live release is established.
 

@@ -56,6 +56,15 @@ verification passed 59 tests across contract, OIDC, signer and gateway, and both
 service type projects passed again. Record subsequent final-source/Linux checks
 and publication in the actual PR.
 
+The final workflow audit reproduced two omitted owning-contract failures: the
+new operation's vocabulary order differed from dispatch choices, and the workflow
+test omitted `observe_ptr`. Source and declaration now append the operation in
+the existing order, retaining the strict ordered assertion. Workflow coverage
+includes its exact job/permissions, runtime guards and environment pruning;
+dispatcher cases exercise successful observation and wrong-job/result/export
+refusals. The three affected suites passed 50 tests on Windows with 40 Linux-only
+cases skipped; root types passed. Include those Linux cases in native validation.
+
 The first outgoing scan correctly stopped publication on three occurrences of
 the existing preparation test key's public thumbprint in the new tests. The
 fixture's public coordinates were checked against the original test key and
@@ -87,8 +96,15 @@ the new observation work began. None of these updates moved protected M2.
 Final K Verify `34694406086` and CodeQL `34694406081` passed. Normal protected
 expected-head squash merged PR #235 at 13:33:31 UTC into signed, valid M2
 `7b102f9f`, with sole parent R and tree exactly equal to reviewed K `93a976b0`.
-Actual M2 main push Verify `34696760924` remains distinct from those PR results.
-No sealed preflight or live release acceptance is established by the merge.
+Actual M2 main push Verify `34696760924` subsequently reached terminal success.
+The first sealed workflow dispatch `34699447213`, created at 14:29:45 UTC, ran
+against that exact protected main. Its actual `operate_readonly` job
+`103568496530` passed and emitted exactly
+`{"operation":"preflight","status":"preflight-inspected"}`; all other jobs
+were skipped. Live main was rechecked unchanged afterward. This proves the
+installed Linux runtime, private-root, source/family and GitHub authority path.
+It does not establish provider credentials, owner state, deployment or release
+acceptance. Later source requires its own current-main evidence and preparation.
 
 M1 prepare `30088` and independent check `8359` both exited zero; every result
 field matched for `release-workspace-99438dc2cc576e073df09bc44f930bc6`. The
@@ -100,8 +116,8 @@ Its producer manifests retain M1's source and tree. The native owning workflow,
 bundle-engine and closure-derivation suites passed 194 tests without skips;
 the checked-in sealed-launch and prepared-policy verifiers passed again at
 `3c4eb264`. This remains preparation evidence with `finalReleasePrepared: false`.
-Protected integration is verified above; main CI and actual sealed preflight
-remain separate requirements.
+Protected integration, main CI and actual sealed preflight are verified above;
+provider and player acceptance remain separate requirements.
 
 The September 12 runner check found GitHub registration 22 offline, with
 `WarpkeepRunner` absent from the running distro list. Opening the guest started

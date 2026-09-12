@@ -1,5 +1,4 @@
 export const SEALED_REALMS_OPERATIONS: readonly [
-  'ptr-state-inspect',
   'preflight',
   'g001-policy-observe',
   'g001-census-first',
@@ -24,6 +23,7 @@ export const SEALED_REALMS_OPERATIONS: readonly [
   'g002-update-apply',
   'ptr-update-inspect',
   'ptr-update-apply',
+  'ptr-state-inspect',
 ];
 export const SEALED_REALMS_ACTIVATED_OPERATIONS: readonly [
   'preflight',

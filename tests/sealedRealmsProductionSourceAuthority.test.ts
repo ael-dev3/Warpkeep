@@ -99,7 +99,6 @@ describe('sealed-realms production source authority', () => {
       'rev-parse', '--verify', 'refs/remotes/origin/main^{commit}',
     ]);
     expect(SEALED_REALMS_OPERATIONS).toEqual([
-      'ptr-state-inspect',
       'preflight',
       'g001-policy-observe',
       'g001-census-first',
@@ -124,6 +123,7 @@ describe('sealed-realms production source authority', () => {
       'g002-update-apply',
       'ptr-update-inspect',
       'ptr-update-apply',
+      'ptr-state-inspect',
     ]);
   });
 

@@ -69,9 +69,9 @@ describe('sealed-realms production workflow authority', () => {
   const refusalName = 'Refuse unwired provider operations';
 
   it('separates generation OIDC from readonly operations on the exact protected runner', () => {
-    const document=production();expect(Object.keys(document.jobs)).toEqual(['operate_readonly','operate','operate_ptr','unsupported']);
+    const document=production();expect(Object.keys(document.jobs)).toEqual(['operate_readonly','observe_ptr','operate','operate_ptr','unsupported']);
     const common=["github.event_name == 'workflow_dispatch'", "github.repository == 'ael-dev3/Warpkeep'", "github.ref == 'refs/heads/main'", 'github.sha == inputs.source_commit'];
-    for(const name of ['operate_readonly','operate']) {
+    for(const name of ['operate_readonly','observe_ptr','operate']) {
       const job=document.jobs[name];for(const expression of common)expect(job.if).toContain(expression);
       expect(job).toMatchObject({environment:'notification-bridge-prepared','runs-on':['self-hosted','Linux','X64','warpkeep-production-admin','warpkeep-repository-exclusive']});
       expect(job.steps.map(step=>step.name)).toEqual([guardName,'Checkout exact selected authority',executeName]);
@@ -80,6 +80,9 @@ describe('sealed-realms production workflow authority', () => {
       for(const step of job.steps.filter(step=>step.run))expect(step.shell).toBe(hardenedShell);
     }
     expect(document.jobs.operate.permissions).toEqual({actions:'read',contents:'read','id-token':'write'});
+    expect(document.jobs.observe_ptr.permissions).toEqual({actions:'read',contents:'read','id-token':'write'});
+    expect(document.jobs.observe_ptr.if).toContain("inputs.operation == 'ptr-state-inspect'");
+    expect(document.jobs.observe_ptr['timeout-minutes']).toBe(10);
     expect(document.jobs.operate.if).toContain("inputs.operation == 'activation-evidence-generate'");
     expect(document.jobs.operate_readonly.permissions).toBeUndefined();
     expect(document.jobs.operate_readonly.if).toContain('["preflight","activation-evidence-inspect","g001-policy-observe"]');
@@ -87,10 +90,23 @@ describe('sealed-realms production workflow authority', () => {
     expect(document.jobs.operate_ptr.if).toContain('["ptr-update-inspect","ptr-update-apply"]');
     expect(document.jobs.unsupported.steps[0].run).toContain('SEALED_REALMS_LINUX_OPERATION_UNAVAILABLE');
     expect(document.jobs.unsupported.if).toContain('"ptr-update-inspect","ptr-update-apply"');
+    expect(document.jobs.unsupported.if).toContain('"ptr-state-inspect"');
     const source=workflow('sealed-realms-production.yml');
     expect(source).not.toMatch(/(?:npm|pnpm|npx|tsx) (?:ci|install|run)/u);
     expect(source).not.toMatch(/console\.log|set -x|printenv|^\s*env\s*$/mu);
     for(const reference of source.matchAll(/uses:\s*([^\s]+)/gu))expect(reference[1]).toMatch(/@[0-9a-f]{40}$/u);
+  });
+
+  it('limits observation transport to its exact workload OIDC and GitHub credentials', () => {
+    const execute = jobStep('observe_ptr', executeName);
+    expect(execute.env).toEqual({ WARPKEEP_SOURCE_COMMIT: '${{ inputs.source_commit }}', GITHUB_TOKEN: '${{ github.token }}' });
+    const allowlist = execute.run!.match(/PATH\|HOME\|LANG\|LC_ALL\|[^\n]+(?=\) ;;)/u)?.[0].split('|');
+    expect(allowlist).toEqual(['PATH', 'HOME', 'LANG', 'LC_ALL', 'RUNNER_OS', 'RUNNER_ARCH', 'RUNNER_NAME', 'RUNNER_TEMP',
+      'GITHUB_ACTIONS', 'GITHUB_REPOSITORY', 'GITHUB_REF', 'GITHUB_SHA', 'GITHUB_EVENT_NAME', 'GITHUB_JOB',
+      'GITHUB_WORKFLOW', 'GITHUB_WORKFLOW_REF', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_TOKEN', 'WARPKEEP_OPERATION',
+      'ACTIONS_ID_TOKEN_REQUEST_URL', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN']);
+    expect(JSON.stringify(production().jobs.observe_ptr)).not.toMatch(/secrets\.|WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT|SPACETIME_BIN|WARPKEEP_SPACETIME_CLI_CONFIG_PATH/u);
+    expect(jobStep('observe_ptr', guardName).run).toContain("test \"$GITHUB_JOB\" = 'observe_ptr'");
   });
 
   it('routes PTR updates through a dedicated exact-source job without OIDC or provider secrets', () => {
@@ -143,7 +159,7 @@ describe('sealed-realms production workflow authority', () => {
   });
 
   it('requires installed account and private state without provisioning authority', () => {
-    for (const jobName of ['operate', 'operate_ptr']) {
+    for (const jobName of ['operate', 'operate_ptr', 'observe_ptr']) {
       const guard = jobStep(jobName, guardName).run!;
       for (const required of ["test \"$RUNNER_OS\" = 'Linux'", "test \"$RUNNER_ARCH\" = 'X64'",
         "test \"$RUNNER_NAME\" = 'warpkeep-wsl-production-01'", "test \"$(/usr/bin/id -u)\" = '1000'",
@@ -158,7 +174,7 @@ describe('sealed-realms production workflow authority', () => {
   });
 
   it('attests fixed runtime bytes and immutable bootstrap source before calling preflight', () => {
-    for (const jobName of ['operate', 'operate_ptr']) {
+    for (const jobName of ['operate', 'operate_ptr', 'observe_ptr']) {
       const execute = jobStep(jobName, executeName).run!;
       for (const required of [
         'e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2',
@@ -241,7 +257,7 @@ describe('sealed-realms production workflow authority', () => {
       const startup = join(directory, 'startup.sh');
       const sentinel = join(directory, 'must-not-exist');
       writeFileSync(startup, 'printf executed > "$WARPKEEP_STARTUP_SENTINEL"\n');
-      for (const jobName of ['operate', 'operate_ptr']) {
+      for (const jobName of ['operate', 'operate_ptr', 'observe_ptr']) {
         const result = runShell(jobStep(jobName, guardName).run!, { BASH_ENV: startup, WARPKEEP_STARTUP_SENTINEL: sentinel });
         expect(result.status).toBe(1); expect(result.stdout).toBe('');
         expect(result.stderr).toBe('SEALED_REALMS_LINUX_AMBIENT_OVERRIDE_INVALID\n');
@@ -279,7 +295,7 @@ printf '%s\\n' fixed-argument-transport-ok
 
   it.runIf(process.platform === 'linux').each(SEALED_REALMS_OPERATIONS.filter(operation => ![
     'preflight', 'activation-evidence-inspect', 'activation-evidence-generate', 'g001-policy-observe',
-    'ptr-update-inspect', 'ptr-update-apply',
+    'ptr-update-inspect', 'ptr-update-apply', 'ptr-state-inspect',
   ].includes(operation)))(
     'refuses %s without loading source or echoing caller data', operation => {
       const refusal = operationStep(refusalName);
@@ -289,6 +305,40 @@ printf '%s\\n' fixed-argument-transport-ok
       expect(refusal.run).not.toMatch(/node|git|source_commit|\$WARPKEEP/u);
     },
   );
+
+  it.runIf(process.platform === 'linux')('preserves observation OIDC through the actual pruning block while removing provider configuration', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sealed-workflow-observation-transport-'));
+    try {
+      writeFileSync(join(directory, 'node'), `#!/bin/sh
+set -eu
+test "$#" = 3
+test "$1" = scripts/sealed-realms-production-linux-preflight.mjs
+test "$2" = --operation=ptr-state-inspect
+test "$3" = "--source=$GITHUB_SHA"
+test "$GITHUB_TOKEN" = fixture-github-token
+test "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" = fixture-oidc-token
+test "$ACTIONS_ID_TOKEN_REQUEST_URL" = https://fixture.actions.githubusercontent.com/token
+test "\${WARPKEEP_PRODUCTION_ADMIN_TOKEN+x}" != x
+test "\${WARPKEEP_AUTH_BRIDGE_ADMIN_TOKEN+x}" != x
+test "\${WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT+x}" != x
+test "\${WARPKEEP_SPACETIME_CLI_CONFIG_PATH+x}" != x
+test "\${SPACETIME_BIN+x}" != x
+test "\${WARPKEEP_SOURCE_COMMIT+x}" != x
+printf '%s\\n' observation-fixed-argument-transport-ok
+`, { mode: 0o700 });
+      const execute = jobStep('observe_ptr', executeName).run!;
+      const transport = execute.slice(execute.lastIndexOf('while IFS= read -r key; do'));
+      const result = runShell('set -eu\nsource_node="$WARPKEEP_FIXTURE_BIN/node"\n' + transport, {
+        WARPKEEP_FIXTURE_BIN: directory, WARPKEEP_SOURCE_COMMIT: 'a'.repeat(40), GITHUB_SHA: 'a'.repeat(40),
+        WARPKEEP_OPERATION: 'ptr-state-inspect', GITHUB_TOKEN: 'fixture-github-token',
+        ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'fixture-oidc-token', ACTIONS_ID_TOKEN_REQUEST_URL: 'https://fixture.actions.githubusercontent.com/token',
+        WARPKEEP_PRODUCTION_ADMIN_TOKEN: 'must-be-cleared', WARPKEEP_AUTH_BRIDGE_ADMIN_TOKEN: 'must-be-cleared',
+        WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT: 'must-be-cleared', WARPKEEP_SPACETIME_CLI_CONFIG_PATH: 'must-be-cleared', SPACETIME_BIN: 'must-be-cleared',
+      });
+      expect(result.error).toBeUndefined(); expect(result.status).toBe(0); expect(result.stderr).toBe('');
+      expect(result.stdout).toBe('observation-fixed-argument-transport-ok\n');
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  });
 
   it.runIf(process.platform === 'linux')('preserves PTR configuration and token through its actual environment pruning block', () => {
     const directory = mkdtempSync(join(tmpdir(), 'sealed-workflow-ptr-transport-'));
@@ -327,7 +377,7 @@ printf '%s\\n' ptr-fixed-argument-transport-ok
     'GIT_CONFIG_COUNT', 'GIT_OBJECT_DIRECTORY', 'GIT_REPLACE_REF_BASE', 'BASH_ENV', 'ENV', 'OPENSSL_CONF',
     'SSL_CERT_FILE', 'PYTHONPATH', 'VITEST'])(
     'rejects even empty exported %s before any host, source or Node work', key => {
-      for (const jobName of ['operate', 'operate_ptr']) {
+      for (const jobName of ['operate', 'operate_ptr', 'observe_ptr']) {
         for (const name of [guardName, executeName]) {
           const result = runShell(jobStep(jobName, name).run!, { [key]: '' });
           expect(result.error).toBeUndefined(); expect(result.status).toBe(1); expect(result.stdout).toBe('');
