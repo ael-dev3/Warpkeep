@@ -6,7 +6,8 @@ and PR #228 before relying on a live head or CI result. The latest completed
 native preparation/check input is
 `8033e01cc911f510fafb1770fdb0c0f0f3d2b3ac`. Preparation, independent rebuilding
 and guarded export completed successfully for the mobile layout and corrected
-recovery policy. Exact identities and export scope are recorded below.
+recovery policy. Exact identities and export scope are recorded below. That
+retained family does not include the subsequent Linux PTR caller changes.
 Final-head CI and protected promotion remain separate
 requirements. Older synchronized heads below are historical checkpoints.
 The generated source families recorded below are dated, source-bound evidence;
@@ -18,6 +19,59 @@ gives the next connected work and actual publication/check status. **0.4 is not 
 Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
+
+## Linux existing-PTR update caller — 2026-09-12
+
+At `33de0387`, both update operations stopped at the Linux CLI input boundary;
+the GitHub evidence context omitted them, and the composed PTR entry required
+the retired `runner` UID/GID 1001 and Node mode `0700`. New tests reproduced
+those failures before implementation. The new `operate_ptr` job connects both
+operations on exact main/source with read-only GitHub permissions, the installed
+Linux bootstrap guards and fixed cache, CLI and private login-config paths.
+It receives no job OIDC, Cloudflare credential or production-admin token.
+
+The Linux dispatch now selects the existing PTR bundle factory/runner and accepts
+only the matching `update-inspected` or `completed` result. GitHub evidence binds
+both operations to `operate_ptr`, and captured inspection evidence cannot be
+reused by changing the operation to apply. The constructor enforces `warpkeep`
+UID/GID 1000 and exact pinned Node owner/mode `0500`, preserving ownership,
+canonical-path, no-symlink, link-count, byte and re-attestation checks. Existing
+provider preservation, continuation, one-submission and reconciliation logic is
+unchanged; no new realm or owner is provisioned by this caller.
+
+Validation over a ten-file implementation/test overlay from `33de0387`:
+
+- Pinned Windows Node 22.22.3: CLI/evidence/dispatch 104 passes; lifecycle 36
+  passes; workflow 12 passes with 39 Linux-only cases skipped.
+- Native `WarpkeepRunner`, `warpkeep` UID 1000, Node 22.22.3: all five suites,
+  all 191 tests passed with no skips in session `83875` (exit zero). This includes
+  actual Bash syntax, ambient/startup rejection and PTR environment transport.
+- The native overlay was hash-checked and only its exact copied paths restored
+  afterward; the operating checkout was clean. No preparation was running.
+- Application/test TypeScript, script syntax and tracked file-size policy passed.
+
+These are source, dispatch and controlled-provider fixtures. In a separate local
+preparation step, the owner's existing Windows CLI config was piped directly to
+the previously absent private Linux config using exclusive no-follow creation,
+file/directory fsync, exact-byte readback and owner/mode/link checks. Both pinned
+CLI binaries matched their committed size/hash contracts. Captured local
+`login show` output confirmed a readable login without exposing token or identity
+values. No provider request was made, and no actual update permission, module
+update, complete predecessor receipt corpus or owner play was validated.
+The required config and effect semantics are in the
+[operating guide](../../operations/0.4.0-linux-runner.md#existing-ptr-module-updates).
+The generated operation family must be rebuilt and independently checked through
+the protected promotion sequence below. The intentionally current-source-only
+V3 receipt contract still needs genuine historical continuity when existing
+import/owner receipts are reused. Import, owner and sealed-live callbacks remain
+unfinished and must not be replaced by a fabricated fresh-publish receipt.
+
+For preceding source `33de0387`, Verify `34682368968` Linux job `103523271476`
+completed successfully: 657 files passed with two skipped in its first batch,
+then both serial suites passed; types, all build variants and dependency checks
+passed. The run subsequently completed successfully, including the module and
+aggregate Verify jobs. This older-head result is not CI acceptance for the new
+caller; read its publication's own checks.
 
 ## Activation lifecycle fixture correction — 2026-09-12
 

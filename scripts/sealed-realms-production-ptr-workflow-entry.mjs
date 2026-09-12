@@ -186,10 +186,10 @@ function updateConfiguration(expectedNode) {
   try {
     const account = userInfo();
     if (process.platform !== 'linux' || process.arch !== 'x64'
-      || process.getuid?.() !== 1001 || process.geteuid?.() !== 1001
-      || process.getgid?.() !== 1001 || process.getegid?.() !== 1001
-      || account.uid !== 1001 || account.gid !== 1001
-      || account.username !== 'runner' || account.homedir !== '/home/runner') throw 0;
+      || process.getuid?.() !== 1000 || process.geteuid?.() !== 1000
+      || process.getgid?.() !== 1000 || process.getegid?.() !== 1000
+      || account.uid !== 1000 || account.gid !== 1000
+      || account.username !== 'warpkeep' || account.homedir !== '/home/warpkeep') throw 0;
     const paths = {
       dependencyCacheRoot: process.env.WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT,
       cliConfigSourcePath: process.env.WARPKEEP_SPACETIME_CLI_CONFIG_PATH,
@@ -201,15 +201,17 @@ function updateConfiguration(expectedNode) {
       const status = lstatSync(path);
       if (status.isSymbolicLink()) throw 0;
       if (kind === 'dependencyCacheRoot') {
-        if (!status.isDirectory() || status.uid !== 1001 || (status.mode & 0o7777) !== 0o700) throw 0;
+        if (!status.isDirectory() || status.uid !== 1000 || (status.mode & 0o7777) !== 0o700) throw 0;
       } else if (!status.isFile() || status.nlink !== 1
         || (kind === 'cliConfigSourcePath'
-          ? status.uid !== 1001 || (status.mode & 0o7777) !== 0o600
-          : ![0, 1001].includes(status.uid) || (status.mode & 0o022) !== 0)) throw 0;
+          ? status.uid !== 1000 || (status.mode & 0o7777) !== 0o600
+          : kind === 'nodePath'
+            ? status.uid !== 1000 || (status.mode & 0o7777) !== 0o500
+            : ![0, 1000].includes(status.uid) || (status.mode & 0o022) !== 0)) throw 0;
       for (let parent = dirname(path);; parent = dirname(parent)) {
         const ancestor = lstatSync(parent);
         if (!ancestor.isDirectory() || ancestor.isSymbolicLink() || realpathSync(parent) !== parent
-          || ![0, 1001].includes(ancestor.uid) || (ancestor.mode & 0o022) !== 0) throw 0;
+          || ![0, 1000].includes(ancestor.uid) || (ancestor.mode & 0o022) !== 0) throw 0;
         if (dirname(parent) === parent) break;
       }
     }
@@ -217,7 +219,7 @@ function updateConfiguration(expectedNode) {
     const node = readLocalBindingBoundedFile(paths.nodePath, {
       maximumBytes: 124819136, expectedBytes: 124819136,
       expectedSha256: 'e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2',
-      expectedUid: 1001, expectedMode: 0o700, requireExecutable: true,
+      expectedUid: 1000, expectedMode: 0o500, requireExecutable: true,
       discardBody: true, expectedIdentity: expectedNode,
     });
     return Object.freeze({ ...paths, nodeIdentity: node.identity });

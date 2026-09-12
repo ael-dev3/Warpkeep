@@ -19,10 +19,12 @@ const BOOTSTRAP_MEMBERS = Object.freeze([SELF, 'scripts/local-binding-bounded-fi
   'scripts/sealed-realms-production-bundle-engine.mjs', 'scripts/local-operation-bundle-noble-v1.mjs',
   'scripts/auth-bridge-notification-prepared-deploy-closure.mjs']);
 const OPERATIONS = Object.freeze({
-  preflight: Object.freeze({ lane: 'g001', run: 'runSealedRealmsProductionG001Operation', status: 'preflight-inspected' }),
-  'g001-policy-observe': Object.freeze({ lane: 'g001', run: 'runSealedRealmsProductionG001Operation', status: 'completed' }),
-  'activation-evidence-inspect': Object.freeze({ lane: 'activation', run: 'runSealedRealmsProductionActivationOperation', status: 'activation-evidence-inspected' }),
-  'activation-evidence-generate': Object.freeze({ lane: 'activation', run: 'runSealedRealmsProductionActivationOperation', status: 'completed' }),
+  preflight: Object.freeze({ lane: 'g001', job: 'operate_readonly', run: 'runSealedRealmsProductionG001Operation', status: 'preflight-inspected' }),
+  'g001-policy-observe': Object.freeze({ lane: 'g001', job: 'operate_readonly', run: 'runSealedRealmsProductionG001Operation', status: 'completed' }),
+  'activation-evidence-inspect': Object.freeze({ lane: 'activation', job: 'operate_readonly', run: 'runSealedRealmsProductionActivationOperation', status: 'activation-evidence-inspected' }),
+  'activation-evidence-generate': Object.freeze({ lane: 'activation', job: 'operate', run: 'runSealedRealmsProductionActivationOperation', status: 'completed' }),
+  'ptr-update-inspect': Object.freeze({ lane: 'ptr', job: 'operate_ptr', run: 'runSealedRealmsProductionPtrOperation', status: 'update-inspected' }),
+  'ptr-update-apply': Object.freeze({ lane: 'ptr', job: 'operate_ptr', run: 'runSealedRealmsProductionPtrOperation', status: 'completed' }),
 });
 const LANES = ['activation', 'g001', 'g002', 'ptr'];
 const PROFILE = 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1';
@@ -224,7 +226,7 @@ function bundle(commit, lane) {
   return selected;
 }
 
-/** Fixed Linux operating caller; a successful result inspects no provider readiness. */
+/** Fixed Linux operating caller; each selected lane owns its effects and evidence. */
 export async function runSealedRealmsProductionLinuxOperation(input) {
   const options = exact(input, ['operation', 'workflowInputSha'], 'input');
   if (arguments.length !== 1 || typeof options.operation !== 'string' || !Object.hasOwn(OPERATIONS, options.operation)
@@ -234,8 +236,7 @@ export async function runSealedRealmsProductionLinuxOperation(input) {
   active = true;
   let phase = 'runtime';
   try {
-    const expectedJob = operation === 'activation-evidence-generate' ? 'operate' : 'operate_readonly';
-    if (process.env.WARPKEEP_OPERATION !== operation || process.env.GITHUB_JOB !== expectedJob) fail('runtime');
+    if (process.env.WARPKEEP_OPERATION !== operation || process.env.GITHUB_JOB !== selectedOperation.job) fail('runtime');
     const host = runtime();
     phase = 'source';
     const root = source(options.workflowInputSha);

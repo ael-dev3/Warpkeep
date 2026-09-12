@@ -23,6 +23,12 @@ const m = vi.hoisted(() => ({
   inspectProvider: vi.fn(),
   bridgeState: vi.fn(),
   privateState: Object.freeze({ private: true }),
+  account: {
+    uid: 1000,
+    gid: 1000,
+    username: "warpkeep",
+    homedir: "/home/warpkeep",
+  },
 }));
 vi.mock("../scripts/ptr-production-publisher.mjs", () => ({
   preparePtrSourceBuiltArtifact: m.prepare,
@@ -40,12 +46,7 @@ vi.mock("../scripts/local-binding-bounded-file.mjs", () => ({
 }));
 vi.mock("node:fs", () => ({ lstatSync: m.lstat, realpathSync: m.realpath }));
 vi.mock("node:os", () => ({
-  userInfo: () => ({
-    uid: 1001,
-    gid: 1001,
-    username: "runner",
-    homedir: "/home/runner",
-  }),
+  userInfo: () => m.account,
 }));
 vi.mock("../scripts/sealed-realms-production-source-authority.mjs", () => ({
   authenticateSealedRealmsProductionSourceAuthority: m.authenticate,
@@ -102,32 +103,49 @@ beforeEach(() => {
   for (const [key, value] of Object.entries({
     platform: "linux",
     arch: "x64",
-    execPath: "/home/runner/toolchain/bin/node",
-    getuid: (): number => 1001,
-    geteuid: (): number => 1001,
-    getgid: (): number => 1001,
-    getegid: (): number => 1001,
+    execPath:
+      "/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node",
+    getuid: (): number => 1000,
+    geteuid: (): number => 1000,
+    getgid: (): number => 1000,
+    getegid: (): number => 1000,
   })) {
     saved.set(key, Object.getOwnPropertyDescriptor(process, key));
     Object.defineProperty(process, key, { configurable: true, value });
   }
-  vi.stubEnv("WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT", "/home/runner/cache");
-  vi.stubEnv("WARPKEEP_SPACETIME_CLI_CONFIG_PATH", "/home/runner/config.toml");
-  vi.stubEnv("SPACETIME_BIN", "/home/runner/spacetimedb-cli");
+  Object.assign(m.account, {
+    uid: 1000,
+    gid: 1000,
+    username: "warpkeep",
+    homedir: "/home/warpkeep",
+  });
+  vi.stubEnv(
+    "WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT",
+    "/home/warpkeep/.warpkeep/release-preparation-v1/cache/ptr",
+  );
+  vi.stubEnv(
+    "WARPKEEP_SPACETIME_CLI_CONFIG_PATH",
+    "/home/warpkeep/.warpkeep/private/production-admin-v1/spacetime-cli.toml",
+  );
+  vi.stubEnv(
+    "SPACETIME_BIN",
+    "/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/spacetime-2.6.1/spacetimedb-cli",
+  );
   m.realpath.mockImplementation((p: string) => p);
   m.node.mockReturnValue({ identity: { node: "fixed" } });
   m.lstat.mockImplementation((p: string) => ({
     isSymbolicLink: () => false,
     isDirectory: () =>
-      !p.endsWith("config.toml") &&
+      !p.endsWith(".toml") &&
       !p.endsWith("spacetimedb-cli") &&
       !p.endsWith("/node"),
     isFile: () =>
-      p.endsWith("config.toml") ||
+      p.endsWith(".toml") ||
       p.endsWith("spacetimedb-cli") ||
       p.endsWith("/node"),
-    uid: p === "/" || p === "/home" ? 0 : 1001,
-    mode: p.endsWith("config.toml") ? 0o600 : 0o700,
+    uid: p === "/" || p === "/home" ? 0 : 1000,
+    gid: p === "/" || p === "/home" ? 0 : 1000,
+    mode: p.endsWith(".toml") ? 0o600 : p.endsWith("/node") ? 0o500 : 0o700,
     nlink: 1,
   }));
   m.authenticate.mockImplementation(({ operation }) => ({
@@ -177,21 +195,29 @@ it.each(["ptr-update-inspect", "ptr-update-apply"] as const)(
     expect(m.prepare).toHaveBeenCalledWith(
       expect.objectContaining({
         sourceCommit: sha,
-        dependencyCacheRoot: "/home/runner/cache",
-        cliConfigSourcePath: "/home/runner/config.toml",
-        executable: "/home/runner/spacetimedb-cli",
+        dependencyCacheRoot:
+          "/home/warpkeep/.warpkeep/release-preparation-v1/cache/ptr",
+        cliConfigSourcePath:
+          "/home/warpkeep/.warpkeep/private/production-admin-v1/spacetime-cli.toml",
+        executable:
+          "/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/spacetime-2.6.1/spacetimedb-cli",
       }),
     );
     expect(m.prepare.mock.calls[0][0].reattestSource()).toBe(sha);
     expect(m.authenticate).toHaveBeenCalledTimes(2);
     expect(m.prepare.mock.calls[0][0].environment.PATH).toBe(
-      "/home/runner/toolchain/bin:/usr/bin:/bin",
+      "/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin:/usr/bin:/bin",
     );
     expect(m.node).toHaveBeenCalledWith(
-      "/home/runner/toolchain/bin/node",
+      "/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node",
       expect.objectContaining({
-        expectedUid: 1001,
-        expectedMode: 0o700,
+        maximumBytes: 124819136,
+        expectedBytes: 124819136,
+        expectedSha256:
+          "e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2",
+        expectedUid: 1000,
+        expectedMode: 0o500,
+        requireExecutable: true,
         discardBody: true,
       }),
     );
@@ -234,7 +260,7 @@ it.each(["symlink", "permissions", "owner", "relative"])(
         isSymbolicLink: () => mode === "symlink",
         isDirectory: () => true,
         isFile: () => true,
-        uid: mode === "owner" ? 1000 : 1001,
+        uid: mode === "owner" ? 1001 : 1000,
         mode: mode === "permissions" ? 0o777 : 0o700,
         nlink: 1,
       });
@@ -297,14 +323,56 @@ it("cleanup failure still attempts artifact cleanup and evidence revocation", as
   expect(m.revoke).toHaveBeenCalledOnce();
 });
 
-it("refuses the wrong account before building", async () => {
-  Object.defineProperty(process, "getuid", {
-    configurable: true,
-    value: () => 1000,
+it("refuses the retired hosted-runner account before permit issuance or building", async () => {
+  for (const key of ["getuid", "geteuid", "getgid", "getegid"] as const) {
+    Object.defineProperty(process, key, {
+      configurable: true,
+      value: () => 1001,
+    });
+  }
+  Object.assign(m.account, {
+    uid: 1001,
+    gid: 1001,
+    username: "runner",
+    homedir: "/home/runner",
   });
   await expect(
     create({ operation: "ptr-update-inspect", workflowInputSha: sha }),
   ).rejects.toThrow("CONFIG");
+  expect(m.issue).not.toHaveBeenCalled();
+  expect(m.prepare).not.toHaveBeenCalled();
+});
+
+it.each(["geteuid", "getegid"] as const)(
+  "refuses a mismatched effective %s before permit issuance or building",
+  async (key) => {
+    Object.defineProperty(process, key, {
+      configurable: true,
+      value: () => 1001,
+    });
+    await expect(
+      create({ operation: "ptr-update-inspect", workflowInputSha: sha }),
+    ).rejects.toThrow("CONFIG");
+    expect(m.issue).not.toHaveBeenCalled();
+    expect(m.prepare).not.toHaveBeenCalled();
+  },
+);
+
+it("refuses a writable running Node before permit issuance or building", async () => {
+  m.lstat.mockImplementation((p: string) => ({
+    isSymbolicLink: () => false,
+    isDirectory: () => !p.endsWith(".toml") && !p.endsWith("spacetimedb-cli") && !p.endsWith("/node"),
+    isFile: () => p.endsWith(".toml") || p.endsWith("spacetimedb-cli") || p.endsWith("/node"),
+    uid: p === "/" || p === "/home" ? 0 : 1000,
+    gid: p === "/" || p === "/home" ? 0 : 1000,
+    mode: p.endsWith(".toml") ? 0o600 : 0o700,
+    nlink: 1,
+  }));
+  await expect(
+    create({ operation: "ptr-update-inspect", workflowInputSha: sha }),
+  ).rejects.toThrow("CONFIG");
+  expect(m.node).not.toHaveBeenCalled();
+  expect(m.issue).not.toHaveBeenCalled();
   expect(m.prepare).not.toHaveBeenCalled();
 });
 it("reattestation refuses advanced source and changed configuration", async () => {
@@ -324,7 +392,10 @@ it("reattestation refuses advanced source and changed configuration", async () =
     operation: "ptr-update-inspect",
     sha,
   });
-  vi.stubEnv("SPACETIME_BIN", "/home/runner/other-cli");
+  vi.stubEnv(
+    "SPACETIME_BIN",
+    "/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/other-cli",
+  );
   expect(reattest).toThrow("CONFIG");
   await run({
     runtime,
@@ -348,7 +419,23 @@ it("refuses an unattested running Node before builder execution", async () => {
   await expect(
     create({ operation: "ptr-update-inspect", workflowInputSha: sha }),
   ).rejects.toThrow("CONFIG");
+  expect(m.issue).not.toHaveBeenCalled();
   expect(m.prepare).not.toHaveBeenCalled();
+});
+
+it("reattestation refuses a changed running Node identity", async () => {
+  const runtime = await create({
+    operation: "ptr-update-inspect",
+    workflowInputSha: sha,
+  });
+  const reattest = m.prepare.mock.calls[0][0].reattestSource;
+  m.node.mockReturnValue({ identity: { node: "changed" } });
+  expect(reattest).toThrow("CONFIG");
+  await run({
+    runtime,
+    operation: "ptr-update-inspect",
+    workflowInputSha: sha,
+  });
 });
 
 it("captures a completed update before disposal using owned authority, store and private state", async () => {

@@ -2,6 +2,61 @@
 
 ## Current review and next work — 12 September 2026
 
+The Linux production caller now connects `ptr-update-inspect` and
+`ptr-update-apply` to the existing source-built artifact, fixed PTR provider,
+continuation and completion-record path. The dedicated `operate_ptr` job has
+read-only GitHub permissions, exact main/source guards and fixed cache/CLI/private
+config paths; it does not receive OIDC or bridge/admin secrets. The CLI and
+workflow evidence bind these operations to that job. The PTR constructor now
+requires the installed `warpkeep` account, UID/GID 1000 and pinned Node mode
+`0500`, retaining canonical-path, ownership, byte and re-attestation checks.
+
+Tests first reproduced the missing input/evidence route and retired-runner
+contract. All five affected suites then passed all 191 tests on native Linux
+Node 22.22.3, with no skips (session `83875`, exit zero), using a checked ten-file
+overlay over `33de0387`. Its exact paths were restored after verification; no
+private credentials, provider state or generated family was changed. Windows
+passed 104 CLI/evidence/dispatch tests, 36 lifecycle tests and 12 workflow tests;
+its 39 Linux-only workflow cases were subsequently covered by the native pass.
+The [Linux operating guide](../../operations/0.4.0-linux-runner.md#existing-ptr-module-updates)
+owns the concrete path and credential requirements.
+
+The private Linux CLI configuration has now been provisioned from the owner's
+existing local configuration using an exclusive, checked process pipe. Both
+pinned CLI binaries and config bytes/metadata were verified, and captured local
+`login show` output confirmed a readable login without exposing credential or
+identity values. This does not prove provider permission, current token validity
+or PTR ownership; do not recreate or overwrite that existing config.
+
+This is source integration, not an executed PTR update. Publish it after the
+scoped review and outgoing scan, then follow normal source/family promotion.
+The retained `8033e01c` generated family does not cover these runtime changes;
+the [promotion sequence](../../evidence/0.4.0/release-engineering.md#protected-promotion-and-historical-source-retention)
+requires preparation and independent checking from actual main ancestry before
+protected use. Do not run apply until genuine credentials, predecessor state
+and required recovery evidence are established. Inspection itself writes private
+inspection/continuation records, although it performs no database update.
+
+The next integration is the PTR import/owner/live caller. Import currently accepts
+fresh-publish authority only; support authenticated completed existing-update
+authority without fabricating a publish receipt. V3 intentionally supports
+current-source initialization. Existing historical import/owner receipts, if
+present, must retain their original bodies and source coordinates and obtain
+authenticated continuity/adoption authority. Inspect actual private state before
+choosing initialization versus adoption; never assume the owner is absent or
+recreate an existing owner. The current-source restriction is already recorded
+and tested, rather than a newly introduced regression.
+
+The [sync procedure](../../operations/0.4.0-development-sync.md) now resolves its
+example branch/PR dynamically, describes new-branch scan bases and clean idle
+fast-forward updates, and makes contaminated outgoing-history recovery explicit.
+The related repository agent guides and existing periodic check also enforce
+immediate publication; their actual remote checkpoints remain in the external
+handoff. Keep the complete 0.4 goal active; source and fixture progress does not
+close owner, preservation, visuals, performance or release acceptance.
+
+## Activation lifecycle correction and preceding checks
+
 Verify `34680474756` at `2615518e` exposed a single failed root-test suite:
 the activation lifecycle fixture supplied opaque authority stubs to the newly
 connected real bridge-provider constructor. The corrected fixture now mocks
@@ -12,8 +67,9 @@ suites passed all 177 tests on pinned Windows Node 22.22.3 (session `18025`,
 exit zero); explicit application/test types and independent review passed.
 Production authority checks are unchanged. The
 [release engineering record](../../evidence/0.4.0/release-engineering.md)
-retains the failed hosted batch and corrected scope. Publish the correction and
-read the new head's required checks before normal promotion; do not rerun source
+retains the failed hosted batch and corrected scope. The correction was published
+as `33de0387`, and Verify `34682368968` and CodeQL `34682369009` completed
+successfully. The subsequent PTR caller needs its own publication checks. Do not rerun source
 preparation for this test/documentation-only follow-up. The immutable tag at
 `2615518e` already retains the required historical operator ancestry.
 
@@ -129,15 +185,10 @@ The [workflow audit](../../evidence/0.4.0/workflow-sufficiency-audit.md) and
 [recovery record](../../evidence/0.4.0/recovery.md) distinguish implemented callers
 from remaining live acceptance. Keep G001 preserved and G002 sealed throughout.
 
-A fresh source trace identifies the next concrete realm caller gap: the existing
-PTR update artifact/provider/completion path is composed, but production workflow,
-Linux preflight and workflow evidence do not accept its inspect/apply operations.
-Its entry configuration also still expects `runner` UID/GID 1001 and Node mode
-0700, whereas the installed production contract uses `warpkeep` 1000 and mode
-0500. Connect that complete supported caller before claiming a real module update.
-Then allow import to consume genuine existing-update/adoption authority rather
-than fabricating a fresh-publication receipt, and complete the authenticated owner
-status/authority resolver. These are source findings, not executed provider proof.
+The Linux PTR routing and account gaps identified at this earlier checkpoint are
+addressed by the current integration above. Actual protected execution remains
+unverified. Continue with genuine existing-update/adoption authority for import
+and authenticated owner/live resolution; source composition is not provider proof.
 
 Continuous publication is required in `AGENTS.md` and the
 [sync procedure](../../operations/0.4.0-development-sync.md): commit and push

@@ -5,6 +5,8 @@ export function runSealedRealmsProductionLinuxPreflight(input: Readonly<{
 
 /** Fixed dispatch; unwired provider operations are refused before runtime work. */
 export function runSealedRealmsProductionLinuxOperation(input: Readonly<{
-  operation: 'preflight' | 'activation-evidence-inspect' | 'activation-evidence-generate' | 'g001-policy-observe'; workflowInputSha: string;
-}>): Promise<Readonly<{ operation: 'preflight' | 'activation-evidence-inspect' | 'activation-evidence-generate' | 'g001-policy-observe';
-  status: 'preflight-inspected' | 'activation-evidence-inspected' | 'completed' }>>;
+  operation: 'preflight' | 'activation-evidence-inspect' | 'activation-evidence-generate' | 'g001-policy-observe'
+    | 'ptr-update-inspect' | 'ptr-update-apply'; workflowInputSha: string;
+}>): Promise<Readonly<{ operation: 'preflight' | 'activation-evidence-inspect' | 'activation-evidence-generate' | 'g001-policy-observe'
+    | 'ptr-update-inspect' | 'ptr-update-apply';
+  status: 'preflight-inspected' | 'activation-evidence-inspected' | 'update-inspected' | 'completed' }>>;

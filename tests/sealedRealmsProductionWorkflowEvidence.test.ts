@@ -130,6 +130,12 @@ describe.sequential('fixed workflow Verify evidence', () => {
     ['g001-policy-observe', 'operate'],
     ['activation-evidence-inspect', 'operate'],
     ['preflight', 'operate'],
+    ['ptr-update-inspect', 'operate_readonly'],
+    ['ptr-update-inspect', 'operate'],
+    ['ptr-update-apply', 'operate_readonly'],
+    ['ptr-update-apply', 'operate'],
+    ['activation-evidence-generate', 'operate_ptr'],
+    ['preflight', 'operate_ptr'],
     ['arbitrary', 'operate_readonly'],
   ])('rejects mismatched operation/job before GitHub reads: %s/%s', async (operation, job) => {
     const commit='a'.repeat(40), fetch=vi.fn();
@@ -138,6 +144,27 @@ describe.sequential('fixed workflow Verify evidence', () => {
     await expect(create({ workflowInputSha: commit })).rejects.toThrow('SEALED_REALMS_WORKFLOW_EVIDENCE_CONTEXT_INVALID');
     expect(fetch).not.toHaveBeenCalled();
   });
+  it.each(['ptr-update-inspect', 'ptr-update-apply'])('authenticates PTR operation %s only through its dedicated job', async operation => {
+    const f = fixture();
+    vi.stubEnv('WARPKEEP_OPERATION', operation);
+    vi.stubEnv('GITHUB_JOB', 'operate_ptr');
+    const scope = await create({ workflowInputSha: f.commit });
+    expect(verify(scope, f.commit)).toEqual({ verifiedSha: f.commit });
+    await refresh(scope);
+    expect(verify(scope, f.commit)).toEqual({ verifiedSha: f.commit });
+    revoke(scope);
+    expect(() => verify(scope, f.commit)).toThrow(/SCOPE_INVALID/u);
+  }, EVIDENCE_FIXTURE_HOST === 'win32' ? 60000 : 10000);
+  it('invalidates PTR evidence when inspection changes to apply within the same job', async () => {
+    const f = fixture();
+    vi.stubEnv('WARPKEEP_OPERATION', 'ptr-update-inspect');
+    vi.stubEnv('GITHUB_JOB', 'operate_ptr');
+    const scope = await create({ workflowInputSha: f.commit });
+    vi.stubEnv('WARPKEEP_OPERATION', 'ptr-update-apply');
+    expect(() => verify(scope, f.commit)).toThrow(/WORKFLOW_EVIDENCE/u);
+    await expect(refresh(scope)).rejects.toThrow('SEALED_REALMS_WORKFLOW_EVIDENCE_UNAVAILABLE');
+    revoke(scope);
+  }, EVIDENCE_FIXTURE_HOST === 'win32' ? 60000 : 10000);
   it('invalidates captured evidence when the operation changes within the same readonly job', async () => {
     const f = fixture(); const scope = await create({ workflowInputSha: f.commit });
     vi.stubEnv('WARPKEEP_OPERATION', 'activation-evidence-inspect');
