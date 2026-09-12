@@ -15,8 +15,14 @@ classifier returned `sealed-launch-blocked`. Full current-head hosted checks and
 normal protected integration remain required; this does not establish deployment.
 Both Windows TypeScript projects and all 30 tests in the three doc-facing suites
 passed after application, as did tracked file-size and diff checks. The broader
-Windows generated-consumer run is still tracked by actual session `31279`; do
-not equate a pending command with a pass or restart it.
+Windows generated-consumer run `31279` completed with 283 passes, 78 failures
+and four skips. Its three failing suites require POSIX ownership, `/usr/bin/git`
+and symlink semantics; the native projection/boundary suites passed in the 448
+cases above. The separate native prepared-workflow run `81300` is still active
+at `42b660fd`; follow its terminal assertion details before diagnosing its current
+failure marker. The [verification environment guidance](../../engineering/development-workflow.md#choose-the-verification-environment)
+now routes those contracts through the existing native lane. Do not weaken their
+assertions or restart the completed Windows run.
 The operating checkout can synchronize after publication because both native
 processes have completed. Do not restart either completed run.
 

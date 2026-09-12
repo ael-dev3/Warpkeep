@@ -81,6 +81,16 @@ Both Windows TypeScript projects passed after application. All 30 tests in
 tracked file-size policy and diff whitespace checks passed. These checks do not
 stand in for the separate affected native/hosted verification.
 
+The supplemental Windows session `31279` later ended with 283 passes, 78
+failures and four skips across eight files in 672.91 seconds. Three suites failed
+before their intended native assertions: the closure repository requires
+`process.getuid`, fixtures call `/usr/bin/git`, and Windows rejected symlink
+creation with `EPERM`. This is a recorded failed Windows invocation, not a pass.
+The same projection and deployment-boundary suites passed on native G above.
+The separate prepared-workflow suite is being followed natively; its terminal
+result must determine any remaining implementation issue. The development
+workflow now makes the environment routing explicit without weakening checks.
+
 This is development-source preparation and integration, not deployment. Read
 [PR #240](https://github.com/ael-dev3/Warpkeep/pull/240) for the current published
 head and its verification. Full current-head hosted checks, protected-main

@@ -75,6 +75,26 @@ sync when it clears. A running native build retains its pinned operating source
 and is synchronized after it releases that source. A periodic app check provides
 recovery for missed publications; the active developer still publishes directly.
 
+## Choose the verification environment
+
+Use Windows for the editable source, types, portable tests and rendered browser
+checks. Run the prepared deployment and source-authority suites in the existing
+native `WarpkeepRunner` checkout as `warpkeep` with the pinned Node toolchain.
+Their real contract requires POSIX UID/mode checks, `/usr/bin/git`, executable
+shells and symlink semantics. A direct Windows run can reject its fixture before
+the intended assertion and spend minutes repeatedly starting the native TypeScript
+parser. This does not justify changing the production checks or their assertions.
+
+In particular, run `authBridgeNotificationPreparedWorkflow`,
+`authBridgeNotificationPreparedReleaseProjection` and
+`greaterRealmReleaseGateDeployBoundary` on Linux for acceptance. Some portable
+cases can run on Windows, but partial passes do not cover their native contracts.
+Follow the actual selected process to its exit code; publish its source and
+platform limits honestly. Reuse the existing native checkout after its active
+prepare/check releases the input, rather than installing into shared Windows
+dependency junctions or making another clone. The [execution handoff](../agent-notes/0.4.0/execution-handoff.md)
+records current run identities and owning results.
+
 ## Output locations and retention
 
 The owner's September 11 instruction is to keep new Warpkeep output off the
