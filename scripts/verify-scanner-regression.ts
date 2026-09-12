@@ -24,7 +24,10 @@ function fixture() {
   const ptrTestThumbprint = ['zbHwk528B5de5kuN', 'zI98k4Y-rljmW6fb', 'kH-aVZomk4M'].join('');
   const ptrObservationPaths = ['services/release-recovery/test/ptrObservation.test.ts',
     'services/release-recovery/test/signerPtrObservation.test.ts', 'tests/ptrProductionStateObservation.test.ts',
-    'tests/ptrProductionExistingUpdate.test.ts', 'tests/ptrProductionExistingUpdateContinuation.test.ts'];
+    'tests/ptrProductionExistingUpdate.test.ts', 'tests/ptrProductionExistingUpdateContinuation.test.ts',
+    'services/release-recovery/test/g002UpdateObservation.test.ts',
+    'services/release-recovery/test/signerG002UpdateObservation.test.ts',
+    'services/release-recovery/test-workerd/g002UpdateObservation.test.ts'];
   const groups: Array<[string, string[]]> = [
     ['services/release-recovery/scripts/release-recovery-toolchain-records.mjs', hashes],
     ['services/release-recovery/scripts/prepare-release-recovery-wsl-toolchain.mjs', hashes],

@@ -137,7 +137,8 @@ The reviewed PTR family is published at `70a65b34`; native generated/private
 consumers and preflight passed. Exact-head hosted checks and protected integration
 remain separate. G002 already exists with an older public interface, while genuine
 local publication/import/bridge history was absent from the documented paths.
-Its production update workflow remains unimplemented. A new proof must establish
+At that checkpoint its production update workflow was unimplemented. The connected
+sequence below records the follow-up; a new proof must establish
 an observed existing-state transition, without asserting original publication or
 import execution. Authentic current predecessor observations can support forward
 recovery without the unavailable original executable.
@@ -165,3 +166,43 @@ deployment evidence and unchanged G001/PTR semantics. Carry that branch through
 candidate/generator, public binding, approval and recovery issue/claim consumers.
 No new realm RPC, census, preparation-observation version or continuation schema is
 needed. This is the recommended next implementation, not completed functionality.
+
+### Connected implementation sequence
+
+Work starts from published `27671943` in the reused isolated checkout on
+`codex/0.4-g002-existing-state`. PR #244's reviewed main-targeting source remains
+unchanged while its checks finish. Root owns integration and publication; no
+agent moves the native checkout or publishes another agent's unfinished changes.
+
+- [x] Add the fixed `operate_g002` signing policy through the existing service
+  `ptrObservation.ts`, `ptrObservationOidc.ts`, `signerPtrObservation.ts`, gateway
+  and signer entry. Export `captureG002BridgeObservation`,
+  `snapshotG002UpdateObservationContext/Request`, `signG002UpdateObservation`,
+  `verifyG002UpdateObservation`, `verifyHistoricalG002UpdateObservation` and
+  `verifyG002UpdateObservationPair`. Use the separate
+  `/v1/recovery/g002-update-observation` endpoint and G002 profile/audience, with
+  unchanged PTR bytes. Test actual gateway/signer routing, signature/context
+  mismatch, foreign realm, changed sealed invariants and asynchronous mutation.
+- [x] Extend `prepareGenesis002SourceBuiltArtifact` with privately owned
+  `assertGenesis002SourceBuiltArtifact`, actual program Keccak and full RawV10
+  description. Reuse the existing native lock/build and realm-neutral parser;
+  preserve initial-publisher semantics. Test copied/tampered capability rejection,
+  platform guards and exact native source/artifact lifecycle.
+- [x] Share credential transport and schema preservation behind fixed PTR/G002
+  facades. Add `create/request/disposeG002UpdateProviderCredentials` (request:
+  `requestG002UpdateProvider`) and `parse/compareG002UpdateDefinitions`. Verify
+  fixed endpoint and cross-facade rejection, preserved PTR digests, schema
+  rejection before submission and bounded credential cleanup.
+- [x] Share production adapter mechanics under two private fixed policies and
+  expose G002 creation, completion and adoption counterparts. Preserve exact PTR
+  paths/domains/records and isolate all capability registries. Test authentic
+  claim binding, same-source/candidate checks, wrong-lane inputs, predecessor
+  continuity, lost acknowledgement and retained restart without another PUT.
+- [x] Connect the fixed Linux observation caller, G002 workflow constructor,
+  source/permit/preflight contracts and dedicated protected update job. Verify
+  that real signed pre-state precedes submission and post-state follows genuine
+  completion; inspect mode never grants apply authority.
+- [ ] Connect explicit G002 adoption through private/public activation and recovery
+  consumers, then regenerate/check the complete source family from published
+  source. Complete native, protected-main and live preservation/owner acceptance;
+  synthetic successful transitions remain implementation evidence only.

@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
 import { vi } from 'vitest';
 import {
+  captureG002BridgeObservation, signG002UpdateObservation, snapshotG002UpdateObservationRequest,
+  verifyHistoricalG002UpdateObservation, type G002UpdateObservation,
   capturePtrBridgeObservation,
   signPtrUpdateObservation,
   snapshotPtrUpdateObservationRequest,
@@ -11,8 +13,6 @@ import {
 } from '../../services/release-recovery/src/ptrObservation';
 import { preparationPrivateJwk } from '../../services/release-recovery/test/preparationFixture';
 
-const AUDIENCE = 'https://release-auth.warpkeep.com/ptr-update-observation';
-const ENDPOINT = 'https://release-auth.warpkeep.com/v1/recovery/ptr-update-observation';
 const API = 'https://api.github.com/repos/ael-dev3/Warpkeep';
 const HASH = 'a'.repeat(64);
 
@@ -45,7 +45,7 @@ function jsonResponse(url: string, body: unknown) {
   return response;
 }
 
-function bridge(run: PtrUpdateObservationFixtureRun, requestId: string, programKeccak256: string,
+function bridge(lane: 'ptr' | 'g002', run: PtrUpdateObservationFixtureRun, requestId: string, programKeccak256: string,
   observedFrom: number, observedThrough: number, recoveryAuthorizationEpoch: number) {
   const atlas = {
     admissionsOpen: false, accessRequestsOpen: false, sealed: true, atlasReady: true,
@@ -74,13 +74,13 @@ function bridge(run: PtrUpdateObservationFixtureRun, requestId: string, programK
     },
     g002: {
       ...atlas, databaseIdentity: 'c2003223f6e3c86e988775ddd458c3a45635d0d021e11131551471617c392194',
-      programKeccak256: HASH, realmId: 'GENESIS_002', databaseName: 'warpkeep-genesis-002',
+      programKeccak256: lane === 'g002' ? programKeccak256 : HASH, realmId: 'GENESIS_002', databaseName: 'warpkeep-genesis-002',
       moduleIdentity: 'warpkeep-genesis-002-sealed-v1', releaseVersion: '0.4.0',
       launchState: 'sealed', playerCount: 0, atlasId: 'GENESIS_002_GREATER_REALM',
     },
     ptr: {
       ...atlas, databaseIdentity: 'c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e',
-      programKeccak256, realmId: 'PTR', releaseVersion: '0.4.0-ptr.1',
+      programKeccak256: lane === 'ptr' ? programKeccak256 : HASH, realmId: 'PTR', releaseVersion: '0.4.0-ptr.1',
       moduleIdentity: 'warpkeep-ptr-owner-view-v1', launchState: 'owner-only',
       singletonOwnerCount: 1, ownerEnabled: true, atlasId: 'PTR_GREATER_REALM',
       ownerInvariantHmacSha256: HASH,
@@ -96,20 +96,26 @@ function bridge(run: PtrUpdateObservationFixtureRun, requestId: string, programK
   };
 }
 
-export function createPtrUpdateObservationTransportFixture(initial: PtrUpdateObservationFixtureRun,
+function createUpdateObservationTransportFixture(lane: 'ptr' | 'g002', initial: PtrUpdateObservationFixtureRun,
   options: Readonly<{
     nowSeconds?: number;
     recoveryAuthorizationEpoch?: number;
     bridgeSourceCommit?: string;
     fetchFallback?: (url: string, init?: RequestInit) => Promise<Response>;
   }> = {}) {
+  const AUDIENCE = `https://release-auth.warpkeep.com/${lane}-update-observation`;
+  const ENDPOINT = `https://release-auth.warpkeep.com/v1/recovery/${lane}-update-observation`;
+  const job = `operate_${lane}`;
+  const snapshotRequest = lane === 'ptr' ? snapshotPtrUpdateObservationRequest : snapshotG002UpdateObservationRequest;
+  const capture = lane === 'ptr' ? capturePtrBridgeObservation : captureG002BridgeObservation;
+  const historical = lane === 'ptr' ? verifyHistoricalPtrUpdateObservation : verifyHistoricalG002UpdateObservation;
   let run = { ...initial };
   let current = options.nowSeconds ?? 108;
   let fault: 'none' | 'redirect' | 'oversized' | 'invalid-signature' = 'none';
   const requests: Array<Readonly<{ url: string; method: string; context?: PtrUpdateObservationContext }>> = [];
-  const observations: PtrUpdateObservation[] = [];
+  const observations: Array<PtrUpdateObservation | G002UpdateObservation> = [];
   const labels = parseYaml(readFileSync('.github/workflows/sealed-realms-production.yml', 'utf8'))
-    .jobs.operate_ptr['runs-on'] as string[];
+    .jobs[job]['runs-on'] as string[];
   const token = () => ['e30', Buffer.from(JSON.stringify({
     jti: run.requestId, aud: AUDIENCE, sha: run.sourceCommit,
     run_id: run.runId, run_attempt: run.runAttempt,
@@ -123,38 +129,39 @@ export function createPtrUpdateObservationTransportFixture(initial: PtrUpdateObs
     if (url === jobsUrl) return jsonResponse(url, {
       total_count: 1,
       jobs: [{
-        name: 'operate_ptr', head_sha: run.sourceCommit, id: BigInt(run.checkRunId),
+        name: job, head_sha: run.sourceCommit, id: BigInt(run.checkRunId),
         run_id: BigInt(run.runId), run_attempt: BigInt(run.runAttempt),
         status: 'in_progress', conclusion: null, check_run_url: `${API}/check-runs/${run.checkRunId}`,
         labels,
       }],
     });
     if (url === ENDPOINT) {
-      const request = snapshotPtrUpdateObservationRequest(JSON.parse(String(init?.body)));
+      const request = snapshotRequest(JSON.parse(String(init?.body)));
       requests[requests.length - 1] = Object.freeze({ url, method: init?.method ?? 'POST',
         context: request.context });
       const terminal = request.context.phase === 'post'
-        ? Math.floor(Date.parse(request.context.terminalAt) / 1000) : 0;
+        ? Math.ceil(Date.parse(request.context.terminalAt) / 1000) : 0;
       const observedFrom = Math.max(current - 8, terminal);
       const observedThrough = current - 3;
-      const value = bridge(run, request.requestId,
+      const value = bridge(lane, run, request.requestId,
         request.context.phase === 'pre' ? request.context.beforeProgram : request.context.candidateProgram,
         observedFrom, observedThrough, options.recoveryAuthorizationEpoch ?? 3);
       if (options.bridgeSourceCommit !== undefined) value.bridgeSourceCommit = options.bridgeSourceCommit;
-      const captured = capturePtrBridgeObservation(value, {
+      const captured = capture(value, {
         requestId: request.requestId, candidateCommit: run.sourceCommit,
         recoveryAuthorizationEpoch: options.recoveryAuthorizationEpoch ?? 3,
       }, observedFrom - 1, observedThrough + 1);
-      let compact = await signPtrUpdateObservation({
+      const signer = lane === 'ptr' ? signPtrUpdateObservation : signG002UpdateObservation;
+      let compact = await signer({
         sourceCommit: run.sourceCommit, sourceTree: run.sourceTree, runId: run.runId,
         runAttempt: run.runAttempt, checkRunId: run.checkRunId, requestId: request.requestId,
-      }, request.context, captured, current - 1, preparationPrivateJwk,
+      }, request.context, captured as never, current - 1, preparationPrivateJwk,
       'preObservationJws' in request ? request.preObservationJws : undefined);
-      observations.push(await verifyHistoricalPtrUpdateObservation(compact));
+      observations.push(await historical(compact));
       if (fault === 'invalid-signature') compact = compact.slice(0, -3) + 'AAA';
       if (fault === 'oversized') compact = 'x'.repeat(17000);
       return jsonResponse(fault === 'redirect' ? `${ENDPOINT}/redirect` : url,
-        { ptrUpdateObservationJws: compact });
+        { [`${lane}UpdateObservationJws`]: compact });
     }
     if (options.fetchFallback) return options.fetchFallback(url, init);
     throw new Error(`unexpected fixture request: ${url}`);
@@ -163,10 +170,10 @@ export function createPtrUpdateObservationTransportFixture(initial: PtrUpdateObs
     for (const [key, value] of Object.entries({
       GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
       GITHUB_REF: 'refs/heads/main', GITHUB_EVENT_NAME: 'workflow_dispatch',
-      GITHUB_JOB: 'operate_ptr',
+      GITHUB_JOB: job,
       GITHUB_WORKFLOW_REF: 'ael-dev3/Warpkeep/.github/workflows/sealed-realms-production.yml@refs/heads/main',
       GITHUB_SHA: run.sourceCommit, GITHUB_RUN_ID: run.runId, GITHUB_RUN_ATTEMPT: run.runAttempt,
-      WARPKEEP_OPERATION: 'ptr-update-apply', GITHUB_TOKEN: 'fixture-github-token',
+      WARPKEEP_OPERATION: `${lane}-update-apply`, GITHUB_TOKEN: 'fixture-github-token',
       ACTIONS_ID_TOKEN_REQUEST_URL: 'https://pipelines.actions.githubusercontent.com/token',
       ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'fixture-oidc-token',
     })) vi.stubEnv(key, value);
@@ -199,4 +206,14 @@ export function createPtrUpdateObservationTransportFixture(initial: PtrUpdateObs
     setFault(value: typeof fault) { fault = value; },
     callerInput,
   });
+}
+
+// Fixture-only selection; production callers expose fixed realm facades.
+export function createPtrUpdateObservationTransportFixture(initial: PtrUpdateObservationFixtureRun,
+  options: Parameters<typeof createUpdateObservationTransportFixture>[2] = {}) {
+  return createUpdateObservationTransportFixture('ptr', initial, options);
+}
+export function createG002UpdateObservationTransportFixture(initial: PtrUpdateObservationFixtureRun,
+  options: Parameters<typeof createUpdateObservationTransportFixture>[2] = {}) {
+  return createUpdateObservationTransportFixture('g002', initial, options);
 }

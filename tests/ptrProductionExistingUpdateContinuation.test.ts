@@ -19,11 +19,15 @@ import { afterEach, expect, it, vi } from "vitest";
 const seams = vi.hoisted(() => ({
   request: vi.fn(),
   artifacts: new WeakSet<object>(),
+  g002Artifacts: new WeakSet<object>(),
 }));
 vi.mock("../scripts/ptr-update-provider-credentials.mjs", () => ({
   createPtrUpdateProviderCredentials: () => Object.freeze({}),
   requestPtrUpdateProvider: seams.request,
   disposePtrUpdateProviderCredentials: () => {},
+  createG002UpdateProviderCredentials: () => Object.freeze({}),
+  requestG002UpdateProvider: seams.request,
+  disposeG002UpdateProviderCredentials: () => {},
 }));
 vi.mock("../scripts/ptr-production-publisher.mjs", async (importOriginal) => ({
   ...await importOriginal<typeof import("../scripts/ptr-production-publisher.mjs")>(),
@@ -36,10 +40,21 @@ vi.mock("../scripts/ptr-production-publisher.mjs", async (importOriginal) => ({
     return value;
   },
 }));
+vi.mock("../scripts/genesis002-production-publisher.mjs", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../scripts/genesis002-production-publisher.mjs")>(),
+  assertGenesis002SourceBuiltArtifact: (value: { assertSourceAndArtifact: () => void }) => {
+    if (!seams.g002Artifacts.has(value)) throw Error("Fixture G002 artifact capability required");
+    value.assertSourceAndArtifact();
+    return value;
+  },
+}));
 import { createPtrProductionExistingUpdateAdapter, exportPtrExistingUpdateCompletion, readPtrExistingUpdateCompletion } from "../scripts/ptr-production-existing-update-adapter.mjs";
 import { capturePtrExistingUpdateAdoption, readPtrExistingStateAdoption } from '../scripts/ptr-production-existing-update-adapter.mjs';
+import { createG002ProductionExistingUpdateAdapter, exportG002ExistingUpdateCompletion,
+  readG002ExistingUpdateCompletion, readG002ExistingUpdateCompletionFromPrivateState,
+  captureG002ExistingUpdateAdoption, readG002ExistingStateAdoption } from '../scripts/ptr-production-existing-update-adapter.mjs';
 import * as adoptionWriter from '../scripts/sealed-realms-production-activation-records.mjs';
-import { createPtrUpdateObservationTransportFixture } from './helpers/ptrUpdateObservationFixture';
+import { createPtrUpdateObservationTransportFixture, createG002UpdateObservationTransportFixture } from './helpers/ptrUpdateObservationFixture';
 vi.mock('../services/release-recovery/src/recoveryPublicKey.js', () => ({
   RECOVERY_KEY_ID: 'warpkeep-0.4.0-recovery-2026-09-03-1',
   RECOVERY_KEY_THUMBPRINT: 'zbHwk528B5de5kuNzI98k4Y-rljmW6fbkH-aVZomk4M',
@@ -71,6 +86,8 @@ import {
   createSealedRealmsProductionPtrDispatchContext,
   createSealedRealmsProductionPtrDispatcher,
 } from "../scripts/sealed-realms-production-ptr-lane-entry.mjs";
+import { createSealedRealmsProductionG002Lane, createSealedRealmsProductionG002DispatchContext,
+  createSealedRealmsProductionG002Dispatcher } from '../scripts/sealed-realms-production-g002-lane-entry.mjs';
 import {
   existingUpdateTokenDigest,
   updateProgramHash,
@@ -78,6 +95,11 @@ import {
 } from "../scripts/sealed-realms-existing-update-protocol.mjs";
 const SOURCE = "a".repeat(40),
   ID = "c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e";
+const G002_ID = 'c2003223f6e3c86e988775ddd458c3a45635d0d021e11131551471617c392194';
+type UpdateLane = 'ptr' | 'g002';
+type UpdateOperation = `${UpdateLane}-update-${'inspect' | 'apply'}`;
+type UpdateAdapter<Lane extends UpdateLane> = ReturnType<Lane extends 'g002'
+  ? typeof createG002ProductionExistingUpdateAdapter : typeof createPtrProductionExistingUpdateAdapter>;
 const BEFORE = "c".repeat(64),
   candidateBytes = Buffer.from("candidate source built bytes"),
   CANDIDATE = updateProgramHash(candidateBytes);
@@ -90,14 +112,14 @@ const definition = canonicalizePtrRawV10(
   ),
 );
 const encode = (value: unknown) => Buffer.from(JSON.stringify(value));
-const plan = (prior: string) => ({
+const plan = (prior: string, identity = ID) => ({
   AutoMigrate: {
     break_clients: false,
     major_version_upgrade: false,
     migrate_plan: `${"━".repeat(60)}\nDatabase Migration Plan\n${"━".repeat(60)}\n\n`,
     token:
       "0x" +
-      Buffer.from(existingUpdateTokenDigest(ID, prior, CANDIDATE), "hex")
+      Buffer.from(existingUpdateTokenDigest(identity, prior, CANDIDATE), "hex")
         .reverse()
         .toString("hex"),
   },
@@ -113,7 +135,7 @@ const readBinding = () => ({
   preparationSourceCommit: null,
 });
 const verifyEvidence = (verifiedSha: string) => ({ verifiedSha });
-function authority(operation: "ptr-update-inspect" | "ptr-update-apply") {
+function authority(operation: UpdateOperation) {
   return authenticateSealedRealmsProductionSourceAuthority({
     operation,
     workflowInputSha: SOURCE,
@@ -125,7 +147,7 @@ function authority(operation: "ptr-update-inspect" | "ptr-update-apply") {
 function github() {
   const status = new Map<string, "in_progress" | "completed">();
   let next = 500;
-  async function run(operation: "ptr-update-inspect" | "ptr-update-apply") {
+  async function run(operation: UpdateOperation) {
     const runId = String(++next);
     status.set(runId, "in_progress");
     const sourceAuthority = authority(operation);
@@ -180,17 +202,18 @@ afterEach(() => {
   seams.request.mockReset();
   vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs();
 });
-function fixture(platformMode = false, race?: (phase: string, path: string) => void, observationOptions: { sourceTree?: string; bridgeSourceCommit?: string } = {}) {
+function fixture<Lane extends UpdateLane = 'ptr'>(platformMode = false, race?: (phase: string, path: string) => void,
+  observationOptions: { sourceTree?: string; bridgeSourceCommit?: string } = {}, laneName: Lane = 'ptr' as Lane) {
+  const identity = laneName === 'ptr' ? ID : G002_ID;
   const fixtureNow = Math.floor(Date.now() / 1000);
   vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(fixtureNow * 1000);
   const observationRun = (runId: string) => ({ sourceCommit: SOURCE, sourceTree: observationOptions.sourceTree ?? 'b'.repeat(40), runId,
     runAttempt: '1', checkRunId: '9001', requestId: '123e4567-e89b-42d3-a456-426614174000' });
-  const observations = createPtrUpdateObservationTransportFixture(observationRun('502'), { nowSeconds: fixtureNow, bridgeSourceCommit: observationOptions.bridgeSourceCommit });
+  const observations = (laneName === 'ptr' ? createPtrUpdateObservationTransportFixture : createG002UpdateObservationTransportFixture)(
+    observationRun('502'), { nowSeconds: fixtureNow, bridgeSourceCommit: observationOptions.bridgeSourceCommit });
   observations.install();
   const root = mkdtempSync(join(tmpdir(), "warpkeep-ptr-real-continuation-"));
-  const adapters = new Set<
-    ReturnType<typeof createPtrProductionExistingUpdateAdapter>
-  >();
+  const adapters = new Set<UpdateAdapter<UpdateLane>>();
   cleanup.push(() => {
     for (const adapter of adapters) adapter.dispose();
     if (!root.startsWith(join(tmpdir(), "warpkeep-ptr-real-continuation-")))
@@ -215,7 +238,7 @@ function fixture(platformMode = false, race?: (phase: string, path: string) => v
   const runtime = join(sealedRealmsPrivateBase(home), 'runtime',
     SEALED_REALMS_PRIVATE_STATE_VERSION,
   );
-  const updateDirectory = `existing-updates-production-v1/ptr/${ID}`;
+  const updateDirectory = `existing-updates-production-v1/${laneName}/${identity}`;
   const state = {
     current: BEFORE,
     puts: 0,
@@ -238,7 +261,7 @@ function fixture(platformMode = false, race?: (phase: string, path: string) => v
     },
     assertSourceAndArtifact: () => {},
   });
-  seams.artifacts.add(artifact);
+  (laneName === 'ptr' ? seams.artifacts : seams.g002Artifacts).add(artifact);
   seams.request.mockImplementation(
     async (
       _provider: unknown,
@@ -251,7 +274,7 @@ function fixture(platformMode = false, race?: (phase: string, path: string) => v
           break;
         case "metadata":
           body = {
-            database_identity: { __identity__: "0x" + ID },
+            database_identity: { __identity__: "0x" + identity },
             owner_identity: { __identity__: "0x" + "2".repeat(64) },
             host_type: { Js: [] },
             initial_program: "0x" + BEFORE,
@@ -261,7 +284,7 @@ function fixture(platformMode = false, race?: (phase: string, path: string) => v
           body = definition.definition;
           break;
         case "plan":
-          body = plan(state.current);
+          body = plan(state.current, identity);
           break;
         case "apply":
           state.beforeSend?.();
@@ -276,7 +299,7 @@ function fixture(platformMode = false, race?: (phase: string, path: string) => v
           if (state.lost)
             throw Error("Synthetic provider committed; response lost");
           body = {
-            Success: { domain: null, database_identity: ID, op: "updated" },
+            Success: { domain: null, database_identity: identity, op: "updated" },
           };
           break;
         default:
@@ -285,28 +308,30 @@ function fixture(platformMode = false, race?: (phase: string, path: string) => v
       return { bytes: encode(body), claimedProviderIdentity: "2".repeat(64) };
     },
   );
-  const make = (runId = '502') => {
+  const make = (runId = '502', storage = privateState) => {
     observations.useRun(observationRun(runId));
-    const adapter = createPtrProductionExistingUpdateAdapter({
-      authority: authority("ptr-update-inspect"),
-      privateState,
+    const adapter = (laneName === 'ptr' ? createPtrProductionExistingUpdateAdapter : createG002ProductionExistingUpdateAdapter)({
+      authority: authority(`${laneName}-update-inspect`),
+      privateState: storage,
       artifact: artifact as never,
       observation: { sourceTree: observationOptions.sourceTree ?? 'b'.repeat(40), runId, runAttempt: '1' },
     });
     adapters.add(adapter);
-    return adapter;
+    return adapter as UpdateAdapter<Lane>;
   };
   const unavailable = () => {
     throw Error("Unrelated publication/import/provision is forbidden");
   };
   async function dispatcher(
-    operation: "ptr-update-inspect" | "ptr-update-apply",
+    operation: UpdateOperation,
     adapter: ReturnType<typeof make>,
+    storage = privateState,
+    continuationStore = store,
   ) {
     const run = await gh.run(operation);
     const bridgeState = createSealedRealmsProductionAuthBridgeState({
       authority: run.sourceAuthority,
-      privateState,
+      privateState: storage,
       repositoryRoot: process.cwd(),
       testOnlyCapability: createSealedRealmsProductionAuthBridgeStateTestCapability(),
       deploymentAttester: unavailable,
@@ -316,36 +341,43 @@ function fixture(platformMode = false, race?: (phase: string, path: string) => v
       authenticateImportResult: unavailable,
       resolveOwnerProvisionReceipt: unavailable,
     });
-    const lane = createSealedRealmsProductionPtrLane({
+    const commonLane = {
       existingUpdate: adapter,
       bridgeState,
       reconciler: createSealedRealmsProductionPublicationReconciler({
-        privateState,
-        lane: "ptr",
+        privateState: storage,
+        lane: laneName,
         postflight: unavailable,
       }),
       createPublishMarker: unavailable,
       publish: unavailable,
       importCore: unavailable,
       liveInspect: unavailable,
-      inspectOwnerProvision: unavailable,
-      provisionOwner: unavailable,
-    });
-    const context = createSealedRealmsProductionPtrDispatchContext({
+    };
+    const contextInput = {
       readGit,
       readBinding,
       verifyEvidence,
       ...run,
-      continuationStore: store,
-    });
-    const target = createSealedRealmsProductionPtrDispatcher({ context, lane });
+      continuationStore,
+    };
+    const target = laneName === 'ptr'
+      ? createSealedRealmsProductionPtrDispatcher({
+        context: createSealedRealmsProductionPtrDispatchContext(contextInput),
+        lane: createSealedRealmsProductionPtrLane({ ...commonLane, existingUpdate: adapter as UpdateAdapter<'ptr'>,
+          inspectOwnerProvision: unavailable, provisionOwner: unavailable }),
+      })
+      : createSealedRealmsProductionG002Dispatcher({
+        context: createSealedRealmsProductionG002DispatchContext(contextInput),
+        lane: createSealedRealmsProductionG002Lane({ ...commonLane, existingUpdate: adapter as UpdateAdapter<'g002'> }),
+      });
     return {
       ...run,
       call: () => target.dispatch({ operation, workflowInputSha: SOURCE }),
     };
   }
   async function inspect(adapter: ReturnType<typeof make>) {
-    const run = await dispatcher("ptr-update-inspect", adapter);
+    const run = await dispatcher(`${laneName}-update-inspect`, adapter);
     await run.call();
     gh.status.set(run.runId, "completed");
   }
@@ -396,7 +428,7 @@ function fixture(platformMode = false, race?: (phase: string, path: string) => v
   };
 }
 function captureCompletion(
-  f: ReturnType<typeof fixture>,
+  f: ReturnType<typeof fixture<'ptr'>>,
   adapter: ReturnType<typeof createPtrProductionExistingUpdateAdapter>,
   sourceAuthority: ReturnType<typeof authority>,
   outcome: "completed" | "reconciled-effect-applied",
@@ -421,6 +453,121 @@ function captureCompletion(
   expect(writeSealedRealmsProductionPtrExistingUpdateRecord({ records: reopened, authority: sourceAuthority, completion })).toEqual(captured);
   return { receipt, completion };
 }
+
+// Source artifact issuance and provider bytes are fixture seams. These cases run
+// the real G002 lane, source authority, workflow permit, private journal, claim,
+// terminal and signature verification. Windows explicitly relaxes POSIX mode/fsync;
+// native Linux runs the same cases without that relaxation.
+it.each([
+  { scenario: 'received response', lost: false, outcome: 'completed', acknowledgement: 'received' },
+  { scenario: 'lost response', lost: true, outcome: 'reconciled-effect-applied', acknowledgement: 'not-received' },
+] as const)('G002 genuine continuation: $scenario retains signed adoption across private-state restart without replay', async ({ lost, outcome, acknowledgement }) => {
+  const f = fixture(process.platform !== 'linux', undefined, {}, 'g002');
+  let adapter = f.make();
+  await f.inspect(adapter);
+  f.state.lost = lost;
+  const original = await f.dispatcher('g002-update-apply', adapter);
+  expect(() => exportG002ExistingUpdateCompletion({ adapter, authority: original.sourceAuthority, store: f.store })).toThrow();
+  let terminalRun = original;
+  if (lost) {
+    await expect(original.call()).rejects.toThrow('SEALED_REALMS_DISPATCH_LANE_FAILED');
+    expect(f.state.puts).toBe(1);
+    expect(f.records().map(record => record.kind).sort()).toEqual(['inspection', 'submission']);
+    expect(f.continuationTerminals()).toHaveLength(0);
+    f.gh.status.set(original.runId, 'completed');
+    adapter.dispose();
+    adapter = f.make('503');
+    terminalRun = await f.dispatcher('g002-update-apply', adapter);
+  }
+  await terminalRun.call();
+  const completion = exportG002ExistingUpdateCompletion({ adapter, authority: terminalRun.sourceAuthority, store: f.store });
+  const receipt = readG002ExistingUpdateCompletion({ completion, authority: terminalRun.sourceAuthority, privateState: f.privateState });
+  expect(receipt).toMatchObject({
+    profile: 'warpkeep-g002-existing-update-receipt-v1', acknowledgement,
+    binding: { sourceCommit: SOURCE, databaseIdentity: G002_ID, candidateProgram: CANDIDATE },
+    preservation: { profile: 'warpkeep-g002-raw-v10-stable-row-schema-v1' },
+    submission: { runId: original.runId, runAttempt: 1 },
+    continuation: { outcome, claimRunId: original.runId, claimRunAttempt: 1,
+      terminalRunId: terminalRun.runId, terminalRunAttempt: 1 },
+  });
+  if (lost) {
+    expect(receipt.acknowledgementRecordDigest).toBeNull();
+    expect(receipt.responseDigest).toBeNull();
+  } else {
+    expect(receipt.acknowledgementRecordDigest).toMatch(/^[a-f0-9]{64}$/u);
+    expect(receipt.responseDigest).toMatch(/^[a-f0-9]{64}$/u);
+  }
+  expect(f.continuationTerminals()).toHaveLength(1);
+  expect(f.continuationTerminals()[0]).toMatchObject({ kind: 'g002-update', outcome });
+  const journal = JSON.stringify(f.records());
+  f.observations.setNowSeconds(Math.ceil(Date.parse(receipt.continuation.terminalAt) / 1000) + 5);
+  const adoption = await captureG002ExistingUpdateAdoption({ adapter, authority: terminalRun.sourceAuthority,
+    store: f.store, permit: terminalRun.permit, runId: terminalRun.runId, runAttempt: terminalRun.runAttempt });
+  const envelope = await readG002ExistingStateAdoption({ adoption, authority: terminalRun.sourceAuthority, privateState: f.privateState });
+  expect(envelope).toMatchObject({ schemaVersion: 1, profile: 'warpkeep-g002-existing-state-adoption-v1',
+    sourceCommit: SOURCE, sourceTree: 'b'.repeat(40), completionReceipt: receipt });
+  expect(f.observations.observations).toHaveLength(2);
+  expect(f.observations.observations[0]).toMatchObject({
+    profile: 'warpkeep-recovery-g002-update-observation-v1',
+    identity: { runId: original.runId },
+    context: { phase: 'pre', claimRecordDigest: receipt.continuation.claimRecordDigest },
+    observation: { g002: { databaseIdentity: G002_ID, programKeccak256: BEFORE, sealed: true, playerCount: 0 } },
+  });
+  expect(f.observations.observations[1]).toMatchObject({
+    identity: { runId: terminalRun.runId },
+    context: { phase: 'post', terminalRecordDigest: receipt.continuation.terminalRecordDigest,
+      completionReceiptDigest: updateDigest(receipt) },
+    observation: { g002: { programKeccak256: CANDIDATE, sealed: true, playerCount: 0 } },
+  });
+  await expect(readPtrExistingStateAdoption({ adoption: adoption as never, authority: terminalRun.sourceAuthority,
+    privateState: f.privateState })).rejects.toThrow();
+  expect(() => readPtrExistingUpdateCompletion({ completion: completion as never, authority: terminalRun.sourceAuthority,
+    privateState: f.privateState })).toThrow();
+  adapter.dispose();
+  await expect(readG002ExistingStateAdoption({ adoption, authority: terminalRun.sourceAuthority,
+    privateState: f.privateState })).rejects.toThrow();
+
+  const requests = f.observations.requests.length, providerRequests = seams.request.mock.calls.length;
+  const restartedState = createSealedRealmsProductionPrivateState({ reportedHome: f.home,
+    testOnlyOwnerUid: statSync(f.home).uid,
+    ...(process.platform !== 'linux' ? { testOnlyAllowPlatformMode: true, testOnlyFsync: () => {} } : {}) });
+  const restartedStore = createSealedRealmsProductionContinuationStore({ privateState: restartedState });
+  const restartedAuthority = authority('g002-update-apply');
+  const retainedInput = { authority: restartedAuthority, privateState: restartedState, store: restartedStore };
+  expect(readG002ExistingUpdateCompletionFromPrivateState(retainedInput)).toEqual(receipt);
+  expect(() => readG002ExistingUpdateCompletionFromPrivateState({ ...retainedInput, authority: authority('ptr-update-apply') })).toThrow();
+  expect(() => readG002ExistingUpdateCompletionFromPrivateState({ ...retainedInput, store: {} as never })).toThrow();
+  f.gh.status.set(terminalRun.runId, 'completed');
+  const restarted = f.make(lost ? '504' : '503', restartedState);
+  const retry = await f.dispatcher('g002-update-apply', restarted, restartedState, restartedStore);
+  f.observations.setNowSeconds(Math.ceil(Date.parse(receipt.continuation.terminalAt) / 1000) + 200);
+  const retained = await captureG002ExistingUpdateAdoption({ adapter: restarted, authority: retry.sourceAuthority,
+    store: restartedStore, permit: retry.permit, runId: retry.runId, runAttempt: retry.runAttempt });
+  const readRetained = () => readG002ExistingStateAdoption({ adoption: retained, authority: retry.sourceAuthority, privateState: restartedState });
+  expect(await readRetained()).toEqual(envelope);
+  await expect(readG002ExistingStateAdoption({ adoption: { ...retained } as never,
+    authority: retry.sourceAuthority, privateState: restartedState })).rejects.toThrow();
+  const updateDirectory = `existing-updates-production-v1/g002/${G002_ID}`;
+  const completionName = restartedState.list({ root: 'runtime', relativeDirectory: updateDirectory })
+    .find(name => name.endsWith('.completion.json'))!;
+  const completionPath = join(f.runtime, updateDirectory, completionName);
+  const postPath = join(f.runtime, 'g002-update-observation-v1', G002_ID, `${receipt.continuation.claimRecordDigest}.post.json`);
+  for (const target of [completionPath, postPath]) {
+    const saved = readFileSync(target);
+    try {
+      writeFileSync(target, '{}\n');
+      await expect(readRetained()).rejects.toThrow();
+      if (target === completionPath) expect(() => readG002ExistingUpdateCompletionFromPrivateState(retainedInput)).toThrow();
+    } finally { writeFileSync(target, saved); }
+    expect(await readRetained()).toEqual(envelope);
+  }
+  expect(f.observations.requests).toHaveLength(requests);
+  expect(seams.request).toHaveBeenCalledTimes(providerRequests);
+  expect(JSON.stringify(f.records())).toBe(journal);
+  expect(f.continuationTerminals()).toHaveLength(1);
+  expect(f.state.puts).toBe(1);
+}, 30000);
+
 it("uses a genuine workflow permit which refuses a newly terminal GitHub run", async () => {
   const gh = github(),
     run = await gh.run("ptr-update-apply");

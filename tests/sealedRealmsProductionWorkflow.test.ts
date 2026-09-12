@@ -26,7 +26,7 @@ const verification = () => parse(workflow('verify.yml')) as { permissions?: unkn
 
 describe('sealed-realms production workflow authority', () => {
   const hardenedShell = '/bin/bash --noprofile --norc -p -e -o pipefail {0}';
-  it('admits PTR existing-update choices while excluding the unwired G002 update choices', () => {
+  it('admits fixed PTR and G002 existing-update choices', () => {
     const source = workflow('sealed-realms-production.yml');
     const document = parse(source) as {
       on?: { workflow_dispatch?: { inputs?: Record<string, unknown> } };
@@ -44,10 +44,7 @@ describe('sealed-realms production workflow authority', () => {
       required: true,
       default: 'preflight',
       type: 'choice',
-      // G002 updates remain fixture-only; PTR updates have a bounded Linux caller.
-      options: SEALED_REALMS_OPERATIONS.filter(operation => ![
-        'g002-update-inspect', 'g002-update-apply',
-      ].includes(operation)),
+      options: SEALED_REALMS_OPERATIONS,
     });
     expect(document.permissions).toEqual({ actions: 'read', contents: 'read' });
   });
@@ -69,7 +66,7 @@ describe('sealed-realms production workflow authority', () => {
   const refusalName = 'Refuse unwired provider operations';
 
   it('separates generation OIDC from readonly operations on the exact protected runner', () => {
-    const document=production();expect(Object.keys(document.jobs)).toEqual(['operate_readonly','observe_ptr','operate','operate_ptr','unsupported']);
+    const document=production();expect(Object.keys(document.jobs)).toEqual(['operate_readonly','observe_ptr','operate','operate_ptr','operate_g002','unsupported']);
     const common=["github.event_name == 'workflow_dispatch'", "github.repository == 'ael-dev3/Warpkeep'", "github.ref == 'refs/heads/main'", 'github.sha == inputs.source_commit'];
     for(const name of ['operate_readonly','observe_ptr','operate']) {
       const job=document.jobs[name];for(const expression of common)expect(job.if).toContain(expression);
@@ -88,6 +85,8 @@ describe('sealed-realms production workflow authority', () => {
     expect(document.jobs.operate_readonly.if).toContain('["preflight","activation-evidence-inspect","g001-policy-observe"]');
     expect(document.jobs.operate_ptr.permissions).toEqual({actions:'read',contents:'read','id-token':'write'});
     expect(document.jobs.operate_ptr.if).toContain('["ptr-update-inspect","ptr-update-apply"]');
+    expect(document.jobs.operate_g002.if).toContain('["g002-update-inspect","g002-update-apply"]');
+    expect(document.jobs.unsupported.if).toContain('"g002-update-inspect","g002-update-apply"');
     expect(document.jobs.unsupported.steps[0].run).toContain('SEALED_REALMS_LINUX_OPERATION_UNAVAILABLE');
     expect(document.jobs.unsupported.if).toContain('"ptr-update-inspect","ptr-update-apply"');
     expect(document.jobs.unsupported.if).toContain('"ptr-state-inspect"');
@@ -109,8 +108,9 @@ describe('sealed-realms production workflow authority', () => {
     expect(jobStep('observe_ptr', guardName).run).toContain("test \"$GITHUB_JOB\" = 'observe_ptr'");
   });
 
-  it('routes PTR updates through a dedicated exact-source job with bounded OIDC and no provider secrets', () => {
-    const job = production().jobs.operate_ptr;
+  it.each(['ptr', 'g002'])('routes %s updates through a dedicated exact-source job with bounded OIDC and no provider secrets', lane => {
+    const job = production().jobs[`operate_${lane}`];
+    expect(job).toBeDefined();
     const common = ["github.event_name == 'workflow_dispatch'", "github.repository == 'ael-dev3/Warpkeep'",
       "github.ref == 'refs/heads/main'", 'github.sha == inputs.source_commit'];
     for (const expression of common) expect(job.if).toContain(expression);
@@ -127,18 +127,18 @@ describe('sealed-realms production workflow authority', () => {
     });
     for (const step of job.steps.filter(step => step.run)) expect(step.shell).toBe(hardenedShell);
 
-    const guard = jobStep('operate_ptr', guardName).run!;
-    expect(guard).toContain("test \"$GITHUB_JOB\" = 'operate_ptr'");
+    const guard = jobStep(`operate_${lane}`, guardName).run!;
+    expect(guard).toContain(`test "$GITHUB_JOB" = 'operate_${lane}'`);
     for (const required of ["test \"$RUNNER_OS\" = 'Linux'", "test \"$RUNNER_ARCH\" = 'X64'",
       "test \"$RUNNER_NAME\" = 'warpkeep-wsl-production-01'", "test \"$(/usr/bin/id -u)\" = '1000'",
       "test \"$GITHUB_REF\" = 'refs/heads/main'", 'audit/private runtime cache']) expect(guard).toContain(required);
     expect(guard).not.toMatch(/mkdir|mktemp|install |chmod|chown/u);
 
-    const execute = jobStep('operate_ptr', executeName);
+    const execute = jobStep(`operate_${lane}`, executeName);
     expect(execute.env).toEqual({
       WARPKEEP_SOURCE_COMMIT: '${{ inputs.source_commit }}',
       GITHUB_TOKEN: '${{ github.token }}',
-      WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT: '/home/warpkeep/.warpkeep/release-preparation-v1/cache/ptr',
+      WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT: `/home/warpkeep/.warpkeep/release-preparation-v1/cache/${lane === 'g002' ? 'genesis002' : 'ptr'}`,
       WARPKEEP_SPACETIME_CLI_CONFIG_PATH: '/home/warpkeep/.warpkeep/private/production-admin-v1/spacetime-cli.toml',
       SPACETIME_BIN: '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/spacetime-2.6.1/spacetimedb-cli',
     });
@@ -159,7 +159,7 @@ describe('sealed-realms production workflow authority', () => {
   });
 
   it('requires installed account and private state without provisioning authority', () => {
-    for (const jobName of ['operate', 'operate_ptr', 'observe_ptr']) {
+    for (const jobName of ['operate', 'operate_ptr', 'operate_g002', 'observe_ptr']) {
       const guard = jobStep(jobName, guardName).run!;
       for (const required of ["test \"$RUNNER_OS\" = 'Linux'", "test \"$RUNNER_ARCH\" = 'X64'",
         "test \"$RUNNER_NAME\" = 'warpkeep-wsl-production-01'", "test \"$(/usr/bin/id -u)\" = '1000'",
@@ -174,7 +174,7 @@ describe('sealed-realms production workflow authority', () => {
   });
 
   it('attests fixed runtime bytes and immutable bootstrap source before calling preflight', () => {
-    for (const jobName of ['operate', 'operate_ptr', 'observe_ptr']) {
+    for (const jobName of ['operate', 'operate_ptr', 'operate_g002', 'observe_ptr']) {
       const execute = jobStep(jobName, executeName).run!;
       for (const required of [
         'e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2',
@@ -257,7 +257,7 @@ describe('sealed-realms production workflow authority', () => {
       const startup = join(directory, 'startup.sh');
       const sentinel = join(directory, 'must-not-exist');
       writeFileSync(startup, 'printf executed > "$WARPKEEP_STARTUP_SENTINEL"\n');
-      for (const jobName of ['operate', 'operate_ptr', 'observe_ptr']) {
+      for (const jobName of ['operate', 'operate_ptr', 'operate_g002', 'observe_ptr']) {
         const result = runShell(jobStep(jobName, guardName).run!, { BASH_ENV: startup, WARPKEEP_STARTUP_SENTINEL: sentinel });
         expect(result.status).toBe(1); expect(result.stdout).toBe('');
         expect(result.stderr).toBe('SEALED_REALMS_LINUX_AMBIENT_OVERRIDE_INVALID\n');
@@ -295,7 +295,7 @@ printf '%s\\n' fixed-argument-transport-ok
 
   it.runIf(process.platform === 'linux').each(SEALED_REALMS_OPERATIONS.filter(operation => ![
     'preflight', 'activation-evidence-inspect', 'activation-evidence-generate', 'g001-policy-observe',
-    'ptr-update-inspect', 'ptr-update-apply', 'ptr-state-inspect',
+    'ptr-update-inspect', 'ptr-update-apply', 'g002-update-inspect', 'g002-update-apply', 'ptr-state-inspect',
   ].includes(operation)))(
     'refuses %s without loading source or echoing caller data', operation => {
       const refusal = operationStep(refusalName);
@@ -383,7 +383,7 @@ printf '%s\\n' ptr-fixed-argument-transport-ok
     'GIT_CONFIG_COUNT', 'GIT_OBJECT_DIRECTORY', 'GIT_REPLACE_REF_BASE', 'BASH_ENV', 'ENV', 'OPENSSL_CONF',
     'SSL_CERT_FILE', 'PYTHONPATH', 'VITEST'])(
     'rejects even empty exported %s before any host, source or Node work', key => {
-      for (const jobName of ['operate', 'operate_ptr', 'observe_ptr']) {
+      for (const jobName of ['operate', 'operate_ptr', 'operate_g002', 'observe_ptr']) {
         for (const name of [guardName, executeName]) {
           const result = runShell(jobStep(jobName, name).run!, { [key]: '' });
           expect(result.error).toBeUndefined(); expect(result.status).toBe(1); expect(result.stdout).toBe('');

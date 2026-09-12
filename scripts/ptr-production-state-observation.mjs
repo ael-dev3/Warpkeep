@@ -5,11 +5,12 @@ import { snapshotPtrObservationIdentity, snapshotPtrObservationRequest, verifyPt
   snapshotPtrUpdateObservationContext, snapshotPtrUpdateObservationRequest, verifyPtrUpdateObservation,
   verifyPtrUpdateObservationPair, PTR_OBSERVATION_AUDIENCE, PTR_OBSERVATION_OPERATION,
   PTR_UPDATE_OBSERVATION_AUDIENCE, PTR_UPDATE_OBSERVATION_JOB,
-  PTR_UPDATE_OBSERVATION_PATH } from '../services/release-recovery/src/ptrObservation.ts';
+  PTR_UPDATE_OBSERVATION_PATH, snapshotG002UpdateObservationContext, snapshotG002UpdateObservationRequest,
+  verifyG002UpdateObservation, verifyG002UpdateObservationPair, G002_UPDATE_OBSERVATION_AUDIENCE,
+  G002_UPDATE_OBSERVATION_JOB, G002_UPDATE_OBSERVATION_PATH } from '../services/release-recovery/src/ptrObservation.ts';
 
 const CODE = 'PTR_PRODUCTION_STATE_OBSERVATION_FAILED';
 const ENDPOINT = 'https://release-auth.warpkeep.com/v1/recovery/ptr-observation';
-const UPDATE_ENDPOINT = `https://release-auth.warpkeep.com${PTR_UPDATE_OBSERVATION_PATH}`;
 const API = 'https://api.github.com/repos/ael-dev3/Warpkeep';
 const CONTEXT = Object.freeze({ GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
   GITHUB_REF: 'refs/heads/main', GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_JOB: 'observe_ptr',
@@ -18,6 +19,19 @@ const UPDATE_CONTEXT = Object.freeze({ GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY
   GITHUB_REF: 'refs/heads/main', GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_JOB: PTR_UPDATE_OBSERVATION_JOB,
   GITHUB_WORKFLOW_REF: 'ael-dev3/Warpkeep/.github/workflows/sealed-realms-production.yml@refs/heads/main',
   WARPKEEP_OPERATION: 'ptr-update-apply' });
+const PTR_UPDATE_POLICY = Object.freeze({
+  context: UPDATE_CONTEXT, audience: PTR_UPDATE_OBSERVATION_AUDIENCE, job: PTR_UPDATE_OBSERVATION_JOB,
+  endpoint: `https://release-auth.warpkeep.com${PTR_UPDATE_OBSERVATION_PATH}`, responseKey: 'ptrUpdateObservationJws',
+  snapshotContext: snapshotPtrUpdateObservationContext, snapshotRequest: snapshotPtrUpdateObservationRequest,
+  verify: verifyPtrUpdateObservation, verifyPair: verifyPtrUpdateObservationPair,
+});
+const G002_UPDATE_POLICY = Object.freeze({
+  context: Object.freeze({ ...UPDATE_CONTEXT, GITHUB_JOB: G002_UPDATE_OBSERVATION_JOB, WARPKEEP_OPERATION: 'g002-update-apply' }),
+  audience: G002_UPDATE_OBSERVATION_AUDIENCE, job: G002_UPDATE_OBSERVATION_JOB,
+  endpoint: `https://release-auth.warpkeep.com${G002_UPDATE_OBSERVATION_PATH}`, responseKey: 'g002UpdateObservationJws',
+  snapshotContext: snapshotG002UpdateObservationContext, snapshotRequest: snapshotG002UpdateObservationRequest,
+  verify: verifyG002UpdateObservation, verifyPair: verifyG002UpdateObservationPair,
+});
 const fail = () => { throw new Error(CODE); };
 const now = () => Math.floor(Date.now() / 1000);
 const parse = bytes => parseGitHubJsonObject(bytes, CODE, []);
@@ -82,7 +96,7 @@ function options(input) {
   return Object.freeze(result);
 }
 
-function updateOptions(input) {
+function updateOptions(input, policy) {
   if (!input || typeof input !== 'object' || types.isProxy(input)
     || Object.getPrototypeOf(input) !== Object.prototype) fail();
   const descriptors = Object.getOwnPropertyDescriptors(input);
@@ -92,7 +106,7 @@ function updateOptions(input) {
   const contextValue = contextDescriptor.value;
   if (!contextValue || typeof contextValue !== 'object' || types.isProxy(contextValue)
     || Object.getPrototypeOf(contextValue) !== Object.prototype) fail();
-  const context = snapshotPtrUpdateObservationContext(contextValue);
+  const context = policy.snapshotContext(contextValue);
   const keys = context.phase === 'post' ? [...base, 'preObservationJws'] : base;
   if (Reflect.ownKeys(descriptors).length !== keys.length || keys.some(key => !descriptors[key]
     || !Object.hasOwn(descriptors[key], 'value') || !descriptors[key].enumerable)) fail();
@@ -156,23 +170,34 @@ function selectedJob(jobs, name, sourceCommit, runId, runAttempt) {
 /** Requests a separately signed pre/post PTR update observation. This does not
  * persist evidence or grant update, provision, import or adoption authority. */
 export async function requestPtrProductionUpdateObservation(input) {
+  return requestProductionUpdateObservation(input, PTR_UPDATE_POLICY);
+}
+
+/** Requests a separately signed pre/post G002 update observation. This does not
+ * persist evidence or grant update, import or historical source authority. */
+export async function requestG002ProductionUpdateObservation(input) {
+  try { return await requestProductionUpdateObservation(input, G002_UPDATE_POLICY); }
+  catch { throw new Error('G002_PRODUCTION_STATE_OBSERVATION_FAILED'); }
+}
+
+async function requestProductionUpdateObservation(input, policy) {
   let compact, oidcToken;
   try {
-    const o = updateOptions(input);
+    const o = updateOptions(input, policy);
     const context = () => {
-      if (Object.entries(UPDATE_CONTEXT).some(([key, value]) => process.env[key] !== value)
+      if (Object.entries(policy.context).some(([key, value]) => process.env[key] !== value)
         || process.env.GITHUB_SHA !== o.sourceCommit || process.env.GITHUB_RUN_ID !== o.runId
         || process.env.GITHUB_RUN_ATTEMPT !== o.runAttempt) fail();
     };
     const reattest = async () => { context(); await o.reattest(); context(); };
     await reattest();
-    const source = oidcSource(PTR_UPDATE_OBSERVATION_AUDIENCE);
+    const source = oidcSource(policy.audience);
     oidcToken = singleString(await request(source.url, { method: 'GET',
       headers: { authorization: `Bearer ${source.credential}` } }, 32768, 30000), 'value');
     await reattest();
-    const claims = oidcClaims(oidcToken, PTR_UPDATE_OBSERVATION_AUDIENCE,
+    const claims = oidcClaims(oidcToken, policy.audience,
       o.sourceCommit, o.runId, o.runAttempt);
-    const body = snapshotPtrUpdateObservationRequest({ oidcToken, sourceCommit: o.sourceCommit,
+    const body = policy.snapshotRequest({ oidcToken, sourceCommit: o.sourceCommit,
       requestId: claims.jti, context: o.context,
       ...(o.context.phase === 'post' ? { preObservationJws: o.preObservationJws } : {}) });
     await reattest();
@@ -183,20 +208,24 @@ export async function requestPtrProductionUpdateObservation(input) {
         'x-github-api-version': '2022-11-28' } }, 512 * 1024, 30000,
       ['/jobs/*/id', '/jobs/*/run_id', '/jobs/*/run_attempt']);
     await reattest();
-    const checkRunId = selectedJob(jobs, PTR_UPDATE_OBSERVATION_JOB, o.sourceCommit, o.runId, o.runAttempt);
+    const checkRunId = selectedJob(jobs, policy.job, o.sourceCommit, o.runId, o.runAttempt);
     const identity = snapshotPtrObservationIdentity({ sourceCommit: o.sourceCommit, sourceTree: o.sourceTree,
       runId: o.runId, runAttempt: o.runAttempt, checkRunId, requestId: body.requestId });
     const json = JSON.stringify(body);
     if (Buffer.byteLength(json) > 32768) fail();
     await reattest();
-    compact = singleString(await request(UPDATE_ENDPOINT, { method: 'POST',
+    compact = singleString(await request(policy.endpoint, { method: 'POST',
       headers: { 'content-type': 'application/json' }, body: json }, 16384, 120000),
-    'ptrUpdateObservationJws');
+    policy.responseKey);
     oidcToken = undefined;
     await reattest();
     const verifyFresh = async () => {
-      const observation = await verifyPtrUpdateObservation(compact, identity, o.context, now());
-      if (o.context.phase === 'post') await verifyPtrUpdateObservationPair(o.preObservationJws, compact);
+      const observation = await policy.verify(compact, identity, o.context, now());
+      context();
+      if (o.context.phase === 'post') {
+        await policy.verifyPair(o.preObservationJws, compact);
+        context();
+      }
       const current = now();
       if (current < observation.issuedAt || current >= observation.expiresAt) fail();
       return observation;

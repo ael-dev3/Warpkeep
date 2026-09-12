@@ -24,6 +24,8 @@ const OPERATIONS = Object.freeze({
   'g001-policy-observe': Object.freeze({ lane: 'g001', job: 'operate_readonly', run: 'runSealedRealmsProductionG001Operation', status: 'completed' }),
   'activation-evidence-inspect': Object.freeze({ lane: 'activation', job: 'operate_readonly', run: 'runSealedRealmsProductionActivationOperation', status: 'activation-evidence-inspected' }),
   'activation-evidence-generate': Object.freeze({ lane: 'activation', job: 'operate', run: 'runSealedRealmsProductionActivationOperation', status: 'completed' }),
+  'g002-update-inspect': Object.freeze({ lane: 'g002', job: 'operate_g002', run: 'runSealedRealmsProductionG002Operation', status: 'update-inspected' }),
+  'g002-update-apply': Object.freeze({ lane: 'g002', job: 'operate_g002', run: 'runSealedRealmsProductionG002Operation', status: 'completed' }),
   'ptr-update-inspect': Object.freeze({ lane: 'ptr', job: 'operate_ptr', run: 'runSealedRealmsProductionPtrOperation', status: 'update-inspected' }),
   'ptr-update-apply': Object.freeze({ lane: 'ptr', job: 'operate_ptr', run: 'runSealedRealmsProductionPtrOperation', status: 'completed' }),
 });

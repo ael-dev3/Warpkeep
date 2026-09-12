@@ -216,11 +216,13 @@ describe('sealed-realms protected workflow authority', () => {
     }
   });
 
-  it('permits update observation only for apply while preserving its continuation phases', async () => {
+  it.each(['ptr', 'g002'])('permits %s update observation only for its apply while preserving continuation phases', async lane => {
     const module = await workflowAuthorityModule();
     for (const operation of [
       'ptr-update-apply',
       'ptr-update-inspect',
+      'g002-update-apply',
+      'g002-update-inspect',
       'ptr-state-inspect',
       'ptr-live-inspect',
       'g002-publish-inspect',
@@ -241,12 +243,12 @@ describe('sealed-realms protected workflow authority', () => {
         runId: '1001',
         runAttempt: '1',
       });
-      if (operation === 'ptr-update-apply') {
-        await expect(attest('ptr-update-observation')).resolves.toBe(true);
+      if (operation === `${lane}-update-apply`) {
+        await expect(attest(`${lane}-update-observation`)).resolves.toBe(true);
         await expect(attest('continuation-effect')).resolves.toBe(true);
         await expect(attest('continuation-terminal')).resolves.toBe(true);
       } else {
-        await expect(attest('ptr-update-observation')).rejects.toThrow(
+        await expect(attest(`${lane}-update-observation`)).rejects.toThrow(
           'SEALED_REALMS_WORKFLOW_AUTHORITY_PERMIT_INVALID',
         );
       }

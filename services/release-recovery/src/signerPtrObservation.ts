@@ -1,8 +1,11 @@
 import { githubFail, snapshotExactDataObject, type GitHubAppEnvironment } from './config.js'
 import { capturePtrBridgeObservation, signPtrObservation, snapshotPtrObservationRequest, verifyPtrObservation,
+  captureG002BridgeObservation, signG002UpdateObservation, snapshotG002UpdateObservationRequest,
+  verifyG002UpdateObservation, verifyHistoricalG002UpdateObservation,
   signPtrUpdateObservation, snapshotPtrUpdateObservationRequest, verifyPtrUpdateObservation,
   verifyHistoricalPtrUpdateObservation } from './ptrObservation.js'
-import { verifyPtrObservationWorkflowIdentity, verifyPtrUpdateObservationWorkflowIdentity } from './ptrObservationOidc.js'
+import { verifyPtrObservationWorkflowIdentity, verifyPtrUpdateObservationWorkflowIdentity,
+  verifyG002UpdateObservationWorkflowIdentity } from './ptrObservationOidc.js'
 import type { ReleaseRecoveryObservationService } from './realmEvidence.js'
 import { validateSignerSecrets } from './signerSecrets.js'
 import { createSignerObservationService } from './signerObservationService.js'
@@ -95,16 +98,27 @@ export async function observePtrFromEnvironment(env: PtrObservationSignerEnviron
  * update/adopt. Only the fixed adapter can supply that independent authority. */
 export async function observePtrUpdateFromEnvironment(env: PtrObservationSignerEnvironment, input: unknown,
   extra: readonly unknown[] = []): Promise<Readonly<{ ptrUpdateObservationJws: string }>> {
-  const code = 'RECOVERY_PTR_UPDATE_OBSERVATION_UNAVAILABLE'
+  return Object.freeze({ ptrUpdateObservationJws: await observeExistingUpdateFromEnvironment(env, input, extra, 'ptr') })
+}
+/** Observes the fixed sealed G002 target; no receipt, permit or state mutation is issued. */
+export async function observeG002UpdateFromEnvironment(env: PtrObservationSignerEnvironment, input: unknown,
+  extra: readonly unknown[] = []): Promise<Readonly<{ g002UpdateObservationJws: string }>> {
+  return Object.freeze({ g002UpdateObservationJws: await observeExistingUpdateFromEnvironment(env, input, extra, 'g002') })
+}
+async function observeExistingUpdateFromEnvironment(env: PtrObservationSignerEnvironment, input: unknown,
+  extra: readonly unknown[], lane: 'ptr' | 'g002'): Promise<string> {
+  const code = lane === 'g002' ? 'RECOVERY_G002_UPDATE_OBSERVATION_UNAVAILABLE' : 'RECOVERY_PTR_UPDATE_OBSERVATION_UNAVAILABLE'
+  const verifyIdentity = lane === 'g002' ? verifyG002UpdateObservationWorkflowIdentity : verifyPtrUpdateObservationWorkflowIdentity
+  const verifyHistorical = lane === 'g002' ? verifyHistoricalG002UpdateObservation : verifyHistoricalPtrUpdateObservation
   try {
     if (extra.length !== 0) githubFail(code)
-    const request = snapshotPtrUpdateObservationRequest(input)
+    const request = lane === 'g002' ? snapshotG002UpdateObservationRequest(input) : snapshotPtrUpdateObservationRequest(input)
     const started = Date.now(), configured = deployment(env), configuredBytes = JSON.stringify(configured)
     const secrets = await validateSignerSecrets({ RECOVERY_SIGNING_PRIVATE_JWK: env.RECOVERY_SIGNING_PRIVATE_JWK,
       RELEASE_RECOVERY_RPC_SECRET: env.RELEASE_RECOVERY_RPC_SECRET })
     const githubApp = { GITHUB_APP_ID: env.GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID: env.GITHUB_APP_INSTALLATION_ID,
       GITHUB_APP_PRIVATE_KEY_PEM: env.GITHUB_APP_PRIVATE_KEY_PEM }
-    const proof = await verifyPtrUpdateObservationWorkflowIdentity({ token: request.oidcToken,
+    const proof = await verifyIdentity({ token: request.oidcToken,
       sourceCommit: request.sourceCommit, requestId: request.requestId, environment: githubApp,
       fetch: globalThis.fetch, nowSeconds: Math.floor(started / 1000) })
     const check = () => {
@@ -118,7 +132,7 @@ export async function observePtrUpdateFromEnvironment(env: PtrObservationSignerE
     if (request.context.phase === 'pre') {
       if (request.context.claimRunId !== proof.identity.runId || request.context.claimRunAttempt !== proof.identity.runAttempt) githubFail(code)
     } else {
-      const pre = await verifyHistoricalPtrUpdateObservation('preObservationJws' in request ? request.preObservationJws : undefined)
+      const pre = await verifyHistorical('preObservationJws' in request ? request.preObservationJws : undefined)
       if (pre.context.phase !== 'pre' || pre.identity.sourceCommit !== proof.identity.sourceCommit
         || pre.identity.sourceTree !== proof.identity.sourceTree || pre.issuedAt > check()) githubFail(code)
     }
@@ -133,17 +147,21 @@ export async function observePtrUpdateFromEnvironment(env: PtrObservationSignerE
         new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(code)), OBSERVER_DEADLINE_MS) }),
       ])
       clearTimeout(timer)
-      const captured = capturePtrBridgeObservation(observed, expected, from, check())
-      const refreshed = await verifyPtrUpdateObservationWorkflowIdentity({ token: request.oidcToken,
+      const captured = lane === 'g002' ? captureG002BridgeObservation(observed, expected, from, check())
+        : capturePtrBridgeObservation(observed, expected, from, check())
+      const refreshed = await verifyIdentity({ token: request.oidcToken,
         sourceCommit: request.sourceCommit, requestId: request.requestId, environment: githubApp,
         fetch: globalThis.fetch, nowSeconds: check() })
       if (JSON.stringify(refreshed.identity) !== JSON.stringify(proof.identity) || check() >= refreshed.expiresAt) githubFail(code)
-      const ptrUpdateObservationJws = await signPtrUpdateObservation(proof.identity, request.context, captured,
-        check(), secrets.privateJwk, 'preObservationJws' in request ? request.preObservationJws : undefined)
-      const verified = await verifyPtrUpdateObservation(ptrUpdateObservationJws, proof.identity, request.context, check())
+      const preObservationJws = 'preObservationJws' in request ? request.preObservationJws : undefined
+      const compact = 'g002' in captured
+        ? await signG002UpdateObservation(proof.identity, request.context, captured, check(), secrets.privateJwk, preObservationJws)
+        : await signPtrUpdateObservation(proof.identity, request.context, captured, check(), secrets.privateJwk, preObservationJws)
+      const verified = lane === 'g002' ? await verifyG002UpdateObservation(compact, proof.identity, request.context, check())
+        : await verifyPtrUpdateObservation(compact, proof.identity, request.context, check())
       const completedAt = check()
       if (completedAt < verified.issuedAt || completedAt >= verified.expiresAt) githubFail(code)
-      return Object.freeze({ ptrUpdateObservationJws })
+      return compact
     } finally { clearTimeout(timer) }
   } catch { return githubFail(code) }
 }

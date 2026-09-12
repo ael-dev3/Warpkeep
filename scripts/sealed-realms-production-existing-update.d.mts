@@ -1,4 +1,4 @@
-import type { PtrProductionExistingUpdateAdapter, PtrProductionExistingUpdateInput } from './ptr-production-existing-update-adapter.mjs';
+import type { PtrProductionExistingUpdateAdapter, PtrProductionExistingUpdateInput, G002ProductionExistingUpdateAdapter, G002ProductionExistingUpdateInput } from './ptr-production-existing-update-adapter.mjs';
 import type { SealedRealmsProductionPrivateState } from './sealed-realms-production-private-state.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
 import type { SealedRealmsProductionContinuationInput, SealedRealmsProductionContinuationClaim,
@@ -6,6 +6,8 @@ import type { SealedRealmsProductionContinuationInput, SealedRealmsProductionCon
 
 export class SealedRealmsExistingUpdateError extends Error { readonly code: string; constructor(code: string); }
 export function createSealedRealmsProductionExistingUpdateAdapter(input: PtrProductionExistingUpdateInput): PtrProductionExistingUpdateAdapter;
+export function createSealedRealmsProductionExistingUpdateAdapter(input: G002ProductionExistingUpdateInput): G002ProductionExistingUpdateAdapter;
+
 type Binding = Readonly<Pick<SealedRealmsProductionContinuationInput,
   'subject' | 'evidenceDigest' | 'receiptDigests' | 'predecessorDigests'>>;
 declare const syntheticUpdate: unique symbol;
@@ -32,4 +34,4 @@ export function createSyntheticExistingUpdateAdapter(input: Readonly<{
   readAdminToken: () => string | Promise<string>;
   privateState: SealedRealmsProductionPrivateState; runtimeRoot: string;
 }>): SyntheticExistingUpdateAdapter;
-export function assertSealedRealmsExistingUpdateAdapter(adapter: unknown, lane: 'g002' | 'ptr'): SyntheticExistingUpdateAdapter | PtrProductionExistingUpdateAdapter;
+export function assertSealedRealmsExistingUpdateAdapter(adapter: unknown, lane: 'g002' | 'ptr'): SyntheticExistingUpdateAdapter | PtrProductionExistingUpdateAdapter | G002ProductionExistingUpdateAdapter;

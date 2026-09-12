@@ -64,6 +64,9 @@ which records the current checkpoint, preparation, CI and environment details.
   is connected to the sealed workflow and preserves authority across repeated
   recovery. Protected-main promotion, genuine provider execution, initial realm
   import/owner producers and production code-replacement acceptance remain open.
+  The current G002 follow-up reuses the preserved-update engine with a fixed
+  source-built artifact, signed sealed-state observations and isolated journal;
+  explicit G002 adoption still needs activation/public/recovery integration.
   The initial prepared deployment re-attests the live B0 predecessor and writes
   its own journal and receipt after genuine postflight; do not rerun B0 or invent
   missing private evidence. Controlled rehearsals do not establish live authority.

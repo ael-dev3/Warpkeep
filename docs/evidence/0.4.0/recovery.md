@@ -1,5 +1,76 @@
 # Warpkeep 0.4 recovery evidence
 
+## Existing G002 update producer — 2026-09-13
+
+The follow-up on `codex/0.4-g002-existing-state`, based on published `27671943`,
+reuses the PTR update engine through fixed private realm policies. Its G002
+artifact capability binds actual source-built bytes, program Keccak and complete
+RawV10 description. Provider credentials target only the immutable G002 identity;
+compatible table/schema preservation and an authenticated candidate-bound migration
+plan are required before submission. G002 capability registries, private journal,
+completion profile and signed sidecars are distinct from PTR.
+
+The signed G002 observation service validates the complete private bridge response,
+including G001/PTR guards, before projecting G002 program, atlas and sealed-state
+facts. Separate audience, endpoint and `operate_g002` identity prevent reuse of a
+PTR observation. Signed pre/post correlation retains source/tree, claim, terminal,
+completion, bridge configuration, authorization epoch and unchanged G002 sealed
+invariants. The signature grants neither provider credentials nor effect authority.
+The shared engine reopens owned history after asynchronous verification; retained
+completion and adoption capabilities are invalidated by disposal, foreign state
+or changed canonical records. No historical publish/import receipt is invented.
+
+Verification before publication:
+
+- Six affected service suites passed 155 cases, plus adjacent service coverage.
+  Actual Workerd gateway → named production entrypoint → G002 signer and gateway
+  regression coverage passed five cases. Service and Workerd types passed.
+- Provider/schema suites passed all 110 cases across both realm facades, including
+  cross-capability rejection, cleanup and unchanged PTR canonical digests.
+- G002 artifact coverage passed 76 cases with eight native-only skips on Windows;
+  the adjusted existing operator fixture passed its 12 cases.
+- The shared signed-observation caller passed all 62 cases, including complete
+  signed pre/post pairs, cross-profile rejection and authority/freshness changes.
+- The full engine unit suite passed 28 cases, including G002 real service-signed
+  pre/post, lost acknowledgement/reconciliation, completion/adoption isolation,
+  retained reuse and tamper rejection. Provider, source and continuation owners
+  are explicit fixture seams in this suite. A new fractional terminal timestamp
+  exposed a test-fixture rounding error: use the next whole observation second,
+  preserving the service's actual requirement that observation follows terminal.
+- Independent source review found the G002 workflow omitted the Linux builder's
+  required materialization parent, which the mocked lifecycle had not exercised.
+  Ten regressions reproduced the omission and unsafe/replaced-parent cases. The
+  corrected caller passes the existing sealed runtime directory, validates its
+  canonical path/ownership/private mode, and pins its inode across reattestation.
+  All 22 workflow lifecycle cases passed after the fix. No defect was found in
+  the reviewed service, shared adapter,
+  signed caller or capability isolation. All 11 actual bundle/source-graph cases
+  passed; generated manifests still need coherent regeneration.
+- Scanner regression passed seven cases; real Gitleaks accepted 45 exact fixtures
+  and detected all 88 mandatory hostile copies/mutations. New exceptions retain
+  exact path/value/rule conjunctions.
+
+The genuine private-store/continuation suite passed 14 cases with five native-only
+skips on Windows. Its two new G002 cases cover real claim/terminal state, distinct
+reconciliation identity and newly constructed state/store/adapter owners reopening
+the same retained proof without another request or PUT. Windows uses the explicit
+existing fsync/platform relaxation, so it does not establish POSIX acceptance.
+The actual G002 workflow constructor has separate lifecycle/runtime/dispatcher
+coverage (123 passed, one deliberate skip), plus fixed-job, permission and
+preflight routing checks. The privileged preflight suite includes a new actual
+G002 bundle import case and requires a freshly generated coherent donor family;
+it remains pending for this source-only checkpoint. Native component execution
+and final results are recorded with the published checkpoint. Generated source manifests
+remain stale for this implementation until the complete source family is rebuilt.
+Activation/public/recovery adoption consumers still need the explicit G002 branch;
+normal protected integration, live update/preservation and owner/mobile acceptance
+remain open. This is a development producer checkpoint, not a deployed release.
+
+## Earlier recovery checkpoints
+
+The dated records below retain the evidence and limitations of their original
+source. Use the execution handoff and the latest section above for current work.
+
 Status on 2026-09-12: **integrated production recovery acceptance remains open**.
 Recovery must preserve legitimate player writes made both before and after an
 update. Restoring an old database snapshot over later progress is unacceptable.

@@ -28,6 +28,11 @@ const command = (args: string[], cwd: string) => execFileSync('/usr/bin/git', ['
   '-c', 'commit.gpgsign=false', '-c', 'user.name=Preflight Fixture', '-c', 'user.email=fixture@example.invalid',
   ...args], { cwd, encoding: 'utf8' }).trim();
 
+it.each(['g002-update-inspect', 'g002-update-apply'] as const)('recognizes fixed %s before enforcing native runtime authority', async operation => {
+  await expect(runSealedRealmsProductionLinuxOperation({ operation, workflowInputSha: 'a'.repeat(40) } as never))
+    .rejects.toMatchObject({ phase: 'runtime' });
+});
+
 it.each(['g001-policy-observe', 'g002-publish-apply', 'ptr-owner-provision', 'activation-evidence-generate'])(
   'rejects mutation selection before host or source work: %s', async operation => {
     await expect(runSealedRealmsProductionLinuxPreflight({ operation, workflowInputSha: 'a'.repeat(40) } as never))
@@ -82,7 +87,7 @@ describe.skipIf(!native).sequential('native fixed Linux preflight', () => {
     chmodSync(replacement, 0o500); chownSync(replacement, 1000, 1000); renameSync(replacement, node);
   }
   function capture(scenario: string, overrides: Record<string, string> = {}, uid = 1000,
-    operation: 'preflight' | 'activation-evidence-inspect' = 'preflight') {
+    operation: 'preflight' | 'activation-evidence-inspect' | 'g002-update-inspect' = 'preflight') {
     const commit = command(['rev-parse', 'HEAD'], repo);
     command(['update-ref', 'refs/remotes/origin/main', commit], repo);
     const environment = { PATH: '/usr/bin:/bin', LANG: 'C', LC_ALL: 'C',
@@ -158,8 +163,8 @@ describe.skipIf(!native).sequential('native fixed Linux preflight', () => {
         { path, byteLength: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') },
       ]);
     }
-    // G002 has no operation in this fixed native caller; its actual compiler
-    // graph is checked here without inventing a dispatch route or factory.
+    // Observation service source belongs only to the selected sealed update
+    // graphs; it does not widen G001's independent boundary.
     const g001 = manifest.bundles.find((item: { lane: string }) => item.lane === 'g001');
     expect(g001.graphManifest.some((member: GraphMember) => member.path.startsWith('services/'))).toBe(false);
   });
@@ -170,6 +175,15 @@ describe.skipIf(!native).sequential('native fixed Linux preflight', () => {
     const result = capture('observe-closure', { GITHUB_TOKEN: '' }, 1000, 'activation-evidence-inspect');
     expect(result).toMatchObject({ status: 1, output: { phase: 'workflow', calls: 0, onlyReadRequests: true } });
     expect(result.output.closureManifestOpens).toBeGreaterThan(0);
+    expect(privateInventory()).toEqual(before);
+  }, 90_000);
+  it('imports the fixed G002 update runtime only under its dedicated protected job', () => {
+    const before = privateInventory();
+    const wrongJob = capture('observe-closure', { GITHUB_JOB: 'operate_ptr', GITHUB_TOKEN: '' }, 1000, 'g002-update-inspect');
+    expect(wrongJob).toEqual({ status: 1, output: { phase: 'runtime', calls: 0, onlyReadRequests: true, closureManifestOpens: 0 } });
+    const selected = capture('observe-closure', { GITHUB_JOB: 'operate_g002', GITHUB_TOKEN: '' }, 1000, 'g002-update-inspect');
+    expect(selected).toMatchObject({ status: 1, output: { phase: 'workflow', calls: 0, onlyReadRequests: true } });
+    expect(selected.output.closureManifestOpens).toBeGreaterThan(0);
     expect(privateInventory()).toEqual(before);
   }, 90_000);
   it.each([observationWrapper, ...observationServicePaths])('rejects a missing activation observation graph member: %s', path => {

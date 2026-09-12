@@ -4,6 +4,7 @@ import { mintGitHubInstallationToken } from './githubEvidence.js'
 import { verifyGitHubOidcSignature } from './githubOidc.js'
 import { json, type GitHubJsonObject } from './http.js'
 import { PTR_OBSERVATION_AUDIENCE, PTR_OBSERVATION_JOB, snapshotPtrObservationIdentity,
+  G002_UPDATE_OBSERVATION_AUDIENCE, G002_UPDATE_OBSERVATION_JOB,
   PTR_UPDATE_OBSERVATION_AUDIENCE, PTR_UPDATE_OBSERVATION_JOB, type PtrObservationIdentity } from './ptrObservation.js'
 
 const CODE = 'RECOVERY_PTR_OBSERVATION_OIDC_INVALID'
@@ -58,6 +59,16 @@ export async function verifyPtrUpdateObservationWorkflowIdentity(
 ): Promise<Readonly<{ identity: PtrObservationIdentity; expiresAt: number }>> {
   if (types.isProxy(input)) githubFail(CODE)
   return verifyObservationWorkflowIdentity(input, PTR_UPDATE_OBSERVATION_AUDIENCE, PTR_UPDATE_OBSERVATION_JOB)
+}
+
+/** The fixed operate_g002 workflow identity is observational, not a private update permit. */
+export async function verifyG002UpdateObservationWorkflowIdentity(
+  input: Parameters<typeof verifyPtrObservationWorkflowIdentity>[0],
+): Promise<Readonly<{ identity: PtrObservationIdentity; expiresAt: number }>> {
+  try {
+    if (types.isProxy(input)) githubFail('RECOVERY_G002_UPDATE_OBSERVATION_OIDC_INVALID')
+    return await verifyObservationWorkflowIdentity(input, G002_UPDATE_OBSERVATION_AUDIENCE, G002_UPDATE_OBSERVATION_JOB)
+  } catch { return githubFail('RECOVERY_G002_UPDATE_OBSERVATION_OIDC_INVALID') }
 }
 
 // No caller-selectable audience, job or profile is exported.

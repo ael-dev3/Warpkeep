@@ -1,6 +1,49 @@
 # Continue Warpkeep 0.4
 
-## Current review and next work — 13 September 2026
+## Current work: existing G002 update — 13 September 2026
+
+Continue `codex/0.4-g002-existing-state` in the reused isolated checkout
+`C:/Temp/warpkeep-clean-ci`, based on published `27671943`. PR #244 remains
+unchanged at that source and targets `main`; its latest Verify Linux/module jobs
+were still running, while both services, native-contract and CodeQL passed.
+Read the actual current checks before integration. Native remains clean at
+`27671943` until this follow-up is published and its idle source is synchronized.
+The primary Windows checkout retains its own published `758bc482` branch.
+
+The fixed G002 signing service, source-built artifact capability, provider/schema
+facades and shared production update engine are implemented. G002 uses its own
+immutable database identity, signed profile, private records and capability
+registries. The provider migration token proves the proposed predecessor against
+the actual candidate; public initial-program metadata alone never does. The
+pre-state is signed before submission, and post-state is signed only after an
+actual completion/terminal. Lost acknowledgement is reconciled without another
+PUT. Existing PTR profiles and persisted record formats remain unchanged.
+
+The Linux observation caller and dedicated `operate_g002` workflow route are
+connected in this follow-up. Keep the distinction between implementation tests,
+native acceptance and live execution. The [recovery evidence](../../evidence/0.4.0/recovery.md#existing-g002-update-producer--2026-09-13)
+owns exact checks and limitations. Current generated manifests still belong to
+the prior source family; no fresh generated family or deployment is certified.
+
+Next finish the explicit G002 adoption branch through activation, public release
+bindings and recovery consumers. Those consumers still require unavailable
+original G002 publish/import claims. Preserve authentic G002 adoption instead of
+fabricating that history, retain genuine prepared bridge deployment evidence,
+and carry unchanged G001/PTR safeguards through the complete generated family.
+Then prepare/check published source, integrate through normal protected main,
+and complete live preservation, owner play and rendered mobile acceptance.
+Use the [existing connected plan](../../superpowers/plans/2026-09-08-ptr-update-recovery.md#connected-implementation-sequence).
+
+The overall estimate remains about **65%**, with a 60–70% judgment range;
+0.4 is not shipped and no reliable calendar ETA is established. The saved Codex
+sync automation remains **PAUSED** by the owner. Commit, scan and verify pushes
+at each active development checkpoint without recreating a scheduler. Do not
+create any new Desktop files; maintain the existing handoff in place only.
+
+The records below are historical checkpoints, not instructions to move to an old
+branch, restart a completed run or treat previous artifacts as current authority.
+
+## Previous delivery integration — 13 September 2026
 
 The owner paused the only saved Codex automation on 13 September 2026; immediate
 reviewed development commits and verified pushes continue. Do not recreate the
