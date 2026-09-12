@@ -6,6 +6,18 @@ update. Restoring an old database snapshot over later progress is unacceptable.
 Source-file recovery, frontend hosting recovery and persistent-world recovery
 have separate implementations and acceptance evidence.
 
+Native preparation and independent checking now cover composed source
+`7cb573baab40e54f52ab2aeb26c56c9e8f1cf9f5`; sessions `90120` and `72208`
+both exited zero with the same candidate, journal, family and closure identities.
+The complete family was authenticated before its 17 changed bodies were exported,
+preserving the later test-only correction. Exact identities and export evidence
+belong to the [release engineering record](release-engineering.md). The marker
+still reports `finalReleasePrepared: false`; final-head CI, protected source
+promotion and genuine deployed recovery remain open.
+Post-export Windows types and file-size checks passed; selected native-boundary
+suites did not pass on Windows. Their Linux rerun after publication is pending,
+as recorded in release engineering, and does not require weakening those checks.
+
 ## Authenticated Worker recovery source — 2026-09-12
 
 The actual prepared-bridge recovery caller now derives the original uploaded
@@ -36,8 +48,9 @@ runtime, recovery-source and receipt suites, with no skipped cases. Windows
 build-mode TypeScript and tracked file-size checks also passed. Native tests
 exercise actual journals and HTTP response parsers with controlled providers;
 they do not establish production credentials, private receipt presence or a
-successful live recovery. The source must be prepared and independently checked
-again before release; the completed `27700d61` family predates this change.
+successful live recovery. At that checkpoint the completed `27700d61` family
+predated the change. The later `7cb573ba` preparation/check above covers the
+composed implementation, without establishing live recovery.
 
 That review also exposed two operating defects, addressed by the subsequent
 connected change below: repeated renewal rejected a retained original authority,
@@ -73,9 +86,9 @@ secret slots and public PTR variable only for activation operations, retain them
 through their narrow environment filter, and keep credentials out of command
 arguments. Credentials are captured and scrubbed once, then validated when an
 observation is requested; unrelated update operations do not acquire an extra
-Cloudflare prerequisite. Import/owner producers and actual live acceptance
-remain unfinished. The final source still needs native preparation and an
-independent generated-family check before protected promotion.
+Cloudflare prerequisite. The composed source now has native preparation and an
+independent generated-family check. Import/owner producers, final-head CI,
+protected promotion and actual live acceptance remain unfinished.
 
 Combined verification on Windows under pinned Node 22.22.3 passed 193 tests in
 seven suites (provider, timing, history, workflow, PTR lifecycle, workflow runtime
@@ -96,7 +109,19 @@ a test capability.
 Those fixtures now acquire the real test-only capability. Production continues
 to require the branded provider; the gate is not relaxed to accommodate tests.
 The corrected fixtures passed 67 tests on Windows with 33 native skips, plus
-a standalone strict TypeScript check. The skipped cases need their native run.
+a standalone strict TypeScript check. On `7cb573ba`, the isolated Linux update
+launcher and dispatcher suite then passed 196 tests under UID 1000 and Node
+22.22.3; the only skip was the unsupported-runtime rejection inside the supported
+namespace. The test-only `132355e0` correction uses exact parsed URL origin and
+route assertions, passed all 43 recovery-source tests and strict types, and
+received successful CodeQL analysis/security checks.
+
+The existing initial prepared-deployment path owns creation of its durable
+journal and prepared receipt. It authenticates retained B0 evidence and performs
+the real source/configuration checks and provider postflight. Empty Linux private
+roots do not establish a need to copy an old Mac prepared journal. Recovery of an
+already-deployed prepared Worker still requires that deployment's genuine retained
+authority; missing evidence must not be fabricated or replaced by rerunning B0.
 
 ## What has been verified
 

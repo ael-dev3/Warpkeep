@@ -7,8 +7,7 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-Updated September 12 after reviewing development checkpoint `2ffdcc96` and its
-placement/workflow corrections. Fetch PR #228 for the current immutable head;
+Fetch PR #228 for the current immutable head and its own terminal checks;
 this index is a source map, not a synchronization receipt.
 The GitHub/profile/ecosystem refresh is complete. Continue
 the connected game and delivery work from the [execution handoff](execution-handoff.md),
@@ -54,11 +53,13 @@ which records the current checkpoint, preparation, CI and environment details.
   assembler connects fixed compilers, generated consumers, independent rebuilding
   checks and candidate recovery. Linux recovery and sealed preflight callers are
   connected and the dedicated runner is online. The Linux prepared bridge caller
-  already replaces the old Mac path; authenticate B0's retained receipt without
-  rerunning B0. Protected-main promotion, real sealed-provider composition,
-  genuine provider/signer authority and production code-replacement integration
-  still need completion. An isolated update rehearsal does not supply those credentials
-  or establish a release-ready production adapter.
+  already replaces the old Mac path. The shared authenticated bridge provider
+  is connected to the sealed workflow and preserves authority across repeated
+  recovery. Protected-main promotion, genuine provider execution, initial realm
+  import/owner producers and production code-replacement acceptance remain open.
+  The initial prepared deployment re-attests the live B0 predecessor and writes
+  its own journal and receipt after genuine postflight; do not rerun B0 or invent
+  missing private evidence. Controlled rehearsals do not establish live authority.
 - **Resume from current evidence.** The source-family correction and subsequent
   recovery work are published; the earlier `923e024` preparation is historical.
   Native frozen G001/current G002 program-artifact generation and the dedicated

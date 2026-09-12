@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
   "profile": "warpkeep-spacetime-binding-final-preparation-linux-x64-v1",
-  "sourceCommit": "27700d617d7085098b6f1ab8ee3d8cf9cdc40e23",
-  "sourceTree": "6ab0cda88d19d1276d9911de2450d33020d91649",
+  "sourceCommit": "7cb573baab40e54f52ab2aeb26c56c9e8f1cf9f5",
+  "sourceTree": "00be1c0ea63b49dbf3aff4f2396c24c5d629b635",
   "bundles": [
     {
       "lane": "activation",
       "path": "scripts/sealed-realms-production-activation-lane.bundle.mjs",
-      "byteLength": 745773,
-      "sha256": "69612d08bd50e9451490590dddebb82a150e5d8719f126d7a8e1fbc339c9cb14",
-      "sourceClosureDigest": "7c1a2a4451a5de3fb644d5bc0f74266e82bb644825fa80c5c57a87713d6acfbe",
+      "byteLength": 811343,
+      "sha256": "f248c7ecbbfb28ec7e0cd9369e90300569768fa5e0cf292fecacb29a23273eac",
+      "sourceClosureDigest": "a91d8fd81a9c798363da02181ea0f692570b5273b51a2c7e21878e93ef3b2616",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -507,14 +507,24 @@
           "sha256": "2553802babb4284f14faf5ee21834bc7254630c56b141758211a84d530283850"
         },
         {
+          "path": "scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs",
+          "byteLength": 107664,
+          "sha256": "0e072724622bafb2993dc1f52c3eb2660bea2a6fadc7a67160663c54a5b65f12"
+        },
+        {
+          "path": "scripts/auth-bridge-notification-prepared-deploy-adapter.mjs",
+          "byteLength": 27311,
+          "sha256": "b5027bfd1bbdb024eadefdf9db269544452ac6d3ddaea07e5b5c6b45d249ddf0"
+        },
+        {
           "path": "scripts/auth-bridge-notification-prepared-deploy-journal.mjs",
-          "byteLength": 47883,
-          "sha256": "398a9ce408328117198a0961c823786e607a280fe72a1f1e167f6860b35a7371"
+          "byteLength": 54679,
+          "sha256": "db4a05ec8061a01dd6a82607c5860465e813940a22ec0def72bb4d7e1665e515"
         },
         {
           "path": "scripts/auth-bridge-notification-prepared-receipt.mjs",
-          "byteLength": 55234,
-          "sha256": "2aaa9615ec312a927ef08b32ed697bee43783380fa6a1540411a1bbf9a9a0004"
+          "byteLength": 55838,
+          "sha256": "846ba27d5b54400a1979038b55b38826636c68cdd82e6ca7822f94407fe27928"
         },
         {
           "path": "scripts/generate-0.4.0-recovery-launch-activation.mjs",
@@ -718,13 +728,18 @@
         },
         {
           "path": "scripts/sealed-realms-production-activation-workflow-entry.mjs",
-          "byteLength": 11987,
-          "sha256": "aba153ebc63449dc737e20f3750955ae3e9b6caeb342913f92f1fd431de7ce9d"
+          "byteLength": 12189,
+          "sha256": "191976ce7e75a94ba969ae6068e0d90f75a527141ed31cb052ba310ef7d9788d"
         },
         {
           "path": "scripts/sealed-realms-production-auth-bridge-state.mjs",
-          "byteLength": 121278,
-          "sha256": "6aab906290811726c0ca6555d6b97be28a10f0eec516baba2e26516617186605"
+          "byteLength": 124001,
+          "sha256": "101bf312bff5d52cc62ab89340ec721e438f6ef94cba3d0e1cd46bc91f970b1a"
+        },
+        {
+          "path": "scripts/sealed-realms-production-bridge-provider.mjs",
+          "byteLength": 15318,
+          "sha256": "40fdb0a1228940e68569b0f958f3c5b70756a06241aad8eb9a962099341a4a04"
         },
         {
           "path": "scripts/sealed-realms-production-continuation.mjs",
@@ -897,14 +912,14 @@
     {
       "lane": "g001",
       "path": "scripts/sealed-realms-production-g001-lane.bundle.mjs",
-      "byteLength": 261847,
-      "sha256": "e34c08798368d6493ba7b6ef5ddbd16df7036dac842fe31a73eb4bc09c8d98bf",
-      "sourceClosureDigest": "ff3a6bb8874a4852f3b619cabf9f7d46499cddfb0f277f6faca215b257fec97d",
+      "byteLength": 261959,
+      "sha256": "29d2e084851cae95752856b051f9512b12295946f30390584839ca8fdb7b1eb3",
+      "sourceClosureDigest": "54af19c69267da30913b3337c1bb604ba753674c4345ce3ee83cd136ff5ca058",
       "graphManifest": [
         {
           "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
-          "byteLength": 118678,
-          "sha256": "3405f2288ee8d7edfde74dcceba428c6d9c7a5eb9afeffd6356fb68f86165bea"
+          "byteLength": 118800,
+          "sha256": "5c915e5e42915a037ab3b48f1155395aa058a7085e0709fe7f79eca2df66f8d7"
         },
         {
           "path": "scripts/genesis001-admission-monitor-current-state.mjs",
@@ -1027,9 +1042,9 @@
     {
       "lane": "g002",
       "path": "scripts/sealed-realms-production-g002-lane.bundle.mjs",
-      "byteLength": 477555,
-      "sha256": "797c861f5aad40a4dc675b33808d0a057de535cca00cfabaad08aca4d831b0dd",
-      "sourceClosureDigest": "70e08638b5d674e5f52488e7350a019a7d146aa9cd2b6c3fa1f43406bbe2629e",
+      "byteLength": 542994,
+      "sha256": "26c1265bf87f8fd1fb6f25fb685b59828b1e842c1de5e83b276245ccffdd46ec",
+      "sourceClosureDigest": "e268a1d86c76b5bb366796f712d26faa5b6888790b329c0dff2bf7a88256d93d",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -1422,14 +1437,24 @@
           "sha256": "2553802babb4284f14faf5ee21834bc7254630c56b141758211a84d530283850"
         },
         {
+          "path": "scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs",
+          "byteLength": 107664,
+          "sha256": "0e072724622bafb2993dc1f52c3eb2660bea2a6fadc7a67160663c54a5b65f12"
+        },
+        {
+          "path": "scripts/auth-bridge-notification-prepared-deploy-adapter.mjs",
+          "byteLength": 27311,
+          "sha256": "b5027bfd1bbdb024eadefdf9db269544452ac6d3ddaea07e5b5c6b45d249ddf0"
+        },
+        {
           "path": "scripts/auth-bridge-notification-prepared-deploy-journal.mjs",
-          "byteLength": 47883,
-          "sha256": "398a9ce408328117198a0961c823786e607a280fe72a1f1e167f6860b35a7371"
+          "byteLength": 54679,
+          "sha256": "db4a05ec8061a01dd6a82607c5860465e813940a22ec0def72bb4d7e1665e515"
         },
         {
           "path": "scripts/auth-bridge-notification-prepared-receipt.mjs",
-          "byteLength": 55234,
-          "sha256": "2aaa9615ec312a927ef08b32ed697bee43783380fa6a1540411a1bbf9a9a0004"
+          "byteLength": 55838,
+          "sha256": "846ba27d5b54400a1979038b55b38826636c68cdd82e6ca7822f94407fe27928"
         },
         {
           "path": "scripts/generate-0.4.0-recovery-launch-activation.mjs",
@@ -1558,8 +1583,13 @@
         },
         {
           "path": "scripts/sealed-realms-production-auth-bridge-state.mjs",
-          "byteLength": 121278,
-          "sha256": "6aab906290811726c0ca6555d6b97be28a10f0eec516baba2e26516617186605"
+          "byteLength": 124001,
+          "sha256": "101bf312bff5d52cc62ab89340ec721e438f6ef94cba3d0e1cd46bc91f970b1a"
+        },
+        {
+          "path": "scripts/sealed-realms-production-bridge-provider.mjs",
+          "byteLength": 15318,
+          "sha256": "40fdb0a1228940e68569b0f958f3c5b70756a06241aad8eb9a962099341a4a04"
         },
         {
           "path": "scripts/sealed-realms-production-continuation.mjs",
@@ -1583,8 +1613,8 @@
         },
         {
           "path": "scripts/sealed-realms-production-g002-workflow-entry.mjs",
-          "byteLength": 11367,
-          "sha256": "8f5433526443347c14accafdc933be34027aaecfe3ed74487ecc3a42cf67a150"
+          "byteLength": 11586,
+          "sha256": "0317ec1f4e821b67cfff21c50fe9ed329382c89e5345139813fcaa458403c3c6"
         },
         {
           "path": "scripts/sealed-realms-production-private-state.mjs",
@@ -1667,9 +1697,9 @@
     {
       "lane": "ptr",
       "path": "scripts/sealed-realms-production-ptr-lane.bundle.mjs",
-      "byteLength": 563806,
-      "sha256": "ac8cd7387416e19746afd087dc8b72fb4e94ce51ce66c2acf08fd3a347d468f7",
-      "sourceClosureDigest": "32299d32552c928afea0c1c680f8129be3bd8d8ab13d307d41d0ffc52e5be68b",
+      "byteLength": 629253,
+      "sha256": "d8301e5e1e516be53adce086f78ecdbf1a1f4b9de3eab5b0ab3431a66475ca3f",
+      "sourceClosureDigest": "365c2fae7094ef6441130565bcd5f62c871d01f1fb66119d77dc5056e33ac0f4",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -2062,14 +2092,24 @@
           "sha256": "2553802babb4284f14faf5ee21834bc7254630c56b141758211a84d530283850"
         },
         {
+          "path": "scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs",
+          "byteLength": 107664,
+          "sha256": "0e072724622bafb2993dc1f52c3eb2660bea2a6fadc7a67160663c54a5b65f12"
+        },
+        {
+          "path": "scripts/auth-bridge-notification-prepared-deploy-adapter.mjs",
+          "byteLength": 27311,
+          "sha256": "b5027bfd1bbdb024eadefdf9db269544452ac6d3ddaea07e5b5c6b45d249ddf0"
+        },
+        {
           "path": "scripts/auth-bridge-notification-prepared-deploy-journal.mjs",
-          "byteLength": 47883,
-          "sha256": "398a9ce408328117198a0961c823786e607a280fe72a1f1e167f6860b35a7371"
+          "byteLength": 54679,
+          "sha256": "db4a05ec8061a01dd6a82607c5860465e813940a22ec0def72bb4d7e1665e515"
         },
         {
           "path": "scripts/auth-bridge-notification-prepared-receipt.mjs",
-          "byteLength": 55234,
-          "sha256": "2aaa9615ec312a927ef08b32ed697bee43783380fa6a1540411a1bbf9a9a0004"
+          "byteLength": 55838,
+          "sha256": "846ba27d5b54400a1979038b55b38826636c68cdd82e6ca7822f94407fe27928"
         },
         {
           "path": "scripts/generate-0.4.0-recovery-launch-activation.mjs",
@@ -2198,8 +2238,13 @@
         },
         {
           "path": "scripts/sealed-realms-production-auth-bridge-state.mjs",
-          "byteLength": 121278,
-          "sha256": "6aab906290811726c0ca6555d6b97be28a10f0eec516baba2e26516617186605"
+          "byteLength": 124001,
+          "sha256": "101bf312bff5d52cc62ab89340ec721e438f6ef94cba3d0e1cd46bc91f970b1a"
+        },
+        {
+          "path": "scripts/sealed-realms-production-bridge-provider.mjs",
+          "byteLength": 15318,
+          "sha256": "40fdb0a1228940e68569b0f958f3c5b70756a06241aad8eb9a962099341a4a04"
         },
         {
           "path": "scripts/sealed-realms-production-continuation.mjs",
@@ -2228,8 +2273,8 @@
         },
         {
           "path": "scripts/sealed-realms-production-ptr-workflow-entry.mjs",
-          "byteLength": 17976,
-          "sha256": "eb778cabb4bbe6ed593dbad19a98a90961310d45a2011ab797a3df78de30c44b"
+          "byteLength": 18197,
+          "sha256": "d320512609e104704d0213006c37e917b948b8f31b225644cff529250dd7e915"
         },
         {
           "path": "scripts/sealed-realms-production-reconciliation.mjs",

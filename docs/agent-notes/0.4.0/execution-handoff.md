@@ -2,107 +2,89 @@
 
 ## Current review and next work — 12 September 2026
 
-The composed follow-up connects the shared bridge provider to the actual sealed
-activation workflow, preserves authenticated ancestors across repeated recovery,
-and accounts for elapsed provider/body reads and receipt expiry. The combined
-Windows Node 22.22.3 pass covered seven relevant suites: 193 passed, 42 platform
-skips. This includes real HTTP parsers through the provider and first durable
-authority establishment, workflow/PTR lifecycle contracts and real compiler
-graph checks. Type checks and independent provider/history review passed.
-Source `44b91b94e401ed51512e11ca786bd04f8413d112` then passed all 519 tests
-in twelve affected suites on Linux as `warpkeep` UID 1000 with Node 22.22.3,
-without skips (session `18870`, exit zero). This includes the real private
-journal/receipt path through repeated renewals and pending-head reentry.
-Hosted Verify `34675180672` exposed older update/dispatch test fixtures that
-lacked the newly required test capability; the follow-up updates those fixtures
-without weakening the production constructor. Read the next head's own CI result.
+The shared bridge provider is connected to the sealed activation workflow.
+Recovery authenticates original uploaded bytes, preserves the complete retained
+authority chain and samples elapsed time through provider reads and receipt
+expiry. Source `44b91b94e401ed51512e11ca786bd04f8413d112` passed all 519 tests
+in twelve affected suites on Linux as `warpkeep` UID 1000 with Node 22.22.3
+(session `18870`, exit zero). The earlier Windows pass covered 193 tests with
+42 platform skips; native verification completed that scope.
 
-Native preparation of `6a74005e5f56997aca41fc40e782092aa6cc4b67` completed with
-exit zero (session `81502`), candidate
-`release-workspace-91f8c69cc3c77a9517e2fa7f8d27863b`, transaction
-`a8c2cedab47fb47f4740bcb5b2fab06a`. Independent check `47903` also completed
-with exit zero and identical source, transaction, journal, family and closure
-identities. Both processes are terminal. The clean operating checkout was then
-fast-forwarded to published source `44b91b94` for the native tests above.
-The retained `6a74005e` candidate predates the provider/workflow/closure members;
-it cannot certify them and was not exported over newer source. Prepare/check
-the composed source after the fixture correction, then publish its complete
-generated family. The [release engineering record](../../evidence/0.4.0/release-engineering.md)
-owns the completed candidate identities.
+Hosted Verify `34675180672` exposed older update/dispatcher fixtures missing the
+required test capability. The correction in `7cb573ba` preserves the production
+constructor and passed 196 native tests; its one intentional skip is the
+unsupported-runtime rejection inside the supported namespace. The test-only
+follow-up `132355e0` replaces HTTP fixture URL-prefix routing with exact parsed
+origin and route checks. Its 43 tests and strict types passed, and both CodeQL checks
+succeeded. These results do not establish CI success for the generated-source
+checkpoint that follows them; read that head's own required checks.
 
-Native preparation and independent check both completed with exit zero from
-`27700d617d7085098b6f1ab8ee3d8cf9cdc40e23`. Sessions `53983` and `60035` are
-terminal; do not restart them. Candidate
-`release-workspace-2efb9231c19a88dd555a6a908533926b` reproduced the same family,
-journal and closure digests. All journal outputs and retained source bodies
-were checked before exporting the eight changed generated files; unrelated
-source edits were preserved. This is source-bound preparation evidence with
-`finalReleasePrepared: false`, not a live release. The
-[release engineering record](../../evidence/0.4.0/release-engineering.md)
-owns the exact digests. New recovery implementation must receive its own final
-source preparation after integration; this candidate does not certify it.
+Native preparation `90120` and independent check `72208` both exited zero from
+`7cb573baab40e54f52ab2aeb26c56c9e8f1cf9f5`, reproducing candidate
+`release-workspace-326aab0c728dd07f02faa1969a94c7eb`. Both processes are terminal.
+The guarded export authenticated every generated output and retained backup,
+checked the full source/candidate trees and closure, then copied only the 17
+changed generated bodies. The other 85 outputs, Windows HEAD/index and the
+published `132355e0` test fix were preserved. The
+[release engineering record](../../evidence/0.4.0/release-engineering.md) owns
+exact transaction, family and closure identities, including older candidates.
+`finalReleasePrepared` remains false: this is reproducible source preparation,
+not a live release. Test-only and ordinary note changes do not alter the recorded
+compiler input or require another preparation run.
 
-Source `6a74005e` connects authenticated original-upload bytes and full
-Cloudflare configuration inspection to the actual recovery caller. Independent
-review also closed executable-module disguises in multipart metadata for both
-recovery and ordinary version reads. The complete native runtime/source/receipt
-suites passed 178 tests under UID 1000 with pinned Node 22.22.3, without skips;
-build-mode types and file-size policy passed. See the
-[recovery evidence](../../evidence/0.4.0/recovery.md) for the original scope
-and subsequent repeat-renewal, provider composition and timing work. Controlled
-tests do not substitute for production receipts or live recovery.
+Post-export Windows build-mode types and file-size policy passed. The eight
+selected suites returned 62 passes, 12 skips and 13 failures at native POSIX
+repository, Git, mode or stdin boundaries. The direct closure CLI also refused
+the Windows repository/platform. These invocations are not native passes;
+rerun the eight suites and the prepared-workflow suite serially in Linux after
+publishing and synchronizing the complete generated family. On that clean native
+checkout, verify the installed closure and explicit preparation state, then
+require Pages classification `sealed-launch-blocked`. Complete the final head's
+required CI and normal protected preparation-only squash promotion, then verify
+main's own CI. The
+source classifier on committed `7cb573ba` confirmed inert preparation with Pages
+approval and PTR presentation disabled; recheck the final promoted source.
+
+After promotion, execute the existing protected read-only `preflight` and genuine
+provider reads. Re-attest the retained B0 predecessor before initial prepared
+bridge deployment. That existing deployment caller owns its durable journal and
+receipt lifecycle, including B0 re-attestation and provider postflight; empty
+Linux private roots do not require copying an old Mac prepared journal. Do not
+rerun B0 or invent retained evidence. Complete the missing realm import and owner
+producers, then obtain actual owner, preservation, recovery and device evidence.
+The [workflow audit](../../evidence/0.4.0/workflow-sufficiency-audit.md) and
+[recovery record](../../evidence/0.4.0/recovery.md) distinguish implemented callers
+from remaining live acceptance. Keep G001 preserved and G002 sealed throughout.
 
 Continuous publication is required in `AGENTS.md` and the
 [sync procedure](../../operations/0.4.0-development-sync.md): commit and push
 each completed development change and all authored durable work at handoff.
-The thread's 15-minute check supplements immediate publication. Synchronize
-clean idle native checkouts after active runs finish, preserving private state
-and immutable candidates. No Desktop output or blanket cleanup.
+The 15-minute thread check supplements immediate publication. Synchronize clean
+idle native checkouts after active runs finish, preserving private state and
+immutable candidates. Reuse existing storage; create no Desktop output.
 
-Reviewed source base: `2ffdcc96ea3474908d2158ee817b4a384b274523`, followed by
-the placement/workflow patch recorded with this note. Fetch PR #228 to resolve
-the latest immutable branch head and its terminal checks. Do not interpret an
-older checkpoint below as the current worktree or release candidate.
+The placement fix inverts the native SVG screen transform and ignores
+outside-plan taps before snapping, preserving pointer mapping with borders and
+letterboxing. Chrome fixture checks passed at portrait, narrow bordered, wide
+and tall layouts; keyboard movement remains covered. This is local browser
+evidence, not owner or physical-device acceptance. Countdown arithmetic retains
+a regression against the old floating-point calculation; contemporary
+microsecond timestamps do not already exceed JavaScript's safe-integer range.
 
-The prior aspect-ratio fix distorted pointer mapping when the SVG had borders
-or letterboxing. Placement now inverts the native screen transform and ignores
-outside-plan taps before snapping. Chrome fixture checks passed at portrait,
-narrow bordered, wide and tall layouts; keyboard movement remains covered.
-This is local browser evidence, not owner or physical-device acceptance.
-Countdown arithmetic is retained, with a regression that fails the old
-floating-point calculation. Contemporary microsecond timestamps do not already
-exceed JavaScript's safe-integer range; that earlier explanation was incorrect.
+The loop indicator keeps construction at Build until authoritative completion,
+then shows Benefit when inspecting a completed improvement. Other stages are
+neutral: a returning Worker does not prove a building was completed. This changes
+presentation, not construction timers, costs or resource authority.
 
-The loop indicator now keeps construction at Build until authoritative
-completion, then shows Benefit when inspecting a completed improvement. Other
-stages are neutral: a returning Worker does not prove a building was completed.
-This changes presentation, not construction timers, costs or resource authority.
-
-Pages now installs the same root-suite prerequisites as Verify and runs the
-expensive authority tests serially with the same bounded timeout. The Linux
-prepared bridge reads the public PTR database identity from its documented
-repository variable. The existing target was corroborated by source pins,
-retained creation/inventory evidence and fresh provider metadata, then configured
-as `WARPKEEP_PTR_SPACETIMEDB_DATABASE`; GitHub readback matched the exact PTR
-identity. Private credentials remain secrets. Current publisher, owner and
-module/receipt authority still require verification; do not recreate this realm.
-
-Independent source and GitHub review corrected two obsolete blockers: the
-Linux prepared deployment/recovery caller is already implemented, and absence
-of a local signing key does not establish a protected squash-merge rejection.
-B0 is a retained predecessor receipt to authenticate, never a workflow to rerun.
-The live public attestation still reports B0 source `308f901d`; it does not prove
-private receipts, Cloudflare bytes or a live 0.4 deployment. Runner22 is online.
-See the [workflow audit](../../evidence/0.4.0/workflow-sufficiency-audit.md)
-for the genuine remaining provider, PTR and recovery gaps.
-
-Next: finish the corrected fixture verification, prepare/check the composed
-source and publish its generated family. Finish normal protected preparation-only
-promotion and main CI, then exercise the existing sealed `preflight` and genuine
-shared-provider reads. Complete the remaining initial import/owner producers.
-Workflow edits change protected closure members; old candidate hashes and fixture-generated
-test manifests cannot certify this source. Do not port the retired Mac caller
-or weaken branch rules. Keep G001 preserved and G002 sealed throughout.
+Pages uses Verify's root-suite prerequisites and serial allowance for expensive
+authority tests. The Linux prepared bridge reads the public immutable PTR
+identity from `WARPKEEP_PTR_SPACETIMEDB_DATABASE`; repository readback agreed
+with source pins and retained creation/provider metadata. Credentials remain
+secrets, and publisher/owner access still requires genuine verification. The
+Linux deployment/recovery caller already exists. No observed protected squash
+rejection establishes a missing local signing key as a blocker. The recorded
+public bridge attestation reports B0 source `308f901d`; it does not prove private
+receipts, current Cloudflare bytes or live 0.4 acceptance.
 
 ## Historical verification checkpoint — 12 September 2026
 

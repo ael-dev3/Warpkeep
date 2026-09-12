@@ -4,8 +4,10 @@ Current reading point: fetch the actual
 [development branch](https://github.com/ael-dev3/Warpkeep/tree/codex/prepared-keep-bindings-fix)
 and PR #228 before relying on a live head or CI result. The latest completed
 native preparation/check input is
-`6a74005e5f56997aca41fc40e782092aa6cc4b67`. Later source development requires
-its own preparation; older synchronized heads below are historical checkpoints.
+`7cb573baab40e54f52ab2aeb26c56c9e8f1cf9f5`. Its generated family has been
+exported for review; publication, final-head CI and protected promotion must be
+verified separately. Changed runtime/compiler inputs require new preparation;
+older synchronized heads below are historical checkpoints.
 The generated source families recorded below are dated, source-bound evidence;
 documentation and test follow-ups do not create a new release candidate. The
 retained candidate, closure and runner observations below are not current
@@ -15,6 +17,60 @@ gives the next connected work and actual publication/check status. **0.4 is not 
 Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
+
+## Composed provider family and guarded export — 2026-09-12
+
+Native Linux preparation session `90120` and independent check `72208` both
+exited zero for candidate
+`release-workspace-326aab0c728dd07f02faa1969a94c7eb`. Both processes are terminal
+and returned exactly matching identities:
+
+| Identity | Verified value |
+| --- | --- |
+| Committed compiler input | `7cb573baab40e54f52ab2aeb26c56c9e8f1cf9f5` |
+| Source tree | `00be1c0ea63b49dbf3aff4f2396c24c5d629b635` |
+| Transaction | `a99ae63254fdf9361bfd214b9e018866` |
+| Journal SHA-256 | `f62470669d8da89d1f214e2630a8935a18a650bfe89abb4e696016c2ef29ccd7` |
+| Generated family SHA-256 | `6d75716c6ddc470714cbe6261f35be41a7af421b1ebd984b95a2d18dd1e26ea4` |
+| Closure manifest SHA-256 | `9e19ed00a5ea0af1ebee9d373622c9c453c02bbbb257194855bcb5feb01e9f67` |
+| Scanner manifest SHA-256 | `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71` |
+
+The check authenticated all 3,199 source/candidate files, 102 generated outputs,
+3,097 preserved source files, 453 bundle inputs and seven recovery inputs.
+The bundle inventory now includes the composed bridge provider and its actual
+reachable dependencies. `finalReleasePrepared` remains false.
+
+After both commands completed, the guarded export authenticated all 102 output
+bodies and before/backup facts, compared the complete source/candidate trees and
+verified the closure before copying the 17 changed generated bodies. It preserved
+the 85 unchanged outputs, Windows HEAD/index and the published `132355e0`
+CodeQL test correction. Changes comprise the four workflow bootstrap pins,
+closure manifest, canary launcher count/declaration, four operation bundles,
+two bundle manifests and four count-consumer tests. Generated bindings, activation
+state and other source bytes were preserved. No output was hand-edited.
+
+The corrected dispatcher/update fixtures in `7cb573ba` passed 196 native tests
+with one intentional unsupported-runtime skip inside the supported namespace.
+The test-only `132355e0` HTTP fixture URL-routing correction passed 43 tests and strict
+TypeScript; its CodeQL analysis and security checks succeeded. The final
+generated-source checkpoint still requires its own CI result. Ordinary notes
+and this test-only correction do not alter the recorded compiler input; retain
+the generated manifests' original source IDs.
+
+Post-export Windows build-mode types and file-size policy passed. The desktop
+handoff and visual-foundation contract suites also passed all eight tests under
+pinned Node 22.22.3. The selected eight-suite native-boundary invocation exited
+one: 62 passed, 12 skipped and 13 failed at native POSIX repository,
+`/usr/bin/git`, owner-private mode or stdin boundaries. The
+direct closure CLI also refused the Windows repository/platform. Neither result
+is counted as a native pass, and production checks were not relaxed. Rerun those
+eight suites plus the prepared-workflow suite serially in Linux after publication
+and synchronization. Verify the installed closure and explicit preparation/Pages
+classification on that final clean native checkout. The exported classification
+API can check actual HEAD locally without inventing GitHub workflow variables
+or an output descriptor. Preparation
+source remains separate from protected promotion, genuine provider execution,
+owner play, device measurements and live release acceptance.
 
 ## Independently reproduced recovery-source candidate — 2026-09-12
 
@@ -33,9 +89,10 @@ The comparison authenticated 3,194 source/candidate files, 102 generated outputs
 `finalReleasePrepared` remains false. The candidate is retained as source-bound
 evidence; it was not exported over the newer provider/workflow implementation.
 The clean native checkout was synchronized to published `44b91b94` after the
-check ended, then all 519 affected native tests passed without skips. Prepare
-and independently check the composed source before publishing its generated
-family; this earlier candidate cannot certify later closure members.
+check ended, then all 519 affected native tests passed without skips. At that
+checkpoint the composed source still required preparation/check; the later
+`7cb573ba` candidate above supplies that evidence. This earlier candidate
+cannot certify later closure members.
 
 ## Independently reproduced source family — 2026-09-12
 
