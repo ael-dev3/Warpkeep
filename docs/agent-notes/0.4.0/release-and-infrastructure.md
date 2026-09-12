@@ -3,10 +3,55 @@
 ## Current source checkpoint — 2026-09-12
 
 Reviewed 0.4 source is now integrated into signed main `c4b95505` through
-PR #228. The new main run exposed a full-history scanner false positive;
-the scoped repair and active independent M1 check are owned by the
+PR #228. PR #234 integrated the scoped scanner repair into signed main `2dc1f519`.
+M1 preparation, independent checking and export completed; its generated family
+is published in PR #235. The exact active source, retained identities and CI are owned by the
 [execution handoff](execution-handoff.md). Main now contains the Linux workflows,
 but their presence does not establish successful dispatch or live deployment.
+
+## Existing PTR evidence continuity
+
+The September 12 source audit traced the actual missing import/owner/live
+callbacks in `sealed-realms-production-ptr-workflow-entry.mjs`. The retained
+receipt's historical coordinates and fresh observations must agree before the
+bridge can adopt it. Returning the caller's current bridge tuple alongside a
+recomputed digest would prove neither the original producer nor current state.
+
+- `readPrivatePtrProductionImportReceipt` verifies the private file, canonical
+  bytes, filename hash and uniqueness. Pair it with
+  `ptrProductionImportReceiptDigest` over the body without its digest, plus an
+  independently authenticated expected selection and original module/atlas
+  bindings. File integrity alone is not producer provenance.
+- `createPtrAtlasImportTransport().inspect()` and `projectPtrProductionStatus`
+  provide the existing ownerless admin status path. Compare its fresh ready
+  atlas, epoch and verification fields with retained evidence; keep the fixed
+  PTR identity and G001/G002 exclusions. A refused read or missing receipt is
+  not `no-effect`: that disposition lets the bridge invoke the import core.
+- `executePtrOwnerProvisionOperator` requires an unprovisioned owner and its
+  apply path calls the provisioning reducer and writes new receipts. It cannot
+  adopt an existing owner. The private receipt file module has publish/import
+  readers but no corresponding owner/sealed-live readers.
+- The existing recovery observer in
+  `services/auth-bridge/src/spacetimeReleaseRecoveryResolver.ts`, validated by
+  `services/release-recovery/src/realmEvidence.ts`, checks program, singleton
+  owner, enabled state, sealed admissions, atlas and authenticated responses.
+  It is reached through the private `AUTH_BRIDGE_OBSERVER` service binding;
+  the PTR GitHub job has no equivalent binding or owner credential. Interactive
+  `/v2/farcaster/ptr/exchange` needs fresh owner Quick Auth and is a separate
+  authority path.
+- Activation-record V3 currently supports initialization at its preparation
+  source. Its reopened corpus requires matching current module coordinates,
+  including with an existing-update receipt. Historical import/owner adoption
+  therefore also needs an authenticated continuity anchor through the actual
+  update; do not rewrite receipt coordinates or skip the downstream check.
+
+The next complete integration must reopen authentic retained import/owner
+evidence, bind a real current observer result, and carry that continuity through
+activation and recovery. Missing evidence remains an explicit failure. Do not
+substitute the new-owner operator, replay imports or invent receipts. The
+standalone existing-update provider is already connected; it does not supply
+these missing owner/import producers. This audit made no provider mutation and
+does not establish actual production authority.
 
 ## Historical release-path audit scope
 
