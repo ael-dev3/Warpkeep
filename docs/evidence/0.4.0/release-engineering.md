@@ -51,8 +51,23 @@ This proves repeatable preparation for the UI source, with
 acceptance. PR #240's broader Linux job `103590042919` subsequently reported one
 failure in `sealedRealmsProductionBridgeProvider`: its real-parser fixture still
 omits the observer entrypoint and version-metadata binding. That suite was not in
-the earlier 365-case native selection. Keep the hosted failure visible and verify
-its correction separately; the earlier passing subset does not cover it.
+the earlier 365-case native selection. Its test-only correction adds both fixture
+facts and two exact real-parser rejections with no durable authority write. The
+original failure was reproduced, then all 211 owning cases passed with pinned
+Windows Node (123.44 seconds). Source bytes were stable while root published the
+already-reviewed family; this is not a post-publication native result.
+The correction was published as `5996629a413f205c0564d570670a650a17f2a63f` and
+backported unchanged into PR #240 as `944bb17bdeafed920466bbdc4e27511bd8e557e1`.
+Both full outgoing ranges passed the secret scan and live refs matched.
+
+Fresh native session `20928` subsequently passed all 400 tests across seven
+owning/generated-consumer suites at exact published `5996629a`, without skips
+(exit zero, 20.53 seconds). The clean operating checkout matched that source
+afterward. Independent export review also reconstructed every output and both
+complete trees entirely in memory, with no unexpected changes. The three
+doc-facing suites passed all 12 cases, and file policy/diff checks passed before
+the family commit `caa99479342b16c29042e5833a94ca027f382081` was published.
+Current-head hosted checks remain necessary for protected integration.
 
 ## Prepared-policy family refresh — 2026-09-12
 

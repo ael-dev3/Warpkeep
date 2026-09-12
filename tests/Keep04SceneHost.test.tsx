@@ -62,6 +62,87 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
+function occupiedProps(x = -24_000_000n): Keep04SceneHostProps {
+  const initial = props();
+  return { ...initial, visual: { buildings: [{ kind: 'city-mill', placement: { ...initial.visual.draft!, x, rotation: 0 },
+    completedLevel: 1, targetLevel: 1, phase: 'complete', startsAtMicros: null, completesAtMicros: null }], selectedKind: 'city-mill', draft: null, draftValid: true } };
+}
+const cameraState = (camera: THREE.OrthographicCamera) => ({ position: camera.position.toArray(), quaternion: camera.quaternion.toArray(),
+  zoom: camera.zoom, left: camera.left, right: camera.right, top: camera.top, bottom: camera.bottom });
+function expectEntrySitesVisible(camera: THREE.OrthographicCamera, x: number) {
+  for (const [px, py, pz] of [[x - 5.65, 0, -24.75], [x + 5.65, 9, -15.25], [-6.5, 4.6, 34.8], [6.5, 0, 32.2], [-5, 0, -3]]) {
+    const point = new THREE.Vector3(px, py, pz).project(camera);
+    expect(Math.abs(point.x)).toBeLessThan(1); expect(Math.abs(point.y)).toBeLessThan(1);
+  }
+}
+
+it('frames the latest occupied sites after delayed assets, leaving Fit grounds explicit', async () => {
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(342);
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(304);
+  const pending = deferred<InnerKeepRuntimeAssetBundle>(); vi.mocked(loader.loadKeep04Assets).mockReturnValueOnce(pending.promise);
+  const options = occupiedProps(30_000_000n); const mounted = render(<Keep04SceneHost {...options} />);
+  const latest = occupiedProps(); mounted.rerender(<Keep04SceneHost {...latest} />);
+  await act(async () => { pending.resolve(bundle()); }); tick();
+  const camera = renderers[0].camera!;
+  expect(screen.getByText(/^Your settlement/)).toBeVisible(); expectEntrySitesVisible(camera, -24);
+  const entry = cameraState(camera); fireEvent.click(screen.getByRole('button', { name: 'Fit grounds' }));
+  expect(screen.getByText(/^Whole grounds/)).toBeVisible(); expect(camera.top).toBeGreaterThan(entry.top);
+  const grounds = cameraState(camera); mounted.rerender(<Keep04SceneHost {...occupiedProps(30_000_000n)} />); fireEvent.resize(window);
+  expect(cameraState(camera)).toEqual(grounds);
+  expect(loader.loadKeep04Assets).toHaveBeenCalledOnce(); expect(latest.onSelect).not.toHaveBeenCalled(); expect(latest.onPlacement).not.toHaveBeenCalled();
+});
+
+it('defers entry framing at zero size and uses the latest reconciled occupancy when visible', async () => {
+  const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(0);
+  const height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(0);
+  const mounted = render(<Keep04SceneHost {...occupiedProps()} />); await act(async () => {}); tick();
+  expect(screen.queryByText(/^Your settlement/)).toBeNull();
+  const initial = cameraState(renderers[0].camera!);
+  mounted.rerender(<Keep04SceneHost {...occupiedProps(30_000_000n)} />); fireEvent.resize(window);
+  expect(cameraState(renderers[0].camera!)).toEqual(initial);
+  width.mockReturnValue(342); height.mockReturnValue(304); fireEvent.resize(window); tick(100);
+  expect(screen.getByText(/^Your settlement/)).toBeVisible(); expectEntrySitesVisible(renderers[0].camera!, 30);
+});
+
+it('keeps an empty entry on grounds when a first building or draft arrives', async () => {
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(342);
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(304);
+  const mounted = render(<Keep04SceneHost {...props()} />); await act(async () => {}); tick();
+  const camera = renderers[0].camera!; const grounds = cameraState(camera);
+  mounted.rerender(<Keep04SceneHost {...occupiedProps()} />); fireEvent.resize(window);
+  expect(cameraState(camera)).toEqual(grounds); expect(screen.getByText(/^Whole grounds/)).toBeVisible();
+});
+
+it.each(['entry', 'grounds', 'inspection'] as const)('preserves %s framing, manual pan and zoom through refresh, orientation and renderer reconstruction', async mode => {
+  const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(342);
+  const height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(304);
+  const options = occupiedProps(); const mounted = render(<Keep04SceneHost {...options} />); await act(async () => {}); tick();
+  const caption = mode === 'entry' ? /^Your settlement/ : mode === 'grounds' ? /^Whole grounds/ : /^Inspecting City Mill/;
+  if (mode === 'grounds') fireEvent.click(screen.getByRole('button', { name: 'Fit grounds' }));
+  if (mode === 'inspection') fireEvent.click(screen.getByRole('button', { name: 'Inspect selected site' }));
+  expect(screen.getByText(caption)).toBeVisible();
+  const canvas = mounted.container.querySelector('canvas')!;
+  pointer(canvas, 'pointerdown', 1, 100, 100); pointer(canvas, 'pointermove', 1, 160, 140); pointer(canvas, 'pointerup', 1, 160, 140);
+  fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+  const before = cameraState(renderers[0].camera!);
+  const next = { ...options, visual: { ...options.visual, draft: { kind: 'lumber-camp' as const, x: 35_000_000n, z: 25_000_000n, rotation: 0 },
+    buildings: options.visual.buildings.map(building => ({ ...building, completedLevel: 5, targetLevel: 5 })) } };
+  mounted.rerender(<Keep04SceneHost {...next} />); fireEvent(document, new Event('visibilitychange'));
+  expect(cameraState(renderers[0].camera!)).toEqual(before);
+  width.mockReturnValue(796); height.mockReturnValue(144); fireEvent.resize(window);
+  expect(renderers[0].camera!.position.toArray()).toEqual(before.position); expect(renderers[0].camera!.zoom).toBe(before.zoom);
+  width.mockReturnValue(342); height.mockReturnValue(304); fireEvent.resize(window);
+  expect(cameraState(renderers[0].camera!)).toEqual(before);
+  mounted.rerender(<Keep04SceneHost {...next} quality="reduced" reducedMotion />); await act(async () => {}); tick(1000);
+  expect(cameraState(renderers[1].camera!)).toEqual(before); expect(screen.getByText(caption)).toBeVisible();
+  const replacement = mounted.container.querySelector('canvas')!;
+  fireEvent(replacement, new Event('webglcontextlost', { cancelable: true }));
+  fireEvent(replacement, new Event('webglcontextrestored')); await act(async () => {}); tick(2000);
+  expect(cameraState(renderers[2].camera!)).toEqual(before); expect(screen.getByText(caption)).toBeVisible();
+  expect(maximum).toBe(1); expect(options.onPlacement).not.toHaveBeenCalled(); expect(options.onSelect).not.toHaveBeenCalled();
+  mounted.unmount(); expect(active).toBe(0); expect(queued.size).toBe(0); expect(observers).toBe(0);
+});
+
 // Real hook, controller, screen, scene host and scene; only SDK replies/assets/GPU
 // are fixtures. Holding a poll prevents React batching from hiding its lifecycle.
 function refreshHarness(wire = freshWire04()) {
@@ -159,15 +240,19 @@ it('retains the pending scene with commands blocked and retires it when the outc
 });
 
 it('retains one scene through a held build and receipt, showing the new project only after the confirmed read', async () => {
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(342);
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(304);
   const wire = freshWire04(); Object.assign(wire, { food: 1000n, wood: 1000n, stone: 1000n, gold: 1000n });
   const h = refreshHarness(wire); await act(async () => {}); tick();
   const canvas = h.mounted.container.querySelector('canvas'); const originalScene = renderers[0].scenes[0];
+  const framing = cameraState(renderers[0].camera!);
   const resources = screen.getByRole('region', { name: 'Resources' });
   const panel = screen.getByRole('complementary', { name: 'Command panel' });
   const mutation = deferred<{ sequence: bigint; revision: bigint }>(); h.mutate.mockReturnValueOnce(mutation.promise);
   const response = deferred<ReturnType<typeof freshWire04>>(); h.read.mockReturnValueOnce(response.promise);
   const confirm = screen.getByRole('button', { name: 'Confirm placement' }); confirm.focus(); fireEvent.click(confirm);
   expect(h.current().snapshot.phase).toBe('pending'); expect(confirm).toBeDisabled();
+  expect(cameraState(renderers[0].camera!)).toEqual(framing);
   expect(h.mounted.container.querySelector('canvas')).toBe(canvas); expect(confirm).toHaveFocus();
   expect(resources).toBeVisible(); expect(within(resources).getAllByText('1000')).toHaveLength(4);
   expect(screen.queryByText('Under construction')).not.toBeInTheDocument();
@@ -176,6 +261,7 @@ it('retains one scene through a held build and receipt, showing the new project 
   expect(h.mutate).toHaveBeenCalledTimes(1);
   await act(async () => { mutation.resolve({ sequence: 2n, revision: 2n }); }); tick(100);
   expect(h.current().snapshot.phase).toBe('pending'); expect(within(resources).getAllByText('1000')).toHaveLength(4);
+  expect(cameraState(renderers[0].camera!)).toEqual(framing);
   expect(originalScene.getObjectByName('project:city-mill')).toBeUndefined();
   expect(h.mounted.container.querySelector('canvas')).toBe(canvas);
   const confirmed = constructingWire04();
@@ -187,6 +273,7 @@ it('retains one scene through a held build and receipt, showing the new project 
   expect(renderers).toHaveLength(1); expect(renderers[0].scenes.at(-1)).toBe(originalScene);
   expect(loader.loadKeep04Assets).toHaveBeenCalledTimes(1);
   expect(originalScene.getObjectByName('project:city-mill')).toBeDefined();
+  fireEvent.resize(window); expect(cameraState(renderers[0].camera!)).toEqual(framing);
   expect(within(resources).getByLabelText('Food: 980 available')).toBeVisible();
   expect(within(screen.getByRole('article', { name: 'City Mill' })).getByText('Under construction')).toBeVisible();
   expect(screen.queryByRole('button', { name: 'Confirm placement' })).not.toBeInTheDocument();
@@ -196,8 +283,11 @@ it('retains one scene through a held build and receipt, showing the new project 
 
 it('reconciles an authoritative construction completion and its reveal in the same scene after polling', async () => {
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(342);
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(304);
   const h = refreshHarness(constructingWire04()); await act(async () => {}); tick();
   const canvas = h.mounted.container.querySelector('canvas'); const originalScene = renderers[0].scenes[0];
+  const framing = cameraState(renderers[0].camera!);
   expect(originalScene.getObjectByName('project:city-mill')).toBeDefined();
   const response = deferred<ReturnType<typeof freshWire04>>(); h.read.mockReturnValueOnce(response.promise);
   await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
@@ -208,6 +298,7 @@ it('reconciles an authoritative construction completion and its reveal in the sa
   expect(originalScene.getObjectByName('project:city-mill')).toBeUndefined();
   const mill = originalScene.getObjectByName('building:city-mill')!;
   expect(mill.scale.x).toBeCloseTo(.94); tick(5500); expect(mill.scale.x).toBe(1);
+  fireEvent.resize(window); expect(cameraState(renderers[0].camera!)).toEqual(framing);
   expect(loader.loadKeep04Assets).toHaveBeenCalledTimes(1); expect(h.mutate).not.toHaveBeenCalled();
 });
 

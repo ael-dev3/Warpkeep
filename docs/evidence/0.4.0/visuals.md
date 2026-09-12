@@ -1,5 +1,28 @@
 # Verdant Citadel visual evidence — final acceptance open
 
+## 2026-09-12 occupied entry framing and placement markers
+
+The source follow-up from `5996629a` chooses an occupied keep's initial camera
+bounds from its settled buildings or scaffolds and existing civic approach.
+An empty keep retains the grounds view. The choice happens once after current
+state, assets and a usable viewport exist. Refresh, construction completion and
+draft motion do not recenter the view. Camera mode, pan and zoom survive quality
+changes and WebGL context recovery; explicit inspection and Fit grounds keep
+their existing selection and reset behavior.
+
+The footprint marker is wider and sits above the scaffold base. Its outer
+placement boundary, rotation, depth testing and picking semantics are unchanged.
+No prefab, terrain, asset, geometry count or gameplay authority was added or
+rescaled. Mature building proportions remain an independent art concern.
+
+The initial regression run reproduced ten failures with one preservation case
+passing. All eleven selected regressions then passed. The final five-suite run
+passed all 166 cases without skips (10.35 seconds); both TypeScript projects,
+tracked file policy and diff checks passed. Independent source review found no
+actionable defect. The suite retains two pre-existing React act warnings in the
+unrelated Greater Realm refresh fixture. Rendered composition is still pending
+for this source checkpoint; the older matrix below does not validate it.
+
 ## 2026-09-12 desktop primary-action discovery
 
 The current navigation follow-up reproduced the desktop finding in the balanced

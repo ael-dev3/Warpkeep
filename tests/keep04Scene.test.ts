@@ -17,6 +17,57 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 const empty = (): InnerKeepRuntimeAssetBundle => ({ staticPrefabs: new Map(), populationPrefabs: new Map(), failures: [], dispose: vi.fn() });
 const mill = { kind: 'city-mill', placement: { kind: 'city-mill', x: -24_000_000n, z: -20_000_000n, rotation: 0 }, completedLevel: 0, targetLevel: 1, phase: 'constructing', startsAtMicros: 5n, completesAtMicros: 120_000_005n } as const;
 const visual: VisualState04 = { buildings: [mill], selectedKind: 'city-mill', draft: null, draftValid: true };
+it('frames only occupied settled sites and existing civic landmarks, without changing scene work or picking', () => {
+  const scene = createKeep04Scene({ quality: 'reduced', reducedMotion: false, assets: empty() });
+  scene.reconcile({ buildings: [], selectedKind: 'city-mill', draft: mill.placement, draftValid: true });
+  expect(scene.entryOverviewBounds()).toBeNull();
+  scene.reconcile(visual);
+  const before = scene.telemetry(); const root = scene.scene.getObjectByName('building:city-mill')!;
+  const transform = root.matrixWorld.clone(); const bounds = scene.entryOverviewBounds()!;
+  expect(bounds.containsBox(new THREE.Box3().setFromObject(root))).toBe(true);
+  expect(bounds.min.x).toBeCloseTo(-29.65, 5); expect(bounds.min.z).toBeCloseTo(-24.75, 5);
+  expect(bounds.max.x).toBeCloseTo(6.5, 5); expect(bounds.max.z).toBeCloseTo(34.8, 5);
+  expect(bounds.max.y).toBeGreaterThanOrEqual(4.6 - 1e-6);
+  expect(bounds.containsPoint(new THREE.Vector3(0, 0, 2))).toBe(true);
+  expect(bounds.containsPoint(new THREE.Vector3(44, 0, -40))).toBe(false);
+  expect(scene.telemetry()).toEqual(before); expect(root.matrixWorld.equals(transform)).toBe(true);
+  const point = new THREE.Vector3(-24, 1, -20).project(scene.camera);
+  expect(scene.pickBuilding(point.x, point.y)).toBe('city-mill');
+  bounds.makeEmpty(); expect(scene.entryOverviewBounds()!.isEmpty()).toBe(false);
+  scene.reconcile({ ...visual, buildings: [{ ...mill, completedLevel: 1, phase: 'complete' }] });
+  const completed = scene.scene.getObjectByName('building:city-mill')!;
+  expect(completed.scale.x).toBe(.94);
+  const revealingTransform = completed.matrixWorld.clone(); const settled = scene.entryOverviewBounds()!;
+  expect(completed.matrixWorld.equals(revealingTransform)).toBe(true);
+  scene.update(0); scene.update(1);
+  expect(completed.scale.x).toBe(1); expect(scene.entryOverviewBounds()!.equals(settled)).toBe(true);
+  scene.dispose(); expect(scene.entryOverviewBounds()).toBeNull();
+});
+
+it.each([['selected', 0], ['selected', 90000], ['draft', 0], ['draft', 90000]] as const)(
+  'keeps the wider %s marker above the scaffold base and inside its exact rotated footprint (%s)', (kind, rotation) => {
+    const scene = createKeep04Scene({ quality: 'reduced', reducedMotion: true, assets: empty() });
+    const placement = { ...mill.placement, rotation };
+    scene.reconcile({ ...visual, buildings: kind === 'selected' ? [{ ...mill, placement }] : [], draft: kind === 'draft' ? placement : null });
+    const marker = scene.scene.getObjectByName(`${kind}-footprint`) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+    expect(marker.position.y).toBeGreaterThan(.16); expect(marker.position.y).toBe(.20);
+    expect(marker.position.x).toBe(-24); expect(marker.position.z).toBe(-20);
+    expect(marker.rotation.y).toBe(-rotation * Math.PI / 180000);
+    const positions = marker.geometry.getAttribute('position');
+    const xs = Array.from({ length: positions.count }, (_, i) => Math.abs(positions.getX(i)));
+    const zs = Array.from({ length: positions.count }, (_, i) => Math.abs(positions.getZ(i)));
+    expect(Math.max(...xs) * 2).toBeCloseTo(11.3, 5); expect(Math.max(...zs) * 2).toBeCloseTo(9.5, 5);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(.60, 5);
+    expect(Math.max(...zs) - Math.min(...zs)).toBeCloseTo(.60, 5);
+    expect(marker.geometry.index!.count / 3).toBe(8);
+    expect(marker.material.depthTest).toBe(true); expect(marker.material.depthWrite).toBe(false);
+    expect(scene.telemetry().pickTargetCount).toBe(kind === 'selected' ? 1 : 0);
+    const geometryDispose = vi.spyOn(marker.geometry, 'dispose'); const materialDispose = vi.spyOn(marker.material, 'dispose');
+    scene.reconcile({ buildings: [], selectedKind: null, draft: null, draftValid: false });
+    expect(geometryDispose).toHaveBeenCalledOnce(); expect(materialDispose).toHaveBeenCalledOnce(); scene.dispose();
+  },
+);
+
 it('inspects settled site bounds without changing geometry, placement or picking', () => {
   const scene = createKeep04Scene({ quality: 'reduced', reducedMotion: true, assets: empty() }); scene.reconcile(visual);
   const before = scene.telemetry(); const root = scene.scene.getObjectByName('building:city-mill')!;
