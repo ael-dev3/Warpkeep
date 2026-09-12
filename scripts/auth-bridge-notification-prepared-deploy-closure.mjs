@@ -287,6 +287,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/auth-bridge-notification-b0-deploy-journal.mjs',
     'scripts/auth-bridge-notification-b0-deploy.d.mts',
     'scripts/auth-bridge-notification-b0-deploy.mjs',
+    'scripts/auth-bridge-notification-prepared-b0-source.d.mts',
+    'scripts/auth-bridge-notification-prepared-b0-source.mjs',
     'scripts/auth-bridge-notification-prepared-cloudflare-runtime.d.mts',
     'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',
     'scripts/auth-bridge-notification-prepared-deploy-adapter.d.mts',

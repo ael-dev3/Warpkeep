@@ -2,17 +2,25 @@
 
 ## Current review and next work — 12 September 2026
 
-The current working branch is `codex/0.4-ptr-state-observation`, based on
-published `23ec4731` (T2). It connects a new read-only `ptr-state-inspect`
-operation through the Linux workflow, recovery gateway/private signer and the
-existing auth-bridge observer. The caller authenticates the pinned signed PTR
-projection and retains it privately. This is current-state observation only;
-it cannot replace historical import/owner evidence or authorize an update.
-Service unit tests, both service type projects, all seven Worker runtime suites,
-the compiled caller checks and root types have passed. Final source review,
-Linux owning checks and publication are recorded in the resulting PR. The signer and
-gateway are not deployed, and the live bridge lacks their observation bindings.
-Preserve G001 public authentication when configuring the later service rollout.
+The current working branch is `codex/0.4-bridge-predecessor-repair`, based on
+published `fb5a0b78` (Q / PR #239). It repairs the prepared bridge deployer's
+comparison of historical B0 settings and bytes with the new candidate. The
+production caller supplies a fixed, authenticated B0 module inventory; candidate
+upload/readback stays bound to its independently built source, version metadata
+and recovery export. The [prepared transition procedure](../../operations/auth-bridge-notification-prepared.md#prepared-transition-for-04)
+owns the exact distinction and provider provenance. No provider mutation or
+protected bridge dispatch has occurred. Tests and publication must be read from
+the actual current PR head before claiming this repair accepted or deployed.
+
+Q's read-only `ptr-state-inspect` connects the Linux workflow, recovery gateway,
+private signer and existing auth-bridge observer. Its authenticated, pinned PTR
+projection remains private. Current observation cannot replace historical
+import/owner evidence or authorize an update. Service unit tests, both service
+type projects, all seven Worker runtime suites, compiled caller checks and root
+types passed for that implementation. Q's hosted service, native-contract and
+CodeQL checks passed; full Linux/module checks were still running at this review.
+The signer and gateway are not deployed, and the live bridge lacks their
+observation bindings. Preserve G001 public authentication in the later rollout.
 
 The owner's continuous-sync follow-up now requires immediate reviewable
 checkpoints, including bounded unfinished work before switching work items.
@@ -29,7 +37,9 @@ observer configuration, disabled private signer and secretless gateway in that
 order. The existing recovery key, RPC secret and census pepper must be reused.
 Full bootstrap verification still lacks the local canary owner carrier. The
 authenticated account's GitHub Apps settings showed no registered Apps during
-this review; the dedicated read-only installation/key supply remains unresolved.
+this review. App registration is at GitHub's “Confirm access” screen, awaiting
+the owner's authentication; no App, key or new permissions have been created.
+The dedicated read-only installation/key supply remains unresolved.
 
 Existing-state adoption must be a distinct V4 path through update completion,
 bridge state, activation and recovery consumers. Bind signed pre/post observations
@@ -40,12 +50,17 @@ signatures need a separate historical-data verifier, while new actions require
 fresh evidence. Do not synthesize old import/provision receipts or claim equality
 of every gameplay row from the current observation projection.
 
-Protected M2 was reconciled into the published stack with ordinary merges:
-navigation PR #236 is `92d363ce`, runner PR #237 is `7bc5992c`, and frozen-source
-PR #238 is `23ec4731`. Each retained its previously reviewed tree exactly.
-Windows and the clean idle native checkout matched T2 before this new change.
-M2's full main Verify and first sealed preflight have now passed. Later source
-still needs its own main CI and a fresh generated family.
+PR #236 passed every required check at `92d363ce` and merged by the normal
+protected expected-head squash into signed, verified main
+`a2929bb6a3646b2812eacc7482e056eb1abb8be3` (N3). Its tree
+`8d39fe13fa18a22bfca698ae3d9bcc9624c98a7a` exactly matches the reviewed PR tree;
+its sole parent is M2. Main Verify `34701912470` is still running. PR #237
+automatically retargeted main and remains at `7bc5992c`; PR #238 is `23ec4731`,
+and PR #239 is Q. Resolve their live status before integrating the remaining
+source. Reconcile published ancestry normally; never reset or force the stack.
+Windows and the clean idle native checkout matched Q before this new repair.
+M2's full main Verify and sealed preflight are historical evidence for M2;
+N3 and later source need their own checks and fresh generated family.
 
 The published follow-up on `codex/0.4-frozen-source-test-isolation` separates four
 independent frozen-source mutation checks into named Linux cases. Historical R

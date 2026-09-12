@@ -98,6 +98,7 @@ const SCRIPT_GRAPH_ROOTS = Object.freeze([
   'scripts/auth-bridge-notification-b0-deploy-adapter.mjs',
   'scripts/auth-bridge-notification-b0-deploy-journal.mjs',
   'scripts/auth-bridge-notification-b0-deploy.mjs',
+  'scripts/auth-bridge-notification-prepared-b0-source.mjs',
   'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',
   'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
   'scripts/auth-bridge-notification-prepared-deploy-journal.mjs',
