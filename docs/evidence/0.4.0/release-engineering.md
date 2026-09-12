@@ -4,12 +4,10 @@ Current reading point: fetch the actual
 [development branch](https://github.com/ael-dev3/Warpkeep/tree/codex/prepared-keep-bindings-fix)
 and PR #228 before relying on a live head or CI result. The latest completed
 native preparation/check input is
-`7cb573baab40e54f52ab2aeb26c56c9e8f1cf9f5`. Its generated family was exported,
-scanned, published and synchronized at
-`60097dd7491125b09120b700d688278f906f96f6`. The subsequent protected-policy
-correction passed its full native suite and produced the retained candidate
-recorded below. The newer UI source still needs preparation and independent
-check; older candidates do not cover that change. Final-head CI and protected promotion remain separate
+`8033e01cc911f510fafb1770fdb0c0f0f3d2b3ac`. Preparation, independent rebuilding
+and guarded export completed successfully for the mobile layout and corrected
+recovery policy. Exact identities and export scope are recorded below.
+Final-head CI and protected promotion remain separate
 requirements. Older synchronized heads below are historical checkpoints.
 The generated source families recorded below are dated, source-bound evidence;
 documentation and test follow-ups do not create a new release candidate. The
@@ -21,7 +19,85 @@ Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
-## Composed provider family and guarded export — 2026-09-12
+## Mobile source family and guarded export — 2026-09-12
+
+Native preparation session `35471` and independent check `7224` both exited zero
+and returned exactly matching results for candidate
+`release-workspace-7e291b7e65262f27a14228e7ab90680c`:
+
+| Identity | Verified value |
+| --- | --- |
+| Committed compiler input | `8033e01cc911f510fafb1770fdb0c0f0f3d2b3ac` |
+| Source tree | `0b312c22c550a7f32e8096c4de1174e89b1729f5` |
+| Transaction | `5828b3244d0f93858258b931c3dd1ed3` |
+| Journal SHA-256 | `b21305974d0873e509ac313980b8e514af56db7cd24c1b01c400b9893ef91140` |
+| Generated family SHA-256 | `3cf849ca5d3db6adcfbc6478d4d672a81cb1df197cf0a3c69a6822b0540d4545` |
+| Closure manifest SHA-256 | `3853461dd7d3384182b750e7ea86db9007800bac8a61f5e678a491a17bf90fa1` |
+| Scanner manifest SHA-256 | `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71` |
+
+Both runs checked 3,199 source/candidate files, 102 generated outputs, 3,097
+preserved source files, 453 bundle inputs and seven recovery inputs.
+`finalReleasePrepared` remains false. LF-only Linux stdin and `exec` preserved
+the real Node exit status; the earlier shell carriage-return error did not recur.
+
+Guarded export session `78755` exited zero after authenticating the complete
+output family, retained backups, full trees and closure. It wrote seven changed
+files: four workflow closure pins, the closure manifest and the recovery/sealed
+operation bundle manifests. The other 95 outputs were preserved, including all
+compiled bundles, bindings and generated test consumers. Windows HEAD and index
+remained at the clean input until reviewed staging. No generated body was edited
+by hand. The reused ignored export helper changed only seven source/candidate
+identity literals; its existing verification logic was retained.
+
+The policy source had already passed all 163 native prepared-workflow tests.
+The mobile correction passed 64 affected tests, build-mode types and the final
+18-test accessibility/visual-contract check. The
+[visual record](visuals.md) retains the fresh synthetic capture and review limits.
+Post-publication native closure/classification and final-head hosted checks must
+be read from their actual results; this candidate alone does not establish them.
+
+### Protected promotion and historical source retention
+
+The sealed Linux preflight requires the manifest's preparation commit to be an
+ancestor of dispatched main. A squash of this development branch does not make
+`8033e01c` an ancestor of its new main commit. Preserve the existing checks:
+
+1. Publish and verify this checked family. Before the first squash, retain its
+   reviewed source ancestry with an annotated, non-release `source-history/` tag
+   at the published PR head; verify the remote peeled commit. The PR branch is
+   automatically deleted on merge, and the preparation projection still reads
+   historical commit `f6036cb93711f1358eda9c7a5804457665a864c9`, which is absent
+   from current main ancestry. Main Verify fetches tags with full history; the
+   inspected workflows have no tag or tag-creation deployment trigger.
+2. After required PR checks pass, use the normal protected squash to main **M1**.
+   Prepare and independently check actual clean M1 while its own CI runs.
+3. Promote only that newly generated family through a second protected squash
+   to **M2**. M1 is now an ancestor of M2 and remains the bundle source.
+4. After M2 Verify succeeds, dispatch `sealed-realms-production.yml` on main
+   with `source_commit=M2` and `operation=preflight`. Expected success is
+   `preflight-inspected`. Do not deploy from interim M1 or rerun preparation
+   solely because generated-only M2 changed HEAD.
+
+This follows the existing bundle provenance and repository protections; it does
+not create release approval. No protection or branch-deletion setting is changed.
+The PR and existing external handoff own the actual tag, promotion and CI results
+until the next substantive publication; avoid status-only commits that restart CI.
+
+### Fresh credential-free public observations
+
+At `2026-09-12T07:01:50.277Z`, the canonical bridge release-attestation route
+returned HTTP 200 and source `308f901d91a1fb68d90f157a2ec164ed1acaf51d`, matching
+reviewed B0. Its public report enabled notification delivery/transport/store,
+public authentication and the expected-FID requirement. At
+`2026-09-12T07:03:36.803Z`, the existing suspension probe confirmed request
+POST/OPTIONS return 503 with `admission_requests_suspended`; status OPTIONS
+returned 204. The public receipt digest is
+`c3f636da3a6a930f7d9e73375060ed006ebe673af9e8892d1aa17ee8af108f9a`.
+These observations used no credentials or player identity. They establish public
+source/admission behavior, not private provider bytes, player-state preservation
+or actual-owner 0.4 acceptance.
+
+## Earlier composed provider family and guarded export — 2026-09-12
 
 Native Linux preparation session `90120` and independent check `72208` both
 exited zero for candidate

@@ -38,11 +38,17 @@ which records the current checkpoint, preparation, CI and environment details.
   selected Worker continuity, healthy refresh and scoped session renewal are
   implemented. Continue rendered Verdant Citadel review, useful progression,
   foreground/resume and physical-device performance with the actual owner.
-- **The keep now names the return loop.** The presentation-only loop rail in
+- **The keep layout has current rendered evidence.** The presentation-only loop rail in
   `src/components/keep04/Keep04LoopRail.tsx` makes gather → choose → build →
   benefit → return explicit and derives its active stage from authoritative Worker
-  and construction state. It adds no command, resource rule or progression authority;
-  validate its mobile treatment with the next rendered capture.
+  and construction state. It now follows the workspace so the scene appears sooner.
+  Guarded capture `windows-run-GIPWZ3` records clean stable source `8033e01`, NVIDIA
+  hardware rendering and no horizontal overflow in 36 cases. Seven images were
+  reviewed; narrow/landscape views still require scrolling and cropped confirmation
+  controls are not reachability evidence. Browser diagnostic flags remain unresolved.
+  See [visual evidence](../../evidence/0.4.0/visuals.md) for exact profiles, reviewed
+  images, retained output and limitations. Physical-device, performance and actual
+  owner acceptance remain open.
 - **The connected presentation rail is exercised.** The disposable Windows lane
   passed at the prior functional checkpoint; rerun it after any source change
   before release evidence. It covered the

@@ -69,15 +69,32 @@ types passed; local synthetic portrait/narrow/landscape views were inspected.
 The [visual notes](gameplay-and-visuals.md) retain the capture limitations and
 remaining composition work. No authority or gameplay mechanic changed.
 
-Publish this source, synchronize the idle native checkout, then prepare and
-independently check that committed input. Use LF-only stdin for Linux shell
-scripts to avoid repeating the wrapper error. Do not repeat the unrelated 163
-policy tests for this UI-only change. Export the newly checked family, verify its closure and blocked
-Pages classification, and complete that head's required CI before normal
-protected preparation-only squash promotion. Verify main's own CI and source
-classification afterward.
+Source `8033e01cc911f510fafb1770fdb0c0f0f3d2b3ac` was scanned, published and
+synchronized before native preparation `35471` and independent check `7224`.
+Both commands now exited zero with exactly matching candidate identities.
+Guarded export `78755` also exited zero: seven generated manifest/pin files
+changed and 95 outputs were preserved. Compiled bundles, bindings and test
+consumers did not change. The release engineering record owns exact identities,
+the public B0/admission observations and the source-bound verification scope.
+Use LF-only Linux stdin and preserve the native command exit status. Verify the
+published clean native closure, preparation policy and Pages `sealed-launch-blocked`
+classification. Do not repeat the unrelated full policy suite for these generated
+identity changes. Read the published head's own terminal hosted checks.
 
-After promotion, execute the existing protected read-only `preflight` and genuine
+Protected promotion requires two normal squashes. First retain the reviewed PR
+source ancestry with a remotely verified non-release `source-history/` tag:
+automatic branch deletion would otherwise remove the normal fetch route to the
+historical operator checkpoint used by the preparation projection. Squash the
+checked source to main **M1**, then prepare and independently check actual clean
+M1. Promote only its generated family through a second protected squash to **M2**.
+After M2 Verify succeeds, dispatch preflight at M2. Its manifest source M1 must
+remain an ancestor; no preparation from M2 is needed merely for that generated-only
+commit. Do not deploy from interim M1 or alter protections to skip this source rule.
+See the [promotion sequence](../../evidence/0.4.0/release-engineering.md#protected-promotion-and-historical-source-retention)
+for exact operations. Record the actual tag/CI/promotion results in the PR and
+existing external handoff until the next substantive commit.
+
+After M2 verification, execute the existing protected read-only `preflight` and genuine
 provider reads. Re-attest the retained B0 predecessor before initial prepared
 bridge deployment. That existing deployment caller owns its durable journal and
 receipt lifecycle, including B0 re-attestation and provider postflight; empty
@@ -87,6 +104,16 @@ producers, then obtain actual owner, preservation, recovery and device evidence.
 The [workflow audit](../../evidence/0.4.0/workflow-sufficiency-audit.md) and
 [recovery record](../../evidence/0.4.0/recovery.md) distinguish implemented callers
 from remaining live acceptance. Keep G001 preserved and G002 sealed throughout.
+
+A fresh source trace identifies the next concrete realm caller gap: the existing
+PTR update artifact/provider/completion path is composed, but production workflow,
+Linux preflight and workflow evidence do not accept its inspect/apply operations.
+Its entry configuration also still expects `runner` UID/GID 1001 and Node mode
+0700, whereas the installed production contract uses `warpkeep` 1000 and mode
+0500. Connect that complete supported caller before claiming a real module update.
+Then allow import to consume genuine existing-update/adoption authority rather
+than fabricating a fresh-publication receipt, and complete the authenticated owner
+status/authority resolver. These are source findings, not executed provider proof.
 
 Continuous publication is required in `AGENTS.md` and the
 [sync procedure](../../operations/0.4.0-development-sync.md): commit and push

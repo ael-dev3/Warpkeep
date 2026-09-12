@@ -8,10 +8,26 @@ four resource columns; widths below 360px use two columns and two toolbar rows.
 Short landscape places the primary actions beside the balances. Exact amounts,
 pending-return wording, touch targets and measured sticky offsets are retained.
 The five affected gameplay/UI suites passed all 64 tests and build-mode types
-passed. Local browser review covered 390px portrait, 320px narrow portrait and
-844px short landscape. The mature keep is now fully visible on ordinary portrait
-entry; narrow and landscape fixtures still require scrolling for a complete view.
-These are synthetic local views, not physical-device or actual-owner evidence.
+passed. The subsequent guarded run `artifacts/keep04-qa/windows-run-GIPWZ3`
+records stable clean source `8033e01cc911f510fafb1770fdb0c0f0f3d2b3ac`,
+Chrome 152.0.7977.83 and ANGLE/NVIDIA RTX 3090 hardware rendering. All 36
+synthetic cases recorded no horizontal overflow; seven PNGs were manually
+reviewed. The [visual evidence record](../../evidence/0.4.0/visuals.md) names that
+subset and its viewport crops. The capture still reports `reviewRequired: true`
+with 36 security warnings and one network error; their current causes remain
+unverified. Normal browser exit and zero remaining owned processes were verified.
+The retained disposable profile was not deleted after automatic approval review
+rejected cleanup; do not retry that deletion as part of this checkpoint.
+
+Separate controller inspection covered 390×844 portrait, 320×740 narrow portrait,
+844×390 short landscape and 1440×900 desktop with the QA header visible. Mature
+grounds were visible on ordinary portrait entry; narrow and landscape fixtures
+required scrolling for a complete view, with the compact sticky header retained.
+The desktop scene was visible but its primary dock remained below the initial
+viewport. Placement fixtures intentionally focus the catalog; a cropped Confirm
+placement button does not establish reachability. These are synthetic local
+views, not physical-device, performance, authenticated-owner or live-release
+acceptance. The complete image matrix and interaction coverage remain open.
 
 The preceding guarded capture `artifacts/keep04-qa/windows-run-01TmYS` records
 clean source `72aee27e`, Chrome 152 and hardware rendering. All 36 scenarios had
@@ -62,8 +78,8 @@ this page keeps precise mechanics, implementation routes and evidence limits.
 
 ## Visual foundation and complete reference coverage
 
-At the current runtime source checkpoint `24e3c136` (latest documentation/test
-head `aa93d855`), the owner direction prioritizes a professional mobile visual
+At the historical runtime source checkpoint `24e3c136` (documentation/test
+head `aa93d855`), the owner direction prioritized a professional mobile visual
 foundation with simple interaction. Preserve the useful existing loop; deeper
 simulation and elaborate editing remain later work. The full Desktop handoff
 reference library informs one coherent Verdant Citadel, rather than a collection
@@ -82,15 +98,18 @@ become spendable. Active Worker cards also name each reserved result and resourc
 and expose that status as a polite update for assistive technology,
 so a player can connect the aggregate pending rail to the journey that will unlock it.
 
-Published forest grouping and moss/earth terrace tops improve separation between
-buildings and their setting. The current source-render matrix covers empty,
+Earlier forest grouping and moss/earth terrace work targeted separation between
+buildings and their setting. The historical source-render matrix covered empty,
 mature, legal placement, blocked placement, construction, completion and
 schematic fallback at desktop and 390px portrait profiles. The portrait WebGL
 canvas uses the available scene-panel width while the toolbar remains padded;
 desktop, short-landscape and fallback geometry are unchanged. Focused
-scene/dressing tests and types passed. These captures use the actual Keep04
-renderer with synthetic state and software rendering; they do not prove
-physical-phone performance or authenticated owner usability.
+scene/dressing tests and types passed. Those earlier captures used the actual
+Keep04 renderer with synthetic state and software rendering. The clean `8033e01`
+capture above instead used NVIDIA hardware; its review still found a dominant
+cathedral, small economy buildings and terrain/background cohesion to improve.
+Neither evidence lane proves physical-phone performance or authenticated owner
+usability.
 
 The mapping below records lessons from the supplied handoff research, not a new
 live audit of external projects. It retains open art questions rather than claiming
@@ -385,16 +404,18 @@ and measured cost; the reference study alone is not a reason to introduce them.
 
 ### V02 — visual completeness exceeds current rendered evidence
 
-Recorded evidence includes a stable 36-case Windows native-Chrome synthetic
-capture at earlier source and a later 390×844 balanced interactive placement check.
+Recorded evidence now includes the stable 36-case Windows native-Chrome synthetic
+capture at `8033e01`, with seven images reviewed and unresolved diagnostic flags,
+alongside the earlier 390×844 balanced interactive placement check.
 Offline voxel-plan generation reduced one measured CPU4 preparation workload from
 about 19–25ms to 1.3–2.8ms. Those are useful specific results, not final acceptance.
 See [Windows capture](../../evidence/0.4.0/windows-keep-capture-2026-09-06.md) and
 [visuals](../../evidence/0.4.0/visuals.md), including their remaining limitations.
 
-Small-building readability, landscape/offscreen action coverage and final
-source-bound captures remain. The six-family level matrix and authored-prefab
-footprint checks are now covered by `tests/keep04Buildings.test.ts`, while the
+Small-building readability, landscape/offscreen action coverage, review of the
+complete retained matrix and final release-source acceptance remain. The six-family
+level matrix and authored-prefab footprint checks are now covered by
+`tests/keep04Buildings.test.ts`, while the
 browser review in `docs/evidence/0.4.0/visuals.md` records the all-six completed
 scene separately from physical-device proof. The renderer evidence destination
 is now [`docs/evidence/0.4.0/renderer.md`](../../evidence/0.4.0/renderer.md). It
@@ -411,7 +432,7 @@ performance or authenticated-owner acceptance.
 | Retry/expiry/reconnect (R08) | Exact envelope/scope tests | Cross-expiry uncertain outcome, background/resume and realm-switch owner journey |
 | G001 preservation (R09) | Narrow freeze guard tests and separate presentation paths | Recorded deployed identities/admitted baseline; real players/timers/reconnect/presentation preserved |
 | G002 closed (R10) | Bundled denial-before-storage tests | Live denial plus authenticated before/after no-unauthorized-write evidence |
-| Art/voxel/fallback (R04/R05) | Integrated mesher, art profile, six-family level matrix, fixture captures and browser all-six completion review | Final source-bound desktop/mobile captures, physical-device readability/performance, renderer/fallback budgets and reduced/motion proof |
+| Art/voxel/fallback (R04/R05) | Integrated mesher, art profile, six-family level matrix; clean `8033e01` capture with seven images reviewed | Full image/action review, unresolved browser diagnostics, final release-source acceptance, physical-device readability/performance, renderer/fallback budgets and reduced/motion proof |
 | Lifecycle/performance (R06) | Cleanup and scheduler tests; diagnostic counters | Final production source/artifact measurements, context cycles, repeated switching, physical-device evidence separately labeled |
 
 ## Performance gates — do not substitute emergency caps

@@ -1,17 +1,20 @@
 # 0.4 workflow sufficiency audit
 
-Updated 2026-09-12 (Europe/Budapest). Native preparation `90120` and independent
-check `72208` both exited zero from
-`7cb573baab40e54f52ab2aeb26c56c9e8f1cf9f5`, with identical candidate, journal,
-family and closure identities. The guarded export authenticated all generated
-outputs and retained backups before copying 17 changed bodies; the newer
-test-only `132355e0` fix and unchanged source were preserved. Exact evidence is
-in [release engineering](release-engineering.md). Runtime source `44b91b94`
-passed 519 native tests without skips; the corrected update/dispatcher fixtures
-then passed 196 native tests with one intentional unsupported-environment skip.
-The `132355e0` HTTP fixture URL-routing fix passed its 43 tests, strict types and both
-CodeQL checks. Final generated-head verification and protected promotion remain
-separate requirements.
+Updated 2026-09-12 (Europe/Budapest). Native preparation `35471` and independent
+check `7224` both exited zero from published source `8033e01c`, returning exactly
+matching candidate, journal, family and closure identities. Guarded export
+`78755` exited zero after authenticating all 102 outputs. It copied seven changed
+files: four workflow closure pins, the closure manifest and the recovery/sealed
+bundle manifests. The other 95 outputs were preserved; compiled bundles, tests
+and bindings did not change. [Release engineering](release-engineering.md) owns
+the exact identities. Publication and final-head verification of the exported
+family remain separate from preparation, protected promotion and live delivery.
+
+Earlier runtime source `44b91b94` passed 519 native tests without skips; the
+corrected update/dispatcher fixtures passed 196 native tests with one intentional
+unsupported-environment skip. The `132355e0` HTTP fixture URL-routing fix passed
+43 tests, strict types and both CodeQL checks. These results retain their source
+scope and do not certify a later head's hosted checks.
 
 The initial audit read `2ffdcc96`; earlier successful Verify/CodeQL results for
 `95945bea` and prepared families for `27700d61`/`6a74005e` retain their dated
@@ -41,9 +44,14 @@ fresh evidence bound to the final reviewed and deployed source.
 - The dedicated Linux runner is installed and can run the sealed preflight and
   activation-evidence lanes. G001 policy observation is parsed and fails closed
   when runner or provider authority is missing.
-- Native release preparation and independent checking passed for composed input
-  `7cb573ba`, with converged candidate and authenticated generated output export.
-  The later test-only fix and ordinary notes leave its compiler inputs unchanged.
+- Native release preparation and independent checking passed for `8033e01c`,
+  covering the corrected recovery policy and newer mobile layout. The checked
+  family was exported without compiled bundle, binding or test changes.
+- At published `60097dd7`, the selected eight suites passed all 87 native tests;
+  installed closure and Pages `sealed-launch-blocked` classification passed.
+  The corrected prepared-workflow suite then passed all 163 native tests on
+  `72aee27e`, without skips. Earlier Windows POSIX-boundary failures remain
+  recorded platform limits, not uncompleted native verification.
 - The protected CI shape is explicit: `verify`, `auth-bridge`,
   `spacetimedb-module`, `analyze` and `CodeQL` are required contexts.
 
@@ -52,22 +60,22 @@ fresh evidence bound to the final reviewed and deployed source.
 - The protected Verify and CodeQL runs attached to the current pull request head
   are the R14 authority; read both at terminal state before marking CI green.
   R14 also requires normal protected merge eligibility.
-- Post-export Windows build-mode types and file-size policy passed. The selected
-  native-boundary suites returned 62 passes, 12 skips and 13 failures; the direct
-  closure CLI refused the Windows repository/platform. Rerun the selected suites
-  and prepared-workflow suite serially in Linux after publication, then verify
-  the final clean checkout's closure and preparation classification. These
-  Windows results are not native passes and require no relaxed production gate.
+- Verify the newly published generated family on the clean native checkout and
+  require inert preparation with Pages `sealed-launch-blocked`. The earlier
+  native results above retain their exact source scope; ordinary notes and
+  unchanged source do not require repeating unrelated suites.
 - Protected `main` requires signatures, linear history and strict required
   checks and resolved conversations; the repository permits squash merges only,
   with zero required approvals. The API audit at `7cb573ba` found PR #228
   `MERGEABLE`, `BLOCKED`, zero commits behind main, and Linux/SpacetimeDB checks
-  still running. Current main is a verified GitHub-authored single-parent squash.
+  still running. Main at that audit was a verified GitHub-authored single-parent squash.
   These observations do not establish missing local signing keys as an
   independent blocker. Recheck eligibility after terminal CI without changing
   protections or rewriting development history merely to satisfy an assumption.
-- Final-source rendered and physical-device evidence remains required after
-  runtime changes. Earlier synthetic Windows passes retain their recorded scope.
+- The guarded `8033e01c` Windows capture and selected-image review provide fresh
+  synthetic mobile-layout evidence. Its diagnostic review remains unresolved;
+  composition, final-source acceptance, owner play and physical-device results
+  remain open. See [visual evidence](visuals.md) for the exact scope.
 - The recorded native candidate has `finalReleasePrepared: false`. It proves
   candidate convergence and source integrity for its input; it does not grant
   deployment authorization or complete the release freeze.
@@ -120,22 +128,31 @@ fresh evidence bound to the final reviewed and deployed source.
 1. Publish the complete checked generated family, verify it on the clean native
    checkout and require inert preparation with Pages `sealed-launch-blocked`.
    Read final-head terminal checks and reconcile normal protected squash
-   eligibility, including required conversation resolution. Preparation-source
-   promotion and live activation are separate outcomes; do not alter protections.
-2. Put the reviewed Linux workflows on protected main, verify its own required
-   CI and installed generated family, then dispatch the existing read-only
-   `preflight` operation to establish the genuine runner/source/private-root path.
-3. Use the configured isolated PTR identity and re-attest the existing B0
+   eligibility, including required conversation resolution. Before the first
+   squash, retain the final published development head with a source-history tag:
+   branch auto-deletion would otherwise remove the normal ref retaining historical
+   `f603` source. This tag is planned, not yet recorded as created.
+2. Complete the normal protected source squash to **M1**. Prepare and independently
+   check actual clean M1 while its own CI runs. The preflight requires the bundle's
+   preparation commit to be an ancestor of dispatched main; the development
+   branch's preparation commit is not preserved as an ancestor by a squash.
+   Do not deploy from interim M1.
+3. Publish only M1's checked generated family through a second protected squash,
+   **M2**, preserving M1 as its ancestor. After M2's own Verify succeeds, dispatch
+   `sealed-realms-production.yml` on main with `source_commit=M2` and
+   `operation=preflight`; require `preflight-inspected`. Generated-only promotion
+   does not by itself require preparing M2 again. Keep existing protections.
+4. Use the configured isolated PTR identity and re-attest the existing B0
    predecessor. Verify genuine publisher and owner authority; the current
    Windows CLI inventory does not establish publisher access. Execute the existing
    Linux initial prepared-deployment and genuine recovery/readback paths; complete
    the missing realm import and owner producers. Capture the G001
    baseline and preserve the sealed G002 state before player-state mutations.
-4. Complete the actual owner PTR journey, lifecycle/isolation checks and fixed
+5. Complete the actual owner PTR journey, lifecycle/isolation checks and fixed
    device/performance measurements.
-5. Re-run the full rendered matrix on the release authority, then deploy Pages,
+6. Re-run the full rendered matrix on the release authority, then deploy Pages,
    Cloudflare and SpacetimeDB from the same reviewed source.
-6. Perform live G001 preservation, G002 denial and owner-journey verification,
+7. Perform live G001 preservation, G002 denial and owner-journey verification,
    and only then mark R01–R18 complete and produce the workspace handoff at
    `artifacts/delivery/0.4.0/`. Follow the
    [output and retention rules](../../engineering/development-workflow.md#output-locations-and-retention);

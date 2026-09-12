@@ -1605,7 +1605,7 @@
     {
       "path": "scripts/recovery-workflow-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2831cf5e10c7951bb2bfa33911e7cff5042156bd79525017f7ae6880cbc1b419"
+      "sha256": "d8b1acfabd589926376785acf53548b0149c9a6e43369408349cf2b015b758b6"
     },
     {
       "path": "scripts/recovery-workflow-check-deployment.d.mts",
@@ -1785,7 +1785,7 @@
     {
       "path": "scripts/sealed-realms-production-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "7ec0eae5f73b24ce8733e426eb0101b37a2e8f6233af5bc6be392eb05d1c58e4"
+      "sha256": "a18ad22a736c8ef037005f1d8fe8414fb749d3bbc7b126f88172905816918a50"
     },
     {
       "path": "scripts/sealed-realms-production-continuation.d.mts",
@@ -1960,7 +1960,7 @@
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b680d323c3edff807d485aaff4f9e2701c9cdbb7bf7480790559104655010273"
+      "sha256": "edf46932eb0e820dbb2bb75084c1fd6df7a9baa0326f948f1ca9d68d998bba07"
     },
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-receipt.mjs",
@@ -3575,12 +3575,12 @@
     {
       "path": "src/components/keep04/Keep04Screen.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c8743a051dc79d864c09b359c6b133b91a2b47b76e8ca9b51d3cb667413dd461"
+      "sha256": "56af08391600977e4fbabefaf67d9a95cb2e272e070a9a6320f3317876f8840f"
     },
     {
       "path": "src/components/keep04/Keep04Screen.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "5dae2d72a17a7afbdaf1744a7c7e767deaae53b477e015d091c0b12fc18de8a3"
+      "sha256": "2096c24fbd2ed495330c1df1a33b3c1ab737ad0bf0646be54fade2661a7caa89"
     },
     {
       "path": "src/components/keep04/Keep04WorkerPanel.tsx",
