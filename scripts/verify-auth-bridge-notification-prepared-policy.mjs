@@ -1374,7 +1374,7 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     'AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID',
   );
   for (const [value, expected] of [
-    ['function exactApiScriptAttestation(script, code) {', 1],
+    ['function exactApiScriptAttestation(script, expectedNamedHandlers, code) {', 1],
     ['function exactApiVersionShape(', 1],
     ['function exactExportsOrApiScript(', 1],
     ['exactApiScriptAttestation(', 2],

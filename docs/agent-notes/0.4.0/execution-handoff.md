@@ -18,9 +18,13 @@ passed after application, as did tracked file-size and diff checks. The broader
 Windows generated-consumer run `31279` completed with 283 passes, 78 failures
 and four skips. Its three failing suites require POSIX ownership, `/usr/bin/git`
 and symlink semantics; the native projection/boundary suites passed in the 448
-cases above. The separate native prepared-workflow run `81300` is still active
-at `42b660fd`; follow its terminal assertion details before diagnosing its current
-failure marker. The [verification environment guidance](../../engineering/development-workflow.md#choose-the-verification-environment)
+cases above. The native prepared-workflow run `81300` completed at `42b660fd`
+with 156 passes and seven failures, no skips. A static-policy literal still
+expected the old two-argument `exactApiScriptAttestation` signature, while the
+repaired runtime correctly accepts a separate `expectedNamedHandlers` parameter.
+The baseline refusal cascaded into six credential-comment regressions. The narrow
+policy expectation is corrected without changing their assertions; targeted native
+rechecking and a fresh complete source family must validate the correction. The [verification environment guidance](../../engineering/development-workflow.md#choose-the-verification-environment)
 now routes those contracts through the existing native lane. Do not weaken their
 assertions or restart the completed Windows run.
 The operating checkout can synchronize after publication because both native

@@ -87,9 +87,16 @@ before their intended native assertions: the closure repository requires
 `process.getuid`, fixtures call `/usr/bin/git`, and Windows rejected symlink
 creation with `EPERM`. This is a recorded failed Windows invocation, not a pass.
 The same projection and deployment-boundary suites passed on native G above.
-The separate prepared-workflow suite is being followed natively; its terminal
-result must determine any remaining implementation issue. The development
-workflow now makes the environment routing explicit without weakening checks.
+The separate native prepared-workflow suite `81300` completed at `42b660fd`
+with 156 passes and seven failures in 233.32 seconds, without skips. These seven
+were an actual source-policy mismatch: the static verifier expected
+`exactApiScriptAttestation(script, code)`, while the repaired runtime takes
+`exactApiScriptAttestation(script, expectedNamedHandlers, code)`. Its initial
+baseline failure caused six later credential-comment checks to fail before their
+mutation assertions. The verifier now requires the actual three-argument shape;
+no credential check, production guard or test assertion is relaxed. Targeted
+native rechecking and fresh whole-family preparation remain required for this
+new source. The development workflow also makes the platform routing explicit.
 
 This is development-source preparation and integration, not deployment. Read
 [PR #240](https://github.com/ael-dev3/Warpkeep/pull/240) for the current published
