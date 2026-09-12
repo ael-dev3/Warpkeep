@@ -5,22 +5,28 @@
 The active delivery branch is `codex/0.4-ptr-state-adoption` /
 [PR #244](https://github.com/ael-dev3/Warpkeep/pull/244) in the reused
 `C:/Temp/warpkeep-clean-ci` checkout, based on PR #243's published `789db360`.
-The connected private V4 capture now spans the real update caller, claim reader,
-Node client, OIDC signer and immutable private-state writer. Focused Windows and
-Workerd checks passed. Native `c5fbb2dd` then passed all 230 owning cases in nine
-suites without skips, and the full native service suite passed 1,194 cases in
-44 suites; the [owning evidence](../../evidence/0.4.0/release-engineering.md#ptr-existing-state-capture--2026-09-12)
-records accepted tests and remaining integration. No service was deployed and no
-App or credential was created. The V4 envelope is separate from the existing V3
-activation corpus. The current follow-up adds authenticated retained evidence after
-producer disposal and a separate V4 public/service recovery profile, including
-fresh baseline checks and faithful ledger storage. The actual private activation
-corpus, bridge-state receipt, candidate and generator are still unfinished; continue
-from the [connected plan](../../superpowers/plans/2026-09-08-ptr-update-recovery.md)
-and [owning follow-up evidence](../../evidence/0.4.0/release-engineering.md#ptr-retained-adoption-and-recovery-consumers--2026-09-12).
+The published `e9262af0` checkpoint authenticates retained signed PTR adoption
+after producer disposal and carries the separate V4 public/service profile through
+recovery consumers. Its full native service run passed 1,218 tests in 44 suites.
+Native root run `76533` is closed: 1,184 passed, one failed, no skips. The remaining
+checked-in CLI failure is the stale generated source-authority pin; regenerate the
+whole family from the next published connected batch rather than typing a hash.
+Windows root run `89369` is also closed (90 passed, 13 native skips). Do not restart
+those historical runs or describe either handle as active.
+
+The current follow-up connects the private V4 corpus, bridge-state receipt,
+candidate and descriptor generator, including retained-evidence authentication in
+the actual activation workflow before provider/bridge construction. The distinct
+bridge receipt preserves genuine G002/deployment evidence and binds the PTR adoption
+digest. Missing or malformed retained state fails closed. Synchronous descriptor
+validation requires the owned authenticated capability. The
+[owning evidence](../../evidence/0.4.0/release-engineering.md#ptr-retained-adoption-and-recovery-consumers--2026-09-12)
+and [connected plan](../../superpowers/plans/2026-09-08-ptr-update-recovery.md)
+record exact verification and remaining native integration. No generated family or
+live deployment is certified by component success.
 
 PR #242 at `758bc482` and PR #243 at `789db360` passed all hosted checks,
-including their final Verify gates. PR #244 at `fa39c02d` passed both services,
+including their final Verify gates. PR #244 at `e9262af0` passed both services,
 native-contract and CodeQL; Linux/module jobs were still running at the latest
 inspection. New development commits need their own check results. The browser
 inventory at this continuation contains no tabs: the previously prepared GitHub

@@ -12,8 +12,8 @@ export type ActivationGenerationReceipt = Readonly<{
   activationChainDigest: string;
   descriptorSha256: string;
   artifactSha256: string;
-  artifactSchemaVersion: 1 | 2 | 3;
-  artifactProfile: 'warpkeep-0.4.0-sealed-launch-v1' | 'warpkeep-0.4.0-sealed-launch-v2' | 'warpkeep-0.4.0-sealed-launch-ptr-update-v3';
+  artifactSchemaVersion: 1 | 2 | 3 | 4;
+  artifactProfile: 'warpkeep-0.4.0-sealed-launch-v1' | 'warpkeep-0.4.0-sealed-launch-v2' | 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' | 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4';
   generatedAt: string;
   outcome: 'generated';
 }>;

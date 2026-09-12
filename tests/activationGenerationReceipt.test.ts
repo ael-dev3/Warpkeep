@@ -30,6 +30,16 @@ describe('activation generation receipt codec', () => {
     expect(parseActivationGenerationReceipt(bytes)).toEqual(value);
     expect(activationGenerationReceiptDigest(bytes)).not.toBe(activationGenerationReceiptDigest(activationGenerationReceiptBytes(receipt())));
   });
+  it('round trips the exact preserved PTR V4 artifact without aliasing an initialization profile', () => {
+    const value = { ...receipt(), artifactSchemaVersion: 4, artifactProfile: 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4' } as const;
+    const bytes = activationGenerationReceiptBytes(value);
+    expect(parseActivationGenerationReceipt(bytes)).toEqual(value);
+    expect(activationGenerationReceiptDigest(bytes)).not.toBe(activationGenerationReceiptDigest(activationGenerationReceiptBytes(receipt())));
+    for (const artifactProfile of ['warpkeep-0.4.0-sealed-launch-v4', 'warpkeep-0.4.0-sealed-launch-ptr-update-v3']) {
+      expect(() => activationGenerationReceiptBytes({ ...value, artifactProfile } as never)).toThrow();
+    }
+    expect(() => activationGenerationReceiptBytes({ ...value, artifactSchemaVersion: 3 } as never)).toThrow();
+  });
   it.each([
     [3, 'warpkeep-0.4.0-sealed-launch-v3'],
     [2, 'warpkeep-0.4.0-sealed-launch-ptr-update-v3'],

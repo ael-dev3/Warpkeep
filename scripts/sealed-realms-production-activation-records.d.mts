@@ -24,6 +24,8 @@ export type SealedRealmsRecoveryCandidateReadContext = Readonly<{ [recoveryCandi
 export function createSealedRealmsProductionActivationRecords(input: Readonly<{
   privateState: SealedRealmsProductionPrivateState;
   authority: SealedRealmsProductionSourceAuthority;
+  /** Authenticated retained evidence required for the schema-4 adoption corpus. */
+  existingStateAdoption?: SealedRealmsProductionPtrExistingStateAdoptionEvidence;
   /** Required for descriptors; omitted for candidate-independent receipt reads. */
   readBindingCandidate?: (preparationSourceCommit: string,
     receiptProjection?: SealedRealmsProductionRecoveryReceiptProjection,
@@ -54,7 +56,7 @@ export function writeSealedRealmsProductionPtrExistingStateAdoptionRecord(input:
   adoption: PtrExistingStateAdoption;
 }>): Promise<Readonly<{ receiptDigest: string; recordDigest: string }>>;
 
-/** Reopens the exact S-bound V2 or V3 corpus without a candidate, private bodies or writes. */
+/** Reopens the exact S-bound V2/V3/V4 corpus without a candidate, private bodies or writes. */
 export function readSealedRealmsProductionRecoveryReceiptProjection(
   records: SealedRealmsProductionActivationRecords,
   verificationTime?: string,
@@ -72,14 +74,15 @@ export function readSealedRealmsProductionRecoveryCandidateRecords(
 export function validateSealedRealmsProductionRecoveryActivationEvidence(
   envelope: unknown,
   verificationTime?: string,
+  existingStateAdoption?: SealedRealmsProductionPtrExistingStateAdoptionEvidence,
 ): Readonly<Record<string, unknown>>;
 
 export function inspectSealedRealmsProductionRecoveryActivationRecords(
   records: SealedRealmsProductionActivationRecords,
   verificationTime?: string,
-): Readonly<{ sourceCommit: string; schemaVersion: 2 | 3; descriptorSha256: string }>;
+): Readonly<{ sourceCommit: string; schemaVersion: 2 | 3 | 4; descriptorSha256: string }>;
 
-/** Reads a canonical schema-2 or schema-3 candidate and twelve non-historical private records. */
+/** Reads a canonical candidate and its complete version-specific private receipt corpus. */
 export function writeSealedRealmsProductionRecoveryActivationDescriptor(input: Readonly<{
   records: SealedRealmsProductionActivationRecords;
   consumeDescriptor: (descriptor: number) => undefined;

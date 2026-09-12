@@ -10,8 +10,8 @@ import { types } from 'node:util';
 import { assertSealedRealmsProductionActivationRecordsAuthority,
   readSealedRealmsProductionRecoveryCandidateRecords } from './sealed-realms-production-activation-records.mjs';
 import { sourceCommitFromSealedRealmsProductionAuthority } from './sealed-realms-production-source-authority.mjs';
-import { recoveryActivationCandidatePolicy, recoveryActivationCandidatePolicyForVersion, validateRecoveryActivationCandidate, validateRecoveryActivationCandidateV3 } from './recovery-activation-candidate.mjs';
-import { RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3 } from './recovery-binding-projection.mjs';
+import { recoveryActivationCandidatePolicy, recoveryActivationCandidatePolicyForVersion, validateRecoveryActivationCandidate, validateRecoveryActivationCandidateV3, validateRecoveryActivationCandidateV4 } from './recovery-activation-candidate.mjs';
+import { RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3, RECOVERY_BINDING_KEYS_V4 } from './recovery-binding-projection.mjs';
 
 import { readSealedRealmsProductionRecoveryBridgeFacts } from './sealed-realms-production-auth-bridge-state.mjs';
 
@@ -113,8 +113,10 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
   if (JSON.stringify(corpus.bootstrap) !== JSON.stringify(actual)) fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID');
   const update = Object.hasOwn(corpus.projection, 'ptrExistingUpdateReceiptDigest');
   if (update && Object.hasOwn(corpus.projection, 'ptrPublishReceiptDigest')) fail();
-  const keys = update ? RECOVERY_BINDING_KEYS_V3 : RECOVERY_BINDING_KEYS_V2;
-  const facts = { ...(update ? recoveryActivationCandidatePolicyForVersion(3) : recoveryActivationCandidatePolicy()) };
+  const adoption = Object.hasOwn(corpus.projection, 'ptrExistingStateAdoptionReceiptDigest');
+  if (adoption && !update) fail();
+  const keys = adoption ? RECOVERY_BINDING_KEYS_V4 : update ? RECOVERY_BINDING_KEYS_V3 : RECOVERY_BINDING_KEYS_V2;
+  const facts = { ...(adoption ? recoveryActivationCandidatePolicyForVersion(4) : update ? recoveryActivationCandidatePolicyForVersion(3) : recoveryActivationCandidatePolicy()) };
   for (const projection of [corpus.projection, bridge, approvals, closure, preparation, programs, {
     preparationSourceCommit: actual.preparationSourceCommit, preparationSourceTree: actual.preparationSourceTree }]) {
     for (const [key, value] of Object.entries(projection)) {
@@ -141,7 +143,8 @@ export function readSealedRealmsProductionRecoveryCandidate(inputValue) {
   const derived = inspectSealedRealmsProductionRecoveryCandidate(inputValue);
   if (derived.missingFields.length !== 0) fail('SEALED_REALMS_RECOVERY_CANDIDATE_INPUTS_MISSING', derived.missingFields);
   const document = `${JSON.stringify(derived.facts, null, 2)}\n`;
-  if (derived.facts.schemaVersion === 3) validateRecoveryActivationCandidateV3(document);
+  if (derived.facts.schemaVersion === 4) validateRecoveryActivationCandidateV4(document);
+  else if (derived.facts.schemaVersion === 3) validateRecoveryActivationCandidateV3(document);
   else validateRecoveryActivationCandidate(document);
   return document;
 }

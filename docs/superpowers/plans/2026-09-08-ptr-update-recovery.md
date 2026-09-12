@@ -100,15 +100,15 @@ this separate schema-4 adoption. Do not interchange them.
   the unchanged completed/reconciled update and terminal. Keep claim, terminal and
   present observation jobs distinct. Native acceptance at c5fbb2dd covered the
   connected producer and existing consumers (230 tests) and service (1,194 tests).
-- [ ] Authenticate retained adoption after producer disposal using the same private
+- [x] Authenticate retained adoption after producer disposal using the same private
   update inventory and continuation owner. Verify service signatures and complete
   context; reopen exact evidence after asynchronous verification and on each
   synchronous consumer read. Historical evidence does not need present freshness.
-- [ ] Add separate public profile `warpkeep-0.4.0-sealed-launch-ptr-adoption-v4`,
+- [x] Add separate public profile `warpkeep-0.4.0-sealed-launch-ptr-adoption-v4`,
   with update/adoption commitments, actual module/tool/atlas facts, singleton-owner
   and closed-admission guards, and expected sealed/owner HMACs. Preserve canonical
   schema-2/schema-3 bytes. Do not project unavailable raw import/provision fields.
-- [ ] Extend the recovery receiver's exact typed arming projection and mandatory
+- [x] Extend the recovery receiver's exact typed arming projection and mandatory
   live issue/claim observations. Compare both HMACs under the signed bridge version,
   source, configuration and authorization-epoch scope. Keep ledger/JWS versions;
   legacy SQL storage must reject a projection it cannot faithfully retain.

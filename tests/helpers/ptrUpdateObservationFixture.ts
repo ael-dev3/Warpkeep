@@ -100,6 +100,7 @@ export function createPtrUpdateObservationTransportFixture(initial: PtrUpdateObs
   options: Readonly<{
     nowSeconds?: number;
     recoveryAuthorizationEpoch?: number;
+    bridgeSourceCommit?: string;
     fetchFallback?: (url: string, init?: RequestInit) => Promise<Response>;
   }> = {}) {
   let run = { ...initial };
@@ -139,6 +140,7 @@ export function createPtrUpdateObservationTransportFixture(initial: PtrUpdateObs
       const value = bridge(run, request.requestId,
         request.context.phase === 'pre' ? request.context.beforeProgram : request.context.candidateProgram,
         observedFrom, observedThrough, options.recoveryAuthorizationEpoch ?? 3);
+      if (options.bridgeSourceCommit !== undefined) value.bridgeSourceCommit = options.bridgeSourceCommit;
       const captured = capturePtrBridgeObservation(value, {
         requestId: request.requestId, candidateCommit: run.sourceCommit,
         recoveryAuthorizationEpoch: options.recoveryAuthorizationEpoch ?? 3,

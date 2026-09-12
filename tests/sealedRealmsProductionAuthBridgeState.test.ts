@@ -2142,6 +2142,20 @@ describe('sealed-realms auth bridge state', () => {
     } finally { local.cleanup(); }
   }, 30_000);
 
+  it.each([null, {}, Object.freeze({}), { adoptionReceiptDigest: 'a'.repeat(64) }])(
+    'rejects an unowned PTR adoption capability before bridge I/O or state writes %#', existingStateAdoption => {
+      const local = fixture();
+      const fetchImpl = vi.fn();
+      try {
+        expect(() => createSealedRealmsProductionAuthBridgeState({
+          ...bridgeOptions(local, { fetchImpl }), existingStateAdoption,
+        } as never)).toThrow('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
+        expect(fetchImpl).not.toHaveBeenCalled();
+        expect(local.state.list({ root: 'runtime', relativeDirectory: 'bridge' })).toEqual([]);
+      } finally { local.cleanup(); }
+    },
+  );
+
   it.each(['deploy', 'upload', 'release', 'publisher', 'reducer', 'importCore',
     'activationWriter', 'activationGenerator', 'recoveryReceiptWriter', 'recoveryJournalWriter'])(
     'rejects forbidden recovery callback seam %s without calling it or writing state', callbackName => {

@@ -50,35 +50,79 @@ scope. The JSON ledger retains and compares the extension; the legacy fixed-colu
 SQL ledger explicitly rejects it. No ledger or authorization-JWS version changed.
 Independent service/public review found no remaining actionable defect.
 
-Verification is being completed for this source batch. Initial public-family
-acceptance passed 922 tests across three suites with no skips and preserved literal
-V2/V3 vectors. The affected service selection passed 491 tests across 18 suites
-(session `85027`, 12.89 seconds, exit zero), plus service and Workerd typechecks.
-Original adapter regression passed 21/21. Root retained-reader/V3 selection passed
-29 tests with four Windows-only native skips before the final review corrections;
-final owning/native results belong here after those commands complete. Further
-service checks added three independent mismatch/accessor regressions (312 passes
-in the two rerun suites). Actual Workerd eviction/persistence passed all 14 tests
-(session `59571`, 22.47 seconds, exit zero), including reopened adoption data and
-baseline drift rejection. An initial Workerd launch used the wrong Vitest copy
-and collected no tests; the corrected service runner produced this acceptance.
+At published checkpoint `e9262af098650066b4425ea8a895d5705566addf`, the full
+native service selection passed 1,218 tests in 44 suites without skips (session
+`57757`, 22.73 seconds, exit zero). Native root selection `76533` finished with
+1,184 passes and one failure across 15 suites, without skips (638.04 seconds,
+exit one). The initial checked-in CLI in `sealedLaunchRecoverySource.test.ts`
+rejects the stale generated source-authority pin before constructing V4 activation.
+Its source hash is `edef51010cafd53b33fac020baaed0ac39c9fecef12cf551c48bb648efdbdeaa`;
+the generated verifier still pins
+`fc6b7707602b1ffcb0620362b29d2a48730124b8b823758009d6d01fc58d722f`.
+This failure remains open until a complete family is generated and independently
+checked from the next published connected source. Do not hand-edit pins or weaken
+the CLI assertion. The other native suites accepted retained restart and the
+source-authority cases that timed out on Windows.
 
-Public consumer tests passed 240 cases with seven explicit Windows/native skips;
-one existing V2 source-authority case reached its unchanged ten-second limit
-under Windows fixture load. The new V4 cases passed, including real signed
-authorization/claim/status through session and persisted deployment boundaries.
-Independent review accepted the explicit V4 S/A, Pages and owner-count dispatch.
-The native CLI/lane cases and unchanged source-authority timeout require native
-acceptance at the published checkpoint. This development publication precedes
-that verification, not a release-ready claim.
+Initial public-family acceptance passed 922 tests across three suites with no
+skips and preserved literal V2/V3 vectors. The affected service selection passed
+491 tests in 18 suites (`85027`, 12.89 seconds), plus service and Workerd types.
+Three later mismatch/accessor regressions passed in a 312-case rerun. Real Workerd
+eviction/persistence passed all 14 tests (`59571`, 22.47 seconds), including reopened
+adoption data and baseline drift rejection. The original adapter passed 21/21.
+Windows root selection `89369` finished with 90 passes and 13 native skips in
+three suites (1,032.88 seconds, exit zero); that run began before the final reader
+review corrections, which the published native run above owns. Public consumers
+passed 240 cases with seven native skips and one existing Windows source-authority
+timeout. These results do not certify production deployment or a generated family.
 
-This is unfinished release integration: the actual private activation corpus,
-bridge-state receipt, candidate and descriptor generator still need the separate
-V4 branch. They must bind signed global bridge/configuration coordinates and carry
-opaque authenticated evidence into synchronous consumers; JSON-decoded signatures
-alone grant nothing. No generated family or live deployment is certified by these
-consumer tests. The canonical [connected plan](../../superpowers/plans/2026-09-08-ptr-update-recovery.md)
-records the remaining caller work.
+The next private activation batch adds the separate V4 corpus, bridge receipt,
+candidate and descriptor-generator path. It binds signed global bridge/configuration
+coordinates and requires authenticated opaque evidence in synchronous consumers;
+JSON-decoded signatures alone grant nothing. Its own evidence follows here.
+The canonical [connected plan](../../superpowers/plans/2026-09-08-ptr-update-recovery.md)
+tracks the remaining caller and release acceptance work.
+
+## PTR private activation integration — 2026-09-12
+
+The actual activation entry now discovers retained adoption in the owned private
+state and authenticates it before constructing the bridge/provider. Authentication
+uses a same-source read-only update authority and the existing continuation store;
+it receives no update permit. An invalid present adoption directory cannot fall
+back to initialization. The capability reaches the bridge, receipt corpus and
+generator through the actual inspect/generate caller.
+
+The separate private descriptor profile is
+`warpkeep-0.4.0-recovery-activation-evidence-ptr-adoption-v1`, schema 4. Its exact
+corpus includes the genuine existing-update completion and authenticated adoption
+instead of PTR initialization receipts. Signed bridge configuration/source/epoch
+coordinates and owner/sealed-state HMACs reach candidate composition. The bridge
+retains its actual completed G002 import/deployment chain and uses the distinct
+`warpkeep-sealed-realms-auth-bridge-suspension-ptr-adoption-private-v1` receipt.
+Its outer receipt, activation gate and continuation all bind the same adoption
+digest; existing V2/V3 receipt bytes and initialization behavior remain unchanged.
+
+The generator requires the opaque retained capability and carries it into every
+fresh and persisted replay path. The generation receipt codec explicitly accepts
+the V4 artifact profile. Candidate derivation retains exact source and repeated
+input checks; approval facts keep full private release verification while checking
+the signed PTR approval identity instead of demanding an unavailable public
+manifest field. An independent review found no remaining actionable defect in
+these consumers; the root review also checked the actual runtime wiring.
+
+Root verification passed 76 tests across generator, generation-codec, candidate
+and approval suites (2.31 seconds, exit zero). Candidate regressions first failed
+on the pre-change source, then all 14 cases passed with V4 dispatch. Root build-mode
+types, strict types for the joined producer/candidate/runtime tests, file-size
+policy and diff checks passed. The bridge's owning selection passed 107 tests;
+the codec's isolated selection passed 19. The runtime's new V4/legacy selection
+passed 16 tests; the broader runtime/evidence selection passed all 112 tests
+in two suites (`43509`, 135.77 seconds, exit zero). The joined signed PTR producer → genuine G002 continuation/bridge → V4 public
+artifact case passed on Windows (`78207`, 13.18 seconds). It rejected changed private
+bridge/adoption bytes and repeated confirmation use; external G001/G002 producer
+bodies remain synthetic fixtures. The fixed-descriptor generation/lost-acknowledgment
+restart case is explicitly native-only and remains pending at this publication.
+The generated-family CLI failure above also remains open.
 
 ## PTR existing-state capture — 2026-09-12
 

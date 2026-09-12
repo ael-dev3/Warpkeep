@@ -9,7 +9,7 @@ import {
   createSealedRealmsProductionAuthBridgeState,
   createSealedRealmsProductionActivationEvidenceGenerator,
 } from './sealed-realms-production-auth-bridge-state.mjs';
-import { createSealedRealmsProductionActivationRecords } from './sealed-realms-production-activation-records.mjs';
+import { createSealedRealmsProductionActivationRecords, authenticateSealedRealmsProductionPtrExistingStateAdoption } from './sealed-realms-production-activation-records.mjs';
 import { readSealedRealmsProductionRecoveryCandidate } from './sealed-realms-production-recovery-candidate.mjs';
 import {
   createSealedRealmsProductionActivationDispatchContext,
@@ -182,6 +182,17 @@ async function buildDispatcher(operation, workflowInputSha, evidence, lifecycle)
   });
   const privateState = resolveSealedRealmsProductionWorkflowPrivateState();
   const continuationStore = createSealedRealmsProductionContinuationStore({ privateState });
+  let existingStateAdoption;
+  if (privateState.list({ root: 'runtime' }).includes('ptr-existing-state-adoptions-v4')) {
+    // This separate source authority only reopens the historical update. It does
+    // not receive an update permit or construct a provider capable of applying it.
+    const retainedRecords = createSealedRealmsProductionActivationRecords({ privateState, authority });
+    const updateAuthority = sourceAuthority('ptr-update-apply', workflowInputSha, verifyEvidence);
+    existingStateAdoption = await authenticateSealedRealmsProductionPtrExistingStateAdoption({
+      records: retainedRecords, authority: updateAuthority, store: continuationStore,
+    });
+  }
+  const adoptionOptions = existingStateAdoption === undefined ? {} : { existingStateAdoption };
   const bridgeState = createSealedRealmsProductionAuthBridgeState({
     authority,
     privateState,
@@ -193,6 +204,7 @@ async function buildDispatcher(operation, workflowInputSha, evidence, lifecycle)
     inspectImportReceipt: unavailable,
     authenticateImportResult: unavailable,
     resolveOwnerProvisionReceipt: unavailable,
+    ...adoptionOptions,
   });
   // The fixed reader reopens the opaque records and immutable S itself. Missing
   // recovery/provider facts remain an explicit failure, never caller defaults.
@@ -203,13 +215,14 @@ async function buildDispatcher(operation, workflowInputSha, evidence, lifecycle)
     lifecycle.preparation = await createSealedRealmsProductionRecoveryPreparation({ privateState, authority });
     records = createSealedRealmsProductionActivationRecords({ privateState, authority,
       readBindingCandidate: (_source, _projection, readContext) =>
-        readSealedRealmsProductionRecoveryCandidate({ records, privateState, authority, bridgeState, readContext, sourceClosure: lifecycle.sourceClosure, programArtifacts: lifecycle.programArtifacts, preparation: lifecycle.preparation }) });
+        readSealedRealmsProductionRecoveryCandidate({ records, privateState, authority, bridgeState, readContext, sourceClosure: lifecycle.sourceClosure, programArtifacts: lifecycle.programArtifacts, preparation: lifecycle.preparation }), ...adoptionOptions });
   }
   const lane = createSealedRealmsProductionActivationLane({ bridgeState,
     ...(operation === 'activation-evidence-generate' ? {
       generator: createSealedRealmsProductionActivationEvidenceGenerator({
         records,
         privateState, authority,
+        ...adoptionOptions,
       }),
     } : {}),
   });

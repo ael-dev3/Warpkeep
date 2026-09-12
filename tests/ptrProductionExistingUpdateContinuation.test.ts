@@ -180,12 +180,12 @@ afterEach(() => {
   seams.request.mockReset();
   vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs();
 });
-function fixture(platformMode = false, race?: (phase: string, path: string) => void) {
+function fixture(platformMode = false, race?: (phase: string, path: string) => void, observationOptions: { sourceTree?: string; bridgeSourceCommit?: string } = {}) {
   const fixtureNow = Math.floor(Date.now() / 1000);
   vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(fixtureNow * 1000);
-  const observationRun = (runId: string) => ({ sourceCommit: SOURCE, sourceTree: 'b'.repeat(40), runId,
+  const observationRun = (runId: string) => ({ sourceCommit: SOURCE, sourceTree: observationOptions.sourceTree ?? 'b'.repeat(40), runId,
     runAttempt: '1', checkRunId: '9001', requestId: '123e4567-e89b-42d3-a456-426614174000' });
-  const observations = createPtrUpdateObservationTransportFixture(observationRun('502'), { nowSeconds: fixtureNow });
+  const observations = createPtrUpdateObservationTransportFixture(observationRun('502'), { nowSeconds: fixtureNow, bridgeSourceCommit: observationOptions.bridgeSourceCommit });
   observations.install();
   const root = mkdtempSync(join(tmpdir(), "warpkeep-ptr-real-continuation-"));
   const adapters = new Set<
@@ -291,7 +291,7 @@ function fixture(platformMode = false, race?: (phase: string, path: string) => v
       authority: authority("ptr-update-inspect"),
       privateState,
       artifact: artifact as never,
-      observation: { sourceTree: 'b'.repeat(40), runId, runAttempt: '1' },
+      observation: { sourceTree: observationOptions.sourceTree ?? 'b'.repeat(40), runId, runAttempt: '1' },
     });
     adapters.add(adapter);
     return adapter;
@@ -725,8 +725,8 @@ it('reopens pre bytes after asynchronous signature verification before submissio
   expect(f.records().map(value => value.kind).sort()).toEqual(['inspection', 'not-submitted']);
 }, 30000);
 
-async function retainedAdoption() {
-  const f = fixture(process.platform !== 'linux'), adapter = f.make();
+async function retainedAdoption(observationOptions: { sourceTree?: string; bridgeSourceCommit?: string } = {}) {
+  const f = fixture(process.platform !== 'linux', undefined, observationOptions), adapter = f.make();
   await f.inspect(adapter);
   const run = await f.dispatcher('ptr-update-apply', adapter);
   await run.call();
@@ -851,4 +851,180 @@ it('owns a data snapshot of authentication inputs across signature verification 
   await expect(authenticate(proxy)).rejects.toThrow();
   expect(() => read(proxy)).toThrow();
   expect(accessed).not.toHaveBeenCalled();
+}, 30000);
+
+// G001/G002 fixture bodies are synthetic data; PTR adoption below comes through
+// the real signed producer, immutable writer and retained-history authenticator.
+async function joinedV4ActivationFixture() {
+  const { ptrV3ActivationFixture, PTR_V3_FIXTURE_TIME } = await import('./fixtures/ptrV3ActivationFixture');
+  const { RECOVERY_BINDING_KEYS_V4 } = await import('../scripts/recovery-binding-projection.mjs');
+  const { recoveryActivationCandidatePolicyForVersion } = await import('../scripts/recovery-activation-candidate.mjs');
+  const legacy = ptrV3ActivationFixture();
+  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(PTR_V3_FIXTURE_TIME));
+  const { f, run, records, receipt, written, path: adoptionPath } = await retainedAdoption({
+    sourceTree: legacy.candidate.preparationSourceTree, bridgeSourceCommit: SOURCE });
+  const evidence = await adoptionWriter.authenticateSealedRealmsProductionPtrExistingStateAdoption({ records,
+    authority: run.sourceAuthority, store: f.store });
+  const members = [
+    ['g001PolicyObservationBootstrapReceipt', 'g001-policy-observation-bootstrap-receipt.json', 'g001-policy-observe'],
+    ['g001CensusPrivacySafePrivateReceipt', 'g001-census-privacy-safe-private-receipt.json', 'g001-census-second-inspect'],
+    ['g001AdmittedPlayerCensusPrivateReceipt', 'g001-admitted-player-census-private-receipt.json', 'g001-census-second-suspend'],
+    ['g001AdmissionMonitorSuspensionReceipt', 'g001-admission-monitor-suspension-receipt.json', 'g001-census-second-suspend'],
+    ['g001AdmissionMonitorCurrentStateReceipt', 'g001-admission-monitor-current-state-receipt.json', 'g001-current-state'],
+    ['g002PublishReceipt', 'g002-publish-receipt.json', 'g002-publish-apply'],
+    ['g002AtlasImportReceipt', 'g002-atlas-import-receipt.json', 'g002-import-apply'],
+    ['g002SealedLiveReceipt', 'g002-sealed-live-receipt.json', 'g002-live-inspect'],
+  ];
+  for (const [member, filename, operation] of members) {
+    const receipt = legacy.receipts[member];
+    const bodyDigest = createHash('sha256').update(`${JSON.stringify(receipt)}\n`).digest('hex');
+    const semanticDigest = createHash('sha256').update(['warpkeep.sealed-realms.activation-record.v1',
+      member, SOURCE, SOURCE, operation, run.sourceAuthority.authorityDigest, bodyDigest].join('\n') + '\n').digest('hex');
+    f.privateState.write({ root: 'runtime', relativePath: `activation-evidence/records/${filename}`,
+      bytes: Buffer.from(`${JSON.stringify({ schemaVersion: 1, profile: 'warpkeep-sealed-realms-activation-record-v1',
+        member, preparationSourceCommit: SOURCE, sourceCommit: SOURCE, operation,
+        sourceAuthorityDigest: run.sourceAuthority.authorityDigest, bodyDigest, receipt, semanticDigest })}\n`) });
+  }
+  let candidateSource = '';
+  const recordsV4 = createSealedRealmsProductionActivationRecords({ privateState: f.privateState,
+    authority: run.sourceAuthority, readBindingCandidate: () => candidateSource, existingStateAdoption: evidence } as never);
+  const projection = adoptionWriter.readSealedRealmsProductionRecoveryReceiptProjection(recordsV4);
+  expect(projection).toMatchObject({ ptrExistingStateAdoptionReceiptDigest: written.recordDigest,
+    ptrExistingUpdateReceiptDigest: updateDigest(receipt), ptrExpectedProgramKeccak256: CANDIDATE,
+    ptrSingletonOwnerCount: 1, ptrExpectedSealedStateHmacSha256: 'a'.repeat(64),
+    recoveryAuthWorkerSourceCommit: SOURCE, preparationSourceTree: legacy.candidate.preparationSourceTree });
+  for (const absent of ['ptrAtlasImportReceiptDigest', 'ptrOwnerProvisionReceiptDigest', 'ptrSealedLiveReceiptDigest',
+    'ptrReleaseManifestSha256', 'ptrOwnerAnchorRows', 'ptrPresentationEnabled']) expect(projection).not.toHaveProperty(absent);
+  const { createPtrAdoptionBridgeFixture } = await import('./helpers/ptrAdoptionBridgeFixture');
+  const bridgeModule = await import('../scripts/sealed-realms-production-auth-bridge-state.mjs');
+  const retained = adoptionWriter.readSealedRealmsProductionPtrExistingStateAdoptionEvidence({
+    evidence, privateState: f.privateState, sourceCommit: SOURCE });
+  vi.setSystemTime(new Date(retained.pair.post.observation.observedThrough * 1000));
+  const bridge = await createPtrAdoptionBridgeFixture({ privateState: f.privateState, existingStateAdoption: evidence,
+    authority: run.sourceAuthority, sourceCommit: SOURCE,
+    g002AtlasImportReceiptDigest: legacy.receipts.g002AtlasImportReceipt.importReceiptDigest });
+  await expect(bridge.bridgeState.inspect()).resolves.toEqual({ g002Sealed: true, ptrSealed: true, complete: true });
+  const { confirmation } = await bridge.bridgeState.inspectActivationEvidence();
+  const binding = await bridge.bridgeState.reopenActivationEvidenceContinuation();
+  const bridgeFacts = bridgeModule.readSealedRealmsProductionRecoveryBridgeFacts({ bridgeState: bridge.bridgeState,
+    privateState: f.privateState, authority: bridge.sourceAuthorityFor('activation-evidence-generate') });
+  expect(bridgeFacts.admissionRequestSuspensionReceiptDigest).toBe(binding.evidenceDigest);
+  expect(binding.receiptDigests).toHaveLength(4);
+  expect(binding.receiptDigests.at(-1)).toBe(written.recordDigest);
+  const bridgePath = join(f.runtime, 'bridge/activation-evidence', `auth-bridge-suspension-${binding.evidenceDigest}.json`);
+  const bridgeReceipt = JSON.parse(readFileSync(bridgePath, 'utf8'));
+  expect(bridgeReceipt).toMatchObject({ schemaVersion: 4,
+    profile: 'warpkeep-sealed-realms-auth-bridge-suspension-ptr-adoption-private-v1',
+    ptrExistingStateAdoptionReceiptDigest: written.recordDigest,
+    activationGate: { ptrExistingStateAdoptionReceiptDigest: written.recordDigest } });
+  expect(bridgeReceipt).not.toHaveProperty('ptrGate');
+  expect(bridgeReceipt).not.toHaveProperty('ptrImportAuthorityCrossLink');
+  const values: Record<string, unknown> = { ...legacy.candidate, ...recoveryActivationCandidatePolicyForVersion(4), ...projection, ...bridgeFacts };
+  candidateSource = `${JSON.stringify(Object.fromEntries(RECOVERY_BINDING_KEYS_V4.map(key => [key, values[key]])), null, 2)}\n`;
+  const inspected = adoptionWriter.inspectSealedRealmsProductionRecoveryActivationRecords(recordsV4);
+  expect(inspected.schemaVersion).toBe(4);
+  let envelope: Record<string, any> = {};
+  adoptionWriter.writeSealedRealmsProductionRecoveryActivationDescriptor({ records: recordsV4, consumeDescriptor: fd => {
+    envelope = JSON.parse(readFileSync(fd, 'utf8'));
+    expect(envelope.profile).toBe('warpkeep-0.4.0-recovery-activation-evidence-ptr-adoption-v1');
+    expect(envelope.ptrExistingStateAdoptionReceipt.completionReceipt).toEqual(receipt);
+    expect(() => (adoptionWriter.validateSealedRealmsProductionRecoveryActivationEvidence as any)(envelope)).toThrow();
+    expect((adoptionWriter.validateSealedRealmsProductionRecoveryActivationEvidence as any)(envelope, undefined, evidence).schemaVersion).toBe(4);
+    return undefined;
+  } });
+  expect(f.state.puts).toBe(1);
+  return { f, evidence, recordsV4, receipt, written, legacy, bridge, bridgeModule, binding, confirmation,
+    bridgeReceipt, bridgePath, adoptionPath, envelope, candidateSource };
+}
+
+it('joins retained PTR adoption to genuine G002 bridge authority and the V4 public projection', async () => {
+  const joined = await joinedV4ActivationFixture();
+  const { validateRecoveryLaunchActivationProjection } = await import('../scripts/generate-0.4.0-recovery-launch-activation.mjs');
+  const { verifySealedRealmsPublicActivationBytes } = await import('../scripts/verify-sealed-realms-public-activation-artifact.mjs');
+  const binding = validateRecoveryLaunchActivationProjection(joined.envelope, joined.bridgeReceipt, undefined, joined.evidence);
+  expect(binding.schemaVersion).toBe(4);
+  expect(binding.ptrExistingStateAdoptionReceiptDigest).toBe(joined.written.recordDigest);
+  expect(binding.admissionRequestSuspensionReceiptDigest).toBe(joined.binding.evidenceDigest);
+  const bytes = Buffer.from(`${JSON.stringify(binding, null, 2)}\n`);
+  expect(verifySealedRealmsPublicActivationBytes(bytes)).toEqual(bytes);
+  expect(() => validateRecoveryLaunchActivationProjection(joined.envelope, joined.bridgeReceipt)).toThrow();
+  expect(() => validateRecoveryLaunchActivationProjection(joined.envelope,
+    { ...joined.bridgeReceipt, ptrExistingStateAdoptionReceiptDigest: 'f'.repeat(64) }, undefined, joined.evidence)).toThrow();
+  for (const target of [joined.bridgePath, joined.adoptionPath]) {
+    const saved = readFileSync(target);
+    try {
+      writeFileSync(target, '{}\n');
+      await expect(joined.bridge.bridgeState.reopenActivationEvidenceContinuation()).rejects.toThrow();
+      expect(() => joined.bridgeModule.readSealedRealmsProductionRecoveryBridgeFacts({ bridgeState: joined.bridge.bridgeState,
+        privateState: joined.f.privateState, authority: joined.bridge.sourceAuthorityFor('activation-evidence-generate') })).toThrow();
+    } finally { writeFileSync(target, saved); }
+  }
+  await expect(joined.bridgeModule.consumeSealedRealmsProductionActivationEvidenceConfirmation(joined.confirmation)).resolves.toEqual({});
+  await expect(joined.bridgeModule.consumeSealedRealmsProductionActivationEvidenceConfirmation(joined.confirmation)).rejects.toThrow();
+  expect(joined.f.state.puts).toBe(1);
+}, 30000);
+
+// The fixed descriptor owner requires genuine POSIX ownership and 0600 file modes.
+it.skipIf(process.platform !== 'linux')('generates and reopens completed V4 evidence after restart without replaying PTR or bridge effects', async () => {
+  const joined = await joinedV4ActivationFixture();
+  const { f, evidence, recordsV4, legacy, bridge, bridgeModule, binding, candidateSource } = joined;
+  const continuation = await import('../scripts/sealed-realms-production-continuation.mjs');
+  const codec = await import('../scripts/sealed-realms-production-activation-generation-receipt.mjs');
+  const generateAuthority = bridge.sourceAuthorityFor('activation-evidence-generate');
+  const createGenerator = (records = recordsV4, privateState = f.privateState, cap = evidence) =>
+    bridgeModule.createSealedRealmsProductionActivationEvidenceGenerator({ records, privateState, authority: generateAuthority,
+      existingStateAdoption: cap,
+      testOnlyCapability: bridgeModule.createSealedRealmsProductionAuthBridgeStateTestCapability(),
+      testOnlyPreparationBootstrapAuthority: { preparationSourceCommit: SOURCE,
+        moduleTreeId: legacy.receipts.g001PolicyObservationBootstrapReceipt.moduleTreeId,
+        bootstrapBlob: legacy.receipts.g001PolicyObservationBootstrapReceipt.bootstrapBlob,
+        bootstrapSha256: legacy.receipts.g001PolicyObservationBootstrapReceipt.bootstrapSha256 },
+    });
+  const generator = createGenerator();
+  const inspected = await bridge.run('activation-evidence-inspect', '88003');
+  await continuation.issueSealedRealmsProductionContinuation({ store: bridge.store, ...inspected,
+    kind: 'activation-evidence', ...binding });
+  const generate = await bridge.run('activation-evidence-generate', '88004');
+  await expect(continuation.claimSealedRealmsProductionContinuation({ store: bridge.store, ...generate,
+    kind: 'activation-evidence', ...binding, effect: async claim => {
+      await bridge.bridgeState.consumeActivationEvidenceForContinuation({ claim, store: bridge.store,
+        sourceAuthority: generate.sourceAuthority, kind: 'activation-evidence', runId: generate.runId,
+        runAttempt: generate.runAttempt, ...binding, generator });
+      throw Error('Synthetic acknowledgment lost after completed private publication');
+    } })).rejects.toMatchObject({ code: 'SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS' });
+  const artifactPath = join(f.runtime, 'public/0.4.0-sealed-launch.json');
+  const artifact = readFileSync(artifactPath);
+  const generatedReceipt = codec.parseActivationGenerationReceipt(readFileSync(join(f.runtime, 'public/activation-generation-receipt.json')));
+  expect(generatedReceipt).toMatchObject({ artifactSchemaVersion: 4, artifactProfile: 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4',
+    activationEvidenceDigest: binding.evidenceDigest, runId: '88004' });
+  expect(JSON.parse(artifact.toString()).ptrExistingStateAdoptionReceiptDigest).toBe(joined.written.recordDigest);
+  vi.setSystemTime(new Date(Date.parse(generatedReceipt.generatedAt) + 24 * 60 * 60 * 1000));
+  const restartedState = createSealedRealmsProductionPrivateState({ reportedHome: f.home, testOnlyOwnerUid: statSync(f.home).uid });
+  const restartedStore = createSealedRealmsProductionContinuationStore({ privateState: restartedState });
+  const updateAuthority = authority('ptr-update-apply');
+  const restartedUpdateRecords = createSealedRealmsProductionActivationRecords({ privateState: restartedState, authority: updateAuthority });
+  const restartedEvidence = await adoptionWriter.authenticateSealedRealmsProductionPtrExistingStateAdoption({
+    records: restartedUpdateRecords, authority: updateAuthority, store: restartedStore });
+  const restartedRecords = createSealedRealmsProductionActivationRecords({ privateState: restartedState, authority: generateAuthority,
+    readBindingCandidate: () => candidateSource, existingStateAdoption: restartedEvidence });
+  const restartedBridge = bridge.createBridge(restartedEvidence, restartedState, generateAuthority);
+  const restartedGenerator = createGenerator(restartedRecords, restartedState, restartedEvidence);
+  expect(adoptionWriter.inspectSealedRealmsProductionRecoveryActivationRecords(restartedRecords, generatedReceipt.generatedAt).schemaVersion).toBe(4);
+  for (const target of [artifactPath, joined.bridgePath, joined.adoptionPath]) {
+    const saved = readFileSync(target);
+    try {
+      writeFileSync(target, '{}\n');
+      if (target === joined.bridgePath) await expect(restartedBridge.reopenActivationEvidenceContinuation()).rejects.toThrow();
+      else expect(() => createGenerator(restartedRecords, restartedState, restartedEvidence)).toThrow();
+    } finally { writeFileSync(target, saved); }
+  }
+  const selected = await restartedBridge.reopenActivationEvidenceContinuation();
+  const reconcile = await bridge.run('activation-evidence-generate', '88005', new Set(['88004']));
+  await expect(continuation.reconcileSealedRealmsProductionContinuation({ store: restartedStore, ...reconcile,
+    kind: 'activation-evidence', ...selected,
+    readOnlyReconcile: token => restartedBridge.reconcileActivationEvidenceForContinuation({ selection: selected,
+      generator: restartedGenerator, reconciliation: token, store: restartedStore, sourceAuthority: reconcile.sourceAuthority }),
+  })).resolves.toBeDefined();
+  expect(readFileSync(artifactPath)).toEqual(artifact);
+  expect(f.state.puts).toBe(1);
 }, 30000);
