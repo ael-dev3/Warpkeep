@@ -112,7 +112,7 @@ this separate schema-4 adoption. Do not interchange them.
   live issue/claim observations. Compare both HMACs under the signed bridge version,
   source, configuration and authorization-epoch scope. Keep ledger/JWS versions;
   legacy SQL storage must reject a projection it cannot faithfully retain.
-- [ ] Connect the actual activation workflow, bridge-state owner, candidate and
+- [x] Connect the actual activation workflow, bridge-state owner, candidate and
   descriptor generator. The distinct bridge receipt retains real G002 and deployment
   evidence and links genuine PTR adoption instead of fictional import/provision
   receipts. A synchronous raw descriptor parser must require authenticated opaque

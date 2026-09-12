@@ -25,6 +25,17 @@ and [connected plan](../../superpowers/plans/2026-09-08-ptr-update-recovery.md)
 record exact verification and remaining native integration. No generated family or
 live deployment is certified by component success.
 
+The native joined producer/bridge/public-artifact and fixed-descriptor generation,
+lost-acknowledgement restart and read-only reconciliation cases now pass at published
+`a9e16d45` (`56511`, two targeted passes, 15 earlier cases filtered, 9.44 seconds).
+The earlier native test setup wrote the descriptor before the real generator;
+that fixture is corrected without weakening immutable publication. All root and
+agent test handles are closed. Source is published before native synchronization;
+resolve actual refs rather than restarting any historical handle. Next regenerate
+and independently check the complete family from the next clean published source,
+then verify exact-head CI and continue the real operating/owner/mobile workflow.
+The completion estimate remains around 65% (60–70% judgment range), not shipped.
+
 PR #242 at `758bc482` and PR #243 at `789db360` passed all hosted checks,
 including their final Verify gates. PR #244 at `e9262af0` passed both services,
 native-contract and CodeQL; Linux/module jobs were still running at the latest

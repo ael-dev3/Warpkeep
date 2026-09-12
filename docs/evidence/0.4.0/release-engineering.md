@@ -134,6 +134,20 @@ The diagnostic rerun `48601` at `d7b734bb` exposed
 immutable descriptor before asking the real generator to write it. The fixture
 must leave that publication to the generator; no-clobber protection stays intact.
 
+Corrected native run `56511` at published
+`a9e16d45f9d4a855b510a8622f63742b37c4ed89` passed both joined cases (9.44 seconds,
+exit zero; 15 earlier cases deliberately filtered). The real generator was the sole
+private descriptor writer, published its actual artifact/generation receipt, and
+then encountered the intentional lost acknowledgement. After a simulated day,
+independently reopened state/store owners and freshly authenticated retained adoption
+accepted the immutable generation time and real read-only continuation reconciliation.
+Changed artifact, bridge or adoption evidence was rejected; accepted reconciliation
+preserved exact artifact bytes and performed no extra PTR update. The Windows shared
+case also passed after the fixture correction (`40478`, 13.31 seconds); app types
+passed. All owning processes are closed. This accepts the connected fixture path;
+production inputs, coherent generated-family CLI acceptance and owner/device play
+remain open.
+
 ## PTR existing-state capture — 2026-09-12
 
 Development branch `codex/0.4-ptr-state-adoption` builds on PR #243 head
