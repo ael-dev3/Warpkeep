@@ -380,6 +380,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/genesis001-sealed-launch-adoption.mjs',
     'scripts/genesis002-activation-receipts.d.mts',
     'scripts/genesis002-activation-receipts.mjs',
+    'scripts/genesis002-artifact-description.d.mts',
+    'scripts/genesis002-artifact-description.mjs',
     'scripts/genesis002-binding-linux-locked-source-build.ts',
     'scripts/genesis002-private-loopback-verifier.ts',
     'scripts/genesis002-production-import-core.ts',

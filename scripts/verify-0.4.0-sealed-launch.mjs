@@ -40,7 +40,7 @@ const GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_FINALIZATION_SHA256 =
 // accepting decoy tokens or an early-return control-flow bypass before Task 7
 // freezes the complete dispatcher closure.
 const SEALED_REALMS_SOURCE_AUTHORITY_SOURCE_SHA256 =
-  'edef51010cafd53b33fac020baaed0ac39c9fecef12cf551c48bb648efdbdeaa';
+  '98f83a492b68d6e67888b83cdf8b0eb54c31d7bc0ef4ce8f27b7a4288ca85ce9';
 const SEALED_REALMS_SOURCE_AUTHORITY_DECLARATION_SHA256 =
   '6b2f9b007bda2875bb18c495b7d2f234696af1d59d10b51e04e9f439458fcd18';
 const GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_SOURCE_SHA256 =
@@ -1034,7 +1034,7 @@ function verifyGenesis002Policy(sources) {
     [sources.authBridgeSource,
       '75bae3f93146fe841a98a633c4646f6746a76d373b4df5769e209243f088fb11'],
     [sources.genesis002PublisherCoreSource,
-      '72b18f04c13691fd9b93552c906fbb1a2f13c8efd4457852a5dc8315861de1dc'],
+      '1c9eaf40f531c29ccea7ffc7220f8d3bc6a89e1f6088e544bb1601aebd408d9b'],
     [sources.genesis002TransportSource,
       '1dfd10a532284fb04150d3c2bc2841bd0ec29853101c86fb5994e4334ae9f509'],
   ]) {
