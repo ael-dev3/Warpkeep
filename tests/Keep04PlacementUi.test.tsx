@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { Keep04Schematic } from '../src/components/keep04/Keep04Schematic';
+import { KEEP04_SCHEMATIC_LABELS, Keep04Schematic } from '../src/components/keep04/Keep04Schematic';
 import { Keep04Screen, type Keep04UiSelection } from '../src/components/keep04/Keep04Screen';
 import type { Placement04 } from '../spacetimedb/gameplay04/placement';
 import type { Controller04, Snapshot04 } from '../src/ptr/gameplay04/createGameplay04Controller';
@@ -64,6 +64,21 @@ it('maps taps to the half-meter grid, exposes exclusions and gives keyboard/touc
   fireEvent.click(map, viewport.point(0, 20)); expect(screen.getByRole('status')).toHaveTextContent('Keep roads and civic space clear.');
   expect(screen.getByText('Civic commons')).toBeVisible(); expect(screen.getByText('Gate spine')).toBeVisible(); expect(screen.getByText('Gate approach')).toBeVisible();
   expect(screen.getByText('Civic commons').namespaceURI).toBe('http://www.w3.org/1999/xhtml');
+});
+
+it('keeps persisted site markers legible with compact names while retaining full accessible names', () => {
+  const source = presentState04(decodeState04(wireWithBuilding04('city-mill'), SCOPE04), ATLAS04, Date.now());
+  const kinds = Object.keys(KEEP04_SCHEMATIC_LABELS) as Array<keyof typeof KEEP04_SCHEMATIC_LABELS>;
+  const buildings = kinds.map((kind, index) => ({
+    ...source.buildings[0], kind,
+    placement: { ...source.buildings[0].placement, kind, x: BigInt(-30 + index * 10) * 1_000_000n },
+  }));
+  render(<Keep04Schematic buildings={buildings} draft={null} selectedKind="city-mill" onSelect={vi.fn()} onChange={vi.fn()} />);
+  for (const kind of kinds) {
+    const marker = screen.getByText(KEEP04_SCHEMATIC_LABELS[kind]);
+    expect(marker).toHaveAttribute('aria-hidden', 'true');
+    expect(marker.closest('[role="button"]')).toHaveAttribute('aria-label', expect.stringContaining(kind === 'city-mill' ? 'City Mill' : kind === 'lumber-camp' ? 'Lumber Camp' : kind === 'city-stoneworks' ? 'City Stoneworks' : kind === 'city-goldworks' ? 'City Goldworks' : kind === 'city-barracks' ? 'City Barracks' : 'Grand Covenant Cathedral'));
+  }
 });
 
 it.each([
