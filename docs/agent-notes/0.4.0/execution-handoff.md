@@ -42,12 +42,22 @@ V4/V5 private descriptor generation, lost-response handling and restart. Windows
 owning regression `29078` is also closed with exit zero: 122 passed with 15
 expected platform skips across four suites (1104.20s). Do not restart either run.
 
-The subsequent caller audit found that the prepared closure CLI still projects
-only the original V1 binding. Pages and the Linux operation preflight invoke it
-on recovery activation commits, so valid V2–V5 activations fail even after pin
-regeneration. Correct that connected source boundary and verify actual Git/CLI
-execution before preparing the complete source family from the published
-committed input. Generated manifests still belong to the older family; never
+The subsequent caller audit found that the prepared closure CLI projected only
+the original V1 binding, rejecting valid V2–V5 recovery activation. This checkpoint
+corrects that boundary by authenticating exact committed preparation/activation
+bytes and projecting the binding to its actual inert parent. A fixed in-memory
+module namespace isolates the Linux caller's ordinary cached helpers without
+creating files or trusting unowned cached exports. The builtin-only bootstrap
+checks committed manifest and RAW source before evaluating the reader, then
+rechecks source and all member bytes before issuing closure authority.
+
+The V1 control and actual V5 Git/CLI case passed on Windows with an explicit
+metadata-only platform seam; source-reader and application type checks passed.
+Independent runtime/policy review is clear. Expanded Windows and graph selections
+are running, and the final three owning suites still need native execution from
+the published checkpoint. Read real terminal handles, not elapsed time. Then
+prepare the complete source family from the published committed input. Generated
+manifests still belong to the older family; never
 hand-edit their pins or run a stale donor as if it were current. Continue normal
 protected integration and exact accepted-main preparation, then live preservation,
 actual-owner play and rendered mobile acceptance. Follow the

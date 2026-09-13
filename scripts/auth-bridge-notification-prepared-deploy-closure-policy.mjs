@@ -291,6 +291,14 @@ const ATTESTED_INSTALLED_REQUIRES = new Map([
     'typescript/package.json',
   ])],
 ]);
+// The builtin-only closure bootstrap verifies RAW source before this one
+// synchronous ESM load. Traverse it like an import; no installed or variable
+// require is admitted by this source-member exception.
+const ATTESTED_SOURCE_REQUIRES = new Map([
+  ['scripts/auth-bridge-notification-prepared-deploy-closure.mjs', new Set([
+    './recovery-attestation-source.mjs',
+  ])],
+]);
 const ATTESTED_DYNAMIC_IMPORT_EXPRESSIONS = new Map([
   ['scripts/auth-bridge-notification-prepared-deploy-closure.mjs', new Set([
     'pathToFileURL(resolve(authenticated.repositoryRoot, memberPath)).href',
@@ -423,6 +431,7 @@ function sourceModuleSpecifiers(value, memberPath, parser) {
   const parsed = parseSourceFile(value, memberPath, parser);
   const specifiers = [];
   const dynamicImportExpressions = new Set();
+  const sourceRequires = new Set();
   let failed = false;
   try {
     const visit = node => {
@@ -462,9 +471,15 @@ function sourceModuleSpecifiers(value, memberPath, parser) {
         if (
           node.arguments.length !== 1
           || !isStringLiteral(node.arguments[0])
-          || !ATTESTED_INSTALLED_REQUIRES.get(memberPath)
-            ?.has(node.arguments[0].text)
         ) {
+          fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_REQUIRE_FORBIDDEN');
+        }
+        const specifier = node.arguments[0].text;
+        if (ATTESTED_SOURCE_REQUIRES.get(memberPath)?.has(specifier)
+            && !sourceRequires.has(specifier)) {
+          sourceRequires.add(specifier);
+          specifiers.push(specifier);
+        } else if (!ATTESTED_INSTALLED_REQUIRES.get(memberPath)?.has(specifier)) {
           fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_REQUIRE_FORBIDDEN');
         }
       }
@@ -477,6 +492,10 @@ function sourceModuleSpecifiers(value, memberPath, parser) {
       JSON.stringify([...dynamicImportExpressions].sort())
         !== JSON.stringify([...expectedDynamicImports].sort())
     ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_IMPORT_INVALID');
+    if (JSON.stringify([...sourceRequires].sort())
+        !== JSON.stringify([...(ATTESTED_SOURCE_REQUIRES.get(memberPath) ?? [])].sort())) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_REQUIRE_FORBIDDEN');
+    }
     return Object.freeze(specifiers);
   } catch (error) {
     failed = true;

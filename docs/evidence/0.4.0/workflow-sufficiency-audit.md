@@ -12,7 +12,8 @@ and [recovery evidence](recovery.md); none certifies later source.
 The workflow supports reviewed development, native preparation and protected
 integration. It is not yet sufficient to ship 0.4: the connected recovery CLI
 correction, complete final-source preparation, genuine operating authority and
-live player/device acceptance remain open. Overall completion is approximately
+live player/device acceptance remain open. The correction is implemented with
+focused Windows proof; final native acceptance remains pending. Overall completion is approximately
 65% (a 60–70% judgment range), not a fraction derived from test or file counts.
 No reliable calendar ETA is established.
 
@@ -47,11 +48,12 @@ No reliable calendar ETA is established.
 
 ## What remains open
 
-- The actual prepared closure CLI still accepts only V1 sealed-launch projection.
-  Pages recovery and Linux operation preflight invoke it on V2–V5 activation
-  commits. A valid recovery activation therefore rejects even with coherent
-  generated pins. Correct the authenticated preparation-to-activation connection
-  and exercise the real CLI; accepting an arbitrary versioned map is insufficient.
+- The prepared closure CLI correction now authenticates the exact V2–V5
+  preparation-to-activation transition and retains the original manifest. The
+  V1/V5 actual Git/CLI selection passed with Windows metadata explicitly modeled;
+  expanded tests and unmodified native acceptance remain pending. Verify the
+  ordinary Linux helper preload and hostile cache/source cases through the real
+  caller before treating the connected boundary as accepted.
 - Complete generated source must correspond to the final connected implementation.
   A component test does not authenticate the old generated family. Prepare and
   independently check exact committed input, then verify the complete integrated
@@ -84,8 +86,8 @@ No reliable calendar ETA is established.
 
 ## Required order from here
 
-1. Complete and publish the connected recovery CLI correction on PR #245, with
-   owning tests and actual native CLI coverage. The next source push runs ordinary
+1. Publish the reviewed recovery CLI correction on PR #245 and finish its
+   owning tests and actual native CLI coverage. The source push runs ordinary
    PR verification against its combined main base. Keep PR #244 open as its checked
    source/history reference until inclusion is confirmed by the combined merge.
 2. Prepare and independently check that exact clean published development input.

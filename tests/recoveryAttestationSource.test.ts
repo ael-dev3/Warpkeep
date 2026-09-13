@@ -1,16 +1,18 @@
 // @vitest-environment node
 import { execFileSync, spawnSync } from 'node:child_process';
+import * as childProcess from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, copyFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
 import { recoveryG002PtrAdoptionCandidate } from './fixtures/recoveryG002PtrAdoptionCandidate';
 import { createRecoveryActivationBinding } from '../scripts/recovery-activation-candidate.mjs';
 import { createRecoveryActivationBindingFromCandidate } from '../scripts/recovery-activation-candidate.mjs';
 import { recoveryBindingKeys } from '../scripts/recovery-binding-projection.mjs';
 import { readRecoveryAttestationSource } from '../scripts/recovery-attestation-source.mjs';
+import * as recoverySource from '../scripts/recovery-attestation-source.mjs';
 import { classifySealedLaunchPagesDeployLane } from '../scripts/verify-0.4.0-sealed-launch.mjs';
 import { SEALED_REALMS_OPERATIONS, SEALED_REALMS_ACTIVATED_OPERATIONS,
   authenticateSealedRealmsProductionSourceAuthority,
@@ -48,7 +50,7 @@ beforeEach(() => {
   commit();
   git('update-ref', 'refs/remotes/origin/main', git('rev-parse', 'HEAD'));
 }, 30000);
-afterEach(() => rmSync(root, { recursive: true, force: true }), 30000);
+afterEach(() => { vi.restoreAllMocks(); rmSync(root, { recursive: true, force: true }); }, 30000);
 
 it('derives identity from a real committed three-file activation child', () => {
   const result = readRecoveryAttestationSource(root);
@@ -84,6 +86,38 @@ it.each([3, 4, 5] as const)('authenticates a committed V%s update binding and it
   const verified: string[] = [];
   expect(sourceAuthority('preflight', verified).mode).toBe('A');
   expect(verified).toEqual([git('rev-parse', 'HEAD^'), head]);
+});
+it('returns exact committed activation and inert parent bytes for closure verification', () => {
+  const head = commitPtrUpdateBinding(5);
+  const snapshot = recoverySource.readRecoveryPreparedClosureSource(root);
+  expect(snapshot.identity).toEqual(readRecoveryAttestationSource(root));
+  expect(snapshot.bindingSource).toBe(git('show', `${head}:config/releases/0.4.0-sealed-launch.json`) + '\n');
+  expect(snapshot.preparationBindingSource).toBe(git('show', `${head}^:config/releases/0.4.0-sealed-launch.json`) + '\n');
+  expect(JSON.parse(snapshot.preparationBindingSource)).toMatchObject({ schemaVersion: 1, pagesDeploymentApproved: false });
+  expect(Object.isFrozen(snapshot)).toBe(true);
+});
+
+it('uses actual commit ancestry even when local graft metadata names a different parent', () => {
+  const head = git('rev-parse', 'HEAD');
+  writeFileSync(join(root, '.git/info/grafts'), `${head} ${'a'.repeat(40)}\n`);
+  expect(readRecoveryAttestationSource(root).candidateCommit).toBe(head);
+});
+
+it('rejects an index concealment flag introduced after the initial source check', () => {
+  const original = childProcess.spawnSync;
+  let changed = false;
+  vi.spyOn(childProcess, 'spawnSync').mockImplementation((...args: Parameters<typeof original>) => {
+    const result = original(...args);
+    const arguments_ = args[1];
+    if (!changed && Array.isArray(arguments_) && arguments_.includes('show')) {
+      changed = true;
+      git('update-index', '--assume-unchanged', 'source.js');
+      writeFileSync(join(root, 'source.js'), 'hidden after initial check');
+    }
+    return result;
+  });
+  expect(() => readRecoveryAttestationSource(root)).toThrow('RECOVERY_ATTESTATION_SOURCE_INVALID');
+  expect(changed).toBe(true);
 });
 
 it.skipIf(process.platform !== 'linux').each([3, 4, 5] as const)('routes a committed V%s update binding through the native recovery lane', version => {

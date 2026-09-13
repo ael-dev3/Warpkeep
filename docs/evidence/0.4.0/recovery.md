@@ -82,12 +82,36 @@ in four continuation, G002 lifecycle and legacy V2/V3 record suites (1104.20s).
 Its final type and diff checks passed. Neither handle remains active.
 
 A later actual-caller review found a separate delivery defect: the prepared
-closure CLI accepts only V1 sealed-launch projection, while Pages recovery and
-Linux operation preflight invoke it on activated V2–V5 source. This is a source
-compatibility gap, not a stale generated hash. Its correction must authenticate
-the exact committed preparation-to-activation transition, preserve the original
-preparation manifest identity and keep unowned recovery maps rejected. The
-passing component/native counts above do not certify that later CLI correction.
+closure CLI accepted only V1 sealed-launch projection, while Pages recovery and
+Linux operation preflight invoke it on activated V2–V5 source. The correction
+authenticates the exact committed three-file preparation-to-activation transition
+and uses the actual inert parent binding, preserving preparation manifest identity.
+Ordinary map derivation still cannot claim recovery ancestry.
+
+The builtin-only bootstrap anchors the manifest to committed HEAD and verifies
+all RAW members before evaluating the fixed recovery reader. A private virtual
+file namespace isolates all four reader modules from legitimate cached imports
+in the Linux preflight caller; it creates no filesystem files. Previously
+injected virtual entry/transitive modules cannot acquire owned load provenance.
+The graph policy traverses exactly one literal require and rejects substitutions,
+duplicates or removal. POSIX reads use `/usr/bin/git` with graft/replacement and
+ambient configuration overrides disabled. Final source, index, manifest and
+all-member checks precede closure authority. The existing identity-only reader
+API remains compatible; its added snapshot API returns data, not authority.
+
+Before publication, the V1 control and genuine V5 Git/CLI fixture passed on
+Windows (`97542`, two selected cases, 69.1s including fixture setup). Windows
+uses an explicit metadata-only seam; this is not native POSIX acceptance. The
+new snapshot first failed because its export was absent, then passed after the
+implementation. Application types passed (`3a2b66`), and independent production
+review found no actionable issue. Full CLI selection `31027` then passed all
+13 selected cases (terminal `313467`, 127.09s), including V2–V5, ordinary helper
+preload, owned reuse, injected transitive cache, substituted code and invalid
+profile/core/package cases. Source/derivation `98165`, separate graph `65143`
+and the three late cache/index/graft additions `88841` remain active at this
+checkpoint. Earlier selections do not certify those additions. The final three
+owning suites need a fresh native run from published source. No native or complete-family acceptance
+of this later correction is claimed by the earlier 1,459-pass result.
 
 This is source implementation evidence. A coherent generated family, independent
 native preparation/checking, normal protected integration and live preservation,

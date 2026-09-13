@@ -20,6 +20,11 @@ import {
   deriveAuthBridgeNotificationPreparedDeployClosure,
   verifyAuthBridgeNotificationPreparedDeployClosure,
 } from '../scripts/auth-bridge-notification-prepared-deploy-closure.mjs';
+import { deriveAuthBridgeNotificationPreparedDeployClosurePaths } from '../scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs';
+import { createRecoveryActivationBindingFromCandidate } from '../scripts/recovery-activation-candidate.mjs';
+import { recoveryBindingKeys } from '../scripts/recovery-binding-projection.mjs';
+import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
+import { recoveryG002PtrAdoptionCandidate } from './fixtures/recoveryG002PtrAdoptionCandidate';
 import {
   AUTH_BRIDGE_RELEASE_TRANSITION_FIXTURE_PATHS,
   canonicalAuthBridgeReleaseTransitionFixtureSource,
@@ -255,6 +260,48 @@ afterEach(() => {
 });
 
 describe('prepared deploy closure derivation', () => {
+  it('traverses the exact synchronous recovery reader and its complete RAW source graph', () => {
+    const paths = deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot });
+    expect(paths).toEqual(AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS);
+    for (const path of ['recovery-attestation-source', 'recovery-activation-candidate',
+      'recovery-binding-projection', 'local-binding-bounded-file']) {
+      expect(paths).toContain(`scripts/${path}.mjs`);
+    }
+  }, 30000);
+
+  it.each(['substituted', 'duplicate', 'removed'] as const)('rejects %s synchronous source requires in the graph policy', kind => {
+    const changed = mutableFixture();
+    replaceMember(changed, 'scripts/auth-bridge-notification-prepared-deploy-closure.mjs', source => source.replace(
+      "reader = require('./recovery-attestation-source.mjs');",
+      kind === 'substituted' ? "reader = require('./local-binding-bounded-file.mjs');"
+        : kind === 'duplicate' ? "reader = require('./recovery-attestation-source.mjs'); require('./recovery-attestation-source.mjs');"
+          : 'reader = undefined;',
+    ));
+    const root = writeFixture(changed, expectedFixtureManifestBytes);
+    expect(() => deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot: root }))
+      .toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_REQUIRE_FORBIDDEN');
+  }, 30000);
+
+  it.each([2, 3, 4, 5] as const)('keeps pure-map derivation unable to authenticate a valid V%s activation', version => {
+    const changed = mutableFixture();
+    const values = { ...recoveryBindingCandidate(), schemaVersion: version,
+      profile: version === 2 ? 'warpkeep-0.4.0-sealed-launch-v2'
+        : version === 3 ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3'
+          : version === 4 ? 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4'
+            : 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5',
+      ptrExistingUpdateReceiptDigest: '9'.repeat(64), ptrExistingUpdateReceiptCommitment: null,
+      ptrExistingStateAdoptionReceiptDigest: '8'.repeat(64), ptrExistingStateAdoptionReceiptCommitment: null,
+      ptrSealed: true, ptrPopulationGuardPassed: true, ptrSingletonOwnerCount: 1, ptrGeneralAdmissionCount: 0,
+      ptrExpectedSealedStateHmacSha256: '7'.repeat(64), ptrExpectedOwnerInvariantHmacSha256: '6'.repeat(64),
+      ...(version === 5 ? recoveryG002PtrAdoptionCandidate() : {}),
+    };
+    const candidate = Object.fromEntries(recoveryBindingKeys(version).map(key => [key, values[key as keyof typeof values]]));
+    const binding = createRecoveryActivationBindingFromCandidate(`${JSON.stringify(candidate, null, 2)}\n`);
+    changed.set('config/releases/0.4.0-sealed-launch.json', Buffer.from(`${JSON.stringify(binding, null, 2)}\n`));
+    expect(() => deriveAuthBridgeNotificationPreparedDeployClosure({ memberBodies: changed }))
+      .toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID');
+  });
+
   it('derives the independently generated current-inventory manifest and convergent workflows', () => {
     const first = deriveAuthBridgeNotificationPreparedDeployClosure({
       memberBodies: fixtureMemberBodies,
