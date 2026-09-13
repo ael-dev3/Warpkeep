@@ -1,6 +1,19 @@
 # Release engineering, CI and infrastructure audit
 
-## Current source checkpoint — 2026-09-12
+## Current source and access checkpoint — 2026-09-13
+
+Protected main is M2 `810286c9`; its full Verify run and read-only Linux preflight
+passed. PR #249 is now merged into protected main; the documentation refresh
+is carried by PR #248. The [execution handoff](execution-handoff.md) owns exact
+source/CI identities and the
+[live delivery guide](../../operations/0.4.0-live-delivery-status.md) owns current
+operating steps. A fresh GitHub inventory confirms the dedicated Linux runner is
+online/idle and the prepared environment retains its five secret names. The
+documented Windows SpacetimeDB login currently lists no Maincloud databases;
+earlier provider access must be re-established rather than assumed. These checks
+do not prove owner access, secret validity, deployed recovery services or release.
+
+## Historical source checkpoint — 2026-09-12
 
 Reviewed 0.4 source is now integrated into signed main `c4b95505` through
 PR #228. PR #234 integrated the scoped scanner repair into signed main `2dc1f519`.
@@ -497,7 +510,13 @@ provides the design boundary. Follow the evidence through its latest dated entri
 Earlier missing-component statements may be superseded; a later component pass
 still does not prove its missing caller exists.
 
-## Concrete stops in current execution paths
+## Historical execution gaps — reconcile with current source before acting
+
+This backlog predates the protected M2 integration and later G002/PTR
+preserved-state adoption. The Linux workflow is now on main and read-only
+preflight has run successfully. Follow the current execution handoff and actual
+operation-specific adapters; the historical initial-import gaps below do not
+imply that the separately implemented existing-update path is absent.
 
 The source integration following `1277cc8` resolves the inert S/full V2
 authentication mismatch, fixed GitHub Verify evidence loading and G001 durable

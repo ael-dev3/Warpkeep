@@ -7,124 +7,64 @@ Git refs for the latest checkpoint, and the
 Historical candidate identities remain in [release engineering](release-engineering.md)
 and [recovery evidence](recovery.md); none certifies later source.
 
+Source PR #249 is now protected-merged as `61b8a03d04fcae2db3913d10e2025fa6c3e8529f`; the post-merge main Verify `34770379931` passed every required lane. Documentation PR #248 is the current evidence refresh; resolve its live head and required checks before integration.
+
 ## Verdict
 
-The workflow supports reviewed development, native preparation and protected
-integration. The recovery CLI correction, complete-family preparation/check and authenticated
-generated-family integration are complete for the current development input. It is
-not yet sufficient to ship 0.4: final-head hosted eligibility, protected
-integration, accepted-main/M1 and M2 promotion, genuine operating authority, live
-preservation and player/device acceptance remain open. Overall completion is
-approximately **70%** (a 62–75% judgment range), based on milestone coverage
-rather than test or file counts. No
-reliable calendar ETA is established.
+The workflow now supports reviewed development, native preparation, protected
+integration, generated-only M2 promotion, fresh main verification and a sealed
+read-only preflight. It is not yet sufficient to ship 0.4: genuine provider and
+owner authority, live recovery/readback, G001 preservation, sealed G002 denial,
+owner-only PTR play, physical-device performance, hosting and final deployment
+remain open. Overall completion is approximately **83%** (a 78–88% judgment
+range), based on milestone coverage rather than test or file counts. No reliable
+calendar ETA is established.
 
 ## What is working
 
-- The active developer commits and pushes reviewed changes at each checkpoint,
-  including honestly unfinished durable work before yielding. Fetch first, scan
-  the complete outgoing range, push normally and verify the actual remote SHA.
-  Apply this to every changed related repository through its own remote.
-  The owner paused the Codex sync automation on September 13; do not resume or
-  recreate a scheduler. Keep active native inputs pinned until their process ends.
-- The mobile Verdant Citadel foundation, gameplay adapters, lifecycle protections
-  and synthetic rendered checks have source-bound evidence. They remain useful
-  development coverage; fixtures and emulation do not prove actual owner play or
-  physical-device performance.
-- Windows editing and the dedicated Linux runner/preparation path are operational.
-  The earlier signed-main M1/M2 preparation, protected Verify and sealed preflight
-  succeeded for their recorded source. Reuse the attested tools and compatible
-  caches without relabeling earlier generated output.
-- Existing-state G002/PTR updates now connect retained signed records, bridge
-  suspension, public V5 activation and recovery consumers. Native source
-  `d71b53e7` passed 1,459 cases in 19 suites without skips, including genuine
-  descriptor generation, lost-response handling and restart. The owning Windows
-  compatibility selection passed 122 cases with 15 platform skips.
-  [Recovery evidence](recovery.md#g002-and-ptr-adoption-consumers--2026-09-13)
-  distinguishes synthetic authority from production evidence.
-- PR #245 contains PR #244's ancestry and now targets main directly. At the
-  integration audit, signed main `a2929bb6` was the exact merge-base of published
-  `7e1e9fde`; PR #244 at `27671943` passed all eight hosted checks and its
-  source-history tag was remotely verified. There is no need for a separate
-  PR #244 merge or intermediate family build.
+- Protected main is signed M2 `810286c95f39cf6e41f121162fa5dab250a77a16` (tree `1f16891a52ba1bf8194ba7d1ca5154a5b5481412`); PR #247's generated-only
+  promotion and fresh Verify `34760814489` are green across all required lanes.
+- Native WSL is clean and synchronized to the exact M2 commit with RunnerService
+  PID203 and Runner.Listener PID224 preserved. Sealed preflight `34763502943`
+  returned `preflight-inspected` without mutating live state.
+- The saved `keep-warpkeep-development-synced` automation is paused and the
+  repository has no scheduled GitHub workflow. Continue manual fetch, complete
+  outgoing-range scan, commit/push and remote-SHA verification at each checkpoint.
+- Existing G001 progress/access/timers and admission freeze remain protected;
+  G002 remains sealed and the isolated actual-owner PTR path is still required.
 
 ## What remains open
 
-- The prepared closure CLI correction now authenticates the exact V2–V5
-  preparation-to-activation transition and retains the original manifest. The
-  V1/V5 actual Git/CLI selection passed with Windows metadata explicitly modeled;
-  expanded Windows and graph tests passed, with platform limits recorded in the
-  owning evidence. The final three owning suites passed natively: 69/69 at published
-  `46489461490ec90a6b39b551c65256f4f4f03c4e`, including the injected-entry cache
-  case. The complete authenticated generated family is now integrated as
-  `d10e0236`; its 21-path patch passed the outgoing Gitleaks scan and exact
-  local/native byte comparison. Complete-family native preparation and
-  independent rebuilding check then passed for published `46489461`; retain their
-  exact identities in the handoff. Verify the live hosted head before integration.
-- Complete generated source must correspond to the final connected implementation.
-  A component test does not authenticate the old generated family. Prepare and
-  independently check exact committed input, then verify the complete integrated
-  output rather than editing pins manually.
-- Main enforces signatures, linear history, strict required checks, conversation
-  resolution and administrator protection. The observed five required contexts
-  are `verify`, `auth-bridge`, `spacetimedb-module`, `analyze` and `CodeQL`.
-  No approving review is required by the current rule, but normal merge eligibility
-  and final-head checks still apply. Never weaken protections or rewrite history
-  to avoid them.
-- No completed current-source production operation establishes the composed
-  bridge, adopted G002/PTR state, recovery readback or actual owner access.
-  Public configured targets and secret-slot names do not prove working credentials
-  or provider authority. Use genuine publisher and owner access through the real
-  operating path. Do not substitute an administrator or synthetic identity.
-- G002 already exists and must remain sealed. Use its authenticated compatible
-  update/adoption route; never repeat initial import or manufacture unavailable
-  publication/import history. Preserve G001 progress, access, timers and the
-  agreed new-admission freeze. Capture fresh production baselines before mutation.
-- The existing B0 bridge predecessor must be re-attested from genuine retained
-  evidence. Do not replay B0 or infer that empty local roots authorize a migration.
-  Linux preparation replaces the historical Darwin operating lane; it does not
-  replace required source, provider or recovery evidence.
-- Actual owner journey, final rendered composition, lifecycle/isolation,
-  physical-device performance and live preservation/denial checks remain open.
-  The configured isolated PTR target does not establish that those checks passed.
-- Recheck default-branch dependency alerts before freezing. Keep final artifact,
-  deployed version and source identities aligned. Preparation reporting
-  `finalReleasePrepared: false` does not authorize deployment or complete a release.
+- Establish genuine publisher/provider and actual-owner authority, then complete
+  the supported Linux prepared deployment, compatible existing-state
+  update/adoption and recovery/readback paths.
+- Capture fresh G001 preservation and sealed G002 denial baselines, including
+  access, timers, admission freeze and legitimate later writes. Keep G002 sealed
+  and never repeat initialization over live state.
+- Complete the isolated actual-owner PTR journey, lifecycle/isolation checks,
+  final rendered composition and fixed physical-device/performance measurements.
+- Verify Pages/frontend, Cloudflare and SpacetimeDB deployment from the same
+  reviewed source/artifact family, with live URLs, versions, receipts and hashes.
+- Finish the credential-free delivery and every mandatory release record before
+  claiming shipment. Keep the sync automation paused and create no new Desktop
+  files.
 
 ## Required order from here
 
-1. Finish the final-head hosted checks for the published integrated generated family
-   and the documentation overlay. The source, owning tests, native acceptance and
-   complete-family preparation/check are already published. Keep PR #244 open as
-   its checked source/history reference until inclusion is confirmed by the combined
-   merge.
-2. Use the recorded successful preparation/check identities for the exact clean
-   published input. Authenticate and integrate its complete generated family into
-   PR #245, preserving the compiler-input identity. Verify the integrated family,
-   inert preparation and Pages `sealed-launch-blocked`; this development preparation
-   is not final protected-main authority.
-3. Require terminal checks and normal protected merge eligibility for the final
-   reviewed head. Retain its ancestry under a remotely verified source-history tag,
-   then use a head-guarded protected squash to M1. Verify actual signed main and
-   exact reviewed tree. Close PR #244 only after confirming its inclusion.
-4. Because squash changes source identity, prepare/check actual clean M1 and promote
-   only its authenticated generated family through a protected PR to M2. Require
-   M2 Verify and a fresh read-only sealed `preflight-inspected` result. M1 remains
-   the manifest source ancestor. Do not treat an earlier M2 preflight as authority
-   for this source or deploy the preparation-only M1.
-5. Capture fresh G001 and sealed G002 baselines, re-attest the genuine bridge
-   predecessor and isolated PTR target, and establish publisher/actual-owner
-   authority. Complete the existing Linux prepared-deployment, compatible
-   existing-state update/adoption and recovery/readback paths. Preserve legitimate
-   later writes; do not restore an old snapshot or repeat initialization over live
-   state. Report exact missing authority if the real provider denies the operation.
-6. Complete actual owner play, lifecycle/isolation, final rendered views and the
-   fixed device/performance measurements. Resolve findings before final freeze.
-   Deploy the accepted Pages/frontend, Cloudflare and SpacetimeDB family using
-   their actual recorded source/artifact relationships.
-7. Verify live G001 preservation, sealed G002 denial and the actual owner journey.
-   Complete all mandatory release records before claiming shipment and create
-   the credential-free delivery at `artifacts/delivery/0.4.0/`. Follow the
-   [retention rules](../../engineering/development-workflow.md#output-locations-and-retention):
-   reuse existing checkouts/cache, preserve referenced journals, remove only
-   verified disposable owned output, and create no new Desktop files.
+1. Establish genuine provider/publisher and actual-owner authority, re-attest the
+   bridge predecessor and isolated PTR target, and capture fresh G001 and sealed
+   G002 baselines. Preserve legitimate later writes; never restore an old
+   snapshot or repeat initialization over live state.
+2. Complete the supported Linux prepared deployment, compatible existing-state
+   update/adoption and recovery/readback paths. Report the exact missing
+   authority if the provider denies an operation; do not substitute a synthetic
+   identity or administrator.
+3. Complete actual-owner play, lifecycle/isolation, final rendered views and
+   fixed physical-device/performance measurements. Resolve all findings before
+   freeze, then deploy the accepted Pages/frontend, Cloudflare and SpacetimeDB
+   family using its recorded source/artifact relationships.
+4. Verify live G001 preservation, sealed G002 denial and the actual-owner PTR
+   journey. Finish the mandatory release records and credential-free delivery at
+   `artifacts/delivery/0.4.0/`; reuse existing checkouts/cache, retain referenced
+   journals, remove only verified disposable owned output, and create no new
+   Desktop files.

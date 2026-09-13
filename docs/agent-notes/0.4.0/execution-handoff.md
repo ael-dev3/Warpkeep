@@ -1,64 +1,66 @@
 # Continue Warpkeep 0.4
 
-## Current verified checkpoint — 13 September 2026
+## Current accepted-main checkpoint — 13 September 2026 (post source merge)
 
-The current published development head is `d10e0236bdf3a2e294614738bfc5dc2401d75e71`
-(tree `5edf8512d7a72d2c00078531425b8fcc3d8b2e8e`) on
-`codex/0.4-g002-existing-state` / [PR #245](https://github.com/ael-dev3/Warpkeep/pull/245).
-The complete generated family authenticated from the source-bound input below is
-integrated at this head; the final documentation overlay will be published as a
-separate reviewed checkpoint.
-The source-bound implementation input used for native preparation/checking is
-`46489461490ec90a6b39b551c65256f4f4f03c4e` (tree
-`f284e3a0fbd7be08d342b71f55f34a76e65e94ba`). The Windows checkout and native
-`/home/warpkeep/Warpkeep-0.4` checkout are clean,
-source-synchronized and idle outside the recorded preparation evidence. The
-remote branch resolves to the same full SHA.
+Protected `main` is signed commit `61b8a03d04fcae2db3913d10e2025fa6c3e8529f`.
+It is the protected squash merge of source PR #249, reviewed at head
+`d3bfe6f1df957ff59c29acc46a5b721407412d6d`, on top of signed M2
+`810286c95f39cf6e41f121162fa5dab250a77a16` (tree
+`1f16891a52ba1bf8194ba7d1ca5154a5b5481412`). Fresh post-merge main Verify
+run `34770379931` passed every required lane on the protected source merge;
+calling this source checkpoint green.
 
-Complete-family native preparation and its independent rebuilding check both
-passed from this exact committed input. Preparation handle
-`release-workspace-5ee77d35f14910d7e2d6ad5e093f3f68` and independent-check handle
-`release-workspace-13033312e247f1d36b3c77b4c63286b1` returned the same transaction,
-journal, family, closure and scanner identities. The result checked 3,229 source
-files and 3,229 candidate files, 102 generated outputs, 3,127 preserved source
-files, 486 bundle inputs and seven recovery inputs. The family digest is
-`6d0bc864cf76400f738018d6644ef1012e120dfbc6e6114ee678d851e2234443`; closure
-manifest `0b0e47a08397164f9c6baacda39bd6cd5c752c6591acbdc07ab0b150d0f68524`;
-scanner manifest `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
-Both results report `finalReleasePrepared: false`; no deployment or live provider
-operation occurred. The authenticated candidate output patch was applied byte-for-byte
-only to the 21 generated-family paths and committed as `d10e0236`; the patch
-SHA-256 is `da348e9eb801a7d7347286a75271a9083469312fbeba3c8f5351f55aed1459d2`.
-The complete outgoing range passed Gitleaks, and the Windows and native checkouts
-now resolve to the same published commit while RunnerService PID203 and
-Runner.Listener PID224 remain preserved.
+The documentation refresh is tracked by PR #248. Resolve its current
+head and required checks live, then integrate it only after terminal passing
+checks through the normal protected path. Older stacked
+PRs #237–243 are now closed as superseded; their remote branches remain
+available for history, while signed main contains their accepted product and
+operating changes.
 
-Two earlier private attempts are closed and not reusable: the `7c31c83b` run
-failed closed on an intentional generated-closure/source-byte mismatch before the
-compiler-input correction, and the `29baaa26` run exposed a `const` reassignment
-bug in the pinned-dependency branch. The published `46489461` fix was then
-verified by the successful preparation/check above. Do not relabel, export or
-restart either failed candidate.
+The native `/home/warpkeep/Warpkeep-0.4` checkout remains clean and detached at
+the exact M2 commit while the current verification runs own their inputs.
+RunnerService PID203 and Runner.Listener PID224 remain alive. The accepted-main
+M1 preparation/check identities remain source-bound release evidence: candidate
+`release-workspace-83bf0da57a1a622d84742c445f8450a9`, transaction
+`d0297bcb6821e4f1d5fbdf37cbd16f66`, family
+`0c97e825844d58ad3417a0298eb75a81c67f3bc1595863a9083c41d5bd648899`, closure
+`13b8ec2559712b93560c62babe47e0e79dae4fa656da638d108f66e8f7a4e835` and
+scanner `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
 
-PR #245 still requires a green final-head gate for the published integrated head
-and the subsequent documentation overlay. The earlier CodeQL action failure was
-transient infrastructure after SARIF generation and its retry passed on the
-source-bound implementation input. Use only the latest checks for the final
-published branch head before protected integration. PR #244 remains open as
-its checked ancestry reference until the combined protected merge confirms
-inclusion.
+Read-only sealed-realms preflight `34763502943` passed against M2 and emitted
+`{"operation":"preflight","status":"preflight-inspected"}`. This is
+inspection evidence only: no realm mutation, provider deployment, owner
+provisioning or live release occurred. `finalReleasePrepared:false` remains
+explicit for the native candidate.
 
 The saved `keep-warpkeep-development-synced` automation is **PAUSED** and must
-remain disabled. Continue manual fetch, exact-range scan, normal commit/push and
-remote-SHA verification for every reviewable checkpoint. Update the existing
-Desktop handoff in place only; create no new Desktop files, backups or archives.
-The current completion estimate is about **67%** (a 62–72% judgment range):
-source correction, consumer coverage and development-family preparation are in
-place; protected integration, accepted-main/M1 and generated-only M2 promotion,
-actual owner/provider authority, live preservation/denial, final mobile/device
-acceptance and release deployment remain open.
+remain disabled; the repository has no scheduled GitHub workflow. Continue
+manual fetch, complete-range secret scan, normal commit/push and remote-SHA
+verification for each reviewable checkpoint. Update the existing Desktop handoff
+in place only; create no new Desktop files, backups or archives. The current
+completion estimate remains about **83%** (78–88% judgment range): source
+integration and M2 rails are complete, while provider/owner authority, live
+recovery and deployment, G001 preservation and sealed G002 evidence,
+physical-device performance and final mobile acceptance remain open.
 
-## Current work: G002 and PTR adoption — 13 September 2026
+The merged source follow-up gives a new keep a first-journey cue qualified by
+untouched Worker assignment revisions, keeps it through refresh/pending views,
+and distinguishes isolated 0.4 access from ordinary Realm entry. Navigation
+remains available during healthy refresh while command authority stays guarded
+by the destination and controller. The five affected suites pass all 71 tests
+under Node 22.22.3; typecheck, production build and synthetic browser checks at
+390x844, 568x320 and 667x375 also pass. These are source and browser results,
+not physical-device, owner-play or live-release evidence.
+
+The September 13 access audit confirmed protected environment secret names and
+an online Linux runner. The documented Windows SpacetimeDB login currently lists
+no Maincloud databases, so publisher access must be re-established before
+mutation; this does not mean existing realms were deleted. The [live delivery
+guide](../../operations/0.4.0-live-delivery-status.md) owns current operating
+steps and separates live authority from historical adapter gaps.
+
+
+## Previous consumer implementation checkpoint — 13 September 2026
 
 Continue `codex/0.4-g002-existing-state` /
 [PR #245](https://github.com/ael-dev3/Warpkeep/pull/245) in the reused isolated

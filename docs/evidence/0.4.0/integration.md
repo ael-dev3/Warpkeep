@@ -1,9 +1,18 @@
 # 0.4.0 integration evidence
 
-Updated 2026-09-12. Current continuation is recorded in the
-[execution handoff](../../agent-notes/0.4.0/execution-handoff.md); fetch PR #228
-for its immutable head and CI. Source publication, native preparation and
-production deployment are separate outcomes.
+Updated 2026-09-13. Protected `main` is signed M2 commit `810286c95f39cf6e41f121162fa5dab250a77a16` (tree `1f16891a52ba1bf8194ba7d1ca5154a5b5481412`),
+created by the exact-head guarded merge of PR #247. Fresh main Verify
+`34760814489` passed all required contexts. The native checkout is synchronized to
+that exact commit, and sealed read-only preflight `34763502943` returned
+`{"operation":"preflight","status":"preflight-inspected"}`. These are
+source, verification and inspection records; provider deployment, live realm
+mutation and player acceptance remain separate outcomes.
+
+Source PR #249 is now protected-merged as `61b8a03d04fcae2db3913d10e2025fa6c3e8529f` on top of M2. Its source checks passed at `d3bfe6f1`; post-merge main Verify `34770379931` passed every required lane. Documentation PR #248 is the current evidence refresh; read its live head and required checks at terminal state before treating it as integrated.
+The generated-only M2 promotion changed exactly the eight authenticated
+workflow/generated paths listed in [release freeze evidence](release-freeze.md).
+The source implementation and M1 preparation identities remain unchanged. The
+saved sync automation is paused and no GitHub schedule exists.
 
 ## Placement and workflow review — 2026-09-12
 
