@@ -1,29 +1,27 @@
 # Warpkeep 0.4 recovery evidence
 
-## Current source-bound preparation checkpoint — 13 September 2026
+## Current accepted-main context — 13 September 2026
 
-The corrected recovery boundary is source-bound to `46489461490ec90a6b39b551c65256f4f4f03c4e`
-(tree `f284e3a0fbd7be08d342b71f55f34a76e65e94ba`). The current integrated
-development head is `d10e0236bdf3a2e294614738bfc5dc2401d75e71` (tree
-`5edf8512d7a72d2c00078531425b8fcc3d8b2e8e`); it carries the authenticated
-complete generated family applied only to its 21 generated paths. Native complete-family
-preparation and an independent rebuilding check both passed from this exact clean
-source. They agree on family `6d0bc864cf76400f738018d6644ef1012e120dfbc6e6114ee678d851e2234443`,
-closure manifest `0b0e47a08397164f9c6baacda39bd6cd5c752c6591acbdc07ab0b150d0f68524`,
+Protected `main` is `27c2d27643c29988e5f364ff47a21c6368296900` (tree
+`223d147f230247897ea2da81990cff25e66dd53a`), the GitHub-verified squash merge
+of PR #245. The corrected recovery implementation and its authenticated
+21-path generated family are present on that tree. The family was prepared and
+independently checked from source-bound input
+`46489461490ec90a6b39b551c65256f4f4f03c4e` (tree
+`f284e3a0fbd7be08d342b71f55f34a76e65e94ba`), agreeing on family
+`6d0bc864cf76400f738018d6644ef1012e120dfbc6e6114ee678d851e2234443`, closure
+manifest `0b0e47a08397164f9c6baacda39bd6cd5c752c6591acbdc07ab0b150d0f68524`
 and scanner manifest `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
-The run checked 3,229 source files, 3,229 candidate files, 102 outputs, 3,127
-preserved files, 486 bundle inputs and seven recovery inputs. Both results report
-`finalReleasePrepared: false`; this is development evidence and no live mutation
-or deployment is claimed. The applied generated patch is
-`da348e9eb801a7d7347286a75271a9083469312fbeba3c8f5351f55aed1459d2`, and the
-full outgoing commit range passed Gitleaks.
+Both results report `finalReleasePrepared: false`; they are development evidence
+and do not authorize live mutation or deployment. The generated patch digest is
+`da348e9eb801a7d7347286a75271a9083469312fbeba3c8f5351f55aed1459d2`.
 
-The preceding `7c31c83b` and `29baaa26` candidates failed closed and were not
-reused. The first exposed a generated-closure/source-byte mismatch; the second
-exposed a pinned-dependency `const` reassignment. The `46489461` correction was
-published, then covered by the successful preparation/check above. Hosted PR
-verification remains the next gate; protected integration, accepted-main
-preparation and live recovery still require their own source-bound evidence.
+Fresh main Verify run `34754264099` is the active source-identity gate. Its
+release-recovery, native-contract and auth-bridge lanes are green while Linux
+and SpacetimeDB continue their full suites. A fresh accepted-main preparation,
+independent check and any live recovery evidence must use the exact signed main
+source after that gate succeeds. The earlier `7c31c83b` and `29baaa26`
+candidates remain failed-closed historical records and are not reusable.
 
 ## G002 and PTR adoption consumers — 2026-09-13
 

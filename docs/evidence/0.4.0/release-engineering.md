@@ -1,7 +1,7 @@
 # Release engineering: implementation and evidence
 
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main),
-the current working PR and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
+the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
 PR #228 is merged and its branch retired. Actual M1
 `c4b95505b73705d120aff3f3318d2bd5151f6565` completed native preparation,
 independent checking and guarded export. PR #235 integrated its checked generated
@@ -19,10 +19,12 @@ Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
-## Current development-family checkpoint — 13 September 2026
+## Current accepted-main checkpoint — 13 September 2026
 
-The current integrated development head is `d10e0236bdf3a2e294614738bfc5dc2401d75e71`
-(tree `5edf8512d7a72d2c00078531425b8fcc3d8b2e8e`). The source-bound
+Protected `main` is `27c2d27643c29988e5f364ff47a21c6368296900` (tree
+`223d147f230247897ea2da81990cff25e66dd53a`), the GitHub-verified squash merge
+of PR #245. The development branch remains at `42fb724b7e69ed739ac8a81f3dadbd4194cb30f5`
+with the same tree and verified remote equality. The source-bound
 implementation input `46489461490ec90a6b39b551c65256f4f4f03c4e` (tree
 `f284e3a0fbd7be08d342b71f55f34a76e65e94ba`) has a successful complete-family
 native preparation and independent rebuilding check. Preparation handle
@@ -43,9 +45,13 @@ The `7c31c83b` and `29baaa26` preparation attempts failed closed and remain
 historical. Their candidates were not relabeled or exported. `46489461` fixed the
 pinned-dependency reassignment exposed by the latter, and the successful run above
 is the current source-bound evidence for the implementation input. The generated
-family is now integrated on top of that source-bound evidence; PR #245 still needs
-latest-head hosted verification before protected integration. The saved sync
-automation remains paused and no Desktop output was created.
+family is integrated on protected main. Fresh main Verify run `34754264099` is
+the current eligibility gate; its release-recovery, native-contract and
+auth-bridge lanes are green while Linux and SpacetimeDB continue their full
+suites. The saved sync automation remains paused and no Desktop output was
+created. The earlier preparation/check is not M1 authority; after this gate
+succeeds, prepare and independently check the exact signed main source before
+generated-only M2 promotion.
 
 ## Verified observation source family — 2026-09-13
 

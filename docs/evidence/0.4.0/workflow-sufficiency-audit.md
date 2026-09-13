@@ -10,14 +10,13 @@ and [recovery evidence](recovery.md); none certifies later source.
 ## Verdict
 
 The workflow supports reviewed development, native preparation and protected
-integration. The recovery CLI correction, complete-family preparation/check and authenticated
-generated-family integration are complete for the current development input. It is
-not yet sufficient to ship 0.4: final-head hosted eligibility, protected
-integration, accepted-main/M1 and M2 promotion, genuine operating authority, live
-preservation and player/device acceptance remain open. Overall completion is
-approximately **70%** (a 62–75% judgment range), based on milestone coverage
-rather than test or file counts. No
-reliable calendar ETA is established.
+integration. The recovery CLI correction, complete-family preparation/check and
+authenticated generated-family integration are complete, and PR #245 is now
+merged into protected main. It is not yet sufficient to ship 0.4: the fresh
+main Verify gate, accepted-main/M1 and M2 promotion, genuine operating authority,
+live preservation and player/device acceptance remain open. Overall completion
+is approximately **74%** (a 68–79% judgment range), based on milestone coverage
+rather than test or file counts. No reliable calendar ETA is established.
 
 ## What is working
 
@@ -42,11 +41,12 @@ reliable calendar ETA is established.
   compatibility selection passed 122 cases with 15 platform skips.
   [Recovery evidence](recovery.md#g002-and-ptr-adoption-consumers--2026-09-13)
   distinguishes synthetic authority from production evidence.
-- PR #245 contains PR #244's ancestry and now targets main directly. At the
-  integration audit, signed main `a2929bb6` was the exact merge-base of published
-  `7e1e9fde`; PR #244 at `27671943` passed all eight hosted checks and its
-  source-history tag was remotely verified. There is no need for a separate
-  PR #244 merge or intermediate family build.
+- PR #245 was merged into protected main as the GitHub-verified squash commit
+  `27c2d276` (tree `223d147f`). PR #244 was then closed after all 154 changed
+  paths were confirmed on main; its reviewed tip remains available under the
+  retained source-history tag. Fresh main Verify run `34754264099` is the
+  current eligibility gate, with the long Linux and SpacetimeDB lanes still
+  running.
 
 ## What remains open
 
@@ -93,26 +93,18 @@ reliable calendar ETA is established.
 
 ## Required order from here
 
-1. Finish the final-head hosted checks for the published integrated generated family
-   and the documentation overlay. The source, owning tests, native acceptance and
-   complete-family preparation/check are already published. Keep PR #244 open as
-   its checked source/history reference until inclusion is confirmed by the combined
-   merge.
-2. Use the recorded successful preparation/check identities for the exact clean
-   published input. Authenticate and integrate its complete generated family into
-   PR #245, preserving the compiler-input identity. Verify the integrated family,
-   inert preparation and Pages `sealed-launch-blocked`; this development preparation
-   is not final protected-main authority.
-3. Require terminal checks and normal protected merge eligibility for the final
-   reviewed head. Retain its ancestry under a remotely verified source-history tag,
-   then use a head-guarded protected squash to M1. Verify actual signed main and
-   exact reviewed tree. Close PR #244 only after confirming its inclusion.
-4. Because squash changes source identity, prepare/check actual clean M1 and promote
+1. Finish fresh main Verify run `34754264099` on exact signed merge commit
+   `27c2d276`; do not move native source or prepare M1 while it is running.
+2. After that gate succeeds, fast-forward the clean idle native checkout to the
+   exact main commit and run fresh M1 preparation plus an independent check.
+   Record their source, tree, transaction, family, closure and scanner identities;
+   earlier source-bound preparation is evidence only.
+3. Because the protected squash changed source identity, promote
    only its authenticated generated family through a protected PR to M2. Require
    M2 Verify and a fresh read-only sealed `preflight-inspected` result. M1 remains
    the manifest source ancestor. Do not treat an earlier M2 preflight as authority
    for this source or deploy the preparation-only M1.
-5. Capture fresh G001 and sealed G002 baselines, re-attest the genuine bridge
+4. Capture fresh G001 and sealed G002 baselines, re-attest the genuine bridge
    predecessor and isolated PTR target, and establish publisher/actual-owner
    authority. Complete the existing Linux prepared-deployment, compatible
    existing-state update/adoption and recovery/readback paths. Preserve legitimate
