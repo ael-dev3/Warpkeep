@@ -59,7 +59,10 @@
 .keep04 .keep04-map-label { fill: #18251e; font-size: 5px; font-weight: 700; text-anchor: middle; }
 .keep04 .keep04-map-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 0; list-style: none; }
 .keep04 .keep04-footprint rect { fill: #3c736a; stroke: #e4dfc9; stroke-width: .4; }
-.keep04 .keep04-footprint text { fill: #fff8e6; font-size: 5px; text-anchor: middle; }
+.keep04 .keep04-footprint text { fill: #fff8e6; text-anchor: middle; pointer-events: none; }
+.keep04 .keep04-footprint-label { font-size: 2.65px; font-weight: 800; letter-spacing: .06px; paint-order: stroke; stroke: rgba(14, 34, 30, .55); stroke-width: .24px; }
+.keep04 .keep04-footprint[data-kind="city-barracks"] .keep04-footprint-label { font-size: 2.45px; }
+.keep04 .keep04-footprint[data-kind="grand-covenant-cathedral"] .keep04-footprint-label { font-size: 3px; letter-spacing: .08px; }
 .keep04 .keep04-footprint[data-phase="constructing"] rect { fill: #654a2b; stroke-dasharray: 1 1; }
 .keep04 .keep04-footprint[data-selected="true"] rect { stroke: #dfc6ff; stroke-width: .8; }
 .keep04 .keep04-draft { fill: #a9e3bf; fill-opacity: .22; stroke: #c4ffdc; stroke-width: .6; pointer-events: none; }

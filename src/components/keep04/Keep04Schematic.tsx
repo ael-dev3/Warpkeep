@@ -11,6 +11,12 @@ const HALF_EXTENTS04: Readonly<Record<Building04, readonly [number, number]>> = 
   'city-mill': [5.65, 4.75], 'lumber-camp': [5.3, 4.4], 'city-stoneworks': [5.5, 4.6],
   'city-goldworks': [5.5, 4.6], 'city-barracks': [9.25, 7.75], 'grand-covenant-cathedral': [18.5, 16.01],
 };
+// The map is intentionally compact, so visible markers use short stable names
+// while the surrounding role and title retain each building's full name.
+export const KEEP04_SCHEMATIC_LABELS: Readonly<Record<Building04, string>> = Object.freeze({
+  'city-mill': 'MILL', 'lumber-camp': 'LUMBER', 'city-stoneworks': 'STONE',
+  'city-goldworks': 'GOLD', 'city-barracks': 'BARRACKS', 'grand-covenant-cathedral': 'CATHEDRAL',
+});
 function rectangle(placement: Placement04) {
   const [hx, hz] = HALF_EXTENTS04[placement.kind]; const swap = placement.rotation === 90_000 || placement.rotation === 270_000;
   const halfX = swap ? hz : hx; const halfZ = swap ? hx : hz;
@@ -50,7 +56,7 @@ export function Keep04Schematic({ buildings, draft, selectedKind, onSelect, onCh
       <rect className="keep04-grounds" x={-44} y={-40} width={88} height={72} />
       <g className="keep04-reserved"><rect x={-3} y={-3} width={6} height={35} /><rect x={-5} y={-3} width={10} height={10} /><rect x={-4} y={28} width={8} height={4} /></g>
       <g className="keep04-map-label" aria-hidden="true"><text x={0} y={3}>C</text><text x={0} y={17}>S</text><text x={0} y={31}>G</text></g>
-      {buildings.map((building, index) => <g key={building.kind} className="keep04-footprint" data-selected={building.kind === selectedKind} data-phase={building.phase}
+      {buildings.map(building => <g key={building.kind} className="keep04-footprint" data-kind={building.kind} data-selected={building.kind === selectedKind} data-phase={building.phase}
         role="button" tabIndex={0} aria-label={`${BUILDING_NAMES04[building.kind]} footprint, completed level ${building.completedLevel}`}
         onClick={event => { event.stopPropagation(); event.currentTarget.focus(); onSelect(building.kind); }}
         onKeyDown={event => {
@@ -58,7 +64,7 @@ export function Keep04Schematic({ buildings, draft, selectedKind, onSelect, onCh
         }}>
         <title>{BUILDING_NAMES04[building.kind]} · completed level {building.completedLevel} · {building.phase}</title>
         <rect {...rectangle(building.placement)} />
-        <text aria-hidden="true" x={Number(building.placement.x) / 1_000_000} y={Number(building.placement.z) / 1_000_000 + 1.5}>{index + 1}</text>
+        <text className="keep04-footprint-label" aria-hidden="true" x={Number(building.placement.x) / 1_000_000} y={Number(building.placement.z) / 1_000_000 + .8}>{KEEP04_SCHEMATIC_LABELS[building.kind]}</text>
       </g>)}
       {editable && <rect className="keep04-draft" data-valid={result?.valid} {...rectangle(draft)} />}
     </svg>
