@@ -1,24 +1,46 @@
 // @vitest-environment node
 import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { chmodSync, chownSync, copyFileSync, existsSync, lchownSync, lstatSync, mkdirSync, mkdtempSync,
   readdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { runSealedRealmsProductionLinuxPreflight } from '../scripts/sealed-realms-production-linux-preflight.mjs';
+import { runSealedRealmsProductionLinuxOperation, runSealedRealmsProductionLinuxPreflight } from '../scripts/sealed-realms-production-linux-preflight.mjs';
 import { deriveSealedRealmOperationBundleSourceClosureDigest } from '../scripts/sealed-realms-production-bundle-engine.mjs';
 
 const root = process.cwd();
 const entry = join(root, 'scripts/sealed-realms-production-linux-preflight.mjs');
 const donor = process.env.WARPKEEP_PREFLIGHT_PREPARED_FIXTURE;
+const observationServicePaths = [
+  'services/release-recovery/src/config.ts',
+  'services/release-recovery/src/crypto.ts',
+  'services/release-recovery/src/http.ts',
+  'services/release-recovery/src/protocol.ts',
+  'services/release-recovery/src/ptrObservation.ts',
+  'services/release-recovery/src/recoveryPublicKey.ts',
+] as const;
+const observationWrapper = 'scripts/ptr-production-state-observation.mjs';
+type GraphMember = { path: string; byteLength: number; sha256: string };
+
 const native = process.platform === 'linux' && process.getuid?.() === 0 && donor !== undefined;
 const command = (args: string[], cwd: string) => execFileSync('/usr/bin/git', ['-c', `safe.directory=${resolve(cwd)}`,
   '-c', 'commit.gpgsign=false', '-c', 'user.name=Preflight Fixture', '-c', 'user.email=fixture@example.invalid',
   ...args], { cwd, encoding: 'utf8' }).trim();
 
+it.each(['g002-update-inspect', 'g002-update-apply'] as const)('recognizes fixed %s before enforcing native runtime authority', async operation => {
+  await expect(runSealedRealmsProductionLinuxOperation({ operation, workflowInputSha: 'a'.repeat(40) } as never))
+    .rejects.toMatchObject({ phase: 'runtime' });
+});
+
 it.each(['g001-policy-observe', 'g002-publish-apply', 'ptr-owner-provision', 'activation-evidence-generate'])(
   'rejects mutation selection before host or source work: %s', async operation => {
     await expect(runSealedRealmsProductionLinuxPreflight({ operation, workflowInputSha: 'a'.repeat(40) } as never))
+      .rejects.toMatchObject({ phase: 'input' });
+  });
+it.each(['g002-publish-inspect', 'g002-import-inspect', 'g002-live-inspect'])(
+  'keeps unsupported G002 dispatch outside the native preflight caller: %s', async operation => {
+    await expect(runSealedRealmsProductionLinuxOperation({ operation, workflowInputSha: 'a'.repeat(40) } as never))
       .rejects.toMatchObject({ phase: 'input' });
   });
 it('rejects caller-selected paths, hashes, factories, proxies and hidden inputs', async () => {
@@ -64,14 +86,15 @@ describe.skipIf(!native).sequential('native fixed Linux preflight', () => {
     if (append) writeFileSync(replacement, Buffer.concat([readFileSync(replacement), Buffer.from('\n')]));
     chmodSync(replacement, 0o500); chownSync(replacement, 1000, 1000); renameSync(replacement, node);
   }
-  function capture(scenario: string, overrides: Record<string, string> = {}, uid = 1000) {
+  function capture(scenario: string, overrides: Record<string, string> = {}, uid = 1000,
+    operation: 'preflight' | 'activation-evidence-inspect' | 'g002-update-inspect' = 'preflight') {
     const commit = command(['rev-parse', 'HEAD'], repo);
     command(['update-ref', 'refs/remotes/origin/main', commit], repo);
     const environment = { PATH: '/usr/bin:/bin', LANG: 'C', LC_ALL: 'C',
       RUNNER_OS: 'Linux', RUNNER_ARCH: 'X64', RUNNER_NAME: 'warpkeep-wsl-production-01',
       RUNNER_TEMP: '/home/warpkeep/actions-runner/_work/_temp', GITHUB_ACTIONS: 'true',
       GITHUB_REPOSITORY: 'ael-dev3/Warpkeep', GITHUB_REF: 'refs/heads/main', GITHUB_SHA: commit,
-      GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_JOB: 'operate_readonly', WARPKEEP_OPERATION: 'preflight', GITHUB_WORKFLOW: 'Sealed Realms Production',
+      GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_JOB: 'operate_readonly', WARPKEEP_OPERATION: operation, GITHUB_WORKFLOW: 'Sealed Realms Production',
       GITHUB_WORKFLOW_REF: 'ael-dev3/Warpkeep/.github/workflows/sealed-realms-production.yml@refs/heads/main',
       GITHUB_RUN_ID: '7001', GITHUB_RUN_ATTEMPT: '1', GITHUB_TOKEN: 'native-fixture-' + 'x'.repeat(32), ...overrides };
     const shell = 'mount --make-rprivate / && mount --bind "$1" /home/warpkeep && cd /home/warpkeep/actions-runner/_work/Warpkeep/Warpkeep && exec setpriv --reuid="$2" --regid="$2" --clear-groups /home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /home/warpkeep/process.mjs "$3"';
@@ -79,6 +102,25 @@ describe.skipIf(!native).sequential('native fixed Linux preflight', () => {
       { encoding: 'utf8', env: environment, timeout: 90_000, maxBuffer: 16 * 1024 });
     expect(result.signal).toBeNull(); expect(result.error).toBeUndefined(); expect(result.stderr).toBe('');
     return { status: result.status, output: JSON.parse(result.stdout) };
+  }
+  function withGraphMutation(lane: 'activation' | 'g001', mutate: (members: GraphMember[]) => void,
+    consume: () => void) {
+    const relativePath = 'scripts/sealed-realms-production-bundle-manifest-v1.json';
+    const path = join(repo, relativePath);
+    try {
+      const manifest = JSON.parse(readFileSync(path, 'utf8'));
+      const selected = manifest.bundles.find((item: { lane: string }) => item.lane === lane);
+      mutate(selected.graphManifest);
+      selected.graphManifest.sort((a: GraphMember, b: GraphMember) => a.path < b.path ? -1 : 1);
+      selected.sourceClosureDigest = deriveSealedRealmOperationBundleSourceClosureDigest(lane, selected.graphManifest);
+      writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
+      command(['add', '--', relativePath], repo);
+      command(['commit', '--quiet', '-m', 'adversarial observation graph fixture'], repo);
+      consume();
+    } finally {
+      command(['reset', '--hard', baseline], repo);
+      chownTree(join(repo, '.git')); chownSync(path, 1000, 1000);
+    }
   }
   beforeAll(() => {
     const actual = lstatSync('/home/warpkeep');
@@ -109,6 +151,69 @@ describe.skipIf(!native).sequential('native fixed Linux preflight', () => {
     const result = capture('complete');
     expect(result).toMatchObject({ status: 0, output: { result: { operation: 'preflight', status: 'preflight-inspected' }, onlyReadRequests: true } });
     expect(result.output.calls).toBeGreaterThan(10); expect(privateInventory()).toEqual(before);
+  }, 90_000);
+  it.each(['activation', 'g002'])('the prepared %s graph retains the exact observation service bytes', lane => {
+    const manifest = JSON.parse(readFileSync(join(repo, 'scripts/sealed-realms-production-bundle-manifest-v1.json'), 'utf8'));
+    const selected = manifest.bundles.find((item: { lane: string }) => item.lane === lane);
+    expect(selected.graphManifest.filter((member: GraphMember) => member.path.startsWith('services/'))
+      .map((member: GraphMember) => member.path)).toEqual(observationServicePaths);
+    for (const path of [observationWrapper, ...observationServicePaths]) {
+      const bytes = readFileSync(join(repo, path));
+      expect(selected.graphManifest.filter((member: GraphMember) => member.path === path)).toEqual([
+        { path, byteLength: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') },
+      ]);
+    }
+    // Observation service source belongs only to the selected sealed update
+    // graphs; it does not widen G001's independent boundary.
+    const g001 = manifest.bundles.find((item: { lane: string }) => item.lane === 'g001');
+    expect(g001.graphManifest.some((member: GraphMember) => member.path.startsWith('services/'))).toBe(false);
+  });
+  it('accepts the activation observation graph through attested import before requiring workflow authority', () => {
+    const before = privateInventory();
+    // The real factory fails closed without its token only after the actual
+    // source, graph, dependency bytes, deployment closure and bundle import pass.
+    const result = capture('observe-closure', { GITHUB_TOKEN: '' }, 1000, 'activation-evidence-inspect');
+    expect(result).toMatchObject({ status: 1, output: { phase: 'workflow', calls: 0, onlyReadRequests: true } });
+    expect(result.output.closureManifestOpens).toBeGreaterThan(0);
+    expect(privateInventory()).toEqual(before);
+  }, 90_000);
+  it('imports the fixed G002 update runtime only under its dedicated protected job', () => {
+    const before = privateInventory();
+    const wrongJob = capture('observe-closure', { GITHUB_JOB: 'operate_ptr', GITHUB_TOKEN: '' }, 1000, 'g002-update-inspect');
+    expect(wrongJob).toEqual({ status: 1, output: { phase: 'runtime', calls: 0, onlyReadRequests: true, closureManifestOpens: 0 } });
+    const selected = capture('observe-closure', { GITHUB_JOB: 'operate_g002', GITHUB_TOKEN: '' }, 1000, 'g002-update-inspect');
+    expect(selected).toMatchObject({ status: 1, output: { phase: 'workflow', calls: 0, onlyReadRequests: true } });
+    expect(selected.output.closureManifestOpens).toBeGreaterThan(0);
+    expect(privateInventory()).toEqual(before);
+  }, 90_000);
+  it.each([observationWrapper, ...observationServicePaths])('rejects a missing activation observation graph member: %s', path => {
+    const before = privateInventory();
+    withGraphMutation('activation', members => {
+      const index = members.findIndex(member => member.path === path);
+      expect(index).toBeGreaterThanOrEqual(0); members.splice(index, 1);
+    }, () => expect(capture('observe-closure', { GITHUB_TOKEN: '' }, 1000, 'activation-evidence-inspect')).toEqual({ status: 1,
+      output: { phase: 'bundle', calls: 0, onlyReadRequests: true, closureManifestOpens: 0 } }));
+    expect(privateInventory()).toEqual(before);
+  }, 90_000);
+  it.each(observationServicePaths)('rejects activation observation source hash substitution: %s', path => {
+    withGraphMutation('activation', members => {
+      const member = members.find(member => member.path === path)!;
+      expect(member).toBeDefined(); member.sha256 = member.sha256 === 'a'.repeat(64) ? 'b'.repeat(64) : 'a'.repeat(64);
+    }, () => expect(capture('observe-closure', { GITHUB_TOKEN: '' }, 1000, 'activation-evidence-inspect')).toEqual({ status: 1,
+      output: { phase: 'bundle', calls: 0, onlyReadRequests: true, closureManifestOpens: 0 } }));
+  }, 90_000);
+  it.each([
+    ['activation', 'services/release-recovery/src/githubEvidence.ts', 'activation-evidence-inspect'],
+    ['g001', observationServicePaths[0], 'preflight'],
+  ] as const)('rejects a service outside the selected %s graph: %s', (lane, path, operation) => {
+    const bytes = readFileSync(join(repo, path));
+    const before = privateInventory();
+    withGraphMutation(lane, members => {
+      expect(members.some(member => member.path === path)).toBe(false);
+      members.push({ path, byteLength: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') });
+    }, () => expect(capture('observe-closure', { GITHUB_TOKEN: '' }, 1000, operation)).toEqual({ status: 1,
+      output: { phase: 'bundle', calls: 0, onlyReadRequests: true, closureManifestOpens: 0 } }));
+    expect(privateInventory()).toEqual(before);
   }, 90_000);
   it.each(['NODE_OPTIONS', 'NODE_PATH', 'LD_PRELOAD', 'GIT_OBJECT_DIRECTORY'])('rejects ambient %s before source or HTTP', key => {
     const result = capture('complete', { [key]: '' });

@@ -45,6 +45,17 @@ function sourceArtifact() {
   return {
     sourceCommit: MODULE_COMMIT,
     moduleSha256: MODULE_SHA256,
+    moduleProgramHash: '9'.repeat(64),
+    artifactDescription: {
+      profile: 'warpkeep-genesis002-artifact-description-v1' as const,
+      artifactSha256: MODULE_SHA256,
+      rawModuleDefVersion: 10 as const,
+      standaloneExecutableSha256: SPACETIME_DIGEST,
+      rawExtractionSha256: 'a'.repeat(64),
+      canonicalizationProfile: 'warpkeep-raw-v10-normalized-no-views-rls-http-defaults-v1' as const,
+      descriptionSha256: 'b'.repeat(64),
+      definition: { sections: [] },
+    },
     artifactPath: '/private/source-built-bundle.js',
     publishArtifactPath: '/dev/fd/3' as const,
     artifactDescriptor: 3,

@@ -1,6 +1,446 @@
 # Continue Warpkeep 0.4
 
-## Current review and next work — 12 September 2026
+## Current work: G002 and PTR adoption — 13 September 2026
+
+Continue `codex/0.4-g002-existing-state` /
+[PR #245](https://github.com/ael-dev3/Warpkeep/pull/245) in the reused isolated
+checkout `C:/Temp/warpkeep-clean-ci`. Runtime `7e7aa9b1` and scanner follow-up
+`d71b53e7` are published; full-range scanning and GitHub equality passed.
+This follow-up connects the preserved G002
+update through private activation records, bridge suspension, the public V5
+binding and recovery consumers. Both realms require genuine retained signed
+proofs from the same private-state owner; source/tree and signed bridge
+configuration/epochs must agree. Original G002 publication/import history is not
+invented. V2–V4 public formats and existing PTR private bytes remain supported.
+
+The activation runtime authenticates both retained proofs before provider
+construction. A dual-adoption bridge cannot create initial realm import gates,
+owner-provision or legacy live receipts. Its new suspension receipt binds the
+real prepared deployment and both adoption digests. The receiver validates the
+G002 sealed-state HMAC against fresh state alongside the existing PTR/G001
+safeguards. See the [owning recovery evidence](../../evidence/0.4.0/recovery.md#g002-and-ptr-adoption-consumers--2026-09-13)
+for exact tests, review findings and the limits of each proof.
+
+PR #245 now targets `main` and contains the complete PR #244 ancestry. Main
+`a2929bb6` is its verified merge-base. PR #244 at `27671943` has passed all eight
+hosted checks; retain its open draft and published source-history tag until the
+combined PR is integrated. Do not merge or prepare a separate PR #244 family.
+Require the final PR #245 head's own checks, normal protected eligibility and
+retained history before its guarded squash. The primary Windows checkout retains
+its own published `758bc482` branch; do not move that independent branch.
+
+The previous producer source `1664405d` passed native session `61892`: all 356
+cases in 13 suites, no skips. That does not certify this consumer follow-up.
+The native checkout was synchronized cleanly to published `d71b53e7` after an
+idle check, preserving RunnerService. Its remote fetch configuration covers only
+`main`; explicitly fetch the published development branch before checking out
+a new source. Do not alter that configuration or move native source during tests.
+
+Native acceptance `28187` is closed with exit zero: all 1,459 cases in 19 suites
+passed at immutable `d71b53e7`, without skips (688.56s). This includes actual
+V4/V5 private descriptor generation, lost-response handling and restart. Windows
+owning regression `29078` is also closed with exit zero: 122 passed with 15
+expected platform skips across four suites (1104.20s). Do not restart either run.
+
+The subsequent caller audit found that the prepared closure CLI projected only
+the original V1 binding, rejecting valid V2–V5 recovery activation. This checkpoint
+corrects that boundary by authenticating exact committed preparation/activation
+bytes and projecting the binding to its actual inert parent. A fixed in-memory
+module namespace isolates the Linux caller's ordinary cached helpers without
+creating files or trusting unowned cached exports. The builtin-only bootstrap
+checks committed manifest and RAW source before evaluating the reader, then
+rechecks source and all member bytes before issuing closure authority.
+
+The V1 control and actual V5 Git/CLI case passed on Windows with an explicit
+metadata-only platform seam; source-reader and application type checks passed.
+Independent runtime/policy review is clear. Expanded Windows CLI passed 13
+cases; graph/compiler checks passed 51 with one Windows platform skip. Corrected
+graph/source additions passed their targeted reruns, and all Windows handles are
+closed. The final three complete owning suites still need native execution from
+the published checkpoint, including the added injected-entry case. Read real
+terminal handles, not elapsed time. Then
+prepare the complete source family from the published committed input. Generated
+manifests still belong to the older family; never
+hand-edit their pins or run a stale donor as if it were current. Continue normal
+protected integration and exact accepted-main preparation, then live preservation,
+actual-owner play and rendered mobile acceptance. Follow the
+[existing connected plan](../../superpowers/plans/2026-09-08-ptr-update-recovery.md#g002-adoption-consumer-contract).
+
+The overall estimate remains about **65%**, with a 60–70% judgment range;
+0.4 is not shipped and no reliable calendar ETA is established. The saved Codex
+sync automation is **PAUSED** by the owner. Commit, scan and verify pushes at
+active development checkpoints without recreating a scheduler. Do not create new
+Desktop files; update the existing handoff in place only. Reuse ignored output
+and the fixed private build roots. Native preparation currently retains about
+73 GiB of historical runs; inspect referenced evidence and actual process state
+before retiring anything or creating another large candidate.
+
+Automatic approval review rejected cleanup of owned failed Windows CLI
+fixture roots under `D:/Temp/heyas`: `warpkeep-recovery-closure-JGxHYp`,
+`warpkeep-recovery-closure-Q6RF9e` and `warpkeep-recovery-closure-YrceVK`, with
+only the reason "blocked by policy". They may remain after partial cleanup;
+do not retry or bypass that rejection. A later failed fixture
+`warpkeep-recovery-closure-lkXqvm` may also remain; no fallback deletion was
+attempted. Successful suites clean their own
+fixtures normally. No Desktop files or production/private state were targeted.
+
+The records below are historical checkpoints, not instructions to move to an old
+branch, restart a completed run or treat previous artifacts as current authority.
+
+## Previous delivery integration — 13 September 2026
+
+The owner paused the only saved Codex automation on 13 September 2026; immediate
+reviewed development commits and verified pushes continue. Do not recreate the
+scheduler from historical instructions.
+
+Published repair `a7bfa1cf` completed native preparation `31058` and independent
+check `52092`, both exit zero with every returned field equal. Its complete family
+was authenticated and applied; staging the exact generated changes reproduced
+tree `062df4b7044ba918667dc5f38d63edc2d38ddbf1` before adding evidence. The
+[owning record](../../evidence/0.4.0/release-engineering.md#verified-observation-source-family--2026-09-13)
+contains source, candidate and digest identities. Integration `70a65b34` was
+published and synchronized while native was idle. Native `35676` passed all 701
+tests in 18 generated/private suites, and preflight `7574` passed all 52 cases;
+both are closed with exit zero and no skips. The initial preflight clone ownership
+setup failures were resolved with process-only exact donor configuration, leaving
+no persistent config or temporary fixture roots. Both sealed verifiers passed in
+preparation state, with Pages routing `sealed-launch-blocked`. Resolve actual heads
+and CI before protected integration; this does not certify a release. All prepare/check
+handles are terminal, including failed `85601`; do not restart or export that
+failed candidate. Live G002 exists with an older public interface, but genuine
+local G002/bridge receipts were absent from the documented paths. Its production
+workflow adapters are unavailable. The next delivery work needs authenticated
+existing-G002 state/update provenance, preserving its sealed state and G001's
+progress/admission freeze. PTR evidence cannot substitute for G002 authority.
+
+The active delivery branch is `codex/0.4-ptr-state-adoption` /
+[PR #244](https://github.com/ael-dev3/Warpkeep/pull/244) in the reused
+`C:/Temp/warpkeep-clean-ci` checkout. The draft PR now targets `main`; the scanner
+coverage follow-up's push will verify that consolidated base. Its seven owning
+tests and real scanner passed after reproducing the two missing-coverage failures.
+PR #240's sole non-ancestor correction `944bb17b` is patch-equivalent to included
+`5996629a`, and its changed file is byte-identical in this integration. Do not
+reapply it. Preserve the reviewed final tip and ancestry with a remotely verified
+non-release `source-history/` tag before normal protected squash. Follow the
+existing M1 preparation/check and M2 generated-family sequence; never deploy M1
+or treat development-family success as final source authority. Read the connected
+plan's [next G002 boundary](../../superpowers/plans/2026-09-08-ptr-update-recovery.md#next-delivery-boundary-existing-g002)
+before implementing additional delivery machinery.
+The published `e9262af0` checkpoint authenticates retained signed PTR adoption
+after producer disposal and carries the separate V4 public/service profile through
+recovery consumers. Its full native service run passed 1,218 tests in 44 suites.
+Native root run `76533` is closed: 1,184 passed, one failed, no skips. The remaining
+checked-in CLI failure is the stale generated source-authority pin; regenerate the
+whole family from the next published connected batch rather than typing a hash.
+Windows root run `89369` is also closed (90 passed, 13 native skips). Do not restart
+those historical runs or describe either handle as active.
+
+The current follow-up connects the private V4 corpus, bridge-state receipt,
+candidate and descriptor generator, including retained-evidence authentication in
+the actual activation workflow before provider/bridge construction. The distinct
+bridge receipt preserves genuine G002/deployment evidence and binds the PTR adoption
+digest. Missing or malformed retained state fails closed. Synchronous descriptor
+validation requires the owned authenticated capability. The
+[owning evidence](../../evidence/0.4.0/release-engineering.md#ptr-retained-adoption-and-recovery-consumers--2026-09-12)
+and [connected plan](../../superpowers/plans/2026-09-08-ptr-update-recovery.md)
+record exact verification and remaining native integration. No generated family or
+live deployment is certified by component success.
+
+The native joined producer/bridge/public-artifact and fixed-descriptor generation,
+lost-acknowledgement restart and read-only reconciliation cases now pass at published
+`a9e16d45` (`56511`, two targeted passes, 15 earlier cases filtered, 9.44 seconds).
+The earlier native test setup wrote the descriptor before the real generator;
+that fixture is corrected without weakening immutable publication. All root and
+agent test handles are closed. Source is published before native synchronization;
+resolve actual refs rather than restarting any historical handle. Next regenerate
+and independently check the complete family from the next clean published source,
+then verify exact-head CI and continue the real operating/owner/mobile workflow.
+The completion estimate remains around 65% (60–70% judgment range), not shipped.
+
+PR #242 at `758bc482` and PR #243 at `789db360` passed all hosted checks,
+including their final Verify gates. PR #244 at `e9262af0` passed both services,
+native-contract and CodeQL; Linux/module jobs were still running at the latest
+inspection. New development commits need their own check results. The browser
+inventory at this continuation contains no tabs: the previously prepared GitHub
+App form is no longer present. No App/install/key was created here; the unanswered
+action-time creation approval remains pending. Do not reconstruct or submit it
+merely because the old handoff mentioned a tab.
+
+The latest visual development is `codex/0.4-building-hierarchy` /
+[PR #243](https://github.com/ael-dev3/Warpkeep/pull/243), in reused linked checkout
+`C:/Temp/warpkeep-clean-ci`. Source `75c04680` passed all 138 owning tests,
+both type projects and independent source review. Guarded run `windows-run-N8ekUE`
+completed at that exact stable source; all 36 captures were independently reviewed.
+The cathedral is better balanced, and root inspected full scrolled desktop and
+landscape scenes plus selected portrait sites. Overview craft readability, lumber
+sign occlusion, terrain composition, diagnostic warnings and device acceptance
+remain open in the [visual record](../../evidence/0.4.0/visuals.md#rendered-follow-up-at-75c04680).
+The QA tab/server are stopped; viewport override is reset. The failed initial
+cache-location attempt remains retained and is not art acceptance.
+
+The branch normally incorporates the published prepared-family integration
+`eeda6f64ae86d370a652aa4a84e874684bd9740d` from PR #242. That family is bound
+to D, not to the later visual source. Native verification of the exact published
+family integration passed all 393 cases and both sealed verifiers; it is complete. No new
+clone or package installation was added. Resolve each actual head and its check
+results before protected integration. Keep the full release goal active: 0.4 is
+not shipped, with an engineering estimate around 65% rather than a gate-derived
+completion score. The next connected delivery work remains the observer rollout
+and actual V4 existing-state adoption described below.
+
+The primary Windows branch is `codex/0.4-keep-entry-framing`, published in
+[PR #242](https://github.com/ael-dev3/Warpkeep/pull/242), based on PR #241 head
+`5996629a413f205c0564d570670a650a17f2a63f`. Entry framing at `337a4cc0`
+passed the five-suite 166-case selection, both type projects and independent
+review. Guarded run `windows-run-PSW7Es` retained 36 reviewed images from that
+exact source; [visual evidence](../../evidence/0.4.0/visuals.md#2026-09-12-occupied-entry-framing-and-placement-markers)
+owns the scope, diagnostics and remaining acceptance.
+
+Published review input `d64c8f78442da7ad1bc554c283daf136d670d399` then
+completed native preparation `17954` and independent rebuilding check `10798`,
+both exit zero with all fields equal. The authenticated complete output family
+was independently reconstructed, applied to the unchanged Windows input and
+staged as exact generated tree `f657aa5d007e58a6ded430c3df6bba37112b99e6`.
+Only seven manifest/workflow-pin files changed. The
+[owning family evidence](../../evidence/0.4.0/release-engineering.md#occupied-entry-source-family--2026-09-12)
+records all identities. Do not restart either completed native run or apply an
+older export. This development preparation is not a production deployment.
+Native session `28168` passed all 393 cases in ten owning/generated-consumer
+suites at published integration `eeda6f64`, without skips or failures, using the
+normal timeouts (286.16 seconds). Both sealed verifiers passed in preparation
+state, and native remained clean with no active source consumer. This closes the
+recorded Windows fixture/timeout limits for J; it does not accept later art source.
+
+PR #240 at `944bb17b` and PR #241 at `5996629a` have passed all hosted
+checks; resolve actual heads before normal protected integration.
+
+PR #241's preceding change fixes the real host's rejected Close/Escape request during
+a pending command or refresh; see the [gameplay evidence](../../evidence/0.4.0/gameplay.md#panel-dismissal-during-a-request-or-refresh--2026-09-12).
+All eight new integration cases reproduced the defect and then passed; the full
+host/screen selection passed 68 tests, both type projects passed and independent
+review found no actionable defect. Published input `8aaeda0f` completed native
+preparation `24973` and independent check `93940`, both exit zero with all fields
+equal. Its authenticated complete family was applied and generated-only staging
+matched `1494fe0d9468b54c30ae47acccadd7038fb83726`; the
+[owning evidence](../../evidence/0.4.0/release-engineering.md#pending-panel-source-family--2026-09-12)
+records the candidate and exact digests. Do not restart either completed run.
+PR #240's Linux job `103590042919` exposed one real-parser provider fixture that
+still described the older Worker. The corrected test includes version metadata
+and the observation entrypoint, with exact rejection cases when either is absent.
+The failure was reproduced; all 211 owning cases then passed on Windows. The
+test-only correction is published at `5996629a` and normally cherry-picked into
+PR #240 as `944bb17bdeafed920466bbdc4e27511bd8e557e1`; production guards and
+generated outputs are unchanged. Fresh native session `20928` passed all 400
+tests across seven suites without skips at `5996629a` (20.53 seconds, exit zero),
+covering the provider and generated consumers. The native checkout remained clean
+at that published input. Later changed heads still require their own full hosted acceptance.
+Resolve the live branches and dependent PR base before later protected integration.
+
+Corrected source `3710f139b3572ae0a742d582d0d79d8aa88d9476` completed native
+preparation `91889` and independent rebuilding check `80884`, both exit zero
+with all returned fields equal. Candidate
+`release-workspace-baf068853796d70d5c6b480a15116d05` and its full digests are
+recorded in the [prepared-policy evidence](../../evidence/0.4.0/release-engineering.md#prepared-policy-family-refresh--2026-09-12).
+The authenticated complete family was applied to the unchanged Windows input;
+all outputs and preserved source were checked. Generated-only staging matches
+tree `4795a1fe2bb6b6eeb5851c538a352b454aa66596`. Its seven changed paths carry
+only manifests and workflow pins; compiled bodies and count fixtures are stable.
+The targeted signature regression passed all seven selected cases (`30348`);
+156 other cases were filtered. Published integration `9ac3ee36` subsequently
+passed all 365 native cases across eight suites, including all 163 prepared-
+workflow cases, without skips (`81593`, exit zero, 289.91 seconds). The native
+checkout remained clean at that source. Its hosted checks and normal protected
+integration remain required. Do not rerun either completed preparation command.
+
+The source at `9e098f75` has now completed actual native preparation `67204`
+and independent rebuilding check `6320`, both exit zero with every result field
+equal. The complete authenticated family was exported and applied to that exact
+Windows input, verifying all generated outputs, the exact changed-path set and
+unchanged HEAD/index/preserved source. [The release-engineering record](../../evidence/0.4.0/release-engineering.md#bridgeptr-source-family--2026-09-12)
+owns the retained candidate and full digests. Published integration
+`4b96ae380b6fdb348d26eaf74464638e2e346aff` passed all 448 native tests in 15
+owning and downstream suites without skips (session `89197`, 38.75 seconds,
+exit zero). Checked-in/preparation verification passed and the actual source
+classifier returned `sealed-launch-blocked`. Full current-head hosted checks and
+normal protected integration remain required; this does not establish deployment.
+Both Windows TypeScript projects and all 30 tests in the three doc-facing suites
+passed after application, as did tracked file-size and diff checks. The broader
+Windows generated-consumer run `31279` completed with 283 passes, 78 failures
+and four skips. Its three failing suites require POSIX ownership, `/usr/bin/git`
+and symlink semantics; the native projection/boundary suites passed in the 448
+cases above. The native prepared-workflow run `81300` completed at `42b660fd`
+with 156 passes and seven failures, no skips. A static-policy literal still
+expected the old two-argument `exactApiScriptAttestation` signature, while the
+repaired runtime correctly accepts a separate `expectedNamedHandlers` parameter.
+The baseline refusal cascaded into six credential-comment regressions. The narrow
+policy expectation is corrected without changing their assertions; the targeted
+recheck and complete family above validate that correction's preparation. The [verification environment guidance](../../engineering/development-workflow.md#choose-the-verification-environment)
+now routes those contracts through the existing native lane. Do not weaken their
+assertions or restart the completed Windows run.
+The operating checkout can synchronize after publication because its native
+preparation/check processes have completed. Do not restart completed runs.
+
+The release-integration branch remains `codex/0.4-bridge-predecessor-repair` in
+[PR #240](https://github.com/ael-dev3/Warpkeep/pull/240), integrating the pending
+PR #237–239 source against main. Published `b319e38b` includes a normal merge of
+N3 with the exact repair tree preserved; its only conflict was older handoff
+status, resolved to the reviewed descendant's completed evidence. It repairs the prepared bridge deployer's
+comparison of historical B0 settings and bytes with the new candidate. The
+production caller supplies a fixed, authenticated B0 module inventory; candidate
+upload/readback stays bound to its independently built source, version metadata
+and recovery export. The [prepared transition procedure](../../operations/auth-bridge-notification-prepared.md#prepared-transition-for-04)
+owns the exact distinction and provider provenance. No provider mutation or
+protected bridge dispatch has occurred. At `b319e38b`, native Linux passed all
+202 cases in the five runtime/adapter/receipt/recovery-source/workflow suites
+without skips. The actual credential-free Wrangler dry run now accepts the same
+candidate bytes that previously failed. The wider closure selection found 15
+inventory failures from the earlier PTR observation graph/order. The correction
+adds the explicit observation root, permits only its six verifier dependencies
+and restores canonical member order. Independent review, Windows closure cases
+and direct derived/fixed inventory equality passed. Native session `44084` at
+published `b3ac5d28fc2bbd30a89530992671d845ad128639` passed all 246 tests in the
+eight owning suites without skips in 9.51 seconds, exit zero. Windows, GitHub and
+the clean idle native checkout matched that implementation checkpoint. Read the
+final PR head and its hosted checks before claiming the source accepted or
+deployed; later documentation publication does not replace this test identity.
+
+The downstream native check at the same source (session `38666`) passed 131
+and failed 70 cases across seven suites. The remaining failures identify stale
+generator-owned source pins, count fixtures and the checked manifest, plus a
+missing `ptr-state-inspect` entry in the sealed verifier's exact operation list.
+The structural declaration now includes that operation, with all eight
+derived-pin membership cases passing and the activated subset unchanged.
+Preserve the rejection checks. The completed preparation/check and authenticated
+family above now replace those stale generated consumers. Run the affected
+verification on the integrated source and read its current PR checks. Do not type
+in counts/hashes or copy part of an older candidate. Development-source generation
+does not replace later protected-source and deployment acceptance.
+
+Q's read-only `ptr-state-inspect` connects the Linux workflow, recovery gateway,
+private signer and existing auth-bridge observer. Its authenticated, pinned PTR
+projection remains private. Current observation cannot replace historical
+import/owner evidence or authorize an update. Service unit tests, both service
+type projects, all seven Worker runtime suites, compiled caller checks and root
+types passed for that implementation. Q's hosted service, native-contract and
+CodeQL checks passed. Its Linux job `103572463255` later failed 90 cases across
+nine suites because the expanded source inventory was not accepted by the
+derivation/path validators. The bridge/observation runtime had no independent
+failure in that result. PR #240 carries the inventory correction and must prove
+the affected downstream consumers as well as the focused runtime cases.
+The signer and gateway are not deployed, and the live bridge lacks their
+observation bindings. Preserve G001 public authentication in the later rollout.
+
+The owner's continuous-sync follow-up now requires immediate reviewable
+checkpoints, including bounded unfinished work before switching work items.
+AGENTS, contributor guidance and the canonical development/sync procedures agree;
+the existing 15-minute app check has the same rule and remains a fallback. Its
+stale main-only input wording is corrected: an active build retains its exact
+published compiler input, including an authorized development commit. Fresh
+owning-remote fetches found the profile, assets, water-engine and private editor
+checkouts clean and equal; all nine local development branch histories are
+already backed by live branches or retained PR history. The navigation follow-up
+also synchronized Water Engine main `9d42fb7` and Assets main `4a47038` after
+PR #34's required checks and normal signed merge. Current entry links now avoid
+the retired prepared-keep branch. Use
+the current live PR head for the latest source; a development push is not a
+release or a pass for checks still running.
+
+The next service integration needs a guarded successor to the existing
+notification-prepared bridge deployer. That historical adapter can install PTR
+and canary settings but cannot supply the recovery observer bindings. Preserve
+its authenticated predecessor, public modes and existing secrets; install the
+observer configuration, disabled private signer and secretless gateway in that
+order. The existing recovery key, RPC secret and census pepper must be reused.
+Full bootstrap verification still lacks the local canary owner carrier. A bounded
+metadata/provenance audit found no retained authenticated owner record from which
+to reconstruct it. The public Mini App association and expected-FID boolean serve
+different roles and cannot supply that identity. The existing protected secret
+remains usable by its workflow lane without disclosure; do not make local
+plaintext reconstruction a new requirement for that lane. The
+authenticated account's GitHub Apps settings showed no registered Apps during
+this review. The owner subsequently completed GitHub's “Confirm access” step.
+The private “Warpkeep Release Evidence” App
+form is prepared with read-only Actions, Checks, Contents, Deployments, Metadata
+and Pages access, webhooks disabled and installation restricted to the owner's
+account. Creation/installation on only `ael-dev3/Warpkeep` and service-key
+generation await the requested action-time confirmation. The dedicated
+installation/key supply remains unresolved; no App or credential was created.
+
+Existing-state adoption is a distinct V4 path. The connected private capture is
+implemented with focused Windows, Workerd and native acceptance; bridge state, activation and recovery
+consumers remain unfinished. The implementation keeps the standalone observation
+contract and V3 completion/terminal bytes intact.
+Collect a separately typed update observation inside `ptr-update-apply`, after
+the authentic claim and before submission. An adapter-owned private sidecar keyed
+by the claim-record digest retains that exact pre-observation. After genuine V3
+completion and terminal records exist, collect post-observation binding the exact
+pre-JWS, completion and terminal digests. A separate V4 adoption envelope reopens
+the opaque completion and both signed statements. This avoids a circular digest
+dependency or replacing a missing pre-observation after an effect.
+Bind source, candidate, inspection, predecessor and claim throughout; distinguish
+the current reconciliation job from original claim/terminal identities. The distinct
+fixed `operate_ptr` verifier and apply-only observation permit do not widen
+`observe_ptr`; never dispatch the standalone job inside shared concurrency.
+Compare owner/atlas/admission commitments under unchanged observer configuration
+and pepper scope. Historical signature validation authenticates retained data;
+new effects still require fresh evidence and actual-clock checks after awaits.
+Do not synthesize import/provision history or claim equality of every gameplay row.
+
+The synchronous claim-binding reader shares the genuine claim validator and does
+not extend its callback lifetime. Remote pre-capture occurs before entering the
+provider's bounded `beforeSend` callback. That callback reopens the original signed
+pre-state, checks the actual clock and claim expiry, then writes the unchanged V3
+submission. Both observation sidecars are immutable and keyed by the authentic
+claim-record digest under `runtime/ptr-update-observation-v4/<PTR>/`. The separate
+adoption file uses the authentic completion-receipt digest under
+`runtime/ptr-existing-state-adoptions-v4/`. A missing pre-state after an effect is
+a refusal, never a new pre-capture. A retained authentic post may be reopened after
+its freshness window because it is historical evidence, not new effect authority.
+The runtime awaits post-capture and persistence before disposal; an already
+completed update can retry failed evidence persistence without repeating its PUT.
+The shared `operate_ptr` job receives OIDC capability for inspection and apply;
+only the actual apply claim and opaque apply-only permit permit this client path.
+The service authenticates the named job, not an unproven workflow input.
+
+PR #236 passed every required check at `92d363ce` and merged by the normal
+protected expected-head squash into signed, verified main
+`a2929bb6a3646b2812eacc7482e056eb1abb8be3` (N3). Its tree
+`8d39fe13fa18a22bfca698ae3d9bcc9624c98a7a` exactly matches the reviewed PR tree;
+its sole parent is M2. Main Verify `34701912470` is still running. PR #237
+automatically retargeted main and remains at `7bc5992c`; PR #238 is `23ec4731`,
+and PR #239 is Q. Resolve their live status before integrating the remaining
+source. Reconcile published ancestry normally; never reset or force the stack.
+Windows and the clean idle native checkout matched Q before this new repair.
+M2's full main Verify and sealed preflight are historical evidence for M2;
+N3 and later source need their own checks and fresh generated family.
+
+The published follow-up on `codex/0.4-frozen-source-test-isolation` separates four
+independent frozen-source mutation checks into named Linux cases. Historical R
+main Verify `34694304468` exceeded the default ten-second budget only in the
+combined four-materialization callback; no behavioral assertion failed. Each
+case now retains that default budget, its original rejection assertion and a
+destination-retention assertion, including the previously missing inode check.
+The shared cleanup and production materializer are unchanged. Native session
+`93630` at original `e18cf0c5` passed all 11 tests without skips in 20.92 seconds;
+the four split cases each completed in under one second. T2 has exactly the same
+tree. This focused pass does not establish a full CI pass for either source.
+
+Runner availability source `e57b5e38` is published in PR #237 on
+`codex/0.4-runner-availability`, stacked on navigation `e6fca66f` / PR #236.
+Windows and the clean idle native checkout were verified equal to its live head.
+GitHub runner 22 was offline
+because `WarpkeepRunner` had stopped; the enabled service started normally when
+the guest opened. Its existing Windows keepalive task had exited with code 1.
+The task was recovered, given an indefinite execution limit and a recurring
+single-instance retry, then restarted under the new definition while idle.
+GitHub reports it online again. Use the [runner maintenance procedure](../../operations/0.4.0-linux-runner.md)
+to distinguish scheduling, guest/service health and actual GitHub availability.
+Preserve active jobs; disable recurring starts before planned maintenance.
+
+The published operational correction changes no generated family or game authority.
+The existing M1 candidate remains retained after PR #235's integration. The receipt
+integration
+audit below is now recorded in [release and infrastructure](release-and-infrastructure.md#existing-ptr-evidence-continuity).
 
 PR #228 merged normally at 11:30:54 UTC to signed main
 `c4b95505b73705d120aff3f3318d2bd5151f6565` (**M1**). Its tree
@@ -23,29 +463,37 @@ was exported from exact M1 and all 102 output files, their bytes and Git objects
 source paths were checked. Generated checkpoint `654f1b57` incorporated the
 published repair, then exact `3c4eb264` incorporated protected R without changing
 tree `93a976b0`. The native checked-in sealed-launch and prepared-policy verifiers
-passed again at that final checkpoint. It is published in PR #235 against R;
-Verify `34694406086` and CodeQL `34694406081` are active. Earlier Verify
+passed again at that final checkpoint. CodeQL `34694406081` and Verify
+`34694406086` both passed at exact `3c4eb264`. PR #235 then merged normally by
+protected expected-head squash at 13:33:31 UTC into signed, valid main
+`7b102f9f` (**M2**), whose sole parent is R and tree exactly equals `93a976b0`.
+The actual M2 main push Verify `34696760924` reached terminal success. The first
+sealed dispatch `34699447213`, created at 14:29:45 UTC, then passed its real
+`operate_readonly` job `103568496530` and returned exact `preflight-inspected`.
+Live protected main remained M2. The earlier R timeout is separate from this pass.
+Earlier Verify
 `34693755154` at `654f1b57` was cancelled by the later publication and is not
 terminal evidence for the final head. No protection or release gate was weakened.
 
-Windows now carries the separate desktop-navigation source change on
+PR #236 publishes the separate desktop-navigation source `e6fca66f` on
 `codex/0.4-keep-navigation`, based on `3c4eb264`. It makes the existing top
 navigation visible on desktop and resets the compact-media bottom margin,
 preserving the mobile layout. Actual desktop, portrait, landscape and narrow
 browser checks covered the buttons, panel close, opener focus restoration and
-horizontal overflow; 88 tests in four suites passed in session `27992`. Complete
-and publish this work through its own PR stacked on `codex/0.4-prepared-source`;
-resolve its resulting commit and PR from live refs rather than adding an unverified
-identifier here. Do not fold it into PR #235. After PR #235 integrates, reconcile
-the product PR with actual main. The CSS is a protected-closure source change and
+horizontal overflow; 88 tests in four suites passed in session `27992`. Its full
+outgoing scan, explicit publication and Windows/native/live equality passed.
+GitHub retargeted PR #236 to main after PR #235 integrated. The normal ancestry
+reconciliation and its propagation through later stacked PRs are complete,
+with unchanged reviewed trees and the published heads recorded above.
+The CSS is a protected-closure source change and
 needs normal source integration followed by a fresh generated closure before any
 later deployment.
 
-First complete PR #235 through the normal protected squash to **M2**, require that
-exact M2's Verify success, then dispatch one sealed `preflight` from main and
-require `preflight-inspected`. The navigation branch remains separately backed-up
-product source. After its publication, the clean native development checkout may
-fast-forward to that reviewed head while the M1 candidate, journal and artifact
+Do not repeat M2's completed preflight to obtain authority for later source.
+Continue the reviewed product/observation source integration, its exact main CI
+and fresh generated family, alongside the authentic service configuration and
+existing-state adoption work. Keep the clean idle native checkout synchronized with the current
+published development head while the M1 candidate, journal and artifact
 remain retained evidence. No live release is established.
 
 ### Pre-merge route correction

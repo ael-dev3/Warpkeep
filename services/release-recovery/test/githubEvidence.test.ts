@@ -5,7 +5,9 @@ import { parseDocument } from 'yaml'
 import { beforeAll, describe, expect, it } from 'vitest'
 import {
   RECOVERY_BINDING_KEYS_V2,
+  RECOVERY_BINDING_KEYS_V5,
   RECOVERY_RECEIPT_COMMITMENT_DIGESTS,
+  RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V5,
   loadGitHubCandidateEvidence,
   mintGitHubInstallationToken,
   recheckGitHubEvidenceMetadata,
@@ -18,8 +20,8 @@ import {
 } from '../src/config.js'
 import { serializeExactObject, sha256Hex, type JsonValue } from '../src/protocol.js'
 import { RECOVERY_KEY_ID, RECOVERY_KEY_THUMBPRINT } from '../src/recoveryPublicKey.js'
-import { createRecoveryActivationBinding, createRecoveryActivationBindingV3, parseRecoveryBindingV2 } from '../../../scripts/recovery-activation-candidate.mjs'
-import { RECOVERY_BINDING_KEYS_V3 as ROOT_BINDING_KEYS_V3 } from '../../../scripts/recovery-binding-projection.mjs'
+import { createRecoveryActivationBinding, createRecoveryActivationBindingV3, createRecoveryActivationBindingV4, createRecoveryActivationBindingV5, parseRecoveryBindingV2 } from '../../../scripts/recovery-activation-candidate.mjs'
+import { RECOVERY_BINDING_KEYS_V3 as ROOT_BINDING_KEYS_V3, RECOVERY_BINDING_KEYS_V4 as ROOT_BINDING_KEYS_V4, RECOVERY_BINDING_KEYS_V5 as ROOT_BINDING_KEYS_V5 } from '../../../scripts/recovery-binding-projection.mjs'
 import { recoveryBindingCandidate } from '../../../tests/fixtures/recoveryBindingCandidate.js'
 
 const REPOSITORY = 'ael-dev3/Warpkeep'
@@ -380,7 +382,7 @@ function zip(body: Uint8Array): Uint8Array {
   return new Uint8Array([...local, ...body, ...central, ...eocd])
 }
 
-async function validBinding(useLocalGenerator: boolean | 3 = false, closure = CLOSURE): Promise<Readonly<{ bytes: Uint8Array; core: string }>> {
+async function validBinding(useLocalGenerator: boolean | 3 | 4 | 5 = false, closure = CLOSURE): Promise<Readonly<{ bytes: Uint8Array; core: string }>> {
   const binding: Record<string, JsonValue> = Object.create(null)
   for (const key of RECOVERY_BINDING_KEYS_V2) binding[key] = null
   Object.assign(binding, {
@@ -444,7 +446,31 @@ async function validBinding(useLocalGenerator: boolean | 3 = false, closure = CL
     for (const [key, value] of Object.entries(binding)) {
       if (value !== null) candidate[key] = value as string | number | boolean
     }
-    const generated = useLocalGenerator === 3
+    const v5Overrides: Record<string, JsonValue> = {
+      schemaVersion: 5, profile: 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5',
+      ptrExistingUpdateReceiptDigest: '93'.repeat(32), ptrExistingStateAdoptionReceiptDigest: '94'.repeat(32),
+      ptrExpectedSealedStateHmacSha256: '95'.repeat(32), ptrExpectedOwnerInvariantHmacSha256: '96'.repeat(32),
+      ptrSealed: true, ptrPopulationGuardPassed: true, ptrSingletonOwnerCount: 1, ptrGeneralAdmissionCount: 0,
+      g002ExistingUpdateReceiptDigest: 'a3'.repeat(32), g002ExistingStateAdoptionReceiptDigest: 'a4'.repeat(32),
+      g002ExpectedSealedStateHmacSha256: 'a5'.repeat(32), g002ReleaseVersion: '0.4.0', g002AtlasReady: true,
+      g002Sealed: true, g002PopulationGuardPassed: true, g002PlayerCount: 0, g002GeneralAdmissionCount: 0,
+      g002AdmissionsOpen: false, g002AccessRequestsOpen: false,
+    }
+    const generated = useLocalGenerator === 5
+      ? createRecoveryActivationBindingV5(`${JSON.stringify(Object.fromEntries(ROOT_BINDING_KEYS_V5.map(key => [key,
+        key.endsWith('Commitment') ? null : Object.hasOwn(v5Overrides, key) ? v5Overrides[key] : candidate[key],
+      ])), null, 2)}\n`)
+      : useLocalGenerator === 4
+      ? createRecoveryActivationBindingV4(`${JSON.stringify(Object.fromEntries(ROOT_BINDING_KEYS_V4.map(key => [key,
+        key === 'schemaVersion' ? 4 : key === 'profile' ? 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4'
+          : key === 'ptrExistingUpdateReceiptDigest' ? '93'.repeat(32)
+            : key === 'ptrExistingStateAdoptionReceiptDigest' ? '94'.repeat(32)
+              : key === 'ptrExpectedSealedStateHmacSha256' ? '95'.repeat(32)
+                : key === 'ptrExpectedOwnerInvariantHmacSha256' ? '96'.repeat(32)
+                  : key.endsWith('Commitment') ? null : ['ptrSealed', 'ptrPopulationGuardPassed'].includes(key) ? true
+                    : key === 'ptrSingletonOwnerCount' ? 1 : key === 'ptrGeneralAdmissionCount' ? 0 : candidate[key],
+      ])), null, 2)}\n`)
+      : useLocalGenerator === 3
       ? createRecoveryActivationBindingV3(`${JSON.stringify(Object.fromEntries(ROOT_BINDING_KEYS_V3.map(key => [key,
         key === 'schemaVersion' ? 3 : key === 'profile' ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3'
           : key === 'ptrExistingUpdateReceiptDigest' ? '93'.repeat(32)
@@ -533,7 +559,7 @@ jobs:
 `)
 }
 
-async function makeFixture(useLocalGenerator: boolean | 3 = false): Promise<Readonly<{
+async function makeFixture(useLocalGenerator: boolean | 3 | 4 | 5 = false): Promise<Readonly<{
   state: State
   input: Parameters<typeof loadGitHubCandidateEvidence>[0]
   calls: string[]
@@ -801,6 +827,17 @@ async function makeFixture(useLocalGenerator: boolean | 3 = false): Promise<Read
     bindingRequestId: REQUEST_ID,
     armed: {
       ...expectedRealmBinding(binding.core),
+      ...(useLocalGenerator === 4 || useLocalGenerator === 5 ? {
+        ptrStateEvidenceProfile: 'warpkeep-ptr-existing-state-adoption-v1' as const,
+        ptrExistingStateAdoptionReceiptDigest: '94'.repeat(32),
+        ptrExpectedSealedStateHmacSha256: '95'.repeat(32),
+        ptrExpectedOwnerInvariantHmacSha256: '96'.repeat(32),
+      } : {}),
+      ...(useLocalGenerator === 5 ? {
+        g002StateEvidenceProfile: 'warpkeep-g002-existing-state-adoption-v1' as const,
+        g002ExistingStateAdoptionReceiptDigest: 'a4'.repeat(32),
+        g002ExpectedSealedStateHmacSha256: 'a5'.repeat(32),
+      } : {}),
       bindingPath: BINDING_PATH,
       workflowPath: WORKFLOW_PATH,
     },
@@ -970,6 +1007,121 @@ describe('GitHub candidate evidence', () => {
     const bytes = new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey))
     privateKeyPem = createPrivateKey({ key: Buffer.from(bytes), format: 'der', type: 'pkcs8' })
       .export({ format: 'pem', type: 'pkcs1' }).toString()
+  })
+
+  it.each([4, 5] as const)('loads the root-produced V%s adoption through the actual source, artifact and receiver chain', async version => {
+    const fixture = await makeFixture(version)
+    const evidence = await loadGitHubCandidateEvidence(fixture.input)
+    expect(evidence.recoveryBindingBytes).toEqual(fixture.state.bindingBytes)
+    const binding = JSON.parse(new TextDecoder().decode(evidence.recoveryBindingBytes))
+    expect(binding.schemaVersion).toBe(version)
+    expect(binding.ptrExistingStateAdoptionReceiptDigest).toBe('94'.repeat(32))
+    expect(binding).not.toHaveProperty('ptrAtlasImportReceiptDigest')
+    expect(binding).not.toHaveProperty('ptrOwnerProvisionReceiptDigest')
+    expect(binding).not.toHaveProperty('ptrSealedLiveReceiptDigest')
+    expect(evidence.realmBinding).toEqual({
+      ...expectedRealmBinding(binding.recoveryAuthorizationCoreSha256),
+      ptrStateEvidenceProfile: 'warpkeep-ptr-existing-state-adoption-v1',
+      ptrExistingStateAdoptionReceiptDigest: '94'.repeat(32),
+      ptrExpectedSealedStateHmacSha256: '95'.repeat(32),
+      ptrExpectedOwnerInvariantHmacSha256: '96'.repeat(32),
+      ...(version === 5 ? {
+        g002StateEvidenceProfile: 'warpkeep-g002-existing-state-adoption-v1',
+        g002ExistingStateAdoptionReceiptDigest: 'a4'.repeat(32),
+        g002ExpectedSealedStateHmacSha256: 'a5'.repeat(32),
+      } : {}),
+    })
+    if (version === 5) for (const legacy of ['g002PublishReceiptDigest', 'g002FreshStatusDigest',
+      'g002AtlasImportReceiptDigest', 'g002SealedLiveReceiptDigest', 'admissionNotificationsEnabled']) {
+      expect(binding).not.toHaveProperty(legacy)
+    }
+  })
+
+  it.each([
+    (binding: JsonObject) => { binding.g002ExistingStateAdoptionReceiptDigest = '97'.repeat(32) },
+    (binding: JsonObject) => { binding.g002ExistingStateAdoptionReceiptCommitment = '98'.repeat(32) },
+    (binding: JsonObject) => { binding.g002ExpectedSealedStateHmacSha256 = '99'.repeat(32) },
+    (binding: JsonObject) => { binding.ptrExpectedSealedStateHmacSha256 = '99'.repeat(32) },
+    (binding: JsonObject) => { binding.ptrExpectedOwnerInvariantHmacSha256 = '99'.repeat(32) },
+    (binding: JsonObject) => { binding.schemaVersion = 4 },
+    (binding: JsonObject) => { binding.profile = 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4' },
+    (binding: JsonObject) => { binding.g002AtlasImportReceiptDigest = '98'.repeat(32) },
+    (binding: JsonObject) => { binding.admissionNotificationsEnabled = false },
+    (binding: JsonObject) => { delete binding.g002ExistingStateAdoptionReceiptCommitment },
+  ])('rejects substituted or mixed-version V5 binding %#', async mutate => {
+    const fixture = await makeFixture(5)
+    await replaceBinding(fixture, mutate)
+    await expect(loadGitHubCandidateEvidence(fixture.input)).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  })
+
+  it.each(['g002ExistingStateAdoptionReceiptDigest', 'g002ExpectedSealedStateHmacSha256',
+    'ptrExistingStateAdoptionReceiptDigest', 'ptrExpectedSealedStateHmacSha256', 'ptrExpectedOwnerInvariantHmacSha256'])(
+    'rejects regenerated and independently armed V5 %s drift', async key => {
+      const fixture = await makeFixture(5)
+      const input = { ...fixture.input, armed: { ...fixture.input.armed, [key]: '97'.repeat(32) } }
+      await expect(loadGitHubCandidateEvidence(input)).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
+      await replaceBinding(fixture, binding => {
+        const candidate: JsonObject = { ...binding, recoveryAuthorizationCoreSha256: null, [key]: '97'.repeat(32) }
+        for (const name of Object.keys(candidate)) if (name.endsWith('Commitment')) candidate[name] = null
+        Object.assign(binding, createRecoveryActivationBindingV5(`${JSON.stringify(candidate, null, 2)}\n`))
+      })
+      await expect(loadGitHubCandidateEvidence(fixture.input)).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    },
+  )
+
+  it.each([
+    ['g002ReleaseVersion', '0.4.1'], ['g002AtlasReady', false], ['g002Sealed', false],
+    ['g002PopulationGuardPassed', false], ['g002PlayerCount', 1], ['g002GeneralAdmissionCount', 1],
+    ['g002AdmissionsOpen', true], ['g002AccessRequestsOpen', true],
+  ] as const)('rejects V5 unsafe %s even with internally valid commitments and matching armed core', async (key, value) => {
+    const fixture = await makeFixture(5)
+    const binding = JSON.parse(new TextDecoder().decode(fixture.state.bindingBytes)) as Record<string, JsonValue>
+    binding[key] = value
+    const excluded = new Set(['g001FreezePublishReceiptCommitment', ...Object.keys(RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V5)])
+    const receiptKeys = RECOVERY_BINDING_KEYS_V5.filter(name => !excluded.has(name))
+    const receipt = Object.fromEntries(receiptKeys.map(name => [name, name === 'recoveryAuthorizationCoreSha256' ? null : binding[name]!]))
+    for (const name of Object.keys(RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V5)) {
+      binding[name] = await sha256Hex(`warpkeep.0.4.0.recovery-sealed-launch.${name}.v5\n`,
+        serializeExactObject(receiptKeys, receipt as never))
+    }
+    binding.recoveryAuthorizationCoreSha256 = await sha256Hex('warpkeep.0.4.0.recovery-authorization-core.v5\n',
+      serializeExactObject(RECOVERY_BINDING_KEYS_V5, { ...binding, recoveryAuthorizationCoreSha256: null } as never))
+    await replaceBinding(fixture, target => { Object.assign(target, binding) })
+    await expect(loadGitHubCandidateEvidence({ ...fixture.input, armed: { ...fixture.input.armed,
+      recoveryAuthorizationCoreSha256: binding.recoveryAuthorizationCoreSha256 as string } })).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  })
+
+  it.each([
+    (binding: JsonObject) => { binding.ptrExistingStateAdoptionReceiptDigest = '97'.repeat(32) },
+    (binding: JsonObject) => { binding.ptrExistingStateAdoptionReceiptCommitment = '98'.repeat(32) },
+    (binding: JsonObject) => { binding.ptrExpectedSealedStateHmacSha256 = '99'.repeat(32) },
+    (binding: JsonObject) => { binding.ptrExpectedOwnerInvariantHmacSha256 = '99'.repeat(32) },
+    (binding: JsonObject) => { binding.schemaVersion = 3 },
+    (binding: JsonObject) => { binding.profile = 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' },
+    (binding: JsonObject) => { binding.ptrAtlasImportReceiptDigest = '98'.repeat(32) },
+    (binding: JsonObject) => { delete binding.ptrExistingStateAdoptionReceiptCommitment },
+  ])('rejects substituted or mixed-version V4 binding %#', async mutate => {
+    const fixture = await makeFixture(4)
+    await replaceBinding(fixture, mutate)
+    await expect(loadGitHubCandidateEvidence(fixture.input)).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  })
+
+  it.each(['ptrExistingStateAdoptionReceiptDigest', 'ptrExpectedSealedStateHmacSha256',
+    'ptrExpectedOwnerInvariantHmacSha256'])('rejects a regenerated V4 %s substitution against the original arming', async key => {
+    const fixture = await makeFixture(4)
+    await replaceBinding(fixture, binding => {
+      const candidate: JsonObject = { ...binding, recoveryAuthorizationCoreSha256: null, [key]: '97'.repeat(32) }
+      for (const name of Object.keys(candidate)) if (name.endsWith('Commitment')) candidate[name] = null
+      Object.assign(binding, createRecoveryActivationBindingV4(`${JSON.stringify(candidate, null, 2)}\n`))
+    })
+    await expect(loadGitHubCandidateEvidence(fixture.input)).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  })
+
+  it.each(['ptrExistingStateAdoptionReceiptDigest', 'ptrExpectedSealedStateHmacSha256',
+    'ptrExpectedOwnerInvariantHmacSha256'])('rejects independently armed V4 %s drift even with the original core', async key => {
+    const fixture = await makeFixture(4)
+    const input = { ...fixture.input, armed: { ...fixture.input.armed, [key]: '97'.repeat(32) } }
+    await expect(loadGitHubCandidateEvidence(input)).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
   })
 
   it('loads root-produced V3 update binding through the actual receiver evidence chain', async () => {

@@ -69,14 +69,22 @@ export function readRecoveryActivationGitSource(readGit, candidateCommit) {
 
 /** Local committed-source consistency, not protected-main or receipt authentication. */
 export function readRecoveryAttestationSource(repositoryRoot) {
+  return readRecoveryPreparedClosureSource(repositoryRoot).identity;
+}
+
+/** Exact committed A/S binding bytes for closure normalization; not provider or deployment authority. */
+export function readRecoveryPreparedClosureSource(repositoryRoot) {
   if (typeof repositoryRoot !== 'string' || resolve(repositoryRoot) !== repositoryRoot
       || realpathSync(repositoryRoot) !== repositoryRoot) fail();
   // Do not inherit caller Git object replacements, alternate indexes or config.
   const env = { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot,
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : '/dev/null',
+    GIT_CONFIG_SYSTEM: process.platform === 'win32' ? 'NUL' : '/dev/null',
+    GIT_GRAFT_FILE: process.platform === 'win32' ? 'NUL' : '/dev/null',
     GIT_NO_REPLACE_OBJECTS: '1', GIT_TERMINAL_PROMPT: '0' };
   function git(args) {
-    const result = spawnSync('git', ['--no-pager', '-c', 'core.fsmonitor=false', ...args], {
+    const result = spawnSync(process.platform === 'win32' ? 'git' : '/usr/bin/git',
+      ['--no-pager', '-c', 'core.fsmonitor=false', ...args], {
       cwd: repositoryRoot, env, encoding: 'buffer', timeout: 10000, maxBuffer: 2 * 1024 * 1024,
       windowsHide: true,
     });
@@ -89,11 +97,17 @@ export function readRecoveryAttestationSource(repositoryRoot) {
   const candidateTree = line(['rev-parse', '--verify', 'HEAD^{tree}']);
   if (!hex(candidateCommit) || !hex(candidateTree)) fail();
   // An assume-unchanged or skip-worktree index must not hide dirty source.
-  const indexed = git(['ls-files', '-v', '-z']).toString('utf8').split('\0');
-  if (indexed.pop() !== '' || indexed.some(entry => !entry.startsWith('H '))) fail();
+  const assertVisibleIndex = () => {
+    const indexed = git(['ls-files', '-v', '-z']).toString('utf8').split('\0');
+    if (indexed.pop() !== '' || indexed.some(entry => !entry.startsWith('H '))) fail();
+  };
+  assertVisibleIndex();
   if (git(['diff', '--no-ext-diff', '--no-textconv', '--name-only', 'HEAD', '--']).length !== 0) fail();
-  const { identity } = readRecoveryActivationGitSource(git, candidateCommit);
+  const { identity, binding } = readRecoveryActivationGitSource(git, candidateCommit);
   if (identity.candidateTree !== candidateTree) fail();
+  const decode = bytes => new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+  const bindingSource = decode(git(['show', `${candidateCommit}:${BINDING}`]));
+  const preparationBindingSource = decode(git(['show', `${binding.preparationSourceCommit}:${BINDING}`]));
   for (const path of FILES) {
     const full = join(repositoryRoot, path);
     if (realpathSync(full) !== full) fail();
@@ -101,7 +115,8 @@ export function readRecoveryAttestationSource(repositoryRoot) {
     try { if (!opened.body.equals(git(['show', `${candidateCommit}:${path}`]))) fail(); }
     finally { opened.body.fill(0); }
   }
+  assertVisibleIndex();
   if (line(['rev-parse', 'HEAD']) !== candidateCommit
       || git(['diff', '--no-ext-diff', '--no-textconv', '--name-only', 'HEAD', '--']).length !== 0) fail();
-  return identity;
+  return Object.freeze({ identity, bindingSource, preparationBindingSource });
 }

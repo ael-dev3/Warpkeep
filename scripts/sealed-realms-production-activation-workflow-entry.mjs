@@ -9,7 +9,8 @@ import {
   createSealedRealmsProductionAuthBridgeState,
   createSealedRealmsProductionActivationEvidenceGenerator,
 } from './sealed-realms-production-auth-bridge-state.mjs';
-import { createSealedRealmsProductionActivationRecords } from './sealed-realms-production-activation-records.mjs';
+import { createSealedRealmsProductionActivationRecords, authenticateSealedRealmsProductionPtrExistingStateAdoption,
+  authenticateSealedRealmsProductionG002ExistingStateAdoption } from './sealed-realms-production-activation-records.mjs';
 import { readSealedRealmsProductionRecoveryCandidate } from './sealed-realms-production-recovery-candidate.mjs';
 import {
   createSealedRealmsProductionActivationDispatchContext,
@@ -182,6 +183,29 @@ async function buildDispatcher(operation, workflowInputSha, evidence, lifecycle)
   });
   const privateState = resolveSealedRealmsProductionWorkflowPrivateState();
   const continuationStore = createSealedRealmsProductionContinuationStore({ privateState });
+  const retainedDirectories = privateState.list({ root: 'runtime' });
+  const hasPtrAdoption = retainedDirectories.includes('ptr-existing-state-adoptions-v4');
+  const hasG002Adoption = retainedDirectories.includes('g002-existing-state-adoptions-v1');
+  if (hasG002Adoption && !hasPtrAdoption) fail('SEALED_REALMS_ACTIVATION_WORKFLOW_ADOPTION_INVALID');
+  let existingStateAdoption;
+  let g002ExistingStateAdoption;
+  if (hasPtrAdoption) {
+    // This separate source authority only reopens the historical update. It does
+    // not receive an update permit or construct a provider capable of applying it.
+    const retainedRecords = createSealedRealmsProductionActivationRecords({ privateState, authority });
+    const updateAuthority = sourceAuthority('ptr-update-apply', workflowInputSha, verifyEvidence);
+    existingStateAdoption = await authenticateSealedRealmsProductionPtrExistingStateAdoption({
+      records: retainedRecords, authority: updateAuthority, store: continuationStore,
+    });
+    if (hasG002Adoption) {
+      const g002UpdateAuthority = sourceAuthority('g002-update-apply', workflowInputSha, verifyEvidence);
+      g002ExistingStateAdoption = await authenticateSealedRealmsProductionG002ExistingStateAdoption({
+        records: retainedRecords, authority: g002UpdateAuthority, store: continuationStore,
+      });
+    }
+  }
+  const adoptionOptions = { ...(existingStateAdoption === undefined ? {} : { existingStateAdoption }),
+    ...(g002ExistingStateAdoption === undefined ? {} : { g002ExistingStateAdoption }) };
   const bridgeState = createSealedRealmsProductionAuthBridgeState({
     authority,
     privateState,
@@ -193,6 +217,7 @@ async function buildDispatcher(operation, workflowInputSha, evidence, lifecycle)
     inspectImportReceipt: unavailable,
     authenticateImportResult: unavailable,
     resolveOwnerProvisionReceipt: unavailable,
+    ...adoptionOptions,
   });
   // The fixed reader reopens the opaque records and immutable S itself. Missing
   // recovery/provider facts remain an explicit failure, never caller defaults.
@@ -203,13 +228,14 @@ async function buildDispatcher(operation, workflowInputSha, evidence, lifecycle)
     lifecycle.preparation = await createSealedRealmsProductionRecoveryPreparation({ privateState, authority });
     records = createSealedRealmsProductionActivationRecords({ privateState, authority,
       readBindingCandidate: (_source, _projection, readContext) =>
-        readSealedRealmsProductionRecoveryCandidate({ records, privateState, authority, bridgeState, readContext, sourceClosure: lifecycle.sourceClosure, programArtifacts: lifecycle.programArtifacts, preparation: lifecycle.preparation }) });
+        readSealedRealmsProductionRecoveryCandidate({ records, privateState, authority, bridgeState, readContext, sourceClosure: lifecycle.sourceClosure, programArtifacts: lifecycle.programArtifacts, preparation: lifecycle.preparation }), ...adoptionOptions });
   }
   const lane = createSealedRealmsProductionActivationLane({ bridgeState,
     ...(operation === 'activation-evidence-generate' ? {
       generator: createSealedRealmsProductionActivationEvidenceGenerator({
         records,
         privateState, authority,
+        ...adoptionOptions,
       }),
     } : {}),
   });

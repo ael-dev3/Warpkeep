@@ -360,7 +360,11 @@ function sameArming(left: RecoveryArmingTuple, right: RecoveryArmingTuple): bool
 
 function armingSnapshot(value: unknown, code: string): RecoveryArmingTuple {
   try {
-    return snapshotRecoveryArmingTuple(value, code)
+    const arming = snapshotRecoveryArmingTuple(value, code)
+    // The legacy SQL schema has no columns for adoption evidence. Keep its
+    // accepted arming shape fixed; the current JSON ledger owns V4 persistence.
+    if (Object.hasOwn(arming, 'ptrStateEvidenceProfile')) fail(code)
+    return arming
   } catch {
     fail(code)
   }

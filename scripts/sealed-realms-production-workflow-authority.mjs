@@ -8,6 +8,9 @@ export const SEALED_REALMS_PRODUCTION_WORKFLOW_PATH =
   '.github/workflows/sealed-realms-production.yml';
 export const SEALED_REALMS_PRODUCTION_WORKFLOW_PHASES = Object.freeze([
   'permit-issue',
+  'ptr-observation',
+  'ptr-update-observation',
+  'g002-update-observation',
   'continuation-issue',
   'continuation-claim',
   'continuation-effect',
@@ -268,6 +271,11 @@ export async function attestSealedRealmsProductionWorkflowPermit(input) {
     options.sourceAuthority !== state.sourceAuthority
     || !SEALED_REALMS_PRODUCTION_WORKFLOW_PHASES.includes(options.phase)
     || options.phase === 'permit-issue'
+    || (options.phase === 'ptr-observation') !== (state.operation === 'ptr-state-inspect')
+    || (options.phase === 'ptr-update-observation'
+      && state.operation !== 'ptr-update-apply')
+    || (options.phase === 'g002-update-observation'
+      && state.operation !== 'g002-update-apply')
     || run.runId !== state.runId
     || run.runAttempt !== state.runAttempt
     || sourceCommitFromSealedRealmsProductionAuthority(options.sourceAuthority)

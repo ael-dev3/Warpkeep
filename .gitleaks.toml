@@ -95,6 +95,18 @@ regexes = ['''^g002PublishReceiptDigest$''']
 paths = ['''^tests/sealedLaunchActivationGenerator\.test\.ts$''']
 
 [[allowlists]]
+description = "Public receipt schema key used to select the G002 adopted-state binding"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^g002PublishReceiptDigest$''']
+paths = [
+  '''^scripts/recovery-binding-projection\.mjs$''',
+  '''^services/release-recovery/src/githubEvidence\.ts$''',
+  '''^tests/fixtures/recoveryG002PtrAdoptionCandidate\.ts$''',
+]
+
+[[allowlists]]
 description = "One non-secret UUID used only as a sealed-launch negative authority-field fixture"
 targetRules = ["generic-api-key"]
 condition = "AND"
@@ -196,6 +208,22 @@ targetRules = ["generic-api-key"]
 condition = "AND"
 regexTarget = "secret"
 paths = ['''^services/release-recovery/test/preparationReceipt\.test\.ts$''', '''^services/release-recovery/test/signerPreparation\.test\.ts$''', '''^services/release-recovery/test-workerd/preparationComposition\.test\.ts$''', '''^services/release-recovery/test-workerd/preparationIntent\.test\.ts$''']
+regexes = ['''^zbHwk528B5de5kuNzI98k4Y-rljmW6fbkH-aVZomk4M$''']
+
+[[allowlists]]
+description = "Existing synthetic preparation public-key thumbprint in PTR observation and update tests"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/release-recovery/test/ptrObservation\.test\.ts$''', '''^services/release-recovery/test/signerPtrObservation\.test\.ts$''', '''^tests/ptrProductionStateObservation\.test\.ts$''', '''^tests/ptrProductionExistingUpdate\.test\.ts$''', '''^tests/ptrProductionExistingUpdateContinuation\.test\.ts$''']
+regexes = ['''^zbHwk528B5de5kuNzI98k4Y-rljmW6fbkH-aVZomk4M$''']
+
+[[allowlists]]
+description = "Existing synthetic preparation public-key thumbprint in G002 observation tests"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^services/release-recovery/test/g002UpdateObservation\.test\.ts$''', '''^services/release-recovery/test/signerG002UpdateObservation\.test\.ts$''', '''^services/release-recovery/test-workerd/g002UpdateObservation\.test\.ts$''']
 regexes = ['''^zbHwk528B5de5kuNzI98k4Y-rljmW6fbkH-aVZomk4M$''']
 
 [[allowlists]]

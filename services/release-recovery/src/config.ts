@@ -63,7 +63,30 @@ export const RECOVERY_REALM_BINDING_PROJECTION_KEYS = Object.freeze([
   'ptrVerificationDigest',
 ] as const)
 
-export type RecoveryRealmBindingProjection = Readonly<{
+export const RECOVERY_REALM_BINDING_PROJECTION_KEYS_V4 = Object.freeze([
+  ...RECOVERY_REALM_BINDING_PROJECTION_KEYS,
+  'ptrStateEvidenceProfile', 'ptrExistingStateAdoptionReceiptDigest',
+  'ptrExpectedSealedStateHmacSha256', 'ptrExpectedOwnerInvariantHmacSha256',
+] as const)
+
+export const RECOVERY_REALM_BINDING_PROJECTION_KEYS_V5 = Object.freeze([
+  ...RECOVERY_REALM_BINDING_PROJECTION_KEYS_V4,
+  'g002StateEvidenceProfile', 'g002ExistingStateAdoptionReceiptDigest',
+  'g002ExpectedSealedStateHmacSha256',
+] as const)
+
+/** Choose a shape without invoking a caller-owned discriminator accessor. */
+export function recoveryRealmBindingProjectionKeys(value: unknown,
+  code = 'RECOVERY_REALM_BINDING_INVALID'): readonly string[] {
+  try {
+    if (value === null || typeof value !== 'object') githubFail(code)
+    return Object.hasOwn(value, 'g002StateEvidenceProfile') ? RECOVERY_REALM_BINDING_PROJECTION_KEYS_V5
+      : Object.hasOwn(value, 'ptrStateEvidenceProfile')
+      ? RECOVERY_REALM_BINDING_PROJECTION_KEYS_V4 : RECOVERY_REALM_BINDING_PROJECTION_KEYS
+  } catch { githubFail(code) }
+}
+
+type RecoveryRealmBindingBase = Readonly<{
   requestId: string
   authorizationMode: 'recovery-authorization-v1'
   recoveryAuthorizationProfile: 'warpkeep-0.4.0-recovery-authorization-v1'
@@ -114,6 +137,16 @@ export type RecoveryRealmBindingProjection = Readonly<{
   ptrVerificationDigest: string
 }>
 
+type PtrAdoptionBinding = Readonly<{ ptrStateEvidenceProfile: 'warpkeep-ptr-existing-state-adoption-v1';
+    ptrExistingStateAdoptionReceiptDigest: string; ptrExpectedSealedStateHmacSha256: string;
+    ptrExpectedOwnerInvariantHmacSha256: string }>
+export type RecoveryRealmBindingProjection = RecoveryRealmBindingBase | (RecoveryRealmBindingBase & PtrAdoptionBinding) | (
+  RecoveryRealmBindingBase & PtrAdoptionBinding & Readonly<{
+    g002StateEvidenceProfile: 'warpkeep-g002-existing-state-adoption-v1';
+    g002ExistingStateAdoptionReceiptDigest: string; g002ExpectedSealedStateHmacSha256: string;
+  }>
+)
+
 export type RecoveryArmingTuple = RecoveryRealmBindingProjection & Readonly<{
   bindingPath: 'config/releases/0.4.0-sealed-launch.json'
   workflowPath: '.github/workflows/deploy-pages.yml'
@@ -137,7 +170,8 @@ export function snapshotRecoveryRealmBindingProjection(
   value: unknown,
   code = 'RECOVERY_REALM_BINDING_INVALID',
 ): RecoveryRealmBindingProjection {
-  const source = snapshotExactDataObject(value, RECOVERY_REALM_BINDING_PROJECTION_KEYS, code)
+  const keys = recoveryRealmBindingProjectionKeys(value, code)
+  const source = snapshotExactDataObject(value, keys, code)
   const digestKeys = [
     'bridgeConfigIdentity', 'sourceClosureSha256',
     'recoveryAuthorizationCoreSha256', 'genesis001Database',
@@ -195,6 +229,17 @@ export function snapshotRecoveryRealmBindingProjection(
     || !RECOVERY_PUBLIC_APPROVAL_RECEIPT_ID.test(source.ptrPublicApprovalReceiptId)
     || !commit(source.ptrAtlasSourceCommit)
   ) githubFail(code)
+  if ((keys === RECOVERY_REALM_BINDING_PROJECTION_KEYS_V4 || keys === RECOVERY_REALM_BINDING_PROJECTION_KEYS_V5) && (
+    source.ptrStateEvidenceProfile !== 'warpkeep-ptr-existing-state-adoption-v1'
+    || !sha(source.ptrExistingStateAdoptionReceiptDigest)
+    || !sha(source.ptrExpectedSealedStateHmacSha256)
+    || !sha(source.ptrExpectedOwnerInvariantHmacSha256)
+  )) githubFail(code)
+  if (keys === RECOVERY_REALM_BINDING_PROJECTION_KEYS_V5 && (
+    source.g002StateEvidenceProfile !== 'warpkeep-g002-existing-state-adoption-v1'
+    || !sha(source.g002ExistingStateAdoptionReceiptDigest)
+    || !sha(source.g002ExpectedSealedStateHmacSha256)
+  )) githubFail(code)
   return Object.freeze({ ...source }) as RecoveryRealmBindingProjection
 }
 
@@ -202,10 +247,11 @@ export function snapshotRecoveryArmingTuple(
   value: unknown,
   code = 'RECOVERY_REALM_BINDING_INVALID',
 ): RecoveryArmingTuple {
-  const keys = [...RECOVERY_REALM_BINDING_PROJECTION_KEYS, 'bindingPath', 'workflowPath'] as const
+  const projectionKeys = recoveryRealmBindingProjectionKeys(value, code)
+  const keys = [...projectionKeys, 'bindingPath', 'workflowPath'] as const
   const source = snapshotExactDataObject(value, keys, code)
   const projection: Record<string, unknown> = Object.create(null)
-  for (const key of RECOVERY_REALM_BINDING_PROJECTION_KEYS) projection[key] = source[key]
+  for (const key of projectionKeys) projection[key] = source[key]
   const binding = snapshotRecoveryRealmBindingProjection(projection, code)
   if (
     source.bindingPath !== RECOVERY_BINDING_PATH
@@ -223,7 +269,10 @@ export function recoveryRealmBindingProjectionFromArmed(
   code = 'RECOVERY_REALM_BINDING_INVALID',
 ): RecoveryRealmBindingProjection {
   const projection: Record<string, unknown> = Object.create(null)
-  for (const key of RECOVERY_REALM_BINDING_PROJECTION_KEYS) projection[key] = armed[key]
+  const source = snapshotRecoveryArmingTuple(armed, code)
+  for (const key of recoveryRealmBindingProjectionKeys(source, code)) {
+    projection[key] = (source as unknown as Readonly<Record<string, unknown>>)[key]
+  }
   return snapshotRecoveryRealmBindingProjection(projection, code)
 }
 export type GitHubAppEnvironment=Readonly<{GITHUB_APP_ID:string;GITHUB_APP_INSTALLATION_ID:string;GITHUB_APP_PRIVATE_KEY_PEM:string}>

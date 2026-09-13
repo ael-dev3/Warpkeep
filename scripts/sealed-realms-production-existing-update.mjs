@@ -1,4 +1,4 @@
-import { createPtrProductionExistingUpdateAdapter, isPtrProductionExistingUpdateAdapter } from './ptr-production-existing-update-adapter.mjs';
+import { createPtrProductionExistingUpdateAdapter, isPtrProductionExistingUpdateAdapter, createG002ProductionExistingUpdateAdapter, isG002ProductionExistingUpdateAdapter } from './ptr-production-existing-update-adapter.mjs';
 import { randomBytes } from 'node:crypto';
 import { lstatSync, realpathSync } from 'node:fs';
 import { readSyntheticNetworkIdentity } from './sealed-realms-synthetic-network.mjs';
@@ -78,7 +78,15 @@ function claimArguments(request) {
 }
 
 /** Requires genuine source, private-state and internally built artifact capabilities. */
-export function createSealedRealmsProductionExistingUpdateAdapter(input) { return createPtrProductionExistingUpdateAdapter(input); }
+export function createSealedRealmsProductionExistingUpdateAdapter(value) {
+  const options = input(value, ['authority', 'privateState', 'artifact', 'observation']);
+  // Read the operation only after its source capability has been authenticated.
+  sourceCommitFromSealedRealmsProductionAuthority(options.authority);
+  if (['g002-update-inspect', 'g002-update-apply'].includes(options.authority.operation)) {
+    return createG002ProductionExistingUpdateAdapter(options);
+  }
+  return createPtrProductionExistingUpdateAdapter(options);
+}
 
 /** Real protocol on an isolated loopback fixture. Never a production receipt producer. */
 export function createSyntheticExistingUpdateAdapter(value) {
@@ -402,6 +410,7 @@ export function createSyntheticExistingUpdateAdapter(value) {
 }
 export function assertSealedRealmsExistingUpdateAdapter(adapter, lane) {
   if (lane === 'ptr' && isPtrProductionExistingUpdateAdapter(adapter)) return adapter;
+  if (lane === 'g002' && isG002ProductionExistingUpdateAdapter(adapter)) return adapter;
   if (!adapters.has(adapter) || adapters.get(adapter).lane !== lane) fail('ADAPTER_INVALID');
   return adapter;
 }

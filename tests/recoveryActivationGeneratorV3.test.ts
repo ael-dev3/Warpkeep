@@ -8,6 +8,7 @@ import { createSealedRealmsProductionAuthBridgeStateTestCapability } from "../sc
 import { recoveryOperationAuthority } from "./fixtures/recoveryActivationBridge.js";
 import {
   createRecoveryLaunchActivationBindingFromEvidence,
+  generateRecoveryLaunchActivationBindingFromDescriptor,
   validateRecoveryLaunchActivationProjection,
 } from "../scripts/generate-0.4.0-recovery-launch-activation.mjs";
 import { ptrV3ActivationFixture } from "./fixtures/ptrV3ActivationFixture.js";
@@ -81,6 +82,54 @@ it("preserves exact V2 binding bytes after real corpus and bridge validation", (
       ),
     ),
   );
+});
+
+it.each([2, 3])('does not silently ignore adoption evidence while validating a legacy V%s corpus', version => {
+  const { envelope, bridge } = fixture(version);
+  expect(() => validateRecoveryLaunchActivationProjection(envelope, bridge, NOW, {} as never)).toThrow();
+});
+it.each([2, 3])('does not ignore G002 adoption evidence while validating a legacy V%s corpus', version => {
+  const { envelope, bridge } = fixture(version);
+  expect(() => validateRecoveryLaunchActivationProjection(envelope, bridge, NOW, undefined, {} as never)).toThrow();
+});
+it('requires both owned capabilities for V5 raw descriptor data', () => {
+  const { envelope, bridge } = fixture(3);
+  envelope.schemaVersion = 5;
+  envelope.profile = 'warpkeep-0.4.0-recovery-activation-evidence-g002-ptr-adoption-v1';
+  for (const [ptr, g002] of [[undefined, undefined], [{}, undefined], [undefined, {}], [{}, {}],
+    [{ preObservationJws: 'untrusted' }, { postObservationJws: 'untrusted' }]]) {
+    expect(() => validateRecoveryLaunchActivationProjection(envelope, bridge, NOW, ptr as never, g002 as never)).toThrow();
+  }
+});
+
+it('rejects raw V4 descriptor data and a forged adoption capability before generating a binding', () => {
+  const { envelope, bridge } = fixture(3);
+  envelope.schemaVersion = 4;
+  envelope.profile = 'warpkeep-0.4.0-recovery-activation-evidence-ptr-adoption-v1';
+  for (const evidence of [undefined, {}, Object.freeze({}), { preObservationJws: 'untrusted', postObservationJws: 'untrusted' }]) {
+    expect(() => validateRecoveryLaunchActivationProjection(envelope, bridge, NOW, evidence as never)).toThrow();
+  }
+});
+
+it('rejects a supplied adoption capability on the actual legacy generator before reading a bridge member', () => {
+  const { envelope } = fixture(3);
+  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(NOW));
+  try {
+    const bootstrap = envelope.g001PolicyObservationBootstrapReceipt;
+    expect(() => createRecoveryLaunchActivationBindingFromEvidence(envelope, {} as never,
+      recoveryOperationAuthority('activation-evidence-generate'), {
+        capability: createSealedRealmsProductionAuthBridgeStateTestCapability(),
+        facts: { preparationSourceCommit: envelope.bindingCandidate.preparationSourceCommit,
+          moduleTreeId: bootstrap.moduleTreeId, bootstrapBlob: bootstrap.bootstrapBlob,
+          bootstrapSha256: bootstrap.bootstrapSha256 },
+      }, {} as never)).toThrow('RECOVERY_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
+  } finally { vi.useRealTimers(); }
+});
+
+it('does not allow adoption input to bypass the private descriptor file boundary', () => {
+  expect(() => generateRecoveryLaunchActivationBindingFromDescriptor(-1, {} as never,
+    recoveryOperationAuthority('activation-evidence-generate'), undefined, {} as never))
+    .toThrow('RECOVERY_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
 });
 
 it.each(["source", "import", "time"] as const)(

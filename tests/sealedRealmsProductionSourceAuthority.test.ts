@@ -123,6 +123,7 @@ describe('sealed-realms production source authority', () => {
       'g002-update-apply',
       'ptr-update-inspect',
       'ptr-update-apply',
+      'ptr-state-inspect',
     ]);
   });
 

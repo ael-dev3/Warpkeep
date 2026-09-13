@@ -38,6 +38,8 @@ const PTR_OPERATOR_MEMBERS = Object.freeze([
   'scripts/ptr-production-publisher.mjs',
   'scripts/ptr-production-receipt-file.ts',
   'scripts/ptr-production-release-receipts.ts',
+  'scripts/ptr-production-state-observation.d.mts',
+  'scripts/ptr-production-state-observation.mjs',
   'scripts/ptr-production-transport.ts',
 ]);
 

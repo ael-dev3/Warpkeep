@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import {
   closeSync,
   constants as fsConstants,
@@ -8,7 +9,7 @@ import {
   readSync,
   realpathSync,
 } from 'node:fs';
-import { registerHooks } from 'node:module';
+import { createRequire, registerHooks } from 'node:module';
 import {
   dirname,
   isAbsolute,
@@ -66,6 +67,15 @@ const GAMEPLAY04_SHARED_SOURCE_MEMBER_PATHS = new Set([
   'spacetimedb/gameplay04/workerState.ts',
   'spacetimedb/gameplay04/workers.ts',
 ]);
+// Exact verifier dependencies reached by the PTR observation entrypoint.
+const PTR_OBSERVATION_SHARED_SOURCE_MEMBER_PATHS = new Set([
+  'services/release-recovery/src/config.ts',
+  'services/release-recovery/src/crypto.ts',
+  'services/release-recovery/src/http.ts',
+  'services/release-recovery/src/protocol.ts',
+  'services/release-recovery/src/ptrObservation.ts',
+  'services/release-recovery/src/recoveryPublicKey.ts',
+]);
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
 const MAX_MANIFEST_BYTES = 256 * 1_024;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
@@ -85,6 +95,25 @@ const authenticatedSourceClosureAuthorities = new WeakSet();
 const authenticatedSourceClosureRawMemberDigests = new WeakMap();
 let activeAttestedModuleLoad;
 let attestedModuleLoadHookRegistered = false;
+// Only load-hook-observed source owns a cache entry. Disk hashes alone cannot
+// authenticate an ESM dependency which another caller evaluated beforehand.
+const ownedAttestedModuleDigests = new Map();
+const recoveryClosureReaders = new Map();
+const RECOVERY_CLOSURE_READER_MEMBERS = Object.freeze([
+  'scripts/recovery-attestation-source.mjs',
+  'scripts/recovery-activation-candidate.mjs',
+  'scripts/recovery-binding-projection.mjs',
+  'scripts/local-binding-bounded-file.mjs',
+]);
+const RECOVERY_CLOSURE_READER_EDGES = new Map([
+  ['scripts/recovery-attestation-source.mjs', new Map([
+    ['./recovery-activation-candidate.mjs', 'scripts/recovery-activation-candidate.mjs'],
+    ['./local-binding-bounded-file.mjs', 'scripts/local-binding-bounded-file.mjs'],
+  ])],
+  ['scripts/recovery-activation-candidate.mjs', new Map([
+    ['./recovery-binding-projection.mjs', 'scripts/recovery-binding-projection.mjs'],
+  ])],
+]);
 const BOOTSTRAP_PIN_CANONICAL_VALUE = '0'.repeat(64);
 const BOOTSTRAP_PIN_BINDINGS = Object.freeze([
   Object.freeze({
@@ -203,6 +232,9 @@ const REVIEWED_RELEASE_PHASE_IDENTITIES = new Map([
   // admissions, and notifications remain off while exact sealed receipts bind
   // the distinct, zero-population Genesis 002 database.
   ['FF|FFFF|FF|FF|0|0|NNNN|P', ACTIVE_CLIENT_RELEASE_STATE],
+  // Recovery authenticates the exact committed three-file S→A transition and
+  // normalizes only its binding to the unchanged, inert preparation bytes.
+  ['FF|FFFF|FF|FF|0|0|NNNN|R', ACTIVE_CLIENT_RELEASE_STATE],
 ]);
 
 function expectedMemberDigestProfile(memberPath) {
@@ -287,6 +319,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/auth-bridge-notification-b0-deploy-journal.mjs',
     'scripts/auth-bridge-notification-b0-deploy.d.mts',
     'scripts/auth-bridge-notification-b0-deploy.mjs',
+    'scripts/auth-bridge-notification-prepared-b0-source.d.mts',
+    'scripts/auth-bridge-notification-prepared-b0-source.mjs',
     'scripts/auth-bridge-notification-prepared-cloudflare-runtime.d.mts',
     'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',
     'scripts/auth-bridge-notification-prepared-deploy-adapter.d.mts',
@@ -518,6 +552,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/ptr-production-publisher.mjs',
     'scripts/ptr-production-receipt-file.ts',
     'scripts/ptr-production-release-receipts.ts',
+    'scripts/ptr-production-state-observation.d.mts',
+    'scripts/ptr-production-state-observation.mjs',
     'scripts/ptr-production-transport.ts',
     'scripts/ptr-update-definition-policy.d.mts',
     'scripts/ptr-update-definition-policy.mjs',
@@ -691,6 +727,12 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'services/auth-bridge/vitest.workerd.config.ts',
     'services/auth-bridge/wrangler.toml',
     'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs',
+    'services/release-recovery/src/config.ts',
+    'services/release-recovery/src/crypto.ts',
+    'services/release-recovery/src/http.ts',
+    'services/release-recovery/src/protocol.ts',
+    'services/release-recovery/src/ptrObservation.ts',
+    'services/release-recovery/src/recoveryPublicKey.ts',
     'spacetimedb/gameplay04/commands.ts',
     'spacetimedb/gameplay04/construction.ts',
     'spacetimedb/gameplay04/keep.ts',
@@ -1475,6 +1517,7 @@ function permittedMemberPath(memberPath) {
   return typeof memberPath === 'string'
     && (MEMBER_PATH.test(memberPath)
       || GAMEPLAY04_SHARED_SOURCE_MEMBER_PATHS.has(memberPath)
+      || PTR_OBSERVATION_SHARED_SOURCE_MEMBER_PATHS.has(memberPath)
       || memberPath === 'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs')
     && (!memberPath.startsWith('spacetimedb/ptr/')
       || PTR_MODULE_MEMBER_PATH.test(memberPath)
@@ -1648,9 +1691,27 @@ function moduleSourceBody(source) {
 function ensureAttestedModuleLoadHook() {
   if (attestedModuleLoadHookRegistered) return;
   registerHooks({
-    load(url, context, nextLoad) {
-      const result = nextLoad(url, context);
+    resolve(specifier, context, nextResolve) {
       const active = activeAttestedModuleLoad;
+      if (active?.virtualMemberPaths === undefined || specifier.startsWith('node:')) {
+        return nextResolve(specifier, context);
+      }
+      const parentMember = active.virtualMemberPaths.get(context.parentURL);
+      const memberPath = context.parentURL === active.readerOrigin
+        && specifier === './recovery-attestation-source.mjs'
+        ? RECOVERY_CLOSURE_READER_MEMBERS[0]
+        : RECOVERY_CLOSURE_READER_EDGES.get(parentMember)?.get(specifier);
+      if (memberPath === undefined) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_PATH_INVALID');
+      return { url: active.virtualMemberUrls.get(memberPath), format: 'module', shortCircuit: true };
+    },
+    load(url, context, nextLoad) {
+      const active = activeAttestedModuleLoad;
+      const virtualMemberPath = active?.virtualMemberPaths?.get(url);
+      const result = virtualMemberPath === undefined ? nextLoad(url, context) : {
+        format: 'module', shortCircuit: true,
+        source: readMember(active.repositoryRoot, virtualMemberPath,
+          'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_INVALID'),
+      };
       if (active === undefined) return result;
       if (url.startsWith('node:')) return result;
       let moduleUrl;
@@ -1670,7 +1731,7 @@ function ensureAttestedModuleLoadHook() {
           || difference.startsWith(`..${sep}`)
           || isAbsolute(difference)
         ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_PATH_INVALID');
-        memberPath = difference.split(sep).join('/');
+        memberPath = virtualMemberPath ?? difference.split(sep).join('/');
       } catch (error) {
         if (error instanceof AuthBridgeNotificationPreparedDeployClosureError) {
           throw error;
@@ -1687,6 +1748,7 @@ function ensureAttestedModuleLoadHook() {
         fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_DIGEST_MISMATCH');
       }
       active.observedMemberPaths.add(memberPath);
+      ownedAttestedModuleDigests.set(url, expectedDigest);
       return { ...result, source: body };
     },
   });
@@ -1798,6 +1860,138 @@ function projectSealedLaunchBinding(body) {
   });
 }
 
+function committedRecoveryManifest(repository, manifestSha256) {
+  const nullFile = process.platform === 'win32' ? 'NUL' : '/dev/null';
+  const env = { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot,
+    GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: nullFile, GIT_CONFIG_SYSTEM: nullFile,
+    GIT_NO_REPLACE_OBJECTS: '1', GIT_GRAFT_FILE: nullFile, GIT_TERMINAL_PROMPT: '0' };
+  const git = args => {
+    const result = spawnSync(process.platform === 'win32' ? 'git' : '/usr/bin/git',
+      ['--no-pager', '-c', 'core.fsmonitor=false', ...args], {
+      cwd: repository, env, windowsHide: true, encoding: 'buffer',
+      timeout: 10000, maxBuffer: 2 * 1024 * 1024,
+    });
+    if (result.error || result.status !== 0) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RECOVERY_SOURCE_INVALID');
+    }
+    return result.stdout;
+  };
+  const line = args => reviewedReleaseSource(git(args)).trimEnd();
+  const head = line(['rev-parse', '--verify', 'HEAD^{commit}']);
+  const path = AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH;
+  if (!/^[a-f0-9]{40}$/u.test(head)
+      || realpathSync(line(['rev-parse', '--show-toplevel'])) !== repository
+      || !new RegExp(`^100644 blob [a-f0-9]{40}\\t${path.replaceAll('.', '\\.')}$`, 'u')
+        .test(line(['ls-tree', head, '--', path]))
+      || sha256Body(git(['show', `${head}:${path}`])) !== manifestSha256) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RECOVERY_SOURCE_INVALID');
+  }
+  return head;
+}
+
+function recoveryClosureSource(repository, manifest, manifestSha256, memberBodies) {
+  let binding;
+  try { binding = JSON.parse(reviewedReleaseSource(memberBodies.get(REVIEWED_RELEASE_SOURCE_PATHS.sealedLaunchBinding))); }
+  catch { fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID'); }
+  if (binding?.schemaVersion === 1) return undefined;
+  if (![2, 3, 4, 5].includes(binding?.schemaVersion)) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID');
+  }
+  // Before evaluating any recovery helper, anchor the manifest to the actual
+  // committed checkout and verify every RAW member against that manifest.
+  // A self-consistent dirty manifest/helper substitution is never executable.
+  const head = committedRecoveryManifest(repository, manifestSha256);
+  const rawMemberDigests = new Map(manifest.members
+    .filter(member => member.digestProfile === RAW_FILE_DIGEST_PROFILE)
+    .map(member => [member.path, member.sha256]));
+  for (const [path, digest] of rawMemberDigests) {
+    if (sha256Body(memberBodies.get(path)) !== digest) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH');
+    }
+  }
+  const readerDigests = new Map(RECOVERY_CLOSURE_READER_MEMBERS.map(path => {
+    const digest = rawMemberDigests.get(path);
+    if (digest === undefined) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_UNATTESTED');
+    return [path, digest];
+  }));
+  // A distinct virtual pathname (not a URL query) isolates Node's require(ESM)
+  // cache from ordinary imports in the Linux preflight bootstrap. Nothing is
+  // materialized there; only the fixed hook can serve these exact source bytes.
+  const virtualMemberUrls = new Map(RECOVERY_CLOSURE_READER_MEMBERS.map(path => [path,
+    pathToFileURL(resolve(repository, 'scripts/.warpkeep-prepared-recovery-reader-v1', path.slice('scripts/'.length))).href]));
+  const virtualMemberPaths = new Map([...virtualMemberUrls].map(([path, url]) => [url, path]));
+  ensureAttestedModuleLoadHook();
+  if (activeAttestedModuleLoad !== undefined) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_LOAD_BUSY');
+  let reader = recoveryClosureReaders.get(repository);
+  if (reader === undefined) {
+    activeAttestedModuleLoad = { repositoryRoot: repository, rawMemberDigests: readerDigests,
+      observedMemberPaths: new Set(), virtualMemberUrls, virtualMemberPaths,
+      readerOrigin: pathToFileURL(resolve(repository, 'scripts/auth-bridge-notification-prepared-deploy-closure.mjs')).href };
+    try {
+      const require = createRequire(pathToFileURL(resolve(repository,
+        'scripts/auth-bridge-notification-prepared-deploy-closure.mjs')));
+      reader = require('./recovery-attestation-source.mjs');
+    } finally { activeAttestedModuleLoad = undefined; }
+  }
+  for (const [path, digest] of readerDigests) {
+    if (ownedAttestedModuleDigests.get(virtualMemberUrls.get(path)) !== digest) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_NOT_LOADED');
+    }
+  }
+  recoveryClosureReaders.set(repository, reader);
+  const readSnapshot = () => {
+    try {
+      const snapshot = reader.readRecoveryPreparedClosureSource(repository);
+      if (snapshot.identity.candidateCommit !== head
+          || snapshot.bindingSource !== reviewedReleaseSource(memberBodies.get(REVIEWED_RELEASE_SOURCE_PATHS.sealedLaunchBinding))) {
+        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RECOVERY_SOURCE_INVALID');
+      }
+      return snapshot;
+    } catch { fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RECOVERY_SOURCE_INVALID'); }
+  };
+  const snapshot = readSnapshot();
+  return Object.freeze({ snapshot, revalidate() {
+    if (committedRecoveryManifest(repository, manifestSha256) !== head
+        || JSON.stringify(readSnapshot()) !== JSON.stringify(snapshot)) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RECOVERY_SOURCE_INVALID');
+    }
+    // Reopen every source member, including projected workflow/package bytes,
+    // so neither cached imports nor late index flags can conceal replacement.
+    for (const [path, expected] of memberBodies) {
+      const body = readMember(repository, path, 'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_INVALID');
+      try {
+        if (!body.equals(expected)) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH');
+      } finally { body.fill(0); }
+    }
+    const body = readMember(repository, AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH,
+      'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
+    try {
+      if (sha256Body(body) !== manifestSha256) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH');
+    } finally { body.fill(0); }
+    if (committedRecoveryManifest(repository, manifestSha256) !== head
+        || JSON.stringify(readSnapshot()) !== JSON.stringify(snapshot)) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RECOVERY_SOURCE_INVALID');
+    }
+  } });
+}
+
+function projectRecoverySealedLaunchBinding(body, recoverySource) {
+  if (recoverySource === undefined) return projectSealedLaunchBinding(body);
+  const { snapshot } = recoverySource;
+  if (reviewedReleaseSource(body) !== snapshot.bindingSource) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RECOVERY_SOURCE_INVALID');
+  }
+  const parentBody = Buffer.from(snapshot.preparationBindingSource, 'utf8');
+  try {
+    const projection = projectSealedLaunchBinding(parentBody);
+    if (projection.state !== 'N' || !projection.body.equals(parentBody)) {
+      projection.body.fill(0);
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RECOVERY_SOURCE_INVALID');
+    }
+    return Object.freeze({ body: projection.body, state: 'R' });
+  } finally { parentBody.fill(0); }
+}
+
 function exactClientReleaseState(values, inertValue, activeValue) {
   if (values.length < 1 || values.some(value => value !== values[0])) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID');
@@ -1807,7 +2001,7 @@ function exactClientReleaseState(values, inertValue, activeValue) {
   fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID');
 }
 
-function canonicalReviewedReleaseMemberBodies(memberBodies) {
+function canonicalReviewedReleaseMemberBodies(memberBodies, recoverySource) {
   const body = role => {
     const member = memberBodies.get(REVIEWED_RELEASE_SOURCE_PATHS[role]);
     if (member === undefined) {
@@ -2015,7 +2209,7 @@ function canonicalReviewedReleaseMemberBodies(memberBodies) {
   );
   const sealedLaunchBinding = record(
     'sealedLaunchBinding',
-    projectSealedLaunchBinding(body('sealedLaunchBinding')),
+    projectRecoverySealedLaunchBinding(body('sealedLaunchBinding'), recoverySource),
   );
 
   const phaseKey = [
@@ -2151,10 +2345,10 @@ function rewritePinnedWorkflowBody(memberPath, body, finalPins) {
   return Buffer.from(rewritten, 'utf8');
 }
 
-function canonicalManifestMembers(memberBodies, workflowPinValues) {
+function canonicalManifestMembers(memberBodies, workflowPinValues, recoverySource) {
   let releaseBodies;
   try {
-    releaseBodies = canonicalReviewedReleaseMemberBodies(memberBodies);
+    releaseBodies = canonicalReviewedReleaseMemberBodies(memberBodies, recoverySource);
     const members = [];
     for (const memberPath of AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS) {
       const releaseBody = releaseBodies.get(memberPath);
@@ -2368,13 +2562,16 @@ export function verifyAuthBridgeNotificationPreparedDeployClosure({
         throw error;
       }
     }
+    const recoverySource = recoveryClosureSource(repository, manifest, manifestSha256, memberBodies);
     const expectedMembers = canonicalManifestMembers(
       memberBodies,
       expectedPinsByWorkflow,
+      recoverySource,
     );
     if (JSON.stringify(expectedMembers) !== JSON.stringify(manifest.members)) {
       fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH');
     }
+    recoverySource?.revalidate();
   } finally {
     for (const body of memberBodies.values()) body.fill(0);
   }

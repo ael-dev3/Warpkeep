@@ -114,6 +114,29 @@ export function assertSealedRealmsProductionContinuationClaim(input: Readonly<{
   predecessorDigests: readonly string[];
 }>): true;
 
+/** Retained data snapshot, not an effect permit or a reusable claim capability. */
+export type SealedRealmsProductionContinuationClaimBinding = Readonly<{
+  scopeDigest: string;
+  issuedRecordDigest: string;
+  claimRecordDigest: string;
+  sourceCommit: string;
+  sourceAuthorityDigest: string;
+  kind: SealedRealmsProductionContinuationKind;
+  subject: string;
+  evidenceDigest: string;
+  receiptDigests: readonly string[];
+  predecessorDigests: readonly string[];
+  claimRunId: string;
+  claimRunAttempt: number;
+  claimedAt: string;
+  expiresAt: string;
+}>;
+
+/** Requires the exact live claim during its direct synchronous callback. */
+export function readSealedRealmsProductionContinuationClaimBinding(
+  input: Parameters<typeof assertSealedRealmsProductionContinuationClaim>[0],
+): SealedRealmsProductionContinuationClaimBinding;
+
 export function assertSealedRealmsProductionContinuationReconciliation(input: Readonly<{
   reconciliation: SealedRealmsProductionContinuationReconciliation;
   store: SealedRealmsProductionContinuationStore;

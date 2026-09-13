@@ -1,15 +1,19 @@
 // @vitest-environment node
 import { execFileSync, spawnSync } from 'node:child_process';
+import childProcess from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, copyFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
+import { recoveryG002PtrAdoptionCandidate } from './fixtures/recoveryG002PtrAdoptionCandidate';
 import { createRecoveryActivationBinding } from '../scripts/recovery-activation-candidate.mjs';
-import { createRecoveryActivationBindingV3 } from '../scripts/recovery-activation-candidate.mjs';
-import { RECOVERY_BINDING_KEYS_V3 } from '../scripts/recovery-binding-projection.mjs';
+import { createRecoveryActivationBindingFromCandidate } from '../scripts/recovery-activation-candidate.mjs';
+import { recoveryBindingKeys } from '../scripts/recovery-binding-projection.mjs';
 import { readRecoveryAttestationSource } from '../scripts/recovery-attestation-source.mjs';
+import * as recoverySource from '../scripts/recovery-attestation-source.mjs';
 import { classifySealedLaunchPagesDeployLane } from '../scripts/verify-0.4.0-sealed-launch.mjs';
 import { SEALED_REALMS_OPERATIONS, SEALED_REALMS_ACTIVATED_OPERATIONS,
   authenticateSealedRealmsProductionSourceAuthority,
@@ -47,7 +51,7 @@ beforeEach(() => {
   commit();
   git('update-ref', 'refs/remotes/origin/main', git('rev-parse', 'HEAD'));
 }, 30000);
-afterEach(() => rmSync(root, { recursive: true, force: true }), 30000);
+afterEach(() => { vi.restoreAllMocks(); syncBuiltinESMExports(); rmSync(root, { recursive: true, force: true }); }, 30000);
 
 it('derives identity from a real committed three-file activation child', () => {
   const result = readRecoveryAttestationSource(root);
@@ -56,15 +60,20 @@ it('derives identity from a real committed three-file activation child', () => {
   expect(result.recoveryAuthorizationCoreSha256).toMatch(/^[a-f0-9]{64}$/);
 });
 
-function commitPtrUpdateBinding() {
+function commitPtrUpdateBinding(version: 3 | 4 | 5 = 3) {
   const path = 'config/releases/0.4.0-sealed-launch.json';
   const values = JSON.parse(readFileSync(join(root, path), 'utf8'));
   for (const key of Object.keys(values)) if (key.endsWith('Commitment')) values[key] = null;
-  Object.assign(values, { schemaVersion: 3, profile: 'warpkeep-0.4.0-sealed-launch-ptr-update-v3',
+  Object.assign(values, { schemaVersion: version, profile: version === 3 ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' : 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4',
     recoveryAuthorizationCoreSha256: null, ptrExistingUpdateReceiptDigest: '9'.repeat(64),
-    ptrExistingUpdateReceiptCommitment: null });
-  const candidate = Object.fromEntries(RECOVERY_BINDING_KEYS_V3.map(key => [key, values[key]]));
-  json(path, createRecoveryActivationBindingV3(`${JSON.stringify(candidate, null, 2)}\n`));
+    ptrExistingUpdateReceiptCommitment: null,
+    ...(version === 4 ? { ptrExistingStateAdoptionReceiptDigest: '8'.repeat(64), ptrExistingStateAdoptionReceiptCommitment: null,
+      ptrSealed: true, ptrPopulationGuardPassed: true, ptrSingletonOwnerCount: 1, ptrGeneralAdmissionCount: 0,
+      ptrExpectedSealedStateHmacSha256: '7'.repeat(64), ptrExpectedOwnerInvariantHmacSha256: '6'.repeat(64) } : {}) });
+  const candidate = Object.fromEntries(recoveryBindingKeys(version).map(key => [key, values[key]]));
+  if (version === 5) Object.assign(candidate, recoveryG002PtrAdoptionCandidate(),
+    Object.fromEntries(['preparationSourceCommit', 'preparationSourceTree', 'g001PolicySourceCommit', 'authBridgeSourceCommit'].map(key => [key, values[key]])));
+  json(path, createRecoveryActivationBindingFromCandidate(`${JSON.stringify(candidate, null, 2)}\n`));
   git('add', path);
   git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--amend', '--no-edit', '--quiet');
   const head = git('rev-parse', 'HEAD');
@@ -72,18 +81,51 @@ function commitPtrUpdateBinding() {
   return head;
 }
 
-it('authenticates a committed update binding and its preparation parent', () => {
-  const head = commitPtrUpdateBinding();
+it.each([3, 4, 5] as const)('authenticates a committed V%s update binding and its preparation parent', version => {
+  const head = commitPtrUpdateBinding(version);
   expect(readRecoveryAttestationSource(root).candidateCommit).toBe(head);
   const verified: string[] = [];
   expect(sourceAuthority('preflight', verified).mode).toBe('A');
   expect(verified).toEqual([git('rev-parse', 'HEAD^'), head]);
 });
+it('returns exact committed activation and inert parent bytes for closure verification', () => {
+  const head = commitPtrUpdateBinding(5);
+  const snapshot = recoverySource.readRecoveryPreparedClosureSource(root);
+  expect(snapshot.identity).toEqual(readRecoveryAttestationSource(root));
+  expect(snapshot.bindingSource).toBe(git('show', `${head}:config/releases/0.4.0-sealed-launch.json`) + '\n');
+  expect(snapshot.preparationBindingSource).toBe(git('show', `${head}^:config/releases/0.4.0-sealed-launch.json`) + '\n');
+  expect(JSON.parse(snapshot.preparationBindingSource)).toMatchObject({ schemaVersion: 1, pagesDeploymentApproved: false });
+  expect(Object.isFrozen(snapshot)).toBe(true);
+});
 
-it.skipIf(process.platform !== 'linux')('routes a committed update binding through the native recovery lane', () => {
-  const head = commitPtrUpdateBinding();
+it('uses actual commit ancestry even when local graft metadata names a different parent', () => {
+  const head = git('rev-parse', 'HEAD');
+  writeFileSync(join(root, '.git/info/grafts'), `${head} ${'a'.repeat(40)}\n`);
+  expect(readRecoveryAttestationSource(root).candidateCommit).toBe(head);
+});
+
+it('rejects an index concealment flag introduced after the initial source check', () => {
+  const original = childProcess.spawnSync;
+  let changed = false;
+  vi.spyOn(childProcess, 'spawnSync').mockImplementation((...args: Parameters<typeof original>) => {
+    const result = original(...args);
+    const arguments_ = args[1];
+    if (!changed && Array.isArray(arguments_) && arguments_.includes('show')) {
+      changed = true;
+      git('update-index', '--assume-unchanged', 'source.js');
+      writeFileSync(join(root, 'source.js'), 'hidden after initial check');
+    }
+    return result;
+  });
+  syncBuiltinESMExports();
+  expect(() => readRecoveryAttestationSource(root)).toThrow('RECOVERY_ATTESTATION_SOURCE_INVALID');
+  expect(changed).toBe(true);
+});
+
+it.skipIf(process.platform !== 'linux').each([3, 4, 5] as const)('routes a committed V%s update binding through the native recovery lane', version => {
+  const head = commitPtrUpdateBinding(version);
   expect(classifySealedLaunchPagesDeployLane({ repositoryRoot: root, candidatePagesSourceCommit: head }))
-    .toEqual({ profile: 'warpkeep-0.4.0-sealed-launch-ptr-update-v3', candidatePagesSourceCommit: head,
+    .toEqual({ profile: version === 5 ? 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5' : version === 3 ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' : 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4', candidatePagesSourceCommit: head,
       mode: 'sealed-g002-recovery' });
 });
 
@@ -116,7 +158,7 @@ it('authenticates genuine V2 Git bytes and both S/A coordinates without widening
   for (const operation of SEALED_REALMS_OPERATIONS.filter(value => !SEALED_REALMS_ACTIVATED_OPERATIONS.includes(value as never))) {
     expect(() => sourceAuthority(operation)).toThrow('SEALED_REALMS_SOURCE_AUTHORITY_A_OPERATION_FORBIDDEN');
   }
-});
+}, 30000);
 
 it.each(['preparationSourceTree', 'preparationSourceCommit', 'recoveryAuthorizationCoreSha256',
   'noncanonical', 'extra-field'])( 'rejects committed V2 binding corruption before Verify: %s', field => {

@@ -1,5 +1,219 @@
 # Warpkeep 0.4 recovery evidence
 
+## G002 and PTR adoption consumers — 2026-09-13
+
+The follow-up on `codex/0.4-g002-existing-state` / PR #245 connects the existing
+G002 producer to activation and recovery. Its fixed completion and adoption
+writers retain genuine signed evidence; the activation runtime authenticates
+both realms before constructing its provider. The separate G002 envelope remains
+schema 1 and the existing PTR envelope remains schema 4.
+
+A new public schema 5 (`warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5`)
+replaces unavailable original G002 publish/import/live claims with the actual
+completed update, module/tool facts and signed atlas/sealed-state evidence.
+The private corpus and bridge suspension receipt have explicit matching V5
+profiles. No G002 gate or import cross-link is manufactured. Dual-adoption bridge
+instances reject initial import, owner-provision and legacy live-evidence paths.
+The notification-enabled flag is omitted because these signed observations do
+not prove notification configuration. Schemas 2–4 retain their existing formats
+and commitment domains; their continued support is checked independently.
+
+The two retained proofs must agree on source/tree and signed bridge configuration
+and authorization epochs. Both must belong to the same private-state owner.
+The bridge deployment attestation establishes source/version and PTR database
+binding; it does not independently expose configuration identity or epochs.
+The recovery receiver checks those coordinates against freshly observed state
+and requires the adopted G002 sealed-state HMAC alongside the existing PTR
+sealed-state and owner HMACs. Existing G001 preservation and admission safeguards
+remain enforced. The durable V2 ledger retains the exact extended projection;
+legacy storage continues to reject unsupported projections. No new JWS, ledger
+storage version, realm RPC or mutation authority was introduced.
+
+Component verification before publication:
+
+- Root bridge, activation-runtime and bridge-facts suites: 134 passed in three
+  suites (137.41s). New runtime cases prove G002 authentication finishes before
+  provider/preparation access; missing PTR and failed authentication fail closed.
+- Public projection, candidate, generator and consumer suites: 1,165 passed with
+  14 expected Windows platform skips. Published V4 canonical document/core
+  vectors and existing V3 vectors remain unchanged. The actual immutable Git
+  source/activation case passed separately; prepared Linux CLI acceptance is pending.
+- Recovery service: 414 cases in seven suites passed. Real Workerd durable-ledger
+  coverage passed all 16 cases, including V5 issue, eviction, claim and JWS erasure.
+  The source/artifact receiver consumes actual generated V5 ZIP/tar inputs and
+  rejects unsafe G002 fields even when their commitments are recomputed.
+- Root, service and Workerd type checks passed. All 11 actual operation-bundle
+  graph cases passed. Independent bridge/workflow, public-consumer and service
+  reviews confirmed capability reopening across asynchronous boundaries and the
+  distinction between retained signed scope and fresh provider facts.
+
+The joined private-store test reproduced two concrete defects: an adopted bridge
+could still create an initial G002 import gate, and raw V5 corpus validation could
+combine capabilities authenticated through different private-state owners.
+The fixes reject both paths without creating historical receipts or weakening
+legacy profile validation. The genuine joined Windows case passed (24.95s): signed
+dual history, real private bridge receipt, corpus/candidate and public projection
+validate together; mixed owners and changed retained evidence reject. Windows
+uses the existing explicit platform relaxation. The POSIX descriptor generator
+and completed-generation restart are exercised separately on Linux; no platform
+bypass was added.
+
+Runtime source `7e7aa9b19c34b13daefcd707edbba8b260f7cb07` and scanner follow-up
+`d71b53e7886416c69cda525b3936429f3894098b` are published in PR #245; the latter's
+tree is `b9fcfce7f4b620ec3de9f102cd342af285c275b9`. The full outgoing range passed
+Gitleaks before a normal push, and GitHub equality and a clean active Windows
+checkout were verified. The scanner had classified the public field name
+`g002PublishReceiptDigest` as a credential at three selectors. The exact
+rule/value/path exceptions accept 48 reviewed public fixtures while all 95
+mandatory hostile mutations/copies still trigger. All seven owning scanner
+regressions and the affected type check passed. No ignore fingerprint or broad
+path exception was added.
+
+Native synchronization initially fetched only `main`, because that checkout's
+existing remote refspec is intentionally narrow. Fetching the explicit published
+development branch resolved the absent-object error without changing Git
+configuration. The clean idle native checkout then moved to exact `d71b53e7`,
+preserving RunnerService. Native session `28187` completed with exit zero
+(terminal `72cbef`): all 1,459 cases in 19 owning suites passed without skips in
+688.56s. This includes genuine V4/V5 POSIX descriptor generation, lost-response
+recovery and restarted adoption readers. Windows session `29078` also completed
+with exit zero (terminal `4041b6`): 122 passed with 15 expected platform skips
+in four continuation, G002 lifecycle and legacy V2/V3 record suites (1104.20s).
+Its final type and diff checks passed. Neither handle remains active.
+
+A later actual-caller review found a separate delivery defect: the prepared
+closure CLI accepted only V1 sealed-launch projection, while Pages recovery and
+Linux operation preflight invoke it on activated V2–V5 source. The correction
+authenticates the exact committed three-file preparation-to-activation transition
+and uses the actual inert parent binding, preserving preparation manifest identity.
+Ordinary map derivation still cannot claim recovery ancestry.
+
+The builtin-only bootstrap anchors the manifest to committed HEAD and verifies
+all RAW members before evaluating the fixed recovery reader. A private virtual
+file namespace isolates all four reader modules from legitimate cached imports
+in the Linux preflight caller; it creates no filesystem files. Previously
+injected virtual entry/transitive modules cannot acquire owned load provenance.
+The graph policy traverses exactly one literal require and rejects substitutions,
+duplicates or removal. POSIX reads use `/usr/bin/git` with graft/replacement and
+ambient configuration overrides disabled. Final source, index, manifest and
+all-member checks precede closure authority. The existing identity-only reader
+API remains compatible; its added snapshot API returns data, not authority.
+
+Before publication, the V1 control and genuine V5 Git/CLI fixture passed on
+Windows (`97542`, two selected cases, 69.1s including fixture setup). Windows
+uses an explicit metadata-only seam; this is not native POSIX acceptance. The
+new snapshot first failed because its export was absent, then passed after the
+implementation. Application types passed (`3a2b66`), and independent production
+review found no actionable issue. Full CLI selection `31027` then passed all
+13 selected cases (terminal `313467`, 127.09s), including V2–V5, ordinary helper
+preload, owned reuse, injected transitive cache, substituted code and invalid
+profile/core/package cases. Independent current-source graph/compiler selection
+`65143` completed with exit zero (`d82aa4`): 51 passed and one explicit Windows
+symlink skip across three suites, 115.67s. Its owned cache was removed normally.
+
+Source/derivation `98165` exposed a test-fixture mismatch: new graph tests seeded
+fixtures from the older generated member inventory, omitting two current G002
+source dependencies and failing before the intended require-policy assertions.
+The fixture must use the actual derived graph; no generated pin or production
+policy is relaxed. One existing Git-heavy case exceeded its default 10s bound
+under concurrent Windows load (22.9s); its explicit bound is adjusted to 30s.
+The corrected graph/require negatives and V2 multi-operation case passed all
+five selected checks (`43121`, terminal `60b593`). The local graft and late-index
+cases passed separately (`44449`, terminal `545681`); the latter models mutable
+Node builtins through their supported export synchronization, restoring them
+afterwards. Final application types passed (`7eecf8`). The added injected-entry
+CLI case still awaits native execution because Windows fixture indexing timed
+out before it ran; this is fixture setup, not a verifier failure. All owning
+Windows handles are closed. Run the final three complete owning suites natively
+from the published corrected source. No native or complete-family acceptance
+of this later correction is claimed by the earlier 1,459-pass result.
+
+This is source implementation evidence. A coherent generated family, independent
+native preparation/checking, normal protected integration and live preservation,
+actual-owner play and mobile render acceptance remain separate open work.
+
+## Existing G002 update producer — 2026-09-13
+
+The follow-up on `codex/0.4-g002-existing-state`, based on published `27671943`,
+reuses the PTR update engine through fixed private realm policies. Its G002
+artifact capability binds actual source-built bytes, program Keccak and complete
+RawV10 description. Provider credentials target only the immutable G002 identity;
+compatible table/schema preservation and an authenticated candidate-bound migration
+plan are required before submission. G002 capability registries, private journal,
+completion profile and signed sidecars are distinct from PTR.
+
+The signed G002 observation service validates the complete private bridge response,
+including G001/PTR guards, before projecting G002 program, atlas and sealed-state
+facts. Separate audience, endpoint and `operate_g002` identity prevent reuse of a
+PTR observation. Signed pre/post correlation retains source/tree, claim, terminal,
+completion, bridge configuration, authorization epoch and unchanged G002 sealed
+invariants. The signature grants neither provider credentials nor effect authority.
+The shared engine reopens owned history after asynchronous verification; retained
+completion and adoption capabilities are invalidated by disposal, foreign state
+or changed canonical records. No historical publish/import receipt is invented.
+
+Verification before publication:
+
+- Six affected service suites passed 155 cases, plus adjacent service coverage.
+  Actual Workerd gateway → named production entrypoint → G002 signer and gateway
+  regression coverage passed five cases. Service and Workerd types passed.
+- Provider/schema suites passed all 110 cases across both realm facades, including
+  cross-capability rejection, cleanup and unchanged PTR canonical digests.
+- G002 artifact coverage passed 76 cases with eight native-only skips on Windows;
+  the adjusted existing operator fixture passed its 12 cases.
+- The shared signed-observation caller passed all 62 cases, including complete
+  signed pre/post pairs, cross-profile rejection and authority/freshness changes.
+- The full engine unit suite passed 28 cases, including G002 real service-signed
+  pre/post, lost acknowledgement/reconciliation, completion/adoption isolation,
+  retained reuse and tamper rejection. Provider, source and continuation owners
+  are explicit fixture seams in this suite. A new fractional terminal timestamp
+  exposed a test-fixture rounding error: use the next whole observation second,
+  preserving the service's actual requirement that observation follows terminal.
+- Independent source review found the G002 workflow omitted the Linux builder's
+  required materialization parent, which the mocked lifecycle had not exercised.
+  Ten regressions reproduced the omission and unsafe/replaced-parent cases. The
+  corrected caller passes the existing sealed runtime directory, validates its
+  canonical path/ownership/private mode, and pins its inode across reattestation.
+  All 22 workflow lifecycle cases passed after the fix. No defect was found in
+  the reviewed service, shared adapter,
+  signed caller or capability isolation. All 11 actual bundle/source-graph cases
+  passed; generated manifests still need coherent regeneration.
+- Scanner regression passed seven cases; real Gitleaks accepted 45 exact fixtures
+  and detected all 88 mandatory hostile copies/mutations. New exceptions retain
+  exact path/value/rule conjunctions.
+
+The genuine private-store/continuation suite passed 14 cases with five native-only
+skips on Windows. Its two new G002 cases cover real claim/terminal state, distinct
+reconciliation identity and newly constructed state/store/adapter owners reopening
+the same retained proof without another request or PUT. Windows uses the explicit
+existing fsync/platform relaxation, so it does not establish POSIX acceptance.
+The actual G002 workflow constructor has separate lifecycle/runtime/dispatcher
+coverage (123 passed, one deliberate skip), plus fixed-job, permission and
+preflight routing checks. The privileged preflight suite includes a new actual
+G002 bundle import case and requires a freshly generated coherent donor family;
+it remains pending for this source-only checkpoint.
+
+Published producer `1664405dfb7eb9c3ea66a98222c769f08761373f`, tree
+`abc0ca30e3927cbd8e00640f10deb6f97851cf00`, was secret-scanned, pushed and
+verified equal to GitHub before synchronizing the clean idle native checkout.
+Native session `61892` closed with exit zero: **356 passed in 13 suites, no skips**,
+38.90 seconds, using UID 1000 and pinned Node 22.22.3. This exercised actual Linux
+G002 artifact lifecycle, both signed update facades, genuine continuation/storage
+and fresh-owner restart, provider/schema isolation, workflow configuration and
+bundle graph. Native stayed clean and returned to idle with its persistent runner
+intact. The prepared-donor and live provider boundaries were not part of that run.
+
+Generated source manifests remain stale for this implementation until the complete
+source family is rebuilt.
+Activation/public/recovery adoption consumers still need the explicit G002 branch;
+normal protected integration, live update/preservation and owner/mobile acceptance
+remain open. This is a development producer checkpoint, not a deployed release.
+
+## Earlier recovery checkpoints
+
+The dated records below retain the evidence and limitations of their original
+source. Use the execution handoff and the latest section above for current work.
+
 Status on 2026-09-12: **integrated production recovery acceptance remains open**.
 Recovery must preserve legitimate player writes made both before and after an
 update. Restoring an old database snapshot over later progress is unacceptable.

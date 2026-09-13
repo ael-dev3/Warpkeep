@@ -1,10 +1,7 @@
 // @vitest-environment node
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import {
-  parsePtrUpdateDefinition,
-  comparePtrUpdateDefinitions,
-} from '../scripts/ptr-update-definition-policy.mjs';
+import * as definitions from '../scripts/ptr-update-definition-policy.mjs';
 const fixture = (name = 'first') =>
   JSON.parse(
     readFileSync(
@@ -17,11 +14,6 @@ const fixture = (name = 'first') =>
   ).V10;
 const bytes = (v: any) => Buffer.from(JSON.stringify(v));
 const section = (v: any, k: string) => v.sections.find((s: any) => k in s)?.[k];
-const compare = (candidate: any, prior = fixture()) =>
-  comparePtrUpdateDefinitions({
-    priorServerSchema: bytes(prior),
-    candidateArtifactDefinition: candidate,
-  });
 const add = (v: any) => {
   const tables = section(v, 'Tables');
   const t = structuredClone(tables[0]);
@@ -36,7 +28,26 @@ const add = (v: any) => {
   });
   return v;
 };
-describe('actual PTR RawV10 preservation boundary', () => {
+describe.each(['ptr', 'g002'] as const)('actual %s RawV10 preservation boundary', lane => {
+  const parseDefinition = lane === 'ptr' ? definitions.parsePtrUpdateDefinition : definitions.parseG002UpdateDefinition;
+  const compareDefinitions = lane === 'ptr' ? definitions.comparePtrUpdateDefinitions : definitions.compareG002UpdateDefinitions;
+  const compare = (candidate: any, prior = fixture()) => compareDefinitions({
+    priorServerSchema: bytes(prior), candidateArtifactDefinition: candidate,
+  });
+  it('uses a fixed realm policy with unchanged normalization and isolated preservation commitments', () => {
+    const result = compare(fixture('second'));
+    expect(result.profile).toBe(lane === 'ptr' ? 'warpkeep-ptr-raw-v10-stable-row-schema-v1' : 'warpkeep-g002-raw-v10-stable-row-schema-v1');
+    expect(parseDefinition(bytes(fixture())).profile).toBe(result.profile);
+    expect(result.priorDigest).toBe('b1814f206d207e5fd9737248137e3e657be74312aaa54a89a7dd4c6da02e7304');
+    expect(result.candidateDigest).toBe('b1814f206d207e5fd9737248137e3e657be74312aaa54a89a7dd4c6da02e7304');
+    if (lane === 'ptr') {
+      expect(result.priorPreservationDigest).toBe('fc48dfdd5426c22c1e78ac3158fa05d3105a108a4dd19bf93ae48b75e094f28e');
+      expect(result.candidatePreservationDigest).toBe('fc48dfdd5426c22c1e78ac3158fa05d3105a108a4dd19bf93ae48b75e094f28e');
+    } else {
+      expect(result.priorPreservationDigest).not.toBe('fc48dfdd5426c22c1e78ac3158fa05d3105a108a4dd19bf93ae48b75e094f28e');
+      expect(result.candidatePreservationDigest).toBe(result.priorPreservationDigest);
+    }
+  });
   it('compares independently extracted official schemas and derives frozen full digests', () => {
     const result = compare(fixture('second'));
     expect(result.classification).toBe('tables-preserved');
@@ -49,9 +60,9 @@ describe('actual PTR RawV10 preservation boundary', () => {
   });
   it('accepts official server inner shape only', () => {
     expect(
-      parsePtrUpdateDefinition(bytes(fixture())).definition.sections.length,
+      parseDefinition(bytes(fixture())).definition.sections.length,
     ).toBeGreaterThan(0);
-    expect(() => parsePtrUpdateDefinition(bytes({ V10: fixture() }))).toThrow();
+    expect(() => parseDefinition(bytes({ V10: fixture() }))).toThrow();
   });
   it('allows additions with schedules belonging only to added tables', () => {
     const v = add(fixture());

@@ -79,6 +79,15 @@ const GAMEPLAY04_SHARED_SOURCE_MEMBER_PATHS = new Set([
   'spacetimedb/gameplay04/workerState.ts',
   'spacetimedb/gameplay04/workers.ts',
 ]);
+// Exact verifier dependencies reached by the PTR observation entrypoint.
+const PTR_OBSERVATION_SHARED_SOURCE_MEMBER_PATHS = new Set([
+  'services/release-recovery/src/config.ts',
+  'services/release-recovery/src/crypto.ts',
+  'services/release-recovery/src/http.ts',
+  'services/release-recovery/src/protocol.ts',
+  'services/release-recovery/src/ptrObservation.ts',
+  'services/release-recovery/src/recoveryPublicKey.ts',
+]);
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
 // Resource bound, not the generated inventory's exact member count.
 const MAX_MEMBERS = 2048;
@@ -98,6 +107,7 @@ const SCRIPT_GRAPH_ROOTS = Object.freeze([
   'scripts/auth-bridge-notification-b0-deploy-adapter.mjs',
   'scripts/auth-bridge-notification-b0-deploy-journal.mjs',
   'scripts/auth-bridge-notification-b0-deploy.mjs',
+  'scripts/auth-bridge-notification-prepared-b0-source.mjs',
   'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',
   'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
   'scripts/auth-bridge-notification-prepared-deploy-journal.mjs',
@@ -116,6 +126,7 @@ const SCRIPT_GRAPH_ROOTS = Object.freeze([
   'scripts/production-player-canary-browser-launcher.mjs',
   'scripts/ptr-production-import-operator.ts',
   'scripts/ptr-production-publisher-cli.ts',
+  'scripts/ptr-production-state-observation.mjs',
   'scripts/profiles/profiles-operator.ts',
   'scripts/verify-0.4.0-sealed-launch.mjs',
   'scripts/verify-auth-bridge-notification-prepared-receipt.mjs',
@@ -280,6 +291,14 @@ const ATTESTED_INSTALLED_REQUIRES = new Map([
     'typescript/package.json',
   ])],
 ]);
+// The builtin-only closure bootstrap verifies RAW source before this one
+// synchronous ESM load. Traverse it like an import; no installed or variable
+// require is admitted by this source-member exception.
+const ATTESTED_SOURCE_REQUIRES = new Map([
+  ['scripts/auth-bridge-notification-prepared-deploy-closure.mjs', new Set([
+    './recovery-attestation-source.mjs',
+  ])],
+]);
 const ATTESTED_DYNAMIC_IMPORT_EXPRESSIONS = new Map([
   ['scripts/auth-bridge-notification-prepared-deploy-closure.mjs', new Set([
     'pathToFileURL(resolve(authenticated.repositoryRoot, memberPath)).href',
@@ -318,6 +337,7 @@ function canonicalMemberPath(repository, memberPath, code) {
     typeof memberPath !== 'string'
     || (!MEMBER_PATH.test(memberPath)
       && !GAMEPLAY04_SHARED_SOURCE_MEMBER_PATHS.has(memberPath)
+      && !PTR_OBSERVATION_SHARED_SOURCE_MEMBER_PATHS.has(memberPath)
       && memberPath !== 'services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs')
     || (memberPath.startsWith('spacetimedb/ptr/')
       && !PTR_GENERATED_BINDING_MEMBER_PATHS.has(memberPath)
@@ -411,6 +431,7 @@ function sourceModuleSpecifiers(value, memberPath, parser) {
   const parsed = parseSourceFile(value, memberPath, parser);
   const specifiers = [];
   const dynamicImportExpressions = new Set();
+  const sourceRequires = new Set();
   let failed = false;
   try {
     const visit = node => {
@@ -450,9 +471,15 @@ function sourceModuleSpecifiers(value, memberPath, parser) {
         if (
           node.arguments.length !== 1
           || !isStringLiteral(node.arguments[0])
-          || !ATTESTED_INSTALLED_REQUIRES.get(memberPath)
-            ?.has(node.arguments[0].text)
         ) {
+          fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_REQUIRE_FORBIDDEN');
+        }
+        const specifier = node.arguments[0].text;
+        if (ATTESTED_SOURCE_REQUIRES.get(memberPath)?.has(specifier)
+            && !sourceRequires.has(specifier)) {
+          sourceRequires.add(specifier);
+          specifiers.push(specifier);
+        } else if (!ATTESTED_INSTALLED_REQUIRES.get(memberPath)?.has(specifier)) {
           fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_REQUIRE_FORBIDDEN');
         }
       }
@@ -465,6 +492,10 @@ function sourceModuleSpecifiers(value, memberPath, parser) {
       JSON.stringify([...dynamicImportExpressions].sort())
         !== JSON.stringify([...expectedDynamicImports].sort())
     ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_IMPORT_INVALID');
+    if (JSON.stringify([...sourceRequires].sort())
+        !== JSON.stringify([...(ATTESTED_SOURCE_REQUIRES.get(memberPath) ?? [])].sort())) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_REQUIRE_FORBIDDEN');
+    }
     return Object.freeze(specifiers);
   } catch (error) {
     failed = true;

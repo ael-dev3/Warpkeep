@@ -3,6 +3,8 @@ import type {
 } from './sealed-realms-production-dispatch.mjs';
 
 type G002Operation =
+  | 'g002-update-inspect'
+  | 'g002-update-apply'
   | 'g002-publish-inspect'
   | 'g002-publish-apply'
   | 'g002-import-inspect'

@@ -1,162 +1,123 @@
 # 0.4 workflow sufficiency audit
 
-Updated 2026-09-12 (Europe/Budapest). Native preparation `35471` and independent
-check `7224` both exited zero from published source `8033e01c`, returning exactly
-matching candidate, journal, family and closure identities. Guarded export
-`78755` exited zero after authenticating all 102 outputs. It copied seven changed
-files: four workflow closure pins, the closure manifest and the recovery/sealed
-bundle manifests. The other 95 outputs were preserved; compiled bundles, tests
-and bindings did not change. [Release engineering](release-engineering.md) owns
-the exact identities. Publication and final-head verification of the exported
-family remain separate from preparation, protected promotion and live delivery.
-
-Earlier runtime source `44b91b94` passed 519 native tests without skips; the
-corrected update/dispatcher fixtures passed 196 native tests with one intentional
-unsupported-environment skip. The `132355e0` HTTP fixture URL-routing fix passed
-43 tests, strict types and both CodeQL checks. These results retain their source
-scope and do not certify a later head's hosted checks.
-
-The initial audit read `2ffdcc96`; earlier successful Verify/CodeQL results for
-`95945bea` and prepared families for `27700d61`/`6a74005e` retain their dated
-scope in the evidence records. They do not establish current-head CI. Pages
-private delivery uses the Linux x64 runner profile, with toolchain pins derived
-per workflow. Preparation still reports `finalReleasePrepared: false`.
+Updated 2026-09-13 (Europe/Budapest). This is the current operating sequence.
+Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) and live
+Git refs for the latest checkpoint, and the
+[release checklist](../../operations/0.4.0-release-checklist.md) for acceptance.
+Historical candidate identities remain in [release engineering](release-engineering.md)
+and [recovery evidence](recovery.md); none certifies later source.
 
 ## Verdict
 
-The workflow is sufficient for disciplined 0.4 development, local verification,
-candidate preparation and protected preflight. It is not sufficient for shipping
-the game. The release checklist remains the authority: every R01–R18 gate needs
-fresh evidence bound to the final reviewed and deployed source.
+The workflow supports reviewed development, native preparation and protected
+integration. It is not yet sufficient to ship 0.4: the connected recovery CLI
+correction, complete final-source preparation, genuine operating authority and
+live player/device acceptance remain open. The correction is implemented with
+focused Windows proof; final native acceptance remains pending. Overall completion is approximately
+65% (a 60–70% judgment range), not a fraction derived from test or file counts.
+No reliable calendar ETA is established.
 
 ## What is working
 
-- Windows, GitHub and native WSL have a continuous publication procedure:
-  completed changes and authored durable handoff work are committed and pushed
-  immediately, with a quiet 15-minute thread check for missed publication.
-  The periodic check also covers maintained profile, assets, water-engine and
-  private editor checkouts, each through its own verified remote. Verify actual
-  remote equality; keep active native build inputs immutable.
-- The local foundation passes typecheck, build, visual-foundation checks and the
-  focused gameplay/recovery suites recorded in the release evidence.
-- The rendered WebGL observer now has a reviewed macOS/Windows/Linux boundary;
-  the Windows archive/cache path uses the attested system `tar.exe`.
-- The dedicated Linux runner is installed and can run the sealed preflight and
-  activation-evidence lanes. G001 policy observation is parsed and fails closed
-  when runner or provider authority is missing.
-- Native release preparation and independent checking passed for `8033e01c`,
-  covering the corrected recovery policy and newer mobile layout. The checked
-  family was exported without compiled bundle, binding or test changes.
-- At published `60097dd7`, the selected eight suites passed all 87 native tests;
-  installed closure and Pages `sealed-launch-blocked` classification passed.
-  The corrected prepared-workflow suite then passed all 163 native tests on
-  `72aee27e`, without skips. Earlier Windows POSIX-boundary failures remain
-  recorded platform limits, not uncompleted native verification.
-- The protected CI shape is explicit: `verify`, `auth-bridge`,
-  `spacetimedb-module`, `analyze` and `CodeQL` are required contexts.
+- The active developer commits and pushes reviewed changes at each checkpoint,
+  including honestly unfinished durable work before yielding. Fetch first, scan
+  the complete outgoing range, push normally and verify the actual remote SHA.
+  Apply this to every changed related repository through its own remote.
+  The owner paused the Codex sync automation on September 13; do not resume or
+  recreate a scheduler. Keep active native inputs pinned until their process ends.
+- The mobile Verdant Citadel foundation, gameplay adapters, lifecycle protections
+  and synthetic rendered checks have source-bound evidence. They remain useful
+  development coverage; fixtures and emulation do not prove actual owner play or
+  physical-device performance.
+- Windows editing and the dedicated Linux runner/preparation path are operational.
+  The earlier signed-main M1/M2 preparation, protected Verify and sealed preflight
+  succeeded for their recorded source. Reuse the attested tools and compatible
+  caches without relabeling earlier generated output.
+- Existing-state G002/PTR updates now connect retained signed records, bridge
+  suspension, public V5 activation and recovery consumers. Native source
+  `d71b53e7` passed 1,459 cases in 19 suites without skips, including genuine
+  descriptor generation, lost-response handling and restart. The owning Windows
+  compatibility selection passed 122 cases with 15 platform skips.
+  [Recovery evidence](recovery.md#g002-and-ptr-adoption-consumers--2026-09-13)
+  distinguishes synthetic authority from production evidence.
+- PR #245 contains PR #244's ancestry and now targets main directly. At the
+  integration audit, signed main `a2929bb6` was the exact merge-base of published
+  `7e1e9fde`; PR #244 at `27671943` passed all eight hosted checks and its
+  source-history tag was remotely verified. There is no need for a separate
+  PR #244 merge or intermediate family build.
 
-## What is not yet sufficient
+## What remains open
 
-- The protected Verify and CodeQL runs attached to the current pull request head
-  are the R14 authority; read both at terminal state before marking CI green.
-  R14 also requires normal protected merge eligibility.
-- Verify the newly published generated family on the clean native checkout and
-  require inert preparation with Pages `sealed-launch-blocked`. The earlier
-  native results above retain their exact source scope; ordinary notes and
-  unchanged source do not require repeating unrelated suites.
-- Protected `main` requires signatures, linear history and strict required
-  checks and resolved conversations; the repository permits squash merges only,
-  with zero required approvals. The API audit at `7cb573ba` found PR #228
-  `MERGEABLE`, `BLOCKED`, zero commits behind main, and Linux/SpacetimeDB checks
-  still running. Main at that audit was a verified GitHub-authored single-parent squash.
-  These observations do not establish missing local signing keys as an
-  independent blocker. Recheck eligibility after terminal CI without changing
-  protections or rewriting development history merely to satisfy an assumption.
-- The guarded `8033e01c` Windows capture and selected-image review provide fresh
-  synthetic mobile-layout evidence. Its diagnostic review remains unresolved;
-  composition, final-source acceptance, owner play and physical-device results
-  remain open. See [visual evidence](visuals.md) for the exact scope.
-- The recorded native candidate has `finalReleasePrepared: false`. It proves
-  candidate convergence and source integrity for its input; it does not grant
-  deployment authorization or complete the release freeze.
-- No completed production run is recorded for the composed 0.4 prepared bridge,
-  current provider observations, recovery readback, G002 import/publication or
-  PTR owner provisioning. Missing realm producers remain `unsupported`; existing
-  callers retain their actual authority checks.
-- No fresh owner journey, physical-device performance measurement, G001
-  production baseline/preservation proof, G002 denial proof or final live
-  release verification is recorded.
-- The prepared notification caller has a dedicated Linux x64 workflow, runner
-  entrypoint and pinned pnpm authority manifest. Pages private delivery now
-  targets Linux x64 and its generic toolchain pin resolves to the Linux
-  manifest. No authenticated production run or recovery readback has been
-  completed. The Linux lane selects its own workflow identity and real Linux
-  executables; it replaces the historical Darwin prepared caller. B0 is an
-  existing predecessor, not another migration to execute. Preserve and
-  authenticate its retained evidence; do not rerun B0. The public bridge
-  attestation still reports reviewed B0 source `308f901d` and enabled
-  notification delivery. Fresh private and Cloudflare source/configuration
-  attestation remains required. The existing initial prepared-deployment caller
-  owns journal initialization and receipt completion through those checks and
-  provider postflight. Empty Linux private roots do not mandate importing an old
-  Mac prepared journal. Recovery still requires genuine retained authority for
-  the deployment being recovered.
-- The Linux prepared and sealed workflows are absent from inspected protected
-  main `9eb98e78`. The notification environment has existing provider/admin and
-  owner secret slots, but this is not proof that their values are valid. The
-  public immutable PTR database identity was absent at the initial audit. The
-  repository variable `WARPKEEP_PTR_SPACETIMEDB_DATABASE` has since been set and
-  read back as `c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e`.
-  Fresh Maincloud alias metadata agrees with that source-pinned identity and the
-  recorded creation/authenticated inventory. The Linux caller published at
-  `27700d61` consumes this variable; credentials remain secret. This configures
-  the target, not publisher/owner access, the current module or a bridge binding.
-- Deployment/binding facts now come from the shared authenticated bridge
-  provider in sealed entries, with activation-only credential wiring through the
-  supported Linux caller. Import and owner producers remain unavailable, and
-  the production workflow explicitly rejects unsupported realm operations.
-  Repeated recovery preserves verified ancestors and timing includes awaited
-  provider reads; 519 affected native tests passed on `44b91b94`. Genuine
-  protected provider execution and live acceptance remain required. Establishing
-  private authority through the real initial deployment, completing remaining
-  realm integration and observing provider readback are still delivery work.
-- Recheck default-branch dependency alerts before a production freeze; a patched
-  development lockfile does not establish default-branch resolution.
+- The prepared closure CLI correction now authenticates the exact V2–V5
+  preparation-to-activation transition and retains the original manifest. The
+  V1/V5 actual Git/CLI selection passed with Windows metadata explicitly modeled;
+  expanded Windows and graph tests passed, with platform limits recorded in the
+  owning evidence. Complete unmodified native acceptance. Verify the
+  ordinary Linux helper preload and hostile cache/source cases through the real
+  caller before treating the connected boundary as accepted.
+- Complete generated source must correspond to the final connected implementation.
+  A component test does not authenticate the old generated family. Prepare and
+  independently check exact committed input, then verify the complete integrated
+  output rather than editing pins manually.
+- Main enforces signatures, linear history, strict required checks, conversation
+  resolution and administrator protection. The observed five required contexts
+  are `verify`, `auth-bridge`, `spacetimedb-module`, `analyze` and `CodeQL`.
+  No approving review is required by the current rule, but normal merge eligibility
+  and final-head checks still apply. Never weaken protections or rewrite history
+  to avoid them.
+- No completed current-source production operation establishes the composed
+  bridge, adopted G002/PTR state, recovery readback or actual owner access.
+  Public configured targets and secret-slot names do not prove working credentials
+  or provider authority. Use genuine publisher and owner access through the real
+  operating path. Do not substitute an administrator or synthetic identity.
+- G002 already exists and must remain sealed. Use its authenticated compatible
+  update/adoption route; never repeat initial import or manufacture unavailable
+  publication/import history. Preserve G001 progress, access, timers and the
+  agreed new-admission freeze. Capture fresh production baselines before mutation.
+- The existing B0 bridge predecessor must be re-attested from genuine retained
+  evidence. Do not replay B0 or infer that empty local roots authorize a migration.
+  Linux preparation replaces the historical Darwin operating lane; it does not
+  replace required source, provider or recovery evidence.
+- Actual owner journey, final rendered composition, lifecycle/isolation,
+  physical-device performance and live preservation/denial checks remain open.
+  The configured isolated PTR target does not establish that those checks passed.
+- Recheck default-branch dependency alerts before freezing. Keep final artifact,
+  deployed version and source identities aligned. Preparation reporting
+  `finalReleasePrepared: false` does not authorize deployment or complete a release.
 
 ## Required order from here
 
-1. Publish the complete checked generated family, verify it on the clean native
-   checkout and require inert preparation with Pages `sealed-launch-blocked`.
-   Read final-head terminal checks and reconcile normal protected squash
-   eligibility, including required conversation resolution. Before the first
-   squash, retain the final published development head with a source-history tag:
-   branch auto-deletion would otherwise remove the normal ref retaining historical
-   `f603` source. This tag is planned, not yet recorded as created.
-2. Complete the normal protected source squash to **M1**. Prepare and independently
-   check actual clean M1 while its own CI runs. The preflight requires the bundle's
-   preparation commit to be an ancestor of dispatched main; the development
-   branch's preparation commit is not preserved as an ancestor by a squash.
-   Do not deploy from interim M1.
-3. Publish only M1's checked generated family through a second protected squash,
-   **M2**, preserving M1 as its ancestor. After M2's own Verify succeeds, dispatch
-   `sealed-realms-production.yml` on main with `source_commit=M2` and
-   `operation=preflight`; require `preflight-inspected`. Generated-only promotion
-   does not by itself require preparing M2 again. Keep existing protections.
-4. Use the configured isolated PTR identity and re-attest the existing B0
-   predecessor. Verify genuine publisher and owner authority; the current
-   Windows CLI inventory does not establish publisher access. Execute the existing
-   Linux initial prepared-deployment and genuine recovery/readback paths; complete
-   the missing realm import and owner producers. Capture the G001
-   baseline and preserve the sealed G002 state before player-state mutations.
-5. Complete the actual owner PTR journey, lifecycle/isolation checks and fixed
-   device/performance measurements.
-6. Re-run the full rendered matrix on the release authority, then deploy Pages,
-   Cloudflare and SpacetimeDB from the same reviewed source.
-7. Perform live G001 preservation, G002 denial and owner-journey verification,
-   and only then mark R01–R18 complete and produce the workspace handoff at
-   `artifacts/delivery/0.4.0/`. Follow the
-   [output and retention rules](../../engineering/development-workflow.md#output-locations-and-retention);
-   do not create new Desktop output.
-
-Until those records exist, the honest state is **development-ready and
-release-preparation-ready, not ship-ready**.
+1. Publish the reviewed recovery CLI correction on PR #245 and finish its
+   owning tests and actual native CLI coverage. The source push runs ordinary
+   PR verification against its combined main base. Keep PR #244 open as its checked
+   source/history reference until inclusion is confirmed by the combined merge.
+2. Prepare and independently check that exact clean published development input.
+   Authenticate and integrate its complete generated family into PR #245, preserving
+   the original compiler-input identity. Verify the integrated family, inert
+   preparation and Pages `sealed-launch-blocked`. This development preparation
+   enables generated-family PR checks; it is not final protected-main authority.
+3. Require terminal checks and normal protected merge eligibility for the final
+   reviewed head. Retain its ancestry under a remotely verified source-history tag,
+   then use a head-guarded protected squash to M1. Verify actual signed main and
+   exact reviewed tree. Close PR #244 only after confirming its inclusion.
+4. Because squash changes source identity, prepare/check actual clean M1 and promote
+   only its authenticated generated family through a protected PR to M2. Require
+   M2 Verify and a fresh read-only sealed `preflight-inspected` result. M1 remains
+   the manifest source ancestor. Do not treat an earlier M2 preflight as authority
+   for this source or deploy the preparation-only M1.
+5. Capture fresh G001 and sealed G002 baselines, re-attest the genuine bridge
+   predecessor and isolated PTR target, and establish publisher/actual-owner
+   authority. Complete the existing Linux prepared-deployment, compatible
+   existing-state update/adoption and recovery/readback paths. Preserve legitimate
+   later writes; do not restore an old snapshot or repeat initialization over live
+   state. Report exact missing authority if the real provider denies the operation.
+6. Complete actual owner play, lifecycle/isolation, final rendered views and the
+   fixed device/performance measurements. Resolve findings before final freeze.
+   Deploy the accepted Pages/frontend, Cloudflare and SpacetimeDB family using
+   their actual recorded source/artifact relationships.
+7. Verify live G001 preservation, sealed G002 denial and the actual owner journey.
+   Complete all mandatory release records before claiming shipment and create
+   the credential-free delivery at `artifacts/delivery/0.4.0/`. Follow the
+   [retention rules](../../engineering/development-workflow.md#output-locations-and-retention):
+   reuse existing checkouts/cache, preserve referenced journals, remove only
+   verified disposable owned output, and create no new Desktop files.

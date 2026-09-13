@@ -3,6 +3,7 @@ import type {
 } from './sealed-realms-production-dispatch.mjs';
 
 type PtrOperation =
+  | 'ptr-state-inspect'
   | 'ptr-update-inspect'
   | 'ptr-update-apply'
   | 'ptr-publish-inspect'
@@ -24,4 +25,5 @@ export function runSealedRealmsProductionPtrOperation(input: Readonly<{
   runtime: PtrWorkflowRuntime;
   operation: PtrOperation;
   workflowInputSha: string;
-}>): ReturnType<SealedRealmsProductionDispatcher['dispatch']>;
+}>): ReturnType<SealedRealmsProductionDispatcher['dispatch']>
+  | Promise<Readonly<{ operation: 'ptr-state-inspect'; status: 'state-inspected' }>>;
