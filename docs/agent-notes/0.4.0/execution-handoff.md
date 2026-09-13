@@ -53,9 +53,12 @@ rechecks source and all member bytes before issuing closure authority.
 
 The V1 control and actual V5 Git/CLI case passed on Windows with an explicit
 metadata-only platform seam; source-reader and application type checks passed.
-Independent runtime/policy review is clear. Expanded Windows and graph selections
-are running, and the final three owning suites still need native execution from
-the published checkpoint. Read real terminal handles, not elapsed time. Then
+Independent runtime/policy review is clear. Expanded Windows CLI passed 13
+cases; graph/compiler checks passed 51 with one Windows platform skip. Corrected
+graph/source additions passed their targeted reruns, and all Windows handles are
+closed. The final three complete owning suites still need native execution from
+the published checkpoint, including the added injected-entry case. Read real
+terminal handles, not elapsed time. Then
 prepare the complete source family from the published committed input. Generated
 manifests still belong to the older family; never
 hand-edit their pins or run a stale donor as if it were current. Continue normal
@@ -71,6 +74,15 @@ Desktop files; update the existing handoff in place only. Reuse ignored output
 and the fixed private build roots. Native preparation currently retains about
 73 GiB of historical runs; inspect referenced evidence and actual process state
 before retiring anything or creating another large candidate.
+
+Automatic approval review rejected cleanup of owned failed Windows CLI
+fixture roots under `D:/Temp/heyas`: `warpkeep-recovery-closure-JGxHYp`,
+`warpkeep-recovery-closure-Q6RF9e` and `warpkeep-recovery-closure-YrceVK`, with
+only the reason "blocked by policy". They may remain after partial cleanup;
+do not retry or bypass that rejection. A later failed fixture
+`warpkeep-recovery-closure-lkXqvm` may also remain; no fallback deletion was
+attempted. Successful suites clean their own
+fixtures normally. No Desktop files or production/private state were targeted.
 
 The records below are historical checkpoints, not instructions to move to an old
 branch, restart a completed run or treat previous artifacts as current authority.

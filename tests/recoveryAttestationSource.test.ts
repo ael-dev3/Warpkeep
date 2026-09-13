@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { execFileSync, spawnSync } from 'node:child_process';
-import * as childProcess from 'node:child_process';
+import childProcess from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, copyFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -50,7 +51,7 @@ beforeEach(() => {
   commit();
   git('update-ref', 'refs/remotes/origin/main', git('rev-parse', 'HEAD'));
 }, 30000);
-afterEach(() => { vi.restoreAllMocks(); rmSync(root, { recursive: true, force: true }); }, 30000);
+afterEach(() => { vi.restoreAllMocks(); syncBuiltinESMExports(); rmSync(root, { recursive: true, force: true }); }, 30000);
 
 it('derives identity from a real committed three-file activation child', () => {
   const result = readRecoveryAttestationSource(root);
@@ -116,6 +117,7 @@ it('rejects an index concealment flag introduced after the initial source check'
     }
     return result;
   });
+  syncBuiltinESMExports();
   expect(() => readRecoveryAttestationSource(root)).toThrow('RECOVERY_ATTESTATION_SOURCE_INVALID');
   expect(changed).toBe(true);
 });
@@ -156,7 +158,7 @@ it('authenticates genuine V2 Git bytes and both S/A coordinates without widening
   for (const operation of SEALED_REALMS_OPERATIONS.filter(value => !SEALED_REALMS_ACTIVATED_OPERATIONS.includes(value as never))) {
     expect(() => sourceAuthority(operation)).toThrow('SEALED_REALMS_SOURCE_AUTHORITY_A_OPERATION_FORBIDDEN');
   }
-});
+}, 30000);
 
 it.each(['preparationSourceTree', 'preparationSourceCommit', 'recoveryAuthorizationCoreSha256',
   'noncanonical', 'extra-field'])( 'rejects committed V2 binding corruption before Verify: %s', field => {

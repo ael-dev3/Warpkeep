@@ -51,7 +51,8 @@ No reliable calendar ETA is established.
 - The prepared closure CLI correction now authenticates the exact V2–V5
   preparation-to-activation transition and retains the original manifest. The
   V1/V5 actual Git/CLI selection passed with Windows metadata explicitly modeled;
-  expanded tests and unmodified native acceptance remain pending. Verify the
+  expanded Windows and graph tests passed, with platform limits recorded in the
+  owning evidence. Complete unmodified native acceptance. Verify the
   ordinary Linux helper preload and hostile cache/source cases through the real
   caller before treating the connected boundary as accepted.
 - Complete generated source must correspond to the final connected implementation.

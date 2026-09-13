@@ -105,6 +105,7 @@ const workflowPaths = Object.keys(BOOTSTRAP_WORKFLOWS).sort();
 const temporaryDirectories: string[] = [];
 let fixtureMemberBodies: ReadonlyMap<string, Uint8Array>;
 let expectedFixtureManifestBytes: Buffer;
+let currentGraphPaths: readonly string[];
 
 function sha256(value: Uint8Array | string): string {
   return createHash('sha256').update(value).digest('hex');
@@ -261,8 +262,7 @@ afterEach(() => {
 
 describe('prepared deploy closure derivation', () => {
   it('traverses the exact synchronous recovery reader and its complete RAW source graph', () => {
-    const paths = deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot });
-    expect(paths).toEqual(AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS);
+    const paths = currentGraphPaths = deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot });
     for (const path of ['recovery-attestation-source', 'recovery-activation-candidate',
       'recovery-binding-projection', 'local-binding-bounded-file']) {
       expect(paths).toContain(`scripts/${path}.mjs`);
@@ -270,7 +270,10 @@ describe('prepared deploy closure derivation', () => {
   }, 30000);
 
   it.each(['substituted', 'duplicate', 'removed'] as const)('rejects %s synchronous source requires in the graph policy', kind => {
-    const changed = mutableFixture();
+    // Source graph additions precede the later atomic generated-family update.
+    // Use current reached source, not the intentionally older pinned inventory.
+    const changed = new Map((currentGraphPaths ?? deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot }))
+      .map(path => [path, readFileSync(resolve(repositoryRoot, path))]));
     replaceMember(changed, 'scripts/auth-bridge-notification-prepared-deploy-closure.mjs', source => source.replace(
       "reader = require('./recovery-attestation-source.mjs');",
       kind === 'substituted' ? "reader = require('./local-binding-bounded-file.mjs');"

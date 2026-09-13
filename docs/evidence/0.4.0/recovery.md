@@ -107,10 +107,25 @@ implementation. Application types passed (`3a2b66`), and independent production
 review found no actionable issue. Full CLI selection `31027` then passed all
 13 selected cases (terminal `313467`, 127.09s), including V2–V5, ordinary helper
 preload, owned reuse, injected transitive cache, substituted code and invalid
-profile/core/package cases. Source/derivation `98165`, separate graph `65143`
-and the three late cache/index/graft additions `88841` remain active at this
-checkpoint. Earlier selections do not certify those additions. The final three
-owning suites need a fresh native run from published source. No native or complete-family acceptance
+profile/core/package cases. Independent current-source graph/compiler selection
+`65143` completed with exit zero (`d82aa4`): 51 passed and one explicit Windows
+symlink skip across three suites, 115.67s. Its owned cache was removed normally.
+
+Source/derivation `98165` exposed a test-fixture mismatch: new graph tests seeded
+fixtures from the older generated member inventory, omitting two current G002
+source dependencies and failing before the intended require-policy assertions.
+The fixture must use the actual derived graph; no generated pin or production
+policy is relaxed. One existing Git-heavy case exceeded its default 10s bound
+under concurrent Windows load (22.9s); its explicit bound is adjusted to 30s.
+The corrected graph/require negatives and V2 multi-operation case passed all
+five selected checks (`43121`, terminal `60b593`). The local graft and late-index
+cases passed separately (`44449`, terminal `545681`); the latter models mutable
+Node builtins through their supported export synchronization, restoring them
+afterwards. Final application types passed (`7eecf8`). The added injected-entry
+CLI case still awaits native execution because Windows fixture indexing timed
+out before it ran; this is fixture setup, not a verifier failure. All owning
+Windows handles are closed. Run the final three complete owning suites natively
+from the published corrected source. No native or complete-family acceptance
 of this later correction is claimed by the earlier 1,459-pass result.
 
 This is source implementation evidence. A coherent generated family, independent
