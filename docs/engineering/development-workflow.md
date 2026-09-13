@@ -80,8 +80,9 @@ itself require another preparation.
 
 If publication fails, preserve the work and record the exact reason, then resume
 sync when it clears. A running native build retains its pinned operating source
-and is synchronized after it releases that source. A periodic app check provides
-recovery for missed publications; the active developer still publishes directly.
+and is synchronized after it releases that source. The owner paused the app sync
+automation on September 13. The active developer publishes directly; do not
+resume or recreate a scheduled check without an explicit request.
 
 ## Choose the verification environment
 

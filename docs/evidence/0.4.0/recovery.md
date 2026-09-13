@@ -73,13 +73,21 @@ Native synchronization initially fetched only `main`, because that checkout's
 existing remote refspec is intentionally narrow. Fetching the explicit published
 development branch resolved the absent-object error without changing Git
 configuration. The clean idle native checkout then moved to exact `d71b53e7`,
-preserving RunnerService. Native session `28187` is currently running the 19
-owning root suites at that exact source, including genuine V4/V5 POSIX descriptor
-generation, lost-response recovery and restarted adoption readers. Windows
-session `29078` is still running the owning continuation, G002 lifecycle and
-legacy V2/V3 activation-record compatibility selection. Neither run has a
-terminal result yet; do not report them passing or restart them based on elapsed
-time. Their live workers and fixture output confirm ongoing work.
+preserving RunnerService. Native session `28187` completed with exit zero
+(terminal `72cbef`): all 1,459 cases in 19 owning suites passed without skips in
+688.56s. This includes genuine V4/V5 POSIX descriptor generation, lost-response
+recovery and restarted adoption readers. Windows session `29078` also completed
+with exit zero (terminal `4041b6`): 122 passed with 15 expected platform skips
+in four continuation, G002 lifecycle and legacy V2/V3 record suites (1104.20s).
+Its final type and diff checks passed. Neither handle remains active.
+
+A later actual-caller review found a separate delivery defect: the prepared
+closure CLI accepts only V1 sealed-launch projection, while Pages recovery and
+Linux operation preflight invoke it on activated V2–V5 source. This is a source
+compatibility gap, not a stale generated hash. Its correction must authenticate
+the exact committed preparation-to-activation transition, preserve the original
+preparation manifest identity and keep unowned recovery maps rejected. The
+passing component/native counts above do not certify that later CLI correction.
 
 This is source implementation evidence. A coherent generated family, independent
 native preparation/checking, normal protected integration and live preservation,

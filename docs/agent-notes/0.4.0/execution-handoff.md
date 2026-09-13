@@ -21,12 +21,13 @@ G002 sealed-state HMAC against fresh state alongside the existing PTR/G001
 safeguards. See the [owning recovery evidence](../../evidence/0.4.0/recovery.md#g002-and-ptr-adoption-consumers--2026-09-13)
 for exact tests, review findings and the limits of each proof.
 
-PR #245 remains stacked on PR #244 at `27671943`, which targets `main`.
-At the latest inspection, both PRs' services, native-contract and CodeQL passed;
-Linux/module jobs remained running. These are historical observations of their
-respective published heads, not acceptance of this new source. Read fresh terminal
-conclusions before integration. The primary Windows checkout retains its own
-published `758bc482` branch. Do not move that independent branch.
+PR #245 now targets `main` and contains the complete PR #244 ancestry. Main
+`a2929bb6` is its verified merge-base. PR #244 at `27671943` has passed all eight
+hosted checks; retain its open draft and published source-history tag until the
+combined PR is integrated. Do not merge or prepare a separate PR #244 family.
+Require the final PR #245 head's own checks, normal protected eligibility and
+retained history before its guarded squash. The primary Windows checkout retains
+its own published `758bc482` branch; do not move that independent branch.
 
 The previous producer source `1664405d` passed native session `61892`: all 356
 cases in 13 suites, no skips. That does not certify this consumer follow-up.
@@ -35,13 +36,17 @@ idle check, preserving RunnerService. Its remote fetch configuration covers only
 `main`; explicitly fetch the published development branch before checking out
 a new source. Do not alter that configuration or move native source during tests.
 
-Native acceptance `28187` is active at immutable `d71b53e7` (19 suites), including
-actual V4/V5 private descriptor generation and restart. Windows owning regression
-`29078` is also active in the legacy record/source cases. Neither has a terminal
-result; keep their source and handles intact and read their actual completion.
-Do not restart a test or move the native checkout because output is quiet.
+Native acceptance `28187` is closed with exit zero: all 1,459 cases in 19 suites
+passed at immutable `d71b53e7`, without skips (688.56s). This includes actual
+V4/V5 private descriptor generation, lost-response handling and restart. Windows
+owning regression `29078` is also closed with exit zero: 122 passed with 15
+expected platform skips across four suites (1104.20s). Do not restart either run.
 
-Complete that connected acceptance, then prepare and independently check the complete source family from the published
+The subsequent caller audit found that the prepared closure CLI still projects
+only the original V1 binding. Pages and the Linux operation preflight invoke it
+on recovery activation commits, so valid V2–V5 activations fail even after pin
+regeneration. Correct that connected source boundary and verify actual Git/CLI
+execution before preparing the complete source family from the published
 committed input. Generated manifests still belong to the older family; never
 hand-edit their pins or run a stale donor as if it were current. Continue normal
 protected integration and exact accepted-main preparation, then live preservation,
