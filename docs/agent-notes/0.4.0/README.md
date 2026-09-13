@@ -7,84 +7,41 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-[PR #228](https://github.com/ael-dev3/Warpkeep/pull/228) merged the 0.4 development
-source into `main`; its former development branch is retired. Resolve active
-work through current refs, open pull requests and the execution handoff below.
-The GitHub/profile/ecosystem refresh is complete. Continue
-the connected game and delivery work from the [execution handoff](execution-handoff.md),
-which records the current checkpoint, preparation, CI and environment details.
+The accepted baseline is signed M2 commit `810286c95f39cf6e41f121162fa5dab250a77a16`.
+Its complete Verify run and sealed read-only preflight passed; this proves the
+integrated source and operating rails, not a live 0.4 deployment. PR #228 and
+the earlier M1/G002 integration branches are historical. Resolve active work
+through current refs, open pull requests and the [execution handoff](execution-handoff.md),
+which owns exact source, CI, native and environment identities.
 
-- **Development and live release are separate.** `main` now contains the 0.4
-  development source alongside preserved G001 behavior. Read Verify and CodeQL
-  terminal conclusions for the exact source under review before R14. The
-  integrated 0.4 release is not yet shipped.
-- **The core loop works in a populated native rehearsal.** Real realm modules
-  imported their atlases and preserved existing state through updates. PTR earned
-  resources, completed construction on real timers and resumed completed state
-  after session expiry without duplicate effects. A later useful code-replacement
-  rehearsal preserved resources and pending work earned under faulty code, restored
-  construction, and passed timer/session/retry checks under corrected code. The existing-update adapter is
-  now connected to the G002/PTR dispatchers for isolated synthetic tests, with
-  durable acknowledgement recovery and serialized concurrent inspections. Its
-  Linux test launcher passed its dedicated hosted CI step at `5aa6fdb`.
-  External identity/workflow authority was synthetic;
-  actual-owner play and production delivery remain to be accepted. The local
-  bundled PTR adapter now also proves the improved return is credited once after
-  the first economy building; the real-atlas owner journey is still open. The
-  reserved Worker result is also exposed as a polite status update for assistive
-  technology when the authoritative return state changes.
-- **The player experience needs integrated observation.** Keep/atlas navigation,
-  selected Worker continuity, healthy refresh and scoped session renewal are
-  implemented. Continue rendered Verdant Citadel review, useful progression,
-  foreground/resume and physical-device performance with the actual owner.
-- **The keep layout has current rendered evidence.** The presentation-only loop rail in
-  `src/components/keep04/Keep04LoopRail.tsx` makes gather → choose → build →
-  benefit → return explicit and derives its active stage from authoritative Worker
-  and construction state. It now follows the workspace so the scene appears sooner.
-  Occupied entry framing now makes early buildings and scaffolds easier to read,
-  while refresh/recovery preserve the player's camera view. Guarded capture
-  `windows-run-PSW7Es` records clean stable source `337a4cc0`, NVIDIA hardware
-  rendering and no horizontal overflow in 36 cases. All 36 images were reviewed;
-  mature building hierarchy and scrolled landscape views still need work. Cropped
-  confirmation controls are not reachability evidence. Diagnostic flags remain open.
-  See [visual evidence](../../evidence/0.4.0/visuals.md) for exact profiles, reviewed
-  images, retained output and limitations. Physical-device, performance and actual
-  owner acceptance remain open.
-- **The connected presentation rail is exercised.** The disposable Windows lane
-  passed at the prior functional checkpoint; rerun it after any source change
-  before release evidence. It covered the
-  final WebGL warning boundary and re-entry diagnostics, with fresh-browser
-  re-entry, four-worker outbound → gathering → returning, private retry seams,
-  recall/settlement and released-node reuse.
-- **Delivery has working foundations and specific gaps.** The local source
-  assembler connects fixed compilers, generated consumers, independent rebuilding
-  checks and candidate recovery. Linux recovery and sealed preflight callers are
-  connected and the dedicated runner is online. The Linux prepared bridge caller
-  already replaces the old Mac path. The shared authenticated bridge provider
-  is connected to the sealed workflow and preserves authority across repeated
-  recovery. Protected-main promotion, genuine provider execution, initial realm
-  import/owner producers and production code-replacement acceptance remain open.
-  The current G002 follow-up reuses the preserved-update engine with a fixed
-  source-built artifact, signed sealed-state observations and isolated journal;
-  its genuine retained adoption now reaches private activation, the public V5
-  binding and recovery checks. Complete-family, protected and live acceptance
-  remain open. No original G002 import history is reconstructed.
-  The initial prepared deployment re-attests the live B0 predecessor and writes
-  its own journal and receipt after genuine postflight; do not rerun B0 or invent
-  missing private evidence. Controlled rehearsals do not establish live authority.
-- **Resume from current evidence.** The source-family correction and subsequent
-  recovery work are published; the earlier `923e024` preparation is historical.
-  Native frozen G001/current G002 program-artifact generation and the dedicated
-  PTR cache installer have passed. Signed preparation observation reaches the
-  candidate through its genuine source/private-state owner. The connected
-  consumers still require fresh generated-bundle acceptance for current source. Follow the
-  [execution handoff](execution-handoff.md) for the active source and exact native
-  run; do not restart old jobs or treat previous candidate artifacts as current.
-- **Preserve each realm's purpose.** Keep G001 progress, access and normal timers
-  alongside its agreed admission freeze; keep G002 sealed; use the actual owner's
-  isolated PTR for the new playable journey. Read the dated
-  [release evidence](../../evidence/0.4.0/release-engineering.md) and
-  [recovery evidence](../../evidence/0.4.0/recovery.md) for the precise verified scope.
+The current product follow-up is [PR #249](https://github.com/ael-dev3/Warpkeep/pull/249),
+which guides a new Keep through its first useful journey and keeps Alpha copy
+truthful about isolated 0.4 access. The evidence and operating refresh is in
+[PR #248](https://github.com/ael-dev3/Warpkeep/pull/248). Both branches are
+published; their current check state must be read from GitHub before integration.
+
+- **Development and live release are separate.** `main` contains the 0.4
+  development source alongside preserved G001 behavior. The integrated 0.4
+  release is not shipped, and synthetic or local rehearsals do not establish
+  live authority.
+- **The player journey has a clear foundation.** Keep/atlas navigation, Worker
+  dispatch and return feedback, construction state, session renewal, the
+  gather → choose → build → benefit → return rail and the new first-journey cue
+  are implemented and covered by focused tests. Refresh keeps the scene and
+  focus available while authoritative commands remain guarded.
+- **The Verdant Citadel presentation is under integrated review.** Lightweight
+  voxel scenery, layered terrain, water restraint, readable building hierarchy
+  and mobile layout decisions are recorded in the visual contract and current
+  evidence. Synthetic browser review is useful for layout; physical-device,
+  performance and owner acceptance remain open.
+- **Delivery has working foundations and specific gaps.** Generated bindings,
+  recovery callers, Linux verification, protected-main promotion and sealed
+  preflight are connected. Genuine provider/publisher authority, live recovery
+  readback, G001 preservation, sealed G002 evidence, owner-only PTR play and
+  final deployment remain to be verified.
+- **Preserve each realm's purpose.** Keep G001 progress and its admission
+  freeze, keep G002 sealed while admissions remain undecided, and use the
+  actual owner's isolated PTR for the new playable journey.
 
 ## Find the right starting point
 
@@ -112,9 +69,9 @@ authenticated provider observations, and actual owner acceptance establish
 different facts. Each finding must say what was observed and what remains unknown.
 Never replace missing live evidence with a fixture or a plausible release record.
 
-The owner's current sequence is to finish and publish the GitHub/profile/project
-documentation refresh before resuming gameplay shipping. Source publication is a
-normal development step; it does not require claiming the release is ready.
+Source publication is a normal development step. Keep this index, the execution
+handoff and the dated evidence aligned with the actual branch and deployed state;
+none of them should turn missing provider or owner evidence into a release claim.
 
 ## Coverage and limits
 

@@ -13,9 +13,10 @@ they do not create new permissions or silently restrict a newer product directio
 1. Read [README.md](README.md) for the promise and
    [the 0.4 handoff](docs/agent-notes/0.4.0/README.md) for the current work.
 2. Inspect the actual checkout, branch, scoped diff, remote and relevant CI.
-   PR #228 integrated 0.4 development source into main; its old branch is retired.
-   Resolve the current working branch from the execution handoff and live PRs.
-   Distinguish main, a development checkout, a generated candidate and deployment.
+   PR #228 is a historical integration; protected `main` is now the signed M2
+   baseline recorded in the execution handoff. Resolve the current working branch
+   from that handoff and live PRs. Distinguish main, a development checkout, a
+   generated candidate and deployment.
 3. Use [the repository map](docs/agent-notes/0.4.0/repo-map.md) to find the real
    caller, state owner and tests. Verify reported running work through its actual
    process/job handle before restarting it. A stale lock or journal is not proof.
