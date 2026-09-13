@@ -8,6 +8,7 @@ that exact commit, and sealed read-only preflight `34763502943` returned
 source, verification and inspection records; provider deployment, live realm
 mutation and player acceptance remain separate outcomes.
 
+Source PR #249 is now protected-merged as `61b8a03d04fcae2db3913d10e2025fa6c3e8529f` on top of M2. Its source checks passed at `d3bfe6f1`; post-merge main Verify `34770379931` remains the current source gate. Documentation PR #248 is the only active review at `3c6228a0`, with Verify `34771928323` pending. Read both at terminal state before treating the docs refresh as integrated.
 The generated-only M2 promotion changed exactly the eight authenticated
 workflow/generated paths listed in [release freeze evidence](release-freeze.md).
 The source implementation and M1 preparation identities remain unchanged. The

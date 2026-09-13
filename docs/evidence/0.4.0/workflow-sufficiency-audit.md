@@ -7,6 +7,8 @@ Git refs for the latest checkpoint, and the
 Historical candidate identities remain in [release engineering](release-engineering.md)
 and [recovery evidence](recovery.md); none certifies later source.
 
+Source PR #249 is now protected-merged as `61b8a03d04fcae2db3913d10e2025fa6c3e8529f`; the post-merge main Verify `34770379931` remains in progress. Documentation PR #248 at `3c6228a0` is the only active review and its Verify `34771928323` is pending.
+
 ## Verdict
 
 The workflow now supports reviewed development, native preparation, protected

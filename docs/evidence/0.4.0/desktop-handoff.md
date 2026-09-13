@@ -15,14 +15,14 @@ Do not create a new Desktop folder, handoff copy, backup or ZIP.
 
 ## Start here
 
-- **Development branch:** `codex/prepared-keep-bindings-fix`
-- **Review:** [PR #228](https://github.com/ael-dev3/Warpkeep/pull/228)
+- **Accepted source:** protected `main` at `61b8a03d` (source PR #249 merged)
+- **Documentation refresh:** PR #248 at `3c6228a0`, awaiting terminal Verify
 - **Product direction:** [`docs/design/warpkeep-direction.md`](../../design/warpkeep-direction.md)
 - **Current agent index:** [`docs/agent-notes/0.4.0/README.md`](../../agent-notes/0.4.0/README.md)
 - **Visual foundation:** [`visual-foundation-contract.md`](../../agent-notes/0.4.0/visual-foundation-contract.md)
 - **Release gates:** [`0.4.0-release-checklist.md`](../../operations/0.4.0-release-checklist.md)
 
-The current PR head and the last reviewed source checkpoint are authoritative;
+The current protected source and the live documentation PR are authoritative;
 do not copy a hash from this document into a deployment command. Re-read the
 PR and the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
 before preparing a new artifact.
