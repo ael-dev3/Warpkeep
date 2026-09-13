@@ -39,13 +39,23 @@ preflight are complete. Genuine provider/owner authority, live recovery and
 deployment, G001 preservation and sealed G002 evidence, physical-device
 performance and final mobile acceptance remain open.
 
-The pending source correction in PR #249 (`9a2e646d`, ready for review) updates the Alpha
-consent dialog to describe the limited 0.4 Keep loop accurately and gives a
-newly initialized empty keep a clear first-journey cue that routes through the
-existing resource-location flow. Its focused UI/legal-copy tests, typecheck,
-production build, and local rendered QA pass; it is not part of accepted `main`
-or the M2 release evidence until the normal protected checks and any resulting
-fresh verification complete.
+The pending source correction in PR #249 (`d3bfe6f1`, ready for review) gives a
+new keep a first-journey cue, qualified by untouched Worker assignment revisions.
+Independent review fixed repetition after dispatch, refresh focus loss and the
+tutorial's oversized sticky mobile header. Navigation stays available during a
+healthy refresh; actual command authority remains guarded by the destination and
+controller. Public Alpha copy now distinguishes isolated 0.4 test access from
+ordinary Realm entry. All 71 affected tests, typecheck and production build pass
+under Node 22.22.3. Synthetic browser review at 390x844, 568x320 and 667x375
+confirmed reachable controls without horizontal overflow. This remains pending
+protected CI/integration and is not accepted-main or M2 release evidence.
+
+The September 13 access audit confirmed protected environment secret names and
+an online Linux runner. The documented Windows SpacetimeDB login now lists no
+Maincloud databases, so its earlier publisher access must be re-established
+before mutation; this does not mean the existing realms were deleted. The
+[live delivery guide](../../operations/0.4.0-live-delivery-status.md) replaces
+stale Mac-runner advice and separates current work from historical adapter gaps.
 
 ## Previous consumer implementation checkpoint — 13 September 2026
 
