@@ -92,12 +92,19 @@ it('rejects scanner output missing the mandatory negative findings and cleans it
     'generic-api-key:services/release-recovery/test/g002UpdateObservation.test.ts.copy:1',
     'generic-api-key:services/release-recovery/test/signerG002UpdateObservation.test.ts.copy:1',
     'generic-api-key:services/release-recovery/test-workerd/g002UpdateObservation.test.ts.copy:1',
+    'generic-api-key:scripts/recovery-binding-projection.mjs:2',
+    'generic-api-key:services/release-recovery/src/githubEvidence.ts:4',
+    'generic-api-key:tests/fixtures/recoveryG002PtrAdoptionCandidate.ts:2',
+    'generic-api-key:scripts/recovery-binding-projection.mjs.copy:1',
+    'generic-api-key:services/release-recovery/src/githubEvidence.ts.copy:1',
+    'generic-api-key:tests/fixtures/recoveryG002PtrAdoptionCandidate.ts.copy:1',
+    'generic-api-key:wrong-public-values.ts:7',
   ]));
-  expect(result.missing).toHaveLength(88);
+  expect(result.missing).toHaveLength(95);
 });
 it('reports unexpected finding identities without exposing scanner payloads', () => {
   const result = run(() => ({ status: 1, stdout: JSON.stringify([{ RuleID: 'jwt', File: 'unexpected.ts', StartLine: 7, Secret: 'DO-NOT-PRINT', Match: 'DO-NOT-PRINT' }]), stderr: '' }));
-  expect(result.unexpected).toEqual(['jwt:unexpected.ts:7']); expect(result.missing).toHaveLength(88);
+  expect(result.unexpected).toEqual(['jwt:unexpected.ts:7']); expect(result.missing).toHaveLength(95);
   expect(JSON.stringify(result)).not.toContain('DO-NOT-PRINT');
 });
 it('fails closed on scanner failure or malformed output', () => {

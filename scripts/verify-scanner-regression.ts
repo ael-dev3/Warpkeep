@@ -20,6 +20,9 @@ function fixture() {
   const fid = ['private-fid-', '123456'].join('');
   const owner = ['secret-owner-fid-', '12345'].join('');
   const schema = ['g002Admission', 'MutationsEnabled'].join('');
+  const receiptSchema = ['g002Publish', 'ReceiptDigest'].join('');
+  const receiptSchemaPaths = ['scripts/recovery-binding-projection.mjs',
+    'services/release-recovery/src/githubEvidence.ts', 'tests/fixtures/recoveryG002PtrAdoptionCandidate.ts'];
   const thumbprint = ['jJpfIbYjQL5LxwND', '5zk1MUOqN1B3vOh_', 'ydTAOoUnuR8'].join('');
   const ptrTestThumbprint = ['zbHwk528B5de5kuN', 'zI98k4Y-rljmW6fb', 'kH-aVZomk4M'].join('');
   const ptrObservationPaths = ['services/release-recovery/test/ptrObservation.test.ts',
@@ -34,7 +37,9 @@ function fixture() {
     ['services/release-recovery/test/releaseRecoverySpacetimeFixtures.test.ts', hashes],
     ['services/release-recovery/test/realmEvidence.test.ts', [fid]],
     ['services/auth-bridge/test/releaseRecoveryObservation.test.ts', [owner]],
-    ['services/release-recovery/src/githubEvidence.ts', [schema]],
+    ['services/release-recovery/src/githubEvidence.ts', [schema, receiptSchema]],
+    ['scripts/recovery-binding-projection.mjs', [receiptSchema]],
+    ['tests/fixtures/recoveryG002PtrAdoptionCandidate.ts', [receiptSchema]],
     ['scripts/sealed-realms-production-activation-records.mjs', [schema]],
     ['services/release-recovery/src/recoveryPublicKey.ts', [thumbprint]],
     ['scripts/sealed-realms-production-activation-lane.bundle.mjs', [schema, thumbprint]],
@@ -47,7 +52,7 @@ function fixture() {
     files.set(path, values.map((value, index) => `const API_KEY_${index} = '${value}';\nconst MUTATED_API_KEY_${index} = '${value.slice(0, -1)}b';\n`).join(''));
     values.forEach((_, index) => { positives++; expected.push(`generic-api-key:${path}:${index * 2 + 2}`); });
   }
-  const wrongValues = [...hashes, fid, owner, schema, thumbprint];
+  const wrongValues = [...hashes, fid, owner, schema, thumbprint, receiptSchema];
   files.set('wrong-public-values.ts', wrongValues.map((value, index) => `const API_KEY_${index} = '${value}';\n`).join(''));
   wrongValues.forEach((_, index) => expected.push(`generic-api-key:wrong-public-values.ts:${index + 1}`));
   const wrongBundlePath = 'scripts/sealed-realms-production-g001-lane.bundle.mjs.copy';
@@ -56,6 +61,11 @@ function fixture() {
   for (const path of ptrObservationPaths) {
     const copiedPath = `${path}.copy`;
     files.set(copiedPath, `const API_KEY = '${ptrTestThumbprint}';\n`);
+    expected.push(`generic-api-key:${copiedPath}:1`);
+  }
+  for (const path of receiptSchemaPaths) {
+    const copiedPath = `${path}.copy`;
+    files.set(copiedPath, `const API_KEY = '${receiptSchema}';\n`);
     expected.push(`generic-api-key:${copiedPath}:1`);
   }
   // Independently reviewed Git commit/tree/blob IDs, including the upstream
