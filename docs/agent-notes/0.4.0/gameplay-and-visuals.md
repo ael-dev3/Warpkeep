@@ -2,7 +2,7 @@
 
 ## First-journey review — September 13, 2026
 
-PR #249 adds a direct resource-location entry for a new keep. Independent review
+PR #249 merged a direct resource-location entry for a new keep. Independent review
 found that zero balances also matched a keep whose first Worker had already left,
 and that mounting the card only in the ready phase removed focused controls
 during the normal five-second refresh. The cue now requires untouched Worker

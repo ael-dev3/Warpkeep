@@ -1,61 +1,65 @@
 # Continue Warpkeep 0.4
 
-## Current accepted-main checkpoint — 13 September 2026
+## Current accepted-main checkpoint — 13 September 2026 (post source merge)
 
-Protected `main` is signed commit `810286c95f39cf6e41f121162fa5dab250a77a16` (tree `1f16891a52ba1bf8194ba7d1ca5154a5b5481412`). PR #247 merged the
-exact authenticated generated-only M2 family from branch commit
-`422591d7bbb432a67a13f5b5a893d6f2788dabda`; the merge commit is GitHub-verified
-and its tree is `1f16891a52ba1bf8194ba7d1ca5154a5b5481412`. PR #245 remains the reviewed source integration below
-that generated promotion. Fresh main Verify run `34760814489` passed every required
-lane on the merged M2 commit, including Linux, SpacetimeDB, recovery,
-native-contract, auth-bridge and aggregate verification.
+Protected `main` is signed commit `61b8a03d04fcae2db3913d10e2025fa6c3e8529f`.
+It is the protected squash merge of source PR #249, reviewed at head
+`d3bfe6f1df957ff59c29acc46a5b721407412d6d`, on top of signed M2
+`810286c95f39cf6e41f121162fa5dab250a77a16` (tree
+`1f16891a52ba1bf8194ba7d1ca5154a5b5481412`). Fresh post-merge main Verify
+run `34770379931` is still running; read its terminal conclusion before
+calling this source checkpoint green.
 
-The native `/home/warpkeep/Warpkeep-0.4` checkout is clean and detached at the
-same exact M2 commit after an idle-process check. RunnerService PID203 and
-Runner.Listener PID224 remain alive. The accepted-main M1 preparation/check
-identities remain the source-bound release evidence: candidate
+The documentation refresh is published in draft PR #248 at head
+`bd8beaf3899dd76f331ddeb800e05200f223dd7c`. Its current Verify run
+`34770483805` is still running on that exact docs head; integrate it only
+after terminal passing checks through the normal protected path. Older stacked
+PRs #237–243 are now closed as superseded; their remote branches remain
+available for history, while signed main contains their accepted product and
+operating changes.
+
+The native `/home/warpkeep/Warpkeep-0.4` checkout remains clean and detached at
+the exact M2 commit while the current verification runs own their inputs.
+RunnerService PID203 and Runner.Listener PID224 remain alive. The accepted-main
+M1 preparation/check identities remain source-bound release evidence: candidate
 `release-workspace-83bf0da57a1a622d84742c445f8450a9`, transaction
 `d0297bcb6821e4f1d5fbdf37cbd16f66`, family
 `0c97e825844d58ad3417a0298eb75a81c67f3bc1595863a9083c41d5bd648899`, closure
 `13b8ec2559712b93560c62babe47e0e79dae4fa656da638d108f66e8f7a4e835` and
 scanner `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
-M2 changes are exactly the eight generated/workflow paths recorded in the
-release-freeze evidence; no source implementation bytes were changed by M2.
 
-Read-only sealed-realms preflight run `34763502943` passed against `810286c95f39cf6e41f121162fa5dab250a77a16` and
-emitted `{"operation":"preflight","status":"preflight-inspected"}`.
-This is inspection evidence only: no realm mutation, provider deployment,
-owner provisioning, or live release occurred. `finalReleasePrepared:false`
-remains explicit for the native candidate.
+Read-only sealed-realms preflight `34763502943` passed against M2 and emitted
+`{"operation":"preflight","status":"preflight-inspected"}`. This is
+inspection evidence only: no realm mutation, provider deployment, owner
+provisioning or live release occurred. `finalReleasePrepared:false` remains
+explicit for the native candidate.
 
 The saved `keep-warpkeep-development-synced` automation is **PAUSED** and must
 remain disabled; the repository has no scheduled GitHub workflow. Continue
 manual fetch, complete-range secret scan, normal commit/push and remote-SHA
-verification for each reviewable checkpoint. Update the existing Desktop
-handoff in place only; create no new Desktop files, backups or archives. The
-current completion estimate is about **83%** (a 78–88% judgment range): M2
-promotion, fresh main verification, native exact-commit sync and sealed
-preflight are complete. Genuine provider/owner authority, live recovery and
-deployment, G001 preservation and sealed G002 evidence, physical-device
-performance and final mobile acceptance remain open.
+verification for each reviewable checkpoint. Update the existing Desktop handoff
+in place only; create no new Desktop files, backups or archives. The current
+completion estimate remains about **83%** (78–88% judgment range): source
+integration and M2 rails are complete, while provider/owner authority, live
+recovery and deployment, G001 preservation and sealed G002 evidence,
+physical-device performance and final mobile acceptance remain open.
 
-The pending source correction in PR #249 (`d3bfe6f1`, ready for review) gives a
-new keep a first-journey cue, qualified by untouched Worker assignment revisions.
-Independent review fixed repetition after dispatch, refresh focus loss and the
-tutorial's oversized sticky mobile header. Navigation stays available during a
-healthy refresh; actual command authority remains guarded by the destination and
-controller. Public Alpha copy now distinguishes isolated 0.4 test access from
-ordinary Realm entry. All 71 affected tests, typecheck and production build pass
-under Node 22.22.3. Synthetic browser review at 390x844, 568x320 and 667x375
-confirmed reachable controls without horizontal overflow. This remains pending
-protected CI/integration and is not accepted-main or M2 release evidence.
+The merged source follow-up gives a new keep a first-journey cue qualified by
+untouched Worker assignment revisions, keeps it through refresh/pending views,
+and distinguishes isolated 0.4 access from ordinary Realm entry. Navigation
+remains available during healthy refresh while command authority stays guarded
+by the destination and controller. The five affected suites pass all 71 tests
+under Node 22.22.3; typecheck, production build and synthetic browser checks at
+390x844, 568x320 and 667x375 also pass. These are source and browser results,
+not physical-device, owner-play or live-release evidence.
 
 The September 13 access audit confirmed protected environment secret names and
-an online Linux runner. The documented Windows SpacetimeDB login now lists no
-Maincloud databases, so its earlier publisher access must be re-established
-before mutation; this does not mean the existing realms were deleted. The
-[live delivery guide](../../operations/0.4.0-live-delivery-status.md) replaces
-stale Mac-runner advice and separates current work from historical adapter gaps.
+an online Linux runner. The documented Windows SpacetimeDB login currently lists
+no Maincloud databases, so publisher access must be re-established before
+mutation; this does not mean existing realms were deleted. The [live delivery
+guide](../../operations/0.4.0-live-delivery-status.md) owns current operating
+steps and separates live authority from historical adapter gaps.
+
 
 ## Previous consumer implementation checkpoint — 13 September 2026
 

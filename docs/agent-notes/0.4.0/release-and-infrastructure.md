@@ -3,8 +3,9 @@
 ## Current source and access checkpoint — 2026-09-13
 
 Protected main is M2 `810286c9`; its full Verify run and read-only Linux preflight
-passed. PR #249 carries a separate product follow-up. The
-[execution handoff](execution-handoff.md) owns exact source/CI identities and the
+passed. PR #249 is now merged into protected main; the documentation refresh
+is carried by PR #248. The [execution handoff](execution-handoff.md) owns exact
+source/CI identities and the
 [live delivery guide](../../operations/0.4.0-live-delivery-status.md) owns current
 operating steps. A fresh GitHub inventory confirms the dedicated Linux runner is
 online/idle and the prepared environment retains its five secret names. The

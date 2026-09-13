@@ -14,11 +14,11 @@ the earlier M1/G002 integration branches are historical. Resolve active work
 through current refs, open pull requests and the [execution handoff](execution-handoff.md),
 which owns exact source, CI, native and environment identities.
 
-The current product follow-up is [PR #249](https://github.com/ael-dev3/Warpkeep/pull/249),
-which guides a new Keep through its first useful journey and keeps Alpha copy
-truthful about isolated 0.4 access. The evidence and operating refresh is in
-[PR #248](https://github.com/ael-dev3/Warpkeep/pull/248). Both branches are
-published; their current check state must be read from GitHub before integration.
+The product follow-up in [PR #249](https://github.com/ael-dev3/Warpkeep/pull/249)
+is now protected-merged as `61b8a03d`. It guides a new Keep through its first
+useful journey and keeps Alpha copy truthful about isolated 0.4 access. The
+evidence and operating refresh is in [PR #248](https://github.com/ael-dev3/Warpkeep/pull/248)
+at `bd8beaf3`; read its live checks before integrating the documentation branch.
 
 - **Development and live release are separate.** `main` contains the 0.4
   development source alongside preserved G001 behavior. The integrated 0.4

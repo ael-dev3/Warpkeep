@@ -11,7 +11,8 @@ interactivity.
 Use the [execution handoff](execution-handoff.md), current refs and open pull
 requests for source and verification. PR #228 is a historical integration
 checkpoint; the accepted baseline is M2 `810286c95f39cf6e41f121162fa5dab250a77a16`
-and the current presentation follow-up is PR #249. The rendered evidence below
+and the current presentation source is the protected PR #249 merge; the
+rendered evidence below
 retains its recorded source
 `24e3c136fb5e3839b00c8e8ddb3c780b6f795461`; it does not attest later UI edits.
 The `27700d61` follow-up corrects bordered/letterboxed schematic taps and the
