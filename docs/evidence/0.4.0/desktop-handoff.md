@@ -16,7 +16,7 @@ Do not create a new Desktop folder, handoff copy, backup or ZIP.
 ## Start here
 
 - **Accepted source:** protected `main` at `61b8a03d` (source PR #249 merged)
-- **Documentation refresh:** PR #248 at `90814e70`, awaiting terminal Verify
+- **Documentation refresh:** PR #248; resolve its live head and terminal Verify before integration
 - **Product direction:** [`docs/design/warpkeep-direction.md`](../../design/warpkeep-direction.md)
 - **Current agent index:** [`docs/agent-notes/0.4.0/README.md`](../../agent-notes/0.4.0/README.md)
 - **Visual foundation:** [`visual-foundation-contract.md`](../../agent-notes/0.4.0/visual-foundation-contract.md)

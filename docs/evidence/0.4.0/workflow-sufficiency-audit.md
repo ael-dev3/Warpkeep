@@ -7,7 +7,7 @@ Git refs for the latest checkpoint, and the
 Historical candidate identities remain in [release engineering](release-engineering.md)
 and [recovery evidence](recovery.md); none certifies later source.
 
-Source PR #249 is now protected-merged as `61b8a03d04fcae2db3913d10e2025fa6c3e8529f`; the post-merge main Verify `34770379931` passed every required lane. Documentation PR #248 at `90814e70` is the only active review and its Verify `34772260770` is pending.
+Source PR #249 is now protected-merged as `61b8a03d04fcae2db3913d10e2025fa6c3e8529f`; the post-merge main Verify `34770379931` passed every required lane. Documentation PR #248 is the current evidence refresh; resolve its live head and required checks before integration.
 
 ## Verdict
 

@@ -10,10 +10,9 @@ It is the protected squash merge of source PR #249, reviewed at head
 run `34770379931` passed every required lane on the protected source merge;
 calling this source checkpoint green.
 
-The documentation refresh is published in draft PR #248 at head
-`90814e70a5be7c50de45e4e1e2078aafb3d846b5`. Its current Verify run
-`34772260770` is still running on that exact docs head; integrate it only
-after terminal passing checks through the normal protected path. Older stacked
+The documentation refresh is published in draft PR #248. Resolve its current
+head and required checks live, then integrate it only after terminal passing
+checks through the normal protected path. Older stacked
 PRs #237–243 are now closed as superseded; their remote branches remain
 available for history, while signed main contains their accepted product and
 operating changes.
