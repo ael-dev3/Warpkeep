@@ -26,22 +26,21 @@ operation occurred. The patch SHA-256 is
 `da348e9eb801a7d7347286a75271a9083469312fbeba3c8f5351f55aed1459d2`, and the
 complete outgoing range passed Gitleaks.
 
-Fresh protected-main Verify run `34754264099` is now the active M1 eligibility
-gate for the exact merge commit. Its release-recovery, native-contract and
-auth-bridge lanes are green; Linux and SpacetimeDB are still running their full
-suites. Do not move native source or prepare M1 until that run reports success.
-After success, fast-forward the clean idle native checkout to `27c2d276`, run
-fresh M1 preparation and an independent check from that exact signed main input,
-then promote only its authenticated generated family through protected M2.
+Fresh protected-main Verify run `34754264099` passed every required lane for the
+exact merge commit. Native M1 preparation and its independent rebuilding check
+then converged on candidate `release-workspace-83bf0da57a1a622d84742c445f8450a9`
+from that exact signed main input; their identities are recorded below and in
+the release-freeze evidence. The next release operation is generated-only M2
+promotion followed by fresh M2 Verify and sealed read-only preflight.
 
 The saved `keep-warpkeep-development-synced` automation is **PAUSED** and must
 remain disabled. Continue manual fetch, exact-range scan, normal commit/push and
 remote-SHA verification for every reviewable checkpoint. Update the existing
 Desktop handoff in place only; create no new Desktop files, backups or archives.
-The current completion estimate is about **74%** (a 68–79% judgment range):
-the corrected source, consumer coverage, generated-family integration and
-protected-main merge are complete; accepted-main/M1, generated-only M2,
-provider/owner authority, live preservation/denial, final mobile/device
+The current completion estimate is about **78%** (a 72–83% judgment range):
+the corrected source, consumer coverage, generated-family integration,
+protected-main merge and accepted-main M1 preparation/check are complete;
+generated-only M2, provider/owner authority, live preservation/denial, final mobile/device
 acceptance and release deployment remain open.
 
 ## Previous consumer implementation checkpoint — 13 September 2026

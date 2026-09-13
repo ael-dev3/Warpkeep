@@ -45,13 +45,14 @@ The `7c31c83b` and `29baaa26` preparation attempts failed closed and remain
 historical. Their candidates were not relabeled or exported. `46489461` fixed the
 pinned-dependency reassignment exposed by the latter, and the successful run above
 is the current source-bound evidence for the implementation input. The generated
-family is integrated on protected main. Fresh main Verify run `34754264099` is
-the current eligibility gate; its release-recovery, native-contract and
-auth-bridge lanes are green while Linux and SpacetimeDB continue their full
-suites. The saved sync automation remains paused and no Desktop output was
-created. The earlier preparation/check is not M1 authority; after this gate
-succeeds, prepare and independently check the exact signed main source before
-generated-only M2 promotion.
+family is integrated on protected main. Fresh main Verify run `34754264099`
+passed every required context. Accepted-main M1 preparation and independent
+check then converged on candidate `release-workspace-83bf0da57a1a622d84742c445f8450a9`
+from signed main, with family `0c97e825844d58ad3417a0298eb75a81c67f3bc1595863a9083c41d5bd648899`
+and closure manifest `13b8ec2559712b93560c62babe47e0e79dae4fa656da638d108f66e8f7a4e835`.
+The saved sync automation remains paused and no Desktop output was created.
+`finalReleasePrepared:false` remains explicit; generated-only M2 promotion,
+provider authority and live acceptance are still open.
 
 ## Verified observation source family — 2026-09-13
 

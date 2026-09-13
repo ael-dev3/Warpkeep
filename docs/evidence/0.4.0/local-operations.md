@@ -2,26 +2,25 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Current source and protected checks — 2026-09-12
+## Current accepted-main source and protected checks — 2026-09-13
 
-Windows and native WSL are synchronized on
-`codex/prepared-keep-bindings-fix`. The current native source family is bound
-to source commit `03cb8b8fc2c0c59bcb58c4303b2082dead6325d9`; read the actual
-branch/PR head through the source-sync procedure before claiming current
-synchronization. The family includes the Linux x64 Pages private deployment
-lane, profile-aware closure pins, and the 1,200-member generated closure while
-preserving the legacy Darwin callers. Native preparation and independent check
-passed for this source input.
-Protected Verify and CodeQL are the authority for the current head. Read every
-required context at terminal state before calling R14 green; transient run IDs
-are intentionally read directly from GitHub. GitHub
-still reports the PR merge state as `BLOCKED` because protected `main` requires
-signed commits and this development history is unsigned, so R14 remains a
-protection/merge reconciliation gate. The native release
-evidence below is bound to those exact source coordinates; later documentation
-commits do not create a new release candidate.
+Protected `main` is signed commit `27c2d27643c29988e5f364ff47a21c6368296900`
+(tree `223d147f230247897ea2da81990cff25e66dd53a`), the exact squash merge of
+PR #245. Main Verify run `34754264099` completed successfully across Linux,
+SpacetimeDB, recovery, native-contract, auth-bridge and aggregate verification.
+The native operating checkout is clean and pinned to that exact commit after
+an idle-process check; RunnerService PID203 and Runner.Listener PID224 remain
+alive. The saved Codex sync automation is paused, and no scheduled GitHub
+workflow exists.
 
-## Latest committed-source native preparation and independent check — 2026-09-12
+Native M1 preparation and independent rebuilding check both converged from this
+exact source on candidate `release-workspace-83bf0da57a1a622d84742c445f8450a9`.
+Their transaction, family, closure and scanner identities are recorded in
+[release freeze evidence](release-freeze.md). `finalReleasePrepared:false` is
+explicit; generated-only M2 promotion, provider authority and live acceptance
+remain open. Later documentation changes do not create a new release candidate.
+
+## Historical committed-source native preparation and independent check — 2026-09-12
 
 The dedicated Linux assembler completed both `prepare` and independent `check`
 from exact source commit

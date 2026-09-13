@@ -16,12 +16,13 @@ Both results report `finalReleasePrepared: false`; they are development evidence
 and do not authorize live mutation or deployment. The generated patch digest is
 `da348e9eb801a7d7347286a75271a9083469312fbeba3c8f5351f55aed1459d2`.
 
-Fresh main Verify run `34754264099` is the active source-identity gate. Its
-release-recovery, native-contract and auth-bridge lanes are green while Linux
-and SpacetimeDB continue their full suites. A fresh accepted-main preparation,
-independent check and any live recovery evidence must use the exact signed main
-source after that gate succeeds. The earlier `7c31c83b` and `29baaa26`
-candidates remain failed-closed historical records and are not reusable.
+Fresh main Verify run `34754264099` passed every required context on the exact
+signed source. Accepted-main M1 preparation and its independent rebuilding check
+then converged on candidate `release-workspace-83bf0da57a1a622d84742c445f8450a9`;
+the exact transaction, family, closure and scanner identities are recorded in
+[release freeze evidence](release-freeze.md). The earlier `7c31c83b` and
+`29baaa26` candidates remain failed-closed historical records and are not
+reusable. No live recovery or deployment authority is claimed.
 
 ## G002 and PTR adoption consumers — 2026-09-13
 

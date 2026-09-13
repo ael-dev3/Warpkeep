@@ -1,9 +1,12 @@
 # 0.4.0 integration evidence
 
-Updated 2026-09-12. Current continuation is recorded in the
-[execution handoff](../../agent-notes/0.4.0/execution-handoff.md); fetch PR #228
-for its immutable head and CI. Source publication, native preparation and
-production deployment are separate outcomes.
+Updated 2026-09-13. Current continuation is recorded in the
+[execution handoff](../../agent-notes/0.4.0/execution-handoff.md); protected
+main is `27c2d276` and its fresh Verify run `34754264099` passed all required
+contexts. PR #245 is merged, and documentation alignment continues in
+[PR #246](https://github.com/ael-dev3/Warpkeep/pull/246). Source publication,
+native preparation, generated-only promotion and production deployment remain
+separate outcomes.
 
 ## Placement and workflow review — 2026-09-12
 
