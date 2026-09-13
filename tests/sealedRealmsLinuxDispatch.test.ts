@@ -7,11 +7,12 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 const stateKey='__warpkeepLinuxDispatchFixture';
 async function fixture(operation: string, failure?: string) {
- const ptr = operation === 'ptr-update-inspect' || operation === 'ptr-update-apply';
+ const observation = operation === 'ptr-state-inspect';
+ const ptr = observation || operation === 'ptr-update-inspect' || operation === 'ptr-update-apply';
  const lane = ptr ? 'ptr' : 'activation';
- const status = operation === 'ptr-update-inspect' ? 'update-inspected'
+ const status = observation ? 'state-inspected' : operation === 'ptr-update-inspect' ? 'update-inspected'
   : operation === 'activation-evidence-inspect' ? 'activation-evidence-inspected' : 'completed';
- vi.stubEnv('WARPKEEP_OPERATION',operation);vi.stubEnv('GITHUB_JOB',failure==='job'?'wrong-job':ptr?'operate_ptr':operation.endsWith('generate')?'operate':'operate_readonly');
+ vi.stubEnv('WARPKEEP_OPERATION',operation);vi.stubEnv('GITHUB_JOB',failure==='job'?'wrong-job':observation?'observe_ptr':ptr?'operate_ptr':operation.endsWith('generate')?'operate':'operate_readonly');
  const calls: string[]=[];
  const factory=ptr?'createSealedRealmsProductionPtrWorkflowRuntime':'createSealedRealmsProductionActivationWorkflowRuntime';
  const run=ptr?'runSealedRealmsProductionPtrOperation':'runSealedRealmsProductionActivationOperation';
@@ -35,6 +36,7 @@ async function fixture(operation: string, failure?: string) {
  finally {vi.unstubAllEnvs();delete (globalThis as Record<string,unknown>)[stateKey];if(failure==='job')expect(calls).toEqual([]);}
 }
 it.each([
+ ['ptr-state-inspect','state-inspected'],
  ['activation-evidence-inspect','activation-evidence-inspected'],
  ['activation-evidence-generate','completed'],
  ['ptr-update-inspect','update-inspected'],
@@ -47,9 +49,12 @@ it('refuses an extra export before calling the factory',async()=>{await expect(f
 it('refuses a malformed operation result',async()=>{await expect(fixture('activation-evidence-generate','result')).rejects.toMatchObject({phase:'result'});});
 
 it('rejects mismatched workflow job before the mocked host or authority is reached',async()=>{await expect(fixture('activation-evidence-generate','job')).rejects.toMatchObject({phase:'runtime'});});
-it.each(['ptr-update-inspect','ptr-update-apply'])('rejects a wrong job for %s before host work',async operation=>{
+it.each(['ptr-state-inspect','ptr-update-inspect','ptr-update-apply'])('rejects a wrong job for %s before host work',async operation=>{
  await expect(fixture(operation,'job')).rejects.toMatchObject({phase:'runtime'});
 });
 it.each(['result','operation'])('rejects mismatched PTR completion %s',async failure=>{
  await expect(fixture('ptr-update-apply',failure)).rejects.toMatchObject({phase:'result'});
+});
+it.each(['result','operation','exports'])('rejects mismatched PTR observation %s',async failure=>{
+ await expect(fixture('ptr-state-inspect',failure)).rejects.toMatchObject({phase:failure==='exports'?'bundle':'result'});
 });

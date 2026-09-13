@@ -26,6 +26,7 @@ export const SEALED_REALMS_OPERATIONS = Object.freeze([
   'g002-update-apply',
   'ptr-update-inspect',
   'ptr-update-apply',
+  'ptr-state-inspect',
 ]);
 
 export const SEALED_REALMS_ACTIVATED_OPERATIONS = Object.freeze([
@@ -172,11 +173,13 @@ function activatedBinding(readBinding, readGit, preparationCommit, activationCom
     ])
     || !((binding.schemaVersion === 1 && binding.profile === 'warpkeep-0.4.0-sealed-launch-v1')
       || (binding.schemaVersion === 2 && binding.profile === 'warpkeep-0.4.0-sealed-launch-v2')
-      || (binding.schemaVersion === 3 && binding.profile === 'warpkeep-0.4.0-sealed-launch-ptr-update-v3'))
+      || (binding.schemaVersion === 3 && binding.profile === 'warpkeep-0.4.0-sealed-launch-ptr-update-v3')
+      || (binding.schemaVersion === 4 && binding.profile === 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4')
+      || (binding.schemaVersion === 5 && binding.profile === 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5'))
     || binding.pagesDeploymentApproved !== true
     || binding.preparationSourceCommit !== preparationCommit
   ) fail('SEALED_REALMS_SOURCE_AUTHORITY_BINDING_INVALID');
-  if (binding.schemaVersion === 2 || binding.schemaVersion === 3) {
+  if (binding.schemaVersion === 2 || binding.schemaVersion === 3 || binding.schemaVersion === 4 || binding.schemaVersion === 5) {
     // Four caller fields cannot authenticate a recovery binding. Read the full
     // immutable Git blob and validate its native versioned recovery structure and S/A history.
     try {

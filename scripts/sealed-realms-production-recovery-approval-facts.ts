@@ -113,8 +113,14 @@ export function readSealedRealmsProductionRecoveryApprovalFacts(
       [realm === "g002" ? "g002ReleaseSha256" : "ptrExpectedReleaseSha256"]:
         release.releaseSha256,
       ...(realm === "ptr"
-        ? { ptrReleaseManifestSha256: sha256(artifacts.manifestBytes) }
-        : {}),
+        ? Object.hasOwn(projection, "ptrExistingStateAdoptionReceiptDigest")
+          // The authenticated V4 corpus retains the signed approval identity;
+          // it makes no claim that this release freshly imported the atlas.
+          ? { ptrPublicApprovalReceiptId: release.publicApprovalReceiptId }
+          : { ptrReleaseManifestSha256: sha256(artifacts.manifestBytes) }
+        : Object.hasOwn(projection, "g002ExistingStateAdoptionReceiptDigest")
+          ? { g002PublicApprovalReceiptId: release.publicApprovalReceiptId }
+          : {}),
     };
     for (const [key, value] of Object.entries(expected)) {
       if (projection[key] !== value) fail();

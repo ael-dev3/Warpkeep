@@ -160,7 +160,51 @@ const receiptCommitmentsV3 = new Set(Object.keys(RECEIPT_COMMITMENTS).flatMap(ke
   key === 'ptrPublishReceiptCommitment' ? ['ptrExistingUpdateReceiptCommitment']
     : key === 'ptrFreshStatusCommitment' ? [] : [key]));
 const commitmentKeysV3 = new Set(['g001FreezePublishReceiptCommitment', ...receiptCommitmentsV3]);
-const profiles = Object.freeze({ 2: 'warpkeep-0.4.0-sealed-launch-v2', 3: 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' });
+// V4 describes an authenticated preserved-state update. It makes no historical
+// claim that this release freshly imported the PTR atlas or provisioned its owner.
+const ptrAdoptionKeys = [
+  'ptrExistingUpdateReceiptDigest', 'ptrExistingUpdateReceiptCommitment',
+  'ptrExistingStateAdoptionReceiptDigest', 'ptrExistingStateAdoptionReceiptCommitment',
+  'ptrDatabaseIdentity', 'ptrExpectedProgramKeccak256', 'ptrModuleSourceCommit',
+  'ptrModuleSha256', 'ptrModuleTreeId', 'ptrDependencyClosureDigest',
+  'ptrSpacetimeExecutableSha256', 'ptrSpacetimeCliConfigSha256',
+  'ptrAtlasSourceCommit', 'ptrAtlasId', 'ptrPublicReleaseId', 'ptrPublicApprovalReceiptId',
+  'ptrReleaseVersion', 'ptrExpectedReleaseSha256', 'ptrReleaseHeaderSha256', 'ptrVerificationDigest',
+  'ptrAtlasReady', 'ptrSealed', 'ptrPopulationGuardPassed', 'ptrSingletonOwnerCount',
+  'ptrOwnerEnabled', 'ptrGeneralAdmissionCount', 'ptrAdmissionsOpen', 'ptrAccessRequestsOpen',
+  'ptrExpectedSealedStateHmacSha256', 'ptrExpectedOwnerInvariantHmacSha256',
+];
+export const RECOVERY_BINDING_KEYS_V4 = Object.freeze(BINDING_KEYS.flatMap(key =>
+  key === 'ptrPublishReceiptDigest' ? ptrAdoptionKeys : key.startsWith('ptr') ? [] : [key]));
+const receiptCommitmentsV4 = new Set(RECOVERY_BINDING_KEYS_V4.filter(key =>
+  key.endsWith('Commitment') && key !== 'g001FreezePublishReceiptCommitment'));
+const commitmentKeysV4 = new Set(['g001FreezePublishReceiptCommitment', ...receiptCommitmentsV4]);
+// V5 also adopts the current G002 state; it does not manufacture initial import
+// history or infer notification configuration from closed admission requests.
+const g002AdoptionKeys = [
+  'g002ExistingUpdateReceiptDigest', 'g002ExistingUpdateReceiptCommitment',
+  'g002ExistingStateAdoptionReceiptDigest', 'g002ExistingStateAdoptionReceiptCommitment',
+  'g002DatabaseIdentity', 'g002ExpectedProgramKeccak256', 'g002ModuleSourceCommit',
+  'g002ModuleSha256', 'g002ModuleTreeId', 'g002DependencyClosureDigest',
+  'g002SpacetimeExecutableSha256', 'g002SpacetimeCliConfigSha256',
+  'g002AtlasSourceCommit', 'g002AtlasId', 'g002PublicReleaseId', 'g002PublicApprovalReceiptId',
+  'g002ReleaseVersion', 'g002ReleaseSha256', 'g002ReleaseHeaderSha256', 'g002VerificationDigest',
+  'g002AtlasReady', 'g002Sealed', 'g002PopulationGuardPassed', 'g002PlayerCount',
+  'g002GeneralAdmissionCount', 'g002AdmissionsOpen', 'g002AccessRequestsOpen',
+  'g002ExpectedSealedStateHmacSha256',
+];
+export const RECOVERY_BINDING_KEYS_V5 = Object.freeze(RECOVERY_BINDING_KEYS_V4.flatMap(key =>
+  key === 'g002PublishReceiptDigest' ? g002AdoptionKeys
+    : key.startsWith('g002') || key === 'admissionNotificationsEnabled' ? [] : [key]));
+const receiptCommitmentsV5 = new Set(RECOVERY_BINDING_KEYS_V5.filter(key =>
+  key.endsWith('Commitment') && key !== 'g001FreezePublishReceiptCommitment'));
+const commitmentKeysV5 = new Set(['g001FreezePublishReceiptCommitment', ...receiptCommitmentsV5]);
+const profiles = Object.freeze({
+  2: 'warpkeep-0.4.0-sealed-launch-v2',
+  3: 'warpkeep-0.4.0-sealed-launch-ptr-update-v3',
+  4: 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4',
+  5: 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5',
+});
 
 function bindingVersion(input) {
   if (types.isProxy(input) || !input || typeof input !== 'object'
@@ -170,16 +214,25 @@ function bindingVersion(input) {
     if (!descriptors[key]?.enumerable || !Object.hasOwn(descriptors[key], 'value')) fail();
   }
   const version = descriptors.schemaVersion.value;
-  if ((version !== 2 && version !== 3) || descriptors.profile.value !== profiles[version]) fail();
+  if ((version !== 2 && version !== 3 && version !== 4 && version !== 5) || descriptors.profile.value !== profiles[version]) fail();
   return version;
 }
 export function recoveryBindingKeys(version) {
-  if (version !== 2 && version !== 3) fail();
-  return version === 2 ? RECOVERY_BINDING_KEYS_V2 : RECOVERY_BINDING_KEYS_V3;
+  if (version !== 2 && version !== 3 && version !== 4 && version !== 5) fail();
+  return version === 2 ? RECOVERY_BINDING_KEYS_V2 : version === 3 ? RECOVERY_BINDING_KEYS_V3
+    : version === 4 ? RECOVERY_BINDING_KEYS_V4 : RECOVERY_BINDING_KEYS_V5;
 }
 function snapshotV3(input) {
   if (bindingVersion(input) !== 3) fail();
   return snapshot(input, RECOVERY_BINDING_KEYS_V3);
+}
+function snapshotV4(input) {
+  if (bindingVersion(input) !== 4) fail();
+  return snapshot(input, RECOVERY_BINDING_KEYS_V4);
+}
+function snapshotV5(input) {
+  if (bindingVersion(input) !== 5) fail();
+  return snapshot(input, RECOVERY_BINDING_KEYS_V5);
 }
 /** Hash projection only; no receipt authenticity or deployment authority. */
 export function recoveryReceiptCommitmentV3(commitmentKey, input) {
@@ -187,15 +240,38 @@ export function recoveryReceiptCommitmentV3(commitmentKey, input) {
   return digest(`warpkeep.0.4.0.recovery-sealed-launch.${commitmentKey}.v3\n`,
     RECOVERY_BINDING_KEYS_V3.filter(key => !commitmentKeysV3.has(key)), snapshotV3(input));
 }
+/** Hash projection only; an adoption digest does not authenticate preserved state. */
+export function recoveryReceiptCommitmentV4(commitmentKey, input) {
+  if (typeof commitmentKey !== 'string' || !receiptCommitmentsV4.has(commitmentKey)) fail();
+  return digest(`warpkeep.0.4.0.recovery-sealed-launch.${commitmentKey}.v4\n`,
+    RECOVERY_BINDING_KEYS_V4.filter(key => !commitmentKeysV4.has(key)), snapshotV4(input));
+}
+/** Hash projection only; both realm adoptions require independently authenticated evidence. */
+export function recoveryReceiptCommitmentV5(commitmentKey, input) {
+  if (typeof commitmentKey !== 'string' || !receiptCommitmentsV5.has(commitmentKey)) fail();
+  return digest(`warpkeep.0.4.0.recovery-sealed-launch.${commitmentKey}.v5\n`,
+    RECOVERY_BINDING_KEYS_V5.filter(key => !commitmentKeysV5.has(key)), snapshotV5(input));
+}
 export function recoveryReceiptCommitment(commitmentKey, input) {
-  return bindingVersion(input) === 2 ? recoveryReceiptCommitmentV2(commitmentKey, input)
-    : recoveryReceiptCommitmentV3(commitmentKey, input);
+  const version = bindingVersion(input);
+  return version === 2 ? recoveryReceiptCommitmentV2(commitmentKey, input)
+    : version === 3 ? recoveryReceiptCommitmentV3(commitmentKey, input)
+      : version === 4 ? recoveryReceiptCommitmentV4(commitmentKey, input) : recoveryReceiptCommitmentV5(commitmentKey, input);
 }
 export function recoveryAuthorizationCoreSha256V3(input) {
   return digest('warpkeep.0.4.0.recovery-authorization-core.v3\n', RECOVERY_BINDING_KEYS_V3, snapshotV3(input));
 }
+export function recoveryAuthorizationCoreSha256V4(input) {
+  return digest('warpkeep.0.4.0.recovery-authorization-core.v4\n', RECOVERY_BINDING_KEYS_V4, snapshotV4(input));
+}
+export function recoveryAuthorizationCoreSha256V5(input) {
+  return digest('warpkeep.0.4.0.recovery-authorization-core.v5\n', RECOVERY_BINDING_KEYS_V5, snapshotV5(input));
+}
 export function recoveryAuthorizationCoreSha256ForBinding(input) {
-  return bindingVersion(input) === 2 ? recoveryAuthorizationCoreSha256(input) : recoveryAuthorizationCoreSha256V3(input);
+  const version = bindingVersion(input);
+  return version === 2 ? recoveryAuthorizationCoreSha256(input)
+    : version === 3 ? recoveryAuthorizationCoreSha256V3(input)
+      : version === 4 ? recoveryAuthorizationCoreSha256V4(input) : recoveryAuthorizationCoreSha256V5(input);
 }
 function decode(source) {
   if (typeof source !== 'string' || source.length > 1024 * 1024) fail();
@@ -207,7 +283,22 @@ export function parseRecoveryBindingDocumentV3(source) {
   if (`${JSON.stringify(captured, null, 2)}\n` !== source) fail();
   return Object.freeze(captured);
 }
-/** Explicit version dispatch; never falls back from an invalid V3 document. */
+/** Canonical V4 wire decoding only; does not authenticate the signed adoption evidence. */
+export function parseRecoveryBindingDocumentV4(source) {
+  const captured = snapshotV4(decode(source));
+  if (`${JSON.stringify(captured, null, 2)}\n` !== source) fail();
+  return Object.freeze(captured);
+}
+/** Canonical V5 decoding only; no adoption or deployment authority. */
+export function parseRecoveryBindingDocumentV5(source) {
+  const captured = snapshotV5(decode(source));
+  if (`${JSON.stringify(captured, null, 2)}\n` !== source) fail();
+  return Object.freeze(captured);
+}
+/** Explicit version dispatch; never falls back from an invalid versioned document. */
 export function parseRecoveryBindingDocument(source) {
-  return bindingVersion(decode(source)) === 2 ? parseRecoveryBindingDocumentV2(source) : parseRecoveryBindingDocumentV3(source);
+  const version = bindingVersion(decode(source));
+  return version === 2 ? parseRecoveryBindingDocumentV2(source)
+    : version === 3 ? parseRecoveryBindingDocumentV3(source)
+      : version === 4 ? parseRecoveryBindingDocumentV4(source) : parseRecoveryBindingDocumentV5(source);
 }

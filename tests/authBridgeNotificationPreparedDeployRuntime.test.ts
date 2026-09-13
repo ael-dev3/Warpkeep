@@ -90,16 +90,87 @@ const BEFORE_MODES = Object.freeze({
   publicAuthEnabled: true,
   accessExpectedFidRequired: false,
 });
+const EXACT_REVIEWED_B0_VARIABLES = Object.freeze({
+  ACCESS_EXPECTED_FID_REQUIRED: 'false',
+  ALLOWED_ORIGINS: 'https://warpkeep.com',
+  APPROVAL_NOTIFICATIONS_ENABLED: 'true',
+  ENVIRONMENT: 'production',
+  FARCASTER_DOMAIN: 'warpkeep.com',
+  FARCASTER_SIWE_URI: 'https://warpkeep.com/',
+  ISSUER: 'https://auth.warpkeep.com',
+  MINIAPP_NOTIFICATION_CLIENTS:
+    '9152=https://api.farcaster.xyz/v1/frame-notifications',
+  MINIAPP_NOTIFICATION_HUB_URLS:
+    'https://rho.farcaster.xyz:3381/,https://hub.pinata.cloud/',
+  OIDC_AUDIENCE: 'warpkeep-spacetimedb',
+  OIDC_KEY_ID: 'warpkeep-alpha-2026-07-01',
+  PUBLIC_AUTH_ENABLED: 'true',
+  PTR_ENABLED: 'false',
+  QA_OBSERVER_ENABLED: 'false',
+  SPACETIMEDB_DATABASE:
+    'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+  SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
+  WARPKEEP_BRIDGE_SOURCE_COMMIT:
+    AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
+});
+const EXACT_REVIEWED_B0_SECRET_BINDING_NAMES = Object.freeze([
+  'ADMIN_TOKEN_SECRET',
+  'FARCASTER_RPC_URL',
+  'FARCASTER_RPC_URL_SECONDARY',
+  'NOTIFICATION_OPERATOR_SECRET',
+  'SESSION_COOKIE_KEY',
+  'SIGNING_KEY_JWK',
+]);
+const EXACT_TEST_PREDECESSOR_SOURCE_AUTHORITY = Object.freeze({
+  sourceDigest: '',
+  entrypoint: 'index.js',
+  modules: Object.freeze([Object.freeze({
+    field: 'index.js',
+    name: 'index.js',
+    contentType: 'application/javascript+module',
+    size: 58,
+    sha256: 'ae8bb90b72d7bd197324853f2bf9ddae049b6a8f7dac4db8ba699087792d1d59',
+  })]),
+});
+const DISTINCT_TEST_PREDECESSOR_SOURCE_AUTHORITY = Object.freeze({
+  sourceDigest: 'bea2883abf43e08f8a51ef82bc8d2032f2538b95d09c2442a0431b811052fc5c',
+  entrypoint: 'index.js',
+  modules: Object.freeze([Object.freeze({
+    field: 'index.js',
+    name: 'index.js',
+    contentType: 'application/javascript+module',
+    size: 67,
+    sha256: '1d7afa428b60dd81310e48f856355cf98b5e9c7b7a1d61ebb1c5166a0d8df3d9',
+  })]),
+});
+
+type PredecessorSourceAuthority = Readonly<{
+  sourceDigest: string;
+  entrypoint: string;
+  modules: readonly Readonly<{
+    field: string;
+    name: string;
+    contentType: string;
+    size: number;
+    sha256: string;
+  }>[];
+}>;
 
 function createAuthBridgeNotificationPreparedCloudflareRuntime(
   options: Omit<Parameters<
     typeof createAuthBridgeNotificationPreparedCloudflareRuntimeRaw
-  >[0], 'ptrSpacetimeDbDatabase'>,
+  >[0], 'ptrSpacetimeDbDatabase' | 'predecessorSourceAuthority'> & Readonly<{
+    predecessorSourceAuthority?: PredecessorSourceAuthority;
+  }>,
 ) {
   return createAuthBridgeNotificationPreparedCloudflareRuntimeRaw({
     ...options,
+    predecessorSourceAuthority: options.predecessorSourceAuthority ?? Object.freeze({
+      ...EXACT_TEST_PREDECESSOR_SOURCE_AUTHORITY,
+      sourceDigest: (options.contract as { sourceDigest: string }).sourceDigest,
+    }),
     ptrSpacetimeDbDatabase: PTR_DATABASE,
-  });
+  } as Parameters<typeof createAuthBridgeNotificationPreparedCloudflareRuntimeRaw>[0]);
 }
 
 function attestAuthBridgeNotificationPreparedCandidateMultipartMetadata(
@@ -150,7 +221,7 @@ const EXACT_DURABLE_OBJECT_BINDINGS = Object.freeze([
     namespaceId: 'b4525a7a374743deb3666471fe2ae06c',
   }),
 ]);
-const EXACT_NAMED_HANDLERS = Object.freeze([
+const EXACT_REVIEWED_B0_NAMED_HANDLERS = Object.freeze([
   'AdmissionNotification',
   'AuthRateLimiter',
   'ChallengeReplayGuard',
@@ -173,6 +244,10 @@ const EXACT_NAMED_HANDLERS = Object.freeze([
   'createAuthBridge',
   'createMiniAppWebhookVerifier',
   'serializeAdmissionNotificationDeliveryContract',
+]);
+const EXACT_PREPARED_NAMED_HANDLERS = Object.freeze([
+  ...EXACT_REVIEWED_B0_NAMED_HANDLERS,
+  'ReleaseRecoveryObservationEntrypoint',
 ]);
 
 function multipart(boundary = 'warpkeep-boundary-v1') {
@@ -197,6 +272,7 @@ function uploadMultipart(
   const metadata = JSON.stringify({
     main_module: 'index.js',
     bindings: [
+      { name: 'CF_VERSION_METADATA', type: 'version_metadata' },
       ...Object.entries(value.variables).map(([name, text]) => ({
         name,
         type: 'plain_text',
@@ -229,12 +305,15 @@ function uploadMultipart(
   ].join(''), 'utf8');
 }
 
-function contentMultipart(boundary = 'warpkeep-boundary-v1') {
+function contentMultipart(
+  boundary = 'warpkeep-boundary-v1',
+  moduleSource = 'export default { fetch() { return new Response("ok") } };\n',
+) {
   return Buffer.from([
     `--${boundary}\r\n`,
     'Content-Disposition: form-data; name="index.js"; filename="index.js"\r\n',
     'Content-Type: application/javascript+module\r\n\r\n',
-    'export default { fetch() { return new Response("ok") } };\n',
+    moduleSource,
     `\r\n--${boundary}--\r\n`,
   ].join(''), 'utf8');
 }
@@ -283,22 +362,26 @@ function exactNamespaceId(name: string) {
   return binding.namespaceId;
 }
 
-function exactNamedHandlers() {
-  return EXACT_NAMED_HANDLERS.map(name => ({ handlers: ['class'], name }));
+function exactNamedHandlers(names = EXACT_PREPARED_NAMED_HANDLERS) {
+  return names.map(name => ({ handlers: ['class'], name }));
 }
 
-function exactScript(etag: string) {
+function exactScript(
+  etag: string,
+  namedHandlerNames: readonly string[] = EXACT_PREPARED_NAMED_HANDLERS,
+) {
   return {
     etag,
     handlers: ['fetch'],
     last_deployed_from: 'api',
-    named_handlers: exactNamedHandlers(),
+    named_handlers: exactNamedHandlers(namedHandlerNames),
   };
 }
 
 function exactExports(value: ReturnType<typeof contract>) {
   return {
     default: { type: 'worker' },
+    ReleaseRecoveryObservationEntrypoint: { type: 'worker' },
     ...Object.fromEntries(value.durableObjectBindings.map(binding => [
       binding.className,
       { type: 'durable-object', storage: 'sqlite', state: 'created' },
@@ -321,6 +404,10 @@ function exactVersionDetail(
     },
     bridgeSourceCommit = value.sourceCommit,
     ptrDatabase = PTR_DATABASE,
+    variables = value.variables,
+    durableObjectBindings = value.durableObjectBindings,
+    versionMetadataBinding = true,
+    namedHandlerNames = EXACT_PREPARED_NAMED_HANDLERS,
     exports: runtimeExports,
   }: Readonly<{
     id?: string;
@@ -331,6 +418,13 @@ function exactVersionDetail(
     annotations?: Readonly<Record<string, unknown>>;
     bridgeSourceCommit?: string;
     ptrDatabase?: string | null;
+    variables?: Readonly<Record<string, string>>;
+    durableObjectBindings?: readonly Readonly<{
+      name: string;
+      className: string;
+    }>[];
+    versionMetadataBinding?: boolean;
+    namedHandlerNames?: readonly string[];
     exports?: Readonly<Record<string, unknown>> | null;
   }> = {},
 ): ExactVersionDetail {
@@ -347,7 +441,11 @@ function exactVersionDetail(
     },
     resources: {
       bindings: [
-        ...Object.entries(value.variables).map(([name, text]) => ({
+        ...(versionMetadataBinding ? [{
+          name: 'CF_VERSION_METADATA',
+          type: 'version_metadata',
+        }] : []),
+        ...Object.entries(variables).map(([name, text]) => ({
           name,
           type: 'plain_text',
           text: name === 'WARPKEEP_BRIDGE_SOURCE_COMMIT'
@@ -360,14 +458,14 @@ function exactVersionDetail(
           text: ptrDatabase,
         }]),
         ...secretBindingNames.map(name => ({ name, type: 'secret_text' })),
-        ...value.durableObjectBindings.map(binding => ({
+        ...durableObjectBindings.map(binding => ({
           name: binding.name,
           type: 'durable_object_namespace',
           class_name: binding.className,
           namespace_id: exactNamespaceId(binding.name),
         })),
       ],
-      script: exactScript(etag),
+      script: exactScript(etag, namedHandlerNames),
       script_runtime: {
         compatibility_date: value.compatibilityDate,
         compatibility_flags: value.compatibilityFlags,
@@ -3555,6 +3653,85 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     )).toMatchObject({ metadata: { main_module: 'index.js' } });
   });
 
+  it('rejects malformed predecessor source authority before remote access', () => {
+    const template = multipart();
+    const contentType = 'multipart/form-data; boundary=warpkeep-boundary-v1';
+    const digest = inspectAuthBridgeNotificationPreparedMultipart(template, contentType)
+      .sourceDigest;
+    const value = contract(digest);
+    const validAuthority = Object.freeze({
+      ...EXACT_TEST_PREDECESSOR_SOURCE_AUTHORITY,
+      sourceDigest: digest,
+    });
+    const getterAuthority = Object.defineProperties({}, {
+      sourceDigest: { enumerable: true, get: () => digest },
+      entrypoint: { enumerable: true, value: 'index.js' },
+      modules: { enumerable: true, value: validAuthority.modules },
+    }) as PredecessorSourceAuthority;
+    const customMapModules = [...validAuthority.modules];
+    Object.defineProperty(customMapModules, 'map', {
+      enumerable: true,
+      value: () => [...validAuthority.modules],
+    });
+    let indexGetterCalled = false;
+    const indexGetterModules = [] as Array<
+      PredecessorSourceAuthority['modules'][number]
+    >;
+    Object.defineProperty(indexGetterModules, '0', {
+      enumerable: true,
+      get: () => {
+        indexGetterCalled = true;
+        return validAuthority.modules[0];
+      },
+    });
+    Object.defineProperty(indexGetterModules, 'length', { value: 1 });
+    let coercionCalled = false;
+    const coercingDigest = {
+      toString: () => {
+        coercionCalled = true;
+        return digest;
+      },
+    } as unknown as string;
+    const fetchImpl = vi.fn();
+    for (const predecessorSourceAuthority of [
+      { ...validAuthority, sourceDigest: 'f'.repeat(64) },
+      {
+        ...validAuthority,
+        modules: [{ ...validAuthority.modules[0], size: 59 }],
+      },
+      { ...validAuthority, entrypoint: 'other.js' },
+      getterAuthority,
+      { ...validAuthority, modules: customMapModules },
+      { ...validAuthority, modules: indexGetterModules },
+      { ...validAuthority, modules: new Proxy([...validAuthority.modules], {}) },
+      { ...validAuthority, sourceDigest: coercingDigest },
+      {
+        ...validAuthority,
+        modules: [{ ...validAuthority.modules[0], sha256: coercingDigest }],
+      },
+    ]) {
+      expect(() => createAuthBridgeNotificationPreparedCloudflareRuntime({
+        contract: value,
+        predecessorSourceAuthority,
+        apiToken: 'cloudflare-test-token-value-1234567890',
+        playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
+        repositoryRoot: realpathSync(process.cwd()),
+        serviceRoot: realpathSync(join(process.cwd(), 'services/auth-bridge')),
+        nodeExecutable: process.execPath,
+        wranglerEntrypoint: process.execPath,
+        multipartBody: uploadMultipart(value),
+        multipartContentType: contentType,
+        fetchImpl,
+        journal: { inspect: () => ({ phase: 'prepared' }) },
+      })).toThrow(
+        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_SOURCE_AUTHORITY_INVALID',
+      );
+    }
+    expect(indexGetterCalled).toBe(false);
+    expect(coercionCalled).toBe(false);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it('projects only an exact version configuration with all required bindings', () => {
     const body = multipart();
     const digest = inspectAuthBridgeNotificationPreparedMultipart(
@@ -3568,7 +3745,11 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       type: 'plain_text',
       text: PTR_DATABASE,
     });
-    expect(raw.resources.script.named_handlers).toHaveLength(22);
+    expect(raw.resources.script.named_handlers).toHaveLength(23);
+    expect(raw.resources.script.named_handlers).toContainEqual({
+      handlers: ['class'],
+      name: 'ReleaseRecoveryObservationEntrypoint',
+    });
     expect(raw.resources.script_runtime).not.toHaveProperty('exports');
     expect(projectAuthBridgeNotificationPreparedCloudflareVersion({
       value: raw,
@@ -3945,9 +4126,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       number: 1,
       createdAt: '2026-08-12T23:50:00.000Z',
       etag: 'd'.repeat(64),
-      secretBindingNames: value.secretBindingNames.filter(
-        name => name !== 'PLAYER_CANARY_OWNER_FID',
-      ),
+      secretBindingNames: EXACT_REVIEWED_B0_SECRET_BINDING_NAMES,
       annotations: {
         'workers/tag': `notification-b0-${AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT}`,
         'workers/message': `Warpkeep notification B0 ${AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT}`,
@@ -3956,6 +4135,10 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       bridgeSourceCommit:
         AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
       ptrDatabase: null,
+      variables: EXACT_REVIEWED_B0_VARIABLES,
+      durableObjectBindings: EXACT_DURABLE_OBJECT_BINDINGS,
+      versionMetadataBinding: false,
+      namedHandlerNames: EXACT_REVIEWED_B0_NAMED_HANDLERS,
     });
     let uploaded = false;
     let targetLive = false;
@@ -4275,7 +4458,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     runtime.dispose();
   });
 
-  it('uploads one keep-bindings candidate and fails closed on lineage drift', async () => {
+  it('uploads one keep-bindings candidate from the exact reviewed B0 and fails closed on lineage drift', async () => {
     const template = multipart();
     const contentType = 'multipart/form-data; boundary=warpkeep-boundary-v1';
     const digest = inspectAuthBridgeNotificationPreparedMultipart(template, contentType)
@@ -4302,9 +4485,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       number: 1,
       createdAt: '2026-08-12T23:50:00.000Z',
       etag: 'd'.repeat(64),
-      secretBindingNames: value.secretBindingNames.filter(
-        name => name !== 'PLAYER_CANARY_OWNER_FID',
-      ),
+      secretBindingNames: EXACT_REVIEWED_B0_SECRET_BINDING_NAMES,
       annotations: {
         'workers/tag': `notification-b0-${AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT}`,
         'workers/message': `Warpkeep notification B0 ${AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT}`,
@@ -4313,6 +4494,10 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       bridgeSourceCommit:
         AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
       ptrDatabase: null,
+      variables: EXACT_REVIEWED_B0_VARIABLES,
+      durableObjectBindings: EXACT_DURABLE_OBJECT_BINDINGS,
+      versionMetadataBinding: false,
+      namedHandlerNames: EXACT_REVIEWED_B0_NAMED_HANDLERS,
     });
     const nonPredecessorDetail = exactVersionDetail(value, {
       id: NON_PREDECESSOR_VERSION_ID,
@@ -4321,7 +4506,11 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       etag: 'c'.repeat(64),
       secretBindingNames: value.secretBindingNames,
     });
-    let predecessorSourceBody = contentMultipart();
+    const reviewedPredecessorSourceBody = contentMultipart(
+      'warpkeep-boundary-v1',
+      'export default { fetch() { return new Response("reviewed-b0") } };\n',
+    );
+    let predecessorSourceBody = Buffer.from(reviewedPredecessorSourceBody);
     const prerequisiteResponse = (
       url: string,
       method: string,
@@ -4536,6 +4725,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     });
     const runtime = createAuthBridgeNotificationPreparedCloudflareRuntime({
       contract: value,
+      predecessorSourceAuthority: DISTINCT_TEST_PREDECESSOR_SOURCE_AUTHORITY,
       apiToken: 'cloudflare-test-token-value-1234567890',
       playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
       repositoryRoot: realpathSync(process.cwd()),
@@ -4557,7 +4747,22 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_SOURCE_UNVERIFIED',
     });
     expect(urls.filter(item => item.startsWith('POST:'))).toHaveLength(0);
-    predecessorSourceBody = contentMultipart();
+    predecessorSourceBody = Buffer.from(reviewedPredecessorSourceBody);
+
+    predecessorSourceBody = Buffer.from(
+      reviewedPredecessorSourceBody.toString('utf8').replace(
+        '--warpkeep-boundary-v1--\r\n',
+        '--warpkeep-boundary-v1\r\n'
+          + 'Content-Disposition: form-data; name="extra.js"; filename="extra.js"\r\n'
+          + 'Content-Type: application/javascript+module\r\n\r\n'
+          + 'export {};\n\r\n--warpkeep-boundary-v1--\r\n',
+      ),
+    );
+    await expect(runtime.prepareUpload(value)).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_SOURCE_UNVERIFIED',
+    });
+    expect(urls.filter(item => item.startsWith('POST:'))).toHaveLength(0);
+    predecessorSourceBody = Buffer.from(reviewedPredecessorSourceBody);
 
     predecessorDetail.resources.script_runtime.exports = null;
     await expect(runtime.prepareUpload(value)).rejects.toMatchObject({
@@ -4595,6 +4800,39 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     });
     predecessorSourceBinding.text =
       AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT;
+    for (const [name, driftedText] of [
+      ['APPROVAL_NOTIFICATIONS_ENABLED', 'false'],
+      ['PTR_ENABLED', 'true'],
+    ] as const) {
+      const binding = predecessorDetail.resources.bindings.find(
+        item => item.name === name,
+      );
+      if (binding === undefined) throw new Error(`fixture binding missing: ${name}`);
+      const reviewedText = binding.text;
+      binding.text = driftedText;
+      await expect(runtime.prepareUpload(value)).rejects.toMatchObject({
+        code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_BINDING_MISMATCH',
+      });
+      binding.text = reviewedText;
+    }
+    for (const injectedBinding of [
+      {
+        name: 'PTR_OIDC_AUDIENCE',
+        type: 'plain_text',
+        text: 'warpkeep-ptr-spacetimedb',
+      },
+      {
+        name: 'PTR_SPACETIMEDB_DATABASE',
+        type: 'plain_text',
+        text: PTR_DATABASE,
+      },
+    ]) {
+      predecessorDetail.resources.bindings.push(injectedBinding);
+      await expect(runtime.prepareUpload(value)).rejects.toMatchObject({
+        code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_BINDING_MISMATCH',
+      });
+      predecessorDetail.resources.bindings.pop();
+    }
     expect(urls.filter(item => item.startsWith('POST:'))).toHaveLength(0);
 
     const predecessorVersionNumber = predecessorDetail.number;
@@ -4826,6 +5064,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       const recoveryRuntime =
         createAuthBridgeNotificationPreparedCloudflareRuntime({
           contract: value,
+          predecessorSourceAuthority: DISTINCT_TEST_PREDECESSOR_SOURCE_AUTHORITY,
           apiToken: 'cloudflare-test-token-value-1234567890',
           playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
           repositoryRoot: realpathSync(process.cwd()),
@@ -4902,6 +5141,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     const uninvokedCandidateRuntime =
       createAuthBridgeNotificationPreparedCloudflareRuntime({
         contract: value,
+        predecessorSourceAuthority: DISTINCT_TEST_PREDECESSOR_SOURCE_AUTHORITY,
         apiToken: 'cloudflare-test-token-value-1234567890',
         playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
         repositoryRoot: realpathSync(process.cwd()),
@@ -4962,7 +5202,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     });
     expect(urls.filter(item => item.startsWith('POST:')
       && item.endsWith('/deployments'))).toHaveLength(0);
-    predecessorSourceBody = contentMultipart();
+    predecessorSourceBody = Buffer.from(reviewedPredecessorSourceBody);
     livePredecessorDeploymentId = DRIFTED_DEPLOYMENT_ID;
     await expect(runtime.releaseVersion(release)).rejects.toMatchObject({
       code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_DRIFT',
@@ -4993,6 +5233,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     const failedSettleDelayImpl = vi.fn(async () => undefined);
     const failed = createAuthBridgeNotificationPreparedCloudflareRuntime({
       contract: value,
+      predecessorSourceAuthority: DISTINCT_TEST_PREDECESSOR_SOURCE_AUTHORITY,
       apiToken: 'cloudflare-test-token-value-1234567890',
       playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
       repositoryRoot: realpathSync(process.cwd()),
@@ -5044,6 +5285,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     });
     const rejected = createAuthBridgeNotificationPreparedCloudflareRuntime({
       contract: value,
+      predecessorSourceAuthority: DISTINCT_TEST_PREDECESSOR_SOURCE_AUTHORITY,
       apiToken: 'cloudflare-test-token-value-1234567890',
       playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
       repositoryRoot: realpathSync(process.cwd()),
@@ -5083,6 +5325,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     });
     const echoedCanary = createAuthBridgeNotificationPreparedCloudflareRuntime({
       contract: value,
+      predecessorSourceAuthority: DISTINCT_TEST_PREDECESSOR_SOURCE_AUTHORITY,
       apiToken: 'cloudflare-test-token-value-1234567890',
       playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
       repositoryRoot: realpathSync(process.cwd()),
@@ -5147,6 +5390,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       const hostileResponseRuntime =
         createAuthBridgeNotificationPreparedCloudflareRuntime({
           contract: value,
+          predecessorSourceAuthority: DISTINCT_TEST_PREDECESSOR_SOURCE_AUTHORITY,
           apiToken: 'cloudflare-test-token-value-1234567890',
           playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
           repositoryRoot: realpathSync(process.cwd()),

@@ -1,5 +1,174 @@
 # Verdant Citadel visual evidence — final acceptance open
 
+## 2026-09-12 building hierarchy development
+
+The preceding mature captures show the cathedral overwhelming economic sites.
+The preceding prefab fitter expands every building nearly to its policy rectangle;
+catalog dimensions imply a cathedral around four times the economic models'
+height. Those estimates are source-based, not a measurement of rendered pixels.
+The economy models already fill their available width, so enlarging each whole
+model would provide little additional identity and consume placement clearance.
+
+The implemented correction uniformly reduces the cathedral's normalized model
+child, with an equivalent treatment for fallback architecture. Its precinct,
+placement root, scaffold and presentation of completed levels remain unchanged.
+The 0.75 factor improves hierarchy in the rendered review below.
+Completed economic sites gain wider, low craft signs with a resource silhouette
+and their existing level numeral, merged into the owned static decoration layer.
+This adds no asset download, texture, light or draw submission. Mixed vertex-color
+meshes and the separately textured canonical emblem retain their existing colors.
+
+The source is implemented in the reused verification worktree, separate from the
+pinned source being independently rebuilt. Baseline building/scene verification
+passed 89 cases. Nine new regressions then failed with one preservation case
+passing; all ten passed after implementation. The final five-suite selection
+passed all 138 cases without skips (5.04 seconds), and independent source review
+found no blocker. Node types passed. Application types first identified an absent
+pre-existing service TypeScript dependency in this reused checkout; linking the
+existing primary service dependency tree closed that gap, and root's full app
+noEmit check passed. No package was installed or changed. Footprint, prefab
+ownership, disposal, draw limits and same-building picking have regression coverage.
+
+Acceptance must inspect the complete scrolled mature scene in desktop, portrait
+balanced/reduced and landscape, plus individual economy selections, cathedral
+construction/completion, sparse entry, fallback and context recovery. Check
+resource/level readability, hierarchy, footprint clearance, correct picking and
+unchanged budgets. The current entry-framing matrix below does not accept this
+later art change; semantic palette and terrain work remain separate.
+
+### Rendered follow-up at 75c04680
+
+Guarded run `artifacts/keep04-qa/windows-run-N8ekUE` captured exact clean source
+`75c0468081583ce6dff9cf7ba02392a58bbb4e54`, tree
+`43a02e0e56635a26c56cdd37acc866968d5e9cea`, in the reused linked checkout.
+Session `39729` completed normally with exit zero; source stayed unchanged.
+Independent reviewers manually inspected all 36 original images across desktop,
+portrait balanced, portrait reduced and short landscape. The exact profile and
+scenario inventory, PNG dimensions and observation mappings were verified.
+
+Compared with `PSW7Es`, the cathedral occupies less of its precinct and balances
+better against the barracks. Sparse completion retains its model and visible
+wheat/level sign. Placement markers, scaffolding, fallback and context-recovery
+views show no new visible regression. The mature phone overview still cannot
+support reliable craft-symbol or level identification; visible fascia alone is
+not proof of legibility. Fixed page crops omit lower content, particularly in
+landscape, and do not establish complete interaction reachability.
+
+Root separately scrolled the live H fixture in the Codex in-app browser at
+390×844, 844×390 and 1440×900. The complete mature landscape and desktop
+composition was visible, with the grounds, precinct and economic sites intact.
+On portrait, each economic site could be selected through the schematic/list
+and its scene reached through Inspect selected site. The selected mill, stoneworks
+and goldworks signs and level numeral were distinguishable. The lumber selection
+included a foreground neighboring mill and did not establish its own sign's
+readability. Completed cathedral proportions were reviewed at balanced and reduced
+quality. This was synthetic local presentation, not authenticated owner gameplay;
+no new cathedral-construction fixture or physical-device result was produced.
+
+Capture metadata reports no horizontal overflow, 32 WebGL cases with one canvas
+and four intentional fallback cases with none. The observed mature draw-call
+snapshots match the prior run, consistent with the merged decoration design;
+this does not establish frame-time, thermal or physical-device performance.
+The existing 36 security warnings and one network error remain unexplained;
+`reviewRequired` is true, the guard violation is null and stderr is empty. The
+capture handler retains only category/severity/phase, discarding the browser's
+actual log detail; neither a CSP warning nor favicon failure is established.
+A later diagnostic change should retain only bounded allowlisted cause/resource
+categories with privacy tests, preserving the existing limits and rejection rules.
+Raw messages and URLs do not belong in these public-facing artifacts.
+Normal owned-browser cleanup was verified, with no forced close and zero
+remaining owned processes reported; the disposable profile remains retained.
+The separate in-app QA tab was closed, viewport override reset and owned Vite
+server stopped after review.
+
+- Provenance SHA-256: `0eac53c703e24b8cdb64f5251f372713816a958b70ebc8cdd29852d077a55a32`.
+- Observations SHA-256: `f44af5821d504b91191b9bab27bd73365210d12373d849b234de28087fabe7d5`.
+
+The first attempt, `windows-run-X91wm8` / session `40529`, failed before useful
+capture. The local Vite optimizer cache was under `.cache`, which the existing
+filesystem guard intentionally denies. The entry module was served but its two
+React dependency imports returned 404. Moving only the launcher's ignored cache
+location to `artifacts/building-hierarchy-vite-cache` made both exact imports
+return 200; no server security rule, package or tracked source changed. The failed
+run is retained as failure evidence. Use the allowed artifact cache for this
+reused checkout; do not relax the filesystem guard.
+
+This accepts a bounded hierarchy improvement, not final visual release readiness.
+Overview identity, the lumber sign's occlusion, cathedral construction views,
+more natural terrain/precinct composition, capture diagnostics and physical-device
+acceptance remain open. The merged generated family is still bound to D input,
+not this later building source; batch further accepted source changes before the
+next preparation rather than relabeling the existing candidate.
+
+## 2026-09-12 occupied entry framing and placement markers
+
+The source follow-up from `5996629a` chooses an occupied keep's initial camera
+bounds from its settled buildings or scaffolds and existing civic approach.
+An empty keep retains the grounds view. The choice happens once after current
+state, assets and a usable viewport exist. Refresh, construction completion and
+draft motion do not recenter the view. Camera mode, pan and zoom survive quality
+changes and WebGL context recovery; explicit inspection and Fit grounds keep
+their existing selection and reset behavior.
+
+The footprint marker is wider and sits above the scaffold base. Its outer
+placement boundary, rotation, depth testing and picking semantics are unchanged.
+No prefab, terrain, asset, geometry count or gameplay authority was added or
+rescaled. Mature building proportions remain an independent art concern.
+
+The initial regression run reproduced ten failures with one preservation case
+passing. All eleven selected regressions then passed. The final five-suite run
+passed all 166 cases without skips (10.35 seconds); both TypeScript projects,
+tracked file policy and diff checks passed. Independent source review found no
+actionable defect. The suite retains two pre-existing React act warnings in the
+unrelated Greater Realm refresh fixture. Successful final type commands produced
+no output, so the intended `*-types-final.log` files were not created; their
+actual terminal receipts record exit zero. Root independently repeated both
+type projects, file policy and the diff check successfully before publication.
+
+### Rendered follow-up at 337a4cc0
+
+Guarded run `artifacts/keep04-qa/windows-run-PSW7Es` captured published source
+`337a4cc08739c26445ba272a06c120444e405fc7`, tree
+`d6f00bf27541d08b4f83117664cb78b47bac9903`. Clean source observations matched
+before and after (`stableSource: true`). Chrome 152.0.7977.83 used ANGLE/NVIDIA
+RTX 3090 hardware rendering. All 36 cases received the exact guarded document
+policy and recorded no horizontal overflow; 32 rendered WebGL and the four
+intentional graphics-unavailable cases showed fallback. The launcher exited zero
+and verified normal browser closure with no remaining owned processes. Its
+disposable profile is retained. The separately owned Vite server was stopped.
+
+All 36 PNGs were manually reviewed: each desktop/high, portrait/balanced,
+portrait/reduced and landscape/balanced profile covers empty, placement, blocked
+placement, constructing, complete, mature, fallback, reduced motion and context
+cycle. The reviewed file inventory equals the capture inventory. Sparse desktop
+and portrait views now show a readable mill or scaffold beside the civic approach;
+the selected border remains visible around the scaffold. Empty/draft entry keeps
+the grounds composition. No new visible overlap or clipping defect was found in
+the inspected views. Fallback copy and visible navigation remain readable.
+
+The mature cathedral still dominates the economic buildings, and empty grounds
+retain a platform-like presentation. Desktop's fixed page capture omits foreground
+buildings below the viewport; short landscape mostly shows the header/toolbar or
+the automatically focused command panel. These crops establish neither camera
+clipping nor complete action reachability. Continue scrolled composition review,
+stronger small-building hierarchy and physical-device acceptance.
+
+The capture reports 36 security warnings and one network error, with no network
+guard violation and no stderr output. Their causes remain unresolved; visual
+review does not clear `reviewRequired`. A separate Codex in-app browser opened the
+same synthetic complete-mill fixture with no captured warning/error logs, and
+explicit Inspect/Fit grounds produced the matching captions. That different
+browser observation does not explain or clear the retained Chrome diagnostics.
+These captures measure no performance workload and establish no owner gameplay,
+production transfer/lifecycle, physical-phone or G001 comparison acceptance.
+
+Retained provenance SHA-256:
+`eaa4bcc29bb87ffffc981994ba5e69895258624bb2bafad7ecba6dd3d5d2338a`.
+Observation SHA-256:
+`84cdcffe98bb29f7526666a0ef3c277c19b456fe741bb947c4df936a019222b1`.
+The immutable machine records still say images require inspection; this dated
+record owns the subsequent manual review, without rewriting those observations.
+
 ## 2026-09-12 desktop primary-action discovery
 
 The current navigation follow-up reproduced the desktop finding in the balanced

@@ -1,7 +1,7 @@
+import { keccak_256 } from '@noble/hashes/sha3';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
-  chmodSync,
   closeSync,
   constants,
   fchmodSync,
@@ -23,6 +23,8 @@ import { fileURLToPath } from 'node:url';
 
 import { attestPinnedSpacetimeCli } from './spacetime-cli-attestation.mjs';
 import { withGreaterRealmLockedSourceBuild } from './greater-realm-production-immutable-artifact.ts';
+import { withGenesis002LinuxLockedSourceBuild } from './genesis002-binding-linux-locked-source-build.ts';
+import { describeGenesis002Artifact } from './genesis002-artifact-description.mjs';
 import { assertProductionAdminTrustedAncestors } from './production-admin-token-budget.mjs';
 import {
   genesis002PublishReceiptDigest,
@@ -686,6 +688,30 @@ function exactArtifactIdentity(path, descriptor, expected) {
   });
 }
 
+function hardenPrivateArtifactDirectory(path) {
+  let descriptor;
+  try {
+    descriptor = openSync(path, constants.O_RDONLY | (constants.O_DIRECTORY ?? 0) | (constants.O_NOFOLLOW ?? 0));
+    fchmodSync(descriptor, 0o700);
+    const opened = fstatSync(descriptor, { bigint: true });
+    const current = lstatSync(path, { bigint: true });
+    const canonical = realpathSync(path);
+    if (!opened.isDirectory() || current.isSymbolicLink()
+      || opened.dev !== current.dev || opened.ino !== current.ino
+      || opened.mode !== current.mode || opened.uid !== current.uid
+      || opened.nlink !== current.nlink || opened.nlink < 1n
+      || (opened.mode & 0o7777n) !== 0o700n
+      || (process.getuid !== undefined && opened.uid !== BigInt(process.getuid()))
+      || canonical !== path) fail('GENESIS_002_PRIVATE_ARTIFACT_DIRECTORY_INVALID');
+    return canonical;
+  } catch (error) {
+    if (error instanceof Genesis002ProductionPublisherError) throw error;
+    return fail('GENESIS_002_PRIVATE_ARTIFACT_DIRECTORY_INVALID');
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
 function exactCliConfig(path, expectedDigest) {
   if (
     typeof path !== 'string'
@@ -803,11 +829,21 @@ function stageCliConfig(sourcePath, directory) {
   });
 }
 
+const preparedArtifacts = new WeakSet();
+
+/** Only this producer's live, source-bound artifact can enter an existing update. */
+export function assertGenesis002SourceBuiltArtifact(value) {
+  if (!preparedArtifacts.has(value)) fail('GENESIS_002_ARTIFACT_CAPABILITY_INVALID');
+  value.assertSourceAndArtifact();
+  return value;
+}
+
 /**
  * Builds after and before exact protected-main attestations, then publishes
  * only an owner-private, read-only inode held open across the child process.
  */
 export function prepareGenesis002SourceBuiltArtifact(input) {
+  let moduleProgramHash;
   if (
     input === null
     || typeof input !== 'object'
@@ -820,6 +856,12 @@ export function prepareGenesis002SourceBuiltArtifact(input) {
       || !isAbsolute(input.cliConfigSourcePath)
     ))
   ) fail('GENESIS_002_SOURCE_BUILD_INPUT_INVALID');
+  const buildSource = process.platform === 'linux' && process.arch === 'x64'
+    ? withGenesis002LinuxLockedSourceBuild
+    : process.platform === 'darwin' && process.arch === 'arm64'
+      ? withGreaterRealmLockedSourceBuild
+      : undefined;
+  if (buildSource === undefined) fail('GENESIS_002_SOURCE_BUILD_RUNTIME_UNSUPPORTED');
   const childEnvironment = genesis002ChildEnvironment(
     input.environment ?? process.env,
   );
@@ -838,20 +880,20 @@ export function prepareGenesis002SourceBuiltArtifact(input) {
     if (input.reattestSource() !== input.sourceCommit) {
       fail('GENESIS_002_PROTECTED_MAIN_ADVANCED');
     }
-    directory = mkdtempSync(join(tmpdir(), 'warpkeep-genesis002-module-'));
-    chmodSync(directory, 0o700);
+    directory = hardenPrivateArtifactDirectory(mkdtempSync(join(tmpdir(), 'warpkeep-genesis002-module-')));
     artifactPath = join(directory, 'bundle.js');
     descriptor = openSync(
       artifactPath,
       constants.O_CREAT | constants.O_EXCL | constants.O_RDWR | (constants.O_NOFOLLOW ?? 0),
       0o600,
     );
-    const sourceBuild = withGreaterRealmLockedSourceBuild({
+    const sourceBuild = buildSource({
       repositoryRoot: REPOSITORY_ROOT,
       moduleSourceCommit: input.sourceCommit,
       dependencyCacheRoot: input.dependencyCacheRoot,
       materializationParent: input.materializationParent,
-      generatedFiles: ['spacetimedb/genesis002/dist/bundle.js'],
+      ...(buildSource === withGreaterRealmLockedSourceBuild
+        ? { generatedFiles: ['spacetimedb/genesis002/dist/bundle.js'] } : {}),
       operation: ({ materializedRoot }) => {
         const build = (input.spawn ?? spawnSync)(cli.path, [
           'build', '--module-path', GENESIS_002_PRODUCTION_TARGET.modulePath,
@@ -900,6 +942,7 @@ export function prepareGenesis002SourceBuiltArtifact(input) {
           || openedSource.ctimeNs !== sourceBefore.ctimeNs
         ) fail('GENESIS_002_SOURCE_BUILD_ARTIFACT_INVALID');
         const digest = createHash('sha256');
+        const programDigest = keccak_256.create();
         const buffer = Buffer.allocUnsafe(1024 * 1024);
         let sourceOffset = 0;
         try {
@@ -913,6 +956,7 @@ export function prepareGenesis002SourceBuiltArtifact(input) {
             );
             if (count < 1) fail('GENESIS_002_SOURCE_BUILD_ARTIFACT_INVALID');
             digest.update(buffer.subarray(0, count));
+            programDigest.update(buffer.subarray(0, count));
             let written = 0;
             while (written < count) {
               const amount = writeSync(
@@ -932,6 +976,7 @@ export function prepareGenesis002SourceBuiltArtifact(input) {
           closeSync(sourceDescriptor);
           sourceDescriptor = undefined;
         }
+        moduleProgramHash = Buffer.from(programDigest.digest()).toString('hex');
         return digest.digest('hex');
       },
     });
@@ -984,6 +1029,13 @@ export function prepareGenesis002SourceBuiltArtifact(input) {
       readFileSync(join(generated, 'index.ts'), 'utf8'),
       readFileSync(join(generatedPublic, 'index.ts'), 'utf8'),
     ));
+    const artifactDescription = describeGenesis002Artifact({
+      artifactDescriptor: descriptor,
+      artifactSha256: moduleSha256,
+      assertArtifact: () => exactArtifactIdentity(artifactPath, descriptor, identity),
+      cli,
+      spawn: input.spawn ?? spawnSync,
+    });
     const cliConfig = input.cliConfigSourcePath === undefined
       ? undefined
       : stageCliConfig(input.cliConfigSourcePath, directory);
@@ -994,16 +1046,20 @@ export function prepareGenesis002SourceBuiltArtifact(input) {
       if (input.reattestSource() !== input.sourceCommit) {
         fail('GENESIS_002_PROTECTED_MAIN_ADVANCED');
       }
+      cli.verify();
       exactArtifactIdentity(artifactPath, descriptor, identity);
       cliConfig?.assertCliConfig();
     };
     const assertArtifact = () => {
+      cli.verify();
       exactArtifactIdentity(artifactPath, descriptor, identity);
       cliConfig?.assertCliConfig();
     };
-    return Object.freeze({
+    const preparedArtifact = Object.freeze({
       sourceCommit: input.sourceCommit,
+      moduleProgramHash,
       moduleSha256,
+      artifactDescription,
       artifactPath,
       publishArtifactPath: '/dev/fd/3',
       artifactDescriptor: descriptor,
@@ -1019,6 +1075,7 @@ export function prepareGenesis002SourceBuiltArtifact(input) {
       cleanup: () => {
         if (cleaned) return;
         cleaned = true;
+        preparedArtifacts.delete(preparedArtifact);
         closeSync(descriptor);
         descriptor = undefined;
         rmSync(directory, { recursive: true, force: false });
@@ -1026,6 +1083,8 @@ export function prepareGenesis002SourceBuiltArtifact(input) {
         cli.cleanup();
       },
     });
+    preparedArtifacts.add(preparedArtifact);
+    return preparedArtifact;
   } catch (error) {
     if (sourceDescriptor !== undefined) closeSync(sourceDescriptor);
     if (descriptor !== undefined) closeSync(descriptor);

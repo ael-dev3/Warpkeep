@@ -1,3 +1,5 @@
+import type { Genesis002ArtifactDescription } from './genesis002-artifact-description.mjs';
+
 export const GENESIS_002_PRODUCTION_TARGET: Readonly<{
   uri: 'https://maincloud.spacetimedb.com';
   database: 'warpkeep-genesis-002';
@@ -132,6 +134,7 @@ export function verifyGenesis002GeneratedAbi(input: Readonly<{
   publicTableCount: 0;
   activationReducerCount: 0;
 }>;
+export function assertGenesis002SourceBuiltArtifact(value: unknown): ReturnType<typeof prepareGenesis002SourceBuiltArtifact>;
 export function prepareGenesis002SourceBuiltArtifact(input: Readonly<{
   sourceCommit: string;
   reattestSource: () => string;
@@ -143,7 +146,9 @@ export function prepareGenesis002SourceBuiltArtifact(input: Readonly<{
   spawn?: (...arguments_: unknown[]) => unknown;
 }>): Readonly<{
   sourceCommit: string;
+  moduleProgramHash: string;
   moduleSha256: string;
+  artifactDescription: Genesis002ArtifactDescription;
   artifactPath: string;
   publishArtifactPath: '/dev/fd/3';
   artifactDescriptor: number;
@@ -158,5 +163,6 @@ export function prepareGenesis002SourceBuiltArtifact(input: Readonly<{
   abi: Readonly<Record<string, number>>;
   assertSourceAndArtifact: () => void;
   assertArtifact: () => void;
+  assertCliConfig?: () => void;
   cleanup: () => void;
 }>;

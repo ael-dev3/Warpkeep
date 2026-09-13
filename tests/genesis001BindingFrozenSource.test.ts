@@ -129,18 +129,28 @@ describe('Genesis 001 authenticated frozen-source materialization', () => {
   );
 
   it.skipIf(process.platform !== 'linux')(
-    'rejects extra source, content/inode changes, and symlink replacement without broad cleanup',
+    'rejects extra source entries while retaining the destination',
     () => {
       const extra = materialize();
       writeFileSync(join(extra.destination, 'extra'), 'x', { mode: 0o600 });
       expect(() => extra.value.verify()).toThrow('GENESIS001_FROZEN_SOURCE_UNEXPECTED_ENTRY');
       expect(existsSync(extra.destination)).toBe(true);
+    },
+  );
 
+  it.skipIf(process.platform !== 'linux')(
+    'rejects changed source content while retaining the destination',
+    () => {
       const content = materialize();
       writeFileSync(join(content.destination, 'spacetimedb', 'package.json'), 'changed');
       expect(() => content.value.verify()).toThrow('GENESIS001_FROZEN_SOURCE_CHANGED');
       expect(existsSync(content.destination)).toBe(true);
+    },
+  );
 
+  it.skipIf(process.platform !== 'linux')(
+    'rejects source inode replacement while retaining the destination',
+    () => {
       const inode = materialize();
       const packagePath = join(inode.destination, 'spacetimedb', 'package.json');
       const replacement = join(inode.destination, 'spacetimedb', 'replacement');
@@ -148,7 +158,13 @@ describe('Genesis 001 authenticated frozen-source materialization', () => {
       unlinkSync(packagePath);
       renameSync(replacement, packagePath);
       expect(() => inode.value.verify()).toThrow('GENESIS001_FROZEN_SOURCE_CHANGED');
+      expect(existsSync(inode.destination)).toBe(true);
+    },
+  );
 
+  it.skipIf(process.platform !== 'linux')(
+    'rejects source directory symlink replacement while retaining the destination',
+    () => {
       const link = materialize();
       const fixtures = join(link.destination, 'spacetimedb', 'migration-fixtures');
       rmSync(fixtures, { recursive: true, force: false });

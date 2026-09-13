@@ -6,7 +6,9 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
-import { createRecoveryActivationBinding } from '../scripts/recovery-activation-candidate.mjs';
+import { recoveryG002PtrAdoptionCandidate } from './fixtures/recoveryG002PtrAdoptionCandidate';
+import { createRecoveryActivationBinding, createRecoveryActivationBindingFromCandidate } from '../scripts/recovery-activation-candidate.mjs';
+import { recoveryBindingKeys } from '../scripts/recovery-binding-projection.mjs';
 import { SEALED_LAUNCH_SOURCE_PATHS, verifySealedLaunchSources,
   verifyGenesis001PreparationProjection } from '../scripts/verify-0.4.0-sealed-launch.mjs';
 
@@ -18,7 +20,7 @@ const command = (root: string, args: readonly string[]) => execFileSync('git',
     cwd: root, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024, windowsHide: true, timeout: 30000,
   });
 
-it.skipIf(process.platform !== 'linux')('runs actual checked-in and activation Verify CLI on native V2 Git history', () => {
+it.skipIf(process.platform !== 'linux')('runs actual checked-in and activation Verify CLI on native V2/V4/V5 Git history', () => {
   const root = mkdtempSync(join(tmpdir(), 'warpkeep-v2-verify-'));
   const repo = join(root, 'repo');
   const invoke = (phase: string) => spawnSync(process.execPath,
@@ -81,6 +83,30 @@ it.skipIf(process.platform !== 'linux')('runs actual checked-in and activation V
         profile: 'warpkeep-0.4.0-sealed-launch-v2', phase: 'activation', pagesDeploymentApproved: true });
     }
     expect(invoke('preparation').status).toBe(1);
+    const adoptionValues: Record<string, unknown> = { ...candidate, schemaVersion: 4,
+      profile: 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4',
+      ptrExistingUpdateReceiptDigest: '9'.repeat(64), ptrExistingUpdateReceiptCommitment: null,
+      ptrExistingStateAdoptionReceiptDigest: '8'.repeat(64), ptrExistingStateAdoptionReceiptCommitment: null,
+      ptrSealed: true, ptrPopulationGuardPassed: true, ptrSingletonOwnerCount: 1, ptrGeneralAdmissionCount: 0,
+      ptrExpectedSealedStateHmacSha256: '7'.repeat(64), ptrExpectedOwnerInvariantHmacSha256: '6'.repeat(64) };
+    for (const version of [4, 5] as const) {
+      const values = version === 4 ? adoptionValues : { ...adoptionValues,
+        ...Object.fromEntries(Object.entries(recoveryG002PtrAdoptionCandidate())
+          .filter(([key]) => key.startsWith('g002') || ['schemaVersion', 'profile'].includes(key))) };
+      const adoptionBinding = createRecoveryActivationBindingFromCandidate(canonical(Object.fromEntries(
+        recoveryBindingKeys(version).map(key => [key, values[key]]))));
+      writeFileSync(join(repo, bindingPath), canonical(adoptionBinding));
+      command(repo, ['add', '--', bindingPath]); amend();
+      for (const phase of ['checked-in', 'activation']) {
+        const result = invoke(phase);
+        expect({ status: result.status, stderr: result.stderr }).toEqual({ status: 0, stderr: '' });
+        const summary = JSON.parse(result.stdout);
+        expect(summary).toMatchObject({ schemaVersion: version,
+          profile: adoptionBinding.profile, phase: 'activation', pagesDeploymentApproved: true });
+        expect(summary).not.toHaveProperty('ptrPresentationEnabled');
+      }
+      expect(invoke('preparation').status).toBe(1);
+    }
     // Canonical and internally self-consistent forged tree metadata still fails
     // the actual immutable Git check, even though pure binding parsing succeeds.
     const forged = { ...candidate, preparationSourceTree: 'a'.repeat(40) };

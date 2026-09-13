@@ -1,9 +1,23 @@
 # Genesis 002 sealed-launch runbook
 
-Status: **preparation only; production operations require later reviewed code,
-the exact protected source, live fail-closed checks, and one-time confirmations**
+Status: **initial-publication reference; current existing-realm updates require
+accepted source, a coherent generated family and live preservation checks.**
 
-This runbook defines the 0.4.0 production chronology. Genesis 001 continues to
+G002 and the owner's isolated PTR already exist. The current development path
+preserves their state through fixed update adapters and signed pre/post adoption
+evidence. V5 activation uses both retained proofs; it does not reconstruct missing
+original publication/import receipts or repeat an import over existing data.
+The implementation is published, but protected/live acceptance remains open.
+Start from the [execution handoff](../agent-notes/0.4.0/execution-handoff.md),
+[connected plan](../superpowers/plans/2026-09-08-ptr-update-recovery.md#g002-adoption-consumer-contract)
+and [current recovery evidence](../evidence/0.4.0/recovery.md#g002-and-ptr-adoption-consumers--2026-09-13).
+Do not execute the historical initial-publication sequence as a continuation of
+that existing-state workflow. Preserve G001 progress and the admission freeze,
+G002's sealed zero-population state, and the actual owner's PTR isolation.
+
+## Historical initial-publication chronology
+
+The sequence below records the original 0.4.0 production design. Genesis 001 continues to
 serve only its already admitted players at exact 0.3.43. Genesis 002 receives
 the selected Greater Realm atlas but no players. PTR receives its separate
 atlas and one configured owner only. New admissions remain suspended.
@@ -61,9 +75,10 @@ may begin.
   `warpkeep-ptr-owner-view-v1`, `PTR_GREATER_REALM`, `0.4.0-ptr.1`
 - G002 and PTR delete policy: `never`
 
-G002 and PTR identities are fresh lowercase 64-hex values created during
-publication. All three identities must differ; aliases are never binding
-authority.
+The historical initial-publication sequence assumes newly allocated G002 and PTR
+identities. Current existing-state updates instead use their fixed registered
+identities from the owned production policies. All three realm identities must
+differ; aliases are never binding authority.
 
 ## Source modes and exact dispatcher surface
 

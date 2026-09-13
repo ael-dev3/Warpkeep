@@ -90,8 +90,11 @@ Follow [the development workflow](docs/engineering/development-workflow.md) and
   background/resume and cleanup. Distinguish fixtures, emulation, actual devices
   and authenticated owner play. Measure the agreed workloads before claiming
   performance. Review authority, persistence and recovery changes independently.
-- Commit and push every completed local development change as part of that
-  change, including code, tests, documentation, configuration and approved assets.
+- Commit and push every reviewable local development checkpoint immediately,
+  including code, tests, documentation, configuration and approved assets. During
+  longer changes, publish bounded unfinished checkpoints before switching work
+  items; describe their actual verification limits instead of waiting for the
+  whole feature or the periodic sync check.
   Before yielding or ending a session, publish all agent-authored durable work,
   including honestly labeled unfinished source. Do not wait for release readiness
   or full hosted CI to back up development. Fetch first, scan the outgoing range,

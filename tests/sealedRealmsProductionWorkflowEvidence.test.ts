@@ -126,6 +126,9 @@ afterEach(() => {
 
 describe.sequential('fixed workflow Verify evidence', () => {
   it.each([
+    ['ptr-state-inspect', 'operate_readonly'],
+    ['ptr-state-inspect', 'operate_ptr'],
+    ['ptr-live-inspect', 'observe_ptr'],
     ['activation-evidence-generate', 'operate_readonly'],
     ['g001-policy-observe', 'operate'],
     ['activation-evidence-inspect', 'operate'],
@@ -144,10 +147,10 @@ describe.sequential('fixed workflow Verify evidence', () => {
     await expect(create({ workflowInputSha: commit })).rejects.toThrow('SEALED_REALMS_WORKFLOW_EVIDENCE_CONTEXT_INVALID');
     expect(fetch).not.toHaveBeenCalled();
   });
-  it.each(['ptr-update-inspect', 'ptr-update-apply'])('authenticates PTR operation %s only through its dedicated job', async operation => {
+  it.each(['ptr-state-inspect', 'ptr-update-inspect', 'ptr-update-apply'])('authenticates PTR operation %s only through its dedicated job', async operation => {
     const f = fixture();
     vi.stubEnv('WARPKEEP_OPERATION', operation);
-    vi.stubEnv('GITHUB_JOB', 'operate_ptr');
+    vi.stubEnv('GITHUB_JOB', operation === 'ptr-state-inspect' ? 'observe_ptr' : 'operate_ptr');
     const scope = await create({ workflowInputSha: f.commit });
     expect(verify(scope, f.commit)).toEqual({ verifiedSha: f.commit });
     await refresh(scope);

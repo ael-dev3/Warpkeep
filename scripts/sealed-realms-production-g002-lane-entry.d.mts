@@ -1,3 +1,4 @@
+import type { G002ProductionExistingUpdateAdapter } from './ptr-production-existing-update-adapter.mjs';
 import type { SyntheticExistingUpdateAdapter } from './sealed-realms-production-existing-update.mjs';
 import type { SealedRealmsProductionAuthBridgeState } from './sealed-realms-production-auth-bridge-state.mjs';
 import type {
@@ -18,7 +19,7 @@ export function createSealedRealmsProductionG002DispatchContext(
   input: SealedRealmsProductionDispatchContextInput,
 ): SealedRealmsProductionG002DispatchContext;
 export function createSealedRealmsProductionG002Lane(input: Readonly<{
-  existingUpdate?: SyntheticExistingUpdateAdapter;
+  existingUpdate?: SyntheticExistingUpdateAdapter | G002ProductionExistingUpdateAdapter;
   reconciler: ReturnType<typeof createSealedRealmsProductionPublicationReconciler>;
   bridgeState: SealedRealmsProductionAuthBridgeState;
   createPublishMarker: (context: Readonly<{ sourceCommit: string }>) => unknown | Promise<unknown>;

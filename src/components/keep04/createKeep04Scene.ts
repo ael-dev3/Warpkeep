@@ -18,7 +18,8 @@ export type SceneTelemetry04 = Readonly<{
 export type Scene04 = Readonly<{
   scene: THREE.Scene; camera: THREE.OrthographicCamera; reconcile: (state: VisualState04) => void;
   resize: (width: number, height: number) => void; pickBuilding: (ndcX: number, ndcY: number) => Building04 | null;
-  selectedSiteBounds: () => THREE.Box3 | null; fitSite: (bounds: THREE.Box3, aspect: number) => boolean;
+  selectedSiteBounds: () => THREE.Box3 | null; entryOverviewBounds: () => THREE.Box3 | null;
+  fitSite: (bounds: THREE.Box3, aspect: number) => boolean;
   pickPlacement: (ndcX: number, ndcY: number, kind: Building04) => Placement04 | null;
   update: (elapsedSeconds: number) => boolean; telemetry: () => SceneTelemetry04; dispose: () => void;
 }>;
@@ -30,6 +31,7 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
   const scenery = new THREE.Group(); scenery.name = 'non-pickable-scenery'; scene.add(scenery);
   const geometries = new Set<THREE.BufferGeometry>(); const materials = new Set<THREE.Material>();
   const instances = new Set<THREE.InstancedMesh>();
+  const entryLandmarks: THREE.Mesh[] = [];
   let shadow: THREE.LightShadow | undefined;
   const buildings = new Map<Building04, { key: string; building: Keep04Building; view: BuildingView04; reveal: number | null }>();
   let disposed = false; let fallback: SceneTelemetry04['fallback'] = 'none'; let voxelQuads = 0;
@@ -45,6 +47,7 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
   function dispose() {
     if (disposed) return; disposed = true;
     buildings.forEach(entry => entry.building.dispose()); buildings.clear(); pickTargets.length = 0; pickKinds.clear();
+    entryLandmarks.length = 0;
     instances.forEach(instance => instance.dispose()); instances.clear();
     geometries.forEach(g => g.dispose()); geometries.clear(); materials.forEach(m => m.dispose()); materials.clear();
     shadow?.dispose(); scene.clear();
@@ -99,15 +102,16 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
       fallback = 'voxel'; mesh(new THREE.BoxGeometry(96, 2, 80), groundMat, 0, -2, -4).name = 'simple-perimeter-fallback';
     }
     mesh(new THREE.BoxGeometry(110, .5, 12), groundMat, 0, -5.25, -55).name = 'distant-forest-bank';
-    mesh(new THREE.BoxGeometry(6, .035, 35), masonry, 0, .02, 14.5).name = 'open-gate-spine';
-    mesh(new THREE.BoxGeometry(10, .04, 10), masonry, 0, .022, 2).name = 'open-civic-commons';
+    const spine = mesh(new THREE.BoxGeometry(6, .035, 35), masonry, 0, .02, 14.5); spine.name = 'open-gate-spine';
+    const commons = mesh(new THREE.BoxGeometry(10, .04, 10), masonry, 0, .022, 2); commons.name = 'open-civic-commons';
     const seal = mesh(new THREE.CylinderGeometry(2.3, 2.3, .04, 24), mat(P.warpViolet), 0, .06, 2); seal.name = 'civic-seal';
+    entryLandmarks.push(spine, commons, seal);
     // Far parapet and low side coping: no camera-side opaque wall to hide buildings.
     mesh(new THREE.BoxGeometry(88, 1.2, .8), masonry, 0, .1, -40.6);
     for (const x of [-44.6, 44.6]) mesh(new THREE.BoxGeometry(.8, .55, 72), masonry, x, -.05, -4);
     for (const x of [-5.2, 5.2]) {
-      mesh(new THREE.BoxGeometry(1.6, 3.5, 1.6), masonry, x, 1.75, 33.5);
-      mesh(new THREE.ConeGeometry(1.3, 1.1, 4), mat(P.roofTeal), x, 4.05, 33.5);
+      entryLandmarks.push(mesh(new THREE.BoxGeometry(1.6, 3.5, 1.6), masonry, x, 1.75, 33.5),
+        mesh(new THREE.ConeGeometry(1.3, 1.1, 4), mat(P.roofTeal), x, 4.05, 33.5));
     }
     const key = new THREE.DirectionalLight('#fff1d5', 3.0); key.position.set(-35, 75, 50); key.target.position.set(0, 0, -4);
     shadow = key.shadow;
@@ -174,10 +178,10 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
     function footprint(placement: Placement04, color: string, name: string) {
       const [w, d] = KEEP04_FOOTPRINTS[placement.kind];
       const shape = new THREE.Shape(); shape.moveTo(-w / 2, -d / 2); shape.lineTo(w / 2, -d / 2); shape.lineTo(w / 2, d / 2); shape.lineTo(-w / 2, d / 2); shape.closePath();
-      const hole = new THREE.Path(); hole.moveTo(-w / 2 + .22, -d / 2 + .22); hole.lineTo(-w / 2 + .22, d / 2 - .22); hole.lineTo(w / 2 - .22, d / 2 - .22); hole.lineTo(w / 2 - .22, -d / 2 + .22); hole.closePath(); shape.holes.push(hole);
+      const hole = new THREE.Path(); hole.moveTo(-w / 2 + .60, -d / 2 + .60); hole.lineTo(-w / 2 + .60, d / 2 - .60); hole.lineTo(w / 2 - .60, d / 2 - .60); hole.lineTo(w / 2 - .60, -d / 2 + .60); hole.closePath(); shape.holes.push(hole);
       const geometry = new THREE.ShapeGeometry(shape); geometry.rotateX(-Math.PI / 2); geometries.add(geometry);
       const material = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, depthWrite: false }); materials.add(material);
-      const indicator = new THREE.Mesh(geometry, material); indicator.name = name; indicator.position.set(Number(placement.x) / 1e6, .09, Number(placement.z) / 1e6);
+      const indicator = new THREE.Mesh(geometry, material); indicator.name = name; indicator.position.set(Number(placement.x) / 1e6, .20, Number(placement.z) / 1e6);
       indicator.rotation.y = -placement.rotation * Math.PI / 180000; scene.add(indicator); return indicator;
     }
     function reconcile(state: VisualState04) {
@@ -215,6 +219,24 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
       visualState = state;
     }
     function setRay(x: number, y: number) { camera.updateMatrixWorld(true); raycaster.setFromCamera(new THREE.Vector2(x, y), camera); }
+    function settledSiteBounds(placement: Placement04, root?: THREE.Group) {
+      const [width, depth] = KEEP04_FOOTPRINTS[placement.kind];
+      const transform = new THREE.Matrix4().compose(new THREE.Vector3(Number(placement.x) / 1e6, 0, Number(placement.z) / 1e6),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -placement.rotation * Math.PI / 180000), new THREE.Vector3(1, 1, 1));
+      const bounds = new THREE.Box3(new THREE.Vector3(-width / 2, 0, -depth / 2), new THREE.Vector3(width / 2, 0, depth / 2)).applyMatrix4(transform);
+      if (root) {
+        // Measure settled models without changing the temporary completion reveal
+        // or borrowed geometry. Both camera views use the same bounds contract.
+        const inverse = root.matrixWorld.clone().invert();
+        root.traverseVisible(object => {
+          if (!(object instanceof THREE.Mesh)) return;
+          object.geometry.computeBoundingBox();
+          if (object.geometry.boundingBox) bounds.union(object.geometry.boundingBox.clone().applyMatrix4(
+            transform.clone().multiply(inverse).multiply(object.matrixWorld)));
+        });
+      }
+      return bounds;
+    }
     return {
       scene, camera, reconcile,
       selectedSiteBounds: () => {
@@ -222,21 +244,13 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
         const entry = buildings.get(visualState.selectedKind);
         const placement = entry?.view.placement ?? (visualState.draft?.kind === visualState.selectedKind ? visualState.draft : null);
         if (!placement) return null;
-        const [width, depth] = KEEP04_FOOTPRINTS[placement.kind];
-        const transform = new THREE.Matrix4().compose(new THREE.Vector3(Number(placement.x) / 1e6, 0, Number(placement.z) / 1e6),
-          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -placement.rotation * Math.PI / 180000), new THREE.Vector3(1, 1, 1));
-        const bounds = new THREE.Box3(new THREE.Vector3(-width / 2, 0, -depth / 2), new THREE.Vector3(width / 2, 0, depth / 2)).applyMatrix4(transform);
-        if (entry) {
-          // Undo only the root's temporary completion reveal in the derived matrix,
-          // never mutate the rendered root or borrowed geometry to measure it.
-          const inverse = entry.building.root.matrixWorld.clone().invert();
-          entry.building.root.traverseVisible(object => {
-            if (!(object instanceof THREE.Mesh)) return;
-            object.geometry.computeBoundingBox();
-            if (object.geometry.boundingBox) bounds.union(object.geometry.boundingBox.clone().applyMatrix4(
-              transform.clone().multiply(inverse).multiply(object.matrixWorld)));
-          });
-        }
+        return settledSiteBounds(placement, entry?.building.root);
+      },
+      entryOverviewBounds: () => {
+        if (disposed || buildings.size === 0) return null;
+        const bounds = new THREE.Box3();
+        for (const entry of buildings.values()) bounds.union(settledSiteBounds(entry.view.placement, entry.building.root));
+        for (const landmark of entryLandmarks) bounds.union(new THREE.Box3().setFromObject(landmark));
         return bounds;
       },
       fitSite: (bounds, aspect) => !disposed && fitKeep04SiteCamera(camera, aspect, bounds),

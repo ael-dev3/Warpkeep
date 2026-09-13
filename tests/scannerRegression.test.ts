@@ -1,13 +1,36 @@
 // @vitest-environment node
 import { spawnSync, type SpawnSyncOptionsWithStringEncoding } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { runScannerRegression, type CommandResult } from '../scripts/verify-scanner-regression';
+import { preparationPrivateJwk } from '../services/release-recovery/test/preparationFixture';
+import { RECOVERY_PUBLIC_JWK, RECOVERY_KEY_THUMBPRINT } from '../services/release-recovery/src/recoveryPublicKey';
 
 const parents: string[] = [];
+it('proves PTR and G002 observation exceptions identify only the existing synthetic public key thumbprint', () => {
+  const thumbprint = (key: JsonWebKey) => createHash('sha256').update(JSON.stringify({
+    crv: key.crv, kty: key.kty, x: key.x, y: key.y,
+  })).digest('base64url');
+  const fixtureThumbprint = thumbprint(preparationPrivateJwk);
+  expect(thumbprint(RECOVERY_PUBLIC_JWK)).toBe(RECOVERY_KEY_THUMBPRINT);
+  expect(fixtureThumbprint).not.toBe(RECOVERY_KEY_THUMBPRINT);
+  for (const path of ['services/release-recovery/test/ptrObservation.test.ts',
+    'services/release-recovery/test/signerPtrObservation.test.ts', 'tests/ptrProductionStateObservation.test.ts',
+    'tests/ptrProductionExistingUpdate.test.ts', 'tests/ptrProductionExistingUpdateContinuation.test.ts',
+    'services/release-recovery/test/g002UpdateObservation.test.ts',
+    'services/release-recovery/test/signerG002UpdateObservation.test.ts',
+    'services/release-recovery/test-workerd/g002UpdateObservation.test.ts']) {
+    const source = readFileSync(path, 'utf8');
+    expect(source.match(/RECOVERY_KEY_THUMBPRINT:\s*'([^']+)'/u)?.[1]).toBe(fixtureThumbprint);
+    expect(source).toContain(`x: '${preparationPrivateJwk.x}'`);
+    expect(source).toContain(`y: '${preparationPrivateJwk.y}'`);
+    expect(source).not.toContain(preparationPrivateJwk.d);
+  }
+});
 it('runs the real regression with the verified scanner before preserving the full-history scan', () => {
   const workflow = parse(readFileSync('.github/workflows/verify.yml', 'utf8'));
   const step = workflow.jobs.linux.steps.find((value: { name?: string }) => value.name === 'Scan repository history for secrets');
@@ -36,7 +59,6 @@ function run(scan: (options: SpawnSyncOptionsWithStringEncoding) => CommandResul
 it('rejects scanner output missing the mandatory negative findings and cleans its fixture', () => {
   const result = run(() => ({ status: 0, stdout: '[]', stderr: '' }));
   expect(result).toMatchObject({ ok: false, reason: 'finding-mismatch', missing: expect.any(Array), unexpected: [] });
-  expect(result.missing).toHaveLength(72);
   expect(result.missing).toEqual(expect.arrayContaining([
     'generic-api-key:scripts/sealed-realms-production-g001-lane.bundle.mjs:2',
     'generic-api-key:scripts/sealed-realms-production-g001-lane.bundle.mjs:4',
@@ -54,11 +76,35 @@ it('rejects scanner output missing the mandatory negative findings and cleans it
     'sourcegraph-access-token:docs/evidence/0.4.0/release-engineering.md:4',
     'sourcegraph-access-token:docs/evidence/0.4.0/unrelated-source.md:1',
     'sourcegraph-access-token:docs/evidence/0.4.0/unrelated-source.md:2',
+    'generic-api-key:services/release-recovery/test/ptrObservation.test.ts:2',
+    'generic-api-key:services/release-recovery/test/signerPtrObservation.test.ts:2',
+    'generic-api-key:tests/ptrProductionStateObservation.test.ts:2',
+    'generic-api-key:services/release-recovery/test/ptrObservation.test.ts.copy:1',
+    'generic-api-key:services/release-recovery/test/signerPtrObservation.test.ts.copy:1',
+    'generic-api-key:tests/ptrProductionStateObservation.test.ts.copy:1',
+    'generic-api-key:tests/ptrProductionExistingUpdate.test.ts:2',
+    'generic-api-key:tests/ptrProductionExistingUpdateContinuation.test.ts:2',
+    'generic-api-key:tests/ptrProductionExistingUpdate.test.ts.copy:1',
+    'generic-api-key:tests/ptrProductionExistingUpdateContinuation.test.ts.copy:1',
+    'generic-api-key:services/release-recovery/test/g002UpdateObservation.test.ts:2',
+    'generic-api-key:services/release-recovery/test/signerG002UpdateObservation.test.ts:2',
+    'generic-api-key:services/release-recovery/test-workerd/g002UpdateObservation.test.ts:2',
+    'generic-api-key:services/release-recovery/test/g002UpdateObservation.test.ts.copy:1',
+    'generic-api-key:services/release-recovery/test/signerG002UpdateObservation.test.ts.copy:1',
+    'generic-api-key:services/release-recovery/test-workerd/g002UpdateObservation.test.ts.copy:1',
+    'generic-api-key:scripts/recovery-binding-projection.mjs:2',
+    'generic-api-key:services/release-recovery/src/githubEvidence.ts:4',
+    'generic-api-key:tests/fixtures/recoveryG002PtrAdoptionCandidate.ts:2',
+    'generic-api-key:scripts/recovery-binding-projection.mjs.copy:1',
+    'generic-api-key:services/release-recovery/src/githubEvidence.ts.copy:1',
+    'generic-api-key:tests/fixtures/recoveryG002PtrAdoptionCandidate.ts.copy:1',
+    'generic-api-key:wrong-public-values.ts:7',
   ]));
+  expect(result.missing).toHaveLength(95);
 });
 it('reports unexpected finding identities without exposing scanner payloads', () => {
   const result = run(() => ({ status: 1, stdout: JSON.stringify([{ RuleID: 'jwt', File: 'unexpected.ts', StartLine: 7, Secret: 'DO-NOT-PRINT', Match: 'DO-NOT-PRINT' }]), stderr: '' }));
-  expect(result.unexpected).toEqual(['jwt:unexpected.ts:7']); expect(result.missing).toHaveLength(72);
+  expect(result.unexpected).toEqual(['jwt:unexpected.ts:7']); expect(result.missing).toHaveLength(95);
   expect(JSON.stringify(result)).not.toContain('DO-NOT-PRINT');
 });
 it('fails closed on scanner failure or malformed output', () => {

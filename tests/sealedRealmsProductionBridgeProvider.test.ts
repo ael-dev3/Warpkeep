@@ -176,8 +176,10 @@ function httpFixture(f: Fixture) {
     'QaChallengeReplayGuard', 'SessionFamily', 'SpacetimeHttpAccessRequestResolver',
     'SpacetimeHttpAuthEpochResolver', 'SpacetimeHttpQaObserverResolver',
     'admissionNotificationDeliveryContractDigest', 'admissionNotificationDeliveryContractVector',
-    'createAuthBridge', 'createMiniAppWebhookVerifier', 'serializeAdmissionNotificationDeliveryContract'];
+    'createAuthBridge', 'createMiniAppWebhookVerifier', 'serializeAdmissionNotificationDeliveryContract',
+    'ReleaseRecoveryObservationEntrypoint'];
   const bindings = [
+    { name: 'CF_VERSION_METADATA', type: 'version_metadata' },
     ...Object.entries(contract.variables).map(([name, text]) => ({ name, type: 'plain_text', text })),
     { name: 'PTR_SPACETIMEDB_DATABASE', type: 'plain_text', text: PTR },
     ...contract.secretBindingNames.map(name => ({ name, type: 'secret_text' })),
@@ -229,7 +231,7 @@ function httpFixture(f: Fixture) {
     [`${worker}/versions?deployable=true&page=1&per_page=100`, { items: [{ id: VERSION }] }],
     [`${worker}/versions?page=1&per_page=1`, { items: [{ id: VERSION }] }],
   ]);
-  const state = { module: 'export default { fetch() { return new Response("ready") } };\n', privateBody, records };
+  const state = { module: 'export default { fetch() { return new Response("ready") } };\n', privateBody, records, version };
   vi.spyOn(performance, 'now').mockReturnValue(0);
   const fetchImpl = vi.fn<typeof fetch>(async (request, init) => {
     const url = String(request);
@@ -527,6 +529,28 @@ describe('sealed bridge shared observation authority', () => {
     expect(fetchImpl.mock.calls.some(([url]) => String(url).includes('/content/v2?'))).toBe(true);
     expect(fetchImpl.mock.calls.some(([url]) => String(url).endsWith('/v1/admin/config-attestation'))).toBe(true);
     expect(f.inspectSource).not.toHaveBeenCalled(); expect(f.inspectLive).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['version metadata binding', 'VERSION_BINDING_MISMATCH'],
+    ['recovery entrypoint', 'VERSION_EXPORT_MISMATCH'],
+  ] as const)('rejects missing %s through the real HTTP parser before writing authority', async (kind, code) => {
+    const f = fixture(); const http = httpFixture(f);
+    if (kind === 'version metadata binding') {
+      http.state.version.resources.bindings = http.state.version.resources.bindings
+        .filter(binding => binding.name !== 'CF_VERSION_METADATA');
+    } else {
+      http.state.version.resources.script.named_handlers = http.state.version.resources.script.named_handlers
+        .filter(handler => handler.name !== 'ReleaseRecoveryObservationEntrypoint');
+    }
+    // Assert the inner parser error so an unrelated fixture failure cannot satisfy this rejection.
+    await expect(inspect(f, http.provider)).rejects.toThrow(code);
+    const state = createSealedRealmsProductionAuthBridgeState(f.bridgeOptions(http.provider) as never);
+    await expect(state.establish()).rejects.toThrow('ATTESTATION_INVALID');
+    expect(f.privateState.list({ root: 'runtime', relativeDirectory: 'bridge' })).toEqual([]);
+    expect(http.fetchImpl.mock.calls.some(([url]) => String(url).endsWith('/v1/admin/config-attestation'))).toBe(false);
+    expect(f.inspectSource).not.toHaveBeenCalled(); expect(f.inspectLive).not.toHaveBeenCalled();
+    expect(f.unavailable).not.toHaveBeenCalled();
   });
 
   it.each(['uploaded bytes', 'private PTR'])(

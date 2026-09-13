@@ -148,3 +148,58 @@ it("rejects accessors without invoking them and proxy inputs before dependencies
   expect(() => read(new Proxy(input, {}))).toThrow();
   expect(seams.assert).not.toHaveBeenCalled();
 });
+
+function adoptPtrProjection() {
+  delete projection.ptrReleaseManifestSha256;
+  projection.ptrExistingStateAdoptionReceiptDigest = "9".repeat(64);
+  projection.ptrPublicApprovalReceiptId = "ptr-approval";
+}
+it('matches both adopted realms to retained approved release identities', () => {
+  adoptPtrProjection();
+  projection.g002ExistingStateAdoptionReceiptDigest = '8'.repeat(64);
+  projection.g002PublicApprovalReceiptId = 'g002-approval';
+  expect(read(input)).toEqual({ g002PublicApprovalReceiptId: 'g002-approval', ptrPublicApprovalReceiptId: 'ptr-approval' });
+  projection.g002PublicApprovalReceiptId = 'changed';
+  expect(() => read(input)).toThrow('SEALED_REALMS_RECOVERY_APPROVAL_FACTS_INVALID');
+});
+it("matches a preserved PTR to its verified approved release without an initialization manifest claim", () => {
+  adoptPtrProjection();
+  expect(read(input)).toEqual({
+    g002PublicApprovalReceiptId: "g002-approval",
+    ptrPublicApprovalReceiptId: "ptr-approval",
+  });
+  expect(seams.importAuthority).toHaveBeenCalledTimes(4);
+  expect(seams.ptr).toHaveBeenCalledTimes(2);
+  expect(projection).not.toHaveProperty("ptrReleaseManifestSha256");
+});
+it.each([
+  "ptrPublicApprovalReceiptId",
+  "ptrAtlasId",
+  "ptrAtlasSourceCommit",
+  "ptrPublicReleaseId",
+  "ptrReleaseHeaderSha256",
+  "ptrExpectedReleaseSha256",
+])("rejects preserved PTR %s differing from the verified release", (key) => {
+  adoptPtrProjection();
+  projection[key] = "changed";
+  expect(() => read(input)).toThrow("SEALED_REALMS_RECOVERY_APPROVAL_FACTS_INVALID");
+});
+it("still rejects changed private manifest bytes while reading preserved PTR approval", () => {
+  adoptPtrProjection();
+  const original = seams.ptr();
+  seams.ptr.mockReturnValueOnce(original)
+    .mockReturnValueOnce({ ...original, manifestBytes: Buffer.from("changed") });
+  expect(() => read(input)).toThrow("SEALED_REALMS_RECOVERY_APPROVAL_FACTS_INVALID");
+});
+it("still invokes the complete release verifier for preserved PTR approval", () => {
+  adoptPtrProjection();
+  seams.importAuthority.mockImplementation(artifacts => {
+    if (artifacts.authority.atlasId === "ptr") throw Error("invalid approved release");
+    return artifacts.authority;
+  });
+  expect(() => read(input)).toThrow("invalid approved release");
+});
+it("requires the legacy PTR manifest commitment when adoption evidence is absent", () => {
+  delete projection.ptrReleaseManifestSha256;
+  expect(() => read(input)).toThrow("SEALED_REALMS_RECOVERY_APPROVAL_FACTS_INVALID");
+});

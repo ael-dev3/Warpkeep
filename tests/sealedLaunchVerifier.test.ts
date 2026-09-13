@@ -820,8 +820,8 @@ describe('0.4.0 sealed-launch verifier', () => {
   });
 
   it.each(['valid', 'g002-update-inspect', 'g002-update-apply', 'ptr-update-inspect',
-    'ptr-update-apply', 'unknown-update', 'activated-update'])(
-    'checks exact update authorization membership after deriving current pins: %s', async mutation => {
+    'ptr-update-apply', 'ptr-state-inspect', 'unknown-update', 'activated-update'])(
+    'checks exact production operation membership after deriving current pins: %s', async mutation => {
       const fixtureRoot = mkdtempSync(resolve(tmpdir(), 'warpkeep-update-allowlist-'));
       const authorityPath = 'scripts/sealed-realms-production-source-authority.mjs';
       try {

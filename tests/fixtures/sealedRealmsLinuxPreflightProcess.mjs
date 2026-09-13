@@ -1,10 +1,25 @@
 // Native test transport only. The production caller has no fixture selector,
 // path/factory override, or test capability. This process never calls real fetch.
-import { registerHooks } from 'node:module';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { registerHooks, syncBuiltinESMExports } from 'node:module';
+import fs, { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const scenario = process.argv[2];
+let closureManifestOpens = 0;
+if (scenario === 'observe-closure') {
+  const closureManifestPath = `${process.cwd()}/scripts/auth-bridge-notification-prepared-deploy-closure-v1.json`;
+  const openSync = fs.openSync;
+  // Observe the real closure reader without changing its arguments, bytes,
+  // exceptions or return value. This distinguishes graph rejection from a
+  // later outer-closure rejection after a committed graph mutation.
+  fs.openSync = function (...args) {
+    if (args[0] === closureManifestPath) closureManifestOpens += 1;
+    return Reflect.apply(openSync, fs, args);
+  };
+  syncBuiltinESMExports();
+}
+const closureObservation = () => scenario === 'observe-closure' ? { closureManifestOpens } : {};
+
 const commit = process.env.GITHUB_SHA;
 const api = 'https://api.github.com/repos/ael-dev3/Warpkeep';
 const repository = { id: 1273513252, name: 'Warpkeep', full_name: 'ael-dev3/Warpkeep',
@@ -51,9 +66,12 @@ if (scenario === 'changed-import' || scenario === 'extra-export') {
 }
 const module = await import(pathToFileURL(`${process.cwd()}/scripts/sealed-realms-production-linux-preflight.mjs`).href);
 try {
-  const result = await module.runSealedRealmsProductionLinuxPreflight({ operation: 'preflight', workflowInputSha: commit });
-  process.stdout.write(`${JSON.stringify({ result, calls: calls.length, onlyReadRequests: true })}\n`);
+  const operation = process.env.WARPKEEP_OPERATION;
+  const runOperation = operation === 'preflight'
+    ? module.runSealedRealmsProductionLinuxPreflight : module.runSealedRealmsProductionLinuxOperation;
+  const result = await runOperation({ operation, workflowInputSha: commit });
+  process.stdout.write(`${JSON.stringify({ result, calls: calls.length, onlyReadRequests: true, ...closureObservation() })}\n`);
 } catch (error) {
-  process.stdout.write(`${JSON.stringify({ phase: error.phase, calls: calls.length, onlyReadRequests: true })}\n`);
+  process.stdout.write(`${JSON.stringify({ phase: error.phase, calls: calls.length, onlyReadRequests: true, ...closureObservation() })}\n`);
   process.exitCode = 1;
 }

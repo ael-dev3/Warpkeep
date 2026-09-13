@@ -2,6 +2,17 @@
 
 Updated 2026-09-12. Use the [execution handoff](execution-handoff.md), current refs
 and open pull requests for source and synchronization; PR #228 has merged.
+The latest source `337a4cc0` frames an occupied keep once around settled sites and
+the civic approach. It preserves manual camera state through refresh and renderer
+recovery and makes placement borders visible above scaffolds. All 166 affected
+tests and both type projects passed. The new guarded `windows-run-PSW7Es` capture
+has 36 manually reviewed views at that exact stable source, with no horizontal
+overflow. Sparse desktop/portrait buildings are easier to read; cathedral
+dominance, platform-like grounds, full scrolled composition, capture diagnostics
+and physical-device performance remain open. The [current visual evidence](../../evidence/0.4.0/visuals.md#2026-09-12-occupied-entry-framing-and-placement-markers)
+owns the review and its limits. The older captures below retain their historical
+scope and do not replace current-source acceptance.
+
 The desktop navigation follow-up resolves the hidden primary-action finding in
 source. The existing building catalog and Worker buttons now appear above the
 scene on desktop, with wrapping; compact profiles retain their grid. In the Codex

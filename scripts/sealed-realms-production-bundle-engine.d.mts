@@ -1,3 +1,4 @@
+export const SEALED_REALMS_PTR_OBSERVATION_GRAPH_PATHS: readonly string[];
 export class SealedRealmsProductionBundlesError extends Error {
   readonly code: string;
   constructor(code: string);

@@ -972,7 +972,7 @@ export function classifySealedRealmsProductionContinuationNoEffect(input) {
   return classification;
 }
 
-export function assertSealedRealmsProductionContinuationClaim(input) {
+function authenticatedClaimBinding(input) {
   const options = exactInput(input, [
     'claim', 'store', 'sourceAuthority', 'kind', 'runId', 'runAttempt',
     'subject', 'evidenceDigest', 'receiptDigests', 'predecessorDigests',
@@ -1015,10 +1015,36 @@ export function assertSealedRealmsProductionContinuationClaim(input) {
       || JSON.stringify(group.claimed.record) !== member.claimRecord
       || group.terminal !== undefined
     ) fail('SEALED_REALMS_CONTINUATION_CLAIM_INVALID');
+    return { member, group };
   } catch {
     fail('SEALED_REALMS_CONTINUATION_CLAIM_INVALID');
   }
+}
+
+export function assertSealedRealmsProductionContinuationClaim(input) {
+  authenticatedClaimBinding(input);
   return true;
+}
+
+/** Synchronous owned-record data only; does not extend the claim's effect authority. */
+export function readSealedRealmsProductionContinuationClaimBinding(input) {
+  const { member, group } = authenticatedClaimBinding(input);
+  return Object.freeze({
+    scopeDigest: member.scopeDigest,
+    issuedRecordDigest: group.issued.recordDigest,
+    claimRecordDigest: group.claimed.byteDigest,
+    sourceCommit: member.sourceCommit,
+    sourceAuthorityDigest: member.sourceAuthorityDigest,
+    kind: member.kind,
+    subject: member.subject,
+    evidenceDigest: member.evidenceDigest,
+    receiptDigests: Object.freeze([...member.receiptDigests]),
+    predecessorDigests: Object.freeze([...member.predecessorDigests]),
+    claimRunId: group.claimed.record.claimRunId,
+    claimRunAttempt: group.claimed.record.claimRunAttempt,
+    claimedAt: group.claimed.record.claimedAt,
+    expiresAt: group.issued.record.expiresAt,
+  });
 }
 
 /** Checks a receipt's original run against a live read-only reconciliation scope. */

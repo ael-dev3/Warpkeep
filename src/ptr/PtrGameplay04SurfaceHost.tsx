@@ -100,12 +100,12 @@ function CurrentSurface(props: Props & { identityKey: string }) {
     panel: route?.kind === 'workers' ? 'workers' : route && route.kind !== 'inner-keep' ? 'buildings' : null,
   };
   function changeSelection(next: Keep04UiSelection) {
-    if (snapshot.phase !== 'ready' || !snapshot.view) return;
     if (next.panel === null) {
       setDraft(null);
       surface.backTo({ kind: 'inner-keep' });
       return;
     }
+    if (snapshot.phase !== 'ready' || !snapshot.view) return;
     let nextRoute: RealmSurfaceRoute;
     if (next.panel === 'workers') nextRoute = { kind: 'workers' };
     else if (next.selectedKind !== null && buildingKind(next.selectedKind)) {

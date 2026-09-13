@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { types } from 'node:util';
 import { OPERATION_BUNDLE_NOBLE_GRAPH_FILES } from './local-operation-bundle-noble-v1.mjs';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
-import { getSealedRealmOperationBundleSpecification,
+import { getSealedRealmOperationBundleSpecification, SEALED_REALMS_PTR_OBSERVATION_GRAPH_PATHS,
   deriveSealedRealmOperationBundleSourceClosureDigest } from './sealed-realms-production-bundle-engine.mjs';
 import { verifyAuthBridgeNotificationPreparedDeployClosure,
   importAuthBridgeNotificationPreparedAttestedModules } from './auth-bridge-notification-prepared-deploy-closure.mjs';
@@ -19,10 +19,13 @@ const BOOTSTRAP_MEMBERS = Object.freeze([SELF, 'scripts/local-binding-bounded-fi
   'scripts/sealed-realms-production-bundle-engine.mjs', 'scripts/local-operation-bundle-noble-v1.mjs',
   'scripts/auth-bridge-notification-prepared-deploy-closure.mjs']);
 const OPERATIONS = Object.freeze({
+  'ptr-state-inspect': Object.freeze({ lane: 'ptr', job: 'observe_ptr', run: 'runSealedRealmsProductionPtrOperation', status: 'state-inspected' }),
   preflight: Object.freeze({ lane: 'g001', job: 'operate_readonly', run: 'runSealedRealmsProductionG001Operation', status: 'preflight-inspected' }),
   'g001-policy-observe': Object.freeze({ lane: 'g001', job: 'operate_readonly', run: 'runSealedRealmsProductionG001Operation', status: 'completed' }),
   'activation-evidence-inspect': Object.freeze({ lane: 'activation', job: 'operate_readonly', run: 'runSealedRealmsProductionActivationOperation', status: 'activation-evidence-inspected' }),
   'activation-evidence-generate': Object.freeze({ lane: 'activation', job: 'operate', run: 'runSealedRealmsProductionActivationOperation', status: 'completed' }),
+  'g002-update-inspect': Object.freeze({ lane: 'g002', job: 'operate_g002', run: 'runSealedRealmsProductionG002Operation', status: 'update-inspected' }),
+  'g002-update-apply': Object.freeze({ lane: 'g002', job: 'operate_g002', run: 'runSealedRealmsProductionG002Operation', status: 'completed' }),
   'ptr-update-inspect': Object.freeze({ lane: 'ptr', job: 'operate_ptr', run: 'runSealedRealmsProductionPtrOperation', status: 'update-inspected' }),
   'ptr-update-apply': Object.freeze({ lane: 'ptr', job: 'operate_ptr', run: 'runSealedRealmsProductionPtrOperation', status: 'completed' }),
 });
@@ -194,7 +197,8 @@ function bundle(commit, lane) {
   const aliases = new Set();
   for (const member of selected.graphManifest) {
     exact(member, ['path', 'byteLength', 'sha256'], 'bundle');
-    if (typeof member.path !== 'string' || !/^(?:scripts|spacetimedb|node_modules\/yaml|node_modules\/@noble\/hashes)\/[A-Za-z0-9._/-]+$/u.test(member.path)
+    if (typeof member.path !== 'string' || (!/^(?:scripts|spacetimedb|node_modules\/yaml|node_modules\/@noble\/hashes)\/[A-Za-z0-9._/-]+$/u.test(member.path)
+      && !(spec.requiredGraphPaths.includes(member.path) && SEALED_REALMS_PTR_OBSERVATION_GRAPH_PATHS.includes(member.path)))
       || member.path.split('/').some(part => !part || part === '.' || part === '..')
       || member.path <= previous || aliases.has(member.path.toLowerCase())
       || !Number.isSafeInteger(member.byteLength) || member.byteLength < 1 || member.byteLength > 4 * 1024 * 1024

@@ -12,6 +12,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { types as utilTypes } from 'node:util';
 
 import {
   AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_PROFILE,
@@ -55,6 +56,8 @@ const POSITIVE_FID = /^[1-9][0-9]{0,15}$/u;
 const SPACETIMEDB_DATABASE_IDENTITY = /^[a-f0-9]{64}$/u;
 const PRODUCTION_SPACETIMEDB_DATABASE =
   'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
+const PREPARED_VERSION_METADATA_BINDING = 'CF_VERSION_METADATA';
+const PREPARED_WORKER_ENTRYPOINT = 'ReleaseRecoveryObservationEntrypoint';
 const FORBIDDEN_AMBIENT_FILES = Object.freeze([
   '.env',
   '.env.local',
@@ -158,6 +161,50 @@ function isRecord(value) {
 function exactKeys(value, keys) {
   return isRecord(value)
     && JSON.stringify(Object.keys(value)) === JSON.stringify(keys);
+}
+
+function exactPlainData(value, keys, code) {
+  if (
+    utilTypes.isProxy(value)
+    || !exactKeys(value, keys)
+    || Object.getPrototypeOf(value) !== Object.prototype
+  ) {
+    fail(code);
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  if (keys.some(key => (
+    !Object.hasOwn(descriptors, key)
+    || !Object.hasOwn(descriptors[key], 'value')
+    || descriptors[key].enumerable !== true
+  ))) fail(code);
+  return Object.freeze(Object.fromEntries(
+    keys.map(key => [key, descriptors[key].value]),
+  ));
+}
+
+function exactPlainArray(value, code) {
+  if (
+    utilTypes.isProxy(value)
+    || !Array.isArray(value)
+    || Object.getPrototypeOf(value) !== Array.prototype
+  ) fail(code);
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const length = descriptors.length?.value;
+  const expectedKeys = Number.isSafeInteger(length) && length >= 1 && length <= 256
+    ? Array.from({ length }, (_, index) => String(index))
+    : [];
+  if (
+    !Number.isSafeInteger(length)
+    || length < 1
+    || length > 256
+    || !exactJson(Object.keys(value), expectedKeys)
+    || expectedKeys.some(key => (
+      !Object.hasOwn(descriptors, key)
+      || !Object.hasOwn(descriptors[key], 'value')
+      || descriptors[key].enumerable !== true
+    ))
+  ) fail(code);
+  return Object.freeze(expectedKeys.map(key => descriptors[key].value));
 }
 
 function exactJson(left, right) {
@@ -342,19 +389,104 @@ function canonicalModule(module) {
   });
 }
 
+function canonicalModuleAuthority(module) {
+  const code =
+    'AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_SOURCE_AUTHORITY_INVALID';
+  const snapshot = exactPlainData(
+    module,
+    ['field', 'name', 'contentType', 'size', 'sha256'],
+    code,
+  );
+  if (
+    typeof snapshot.field !== 'string'
+    || snapshot.field.length < 1
+    || snapshot.field.length > 512
+    || snapshot.field.includes('\0')
+    || typeof snapshot.name !== 'string'
+    || snapshot.name.length < 1
+    || snapshot.name.length > 512
+    || snapshot.name.includes('\0')
+    || typeof snapshot.contentType !== 'string'
+    || !ALLOWED_MODULE_CONTENT_TYPES.has(snapshot.contentType)
+    || !Number.isSafeInteger(snapshot.size)
+    || snapshot.size < 0
+    || snapshot.size > MAX_MULTIPART_BYTES
+    || typeof snapshot.sha256 !== 'string'
+    || !SHA256_HEX.test(snapshot.sha256)
+  ) fail(code);
+  return Object.freeze({
+    field: snapshot.field,
+    name: snapshot.name,
+    contentType: snapshot.contentType,
+    size: snapshot.size,
+    sha256: snapshot.sha256,
+  });
+}
+
+function compareCanonicalModules(left, right) {
+  const byField = left.field.localeCompare(right.field, 'en');
+  if (byField !== 0) return byField;
+  const byName = left.name.localeCompare(right.name, 'en');
+  return byName === 0
+    ? left.contentType.localeCompare(right.contentType, 'en')
+    : byName;
+}
+
+function sourceDigestFromManifest(manifest) {
+  const hash = createHash('sha256');
+  hash.update(`${AUTH_BRIDGE_NOTIFICATION_PREPARED_SOURCE_DIGEST_PROFILE}\n`);
+  for (const item of manifest) hash.update(`${JSON.stringify(item)}\n`);
+  return hash.digest('hex');
+}
+
+function exactPredecessorSourceAuthority(value) {
+  const code =
+    'AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_SOURCE_AUTHORITY_INVALID';
+  const snapshot = exactPlainData(
+    value,
+    ['sourceDigest', 'entrypoint', 'modules'],
+    code,
+  );
+  if (
+    typeof snapshot.sourceDigest !== 'string'
+    || !SHA256_HEX.test(snapshot.sourceDigest)
+    || typeof snapshot.entrypoint !== 'string'
+    || snapshot.entrypoint.length < 1
+    || snapshot.entrypoint.length > 512
+    || snapshot.entrypoint.includes('\0')
+  ) fail(code);
+  const moduleInputs = exactPlainArray(snapshot.modules, code);
+  const modules = moduleInputs.map(canonicalModuleAuthority)
+    .sort(compareCanonicalModules);
+  for (let index = 1; index < modules.length; index += 1) {
+    if (
+      modules[index - 1].field === modules[index].field
+      && modules[index - 1].name === modules[index].name
+      && modules[index - 1].contentType === modules[index].contentType
+    ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_SOURCE_AUTHORITY_INVALID');
+  }
+  if (modules.filter(module => (
+    module.field === snapshot.entrypoint
+    && module.name === snapshot.entrypoint
+  )).length !== 1) {
+    fail(code);
+  }
+  if (sourceDigestFromManifest(modules) !== snapshot.sourceDigest) {
+    fail(code);
+  }
+  return Object.freeze({
+    sourceDigest: snapshot.sourceDigest,
+    entrypoint: snapshot.entrypoint,
+    modules: Object.freeze(modules),
+  });
+}
+
 /** Multipart boundaries are excluded, while every named byte-bearing part is bound. */
 export function authBridgeNotificationPreparedSourceDigest(modules) {
   if (!Array.isArray(modules) || modules.length < 1 || modules.length > 256) {
     fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_MODULE_INVALID');
   }
-  const manifest = modules.map(canonicalModule).sort((left, right) => {
-    const byField = left.field.localeCompare(right.field, 'en');
-    if (byField !== 0) return byField;
-    const byName = left.name.localeCompare(right.name, 'en');
-    return byName === 0
-      ? left.contentType.localeCompare(right.contentType, 'en')
-      : byName;
-  });
+  const manifest = modules.map(canonicalModule).sort(compareCanonicalModules);
   for (let index = 1; index < manifest.length; index += 1) {
     if (
       manifest[index - 1].name === manifest[index].name
@@ -362,12 +494,7 @@ export function authBridgeNotificationPreparedSourceDigest(modules) {
       && manifest[index - 1].contentType === manifest[index].contentType
     ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_MODULE_DUPLICATE');
   }
-  const hash = createHash('sha256');
-  hash.update(`${AUTH_BRIDGE_NOTIFICATION_PREPARED_SOURCE_DIGEST_PROFILE}\n`);
-  for (const item of manifest) {
-    hash.update(`${JSON.stringify(item)}\n`);
-  }
-  return hash.digest('hex');
+  return sourceDigestFromManifest(manifest);
 }
 
 function quotedDisposition(value) {
@@ -962,6 +1089,10 @@ function exactMultipartMetadata(
   })
     .sort((left, right) => left.name.localeCompare(right.name, 'en'));
   const expected = [
+    {
+      name: PREPARED_VERSION_METADATA_BINDING,
+      type: 'version_metadata',
+    },
     ...Object.entries(contract.variables).map(([name, text]) => ({
       name,
       type: 'plain_text',
@@ -1552,6 +1683,11 @@ function bindingProjection(binding) {
     return Object.freeze({ name: binding.name, type: binding.type, text: binding.text });
   }
   if (
+    binding.type === 'version_metadata'
+    && Object.keys(binding).sort().join(',') === 'name,type'
+    && binding.name === PREPARED_VERSION_METADATA_BINDING
+  ) return Object.freeze({ name: binding.name, type: binding.type });
+  if (
     binding.type === 'secret_text'
     && Object.keys(binding).sort().join(',') === 'name,type'
   ) {
@@ -1587,6 +1723,11 @@ function detailBindingProjection(binding) {
     return Object.freeze({ name: binding.name, type: binding.type });
   }
   if (
+    binding.type === 'version_metadata'
+    && keys === 'name,type'
+    && binding.name === PREPARED_VERSION_METADATA_BINDING
+  ) return Object.freeze({ name: binding.name, type: binding.type });
+  if (
     binding.type === 'durable_object_namespace'
     && keys === 'class_name,name,namespace_id,type'
     && typeof binding.class_name === 'string'
@@ -1600,7 +1741,7 @@ function detailBindingProjection(binding) {
   fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_BINDING_UNEXPECTED');
 }
 
-function exactApiScriptAttestation(script, code) {
+function exactApiScriptAttestation(script, expectedNamedHandlers, code) {
   if (
     !isRecord(script)
     || Object.keys(script).sort().join(',')
@@ -1619,12 +1760,19 @@ function exactApiScriptAttestation(script, code) {
     ) fail(code);
     return namedHandler.name;
   }).sort();
-  if (!exactJson(namedHandlers, [...REVIEWED_V5_API_NAMED_HANDLER_NAMES].sort())) {
+  if (!exactJson(namedHandlers, [...expectedNamedHandlers].sort())) {
     fail(code);
   }
 }
 
-function exactApiVersionShape(value, contract, expectedTag, expectedMessage, code) {
+function exactApiVersionShape(
+  value,
+  contract,
+  expectedTag,
+  expectedMessage,
+  expectedNamedHandlers,
+  code,
+) {
   const metadata = value.metadata;
   const annotations = value.annotations;
   const resources = value.resources;
@@ -1658,7 +1806,7 @@ function exactApiVersionShape(value, contract, expectedTag, expectedMessage, cod
     || runtime.migration_tag !== contract.migrations.at(-1).tag
     || runtime.usage_model !== 'standard'
   ) fail(code);
-  exactApiScriptAttestation(resources.script, code);
+  exactApiScriptAttestation(resources.script, expectedNamedHandlers, code);
 }
 
 function expectedReviewedDurableObjectBindings(contract, code) {
@@ -1682,6 +1830,7 @@ function exactExportsOrApiScript(
   contract,
   expectedTag,
   expectedMessage,
+  expectedWorkerEntrypoints,
   code,
 ) {
   const exports = value.resources.script_runtime.exports;
@@ -1691,6 +1840,10 @@ function exactExportsOrApiScript(
       contract,
       expectedTag,
       expectedMessage,
+      Object.freeze([
+        ...REVIEWED_V5_API_NAMED_HANDLER_NAMES,
+        ...expectedWorkerEntrypoints,
+      ]),
       code,
     );
     return;
@@ -1717,11 +1870,24 @@ function exactExportsOrApiScript(
     .sort((left, right) => left.localeCompare(right, 'en'));
   const nonDurableExports = Object.entries(exports)
     .filter(([, exported]) => exported?.type !== 'durable-object');
-  const defaultExport = nonDurableExports[0]?.[1];
+  const defaultExport = exports.default;
+  const workerEntrypoints = nonDurableExports
+    .filter(([name]) => name !== 'default')
+    .map(([name, exported]) => {
+      if (
+        !isRecord(exported)
+        || exported.type !== 'worker'
+        || exported.cache !== undefined
+        || ![undefined, 'created'].includes(exported.state)
+        || Object.keys(exported).some(key => !['state', 'type'].includes(key))
+      ) fail(code);
+      return name;
+    })
+    .sort((left, right) => left.localeCompare(right, 'en'));
   if (
     !exactJson(durableExports, expectedExports)
-    || nonDurableExports.length !== 1
-    || nonDurableExports[0][0] !== 'default'
+    || !exactJson(workerEntrypoints, [...expectedWorkerEntrypoints].sort())
+    || nonDurableExports.length !== expectedWorkerEntrypoints.length + 1
     || !isRecord(defaultExport)
     || defaultExport.type !== 'worker'
     || ![undefined, 'created'].includes(defaultExport.state)
@@ -1784,6 +1950,10 @@ function projectVersion(
   const bindings = value.resources.bindings.map(detailBindingProjection)
     .sort((left, right) => left.name.localeCompare(right.name, 'en'));
   const expected = [
+    {
+      name: PREPARED_VERSION_METADATA_BINDING,
+      type: 'version_metadata',
+    },
     ...Object.entries(contract.variables).map(([name, text]) => ({
       name,
       type: 'plain_text',
@@ -1808,6 +1978,7 @@ function projectVersion(
     contract,
     contract.versionTag,
     contract.versionMessage,
+    Object.freeze([PREPARED_WORKER_ENTRYPOINT]),
     'AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_EXPORT_MISMATCH',
   );
   return Object.freeze({
@@ -1902,7 +2073,38 @@ function exactDeployedVersion(result, deployment) {
   });
 }
 
-function exactPredecessorVersion(result, deployment, contract, sourceDigest) {
+function reviewedB0PredecessorVariables(contract) {
+  return Object.freeze({
+    ACCESS_EXPECTED_FID_REQUIRED:
+      contract.variables.ACCESS_EXPECTED_FID_REQUIRED,
+    ALLOWED_ORIGINS: 'https://warpkeep.com',
+    APPROVAL_NOTIFICATIONS_ENABLED: 'true',
+    ENVIRONMENT: 'production',
+    FARCASTER_DOMAIN: 'warpkeep.com',
+    FARCASTER_SIWE_URI: 'https://warpkeep.com/',
+    ISSUER: 'https://auth.warpkeep.com',
+    MINIAPP_NOTIFICATION_CLIENTS:
+      '9152=https://api.farcaster.xyz/v1/frame-notifications',
+    MINIAPP_NOTIFICATION_HUB_URLS:
+      'https://rho.farcaster.xyz:3381/,https://hub.pinata.cloud/',
+    OIDC_AUDIENCE: 'warpkeep-spacetimedb',
+    OIDC_KEY_ID: 'warpkeep-alpha-2026-07-01',
+    PUBLIC_AUTH_ENABLED: contract.variables.PUBLIC_AUTH_ENABLED,
+    PTR_ENABLED: 'false',
+    QA_OBSERVER_ENABLED: 'false',
+    SPACETIMEDB_DATABASE: PRODUCTION_SPACETIMEDB_DATABASE,
+    SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
+    WARPKEEP_BRIDGE_SOURCE_COMMIT: contract.predecessorSourceCommit,
+  });
+}
+
+function exactPredecessorVersion(
+  result,
+  deployment,
+  contract,
+  sourceDigest,
+  predecessorSourceDigest,
+) {
   const deployed = exactDeployedVersion(result, deployment);
   const versionNumber = exactVersionNumber(
     result,
@@ -1938,19 +2140,17 @@ function exactPredecessorVersion(result, deployment, contract, sourceDigest) {
     || !exactJson(runtime.compatibility_flags, contract.compatibilityFlags)
     || runtime.migration_tag !== contract.migrations.at(-1).tag
   ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_V5_PREREQUISITE_REQUIRED');
-  if (sourceDigest !== contract.sourceDigest) {
+  if (sourceDigest !== predecessorSourceDigest) {
     fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_SOURCE_MISMATCH');
   }
   const bindings = result.resources.bindings
     .map(detailBindingProjection)
     .sort((left, right) => left.name.localeCompare(right.name, 'en'));
   const expected = [
-    ...Object.entries(contract.variables).map(([name, text]) => ({
+    ...Object.entries(reviewedB0PredecessorVariables(contract)).map(([name, text]) => ({
       name,
       type: 'plain_text',
-      text: name === 'WARPKEEP_BRIDGE_SOURCE_COMMIT'
-        ? contract.predecessorSourceCommit
-        : text,
+      text,
     })),
     ...AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES
       .map(name => ({ name, type: 'secret_text' })),
@@ -1967,6 +2167,7 @@ function exactPredecessorVersion(result, deployment, contract, sourceDigest) {
     contract,
     `notification-b0-${contract.predecessorSourceCommit}`,
     `Warpkeep notification B0 ${contract.predecessorSourceCommit}`,
+    Object.freeze([]),
     'AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_EXPORT_MISMATCH',
   );
   if (deployed.versionId !== deployment.versionId) {
@@ -2226,6 +2427,7 @@ export async function inspectAuthBridgeNotificationPreparedRecoverySource(input)
  */
 export function createAuthBridgeNotificationPreparedCloudflareRuntime({
   contract: contractInput,
+  predecessorSourceAuthority: predecessorSourceAuthorityInput,
   apiToken,
   playerCanaryOwnerFid,
   ptrSpacetimeDbDatabase,
@@ -2243,6 +2445,9 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
   journal,
 } = {}) {
   const contract = assertContract(contractInput);
+  const predecessorSourceAuthority = exactPredecessorSourceAuthority(
+    predecessorSourceAuthorityInput,
+  );
   const repository = canonicalPath(
     repositoryRoot,
     'directory',
@@ -2319,36 +2524,51 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
     return preparedMultipart;
   };
 
-  const inspectVersionSourceDigest = async versionId => {
+  const inspectVersionSourceDigest = async (
+    versionId,
+    expectedSourceAuthority,
+  ) => {
     if (!VERSION_ID.test(versionId ?? '')) {
       fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_ID_INVALID');
     }
-    const source = await prepareMultipart();
-    const local = inspectAuthBridgeNotificationPreparedMultipart(
-      source.body,
-      source.contentType,
-    );
-    exactMultipartMetadata(local.metadata, contract);
+    let expected = expectedSourceAuthority;
+    if (expected === undefined) {
+      const source = await prepareMultipart();
+      const local = inspectAuthBridgeNotificationPreparedMultipart(
+        source.body,
+        source.contentType,
+      );
+      exactMultipartMetadata(local.metadata, contract);
+      expected = Object.freeze({
+        sourceDigest: contract.sourceDigest,
+        entrypoint: local.metadata.main_module,
+        modules: Object.freeze(
+          local.modules.map(canonicalModule).sort(compareCanonicalModules),
+        ),
+      });
+    }
     const remote = await api.multipart(
       `${basePath}/content/v2?version=${versionId}`,
     );
     let remoteDigest;
     try {
       const remoteModules = versionContentModules(remote);
+      const remoteManifest = remoteModules.map(canonicalModule)
+        .sort(compareCanonicalModules);
       remoteDigest = authBridgeNotificationPreparedSourceDigest(remoteModules);
       if (
-        remote.entrypoint !== local.metadata.main_module
-        || !remoteModules.some(module => (
+        remote.entrypoint !== expected.entrypoint
+        || remoteModules.filter(module => (
           module.field === remote.entrypoint
           && module.name === remote.entrypoint
-        ))
+        )).length !== 1
+        || !exactJson(remoteManifest, expected.modules)
       ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_SOURCE_UNVERIFIED');
     } finally {
       remote.body.fill(0);
     }
     if (
-      local.sourceDigest !== contract.sourceDigest
-      || remoteDigest !== contract.sourceDigest
+      remoteDigest !== expected.sourceDigest
     ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_SOURCE_UNVERIFIED');
     return remoteDigest;
   };
@@ -2364,13 +2584,14 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
     const latest = exactDeployment(deploymentResponse.result);
     const [detail, sourceDigest] = await Promise.all([
       api.json(`${basePath}/versions/${latest.versionId}`),
-      inspectVersionSourceDigest(latest.versionId),
+      inspectVersionSourceDigest(latest.versionId, predecessorSourceAuthority),
     ]);
     return exactPredecessorVersion(
       detail.result,
       latest,
       contract,
       sourceDigest,
+      predecessorSourceAuthority.sourceDigest,
     );
   };
 

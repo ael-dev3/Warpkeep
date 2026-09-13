@@ -304,6 +304,76 @@ function deferred() {
 }
 
 describe('sealed-realms durable continuation core', () => {
+  it('reads exact durable claim binding only inside the live synchronous PTR claim callback', async () => {
+    const [workflow, continuation] = await Promise.all([loadWorkflow(), loadContinuation()]);
+    const reader = functionExport(continuation, 'readSealedRealmsProductionContinuationClaimBinding');
+    expect(reader).toBeTypeOf('function');
+    if (!reader || !requireModules(workflow, continuation)) return;
+    const fixture = privateFixture();
+    const transition = FIXED_KINDS.find(value => value.kind === 'ptr-update')!;
+    const now = () => new Date('2026-09-01T00:00:00.000Z');
+    let retained: ReturnType<typeof claimAssertionInput> | undefined;
+    let binding: Record<string, any> | undefined;
+    let detached: Promise<void> | undefined;
+    try {
+      const issuedRun = await workflowPermit(workflow, transition.issue, '1001');
+      await functionExport(continuation, 'issueSealedRealmsProductionContinuation')!(
+        issueInput(store(continuation, fixture.state(), now), issuedRun, transition.kind, '1001'),
+      );
+      const claimRun = await workflowPermit(workflow, transition.claim, '2001');
+      const privateState = fixture.state();
+      const claimStore = store(continuation, privateState, now);
+      await functionExport(continuation, 'claimSealedRealmsProductionContinuation')!({
+        ...issueInput(claimStore, claimRun, transition.kind, '2001'),
+        effect: (claim: object) => {
+          const exact = claimAssertionInput(claim, claimStore, claimRun, transition.kind, '2001');
+          retained = exact;
+          binding = reader(exact);
+          const issued = issuedPath(fixture.home);
+          const claimName = readdirSync(issued.directory).find(name => name.startsWith('claimed-'))!;
+          const claimBytes = readFileSync(join(issued.directory, claimName));
+          const claimRecord = JSON.parse(claimBytes.toString());
+          const issuedRecord = JSON.parse(readFileSync(issued.path, 'utf8'));
+          expect(binding).toEqual({
+            scopeDigest: issued.directory.split(/[/\\]/u).at(-1),
+            issuedRecordDigest: issued.name.slice(7, -5),
+            claimRecordDigest: createHash('sha256').update(claimBytes).digest('hex'),
+            sourceCommit: S,
+            sourceAuthorityDigest: claimRun.source.authorityDigest,
+            kind: transition.kind,
+            subject: BINDING.subject,
+            evidenceDigest: BINDING.evidenceDigest,
+            receiptDigests: [...BINDING.receiptDigests],
+            predecessorDigests: [...BINDING.predecessorDigests],
+            claimRunId: '2001', claimRunAttempt: 1,
+            claimedAt: claimRecord.claimedAt, expiresAt: issuedRecord.expiresAt,
+          });
+          expect(Object.isFrozen(binding)).toBe(true);
+          expect(Object.isFrozen(binding!.receiptDigests)).toBe(true);
+          expect(Object.isFrozen(binding!.predecessorDigests)).toBe(true);
+          for (const changed of [{ claim: { ...claim } }, { claim: binding },
+            { store: store(continuation, privateState, now) }, { sourceAuthority: { ...claimRun.source } },
+            { evidenceDigest: 'f'.repeat(64) }, { runId: '2002' }]) {
+            expect(() => reader({ ...exact, ...changed })).toThrow();
+          }
+          detached = Promise.resolve().then(() => {
+            expect(() => reader(exact)).toThrow(/SEALED_REALMS_CONTINUATION_CLAIM_INVALID/u);
+          });
+          return detached;
+        },
+      });
+      await detached;
+      expect(() => reader(retained)).toThrow(/SEALED_REALMS_CONTINUATION_CLAIM_INVALID/u);
+      const terminal = functionExport(continuation, 'readSealedRealmsProductionContinuationCompletion')!({
+        store: claimStore, privateState, sourceAuthority: claimRun.source, kind: transition.kind, ...BINDING,
+      });
+      expect(terminal.claimRecordDigest).toBe(binding!.claimRecordDigest);
+      expect(terminal.issuedRecordDigest).toBe(binding!.issuedRecordDigest);
+      expect(terminal.outcome).toBe('completed');
+      expect(recordNames(fixture.home).map(name => name.split('-')[0])).toEqual(['claimed', 'issued', 'terminal']);
+    } finally { await detached; fixture.cleanup(); }
+  });
+
   it.each(FIXED_KINDS)(
     'issues, reopens, claims, and terminalizes $kind without public continuation material',
     async transition => {

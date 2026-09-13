@@ -121,7 +121,7 @@ describe('explicit PTR existing-update binding v3', () => {
     for (const changed of [source.trimEnd(), source.replace('"schemaVersion": 3,', '"schemaVersion": 3, "schemaVersion": 3,'), source.replaceAll('\n', '\r\n')]) {
       expect(() => projection.parseRecoveryBindingDocument(changed)).toThrow();
     }
-    expect(() => projection.recoveryBindingKeys(4 as 3)).toThrow();
-    expect(() => activation.recoveryActivationCandidatePolicyForVersion(4 as 3)).toThrow();
+    expect(() => projection.recoveryBindingKeys(6 as 3)).toThrow();
+    expect(() => activation.recoveryActivationCandidatePolicyForVersion(6 as 3)).toThrow();
   });
 });

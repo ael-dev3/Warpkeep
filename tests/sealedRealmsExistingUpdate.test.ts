@@ -208,7 +208,7 @@ async function fixture(lane: 'g002' | 'ptr' = 'g002') {
 
 describe('existing-update native protocol', () => {
   it('refuses production construction without authenticated inputs', () => {
-    expect(createSealedRealmsProductionExistingUpdateAdapter).toThrow('PTR_PRODUCTION_EXISTING_UPDATE_INVALID');
+    expect(createSealedRealmsProductionExistingUpdateAdapter).toThrow('SEALED_REALMS_EXISTING_UPDATE_INPUT_INVALID');
   });
   it('matches the pinned Keccak and wire-order contract', () => {
     expect(updateProgramHash(Buffer.alloc(0))).toBe('c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470');

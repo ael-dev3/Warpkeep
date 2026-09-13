@@ -25,12 +25,17 @@ export type Keep04Observation = Readonly<{
   pendingRafs: number; activeLoaders: number; activeListeners: number;
 }>;
 
+type CameraFrame04 = { kind: 'grounds' } | { kind: 'entry'; bounds: THREE.Box3 }
+  | { kind: 'inspection'; buildingKind: Building04; bounds: THREE.Box3 };
+
 export function Keep04SceneHost(props: Keep04SceneHostProps) {
   const element = useRef<HTMLDivElement>(null); const current = useRef(props); current.current = props;
   const wrapper = useRef<HTMLElement>(null); const toolbar = useRef<HTMLDivElement>(null);
   const runtime = useRef<{ scene: Scene04; request: () => void; reset: () => void; inspect: () => void; reconcile: () => void } | null>(null);
   const [mode, setMode] = useState<'loading' | 'webgl' | 'fallback'>('loading');
-  const [inspectedKind, setInspectedKind] = useState<Building04 | null>(null);
+  const [cameraCaption, setCameraCaption] = useState('Whole grounds');
+  // Presentation belongs to this mounted keep, not a replaceable GPU context.
+  const cameraView = useRef<{ frame: CameraFrame04 | null; panX: number; panZ: number; zoom: number }>({ frame: null, panX: 0, panZ: 0, zoom: 1 });
   const [recovery, setRecovery] = useState(0);
   useEffect(() => {
     const host = element.current!; const abort = new AbortController();
@@ -40,8 +45,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
     let recoveryCanvas: HTMLCanvasElement | undefined; let removeRecovery: (() => void) | undefined;
     let lost = false;
     let activeLoaders = 0;
-    let inspection: { kind: Building04; bounds: THREE.Box3 } | null = null;
-    let panX = 0; let panZ = 0;
+    const view = cameraView.current;
     const qaFault = import.meta.env.DEV ? props.qaFault : undefined;
     function observe(event: Keep04Observation['event'], frameWorkMs: number | null = null, timestampMs = performance.now()) {
       const callback = current.current.onObservation; if (!callback) return;
@@ -98,16 +102,19 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
       observe(keepRecovery ? 'context-lost' : 'disposed');
     }
     function failure() { release(); set('fallback'); observe('fallback'); }
+    function followInspection() {
+      if (view.frame?.kind !== 'inspection' || !scene) return;
+      const visual = current.current.visual; const kind = visual.selectedKind;
+      // Explicit inspection keeps its existing selection-follow/reset behavior.
+      // Entry bounds, including an empty grounds entry, never follow reconciliation.
+      const hasSite = kind && (visual.buildings.some(building => building.kind === kind) || visual.draft?.kind === kind);
+      if (!hasSite) reset();
+      else if (kind !== view.frame.buildingKind) inspect();
+    }
     function reconcile() {
       try {
         scene?.reconcile(current.current.visual);
-        if (inspection && scene) {
-          const visual = current.current.visual; const kind = visual.selectedKind;
-          // Polls/draft motion need only check existence, not remeasure every mesh.
-          const hasSite = kind && (visual.buildings.some(building => building.kind === kind) || visual.draft?.kind === kind);
-          if (!hasSite) reset();
-          else if (kind !== inspection.kind) inspect();
-        }
+        followInspection();
         request();
       } catch { failure(); }
     }
@@ -116,24 +123,32 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
       if (region && controls) region.style.setProperty('--keep04-scene-toolbar-height', `${controls.getBoundingClientRect().height}px`);
       if (!scene || !renderer) return;
       const width = host.clientWidth; const height = host.clientHeight; if (!width || !height) return;
+      if (view.frame === null) {
+        // Choose once, after assets and current state exist at a usable size.
+        const bounds = scene.entryOverviewBounds();
+        view.frame = bounds ? { kind: 'entry', bounds } : { kind: 'grounds' };
+        setCameraCaption(bounds ? 'Your settlement' : 'Whole grounds');
+      }
       renderer.setSize(width, height, false); scene.resize(width, height);
-      if (inspection) scene.fitSite(inspection.bounds, width / height);
-      scene.camera.position.x += panX; scene.camera.position.z += panZ;
+      if (view.frame.kind !== 'grounds') scene.fitSite(view.frame.bounds, width / height);
+      scene.camera.zoom = view.zoom; scene.camera.updateProjectionMatrix();
+      scene.camera.position.x += view.panX; scene.camera.position.z += view.panZ;
       scene.camera.updateMatrixWorld(true); request();
     }
     function reset() {
-      inspection = null; setInspectedKind(null); panX = panZ = 0;
-      if (scene) scene.camera.zoom = 1; resize();
+      view.frame = { kind: 'grounds' }; setCameraCaption('Whole grounds'); view.panX = view.panZ = 0; view.zoom = 1;
+      resize();
     }
     function inspect() {
       const kind = current.current.visual.selectedKind; const bounds = scene?.selectedSiteBounds();
       if (!kind || !bounds || !scene) { reset(); return; }
-      inspection = { kind, bounds }; setInspectedKind(kind); panX = panZ = 0; scene.camera.zoom = 1; resize();
+      view.frame = { kind: 'inspection', buildingKind: kind, bounds }; setCameraCaption(`Inspecting ${BUILDING_NAMES04[kind]}`);
+      view.panX = view.panZ = 0; view.zoom = 1; resize();
     }
     function listen<K extends keyof HTMLElementEventMap>(target: HTMLElement, event: K, listener: (event: HTMLElementEventMap[K]) => void) {
       target.addEventListener(event, listener); listeners.push(() => target.removeEventListener(event, listener));
     }
-    set('loading'); setInspectedKind(null);
+    set('loading');
     if ((import.meta.env.DEV && qaFault === 'webgl-unavailable') || typeof WebGL2RenderingContext === 'undefined') { set('fallback'); observe('fallback'); return () => { retired = true; release(); }; }
     async function initialize() {
       let loaded: InnerKeepRuntimeAssetBundle | undefined;
@@ -171,7 +186,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
             const before = [...pointers.values()]; const oldDistance = Math.hypot(before[0].x - before[1].x, before[0].y - before[1].y);
             pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
             const after = [...pointers.values()]; const distance = Math.hypot(after[0].x - after[1].x, after[0].y - after[1].y);
-            if (oldDistance > 0 && distance > 0) { scene.camera.zoom = Math.max(.8, Math.min(2, scene.camera.zoom * distance / oldDistance)); scene.camera.updateProjectionMatrix(); request(); }
+            if (oldDistance > 0 && distance > 0) { view.zoom = scene.camera.zoom = Math.max(.8, Math.min(2, scene.camera.zoom * distance / oldDistance)); scene.camera.updateProjectionMatrix(); request(); }
             return;
           }
           if (!pointer || !scene || pointer.id !== event.pointerId) return;
@@ -179,9 +194,9 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
           const dx = event.clientX - pointer.x; const dy = event.clientY - pointer.y;
           if (!pointer.dragged && Math.hypot(dx, dy) < 6) return;
           pointer.dragged = true;
-          const nextX = Math.max(-12, Math.min(12, panX - dx * .08)); const nextZ = Math.max(-12, Math.min(12, panZ - dy * .08));
-          scene.camera.position.x += nextX - panX; scene.camera.position.z += nextZ - panZ;
-          panX = nextX; panZ = nextZ; pointer.x = event.clientX; pointer.y = event.clientY; request();
+          const nextX = Math.max(-12, Math.min(12, view.panX - dx * .08)); const nextZ = Math.max(-12, Math.min(12, view.panZ - dy * .08));
+          scene.camera.position.x += nextX - view.panX; scene.camera.position.z += nextZ - view.panZ;
+          view.panX = nextX; view.panZ = nextZ; pointer.x = event.clientX; pointer.y = event.clientY; request();
         });
         listen(canvas, 'pointerup', event => {
           const click = pointers.size === 1 && pointer?.id === event.pointerId && !pointer.dragged
@@ -201,7 +216,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
         });
         const cancelPointer = () => { pointer = null; pointers.clear(); };
         listen(canvas, 'pointercancel', cancelPointer); listen(canvas, 'lostpointercapture', cancelPointer);
-        const wheel = (event: WheelEvent) => { if (!scene) return; event.preventDefault(); scene.camera.zoom = Math.max(.8, Math.min(2, scene.camera.zoom * Math.exp(-event.deltaY * .001))); scene.camera.updateProjectionMatrix(); request(); };
+        const wheel = (event: WheelEvent) => { if (!scene) return; event.preventDefault(); view.zoom = scene.camera.zoom = Math.max(.8, Math.min(2, scene.camera.zoom * Math.exp(-event.deltaY * .001))); scene.camera.updateProjectionMatrix(); request(); };
         canvas.addEventListener('wheel', wheel, { passive: false }); listeners.push(() => canvas.removeEventListener('wheel', wheel));
         const visibility = () => { if (document.hidden) { if (frame) cancelAnimationFrame(frame); frame = 0; cancelPointer(); }
           else reconcile(); };
@@ -212,6 +227,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
           ...(import.meta.env.DEV ? { qaVoxelFailure: qaFault === 'voxel-failure' } : {}) });
         runtime.current = { scene, request, reconcile, reset, inspect };
         scene.reconcile(current.current.visual);
+        followInspection();
         if (scene.telemetry().fallback === 'budget') throw new Error('Keep graphics budget exceeded.');
         observer = new ResizeObserver(resize); observer.observe(host);
         if (toolbar.current) observer.observe(toolbar.current, { box: 'border-box' });
@@ -224,7 +240,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
     return () => { retired = true; release(); };
   }, [props.quality, props.reducedMotion, recovery, import.meta.env.DEV ? props.qaFault : undefined]);
   useEffect(() => { runtime.current?.reconcile(); }, [props.visual]);
-  function zoom(factor: number) { const active = runtime.current; if (!active) return; active.scene.camera.zoom = Math.max(.8, Math.min(2, active.scene.camera.zoom * factor)); active.scene.camera.updateProjectionMatrix(); active.request(); }
+  function zoom(factor: number) { const active = runtime.current; if (!active) return; cameraView.current.zoom = active.scene.camera.zoom = Math.max(.8, Math.min(2, active.scene.camera.zoom * factor)); active.scene.camera.updateProjectionMatrix(); active.request(); }
   const hasSite = props.visual.selectedKind !== null && (props.visual.buildings.some(building => building.kind === props.visual.selectedKind) || props.visual.draft?.kind === props.visual.selectedKind);
   return <section ref={wrapper} className="keep04-scene" aria-label="Verdant Citadel scene" tabIndex={-1} data-mode={mode}>
     <div ref={toolbar} className="keep04-scene-toolbar">
@@ -237,7 +253,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
     </div>
     <div ref={element} className="keep04-scene-canvas" />
     {mode === 'loading' && <p role="status">Preparing the citadel. Placement controls remain available below.</p>}
-    {mode === 'webgl' && <><p>{inspectedKind ? `Inspecting ${BUILDING_NAMES04[inspectedKind]}` : 'Whole grounds'} · Drag to pan · Scroll to zoom</p>
+    {mode === 'webgl' && <><p>{cameraCaption} · Drag to pan · Scroll to zoom</p>
       {!hasSite && <p>Select a building or draft to inspect its site.</p>}
     </>}
   </section>;

@@ -694,6 +694,16 @@ function persistLedgerSqlRecord(database: DatabaseSync, record: RecoveryLedgerRe
 }
 
 describe('recovery ledger schema and arming', () => {
+  it.each([4, 5])('rejects V%s adoption arming in the legacy fixed-column SQL ledger', version => {
+    const tuple = arming({ ptrStateEvidenceProfile: 'warpkeep-ptr-existing-state-adoption-v1',
+      ptrExistingStateAdoptionReceiptDigest: 'b'.repeat(64), ptrExpectedSealedStateHmacSha256: 'e'.repeat(64),
+      ptrExpectedOwnerInvariantHmacSha256: 'f'.repeat(64), ...(version === 5 ? {
+        g002StateEvidenceProfile: 'warpkeep-g002-existing-state-adoption-v1' as const,
+        g002ExistingStateAdoptionReceiptDigest: 'c'.repeat(64), g002ExpectedSealedStateHmacSha256: 'd'.repeat(64),
+      } : {}) })
+    expect(() => enabledControl(tuple)).toThrow('RECOVERY_LEDGER_ARMING_INVALID')
+  })
+
   it('loads the generated schema in SQLite so every declared reconstruction constraint is executable', () => {
     const database = new DatabaseSync(':memory:')
     try {

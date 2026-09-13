@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "profile": "warpkeep-recovery-bundle-preparation-linux-x64-v1",
-  "sourceCommit": "c4b95505b73705d120aff3f3318d2bd5151f6565",
-  "sourceTree": "24f5ceb4e36814b0a2bdb691adb59591db676611",
+  "sourceCommit": "46489461490ec90a6b39b551c65256f4f4f03c4e",
+  "sourceTree": "f284e3a0fbd7be08d342b71f55f34a76e65e94ba",
   "bundle": {
     "path": "services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs",
-    "byteLength": 50062,
-    "sha256": "155f997ce8f7fe40580df0c12dd9c6519820ea2c9d17544441070189f1f71849"
+    "byteLength": 50518,
+    "sha256": "305140595dbbade9535b366500835db1edd00bed1b857beccb376c7196ca8ced"
   },
   "compilerInputs": [
     {
@@ -31,8 +31,8 @@
     },
     {
       "path": "services/release-recovery/src/config.ts",
-      "byteLength": 10995,
-      "sha256": "dc46cbb8ac3178c55e1ef43c7349dcda0c262f7b3f1d207240ac71fae830a932"
+      "byteLength": 13539,
+      "sha256": "ff3406283fe9949414ebb9d70dfc2c0b1e55df88ababb9f34d65c18348ea852a"
     },
     {
       "path": "services/release-recovery/src/http.ts",
