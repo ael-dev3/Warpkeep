@@ -42,6 +42,10 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   // Refreshes and pending commands retain the last confirmed view and local
   // focus. Only ready grants command authority; failures and expired scopes hide it.
   const visible = (phase === 'ready' || phase === 'refreshing' || phase === 'pending') && view !== null;
+  const firstIdleWorker = view?.workers.find(worker => worker.phase === 'idle');
+  const showFirstJourney = ready && view !== null && view.buildings.length === 0
+    && firstIdleWorker !== undefined
+    && RESOURCES04.every(resource => view.balances[resource] === 0n && view.pending[resource] === 0n);
   const wasVisible = useRef(visible);
   const activeTimer = visible && (view.state.project !== undefined || view.workers.some(worker => worker.phase !== 'idle'));
   useEffect(() => {
@@ -152,6 +156,12 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
           <p>{RESOURCES04.some(resource => view.pending[resource] > 0n) ? PENDING_LABEL04 : "No resources awaiting return"}</p>
           {phase === 'pending' && visible && <p role="status">Request pending. Your last confirmed keep stays visible until the Realm updates.</p>}
         </section>
+        {showFirstJourney && firstIdleWorker !== undefined && <section className="keep04-first-journey" aria-label="First journey">
+          <p className="keep04-eyebrow">YOUR FIRST RETURN</p>
+          <h2>Start with one useful journey.</h2>
+          <p>Choose a resource location for Worker {firstIdleWorker.ordinal + 1}. What comes home can shape your first improvement.</p>
+          <button type="button" onClick={() => onFindResources(null, firstIdleWorker.ordinal)}>Start first journey</button>
+        </section>}
         <nav className="keep04-primary-nav" aria-label="Primary keep actions">
           <button type="button" aria-controls={selection.panel ? panelId : undefined} aria-expanded={selection.panel === 'buildings'} onClick={event => openPanel('buildings', event.currentTarget)}>Open building catalog</button>
           <button type="button" aria-controls={selection.panel ? panelId : undefined} aria-expanded={selection.panel === 'workers'} onClick={event => openPanel('workers', event.currentTarget)}>Manage Workers</button>

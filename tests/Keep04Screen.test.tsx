@@ -337,6 +337,15 @@ it("keeps zero incoming resources quiet without hiding available balances", () =
   for (const name of ["Food", "Wood", "Stone", "Gold"]) expect(resources.getByText(name)).toBeVisible();
 });
 
+it('makes the first resource journey obvious for a new empty keep', () => {
+  const { find, controller } = setup();
+  const firstJourney = screen.getByRole('region', { name: 'First journey' });
+  expect(firstJourney).toHaveTextContent('Start with one useful journey.');
+  fireEvent.click(within(firstJourney).getByRole('button', { name: 'Start first journey' }));
+  expect(find).toHaveBeenCalledWith(null, 0);
+  expect(controller.submit).not.toHaveBeenCalled();
+});
+
 it('keeps the gather-to-return loop legible while the player makes a decision', () => {
   setup();
   const loop = () => screen.getByRole('region', { name: 'Keep loop' });
