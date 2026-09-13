@@ -11,8 +11,8 @@ run `34770379931` is still running; read its terminal conclusion before
 calling this source checkpoint green.
 
 The documentation refresh is published in draft PR #248 at head
-`bd8beaf3899dd76f331ddeb800e05200f223dd7c`. Its current Verify run
-`34770483805` is still running on that exact docs head; integrate it only
+`0b86653c899dd76f331ddeb800e05200f223dd7c`. Its current Verify run
+`34772160132` is still running on that exact docs head; integrate it only
 after terminal passing checks through the normal protected path. Older stacked
 PRs #237–243 are now closed as superseded; their remote branches remain
 available for history, while signed main contains their accepted product and
