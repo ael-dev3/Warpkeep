@@ -2,26 +2,26 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Current source and protected checks — 2026-09-12
+## Current accepted-main source and protected checks — 13 September 2026
 
-Windows and native WSL are synchronized on
-`codex/prepared-keep-bindings-fix`. The current native source family is bound
-to source commit `03cb8b8fc2c0c59bcb58c4303b2082dead6325d9`; read the actual
-branch/PR head through the source-sync procedure before claiming current
-synchronization. The family includes the Linux x64 Pages private deployment
-lane, profile-aware closure pins, and the 1,200-member generated closure while
-preserving the legacy Darwin callers. Native preparation and independent check
-passed for this source input.
-Protected Verify and CodeQL are the authority for the current head. Read every
-required context at terminal state before calling R14 green; transient run IDs
-are intentionally read directly from GitHub. GitHub
-still reports the PR merge state as `BLOCKED` because protected `main` requires
-signed commits and this development history is unsigned, so R14 remains a
-protection/merge reconciliation gate. The native release
-evidence below is bound to those exact source coordinates; later documentation
-commits do not create a new release candidate.
+Protected `main` is signed commit `810286c95f39cf6e41f121162fa5dab250a77a16` (tree `1f16891a52ba1bf8194ba7d1ca5154a5b5481412`), the exact M2 squash
+merge of PR #247. Fresh main Verify `34760814489` completed successfully across
+Linux, SpacetimeDB, recovery, native-contract, auth-bridge and aggregate
+verification. The native operating checkout is clean and pinned to the same
+commit after an idle-process check; RunnerService PID203 and Runner.Listener
+PID224 remain alive. The saved Codex sync automation is paused, and no scheduled
+GitHub workflow exists.
 
-## Latest committed-source native preparation and independent check — 2026-09-12
+The read-only sealed-realms preflight `34763502943` passed against `810286c95f39cf6e41f121162fa5dab250a77a16` and
+returned `{"operation":"preflight","status":"preflight-inspected"}`. It
+performed no provider mutation, realm update, owner provisioning or deployment.
+M1 preparation/check identities remain bound to the recorded candidate and are
+not relabeled as final release authority; `finalReleasePrepared:false` remains
+explicit. Native source is now synchronized to the exact M2 main commit, while
+provider, owner, live-preservation, device and final deployment evidence remain
+open.
+
+## Historical committed-source native preparation and independent check — 2026-09-12
 
 The dedicated Linux assembler completed both `prepare` and independent `check`
 from exact source commit

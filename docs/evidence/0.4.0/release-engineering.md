@@ -1,51 +1,35 @@
 # Release engineering: implementation and evidence
 
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main),
-the current working PR and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
-PR #228 is merged and its branch retired. Actual M1
-`c4b95505b73705d120aff3f3318d2bd5151f6565` completed native preparation,
-independent checking and guarded export. PR #235 integrated its checked generated
-family into signed main `7b102f9f` (M2); later product source follows separately.
-The retained `8033e01c` family below is historical and predates the Linux PTR
-caller and pending-keep changes. Each later source change needs its own CI and
-protected integration. Older synchronized heads below are historical checkpoints.
-The generated source families recorded below are dated, source-bound evidence;
-documentation and test follow-ups do not create a new release candidate. The
-retained candidate, closure and runner observations below are not current
-deployment authority. The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
-gives the next connected work and actual publication/check status. **0.4 is not shipped.**
+the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
+Protected main is signed M2 `810286c95f39cf6e41f121162fa5dab250a77a16` (tree `1f16891a52ba1bf8194ba7d1ca5154a5b5481412`) after PR #247's exact
+generated-only promotion. Fresh main Verify `34760814489` passed every required
+context, and sealed read-only preflight `34763502943` returned `preflight-inspected`.
+Native source is synchronized to M2; genuine provider/owner authority, live
+recovery/readback, preservation/denial, physical-device acceptance and final
+deployment remain open. Earlier source families and candidate identities below
+are historical, source-bound evidence; documentation follow-ups do not create a
+new release candidate. **0.4 is not shipped.**
 
 Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
-## Current development-family checkpoint — 13 September 2026
+## Current accepted-main M2 checkpoint — 13 September 2026
 
-The current integrated development head is `d10e0236bdf3a2e294614738bfc5dc2401d75e71`
-(tree `5edf8512d7a72d2c00078531425b8fcc3d8b2e8e`). The source-bound
-implementation input `46489461490ec90a6b39b551c65256f4f4f03c4e` (tree
-`f284e3a0fbd7be08d342b71f55f34a76e65e94ba`) has a successful complete-family
-native preparation and independent rebuilding check. Preparation handle
-`release-workspace-5ee77d35f14910d7e2d6ad5e093f3f68` and independent-check handle
-`release-workspace-13033312e247f1d36b3c77b4c63286b1` agree on transaction
-`adcd64cefbb553c9f71ab2f87e63851b`, family
-`6d0bc864cf76400f738018d6644ef1012e120dfbc6e6114ee678d851e2234443`, closure
-manifest `0b0e47a08397164f9c6baacda39bd6cd5c752c6591acbdc07ab0b150d0f68524` and
-scanner manifest `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
-The result covers 3,229 source/candidate files, 102 outputs, 3,127 preserved
-files, 486 bundle inputs and seven recovery inputs. `finalReleasePrepared: false`
-remains explicit; this candidate is not a deployment authorization. Its
-authenticated complete generated output patch was applied only to the 21 generated
-paths and committed as `d10e0236`; patch SHA-256 is
-`da348e9eb801a7d7347286a75271a9083469312fbeba3c8f5351f55aed1459d2`.
+Protected `main` is signed commit `810286c95f39cf6e41f121162fa5dab250a77a16` (tree `1f16891a52ba1bf8194ba7d1ca5154a5b5481412`), the GitHub-verified
+squash of PR #247's exact generated-only promotion. Fresh main Verify
+`34760814489` passed every required context. Native M1 preparation/check remains
+source-bound to candidate `release-workspace-83bf0da57a1a622d84742c445f8450a9`
+with family `0c97e825844d58ad3417a0298eb75a81c67f3bc1595863a9083c41d5bd648899`
+and closure `13b8ec2559712b93560c62babe47e0e79dae4fa656da638d108f66e8f7a4e835`.
 
-The `7c31c83b` and `29baaa26` preparation attempts failed closed and remain
-historical. Their candidates were not relabeled or exported. `46489461` fixed the
-pinned-dependency reassignment exposed by the latter, and the successful run above
-is the current source-bound evidence for the implementation input. The generated
-family is now integrated on top of that source-bound evidence; PR #245 still needs
-latest-head hosted verification before protected integration. The saved sync
-automation remains paused and no Desktop output was created.
+Sealed read-only preflight `34763502943` passed against `810286c95f39cf6e41f121162fa5dab250a77a16` and emitted
+`{"operation":"preflight","status":"preflight-inspected"}`. No live
+provider, recovery, realm or owner operation occurred. The native checkout is
+synchronized to M2 and the saved sync automation remains paused. `finalReleasePrepared:false`
+remains explicit; genuine deployment authority, live acceptance and final
+freeze are still open. **0.4 is not shipped.**
 
 ## Verified observation source family — 2026-09-13
 
