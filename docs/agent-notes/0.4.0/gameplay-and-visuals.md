@@ -1,5 +1,33 @@
 # Gameplay and visual implementation notes
 
+## First-journey review — September 13, 2026
+
+PR #249 adds a direct resource-location entry for a new keep. Independent review
+found that zero balances also matched a keep whose first Worker had already left,
+and that mounting the card only in the ready phase removed focused controls
+during the normal five-second refresh. The cue now requires untouched Worker
+assignment revisions and stays mounted across retained refresh/pending views.
+Its button remains navigation-only; the destination and controller independently
+guard gameplay submission against current readiness, Worker state and target.
+
+The tutorial scrolls with the page rather than increasing the sticky decision
+header. Local synthetic browser checks at 390x844, 568x320 and 667x375 verified
+readable onboarding, no horizontal overflow, catalog/Worker navigation and
+scroll-reachable placement warnings, disabled confirmation and draft cancellation.
+The two landscape headers measured approximately 150px and 100px. These are
+browser viewport checks, not physical-device performance or owner play evidence.
+
+Four regression cases reproduced repeat guidance and refresh/pending continuity
+failures before correction. The five affected UI/accessibility/loop/legal suites
+pass all 71 tests with Node 22.22.3; typecheck and production build also pass,
+including asset, production-exclusion, public-boundary and Mini App checks.
+The public Alpha dialog now distinguishes the isolated 0.4 test experience from
+features available through public Realm entry; it does not promise PTR access to
+G001 players. Independent source review closed the scoped findings. Protected CI
+and final live acceptance remain separate.
+
+## Previous rendered checkpoint — September 12, 2026
+
 Updated 2026-09-12. Use the [execution handoff](execution-handoff.md), current refs
 and open pull requests for source and synchronization; PR #228 has merged.
 The latest source `337a4cc0` frames an occupied keep once around settled sites and
