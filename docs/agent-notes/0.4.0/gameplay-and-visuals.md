@@ -83,10 +83,13 @@ placement button does not establish reachability. These are synthetic local
 views, not physical-device, performance, authenticated-owner or live-release
 acceptance. The saved image review is complete; useful scene/action views and
 interaction coverage remain open. The desktop primary-action finding from this
-capture is resolved by the follow-up above. The schematic would benefit from
-compact building names, and phone overview
-needs clearer small-building hierarchy. Separate desktop footprints do not
-establish an overlap defect. Preserve accessible names and authoritative geometry.
+capture is resolved by the follow-up above. The schematic readability gap is now
+resolved in source by compact MILL, LUMBER, STONE, GOLD, BARRACKS and CATHEDRAL
+markers; full accessible names, authoritative geometry and placement behavior
+remain unchanged. The 3D phone overview still needs clearer small-building
+hierarchy and physical-device/performance acceptance. Separate desktop
+footprints do not establish an overlap defect. Preserve accessible names and
+authoritative geometry.
 
 The preceding guarded capture `artifacts/keep04-qa/windows-run-01TmYS` records
 clean source `72aee27e`, Chrome 152 and hardware rendering. All 36 scenarios had
