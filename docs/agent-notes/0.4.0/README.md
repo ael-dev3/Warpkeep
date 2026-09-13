@@ -66,7 +66,9 @@ which records the current checkpoint, preparation, CI and environment details.
   import/owner producers and production code-replacement acceptance remain open.
   The current G002 follow-up reuses the preserved-update engine with a fixed
   source-built artifact, signed sealed-state observations and isolated journal;
-  explicit G002 adoption still needs activation/public/recovery integration.
+  its genuine retained adoption now reaches private activation, the public V5
+  binding and recovery checks. Complete-family, protected and live acceptance
+  remain open. No original G002 import history is reconstructed.
   The initial prepared deployment re-attests the live B0 predecessor and writes
   its own journal and receipt after genuine postflight; do not rerun B0 or invent
   missing private evidence. Controlled rehearsals do not establish live authority.
@@ -74,8 +76,8 @@ which records the current checkpoint, preparation, CI and environment details.
   recovery work are published; the earlier `923e024` preparation is historical.
   Native frozen G001/current G002 program-artifact generation and the dedicated
   PTR cache installer have passed. Signed preparation observation reaches the
-  candidate through its genuine source/private-state owner. The program-hash
-  consumer is reviewed but still needs operation-bundle integration. Follow the
+  candidate through its genuine source/private-state owner. The connected
+  consumers still require fresh generated-bundle acceptance for current source. Follow the
   [execution handoff](execution-handoff.md) for the active source and exact native
   run; do not restart old jobs or treat previous candidate artifacts as current.
 - **Preserve each realm's purpose.** Keep G001 progress, access and normal timers

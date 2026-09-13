@@ -58,6 +58,29 @@ uses the existing explicit platform relaxation. The POSIX descriptor generator
 and completed-generation restart are exercised separately on Linux; no platform
 bypass was added.
 
+Runtime source `7e7aa9b19c34b13daefcd707edbba8b260f7cb07` and scanner follow-up
+`d71b53e7886416c69cda525b3936429f3894098b` are published in PR #245; the latter's
+tree is `b9fcfce7f4b620ec3de9f102cd342af285c275b9`. The full outgoing range passed
+Gitleaks before a normal push, and GitHub equality and a clean active Windows
+checkout were verified. The scanner had classified the public field name
+`g002PublishReceiptDigest` as a credential at three selectors. The exact
+rule/value/path exceptions accept 48 reviewed public fixtures while all 95
+mandatory hostile mutations/copies still trigger. All seven owning scanner
+regressions and the affected type check passed. No ignore fingerprint or broad
+path exception was added.
+
+Native synchronization initially fetched only `main`, because that checkout's
+existing remote refspec is intentionally narrow. Fetching the explicit published
+development branch resolved the absent-object error without changing Git
+configuration. The clean idle native checkout then moved to exact `d71b53e7`,
+preserving RunnerService. Native session `28187` is currently running the 19
+owning root suites at that exact source, including genuine V4/V5 POSIX descriptor
+generation, lost-response recovery and restarted adoption readers. Windows
+session `29078` is still running the owning continuation, G002 lifecycle and
+legacy V2/V3 activation-record compatibility selection. Neither run has a
+terminal result yet; do not report them passing or restart them based on elapsed
+time. Their live workers and fixture output confirm ongoing work.
+
 This is source implementation evidence. A coherent generated family, independent
 native preparation/checking, normal protected integration and live preservation,
 actual-owner play and mobile render acceptance remain separate open work.

@@ -4,7 +4,9 @@
 
 Continue `codex/0.4-g002-existing-state` /
 [PR #245](https://github.com/ael-dev3/Warpkeep/pull/245) in the reused isolated
-checkout `C:/Temp/warpkeep-clean-ci`. This follow-up connects the preserved G002
+checkout `C:/Temp/warpkeep-clean-ci`. Runtime `7e7aa9b1` and scanner follow-up
+`d71b53e7` are published; full-range scanning and GitHub equality passed.
+This follow-up connects the preserved G002
 update through private activation records, bridge suspension, the public V5
 binding and recovery consumers. Both realms require genuine retained signed
 proofs from the same private-state owner; source/tree and signed bridge
@@ -28,12 +30,18 @@ published `758bc482` branch. Do not move that independent branch.
 
 The previous producer source `1664405d` passed native session `61892`: all 356
 cases in 13 suites, no skips. That does not certify this consumer follow-up.
-The native checkout was clean and idle at `3639a3cb`, with the persistent
-RunnerService intact, before the next source synchronization. Synchronize only
-after publication and a fresh idle/clean check.
+The native checkout was synchronized cleanly to published `d71b53e7` after an
+idle check, preserving RunnerService. Its remote fetch configuration covers only
+`main`; explicitly fetch the published development branch before checking out
+a new source. Do not alter that configuration or move native source during tests.
 
-Next publish and run the connected V5 private generation/restart cases on Linux,
-then prepare and independently check the complete source family from that
+Native acceptance `28187` is active at immutable `d71b53e7` (19 suites), including
+actual V4/V5 private descriptor generation and restart. Windows owning regression
+`29078` is also active in the legacy record/source cases. Neither has a terminal
+result; keep their source and handles intact and read their actual completion.
+Do not restart a test or move the native checkout because output is quiet.
+
+Complete that connected acceptance, then prepare and independently check the complete source family from the published
 committed input. Generated manifests still belong to the older family; never
 hand-edit their pins or run a stale donor as if it were current. Continue normal
 protected integration and exact accepted-main preparation, then live preservation,
