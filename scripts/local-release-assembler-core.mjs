@@ -196,7 +196,7 @@ function verifyCompiledInputs(inputs, sourceRoot, candidateRoot, files) {
         });
       }
       const output = installedOutputs.get(member.path);
-      const path = join(candidateRoot, member.path);
+      let path = join(candidateRoot, member.path);
       if (member.path.startsWith('node_modules/')) {
         const prefix = 'node_modules/yaml/';
         const pinned = member.path.startsWith(prefix) ? yaml.files.find(file => file.path === member.path.slice(prefix.length)) : undefined;
