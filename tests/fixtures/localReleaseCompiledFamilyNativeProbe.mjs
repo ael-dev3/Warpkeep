@@ -39,11 +39,16 @@ try {
     .sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
   const transaction = candidate.installOutputs(files);
   phase('verifying-installed-family');
+  const installedOutputs = new Map(files.map(file => [file.path, file.bytes]));
+  const verify = (path, options) => {
+    const opened = readLocalBindingBoundedFile(path, options);
+    opened.body.fill(0);
+  };
   for (const file of files) {
-    readLocalBindingBoundedFile(join(candidate.candidateRoot, file.path), {
+    verify(join(candidate.candidateRoot, file.path), {
       maximumBytes: 8 * 1024 * 1024, expectedUid: 1000,
       expectedSha256: sha(file.bytes), discardBody: true,
-    }).body.fill(0);
+    });
   }
   // The closure can faithfully hash a stale bundle. Separately require every
   // compiler-recorded input to still match the installed prospective source.
@@ -58,6 +63,13 @@ try {
   let checkedBundleInputs = 0;
   for (const bundle of bundleManifest.bundles) {
     for (const member of bundle.graphManifest) {
+      if (!member.path.startsWith('node_modules/')) {
+        verify(join(draft.sourceRoot, member.path), {
+          maximumBytes: 8 * 1024 * 1024, expectedUid: 1000,
+          expectedBytes: member.byteLength, expectedSha256: member.sha256,
+        });
+      }
+      const output = installedOutputs.get(member.path);
       let path = join(candidate.candidateRoot, member.path);
       if (member.path.startsWith('node_modules/')) {
         const prefix = 'node_modules/yaml/';
@@ -68,10 +80,11 @@ try {
         }
         path = join('/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/yaml-2.9.0/package', pinned.path);
       }
-      readLocalBindingBoundedFile(path, {
+      verify(path, {
         maximumBytes: 8 * 1024 * 1024, expectedUid: 1000,
-        expectedBytes: member.byteLength, expectedSha256: member.sha256, discardBody: true,
-      }).body.fill(0);
+        expectedBytes: output?.byteLength ?? member.byteLength,
+        expectedSha256: output === undefined ? member.sha256 : sha(output), discardBody: true,
+      });
       checkedBundleInputs += 1;
     }
   }
@@ -89,10 +102,12 @@ try {
     // Package inputs were authenticated from fixed archives by the native
     // recovery producer. Recheck every committed source against this candidate.
     if (!member.path.startsWith('node_modules/')) {
-      readLocalBindingBoundedFile(join(candidate.candidateRoot, member.path), {
-        maximumBytes: 4 * 1024 * 1024, expectedUid: 1000, expectedBytes: member.byteLength,
-        expectedSha256: member.sha256, discardBody: true,
-      }).body.fill(0);
+      const output = installedOutputs.get(member.path);
+      verify(join(candidate.candidateRoot, member.path), {
+        maximumBytes: 4 * 1024 * 1024, expectedUid: 1000,
+        expectedBytes: output?.byteLength ?? member.byteLength,
+        expectedSha256: output === undefined ? member.sha256 : sha(output), discardBody: true,
+      });
     }
     checkedRecoveryInputs++;
   }

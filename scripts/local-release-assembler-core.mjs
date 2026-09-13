@@ -159,11 +159,17 @@ function sameFiles(left, right) {
   if (left.length !== right.length || left.some((file, index) => file.path !== right[index].path
     || !Buffer.from(file.bytes).equals(Buffer.from(right[index].bytes)))) fail('NONCONVERGENCE');
 }
-function verifyCompiledInputs(inputs, candidateRoot) {
+function verifyCompiledInputs(inputs, sourceRoot, candidateRoot, files) {
+  const installedOutputs = new Map(files.map(file => [file.path, file.bytes]));
+  const verify = (path, options) => {
+    const opened = readLocalBindingBoundedFile(path, options);
+    opened.body.fill(0);
+  };
   const bundleFile = inputs.bundles.files.find(file => file.path === 'scripts/sealed-realms-production-bundle-manifest-v1.json');
   const bundleManifest = JSON.parse(Buffer.from(bundleFile.bytes).toString('utf8'));
-  const yamlBody = readLocalBindingBoundedFile(join(candidateRoot, 'scripts/local-binding-runtime-yaml-v1.json'),
-    { maximumBytes: 1024 * 1024, expectedUid: 1000 }).body;
+  const yamlOpened = readLocalBindingBoundedFile(join(candidateRoot, 'scripts/local-binding-runtime-yaml-v1.json'),
+    { maximumBytes: 1024 * 1024, expectedUid: 1000 });
+  const yamlBody = yamlOpened.body;
   let yaml;
   try { yaml = validateLocalBindingYamlManifest(yamlBody.toString('utf8')); }
   finally { yamlBody.fill(0); }
@@ -178,15 +184,28 @@ function verifyCompiledInputs(inputs, candidateRoot) {
         checkedBundleInputs++;
         continue;
       }
-      let path = join(candidateRoot, member.path);
+      // The compiler graph is captured from the committed source tree. Some
+      // graph members are also prospective generated outputs (the closure
+      // verifier is inventory-specialized during assembly), so verify the raw
+      // source against the graph hash and the installed candidate against the
+      // output bytes separately.
+      if (!member.path.startsWith('node_modules/')) {
+        verify(join(sourceRoot, member.path), {
+          maximumBytes: 8 * 1024 * 1024, expectedUid: 1000,
+          expectedBytes: member.byteLength, expectedSha256: member.sha256,
+        });
+      }
+      const output = installedOutputs.get(member.path);
+      const path = join(candidateRoot, member.path);
       if (member.path.startsWith('node_modules/')) {
         const prefix = 'node_modules/yaml/';
         const pinned = member.path.startsWith(prefix) ? yaml.files.find(file => file.path === member.path.slice(prefix.length)) : undefined;
         if (!pinned || pinned.bytes !== member.byteLength || pinned.sha256 !== member.sha256) fail('DEPENDENCY_INVALID');
         path = join(ROOT, 'toolchain/yaml-2.9.0/package', pinned.path);
       }
-      readLocalBindingBoundedFile(path, { maximumBytes: 8 * 1024 * 1024, expectedUid: 1000,
-        expectedBytes: member.byteLength, expectedSha256: member.sha256, discardBody: true });
+      verify(path, { maximumBytes: 8 * 1024 * 1024, expectedUid: 1000,
+        expectedBytes: output?.byteLength ?? member.byteLength,
+        expectedSha256: output === undefined ? member.sha256 : sha(output) });
       checkedBundleInputs++;
     }
   }
@@ -196,9 +215,12 @@ function verifyCompiledInputs(inputs, candidateRoot) {
     || recoveryManifest.bundle.path !== inputs.recovery.path || recoveryManifest.bundle.sha256 !== inputs.recovery.sha256
     || JSON.stringify(recoveryManifest.compilerInputs) !== JSON.stringify(inputs.recovery.inputs)) fail('RECOVERY_INVALID');
   for (const member of inputs.recovery.inputs) {
-    if (!member.path.startsWith('node_modules/')) readLocalBindingBoundedFile(join(candidateRoot, member.path),
-      { maximumBytes: 4 * 1024 * 1024, expectedUid: 1000, expectedBytes: member.byteLength,
-        expectedSha256: member.sha256, discardBody: true });
+    if (!member.path.startsWith('node_modules/')) {
+      const output = installedOutputs.get(member.path);
+      verify(join(candidateRoot, member.path), { maximumBytes: 4 * 1024 * 1024, expectedUid: 1000,
+        expectedBytes: output?.byteLength ?? member.byteLength,
+        expectedSha256: output === undefined ? member.sha256 : sha(output) });
+    }
   }
   return { checkedBundleInputs, checkedRecoveryInputs: inputs.recovery.inputs.length };
 }
@@ -206,7 +228,7 @@ async function verifyFamily(context, inputs, closure, files, deriveClosure, scan
   context.assertActive(); scanner.assertUnchanged();
   const bytes = verifyPreparedReleaseCandidateBytes({ sourceRoot: context.sourceRoot,
     candidateRoot: context.candidateRoot, sourceCommit: context.sourceCommit, sourceTree: context.sourceTree, files });
-  const compiled = verifyCompiledInputs(inputs, context.candidateRoot);
+  const compiled = verifyCompiledInputs(inputs, context.sourceRoot, context.candidateRoot, files);
   const verifier = await import(pathToFileURL(join(context.candidateRoot, 'scripts/auth-bridge-notification-prepared-deploy-closure.mjs')).href);
   const checked = verifier.verifyAuthBridgeNotificationPreparedDeployClosure({ repositoryRoot: context.candidateRoot });
   if (checked.memberCount !== closure.memberCount) fail('CLOSURE_MISMATCH');
