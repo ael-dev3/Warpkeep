@@ -1,5 +1,52 @@
 # Continue Warpkeep 0.4
 
+## Current verified checkpoint — 13 September 2026
+
+The current published source is `46489461490ec90a6b39b551c65256f4f4f03c4e`
+(tree `f284e3a0fbd7be08d342b71f55f34a76e65e94ba`) on
+`codex/0.4-g002-existing-state` / [PR #245](https://github.com/ael-dev3/Warpkeep/pull/245).
+The Windows checkout and native `/home/warpkeep/Warpkeep-0.4` checkout are clean,
+source-synchronized and idle outside the recorded preparation evidence. The
+remote branch resolves to the same full SHA.
+
+Complete-family native preparation and its independent rebuilding check both
+passed from this exact committed input. Preparation handle
+`release-workspace-5ee77d35f14910d7e2d6ad5e093f3f68` and independent-check handle
+`release-workspace-13033312e247f1d36b3c77b4c63286b1` returned the same transaction,
+journal, family, closure and scanner identities. The result checked 3,229 source
+files and 3,229 candidate files, 102 generated outputs, 3,127 preserved source
+files, 486 bundle inputs and seven recovery inputs. The family digest is
+`6d0bc864cf76400f738018d6644ef1012e120dfbc6e6114ee678d851e2234443`; closure
+manifest `0b0e47a08397164f9c6baacda39bd6cd5c752c6591acbdc07ab0b150d0f68524`;
+scanner manifest `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+Both results report `finalReleasePrepared: false`; no deployment or live provider
+operation occurred.
+
+Two earlier private attempts are closed and not reusable: the `7c31c83b` run
+failed closed on an intentional generated-closure/source-byte mismatch before the
+compiler-input correction, and the `29baaa26` run exposed a `const` reassignment
+bug in the pinned-dependency branch. The published `46489461` fix was then
+verified by the successful preparation/check above. Do not relabel, export or
+restart either failed candidate.
+
+PR #245 still requires a green final-head gate. At the latest observation its
+`auth-bridge`, `release-recovery` and `native-contract` checks passed; Linux and
+`spacetimedb-module` were still running and the first CodeQL `analyze` attempt
+failed after SARIF generation without a source finding, so that job was retried.
+Use the live check result before protected integration. PR #244 remains open as
+its checked ancestry reference until the combined protected merge confirms
+inclusion.
+
+The saved `keep-warpkeep-development-synced` automation is **PAUSED** and must
+remain disabled. Continue manual fetch, exact-range scan, normal commit/push and
+remote-SHA verification for every reviewable checkpoint. Update the existing
+Desktop handoff in place only; create no new Desktop files, backups or archives.
+The current completion estimate is about **67%** (a 62–72% judgment range):
+source correction, consumer coverage and development-family preparation are in
+place; protected integration, accepted-main/M1 and generated-only M2 promotion,
+actual owner/provider authority, live preservation/denial, final mobile/device
+acceptance and release deployment remain open.
+
 ## Current work: G002 and PTR adoption — 13 September 2026
 
 Continue `codex/0.4-g002-existing-state` /
@@ -59,15 +106,14 @@ graph/source additions passed their targeted reruns, and all Windows handles are
 closed. Native session `83592` then passed all 69 cases in the three complete
 owning suites at this exact published source (18.86s, exit zero), including the
 injected-entry cache case. The recovery closure correction now has its final
-focused native acceptance. Read real terminal handles, not elapsed time. Then
-prepare the complete source family from the published committed input. Generated
-manifests still belong to the older family; never
-hand-edit their pins or run a stale donor as if it were current. Continue normal
+focused native acceptance. Read real terminal handles, not elapsed time. The complete source-family
+preparation and independent check now passed for the exact published input; retain
+their identities above and do not reuse an older family. Continue normal
 protected integration and exact accepted-main preparation, then live preservation,
 actual-owner play and rendered mobile acceptance. Follow the
 [existing connected plan](../../superpowers/plans/2026-09-08-ptr-update-recovery.md#g002-adoption-consumer-contract).
 
-The overall estimate remains about **65%**, with a 60–70% judgment range;
+The overall estimate is about **67%**, with a 62–72% judgment range;
 0.4 is not shipped and no reliable calendar ETA is established. The saved Codex
 sync automation is **PAUSED** by the owner. Commit, scan and verify pushes at
 active development checkpoints without recreating a scheduler. Do not create new

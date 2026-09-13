@@ -19,6 +19,28 @@ Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
+## Current development-family checkpoint — 13 September 2026
+
+Published source `46489461490ec90a6b39b551c65256f4f4f03c4e` (tree
+`f284e3a0fbd7be08d342b71f55f34a76e65e94ba`) now has a successful complete-family
+native preparation and independent rebuilding check. Preparation handle
+`release-workspace-5ee77d35f14910d7e2d6ad5e093f3f68` and independent-check handle
+`release-workspace-13033312e247f1d36b3c77b4c63286b1` agree on transaction
+`adcd64cefbb553c9f71ab2f87e63851b`, family
+`6d0bc864cf76400f738018d6644ef1012e120dfbc6e6114ee678d851e2234443`, closure
+manifest `0b0e47a08397164f9c6baacda39bd6cd5c752c6591acbdc07ab0b150d0f68524` and
+scanner manifest `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+The result covers 3,229 source/candidate files, 102 outputs, 3,127 preserved
+files, 486 bundle inputs and seven recovery inputs. `finalReleasePrepared: false`
+remains explicit; this candidate is not a deployment authorization.
+
+The `7c31c83b` and `29baaa26` preparation attempts failed closed and remain
+historical. Their candidates were not relabeled or exported. `46489461` fixed the
+pinned-dependency reassignment exposed by the latter, and the successful run above
+is the current source-bound evidence. PR #245 hosted verification is still the
+integration gate; the saved sync automation remains paused and no Desktop output
+was created.
+
 ## Verified observation source family — 2026-09-13
 
 Full-stack review found one scanner coverage gap: two already-permitted update

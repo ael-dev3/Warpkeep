@@ -1,5 +1,25 @@
 # Warpkeep 0.4 recovery evidence
 
+## Current source-bound preparation checkpoint — 13 September 2026
+
+The corrected recovery boundary is published at `46489461490ec90a6b39b551c65256f4f4f03c4e`
+(tree `f284e3a0fbd7be08d342b71f55f34a76e65e94ba`). Native complete-family
+preparation and an independent rebuilding check both passed from this exact clean
+source. They agree on family `6d0bc864cf76400f738018d6644ef1012e120dfbc6e6114ee678d851e2234443`,
+closure manifest `0b0e47a08397164f9c6baacda39bd6cd5c752c6591acbdc07ab0b150d0f68524`,
+and scanner manifest `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+The run checked 3,229 source files, 3,229 candidate files, 102 outputs, 3,127
+preserved files, 486 bundle inputs and seven recovery inputs. Both results report
+`finalReleasePrepared: false`; this is development evidence and no live mutation
+or deployment is claimed.
+
+The preceding `7c31c83b` and `29baaa26` candidates failed closed and were not
+reused. The first exposed a generated-closure/source-byte mismatch; the second
+exposed a pinned-dependency `const` reassignment. The `46489461` correction was
+published, then covered by the successful preparation/check above. Hosted PR
+verification remains the next gate; protected integration, accepted-main
+preparation and live recovery still require their own source-bound evidence.
+
 ## G002 and PTR adoption consumers — 2026-09-13
 
 The follow-up on `codex/0.4-g002-existing-state` / PR #245 connects the existing
@@ -132,9 +152,10 @@ replace complete-family preparation or deployment evidence. No native or
 complete-family acceptance of this later correction is inferred from the earlier
 1,459-pass result.
 
-This is source implementation evidence. A coherent generated family, independent
-native preparation/checking, normal protected integration and live preservation,
-actual-owner play and mobile render acceptance remain separate open work.
+This source implementation now has coherent generated-family preparation and an
+independent native byte check. Normal protected integration, accepted-main/M1 and
+M2 promotion, live preservation, actual-owner play and mobile/device acceptance
+remain separate open work.
 
 ## Existing G002 update producer — 2026-09-13
 

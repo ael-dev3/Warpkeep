@@ -10,12 +10,13 @@ and [recovery evidence](recovery.md); none certifies later source.
 ## Verdict
 
 The workflow supports reviewed development, native preparation and protected
-integration. It is not yet sufficient to ship 0.4: the connected recovery CLI
-correction, complete final-source preparation, genuine operating authority and
-live player/device acceptance remain open. The correction is implemented with
-focused Windows proof; final native acceptance remains pending. Overall completion is approximately
-65% (a 60–70% judgment range), not a fraction derived from test or file counts.
-No reliable calendar ETA is established.
+integration. The recovery CLI correction and complete-family preparation/check are
+now complete for the current development input. It is not yet sufficient to ship
+0.4: final-head hosted eligibility, protected integration, accepted-main/M1 and
+M2 promotion, genuine operating authority, live preservation and player/device
+acceptance remain open. Overall completion is approximately **67%** (a 62–72%
+judgment range), based on milestone coverage rather than test or file counts. No
+reliable calendar ETA is established.
 
 ## What is working
 
@@ -52,10 +53,11 @@ No reliable calendar ETA is established.
   preparation-to-activation transition and retains the original manifest. The
   V1/V5 actual Git/CLI selection passed with Windows metadata explicitly modeled;
   expanded Windows and graph tests passed, with platform limits recorded in the
-  owning evidence. The final three owning suites then passed natively: 69/69 at
-  `6eb4df58`, including the injected-entry cache case. Verify the
-  ordinary Linux helper preload and hostile cache/source cases through the real
-  caller before treating the connected boundary as accepted.
+  owning evidence. The final three owning suites passed natively: 69/69 at published
+  `46489461490ec90a6b39b551c65256f4f4f03c4e`, including the injected-entry cache
+  case. Complete-family native preparation and
+  independent rebuilding check then passed for published `46489461`; retain their
+  exact identities in the handoff. Verify the live hosted head before integration.
 - Complete generated source must correspond to the final connected implementation.
   A component test does not authenticate the old generated family. Prepare and
   independently check exact committed input, then verify the complete integrated
@@ -88,15 +90,15 @@ No reliable calendar ETA is established.
 
 ## Required order from here
 
-1. Publish the reviewed recovery CLI correction on PR #245 and finish its
-   owning tests and actual native CLI coverage. The source push runs ordinary
-   PR verification against its combined main base. Keep PR #244 open as its checked
-   source/history reference until inclusion is confirmed by the combined merge.
-2. Prepare and independently check that exact clean published development input.
-   Authenticate and integrate its complete generated family into PR #245, preserving
-   the original compiler-input identity. Verify the integrated family, inert
-   preparation and Pages `sealed-launch-blocked`. This development preparation
-   enables generated-family PR checks; it is not final protected-main authority.
+1. Finish the final-head hosted checks for the published recovery CLI correction.
+   The source, owning tests, native acceptance and complete-family preparation/check
+   are already published. Keep PR #244 open as its checked source/history reference
+   until inclusion is confirmed by the combined merge.
+2. Use the recorded successful preparation/check identities for the exact clean
+   published input. Authenticate and integrate its complete generated family into
+   PR #245, preserving the compiler-input identity. Verify the integrated family,
+   inert preparation and Pages `sealed-launch-blocked`; this development preparation
+   is not final protected-main authority.
 3. Require terminal checks and normal protected merge eligibility for the final
    reviewed head. Retain its ancestry under a remotely verified source-history tag,
    then use a head-guarded protected squash to M1. Verify actual signed main and
