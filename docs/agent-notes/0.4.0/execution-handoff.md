@@ -7,12 +7,12 @@ It is the protected squash merge of source PR #249, reviewed at head
 `d3bfe6f1df957ff59c29acc46a5b721407412d6d`, on top of signed M2
 `810286c95f39cf6e41f121162fa5dab250a77a16` (tree
 `1f16891a52ba1bf8194ba7d1ca5154a5b5481412`). Fresh post-merge main Verify
-run `34770379931` is still running; read its terminal conclusion before
+run `34770379931` passed every required lane on the protected source merge;
 calling this source checkpoint green.
 
 The documentation refresh is published in draft PR #248 at head
-`0b86653c899dd76f331ddeb800e05200f223dd7c`. Its current Verify run
-`34772160132` is still running on that exact docs head; integrate it only
+`90814e70a5be7c50de45e4e1e2078aafb3d846b5`. Its current Verify run
+`34772260770` is still running on that exact docs head; integrate it only
 after terminal passing checks through the normal protected path. Older stacked
 PRs #237–243 are now closed as superseded; their remote branches remain
 available for history, while signed main contains their accepted product and

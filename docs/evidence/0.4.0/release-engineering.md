@@ -5,7 +5,7 @@ the current working branch and [execution handoff](../../agent-notes/0.4.0/execu
 Protected main is signed M2 `810286c95f39cf6e41f121162fa5dab250a77a16` (tree `1f16891a52ba1bf8194ba7d1ca5154a5b5481412`) after PR #247's exact
 generated-only promotion. Fresh main Verify `34760814489` passed every required
 context, and sealed read-only preflight `34763502943` returned `preflight-inspected`.
-Source PR #249 is now protected-merged as `61b8a03d04fcae2db3913d10e2025fa6c3e8529f`; post-merge Verify `34770379931` remains in progress. Documentation PR #248 is the only active review and is not yet integrated. Native source is synchronized to M2; genuine provider/owner authority, live
+Source PR #249 is now protected-merged as `61b8a03d04fcae2db3913d10e2025fa6c3e8529f`; post-merge Verify `34770379931` passed every required lane. Documentation PR #248 is the only active review and is not yet integrated. Native source is synchronized to M2; genuine provider/owner authority, live
 recovery/readback, preservation/denial, physical-device acceptance and final
 deployment remain open. Earlier source families and candidate identities below
 are historical, source-bound evidence; documentation follow-ups do not create a

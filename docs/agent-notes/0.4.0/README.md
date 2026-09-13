@@ -18,7 +18,7 @@ The product follow-up in [PR #249](https://github.com/ael-dev3/Warpkeep/pull/249
 is now protected-merged as `61b8a03d`. It guides a new Keep through its first
 useful journey and keeps Alpha copy truthful about isolated 0.4 access. The
 evidence and operating refresh is in [PR #248](https://github.com/ael-dev3/Warpkeep/pull/248)
-at `0b86653c`; read its live checks before integrating the documentation branch.
+at `90814e70`; read its live checks before integrating the documentation branch.
 
 - **Development and live release are separate.** `main` contains the 0.4
   development source alongside preserved G001 behavior. The integrated 0.4

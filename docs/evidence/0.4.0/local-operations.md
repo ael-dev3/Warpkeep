@@ -12,7 +12,7 @@ commit after an idle-process check; RunnerService PID203 and Runner.Listener
 PID224 remain alive. The saved Codex sync automation is paused, and no scheduled
 GitHub workflow exists.
 
-Source PR #249 is now protected-merged as `61b8a03d04fcae2db3913d10e2025fa6c3e8529f`; post-merge Verify `34770379931` remains in progress. Documentation PR #248 is the only active review at `0b86653c`, with Verify `34772160132` pending.
+Source PR #249 is now protected-merged as `61b8a03d04fcae2db3913d10e2025fa6c3e8529f`; post-merge Verify `34770379931` passed every required lane. Documentation PR #248 is the only active review at `90814e70`, with Verify `34772260770` pending.
 
 The read-only sealed-realms preflight `34763502943` passed against `810286c95f39cf6e41f121162fa5dab250a77a16` and
 returned `{"operation":"preflight","status":"preflight-inspected"}`. It
