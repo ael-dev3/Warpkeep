@@ -39,7 +39,7 @@ preflight are complete. Genuine provider/owner authority, live recovery and
 deployment, G001 preservation and sealed G002 evidence, physical-device
 performance and final mobile acceptance remain open.
 
-The pending source correction in draft PR #249 (`9a2e646d`) updates the Alpha
+The pending source correction in PR #249 (`9a2e646d`, ready for review) updates the Alpha
 consent dialog to describe the limited 0.4 Keep loop accurately and gives a
 newly initialized empty keep a clear first-journey cue that routes through the
 existing resource-location flow. Its focused UI/legal-copy tests, typecheck,
