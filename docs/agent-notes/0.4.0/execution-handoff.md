@@ -39,6 +39,12 @@ preflight are complete. Genuine provider/owner authority, live recovery and
 deployment, G001 preservation and sealed G002 evidence, physical-device
 performance and final mobile acceptance remain open.
 
+The pending source-copy correction in draft PR #249 (`c5ecbc59`) updates the
+Alpha consent dialog to describe the limited 0.4 Keep loop accurately. Its
+focused UI and legal-copy tests pass; it is not part of accepted `main` or the
+M2 release evidence until the normal protected checks and any resulting fresh
+verification complete.
+
 ## Previous consumer implementation checkpoint — 13 September 2026
 
 Continue `codex/0.4-g002-existing-state` /
