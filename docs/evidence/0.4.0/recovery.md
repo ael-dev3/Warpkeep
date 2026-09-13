@@ -2,8 +2,9 @@
 
 ## Current source-bound preparation checkpoint — 13 September 2026
 
-The corrected recovery boundary is published at `46489461490ec90a6b39b551c65256f4f4f03c4e`
-(tree `f284e3a0fbd7be08d342b71f55f34a76e65e94ba`). Native complete-family
+The corrected recovery boundary is source-bound to `46489461490ec90a6b39b551c65256f4f4f03c4e`
+(tree `f284e3a0fbd7be08d342b71f55f34a76e65e94ba`); the current documentation
+head is `85fd53d1c5977fb7802797e7c8c080862855d57e`. Native complete-family
 preparation and an independent rebuilding check both passed from this exact clean
 source. They agree on family `6d0bc864cf76400f738018d6644ef1012e120dfbc6e6114ee678d851e2234443`,
 closure manifest `0b0e47a08397164f9c6baacda39bd6cd5c752c6591acbdc07ab0b150d0f68524`,

@@ -21,8 +21,10 @@ component success does not establish unrecorded production acceptance.
 
 ## Current development-family checkpoint — 13 September 2026
 
-Published source `46489461490ec90a6b39b551c65256f4f4f03c4e` (tree
-`f284e3a0fbd7be08d342b71f55f34a76e65e94ba`) now has a successful complete-family
+The current documentation head is `85fd53d1c5977fb7802797e7c8c080862855d57e`
+(tree `45b9985f11632286baea96cdbbe1204c7bbafe27`). The source-bound
+implementation input `46489461490ec90a6b39b551c65256f4f4f03c4e` (tree
+`f284e3a0fbd7be08d342b71f55f34a76e65e94ba`) has a successful complete-family
 native preparation and independent rebuilding check. Preparation handle
 `release-workspace-5ee77d35f14910d7e2d6ad5e093f3f68` and independent-check handle
 `release-workspace-13033312e247f1d36b3c77b4c63286b1` agree on transaction
@@ -37,8 +39,8 @@ remains explicit; this candidate is not a deployment authorization.
 The `7c31c83b` and `29baaa26` preparation attempts failed closed and remain
 historical. Their candidates were not relabeled or exported. `46489461` fixed the
 pinned-dependency reassignment exposed by the latter, and the successful run above
-is the current source-bound evidence. PR #245 hosted verification is still the
-integration gate; the saved sync automation remains paused and no Desktop output
+is the current source-bound evidence for the implementation input. PR #245
+hosted verification is still the integration gate for the documentation head; the saved sync automation remains paused and no Desktop output
 was created.
 
 ## Verified observation source family — 2026-09-13

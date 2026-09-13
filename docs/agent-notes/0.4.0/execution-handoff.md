@@ -2,10 +2,13 @@
 
 ## Current verified checkpoint — 13 September 2026
 
-The current published source is `46489461490ec90a6b39b551c65256f4f4f03c4e`
-(tree `f284e3a0fbd7be08d342b71f55f34a76e65e94ba`) on
+The current published documentation head is `85fd53d1c5977fb7802797e7c8c080862855d57e`
+(tree `45b9985f11632286baea96cdbbe1204c7bbafe27`) on
 `codex/0.4-g002-existing-state` / [PR #245](https://github.com/ael-dev3/Warpkeep/pull/245).
-The Windows checkout and native `/home/warpkeep/Warpkeep-0.4` checkout are clean,
+The source-bound implementation input used for native preparation/checking is
+`46489461490ec90a6b39b551c65256f4f4f03c4e` (tree
+`f284e3a0fbd7be08d342b71f55f34a76e65e94ba`). The Windows checkout and native
+`/home/warpkeep/Warpkeep-0.4` checkout are clean,
 source-synchronized and idle outside the recorded preparation evidence. The
 remote branch resolves to the same full SHA.
 
@@ -29,11 +32,10 @@ bug in the pinned-dependency branch. The published `46489461` fix was then
 verified by the successful preparation/check above. Do not relabel, export or
 restart either failed candidate.
 
-PR #245 still requires a green final-head gate. At the latest observation its
-`auth-bridge`, `release-recovery` and `native-contract` checks passed; Linux and
-`spacetimedb-module` were still running and the first CodeQL `analyze` attempt
-failed after SARIF generation without a source finding, so that job was retried.
-Use the live check result before protected integration. PR #244 remains open as
+PR #245 still requires a green final-head gate for the current documentation head.
+The earlier CodeQL action failure was transient infrastructure after SARIF generation
+and its retry passed on the source-bound implementation input. Use the live checks
+for `85fd53d1` before protected integration. PR #244 remains open as
 its checked ancestry reference until the combined protected merge confirms
 inclusion.
 
