@@ -42,6 +42,11 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   // Refreshes and pending commands retain the last confirmed view and local
   // focus. Only ready grants command authority; failures and expired scopes hide it.
   const visible = (phase === 'ready' || phase === 'refreshing' || phase === 'pending') && view !== null;
+  const firstIdleWorker = view?.workers.find(worker => worker.phase === 'idle');
+  const showFirstJourney = visible && view !== null && view.buildings.length === 0
+    && firstIdleWorker !== undefined
+    && view.workers.every(worker => worker.assignmentRevision === 0n)
+    && RESOURCES04.every(resource => view.balances[resource] === 0n && view.pending[resource] === 0n);
   const wasVisible = useRef(visible);
   const activeTimer = visible && (view.state.project !== undefined || view.workers.some(worker => worker.phase !== 'idle'));
   useEffect(() => {
@@ -157,6 +162,12 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
           <button type="button" aria-controls={selection.panel ? panelId : undefined} aria-expanded={selection.panel === 'workers'} onClick={event => openPanel('workers', event.currentTarget)}>Manage Workers</button>
         </nav>
       </div>
+      {showFirstJourney && firstIdleWorker !== undefined && <section className="keep04-first-journey" aria-label="First journey">
+        <p className="keep04-eyebrow">YOUR FIRST RETURN</p>
+        <h2>Start with one useful journey.</h2>
+        <p>Choose a resource location for Worker {firstIdleWorker.ordinal + 1}. What comes home can shape your first improvement.</p>
+        <button type="button" onClick={() => onFindResources(null, firstIdleWorker.ordinal)}>Start first journey</button>
+      </section>}
       {problem === 'capacity' && <p role="status">That resource location is full. Find another location.</p>}
       {problem === 'target' && <p role="status">That resource location changed. Choose a current Realm location.</p>}
       <div className="keep04-workspace" data-panel-open={selection.panel !== null}>

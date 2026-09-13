@@ -40,7 +40,10 @@ describe('AlphaParticipationTermsDialog', () => {
     expect(dialog.getAttribute('aria-modal')).toBe('true');
     expect(dialog.getAttribute('aria-describedby')).toBeTruthy();
     expect(screen.getByText(
-      /core strategy loop is not implemented yet/i
+      /0\.4 gather, choose, build, benefit, and return loop is being developed in an isolated test Realm/i
+    )).not.toBeNull();
+    expect(screen.getByText(
+      /entering the Alpha does not grant access to the 0\.4 test experience/i
     )).not.toBeNull();
     expect(screen.getByText(
       'Participation alone will not earn tokens, airdrops, external rewards, or guaranteed financial gain. Experimental in-game Marks have no cash value and may change or reset.'
