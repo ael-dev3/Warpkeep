@@ -2,9 +2,12 @@
 
 ## Current verified checkpoint — 13 September 2026
 
-The current published documentation head is `85fd53d1c5977fb7802797e7c8c080862855d57e`
-(tree `45b9985f11632286baea96cdbbe1204c7bbafe27`) on
+The current published development head is `d10e0236bdf3a2e294614738bfc5dc2401d75e71`
+(tree `5edf8512d7a72d2c00078531425b8fcc3d8b2e8e`) on
 `codex/0.4-g002-existing-state` / [PR #245](https://github.com/ael-dev3/Warpkeep/pull/245).
+The complete generated family authenticated from the source-bound input below is
+integrated at this head; the final documentation overlay will be published as a
+separate reviewed checkpoint.
 The source-bound implementation input used for native preparation/checking is
 `46489461490ec90a6b39b551c65256f4f4f03c4e` (tree
 `f284e3a0fbd7be08d342b71f55f34a76e65e94ba`). The Windows checkout and native
@@ -23,7 +26,12 @@ files, 486 bundle inputs and seven recovery inputs. The family digest is
 manifest `0b0e47a08397164f9c6baacda39bd6cd5c752c6591acbdc07ab0b150d0f68524`;
 scanner manifest `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
 Both results report `finalReleasePrepared: false`; no deployment or live provider
-operation occurred.
+operation occurred. The authenticated candidate output patch was applied byte-for-byte
+only to the 21 generated-family paths and committed as `d10e0236`; the patch
+SHA-256 is `da348e9eb801a7d7347286a75271a9083469312fbeba3c8f5351f55aed1459d2`.
+The complete outgoing range passed Gitleaks, and the Windows and native checkouts
+now resolve to the same published commit while RunnerService PID203 and
+Runner.Listener PID224 remain preserved.
 
 Two earlier private attempts are closed and not reusable: the `7c31c83b` run
 failed closed on an intentional generated-closure/source-byte mismatch before the
@@ -32,10 +40,11 @@ bug in the pinned-dependency branch. The published `46489461` fix was then
 verified by the successful preparation/check above. Do not relabel, export or
 restart either failed candidate.
 
-PR #245 still requires a green final-head gate for the current documentation head.
-The earlier CodeQL action failure was transient infrastructure after SARIF generation
-and its retry passed on the source-bound implementation input. Use the live checks
-for `85fd53d1` before protected integration. PR #244 remains open as
+PR #245 still requires a green final-head gate for the published integrated head
+and the subsequent documentation overlay. The earlier CodeQL action failure was
+transient infrastructure after SARIF generation and its retry passed on the
+source-bound implementation input. Use only the latest checks for the final
+published branch head before protected integration. PR #244 remains open as
 its checked ancestry reference until the combined protected merge confirms
 inclusion.
 
@@ -115,7 +124,8 @@ protected integration and exact accepted-main preparation, then live preservatio
 actual-owner play and rendered mobile acceptance. Follow the
 [existing connected plan](../../superpowers/plans/2026-09-08-ptr-update-recovery.md#g002-adoption-consumer-contract).
 
-The overall estimate is about **67%**, with a 62–72% judgment range;
+The overall estimate is about **70%** after generated-family integration, with a
+62–75% judgment range;
 0.4 is not shipped and no reliable calendar ETA is established. The saved Codex
 sync automation is **PAUSED** by the owner. Commit, scan and verify pushes at
 active development checkpoints without recreating a scheduler. Do not create new

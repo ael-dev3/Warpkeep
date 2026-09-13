@@ -21,8 +21,8 @@ component success does not establish unrecorded production acceptance.
 
 ## Current development-family checkpoint — 13 September 2026
 
-The current documentation head is `85fd53d1c5977fb7802797e7c8c080862855d57e`
-(tree `45b9985f11632286baea96cdbbe1204c7bbafe27`). The source-bound
+The current integrated development head is `d10e0236bdf3a2e294614738bfc5dc2401d75e71`
+(tree `5edf8512d7a72d2c00078531425b8fcc3d8b2e8e`). The source-bound
 implementation input `46489461490ec90a6b39b551c65256f4f4f03c4e` (tree
 `f284e3a0fbd7be08d342b71f55f34a76e65e94ba`) has a successful complete-family
 native preparation and independent rebuilding check. Preparation handle
@@ -34,14 +34,18 @@ manifest `0b0e47a08397164f9c6baacda39bd6cd5c752c6591acbdc07ab0b150d0f68524` and
 scanner manifest `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
 The result covers 3,229 source/candidate files, 102 outputs, 3,127 preserved
 files, 486 bundle inputs and seven recovery inputs. `finalReleasePrepared: false`
-remains explicit; this candidate is not a deployment authorization.
+remains explicit; this candidate is not a deployment authorization. Its
+authenticated complete generated output patch was applied only to the 21 generated
+paths and committed as `d10e0236`; patch SHA-256 is
+`da348e9eb801a7d7347286a75271a9083469312fbeba3c8f5351f55aed1459d2`.
 
 The `7c31c83b` and `29baaa26` preparation attempts failed closed and remain
 historical. Their candidates were not relabeled or exported. `46489461` fixed the
 pinned-dependency reassignment exposed by the latter, and the successful run above
-is the current source-bound evidence for the implementation input. PR #245
-hosted verification is still the integration gate for the documentation head; the saved sync automation remains paused and no Desktop output
-was created.
+is the current source-bound evidence for the implementation input. The generated
+family is now integrated on top of that source-bound evidence; PR #245 still needs
+latest-head hosted verification before protected integration. The saved sync
+automation remains paused and no Desktop output was created.
 
 ## Verified observation source family — 2026-09-13
 

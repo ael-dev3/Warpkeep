@@ -10,12 +10,13 @@ and [recovery evidence](recovery.md); none certifies later source.
 ## Verdict
 
 The workflow supports reviewed development, native preparation and protected
-integration. The recovery CLI correction and complete-family preparation/check are
-now complete for the current development input. It is not yet sufficient to ship
-0.4: final-head hosted eligibility, protected integration, accepted-main/M1 and
-M2 promotion, genuine operating authority, live preservation and player/device
-acceptance remain open. Overall completion is approximately **67%** (a 62–72%
-judgment range), based on milestone coverage rather than test or file counts. No
+integration. The recovery CLI correction, complete-family preparation/check and authenticated
+generated-family integration are complete for the current development input. It is
+not yet sufficient to ship 0.4: final-head hosted eligibility, protected
+integration, accepted-main/M1 and M2 promotion, genuine operating authority, live
+preservation and player/device acceptance remain open. Overall completion is
+approximately **70%** (a 62–75% judgment range), based on milestone coverage
+rather than test or file counts. No
 reliable calendar ETA is established.
 
 ## What is working
@@ -55,7 +56,9 @@ reliable calendar ETA is established.
   expanded Windows and graph tests passed, with platform limits recorded in the
   owning evidence. The final three owning suites passed natively: 69/69 at published
   `46489461490ec90a6b39b551c65256f4f4f03c4e`, including the injected-entry cache
-  case. Complete-family native preparation and
+  case. The complete authenticated generated family is now integrated as
+  `d10e0236`; its 21-path patch passed the outgoing Gitleaks scan and exact
+  local/native byte comparison. Complete-family native preparation and
   independent rebuilding check then passed for published `46489461`; retain their
   exact identities in the handoff. Verify the live hosted head before integration.
 - Complete generated source must correspond to the final connected implementation.
@@ -90,10 +93,11 @@ reliable calendar ETA is established.
 
 ## Required order from here
 
-1. Finish the final-head hosted checks for the published recovery CLI correction.
-   The source, owning tests, native acceptance and complete-family preparation/check
-   are already published. Keep PR #244 open as its checked source/history reference
-   until inclusion is confirmed by the combined merge.
+1. Finish the final-head hosted checks for the published integrated generated family
+   and the documentation overlay. The source, owning tests, native acceptance and
+   complete-family preparation/check are already published. Keep PR #244 open as
+   its checked source/history reference until inclusion is confirmed by the combined
+   merge.
 2. Use the recorded successful preparation/check identities for the exact clean
    published input. Authenticate and integrate its complete generated family into
    PR #245, preserving the compiler-input identity. Verify the integrated family,
