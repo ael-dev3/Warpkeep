@@ -43,9 +43,9 @@ The pending source correction in PR #249 (`9a2e646d`, ready for review) updates 
 consent dialog to describe the limited 0.4 Keep loop accurately and gives a
 newly initialized empty keep a clear first-journey cue that routes through the
 existing resource-location flow. Its focused UI/legal-copy tests, typecheck,
-and local rendered QA pass; it is not part of accepted `main` or the M2 release
-evidence until the normal protected checks and any resulting fresh verification
-complete.
+production build, and local rendered QA pass; it is not part of accepted `main`
+or the M2 release evidence until the normal protected checks and any resulting
+fresh verification complete.
 
 ## Previous consumer implementation checkpoint — 13 September 2026
 
