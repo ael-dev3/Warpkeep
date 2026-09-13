@@ -52,7 +52,8 @@ No reliable calendar ETA is established.
   preparation-to-activation transition and retains the original manifest. The
   V1/V5 actual Git/CLI selection passed with Windows metadata explicitly modeled;
   expanded Windows and graph tests passed, with platform limits recorded in the
-  owning evidence. Complete unmodified native acceptance. Verify the
+  owning evidence. The final three owning suites then passed natively: 69/69 at
+  `6eb4df58`, including the injected-entry cache case. Verify the
   ordinary Linux helper preload and hostile cache/source cases through the real
   caller before treating the connected boundary as accepted.
 - Complete generated source must correspond to the final connected implementation.

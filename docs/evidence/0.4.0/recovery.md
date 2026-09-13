@@ -124,9 +124,13 @@ Node builtins through their supported export synchronization, restoring them
 afterwards. Final application types passed (`7eecf8`). The added injected-entry
 CLI case still awaits native execution because Windows fixture indexing timed
 out before it ran; this is fixture setup, not a verifier failure. All owning
-Windows handles are closed. Run the final three complete owning suites natively
-from the published corrected source. No native or complete-family acceptance
-of this later correction is claimed by the earlier 1,459-pass result.
+Windows handles are closed. Native session `83592` then completed the final
+three owning suites at published `6eb4df58` with exit zero (`271285`): 69 passed
+across three files in 18.86s, including the injected-entry cache case. This is
+the focused native acceptance for the corrected closure boundary; it does not
+replace complete-family preparation or deployment evidence. No native or
+complete-family acceptance of this later correction is inferred from the earlier
+1,459-pass result.
 
 This is source implementation evidence. A coherent generated family, independent
 native preparation/checking, normal protected integration and live preservation,

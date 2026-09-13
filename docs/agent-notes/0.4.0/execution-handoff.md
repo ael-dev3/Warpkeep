@@ -56,9 +56,10 @@ metadata-only platform seam; source-reader and application type checks passed.
 Independent runtime/policy review is clear. Expanded Windows CLI passed 13
 cases; graph/compiler checks passed 51 with one Windows platform skip. Corrected
 graph/source additions passed their targeted reruns, and all Windows handles are
-closed. The final three complete owning suites still need native execution from
-the published checkpoint, including the added injected-entry case. Read real
-terminal handles, not elapsed time. Then
+closed. Native session `83592` then passed all 69 cases in the three complete
+owning suites at this exact published source (18.86s, exit zero), including the
+injected-entry cache case. The recovery closure correction now has its final
+focused native acceptance. Read real terminal handles, not elapsed time. Then
 prepare the complete source family from the published committed input. Generated
 manifests still belong to the older family; never
 hand-edit their pins or run a stale donor as if it were current. Continue normal
