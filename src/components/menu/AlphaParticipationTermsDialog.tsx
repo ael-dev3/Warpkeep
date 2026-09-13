@@ -118,8 +118,9 @@ export function AlphaParticipationTermsDialog({
             <p>
               Warpkeep Alpha is experimental and currently developed by one person. Features,
               rules, availability, and progress may change or be reset at any time.
-              The core strategy loop is not implemented yet; this is a persistent visual preview
-              of the living world being built.
+              The 0.4 Keep now offers an early, limited gather, choose, build, benefit, and return
+              loop. The broader strategy game is still under active construction, so this remains
+              a persistent preview of a living world rather than a finished game.
             </p>
             <p>
               Participation alone will not earn tokens, airdrops, external rewards, or guaranteed

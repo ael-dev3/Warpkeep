@@ -40,7 +40,7 @@ describe('AlphaParticipationTermsDialog', () => {
     expect(dialog.getAttribute('aria-modal')).toBe('true');
     expect(dialog.getAttribute('aria-describedby')).toBeTruthy();
     expect(screen.getByText(
-      /core strategy loop is not implemented yet/i
+      /0\.4 Keep now offers an early, limited gather, choose, build, benefit, and return loop/i
     )).not.toBeNull();
     expect(screen.getByText(
       'Participation alone will not earn tokens, airdrops, external rewards, or guaranteed financial gain. Experimental in-game Marks have no cash value and may change or reset.'
