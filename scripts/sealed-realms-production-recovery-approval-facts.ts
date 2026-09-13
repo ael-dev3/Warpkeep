@@ -118,7 +118,9 @@ export function readSealedRealmsProductionRecoveryApprovalFacts(
           // it makes no claim that this release freshly imported the atlas.
           ? { ptrPublicApprovalReceiptId: release.publicApprovalReceiptId }
           : { ptrReleaseManifestSha256: sha256(artifacts.manifestBytes) }
-        : {}),
+        : Object.hasOwn(projection, "g002ExistingStateAdoptionReceiptDigest")
+          ? { g002PublicApprovalReceiptId: release.publicApprovalReceiptId }
+          : {}),
     };
     for (const [key, value] of Object.entries(expected)) {
       if (projection[key] !== value) fail();

@@ -96,6 +96,13 @@ describe('explicit PTR preserved-state adoption binding v4', () => {
       .toBe('ab315044d4b2abe3b345da1c3c00055fa384b2f22d11f265dbc44ffadb8db2e7');
     expect(activation.parseRecoveryBinding(encode(binding))).toEqual(binding);
   });
+  it('preserves the V4 byte and core vectors captured from the published pre-V5 implementation', () => {
+    const binding = activation.createRecoveryActivationBindingV4(encode(candidate()));
+    expect(createHash('sha256').update(encode(binding)).digest('hex'))
+      .toBe('250f021f47eb9d1cd6dd126f86fb6501764425060bbbe6e62d58fbb65c1f0ecf');
+    expect(binding.recoveryAuthorizationCoreSha256)
+      .toBe('07526507a7ff5a4134bb53ef2bf2de2c480866f2b21fd904ff3a1baa67b6191b');
+  });
   it.each(expectedKeys)('requires the complete V4 field %s', key => {
     const input = candidate(); delete input[key];
     expect(() => activation.validateRecoveryActivationCandidateDocument(encode(input))).toThrow();
@@ -160,7 +167,7 @@ describe('explicit PTR preserved-state adoption binding v4', () => {
     for (const changed of [source.trimEnd(), source.replace('"schemaVersion": 4,', '"schemaVersion": 4, "schemaVersion": 4,'), source.replaceAll('\n', '\r\n')]) {
       expect(() => projection.parseRecoveryBindingDocument(changed)).toThrow();
     }
-    expect(() => projection.recoveryBindingKeys(5 as 4)).toThrow();
-    expect(() => activation.recoveryActivationCandidatePolicyForVersion(5 as 4)).toThrow();
+    expect(() => projection.recoveryBindingKeys(6 as 4)).toThrow();
+    expect(() => activation.recoveryActivationCandidatePolicyForVersion(6 as 4)).toThrow();
   });
 });

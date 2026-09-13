@@ -336,10 +336,46 @@ afterEach(async () => {
 })
 
 describe('ReleaseRecoveryAuthorizationLedgerV2 Workerd adapter', () => {
-  it('preserves exact V4 adoption arming across real control and request eviction', async () => {
+  it('retains the V5 baseline through issue, eviction and one-use claim with unchanged ledger/JWS formats', async () => {
+    const tuple = arming({ ptrStateEvidenceProfile: 'warpkeep-ptr-existing-state-adoption-v1',
+      ptrExistingStateAdoptionReceiptDigest: 'b'.repeat(64), ptrExpectedSealedStateHmacSha256: 'e'.repeat(64),
+      ptrExpectedOwnerInvariantHmacSha256: 'f'.repeat(64),
+      g002StateEvidenceProfile: 'warpkeep-g002-existing-state-adoption-v1',
+      g002ExistingStateAdoptionReceiptDigest: 'c'.repeat(64), g002ExpectedSealedStateHmacSha256: 'd'.repeat(64) })
+    const { control, request } = await enableAndInstall(tuple)
+    await request.reserveIssue(await reserveInput(control))
+    const authorizationJws = compactAuthorizationJws(payload())
+    await request.finalizeIssue({ control, locators: locators(), identity: identity(), authorizationJws,
+      authorizationJwsSha256: rawSha256(authorizationJws), now: NOW + 1 })
+    await evictDurableObject(request)
+    const controlStub = env.RECOVERY_LEDGER_V2.getByName(CONTROL_NAME_V2)
+    await evictDurableObject(controlStub)
+    await expect(controlStub.reconcileControl({ enabled: true, authorizationEpoch: tuple.authorizationEpoch,
+      arming: tuple })).resolves.toMatchObject({ activeArming: tuple })
+    await expect(request.readIssued({ control, locators: locators(), identity: identity(), now: NOW + 2 }))
+      .resolves.toMatchObject({ authorizationJws })
+    await request.claim({ control, locators: locators(), identity: identity(), authorizationJws,
+      liveInvariantDigest: '5'.repeat(64), claimSnapshotDigest: '6'.repeat(64), now: NOW + 2 })
+    await evictDurableObject(request)
+    const retained = await runInDurableObject(request, async (_instance, state) => JSON.parse(
+      state.storage.sql.exec<{ record_json: string }>(
+        'SELECT record_json FROM recovery_v2_authorization WHERE singleton_key = 1',
+      ).one().record_json,
+    ))
+    expect(retained.state).toBe('claimed')
+    expect(retained.arming).toEqual(tuple)
+    expect(retained).not.toHaveProperty('authorizationJws')
+    await expect(runInDurableObject(request, instance => instance.readIssued({ control,
+      locators: locators(), identity: identity(), now: NOW + 3 }))).rejects.toThrow()
+  })
+
+  it.each([4, 5])('preserves exact V%s adoption arming across real control and request eviction', async version => {
     const tuple = arming({ requestId: OTHER_REQUEST_ID, ptrStateEvidenceProfile: 'warpkeep-ptr-existing-state-adoption-v1',
       ptrExistingStateAdoptionReceiptDigest: 'b'.repeat(64), ptrExpectedSealedStateHmacSha256: 'e'.repeat(64),
-      ptrExpectedOwnerInvariantHmacSha256: 'f'.repeat(64) })
+      ptrExpectedOwnerInvariantHmacSha256: 'f'.repeat(64), ...(version === 5 ? {
+        g002StateEvidenceProfile: 'warpkeep-g002-existing-state-adoption-v1' as const,
+        g002ExistingStateAdoptionReceiptDigest: 'c'.repeat(64), g002ExpectedSealedStateHmacSha256: 'd'.repeat(64),
+      } : {}) })
     const { control, request } = await enableAndInstall(tuple)
     const controlStub = env.RECOVERY_LEDGER_V2.getByName(CONTROL_NAME_V2)
     const retained = await runInDurableObject(request, async (_instance, state) => {
@@ -355,11 +391,18 @@ describe('ReleaseRecoveryAuthorizationLedgerV2 Workerd adapter', () => {
       arming: tuple })).resolves.toMatchObject({ activeArming: tuple })
     await expect(request.installArming({ arming: tuple, control })).resolves.toMatchObject({ arming: tuple })
     for (const key of ['ptrExistingStateAdoptionReceiptDigest', 'ptrExpectedSealedStateHmacSha256',
-      'ptrExpectedOwnerInvariantHmacSha256']) {
+      'ptrExpectedOwnerInvariantHmacSha256', ...(version === 5 ? [
+        'g002ExistingStateAdoptionReceiptDigest', 'g002ExpectedSealedStateHmacSha256'] : [])]) {
       const changed = { ...tuple, [key]: '1'.repeat(64) }
       await expect(runInDurableObject(controlStub, instance => instance.reconcileControl({ enabled: true,
         authorizationEpoch: tuple.authorizationEpoch, arming: changed }))).rejects.toThrow('RECOVERY_LEDGER_ARMING_CONFLICT')
       await expect(runInDurableObject(request, instance => instance.installArming({ arming: changed, control }))).rejects.toThrow()
+    }
+    if (version === 5) {
+      const previous = { ...tuple } as Record<string, unknown>
+      for (const key of ['g002StateEvidenceProfile', 'g002ExistingStateAdoptionReceiptDigest', 'g002ExpectedSealedStateHmacSha256']) delete previous[key]
+      await expect(runInDurableObject(request, instance => instance.installArming({ arming: previous as RecoveryArmingTuple, control })))
+        .rejects.toThrow('RECOVERY_LEDGER_ARMING_CONFLICT')
     }
   })
 

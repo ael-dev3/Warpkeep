@@ -2,6 +2,7 @@
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
+import { recoveryG002PtrAdoptionCandidate } from './fixtures/recoveryG002PtrAdoptionCandidate';
 import { recoveryAuthorizationFixture } from './fixtures/recoveryAuthorizationFixture';
 import { createRecoveryActivationBindingFromCandidate } from '../scripts/recovery-activation-candidate.mjs';
 import { recoveryBindingKeys } from '../scripts/recovery-binding-projection.mjs';
@@ -20,7 +21,9 @@ function token(payload: unknown) {
   Buffer.from((s > order / 2n ? order - s : s).toString(16).padStart(64, '0'), 'hex').copy(signature, 32);
   return `${body}.${signature.toString('base64url')}`;
 }
-function createBinding(version: 3 | 4, receipt = '9'.repeat(64), adoption = '8'.repeat(64)) {
+function createBinding(version: 3 | 4 | 5, receipt = '9'.repeat(64), adoption = '8'.repeat(64)) {
+  if (version === 5) return createRecoveryActivationBindingFromCandidate(document({ ...recoveryG002PtrAdoptionCandidate(),
+    ptrExistingUpdateReceiptDigest: receipt, ptrExistingStateAdoptionReceiptDigest: adoption }));
   const values = { ...recoveryBindingCandidate(), schemaVersion: version,
     profile: version === 3 ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' : 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4',
     ptrExistingUpdateReceiptDigest: receipt, ptrExistingUpdateReceiptCommitment: null,
@@ -36,7 +39,7 @@ beforeAll(async () => {
   vi.doMock('../scripts/recovery-public-key.mjs', () => ({ RECOVERY_KEY_ID: kid, RECOVERY_PUBLIC_JWK: jwk, RECOVERY_KEY_THUMBPRINT: thumbprint }));
   verify = (await import('../scripts/verify-recovery-authorization-jws.mjs')).verifyRecoveryAuthorization;
 });
-describe.each([3, 4] as const)('public recovery consumers V%s', version => {
+describe.each([3, 4, 5] as const)('public recovery consumers V%s', version => {
   const binding = (receipt?: string, adoption?: string) => createBinding(version, receipt, adoption);
   it('accepts an explicit update artifact through the actual public privacy validator', () => {
     const bytes = Buffer.from(document(binding()));
@@ -73,9 +76,15 @@ describe.each([3, 4] as const)('public recovery consumers V%s', version => {
     expect(() => verifySealedRealmsPublicActivationBytes(Buffer.from(document({ ...binding(), ...change })))).toThrow();
   });
 
-  if (version === 4) it('rejects a different adoption envelope under the original signed authorization', () => {
+  if (version === 4 || version === 5) it('rejects a different adoption envelope under the original signed authorization', () => {
     const f = recoveryAuthorizationFixture(); const b = binding();
     const payload = { ...f.payload, recoveryAuthorizationCoreSha256: b.recoveryAuthorizationCoreSha256 };
     expect(() => verify(token(payload), document(binding(undefined, '7'.repeat(64))), JSON.stringify(f.context), 1100)).toThrow('RECOVERY_AUTHORIZATION_INVALID');
+  });
+  if (version === 5) it('binds signed G002 adoption independently of the unchanged PTR adoption', () => {
+    const f = recoveryAuthorizationFixture(), b = binding();
+    const changed = createRecoveryActivationBindingFromCandidate(document({ ...recoveryG002PtrAdoptionCandidate(), g002ExistingStateAdoptionReceiptDigest: '4'.repeat(64) }));
+    const payload = { ...f.payload, recoveryAuthorizationCoreSha256: b.recoveryAuthorizationCoreSha256 };
+    expect(() => verify(token(payload), document(changed), JSON.stringify(f.context), 1100)).toThrow('RECOVERY_AUTHORIZATION_INVALID');
   });
 });

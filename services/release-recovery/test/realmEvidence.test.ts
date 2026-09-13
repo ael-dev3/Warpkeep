@@ -464,6 +464,71 @@ describe('observeRecoveryRealmEvidence', () => {
     } as RecoveryRealmBindingProjection
   }
 
+  function dualAdoptedBinding(): RecoveryRealmBindingProjection {
+    return { ...adoptedBinding(),
+      g002StateEvidenceProfile: 'warpkeep-g002-existing-state-adoption-v1',
+      g002ExistingStateAdoptionReceiptDigest: 'c'.repeat(64),
+      g002ExpectedSealedStateHmacSha256: 'd'.repeat(64),
+    } as RecoveryRealmBindingProjection
+  }
+
+  it('preserves the complete V5 dual adoption shape and rejects missing, mixed or accessor fields', () => {
+    const adoption = dualAdoptedBinding()
+    expect(snapshotRecoveryRealmBindingProjection(adoption)).toEqual(adoption)
+    expect(recoveryRealmBindingProjectionFromArmed(snapshotRecoveryArmingTuple(armed(adoption)))).toEqual(adoption)
+    for (const key of ['g002StateEvidenceProfile', 'g002ExistingStateAdoptionReceiptDigest',
+      'g002ExpectedSealedStateHmacSha256', 'ptrStateEvidenceProfile', 'ptrExistingStateAdoptionReceiptDigest',
+      'ptrExpectedSealedStateHmacSha256', 'ptrExpectedOwnerInvariantHmacSha256']) {
+      const missing = { ...adoption } as MutableRecord
+      delete missing[key]
+      expect(() => snapshotRecoveryRealmBindingProjection(missing)).toThrow()
+      expect(() => snapshotRecoveryRealmBindingProjection({ ...adoption, [key]: 'invalid' })).toThrow()
+    }
+    const getter = vi.fn(() => 'warpkeep-g002-existing-state-adoption-v1')
+    const accessor = { ...adoption }
+    Object.defineProperty(accessor, 'g002StateEvidenceProfile', { enumerable: true, get: getter })
+    expect(() => snapshotRecoveryRealmBindingProjection(accessor)).toThrow()
+    expect(getter).not.toHaveBeenCalled()
+  })
+
+  it.each([{ phase: 'issue', sequence: 1 }, { phase: 'claim', sequence: 2 }] as const)(
+    'checks both adopted baselines in a fresh V5 $phase observation', async phase => {
+      const adoption = dualAdoptedBinding()
+      const input = await testInputs()
+      expect((await observeRecoveryRealmEvidence({ ...input, binding: adoption, armed: armed(adoption), ...phase })).phase).toBe(phase.phase)
+      for (const [realm, key] of [['g002', 'sealedStateHmacSha256'], ['ptr', 'sealedStateHmacSha256'],
+        ['ptr', 'ownerInvariantHmacSha256']]) {
+        const changed = await testInputs(value => { value[realm][key] = 'a'.repeat(64) })
+        await expectFailure({ ...changed, binding: adoption, armed: armed(adoption), ...phase })
+      }
+    },
+  )
+
+  it('rejects independently armed G002 adoption drift before I/O', async () => {
+    const input = await testInputs(), adoption = dualAdoptedBinding(), fetch = vi.fn(input.fetch)
+    for (const key of ['g002ExistingStateAdoptionReceiptDigest', 'g002ExpectedSealedStateHmacSha256']) {
+      await expectFailure({ ...input, fetch, binding: adoption,
+        armed: armed({ ...adoption, [key]: '1'.repeat(64) }), phase: 'issue', sequence: 1 })
+    }
+    await expectFailure({ ...input, fetch, binding: adoption, armed: armed(adoptedBinding()), phase: 'issue', sequence: 1 })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('snapshots V5 expected G002 state before asynchronous schema reads', async () => {
+    const input = await testInputs(value => { value.g002.sealedStateHmacSha256 = '1'.repeat(64) })
+    const adoption = dualAdoptedBinding() as MutableRecord
+    const arming = armed(adoption as RecoveryRealmBindingProjection) as MutableRecord
+    let schemaReads = 0
+    await expectFailure({ ...input, binding: adoption as RecoveryRealmBindingProjection,
+      armed: arming as RecoveryArmingTuple, fetch: (async (request, init) => {
+        schemaReads += 1
+        adoption.g002ExpectedSealedStateHmacSha256 = '1'.repeat(64)
+        arming.g002ExpectedSealedStateHmacSha256 = '1'.repeat(64)
+        return input.fetch(request, init)
+      }) as typeof fetch, phase: 'claim', sequence: 2 })
+    expect(schemaReads).toBe(3)
+  })
+
   it('preserves the complete V4 adoption baseline through exact arming snapshots', () => {
     const adoption = adoptedBinding()
     expect(snapshotRecoveryRealmBindingProjection(adoption)).toEqual(adoption)
@@ -705,7 +770,7 @@ describe('observeRecoveryRealmEvidence', () => {
     expect(replacementCalls).toBe(0)
   })
 
-  it('rejects bridge echo, deployment, and admission-state substitutions', async () => {
+  it.each([2, 5])('rejects bridge echo, deployment, and admission-state substitutions under V%s', async version => {
     const mutations: readonly ((value: MutableRecord) => void)[] = [
       value => { value.recoveryAuthorizationEpoch = 8 },
       value => { value.candidateCommit = '0'.repeat(40) },
@@ -715,15 +780,19 @@ describe('observeRecoveryRealmEvidence', () => {
       value => { value.bridgeConfigEpoch = 10 },
       value => { value.publicAdmissionRequestsOpen = true },
       value => { value.g001.admissionStateMutationsEnabled = true },
+      value => { value.g001.playerAccessEnabled = false },
       value => { value.g002.admissionsOpen = true },
+      value => { value.g002.playerCount = 1 },
+      value => { value.g002.generalAdmissionCount = 1 },
       value => { value.ptr.accessRequestsOpen = true },
     ]
+    const projection = version === 5 ? dualAdoptedBinding() : binding()
     for (const mutate of mutations) {
-      await expectFailure({ ...await testInputs(mutate), phase: 'issue', sequence: 1 })
+      await expectFailure({ ...await testInputs(mutate), binding: projection, armed: armed(projection), phase: 'issue', sequence: 1 })
     }
   })
 
-  it('rejects program and database substitutions in each of the three realms', async () => {
+  it.each([2, 5])('rejects program and database substitutions in each realm under V%s', async version => {
     const mutations: readonly ((value: MutableRecord) => void)[] = [
       value => { value.g001.databaseIdentity = G002_DATABASE },
       value => { value.g001.programKeccak256 = G002_PROGRAM },
@@ -732,12 +801,13 @@ describe('observeRecoveryRealmEvidence', () => {
       value => { value.ptr.databaseIdentity = G002_DATABASE },
       value => { value.ptr.programKeccak256 = G002_PROGRAM },
     ]
+    const projection = version === 5 ? dualAdoptedBinding() : binding()
     for (const mutate of mutations) {
-      await expectFailure({ ...await testInputs(mutate), phase: 'claim', sequence: 2 })
+      await expectFailure({ ...await testInputs(mutate), binding: projection, armed: armed(projection), phase: 'claim', sequence: 2 })
     }
   })
 
-  it('rejects every protected G002 and PTR atlas coordinate substitution', async () => {
+  it.each([2, 5])('rejects every protected G002 and PTR atlas coordinate substitution under V%s', async version => {
     const mutations: readonly ((value: MutableRecord) => void)[] = [
       value => { value.g002.atlasId = 'PTR_GREATER_REALM' },
       value => { value.g002.publicReleaseId = `GRR-${'E'.repeat(26)}` },
@@ -754,8 +824,9 @@ describe('observeRecoveryRealmEvidence', () => {
       value => { value.ptr.releaseHeaderSha256 = 'b'.repeat(64) },
       value => { value.ptr.verificationDigest = 'b'.repeat(64) },
     ]
+    const projection = version === 5 ? dualAdoptedBinding() : binding()
     for (const mutate of mutations) {
-      await expectFailure({ ...await testInputs(mutate), phase: 'issue', sequence: 1 })
+      await expectFailure({ ...await testInputs(mutate), binding: projection, armed: armed(projection), phase: 'issue', sequence: 1 })
     }
   })
 

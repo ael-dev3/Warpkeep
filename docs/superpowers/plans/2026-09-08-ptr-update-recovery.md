@@ -165,7 +165,8 @@ with authenticated G002 adoption and its invariant; retain genuine prepared brid
 deployment evidence and unchanged G001/PTR semantics. Carry that branch through
 candidate/generator, public binding, approval and recovery issue/claim consumers.
 No new realm RPC, census, preparation-observation version or continuation schema is
-needed. This is the recommended next implementation, not completed functionality.
+needed. The source implementation is recorded below; generated and live acceptance
+remain separate.
 
 ### Connected implementation sequence
 
@@ -212,7 +213,8 @@ agent moves the native checkout or publishes another agent's unfinished changes.
 Use an explicit schema 5 for combined G002 and PTR adoption; preserve schema
 2–4 canonical bytes and the existing G002 producer envelope schema 1. The planned
 public discriminator is `warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5`.
-This is the next implementation boundary, not an accepted generated profile.
+The consumer implementation is present in the PR #245 follow-up. This is not
+yet an accepted generated or deployed profile.
 
 1. Extend the existing activation-record owner with fixed G002 completion/adoption
    writers and retained authentication. Persist the authenticated envelope from
@@ -237,3 +239,15 @@ modules and service `config`, `githubEvidence`, `realmEvidence` and ledger tests
 Exercise the joined producer → private writer → bridge → generated public artifact
 → receiver, including fresh-owner restart and changed signed/private evidence,
 before rebuilding the complete family and accepting the privileged Linux donor.
+
+
+Consumer implementation checkpoint: fixed G002 retained writers/authentication,
+explicit V5 private corpus and bridge receipt, public binding/candidate/generator,
+activation runtime and exact recovery receiver are connected. V5 omits the
+unsupported notification configuration flag. The bridge checks the two signed
+configuration/epoch scopes against each other; the receiver checks current state.
+Real joined testing reproduced and fixed initial-gate creation in dual mode and
+mixed-private-owner corpus acceptance. Keep the last sequence item open until the
+published complete family, native generation/restart and protected/live acceptance
+are established. Current checks and source identities belong in the existing
+[recovery evidence](../../evidence/0.4.0/recovery.md#g002-and-ptr-adoption-consumers--2026-09-13).

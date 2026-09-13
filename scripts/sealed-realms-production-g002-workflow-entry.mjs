@@ -6,6 +6,8 @@ import { basename, dirname, isAbsolute, posix } from 'node:path';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { prepareGenesis002SourceBuiltArtifact } from './genesis002-production-publisher.mjs';
 import { createG002ProductionExistingUpdateAdapter, exportG002ExistingUpdateCompletion, captureG002ExistingUpdateAdoption } from './ptr-production-existing-update-adapter.mjs';
+import { createSealedRealmsProductionActivationRecords, writeSealedRealmsProductionG002ExistingUpdateRecord,
+  writeSealedRealmsProductionG002ExistingStateAdoptionRecord } from './sealed-realms-production-activation-records.mjs';
 import { createSealedRealmsProductionBridgeProvider } from './sealed-realms-production-bridge-provider.mjs';
 import {
   createSealedRealmsProductionAuthBridgeState,
@@ -336,9 +338,12 @@ async function buildDispatcher(operation, workflowInputSha, evidence) {
     const captureCompletedUpdate = async () => {
       // Reopen the real completed continuation before retaining its signed post
       // state. This does not manufacture historical publish/import receipts.
-      exportG002ExistingUpdateCompletion({ adapter: existingUpdate, authority, store: continuationStore });
-      await captureG002ExistingUpdateAdoption({ adapter: existingUpdate, authority, store: continuationStore,
+      const records = createSealedRealmsProductionActivationRecords({ privateState, authority });
+      const completion = exportG002ExistingUpdateCompletion({ adapter: existingUpdate, authority, store: continuationStore });
+      writeSealedRealmsProductionG002ExistingUpdateRecord({ records, authority, completion });
+      const adoption = await captureG002ExistingUpdateAdoption({ adapter: existingUpdate, authority, store: continuationStore,
         permit, runId, runAttempt });
+      await writeSealedRealmsProductionG002ExistingStateAdoptionRecord({ records, authority, adoption });
     };
     const recoverCompletedUpdate = async () => {
       try {

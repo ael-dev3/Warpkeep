@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
-import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { recoveryG002PtrAdoptionCandidate } from './fixtures/recoveryG002PtrAdoptionCandidate';
 import { recoveryAuthorizationFixture } from './fixtures/recoveryAuthorizationFixture';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
 import { createRecoveryActivationBindingFromCandidate } from '../scripts/recovery-activation-candidate.mjs';
@@ -21,7 +22,9 @@ const jwk = pair.publicKey.export({ format: 'jwk' });
 const thumbprint = createHash('sha256').update(JSON.stringify({ crv: jwk.crv, kty: jwk.kty, x: jwk.x, y: jwk.y })).digest('base64url');
 const document = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 const context = JSON.stringify(fixture.context);
+let currentVersion: 4 | 5 = 4;
 function binding(adoption = '8'.repeat(64)) {
+  if (currentVersion === 5) return createRecoveryActivationBindingFromCandidate(document({ ...recoveryG002PtrAdoptionCandidate(), ptrExistingStateAdoptionReceiptDigest: adoption }));
   const values: Record<string, unknown> = { ...recoveryBindingCandidate(), schemaVersion: 4,
     profile: 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4',
     ptrExistingUpdateReceiptDigest: '9'.repeat(64), ptrExistingUpdateReceiptCommitment: null,
@@ -50,7 +53,7 @@ beforeAll(async () => {
   begin = (await import('../scripts/recovery-workflow-session.mjs')).beginRecoveryWorkflowSession;
   persistedBoundary = (await import('../scripts/recovery-workflow-deployment-boundary.mjs')).checkPersistedRecoveryDeploymentBoundary;
 });
-beforeEach(() => {
+function setup() {
   vi.resetAllMocks(); retained = undefined;
   vi.spyOn(Date, 'now').mockReturnValue(1100 * 1000);
   let sequence = 0;
@@ -77,10 +80,12 @@ beforeEach(() => {
     if (!retained) throw new Error('Missing synthetic storage');
     return { ...retained };
   });
-});
+}
 afterEach(() => vi.restoreAllMocks());
 
-it('carries real signed V4 authorization and claim through both workflow deployment boundaries', async () => {
+describe.each([4, 5] as const)('signed V%i adoption workflow', version => {
+beforeEach(() => { currentVersion = version; setup(); });
+it('carries real signed authorization and claim through both workflow deployment boundaries', async () => {
   const session = await begin(document(binding()), context, '/synthetic-private-root');
   try {
     await expect(session.checkDeploymentBoundary()).resolves.toEqual(expectedClaim);
@@ -101,10 +106,18 @@ it('rejects mixed profiles in both real workflow consumers before external acces
   expect(external.request).not.toHaveBeenCalled();
   expect(external.read).not.toHaveBeenCalled();
 });
-it('requires fresh signed status and current claim validity for the retained V4 handoff', async () => {
+it('requires fresh signed status and current claim validity for the retained handoff', async () => {
   const session = await begin(document(binding()), context, '/synthetic-private-root');
   try {
     vi.spyOn(Date, 'now').mockReturnValue(1160 * 1000);
     await expect(persistedBoundary('/synthetic-private-root', document(binding()), context)).rejects.toThrow('RECOVERY_WORKFLOW_DEPLOYMENT_BOUNDARY_INVALID');
   } finally { session.dispose(); }
+});
+it('rejects a valid authorization for another version before claiming', async () => {
+  currentVersion = version === 4 ? 5 : 4;
+  authorizationJws = token('authorization', { ...fixture.payload, recoveryAuthorizationCoreSha256: binding().recoveryAuthorizationCoreSha256 });
+  currentVersion = version;
+  await expect(begin(document(binding()), context, '/synthetic-private-root')).rejects.toThrow('RECOVERY_WORKFLOW_SESSION_INVALID');
+  expect(external.request.mock.calls.map(([endpoint]) => endpoint)).toEqual(['issue']);
+});
 });

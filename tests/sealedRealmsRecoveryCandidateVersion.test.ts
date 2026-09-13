@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
+import { recoveryG002PtrAdoptionCandidate } from './fixtures/recoveryG002PtrAdoptionCandidate';
 const seams = vi.hoisted(() => ({ closure: vi.fn(), git: vi.fn(), corpus: vi.fn(), approvals: vi.fn(), bridge: vi.fn(), records: new WeakSet<object>() }));
 vi.mock('node:child_process', () => ({ execFileSync: seams.git }));
 // Isolate corpus/source I/O, not candidate policy or source authority validation.
@@ -17,13 +18,13 @@ vi.mock('../scripts/sealed-realms-production-activation-records.mjs', () => ({
 vi.mock('../scripts/sealed-realms-production-auth-bridge-state.mjs', () => ({ readSealedRealmsProductionRecoveryBridgeFacts: seams.bridge }));
 import { authenticateSealedRealmsProductionSourceAuthority } from '../scripts/sealed-realms-production-source-authority.mjs';
 import { inspectSealedRealmsProductionRecoveryCandidate, readSealedRealmsProductionRecoveryCandidate } from '../scripts/sealed-realms-production-recovery-candidate.mjs';
-import { RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3, RECOVERY_BINDING_KEYS_V4 } from '../scripts/recovery-binding-projection.mjs';
-import { validateRecoveryActivationCandidate, validateRecoveryActivationCandidateV3, validateRecoveryActivationCandidateV4 } from '../scripts/recovery-activation-candidate.mjs';
+import { RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3, RECOVERY_BINDING_KEYS_V4, RECOVERY_BINDING_KEYS_V5 } from '../scripts/recovery-binding-projection.mjs';
+import { validateRecoveryActivationCandidate, validateRecoveryActivationCandidateV3, validateRecoveryActivationCandidateV4, validateRecoveryActivationCandidateV5 } from '../scripts/recovery-activation-candidate.mjs';
 const encode = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 beforeEach(() => { seams.closure.mockReset(); seams.git.mockReset(); seams.corpus.mockReset(); seams.bridge.mockReset(); });
-function fixture(version: 2 | 3 | 4) {
+function fixture(version: 2 | 3 | 4 | 5) {
   const old = recoveryBindingCandidate();
-  const keys = version === 4 ? RECOVERY_BINDING_KEYS_V4 : version === 3 ? RECOVERY_BINDING_KEYS_V3 : RECOVERY_BINDING_KEYS_V2;
+  const keys = version === 5 ? RECOVERY_BINDING_KEYS_V5 : version === 4 ? RECOVERY_BINDING_KEYS_V4 : version === 3 ? RECOVERY_BINDING_KEYS_V3 : RECOVERY_BINDING_KEYS_V2;
   // Public scalar fixtures isolate candidate composition; they grant no adoption authority.
   const values: Record<string, unknown> = { ...old, schemaVersion: version,
     profile: version === 4 ? 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4'
@@ -33,7 +34,7 @@ function fixture(version: 2 | 3 | 4) {
     ptrSealed: true, ptrPopulationGuardPassed: true, ptrSingletonOwnerCount: 1,
     ptrGeneralAdmissionCount: 0, ptrExpectedSealedStateHmacSha256: '7'.repeat(64),
     ptrExpectedOwnerInvariantHmacSha256: '6'.repeat(64) };
-  const candidate = Object.fromEntries(keys.map(key => [key, values[key]]));
+  const candidate = version === 5 ? recoveryG002PtrAdoptionCandidate() : Object.fromEntries(keys.map(key => [key, values[key]]));
   const commit = String(old.preparationSourceCommit), tree = old.preparationSourceTree, blob = 'b'.repeat(40), body = Buffer.from('fixture bootstrap bytes');
   const bootstrap = { preparationSourceCommit: commit, preparationSourceTree: tree, bootstrapBlob: blob,
     bootstrapSha256: createHash('sha256').update(body).digest('hex') };
@@ -53,11 +54,30 @@ function fixture(version: 2 | 3 | 4) {
   const records = Object.freeze({}); seams.records.add(records);
   return { input: {records: records as never, privateState: {} as never, authority}, corpus, candidate };
 }
-it.each([2, 3, 4] as const)('derives ordered V%i bytes through the actual reader and semantic validator', version => {
+it.each([2, 3, 4, 5] as const)('derives ordered V%i bytes through the actual reader and semantic validator', version => {
   const f=fixture(version); const source=readSealedRealmsProductionRecoveryCandidate(f.input);
   expect(source).toBe(encode(f.candidate));
-  expect((version === 4 ? validateRecoveryActivationCandidateV4 : version === 3
+  expect((version === 5 ? validateRecoveryActivationCandidateV5 : version === 4 ? validateRecoveryActivationCandidateV4 : version === 3
     ? validateRecoveryActivationCandidateV3 : validateRecoveryActivationCandidate)(source)).toEqual(f.candidate);
+});
+it('requires both V5 adoptions, rejects old G002 facts, and reopens the corpus', () => {
+  const f = fixture(5);
+  delete f.corpus.projection.g002ExpectedSealedStateHmacSha256;
+  expect(inspectSealedRealmsProductionRecoveryCandidate(f.input).missingFields).toEqual(['g002ExpectedSealedStateHmacSha256']);
+  expect(() => readSealedRealmsProductionRecoveryCandidate(f.input)).toThrow();
+  f.corpus.projection.g002ExpectedSealedStateHmacSha256 = '3'.repeat(64);
+  for (const key of ['g002AtlasImportReceiptDigest', 'g002PlayersV2', 'admissionNotificationsEnabled']) {
+    f.corpus.projection[key] = recoveryBindingCandidate()[key]!;
+    expect(() => inspectSealedRealmsProductionRecoveryCandidate(f.input)).toThrow();
+    delete f.corpus.projection[key];
+  }
+  delete f.corpus.projection.ptrExistingStateAdoptionReceiptDigest;
+  expect(() => inspectSealedRealmsProductionRecoveryCandidate(f.input)).toThrow();
+  f.corpus.projection.ptrExistingStateAdoptionReceiptDigest = '8'.repeat(64);
+  seams.corpus.mockImplementationOnce(() => structuredClone(f.corpus));
+  seams.corpus.mockImplementation(() => ({ ...f.corpus, projection: { ...f.candidate,
+    g002ExistingStateAdoptionReceiptDigest: '7'.repeat(64) } }));
+  expect(() => inspectSealedRealmsProductionRecoveryCandidate(f.input)).toThrow();
 });
 it('requires complete V4 evidence and rejects obsolete initialization fields', () => {
   const f = fixture(4);

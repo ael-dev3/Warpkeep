@@ -88,6 +88,19 @@ it.each([2, 3])('does not silently ignore adoption evidence while validating a l
   const { envelope, bridge } = fixture(version);
   expect(() => validateRecoveryLaunchActivationProjection(envelope, bridge, NOW, {} as never)).toThrow();
 });
+it.each([2, 3])('does not ignore G002 adoption evidence while validating a legacy V%s corpus', version => {
+  const { envelope, bridge } = fixture(version);
+  expect(() => validateRecoveryLaunchActivationProjection(envelope, bridge, NOW, undefined, {} as never)).toThrow();
+});
+it('requires both owned capabilities for V5 raw descriptor data', () => {
+  const { envelope, bridge } = fixture(3);
+  envelope.schemaVersion = 5;
+  envelope.profile = 'warpkeep-0.4.0-recovery-activation-evidence-g002-ptr-adoption-v1';
+  for (const [ptr, g002] of [[undefined, undefined], [{}, undefined], [undefined, {}], [{}, {}],
+    [{ preObservationJws: 'untrusted' }, { postObservationJws: 'untrusted' }]]) {
+    expect(() => validateRecoveryLaunchActivationProjection(envelope, bridge, NOW, ptr as never, g002 as never)).toThrow();
+  }
+});
 
 it('rejects raw V4 descriptor data and a forged adoption capability before generating a binding', () => {
   const { envelope, bridge } = fixture(3);

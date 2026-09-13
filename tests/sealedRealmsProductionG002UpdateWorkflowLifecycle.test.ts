@@ -5,6 +5,7 @@ const m = vi.hoisted(() => ({
   cleanup: vi.fn(), dispose: vi.fn(), dispatch: vi.fn(), lane: vi.fn(), authenticate: vi.fn(),
   evidence: vi.fn(), refresh: vi.fn(), revoke: vi.fn(), issue: vi.fn(), attest: vi.fn(),
   completion: vi.fn(), adoption: vi.fn(), bridge: vi.fn(), provider: vi.fn(),
+  records: vi.fn(), writeCompletion: vi.fn(), writeAdoption: vi.fn(),
   privateState: Object.freeze({ privateState: true }), store: Object.freeze({ store: true }),
   account: { uid: 1000, gid: 1000, username: 'warpkeep', homedir: '/home/warpkeep' },
 }));
@@ -16,6 +17,11 @@ vi.mock('../scripts/genesis002-production-publisher.mjs', () => ({ prepareGenesi
 vi.mock('../scripts/ptr-production-existing-update-adapter.mjs', () => ({
   createG002ProductionExistingUpdateAdapter: m.adapter, exportG002ExistingUpdateCompletion: m.completion,
   captureG002ExistingUpdateAdoption: m.adoption,
+}));
+vi.mock('../scripts/sealed-realms-production-activation-records.mjs', () => ({
+  createSealedRealmsProductionActivationRecords: m.records,
+  writeSealedRealmsProductionG002ExistingUpdateRecord: m.writeCompletion,
+  writeSealedRealmsProductionG002ExistingStateAdoptionRecord: m.writeAdoption,
 }));
 vi.mock('../scripts/sealed-realms-production-source-authority.mjs', () => ({
   authenticateSealedRealmsProductionSourceAuthority: m.authenticate,
@@ -72,6 +78,8 @@ beforeEach(() => {
   m.bridge.mockReturnValue({}); m.provider.mockReturnValue({}); m.lane.mockReturnValue({});
   m.dispatch.mockImplementation(async ({ operation }) => ({ operation, status: operation.endsWith('inspect') ? 'update-inspected' : 'completed' }));
   m.completion.mockReturnValue({ completion: true }); m.adoption.mockResolvedValue({ adoption: true });
+  m.records.mockReturnValue({ records: true }); m.writeCompletion.mockReturnValue({ receiptDigest: 'completion' });
+  m.writeAdoption.mockResolvedValue({ receiptDigest: 'adoption' });
 });
 afterEach(() => {
   for (const [name, descriptor] of saved) if (descriptor) Object.defineProperty(process, name, descriptor); else Reflect.deleteProperty(process, name);
@@ -93,7 +101,25 @@ it.each(['g002-update-inspect', 'g002-update-apply'] as const)('constructs %s th
   expect(await run({ runtime, operation, workflowInputSha: sha })).toEqual({ operation, status: operation.endsWith('inspect') ? 'update-inspected' : 'completed' });
   expect(m.cleanup).toHaveBeenCalledOnce(); expect(m.dispose).toHaveBeenCalledOnce(); expect(m.revoke).toHaveBeenCalledOnce();
   expect(m.adoption).toHaveBeenCalledTimes(operation.endsWith('apply') ? 1 : 0);
+  expect(m.writeCompletion).toHaveBeenCalledTimes(operation.endsWith('apply') ? 1 : 0);
+  expect(m.writeAdoption).toHaveBeenCalledTimes(operation.endsWith('apply') ? 1 : 0);
   await expect(run({ runtime, operation, workflowInputSha: sha })).rejects.toThrow('SEALED_REALMS_G002_WORKFLOW_RUNTIME_CONSUMED');
+});
+it('retains the completion before signed adoption and awaits durable adoption before cleanup', async () => {
+  let finish!: () => void;
+  m.writeAdoption.mockImplementation(() => new Promise<void>(resolve => { finish = resolve; }));
+  const operation = 'g002-update-apply', runtime = await create({ operation, workflowInputSha: sha });
+  const result = run({ runtime, operation, workflowInputSha: sha });
+  await vi.waitFor(() => expect(m.writeAdoption).toHaveBeenCalledOnce());
+  expect(m.writeCompletion).toHaveBeenCalledWith({ records: { records: true },
+    authority: m.authenticate.mock.results[0].value, completion: { completion: true } });
+  expect(m.writeAdoption).toHaveBeenCalledWith({ records: { records: true },
+    authority: m.authenticate.mock.results[0].value, adoption: { adoption: true } });
+  expect(m.writeCompletion.mock.invocationCallOrder[0]).toBeLessThan(m.adoption.mock.invocationCallOrder[0]);
+  expect(m.dispose).not.toHaveBeenCalled(); expect(m.cleanup).not.toHaveBeenCalled();
+  finish();
+  await expect(result).resolves.toEqual({ operation, status: 'completed' });
+  expect(m.cleanup).toHaveBeenCalledOnce();
 });
 it('reopens authentic completion before recovering a lost acknowledgement and retaining post observation', async () => {
   m.dispatch.mockRejectedValue(Object.assign(new Error('lost acknowledgement'), { code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' }));
@@ -106,17 +132,19 @@ it('reopens authentic completion before recovering a lost acknowledgement and re
     authority: m.authenticate.mock.results[0].value, store: m.store, permit: { permit: true }, runId: '12345', runAttempt: '2' });
   expect(m.dispatch).toHaveBeenCalledOnce(); expect(m.cleanup).toHaveBeenCalledOnce();
 });
-it.each(['constructor', 'dispatch', 'completion', 'post'])('cleans owned resources on %s failure without inventing completion', async phase => {
+it.each(['constructor', 'dispatch', 'completion', 'completion-write', 'post', 'adoption-write'])('cleans owned resources on %s failure without inventing completion', async phase => {
   const operation = 'g002-update-apply';
   if (phase === 'constructor') m.adapter.mockImplementation(() => { throw new Error('adapter failure'); });
   if (phase === 'dispatch') { m.dispatch.mockRejectedValue(Object.assign(new Error('dispatch failure'), { code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' })); m.completion.mockImplementation(() => { throw new Error('no completion'); }); }
   if (phase === 'completion') m.completion.mockImplementation(() => { throw new Error('no completion'); });
   if (phase === 'post') m.adoption.mockRejectedValue(new Error('post unavailable'));
+  if (phase === 'completion-write') m.writeCompletion.mockImplementation(() => { throw new Error('completion write failed'); });
+  if (phase === 'adoption-write') m.writeAdoption.mockRejectedValue(new Error('adoption write failed'));
   if (phase === 'constructor') await expect(create({ operation, workflowInputSha: sha })).rejects.toThrow();
   else { const runtime = await create({ operation, workflowInputSha: sha }); await expect(run({ runtime, operation, workflowInputSha: sha })).rejects.toThrow(); }
   expect(m.cleanup).toHaveBeenCalledOnce(); expect(m.dispose).toHaveBeenCalledTimes(phase === 'constructor' ? 0 : 1);
   expect(m.revoke).toHaveBeenCalledOnce();
-  if (phase !== 'post') expect(m.adoption).not.toHaveBeenCalled();
+  if (phase !== 'post' && phase !== 'adoption-write') expect(m.adoption).not.toHaveBeenCalled();
 });
 it('rejects changed configuration and source when the owning artifact reattests', async () => {
   const runtime = await create({ operation: 'g002-update-inspect', workflowInputSha: sha });

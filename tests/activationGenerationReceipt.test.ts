@@ -2,7 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import { ACTIVATION_GENERATION_RECEIPT_PROFILE, activationGenerationReceiptBytes,
   parseActivationGenerationReceipt, activationGenerationReceiptDigest } from '../scripts/sealed-realms-production-activation-generation-receipt.mjs';
-import { createRecoveryActivationBinding } from '../scripts/recovery-activation-candidate.mjs';
+import { createRecoveryActivationBinding, createRecoveryActivationBindingV5 } from '../scripts/recovery-activation-candidate.mjs';
+import { recoveryG002PtrAdoptionCandidate } from './fixtures/recoveryG002PtrAdoptionCandidate';
 import { verifySealedRealmsPublicActivationBytes } from '../scripts/verify-sealed-realms-public-activation-artifact.mjs';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
 
@@ -17,6 +18,15 @@ function receipt() {
 }
 
 describe('activation generation receipt codec', () => {
+  it('round trips V5 with its exact profile and rejects older or mixed profiles', () => {
+    const value = { ...receipt(), artifactSchemaVersion: 5, artifactProfile: 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5' } as const;
+    const bytes = activationGenerationReceiptBytes(value);
+    expect(parseActivationGenerationReceipt(bytes)).toEqual(value);
+    for (const artifactProfile of ['warpkeep-0.4.0-sealed-launch-v5', 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4']) {
+      expect(() => activationGenerationReceiptBytes({ ...value, artifactProfile } as never)).toThrow();
+    }
+    for (const artifactSchemaVersion of [1, 2, 3, 4]) expect(() => activationGenerationReceiptBytes({ ...value, artifactSchemaVersion } as never)).toThrow();
+  });
   it('retains exact operation/run/digest facts and a deterministic domain digest', () => {
     const bytes = activationGenerationReceiptBytes(receipt());
     expect(parseActivationGenerationReceipt(bytes)).toEqual(receipt());
@@ -71,6 +81,14 @@ describe('activation generation receipt codec', () => {
 });
 
 describe('recovery public activation bytes', () => {
+  it('consumes V5 public bytes without fabricating notification or initial-import claims', () => {
+    const binding = createRecoveryActivationBindingV5(`${JSON.stringify(recoveryG002PtrAdoptionCandidate(), null, 2)}\n`);
+    const bytes = Buffer.from(`${JSON.stringify(binding, null, 2)}\n`);
+    expect(verifySealedRealmsPublicActivationBytes(bytes)).toEqual(bytes);
+    for (const mutation of [{ g002Sealed: false }, { admissionNotificationsEnabled: false }, { schemaVersion: 4 }]) {
+      expect(() => verifySealedRealmsPublicActivationBytes(Buffer.from(`${JSON.stringify({ ...binding, ...mutation }, null, 2)}\n`))).toThrow();
+    }
+  });
   it('accepts only canonical derived V2 commitments and rejects changed authority fields', () => {
     const binding = createRecoveryActivationBinding(`${JSON.stringify(recoveryBindingCandidate(), null, 2)}\n`);
     const bytes = Buffer.from(`${JSON.stringify(binding, null, 2)}\n`);

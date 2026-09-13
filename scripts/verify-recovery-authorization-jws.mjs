@@ -41,7 +41,7 @@ export function verifyRecoveryAuthorization(...args) {
     const p = verifyRecoverySignedPayload(compact, 'authorization');
     if (CONTEXT_KEYS.some(key => p[key] !== expected[key])
       || Object.entries(BINDING_FIELDS).some(([key, source]) => p[key] !== binding[source])
-      || p.ptrSingletonOwnerCount !== (binding.schemaVersion === 4
+      || p.ptrSingletonOwnerCount !== (binding.schemaVersion === 4 || binding.schemaVersion === 5
         ? binding.ptrSingletonOwnerCount : binding.ptrOwnerAnchorRows)) fail();
     if (p.schemaVersion !== 1 || p.profile !== 'warpkeep-0.4.0-recovery-authorization-v1'
       || p.aud !== 'warpkeep-0.4.0-sealed-launch' || p.sub !== 'warpkeep-0.4.0-recovery-deployment'

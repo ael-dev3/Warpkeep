@@ -1,7 +1,7 @@
 import type { SealedRealmsProductionPrivateState } from './sealed-realms-production-private-state.mjs';
 import type { SealedRealmsProductionBridgeProvider } from './sealed-realms-production-bridge-provider.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
-import type { SealedRealmsProductionActivationRecords, SealedRealmsProductionPtrExistingStateAdoptionEvidence } from './sealed-realms-production-activation-records.mjs';
+import type { SealedRealmsProductionActivationRecords, SealedRealmsProductionPtrExistingStateAdoptionEvidence, SealedRealmsProductionG002ExistingStateAdoptionEvidence } from './sealed-realms-production-activation-records.mjs';
 import type {
   SealedRealmsProductionContinuationClaim,
   SealedRealmsProductionContinuationReconciliation,
@@ -15,6 +15,8 @@ export const SEALED_REALMS_AUTH_BRIDGE_SUSPENSION_RECEIPT_PROFILE:
   'warpkeep-sealed-realms-auth-bridge-suspension-private-v1';
 export const SEALED_REALMS_AUTH_BRIDGE_ADOPTION_SUSPENSION_RECEIPT_PROFILE:
   'warpkeep-sealed-realms-auth-bridge-suspension-ptr-adoption-private-v1';
+export const SEALED_REALMS_AUTH_BRIDGE_G002_PTR_ADOPTION_SUSPENSION_RECEIPT_PROFILE:
+  'warpkeep-sealed-realms-auth-bridge-suspension-g002-ptr-adoption-private-v1';
 export const SEALED_REALMS_AUTH_BRIDGE_ACCESS_REQUEST_URL:
   'https://auth.warpkeep.com/v2/access/request';
 
@@ -236,6 +238,7 @@ export function createSealedRealmsProductionAuthBridgeState(options: Readonly<{
   reportedHome?: string;
   bridgeProvider?: SealedRealmsProductionBridgeProvider;
   existingStateAdoption?: SealedRealmsProductionPtrExistingStateAdoptionEvidence;
+  g002ExistingStateAdoption?: SealedRealmsProductionG002ExistingStateAdoptionEvidence;
   /** Independent projections are test-only and require testOnlyCapability. */
   deploymentAttester?: (context: Readonly<{
     sourceCommit: string;
@@ -279,6 +282,7 @@ export function createSealedRealmsProductionActivationEvidenceGenerator(input: R
   privateState: SealedRealmsProductionPrivateState;
   authority: SealedRealmsProductionSourceAuthority;
   existingStateAdoption?: SealedRealmsProductionPtrExistingStateAdoptionEvidence;
+  g002ExistingStateAdoption?: SealedRealmsProductionG002ExistingStateAdoptionEvidence;
   testOnlyCapability?: SealedRealmsProductionAuthBridgeStateTestCapability;
   testOnlyPreparationBootstrapAuthority?: import('./generate-0.4.0-recovery-launch-activation.mjs').RecoveryActivationBootstrapFacts;
 }>): SealedRealmsProductionActivationEvidenceGenerator;

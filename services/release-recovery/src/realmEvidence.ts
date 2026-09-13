@@ -770,6 +770,8 @@ function captureG002(
     || typeof source.publicApprovalReceiptId !== 'string'
     || !PUBLIC_APPROVAL_ID.test(source.publicApprovalReceiptId)
     || !sha(source.sealedStateHmacSha256)
+    || ('g002StateEvidenceProfile' in binding && binding.g002StateEvidenceProfile === 'warpkeep-g002-existing-state-adoption-v1'
+      && source.sealedStateHmacSha256 !== binding.g002ExpectedSealedStateHmacSha256)
   ) fail()
   return Object.freeze({ ...source }) as Readonly<Record<string, JsonValue>>
 }

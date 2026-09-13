@@ -154,6 +154,14 @@ function adoptPtrProjection() {
   projection.ptrExistingStateAdoptionReceiptDigest = "9".repeat(64);
   projection.ptrPublicApprovalReceiptId = "ptr-approval";
 }
+it('matches both adopted realms to retained approved release identities', () => {
+  adoptPtrProjection();
+  projection.g002ExistingStateAdoptionReceiptDigest = '8'.repeat(64);
+  projection.g002PublicApprovalReceiptId = 'g002-approval';
+  expect(read(input)).toEqual({ g002PublicApprovalReceiptId: 'g002-approval', ptrPublicApprovalReceiptId: 'ptr-approval' });
+  projection.g002PublicApprovalReceiptId = 'changed';
+  expect(() => read(input)).toThrow('SEALED_REALMS_RECOVERY_APPROVAL_FACTS_INVALID');
+});
 it("matches a preserved PTR to its verified approved release without an initialization manifest claim", () => {
   adoptPtrProjection();
   expect(read(input)).toEqual({

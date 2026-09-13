@@ -1,53 +1,53 @@
 # Continue Warpkeep 0.4
 
-## Current work: existing G002 update — 13 September 2026
+## Current work: G002 and PTR adoption — 13 September 2026
 
 Continue `codex/0.4-g002-existing-state` /
 [PR #245](https://github.com/ael-dev3/Warpkeep/pull/245) in the reused isolated
-checkout `C:/Temp/warpkeep-clean-ci`. Producer source `1664405d` is published and
-remote equality is verified. Native session `61892` is closed with exit zero:
-all 356 cases in 13 suites passed without skips at that exact source (38.90s).
-This includes the actual Linux artifact lifecycle and real private-state/
-continuation/restart coverage. Native is clean and idle; synchronize later owning
-notes only after publication. Preserve its persistent RunnerService.
+checkout `C:/Temp/warpkeep-clean-ci`. This follow-up connects the preserved G002
+update through private activation records, bridge suspension, the public V5
+binding and recovery consumers. Both realms require genuine retained signed
+proofs from the same private-state owner; source/tree and signed bridge
+configuration/epochs must agree. Original G002 publication/import history is not
+invented. V2–V4 public formats and existing PTR private bytes remain supported.
 
-PR #245 is stacked on unchanged PR #244 at `27671943`, which targets `main`.
-At the latest inspection PR #244's Verify Linux/module jobs remained running;
-both services, native-contract and CodeQL passed. PR #245's own Verify run
-`34726421962` passed both services and native-contract; Linux/module and CodeQL
-were still running. Read current terminal conclusions before integration. No
-new generated family or protected merge is certified by these component results.
-The primary Windows checkout retains its own published `758bc482` branch.
+The activation runtime authenticates both retained proofs before provider
+construction. A dual-adoption bridge cannot create initial realm import gates,
+owner-provision or legacy live receipts. Its new suspension receipt binds the
+real prepared deployment and both adoption digests. The receiver validates the
+G002 sealed-state HMAC against fresh state alongside the existing PTR/G001
+safeguards. See the [owning recovery evidence](../../evidence/0.4.0/recovery.md#g002-and-ptr-adoption-consumers--2026-09-13)
+for exact tests, review findings and the limits of each proof.
 
-The fixed G002 signing service, source-built artifact capability, provider/schema
-facades and shared production update engine are implemented. G002 uses its own
-immutable database identity, signed profile, private records and capability
-registries. The provider migration token proves the proposed predecessor against
-the actual candidate; public initial-program metadata alone never does. The
-pre-state is signed before submission, and post-state is signed only after an
-actual completion/terminal. Lost acknowledgement is reconciled without another
-PUT. Existing PTR profiles and persisted record formats remain unchanged.
+PR #245 remains stacked on PR #244 at `27671943`, which targets `main`.
+At the latest inspection, both PRs' services, native-contract and CodeQL passed;
+Linux/module jobs remained running. These are historical observations of their
+respective published heads, not acceptance of this new source. Read fresh terminal
+conclusions before integration. The primary Windows checkout retains its own
+published `758bc482` branch. Do not move that independent branch.
 
-The Linux observation caller and dedicated `operate_g002` workflow route are
-connected in this follow-up. Keep the distinction between implementation tests,
-native acceptance and live execution. The [recovery evidence](../../evidence/0.4.0/recovery.md#existing-g002-update-producer--2026-09-13)
-owns exact checks and limitations. Current generated manifests still belong to
-the prior source family; no fresh generated family or deployment is certified.
+The previous producer source `1664405d` passed native session `61892`: all 356
+cases in 13 suites, no skips. That does not certify this consumer follow-up.
+The native checkout was clean and idle at `3639a3cb`, with the persistent
+RunnerService intact, before the next source synchronization. Synchronize only
+after publication and a fresh idle/clean check.
 
-Next finish the explicit G002 adoption branch through activation, public release
-bindings and recovery consumers. Those consumers still require unavailable
-original G002 publish/import claims. Preserve authentic G002 adoption instead of
-fabricating that history, retain genuine prepared bridge deployment evidence,
-and carry unchanged G001/PTR safeguards through the complete generated family.
-Then prepare/check published source, integrate through normal protected main,
-and complete live preservation, owner play and rendered mobile acceptance.
-Use the [existing connected plan](../../superpowers/plans/2026-09-08-ptr-update-recovery.md#connected-implementation-sequence).
+Next publish and run the connected V5 private generation/restart cases on Linux,
+then prepare and independently check the complete source family from that
+committed input. Generated manifests still belong to the older family; never
+hand-edit their pins or run a stale donor as if it were current. Continue normal
+protected integration and exact accepted-main preparation, then live preservation,
+actual-owner play and rendered mobile acceptance. Follow the
+[existing connected plan](../../superpowers/plans/2026-09-08-ptr-update-recovery.md#g002-adoption-consumer-contract).
 
 The overall estimate remains about **65%**, with a 60–70% judgment range;
 0.4 is not shipped and no reliable calendar ETA is established. The saved Codex
-sync automation remains **PAUSED** by the owner. Commit, scan and verify pushes
-at each active development checkpoint without recreating a scheduler. Do not
-create any new Desktop files; maintain the existing handoff in place only.
+sync automation is **PAUSED** by the owner. Commit, scan and verify pushes at
+active development checkpoints without recreating a scheduler. Do not create new
+Desktop files; update the existing handoff in place only. Reuse ignored output
+and the fixed private build roots. Native preparation currently retains about
+73 GiB of historical runs; inspect referenced evidence and actual process state
+before retiring anything or creating another large candidate.
 
 The records below are historical checkpoints, not instructions to move to an old
 branch, restart a completed run or treat previous artifacts as current authority.

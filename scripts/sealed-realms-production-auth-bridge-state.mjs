@@ -28,6 +28,7 @@ import {
 } from './sealed-realms-production-bridge-provider.mjs';
 import {
   readSealedRealmsProductionPtrExistingStateAdoptionEvidence,
+  readSealedRealmsProductionG002ExistingStateAdoptionEvidence,
   assertSealedRealmsProductionActivationRecordsAuthority,
   inspectSealedRealmsProductionRecoveryActivationRecords,
   writeSealedRealmsProductionRecoveryActivationDescriptor,
@@ -47,6 +48,8 @@ export const SEALED_REALMS_AUTH_BRIDGE_SUSPENSION_RECEIPT_PROFILE =
   'warpkeep-sealed-realms-auth-bridge-suspension-private-v1';
 export const SEALED_REALMS_AUTH_BRIDGE_ADOPTION_SUSPENSION_RECEIPT_PROFILE =
   'warpkeep-sealed-realms-auth-bridge-suspension-ptr-adoption-private-v1';
+export const SEALED_REALMS_AUTH_BRIDGE_G002_PTR_ADOPTION_SUSPENSION_RECEIPT_PROFILE =
+  'warpkeep-sealed-realms-auth-bridge-suspension-g002-ptr-adoption-private-v1';
 export const SEALED_REALMS_AUTH_BRIDGE_ACCESS_REQUEST_URL =
   'https://auth.warpkeep.com/v2/access/request';
 
@@ -66,6 +69,8 @@ const SUSPENSION_RECEIPT_PREFIX =
   'warpkeep.sealed-realms.auth-bridge-suspension-private-receipt.v1\n';
 const ADOPTION_SUSPENSION_RECEIPT_PREFIX =
   'warpkeep.sealed-realms.auth-bridge-suspension-ptr-adoption-private-receipt.v1\n';
+const G002_PTR_ADOPTION_SUSPENSION_RECEIPT_PREFIX =
+  'warpkeep.sealed-realms.auth-bridge-suspension-g002-ptr-adoption-private-receipt.v1\n';
 const observations = new WeakMap();
 const bridgeStates = new WeakSet();
 const bridgeStateSources = new WeakMap();
@@ -839,7 +844,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   const options = allowedObject(input, [
     'authority', 'privateState', 'repositoryRoot', 'reportedHome',
     'deploymentAttester', 'bindingAttester', 'fetchImpl', 'now', 'randomBytesImpl',
-    'bridgeProvider', 'existingStateAdoption',
+    'bridgeProvider', 'existingStateAdoption', 'g002ExistingStateAdoption',
     'inspectImportReceipt', 'authenticateImportResult', 'resolveOwnerProvisionReceipt',
     'testOnlyCapability', 'testOnlyResolvePreparedReceipt',
     'testOnlyResolveCompletedJournal',
@@ -895,7 +900,16 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
       });
     } catch { fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID'); }
   };
+  const readG002Adoption = options.g002ExistingStateAdoption === undefined ? undefined : () => {
+    if (readAdoption === undefined) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
+    try {
+      return readSealedRealmsProductionG002ExistingStateAdoptionEvidence({
+        evidence: options.g002ExistingStateAdoption, privateState, sourceCommit,
+      });
+    } catch { fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID'); }
+  };
   readAdoption?.();
+  readG002Adoption?.();
   const now = options.now ?? (() => new Date());
   const randomBytesImpl = options.randomBytesImpl ?? randomBytes;
   const receiptResolver = options.testOnlyResolvePreparedReceipt
@@ -1392,6 +1406,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   });
 
   const inspectGate = async ({ lane } = {}) => {
+    if (readG002Adoption !== undefined) fail('SEALED_REALMS_AUTH_BRIDGE_GATE_STATE_INVALID');
     if (!['g002', 'ptr'].includes(lane)) {
       fail('SEALED_REALMS_AUTH_BRIDGE_GATE_INPUT_INVALID');
     }
@@ -1500,6 +1515,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   };
 
   const applyGate = async (input = {}) => {
+    if (readG002Adoption !== undefined) fail('SEALED_REALMS_AUTH_BRIDGE_GATE_STATE_INVALID');
     exactObject(input, ['confirmation', 'apply'], 'SEALED_REALMS_AUTH_BRIDGE_GATE_CONFIRMATION_INVALID');
     const { confirmation, apply } = input;
     const member = gateConfirmations.get(confirmation);
@@ -1606,6 +1622,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   };
 
   const gateContinuationMember = async (lane) => {
+    if (readG002Adoption !== undefined) fail('SEALED_REALMS_AUTH_BRIDGE_GATE_STATE_INVALID');
     if (!['g002', 'ptr'].includes(lane)) {
       fail('SEALED_REALMS_AUTH_BRIDGE_GATE_INPUT_INVALID');
     }
@@ -1640,6 +1657,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
 
   /** Persists the exact gate while discarding all process-local confirmation authority. */
   const inspectGateForContinuation = async ({ lane } = {}) => {
+    if (readG002Adoption !== undefined) fail('SEALED_REALMS_AUTH_BRIDGE_GATE_STATE_INVALID');
     if (!['g002', 'ptr'].includes(lane)) {
       fail('SEALED_REALMS_AUTH_BRIDGE_GATE_INPUT_INVALID');
     }
@@ -1722,6 +1740,11 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     if (readAdoption === undefined) return privateChainSummary(established.chain);
     const adoption = readAdoption();
     assertAdoptionBridgeScope(adoption, established.chain);
+    if (readG002Adoption !== undefined) {
+      assertG002AdoptionBridgeScope(readG002Adoption(), adoption, established.chain);
+      requireActivationChainPhase(established.chain, true, 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CHAIN_INCOMPLETE', true);
+      return Object.freeze({ g002Sealed: true, ptrSealed: true, complete: true });
+    }
     if (established.chain.ptrFinal !== null || established.chain.ptrCross !== null) {
       fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CHAIN_INCOMPLETE');
     }
@@ -1730,6 +1753,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   };
 
   const inspectOwnerProvisionEvidence = async (input = {}) => {
+    if (readG002Adoption !== undefined) fail('SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_INPUT_INVALID');
     exactObject(input, ['inspect'], 'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_INPUT_INVALID');
     if (typeof input.inspect !== 'function') {
       fail('SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_INPUT_INVALID');
@@ -1782,6 +1806,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   };
 
   const applyOwnerProvision = async (input = {}) => {
+    if (readG002Adoption !== undefined) fail('SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_INPUT_INVALID');
     exactObject(input, ['confirmation', 'provision'], 'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONFIRMATION_INVALID');
     if (typeof input.provision !== 'function') {
       fail('SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONFIRMATION_INVALID');
@@ -1895,6 +1920,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   };
 
   const reopenOwnerContinuationEvidence = async () => {
+    if (readG002Adoption !== undefined) fail('SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_INPUT_INVALID');
     const names = privateState.list({
       root: 'runtime', relativeDirectory: 'bridge/owner-provision-evidence',
     });
@@ -1960,6 +1986,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   };
 
   const inspectOwnerProvisionEvidenceForContinuation = async (input = {}) => {
+    if (readG002Adoption !== undefined) fail('SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_INPUT_INVALID');
     if (privateState.list({
       root: 'runtime', relativeDirectory: 'bridge/owner-provision-evidence',
     }).length !== 0) {
@@ -2037,6 +2064,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   };
 
   const inspectLiveEvidence = async (input = {}) => {
+    if (readG002Adoption !== undefined) fail('SEALED_REALMS_AUTH_BRIDGE_LIVE_INPUT_INVALID');
     exactObject(input, ['lane', 'inspect'], 'SEALED_REALMS_AUTH_BRIDGE_LIVE_INPUT_INVALID');
     if (!['g002', 'ptr'].includes(input.lane) || typeof input.inspect !== 'function') {
       fail('SEALED_REALMS_AUTH_BRIDGE_LIVE_INPUT_INVALID');
@@ -2095,8 +2123,10 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     const established = await establish();
     const chain = established.chain;
     const adoption = readAdoption?.();
-    requireActivationChainPhase(chain, adoption !== undefined, 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CHAIN_INCOMPLETE');
+    const g002Adoption = readG002Adoption?.();
+    requireActivationChainPhase(chain, adoption !== undefined, 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CHAIN_INCOMPLETE', g002Adoption !== undefined);
     if (adoption !== undefined) assertAdoptionBridgeScope(adoption, chain);
+    if (g002Adoption !== undefined) assertG002AdoptionBridgeScope(g002Adoption, adoption, chain);
     const facts = await resolveFacts();
     const authority = assertFactsMatchAuthority(facts, chain);
     assertNoActivationReplay();
@@ -2107,8 +2137,8 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     const finalChain = readChain(established.relativePath);
     if (
       finalChain.deployment.digest !== chain.deployment.digest
-      || finalChain.g002Final?.digest !== chain.g002Final.digest
-      || finalChain.g002Cross?.digest !== chain.g002Cross.digest
+      || finalChain.g002Final?.digest !== chain.g002Final?.digest
+      || finalChain.g002Cross?.digest !== chain.g002Cross?.digest
       || finalChain.ptrFinal?.digest !== chain.ptrFinal?.digest
       || finalChain.ptrCross?.digest !== chain.ptrCross?.digest
     ) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_REPLAY');
@@ -2119,14 +2149,22 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
         fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
       }
     }
+    if (g002Adoption !== undefined) {
+      const currentG002Adoption = readG002Adoption();
+      assertG002AdoptionBridgeScope(currentG002Adoption, readAdoption(), finalChain);
+      if (currentG002Adoption.adoptionReceiptDigest !== g002Adoption.adoptionReceiptDigest) {
+        fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
+      }
+    }
     const nonce = randomDigest(randomBytesImpl);
     if (
-      nonce === chain.g002Final.value.nonce || nonce === chain.ptrFinal?.value.nonce
+      nonce === chain.g002Final?.value.nonce || nonce === chain.ptrFinal?.value.nonce
     ) fail('SEALED_REALMS_AUTH_BRIDGE_RANDOM_INVALID');
     const activationGate = Object.freeze({
       deploymentAuthorityDigest: chain.deployment.digest,
-      g002GateDigest: chain.g002Final.digest,
-      g002ImportAuthorityCrossLinkDigest: chain.g002Cross.digest,
+      ...(g002Adoption === undefined ? {
+        g002GateDigest: chain.g002Final.digest, g002ImportAuthorityCrossLinkDigest: chain.g002Cross.digest,
+      } : { g002ExistingStateAdoptionReceiptDigest: g002Adoption.adoptionReceiptDigest }),
       ...(adoption === undefined ? {
         ptrGateDigest: chain.ptrFinal.digest, ptrImportAuthorityCrossLinkDigest: chain.ptrCross.digest,
       } : { ptrExistingStateAdoptionReceiptDigest: adoption.adoptionReceiptDigest }),
@@ -2149,13 +2187,15 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
       nonce,
     });
     const receipt = Object.freeze({
-      schemaVersion: adoption === undefined ? 1 : 4,
-      profile: adoption === undefined ? SEALED_REALMS_AUTH_BRIDGE_SUSPENSION_RECEIPT_PROFILE
-        : SEALED_REALMS_AUTH_BRIDGE_ADOPTION_SUSPENSION_RECEIPT_PROFILE,
+      schemaVersion: g002Adoption !== undefined ? 5 : adoption === undefined ? 1 : 4,
+      profile: g002Adoption !== undefined ? SEALED_REALMS_AUTH_BRIDGE_G002_PTR_ADOPTION_SUSPENSION_RECEIPT_PROFILE
+        : adoption === undefined ? SEALED_REALMS_AUTH_BRIDGE_SUSPENSION_RECEIPT_PROFILE
+          : SEALED_REALMS_AUTH_BRIDGE_ADOPTION_SUSPENSION_RECEIPT_PROFILE,
       sourceCommit,
       deploymentAuthority: finalChain.deployment.value,
-      g002Gate: finalChain.g002Final.value,
-      g002ImportAuthorityCrossLink: finalChain.g002Cross.value,
+      ...(g002Adoption === undefined ? {
+        g002Gate: finalChain.g002Final.value, g002ImportAuthorityCrossLink: finalChain.g002Cross.value,
+      } : { g002ExistingStateAdoptionReceiptDigest: g002Adoption.adoptionReceiptDigest }),
       ...(adoption === undefined ? {
         ptrGate: finalChain.ptrFinal.value, ptrImportAuthorityCrossLink: finalChain.ptrCross.value,
       } : { ptrExistingStateAdoptionReceiptDigest: adoption.adoptionReceiptDigest }),
@@ -2168,12 +2208,19 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
       'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_RECEIPT_INVALID',
     );
     const receiptDigest = createHash('sha256')
-      .update(suspensionReceiptPrefix(adoption !== undefined)).update(bytes).digest('hex');
+      .update(suspensionReceiptPrefix(adoption !== undefined, g002Adoption !== undefined)).update(bytes).digest('hex');
     const relativePath = `bridge/activation-evidence/auth-bridge-suspension-${receiptDigest}.json`;
     try {
       assertFreshImmediatelyBeforeMutation(finalFacts);
       if (adoption !== undefined && readAdoption().adoptionReceiptDigest !== adoption.adoptionReceiptDigest) {
         fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
+      }
+      if (g002Adoption !== undefined) {
+        const currentG002Adoption = readG002Adoption();
+        assertG002AdoptionBridgeScope(currentG002Adoption, readAdoption(), finalChain);
+        if (currentG002Adoption.adoptionReceiptDigest !== g002Adoption.adoptionReceiptDigest) {
+          fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
+        }
       }
       privateState.write({ root: 'runtime', relativePath, bytes });
     } catch (error) {
@@ -2192,8 +2239,8 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
       privateState,
       now,
       deploymentDigest: finalChain.deployment.digest,
-      g002GateDigest: finalChain.g002Final.digest,
-      g002CrossDigest: finalChain.g002Cross.digest,
+      ...(g002Adoption === undefined ? { g002GateDigest: finalChain.g002Final.digest, g002CrossDigest: finalChain.g002Cross.digest }
+        : { g002AdoptionReceiptDigest: g002Adoption.adoptionReceiptDigest, readG002Adoption }),
       ...(adoption === undefined ? { ptrGateDigest: finalChain.ptrFinal.digest, ptrCrossDigest: finalChain.ptrCross.digest }
         : { adoptionReceiptDigest: adoption.adoptionReceiptDigest, readAdoption }),
       memberCommitment: activationGate.confirmationDigest,
@@ -2237,7 +2284,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     let receipt;
     try {
       if (
-        createHash('sha256').update(suspensionReceiptPrefix(readAdoption !== undefined)).update(bytes).digest('hex')
+        createHash('sha256').update(suspensionReceiptPrefix(readAdoption !== undefined, readG002Adoption !== undefined)).update(bytes).digest('hex')
           !== receiptDigest
       ) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
       const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -2257,8 +2304,10 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     if (selected === undefined) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
     const chain = selected.chain;
     const adoption = readAdoption?.();
-    requireActivationChainPhase(chain, adoption !== undefined, 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+    const g002Adoption = readG002Adoption?.();
+    requireActivationChainPhase(chain, adoption !== undefined, 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID', g002Adoption !== undefined);
     if (adoption !== undefined) assertAdoptionBridgeScope(adoption, chain);
+    if (g002Adoption !== undefined) assertG002AdoptionBridgeScope(g002Adoption, adoption, chain);
     const member = Object.freeze({
       sourceCommit,
       relativePath,
@@ -2268,8 +2317,8 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
       privateState,
       now,
       deploymentDigest: chain.deployment.digest,
-      g002GateDigest: chain.g002Final.digest,
-      g002CrossDigest: chain.g002Cross.digest,
+      ...(g002Adoption === undefined ? { g002GateDigest: chain.g002Final.digest, g002CrossDigest: chain.g002Cross.digest }
+        : { g002AdoptionReceiptDigest: g002Adoption.adoptionReceiptDigest, readG002Adoption }),
       ...(adoption === undefined ? { ptrGateDigest: chain.ptrFinal.digest, ptrCrossDigest: chain.ptrCross.digest }
         : { adoptionReceiptDigest: adoption.adoptionReceiptDigest, readAdoption }),
       memberCommitment: receipt.activationGate?.confirmationDigest,
@@ -2418,17 +2467,25 @@ function deepFreezePrivateProjection(value) {
   return value;
 }
 
-function suspensionReceiptPrefix(adoption) {
-  return adoption ? ADOPTION_SUSPENSION_RECEIPT_PREFIX : SUSPENSION_RECEIPT_PREFIX;
+function suspensionReceiptPrefix(adoption, g002Adoption = false) {
+  return g002Adoption ? G002_PTR_ADOPTION_SUSPENSION_RECEIPT_PREFIX
+    : adoption ? ADOPTION_SUSPENSION_RECEIPT_PREFIX : SUSPENSION_RECEIPT_PREFIX;
 }
 
 function activationReceiptDigests(member) {
-  return Object.freeze([member.deploymentDigest, member.g002GateDigest, member.g002CrossDigest,
+  return Object.freeze([member.deploymentDigest,
+    ...(member.g002AdoptionReceiptDigest === undefined ? [member.g002GateDigest, member.g002CrossDigest]
+      : [member.g002AdoptionReceiptDigest]),
     ...(member.adoptionReceiptDigest === undefined ? [member.ptrGateDigest, member.ptrCrossDigest]
       : [member.adoptionReceiptDigest])]);
 }
 
-function requireActivationChainPhase(chain, adoption, code) {
+function requireActivationChainPhase(chain, adoption, code, g002Adoption = false) {
+  if (g002Adoption) {
+    if (!adoption || chain.phase !== 'g002' || chain.g002Final !== null || chain.g002Cross !== null
+      || chain.ptrFinal !== null || chain.ptrCross !== null) fail(code);
+    return;
+  }
   if (chain.g002Final === null || chain.g002Cross === null
     || (adoption ? chain.phase !== 'ptr' || chain.ptrFinal !== null || chain.ptrCross !== null
       : chain.phase !== 'complete' || chain.ptrFinal === null || chain.ptrCross === null)) fail(code);
@@ -2445,11 +2502,28 @@ function assertAdoptionBridgeScope(adoption, chain) {
   }
 }
 
+function assertG002AdoptionBridgeScope(g002Adoption, ptrAdoption, chain) {
+  if (ptrAdoption === undefined) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
+  assertAdoptionBridgeScope(ptrAdoption, chain);
+  const g002 = g002Adoption.pair.post.observation;
+  const ptr = ptrAdoption.pair.post.observation;
+  if (g002Adoption.sourceCommit !== ptrAdoption.sourceCommit || g002Adoption.sourceTree !== ptrAdoption.sourceTree
+    || ['bridgeWorkerVersionId', 'bridgeSourceCommit', 'bridgeConfigIdentity', 'bridgeConfigEpoch',
+      'recoveryAuthorizationEpoch'].some(key => g002[key] !== ptr[key])) {
+    fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
+  }
+}
+
 function requireActivationMemberChain(chain, member, code) {
   const adopted = member.adoptionReceiptDigest !== undefined;
-  requireActivationChainPhase(chain, adopted, code);
-  if (chain.deployment.digest !== member.deploymentDigest
-    || chain.g002Final.digest !== member.g002GateDigest || chain.g002Cross.digest !== member.g002CrossDigest) fail(code);
+  const g002Adopted = member.g002AdoptionReceiptDigest !== undefined;
+  requireActivationChainPhase(chain, adopted, code, g002Adopted);
+  if (chain.deployment.digest !== member.deploymentDigest) fail(code);
+  if (g002Adopted) {
+    const g002Adoption = member.readG002Adoption();
+    if (g002Adoption.adoptionReceiptDigest !== member.g002AdoptionReceiptDigest) fail(code);
+    assertG002AdoptionBridgeScope(g002Adoption, member.readAdoption(), chain);
+  } else if (chain.g002Final.digest !== member.g002GateDigest || chain.g002Cross.digest !== member.g002CrossDigest) fail(code);
   if (adopted) {
     const adoption = member.readAdoption();
     if (adoption.adoptionReceiptDigest !== member.adoptionReceiptDigest) fail(code);
@@ -2459,15 +2533,18 @@ function requireActivationMemberChain(chain, member, code) {
 
 function validateActivationReceipt(receipt, member) {
   const adopted = member.adoptionReceiptDigest !== undefined;
+  const g002Adopted = member.g002AdoptionReceiptDigest !== undefined;
+  const g002Keys = g002Adopted ? ['g002ExistingStateAdoptionReceiptDigest'] : ['g002Gate', 'g002ImportAuthorityCrossLink'];
+  const g002DigestKeys = g002Adopted ? ['g002ExistingStateAdoptionReceiptDigest'] : ['g002GateDigest', 'g002ImportAuthorityCrossLinkDigest'];
   const ptrKeys = adopted ? ['ptrExistingStateAdoptionReceiptDigest'] : ['ptrGate', 'ptrImportAuthorityCrossLink'];
   const ptrDigestKeys = adopted ? ['ptrExistingStateAdoptionReceiptDigest'] : ['ptrGateDigest', 'ptrImportAuthorityCrossLinkDigest'];
   exactObject(receipt, [
-    'schemaVersion', 'profile', 'sourceCommit', 'deploymentAuthority', 'g002Gate',
-    'g002ImportAuthorityCrossLink', ...ptrKeys, 'activationGate',
+    'schemaVersion', 'profile', 'sourceCommit', 'deploymentAuthority', ...g002Keys, ...ptrKeys, 'activationGate',
   ], 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
-  if (receipt.schemaVersion !== (adopted ? 4 : 1)
-    || receipt.profile !== (adopted ? SEALED_REALMS_AUTH_BRIDGE_ADOPTION_SUSPENSION_RECEIPT_PROFILE
-      : SEALED_REALMS_AUTH_BRIDGE_SUSPENSION_RECEIPT_PROFILE)
+  if ((g002Adopted && !adopted) || receipt.schemaVersion !== (g002Adopted ? 5 : adopted ? 4 : 1)
+    || receipt.profile !== (g002Adopted ? SEALED_REALMS_AUTH_BRIDGE_G002_PTR_ADOPTION_SUSPENSION_RECEIPT_PROFILE
+      : adopted ? SEALED_REALMS_AUTH_BRIDGE_ADOPTION_SUSPENSION_RECEIPT_PROFILE
+        : SEALED_REALMS_AUTH_BRIDGE_SUSPENSION_RECEIPT_PROFILE)
     || receipt.sourceCommit !== member.sourceCommit
   ) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
   validateDeploymentAuthority(receipt.deploymentAuthority);
@@ -2475,10 +2552,25 @@ function validateActivationReceipt(receipt, member) {
     value: receipt.deploymentAuthority,
     digest: activationRecordDigest(receipt.deploymentAuthority),
   });
-  validateGate(receipt.g002Gate, deployment);
-  validateCrossLink(receipt.g002ImportAuthorityCrossLink, deployment);
-  const g002GateDigest = activationRecordDigest(receipt.g002Gate);
-  const g002CrossDigest = activationRecordDigest(receipt.g002ImportAuthorityCrossLink);
+  let g002GateDigest, g002CrossDigest;
+  if (g002Adopted) {
+    const g002Adoption = member.readG002Adoption();
+    assertG002AdoptionBridgeScope(g002Adoption, member.readAdoption(), { deployment });
+    if (receipt.g002ExistingStateAdoptionReceiptDigest !== member.g002AdoptionReceiptDigest
+      || receipt.g002ExistingStateAdoptionReceiptDigest !== g002Adoption.adoptionReceiptDigest) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+    }
+  } else {
+    validateGate(receipt.g002Gate, deployment);
+    validateCrossLink(receipt.g002ImportAuthorityCrossLink, deployment);
+    g002GateDigest = activationRecordDigest(receipt.g002Gate);
+    g002CrossDigest = activationRecordDigest(receipt.g002ImportAuthorityCrossLink);
+    if (g002GateDigest !== member.g002GateDigest || g002CrossDigest !== member.g002CrossDigest
+      || receipt.g002ImportAuthorityCrossLink.previousRecordDigest !== g002GateDigest
+      || receipt.g002ImportAuthorityCrossLink.consumedGateDigest !== g002GateDigest) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+    }
+  }
   let ptrGateDigest, ptrCrossDigest;
   if (adopted) {
     const adoption = member.readAdoption();
@@ -2499,15 +2591,10 @@ function validateActivationReceipt(receipt, member) {
       fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
     }
   }
-  if (deployment.digest !== member.deploymentDigest
-    || g002GateDigest !== member.g002GateDigest || g002CrossDigest !== member.g002CrossDigest
-    || receipt.g002ImportAuthorityCrossLink.previousRecordDigest !== g002GateDigest
-    || receipt.g002ImportAuthorityCrossLink.consumedGateDigest !== g002GateDigest
-  ) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+  if (deployment.digest !== member.deploymentDigest) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
   const gate = receipt.activationGate;
   exactObject(gate, [
-    'deploymentAuthorityDigest', 'g002GateDigest', 'g002ImportAuthorityCrossLinkDigest',
-    ...ptrDigestKeys, 'deploymentAttestationDigest',
+    'deploymentAuthorityDigest', ...g002DigestKeys, ...ptrDigestKeys, 'deploymentAttestationDigest',
     'bindingAttestationDigest', 'postNoRedirect', 'postContentType',
     'postAccessControlAllowOrigin', 'postProbeStatus', 'postProbeBodyBase64',
     'postProbeDigest', 'optionsNoRedirect', 'optionsContentType',
@@ -2515,19 +2602,19 @@ function validateActivationReceipt(receipt, member) {
     'optionsProbeDigest', 'confirmationDigest', 'observedAt', 'nonce',
   ], 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
   for (const key of [
-    'deploymentAuthorityDigest', 'g002GateDigest', 'g002ImportAuthorityCrossLinkDigest',
-    ...ptrDigestKeys, 'deploymentAttestationDigest',
+    'deploymentAuthorityDigest', ...g002DigestKeys, ...ptrDigestKeys, 'deploymentAttestationDigest',
     'bindingAttestationDigest', 'confirmationDigest', 'nonce',
   ]) requiredDigest(gate[key], 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
   validateProbeRecord(gate, 'post');
   validateProbeRecord(gate, 'options');
   strictUtc(gate.observedAt, 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
   if (gate.deploymentAuthorityDigest !== deployment.digest
-    || gate.g002GateDigest !== g002GateDigest || gate.g002ImportAuthorityCrossLinkDigest !== g002CrossDigest
+    || (g002Adopted ? gate.g002ExistingStateAdoptionReceiptDigest !== member.g002AdoptionReceiptDigest
+      : gate.g002GateDigest !== g002GateDigest || gate.g002ImportAuthorityCrossLinkDigest !== g002CrossDigest)
     || (adopted ? gate.ptrExistingStateAdoptionReceiptDigest !== member.adoptionReceiptDigest
       : gate.ptrGateDigest !== ptrGateDigest || gate.ptrImportAuthorityCrossLinkDigest !== ptrCrossDigest)
     || gate.confirmationDigest !== member.memberCommitment || gate.observedAt !== member.observedAt
-    || gate.nonce === receipt.g002Gate.nonce || (!adopted && gate.nonce === receipt.ptrGate.nonce)
+    || (!g002Adopted && gate.nonce === receipt.g002Gate.nonce) || (!adopted && gate.nonce === receipt.ptrGate.nonce)
   ) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
 }
 
@@ -2551,7 +2638,7 @@ async function consumeActivationEvidenceConfirmation(confirmation) {
   try {
     bytes = member.privateState.read({ root: 'runtime', relativePath });
     if (
-      createHash('sha256').update(suspensionReceiptPrefix(member.adoptionReceiptDigest !== undefined)).update(bytes).digest('hex')
+      createHash('sha256').update(suspensionReceiptPrefix(member.adoptionReceiptDigest !== undefined, member.g002AdoptionReceiptDigest !== undefined)).update(bytes).digest('hex')
         !== member.receiptDigest
     ) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
     const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -2586,7 +2673,7 @@ async function consumeActivationEvidenceConfirmation(confirmation) {
     const reopened = member.privateState.read({ root: 'runtime', relativePath });
     try {
       if (
-        createHash('sha256').update(suspensionReceiptPrefix(member.adoptionReceiptDigest !== undefined)).update(reopened).digest('hex')
+        createHash('sha256').update(suspensionReceiptPrefix(member.adoptionReceiptDigest !== undefined, member.g002AdoptionReceiptDigest !== undefined)).update(reopened).digest('hex')
           !== member.receiptDigest
       ) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
       const source = new TextDecoder('utf-8', { fatal: true }).decode(reopened);
@@ -2658,6 +2745,7 @@ export function createSealedRealmsProductionActivationEvidenceGenerator(input) {
   const testing = Object.hasOwn(input ?? {}, 'testOnlyCapability');
   const options = captureGenerationInput(input, ['records', 'privateState', 'authority',
     ...(Object.hasOwn(input, 'existingStateAdoption') ? ['existingStateAdoption'] : []),
+    ...(Object.hasOwn(input, 'g002ExistingStateAdoption') ? ['g002ExistingStateAdoption'] : []),
     ...(testing ? ['testOnlyCapability', 'testOnlyPreparationBootstrapAuthority'] : [])]);
   if (testing) assertSealedRealmsProductionAuthBridgeStateTestCapability(options.testOnlyCapability);
   assertSealedRealmsProductionActivationRecordsAuthority({ records: options.records, privateState: options.privateState, authority: options.authority });
@@ -2675,6 +2763,12 @@ export function createSealedRealmsProductionActivationEvidenceGenerator(input) {
   if (options.existingStateAdoption !== undefined) {
     readSealedRealmsProductionPtrExistingStateAdoptionEvidence({
       evidence: options.existingStateAdoption, privateState: options.privateState, sourceCommit,
+    });
+  }
+  if (options.g002ExistingStateAdoption !== undefined) {
+    if (options.existingStateAdoption === undefined) fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
+    readSealedRealmsProductionG002ExistingStateAdoptionEvidence({
+      evidence: options.g002ExistingStateAdoption, privateState: options.privateState, sourceCommit,
     });
   }
   const generator = Object.freeze({});
@@ -2751,7 +2845,7 @@ function readGenerationCompletion(generator, member) {
     const corpus = inspectSealedRealmsProductionRecoveryActivationRecords(generator.records, receipt.generatedAt);
     const bridge = reopenGenerationBridgeEvidence(member);
     const expected = validateRecoveryLaunchActivationProjection(
-      JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(descriptorBytes)), bridge, receipt.generatedAt, generator.existingStateAdoption,
+      JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(descriptorBytes)), bridge, receipt.generatedAt, generator.existingStateAdoption, generator.g002ExistingStateAdoption,
     );
     const artifact = JSON.parse(Buffer.from(artifactBytes).toString('utf8'));
     if (receipt.sourceCommit !== member.sourceCommit
@@ -2781,7 +2875,7 @@ function reopenGenerationBridgeEvidence(member) {
     relativePath: `bridge/activation-evidence/auth-bridge-suspension-${member.receiptDigest}.json` });
   let chainBytes;
   try {
-    if (createHash('sha256').update(suspensionReceiptPrefix(member.adoptionReceiptDigest !== undefined)).update(receiptBytes).digest('hex') !== member.receiptDigest) {
+    if (createHash('sha256').update(suspensionReceiptPrefix(member.adoptionReceiptDigest !== undefined, member.g002AdoptionReceiptDigest !== undefined)).update(receiptBytes).digest('hex') !== member.receiptDigest) {
       fail('SEALED_REALMS_ACTIVATION_GENERATION_AMBIGUOUS');
     }
     const source = new TextDecoder('utf-8', { fatal: true }).decode(receiptBytes);
@@ -2813,7 +2907,7 @@ async function generateActivationEvidence(confirmation, generator, options, memb
         const binding = generateRecoveryLaunchActivationBindingFromDescriptor(descriptor, opaqueMember,
           options.sourceAuthority, generator.testOnlyCapability === undefined ? undefined : {
             capability: generator.testOnlyCapability, facts: generator.testOnlyPreparationBootstrapAuthority,
-          }, generator.existingStateAdoption);
+          }, generator.existingStateAdoption, generator.g002ExistingStateAdoption);
         artifactBytes = verifySealedRealmsPublicActivationBytes(Buffer.from(`${JSON.stringify(binding, null, 2)}\n`));
       },
     });

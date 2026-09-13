@@ -1,5 +1,67 @@
 # Warpkeep 0.4 recovery evidence
 
+## G002 and PTR adoption consumers — 2026-09-13
+
+The follow-up on `codex/0.4-g002-existing-state` / PR #245 connects the existing
+G002 producer to activation and recovery. Its fixed completion and adoption
+writers retain genuine signed evidence; the activation runtime authenticates
+both realms before constructing its provider. The separate G002 envelope remains
+schema 1 and the existing PTR envelope remains schema 4.
+
+A new public schema 5 (`warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5`)
+replaces unavailable original G002 publish/import/live claims with the actual
+completed update, module/tool facts and signed atlas/sealed-state evidence.
+The private corpus and bridge suspension receipt have explicit matching V5
+profiles. No G002 gate or import cross-link is manufactured. Dual-adoption bridge
+instances reject initial import, owner-provision and legacy live-evidence paths.
+The notification-enabled flag is omitted because these signed observations do
+not prove notification configuration. Schemas 2–4 retain their existing formats
+and commitment domains; their continued support is checked independently.
+
+The two retained proofs must agree on source/tree and signed bridge configuration
+and authorization epochs. Both must belong to the same private-state owner.
+The bridge deployment attestation establishes source/version and PTR database
+binding; it does not independently expose configuration identity or epochs.
+The recovery receiver checks those coordinates against freshly observed state
+and requires the adopted G002 sealed-state HMAC alongside the existing PTR
+sealed-state and owner HMACs. Existing G001 preservation and admission safeguards
+remain enforced. The durable V2 ledger retains the exact extended projection;
+legacy storage continues to reject unsupported projections. No new JWS, ledger
+storage version, realm RPC or mutation authority was introduced.
+
+Component verification before publication:
+
+- Root bridge, activation-runtime and bridge-facts suites: 134 passed in three
+  suites (137.41s). New runtime cases prove G002 authentication finishes before
+  provider/preparation access; missing PTR and failed authentication fail closed.
+- Public projection, candidate, generator and consumer suites: 1,165 passed with
+  14 expected Windows platform skips. Published V4 canonical document/core
+  vectors and existing V3 vectors remain unchanged. The actual immutable Git
+  source/activation case passed separately; prepared Linux CLI acceptance is pending.
+- Recovery service: 414 cases in seven suites passed. Real Workerd durable-ledger
+  coverage passed all 16 cases, including V5 issue, eviction, claim and JWS erasure.
+  The source/artifact receiver consumes actual generated V5 ZIP/tar inputs and
+  rejects unsafe G002 fields even when their commitments are recomputed.
+- Root, service and Workerd type checks passed. All 11 actual operation-bundle
+  graph cases passed. Independent bridge/workflow, public-consumer and service
+  reviews confirmed capability reopening across asynchronous boundaries and the
+  distinction between retained signed scope and fresh provider facts.
+
+The joined private-store test reproduced two concrete defects: an adopted bridge
+could still create an initial G002 import gate, and raw V5 corpus validation could
+combine capabilities authenticated through different private-state owners.
+The fixes reject both paths without creating historical receipts or weakening
+legacy profile validation. The genuine joined Windows case passed (24.95s): signed
+dual history, real private bridge receipt, corpus/candidate and public projection
+validate together; mixed owners and changed retained evidence reject. Windows
+uses the existing explicit platform relaxation. The POSIX descriptor generator
+and completed-generation restart are exercised separately on Linux; no platform
+bypass was added.
+
+This is source implementation evidence. A coherent generated family, independent
+native preparation/checking, normal protected integration and live preservation,
+actual-owner play and mobile render acceptance remain separate open work.
+
 ## Existing G002 update producer — 2026-09-13
 
 The follow-up on `codex/0.4-g002-existing-state`, based on published `27671943`,

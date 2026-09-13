@@ -9,7 +9,8 @@ import {
   createSealedRealmsProductionAuthBridgeState,
   createSealedRealmsProductionActivationEvidenceGenerator,
 } from './sealed-realms-production-auth-bridge-state.mjs';
-import { createSealedRealmsProductionActivationRecords, authenticateSealedRealmsProductionPtrExistingStateAdoption } from './sealed-realms-production-activation-records.mjs';
+import { createSealedRealmsProductionActivationRecords, authenticateSealedRealmsProductionPtrExistingStateAdoption,
+  authenticateSealedRealmsProductionG002ExistingStateAdoption } from './sealed-realms-production-activation-records.mjs';
 import { readSealedRealmsProductionRecoveryCandidate } from './sealed-realms-production-recovery-candidate.mjs';
 import {
   createSealedRealmsProductionActivationDispatchContext,
@@ -182,8 +183,13 @@ async function buildDispatcher(operation, workflowInputSha, evidence, lifecycle)
   });
   const privateState = resolveSealedRealmsProductionWorkflowPrivateState();
   const continuationStore = createSealedRealmsProductionContinuationStore({ privateState });
+  const retainedDirectories = privateState.list({ root: 'runtime' });
+  const hasPtrAdoption = retainedDirectories.includes('ptr-existing-state-adoptions-v4');
+  const hasG002Adoption = retainedDirectories.includes('g002-existing-state-adoptions-v1');
+  if (hasG002Adoption && !hasPtrAdoption) fail('SEALED_REALMS_ACTIVATION_WORKFLOW_ADOPTION_INVALID');
   let existingStateAdoption;
-  if (privateState.list({ root: 'runtime' }).includes('ptr-existing-state-adoptions-v4')) {
+  let g002ExistingStateAdoption;
+  if (hasPtrAdoption) {
     // This separate source authority only reopens the historical update. It does
     // not receive an update permit or construct a provider capable of applying it.
     const retainedRecords = createSealedRealmsProductionActivationRecords({ privateState, authority });
@@ -191,8 +197,15 @@ async function buildDispatcher(operation, workflowInputSha, evidence, lifecycle)
     existingStateAdoption = await authenticateSealedRealmsProductionPtrExistingStateAdoption({
       records: retainedRecords, authority: updateAuthority, store: continuationStore,
     });
+    if (hasG002Adoption) {
+      const g002UpdateAuthority = sourceAuthority('g002-update-apply', workflowInputSha, verifyEvidence);
+      g002ExistingStateAdoption = await authenticateSealedRealmsProductionG002ExistingStateAdoption({
+        records: retainedRecords, authority: g002UpdateAuthority, store: continuationStore,
+      });
+    }
   }
-  const adoptionOptions = existingStateAdoption === undefined ? {} : { existingStateAdoption };
+  const adoptionOptions = { ...(existingStateAdoption === undefined ? {} : { existingStateAdoption }),
+    ...(g002ExistingStateAdoption === undefined ? {} : { g002ExistingStateAdoption }) };
   const bridgeState = createSealedRealmsProductionAuthBridgeState({
     authority,
     privateState,

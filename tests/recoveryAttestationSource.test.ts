@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
+import { recoveryG002PtrAdoptionCandidate } from './fixtures/recoveryG002PtrAdoptionCandidate';
 import { createRecoveryActivationBinding } from '../scripts/recovery-activation-candidate.mjs';
 import { createRecoveryActivationBindingFromCandidate } from '../scripts/recovery-activation-candidate.mjs';
 import { recoveryBindingKeys } from '../scripts/recovery-binding-projection.mjs';
@@ -56,7 +57,7 @@ it('derives identity from a real committed three-file activation child', () => {
   expect(result.recoveryAuthorizationCoreSha256).toMatch(/^[a-f0-9]{64}$/);
 });
 
-function commitPtrUpdateBinding(version: 3 | 4 = 3) {
+function commitPtrUpdateBinding(version: 3 | 4 | 5 = 3) {
   const path = 'config/releases/0.4.0-sealed-launch.json';
   const values = JSON.parse(readFileSync(join(root, path), 'utf8'));
   for (const key of Object.keys(values)) if (key.endsWith('Commitment')) values[key] = null;
@@ -67,6 +68,8 @@ function commitPtrUpdateBinding(version: 3 | 4 = 3) {
       ptrSealed: true, ptrPopulationGuardPassed: true, ptrSingletonOwnerCount: 1, ptrGeneralAdmissionCount: 0,
       ptrExpectedSealedStateHmacSha256: '7'.repeat(64), ptrExpectedOwnerInvariantHmacSha256: '6'.repeat(64) } : {}) });
   const candidate = Object.fromEntries(recoveryBindingKeys(version).map(key => [key, values[key]]));
+  if (version === 5) Object.assign(candidate, recoveryG002PtrAdoptionCandidate(),
+    Object.fromEntries(['preparationSourceCommit', 'preparationSourceTree', 'g001PolicySourceCommit', 'authBridgeSourceCommit'].map(key => [key, values[key]])));
   json(path, createRecoveryActivationBindingFromCandidate(`${JSON.stringify(candidate, null, 2)}\n`));
   git('add', path);
   git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--amend', '--no-edit', '--quiet');
@@ -75,7 +78,7 @@ function commitPtrUpdateBinding(version: 3 | 4 = 3) {
   return head;
 }
 
-it.each([3, 4] as const)('authenticates a committed V%s update binding and its preparation parent', version => {
+it.each([3, 4, 5] as const)('authenticates a committed V%s update binding and its preparation parent', version => {
   const head = commitPtrUpdateBinding(version);
   expect(readRecoveryAttestationSource(root).candidateCommit).toBe(head);
   const verified: string[] = [];
@@ -83,10 +86,10 @@ it.each([3, 4] as const)('authenticates a committed V%s update binding and its p
   expect(verified).toEqual([git('rev-parse', 'HEAD^'), head]);
 });
 
-it.skipIf(process.platform !== 'linux').each([3, 4] as const)('routes a committed V%s update binding through the native recovery lane', version => {
+it.skipIf(process.platform !== 'linux').each([3, 4, 5] as const)('routes a committed V%s update binding through the native recovery lane', version => {
   const head = commitPtrUpdateBinding(version);
   expect(classifySealedLaunchPagesDeployLane({ repositoryRoot: root, candidatePagesSourceCommit: head }))
-    .toEqual({ profile: version === 3 ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' : 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4', candidatePagesSourceCommit: head,
+    .toEqual({ profile: version === 5 ? 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5' : version === 3 ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' : 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4', candidatePagesSourceCommit: head,
       mode: 'sealed-g002-recovery' });
 });
 

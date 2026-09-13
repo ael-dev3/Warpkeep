@@ -6,13 +6,15 @@ import { claimSealedRealmsProductionContinuation, createSealedRealmsProductionCo
   issueSealedRealmsProductionContinuation } from '../../scripts/sealed-realms-production-continuation.mjs';
 import { createSealedRealmsProductionAuthBridgeState, createSealedRealmsProductionAuthBridgeStateTestCapability } from '../../scripts/sealed-realms-production-auth-bridge-state.mjs';
 import { readSealedRealmsProductionPtrExistingStateAdoptionEvidence,
-  type SealedRealmsProductionPtrExistingStateAdoptionEvidence } from '../../scripts/sealed-realms-production-activation-records.mjs';
+  type SealedRealmsProductionPtrExistingStateAdoptionEvidence,
+  type SealedRealmsProductionG002ExistingStateAdoptionEvidence } from '../../scripts/sealed-realms-production-activation-records.mjs';
 import type { SealedRealmsProductionPrivateState } from '../../scripts/sealed-realms-production-private-state.mjs';
 
-/** External producers are fixtures; the adoption reader, G002 gate, claims and disk chain are real. */
+/** External bridge producers are fixtures; adoption readers, claims and the disk chain are real. */
 export async function createPtrAdoptionBridgeFixture(input: Readonly<{
   privateState: SealedRealmsProductionPrivateState;
   existingStateAdoption: SealedRealmsProductionPtrExistingStateAdoptionEvidence;
+  g002ExistingStateAdoption?: SealedRealmsProductionG002ExistingStateAdoptionEvidence;
   authority: SealedRealmsProductionSourceAuthority;
   sourceCommit: string;
   g002AtlasImportReceiptDigest?: string;
@@ -50,8 +52,10 @@ export async function createPtrAdoptionBridgeFixture(input: Readonly<{
       : { disposition: 'no-effect' as const, ...context, noEffectDigest: '6'.repeat(64) };
   };
   const createBridge = (existingStateAdoption = input.existingStateAdoption,
-    privateState = input.privateState, authority = input.authority) => createSealedRealmsProductionAuthBridgeState({
+    privateState = input.privateState, authority = input.authority,
+    g002ExistingStateAdoption = input.g002ExistingStateAdoption) => createSealedRealmsProductionAuthBridgeState({
     authority, privateState, repositoryRoot: process.cwd(), existingStateAdoption,
+    ...(g002ExistingStateAdoption === undefined ? {} : { g002ExistingStateAdoption }),
     deploymentAttester: () => ({ deploymentId, workerVersionId, bridgeSourceCommit: sourceCommit,
       controlPlaneAttestationDigest: 'c'.repeat(64), publicAttestationDigest: 'd'.repeat(64),
       privateAttestationDigest: 'e'.repeat(64), observedAt: sampled.toISOString() }),
@@ -98,6 +102,10 @@ export async function createPtrAdoptionBridgeFixture(input: Readonly<{
   };
   const bridgeState = createBridge();
   const store = createSealedRealmsProductionContinuationStore({ privateState: input.privateState });
+  if (input.g002ExistingStateAdoption !== undefined) {
+    await bridgeState.inspect();
+    return { bridgeState, createBridge, sourceAuthorityFor, store, run, sampled, adoption };
+  }
   const binding = await bridgeState.inspectGateForContinuation({ lane: 'g002' });
   const issued = await run('g002-import-inspect', '88001');
   await issueSealedRealmsProductionContinuation({ store, ...issued, kind: 'g002-import', ...binding });

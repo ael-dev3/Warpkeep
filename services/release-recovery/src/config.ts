@@ -69,12 +69,19 @@ export const RECOVERY_REALM_BINDING_PROJECTION_KEYS_V4 = Object.freeze([
   'ptrExpectedSealedStateHmacSha256', 'ptrExpectedOwnerInvariantHmacSha256',
 ] as const)
 
+export const RECOVERY_REALM_BINDING_PROJECTION_KEYS_V5 = Object.freeze([
+  ...RECOVERY_REALM_BINDING_PROJECTION_KEYS_V4,
+  'g002StateEvidenceProfile', 'g002ExistingStateAdoptionReceiptDigest',
+  'g002ExpectedSealedStateHmacSha256',
+] as const)
+
 /** Choose a shape without invoking a caller-owned discriminator accessor. */
 export function recoveryRealmBindingProjectionKeys(value: unknown,
   code = 'RECOVERY_REALM_BINDING_INVALID'): readonly string[] {
   try {
     if (value === null || typeof value !== 'object') githubFail(code)
-    return Object.hasOwn(value, 'ptrStateEvidenceProfile')
+    return Object.hasOwn(value, 'g002StateEvidenceProfile') ? RECOVERY_REALM_BINDING_PROJECTION_KEYS_V5
+      : Object.hasOwn(value, 'ptrStateEvidenceProfile')
       ? RECOVERY_REALM_BINDING_PROJECTION_KEYS_V4 : RECOVERY_REALM_BINDING_PROJECTION_KEYS
   } catch { githubFail(code) }
 }
@@ -130,10 +137,14 @@ type RecoveryRealmBindingBase = Readonly<{
   ptrVerificationDigest: string
 }>
 
-export type RecoveryRealmBindingProjection = RecoveryRealmBindingBase | (RecoveryRealmBindingBase &
-  Readonly<{ ptrStateEvidenceProfile: 'warpkeep-ptr-existing-state-adoption-v1';
+type PtrAdoptionBinding = Readonly<{ ptrStateEvidenceProfile: 'warpkeep-ptr-existing-state-adoption-v1';
     ptrExistingStateAdoptionReceiptDigest: string; ptrExpectedSealedStateHmacSha256: string;
     ptrExpectedOwnerInvariantHmacSha256: string }>
+export type RecoveryRealmBindingProjection = RecoveryRealmBindingBase | (RecoveryRealmBindingBase & PtrAdoptionBinding) | (
+  RecoveryRealmBindingBase & PtrAdoptionBinding & Readonly<{
+    g002StateEvidenceProfile: 'warpkeep-g002-existing-state-adoption-v1';
+    g002ExistingStateAdoptionReceiptDigest: string; g002ExpectedSealedStateHmacSha256: string;
+  }>
 )
 
 export type RecoveryArmingTuple = RecoveryRealmBindingProjection & Readonly<{
@@ -218,11 +229,16 @@ export function snapshotRecoveryRealmBindingProjection(
     || !RECOVERY_PUBLIC_APPROVAL_RECEIPT_ID.test(source.ptrPublicApprovalReceiptId)
     || !commit(source.ptrAtlasSourceCommit)
   ) githubFail(code)
-  if (keys === RECOVERY_REALM_BINDING_PROJECTION_KEYS_V4 && (
+  if ((keys === RECOVERY_REALM_BINDING_PROJECTION_KEYS_V4 || keys === RECOVERY_REALM_BINDING_PROJECTION_KEYS_V5) && (
     source.ptrStateEvidenceProfile !== 'warpkeep-ptr-existing-state-adoption-v1'
     || !sha(source.ptrExistingStateAdoptionReceiptDigest)
     || !sha(source.ptrExpectedSealedStateHmacSha256)
     || !sha(source.ptrExpectedOwnerInvariantHmacSha256)
+  )) githubFail(code)
+  if (keys === RECOVERY_REALM_BINDING_PROJECTION_KEYS_V5 && (
+    source.g002StateEvidenceProfile !== 'warpkeep-g002-existing-state-adoption-v1'
+    || !sha(source.g002ExistingStateAdoptionReceiptDigest)
+    || !sha(source.g002ExpectedSealedStateHmacSha256)
   )) githubFail(code)
   return Object.freeze({ ...source }) as RecoveryRealmBindingProjection
 }

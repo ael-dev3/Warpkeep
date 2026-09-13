@@ -101,15 +101,15 @@ export function verifySealedLaunchSources(
   sources: Readonly<Record<string, string>>,
   requestedPhase?: 'preparation' | 'activation' | 'checked-in',
 ): Readonly<{
-  schemaVersion: 1 | 2 | 3 | 4;
-  profile: typeof SEALED_LAUNCH_PROFILE | 'warpkeep-0.4.0-sealed-launch-v2' | 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' | 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4';
+  schemaVersion: 1 | 2 | 3 | 4 | 5;
+  profile: typeof SEALED_LAUNCH_PROFILE | 'warpkeep-0.4.0-sealed-launch-v2' | 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' | 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4' | 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5';
   phase: 'preparation' | 'activation';
   packageVersion: '0.3.43' | '0.4.0';
   pagesDeploymentApproved: boolean;
   g001ReleaseVersion: '0.3.43' | null;
   g002DatabaseIdentity: string | null;
   ptrDatabaseIdentity: string | null;
-  /** V4 carries preserved-state evidence and omits this historical presentation claim. */
+  /** V4/V5 carry preserved-state evidence and omit this historical presentation claim. */
   ptrPresentationEnabled?: boolean;
 }>;
 
@@ -129,7 +129,7 @@ export function classifySealedLaunchPagesDeployLane(input: Readonly<{
   repositoryRoot?: string;
   candidatePagesSourceCommit: string;
 }>): Readonly<{
-  profile: typeof SEALED_LAUNCH_PROFILE | 'warpkeep-0.4.0-sealed-launch-v2' | 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' | 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4';
+  profile: typeof SEALED_LAUNCH_PROFILE | 'warpkeep-0.4.0-sealed-launch-v2' | 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' | 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4' | 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5';
   candidatePagesSourceCommit: string;
   mode: 'sealed-launch-blocked' | 'sealed-g002' | 'sealed-g002-recovery';
 }>;

@@ -240,6 +240,30 @@ export const RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V4: Readonly<Record<string, str
 const V4_COMMITMENT_KEYS = new Set(['g001FreezePublishReceiptCommitment', ...Object.keys(RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V4)])
 const V4_RECEIPT_SNAPSHOT_KEYS = RECOVERY_BINDING_KEYS_V4.filter(key => !V4_COMMITMENT_KEYS.has(key))
 
+const G002_ADOPTION_KEYS = Object.freeze([
+  'g002ExistingUpdateReceiptDigest', 'g002ExistingUpdateReceiptCommitment',
+  'g002ExistingStateAdoptionReceiptDigest', 'g002ExistingStateAdoptionReceiptCommitment',
+  'g002DatabaseIdentity', 'g002ExpectedProgramKeccak256', 'g002ModuleSourceCommit',
+  'g002ModuleSha256', 'g002ModuleTreeId', 'g002DependencyClosureDigest',
+  'g002SpacetimeExecutableSha256', 'g002SpacetimeCliConfigSha256',
+  'g002AtlasSourceCommit', 'g002AtlasId', 'g002PublicReleaseId', 'g002PublicApprovalReceiptId',
+  'g002ReleaseVersion', 'g002ReleaseSha256', 'g002ReleaseHeaderSha256', 'g002VerificationDigest',
+  'g002AtlasReady', 'g002Sealed', 'g002PopulationGuardPassed', 'g002PlayerCount',
+  'g002GeneralAdmissionCount', 'g002AdmissionsOpen', 'g002AccessRequestsOpen',
+  'g002ExpectedSealedStateHmacSha256',
+] as const)
+export const RECOVERY_BINDING_KEYS_V5: readonly string[] = Object.freeze(RECOVERY_BINDING_KEYS_V4.flatMap(key =>
+  key === 'g002PublishReceiptDigest' ? [...G002_ADOPTION_KEYS]
+    : key.startsWith('g002') || key === 'admissionNotificationsEnabled' ? [] : [key],
+))
+export const RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V5: Readonly<Record<string, string>> = Object.freeze({
+  ...Object.fromEntries(Object.entries(RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V4).filter(([key]) => !key.startsWith('g002'))),
+  g002ExistingUpdateReceiptCommitment: 'g002ExistingUpdateReceiptDigest',
+  g002ExistingStateAdoptionReceiptCommitment: 'g002ExistingStateAdoptionReceiptDigest',
+})
+const V5_COMMITMENT_KEYS = new Set(['g001FreezePublishReceiptCommitment', ...Object.keys(RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V5)])
+const V5_RECEIPT_SNAPSHOT_KEYS = RECOVERY_BINDING_KEYS_V5.filter(key => !V5_COMMITMENT_KEYS.has(key))
+
 export type GitHubCandidateEvidence = Readonly<{
   currentMainCommit: string
   parentCommit: string
@@ -781,11 +805,16 @@ function bindingRealmProjection(binding: GitHubJsonObject): RecoveryRealmBinding
     ptrExpectedReleaseSha256: binding.ptrExpectedReleaseSha256,
     ptrReleaseHeaderSha256: binding.ptrReleaseHeaderSha256,
     ptrVerificationDigest: binding.ptrVerificationDigest,
-    ...(binding.schemaVersion === 4 ? {
+    ...(binding.schemaVersion === 4 || binding.schemaVersion === 5 ? {
       ptrStateEvidenceProfile: 'warpkeep-ptr-existing-state-adoption-v1',
       ptrExistingStateAdoptionReceiptDigest: binding.ptrExistingStateAdoptionReceiptDigest,
       ptrExpectedSealedStateHmacSha256: binding.ptrExpectedSealedStateHmacSha256,
       ptrExpectedOwnerInvariantHmacSha256: binding.ptrExpectedOwnerInvariantHmacSha256,
+    } : {}),
+    ...(binding.schemaVersion === 5 ? {
+      g002StateEvidenceProfile: 'warpkeep-g002-existing-state-adoption-v1',
+      g002ExistingStateAdoptionReceiptDigest: binding.g002ExistingStateAdoptionReceiptDigest,
+      g002ExpectedSealedStateHmacSha256: binding.g002ExpectedSealedStateHmacSha256,
     } : {}),
   })
 }
@@ -810,12 +839,13 @@ async function validateBinding(
   bindingRequestId: unknown,
 ): Promise<RecoveryRealmBindingProjection> {
   const binding = parseGitHubJsonObject(bytes, 'RECOVERY_GITHUB_EVIDENCE_INVALID', [])
-  if (binding.schemaVersion !== 2 && binding.schemaVersion !== 3 && binding.schemaVersion !== 4) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  if (binding.schemaVersion !== 2 && binding.schemaVersion !== 3 && binding.schemaVersion !== 4 && binding.schemaVersion !== 5) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   const update = binding.schemaVersion === 3
-  const adoption = binding.schemaVersion === 4
-  const bindingKeys = adoption ? RECOVERY_BINDING_KEYS_V4 : update ? RECOVERY_BINDING_KEYS_V3 : BINDING_KEYS
-  const receiptKeys = adoption ? V4_RECEIPT_SNAPSHOT_KEYS : update ? V3_RECEIPT_SNAPSHOT_KEYS : RECEIPT_SNAPSHOT_KEYS
-  const commitments = adoption ? RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V4 : update ? RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V3 : RECEIPT_COMMITMENTS
+  const dualAdoption = binding.schemaVersion === 5
+  const adoption = binding.schemaVersion === 4 || dualAdoption
+  const bindingKeys = dualAdoption ? RECOVERY_BINDING_KEYS_V5 : adoption ? RECOVERY_BINDING_KEYS_V4 : update ? RECOVERY_BINDING_KEYS_V3 : BINDING_KEYS
+  const receiptKeys = dualAdoption ? V5_RECEIPT_SNAPSHOT_KEYS : adoption ? V4_RECEIPT_SNAPSHOT_KEYS : update ? V3_RECEIPT_SNAPSHOT_KEYS : RECEIPT_SNAPSHOT_KEYS
+  const commitments = dualAdoption ? RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V5 : adoption ? RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V4 : update ? RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V3 : RECEIPT_COMMITMENTS
   if (
     Object.keys(binding).length !== bindingKeys.length
     || bindingKeys.some((key, index) => Object.keys(binding)[index] !== key)
@@ -828,7 +858,7 @@ async function validateBinding(
   }
   if (!equalBytes(bytes, canonical)) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   if (
-    binding.profile !== (adoption ? 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4' : update ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' : BINDING_PROFILE)
+    binding.profile !== (dualAdoption ? 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5' : adoption ? 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4' : update ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' : BINDING_PROFILE)
     || binding.authorizationMode !== AUTHORIZATION_MODE
     || binding.authorizationMode !== armed.authorizationMode
     || binding.recoveryAuthorizationProfile !== AUTHORIZATION_PROFILE
@@ -885,6 +915,12 @@ async function validateBinding(
     || binding.ptrGeneralAdmissionCount !== 0 || binding.ptrAdmissionsOpen !== false
     || binding.ptrAccessRequestsOpen !== false
   )) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  if (dualAdoption && (
+    binding.g002ReleaseVersion !== '0.4.0' || binding.g002AtlasReady !== true
+    || binding.g002Sealed !== true || binding.g002PopulationGuardPassed !== true
+    || binding.g002PlayerCount !== 0 || binding.g002GeneralAdmissionCount !== 0
+    || binding.g002AdmissionsOpen !== false || binding.g002AccessRequestsOpen !== false
+  )) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   const source = jsonRecord(binding)
   const receiptSnapshot: Record<string, JsonValue> = Object.create(null)
   for (const key of receiptKeys) {
@@ -893,7 +929,7 @@ async function validateBinding(
   for (const [commitmentKey, digestKey] of Object.entries(commitments)) {
     if (!sha(source[digestKey]) || !sha(source[commitmentKey])) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     const expected = await sha256Hex(
-      `warpkeep.0.4.0.recovery-sealed-launch.${commitmentKey}.v${adoption ? 4 : update ? 3 : 2}\n`,
+      `warpkeep.0.4.0.recovery-sealed-launch.${commitmentKey}.v${dualAdoption ? 5 : adoption ? 4 : update ? 3 : 2}\n`,
       serializeExactObject(receiptKeys, receiptSnapshot as never),
     )
     if (source[commitmentKey] !== expected) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
@@ -904,7 +940,7 @@ async function validateBinding(
   const coreProjection: Record<string, JsonValue> = Object.create(null)
   for (const key of bindingKeys) coreProjection[key] = key === 'recoveryAuthorizationCoreSha256' ? null : source[key]!
   const expectedCore = await sha256Hex(
-    `warpkeep.0.4.0.recovery-authorization-core.v${adoption ? 4 : update ? 3 : 1}\n`,
+    `warpkeep.0.4.0.recovery-authorization-core.v${dualAdoption ? 5 : adoption ? 4 : update ? 3 : 1}\n`,
     serializeExactObject(bindingKeys, coreProjection as never),
   )
   if (binding.recoveryAuthorizationCoreSha256 !== expectedCore) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')

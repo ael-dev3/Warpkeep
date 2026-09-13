@@ -1,8 +1,9 @@
 import {
-  RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3, RECOVERY_BINDING_KEYS_V4,
+  RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3, RECOVERY_BINDING_KEYS_V4, RECOVERY_BINDING_KEYS_V5,
   parseRecoveryBindingDocumentV2, parseRecoveryBindingDocumentV3, parseRecoveryBindingDocumentV4, parseRecoveryBindingDocument,
   recoveryReceiptCommitmentV2, recoveryReceiptCommitmentV3, recoveryReceiptCommitmentV4,
   recoveryAuthorizationCoreSha256, recoveryAuthorizationCoreSha256V3, recoveryAuthorizationCoreSha256V4,
+  parseRecoveryBindingDocumentV5, recoveryReceiptCommitmentV5, recoveryAuthorizationCoreSha256V5,
 } from './recovery-binding-projection.mjs';
 
 const fixed = Object.freeze({
@@ -138,6 +139,13 @@ const fixedV4 = Object.freeze({
 });
 const receiptKeysV4 = RECOVERY_BINDING_KEYS_V4.filter(key => key.endsWith('Commitment')
   && key !== 'g001FreezePublishReceiptCommitment');
+const fixedV5 = Object.freeze({
+  ...fixedV4, schemaVersion: 5, profile: 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5',
+  g002ReleaseVersion: '0.4.0', g002Sealed: true, g002PopulationGuardPassed: true,
+  g002PlayerCount: 0, g002GeneralAdmissionCount: 0, g002AdmissionsOpen: false, g002AccessRequestsOpen: false,
+});
+const receiptKeysV5 = RECOVERY_BINDING_KEYS_V5.filter(key => key.endsWith('Commitment')
+  && key !== 'g001FreezePublishReceiptCommitment');
 function versionPolicy(version) {
   if (version === 2) return { keys: RECOVERY_BINDING_KEYS_V2, policy: fixed, receiptKeys,
     parse: parseRecoveryBindingDocumentV2, commitment: recoveryReceiptCommitmentV2, core: recoveryAuthorizationCoreSha256 };
@@ -145,6 +153,8 @@ function versionPolicy(version) {
     parse: parseRecoveryBindingDocumentV3, commitment: recoveryReceiptCommitmentV3, core: recoveryAuthorizationCoreSha256V3 };
   if (version === 4) return { keys: RECOVERY_BINDING_KEYS_V4, policy: fixedV4, receiptKeys: receiptKeysV4,
     parse: parseRecoveryBindingDocumentV4, commitment: recoveryReceiptCommitmentV4, core: recoveryAuthorizationCoreSha256V4 };
+  if (version === 5) return { keys: RECOVERY_BINDING_KEYS_V5, policy: fixedV5, receiptKeys: receiptKeysV5,
+    parse: parseRecoveryBindingDocumentV5, commitment: recoveryReceiptCommitmentV5, core: recoveryAuthorizationCoreSha256V5 };
   fail();
 }
 
@@ -168,6 +178,9 @@ export function parseRecoveryBindingV3(source) { return parseBinding(source, 3);
 export function validateRecoveryActivationCandidateV4(source) { return validateCandidate(source, 4); }
 export function createRecoveryActivationBindingV4(source) { return createBinding(source, 4); }
 export function parseRecoveryBindingV4(source) { return parseBinding(source, 4); }
+export function validateRecoveryActivationCandidateV5(source) { return validateCandidate(source, 5); }
+export function createRecoveryActivationBindingV5(source) { return createBinding(source, 5); }
+export function parseRecoveryBindingV5(source) { return parseBinding(source, 5); }
 
 /** Static consistency dispatch only; a receipt digest is not authenticated by hashing it. */
 export function validateRecoveryActivationCandidateDocument(source) {

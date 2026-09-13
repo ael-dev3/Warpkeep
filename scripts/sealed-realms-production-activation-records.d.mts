@@ -1,8 +1,8 @@
 import type { SealedRealmsProductionContinuationStore } from './sealed-realms-production-continuation.mjs';
-import type { verifyPtrUpdateObservationPair } from '../services/release-recovery/src/ptrObservation.ts';
+import type { verifyPtrUpdateObservationPair, verifyG002UpdateObservationPair } from '../services/release-recovery/src/ptrObservation.ts';
 import type { SealedRealmsProductionPrivateState } from './sealed-realms-production-private-state.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
-import type { PtrExistingUpdateCompletion, PtrExistingStateAdoption, PtrExistingUpdateReceipt } from './ptr-production-existing-update-adapter.mjs';
+import type { PtrExistingUpdateCompletion, PtrExistingStateAdoption, PtrExistingUpdateReceipt, G002ExistingUpdateCompletion, G002ExistingStateAdoption, G002ExistingUpdateReceipt } from './ptr-production-existing-update-adapter.mjs';
 
 export class SealedRealmsProductionActivationRecordsError extends Error {
   readonly code: string;
@@ -26,6 +26,8 @@ export function createSealedRealmsProductionActivationRecords(input: Readonly<{
   authority: SealedRealmsProductionSourceAuthority;
   /** Authenticated retained evidence required for the schema-4 adoption corpus. */
   existingStateAdoption?: SealedRealmsProductionPtrExistingStateAdoptionEvidence;
+  /** Schema 5 requires both authenticated realm adoptions. */
+  g002ExistingStateAdoption?: SealedRealmsProductionG002ExistingStateAdoptionEvidence;
   /** Required for descriptors; omitted for candidate-independent receipt reads. */
   readBindingCandidate?: (preparationSourceCommit: string,
     receiptProjection?: SealedRealmsProductionRecoveryReceiptProjection,
@@ -56,7 +58,21 @@ export function writeSealedRealmsProductionPtrExistingStateAdoptionRecord(input:
   adoption: PtrExistingStateAdoption;
 }>): Promise<Readonly<{ receiptDigest: string; recordDigest: string }>>;
 
-/** Reopens the exact S-bound V2/V3/V4 corpus without a candidate, private bodies or writes. */
+/** Fixed private capture only; no caller receipt body, digest or path is accepted. */
+export function writeSealedRealmsProductionG002ExistingUpdateRecord(input: Readonly<{
+  records: SealedRealmsProductionActivationRecords;
+  authority: SealedRealmsProductionSourceAuthority;
+  completion: G002ExistingUpdateCompletion;
+}>): Readonly<{ receiptDigest: string; recordDigest: string }>;
+
+/** Private signed G002 evidence only; does not authorize an effect or activate a release. */
+export function writeSealedRealmsProductionG002ExistingStateAdoptionRecord(input: Readonly<{
+  records: SealedRealmsProductionActivationRecords;
+  authority: SealedRealmsProductionSourceAuthority;
+  adoption: G002ExistingStateAdoption;
+}>): Promise<Readonly<{ receiptDigest: string; recordDigest: string }>>;
+
+/** Reopens the exact S-bound V2/V3/V4/V5 corpus without a candidate, private bodies or writes. */
 export function readSealedRealmsProductionRecoveryReceiptProjection(
   records: SealedRealmsProductionActivationRecords,
   verificationTime?: string,
@@ -75,12 +91,13 @@ export function validateSealedRealmsProductionRecoveryActivationEvidence(
   envelope: unknown,
   verificationTime?: string,
   existingStateAdoption?: SealedRealmsProductionPtrExistingStateAdoptionEvidence,
+  g002ExistingStateAdoption?: SealedRealmsProductionG002ExistingStateAdoptionEvidence,
 ): Readonly<Record<string, unknown>>;
 
 export function inspectSealedRealmsProductionRecoveryActivationRecords(
   records: SealedRealmsProductionActivationRecords,
   verificationTime?: string,
-): Readonly<{ sourceCommit: string; schemaVersion: 2 | 3 | 4; descriptorSha256: string }>;
+): Readonly<{ sourceCommit: string; schemaVersion: 2 | 3 | 4 | 5; descriptorSha256: string }>;
 
 /** Reads a canonical candidate and its complete version-specific private receipt corpus. */
 export function writeSealedRealmsProductionRecoveryActivationDescriptor(input: Readonly<{
@@ -109,4 +126,21 @@ export function readSealedRealmsProductionPtrExistingStateAdoptionEvidence(input
 }>): Readonly<{ sourceCommit: string; sourceTree: string; adoptionReceiptDigest: string;
   completionReceipt: PtrExistingUpdateReceipt;
   pair: Awaited<ReturnType<typeof verifyPtrUpdateObservationPair>>;
+}>;
+
+/** Opaque retained historical evidence, not an effect or activation capability. */
+declare const retainedG002AdoptionBrand: unique symbol;
+export type SealedRealmsProductionG002ExistingStateAdoptionEvidence = Readonly<{ [retainedG002AdoptionBrand]: true }>;
+export function authenticateSealedRealmsProductionG002ExistingStateAdoption(input: Readonly<{
+  records: SealedRealmsProductionActivationRecords;
+  authority: SealedRealmsProductionSourceAuthority;
+  store: SealedRealmsProductionContinuationStore;
+}>): Promise<SealedRealmsProductionG002ExistingStateAdoptionEvidence>;
+export function readSealedRealmsProductionG002ExistingStateAdoptionEvidence(input: Readonly<{
+  evidence: SealedRealmsProductionG002ExistingStateAdoptionEvidence;
+  privateState: SealedRealmsProductionPrivateState;
+  sourceCommit: string;
+}>): Readonly<{ sourceCommit: string; sourceTree: string; adoptionReceiptDigest: string;
+  completionReceipt: G002ExistingUpdateReceipt;
+  pair: Awaited<ReturnType<typeof verifyG002UpdateObservationPair>>;
 }>;
