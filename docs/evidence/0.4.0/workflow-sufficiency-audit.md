@@ -34,6 +34,18 @@ The workflow now supports reviewed development, native preparation, protected in
   claiming shipment. Keep the sync automation paused and create no new Desktop
   files.
 
+## Product acceptance priorities
+
+The implemented economy, Verdant Citadel renderer and water foundation should be
+judged through a complete owner session before adding another system. The next
+player-facing pass should make expedition duration and return timing readable,
+make each civic building's benefit obvious at the moment it is earned, and keep
+the first build and improved return understandable on a narrow phone view. Use
+diagnostics that explain a warning or blocked action instead of exposing raw
+counts. Keep the renderer and world rules bounded; measured play, accessibility
+and device performance should decide targeted fixes rather than another engine
+rewrite.
+
 ## Required order from here
 
 1. Establish genuine provider/publisher and actual-owner authority, re-attest the
