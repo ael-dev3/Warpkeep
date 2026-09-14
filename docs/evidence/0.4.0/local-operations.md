@@ -2,17 +2,19 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Current accepted-main source and protected checks — 13 September 2026
+## Current accepted-main source and protected checks — 14 September 2026
 
-Protected `main` is signed commit `810286c95f39cf6e41f121162fa5dab250a77a16` (tree `1f16891a52ba1bf8194ba7d1ca5154a5b5481412`), the exact M2 squash
-merge of PR #247. Fresh main Verify `34760814489` completed successfully across
-Linux, SpacetimeDB, recovery, native-contract, auth-bridge and aggregate
-verification. The native operating checkout is clean and pinned to the same
-commit after an idle-process check; RunnerService PID203 and Runner.Listener
-PID224 remain alive. The saved Codex sync automation is paused, and no scheduled
+Protected `main` is `a452e9feb5c3383a446ae3fdd5dfd255a869d984`, the exact PR #252
+squash merge after the integrated PR #250 mobile schematic and PR #251
+documentation passes. Verify `34800429035` completed successfully across Linux,
+SpacetimeDB, recovery, native-contract, auth-bridge and aggregate verification;
+CodeQL `34800429052` also passed. The source and docs checkouts are clean at
+that exact SHA. The saved Codex sync automation is paused, and no scheduled
 GitHub workflow exists.
 
-Source PR #249 is now protected-merged as `61b8a03d04fcae2db3913d10e2025fa6c3e8529f`; post-merge Verify `34770379931` passed every required lane. Documentation PR #248 is the current evidence refresh; resolve its live head and required checks before integration.
+Pages classify `34803660169` passed but skipped build/deploy under the current
+release classification. The live site remains the established Genesis UI, so
+this record does not claim a live 0.4 release.
 
 The read-only sealed-realms preflight `34763502943` passed against `810286c95f39cf6e41f121162fa5dab250a77a16` and
 returned `{"operation":"preflight","status":"preflight-inspected"}`. It

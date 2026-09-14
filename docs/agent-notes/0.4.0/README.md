@@ -7,18 +7,21 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-The accepted baseline is signed M2 commit `810286c95f39cf6e41f121162fa5dab250a77a16`.
-Its complete Verify run and sealed read-only preflight passed; this proves the
-integrated source and operating rails, not a live 0.4 deployment. PR #228 and
-the earlier M1/G002 integration branches are historical. Resolve active work
-through current refs, open pull requests and the [execution handoff](execution-handoff.md),
-which owns exact source, CI, native and environment identities.
+The accepted source is protected `main` at `a452e9feb5c3383a446ae3fdd5dfd255a869d984`,
+the squash merge of PR #252. PR #250's mobile schematic readability pass and
+PR #251's documentation alignment pass are also integrated. Verify
+`34800429035` and CodeQL `34800429052` passed on that exact SHA; no pull
+requests are open. This proves the source and protected CI rails, not a live
+0.4 deployment. The [execution handoff](execution-handoff.md) owns exact
+source, CI, native and environment identities.
 
-The product follow-up in [PR #249](https://github.com/ael-dev3/Warpkeep/pull/249)
-is now protected-merged as `61b8a03d`. It guides a new Keep through its first
-useful journey and keeps Alpha copy truthful about isolated 0.4 access. The
-evidence and operating refresh is in [PR #248](https://github.com/ael-dev3/Warpkeep/pull/248)
-; resolve its live head and checks before integrating the documentation branch.
+PR #252 adds a narrow-canvas façade-biased overview and preserves manual camera
+orientation and vertical framing across resize. It is presentation-only:
+footprints, picking, placement authority, progression and asset budgets stay
+unchanged. GitHub Pages classify run `34803660169` passed but skipped build and
+deploy under the current release classification; warpkeep.com still serves
+the established Genesis UI. Treat live 0.4 as not shipped until owner/provider,
+recovery and deployment evidence is complete.
 
 - **Development and live release are separate.** `main` contains the 0.4
   development source alongside preserved G001 behavior. The integrated 0.4

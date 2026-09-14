@@ -2,27 +2,25 @@
 
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main),
 the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
-Protected main is signed M2 `810286c95f39cf6e41f121162fa5dab250a77a16` (tree `1f16891a52ba1bf8194ba7d1ca5154a5b5481412`) after PR #247's exact
-generated-only promotion. Fresh main Verify `34760814489` passed every required
-context, and sealed read-only preflight `34763502943` returned `preflight-inspected`.
-Source PR #249 is now protected-merged as `61b8a03d04fcae2db3913d10e2025fa6c3e8529f`; post-merge Verify `34770379931` passed every required lane. Documentation PR #248 is the only active review and is not yet integrated. Native source is synchronized to M2; genuine provider/owner authority, live
-recovery/readback, preservation/denial, physical-device acceptance and final
-deployment remain open. Earlier source families and candidate identities below
-are historical, source-bound evidence; documentation follow-ups do not create a
-new release candidate. **0.4 is not shipped.**
+Protected main is `a452e9feb5c3383a446ae3fdd5dfd255a869d984` after PR #252's
+mobile overview merge. Verify `34800429035` and CodeQL `34800429052` passed every
+required context. Pages classify `34803660169` passed but skipped build/deploy
+under the current release classification, so the live site remains Genesis.
+Genuine provider/owner authority, live recovery/readback, preservation/denial,
+physical-device acceptance and final deployment remain open. Earlier source
+families and candidate identities below are historical, source-bound evidence;
+the current 0.4 development source is green in protected CI but **not shipped**.
 
 Each dated section retains its exact source and scope. Earlier missing-component
 entries are history when a later section demonstrates their implementation;
 component success does not establish unrecorded production acceptance.
 
-## Current accepted-main M2 checkpoint — 13 September 2026
+## Current accepted-main source checkpoint — 14 September 2026
 
-Protected `main` is signed commit `810286c95f39cf6e41f121162fa5dab250a77a16` (tree `1f16891a52ba1bf8194ba7d1ca5154a5b5481412`), the GitHub-verified
-squash of PR #247's exact generated-only promotion. Fresh main Verify
-`34760814489` passed every required context. Native M1 preparation/check remains
-source-bound to candidate `release-workspace-83bf0da57a1a622d84742c445f8450a9`
-with family `0c97e825844d58ad3417a0298eb75a81c67f3bc1595863a9083c41d5bd648899`
-and closure `13b8ec2559712b93560c62babe47e0e79dae4fa656da638d108f66e8f7a4e835`.
+Protected `main` is `a452e9feb5c3383a446ae3fdd5dfd255a869d984`, the GitHub-verified
+squash of PR #252. Verify `34800429035` and CodeQL `34800429052` passed every
+required context. The source M1 preparation/check remains source-bound to its
+recorded candidate and is not a release grant.
 
 Sealed read-only preflight `34763502943` passed against `810286c95f39cf6e41f121162fa5dab250a77a16` and emitted
 `{"operation":"preflight","status":"preflight-inspected"}`. No live

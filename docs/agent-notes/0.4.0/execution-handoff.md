@@ -1,26 +1,24 @@
 # Continue Warpkeep 0.4
 
-## Current accepted-main checkpoint — 13 September 2026 (post source merge)
+## Current accepted-main checkpoint — 14 September 2026 (mobile overview merged)
 
-Protected `main` is signed commit `61b8a03d04fcae2db3913d10e2025fa6c3e8529f`.
-It is the protected squash merge of source PR #249, reviewed at head
-`d3bfe6f1df957ff59c29acc46a5b721407412d6d`, on top of signed M2
-`810286c95f39cf6e41f121162fa5dab250a77a16` (tree
-`1f16891a52ba1bf8194ba7d1ca5154a5b5481412`). Fresh post-merge main Verify
-run `34770379931` passed every required lane on the protected source merge;
-calling this source checkpoint green.
+Protected `main` is now `a452e9feb5c3383a446ae3fdd5dfd255a869d984`, the exact
+squash merge of PR #252 on top of the accepted M2/source/docs history. PR #250's
+mobile schematic readability pass and PR #251's documentation alignment pass
+are already integrated. Verify `34800429035` and CodeQL `34800429052` both
+passed on this exact SHA; no pull requests remain open.
 
-The documentation refresh is tracked by PR #248. Resolve its current
-head and required checks live, then integrate it only after terminal passing
-checks through the normal protected path. Older stacked
-PRs #237–243 are now closed as superseded; their remote branches remain
-available for history, while signed main contains their accepted product and
-operating changes.
+PR #252 gives the narrow scene canvas a 15-degree façade-biased overview below
+the 1.3 mobile canvas aspect while retaining the desktop diagonal. Once a
+player manually pans or zooms, resize keeps the camera orientation and vertical
+framing and adjusts only the horizontal projection. Footprints, picking,
+placement authority, level expression and asset budgets are unchanged.
 
-The native `/home/warpkeep/Warpkeep-0.4` checkout remains clean and detached at
-the exact M2 commit while the current verification runs own their inputs.
-RunnerService PID203 and Runner.Listener PID224 remain alive. The accepted-main
-M1 preparation/check identities remain source-bound release evidence: candidate
+The native `/home/warpkeep/Warpkeep-0.4` checkout remains a protected, pinned
+M2 operating input and must not be moved while owned preparation or checking is
+active. The current source checkout is clean at `a452e9f`; the source, docs and
+standalone clones have been independently read back at that exact SHA. The
+accepted-main M1 preparation/check identities remain source-bound release evidence: candidate
 `release-workspace-83bf0da57a1a622d84742c445f8450a9`, transaction
 `d0297bcb6821e4f1d5fbdf37cbd16f66`, family
 `0c97e825844d58ad3417a0298eb75a81c67f3bc1595863a9083c41d5bd648899`, closure
@@ -38,10 +36,11 @@ remain disabled; the repository has no scheduled GitHub workflow. Continue
 manual fetch, complete-range secret scan, normal commit/push and remote-SHA
 verification for each reviewable checkpoint. Update the existing Desktop handoff
 in place only; create no new Desktop files, backups or archives. The current
-completion estimate remains about **83%** (78–88% judgment range): source
-integration and M2 rails are complete, while provider/owner authority, live
-recovery and deployment, G001 preservation and sealed G002 evidence,
-physical-device performance and final mobile acceptance remain open.
+completion estimate is about **85%** (80–88% judgment range): source, docs,
+mobile visual foundation and protected CI are complete for this increment, while
+provider/owner authority, live recovery and deployment, G001 preservation and
+sealed G002 evidence, physical-device performance and final mobile acceptance
+remain open.
 
 The merged source follow-up gives a new keep a first-journey cue qualified by
 untouched Worker assignment revisions, keeps it through refresh/pending views,
