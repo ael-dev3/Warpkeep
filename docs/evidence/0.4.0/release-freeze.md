@@ -2,34 +2,9 @@
 
 Status: **generated-family refresh merged; final release freeze open**.
 
-Protected `main` is now `3af84aa892a9222b8c6286d01e2fb50fb248f43e`; PR #256
-updated the release records after PR #255 merged the generated-family refresh. Post-merge CodeQL `34833483317` and Verify
-`34833483264` completed successfully. Read-only sealed preflight `34838183075`
-passed for this exact merged source and emitted
-`{"operation":"preflight","status":"preflight-inspected"}`. The Linux native
-preparation and independent check that supplied the merged family completed
-for its ancestor preparation input, candidate
-`release-workspace-6c6d10e57c03ce0ead8c3ac35b285a19`:
+Protected `main` and `origin/main` are synchronized at `f0e9d3e8baec4b1a1e3cbbd1dddc865d9f518f9c` after PR #257. Fresh Verify `34844704568`, CodeQL `34844704587`, Pages classifier `34850287588` and exact-main read-only preflight `34850381588` completed successfully for this source. Preflight emitted `{"operation":"preflight","status":"preflight-inspected"}` and performed no mutation.
 
-- Transaction: `d2b3899b5e3597de236dce03f580c7fb`
-- Family SHA-256: `593fdb280394632d0d3302b5fa127f162c1ef145b58b3f16be593c2021adce7c`
-- Closure manifest SHA-256: `65a8c8feb58a2b432af919fc80b0c902b69efebf947e35ed87349711c94e2335`
-- Scanner manifest SHA-256: `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`
-- Checked source/candidate files: `3,229 / 3,229`
-- Generated outputs: `102`
-- `finalReleasePrepared`: `false`
-
-The earlier sealed-realms preflight `34813075520` passed runner/source
-attestation but failed bundle validation against older input `27c2d276`; no
-provider call, realm mutation, owner provisioning or deployment occurred. The
-preparation candidate reports `finalReleasePrepared:false` and is reproducible
-preparation evidence, not deployment authorization. The merged-main preflight
-above is the current read-only inspection evidence.
-
-The next gates are genuine provider and owner authority, live recovery/readback,
-G001 preservation, sealed G002 denial, owner-only PTR play, physical-device
-performance and final hosting/deployment acceptance. Keep the saved sync
-automation paused and do not create Desktop output.
+Pages classification succeeded, but build, deploy and live verification were skipped under the sealed-launch policy. The live site remains Genesis and `finalReleasePrepared:false` remains explicit for the preparation family. The next gates are genuine provider and owner authority, real deployment and recovery/readback, G001 preservation, sealed G002 denial, owner-only PTR play, physical-device performance and final hosting acceptance. Keep sync automation paused and do not create Desktop output.
 
 ## Historical prepared family — 2026-09-12
 

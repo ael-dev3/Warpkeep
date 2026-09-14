@@ -2,87 +2,15 @@
 
 ## Current accepted-main checkpoint — 14 September 2026 (current docs checkpoint)
 
-Protected `main` is now `3af84aa892a9222b8c6286d01e2fb50fb248f43e`, the exact
-protected squash merge of PR #256, following PR #255's protected gameplay/source merge. It carries the generated-family refresh
-and current release records on the accepted gameplay/source foundation. PR
-#250's mobile schematic readability pass, PR #251's documentation alignment
-pass, PR #252's mobile overview merge and PR #254's documentation checkpoint
-remain in history. Post-merge Verify `34833483264` and CodeQL `34833483317`
-both completed successfully. No other pull requests remain open.
+Protected `main` and `origin/main` are synchronized at `f0e9d3e8baec4b1a1e3cbbd1dddc865d9f518f9c`, the protected squash merge of PR #257. PR #257 reconciled the 0.4 records with the verified gameplay/source integration from PR #255 and the documentation checkpoint from PR #256. No Warpkeep pull requests are open.
 
-PR #252 gives the narrow scene canvas a 15-degree façade-biased overview below
-the 1.3 mobile canvas aspect while retaining the desktop diagonal. Once a
-player manually pans or zooms, resize keeps the camera orientation and vertical
-framing and adjusts only the horizontal projection. Footprints, picking,
-placement authority, level expression and asset budgets are unchanged.
+Fresh post-merge Verify `34844704568`, CodeQL `34844704587`, Pages classifier `34850287588` and exact-main read-only sealed-realms preflight `34850381588` all completed successfully for this source. The preflight emitted `{"operation":"preflight","status":"preflight-inspected"}` and performed no provider, realm, owner or deployment mutation. Pages ran only its sealed-launch classifier; build, deploy and live verification were skipped by policy.
 
-The native `/home/warpkeep/Warpkeep-0.4` checkout remains a protected, pinned
-M2 operating input and must not be moved while owned preparation or checking is
-active. The current source checkout is clean on protected `main` at
-`3af84aa8`; the source,
-docs and standalone clones have been independently read back at their recorded
-SHAs. The
-gameplay/source checkpoint remains `d0af28e9`; it is recorded separately so
-historical implementation evidence is not mistaken for the documentation
-wrapper. The
-accepted-main M1 preparation/check identities remain source-bound release evidence: candidate
-`release-workspace-83bf0da57a1a622d84742c445f8450a9`, transaction
-`d0297bcb6821e4f1d5fbdf37cbd16f66`, family
-`0c97e825844d58ad3417a0298eb75a81c67f3bc1595863a9083c41d5bd648899`, closure
-`13b8ec2559712b93560c62babe47e0e79dae4fa656da638d108f66e8f7a4e835` and
-scanner `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+The repository remains in development and is not a live 0.4 release. The served site is still the established Genesis UI. The remaining acceptance work is genuine provider/publisher authority, real realm deployment and recovery/readback, G001 preservation, sealed G002 denial, actual-owner PTR play and return timing, physical-device performance and final visual acceptance, then a final release freeze.
 
-Read-only sealed-realms preflight `34763502943` passed against M2 and emitted
-`{"operation":"preflight","status":"preflight-inspected"}`. This is
-inspection evidence only: no realm mutation, provider deployment, owner
-provisioning or live release occurred. `finalReleasePrepared:false` remains
-explicit for the native candidate.
+The current 0.4 estimate is approximately **86%** (80–88% engineering judgment range), based on implemented milestone coverage and verified source rails rather than arbitrary file or content counts. The central gather → choose → build → benefit → return foundation, the Verdant Citadel visual foundation, mobile layout behavior, generated source family, protected CI, read-only preflight and manual synchronization rails are in place.
 
-The fresh protected-main preflight `34838183075` used exact merged source
-`3af84aa892a9222b8c6286d01e2fb50fb248f43e`, passed the runner, checkout, source
-and fixed bundle gates, and emitted
-`{"operation":"preflight","status":"preflight-inspected"}`. No provider,
-realm, owner or deployment mutation occurred. The earlier preflight
-`34813075520` remains historical evidence of a superseded bundle mismatch. The
-Linux native preparation/independent check that supplied the merged family was
-for its ancestor source `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`, with candidate
-`release-workspace-6c6d10e57c03ce0ead8c3ac35b285a19`, transaction
-`d2b3899b5e3597de236dce03f580c7fb`, family SHA-256
-`593fdb280394632d0d3302b5fa127f162c1ef145b58b3f16be593c2021adce7c`, closure
-manifest SHA-256 `65a8c8feb58a2b432af919fc80b0c902b69efebf947e35ed87349711c94e2335`,
-3,229 source/candidate files, 102 outputs and `finalReleasePrepared:false`.
-The generated-only refresh is now merged through PR #255; the read-only
-protected preflight against the merged source has passed.
-
-The saved `keep-warpkeep-development-synced` automation is **PAUSED** and must
-remain disabled; the repository has no scheduled GitHub workflow. Continue
-manual fetch, complete-range secret scan, normal commit/push and remote-SHA
-verification for each reviewable checkpoint. Update the existing Desktop handoff
-in place only; create no new Desktop files, backups or archives. The current
-completion estimate is about **85%** (80–88% judgment range): source, docs,
-mobile visual foundation and protected PR CI are complete for this increment,
-while provider/owner authority, live recovery and deployment, G001 preservation
-and sealed G002 evidence, physical-device performance and final mobile
-acceptance remain open. The post-merge protected checks and read-only preflight
-are complete.
-
-The merged source follow-up gives a new keep a first-journey cue qualified by
-untouched Worker assignment revisions, keeps it through refresh/pending views,
-and distinguishes isolated 0.4 access from ordinary Realm entry. Navigation
-remains available during healthy refresh while command authority stays guarded
-by the destination and controller. The five affected suites pass all 71 tests
-under Node 22.22.3; typecheck, production build and synthetic browser checks at
-390x844, 568x320 and 667x375 also pass. These are source and browser results,
-not physical-device, owner-play or live-release evidence.
-
-The September 13 access audit confirmed protected environment secret names and
-an online Linux runner. The documented Windows SpacetimeDB login currently lists
-no Maincloud databases, so publisher access must be re-established before
-mutation; this does not mean existing realms were deleted. The [live delivery
-guide](../../operations/0.4.0-live-delivery-status.md) owns current operating
-steps and separates live authority from historical adapter gaps.
-
-
+The saved `keep-warpkeep-development-synced` automation remains **PAUSED** and the repository has no scheduled GitHub workflow. Continue manual fetch, secret scan, reviewed commit/push and exact remote-SHA verification. Update the existing Desktop handoff in place only; use the repository's ignored `artifacts/` directory for disposable output and create no Desktop siblings, backups or archives.
 ## Previous consumer implementation checkpoint — 13 September 2026
 
 Continue `codex/0.4-g002-existing-state` /

@@ -1,56 +1,22 @@
 # 0.4 workflow sufficiency audit
 
-Updated 2026-09-14 (Europe/Budapest). This is the current operating sequence.
-Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) and live
-Git refs for the latest checkpoint, and the
-[release checklist](../../operations/0.4.0-release-checklist.md) for acceptance.
-Historical candidate identities remain in [release engineering](release-engineering.md)
-and [recovery evidence](recovery.md); none certifies later source.
+Updated 2026-09-14 (Europe/Budapest). This is the current operating sequence. Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md), live Git refs and the [release checklist](../../operations/0.4.0-release-checklist.md) for acceptance. Historical candidate identities remain historical and do not certify later source.
 
-PR #250, PR #251, PR #252, PR #253, PR #254 and PR #255 are protected-merged.
-PR #256 landed the current protected `main` at `3af84aa892a9222b8c6286d01e2fb50fb248f43e` after PR #255's source merge.
-Post-merge CodeQL `34833483317` and Verify `34833483264` completed successfully.
-Pages workflow run `34838162467` classified the main push but skipped
-build/deploy/live verification under the current release classification, so the
-live 0.4 release remains unshipped.
+PR #257 is protected-merged. `main` and `origin/main` are synchronized at `f0e9d3e8baec4b1a1e3cbbd1dddc865d9f518f9c`. Fresh Verify `34844704568`, CodeQL `34844704587`, Pages classifier `34850287588` and exact-main read-only preflight `34850381588` completed successfully.
 
-The fresh protected-main preflight `34838183075` passed runner, exact-source and
-fixed-bundle attestation against merged source `3af84aa8`; it emitted
-`{"operation":"preflight","status":"preflight-inspected"}` and performed no
-provider, realm, owner or deployment mutation. The earlier preflight
-`34813075520` remains historical evidence of a superseded bundle mismatch. The
-Linux preparation/check that supplied the merged family completed for ancestor
-source `c0e1d2d6`, with candidate
-`release-workspace-6c6d10e57c03ce0ead8c3ac35b285a19`, family
-`593fdb280394632d0d3302b5fa127f162c1ef145b58b3f16be593c2021adce7c` and closure
-`65a8c8feb58a2b432af919fc80b0c902b69efebf947e35ed87349711c94e2335`.
-The generated-only refresh is merged and the protected read-only preflight has
-passed; provider/owner, live recovery, acceptance and deployment gates remain.
+The Pages classifier succeeded, but build, deploy and live verification were skipped under the sealed-launch policy, so the live 0.4 release remains unshipped. The saved sync automation is paused and no scheduled GitHub workflow exists.
 
 ## Verdict
 
-The workflow now supports reviewed development, native preparation, protected
-integration, generated-only M2 promotion, fresh main verification and a sealed
-read-only preflight. It is not yet sufficient to ship 0.4: genuine provider and
-owner authority, live recovery/readback, G001 preservation, sealed G002 denial,
-owner-only PTR play, physical-device performance, hosting and final deployment
-remain open. Overall completion is approximately **85%** (an 80–88% judgment
-range), based on milestone coverage rather than test or file counts. No reliable
-calendar ETA is established.
+The workflow now supports reviewed development, native preparation, protected integration, generated-family promotion, fresh main verification and a sealed read-only preflight. It is not yet sufficient to ship 0.4: genuine provider and owner authority, real deployment and recovery/readback, G001 preservation, sealed G002 denial, owner-only PTR play, physical-device performance, hosting and final deployment remain open. Overall completion is approximately **86%** (80–88% judgment range), based on milestone coverage rather than arbitrary file or content counts. No reliable calendar ETA is established.
 
 ## What is working
 
-- Protected main is `3af84aa892a9222b8c6286d01e2fb50fb248f43e`; PR #256
-  aligned the release records after PR #255’s generated-family refresh, with
-  post-merge CodeQL and Verify green.
-- Native WSL is clean and synchronized to the exact M2 commit with RunnerService
-  PID203 and Runner.Listener PID224 preserved. Sealed preflight `34763502943`
-  returned `preflight-inspected` without mutating live state.
-- The saved `keep-warpkeep-development-synced` automation is paused and the
-  repository has no scheduled GitHub workflow. Continue manual fetch, complete
-  outgoing-range scan, commit/push and remote-SHA verification at each checkpoint.
-- Existing G001 progress/access/timers and admission freeze remain protected;
-  G002 remains sealed and the isolated actual-owner PTR path is still required.
+- Protected `main` and `origin/main` are synchronized at `f0e9d3e8baec4b1a1e3cbbd1dddc865d9f518f9c`; PR #257 is protected-merged.
+- Fresh Verify `34844704568`, CodeQL `34844704587`, Pages classifier `34850287588` and exact-main read-only preflight `34850381588` are green for the same source.
+- The preflight is source, runner and fixed-bundle inspection only. Pages deploy/live lanes are intentionally skipped under sealed launch; the served site remains Genesis.
+- The saved sync automation is paused and no scheduled GitHub workflow exists. Continue manual fetch, secret scan, reviewed commit/push and exact remote-SHA verification.
+- G001 progress, access, timers and admission freeze remain protected; G002 remains sealed and the isolated actual-owner PTR path is still required.
 
 ## What remains open
 
@@ -67,6 +33,18 @@ calendar ETA is established.
 - Finish the credential-free delivery and every mandatory release record before
   claiming shipment. Keep the sync automation paused and create no new Desktop
   files.
+
+## Product acceptance priorities
+
+The implemented economy, Verdant Citadel renderer and water foundation should be
+judged through a complete owner session before adding another system. The next
+player-facing pass should make expedition duration and return timing readable,
+make each civic building's benefit obvious at the moment it is earned, and keep
+the first build and improved return understandable on a narrow phone view. Use
+diagnostics that explain a warning or blocked action instead of exposing raw
+counts. Keep the renderer and world rules bounded; measured play, accessibility
+and device performance should decide targeted fixes rather than another engine
+rewrite.
 
 ## Required order from here
 

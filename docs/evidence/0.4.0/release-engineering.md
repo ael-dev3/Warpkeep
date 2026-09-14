@@ -1,37 +1,16 @@
 # Release engineering: implementation and evidence
 
-Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main),
-the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
-Protected main is `3af84aa892a9222b8c6286d01e2fb50fb248f43e` after PR #256's
-protected squash merge aligning records after PR #255's generated-family refresh
-and current release records. Post-merge Verify `34833483264` and CodeQL `34833483317` both completed
-successfully. The read-only sealed preflight `34838183075` passed against this
-exact main source and emitted `{"operation":"preflight","status":"preflight-inspected"}`.
-Pages workflow run `34838162467` classified the main push but skipped
-build/deploy/live verification under the current release classification, so the
-live site remains Genesis.
-Genuine provider/owner authority, live recovery/readback, preservation/denial,
-physical-device acceptance and final deployment remain open. Earlier source
-families and candidate identities below are historical, source-bound evidence;
-the current 0.4 development source is green in protected CI but **not shipped**.
+Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main), the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
 
-Each dated section retains its exact source and scope. Earlier missing-component
-entries are history when a later section demonstrates their implementation;
-component success does not establish unrecorded production acceptance.
+Protected `main` is `f0e9d3e8baec4b1a1e3cbbd1dddc865d9f518f9c`, the protected squash merge of PR #257. Fresh Verify `34844704568`, CodeQL `34844704587`, Pages classifier `34850287588` and exact-main read-only preflight `34850381588` completed successfully for this exact source. The preflight emitted `{"operation":"preflight","status":"preflight-inspected"}` with no provider, realm, owner or deployment mutation.
+
+Pages ran only the sealed-launch classifier; build, deploy and live verification were skipped, so the live site remains Genesis. Genuine provider/owner authority, live recovery/readback, G001 preservation and denial, physical-device acceptance and final deployment remain open. Earlier source families and candidate identities below are historical, source-bound evidence; green protected source rails do not certify production.
+
+Each dated section retains its exact source and scope. Earlier missing-component entries are history when a later section demonstrates implementation; component success does not establish unrecorded production acceptance.
 
 ## Current accepted-main source checkpoint — 14 September 2026
 
-Protected `main` is `3af84aa892a9222b8c6286d01e2fb50fb248f43e`, the GitHub-verified
-squash of PR #256. Post-merge Verify `34833483264` and CodeQL `34833483317`
-completed successfully. The fresh Linux preparation/check is
-source-bound to its recorded candidate and is not a release grant.
-
-Sealed read-only preflight `34838183075` passed against the merged main and emitted
-`{"operation":"preflight","status":"preflight-inspected"}`. No live
-provider, recovery, realm or owner operation occurred. The native checkout is
-synchronized to M2 and the saved sync automation remains paused. `finalReleasePrepared:false`
-remains explicit; genuine deployment authority, live acceptance and final
-freeze are still open. **0.4 is not shipped.**
+Protected `main` and `origin/main` are synchronized at `f0e9d3e8baec4b1a1e3cbbd1dddc865d9f518f9c`. Fresh Verify `34844704568` and CodeQL `34844704587` are green, Pages classifier `34850287588` is green with deploy lanes skipped, and exact-main preflight `34850381588` is green and read-only. 0.4 remains unshipped pending provider, owner, live, device and final-freeze gates.
 
 ## Verified observation source family — 2026-09-13
 

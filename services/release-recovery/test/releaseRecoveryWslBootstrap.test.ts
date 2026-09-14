@@ -2,10 +2,13 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 describe('release recovery WSL bootstrap source', () => {
   const PROCESS_TEST_TIMEOUT = 60_000
+  // The harness itself permits a minute for each subprocess. Keep Vitest from
+  // aborting the short/default cases at its 5-second global timeout first.
+  vi.setConfig({ testTimeout: PROCESS_TEST_TIMEOUT + 5_000 })
   const HARNESS_PATH = fileURLToPath(new URL(
     'release_recovery_wsl_bootstrap_harness.py',
     import.meta.url,
