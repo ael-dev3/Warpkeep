@@ -1,6 +1,16 @@
 import * as THREE from 'three';
 
 export type Quality04 = 'high' | 'balanced' | 'reduced';
+// A narrow phone viewport cannot preserve the desktop diagonal without making
+// the small economy buildings collapse into a thin strip. Below this portrait
+// threshold, bias the camera toward the entry facade so the six-site overview
+// keeps a readable horizontal rhythm while remaining a true 3D view.
+// The mobile scene canvas intentionally stays wider than the device viewport
+// to keep the page compact, so its portrait breakpoint is expressed on the
+// rendered canvas rather than on window.innerWidth/window.innerHeight.
+export const KEEP04_MOBILE_OVERVIEW_ASPECT = 1.3;
+const KEEP04_DESKTOP_AZIMUTH = Math.atan2(80, 105 + 4);
+const KEEP04_MOBILE_AZIMUTH = Math.PI / 12;
 export const KEEP04_VISUAL_PROFILE = Object.freeze({
   masonry: '#d7d2ba', timber: '#514237', roofTeal: '#397d7d', warpViolet: '#8d6ac8',
   forestNear: '#52694b', distantHaze: '#71897f', ground: '#7a8063',
@@ -13,7 +23,12 @@ export const KEEP04_VISUAL_PROFILE = Object.freeze({
 
 /** Fit the support plus the intentionally visible scenic envelope in camera space. */
 export function fitKeep04Camera(camera: THREE.OrthographicCamera, aspect: number) {
-  camera.position.set(80, 95, 105); camera.up.set(0, 1, 0); camera.lookAt(0, 0, -4);
+  const safeAspect = Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
+  const azimuth = safeAspect < KEEP04_MOBILE_OVERVIEW_ASPECT
+    ? KEEP04_MOBILE_AZIMUTH : KEEP04_DESKTOP_AZIMUTH;
+  const horizontalDistance = 131;
+  camera.position.set(Math.sin(azimuth) * horizontalDistance, 95, Math.cos(azimuth) * horizontalDistance - 4);
+  camera.up.set(0, 1, 0); camera.lookAt(0, 0, -4);
   camera.near = 0.1; camera.far = 500; camera.updateMatrixWorld(true);
   let halfX = 0; let halfY = 0;
   const corners = [[-56, -5, -64], [56, -5, -64], [-56, -5, 44], [56, -5, 44], [-56, 18, -64], [56, 18, -64]];
@@ -21,7 +36,6 @@ export function fitKeep04Camera(camera: THREE.OrthographicCamera, aspect: number
     const p = new THREE.Vector3(x, y, z).applyMatrix4(camera.matrixWorldInverse);
     halfX = Math.max(halfX, Math.abs(p.x)); halfY = Math.max(halfY, Math.abs(p.y));
   }
-  const safeAspect = Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
   const h = Math.max(halfY, halfX / safeAspect) * 1.1;
   camera.left = -h * safeAspect; camera.right = h * safeAspect; camera.top = h; camera.bottom = -h;
   camera.updateProjectionMatrix();

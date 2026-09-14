@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import * as THREE from 'three';
-import { fitKeep04Camera, fitKeep04SiteCamera, KEEP04_VISUAL_PROFILE } from '../src/components/keep04/keep04VisualProfile';
+import { fitKeep04Camera, fitKeep04SiteCamera, KEEP04_MOBILE_OVERVIEW_ASPECT, KEEP04_VISUAL_PROFILE } from '../src/components/keep04/keep04VisualProfile';
 import { planKeep04Assets } from '../src/components/keep04/loadKeep04Assets';
 
 it.each([.3, 342 / 147, 796 / 144, 2])('contains off-center site bounds with inspection padding at aspect %s', aspect => {
@@ -17,6 +17,14 @@ it.each([.3, 342 / 147, 796 / 144, 2])('contains off-center site bounds with ins
       expect(Math.abs(p.y)).toBeLessThanOrEqual(1 / 1.2 + 1e-8);
     }
   }
+});
+it('uses a readable facade-biased overview on narrow scene canvases and preserves the diagonal desktop view', () => {
+  const desktop = new THREE.OrthographicCamera(); fitKeep04Camera(desktop, KEEP04_MOBILE_OVERVIEW_ASPECT + .01);
+  const mobile = new THREE.OrthographicCamera(); fitKeep04Camera(mobile, KEEP04_MOBILE_OVERVIEW_ASPECT - .01);
+  expect(desktop.position.x).toBeGreaterThan(70);
+  expect(mobile.position.x).toBeLessThan(desktop.position.x * .6);
+  expect(desktop.getWorldDirection(new THREE.Vector3()).x).toBeLessThan(-.35);
+  expect(Math.abs(mobile.getWorldDirection(new THREE.Vector3()).x)).toBeLessThan(.35);
 });
 it('uses a 24 metre minimum inspection span, permits oversized bounds, and safely rejects invalid bounds', () => {
   const camera = new THREE.OrthographicCamera(); fitKeep04Camera(camera, 1);

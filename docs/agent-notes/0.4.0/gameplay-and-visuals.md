@@ -1,5 +1,22 @@
 # Gameplay and visual implementation notes
 
+## Mobile overview framing — September 14, 2026
+
+The 3D keep overview now uses a façade-biased camera when the rendered scene
+canvas is narrow. The portrait canvas is intentionally wider than the device
+viewport to keep the page compact, so the breakpoint is measured on the canvas
+itself. This keeps the cathedral readable while restoring a clear silhouette and
+horizontal rhythm for the four economy buildings and barracks. Desktop retains
+the diagonal Verdant Citadel view. The camera change is presentation-only:
+footprints, placement authority, picking, level expression and asset budgets are
+unchanged.
+
+The local synthetic all-six-level-five fixture was reviewed at 390×844 after the
+change; the economy buildings are visibly separable in the initial overview and
+the scene remains a genuine 3D render. This is browser evidence only. Physical
+phone performance, authenticated owner play and final hosted deployment remain
+open acceptance gates.
+
 ## First-journey review — September 13, 2026
 
 PR #249 merged a direct resource-location entry for a new keep. Independent review
