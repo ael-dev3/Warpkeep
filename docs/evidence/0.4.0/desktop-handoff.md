@@ -15,9 +15,9 @@ Do not create a new Desktop folder, handoff copy, backup or ZIP.
 
 ## Start here
 
-- **Accepted source:** protected `main` at `a452e9feb5c3383a446ae3fdd5dfd255a869d984` (PR #252 merged)
-- **Protected checks:** Verify `34800429035` and CodeQL `34800429052` passed on that exact SHA
-- **Pages state:** classify `34803660169` passed but skipped build/deploy; live 0.4 remains unshipped
+- **Accepted source:** protected `main` at `d0af28e924f187ab91fee9390c9a6b56389d2043` (PR #253 merged)
+- **Protected PR checks:** Verify and CodeQL passed on PR #253; post-merge main Verify `34807785841` and CodeQL `34807785912` are running
+- **Pages state:** classify `34803660169` passed for the prior source but skipped build/deploy; live 0.4 remains unshipped
 - **Product direction:** [`docs/design/warpkeep-direction.md`](../../design/warpkeep-direction.md)
 - **Current agent index:** [`docs/agent-notes/0.4.0/README.md`](../../agent-notes/0.4.0/README.md)
 - **Visual foundation:** [`visual-foundation-contract.md`](../../agent-notes/0.4.0/visual-foundation-contract.md)

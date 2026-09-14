@@ -7,10 +7,11 @@ Git refs for the latest checkpoint, and the
 Historical candidate identities remain in [release engineering](release-engineering.md)
 and [recovery evidence](recovery.md); none certifies later source.
 
-PR #250, PR #251 and PR #252 are protected-merged; Verify `34800429035` and
-CodeQL `34800429052` passed every required lane on `a452e9f`. Pages classify
-`34803660169` passed but skipped build/deploy under the current release
-classification, so the live 0.4 release remains unshipped.
+PR #250, PR #251, PR #252 and PR #253 are protected-merged. PR #253's Verify
+and CodeQL passed; post-merge main Verify `34807785841` and CodeQL `34807785912`
+are running on `d0af28e9`. Pages classify `34803660169` passed for the prior
+source but skipped build/deploy under the current release classification, so the
+live 0.4 release remains unshipped.
 
 ## Verdict
 
@@ -25,9 +26,9 @@ calendar ETA is established.
 
 ## What is working
 
-- Protected main is `a452e9feb5c3383a446ae3fdd5dfd255a869d984`; PR #252's mobile
-  overview merge and fresh Verify `34800429035` are green across all required
-  lanes, with CodeQL `34800429052` also passed.
+- Protected main is `d0af28e924f187ab91fee9390c9a6b56389d2043`; PR #253's
+  documentation checkpoint merged after the mobile overview, and its Verify and
+  CodeQL passed. The new post-merge main checks are still running.
 - Native WSL is clean and synchronized to the exact M2 commit with RunnerService
   PID203 and Runner.Listener PID224 preserved. Sealed preflight `34763502943`
   returned `preflight-inspected` without mutating live state.

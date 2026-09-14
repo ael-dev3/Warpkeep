@@ -1,11 +1,12 @@
 # 0.4.0 integration evidence
 
 Updated 2026-09-14. Protected `main` is
-`a452e9feb5c3383a446ae3fdd5dfd255a869d984`, the exact PR #252 squash merge
-after the integrated PR #250 mobile schematic and PR #251 documentation passes.
-Verify `34800429035` and CodeQL `34800429052` passed all required contexts on
-that exact source. These are source and protected-CI records; provider
-deployment, live realm mutation and player acceptance remain separate outcomes.
+`d0af28e924f187ab91fee9390c9a6b56389d2043`, the exact PR #253 squash merge
+after the integrated PR #250 mobile schematic, PR #251 documentation and PR #252
+mobile overview passes. PR #253's Verify and CodeQL passed; post-merge main
+Verify `34807785841` and CodeQL `34807785912` are running on that exact source.
+These are source and protected-CI records; provider deployment, live realm
+mutation and player acceptance remain separate outcomes.
 
 GitHub Pages classify run `34803660169` passed but skipped build/deploy under
 the current release classification. The served site therefore remains the

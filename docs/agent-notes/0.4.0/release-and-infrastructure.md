@@ -2,16 +2,18 @@
 
 ## Current source and access checkpoint — 2026-09-14
 
-Protected main is `a452e9feb5c3383a446ae3fdd5dfd255a869d984`, the exact PR #252
-squash merge. Verify `34800429035`, CodeQL `34800429052` and Pages classify run
-`34803660169` completed successfully against that SHA; Pages build/deploy/live
-verification were skipped by the current release classification, so the live
-site remains the established Genesis UI. The [execution handoff](execution-handoff.md)
-owns exact source/CI identities and the
+Protected main is `d0af28e924f187ab91fee9390c9a6b56389d2043`, the exact PR #253
+squash merge. PR #253's Verify and CodeQL passed; post-merge main Verify
+`34807785841` and CodeQL `34807785912` are running against this SHA. The last
+Pages classify run `34803660169` passed for the prior source but skipped
+build/deploy/live verification, so the live site remains the established Genesis
+UI. The [execution handoff](execution-handoff.md) owns exact source/CI identities and the
 [live delivery guide](../../operations/0.4.0-live-delivery-status.md) owns current
 operating steps. The saved sync automation is paused and no scheduled workflow
-exists. These source and CI checks do not prove owner access, provider authority,
-deployed recovery services or a live 0.4 release.
+exists. Current CLI rechecks still find no `warpkeep-auth-bridge` Worker in the
+authenticated Cloudflare account and no databases in the authenticated
+SpacetimeDB identity. These source and CI checks do not prove owner access,
+provider authority, deployed recovery services or a live 0.4 release.
 
 ## Historical source checkpoint — 2026-09-12
 

@@ -1,12 +1,13 @@
 # Continue Warpkeep 0.4
 
-## Current accepted-main checkpoint — 14 September 2026 (mobile overview merged)
+## Current accepted-main checkpoint — 14 September 2026 (current docs checkpoint)
 
-Protected `main` is now `a452e9feb5c3383a446ae3fdd5dfd255a869d984`, the exact
-squash merge of PR #252 on top of the accepted M2/source/docs history. PR #250's
-mobile schematic readability pass and PR #251's documentation alignment pass
-are already integrated. Verify `34800429035` and CodeQL `34800429052` both
-passed on this exact SHA; no pull requests remain open.
+Protected `main` is now `d0af28e924f187ab91fee9390c9a6b56389d2043`, the exact
+squash merge of PR #253 on top of the accepted M2/source/mobile history. PR
+#250's mobile schematic readability pass, PR #251's documentation alignment
+pass and PR #252's mobile overview merge are integrated. PR #253's full Verify
+matrix and CodeQL passed; post-merge main Verify `34807785841` and CodeQL
+`34807785912` are running on this exact SHA. No pull requests remain open.
 
 PR #252 gives the narrow scene canvas a 15-degree façade-biased overview below
 the 1.3 mobile canvas aspect while retaining the desktop diagonal. Once a
@@ -37,10 +38,10 @@ manual fetch, complete-range secret scan, normal commit/push and remote-SHA
 verification for each reviewable checkpoint. Update the existing Desktop handoff
 in place only; create no new Desktop files, backups or archives. The current
 completion estimate is about **85%** (80–88% judgment range): source, docs,
-mobile visual foundation and protected CI are complete for this increment, while
-provider/owner authority, live recovery and deployment, G001 preservation and
-sealed G002 evidence, physical-device performance and final mobile acceptance
-remain open.
+mobile visual foundation and protected PR CI are complete for this increment,
+while provider/owner authority, live recovery and deployment, G001 preservation
+and sealed G002 evidence, physical-device performance and final mobile
+acceptance remain open. The current main post-merge checks are still running.
 
 The merged source follow-up gives a new keep a first-journey cue qualified by
 untouched Worker assignment revisions, keeps it through refresh/pending views,
