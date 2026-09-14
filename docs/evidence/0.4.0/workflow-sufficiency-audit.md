@@ -15,6 +15,12 @@ gameplay/source checkpoint but skipped build/deploy/live verification under the
 current release classification, so the
 live 0.4 release remains unshipped.
 
+The fresh protected-main preflight `34813075520` passed runner and exact-source
+attestation but failed at bundle validation. The checked-in generated family is
+still bound to older preparation input `27c2d276`; no provider, realm, owner or
+deployment mutation occurred. Final-source family regeneration and independent
+checking are now the next delivery-critical step.
+
 ## Verdict
 
 The workflow now supports reviewed development, native preparation, protected

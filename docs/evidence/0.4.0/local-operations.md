@@ -21,6 +21,13 @@ provider recheck found the authenticated Cloudflare account does not contain
 `warpkeep-auth-bridge`, the Pages project list is empty, and the authenticated
 SpacetimeDB identity has no databases.
 
+The fresh protected-main sealed-realms preflight `34813075520` reached the
+authenticated Linux runner and exact source checkout, then failed in the fixed
+bundle phase. The checked-in operation bundle remains source-bound to
+`27c2d276`; closure member digests also drift from the current implementation.
+This is preparation evidence only: no provider, realm, owner or deployment
+mutation occurred. A fresh authenticated final-source family is required.
+
 The read-only sealed-realms preflight `34763502943` passed against `810286c95f39cf6e41f121162fa5dab250a77a16` and
 returned `{"operation":"preflight","status":"preflight-inspected"}`. It
 performed no provider mutation, realm update, owner provisioning or deployment.

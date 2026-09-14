@@ -37,6 +37,15 @@ inspection evidence only: no realm mutation, provider deployment, owner
 provisioning or live release occurred. `finalReleasePrepared:false` remains
 explicit for the native candidate.
 
+The fresh protected-main preflight `34813075520` used exact source
+`c0e1d2d667ced3d3613ee32ab9ce28001fc2914f` and passed the runner, checkout and
+source gates, then failed at the fixed bundle phase. The checked-in operation
+bundle manifest is still source-bound to preparation input `27c2d276`; its
+closure family also has source-digest drift against the current implementation.
+No mutation or deployment occurred. A new authenticated final-source bundle and
+closure family must be prepared and independently checked before release work
+can continue.
+
 The saved `keep-warpkeep-development-synced` automation is **PAUSED** and must
 remain disabled; the repository has no scheduled GitHub workflow. Continue
 manual fetch, complete-range secret scan, normal commit/push and remote-SHA
