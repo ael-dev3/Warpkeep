@@ -4,16 +4,18 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 ## Current accepted-main source and protected checks — 14 September 2026
 
-Protected `main` is `d0af28e924f187ab91fee9390c9a6b56389d2043`, the exact PR #253
-squash merge after the integrated PR #250 mobile schematic, PR #251
-documentation and PR #252 mobile overview passes. PR #253's Verify and CodeQL
-passed; post-merge main Verify `34807785841` and CodeQL `34807785912` are
-running on this exact source. The source and docs checkouts are clean at that
-SHA. The saved Codex sync automation is paused, and no scheduled GitHub
+Protected `main` is `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`, the exact PR #254
+documentation-only squash merge on gameplay/source
+`d0af28e924f187ab91fee9390c9a6b56389d2043` (PR #253), after the integrated PR
+#250 mobile schematic, PR #251 documentation and PR #252 mobile overview
+passes. PR #254 checks passed; post-merge main Verify `34811953274` and CodeQL
+`34811953244` are running on the current protected SHA. The source and docs
+checkouts are clean at that SHA. The saved Codex sync automation is paused, and no scheduled GitHub
 workflow exists.
 
-Pages classify `34803660169` passed for the prior source but skipped build/deploy
-under the current release classification. The live site remains the established
+Pages run `34810674281` passed classification for the gameplay/source checkpoint
+but skipped build/deploy/live verification under the current release
+classification. The live site remains the established
 Genesis UI, so this record does not claim a live 0.4 release. A fresh local
 provider recheck found the authenticated Cloudflare account does not contain
 `warpkeep-auth-bridge`, the Pages project list is empty, and the authenticated

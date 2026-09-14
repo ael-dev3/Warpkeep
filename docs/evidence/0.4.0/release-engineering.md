@@ -2,12 +2,13 @@
 
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main),
 the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
-Protected main is `d0af28e924f187ab91fee9390c9a6b56389d2043` after PR #253's
-current-docs merge on top of PR #252's mobile overview. PR #253's Verify and
-CodeQL passed; post-merge main Verify `34807785841` and CodeQL `34807785912` are
-running. Pages classify `34803660169` passed for the prior source but skipped
-build/deploy under the current release classification, so the live site remains
-Genesis.
+Protected main is `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f` after PR #254's
+documentation-only merge on gameplay/source
+`d0af28e924f187ab91fee9390c9a6b56389d2043` (PR #253), on top of PR #252's
+mobile overview. PR #254 checks passed; post-merge main Verify `34811953274`
+and CodeQL `34811953244` are running. Pages run `34810674281` classified the
+gameplay/source checkpoint but skipped build/deploy/live verification under the
+current release classification, so the live site remains Genesis.
 Genuine provider/owner authority, live recovery/readback, preservation/denial,
 physical-device acceptance and final deployment remain open. Earlier source
 families and candidate identities below are historical, source-bound evidence;
@@ -19,9 +20,10 @@ component success does not establish unrecorded production acceptance.
 
 ## Current accepted-main source checkpoint — 14 September 2026
 
-Protected `main` is `d0af28e924f187ab91fee9390c9a6b56389d2043`, the GitHub-verified
-squash of PR #253. PR #253's Verify and CodeQL passed; post-merge main Verify
-`34807785841` and CodeQL `34807785912` are running. The source M1
+Protected `main` is `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`, the GitHub-verified
+squash of PR #254, a documentation-only checkpoint on gameplay/source
+`d0af28e924f187ab91fee9390c9a6b56389d2043`. PR #254 checks passed; post-merge
+main Verify `34811953274` and CodeQL `34811953244` are running. The source M1
 preparation/check remains source-bound to its recorded candidate and is not a
 release grant.
 

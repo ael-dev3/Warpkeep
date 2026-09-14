@@ -7,20 +7,21 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-The accepted source is protected `main` at `d0af28e924f187ab91fee9390c9a6b56389d2043`,
-the squash merge of PR #253 after PR #250's mobile schematic readability pass,
-PR #251's documentation alignment pass and PR #252's mobile overview merge.
-The PR #253 Verify checks passed on `6aba76a6`; post-merge main Verify
-`34807785841` and CodeQL `34807785912` are running on the exact current SHA.
-This proves the source and protected CI rails, not a live 0.4 deployment. The
+Protected `main` is now `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`, the exact
+protected squash merge of PR #254, a documentation-only checkpoint on the
+gameplay/source checkpoint `d0af28e924f187ab91fee9390c9a6b56389d2043` (PR #253).
+The PR #254 checks passed; post-merge main Verify `34811953274` and CodeQL
+`34811953244` are running on the current protected SHA. This proves the source
+and protected CI rails, not a live 0.4 deployment. The
 [execution handoff](execution-handoff.md) owns exact source, CI, native and
 environment identities.
 
 PR #252 adds a narrow-canvas façade-biased overview and preserves manual camera
 orientation and vertical framing across resize. It is presentation-only:
 footprints, picking, placement authority, progression and asset budgets stay
-unchanged. GitHub Pages classify run `34803660169` passed but skipped build and
-deploy under the current release classification; warpkeep.com still serves
+unchanged. GitHub Pages run `34810674281` classified the gameplay/source
+checkpoint but skipped build, deploy and live verification under the current
+release classification; warpkeep.com still serves
 the established Genesis UI. Treat live 0.4 as not shipped until owner/provider,
 recovery and deployment evidence is complete.
 

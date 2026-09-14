@@ -2,12 +2,14 @@
 
 ## Current accepted-main checkpoint — 14 September 2026 (current docs checkpoint)
 
-Protected `main` is now `d0af28e924f187ab91fee9390c9a6b56389d2043`, the exact
-squash merge of PR #253 on top of the accepted M2/source/mobile history. PR
-#250's mobile schematic readability pass, PR #251's documentation alignment
-pass and PR #252's mobile overview merge are integrated. PR #253's full Verify
-matrix and CodeQL passed; post-merge main Verify `34807785841` and CodeQL
-`34807785912` are running on this exact SHA. No pull requests remain open.
+Protected `main` is now `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`, the exact
+protected squash merge of PR #254, a documentation-only checkpoint on the
+accepted gameplay/source checkpoint `d0af28e924f187ab91fee9390c9a6b56389d2043`
+(PR #253). PR #250's mobile schematic readability pass, PR #251's
+documentation alignment pass and PR #252's mobile overview merge are
+integrated. PR #254 checks passed; post-merge main Verify `34811953274` and
+CodeQL `34811953244` are running on the current protected SHA. No pull requests
+remain open.
 
 PR #252 gives the narrow scene canvas a 15-degree façade-biased overview below
 the 1.3 mobile canvas aspect while retaining the desktop diagonal. Once a
@@ -17,8 +19,11 @@ placement authority, level expression and asset budgets are unchanged.
 
 The native `/home/warpkeep/Warpkeep-0.4` checkout remains a protected, pinned
 M2 operating input and must not be moved while owned preparation or checking is
-active. The current source checkout is clean at `a452e9f`; the source, docs and
+active. The current source checkout is clean at `c0e1d2d6`; the source, docs and
 standalone clones have been independently read back at that exact SHA. The
+gameplay/source checkpoint remains `d0af28e9`; it is recorded separately so
+historical implementation evidence is not mistaken for the documentation
+wrapper. The
 accepted-main M1 preparation/check identities remain source-bound release evidence: candidate
 `release-workspace-83bf0da57a1a622d84742c445f8450a9`, transaction
 `d0297bcb6821e4f1d5fbdf37cbd16f66`, family

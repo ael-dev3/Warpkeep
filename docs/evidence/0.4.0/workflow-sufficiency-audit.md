@@ -7,10 +7,12 @@ Git refs for the latest checkpoint, and the
 Historical candidate identities remain in [release engineering](release-engineering.md)
 and [recovery evidence](recovery.md); none certifies later source.
 
-PR #250, PR #251, PR #252 and PR #253 are protected-merged. PR #253's Verify
-and CodeQL passed; post-merge main Verify `34807785841` and CodeQL `34807785912`
-are running on `d0af28e9`. Pages classify `34803660169` passed for the prior
-source but skipped build/deploy under the current release classification, so the
+PR #250, PR #251, PR #252, PR #253 and PR #254 are protected-merged. PR #254 is
+a documentation-only checkpoint on gameplay/source `d0af28e9`; its checks
+passed. Post-merge main Verify `34811953274` and CodeQL `34811953244` are
+running on protected main `c0e1d2d6`. Pages run `34810674281` classified the
+gameplay/source checkpoint but skipped build/deploy/live verification under the
+current release classification, so the
 live 0.4 release remains unshipped.
 
 ## Verdict
@@ -26,9 +28,9 @@ calendar ETA is established.
 
 ## What is working
 
-- Protected main is `d0af28e924f187ab91fee9390c9a6b56389d2043`; PR #253's
-  documentation checkpoint merged after the mobile overview, and its Verify and
-  CodeQL passed. The new post-merge main checks are still running.
+- Protected main is `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`; PR #254's
+  documentation checkpoint merged on gameplay/source `d0af28e9`, and its checks
+  passed. The new post-merge main checks are still running.
 - Native WSL is clean and synchronized to the exact M2 commit with RunnerService
   PID203 and Runner.Listener PID224 preserved. Sealed preflight `34763502943`
   returned `preflight-inspected` without mutating live state.
