@@ -16,7 +16,7 @@ Do not create a new Desktop folder, handoff copy, backup or ZIP.
 ## Start here
 
 - **Protected main:** `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f` (PR #254 documentation-only merge on gameplay/source `d0af28e924f187ab91fee9390c9a6b56389d2043`)
-- **Current PR:** #255 head `8331875b1110e3097c7659d1388a7243cde2877c`; CodeQL `34816061714` passed and Verify `34816061716` is running
+- **Current PR:** #255 head `539d5b8ff82a5d7e4a2e19e3cfcb7e5c4b532449`; CodeQL `34817207434` and Verify `34817207464` are running
 - **Pages state:** run `34810674281` classified the gameplay/source checkpoint but skipped build/deploy/live verification; live 0.4 remains unshipped
 - **Latest preflight:** `34813075520` passed runner/source attestation but failed bundle validation against older input `27c2d276`; no mutation occurred. Linux preparation/check for `c0e1d2d6` completed at candidate `release-workspace-6c6d10e57c03ce0ead8c3ac35b285a19`, and its generated-only refresh is in PR #255
 - **Product direction:** [`docs/design/warpkeep-direction.md`](../../design/warpkeep-direction.md)

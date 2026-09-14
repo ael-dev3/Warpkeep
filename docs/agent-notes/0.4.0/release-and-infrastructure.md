@@ -6,7 +6,7 @@ Protected main is `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`, the exact PR #254
 documentation-only squash merge on gameplay/source
 `d0af28e924f187ab91fee9390c9a6b56389d2043` (PR #253). PR #255 is the current
 open generated-family alignment request at head
-`8331875b1110e3097c7659d1388a7243cde2877c`; CodeQL `34816061714` passed and
+`539d5b8ff82a5d7e4a2e19e3cfcb7e5c4b532449`; CodeQL `34816061714` passed and
 Verify `34816061716` remains in progress. The last Pages run `34810674281`
 classified the gameplay/source checkpoint but skipped build/deploy/live
 verification, so the live site remains the established Genesis UI. The [execution handoff](execution-handoff.md) owns exact source/CI identities and the

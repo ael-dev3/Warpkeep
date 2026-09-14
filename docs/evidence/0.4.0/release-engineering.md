@@ -6,8 +6,8 @@ Protected main is `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f` after PR #254's
 documentation-only merge on gameplay/source
 `d0af28e924f187ab91fee9390c9a6b56389d2043` (PR #253), on top of PR #252's
 mobile overview. PR #255 is the current open generated-family alignment request
-at head `8331875b1110e3097c7659d1388a7243cde2877c`; CodeQL `34816061714` passed
-and Verify `34816061716` remains in progress. Pages run `34810674281` classified
+at head `539d5b8ff82a5d7e4a2e19e3cfcb7e5c4b532449`; CodeQL `34817207434` and
+Verify `34817207464` remain in progress. Pages run `34810674281` classified
 the gameplay/source checkpoint but skipped build/deploy/live verification under
 the current release classification, so the live site remains Genesis.
 Genuine provider/owner authority, live recovery/readback, preservation/denial,
@@ -24,8 +24,8 @@ component success does not establish unrecorded production acceptance.
 Protected `main` is `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`, the GitHub-verified
 squash of PR #254, a documentation-only checkpoint on gameplay/source
 `d0af28e924f187ab91fee9390c9a6b56389d2043`. PR #255 is open at review head
-`8331875b1110e3097c7659d1388a7243cde2877c`; CodeQL `34816061714` passed and
-Verify `34816061716` remains in progress. The fresh Linux preparation/check is
+`539d5b8ff82a5d7e4a2e19e3cfcb7e5c4b532449`; CodeQL `34817207434` and Verify
+`34817207464` remain in progress. The fresh Linux preparation/check is
 source-bound to its recorded candidate and is not a release grant.
 
 Sealed read-only preflight `34763502943` passed against `810286c95f39cf6e41f121162fa5dab250a77a16` and emitted

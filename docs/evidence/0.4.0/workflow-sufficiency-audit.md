@@ -8,8 +8,8 @@ Historical candidate identities remain in [release engineering](release-engineer
 and [recovery evidence](recovery.md); none certifies later source.
 
 PR #250, PR #251, PR #252, PR #253 and PR #254 are protected-merged. PR #255 is
-open at review head `8331875b`; CodeQL `34816061714` passed and Verify
-`34816061716` remains in progress on the generated-family refresh. Pages run
+open at review head `539d5b8f`; CodeQL `34817207434` and Verify
+`34817207464` remain in progress on the generated-family refresh. Pages run
 `34810674281` classified the gameplay/source checkpoint but skipped
 build/deploy/live verification under the current release classification, so the
 live 0.4 release remains unshipped.
@@ -38,8 +38,8 @@ calendar ETA is established.
 ## What is working
 
 - Protected main is `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`; PR #255 carries
-  the reviewed generated-family refresh at `8331875b`, with CodeQL passed and
-  Verify in progress.
+  the reviewed generated-family refresh at `539d5b8f`, with CodeQL and Verify
+  in progress.
 - Native WSL is clean and synchronized to the exact M2 commit with RunnerService
   PID203 and Runner.Listener PID224 preserved. Sealed preflight `34763502943`
   returned `preflight-inspected` without mutating live state.

@@ -9,7 +9,7 @@ accepted gameplay/source checkpoint `d0af28e924f187ab91fee9390c9a6b56389d2043`
 documentation alignment pass and PR #252's mobile overview merge are
 integrated. PR #254 checks passed. PR #255 is the current open documentation and
 generated-family alignment pull request at head
-`8331875b1110e3097c7659d1388a7243cde2877c`; CodeQL `34816061714` passed and
+`539d5b8ff82a5d7e4a2e19e3cfcb7e5c4b532449`; CodeQL `34816061714` passed and
 Verify `34816061716` remains in progress. No other pull requests remain open.
 
 PR #252 gives the narrow scene canvas a 15-degree façade-biased overview below
@@ -20,7 +20,7 @@ placement authority, level expression and asset budgets are unchanged.
 
 The native `/home/warpkeep/Warpkeep-0.4` checkout remains a protected, pinned
 M2 operating input and must not be moved while owned preparation or checking is
-active. The current source checkout is clean at PR head `8331875b`; the
+active. The current source checkout is clean at PR head `539d5b8f`; the
 protected main checkout remains at `c0e1d2d6` until review merge. The source,
 docs and standalone clones have been independently read back at their recorded
 SHAs. The
@@ -50,7 +50,7 @@ preparation/independent check completed for that exact source with candidate
 `593fdb280394632d0d3302b5fa127f162c1ef145b58b3f16be593c2021adce7c`, closure
 manifest SHA-256 `65a8c8feb58a2b432af919fc80b0c902b69efebf947e35ed87349711c94e2335`,
 3,229 source/candidate files, 102 outputs and `finalReleasePrepared:false`.
-The generated-only refresh is published at PR #255 head `8331875b`; protected
+The generated-only refresh is published at PR #255 head `539d5b8f`; protected
 preflight must be rerun after the reviewed merge.
 
 The saved `keep-warpkeep-development-synced` automation is **PAUSED** and must

@@ -6,7 +6,7 @@ documentation-only squash merge on gameplay/source
 `d0af28e924f187ab91fee9390c9a6b56389d2043` (PR #253), after the integrated PR
 #250 mobile schematic, PR #251 documentation and PR #252 mobile overview
 passes. PR #255 is the current open generated-family alignment request at head
-`8331875b1110e3097c7659d1388a7243cde2877c`; CodeQL `34816061714` passed and
+`539d5b8ff82a5d7e4a2e19e3cfcb7e5c4b532449`; CodeQL `34817207434` is running and
 Verify `34816061716` remains in progress.
 These are source and protected-CI records; provider deployment, live realm
 mutation and player acceptance remain separate outcomes.
