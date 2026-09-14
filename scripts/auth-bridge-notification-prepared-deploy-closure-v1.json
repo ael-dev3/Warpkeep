@@ -1635,7 +1635,7 @@
     {
       "path": "scripts/recovery-workflow-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "1516539e9afab6622e76104279957de477c2e6f247553868180e6c1992069ab5"
+      "sha256": "e1a15f1650e01b4518136bee2af9ce9a19b04810131fb7d94ce7491d747f60ab"
     },
     {
       "path": "scripts/recovery-workflow-check-deployment.d.mts",
@@ -1815,7 +1815,7 @@
     {
       "path": "scripts/sealed-realms-production-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "fade560b6850bbb96a40bc814eae604dcea0be5e264187443e8251ce3cfc560b"
+      "sha256": "a0f5919f6d438d183867dcea44a551044ffd44db375559e59c4725d15366b408"
     },
     {
       "path": "scripts/sealed-realms-production-continuation.d.mts",
@@ -3625,22 +3625,22 @@
     {
       "path": "src/components/keep04/Keep04SceneHost.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "3df560cd7372ab54c4c9abd69828bacbc9c8ae874f199259b0943bc608bf4929"
+      "sha256": "f3fe6f3d18012c600f4dc7b8cecb2d06ae4690548ed17ab26e3f5d684a6a4360"
     },
     {
       "path": "src/components/keep04/Keep04Schematic.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ee90b3679205f8fbc766006c8ab14a105cc49e3491020af90536a9bafb136563"
+      "sha256": "7b3940c9302b28981fe8de1877dccda059a929234b4fa4cfc04b6462ee046afd"
     },
     {
       "path": "src/components/keep04/Keep04Screen.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6564be3468de86a049b23fa1615de7573b23b9fa4c9c20cec154617a15da4a41"
+      "sha256": "6963759762a625790fbe70d88e7cac8b3dc7c2513e5275171959c238a835ed6e"
     },
     {
       "path": "src/components/keep04/Keep04Screen.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "753937275cfc0d562dbdc60f222bbb42ef54527fef52ea8373278160545bf2f2"
+      "sha256": "d69c86a83e88c4efee3294cf0840e8cf4f2642931122c647afd7646483378c6a"
     },
     {
       "path": "src/components/keep04/Keep04WorkerPanel.tsx",
@@ -3655,17 +3655,17 @@
     {
       "path": "src/components/keep04/createKeep04Scene.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "861416158a3c52ecb9f3646a1234ec57f2de48f3082e1a512348d5c504091489"
+      "sha256": "e7bea9b5426c5829d917f8298d9ba5166137853841f7860d817f46b728decd6d"
     },
     {
       "path": "src/components/keep04/keep04DressingPlans.generated.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "69c4a93da81ef465a087574799e68272c576ccf766ae1ccba681a8bd9d5a7f80"
+      "sha256": "e9bd60dc103dd6d22c1bf0b262dcaf14f28c7d12ffc18beb5b6ca755474caa01"
     },
     {
       "path": "src/components/keep04/keep04VisualProfile.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c2bb125dbb5fd34855b118828e2df31419cf77993209618528c675d5b1dcc912"
+      "sha256": "6ceda3d8b47b977121e894b8c6af9e282c90498e807f7f8b4a45aed734adc2fc"
     },
     {
       "path": "src/components/keep04/keep04VoxelDressing.ts",
@@ -3685,7 +3685,7 @@
     {
       "path": "src/components/menu/AlphaParticipationTermsDialog.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "7a36c95d397be1a721a7c332120e5521e6fb6388c7b16de1fb4ec87c09d7571b"
+      "sha256": "60cba4837a42a579917863d23e66af8860e3e954e1eec088b3d7311cc6102da6"
     },
     {
       "path": "src/components/menu/CreditsRoll.css",

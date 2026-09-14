@@ -7,22 +7,36 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-The accepted source is protected `main` at `d0af28e924f187ab91fee9390c9a6b56389d2043`,
-the squash merge of PR #253 after PR #250's mobile schematic readability pass,
-PR #251's documentation alignment pass and PR #252's mobile overview merge.
-The PR #253 Verify checks passed on `6aba76a6`; post-merge main Verify
-`34807785841` and CodeQL `34807785912` are running on the exact current SHA.
-This proves the source and protected CI rails, not a live 0.4 deployment. The
+Protected `main` is `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`, the exact
+protected squash merge of PR #254, a documentation-only checkpoint on the
+gameplay/source checkpoint `d0af28e924f187ab91fee9390c9a6b56389d2043` (PR #253).
+PR #255 is the current open documentation and generated-family alignment pull
+request at head `539d5b8ff82a5d7e4a2e19e3cfcb7e5c4b532449`; CodeQL
+`34816061714` has passed and Verify `34816061716` is still running. This proves
+source and protected CI rails, not a live 0.4 deployment. The
 [execution handoff](execution-handoff.md) owns exact source, CI, native and
 environment identities.
 
 PR #252 adds a narrow-canvas façade-biased overview and preserves manual camera
 orientation and vertical framing across resize. It is presentation-only:
 footprints, picking, placement authority, progression and asset budgets stay
-unchanged. GitHub Pages classify run `34803660169` passed but skipped build and
-deploy under the current release classification; warpkeep.com still serves
+unchanged. GitHub Pages run `34810674281` classified the gameplay/source
+checkpoint but skipped build, deploy and live verification under the current
+release classification; warpkeep.com still serves
 the established Genesis UI. Treat live 0.4 as not shipped until owner/provider,
 recovery and deployment evidence is complete.
+
+The fresh protected-main sealed-realms preflight `34813075520` passed runner,
+checkout and source attestation, then failed at bundle validation against the
+older preparation input `27c2d276`; no provider, realm, owner or deployment
+mutation occurred. A new Linux native preparation and independent check now
+completed for exact source `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f` using
+candidate `release-workspace-6c6d10e57c03ce0ead8c3ac35b285a19`: 3,229 source and
+candidate files, 102 outputs, family SHA-256
+`593fdb280394632d0d3302b5fa127f162c1ef145b58b3f16be593c2021adce7c`, closure
+manifest SHA-256 `65a8c8feb58a2b432af919fc80b0c902b69efebf947e35ed87349711c94e2335`,
+and `finalReleasePrepared:false`. The generated-only refresh is published in
+PR #255; rerun protected preflight after its reviewed merge.
 
 - **Development and live release are separate.** `main` contains the 0.4
   development source alongside preserved G001 behavior. The integrated 0.4

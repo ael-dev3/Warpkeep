@@ -1,15 +1,18 @@
 # 0.4.0 integration evidence
 
 Updated 2026-09-14. Protected `main` is
-`d0af28e924f187ab91fee9390c9a6b56389d2043`, the exact PR #253 squash merge
-after the integrated PR #250 mobile schematic, PR #251 documentation and PR #252
-mobile overview passes. PR #253's Verify and CodeQL passed; post-merge main
-Verify `34807785841` and CodeQL `34807785912` are running on that exact source.
+`c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`, the exact PR #254
+documentation-only squash merge on gameplay/source
+`d0af28e924f187ab91fee9390c9a6b56389d2043` (PR #253), after the integrated PR
+#250 mobile schematic, PR #251 documentation and PR #252 mobile overview
+passes. PR #255 is the current open generated-family alignment request at head
+`539d5b8ff82a5d7e4a2e19e3cfcb7e5c4b532449`; CodeQL `34817207434` is running and
+Verify `34816061716` remains in progress.
 These are source and protected-CI records; provider deployment, live realm
 mutation and player acceptance remain separate outcomes.
 
-GitHub Pages classify run `34803660169` passed but skipped build/deploy under
-the current release classification. The served site therefore remains the
+GitHub Pages run `34810674281` passed classification but skipped build/deploy/live
+verification under the current release classification. The served site therefore remains the
 established Genesis UI, and no live 0.4 release is claimed.
 The generated-only M2 promotion changed exactly the eight authenticated
 workflow/generated paths listed in [release freeze evidence](release-freeze.md).

@@ -1,25 +1,28 @@
 # 0.4 release freeze evidence
 
-Status: **accepted-main M2 promotion, verification and sealed read-only preflight complete; release freeze open**.
+Status: **generated-family refresh under review; release freeze open**.
 
-Signed protected `main` is `810286c95f39cf6e41f121162fa5dab250a77a16` (tree `1f16891a52ba1bf8194ba7d1ca5154a5b5481412`). PR #247 merged the
-reviewed generated-only family from `422591d7bbb432a67a13f5b5a893d6f2788dabda`
-with a GitHub-verified squash. Fresh main Verify run `34760814489` passed every
-required lane. Native M1 preparation and the independent rebuilding check both
-remain bound to candidate `release-workspace-83bf0da57a1a622d84742c445f8450a9`:
+Protected `main` remains `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`. PR #255
+contains the generated-family refresh at head
+`8331875b1110e3097c7659d1388a7243cde2877c`; CodeQL `34816061714` passed and
+Verify `34816061716` is still running. A fresh Linux native preparation and
+independent check completed for the exact protected-main input, candidate
+`release-workspace-6c6d10e57c03ce0ead8c3ac35b285a19`:
 
-- Transaction: `d0297bcb6821e4f1d5fbdf37cbd16f66`
-- Family SHA-256: `0c97e825844d58ad3417a0298eb75a81c67f3bc1595863a9083c41d5bd648899`
-- Closure manifest SHA-256: `13b8ec2559712b93560c62babe47e0e79dae4fa656da638d108f66e8f7a4e835`
+- Transaction: `d2b3899b5e3597de236dce03f580c7fb`
+- Family SHA-256: `593fdb280394632d0d3302b5fa127f162c1ef145b58b3f16be593c2021adce7c`
+- Closure manifest SHA-256: `65a8c8feb58a2b432af919fc80b0c902b69efebf947e35ed87349711c94e2335`
 - Scanner manifest SHA-256: `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`
 - Checked source/candidate files: `3,229 / 3,229`
 - Generated outputs: `102`
 - `finalReleasePrepared`: `false`
 
-The sealed-realms read-only preflight `34763502943` passed against exact M2
-`810286c95f39cf6e41f121162fa5dab250a77a16` and emitted `{"operation":"preflight","status":"preflight-inspected"}`.
-No provider call, realm mutation, owner provisioning or deployment occurred.
-The family is reproducible preparation evidence, not deployment authorization.
+The earlier sealed-realms preflight `34813075520` passed runner/source
+attestation but failed bundle validation against older input `27c2d276`; no
+provider call, realm mutation, owner provisioning or deployment occurred. The
+new family reports `finalReleasePrepared:false` and is reproducible preparation
+evidence, not deployment authorization. Rerun protected preflight after PR #255
+merges.
 
 The next gates are genuine provider and owner authority, live recovery/readback,
 G001 preservation, sealed G002 denial, owner-only PTR play, physical-device

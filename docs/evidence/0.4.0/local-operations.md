@@ -4,20 +4,38 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 ## Current accepted-main source and protected checks — 14 September 2026
 
-Protected `main` is `d0af28e924f187ab91fee9390c9a6b56389d2043`, the exact PR #253
-squash merge after the integrated PR #250 mobile schematic, PR #251
-documentation and PR #252 mobile overview passes. PR #253's Verify and CodeQL
-passed; post-merge main Verify `34807785841` and CodeQL `34807785912` are
-running on this exact source. The source and docs checkouts are clean at that
-SHA. The saved Codex sync automation is paused, and no scheduled GitHub
-workflow exists.
+Protected `main` is `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`, the exact PR #254
+documentation-only squash merge on gameplay/source
+`d0af28e924f187ab91fee9390c9a6b56389d2043` (PR #253), after the integrated PR
+#250 mobile schematic, PR #251 documentation and PR #252 mobile overview
+passes. PR #255 is the current open generated-family alignment request at head
+`539d5b8ff82a5d7e4a2e19e3cfcb7e5c4b532449`; CodeQL `34817207434` and Verify
+`34817207464` are running. This checkout carries the PR head; the
+protected main checkout remains at c0e1 until review merge. The saved Codex sync
+automation is paused, and no scheduled GitHub workflow exists.
 
-Pages classify `34803660169` passed for the prior source but skipped build/deploy
-under the current release classification. The live site remains the established
+Pages run `34810674281` passed classification for the gameplay/source checkpoint
+but skipped build/deploy/live verification under the current release
+classification. The live site remains the established
 Genesis UI, so this record does not claim a live 0.4 release. A fresh local
 provider recheck found the authenticated Cloudflare account does not contain
 `warpkeep-auth-bridge`, the Pages project list is empty, and the authenticated
 SpacetimeDB identity has no databases.
+
+The fresh protected-main sealed-realms preflight `34813075520` reached the
+authenticated Linux runner and exact source checkout, then failed in the fixed
+bundle phase against older input `27c2d276`. This is preparation evidence only:
+no provider, realm, owner or deployment mutation occurred. A new Linux native
+preparation and independent check completed for exact source
+`c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`, candidate
+`release-workspace-6c6d10e57c03ce0ead8c3ac35b285a19`, transaction
+`d2b3899b5e3597de236dce03f580c7fb`, family SHA-256
+`593fdb280394632d0d3302b5fa127f162c1ef145b58b3f16be593c2021adce7c`, closure
+manifest SHA-256 `65a8c8feb58a2b432af919fc80b0c902b69efebf947e35ed87349711c94e2335`,
+3,229 source/candidate files, 102 outputs, 486 bundle inputs and 7 recovery
+inputs. `finalReleasePrepared:false` remains explicit; the generated-only
+refresh is published in PR #255 and protected preflight must be rerun after
+merge.
 
 The read-only sealed-realms preflight `34763502943` passed against `810286c95f39cf6e41f121162fa5dab250a77a16` and
 returned `{"operation":"preflight","status":"preflight-inspected"}`. It
