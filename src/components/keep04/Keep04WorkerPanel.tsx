@@ -1,5 +1,6 @@
 import type { Resource04 } from '../../../spacetimedb/gameplay04/policy';
 import type { View04 } from '../../ptr/gameplay04/gameplay04Presentation';
+import { formatKeep04Duration } from './formatKeep04Duration';
 
 const JOURNEY_STAGES04 = ['outbound', 'gathering', 'returning'] as const;
 type JourneyStage04 = (typeof JOURNEY_STAGES04)[number];
@@ -32,8 +33,10 @@ export function estimatedTime04(deadline: bigint, nowMs: number): string {
   const nowMicros = BigInt(Math.max(0, Math.trunc(nowMs))) * 1_000n;
   const remainingMicros = deadline > nowMicros ? deadline - nowMicros : 0n;
   if (remainingMicros === 0n) return 'Awaiting Realm update';
-  const seconds = (remainingMicros + 999_999n) / 1_000_000n;
-  return `${seconds} s`;
+  // Round up before formatting so a visible estimate never reaches zero
+  // while the Realm still reports time remaining.
+  const roundedMicros = ((remainingMicros + 999_999n) / 1_000_000n) * 1_000_000n;
+  return formatKeep04Duration(roundedMicros);
 }
 
 export function Keep04WorkerPanel({ view, enabled, nowMs, onRecall, onFindResources }: Readonly<{
