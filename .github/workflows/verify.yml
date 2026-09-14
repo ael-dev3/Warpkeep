@@ -171,11 +171,15 @@ jobs:
 
       - name: Run tests
         run: |
-          npm test -- \
+          # Keep the runner-level 75-minute budget observable. Vitest can leave
+          # a child process alive without producing step output; GNU timeout
+          # converts that hang into a bounded, diagnosable failure instead of
+          # occupying the protected gate indefinitely.
+          timeout --foreground --signal=TERM --kill-after=30s 60m npm test -- \
             --exclude tests/authBridgeNotificationPreparedWorkflow.test.ts \
             --exclude tests/productionPlayerCanaryClosure.test.ts \
             --maxWorkers=2
-          npm test -- \
+          timeout --foreground --signal=TERM --kill-after=30s 8m npm test -- \
             tests/authBridgeNotificationPreparedWorkflow.test.ts \
             tests/productionPlayerCanaryClosure.test.ts \
             --maxWorkers=1 \
@@ -329,7 +333,9 @@ jobs:
 
       - name: Verify module and generated bindings
         run: |
-          pnpm --dir spacetimedb run verify
+          # The module verifier is a serial multi-contract suite. Bound it
+          # below the 90-minute job budget so a hung child cannot strand CI.
+          timeout --foreground --signal=TERM --kill-after=30s 60m pnpm --dir spacetimedb run verify
           pnpm --dir spacetimedb/genesis002 run verify
           pnpm --dir spacetimedb/ptr run verify
           test ! -e spacetimedb/ptr/node_modules

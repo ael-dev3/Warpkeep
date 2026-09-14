@@ -6,19 +6,30 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const splitRootTestRun = [
-  'npm test -- \\',
-  '  --exclude tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
-  '  --exclude tests/productionPlayerCanaryClosure.test.ts \\',
-  '  --maxWorkers=2',
-  'npm test -- \\',
-  '  tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
-  '  tests/productionPlayerCanaryClosure.test.ts \\',
-  '  --maxWorkers=1 \\',
-  '  --testTimeout=180000',
-  '',
-].join('\n');
-const pagesRootTestRun = splitRootTestRun;
+function boundedRootTestRun(comment: string) {
+  return [
+    comment,
+    '# a child process alive without producing step output; GNU timeout',
+    '# converts that hang into a bounded, diagnosable failure instead of',
+    '# occupying the protected gate indefinitely.',
+    'timeout --foreground --signal=TERM --kill-after=30s 60m npm test -- \\',
+    '  --exclude tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
+    '  --exclude tests/productionPlayerCanaryClosure.test.ts \\',
+    '  --maxWorkers=2',
+    'timeout --foreground --signal=TERM --kill-after=30s 8m npm test -- \\',
+    '  tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
+    '  tests/productionPlayerCanaryClosure.test.ts \\',
+    '  --maxWorkers=1 \\',
+    '  --testTimeout=180000',
+    '',
+  ].join('\n');
+}
+const splitRootTestRun = boundedRootTestRun(
+  '# Keep the runner-level 75-minute budget observable. Vitest can leave',
+);
+const pagesRootTestRun = boundedRootTestRun(
+  '# Keep the Pages build runner budget observable. Vitest can leave',
+);
 
 interface WorkflowStep {
   name?: string;
