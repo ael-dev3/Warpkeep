@@ -7,13 +7,14 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-The accepted source is protected `main` at `a452e9feb5c3383a446ae3fdd5dfd255a869d984`,
-the squash merge of PR #252. PR #250's mobile schematic readability pass and
-PR #251's documentation alignment pass are also integrated. Verify
-`34800429035` and CodeQL `34800429052` passed on that exact SHA; no pull
-requests are open. This proves the source and protected CI rails, not a live
-0.4 deployment. The [execution handoff](execution-handoff.md) owns exact
-source, CI, native and environment identities.
+The accepted source is protected `main` at `d0af28e924f187ab91fee9390c9a6b56389d2043`,
+the squash merge of PR #253 after PR #250's mobile schematic readability pass,
+PR #251's documentation alignment pass and PR #252's mobile overview merge.
+The PR #253 Verify checks passed on `6aba76a6`; post-merge main Verify
+`34807785841` and CodeQL `34807785912` are running on the exact current SHA.
+This proves the source and protected CI rails, not a live 0.4 deployment. The
+[execution handoff](execution-handoff.md) owns exact source, CI, native and
+environment identities.
 
 PR #252 adds a narrow-canvas façade-biased overview and preserves manual camera
 orientation and vertical framing across resize. It is presentation-only:

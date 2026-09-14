@@ -11,7 +11,8 @@ interactivity.
 Use the [execution handoff](execution-handoff.md), current refs and open pull
 requests for source and verification. PR #228 and the M2-only records are
 historical checkpoints; the current presentation source is protected `main` at
-`a452e9feb5c3383a446ae3fdd5dfd255a869d984`, the PR #252 mobile overview merge.
+`d0af28e924f187ab91fee9390c9a6b56389d2043`, the PR #253 current-docs merge on
+top of the PR #252 mobile overview.
 The rendered evidence below retains its recorded source and scope; it does not
 attest later UI edits or physical-device performance.
 The `27700d61` follow-up corrects bordered/letterboxed schematic taps and the
