@@ -1,13 +1,16 @@
 # 0.4 workflow sufficiency audit
 
-Updated 2026-09-13 (Europe/Budapest). This is the current operating sequence.
+Updated 2026-09-14 (Europe/Budapest). This is the current operating sequence.
 Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) and live
 Git refs for the latest checkpoint, and the
 [release checklist](../../operations/0.4.0-release-checklist.md) for acceptance.
 Historical candidate identities remain in [release engineering](release-engineering.md)
 and [recovery evidence](recovery.md); none certifies later source.
 
-Source PR #249 is now protected-merged as `61b8a03d04fcae2db3913d10e2025fa6c3e8529f`; the post-merge main Verify `34770379931` passed every required lane. Documentation PR #248 is the current evidence refresh; resolve its live head and required checks before integration.
+PR #250, PR #251 and PR #252 are protected-merged; Verify `34800429035` and
+CodeQL `34800429052` passed every required lane on `a452e9f`. Pages classify
+`34803660169` passed but skipped build/deploy under the current release
+classification, so the live 0.4 release remains unshipped.
 
 ## Verdict
 
@@ -16,14 +19,15 @@ integration, generated-only M2 promotion, fresh main verification and a sealed
 read-only preflight. It is not yet sufficient to ship 0.4: genuine provider and
 owner authority, live recovery/readback, G001 preservation, sealed G002 denial,
 owner-only PTR play, physical-device performance, hosting and final deployment
-remain open. Overall completion is approximately **83%** (a 78–88% judgment
+remain open. Overall completion is approximately **85%** (an 80–88% judgment
 range), based on milestone coverage rather than test or file counts. No reliable
 calendar ETA is established.
 
 ## What is working
 
-- Protected main is signed M2 `810286c95f39cf6e41f121162fa5dab250a77a16` (tree `1f16891a52ba1bf8194ba7d1ca5154a5b5481412`); PR #247's generated-only
-  promotion and fresh Verify `34760814489` are green across all required lanes.
+- Protected main is `a452e9feb5c3383a446ae3fdd5dfd255a869d984`; PR #252's mobile
+  overview merge and fresh Verify `34800429035` are green across all required
+  lanes, with CodeQL `34800429052` also passed.
 - Native WSL is clean and synchronized to the exact M2 commit with RunnerService
   PID203 and Runner.Listener PID224 preserved. Sealed preflight `34763502943`
   returned `preflight-inspected` without mutating live state.

@@ -9,12 +9,11 @@ reference into an imported engine, a new economy, or a promise of deep
 interactivity.
 
 Use the [execution handoff](execution-handoff.md), current refs and open pull
-requests for source and verification. PR #228 is a historical integration
-checkpoint; the accepted baseline is M2 `810286c95f39cf6e41f121162fa5dab250a77a16`
-and the current presentation source is the protected PR #249 merge; the
-rendered evidence below
-retains its recorded source
-`24e3c136fb5e3839b00c8e8ddb3c780b6f795461`; it does not attest later UI edits.
+requests for source and verification. PR #228 and the M2-only records are
+historical checkpoints; the current presentation source is protected `main` at
+`a452e9feb5c3383a446ae3fdd5dfd255a869d984`, the PR #252 mobile overview merge.
+The rendered evidence below retains its recorded source and scope; it does not
+attest later UI edits or physical-device performance.
 The `27700d61` follow-up corrects bordered/letterboxed schematic taps and the
 loop's construction/completion feedback without changing the visual direction.
 Earlier hashes are historical anchors, not the source for a new pass. The recorded connected
