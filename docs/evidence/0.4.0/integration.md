@@ -1,21 +1,10 @@
 # 0.4.0 integration evidence
 
-Updated 2026-09-14. Protected `main` is now
-`3af84aa892a9222b8c6286d01e2fb50fb248f43e`, the protected squash merge of PR #256,
-following PR #255's generated-family refresh and gameplay/source integration.
-Post-merge Verify `34833483264` and CodeQL `34833483317` both completed
-successfully. The read-only sealed preflight `34838183075` passed against this
-exact source and emitted `{"operation":"preflight","status":"preflight-inspected"}`.
-These are source and protected-CI records; provider deployment, live realm
-mutation and player acceptance remain separate outcomes.
+Updated 2026-09-14. Protected `main` and `origin/main` are synchronized at `f0e9d3e8baec4b1a1e3cbbd1dddc865d9f518f9c`, the protected squash merge of PR #257. Fresh Verify `34844704568`, CodeQL `34844704587`, Pages classifier `34850287588` and exact-main read-only sealed preflight `34850381588` completed successfully for this exact source.
 
-GitHub Pages workflow run `34838162467` passed classification but skipped build/deploy/live
-verification under the current release classification. The served site therefore remains the
-established Genesis UI, and no live 0.4 release is claimed.
-The generated-only M2 promotion changed exactly the eight authenticated
-workflow/generated paths listed in [release freeze evidence](release-freeze.md).
-The source implementation and M1 preparation identities remain unchanged. The
-saved sync automation is paused and no GitHub schedule exists.
+The preflight emitted `{"operation":"preflight","status":"preflight-inspected"}` and performed no provider, realm, owner or deployment mutation. Pages ran its classifier only; build, deploy and live verification were skipped under the sealed-launch policy. The served site therefore remains the established Genesis UI, and no live 0.4 release is claimed.
+
+The source and protected release rails are green. Provider/publisher authority, real realm deployment and recovery/readback, G001 preservation, sealed G002 denial, actual-owner PTR play, physical-device acceptance and final release freeze remain open. The saved sync automation is paused and no GitHub schedule exists.
 
 ## Placement and workflow review — 2026-09-12
 

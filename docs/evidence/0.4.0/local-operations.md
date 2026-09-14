@@ -4,47 +4,11 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 ## Current accepted-main source and protected checks — 14 September 2026
 
-Protected `main` is now `3af84aa892a9222b8c6286d01e2fb50fb248f43e`, the protected
-squash merge of PR #256, following PR #255's generated-family refresh and
-release-record alignment. Post-merge Verify `34833483264` and CodeQL `34833483317` both
-completed successfully. The read-only sealed preflight `34838183075` passed
-against this exact source and emitted
-`{"operation":"preflight","status":"preflight-inspected"}`. The saved Codex
-sync automation is paused, and no scheduled GitHub workflow exists.
+Protected `main` and `origin/main` are synchronized at `f0e9d3e8baec4b1a1e3cbbd1dddc865d9f518f9c`. Fresh Verify `34844704568`, CodeQL `34844704587`, Pages classifier `34850287588` and exact-main read-only sealed-realms preflight `34850381588` completed successfully for this exact source.
 
-Pages run `34838162467` passed classification for the main push but skipped
-build/deploy/live verification under the current release classification. The
-live site remains the established
-Genesis UI, so this record does not claim a live 0.4 release. A fresh local
-provider recheck found the authenticated Cloudflare account does not contain
-`warpkeep-auth-bridge`, the Pages project list is empty, and the authenticated
-SpacetimeDB identity has no databases.
+The preflight emitted `{"operation":"preflight","status":"preflight-inspected"}` after exact runner, checkout, source and fixed-bundle attestation. It performed no provider, realm, owner or deployment mutation. Pages classification succeeded, while build, deploy and live verification were skipped under the sealed-launch policy; the live site remains Genesis.
 
-The fresh protected-main sealed-realms preflight `34838183075` reached the
-authenticated Linux runner and exact source checkout and passed the fixed
-source and fixed-bundle gates for exact merged source
-`3af84aa892a9222b8c6286d01e2fb50fb248f43e`. It emitted
-`{"operation":"preflight","status":"preflight-inspected"}`. This is
-preflight inspection evidence only: no provider, realm, owner or deployment
-mutation occurred. The Linux native preparation and independent check that
-supplied the merged family completed for ancestor source
-`c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`, candidate
-`release-workspace-6c6d10e57c03ce0ead8c3ac35b285a19`, transaction
-`d2b3899b5e3597de236dce03f580c7fb`, family SHA-256
-`593fdb280394632d0d3302b5fa127f162c1ef145b58b3f16be593c2021adce7c`, closure
-manifest SHA-256 `65a8c8feb58a2b432af919fc80b0c902b69efebf947e35ed87349711c94e2335`,
-3,229 source/candidate files, 102 outputs, 486 bundle inputs and 7 recovery
-inputs. `finalReleasePrepared:false` remains explicit for that preparation
-candidate; the merged main preflight above is the current source/bundle check.
-
-The read-only sealed-realms preflight `34763502943` passed against `810286c95f39cf6e41f121162fa5dab250a77a16` and
-returned `{"operation":"preflight","status":"preflight-inspected"}`. It
-performed no provider mutation, realm update, owner provisioning or deployment.
-M1 preparation/check identities remain bound to the recorded candidate and are
-not relabeled as final release authority; `finalReleasePrepared:false` remains
-explicit. Native source is now synchronized to the exact M2 main commit, while
-provider, owner, live-preservation, device and final deployment evidence remain
-open.
+The saved sync automation remains paused and no scheduled GitHub workflow exists. The local source checkout is clean at the protected main SHA. Provider, owner, live-preservation, device and final deployment evidence remain open. Keep durable notes in the repository and update the existing Desktop handoff in place only.
 
 ## Historical committed-source native preparation and independent check — 2026-09-12
 
