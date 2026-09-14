@@ -2,21 +2,36 @@
 
 Updated 2026-09-14 (Europe/Budapest). This is the current operating sequence. Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md), live Git refs and the [release checklist](../../operations/0.4.0-release-checklist.md) for acceptance. Historical candidate identities remain historical and do not certify later source.
 
-PR #257 is protected-merged. `main` and `origin/main` are synchronized at `f0e9d3e8baec4b1a1e3cbbd1dddc865d9f518f9c`. Fresh Verify `34844704568`, CodeQL `34844704587`, Pages classifier `34850287588` and exact-main read-only preflight `34850381588` completed successfully.
-
-The Pages classifier succeeded, but build, deploy and live verification were skipped under the sealed-launch policy, so the live 0.4 release remains unshipped. The saved sync automation is paused and no scheduled GitHub workflow exists.
+Protected `main` and `origin/main` are synchronized at
+`742c855bd40373a69e92c82db5eb54132b0df391`, the protected squash merge of
+PR #259. PR Verify `34877619504` completed successfully across Linux,
+SpacetimeDB, auth bridge, native contract and recovery lanes; analysis and
+CodeQL passed as well. Post-merge Verify `34883356688` and CodeQL
+`34883356895` are currently running against this exact main SHA. Pages has
+not yet classified this new source; the earlier classifier belongs to the
+superseded `0670121d` source. This proves protected source rails only:
+provider, owner, live deployment, recovery/readback, device acceptance and
+final-freeze evidence remain open. The live site remains Genesis.
 
 ## Verdict
 
-The workflow now supports reviewed development, native preparation, protected integration, generated-family promotion, fresh main verification and a sealed read-only preflight. It is not yet sufficient to ship 0.4: genuine provider and owner authority, real deployment and recovery/readback, G001 preservation, sealed G002 denial, owner-only PTR play, physical-device performance, hosting and final deployment remain open. Overall completion is approximately **86%** (80–88% judgment range), based on milestone coverage rather than arbitrary file or content counts. No reliable calendar ETA is established.
+The workflow supports reviewed development, native preparation, protected
+integration, generated-family promotion and fresh main verification. It is not
+yet sufficient to ship 0.4: genuine provider and owner authority, real
+deployment and recovery/readback, G001 preservation, sealed G002 denial,
+owner-only PTR play, physical-device performance, hosting and final deployment
+remain open. Overall completion remains approximately **86%** (80–88% judgment
+range), based on milestone coverage rather than arbitrary file or content
+counts. No reliable calendar ETA is established.
 
 ## What is working
 
-- Protected `main` and `origin/main` are synchronized at `f0e9d3e8baec4b1a1e3cbbd1dddc865d9f518f9c`; PR #257 is protected-merged.
-- Fresh Verify `34844704568`, CodeQL `34844704587`, Pages classifier `34850287588` and exact-main read-only preflight `34850381588` are green for the same source.
-- The preflight is source, runner and fixed-bundle inspection only. Pages deploy/live lanes are intentionally skipped under sealed launch; the served site remains Genesis.
-- The saved sync automation is paused and no scheduled GitHub workflow exists. Continue manual fetch, secret scan, reviewed commit/push and exact remote-SHA verification.
-- G001 progress, access, timers and admission freeze remain protected; G002 remains sealed and the isolated actual-owner PTR path is still required.
+- The Keep04 gather → choose → build → benefit → return foundation and readable
+  duration presentation are implemented and protected by focused tests.
+- Source closure, generated pins, Linux, SpacetimeDB, native, recovery, auth,
+  analysis and CodeQL checks are green for the merged PR source.
+- The saved sync automation is paused and no scheduled GitHub workflow exists;
+  manual publication remains the durable development rail.
 
 ## What remains open
 

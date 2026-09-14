@@ -1,10 +1,15 @@
 # 0.4.0 integration evidence
 
-Updated 2026-09-14. Protected `main` and `origin/main` are synchronized at `f0e9d3e8baec4b1a1e3cbbd1dddc865d9f518f9c`, the protected squash merge of PR #257. Fresh Verify `34844704568`, CodeQL `34844704587`, Pages classifier `34850287588` and exact-main read-only sealed preflight `34850381588` completed successfully for this exact source.
-
-The preflight emitted `{"operation":"preflight","status":"preflight-inspected"}` and performed no provider, realm, owner or deployment mutation. Pages ran its classifier only; build, deploy and live verification were skipped under the sealed-launch policy. The served site therefore remains the established Genesis UI, and no live 0.4 release is claimed.
-
-The source and protected release rails are green. Provider/publisher authority, real realm deployment and recovery/readback, G001 preservation, sealed G002 denial, actual-owner PTR play, physical-device acceptance and final release freeze remain open. The saved sync automation is paused and no GitHub schedule exists.
+Protected `main` and `origin/main` are synchronized at
+`742c855bd40373a69e92c82db5eb54132b0df391`, the protected squash merge of
+PR #259. PR Verify `34877619504` completed successfully across Linux,
+SpacetimeDB, auth bridge, native contract and recovery lanes; analysis and
+CodeQL passed as well. Post-merge Verify `34883356688` and CodeQL
+`34883356895` are currently running against this exact main SHA. Pages has
+not yet classified this new source; the earlier classifier belongs to the
+superseded `0670121d` source. This proves protected source rails only:
+provider, owner, live deployment, recovery/readback, device acceptance and
+final-freeze evidence remain open. The live site remains Genesis.
 
 ## Placement and workflow review — 2026-09-12
 

@@ -2,16 +2,19 @@
 
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main), the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
 
-Protected `main` is `f0e9d3e8baec4b1a1e3cbbd1dddc865d9f518f9c`, the protected squash merge of PR #257. Fresh Verify `34844704568`, CodeQL `34844704587`, Pages classifier `34850287588` and exact-main read-only preflight `34850381588` completed successfully for this exact source. The preflight emitted `{"operation":"preflight","status":"preflight-inspected"}` with no provider, realm, owner or deployment mutation.
+Protected `main` and `origin/main` are synchronized at
+`742c855bd40373a69e92c82db5eb54132b0df391`, the protected squash merge of
+PR #259. PR Verify `34877619504` completed successfully across every
+required lane; analysis and CodeQL passed. Post-merge Verify `34883356688`
+and CodeQL `34883356895` are currently running for this exact main SHA.
+Pages has not yet classified the new source. The live site remains Genesis and
+the 0.4 release is not claimed as shipped. Provider/owner authority, real
+deployment, recovery/readback, G001 preservation, sealed G002 denial,
+physical-device acceptance and final deployment remain open.
 
-Pages ran only the sealed-launch classifier; build, deploy and live verification were skipped, so the live site remains Genesis. Genuine provider/owner authority, live recovery/readback, G001 preservation and denial, physical-device acceptance and final deployment remain open. Earlier source families and candidate identities below are historical, source-bound evidence; green protected source rails do not certify production.
-
-Each dated section retains its exact source and scope. Earlier missing-component entries are history when a later section demonstrates implementation; component success does not establish unrecorded production acceptance.
-
-## Current accepted-main source checkpoint — 14 September 2026
-
-Protected `main` and `origin/main` are synchronized at `f0e9d3e8baec4b1a1e3cbbd1dddc865d9f518f9c`. Fresh Verify `34844704568` and CodeQL `34844704587` are green, Pages classifier `34850287588` is green with deploy lanes skipped, and exact-main preflight `34850381588` is green and read-only. 0.4 remains unshipped pending provider, owner, live, device and final-freeze gates.
-
+Each dated section below retains its exact source and scope. Earlier source
+families and candidate identities are historical evidence; green protected
+source rails do not certify production.
 ## Verified observation source family — 2026-09-13
 
 Full-stack review found one scanner coverage gap: two already-permitted update

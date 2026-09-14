@@ -9,17 +9,15 @@ reference into an imported engine, a new economy, or a promise of deep
 interactivity.
 
 Use the [execution handoff](execution-handoff.md), current refs and open pull
-requests for source and verification. PR #228 and the M2-only records are
-historical checkpoints; protected `main` is now
-`3af84aa892a9222b8c6286d01e2fb50fb248f43e` after the PR #255 generated-family
-refresh merge. Post-merge Verify `34833483264` and CodeQL `34833483317` both
-completed successfully. The read-only sealed preflight `34838183075` also
-passed against this exact source. The PR #254 documentation-only checkpoint is
-on gameplay/source
-`d0af28e924f187ab91fee9390c9a6b56389d2043` (PR #253), on top of the PR #252
-mobile overview.
-The rendered evidence below retains its recorded source and scope; it does not
-attest later UI edits or physical-device performance.
+requests for source and verification. Protected `main` is
+`742c855bd40373a69e92c82db5eb54132b0df391` after the PR #259 protected squash
+merge. PR Verify `34877619504` passed across all lanes; post-merge Verify
+`34883356688` and CodeQL `34883356895` are running. Pages has not yet
+classified this new source. The rendered evidence below retains its recorded
+source and scope; it does not attest later UI edits or physical-device
+performance. The 0.4 release remains a development build until authenticated
+owner play, physical-device review and the required delivery evidence are
+complete.
 The `27700d61` follow-up corrects bordered/letterboxed schematic taps and the
 loop's construction/completion feedback without changing the visual direction.
 Earlier hashes are historical anchors, not the source for a new pass. The recorded connected

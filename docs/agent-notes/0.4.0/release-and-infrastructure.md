@@ -2,20 +2,18 @@
 
 ## Current source and access checkpoint — 2026-09-14
 
-Protected main is `3af84aa892a9222b8c6286d01e2fb50fb248f43e`, the protected
-squash merge of PR #256, following PR #255's generated-family refresh and
-release-record alignment. Post-merge Verify `34833483264` and CodeQL `34833483317` both
-completed successfully. The Pages run triggered by this main push is tracked
-separately; it must complete before live hosting evidence can be claimed. The
-live site remains the established Genesis UI until that evidence is verified.
-The [execution handoff](execution-handoff.md) owns exact source/CI identities and the
-[live delivery guide](../../operations/0.4.0-live-delivery-status.md) owns current
-operating steps. The saved sync automation is paused and no scheduled workflow
-exists. Current CLI rechecks still find no `warpkeep-auth-bridge` Worker in the
-authenticated Cloudflare account and no databases in the authenticated
-SpacetimeDB identity. These source and CI checks do not prove owner access,
-provider authority, deployed recovery services or a live 0.4 release.
+Protected `main` and `origin/main` are synchronized at
+`742c855bd40373a69e92c82db5eb54132b0df391`, the protected squash merge of
+PR #259. PR Verify `34877619504` completed successfully across Linux,
+SpacetimeDB, auth bridge, native contract and recovery lanes; analysis and
+CodeQL passed as well. Post-merge Verify `34883356688` and CodeQL
+`34883356895` are currently running against this exact main SHA. Pages has
+not yet classified this new source; the earlier classifier belongs to the
+superseded `0670121d` source. This proves protected source rails only:
+provider, owner, live deployment, recovery/readback, device acceptance and
+final-freeze evidence remain open. The live site remains Genesis.
 
+The [execution handoff](execution-handoff.md) owns exact source and CI identities; the [live delivery guide](../../operations/0.4.0-live-delivery-status.md) owns operating steps. Current source and CI checks do not prove owner access, provider authority, deployed recovery services or a live 0.4 release.
 ## Historical source checkpoint — 2026-09-12
 
 Reviewed 0.4 source is now integrated into signed main `c4b95505` through

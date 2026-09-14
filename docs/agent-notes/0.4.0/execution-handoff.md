@@ -1,16 +1,29 @@
 # Continue Warpkeep 0.4
 
-## Current accepted-main checkpoint — 14 September 2026 (current docs checkpoint)
+## Current accepted-main checkpoint — 14 September 2026
 
-Protected `main` and `origin/main` are synchronized at `f0e9d3e8baec4b1a1e3cbbd1dddc865d9f518f9c`, the protected squash merge of PR #257. PR #257 reconciled the 0.4 records with the verified gameplay/source integration from PR #255 and the documentation checkpoint from PR #256. No Warpkeep pull requests are open.
+Protected `main` and `origin/main` are synchronized at
+`742c855bd40373a69e92c82db5eb54132b0df391`, the protected squash merge of
+PR #259 (`codex/0.4-readable-duration`). The change adds readable seconds,
+minutes and hours to Keep04 building and Worker presentation while preserving
+exact Realm microsecond inputs and server-side timing. PR Verify
+`34877619504` completed successfully across Linux, SpacetimeDB, auth bridge,
+native contract and recovery lanes; analysis and CodeQL also passed.
 
-Fresh post-merge Verify `34844704568`, CodeQL `34844704587`, Pages classifier `34850287588` and exact-main read-only sealed-realms preflight `34850381588` all completed successfully for this source. The preflight emitted `{"operation":"preflight","status":"preflight-inspected"}` and performed no provider, realm, owner or deployment mutation. Pages ran only its sealed-launch classifier; build, deploy and live verification were skipped by policy.
+Post-merge Verify `34883356688` and CodeQL `34883356895` are currently
+running against exact `main` SHA `742c855b`. The Pages classifier for this
+new source has not completed; the earlier classifier `34873617604` belongs to
+the superseded `0670121d` source. These checks establish source integrity and
+protected CI only. Warpkeep 0.4 remains unshipped pending provider-backed
+deployment, recovery/readback, live identity, actual-owner PTR play, device
+acceptance and final release freeze.
 
-The repository remains in development and is not a live 0.4 release. The served site is still the established Genesis UI. The remaining acceptance work is genuine provider/publisher authority, real realm deployment and recovery/readback, G001 preservation, sealed G002 denial, actual-owner PTR play and return timing, physical-device performance and final visual acceptance, then a final release freeze.
-
-The current 0.4 estimate is approximately **86%** (80–88% engineering judgment range), based on implemented milestone coverage and verified source rails rather than arbitrary file or content counts. The central gather → choose → build → benefit → return foundation, the Verdant Citadel visual foundation, mobile layout behavior, generated source family, protected CI, read-only preflight and manual synchronization rails are in place.
-
-The saved `keep-warpkeep-development-synced` automation remains **PAUSED** and the repository has no scheduled GitHub workflow. Continue manual fetch, secret scan, reviewed commit/push and exact remote-SHA verification. Update the existing Desktop handoff in place only; use the repository's ignored `artifacts/` directory for disposable output and create no Desktop siblings, backups or archives.
+The saved `keep-warpkeep-development-synced` automation remains **PAUSED**
+and the repository has no scheduled GitHub workflow. Continue manual fetch,
+secret scan, reviewed commit/push and exact remote-SHA verification. Keep the
+existing Desktop handoff in place; use the repository's ignored `artifacts/`
+directory for disposable output and create no Desktop siblings, backups or
+archives.
 ## Previous consumer implementation checkpoint — 13 September 2026
 
 Continue `codex/0.4-g002-existing-state` /
