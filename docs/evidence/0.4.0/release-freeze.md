@@ -1,12 +1,14 @@
 # 0.4 release freeze evidence
 
-Status: **generated-family refresh under review; release freeze open**.
+Status: **generated-family refresh merged; final release freeze open**.
 
-Protected `main` remains `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`. PR #255
-contains the generated-family refresh at head
-`8331875b1110e3097c7659d1388a7243cde2877c`; CodeQL `34816061714` passed and
-Verify `34816061716` is still running. A fresh Linux native preparation and
-independent check completed for the exact protected-main input, candidate
+Protected `main` is now `aa8ee88890f464f6dd091a2bdbf3703b641df7d8`; PR #255
+merged the generated-family refresh. Post-merge CodeQL `34822658268` and Verify
+`34822658259` completed successfully. Read-only sealed preflight `34826815333`
+passed for this exact merged source and emitted
+`{"operation":"preflight","status":"preflight-inspected"}`. The Linux native
+preparation and independent check that supplied the merged family completed
+for its ancestor preparation input, candidate
 `release-workspace-6c6d10e57c03ce0ead8c3ac35b285a19`:
 
 - Transaction: `d2b3899b5e3597de236dce03f580c7fb`
@@ -20,9 +22,9 @@ independent check completed for the exact protected-main input, candidate
 The earlier sealed-realms preflight `34813075520` passed runner/source
 attestation but failed bundle validation against older input `27c2d276`; no
 provider call, realm mutation, owner provisioning or deployment occurred. The
-new family reports `finalReleasePrepared:false` and is reproducible preparation
-evidence, not deployment authorization. Rerun protected preflight after PR #255
-merges.
+preparation candidate reports `finalReleasePrepared:false` and is reproducible
+preparation evidence, not deployment authorization. The merged-main preflight
+above is the current read-only inspection evidence.
 
 The next gates are genuine provider and owner authority, live recovery/readback,
 G001 preservation, sealed G002 denial, owner-only PTR play, physical-device

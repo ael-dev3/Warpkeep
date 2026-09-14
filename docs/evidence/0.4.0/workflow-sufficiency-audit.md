@@ -7,22 +7,25 @@ Git refs for the latest checkpoint, and the
 Historical candidate identities remain in [release engineering](release-engineering.md)
 and [recovery evidence](recovery.md); none certifies later source.
 
-PR #250, PR #251, PR #252, PR #253 and PR #254 are protected-merged. PR #255 is
-open at review head `539d5b8f`; CodeQL `34817207434` and Verify
-`34817207464` remain in progress on the generated-family refresh. Pages run
-`34810674281` classified the gameplay/source checkpoint but skipped
+PR #250, PR #251, PR #252, PR #253, PR #254 and PR #255 are protected-merged.
+PR #255 landed protected `main` at `aa8ee88890f464f6dd091a2bdbf3703b641df7d8`.
+Post-merge CodeQL `34822658268` and Verify `34822658259` completed successfully.
+Pages workflow run `34826796723` classified the main push but skipped
 build/deploy/live verification under the current release classification, so the
 live 0.4 release remains unshipped.
 
-The fresh protected-main preflight `34813075520` passed runner and exact-source
-attestation but failed at bundle validation against older preparation input
-`27c2d276`; no provider, realm, owner or deployment mutation occurred. A fresh
-Linux preparation/check completed for exact source `c0e1d2d6`, with candidate
+The fresh protected-main preflight `34826815333` passed runner, exact-source and
+fixed-bundle attestation against merged source `aa8ee888`; it emitted
+`{"operation":"preflight","status":"preflight-inspected"}` and performed no
+provider, realm, owner or deployment mutation. The earlier preflight
+`34813075520` remains historical evidence of a superseded bundle mismatch. The
+Linux preparation/check that supplied the merged family completed for ancestor
+source `c0e1d2d6`, with candidate
 `release-workspace-6c6d10e57c03ce0ead8c3ac35b285a19`, family
 `593fdb280394632d0d3302b5fa127f162c1ef145b58b3f16be593c2021adce7c` and closure
 `65a8c8feb58a2b432af919fc80b0c902b69efebf947e35ed87349711c94e2335`.
-The generated-only refresh is now under PR #255 review; protected preflight is
-the next delivery-critical step after merge.
+The generated-only refresh is merged and the protected read-only preflight has
+passed; provider/owner, live recovery, acceptance and deployment gates remain.
 
 ## Verdict
 
@@ -37,9 +40,8 @@ calendar ETA is established.
 
 ## What is working
 
-- Protected main is `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`; PR #255 carries
-  the reviewed generated-family refresh at `539d5b8f`, with CodeQL and Verify
-  in progress.
+- Protected main is `aa8ee88890f464f6dd091a2bdbf3703b641df7d8`; PR #255’s
+  generated-family refresh is merged, with post-merge CodeQL and Verify green.
 - Native WSL is clean and synchronized to the exact M2 commit with RunnerService
   PID203 and Runner.Listener PID224 preserved. Sealed preflight `34763502943`
   returned `preflight-inspected` without mutating live state.
