@@ -8,14 +8,14 @@ Historical candidate identities remain in [release engineering](release-engineer
 and [recovery evidence](recovery.md); none certifies later source.
 
 PR #250, PR #251, PR #252, PR #253, PR #254 and PR #255 are protected-merged.
-PR #255 landed protected `main` at `aa8ee88890f464f6dd091a2bdbf3703b641df7d8`.
-Post-merge CodeQL `34822658268` and Verify `34822658259` completed successfully.
-Pages workflow run `34826796723` classified the main push but skipped
+PR #256 landed the current protected `main` at `3af84aa892a9222b8c6286d01e2fb50fb248f43e` after PR #255's source merge.
+Post-merge CodeQL `34833483317` and Verify `34833483264` completed successfully.
+Pages workflow run `34838162467` classified the main push but skipped
 build/deploy/live verification under the current release classification, so the
 live 0.4 release remains unshipped.
 
-The fresh protected-main preflight `34826815333` passed runner, exact-source and
-fixed-bundle attestation against merged source `aa8ee888`; it emitted
+The fresh protected-main preflight `34838183075` passed runner, exact-source and
+fixed-bundle attestation against merged source `3af84aa8`; it emitted
 `{"operation":"preflight","status":"preflight-inspected"}` and performed no
 provider, realm, owner or deployment mutation. The earlier preflight
 `34813075520` remains historical evidence of a superseded bundle mismatch. The
@@ -40,8 +40,9 @@ calendar ETA is established.
 
 ## What is working
 
-- Protected main is `aa8ee88890f464f6dd091a2bdbf3703b641df7d8`; PR #255’s
-  generated-family refresh is merged, with post-merge CodeQL and Verify green.
+- Protected main is `3af84aa892a9222b8c6286d01e2fb50fb248f43e`; PR #256
+  aligned the release records after PR #255’s generated-family refresh, with
+  post-merge CodeQL and Verify green.
 - Native WSL is clean and synchronized to the exact M2 commit with RunnerService
   PID203 and Runner.Listener PID224 preserved. Sealed preflight `34763502943`
   returned `preflight-inspected` without mutating live state.

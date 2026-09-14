@@ -2,9 +2,9 @@
 
 Status: **generated-family refresh merged; final release freeze open**.
 
-Protected `main` is now `aa8ee88890f464f6dd091a2bdbf3703b641df7d8`; PR #255
-merged the generated-family refresh. Post-merge CodeQL `34822658268` and Verify
-`34822658259` completed successfully. Read-only sealed preflight `34826815333`
+Protected `main` is now `3af84aa892a9222b8c6286d01e2fb50fb248f43e`; PR #256
+updated the release records after PR #255 merged the generated-family refresh. Post-merge CodeQL `34833483317` and Verify
+`34833483264` completed successfully. Read-only sealed preflight `34838183075`
 passed for this exact merged source and emitted
 `{"operation":"preflight","status":"preflight-inspected"}`. The Linux native
 preparation and independent check that supplied the merged family completed

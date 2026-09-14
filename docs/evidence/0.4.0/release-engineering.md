@@ -2,12 +2,12 @@
 
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main),
 the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
-Protected main is `aa8ee88890f464f6dd091a2bdbf3703b641df7d8` after PR #255's
-protected squash merge of the generated-family refresh and current release
-records. Post-merge Verify `34822658259` and CodeQL `34822658268` both completed
-successfully. The read-only sealed preflight `34826815333` passed against this
+Protected main is `3af84aa892a9222b8c6286d01e2fb50fb248f43e` after PR #256's
+protected squash merge aligning records after PR #255's generated-family refresh
+and current release records. Post-merge Verify `34833483264` and CodeQL `34833483317` both completed
+successfully. The read-only sealed preflight `34838183075` passed against this
 exact main source and emitted `{"operation":"preflight","status":"preflight-inspected"}`.
-Pages workflow run `34826796723` classified the main push but skipped
+Pages workflow run `34838162467` classified the main push but skipped
 build/deploy/live verification under the current release classification, so the
 live site remains Genesis.
 Genuine provider/owner authority, live recovery/readback, preservation/denial,
@@ -21,12 +21,12 @@ component success does not establish unrecorded production acceptance.
 
 ## Current accepted-main source checkpoint — 14 September 2026
 
-Protected `main` is `aa8ee88890f464f6dd091a2bdbf3703b641df7d8`, the GitHub-verified
-squash of PR #255. Post-merge Verify `34822658259` and CodeQL `34822658268`
+Protected `main` is `3af84aa892a9222b8c6286d01e2fb50fb248f43e`, the GitHub-verified
+squash of PR #256. Post-merge Verify `34833483264` and CodeQL `34833483317`
 completed successfully. The fresh Linux preparation/check is
 source-bound to its recorded candidate and is not a release grant.
 
-Sealed read-only preflight `34826815333` passed against the merged main and emitted
+Sealed read-only preflight `34838183075` passed against the merged main and emitted
 `{"operation":"preflight","status":"preflight-inspected"}`. No live
 provider, recovery, realm or owner operation occurred. The native checkout is
 synchronized to M2 and the saved sync automation remains paused. `finalReleasePrepared:false`

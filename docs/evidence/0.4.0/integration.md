@@ -1,15 +1,15 @@
 # 0.4.0 integration evidence
 
 Updated 2026-09-14. Protected `main` is now
-`aa8ee88890f464f6dd091a2bdbf3703b641df7d8`, the exact PR #255 protected squash
-merge integrating the generated-family refresh and current release records.
-Post-merge Verify `34822658259` and CodeQL `34822658268` both completed
-successfully. The read-only sealed preflight `34826815333` passed against this
+`3af84aa892a9222b8c6286d01e2fb50fb248f43e`, the protected squash merge of PR #256,
+following PR #255's generated-family refresh and gameplay/source integration.
+Post-merge Verify `34833483264` and CodeQL `34833483317` both completed
+successfully. The read-only sealed preflight `34838183075` passed against this
 exact source and emitted `{"operation":"preflight","status":"preflight-inspected"}`.
 These are source and protected-CI records; provider deployment, live realm
 mutation and player acceptance remain separate outcomes.
 
-GitHub Pages workflow run `34826796723` passed classification but skipped build/deploy/live
+GitHub Pages workflow run `34838162467` passed classification but skipped build/deploy/live
 verification under the current release classification. The served site therefore remains the
 established Genesis UI, and no live 0.4 release is claimed.
 The generated-only M2 promotion changed exactly the eight authenticated

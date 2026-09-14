@@ -4,15 +4,15 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 ## Current accepted-main source and protected checks — 14 September 2026
 
-Protected `main` is now `aa8ee88890f464f6dd091a2bdbf3703b641df7d8`, the exact PR #255
-protected squash merge integrating the generated-family refresh and current
-release records. Post-merge Verify `34822658259` and CodeQL `34822658268` both
-completed successfully. The read-only sealed preflight `34826815333` passed
+Protected `main` is now `3af84aa892a9222b8c6286d01e2fb50fb248f43e`, the protected
+squash merge of PR #256, following PR #255's generated-family refresh and
+release-record alignment. Post-merge Verify `34833483264` and CodeQL `34833483317` both
+completed successfully. The read-only sealed preflight `34838183075` passed
 against this exact source and emitted
 `{"operation":"preflight","status":"preflight-inspected"}`. The saved Codex
 sync automation is paused, and no scheduled GitHub workflow exists.
 
-Pages run `34826796723` passed classification for the main push but skipped
+Pages run `34838162467` passed classification for the main push but skipped
 build/deploy/live verification under the current release classification. The
 live site remains the established
 Genesis UI, so this record does not claim a live 0.4 release. A fresh local
@@ -20,10 +20,10 @@ provider recheck found the authenticated Cloudflare account does not contain
 `warpkeep-auth-bridge`, the Pages project list is empty, and the authenticated
 SpacetimeDB identity has no databases.
 
-The fresh protected-main sealed-realms preflight `34826815333` reached the
+The fresh protected-main sealed-realms preflight `34838183075` reached the
 authenticated Linux runner and exact source checkout and passed the fixed
 source and fixed-bundle gates for exact merged source
-`aa8ee88890f464f6dd091a2bdbf3703b641df7d8`. It emitted
+`3af84aa892a9222b8c6286d01e2fb50fb248f43e`. It emitted
 `{"operation":"preflight","status":"preflight-inspected"}`. This is
 preflight inspection evidence only: no provider, realm, owner or deployment
 mutation occurred. The Linux native preparation and independent check that

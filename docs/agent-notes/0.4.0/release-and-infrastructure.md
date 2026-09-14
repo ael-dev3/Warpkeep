@@ -2,9 +2,9 @@
 
 ## Current source and access checkpoint — 2026-09-14
 
-Protected main is `aa8ee88890f464f6dd091a2bdbf3703b641df7d8`, the exact PR #255
-protected squash merge integrating the generated-family refresh and current
-release records. Post-merge Verify `34822658259` and CodeQL `34822658268` both
+Protected main is `3af84aa892a9222b8c6286d01e2fb50fb248f43e`, the protected
+squash merge of PR #256, following PR #255's generated-family refresh and
+release-record alignment. Post-merge Verify `34833483264` and CodeQL `34833483317` both
 completed successfully. The Pages run triggered by this main push is tracked
 separately; it must complete before live hosting evidence can be claimed. The
 live site remains the established Genesis UI until that evidence is verified.
