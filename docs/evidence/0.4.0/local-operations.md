@@ -4,12 +4,23 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 ## Current accepted-main source and protected checks — 14 September 2026
 
-Protected `main` and `origin/main` are synchronized at `f0e9d3e8baec4b1a1e3cbbd1dddc865d9f518f9c`. Fresh Verify `34844704568`, CodeQL `34844704587`, Pages classifier `34850287588` and exact-main read-only sealed-realms preflight `34850381588` completed successfully for this exact source.
+Protected `main` and `origin/main` are synchronized at
+`742c855bd40373a69e92c82db5eb54132b0df391`, the protected squash merge of
+PR #259. PR Verify `34877619504` completed successfully across Linux,
+SpacetimeDB, auth bridge, native contract and recovery lanes; analysis and
+CodeQL passed as well. Post-merge Verify `34883356688` and CodeQL
+`34883356895` are currently running against this exact main SHA. Pages has
+not yet classified this new source; the earlier classifier belongs to the
+superseded `0670121d` source. This proves protected source rails only:
+provider, owner, live deployment, recovery/readback, device acceptance and
+final-freeze evidence remain open. The live site remains Genesis.
 
-The preflight emitted `{"operation":"preflight","status":"preflight-inspected"}` after exact runner, checkout, source and fixed-bundle attestation. It performed no provider, realm, owner or deployment mutation. Pages classification succeeded, while build, deploy and live verification were skipped under the sealed-launch policy; the live site remains Genesis.
-
-The saved sync automation remains paused and no scheduled GitHub workflow exists. The local source checkout is clean at the protected main SHA. Provider, owner, live-preservation, device and final deployment evidence remain open. Keep durable notes in the repository and update the existing Desktop handoff in place only.
-
+The existing development checkout `C:/Temp/warpkeep-0.4-next` contains the
+accepted source represented on protected `main` by merge commit `742c855b`;
+this branch carries only the current checkpoint-note alignment for review.
+After the reviewed commit is pushed, its branch and remote will be verified
+exactly. The saved sync automation remains paused and no scheduled GitHub
+workflow exists. Update the existing Desktop handoff in place only.
 ## Historical committed-source native preparation and independent check — 2026-09-12
 
 The dedicated Linux assembler completed both `prepare` and independent `check`

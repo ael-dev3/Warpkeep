@@ -7,31 +7,20 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-Protected `main` is now `3af84aa892a9222b8c6286d01e2fb50fb248f43e`, the exact
-protected squash merge of PR #255, which integrated the generated-family
-refresh and current release records on the gameplay/source foundation. The
-post-merge Verify run `34833483264` and CodeQL run `34833483317` both completed
-successfully. This proves source and protected CI rails, not a live 0.4
-deployment. The
-[execution handoff](execution-handoff.md) owns exact source, CI, native and
-environment identities.
+Protected `main` and `origin/main` are synchronized at
+`742c855bd40373a69e92c82db5eb54132b0df391`, the protected squash merge of
+PR #259. PR Verify `34877619504` completed successfully across Linux,
+SpacetimeDB, auth bridge, native contract and recovery lanes; analysis and
+CodeQL passed as well. Post-merge Verify `34883356688` and CodeQL
+`34883356895` are currently running against this exact main SHA. Pages has
+not yet classified this new source; the earlier classifier belongs to the
+superseded `0670121d` source. This proves protected source rails only:
+provider, owner, live deployment, recovery/readback, device acceptance and
+final-freeze evidence remain open. The live site remains Genesis.
 
-PR #252 adds a narrow-canvas façade-biased overview and preserves manual camera
-orientation and vertical framing across resize. It is presentation-only:
-footprints, picking, placement authority, progression and asset budgets stay
-unchanged. GitHub Pages run `34838162467` classified the main push but skipped
-build, deploy and live verification under the current release classification;
-warpkeep.com still serves
-the established Genesis UI. Treat live 0.4 as not shipped until owner/provider,
-recovery and deployment evidence is complete.
-
-The fresh protected-main sealed-realms preflight `34838183075` passed on exact
-merged source `3af84aa892a9222b8c6286d01e2fb50fb248f43e` and emitted
-`{"operation":"preflight","status":"preflight-inspected"}`. It performed
-no provider, realm, owner or deployment mutation. The earlier preflight
-`34813075520` remains historical evidence of the superseded bundle mismatch;
-the Linux native preparation family it exercised was for `c0e1d2d6` and still
-has `finalReleasePrepared:false`.
+The [execution handoff](execution-handoff.md) owns exact source, CI, native
+and environment identities. Keep the product direction and evidence below
+aligned to this checkpoint; historical source families remain historical.
 
 - **Development and live release are separate.** `main` contains the 0.4
   development source alongside preserved G001 behavior. The integrated 0.4

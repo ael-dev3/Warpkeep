@@ -1,11 +1,23 @@
 # 0.4 release freeze evidence
 
-Status: **generated-family refresh merged; final release freeze open**.
+Status: **Keep04 duration readability and protected closure refresh merged; final release freeze open**.
 
-Protected `main` and `origin/main` are synchronized at `f0e9d3e8baec4b1a1e3cbbd1dddc865d9f518f9c` after PR #257. Fresh Verify `34844704568`, CodeQL `34844704587`, Pages classifier `34850287588` and exact-main read-only preflight `34850381588` completed successfully for this source. Preflight emitted `{"operation":"preflight","status":"preflight-inspected"}` and performed no mutation.
+Protected `main` and `origin/main` are synchronized at
+`742c855bd40373a69e92c82db5eb54132b0df391`, the protected squash merge of
+PR #259. PR Verify `34877619504` completed successfully across Linux,
+SpacetimeDB, auth bridge, native contract and recovery lanes; analysis and
+CodeQL passed as well. Post-merge Verify `34883356688` and CodeQL
+`34883356895` are currently running against this exact main SHA. Pages has
+not yet classified this new source; the earlier classifier belongs to the
+superseded `0670121d` source. This proves protected source rails only:
+provider, owner, live deployment, recovery/readback, device acceptance and
+final-freeze evidence remain open. The live site remains Genesis.
 
-Pages classification succeeded, but build, deploy and live verification were skipped under the sealed-launch policy. The live site remains Genesis and `finalReleasePrepared:false` remains explicit for the preparation family. The next gates are genuine provider and owner authority, real deployment and recovery/readback, G001 preservation, sealed G002 denial, owner-only PTR play, physical-device performance and final hosting acceptance. Keep sync automation paused and do not create Desktop output.
-
+The live site remains Genesis. `finalReleasePrepared:false` remains explicit
+for preparation families. Provider and owner authority, real deployment and
+recovery/readback, G001 preservation, sealed G002 denial, owner-only PTR play,
+physical-device acceptance and final hosting remain open. Keep sync automation
+paused and create no Desktop output.
 ## Historical prepared family — 2026-09-12
 
 This earlier generated source family came from native preparation input
