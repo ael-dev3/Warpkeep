@@ -18,6 +18,7 @@ Do not create a new Desktop folder, handoff copy, backup or ZIP.
 - **Protected main:** `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f` (PR #254 documentation-only merge on gameplay/source `d0af28e924f187ab91fee9390c9a6b56389d2043`)
 - **Protected checks:** PR #254 passed; post-merge Verify `34811953274` and CodeQL `34811953244` are running
 - **Pages state:** run `34810674281` classified the gameplay/source checkpoint but skipped build/deploy/live verification; live 0.4 remains unshipped
+- **Latest preflight:** `34813075520` passed runner/source attestation but failed bundle validation; the generated family is bound to older input `27c2d276` and no mutation occurred
 - **Product direction:** [`docs/design/warpkeep-direction.md`](../../design/warpkeep-direction.md)
 - **Current agent index:** [`docs/agent-notes/0.4.0/README.md`](../../agent-notes/0.4.0/README.md)
 - **Visual foundation:** [`visual-foundation-contract.md`](../../agent-notes/0.4.0/visual-foundation-contract.md)

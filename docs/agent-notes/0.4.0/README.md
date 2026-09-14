@@ -25,6 +25,12 @@ release classification; warpkeep.com still serves
 the established Genesis UI. Treat live 0.4 as not shipped until owner/provider,
 recovery and deployment evidence is complete.
 
+The fresh protected-main sealed-realms preflight `34813075520` passed runner,
+checkout and source attestation, then failed at bundle validation. The checked-in
+generated family is still bound to preparation input `27c2d276`; no provider,
+realm, owner or deployment mutation occurred. Regenerate and independently check
+the final-source family before attempting release operations.
+
 - **Development and live release are separate.** `main` contains the 0.4
   development source alongside preserved G001 behavior. The integrated 0.4
   release is not shipped, and synthetic or local rehearsals do not establish
