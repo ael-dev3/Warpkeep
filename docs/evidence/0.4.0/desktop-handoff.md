@@ -15,10 +15,10 @@ Do not create a new Desktop folder, handoff copy, backup or ZIP.
 
 ## Start here
 
-- **Protected main:** `aa8ee88890f464f6dd091a2bdbf3703b641df7d8` (PR #255 protected squash merge integrating the generated-family refresh and current release records)
-- **Protected checks:** Verify `34822658259` and CodeQL `34822658268` both completed successfully
-- **Pages state:** main-push workflow run `34826796723` classified successfully but skipped build/deploy/live verification; live 0.4 remains unverified
-- **Latest preflight:** `34826815333` passed runner, source and fixed-bundle attestation for exact `aa8ee888`; it emitted `{"operation":"preflight","status":"preflight-inspected"}` and performed no mutation
+- **Protected main:** `3af84aa892a9222b8c6286d01e2fb50fb248f43e` (PR #256 protected squash merge aligning release records after PR #255's generated-family refresh)
+- **Protected checks:** Verify `34833483264` and CodeQL `34833483317` both completed successfully
+- **Pages state:** main-push workflow run `34838162467` classified successfully but skipped build/deploy/live verification; live 0.4 remains unverified
+- **Latest preflight:** `34838183075` passed runner, source and fixed-bundle attestation for exact `3af84aa8`; it emitted `{"operation":"preflight","status":"preflight-inspected"}` and performed no mutation
 - **Product direction:** [`docs/design/warpkeep-direction.md`](../../design/warpkeep-direction.md)
 - **Current agent index:** [`docs/agent-notes/0.4.0/README.md`](../../agent-notes/0.4.0/README.md)
 - **Visual foundation:** [`visual-foundation-contract.md`](../../agent-notes/0.4.0/visual-foundation-contract.md)

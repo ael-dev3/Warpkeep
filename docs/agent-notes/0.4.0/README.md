@@ -7,10 +7,10 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-Protected `main` is now `aa8ee88890f464f6dd091a2bdbf3703b641df7d8`, the exact
+Protected `main` is now `3af84aa892a9222b8c6286d01e2fb50fb248f43e`, the exact
 protected squash merge of PR #255, which integrated the generated-family
 refresh and current release records on the gameplay/source foundation. The
-post-merge Verify run `34822658259` and CodeQL run `34822658268` both completed
+post-merge Verify run `34833483264` and CodeQL run `34833483317` both completed
 successfully. This proves source and protected CI rails, not a live 0.4
 deployment. The
 [execution handoff](execution-handoff.md) owns exact source, CI, native and
@@ -19,14 +19,14 @@ environment identities.
 PR #252 adds a narrow-canvas façade-biased overview and preserves manual camera
 orientation and vertical framing across resize. It is presentation-only:
 footprints, picking, placement authority, progression and asset budgets stay
-unchanged. GitHub Pages run `34826796723` classified the main push but skipped
+unchanged. GitHub Pages run `34838162467` classified the main push but skipped
 build, deploy and live verification under the current release classification;
 warpkeep.com still serves
 the established Genesis UI. Treat live 0.4 as not shipped until owner/provider,
 recovery and deployment evidence is complete.
 
-The fresh protected-main sealed-realms preflight `34826815333` passed on exact
-merged source `aa8ee88890f464f6dd091a2bdbf3703b641df7d8` and emitted
+The fresh protected-main sealed-realms preflight `34838183075` passed on exact
+merged source `3af84aa892a9222b8c6286d01e2fb50fb248f43e` and emitted
 `{"operation":"preflight","status":"preflight-inspected"}`. It performed
 no provider, realm, owner or deployment mutation. The earlier preflight
 `34813075520` remains historical evidence of the superseded bundle mismatch;

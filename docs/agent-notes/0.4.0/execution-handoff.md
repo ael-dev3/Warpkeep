@@ -2,12 +2,12 @@
 
 ## Current accepted-main checkpoint — 14 September 2026 (current docs checkpoint)
 
-Protected `main` is now `aa8ee88890f464f6dd091a2bdbf3703b641df7d8`, the exact
-protected squash merge of PR #255. It integrates the generated-family refresh
+Protected `main` is now `3af84aa892a9222b8c6286d01e2fb50fb248f43e`, the exact
+protected squash merge of PR #256, following PR #255's protected gameplay/source merge. It carries the generated-family refresh
 and current release records on the accepted gameplay/source foundation. PR
 #250's mobile schematic readability pass, PR #251's documentation alignment
 pass, PR #252's mobile overview merge and PR #254's documentation checkpoint
-remain in history. Post-merge Verify `34822658259` and CodeQL `34822658268`
+remain in history. Post-merge Verify `34833483264` and CodeQL `34833483317`
 both completed successfully. No other pull requests remain open.
 
 PR #252 gives the narrow scene canvas a 15-degree façade-biased overview below
@@ -19,7 +19,7 @@ placement authority, level expression and asset budgets are unchanged.
 The native `/home/warpkeep/Warpkeep-0.4` checkout remains a protected, pinned
 M2 operating input and must not be moved while owned preparation or checking is
 active. The current source checkout is clean on protected `main` at
-`aa8ee888`; the source,
+`3af84aa8`; the source,
 docs and standalone clones have been independently read back at their recorded
 SHAs. The
 gameplay/source checkpoint remains `d0af28e9`; it is recorded separately so
@@ -38,8 +38,8 @@ inspection evidence only: no realm mutation, provider deployment, owner
 provisioning or live release occurred. `finalReleasePrepared:false` remains
 explicit for the native candidate.
 
-The fresh protected-main preflight `34826815333` used exact merged source
-`aa8ee88890f464f6dd091a2bdbf3703b641df7d8`, passed the runner, checkout, source
+The fresh protected-main preflight `34838183075` used exact merged source
+`3af84aa892a9222b8c6286d01e2fb50fb248f43e`, passed the runner, checkout, source
 and fixed bundle gates, and emitted
 `{"operation":"preflight","status":"preflight-inspected"}`. No provider,
 realm, owner or deployment mutation occurred. The earlier preflight

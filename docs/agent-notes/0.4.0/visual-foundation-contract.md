@@ -11,9 +11,9 @@ interactivity.
 Use the [execution handoff](execution-handoff.md), current refs and open pull
 requests for source and verification. PR #228 and the M2-only records are
 historical checkpoints; protected `main` is now
-`aa8ee88890f464f6dd091a2bdbf3703b641df7d8` after the PR #255 generated-family
-refresh merge. Post-merge Verify `34822658259` and CodeQL `34822658268` both
-completed successfully. The read-only sealed preflight `34826815333` also
+`3af84aa892a9222b8c6286d01e2fb50fb248f43e` after the PR #255 generated-family
+refresh merge. Post-merge Verify `34833483264` and CodeQL `34833483317` both
+completed successfully. The read-only sealed preflight `34838183075` also
 passed against this exact source. The PR #254 documentation-only checkpoint is
 on gameplay/source
 `d0af28e924f187ab91fee9390c9a6b56389d2043` (PR #253), on top of the PR #252
