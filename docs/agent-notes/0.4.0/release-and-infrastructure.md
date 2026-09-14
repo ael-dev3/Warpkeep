@@ -4,11 +4,12 @@
 
 Protected main is `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`, the exact PR #254
 documentation-only squash merge on gameplay/source
-`d0af28e924f187ab91fee9390c9a6b56389d2043` (PR #253). PR #254 checks passed;
-post-merge main Verify `34811953274` and CodeQL `34811953244` are running
-against this SHA. The last Pages run `34810674281` classified the
-gameplay/source checkpoint but skipped build/deploy/live verification, so the
-live site remains the established Genesis UI. The [execution handoff](execution-handoff.md) owns exact source/CI identities and the
+`d0af28e924f187ab91fee9390c9a6b56389d2043` (PR #253). PR #255 is the current
+open generated-family alignment request at head
+`8331875b1110e3097c7659d1388a7243cde2877c`; CodeQL `34816061714` passed and
+Verify `34816061716` remains in progress. The last Pages run `34810674281`
+classified the gameplay/source checkpoint but skipped build/deploy/live
+verification, so the live site remains the established Genesis UI. The [execution handoff](execution-handoff.md) owns exact source/CI identities and the
 [live delivery guide](../../operations/0.4.0-live-delivery-status.md) owns current
 operating steps. The saved sync automation is paused and no scheduled workflow
 exists. Current CLI rechecks still find no `warpkeep-auth-bridge` Worker in the

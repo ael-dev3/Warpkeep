@@ -7,9 +7,10 @@ protected squash merge of PR #254, a documentation-only checkpoint on the
 accepted gameplay/source checkpoint `d0af28e924f187ab91fee9390c9a6b56389d2043`
 (PR #253). PR #250's mobile schematic readability pass, PR #251's
 documentation alignment pass and PR #252's mobile overview merge are
-integrated. PR #254 checks passed; post-merge main Verify `34811953274` and
-CodeQL `34811953244` are running on the current protected SHA. No pull requests
-remain open.
+integrated. PR #254 checks passed. PR #255 is the current open documentation and
+generated-family alignment pull request at head
+`8331875b1110e3097c7659d1388a7243cde2877c`; CodeQL `34816061714` passed and
+Verify `34816061716` remains in progress. No other pull requests remain open.
 
 PR #252 gives the narrow scene canvas a 15-degree façade-biased overview below
 the 1.3 mobile canvas aspect while retaining the desktop diagonal. Once a
@@ -19,8 +20,10 @@ placement authority, level expression and asset budgets are unchanged.
 
 The native `/home/warpkeep/Warpkeep-0.4` checkout remains a protected, pinned
 M2 operating input and must not be moved while owned preparation or checking is
-active. The current source checkout is clean at `c0e1d2d6`; the source, docs and
-standalone clones have been independently read back at that exact SHA. The
+active. The current source checkout is clean at PR head `8331875b`; the
+protected main checkout remains at `c0e1d2d6` until review merge. The source,
+docs and standalone clones have been independently read back at their recorded
+SHAs. The
 gameplay/source checkpoint remains `d0af28e9`; it is recorded separately so
 historical implementation evidence is not mistaken for the documentation
 wrapper. The
@@ -39,12 +42,16 @@ explicit for the native candidate.
 
 The fresh protected-main preflight `34813075520` used exact source
 `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f` and passed the runner, checkout and
-source gates, then failed at the fixed bundle phase. The checked-in operation
-bundle manifest is still source-bound to preparation input `27c2d276`; its
-closure family also has source-digest drift against the current implementation.
-No mutation or deployment occurred. A new authenticated final-source bundle and
-closure family must be prepared and independently checked before release work
-can continue.
+source gates, then failed at the fixed bundle phase against older input
+`27c2d276`; no mutation or deployment occurred. A new Linux native
+preparation/independent check completed for that exact source with candidate
+`release-workspace-6c6d10e57c03ce0ead8c3ac35b285a19`, transaction
+`d2b3899b5e3597de236dce03f580c7fb`, family SHA-256
+`593fdb280394632d0d3302b5fa127f162c1ef145b58b3f16be593c2021adce7c`, closure
+manifest SHA-256 `65a8c8feb58a2b432af919fc80b0c902b69efebf947e35ed87349711c94e2335`,
+3,229 source/candidate files, 102 outputs and `finalReleasePrepared:false`.
+The generated-only refresh is published at PR #255 head `8331875b`; protected
+preflight must be rerun after the reviewed merge.
 
 The saved `keep-warpkeep-development-synced` automation is **PAUSED** and must
 remain disabled; the repository has no scheduled GitHub workflow. Continue

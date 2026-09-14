@@ -10,10 +10,13 @@ interactivity.
 
 Use the [execution handoff](execution-handoff.md), current refs and open pull
 requests for source and verification. PR #228 and the M2-only records are
-historical checkpoints; the current presentation source is protected `main` at
-`c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`, the PR #254 documentation-only
-checkpoint on gameplay/source `d0af28e924f187ab91fee9390c9a6b56389d2043`
-(PR #253), on top of the PR #252 mobile overview.
+historical checkpoints; protected `main` remains at
+`c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`, while PR #255 carries the current
+review head `8331875b1110e3097c7659d1388a7243cde2877c` for generated-family
+alignment. CodeQL `34816061714` passed and Verify `34816061716` is still running.
+The PR #254 documentation-only checkpoint is on gameplay/source
+`d0af28e924f187ab91fee9390c9a6b56389d2043` (PR #253), on top of the PR #252
+mobile overview.
 The rendered evidence below retains its recorded source and scope; it does not
 attest later UI edits or physical-device performance.
 The `27700d61` follow-up corrects bordered/letterboxed schematic taps and the
