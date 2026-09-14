@@ -17,7 +17,7 @@ export type SceneTelemetry04 = Readonly<{
 }>;
 export type Scene04 = Readonly<{
   scene: THREE.Scene; camera: THREE.OrthographicCamera; reconcile: (state: VisualState04) => void;
-  resize: (width: number, height: number) => void; pickBuilding: (ndcX: number, ndcY: number) => Building04 | null;
+  resize: (width: number, height: number, preserveOrientation?: boolean) => void; pickBuilding: (ndcX: number, ndcY: number) => Building04 | null;
   selectedSiteBounds: () => THREE.Box3 | null; entryOverviewBounds: () => THREE.Box3 | null;
   fitSite: (bounds: THREE.Box3, aspect: number) => boolean;
   pickPlacement: (ndcX: number, ndcY: number, kind: Building04) => Placement04 | null;
@@ -254,7 +254,7 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
         return bounds;
       },
       fitSite: (bounds, aspect) => !disposed && fitKeep04SiteCamera(camera, aspect, bounds),
-      resize: (width, height) => { if (width > 0 && height > 0) fitKeep04Camera(camera, width / height); },
+      resize: (width, height, preserveOrientation = false) => { if (width > 0 && height > 0) fitKeep04Camera(camera, width / height, preserveOrientation); },
       pickBuilding: (x, y) => {
         if (disposed || ![x, y].every(value => Number.isFinite(value) && Math.abs(value) <= 1)) return null;
         setRay(x, y); const hit = raycaster.intersectObjects(pickTargets, true)[0]; let target: THREE.Object3D | null = hit?.object ?? null;

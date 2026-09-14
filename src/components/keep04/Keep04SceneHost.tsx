@@ -44,6 +44,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
     let observer: ResizeObserver | undefined; const listeners: Array<() => void> = [];
     let recoveryCanvas: HTMLCanvasElement | undefined; let removeRecovery: (() => void) | undefined;
     let lost = false;
+    let sized = false;
     let activeLoaders = 0;
     const view = cameraView.current;
     const qaFault = import.meta.env.DEV ? props.qaFault : undefined;
@@ -129,11 +130,14 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
         view.frame = bounds ? { kind: 'entry', bounds } : { kind: 'grounds' };
         setCameraCaption(bounds ? 'Your settlement' : 'Whole grounds');
       }
-      renderer.setSize(width, height, false); scene.resize(width, height);
-      if (view.frame.kind !== 'grounds') scene.fitSite(view.frame.bounds, width / height);
+      const preserveManualView = sized && (view.panX !== 0 || view.panZ !== 0 || view.zoom !== 1);
+      renderer.setSize(width, height, false); scene.resize(width, height, preserveManualView);
+      if (view.frame.kind !== 'grounds' && !preserveManualView) scene.fitSite(view.frame.bounds, width / height);
       scene.camera.zoom = view.zoom; scene.camera.updateProjectionMatrix();
-      scene.camera.position.x += view.panX; scene.camera.position.z += view.panZ;
-      scene.camera.updateMatrixWorld(true); request();
+      if (!preserveManualView) {
+        scene.camera.position.x += view.panX; scene.camera.position.z += view.panZ;
+      }
+      scene.camera.updateMatrixWorld(true); sized = true; request();
     }
     function reset() {
       view.frame = { kind: 'grounds' }; setCameraCaption('Whole grounds'); view.panX = view.panZ = 0; view.zoom = 1;

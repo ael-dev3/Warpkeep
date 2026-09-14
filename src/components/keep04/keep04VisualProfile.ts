@@ -22,8 +22,15 @@ export const KEEP04_VISUAL_PROFILE = Object.freeze({
 });
 
 /** Fit the support plus the intentionally visible scenic envelope in camera space. */
-export function fitKeep04Camera(camera: THREE.OrthographicCamera, aspect: number) {
+export function fitKeep04Camera(camera: THREE.OrthographicCamera, aspect: number, preserveOrientation = false) {
   const safeAspect = Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
+  if (preserveOrientation) {
+    // A manually framed view owns its vertical span. Resize the horizontal
+    // projection around that span without recentering or changing the camera.
+    const halfHeight = Math.max(Math.abs(camera.top), Math.abs(camera.bottom), 1e-6);
+    camera.left = -halfHeight * safeAspect; camera.right = halfHeight * safeAspect;
+    camera.updateProjectionMatrix(); return;
+  }
   const azimuth = safeAspect < KEEP04_MOBILE_OVERVIEW_ASPECT
     ? KEEP04_MOBILE_AZIMUTH : KEEP04_DESKTOP_AZIMUTH;
   const horizontalDistance = 131;
