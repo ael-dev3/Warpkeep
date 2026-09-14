@@ -988,6 +988,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'src/components/keep04/Keep04WorkerPanel.tsx',
     'src/components/keep04/createKeep04Buildings.ts',
     'src/components/keep04/createKeep04Scene.ts',
+    'src/components/keep04/formatKeep04Duration.ts',
     'src/components/keep04/keep04DressingPlans.generated.ts',
     'src/components/keep04/keep04VisualProfile.ts',
     'src/components/keep04/keep04VoxelDressing.ts',

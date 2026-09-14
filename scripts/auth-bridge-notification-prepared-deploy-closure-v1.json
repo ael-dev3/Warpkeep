@@ -360,7 +360,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f8fc1954be2efae7abf28fed313287be0d2a58a4f8cc829e94bc9253cc18ee4b"
+      "sha256": "ca9e6f78e0b5ab513d11825ccc1ad17337cee1918a63ce79bf4e445aaef8d3d7"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -1260,7 +1260,7 @@
     {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9f0309ff5fa9f8150d82d6e1798a8e35285db66b13b7594666e10ea17b8fe3fa"
+      "sha256": "41af88d11e17b18029df0424adf73366f58d6675d8f0bc9148da17c9bfce47e9"
     },
     {
       "path": "scripts/production-player-canary-admin-transport.ts",
@@ -3615,7 +3615,7 @@
     {
       "path": "src/components/keep04/Keep04BuildingPanel.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "5b2583dda4842b6b341c32999c4267d7b96b5f138d57c2119fab4c171c5aed82"
+      "sha256": "498e1c8ca5361e086503a3679f6258dbdd74dc50abaf9145744a5a32d303ea8f"
     },
     {
       "path": "src/components/keep04/Keep04LoopRail.tsx",
@@ -3645,7 +3645,7 @@
     {
       "path": "src/components/keep04/Keep04WorkerPanel.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "3c3353e2dc074b88c6a84f60f077ab5897dae65e86c01a41fd4b417be447e9d5"
+      "sha256": "8a64c991845517d7483019cce1d802ccb81a58154a66954cda5d82a6ad742be8"
     },
     {
       "path": "src/components/keep04/createKeep04Buildings.ts",
@@ -3656,6 +3656,11 @@
       "path": "src/components/keep04/createKeep04Scene.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "e7bea9b5426c5829d917f8298d9ba5166137853841f7860d817f46b728decd6d"
+    },
+    {
+      "path": "src/components/keep04/formatKeep04Duration.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "e8c38a5f2754fc79c1a6625ac7718fd8b264ff81ea96b1d204f93492f2e0f064"
     },
     {
       "path": "src/components/keep04/keep04DressingPlans.generated.ts",
