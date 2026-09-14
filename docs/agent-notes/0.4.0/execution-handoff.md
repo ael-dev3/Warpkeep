@@ -2,15 +2,13 @@
 
 ## Current accepted-main checkpoint — 14 September 2026 (current docs checkpoint)
 
-Protected `main` is now `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`, the exact
-protected squash merge of PR #254, a documentation-only checkpoint on the
-accepted gameplay/source checkpoint `d0af28e924f187ab91fee9390c9a6b56389d2043`
-(PR #253). PR #250's mobile schematic readability pass, PR #251's
-documentation alignment pass and PR #252's mobile overview merge are
-integrated. PR #254 checks passed. PR #255 is the current open documentation and
-generated-family alignment pull request at head
-`539d5b8ff82a5d7e4a2e19e3cfcb7e5c4b532449`; CodeQL `34816061714` passed and
-Verify `34816061716` remains in progress. No other pull requests remain open.
+Protected `main` is now `aa8ee88890f464f6dd091a2bdbf3703b641df7d8`, the exact
+protected squash merge of PR #255. It integrates the generated-family refresh
+and current release records on the accepted gameplay/source foundation. PR
+#250's mobile schematic readability pass, PR #251's documentation alignment
+pass, PR #252's mobile overview merge and PR #254's documentation checkpoint
+remain in history. Post-merge Verify `34822658259` and CodeQL `34822658268`
+both completed successfully. No other pull requests remain open.
 
 PR #252 gives the narrow scene canvas a 15-degree façade-biased overview below
 the 1.3 mobile canvas aspect while retaining the desktop diagonal. Once a
@@ -20,8 +18,8 @@ placement authority, level expression and asset budgets are unchanged.
 
 The native `/home/warpkeep/Warpkeep-0.4` checkout remains a protected, pinned
 M2 operating input and must not be moved while owned preparation or checking is
-active. The current source checkout is clean at PR head `539d5b8f`; the
-protected main checkout remains at `c0e1d2d6` until review merge. The source,
+active. The current source checkout is clean on protected `main` at
+`aa8ee888`; the source,
 docs and standalone clones have been independently read back at their recorded
 SHAs. The
 gameplay/source checkpoint remains `d0af28e9`; it is recorded separately so
@@ -40,18 +38,21 @@ inspection evidence only: no realm mutation, provider deployment, owner
 provisioning or live release occurred. `finalReleasePrepared:false` remains
 explicit for the native candidate.
 
-The fresh protected-main preflight `34813075520` used exact source
-`c0e1d2d667ced3d3613ee32ab9ce28001fc2914f` and passed the runner, checkout and
-source gates, then failed at the fixed bundle phase against older input
-`27c2d276`; no mutation or deployment occurred. A new Linux native
-preparation/independent check completed for that exact source with candidate
+The fresh protected-main preflight `34826815333` used exact merged source
+`aa8ee88890f464f6dd091a2bdbf3703b641df7d8`, passed the runner, checkout, source
+and fixed bundle gates, and emitted
+`{"operation":"preflight","status":"preflight-inspected"}`. No provider,
+realm, owner or deployment mutation occurred. The earlier preflight
+`34813075520` remains historical evidence of a superseded bundle mismatch. The
+Linux native preparation/independent check that supplied the merged family was
+for its ancestor source `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`, with candidate
 `release-workspace-6c6d10e57c03ce0ead8c3ac35b285a19`, transaction
 `d2b3899b5e3597de236dce03f580c7fb`, family SHA-256
 `593fdb280394632d0d3302b5fa127f162c1ef145b58b3f16be593c2021adce7c`, closure
 manifest SHA-256 `65a8c8feb58a2b432af919fc80b0c902b69efebf947e35ed87349711c94e2335`,
 3,229 source/candidate files, 102 outputs and `finalReleasePrepared:false`.
-The generated-only refresh is published at PR #255 head `539d5b8f`; protected
-preflight must be rerun after the reviewed merge.
+The generated-only refresh is now merged through PR #255; the read-only
+protected preflight against the merged source has passed.
 
 The saved `keep-warpkeep-development-synced` automation is **PAUSED** and must
 remain disabled; the repository has no scheduled GitHub workflow. Continue
@@ -62,7 +63,8 @@ completion estimate is about **85%** (80–88% judgment range): source, docs,
 mobile visual foundation and protected PR CI are complete for this increment,
 while provider/owner authority, live recovery and deployment, G001 preservation
 and sealed G002 evidence, physical-device performance and final mobile
-acceptance remain open. The current main post-merge checks are still running.
+acceptance remain open. The post-merge protected checks and read-only preflight
+are complete.
 
 The merged source follow-up gives a new keep a first-journey cue qualified by
 untouched Worker assignment revisions, keeps it through refresh/pending views,

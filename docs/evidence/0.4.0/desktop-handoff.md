@@ -15,16 +15,16 @@ Do not create a new Desktop folder, handoff copy, backup or ZIP.
 
 ## Start here
 
-- **Protected main:** `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f` (PR #254 documentation-only merge on gameplay/source `d0af28e924f187ab91fee9390c9a6b56389d2043`)
-- **Current PR:** #255 head `539d5b8ff82a5d7e4a2e19e3cfcb7e5c4b532449`; CodeQL `34817207434` and Verify `34817207464` are running
-- **Pages state:** run `34810674281` classified the gameplay/source checkpoint but skipped build/deploy/live verification; live 0.4 remains unshipped
-- **Latest preflight:** `34813075520` passed runner/source attestation but failed bundle validation against older input `27c2d276`; no mutation occurred. Linux preparation/check for `c0e1d2d6` completed at candidate `release-workspace-6c6d10e57c03ce0ead8c3ac35b285a19`, and its generated-only refresh is in PR #255
+- **Protected main:** `aa8ee88890f464f6dd091a2bdbf3703b641df7d8` (PR #255 protected squash merge integrating the generated-family refresh and current release records)
+- **Protected checks:** Verify `34822658259` and CodeQL `34822658268` both completed successfully
+- **Pages state:** main-push workflow run `34826796723` classified successfully but skipped build/deploy/live verification; live 0.4 remains unverified
+- **Latest preflight:** `34826815333` passed runner, source and fixed-bundle attestation for exact `aa8ee888`; it emitted `{"operation":"preflight","status":"preflight-inspected"}` and performed no mutation
 - **Product direction:** [`docs/design/warpkeep-direction.md`](../../design/warpkeep-direction.md)
 - **Current agent index:** [`docs/agent-notes/0.4.0/README.md`](../../agent-notes/0.4.0/README.md)
 - **Visual foundation:** [`visual-foundation-contract.md`](../../agent-notes/0.4.0/visual-foundation-contract.md)
 - **Release gates:** [`0.4.0-release-checklist.md`](../../operations/0.4.0-release-checklist.md)
 
-The current protected source and the live documentation PR are authoritative;
+The current protected source and the live deployment evidence are authoritative;
 do not copy a hash from this document into a deployment command. Re-read the
 PR and the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
 before preparing a new artifact.

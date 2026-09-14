@@ -2,14 +2,14 @@
 
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main),
 the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
-Protected main is `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f` after PR #254's
-documentation-only merge on gameplay/source
-`d0af28e924f187ab91fee9390c9a6b56389d2043` (PR #253), on top of PR #252's
-mobile overview. PR #255 is the current open generated-family alignment request
-at head `539d5b8ff82a5d7e4a2e19e3cfcb7e5c4b532449`; CodeQL `34817207434` and
-Verify `34817207464` remain in progress. Pages run `34810674281` classified
-the gameplay/source checkpoint but skipped build/deploy/live verification under
-the current release classification, so the live site remains Genesis.
+Protected main is `aa8ee88890f464f6dd091a2bdbf3703b641df7d8` after PR #255's
+protected squash merge of the generated-family refresh and current release
+records. Post-merge Verify `34822658259` and CodeQL `34822658268` both completed
+successfully. The read-only sealed preflight `34826815333` passed against this
+exact main source and emitted `{"operation":"preflight","status":"preflight-inspected"}`.
+Pages workflow run `34826796723` classified the main push but skipped
+build/deploy/live verification under the current release classification, so the
+live site remains Genesis.
 Genuine provider/owner authority, live recovery/readback, preservation/denial,
 physical-device acceptance and final deployment remain open. Earlier source
 families and candidate identities below are historical, source-bound evidence;
@@ -21,14 +21,12 @@ component success does not establish unrecorded production acceptance.
 
 ## Current accepted-main source checkpoint — 14 September 2026
 
-Protected `main` is `c0e1d2d667ced3d3613ee32ab9ce28001fc2914f`, the GitHub-verified
-squash of PR #254, a documentation-only checkpoint on gameplay/source
-`d0af28e924f187ab91fee9390c9a6b56389d2043`. PR #255 is open at review head
-`539d5b8ff82a5d7e4a2e19e3cfcb7e5c4b532449`; CodeQL `34817207434` and Verify
-`34817207464` remain in progress. The fresh Linux preparation/check is
+Protected `main` is `aa8ee88890f464f6dd091a2bdbf3703b641df7d8`, the GitHub-verified
+squash of PR #255. Post-merge Verify `34822658259` and CodeQL `34822658268`
+completed successfully. The fresh Linux preparation/check is
 source-bound to its recorded candidate and is not a release grant.
 
-Sealed read-only preflight `34763502943` passed against `810286c95f39cf6e41f121162fa5dab250a77a16` and emitted
+Sealed read-only preflight `34826815333` passed against the merged main and emitted
 `{"operation":"preflight","status":"preflight-inspected"}`. No live
 provider, recovery, realm or owner operation occurred. The native checkout is
 synchronized to M2 and the saved sync automation remains paused. `finalReleasePrepared:false`
