@@ -12,9 +12,9 @@ against this exact source and emitted
 `{"operation":"preflight","status":"preflight-inspected"}`. The saved Codex
 sync automation is paused, and no scheduled GitHub workflow exists.
 
-Pages run `34810674281` passed classification for the gameplay/source checkpoint
-but skipped build/deploy/live verification under the current release
-classification. The live site remains the established
+Pages run `34826796723` passed classification for the main push but skipped
+build/deploy/live verification under the current release classification. The
+live site remains the established
 Genesis UI, so this record does not claim a live 0.4 release. A fresh local
 provider recheck found the authenticated Cloudflare account does not contain
 `warpkeep-auth-bridge`, the Pages project list is empty, and the authenticated

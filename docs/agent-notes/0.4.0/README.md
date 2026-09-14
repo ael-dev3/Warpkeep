@@ -19,9 +19,9 @@ environment identities.
 PR #252 adds a narrow-canvas façade-biased overview and preserves manual camera
 orientation and vertical framing across resize. It is presentation-only:
 footprints, picking, placement authority, progression and asset budgets stay
-unchanged. GitHub Pages run `34810674281` classified the gameplay/source
-checkpoint but skipped build, deploy and live verification under the current
-release classification; warpkeep.com still serves
+unchanged. GitHub Pages run `34826796723` classified the main push but skipped
+build, deploy and live verification under the current release classification;
+warpkeep.com still serves
 the established Genesis UI. Treat live 0.4 as not shipped until owner/provider,
 recovery and deployment evidence is complete.
 
