@@ -6,9 +6,12 @@ Protected `main` and `origin/main` are synchronized at exact SHA
 `f11c8b6b494659d8c68309280eb84e4e0598deb4` (PR #268). Main Verify
 `35018032678` and CodeQL `35018032651` passed for that source. Pages classifier
 `35023589225` passed while build, deploy, recovery, notification and live
-verification were correctly skipped by sealed-launch policy. Sealed preflight
-`35023663671` also passed against the exact source. The live site remains
-Genesis because `pagesDeploymentApproved:false` is still explicit in the release
+verification were correctly skipped by sealed-launch policy. Current-source
+preflight `35029391986` was attempted against the exact source but failed in
+`phase:"workflow"` because the protected operation inputs were empty; it made no
+provider mutation. Earlier preflight `35023663671` passed for superseded source
+`f11c8b6b` and is historical. The live site remains Genesis because
+`pagesDeploymentApproved:false` is still explicit in the release
 configuration; `finalReleasePrepared:false` remains explicit for preparation
 families. Provider and owner authority, real deployment and recovery/readback,
 G001 preservation, sealed G002 denial, owner-only PTR play, physical-device

@@ -8,7 +8,10 @@ merges through PR #268 (dispatch return preview). Main Verify `35018032678` and
 CodeQL `35018032651` passed for this exact source. Pages run `35023589225` also
 completed successfully, but its sealed-launch classifier selected the policy lane
 and skipped build, deploy, recovery, notification and live verification. Sealed
-preflight `35023663671` passed against the same source.
+Current-source sealed preflight `35029391986` was attempted but failed in
+`phase:"workflow"` because the protected operation inputs were empty; it made no
+provider mutation. Earlier preflight `35023663671` passed for superseded source
+`f11c8b6b` and is historical.
 
 Warpkeep 0.4 remains unshipped pending provider-backed deployment,
 recovery/readback, live hosting identity, actual-owner PTR play, device

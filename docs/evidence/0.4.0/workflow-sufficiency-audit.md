@@ -7,8 +7,11 @@ Protected `main` and `origin/main` are synchronized at exact SHA
 `35018032678` and CodeQL `35018032651` passed; Pages classifier run
 `35023589225` passed for that exact source while build, deploy, recovery,
 notification and live verification were correctly skipped by sealed-launch
-policy. Sealed preflight `35023663671` passed against the same source. This
-proves protected source rails only: provider, owner, live deployment,
+policy. Current-source sealed preflight `35029391986` was attempted but failed
+in `phase:"workflow"` because the protected operation inputs were empty; it made
+no provider mutation. Earlier preflight `35023663671` passed for superseded
+source `f11c8b6b` and is historical. This proves protected source rails only:
+provider, owner, live deployment,
 recovery/readback, device acceptance and final-freeze evidence remain open. The
 live site remains Genesis.
 
