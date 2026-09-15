@@ -1,29 +1,24 @@
 # Continue Warpkeep 0.4
 
-## Current accepted-main checkpoint — 14 September 2026
+## Current accepted-main checkpoint — 15 September 2026
 
-Protected `main` and `origin/main` are synchronized at
-`742c855bd40373a69e92c82db5eb54132b0df391`, the protected squash merge of
-PR #259 (`codex/0.4-readable-duration`). The change adds readable seconds,
-minutes and hours to Keep04 building and Worker presentation while preserving
-exact Realm microsecond inputs and server-side timing. PR Verify
-`34877619504` completed successfully across Linux, SpacetimeDB, auth bridge,
-native contract and recovery lanes; analysis and CodeQL also passed.
+Protected `main` and `origin/main` are synchronized at exact merged SHA
+`4acd1e22a71cc4c454b26fb762bf8301f40d660a`, which contains the protected
+squash merges for PR #259 (readable durations), PR #260 (checkpoint alignment),
+PR #262 (bounded verification commands), and PR #261 (civic benefits and return
+timing). Main Verify `34911650804` and CodeQL `34911650722` passed for this
+exact source. Pages run `34915001912` also completed successfully, but its
+sealed-launch classifier selected the policy lane and skipped build, deploy,
+recovery, notification and live verification.
 
-Post-merge Verify `34883356688` and CodeQL `34883356895` are currently
-running against exact `main` SHA `742c855b`. The Pages classifier for this
-new source has not completed; the earlier classifier `34873617604` belongs to
-the superseded `0670121d` source. These checks establish source integrity and
-protected CI only. Warpkeep 0.4 remains unshipped pending provider-backed
-deployment, recovery/readback, live identity, actual-owner PTR play, device
-acceptance and final release freeze.
-
-The saved `keep-warpkeep-development-synced` automation remains **PAUSED**
-and the repository has no scheduled GitHub workflow. Continue manual fetch,
-secret scan, reviewed commit/push and exact remote-SHA verification. Keep the
-existing Desktop handoff in place; use the repository's ignored `artifacts/`
-directory for disposable output and create no Desktop siblings, backups or
-archives.
+Warpkeep 0.4 remains unshipped pending provider-backed deployment,
+recovery/readback, live hosting identity, actual-owner PTR play, device
+acceptance and final release freeze. The saved `keep-warpkeep-development-synced`
+automation remains **PAUSED**, and the repository has no scheduled GitHub
+workflow. Continue manual fetch, secret scan, reviewed commit/push and exact
+remote-SHA verification. Keep the existing Desktop handoff in place; use the
+repository's ignored `artifacts/` directory for disposable output and create no
+Desktop siblings, backups or archives.
 ## Previous consumer implementation checkpoint — 13 September 2026
 
 Continue `codex/0.4-g002-existing-state` /

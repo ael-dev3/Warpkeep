@@ -2,19 +2,19 @@
 
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main), the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
 
-Protected `main` and `origin/main` are synchronized at
-`742c855bd40373a69e92c82db5eb54132b0df391`, the protected squash merge of
-PR #259. PR Verify `34877619504` completed successfully across every
-required lane; analysis and CodeQL passed. Post-merge Verify `34883356688`
-and CodeQL `34883356895` are currently running for this exact main SHA.
-Pages has not yet classified the new source. The live site remains Genesis and
-the 0.4 release is not claimed as shipped. Provider/owner authority, real
-deployment, recovery/readback, G001 preservation, sealed G002 denial,
-physical-device acceptance and final deployment remain open.
+Protected `main` and `origin/main` are synchronized at exact SHA
+`4acd1e22a71cc4c454b26fb762bf8301f40d660a`. Main Verify `34911650804` and
+CodeQL `34911650722` passed. Pages classifier `34915001912` passed for the exact
+source, while build, deploy, recovery, notification and live verification were
+correctly skipped under policy. The live site remains Genesis and the 0.4 release
+is not claimed as shipped. Provider/owner authority, real deployment,
+recovery/readback, G001 preservation, sealed G002 denial, physical-device
+acceptance and final deployment remain open.
 
 Each dated section below retains its exact source and scope. Earlier source
 families and candidate identities are historical evidence; green protected
 source rails do not certify production.
+
 ## Verified observation source family — 2026-09-13
 
 Full-stack review found one scanner coverage gap: two already-permitted update
