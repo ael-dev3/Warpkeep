@@ -3,12 +3,15 @@
 Updated 2026-09-15 (Europe/Budapest). This is the current operating sequence. Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md), live Git refs and the [release checklist](../../operations/0.4.0-release-checklist.md) for acceptance. Historical candidate identities remain historical and do not certify later source.
 
 Protected `main` and `origin/main` are synchronized at exact SHA
-`f11c8b6b494659d8c68309280eb84e4e0598deb4` after protected PR #268. Main Verify
+`a224602404cff4689320b5a9193a53c0ceb71698` after protected PR #268. Main Verify
 `35018032678` and CodeQL `35018032651` passed; Pages classifier run
 `35023589225` passed for that exact source while build, deploy, recovery,
 notification and live verification were correctly skipped by sealed-launch
-policy. Sealed preflight `35023663671` passed against the same source. This
-proves protected source rails only: provider, owner, live deployment,
+policy. Current-source sealed preflight `35029391986` was attempted but failed
+in `phase:"workflow"` because the protected operation inputs were empty; it made
+no provider mutation. Earlier preflight `35023663671` passed for superseded
+source `f11c8b6b` and is historical. This proves protected source rails only:
+provider, owner, live deployment,
 recovery/readback, device acceptance and final-freeze evidence remain open. The
 live site remains Genesis.
 
