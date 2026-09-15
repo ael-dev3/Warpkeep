@@ -14,6 +14,7 @@ import { useGameplay04Controller } from './gameplay04/useGameplay04Controller';
 import type { Controller04, Snapshot04 } from './gameplay04/createGameplay04Controller';
 import type { WorkerView04 } from './gameplay04/gameplay04Presentation';
 import { PtrSessionRenewalNotice } from './PtrSessionContinuation';
+import { formatKeep04Duration } from '../components/keep04/formatKeep04Duration';
 
 type Props = RealmMapScreenProps & { ptrGameplay04: PtrGameplay04Capability };
 const BUILDINGS: readonly Building04[] = ['city-mill', 'lumber-camp', 'city-stoneworks', 'city-goldworks', 'city-barracks', 'grand-covenant-cathedral'];
@@ -203,7 +204,7 @@ function WorldWorkerPanel({ snapshot, controller, selection, validateSelection, 
         {view?.workers.map(worker => <option key={worker.ordinal} value={worker.ordinal} disabled={worker.phase !== 'idle'}>Worker {worker.ordinal + 1} · {worker.phase}</option>)}
       </select></label>
       <div role="group" aria-label="Gathering duration">{DURATIONS.map(([label, micros]) => <button type="button" key={label} aria-pressed={duration === micros} onClick={() => setDuration(micros)}>{label}</button>)}</div>
-      <p>Preview only: {DURATIONS.find(([, micros]) => micros === duration)?.[0]} gathering; {rate === null ? 'unknown' : (rate * (duration / 10_000_000n)).toString()} yield, excluding travel. Travel time is unavailable before dispatch; the Realm confirms the full return deadline after dispatch. Resources are not spendable until the Realm confirms return.</p>
+      <p>Dispatch preview: gathering completes in {formatKeep04Duration(duration)}; projected yield: {rate === null ? 'unknown' : (rate * (duration / 10_000_000n)).toString()}. Travel is route-dependent, so the Realm confirms the exact return deadline after dispatch. Reserved resources unlock only after that confirmation.</p>
       <button type="button" disabled={!enabled} onClick={() => {
         if (!selection || !selection.target || !validateSelection(selection)) return;
         const current = controller.getSnapshot();
