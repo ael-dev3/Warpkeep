@@ -41,7 +41,7 @@ on a desktop. Reused assets retain their original credits and permissions.
 ## Where development stands
 
 **0.4 source is merged and verified; the live release is still gated.** The
-protected `main` checkpoint is `f11c8b6b494659d8c68309280eb84e4e0598deb4`
+protected `main` checkpoint is `a224602404cff4689320b5a9193a53c0ceb71698`
 (PR #268). Main Verify and CodeQL pass. Earlier sealed preflight `35023663671`
 passed for superseded source `f11c8b6b`; current-source preflight `35029391986`
 failed in `phase:"workflow"` because protected operation inputs were empty and
