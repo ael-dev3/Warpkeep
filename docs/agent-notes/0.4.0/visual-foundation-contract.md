@@ -10,9 +10,8 @@ interactivity.
 
 Use the [execution handoff](execution-handoff.md), current refs and open pull
 requests for source and verification. Protected `main` is
-`4acd1e22a71cc4c454b26fb762bf8301f40d660a` after the PR #261 protected squash
-merge; PR #259, #260 and #262 are also merged. Main Verify `34911650804` and
-CodeQL `34911650722` passed. Pages classifier `34915001912` passed while
+`dd8ab135921cdb4ea4e78c790256962260fc9536` after the PR #263 documentation refresh; PR #259, #260, #261 and #262 are also merged. Main Verify `34919771489` and
+CodeQL `34919771506` passed. Pages classifier `34923282117` passed while
 policy-gated build, deploy, recovery, notification and live verification were
 skipped. The rendered evidence below retains its recorded source and scope; it
 does not attest later UI edits or physical-device performance. The 0.4 release

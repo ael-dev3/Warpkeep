@@ -1,9 +1,9 @@
 # 0.4.0 integration evidence
 
 Protected `main` and `origin/main` are synchronized at exact SHA
-`4acd1e22a71cc4c454b26fb762bf8301f40d660a`. PR #259, #260, #262 and #261 are
-protected-merged. Main Verify `34911650804` and CodeQL `34911650722` passed;
-Pages classifier `34915001912` passed while policy-gated build, deploy, recovery,
+`dd8ab135921cdb4ea4e78c790256962260fc9536`. PR #259, #260, #261, #262 and #263 are
+protected-merged. Main Verify `34919771489` and CodeQL `34919771506` passed;
+Pages classifier `34923282117` passed while policy-gated build, deploy, recovery,
 notification and live verification were skipped. This proves protected source
 rails only; provider, owner, live deployment, recovery/readback, device
 acceptance and final-freeze evidence remain open. The live site remains Genesis.
