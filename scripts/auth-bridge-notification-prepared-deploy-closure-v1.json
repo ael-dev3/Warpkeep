@@ -5,7 +5,7 @@
     {
       "path": ".github/workflows/deploy-pages.yml",
       "digestProfile": "reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1",
-      "sha256": "c7ba0e9f91ba0e9b54cdc2e684a701ca9e9986638facd35b20376e397f4211df"
+      "sha256": "491bc94b71167d63c0ae1167b395e25b2a07364bb95d9a9af427a8175fde51d9"
     },
     {
       "path": ".github/workflows/notification-bridge-b0.yml",
@@ -25,7 +25,7 @@
     {
       "path": ".github/workflows/verify.yml",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "759e68b03d6e1dc381f01da673bb1723ccc449c439a9cc22536d3b22dcb541f8"
+      "sha256": "94adc7bc239de7ee2f805d45773a42086a652c2bef5bc6bb66f401fa2d872fc2"
     },
     {
       "path": "config/releases/0.4.0-sealed-launch.json",
@@ -1815,7 +1815,7 @@
     {
       "path": "scripts/sealed-realms-production-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a0f5919f6d438d183867dcea44a551044ffd44db375559e59c4725d15366b408"
+      "sha256": "7bca6e81794b3233971fda065df1facfd8f7f8b7919abcb8445287826948514b"
     },
     {
       "path": "scripts/sealed-realms-production-continuation.d.mts",
@@ -1835,7 +1835,7 @@
     {
       "path": "scripts/sealed-realms-production-g001-lane.bundle.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f5e9f9c4570b7401dc589f0611bc33f3c91d6aa078ea5a23ab925514de184a31"
+      "sha256": "a6bc74fed4581864aa003ee2823d5c6b75152766af29b5e4837772fe1b725fad"
     },
     {
       "path": "scripts/sealed-realms-production-g002-lane.bundle.d.mts",
@@ -3615,7 +3615,7 @@
     {
       "path": "src/components/keep04/Keep04BuildingPanel.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "498e1c8ca5361e086503a3679f6258dbdd74dc50abaf9145744a5a32d303ea8f"
+      "sha256": "3ab0a38088dd915c543b9ae29edcf1c195207ee5d927bcafd7c4e7e9ecb4f188"
     },
     {
       "path": "src/components/keep04/Keep04LoopRail.tsx",
@@ -4975,7 +4975,7 @@
     {
       "path": "src/ptr/PtrGameplay04SurfaceHost.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "7e7ec77b3d7e8767a4204b6506d606fa38ea0a627fe9ee5f381f797aad2e5635"
+      "sha256": "8d8cc79ac35652f063c39a246827a5b9e60d155a90062a10bde306f028027857"
     },
     {
       "path": "src/ptr/PtrRealmProvider.tsx",
