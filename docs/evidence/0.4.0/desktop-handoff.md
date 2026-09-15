@@ -15,10 +15,9 @@ Do not create a new Desktop folder, handoff copy, backup or ZIP.
 
 ## Start here
 
-- **Protected main:** `742c855bd40373a69e92c82db5eb54132b0df391` (PR #259 protected squash merge)
-- **PR verification:** Verify `34877619504` completed successfully across all lanes; analysis and CodeQL passed
-- **Post-merge checks:** Verify `34883356688` and CodeQL `34883356895` are currently running for `main`
-- **Pages state:** the new main source has not yet completed classification; prior classifier evidence belongs to superseded source `0670121d`
+- **Protected main:** `4acd1e22a71cc4c454b26fb762bf8301f40d660a` (PR #261 protected squash merge; PR #259, #260 and #262 are also merged)
+- **Main verification:** Verify `34911650804` and CodeQL `34911650722` passed for the exact main SHA
+- **Pages state:** classifier run `34915001912` passed; build, deploy, recovery, notification and live verification were correctly skipped by sealed-launch policy
 - **Live state:** 0.4 remains unverified and the served site remains Genesis
 - **Product direction:** [`docs/design/warpkeep-direction.md`](../../design/warpkeep-direction.md)
 - **Current agent index:** [`docs/agent-notes/0.4.0/README.md`](../../agent-notes/0.4.0/README.md)

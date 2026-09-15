@@ -1,17 +1,15 @@
 # 0.4 workflow sufficiency audit
 
-Updated 2026-09-14 (Europe/Budapest). This is the current operating sequence. Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md), live Git refs and the [release checklist](../../operations/0.4.0-release-checklist.md) for acceptance. Historical candidate identities remain historical and do not certify later source.
+Updated 2026-09-15 (Europe/Budapest). This is the current operating sequence. Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md), live Git refs and the [release checklist](../../operations/0.4.0-release-checklist.md) for acceptance. Historical candidate identities remain historical and do not certify later source.
 
-Protected `main` and `origin/main` are synchronized at
-`742c855bd40373a69e92c82db5eb54132b0df391`, the protected squash merge of
-PR #259. PR Verify `34877619504` completed successfully across Linux,
-SpacetimeDB, auth bridge, native contract and recovery lanes; analysis and
-CodeQL passed as well. Post-merge Verify `34883356688` and CodeQL
-`34883356895` are currently running against this exact main SHA. Pages has
-not yet classified this new source; the earlier classifier belongs to the
-superseded `0670121d` source. This proves protected source rails only:
-provider, owner, live deployment, recovery/readback, device acceptance and
-final-freeze evidence remain open. The live site remains Genesis.
+Protected `main` and `origin/main` are synchronized at exact SHA
+`4acd1e22a71cc4c454b26fb762bf8301f40d660a`. PR #259, #260, #262 and #261 are
+protected-merged. Main Verify `34911650804` and CodeQL `34911650722` passed;
+Pages classifier run `34915001912` passed for that exact source while build,
+deploy, recovery, notification and live verification were correctly skipped by
+sealed-launch policy. This proves protected source rails only: provider, owner,
+live deployment, recovery/readback, device acceptance and final-freeze evidence
+remain open. The live site remains Genesis.
 
 ## Verdict
 

@@ -7,14 +7,12 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-Protected `main` and `origin/main` are synchronized at
-`742c855bd40373a69e92c82db5eb54132b0df391`, the protected squash merge of
-PR #259. PR Verify `34877619504` completed successfully across Linux,
-SpacetimeDB, auth bridge, native contract and recovery lanes; analysis and
-CodeQL passed as well. Post-merge Verify `34883356688` and CodeQL
-`34883356895` are currently running against this exact main SHA. Pages has
-not yet classified this new source; the earlier classifier belongs to the
-superseded `0670121d` source. This proves protected source rails only:
+Protected `main` and `origin/main` are synchronized at exact SHA
+`4acd1e22a71cc4c454b26fb762bf8301f40d660a`. The protected PR #259, #260, #262,
+and #261 merges are in this source. Main Verify `34911650804` and CodeQL
+`34911650722` passed; Pages run `34915001912` classified the sealed-launch
+source successfully and correctly skipped build, deploy, recovery, notification
+and live verification under policy. This proves protected source rails only:
 provider, owner, live deployment, recovery/readback, device acceptance and
 final-freeze evidence remain open. The live site remains Genesis.
 

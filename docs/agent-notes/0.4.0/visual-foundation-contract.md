@@ -10,14 +10,15 @@ interactivity.
 
 Use the [execution handoff](execution-handoff.md), current refs and open pull
 requests for source and verification. Protected `main` is
-`742c855bd40373a69e92c82db5eb54132b0df391` after the PR #259 protected squash
-merge. PR Verify `34877619504` passed across all lanes; post-merge Verify
-`34883356688` and CodeQL `34883356895` are running. Pages has not yet
-classified this new source. The rendered evidence below retains its recorded
-source and scope; it does not attest later UI edits or physical-device
-performance. The 0.4 release remains a development build until authenticated
-owner play, physical-device review and the required delivery evidence are
-complete.
+`4acd1e22a71cc4c454b26fb762bf8301f40d660a` after the PR #261 protected squash
+merge; PR #259, #260 and #262 are also merged. Main Verify `34911650804` and
+CodeQL `34911650722` passed. Pages classifier `34915001912` passed while
+policy-gated build, deploy, recovery, notification and live verification were
+skipped. The rendered evidence below retains its recorded source and scope; it
+does not attest later UI edits or physical-device performance. The 0.4 release
+remains a development build until authenticated owner play, physical-device
+review and the required delivery evidence are complete.
+
 The `27700d61` follow-up corrects bordered/letterboxed schematic taps and the
 loop's construction/completion feedback without changing the visual direction.
 Earlier hashes are historical anchors, not the source for a new pass. The recorded connected
