@@ -72,14 +72,50 @@ function allowedResource(value, websocket = false) {
     return url.origin === KEEP04_QA_ORIGIN && !url.username && !url.password;
   } catch { return false; }
 }
+
+// Browser diagnostics are intentionally reduced to two closed vocabularies.
+// A future browser or CDP field must land in one of these maps before it can
+// appear in a retained report; raw messages, URLs and protocol payloads stay
+// outside the evidence surface.
+const DIAGNOSTIC_RESOURCE_CLASSES = Object.freeze({
+  Document: 'document', Script: 'script', Stylesheet: 'stylesheet', Image: 'image',
+  Font: 'font', Media: 'media', XHR: 'data', Fetch: 'data', EventSource: 'data',
+  WebSocket: 'websocket', Manifest: 'manifest', Other: 'other',
+  network: 'network', security: 'document', deprecation: 'browser',
+  rendering: 'rendering', javascript: 'script', other: 'other'
+});
+function diagnosticResource(value) {
+  return typeof value === 'string' && Object.hasOwn(DIAGNOSTIC_RESOURCE_CLASSES, value)
+    ? DIAGNOSTIC_RESOURCE_CLASSES[value] : 'unknown';
+}
+function diagnosticCause(kind) {
+  if (kind === 'request-blocked' || kind === 'network' || kind === 'websocket'
+    || kind === 'interception-overflow' || kind === 'interception-command') return 'network-policy';
+  if (kind === 'document-response-blocked' || kind === 'document-request-shape'
+    || kind === 'security-policy-error') return 'document-policy';
+  if (kind === 'navigation') return 'navigation';
+  if (kind === 'hmr-during-capture') return 'hot-reload';
+  if (kind === 'popup' || kind === 'page-side-effect') return 'page-side-effect';
+  if (kind === 'runtime-exception') return 'runtime';
+  if (kind === 'browser-console' || kind.startsWith('browser-log-')) return 'browser-log';
+  if (kind === 'target-crashed' || kind.startsWith('inspector-detached-')
+    || kind === 'unexpected-target-closed' || kind === 'unexpected-inspector-detach'
+    || kind === 'unverified-close-detach' || kind === 'teardown-overflow'
+    || kind.startsWith('owned-close-')) return 'lifecycle';
+  return 'observer';
+}
 export function createKeep04NetworkGuard() {
   let expected = 'about:blank'; let target = ''; let violation = ''; let dropped = 0;
   let phase = 'capture'; let reviewRequired = false;
   const ownedClose = { requested: false, acknowledged: false, verified: false, detachCount: 0 };
   let documentRequest; let documentGuarded = false; let guardedDocuments = 0;
   const diagnostics = []; const pending = new Set();
-  const record = (kind, severity = 'error') => { if (severity !== 'info') reviewRequired = true; if (diagnostics.length < 128) diagnostics.push({ kind, severity, phase }); else dropped++; };
-  const reject = kind => { violation ||= kind; record(kind); };
+  const record = (kind, severity = 'error', resource) => {
+    if (severity !== 'info') reviewRequired = true;
+    if (diagnostics.length < 128) diagnostics.push({ kind, severity, phase, cause: diagnosticCause(kind), resource: diagnosticResource(resource) });
+    else dropped++;
+  };
+  const reject = (kind, resource) => { violation ||= kind; record(kind, 'error', resource); };
   const track = promise => { if (pending.size >= 256) { reject('interception-overflow'); void promise.catch(() => {}); return; } pending.add(promise); promise.catch(() => reject('interception-command')).finally(() => pending.delete(promise)); };
   return {
     expectNavigation(url) { if (!keep04ProbePlan([`--base-url=${KEEP04_QA_ORIGIN}`]).cases.some(entry => entry.url === url)) throw new Error('Unexpected keep QA navigation request.'); expected = url; documentRequest = undefined; documentGuarded = false; },
@@ -94,7 +130,7 @@ export function createKeep04NetworkGuard() {
     },
     event(method, params, session) {
       if (method === 'Fetch.requestPaused') {
-        if (typeof params?.requestId !== 'string') { reject('fetch-shape'); return; }
+        if (typeof params?.requestId !== 'string') { reject('fetch-shape', params?.resourceType); return; }
         const permitted = !violation && allowedResource(params?.request?.url) && (params.resourceType !== 'Document' || (params.request.url === expected && params.request.method === 'GET'));
         if ('responseStatusCode' in params || 'responseErrorReason' in params) {
           const headers = params.responseHeaders;
@@ -106,7 +142,7 @@ export function createKeep04NetworkGuard() {
           if (!permitted || params.resourceType !== 'Document' || params.responseStatusCode !== 200 || params.responseErrorReason !== undefined || !validHeaders || !validPhrase
             || !validPolicy || contentTypes.length !== 1 || !/^text\/html(?:\s*;\s*charset=(?:utf-8|"utf-8"))?$/i.test(contentTypes[0].value)
             || !documentRequest || params.requestId !== documentRequest.requestId || params.frameId !== documentRequest.frameId || documentRequest.responsePending || documentGuarded) {
-            reject('document-response-blocked'); track(session.command('Fetch.failRequest', { requestId: params.requestId, errorReason: 'BlockedByClient' })); return;
+            reject('document-response-blocked', params.resourceType); track(session.command('Fetch.failRequest', { requestId: params.requestId, errorReason: 'BlockedByClient' })); return;
           }
           const request = documentRequest;
           request.responsePending = true;
@@ -117,21 +153,21 @@ export function createKeep04NetworkGuard() {
             if (!violation && documentRequest === request) { documentGuarded = true; guardedDocuments++; }
           })); return;
         }
-        if (!permitted) reject('request-blocked');
+        if (!permitted) reject('request-blocked', params.resourceType);
         if (permitted && params.resourceType === 'Document') {
-          if (documentRequest || typeof params.frameId !== 'string' || !params.frameId) { reject('document-request-shape'); track(session.command('Fetch.failRequest', { requestId: params.requestId, errorReason: 'BlockedByClient' })); return; }
+          if (documentRequest || typeof params.frameId !== 'string' || !params.frameId) { reject('document-request-shape', params.resourceType); track(session.command('Fetch.failRequest', { requestId: params.requestId, errorReason: 'BlockedByClient' })); return; }
           documentRequest = { requestId: params.requestId, frameId: params.frameId };
         }
         track(session.command(permitted ? 'Fetch.continueRequest' : 'Fetch.failRequest', { requestId: params.requestId, ...(!permitted ? { errorReason: 'BlockedByClient' } : {}) }));
-      } else if (method === 'Page.frameNavigated' && !params?.frame?.parentId && params?.frame?.url !== expected) reject('navigation');
-      else if (method === 'Network.requestWillBeSent' && !allowedResource(params?.request?.url)) reject('network');
-      else if (method === 'Network.webSocketCreated' && !allowedResource(params?.url, true)) reject('websocket');
+      } else if (method === 'Page.frameNavigated' && !params?.frame?.parentId && params?.frame?.url !== expected) reject('navigation', 'Document');
+      else if (method === 'Network.requestWillBeSent' && !allowedResource(params?.request?.url)) reject('network', params?.type);
+      else if (method === 'Network.webSocketCreated' && !allowedResource(params?.url, true)) reject('websocket', 'WebSocket');
       else if (method === 'Network.webSocketFrameReceived') {
-        try { if (['update', 'full-reload', 'error'].includes(JSON.parse(params?.response?.payloadData).type)) reject('hmr-during-capture'); } catch { /* No payload content is retained. */ }
-      } else if (method === 'Page.windowOpen' || method === 'Page.downloadWillBegin') reject('page-side-effect');
+        try { if (['update', 'full-reload', 'error'].includes(JSON.parse(params?.response?.payloadData).type)) reject('hmr-during-capture', 'WebSocket'); } catch { /* No payload content is retained. */ }
+      } else if (method === 'Page.windowOpen' || method === 'Page.downloadWillBegin') reject('page-side-effect', 'Other');
       else if (method === 'Target.targetCreated' && params?.targetInfo?.type === 'page' && params.targetInfo.targetId !== target) {
-        reject('popup'); if (typeof params.targetInfo.targetId === 'string') track(session.browserCommand('Target.closeTarget', { targetId: params.targetInfo.targetId }));
-      } else if (method === 'Target.targetCrashed') reject('target-crashed');
+        reject('popup', 'Other'); if (typeof params.targetInfo.targetId === 'string') track(session.browserCommand('Target.closeTarget', { targetId: params.targetInfo.targetId }));
+      } else if (method === 'Target.targetCrashed') reject('target-crashed', 'Other');
       else if (method === 'Inspector.detached') {
         const teardownKind = params?.reason === 'target_closed' ? 'inspector-detached-target-closed'
           : params?.reason === 'Render process gone.' ? 'inspector-detached-render-process-gone' : null;
@@ -139,12 +175,15 @@ export function createKeep04NetworkGuard() {
           ownedClose.detachCount = Math.min(129, ownedClose.detachCount + 1);
           record(teardownKind, 'info');
           if (ownedClose.detachCount > 128) reject('teardown-overflow');
-        } else reject(params?.reason === 'target_closed' ? 'unexpected-target-closed' : 'unexpected-inspector-detach');
+        } else reject(params?.reason === 'target_closed' ? 'unexpected-target-closed' : 'unexpected-inspector-detach', 'Other');
       }
-      else if (method === 'Log.entryAdded' && params?.entry?.source === 'security' && params.entry.level === 'error') reject('security-policy-error');
-      else if (method === 'Runtime.exceptionThrown') record('runtime-exception');
-      else if (method === 'Runtime.consoleAPICalled' && ['warning', 'error', 'assert'].includes(params?.type)) record('browser-console', params.type === 'warning' ? 'warning' : 'error');
-      else if (method === 'Log.entryAdded' && ['warning', 'error'].includes(params?.entry?.level)) record(`browser-log-${['network', 'security', 'deprecation', 'rendering', 'javascript'].includes(params.entry.source) ? params.entry.source : 'other'}`, params.entry.level);
+      else if (method === 'Log.entryAdded' && params?.entry?.source === 'security' && params.entry.level === 'error') reject('security-policy-error', 'security');
+      else if (method === 'Runtime.exceptionThrown') record('runtime-exception', 'error', 'Script');
+      else if (method === 'Runtime.consoleAPICalled' && ['warning', 'error', 'assert'].includes(params?.type)) record('browser-console', params.type === 'warning' ? 'warning' : 'error', 'Script');
+      else if (method === 'Log.entryAdded' && ['warning', 'error'].includes(params?.entry?.level)) {
+        const source = ['network', 'security', 'deprecation', 'rendering', 'javascript'].includes(params.entry.source) ? params.entry.source : 'other';
+        record(`browser-log-${source}`, params.entry.level, source);
+      }
     },
     async drain() { await Promise.allSettled([...pending]); },
     assert() { if (violation) throw new Error(`Keep QA network boundary failed: ${violation}.`); },
@@ -275,7 +314,7 @@ export async function runKeep04WindowsCapture(args, operations = defaultOperatio
     executableBefore: baseline ?? null, executableAfterLaunch: launched ?? null, executableAfterCapture: finalIdentity ?? null,
     serverDocumentPolicy: { scope: 'synthetic keep-only; not production gameplay or performance', delivery: 'server-origin; unmodified CDP continuation', enforcedResponseHeader: KEEP04_DOCUMENT_POLICY, cacheDisabled: true },
     browser: browser ? { product: String(browser.product).slice(0, 128), protocolVersion: String(browser.protocolVersion).slice(0, 32) } : null, gpu: gpu ?? null,
-    diagnosticPolicy: 'Bounded phase/severity/event classes and stderr counts only; no URLs, console arguments, request bodies or profile content retained. reviewRequired is not asset or visual acceptance.', diagnostics, stderr,
+    diagnosticPolicy: 'Bounded phase/severity/event classes with allowlisted cause/resource categories and stderr counts only; no URLs, console arguments, request bodies or profile content retained. reviewRequired is not asset or visual acceptance.', diagnostics, stderr,
     captureCount: Array.isArray(captured?.observations) ? captured.observations.length : null, failure: originalError ? { stage, kind: failureKind } : cleanupError ? { stage: 'cleanup', kind: 'cleanup-failed' } : null, cleanup: { ...cleanup, exit: childExit ?? null } };
   if (run) { try { await operations.writeReport(run, report); } catch (error) { cleanupError = cleanupError ? new AggregateError([cleanupError, error], 'Cleanup/report failures.') : error; } }
   if (originalError && cleanupError) throw new AggregateError([originalError, cleanupError], 'Windows keep capture and cleanup/report failed.', { cause: originalError });

@@ -1,5 +1,19 @@
 # Verdant Citadel visual evidence — final acceptance open
 
+## 2026-09-15 bounded capture diagnostic schema
+
+The Windows Keep04 observer now retains each browser diagnostic as the existing
+event class, severity and capture phase plus two privacy-safe fields: an
+allowlisted `cause` category and an allowlisted `resource` category. The maps
+are closed in source, unknown values become `unknown`, and no browser message,
+URL, console argument, request body or profile content is copied into the
+report. Existing 128-entry and rejection limits are unchanged.
+
+The focused Windows capture, capture-output and full-stack privacy suites pass
+122 tests. This improves triage of the still-open warning count; it does not
+explain the historical 36 warnings, establish a clean visual run or replace
+physical-device and owner-session acceptance.
+
 ## 2026-09-12 building hierarchy development
 
 The preceding mature captures show the cathedral overwhelming economic sites.
