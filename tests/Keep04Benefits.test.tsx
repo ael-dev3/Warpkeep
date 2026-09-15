@@ -25,6 +25,8 @@ it('shows exact six building costs, deficits, duration and completed-only curren
     expect(row.getByText('Build duration: 2 min')).toBeVisible();
     expect(row.getByText(effect)).toBeVisible(); expect(row.getByText(value)).toBeVisible();
   }
+  expect(within(screen.getByRole('article', { name: 'City Barracks' })).getByText(/Each completed level reduces travel time on every route edge by 5%/)).toBeVisible();
+  expect(within(screen.getByRole('article', { name: 'Grand Covenant Cathedral' })).getByText(/Each completed level reduces every future build timer by 5%/)).toBeVisible();
   expect(screen.getByText(/each expedition keeps the gathering rate it began with/i)).toBeVisible();
   expect(document.body.textContent).not.toMatch(/combat|faith|G001|discount/i);
 });

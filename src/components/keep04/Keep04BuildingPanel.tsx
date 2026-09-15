@@ -66,6 +66,11 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
     const benefit = buildingBenefit04(view, kind); const missing = buildingDeficits04(view, kind);
     const firstDeficit = RESOURCES04.find(resource => missing[resource] > 0n);
     const value = (amount: bigint) => benefit.unit === 'micros' ? formatKeep04Duration(amount) : amount.toString();
+    const strategicNote = kind === 'city-barracks'
+      ? 'Each completed level reduces travel time on every route edge by 5%; longer expeditions add those savings together.'
+      : kind === 'grand-covenant-cathedral'
+        ? 'Each completed level reduces every future build timer by 5%; longer projects gain a larger absolute saving.'
+        : null;
     return <article key={kind} aria-label={BUILDING_NAMES04[kind]} className="keep04-card" data-selected={selectedKind === kind}>
       <button type="button" aria-pressed={selectedKind === kind} onClick={() => onSelect(kind)}>{BUILDING_NAMES04[kind]}</button>
       <p className="keep04-badge">{level > 0 ? `Completed level ${level}` : project ? 'Under construction' : 'Not built'}</p>
@@ -77,6 +82,7 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
       </>}
       {!maximum && !project && <p>{firstDeficit ? `Missing: ${costText(missing)}` : 'Resources ready'}</p>}
       <p>{benefit.label}</p><p>Current: {value(benefit.current)}{!maximum && <> → {project ? 'On completion' : 'Next'}: {value(benefit.next)}</>}</p>
+      {strategicNote && <p className="keep04-benefit-note">{strategicNote}</p>}
       {!project && firstDeficit && <button type="button" onClick={() => onFindResources(firstDeficit)}>Find {firstDeficit}</button>}
     </article>;
   }
