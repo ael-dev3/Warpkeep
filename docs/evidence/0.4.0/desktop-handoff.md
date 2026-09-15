@@ -15,9 +15,9 @@ Do not create a new Desktop folder, handoff copy, backup or ZIP.
 
 ## Start here
 
-- **Protected main:** `dd8ab135921cdb4ea4e78c790256962260fc9536` (PR #263 documentation refresh; PR #259, #260, #261 and #262 are also merged)
-- **Main verification:** Verify `34919771489` and CodeQL `34919771506` passed for the exact main SHA
-- **Pages state:** classifier run `34923282117` passed; build, deploy, recovery, notification and live verification were correctly skipped by sealed-launch policy
+- **Protected main:** `d2fe2d2c146d137b78c062df4d935a5cfb7766f9` (PR #265 bounded diagnostic categories; PR #259 through #264 are also merged)
+- **Main verification:** Verify `34967603804` and CodeQL `34967603736` passed for the exact main SHA
+- **Pages state:** classifier run `34972321426` passed; build, deploy, recovery, notification and live verification were correctly skipped by sealed-launch policy
 - **Live state:** 0.4 remains unverified and the served site remains Genesis
 - **Product direction:** [`docs/design/warpkeep-direction.md`](../../design/warpkeep-direction.md)
 - **Current agent index:** [`docs/agent-notes/0.4.0/README.md`](../../agent-notes/0.4.0/README.md)

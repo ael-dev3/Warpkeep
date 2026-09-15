@@ -3,8 +3,8 @@
 Status: **Keep04 duration readability and protected closure refresh merged; final release freeze open**.
 
 Protected `main` and `origin/main` are synchronized at exact SHA
-`dd8ab135921cdb4ea4e78c790256962260fc9536`. Main Verify `34919771489` and
-CodeQL `34919771506` passed. Pages classifier `34923282117` passed while
+`d2fe2d2c146d137b78c062df4d935a5cfb7766f9`. Main Verify `34967603804` and
+CodeQL `34967603736` passed. Pages classifier `34972321426` passed while
 build, deploy, recovery, notification and live verification were correctly
 skipped by sealed-launch policy. The live site remains Genesis. `finalReleasePrepared:false`
 remains explicit for preparation families. Provider and owner authority, real
