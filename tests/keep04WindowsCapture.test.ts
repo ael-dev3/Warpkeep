@@ -132,6 +132,25 @@ it('bounds diagnostics and rejects HMR contamination without serializing payload
   expect(guard.snapshot()).toMatchObject({ dropped: 13, violation: 'hmr-during-capture' });
   expect(JSON.stringify(guard.snapshot())).not.toContain('secret'); expect(() => guard.assert()).toThrow(/hmr/);
 });
+it('retains only allowlisted cause and resource categories for actionable browser diagnostics', () => {
+  const guard = createKeep04NetworkGuard();
+  guard.event('Runtime.exceptionThrown', { exception: { description: 'private stack' } }, {});
+  guard.event('Runtime.consoleAPICalled', { type: 'warning', args: ['private console value'] }, {});
+  guard.event('Log.entryAdded', { entry: { source: 'network', level: 'error', text: 'private network detail' } }, {});
+  guard.event('Network.requestWillBeSent', { request: { url: 'https://external.invalid/private' }, type: 'Image' }, {});
+  const snapshot = guard.snapshot() as { diagnostics: readonly { cause: string; resource: string }[] };
+  expect(snapshot.diagnostics).toEqual(expect.arrayContaining([
+    { kind: 'runtime-exception', severity: 'error', phase: 'capture', cause: 'runtime', resource: 'script' },
+    { kind: 'browser-console', severity: 'warning', phase: 'capture', cause: 'browser-log', resource: 'script' },
+    { kind: 'browser-log-network', severity: 'error', phase: 'capture', cause: 'browser-log', resource: 'network' },
+    { kind: 'network', severity: 'error', phase: 'capture', cause: 'network-policy', resource: 'image' }
+  ]));
+  expect(JSON.stringify(snapshot)).not.toMatch(/private stack|private console value|private network detail|external\.invalid/);
+  for (const diagnostic of snapshot.diagnostics) {
+    expect(['network-policy', 'document-policy', 'navigation', 'hot-reload', 'page-side-effect', 'runtime', 'browser-log', 'lifecycle', 'observer']).toContain(diagnostic.cause);
+    expect(['document', 'script', 'stylesheet', 'image', 'font', 'media', 'data', 'websocket', 'manifest', 'other', 'network', 'browser', 'rendering', 'unknown']).toContain(diagnostic.resource);
+  }
+});
 
 const qaDocument = 'http://127.0.0.1:4176/dev/keep04-qa.html?scenario=empty&quality=high';
 const policy = "sandbox allow-scripts allow-same-origin; worker-src 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; form-action 'none'";
@@ -237,8 +256,8 @@ it.each([
   const capture = f.ops.capture; f.ops.capture = async () => { f.emit('Log.entryAdded', { entry: { source: 'network', level: 'error', text: 'unresolved private diagnostic' } }); return capture(); };
   const report = await runKeep04WindowsCapture(['--base-url=http://127.0.0.1:4176'], f.ops);
   expect(report).toMatchObject({ stableSource: true, failure: null, diagnostics: { violation: null, reviewRequired: true, diagnostics: expect.arrayContaining([
-    { kind: 'browser-log-network', severity: 'error', phase: 'capture' },
-    { kind, severity: 'info', phase: 'owned-close' },
+    { kind: 'browser-log-network', severity: 'error', phase: 'capture', cause: 'browser-log', resource: 'network' },
+    { kind, severity: 'info', phase: 'owned-close', cause: 'lifecycle', resource: 'unknown' },
   ]), ownedClose: { requested: true, acknowledged: true, verified: true, detachCount: 1 } } });
   expect(JSON.stringify(report)).not.toContain('unresolved private');
 });
