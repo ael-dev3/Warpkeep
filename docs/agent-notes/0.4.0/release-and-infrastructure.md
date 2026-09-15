@@ -3,8 +3,8 @@
 ## Current source and access checkpoint — 2026-09-15
 
 Protected `main` and `origin/main` are synchronized at exact SHA
-`4acd1e22a71cc4c454b26fb762bf8301f40d660a`. Main Verify `34911650804` and
-CodeQL `34911650722` passed, and Pages classifier run `34915001912` completed
+`dd8ab135921cdb4ea4e78c790256962260fc9536`. Main Verify `34919771489` and
+CodeQL `34919771506` passed, and Pages classifier run `34923282117` completed
 successfully while correctly skipping policy-gated build, deploy, recovery,
 notification and live verification. The source rails are healthy; provider,
 owner, live deployment, recovery/readback, device acceptance and final-freeze

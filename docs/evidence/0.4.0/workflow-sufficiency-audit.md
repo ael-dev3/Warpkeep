@@ -3,9 +3,9 @@
 Updated 2026-09-15 (Europe/Budapest). This is the current operating sequence. Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md), live Git refs and the [release checklist](../../operations/0.4.0-release-checklist.md) for acceptance. Historical candidate identities remain historical and do not certify later source.
 
 Protected `main` and `origin/main` are synchronized at exact SHA
-`4acd1e22a71cc4c454b26fb762bf8301f40d660a`. PR #259, #260, #262 and #261 are
-protected-merged. Main Verify `34911650804` and CodeQL `34911650722` passed;
-Pages classifier run `34915001912` passed for that exact source while build,
+`dd8ab135921cdb4ea4e78c790256962260fc9536`. PR #259, #260, #261, #262 and #263 are
+protected-merged. Main Verify `34919771489` and CodeQL `34919771506` passed;
+Pages classifier run `34923282117` passed for that exact source while build,
 deploy, recovery, notification and live verification were correctly skipped by
 sealed-launch policy. This proves protected source rails only: provider, owner,
 live deployment, recovery/readback, device acceptance and final-freeze evidence

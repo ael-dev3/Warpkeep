@@ -3,8 +3,8 @@
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main), the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
 
 Protected `main` and `origin/main` are synchronized at exact SHA
-`4acd1e22a71cc4c454b26fb762bf8301f40d660a`. Main Verify `34911650804` and
-CodeQL `34911650722` passed. Pages classifier `34915001912` passed for the exact
+`dd8ab135921cdb4ea4e78c790256962260fc9536`. Main Verify `34919771489` and
+CodeQL `34919771506` passed. Pages classifier `34923282117` passed for the exact
 source, while build, deploy, recovery, notification and live verification were
 correctly skipped under policy. The live site remains Genesis and the 0.4 release
 is not claimed as shipped. Provider/owner authority, real deployment,
