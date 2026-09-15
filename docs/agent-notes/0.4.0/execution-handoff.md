@@ -3,12 +3,12 @@
 ## Current accepted-main checkpoint — 15 September 2026
 
 Protected `main` and `origin/main` are synchronized at exact merged SHA
-`d2fe2d2c146d137b78c062df4d935a5cfb7766f9`, which contains the protected
-squash merges for PR #259 (readable durations), PR #260 (checkpoint alignment),
-PR #262 (bounded verification commands), PR #261 (civic benefits and return timing), and PR #263 (current-state documentation refresh), PR #264 (checkpoint alignment), and PR #265 (bounded diagnostic categories). Main Verify `34967603804` and CodeQL `34967603736` passed for this
-exact source. Pages run `34972321426` also completed successfully, but its
-sealed-launch classifier selected the policy lane and skipped build, deploy,
-recovery, notification and live verification.
+`f11c8b6b494659d8c68309280eb84e4e0598deb4`, which contains the protected squash
+merges through PR #268 (dispatch return preview). Main Verify `35018032678` and
+CodeQL `35018032651` passed for this exact source. Pages run `35023589225` also
+completed successfully, but its sealed-launch classifier selected the policy lane
+and skipped build, deploy, recovery, notification and live verification. Sealed
+preflight `35023663671` passed against the same source.
 
 Warpkeep 0.4 remains unshipped pending provider-backed deployment,
 recovery/readback, live hosting identity, actual-owner PTR play, device
