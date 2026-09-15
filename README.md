@@ -40,10 +40,13 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**0.4 is being integrated; it is not yet the completed live release.** The
-development branch includes the gameplay core, new keep presentation, session
-renewal and local release/recovery tools. Connected owner play, visual refinement
-and the complete operating path require their own current acceptance evidence.
+**0.4 source is merged and verified; the live release is still gated.** The
+protected `main` checkpoint is `f11c8b6b494659d8c68309280eb84e4e0598deb4`
+(PR #268). Main Verify and CodeQL pass, and sealed preflight passes against the
+same source. The gameplay core, new keep presentation, session renewal and
+release/recovery tools are in the repo. Connected owner play, provider-backed
+deployment, visual/device acceptance and the complete operating path require
+their own current evidence before the live site can move beyond Genesis.
 
 | Realm | Purpose |
 | --- | --- |

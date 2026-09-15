@@ -8,12 +8,15 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 ## Current working state
 
 Protected `main` and `origin/main` are synchronized at exact SHA
-`d2fe2d2c146d137b78c062df4d935a5cfb7766f9`. The protected PR #259, #260, #261, #262, #263, #264 and #265 merges are in this source. Main Verify `34967603804` and CodeQL
-`34967603736` passed; Pages run `34972321426` classified the sealed-launch
-source successfully and correctly skipped build, deploy, recovery, notification
-and live verification under policy. This proves protected source rails only:
-provider, owner, live deployment, recovery/readback, device acceptance and
-final-freeze evidence remain open. The live site remains Genesis.
+`f11c8b6b494659d8c68309280eb84e4e0598deb4`. Protected PR #268 is merged on top
+of the earlier 0.4 work. Main Verify `35018032678` and CodeQL `35018032651`
+passed; Pages run `35023589225` classified the sealed-launch source
+successfully and correctly skipped build, deploy, recovery, notification and
+live verification under policy. Sealed preflight `35023663671` passed against
+the same source. This proves protected source rails only: provider, owner, live
+deployment, recovery/readback, device acceptance and final-freeze evidence remain
+open. The live site remains Genesis because `pagesDeploymentApproved:false` is
+still set.
 
 The [execution handoff](execution-handoff.md) owns exact source, CI, native
 and environment identities. Keep the product direction and evidence below
@@ -25,9 +28,10 @@ aligned to this checkpoint; historical source families remain historical.
   live authority.
 - **The player journey has a clear foundation.** Keep/atlas navigation, Worker
   dispatch and return feedback, construction state, session renewal, the
-  gather → choose → build → benefit → return rail and the new first-journey cue
-  are implemented and covered by focused tests. Refresh keeps the scene and
-  focus available while authoritative commands remain guarded.
+  gather → choose → build → benefit → return rail, readable dispatch-return
+  timing and the first-journey cue are implemented and covered by focused tests.
+  Refresh keeps the scene and focus available while authoritative commands remain
+  guarded.
 - **The Verdant Citadel presentation is under integrated review.** Lightweight
   voxel scenery, layered terrain, water restraint, readable building hierarchy
   and mobile layout decisions are recorded in the visual contract and current

@@ -1,16 +1,19 @@
 # 0.4 release freeze evidence
 
-Status: **Keep04 duration readability and protected closure refresh merged; final release freeze open**.
+Status: **0.4 source and protected rails are merged; final release freeze remains open**.
 
 Protected `main` and `origin/main` are synchronized at exact SHA
-`d2fe2d2c146d137b78c062df4d935a5cfb7766f9`. Main Verify `34967603804` and
-CodeQL `34967603736` passed. Pages classifier `34972321426` passed while
-build, deploy, recovery, notification and live verification were correctly
-skipped by sealed-launch policy. The live site remains Genesis. `finalReleasePrepared:false`
-remains explicit for preparation families. Provider and owner authority, real
-deployment and recovery/readback, G001 preservation, sealed G002 denial,
-owner-only PTR play, physical-device acceptance and final hosting remain open.
-Keep sync automation paused and create no Desktop output.
+`f11c8b6b494659d8c68309280eb84e4e0598deb4` (PR #268). Main Verify
+`35018032678` and CodeQL `35018032651` passed for that source. Pages classifier
+`35023589225` passed while build, deploy, recovery, notification and live
+verification were correctly skipped by sealed-launch policy. Sealed preflight
+`35023663671` also passed against the exact source. The live site remains
+Genesis because `pagesDeploymentApproved:false` is still explicit in the release
+configuration; `finalReleasePrepared:false` remains explicit for preparation
+families. Provider and owner authority, real deployment and recovery/readback,
+G001 preservation, sealed G002 denial, owner-only PTR play, physical-device
+acceptance and final hosting remain open. Keep sync automation paused and create
+no Desktop output.
 
 ## Historical prepared family — 2026-09-12
 

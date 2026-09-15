@@ -3,29 +3,32 @@
 Updated 2026-09-15 (Europe/Budapest). This is the current operating sequence. Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md), live Git refs and the [release checklist](../../operations/0.4.0-release-checklist.md) for acceptance. Historical candidate identities remain historical and do not certify later source.
 
 Protected `main` and `origin/main` are synchronized at exact SHA
-`d2fe2d2c146d137b78c062df4d935a5cfb7766f9`. PR #259, #260, #261, #262, #263, #264 and #265 are
-protected-merged. Main Verify `34967603804` and CodeQL `34967603736` passed;
-Pages classifier run `34972321426` passed for that exact source while build,
-deploy, recovery, notification and live verification were correctly skipped by
-sealed-launch policy. This proves protected source rails only: provider, owner,
-live deployment, recovery/readback, device acceptance and final-freeze evidence
-remain open. The live site remains Genesis.
+`f11c8b6b494659d8c68309280eb84e4e0598deb4` after protected PR #268. Main Verify
+`35018032678` and CodeQL `35018032651` passed; Pages classifier run
+`35023589225` passed for that exact source while build, deploy, recovery,
+notification and live verification were correctly skipped by sealed-launch
+policy. Sealed preflight `35023663671` passed against the same source. This
+proves protected source rails only: provider, owner, live deployment,
+recovery/readback, device acceptance and final-freeze evidence remain open. The
+live site remains Genesis.
 
 ## Verdict
 
 The workflow supports reviewed development, native preparation, protected
-integration, generated-family promotion and fresh main verification. It is not
+integration, generated-family promotion, fresh main verification and sealed
+preflight. It is not
 yet sufficient to ship 0.4: genuine provider and owner authority, real
 deployment and recovery/readback, G001 preservation, sealed G002 denial,
 owner-only PTR play, physical-device performance, hosting and final deployment
-remain open. Overall completion remains approximately **86%** (80–88% judgment
+remain open. Overall completion is approximately **88%** (82–90% judgment
 range), based on milestone coverage rather than arbitrary file or content
 counts. No reliable calendar ETA is established.
 
 ## What is working
 
-- The Keep04 gather → choose → build → benefit → return foundation and readable
-  duration presentation are implemented and protected by focused tests.
+- The Keep04 gather → choose → build → benefit → return foundation, readable
+  duration presentation and dispatch-return preview are implemented and
+  protected by focused tests.
 - Source closure, generated pins, Linux, SpacetimeDB, native, recovery, auth,
   analysis and CodeQL checks are green for the merged PR source.
 - The saved sync automation is paused and no scheduled GitHub workflow exists;
