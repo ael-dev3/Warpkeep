@@ -5,8 +5,8 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 ## Current accepted-main source and protected checks — 15 September 2026
 
 Protected `main` and `origin/main` are synchronized at exact SHA
-`dd8ab135921cdb4ea4e78c790256962260fc9536`. Main Verify `34919771489` and
-CodeQL `34919771506` passed; Pages classifier `34923282117` passed while
+`d2fe2d2c146d137b78c062df4d935a5cfb7766f9`. Main Verify `34967603804` and
+CodeQL `34967603736` passed; Pages classifier `34972321426` passed while
 policy-gated build, deploy, recovery, notification and live verification were
 skipped. This proves protected source rails only: provider, owner, live
 deployment, recovery/readback, device acceptance and final-freeze evidence

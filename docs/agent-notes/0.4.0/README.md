@@ -8,8 +8,8 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 ## Current working state
 
 Protected `main` and `origin/main` are synchronized at exact SHA
-`dd8ab135921cdb4ea4e78c790256962260fc9536`. The protected PR #259, #260, #261, #262 and #263 merges are in this source. Main Verify `34919771489` and CodeQL
-`34919771506` passed; Pages run `34923282117` classified the sealed-launch
+`d2fe2d2c146d137b78c062df4d935a5cfb7766f9`. The protected PR #259, #260, #261, #262, #263, #264 and #265 merges are in this source. Main Verify `34967603804` and CodeQL
+`34967603736` passed; Pages run `34972321426` classified the sealed-launch
 source successfully and correctly skipped build, deploy, recovery, notification
 and live verification under policy. This proves protected source rails only:
 provider, owner, live deployment, recovery/readback, device acceptance and

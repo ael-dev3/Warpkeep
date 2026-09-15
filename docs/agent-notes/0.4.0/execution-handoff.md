@@ -3,10 +3,10 @@
 ## Current accepted-main checkpoint — 15 September 2026
 
 Protected `main` and `origin/main` are synchronized at exact merged SHA
-`dd8ab135921cdb4ea4e78c790256962260fc9536`, which contains the protected
+`d2fe2d2c146d137b78c062df4d935a5cfb7766f9`, which contains the protected
 squash merges for PR #259 (readable durations), PR #260 (checkpoint alignment),
-PR #262 (bounded verification commands), PR #261 (civic benefits and return timing), and PR #263 (current-state documentation refresh). Main Verify `34919771489` and CodeQL `34919771506` passed for this
-exact source. Pages run `34923282117` also completed successfully, but its
+PR #262 (bounded verification commands), PR #261 (civic benefits and return timing), and PR #263 (current-state documentation refresh), PR #264 (checkpoint alignment), and PR #265 (bounded diagnostic categories). Main Verify `34967603804` and CodeQL `34967603736` passed for this
+exact source. Pages run `34972321426` also completed successfully, but its
 sealed-launch classifier selected the policy lane and skipped build, deploy,
 recovery, notification and live verification.
 
