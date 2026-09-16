@@ -42,9 +42,15 @@ dispatch refusal as a missing credential or remove the source/evidence guard.
 
 The [live delivery guide](../../operations/0.4.0-live-delivery-status.md) owns
 fresh access observations and remaining provider work. Cloudflare production
-profile read access works; both configured Windows and Linux SpacetimeDB logins
-list no owned databases. Existing Linux sealed private runtime/audit roots are empty.
-These are specific operational gaps, not a blanket loss of GitHub/provider access.
+profile read access works. The owner identified the signed-in `ael-dev3`
+SpacetimeDB account; both Windows and the Linux production CLI were reconnected
+through their supported browser login flow. Both now list G001, G002 and PTR
+with the source-pinned immutable identities. The prior empty listings came from
+a different selected identity. The Linux credential file was returned to owner
+`warpkeep`, mode `0600`, inside its `0700` private directory after login.
+This resolves publisher login and ownership discovery, not application-owner
+authentication or release authority. Existing Linux sealed private runtime/audit
+roots are still empty; their genuine authority and receipt chain remain separate.
 
 Warpkeep 0.4 remains unshipped pending provider-backed deployment,
 recovery/readback, live hosting identity, actual-owner PTR play, device

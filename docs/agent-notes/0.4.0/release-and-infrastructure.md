@@ -6,8 +6,10 @@ The [execution handoff](execution-handoff.md) owns the dated source, completed
 CI and successful read-only preflight. The
 [live delivery guide](../../operations/0.4.0-live-delivery-status.md) owns fresh
 access observations and operating steps. Cloudflare production profile reads
-work; the selected SpacetimeDB login still lists no owned databases. Existing
-Linux sealed private runtime/audit stores are empty. Provider-backed deployment,
+work. Windows and the Linux production CLI now authenticate as the owner's
+verified `ael-dev3` publisher and list all three Warpkeep realm identities correctly;
+the earlier empty listings belonged to a different selected identity. Existing
+Linux sealed private runtime/audit stores remain empty. Provider-backed deployment,
 owner play, recovery/readback, device acceptance and final freeze remain open.
 Historical observations below do not supersede those current checks.
 
