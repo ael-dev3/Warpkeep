@@ -1,12 +1,15 @@
 # 0.4.0 integration evidence
 
-Protected `main` and `origin/main` are synchronized at exact SHA
-`d2fe2d2c146d137b78c062df4d935a5cfb7766f9`. PR #259, #260, #261, #262, #263, #264 and #265 are
-protected-merged. Main Verify `34967603804` and CodeQL `34967603736` passed;
-Pages classifier `34972321426` passed while policy-gated build, deploy, recovery,
-notification and live verification were skipped. This proves protected source
-rails only; provider, owner, live deployment, recovery/readback, device
-acceptance and final-freeze evidence remain open. The live site remains Genesis.
+The September 16 [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
+records the accepted baseline and completed Verify, CodeQL and read-only
+preflight. Later repairs require their own source-bound checks. Pages policy
+still skips deployment; owner/device, provider, recovery and final-freeze
+acceptance remain open.
+
+All entries below are historical observations for their stated source/date.
+Their pending jobs, failures and old branch instructions do not describe the
+current baseline. Reconcile against the handoff and live GitHub state before
+resuming a task.
 
 ## Placement and workflow review — 2026-09-12
 
@@ -180,7 +183,7 @@ not the later QA tooling, live realm preservation, actual owner journey or final
 release. The separately failed Linux history scan and native-contract job still
 prevent aggregate Verify acceptance.
 
-## Remaining R14 acceptance
+## Historical R14 findings — 2026-09-06
 
 The newer [SpacetimeDB job 101537410746](https://github.com/ael-dev3/Warpkeep/actions/runs/34052095337/job/101537410746)
 also completed successfully at `2026-09-06T19:19:49Z` for source
@@ -314,7 +317,7 @@ and original values in wrong paths remained detected. This resolves the earlier
 diagnostic coverage gap; permanent regression tests, reviewed configuration
 implementation and actual-config full-history/CI acceptance are still pending.
 
-### Current committed source: Linux native contracts
+### Historical committed source: Linux native contracts
 
 Root then repeated all three native-contract suites against a separate clean
 Linux checkout of `a3569d6ebdf2343fa638f36a0b2593c5aacc1970`, tree

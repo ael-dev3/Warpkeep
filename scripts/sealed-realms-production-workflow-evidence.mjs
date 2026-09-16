@@ -69,6 +69,7 @@ function context(commit) {
   const job = operation === 'activation-evidence-generate' ? 'operate'
     : operation === 'ptr-state-inspect' ? 'observe_ptr'
     : ['ptr-update-inspect', 'ptr-update-apply'].includes(operation) ? 'operate_ptr'
+    : ['g002-update-inspect', 'g002-update-apply'].includes(operation) ? 'operate_g002'
     : ['preflight', 'activation-evidence-inspect', 'g001-policy-observe'].includes(operation) ? 'operate_readonly' : undefined;
   if (job === undefined) fail('SEALED_REALMS_WORKFLOW_EVIDENCE_CONTEXT_INVALID');
   const fixed = { GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: REPOSITORY,

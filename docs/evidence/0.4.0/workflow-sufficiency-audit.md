@@ -1,32 +1,31 @@
 # 0.4 workflow sufficiency audit
 
-Updated 2026-09-15 (Europe/Budapest). This is the current operating sequence. Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md), live Git refs and the [release checklist](../../operations/0.4.0-release-checklist.md) for acceptance. Historical candidate identities remain historical and do not certify later source.
+Updated 2026-09-16 (Europe/Budapest). Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
+for the single dated source/CI/preflight checkpoint and the
+[release checklist](../../operations/0.4.0-release-checklist.md) for acceptance.
+Historical candidate identities do not certify later source.
 
-The final functional 0.4 source checkpoint is
-`284a1f3df590d13128e2f58f57d8780757133c82`; protected PR #271 adds the current
-documentation provenance pin. Main Verify
-`35033848797` and CodeQL `35033848795` passed; Pages classifier run
-`35037923695` passed for that exact source while build, deploy, recovery,
-notification and live verification were correctly skipped by sealed-launch
-policy. Current-source sealed preflight `35033894080` was attempted but failed
-in `phase:"workflow"` because the protected operation inputs were empty; it made
-no provider mutation. Earlier preflight `35023663671` passed for superseded
-source `f11c8b6b` and is historical. This proves protected source rails only:
-provider, owner, live deployment,
-recovery/readback, device acceptance and final-freeze evidence remain open. The
-live site remains Genesis.
+The accepted baseline passed main Verify, CodeQL and fresh read-only preflight.
+The earlier preflight was dispatched before its required Verify completed; its
+blank provider inputs were expected, not evidence of missing credentials.
+The resumption audit also repairs the evidence reader's missing mapping for
+the existing G002 update job. Require the repair's own generated family and
+protected checks before production use. Windows and Linux publisher discovery
+now succeeds with the owner's verified account; private operation authority,
+owner access, live deployment,
+recovery/readback, device acceptance and final-freeze evidence remain open.
 
 ## Verdict
 
 The workflow supports reviewed development, native preparation, protected
 integration, generated-family promotion, fresh main verification and sealed
 preflight. It is not
-yet sufficient to ship 0.4: genuine provider and owner authority, real
+yet sufficient to ship 0.4: operation-specific private and owner authority, real
 deployment and recovery/readback, G001 preservation, sealed G002 denial,
 owner-only PTR play, physical-device performance, hosting and final deployment
-remain open. Overall completion is approximately **88%** (82–90% judgment
-range), based on milestone coverage rather than arbitrary file or content
-counts. No reliable calendar ETA is established.
+remain open. Use source-bound acceptance evidence to assess progress; a past
+completion estimate does not measure later source or close a release gate.
+No reliable calendar ETA is established.
 
 ## What is working
 
@@ -34,13 +33,15 @@ counts. No reliable calendar ETA is established.
   duration presentation and dispatch-return preview are implemented and
   protected by focused tests.
 - Source closure, generated pins, Linux, SpacetimeDB, native, recovery, auth,
-  analysis and CodeQL checks are green for the merged PR source.
+  analysis and CodeQL checks are green for the reviewed PR source; the PR is
+  still open and must pass its required gates before protected integration.
 - The saved sync automation is paused and no scheduled GitHub workflow exists;
   manual publication remains the durable development rail.
 
 ## What remains open
 
-- Establish genuine publisher/provider and actual-owner authority, then complete
+- Revalidate the restored publisher identity and establish operation-specific
+  private and actual-owner authority, then complete
   the supported Linux prepared deployment, compatible existing-state
   update/adoption and recovery/readback paths.
 - Capture fresh G001 preservation and sealed G002 denial baselines, including
@@ -58,8 +59,8 @@ counts. No reliable calendar ETA is established.
 
 The implemented economy, Verdant Citadel renderer and water foundation should be
 judged through a complete owner session before adding another system. The next
-player-facing pass should make expedition duration and return timing readable,
-make each civic building's benefit obvious at the moment it is earned, and keep
+player-facing review should verify the implemented expedition/return timing and
+civic-building benefit feedback, and keep
 the first build and improved return understandable on a narrow phone view. Use
 diagnostics that explain a warning or blocked action instead of exposing raw
 counts. Keep the renderer and world rules bounded; measured play, accessibility
@@ -68,7 +69,11 @@ rewrite.
 
 ## Required order from here
 
-1. Establish genuine provider/publisher and actual-owner authority, re-attest the
+1. Reconcile the existing-operation repair through generated-source checks and
+   protected integration. Wait for completed successful **push-to-main Verify**
+   on the exact current SHA before dispatching any sealed operation; recheck the
+   SHA after waiting. Revalidate publisher access, establish the required private
+   and actual-owner authority, and re-attest the
    bridge predecessor and isolated PTR target, and capture fresh G001 and sealed
    G002 baselines. Preserve legitimate later writes; never restore an old
    snapshot or repeat initialization over live state.

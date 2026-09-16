@@ -13,15 +13,20 @@ they do not create new permissions or silently restrict a newer product directio
 1. Read [README.md](README.md) for the promise and
    [the 0.4 handoff](docs/agent-notes/0.4.0/README.md) for the current work.
 2. Inspect the actual checkout, branch, scoped diff, remote and relevant CI.
-   PR #228 is a historical integration; protected `main` is now the signed M2
-   baseline recorded in the execution handoff. Resolve the current working branch
-   from that handoff and live PRs. Distinguish main, a development checkout, a
-   generated candidate and deployment.
+   Resolve the current working branch from the execution handoff and live PRs;
+   use the [checkout roles](docs/operations/0.4.0-development-sync.md#start-from-the-actual-checkout-and-remote)
+   before moving between local copies. Distinguish main, development source,
+   a pinned generated candidate and deployment. A historical SHA is not live state.
 3. Use [the repository map](docs/agent-notes/0.4.0/repo-map.md) to find the real
    caller, state owner and tests. Verify reported running work through its actual
    process/job handle before restarting it. A stale lock or journal is not proof.
 4. Read source and current evidence before redoing a feature or repeating an old
    failure. Record what is implemented, verified, deployed or still unknown.
+5. Before diagnosing an access blocker or asking the owner to act, follow the
+   [connection and resumption guide](docs/operations/0.4.0-infra-access.md#resume-without-guessing).
+   Verify the selected account, target, actual caller and required source checks.
+   Ask only for the smallest human action the agent cannot perform, state why,
+   and define the readback that will confirm success. Never request tokens in chat.
 
 Use the [branch entry map](docs/engineering/ecosystem-map.md) to distinguish
 the published baseline from active development, and the

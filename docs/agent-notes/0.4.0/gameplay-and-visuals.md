@@ -1,5 +1,26 @@
 # Gameplay and visual implementation notes
 
+## Maintenance review — September 16, 2026
+
+The existing owner-session path correctly discards old atlas authority after
+renewal, but the restored keep did not explain why building and recall could
+remain disabled. A ready keep without atlas details now points to its existing
+Return to world action. Tests reproduce the missing instruction, preserve disabled
+commands, and verify that the instruction disappears during active/uncertain
+refresh and after current atlas details arrive. No authority, mechanic or
+navigation path was added.
+
+A separate real-controller/UI regression exercises repeated immediate rejection,
+explicit cost review and an unchanged background refresh. It disproved a suspected
+React-batching defect; retry behavior was retained. The five affected
+screen/controller/lifecycle/accessibility/surface-host suites pass all 141 cases.
+The independent core review passes 119 domain/registered-module adapter cases and
+found no demonstrated settlement, retry, capacity or time-boundary defect.
+Renderer loading/disposal/context recovery was also inspected without finding a
+concrete new defect. These are local source/harness results, not physical-device
+performance or authenticated owner acceptance. Follow the
+[execution handoff](execution-handoff.md) for the publication and integration state.
+
 ## Mobile overview framing — September 14, 2026
 
 The 3D keep overview now uses a façade-biased camera when the rendered scene

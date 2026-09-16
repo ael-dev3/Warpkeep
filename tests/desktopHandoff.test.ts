@@ -10,7 +10,7 @@ const handoff = readFileSync(
 
 describe('credential-free workspace handoff', () => {
   it('keeps reproducible source, setup and evidence routes visible', () => {
-    expect(handoff).toContain('codex/prepared-keep-bindings-fix');
+    expect(handoff).toContain('git clone --branch main https://github.com/ael-dev3/Warpkeep.git');
     expect(handoff).toContain('npm ci');
     expect(handoff).toContain('/dev/keep04-qa.html?scenario=all-six-level-five&quality=high');
     expect(handoff).toContain('[`integration.md`](integration.md)');

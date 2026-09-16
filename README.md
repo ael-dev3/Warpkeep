@@ -40,14 +40,10 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**0.4 source is merged and verified; the live release is still gated.** The
-final functional source checkpoint is
-`284a1f3df590d13128e2f58f57d8780757133c82` (PR #270); protected PR #271 adds
-the current documentation provenance pin. Main Verify and CodeQL pass. Earlier
-sealed preflight `35023663671`
-passed for superseded source `f11c8b6b`; current-source preflight `35033894080`
-failed in `phase:"workflow"` because protected operation inputs were empty and
-made no provider mutation. The gameplay core, new keep presentation, session renewal and
+**The 0.4 foundation is implemented; live acceptance remains open.** The
+[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) records the
+accepted source, completed checks and successful read-only preflight. The
+gameplay core, new keep presentation, session renewal and
 release/recovery tools are in the repo. Connected owner play, provider-backed
 deployment, visual/device acceptance and the complete operating path require
 their own current evidence before the live site can move beyond Genesis.

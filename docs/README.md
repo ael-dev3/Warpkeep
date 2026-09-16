@@ -26,6 +26,8 @@ a live 0.4 release; check dated evidence before following a development guide.
   boundaries and verification owners
 - [Source synchronization](operations/0.4.0-development-sync.md) — checked-out,
   reviewed and published source boundaries
+- [Connections and human handoffs](operations/0.4.0-infra-access.md#resume-without-guessing)
+  — known accounts/paths, targeted diagnostics and efficient owner requests
 - [Local source preparation](operations/0.4.0-local-release-preparation.md) — fixed
   native compilation, independent candidate checks and recoverable installation
 - [Linux production runner](operations/0.4.0-linux-runner.md) — verified installation,

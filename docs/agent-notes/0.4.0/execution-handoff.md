@@ -1,17 +1,56 @@
 # Continue Warpkeep 0.4
 
-## Current accepted-main checkpoint — 15 September 2026
+## Verified baseline and resumption audit — 16 September 2026
 
-The final functional 0.4 source checkpoint is
-`284a1f3df590d13128e2f58f57d8780757133c82`; protected PR #271 adds the current
-documentation provenance pin. Main Verify `35033848797` and
-CodeQL `35033848795` passed for this exact source. Pages run `35037923695` also
-completed successfully, but its sealed-launch classifier selected the policy lane
-and skipped build, deploy, recovery, notification and live verification.
-Current-source sealed preflight `35033894080` was attempted but failed in
-`phase:"workflow"` because the protected operation inputs were empty; it made no
-provider mutation. Earlier preflight `35023663671` passed for superseded source
-`f11c8b6b` and is historical.
+The current task is maintenance: audit and improve existing work, correct data
+and remove resumption blockers. Do not add new features during this pass.
+
+The accepted baseline inspected for this audit is
+`398a8a434c0b598d260d5569ed6802dfaa169e3f` (PR #272). Main
+[Verify 35045616429](https://github.com/ael-dev3/Warpkeep/actions/runs/35045616429)
+and [CodeQL 35045616428](https://github.com/ael-dev3/Warpkeep/actions/runs/35045616428)
+completed successfully. [Pages 35049348267](https://github.com/ael-dev3/Warpkeep/actions/runs/35049348267)
+passed classification and skipped build, deployment, recovery, notification and
+live verification. This is a dated baseline, not a claim that later commits
+inherit its exact-source acceptance.
+
+Fresh [preflight 35076516495](https://github.com/ael-dev3/Warpkeep/actions/runs/35076516495)
+passed on that baseline with `status:"preflight-inspected"`. The earlier
+`35033894080` attempt ended at 23:03:25 UTC on September 15; its required main
+Verify `35033848797` did not complete until 23:57:31 UTC. The evidence reader
+requires completed, successful Verify for the exact selected main commit.
+The public failure reports only `phase:"workflow"`; missing completed Verify
+was an established unmet prerequisite. The previous claim that empty provider
+inputs caused it was incorrect: preflight deliberately receives no provider
+secrets. Neither preflight performs a provider mutation.
+
+This audit repairs a separate source blocker: the evidence reader omitted
+`g002-update-inspect` and `g002-update-apply` from its existing `operate_g002`
+job mapping. Both valid operations, wrong-job denial and operation changes
+are covered by regression tests. The owning Windows suite passed all 86 cases;
+four new cases failed before the fix. [PR #273](https://github.com/ael-dev3/Warpkeep/pull/273)
+publishes the repair and derived deployment closure. Native development
+preparation completed successfully on `498e5057`; it is not an independently
+checked final family or production acceptance. Follow the checklist's
+[source-only M1 and generated-only M2 sequence](../../operations/0.4.0-release-checklist.md#fixed-sequence)
+before production use. Never relabel that development candidate after squash.
+
+Before any protected dispatch, resolve live `main`, wait for its **push** Verify
+run to complete successfully, recheck the SHA, and only then select that source.
+PR checks alone do not satisfy this prerequisite. Do not interpret an early
+dispatch refusal as a missing credential or remove the source/evidence guard.
+
+The [live delivery guide](../../operations/0.4.0-live-delivery-status.md) owns
+fresh access observations and remaining provider work. Cloudflare production
+profile read access works. The owner identified the signed-in `ael-dev3`
+SpacetimeDB account; both Windows and the Linux production CLI were reconnected
+through their supported browser login flow. Both now list G001, G002 and PTR
+with the source-pinned immutable identities. The prior empty listings came from
+a different selected identity. The Linux credential file was returned to owner
+`warpkeep`, mode `0600`, inside its `0700` private directory after login.
+This resolves publisher login and ownership discovery, not application-owner
+authentication or release authority. Existing Linux sealed private runtime/audit
+roots are still empty; their genuine authority and receipt chain remain separate.
 
 Warpkeep 0.4 remains unshipped pending provider-backed deployment,
 recovery/readback, live hosting identity, actual-owner PTR play, device
@@ -21,7 +60,39 @@ workflow. Continue manual fetch, secret scan, reviewed commit/push and exact
 remote-SHA verification. Keep the existing Desktop handoff in place; use the
 repository's ignored `artifacts/` directory for disposable output and create no
 Desktop siblings, backups or archives.
-## Previous consumer implementation checkpoint — 13 September 2026
+
+### Maintenance review and recurrence prevention
+
+The follow-up in PR #273 keeps the existing mechanics and feature set. Agents
+now enter through one [connection/diagnosis guide](../../operations/0.4.0-infra-access.md#resume-without-guessing)
+and an explicit [local checkout map](../../operations/0.4.0-development-sync.md#start-from-the-actual-checkout-and-remote).
+The guide identifies the correct profile, pinned runtime, native config, source
+prerequisites and smallest human-controlled action. It distinguishes a pending
+check, wrong account, denied player session and absent private evidence.
+
+Two demonstrated maintenance defects were corrected: the Linux caller now
+distinguishes execution failures from workflow construction without printing
+private error details; the keep explains the existing Return to world recovery
+when fresh session state lacks atlas authority. Commands remain guarded.
+The real-controller test disproved a suspected batched retry defect, so no
+speculative retry change was made. Independent reviews found no further
+actionable issue in these changes or the inspected gameplay/renderer lifecycle.
+
+Verification of this maintenance diff: 119 core/domain and module-adapter cases,
+141 affected client/UI/lifecycle cases, 58 Linux-dispatch/input cases and eight
+documentation contracts passed on pinned Node 22.22.3. The production build,
+referenced types, asset/public-boundary/Mini App checks, local documentation
+links and PowerShell runbook syntax checks passed. The build retains its existing
+large-chunk warnings; no new physical-device or live-owner acceptance is claimed.
+Final hosted checks and source-bound M1/M2 promotion remain separate requirements.
+
+## Historical checkpoints
+
+Everything below retains its original source/date and is not an instruction to
+resume old branches, rerun completed work or treat old failures as current.
+Use the verified baseline and resumption audit above, then inspect live refs.
+
+### Previous consumer implementation checkpoint — 13 September 2026
 
 Continue `codex/0.4-g002-existing-state` /
 [PR #245](https://github.com/ael-dev3/Warpkeep/pull/245) in the reused isolated

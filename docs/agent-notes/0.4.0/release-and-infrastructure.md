@@ -1,16 +1,17 @@
 # Release engineering, CI and infrastructure audit
 
-## Current source and access checkpoint — 2026-09-15
+## Current source and access checkpoint — 2026-09-16
 
-Protected `main` and `origin/main` are synchronized at exact SHA
-`d2fe2d2c146d137b78c062df4d935a5cfb7766f9`. Main Verify `34967603804` and
-CodeQL `34967603736` passed, and Pages classifier run `34972321426` completed
-successfully while correctly skipping policy-gated build, deploy, recovery,
-notification and live verification. The source rails are healthy; provider,
-owner, live deployment, recovery/readback, device acceptance and final-freeze
-evidence remain open. The [execution handoff](execution-handoff.md) owns exact
-source and CI identities; the [live delivery guide](../../operations/0.4.0-live-delivery-status.md)
-owns operating steps.
+The [execution handoff](execution-handoff.md) owns the dated source, completed
+CI and successful read-only preflight. The
+[live delivery guide](../../operations/0.4.0-live-delivery-status.md) owns fresh
+access observations and operating steps. Cloudflare production profile reads
+work. Windows and the Linux production CLI now authenticate as the owner's
+verified `ael-dev3` publisher and list all three Warpkeep realm identities correctly;
+the earlier empty listings belonged to a different selected identity. Existing
+Linux sealed private runtime/audit stores remain empty. Provider-backed deployment,
+owner play, recovery/readback, device acceptance and final freeze remain open.
+Historical observations below do not supersede those current checks.
 
 ## Historical source checkpoint — 2026-09-12
 

@@ -2,20 +2,22 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Current accepted-main source and protected checks — 15 September 2026
+## Resumption audit — 16 September 2026
 
-Protected `main` and `origin/main` are synchronized at exact SHA
-`d2fe2d2c146d137b78c062df4d935a5cfb7766f9`. Main Verify `34967603804` and
-CodeQL `34967603736` passed; Pages classifier `34972321426` passed while
-policy-gated build, deploy, recovery, notification and live verification were
-skipped. This proves protected source rails only: provider, owner, live
-deployment, recovery/readback, device acceptance and final-freeze evidence
-remain open. The live site remains Genesis.
+The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) owns the
+dated baseline and completed source/preflight checks. The fresh
+[access inventory](../../operations/0.4.0-live-delivery-status.md#access-is-scoped-to-each-operation)
+distinguishes working Cloudflare/GitHub access and restored Windows/Linux
+SpacetimeDB publisher discovery from the still-empty Linux sealed private
+runtime/audit stores. Earlier empty database listings came from a different
+selected identity; they were not evidence of deleted realms. Preflight is
+successful for its recorded source and does not consume provider
+secrets or establish live release acceptance.
 
-The existing development checkout `C:/Temp/warpkeep-0.4-next` contains this
-accepted source and is kept clean on the documentation branch until its review
-is merged. The saved sync automation remains paused and no scheduled GitHub
-workflow exists. Update the existing Desktop handoff in place only.
+Reuse `C:/Temp/warpkeep-0.4-next` for reviewed repairs. The saved sync automation
+remains paused. Update the existing Desktop handoff in place only. Historical
+operating paths and failures below retain their original dates; check actual
+process ownership before moving a native checkout.
 
 ## Historical committed-source native preparation and independent check — 2026-09-12
 
