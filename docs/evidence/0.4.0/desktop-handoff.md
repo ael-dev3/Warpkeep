@@ -15,9 +15,8 @@ Do not create a new Desktop folder, handoff copy, backup or ZIP.
 
 ## Start here
 
-- **Protected main:** `d2fe2d2c146d137b78c062df4d935a5cfb7766f9` (PR #265 bounded diagnostic categories; PR #259 through #264 are also merged)
-- **Main verification:** Verify `34967603804` and CodeQL `34967603736` passed for the exact main SHA
-- **Pages state:** classifier run `34972321426` passed; build, deploy, recovery, notification and live verification were correctly skipped by sealed-launch policy
+- **Accepted source and checks:** the dated [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) owns the verified SHA, terminal main checks and read-only preflight result; resolve live refs before continuing
+- **Pages state:** classification deliberately skips deployment while release evidence remains incomplete
 - **Live state:** 0.4 remains unverified and the served site remains Genesis
 - **Product direction:** [`docs/design/warpkeep-direction.md`](../../design/warpkeep-direction.md)
 - **Current agent index:** [`docs/agent-notes/0.4.0/README.md`](../../agent-notes/0.4.0/README.md)
@@ -38,13 +37,17 @@ for routine verification or run installation into the shared Windows dependency
 junction.
 
 ```powershell
-git clone --branch codex/prepared-keep-bindings-fix https://github.com/ael-dev3/Warpkeep.git
+git clone --branch main https://github.com/ael-dev3/Warpkeep.git
 Set-Location Warpkeep
 node --version       # Node 22.13+ within the Node 22 line
 npm --version        # npm 10.9.8 is the repository package-manager contract
 npm ci
 npm run dev
 ```
+
+This starts from the published main branch. Before release preparation, resolve
+and pin the intended reviewed source and its required checks from the handoff;
+do not resume a historical preparation branch as though it were current main.
 
 Open the Vite origin printed by the dev server. The bounded visual fixture is:
 

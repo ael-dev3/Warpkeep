@@ -7,20 +7,12 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-The final functional 0.4 source checkpoint is
-`284a1f3df590d13128e2f58f57d8780757133c82`; protected PR #271 adds the current
-documentation provenance pin on top of the earlier 0.4 work. Main Verify
-`35033848797` and CodeQL `35033848795`
-passed; Pages run `35037923695` classified the sealed-launch source
-successfully and correctly skipped build, deploy, recovery, notification and
-live verification under policy. Current-source sealed preflight `35033894080`
-was attempted but failed in `phase:"workflow"` because the protected operation
-inputs were empty; it made no provider mutation. Earlier preflight `35023663671`
-passed for superseded source `f11c8b6b` and is historical. This proves protected
-source rails only: provider, owner, live
-deployment, recovery/readback, device acceptance and final-freeze evidence remain
-open. The live site remains Genesis because `pagesDeploymentApproved:false` is
-still set.
+The [execution handoff](execution-handoff.md) owns the dated accepted source,
+Verify/CodeQL results and successful read-only preflight. Pages classification
+deliberately skips deployment while `pagesDeploymentApproved:false` is set.
+Provider-backed deployment, recovery/readback, actual-owner play, device
+acceptance and final-freeze evidence remain open. The recorded live baseline
+remains Genesis.
 
 The [execution handoff](execution-handoff.md) owns exact source, CI, native
 and environment identities. Keep the product direction and evidence below

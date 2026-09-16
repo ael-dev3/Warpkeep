@@ -137,6 +137,16 @@ describe.sequential('fixed workflow Verify evidence', () => {
     ['ptr-update-inspect', 'operate'],
     ['ptr-update-apply', 'operate_readonly'],
     ['ptr-update-apply', 'operate'],
+    ['g002-update-inspect', 'operate_readonly'],
+    ['g002-update-inspect', 'operate_ptr'],
+    ['g002-update-inspect', 'operate'],
+    ['g002-update-apply', 'operate_readonly'],
+    ['g002-update-apply', 'operate_ptr'],
+    ['g002-update-apply', 'operate'],
+    ['ptr-update-inspect', 'operate_g002'],
+    ['ptr-update-apply', 'operate_g002'],
+    ['activation-evidence-generate', 'operate_g002'],
+    ['preflight', 'operate_g002'],
     ['activation-evidence-generate', 'operate_ptr'],
     ['preflight', 'operate_ptr'],
     ['arbitrary', 'operate_readonly'],
@@ -157,6 +167,35 @@ describe.sequential('fixed workflow Verify evidence', () => {
     expect(verify(scope, f.commit)).toEqual({ verifiedSha: f.commit });
     revoke(scope);
     expect(() => verify(scope, f.commit)).toThrow(/SCOPE_INVALID/u);
+  }, EVIDENCE_FIXTURE_HOST === 'win32' ? 60000 : 10000);
+  it.each(['g002-update-inspect', 'g002-update-apply'])('authenticates G002 operation %s only through its dedicated job', async operation => {
+    const f = fixture();
+    vi.stubEnv('WARPKEEP_OPERATION', operation);
+    vi.stubEnv('GITHUB_JOB', 'operate_g002');
+    const scope = await create({ workflowInputSha: f.commit });
+    expect(verify(scope, f.commit)).toEqual({ verifiedSha: f.commit });
+    const reads = f.fetch.mock.calls.length;
+    await refresh(scope);
+    expect(f.fetch.mock.calls.length).toBeGreaterThan(reads);
+    expect(verify(scope, f.commit)).toEqual({ verifiedSha: f.commit });
+    revoke(scope);
+    expect(() => verify(scope, f.commit)).toThrow(/SCOPE_INVALID/u);
+    await expect(refresh(scope)).rejects.toThrow(/SCOPE_INVALID/u);
+  }, EVIDENCE_FIXTURE_HOST === 'win32' ? 60000 : 10000);
+  it.each([
+    ['g002-update-inspect', 'g002-update-apply'],
+    ['g002-update-apply', 'g002-update-inspect'],
+  ])('invalidates G002 evidence when %s changes to %s within the same job', async (operation, changed) => {
+    const f = fixture();
+    vi.stubEnv('WARPKEEP_OPERATION', operation);
+    vi.stubEnv('GITHUB_JOB', 'operate_g002');
+    const scope = await create({ workflowInputSha: f.commit });
+    const reads = f.fetch.mock.calls.length;
+    vi.stubEnv('WARPKEEP_OPERATION', changed);
+    expect(() => verify(scope, f.commit)).toThrow(/WORKFLOW_EVIDENCE/u);
+    await expect(refresh(scope)).rejects.toThrow('SEALED_REALMS_WORKFLOW_EVIDENCE_UNAVAILABLE');
+    expect(f.fetch).toHaveBeenCalledTimes(reads);
+    revoke(scope);
   }, EVIDENCE_FIXTURE_HOST === 'win32' ? 60000 : 10000);
   it('invalidates PTR evidence when inspection changes to apply within the same job', async () => {
     const f = fixture();

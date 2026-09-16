@@ -1,20 +1,17 @@
 # 0.4 workflow sufficiency audit
 
-Updated 2026-09-15 (Europe/Budapest). This is the current operating sequence. Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md), live Git refs and the [release checklist](../../operations/0.4.0-release-checklist.md) for acceptance. Historical candidate identities remain historical and do not certify later source.
+Updated 2026-09-16 (Europe/Budapest). Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
+for the single dated source/CI/preflight checkpoint and the
+[release checklist](../../operations/0.4.0-release-checklist.md) for acceptance.
+Historical candidate identities do not certify later source.
 
-The final functional 0.4 source checkpoint is
-`284a1f3df590d13128e2f58f57d8780757133c82`; protected PR #271 adds the current
-documentation provenance pin. Main Verify
-`35033848797` and CodeQL `35033848795` passed; Pages classifier run
-`35037923695` passed for that exact source while build, deploy, recovery,
-notification and live verification were correctly skipped by sealed-launch
-policy. Current-source sealed preflight `35033894080` was attempted but failed
-in `phase:"workflow"` because the protected operation inputs were empty; it made
-no provider mutation. Earlier preflight `35023663671` passed for superseded
-source `f11c8b6b` and is historical. This proves protected source rails only:
-provider, owner, live deployment,
-recovery/readback, device acceptance and final-freeze evidence remain open. The
-live site remains Genesis.
+The accepted baseline passed main Verify, CodeQL and fresh read-only preflight.
+The earlier preflight was dispatched before its required Verify completed; its
+blank provider inputs were expected, not evidence of missing credentials.
+The resumption audit also repairs the evidence reader's missing mapping for
+the existing G002 update job. Require the repair's own generated family and
+protected checks before production use. Provider, owner, live deployment,
+recovery/readback, device acceptance and final-freeze evidence remain open.
 
 ## Verdict
 
@@ -68,7 +65,10 @@ rewrite.
 
 ## Required order from here
 
-1. Establish genuine provider/publisher and actual-owner authority, re-attest the
+1. Reconcile the existing-operation repair through generated-source checks and
+   protected integration. Wait for completed successful **push-to-main Verify**
+   on the exact current SHA before dispatching any sealed operation; recheck the
+   SHA after waiting. Then establish provider/publisher and actual-owner authority, re-attest the
    bridge predecessor and isolated PTR target, and capture fresh G001 and sealed
    G002 baselines. Preserve legitimate later writes; never restore an old
    snapshot or repeat initialization over live state.

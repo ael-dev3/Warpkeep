@@ -2,16 +2,11 @@
 
 Status: **0.4 source and protected rails are merged; final release freeze remains open**.
 
-The final functional 0.4 source checkpoint is
-`284a1f3df590d13128e2f58f57d8780757133c82`; PR #271 adds the current
-documentation provenance pin on top. Main Verify
-`35033848797` and CodeQL `35033848795` passed for that source. Pages classifier
-`35037923695` passed while build, deploy, recovery, notification and live
-verification were correctly skipped by sealed-launch policy. Current-source
-preflight `35033894080` was attempted against the exact source but failed in
-`phase:"workflow"` because the protected operation inputs were empty; it made no
-provider mutation. Earlier preflight `35023663671` passed for superseded source
-`f11c8b6b` and is historical. The live site remains Genesis because
+The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) records the
+accepted baseline, passed Verify/CodeQL and fresh successful read-only preflight.
+The earlier empty-provider-input failure diagnosis was incorrect; preflight
+requires no provider secrets. Pages classification deliberately skips deployment.
+The recorded live baseline remains Genesis because
 `pagesDeploymentApproved:false` is still explicit in the release
 configuration; `finalReleasePrepared:false` remains explicit for preparation
 families. Provider and owner authority, real deployment and recovery/readback,
@@ -55,10 +50,13 @@ in [local operations](local-operations.md).
    sealed and do not repeat initialization over live state.
 3. Complete the isolated actual-owner PTR journey, lifecycle/isolation checks,
    final rendered composition and physical-device performance measurements.
-4. Verify Pages/frontend, Cloudflare and SpacetimeDB deployment from the same
-   reviewed source/artifact family, then record live URLs, versions, receipts
-   and hashes before marking the final artifact family frozen.
-5. Publish the credential-free delivery and complete every mandatory checklist
+4. Prepare, independently check and freeze the immutable reviewed source/artifact
+   family after the predeployment gates pass. Record its source and hashes before
+   deployment; historical preparation alone is not this final freeze.
+5. Deploy that frozen family through the supported Pages/frontend, Cloudflare and
+   SpacetimeDB paths, then add actual live URLs, versions, receipts and readback
+   results to the release ledger. Live acceptance follows the artifact freeze.
+6. Publish the credential-free delivery and complete every mandatory checklist
    record before claiming shipment; keep the saved sync automation paused and
    create no new Desktop files.
 
