@@ -11,9 +11,10 @@ The [execution handoff](execution-handoff.md) owns the dated accepted source,
 Verify/CodeQL results and successful read-only preflight. The active protected
 M2 source is `fa9927bb9a8701e182f63eac1206e2f1425c4522`; main push Verify
 `35104399580`, CodeQL `35104399549` and preflight `35110137845` passed.
-Activation inspection `35110519489` and G001 policy observation `35110808078`
-then failed closed at their operation/workflow boundaries because the required
-private producer inputs are absent. Pages classification deliberately skips
+Activation inspection `35110519489`, G001 policy observation `35110808078` and
+PTR state inspection `35114630482` then failed closed at their
+operation/workflow boundaries because the required private/provider producer
+inputs are absent. Pages classification deliberately skips
 deployment while `pagesDeploymentApproved:false` is set. Provider-backed
 deployment, recovery/readback, actual-owner play, device acceptance and
 final-freeze evidence remain open. The recorded live baseline remains Genesis.

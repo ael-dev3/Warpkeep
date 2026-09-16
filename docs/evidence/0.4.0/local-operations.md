@@ -16,7 +16,10 @@ G001 policy observation `35110808078` failed at `phase:"workflow"` because
 the fixed production-admin namespace has no `g001-policy-observation/admin-token`
 or observation namespace. These private producer inputs remain unresolved;
 they must be supplied through their supported setup before any mutation or
-release claim. No private bytes are copied into this repository or Desktop.
+release claim. The independent PTR state inspection `35114630482` also failed
+closed at `phase:"operation"`; no provider mutation occurred and the observer
+readback endpoint remains unavailable. No private bytes are copied into this
+repository or Desktop.
 
 The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) owns the
 current M2 source and completed source/preflight checks. The fresh

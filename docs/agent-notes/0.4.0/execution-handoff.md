@@ -29,6 +29,11 @@ has the owner CLI config but no `g001-policy-observation/admin-token` and no
 observation namespace. These are private authority inputs, not source defects;
 do not create placeholders, copy credentials into Git, or weaken the guards.
 
+The independent PTR observer probe [35114630482](https://github.com/ael-dev3/Warpkeep/actions/runs/35114630482)
+also failed closed at `phase:"operation"`. This confirms the live observer
+endpoint/readback path is not currently available; it does not authorize a
+fallback provider call or a state mutation.
+
 The [live delivery guide](../../operations/0.4.0-live-delivery-status.md) owns
 the operation-specific access map. Cloudflare production-profile read access and
 the owner `ael-dev3` SpacetimeDB publisher login are confirmed, but they do not
