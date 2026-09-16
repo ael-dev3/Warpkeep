@@ -7,6 +7,7 @@
 *.json text eol=lf
 *.yaml text eol=lf
 *.yml text eol=lf
+.gitignore text eol=lf
 docs/operations/*.sh.txt text eol=lf
 scripts/test-sealed-realms-existing-update-linux.sh text eol=lf
 

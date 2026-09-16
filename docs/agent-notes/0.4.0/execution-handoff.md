@@ -9,19 +9,24 @@ and do not add new runtime features.
 The protected generated-family promotion remains the runtime source at
 `fa9927bb9a8701e182f63eac1206e2f1425c4522` (M1 source merge
 `645637e112ab18ac4565fbf5978349cd77063742`, generated-only PR #274).
-Documentation follow-up PR #275 is squash-merged on protected `main` at
-`bbea7c4b472fac84fa326983a962e64c45fcd6e5`. Post-merge [Verify
-35126491033](https://github.com/ael-dev3/Warpkeep/actions/runs/35126491033)
-and [CodeQL 35126491081](https://github.com/ael-dev3/Warpkeep/actions/runs/35126491081)
-completed successfully. The native `WarpkeepRunner` checkout is detached at
-the merged `main` SHA and clean; only its idle RunnerService is running.
+Documentation follow-up PR #275 is historical at
+`bbea7c4b472fac84fa326983a962e64c45fcd6e5`; PR #276 then recorded the active
+protected `main` checkpoint at **`195fd6153f77e92069d078c10c12f170b269d87f`**.
+Post-merge [Verify 35139672425](https://github.com/ael-dev3/Warpkeep/actions/runs/35139672425)
+and [CodeQL 35139672421](https://github.com/ael-dev3/Warpkeep/actions/runs/35139672421)
+completed successfully for that exact head. The native `WarpkeepRunner`
+checkout is detached at the same `main` SHA and clean; only its idle
+RunnerService is running.
 
-The exact-source protected [preflight 35132346239](https://github.com/ael-dev3/Warpkeep/actions/runs/35132346239)
-completed successfully against the merged `main` SHA and returned
-`{"operation":"preflight","status":"preflight-inspected"}`. It established
-runner, source, bundle and workflow attestation for M2 and did not receive
-provider secrets or perform a mutation. The earlier M2 preflight
-`35110137845` remains source-bound historical evidence.
+The exact-source protected [preflight 35145338238](https://github.com/ael-dev3/Warpkeep/actions/runs/35145338238)
+completed successfully against `195fd6153f77e92069d078c10c12f170b269d87f` and
+returned `{"operation":"preflight","status":"preflight-inspected"}`. It
+established runner, source, bundle and workflow attestation for M2 and did not
+receive provider secrets or perform a mutation. The [Pages classification
+35145254301](https://github.com/ael-dev3/Warpkeep/actions/runs/35145254301) also
+completed successfully for this head; deployment lanes remained skipped because
+`pagesDeploymentApproved` is false. Earlier preflight and Pages runs remain
+source-bound historical evidence.
 
 Two supported read-only operations were then dispatched against this exact
 source to identify the next real gate. [Activation inspection 35110519489](https://github.com/ael-dev3/Warpkeep/actions/runs/35110519489)
@@ -75,11 +80,13 @@ actionable issue in these changes or the inspected gameplay/renderer lifecycle.
 
 Verification of the maintenance source and generated-family promotion passed on
 pinned Node 22.22.3: the owning client, module, dispatch, closure and
-documentation suites passed, followed by the protected M1/M2 checks above. The
-production build retains its existing large-chunk warnings; no physical-device
-or live-owner acceptance is claimed. The remaining release gates are private
-authority, provider/readback and owner/device evidence, not an unmerged source
-repair.
+documentation suites passed, followed by the protected M1/M2 checks above. Use
+that pinned runtime for local validation; Node 24 is outside the package engine
+range and can turn private-boundary fixtures into misleading failures before
+the test reaches source behavior. The production build retains its existing
+large-chunk warnings; no physical-device or live-owner acceptance is claimed.
+The remaining release gates are private authority, provider/readback and
+owner/device evidence, not an unmerged source repair.
 
 ## Historical checkpoints
 
