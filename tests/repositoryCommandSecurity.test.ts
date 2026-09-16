@@ -30,7 +30,9 @@ describe('repository command security policy', () => {
 
   it('defensively ignores common local credential and recovery artifacts', () => {
     const repositoryRoot = resolve(import.meta.dirname, '..');
-    const ignore = readFileSync(resolve(repositoryRoot, '.gitignore'), 'utf8');
+    // Git may materialize this unclassified dotfile with CRLF on Windows;
+    // the policy is line-oriented, so normalize only the transport ending.
+    const ignore = readFileSync(resolve(repositoryRoot, '.gitignore'), 'utf8').replace(/\r\n/gu, '\n');
 
     for (const pattern of [
       'credentials.json',
