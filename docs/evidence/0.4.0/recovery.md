@@ -1,6 +1,18 @@
 # Warpkeep 0.4 recovery evidence
 
-## Current accepted-main M2 context — 13 September 2026
+## Current checkpoint supersession — 16 September 2026
+
+The active protected source is M2 `fa9927bb9a8701e182f63eac1206e2f1425c4522`.
+Main push Verify `35104399580`, CodeQL `35104399549` and exact-source preflight
+`35110137845` passed. The native `WarpkeepRunner` checkout is clean at that
+source. Read-only activation inspection `35110519489`, G001 policy observation
+`35110808078` and PTR observer inspection `35114630482` failed closed because
+the retained activation chain, G001 observation secret and live PTR observer
+inputs are not present. No provider mutation or release claim follows from
+those probes. The historical recovery records below remain source-bound
+rehearsals and do not supersede this checkpoint.
+
+## Historical accepted-main M2 context — 13 September 2026
 
 Protected `main` is signed commit `810286c95f39cf6e41f121162fa5dab250a77a16` (tree `1f16891a52ba1bf8194ba7d1ca5154a5b5481412`), the exact M2 merge
 of the authenticated generated family. Fresh main Verify `34760814489` passed

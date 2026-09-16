@@ -3,17 +3,15 @@
 Updated 2026-09-16 (Europe/Budapest). Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
 for the single dated source/CI/preflight checkpoint and the
 [release checklist](../../operations/0.4.0-release-checklist.md) for acceptance.
-Historical candidate identities do not certify later source.
-
-The accepted baseline passed main Verify, CodeQL and fresh read-only preflight.
-The earlier preflight was dispatched before its required Verify completed; its
-blank provider inputs were expected, not evidence of missing credentials.
-The resumption audit also repairs the evidence reader's missing mapping for
-the existing G002 update job. Require the repair's own generated family and
-protected checks before production use. Windows and Linux publisher discovery
-now succeeds with the owner's verified account; private operation authority,
-owner access, live deployment,
-recovery/readback, device acceptance and final-freeze evidence remain open.
+The current protected source is M2 `fa9927bb9a8701e182f63eac1206e2f1425c4522`;
+main Verify `35104399580`, CodeQL `35104399549` and exact-source preflight
+`35110137845` passed. Read-only activation inspection `35110519489`, G001
+policy observation `35110808078` and PTR observer inspection `35114630482`
+failed closed because the required private/provider inputs are absent. Windows
+and Linux publisher discovery works with the verified account, while private
+operation authority, owner access, live deployment, recovery/readback, device
+acceptance and final-freeze evidence remain open. Historical candidate
+identities do not certify later source.
 
 ## Verdict
 
