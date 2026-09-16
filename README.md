@@ -41,9 +41,9 @@ on a desktop. Reused assets retain their original credits and permissions.
 ## Where development stands
 
 **0.4 source is merged and verified; the live release is still gated.** The
-protected `main` checkpoint is `a224602404cff4689320b5a9193a53c0ceb71698`
-(PR #268). Main Verify and CodeQL pass. Earlier sealed preflight `35023663671`
-passed for superseded source `f11c8b6b`; current-source preflight `35029391986`
+protected `main` checkpoint is `284a1f3df590d13128e2f58f57d8780757133c82`
+(PR #270). Main Verify and CodeQL pass. Earlier sealed preflight `35023663671`
+passed for superseded source `f11c8b6b`; current-source preflight `35033894080`
 failed in `phase:"workflow"` because protected operation inputs were empty and
 made no provider mutation. The gameplay core, new keep presentation, session renewal and
 release/recovery tools are in the repo. Connected owner play, provider-backed
