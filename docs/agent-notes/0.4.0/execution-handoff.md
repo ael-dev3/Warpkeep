@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Current M2 release checkpoint — 16 September 2026
+## Current M2 release checkpoint — 17 September 2026
 
 This is the active source and operations record. The pass remains maintenance
 only: preserve the existing mechanics and visuals, correct concrete defects,
@@ -9,24 +9,27 @@ and do not add new runtime features.
 The protected generated-family promotion remains the runtime source at
 `fa9927bb9a8701e182f63eac1206e2f1425c4522` (M1 source merge
 `645637e112ab18ac4565fbf5978349cd77063742`, generated-only PR #274).
-Documentation follow-up PR #275 is historical at
-`bbea7c4b472fac84fa326983a962e64c45fcd6e5`; PR #276 then recorded the active
-protected `main` checkpoint at **`195fd6153f77e92069d078c10c12f170b269d87f`**.
-Post-merge [Verify 35139672425](https://github.com/ael-dev3/Warpkeep/actions/runs/35139672425)
-and [CodeQL 35139672421](https://github.com/ael-dev3/Warpkeep/actions/runs/35139672421)
-completed successfully for that exact head. The native `WarpkeepRunner`
-checkout is detached at the same `main` SHA and clean; only its idle
-RunnerService is running.
+Documentation follow-up PRs #275 and #276 are historical. Maintenance PR #277
+then corrected the cross-platform handoff and policy-test path; it is squash-
+merged on `main` at **`5723b546d2f826a9cc3f24acddeb775a3b69ef78`**.
+Post-merge [Verify 35153403810](https://github.com/ael-dev3/Warpkeep/actions/runs/35153403810)
+and [CodeQL 35153403797](https://github.com/ael-dev3/Warpkeep/actions/runs/35153403797)
+completed successfully for that exact head. Verify covered the full Linux suite,
+sealed-launch source check, typecheck, production and Pages builds, dependency
+audit, recovery inventory, generated bindings, exporter compatibility, connected
+relocation/rollback, and active-population rehearsals. The native
+`WarpkeepRunner` checkout is detached at the same `main` SHA and clean; only its
+idle RunnerService is running.
 
-The exact-source protected [preflight 35145338238](https://github.com/ael-dev3/Warpkeep/actions/runs/35145338238)
-completed successfully against `195fd6153f77e92069d078c10c12f170b269d87f` and
+The exact-source protected [preflight 35158287513](https://github.com/ael-dev3/Warpkeep/actions/runs/35158287513)
+completed successfully against `5723b546d2f826a9cc3f24acddeb775a3b69ef78` and
 returned `{"operation":"preflight","status":"preflight-inspected"}`. It
 established runner, source, bundle and workflow attestation for M2 and did not
-receive provider secrets or perform a mutation. The [Pages classification
-35145254301](https://github.com/ael-dev3/Warpkeep/actions/runs/35145254301) also
-completed successfully for this head; deployment lanes remained skipped because
-`pagesDeploymentApproved` is false. Earlier preflight and Pages runs remain
-source-bound historical evidence.
+receive provider secrets or perform a mutation. The prior [Pages classification
+35145254301](https://github.com/ael-dev3/Warpkeep/actions/runs/35145254301)
+completed successfully for `195fd615`; deployment lanes remained skipped because
+`pagesDeploymentApproved` is false. Rerun classification only when its exact
+source and deployment approval are available.
 
 Two supported read-only operations were then dispatched against this exact
 source to identify the next real gate. [Activation inspection 35110519489](https://github.com/ael-dev3/Warpkeep/actions/runs/35110519489)
