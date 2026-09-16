@@ -15,6 +15,7 @@ evidence records; product intent belongs in product/specification documents. The
 | Where should an agent investigate? | [Repo map](../agent-notes/0.4.0/repo-map.md), [docs index](../README.md) | Keep navigable; link source rather than copying whole implementations |
 | What passed, failed or remains unknown? | `docs/evidence/0.4.0/`, dated [audit](../agent-notes/0.4.0/README.md) | Date, commit/input, method, results, limitations and next proof |
 | How is an authorized operation executed? | `docs/operations/` and exact fixed scripts/workflows | Preconditions, scope, failure/reconciliation and postflight; no secret values |
+| Where do I connect, and what genuinely needs the owner? | [Connection and resumption guide](../operations/0.4.0-infra-access.md#resume-without-guessing) | Verify account/target/caller first; ask one concrete action with a success readback |
 | Where do outputs belong and what can be removed? | [Output locations and retention](#output-locations-and-retention) | Keep the Desktop clear, reuse storage, preserve required evidence |
 | What reached players? | [CHANGELOG](../../CHANGELOG.md), release/deployment ledger | Never mark planned or local-only work released |
 | What may be reused? | [ASSETS-LICENSE](../../ASSETS-LICENSE.md), dated provenance | Preserve file-specific terms and attribution |
@@ -57,6 +58,19 @@ Historical plans are context, not an automatic restriction on better solutions.
 7. **Hand off.** State what changed, what passed, what failed or is unverified,
    where evidence lives and the next real caller/gate. Do not invent percentages
    from time spent, line count, test count or number of commits.
+
+For a maintenance-only request, keep the agreed mechanics and feature set. Fix
+demonstrated defects and inconsistencies through their existing callers. A review
+may find no defect; report that coverage honestly instead of adding speculative
+behavior. Check a consequential fix in three ways: reproduce the original failure,
+exercise the owning integration, and obtain independent review of the final diff.
+These are verification methods, not three redundant full-suite runs.
+
+When work pauses, record the selected source, process/run handle if still active,
+the exact unmet prerequisite, whether the agent or owner can resolve it, and the
+next safe action in the existing execution handoff. A running CI job is waiting
+work, not a credential failure. Use the [human handoff format](../operations/0.4.0-infra-access.md#ask-the-owner-efficiently)
+only when an actual user action is required; continue independent authorized work.
 
 The owner's September 12 direction makes synchronization part of development,
 not an optional later batch. Follow the [synchronization procedure](../operations/0.4.0-development-sync.md)

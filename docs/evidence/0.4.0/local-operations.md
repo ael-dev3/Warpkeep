@@ -7,9 +7,11 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) owns the
 dated baseline and completed source/preflight checks. The fresh
 [access inventory](../../operations/0.4.0-live-delivery-status.md#access-is-scoped-to-each-operation)
-distinguishes working Cloudflare profile access and GitHub configuration from
-the selected SpacetimeDB login's empty listing and empty Linux sealed private
-runtime/audit stores. Preflight is successful and does not consume provider
+distinguishes working Cloudflare/GitHub access and restored Windows/Linux
+SpacetimeDB publisher discovery from the still-empty Linux sealed private
+runtime/audit stores. Earlier empty database listings came from a different
+selected identity; they were not evidence of deleted realms. Preflight is
+successful for its recorded source and does not consume provider
 secrets or establish live release acceptance.
 
 Reuse `C:/Temp/warpkeep-0.4-next` for reviewed repairs. The saved sync automation

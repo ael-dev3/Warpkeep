@@ -140,6 +140,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
       {phase === 'failed' && <button type="button" onClick={() => { void controller.refresh(); }}>Refresh keep</button>}
     </section>}
     {phase === 'refreshing' && visible && <p role="status">Refreshing keep from the Realm… Commands are temporarily unavailable.</p>}
+    {ready && view.atlas === null && <p role="status">Return to world to refresh the Realm before building or recalling Workers.</p>}
     {view !== null && <div hidden={!visible}>
       <div ref={decisionHeader} className="keep04-decision-header">
         <section className="keep04-resources" aria-label="Resources">

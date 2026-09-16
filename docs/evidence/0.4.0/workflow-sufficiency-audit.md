@@ -10,7 +10,9 @@ The earlier preflight was dispatched before its required Verify completed; its
 blank provider inputs were expected, not evidence of missing credentials.
 The resumption audit also repairs the evidence reader's missing mapping for
 the existing G002 update job. Require the repair's own generated family and
-protected checks before production use. Provider, owner, live deployment,
+protected checks before production use. Windows and Linux publisher discovery
+now succeeds with the owner's verified account; private operation authority,
+owner access, live deployment,
 recovery/readback, device acceptance and final-freeze evidence remain open.
 
 ## Verdict
@@ -18,12 +20,12 @@ recovery/readback, device acceptance and final-freeze evidence remain open.
 The workflow supports reviewed development, native preparation, protected
 integration, generated-family promotion, fresh main verification and sealed
 preflight. It is not
-yet sufficient to ship 0.4: genuine provider and owner authority, real
+yet sufficient to ship 0.4: operation-specific private and owner authority, real
 deployment and recovery/readback, G001 preservation, sealed G002 denial,
 owner-only PTR play, physical-device performance, hosting and final deployment
-remain open. Overall completion is approximately **88%** (82–90% judgment
-range), based on milestone coverage rather than arbitrary file or content
-counts. No reliable calendar ETA is established.
+remain open. Use source-bound acceptance evidence to assess progress; a past
+completion estimate does not measure later source or close a release gate.
+No reliable calendar ETA is established.
 
 ## What is working
 
@@ -37,7 +39,8 @@ counts. No reliable calendar ETA is established.
 
 ## What remains open
 
-- Establish genuine publisher/provider and actual-owner authority, then complete
+- Revalidate the restored publisher identity and establish operation-specific
+  private and actual-owner authority, then complete
   the supported Linux prepared deployment, compatible existing-state
   update/adoption and recovery/readback paths.
 - Capture fresh G001 preservation and sealed G002 denial baselines, including
@@ -55,8 +58,8 @@ counts. No reliable calendar ETA is established.
 
 The implemented economy, Verdant Citadel renderer and water foundation should be
 judged through a complete owner session before adding another system. The next
-player-facing pass should make expedition duration and return timing readable,
-make each civic building's benefit obvious at the moment it is earned, and keep
+player-facing review should verify the implemented expedition/return timing and
+civic-building benefit feedback, and keep
 the first build and improved return understandable on a narrow phone view. Use
 diagnostics that explain a warning or blocked action instead of exposing raw
 counts. Keep the renderer and world rules bounded; measured play, accessibility
@@ -68,7 +71,8 @@ rewrite.
 1. Reconcile the existing-operation repair through generated-source checks and
    protected integration. Wait for completed successful **push-to-main Verify**
    on the exact current SHA before dispatching any sealed operation; recheck the
-   SHA after waiting. Then establish provider/publisher and actual-owner authority, re-attest the
+   SHA after waiting. Revalidate publisher access, establish the required private
+   and actual-owner authority, and re-attest the
    bridge predecessor and isolated PTR target, and capture fresh G001 and sealed
    G002 baselines. Preserve legitimate later writes; never restore an old
    snapshot or repeat initialization over live state.

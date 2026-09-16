@@ -43,7 +43,7 @@ const HEX64 = /^[a-f0-9]{64}$/u;
 const GIT_ENV = Object.freeze({ GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null',
   GIT_CONFIG_NOSYSTEM: '1', GIT_NO_REPLACE_OBJECTS: '1', GIT_GRAFT_FILE: '/dev/null',
   GIT_TERMINAL_PROMPT: '0', HOME: '/dev/null', PATH: '/usr/bin:/bin', LANG: 'C', LC_ALL: 'C' });
-const PHASES = new Set(['input', 'runtime', 'source', 'bundle', 'workflow', 'result']);
+const PHASES = new Set(['input', 'runtime', 'source', 'bundle', 'workflow', 'operation', 'result']);
 const forbiddenEnvironment = /^(?:NODE_|ESBUILD_|TS_NODE_|BUN_|LD_|DYLD_|GIT_(?!HUB)|BASH_ENV$|ENV$|OPENSSL_CONF$|SSL_CERT_|PYTHONPATH$|VITEST$)/u;
 let active = false;
 
@@ -257,6 +257,8 @@ export async function runSealedRealmsProductionLinuxOperation(input) {
     const workflowInputSha = options.workflowInputSha;
     const opaque = await loaded[selected.factoryExport]({ operation, workflowInputSha });
     runtime(host); source(workflowInputSha); bundle(workflowInputSha, selectedOperation.lane);
+    // Execution failure does not establish whether an effect already committed.
+    phase = 'operation';
     const result = await loaded[selectedOperation.run]({ runtime: opaque, operation, workflowInputSha });
     phase = 'result';
     runtime(host); source(workflowInputSha); bundle(workflowInputSha, selectedOperation.lane);

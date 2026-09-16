@@ -60,6 +60,32 @@ workflow. Continue manual fetch, secret scan, reviewed commit/push and exact
 remote-SHA verification. Keep the existing Desktop handoff in place; use the
 repository's ignored `artifacts/` directory for disposable output and create no
 Desktop siblings, backups or archives.
+
+### Maintenance review and recurrence prevention
+
+The follow-up in PR #273 keeps the existing mechanics and feature set. Agents
+now enter through one [connection/diagnosis guide](../../operations/0.4.0-infra-access.md#resume-without-guessing)
+and an explicit [local checkout map](../../operations/0.4.0-development-sync.md#start-from-the-actual-checkout-and-remote).
+The guide identifies the correct profile, pinned runtime, native config, source
+prerequisites and smallest human-controlled action. It distinguishes a pending
+check, wrong account, denied player session and absent private evidence.
+
+Two demonstrated maintenance defects were corrected: the Linux caller now
+distinguishes execution failures from workflow construction without printing
+private error details; the keep explains the existing Return to world recovery
+when fresh session state lacks atlas authority. Commands remain guarded.
+The real-controller test disproved a suspected batched retry defect, so no
+speculative retry change was made. Independent reviews found no further
+actionable issue in these changes or the inspected gameplay/renderer lifecycle.
+
+Verification of this maintenance diff: 119 core/domain and module-adapter cases,
+141 affected client/UI/lifecycle cases, 58 Linux-dispatch/input cases and eight
+documentation contracts passed on pinned Node 22.22.3. The production build,
+referenced types, asset/public-boundary/Mini App checks, local documentation
+links and PowerShell runbook syntax checks passed. The build retains its existing
+large-chunk warnings; no new physical-device or live-owner acceptance is claimed.
+Final hosted checks and source-bound M1/M2 promotion remain separate requirements.
+
 ## Historical checkpoints
 
 Everything below retains its original source/date and is not an instruction to

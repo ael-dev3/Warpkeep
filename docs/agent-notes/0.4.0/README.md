@@ -35,7 +35,7 @@ aligned to this checkpoint; historical source families remain historical.
   performance and owner acceptance remain open.
 - **Delivery has working foundations and specific gaps.** Generated bindings,
   recovery callers, Linux verification, protected-main promotion and sealed
-  preflight are connected. Genuine provider/publisher authority, live recovery
+  preflight are connected, and publisher login has been restored. Operation-specific private authority, live recovery
   readback, G001 preservation, sealed G002 evidence, owner-only PTR play and
   final deployment remain to be verified.
 - **Preserve each realm's purpose.** Keep G001 progress and its admission
@@ -52,6 +52,7 @@ aligned to this checkpoint; historical source families remain historical.
 | Apply the full inspiration library | [Visual foundation contract](visual-foundation-contract.md) | Reference-to-source decisions, mobile rules, review states, and evidence limits |
 | Complete delivery | [Release and infrastructure](release-and-infrastructure.md) | Current services, CI, operating gaps, and verification routes |
 | Continue this checkout | [Execution handoff](execution-handoff.md), [source synchronization](../../operations/0.4.0-development-sync.md) | Current checkpoint, environment traps, reviewed publication, and next actions |
+| Resolve access or request owner help | [Connection and resumption guide](../../operations/0.4.0-infra-access.md#resume-without-guessing) | Correct account, target and caller; exact unmet prerequisite and smallest human action |
 | Keep local storage compact | [Output locations and retention](../../engineering/development-workflow.md#output-locations-and-retention) | No new Desktop files; reuse tools/checkouts, bound disposable output, preserve recovery evidence |
 | Work across repositories | [Repository ecosystem](../../engineering/repository-ecosystem.md) | Runtime, asset archive, planned tools, and public profile ownership |
 | Judge release readiness | [Release checklist](../../operations/0.4.0-release-checklist.md), [evidence](../../evidence/0.4.0/) | Required results tied to source and actual deployed artifacts |

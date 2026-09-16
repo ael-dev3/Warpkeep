@@ -1,13 +1,14 @@
 import '@testing-library/jest-dom/vitest';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Keep04Screen, type Keep04UiSelection } from '../src/components/keep04/Keep04Screen';
 import { estimatedTime04 } from '../src/components/keep04/Keep04WorkerPanel';
-import type { Controller04, Snapshot04 } from '../src/ptr/gameplay04/createGameplay04Controller';
+import { createGameplay04Controller, type Controller04, type Snapshot04 } from '../src/ptr/gameplay04/createGameplay04Controller';
+import { Gameplay04ClientError } from '../src/ptr/gameplay04/ptrGameplay04Errors';
 import { presentState04 } from '../src/ptr/gameplay04/gameplay04Presentation';
 import { decodeState04 } from '../src/ptr/gameplay04/gameplay04State';
-import { ATLAS04, SCOPE04, freshWire04, assignmentWire04, constructingWire04, wireWithBuilding04 } from './fixtures/gameplay04Client';
+import { ATLAS04, SCOPE04, freshWire04, assignmentWire04, constructingWire04, scriptedCapability04, wireWithBuilding04 } from './fixtures/gameplay04Client';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 function setup(wire = freshWire04(), phase: Snapshot04['phase'] = 'ready') {
@@ -259,6 +260,25 @@ it('prevents building with missing atlas authority even when funds and placement
   expect(screen.getByRole('button', { name: /Confirm placement/ })).toBeDisabled(); expect(controller.submit).not.toHaveBeenCalled();
 });
 
+it('explains how to refresh missing Realm details without enabling commands or interrupting an active refresh', () => {
+  const wire = freshWire04(); Object.assign(wire, { food: 1000n, wood: 1000n, stone: 1000n, gold: 1000n });
+  const { snapshot, rerender, controller, back } = setup(wire);
+  const missingAtlas = { ...snapshot, view: { ...snapshot.view!, atlas: null } };
+  const guidance = 'Return to world to refresh the Realm before building or recalling Workers.';
+  rerender(missingAtlas); openMill();
+  expect(screen.getByText(guidance)).toHaveAttribute('role', 'status');
+  expect(screen.getByRole('button', { name: 'Confirm placement' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Return to world' }));
+  expect(back).toHaveBeenCalledOnce(); expect(controller.submit).not.toHaveBeenCalled();
+  for (const phase of ['refreshing', 'pending', 'uncertain', 'failed'] as const) {
+    rerender({ ...missingAtlas, phase });
+    expect(screen.queryByText(guidance)).not.toBeInTheDocument();
+  }
+  rerender(snapshot);
+  expect(screen.queryByText(guidance)).not.toBeInTheDocument();
+  expect(controller.submit).not.toHaveBeenCalled();
+});
+
 it('recovers every repeated same-revision rejection with a separate explicit review and confirmation', () => {
   const wire = freshWire04(); Object.assign(wire, { food: 1000n, wood: 1000n, stone: 1000n, gold: 1000n });
   const { snapshot, controller, rerender } = setup(wire); openMill();
@@ -289,6 +309,36 @@ it('recovers every repeated same-revision rejection with a separate explicit rev
       expect(intent.quote.cost).toEqual({ food: 20n, wood: 40n, stone: 20n, gold: 0n });
     }
   }
+});
+
+it('recovers repeated immediate rejections through the real controller and requires a separate review', async () => {
+  const wire = freshWire04(); Object.assign(wire, { food: 1000n, wood: 1000n, stone: 1000n, gold: 1000n });
+  const { capability, read, mutate } = scriptedCapability04();
+  read.mockImplementation(async () => wire);
+  mutate.mockRejectedValue(new Gameplay04ClientError('rejected', 'GAMEPLAY04_INPUT_INVALID'));
+  const controller = createGameplay04Controller({ capability, nonce: () => 'c'.repeat(32), now: Date.now });
+  await controller.refresh(); controller.setAtlas(ATLAS04);
+  function Harness() {
+    const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
+    const [selection, onSelectionChange] = useState<Keep04UiSelection>({ selectedKind: null, draft: null, panel: null });
+    return <Keep04Screen snapshot={snapshot} controller={controller} selection={selection} onSelectionChange={onSelectionChange}
+      onBack={vi.fn()} quality="balanced" reducedMotion={false} onFindResources={vi.fn()} onReturnToWorld={vi.fn()} />;
+  }
+  const rendered = render(<Harness />); openMill();
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Confirm placement' })); });
+    expect(controller.getSnapshot()).toMatchObject({ phase: 'ready', problem: 'reconfirm' });
+    expect(mutate).toHaveBeenCalledTimes(attempt);
+    expect(screen.getByRole('button', { name: 'Confirm placement' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Review updated costs' }));
+    expect(mutate).toHaveBeenCalledTimes(attempt);
+    expect(screen.getByRole('button', { name: 'Confirm placement' })).toBeEnabled();
+    // A successful unchanged background read must not discard this review.
+    await act(async () => { await controller.refresh(); });
+    expect(screen.queryByRole('button', { name: 'Review updated costs' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm placement' })).toBeEnabled();
+  }
+  rendered.unmount(); controller.dispose();
 });
 
 it('names each confirmed return resource independently of a new assignment and explains capped storage', () => {

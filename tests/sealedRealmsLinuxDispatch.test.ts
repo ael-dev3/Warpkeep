@@ -6,20 +6,26 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 const stateKey='__warpkeepLinuxDispatchFixture';
+const privateFailure='private-provider-fixture-detail';
 async function fixture(operation: string, failure?: string) {
  const observation = operation === 'ptr-state-inspect';
  const ptr = observation || operation === 'ptr-update-inspect' || operation === 'ptr-update-apply';
- const lane = ptr ? 'ptr' : 'activation';
- const status = observation ? 'state-inspected' : operation === 'ptr-update-inspect' ? 'update-inspected'
+ const g002 = operation === 'g002-update-inspect' || operation === 'g002-update-apply';
+ const g001 = operation === 'preflight' || operation === 'g001-policy-observe';
+ const lane = ptr ? 'ptr' : g002 ? 'g002' : g001 ? 'g001' : 'activation';
+ const status = observation ? 'state-inspected' : operation === 'preflight' ? 'preflight-inspected'
+  : operation === 'ptr-update-inspect' || operation === 'g002-update-inspect' ? 'update-inspected'
   : operation === 'activation-evidence-inspect' ? 'activation-evidence-inspected' : 'completed';
- vi.stubEnv('WARPKEEP_OPERATION',operation);vi.stubEnv('GITHUB_JOB',failure==='job'?'wrong-job':observation?'observe_ptr':ptr?'operate_ptr':operation.endsWith('generate')?'operate':'operate_readonly');
+ vi.stubEnv('WARPKEEP_OPERATION',operation);vi.stubEnv('GITHUB_JOB',failure==='job'?'wrong-job':observation?'observe_ptr':ptr?'operate_ptr':g002?'operate_g002':operation.endsWith('generate')?'operate':'operate_readonly');
  const calls: string[]=[];
- const factory=ptr?'createSealedRealmsProductionPtrWorkflowRuntime':'createSealedRealmsProductionActivationWorkflowRuntime';
- const run=ptr?'runSealedRealmsProductionPtrOperation':'runSealedRealmsProductionActivationOperation';
+ const laneName = ptr ? 'Ptr' : g002 ? 'G002' : g001 ? 'G001' : 'Activation';
+ const factory=`createSealedRealmsProduction${laneName}WorkflowRuntime`;
+ const run=`runSealedRealmsProduction${laneName}Operation`;
  const runtime=Object.freeze({});
+ const injectedFailure=()=>{throw Object.assign(new Error(privateFailure),{code:privateFailure,cause:new Error(privateFailure),phase:privateFailure});};
  const state={calls,selected:{path:'scripts/fixed.bundle.mjs',factoryExport:factory,exportNames:[factory,run]},loaded:{
-  [factory]:async(input: unknown)=>{calls.push('factory');expect(input).toEqual({operation,workflowInputSha:'a'.repeat(40)});return runtime;},
-  [run]:async(input: {runtime: unknown})=>{calls.push('run');expect(input).toEqual({runtime,operation,workflowInputSha:'a'.repeat(40)});return {operation:failure==='operation'?'preflight':operation,status:failure==='result'?'unexpected':status};}
+  [factory]:async(input: unknown)=>{calls.push('factory');expect(input).toEqual({operation,workflowInputSha:'a'.repeat(40)});if(failure==='factory')injectedFailure();return runtime;},
+  [run]:async(input: {runtime: unknown})=>{calls.push('run');expect(input).toEqual({runtime,operation,workflowInputSha:'a'.repeat(40)});if(failure==='run')injectedFailure();return {operation:failure==='operation'?'preflight':operation,status:failure==='result'?'unexpected':status};}
  }};
  if(failure==='exports')Object.assign(state.loaded,{extra:true});
  (globalThis as Record<string,unknown>)[stateKey]=state;
@@ -33,14 +39,23 @@ async function fixture(operation: string, failure?: string) {
  source=source.replace(/(['"])(\.\/[^'"]+)\1/g,(_all,_quote,path)=>JSON.stringify(pathToFileURL(resolve('scripts',path)).href));
  const module=await import(/* @vite-ignore */ 'data:text/javascript;base64,'+Buffer.from(source+'\n//'+Math.random()).toString('base64'));
  try {return {result:await module.runSealedRealmsProductionLinuxOperation({operation,workflowInputSha:'a'.repeat(40)}),calls};}
- finally {vi.unstubAllEnvs();delete (globalThis as Record<string,unknown>)[stateKey];if(failure==='job')expect(calls).toEqual([]);}
+ finally {
+  vi.unstubAllEnvs();delete (globalThis as Record<string,unknown>)[stateKey];
+  if(failure==='job')expect(calls).toEqual([]);
+  if(failure==='factory'){expect(calls.at(-1)).toBe('factory');expect(calls).not.toContain('run');}
+  if(failure==='run')expect(calls.at(-1)).toBe('run');
+ }
 }
 it.each([
+ ['preflight','preflight-inspected'],
+ ['g001-policy-observe','completed'],
  ['ptr-state-inspect','state-inspected'],
  ['activation-evidence-inspect','activation-evidence-inspected'],
  ['activation-evidence-generate','completed'],
  ['ptr-update-inspect','update-inspected'],
  ['ptr-update-apply','completed'],
+ ['g002-update-inspect','update-inspected'],
+ ['g002-update-apply','completed'],
 ])('dispatches %s through fixed factory, opaque runtime and reattestation',async (operation,status)=>{
  const result=await fixture(operation);expect(result.result).toEqual({operation,status});
  expect(result.calls).toEqual(['runtime','source','bundle','closure','import','runtime','source','bundle','factory','runtime','source','bundle','run','runtime','source','bundle']);
@@ -49,7 +64,7 @@ it('refuses an extra export before calling the factory',async()=>{await expect(f
 it('refuses a malformed operation result',async()=>{await expect(fixture('activation-evidence-generate','result')).rejects.toMatchObject({phase:'result'});});
 
 it('rejects mismatched workflow job before the mocked host or authority is reached',async()=>{await expect(fixture('activation-evidence-generate','job')).rejects.toMatchObject({phase:'runtime'});});
-it.each(['ptr-state-inspect','ptr-update-inspect','ptr-update-apply'])('rejects a wrong job for %s before host work',async operation=>{
+it.each(['ptr-state-inspect','ptr-update-inspect','ptr-update-apply','g002-update-inspect','g002-update-apply'])('rejects a wrong job for %s before host work',async operation=>{
  await expect(fixture(operation,'job')).rejects.toMatchObject({phase:'runtime'});
 });
 it.each(['result','operation'])('rejects mismatched PTR completion %s',async failure=>{
@@ -57,4 +72,21 @@ it.each(['result','operation'])('rejects mismatched PTR completion %s',async fai
 });
 it.each(['result','operation','exports'])('rejects mismatched PTR observation %s',async failure=>{
  await expect(fixture('ptr-state-inspect',failure)).rejects.toMatchObject({phase:failure==='exports'?'bundle':'result'});
+});
+it.each(['result','operation','exports'])('rejects mismatched G002 completion %s',async failure=>{
+ await expect(fixture('g002-update-apply',failure)).rejects.toMatchObject({phase:failure==='exports'?'bundle':'result'});
+});
+it.each([
+ ['factory','workflow'],
+ ['run','operation'],
+])('reports sanitized %s failures at their actual stage',async (failure,phase)=>{
+ await fixture('g002-update-apply',failure).then(()=>expect.fail('Expected fixed operation failure'),error=>{
+  expect(error).toBeInstanceOf(Error);
+  expect(error.message).toBe('SEALED_REALMS_LINUX_PREFLIGHT_FAILED');
+  expect(error.phase).toBe(phase);
+  expect(Object.keys(error)).toEqual(['phase']);
+  expect(error.cause).toBeUndefined();
+  expect(error.stack).not.toContain(privateFailure);
+  expect(JSON.stringify(error)).not.toContain(privateFailure);
+ });
 });
