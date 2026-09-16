@@ -2,6 +2,9 @@
 
 ## Verified baseline and resumption audit — 16 September 2026
 
+The current task is maintenance: audit and improve existing work, correct data
+and remove resumption blockers. Do not add new features during this pass.
+
 The accepted baseline inspected for this audit is
 `398a8a434c0b598d260d5569ed6802dfaa169e3f` (PR #272). Main
 [Verify 35045616429](https://github.com/ael-dev3/Warpkeep/actions/runs/35045616429)
@@ -25,8 +28,12 @@ This audit repairs a separate source blocker: the evidence reader omitted
 `g002-update-inspect` and `g002-update-apply` from its existing `operate_g002`
 job mapping. Both valid operations, wrong-job denial and operation changes
 are covered by regression tests. The owning Windows suite passed all 86 cases;
-four new cases failed before the fix. Native generated-family and protected
-integration checks remain required before production use of the repair.
+four new cases failed before the fix. [PR #273](https://github.com/ael-dev3/Warpkeep/pull/273)
+publishes the repair and derived deployment closure. Native development
+preparation completed successfully on `498e5057`; it is not an independently
+checked final family or production acceptance. Follow the checklist's
+[source-only M1 and generated-only M2 sequence](../../operations/0.4.0-release-checklist.md#fixed-sequence)
+before production use. Never relabel that development candidate after squash.
 
 Before any protected dispatch, resolve live `main`, wait for its **push** Verify
 run to complete successfully, recheck the SHA, and only then select that source.
@@ -35,8 +42,8 @@ dispatch refusal as a missing credential or remove the source/evidence guard.
 
 The [live delivery guide](../../operations/0.4.0-live-delivery-status.md) owns
 fresh access observations and remaining provider work. Cloudflare production
-profile read access works; the selected Windows SpacetimeDB login still lists
-no owned databases. Existing Linux sealed private runtime/audit roots are empty.
+profile read access works; both configured Windows and Linux SpacetimeDB logins
+list no owned databases. Existing Linux sealed private runtime/audit roots are empty.
 These are specific operational gaps, not a blanket loss of GitHub/provider access.
 
 Warpkeep 0.4 remains unshipped pending provider-backed deployment,
