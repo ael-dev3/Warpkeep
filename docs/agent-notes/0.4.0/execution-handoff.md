@@ -6,17 +6,22 @@ This is the active source and operations record. The pass remains maintenance
 only: preserve the existing mechanics and visuals, correct concrete defects,
 and do not add new runtime features.
 
-The protected generated-family promotion is merged on `main` at
-`fa9927bb9a8701e182f63eac1206e2f1425c4522` (M1 source merge `645637e112ab18ac4565fbf5978349cd77063742`, generated-only PR #274).
-Main push [Verify 35104399580](https://github.com/ael-dev3/Warpkeep/actions/runs/35104399580)
-and [CodeQL 35104399549](https://github.com/ael-dev3/Warpkeep/actions/runs/35104399549)
+The protected generated-family promotion remains the runtime source at
+`fa9927bb9a8701e182f63eac1206e2f1425c4522` (M1 source merge
+`645637e112ab18ac4565fbf5978349cd77063742`, generated-only PR #274).
+Documentation follow-up PR #275 is squash-merged on protected `main` at
+`bbea7c4b472fac84fa326983a962e64c45fcd6e5`. Post-merge [Verify
+35126491033](https://github.com/ael-dev3/Warpkeep/actions/runs/35126491033)
+and [CodeQL 35126491081](https://github.com/ael-dev3/Warpkeep/actions/runs/35126491081)
 completed successfully. The native `WarpkeepRunner` checkout is detached at
-the same commit and clean; only its idle RunnerService is running.
+the merged `main` SHA and clean; only its idle RunnerService is running.
 
-The exact-source protected [preflight 35110137845](https://github.com/ael-dev3/Warpkeep/actions/runs/35110137845)
-completed successfully and returned `{"operation":"preflight","status":"preflight-inspected"}`.
-It established runner, source, bundle and workflow attestation for M2 and did
-not receive provider secrets or perform a mutation.
+The exact-source protected [preflight 35132346239](https://github.com/ael-dev3/Warpkeep/actions/runs/35132346239)
+completed successfully against the merged `main` SHA and returned
+`{"operation":"preflight","status":"preflight-inspected"}`. It established
+runner, source, bundle and workflow attestation for M2 and did not receive
+provider secrets or perform a mutation. The earlier M2 preflight
+`35110137845` remains source-bound historical evidence.
 
 Two supported read-only operations were then dispatched against this exact
 source to identify the next real gate. [Activation inspection 35110519489](https://github.com/ael-dev3/Warpkeep/actions/runs/35110519489)
@@ -148,8 +153,8 @@ protected integration and exact accepted-main preparation, then live preservatio
 actual-owner play and rendered mobile acceptance. Follow the
 [existing connected plan](../../superpowers/plans/2026-09-08-ptr-update-recovery.md#g002-adoption-consumer-contract).
 
-The overall estimate is about **70%** after generated-family integration, with a
-62–75% judgment range;
+The overall engineering estimate is about **86%** after generated-family
+integration and documentation closure, with an 80–88% judgment range;
 0.4 is not shipped and no reliable calendar ETA is established. The saved Codex
 sync automation is **PAUSED** by the owner. Commit, scan and verify pushes at
 active development checkpoints without recreating a scheduler. Do not create new
