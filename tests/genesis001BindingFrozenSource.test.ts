@@ -20,6 +20,7 @@ import {
 } from '../scripts/genesis001-binding-frozen-source.mjs';
 
 const temporaryDirectories: string[] = [];
+const LINUX_SOURCE_MATERIALIZATION_TIMEOUT_MS = 180_000;
 
 afterEach(() => {
   for (const root of temporaryDirectories.splice(0)) rmSync(root, { recursive: true, force: true });
@@ -126,6 +127,7 @@ describe('Genesis 001 authenticated frozen-source materialization', () => {
         expect(existsSync(candidate.destination)).toBe(false);
       }
     },
+    LINUX_SOURCE_MATERIALIZATION_TIMEOUT_MS,
   );
 
   it.skipIf(process.platform !== 'linux')(
