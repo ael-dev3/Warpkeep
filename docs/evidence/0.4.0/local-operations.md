@@ -4,8 +4,25 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 ## Resumption audit — 16 September 2026
 
+Current release checkpoint: protected M2 `fa9927bb9a8701e182f63eac1206e2f1425c4522`
+is on `main`, with push Verify `35104399580` and CodeQL `35104399549` passing.
+The exact-source preflight `35110137845` returned
+`{"operation":"preflight","status":"preflight-inspected"}`. The native
+`WarpkeepRunner` checkout is clean at that SHA with only the idle RunnerService
+active. Two follow-up read-only probes were intentionally run once against the
+same source: activation inspection `35110519489` failed at
+`phase:"operation"` because no retained activation evidence is available, and
+G001 policy observation `35110808078` failed at `phase:"workflow"` because
+the fixed production-admin namespace has no `g001-policy-observation/admin-token`
+or observation namespace. These private producer inputs remain unresolved;
+they must be supplied through their supported setup before any mutation or
+release claim. The independent PTR state inspection `35114630482` also failed
+closed at `phase:"operation"`; no provider mutation occurred and the observer
+readback endpoint remains unavailable. No private bytes are copied into this
+repository or Desktop.
+
 The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) owns the
-dated baseline and completed source/preflight checks. The fresh
+current M2 source and completed source/preflight checks. The fresh
 [access inventory](../../operations/0.4.0-live-delivery-status.md#access-is-scoped-to-each-operation)
 distinguishes working Cloudflare/GitHub access and restored Windows/Linux
 SpacetimeDB publisher discovery from the still-empty Linux sealed private

@@ -2,14 +2,17 @@
 
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main), the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
 
-Protected `main` and `origin/main` are synchronized at exact SHA
-`d2fe2d2c146d137b78c062df4d935a5cfb7766f9`. Main Verify `34967603804` and
-CodeQL `34967603736` passed. Pages classifier `34972321426` passed for the exact
-source, while build, deploy, recovery, notification and live verification were
-correctly skipped under policy. The live site remains Genesis and the 0.4 release
-is not claimed as shipped. Provider/owner authority, real deployment,
-recovery/readback, G001 preservation, sealed G002 denial, physical-device
-acceptance and final deployment remain open.
+The active protected M2 source is `fa9927bb9a8701e182f63eac1206e2f1425c4522`.
+Main push Verify `35104399580`, CodeQL `35104399549` and exact-source preflight
+`35110137845` passed. The native checkout is clean at this SHA. Read-only
+activation inspection `35110519489` reached the operation boundary and failed
+closed because no retained activation evidence is present; G001 policy
+observation `35110808078` failed at workflow construction because the fixed
+Linux production-admin namespace has no `g001-policy-observation/admin-token`
+or observation namespace. These are private producer inputs. The live site
+remains Genesis and the 0.4 release is not claimed as shipped. Provider/owner
+authority, real deployment, recovery/readback, G001 preservation, sealed G002
+denial, physical-device acceptance and final deployment remain open.
 
 Each dated section below retains its exact source and scope. Earlier source
 families and candidate identities are historical evidence; green protected

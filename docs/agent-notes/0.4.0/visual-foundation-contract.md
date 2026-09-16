@@ -9,14 +9,20 @@ reference into an imported engine, a new economy, or a promise of deep
 interactivity.
 
 Use the [execution handoff](execution-handoff.md), current refs and open pull
-requests for source and verification. Protected `main` is
-`d2fe2d2c146d137b78c062df4d935a5cfb7766f9` after the PR #265 bounded diagnostic categories; PR #259 through #264 are also merged. Main Verify `34967603804` and
-CodeQL `34967603736` passed. Pages classifier `34972321426` passed while
-policy-gated build, deploy, recovery, notification and live verification were
-skipped. The rendered evidence below retains its recorded source and scope; it
-does not attest later UI edits or physical-device performance. The 0.4 release
-remains a development build until authenticated owner play, physical-device
-review and the required delivery evidence are complete.
+requests for source and verification. The current protected M2 source is
+`fa9927bb9a8701e182f63eac1206e2f1425c4522`; its main Verify
+`35104399580`, CodeQL `35104399549` and exact-source preflight `35110137845`
+passed. Read-only activation inspection `35110519489`, G001 policy observation
+`35110808078` and PTR observer inspection `35114630482` then failed closed at
+their operation/workflow boundaries because the required private/provider
+inputs are absent. The rendered evidence below retains its recorded source and
+scope; it does not attest later UI edits or physical-device performance. The
+0.4 release remains a development build until authenticated owner play,
+physical-device review and the required delivery evidence are complete.
+
+The previous source and run IDs in the historical sections remain useful for
+provenance only. They must not be used as the selected source for a new
+operation or release claim.
 
 The `27700d61` follow-up corrects bordered/letterboxed schematic taps and the
 loop's construction/completion feedback without changing the visual direction.
