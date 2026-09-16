@@ -2,9 +2,9 @@
 
 ## Current accepted-main checkpoint — 15 September 2026
 
-Protected `main` and `origin/main` are synchronized at exact merged SHA
-`284a1f3df590d13128e2f58f57d8780757133c82`, which contains the protected squash
-merges through PR #270 (current release evidence). Main Verify `35033848797` and
+The final functional 0.4 source checkpoint is
+`284a1f3df590d13128e2f58f57d8780757133c82`; protected PR #271 adds the current
+documentation provenance pin. Main Verify `35033848797` and
 CodeQL `35033848795` passed for this exact source. Pages run `35037923695` also
 completed successfully, but its sealed-launch classifier selected the policy lane
 and skipped build, deploy, recovery, notification and live verification.

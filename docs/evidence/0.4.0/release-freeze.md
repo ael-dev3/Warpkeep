@@ -2,8 +2,9 @@
 
 Status: **0.4 source and protected rails are merged; final release freeze remains open**.
 
-Protected `main` and `origin/main` are synchronized at exact SHA
-`284a1f3df590d13128e2f58f57d8780757133c82` (PR #270). Main Verify
+The final functional 0.4 source checkpoint is
+`284a1f3df590d13128e2f58f57d8780757133c82`; PR #271 adds the current
+documentation provenance pin on top. Main Verify
 `35033848797` and CodeQL `35033848795` passed for that source. Pages classifier
 `35037923695` passed while build, deploy, recovery, notification and live
 verification were correctly skipped by sealed-launch policy. Current-source
