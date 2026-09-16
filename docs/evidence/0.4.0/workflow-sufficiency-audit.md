@@ -3,11 +3,11 @@
 Updated 2026-09-15 (Europe/Budapest). This is the current operating sequence. Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md), live Git refs and the [release checklist](../../operations/0.4.0-release-checklist.md) for acceptance. Historical candidate identities remain historical and do not certify later source.
 
 Protected `main` and `origin/main` are synchronized at exact SHA
-`a224602404cff4689320b5a9193a53c0ceb71698` after protected PR #268. Main Verify
-`35018032678` and CodeQL `35018032651` passed; Pages classifier run
-`35023589225` passed for that exact source while build, deploy, recovery,
+`284a1f3df590d13128e2f58f57d8780757133c82` after protected PR #270. Main Verify
+`35033848797` and CodeQL `35033848795` passed; Pages classifier run
+`35037923695` passed for that exact source while build, deploy, recovery,
 notification and live verification were correctly skipped by sealed-launch
-policy. Current-source sealed preflight `35029391986` was attempted but failed
+policy. Current-source sealed preflight `35033894080` was attempted but failed
 in `phase:"workflow"` because the protected operation inputs were empty; it made
 no provider mutation. Earlier preflight `35023663671` passed for superseded
 source `f11c8b6b` and is historical. This proves protected source rails only:

@@ -3,11 +3,11 @@
 Status: **0.4 source and protected rails are merged; final release freeze remains open**.
 
 Protected `main` and `origin/main` are synchronized at exact SHA
-`a224602404cff4689320b5a9193a53c0ceb71698` (PR #268). Main Verify
-`35018032678` and CodeQL `35018032651` passed for that source. Pages classifier
-`35023589225` passed while build, deploy, recovery, notification and live
+`284a1f3df590d13128e2f58f57d8780757133c82` (PR #270). Main Verify
+`35033848797` and CodeQL `35033848795` passed for that source. Pages classifier
+`35037923695` passed while build, deploy, recovery, notification and live
 verification were correctly skipped by sealed-launch policy. Current-source
-preflight `35029391986` was attempted against the exact source but failed in
+preflight `35033894080` was attempted against the exact source but failed in
 `phase:"workflow"` because the protected operation inputs were empty; it made no
 provider mutation. Earlier preflight `35023663671` passed for superseded source
 `f11c8b6b` and is historical. The live site remains Genesis because

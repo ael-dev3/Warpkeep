@@ -3,12 +3,12 @@
 ## Current accepted-main checkpoint — 15 September 2026
 
 Protected `main` and `origin/main` are synchronized at exact merged SHA
-`a224602404cff4689320b5a9193a53c0ceb71698`, which contains the protected squash
-merges through PR #268 (dispatch return preview). Main Verify `35018032678` and
-CodeQL `35018032651` passed for this exact source. Pages run `35023589225` also
+`284a1f3df590d13128e2f58f57d8780757133c82`, which contains the protected squash
+merges through PR #270 (current release evidence). Main Verify `35033848797` and
+CodeQL `35033848795` passed for this exact source. Pages run `35037923695` also
 completed successfully, but its sealed-launch classifier selected the policy lane
-and skipped build, deploy, recovery, notification and live verification. Sealed
-Current-source sealed preflight `35029391986` was attempted but failed in
+and skipped build, deploy, recovery, notification and live verification.
+Current-source sealed preflight `35033894080` was attempted but failed in
 `phase:"workflow"` because the protected operation inputs were empty; it made no
 provider mutation. Earlier preflight `35023663671` passed for superseded source
 `f11c8b6b` and is historical.

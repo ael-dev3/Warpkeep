@@ -8,11 +8,11 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 ## Current working state
 
 Protected `main` and `origin/main` are synchronized at exact SHA
-`a224602404cff4689320b5a9193a53c0ceb71698`. Protected PR #268 is merged on top
-of the earlier 0.4 work. Main Verify `35018032678` and CodeQL `35018032651`
-passed; Pages run `35023589225` classified the sealed-launch source
+`284a1f3df590d13128e2f58f57d8780757133c82`. Protected PR #270 is merged on top
+of the earlier 0.4 work. Main Verify `35033848797` and CodeQL `35033848795`
+passed; Pages run `35037923695` classified the sealed-launch source
 successfully and correctly skipped build, deploy, recovery, notification and
-live verification under policy. Current-source sealed preflight `35029391986`
+live verification under policy. Current-source sealed preflight `35033894080`
 was attempted but failed in `phase:"workflow"` because the protected operation
 inputs were empty; it made no provider mutation. Earlier preflight `35023663671`
 passed for superseded source `f11c8b6b` and is historical. This proves protected
