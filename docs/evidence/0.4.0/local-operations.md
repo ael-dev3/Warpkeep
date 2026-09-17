@@ -12,8 +12,9 @@ passed post-merge Verify `35170747191` and CodeQL `35170747165`; resolve live
 `main` before a new dispatch. The exact-source preflight
 `35166824615` returned
 `{"operation":"preflight","status":"preflight-inspected"}`. The native
-`WarpkeepRunner` checkout is clean at that SHA with only the idle RunnerService
-active. Two follow-up read-only probes were intentionally run once against the
+`WarpkeepRunner` checkout is kept clean and synchronized to resolved live
+`main` before an operation; the pinned runtime source and the moving docs head
+are separate. Only the idle RunnerService is active. Two follow-up read-only probes were intentionally run once against the
 same source: activation inspection `35110519489` failed at
 `phase:"operation"` because no retained activation evidence is available, and
 G001 policy observation `35110808078` failed at `phase:"workflow"` because
