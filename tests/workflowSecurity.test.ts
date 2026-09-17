@@ -16,7 +16,7 @@ function boundedRootTestRun(comment: string) {
     '  --exclude tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
     '  --exclude tests/productionPlayerCanaryClosure.test.ts \\',
     '  --maxWorkers=2',
-    'timeout --foreground --signal=TERM --kill-after=30s 8m npm test -- \\',
+    'timeout --foreground --signal=TERM --kill-after=30s 12m npm test -- \\',
     '  tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
     '  tests/productionPlayerCanaryClosure.test.ts \\',
     '  --maxWorkers=1 \\',
