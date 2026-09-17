@@ -42,8 +42,8 @@ No reliable calendar ETA is established.
   duration presentation and dispatch-return preview are implemented and
   protected by focused tests.
 - Source closure, generated pins, Linux, SpacetimeDB, native, recovery, auth,
-  analysis and CodeQL checks are green for the protected M2 source. This
-  documentation-only checkpoint must pass its own required checks before it is
+  analysis and CodeQL checks are green for the protected M2 source. The
+  documentation-only checkpoint in PR #289 passed its required checks and is
   integrated into protected `main`.
 - The saved sync automation is paused and no scheduled GitHub workflow exists;
   manual publication remains the durable development rail.
