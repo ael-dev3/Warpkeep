@@ -9,14 +9,17 @@ and do not add new runtime features.
 The protected generated-family promotion remains the runtime source at
 `fa9927bb9a8701e182f63eac1206e2f1425c4522` (M1 source merge
 `645637e112ab18ac4565fbf5978349cd77063742`, generated-only PR #274).
-The latest recorded protected-main checkpoint before this note is
-**`9d9328da261b22f574ca2e161ebb1ac2b1f5ee1b`**. It carries the unchanged
-runtime source plus the reviewed documentation corrections in PRs #279–#285.
-Post-merge Verify `35222888257` and CodeQL `35222888256` passed for that exact
-checkpoint. Pages classification `35227778762` also passed with deployment
-skipped while `pagesDeploymentApproved:false` is in force. These are dated
-receipts, not a moving runtime head; resolve live `main`, wait for its completed
-Verify and recheck the SHA before any new dispatch. The earlier docs-only receipt checkpoint
+The last runtime-bearing protected-main checkpoint is
+**`b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a`**. It carries the unchanged
+runtime source plus the reviewed documentation and CI reliability corrections
+in PRs #279–#288. Post-merge Verify `35267250826` and CodeQL `35267250817`
+passed for that exact checkpoint. Pages classification `35272164921` also
+passed with deployment skipped while `pagesDeploymentApproved:false` is in
+force. PR #288 added retry-all-errors handling for pinned toolchain downloads;
+its full protected Verify `35261832713` passed. These are dated receipts, not a
+moving runtime head; resolve live `main`, wait for its completed push-to-main
+Verify and recheck that SHA before any new dispatch. Documentation-only commits
+after this checkpoint do not change the runtime source family. The earlier docs-only receipt checkpoint
 `3a0df9e6aa869902aa4565bb7fa6981e7c9b2844`
 (PR #278) passed the protected Verify, CodeQL and exact-source preflight
 recorded below while carrying that unchanged runtime source. Documentation
@@ -53,7 +56,7 @@ was intentionally dispatched immediately after the documentation merge, before
 the required push-to-main Verify had completed. It failed closed at
 `phase:"workflow"` without provider inputs or mutation; the successful
 `35162811785` Verify and `35166824615` preflight document the earlier receipt
-checkpoint; current verification is `35222888257`/`35222888256` above.
+checkpoint; current verification is `35267250826`/`35267250817` above.
 
 Two supported read-only operations were then dispatched against this exact
 source to identify the next real gate. [Activation inspection 35110519489](https://github.com/ael-dev3/Warpkeep/actions/runs/35110519489)

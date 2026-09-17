@@ -12,11 +12,14 @@ Use the [execution handoff](execution-handoff.md), current refs and open pull
 requests for source and verification. The protected M2 runtime source family
 remains `fa9927bb9a8701e182f63eac1206e2f1425c4522`. The latest recorded
 protected-main checkpoint before this note is
-`9d9328da261b22f574ca2e161ebb1ac2b1f5ee1b`; its post-merge Verify
-`35222888257`, CodeQL `35222888256` and Pages classification `35227778762`
+`b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a`; its post-merge Verify
+`35267250826`, CodeQL `35267250817` and Pages classification `35272164921`
 passed, with deployment skipped while `pagesDeploymentApproved:false` is in
-force. These are dated receipts, not a moving runtime head; resolve live `main`
-before a new dispatch rather than reusing a recorded docs head. Read-only
+force. PR #288 added retry-all-errors handling for pinned toolchain downloads;
+its full protected Verify `35261832713` passed. These are dated receipts, not a
+moving runtime head; resolve live `main` before a new dispatch rather than
+reusing a recorded docs head. Documentation-only commits after this checkpoint
+do not change the runtime source family. Read-only
 activation inspection `35110519489`, G001 policy observation
 `35110808078` and PTR observer inspection `35114630482` then failed closed at
 their operation/workflow boundaries because the required private/provider

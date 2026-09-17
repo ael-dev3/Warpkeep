@@ -5,11 +5,14 @@ Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkee
 The protected M2 runtime source family remains
 `fa9927bb9a8701e182f63eac1206e2f1425c4522`. The latest recorded
 protected-main checkpoint before this note is
-`9d9328da261b22f574ca2e161ebb1ac2b1f5ee1b`; post-merge Verify `35222888257`,
-CodeQL `35222888256` and Pages classification `35227778762` passed, with
+`b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a`; post-merge Verify `35267250826`,
+CodeQL `35267250817` and Pages classification `35272164921` passed, with
 deployment skipped while `pagesDeploymentApproved:false` is in force. These
 are dated receipts, not a moving runtime head; resolve live `main` before a
-new dispatch. The native checkout is clean at the resolved main head. Read-only
+new dispatch. PR #288 added retry-all-errors handling for pinned toolchain
+downloads; its full protected Verify `35261832713` passed. Documentation-only
+commits after this checkpoint do not change the runtime source family. The
+native checkout is clean at the resolved main head. Read-only
 activation inspection `35110519489` reached the operation boundary and failed
 closed because no retained activation evidence is present; G001 policy
 observation `35110808078` failed at workflow construction because the fixed
