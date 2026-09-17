@@ -2,11 +2,15 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Resumption audit — 16 September 2026
+## Resumption audit — 17 September 2026
 
-Current release checkpoint: protected M2 `fa9927bb9a8701e182f63eac1206e2f1425c4522`
-is on `main`, with push Verify `35104399580` and CodeQL `35104399549` passing.
-The exact-source preflight `35110137845` returned
+Current release checkpoint: protected M2 runtime source family
+`fa9927bb9a8701e182f63eac1206e2f1425c4522` is represented by runtime head
+`3a0df9e6aa869902aa4565bb7fa6981e7c9b2844`, with push Verify `35162811785`
+and CodeQL `35162811847` passing. Docs-only receipt PR #279 is merged at
+main `922798b12c6cdc940ad5156a501874007aaeb97f`; its post-merge Verify
+`35170747191` and CodeQL `35170747165` also pass. The exact-source preflight
+`35166824615` returned
 `{"operation":"preflight","status":"preflight-inspected"}`. The native
 `WarpkeepRunner` checkout is clean at that SHA with only the idle RunnerService
 active. Two follow-up read-only probes were intentionally run once against the
