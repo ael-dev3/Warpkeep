@@ -3,12 +3,13 @@
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main), the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
 
 The protected M2 runtime source family remains
-`fa9927bb9a8701e182f63eac1206e2f1425c4522`; current runtime head
-`3a0df9e6aa869902aa4565bb7fa6981e7c9b2844` passed main push Verify
-`35162811785`, CodeQL `35162811847` and exact-source preflight `35166824615`.
-The docs-only receipt refresh from PR #279 passed post-merge Verify
-`35170747191` and CodeQL `35170747165`; resolve live `main` before a new
-dispatch. The native checkout is clean at the resolved main head. Read-only
+`fa9927bb9a8701e182f63eac1206e2f1425c4522`. The latest recorded
+protected-main checkpoint before this note is
+`9d9328da261b22f574ca2e161ebb1ac2b1f5ee1b`; post-merge Verify `35222888257`,
+CodeQL `35222888256` and Pages classification `35227778762` passed, with
+deployment skipped while `pagesDeploymentApproved:false` is in force. These
+are dated receipts, not a moving runtime head; resolve live `main` before a
+new dispatch. The native checkout is clean at the resolved main head. Read-only
 activation inspection `35110519489` reached the operation boundary and failed
 closed because no retained activation evidence is present; G001 policy
 observation `35110808078` failed at workflow construction because the fixed

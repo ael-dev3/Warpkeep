@@ -5,11 +5,15 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 ## Resumption audit — 17 September 2026
 
 Current release checkpoint: protected M2 runtime source family
-`fa9927bb9a8701e182f63eac1206e2f1425c4522` is represented by runtime head
-`3a0df9e6aa869902aa4565bb7fa6981e7c9b2844`, with push Verify `35162811785`
-and CodeQL `35162811847` passing. The docs-only receipt refresh from PR #279
-passed post-merge Verify `35170747191` and CodeQL `35170747165`; resolve live
-`main` before a new dispatch. The exact-source preflight
+`fa9927bb9a8701e182f63eac1206e2f1425c4522`; the latest recorded
+protected-main checkpoint before this note is
+`9d9328da261b22f574ca2e161ebb1ac2b1f5ee1b`, with post-merge Verify
+`35222888257`, CodeQL `35222888256` and Pages classification `35227778762`
+passing; Pages deployment was skipped while `pagesDeploymentApproved:false` is
+in force. These are dated receipts, not a moving runtime head; resolve live
+`main` before a new dispatch. The earlier docs-only receipt
+`3a0df9e6aa869902aa4565bb7fa6981e7c9b2844` and its checks remain historical.
+The exact-source preflight
 `35166824615` returned
 `{"operation":"preflight","status":"preflight-inspected"}`. The native
 `WarpkeepRunner` checkout is kept clean and synchronized to resolved live

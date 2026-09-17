@@ -10,12 +10,14 @@ interactivity.
 
 Use the [execution handoff](execution-handoff.md), current refs and open pull
 requests for source and verification. The protected M2 runtime source family
-remains `fa9927bb9a8701e182f63eac1206e2f1425c4522`; current runtime head
-`3a0df9e6aa869902aa4565bb7fa6981e7c9b2844` passed main Verify
-`35162811785`, CodeQL `35162811847` and exact-source preflight `35166824615`.
-The docs-only receipt refresh from PR #279 passed post-merge Verify
-`35170747191` and CodeQL `35170747165`; resolve live `main` before a new
-dispatch rather than reusing a recorded docs head. Read-only activation inspection `35110519489`, G001 policy observation
+remains `fa9927bb9a8701e182f63eac1206e2f1425c4522`. The latest recorded
+protected-main checkpoint before this note is
+`9d9328da261b22f574ca2e161ebb1ac2b1f5ee1b`; its post-merge Verify
+`35222888257`, CodeQL `35222888256` and Pages classification `35227778762`
+passed, with deployment skipped while `pagesDeploymentApproved:false` is in
+force. These are dated receipts, not a moving runtime head; resolve live `main`
+before a new dispatch rather than reusing a recorded docs head. Read-only
+activation inspection `35110519489`, G001 policy observation
 `35110808078` and PTR observer inspection `35114630482` then failed closed at
 their operation/workflow boundaries because the required private/provider
 inputs are absent. The rendered evidence below retains its recorded source and

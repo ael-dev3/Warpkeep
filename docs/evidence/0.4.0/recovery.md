@@ -3,12 +3,13 @@
 ## Current checkpoint supersession — 17 September 2026
 
 The active protected runtime source family is M2
-`fa9927bb9a8701e182f63eac1206e2f1425c4522`, represented by runtime head
-`3a0df9e6aa869902aa4565bb7fa6981e7c9b2844`. Main push Verify
-`35162811785`, CodeQL `35162811847` and exact-source preflight `35166824615`
-passed. The docs-only receipt refresh from PR #279 passed post-merge Verify
-`35170747191` and CodeQL `35170747165`; resolve live `main` before a new
-dispatch. The native `WarpkeepRunner` checkout is kept clean and synchronized
+`fa9927bb9a8701e182f63eac1206e2f1425c4522`. The latest recorded
+protected-main checkpoint before this note is
+`9d9328da261b22f574ca2e161ebb1ac2b1f5ee1b`; its post-merge Verify
+`35222888257`, CodeQL `35222888256` and Pages classification `35227778762`
+passed, with deployment skipped while `pagesDeploymentApproved:false` is in
+force. These are dated receipts, not a moving runtime head; resolve live `main`
+before a new dispatch. The native `WarpkeepRunner` checkout is kept clean and synchronized
 to the resolved live `main` before an operation; the pinned runtime source and
 moving documentation head are separate. Read-only activation inspection `35110519489`, G001 policy observation
 `35110808078` and PTR observer inspection `35114630482` failed closed because
