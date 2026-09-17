@@ -6,10 +6,11 @@ The active protected runtime source family is M2
 `fa9927bb9a8701e182f63eac1206e2f1425c4522`, represented by runtime head
 `3a0df9e6aa869902aa4565bb7fa6981e7c9b2844`. Main push Verify
 `35162811785`, CodeQL `35162811847` and exact-source preflight `35166824615`
-passed. Docs-only receipt PR #279 is merged at main
-`922798b12c6cdc940ad5156a501874007aaeb97f`; its post-merge Verify
-`35170747191` and CodeQL `35170747165` passed. The native `WarpkeepRunner`
-checkout is clean at that main head. Read-only activation inspection `35110519489`, G001 policy observation
+passed. The docs-only receipt refresh from PR #279 passed post-merge Verify
+`35170747191` and CodeQL `35170747165`; resolve live `main` before a new
+dispatch. The native `WarpkeepRunner` checkout is kept clean and synchronized
+to the resolved live `main` before an operation; the pinned runtime source and
+moving documentation head are separate. Read-only activation inspection `35110519489`, G001 policy observation
 `35110808078` and PTR observer inspection `35114630482` failed closed because
 the retained activation chain, G001 observation secret and live PTR observer
 inputs are not present. No provider mutation or release claim follows from
