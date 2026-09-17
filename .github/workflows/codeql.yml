@@ -16,7 +16,10 @@ concurrency:
 jobs:
   analyze:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Push-to-main analysis scans the complete JavaScript/TypeScript graph and
+    # needs more time than the pull-request diff path. Keep a bounded budget
+    # while avoiding a false cancellation on the protected branch.
+    timeout-minutes: 45
     permissions:
       contents: read
       security-events: write
