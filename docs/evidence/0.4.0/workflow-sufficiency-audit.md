@@ -6,9 +6,9 @@ for the single dated source/CI/preflight checkpoint and the
 The protected M2 runtime source family remains
 `fa9927bb9a8701e182f63eac1206e2f1425c4522`; runtime head
 `3a0df9e6aa869902aa4565bb7fa6981e7c9b2844` passed main Verify `35162811785`,
-CodeQL `35162811847` and exact-source preflight `35166824615`. Docs-only
-receipt PR #279 is merged at main `922798b12c6cdc940ad5156a501874007aaeb97f`,
-with post-merge Verify `35170747191` and CodeQL `35170747165` passed. Read-only
+CodeQL `35162811847` and exact-source preflight `35166824615`. The docs-only
+receipt refresh from PR #279 passed post-merge Verify `35170747191` and CodeQL
+`35170747165`; resolve live `main` before a new dispatch. Read-only
 activation inspection `35110519489`, G001
 policy observation `35110808078` and PTR observer inspection `35114630482`
 failed closed because the required private/provider inputs are absent. Windows
