@@ -9,18 +9,24 @@ and do not add new runtime features.
 The protected generated-family promotion remains the runtime source at
 `fa9927bb9a8701e182f63eac1206e2f1425c4522` (M1 source merge
 `645637e112ab18ac4565fbf5978349cd77063742`, generated-only PR #274).
-Documentation follow-up PRs #275 and #276 are historical. Maintenance PR #277
-then corrected the cross-platform handoff and policy-test path; it is squash-
-merged on `main` at **`5723b546d2f826a9cc3f24acddeb775a3b69ef78`**. The
-documentation receipt follow-up is squash-merged at **`3a0df9e6aa869902aa4565bb7fa6981e7c9b2844`**.
+Runtime head `3a0df9e6aa869902aa4565bb7fa6981e7c9b2844` passed the protected
+Verify, CodeQL and exact-source preflight recorded below. Documentation follow-
+up PRs #275 and #276 are historical. Maintenance PR #277 then corrected the
+cross-platform handoff and policy-test path; it is squash-merged on `main` at
+**`5723b546d2f826a9cc3f24acddeb775a3b69ef78`**. Receipt PR #278 and the later
+documentation-only PRs #279 and #280 refreshed evidence after that runtime
+checkpoint; their protected receipts remain historical documentation evidence.
+The current receipt-volatility guard also changes documentation only. Resolve
+live `main` before any new dispatch and keep the runtime source identity
+separate from the moving documentation head.
 Post-merge [Verify 35162811785](https://github.com/ael-dev3/Warpkeep/actions/runs/35162811785)
 and [CodeQL 35162811847](https://github.com/ael-dev3/Warpkeep/actions/runs/35162811847)
-completed successfully for the current exact head. Verify covered the full Linux
+completed successfully for the exact runtime source head. Verify covered the full Linux
 suite, sealed-launch source check, typecheck, production and Pages builds,
 dependency audit, recovery inventory, generated bindings, exporter compatibility,
 connected relocation/rollback, and active-population rehearsals. The native
-`WarpkeepRunner` checkout is detached at the same `main` SHA and clean; only its
-idle RunnerService is running.
+`WarpkeepRunner` checkout must be detached at the resolved live `main` SHA and
+clean before an operation; only its idle RunnerService is expected to run.
 
 The exact-source protected [preflight 35166824615](https://github.com/ael-dev3/Warpkeep/actions/runs/35166824615)
 completed successfully against `3a0df9e6aa869902aa4565bb7fa6981e7c9b2844` and
