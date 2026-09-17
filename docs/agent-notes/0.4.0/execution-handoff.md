@@ -9,9 +9,10 @@ and do not add new runtime features.
 The protected generated-family promotion remains the runtime source at
 `fa9927bb9a8701e182f63eac1206e2f1425c4522` (M1 source merge
 `645637e112ab18ac4565fbf5978349cd77063742`, generated-only PR #274).
-Runtime head `3a0df9e6aa869902aa4565bb7fa6981e7c9b2844` passed the protected
-Verify, CodeQL and exact-source preflight recorded below. Documentation follow-
-up PRs #275 and #276 are historical. Maintenance PR #277 then corrected the
+The docs-only receipt checkpoint `3a0df9e6aa869902aa4565bb7fa6981e7c9b2844`
+(PR #278) passed the protected Verify, CodeQL and exact-source preflight
+recorded below while carrying that unchanged runtime source. Documentation
+follow-up PRs #275 and #276 are historical. Maintenance PR #277 then corrected the
 cross-platform handoff and policy-test path; it is squash-merged on `main` at
 **`5723b546d2f826a9cc3f24acddeb775a3b69ef78`**. Receipt PR #278 and the later
 documentation-only PRs #279 and #280 refreshed evidence after that runtime
