@@ -9,7 +9,15 @@ and do not add new runtime features.
 The protected generated-family promotion remains the runtime source at
 `fa9927bb9a8701e182f63eac1206e2f1425c4522` (M1 source merge
 `645637e112ab18ac4565fbf5978349cd77063742`, generated-only PR #274).
-The docs-only receipt checkpoint `3a0df9e6aa869902aa4565bb7fa6981e7c9b2844`
+The latest recorded protected-main checkpoint before this note is
+**`9d9328da261b22f574ca2e161ebb1ac2b1f5ee1b`**. It carries the unchanged
+runtime source plus the reviewed documentation corrections in PRs #279–#285.
+Post-merge Verify `35222888257` and CodeQL `35222888256` passed for that exact
+checkpoint. Pages classification `35227778762` also passed with deployment
+skipped while `pagesDeploymentApproved:false` is in force. These are dated
+receipts, not a moving runtime head; resolve live `main`, wait for its completed
+Verify and recheck the SHA before any new dispatch. The earlier docs-only receipt checkpoint
+`3a0df9e6aa869902aa4565bb7fa6981e7c9b2844`
 (PR #278) passed the protected Verify, CodeQL and exact-source preflight
 recorded below while carrying that unchanged runtime source. Documentation
 follow-up PRs #275 and #276 are historical. Maintenance PR #277 then corrected the
@@ -24,17 +32,14 @@ the live protected `main`, wait for its completed push-to-main Verify and
 recheck that SHA before any new dispatch. Pages classification remains
 deployment-skipped while `pagesDeploymentApproved:false` is in force. Keep the
 runtime source identity separate from the moving documentation head.
-Post-merge [Verify 35162811785](https://github.com/ael-dev3/Warpkeep/actions/runs/35162811785)
-and [CodeQL 35162811847](https://github.com/ael-dev3/Warpkeep/actions/runs/35162811847)
-completed successfully for the exact runtime source head. Verify covered the full Linux
-suite, sealed-launch source check, typecheck, production and Pages builds,
-dependency audit, recovery inventory, generated bindings, exporter compatibility,
-connected relocation/rollback, and active-population rehearsals. The native
-`WarpkeepRunner` checkout must be detached at the resolved live `main` SHA and
-clean before an operation; only its idle RunnerService is expected to run.
+The current main Verify and CodeQL receipts above cover the exact protected
+checkpoint. The native `WarpkeepRunner` checkout must be detached at the
+resolved live `main` SHA and clean before an operation; only its idle
+RunnerService is expected to run.
 
-The exact-source protected [preflight 35166824615](https://github.com/ael-dev3/Warpkeep/actions/runs/35166824615)
-completed successfully against `3a0df9e6aa869902aa4565bb7fa6981e7c9b2844` and
+The historical exact-source protected [preflight 35166824615](https://github.com/ael-dev3/Warpkeep/actions/runs/35166824615)
+completed successfully against the earlier docs receipt
+`3a0df9e6aa869902aa4565bb7fa6981e7c9b2844` and
 returned `{"operation":"preflight","status":"preflight-inspected"}`. It
 established runner, source, bundle and workflow attestation for M2 and did not
 receive provider secrets or perform a mutation. The prior [Pages classification
@@ -47,7 +52,8 @@ For sequencing provenance, [preflight 35162842335](https://github.com/ael-dev3/W
 was intentionally dispatched immediately after the documentation merge, before
 the required push-to-main Verify had completed. It failed closed at
 `phase:"workflow"` without provider inputs or mutation; the successful
-`35162811785` Verify and `35166824615` preflight are the authoritative receipts.
+`35162811785` Verify and `35166824615` preflight document the earlier receipt
+checkpoint; current verification is `35222888257`/`35222888256` above.
 
 Two supported read-only operations were then dispatched against this exact
 source to identify the next real gate. [Activation inspection 35110519489](https://github.com/ael-dev3/Warpkeep/actions/runs/35110519489)
