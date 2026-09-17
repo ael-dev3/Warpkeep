@@ -16,13 +16,12 @@ cross-platform handoff and policy-test path; it is squash-merged on `main` at
 **`5723b546d2f826a9cc3f24acddeb775a3b69ef78`**. Receipt PR #278 and the later
 documentation-only PRs #279 and #280 refreshed evidence after that runtime
 checkpoint; their protected receipts remain historical documentation evidence.
-The receipt and live-delivery corrections in PRs #281 and #282 are now merged
-as documentation-only changes. The current protected `main` is
-**`07ba71781b0dfb4cd37cbd13cbf6ba4f90f6e5bb`**; its post-merge Verify
-`35188070499` and CodeQL `35188070493` passed for that exact head. Pages
-classifier `35192196278` classified the same source and left build, deployment,
-recovery and live verification skipped while `pagesDeploymentApproved:false`
-remains in force. Resolve live `main` before any new dispatch and keep the
+The receipt and live-delivery corrections in PRs #281, #282 and later
+documentation-only updates are merged. Their protected receipts are historical
+documentation evidence; do not use a docs commit as the runtime source. Resolve
+the live protected `main`, wait for its completed push-to-main Verify and
+recheck that SHA before any new dispatch. Pages classification remains
+deployment-skipped while `pagesDeploymentApproved:false` is in force. Keep the
 runtime source identity separate from the moving documentation head.
 Post-merge [Verify 35162811785](https://github.com/ael-dev3/Warpkeep/actions/runs/35162811785)
 and [CodeQL 35162811847](https://github.com/ael-dev3/Warpkeep/actions/runs/35162811847)
