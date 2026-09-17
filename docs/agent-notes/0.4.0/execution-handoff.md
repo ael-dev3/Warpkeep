@@ -11,18 +11,19 @@ The protected generated-family promotion remains the runtime source at
 `645637e112ab18ac4565fbf5978349cd77063742`, generated-only PR #274).
 Documentation follow-up PRs #275 and #276 are historical. Maintenance PR #277
 then corrected the cross-platform handoff and policy-test path; it is squash-
-merged on `main` at **`5723b546d2f826a9cc3f24acddeb775a3b69ef78`**.
-Post-merge [Verify 35153403810](https://github.com/ael-dev3/Warpkeep/actions/runs/35153403810)
-and [CodeQL 35153403797](https://github.com/ael-dev3/Warpkeep/actions/runs/35153403797)
-completed successfully for that exact head. Verify covered the full Linux suite,
-sealed-launch source check, typecheck, production and Pages builds, dependency
-audit, recovery inventory, generated bindings, exporter compatibility, connected
-relocation/rollback, and active-population rehearsals. The native
+merged on `main` at **`5723b546d2f826a9cc3f24acddeb775a3b69ef78`**. The
+documentation receipt follow-up is squash-merged at **`3a0df9e6aa869902aa4565bb7fa6981e7c9b2844`**.
+Post-merge [Verify 35162811785](https://github.com/ael-dev3/Warpkeep/actions/runs/35162811785)
+and [CodeQL 35162811847](https://github.com/ael-dev3/Warpkeep/actions/runs/35162811847)
+completed successfully for the current exact head. Verify covered the full Linux
+suite, sealed-launch source check, typecheck, production and Pages builds,
+dependency audit, recovery inventory, generated bindings, exporter compatibility,
+connected relocation/rollback, and active-population rehearsals. The native
 `WarpkeepRunner` checkout is detached at the same `main` SHA and clean; only its
 idle RunnerService is running.
 
-The exact-source protected [preflight 35158287513](https://github.com/ael-dev3/Warpkeep/actions/runs/35158287513)
-completed successfully against `5723b546d2f826a9cc3f24acddeb775a3b69ef78` and
+The exact-source protected [preflight 35166824615](https://github.com/ael-dev3/Warpkeep/actions/runs/35166824615)
+completed successfully against `3a0df9e6aa869902aa4565bb7fa6981e7c9b2844` and
 returned `{"operation":"preflight","status":"preflight-inspected"}`. It
 established runner, source, bundle and workflow attestation for M2 and did not
 receive provider secrets or perform a mutation. The prior [Pages classification
@@ -30,6 +31,12 @@ receive provider secrets or perform a mutation. The prior [Pages classification
 completed successfully for `195fd615`; deployment lanes remained skipped because
 `pagesDeploymentApproved` is false. Rerun classification only when its exact
 source and deployment approval are available.
+
+For sequencing provenance, [preflight 35162842335](https://github.com/ael-dev3/Warpkeep/actions/runs/35162842335)
+was intentionally dispatched immediately after the documentation merge, before
+the required push-to-main Verify had completed. It failed closed at
+`phase:"workflow"` without provider inputs or mutation; the successful
+`35162811785` Verify and `35166824615` preflight are the authoritative receipts.
 
 Two supported read-only operations were then dispatched against this exact
 source to identify the next real gate. [Activation inspection 35110519489](https://github.com/ael-dev3/Warpkeep/actions/runs/35110519489)
