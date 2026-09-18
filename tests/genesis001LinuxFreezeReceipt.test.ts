@@ -111,11 +111,26 @@ it('rejects unrelated confirmation, replayed observation, backwards time and sta
     profile: GENESIS_001_LINUX_FREEZE_CURRENT_STATE_PROFILE, sourceCommit: SOURCE,
     confirmationReceiptDigest: '9'.repeat(64), policyObservation: observation('2026-09-19T00:02:00.000Z', '4') }, SOURCE);
   expect(() => projectGenesis001LinuxFreezeEvidence(pair, '2026-09-19T00:02:30.000Z')).toThrow();
-  expect(() => projectGenesis001LinuxFreezeEvidence(evidence('2026-09-19T00:02:00.000Z', '1'), '2026-09-19T00:02:30.000Z')).toThrow();
+  expect(() => projectGenesis001LinuxFreezeEvidence(evidence('2026-09-19T00:01:10.000Z', '1'), '2026-09-19T00:02:30.000Z')).toThrow();
   expect(() => projectGenesis001LinuxFreezeEvidence(evidence('2026-09-19T00:01:09.999Z'), '2026-09-19T00:02:30.000Z')).toThrow();
   expect(() => projectGenesis001LinuxFreezeEvidence(evidence(), '2026-09-19T00:01:59.999Z')).toThrow();
   expect(() => projectGenesis001LinuxFreezeEvidence(evidence(), '2026-09-19T00:07:00.001Z')).toThrow();
   expect(() => projectGenesis001LinuxFreezeEvidence(evidence('2026-09-19T00:11:10.001Z'), '2026-09-19T00:11:10.001Z')).toThrow();
+});
+
+it('accepts distinct ordered observations from one real execution and rejects inconsistent shared cleanup', () => {
+  const pair = evidence('2026-09-19T00:02:00.000Z', '1');
+  expect(projectGenesis001LinuxFreezeEvidence(pair, '2026-09-19T00:02:30.000Z')).toHaveProperty('g001AdmissionControlProfile');
+  const original: any = pair.currentStateReceipt.policyObservation;
+  const changed = createGenesis001LinuxPolicyReceipt({ profile: 'warpkeep-g001-linux-policy-execution-v1',
+    sourceCommit: original.protectedCommit, sourceTree: original.moduleTreeId, operatorBlob: original.operatorBlob,
+    operatorSha256: original.operatorSha256, runtime: original.runtime, dependencyClosureSha256: original.dependencyClosureSha256,
+    execution: original.execution, cleanup: { ...original.cleanup, namespaceInventorySha256: '9'.repeat(64) },
+    policyObservationReceipt: original.policyObservationReceipt }, SOURCE);
+  const currentStateReceipt = createGenesis001LinuxFreezeCurrentStateReceipt({ schemaVersion: 1,
+    profile: GENESIS_001_LINUX_FREEZE_CURRENT_STATE_PROFILE, sourceCommit: SOURCE,
+    confirmationReceiptDigest: pair.confirmationReceipt.receiptDigest, policyObservation: changed }, SOURCE);
+  expect(() => projectGenesis001LinuxFreezeEvidence({ ...pair, currentStateReceipt }, '2026-09-19T00:02:30.000Z')).toThrow();
 });
 
 it('rejects a later valid observation built from a different source closure', () => {

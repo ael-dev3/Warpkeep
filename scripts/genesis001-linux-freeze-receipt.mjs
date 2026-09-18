@@ -117,10 +117,11 @@ export function projectGenesis001LinuxFreezeEvidence(value, verificationTimestam
   const observedAt = timestamp(after.policyObservationReceipt.observedAt);
   const verifiedAt = timestamp(verificationTimestamp);
   if (current.confirmationReceiptDigest !== confirmation.receiptDigest
-    || observedAt < confirmedAt || observedAt > verifiedAt || verifiedAt - observedAt > TTL
+    || observedAt <= confirmedAt || observedAt > verifiedAt || verifiedAt - observedAt > TTL
     || verifiedAt - confirmedAt > MAXIMUM_CONFIRMATION_AGE
-    || before.execution.runId === after.execution.runId
     || before.receiptLinkSha256 === after.receiptLinkSha256
+    || (before.execution.runId === after.execution.runId
+      && JSON.stringify(before.cleanup) !== JSON.stringify(after.cleanup))
     || ['moduleTreeId', 'operatorBlob', 'operatorSha256', 'dependencyClosureSha256']
       .some(key => before[key] !== after[key])
     || ['bundleSha256', 'sourceClosureSha256'].some(key => before.execution[key] !== after.execution[key])) fail();

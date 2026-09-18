@@ -156,8 +156,10 @@ After bridge deployment, deploy the disabled preparation signer and gateway.
 Use their authenticated observation to establish the actual bridge configuration
 identity and full secret separation. A prepared receipt or exported entrypoint
 alone does not establish that signed readback. The new source passed 56 focused
-Windows tests and independent review; its native journal case, refreshed source
-closure and protected deployment remain separate checks.
+Windows tests and independent review. At published `3ecf9d08`, all 179 cases in
+the four affected suites passed on native Linux without skips, including the
+new retained journal case. Refreshed source closure and protected deployment
+remain separate checks.
 
 Linux is the supported deployment lane. The historical Darwin workflow does not
 forward the new observer inputs and cannot deploy through the new shared caller.

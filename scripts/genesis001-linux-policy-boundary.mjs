@@ -12,6 +12,12 @@ export const G001_POLICY_NODE_SHA = 'e6ec2c188d83d813f81f2de8aea084d74dce603ac1a
 export const G001_POLICY_ROOT = posix.join(G001_POLICY_HOME, '.warpkeep', 'private',
   'production-admin-v1', 'g001-policy-observation');
 export const G001_POLICY_OPERATOR = 'scripts/genesis001-policy-observation-receipt.mjs';
+export const G001_CENSUS_OPERATOR = 'scripts/genesis001-linux-census-operator.ts';
+export function policyOperator(kind = 'policy') {
+  if (kind === 'policy') return G001_POLICY_OPERATOR;
+  if (kind === 'census') return G001_CENSUS_OPERATOR;
+  policyFail();
+}
 const GIT = posix.join('/', 'usr', 'bin', 'git');
 const GIT_SHA = '2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668';
 const NULL_PATH = posix.join('/', 'dev', 'null');
@@ -77,7 +83,8 @@ export function policyGit(root, args, buffer = false) {
     encoding: buffer ? 'buffer' : 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   return buffer ? value : value.trimEnd();
 }
-export function attestPolicySource(expected, root = process.cwd()) {
+export function attestPolicySource(expected, root = process.cwd(), kind = 'policy') {
+  const operatorPath = policyOperator(kind);
   if (root !== resolve(root) || realpathSync(root) !== root
     || policyGit(root, ['rev-parse', '--show-toplevel']) !== root
     || !['https://github.com/ael-dev3/Warpkeep', 'https://github.com/ael-dev3/Warpkeep.git']
@@ -88,12 +95,12 @@ export function attestPolicySource(expected, root = process.cwd()) {
   const tree = policyGit(root, ['rev-parse', '--verify', 'HEAD^{tree}']);
   if (!/^[a-f0-9]{40}$/u.test(commit) || !/^[a-f0-9]{40}$/u.test(tree)
     || policyGit(root, ['rev-parse', '--verify', 'refs/remotes/origin/main^{commit}']) !== commit) policyFail();
-  const operatorBlob = policyGit(root, ['rev-parse', `${commit}:${G001_POLICY_OPERATOR}`]);
+  const operatorBlob = policyGit(root, ['rev-parse', `${commit}:${operatorPath}`]);
   if (!/^[a-f0-9]{40}$/u.test(operatorBlob)) policyFail();
-  const operator = policyGit(root, ['show', `${commit}:${G001_POLICY_OPERATOR}`], true);
+  const operator = policyGit(root, ['show', `${commit}:${operatorPath}`], true);
   const operatorSha256 = policyDigest(operator);
   try {
-    readLocalBindingBoundedFile(join(root, G001_POLICY_OPERATOR), { maximumBytes: 1024 * 1024,
+    readLocalBindingBoundedFile(join(root, operatorPath), { maximumBytes: 1024 * 1024,
       expectedBytes: operator.length, expectedSha256: operatorSha256, expectedUid: 1000 }).body.fill(0);
   } finally { operator.fill(0); }
   const source = Object.freeze({ sourceCommit: commit, sourceTree: tree, operatorBlob, operatorSha256 });

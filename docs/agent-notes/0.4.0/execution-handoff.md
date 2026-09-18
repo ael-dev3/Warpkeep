@@ -189,7 +189,8 @@ alongside the source-fixed G002 identity and initial observer epoch. Its separat
 six-secret predecessor and nine-secret candidate contracts preserve existing
 authentication, Durable Objects and migration identity. Historical completed
 seven-secret recovery remains supported. The 56 focused Windows tests passed;
-native journal verification, generated closure refresh and deployment remain.
+at published `3ecf9d08`, all 179 tests in the four affected suites then passed
+on native Linux without skips. Generated closure refresh and deployment remain.
 This secret provisioning and source verification are not a Worker deployment.
 
 ### PTR fixture source repair
@@ -258,6 +259,24 @@ service authorization, source authority, activation generation and workflow
 dispatch still reject V6 until the actual Linux producer and consumers are
 integrated. It neither changes the G001 access policy nor suspends player timers.
 
+The native census producer now collects both stable samples in one authenticated
+read-only execution. It uses the existing admin session and aggregate-checked
+admission reader, waits the original stable interval, then observes confirmation
+and current policy in strictly increasing order. An immutable complete attempt
+is retained only after actual child cleanup and exact private-report/proof
+reopening. Interrupted attempts are not selected; no suspension, new continuation
+claim or provider mutation was introduced. Both observations can truthfully
+share one native execution while retaining their distinct observation digests.
+
+Independent review found no blocking defect; a small nested-record immutability
+issue was corrected without changing receipt bytes. The 64 focused tests passed
+on Windows with one POSIX-only private-retention case skipped; application types
+passed. The final attempt-only regression rerun passed 11 with that same single
+skip. Native materialization/descriptor verification, protected admin-token
+provisioning and dispatch/activation integration remain required. The public
+result selects an explicit source/workflow/attempt/digest; it does not select the
+newest directory or assert a successful production census.
+
 ### Shipping estimate and next critical work
 
 Planning estimate: **5–10 focused working days once operation-specific private
@@ -267,8 +286,8 @@ allowance, not a promised calendar date; it excludes unknown waits for retained
 private records or owner/device availability. A significant acceptance failure
 would require re-estimation. Source/test counts are not a completion percentage.
 
-Next: integrate the initial signer repair after its exact-head checks, then finish
-the identified native producer gaps. Prepare
+Next: finish the native callers and their activation integration. The initial
+signer repair is already merged; bridge observation source is published. Prepare
 and independently check the family from its actual M1, promote M2 and wait for
 that main Verify. Then use supported read-only inspections to identify each
 remaining private prerequisite and its existing producer. Missing implementation

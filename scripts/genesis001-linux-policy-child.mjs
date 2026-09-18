@@ -9,11 +9,16 @@ import { attestPolicyHost, attestPolicySource, policyFail, policyOwnedRun, readP
 export async function runFixedLinuxG001PolicyChild(request) {
   let transferred = false, hooks;
   try {
-    if (!request || JSON.stringify(Object.keys(request)) !== JSON.stringify(['runId', 'operationRoot', 'source', 'bundleSha256', 'bundleBytes'])
+    const kind = request?.kind === 'census' ? 'census' : 'policy';
+    const keys = ['runId', 'operationRoot', 'source', 'bundleSha256', 'bundleBytes',
+      ...(kind === 'census' ? ['kind', 'githubRunId', 'githubRunAttempt'] : [])];
+    if (!request || JSON.stringify(Object.keys(request)) !== JSON.stringify(keys)
       || process.argv.length !== 2 || !/^[a-f0-9]{64}$/u.test(request.bundleSha256)
+      || (kind === 'census' && (!/^[1-9][0-9]{0,19}$/u.test(request.githubRunId)
+        || !/^[1-9][0-9]{0,19}$/u.test(request.githubRunAttempt)))
       || !Number.isSafeInteger(request.bundleBytes) || request.bundleBytes < 1 || request.bundleBytes > 16 * 1024 * 1024) policyFail();
     const host = attestPolicyHost();
-    const source = attestPolicySource(request.source);
+    const source = attestPolicySource(request.source, process.cwd(), kind);
     policyOwnedRun(request.operationRoot, request.runId);
     const path = join(request.operationRoot, 'first.mjs'), url = pathToFileURL(path).href;
     const initial = readLocalBindingBoundedFile(path, { maximumBytes: 16 * 1024 * 1024,
@@ -33,13 +38,17 @@ export async function runFixedLinuxG001PolicyChild(request) {
       },
     });
     const operator = await import(url);
-    if (typeof operator.executeGenesis001PolicyObservationFromDescriptor !== 'function') policyFail();
-    attestPolicyHost(host); attestPolicySource(source); read().fill(0);
+    const entry = kind === 'census' ? operator.executeGenesis001LinuxCensusFromDescriptor
+      : operator.executeGenesis001PolicyObservationFromDescriptor;
+    if (typeof entry !== 'function') policyFail();
+    attestPolicyHost(host); attestPolicySource(source, process.cwd(), kind); read().fill(0);
     transferred = true;
-    const receipt = await operator.executeGenesis001PolicyObservationFromDescriptor({
+    const receipt = await entry({
       sourceCommit: source.sourceCommit, repositoryRoot: process.cwd(), descriptor: 4,
+      ...(kind === 'census' ? { attemptId: request.runId, githubRunId: request.githubRunId,
+        githubRunAttempt: request.githubRunAttempt } : {}),
     });
-    attestPolicyHost(host); attestPolicySource(source); read().fill(0);
+    attestPolicyHost(host); attestPolicySource(source, process.cwd(), kind); read().fill(0);
     return receipt;
   } finally {
     hooks?.deregister();

@@ -7,10 +7,10 @@ import { deriveGenesis002LocalBindingSourceGraph, validateLocalBindingYamlManife
 import { installLocalBindingNativeTsHooks } from './local-binding-native-ts-hooks.mjs';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { attestPolicyHost, attestPolicySource, G001_POLICY_ENV, G001_POLICY_HOME,
-  G001_POLICY_OPERATOR, policyDigest, policyFail, policyGit, policyOwnedRun, readPolicyRequest } from './genesis001-linux-policy-boundary.mjs';
+  policyOperator, policyDigest, policyFail, policyGit, policyOwnedRun, readPolicyRequest } from './genesis001-linux-policy-boundary.mjs';
 
 function inside(root, path) { return path === root || path.startsWith(`${root}${sep}`); }
-function captureGraph(root, yamlRoot, metadata) {
+function captureGraph(root, yamlRoot, metadata, operatorPath) {
   if (!metadata || !metadata.inputs || !metadata.outputs || Object.keys(metadata.outputs).length !== 1) policyFail();
   const output = Object.values(metadata.outputs)[0];
   if (output.imports.some(edge => edge.external !== true || !isBuiltin(edge.path))) policyFail();
@@ -23,17 +23,20 @@ function captureGraph(root, yamlRoot, metadata) {
       : `fixed-yaml/${relative(yamlRoot, path).split(sep).join('/')}`, bytes: opened.body.length, sha256: policyDigest(opened.body) }); }
     finally { opened.body.fill(0); }
   }
-  if (!records.some(record => record.path === G001_POLICY_OPERATOR) || records.length > 4096) policyFail();
+  if (!records.some(record => record.path === operatorPath) || records.length > 4096) policyFail();
   return policyDigest(Buffer.from(JSON.stringify(records)));
 }
 
 /** Fixed source/build process only; no administrator descriptor is inherited. */
 export async function materializeFixedLinuxG001Policy(request) {
-  if (!request || JSON.stringify(Object.keys(request)) !== JSON.stringify(['runId', 'operationRoot', 'source'])
+  const kind = request?.kind === 'census' ? 'census' : 'policy';
+  const keys = ['runId', 'operationRoot', 'source', ...(kind === 'census' ? ['kind'] : [])];
+  if (!request || JSON.stringify(Object.keys(request)) !== JSON.stringify(keys)
     || process.argv.length !== 2) policyFail();
+  const operatorPath = policyOperator(kind);
   const host = attestPolicyHost(undefined, true);
   policyOwnedRun(request.operationRoot, request.runId);
-  const root = process.cwd(), source = attestPolicySource(request.source, root);
+  const root = process.cwd(), source = attestPolicySource(request.source, root, kind);
   const manifestPath = 'scripts/local-binding-runtime-yaml-v1.json';
   const committed = policyGit(root, ['show', `${source.sourceCommit}:${manifestPath}`], true);
   let yaml;
@@ -64,12 +67,12 @@ export async function materializeFixedLinuxG001Policy(request) {
             '.pnpm', '@esbuild+linux-x64@0.25.12', 'node_modules', '@esbuild', 'linux-x64', 'bin', 'esbuild'));
           let first;
           for (const cycle of ['first', 'second']) {
-            attestPolicyHost(host, true); attestPolicySource(source, root);
+            attestPolicyHost(host, true); attestPolicySource(source, root, kind);
             const destination = join(request.operationRoot, `${cycle}.mjs`);
             const metafile = join(request.operationRoot, `${cycle}.json`);
             // Compiler and SDK bytes are enclosed by the existing locked-source
             // materializer's complete before/after archive and tree attestation.
-            const compilation = spawnSync(compiler, [G001_POLICY_OPERATOR, '--bundle', '--platform=node', '--format=esm',
+            const compilation = spawnSync(compiler, [operatorPath, '--bundle', '--platform=node', '--format=esm',
               '--target=node22', '--log-level=warning', '--charset=utf8',
               '--banner:js=import {createRequire as policyCreateRequire,isBuiltin as policyIsBuiltin} from "node:module"; const require=(name)=>{if(!policyIsBuiltin(name))throw Error("G001_POLICY_REQUIRE_DENIED");return policyCreateRequire(import.meta.url)(name);};',
               `--outfile=${destination}`, `--metafile=${metafile}`], {
@@ -84,7 +87,7 @@ export async function materializeFixedLinuxG001Policy(request) {
               expectedUid: 1000, expectedMode: 0o600 });
             let result;
             try { result = { bundleSha256: policyDigest(bundle.body), bundleBytes: bundle.body.length,
-              sourceClosureSha256: captureGraph(context.materializedRoot, yamlRoot, JSON.parse(meta.body.toString('utf8'))) }; }
+              sourceClosureSha256: captureGraph(context.materializedRoot, yamlRoot, JSON.parse(meta.body.toString('utf8')), operatorPath) }; }
             finally { bundle.body.fill(0); meta.body.fill(0); }
             if (first && JSON.stringify(first) !== JSON.stringify(result)) policyFail();
             first = result;
@@ -101,7 +104,7 @@ export async function materializeFixedLinuxG001Policy(request) {
         }
       },
     });
-    attestPolicyHost(host, true); attestPolicySource(source, root);
+    attestPolicyHost(host, true); attestPolicySource(source, root, kind);
     policyOwnedRun(request.operationRoot, request.runId);
     if (built.moduleTreeId !== source.sourceTree) policyFail();
     return Object.freeze({ ...built.result, dependencyClosureSha256: built.dependencyClosureDigest });

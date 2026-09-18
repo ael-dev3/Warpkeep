@@ -2,9 +2,18 @@ import type { SealedRealmsProductionWorkflowEvidence } from './sealed-realms-pro
 declare const preparationBrand: unique symbol;
 export type FixedLinuxG001PolicyPreparation = Readonly<{ [preparationBrand]: true }>;
 export type Genesis001LinuxPolicyPreparation = FixedLinuxG001PolicyPreparation;
+declare const censusPreparationBrand: unique symbol;
+export type FixedLinuxG001CensusPreparation = Readonly<{ [censusPreparationBrand]: true }>;
+export function prepareFixedLinuxG001CensusObservation(): Promise<FixedLinuxG001CensusPreparation>;
+export function assertFixedLinuxG001CensusPreparation(handle: FixedLinuxG001CensusPreparation): void;
+export function executeFixedLinuxG001CensusObservation(handle: FixedLinuxG001CensusPreparation,
+  evidence: SealedRealmsProductionWorkflowEvidence): Promise<Readonly<{
+    profile: 'warpkeep-g001-linux-census-completed-v1'; sourceCommit: string; attemptId: string;
+    githubRunId: string; githubRunAttempt: string; receiptDigest: string; completedAt: string; mutationSubmitted: false;
+  }>>;
 export function prepareFixedLinuxG001PolicyObservation(): Promise<FixedLinuxG001PolicyPreparation>;
 export function assertFixedLinuxG001PolicyPreparation(handle: FixedLinuxG001PolicyPreparation): void;
-export function disposeFixedLinuxG001PolicyObservation(handle: FixedLinuxG001PolicyPreparation): void;
+export function disposeFixedLinuxG001PolicyObservation(handle: FixedLinuxG001PolicyPreparation | FixedLinuxG001CensusPreparation): void;
 export function executeFixedLinuxG001PolicyObservation(handle: FixedLinuxG001PolicyPreparation, evidence: SealedRealmsProductionWorkflowEvidence): Promise<Readonly<{
   profile: 'warpkeep-g001-linux-policy-execution-v1'; sourceCommit: string; sourceTree: string;
   operatorBlob: string; operatorSha256: string;
