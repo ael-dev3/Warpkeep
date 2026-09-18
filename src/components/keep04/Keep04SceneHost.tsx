@@ -132,7 +132,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
       }
       const preserveManualView = sized && (view.panX !== 0 || view.panZ !== 0 || view.zoom !== 1);
       renderer.setSize(width, height, false); scene.resize(width, height, preserveManualView);
-      if (view.frame.kind !== 'grounds' && !preserveManualView) scene.fitSite(view.frame.bounds, width / height);
+      if (view.frame.kind !== 'grounds' && !preserveManualView) scene.fitSite(view.frame.bounds, width / height, view.frame.kind === 'inspection');
       scene.camera.zoom = view.zoom; scene.camera.updateProjectionMatrix();
       if (!preserveManualView) {
         scene.camera.position.x += view.panX; scene.camera.position.z += view.panZ;

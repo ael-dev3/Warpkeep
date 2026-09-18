@@ -1,5 +1,32 @@
 # Verdant Citadel visual evidence — final acceptance open
 
+## September 18 maintenance comparison
+
+The maintenance follow-up in PR #299 was reviewed in the real local Keep04 QA
+harness at 390×844 portrait, 844×390 short landscape and 320×568 fallback.
+Construction readouts agreed; the reviewed controls remained at least 44px high,
+and document width did not overflow. The fallback had no WebGL canvas and kept
+the schematic usable. These are emulated local views, not physical-device or
+authenticated owner acceptance.
+
+The mature fixture exposed an inspection sightline problem. Its foreground
+Lumber Camp can obstruct the selected City Mill; an earlier note naming those
+two buildings in the reverse order was mistaken. A direct original/repaired
+comparison showed that inspection-only 60° elevation separates the Mill facade
+and level marker from the foreground roof. The same repaired view was inspected
+for the Lumber Camp. Entry/grounds composition stays unchanged, and existing
+resize, manual pan/zoom, quality replacement and context-recovery tests pass.
+This is a bounded camera repair, not proof that every possible placement is
+occlusion-free. Final whole-journey, profile and device measurements remain open.
+
+The inspiration review retains the coherent construction lesson from
+[Townscaper](https://rawfury.com/games/townscaper/) and
+[Tiny Glade](https://store.steampowered.com/app/2198150/Tiny_Glade/), and the
+landform/readability focus of [Mapgen4](https://www.redblobgames.com/maps/mapgen4/).
+Their simulation/editor features do not expand this maintenance pass. Pelagic
+and Koi Canal were unavailable through the web reader; their retained handoff
+observations are labeled historical, without a new rendering or reuse claim.
+
 ## 2026-09-15 bounded capture diagnostic schema
 
 The Windows Keep04 observer now retains each browser diagnostic as the existing

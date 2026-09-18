@@ -6,32 +6,128 @@ This is the active source and operations record. The current pass is maintenance
 only: preserve the existing mechanics and visuals, correct concrete defects,
 and do not add new runtime features.
 
-The latest runtime-bearing source in protected `main` is **`b35f2608f8de131596ede60e508b393f123ca36e`**, merged through
-PR #295 (`fix(keep): clarify first resource journey action`). The repair makes
-the first mobile journey instruction and action label explicit; it changes no
-mechanics, authority, assets or release gates. PR Verify `35332973078` and
-CodeQL `35332973179` passed, followed by post-merge Verify `35337649140` and
-CodeQL `35337649063` for the exact main SHA. Pages run `35342265515` passed
-source classification, while build, deployment, recovery and live-verification
-lanes remained skipped because the sealed 0.4 release authority and approval
-state are not closed. No provider mutation was made.
+Protected `main` at the start of this audit is
+**`74365a19a8377f60891d418f28b290908d96b028`**, the signed squash of PR #298.
+Its construction-feedback change passed PR Verify `35366945754`, CodeQL
+`35366945733`, main Verify `35372473023` and main CodeQL `35372472714`.
+Pages run `35377095473` succeeded only in `classify`; private toolchain, build,
+deployment, recovery and live verification were all skipped. No 0.4 deployment
+is established by that result.
 
-The Windows main checkout, the detached native `WarpkeepRunner` checkout and
-the secondary Windows reference checkout are clean at this SHA; only the idle
-RunnerService remains active in WSL. Companion repositories are clean and equal
-to their remotes: profile `571c7daeee7b5719b3930ec10af4b1e62245124b`, assets
-`1e5c49e9819ea50cf4e03675bb05868f90f06fdc`, water engine
-`9d42fb786b9fe2dbed9e9a5103c9c692d5612567` and editor
-`f8fbb36a964e875c574620bd01e2848e7b7be253`.
+Active work is [PR #299](https://github.com/ael-dev3/Warpkeep/pull/299), branch
+`codex/0.4-construction-summary-20260918`, in
+`C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep`.
+Its verified development checkpoint `59a919a121eef0623d169d876e75daedef73c193`
+passed all six Verify jobs in `35381941140` and CodeQL `35381941132`.
+That result belongs to that exact head: subsequent maintenance commits require
+their own checks. `C:/Temp/warpkeep-0.4-next` tracks protected main. Consult the
+[checkout roles](../../operations/0.4.0-development-sync.md#start-from-the-actual-checkout-and-remote)
+before moving either copy; synchronization means equality with each checkout's
+intended published ref, not forcing every copy onto the same branch.
 
-The focused Keep screen/accessibility/contract tests passed 68 tests with one
-intentional skip; typecheck, production build, runtime-asset, license,
-atlas-boundary and sealed-launch checks pass. Inner Keep QA passed 18 synthetic
-cases and the connected local full-stack probe passed browser/auth/Terms/Inner
-Keep/worker/10,000-cell/population and visual coverage. The live site remains
-the older 0.3.43 bundle, so this green source state is not a shipped release.
-Keep the sync automation paused, use the existing checkouts, and resolve the
-current protected SHA before every future dispatch.
+The first PR #299 Verify (`35377225774`) failed because the extracted
+`constructionProgress04.ts` was absent from the deployment source inventory.
+The repair derives a 1,216-member manifest and all four workflow bootstrap
+bodies together. Independent in-memory regeneration matched their committed
+bytes exactly. The corrected hosted Linux suite passed. A prior direct Windows
+run of POSIX deployment tests is not acceptance evidence: UID/mode, symlink and
+`/usr/bin/git` fixtures require native Linux. Preserve those checks.
+
+On this verified development source, pinned Windows Node 22.22.3 passed 219
+tests across twelve Keep04 presentation, accessibility, placement, lifecycle
+and visual-contract suites. The complete production build also passed its
+type, generated dressing, asset, public-boundary, DEV-exclusion and Mini App
+checks. Vite retains a large-chunk warning; that warning is not a measured
+performance failure or a physical-device pass. Earlier full-stack and Inner
+Keep probes remain historical evidence for their recorded source.
+
+Keep the sync automation paused and create no Desktop siblings. The most
+recent live observation remains the older 0.3.43 bundle. Source CI, a publisher
+login and synthetic presentation do not close owner play, provider deployment,
+recovery/readback, G001 preservation, G002 denial, physical-device performance
+or final release freeze. Later runtime edits also require preparation/check
+of the complete family from the actual integrated M1 before M2 or protected
+operations; do not dispatch against stale generated bundles.
+
+### September 18 deep maintenance review
+
+The owner requested a quality audit without new features. Independent review
+covers gameplay authority/client reconciliation and the final UI/camera diff; local
+review covers renderer cleanup, timestamp feedback, narrow controls, historical
+evidence and inspiration boundaries. Browser checks use the real synthetic
+Keep04 harness, not an authenticated player. At 390×844, the construction card
+and scene summary agree, and displayed button heights meet the existing 44px
+rule. At 844×390, the building panel remains in the document scroll below the
+sticky resource header. At 320×568 the intentional schematic fallback has no
+canvas or horizontal overflow and retains touch-sized controls.
+
+The rendered comparison corrected an earlier building-name mix-up: in the
+mature fixture, the foreground **Lumber Camp** obstructs the **City Mill** being
+inspected. The existing Inspect action now uses a steeper sightline; the Mill's
+facade and level marker are visible in the 390×844 comparison. Entry/grounds
+framing, manual pan/zoom and context/quality recovery retain their existing
+behavior. Geometry budgets, models and gameplay are unchanged. The six-building
+camera tests exercise completed models and scaffolds; final physical-phone
+composition remains an acceptance gate.
+
+Maximum-level review now presents completed benefits without an impossible
+upgrade heading, warning or confirmation. The schematic names construction and
+benefit review accurately. A fully upgraded keep points back to gathering instead
+of recommending another building upgrade. Existing command authority is unchanged.
+The three new UI regressions and three foreground-obstruction cases failed before
+their fixes. The combined final focused run passed **229 tests in 13 suites**;
+closure topology passed four further tests. Independent review found no
+actionable issue in the final UI/camera diff. These local checks do not confer
+hosted acceptance on the newer PR head.
+The final complete production build passed. Changing the camera source required
+regenerating the dressing provenance digest; the generated geometry itself was
+unchanged. The source manifest and all four bootstrap workflow bodies were then
+regenerated together and a second derivation matched every byte. This still does
+not refresh or authorize the native compiled operation family.
+
+The independent core review traced commands, construction, reconciliation,
+Workers, journey arithmetic and keep validation through the PTR transaction,
+scheduler, connection capability and client controller. It found no substantiated
+authority, double-settlement, accumulated-balance or exact-retry defect. Existing
+tests were inspected for these invariants; this pass does not claim new live
+concurrency or owner evidence.
+
+The active Windows clone was shallow. Completing its history from the existing
+full main checkout repaired the license verifier without another clone. The
+sealed-launch CLI correctly rejected the intentionally dirty development tree;
+run it after committing the clean candidate, rather than weakening its checkout
+guard. Native Linux was verified idle and fast-forwarded to protected main
+`74365a19`; the four companion repositories were checked clean and equal to their
+remotes. Preserve the active PR branch in the Windows development checkout.
+
+Current source/CI facts now live only in this handoff; other entry documents
+link here rather than repeatedly publishing stale main SHAs. Their dated
+historical evidence remains unchanged. The Desktop historical prose contains
+non-invertible character corruption, including digits and hashes. Restore only
+exact matching passages from intact retained originals; never globally replace
+characters or use unrecovered historical identifiers for an operation.
+The exact-source restoration recovered 576 lines in 89 matched spans. Unmatched
+Next Work history and later additions remain explicitly flagged; only the two
+existing Desktop files were edited. The Koi Canal addition is now mapped to a
+bounded shoreline/palette review in the visual contract, with no reuse or
+performance claim.
+
+### Shipping estimate and next critical work
+
+Planning estimate: **5–10 focused working days once operation-specific private
+authority is usable**, including native family integration, provider/recovery
+validation, actual-owner play, device measurements and fixes. This is an effort
+allowance, not a promised calendar date; it excludes unknown waits for retained
+private records or owner/device availability. A significant acceptance failure
+would require re-estimation. Source/test counts are not a completion percentage.
+
+Next: finish the current PR's exact-head checks and protected integration; prepare
+and independently check the family from its actual M1, promote M2 and wait for
+that main Verify. Then use supported read-only inspections to identify each
+remaining private prerequisite and its existing producer. Missing implementation
+is agent work; ask the owner only for the specific inaccessible retained record,
+login step or prepared real-device/play test. Do not request secrets in chat or
+dispatch provider changes using the earlier generated family.
 
 ### Maintenance review and recurrence prevention
 

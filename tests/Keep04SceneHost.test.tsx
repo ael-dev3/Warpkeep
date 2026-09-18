@@ -306,9 +306,10 @@ it('inspects explicitly, retains zoom through resize and draft edits, and resets
   const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(796);
   const height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(144);
   const current = props(); const mounted = render(<Keep04SceneHost {...current} />); await act(async () => {}); tick();
-  const camera = renderers[0].camera!; const overview = camera.position.clone();
+  const camera = renderers[0].camera!; const overview = camera.position.clone(); const overviewDirection = camera.getWorldDirection(new THREE.Vector3());
   const inspect = screen.getByRole('button', { name: 'Inspect selected site' }); fireEvent.click(inspect); tick(100);
   expect(camera.top).toBe(12); expect(camera.position.equals(overview)).toBe(false); expect(inspect).toHaveFocus();
+  expect(camera.getWorldDirection(new THREE.Vector3()).y).toBeLessThan(overviewDirection.y);
   fireEvent.click(screen.getByRole('button', { name: 'Zoom in' })); expect(camera.zoom).toBe(1.2);
   const inspectedPosition = camera.position.clone();
   mounted.rerender(<Keep04SceneHost {...current} visual={{ ...current.visual, draft: { ...current.visual.draft!, x: -10_000_000n } }} />);
@@ -326,6 +327,7 @@ it('inspects explicitly, retains zoom through resize and draft edits, and resets
   mounted.rerender(<Keep04SceneHost {...current} visual={{ ...current.visual, selectedKind: 'lumber-camp', draft: { ...current.visual.draft!, kind: 'lumber-camp', x: 20_000_000n } }} />);
   expect(screen.getByText(/Inspecting Lumber Camp/)).toBeVisible(); expect(camera.zoom).toBe(1);
   fireEvent.click(screen.getByRole('button', { name: 'Fit grounds' })); expect(camera.position.equals(overview)).toBe(true);
+  expect(camera.getWorldDirection(new THREE.Vector3()).distanceTo(overviewDirection)).toBeLessThan(1e-10);
   expect(mounted.container.querySelectorAll('canvas')).toHaveLength(1); expect(loader.loadKeep04Assets).toHaveBeenCalledOnce();
   expect(current.onPlacement).not.toHaveBeenCalled(); expect(current.onSelect).not.toHaveBeenCalled();
   mounted.unmount(); expect(observers).toBe(0); expect(queued.size).toBe(0);

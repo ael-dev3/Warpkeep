@@ -5,12 +5,19 @@ import { afterEach, expect, it } from 'vitest';
 import { activeKeep04LoopStage04, KEEP04_LOOP_STAGES04, keep04LoopDetail04, Keep04LoopRail } from '../src/components/keep04/Keep04LoopRail';
 import { presentState04 } from '../src/ptr/gameplay04/gameplay04Presentation';
 import { decodeState04 } from '../src/ptr/gameplay04/gameplay04State';
+import { createKeep04QaScenario } from '../src/dev/keep04QaScenarios';
 import { ATLAS04, SCOPE04, assignmentWire04, constructingWire04, freshWire04, wireWithBuilding04 } from './fixtures/gameplay04Client';
 
 afterEach(cleanup);
 
 const viewOf = (wire = freshWire04()) => presentState04(decodeState04(wire, SCOPE04), ATLAS04, 0);
 const emptySelection = { panel: null, selectedKind: null, draft: null } as const;
+
+it('offers gathering when the keep has no remaining building upgrades', () => {
+  const view = createKeep04QaScenario('all-six-level-five', 20_000).snapshot.view!;
+  expect(activeKeep04LoopStage04(emptySelection, view)).toBe('gather');
+  expect(activeKeep04LoopStage04({ ...emptySelection, panel: 'buildings', selectedKind: 'city-mill' }, view)).toBe('benefit');
+});
 
 it('keeps the loop order stable and chooses a clear next stage', () => {
   expect(KEEP04_LOOP_STAGES04).toEqual(['gather', 'choose', 'build', 'benefit', 'return']);

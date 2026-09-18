@@ -92,6 +92,15 @@ supported dependency caches; an older input's compiled family cannot be relabele
 for a new source. A documentation-only follow-up outside the closure does not
 itself require another preparation.
 
+Extracting a browser helper can change the deployment closure even when behavior
+is unchanged. Before publishing, verify the derived namespace in
+`tests/authBridgeNotificationB0Closure.test.ts`. Use
+`deriveAuthBridgeNotificationPreparedDeployClosure` for the manifest **and every
+returned workflow body**; do not copy hash strings between YAML files manually.
+Check byte-for-byte regeneration and run the native closure/deployment suites in
+their supported environment. This source-inventory repair does not refresh the
+compiled operation family or replace the M1/M2 preparation sequence.
+
 If publication fails, preserve the work and record the exact reason, then resume
 sync when it clears. A running native build retains its pinned operating source
 and is synchronized after it releases that source. The owner paused the app sync

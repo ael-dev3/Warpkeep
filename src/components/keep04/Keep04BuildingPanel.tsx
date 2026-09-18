@@ -28,6 +28,7 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
     'city-goldworks': completed.goldworks, 'city-barracks': completed.barracks, 'grand-covenant-cathedral': completed.cathedral };
   const existing = view.buildings.find(building => building.kind === selectedKind);
   const selectedProject = view.state.project?.kind === selectedKind ? view.state.project : undefined;
+  const selectedMaximum = selectedKind !== null && levels[selectedKind] === 5;
   const placement = existing?.placement ?? (draft?.kind === selectedKind ? draft : null);
   const candidate = useMemo(() => {
     if (!selectedKind || !placement) return null;
@@ -100,7 +101,7 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
     <p>Benefits apply after completion. Each expedition keeps the gathering rate it began with.</p>
     {view.state.project !== undefined && <p className="keep04-badge">Builder busy</p>}
     {selectedKind && <section aria-labelledby={reviewId} className="keep04-selected-review">
-      <h3 id={reviewId} ref={reviewHeadingRef} tabIndex={-1}>{selectedProject ? 'Construction underway ·' : existing ? 'Upgrade' : 'Place'} {BUILDING_NAMES04[selectedKind]}</h3>
+      <h3 id={reviewId} ref={reviewHeadingRef} tabIndex={-1}>{selectedProject ? 'Construction underway ·' : selectedMaximum ? 'Building complete ·' : existing ? 'Upgrade' : 'Place'} {BUILDING_NAMES04[selectedKind]}</h3>
       {onViewSite && <button type="button" onClick={onViewSite}>{existing ? 'View site' : 'Adjust placement'}</button>}
       {card(selectedKind)}
       <div className="keep04-primary-action">
@@ -108,7 +109,7 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
       {selectedProject ? <>
         <p role="status">Resources for this construction are already committed.</p>
         <p>The new benefit applies when construction completes. {selectedProject.targetLevel < 5 ? 'Review the next upgrade after completion.' : 'This is the final building level.'}</p>
-      </> : <>
+      </> : selectedMaximum ? <p role="status">The highest level is complete. Current benefits are active.</p> : <>
       <p>Permanent placement: construction cannot be cancelled and spent resources are not refunded.</p>
       {changedRealm && <><p role="status">Review updated costs and confirm again</p><button type="button" disabled={!enabled} onClick={review}>Review updated costs</button></>}
       {!placement && <p role="status">No valid draft selected. Choose a building site.</p>}

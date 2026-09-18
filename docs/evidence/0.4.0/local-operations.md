@@ -4,18 +4,12 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 ## Resumption audit — 18 September 2026
 
-Latest runtime-bearing source in protected `main`: `b35f2608f8de131596ede60e508b393f123ca36e`, merged
-through PR #295. PR Verify `35332973078`, CodeQL `35332973179`, post-merge
-Verify `35337649140` and post-merge CodeQL `35337649063` passed for this exact
-SHA. Pages run `35342265515` passed source classification; build, deployment,
-recovery and live verification remained skipped because sealed release authority
-and approval are not closed. The live site remains the older 0.3.43 bundle.
-
-The native `WarpkeepRunner` checkout is clean and detached at the protected
-main SHA while idle; only its RunnerService is retained. The maintained Windows
-and secondary Windows checkouts are clean at the same SHA. The four companion
-repositories are clean and equal to their remotes. Inner Keep QA, the connected
-local full-stack probe, focused Keep tests, typecheck and production build pass.
+Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) for the
+dated checkout inventory, protected source, active branch and terminal checks.
+Different published branches and a pinned native input are legitimate roles;
+clean status alone is not proof of remote equality. Inspect the actual owning
+ref after fetching it. Historical full-stack and synthetic results below remain
+bound to their original source and platform, not every later main revision.
 The sync automation remains paused, no private bytes are copied into this
 repository or Desktop, and the existing Desktop handoffs are updated in place.
 Private activation, G001 observation, PTR observer/readback, provider

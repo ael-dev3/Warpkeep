@@ -80,7 +80,7 @@ export function Keep04Schematic({ buildings, draft, selectedKind, onSelect, onCh
       <button type="button" onClick={() => nudge(0, 1)}>Move down 0.5 m</button>
       <button type="button" onClick={rotate}>Rotate 90°</button>
     </div>}
-    {selectedKind && onReview && <button type="button" onClick={onReview}>{existing ? 'Review upgrade' : 'Review placement'}</button>}
+    {selectedKind && onReview && <button type="button" onClick={onReview}>{existing?.phase === 'constructing' ? 'View construction' : existing?.completedLevel === 5 ? 'Review benefits' : existing ? 'Review upgrade' : 'Review placement'}</button>}
     <div className="keep04-sites" aria-label="Completed and constructing sites">
       {buildings.map((building, index) => <button type="button" key={building.kind} aria-pressed={building.kind === selectedKind} onClick={() => onSelect(building.kind)}>
         {index + 1} · Select {BUILDING_NAMES04[building.kind]} · level {building.completedLevel} · {building.phase}

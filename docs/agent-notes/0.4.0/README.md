@@ -7,29 +7,22 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-The [execution handoff](execution-handoff.md) owns the current runtime-bearing source,
-completed Verify/CodeQL receipts and Pages classification. `main` is
-**`b35f2608f8de131596ede60e508b393f123ca36e`**, merged through PR #295, which
-clarified the first mobile journey instruction and action label without changing
-mechanics, authority, assets or release gates. PR Verify `35332973078`, CodeQL
-`35332973179`, post-merge Verify `35337649140` and post-merge CodeQL
-`35337649063` passed for that change. Pages run `35342265515` classified the
-same source successfully, while build, deployment, recovery and live
-verification remained skipped because sealed 0.4 release authority and approval
-are not closed. The live site remains the older 0.3.43 bundle.
+The [execution handoff](execution-handoff.md) is the single dated record of
+protected main, the active development branch, terminal CI receipts and Pages
+classification. Resolve live refs there before continuing; this index does not
+duplicate moving SHAs. 0.4 is unshipped. Source CI and the Pages classifier do
+not establish provider deployment, owner play or device acceptance.
 
 The Keep04 gather → choose → build → benefit → return foundation, readable
 expedition/return feedback, first-journey cue and mobile visual foundation are
-implemented and covered by focused tests. The current focused Keep screen,
-accessibility and contract tests pass 68 tests with one intentional skip;
-typecheck, production build, Inner Keep QA (18 synthetic cases), runtime-asset,
-license, atlas-boundary and sealed-launch checks pass. The connected local
-full-stack probe also passed its browser/auth/Terms/Inner Keep/worker,
-10,000-cell/population and visual coverage.
+implemented and covered by focused tests. Exact test results belong to the
+source and platform recorded in the execution handoff and linked evidence.
+Earlier connected probes and synthetic captures retain their original source;
+they do not automatically attest later presentation changes.
 
-The Windows main checkout, detached `WarpkeepRunner` checkout and secondary
-reference checkout are clean at the protected SHA. Companion repositories are
-clean and equal to their remotes. The sync automation is paused and routine
+Checkouts may legitimately track different published branches or immutable
+native inputs; use the [checkout roles](../../operations/0.4.0-development-sync.md#start-from-the-actual-checkout-and-remote).
+The sync automation is paused and routine
 notes belong in the repository; use the existing checkouts and ignored
 `artifacts/` directory, and create no Desktop siblings, backups or archives.
 Development and live release remain separate: private activation authority,

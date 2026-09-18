@@ -3615,22 +3615,22 @@
     {
       "path": "src/components/keep04/Keep04BuildingPanel.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "74c84e22889fcf56ed5b13089393696e581c6125532b31f2c5543ed6b7d641b1"
+      "sha256": "9410cfb734ae40feb57c26e0d5a6db11be9f7130a89efb1878947fb3fba47da5"
     },
     {
       "path": "src/components/keep04/Keep04LoopRail.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e0e95b916ba2d8d8b870d61e8cae019b1884ff9f2ef8669e08fe38a0f345a56c"
+      "sha256": "cf1e38cb0b56b26acd5373773f881d4e4bca0fc753c54a24b6c4dc8f882b14c6"
     },
     {
       "path": "src/components/keep04/Keep04SceneHost.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f3fe6f3d18012c600f4dc7b8cecb2d06ae4690548ed17ab26e3f5d684a6a4360"
+      "sha256": "85ccb6cc179a1a588686466184e62ca03a79e9cc88503d3e2f48229e21598987"
     },
     {
       "path": "src/components/keep04/Keep04Schematic.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "7b3940c9302b28981fe8de1877dccda059a929234b4fa4cfc04b6462ee046afd"
+      "sha256": "16b525e45a2a6505c0fa840b0c3d4fbf087925b26624acfea13192c06a5ed29e"
     },
     {
       "path": "src/components/keep04/Keep04Screen.css",
@@ -3660,7 +3660,7 @@
     {
       "path": "src/components/keep04/createKeep04Scene.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e7bea9b5426c5829d917f8298d9ba5166137853841f7860d817f46b728decd6d"
+      "sha256": "c0508385c618209af4c418a98e6684d12f9acb8ee2c21f41de3d009daa1916fc"
     },
     {
       "path": "src/components/keep04/formatKeep04Duration.ts",
@@ -3670,12 +3670,12 @@
     {
       "path": "src/components/keep04/keep04DressingPlans.generated.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e9bd60dc103dd6d22c1bf0b262dcaf14f28c7d12ffc18beb5b6ca755474caa01"
+      "sha256": "e4b1f82e0667f555defa87cb8176a25700ae1816eb94c09a6bc9f9dc1f08d2ba"
     },
     {
       "path": "src/components/keep04/keep04VisualProfile.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6ceda3d8b47b977121e894b8c6af9e282c90498e807f7f8b4a45aed734adc2fc"
+      "sha256": "00762e3245b693bd8db57467faad03ed11eec54696ae705c5ac6bab2b5ce40e7"
     },
     {
       "path": "src/components/keep04/keep04VoxelDressing.ts",

@@ -141,14 +141,28 @@ it.each([1, 5])('preserves the exact upgrade transform and a numeric completed-l
   render(<Harness />);
   expect(screen.getAllByText(`Completed level ${level}`).length).toBeGreaterThan(0);
   expect(screen.queryByRole('button', { name: 'Rotate 90°' })).not.toBeInTheDocument();
-  const confirm = screen.getByRole('button', { name: /Confirm upgrade/ });
+  const confirm = screen.queryByRole('button', { name: /Confirm upgrade/ });
   if (level === 5) {
-    expect(confirm).toBeDisabled(); expect(screen.getAllByText('Maximum level').length).toBeGreaterThan(0);
+    expect(confirm).not.toBeInTheDocument(); expect(screen.getAllByText('Maximum level').length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { name: 'Building complete · City Mill' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Review benefits' })).toBeVisible();
+    expect(screen.queryByText(/Permanent placement: construction cannot be cancelled/)).not.toBeInTheDocument();
+    expect(controller.submit).not.toHaveBeenCalled();
     const mill = within(screen.getByRole('article', { name: 'City Mill' }));
     expect(mill.getByText('Current: 20')).toBeVisible();
     expect(mill.queryByText(/Next:|Missing:|Cost:|Build duration:/)).not.toBeInTheDocument();
   }
-  else { fireEvent.click(confirm); expect(controller.submit).toHaveBeenCalledWith(expect.objectContaining({ kind: 'build', quote: expect.objectContaining({ placement: { ...MILL_PLACEMENT04, rotation: 90_000 } }) })); }
+  else { fireEvent.click(confirm!); expect(controller.submit).toHaveBeenCalledWith(expect.objectContaining({ kind: 'build', quote: expect.objectContaining({ placement: { ...MILL_PLACEMENT04, rotation: 90_000 } }) })); }
+});
+
+it('labels an existing construction review without offering the next upgrade', () => {
+  const view = presentState04(decodeState04(constructingWire04(), SCOPE04), ATLAS04, Date.now());
+  const review = vi.fn();
+  render(<Keep04Schematic buildings={view.buildings} draft={null} selectedKind="city-mill"
+    onSelect={vi.fn()} onChange={vi.fn()} onReview={review} />);
+  fireEvent.click(screen.getByRole('button', { name: 'View construction' }));
+  expect(review).toHaveBeenCalledOnce();
+  expect(screen.queryByRole('button', { name: 'Review upgrade' })).not.toBeInTheDocument();
 });
 
 it('keeps layout rules scoped and includes narrow-screen, forced-color and reduced-motion protections', () => {
