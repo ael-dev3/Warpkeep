@@ -136,5 +136,11 @@ it.skipIf(process.platform !== 'linux')('runs actual checked-in and activation V
         candidatePreparationCommit: command(repo, ['rev-parse', 'HEAD']).trim(), sources }))
         .toThrow('SEALED_LAUNCH_GENESIS_001_HISTORY_INVALID');
     }
-  } finally { rmSync(root, { recursive: true, force: true }); }
+  } finally {
+    // Git can finish unlinking temporary metadata just after the last CLI
+    // child exits on a busy hosted Linux runner. Retry only this owned temp
+    // tree so cleanup cannot turn a passing contract assertion into a flaky
+    // ENOTEMPTY failure.
+    rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
 }, 120000);
