@@ -375,6 +375,21 @@ isolation and cancellation-before-claim gaps in the initial proposed slice;
 both must be resolved and verified before this path is operational. No new
 runtime gameplay features are part of this maintenance work.
 
+The private V6 corpus now joins authenticated historical PTR/G002 adoption with
+the current native program comparison and explicit Linux census. It preserves
+historical module provenance while deriving bridge configuration from the fresh
+current observation. It accepts the selected completed diagnostic attempt or
+the genuine inline capability; generation builds before collection and requests
+the short-lived preparation observation afterward. V2–V5 formats remain intact.
+The actual same-run bridge/continuation integration is still unfinished.
+
+This private checkpoint passed application types, 132 baseline tests with 15
+native-only Windows skips, and all 77 focused tests. The new connected adoption
+fixture passed with a different current bridge source/version and V6 descriptor
+and projection; three corpus-change races and stale-new-candidate rejection also
+passed. These private-source tests use synthetic retained data, not production
+census, adoption or provider deployment. Native verification follows publication.
+
 ### Shipping estimate and next critical work
 
 Planning estimate: **5–10 focused working days once operation-specific private

@@ -28,6 +28,7 @@ export function createSealedRealmsProductionActivationRecords(input: Readonly<{
   existingStateAdoption?: SealedRealmsProductionPtrExistingStateAdoptionEvidence;
   /** Schema 5 requires both authenticated realm adoptions. */
   g002ExistingStateAdoption?: SealedRealmsProductionG002ExistingStateAdoptionEvidence;
+  linuxRecoveryEvidence?: SealedRealmsProductionLinuxRecoveryEvidence;
   /** Required for descriptors; omitted for candidate-independent receipt reads. */
   readBindingCandidate?: (preparationSourceCommit: string,
     receiptProjection?: SealedRealmsProductionRecoveryReceiptProjection,
@@ -92,12 +93,13 @@ export function validateSealedRealmsProductionRecoveryActivationEvidence(
   verificationTime?: string,
   existingStateAdoption?: SealedRealmsProductionPtrExistingStateAdoptionEvidence,
   g002ExistingStateAdoption?: SealedRealmsProductionG002ExistingStateAdoptionEvidence,
+  linuxRecoveryEvidence?: SealedRealmsProductionLinuxRecoveryEvidence,
 ): Readonly<Record<string, unknown>>;
 
 export function inspectSealedRealmsProductionRecoveryActivationRecords(
   records: SealedRealmsProductionActivationRecords,
   verificationTime?: string,
-): Readonly<{ sourceCommit: string; schemaVersion: 2 | 3 | 4 | 5; descriptorSha256: string }>;
+): Readonly<{ sourceCommit: string; schemaVersion: 2 | 3 | 4 | 5 | 6; descriptorSha256: string }>;
 
 /** Reads a canonical candidate and its complete version-specific private receipt corpus. */
 export function writeSealedRealmsProductionRecoveryActivationDescriptor(input: Readonly<{
@@ -154,3 +156,23 @@ export function authenticateSealedRealmsProductionPtrHistoricalAdoption(input: R
 export function authenticateSealedRealmsProductionG002HistoricalAdoption(
   input: Parameters<typeof authenticateSealedRealmsProductionPtrHistoricalAdoption>[0],
 ): Promise<SealedRealmsProductionG002ExistingStateAdoptionEvidence>;
+
+declare const linuxRecoveryBrand: unique symbol;
+/** Current activation ownership joined with exact retained data; never effect authority. */
+export type SealedRealmsProductionLinuxRecoveryEvidence = Readonly<{ [linuxRecoveryBrand]: true }>;
+export function authenticateSealedRealmsProductionLinuxRecoveryEvidence(input: Readonly<{
+  privateState: SealedRealmsProductionPrivateState;
+  authority: SealedRealmsProductionSourceAuthority;
+  permit: import('./sealed-realms-production-workflow-authority.mjs').SealedRealmsProductionWorkflowPermit;
+  existingStateAdoption: SealedRealmsProductionPtrExistingStateAdoptionEvidence;
+  g002ExistingStateAdoption: SealedRealmsProductionG002ExistingStateAdoptionEvidence;
+  programArtifacts: import('./sealed-realms-production-recovery-program-artifacts.mjs').SealedRealmsProductionRecoveryProgramArtifacts;
+}> & (Readonly<{ attemptId: string; censusEvidence?: never }> | Readonly<{
+  censusEvidence: import('./genesis001-linux-policy-native.mjs').FixedLinuxG001ActivationCensusEvidence; attemptId?: never;
+}>)): Promise<SealedRealmsProductionLinuxRecoveryEvidence>;
+export function readSealedRealmsProductionLinuxRecoveryEvidence(input: Readonly<{
+  evidence: SealedRealmsProductionLinuxRecoveryEvidence; privateState: SealedRealmsProductionPrivateState; sourceCommit: string;
+}>): Readonly<{ sourceCommit: string; sourceTree: string;
+  ptr: ReturnType<typeof readSealedRealmsProductionPtrExistingStateAdoptionEvidence>;
+  g002: ReturnType<typeof readSealedRealmsProductionG002ExistingStateAdoptionEvidence>;
+  census: ReturnType<typeof import('./genesis001-linux-census-attempt.mjs').verifyGenesis001LinuxCensusAttempt> }>;

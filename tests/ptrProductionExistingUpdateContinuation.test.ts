@@ -20,6 +20,14 @@ const seams = vi.hoisted(() => ({
   request: vi.fn(),
   artifacts: new WeakSet<object>(),
   g002Artifacts: new WeakSet<object>(),
+  census: vi.fn(),
+  comparison: vi.fn(),
+}));
+vi.mock('../scripts/genesis001-linux-census-attempt.mjs', async original => ({
+  ...await original<object>(), readFixedLinuxG001CensusAttempt: seams.census,
+}));
+vi.mock('../scripts/sealed-realms-production-recovery-program-artifacts.mjs', async original => ({
+  ...await original<object>(), readSealedRealmsProductionRecoveryAdoptionProgramComparison: seams.comparison,
 }));
 vi.mock("../scripts/ptr-update-provider-credentials.mjs", () => ({
   createPtrUpdateProviderCredentials: () => Object.freeze({}),
@@ -1515,3 +1523,188 @@ it.skipIf(process.platform !== 'linux').each([4, 5] as const)('generates and reo
   expect(f.state.puts).toBe(1);
   if (joined.g002) expect(joined.g002.g002.state.puts).toBe(1);
 }, 60000);
+
+async function joinedLinuxRecoveryFixture() {
+  const { collectGenesis001AdmittedPlayerCensus } = await import('../scripts/genesis001-admitted-player-census.mjs');
+  const { createGenesis001LinuxCensusSample, createGenesis001LinuxCensusAttempt } = await import('../scripts/genesis001-linux-census-attempt.mjs');
+  const policyModule = await import('../scripts/genesis001-sealed-launch-adoption.mjs');
+  const { linuxG001PolicyExecution } = await import('./fixtures/linuxG001PolicyReceipt');
+  const start = Date.parse('2026-09-19T12:00:00.000Z'), current = 'e'.repeat(40);
+  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(start);
+  const retained = await retainedAdoption({ bridgeSourceCommit: SOURCE });
+  const { f } = retained;
+  const g002 = await retainedG002ForPtrFixture(f, { bridgeSourceCommit: SOURCE });
+  const ptrEvidence = await adoptionWriter.authenticateSealedRealmsProductionPtrHistoricalAdoption({ privateState: f.privateState,
+    retainedSource: retainedSource('ptr'), store: f.store });
+  const g002Evidence = await adoptionWriter.authenticateSealedRealmsProductionG002HistoricalAdoption({ privateState: f.privateState,
+    retainedSource: retainedSource('g002'), store: g002.g002.store });
+  const stamp = (n: number) => new Date(start + n).toISOString();
+  const observation = (n: number) => {
+    const policy = { realmId: 'GENESIS_001', releaseVersion: '0.3.43', playerAccessEnabled: true,
+      admissionStateMutationsEnabled: false, accessRequestSubmissionsEnabled: false,
+      sourceBaselineCommit: policyModule.GENESIS_001_SOURCE_BASELINE_COMMIT, freezeReleaseNonce: policyModule.GENESIS_001_FREEZE_RELEASE_NONCE };
+    return { schemaVersion: 1, profile: 'warpkeep-genesis-001-live-policy-observation-v1', sourceCommit: current,
+      observedAt: stamp(n), databaseIdentity: policyModule.GENESIS_001_DATABASE_IDENTITY, procedure: 'genesis_001_access_policy_v1',
+      mutationSubmitted: false, policy, policyReceiptDigest: policyModule.genesis001PolicyReceiptDigest(policy) };
+  };
+  const sample = async (n: number, nonce: number) => {
+    const admitted = await collectGenesis001AdmittedPlayerCensus({ preparationSourceCommit: current, observedAt: stamp(n),
+      readAggregates: () => ({ allowedFids: '1', enabledAllowedFids: '1' }),
+      queryPreferred: () => ({ outcome: 'exact-query-supported', output: Buffer.from('fid\tenabled\tauth_epoch\n17\ttrue\t1\n') }),
+      randomBytes: () => Buffer.alloc(32, nonce + 1) });
+    const applicant = { schemaVersion: 1, profile: 'warpkeep-genesis-001-census-export-private-proof-v1', realmId: 'GENESIS_001',
+      releaseVersion: '0.3.43', sourceCommit: current, privateCensusReference: { count: 0, size: 7,
+        sha256: createHash('sha256').update('private').digest('hex'),
+        pathBasename: `warpkeep-access-request-census-${stamp(n).replace(/[-:]/gu, '').replace(/\.000/gu, '')}.txt` },
+      privateBlindingNonceHex: Buffer.alloc(32, nonce).toString('hex') };
+    return createGenesis001LinuxCensusSample({ applicant: { ...applicant,
+      opaqueProofDigest: policyModule.genesis001CensusOpaqueProofDigest(applicant) }, admitted }, current);
+  };
+  const receipt = createGenesis001LinuxCensusAttempt({ schemaVersion: 1, profile: 'warpkeep-g001-linux-census-collected-v1',
+    sourceCommit: current, repositoryRoot: process.cwd(), attemptId: '1'.repeat(32), githubRunId: '900', githubRunAttempt: '1',
+    callerIdentity: '8'.repeat(64), mutationSubmitted: false, initialPolicyObservation: observation(20000),
+    first: await sample(21000, 1), second: await sample(81000, 3), consumedAt: stamp(82000),
+    confirmationPolicyObservation: observation(83000), currentPolicyObservation: observation(83001) },
+    linuxG001PolicyExecution(observation(20000)), stamp(84000));
+  const selector = { profile: 'warpkeep-g001-linux-census-completed-v1', sourceCommit: current,
+    attemptId: receipt.attemptId, githubRunId: receipt.githubRunId, githubRunAttempt: receipt.githubRunAttempt,
+    receiptDigest: receipt.receiptDigest, completedAt: receipt.completedAt, mutationSubmitted: false };
+  const selected = { selector, receipt };
+  seams.census.mockReset().mockImplementation((id, source) => {
+    if (id !== receipt.attemptId || source !== current) throw Error('wrong fixed census');
+    return structuredClone(selected);
+  });
+  const currentAuthority = authenticateSealedRealmsProductionSourceAuthority({ operation: 'activation-evidence-generate',
+    workflowInputSha: current, readGit: () => `${current}\n`, readBinding, verifyEvidence });
+  const programArtifacts = Object.freeze({});
+  const programs: Record<string, any> = { sourceCommit: current, sourceTree: 'b'.repeat(40) };
+  for (const [realm, updated] of [['ptr', retained.receipt], ['g002', g002.receipt]] as const) {
+    programs[realm] = { programArtifactSha256: updated.binding.candidateSha256, moduleTreeId: updated.binding.moduleTreeId,
+      dependencyClosureDigest: updated.binding.dependencyClosureDigest,
+      ...(realm === 'g002' ? { programKeccak256: updated.binding.candidateProgram } : {}) };
+  }
+  seams.comparison.mockReset().mockImplementation(input => {
+    if (input.capability !== programArtifacts || input.privateState !== f.privateState || input.authority !== currentAuthority
+      || input.ptrSourceCommit !== SOURCE || input.g002SourceCommit !== SOURCE) throw Error('wrong native comparison owner');
+    return structuredClone(programs);
+  });
+  let duringFetch: (() => void) | undefined;
+  const fetchImpl = vi.fn(async (request: string | URL | Request) => {
+    const url = String(request), census = url.includes('/actions/runs/900');
+    duringFetch?.();
+    const body = url.endsWith('/branches/main') ? { name: 'main', protected: true, commit: { sha: current } }
+      : url.endsWith('/jobs?per_page=100&page=1') ? { total_count: 1, jobs: [{ name: 'operate_readonly', run_id: 900, run_attempt: 1,
+        status: 'completed', conclusion: 'success', head_sha: current, head_branch: 'main', runner_name: 'warpkeep-wsl-production-01',
+        labels: ['self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive'],
+        steps: [{ name: 'Attest runtime and execute authenticated operation', status: 'completed', conclusion: 'success' }] }] }
+      : { id: census ? 900 : 1001, run_attempt: 1, event: 'workflow_dispatch', status: census ? 'completed' : 'in_progress',
+        conclusion: census ? 'success' : null, head_branch: 'main', head_sha: current, path: '.github/workflows/sealed-realms-production.yml',
+        name: 'Sealed Realms Production', display_title: `${census ? 'g001-freeze-census' : 'activation-evidence-generate'} @ ${current}`,
+        repository: { full_name: 'ael-dev3/Warpkeep' } };
+    const text = JSON.stringify(body), response = new Response(text, { status: 200, headers: {
+      'content-type': 'application/json', 'content-length': String(Buffer.byteLength(text)) } });
+    Object.defineProperty(response, 'url', { value: url }); return response;
+  });
+  const permit = await issueSealedRealmsProductionWorkflowPermit({ sourceAuthority: currentAuthority,
+    githubToken: 'github-sealed-realms-owner-token', runId: '1001', runAttempt: '1', fetchImpl });
+  vi.setSystemTime(start + 120000);
+  f.observations.setNowSeconds((start + 120000) / 1000);
+  g002.g002.observations.setNowSeconds((start + 120000) / 1000);
+  const input = { privateState: f.privateState, authority: currentAuthority, permit, attemptId: receipt.attemptId,
+    existingStateAdoption: ptrEvidence, g002ExistingStateAdoption: g002Evidence, programArtifacts: programArtifacts as never };
+  return { f, retained, g002, current, input, receipt, selected, programs, fetchImpl, setDuringFetch: (callback: () => void) => { duringFetch = callback; } };
+}
+
+it('joins genuine historical adoptions and selected Linux census to current activation without relabelling signed provenance', async () => {
+  const f = await joinedLinuxRecoveryFixture(), requests = seams.request.mock.calls.length;
+  const capability = await adoptionWriter.authenticateSealedRealmsProductionLinuxRecoveryEvidence(f.input);
+  const read = () => adoptionWriter.readSealedRealmsProductionLinuxRecoveryEvidence({ evidence: capability,
+    privateState: f.f.privateState, sourceCommit: f.current });
+  expect(Object.keys(capability)).toEqual([]);
+  expect(read()).toMatchObject({ sourceCommit: f.current, ptr: { sourceCommit: SOURCE }, g002: { sourceCommit: SOURCE } });
+  const records = createSealedRealmsProductionActivationRecords({ privateState: f.input.privateState, authority: f.input.authority,
+    existingStateAdoption: f.input.existingStateAdoption, g002ExistingStateAdoption: f.input.g002ExistingStateAdoption,
+    linuxRecoveryEvidence: capability });
+  const projection = adoptionWriter.readSealedRealmsProductionRecoveryReceiptProjection(records);
+  expect(projection).toMatchObject({ preparationSourceCommit: f.current, ptrModuleSourceCommit: SOURCE, g002ModuleSourceCommit: SOURCE,
+    g001AdmissionControlProfile: 'warpkeep-genesis-001-server-freeze-v1', g001FreezeCurrentStateReceiptDigest: f.receipt.freezeCurrentStateReceipt.receiptDigest });
+  expect(Object.keys(projection).some(key => /Monitor|recoveryAuthWorker|preparationSourceTree/u.test(key))).toBe(false);
+  expect(seams.request.mock.calls.length).toBe(requests);
+  const { createPtrAdoptionBridgeFixture } = await import('./helpers/ptrAdoptionBridgeFixture');
+  const bridgeModule = await import('../scripts/sealed-realms-production-auth-bridge-state.mjs');
+  const bridge = await createPtrAdoptionBridgeFixture({ ...f.input, sourceCommit: f.current,
+    linuxRecoveryEvidence: capability, currentWorkerVersionId: '30000000-0000-4000-8000-000000000003' });
+  await bridge.bridgeState.inspectActivationEvidence();
+  const bridgeBinding = await bridge.bridgeState.reopenActivationEvidenceContinuation();
+  const bridgeFacts = bridgeModule.readSealedRealmsProductionRecoveryBridgeFacts({ bridgeState: bridge.bridgeState,
+    privateState: f.input.privateState, authority: f.input.authority });
+  expect(bridgeFacts).toMatchObject({ authBridgeSourceCommit: f.current, recoveryAuthWorkerSourceCommit: f.current,
+    recoveryAuthWorkerVersionId: '30000000-0000-4000-8000-000000000003' });
+  const bridgeReceipt = JSON.parse(readFileSync(join(f.f.runtime, 'bridge/activation-evidence',
+    `auth-bridge-suspension-${bridgeBinding.evidenceDigest}.json`), 'utf8'));
+  expect(bridgeReceipt.schemaVersion).toBe(5);
+  const { RECOVERY_BINDING_KEYS_V6 } = await import('../scripts/recovery-binding-projection.mjs');
+  const { recoveryActivationCandidatePolicyForVersion } = await import('../scripts/recovery-activation-candidate.mjs');
+  const { recoveryG002PtrAdoptionCandidate } = await import('./fixtures/recoveryG002PtrAdoptionCandidate');
+  const values = { ...recoveryG002PtrAdoptionCandidate(), ...recoveryActivationCandidatePolicyForVersion(6),
+    ...projection, ...bridgeFacts, preparationSourceCommit: f.current, preparationSourceTree: 'b'.repeat(40) };
+  const candidateSource = `${JSON.stringify(Object.fromEntries(RECOVERY_BINDING_KEYS_V6.map(key => [key, (values as any)[key]])), null, 2)}\n`;
+  const connected = createSealedRealmsProductionActivationRecords({ privateState: f.input.privateState, authority: f.input.authority,
+    readBindingCandidate: () => candidateSource,
+    existingStateAdoption: f.input.existingStateAdoption, g002ExistingStateAdoption: f.input.g002ExistingStateAdoption,
+    linuxRecoveryEvidence: capability });
+  expect(adoptionWriter.inspectSealedRealmsProductionRecoveryActivationRecords(connected).schemaVersion).toBe(6);
+  const { validateRecoveryLaunchActivationProjection } = await import('../scripts/generate-0.4.0-recovery-launch-activation.mjs');
+  adoptionWriter.writeSealedRealmsProductionRecoveryActivationDescriptor({ records: connected, consumeDescriptor: fd => {
+    const envelope = JSON.parse(readFileSync(fd, 'utf8'));
+    expect(envelope.schemaVersion).toBe(6);
+    expect(envelope.ptrExistingStateAdoptionReceipt.sourceCommit).toBe(SOURCE);
+    expect(envelope.g001LinuxCensusAttempt.sourceCommit).toBe(f.current);
+    expect(Object.keys(envelope).some(key => /Monitor/u.test(key))).toBe(false);
+    expect(validateRecoveryLaunchActivationProjection(envelope, bridgeReceipt, undefined,
+      f.input.existingStateAdoption, f.input.g002ExistingStateAdoption, capability).schemaVersion).toBe(6);
+    expect(() => validateRecoveryLaunchActivationProjection(envelope, bridgeReceipt, undefined,
+      f.input.existingStateAdoption, f.input.g002ExistingStateAdoption)).toThrow();
+    const oldBridge = structuredClone(bridgeReceipt); oldBridge.deploymentAuthority.bridgeSourceCommit = SOURCE;
+    expect(() => validateRecoveryLaunchActivationProjection(envelope, oldBridge, undefined,
+      f.input.existingStateAdoption, f.input.g002ExistingStateAdoption, capability)).toThrow();
+  } });
+  expect(() => createSealedRealmsProductionActivationRecords({ privateState: f.input.privateState, authority: f.input.authority,
+    existingStateAdoption: f.input.existingStateAdoption, g002ExistingStateAdoption: f.input.g002ExistingStateAdoption })).toThrow();
+  expect(() => adoptionWriter.readSealedRealmsProductionLinuxRecoveryEvidence({ evidence: { ...capability } as never,
+    privateState: f.input.privateState, sourceCommit: f.current })).toThrow();
+  const other = fixture(process.platform !== 'linux');
+  expect(() => adoptionWriter.readSealedRealmsProductionLinuxRecoveryEvidence({ evidence: capability,
+    privateState: other.privateState, sourceCommit: f.current })).toThrow();
+  await expect(issueSealedRealmsProductionWorkflowPermit({ sourceAuthority: capability as never,
+    githubToken: 'synthetic-never-sent', runId: '1111', runAttempt: '1', fetchImpl: vi.fn() })).rejects.toThrow();
+  f.programs.ptr.programArtifactSha256 = '9'.repeat(64);
+  expect(read).toThrow();
+}, 120000);
+
+it.each(['census', 'adoption', 'program'] as const)('rejects %s changing during completed-workflow await and does not mint joined evidence', async kind => {
+  const f = await joinedLinuxRecoveryFixture();
+  f.setDuringFetch(() => {
+    if (kind === 'census') (f.selected.selector as any).receiptDigest = '9'.repeat(64);
+    if (kind === 'adoption') writeFileSync(f.retained.path, '{}\n');
+    if (kind === 'program') f.programs.g002.programKeccak256 = '9'.repeat(64);
+  });
+  await expect(adoptionWriter.authenticateSealedRealmsProductionLinuxRecoveryEvidence(f.input)).rejects.toThrow();
+}, 30000);
+
+it('requires current permit and matching native bytes, and rejects expired census for a new candidate', async () => {
+  const f = await joinedLinuxRecoveryFixture();
+  await expect(adoptionWriter.authenticateSealedRealmsProductionLinuxRecoveryEvidence({ ...f.input, permit: {} as never })).rejects.toThrow();
+  for (const realm of ['ptr', 'g002']) for (const key of ['programArtifactSha256', 'moduleTreeId', 'dependencyClosureDigest']) {
+    const old = f.programs[realm][key]; f.programs[realm][key] = '9'.repeat(64);
+    await expect(adoptionWriter.authenticateSealedRealmsProductionLinuxRecoveryEvidence(f.input)).rejects.toThrow();
+    f.programs[realm][key] = old;
+  }
+  vi.setSystemTime(new Date(Date.parse(f.receipt.completedAt) + 600000));
+  f.f.observations.setNowSeconds((Date.parse(f.receipt.completedAt) + 600000) / 1000);
+  f.g002.g002.observations.setNowSeconds((Date.parse(f.receipt.completedAt) + 600000) / 1000);
+  const linuxRecoveryEvidence = await adoptionWriter.authenticateSealedRealmsProductionLinuxRecoveryEvidence(f.input);
+  const records = createSealedRealmsProductionActivationRecords({ privateState: f.input.privateState, authority: f.input.authority,
+    existingStateAdoption: f.input.existingStateAdoption, g002ExistingStateAdoption: f.input.g002ExistingStateAdoption, linuxRecoveryEvidence });
+  expect(() => adoptionWriter.readSealedRealmsProductionRecoveryReceiptProjection(records)).toThrow();
+}, 30000);

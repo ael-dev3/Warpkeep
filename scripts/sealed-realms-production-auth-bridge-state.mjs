@@ -34,6 +34,9 @@ import {
   writeSealedRealmsProductionRecoveryActivationDescriptor,
 } from './sealed-realms-production-activation-records.mjs';
 import { generateRecoveryLaunchActivationBindingFromDescriptor, validateRecoveryLaunchActivationProjection } from './generate-0.4.0-recovery-launch-activation.mjs';
+import { readSealedRealmsProductionLinuxRecoveryEvidence } from './sealed-realms-production-activation-records.mjs';
+import { projectGenesis001LinuxFreezeEvidence } from './genesis001-linux-freeze-receipt.mjs';
+const joinedBridgeAdoptions = new WeakMap();
 import { verifySealedRealmsPublicActivationBytes } from './verify-sealed-realms-public-activation-artifact.mjs';
 import {
   ACTIVATION_GENERATION_RECEIPT_PROFILE,
@@ -844,7 +847,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   const options = allowedObject(input, [
     'authority', 'privateState', 'repositoryRoot', 'reportedHome',
     'deploymentAttester', 'bindingAttester', 'fetchImpl', 'now', 'randomBytesImpl',
-    'bridgeProvider', 'existingStateAdoption', 'g002ExistingStateAdoption',
+    'bridgeProvider', 'existingStateAdoption', 'g002ExistingStateAdoption', 'linuxRecoveryEvidence',
     'inspectImportReceipt', 'authenticateImportResult', 'resolveOwnerProvisionReceipt',
     'testOnlyCapability', 'testOnlyResolvePreparedReceipt',
     'testOnlyResolveCompletedJournal',
@@ -893,21 +896,37 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   if (options.authority.mode !== 'S') {
     fail('SEALED_REALMS_AUTH_BRIDGE_SOURCE_MODE_INVALID');
   }
+  const readJoin = options.linuxRecoveryEvidence === undefined ? undefined : () => {
+    if (options.existingStateAdoption === undefined || options.g002ExistingStateAdoption === undefined) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
+    return readSealedRealmsProductionLinuxRecoveryEvidence({ evidence: options.linuxRecoveryEvidence, privateState, sourceCommit });
+  };
   const readAdoption = options.existingStateAdoption === undefined ? undefined : () => {
     try {
-      return readSealedRealmsProductionPtrExistingStateAdoptionEvidence({
-        evidence: options.existingStateAdoption, privateState, sourceCommit,
+      const joined = readJoin?.();
+      const adoption = readSealedRealmsProductionPtrExistingStateAdoptionEvidence({
+        evidence: options.existingStateAdoption, privateState, sourceCommit: joined?.ptr.sourceCommit ?? sourceCommit,
       });
+      if (joined) {
+        if (JSON.stringify(adoption) !== JSON.stringify(joined.ptr)) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
+        const wrapped = Object.freeze({ ...adoption });
+        joinedBridgeAdoptions.set(wrapped, readJoin);
+        return wrapped;
+      }
+      return adoption;
     } catch { fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID'); }
   };
   const readG002Adoption = options.g002ExistingStateAdoption === undefined ? undefined : () => {
     if (readAdoption === undefined) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
     try {
-      return readSealedRealmsProductionG002ExistingStateAdoptionEvidence({
-        evidence: options.g002ExistingStateAdoption, privateState, sourceCommit,
+      const joined = readJoin?.();
+      const adoption = readSealedRealmsProductionG002ExistingStateAdoptionEvidence({
+        evidence: options.g002ExistingStateAdoption, privateState, sourceCommit: joined?.g002.sourceCommit ?? sourceCommit,
       });
+      if (joined && JSON.stringify(adoption) !== JSON.stringify(joined.g002)) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
+      return adoption;
     } catch { fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID'); }
   };
+  readJoin?.();
   readAdoption?.();
   readG002Adoption?.();
   const now = options.now ?? (() => new Date());
@@ -2120,6 +2139,12 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   };
 
   const inspectActivationEvidence = async () => {
+    const assertFreshCensus = () => {
+      const joined = readJoin?.();
+      if (joined) projectGenesis001LinuxFreezeEvidence({ preparationSourceCommit: sourceCommit,
+        confirmationReceipt: joined.census.freezeConfirmationReceipt, currentStateReceipt: joined.census.freezeCurrentStateReceipt }, currentTime(now).toISOString());
+    };
+    assertFreshCensus();
     const established = await establish();
     const chain = established.chain;
     const adoption = readAdoption?.();
@@ -2222,6 +2247,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
           fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
         }
       }
+      assertFreshCensus();
       privateState.write({ root: 'runtime', relativePath, bytes });
     } catch (error) {
       if (error?.code !== 'SEALED_REALMS_PRIVATE_STATE_FILE_EXISTS') throw error;
@@ -2494,6 +2520,15 @@ function requireActivationChainPhase(chain, adoption, code, g002Adoption = false
 function assertAdoptionBridgeScope(adoption, chain) {
   const observation = adoption.pair.post.observation;
   const deployment = chain.deployment.value;
+  const readJoined = joinedBridgeAdoptions.get(adoption);
+  if (readJoined) {
+    const joined = readJoined();
+    if (JSON.stringify(joined.ptr) !== JSON.stringify(adoption) || deployment.sourceCommit !== joined.sourceCommit
+      || deployment.bridgeSourceCommit !== joined.sourceCommit || observation.ptr.databaseIdentity !== deployment.ptrDatabaseIdentity) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
+    }
+    return;
+  }
   if (adoption.sourceCommit !== deployment.sourceCommit
     || observation.ptr.databaseIdentity !== deployment.ptrDatabaseIdentity
     || observation.bridgeWorkerVersionId !== deployment.workerVersionId
@@ -2746,6 +2781,7 @@ export function createSealedRealmsProductionActivationEvidenceGenerator(input) {
   const options = captureGenerationInput(input, ['records', 'privateState', 'authority',
     ...(Object.hasOwn(input, 'existingStateAdoption') ? ['existingStateAdoption'] : []),
     ...(Object.hasOwn(input, 'g002ExistingStateAdoption') ? ['g002ExistingStateAdoption'] : []),
+    ...(Object.hasOwn(input, 'linuxRecoveryEvidence') ? ['linuxRecoveryEvidence'] : []),
     ...(testing ? ['testOnlyCapability', 'testOnlyPreparationBootstrapAuthority'] : [])]);
   if (testing) assertSealedRealmsProductionAuthBridgeStateTestCapability(options.testOnlyCapability);
   assertSealedRealmsProductionActivationRecordsAuthority({ records: options.records, privateState: options.privateState, authority: options.authority });
@@ -2760,15 +2796,18 @@ export function createSealedRealmsProductionActivationEvidenceGenerator(input) {
     || preparationSourceCommitFromSealedRealmsProductionAuthority(options.authority) !== sourceCommit) {
     fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
   }
+  const joined = options.linuxRecoveryEvidence === undefined ? undefined : readSealedRealmsProductionLinuxRecoveryEvidence({
+    evidence: options.linuxRecoveryEvidence, privateState: options.privateState, sourceCommit });
+  if (joined && (options.existingStateAdoption === undefined || options.g002ExistingStateAdoption === undefined)) fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
   if (options.existingStateAdoption !== undefined) {
     readSealedRealmsProductionPtrExistingStateAdoptionEvidence({
-      evidence: options.existingStateAdoption, privateState: options.privateState, sourceCommit,
+      evidence: options.existingStateAdoption, privateState: options.privateState, sourceCommit: joined?.ptr.sourceCommit ?? sourceCommit,
     });
   }
   if (options.g002ExistingStateAdoption !== undefined) {
     if (options.existingStateAdoption === undefined) fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
     readSealedRealmsProductionG002ExistingStateAdoptionEvidence({
-      evidence: options.g002ExistingStateAdoption, privateState: options.privateState, sourceCommit,
+      evidence: options.g002ExistingStateAdoption, privateState: options.privateState, sourceCommit: joined?.g002.sourceCommit ?? sourceCommit,
     });
   }
   const generator = Object.freeze({});
@@ -2845,7 +2884,7 @@ function readGenerationCompletion(generator, member) {
     const corpus = inspectSealedRealmsProductionRecoveryActivationRecords(generator.records, receipt.generatedAt);
     const bridge = reopenGenerationBridgeEvidence(member);
     const expected = validateRecoveryLaunchActivationProjection(
-      JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(descriptorBytes)), bridge, receipt.generatedAt, generator.existingStateAdoption, generator.g002ExistingStateAdoption,
+      JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(descriptorBytes)), bridge, receipt.generatedAt, generator.existingStateAdoption, generator.g002ExistingStateAdoption, generator.linuxRecoveryEvidence,
     );
     const artifact = JSON.parse(Buffer.from(artifactBytes).toString('utf8'));
     if (receipt.sourceCommit !== member.sourceCommit
@@ -2907,7 +2946,7 @@ async function generateActivationEvidence(confirmation, generator, options, memb
         const binding = generateRecoveryLaunchActivationBindingFromDescriptor(descriptor, opaqueMember,
           options.sourceAuthority, generator.testOnlyCapability === undefined ? undefined : {
             capability: generator.testOnlyCapability, facts: generator.testOnlyPreparationBootstrapAuthority,
-          }, generator.existingStateAdoption, generator.g002ExistingStateAdoption);
+          }, generator.existingStateAdoption, generator.g002ExistingStateAdoption, generator.linuxRecoveryEvidence);
         artifactBytes = verifySealedRealmsPublicActivationBytes(Buffer.from(`${JSON.stringify(binding, null, 2)}\n`));
       },
     });

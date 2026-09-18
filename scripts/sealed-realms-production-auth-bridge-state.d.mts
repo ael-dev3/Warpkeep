@@ -1,7 +1,7 @@
 import type { SealedRealmsProductionPrivateState } from './sealed-realms-production-private-state.mjs';
 import type { SealedRealmsProductionBridgeProvider } from './sealed-realms-production-bridge-provider.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
-import type { SealedRealmsProductionActivationRecords, SealedRealmsProductionPtrExistingStateAdoptionEvidence, SealedRealmsProductionG002ExistingStateAdoptionEvidence } from './sealed-realms-production-activation-records.mjs';
+import type { SealedRealmsProductionActivationRecords, SealedRealmsProductionPtrExistingStateAdoptionEvidence, SealedRealmsProductionG002ExistingStateAdoptionEvidence, SealedRealmsProductionLinuxRecoveryEvidence } from './sealed-realms-production-activation-records.mjs';
 import type {
   SealedRealmsProductionContinuationClaim,
   SealedRealmsProductionContinuationReconciliation,
@@ -239,6 +239,7 @@ export function createSealedRealmsProductionAuthBridgeState(options: Readonly<{
   bridgeProvider?: SealedRealmsProductionBridgeProvider;
   existingStateAdoption?: SealedRealmsProductionPtrExistingStateAdoptionEvidence;
   g002ExistingStateAdoption?: SealedRealmsProductionG002ExistingStateAdoptionEvidence;
+  linuxRecoveryEvidence?: SealedRealmsProductionLinuxRecoveryEvidence;
   /** Independent projections are test-only and require testOnlyCapability. */
   deploymentAttester?: (context: Readonly<{
     sourceCommit: string;
@@ -283,6 +284,7 @@ export function createSealedRealmsProductionActivationEvidenceGenerator(input: R
   authority: SealedRealmsProductionSourceAuthority;
   existingStateAdoption?: SealedRealmsProductionPtrExistingStateAdoptionEvidence;
   g002ExistingStateAdoption?: SealedRealmsProductionG002ExistingStateAdoptionEvidence;
+  linuxRecoveryEvidence?: SealedRealmsProductionLinuxRecoveryEvidence;
   testOnlyCapability?: SealedRealmsProductionAuthBridgeStateTestCapability;
   testOnlyPreparationBootstrapAuthority?: import('./generate-0.4.0-recovery-launch-activation.mjs').RecoveryActivationBootstrapFacts;
 }>): SealedRealmsProductionActivationEvidenceGenerator;

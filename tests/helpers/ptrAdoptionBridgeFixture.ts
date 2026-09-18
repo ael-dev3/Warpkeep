@@ -6,6 +6,8 @@ import { claimSealedRealmsProductionContinuation, createSealedRealmsProductionCo
   issueSealedRealmsProductionContinuation } from '../../scripts/sealed-realms-production-continuation.mjs';
 import { createSealedRealmsProductionAuthBridgeState, createSealedRealmsProductionAuthBridgeStateTestCapability } from '../../scripts/sealed-realms-production-auth-bridge-state.mjs';
 import { readSealedRealmsProductionPtrExistingStateAdoptionEvidence,
+  readSealedRealmsProductionLinuxRecoveryEvidence,
+  type SealedRealmsProductionLinuxRecoveryEvidence,
   type SealedRealmsProductionPtrExistingStateAdoptionEvidence,
   type SealedRealmsProductionG002ExistingStateAdoptionEvidence } from '../../scripts/sealed-realms-production-activation-records.mjs';
 import type { SealedRealmsProductionPrivateState } from '../../scripts/sealed-realms-production-private-state.mjs';
@@ -15,20 +17,24 @@ export async function createPtrAdoptionBridgeFixture(input: Readonly<{
   privateState: SealedRealmsProductionPrivateState;
   existingStateAdoption: SealedRealmsProductionPtrExistingStateAdoptionEvidence;
   g002ExistingStateAdoption?: SealedRealmsProductionG002ExistingStateAdoptionEvidence;
+  linuxRecoveryEvidence?: SealedRealmsProductionLinuxRecoveryEvidence;
   authority: SealedRealmsProductionSourceAuthority;
   sourceCommit: string;
   g002AtlasImportReceiptDigest?: string;
   now?: Date;
+  currentWorkerVersionId?: string;
 }>) {
+  const joined = input.linuxRecoveryEvidence === undefined ? undefined : readSealedRealmsProductionLinuxRecoveryEvidence({
+    evidence: input.linuxRecoveryEvidence, privateState: input.privateState, sourceCommit: input.sourceCommit });
   const adoption = readSealedRealmsProductionPtrExistingStateAdoptionEvidence({
-    evidence: input.existingStateAdoption, privateState: input.privateState, sourceCommit: input.sourceCommit,
+    evidence: input.existingStateAdoption, privateState: input.privateState, sourceCommit: joined?.ptr.sourceCommit ?? input.sourceCommit,
   });
-  const sourceCommit = adoption.sourceCommit;
+  const sourceCommit = joined?.sourceCommit ?? adoption.sourceCommit;
   const observation = adoption.pair.post.observation;
-  if (observation.bridgeSourceCommit !== sourceCommit) throw Error('Sign a same-source bridge observation for this connected fixture');
+  if (!joined && observation.bridgeSourceCommit !== sourceCommit) throw Error('Sign a same-source bridge observation for this connected fixture');
   const sampled = input.now ?? new Date(Math.max(Date.now(), observation.observedThrough * 1000));
   const deploymentId = '223e4567-e89b-42d3-a456-426614174000';
-  const workerVersionId = observation.bridgeWorkerVersionId;
+  const workerVersionId = input.currentWorkerVersionId ?? observation.bridgeWorkerVersionId;
   const ptrDatabaseIdentity = observation.ptr.databaseIdentity;
   const ptrBindingDigest = createHash('sha256').update('warpkeep.auth-bridge.ptr-binding.v1\n')
     .update(`${JSON.stringify([workerVersionId, sourceCommit, ptrDatabaseIdentity, 'warpkeep-ptr-spacetimedb'])}\n`).digest('hex');
@@ -56,6 +62,7 @@ export async function createPtrAdoptionBridgeFixture(input: Readonly<{
     g002ExistingStateAdoption = input.g002ExistingStateAdoption) => createSealedRealmsProductionAuthBridgeState({
     authority, privateState, repositoryRoot: process.cwd(), existingStateAdoption,
     ...(g002ExistingStateAdoption === undefined ? {} : { g002ExistingStateAdoption }),
+    ...(input.linuxRecoveryEvidence === undefined ? {} : { linuxRecoveryEvidence: input.linuxRecoveryEvidence }),
     deploymentAttester: () => ({ deploymentId, workerVersionId, bridgeSourceCommit: sourceCommit,
       controlPlaneAttestationDigest: 'c'.repeat(64), publicAttestationDigest: 'd'.repeat(64),
       privateAttestationDigest: 'e'.repeat(64), observedAt: sampled.toISOString() }),

@@ -10,8 +10,8 @@ import { types } from 'node:util';
 import { assertSealedRealmsProductionActivationRecordsAuthority,
   readSealedRealmsProductionRecoveryCandidateRecords } from './sealed-realms-production-activation-records.mjs';
 import { sourceCommitFromSealedRealmsProductionAuthority } from './sealed-realms-production-source-authority.mjs';
-import { recoveryActivationCandidatePolicy, recoveryActivationCandidatePolicyForVersion, validateRecoveryActivationCandidate, validateRecoveryActivationCandidateV3, validateRecoveryActivationCandidateV4, validateRecoveryActivationCandidateV5 } from './recovery-activation-candidate.mjs';
-import { RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3, RECOVERY_BINDING_KEYS_V4, RECOVERY_BINDING_KEYS_V5 } from './recovery-binding-projection.mjs';
+import { recoveryActivationCandidatePolicy, recoveryActivationCandidatePolicyForVersion, validateRecoveryActivationCandidate, validateRecoveryActivationCandidateV3, validateRecoveryActivationCandidateV4, validateRecoveryActivationCandidateV5, validateRecoveryActivationCandidateV6 } from './recovery-activation-candidate.mjs';
+import { RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3, RECOVERY_BINDING_KEYS_V4, RECOVERY_BINDING_KEYS_V5, RECOVERY_BINDING_KEYS_V6 } from './recovery-binding-projection.mjs';
 
 import { readSealedRealmsProductionRecoveryBridgeFacts } from './sealed-realms-production-auth-bridge-state.mjs';
 
@@ -56,7 +56,7 @@ function line(args) {
   catch { fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID'); }
   finally { bytes?.fill(0); }
 }
-function source(commit, linux) {
+function source(commit, linux, census = false) {
   let root;
   try { root = realpathSync(process.cwd()); }
   catch { fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID'); }
@@ -64,7 +64,7 @@ function source(commit, linux) {
     || line(['rev-parse', '--verify', 'refs/remotes/origin/main^{commit}']) !== `${commit}\n`
     || line(['rev-parse', '--show-toplevel']) !== `${root}\n`) fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID');
   const tree = line(['rev-parse', '--verify', `${commit}^{tree}`]).trimEnd();
-  const operatorPath = linux ? GENESIS_001_LINUX_POLICY_OPERATOR_PATH : BOOTSTRAP;
+  const operatorPath = census ? 'scripts/genesis001-linux-census-operator.ts' : linux ? GENESIS_001_LINUX_POLICY_OPERATOR_PATH : BOOTSTRAP;
   const entry = line(['ls-tree', '-z', commit, '--', operatorPath]);
   const match = /^100644 blob ([a-f0-9]{40})\t([^\0]+)\0$/u.exec(entry);
   if (match?.[2] !== operatorPath) fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID');
@@ -109,7 +109,9 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
     privateState: options.privateState, authority: options.authority, readContext: options.readContext });
   const approvals = readApprovals();
   const linux = corpus.bootstrap.profile === GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE;
-  const actual = source(commit, linux);
+  const census = corpus.projection.g001AdmissionControlProfile === 'warpkeep-genesis-001-server-freeze-v1';
+  if (census && !linux) fail();
+  const actual = source(commit, linux, census);
   if (JSON.stringify(corpus.bootstrap) !== JSON.stringify(actual)) fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID');
   const update = Object.hasOwn(corpus.projection, 'ptrExistingUpdateReceiptDigest');
   if (update && Object.hasOwn(corpus.projection, 'ptrPublishReceiptDigest')) fail();
@@ -117,8 +119,9 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
   if (adoption && !update) fail();
   const g002Adoption = Object.hasOwn(corpus.projection, 'g002ExistingStateAdoptionReceiptDigest');
   if (g002Adoption && (!adoption || !Object.hasOwn(corpus.projection, 'g002ExistingUpdateReceiptDigest'))) fail();
-  const keys = g002Adoption ? RECOVERY_BINDING_KEYS_V5 : adoption ? RECOVERY_BINDING_KEYS_V4 : update ? RECOVERY_BINDING_KEYS_V3 : RECOVERY_BINDING_KEYS_V2;
-  const facts = { ...(g002Adoption ? recoveryActivationCandidatePolicyForVersion(5) : adoption ? recoveryActivationCandidatePolicyForVersion(4) : update ? recoveryActivationCandidatePolicyForVersion(3) : recoveryActivationCandidatePolicy()) };
+  if (census && !g002Adoption) fail();
+  const keys = census ? RECOVERY_BINDING_KEYS_V6 : g002Adoption ? RECOVERY_BINDING_KEYS_V5 : adoption ? RECOVERY_BINDING_KEYS_V4 : update ? RECOVERY_BINDING_KEYS_V3 : RECOVERY_BINDING_KEYS_V2;
+  const facts = { ...(census ? recoveryActivationCandidatePolicyForVersion(6) : g002Adoption ? recoveryActivationCandidatePolicyForVersion(5) : adoption ? recoveryActivationCandidatePolicyForVersion(4) : update ? recoveryActivationCandidatePolicyForVersion(3) : recoveryActivationCandidatePolicy()) };
   for (const projection of [corpus.projection, bridge, approvals, closure, preparation, programs, {
     preparationSourceCommit: actual.preparationSourceCommit, preparationSourceTree: actual.preparationSourceTree }]) {
     for (const [key, value] of Object.entries(projection)) {
@@ -131,7 +134,7 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
     || JSON.stringify(approvals) !== JSON.stringify(readApprovals())
     || JSON.stringify(closure) !== JSON.stringify(readClosure())
     || JSON.stringify(programs) !== JSON.stringify(readPrograms())
-    || JSON.stringify(actual) !== JSON.stringify(source(commit, linux))
+    || JSON.stringify(actual) !== JSON.stringify(source(commit, linux, census))
     || JSON.stringify(preparation) !== JSON.stringify(readPreparation())) fail();
   const ordered = Object.freeze(Object.fromEntries(keys
     .filter(key => Object.hasOwn(facts, key)).map(key => [key, facts[key]])));
@@ -145,7 +148,8 @@ export function readSealedRealmsProductionRecoveryCandidate(inputValue) {
   const derived = inspectSealedRealmsProductionRecoveryCandidate(inputValue);
   if (derived.missingFields.length !== 0) fail('SEALED_REALMS_RECOVERY_CANDIDATE_INPUTS_MISSING', derived.missingFields);
   const document = `${JSON.stringify(derived.facts, null, 2)}\n`;
-  if (derived.facts.schemaVersion === 5) validateRecoveryActivationCandidateV5(document);
+  if (derived.facts.schemaVersion === 6) validateRecoveryActivationCandidateV6(document);
+  else if (derived.facts.schemaVersion === 5) validateRecoveryActivationCandidateV5(document);
   else if (derived.facts.schemaVersion === 4) validateRecoveryActivationCandidateV4(document);
   else if (derived.facts.schemaVersion === 3) validateRecoveryActivationCandidateV3(document);
   else validateRecoveryActivationCandidate(document);

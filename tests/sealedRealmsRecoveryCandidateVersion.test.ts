@@ -175,3 +175,28 @@ it('merges source closure capability facts and rereads without permitting corpus
   seams.closure.mockReturnValueOnce({ sourceClosureSha256: digest }).mockReturnValue({ sourceClosureSha256: 'e'.repeat(64) });
   expect(() => inspectSealedRealmsProductionRecoveryCandidate(options)).toThrow();
 });
+
+it('derives V6 through the actual reader using the census operator and rejects a policy-only producer', async () => {
+  const { RECOVERY_BINDING_KEYS_V6 } = await import('../scripts/recovery-binding-projection.mjs');
+  const { validateRecoveryActivationCandidateV6 } = await import('../scripts/recovery-activation-candidate.mjs');
+  const f = fixture(5), values = { ...f.candidate, schemaVersion: 6,
+    profile: 'warpkeep-0.4.0-sealed-launch-g001-linux-freeze-v6',
+    g001AdmissionControlProfile: 'warpkeep-genesis-001-server-freeze-v1',
+    g001FreezeConfirmationReceiptDigest: '1'.repeat(64), g001FreezeConfirmationReceiptCommitment: null,
+    g001FreezeCurrentStateReceiptDigest: '2'.repeat(64), g001FreezeCurrentStateReceiptCommitment: null };
+  const candidate = Object.fromEntries(RECOVERY_BINDING_KEYS_V6.map(key => [key, (values as Record<string, unknown>)[key]]));
+  const old = f.corpus.bootstrap;
+  (f.corpus as any).bootstrap = { profile: 'warpkeep-g001-linux-policy-observation-v1',
+    preparationSourceCommit: old.preparationSourceCommit, preparationSourceTree: old.preparationSourceTree,
+    operatorBlob: old.bootstrapBlob, operatorSha256: old.bootstrapSha256 };
+  f.corpus.projection = candidate;
+  const git = seams.git.getMockImplementation()!;
+  seams.git.mockImplementation((executable, argv) => argv.includes('ls-tree')
+    ? Buffer.from(`100644 blob ${old.bootstrapBlob}\tscripts/genesis001-linux-census-operator.ts\0`) : git(executable, argv));
+  const source = readSealedRealmsProductionRecoveryCandidate(f.input);
+  expect(source).toBe(encode(candidate));
+  expect(validateRecoveryActivationCandidateV6(source)).toEqual(candidate);
+  seams.git.mockImplementation((executable, argv) => argv.includes('ls-tree')
+    ? Buffer.from(`100644 blob ${old.bootstrapBlob}\tscripts/genesis001-linux-policy-operator.ts\0`) : git(executable, argv));
+  expect(() => readSealedRealmsProductionRecoveryCandidate(f.input)).toThrow('SOURCE_INVALID');
+});

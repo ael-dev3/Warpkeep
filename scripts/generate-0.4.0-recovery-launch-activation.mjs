@@ -13,6 +13,7 @@ const COMMIT = /^[a-f0-9]{40}$/u;
 const SHA256 = /^[a-f0-9]{64}$/u;
 const ORIGIN = 'https://github.com/ael-dev3/Warpkeep.git';
 const BOOTSTRAP_PATH = 'scripts/greater-realm-production-bootstrap.mjs';
+const LINUX_CENSUS_PATH = 'scripts/genesis001-linux-census-operator.ts';
 const GIT_ENVIRONMENT = Object.freeze({
   GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_SYSTEM: '/dev/null',
   GIT_ASKPASS: '/usr/bin/false', GIT_NO_REPLACE_OBJECTS: '1', GIT_TERMINAL_PROMPT: '0',
@@ -46,6 +47,9 @@ export function readRecoveryActivationBootstrapAuthority(authority, testOnly) {
 
 export function readRecoveryActivationLinuxPolicyAuthority(authority, testOnly) {
   return readPolicySourceAuthority(authority, testOnly, true);
+}
+export function readRecoveryActivationLinuxCensusAuthority(authority, testOnly) {
+  return readPolicySourceAuthority(authority, testOnly, 'census');
 }
 
 function readPolicySourceAuthority(authority, testOnly, linux) {
@@ -96,7 +100,7 @@ function readPolicySourceAuthority(authority, testOnly, linux) {
     fail('RECOVERY_LAUNCH_ACTIVATION_SOURCE_INVALID');
   }
   const moduleTreeId = fixedGit(['rev-parse', '--verify', `${sourceCommit}^{tree}`]);
-  const operatorPath = linux ? GENESIS_001_LINUX_POLICY_OPERATOR_PATH : BOOTSTRAP_PATH;
+  const operatorPath = linux === 'census' ? LINUX_CENSUS_PATH : linux ? GENESIS_001_LINUX_POLICY_OPERATOR_PATH : BOOTSTRAP_PATH;
   const entry = fixedGit(['ls-tree', '-z', sourceCommit, '--', operatorPath], true).toString('utf8');
   const match = /^100644 blob ([a-f0-9]{40})\t([^\0]+)\0$/u.exec(entry);
   if (match?.[2] !== operatorPath) fail('RECOVERY_LAUNCH_ACTIVATION_SOURCE_INVALID');
@@ -113,20 +117,21 @@ function readPolicySourceAuthority(authority, testOnly, linux) {
   } finally { bytes.fill(0); config.fill(0); }
 }
 
-function validateRecoveryEvidence(envelope, verificationTime, existingStateAdoption, g002ExistingStateAdoption) {
+function validateRecoveryEvidence(envelope, verificationTime, existingStateAdoption, g002ExistingStateAdoption, linuxRecoveryEvidence) {
   const version = envelope !== null && typeof envelope === 'object' && !types.isProxy(envelope)
     ? Object.getOwnPropertyDescriptor(envelope, 'schemaVersion')?.value : undefined;
-  if ((version === 4 || version === 5) !== (existingStateAdoption !== undefined)
-    || (version === 5) !== (g002ExistingStateAdoption !== undefined)) fail();
+  if ((version === 4 || version === 5 || version === 6) !== (existingStateAdoption !== undefined)
+    || (version === 5 || version === 6) !== (g002ExistingStateAdoption !== undefined)
+    || (version === 6) !== (linuxRecoveryEvidence !== undefined)) fail();
   // Adoption JSON never supplies its own authenticity. Each opaque owner reopens
   // its complete retained signed envelope and genuine completed update history.
-  return validateSealedRealmsProductionRecoveryActivationEvidence(envelope, verificationTime, existingStateAdoption, g002ExistingStateAdoption);
+  return validateSealedRealmsProductionRecoveryActivationEvidence(envelope, verificationTime, existingStateAdoption, g002ExistingStateAdoption, linuxRecoveryEvidence);
 }
 
 /** Evidence comparison only, not generator authority; each adoption requires its retained opaque evidence. */
-export function validateRecoveryLaunchActivationProjection(envelope, bridge, verificationTime, existingStateAdoption, g002ExistingStateAdoption) {
-  const candidate = validateRecoveryEvidence(envelope, verificationTime, existingStateAdoption, g002ExistingStateAdoption);
-  const g002Adoption = candidate.schemaVersion === 5;
+export function validateRecoveryLaunchActivationProjection(envelope, bridge, verificationTime, existingStateAdoption, g002ExistingStateAdoption, linuxRecoveryEvidence) {
+  const candidate = validateRecoveryEvidence(envelope, verificationTime, existingStateAdoption, g002ExistingStateAdoption, linuxRecoveryEvidence);
+  const g002Adoption = candidate.schemaVersion === 5 || candidate.schemaVersion === 6;
   const adoption = candidate.schemaVersion === 4 || g002Adoption;
   if (adoption) {
     if (types.isProxy(bridge) || bridge === null || typeof bridge !== 'object'
@@ -180,22 +185,24 @@ export function validateRecoveryLaunchActivationProjection(envelope, bridge, ver
     || (!adoption && bridge.ptrImportAuthorityCrossLink.realmImportReceiptDigest !== candidate.ptrAtlasImportReceiptDigest)
     || candidate.admissionRequestSuspensionReceiptDigest !== bridgeDigest
     || !(Date.parse(bridge.activationGate.observedAt)
-      >= Date.parse(envelope.g001AdmissionMonitorCurrentStateReceipt.observedAt))) fail();
+      >= Date.parse(candidate.schemaVersion === 6
+        ? envelope.g001LinuxCensusAttempt.freezeCurrentStateReceipt.policyObservation.policyObservationReceipt.observedAt
+        : envelope.g001AdmissionMonitorCurrentStateReceipt.observedAt))) fail();
   return createRecoveryActivationBindingFromCandidate(`${JSON.stringify(candidate, null, 2)}\n`);
 }
 
-export function createRecoveryLaunchActivationBindingFromEvidence(envelope, member, authority, testOnly, existingStateAdoption, g002ExistingStateAdoption) {
-  const candidate = validateRecoveryEvidence(envelope, undefined, existingStateAdoption, g002ExistingStateAdoption);
-  const bootstrap = envelope.g001PolicyObservationBootstrapReceipt;
+export function createRecoveryLaunchActivationBindingFromEvidence(envelope, member, authority, testOnly, existingStateAdoption, g002ExistingStateAdoption, linuxRecoveryEvidence) {
+  const candidate = validateRecoveryEvidence(envelope, undefined, existingStateAdoption, g002ExistingStateAdoption, linuxRecoveryEvidence);
+  const bootstrap = candidate.schemaVersion === 6 ? envelope.g001LinuxCensusAttempt.initialPolicyObservation : envelope.g001PolicyObservationBootstrapReceipt;
   const linux = bootstrap.profile === GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE;
-  const source = linux ? readRecoveryActivationLinuxPolicyAuthority(authority, testOnly)
+  const source = candidate.schemaVersion === 6 ? readRecoveryActivationLinuxCensusAuthority(authority, testOnly) : linux ? readRecoveryActivationLinuxPolicyAuthority(authority, testOnly)
     : readRecoveryActivationBootstrapAuthority(authority, testOnly);
   if (candidate.preparationSourceCommit !== source.preparationSourceCommit
     || bootstrap.moduleTreeId !== source.moduleTreeId || bootstrap[linux ? 'operatorBlob' : 'bootstrapBlob'] !== source[linux ? 'operatorBlob' : 'bootstrapBlob']
     || bootstrap[linux ? 'operatorSha256' : 'bootstrapSha256'] !== source[linux ? 'operatorSha256' : 'bootstrapSha256']) fail('RECOVERY_LAUNCH_ACTIVATION_SOURCE_INVALID');
   return validateRecoveryLaunchActivationProjection(envelope,
     readSealedRealmsProductionActivationEvidenceMember(member).authBridgeSuspensionPrivateReceipt,
-    undefined, existingStateAdoption, g002ExistingStateAdoption);
+    undefined, existingStateAdoption, g002ExistingStateAdoption, linuxRecoveryEvidence);
 }
 
 function sameFile(left, right) {
@@ -204,7 +211,7 @@ function sameFile(left, right) {
 }
 
 /** The producer supplies one owner-private descriptor to this fixed synchronous reader. */
-export function generateRecoveryLaunchActivationBindingFromDescriptor(descriptor, member, authority, testOnly, existingStateAdoption, g002ExistingStateAdoption) {
+export function generateRecoveryLaunchActivationBindingFromDescriptor(descriptor, member, authority, testOnly, existingStateAdoption, g002ExistingStateAdoption, linuxRecoveryEvidence) {
   if (!Number.isInteger(descriptor) || descriptor < 0 || typeof process.getuid !== 'function') fail();
   const before = fstatSync(descriptor, { bigint: true });
   if (!before.isFile() || before.uid !== BigInt(process.getuid()) || before.nlink !== 1n
@@ -221,6 +228,6 @@ export function generateRecoveryLaunchActivationBindingFromDescriptor(descriptor
     const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, count));
     const envelope = JSON.parse(source);
     if (`${JSON.stringify(envelope, null, 2)}\n` !== source) fail();
-    return createRecoveryLaunchActivationBindingFromEvidence(envelope, member, authority, testOnly, existingStateAdoption, g002ExistingStateAdoption);
+    return createRecoveryLaunchActivationBindingFromEvidence(envelope, member, authority, testOnly, existingStateAdoption, g002ExistingStateAdoption, linuxRecoveryEvidence);
   } finally { bytes.fill(0); }
 }

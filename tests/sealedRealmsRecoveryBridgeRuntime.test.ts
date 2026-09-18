@@ -1,8 +1,19 @@
 // @vitest-environment node
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const f = vi.hoisted(() => ({
   programArtifacts: Object.freeze({}),
   programs: vi.fn(),
+  refresh: vi.fn(),
+  retained: Object.freeze({}),
+  retain: vi.fn(),
+  refreshRetained: vi.fn(),
+  join: vi.fn(),
+  joined: Object.freeze({}),
+  censusPrepare: vi.fn(),
+  censusExecute: vi.fn(),
+  censusDispose: vi.fn(),
+  censusHandle: Object.freeze({}),
+  censusEvidence: Object.freeze({}),
   disposePrograms: vi.fn(),
   sourceClosure: Object.freeze({}),
   preparation: Object.freeze({}),
@@ -37,12 +48,24 @@ const f = vi.hoisted(() => ({
 }));
 vi.mock("../scripts/sealed-realms-production-source-authority.mjs", () => ({
   authenticateSealedRealmsProductionSourceAuthority: f.createAuthority,
+  authenticateSealedRealmsProductionRetainedSource: () => ({}),
+}));
+vi.mock('node:child_process', () => ({ execFileSync: () => 'b'.repeat(40) + '\n' }));
+vi.mock('../scripts/sealed-realms-production-retained-fixture-source.mjs', () => ({ readSealedRealmsProductionRetainedFixtureSources: vi.fn() }));
+vi.mock('../scripts/ptr-production-existing-update-adapter.mjs', () => ({
+  readPtrRetainedUpdateSourceCommit: () => 'e'.repeat(40), readG002RetainedUpdateSourceCommit: () => 'e'.repeat(40),
+}));
+vi.mock('../scripts/genesis001-linux-policy-native.mjs', () => ({
+  prepareFixedLinuxG001CensusObservation: f.censusPrepare,
+  executeFixedLinuxG001ActivationCensusObservation: f.censusExecute,
+  disposeFixedLinuxG001PolicyObservation: f.censusDispose,
 }));
 vi.mock("../scripts/sealed-realms-production-workflow-evidence.mjs", () => ({
   createSealedRealmsProductionWorkflowEvidence: () => ({}),
-  refreshSealedRealmsProductionWorkflowEvidence: () => {
-    if (f.failStage === "refresh") throw Error("fixture refresh failure");
-  },
+  refreshSealedRealmsProductionWorkflowEvidence: f.refresh,
+  createSealedRealmsProductionActivationRetainedEvidence: f.retain,
+  refreshSealedRealmsProductionRetainedEvidence: f.refreshRetained,
+  verifySealedRealmsProductionRetainedEvidence: vi.fn(),
   revokeSealedRealmsProductionWorkflowEvidence: f.revoke,
   verifySealedRealmsProductionWorkflowEvidence: vi.fn(),
 }));
@@ -69,6 +92,9 @@ vi.mock("../scripts/sealed-realms-production-activation-records.mjs", () => ({
   createSealedRealmsProductionActivationRecords: f.createRecords,
   authenticateSealedRealmsProductionPtrExistingStateAdoption: f.authenticateAdoption,
   authenticateSealedRealmsProductionG002ExistingStateAdoption: f.authenticateG002Adoption,
+  authenticateSealedRealmsProductionPtrHistoricalAdoption: f.authenticateAdoption,
+  authenticateSealedRealmsProductionG002HistoricalAdoption: f.authenticateG002Adoption,
+  authenticateSealedRealmsProductionLinuxRecoveryEvidence: f.join,
 }));
 vi.mock("../scripts/sealed-realms-production-recovery-candidate.mjs", () => ({
   readSealedRealmsProductionRecoveryCandidate: f.read,
@@ -122,7 +148,14 @@ beforeEach(() => {
   f.dispatch.mockReset();
   f.prepare.mockResolvedValue(f.preparation);
   f.programs.mockReset().mockResolvedValue(f.programArtifacts);
+  f.refresh.mockReset().mockImplementation(() => { if (f.failStage === 'refresh') throw Error('fixture refresh failure'); });
+  f.retain.mockReset().mockResolvedValue(f.retained);
+  f.refreshRetained.mockReset().mockResolvedValue(undefined);
+  f.join.mockReset().mockResolvedValue(f.joined);
+  f.censusPrepare.mockReset().mockResolvedValue(f.censusHandle);
+  f.censusExecute.mockReset().mockResolvedValue(f.censusEvidence);
 });
+afterEach(() => vi.unstubAllEnvs());
 vi.mock('../scripts/sealed-realms-production-recovery-preparation.mjs', () => ({
   createSealedRealmsProductionRecoveryPreparation: f.prepare,
   disposeSealedRealmsProductionRecoveryPreparation: f.disposePreparation,
@@ -246,6 +279,7 @@ it('disposes the existing closure and revokes evidence when preparation authenti
 });
 vi.mock('../scripts/sealed-realms-production-recovery-program-artifacts.mjs', () => ({
   createSealedRealmsProductionRecoveryProgramArtifacts: f.programs,
+  createSealedRealmsProductionRecoveryAdoptionProgramArtifacts: f.programs,
   disposeSealedRealmsProductionRecoveryProgramArtifacts: f.disposePrograms,
 }));
 it('builds fixed programs before acquiring expiring preparation and stops before preparation on build failure', async () => {
@@ -370,4 +404,52 @@ it.each(["missing PTR", "G002 authentication"])("refuses %s before bridge access
   expect(f.prepare).not.toHaveBeenCalled();
   expect(f.createGenerator).not.toHaveBeenCalled();
   expect(f.revoke).toHaveBeenCalledOnce();
+});
+
+it.each([undefined, ''])('keeps omitted/empty census input on the unchanged legacy inspection path (%s)', async selected => {
+  vi.stubEnv('WARPKEEP_G001_CENSUS_ATTEMPT', selected);
+  const runtime = await createSealedRealmsProductionActivationWorkflowRuntime({ operation: 'activation-evidence-inspect', workflowInputSha: 'a'.repeat(40) });
+  expect(f.censusPrepare).not.toHaveBeenCalled(); expect(f.join).not.toHaveBeenCalled(); expect(f.retain).not.toHaveBeenCalled();
+  await runSealedRealmsProductionActivationOperation({ runtime, operation: 'activation-evidence-inspect', workflowInputSha: 'a'.repeat(40) });
+});
+it('captures credentials in their owners, builds first, collects inline, then refreshes proofs and requests short-lived preparation', async () => {
+  vi.stubEnv('WARPKEEP_G001_CENSUS_ATTEMPT', 'inline');
+  vi.stubEnv('WARPKEEP_PRODUCTION_ADMIN_TOKEN', 'synthetic-never-sent-admin-token-123456789');
+  f.state.list.mockReturnValue(['ptr-existing-state-adoptions-v4', 'g002-existing-state-adoptions-v1']);
+  f.createProvider.mockImplementationOnce(() => { delete process.env.WARPKEEP_PRODUCTION_ADMIN_TOKEN; return f.provider; });
+  f.programs.mockImplementationOnce(async () => {
+    expect(process.env.WARPKEEP_PRODUCTION_ADMIN_TOKEN).toBeUndefined();
+    expect(f.censusExecute).not.toHaveBeenCalled(); return f.programArtifacts;
+  });
+  const operation = 'activation-evidence-generate';
+  const runtime = await createSealedRealmsProductionActivationWorkflowRuntime({ operation, workflowInputSha: 'a'.repeat(40) });
+  expect(f.censusPrepare).toHaveBeenCalledExactlyOnceWith('synthetic-never-sent-admin-token-123456789');
+  const order = (mock: { mock: { invocationCallOrder: number[] } }) => mock.mock.invocationCallOrder[0];
+  expect(order(f.createProvider)).toBeLessThan(order(f.censusPrepare));
+  expect(order(f.programs)).toBeLessThan(order(f.refresh));
+  expect(order(f.refresh)).toBeLessThan(order(f.retain));
+  expect(order(f.authenticateG002Adoption)).toBeLessThan(order(f.censusExecute));
+  expect(order(f.censusExecute)).toBeLessThan(order(f.refreshRetained));
+  expect(order(f.join)).toBeLessThan(order(f.prepare));
+  expect(f.join).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ censusEvidence: f.censusEvidence,
+    programArtifacts: f.programArtifacts, authority: f.authority }));
+  expect(f.join.mock.calls[0][0]).not.toHaveProperty('attemptId');
+  expect(f.createBridge).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ bridgeProvider: f.provider, linuxRecoveryEvidence: f.joined }));
+  await runSealedRealmsProductionActivationOperation({ runtime, operation, workflowInputSha: 'a'.repeat(40) });
+  expect(f.censusDispose).toHaveBeenCalledExactlyOnceWith(f.censusHandle);
+  expect(f.refreshRetained).toHaveBeenCalledTimes(3);
+});
+it('cleans an owned inline preparation if a later build fails and never dispatches', async () => {
+  vi.stubEnv('WARPKEEP_G001_CENSUS_ATTEMPT', 'inline');
+  f.state.list.mockReturnValue(['ptr-existing-state-adoptions-v4', 'g002-existing-state-adoptions-v1']);
+  f.programs.mockRejectedValueOnce(Error('native build failed'));
+  await expect(createSealedRealmsProductionActivationWorkflowRuntime({ operation: 'activation-evidence-generate', workflowInputSha: 'a'.repeat(40) })).rejects.toThrow('native build failed');
+  expect(f.censusDispose).toHaveBeenCalledExactlyOnceWith(f.censusHandle);
+  expect(f.censusExecute).not.toHaveBeenCalled(); expect(f.dispatch).not.toHaveBeenCalled(); expect(f.revoke).toHaveBeenCalledOnce();
+});
+it('does not fall back from a malformed explicit census selection', async () => {
+  vi.stubEnv('WARPKEEP_G001_CENSUS_ATTEMPT', 'latest');
+  f.state.list.mockReturnValue(['ptr-existing-state-adoptions-v4', 'g002-existing-state-adoptions-v1']);
+  await expect(createSealedRealmsProductionActivationWorkflowRuntime({ operation: 'activation-evidence-inspect', workflowInputSha: 'a'.repeat(40) })).rejects.toThrow('ADOPTION_INVALID');
+  expect(f.programs).not.toHaveBeenCalled(); expect(f.createProvider).not.toHaveBeenCalled(); expect(f.authenticateAdoption).not.toHaveBeenCalled();
 });
