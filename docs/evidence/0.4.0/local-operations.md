@@ -4,7 +4,7 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 ## Resumption audit — 18 September 2026
 
-Current protected source: `b35f2608f8de131596ede60e508b393f123ca36e`, merged
+Latest runtime-bearing source in protected `main`: `b35f2608f8de131596ede60e508b393f123ca36e`, merged
 through PR #295. PR Verify `35332973078`, CodeQL `35332973179`, post-merge
 Verify `35337649140` and post-merge CodeQL `35337649063` passed for this exact
 SHA. Pages run `35342265515` passed source classification; build, deployment,

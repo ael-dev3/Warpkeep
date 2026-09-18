@@ -3,7 +3,7 @@
 ## Current source and access checkpoint — 18 September 2026
 
 The [execution handoff](execution-handoff.md) owns the dated source and
-completed CI receipts. Protected `main` is
+completed CI receipts. The latest runtime-bearing source in protected `main` is
 `b35f2608f8de131596ede60e508b393f123ca36e`, merged through PR #295. PR Verify
 `35332973078`, CodeQL `35332973179`, post-merge Verify `35337649140` and
 post-merge CodeQL `35337649063` passed. Pages run `35342265515` passed source

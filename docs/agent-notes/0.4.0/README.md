@@ -7,7 +7,7 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-The [execution handoff](execution-handoff.md) owns the current protected source,
+The [execution handoff](execution-handoff.md) owns the current runtime-bearing source,
 completed Verify/CodeQL receipts and Pages classification. `main` is
 **`b35f2608f8de131596ede60e508b393f123ca36e`**, merged through PR #295, which
 clarified the first mobile journey instruction and action label without changing

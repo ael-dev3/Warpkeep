@@ -2,7 +2,7 @@
 
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main), the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
 
-The protected source is `b35f2608f8de131596ede60e508b393f123ca36e`, merged
+The latest runtime-bearing source in protected `main` is `b35f2608f8de131596ede60e508b393f123ca36e`, merged
 through PR #295. PR Verify `35332973078`, CodeQL `35332973179`, post-merge
 Verify `35337649140` and post-merge CodeQL `35337649063` passed. Pages run
 `35342265515` passed source classification; build, deployment, recovery and
