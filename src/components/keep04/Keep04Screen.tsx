@@ -166,8 +166,8 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
       {showFirstJourney && firstIdleWorker !== undefined && <section className="keep04-first-journey" aria-label="First journey">
         <p className="keep04-eyebrow">YOUR FIRST RETURN</p>
         <h2>Start with one useful journey.</h2>
-        <p>Choose a resource location for Worker {firstIdleWorker.ordinal + 1}. What comes home can shape your first improvement.</p>
-        <button type="button" onClick={() => onFindResources(null, firstIdleWorker.ordinal)}>Start first journey</button>
+        <p>Open the Realm and choose a resource location for Worker {firstIdleWorker.ordinal + 1}. What comes home can shape your first improvement.</p>
+        <button type="button" onClick={() => onFindResources(null, firstIdleWorker.ordinal)}>Choose a resource location</button>
       </section>}
       {problem === 'capacity' && <p role="status">That resource location is full. Find another location.</p>}
       {problem === 'target' && <p role="status">That resource location changed. Choose a current Realm location.</p>}
