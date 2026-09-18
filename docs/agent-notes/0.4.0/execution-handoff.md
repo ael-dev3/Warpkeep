@@ -38,10 +38,11 @@ the live protected `main`, wait for its completed push-to-main Verify and
 recheck that SHA before any new dispatch. Pages classification remains
 deployment-skipped while `pagesDeploymentApproved:false` is in force. Keep the
 runtime source identity separate from the moving documentation head.
-The current main Verify and CodeQL receipts above cover the exact protected
-checkpoint. The native `WarpkeepRunner` checkout must be detached at the
-resolved live `main` SHA and clean before an operation; only its idle
-RunnerService is expected to run.
+The Verify, CodeQL and Pages receipts above cover that recorded documentation
+checkpoint, not a moving authority. Resolve live `main`, wait for its completed
+push-to-main Verify and recheck the SHA before any new dispatch. The native
+`WarpkeepRunner` checkout must be detached at the resolved live `main` SHA and
+clean before an operation; only its idle RunnerService is expected to run.
 
 The historical exact-source protected [preflight 35166824615](https://github.com/ael-dev3/Warpkeep/actions/runs/35166824615)
 completed successfully against the earlier docs receipt
