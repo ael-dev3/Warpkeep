@@ -1,30 +1,22 @@
 # 0.4 workflow sufficiency audit
 
 Updated 2026-09-18 (Europe/Budapest). Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
-for the single dated source/CI/preflight checkpoint and the
-[release checklist](../../operations/0.4.0-release-checklist.md) for acceptance.
-The protected M2 runtime source family remains
-`fa9927bb9a8701e182f63eac1206e2f1425c4522`. This record pins the docs-only
-checkpoint `74e021a9b25417e2c77fcbaf7f764eba03474f77`; its post-merge Verify
-`35301960822`, CodeQL `35301960847` and Pages classification `35304999434`
-passed with deployment skipped while
-`pagesDeploymentApproved:false` is in force. PR #290's bounded Linux cleanup
-retry passed Verify `35287561293` and CodeQL `35287561395`. The last
-runtime-bearing checkpoint `b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a` and its
-receipts remain historical. These are dated receipts, not a moving runtime
-head; resolve live `main` before a new dispatch. Documentation-only commits do
-not change the runtime source family. The
-earlier docs-only receipt
-`3a0df9e6aa869902aa4565bb7fa6981e7c9b2844` and its checks remain historical.
-Read-only
-activation inspection `35110519489`, G001
-policy observation `35110808078` and PTR observer inspection `35114630482`
-failed closed because the required private/provider inputs are absent. Windows
-and Linux publisher discovery works with the verified account, while private
-operation authority, owner access, live deployment, recovery/readback, device
-acceptance and final-freeze evidence remain open. Historical candidate
-identities do not certify later source.
+for the single dated source/CI checkpoint and the [release checklist](../../operations/0.4.0-release-checklist.md)
+for acceptance. The protected source is
+`b35f2608f8de131596ede60e508b393f123ca36e`, merged through PR #295. PR Verify
+`35332973078`, CodeQL `35332973179`, post-merge Verify `35337649140` and
+post-merge CodeQL `35337649063` passed. Pages run `35342265515` classified the
+same source successfully, while build, deployment, recovery and live
+verification remained skipped because sealed release authority and approval
+are not closed. The live site remains the older 0.3.43 bundle. The sync
+automation is paused and no new Desktop files are permitted.
 
+The 0.4 foundation remains strong: the Keep04 gather → choose → build → benefit
+→ return rail, first-journey cue, mobile Verdant Citadel composition, focused
+accessibility and contract coverage, local full-stack probe, and Inner Keep QA
+are all green. The release is still blocked by private activation authority,
+G001 observation, PTR observer/readback, provider deployment/recovery,
+owner-only PTR play, physical-device performance and final release freeze.
 ## Verdict
 
 The workflow supports reviewed development, native preparation, protected

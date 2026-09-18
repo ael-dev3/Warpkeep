@@ -1,24 +1,23 @@
 # Release engineering, CI and infrastructure audit
 
-## Current source and access checkpoint — 2026-09-18
+## Current source and access checkpoint — 18 September 2026
 
-The [execution handoff](execution-handoff.md) owns the dated source, completed
-CI and successful read-only preflight. This record pins the docs-only
-checkpoint `74e021a9b25417e2c77fcbaf7f764eba03474f77` (PR #291); Verify
-`35301960822`, CodeQL `35301960847` and Pages classification `35304999434`
-passed for that exact SHA, with deployment skipped while
-`pagesDeploymentApproved:false` is in force. The last runtime-bearing
-checkpoint is `b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a`; later documentation and
-CI cleanup commits do not change that runtime source. The
-[live delivery guide](../../operations/0.4.0-live-delivery-status.md) owns fresh
-access observations and operating steps. Cloudflare production profile reads
-work. Windows and the Linux production CLI now authenticate as the owner's
-verified `ael-dev3` publisher and list all three Warpkeep realm identities correctly;
-the earlier empty listings belonged to a different selected identity. Existing
-Linux sealed private runtime/audit stores remain empty. Provider-backed deployment,
-owner play, recovery/readback, device acceptance and final freeze remain open.
-Historical observations below do not supersede those current checks.
+The [execution handoff](execution-handoff.md) owns the dated source and
+completed CI receipts. Protected `main` is
+`b35f2608f8de131596ede60e508b393f123ca36e`, merged through PR #295. PR Verify
+`35332973078`, CodeQL `35332973179`, post-merge Verify `35337649140` and
+post-merge CodeQL `35337649063` passed. Pages run `35342265515` passed source
+classification, while build, deployment, recovery and live verification
+remained skipped because sealed release authority and approval are not closed.
+The live site remains the older 0.3.43 bundle.
 
+Cloudflare production-profile reads and the owner's `ael-dev3` SpacetimeDB
+publisher login work; they do not provide retained activation authority,
+application-owner PTR access or release acceptance. Existing sealed private
+runtime/audit stores remain empty. Provider-backed deployment, G001
+preservation, recovery/readback, owner play, device acceptance and final freeze
+remain open. Historical observations below retain their original scope and do
+not supersede this current checkpoint.
 ## Historical source checkpoint — 2026-09-12
 
 Reviewed 0.4 source is now integrated into signed main `c4b95505` through

@@ -7,58 +7,35 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state
 
-The [execution handoff](execution-handoff.md) owns the dated accepted source,
-Verify/CodeQL results and successful read-only preflight. The protected M2
-runtime source family remains `fa9927bb9a8701e182f63eac1206e2f1425c4522`.
-This record pins the latest docs-only reconciliation checkpoint at
-`74e021a9b25417e2c77fcbaf7f764eba03474f77` (PR #291). Its post-merge Verify
-`35301960822`, CodeQL `35301960847` and Pages classification `35304999434`
-passed for that exact SHA; Pages deployment, recovery and live verification
-remained skipped while `pagesDeploymentApproved:false` was in force. PR #290's
-bounded Linux cleanup retry passed its protected Verify `35287561293` and
-CodeQL `35287561395`; PR #288's retry-all-errors handling for pinned toolchain
-downloads remains in the same verified chain. These are dated receipts, not a
-moving runtime head. Resolve live `main`, wait for its completed Verify and
-recheck the SHA before a new dispatch. Documentation-only commits do not change
-the runtime source family.
-The earlier docs-only receipt `3a0df9e6aa869902aa4565bb7fa6981e7c9b2844` and
-its checks remain historical.
-Activation inspection `35110519489`, G001 policy observation `35110808078` and
-PTR state inspection `35114630482` then failed closed at their
-operation/workflow boundaries because the required private/provider producer
-inputs are absent. Pages classification deliberately skips
-deployment while `pagesDeploymentApproved:false` is set. Provider-backed
-deployment, recovery/readback, actual-owner play, device acceptance and
-final-freeze evidence remain open. The recorded live baseline remains Genesis.
+The [execution handoff](execution-handoff.md) owns the current protected source,
+completed Verify/CodeQL receipts and Pages classification. `main` is
+**`b35f2608f8de131596ede60e508b393f123ca36e`**, merged through PR #295, which
+clarified the first mobile journey instruction and action label without changing
+mechanics, authority, assets or release gates. PR Verify `35332973078`, CodeQL
+`35332973179`, post-merge Verify `35337649140` and post-merge CodeQL
+`35337649063` passed for that change. Pages run `35342265515` classified the
+same source successfully, while build, deployment, recovery and live
+verification remained skipped because sealed 0.4 release authority and approval
+are not closed. The live site remains the older 0.3.43 bundle.
 
-The [execution handoff](execution-handoff.md) owns exact source, CI, native
-and environment identities. Keep the product direction and evidence below
-aligned to this checkpoint; historical source families remain historical.
+The Keep04 gather → choose → build → benefit → return foundation, readable
+expedition/return feedback, first-journey cue and mobile visual foundation are
+implemented and covered by focused tests. The current focused Keep screen,
+accessibility and contract tests pass 68 tests with one intentional skip;
+typecheck, production build, Inner Keep QA (18 synthetic cases), runtime-asset,
+license, atlas-boundary and sealed-launch checks pass. The connected local
+full-stack probe also passed its browser/auth/Terms/Inner Keep/worker,
+10,000-cell/population and visual coverage.
 
-- **Development and live release are separate.** `main` contains the 0.4
-  development source alongside preserved G001 behavior. The integrated 0.4
-  release is not shipped, and synthetic or local rehearsals do not establish
-  live authority.
-- **The player journey has a clear foundation.** Keep/atlas navigation, Worker
-  dispatch and return feedback, construction state, session renewal, the
-  gather → choose → build → benefit → return rail, readable dispatch-return
-  timing and the first-journey cue are implemented and covered by focused tests.
-  Refresh keeps the scene and focus available while authoritative commands remain
-  guarded.
-- **The Verdant Citadel presentation is under integrated review.** Lightweight
-  voxel scenery, layered terrain, water restraint, readable building hierarchy
-  and mobile layout decisions are recorded in the visual contract and current
-  evidence. Synthetic browser review is useful for layout; physical-device,
-  performance and owner acceptance remain open.
-- **Delivery has working foundations and specific gaps.** Generated bindings,
-  recovery callers, Linux verification, protected-main promotion and sealed
-  preflight are connected, and publisher login has been restored. Operation-specific private authority, live recovery
-  readback, G001 preservation, sealed G002 evidence, owner-only PTR play and
-  final deployment remain to be verified.
-- **Preserve each realm's purpose.** Keep G001 progress and its admission
-  freeze, keep G002 sealed while admissions remain undecided, and use the
-  actual owner's isolated PTR for the new playable journey.
-
+The Windows main checkout, detached `WarpkeepRunner` checkout and secondary
+reference checkout are clean at the protected SHA. Companion repositories are
+clean and equal to their remotes. The sync automation is paused and routine
+notes belong in the repository; use the existing checkouts and ignored
+`artifacts/` directory, and create no Desktop siblings, backups or archives.
+Development and live release remain separate: private activation authority,
+G001 observation, PTR observer/readback, provider deployment/recovery,
+owner-only PTR play, physical-device performance and final release freeze are
+still open.
 ## Find the right starting point
 
 | Need | Read | Outcome |
