@@ -22,6 +22,7 @@ export async function createPtrAdoptionBridgeFixture(input: Readonly<{
   sourceCommit: string;
   g002AtlasImportReceiptDigest?: string;
   now?: Date;
+  observeAt?: () => Date;
   currentWorkerVersionId?: string;
 }>) {
   const joined = input.linuxRecoveryEvidence === undefined ? undefined : readSealedRealmsProductionLinuxRecoveryEvidence({
@@ -33,6 +34,7 @@ export async function createPtrAdoptionBridgeFixture(input: Readonly<{
   const observation = adoption.pair.post.observation;
   if (!joined && observation.bridgeSourceCommit !== sourceCommit) throw Error('Sign a same-source bridge observation for this connected fixture');
   const sampled = input.now ?? new Date(Math.max(Date.now(), observation.observedThrough * 1000));
+  const observedAt = () => input.observeAt?.() ?? new Date(sampled);
   const deploymentId = '223e4567-e89b-42d3-a456-426614174000';
   const workerVersionId = input.currentWorkerVersionId ?? observation.bridgeWorkerVersionId;
   const ptrDatabaseIdentity = observation.ptr.databaseIdentity;
@@ -59,15 +61,16 @@ export async function createPtrAdoptionBridgeFixture(input: Readonly<{
   };
   const createBridge = (existingStateAdoption = input.existingStateAdoption,
     privateState = input.privateState, authority = input.authority,
-    g002ExistingStateAdoption = input.g002ExistingStateAdoption) => createSealedRealmsProductionAuthBridgeState({
+    g002ExistingStateAdoption = input.g002ExistingStateAdoption,
+    linuxRecoveryEvidence = input.linuxRecoveryEvidence) => createSealedRealmsProductionAuthBridgeState({
     authority, privateState, repositoryRoot: process.cwd(), existingStateAdoption,
     ...(g002ExistingStateAdoption === undefined ? {} : { g002ExistingStateAdoption }),
-    ...(input.linuxRecoveryEvidence === undefined ? {} : { linuxRecoveryEvidence: input.linuxRecoveryEvidence }),
+    ...(linuxRecoveryEvidence === undefined ? {} : { linuxRecoveryEvidence }),
     deploymentAttester: () => ({ deploymentId, workerVersionId, bridgeSourceCommit: sourceCommit,
       controlPlaneAttestationDigest: 'c'.repeat(64), publicAttestationDigest: 'd'.repeat(64),
-      privateAttestationDigest: 'e'.repeat(64), observedAt: sampled.toISOString() }),
+      privateAttestationDigest: 'e'.repeat(64), observedAt: observedAt().toISOString() }),
     bindingAttester: () => ({ ptrDatabaseIdentity, ptrBindingDigest, ptrBindingAttestationDigest: '2'.repeat(64),
-      observedAt: sampled.toISOString() }),
+      observedAt: observedAt().toISOString() }),
     fetchImpl: async () => new Response(JSON.stringify({ error: { code: 'admission_requests_suspended',
       message: 'New admission requests are temporarily suspended.' } }), { status: 503, headers: {
       'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': 'https://warpkeep.com',
@@ -75,7 +78,7 @@ export async function createPtrAdoptionBridgeFixture(input: Readonly<{
     inspectImportReceipt: ({ lane }) => importProof(lane, false),
     authenticateImportResult: ({ lane }) => importProof(lane, true) as Extract<ReturnType<typeof importProof>, { disposition: 'adopted' }>,
     resolveOwnerProvisionReceipt: () => { throw Error('PTR owner provisioning is not part of adoption'); },
-    now: () => new Date(sampled), randomBytesImpl: () => Buffer.alloc(32, ++nonce),
+    now: observedAt, randomBytesImpl: () => Buffer.alloc(32, ++nonce),
     testOnlyCapability: createSealedRealmsProductionAuthBridgeStateTestCapability(),
     testOnlyResolvePreparedReceipt: () => ({ receipt, receiptDigest: publication.receiptDigest }),
     testOnlyResolveCompletedJournal: () => ({ journalHeadDigest: '3'.repeat(64),

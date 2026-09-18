@@ -1537,6 +1537,11 @@ export function readSealedRealmsProductionLinuxRecoveryEvidence(input) {
   return Object.freeze({ sourceCommit: state.sourceCommit, sourceTree: current.programs.sourceTree,
     ptr: current.ptr.result, g002: current.g002.result, census: current.census.receipt });
 }
+/** The mode is derived only from the retained native execution owner. */
+export function isSealedRealmsProductionInlineRecoveryEvidence(input) {
+  readSealedRealmsProductionLinuxRecoveryEvidence(input);
+  return linuxRecoveryOwners.get(input.evidence).censusEvidence !== undefined;
+}
 function linuxOwner(evidence, sourceCommit, privateState, ptr, g002) {
   const state = linuxRecoveryOwners.get(evidence);
   if (!state || (ptr !== undefined && state.existingStateAdoption !== ptr)

@@ -2,6 +2,8 @@ import {
   assertSealedRealmsProductionAuthBridgeState,
   assertSealedRealmsProductionAuthBridgeStateAuthority,
   assertSealedRealmsProductionActivationEvidenceGenerator,
+  readSealedRealmsProductionActivationGenerationKind,
+  isSealedRealmsProductionInlineActivationBridge,
 } from './sealed-realms-production-auth-bridge-state.mjs';
 import {
   sourceCommitFromSealedRealmsProductionAuthority,
@@ -178,12 +180,12 @@ function requireContinuation(value, authority) {
   return value;
 }
 
-function continuationInput(continuation, authority, binding) {
+function continuationInput(continuation, authority, binding, kind = 'activation-evidence') {
   return Object.freeze({
     store: continuation.store,
     permit: continuation.permit,
     sourceAuthority: authority,
-    kind: 'activation-evidence',
+    kind,
     runId: continuation.runId,
     runAttempt: continuation.runAttempt,
     ...binding,
@@ -223,14 +225,18 @@ export function createSealedRealmsProductionActivationLane(input = {}) {
     if (authority.mode !== 'S') fail('SEALED_REALMS_ACTIVATION_LANE_SOURCE_MODE_INVALID');
     if (operation === 'activation-evidence-generate') {
       if (generator === undefined) return Object.freeze({ status: 'unavailable' });
-      const binding = await state.reopenActivationEvidenceContinuation();
-      const common = continuationInput(continuation, authority, binding);
+      const kind = readSealedRealmsProductionActivationGenerationKind({ generator, bridgeState: state, authority });
+      const binding = kind === 'activation-evidence-inline'
+        ? await state.inspectInlineActivationEvidenceForContinuation({ generator, authority })
+        : await state.reopenActivationEvidenceContinuation();
+      const common = continuationInput(continuation, authority, binding, kind);
+      if (kind === 'activation-evidence-inline') await issueSealedRealmsProductionContinuation(common);
       try {
         await claimSealedRealmsProductionContinuation({
           ...common,
           effect: claim => state.consumeActivationEvidenceForContinuation({
             claim, store: continuation.store, sourceAuthority: authority,
-            kind: 'activation-evidence', runId: continuation.runId,
+            kind, runId: continuation.runId,
             runAttempt: continuation.runAttempt, ...binding, generator,
           }),
         });
@@ -247,9 +253,11 @@ export function createSealedRealmsProductionActivationLane(input = {}) {
       return Object.freeze({ status: 'completed' });
     }
     const binding = await state.inspectActivationEvidenceForContinuation();
-    await issueSealedRealmsProductionContinuation(
-      continuationInput(continuation, authority, binding),
-    );
+    // Inline generation obtains its own fresh census and bridge evidence in the
+    // actual generation run. Inspection does not reserve its shared claim scope.
+    if (!isSealedRealmsProductionInlineActivationBridge({ bridgeState: state, authority })) {
+      await issueSealedRealmsProductionContinuation(continuationInput(continuation, authority, binding));
+    }
     return Object.freeze({ status: 'activation-evidence-inspected' });
   };
   const lane = Object.freeze({});

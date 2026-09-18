@@ -406,8 +406,25 @@ fixtures. At `cf1b713e`, all 58 continuation tests and six of seven completion
 tests passed. The remaining test caught error-order drift from the earlier
 historical-reader extraction: a forged store reached source validation first.
 Restoring store/owner validation before authority restores the established
-capability error; its targeted regression passes. The full native completion
-rerun follows that correction's publication.
+capability error; its targeted regression passes. At the published correction
+`2a90a872`, all 65 native continuation/completion tests passed without skips.
+
+The fresh inline caller now collects/selects its own immutable bridge receipt
+after the genuine census, then issues and claims within the same generation
+run. Diagnostic inline inspection retains its receipt without reserving the
+generation action. Existing diagnostic receipts remain unchanged; selection
+uses the exact newly written digest, never the newest file. Candidate assembly
+is deferred until that bridge evidence exists, with full validation at generation.
+Legacy inspection and separate-run generation retain their original behavior.
+
+Independent review found no blocking issue in this bounded fresh-caller slice.
+Application types and its connected Windows regression passed, separating
+inspection from generation by more than ten minutes and using a different
+census. All 38 selected legacy bridge/generator tests also passed. Native actual
+inline dispatch and output generation remain to be run after publication.
+Already-written V6 output still needs its separate completed-only retry path;
+that next repair must reuse original evidence at authenticated generation time
+without requesting a new census or signer observation.
 
 ### Shipping estimate and next critical work
 

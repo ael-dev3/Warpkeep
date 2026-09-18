@@ -213,6 +213,10 @@ export type SealedRealmsProductionAuthBridgeState = Readonly<{
   inspectActivationEvidenceForContinuation: () => Promise<
     SealedRealmsProductionBridgeContinuationBinding
   >;
+  inspectInlineActivationEvidenceForContinuation: (input: Readonly<{
+    generator: SealedRealmsProductionActivationEvidenceGenerator;
+    authority: SealedRealmsProductionSourceAuthority;
+  }>) => Promise<SealedRealmsProductionBridgeContinuationBinding>;
   reopenActivationEvidenceContinuation: () => Promise<
     SealedRealmsProductionBridgeContinuationBinding
   >;
@@ -286,12 +290,24 @@ export function createSealedRealmsProductionActivationEvidenceGenerator(input: R
   g002ExistingStateAdoption?: SealedRealmsProductionG002ExistingStateAdoptionEvidence;
   linuxRecoveryEvidence?: SealedRealmsProductionLinuxRecoveryEvidence;
   testOnlyCapability?: SealedRealmsProductionAuthBridgeStateTestCapability;
-  testOnlyPreparationBootstrapAuthority?: import('./generate-0.4.0-recovery-launch-activation.mjs').RecoveryActivationBootstrapFacts;
+  testOnlyPreparationBootstrapAuthority?: import('./generate-0.4.0-recovery-launch-activation.mjs').RecoveryActivationBootstrapFacts
+    | import('./generate-0.4.0-recovery-launch-activation.mjs').RecoveryActivationLinuxPolicyFacts;
 }>): SealedRealmsProductionActivationEvidenceGenerator;
 
 export function assertSealedRealmsProductionActivationEvidenceGenerator(
   generator: unknown,
 ): SealedRealmsProductionActivationEvidenceGenerator;
+
+export function readSealedRealmsProductionActivationGenerationKind(input: Readonly<{
+  generator: SealedRealmsProductionActivationEvidenceGenerator;
+  bridgeState: SealedRealmsProductionAuthBridgeState;
+  authority: SealedRealmsProductionSourceAuthority;
+}>): 'activation-evidence' | 'activation-evidence-inline';
+
+export function isSealedRealmsProductionInlineActivationBridge(input: Readonly<{
+  bridgeState: SealedRealmsProductionAuthBridgeState;
+  authority: SealedRealmsProductionSourceAuthority;
+}>): boolean;
 
 export function consumeSealedRealmsProductionActivationEvidenceForTesting(
   input: SealedRealmsProductionBridgeContinuationClaim & Readonly<{

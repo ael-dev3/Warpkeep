@@ -176,3 +176,6 @@ export function readSealedRealmsProductionLinuxRecoveryEvidence(input: Readonly<
   ptr: ReturnType<typeof readSealedRealmsProductionPtrExistingStateAdoptionEvidence>;
   g002: ReturnType<typeof readSealedRealmsProductionG002ExistingStateAdoptionEvidence>;
   census: ReturnType<typeof import('./genesis001-linux-census-attempt.mjs').verifyGenesis001LinuxCensusAttempt> }>;
+export function isSealedRealmsProductionInlineRecoveryEvidence(
+  input: Parameters<typeof readSealedRealmsProductionLinuxRecoveryEvidence>[0],
+): boolean;
