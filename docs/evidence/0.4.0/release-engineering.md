@@ -3,16 +3,17 @@
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main), the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
 
 The protected M2 runtime source family remains
-`fa9927bb9a8701e182f63eac1206e2f1425c4522`. The latest recorded
-protected-main checkpoint before this note is
-`b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a`; post-merge Verify `35267250826`,
-CodeQL `35267250817` and Pages classification `35272164921` passed, with
-deployment skipped while `pagesDeploymentApproved:false` is in force. These
-are dated receipts, not a moving runtime head; resolve live `main` before a
-new dispatch. PR #288 added retry-all-errors handling for pinned toolchain
-downloads; its full protected Verify `35261832713` passed. Documentation-only
-commits after this checkpoint do not change the runtime source family. The
-native checkout is clean at the resolved main head. Read-only
+`fa9927bb9a8701e182f63eac1206e2f1425c4522`. Current protected `main` is
+`f62229ac86aed729679925126a1ea80c180a2c03`; post-merge Verify `35291615351`
+and CodeQL `35291615379` passed for that exact SHA. Pages classification
+`35295461029` passed with deployment skipped while
+`pagesDeploymentApproved:false` is in force. PR #290's bounded Linux cleanup
+retry passed Verify `35287561293` and CodeQL `35287561395`. The last
+runtime-bearing checkpoint `b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a` and its
+receipts remain historical. These are dated receipts, not a moving runtime
+head; resolve live `main` before a new dispatch. Documentation-only commits do
+not change the runtime source family. The native checkout is clean at the
+resolved main head. Read-only
 activation inspection `35110519489` reached the operation boundary and failed
 closed because no retained activation evidence is present; G001 policy
 observation `35110808078` failed at workflow construction because the fixed

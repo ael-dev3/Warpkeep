@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Current M2 release checkpoint — 17 September 2026
+## Current M2 release checkpoint — 18 September 2026
 
 This is the active source and operations record. The pass remains maintenance
 only: preserve the existing mechanics and visuals, correct concrete defects,
@@ -9,17 +9,20 @@ and do not add new runtime features.
 The protected generated-family promotion remains the runtime source at
 `fa9927bb9a8701e182f63eac1206e2f1425c4522` (M1 source merge
 `645637e112ab18ac4565fbf5978349cd77063742`, generated-only PR #274).
-The last runtime-bearing protected-main checkpoint is
-**`b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a`**. It carries the unchanged
-runtime source plus the reviewed documentation and CI reliability corrections
-in PRs #279–#288. Post-merge Verify `35267250826` and CodeQL `35267250817`
-passed for that exact checkpoint. Pages classification `35272164921` also
-passed with deployment skipped while `pagesDeploymentApproved:false` is in
-force. PR #288 added retry-all-errors handling for pinned toolchain downloads;
-its full protected Verify `35261832713` passed. These are dated receipts, not a
-moving runtime head; resolve live `main`, wait for its completed push-to-main
-Verify and recheck that SHA before any new dispatch. Documentation-only commits
-after this checkpoint do not change the runtime source family. The earlier docs-only receipt checkpoint
+The current protected `main` documentation checkpoint is
+**`f62229ac86aed729679925126a1ea80c180a2c03`**. Its post-merge Verify
+`35291615351` and CodeQL `35291615379` passed for that exact SHA. Pages
+classification `35295461029` also passed and left build, deployment, recovery
+and live-verification lanes skipped while `pagesDeploymentApproved:false` is in
+force. PR #290 integrated a bounded Linux sealed-launch cleanup retry after its
+first hosted attempt exposed an `ENOTEMPTY` race; rerun Verify `35287561293`
+and CodeQL `35287561395` passed. The last runtime-bearing protected-main
+checkpoint remains **`b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a`**; it carries the
+unchanged runtime source plus the earlier reviewed CI correction in PR #288.
+These are dated receipts, not a moving runtime head; resolve live `main`, wait
+for its completed push-to-main Verify and recheck that SHA before any new
+dispatch. Documentation-only commits do not change the runtime source family.
+The earlier docs-only receipt checkpoint
 `3a0df9e6aa869902aa4565bb7fa6981e7c9b2844`
 (PR #278) passed the protected Verify, CodeQL and exact-source preflight
 recorded below while carrying that unchanged runtime source. Documentation
@@ -56,7 +59,8 @@ was intentionally dispatched immediately after the documentation merge, before
 the required push-to-main Verify had completed. It failed closed at
 `phase:"workflow"` without provider inputs or mutation; the successful
 `35162811785` Verify and `35166824615` preflight document the earlier receipt
-checkpoint; current verification is `35267250826`/`35267250817` above.
+checkpoint; current protected-main verification is `35291615351`/`35291615379`
+above.
 
 Two supported read-only operations were then dispatched against this exact
 source to identify the next real gate. [Activation inspection 35110519489](https://github.com/ael-dev3/Warpkeep/actions/runs/35110519489)

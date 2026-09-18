@@ -1,17 +1,18 @@
 # Warpkeep 0.4 recovery evidence
 
-## Current checkpoint supersession — 17 September 2026
+## Current checkpoint supersession — 18 September 2026
 
 The active protected runtime source family is M2
-`fa9927bb9a8701e182f63eac1206e2f1425c4522`. The latest recorded
-protected-main checkpoint before this note is
-`b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a`; its post-merge Verify
-`35267250826`, CodeQL `35267250817` and Pages classification `35272164921`
-passed, with deployment skipped while `pagesDeploymentApproved:false` is in
-force. PR #288 added retry-all-errors handling for pinned toolchain downloads;
-its full protected Verify `35261832713` passed. These are dated receipts, not a
-moving runtime head; resolve live `main` before a new dispatch. Documentation-
-only commits after this checkpoint do not change the runtime source family. The
+`fa9927bb9a8701e182f63eac1206e2f1425c4522`. Current protected `main` is
+`f62229ac86aed729679925126a1ea80c180a2c03`; its post-merge Verify
+`35291615351` and CodeQL `35291615379` passed. Pages classification
+`35295461029` passed, with deployment skipped while
+`pagesDeploymentApproved:false` is in force. PR #290's bounded Linux cleanup
+retry passed Verify `35287561293` and CodeQL `35287561395`. The last
+runtime-bearing checkpoint `b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a` and its
+receipts remain historical. These are dated receipts, not a moving runtime
+head; resolve live `main` before a new dispatch. Documentation-only commits do
+not change the runtime source family. The
 native `WarpkeepRunner` checkout is kept clean and synchronized
 to the resolved live `main` before an operation; the pinned runtime source and
 moving documentation head are separate. Read-only activation inspection `35110519489`, G001 policy observation
