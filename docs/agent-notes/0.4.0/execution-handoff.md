@@ -165,12 +165,12 @@ and historical macOS monitor evidence. These are agent implementation work.
 Never substitute Linux process absence for a historical monitor-suspension
 receipt, or synthesize old realm publication/import/provision records.
 
-GitHub's authenticated browser showed no registered Apps. Opening the release
-App form requires renewed elevated authentication; the GitHub Mobile request
-expired without a completed approval. Resume the open browser's own verification
-flow when the owner is available. No App or credential was created. A final
-reviewable App configuration must retain the source-required read-only repository
-permissions and installation scope; routine Git/CI access is already working.
+GitHub's renewed elevated browser authentication succeeded on September 19.
+The prepared “Warpkeep Release Recovery” registration selects read-only Actions,
+Checks, Contents, Deployments, Metadata and Pages permissions, account-only
+installation and disabled webhooks. Creation and installation only on Warpkeep
+await the browser policy's action-time confirmation. No App or credential has
+yet been created; routine Git/CI access is already working.
 
 ### PTR fixture source repair
 
@@ -198,8 +198,11 @@ terminal state before completing only those deterministic records. It preserves
 the original expiry and refuses conflicting bytes, a live original claim or
 an unrelated completion digest. No collection or suspension is repeated.
 
-Source review and syntax checks passed. Native dispatcher regression execution
-is the next validation step for this published checkpoint. Fresh-first lifecycle
+Source review and syntax checks passed. The first native run exposed a missing
+version-directory segment in the new tests' direct fixture paths. After fixing
+the paths and requiring proof that the tamper hook actually replaced its target,
+all 83 dispatcher tests passed under native Linux Node 22.22.3 at `2df17464`.
+Fresh-first lifecycle
 recovery and duplicate downstream continuation issuance remain unsupported;
 this repair does not enable the unavailable Linux production census caller.
 
