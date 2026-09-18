@@ -1,12 +1,17 @@
-import { verifySealedRealmsProductionWorkflowEvidence } from './sealed-realms-production-workflow-evidence.mjs';
+import { refreshSealedRealmsProductionWorkflowEvidence,
+  verifySealedRealmsProductionWorkflowEvidence } from './sealed-realms-production-workflow-evidence.mjs';
 import { randomBytes } from 'node:crypto';
+import { types } from 'node:util';
 import { closeSync, constants, existsSync, fsyncSync, fstatSync, lstatSync, mkdirSync, openSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { runLocalBindingBoundedProcess } from './local-binding-runtime-process.mjs';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { verifyAuthBridgeNotificationPreparedDeployClosure } from './auth-bridge-notification-prepared-deploy-closure.mjs';
 import { createGenesis001LinuxCensusAttempt, retainGenesis001LinuxCensusRecord,
-  verifyGenesis001LinuxCensusRetainedSamples } from './genesis001-linux-census-attempt.mjs';
+  readFixedLinuxG001CensusAttempt, verifyGenesis001LinuxCensusRetainedSamples } from './genesis001-linux-census-attempt.mjs';
+import { sourceCommitFromSealedRealmsProductionAuthority } from './sealed-realms-production-source-authority.mjs';
+import { assertSealedRealmsProductionWorkflowPermit,
+  attestSealedRealmsProductionActivationRead } from './sealed-realms-production-workflow-authority.mjs';
 import { attestPolicyHost, attestPolicySource, cleanupPolicyRun, G001_POLICY_ENV,
   G001_POLICY_HOME, G001_POLICY_NODE, G001_POLICY_NODE_SHA, G001_POLICY_ROOT,
   policyDigest, policyDirectory, policyFail, policyGit, policyOwnedRun, policyPrivateAncestors } from './genesis001-linux-policy-boundary.mjs';
@@ -20,6 +25,35 @@ const BOOTSTRAP = Object.freeze([MATERIALIZER, CHILD, 'scripts/genesis001-linux-
 let active = false;
 let pending;
 const preparations = new WeakMap();
+const activationCensuses = new WeakMap();
+function operationContext(kind) {
+  const operation = process.env.WARPKEEP_OPERATION, job = process.env.GITHUB_JOB;
+  const allowed = kind === 'policy' ? ['g001-policy-observe']
+    : ['g001-freeze-census', 'activation-evidence-inspect', 'activation-evidence-generate'];
+  if (!allowed.includes(operation)
+    || job !== (operation === 'activation-evidence-generate' ? 'operate' : 'operate_readonly')) policyFail();
+  return { operation, job };
+}
+function sameOperation(state) {
+  if (JSON.stringify(operationContext(state.kind)) !== JSON.stringify(state.context)
+    || process.env.GITHUB_SHA !== state.source.sourceCommit) policyFail();
+}
+function activationInput(input, keys) {
+  if (types.isProxy(input) || input === null || typeof input !== 'object'
+    || Object.getPrototypeOf(input) !== Object.prototype) policyFail();
+  const fields = Object.getOwnPropertyDescriptors(input);
+  if (Reflect.ownKeys(fields).length !== keys.length || keys.some(key =>
+    !fields[key]?.enumerable || !Object.hasOwn(fields[key], 'value'))) policyFail();
+  return Object.fromEntries(keys.map(key => [key, fields[key].value]));
+}
+function activationBinding(state, options, run) {
+  sameOperation(state);
+  if (!['activation-evidence-inspect', 'activation-evidence-generate'].includes(state.context.operation)
+    || sourceCommitFromSealedRealmsProductionAuthority(options.sourceAuthority) !== state.source.sourceCommit
+    || options.sourceAuthority.mode !== 'S' || options.sourceAuthority.operation !== state.context.operation
+    || process.env.GITHUB_RUN_ID !== run.runId || process.env.GITHUB_RUN_ATTEMPT !== run.runAttempt) policyFail();
+  assertSealedRealmsProductionWorkflowPermit(options.workflowPermit);
+}
 function checkBootstrap(source) {
   // Reuse the complete generated source inventory, including the native core's
   // static imports. The fixed spawned entries are additionally bound to Git.
@@ -106,8 +140,7 @@ async function prepare(kind, adminSecret) {
   let operationRoot, runId, retained = false;
   try {
     const host = attestPolicyHost();
-    if (process.env.WARPKEEP_OPERATION !== (kind === 'census' ? 'g001-freeze-census' : 'g001-policy-observe')
-      || process.env.GITHUB_JOB !== 'operate_readonly') policyFail();
+    const context = operationContext(kind);
     const source = attestPolicySource(undefined, process.cwd(), kind);
     if (source.sourceCommit !== process.env.GITHUB_SHA) policyFail();
     checkBootstrap(source);
@@ -127,7 +160,8 @@ async function prepare(kind, adminSecret) {
     if (JSON.stringify(Object.keys(built)) !== JSON.stringify(['bundleSha256', 'bundleBytes', 'sourceClosureSha256', 'dependencyClosureSha256'])
       || !['bundleSha256', 'sourceClosureSha256', 'dependencyClosureSha256'].every(key => /^[a-f0-9]{64}$/u.test(built[key]))
       || !Number.isSafeInteger(built.bundleBytes) || built.bundleBytes < 1 || built.bundleBytes > 16 * 1024 * 1024) policyFail();
-    const state = { host, source, operationRoot, runId, built, kind, adminSecret, status: 'prepared', cleanup: undefined };
+    const state = { host, source, operationRoot, runId, built, kind, context, adminSecret, status: 'prepared', cleanup: undefined };
+    sameOperation(state);
     verifyPreparation(state);
     const handle = Object.freeze({});
     preparations.set(handle, state); pending = handle; retained = true;
@@ -148,8 +182,55 @@ export async function executeFixedLinuxG001PolicyObservation(handle, evidence) {
   return execute(handle, evidence, 'policy');
 }
 export async function executeFixedLinuxG001CensusObservation(handle, evidence) {
-  if (arguments.length !== 2) policyFail();
+  if (arguments.length !== 2 || requirePreparation(handle).context.operation !== 'g001-freeze-census') policyFail();
   return execute(handle, evidence, 'census');
+}
+/** The same native read runs after activation builds. Its evidence never claims
+ * that the still-live activation workflow has already completed successfully. */
+export async function executeFixedLinuxG001ActivationCensusObservation(handle, input) {
+  if (arguments.length !== 2) policyFail();
+  const options = activationInput(input, ['sourceAuthority', 'workflowPermit', 'workflowEvidence']);
+  const state = requirePreparation(handle);
+  if (state.kind !== 'census' || state.status !== 'prepared' || pending !== handle) policyFail();
+  const run = Object.freeze({ runId: process.env.GITHUB_RUN_ID, runAttempt: process.env.GITHUB_RUN_ATTEMPT });
+  if (![run.runId, run.runAttempt].every(value => typeof value === 'string' && /^[1-9][0-9]{0,19}$/u.test(value))) policyFail();
+  const attest = async () => {
+    activationBinding(state, options, run);
+    await refreshSealedRealmsProductionWorkflowEvidence(options.workflowEvidence);
+    activationBinding(state, options, run);
+    await attestSealedRealmsProductionActivationRead({ permit: options.workflowPermit,
+      sourceAuthority: options.sourceAuthority, ...run });
+    activationBinding(state, options, run);
+    verifySealedRealmsProductionWorkflowEvidence(options.workflowEvidence, state.source.sourceCommit);
+  };
+  await attest();
+  const selector = await execute(handle, options.workflowEvidence, 'census');
+  await attest();
+  const capability = Object.freeze({});
+  activationCensuses.set(capability, { state, options, run, selector });
+  try {
+    readFixedLinuxG001ActivationCensusEvidence(capability, {
+      sourceAuthority: options.sourceAuthority, workflowPermit: options.workflowPermit });
+    return capability;
+  } catch (error) { activationCensuses.delete(capability); throw error; }
+}
+/** Reopens the exact complete private attempt executed by this live process.
+ * Serialized receipts and selectors cannot establish the native execution. */
+export function readFixedLinuxG001ActivationCensusEvidence(capability, input) {
+  if (arguments.length !== 2) policyFail();
+  const requested = activationInput(input, ['sourceAuthority', 'workflowPermit']);
+  const member = activationCensuses.get(capability);
+  if (!member || requested.sourceAuthority !== member.options.sourceAuthority
+    || requested.workflowPermit !== member.options.workflowPermit) policyFail();
+  const { state, options, run, selector } = member;
+  activationBinding(state, options, run);
+  attestPolicyHost(state.host); attestPolicySource(state.source, process.cwd(), 'census');
+  verifySealedRealmsProductionWorkflowEvidence(options.workflowEvidence, state.source.sourceCommit);
+  const retained = readFixedLinuxG001CensusAttempt(selector.attemptId, selector.sourceCommit);
+  if (JSON.stringify(retained.selector) !== JSON.stringify(selector)) policyFail();
+  activationBinding(state, options, run);
+  verifySealedRealmsProductionWorkflowEvidence(options.workflowEvidence, state.source.sourceCommit);
+  return retained;
 }
 async function execute(handle, evidence, kind) {
   if (active) policyFail();
@@ -159,9 +240,7 @@ async function execute(handle, evidence, kind) {
   const { source, operationRoot, runId, built } = state;
   let secretFd;
   try {
-    if (process.env.WARPKEEP_OPERATION !== (kind === 'census' ? 'g001-freeze-census' : 'g001-policy-observe')
-      || process.env.GITHUB_JOB !== 'operate_readonly'
-      || process.env.GITHUB_SHA !== source.sourceCommit) policyFail();
+    sameOperation(state);
     verifyPreparation(state);
     const githubRunId = process.env.GITHUB_RUN_ID, githubRunAttempt = process.env.GITHUB_RUN_ATTEMPT;
     const attemptRoot = join(G001_POLICY_ROOT, 'attempts', runId);
@@ -206,6 +285,7 @@ async function execute(handle, evidence, kind) {
     closeSync(secretFd); secretFd = undefined;
     if (observed.stderr !== '') policyFail();
     const receipt = canonicalResult(observed.stdout, kind === 'census' ? 4 * 1024 * 1024 : 32768);
+    sameOperation(state);
     if (receipt.sourceCommit !== source.sourceCommit || receipt.mutationSubmitted !== false) policyFail();
     if (kind === 'census') {
       if (receipt.repositoryRoot !== process.cwd() || receipt.attemptId !== runId || receipt.githubRunId !== githubRunId

@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Current protected source checkpoint — 18 September 2026
+## Current protected source checkpoint — 19 September 2026
 
 This is the active source and operations record. The current pass is maintenance
 only: preserve the existing mechanics and visuals, correct concrete defects,
@@ -346,6 +346,21 @@ imports now reached by activation. The closure policy now enumerates their
 existing attested expressions and the externally compiled census entry, without
 allowing arbitrary dynamic paths. Its focused regression and app types pass.
 Generated manifests/bundles still require their normal complete derivation.
+
+At published `7e86dbe9`, eight native Linux suites passed all 338 tests without
+skips, covering workflow evidence/authority, source, dispatch, census attempt,
+native lifecycle and workflow shell execution. The recovery service's full
+unit suite passed 1,346 tests with five native-only fixture cases skipped on
+Windows; that suite establishes code behavior, not a production deployment.
+
+The inline native producer now accepts the actual activation operation and
+existing live permit, collects after preparation, and returns same-process
+evidence bound to the reopened complete attempt. It never describes the live
+activation job as a completed census workflow. Independent review found no
+blocking issue; its four affected suites passed 80 tests on Windows with two
+Linux-only skips, and app types passed. The explicit dispatch value is
+`g001_census_attempt: inline`; private activation composition is still being
+integrated, and the generated family is not yet refreshed.
 
 ### Shipping estimate and next critical work
 

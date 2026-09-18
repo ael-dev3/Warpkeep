@@ -41,7 +41,7 @@ on:
           - ptr-update-apply
           - ptr-state-inspect
       g001_census_attempt:
-        description: Completed Linux census attempt ID for activation evidence
+        description: Use inline for fresh same-run census, or a completed 32-hex attempt ID
         required: false
         type: string
 
