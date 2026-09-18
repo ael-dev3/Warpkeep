@@ -20,6 +20,7 @@ export const SEALED_REALMS_PRODUCTION_CONTINUATION_KINDS: readonly [
   'activation-evidence',
   'g002-update',
   'ptr-update',
+  'activation-evidence-inline',
 ];
 export type SealedRealmsProductionContinuationKind =
   (typeof SEALED_REALMS_PRODUCTION_CONTINUATION_KINDS)[number];
@@ -71,6 +72,9 @@ export type SealedRealmsProductionContinuationInput = Readonly<{
   predecessorDigests: readonly string[];
 }>;
 
+/** Inline issuance-only recovery requires a fresh workflow dispatch with a
+ * different run ID and authentic terminal evidence for the prior issuer.
+ * Same-ID workflow reruns cannot adopt that unclaimed issuance. */
 export function issueSealedRealmsProductionContinuation(
   input: SealedRealmsProductionContinuationInput,
 ): Promise<Readonly<{ status: 'issued' }>>;

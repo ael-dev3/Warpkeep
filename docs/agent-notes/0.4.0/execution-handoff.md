@@ -369,11 +369,21 @@ and Workerd types, Wrangler binding validation and all 66 Workerd tests; its
 1,346 passing unit tests retain the five explicitly native-only Windows skips
 noted above. These results do not establish production census or deployment.
 
-The inline activation continuation and actual fresh-bridge/issue/claim caller
-are still being integrated. Independent review found cross-mode journal
-isolation and cancellation-before-claim gaps in the initial proposed slice;
-both must be resolved and verified before this path is operational. No new
-runtime gameplay features are part of this maintenance work.
+The inline activation continuation now shares the original activation scope,
+so it cannot bypass an older unresolved or completed effect. Its issuance and
+claim use the actual generation operation and exact same run and attempt. A
+fresh dispatch can recover an earlier terminal inline issuance that never
+claimed an effect, using the existing exclusive reconciliation reservation and
+an authenticated no-effect terminal. No claimed record is invented. The existing
+authority requires a different run ID: use a fresh dispatch after cancellation,
+not GitHub's rerun of that same run. Completed-record reads validate all history
+and the exact successful binding while allowing earlier no-effect evidence.
+
+Independent review identified and resolved both cross-mode replay and stranded
+issuance cases. The three-file checkpoint adds 30 regression cases and passes
+application types and source review; native continuation/completion execution
+remains required. The actual fresh-bridge/issue/claim caller is still being
+integrated. No new runtime gameplay features are part of this maintenance work.
 
 The private V6 corpus now joins authenticated historical PTR/G002 adoption with
 the current native program comparison and explicit Linux census. It preserves
