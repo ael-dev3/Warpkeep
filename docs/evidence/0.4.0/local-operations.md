@@ -2,19 +2,20 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Resumption audit — 17 September 2026
+## Resumption audit — 18 September 2026
 
 Current release checkpoint: protected M2 runtime source family
-`fa9927bb9a8701e182f63eac1206e2f1425c4522`; the latest recorded
-protected-main checkpoint before this note is
-`b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a`, with post-merge Verify
-`35267250826`, CodeQL `35267250817` and Pages classification `35272164921`
-passing; Pages deployment was skipped while `pagesDeploymentApproved:false` is
-in force. PR #288 added retry-all-errors handling for pinned toolchain
-downloads; its full protected Verify `35261832713` passed. These are dated
-receipts, not a moving runtime head; resolve live `main` before a new dispatch.
-Documentation-only commits after this checkpoint do not change the runtime
-source family. The earlier docs-only receipt
+`fa9927bb9a8701e182f63eac1206e2f1425c4522`; current protected `main` is
+`f62229ac86aed729679925126a1ea80c180a2c03`, with post-merge Verify
+`35291615351` and CodeQL `35291615379` passing for that exact SHA. Pages
+classification `35295461029` passed; build, deployment, recovery and live
+verification were skipped while `pagesDeploymentApproved:false` is in force.
+PR #290's bounded Linux cleanup retry passed its protected Verify
+`35287561293` and CodeQL `35287561395`. The last runtime-bearing checkpoint
+`b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a` and its receipts remain historical.
+These are dated receipts, not a moving runtime head; resolve live `main` before
+a new dispatch. Documentation-only commits do not change the runtime source
+family. The earlier docs-only receipt
 `3a0df9e6aa869902aa4565bb7fa6981e7c9b2844` and its checks remain historical.
 The exact-source preflight
 `35166824615` returned

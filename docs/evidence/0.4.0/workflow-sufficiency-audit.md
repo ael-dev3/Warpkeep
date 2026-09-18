@@ -1,18 +1,19 @@
 # 0.4 workflow sufficiency audit
 
-Updated 2026-09-17 (Europe/Budapest). Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
+Updated 2026-09-18 (Europe/Budapest). Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
 for the single dated source/CI/preflight checkpoint and the
 [release checklist](../../operations/0.4.0-release-checklist.md) for acceptance.
 The protected M2 runtime source family remains
-`fa9927bb9a8701e182f63eac1206e2f1425c4522`. The latest recorded
-protected-main checkpoint before this note is
-`b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a`; its post-merge Verify
-`35267250826`, CodeQL `35267250817` and Pages classification `35272164921`
-passed, with deployment skipped while `pagesDeploymentApproved:false` is in
-force. PR #288 added retry-all-errors handling for pinned toolchain downloads;
-its full protected Verify `35261832713` passed. These are dated receipts, not a
-moving runtime head; resolve live `main` before a new dispatch. Documentation-
-only commits after this checkpoint do not change the runtime source family. The
+`fa9927bb9a8701e182f63eac1206e2f1425c4522`. Current protected `main` is
+`f62229ac86aed729679925126a1ea80c180a2c03`; its post-merge Verify
+`35291615351` and CodeQL `35291615379` passed. Pages classification
+`35295461029` passed with deployment skipped while
+`pagesDeploymentApproved:false` is in force. PR #290's bounded Linux cleanup
+retry passed Verify `35287561293` and CodeQL `35287561395`. The last
+runtime-bearing checkpoint `b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a` and its
+receipts remain historical. These are dated receipts, not a moving runtime
+head; resolve live `main` before a new dispatch. Documentation-only commits do
+not change the runtime source family. The
 earlier docs-only receipt
 `3a0df9e6aa869902aa4565bb7fa6981e7c9b2844` and its checks remain historical.
 Read-only
