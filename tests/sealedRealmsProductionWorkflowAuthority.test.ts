@@ -13,6 +13,7 @@ type WorkflowAuthorityModule = Readonly<{
   attestSealedRealmsProductionWorkflowPermit?: (input: Record<string, unknown>) => Promise<true>;
   assertSealedRealmsProductionWorkflowPermit?: (permit: unknown) => unknown;
   attestSealedRealmsProductionCompletedCensusRun?: (input: Record<string, unknown>) => Promise<true>;
+  attestSealedRealmsProductionActivationRead?: (input: Record<string, unknown>) => Promise<true>;
 }>;
 
 async function workflowAuthorityModule(): Promise<WorkflowAuthorityModule> {
@@ -158,6 +159,36 @@ async function censusFixture(scenario = 'success', operation = 'activation-evide
     githubToken: 'github-sealed-realms-owner-token', runId: '1001', runAttempt: '1', fetchImpl });
   return { module, fetchImpl, input: { permit, sourceAuthority: authority, censusRunId: '900', censusRunAttempt: '1' } };
 }
+
+describe('live activation read authority', () => {
+  it.each(['activation-evidence-inspect', 'activation-evidence-generate'])('authenticates %s without requiring a completed run or claim', async operation => {
+    const f = await censusFixture('success', operation);
+    await expect(f.module.attestSealedRealmsProductionActivationRead!({ permit: f.input.permit,
+      sourceAuthority: f.input.sourceAuthority, runId: '1001', runAttempt: '1' })).resolves.toBe(true);
+    expect(f.fetchImpl.mock.calls.some(([url]) => String(url).includes('/runs/900'))).toBe(false);
+  });
+  it.each(['copy', 'foreign-source', 'wrong-run', 'wrong-attempt', 'extra', 'getter', 'wrong-operation'])('rejects %s before live reads', async scenario => {
+    const f = await censusFixture('success', scenario === 'wrong-operation' ? 'preflight' : 'activation-evidence-generate');
+    const input: Record<string, unknown> = { permit: f.input.permit, sourceAuthority: f.input.sourceAuthority,
+      runId: '1001', runAttempt: '1' }, getter = vi.fn(), before = f.fetchImpl.mock.calls.length;
+    if (scenario === 'copy') input.permit = { ...f.input.permit };
+    if (scenario === 'foreign-source') input.sourceAuthority = sourceAuthority('activation-evidence-generate');
+    if (scenario === 'wrong-run') input.runId = '1002';
+    if (scenario === 'wrong-attempt') input.runAttempt = '2';
+    if (scenario === 'extra') input.phase = 'continuation-issue';
+    if (scenario === 'getter') Object.defineProperty(input, 'runId', { enumerable: true, get: getter });
+    await expect(f.module.attestSealedRealmsProductionActivationRead!(input)).rejects.toThrow();
+    expect(getter).not.toHaveBeenCalled(); expect(f.fetchImpl).toHaveBeenCalledTimes(before);
+  });
+  it('rejects an activation run that stopped after its permit was issued', async () => {
+    const module = await workflowAuthorityModule(), authority = sourceAuthority('activation-evidence-generate');
+    const remote = github({ mutateRun: (run, count) => { if (count > 1) { run.status = 'completed'; run.conclusion = 'failure'; } } });
+    const permit = await module.issueSealedRealmsProductionWorkflowPermit!({ sourceAuthority: authority,
+      githubToken: 'github-sealed-realms-owner-token', runId: '1001', runAttempt: '1', fetchImpl: remote.fetchImpl });
+    await expect(module.attestSealedRealmsProductionActivationRead!({ permit, sourceAuthority: authority,
+      runId: '1001', runAttempt: '1' })).rejects.toThrow('ATTESTATION_REJECTED');
+  });
+});
 
 describe('completed Linux census provenance', () => {
   it.each(['activation-evidence-inspect', 'activation-evidence-generate'])('joins exact successful census to live %s', async operation => {

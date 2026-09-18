@@ -121,19 +121,12 @@ const RETAINED_TYPE_ONLY_DECLARATION_PATHS = Object.freeze([
   'scripts/production-player-canary-release-binding.d.mts',
 ]);
 const G001_LINUX_DECLARATIONLESS_ENTRYPOINTS = Object.freeze([
-  'scripts/genesis001-linux-policy-boundary.mjs',
   'scripts/genesis001-linux-policy-child.mjs',
   'scripts/genesis001-linux-policy-materializer.mjs',
   'scripts/genesis001-linux-policy-native.mjs',
   'scripts/local-binding-native-ts-hooks.mjs',
-  'scripts/local-binding-runtime-cli-snapshot.mjs',
-  'scripts/local-binding-runtime-core.mjs',
-  'scripts/local-binding-runtime-process.mjs',
-  'scripts/local-program-artifact.mjs',
   'scripts/auth-bridge-notification-prepared-linux-runner.mjs',
-  'scripts/sealed-realms-production-workflow-evidence-json.mjs',
   'scripts/sealed-realms-production-workflow-evidence.mjs',
-  'scripts/spacetime-binding-tree.mjs',
 ]);
 const temporaryDirectories: string[] = [];
 
@@ -444,7 +437,7 @@ function canonicalFixtureMember(relativePath: string, source: Buffer): Buffer {
   return Buffer.from(canonical, 'utf8');
 }
 
-function createPolicyFixture(): string {
+function createPolicyFixture(additionalSourcePaths: readonly string[] = []): string {
   const root = realpathSync(mkdtempSync(join(
     tmpdir(),
     'warpkeep-prepared-policy-',
@@ -455,7 +448,7 @@ function createPolicyFixture(): string {
     mkdirSync(dirname(destination), { recursive: true });
     cpSync(resolve(repositoryRoot, path), destination, { recursive: true });
   };
-  for (const path of AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS) {
+  for (const path of new Set([...AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS, ...additionalSourcePaths])) {
     copyTracked(path);
   }
   for (const path of RETAINED_TYPE_ONLY_DECLARATION_PATHS) {
@@ -1754,6 +1747,38 @@ describe('notification-bridge-prepared protected workflow', () => {
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_INSTALLED_IMPORT_INVALID',
     );
   }, 90_000);
+
+  it('closes the exact fixed local-build and Linux census entries and rejects altered dynamic loads', () => {
+    const paths = deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot });
+    expect(paths).toEqual(expect.arrayContaining([
+      'scripts/local-binding-runtime-core.mjs', 'scripts/local-binding-runtime-core.d.mts',
+      'scripts/local-binding-native-ts-hooks.mjs', 'scripts/local-operation-bundle-packages.ts',
+      'scripts/local-operation-bundle-noble-v1.mjs', 'scripts/spacetime-cli-attestation.mjs',
+      'scripts/spacetime-binding-tree.mjs', 'scripts/genesis001-linux-census-operator.ts',
+      'scripts/genesis001-linux-census-attempt.mjs', 'scripts/genesis001-linux-census-attempt.d.mts',
+    ]));
+    const root = createPolicyFixture(paths);
+    expect(deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot: root })).toEqual(paths);
+    const file = resolve(root, 'scripts/local-binding-runtime-core.mjs');
+    const original = readFileSync(file, 'utf8');
+    for (const [before, after, error] of [
+      ['import(/* @vite-ignore */ operationBundlePackagesSpecifier)', 'import(otherSpecifier)', 'IMPORT_INVALID'],
+      ['import(/* @vite-ignore */ operationBundlePackagesSpecifier)', 'import("./local-operation-bundle-packages.ts")', 'IMPORT_INVALID'],
+      ["join(source.root, 'scripts', 'spacetime-cli-attestation.mjs')", "join(source.root, 'scripts', 'different.mjs')", 'IMPORT_INVALID'],
+      ["require(join(namespace.root, '@noble', 'hashes', 'sha3.js'))", "require(otherPackage)", 'REQUIRE_FORBIDDEN'],
+      ["require(join(namespace.root, '@noble', 'hashes', 'sha3.js'))", "(require(join(namespace.root, '@noble', 'hashes', 'sha3.js')), require(join(namespace.root, '@noble', 'hashes', 'sha3.js')))", 'REQUIRE_FORBIDDEN'],
+    ]) {
+      expect(original.split(before)).toHaveLength(2);
+      writeFileSync(file, original.replace(before, after));
+      expect(() => deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot: root }))
+        .toThrow(`AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_${error}`);
+      writeFileSync(file, original);
+    }
+    const other = resolve(root, 'scripts/local-program-artifact.mjs');
+    writeFileSync(other, `${readFileSync(other, 'utf8')}\nrequire(join(namespace.root, '@noble', 'hashes', 'sha3.js'));\n`);
+    expect(() => deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot: root }))
+      .toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_REQUIRE_FORBIDDEN');
+  }, 180_000);
 
   it('rejects a physically missing imported member', () => {
     const physicallyMissing = createPolicyFixture();

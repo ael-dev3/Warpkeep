@@ -298,6 +298,29 @@ export function assertSealedRealmsProductionWorkflowPermit(permit) {
   return permit;
 }
 
+/** Reopens the actual live activation run before/after native read-only work. */
+export async function attestSealedRealmsProductionActivationRead(input) {
+  const keys = ['permit', 'sourceAuthority', 'runId', 'runAttempt'];
+  if (arguments.length !== 1 || types.isProxy(input) || input === null || typeof input !== 'object'
+    || Object.getPrototypeOf(input) !== Object.prototype) fail('SEALED_REALMS_WORKFLOW_AUTHORITY_INPUT_INVALID');
+  const descriptors = Object.getOwnPropertyDescriptors(input);
+  if (Reflect.ownKeys(descriptors).length !== keys.length
+    || keys.some(key => !descriptors[key]?.enumerable || !Object.hasOwn(descriptors[key], 'value'))) {
+    fail('SEALED_REALMS_WORKFLOW_AUTHORITY_INPUT_INVALID');
+  }
+  const state = permitStates.get(input.permit);
+  const run = exactRunIdentity(input.runId, input.runAttempt);
+  if (state === undefined || state.sourceAuthority !== input.sourceAuthority
+    || !['activation-evidence-inspect', 'activation-evidence-generate'].includes(state.operation)
+    || input.sourceAuthority.operation !== state.operation
+    || sourceCommitFromSealedRealmsProductionAuthority(input.sourceAuthority) !== state.sourceCommit
+    || run.runId !== state.runId || run.runAttempt !== state.runAttempt) {
+    fail('SEALED_REALMS_WORKFLOW_AUTHORITY_PERMIT_INVALID');
+  }
+  await reattest(state);
+  return true;
+}
+
 /** Joins retained census data to its completed protected run; grants no effects. */
 export async function attestSealedRealmsProductionCompletedCensusRun(input) {
   const keys = ['permit', 'sourceAuthority', 'censusRunId', 'censusRunAttempt'];

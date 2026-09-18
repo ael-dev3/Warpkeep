@@ -324,6 +324,29 @@ reads. Private adoption composition still owns the data-to-current-release join.
 Native execution, private activation composition, regenerated family, protected
 main CI and provider execution remain separate steps; 0.4 is still unshipped.
 
+The fixed native `production-admin-v1/g001-policy-observation` directory was
+absent. It is now provisioned empty under the existing private root, with verified
+`warpkeep` ownership, mode `0700`, real parents and directory fsync. No token or
+receipt was created. The workflow will use its already provisioned protected
+secret for each disposable census execution.
+
+Actual pinned native builds at clean `3bc1696b` completed successfully: G001/G002
+program artifacts took 264.37 seconds and PTR bindings took 203.50 seconds. Both
+used the real locked build cycles; output bytes were discarded after validation
+and source remained unchanged. Their combined 7 minutes 48 seconds exceed the
+five-minute current-state freshness window before activation overhead. The
+external census-then-build sequence is therefore not an operable release path.
+The repair collects fresh census evidence inside the genuine activation run
+after expensive preparation; its integration is in progress. The selected
+external completed-attempt path remains useful for diagnostics but must not be
+presented as a reliably timed shipping sequence.
+
+Source-graph derivation also exposed previously unlisted fixed local-runtime
+imports now reached by activation. The closure policy now enumerates their
+existing attested expressions and the externally compiled census entry, without
+allowing arbitrary dynamic paths. Its focused regression and app types pass.
+Generated manifests/bundles still require their normal complete derivation.
+
 ### Shipping estimate and next critical work
 
 Planning estimate: **5–10 focused working days once operation-specific private
