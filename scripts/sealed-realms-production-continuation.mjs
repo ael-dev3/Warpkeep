@@ -1155,8 +1155,9 @@ export function readSealedRealmsProductionContinuationCompletion(input) {
     'store', 'privateState', 'sourceAuthority', 'kind', 'subject',
     'evidenceDigest', 'receiptDigests', 'predecessorDigests',
   ]);
+  const state = completionStore(options);
   const spec = kindSpec(options.kind);
-  return readCompletion(options, authorityInfo(options.sourceAuthority, spec.claimOperation));
+  return readCompletion(options, authorityInfo(options.sourceAuthority, spec.claimOperation), state);
 }
 
 /** Separate historical entry; its capability cannot issue, claim or reconcile. */
@@ -1165,20 +1166,25 @@ export function readSealedRealmsProductionRetainedContinuationCompletion(input) 
     'store', 'privateState', 'retainedSource', 'kind', 'subject',
     'evidenceDigest', 'receiptDigests', 'predecessorDigests',
   ]);
+  const state = completionStore(options);
   if (!['ptr-update', 'g002-update'].includes(options.kind)) {
     fail('SEALED_REALMS_CONTINUATION_OPERATION_INVALID');
   }
   const authority = readSealedRealmsProductionRetainedSource(options.retainedSource,
     options.kind === 'ptr-update' ? 'ptr' : 'g002');
-  return readCompletion(options, authority);
+  return readCompletion(options, authority, state);
 }
 
-function readCompletion(options, authority) {
+function completionStore(options) {
   const state = storeState(options.store);
   const privateState = assertSealedRealmsProductionPrivateState(options.privateState);
   if (state.privateState !== privateState) {
     fail('SEALED_REALMS_CONTINUATION_STORE_INVALID');
   }
+  return state;
+}
+
+function readCompletion(options, authority, state) {
   const binding = bindingFrom(options);
   const scope = scopeDigest(authority.authorityDigest, options.kind, binding.evidenceDigest);
   const current = inventory(state, scope);

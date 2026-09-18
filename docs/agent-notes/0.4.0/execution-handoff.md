@@ -400,6 +400,15 @@ and projection; three corpus-change races and stale-new-candidate rejection also
 passed. These private-source tests use synthetic retained data, not production
 census, adoption or provider deployment. Native verification follows publication.
 
+At published `f7e7ce5f`, all 202 tests in nine native Linux suites passed without
+skips, including the complete activation-records and connected V6 adoption
+fixtures. At `cf1b713e`, all 58 continuation tests and six of seven completion
+tests passed. The remaining test caught error-order drift from the earlier
+historical-reader extraction: a forged store reached source validation first.
+Restoring store/owner validation before authority restores the established
+capability error; its targeted regression passes. The full native completion
+rerun follows that correction's publication.
+
 ### Shipping estimate and next critical work
 
 Planning estimate: **5–10 focused working days once operation-specific private
