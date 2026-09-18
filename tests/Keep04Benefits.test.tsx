@@ -58,6 +58,24 @@ it('distinguishes first construction from an unbuilt site without granting its b
   expect(within(screen.getByRole('article', { name: 'Lumber Camp' })).getByText('Not built')).toBeVisible();
 });
 
+it('shows honest construction progress without claiming client-side completion', () => {
+  const wire = constructingWire04();
+  const props = { selectedKind: null, draft: null, enabled: true, problem: 'none' as const,
+    onSelect: vi.fn(), onConfirm: vi.fn(), onCancelDraft: vi.fn(), onFindResources: vi.fn() };
+  const view = (nowMs: number) => presentState04(decodeState04(wire, SCOPE04), ATLAS04, nowMs);
+  const rendered = render(<Keep04BuildingPanel {...props} view={view(60_001)} nowMs={60_001} />);
+  const progress = within(screen.getByRole('article', { name: 'City Mill' })).getByRole('progressbar', { name: 'City Mill construction progress' });
+  expect(progress).toHaveAttribute('aria-valuenow', '50');
+  expect(progress).toHaveAttribute('aria-valuetext', '50% complete · 1 min remaining');
+  expect(screen.getByText('50% complete · 1 min remaining')).toBeVisible();
+  rendered.rerender(<Keep04BuildingPanel {...props} view={view(180_000)} nowMs={180_000} />);
+  expect(screen.getByRole('progressbar', { name: 'City Mill construction progress' })).toHaveAttribute('aria-valuenow', '99');
+  expect(screen.getByText('99% complete · Awaiting Realm confirmation')).toBeVisible();
+  const mill = within(screen.getByRole('article', { name: 'City Mill' }));
+  expect(mill.getByText('Estimated build time:')).toBeVisible();
+  expect(mill.getByText('Awaiting Realm update')).toBeVisible();
+});
+
 it.each([0, 1])('shows committed construction rather than another upgrade at completed level %i', level => {
   const wire = level === 0 ? constructingWire04() : wireWithBuilding04('city-mill', level);
   if (level > 0) {

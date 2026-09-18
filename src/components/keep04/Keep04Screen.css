@@ -113,6 +113,10 @@
 .keep04 .keep04-state { padding: 24px; border: 1px solid var(--keep04-line); }
 .keep04 .keep04-state button { margin: 8px; }
 .keep04 .keep04-construction { padding-top: 16px; color: #ffe1ad; }
+.keep04 .keep04-construction-progress { display: grid; gap: 5px; margin-top: 10px; }
+.keep04 .keep04-construction-progress-track { height: 10px; overflow: hidden; border: 1px solid #9dab96; border-radius: 999px; background: #132723; }
+.keep04 .keep04-construction-progress-track > span { display: block; height: 100%; min-width: 2px; border-radius: inherit; background: linear-gradient(90deg, #dfc6ff, #ffe1ad); transition: width 180ms ease-out; }
+.keep04 .keep04-construction-progress-label { color: #f4efe3; font-size: 13px; }
 @media (max-width: 760px) {
   .keep04 { padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
   .keep04 .keep04-workspace[data-panel-open="true"] { grid-template-columns: minmax(0, 1fr); }

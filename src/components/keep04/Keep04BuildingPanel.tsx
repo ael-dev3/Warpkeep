@@ -60,8 +60,25 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
   function review() {
     setReviewed({ realmKey, draftKey, quote: candidate, problem }); setSent(false); setSubmissionLeftReady(false); sentRef.current = false;
   }
+  function constructionProgress(project: NonNullable<typeof view.state.project>) {
+    if (!Number.isFinite(nowMs)) return 0;
+    const nowMicros = BigInt(Math.max(0, Math.trunc(nowMs))) * 1_000n;
+    const total = project.completesAtMicros - project.startedAtMicros;
+    if (total <= 0n || nowMicros <= project.startedAtMicros) return 0;
+    // Keep the visual honest: an elapsed client clock is never allowed to
+    // claim 100% before the Realm sends the completed building state.
+    if (nowMicros >= project.completesAtMicros) return 99;
+    return Number(((nowMicros - project.startedAtMicros) * 100n) / total);
+  }
   function card(kind: Building04) {
     const project = view.state.project?.kind === kind ? view.state.project : undefined;
+    const progress = project ? constructionProgress(project) : 0;
+    const remaining = project ? estimatedTime04(project.completesAtMicros, nowMs) : null;
+    const progressText = project
+      ? remaining === 'Awaiting Realm update'
+        ? `${progress}% complete · Awaiting Realm confirmation`
+        : `${progress}% complete · ${remaining} remaining`
+      : '';
     const level = levels[kind]; const maximum = level === 5;
     const benefit = buildingBenefit04(view, kind); const missing = buildingDeficits04(view, kind);
     const firstDeficit = RESOURCES04.find(resource => missing[resource] > 0n);
@@ -75,7 +92,14 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
       <button type="button" aria-pressed={selectedKind === kind} onClick={() => onSelect(kind)}>{BUILDING_NAMES04[kind]}</button>
       <p className="keep04-badge">{level > 0 ? `Completed level ${level}` : project ? 'Under construction' : 'Not built'}</p>
       {project ? <><p>Building level {project.targetLevel}</p>
-        <p>Estimated build time: <span>{estimatedTime04(project.completesAtMicros, nowMs)}</span></p>
+        <div className="keep04-construction-progress">
+          <div className="keep04-construction-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100}
+            aria-label={`${BUILDING_NAMES04[kind]} construction progress`} aria-valuenow={progress} aria-valuetext={progressText}>
+            <span style={{ width: `${progress}%` }} />
+          </div>
+          <span className="keep04-construction-progress-label">{progressText}</span>
+        </div>
+        <p>Estimated build time: <span>{remaining}</span></p>
       </> : maximum ? <p>Maximum level</p> : <>
         <p>Cost: {costText(buildingCost04(kind, level + 1))}</p>
         <p>Build duration: {formatKeep04Duration(buildingDuration04(level + 1, levels))}</p>
