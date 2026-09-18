@@ -1,4 +1,5 @@
 import { createSealedRealmsProductionRecoveryProgramArtifacts, disposeSealedRealmsProductionRecoveryProgramArtifacts } from './sealed-realms-production-recovery-program-artifacts.mjs';
+export { readSealedRealmsProductionRetainedFixtureSources } from './sealed-realms-production-retained-fixture-source.mjs';
 import { createSealedRealmsProductionRecoverySourceClosure, disposeSealedRealmsProductionRecoverySourceClosure } from './sealed-realms-production-recovery-source-closure.mjs';
 import { createSealedRealmsProductionRecoveryPreparation, disposeSealedRealmsProductionRecoveryPreparation } from './sealed-realms-production-recovery-preparation.mjs';
 import { execFileSync } from 'node:child_process';

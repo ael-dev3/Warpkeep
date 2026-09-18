@@ -46,6 +46,7 @@ const GIT_ENV = Object.freeze({ GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTE
 const PHASES = new Set(['input', 'runtime', 'source', 'bundle', 'workflow', 'operation', 'result']);
 const forbiddenEnvironment = /^(?:NODE_|ESBUILD_|TS_NODE_|BUN_|LD_|DYLD_|GIT_(?!HUB)|BASH_ENV$|ENV$|OPENSSL_CONF$|SSL_CERT_|PYTHONPATH$|VITEST$)/u;
 let active = false;
+const retainedReadRuntimes = new WeakMap();
 
 function fail(phase) {
   const error = new Error('SEALED_REALMS_LINUX_PREFLIGHT_FAILED');
@@ -76,21 +77,28 @@ function parents(path, phase) {
     cursor = dirname(cursor);
   }
 }
-function runtime(expected) {
+function runtime(expected, retainedRead = false) {
   if (process.platform !== 'linux' || process.arch !== 'x64' || process.version !== 'v22.22.3'
     || process.getuid?.() !== UID || process.geteuid?.() !== UID || process.getgid?.() !== UID || process.getegid?.() !== UID
-    || process.execArgv.length !== 0 || Object.keys(process.env).some(key => forbiddenEnvironment.test(key))
-    || process.env.RUNNER_OS !== 'Linux' || process.env.RUNNER_ARCH !== 'X64'
-    || process.env.RUNNER_NAME !== 'warpkeep-wsl-production-01') fail('runtime');
+    || process.execArgv.length !== 0 || Object.keys(process.env).some(key => forbiddenEnvironment.test(key))) fail('runtime');
   const account = userInfo();
   if (account.uid !== UID || account.gid !== UID || account.username !== 'warpkeep' || account.homedir !== ACCOUNT_HOME) fail('runtime');
   directory(ACCOUNT_HOME, UID, 0o750);
-  directory(`${ACCOUNT_HOME}/actions-runner`, UID, 0o700);
-  const temporary = process.env.RUNNER_TEMP;
-  if (typeof temporary !== 'string' || !isAbsolute(temporary)
-    || !temporary.startsWith(`${ACCOUNT_HOME}/actions-runner/`) || temporary.includes('\0')
-    || realpathSync(temporary) !== temporary) fail('runtime');
-  parents(join(temporary, 'unused'), 'runtime');
+  if (retainedRead) {
+    if (process.cwd() !== `${ACCOUNT_HOME}/Warpkeep-0.4` || process.env.HOME !== ACCOUNT_HOME
+      || process.env.PATH !== '/usr/bin:/bin' || process.env.LANG !== 'C' || process.env.LC_ALL !== 'C'
+      || process.env.TZ !== 'UTC' || process.env.WSL_DISTRO_NAME !== 'WarpkeepRunner'
+      || Object.keys(process.env).some(key => !['HOME', 'PATH', 'LANG', 'LC_ALL', 'TZ', 'WSL_DISTRO_NAME'].includes(key))) fail('runtime');
+  } else {
+    if (process.env.RUNNER_OS !== 'Linux' || process.env.RUNNER_ARCH !== 'X64'
+      || process.env.RUNNER_NAME !== 'warpkeep-wsl-production-01') fail('runtime');
+    directory(`${ACCOUNT_HOME}/actions-runner`, UID, 0o700);
+    const temporary = process.env.RUNNER_TEMP;
+    if (typeof temporary !== 'string' || !isAbsolute(temporary)
+      || !temporary.startsWith(`${ACCOUNT_HOME}/actions-runner/`) || temporary.includes('\0')
+      || realpathSync(temporary) !== temporary) fail('runtime');
+    parents(join(temporary, 'unused'), 'runtime');
+  }
   if (process.execPath !== NODE_PATH) fail('runtime');
   parents(NODE_PATH, 'runtime');
   const nodeStatus = lstatSync(NODE_PATH);
@@ -228,6 +236,64 @@ function bundle(commit, lane) {
   try { if (declared.length !== declaration.byteLength || digest(declared) !== declaration.sha256) fail('bundle'); }
   finally { declared.fill(0); }
   return selected;
+}
+
+/** Fixed desktop read boundary. This never enters the workflow dispatcher. */
+export function createSealedRealmsProductionRetainedFixtureRuntime(input) {
+  const options = exact(input, ['operatingCommit'], 'input');
+  if (arguments.length !== 1 || typeof options.operatingCommit !== 'string' || !HEX40.test(options.operatingCommit)) fail('input');
+  const host = runtime(undefined, true);
+  source(options.operatingCommit);
+  const selected = bundle(options.operatingCommit, 'activation');
+  sourceFile(options.operatingCommit, 'services/release-recovery/scripts/release-recovery-native-adoption-read.mjs').fill(0);
+  const paths = [...new Set([...BOOTSTRAP_MEMBERS, MANIFEST, YAML_MANIFEST, selected.path, selected.declaration.path,
+    'services/release-recovery/scripts/release-recovery-native-adoption-read.mjs',
+    ...selected.graphManifest.filter(member => !member.path.startsWith('node_modules/')).map(member => member.path)])].sort();
+  // Capture committed bytes once; every asynchronous boundary reopens those exact
+  // files by identity and digest without repeatedly compiling or resolving dependencies.
+  const files = paths.map(path => {
+    const bytes = sourceFile(options.operatingCommit, path);
+    try {
+      const expected = { maximumBytes: 4 * 1024 * 1024, expectedBytes: bytes.length,
+        expectedSha256: digest(bytes), expectedUid: UID, expectedMode: 0o644, discardBody: true };
+      const opened = readLocalBindingBoundedFile(join(process.cwd(), path), expected);
+      return Object.freeze({ path, expected: Object.freeze({ ...expected, expectedIdentity: opened.identity }) });
+    } finally { bytes.fill(0); }
+  });
+  const tree = gitText(['rev-parse', '--verify', `${options.operatingCommit}^{tree}`]).trimEnd();
+  if (!HEX40.test(tree)) fail('source');
+  const capability = Object.freeze({});
+  retainedReadRuntimes.set(capability, Object.freeze({ commit: options.operatingCommit, tree, host, selected, files: Object.freeze(files) }));
+  return capability;
+}
+
+export function attestSealedRealmsProductionRetainedFixtureRuntime(capability) {
+  const state = retainedReadRuntimes.get(capability);
+  if (arguments.length !== 1 || !state) fail('input');
+  runtime(state.host, true); source(state.commit);
+  for (const file of state.files) {
+    const absolute = join(process.cwd(), file.path);
+    parents(absolute, 'source'); readLocalBindingBoundedFile(absolute, file.expected);
+  }
+  if (gitText(['rev-parse', '--verify', `${state.commit}^{tree}`]) !== `${state.tree}\n`) fail('source');
+  return Object.freeze({ operatingCommit: state.commit, operatingTree: state.tree });
+}
+
+export async function readSealedRealmsProductionNativeFixtureSources(input) {
+  const options = exact(input, ['operatingCommit', 'githubToken'], 'input');
+  if (arguments.length !== 1) fail('input');
+  const boundary = createSealedRealmsProductionRetainedFixtureRuntime({ operatingCommit: options.operatingCommit });
+  const state = retainedReadRuntimes.get(boundary);
+  const root = process.cwd();
+  const closure = verifyAuthBridgeNotificationPreparedDeployClosure({ repositoryRoot: root });
+  const [loaded] = await importAuthBridgeNotificationPreparedAttestedModules({ authority: closure,
+    repositoryRoot: root, memberPaths: [state.selected.path] });
+  attestSealedRealmsProductionRetainedFixtureRuntime(boundary);
+  if (JSON.stringify(Object.keys(loaded).sort()) !== JSON.stringify([...state.selected.exportNames].sort())
+    || typeof loaded.readSealedRealmsProductionRetainedFixtureSources !== 'function') fail('bundle');
+  const result = await loaded.readSealedRealmsProductionRetainedFixtureSources({ operatingCommit: state.commit, githubToken: options.githubToken });
+  attestSealedRealmsProductionRetainedFixtureRuntime(boundary);
+  return result;
 }
 
 /** Fixed Linux operating caller; each selected lane owns its effects and evidence. */

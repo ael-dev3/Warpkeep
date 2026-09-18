@@ -256,15 +256,16 @@ function fixedBinaryCommand(executable, args, maximumBytes, environment) {
   return Buffer.from(result.stdout)
 }
 
-function canonicalJsonCommand(executable, args, request, maximumBytes, environment) {
-  let input
+function canonicalJsonCommand(executable, args, request, maximumBytes, environment, timeout) {
+  let input, result
   try {
     input = Buffer.from(`${JSON.stringify(request)}\n`, 'utf8')
     if (input.byteLength < 2 || input.byteLength > 256 * 1024) fail()
-    const result = spawnSync(executable, args, {
+    result = spawnSync(executable, args, {
       encoding: null,
       env: environment,
       input,
+      ...(timeout === undefined ? {} : { timeout }),
       maxBuffer: maximumBytes,
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
@@ -287,6 +288,8 @@ function canonicalJsonCommand(executable, args, request, maximumBytes, environme
     fail()
   } finally {
     input?.fill(0)
+    result?.stdout?.fill?.(0)
+    result?.stderr?.fill?.(0)
   }
 }
 
@@ -1066,31 +1069,46 @@ export async function preflightFixedPublicSourceObjectDatabase(...unexpected) {
   }
 }
 
+const ADOPTION_SOURCE_KEYS = Object.freeze([
+  'sourceAuthority', 'adoptionReceiptSha256', 'updateReceiptSha256', 'databaseIdentity',
+  'sourceCommit', 'sourceRootTree', 'sourceTree', 'installedModuleSha256',
+  'installedProgramKeccak256', 'historicalDependencyClosureSha256',
+])
+const ADOPTION_DATABASES = Object.freeze({
+  g002: 'c2003223f6e3c86e988775ddd458c3a45635d0d021e11131551471617c392194',
+  ptr: 'c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e',
+})
+function adoptionSource(value, realm) {
+  const source = exactObject(value, ADOPTION_SOURCE_KEYS)
+  if (source.sourceAuthority !== 'authenticated-existing-state-adoption-v1'
+    || source.databaseIdentity !== ADOPTION_DATABASES[realm]) fail()
+  for (const key of ADOPTION_SOURCE_KEYS.filter(key => !['sourceAuthority', 'sourceCommit', 'sourceRootTree', 'sourceTree'].includes(key))) {
+    if (typeof source[key] !== 'string' || !LOWER_HEX_64.test(source[key]) || /^0+$/u.test(source[key])) fail()
+  }
+  for (const key of ['sourceCommit', 'sourceRootTree', 'sourceTree']) {
+    if (typeof source[key] !== 'string' || !LOWER_HEX_40.test(source[key]) || /^0+$/u.test(source[key])) fail()
+  }
+  return Object.freeze({ ...source })
+}
 function exactBootstrapSources(value) {
   const sources = exactObject(value, ['g002', 'ptr'])
   const sanitized = Object.create(null)
+  const adoption = Object.hasOwn(sources.g002, 'sourceAuthority') || Object.hasOwn(sources.ptr, 'sourceAuthority')
   for (const realm of ['g002', 'ptr']) {
-    const source = exactObject(sources[realm], [
+    const source = adoption ? adoptionSource(sources[realm], realm) : exactObject(sources[realm], [
       'receiptSha256', 'databaseIdentity', 'sourceCommit', 'sourceTree',
       'publishedModuleSha256', 'historicalDependencyClosureSha256',
     ])
-    for (const digest of [
-      source.receiptSha256,
-      source.databaseIdentity,
-      source.publishedModuleSha256,
-      source.historicalDependencyClosureSha256,
-    ]) if (!LOWER_HEX_64.test(digest) || /^0+$/u.test(digest)) fail()
-    if (
-      !LOWER_HEX_40.test(source.sourceCommit)
-      || /^0+$/u.test(source.sourceCommit)
-      || !LOWER_HEX_40.test(source.sourceTree)
-      || /^0+$/u.test(source.sourceTree)
-    ) fail()
-    sanitized[realm] = Object.freeze({
-      sourceCommit: source.sourceCommit,
-      sourceTree: source.sourceTree,
-      historicalDependencyClosureSha256: source.historicalDependencyClosureSha256,
-    })
+    if (!adoption) {
+      for (const digest of [source.receiptSha256, source.databaseIdentity,
+        source.publishedModuleSha256, source.historicalDependencyClosureSha256]) {
+        if (!LOWER_HEX_64.test(digest) || /^0+$/u.test(digest)) fail()
+      }
+      if (!LOWER_HEX_40.test(source.sourceCommit) || /^0+$/u.test(source.sourceCommit)
+        || !LOWER_HEX_40.test(source.sourceTree) || /^0+$/u.test(source.sourceTree)) fail()
+    }
+    sanitized[realm] = Object.freeze({ sourceCommit: source.sourceCommit, sourceTree: source.sourceTree,
+      historicalDependencyClosureSha256: source.historicalDependencyClosureSha256 })
   }
   return Object.freeze(sanitized)
 }
@@ -1714,4 +1732,161 @@ export async function executeFixedWslFixturePlan(input) {
   } catch {
     fail()
   }
+}
+
+const NATIVE_READ_ENTRY = 'services/release-recovery/scripts/release-recovery-native-adoption-read.mjs'
+const NATIVE_READ_BOOTSTRAP = Object.freeze([NATIVE_READ_ENTRY,
+  'scripts/sealed-realms-production-linux-preflight.mjs', 'scripts/local-binding-bounded-file.mjs',
+  'scripts/sealed-realms-production-bundle-engine.mjs', 'scripts/local-operation-bundle-noble-v1.mjs',
+  'scripts/auth-bridge-notification-prepared-deploy-closure.mjs'])
+const NATIVE_READ_ROOT = '/home/warpkeep/Warpkeep-0.4'
+const NATIVE_READ_NODE = '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node'
+const HOST_GIT = String.raw`C:\Program Files\Git\cmd\git.exe`
+const HOST_GITHUB = String.raw`C:\Program Files\GitHub CLI\gh.exe`
+const NATIVE_READ_PREFIX = Object.freeze(['--distribution', 'WarpkeepRunner', '--user', 'warpkeep',
+  '--cd', NATIVE_READ_ROOT, '--exec', '/usr/bin/env', '-i', 'HOME=/home/warpkeep',
+  'PATH=/usr/bin:/bin', 'LANG=C', 'LC_ALL=C', 'TZ=UTC', 'WSL_DISTRO_NAME=WarpkeepRunner'])
+const NATIVE_READ_ATTESTATION = String.raw`set -efu
+[ "$(/usr/bin/id -u)" = 1000 ] && [ "$(/usr/bin/id -g)" = 1000 ]
+[ "$(/usr/bin/readlink -e -- .)" = /home/warpkeep/Warpkeep-0.4 ]
+node=/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node
+parents() {
+  parent=$(/usr/bin/dirname -- "$1")
+  while :; do
+    [ "$(/usr/bin/readlink -e -- "$parent")" = "$parent" ]
+    [ -d "$parent" ] && [ ! -L "$parent" ]
+    owner=$(/usr/bin/stat --format='%u' -- "$parent")
+    [ "$owner" = 0 ] || [ "$owner" = 1000 ]
+    mode=$(/usr/bin/stat --format='%a' -- "$parent")
+    [ "$((0$mode & 022))" = 0 ]
+    [ "$parent" != / ] || break
+    parent=$(/usr/bin/dirname -- "$parent")
+  done
+}
+parents "$node"
+[ "$(/usr/bin/readlink -e -- "$node")" = "$node" ]
+[ "$(/usr/bin/stat --format='%F|%a|%u|%g|%s|%h' -- "$node")" = 'regular file|500|1000|1000|124819136|1' ]
+[ "$(/usr/bin/sha256sum --binary -- "$node" | /usr/bin/cut -d ' ' -f 1)" = e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2 ]
+parents /usr/bin/git
+[ "$(/usr/bin/readlink -e -- /usr/bin/git)" = /usr/bin/git ]
+[ "$(/usr/bin/stat --format='%F|%a|%u|%g' -- /usr/bin/git)" = 'regular file|755|0|0' ]
+[ "$(/usr/bin/sha256sum --binary -- /usr/bin/git | /usr/bin/cut -d ' ' -f 1)" = 2a8c18fbf43da9f692d75474c72bea9dfd796c260b0f3dfe456376abc3bbd668 ]
+commit=$1; tree=$2; shift 2
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null GIT_TERMINAL_PROMPT=0
+gitread() { /usr/bin/git --no-replace-objects --no-optional-locks -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"; }
+[ "$(gitread rev-parse --verify 'HEAD^{commit}')" = "$commit" ]
+[ "$(gitread rev-parse --verify 'refs/remotes/origin/main^{commit}')" = "$commit" ]
+[ "$(gitread rev-parse --verify "$commit^{tree}")" = "$tree" ]
+while [ "$#" -gt 0 ]; do
+  path=/home/warpkeep/Warpkeep-0.4/$1; bytes=$2; hash=$3; shift 3
+  parents "$path"
+  [ "$(/usr/bin/readlink -e -- "$path")" = "$path" ]
+  [ "$(/usr/bin/stat --format='%F|%a|%u|%g|%s|%h' -- "$path")" = "regular file|644|1000|1000|$bytes|1" ]
+  [ "$(/usr/bin/sha256sum --binary -- "$path" | /usr/bin/cut -d ' ' -f 1)" = "$hash" ]
+done
+printf 'attested\n'
+`
+let nativeReadActive = false
+
+function hostSourceBytes(args, maximumBytes = 4 * 1024 * 1024) {
+  const result = spawnSync(HOST_GIT, ['--no-replace-objects', '--no-optional-locks',
+    '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=NUL', ...args], {
+    cwd: REPOSITORY_ROOT, encoding: null, windowsHide: true, timeout: 10_000,
+    maxBuffer: maximumBytes, stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...FIXED_HOST_ENVIRONMENT, GIT_CONFIG_GLOBAL: 'NUL', GIT_CONFIG_SYSTEM: 'NUL',
+      GIT_CONFIG_NOSYSTEM: '1', GIT_NO_REPLACE_OBJECTS: '1', GIT_GRAFT_FILE: 'NUL', GIT_TERMINAL_PROMPT: '0' },
+  })
+  try {
+    if (result.error || result.signal !== null || result.status !== 0 || !Buffer.isBuffer(result.stdout)
+      || !Buffer.isBuffer(result.stderr) || result.stderr.length !== 0 || result.stdout.length > maximumBytes) fail()
+    return Buffer.from(result.stdout)
+  } finally { result.stdout?.fill?.(0); result.stderr?.fill?.(0) }
+}
+function hostSourceText(args, maximumBytes = 512) {
+  const bytes = hostSourceBytes(args, maximumBytes)
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes) }
+  finally { bytes.fill(0) }
+}
+function nativeBootstrapCoordinates() {
+  const commit = hostSourceText(['rev-parse', '--verify', 'HEAD^{commit}']).trimEnd()
+  if (!LOWER_HEX_40.test(commit) || hostSourceText(['rev-parse', '--verify', 'refs/remotes/origin/main^{commit}']) !== `${commit}\n`
+    || !['https://github.com/ael-dev3/Warpkeep\n', 'https://github.com/ael-dev3/Warpkeep.git\n']
+      .includes(hostSourceText(['remote', 'get-url', 'origin']))) fail()
+  const tree = hostSourceText(['rev-parse', '--verify', `${commit}^{tree}`]).trimEnd()
+  if (!LOWER_HEX_40.test(tree)) fail()
+  const files = NATIVE_READ_BOOTSTRAP.map(path => {
+    const entry = hostSourceText(['ls-tree', '-z', commit, '--', path], 1024)
+    if (!/^100644 blob [a-f0-9]{40}\t/u.test(entry) || entry.slice(53) !== `${path}\0`) fail()
+    const bytes = hostSourceBytes(['cat-file', 'blob', entry.slice(12, 52)])
+    try { if (!bytes.length) fail(); return Object.freeze({ path, bytes: bytes.length, sha256: sha256(bytes) }) }
+    finally { bytes.fill(0) }
+  })
+  return Object.freeze({ commit, tree, files: Object.freeze(files) })
+}
+function attestNativeBootstrap(expected) {
+  const actual = nativeBootstrapCoordinates()
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) fail()
+  const result = spawnSync(FIXED_WSL_EXECUTABLE, [...NATIVE_READ_PREFIX, '/bin/sh', '-ceu',
+    NATIVE_READ_ATTESTATION, '--', expected.commit, expected.tree,
+    ...expected.files.flatMap(file => [file.path, String(file.bytes), file.sha256])], {
+    encoding: 'utf8', env: FIXED_HOST_ENVIRONMENT, timeout: 30_000,
+    maxBuffer: 1024, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
+  })
+  if (result.error || result.signal !== null || result.status !== 0 || result.stderr !== '' || result.stdout !== 'attested\n') fail()
+}
+function existingGithubCredential() {
+  const executable = lstatSync(HOST_GITHUB, { throwIfNoEntry: false })
+  if (!executable) return null
+  if (!executable.isFile() || executable.isSymbolicLink()) fail()
+  const environment = { ...FIXED_HOST_ENVIRONMENT, USERPROFILE: String.raw`C:\Users\heyas`,
+    APPDATA: String.raw`C:\Users\heyas\AppData\Roaming`, LOCALAPPDATA: String.raw`C:\Users\heyas\AppData\Local`,
+    GH_HOST: 'github.com', GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1' }
+  const options = { env: environment, encoding: null, timeout: 15_000,
+    maxBuffer: 8192, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }
+  const account = spawnSync(HOST_GITHUB, ['api', '--hostname', 'github.com', 'user',
+    '--jq', '.login + "|" + (.id|tostring)'], options)
+  try {
+    // No saved/current authentication is a supported public GET mode.
+    if (account.error || account.signal !== null || account.status !== 0) return null
+    if (!Buffer.isBuffer(account.stdout) || !Buffer.isBuffer(account.stderr) || account.stderr.length !== 0
+      || account.stdout.toString('utf8') !== 'ael-dev3|183124839\n') fail()
+  } finally { account.stdout?.fill?.(0); account.stderr?.fill?.(0) }
+  const result = spawnSync(HOST_GITHUB, ['auth', 'token', '--hostname', 'github.com', '--user', 'ael-dev3'], options)
+  try {
+    if (result.error || result.signal !== null || result.status !== 0 || !Buffer.isBuffer(result.stdout)
+      || !Buffer.isBuffer(result.stderr) || result.stderr.length !== 0 || result.stdout.length < 21 || result.stdout.length > 4098) fail()
+    const token = Buffer.from(result.stdout.subarray(0, result.stdout.at(-2) === 13 ? -2 : -1))
+    if (result.stdout.at(-1) !== 10 || token.some(byte => byte < 33 || byte > 126)) { token.fill(0); fail() }
+    return token
+  } finally { result.stdout?.fill?.(0); result.stderr?.fill?.(0) }
+}
+
+/** One fixed owner/native read for both realms. Neither private receipts nor tokens are returned. */
+export async function verifyFixedGuestExistingStateSources() {
+  let token, request
+  if (arguments.length !== 0 || nativeReadActive || process.platform !== 'win32') fail()
+  nativeReadActive = true
+  try {
+    const { WSL_EXECUTION_POLICY } = await import('./run-release-recovery-spacetime-fixtures-wsl.mjs')
+    await preflightFixedWslHostAndGuest({ policy: WSL_EXECUTION_POLICY })
+    const coordinates = nativeBootstrapCoordinates()
+    attestNativeBootstrap(coordinates)
+    token = existingGithubCredential()
+    // Reattest after the authenticated account GET, before releasing the token
+    // to the already-authenticated fixed native bootstrap via its private stdin.
+    attestNativeBootstrap(coordinates)
+    request = { schemaVersion: 1, profile: 'warpkeep-release-recovery-native-adoption-read-v1',
+      operatingCommit: coordinates.commit, githubToken: token?.toString('ascii') ?? null }
+    const value = canonicalJsonCommand(FIXED_WSL_EXECUTABLE,
+      [...NATIVE_READ_PREFIX, NATIVE_READ_NODE, `${NATIVE_READ_ROOT}/${NATIVE_READ_ENTRY}`],
+      request, 8192, FIXED_HOST_ENVIRONMENT, 180_000)
+    request.githubToken = null
+    attestNativeBootstrap(coordinates)
+    const result = exactObject(value, ['schemaVersion', 'profile', 'operatingCommit', 'operatingTree', 'sources'])
+    if (result.schemaVersion !== 1 || result.profile !== 'warpkeep-release-recovery-authenticated-adoption-sources-v1'
+      || result.operatingCommit !== coordinates.commit || result.operatingTree !== coordinates.tree) fail()
+    const sources = exactObject(result.sources, ['g002', 'ptr'])
+    return freezeData({ ...result, sources: { g002: adoptionSource(sources.g002, 'g002'), ptr: adoptionSource(sources.ptr, 'ptr') } })
+  } catch { fail() }
+  finally { if (request) request.githubToken = null; token?.fill(0); nativeReadActive = false }
 }

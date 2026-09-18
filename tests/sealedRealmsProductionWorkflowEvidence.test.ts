@@ -21,6 +21,10 @@ import {
   refreshSealedRealmsProductionWorkflowEvidence as refresh,
   revokeSealedRealmsProductionWorkflowEvidence as revoke,
   verifySealedRealmsProductionWorkflowEvidence as verify,
+  createSealedRealmsProductionRetainedEvidence as createRetained,
+  refreshSealedRealmsProductionRetainedEvidence as refreshRetained,
+  verifySealedRealmsProductionRetainedEvidence as verifyRetained,
+  revokeSealedRealmsProductionRetainedEvidence as revokeRetained,
 } from '../scripts/sealed-realms-production-workflow-evidence.mjs';
 import { parseWorkflowEvidenceJson } from '../scripts/sealed-realms-production-workflow-evidence-json.mjs';
 
@@ -120,8 +124,105 @@ function fixture(activated = false, includePolicy = false) {
 }
 afterEach(() => {
   process.chdir(INITIAL_CWD); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.unstubAllGlobals();
-  vi.doUnmock('../scripts/sealed-realms-production-workflow-private-state.mjs'); vi.resetModules();
+  vi.doUnmock('../scripts/sealed-realms-production-workflow-private-state.mjs');
+  vi.doUnmock('../scripts/sealed-realms-production-linux-preflight.mjs'); vi.resetModules();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, ...(EVIDENCE_FIXTURE_HOST === 'win32' ? { maxRetries: 1, retryDelay: 1000 } : {}) });
+});
+
+describe.sequential('fixed public Verify evidence for retained sources', () => {
+  it('reopens a historical S under later main without workflow context, tokens or write requests', async () => {
+    const f = fixture(true);
+    for (const key of ['GITHUB_ACTIONS', 'GITHUB_TOKEN', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_JOB']) vi.stubEnv(key, undefined);
+    const scope = await createRetained({ operatingCommit: f.commit, sourceCommits: [f.parent] });
+    expect(verifyRetained(scope, f.parent)).toEqual({ verifiedSha: f.parent });
+    expect(verifyRetained(scope, f.commit)).toEqual({ verifiedSha: f.commit });
+    expect(() => verify(scope as never, f.parent)).toThrow('SCOPE_INVALID');
+    expect(() => verifyRetained({ ...scope } as never, f.parent)).toThrow('SCOPE_INVALID');
+    await refreshRetained(scope);
+    for (const [url, options] of f.fetch.mock.calls) {
+      expect(String(url).startsWith(API)).toBe(true);
+      expect(String(url)).not.toBe(f.operation.url);
+      expect(options.method).toBe('GET');
+      expect(new Headers(options.headers).has('authorization')).toBe(false);
+    }
+    revokeRetained(scope);
+    expect(() => verifyRetained(scope, f.parent)).toThrow('SCOPE_INVALID');
+  });
+
+  it.each(['failed-history', 'wrong-repository', 'branch-moved', 'local-head-moved', 'redirect', 'extra-verifier'])(
+    'fails closed on %s instead of accepting caller-supplied proof', async failure => {
+      const f = fixture(true);
+      if (failure === 'failed-history') f.runs.get(f.parent)![0]!.conclusion = 'failure';
+      if (failure === 'branch-moved') f.main.commit.sha = f.parent;
+      f.override.respond = (url, value) => {
+        if (failure === 'wrong-repository' && url === API) value.id = 1;
+        if (failure === 'local-head-moved' && url === API) git(f.root, ['update-ref', 'HEAD', f.parent]);
+        if (failure === 'redirect') return new Response(null, { status: 302, headers: { location: 'https://example.invalid' } });
+        return response(url, value);
+      };
+      const request = { operatingCommit: f.commit, sourceCommits: [f.parent],
+        ...(failure === 'extra-verifier' ? { verifyEvidence: () => ({ verifiedSha: f.parent }) } : {}) };
+      await expect(createRetained(request)).rejects.toThrow();
+      if (failure === 'extra-verifier') expect(f.fetch).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects unrelated Git history before requesting public evidence', async () => {
+    const f = fixture(true);
+    const tree = git(f.root, ['rev-parse', `${f.parent}^{tree}`]);
+    const unrelated = git(f.root, ['commit-tree', tree, '-m', 'unrelated root']);
+    await expect(createRetained({ operatingCommit: f.commit, sourceCommits: [unrelated] })).rejects.toThrow();
+    expect(f.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe.sequential('authenticated retained Verify transport at the native boundary', () => {
+  it.each(['valid', 'forged-runtime', 'changed-after-fetch', 'changed-during-body', 'changed-after-mint'])(
+    'enforces %s without trusting credential or caller source assertions', async scenario => {
+      const f = fixture(true), runtime = Object.freeze({}); let current = true, attestations = 0;
+      // Host/filesystem identity is explicit emulation here. Git object history,
+      // endpoint validation, proof freshness and credential handling are real.
+      vi.doMock('../scripts/sealed-realms-production-linux-preflight.mjs', () => ({
+        attestSealedRealmsProductionRetainedFixtureRuntime: (value: unknown) => {
+          attestations += 1;
+          if (value !== runtime || !current) throw Error('native source changed');
+          return { operatingCommit: f.commit, operatingTree: 'a'.repeat(40) };
+        },
+      }));
+      const evidence = await import('../scripts/sealed-realms-production-workflow-evidence.mjs');
+      const token = Buffer.from('synthetic-github-' + 'x'.repeat(32)), original = token.toString('ascii');
+      f.override.respond = (url, value, options) => {
+        expect(options.method).toBe('GET'); expect(options.redirect).toBe('error');
+        expect(new Headers(options.headers).get('authorization')).toBe('Bearer ' + original);
+        if (scenario === 'changed-after-fetch' && url === API) current = false;
+        if (scenario === 'changed-during-body' && url === API) {
+          const bytes = Buffer.from(json(value));
+          const result = new Response(new ReadableStream({ pull(controller) {
+            current = false; controller.enqueue(bytes); controller.close();
+          } }), { headers: { 'content-type': 'application/json' } });
+          Object.defineProperty(result, 'url', { value: url }); return result;
+        }
+        return response(url, value);
+      };
+      const promise = evidence.createSealedRealmsProductionRetainedEvidence({ operatingCommit: f.commit,
+        sourceCommits: [f.parent], nativeRuntime: (scenario === 'forged-runtime' ? {} : runtime) as never, githubToken: token });
+      if (['forged-runtime', 'changed-after-fetch', 'changed-during-body'].includes(scenario)) {
+        await expect(promise).rejects.toThrow();
+        expect(f.fetch.mock.calls.length).toBe(scenario === 'forged-runtime' ? 0 : 1);
+      } else {
+        const scope = await promise; token.fill(0);
+        if (scenario === 'changed-after-mint') {
+          current = false;
+          expect(() => evidence.verifySealedRealmsProductionRetainedEvidence(scope, f.parent)).toThrow();
+        } else {
+          await evidence.refreshSealedRealmsProductionRetainedEvidence(scope);
+          expect(evidence.verifySealedRealmsProductionRetainedEvidence(scope, f.parent)).toEqual({ verifiedSha: f.parent });
+          expect(attestations).toBeGreaterThan(f.fetch.mock.calls.length * 2);
+        }
+        evidence.revokeSealedRealmsProductionRetainedEvidence(scope);
+        expect(() => evidence.verifySealedRealmsProductionRetainedEvidence(scope, f.parent)).toThrow(/SCOPE_INVALID/u);
+      }
+    }, 60_000);
 });
 
 describe.sequential('fixed workflow Verify evidence', () => {
@@ -515,7 +616,7 @@ it('shares the genuine evidence WeakMap with the compiled native credential boun
     export const policyDigest=()=>'',policyDirectory=()=>({}),policyOwnedRun=()=>{},policyPrivateAncestors=()=>{},policyGit=()=>Buffer.from('x'),policyFail=()=>{throw Error('G001_LINUX_POLICY_NATIVE_FAILED')};`;
   const mocks: Record<string, string> = {
     'genesis001-linux-policy-boundary.mjs': boundary,
-    'auth-bridge-notification-prepared-deploy-closure.mjs': `import f from 'node:warpkeep-identity-fixture';export const verifyAuthBridgeNotificationPreparedDeployClosure=f.closure;`,
+    'auth-bridge-notification-prepared-deploy-closure.mjs': `import f from 'node:warpkeep-identity-fixture';export const verifyAuthBridgeNotificationPreparedDeployClosure=f.closure;export const importAuthBridgeNotificationPreparedAttestedModules=()=>{throw Error('not used by this fixture')};`,
     'local-binding-bounded-file.mjs': `export const readLocalBindingBoundedFile=()=>({body:Buffer.from('x')});`,
     'local-binding-runtime-process.mjs': `import f from 'node:warpkeep-identity-fixture';export const runLocalBindingBoundedProcess=f.run;`,
   };

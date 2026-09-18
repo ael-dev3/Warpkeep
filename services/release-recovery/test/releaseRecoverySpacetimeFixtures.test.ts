@@ -22,6 +22,7 @@ const fixedHost = vi.hoisted(() => ({
   readFixedPrivateRecord: vi.fn(),
   closeFixedPrivateRoot: vi.fn(),
   verifyFixedPublishReceipt: vi.fn(),
+  verifyFixedGuestExistingStateSources: vi.fn(),
   verifyFixedToolchainAttestation: vi.fn(),
   readFixedFixtureOutput: vi.fn(),
   recoverFixedFixtureOutputs: vi.fn(),
@@ -50,7 +51,9 @@ import {
 import {
   WSL_EXECUTION_POLICY,
   runReleaseRecoverySpacetimeFixturesWsl,
+  validateWslFixturePlan,
 } from '../scripts/run-release-recovery-spacetime-fixtures-wsl.mjs'
+import { validateFixtureRequest } from '../scripts/release-recovery-wsl-materialize.mjs'
 import { parseSpacetimeProgramPins } from '../src/spacetimeProgramPins.js'
 
 const encoder = new TextEncoder()
@@ -429,6 +432,172 @@ function authenticatedReceipt(realm: 'g002' | 'ptr', receiptBytes: Uint8Array): 
     matchingLiveReceiptVerified: true,
   }
 }
+
+function authenticatedAdoptionSources(): any {
+  const result = runnerResult()
+  return {
+    schemaVersion: 1,
+    profile: 'warpkeep-release-recovery-authenticated-adoption-sources-v1',
+    operatingCommit: '6'.repeat(40), operatingTree: '7'.repeat(40),
+    sources: Object.fromEntries((['g002', 'ptr'] as const).map(realm => [realm, {
+      sourceAuthority: 'authenticated-existing-state-adoption-v1',
+      adoptionReceiptSha256: realm === 'g002' ? '2'.repeat(64) : '3'.repeat(64),
+      updateReceiptSha256: SOURCE[realm].receiptSha256,
+      databaseIdentity: SOURCE[realm].databaseIdentity,
+      sourceCommit: SOURCE[realm].sourceCommit,
+      sourceRootTree: '6'.repeat(40),
+      sourceTree: SOURCE[realm].sourceTree,
+      installedModuleSha256: SOURCE[realm].publishedModuleSha256,
+      installedProgramKeccak256: result.realms[realm].programKeccak256,
+      historicalDependencyClosureSha256: SOURCE[realm].historicalDependencyClosureSha256,
+    }])),
+  }
+}
+
+describe('authenticated existing-state fixture source', () => {
+  function existingFixture(result = runnerResult()) {
+    const fixture = dependencies({ files: new Map([
+      [FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation, encode('synthetic-toolchain-attestation\n')],
+    ]), result })
+    fixedHost.verifyFixedGuestExistingStateSources.mockImplementation(async () => authenticatedAdoptionSources())
+    return fixture
+  }
+  const options = { privateRoot: PRIVATE_ROOT, mode: 'write', evidence: 'existing-state' }
+
+  it('selects existing-state explicitly while preserving default argument shapes', () => {
+    expect(parseGeneratorArguments(['--evidence=existing-state', '--write', '--private-root', PRIVATE_ROOT]))
+      .toEqual(options)
+    expect(parseToolchainArguments(['--private-root', PRIVATE_ROOT, '--evidence=existing-state']))
+      .toEqual({ privateRoot: PRIVATE_ROOT, evidence: 'existing-state' })
+    for (const bad of ['--evidence=legacy', '--evidence=auto', '--evidence', '--evidence=']) {
+      expect(() => parseGeneratorArguments(['--write', '--private-root', PRIVATE_ROOT, bad])).toThrow()
+      expect(() => parseToolchainArguments(['--private-root', PRIVATE_ROOT, bad])).toThrow()
+    }
+    expect(() => parseGeneratorArguments(['--write', '--private-root', PRIVATE_ROOT,
+      '--evidence=existing-state', '--evidence=existing-state'])).toThrow()
+    expect(() => parseToolchainArguments(['--private-root', PRIVATE_ROOT,
+      '--evidence=existing-state', '--evidence=existing-state'])).toThrow()
+  })
+
+  it('writes and checks from authenticated native adoption without legacy private records', async () => {
+    const fixture = existingFixture()
+    await expect(runGenerator(options)).resolves.toEqual({ written: true })
+    await expect(runGenerator({ ...options, mode: 'check' })).resolves.toEqual({ verified: true })
+    expect(fixture.verifyReceipt).not.toHaveBeenCalled()
+    expect(fixture.privateRoot.read.mock.calls.map(call => call[1]))
+      .toEqual([FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation, FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation])
+    expect(fixedHost.verifyFixedGuestExistingStateSources).toHaveBeenCalledTimes(4)
+    for (const call of fixedHost.verifyFixedGuestExistingStateSources.mock.calls) expect(call).toEqual([])
+    const plan = fixture.runner.mock.calls[0]![0].plan
+    expect(plan.realms.g002).toMatchObject(authenticatedAdoptionSources().sources.g002)
+    expect(plan.realms.ptr).not.toHaveProperty('publishedModuleSha256')
+    expect(plan.realms.ptr).not.toHaveProperty('receiptSha256')
+    const manifest = JSON.parse(decoder.decode(fixture.output.committed.get(FIXTURE_OUTPUT_PATHS.manifest)!))
+    expect(manifest.schemaVersion).toBe(1)
+    expect(validateWslFixturePlan(plan)).toBe(plan)
+    expect(validateFixtureRequest({ schemaVersion: 1,
+      profile: 'warpkeep-release-recovery-wsl-fixture-request-v1', platform: platformAttestation(), plan,
+      network: 'initialize-and-attest-loopback-only-before-install' })).toBe(plan)
+  })
+
+  it('bootstraps from the same authenticated sources without requiring a not-yet-produced attestation', async () => {
+    const fixture = dependencies({ files: new Map() })
+    fixedHost.verifyFixedGuestExistingStateSources.mockImplementation(async () => authenticatedAdoptionSources())
+    fixedHost.bootstrapFixedWslToolchain.mockResolvedValue(bootstrapResult())
+    await expect(prepareReleaseRecoveryWslToolchain({ privateRoot: PRIVATE_ROOT, evidence: 'existing-state' }))
+      .resolves.toEqual({ prepared: true })
+    expect(fixture.privateRoot.read).not.toHaveBeenCalled()
+    expect(fixture.verifyReceipt).not.toHaveBeenCalled()
+    expect(fixedHost.bootstrapFixedWslToolchain.mock.calls[0]![0].sources)
+      .toEqual(authenticatedAdoptionSources().sources)
+    expect(fixedHost.verifyFixedGuestExistingStateSources).toHaveBeenCalledTimes(2)
+    expect(fixedHost.publishFixedToolchainAttestation).toHaveBeenCalledOnce()
+  })
+
+  it('does not fall back to legacy receipts when native adoption is absent or invalid', async () => {
+    for (const invalid of [undefined, { ...authenticatedAdoptionSources(), operatingCommit: '0'.repeat(40) }]) {
+      const fixture = existingFixture()
+      fixedHost.verifyFixedGuestExistingStateSources.mockResolvedValue(invalid)
+      await rejected(runGenerator(options))
+      expect(fixture.verifyReceipt).not.toHaveBeenCalled()
+      expect(fixture.runner).not.toHaveBeenCalled()
+      expect(fixture.output.outputs.begin).not.toHaveBeenCalled()
+    }
+    const fixture = existingFixture()
+    fixedHost.verifyFixedGuestExistingStateSources.mockRejectedValue(new Error('private-native-detail'))
+    await rejected(runGenerator(options))
+    expect(fixture.verifyReceipt).not.toHaveBeenCalled()
+    expect(fixture.runner).not.toHaveBeenCalled()
+  })
+
+  it.each(['g002', 'ptr'] as const)('rejects both SHA-256 and Keccak mismatch for %s before output', async realm => {
+    for (const hash of ['sha256', 'keccak']) {
+      const result = runnerResult()
+      if (hash === 'sha256') {
+        for (const key of ['firstBuildArtifactSha256', 'secondBuildArtifactSha256', 'programArtifactSha256']) {
+          result.realms[realm][key] = '1'.repeat(64)
+        }
+      } else result.realms[realm].programKeccak256 = '1'.repeat(64)
+      const fixture = existingFixture(result)
+      await rejected(runGenerator(options))
+      expect(fixture.runner).toHaveBeenCalledOnce()
+      expect(fixture.output.outputs.begin).not.toHaveBeenCalled()
+    }
+  })
+
+  it('reopens current operating source and retained adoption after the asynchronous build', async () => {
+    const fixture = existingFixture()
+    fixedHost.verifyFixedGuestExistingStateSources
+      .mockResolvedValueOnce(authenticatedAdoptionSources())
+      .mockResolvedValueOnce({ ...authenticatedAdoptionSources(), operatingCommit: '5'.repeat(40) })
+    await rejected(runGenerator(options))
+    expect(fixture.runner).toHaveBeenCalledOnce()
+    expect(fixture.output.outputs.begin).not.toHaveBeenCalled()
+  })
+
+  it('does not publish a toolchain attestation if adoption changes during bootstrap', async () => {
+    existingFixture()
+    const changed = authenticatedAdoptionSources()
+    changed.sources.ptr.adoptionReceiptSha256 = '4'.repeat(64)
+    fixedHost.verifyFixedGuestExistingStateSources.mockResolvedValueOnce(authenticatedAdoptionSources())
+      .mockResolvedValueOnce(changed)
+    fixedHost.bootstrapFixedWslToolchain.mockResolvedValue(bootstrapResult())
+    await rejected(prepareReleaseRecoveryWslToolchain({ privateRoot: PRIVATE_ROOT, evidence: 'existing-state' }))
+    expect(fixedHost.publishFixedToolchainAttestation).not.toHaveBeenCalled()
+  })
+
+  it('rejects mixed legacy/adoption plans and incomplete commitments in both host and guest parsers', async () => {
+    const fixture = existingFixture()
+    await runGenerator(options)
+    const original = fixture.runner.mock.calls[0]![0].plan
+    for (const mutation of [
+      (plan: any) => { delete plan.realms.ptr.sourceRootTree },
+      (plan: any) => { plan.realms.g002.adoptionReceiptSha256 = '0'.repeat(64) },
+      (plan: any) => { plan.realms.ptr.installedProgramKeccak256 = null },
+      (plan: any) => { plan.realms.ptr.receiptSha256 = '1'.repeat(64) },
+      (plan: any) => { plan.realms.ptr.sourceAuthority = 'authenticated-publish-receipt-v1' },
+    ]) {
+      const plan = structuredClone(original)
+      mutation(plan)
+      expect(() => validateWslFixturePlan(plan)).toThrow()
+      expect(() => validateFixtureRequest({ schemaVersion: 1,
+        profile: 'warpkeep-release-recovery-wsl-fixture-request-v1', platform: platformAttestation(), plan,
+        network: 'initialize-and-attest-loopback-only-before-install' })).toThrow()
+    }
+  })
+
+  it('rejects hostile evidence options before touching any private input', async () => {
+    const fixture = existingFixture()
+    let read = false
+    const hostile = { privateRoot: PRIVATE_ROOT, mode: 'write' }
+    Object.defineProperty(hostile, 'evidence', { enumerable: true, get() { read = true; return 'existing-state' } })
+    await rejected(runGenerator(hostile))
+    await rejected(prepareReleaseRecoveryWslToolchain({ privateRoot: PRIVATE_ROOT, evidence: undefined }))
+    expect(read).toBe(false)
+    expect(fixture.privateRoot.open).not.toHaveBeenCalled()
+    expect(fixedHost.verifyFixedGuestExistingStateSources).not.toHaveBeenCalled()
+  })
+})
 
 type MemoryOutputs = ReturnType<typeof memoryOutputs>
 

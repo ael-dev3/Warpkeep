@@ -20,13 +20,18 @@ export type SealedRealmsProductionBundleGraphMember = Readonly<{
   byteLength: number;
   sha256: string;
 }>;
+export type SealedRealmsProductionBundleExports =
+  | readonly ['createSealedRealmsProductionActivationWorkflowRuntime',
+    'readSealedRealmsProductionRetainedFixtureSources', 'runSealedRealmsProductionActivationOperation']
+  | readonly [Exclude<SealedRealmsProductionWorkflowFactory,
+    'createSealedRealmsProductionActivationWorkflowRuntime'>, string];
 export type SealedRealmOperationBundleSpecification = Readonly<{
   entryPath: string;
   basename: string;
   requiredGraphPaths: readonly string[];
   factoryExport: SealedRealmsProductionWorkflowFactory;
   factoryFailureCode: SealedRealmsProductionWorkflowFactoryFailure;
-  exportNames: readonly [SealedRealmsProductionWorkflowFactory, string];
+  exportNames: SealedRealmsProductionBundleExports;
 }>;
 export type SealedRealmOperationBundle = Readonly<{
   lane: SealedRealmsProductionBundleLane;
@@ -35,7 +40,7 @@ export type SealedRealmOperationBundle = Readonly<{
   byteDigest: string;
   sourceClosureDigest: string;
   graphManifest: readonly SealedRealmsProductionBundleGraphMember[];
-  exportNames: readonly [SealedRealmsProductionWorkflowFactory, string];
+  exportNames: SealedRealmsProductionBundleExports;
   factoryExport: SealedRealmsProductionWorkflowFactory;
   factoryFailureCode: SealedRealmsProductionWorkflowFactoryFailure;
 }>;

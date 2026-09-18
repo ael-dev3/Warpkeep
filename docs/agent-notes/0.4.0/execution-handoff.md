@@ -223,8 +223,24 @@ Independent review found no blocking issue. Pinned Windows Node 22.22.3 passed
 cases explicitly skipped; application typechecking passed. Added historical-entry
 regressions cover genuine foreign stores and adoption/completion/terminal changes
 during signature verification and after evidence creation. Native Linux then
-passed all 60 cases without skips at `32cde68c`. The fixed compiled desktop
-reader and fixture integration are still required.
+passed all 60 cases without skips at `32cde68c`.
+
+The fixed compiled reader now connects that historical evidence to the Windows
+fixture producer through the existing attested native bundle. Explicit
+`--evidence=existing-state` selects signed retained G002/PTR adoption data;
+legacy mode retains its original inputs and there is no automatic fallback.
+The producer proves each historical repository/module tree, rebuilds the installed
+module, compares both SHA256 and Keccak256, and reopens authenticated adoption
+after the build before publishing the unchanged fixture-manifest format.
+An existing authenticated `gh` session can supply the bounded GitHub reads through
+private stdin; no credential is written into a request, manifest or log.
+
+The combined Windows reader/producer checks passed 237 root tests with 44
+native-only skips, and 84 service tests with five native-only skips. Application
+and service typechecks passed. Independent review found no blocking issue.
+These tests include explicitly labeled host/private/HTTP emulation. Actual fixed
+native bundle preparation, private-corpus reading and fixture generation remain
+to be run from the integrated source; no production receipt was fabricated.
 
 ### Census interruption repair
 
@@ -272,8 +288,10 @@ Independent review found no blocking defect; a small nested-record immutability
 issue was corrected without changing receipt bytes. The 64 focused tests passed
 on Windows with one POSIX-only private-retention case skipped; application types
 passed. The final attempt-only regression rerun passed 11 with that same single
-skip. Native materialization/descriptor verification, protected admin-token
-provisioning and dispatch/activation integration remain required. The public
+skip. Native Linux at `3bc1696b` subsequently passed all 65 census/attempt/freeze/
+lifecycle cases and all 38 descriptor/build/policy cases without skips. These
+checks do not claim a production census. Protected admin-token ingress and
+dispatch/activation integration remain required. The public
 result selects an explicit source/workflow/attempt/digest; it does not select the
 newest directory or assert a successful production census.
 

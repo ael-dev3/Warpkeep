@@ -37,6 +37,7 @@ const PRIVATE_WORKFLOW_MEMBERS = [
 const EXPORT_NAMES = {
   activation: [
     'createSealedRealmsProductionActivationWorkflowRuntime',
+    'readSealedRealmsProductionRetainedFixtureSources',
     'runSealedRealmsProductionActivationOperation',
   ],
   g001: [
@@ -115,6 +116,10 @@ describe('sealed-realms production bundles', () => {
         expect(request.graphManifest.some(member => (
           member.path.endsWith('production-publisher-cli.ts')
         ))).toBe(false);
+      }
+      if (request.lane === 'activation') {
+        await expect(module.readSealedRealmsProductionRetainedFixtureSources({}))
+          .rejects.toThrow('SEALED_REALMS_RETAINED_FIXTURE_SOURCE_INVALID');
       }
       const runExport = request.exportNames.find(name => name.startsWith('run'))!;
       expect(typeof module[runExport]).toBe('function');

@@ -12,6 +12,7 @@ import { parseAndNormalizeRawModuleDefV10 } from '../src/rawModuleDefV10.ts'
 import { validateSpacetimeProgramPins } from '../src/spacetimeProgramPins.ts'
 import {
   runReleaseRecoverySpacetimeFixturesWsl,
+  validateAuthenticatedAdoptionSource,
   validateWslFixturePlan,
   validateWslFixtureResult,
 } from './run-release-recovery-spacetime-fixtures-wsl.mjs'
@@ -24,6 +25,7 @@ import {
   recoverFixedFixtureOutputs,
   verifyFixedPublishReceipt,
   verifyFixedToolchainAttestation,
+  verifyFixedGuestExistingStateSources,
 } from './release-recovery-fixture-host.mjs'
 import {
   parseToolchainEvidenceBytes,
@@ -508,6 +510,16 @@ async function authenticateToolchain(verifier, path, bytes) {
 }
 
 function createPlan(toolchain, g002, ptr) {
+  const realmPlan = (realm, source) => source.sourceAuthority === 'authenticated-existing-state-adoption-v1'
+    ? Object.freeze({ realm, ...source, modulePath: `spacetimedb/${realm === 'g002' ? 'genesis002' : 'ptr'}`, nodeVersion: '22.22.3' })
+    : Object.freeze({
+        realm, sourceAuthority: 'authenticated-publish-receipt-v1',
+        receiptSha256: source.receiptSha256, databaseIdentity: source.databaseIdentity,
+        sourceCommit: source.sourceCommit, sourceTree: source.sourceTree,
+        publishedModuleSha256: source.publishedModuleSha256,
+        historicalDependencyClosureSha256: source.historicalDependencyClosureSha256,
+        modulePath: `spacetimedb/${realm === 'g002' ? 'genesis002' : 'ptr'}`, nodeVersion: '22.22.3',
+      })
   const plan = Object.freeze({
     schemaVersion: 1,
     profile: 'warpkeep-release-recovery-wsl-fixture-plan-v1',
@@ -541,30 +553,8 @@ function createPlan(toolchain, g002, ptr) {
         modulePath: 'spacetimedb',
         nodeVersion: '24.19.0',
       }),
-      g002: Object.freeze({
-        realm: 'g002',
-        sourceAuthority: 'authenticated-publish-receipt-v1',
-        receiptSha256: g002.receiptSha256,
-        databaseIdentity: g002.databaseIdentity,
-        sourceCommit: g002.sourceCommit,
-        sourceTree: g002.sourceTree,
-        publishedModuleSha256: g002.publishedModuleSha256,
-        historicalDependencyClosureSha256: g002.historicalDependencyClosureSha256,
-        modulePath: 'spacetimedb/genesis002',
-        nodeVersion: '22.22.3',
-      }),
-      ptr: Object.freeze({
-        realm: 'ptr',
-        sourceAuthority: 'authenticated-publish-receipt-v1',
-        receiptSha256: ptr.receiptSha256,
-        databaseIdentity: ptr.databaseIdentity,
-        sourceCommit: ptr.sourceCommit,
-        sourceTree: ptr.sourceTree,
-        publishedModuleSha256: ptr.publishedModuleSha256,
-        historicalDependencyClosureSha256: ptr.historicalDependencyClosureSha256,
-        modulePath: 'spacetimedb/ptr',
-        nodeVersion: '22.22.3',
-      }),
+      g002: realmPlan('g002', g002),
+      ptr: realmPlan('ptr', ptr),
     }),
   })
   validateWslFixturePlan(plan)
@@ -625,9 +615,13 @@ function normalizeRunnerResult(value, plan) {
       !== plan.realms.g002.historicalDependencyClosureSha256
     || value.realms.ptr.historicalDependencyClosureSha256
       !== plan.realms.ptr.historicalDependencyClosureSha256
-    || value.realms.g002.programArtifactSha256 !== plan.realms.g002.publishedModuleSha256
-    || value.realms.ptr.programArtifactSha256 !== plan.realms.ptr.publishedModuleSha256
   ) fail()
+  for (const realm of ['g002', 'ptr']) {
+    const source = plan.realms[realm]
+    const existing = source.sourceAuthority === 'authenticated-existing-state-adoption-v1'
+    if (value.realms[realm].programArtifactSha256 !== (existing ? source.installedModuleSha256 : source.publishedModuleSha256)
+      || (existing && value.realms[realm].programKeccak256 !== source.installedProgramKeccak256)) fail()
+  }
   for (const realm of ['g001', 'g002', 'ptr']) {
     if (
       value.realms[realm].historicalDependencyClosureSha256
@@ -823,11 +817,15 @@ export function parseGeneratorArguments(argv) {
     if (types.isProxy(argv) || !Array.isArray(argv)) fail()
     let privateRoot
     let mode
+    let evidence
     for (let index = 0; index < argv.length; index += 1) {
       const argument = argv[index]
       if (argument === '--check' || argument === '--write') {
         if (mode !== undefined) fail()
         mode = argument.slice(2)
+      } else if (argument === '--evidence=existing-state') {
+        if (evidence !== undefined) fail()
+        evidence = 'existing-state'
       } else if (argument === '--private-root') {
         if (privateRoot !== undefined || index + 1 >= argv.length) fail()
         privateRoot = argv[++index]
@@ -839,14 +837,37 @@ export function parseGeneratorArguments(argv) {
       (mode !== 'check' && mode !== 'write')
       || privateRoot !== FIXED_PRIVATE_ROOT
     ) fail()
-    return Object.freeze({ privateRoot, mode })
+    return Object.freeze({ privateRoot, mode, ...(evidence === undefined ? {} : { evidence }) })
   } catch (error) {
     if (error instanceof RecoveryFixtureInputError) throw error
     fail()
   }
 }
 
-async function preflightPrivatePrerequisites(privateRoot, includeToolchain) {
+function evidenceOptions(value, requiredKeys) {
+  if (types.isProxy(value) || value === null || typeof value !== 'object') fail()
+  const selected = Object.hasOwn(value, 'evidence')
+  const options = exactDataObject(value, [...requiredKeys, ...(selected ? ['evidence'] : [])])
+  if (selected && options.evidence !== 'existing-state') fail()
+  return options
+}
+
+async function authenticatedAdoptionSources() {
+  const result = exactDataObject(await verifyFixedGuestExistingStateSources(), [
+    'schemaVersion', 'profile', 'operatingCommit', 'operatingTree', 'sources',
+  ])
+  if (result.schemaVersion !== 1 || result.profile !== 'warpkeep-release-recovery-authenticated-adoption-sources-v1') fail()
+  nonzeroHex(result.operatingCommit, LOWER_HEX_40)
+  nonzeroHex(result.operatingTree, LOWER_HEX_40)
+  const sources = exactDataObject(result.sources, ['g002', 'ptr'])
+  const g002 = validateAuthenticatedAdoptionSource(sources.g002)
+  const ptr = validateAuthenticatedAdoptionSource(sources.ptr)
+  if (g002.databaseIdentity === ptr.databaseIdentity
+    || g002.databaseIdentity === G001_DATABASE_IDENTITY || ptr.databaseIdentity === G001_DATABASE_IDENTITY) fail()
+  return Object.freeze({ ...result, sources: Object.freeze({ g002, ptr }) })
+}
+
+async function preflightPrivatePrerequisites(privateRoot, includeToolchain, evidence) {
   let rootHandle
   let records
   let rootClosed = false
@@ -855,36 +876,44 @@ async function preflightPrivatePrerequisites(privateRoot, includeToolchain) {
       await FIXED_PRIVATE_HOST.privateRoot.open(privateRoot),
       privateRoot,
     )
-    const recordPaths = Object.values(FIXED_PRIVATE_RECORD_PATHS).filter(
-      path => includeToolchain || path !== FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation,
-    )
+    const existing = evidence === 'existing-state'
+    const recordPaths = existing
+      ? (includeToolchain ? [FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation] : [])
+      : Object.values(FIXED_PRIVATE_RECORD_PATHS).filter(
+          path => includeToolchain || path !== FIXED_PRIVATE_RECORD_PATHS.toolchainAttestation,
+        )
     records = await readPrivateRecords(FIXED_PRIVATE_HOST.privateRoot, rootHandle, recordPaths)
-    validateBootstrapRecords(records)
-
-    const g002Bytes = records.get(FIXED_PRIVATE_RECORD_PATHS.g002Receipt)
-    const ptrBytes = records.get(FIXED_PRIVATE_RECORD_PATHS.ptrReceipt)
-    const g002 = validateAuthenticatedReceipt(
-      await authenticateReceipt(
-        FIXED_PRIVATE_HOST.verifyReceipt,
+    let adoptionSources, g002, ptr
+    if (existing) {
+      adoptionSources = await authenticatedAdoptionSources()
+      ;({ g002, ptr } = adoptionSources.sources)
+    } else {
+      validateBootstrapRecords(records)
+      const g002Bytes = records.get(FIXED_PRIVATE_RECORD_PATHS.g002Receipt)
+      const ptrBytes = records.get(FIXED_PRIVATE_RECORD_PATHS.ptrReceipt)
+      g002 = validateAuthenticatedReceipt(
+        await authenticateReceipt(
+          FIXED_PRIVATE_HOST.verifyReceipt,
+          'g002',
+          FIXED_PRIVATE_RECORD_PATHS.g002Receipt,
+          g002Bytes,
+          records,
+        ),
         'g002',
-        FIXED_PRIVATE_RECORD_PATHS.g002Receipt,
         g002Bytes,
-        records,
-      ),
-      'g002',
-      g002Bytes,
-    )
-    const ptr = validateAuthenticatedReceipt(
-      await authenticateReceipt(
-        FIXED_PRIVATE_HOST.verifyReceipt,
+      )
+      ptr = validateAuthenticatedReceipt(
+        await authenticateReceipt(
+          FIXED_PRIVATE_HOST.verifyReceipt,
+          'ptr',
+          FIXED_PRIVATE_RECORD_PATHS.ptrReceipt,
+          ptrBytes,
+          records,
+        ),
         'ptr',
-        FIXED_PRIVATE_RECORD_PATHS.ptrReceipt,
         ptrBytes,
-        records,
-      ),
-      'ptr',
-      ptrBytes,
-    )
+      )
+    }
     if (g002.databaseIdentity === ptr.databaseIdentity) fail()
     const toolchain = includeToolchain
       ? validateToolchainAttestation(
@@ -899,9 +928,8 @@ async function preflightPrivatePrerequisites(privateRoot, includeToolchain) {
     await FIXED_PRIVATE_HOST.privateRoot.close(rootHandle)
     rootClosed = true
     for (const bytes of records.values()) bytes.fill(0)
-    return includeToolchain
-      ? Object.freeze({ g002, ptr, toolchain })
-      : Object.freeze({ g002, ptr })
+    return Object.freeze({ g002, ptr, ...(includeToolchain ? { toolchain } : {}),
+      ...(existing ? { adoptionSources } : {}) })
   } catch (error) {
     if (error instanceof RecoveryFixtureInputError) throw error
     fail()
@@ -917,9 +945,9 @@ async function preflightPrivatePrerequisites(privateRoot, includeToolchain) {
 
 export async function preflightFixedPrivatePrerequisites(input) {
   try {
-    const options = exactDataObject(input, ['privateRoot'])
+    const options = evidenceOptions(input, ['privateRoot'])
     if (options.privateRoot !== FIXED_PRIVATE_ROOT) fail()
-    return await preflightPrivatePrerequisites(options.privateRoot, true)
+    return await preflightPrivatePrerequisites(options.privateRoot, true, options.evidence)
   } catch (error) {
     if (error instanceof RecoveryFixtureInputError) throw error
     fail()
@@ -928,9 +956,9 @@ export async function preflightFixedPrivatePrerequisites(input) {
 
 export async function preflightFixedBootstrapPrerequisites(input) {
   try {
-    const options = exactDataObject(input, ['privateRoot'])
+    const options = evidenceOptions(input, ['privateRoot'])
     if (options.privateRoot !== FIXED_PRIVATE_ROOT) fail()
-    return await preflightPrivatePrerequisites(options.privateRoot, false)
+    return await preflightPrivatePrerequisites(options.privateRoot, false, options.evidence)
   } catch (error) {
     if (error instanceof RecoveryFixtureInputError) throw error
     fail()
@@ -939,13 +967,14 @@ export async function preflightFixedBootstrapPrerequisites(input) {
 
 export async function runGenerator(input) {
   try {
-    const options = exactDataObject(input, ['privateRoot', 'mode'])
+    const options = evidenceOptions(input, ['privateRoot', 'mode'])
     if (
       options.privateRoot !== FIXED_PRIVATE_ROOT
       || (options.mode !== 'check' && options.mode !== 'write')
     ) fail()
     const prerequisites = await preflightFixedPrivatePrerequisites({
       privateRoot: options.privateRoot,
+      ...(options.evidence === undefined ? {} : { evidence: options.evidence }),
     })
     const plan = createPlan(prerequisites.toolchain, prerequisites.g002, prerequisites.ptr)
     const checkedBefore = options.mode === 'check'
@@ -953,6 +982,8 @@ export async function runGenerator(input) {
       : undefined
     const result = await runReleaseRecoverySpacetimeFixturesWsl(Object.freeze({ plan }))
     const generated = normalizeRunnerResult(result, plan)
+    if (prerequisites.adoptionSources !== undefined
+      && JSON.stringify(await authenticatedAdoptionSources()) !== JSON.stringify(prerequisites.adoptionSources)) fail()
 
     if (options.mode === 'check') {
       assertOutputMatches(checkedBefore, generated)

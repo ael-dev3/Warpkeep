@@ -35,7 +35,7 @@ const LANES = Object.freeze(['activation', 'g001', 'g002', 'ptr']);
 const LANE_METADATA = Object.freeze({
   activation: Object.freeze({
     basename: 'sealed-realms-production-activation-lane.bundle.mjs',
-    exportNames: Object.freeze(['createSealedRealmsProductionActivationWorkflowRuntime', 'runSealedRealmsProductionActivationOperation']),
+    exportNames: Object.freeze(['createSealedRealmsProductionActivationWorkflowRuntime', 'readSealedRealmsProductionRetainedFixtureSources', 'runSealedRealmsProductionActivationOperation']),
     factoryExport: 'createSealedRealmsProductionActivationWorkflowRuntime',
     factoryFailureCode: 'SEALED_REALMS_ACTIVATION_WORKFLOW_INPUT_INVALID',
   }),

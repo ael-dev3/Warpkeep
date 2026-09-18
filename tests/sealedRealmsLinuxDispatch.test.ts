@@ -31,7 +31,7 @@ async function fixture(operation: string, failure?: string) {
  (globalThis as Record<string,unknown>)[stateKey]=state;
  let source=readFileSync(resolve('scripts/sealed-realms-production-linux-preflight.mjs'),'utf8');
  function substitute(start: string,end: string,body: string){const a=source.indexOf(start),b=source.indexOf(end,a);if(a<0||b<0)throw Error('fixture shape changed');source=source.slice(0,a)+body+'\n'+source.slice(b);}
- substitute('function runtime(expected)', 'function git(args',`function runtime(){globalThis.${stateKey}.calls.push('runtime');return {};}`);
+ substitute('function runtime(expected, retainedRead = false)', 'function git(args',`function runtime(){globalThis.${stateKey}.calls.push('runtime');return {};}`);
  substitute('function source(commit)', 'function jsonFile(',`function source(){globalThis.${stateKey}.calls.push('source');return process.cwd();}`);
  substitute('function bundle(commit, lane)', '/** Fixed Linux operating caller',`function bundle(commit,lane){if(lane!==${JSON.stringify(lane)})throw Error('wrong lane');globalThis.${stateKey}.calls.push('bundle');return globalThis.${stateKey}.selected;}`);
  const stub=`export function verifyAuthBridgeNotificationPreparedDeployClosure(){globalThis.${stateKey}.calls.push('closure');return {};};export async function importAuthBridgeNotificationPreparedAttestedModules(){globalThis.${stateKey}.calls.push('import');return [globalThis.${stateKey}.loaded];}`;
@@ -89,4 +89,35 @@ it.each([
   expect(error.stack).not.toContain(privateFailure);
   expect(JSON.stringify(error)).not.toContain(privateFailure);
  });
+});
+
+it.each(['valid', 'extra-input', 'changed-after-import', 'extra-export'])('keeps desktop retained read %s outside workflow dispatch', async scenario => {
+ const calls: string[]=[];const runtime=Object.freeze({});const token=Buffer.from('synthetic-token-'+ 'x'.repeat(32));
+ const readName='readSealedRealmsProductionRetainedFixtureSources';
+ const names=['createSealedRealmsProductionActivationWorkflowRuntime',readName,'runSealedRealmsProductionActivationOperation'];
+ const state={calls,selected:{path:'scripts/fixed.bundle.mjs',exportNames:names},loaded:{
+  [names[0]]:()=>{throw Error('desktop read reached effect factory');},
+  [names[2]]:()=>{throw Error('desktop read reached effect run');},
+  [readName]:async(input: unknown)=>{calls.push('read');expect(input).toEqual({operatingCommit:'a'.repeat(40),githubToken:token});return {safe:true};}
+ }};
+ if(scenario==='extra-export')Object.assign(state.loaded,{extra:()=>{}});
+ (globalThis as Record<string,unknown>)[stateKey]=state;
+ let source=readFileSync(resolve('scripts/sealed-realms-production-linux-preflight.mjs'),'utf8');
+ const a=source.indexOf('export function createSealedRealmsProductionRetainedFixtureRuntime(input)'),b=source.indexOf('export async function readSealedRealmsProductionNativeFixtureSources(input)',a);
+ expect(a).toBeGreaterThan(0);expect(b).toBeGreaterThan(a);
+ source=source.slice(0,a)+`export function createSealedRealmsProductionRetainedFixtureRuntime(input){globalThis.${stateKey}.calls.push('create');const cap=Object.freeze({});retainedReadRuntimes.set(cap,{commit:input.operatingCommit,selected:globalThis.${stateKey}.selected});return cap;}\nexport function attestSealedRealmsProductionRetainedFixtureRuntime(cap){globalThis.${stateKey}.calls.push('attest');if(${JSON.stringify(scenario)}==='changed-after-import')throw Error('changed');}\n`+source.slice(b);
+ const stub=`export function verifyAuthBridgeNotificationPreparedDeployClosure(){globalThis.${stateKey}.calls.push('closure');return {};};export async function importAuthBridgeNotificationPreparedAttestedModules(){globalThis.${stateKey}.calls.push('import');return [globalThis.${stateKey}.loaded];}`;
+ source=source.replaceAll("'./auth-bridge-notification-prepared-deploy-closure.mjs'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(stub).toString('base64')));
+ source=source.replace(/(['"])(\.\/[^'"]+)\1/g,(_all,_quote,path)=>JSON.stringify(pathToFileURL(resolve('scripts',path)).href));
+ const module=await import(/* @vite-ignore */ 'data:text/javascript;base64,'+Buffer.from(source+'\n//desktop-'+Math.random()).toString('base64'));
+ try {
+  const input={operatingCommit:'a'.repeat(40),githubToken:token,...(scenario==='extra-input'?{operation:'activation-evidence-generate'}:{})};
+  if(scenario==='valid'){
+   await expect(module.readSealedRealmsProductionNativeFixtureSources(input)).resolves.toEqual({safe:true});
+   expect(calls).toEqual(['create','closure','import','attest','read','attest']);
+  }else{
+   await expect(module.readSealedRealmsProductionNativeFixtureSources(input)).rejects.toThrow();
+   expect(calls).not.toContain('read');if(scenario==='extra-input')expect(calls).toEqual([]);
+  }
+ }finally{delete (globalThis as Record<string,unknown>)[stateKey];token.fill(0);}
 });

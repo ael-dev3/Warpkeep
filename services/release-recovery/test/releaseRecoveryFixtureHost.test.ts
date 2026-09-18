@@ -115,6 +115,7 @@ import {
   openFixedPrivateRoot,
   preflightFixedWslHostAndGuest,
   readFixedPrivateRecord,
+  verifyFixedGuestExistingStateSources,
 } from '../scripts/release-recovery-fixture-host.mjs'
 import { WSL_EXECUTION_POLICY } from '../scripts/run-release-recovery-spacetime-fixtures-wsl.mjs'
 
@@ -127,6 +128,55 @@ function success(stdout: string | Buffer) {
     stdout,
     stderr: binary ? Buffer.alloc(0) : '',
   }
+}
+
+function guestPreflightResponse(_executable: unknown, rawArgs: unknown[]) {
+  let numericVersionChecked = true
+      const args = rawArgs.map(String)
+      if (args.includes('-NoProfile')) {
+        const script = args.at(-1)!
+        for (const prefix of ['File', 'Product']) {
+          for (const part of ['MajorPart', 'MinorPart', 'BuildPart', 'PrivatePart']) {
+            expect(script).toContain(`${prefix}${part}`)
+          }
+        }
+        numericVersionChecked = true
+        return success('10.0.26100.8737\n10.0.26100.8737\n')
+      }
+      if (args.length === 1 && args[0] === '--version') {
+        expect(numericVersionChecked).toBe(true)
+        return success('WSL version: 2.7.11.0\n')
+      }
+      if (args.includes('/bin/cat')) {
+        const path = args.at(-1)
+        if (path === '/etc/os-release') return success(boundary.osRelease)
+        if (path === '/proc/sys/kernel/osrelease') return success(boundary.kernelRelease)
+        if (path === '/usr/bin/git') return success(boundary.git)
+        if (path === '/usr/bin/unshare') return success(boundary.unshare)
+        if (path === '/usr/sbin/ip') return success(boundary.ip)
+      }
+      if (args.includes('/usr/bin/dpkg-query')) {
+        const versions: Record<string, string> = {
+          git: '1:2.43.0-1ubuntu7.3',
+          'util-linux': '2.39.3-9ubuntu6.6',
+          iproute2: '6.1.0-1ubuntu6.2',
+        }
+        return success(versions[args.at(-1)!]!)
+      }
+      if (args.includes('/usr/bin/unshare')) {
+        const link = JSON.stringify([{
+          ifname: 'lo',
+          flags: ['LOOPBACK', 'UP'],
+        }])
+        const route = JSON.stringify([{ dev: 'lo' }])
+        const shellProgram = args.at(-1)!
+        return success(`${link}\n${shellProgram.includes("printf '\\n'") ? '\n' : ''}${route}\n`)
+      }
+      if (args.includes('/usr/bin/git') && args.at(-1) === '--version') {
+        return success('git version 2.43.0\n')
+      }
+      if (args.includes('/bin/sh')) return success('WarpkeepRunner\n')
+      throw new Error(`unexpected synthetic boundary: ${JSON.stringify(args)}`)
 }
 
 describe('fixed recovery fixture host preflight', () => {
@@ -262,5 +312,82 @@ describe('fixed recovery fixture host preflight', () => {
     } finally {
       Object.defineProperty(process, 'platform', platformDescriptor)
     }
+  })
+})
+
+const retainedCommit = 'a'.repeat(40), retainedTree = 'b'.repeat(40)
+function retainedSources() {
+  const make = (realm: 'g002' | 'ptr') => ({ sourceAuthority: 'authenticated-existing-state-adoption-v1',
+    adoptionReceiptSha256: 'c'.repeat(64), updateReceiptSha256: 'd'.repeat(64),
+    databaseIdentity: realm === 'g002' ? 'c2003223f6e3c86e988775ddd458c3a45635d0d021e11131551471617c392194' : 'c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e',
+    sourceCommit: 'e'.repeat(40), sourceRootTree: 'f'.repeat(40), sourceTree: '1'.repeat(40),
+    installedModuleSha256: '2'.repeat(64), installedProgramKeccak256: '3'.repeat(64), historicalDependencyClosureSha256: '4'.repeat(64) })
+  return { schemaVersion: 1, profile: 'warpkeep-release-recovery-authenticated-adoption-sources-v1',
+    operatingCommit: retainedCommit, operatingTree: retainedTree, sources: { g002: make('g002'), ptr: make('ptr') } }
+}
+async function nativeReadFixture(scenario: string) {
+  const descriptor = Object.getOwnPropertyDescriptor(process, 'platform')!
+  Object.defineProperty(process, 'platform', { ...descriptor, value: 'win32' })
+  const calls: Array<{ executable: string; args: string[]; env: unknown }> = []
+  const retainedBuffers: Buffer[] = []
+  const token = 'gh-fixture-secret-' + 'x'.repeat(32)
+  let attestations = 0, nativeCalls = 0, tokenCalls = 0
+  boundary.spawnSync.mockClear()
+  boundary.lstatSync.mockImplementation(() => scenario === 'public' ? undefined : ({ isFile: () => true, isSymbolicLink: () => false }))
+  boundary.spawnSync.mockImplementation((rawExecutable: unknown, rawArgs: unknown[], rawOptions: any) => {
+    const executable = String(rawExecutable), args = rawArgs.map(String)
+    calls.push({ executable, args, env: rawOptions.env })
+    if (executable.endsWith('git.exe')) {
+      if (args.includes('ls-tree')) return success(Buffer.from('100644 blob ' + '5'.repeat(40) + '\t' + args.at(-1) + '\0'))
+      if (args.includes('cat-file')) return success(Buffer.from('synthetic committed bootstrap'))
+      if (args.includes('remote')) return success(Buffer.from('https://github.com/ael-dev3/Warpkeep.git\n'))
+      const value = args.at(-1)!.endsWith('^{tree}') ? retainedTree : scenario === 'main-moved' && attestations > 0 ? '6'.repeat(40) : retainedCommit
+      return success(Buffer.from(value + '\n'))
+    }
+    if (executable.endsWith('gh.exe')) {
+      if (args[0] === 'api') return success(Buffer.from(scenario === 'wrong-account' ? 'someone|9\n' : 'ael-dev3|183124839\n'))
+      expect(args).toEqual(['auth', 'token', '--hostname', 'github.com', '--user', 'ael-dev3'])
+      tokenCalls += 1; const buffer = Buffer.from(token + '\n'); retainedBuffers.push(buffer); return success(buffer)
+    }
+    if (args.includes('/bin/sh') && args.some(arg => arg.includes("printf 'attested"))) {
+      attestations += 1
+      if (scenario === 'bootstrap-changed' && attestations === 2) return { ...success(''), status: 1 }
+      return success('attested\n')
+    }
+    if (args.some(arg => arg.endsWith('release-recovery-native-adoption-read.mjs'))) {
+      nativeCalls += 1
+      expect(attestations).toBe(2)
+      expect(args.slice(0, 8)).toEqual(['--distribution', 'WarpkeepRunner', '--user', 'warpkeep', '--cd', '/home/warpkeep/Warpkeep-0.4', '--exec', '/usr/bin/env'])
+      expect(rawOptions.timeout).toBe(180000)
+      const input = JSON.parse(rawOptions.input.toString('utf8'))
+      expect(input).toEqual({ schemaVersion: 1, profile: 'warpkeep-release-recovery-native-adoption-read-v1', operatingCommit: retainedCommit, githubToken: scenario === 'public' ? null : token })
+      retainedBuffers.push(rawOptions.input)
+      const result = retainedSources()
+      if (scenario === 'wrong-operating-tree') result.operatingTree = '7'.repeat(40)
+      if (scenario === 'private-extra') Object.assign(result.sources.ptr, { receipt: 'private fixture receipt' })
+      if (scenario === 'wrong-database') result.sources.ptr.databaseIdentity = '8'.repeat(64)
+      if (scenario === 'malformed-digest') result.sources.ptr.installedProgramKeccak256 = '0'.repeat(64)
+      if (scenario === 'native-failure') { const output = Buffer.from(token); retainedBuffers.push(output); return { ...success(output), status: 1 } }
+      return success(Buffer.from(JSON.stringify(result) + '\n'))
+    }
+    return guestPreflightResponse(executable, args)
+  })
+  try {
+    if (['valid', 'public'].includes(scenario)) await expect(verifyFixedGuestExistingStateSources()).resolves.toEqual(retainedSources())
+    else await expect(verifyFixedGuestExistingStateSources()).rejects.toThrow(/^RECOVERY_FIXTURE_INPUT_INVALID$/u)
+    expect(JSON.stringify(calls)).not.toContain(token)
+    expect(retainedBuffers.every(bytes => bytes.every(byte => byte === 0))).toBe(true)
+    if (['wrong-account', 'bootstrap-changed', 'main-moved'].includes(scenario)) expect(nativeCalls).toBe(0)
+    if (scenario === 'wrong-account') expect(tokenCalls).toBe(0)
+    if (scenario === 'valid') { expect(nativeCalls).toBe(1); expect(attestations).toBe(3) }
+  } finally { Object.defineProperty(process, 'platform', descriptor) }
+}
+describe('fixed authenticated retained-source host transport', () => {
+  it.each(['valid', 'public', 'wrong-account', 'bootstrap-changed', 'main-moved', 'wrong-operating-tree',
+    'private-extra', 'wrong-database', 'malformed-digest', 'native-failure'])('enforces %s across private stdin and source reattestation', nativeReadFixture)
+  it('rejects caller-selected authority before any process', async () => {
+    boundary.spawnSync.mockClear()
+    await expect((verifyFixedGuestExistingStateSources as any)({ operatingCommit: retainedCommit })).rejects.toThrow('RECOVERY_FIXTURE_INPUT_INVALID')
+    expect(boundary.spawnSync).not.toHaveBeenCalled()
   })
 })

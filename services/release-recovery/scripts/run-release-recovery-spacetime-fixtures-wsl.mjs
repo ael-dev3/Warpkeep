@@ -34,6 +34,12 @@ const AUTHENTICATED_PLAN_KEYS = Object.freeze([
   'modulePath',
   'nodeVersion',
 ])
+const ADOPTION_SOURCE_KEYS = Object.freeze([
+  'sourceAuthority', 'adoptionReceiptSha256', 'updateReceiptSha256',
+  'databaseIdentity', 'sourceCommit', 'sourceRootTree', 'sourceTree',
+  'installedModuleSha256', 'installedProgramKeccak256',
+  'historicalDependencyClosureSha256',
+])
 const REALM_RESULT_KEYS = Object.freeze([
   'realm',
   'historicalDependencyClosureSha256',
@@ -133,6 +139,16 @@ function nonzeroHex(value, expression) {
 }
 
 function validateAuthenticatedPlan(value, realm, modulePath) {
+  if (types.isProxy(value) || value === null || typeof value !== 'object') fail()
+  if (Object.getOwnPropertyDescriptor(value, 'sourceAuthority')?.value
+    === 'authenticated-existing-state-adoption-v1') {
+    const plan = exactDataObject(value, ['realm', ...ADOPTION_SOURCE_KEYS, 'modulePath', 'nodeVersion'])
+    if (plan.realm !== realm || plan.modulePath !== modulePath || plan.nodeVersion !== '22.22.3') fail()
+    validateAuthenticatedAdoptionSource(Object.fromEntries(
+      ADOPTION_SOURCE_KEYS.map(key => [key, plan[key]]),
+    ))
+    return
+  }
   const plan = exactDataObject(value, AUTHENTICATED_PLAN_KEYS)
   if (
     plan.realm !== realm
@@ -146,6 +162,18 @@ function validateAuthenticatedPlan(value, realm, modulePath) {
   nonzeroHex(plan.sourceTree, LOWER_HEX_40)
   nonzeroHex(plan.publishedModuleSha256, LOWER_HEX_64)
   nonzeroHex(plan.historicalDependencyClosureSha256, LOWER_HEX_64)
+}
+
+/** Shape validation only; the fixed native host establishes source authority. */
+export function validateAuthenticatedAdoptionSource(value) {
+  const source = exactDataObject(value, ADOPTION_SOURCE_KEYS)
+  if (source.sourceAuthority !== 'authenticated-existing-state-adoption-v1') fail()
+  for (const key of ['sourceCommit', 'sourceRootTree', 'sourceTree']) nonzeroHex(source[key], LOWER_HEX_40)
+  for (const key of [
+    'adoptionReceiptSha256', 'updateReceiptSha256', 'databaseIdentity',
+    'installedModuleSha256', 'installedProgramKeccak256', 'historicalDependencyClosureSha256',
+  ]) nonzeroHex(source[key], LOWER_HEX_64)
+  return Object.freeze({ ...source })
 }
 
 export function validateWslFixturePlan(value) {
@@ -213,6 +241,8 @@ export function validateWslFixturePlan(value) {
     nonzeroHex(g001.freezeReleaseNonce, LOWER_HEX_64)
     validateAuthenticatedPlan(realms.g002, 'g002', 'spacetimedb/genesis002')
     validateAuthenticatedPlan(realms.ptr, 'ptr', 'spacetimedb/ptr')
+    if (realms.g002.sourceAuthority !== realms.ptr.sourceAuthority
+      || realms.g002.databaseIdentity === realms.ptr.databaseIdentity) fail()
     return value
   } catch (error) {
     if (error instanceof RecoveryFixtureInputError) throw error

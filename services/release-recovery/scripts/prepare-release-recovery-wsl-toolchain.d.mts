@@ -6,6 +6,7 @@ export class RecoveryFixtureInputError extends Error {
 
 export function parseToolchainArguments(argv: readonly string[]): Readonly<{
   privateRoot: string
+  evidence?: 'existing-state'
 }>
 
 export function prepareReleaseRecoveryWslToolchain(input: unknown): Promise<Readonly<{

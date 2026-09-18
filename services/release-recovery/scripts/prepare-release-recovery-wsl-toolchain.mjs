@@ -75,11 +75,13 @@ export function parseToolchainArguments(argv) {
     if (
       types.isProxy(argv)
       || !Array.isArray(argv)
-      || argv.length !== 2
-      || argv[0] !== '--private-root'
+      || (argv.length !== 2 && argv.length !== 3)
     ) fail()
-    if (argv[1] !== FIXED_PRIVATE_ROOT) fail()
-    return Object.freeze({ privateRoot: argv[1] })
+    const evidence = argv.includes('--evidence=existing-state') ? 'existing-state' : undefined
+    const base = argv.filter(argument => argument !== '--evidence=existing-state')
+    if (base.length !== 2 || base[0] !== '--private-root' || base[1] !== FIXED_PRIVATE_ROOT
+      || argv.length !== base.length + (evidence === undefined ? 0 : 1)) fail()
+    return Object.freeze({ privateRoot: base[1], ...(evidence === undefined ? {} : { evidence }) })
   } catch (error) {
     if (error instanceof RecoveryFixtureInputError) throw error
     fail()
@@ -88,10 +90,14 @@ export function parseToolchainArguments(argv) {
 
 export async function prepareReleaseRecoveryWslToolchain(input) {
   try {
-    const options = exactDataObject(input, ['privateRoot'])
+    if (types.isProxy(input) || input === null || typeof input !== 'object') fail()
+    const selected = Object.hasOwn(input, 'evidence')
+    const options = exactDataObject(input, ['privateRoot', ...(selected ? ['evidence'] : [])])
+    if (selected && options.evidence !== 'existing-state') fail()
     if (options.privateRoot !== FIXED_PRIVATE_ROOT) fail()
     const prerequisites = await preflightFixedBootstrapPrerequisites({
       privateRoot: options.privateRoot,
+      ...(selected ? { evidence: options.evidence } : {}),
     })
     const sourcePolicy = await preflightFixedToolchainSourcePolicy()
     const sourceObjects = await preflightFixedPublicSourceObjectDatabase()
@@ -148,6 +154,12 @@ export async function prepareReleaseRecoveryWslToolchain(input) {
       || result.materializerProgramBytes > 16 * 1024 * 1024
       || !LOWER_HEX_64.test(result.materializerProgramSha256)
     ) fail()
+    if (selected) {
+      const refreshed = await preflightFixedBootstrapPrerequisites({
+        privateRoot: options.privateRoot, evidence: options.evidence,
+      })
+      if (JSON.stringify(refreshed.adoptionSources) !== JSON.stringify(prerequisites.adoptionSources)) fail()
+    }
     await publishFixedToolchainAttestation(resultCapability)
     return Object.freeze({ prepared: true })
   } catch (error) {

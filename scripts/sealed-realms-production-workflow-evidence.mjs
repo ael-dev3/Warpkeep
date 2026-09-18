@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { types } from 'node:util';
+import { attestSealedRealmsProductionRetainedFixtureRuntime } from './sealed-realms-production-linux-preflight.mjs';
 import { parseWorkflowEvidenceJson } from './sealed-realms-production-workflow-evidence-json.mjs';
 
 const COMMIT = /^[0-9a-f]{40}$/u;
@@ -9,6 +10,7 @@ const API = `https://api.github.com/repos/${REPOSITORY}`;
 const VERIFY_PATH = '.github/workflows/verify.yml';
 const WORKFLOW_PATH = '.github/workflows/sealed-realms-production.yml';
 const scopes = new WeakMap();
+const retainedScopes = new WeakMap();
 const GIT = process.platform === 'win32' ? 'git' : String.fromCodePoint(47, 117, 115, 114, 47, 98, 105, 110, 47, 103, 105, 116);
 const NULL_PATH = String.fromCodePoint(47, 100, 101, 118, 47, 110, 117, 108, 108);
 const FIXED_PATH = String.fromCodePoint(47, 117, 115, 114, 47, 98, 105, 110, 58, 47, 98, 105, 110);
@@ -137,14 +139,17 @@ async function load(state) {
   };
   const request = async path => {
     if (state.revoked || controller.signal.aborted) fail();
+    if (state.nativeRuntime) attestSealedRealmsProductionRetainedFixtureRuntime(state.nativeRuntime);
     const url = `${API}${path}`;
     let response, reader, bytes;
     const chunks = [];
     try {
       response = await bounded(state.fetch(url, { method: 'GET', redirect: 'error', cache: 'no-store',
         credentials: 'omit', referrerPolicy: 'no-referrer', signal: controller.signal,
-        headers: { accept: 'application/vnd.github+json', authorization: `Bearer ${state.identity.token}`,
+        headers: { accept: 'application/vnd.github+json',
+          ...(state.retained ? (state.token ? { authorization: `Bearer ${state.token.toString('ascii')}` } : {}) : { authorization: `Bearer ${state.identity.token}` }),
           'x-github-api-version': '2022-11-28', 'accept-encoding': 'identity' } }));
+      if (state.nativeRuntime) attestSealedRealmsProductionRetainedFixtureRuntime(state.nativeRuntime);
       if (!(response instanceof Response) || response.status !== 200 || response.redirected
         || response.url !== url || response.body === null
         || !/^application\/json(?:\s*;\s*charset=utf-8)?$/iu.test(response.headers.get('content-type') ?? '')
@@ -163,6 +168,7 @@ async function load(state) {
       }
       if (declared !== null && size !== Number(declared)) fail();
       bytes = Buffer.concat(chunks, size);
+      if (state.nativeRuntime) attestSealedRealmsProductionRetainedFixtureRuntime(state.nativeRuntime);
       return parseWorkflowEvidenceJson(bytes);
     } finally {
       try { void (reader ? reader.cancel() : response?.body?.cancel())?.catch(() => {}); } catch { /* sanitized */ }
@@ -171,6 +177,11 @@ async function load(state) {
     }
   };
   const current = async () => {
+    if (state.retained) {
+      const branch = await request('/branches/main');
+      if (branch.name !== 'main' || branch.protected !== true || record(branch.commit).sha !== state.commit) fail();
+      return;
+    }
     const [branch, raw] = await Promise.all([request('/branches/main'), request(`/actions/runs/${state.identity.runId}`)]);
     if (branch.name !== 'main' || branch.protected !== true || record(branch.commit).sha !== state.commit) fail();
     const run = runIdentity(raw, state.commit, WORKFLOW_PATH, 'Sealed Realms Production', 'workflow_dispatch');
@@ -186,7 +197,8 @@ async function load(state) {
       || new Set(runs.map(run => run.run_number)).size !== runs.length
       || new Set(runs.map(run => run.workflow_id)).size !== 1) fail();
     const selected = runs.reduce((left, right) => BigInt(left.run_number) > BigInt(right.run_number) ? left : right);
-    if (selected.id === state.identity.runId || selected.status !== 'completed' || selected.conclusion !== 'success') fail();
+    if ((!state.retained && selected.id === state.identity.runId)
+      || selected.status !== 'completed' || selected.conclusion !== 'success') fail();
     return selected;
   };
   try {
@@ -263,4 +275,104 @@ export function revokeSealedRealmsProductionWorkflowEvidence(scope) {
   const state = scopes.get(scope);
   if (state === undefined) fail('SEALED_REALMS_WORKFLOW_EVIDENCE_SCOPE_INVALID');
   state.revoked = true; state.proofs = undefined; state.identity.token = undefined; state.controller?.abort();
+}
+
+function retainedInput(input) {
+  if (types.isProxy(input) || input === null || typeof input !== 'object'
+    || Object.getPrototypeOf(input) !== Object.prototype) fail();
+  const descriptors = Object.getOwnPropertyDescriptors(input);
+  const native = Object.hasOwn(descriptors, 'nativeRuntime') || Object.hasOwn(descriptors, 'githubToken');
+  const keys = native ? ['operatingCommit', 'sourceCommits', 'nativeRuntime', 'githubToken'] : ['operatingCommit', 'sourceCommits'];
+  if (Reflect.ownKeys(descriptors).length !== keys.length || keys.some(key =>
+    !descriptors[key]?.enumerable || !Object.hasOwn(descriptors[key], 'value'))) fail();
+  const commit = descriptors.operatingCommit.value;
+  const sources = descriptors.sourceCommits.value;
+  if (typeof commit !== 'string' || !COMMIT.test(commit) || types.isProxy(sources)
+    || !Array.isArray(sources) || sources.length < 1 || sources.length > 2) fail();
+  const members = Object.getOwnPropertyDescriptors(sources);
+  if (Reflect.ownKeys(members).length !== sources.length + 1) fail();
+  const captured = [];
+  for (let index = 0; index < sources.length; index++) {
+    const member = members[index];
+    if (!member?.enumerable || !Object.hasOwn(member, 'value')
+      || typeof member.value !== 'string' || !COMMIT.test(member.value)) fail();
+    captured.push(member.value);
+  }
+  if (new Set(captured).size !== captured.length) fail();
+  let token, nativeRuntime;
+  if (native) {
+    nativeRuntime = descriptors.nativeRuntime.value;
+    if (attestSealedRealmsProductionRetainedFixtureRuntime(nativeRuntime).operatingCommit !== commit) fail();
+    const supplied = descriptors.githubToken.value;
+    if (supplied !== null) {
+      if (types.isProxy(supplied) || !Buffer.isBuffer(supplied) || supplied.buffer instanceof SharedArrayBuffer
+        || supplied.length < 20 || supplied.length > 4096) fail();
+      token = Buffer.from(Uint8Array.prototype.slice.call(supplied));
+      if (token.some(byte => byte < 33 || byte > 126)) { token.fill(0); fail(); }
+    }
+  }
+  return { commit, nativeRuntime, token, sources: Object.freeze(captured),
+    commits: Object.freeze([...new Set([commit, ...captured])].sort()) };
+}
+
+function retainedLocalSource(state) {
+  if (state.nativeRuntime) attestSealedRealmsProductionRetainedFixtureRuntime(state.nativeRuntime);
+  if (git(['rev-parse', '--verify', 'HEAD^{commit}']) !== `${state.commit}\n`
+    || git(['rev-parse', '--verify', 'refs/remotes/origin/main^{commit}']) !== `${state.commit}\n`) fail();
+  for (const source of state.sources) {
+    if (git(['rev-parse', '--verify', `${source}^{commit}`]) !== `${source}\n`
+      || git(['merge-base', source, state.commit]) !== `${source}\n`) fail();
+  }
+}
+
+function retainedScopeState(scope) {
+  const state = retainedScopes.get(scope);
+  if (!state || state.revoked) fail('SEALED_REALMS_RETAINED_EVIDENCE_SCOPE_INVALID');
+  return state;
+}
+
+/** Fixed-repository GETs authenticate history; no workflow identity is invented. */
+export async function createSealedRealmsProductionRetainedEvidence(input) {
+  if (arguments.length !== 1 || typeof globalThis.fetch !== 'function') fail();
+  const selected = retainedInput(input);
+  const scope = Object.freeze({});
+  retainedScopes.set(scope, { ...selected, retained: true, fetch: globalThis.fetch,
+    proofs: undefined, refreshing: false, revoked: false });
+  try { await refreshSealedRealmsProductionRetainedEvidence(scope); return scope; }
+  catch (error) { revokeSealedRealmsProductionRetainedEvidence(scope); throw error; }
+}
+
+export async function refreshSealedRealmsProductionRetainedEvidence(scope) {
+  if (arguments.length !== 1) fail();
+  const state = retainedScopeState(scope);
+  state.proofs = undefined;
+  if (state.refreshing) {
+    revokeSealedRealmsProductionRetainedEvidence(scope);
+    fail('SEALED_REALMS_RETAINED_EVIDENCE_SCOPE_INVALID');
+  }
+  state.refreshing = true;
+  try {
+    retainedLocalSource(state);
+    const proofs = await load(state);
+    if (state.revoked) fail();
+    retainedLocalSource(state);
+    state.proofs = proofs; state.freshUntil = performance.now() + 30_000;
+  } catch { fail('SEALED_REALMS_RETAINED_EVIDENCE_UNAVAILABLE'); }
+  finally { state.refreshing = false; }
+}
+
+export function verifySealedRealmsProductionRetainedEvidence(scope, commit) {
+  if (arguments.length !== 2 || typeof commit !== 'string' || !COMMIT.test(commit)) fail();
+  const state = retainedScopeState(scope);
+  if (state.refreshing || !state.proofs?.has(commit) || performance.now() >= state.freshUntil) fail();
+  retainedLocalSource(state);
+  return Object.freeze({ verifiedSha: commit });
+}
+
+export function revokeSealedRealmsProductionRetainedEvidence(scope) {
+  if (arguments.length !== 1) fail();
+  const state = retainedScopes.get(scope);
+  if (!state) fail('SEALED_REALMS_RETAINED_EVIDENCE_SCOPE_INVALID');
+  state.revoked = true; state.proofs = undefined; state.controller?.abort();
+  state.token?.fill(0); state.token = undefined;
 }

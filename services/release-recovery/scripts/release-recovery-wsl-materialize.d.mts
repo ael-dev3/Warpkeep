@@ -1,4 +1,6 @@
 export function keccak256Bytes(input: Uint8Array): Uint8Array
+/** Internal request shape validation; does not execute or authorize a build. */
+export function validateFixtureRequest(value: unknown): unknown
 
 /** Internal fixed-repository source materialization, not release authority. */
 export function materializeCommit(

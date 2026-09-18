@@ -37,7 +37,7 @@ function artifact(overrides: Record<string, unknown> = {}) {
     byteDigest: digest('bundle'),
     sourceClosureDigest: digest('closure'),
     graphManifest: [{ path: 'scripts/a.mjs', byteLength: 1, sha256: digest('a') }],
-    exportNames: ['createSealedRealmsProductionActivationWorkflowRuntime', 'runSealedRealmsProductionActivationOperation'],
+    exportNames: ['createSealedRealmsProductionActivationWorkflowRuntime', 'readSealedRealmsProductionRetainedFixtureSources', 'runSealedRealmsProductionActivationOperation'],
     factoryExport: 'createSealedRealmsProductionActivationWorkflowRuntime',
     factoryFailureCode: 'SEALED_REALMS_ACTIVATION_WORKFLOW_INPUT_INVALID',
     handoffPath: '/home/warpkeep/.warpkeep/release-preparation-v1/runs/operation-bundle-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activation-1/artifact.mjs',
@@ -105,7 +105,7 @@ describe('fixed Linux operation bundle runtime boundaries', () => {
   it('rejects wrong load exports, factory success, digest and nonce', () => {
     const expected = {
       nonce, byteDigest: digest('bundle'),
-      exportNames: ['createSealedRealmsProductionActivationWorkflowRuntime', 'runSealedRealmsProductionActivationOperation'],
+      exportNames: ['createSealedRealmsProductionActivationWorkflowRuntime', 'readSealedRealmsProductionRetainedFixtureSources', 'runSealedRealmsProductionActivationOperation'],
       factoryFailureCode: 'SEALED_REALMS_ACTIVATION_WORKFLOW_INPUT_INVALID',
     };
     const valid = {
@@ -135,7 +135,7 @@ describe('fixed Linux operation bundle runtime boundaries', () => {
           'sealed-realms-production-ptr-lane.bundle.mjs',
         ];
         const names = lane === 'activation'
-          ? ['createSealedRealmsProductionActivationWorkflowRuntime', 'runSealedRealmsProductionActivationOperation']
+          ? ['createSealedRealmsProductionActivationWorkflowRuntime', 'readSealedRealmsProductionRetainedFixtureSources', 'runSealedRealmsProductionActivationOperation']
           : lane === 'g001'
             ? ['createSealedRealmsProductionG001WorkflowRuntime', 'runSealedRealmsProductionG001Operation']
             : lane === 'g002'
@@ -258,7 +258,7 @@ async function runMockedProductionOrchestration(scenario: OrchestrationScenario)
   const laneMetadata: Record<string, { basename: string; exports: string[]; factory: string; failure: string }> = {
     activation: {
       basename: 'sealed-realms-production-activation-lane.bundle.mjs',
-      exports: ['createSealedRealmsProductionActivationWorkflowRuntime', 'runSealedRealmsProductionActivationOperation'],
+      exports: ['createSealedRealmsProductionActivationWorkflowRuntime', 'readSealedRealmsProductionRetainedFixtureSources', 'runSealedRealmsProductionActivationOperation'],
       factory: 'createSealedRealmsProductionActivationWorkflowRuntime',
       failure: 'SEALED_REALMS_ACTIVATION_WORKFLOW_INPUT_INVALID',
     },

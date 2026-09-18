@@ -2,7 +2,7 @@
 
 import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -24,6 +24,7 @@ const SPECS = {
     factoryExport: 'createSealedRealmsProductionActivationWorkflowRuntime',
     factoryFailureCode: 'SEALED_REALMS_ACTIVATION_WORKFLOW_INPUT_INVALID',
     exportNames: ['createSealedRealmsProductionActivationWorkflowRuntime',
+      'readSealedRealmsProductionRetainedFixtureSources',
       'runSealedRealmsProductionActivationOperation'],
     acceptedOperation: 'activation-evidence-inspect',
   },
@@ -112,7 +113,8 @@ function fixture() {
   const entryDeclarations = new Map<string, Uint8Array>();
   const bundles = LANES.map((lane, index) => {
     const spec = SPECS[lane];
-    const declaration = gitBlob(declarationPath(spec.entryPath));
+    // Synthetic committed-source fixture captures the current ABI, just as its mocked graph does.
+    const declaration = readFileSync(resolve(REPOSITORY_ROOT, declarationPath(spec.entryPath)));
     entryDeclarations.set(declarationPath(spec.entryPath), new Uint8Array(declaration));
     const bytes = Buffer.from(`export const ${lane}BundleFixture = ${index};\n`, 'utf8');
     const graphManifest = fixedGraphManifest(lane);
@@ -518,7 +520,7 @@ describe('local prepared bundle files', () => {
             const runOperation = kind === 'rejectedRun'
               ? 'not-a-real-operation' : spec.acceptedOperation;
             writeFileSync(consumer, [
-              `import { ${spec.factoryExport} as create, ${spec.exportNames[1]} as run } from './${path}';`,
+              `import { ${spec.factoryExport} as create, ${spec.exportNames.find(name => name.startsWith('run'))} as run } from './${path}';`,
               'async function consume(): Promise<void> {',
               `  const runtime = await create({ operation: '${factoryOperation}', workflowInputSha: '${'c'.repeat(64)}' });`,
               `  void run({ runtime, operation: '${runOperation}', workflowInputSha: '${'c'.repeat(64)}' });`,

@@ -31,6 +31,7 @@ export class RecoveryFixtureInputError extends Error {
 export function parseGeneratorArguments(argv: readonly string[]): Readonly<{
   privateRoot: string
   mode: 'check' | 'write'
+  evidence?: 'existing-state'
 }>
 
 export function runGenerator(input: unknown): Promise<Readonly<
@@ -41,9 +42,11 @@ export function preflightFixedPrivatePrerequisites(input: unknown): Promise<Read
   g002: Readonly<Record<string, unknown>>
   ptr: Readonly<Record<string, unknown>>
   toolchain: Readonly<Record<string, unknown>>
+  adoptionSources?: Readonly<Record<string, unknown>>
 }>>
 
 export function preflightFixedBootstrapPrerequisites(input: unknown): Promise<Readonly<{
   g002: Readonly<Record<string, unknown>>
   ptr: Readonly<Record<string, unknown>>
+  adoptionSources?: Readonly<Record<string, unknown>>
 }>>

@@ -352,7 +352,7 @@ function assertNoForbiddenCoordinate(value) {
   }
 }
 
-function validateRequest(value) {
+export function validateFixtureRequest(value) {
   const request = exact(value, ['schemaVersion', 'profile', 'platform', 'plan', 'network'])
   if (
     request.schemaVersion !== 1
@@ -413,6 +413,26 @@ function validateRequest(value) {
     || g001.nodeVersion !== '24.19.0'
   ) fail()
   const validateAuthenticatedRealm = (raw, realm, modulePath) => {
+    if (raw !== null && typeof raw === 'object'
+      && Object.getOwnPropertyDescriptor(raw, 'sourceAuthority')?.value === 'authenticated-existing-state-adoption-v1') {
+      const adopted = exact(raw, [
+        'realm', 'sourceAuthority', 'adoptionReceiptSha256', 'updateReceiptSha256',
+        'databaseIdentity', 'sourceCommit', 'sourceRootTree', 'sourceTree',
+        'installedModuleSha256', 'installedProgramKeccak256', 'historicalDependencyClosureSha256',
+        'modulePath', 'nodeVersion',
+      ])
+      if (adopted.realm !== realm || adopted.modulePath !== modulePath || adopted.nodeVersion !== '22.22.3') fail()
+      for (const key of ['sourceCommit', 'sourceRootTree', 'sourceTree']) {
+        if (typeof adopted[key] !== 'string' || !HEX40.test(adopted[key]) || /^0+$/u.test(adopted[key])) fail()
+      }
+      for (const key of [
+        'adoptionReceiptSha256', 'updateReceiptSha256', 'databaseIdentity',
+        'installedModuleSha256', 'installedProgramKeccak256', 'historicalDependencyClosureSha256',
+      ]) {
+        if (typeof adopted[key] !== 'string' || !HEX64.test(adopted[key]) || /^0+$/u.test(adopted[key])) fail()
+      }
+      return adopted
+    }
     const authenticated = exact(raw, [
       'realm', 'sourceAuthority', 'receiptSha256', 'databaseIdentity', 'sourceCommit',
       'sourceTree', 'publishedModuleSha256', 'historicalDependencyClosureSha256',
@@ -434,7 +454,7 @@ function validateRequest(value) {
   }
   const g002 = validateAuthenticatedRealm(realms.g002, 'g002', 'spacetimedb/genesis002')
   const ptr = validateAuthenticatedRealm(realms.ptr, 'ptr', 'spacetimedb/ptr')
-  if (g002.databaseIdentity === ptr.databaseIdentity) fail()
+  if (g002.databaseIdentity === ptr.databaseIdentity || g002.sourceAuthority !== ptr.sourceAuthority) fail()
   assertNoForbiddenCoordinate(request)
   return plan
 }
@@ -1396,6 +1416,9 @@ async function buildOnce(realm, realmPlan, catalogEntries, manifestSource) {
     if (realm === 'g001') await materializeG001(sourceRoot, cleanRoot, realmPlan)
     else {
       privateDirectory(sourceRoot)
+      if (realmPlan.sourceAuthority === 'authenticated-existing-state-adoption-v1'
+        && git(['rev-parse', '--verify', `${realmPlan.sourceCommit}^{tree}`], gitEnvironment(cleanRoot))
+          .toString('utf8').trim() !== realmPlan.sourceRootTree) fail()
       materializeCommit(
         realmPlan.sourceCommit,
         realmPlan.sourceTree,
@@ -1668,7 +1691,7 @@ async function main() {
     if (length > MAX_REQUEST_BYTES) fail()
     chunks.push(chunk)
   }
-  const plan = validateRequest(canonicalJson(Buffer.concat(chunks), MAX_REQUEST_BYTES))
+  const plan = validateFixtureRequest(canonicalJson(Buffer.concat(chunks), MAX_REQUEST_BYTES))
   attestFixedFile(MATERIALIZER_PATH, {
     bytes: plan.toolchain.materializerProgramBytes,
     mode: 0o500,
@@ -1734,7 +1757,13 @@ async function main() {
     )
     if (!Buffer.from(first.bundle).equals(Buffer.from(second.bundle))) fail()
     const digest = sha256(first.bundle)
-    if (realm !== 'g001' && digest !== plan.realms[realm].publishedModuleSha256) fail()
+    const programKeccak256 = Buffer.from(keccak256Bytes(first.bundle)).toString('hex')
+    if (realm !== 'g001') {
+      const source = plan.realms[realm]
+      const existing = source.sourceAuthority === 'authenticated-existing-state-adoption-v1'
+      if (digest !== (existing ? source.installedModuleSha256 : source.publishedModuleSha256)
+        || (existing && programKeccak256 !== source.installedProgramKeccak256)) fail()
+    }
     builds[realm] = {
       bundle: first.bundle,
       historicalDependencyClosureSha256:
@@ -1747,7 +1776,7 @@ async function main() {
       firstBuildArtifactSha256: digest,
       secondBuildArtifactSha256: digest,
       programArtifactSha256: digest,
-      programKeccak256: Buffer.from(keccak256Bytes(first.bundle)).toString('hex'),
+      programKeccak256,
     }
   }
   const serverEnvironmentRoot = mkdtempSync(`${RUN_PARENT}/server-environment-`)
