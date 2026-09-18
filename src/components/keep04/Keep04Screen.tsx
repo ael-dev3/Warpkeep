@@ -4,11 +4,12 @@ import type { Placement04 } from '../../../spacetimedb/gameplay04/placement';
 import type { Controller04, Snapshot04 } from '../../ptr/gameplay04/createGameplay04Controller';
 import { initialPlacement04 } from '../../ptr/gameplay04/gameplay04Placement';
 import { PENDING_LABEL04 } from '../../ptr/gameplay04/gameplay04Presentation';
-import { Keep04BuildingPanel, RESOURCES04 } from './Keep04BuildingPanel';
+import { BUILDING_NAMES04, Keep04BuildingPanel, RESOURCES04 } from './Keep04BuildingPanel';
 import { activeKeep04LoopStage04, Keep04LoopRail } from './Keep04LoopRail';
 import { Keep04Schematic } from './Keep04Schematic';
 import { Keep04SceneHost, type Keep04SceneHostProps } from './Keep04SceneHost';
 import { evaluatePlacement04 } from '../../../spacetimedb/gameplay04/placement';
+import { constructionProgress04 } from './constructionProgress04';
 import { estimatedTime04, Keep04WorkerPanel } from './Keep04WorkerPanel';
 import './Keep04Screen.css';
 
@@ -185,9 +186,21 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
               onSelect={selectBuilding} onChange={draft => onSelectionChange({ ...selection, draft })}
               onReview={selection.panel === 'buildings' ? focusReview : undefined} />
           </details>
-          {view.buildings.filter(building => building.phase === 'constructing').map(building => <p key={building.kind} className="keep04-construction">
-            Constructing level {building.targetLevel} · Estimated build time: <span>{estimatedTime04(building.completesAtMicros!, nowMs)}</span>
-          </p>)}
+          {view.buildings.filter(building => building.phase === 'constructing').map(building => {
+            const construction = building.startsAtMicros !== null && building.completesAtMicros !== null
+              ? constructionProgress04(building.startsAtMicros, building.completesAtMicros, nowMs)
+              : null;
+            return <section key={building.kind} className="keep04-construction" aria-label={`${BUILDING_NAMES04[building.kind]} construction`}>
+              <p>Constructing level {building.targetLevel} · Estimated build time: <span>{construction?.remaining ?? estimatedTime04(building.completesAtMicros!, nowMs)}</span></p>
+              {construction && <div className="keep04-construction-progress">
+                <div className="keep04-construction-progress-track" role="progressbar" aria-label={`${BUILDING_NAMES04[building.kind]} scene construction progress`}
+                  aria-valuemin={0} aria-valuemax={100} aria-valuenow={construction.percent} aria-valuetext={construction.label}>
+                  <span style={{ width: `${construction.percent}%` }} />
+                </div>
+                <span className="keep04-construction-progress-label">{construction.label}</span>
+              </div>}
+            </section>;
+          })}
         </div>
         {selection.panel && <aside ref={commandPanel} id={panelId} className="keep04-panel" aria-label="Command panel">
           <button ref={closeButton} className="keep04-close" type="button" onClick={closePanel}>Close panel</button>

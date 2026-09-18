@@ -165,9 +165,13 @@ it('keeps the construction estimate in the building card and waits for confirmed
   const wire = constructingWire04();
   const { controller, snapshot, rerender } = setup(wire); openMill();
   const card = () => within(screen.getByRole('article', { name: 'City Mill' }));
+  const sceneConstruction = () => within(screen.getByRole('region', { name: 'City Mill construction' }));
   expect(card().getByText('20 s')).toBeVisible();
+  expect(sceneConstruction().getByRole('progressbar', { name: 'City Mill scene construction progress' })).toHaveAttribute('aria-valuenow', '83');
+  expect(sceneConstruction().getByText('83% complete · 20 s remaining')).toBeVisible();
   act(() => { vi.advanceTimersByTime(20_000); });
   expect(card().getByText('Awaiting Realm update')).toBeVisible();
+  expect(sceneConstruction().getByText('99% complete · Awaiting Realm confirmation')).toBeVisible();
   expect(card().getByText('Under construction')).toBeVisible();
   expect(controller.submit).not.toHaveBeenCalled();
   const completed = wireWithBuilding04('city-mill', 1); completed.revision = wire.revision + 1n;
