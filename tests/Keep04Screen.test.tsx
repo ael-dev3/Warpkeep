@@ -391,7 +391,8 @@ it('makes the first resource journey obvious for a new empty keep', () => {
   const { find, controller } = setup();
   const firstJourney = screen.getByRole('region', { name: 'First journey' });
   expect(firstJourney).toHaveTextContent('Start with one useful journey.');
-  fireEvent.click(within(firstJourney).getByRole('button', { name: 'Start first journey' }));
+  expect(firstJourney).toHaveTextContent('Open the Realm and choose a resource location for Worker 1.');
+  fireEvent.click(within(firstJourney).getByRole('button', { name: 'Choose a resource location' }));
   expect(find).toHaveBeenCalledWith(null, 0);
   expect(controller.submit).not.toHaveBeenCalled();
 });
@@ -408,7 +409,7 @@ it.each(['outbound', 'gathering'] as const)('does not restart first-journey guid
 it.each(['refreshing', 'pending'] as const)('retains first-journey focus and navigation while %s without submitting a command', phase => {
   const { snapshot, rerender, find, controller } = setup();
   const card = screen.getByRole('region', { name: 'First journey' });
-  const start = within(card).getByRole('button', { name: 'Start first journey' });
+  const start = within(card).getByRole('button', { name: 'Choose a resource location' });
   start.focus();
   rerender({ ...snapshot, phase });
   expect(screen.getByRole('region', { name: 'First journey' })).toBe(card);
