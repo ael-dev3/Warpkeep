@@ -599,13 +599,17 @@ async function interruptedCensus(target: 'confirmation' | 'activation' | 'termin
   return { ...scenario, writes };
 }
 
+function censusRuntimePath(scenario: Awaited<ReturnType<typeof censusScenario>>, relativePath: string) {
+  return join(sealedRealmsPrivateBase(scenario.local.home), 'runtime', 'sealed-realms-v1', relativePath);
+}
+
 function censusRecord(scenario: Awaited<ReturnType<typeof censusScenario>>, kind: string) {
   const names = scenario.local.state.list({ root: 'runtime', relativeDirectory: `g001/census/${kind}` });
   expect(names).toHaveLength(1);
   const relativePath = `g001/census/${kind}/${names[0]}`;
   const bytes = scenario.local.state.read({ root: 'runtime', relativePath });
   return { relativePath, bytes, value: JSON.parse(bytes.toString('utf8')),
-    path: join(sealedRealmsPrivateBase(scenario.local.home), 'runtime', relativePath) };
+    path: censusRuntimePath(scenario, relativePath) };
 }
 
 async function withCensusWebSocket(run: () => Promise<void>) {
@@ -1560,12 +1564,12 @@ describe('sealed-realms production dispatcher', () => {
         const bytes = Buffer.from(`${JSON.stringify(second.value)}\n`);
         const digest = createHash('sha256').update(bytes).digest('hex');
         writeFileSync(second.path, bytes);
-        renameSync(second.path, join(sealedRealmsPrivateBase(scenario.local.home), 'runtime',
+        renameSync(second.path, censusRuntimePath(scenario,
           `g001/census/second/census-second-${digest}.json`));
       } else if (damage === 'duplicate') {
         scenario.local.state.write({ root: 'runtime', relativePath: `g001/census/second/census-second-${'f'.repeat(64)}.json`, bytes: second.bytes });
       } else if (damage === 'wrong-confirmation') writeFileSync(censusRecord(scenario, 'confirmation').path, '{}\n');
-      else writeFileSync(join(sealedRealmsPrivateBase(scenario.local.home), 'runtime',
+      else writeFileSync(censusRuntimePath(scenario,
         'activation-evidence/records/g001-census-privacy-safe-private-receipt.json'), '{}\n');
       const writes = scenario.writes.length;
       await expect(dispatchProtectedG001(scenario.createLane(), 'g001-census-second-inspect',
@@ -1586,16 +1590,20 @@ describe('sealed-realms production dispatcher', () => {
     const changedBytes = Buffer.from(`${JSON.stringify(second.value)}\n`);
     const digest = createHash('sha256').update(changedBytes).digest('hex');
     let originalClaimReads = 0;
+    let replaced = false;
     const dispatcher = await protectedG001Dispatcher(scenario.createLane(), 'g001-census-second-inspect',
       g001Authority('g001-census-second-inspect'), scenario.local.state, '6641', new Set(['6101', '6102']), url => {
         if (!url.endsWith('/actions/runs/6102') || ++originalClaimReads !== 2) return;
         writeFileSync(second.path, changedBytes);
-        renameSync(second.path, join(sealedRealmsPrivateBase(scenario.local.home), 'runtime',
+        renameSync(second.path, censusRuntimePath(scenario,
           `g001/census/second/census-second-${digest}.json`));
+        replaced = true;
       });
     await expect(dispatcher.dispatch({ operation: 'g001-census-second-inspect', workflowInputSha: SOURCE }))
       .rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
     expect(originalClaimReads).toBe(2);
+    expect(replaced).toBe(true);
+    expect(censusRecord(scenario, 'second').bytes).toEqual(changedBytes);
     expect(scenario.local.state.list({ root: 'runtime', relativeDirectory: 'g001/census/confirmation' })).toEqual([]);
     expect(scenario.getCollection()).toBe(2);
     expect(scenario.suspend).not.toHaveBeenCalled();
@@ -1615,7 +1623,7 @@ describe('sealed-realms production dispatcher', () => {
         if (record.kind !== 'g001-census-first-to-second') continue;
         expect(record.outcome).toBe('reconciled-effect-applied');
         record.observationDigest = 'f'.repeat(64);
-        writeFileSync(join(sealedRealmsPrivateBase(scenario.local.home), 'runtime', relativePath), `${JSON.stringify(record)}\n`);
+        writeFileSync(censusRuntimePath(scenario, relativePath), `${JSON.stringify(record)}\n`);
         changed += 1;
       }
     }
