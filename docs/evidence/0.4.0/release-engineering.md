@@ -3,10 +3,10 @@
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main), the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
 
 The protected M2 runtime source family remains
-`fa9927bb9a8701e182f63eac1206e2f1425c4522`. Current protected `main` is
-`f62229ac86aed729679925126a1ea80c180a2c03`; post-merge Verify `35291615351`
-and CodeQL `35291615379` passed for that exact SHA. Pages classification
-`35295461029` passed with deployment skipped while
+`fa9927bb9a8701e182f63eac1206e2f1425c4522`. This record pins the docs-only
+checkpoint `74e021a9b25417e2c77fcbaf7f764eba03474f77`; post-merge Verify
+`35301960822`, CodeQL `35301960847` and Pages classification `35304999434`
+passed for that exact SHA, with deployment skipped while
 `pagesDeploymentApproved:false` is in force. PR #290's bounded Linux cleanup
 retry passed Verify `35287561293` and CodeQL `35287561395`. The last
 runtime-bearing checkpoint `b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a` and its

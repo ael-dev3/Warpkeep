@@ -10,16 +10,17 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 The [execution handoff](execution-handoff.md) owns the dated accepted source,
 Verify/CodeQL results and successful read-only preflight. The protected M2
 runtime source family remains `fa9927bb9a8701e182f63eac1206e2f1425c4522`.
-Current protected `main` is `f62229ac86aed729679925126a1ea80c180a2c03`; its
-post-merge Verify `35291615351`, CodeQL `35291615379` and Pages classification
-`35295461029` passed, with Pages deployment skipped while
-`pagesDeploymentApproved:false` is in force. PR #290's bounded Linux cleanup
-retry passed its protected Verify `35287561293` and CodeQL `35287561395`; PR
-#288's retry-all-errors handling for pinned toolchain downloads remains in the
-same verified chain. These are dated receipts, not a moving runtime head.
-Resolve live `main`, wait for its completed Verify and recheck the SHA before a
-new dispatch. Documentation-only commits do not change the runtime source
-family.
+This record pins the latest docs-only reconciliation checkpoint at
+`74e021a9b25417e2c77fcbaf7f764eba03474f77` (PR #291). Its post-merge Verify
+`35301960822`, CodeQL `35301960847` and Pages classification `35304999434`
+passed for that exact SHA; Pages deployment, recovery and live verification
+remained skipped while `pagesDeploymentApproved:false` was in force. PR #290's
+bounded Linux cleanup retry passed its protected Verify `35287561293` and
+CodeQL `35287561395`; PR #288's retry-all-errors handling for pinned toolchain
+downloads remains in the same verified chain. These are dated receipts, not a
+moving runtime head. Resolve live `main`, wait for its completed Verify and
+recheck the SHA before a new dispatch. Documentation-only commits do not change
+the runtime source family.
 The earlier docs-only receipt `3a0df9e6aa869902aa4565bb7fa6981e7c9b2844` and
 its checks remain historical.
 Activation inspection `35110519489`, G001 policy observation `35110808078` and
