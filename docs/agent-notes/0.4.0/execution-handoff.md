@@ -17,10 +17,14 @@ is established by that result.
 Active work is [PR #299](https://github.com/ael-dev3/Warpkeep/pull/299), branch
 `codex/0.4-construction-summary-20260918`, in
 `C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep`.
-Its verified development checkpoint `59a919a121eef0623d169d876e75daedef73c193`
+Its earlier verified development checkpoint `59a919a121eef0623d169d876e75daedef73c193`
 passed all six Verify jobs in `35381941140` and CodeQL `35381941132`.
-That result belongs to that exact head: subsequent maintenance commits require
-their own checks. `C:/Temp/warpkeep-0.4-next` tracks protected main. Consult the
+The maintenance implementation is published at
+`e2c947fb67cfc9ee20b18aaf474672a0f5ab39b2`. Its Verify `35392098384` and CodeQL
+`35392098371` were still running when this record was written; inspect the
+current PR head and terminal results before integration. Subsequent documentation
+commits also require their own hosted checks. `C:/Temp/warpkeep-0.4-next` tracks
+protected main. Consult the
 [checkout roles](../../operations/0.4.0-development-sync.md#start-from-the-actual-checkout-and-remote)
 before moving either copy; synchronization means equality with each checkout's
 intended published ref, not forcing every copy onto the same branch.
@@ -93,10 +97,14 @@ tests were inspected for these invariants; this pass does not claim new live
 concurrency or owner evidence.
 
 The active Windows clone was shallow. Completing its history from the existing
-full main checkout repaired the license verifier without another clone. The
-sealed-launch CLI correctly rejected the intentionally dirty development tree;
-run it after committing the clean candidate, rather than weakening its checkout
-guard. Native Linux was verified idle and fast-forwarded to protected main
+full main checkout repaired the license verifier without another clone. A second
+missing object was the explicitly pinned pre-squash operator-refreeze commit:
+full main ancestry alone does not include it. Fetching that exact object from
+the same retained full checkout repaired the clean sealed-launch history check.
+At `e2c947fb`, checked-in verification passed in preparation phase with Pages
+deployment disabled. The dirty-checkout rejection remains intentional. The
+[sync guide](../../operations/0.4.0-development-sync.md) records both recoveries;
+no source pin or guard was weakened. Native Linux was verified idle and fast-forwarded to protected main
 `74365a19`; the four companion repositories were checked clean and equal to their
 remotes. Preserve the active PR branch in the Windows development checkout.
 
