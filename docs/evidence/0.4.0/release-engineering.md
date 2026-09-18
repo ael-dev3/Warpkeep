@@ -2,31 +2,18 @@
 
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main), the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
 
-The protected M2 runtime source family remains
-`fa9927bb9a8701e182f63eac1206e2f1425c4522`. This record pins the docs-only
-checkpoint `74e021a9b25417e2c77fcbaf7f764eba03474f77`; post-merge Verify
-`35301960822`, CodeQL `35301960847` and Pages classification `35304999434`
-passed for that exact SHA, with deployment skipped while
-`pagesDeploymentApproved:false` is in force. PR #290's bounded Linux cleanup
-retry passed Verify `35287561293` and CodeQL `35287561395`. The last
-runtime-bearing checkpoint `b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a` and its
-receipts remain historical. These are dated receipts, not a moving runtime
-head; resolve live `main` before a new dispatch. Documentation-only commits do
-not change the runtime source family. The native checkout is clean at the
-resolved main head. Read-only
-activation inspection `35110519489` reached the operation boundary and failed
-closed because no retained activation evidence is present; G001 policy
-observation `35110808078` failed at workflow construction because the fixed
-Linux production-admin namespace has no `g001-policy-observation/admin-token`
-or observation namespace. These are private producer inputs. The live site
-remains Genesis and the 0.4 release is not claimed as shipped. Provider/owner
-authority, real deployment, recovery/readback, G001 preservation, sealed G002
-denial, physical-device acceptance and final deployment remain open.
+The protected source is `b35f2608f8de131596ede60e508b393f123ca36e`, merged
+through PR #295. PR Verify `35332973078`, CodeQL `35332973179`, post-merge
+Verify `35337649140` and post-merge CodeQL `35337649063` passed. Pages run
+`35342265515` passed source classification; build, deployment, recovery and
+live verification remained skipped because sealed release authority and
+approval are not closed. The live site remains the older 0.3.43 bundle.
 
-Each dated section below retains its exact source and scope. Earlier source
-families and candidate identities are historical evidence; green protected
-source rails do not certify production.
-
+The local/source rails are healthy, but private activation and owner authority,
+real deployment, recovery/readback, G001 preservation, sealed G002 denial,
+physical-device acceptance and final deployment remain open. Each dated section
+below retains its original source and scope; green protected CI does not certify
+production.
 ## Verified observation source family — 2026-09-13
 
 Full-stack review found one scanner coverage gap: two already-permitted update

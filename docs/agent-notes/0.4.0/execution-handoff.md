@@ -1,127 +1,54 @@
 # Continue Warpkeep 0.4
 
-## Current M2 release checkpoint — 18 September 2026
+## Current protected source checkpoint — 18 September 2026
 
-This is the active source and operations record. The pass remains maintenance
+This is the active source and operations record. The current pass is maintenance
 only: preserve the existing mechanics and visuals, correct concrete defects,
 and do not add new runtime features.
 
-The protected generated-family promotion remains the runtime source at
-`fa9927bb9a8701e182f63eac1206e2f1425c4522` (M1 source merge
-`645637e112ab18ac4565fbf5978349cd77063742`, generated-only PR #274).
-The latest recorded docs-only reconciliation checkpoint is
-**`74e021a9b25417e2c77fcbaf7f764eba03474f77`** (PR #291). Its post-merge
-Verify `35301960822`, CodeQL `35301960847` and Pages classification
-`35304999434` passed for that exact SHA. Pages left build, deployment, recovery
-and live-verification lanes skipped while `pagesDeploymentApproved:false` is in
-force. PR #290 integrated a bounded Linux sealed-launch cleanup retry after its
-first hosted attempt exposed an `ENOTEMPTY` race; rerun Verify `35287561293`
-and CodeQL `35287561395` passed. The last runtime-bearing protected-main
-checkpoint remains **`b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a`**; it carries the
-unchanged runtime source plus the earlier reviewed CI correction in PR #288.
-These are dated receipts, not a moving runtime head; resolve live `main`, wait
-for its completed push-to-main Verify and recheck that SHA before any new
-dispatch. Documentation-only commits do not change the runtime source family.
-The earlier docs-only receipt checkpoint
-`3a0df9e6aa869902aa4565bb7fa6981e7c9b2844`
-(PR #278) passed the protected Verify, CodeQL and exact-source preflight
-recorded below while carrying that unchanged runtime source. Documentation
-follow-up PRs #275 and #276 are historical. Maintenance PR #277 then corrected the
-cross-platform handoff and policy-test path; it is squash-merged on `main` at
-**`5723b546d2f826a9cc3f24acddeb775a3b69ef78`**. Receipt PR #278 and the later
-documentation-only PRs #279 and #280 refreshed evidence after that runtime
-checkpoint; their protected receipts remain historical documentation evidence.
-The receipt and live-delivery corrections in PRs #281, #282 and later
-documentation-only updates are merged. Their protected receipts are historical
-documentation evidence; do not use a docs commit as the runtime source. Resolve
-the live protected `main`, wait for its completed push-to-main Verify and
-recheck that SHA before any new dispatch. Pages classification remains
-deployment-skipped while `pagesDeploymentApproved:false` is in force. Keep the
-runtime source identity separate from the moving documentation head.
-The Verify, CodeQL and Pages receipts above cover that recorded documentation
-checkpoint, not a moving authority. Resolve live `main`, wait for its completed
-push-to-main Verify and recheck the SHA before any new dispatch. The native
-`WarpkeepRunner` checkout must be detached at the resolved live `main` SHA and
-clean before an operation; only its idle RunnerService is expected to run.
+Protected `main` is **`b35f2608f8de131596ede60e508b393f123ca36e`**, merged through
+PR #295 (`fix(keep): clarify first resource journey action`). The repair makes
+the first mobile journey instruction and action label explicit; it changes no
+mechanics, authority, assets or release gates. PR Verify `35332973078` and
+CodeQL `35332973179` passed, followed by post-merge Verify `35337649140` and
+CodeQL `35337649063` for the exact main SHA. Pages run `35342265515` passed
+source classification, while build, deployment, recovery and live-verification
+lanes remained skipped because the sealed 0.4 release authority and approval
+state are not closed. No provider mutation was made.
 
-The historical exact-source protected [preflight 35166824615](https://github.com/ael-dev3/Warpkeep/actions/runs/35166824615)
-completed successfully against the earlier docs receipt
-`3a0df9e6aa869902aa4565bb7fa6981e7c9b2844` and
-returned `{"operation":"preflight","status":"preflight-inspected"}`. It
-established runner, source, bundle and workflow attestation for M2 and did not
-receive provider secrets or perform a mutation. The prior [Pages classification
-35145254301](https://github.com/ael-dev3/Warpkeep/actions/runs/35145254301)
-completed successfully for `195fd615`; deployment lanes remained skipped because
-`pagesDeploymentApproved` is false. Rerun classification only when its exact
-source and deployment approval are available.
+The Windows main checkout, the detached native `WarpkeepRunner` checkout and
+the secondary Windows reference checkout are clean at this SHA; only the idle
+RunnerService remains active in WSL. Companion repositories are clean and equal
+to their remotes: profile `571c7daeee7b5719b3930ec10af4b1e62245124b`, assets
+`1e5c49e9819ea50cf4e03675bb05868f90f06fdc`, water engine
+`9d42fb786b9fe2dbed9e9a5103c9c692d5612567` and editor
+`f8fbb36a964e875c574620bd01e2848e7b7be253`.
 
-For sequencing provenance, [preflight 35162842335](https://github.com/ael-dev3/Warpkeep/actions/runs/35162842335)
-was intentionally dispatched immediately after the documentation merge, before
-the required push-to-main Verify had completed. It failed closed at
-`phase:"workflow"` without provider inputs or mutation; the successful
-`35162811785` Verify and `35166824615` preflight document the earlier receipt
-checkpoint; the later docs-only checkpoint above is verified by
-`35301960822`/`35301960847`.
-
-Two supported read-only operations were then dispatched against this exact
-source to identify the next real gate. [Activation inspection 35110519489](https://github.com/ael-dev3/Warpkeep/actions/runs/35110519489)
-reached the operation boundary and failed closed with
-`{"operation":"activation-evidence-inspect","status":"failed","phase":"operation"}`.
-The existing sealed private roots contain no retained activation records. [G001
-policy observation 35110808078](https://github.com/ael-dev3/Warpkeep/actions/runs/35110808078)
-failed closed at `phase:"workflow"`; the fixed Linux production-admin namespace
-has the owner CLI config but no `g001-policy-observation/admin-token` and no
-observation namespace. These are private authority inputs, not source defects;
-do not create placeholders, copy credentials into Git, or weaken the guards.
-
-The independent PTR observer probe [35114630482](https://github.com/ael-dev3/Warpkeep/actions/runs/35114630482)
-also failed closed at `phase:"operation"`. This confirms the live observer
-endpoint/readback path is not currently available; it does not authorize a
-fallback provider call or a state mutation.
-
-The [live delivery guide](../../operations/0.4.0-live-delivery-status.md) owns
-the operation-specific access map. Cloudflare production-profile read access and
-the owner `ael-dev3` SpacetimeDB publisher login are confirmed, but they do not
-provide the retained activation chain, G001 observation secret, application-owner
-session or release authority. 0.4 is therefore still unshipped pending those
-private inputs, provider deployment/recovery/readback, live hosting identity,
-actual-owner PTR play, device acceptance and final release freeze.
-
-Before every protected dispatch, resolve live `main`, wait for its completed
-push-to-main Verify, recheck the SHA, and select that exact source. Keep the
-`keep-warpkeep-development-synced` automation **PAUSED** and use manual fetch,
-secret scan, reviewed commit/push and exact remote-SHA verification. Keep the
-two existing Desktop handoffs in place; use the ignored repository `artifacts/`
-directory for disposable output and create no Desktop siblings, backups or
-archives.
+The focused Keep screen/accessibility/contract tests passed 68 tests with one
+intentional skip; typecheck, production build, runtime-asset, license,
+atlas-boundary and sealed-launch checks pass. Inner Keep QA passed 18 synthetic
+cases and the connected local full-stack probe passed browser/auth/Terms/Inner
+Keep/worker/10,000-cell/population and visual coverage. The live site remains
+the older 0.3.43 bundle, so this green source state is not a shipped release.
+Keep the sync automation paused, use the existing checkouts, and resolve the
+current protected SHA before every future dispatch.
 
 ### Maintenance review and recurrence prevention
 
-The maintenance repair from PR #273 and the generated-family promotion in PR
-#274 keep the existing mechanics and feature set. Agents
-now enter through one [connection/diagnosis guide](../../operations/0.4.0-infra-access.md#resume-without-guessing)
-and an explicit [local checkout map](../../operations/0.4.0-development-sync.md#start-from-the-actual-checkout-and-remote).
-The guide identifies the correct profile, pinned runtime, native config, source
-prerequisites and smallest human-controlled action. It distinguishes a pending
-check, wrong account, denied player session and absent private evidence.
+The maintained connection/diagnosis guide and local checkout map remain the
+entry point for agents. They identify the correct profile, pinned runtime,
+native configuration, source prerequisites and smallest human-controlled
+action; they distinguish a pending check, wrong account, denied player session
+and absent private evidence. The Linux caller now separates execution failure
+from workflow construction without exposing private errors, and the existing
+Keep recovery path explains session renewal without weakening authority guards.
+The real-controller review found no batched retry defect, and the renderer and
+gameplay lifecycle review found no further actionable maintenance issue.
 
-Two demonstrated maintenance defects were corrected: the Linux caller now
-distinguishes execution failures from workflow construction without printing
-private error details; the keep explains the existing Return to world recovery
-when fresh session state lacks atlas authority. Commands remain guarded.
-The real-controller test disproved a suspected batched retry defect, so no
-speculative retry change was made. Independent reviews found no further
-actionable issue in these changes or the inspected gameplay/renderer lifecycle.
-
-Verification of the maintenance source and generated-family promotion passed on
-pinned Node 22.22.3: the owning client, module, dispatch, closure and
-documentation suites passed, followed by the protected M1/M2 checks above. Use
-that pinned runtime for local validation; Node 24 is outside the package engine
-range and can turn private-boundary fixtures into misleading failures before
-the test reaches source behavior. The production build retains its existing
-large-chunk warnings; no physical-device or live-owner acceptance is claimed.
-The remaining release gates are private authority, provider/readback and
-owner/device evidence, not an unmerged source repair.
+Green source checks remain scoped evidence. They do not replace authenticated
+owner play, provider readback, physical-device measurements or final release
+acceptance. Keep those facts in separate records and do not turn a synthetic
+fixture, a publisher login or a passed Pages classifier into a deployment claim.
 
 ## Historical checkpoints
 

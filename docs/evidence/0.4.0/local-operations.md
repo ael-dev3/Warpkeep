@@ -4,51 +4,23 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 ## Resumption audit — 18 September 2026
 
-Current release checkpoint: protected M2 runtime source family
-`fa9927bb9a8701e182f63eac1206e2f1425c4522`; this record pins the docs-only
-checkpoint `74e021a9b25417e2c77fcbaf7f764eba03474f77`, with post-merge Verify
-`35301960822`, CodeQL `35301960847` and Pages classification `35304999434`
-passing for that exact SHA. Pages build, deployment, recovery and live
-verification were skipped while `pagesDeploymentApproved:false` is in force.
-PR #290's bounded Linux cleanup retry passed its protected Verify
-`35287561293` and CodeQL `35287561395`. The last runtime-bearing checkpoint
-`b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a` and its receipts remain historical.
-These are dated receipts, not a moving runtime head; resolve live `main` before
-a new dispatch. Documentation-only commits do not change the runtime source
-family. The earlier docs-only receipt
-`3a0df9e6aa869902aa4565bb7fa6981e7c9b2844` and its checks remain historical.
-The exact-source preflight
-`35166824615` returned
-`{"operation":"preflight","status":"preflight-inspected"}`. The native
-`WarpkeepRunner` checkout is kept clean and synchronized to resolved live
-`main` before an operation; the pinned runtime source and the moving docs head
-are separate. Only the idle RunnerService is active. Two follow-up read-only probes were intentionally run once against the
-same source: activation inspection `35110519489` failed at
-`phase:"operation"` because no retained activation evidence is available, and
-G001 policy observation `35110808078` failed at `phase:"workflow"` because
-the fixed production-admin namespace has no `g001-policy-observation/admin-token`
-or observation namespace. These private producer inputs remain unresolved;
-they must be supplied through their supported setup before any mutation or
-release claim. The independent PTR state inspection `35114630482` also failed
-closed at `phase:"operation"`; no provider mutation occurred and the observer
-readback endpoint remains unavailable. No private bytes are copied into this
-repository or Desktop.
+Current protected source: `b35f2608f8de131596ede60e508b393f123ca36e`, merged
+through PR #295. PR Verify `35332973078`, CodeQL `35332973179`, post-merge
+Verify `35337649140` and post-merge CodeQL `35337649063` passed for this exact
+SHA. Pages run `35342265515` passed source classification; build, deployment,
+recovery and live verification remained skipped because sealed release authority
+and approval are not closed. The live site remains the older 0.3.43 bundle.
 
-The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) owns the
-current M2 source and completed source/preflight checks. The fresh
-[access inventory](../../operations/0.4.0-live-delivery-status.md#access-is-scoped-to-each-operation)
-distinguishes working Cloudflare/GitHub access and restored Windows/Linux
-SpacetimeDB publisher discovery from the still-empty Linux sealed private
-runtime/audit stores. Earlier empty database listings came from a different
-selected identity; they were not evidence of deleted realms. Preflight is
-successful for its recorded source and does not consume provider
-secrets or establish live release acceptance.
-
-Reuse `C:/Temp/warpkeep-0.4-next` for reviewed repairs. The saved sync automation
-remains paused. Update the existing Desktop handoff in place only. Historical
-operating paths and failures below retain their original dates; check actual
-process ownership before moving a native checkout.
-
+The native `WarpkeepRunner` checkout is clean and detached at the protected
+main SHA while idle; only its RunnerService is retained. The maintained Windows
+and secondary Windows checkouts are clean at the same SHA. The four companion
+repositories are clean and equal to their remotes. Inner Keep QA, the connected
+local full-stack probe, focused Keep tests, typecheck and production build pass.
+The sync automation remains paused, no private bytes are copied into this
+repository or Desktop, and the existing Desktop handoffs are updated in place.
+Private activation, G001 observation, PTR observer/readback, provider
+deployment/recovery, owner play, device acceptance and final freeze remain
+unresolved; this record is not deployment evidence.
 ## Historical committed-source native preparation and independent check — 2026-09-12
 
 The dedicated Linux assembler completed both `prepare` and independent `check`
