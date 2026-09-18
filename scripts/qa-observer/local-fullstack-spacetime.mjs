@@ -501,6 +501,27 @@ function localPlayerClaims(fid = LOCAL_FULLSTACK_FID, lifetimeSeconds = 600) {
 
 async function createLocalModule(runtimeDirectory) {
   const moduleDirectory = join(runtimeDirectory, 'module');
+  const sourceNodeModulesPath = join(SOURCE_MODULE, 'node_modules');
+  try {
+    const sourceNodeModulesMetadata = await stat(sourceNodeModulesPath);
+    if (!sourceNodeModulesMetadata.isDirectory()) {
+      fail(
+        'Pinned SpacetimeDB module dependencies are not a directory. '
+          + 'Run `pnpm --dir spacetimedb install --frozen-lockfile --ignore-scripts` '
+          + 'from the repository root, then retry `npm run qa:fullstack:local`.',
+      );
+    }
+  } catch (error) {
+    if (error instanceof LocalFullstackRuntimeError) throw error;
+    if (error?.code === 'ENOENT') {
+      fail(
+        'Pinned SpacetimeDB module dependencies are missing. '
+          + 'Run `pnpm --dir spacetimedb install --frozen-lockfile --ignore-scripts` '
+          + 'from the repository root, then retry `npm run qa:fullstack:local`.',
+      );
+    }
+    throw error;
+  }
   await mkdir(moduleDirectory, { mode: 0o700 });
   await cp(join(SOURCE_MODULE, 'src'), join(moduleDirectory, 'src'), {
     recursive: true,
@@ -513,7 +534,7 @@ async function createLocalModule(runtimeDirectory) {
       force: false,
     });
   }
-  const sourceNodeModules = await realpath(join(SOURCE_MODULE, 'node_modules'));
+  const sourceNodeModules = await realpath(sourceNodeModulesPath);
   const nodeModulesMetadata = await stat(sourceNodeModules);
   if (!nodeModulesMetadata.isDirectory()) fail('Pinned module dependencies are unavailable.');
   await symlink(

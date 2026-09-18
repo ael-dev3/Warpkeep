@@ -122,6 +122,19 @@ prepare/check releases the input, rather than installing into shared Windows
 dependency junctions or making another clone. The [execution handoff](../agent-notes/0.4.0/execution-handoff.md)
 records current run identities and owning results.
 
+The connected local full-stack browser probe owns a disposable SpacetimeDB
+module copy. Before running `npm run qa:fullstack:local`, install the module's
+locked dependencies in the existing checkout:
+
+```powershell
+pnpm --dir spacetimedb install --frozen-lockfile --ignore-scripts
+npm run qa:fullstack:local
+```
+
+The install populates only the ignored `spacetimedb/node_modules` tree. If it is
+missing, the probe fails closed with this exact recovery command; it never
+installs dependencies implicitly or changes a production module.
+
 ## Output locations and retention
 
 The owner's September 11 instruction is to keep new Warpkeep output off the
