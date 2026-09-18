@@ -70,6 +70,12 @@ const DRIFTED_DEPLOYMENT_ID = '423e4567-e89b-42d3-a456-426614174000';
 const NOW = new Date('2026-08-13T00:00:00.000Z');
 const PLAYER_CANARY_OWNER_FID = '4242424242';
 const PTR_DATABASE = '9'.repeat(64);
+const RECOVERY_RPC_SECRET = Buffer.alloc(32, 23).toString('base64url');
+const RECOVERY_CENSUS_PEPPER = Buffer.alloc(32, 37).toString('base64url');
+const OBSERVER_ENVIRONMENT = {
+  WARPKEEP_RELEASE_RECOVERY_RPC_SECRET: RECOVERY_RPC_SECRET,
+  WARPKEEP_RELEASE_RECOVERY_CENSUS_PEPPER: RECOVERY_CENSUS_PEPPER,
+};
 const MAIN_DATABASE =
   'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
 const temporaryDirectories: string[] = [];
@@ -156,6 +162,12 @@ type PredecessorSourceAuthority = Readonly<{
   }>[];
 }>;
 
+function observerCredentials(value: Readonly<Record<string, unknown>>) {
+  return Object.hasOwn(value.variables as object, 'GENESIS_002_SPACETIMEDB_DATABASE')
+    ? { recoveryRpcSecret: RECOVERY_RPC_SECRET, recoveryCensusPepper: RECOVERY_CENSUS_PEPPER }
+    : {};
+}
+
 function createAuthBridgeNotificationPreparedCloudflareRuntime(
   options: Omit<Parameters<
     typeof createAuthBridgeNotificationPreparedCloudflareRuntimeRaw
@@ -164,6 +176,7 @@ function createAuthBridgeNotificationPreparedCloudflareRuntime(
   }>,
 ) {
   return createAuthBridgeNotificationPreparedCloudflareRuntimeRaw({
+    ...observerCredentials(options.contract),
     ...options,
     predecessorSourceAuthority: options.predecessorSourceAuthority ?? Object.freeze({
       ...EXACT_TEST_PREDECESSOR_SOURCE_AUTHORITY,
@@ -179,6 +192,7 @@ function attestAuthBridgeNotificationPreparedCandidateMultipartMetadata(
   >[0], 'ptrSpacetimeDbDatabase'>,
 ) {
   return attestAuthBridgeNotificationPreparedCandidateMultipartMetadataRaw({
+    ...observerCredentials(options.contract),
     ...options,
     ptrSpacetimeDbDatabase: PTR_DATABASE,
   });
@@ -318,12 +332,13 @@ function contentMultipart(
   ].join(''), 'utf8');
 }
 
-function contract(sourceDigest: string) {
+function contract(sourceDigest: string, recoveryObserver = false) {
   return authBridgeNotificationPreparedVersionContract({
     accountId: ACCOUNT_ID,
     zoneId: ZONE_ID,
     sourceCommit: SOURCE_COMMIT,
     sourceDigest,
+    recoveryObserver,
     beforeModes: BEFORE_MODES,
   }) as Readonly<{
     [key: string]: unknown;
@@ -676,6 +691,7 @@ describe('auth-bridge prepared protected environment', () => {
       WARPKEEP_AUTH_BRIDGE_ZONE_ID: ZONE_ID,
       WARPKEEP_PLAYER_CANARY_OWNER_FID: PLAYER_CANARY_OWNER_FID,
       WARPKEEP_PTR_SPACETIMEDB_DATABASE: PTR_DATABASE,
+      ...OBSERVER_ENVIRONMENT,
       WARPKEEP_PRODUCTION_ADMIN_TOKEN: 'production-admin-test-token-value',
     };
     const values = authBridgeNotificationPreparedDeployTestSeams
@@ -688,6 +704,8 @@ describe('auth-bridge prepared protected environment', () => {
       'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
       'WARPKEEP_PLAYER_CANARY_OWNER_FID',
       'WARPKEEP_PTR_SPACETIMEDB_DATABASE',
+      'WARPKEEP_RELEASE_RECOVERY_RPC_SECRET',
+      'WARPKEEP_RELEASE_RECOVERY_CENSUS_PEPPER',
       'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
     ]) expect(environment).not.toHaveProperty(name);
 
@@ -698,6 +716,7 @@ describe('auth-bridge prepared protected environment', () => {
           'cloudflare-owner-test-token-value',
         WARPKEEP_PLAYER_CANARY_OWNER_FID: invalid,
         WARPKEEP_PTR_SPACETIMEDB_DATABASE: PTR_DATABASE,
+        ...OBSERVER_ENVIRONMENT,
         WARPKEEP_PRODUCTION_ADMIN_TOKEN: 'production-admin-test-token-value',
       } };
       expect(() => authBridgeNotificationPreparedDeployTestSeams
@@ -715,11 +734,61 @@ describe('auth-bridge prepared protected environment', () => {
           'cloudflare-owner-test-token-value',
         WARPKEEP_PLAYER_CANARY_OWNER_FID: PLAYER_CANARY_OWNER_FID,
         WARPKEEP_PTR_SPACETIMEDB_DATABASE: invalid,
+        ...OBSERVER_ENVIRONMENT,
         WARPKEEP_PRODUCTION_ADMIN_TOKEN: 'production-admin-test-token-value',
       };
       expect(() => authBridgeNotificationPreparedDeployTestSeams
         .copyAndScrubEnvironment(hostile)).toThrow(/ENVIRONMENT_INVALID/u);
       expect(hostile).not.toHaveProperty('WARPKEEP_PTR_SPACETIMEDB_DATABASE');
+    }
+    for (const changed of [
+      { WARPKEEP_RELEASE_RECOVERY_RPC_SECRET: RECOVERY_CENSUS_PEPPER },
+      { WARPKEEP_RELEASE_RECOVERY_RPC_SECRET: `${RECOVERY_RPC_SECRET}=` },
+      { WARPKEEP_RELEASE_RECOVERY_RPC_SECRET: 'A'.repeat(42) + 'B' },
+      { WARPKEEP_RELEASE_RECOVERY_CENSUS_PEPPER: 'short' },
+      { WARPKEEP_PTR_SPACETIMEDB_DATABASE: 'c2003223f6e3c86e988775ddd458c3a45635d0d021e11131551471617c392194' },
+    ]) {
+      const hostile = { ...values, ...changed };
+      expect(() => authBridgeNotificationPreparedDeployTestSeams.copyAndScrubEnvironment(hostile))
+        .toThrow(/ENVIRONMENT_INVALID/u);
+      expect(hostile).not.toHaveProperty('WARPKEEP_RELEASE_RECOVERY_RPC_SECRET');
+      expect(hostile).not.toHaveProperty('WARPKEEP_RELEASE_RECOVERY_CENSUS_PEPPER');
+    }
+  });
+
+  it('requires exact observer secrets and exact provider readback before granting any upload', () => {
+    const value = contract(inspectAuthBridgeNotificationPreparedMultipart(multipart(),
+      'multipart/form-data; boundary=warpkeep-boundary-v1').sourceDigest, true);
+    const fetchImpl = vi.fn();
+    for (const changed of [
+      { recoveryRpcSecret: undefined },
+      { recoveryCensusPepper: undefined },
+      { recoveryRpcSecret: RECOVERY_CENSUS_PEPPER },
+      { recoveryCensusPepper: 'A'.repeat(42) + 'B' },
+    ]) {
+      expect(() => createAuthBridgeNotificationPreparedCloudflareRuntime({
+        contract: value, apiToken: 'cloudflare-owner-test-token-value',
+        playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
+        repositoryRoot: realpathSync(process.cwd()),
+        serviceRoot: realpathSync(join(process.cwd(), 'services/auth-bridge')),
+        nodeExecutable: process.execPath, wranglerEntrypoint: process.execPath,
+        fetchImpl, journal: { inspect: () => ({ phase: 'prepared', predecessorVersionId: null }) },
+        ...changed,
+      })).toThrow(/OBSERVER_SECRETS_INVALID/u);
+    }
+    expect(fetchImpl).not.toHaveBeenCalled();
+    const detail = exactVersionDetail(value);
+    expect(projectAuthBridgeNotificationPreparedCloudflareVersion({
+      value: detail, contract: value, sourceDigest: value.sourceDigest,
+    })).toMatchObject({ secretBindingNames: value.secretBindingNames });
+    for (const name of ['RELEASE_RECOVERY_RPC_SECRET', 'RELEASE_RECOVERY_CENSUS_PEPPER',
+      'GENESIS_002_SPACETIMEDB_DATABASE', 'RELEASE_RECOVERY_BRIDGE_SOURCE_COMMIT',
+      'RELEASE_RECOVERY_BRIDGE_CONFIG_EPOCH']) {
+      const hostile = { ...detail, resources: { ...detail.resources,
+        bindings: detail.resources.bindings.filter(binding => binding.name !== name) } };
+      expect(() => projectAuthBridgeNotificationPreparedCloudflareVersion({
+        value: hostile, contract: value, sourceDigest: value.sourceDigest,
+      })).toThrow(/VERSION_BINDING_MISMATCH/u);
     }
   });
 
@@ -794,6 +863,7 @@ describe('auth-bridge prepared durable deployment journal', () => {
     const nativeIt = it.skipIf(process.platform === 'win32');
 
     async function completedUpload(options: {
+      recoveryObserver?: boolean;
       omitUpload?: boolean;
       omitCompletion?: boolean;
       uncertainRelease?: boolean;
@@ -804,7 +874,7 @@ describe('auth-bridge prepared durable deployment journal', () => {
       completed?: Record<string, unknown>;
     } = {}) {
       const home = temporaryHome();
-      const value = contract('d'.repeat(64));
+      const value = contract('d'.repeat(64), options.recoveryObserver);
       await withAuthBridgeNotificationPreparedDeployJournal({
         ...journalOptions(home, value),
         operation: async journal => {
@@ -906,6 +976,14 @@ describe('auth-bridge prepared durable deployment journal', () => {
           .not.toHaveProperty('sourceDigest');
       },
     );
+
+    nativeIt('retains the observer contract marker from authenticated completed journal bytes', async () => {
+      const fixture = await completedUpload({ recoveryObserver: true });
+      const before = snapshot(fixture.directory);
+      expect(resolveAuthBridgeNotificationPreparedOriginalUploadAuthority(fixture.input))
+        .toMatchObject({ recoveryObserver: true, sourceCommit: SOURCE_COMMIT });
+      expect(snapshot(fixture.directory)).toEqual(before);
+    });
 
     nativeIt('retains the original digest through two canonical recovery descendants', async () => {
       const fixture = await completedUpload();
@@ -1752,14 +1830,18 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     expect(recovery.createAuthorityChain).not.toHaveBeenCalled();
   }
 
-  it('attests historical upload bytes with the authenticated receipt modes before reading live authority', async () => {
+  it.each([false, true])('attests historical observer=%s upload bytes before reading live authority', async recoveryObserver => {
     const recovery = createRecoveryWritePermitHarness();
+    if (recoveryObserver) {
+      const original = recovery.runtime.resolveOriginalUpload.getMockImplementation()!;
+      recovery.runtime.resolveOriginalUpload.mockImplementation(() => ({ ...original(), recoveryObserver: true }));
+    }
     await expect(recovery.run()).resolves.toEqual({ outcome: 'verified-read-only-recovery' });
     const sourceCalls = recovery.runtime.inspectSource.mock.calls as unknown as Array<[Record<string, unknown>]>;
     expect(sourceCalls.length).toBeGreaterThan(0);
     for (const [input] of sourceCalls) {
       expect(input).toEqual({
-        contract: contract('d'.repeat(64)),
+        contract: contract('d'.repeat(64), recoveryObserver),
         workerVersionId: VERSION_ID,
         ptrSpacetimeDbDatabase: PTR_DATABASE,
         apiToken: 'cloudflare-recovery-test-token-value',
@@ -4458,13 +4540,15 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     runtime.dispose();
   });
 
-  it('uploads one keep-bindings candidate from the exact reviewed B0 and fails closed on lineage drift', async () => {
+  it.each([false, true])('uploads one keep-bindings candidate (observer=%s) from the exact reviewed B0 and fails closed on lineage drift', async recoveryObserver => {
     const template = multipart();
     const contentType = 'multipart/form-data; boundary=warpkeep-boundary-v1';
     const digest = inspectAuthBridgeNotificationPreparedMultipart(template, contentType)
       .sourceDigest;
-    const value = contract(digest);
+    const value = contract(digest, recoveryObserver);
     const body = uploadMultipart(value);
+    expect(body.toString('utf8')).not.toContain(RECOVERY_RPC_SECRET);
+    expect(body.toString('utf8')).not.toContain(RECOVERY_CENSUS_PEPPER);
     const urls: string[] = [];
     let predecessorExtraBinding = false;
     let includeSameTagNonpredecessor = false;
@@ -4936,7 +5020,10 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       name: 'PLAYER_CANARY_OWNER_FID',
       text: PLAYER_CANARY_OWNER_FID,
       type: 'secret_text',
-    }]);
+    }, ...(recoveryObserver ? [
+      { name: 'RELEASE_RECOVERY_CENSUS_PEPPER', type: 'secret_text', text: RECOVERY_CENSUS_PEPPER },
+      { name: 'RELEASE_RECOVERY_RPC_SECRET', type: 'secret_text', text: RECOVERY_RPC_SECRET },
+    ] : [])]);
     expect(candidate.metadata.bindings).toContainEqual({
       name: 'PTR_SPACETIMEDB_DATABASE',
       text: PTR_DATABASE,
@@ -4955,6 +5042,14 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       binding => binding.name === 'PTR_SPACETIMEDB_DATABASE',
     );
     const hostileMetadata = [
+      ...candidateBindings.filter(binding => binding.name === 'RELEASE_RECOVERY_RPC_SECRET'
+        || binding.name === 'RELEASE_RECOVERY_CENSUS_PEPPER').flatMap(secret => [
+        { ...candidate.metadata, bindings: candidateBindings.filter(binding => binding !== secret) },
+        { ...candidate.metadata, bindings: candidateBindings.map(binding => binding === secret
+          ? { ...binding, text: 'wrong-secret' } : binding) },
+        { ...candidate.metadata, bindings: candidateBindings.map(binding => binding === secret
+          ? { ...binding, type: 'plain_text' } : binding) },
+      ]),
       Object.fromEntries(Object.entries(candidate.metadata).filter(
         ([name]) => name !== 'keep_bindings',
       )),
@@ -5305,6 +5400,8 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     });
     rejected.dispose();
 
+    for (const echoedSecret of [`${PLAYER_CANARY_OWNER_FID} ${PTR_DATABASE}`,
+      ...(recoveryObserver ? [RECOVERY_RPC_SECRET, RECOVERY_CENSUS_PEPPER] : [])]) {
     const echoedCanaryFetch = vi.fn(async (
       input: RequestInfo | URL,
       init?: RequestInit,
@@ -5318,7 +5415,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
           10021,
           url,
           400,
-          `hostile echo ${PLAYER_CANARY_OWNER_FID} ${PTR_DATABASE}`,
+          `hostile echo ${echoedSecret}`,
         );
       }
       throw new Error(`unexpected request: ${method} ${url}`);
@@ -5345,9 +5442,13 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         deploymentMayHaveChanged: false,
       });
     echoedCanary.dispose();
+    }
 
     const officialEcho = officialVersionUploadResult(value);
     const hostileUploadResults = [
+      ...(recoveryObserver ? [RECOVERY_RPC_SECRET, RECOVERY_CENSUS_PEPPER].map(secret => ({
+        ...officialEcho, resources: { ...officialEcho.resources, secret_echo: secret },
+      })) : []),
       officialVersionUploadResult(value, { undocumented: 'redacted' }),
       {
         ...officialEcho,

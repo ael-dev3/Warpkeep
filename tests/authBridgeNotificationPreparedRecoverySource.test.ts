@@ -73,9 +73,10 @@ function appendMetadata(body: Buffer, contents = '{"main_module":"index.js"}',
       + `\r\n${contents}\r\n--recovery-source--\r\n`));
 }
 
-function fixture() {
+function fixture(recoveryObserver = false) {
   const contract = authBridgeNotificationPreparedVersionContract({
     accountId: ACCOUNT, zoneId: ZONE, sourceCommit: SOURCE, sourceDigest: SOURCE_DIGEST,
+    recoveryObserver,
     beforeModes: {
       bridgeSourceCommit: AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
       publicAuthEnabled: true, accessExpectedFidRequired: false,
@@ -154,8 +155,8 @@ type Fixture = ReturnType<typeof fixture>;
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
 describe('original prepared Worker source and configuration recovery inspection', () => {
-  it('authenticates real response shapes and uploaded modules using only the exact read endpoints', async () => {
-    const f = fixture();
+  it.each([false, true])('authenticates retained observer=%s configuration using only the exact read endpoints', async recoveryObserver => {
+    const f = fixture(recoveryObserver);
     const result = await inspectAuthBridgeNotificationPreparedRecoverySource(f.options);
     expect(result).toMatchObject({ workerVersionId: VERSION, bridgeSourceCommit: SOURCE,
       sourceDigest: SOURCE_DIGEST, ptrDatabaseIdentity: PTR, oldestObservedAt: NOW.toISOString() });

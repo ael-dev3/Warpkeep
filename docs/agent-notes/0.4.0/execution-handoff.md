@@ -184,8 +184,13 @@ and census pepper were provisioned directly into the existing protected
 `WARPKEEP_RELEASE_RECOVERY_RPC_SECRET` and
 `WARPKEEP_RELEASE_RECOVERY_CENSUS_PEPPER`; GitHub metadata confirms both names.
 Their bytes were passed through stdin without being printed or committed.
-The prepared bridge caller is being extended to consume them in its existing
-preserving upload. This secret provisioning is not a Worker deployment.
+The prepared bridge caller now consumes them in its existing preserving upload,
+alongside the source-fixed G002 identity and initial observer epoch. Its separate
+six-secret predecessor and nine-secret candidate contracts preserve existing
+authentication, Durable Objects and migration identity. Historical completed
+seven-secret recovery remains supported. The 56 focused Windows tests passed;
+native journal verification, generated closure refresh and deployment remain.
+This secret provisioning and source verification are not a Worker deployment.
 
 ### PTR fixture source repair
 

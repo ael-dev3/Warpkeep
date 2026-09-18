@@ -85,7 +85,8 @@ short-lived evidence boundary, not authorization for either later phase.
 
 Use the protected Linux workflow
 `.github/workflows/notification-bridge-prepared-linux.yml` for the current host.
-Its prepared transition installs the current bridge code and owner PTR bindings
+Its prepared transition installs the current bridge code, owner PTR bindings and
+recovery observer configuration
 while preserving the existing public-auth and expected-FID modes. The historical
 B0 source and the new candidate have separate exact contracts:
 
@@ -95,7 +96,7 @@ B0 source and the new candidate have separate exact contracts:
 | Approval notifications | Enabled | Disabled for the admission freeze |
 | PTR and canary | Absent | Fixed PTR audience/database and managed owner secret |
 | Version metadata | Absent | `CF_VERSION_METADATA` |
-| Recovery entrypoint | Absent | `ReleaseRecoveryObservationEntrypoint` export |
+| Recovery observer | Absent | Named entrypoint, fixed G002 identity, source/configuration epoch and two managed secrets |
 | Existing auth modes, secrets and Durable Objects | Attested live predecessor | Preserved through the transition |
 
 The fixed predecessor byte authority is
@@ -143,10 +144,24 @@ serialization and validation; no provider upload or deployment occurred.
 pending PTR observation source. Protected integration and a fresh generated
 family are still required before deployment; do not relabel historical output.
 
-A prepared receipt establishes the PTR/canary bridge transition. The recovery
-observer still needs its configured G002 identity, source/configuration epoch,
-RPC secret and census pepper, followed by the private signer and gateway rollout.
-An exported recovery entrypoint alone does not establish live observation.
+The September 19 source extension supplies the observer configuration in this
+same preserving upload. G002 is source-fixed, the bridge source is the selected
+protected commit and the initial observer epoch is `1`. The existing protected
+environment supplies `WARPKEEP_RELEASE_RECOVERY_RPC_SECRET` and
+`WARPKEEP_RELEASE_RECOVERY_CENSUS_PEPPER`, alongside its existing canary secret.
+Wrangler builds without credentials; the runtime adds those secret bindings only
+after the build. No separate Worker upload or secret-mutation request is needed.
+
+After bridge deployment, deploy the disabled preparation signer and gateway.
+Use their authenticated observation to establish the actual bridge configuration
+identity and full secret separation. A prepared receipt or exported entrypoint
+alone does not establish that signed readback. The new source passed 56 focused
+Windows tests and independent review; its native journal case, refreshed source
+closure and protected deployment remain separate checks.
+
+Linux is the supported deployment lane. The historical Darwin workflow does not
+forward the new observer inputs and cannot deploy through the new shared caller.
+Retained completed seven-secret contracts remain readable without those inputs.
 
 ## Closed receipt contract
 
@@ -332,12 +347,14 @@ checkout before each Cloudflare write, then:
 6. verifies fresh public/private endpoints before installing the content-
    addressed `0600` receipt in the private account-home sink.
 
-For the seventh-secret transition, the prepared runtime requires the exact
+For the prepared transition, the runtime requires the exact
 fully attested six-secret B0 version to be both the sole 100% live deployment
 and the latest unfiltered Worker upload. Its candidate multipart retains exact
 `keep_bindings: ["secret_text", "secret_key"]`, contains no `inherit`
-descriptor or inheritance query, and adds only `PLAYER_CANARY_OWNER_FID` as an
-explicit `secret_text` binding. The runtime checks latest-upload equality once
+descriptor or inheritance query. The current candidate adds
+`PLAYER_CANARY_OWNER_FID`, `RELEASE_RECOVERY_RPC_SECRET` and
+`RELEASE_RECOVERY_CENSUS_PEPPER` as explicit `secret_text` bindings; the historical
+seven-secret candidate added only the canary. The runtime checks latest-upload equality once
 before the journal enters the upload boundary and again as the final provider
 read immediately before the single Versions API POST. Because Cloudflare does
 not expose a conditional predecessor token for `keep_bindings`, the protected
@@ -346,7 +363,8 @@ reconciliation, and dashboard, API, Wrangler, and every other out-of-band
 Worker writer must remain quiescent for the same interval; any observed head
 mismatch fails closed before mutation. The
 candidate is independently re-read and must contain exactly the reviewed
-source/configuration and seven secret bindings. The predecessor and candidate
+source/configuration and nine secret bindings for the current observer-enabled
+contract (seven for an authenticated retained historical contract). The predecessor and candidate
 detail must prove one immutable sequence step: the candidate number is exactly
 predecessor number plus one; when an upload response is received, it must prove
 the same step. The candidate must remain that unfiltered latest version in

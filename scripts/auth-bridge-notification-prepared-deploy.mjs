@@ -38,6 +38,7 @@ import {
 } from './auth-bridge-notification-prepared-cloudflare-runtime.mjs';
 import {
   AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_GENESIS_002_DATABASE,
   authBridgeNotificationPreparedVersionContract,
 } from './auth-bridge-notification-prepared-deploy-adapter.mjs';
 import {
@@ -87,6 +88,8 @@ const REQUIRED_ENVIRONMENT = Object.freeze([
   'WARPKEEP_AUTH_BRIDGE_ZONE_ID',
   'WARPKEEP_PLAYER_CANARY_OWNER_FID',
   'WARPKEEP_PTR_SPACETIMEDB_DATABASE',
+  'WARPKEEP_RELEASE_RECOVERY_RPC_SECRET',
+  'WARPKEEP_RELEASE_RECOVERY_CENSUS_PEPPER',
   'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
 ]);
 const FORBIDDEN_ENVIRONMENT = Object.freeze([
@@ -227,6 +230,8 @@ function copyAndScrubEnvironment(environment) {
     'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
     'WARPKEEP_PLAYER_CANARY_OWNER_FID',
     'WARPKEEP_PTR_SPACETIMEDB_DATABASE',
+    'WARPKEEP_RELEASE_RECOVERY_RPC_SECRET',
+    'WARPKEEP_RELEASE_RECOVERY_CENSUS_PEPPER',
     'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
   ]) delete environment[name];
   if (
@@ -252,7 +257,22 @@ function copyAndScrubEnvironment(environment) {
     )
     || values.WARPKEEP_PTR_SPACETIMEDB_DATABASE
       === PRODUCTION_SPACETIMEDB_DATABASE
+    || values.WARPKEEP_PTR_SPACETIMEDB_DATABASE
+      === AUTH_BRIDGE_NOTIFICATION_PREPARED_GENESIS_002_DATABASE
   ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_ENVIRONMENT_INVALID');
+  if (values.WARPKEEP_RELEASE_RECOVERY_RPC_SECRET === values.WARPKEEP_RELEASE_RECOVERY_CENSUS_PEPPER) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_ENVIRONMENT_INVALID');
+  }
+  for (const name of ['WARPKEEP_RELEASE_RECOVERY_RPC_SECRET', 'WARPKEEP_RELEASE_RECOVERY_CENSUS_PEPPER']) {
+    const value = values[name];
+    if (!/^[A-Za-z0-9_-]{43}$/u.test(value)) fail('AUTH_BRIDGE_PREPARED_DEPLOY_ENVIRONMENT_INVALID');
+    const bytes = Buffer.from(value, 'base64url');
+    try {
+      if (bytes.length !== 32 || bytes.toString('base64url') !== value) {
+        fail('AUTH_BRIDGE_PREPARED_DEPLOY_ENVIRONMENT_INVALID');
+      }
+    } finally { bytes.fill(0); }
+  }
   return Object.freeze(values);
 }
 
@@ -274,6 +294,10 @@ function copyAndScrubRecoveryEnvironment(environment) {
     'GITHUB_TOKEN',
     'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
     'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
+    // The shared workflow may supply deployment-only credentials; recovery
+    // neither requires nor retains them.
+    'WARPKEEP_RELEASE_RECOVERY_RPC_SECRET',
+    'WARPKEEP_RELEASE_RECOVERY_CENSUS_PEPPER',
   ]) delete environment[name];
   if (
     required.some(name => typeof values[name] !== 'string')
@@ -1255,6 +1279,7 @@ async function runProductionAuthBridgeNotificationPreparedReadOnlyRecovery({
   const uploadIdentity = upload => JSON.stringify([
     upload.sourceCommit, upload.workerVersionId, upload.sourceDigest,
     upload.uploadRecordDigest, upload.completedJournalHeadDigest,
+    upload.recoveryObserver,
   ]);
   const originalIdentity = uploadIdentity(firstUpload);
   // Historical bytes come only from the authenticated original upload. Every
@@ -1274,6 +1299,7 @@ async function runProductionAuthBridgeNotificationPreparedReadOnlyRecovery({
       || !SHA256.test(upload.sourceDigest ?? '')
       || !SHA256.test(upload.uploadRecordDigest ?? '')
       || !SHA256.test(upload.completedJournalHeadDigest ?? '')
+      || (upload.recoveryObserver !== undefined && upload.recoveryObserver !== true)
       || upload.journalHeadDigest !== journal.journalHeadDigest
       || journal.sourceCommit !== upload.sourceCommit
       || journal.workerVersionId !== upload.workerVersionId
@@ -1285,6 +1311,7 @@ async function runProductionAuthBridgeNotificationPreparedReadOnlyRecovery({
       zoneId: values.WARPKEEP_AUTH_BRIDGE_ZONE_ID,
       sourceCommit: upload.sourceCommit,
       sourceDigest: upload.sourceDigest,
+      recoveryObserver: upload.recoveryObserver === true,
       beforeModes: {
         bridgeSourceCommit: AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
         publicAuthEnabled: priorReceipt.publicAuthEnabledBefore,
@@ -2122,6 +2149,7 @@ export async function runAuthBridgeNotificationPreparedDeploy({
           zoneId: values.WARPKEEP_AUTH_BRIDGE_ZONE_ID,
           sourceCommit: values.GITHUB_SHA,
           sourceDigest: '0'.repeat(64),
+          recoveryObserver: true,
           beforeModes,
         });
         const bundle = await buildAuthBridgeNotificationPreparedWranglerMultipart({
@@ -2136,6 +2164,7 @@ export async function runAuthBridgeNotificationPreparedDeploy({
           zoneId: values.WARPKEEP_AUTH_BRIDGE_ZONE_ID,
           sourceCommit: values.GITHUB_SHA,
           sourceDigest: bundle.sourceDigest,
+          recoveryObserver: true,
           beforeModes,
         });
         try {
@@ -2155,6 +2184,8 @@ export async function runAuthBridgeNotificationPreparedDeploy({
                   values.WARPKEEP_PLAYER_CANARY_OWNER_FID,
                 ptrSpacetimeDbDatabase:
                   values.WARPKEEP_PTR_SPACETIMEDB_DATABASE,
+                recoveryRpcSecret: values.WARPKEEP_RELEASE_RECOVERY_RPC_SECRET,
+                recoveryCensusPepper: values.WARPKEEP_RELEASE_RECOVERY_CENSUS_PEPPER,
                 repositoryRoot: repository,
                 serviceRoot,
                 nodeExecutable,

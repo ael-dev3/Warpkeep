@@ -33,6 +33,7 @@ import {
   productionAdminRecordedOwnerIsDead,
   requireCurrentProductionAdminProcessIdentity,
 } from './production-admin-token-budget.mjs';
+import { authBridgeNotificationPreparedVersionContract } from './auth-bridge-notification-prepared-deploy-adapter.mjs';
 
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_PROFILE =
   'warpkeep-auth-bridge-notification-prepared-deploy-journal-v3';
@@ -1100,6 +1101,22 @@ function originalUploadAuthority(records, resolved) {
       || record.value.payload.versionTag !== versionTag
     ))
   ) fail('AUTH_BRIDGE_PREPARED_ORIGINAL_UPLOAD_AUTHORITY_INVALID');
+  const recoveryObserver = Object.hasOwn(contract.variables ?? {}, 'GENESIS_002_SPACETIMEDB_DATABASE');
+  let expectedContract;
+  try {
+    expectedContract = authBridgeNotificationPreparedVersionContract({
+      accountId: contract.accountId, zoneId: contract.zoneId,
+      sourceCommit, sourceDigest, recoveryObserver,
+      beforeModes: {
+        bridgeSourceCommit: contract.predecessorSourceCommit,
+        publicAuthEnabled: contract.variables?.PUBLIC_AUTH_ENABLED === 'true',
+        accessExpectedFidRequired: contract.variables?.ACCESS_EXPECTED_FID_REQUIRED === 'true',
+      },
+    });
+  } catch { fail('AUTH_BRIDGE_PREPARED_ORIGINAL_UPLOAD_AUTHORITY_INVALID'); }
+  if (digestValue(expectedContract) !== prepared.value.contractDigest) {
+    fail('AUTH_BRIDGE_PREPARED_ORIGINAL_UPLOAD_AUTHORITY_INVALID');
+  }
   return Object.freeze({
     sourceCommit,
     workerVersionId: uploaded.versionId,
@@ -1107,6 +1124,7 @@ function originalUploadAuthority(records, resolved) {
     uploadRecordDigest: upload.digest,
     completedJournalHeadDigest: completed.digest,
     journalHeadDigest: resolved.journalHeadDigest,
+    ...(recoveryObserver ? { recoveryObserver: true } : {}),
   });
 }
 

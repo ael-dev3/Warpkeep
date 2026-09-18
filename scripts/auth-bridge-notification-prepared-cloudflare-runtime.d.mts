@@ -173,6 +173,8 @@ export function attestAuthBridgeNotificationPreparedCandidateMultipartMetadata(
     contract: Readonly<Record<string, unknown>>;
     playerCanaryOwnerFid: string;
     ptrSpacetimeDbDatabase: string;
+    recoveryRpcSecret?: string;
+    recoveryCensusPepper?: string;
   }>,
 ): true;
 
@@ -202,6 +204,8 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime(
     apiToken: string;
     playerCanaryOwnerFid: string;
     ptrSpacetimeDbDatabase: string;
+    recoveryRpcSecret?: string;
+    recoveryCensusPepper?: string;
     repositoryRoot: string;
     serviceRoot: string;
     nodeExecutable: string;
