@@ -340,6 +340,20 @@ describe('disposable connected local QA dependency and network boundaries', () =
     );
   });
 
+  it('explains the locked module dependency prerequisite before copying the disposable module', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'scripts/qa-observer/local-fullstack-spacetime.mjs'),
+      'utf8'
+    );
+    expect(source).toContain(
+      'Pinned SpacetimeDB module dependencies are missing.'
+    );
+    expect(source).toContain(
+      'pnpm --dir spacetimedb install --frozen-lockfile --ignore-scripts'
+    );
+    expect(source).toContain('npm run qa:fullstack:local');
+  });
+
   it('shortens worker timing only inside the disposable copied module', () => {
     const launcherSource = readFileSync(
       resolve(process.cwd(), 'scripts/qa-observer/local-fullstack-spacetime.mjs'),
