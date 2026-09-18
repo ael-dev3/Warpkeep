@@ -21,10 +21,14 @@ protected `main` **`4ca0b7d6f156cd6eaec06609ec8ffc83861614b9`**. Its final head
 and its tree exactly matches the tested head. The retained non-release tag
 `source-history/warpkeep-0.4-pr299-7c75b7359dbd` preserves the original source.
 
-The disabled signer's initial deployment repair is published in
-[PR #300](https://github.com/ael-dev3/Warpkeep/pull/300), head
-`154ef694b490a4fa9afdcabae95ceb714c944add`; Verify `35397802215` and CodeQL
-`35397802255` were still running when this checkpoint was written.
+The disabled signer's initial deployment repair in
+[PR #300](https://github.com/ael-dev3/Warpkeep/pull/300) is merged at protected
+`main` **`68cfc9283637792e2d699b29492e5f8156c8030f`**. Its exact head
+`154ef694b490a4fa9afdcabae95ceb714c944add` passed Verify `35397802215` and CodeQL
+`35397802255`. The normal protected squash is signed and tree-identical to that
+tested head; `source-history/warpkeep-0.4-pr300-154ef694b490` retains its source.
+The preceding main `4ca0b7d6` also passed Verify `35397617123`. New main push
+checks remain separate from PR checks and have not yet been claimed complete.
 Active work continues on `codex/0.4-recovery-ptr-source-20260918` in
 `C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep`: recovery source
 materialization and G001 census restart handling. Inspect its current GitHub
@@ -173,6 +177,15 @@ Checks, Contents, Deployments, Metadata and Pages, with account-only installatio
 and disabled webhooks. A key was generated; protected local retention and actual
 App-token verification remain pending. This reader does not replace or restrict
 the existing GitHub write and provider deployment credentials.
+
+The existing local recovery bootstrap revalidated successfully. Its RPC secret
+and census pepper were provisioned directly into the existing protected
+`notification-bridge-prepared` environment as
+`WARPKEEP_RELEASE_RECOVERY_RPC_SECRET` and
+`WARPKEEP_RELEASE_RECOVERY_CENSUS_PEPPER`; GitHub metadata confirms both names.
+Their bytes were passed through stdin without being printed or committed.
+The prepared bridge caller is being extended to consume them in its existing
+preserving upload. This secret provisioning is not a Worker deployment.
 
 ### PTR fixture source repair
 
