@@ -49,3 +49,20 @@ it('declares no public route, secret values, remote fixture paths or configurabl
   for (const method of ['status', 'issue', 'claim', 'complete', 'reconcile', 'terminal']) expect(entry).toContain(`async ${method}(`)
   expect(entry).toContain('status: 404')
 })
+
+it('preserves the signer service and ledger when promoting initial preparation to final recovery', () => {
+  const initial = readFileSync(new URL('../wrangler.preparation-signer.toml', import.meta.url), 'utf8')
+  const final = readFileSync(new URL('../wrangler.signer.toml', import.meta.url), 'utf8')
+  // Only entry selection and the final compiled Data modules may differ. This
+  // catches namespace, migration, epoch, observer and public-exposure drift.
+  const sharedConfiguration = (source: string) => source
+    .replace(/^#.*$/gmu, '')
+    .replace(/^main = "src\/index-(?:preparation-)?signer\.ts"$/gmu, '')
+    .replace(/\[\[rules\]\][\s\S]*?(?=\n\[|$)/gu, '')
+    .split(/\r?\n/u).map(line => line.trim()).filter(Boolean).join('\n')
+  expect(sharedConfiguration(initial)).toBe(sharedConfiguration(final))
+  expect(initial).toContain('main = "src/index-preparation-signer.ts"')
+  expect(initial).toContain('RECOVERY_ENABLED = "false"')
+  expect(initial).not.toContain('[[rules]]')
+  expect(initial).not.toMatch(/RECOVERY_SIGNING_PRIVATE_JWK|RELEASE_RECOVERY_RPC_SECRET|GITHUB_APP_PRIVATE_KEY_PEM/u)
+})

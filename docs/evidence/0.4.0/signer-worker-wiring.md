@@ -1,5 +1,32 @@
 # Private signer Worker wiring — 2026-09-07
 
+## Initial preparation entry — 2026-09-18
+
+The separate `index-preparation-signer.ts` and
+`wrangler.preparation-signer.toml` now make the existing disabled preparation
+phase buildable before final production evidence exists. The same named signer
+entry exposes `prepare`, `preparationObservation`, `ptrObservation`,
+`ptrUpdateObservation` and `g002UpdateObservation`. It exposes none of the six
+final recovery methods. The service, V2 ledger class/binding/migration, observer
+and epoch match the final configuration; public routes remain disabled.
+
+Wrangler 4.110.0 with Node 22.22.3 successfully dry-ran the actual preparation
+configuration with all four final fixture files absent and no test aliases.
+The emitted input graph contains no final signer, fixture, test-double or final
+issuance/claim adapter. No upload occurred. Workerd tests call the actual named
+preparation RPC, verify all six final methods are absent and check sanitized
+gateway status failure; the former inert-fixture test alias was removed.
+An independent source/bundle review found no actionable defect.
+
+This is an initial deployment entry, not an armed-recovery replacement. Fresh
+provider readback found the signer and gateway absent; the existing auth bridge
+was present. Initial service provisioning, GitHub App authentication, operation
+policy and private inputs, final adoption-aware fixture generation, live
+readback and recovery acceptance remain open. The final signer retains its
+strict production imports and all existing authentication/arming checks.
+
+## Original full-signer wiring evidence
+
 The named `ReleaseRecoverySignerEntrypoint` now delegates the six fixed RPC
 methods to the composed signer. The default fetch entrypoint returns an empty
 404/no-store response. `wrangler.signer.toml` disables routes, workers.dev,

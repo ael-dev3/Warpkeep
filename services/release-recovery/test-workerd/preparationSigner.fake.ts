@@ -1,6 +1,6 @@
 import { observeReleaseRecoveryConfiguration } from '../../auth-bridge/src/releaseRecoveryConfiguration.js'
 import { bridgeEnv } from '../../auth-bridge/test/recoveryConfigurationFixture.js'
-import { ReleaseRecoverySignerEntrypoint } from '../src/index-signer.js'
+import { ReleaseRecoverySignerEntrypoint } from '../src/index-preparation-signer.js'
 import type { RecoverySignerEnvironment } from '../src/signerEnvironment.js'
 import { preparationPolicy, preparationPrivateJwk } from '../test/preparationFixture.js'
 import { preparationTestAppPem } from './preparationAppKey.fake.js'

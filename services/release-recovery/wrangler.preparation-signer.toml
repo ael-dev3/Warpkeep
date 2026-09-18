@@ -1,0 +1,31 @@
+# Initial disabled preparation/observation phase. Use the same service, named
+# entrypoint, namespace and migration as the final signer so promotion preserves
+# its ledger. Final recovery issuance still requires wrangler.signer.toml and
+# authenticated production fixtures; this entry cannot issue or claim recovery.
+name = "warpkeep-release-recovery-signer"
+main = "src/index-preparation-signer.ts"
+compatibility_date = "2026-07-11"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+routes = []
+
+[vars]
+RECOVERY_ENABLED = "false"
+RECOVERY_AUTHORIZATION_EPOCH = "1"
+
+[[services]]
+binding = "AUTH_BRIDGE_OBSERVER"
+service = "warpkeep-auth-bridge"
+entrypoint = "ReleaseRecoveryObservationEntrypoint"
+
+[[durable_objects.bindings]]
+name = "RECOVERY_LEDGER_V2"
+class_name = "ReleaseRecoveryAuthorizationLedgerV2"
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["ReleaseRecoveryAuthorizationLedgerV2"]
+
+[observability]
+enabled = false
