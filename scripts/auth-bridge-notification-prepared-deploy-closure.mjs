@@ -1898,7 +1898,7 @@ function recoveryClosureSource(repository, manifest, manifestSha256, memberBodie
   try { binding = JSON.parse(reviewedReleaseSource(memberBodies.get(REVIEWED_RELEASE_SOURCE_PATHS.sealedLaunchBinding))); }
   catch { fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID'); }
   if (binding?.schemaVersion === 1) return undefined;
-  if (![2, 3, 4, 5].includes(binding?.schemaVersion)) {
+  if (![2, 3, 4, 5, 6].includes(binding?.schemaVersion)) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID');
   }
   // Before evaluating any recovery helper, anchor the manifest to the actual

@@ -4,7 +4,7 @@ export type FixedLinuxG001PolicyPreparation = Readonly<{ [preparationBrand]: tru
 export type Genesis001LinuxPolicyPreparation = FixedLinuxG001PolicyPreparation;
 declare const censusPreparationBrand: unique symbol;
 export type FixedLinuxG001CensusPreparation = Readonly<{ [censusPreparationBrand]: true }>;
-export function prepareFixedLinuxG001CensusObservation(): Promise<FixedLinuxG001CensusPreparation>;
+export function prepareFixedLinuxG001CensusObservation(adminSecret: string): Promise<FixedLinuxG001CensusPreparation>;
 export function assertFixedLinuxG001CensusPreparation(handle: FixedLinuxG001CensusPreparation): void;
 export function executeFixedLinuxG001CensusObservation(handle: FixedLinuxG001CensusPreparation,
   evidence: SealedRealmsProductionWorkflowEvidence): Promise<Readonly<{

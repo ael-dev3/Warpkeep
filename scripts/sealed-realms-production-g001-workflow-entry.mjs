@@ -1,4 +1,5 @@
-import { prepareFixedLinuxG001PolicyObservation, disposeFixedLinuxG001PolicyObservation } from './genesis001-linux-policy-native.mjs';
+import { prepareFixedLinuxG001PolicyObservation, disposeFixedLinuxG001PolicyObservation,
+  prepareFixedLinuxG001CensusObservation, executeFixedLinuxG001CensusObservation } from './genesis001-linux-policy-native.mjs';
 import { execFileSync } from 'node:child_process';
 import { types } from 'node:util';
 
@@ -34,6 +35,7 @@ import {
 const OPERATIONS = new Set([
   'preflight',
   'g001-policy-observe',
+  'g001-freeze-census',
   'g001-census-first',
   'g001-census-second-inspect',
   'g001-census-second-suspend',
@@ -156,6 +158,17 @@ function unavailable() {
   fail('SEALED_REALMS_G001_WORKFLOW_ADAPTER_UNAVAILABLE');
 }
 
+async function authorizeLinuxCensus(workflowInputSha, evidence) {
+  const authority = authenticateSealedRealmsProductionSourceAuthority({ operation: 'g001-freeze-census',
+    workflowInputSha, readGit, readBinding,
+    verifyEvidence: commit => verifySealedRealmsProductionWorkflowEvidence(evidence, commit) });
+  if (authority.mode !== 'S') fail('SEALED_REALMS_G001_WORKFLOW_SOURCE_INVALID');
+  await issueSealedRealmsProductionWorkflowPermit({ sourceAuthority: authority,
+    githubToken: process.env.GITHUB_TOKEN, runId: process.env.GITHUB_RUN_ID,
+    runAttempt: process.env.GITHUB_RUN_ATTEMPT, fetchImpl: globalThis.fetch });
+  verifySealedRealmsProductionWorkflowEvidence(evidence, workflowInputSha);
+}
+
 async function buildDispatcher(operation, workflowInputSha, evidence, linuxPolicyPreparation) {
   const verifyEvidence = commit => verifySealedRealmsProductionWorkflowEvidence(evidence, commit);
   // Fresh fixed Verify evidence precedes source authentication; private state
@@ -224,13 +237,27 @@ async function buildDispatcher(operation, workflowInputSha, evidence, linuxPolic
 
 /** Creates one opaque, process-local G001 runtime bound to one source/operation. */
 export async function createSealedRealmsProductionG001WorkflowRuntime(input) {
+  // Copy and scrub the existing protected workflow credential synchronously,
+  // before Git, evidence fetches or the credential-free materializer can run.
+  let adminSecret = process.env.WARPKEEP_PRODUCTION_ADMIN_TOKEN;
+  delete process.env.WARPKEEP_PRODUCTION_ADMIN_TOKEN;
   const options = exactObject(input, ['operation', 'workflowInputSha']);
   const operation = operationName(options.operation);
   const workflowInputSha = sourceSha(options.workflowInputSha);
-  const evidence = await createSealedRealmsProductionWorkflowEvidence({ workflowInputSha });
   const runtime = Object.freeze({});
-  let linuxPolicyPreparation;
+  let evidence, linuxPolicyPreparation;
   try {
+    evidence = await createSealedRealmsProductionWorkflowEvidence({ workflowInputSha });
+    if (operation === 'g001-freeze-census') {
+      if (process.platform !== 'linux') fail('SEALED_REALMS_G001_WORKFLOW_NATIVE_REQUIRED');
+      linuxPolicyPreparation = await prepareFixedLinuxG001CensusObservation(adminSecret);
+      adminSecret = undefined;
+      await refreshSealedRealmsProductionWorkflowEvidence(evidence);
+      await authorizeLinuxCensus(workflowInputSha, evidence);
+      runtimes.set(runtime, Object.freeze({ operation, workflowInputSha, evidence, linuxPolicyPreparation }));
+      return runtime;
+    }
+    adminSecret = undefined;
     if (operation === 'g001-policy-observe' && process.platform === 'linux') {
       linuxPolicyPreparation = await prepareFixedLinuxG001PolicyObservation();
       // Materialization can outlive the evidence TTL. Refresh actual Verify and
@@ -246,10 +273,10 @@ export async function createSealedRealmsProductionG001WorkflowRuntime(input) {
     }));
     return runtime;
   } catch (error) {
-    revokeSealedRealmsProductionWorkflowEvidence(evidence);
+    if (evidence !== undefined) revokeSealedRealmsProductionWorkflowEvidence(evidence);
     if (linuxPolicyPreparation !== undefined) await disposeFixedLinuxG001PolicyObservation(linuxPolicyPreparation);
     throw error;
-  }
+  } finally { adminSecret = undefined; }
 }
 
 /** Consumes the runtime before the dispatch await; it cannot be replayed. */
@@ -270,6 +297,16 @@ export async function runSealedRealmsProductionG001Operation(input) {
   consumedRuntimes.add(options.runtime);
   try {
     await refreshSealedRealmsProductionWorkflowEvidence(member.evidence);
+    if (operation === 'g001-freeze-census') {
+      await authorizeLinuxCensus(workflowInputSha, member.evidence);
+      const censusAttempt = await executeFixedLinuxG001CensusObservation(member.linuxPolicyPreparation, member.evidence);
+      // The native complete file alone is not selected authority. A failed or
+      // interrupted job does not announce success; later readers must attest
+      // this exact completed workflow run and re-open the retained corpus.
+      await refreshSealedRealmsProductionWorkflowEvidence(member.evidence);
+      await authorizeLinuxCensus(workflowInputSha, member.evidence);
+      return Object.freeze({ operation, status: 'completed', censusAttempt });
+    }
     return await member.dispatcher.dispatch(Object.freeze({ operation, workflowInputSha }));
   } finally {
     revokeSealedRealmsProductionWorkflowEvidence(member.evidence);

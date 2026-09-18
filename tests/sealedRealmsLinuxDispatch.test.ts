@@ -7,16 +7,22 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 const stateKey='__warpkeepLinuxDispatchFixture';
 const privateFailure='private-provider-fixture-detail';
+const censusSelector = { profile: 'warpkeep-g001-linux-census-completed-v1', sourceCommit: 'a'.repeat(40),
+ attemptId: 'b'.repeat(32), githubRunId: '1001', githubRunAttempt: '1', receiptDigest: 'c'.repeat(64),
+ completedAt: '2026-09-18T22:00:00.000Z', mutationSubmitted: false };
 async function fixture(operation: string, failure?: string) {
  const observation = operation === 'ptr-state-inspect';
  const ptr = observation || operation === 'ptr-update-inspect' || operation === 'ptr-update-apply';
  const g002 = operation === 'g002-update-inspect' || operation === 'g002-update-apply';
- const g001 = operation === 'preflight' || operation === 'g001-policy-observe';
+ const g001 = operation === 'preflight' || operation === 'g001-policy-observe' || operation === 'g001-freeze-census';
  const lane = ptr ? 'ptr' : g002 ? 'g002' : g001 ? 'g001' : 'activation';
  const status = observation ? 'state-inspected' : operation === 'preflight' ? 'preflight-inspected'
   : operation === 'ptr-update-inspect' || operation === 'g002-update-inspect' ? 'update-inspected'
   : operation === 'activation-evidence-inspect' ? 'activation-evidence-inspected' : 'completed';
  vi.stubEnv('WARPKEEP_OPERATION',operation);vi.stubEnv('GITHUB_JOB',failure==='job'?'wrong-job':observation?'observe_ptr':ptr?'operate_ptr':g002?'operate_g002':operation.endsWith('generate')?'operate':'operate_readonly');
+ vi.stubEnv('GITHUB_RUN_ID','1001');vi.stubEnv('GITHUB_RUN_ATTEMPT','1');
+ const selector: Record<string, unknown> = { ...censusSelector };
+ if (failure?.startsWith('selector:')) selector[failure.slice('selector:'.length)] = 'invalid';
  const calls: string[]=[];
  const laneName = ptr ? 'Ptr' : g002 ? 'G002' : g001 ? 'G001' : 'Activation';
  const factory=`createSealedRealmsProduction${laneName}WorkflowRuntime`;
@@ -25,7 +31,7 @@ async function fixture(operation: string, failure?: string) {
  const injectedFailure=()=>{throw Object.assign(new Error(privateFailure),{code:privateFailure,cause:new Error(privateFailure),phase:privateFailure});};
  const state={calls,selected:{path:'scripts/fixed.bundle.mjs',factoryExport:factory,exportNames:[factory,run]},loaded:{
   [factory]:async(input: unknown)=>{calls.push('factory');expect(input).toEqual({operation,workflowInputSha:'a'.repeat(40)});if(failure==='factory')injectedFailure();return runtime;},
-  [run]:async(input: {runtime: unknown})=>{calls.push('run');expect(input).toEqual({runtime,operation,workflowInputSha:'a'.repeat(40)});if(failure==='run')injectedFailure();return {operation:failure==='operation'?'preflight':operation,status:failure==='result'?'unexpected':status};}
+  [run]:async(input: {runtime: unknown})=>{calls.push('run');expect(input).toEqual({runtime,operation,workflowInputSha:'a'.repeat(40)});if(failure==='run')injectedFailure();return {operation:failure==='operation'?'preflight':operation,status:failure==='result'?'unexpected':status,...(operation==='g001-freeze-census'?{censusAttempt:selector}:{})};}
  }};
  if(failure==='exports')Object.assign(state.loaded,{extra:true});
  (globalThis as Record<string,unknown>)[stateKey]=state;
@@ -49,6 +55,7 @@ async function fixture(operation: string, failure?: string) {
 it.each([
  ['preflight','preflight-inspected'],
  ['g001-policy-observe','completed'],
+ ['g001-freeze-census','completed'],
  ['ptr-state-inspect','state-inspected'],
  ['activation-evidence-inspect','activation-evidence-inspected'],
  ['activation-evidence-generate','completed'],
@@ -57,10 +64,13 @@ it.each([
  ['g002-update-inspect','update-inspected'],
  ['g002-update-apply','completed'],
 ])('dispatches %s through fixed factory, opaque runtime and reattestation',async (operation,status)=>{
- const result=await fixture(operation);expect(result.result).toEqual({operation,status});
+ const result=await fixture(operation);expect(result.result).toEqual({operation,status,...(operation==='g001-freeze-census'?{censusAttempt:censusSelector}:{})});
  expect(result.calls).toEqual(['runtime','source','bundle','closure','import','runtime','source','bundle','factory','runtime','source','bundle','run','runtime','source','bundle']);
 });
 it('refuses an extra export before calling the factory',async()=>{await expect(fixture('activation-evidence-inspect','exports')).rejects.toMatchObject({phase:'bundle'});});
+it.each(Object.keys(censusSelector).concat('privateReport'))('rejects an invalid census selector field %s', async field => {
+ await expect(fixture('g001-freeze-census',`selector:${field}`)).rejects.toMatchObject({phase:'result'});
+});
 it('refuses a malformed operation result',async()=>{await expect(fixture('activation-evidence-generate','result')).rejects.toMatchObject({phase:'result'});});
 
 it('rejects mismatched workflow job before the mocked host or authority is reached',async()=>{await expect(fixture('activation-evidence-generate','job')).rejects.toMatchObject({phase:'runtime'});});

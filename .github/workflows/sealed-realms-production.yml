@@ -1,4 +1,5 @@
 name: Sealed Realms Production
+run-name: ${{ inputs.operation }} @ ${{ inputs.source_commit }}
 
 on:
   workflow_dispatch:
@@ -15,6 +16,7 @@ on:
         options:
           - preflight
           - g001-policy-observe
+          - g001-freeze-census
           - g001-census-first
           - g001-census-second-inspect
           - g001-census-second-suspend
@@ -38,6 +40,10 @@ on:
           - ptr-update-inspect
           - ptr-update-apply
           - ptr-state-inspect
+      g001_census_attempt:
+        description: Completed Linux census attempt ID for activation evidence
+        required: false
+        type: string
 
 permissions:
   actions: read
@@ -54,7 +60,7 @@ jobs:
       github.repository == 'ael-dev3/Warpkeep' &&
       github.ref == 'refs/heads/main' &&
       github.sha == inputs.source_commit &&
-      contains(fromJSON('["preflight","activation-evidence-inspect","g001-policy-observe"]'), inputs.operation)
+      contains(fromJSON('["preflight","activation-evidence-inspect","g001-policy-observe","g001-freeze-census"]'), inputs.operation)
     environment: notification-bridge-prepared
     runs-on:
       - self-hosted
@@ -129,8 +135,9 @@ jobs:
           WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: ${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID || '' }}
           WARPKEEP_AUTH_BRIDGE_ZONE_ID: ${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_AUTH_BRIDGE_ZONE_ID || '' }}
           WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: ${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN || '' }}
-          WARPKEEP_PRODUCTION_ADMIN_TOKEN: ${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN || '' }}
+          WARPKEEP_PRODUCTION_ADMIN_TOKEN: ${{ (startsWith(inputs.operation, 'activation-evidence-') || inputs.operation == 'g001-freeze-census') && secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN || '' }}
           WARPKEEP_PTR_SPACETIMEDB_DATABASE: ${{ startsWith(inputs.operation, 'activation-evidence-') && vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE || '' }}
+          WARPKEEP_G001_CENSUS_ATTEMPT: ${{ startsWith(inputs.operation, 'activation-evidence-') && inputs.g001_census_attempt || '' }}
         shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           set -euo pipefail
@@ -201,7 +208,7 @@ jobs:
           # utility argument visible in another process's command line.
           while IFS= read -r key; do
             case "$key" in
-              PATH|HOME|LANG|LC_ALL|RUNNER_OS|RUNNER_ARCH|RUNNER_NAME|RUNNER_TEMP|GITHUB_ACTIONS|GITHUB_REPOSITORY|GITHUB_REF|GITHUB_SHA|GITHUB_EVENT_NAME|GITHUB_JOB|GITHUB_WORKFLOW|GITHUB_WORKFLOW_REF|GITHUB_RUN_ID|GITHUB_RUN_ATTEMPT|GITHUB_TOKEN|WARPKEEP_OPERATION|WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID|WARPKEEP_AUTH_BRIDGE_ZONE_ID|WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN|WARPKEEP_PRODUCTION_ADMIN_TOKEN|WARPKEEP_PTR_SPACETIMEDB_DATABASE) ;;
+              PATH|HOME|LANG|LC_ALL|RUNNER_OS|RUNNER_ARCH|RUNNER_NAME|RUNNER_TEMP|GITHUB_ACTIONS|GITHUB_REPOSITORY|GITHUB_REF|GITHUB_SHA|GITHUB_EVENT_NAME|GITHUB_JOB|GITHUB_WORKFLOW|GITHUB_WORKFLOW_REF|GITHUB_RUN_ID|GITHUB_RUN_ATTEMPT|GITHUB_TOKEN|WARPKEEP_OPERATION|WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID|WARPKEEP_AUTH_BRIDGE_ZONE_ID|WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN|WARPKEEP_PRODUCTION_ADMIN_TOKEN|WARPKEEP_PTR_SPACETIMEDB_DATABASE|WARPKEEP_G001_CENSUS_ATTEMPT) ;;
               *) unset "$key" ;;
             esac
           done < <(compgen -e)
@@ -456,6 +463,7 @@ jobs:
           WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: ${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN || '' }}
           WARPKEEP_PRODUCTION_ADMIN_TOKEN: ${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN || '' }}
           WARPKEEP_PTR_SPACETIMEDB_DATABASE: ${{ startsWith(inputs.operation, 'activation-evidence-') && vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE || '' }}
+          WARPKEEP_G001_CENSUS_ATTEMPT: ${{ startsWith(inputs.operation, 'activation-evidence-') && inputs.g001_census_attempt || '' }}
         shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           set -euo pipefail
@@ -526,7 +534,7 @@ jobs:
           # utility argument visible in another process's command line.
           while IFS= read -r key; do
             case "$key" in
-              PATH|HOME|LANG|LC_ALL|RUNNER_OS|RUNNER_ARCH|RUNNER_NAME|RUNNER_TEMP|GITHUB_ACTIONS|GITHUB_REPOSITORY|GITHUB_REF|GITHUB_SHA|GITHUB_EVENT_NAME|GITHUB_JOB|GITHUB_WORKFLOW|GITHUB_WORKFLOW_REF|GITHUB_RUN_ID|GITHUB_RUN_ATTEMPT|GITHUB_TOKEN|WARPKEEP_OPERATION|WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID|WARPKEEP_AUTH_BRIDGE_ZONE_ID|WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN|WARPKEEP_PRODUCTION_ADMIN_TOKEN|WARPKEEP_PTR_SPACETIMEDB_DATABASE|ACTIONS_ID_TOKEN_REQUEST_URL|ACTIONS_ID_TOKEN_REQUEST_TOKEN) ;;
+              PATH|HOME|LANG|LC_ALL|RUNNER_OS|RUNNER_ARCH|RUNNER_NAME|RUNNER_TEMP|GITHUB_ACTIONS|GITHUB_REPOSITORY|GITHUB_REF|GITHUB_SHA|GITHUB_EVENT_NAME|GITHUB_JOB|GITHUB_WORKFLOW|GITHUB_WORKFLOW_REF|GITHUB_RUN_ID|GITHUB_RUN_ATTEMPT|GITHUB_TOKEN|WARPKEEP_OPERATION|WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID|WARPKEEP_AUTH_BRIDGE_ZONE_ID|WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN|WARPKEEP_PRODUCTION_ADMIN_TOKEN|WARPKEEP_PTR_SPACETIMEDB_DATABASE|WARPKEEP_G001_CENSUS_ATTEMPT|ACTIONS_ID_TOKEN_REQUEST_URL|ACTIONS_ID_TOKEN_REQUEST_TOKEN) ;;
               *) unset "$key" ;;
             esac
           done < <(compgen -e)
@@ -862,7 +870,7 @@ jobs:
       github.repository == 'ael-dev3/Warpkeep' &&
       github.ref == 'refs/heads/main' &&
       github.sha == inputs.source_commit &&
-      !contains(fromJSON('["preflight","activation-evidence-inspect","activation-evidence-generate","g001-policy-observe","ptr-update-inspect","ptr-update-apply","g002-update-inspect","g002-update-apply","ptr-state-inspect"]'), inputs.operation)
+      !contains(fromJSON('["preflight","activation-evidence-inspect","activation-evidence-generate","g001-policy-observe","g001-freeze-census","ptr-update-inspect","ptr-update-apply","g002-update-inspect","g002-update-apply","ptr-state-inspect"]'), inputs.operation)
     runs-on: [self-hosted, Linux, X64, warpkeep-production-admin, warpkeep-repository-exclusive]
     timeout-minutes: 5
     steps:

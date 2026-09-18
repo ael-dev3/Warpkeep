@@ -1,6 +1,6 @@
 import { verifySealedRealmsProductionWorkflowEvidence } from './sealed-realms-production-workflow-evidence.mjs';
 import { randomBytes } from 'node:crypto';
-import { closeSync, constants, existsSync, fstatSync, lstatSync, mkdirSync, openSync, realpathSync } from 'node:fs';
+import { closeSync, constants, existsSync, fsyncSync, fstatSync, lstatSync, mkdirSync, openSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { runLocalBindingBoundedProcess } from './local-binding-runtime-process.mjs';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
@@ -48,9 +48,9 @@ function secretStatus(path, fd) {
     || realpathSync(path) !== path) policyFail();
   return secretIdentity(status);
 }
-function capturePrivateParents() {
+function capturePrivateParents(root = G001_POLICY_ROOT) {
   const values = [];
-  for (let path = G001_POLICY_ROOT;; path = dirname(path)) {
+  for (let path = root;; path = dirname(path)) {
     values.push({ path, identity: policyDirectory(path, path === G001_POLICY_HOME ? 0o750 : 0o700) });
     if (path === G001_POLICY_HOME) break;
   }
@@ -82,6 +82,7 @@ export function assertFixedLinuxG001CensusPreparation(handle) {
 export function disposeFixedLinuxG001PolicyObservation(handle) {
   if (arguments.length !== 1 || active) policyFail();
   const state = requirePreparation(handle);
+  state.adminSecret = undefined;
   if (state.cleanup !== undefined) return;
   state.cleanup = cleanupPolicyRun(state.operationRoot, state.runId);
   state.status = 'disposed';
@@ -93,11 +94,13 @@ export async function prepareFixedLinuxG001PolicyObservation() {
   if (arguments.length !== 0) policyFail();
   return prepare('policy');
 }
-export async function prepareFixedLinuxG001CensusObservation() {
-  if (arguments.length !== 0) policyFail();
-  return prepare('census');
+export async function prepareFixedLinuxG001CensusObservation(adminSecret) {
+  if (arguments.length !== 1 || typeof adminSecret !== 'string'
+    || Buffer.byteLength(adminSecret, 'utf8') < 32 || Buffer.byteLength(adminSecret, 'utf8') > 512
+    || /[\u0000-\u0020\u007f]/u.test(adminSecret)) policyFail();
+  return prepare('census', adminSecret);
 }
-async function prepare(kind) {
+async function prepare(kind, adminSecret) {
   if (active || pending !== undefined) policyFail();
   active = true;
   let operationRoot, runId, retained = false;
@@ -124,7 +127,7 @@ async function prepare(kind) {
     if (JSON.stringify(Object.keys(built)) !== JSON.stringify(['bundleSha256', 'bundleBytes', 'sourceClosureSha256', 'dependencyClosureSha256'])
       || !['bundleSha256', 'sourceClosureSha256', 'dependencyClosureSha256'].every(key => /^[a-f0-9]{64}$/u.test(built[key]))
       || !Number.isSafeInteger(built.bundleBytes) || built.bundleBytes < 1 || built.bundleBytes > 16 * 1024 * 1024) policyFail();
-    const state = { host, source, operationRoot, runId, built, kind, status: 'prepared', cleanup: undefined };
+    const state = { host, source, operationRoot, runId, built, kind, adminSecret, status: 'prepared', cleanup: undefined };
     verifyPreparation(state);
     const handle = Object.freeze({});
     preparations.set(handle, state); pending = handle; retained = true;
@@ -135,7 +138,7 @@ async function prepare(kind) {
       if (!retained && operationRoot !== undefined) {
         try { cleanupPolicyRun(operationRoot, runId); } catch { /* Preserve failed owned source state; never claim cleanup. */ }
       }
-    } finally { active = false; }
+    } finally { adminSecret = undefined; active = false; }
   }
 }
 
@@ -169,13 +172,26 @@ async function execute(handle, evidence, kind) {
       policyPrivateAncestors(attempts);
       mkdirSync(attemptRoot, { mode: 0o700 }); policyPrivateAncestors(attemptRoot);
     }
-    const parents = capturePrivateParents();
-    const secretPath = join(G001_POLICY_ROOT, 'admin-token');
-    const before = secretStatus(secretPath);
+    const secretRoot = kind === 'census' ? operationRoot : G001_POLICY_ROOT;
+    const parents = capturePrivateParents(secretRoot);
+    const secretPath = join(secretRoot, 'admin-token');
     verifySealedRealmsProductionWorkflowEvidence(evidence, source.sourceCommit);
+    if (kind === 'census') {
+      // The ingress copied and scrubbed the existing protected workflow secret.
+      // Only the credential-free build has run so far. This one owned file is
+      // created after refreshed authority, never retained with census evidence.
+      const secret = Buffer.from(state.adminSecret, 'utf8');
+      state.adminSecret = undefined;
+      let writable;
+      try {
+        writable = openSync(secretPath, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0), 0o600);
+        writeFileSync(writable, secret); fsyncSync(writable);
+      } finally { secret.fill(0); if (writable !== undefined) closeSync(writable); }
+    }
+    const before = secretStatus(secretPath);
     secretFd = openSync(secretPath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
     if (JSON.stringify(secretStatus(secretPath, secretFd)) !== JSON.stringify(before)
-      || JSON.stringify(capturePrivateParents()) !== JSON.stringify(parents)) policyFail();
+      || JSON.stringify(capturePrivateParents(secretRoot)) !== JSON.stringify(parents)) policyFail();
     verifySealedRealmsProductionWorkflowEvidence(evidence, source.sourceCommit);
     const observed = await runLocalBindingBoundedProcess(G001_POLICY_NODE, [join(process.cwd(), CHILD)], {
       cwd: process.cwd(), env: G001_POLICY_ENV,
@@ -186,7 +202,7 @@ async function execute(handle, evidence, kind) {
     });
     if (JSON.stringify(secretStatus(secretPath, secretFd)) !== JSON.stringify(before)
       || JSON.stringify(secretStatus(secretPath)) !== JSON.stringify(before)
-      || JSON.stringify(capturePrivateParents()) !== JSON.stringify(parents)) policyFail();
+      || JSON.stringify(capturePrivateParents(secretRoot)) !== JSON.stringify(parents)) policyFail();
     closeSync(secretFd); secretFd = undefined;
     if (observed.stderr !== '') policyFail();
     const receipt = canonicalResult(observed.stdout, kind === 'census' ? 4 * 1024 * 1024 : 32768);
@@ -223,6 +239,7 @@ async function execute(handle, evidence, kind) {
         catch { /* Disposal can retry the authentic owned namespace; no success receipt escapes. */ }
       }
     } finally {
+      state.adminSecret = undefined;
       state.status = 'consumed';
       if (state.cleanup !== undefined && pending === handle) pending = undefined;
       active = false;

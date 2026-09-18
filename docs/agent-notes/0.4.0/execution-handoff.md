@@ -162,10 +162,10 @@ then the gateway. The prepared bridge path preserves production authentication
 and does not depend on a signer preparation receipt. Default bridge configuration
 is not an acceptable replacement for that transition.
 
-Two source gaps still precede full operations: the fixture generator requires
-legacy G002/PTR receipts rather than consuming authenticated preserved-state
-adoption, and G001 census/current-state execution retains unavailable callbacks
-and historical macOS monitor evidence. These are agent implementation work.
+The initial audit found two source gaps: fixture generation depended on legacy
+G002/PTR receipts, and G001 census/current-state execution depended on unavailable
+callbacks and historical macOS monitor evidence. The repairs and remaining
+integration work are recorded below; these are agent implementation tasks.
 Never substitute Linux process absence for a historical monitor-suspension
 receipt, or synthesize old realm publication/import/provision records.
 
@@ -270,10 +270,9 @@ Producer/private-store authentication remains a separate required step.
 Independent review found no blocking issue. The focused root codec/candidate/
 policy suites and service projection suite passed, as did service types; fixed
 regression hashes preserve V2–V5 binding bytes and V1 is untouched. The final
-codec run passed 22 cases. This is an intermediate source checkpoint: live
-service authorization, source authority, activation generation and workflow
-dispatch still reject V6 until the actual Linux producer and consumers are
-integrated. It neither changes the G001 access policy nor suspends player timers.
+codec run passed 22 cases. This format checkpoint neither changes the G001 access
+policy nor suspends player timers. The subsequent producer/public-consumer
+integration follows below; private activation composition remains in progress.
 
 The native census producer now collects both stable samples in one authenticated
 read-only execution. It uses the existing admin session and aggregate-checked
@@ -294,6 +293,36 @@ checks do not claim a production census. Protected admin-token ingress and
 dispatch/activation integration remain required. The public
 result selects an explicit source/workflow/attempt/digest; it does not select the
 newest directory or assert a successful production census.
+
+### Protected Linux census and V6 consumers
+
+`g001-freeze-census` now routes through the existing protected read-only job.
+It reuses the protected admin secret, removes it from the process environment
+before the credential-free build, and passes it to the census child through an
+owned disposable file/descriptor. Cleanup removes that file. The result contains
+only an explicit completed-attempt selector. No persistent policy-token copy,
+Mac suspension receipt or new continuation approval is required.
+
+Activation's completed-run reader authenticates that exact source, workflow run,
+attempt, operation title, successful runner/job and successful execution step.
+It rechecks live activation and the latest census attempt after the intervening
+reads; failed/skipped/superseded runs cannot supply evidence. The private consumer
+must still reopen and compare the selected retained attempt after those reads.
+
+The signer receiver, JWS reader, Pages classifier, Git source authority and
+prepared-closure reader accept the native V6 format while preserving V1–V5
+contracts and the private bridge V5 receipt. The combined dispatch/workflow/source/
+census checks passed 174 Windows tests with 40 Linux-only cases skipped. App
+types passed. Public receiver/projection tests passed 346 cases, the actual
+Git/prepared-closure CLI passed 16, and focused V6 Git-history checks passed two.
+Independent source review found no remaining blocking issue in these slices.
+The live activation scope can now authenticate retained historical Verify
+evidence with its existing token internally, without another login or a new
+workflow identity. Fifteen focused cases pass, including expiry, revocation,
+changed source and an actual run stopping or rerunning during the historical
+reads. Private adoption composition still owns the data-to-current-release join.
+Native execution, private activation composition, regenerated family, protected
+main CI and provider execution remain separate steps; 0.4 is still unshipped.
 
 ### Shipping estimate and next critical work
 

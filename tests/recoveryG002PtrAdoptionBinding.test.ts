@@ -83,6 +83,6 @@ describe('explicit G002 and PTR preserved-state public binding V5', () => {
     const binding = { ...activation.createRecoveryActivationBindingV5(encode(input)) };
     binding.g002ExistingStateAdoptionReceiptCommitment = referenceHash('warpkeep.0.4.0.recovery-sealed-launch.g002ExistingStateAdoptionReceiptCommitment.v4\n', keys.filter(key => !key.endsWith('Commitment')), binding);
     expect(() => activation.parseRecoveryBinding(encode(binding))).toThrow();
-    expect(() => projection.recoveryBindingKeys(6 as 5)).toThrow();
+    expect(() => projection.recoveryBindingKeys(7 as 5)).toThrow();
   });
 });

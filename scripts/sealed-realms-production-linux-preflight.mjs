@@ -22,6 +22,7 @@ const OPERATIONS = Object.freeze({
   'ptr-state-inspect': Object.freeze({ lane: 'ptr', job: 'observe_ptr', run: 'runSealedRealmsProductionPtrOperation', status: 'state-inspected' }),
   preflight: Object.freeze({ lane: 'g001', job: 'operate_readonly', run: 'runSealedRealmsProductionG001Operation', status: 'preflight-inspected' }),
   'g001-policy-observe': Object.freeze({ lane: 'g001', job: 'operate_readonly', run: 'runSealedRealmsProductionG001Operation', status: 'completed' }),
+  'g001-freeze-census': Object.freeze({ lane: 'g001', job: 'operate_readonly', run: 'runSealedRealmsProductionG001Operation', status: 'completed' }),
   'activation-evidence-inspect': Object.freeze({ lane: 'activation', job: 'operate_readonly', run: 'runSealedRealmsProductionActivationOperation', status: 'activation-evidence-inspected' }),
   'activation-evidence-generate': Object.freeze({ lane: 'activation', job: 'operate', run: 'runSealedRealmsProductionActivationOperation', status: 'completed' }),
   'g002-update-inspect': Object.freeze({ lane: 'g002', job: 'operate_g002', run: 'runSealedRealmsProductionG002Operation', status: 'update-inspected' }),
@@ -328,8 +329,24 @@ export async function runSealedRealmsProductionLinuxOperation(input) {
     const result = await loaded[selectedOperation.run]({ runtime: opaque, operation, workflowInputSha });
     phase = 'result';
     runtime(host); source(workflowInputSha); bundle(workflowInputSha, selectedOperation.lane);
-    exact(result, ['operation', 'status'], 'result');
+    exact(result, operation === 'g001-freeze-census' ? ['operation', 'status', 'censusAttempt'] : ['operation', 'status'], 'result');
     if (result.operation !== operation || result.status !== selectedOperation.status) fail('result');
+    if (operation === 'g001-freeze-census') {
+      const selector = exact(result.censusAttempt, ['profile', 'sourceCommit', 'attemptId',
+        'githubRunId', 'githubRunAttempt', 'receiptDigest', 'completedAt', 'mutationSubmitted'], 'result');
+      if (selector.profile !== 'warpkeep-g001-linux-census-completed-v1'
+        || selector.sourceCommit !== workflowInputSha || typeof selector.attemptId !== 'string'
+        || !/^[a-f0-9]{32}$/u.test(selector.attemptId)
+        || typeof selector.githubRunId !== 'string' || !/^[1-9][0-9]{0,19}$/u.test(selector.githubRunId)
+        || selector.githubRunId !== process.env.GITHUB_RUN_ID
+        || typeof selector.githubRunAttempt !== 'string' || !/^(?:[1-9][0-9]{0,2}|1000)$/u.test(selector.githubRunAttempt)
+        || selector.githubRunAttempt !== process.env.GITHUB_RUN_ATTEMPT
+        || typeof selector.receiptDigest !== 'string' || !HEX64.test(selector.receiptDigest)
+        || typeof selector.completedAt !== 'string' || !Number.isFinite(Date.parse(selector.completedAt))
+        || new Date(selector.completedAt).toISOString() !== selector.completedAt
+        || selector.mutationSubmitted !== false) fail('result');
+      return Object.freeze({ operation, status: selectedOperation.status, censusAttempt: Object.freeze({ ...selector }) });
+    }
     return Object.freeze({ operation, status: selectedOperation.status });
   } catch (error) { fail(error?.message === 'SEALED_REALMS_LINUX_PREFLIGHT_FAILED' ? error.phase : phase); }
   finally { active = false; }

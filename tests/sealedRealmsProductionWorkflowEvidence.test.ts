@@ -25,6 +25,7 @@ import {
   refreshSealedRealmsProductionRetainedEvidence as refreshRetained,
   verifySealedRealmsProductionRetainedEvidence as verifyRetained,
   revokeSealedRealmsProductionRetainedEvidence as revokeRetained,
+  createSealedRealmsProductionActivationRetainedEvidence as createActivationRetained,
 } from '../scripts/sealed-realms-production-workflow-evidence.mjs';
 import { parseWorkflowEvidenceJson } from '../scripts/sealed-realms-production-workflow-evidence-json.mjs';
 
@@ -223,6 +224,101 @@ describe.sequential('authenticated retained Verify transport at the native bound
         expect(() => evidence.verifySealedRealmsProductionRetainedEvidence(scope, f.parent)).toThrow(/SCOPE_INVALID/u);
       }
     }, 60_000);
+});
+
+describe.sequential('retained Verify evidence derived from a live activation scope', () => {
+  it.each(['activation-evidence-inspect', 'activation-evidence-generate'])(
+    'reuses genuine %s transport and jointly refreshes without accepting another token', async operation => {
+      const f = fixture(true);
+      vi.stubEnv('WARPKEEP_OPERATION', operation);
+      vi.stubEnv('GITHUB_JOB', operation === 'activation-evidence-generate' ? 'operate' : 'operate_readonly');
+      const parent = await create({ workflowInputSha: f.commit });
+      const replacement = vi.fn(async () => { throw Error('replacement transport must not run'); });
+      vi.stubGlobal('fetch', replacement);
+      const child = await createActivationRetained({ workflowEvidence: parent, sourceCommits: [f.parent] });
+      expect(verifyRetained(child, f.parent)).toEqual({ verifiedSha: f.parent });
+      expect(verifyRetained(child, f.commit)).toEqual({ verifiedSha: f.commit });
+      expect(() => verify(child as never, f.commit)).toThrow('SCOPE_INVALID');
+      expect(replacement).not.toHaveBeenCalled();
+      for (const [, options] of f.fetch.mock.calls) {
+        expect(options.method).toBe('GET');
+        expect(new Headers(options.headers).get('authorization')).toBe('Bearer fixture-' + 'x'.repeat(32));
+      }
+      await refresh(parent);
+      expect(() => verifyRetained(child, f.parent)).toThrow();
+      await refreshRetained(child);
+      expect(verify(parent, f.commit)).toEqual({ verifiedSha: f.commit });
+      expect(verifyRetained(child, f.parent)).toEqual({ verifiedSha: f.parent });
+      revoke(parent);
+      expect(() => verifyRetained(child, f.parent)).toThrow('SCOPE_INVALID');
+      await expect(refreshRetained(child)).rejects.toThrow('SCOPE_INVALID');
+    }, 60_000);
+
+  it.each(['forged', 'non-activation', 'extra-token', 'revoked', 'stale'])(
+    'refuses %s parent/input before retained GitHub requests', async scenario => {
+      const f = fixture(true); let clock = 0;
+      vi.spyOn(performance, 'now').mockImplementation(() => clock);
+      if (scenario !== 'non-activation') vi.stubEnv('WARPKEEP_OPERATION', 'activation-evidence-inspect');
+      const parent = await create({ workflowInputSha: f.commit });
+      if (scenario === 'revoked') revoke(parent);
+      if (scenario === 'stale') clock = 30001;
+      f.fetch.mockClear();
+      await expect(createActivationRetained({ workflowEvidence: scenario === 'forged' ? {} as never : parent,
+        sourceCommits: [f.parent], ...(scenario === 'extra-token' ? { githubToken: 'caller-token' } : {}) })).rejects.toThrow();
+      expect(f.fetch).not.toHaveBeenCalled();
+      if (scenario !== 'revoked') revoke(parent);
+    }, 60_000);
+
+  it.each(['revoked', 'changed-context', 'changed-local-source', 'expired', 'concurrent-parent-refresh'])(
+    'rejects a parent that becomes %s during retained readback instead of minting usable history', async scenario => {
+      const f = fixture(true); let clock = 0, requests = 0;
+      vi.spyOn(performance, 'now').mockImplementation(() => clock);
+      vi.stubEnv('WARPKEEP_OPERATION', 'activation-evidence-inspect');
+      const parent = await create({ workflowInputSha: f.commit });
+      f.override.respond = async (url, value) => {
+        // Derived creation refreshes the real parent first; the second repo GET
+        // starts the retained read. Mutate only that awaited boundary.
+        if (url === API && ++requests === 2) {
+          if (scenario === 'revoked') revoke(parent);
+          if (scenario === 'changed-context') vi.stubEnv('GITHUB_RUN_ATTEMPT', '2');
+          if (scenario === 'changed-local-source') git(f.root, ['update-ref', 'HEAD', f.parent]);
+          if (scenario === 'expired') clock = 30001;
+          if (scenario === 'concurrent-parent-refresh') await refresh(parent);
+        }
+        return response(url, value);
+      };
+      await expect(createActivationRetained({ workflowEvidence: parent, sourceCommits: [f.parent] })).rejects.toThrow();
+      expect(requests).toBeGreaterThanOrEqual(2);
+      if (scenario !== 'revoked') revoke(parent);
+    }, 60_000);
+
+  it.each(['stopped', 'new-attempt'])('rejects an actual parent run that becomes %s during historical reads', async scenario => {
+    const f = fixture(true); let loads = 0, changed = false;
+    vi.stubEnv('WARPKEEP_OPERATION', 'activation-evidence-inspect');
+    const parent = await create({ workflowInputSha: f.commit });
+    f.override.respond = (url, value) => {
+      if (url === API) loads += 1;
+      if (loads === 2 && url.includes(`/actions/workflows/verify.yml/runs?`) && !changed) {
+        changed = true;
+        if (scenario === 'stopped') { f.operation.status = 'completed'; f.operation.conclusion = 'cancelled'; }
+        else f.operation.run_attempt = 2;
+      }
+      return response(url, value);
+    };
+    await expect(createActivationRetained({ workflowEvidence: parent, sourceCommits: [f.parent] })).rejects.toThrow();
+    expect(changed).toBe(true);
+    revoke(parent);
+  }, 60_000);
+
+  it('revoking only a derived reader does not invalidate the parent activation scope', async () => {
+    const f = fixture(true); vi.stubEnv('WARPKEEP_OPERATION', 'activation-evidence-inspect');
+    const parent = await create({ workflowInputSha: f.commit });
+    const child = await createActivationRetained({ workflowEvidence: parent, sourceCommits: [f.parent] });
+    revokeRetained(child);
+    expect(() => verifyRetained(child, f.parent)).toThrow('SCOPE_INVALID');
+    expect(verify(parent, f.commit)).toEqual({ verifiedSha: f.commit });
+    revoke(parent);
+  }, 60_000);
 });
 
 describe.sequential('fixed workflow Verify evidence', () => {

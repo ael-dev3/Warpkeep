@@ -15,6 +15,11 @@ export function runSealedRealmsProductionLinuxPreflight(input: Readonly<{
   operation: 'preflight'; workflowInputSha: string;
 }>): Promise<Readonly<{ operation: 'preflight'; status: 'preflight-inspected' }>>;
 
+export function runSealedRealmsProductionLinuxOperation(input: Readonly<{
+  operation: 'g001-freeze-census'; workflowInputSha: string;
+}>): Promise<Readonly<{ operation: 'g001-freeze-census'; status: 'completed';
+  censusAttempt: import('./genesis001-linux-census-attempt.mjs').Genesis001LinuxCensusSelector }>>;
+
 /** Fixed dispatch; unwired provider operations are refused before runtime work. */
 export function runSealedRealmsProductionLinuxOperation(input: Readonly<{
   operation: 'preflight' | 'activation-evidence-inspect' | 'activation-evidence-generate' | 'g001-policy-observe'

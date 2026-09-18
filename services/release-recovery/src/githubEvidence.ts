@@ -264,8 +264,7 @@ export const RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V5: Readonly<Record<string, str
 const V5_COMMITMENT_KEYS = new Set(['g001FreezePublishReceiptCommitment', ...Object.keys(RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V5)])
 const V5_RECEIPT_SNAPSHOT_KEYS = RECOVERY_BINDING_KEYS_V5.filter(key => !V5_COMMITMENT_KEYS.has(key))
 
-// Pure V6 wire projection only. validateBinding continues to reject V6 until
-// the complete native evidence producer and deployment consumers are integrated.
+// V6 commits Linux server-freeze evidence without claiming a Mac monitor state.
 export const RECOVERY_BINDING_KEYS_V6: readonly string[] = Object.freeze(RECOVERY_BINDING_KEYS_V5.flatMap(key =>
   key === 'admissionMonitorSuspensionReceiptDigest' ? [
     'g001AdmissionControlProfile',
@@ -279,6 +278,8 @@ export const RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V6: Readonly<Record<string, str
   g001FreezeConfirmationReceiptCommitment: 'g001FreezeConfirmationReceiptDigest',
   g001FreezeCurrentStateReceiptCommitment: 'g001FreezeCurrentStateReceiptDigest',
 })
+const V6_COMMITMENT_KEYS = new Set(['g001FreezePublishReceiptCommitment', ...Object.keys(RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V6)])
+const V6_RECEIPT_SNAPSHOT_KEYS = RECOVERY_BINDING_KEYS_V6.filter(key => !V6_COMMITMENT_KEYS.has(key))
 
 export type GitHubCandidateEvidence = Readonly<{
   currentMainCommit: string
@@ -821,13 +822,13 @@ function bindingRealmProjection(binding: GitHubJsonObject): RecoveryRealmBinding
     ptrExpectedReleaseSha256: binding.ptrExpectedReleaseSha256,
     ptrReleaseHeaderSha256: binding.ptrReleaseHeaderSha256,
     ptrVerificationDigest: binding.ptrVerificationDigest,
-    ...(binding.schemaVersion === 4 || binding.schemaVersion === 5 ? {
+    ...(binding.schemaVersion === 4 || binding.schemaVersion === 5 || binding.schemaVersion === 6 ? {
       ptrStateEvidenceProfile: 'warpkeep-ptr-existing-state-adoption-v1',
       ptrExistingStateAdoptionReceiptDigest: binding.ptrExistingStateAdoptionReceiptDigest,
       ptrExpectedSealedStateHmacSha256: binding.ptrExpectedSealedStateHmacSha256,
       ptrExpectedOwnerInvariantHmacSha256: binding.ptrExpectedOwnerInvariantHmacSha256,
     } : {}),
-    ...(binding.schemaVersion === 5 ? {
+    ...(binding.schemaVersion === 5 || binding.schemaVersion === 6 ? {
       g002StateEvidenceProfile: 'warpkeep-g002-existing-state-adoption-v1',
       g002ExistingStateAdoptionReceiptDigest: binding.g002ExistingStateAdoptionReceiptDigest,
       g002ExpectedSealedStateHmacSha256: binding.g002ExpectedSealedStateHmacSha256,
@@ -855,13 +856,14 @@ async function validateBinding(
   bindingRequestId: unknown,
 ): Promise<RecoveryRealmBindingProjection> {
   const binding = parseGitHubJsonObject(bytes, 'RECOVERY_GITHUB_EVIDENCE_INVALID', [])
-  if (binding.schemaVersion !== 2 && binding.schemaVersion !== 3 && binding.schemaVersion !== 4 && binding.schemaVersion !== 5) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  if (binding.schemaVersion !== 2 && binding.schemaVersion !== 3 && binding.schemaVersion !== 4 && binding.schemaVersion !== 5 && binding.schemaVersion !== 6) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   const update = binding.schemaVersion === 3
-  const dualAdoption = binding.schemaVersion === 5
+  const linuxFreeze = binding.schemaVersion === 6
+  const dualAdoption = binding.schemaVersion === 5 || linuxFreeze
   const adoption = binding.schemaVersion === 4 || dualAdoption
-  const bindingKeys = dualAdoption ? RECOVERY_BINDING_KEYS_V5 : adoption ? RECOVERY_BINDING_KEYS_V4 : update ? RECOVERY_BINDING_KEYS_V3 : BINDING_KEYS
-  const receiptKeys = dualAdoption ? V5_RECEIPT_SNAPSHOT_KEYS : adoption ? V4_RECEIPT_SNAPSHOT_KEYS : update ? V3_RECEIPT_SNAPSHOT_KEYS : RECEIPT_SNAPSHOT_KEYS
-  const commitments = dualAdoption ? RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V5 : adoption ? RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V4 : update ? RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V3 : RECEIPT_COMMITMENTS
+  const bindingKeys = linuxFreeze ? RECOVERY_BINDING_KEYS_V6 : dualAdoption ? RECOVERY_BINDING_KEYS_V5 : adoption ? RECOVERY_BINDING_KEYS_V4 : update ? RECOVERY_BINDING_KEYS_V3 : BINDING_KEYS
+  const receiptKeys = linuxFreeze ? V6_RECEIPT_SNAPSHOT_KEYS : dualAdoption ? V5_RECEIPT_SNAPSHOT_KEYS : adoption ? V4_RECEIPT_SNAPSHOT_KEYS : update ? V3_RECEIPT_SNAPSHOT_KEYS : RECEIPT_SNAPSHOT_KEYS
+  const commitments = linuxFreeze ? RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V6 : dualAdoption ? RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V5 : adoption ? RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V4 : update ? RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V3 : RECEIPT_COMMITMENTS
   if (
     Object.keys(binding).length !== bindingKeys.length
     || bindingKeys.some((key, index) => Object.keys(binding)[index] !== key)
@@ -874,7 +876,7 @@ async function validateBinding(
   }
   if (!equalBytes(bytes, canonical)) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   if (
-    binding.profile !== (dualAdoption ? 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5' : adoption ? 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4' : update ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' : BINDING_PROFILE)
+    binding.profile !== (linuxFreeze ? 'warpkeep-0.4.0-sealed-launch-g001-linux-freeze-v6' : dualAdoption ? 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5' : adoption ? 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4' : update ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' : BINDING_PROFILE)
     || binding.authorizationMode !== AUTHORIZATION_MODE
     || binding.authorizationMode !== armed.authorizationMode
     || binding.recoveryAuthorizationProfile !== AUTHORIZATION_PROFILE
@@ -924,6 +926,19 @@ async function validateBinding(
     || binding.g001FreezePublishReceiptCommitment !== null
   ) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
 
+  if (linuxFreeze && (
+    binding.g001AdmissionControlProfile !== 'warpkeep-genesis-001-server-freeze-v1'
+    || binding.g001SourceBaselineCommit !== '2ae51984e1fa6ce5b0028c1a250359fed79d819b'
+    || binding.g001BaselineAbiSha256 !== 'cb7d69d2bed316702ffa1aa8696a4e1ca1934a775b8312129b305a9c33eb0e03'
+    || binding.g001FreezeReleaseNonce !== '3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00'
+    || binding.g001PolicyReceiptDigest !== 'acf64ca8f02dcfc1e2a162067d2132d02a7155bebe8895c56a85dbbfefd35b60'
+    || binding.g001ReleaseVersion !== '0.3.43' || binding.g001PlayerAccessEnabled !== true
+    || binding.g001AdmissionStateMutationsEnabled !== false || binding.g001AccessRequestSubmissionsEnabled !== false
+    || binding.g001PolicySourceCommit !== binding.preparationSourceCommit
+    || binding.g001CensusPrivacySafeReceiptProfile !== 'warpkeep-genesis-001-census-export-privacy-safe-v1'
+    || binding.g001AdmittedPlayerCensusReceiptProfile !== 'warpkeep-genesis-001-admitted-player-census-privacy-safe-v1'
+  )) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+
   if (adoption && (
     binding.ptrReleaseVersion !== '0.4.0-ptr.1' || binding.ptrAtlasReady !== true
     || binding.ptrSealed !== true || binding.ptrPopulationGuardPassed !== true
@@ -945,7 +960,7 @@ async function validateBinding(
   for (const [commitmentKey, digestKey] of Object.entries(commitments)) {
     if (!sha(source[digestKey]) || !sha(source[commitmentKey])) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     const expected = await sha256Hex(
-      `warpkeep.0.4.0.recovery-sealed-launch.${commitmentKey}.v${dualAdoption ? 5 : adoption ? 4 : update ? 3 : 2}\n`,
+      `warpkeep.0.4.0.recovery-sealed-launch.${commitmentKey}.v${binding.schemaVersion}\n`,
       serializeExactObject(receiptKeys, receiptSnapshot as never),
     )
     if (source[commitmentKey] !== expected) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
@@ -956,7 +971,7 @@ async function validateBinding(
   const coreProjection: Record<string, JsonValue> = Object.create(null)
   for (const key of bindingKeys) coreProjection[key] = key === 'recoveryAuthorizationCoreSha256' ? null : source[key]!
   const expectedCore = await sha256Hex(
-    `warpkeep.0.4.0.recovery-authorization-core.v${dualAdoption ? 5 : adoption ? 4 : update ? 3 : 1}\n`,
+    `warpkeep.0.4.0.recovery-authorization-core.v${binding.schemaVersion === 2 ? 1 : binding.schemaVersion}\n`,
     serializeExactObject(bindingKeys, coreProjection as never),
   )
   if (binding.recoveryAuthorizationCoreSha256 !== expectedCore) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')

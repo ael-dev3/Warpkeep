@@ -3,11 +3,17 @@ import { createHash } from 'node:crypto';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
+const fixed = vi.hoisted(() => ({ root: `${process.env.TEMP ?? '/tmp'}/warpkeep-census-selected-${Date.now()}-${Math.random().toString(16).slice(2)}` }));
+// Substitute only the production root/ancestor host boundary. The selected
+// record, complete file identity and every supporting byte use real files.
+vi.mock('../scripts/genesis001-linux-policy-boundary.mjs', async original => ({
+  ...await original<object>(), G001_POLICY_ROOT: fixed.root, policyPrivateAncestors: () => {},
+}));
 import { collectGenesis001AdmittedPlayerCensus } from '../scripts/genesis001-admitted-player-census.mjs';
 import { createGenesis001LinuxCensusSample, validateGenesis001LinuxCensusPair, createGenesis001LinuxCensusAttempt,
   verifyGenesis001LinuxCensusAttempt, retainGenesis001LinuxCensusRecord,
-  verifyGenesis001LinuxCensusRetainedSamples } from '../scripts/genesis001-linux-census-attempt.mjs';
+  verifyGenesis001LinuxCensusRetainedSamples, readFixedLinuxG001CensusAttempt } from '../scripts/genesis001-linux-census-attempt.mjs';
 import { GENESIS_001_DATABASE_IDENTITY, GENESIS_001_FREEZE_RELEASE_NONCE, GENESIS_001_SOURCE_BASELINE_COMMIT,
   genesis001CensusOpaqueProofDigest, genesis001PolicyReceiptDigest } from '../scripts/genesis001-sealed-launch-adoption.mjs';
 import { linuxG001PolicyExecution } from './fixtures/linuxG001PolicyReceipt';
@@ -76,6 +82,10 @@ it.each(['source', 'workflow', 'record', 'policy', 'digest', 'run'] as const)('r
   if (damage === 'run') value.attemptId = '9'.repeat(32);
   expect(() => verifyGenesis001LinuxCensusAttempt(value)).toThrow();
 });
+it.each(['githubRunId', 'githubRunAttempt'])('rejects a numeric JSON %s instead of the canonical string identifier', async key => {
+  const input = await collected();
+  expect(() => createGenesis001LinuxCensusAttempt({ ...input, [key]: 1234 }, linuxG001PolicyExecution(observation(0)), stamp(64000))).toThrow();
+});
 it('rejects expired consumption, unobserved current state and backwards/equal policy timestamps', async () => {
   const input = await collected(), execution = linuxG001PolicyExecution(observation(0));
   expect(() => createGenesis001LinuxCensusAttempt({ ...input, consumedAt: stamp(361000) }, execution, stamp(362000))).toThrow();
@@ -103,4 +113,31 @@ it.runIf(process.platform === 'linux')('retains evidence without overwriting and
     writeFileSync(join(root, 'second', input.second.applicant.privateCensusReference.pathBasename), 'altered', { mode: 0o600 });
     expect(() => verifyGenesis001LinuxCensusRetainedSamples(root, input.first, input.second, SOURCE)).toThrow();
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+it.runIf(process.platform === 'linux' && process.getuid?.() === 1000)('reopens only an explicit complete attempt and rejects missing, foreign or changed retained bytes', async () => {
+  const input = await collected(), root = join(fixed.root, 'attempts', input.attemptId);
+  mkdirSync(root, { recursive: true, mode: 0o700 });
+  try {
+    for (const kind of ['first', 'second'] as const) {
+      const value = input[kind], privateRoot = join(root, kind), reference = value.applicant.privateCensusReference;
+      mkdirSync(privateRoot, { mode: 0o700 });
+      writeFileSync(join(privateRoot, reference.pathBasename), 'private', { mode: 0o600 });
+      writeFileSync(join(privateRoot, reference.pathBasename.replace('census-', 'census-export-reference-').replace('.txt', '.json')),
+        `${JSON.stringify(reference)}\n`, { mode: 0o600 });
+      writeFileSync(join(privateRoot, `genesis-001-census-privacy-safe-${value.applicant.opaqueProofDigest}.json`),
+        `${JSON.stringify(value.applicant, null, 2)}\n`, { mode: 0o600 });
+      retainGenesis001LinuxCensusRecord(root, `${kind}.json`, value);
+    }
+    expect(() => readFixedLinuxG001CensusAttempt(input.attemptId, SOURCE)).toThrow();
+    const complete = createGenesis001LinuxCensusAttempt(input, linuxG001PolicyExecution(observation(0)), stamp(64000));
+    retainGenesis001LinuxCensusRecord(root, 'complete.json', complete);
+    const opened = readFixedLinuxG001CensusAttempt(input.attemptId, SOURCE);
+    expect(opened.selector).toMatchObject({ attemptId: input.attemptId, sourceCommit: SOURCE, githubRunId: '1234', receiptDigest: complete.receiptDigest });
+    expect(opened.receipt).toEqual(complete);
+    expect(() => readFixedLinuxG001CensusAttempt(input.attemptId, 'b'.repeat(40))).toThrow();
+    expect(() => readFixedLinuxG001CensusAttempt('../latest', SOURCE)).toThrow();
+    expect(() => readFixedLinuxG001CensusAttempt('9'.repeat(32), SOURCE)).toThrow();
+    writeFileSync(join(root, 'second.json'), '{}\n', { mode: 0o600 });
+    expect(() => readFixedLinuxG001CensusAttempt(input.attemptId, SOURCE)).toThrow();
+  } finally { rmSync(fixed.root, { recursive: true, force: true }); }
 });

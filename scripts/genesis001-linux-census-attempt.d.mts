@@ -13,3 +13,11 @@ export function createGenesis001LinuxCensusAttempt(value: unknown, execution: un
 export function verifyGenesis001LinuxCensusAttempt(value: unknown): Readonly<Record<string, any>>;
 export function retainGenesis001LinuxCensusRecord(root: string, basename: 'first.json' | 'second.json' | 'complete.json', value: unknown): void;
 export function verifyGenesis001LinuxCensusRetainedSamples(root: string, first: unknown, second: unknown, sourceCommit: string): void;
+export type Genesis001LinuxCensusSelector = Readonly<{
+  profile: 'warpkeep-g001-linux-census-completed-v1'; sourceCommit: string; attemptId: string;
+  githubRunId: string; githubRunAttempt: string; receiptDigest: string; completedAt: string; mutationSubmitted: false;
+}>;
+/** Data only; the caller must attest the exact successful protected workflow and reopen after awaiting it. */
+export function readFixedLinuxG001CensusAttempt(attemptId: string, sourceCommit: string): Readonly<{
+  selector: Genesis001LinuxCensusSelector; receipt: Readonly<Record<string, any>>;
+}>;

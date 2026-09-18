@@ -12,6 +12,7 @@ type WorkflowAuthorityModule = Readonly<{
   issueSealedRealmsProductionWorkflowPermit?: (input: Record<string, unknown>) => Promise<object>;
   attestSealedRealmsProductionWorkflowPermit?: (input: Record<string, unknown>) => Promise<true>;
   assertSealedRealmsProductionWorkflowPermit?: (permit: unknown) => unknown;
+  attestSealedRealmsProductionCompletedCensusRun?: (input: Record<string, unknown>) => Promise<true>;
 }>;
 
 async function workflowAuthorityModule(): Promise<WorkflowAuthorityModule> {
@@ -101,6 +102,97 @@ function github(options: Readonly<{
   });
   return { fetchImpl, calls };
 }
+
+async function censusFixture(scenario = 'success', operation = 'activation-evidence-generate') {
+  const module = await workflowAuthorityModule();
+  let censusReads = 0, afterJobs = false, rerunDuringReattestation = false;
+  const remote = github({
+    mutateBranch: branch => {
+      if (afterJobs && scenario === 'main-advanced') branch.commit = { sha: A };
+      if (afterJobs && scenario === 'rerun-during-reattest') rerunDuringReattestation = true;
+    },
+    mutateRun: run => { if (afterJobs && scenario === 'activation-stopped') run.status = 'completed'; },
+  });
+  const authority = sourceAuthority(operation);
+  const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (!url.includes('/actions/runs/900/')) {
+      if (!url.endsWith('/actions/runs/900')) return remote.fetchImpl(input, init);
+    }
+    if (url.endsWith('/jobs?per_page=100&page=1')) {
+      afterJobs = true;
+      const job = { name: 'operate_readonly', run_id: 900, run_attempt: 1,
+        status: 'completed', conclusion: 'success', head_sha: S, head_branch: 'main',
+        runner_name: 'warpkeep-wsl-production-01',
+        labels: ['self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive'],
+        steps: [{ name: 'Attest runtime and execute authenticated operation', status: 'completed', conclusion: 'success' }],
+      };
+      if (scenario === 'wrong-job') job.name = 'operate';
+      if (scenario === 'wrong-runner') job.runner_name = 'unrelated';
+      if (scenario === 'wrong-labels') job.labels.pop();
+      if (scenario === 'wrong-job-source') job.head_sha = A;
+      if (scenario === 'wrong-job-attempt') job.run_attempt = 2;
+      if (scenario === 'job-skipped') job.conclusion = 'skipped';
+      if (scenario === 'step-skipped') job.steps[0].conclusion = 'skipped';
+      if (scenario === 'step-missing') job.steps = [];
+      return response(url, { total_count: scenario === 'truncated-jobs' ? 101 : scenario === 'duplicate-job' ? 2 : 1,
+        jobs: scenario === 'duplicate-job' ? [job, job] : [job] });
+    }
+    censusReads++;
+    const run = { id: 900, run_attempt: 1, event: 'workflow_dispatch', status: 'completed', conclusion: 'success',
+      head_branch: 'main', head_sha: S, path: WORKFLOW_PATH, name: 'Sealed Realms Production',
+      display_title: `g001-freeze-census @ ${S}`, repository: { full_name: REPOSITORY } };
+    if (scenario === 'failed-census') run.conclusion = 'failure';
+    if (scenario === 'live-census') run.status = 'in_progress';
+    if (scenario === 'wrong-operation') run.display_title = `g001-policy-observe @ ${S}`;
+    if (scenario === 'wrong-workflow') run.path = '.github/workflows/verify.yml';
+    if (scenario === 'wrong-repo') run.repository.full_name = 'different/Warpkeep';
+    if (scenario === 'wrong-source') run.head_sha = A;
+    if (scenario === 'wrong-branch') run.head_branch = 'other';
+    if (scenario === 'rerun-after-jobs' && censusReads === 3) run.run_attempt = 2;
+    if (rerunDuringReattestation) run.run_attempt = 2;
+    if (scenario === 'attempt-failed' && url.endsWith('/attempts/1')) run.conclusion = 'failure';
+    return response(url, run);
+  });
+  const permit = await module.issueSealedRealmsProductionWorkflowPermit!({ sourceAuthority: authority,
+    githubToken: 'github-sealed-realms-owner-token', runId: '1001', runAttempt: '1', fetchImpl });
+  return { module, fetchImpl, input: { permit, sourceAuthority: authority, censusRunId: '900', censusRunAttempt: '1' } };
+}
+
+describe('completed Linux census provenance', () => {
+  it.each(['activation-evidence-inspect', 'activation-evidence-generate'])('joins exact successful census to live %s', async operation => {
+    const f = await censusFixture('success', operation);
+    await expect(f.module.attestSealedRealmsProductionCompletedCensusRun!(f.input)).resolves.toBe(true);
+    const paths = f.fetchImpl.mock.calls.map(([url]) => String(url));
+    expect(paths.filter(path => path.endsWith('/actions/runs/900'))).toHaveLength(2);
+    expect(paths).toContain(`https://api.github.com/repos/${REPOSITORY}/actions/runs/900/attempts/1/jobs?per_page=100&page=1`);
+    expect(f.fetchImpl.mock.calls.every(([, init]) => init?.method === 'GET')).toBe(true);
+  });
+  it.each(['failed-census', 'live-census', 'wrong-operation', 'wrong-workflow', 'wrong-repo', 'wrong-source',
+    'wrong-branch', 'rerun-after-jobs', 'rerun-during-reattest', 'attempt-failed', 'wrong-job', 'wrong-runner', 'wrong-labels',
+    'wrong-job-source', 'wrong-job-attempt', 'job-skipped', 'step-skipped', 'step-missing', 'truncated-jobs',
+    'duplicate-job', 'main-advanced', 'activation-stopped'])('rejects %s instead of consuming retained data', async scenario => {
+    const f = await censusFixture(scenario);
+    await expect(f.module.attestSealedRealmsProductionCompletedCensusRun!(f.input)).rejects.toThrow(/SEALED_REALMS_WORKFLOW_AUTHORITY_/u);
+  });
+  it.each(['g001-freeze-census', 'ptr-state-inspect', 'preflight'])('refuses a %s permit before census reads', async operation => {
+    const f = await censusFixture('success', operation), before = f.fetchImpl.mock.calls.length;
+    await expect(f.module.attestSealedRealmsProductionCompletedCensusRun!(f.input)).rejects.toThrow('PERMIT_INVALID');
+    expect(f.fetchImpl).toHaveBeenCalledTimes(before);
+  });
+  it.each(['copy', 'same-run', 'extra', 'getter', 'foreign-source', 'bad-attempt'])('rejects malformed %s selector before reads', async scenario => {
+    const f = await censusFixture(), before = f.fetchImpl.mock.calls.length;
+    const input: Record<string, unknown> = { ...f.input }, getter = vi.fn();
+    if (scenario === 'copy') input.permit = { ...f.input.permit };
+    if (scenario === 'same-run') input.censusRunId = '1001';
+    if (scenario === 'extra') input.sourceCommit = S;
+    if (scenario === 'getter') Object.defineProperty(input, 'censusRunId', { enumerable: true, get: getter });
+    if (scenario === 'foreign-source') input.sourceAuthority = sourceAuthority('activation-evidence-generate');
+    if (scenario === 'bad-attempt') input.censusRunAttempt = '1001';
+    await expect(f.module.attestSealedRealmsProductionCompletedCensusRun!(input)).rejects.toThrow();
+    expect(getter).not.toHaveBeenCalled(); expect(f.fetchImpl).toHaveBeenCalledTimes(before);
+  });
+});
 
 function requireExports(module: WorkflowAuthorityModule) {
   expect(module.issueSealedRealmsProductionWorkflowPermit).toBeTypeOf('function');

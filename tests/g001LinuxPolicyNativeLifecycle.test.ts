@@ -55,7 +55,7 @@ vi.mock('node:fs', async original => {
   };
 });
 vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
-  const { writeFileSync } = await import('node:fs');
+  const { readFileSync, writeFileSync } = await import('node:fs');
   const { join } = await import('node:path');
   return { runLocalBindingBoundedProcess: async (_executable: string, args: string[], options: any) => {
     expect(JSON.stringify({ args, env: options.env, request: options.fd3 })).not.toContain('synthetic-credential');
@@ -71,6 +71,8 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
     const request = JSON.parse(options.fd3);
     if (request.kind === 'census') {
       expect(options.timeout).toBe(600000); expect(options.maxOutput).toBe(4 * 1024 * 1024);
+      expect(readFileSync(options.inheritedFd4, 'utf8')).toBe('synthetic-workflow-census-credential-000000');
+      expect(JSON.stringify({ args, env: options.env, request: options.fd3 })).not.toContain('synthetic-workflow-census-credential');
       return { stdout: JSON.stringify({ sourceCommit: fixture.source.sourceCommit, mutationSubmitted: false,
         repositoryRoot: process.cwd(), attemptId: request.runId, githubRunId: fixture.censusMismatch ? '999' : request.githubRunId,
         githubRunAttempt: request.githubRunAttempt, first: {}, second: {} }) + '\n', stderr: '' };
@@ -135,7 +137,7 @@ describe('opaque policy preparation and final descriptor boundary', () => {
   });
   it('retains a complete census only after exact readback/cleanup and returns no private collection data', async () => {
     vi.stubEnv('WARPKEEP_OPERATION', 'g001-freeze-census'); vi.stubEnv('GITHUB_RUN_ID', '1234'); vi.stubEnv('GITHUB_RUN_ATTEMPT', '1');
-    const handle = await prepareFixedLinuxG001CensusObservation();
+    const handle = await prepareFixedLinuxG001CensusObservation('synthetic-workflow-census-credential-000000');
     assertFixedLinuxG001CensusPreparation(handle);
     expect(() => assertFixedLinuxG001PolicyPreparation(handle as never)).toThrow();
     await expect(executeFixedLinuxG001PolicyObservation(handle as never, fixture.source as never)).rejects.toThrow();
@@ -150,7 +152,7 @@ describe('opaque policy preparation and final descriptor boundary', () => {
   });
   it.each(['censusMismatch', 'retainedChanged', 'childFailed'] as const)('leaves a failed census unselected after %s', async mode => {
     vi.stubEnv('WARPKEEP_OPERATION', 'g001-freeze-census'); vi.stubEnv('GITHUB_RUN_ID', '1234'); vi.stubEnv('GITHUB_RUN_ATTEMPT', '1');
-    const handle = await prepareFixedLinuxG001CensusObservation(); fixture[mode] = true;
+    const handle = await prepareFixedLinuxG001CensusObservation('synthetic-workflow-census-credential-000000'); fixture[mode] = true;
     await expect(executeFixedLinuxG001CensusObservation(handle, fixture.source as never)).rejects.toThrow();
     expect(fixture.calls).not.toContain('retain-complete'); expect(fixture.cleanup).toBe(1);
     expect(() => fstatSync(fixture.fd!)).toThrow();
@@ -158,9 +160,22 @@ describe('opaque policy preparation and final descriptor boundary', () => {
   });
   it('refuses a missing workflow identity before opening the census administrator credential', async () => {
     vi.stubEnv('WARPKEEP_OPERATION', 'g001-freeze-census'); vi.stubEnv('GITHUB_RUN_ID', ''); vi.stubEnv('GITHUB_RUN_ATTEMPT', '1');
-    const handle = await prepareFixedLinuxG001CensusObservation();
+    const handle = await prepareFixedLinuxG001CensusObservation('synthetic-workflow-census-credential-000000');
     await expect(executeFixedLinuxG001CensusObservation(handle, fixture.source as never)).rejects.toThrow();
     expect(fixture.opened).toBe(0); expect(fixture.calls).toEqual(['build']);
     disposeFixedLinuxG001PolicyObservation(handle);
+  });
+  it('does not materialize the copied census credential after workflow evidence expires', async () => {
+    vi.stubEnv('WARPKEEP_OPERATION', 'g001-freeze-census'); vi.stubEnv('GITHUB_RUN_ID', '1234'); vi.stubEnv('GITHUB_RUN_ATTEMPT', '1');
+    const handle = await prepareFixedLinuxG001CensusObservation('synthetic-workflow-census-credential-000000');
+    fixture.advanceDuringAttestation = true;
+    await expect(executeFixedLinuxG001CensusObservation(handle, fixture.source as never)).rejects.toThrow();
+    expect(fixture.opened).toBe(0); expect(fixture.calls).toEqual(['build']);
+    disposeFixedLinuxG001PolicyObservation(handle);
+  });
+  it.each(['', 'short', 'x'.repeat(513), `x${'y'.repeat(31)}\n`])('rejects an invalid copied protected credential before building', async secret => {
+    vi.stubEnv('WARPKEEP_OPERATION', 'g001-freeze-census');
+    await expect(prepareFixedLinuxG001CensusObservation(secret)).rejects.toThrow();
+    expect(fixture.calls).toEqual([]); expect(fixture.opened).toBe(0);
   });
 });

@@ -9,6 +9,7 @@ import { createGenesis001LinuxPolicyReceipt, verifyGenesis001LinuxPolicyReceipt 
 import { createGenesis001LinuxFreezeConfirmationReceipt, createGenesis001LinuxFreezeCurrentStateReceipt,
   projectGenesis001LinuxFreezeEvidence } from './genesis001-linux-freeze-receipt.mjs';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
+import { G001_POLICY_ROOT, policyPrivateAncestors } from './genesis001-linux-policy-boundary.mjs';
 
 export const GENESIS_001_LINUX_CENSUS_COMPLETE_PROFILE = 'warpkeep-g001-linux-census-complete-v1';
 const CENSUS_PROFILE = 'warpkeep-sealed-realms-g001-census-private-v1';
@@ -85,7 +86,8 @@ export function createGenesis001LinuxCensusAttempt(value, execution, completedAt
     'first', 'second', 'consumedAt', 'confirmationPolicyObservation', 'currentPolicyObservation']);
   if (collected.schemaVersion !== 1 || collected.profile !== 'warpkeep-g001-linux-census-collected-v1'
     || !COMMIT.test(collected.sourceCommit) || !RUN.test(collected.attemptId)
-    || !/^[1-9][0-9]{0,19}$/u.test(collected.githubRunId) || !/^[1-9][0-9]{0,19}$/u.test(collected.githubRunAttempt)
+    || typeof collected.githubRunId !== 'string' || !/^[1-9][0-9]{0,19}$/u.test(collected.githubRunId)
+    || typeof collected.githubRunAttempt !== 'string' || !/^[1-9][0-9]{0,19}$/u.test(collected.githubRunAttempt)
     || !HASH.test(collected.callerIdentity) || collected.mutationSubmitted !== false
     || execution.sourceCommit !== collected.sourceCommit || execution.execution.runId !== collected.attemptId) fail();
   const sourceCommit = collected.sourceCommit;
@@ -203,4 +205,32 @@ export function verifyGenesis001LinuxCensusRetainedSamples(root, firstValue, sec
     if (directory(privateRoot) !== privateBefore) fail();
   }
   if (directory(root) !== before) fail();
+}
+
+/** Fixed private data read, deliberately not workflow authority. Activation
+ * must authenticate selector.githubRunId/githubRunAttempt as the exact
+ * successful protected census operation, then call this again and compare the
+ * immutable selector before consuming receipt. No path or newest-file input. */
+export function readFixedLinuxG001CensusAttempt(attemptId, sourceCommit) {
+  if (arguments.length !== 2 || typeof attemptId !== 'string' || !RUN.test(attemptId)
+    || typeof sourceCommit !== 'string' || !COMMIT.test(sourceCommit)) fail();
+  const root = join(G001_POLICY_ROOT, 'attempts', attemptId);
+  policyPrivateAncestors(root);
+  const opened = readLocalBindingBoundedFile(join(root, 'complete.json'), { maximumBytes: 4 * 1024 * 1024,
+    expectedUid: 1000, expectedMode: 0o600 });
+  let receipt;
+  try {
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(opened.body);
+    receipt = verifyGenesis001LinuxCensusAttempt(JSON.parse(source));
+    if (`${JSON.stringify(receipt)}\n` !== source || receipt.attemptId !== attemptId || receipt.sourceCommit !== sourceCommit) fail();
+    verifyGenesis001LinuxCensusRetainedSamples(root, receipt.first.record, receipt.second.record, sourceCommit);
+    readLocalBindingBoundedFile(join(root, 'complete.json'), { maximumBytes: 4 * 1024 * 1024,
+      expectedBytes: opened.body.length, expectedSha256: digest(opened.body), expectedIdentity: opened.identity,
+      expectedUid: 1000, expectedMode: 0o600 }).body.fill(0);
+    policyPrivateAncestors(root);
+  } finally { opened.body.fill(0); }
+  const selector = Object.freeze({ profile: 'warpkeep-g001-linux-census-completed-v1', sourceCommit,
+    attemptId, githubRunId: receipt.githubRunId, githubRunAttempt: receipt.githubRunAttempt,
+    receiptDigest: receipt.receiptDigest, completedAt: receipt.completedAt, mutationSubmitted: false });
+  return Object.freeze({ selector, receipt });
 }

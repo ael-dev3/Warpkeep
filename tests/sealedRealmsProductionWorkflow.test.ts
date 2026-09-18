@@ -37,8 +37,10 @@ describe('sealed-realms production workflow authority', () => {
       { required?: boolean; default?: string; type?: string; options?: string[] }
     >;
     expect(Object.keys(document.on ?? {})).toEqual(['workflow_dispatch']);
-    expect(Object.keys(inputs)).toEqual(['source_commit', 'operation']);
+    expect(Object.keys(inputs)).toEqual(['source_commit', 'operation', 'g001_census_attempt']);
     expect(inputs.source_commit).toMatchObject({ required: true, type: 'string' });
+    expect(inputs.g001_census_attempt).toMatchObject({ required: false, type: 'string' });
+    expect(parse(source)['run-name']).toBe('${{ inputs.operation }} @ ${{ inputs.source_commit }}');
     expect(inputs.operation).toEqual({
       description: expect.any(String),
       required: true,
@@ -82,7 +84,7 @@ describe('sealed-realms production workflow authority', () => {
     expect(document.jobs.observe_ptr['timeout-minutes']).toBe(10);
     expect(document.jobs.operate.if).toContain("inputs.operation == 'activation-evidence-generate'");
     expect(document.jobs.operate_readonly.permissions).toBeUndefined();
-    expect(document.jobs.operate_readonly.if).toContain('["preflight","activation-evidence-inspect","g001-policy-observe"]');
+    expect(document.jobs.operate_readonly.if).toContain('["preflight","activation-evidence-inspect","g001-policy-observe","g001-freeze-census"]');
     expect(document.jobs.operate_ptr.permissions).toEqual({actions:'read',contents:'read','id-token':'write'});
     expect(document.jobs.operate_ptr.if).toContain('["ptr-update-inspect","ptr-update-apply"]');
     expect(document.jobs.operate_g002.if).toContain('["g002-update-inspect","g002-update-apply"]');
@@ -205,6 +207,7 @@ describe('sealed-realms production workflow authority', () => {
       WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: "${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN || '' }}",
       WARPKEEP_PRODUCTION_ADMIN_TOKEN: "${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN || '' }}",
       WARPKEEP_PTR_SPACETIMEDB_DATABASE: "${{ startsWith(inputs.operation, 'activation-evidence-') && vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE || '' }}",
+      WARPKEEP_G001_CENSUS_ATTEMPT: "${{ startsWith(inputs.operation, 'activation-evidence-') && inputs.g001_census_attempt || '' }}",
     };
     const providerNames = Object.keys(credentials);
     for (const name of ['operate_readonly', 'operate']) {
@@ -212,7 +215,9 @@ describe('sealed-realms production workflow authority', () => {
       const execute = job.steps.find(step => step.name === executeName)!;
       expect(job.steps.filter(step => (step.env as Record<string, unknown> | undefined)?.GITHUB_TOKEN)).toEqual([execute]);
       expect(execute.env).toEqual({ WARPKEEP_SOURCE_COMMIT: '${{ inputs.source_commit }}',
-        GITHUB_TOKEN: '${{ github.token }}', ...credentials });
+        GITHUB_TOKEN: '${{ github.token }}', ...credentials,
+        ...(name === 'operate_readonly' ? { WARPKEEP_PRODUCTION_ADMIN_TOKEN:
+          "${{ (startsWith(inputs.operation, 'activation-evidence-') || inputs.operation == 'g001-freeze-census') && secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN || '' }}" } : {}) });
       for (const step of job.steps.filter(step => step !== execute)) {
         for (const key of providerNames) expect(step.env ?? {}).not.toHaveProperty(key);
       }
@@ -294,7 +299,7 @@ printf '%s\\n' fixed-argument-transport-ok
   });
 
   it.runIf(process.platform === 'linux').each(SEALED_REALMS_OPERATIONS.filter(operation => ![
-    'preflight', 'activation-evidence-inspect', 'activation-evidence-generate', 'g001-policy-observe',
+    'preflight', 'activation-evidence-inspect', 'activation-evidence-generate', 'g001-policy-observe', 'g001-freeze-census',
     'ptr-update-inspect', 'ptr-update-apply', 'g002-update-inspect', 'g002-update-apply', 'ptr-state-inspect',
   ].includes(operation)))(
     'refuses %s without loading source or echoing caller data', operation => {

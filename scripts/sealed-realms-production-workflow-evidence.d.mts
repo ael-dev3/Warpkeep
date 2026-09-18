@@ -16,6 +16,13 @@ export function createSealedRealmsProductionRetainedEvidence(input: Readonly<{
   nativeRuntime: import('./sealed-realms-production-linux-preflight.mjs').SealedRealmsProductionRetainedFixtureRuntime;
   githubToken: Buffer | null;
 }>)): Promise<SealedRealmsProductionRetainedEvidence>;
+/** Read-only history bound to a genuine live activation workflow scope. The
+ * existing retained refresh refreshes its parent; revoking the parent revokes
+ * this child. A separate parent refresh invalidates old child proof. */
+export function createSealedRealmsProductionActivationRetainedEvidence(input: Readonly<{
+  workflowEvidence: SealedRealmsProductionWorkflowEvidence;
+  sourceCommits: readonly string[];
+}>): Promise<SealedRealmsProductionRetainedEvidence>;
 export function refreshSealedRealmsProductionRetainedEvidence(scope: SealedRealmsProductionRetainedEvidence): Promise<void>;
 export function verifySealedRealmsProductionRetainedEvidence(scope: SealedRealmsProductionRetainedEvidence, commit: string): Readonly<{ verifiedSha: string }>;
 export function revokeSealedRealmsProductionRetainedEvidence(scope: SealedRealmsProductionRetainedEvidence): void;

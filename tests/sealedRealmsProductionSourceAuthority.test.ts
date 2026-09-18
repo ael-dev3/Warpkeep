@@ -166,6 +166,7 @@ describe('sealed-realms production source authority', () => {
     expect(SEALED_REALMS_OPERATIONS).toEqual([
       'preflight',
       'g001-policy-observe',
+      'g001-freeze-census',
       'g001-census-first',
       'g001-census-second-inspect',
       'g001-census-second-suspend',

@@ -131,6 +131,32 @@ async function boundedGithubJson(response, expectedUrl, signal) {
   }
 }
 
+async function requestGithub(state, path) {
+  const url = `${GITHUB_ORIGIN}${path}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  let response;
+  try {
+    response = await state.fetchImpl(url, {
+      method: 'GET',
+      headers: {
+        accept: 'application/vnd.github+json',
+        authorization: `Bearer ${state.githubToken}`,
+        'x-github-api-version': '2022-11-28',
+      },
+      cache: 'no-store',
+      redirect: 'error',
+      referrerPolicy: 'no-referrer',
+      signal: controller.signal,
+    });
+  } catch {
+    clearTimeout(timer);
+    fail('SEALED_REALMS_WORKFLOW_AUTHORITY_ATTESTATION_UNAVAILABLE');
+  }
+  try { return await boundedGithubJson(response, url, controller.signal); }
+  finally { clearTimeout(timer); }
+}
+
 async function reattest(state, inactiveClaimRun) {
   let interrupted;
   try { interrupted = state.isInterrupted(); } catch {
@@ -139,31 +165,7 @@ async function reattest(state, inactiveClaimRun) {
   if (interrupted) {
     fail('SEALED_REALMS_WORKFLOW_AUTHORITY_ATTESTATION_REJECTED');
   }
-  const request = async (path) => {
-    const url = `${GITHUB_ORIGIN}${path}`;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10_000);
-    let response;
-    try {
-      response = await state.fetchImpl(url, {
-        method: 'GET',
-        headers: {
-          accept: 'application/vnd.github+json',
-          authorization: `Bearer ${state.githubToken}`,
-          'x-github-api-version': '2022-11-28',
-        },
-        cache: 'no-store',
-        redirect: 'error',
-        referrerPolicy: 'no-referrer',
-        signal: controller.signal,
-      });
-    } catch {
-      clearTimeout(timer);
-      fail('SEALED_REALMS_WORKFLOW_AUTHORITY_ATTESTATION_UNAVAILABLE');
-    }
-    try { return await boundedGithubJson(response, url, controller.signal); }
-    finally { clearTimeout(timer); }
-  };
+  const request = path => requestGithub(state, path);
   const [branch, run, claimRun] = await Promise.all([
     request(`/repos/${SEALED_REALMS_PRODUCTION_REPOSITORY}/branches/main`),
     request(`/repos/${SEALED_REALMS_PRODUCTION_REPOSITORY}/actions/runs/${state.runId}`),
@@ -294,4 +296,69 @@ export function assertSealedRealmsProductionWorkflowPermit(permit) {
     fail('SEALED_REALMS_WORKFLOW_AUTHORITY_PERMIT_INVALID');
   }
   return permit;
+}
+
+/** Joins retained census data to its completed protected run; grants no effects. */
+export async function attestSealedRealmsProductionCompletedCensusRun(input) {
+  const keys = ['permit', 'sourceAuthority', 'censusRunId', 'censusRunAttempt'];
+  if (types.isProxy(input) || input === null || typeof input !== 'object'
+    || Object.getPrototypeOf(input) !== Object.prototype) {
+    fail('SEALED_REALMS_WORKFLOW_AUTHORITY_INPUT_INVALID');
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(input);
+  if (Reflect.ownKeys(descriptors).length !== keys.length
+    || keys.some(key => !descriptors[key]?.enumerable
+      || !Object.hasOwn(descriptors[key], 'value'))) {
+    fail('SEALED_REALMS_WORKFLOW_AUTHORITY_INPUT_INVALID');
+  }
+  const state = permitStates.get(input.permit);
+  const census = exactRunIdentity(input.censusRunId, input.censusRunAttempt);
+  if (state === undefined || state.sourceAuthority !== input.sourceAuthority
+    || !['activation-evidence-inspect', 'activation-evidence-generate'].includes(state.operation)
+    || input.sourceAuthority.operation !== state.operation
+    || sourceCommitFromSealedRealmsProductionAuthority(input.sourceAuthority) !== state.sourceCommit
+    || census.runId === state.runId) {
+    fail('SEALED_REALMS_WORKFLOW_AUTHORITY_PERMIT_INVALID');
+  }
+  await reattest(state);
+  const base = `/repos/${SEALED_REALMS_PRODUCTION_REPOSITORY}/actions/runs/${census.runId}`;
+  const completed = run => {
+    if (run === null || typeof run !== 'object' || Array.isArray(run)
+      || String(run.id) !== census.runId || run.run_attempt !== Number(census.runAttempt)
+      || run.event !== 'workflow_dispatch' || run.status !== 'completed'
+      || run.conclusion !== 'success' || run.head_branch !== 'main'
+      || run.head_sha !== state.sourceCommit || run.path !== SEALED_REALMS_PRODUCTION_WORKFLOW_PATH
+      || run.name !== 'Sealed Realms Production'
+      || run.display_title !== `g001-freeze-census @ ${state.sourceCommit}`
+      || run.repository?.full_name !== SEALED_REALMS_PRODUCTION_REPOSITORY) {
+      fail('SEALED_REALMS_WORKFLOW_AUTHORITY_CENSUS_RUN_INVALID');
+    }
+  };
+  completed(await requestGithub(state, base));
+  completed(await requestGithub(state, `${base}/attempts/${census.runAttempt}`));
+  const result = await requestGithub(state, `${base}/attempts/${census.runAttempt}/jobs?per_page=100&page=1`);
+  const jobs = result?.jobs;
+  if (!Array.isArray(jobs) || jobs.length < 1 || jobs.length > 100
+    || result.total_count !== jobs.length) fail('SEALED_REALMS_WORKFLOW_AUTHORITY_CENSUS_RUN_INVALID');
+  const selected = jobs.filter(job => job?.name === 'operate_readonly');
+  const job = selected[0];
+  const labels = ['self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive'];
+  const steps = job?.steps?.filter?.(step => step?.name === 'Attest runtime and execute authenticated operation');
+  if (selected.length !== 1 || String(job.run_id) !== census.runId
+    || job.run_attempt !== Number(census.runAttempt) || job.status !== 'completed'
+    || job.conclusion !== 'success' || job.head_sha !== state.sourceCommit || job.head_branch !== 'main'
+    || job.runner_name !== 'warpkeep-wsl-production-01' || !Array.isArray(job.labels)
+    || job.labels.length !== labels.length || labels.some(label => !job.labels.includes(label))
+    || !Array.isArray(job.steps) || !Array.isArray(steps) || steps.length !== 1
+    || steps[0].status !== 'completed' || steps[0].conclusion !== 'success') {
+    fail('SEALED_REALMS_WORKFLOW_AUTHORITY_CENSUS_RUN_INVALID');
+  }
+  await reattest(state);
+  // Reopen the latest census after the final active-run read as well: it may
+  // have been rerun while that request was pending.
+  completed(await requestGithub(state, base));
+  let interrupted = true;
+  try { interrupted = state.isInterrupted(); } catch { /* Refuse interruption-check failures. */ }
+  if (interrupted) fail('SEALED_REALMS_WORKFLOW_AUTHORITY_ATTESTATION_REJECTED');
+  return true;
 }

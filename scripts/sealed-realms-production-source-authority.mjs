@@ -5,6 +5,7 @@ import { readRecoveryActivationGitSource } from './recovery-attestation-source.m
 export const SEALED_REALMS_OPERATIONS = Object.freeze([
   'preflight',
   'g001-policy-observe',
+  'g001-freeze-census',
   'g001-census-first',
   'g001-census-second-inspect',
   'g001-census-second-suspend',
@@ -178,11 +179,12 @@ function activatedBinding(readBinding, readGit, preparationCommit, activationCom
       || (binding.schemaVersion === 2 && binding.profile === 'warpkeep-0.4.0-sealed-launch-v2')
       || (binding.schemaVersion === 3 && binding.profile === 'warpkeep-0.4.0-sealed-launch-ptr-update-v3')
       || (binding.schemaVersion === 4 && binding.profile === 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4')
-      || (binding.schemaVersion === 5 && binding.profile === 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5'))
+      || (binding.schemaVersion === 5 && binding.profile === 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5')
+      || (binding.schemaVersion === 6 && binding.profile === 'warpkeep-0.4.0-sealed-launch-g001-linux-freeze-v6'))
     || binding.pagesDeploymentApproved !== true
     || binding.preparationSourceCommit !== preparationCommit
   ) fail('SEALED_REALMS_SOURCE_AUTHORITY_BINDING_INVALID');
-  if (binding.schemaVersion === 2 || binding.schemaVersion === 3 || binding.schemaVersion === 4 || binding.schemaVersion === 5) {
+  if ([2, 3, 4, 5, 6].includes(binding.schemaVersion)) {
     // Four caller fields cannot authenticate a recovery binding. Read the full
     // immutable Git blob and validate its native versioned recovery structure and S/A history.
     try {
