@@ -1260,17 +1260,24 @@ function attestNetworkNamespace() {
   ) fail()
 }
 
-function materializeCommit(commit, tree, modulePath, cleanRoot, realm) {
-  if (!HEX40.test(commit) || !HEX40.test(tree)) fail()
+// Internal source materialization only. The repository and accepted module
+// namespaces remain fixed; this is not a preparation or release capability.
+export function materializeCommit(commit, tree, modulePath, cleanRoot, realm) {
+  if (typeof commit !== 'string' || !HEX40.test(commit)
+    || typeof tree !== 'string' || !HEX40.test(tree)
+    || !['g002', 'ptr'].includes(realm)
+    || modulePath !== (realm === 'g002' ? 'spacetimedb/genesis002' : 'spacetimedb/ptr')) fail()
   const environment = gitEnvironment(cleanRoot)
   const resolvedCommit = git(['rev-parse', '--verify', `${commit}^{commit}`], environment, 128)
     .toString('utf8').trim()
   const resolvedTree = git(['rev-parse', '--verify', `${commit}:${modulePath}`], environment, 128)
     .toString('utf8').trim()
   if (resolvedCommit !== commit || resolvedTree !== tree) fail()
+  // PTR imports its gameplay rules from this sibling namespace. Both are
+  // selected from the authenticated commit, never the operator's worktree.
   const prefixes = realm === 'g002'
     ? ['spacetimedb']
-    : realm === 'ptr' ? ['spacetimedb/ptr'] : fail()
+    : realm === 'ptr' ? ['spacetimedb/ptr', 'spacetimedb/gameplay04'] : fail()
   const listing = git(
     ['ls-tree', '-rz', '--full-tree', '--long', commit, '--', ...prefixes],
     environment,

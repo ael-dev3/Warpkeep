@@ -21,9 +21,13 @@ protected `main` **`4ca0b7d6f156cd6eaec06609ec8ffc83861614b9`**. Its final head
 and its tree exactly matches the tested head. The retained non-release tag
 `source-history/warpkeep-0.4-pr299-7c75b7359dbd` preserves the original source.
 
-Active work continues on `codex/0.4-recovery-preparation-entry-20260918` in
-`C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep`: the disabled
-signer's initial deployment entry, described below. Inspect its current GitHub
+The disabled signer's initial deployment repair is published in
+[PR #300](https://github.com/ael-dev3/Warpkeep/pull/300), head
+`154ef694b490a4fa9afdcabae95ceb714c944add`; Verify `35397802215` and CodeQL
+`35397802255` were still running when this checkpoint was written.
+Active work continues on `codex/0.4-recovery-ptr-source-20260918` in
+`C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep`: recovery source
+materialization and G001 census restart handling. Inspect its current GitHub
 head and CI before integration. Main's new push checks and native family
 preparation are separate requirements. `C:/Temp/warpkeep-0.4-next` tracks
 protected main. Consult the
@@ -159,6 +163,23 @@ expired without a completed approval. Resume the open browser's own verification
 flow when the owner is available. No App or credential was created. A final
 reviewable App configuration must retain the source-required read-only repository
 permissions and installation scope; routine Git/CI access is already working.
+
+### PTR fixture source repair
+
+The recovery materializer omitted `spacetimedb/gameplay04` even though current
+PTR source imports those shared rules. It now extracts both fixed namespaces
+from the same authenticated commit. The fixed repository, module-tree identity,
+blob reads and path/link checks are preserved; untracked files and similarly
+named directories cannot supply missing source. Historical PTR commits without
+shared imports remain supported.
+
+Before the fix, the native shared import failed and omitted shared link/blob
+checks did not reject. Afterward all five native Git-object regression scenarios
+passed under pinned WSL Node 22.22.3, including legacy commits, missing namespace,
+symlink and missing blob. Windows passed three portable cases (five explicitly
+native-only cases skipped), 66 adjacent fixture/host/toolchain tests and service
+types. No full production fixture generation or provider operation ran. Existing
+adoption provenance still needs its separate authenticated producer path.
 
 ### Shipping estimate and next critical work
 

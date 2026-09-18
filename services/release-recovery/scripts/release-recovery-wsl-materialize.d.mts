@@ -1,5 +1,14 @@
 export function keccak256Bytes(input: Uint8Array): Uint8Array
 
+/** Internal fixed-repository source materialization, not release authority. */
+export function materializeCommit(
+  commit: string,
+  tree: string,
+  modulePath: 'spacetimedb/genesis002' | 'spacetimedb/ptr',
+  cleanRoot: string,
+  realm: 'g002' | 'ptr',
+): void
+
 export function validateToolchainManifestBytes(
   bytes: Uint8Array,
   toolchain: unknown,

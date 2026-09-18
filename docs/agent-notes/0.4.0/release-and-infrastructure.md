@@ -16,6 +16,49 @@ before treating that dated observation as a current access diagnosis. Provider-b
 preservation, recovery/readback, owner play, device acceptance and final freeze
 remain open. Historical observations below retain their original scope and do
 not supersede this current checkpoint.
+
+### Confirmed delivery work, in dependency order
+
+The September 18 shipping pass rechecked actual source callers and provider
+presence. These are implementation and evidence boundaries, not a request for
+the owner to supply another collection of credentials.
+
+| Boundary | Agent work and verification | Human-controlled dependency |
+| --- | --- | --- |
+| Initial recovery signer | Integrate the fixture-free preparation entry; verify service, ledger and epoch before initial provisioning. Its actual dry-run and service checks pass. Keep final recovery disabled. | GitHub requires renewed elevated authentication before opening the private release App form; browser sign-in and Git/CI access already work. |
+| PTR recovery compilation | Include the tracked shared `spacetimedb/gameplay04` namespace from the same authenticated commit as `spacetimedb/ptr`. Verify real Git-object extraction and imports, including negative cases. | None for the source repair. |
+| Existing-realm fixture provenance | Replace the producer's unconditional legacy-receipt requirement with a distinct authenticated adoption branch, preserving the legacy branch. Reopen genuine completion/terminal and continuation records in their native owner context. | Only ask about a specific retained private record if its authenticated producer cannot create the required current evidence. |
+| G001 native observations | Complete real Linux applicant/admitted collection, durable attempt/reconciliation handling and server-policy evidence consumers. Existing player access and timers remain enabled; admissions stay frozen. | Actual application authority must be checked at the selected caller after its implementation exists. Missing callbacks are not a login failure. |
+| Protected integration and operations | Integrate source through checks, then derive and independently check one complete family from actual M1. Promote M2 and require its own successful main Verify before protected operations. | No recurring task or fresh Desktop package is needed. |
+| Acceptance | Verify provider deployment, recovery preserving later writes, owner PTR journey and measured mobile behavior against the selected source. | Real owner authentication/play and the prepared physical-device test. |
+
+The fixture-provenance repair spans the generator, fixed private host, WSL plan
+validator and native materializer under `services/release-recovery/scripts/`.
+Reuse the branded adoption authentication in
+`sealed-realms-production-activation-records.mjs`. A signed observation pair
+alone does not authenticate private completion/claim records: the signer treats
+the request's record digests as correlation data. Cross the Windows/native host
+boundary with an authenticated fixed read-only producer, never a copied envelope
+plus `signatureVerified:true`. Bind rebuilt artifact SHA-256 and Keccak to genuine
+completion evidence. Keep whole-repository `sourceTree` distinct from the module
+tree consumed by fixture materialization.
+
+G001's shared policy already enforces frozen admissions. The current census lane
+can persist its second sample before validating the stable pair, and a crash
+between second-sample and confirmation writes has no complete reconciliation
+path. Finish that persistence lifecycle before enabling native dispatch. Retain
+the existing 60–300 second stable window and confirmation lifetime; do not delete
+old evidence to retry. The admitted-player collector currently lacks an operating
+production caller. Authentication denial must not select an unsupported-query
+fallback. Use a new versioned Linux evidence path through adoption, activation,
+public binding and recovery consumers: Linux cannot attest historical launchctl,
+plist or Mac monitor state. Keep the legacy readers intact.
+
+Read-only Cloudflare inspection found the auth bridge present and the recovery
+signer/gateway absent. Successful CLI login, empty private stores and passing
+unit tests do not establish deployment. The execution handoff records current
+publication and checks; the sections below retain older findings for context.
+
 ## Historical source checkpoint — 2026-09-12
 
 Reviewed 0.4 source is now integrated into signed main `c4b95505` through
@@ -488,7 +531,7 @@ the historical Darwin prepared and Pages paths. Preserve the historical B0
 predecessor; do not treat rerunning it or porting its retired caller as current
 release work.
 
-## Component status and next operating caller
+## Historical component status and operating caller map
 
 | Component | Implemented / verified support | Remaining integration boundary |
 | --- | --- | --- |
