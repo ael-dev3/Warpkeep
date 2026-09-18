@@ -20,7 +20,10 @@ An independent source/bundle review found no actionable defect.
 
 This is an initial deployment entry, not an armed-recovery replacement. Fresh
 provider readback found the signer and gateway absent; the existing auth bridge
-was present. Initial service provisioning, GitHub App authentication, operation
+was present but did not export `ReleaseRecoveryObservationEntrypoint`. Complete
+the existing prepared bridge transition and observer configuration before the
+signer and gateway; preserve production authentication through that transition.
+Initial service provisioning, GitHub App authentication, operation
 policy and private inputs, final adoption-aware fixture generation, live
 readback and recovery acceptance remain open. The final signer retains its
 strict production imports and all existing authentication/arming checks.

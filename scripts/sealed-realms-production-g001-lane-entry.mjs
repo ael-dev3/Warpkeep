@@ -25,10 +25,12 @@ import {
   claimSealedRealmsProductionContinuation,
   classifySealedRealmsProductionContinuationNoEffect,
   issueSealedRealmsProductionContinuation,
+  readSealedRealmsProductionContinuationCompletion,
   reconcileSealedRealmsProductionContinuation,
 } from './sealed-realms-production-continuation.mjs';
 import {
   assertSealedRealmsProductionWorkflowPermit,
+  attestSealedRealmsProductionWorkflowPermit,
 } from './sealed-realms-production-workflow-authority.mjs';
 import {
   SealedRealmsProductionDispatcherError,
@@ -450,6 +452,22 @@ function readCensusRecord(state, relativePath, expectedDigest, keys) {
   return record.value;
 }
 
+// Only deterministic census metadata can be completed after reconciliation.
+// Existing bytes must match exactly; retained evidence is never replaced.
+function retainCensusBytes(state, relativePath, bytes, writeMissing) {
+  if (!state.exists({ root: 'runtime', relativePath })) {
+    if (!writeMissing) return;
+    try { state.write({ root: 'runtime', relativePath, bytes }); }
+    catch (error) {
+      if (error?.code !== 'SEALED_REALMS_PRIVATE_STATE_FILE_EXISTS') throw error;
+    }
+  }
+  const retained = state.read({ root: 'runtime', relativePath });
+  try {
+    if (!Buffer.from(retained).equals(bytes)) fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+  } finally { retained.fill(0); }
+}
+
 function firstCensusRecord(value, sourceCommit) {
   exactObject(value, [
     'schemaVersion', 'profile', 'sourceCommit', 'applicant', 'admitted', 'observedAt',
@@ -674,6 +692,73 @@ function reopenSecondCensusMember(capability, sourceCommit) {
   });
 }
 
+/** A retained stable second observation is the collection effect. Its existing
+ * confirmation and activation bytes are derivable without collecting again. */
+function retainedSecondCensus(capability, authority, firstMember, writeMissing = false, expected) {
+  const member = censusAuthorityMember(capability);
+  const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(authority);
+  const persistedFirst = soleCensusDigest(member.privateState, 'first');
+  if (firstMember.capability !== capability || firstMember.sourceCommit !== sourceCommit
+    || persistedFirst.digest !== firstMember.firstDigest
+    || persistedFirst.relativePath !== firstMember.firstRelativePath) {
+    fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+  }
+  const keys = ['schemaVersion', 'profile', 'sourceCommit', 'applicant', 'admitted', 'observedAt'];
+  const first = firstCensusRecord(readCensusRecord(member.privateState,
+    firstMember.firstRelativePath, firstMember.firstDigest, keys), sourceCommit);
+  const secondNames = member.privateState.list({ root: 'runtime', relativeDirectory: 'g001/census/second' });
+  const confirmationNames = member.privateState.list({ root: 'runtime', relativeDirectory: 'g001/census/confirmation' });
+  if (secondNames.length > 1 || confirmationNames.length > 1) fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+  if (secondNames.length === 0) {
+    if (confirmationNames.length !== 0 || member.privateState.exists({ root: 'runtime',
+      relativePath: 'activation-evidence/records/g001-census-privacy-safe-private-receipt.json' })) {
+      fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+    }
+    return undefined;
+  }
+  const persistedSecond = soleCensusDigest(member.privateState, 'second');
+  const second = secondCensusRecord(readCensusRecord(member.privateState,
+    persistedSecond.relativePath, persistedSecond.digest, keys), sourceCommit);
+  const stable = validateStableCensusPair(first, second, sourceCommit);
+  const expiresAt = new Date(stable.secondObservedAt + CENSUS_CONFIRMATION_TTL_MS).toISOString();
+  const confirmationDigest = censusConfirmationDigest(sourceCommit,
+    firstMember.firstDigest, persistedSecond.digest, expiresAt);
+  const record = Object.freeze({
+    schemaVersion: 1, profile: CENSUS_PROFILE, sourceCommit,
+    firstDigest: firstMember.firstDigest, secondDigest: persistedSecond.digest,
+    secondObservedAt: new Date(stable.secondObservedAt).toISOString(), expiresAt, confirmationDigest,
+  });
+  const bytes = Buffer.from(`${JSON.stringify(record)}\n`, 'utf8');
+  const confirmationRecordDigest = digestBytes(bytes);
+  const confirmationRelativePath = censusPrivateRelative('confirmation', confirmationRecordDigest);
+  const receipt = Object.freeze({
+    first: canonicalCensusApplicant(first.sample.applicant),
+    second: canonicalCensusApplicant(second.sample.applicant),
+  });
+  const retained = Object.freeze({ capability, sourceCommit,
+    firstDigest: firstMember.firstDigest, firstRelativePath: firstMember.firstRelativePath,
+    secondDigest: persistedSecond.digest, secondRelativePath: persistedSecond.relativePath,
+    secondObservedAt: record.secondObservedAt, expiresAt, confirmationDigest,
+    confirmationRelativePath, confirmationRecordDigest });
+  try {
+    if (expected !== undefined && JSON.stringify(retained) !== JSON.stringify(expected)) {
+      fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+    }
+    if (confirmationNames.length === 1
+      && `g001/census/confirmation/${confirmationNames[0]}` !== confirmationRelativePath) {
+      fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+    }
+    // Check every retained derivative before creating any missing one.
+    retainCensusBytes(member.privateState, confirmationRelativePath, bytes, false);
+    captureG001ActivationRecord(member, authority, receipt, 'inspect-census');
+    if (writeMissing) {
+      retainCensusBytes(member.privateState, confirmationRelativePath, bytes, true);
+      captureG001ActivationRecord(member, authority, receipt, 'complete-census');
+    }
+  } finally { bytes.fill(0); }
+  return retained;
+}
+
 const firstContinuationBinding = (member) => Object.freeze({
   subject: 'g001-census-first:0.4.0',
   evidenceDigest: member.firstDigest,
@@ -756,45 +841,16 @@ async function censusSecondInspect(authority, capability, input) {
       admitted: sample.admitted.receipt,
       observedAt: observedAt.toISOString(),
     });
-    const secondPersisted = writeCensusRecord(member.privateState, 'second', secondRecord);
-    const second = secondCensusRecord(readCensusRecord(
-      member.privateState, secondPersisted.relativePath, secondPersisted.digest,
-      ['schemaVersion', 'profile', 'sourceCommit', 'applicant', 'admitted', 'observedAt'],
-    ), sourceCommit);
-    const stable = validateStableCensusPair(first, second, sourceCommit);
-    const expiresAt = new Date(stable.secondObservedAt + CENSUS_CONFIRMATION_TTL_MS).toISOString();
-    const confirmationDigest = censusConfirmationDigest(
-      sourceCommit, firstMember.firstDigest, secondPersisted.digest, expiresAt,
-    );
-    const confirmationRecord = Object.freeze({
-      schemaVersion: 1,
-      profile: CENSUS_PROFILE,
-      sourceCommit,
-      firstDigest: firstMember.firstDigest,
-      secondDigest: secondPersisted.digest,
-      secondObservedAt: new Date(stable.secondObservedAt).toISOString(),
-      expiresAt,
-      confirmationDigest,
-    });
-    const confirmationPersisted = writeCensusRecord(member.privateState, 'confirmation', confirmationRecord);
-    captureG001ActivationRecord(member, authority, Object.freeze({
-      first: canonicalCensusApplicant(first.sample.applicant),
-      second: canonicalCensusApplicant(second.sample.applicant),
-    }));
+    // Reject invalid or late samples before retaining any second-stage bytes.
+    const second = secondCensusRecord(secondRecord, sourceCommit);
+    validateStableCensusPair(first, second, sourceCommit);
+    writeCensusRecord(member.privateState, 'second', secondRecord);
+    const completed = retainedSecondCensus(capability, authority, firstMember, true);
+    if (completed === undefined) fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
     const secondConfirmation = Object.freeze({});
     censusFirstConfirmations.delete(confirmation);
     censusFirstClaims.delete(confirmation);
-    censusSecondConfirmations.set(secondConfirmation, Object.freeze({
-      capability,
-      sourceCommit,
-      firstDigest: firstMember.firstDigest,
-      firstRelativePath: firstMember.firstRelativePath,
-      secondDigest: secondPersisted.digest,
-      secondRelativePath: secondPersisted.relativePath,
-      confirmationDigest,
-      confirmationRelativePath: confirmationPersisted.relativePath,
-      confirmationRecordDigest: confirmationPersisted.digest,
-    }));
+    censusSecondConfirmations.set(secondConfirmation, completed);
     return Object.freeze({ status: 'completed', confirmation: secondConfirmation });
   } catch (error) {
     censusFirstClaims.delete(confirmation);
@@ -885,7 +941,7 @@ async function censusSecondSuspend(authority, capability, input) {
 
 // Private to this producer module. No caller-selected path, operation or raw
 // receipt capture surface is exported to a lane or dispatcher consumer.
-function captureG001ActivationRecord(member, authority, receipt) {
+function captureG001ActivationRecord(member, authority, receipt, mode = 'write') {
   const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(authority);
   const operation = authority.operation;
   const capture = operation === 'g001-policy-observe'
@@ -919,11 +975,12 @@ function captureG001ActivationRecord(member, authority, receipt) {
       receipt,
       semanticDigest,
     })}\n`, 'utf8');
-    member.privateState.write({
-      root: 'runtime',
-      relativePath: `activation-evidence/records/${basename}`,
-      bytes,
-    });
+    const relativePath = `activation-evidence/records/${basename}`;
+    if (mode === 'write') member.privateState.write({ root: 'runtime', relativePath, bytes });
+    else if (operation === 'g001-census-second-inspect'
+      && ['inspect-census', 'complete-census'].includes(mode)) {
+      retainCensusBytes(member.privateState, relativePath, bytes, mode === 'complete-census');
+    } else fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
   } catch {
     fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
   } finally {
@@ -1912,12 +1969,18 @@ export function createSealedRealmsProductionG001Lane(input) {
       const firstConfirmation = Object.freeze({});
       censusFirstConfirmations.set(firstConfirmation, firstMember);
       let secondResult;
+      let reconciledSecond;
+      let checkedCompletion;
       const common = continuationInput(
         continuation,
         authority,
         'g001-census-first-to-second',
         firstContinuationBinding(firstMember),
       );
+      const completionInput = { store: continuation.store,
+        privateState: censusAuthorityMember(options.censusAuthority).privateState,
+        sourceAuthority: authority, kind: 'g001-census-first-to-second',
+        ...firstContinuationBinding(firstMember) };
       try {
         await claimSealedRealmsProductionContinuation({
           ...common,
@@ -1939,39 +2002,50 @@ export function createSealedRealmsProductionG001Lane(input) {
       } catch (error) {
         censusFirstConfirmations.delete(firstConfirmation);
         if (error?.code === 'SEALED_REALMS_CONTINUATION_AMBIGUOUS') {
-          const member = censusAuthorityMember(options.censusAuthority);
-          const secondNames = member.privateState.list({
-            root: 'runtime', relativeDirectory: 'g001/census/second',
-          });
-          const confirmationNames = member.privateState.list({
-            root: 'runtime', relativeDirectory: 'g001/census/confirmation',
-          });
-          if (
-            secondNames.length > 1 || confirmationNames.length > 1
-            || secondNames.length !== confirmationNames.length
-          ) fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
-          const effectApplied = confirmationNames.length === 1;
-          const observationDigest = effectApplied
-            ? soleCensusDigest(member.privateState, 'confirmation').digest
-            : firstMember.firstDigest;
+          let effectApplied = false;
           await reconcileSealedRealmsProductionContinuation({
             ...common,
-            readOnlyReconcile: reconciliation => effectApplied
-              ? Object.freeze({ outcome: 'effect-applied', observationDigest })
-              : classifySealedRealmsProductionContinuationNoEffect({
+            readOnlyReconcile: reconciliation => {
+              reconciledSecond = retainedSecondCensus(options.censusAuthority, authority, firstMember);
+              effectApplied = reconciledSecond !== undefined;
+              return effectApplied
+                ? Object.freeze({ outcome: 'effect-applied', observationDigest: reconciledSecond.secondDigest })
+                : classifySealedRealmsProductionContinuationNoEffect({
                 reconciliation,
                 evidenceDigest: common.evidenceDigest,
-                observationDigest,
-              }),
+                observationDigest: firstMember.firstDigest,
+              });
+            },
           });
           if (!effectApplied) return Object.freeze({ status: 'completed' });
-        } else if (error?.code !== 'SEALED_REALMS_CONTINUATION_TERMINAL') {
+        } else if (error?.code === 'SEALED_REALMS_CONTINUATION_TERMINAL') {
+          // A previous reconciliation may have sealed the collection and then
+          // stopped before its derivative writes. Historical completion alone
+          // grants no repair authority: re-attest the original claim's run.
+          checkedCompletion = readSealedRealmsProductionContinuationCompletion(completionInput);
+          await attestSealedRealmsProductionWorkflowPermit({ permit: continuation.permit,
+            sourceAuthority: authority, phase: 'continuation-reconcile',
+            runId: continuation.runId, runAttempt: continuation.runAttempt,
+            claimRunId: checkedCompletion.claimRunId, claimRunAttempt: checkedCompletion.claimRunAttempt });
+          requireContinuation(continuation, authority);
+        } else {
           throw error;
         }
       }
-      const secondMember = secondResult === undefined
-        ? reopenSecondCensusMember(options.censusAuthority, sourceCommit)
-        : censusSecondConfirmations.get(secondResult.confirmation);
+      requireContinuation(continuation, authority);
+      let secondMember;
+      if (secondResult === undefined) {
+        const retained = retainedSecondCensus(options.censusAuthority, authority, firstMember);
+        const completion = readSealedRealmsProductionContinuationCompletion(completionInput);
+        if (retained === undefined
+          || (checkedCompletion !== undefined && JSON.stringify(completion) !== JSON.stringify(checkedCompletion))
+          || (reconciledSecond !== undefined && JSON.stringify(retained) !== JSON.stringify(reconciledSecond))
+          || (completion.outcome === 'reconciled-effect-applied'
+            && ![retained.secondDigest, retained.confirmationRecordDigest].includes(completion.observationDigest))) {
+          fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+        }
+        secondMember = retainedSecondCensus(options.censusAuthority, authority, firstMember, true, retained);
+      } else secondMember = censusSecondConfirmations.get(secondResult.confirmation);
       if (secondMember === undefined) fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
       await issueSealedRealmsProductionContinuation(continuationInput(
         continuation,

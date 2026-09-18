@@ -150,6 +150,14 @@ Linux recovery bootstrap are absent from their fixed roots. The retained Windows
 recovery key/secret bootstrap exists. Do not ask for another key or canary value
 without tracing the selected operation's actual protected input.
 
+The current bridge deployment `ec7c0f41-1404-40f8-9330-3c531afae621` serves
+version `79dfceec-9810-4868-afca-5b794d08a9a5`. Its named handlers do not include
+`ReleaseRecoveryObservationEntrypoint`. Complete the existing prepared bridge
+transition and observer configuration before deploying the preparation signer,
+then the gateway. The prepared bridge path preserves production authentication
+and does not depend on a signer preparation receipt. Default bridge configuration
+is not an acceptable replacement for that transition.
+
 Two source gaps still precede full operations: the fixture generator requires
 legacy G002/PTR receipts rather than consuming authenticated preserved-state
 adoption, and G001 census/current-state execution retains unavailable callbacks
@@ -180,6 +188,20 @@ symlink and missing blob. Windows passed three portable cases (five explicitly
 native-only cases skipped), 66 adjacent fixture/host/toolchain tests and service
 types. No full production fixture generation or provider operation ran. Existing
 adoption provenance still needs its separate authenticated producer path.
+
+### Census interruption repair
+
+The second census now validates the complete stable pair before persisting it.
+If collection succeeded but confirmation or activation metadata was interrupted,
+the retry authenticates the retained observation and the original workflow's
+terminal state before completing only those deterministic records. It preserves
+the original expiry and refuses conflicting bytes, a live original claim or
+an unrelated completion digest. No collection or suspension is repeated.
+
+Source review and syntax checks passed. Native dispatcher regression execution
+is the next validation step for this published checkpoint. Fresh-first lifecycle
+recovery and duplicate downstream continuation issuance remain unsupported;
+this repair does not enable the unavailable Linux production census caller.
 
 ### Shipping estimate and next critical work
 
