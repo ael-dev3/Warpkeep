@@ -264,6 +264,22 @@ export const RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V5: Readonly<Record<string, str
 const V5_COMMITMENT_KEYS = new Set(['g001FreezePublishReceiptCommitment', ...Object.keys(RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V5)])
 const V5_RECEIPT_SNAPSHOT_KEYS = RECOVERY_BINDING_KEYS_V5.filter(key => !V5_COMMITMENT_KEYS.has(key))
 
+// Pure V6 wire projection only. validateBinding continues to reject V6 until
+// the complete native evidence producer and deployment consumers are integrated.
+export const RECOVERY_BINDING_KEYS_V6: readonly string[] = Object.freeze(RECOVERY_BINDING_KEYS_V5.flatMap(key =>
+  key === 'admissionMonitorSuspensionReceiptDigest' ? [
+    'g001AdmissionControlProfile',
+    'g001FreezeConfirmationReceiptDigest', 'g001FreezeConfirmationReceiptCommitment',
+    'g001FreezeCurrentStateReceiptDigest', 'g001FreezeCurrentStateReceiptCommitment',
+  ] : key.startsWith('admissionMonitor') ? [] : [key],
+))
+export const RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V6: Readonly<Record<string, string>> = Object.freeze({
+  ...Object.fromEntries(Object.entries(RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V5)
+    .filter(([key]) => !key.startsWith('admissionMonitor'))),
+  g001FreezeConfirmationReceiptCommitment: 'g001FreezeConfirmationReceiptDigest',
+  g001FreezeCurrentStateReceiptCommitment: 'g001FreezeCurrentStateReceiptDigest',
+})
+
 export type GitHubCandidateEvidence = Readonly<{
   currentMainCommit: string
   parentCommit: string

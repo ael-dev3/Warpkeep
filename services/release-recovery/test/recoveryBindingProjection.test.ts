@@ -144,3 +144,34 @@ it('independently verifies root-generated V5 dual adoption and separate receipt/
     expect(binding).not.toHaveProperty(legacy)
   }
 })
+
+it('matches pure V6 Linux freeze projection without manufacturing Mac monitor evidence', async () => {
+  const local = await import('../../../scripts/recovery-binding-projection.mjs')
+  const receiver = await import('../src/githubEvidence.js')
+  const candidateModule = await import('../../../scripts/recovery-activation-candidate.mjs')
+  expect(local.RECOVERY_BINDING_KEYS_V6).toEqual(receiver.RECOVERY_BINDING_KEYS_V6)
+  const prior = recoveryBindingCandidate()
+  const policy = candidateModule.recoveryActivationCandidatePolicyForVersion(6)
+  const candidate = Object.fromEntries(local.RECOVERY_BINDING_KEYS_V6.map(key => [key,
+    Object.hasOwn(policy, key) ? policy[key] : Object.hasOwn(prior, key) ? prior[key] : '93'.repeat(32),
+  ]))
+  const binding = candidateModule.createRecoveryActivationBindingV6(`${JSON.stringify(candidate, null, 2)}\n`)
+  const mapping = receiver.RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V6
+  const excluded = new Set(['g001FreezePublishReceiptCommitment', ...Object.keys(mapping)])
+  const keys = receiver.RECOVERY_BINDING_KEYS_V6.filter(key => !excluded.has(key))
+  const receipt = Object.fromEntries(keys.map(key => [key, key === 'recoveryAuthorizationCoreSha256' ? null : binding[key]!]))
+  for (const [key, digestKey] of Object.entries(mapping)) {
+    expect(binding[digestKey]).toMatch(/^[a-f0-9]{64}$/u)
+    expect(binding[key]).toBe(await sha256Hex(`warpkeep.0.4.0.recovery-sealed-launch.${key}.v6\n`,
+      serializeExactObject(keys, receipt as never)))
+    expect(binding[key]).not.toBe(await sha256Hex(`warpkeep.0.4.0.recovery-sealed-launch.${key}.v5\n`,
+      serializeExactObject(keys, receipt as never)))
+  }
+  expect(binding.recoveryAuthorizationCoreSha256).toBe(await sha256Hex(
+    'warpkeep.0.4.0.recovery-authorization-core.v6\n',
+    serializeExactObject(receiver.RECOVERY_BINDING_KEYS_V6, { ...binding, recoveryAuthorizationCoreSha256: null } as never),
+  ))
+  expect(Object.keys(binding).filter(key => key.startsWith('admissionMonitor'))).toEqual([])
+  expect(mapping).toHaveProperty('g001FreezeConfirmationReceiptCommitment', 'g001FreezeConfirmationReceiptDigest')
+  expect(mapping).toHaveProperty('g001FreezeCurrentStateReceiptCommitment', 'g001FreezeCurrentStateReceiptDigest')
+})

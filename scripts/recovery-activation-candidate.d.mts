@@ -8,7 +8,11 @@ export function parseRecoveryBindingV2(source: string): Readonly<Record<string, 
 export function recoveryActivationCandidatePolicy(): Readonly<Record<string, string | number | boolean | null>>;
 
 /** Static policy only; V4 describes observed preservation without PTR initialization claims. */
-export function recoveryActivationCandidatePolicyForVersion(version: 2 | 3 | 4 | 5): Readonly<Record<string, string | number | boolean | null>>;
+export function recoveryActivationCandidatePolicyForVersion(version: 2 | 3 | 4 | 5 | 6): Readonly<Record<string, string | number | boolean | null>>;
+/** V6 static consistency only; no native freeze producer or live authority. */
+export function validateRecoveryActivationCandidateV6(source: string): Readonly<Record<string, string | number | boolean | null>>;
+export function createRecoveryActivationBindingV6(source: string): Readonly<Record<string, string | number | boolean | null>>;
+export function parseRecoveryBindingV6(source: string): Readonly<Record<string, string | number | boolean | null>>;
 /** V5 static consistency only; no signed evidence authentication or live authority. */
 export function validateRecoveryActivationCandidateV5(source: string): Readonly<Record<string, string | number | boolean | null>>;
 export function createRecoveryActivationBindingV5(source: string): Readonly<Record<string, string | number | boolean | null>>;

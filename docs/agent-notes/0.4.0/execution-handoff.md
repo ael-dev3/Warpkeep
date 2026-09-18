@@ -203,8 +203,9 @@ Independent review found no blocking issue. Pinned Windows Node 22.22.3 passed
 54 tests across the source-authority and signed-update suites, with six native-only
 cases explicitly skipped; application typechecking passed. Added historical-entry
 regressions cover genuine foreign stores and adoption/completion/terminal changes
-during signature verification and after evidence creation. Native validation and
-the fixed compiled desktop reader/fixture integration are still required.
+during signature verification and after evidence creation. Native Linux then
+passed all 60 cases without skips at `32cde68c`. The fixed compiled desktop
+reader and fixture integration are still required.
 
 ### Census interruption repair
 
@@ -222,6 +223,22 @@ all 83 dispatcher tests passed under native Linux Node 22.22.3 at `2df17464`.
 Fresh-first lifecycle
 recovery and duplicate downstream continuation issuance remain unsupported;
 this repair does not enable the unavailable Linux production census caller.
+
+### Linux freeze evidence format
+
+The pure V6 candidate/projection format replaces Mac monitor assertions with
+explicit server-freeze confirmation and current-state receipt commitments.
+Its codecs preserve the existing census framing and expiry, authenticate the
+shape of Linux policy provenance and require a distinct later observation.
+Producer/private-store authentication remains a separate required step.
+
+Independent review found no blocking issue. The focused root codec/candidate/
+policy suites and service projection suite passed, as did service types; fixed
+regression hashes preserve V2–V5 binding bytes and V1 is untouched. The final
+codec run passed 22 cases. This is an intermediate source checkpoint: live
+service authorization, source authority, activation generation and workflow
+dispatch still reject V6 until the actual Linux producer and consumers are
+integrated. It neither changes the G001 access policy nor suspends player timers.
 
 ### Shipping estimate and next critical work
 
