@@ -27,13 +27,14 @@ The disabled signer's initial deployment repair in
 `154ef694b490a4fa9afdcabae95ceb714c944add` passed Verify `35397802215` and CodeQL
 `35397802255`. The normal protected squash is signed and tree-identical to that
 tested head; `source-history/warpkeep-0.4-pr300-154ef694b490` retains its source.
-The preceding main `4ca0b7d6` also passed Verify `35397617123`. New main push
-checks remain separate from PR checks and have not yet been claimed complete.
+The preceding main `4ca0b7d6` also passed Verify `35397617123`. New protected
+main `68cfc928` passed Verify `35401799264` and CodeQL `35401799149`, including
+native contracts, both services, Linux checks and connected realm rehearsals.
 Active work continues on `codex/0.4-recovery-ptr-source-20260918` in
 `C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep`: recovery source
 materialization and G001 census restart handling. Inspect its current GitHub
-head and CI before integration. Main's new push checks and native family
-preparation are separate requirements. `C:/Temp/warpkeep-0.4-next` tracks
+head and CI before integration. Native family preparation remains a separate
+requirement. `C:/Temp/warpkeep-0.4-next` tracks
 protected main. Consult the
 [checkout roles](../../operations/0.4.0-development-sync.md#start-from-the-actual-checkout-and-remote)
 before moving either copy; synchronization means equality with each checkout's
@@ -361,6 +362,18 @@ blocking issue; its four affected suites passed 80 tests on Windows with two
 Linux-only skips, and app types passed. The explicit dispatch value is
 `g001_census_attempt: inline`; private activation composition is still being
 integrated, and the generated family is not yet refreshed.
+
+At published `4a50c453`, all 82 tests in the four affected native Linux suites
+passed without skips. The full recovery-service check also passed application
+and Workerd types, Wrangler binding validation and all 66 Workerd tests; its
+1,346 passing unit tests retain the five explicitly native-only Windows skips
+noted above. These results do not establish production census or deployment.
+
+The inline activation continuation and actual fresh-bridge/issue/claim caller
+are still being integrated. Independent review found cross-mode journal
+isolation and cancellation-before-claim gaps in the initial proposed slice;
+both must be resolved and verified before this path is operational. No new
+runtime gameplay features are part of this maintenance work.
 
 ### Shipping estimate and next critical work
 
