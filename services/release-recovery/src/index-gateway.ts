@@ -1,6 +1,6 @@
 import { createRecoveryGateway, type RecoverySignerService } from './gateway.js'
 
-interface GatewayEnvironment { RECOVERY_SIGNER: RecoverySignerService }
+interface GatewayEnvironment { RECOVERY_SIGNER: Partial<RecoverySignerService> }
 export default {
   fetch(request: Request, env: GatewayEnvironment) {
     return createRecoveryGateway({ signer: env.RECOVERY_SIGNER, log: event => console.log(JSON.stringify(event)) }).fetch(request)

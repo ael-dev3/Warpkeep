@@ -6,7 +6,7 @@ This is the active source and operations record. The current pass is maintenance
 only: preserve the existing mechanics and visuals, correct concrete defects,
 and do not add new runtime features.
 
-Protected `main` at the start of this audit is
+Protected `main` at the start of the maintenance audit was
 **`74365a19a8377f60891d418f28b290908d96b028`**, the signed squash of PR #298.
 Its construction-feedback change passed PR Verify `35366945754`, CodeQL
 `35366945733`, main Verify `35372473023` and main CodeQL `35372472714`.
@@ -14,16 +14,18 @@ Pages run `35377095473` succeeded only in `classify`; private toolchain, build,
 deployment, recovery and live verification were all skipped. No 0.4 deployment
 is established by that result.
 
-Active work is [PR #299](https://github.com/ael-dev3/Warpkeep/pull/299), branch
-`codex/0.4-construction-summary-20260918`, in
-`C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep`.
-Its earlier verified development checkpoint `59a919a121eef0623d169d876e75daedef73c193`
-passed all six Verify jobs in `35381941140` and CodeQL `35381941132`.
-The maintenance implementation is published at
-`e2c947fb67cfc9ee20b18aaf474672a0f5ab39b2`. Its Verify `35392098384` and CodeQL
-`35392098371` were still running when this record was written; inspect the
-current PR head and terminal results before integration. Subsequent documentation
-commits also require their own hosted checks. `C:/Temp/warpkeep-0.4-next` tracks
+[PR #299](https://github.com/ael-dev3/Warpkeep/pull/299) is now integrated at
+protected `main` **`4ca0b7d6f156cd6eaec06609ec8ffc83861614b9`**. Its final head
+`7c75b7359dbd36315f9aab2fcebdfb51fe97cfb4` passed every Verify check in
+`35392630351` and CodeQL `35392630348`. The normal protected squash is signed
+and its tree exactly matches the tested head. The retained non-release tag
+`source-history/warpkeep-0.4-pr299-7c75b7359dbd` preserves the original source.
+
+Active work continues on `codex/0.4-recovery-preparation-entry-20260918` in
+`C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep`: the disabled
+signer's initial deployment entry, described below. Inspect its current GitHub
+head and CI before integration. Main's new push checks and native family
+preparation are separate requirements. `C:/Temp/warpkeep-0.4-next` tracks
 protected main. Consult the
 [checkout roles](../../operations/0.4.0-development-sync.md#start-from-the-actual-checkout-and-remote)
 before moving either copy; synchronization means equality with each checkout's
@@ -120,6 +122,44 @@ existing Desktop files were edited. The Koi Canal addition is now mapped to a
 bounded shoreline/palette review in the visual contract, with no reuse or
 performance claim.
 
+### Initial preparation deployment repair
+
+The full recovery signer statically imports final production fixtures that
+cannot exist before the initial authenticated observations. A separate private
+preparation entry/config now exposes the five existing preparation/observation
+methods without those imports. Recovery remains disabled and final issuance,
+claim and reconciliation methods remain absent. Gateway failures stay sanitized;
+the same service and V2 ledger identity are preserved for later promotion.
+
+Pinned Windows Node 22.22.3 passed the complete service check: types, generated
+binding validation, 1,300 unit tests and 66 Workerd tests. The actual preparation
+configuration dry-ran successfully in Wrangler 4.110.0 with the final fixtures
+absent. Independent review verified its bundle has no final signer, production
+fixture or test-double dependency. This establishes source readiness only.
+See [signer wiring evidence](../../evidence/0.4.0/signer-worker-wiring.md) and the
+[bootstrap procedure](../../operations/0.4.0-recovery-bootstrap.md).
+
+Read-only Cloudflare inspection found the existing auth bridge deployed, while
+the signer and gateway do not yet exist. Native fixed publisher configuration
+exists with owner-only metadata; G001 policy token, sealed-state records and
+Linux recovery bootstrap are absent from their fixed roots. The retained Windows
+recovery key/secret bootstrap exists. Do not ask for another key or canary value
+without tracing the selected operation's actual protected input.
+
+Two source gaps still precede full operations: the fixture generator requires
+legacy G002/PTR receipts rather than consuming authenticated preserved-state
+adoption, and G001 census/current-state execution retains unavailable callbacks
+and historical macOS monitor evidence. These are agent implementation work.
+Never substitute Linux process absence for a historical monitor-suspension
+receipt, or synthesize old realm publication/import/provision records.
+
+GitHub's authenticated browser showed no registered Apps. Opening the release
+App form requires renewed elevated authentication; the GitHub Mobile request
+expired without a completed approval. Resume the open browser's own verification
+flow when the owner is available. No App or credential was created. A final
+reviewable App configuration must retain the source-required read-only repository
+permissions and installation scope; routine Git/CI access is already working.
+
 ### Shipping estimate and next critical work
 
 Planning estimate: **5–10 focused working days once operation-specific private
@@ -129,7 +169,8 @@ allowance, not a promised calendar date; it excludes unknown waits for retained
 private records or owner/device availability. A significant acceptance failure
 would require re-estimation. Source/test counts are not a completion percentage.
 
-Next: finish the current PR's exact-head checks and protected integration; prepare
+Next: integrate the initial signer repair after its exact-head checks, then finish
+the identified native producer gaps. Prepare
 and independently check the family from its actual M1, promote M2 and wait for
 that main Verify. Then use supported read-only inspections to identify each
 remaining private prerequisite and its existing producer. Missing implementation
