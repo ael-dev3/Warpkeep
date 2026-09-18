@@ -6,7 +6,7 @@ This is the active source and operations record. The current pass is maintenance
 only: preserve the existing mechanics and visuals, correct concrete defects,
 and do not add new runtime features.
 
-Protected `main` is **`b35f2608f8de131596ede60e508b393f123ca36e`**, merged through
+The latest runtime-bearing source in protected `main` is **`b35f2608f8de131596ede60e508b393f123ca36e`**, merged through
 PR #295 (`fix(keep): clarify first resource journey action`). The repair makes
 the first mobile journey instruction and action label explicit; it changes no
 mechanics, authority, assets or release gates. PR Verify `35332973078` and

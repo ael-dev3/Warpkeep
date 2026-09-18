@@ -2,7 +2,7 @@
 
 Updated 2026-09-18 (Europe/Budapest). Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
 for the single dated source/CI checkpoint and the [release checklist](../../operations/0.4.0-release-checklist.md)
-for acceptance. The protected source is
+for acceptance. The latest runtime-bearing source in protected `main` is
 `b35f2608f8de131596ede60e508b393f123ca36e`, merged through PR #295. PR Verify
 `35332973078`, CodeQL `35332973179`, post-merge Verify `35337649140` and
 post-merge CodeQL `35337649063` passed. Pages run `35342265515` classified the
