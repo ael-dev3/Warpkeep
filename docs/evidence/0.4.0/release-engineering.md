@@ -2,12 +2,10 @@
 
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main), the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
 
-The latest runtime-bearing source in protected `main` is `b35f2608f8de131596ede60e508b393f123ca36e`, merged
-through PR #295. PR Verify `35332973078`, CodeQL `35332973179`, post-merge
-Verify `35337649140` and post-merge CodeQL `35337649063` passed. Pages run
-`35342265515` passed source classification; build, deployment, recovery and
-live verification remained skipped because sealed release authority and
-approval are not closed. The live site remains the older 0.3.43 bundle.
+The execution handoff owns the current protected/development source and terminal
+CI receipts. The dated engineering results below retain their original input;
+do not use an old passing run or Pages classification as a release grant for a
+later source. 0.4 remains unshipped.
 
 The local/source rails are healthy, but private activation and owner authority,
 real deployment, recovery/readback, G001 preservation, sealed G002 denial,

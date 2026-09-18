@@ -102,8 +102,8 @@ it.each(['city-mill', 'lumber-camp', 'city-stoneworks', 'city-goldworks', 'city-
     scene.reconcile({ buildings: [{ ...mill, kind, placement: { kind, x: 16_000_000n, z: -18_000_000n, rotation: 90000 }, phase, completedLevel: level, targetLevel: level }], selectedKind: kind, draft: null, draftValid: true });
     const root = scene.scene.getObjectByName(`building:${kind}`)!; const transform = root.matrixWorld.clone();
     const bounds = scene.selectedSiteBounds()!; expect(bounds.isEmpty()).toBe(false);
-    for (const aspect of [342 / 220, 796 / 144]) {
-      scene.resize(aspect * 200, 200); expect(scene.fitSite(bounds, aspect)).toBe(true);
+    for (const aspect of [342 / 220, 796 / 144]) for (const inspection of [false, true]) {
+      scene.resize(aspect * 200, 200); expect(scene.fitSite(bounds, aspect, inspection)).toBe(true);
       for (const x of [bounds.min.x, bounds.max.x]) for (const y of [bounds.min.y, bounds.max.y]) for (const z of [bounds.min.z, bounds.max.z]) {
         const p = new THREE.Vector3(x, y, z).project(scene.camera);
         expect(Math.abs(p.x)).toBeLessThanOrEqual(1 / 1.2 + 1e-8); expect(Math.abs(p.y)).toBeLessThanOrEqual(1 / 1.2 + 1e-8);

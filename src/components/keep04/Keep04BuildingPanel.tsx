@@ -4,7 +4,7 @@ import type { Placement04 } from '../../../spacetimedb/gameplay04/placement';
 import { buildingBenefit04, buildingDeficits04, quoteBuilding04, type View04 } from '../../ptr/gameplay04/gameplay04Presentation';
 import type { BuildQuote04 } from '../../ptr/gameplay04/ptrGameplay04Types';
 import type { Snapshot04 } from '../../ptr/gameplay04/createGameplay04Controller';
-import { estimatedTime04 } from './Keep04WorkerPanel';
+import { constructionProgress04 } from './constructionProgress04';
 import { formatKeep04Duration } from './formatKeep04Duration';
 
 export const BUILDING_NAMES04: Readonly<Record<Building04, string>> = Object.freeze({
@@ -28,6 +28,7 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
     'city-goldworks': completed.goldworks, 'city-barracks': completed.barracks, 'grand-covenant-cathedral': completed.cathedral };
   const existing = view.buildings.find(building => building.kind === selectedKind);
   const selectedProject = view.state.project?.kind === selectedKind ? view.state.project : undefined;
+  const selectedMaximum = selectedKind !== null && levels[selectedKind] === 5;
   const placement = existing?.placement ?? (draft?.kind === selectedKind ? draft : null);
   const candidate = useMemo(() => {
     if (!selectedKind || !placement) return null;
@@ -60,25 +61,9 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
   function review() {
     setReviewed({ realmKey, draftKey, quote: candidate, problem }); setSent(false); setSubmissionLeftReady(false); sentRef.current = false;
   }
-  function constructionProgress(project: NonNullable<typeof view.state.project>) {
-    if (!Number.isFinite(nowMs)) return 0;
-    const nowMicros = BigInt(Math.max(0, Math.trunc(nowMs))) * 1_000n;
-    const total = project.completesAtMicros - project.startedAtMicros;
-    if (total <= 0n || nowMicros <= project.startedAtMicros) return 0;
-    // Keep the visual honest: an elapsed client clock is never allowed to
-    // claim 100% before the Realm sends the completed building state.
-    if (nowMicros >= project.completesAtMicros) return 99;
-    return Number(((nowMicros - project.startedAtMicros) * 100n) / total);
-  }
   function card(kind: Building04) {
     const project = view.state.project?.kind === kind ? view.state.project : undefined;
-    const progress = project ? constructionProgress(project) : 0;
-    const remaining = project ? estimatedTime04(project.completesAtMicros, nowMs) : null;
-    const progressText = project
-      ? remaining === 'Awaiting Realm update'
-        ? `${progress}% complete · Awaiting Realm confirmation`
-        : `${progress}% complete · ${remaining} remaining`
-      : '';
+    const construction = project ? constructionProgress04(project.startedAtMicros, project.completesAtMicros, nowMs) : null;
     const level = levels[kind]; const maximum = level === 5;
     const benefit = buildingBenefit04(view, kind); const missing = buildingDeficits04(view, kind);
     const firstDeficit = RESOURCES04.find(resource => missing[resource] > 0n);
@@ -94,12 +79,13 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
       {project ? <><p>Building level {project.targetLevel}</p>
         <div className="keep04-construction-progress">
           <div className="keep04-construction-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100}
-            aria-label={`${BUILDING_NAMES04[kind]} construction progress`} aria-valuenow={progress} aria-valuetext={progressText}>
-            <span style={{ width: `${progress}%` }} />
+            aria-label={`${BUILDING_NAMES04[kind]} construction progress`} aria-valuenow={construction?.percent ?? 0}
+            aria-valuetext={construction?.label ?? '0% complete · Awaiting Realm confirmation'}>
+            <span style={{ width: `${construction?.percent ?? 0}%` }} />
           </div>
-          <span className="keep04-construction-progress-label">{progressText}</span>
+          <span className="keep04-construction-progress-label">{construction?.label ?? '0% complete · Awaiting Realm confirmation'}</span>
         </div>
-        <p>Estimated build time: <span>{remaining}</span></p>
+        <p>Estimated build time: <span>{construction?.remaining ?? 'Awaiting Realm update'}</span></p>
       </> : maximum ? <p>Maximum level</p> : <>
         <p>Cost: {costText(buildingCost04(kind, level + 1))}</p>
         <p>Build duration: {formatKeep04Duration(buildingDuration04(level + 1, levels))}</p>
@@ -115,7 +101,7 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
     <p>Benefits apply after completion. Each expedition keeps the gathering rate it began with.</p>
     {view.state.project !== undefined && <p className="keep04-badge">Builder busy</p>}
     {selectedKind && <section aria-labelledby={reviewId} className="keep04-selected-review">
-      <h3 id={reviewId} ref={reviewHeadingRef} tabIndex={-1}>{selectedProject ? 'Construction underway ·' : existing ? 'Upgrade' : 'Place'} {BUILDING_NAMES04[selectedKind]}</h3>
+      <h3 id={reviewId} ref={reviewHeadingRef} tabIndex={-1}>{selectedProject ? 'Construction underway ·' : selectedMaximum ? 'Building complete ·' : existing ? 'Upgrade' : 'Place'} {BUILDING_NAMES04[selectedKind]}</h3>
       {onViewSite && <button type="button" onClick={onViewSite}>{existing ? 'View site' : 'Adjust placement'}</button>}
       {card(selectedKind)}
       <div className="keep04-primary-action">
@@ -123,7 +109,7 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
       {selectedProject ? <>
         <p role="status">Resources for this construction are already committed.</p>
         <p>The new benefit applies when construction completes. {selectedProject.targetLevel < 5 ? 'Review the next upgrade after completion.' : 'This is the final building level.'}</p>
-      </> : <>
+      </> : selectedMaximum ? <p role="status">The highest level is complete. Current benefits are active.</p> : <>
       <p>Permanent placement: construction cannot be cancelled and spent resources are not refunded.</p>
       {changedRealm && <><p role="status">Review updated costs and confirm again</p><button type="button" disabled={!enabled} onClick={review}>Review updated costs</button></>}
       {!placement && <p role="status">No valid draft selected. Choose a building site.</p>}

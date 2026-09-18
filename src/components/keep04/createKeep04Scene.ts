@@ -19,7 +19,7 @@ export type Scene04 = Readonly<{
   scene: THREE.Scene; camera: THREE.OrthographicCamera; reconcile: (state: VisualState04) => void;
   resize: (width: number, height: number, preserveOrientation?: boolean) => void; pickBuilding: (ndcX: number, ndcY: number) => Building04 | null;
   selectedSiteBounds: () => THREE.Box3 | null; entryOverviewBounds: () => THREE.Box3 | null;
-  fitSite: (bounds: THREE.Box3, aspect: number) => boolean;
+  fitSite: (bounds: THREE.Box3, aspect: number, inspection?: boolean) => boolean;
   pickPlacement: (ndcX: number, ndcY: number, kind: Building04) => Placement04 | null;
   update: (elapsedSeconds: number) => boolean; telemetry: () => SceneTelemetry04; dispose: () => void;
 }>;
@@ -253,7 +253,7 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
         for (const landmark of entryLandmarks) bounds.union(new THREE.Box3().setFromObject(landmark));
         return bounds;
       },
-      fitSite: (bounds, aspect) => !disposed && fitKeep04SiteCamera(camera, aspect, bounds),
+      fitSite: (bounds, aspect, inspection = false) => !disposed && fitKeep04SiteCamera(camera, aspect, bounds, inspection),
       resize: (width, height, preserveOrientation = false) => { if (width > 0 && height > 0) fitKeep04Camera(camera, width / height, preserveOrientation); },
       pickBuilding: (x, y) => {
         if (disposed || ![x, y].every(value => Number.isFinite(value) && Math.abs(value) <= 1)) return null;

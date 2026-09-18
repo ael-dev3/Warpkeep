@@ -9,8 +9,8 @@ reference into an imported engine, a new economy, or a promise of deep
 interactivity.
 
 Use the [execution handoff](execution-handoff.md), current refs and open pull
-requests for source and verification. The protected M2 runtime source family
-remains `fa9927bb9a8701e182f63eac1206e2f1425c4522`. This record pins the
+requests for source and verification. The historical protected M2 runtime source family
+was `fa9927bb9a8701e182f63eac1206e2f1425c4522`. This record pins the
 docs-only reconciliation checkpoint
 `74e021a9b25417e2c77fcbaf7f764eba03474f77`; its post-merge Verify
 `35301960822`, CodeQL `35301960847` and Pages classification `35304999434`
@@ -129,6 +129,7 @@ code or media was copied; nothing was copied from the references into Warpkeep.
 | Astra voxel engine; Binary Greedy Meshing; noa | Keep the bounded, material-aware voxel presentation and generated dressing owned by `voxelSurfaceMesh.ts`, `greaterRealmVoxelPresentation.ts`, and `keep04VoxelDressing.ts`. Use merging, batching and stable authored surfaces; do not add editable terrain, physics or a replacement engine. |
 | Verdant Forest; EZ-Tree; three-stylized; stylized-components; TUMBLE meadow | Use a small authored forest language: near and far bands, curated gaps around buildings, restrained tint variation and one coherent motion rhythm. Review repetition at the keep and atlas cameras before adding assets. The forest stays visual and batched. |
 | Pelagic; Three.js Water Pro; Luminous Lake | Keep one lightweight water surface with broad world-aligned movement, fine ripples, calm shoreline color and restrained sky highlights. Directional river cues may be tuned from existing data. Avoid displaced grids, live reflections and CPU-per-frame deformation. The Greater Realm owner is `greaterRealmWaterSurface.ts`; Keep04 now carries a static, non-interactive moat edge in `createKeep04Scene.ts`. |
+| Koi Canal (September 18 handoff addition) | Use the handoff's recorded shoreline, planting, depth and palette observations to review the existing Keep04 moat and Greater Realm water boundary. The demo has no verified reusable source/license in our evidence. No fish, boat ride, reflection system or new asset kit is required for 0.4; the reference does not establish mobile performance. |
 | Dream Loop and Vesper | Treat visual iteration as a repeatable critic loop: capture the real scene, compare against the Verdant Citadel target, name the most visible mismatch, make the smallest source change, and capture again. The process is documented below; Dream Loop is not a runtime dependency. |
 | Selo Empire; Widelands | Make available, incoming, blocked, committed and completed states answer “what is missing?”, “what is returning?”, “what happens next?” and “what improves afterward?” in the existing Worker and building panels. Do not import their larger logistics simulations. |
 | Townscaper; Tiny Glade | Make each completed building level read as a cohesive silhouette and material change with a short, calm reveal. The keep now adds bounded merged masonry courses to authored prefabs and fallback silhouettes alongside its level badge and pennants. Keep fixed policy footprints and Warpkeep's own strategic purpose; do not add freeform construction. |

@@ -2,19 +2,17 @@
 
 ## Current source and access checkpoint — 18 September 2026
 
-The [execution handoff](execution-handoff.md) owns the dated source and
-completed CI receipts. The latest runtime-bearing source in protected `main` is
-`b35f2608f8de131596ede60e508b393f123ca36e`, merged through PR #295. PR Verify
-`35332973078`, CodeQL `35332973179`, post-merge Verify `35337649140` and
-post-merge CodeQL `35337649063` passed. Pages run `35342265515` passed source
-classification, while build, deployment, recovery and live verification
-remained skipped because sealed release authority and approval are not closed.
-The live site remains the older 0.3.43 bundle.
+The [execution handoff](execution-handoff.md) owns the dated protected source,
+active development branch and completed CI receipts. Inspect that record and
+live refs rather than maintaining another moving SHA here. Pages classification
+can succeed while build, deployment, recovery and live verification are skipped;
+0.4 remains unshipped.
 
 Cloudflare production-profile reads and the owner's `ael-dev3` SpacetimeDB
 publisher login work; they do not provide retained activation authority,
-application-owner PTR access or release acceptance. Existing sealed private
-runtime/audit stores remain empty. Provider-backed deployment, G001
+application-owner PTR access or release acceptance. The September 16 inspection
+found empty sealed private runtime/audit stores; recheck the required producer
+before treating that dated observation as a current access diagnosis. Provider-backed deployment, G001
 preservation, recovery/readback, owner play, device acceptance and final freeze
 remain open. Historical observations below retain their original scope and do
 not supersede this current checkpoint.

@@ -5,7 +5,7 @@
     {
       "path": ".github/workflows/deploy-pages.yml",
       "digestProfile": "reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1",
-      "sha256": "491bc94b71167d63c0ae1167b395e25b2a07364bb95d9a9af427a8175fde51d9"
+      "sha256": "7b47bea63f601ad6991cea974546cac3415863f3ad7de54a002871c21019e1d3"
     },
     {
       "path": ".github/workflows/notification-bridge-b0.yml",
@@ -25,7 +25,7 @@
     {
       "path": ".github/workflows/verify.yml",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "94adc7bc239de7ee2f805d45773a42086a652c2bef5bc6bb66f401fa2d872fc2"
+      "sha256": "09016e5e580534f17a2fbb5a6ab4eeb962dc2a89bf17f870e799e2d640c72819"
     },
     {
       "path": "config/releases/0.4.0-sealed-launch.json",
@@ -360,7 +360,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ca9e6f78e0b5ab513d11825ccc1ad17337cee1918a63ce79bf4e445aaef8d3d7"
+      "sha256": "633d9bb8d91e9e350b7fa5e3155465a6e5fe0cf11ad72a4d9ea403683f560428"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -1260,7 +1260,7 @@
     {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "41af88d11e17b18029df0424adf73366f58d6675d8f0bc9148da17c9bfce47e9"
+      "sha256": "8de412affc0980a5241741ddb51805f9a234769a2b546d92c8d56db7798ca944"
     },
     {
       "path": "scripts/production-player-canary-admin-transport.ts",
@@ -1550,7 +1550,7 @@
     {
       "path": "scripts/qa-observer/local-fullstack-spacetime.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b8a7e9ccaf385e39ea20be7c1dde8157c96580dbb94c9ffe934adad51953300e"
+      "sha256": "d5536906fc9a4acede34afca0a4bc13abbedb345756317e5f353f6369843a27b"
     },
     {
       "path": "scripts/qa-observer/local-vite-fs-deny.d.mts",
@@ -3615,37 +3615,42 @@
     {
       "path": "src/components/keep04/Keep04BuildingPanel.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "3ab0a38088dd915c543b9ae29edcf1c195207ee5d927bcafd7c4e7e9ecb4f188"
+      "sha256": "9410cfb734ae40feb57c26e0d5a6db11be9f7130a89efb1878947fb3fba47da5"
     },
     {
       "path": "src/components/keep04/Keep04LoopRail.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e0e95b916ba2d8d8b870d61e8cae019b1884ff9f2ef8669e08fe38a0f345a56c"
+      "sha256": "cf1e38cb0b56b26acd5373773f881d4e4bca0fc753c54a24b6c4dc8f882b14c6"
     },
     {
       "path": "src/components/keep04/Keep04SceneHost.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f3fe6f3d18012c600f4dc7b8cecb2d06ae4690548ed17ab26e3f5d684a6a4360"
+      "sha256": "85ccb6cc179a1a588686466184e62ca03a79e9cc88503d3e2f48229e21598987"
     },
     {
       "path": "src/components/keep04/Keep04Schematic.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "7b3940c9302b28981fe8de1877dccda059a929234b4fa4cfc04b6462ee046afd"
+      "sha256": "16b525e45a2a6505c0fa840b0c3d4fbf087925b26624acfea13192c06a5ed29e"
     },
     {
       "path": "src/components/keep04/Keep04Screen.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6963759762a625790fbe70d88e7cac8b3dc7c2513e5275171959c238a835ed6e"
+      "sha256": "e5406f16e925cf7c7d029334abd8ce1d4b60a660decfd1ea44902f3f1666e1b1"
     },
     {
       "path": "src/components/keep04/Keep04Screen.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "3286709692e319e5f8e9f043bf43066aeecac1a430105313f517c0d13ea56610"
+      "sha256": "8a4ff06303646f10cb0c1fddc132713975b1fac23eed769f5a67e5ce84c17cc3"
     },
     {
       "path": "src/components/keep04/Keep04WorkerPanel.tsx",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "8a64c991845517d7483019cce1d802ccb81a58154a66954cda5d82a6ad742be8"
+    },
+    {
+      "path": "src/components/keep04/constructionProgress04.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "f9657a9bb94a856bcd9e2ad39cd259fc0a148441339303f9711ccffa5f368c09"
     },
     {
       "path": "src/components/keep04/createKeep04Buildings.ts",
@@ -3655,7 +3660,7 @@
     {
       "path": "src/components/keep04/createKeep04Scene.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e7bea9b5426c5829d917f8298d9ba5166137853841f7860d817f46b728decd6d"
+      "sha256": "c0508385c618209af4c418a98e6684d12f9acb8ee2c21f41de3d009daa1916fc"
     },
     {
       "path": "src/components/keep04/formatKeep04Duration.ts",
@@ -3665,12 +3670,12 @@
     {
       "path": "src/components/keep04/keep04DressingPlans.generated.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e9bd60dc103dd6d22c1bf0b262dcaf14f28c7d12ffc18beb5b6ca755474caa01"
+      "sha256": "e4b1f82e0667f555defa87cb8176a25700ae1816eb94c09a6bc9f9dc1f08d2ba"
     },
     {
       "path": "src/components/keep04/keep04VisualProfile.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6ceda3d8b47b977121e894b8c6af9e282c90498e807f7f8b4a45aed734adc2fc"
+      "sha256": "00762e3245b693bd8db57467faad03ed11eec54696ae705c5ac6bab2b5ce40e7"
     },
     {
       "path": "src/components/keep04/keep04VoxelDressing.ts",

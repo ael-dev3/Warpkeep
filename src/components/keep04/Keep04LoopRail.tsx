@@ -30,6 +30,7 @@ export function activeKeep04LoopStage04(selection: Keep04LoopSelection04, view: 
       ? 'benefit' : 'build';
   }
   if (selection.panel === 'workers' || view.workers.some(worker => worker.phase === 'outbound' || worker.phase === 'gathering')) return 'gather';
+  if (Object.values(view.state.completedLevels).every(level => level === 5)) return 'gather';
   return 'choose';
 }
 

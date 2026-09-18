@@ -48,16 +48,25 @@ export function fitKeep04Camera(camera: THREE.OrthographicCamera, aspect: number
   camera.updateProjectionMatrix();
 }
 
-/** Camera-only fit; bounds include the settled model/scaffold and actual footprint. */
-export function fitKeep04SiteCamera(camera: THREE.OrthographicCamera, aspect: number, bounds: THREE.Box3): boolean {
+/** Camera-only fit; explicit inspection looks over nearby roofs while entry retains its overview angle. */
+export function fitKeep04SiteCamera(camera: THREE.OrthographicCamera, aspect: number, bounds: THREE.Box3, inspection = false): boolean {
   if (bounds.isEmpty() || ![...bounds.min.toArray(), ...bounds.max.toArray(), aspect].every(Number.isFinite) || aspect <= 0) return false;
+  if (inspection) {
+    const direction = camera.getWorldDirection(new THREE.Vector3());
+    const azimuth = Math.atan2(-direction.x, -direction.z); const elevation = Math.PI / 3;
+    const center = bounds.getCenter(new THREE.Vector3()); const distance = Math.hypot(131, 95);
+    // Keep the overview's azimuth and camera distance; a steeper sightline lets
+    // the existing Inspect action reveal sites behind neighboring buildings.
+    camera.position.set(Math.sin(azimuth) * Math.cos(elevation), Math.sin(elevation), Math.cos(azimuth) * Math.cos(elevation)).multiplyScalar(distance).add(center);
+    camera.up.set(0, 1, 0); camera.lookAt(center);
+  }
   camera.updateMatrixWorld(true);
   const projected = new THREE.Box3();
   for (const x of [bounds.min.x, bounds.max.x]) for (const y of [bounds.min.y, bounds.max.y]) for (const z of [bounds.min.z, bounds.max.z]) {
     projected.expandByPoint(new THREE.Vector3(x, y, z).applyMatrix4(camera.matrixWorldInverse));
   }
   const center = projected.getCenter(new THREE.Vector3());
-  // Translate in the camera plane: orientation and depth range remain unchanged.
+  // Fit in the chosen camera plane without further changing orientation or depth range.
   camera.position.add(new THREE.Vector3(center.x, center.y, 0).applyQuaternion(camera.quaternion));
   const size = projected.getSize(new THREE.Vector3());
   const halfHeight = Math.max(12, 1.2 * Math.max(size.y / 2, size.x / (2 * aspect)));
