@@ -3,6 +3,7 @@ import type {
 } from './sealed-realms-production-private-state.mjs';
 import type {
   SealedRealmsProductionSourceAuthority,
+  SealedRealmsProductionRetainedSource,
 } from './sealed-realms-production-source-authority.mjs';
 import type {
   SealedRealmsProductionWorkflowPermit,
@@ -173,3 +174,12 @@ export function readSealedRealmsProductionContinuationCompletion(input: Readonly
   observationDigest: string | null;
   terminalAt: string;
 }>;
+
+/** Separate retained-source read; never accepts a live claim or issues a continuation. */
+export function readSealedRealmsProductionRetainedContinuationCompletion(input: Readonly<{
+  store: SealedRealmsProductionContinuationStore;
+  privateState: SealedRealmsProductionPrivateState;
+  retainedSource: SealedRealmsProductionRetainedSource;
+  kind: 'ptr-update' | 'g002-update'; subject: string; evidenceDigest: string;
+  receiptDigests: readonly string[]; predecessorDigests: readonly string[];
+}>): ReturnType<typeof readSealedRealmsProductionContinuationCompletion>;

@@ -1,4 +1,4 @@
-import type { SealedRealmsProductionSourceAuthority } from "./sealed-realms-production-source-authority.mjs";
+import type { SealedRealmsProductionSourceAuthority, SealedRealmsProductionRetainedSource } from "./sealed-realms-production-source-authority.mjs";
 import type { SealedRealmsProductionPrivateState } from "./sealed-realms-production-private-state.mjs";
 import type { SyntheticExistingUpdateAdapter } from "./sealed-realms-production-existing-update.mjs";
 import type { prepareGenesis002SourceBuiltArtifact } from "./genesis002-production-publisher.mjs";
@@ -181,3 +181,15 @@ export function readG002ExistingStateAdoption(input: Readonly<{
   authority: SealedRealmsProductionSourceAuthority;
   privateState: SealedRealmsProductionPrivateState;
 }>): Promise<G002ExistingStateAdoptionEnvelope>;
+
+/** Fixed private inventory discovery. A returned commit is data, never authority. */
+export function readPtrRetainedUpdateSourceCommit(input: Readonly<{
+  privateState: SealedRealmsProductionPrivateState;
+}>): string | null;
+export function readG002RetainedUpdateSourceCommit(input: Parameters<typeof readPtrRetainedUpdateSourceCommit>[0]): string | null;
+export function readPtrRetainedUpdateCompletion(input: Readonly<{
+  retainedSource: SealedRealmsProductionRetainedSource;
+  privateState: SealedRealmsProductionPrivateState;
+  store: SealedRealmsProductionContinuationStore;
+}>): PtrExistingUpdateReceipt;
+export function readG002RetainedUpdateCompletion(input: Parameters<typeof readPtrRetainedUpdateCompletion>[0]): G002ExistingUpdateReceipt;

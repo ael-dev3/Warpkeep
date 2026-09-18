@@ -1,7 +1,7 @@
 import type { SealedRealmsProductionContinuationStore } from './sealed-realms-production-continuation.mjs';
 import type { verifyPtrUpdateObservationPair, verifyG002UpdateObservationPair } from '../services/release-recovery/src/ptrObservation.ts';
 import type { SealedRealmsProductionPrivateState } from './sealed-realms-production-private-state.mjs';
-import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
+import type { SealedRealmsProductionSourceAuthority, SealedRealmsProductionRetainedSource } from './sealed-realms-production-source-authority.mjs';
 import type { PtrExistingUpdateCompletion, PtrExistingStateAdoption, PtrExistingUpdateReceipt, G002ExistingUpdateCompletion, G002ExistingStateAdoption, G002ExistingUpdateReceipt } from './ptr-production-existing-update-adapter.mjs';
 
 export class SealedRealmsProductionActivationRecordsError extends Error {
@@ -144,3 +144,13 @@ export function readSealedRealmsProductionG002ExistingStateAdoptionEvidence(inpu
   completionReceipt: G002ExistingUpdateReceipt;
   pair: Awaited<ReturnType<typeof verifyG002UpdateObservationPair>>;
 }>;
+
+/** Authenticates retained history without granting source, provider or writer authority. */
+export function authenticateSealedRealmsProductionPtrHistoricalAdoption(input: Readonly<{
+  privateState: SealedRealmsProductionPrivateState;
+  retainedSource: SealedRealmsProductionRetainedSource;
+  store: SealedRealmsProductionContinuationStore;
+}>): Promise<SealedRealmsProductionPtrExistingStateAdoptionEvidence>;
+export function authenticateSealedRealmsProductionG002HistoricalAdoption(
+  input: Parameters<typeof authenticateSealedRealmsProductionPtrHistoricalAdoption>[0],
+): Promise<SealedRealmsProductionG002ExistingStateAdoptionEvidence>;

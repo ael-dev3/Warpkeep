@@ -8,6 +8,7 @@ import {
 import {
   preparationSourceCommitFromSealedRealmsProductionAuthority,
   sourceCommitFromSealedRealmsProductionAuthority,
+  readSealedRealmsProductionRetainedSource,
 } from './sealed-realms-production-source-authority.mjs';
 import {
   genesis002ProductionImportReceiptDigest,
@@ -28,7 +29,7 @@ import {
 } from './genesis001-admitted-player-census.mjs';
 import { createRecoveryActivationBindingFromCandidate, validateRecoveryActivationCandidateDocument } from './recovery-activation-candidate.mjs';
 import { parseActivationGenerationReceipt } from './sealed-realms-production-activation-generation-receipt.mjs';
-import { readPtrExistingUpdateCompletion, readPtrExistingStateAdoption, readPtrExistingUpdateCompletionFromPrivateState, readG002ExistingUpdateCompletion, readG002ExistingStateAdoption, readG002ExistingUpdateCompletionFromPrivateState } from './ptr-production-existing-update-adapter.mjs';
+import { readPtrExistingUpdateCompletion, readPtrExistingStateAdoption, readPtrExistingUpdateCompletionFromPrivateState, readPtrRetainedUpdateCompletion, readG002ExistingUpdateCompletion, readG002ExistingStateAdoption, readG002ExistingUpdateCompletionFromPrivateState, readG002RetainedUpdateCompletion } from './ptr-production-existing-update-adapter.mjs';
 import { updateCanonical, updateDigest } from './sealed-realms-existing-update-protocol.mjs';
 import { verifyPtrUpdateObservationPair, verifyG002UpdateObservationPair } from '../services/release-recovery/src/ptrObservation.ts';
 
@@ -1182,6 +1183,9 @@ export function assertSealedRealmsProductionActivationRecordsAuthority(input) {
 /** Fixed lane policies retain separate registries and unchanged PTR wire bytes. */
 function createAdoptionRecordRuntime(policy) {
   const retainedAdoptions = new WeakMap();
+  // These owners are deliberately absent from recordsCapabilities: writers and
+  // activation/descriptor consumers must not accept a historical read owner.
+  const historicalOwners = new WeakMap();
   /** Only a live adapter-issued completion can create this fixed lane's update record. */
   function writeCompletion(input) {
     const options = exactInput(input, ['records', 'authority', 'completion']);
@@ -1270,6 +1274,16 @@ function createAdoptionRecordRuntime(policy) {
 
 
   function retainedAdoptionOwner(options) {
+    const historical = historicalOwners.get(options.records);
+    if (historical) {
+      const source = readSealedRealmsProductionRetainedSource(options.authority, policy.realm);
+      assertSealedRealmsProductionPrivateState(historical.privateState);
+      if (source.sourceCommit !== historical.sourceCommit || source.sourceTree !== historical.retainedSourceTree
+        || source.authorityDigest !== historical.sourceAuthorityDigest) {
+        fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+      }
+      return historical;
+    }
     const state = capabilityState(options.records);
     const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(options.authority);
     assertSealedRealmsProductionPrivateState(state.privateState);
@@ -1285,8 +1299,9 @@ function createAdoptionRecordRuntime(policy) {
   /** Reconstruct the original update through the same inventory owner as the producer. */
   function reopenRetainedAdoption(options) {
     const state = retainedAdoptionOwner(options);
-    const receipt = policy.readPrivateCompletion({ authority: options.authority,
-      privateState: state.privateState, store: options.store });
+    const receipt = historicalOwners.has(options.records)
+      ? policy.readRetainedCompletion({ retainedSource: options.authority, privateState: state.privateState, store: options.store })
+      : policy.readPrivateCompletion({ authority: options.authority, privateState: state.privateState, store: options.store });
     validateMemberReceipt(policy.member, receipt, state.sourceCommit);
     const updateBytes = state.privateState.read({ root: 'runtime',
       relativePath: receiptPath(policy.member) });
@@ -1309,6 +1324,7 @@ function createAdoptionRecordRuntime(policy) {
       if (`${JSON.stringify(envelope)}\n` !== text || envelope.schemaVersion !== policy.schemaVersion
         || envelope.profile !== policy.adoptionProfile
         || envelope.sourceCommit !== state.sourceCommit || !COMMIT.test(envelope.sourceTree)
+        || (state.retainedSourceTree !== undefined && envelope.sourceTree !== state.retainedSourceTree)
         || typeof envelope.preObservationJws !== 'string' || typeof envelope.postObservationJws !== 'string'
         || updateCanonical(envelope.completionReceipt) !== updateCanonical(receipt)) {
         fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
@@ -1366,6 +1382,18 @@ function createAdoptionRecordRuntime(policy) {
     return evidence;
   }
 
+  /** Same private/signature checks, with a separate ancestral read-only owner. */
+  async function authenticateHistorical(input) {
+    const options = exactInput(input, ['privateState', 'retainedSource', 'store']);
+    const privateState = assertSealedRealmsProductionPrivateState(options.privateState);
+    const source = readSealedRealmsProductionRetainedSource(options.retainedSource, policy.realm);
+    const records = Object.freeze({});
+    historicalOwners.set(records, Object.freeze({ privateState, sourceMode: 'S',
+      sourceCommit: source.sourceCommit, preparationSourceCommit: source.sourceCommit,
+      retainedSourceTree: source.sourceTree, sourceAuthorityDigest: source.authorityDigest }));
+    return authenticate({ records, authority: options.retainedSource, store: options.store });
+  }
+
   /** Synchronous consumers get only a branded, previously verified and freshly reopened baseline. */
   function readEvidence(input) {
     const options = exactInput(input, ['evidence', 'privateState', 'sourceCommit']);
@@ -1390,10 +1418,11 @@ function createAdoptionRecordRuntime(policy) {
     return Object.freeze({ result, envelope: member.envelope, privateState: member.state.privateState });
   }
 
-  return Object.freeze({ writeCompletion, writeAdoption, authenticate, readEvidence, retainedForEvidence });
+  return Object.freeze({ writeCompletion, writeAdoption, authenticate, authenticateHistorical, readEvidence, retainedForEvidence });
 }
 
 const PTR_ADOPTION_POLICY = Object.freeze({
+  realm: 'ptr', readRetainedCompletion: readPtrRetainedUpdateCompletion,
   operation: 'ptr-update-apply', member: 'ptrExistingUpdateReceipt',
   target: 'c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e',
   receiptProfile: 'warpkeep-ptr-existing-update-receipt-v1', definitionProfile: 'warpkeep-ptr-raw-v10-stable-row-schema-v1',
@@ -1402,6 +1431,7 @@ const PTR_ADOPTION_POLICY = Object.freeze({
   readAdoption: readPtrExistingStateAdoption, verifyPair: verifyPtrUpdateObservationPair,
 });
 const G002_ADOPTION_POLICY = Object.freeze({
+  realm: 'g002', readRetainedCompletion: readG002RetainedUpdateCompletion,
   operation: 'g002-update-apply', member: 'g002ExistingUpdateReceipt',
   target: 'c2003223f6e3c86e988775ddd458c3a45635d0d021e11131551471617c392194',
   receiptProfile: 'warpkeep-g002-existing-update-receipt-v1', definitionProfile: 'warpkeep-g002-raw-v10-stable-row-schema-v1',
@@ -1414,10 +1444,12 @@ const g002AdoptionRuntime = createAdoptionRecordRuntime(G002_ADOPTION_POLICY);
 export function writeSealedRealmsProductionPtrExistingUpdateRecord(input) { return ptrAdoptionRuntime.writeCompletion(input); }
 export function writeSealedRealmsProductionPtrExistingStateAdoptionRecord(input) { return ptrAdoptionRuntime.writeAdoption(input); }
 export function authenticateSealedRealmsProductionPtrExistingStateAdoption(input) { return ptrAdoptionRuntime.authenticate(input); }
+export function authenticateSealedRealmsProductionPtrHistoricalAdoption(input) { return ptrAdoptionRuntime.authenticateHistorical(input); }
 export function readSealedRealmsProductionPtrExistingStateAdoptionEvidence(input) { return ptrAdoptionRuntime.readEvidence(input); }
 export function writeSealedRealmsProductionG002ExistingUpdateRecord(input) { return g002AdoptionRuntime.writeCompletion(input); }
 export function writeSealedRealmsProductionG002ExistingStateAdoptionRecord(input) { return g002AdoptionRuntime.writeAdoption(input); }
 export function authenticateSealedRealmsProductionG002ExistingStateAdoption(input) { return g002AdoptionRuntime.authenticate(input); }
+export function authenticateSealedRealmsProductionG002HistoricalAdoption(input) { return g002AdoptionRuntime.authenticateHistorical(input); }
 export function readSealedRealmsProductionG002ExistingStateAdoptionEvidence(input) { return g002AdoptionRuntime.readEvidence(input); }
 const retainedAdoptionForEvidence = (...args) => ptrAdoptionRuntime.retainedForEvidence(...args);
 

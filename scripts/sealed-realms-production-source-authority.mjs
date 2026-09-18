@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { types } from 'node:util';
 import { readRecoveryActivationGitSource } from './recovery-attestation-source.mjs';
 
 export const SEALED_REALMS_OPERATIONS = Object.freeze([
@@ -45,6 +46,8 @@ const ACTIVATION_PATHS = Object.freeze([
 const authenticatedAuthorities = new WeakSet();
 const authenticatedSourceCommits = new WeakMap();
 const authenticatedPreparationSourceCommits = new WeakMap();
+// Historical read capabilities never enter any effect-authority registry.
+const authenticatedRetainedSources = new WeakMap();
 
 export class SealedRealmsProductionSourceAuthorityError extends Error {
   constructor(code) {
@@ -348,4 +351,63 @@ export function preparationSourceCommitFromSealedRealmsProductionAuthority(autho
   }
   return authenticatedPreparationSourceCommits.get(authority)
     ?? fail('SEALED_REALMS_SOURCE_AUTHORITY_INTERNAL_INVALID');
+}
+
+/**
+ * Authenticates an ancestral S for retained evidence only. The native caller owns
+ * actual Git/committed-binding reads and bounded public Verify readback; these
+ * adapters do not alias HEAD or origin/main to the historical source.
+ */
+export function authenticateSealedRealmsProductionRetainedSource(input) {
+  const keys = [
+    'realm', 'operatingCommit', 'sourceCommit', 'sourceTree', 'readGit', 'readBinding', 'verifyEvidence',
+  ];
+  if (types.isProxy(input) || input === null || typeof input !== 'object'
+    || Object.getPrototypeOf(input) !== Object.prototype) fail('SEALED_REALMS_RETAINED_SOURCE_INPUT_INVALID');
+  const descriptors = Object.getOwnPropertyDescriptors(input);
+  if (Reflect.ownKeys(descriptors).length !== keys.length || keys.some(key =>
+    !descriptors[key]?.enumerable || !Object.hasOwn(descriptors[key], 'value'))) {
+    fail('SEALED_REALMS_RETAINED_SOURCE_INPUT_INVALID');
+  }
+  const options = Object.freeze(Object.fromEntries(keys.map(key => [key, descriptors[key].value])));
+  if (!['g002', 'ptr'].includes(options.realm)
+    || typeof options.readGit !== 'function' || typeof options.readBinding !== 'function'
+    || typeof options.verifyEvidence !== 'function'
+    || [options.readGit, options.readBinding, options.verifyEvidence].some(types.isProxy)) {
+    fail('SEALED_REALMS_RETAINED_SOURCE_INPUT_INVALID');
+  }
+  const operatingCommit = exactCommit(options.operatingCommit, 'SEALED_REALMS_RETAINED_SOURCE_INPUT_INVALID');
+  const sourceCommit = exactCommit(options.sourceCommit, 'SEALED_REALMS_RETAINED_SOURCE_INPUT_INVALID');
+  const sourceTree = exactCommit(options.sourceTree, 'SEALED_REALMS_RETAINED_SOURCE_INPUT_INVALID');
+  const attestGit = () => {
+    if (gitCommit(options.readGit, ['rev-parse', '--verify', 'HEAD^{commit}']) !== operatingCommit
+      || gitCommit(options.readGit, ['rev-parse', '--verify', 'refs/remotes/origin/main^{commit}']) !== operatingCommit
+      || gitCommit(options.readGit, ['rev-parse', '--verify', `${sourceCommit}^{commit}`]) !== sourceCommit
+      || gitCommit(options.readGit, ['rev-parse', '--verify', `${sourceCommit}^{tree}`]) !== sourceTree
+      || gitCommit(options.readGit, ['merge-base', sourceCommit, operatingCommit]) !== sourceCommit) {
+      fail('SEALED_REALMS_RETAINED_SOURCE_HISTORY_INVALID');
+    }
+    preparationBinding(options.readBinding, sourceCommit);
+  };
+  attestGit();
+  verifyExactEvidence(options.verifyEvidence, operatingCommit);
+  if (sourceCommit !== operatingCommit) verifyExactEvidence(options.verifyEvidence, sourceCommit);
+  attestGit();
+  const capability = Object.freeze({});
+  authenticatedRetainedSources.set(capability, Object.freeze({
+    realm: options.realm, operatingCommit, sourceCommit, sourceTree, mode: 'S',
+    operation: `${options.realm}-update-apply`, preparationSourceCommit: sourceCommit,
+    authorityDigest: createHash('sha256').update('warpkeep.sealed-realms.source-authority.v1\n')
+      .update('S\n').update(sourceCommit).update('\n').update(sourceCommit).digest('hex'),
+  }));
+  return capability;
+}
+
+/** A historical data projection; ordinary source/effect accessors reject this brand. */
+export function readSealedRealmsProductionRetainedSource(capability, realm) {
+  const retained = authenticatedRetainedSources.get(capability);
+  if (!retained || !['g002', 'ptr'].includes(realm) || retained.realm !== realm) {
+    fail('SEALED_REALMS_RETAINED_SOURCE_OPAQUE_RESULT_REQUIRED');
+  }
+  return retained;
 }

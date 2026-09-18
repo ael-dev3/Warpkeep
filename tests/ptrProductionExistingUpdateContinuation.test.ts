@@ -50,6 +50,7 @@ vi.mock("../scripts/genesis002-production-publisher.mjs", async (importOriginal)
 }));
 import { createPtrProductionExistingUpdateAdapter, exportPtrExistingUpdateCompletion, readPtrExistingUpdateCompletion } from "../scripts/ptr-production-existing-update-adapter.mjs";
 import { capturePtrExistingUpdateAdoption, readPtrExistingStateAdoption } from '../scripts/ptr-production-existing-update-adapter.mjs';
+import { readPtrRetainedUpdateSourceCommit, readG002RetainedUpdateSourceCommit } from '../scripts/ptr-production-existing-update-adapter.mjs';
 import { createG002ProductionExistingUpdateAdapter, exportG002ExistingUpdateCompletion,
   readG002ExistingUpdateCompletion, readG002ExistingUpdateCompletionFromPrivateState,
   captureG002ExistingUpdateAdoption, readG002ExistingStateAdoption } from '../scripts/ptr-production-existing-update-adapter.mjs';
@@ -65,7 +66,7 @@ import {
   writeSealedRealmsProductionPtrExistingUpdateRecord,
 } from "../scripts/sealed-realms-production-activation-records.mjs";
 import { canonicalizePtrRawV10 } from "../scripts/ptr-artifact-description.mjs";
-import { authenticateSealedRealmsProductionSourceAuthority } from "../scripts/sealed-realms-production-source-authority.mjs";
+import { authenticateSealedRealmsProductionSourceAuthority, authenticateSealedRealmsProductionRetainedSource } from "../scripts/sealed-realms-production-source-authority.mjs";
 import {
   createSealedRealmsProductionPrivateState,
   SEALED_REALMS_PRIVATE_STATE_VERSION,
@@ -78,6 +79,8 @@ import {
   createSealedRealmsProductionContinuationStore,
   claimSealedRealmsProductionContinuation,
   assertSealedRealmsProductionContinuationClaim,
+  issueSealedRealmsProductionContinuation,
+  reconcileSealedRealmsProductionContinuation,
 } from "../scripts/sealed-realms-production-continuation.mjs";
 import { createSealedRealmsProductionAuthBridgeState, createSealedRealmsProductionAuthBridgeStateTestCapability } from "../scripts/sealed-realms-production-auth-bridge-state.mjs";
 import { createSealedRealmsProductionPublicationReconciler } from "../scripts/sealed-realms-production-reconciliation.mjs";
@@ -925,6 +928,126 @@ async function retainedAdoption(observationOptions: ObservationOptions = {}) {
   return { f, run, receipt, records, written,
     path: join(f.runtime, 'ptr-existing-state-adoptions-v4', `${written.receiptDigest}.json`) };
 }
+
+function retainedSource(realm: 'ptr' | 'g002', sourceTree = 'b'.repeat(40)) {
+  const main = 'e'.repeat(40);
+  return authenticateSealedRealmsProductionRetainedSource({ realm, operatingCommit: main, sourceCommit: SOURCE, sourceTree,
+    readGit: args => {
+      const command = args.join(' ');
+      if (command === 'rev-parse --verify HEAD^{commit}' || command === 'rev-parse --verify refs/remotes/origin/main^{commit}') return `${main}\n`;
+      if (command === `rev-parse --verify ${SOURCE}^{commit}` || command === `merge-base ${SOURCE} ${main}`) return `${SOURCE}\n`;
+      if (command === `rev-parse --verify ${SOURCE}^{tree}`) return `${sourceTree}\n`;
+      throw Error('Unexpected historical Git read');
+    },
+    readBinding: () => ({ schemaVersion: 1, profile: 'warpkeep-0.4.0-sealed-launch-v1', pagesDeploymentApproved: false, preparationSourceCommit: null }),
+    verifyEvidence: commit => ({ verifiedSha: commit }) });
+}
+
+it('reopens both genuine retained adoptions under newer main without original publication receipts or effects', async () => {
+  const { f, receipt, written } = await retainedAdoption();
+  const g002 = await retainedG002ForPtrFixture(f, {});
+  const requests = seams.request.mock.calls.length, observed = f.observations.requests.length;
+  expect(readPtrRetainedUpdateSourceCommit({ privateState: f.privateState })).toBe(SOURCE);
+  expect(readG002RetainedUpdateSourceCommit({ privateState: f.privateState })).toBe(SOURCE);
+  for (const [realm, store, authenticate, read, expected] of [
+    ['ptr', f.store, adoptionWriter.authenticateSealedRealmsProductionPtrHistoricalAdoption,
+      adoptionWriter.readSealedRealmsProductionPtrExistingStateAdoptionEvidence, { receipt, written }],
+    ['g002', g002.g002.store, adoptionWriter.authenticateSealedRealmsProductionG002HistoricalAdoption,
+      adoptionWriter.readSealedRealmsProductionG002ExistingStateAdoptionEvidence, g002],
+  ] as const) {
+    const capability = retainedSource(realm);
+    const input = { privateState: f.privateState, retainedSource: capability, store };
+    const evidence = await authenticate(input);
+    const reopened = (read as typeof adoptionWriter.readSealedRealmsProductionPtrExistingStateAdoptionEvidence)({ evidence: evidence as never, privateState: f.privateState, sourceCommit: SOURCE });
+    expect(reopened).toMatchObject({ sourceCommit: SOURCE, sourceTree: 'b'.repeat(40),
+      adoptionReceiptDigest: expected.written.recordDigest, completionReceipt: expected.receipt });
+    await expect(authenticate({ ...input, retainedSource: { ...capability } as never })).rejects.toThrow();
+    await expect(authenticate({ ...input, retainedSource: retainedSource(realm, 'c'.repeat(40)) })).rejects.toThrow();
+    await expect(authenticate({ ...input, retainedSource: retainedSource(realm === 'ptr' ? 'g002' : 'ptr') })).rejects.toThrow();
+    await expect(authenticate({ ...input, privateState: {} as never })).rejects.toThrow();
+    await expect(authenticate({ ...input, store: {} as never })).rejects.toThrow();
+  }
+  expect(seams.request.mock.calls.length).toBe(requests);
+  expect(f.observations.requests.length).toBe(observed);
+}, 30000);
+
+it('cannot reuse retained source for permits, continuation changes, adapters, activation or record writes', async () => {
+  const { f, records } = await retainedAdoption();
+  const retained = retainedSource('ptr') as never;
+  const before = JSON.stringify({ records: f.records(), terminals: f.continuationTerminals() });
+  const requests = seams.request.mock.calls.length;
+  const fetchImpl = vi.fn();
+  await expect(issueSealedRealmsProductionWorkflowPermit({ sourceAuthority: retained, githubToken: 'synthetic-never-sent',
+    runId: '900', runAttempt: '1', fetchImpl })).rejects.toThrow();
+  expect(fetchImpl).not.toHaveBeenCalled();
+  const common = { store: f.store, permit: {} as never, sourceAuthority: retained, kind: 'ptr-update' as const,
+    runId: '900', runAttempt: '1', subject: `ptr-update:${ID}`, evidenceDigest: '1'.repeat(64), receiptDigests: [], predecessorDigests: [] };
+  const effect = vi.fn(), readOnlyReconcile = vi.fn();
+  await expect(issueSealedRealmsProductionContinuation(common)).rejects.toThrow('OPAQUE_RESULT_REQUIRED');
+  await expect(claimSealedRealmsProductionContinuation({ ...common, effect })).rejects.toThrow('OPAQUE_RESULT_REQUIRED');
+  await expect(reconcileSealedRealmsProductionContinuation({ ...common, readOnlyReconcile })).rejects.toThrow('OPAQUE_RESULT_REQUIRED');
+  expect(effect).not.toHaveBeenCalled(); expect(readOnlyReconcile).not.toHaveBeenCalled();
+  for (const create of [createPtrProductionExistingUpdateAdapter, createG002ProductionExistingUpdateAdapter]) {
+    expect(() => create({ authority: retained, privateState: f.privateState, artifact: {} as never,
+      observation: { sourceTree: 'b'.repeat(40), runId: '900', runAttempt: '1' } })).toThrow();
+  }
+  expect(() => createSealedRealmsProductionActivationRecords({ privateState: f.privateState, authority: retained })).toThrow();
+  for (const write of [adoptionWriter.writeSealedRealmsProductionPtrExistingUpdateRecord, adoptionWriter.writeSealedRealmsProductionG002ExistingUpdateRecord]) {
+    expect(() => write({ records, authority: retained, completion: {} as never })).toThrow('OPAQUE_RESULT_REQUIRED');
+  }
+  for (const write of [adoptionWriter.writeSealedRealmsProductionPtrExistingStateAdoptionRecord, adoptionWriter.writeSealedRealmsProductionG002ExistingStateAdoptionRecord]) {
+    await expect(write({ records, authority: retained, adoption: {} as never })).rejects.toThrow('OPAQUE_RESULT_REQUIRED');
+  }
+  expect(JSON.stringify({ records: f.records(), terminals: f.continuationTerminals() })).toBe(before);
+  expect(seams.request.mock.calls.length).toBe(requests);
+}, 30000);
+
+it('rejects a genuine private owner/store mismatch on the historical entry', async () => {
+  const { f } = await retainedAdoption();
+  const other = fixture(process.platform !== 'linux');
+  const authenticate = adoptionWriter.authenticateSealedRealmsProductionPtrHistoricalAdoption;
+  const input = { privateState: f.privateState, retainedSource: retainedSource('ptr'), store: f.store };
+  await expect(authenticate({ ...input, store: other.store })).rejects.toThrow('CONTINUATION_STORE_INVALID');
+  await expect(authenticate({ ...input, privateState: other.privateState })).rejects.toThrow();
+  const evidence = await authenticate(input);
+  expect(() => adoptionWriter.readSealedRealmsProductionPtrExistingStateAdoptionEvidence({
+    evidence, privateState: other.privateState, sourceCommit: SOURCE })).toThrow();
+}, 30000);
+
+it.each(['adoption', 'completion', 'terminal'] as const)(
+  'historical authentication rejects %s changes during signature await and every later read', async kind => {
+    const { f, path } = await retainedAdoption();
+    const findTerminal = (directory: string): string | undefined => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const candidate = join(directory, entry.name);
+        if (entry.isDirectory()) { const nested = findTerminal(candidate); if (nested) return nested; }
+        else if (entry.name.endsWith('.json') && JSON.parse(readFileSync(candidate, 'utf8')).profile
+          === 'warpkeep-sealed-realms-continuation-terminal-v1') return candidate;
+      }
+    };
+    const inventory = join(f.runtime, 'existing-updates-production-v1', 'ptr', ID);
+    const target = kind === 'adoption' ? path : kind === 'completion'
+      ? join(inventory, readdirSync(inventory).find(name => name.endsWith('.completion.json'))!) : findTerminal(f.runtime)!;
+    const saved = readFileSync(target), originalVerify = crypto.subtle.verify.bind(crypto.subtle);
+    const input = { privateState: f.privateState, retainedSource: retainedSource('ptr'), store: f.store };
+    const authenticate = adoptionWriter.authenticateSealedRealmsProductionPtrHistoricalAdoption;
+    let changed = false;
+    const verifying = vi.spyOn(crypto.subtle, 'verify').mockImplementation(async (...args) => {
+      const valid = await originalVerify(...args);
+      if (!changed) { changed = true; writeFileSync(target, '{}\n'); }
+      return valid;
+    });
+    try { await expect(authenticate(input)).rejects.toThrow(); expect(changed).toBe(true); }
+    finally { verifying.mockRestore(); writeFileSync(target, saved); }
+    const evidence = await authenticate(input);
+    const read = () => adoptionWriter.readSealedRealmsProductionPtrExistingStateAdoptionEvidence({
+      evidence, privateState: f.privateState, sourceCommit: SOURCE });
+    const before = read();
+    try { writeFileSync(target, '{}\n'); expect(read).toThrow(); }
+    finally { writeFileSync(target, saved); }
+    expect(read()).toEqual(before);
+  }, 30000,
+);
 
 it('authenticates retained V4 after producer disposal and rechecks exact private lineage on every read', async () => {
   const { f, run, receipt, records, written, path } = await retainedAdoption();

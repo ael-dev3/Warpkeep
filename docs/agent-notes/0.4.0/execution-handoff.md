@@ -166,11 +166,13 @@ Never substitute Linux process absence for a historical monitor-suspension
 receipt, or synthesize old realm publication/import/provision records.
 
 GitHub's renewed elevated browser authentication succeeded on September 19.
-The prepared “Warpkeep Release Recovery” registration selects read-only Actions,
-Checks, Contents, Deployments, Metadata and Pages permissions, account-only
-installation and disabled webhooks. Creation and installation only on Warpkeep
-await the browser policy's action-time confirmation. No App or credential has
-yet been created; routine Git/CI access is already working.
+After the owner's action-time authorization, “Warpkeep Release Recovery” was
+registered as App `4995046` and installed as `162864794`, selecting only
+`ael-dev3/Warpkeep`. Its evidence-reader permissions are read-only Actions,
+Checks, Contents, Deployments, Metadata and Pages, with account-only installation
+and disabled webhooks. A key was generated; protected local retention and actual
+App-token verification remain pending. This reader does not replace or restrict
+the existing GitHub write and provider deployment credentials.
 
 ### PTR fixture source repair
 
@@ -188,6 +190,21 @@ symlink and missing blob. Windows passed three portable cases (five explicitly
 native-only cases skipped), 66 adjacent fixture/host/toolchain tests and service
 types. No full production fixture generation or provider operation ran. Existing
 adoption provenance still needs its separate authenticated producer path.
+
+### Retained adoption reader
+
+The recovery producer can now authenticate retained PTR/G002 updates after
+protected main advances, using a separate historical-read capability. It reopens
+the original private completion, successful continuation and signed observation
+pair; it cannot issue permits, claim operations, create adapters or write records.
+The full repository tree remains distinct from the realm module tree.
+
+Independent review found no blocking issue. Pinned Windows Node 22.22.3 passed
+54 tests across the source-authority and signed-update suites, with six native-only
+cases explicitly skipped; application typechecking passed. Added historical-entry
+regressions cover genuine foreign stores and adoption/completion/terminal changes
+during signature verification and after evidence creation. Native validation and
+the fixed compiled desktop reader/fixture integration are still required.
 
 ### Census interruption repair
 

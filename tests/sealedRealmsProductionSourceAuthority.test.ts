@@ -10,10 +10,75 @@ import {
   authenticateSealedRealmsProductionSourceAuthority,
   preparationSourceCommitFromSealedRealmsProductionAuthority,
   sourceCommitFromSealedRealmsProductionAuthority,
+  authenticateSealedRealmsProductionRetainedSource,
+  readSealedRealmsProductionRetainedSource,
 } from '../scripts/sealed-realms-production-source-authority.mjs';
 
 const S = '1'.repeat(40);
 const A = '2'.repeat(40);
+const TREE = '3'.repeat(40);
+
+function retainedSourceFixture(overrides: Partial<Parameters<typeof authenticateSealedRealmsProductionRetainedSource>[0]> = {}) {
+  const readGit = vi.fn((args: readonly string[]) => {
+    const command = args.join(' ');
+    if (['rev-parse --verify HEAD^{commit}', 'rev-parse --verify refs/remotes/origin/main^{commit}'].includes(command)) return `${A}\n`;
+    if (command === `rev-parse --verify ${S}^{commit}` || command === `merge-base ${S} ${A}`) return `${S}\n`;
+    if (command === `rev-parse --verify ${S}^{tree}`) return `${TREE}\n`;
+    throw Error('Unexpected retained Git read');
+  });
+  return { realm: 'ptr' as const, operatingCommit: A, sourceCommit: S, sourceTree: TREE,
+    readGit, readBinding: preparationBinding, verifyEvidence: vi.fn((commit: string) => ({ verifiedSha: commit })), ...overrides };
+}
+
+describe('retained source read capability', () => {
+  it('authenticates historical S under actual newer main without creating effect authority', () => {
+    const input = retainedSourceFixture();
+    const retained = authenticateSealedRealmsProductionRetainedSource(input);
+    const original = authenticateSealedRealmsProductionSourceAuthority({ operation: 'ptr-update-apply',
+      workflowInputSha: S, readGit: gitFixture().git, readBinding: preparationBinding,
+      verifyEvidence: commit => ({ verifiedSha: commit }) });
+    expect(readSealedRealmsProductionRetainedSource(retained, 'ptr')).toMatchObject({
+      sourceCommit: S, sourceTree: TREE, operatingCommit: A, authorityDigest: original.authorityDigest });
+    expect(vi.mocked(input.verifyEvidence).mock.calls.map(call => call[0])).toEqual([A, S]);
+    expect(() => sourceCommitFromSealedRealmsProductionAuthority(retained as never)).toThrow('OPAQUE_RESULT_REQUIRED');
+    expect(() => preparationSourceCommitFromSealedRealmsProductionAuthority(retained as never)).toThrow('OPAQUE_RESULT_REQUIRED');
+    expect(() => readSealedRealmsProductionRetainedSource({ ...retained } as never, 'ptr')).toThrow();
+    expect(() => readSealedRealmsProductionRetainedSource(retained, 'g002')).toThrow();
+    expect(() => readSealedRealmsProductionRetainedSource(original as never, 'ptr')).toThrow();
+  });
+
+  it.each(['head', 'main', 'source', 'tree', 'ancestor', 'binding', 'verify'])(
+    'rejects mismatched %s evidence', mismatch => {
+      const input = retainedSourceFixture(), readGit = input.readGit;
+      input.readGit = vi.fn(args => {
+        const command = args.join(' ');
+        if ((mismatch === 'head' && command.includes('HEAD'))
+          || (mismatch === 'main' && command.includes('origin/main'))
+          || (mismatch === 'source' && command === `rev-parse --verify ${S}^{commit}`)
+          || (mismatch === 'tree' && command.endsWith('^{tree}'))
+          || (mismatch === 'ancestor' && args[0] === 'merge-base')) return `${'f'.repeat(40)}\n`;
+        return readGit(args);
+      });
+      if (mismatch === 'binding') input.readBinding = () => ({ ...preparationBinding(), pagesDeploymentApproved: true });
+      if (mismatch === 'verify') input.verifyEvidence = vi.fn(() => ({ verifiedSha: 'f'.repeat(40) }));
+      expect(() => authenticateSealedRealmsProductionRetainedSource(input)).toThrow();
+    },
+  );
+
+  it('rechecks Git after Verify and rejects caller accessors without invoking them', () => {
+    const input = retainedSourceFixture(), readGit = input.readGit;
+    let changed = false;
+    input.readGit = vi.fn(args => changed && args[2] === 'HEAD^{commit}' ? `${S}\n` : readGit(args));
+    input.verifyEvidence = vi.fn(commit => { changed = true; return { verifiedSha: commit }; });
+    expect(() => authenticateSealedRealmsProductionRetainedSource(input)).toThrow();
+    const accessed = vi.fn();
+    const supplied = retainedSourceFixture();
+    Object.defineProperty(supplied, 'sourceCommit', { enumerable: true, get: accessed });
+    expect(() => authenticateSealedRealmsProductionRetainedSource(supplied)).toThrow();
+    expect(() => authenticateSealedRealmsProductionRetainedSource(new Proxy({}, { ownKeys: accessed }) as never)).toThrow();
+    expect(accessed).not.toHaveBeenCalled();
+  });
+});
 
 function rawActivationDiff(entries: readonly string[]) {
   return Buffer.from(entries.join(''), 'utf8');
