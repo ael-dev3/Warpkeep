@@ -3,11 +3,13 @@
 ## Current source and access checkpoint — 2026-09-18
 
 The [execution handoff](execution-handoff.md) owns the dated source, completed
-CI and successful read-only preflight. Protected `main` is currently
-`f62229ac86aed729679925126a1ea80c180a2c03`; Verify `35291615351`, CodeQL
-`35291615379` and Pages classification `35295461029` passed for that exact
-SHA. The last runtime-bearing checkpoint is `b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a`;
-the current head adds documentation and CI cleanup hardening only. The
+CI and successful read-only preflight. This record pins the docs-only
+checkpoint `74e021a9b25417e2c77fcbaf7f764eba03474f77` (PR #291); Verify
+`35301960822`, CodeQL `35301960847` and Pages classification `35304999434`
+passed for that exact SHA, with deployment skipped while
+`pagesDeploymentApproved:false` is in force. The last runtime-bearing
+checkpoint is `b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a`; later documentation and
+CI cleanup commits do not change that runtime source. The
 [live delivery guide](../../operations/0.4.0-live-delivery-status.md) owns fresh
 access observations and operating steps. Cloudflare production profile reads
 work. Windows and the Linux production CLI now authenticate as the owner's

@@ -5,10 +5,10 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 ## Resumption audit — 18 September 2026
 
 Current release checkpoint: protected M2 runtime source family
-`fa9927bb9a8701e182f63eac1206e2f1425c4522`; current protected `main` is
-`f62229ac86aed729679925126a1ea80c180a2c03`, with post-merge Verify
-`35291615351` and CodeQL `35291615379` passing for that exact SHA. Pages
-classification `35295461029` passed; build, deployment, recovery and live
+`fa9927bb9a8701e182f63eac1206e2f1425c4522`; this record pins the docs-only
+checkpoint `74e021a9b25417e2c77fcbaf7f764eba03474f77`, with post-merge Verify
+`35301960822`, CodeQL `35301960847` and Pages classification `35304999434`
+passing for that exact SHA. Pages build, deployment, recovery and live
 verification were skipped while `pagesDeploymentApproved:false` is in force.
 PR #290's bounded Linux cleanup retry passed its protected Verify
 `35287561293` and CodeQL `35287561395`. The last runtime-bearing checkpoint

@@ -9,10 +9,10 @@ and do not add new runtime features.
 The protected generated-family promotion remains the runtime source at
 `fa9927bb9a8701e182f63eac1206e2f1425c4522` (M1 source merge
 `645637e112ab18ac4565fbf5978349cd77063742`, generated-only PR #274).
-The current protected `main` documentation checkpoint is
-**`f62229ac86aed729679925126a1ea80c180a2c03`**. Its post-merge Verify
-`35291615351` and CodeQL `35291615379` passed for that exact SHA. Pages
-classification `35295461029` also passed and left build, deployment, recovery
+The latest recorded docs-only reconciliation checkpoint is
+**`74e021a9b25417e2c77fcbaf7f764eba03474f77`** (PR #291). Its post-merge
+Verify `35301960822`, CodeQL `35301960847` and Pages classification
+`35304999434` passed for that exact SHA. Pages left build, deployment, recovery
 and live-verification lanes skipped while `pagesDeploymentApproved:false` is in
 force. PR #290 integrated a bounded Linux sealed-launch cleanup retry after its
 first hosted attempt exposed an `ENOTEMPTY` race; rerun Verify `35287561293`
@@ -59,8 +59,8 @@ was intentionally dispatched immediately after the documentation merge, before
 the required push-to-main Verify had completed. It failed closed at
 `phase:"workflow"` without provider inputs or mutation; the successful
 `35162811785` Verify and `35166824615` preflight document the earlier receipt
-checkpoint; current protected-main verification is `35291615351`/`35291615379`
-above.
+checkpoint; the later docs-only checkpoint above is verified by
+`35301960822`/`35301960847`.
 
 Two supported read-only operations were then dispatched against this exact
 source to identify the next real gate. [Activation inspection 35110519489](https://github.com/ael-dev3/Warpkeep/actions/runs/35110519489)
