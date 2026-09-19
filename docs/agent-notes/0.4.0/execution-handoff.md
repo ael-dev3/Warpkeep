@@ -4,14 +4,14 @@
 
 This is the active source and operations record. The maintenance pass corrected
 concrete defects and promoted the verified prepared family; it did not add new
-runtime features. Protected `main` is **`71458ff8ccf058b1565e864bf6c3f8fe0aad0f75`**.
+runtime features. Protected `main` is **`1ef2e59f0c97231096f49f4d0ebb9c51770ec5f8`**.
 
 The source-only repair in [PR #304](https://github.com/ael-dev3/Warpkeep/pull/304)
 fixed workflow evidence to accept the committed `run-name` (`operation @ source`)
 and merged through protection. The generated-family promotion in
 [PR #305](https://github.com/ael-dev3/Warpkeep/pull/305) then merged the exact
-native-prepared outputs. Main Verify `35464076932` and main CodeQL
-`35464076940` both passed. The Pages run `35466975662` passed only its
+native-prepared outputs. Main Verify `35470772505` and main CodeQL
+`35470772567` both passed. The Pages run `35473333765` passed only its
 classification job; build, private toolchain, deployment, recovery and live
 verification were skipped because `pagesDeploymentApproved:false` remains
 explicit. No 0.4 deployment is established by those runs.
@@ -28,7 +28,7 @@ The candidate checked 3,248 source/candidate files, 624 bundle inputs, 7
 recovery inputs and 102 generated outputs; `finalReleasePrepared:false` remains
 intentional. The exact outgoing range passed pinned Gitleaks with no findings.
 
-The final protected preflight `35467008164` succeeded against this SHA and
+The final protected preflight `35473363540` succeeded against this SHA and
 returned `{"operation":"preflight","status":"preflight-inspected"}`. It
 performed no provider or realm mutation. Follow-up read-only probes were run
 once each and failed closed before any mutation: G001 policy observation
@@ -41,7 +41,7 @@ G002 update inspection `35467287821` (workflow phase), and PTR update inspection
 missing or unusable operation-specific private producers/retained state, not a
 GitHub checkout, source, runner or preflight problem.
 
-Windows and native WSL checkouts are clean, detached at this protected SHA, and
+Windows and native WSL checkouts are clean on `main` at this protected SHA, and
 `origin/main` resolves to the same object. Keep the sync automation paused and
 create no Desktop siblings. The live site remains the older 0.3.43 bundle, and
 0.4 remains unshipped until provider deployment/recovery, G001 preservation,

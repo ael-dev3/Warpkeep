@@ -3,10 +3,10 @@
 ## Current checkpoint supersession — 19 September 2026
 
 The active protected runtime source family is M2 at
-`71458ff8ccf058b1565e864bf6c3f8fe0aad0f75`. Main Verify `35464076932`, CodeQL
-`35464076940` and exact-source preflight `35467008164` passed. Native prepare/check
+`1ef2e59f0c97231096f49f4d0ebb9c51770ec5f8`. Main Verify `35470772505`, CodeQL
+`35470772567` and exact-source preflight `35473363540` passed. Native prepare/check
 converged on the family, closure and scanner hashes recorded in the execution
-handoff; `finalReleasePrepared:false` remains explicit. Pages `35466975662`
+handoff; `finalReleasePrepared:false` remains explicit. Pages `35473333765`
 classified only and skipped deployment/recovery/live verification.
 
 The follow-up protected read-only probes were intentionally run once each after
