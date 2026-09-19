@@ -247,6 +247,22 @@ regexes = [
 ]
 
 [[allowlists]]
+description = "Exact public Git commit, tree and blob identifiers embedded in the generated G002 and PTR bundles"
+targetRules = ["sourcegraph-access-token"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^scripts/sealed-realms-production-g002-lane\.bundle\.mjs$''', '''^scripts/sealed-realms-production-ptr-lane\.bundle\.mjs$''']
+regexes = [
+  '''^052c83fe984a4c4eb7bb4f9afa5c6b1903891d87$''',
+  '''^2ae51984e1fa6ce5b0028c1a250359fed79d819b$''',
+  '''^649efdebd25528f593aff612ca8aef6f761d1e94$''',
+  '''^90deebb5faf4129282f5c35999244f540001b27d$''',
+  '''^a640febaa07fad295f2de4b4416b7a22910eb2e6$''',
+  '''^c50182e99ed2e2fab1ca994c905818d383782cfc$''',
+  '''^faf7214653f1248a3f9231fd6a13dda130821014$''',
+]
+
+[[allowlists]]
 description = "Exact public protected M1 commit and tree identifiers in the two source-evidence documents"
 targetRules = ["sourcegraph-access-token"]
 condition = "AND"
