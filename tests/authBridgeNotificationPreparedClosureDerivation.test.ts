@@ -17,10 +17,12 @@ import {
   assertAuthBridgeNotificationPreparedDeployClosureAuthority,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS,
+  authBridgeNotificationPreparedDeployClosureTestSeams,
   deriveAuthBridgeNotificationPreparedDeployClosure,
   verifyAuthBridgeNotificationPreparedDeployClosure,
 } from '../scripts/auth-bridge-notification-prepared-deploy-closure.mjs';
 import { deriveAuthBridgeNotificationPreparedDeployClosurePaths } from '../scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs';
+import { derivePreparedClosureFamily } from '../scripts/local-prepared-closure-family.mjs';
 import { createRecoveryActivationBindingFromCandidate } from '../scripts/recovery-activation-candidate.mjs';
 import { recoveryBindingKeys } from '../scripts/recovery-binding-projection.mjs';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
@@ -35,6 +37,7 @@ const PROFILE = 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1';
 const ZERO_SHA256 = '0'.repeat(64);
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
 const MAX_AGGREGATE_BYTES = 128 * 1_024 * 1_024;
+const MAX_MANIFEST_BYTES = 512 * 1_024;
 const RAW_FILE_DIGEST_PROFILE = 'raw-file-sha256-v1';
 const BOOTSTRAP_PIN_DIGEST_PROFILE =
   'bootstrap-pin-projection-sha256-v1';
@@ -319,7 +322,7 @@ describe('prepared deploy closure derivation', () => {
     expect(Object.isFrozen(first)).toBe(true);
     expect(Object.isFrozen(first.workflowBodies)).toBe(true);
     expect(first.workflowBodies.every(member => Object.isFrozen(member))).toBe(true);
-    expect(first.manifestBytes.byteLength).toBeLessThanOrEqual(256 * 1_024);
+    expect(first.manifestBytes.byteLength).toBeLessThanOrEqual(MAX_MANIFEST_BYTES);
 
     const installed = new Map(fixtureMemberBodies);
     for (const member of first.workflowBodies) installed.set(member.path, member.bytes);
@@ -334,6 +337,39 @@ describe('prepared deploy closure derivation', () => {
       first as never,
       { repositoryRoot },
     )).toThrow();
+  });
+
+  it('derives and parses the complete prospective source family above the former manifest limit', async () => {
+    const family = await derivePreparedClosureFamily({ repositoryRoot });
+    const manifest = family.files.find(file => file.path === AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH);
+    expect(manifest).toBeDefined();
+    expect(manifest!.bytes.byteLength).toBeGreaterThan(256 * 1_024);
+    expect(manifest!.bytes.byteLength).toBeLessThanOrEqual(MAX_MANIFEST_BYTES);
+    const parsed = authBridgeNotificationPreparedDeployClosureTestSeams!.parseManifest(Buffer.from(manifest!.bytes));
+    expect((parsed.members as unknown[]).length).toBe(family.memberCount);
+    expect(sha256(manifest!.bytes)).toBe(family.manifestSha256);
+  }, 60_000);
+
+  it('accepts a canonical manifest at 512 KiB and rejects one additional byte before granting authority', () => {
+    // Parser-only namespace fixture; exact inventory ownership is a separate
+    // required verifier check and is deliberately not established by this data.
+    const document = { schemaVersion: 2, profile: PROFILE, members: Array.from({ length: 512 }, (_, index) => ({
+      path: `scripts/resource-boundary-${index.toString().padStart(4, '0')}.mjs`,
+      digestProfile: RAW_FILE_DIGEST_PROFILE, sha256: 'f'.repeat(64),
+    })) };
+    const encode = () => Buffer.from(`${JSON.stringify(document, null, 2)}\n`);
+    const remaining = MAX_MANIFEST_BYTES - encode().byteLength;
+    for (const [index, member] of document.members.entries()) {
+      const padding = Math.floor(remaining / document.members.length) + (index < remaining % document.members.length ? 1 : 0);
+      member.path = member.path.replace('.mjs', `${'a'.repeat(padding)}.mjs`);
+    }
+    const boundary = encode(); expect(boundary.byteLength).toBe(MAX_MANIFEST_BYTES);
+    expect(authBridgeNotificationPreparedDeployClosureTestSeams!.parseManifest(boundary)).toEqual(document);
+    expect(authBridgeNotificationPreparedDeployClosureTestSeams!.manifestMemberSetMatchesExpected(document)).toBe(false);
+    document.members[document.members.length - 1]!.path += 'a';
+    const oversized = encode(); expect(oversized.byteLength).toBe(MAX_MANIFEST_BYTES + 1);
+    expect(() => authBridgeNotificationPreparedDeployClosureTestSeams!.parseManifest(oversized))
+      .toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
   });
 
   it('uses all four fixed digest profiles in canonical member order', () => {

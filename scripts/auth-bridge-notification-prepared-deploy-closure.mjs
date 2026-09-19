@@ -77,7 +77,7 @@ const PTR_OBSERVATION_SHARED_SOURCE_MEMBER_PATHS = new Set([
   'services/release-recovery/src/recoveryPublicKey.ts',
 ]);
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
-const MAX_MANIFEST_BYTES = 256 * 1_024;
+const MAX_MANIFEST_BYTES = 512 * 1_024;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
 const MAX_AGGREGATE_MEMBER_BYTES = 128 * 1_024 * 1_024;
 // Resource bound, independent of the exact frozen member list below.

@@ -1871,7 +1871,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     )).toThrow('AUTH_BRIDGE_PREPARED_TOOLCHAIN_AUTHORITY_INVALID');
   });
 
-  it('accepts a valid source-closure manifest within the 256 KiB bound', () => {
+  it('accepts a valid source-closure manifest at 512 KiB and rejects the next byte', () => {
     const fixture = createInstalledToolchainFixture();
     const sourceManifestPath = resolve(
       fixture.root,
@@ -1887,27 +1887,29 @@ describe('notification-bridge-prepared protected workflow', () => {
         sha256: string;
       }>;
     };
-    let index = 0;
-    while (Buffer.byteLength(
-      `${JSON.stringify(sourceManifest, null, 2)}\n`,
-      'utf8',
-    ) <= 200 * 1_024) {
-      sourceManifest.members.push({
-        path: `zz-fixture/${index.toString().padStart(4, '0')}-${'a'.repeat(850)}`,
-        digestProfile: 'raw-file-sha256-v1',
-        sha256: 'f'.repeat(64),
-      });
-      index += 1;
+    const paddingMembers = Array.from({ length: 512 }, (_, index) => ({
+      path: `zz-fixture/${index.toString().padStart(4, '0')}-`,
+      digestProfile: 'raw-file-sha256-v1', sha256: 'f'.repeat(64),
+    }));
+    sourceManifest.members.push(...paddingMembers);
+    const remaining = 512 * 1_024 - Buffer.byteLength(`${JSON.stringify(sourceManifest, null, 2)}\n`, 'utf8');
+    for (const [index, member] of paddingMembers.entries()) {
+      member.path += 'a'.repeat(Math.floor(remaining / paddingMembers.length) + (index < remaining % paddingMembers.length ? 1 : 0));
     }
     const source = `${JSON.stringify(sourceManifest, null, 2)}\n`;
-    expect(Buffer.byteLength(source, 'utf8')).toBeGreaterThan(192 * 1_024);
-    expect(Buffer.byteLength(source, 'utf8')).toBeLessThanOrEqual(256 * 1_024);
+    expect(Buffer.byteLength(source, 'utf8')).toBe(512 * 1_024);
     writeFileSync(sourceManifestPath, source);
 
     expect(verifyInstalledToolchainFixture(fixture)).toMatchObject({
       profile:
         'warpkeep-auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1',
     });
+    sourceManifest.members[sourceManifest.members.length - 1]!.path += 'a';
+    const oversized = `${JSON.stringify(sourceManifest, null, 2)}\n`;
+    expect(Buffer.byteLength(oversized, 'utf8')).toBe(512 * 1_024 + 1);
+    writeFileSync(sourceManifestPath, oversized);
+    expect(() => verifyInstalledToolchainFixture(fixture))
+      .toThrow('AUTH_BRIDGE_PREPARED_TOOLCHAIN_SOURCE_MANIFEST_INVALID');
   });
 
   it('normalizes pnpm CI global virtual-store false to the existing manifest', () => {

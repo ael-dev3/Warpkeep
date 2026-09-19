@@ -464,6 +464,18 @@ fixture also now asserts the exact clock used by its final expiry read.
 The preparation runbook consistently directs source-only
 M1, native prepare/check from exact protected M1, then generated-only M2.
 
+After ordinary integration of protected `68cfc928` into the development branch,
+published `7d18304f` passed all 15 selected native completed-candidate/retry cases,
+including the corrected expiry clock and earlier V4/V5 completion paths; 47
+unrelated cases were unselected. Source-only derivation then identified a real
+packaging limit: the complete canonical source manifest needs 263,411 bytes,
+exceeding the earlier 262,144-byte bound by 1,267 bytes. No output was installed
+by that failed derivation. The producer/parser and installed-toolchain reader
+now share a 512 KiB bound, preserving the exact member, canonical-byte and hash
+checks. Boundary regressions use valid canonical documents at the limit and
+one byte above it. Generated family installation follows verification of this
+source repair; the compiled operation provenance is unchanged.
+
 ### Shipping estimate and next critical work
 
 Planning estimate: **5–10 focused working days once operation-specific private
