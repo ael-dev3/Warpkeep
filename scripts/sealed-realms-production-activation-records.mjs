@@ -4,6 +4,8 @@ import { readFixedLinuxG001ActivationCensusEvidence } from './genesis001-linux-p
 import { projectGenesis001LinuxFreezeEvidence } from './genesis001-linux-freeze-receipt.mjs';
 import { attestSealedRealmsProductionCompletedCensusRun } from './sealed-realms-production-workflow-authority.mjs';
 import { readSealedRealmsProductionRecoveryAdoptionProgramComparison } from './sealed-realms-production-recovery-program-artifacts.mjs';
+import { assertSealedRealmsProductionContinuationReconciliation,
+  readSealedRealmsProductionContinuationCompletion } from './sealed-realms-production-continuation.mjs';
 import { createHash } from 'node:crypto';
 import { types } from 'node:util';
 
@@ -49,6 +51,99 @@ const RECORD_DIRECTORY = 'activation-evidence/records';
 const recordsCapabilities = new WeakMap();
 const candidateReadContexts = new WeakMap();
 const linuxRecoveryOwners = new WeakMap();
+const completedGenerationSelections = new WeakMap();
+
+// These fixed bytes select retained data, never authorize a claim or a write.
+function completedSelectionSnapshot(state) {
+  assertSealedRealmsProductionPrivateState(state.privateState);
+  const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(state.authority);
+  if (state.authority.mode !== 'S' || state.authority.operation !== 'activation-evidence-generate') fail();
+  const root = state.privateState.list({ root: 'runtime' });
+  if (root.some(name => name === 'public.family.lock' || name.startsWith('public.stage.'))
+    || JSON.stringify(state.privateState.list({ root: 'runtime', relativeDirectory: 'public' }))
+      !== JSON.stringify(['0.4.0-sealed-launch.json', 'activation-generation-receipt.json'])) fail();
+  let receiptBytes, descriptorBytes, artifactBytes, bridgeBytes;
+  const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+  try {
+    receiptBytes = state.privateState.read({ root: 'runtime', relativePath: 'public/activation-generation-receipt.json' });
+    const receipt = parseActivationGenerationReceipt(receiptBytes);
+    descriptorBytes = state.privateState.readActivationDescriptor();
+    artifactBytes = state.privateState.read({ root: 'runtime', relativePath: 'public/0.4.0-sealed-launch.json' });
+    if (receipt.sourceCommit !== sourceCommit || receipt.sourceAuthorityDigest !== state.authority.authorityDigest
+      || receipt.artifactSchemaVersion !== 6 || Date.parse(receipt.generatedAt) > Date.now()
+      || receipt.descriptorSha256 !== hash(descriptorBytes) || receipt.artifactSha256 !== hash(artifactBytes)) fail();
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(descriptorBytes), envelope = JSON.parse(source);
+    if (`${JSON.stringify(envelope, null, 2)}\n` !== source) fail();
+    exactInput(envelope, ['schemaVersion', 'profile', 'bindingCandidate', ...RECOVERY_MEMBERS_V6]);
+    canonicalJsonTree(envelope);
+    if (envelope.schemaVersion !== 6 || envelope.profile !== RECOVERY_PROFILE_V6) fail();
+    const candidate = validateRecoveryActivationCandidateDocument(`${JSON.stringify(envelope.bindingCandidate, null, 2)}\n`);
+    const census = verifyGenesis001LinuxCensusAttempt(envelope.g001LinuxCensusAttempt);
+    if (candidate.schemaVersion !== 6 || candidate.preparationSourceCommit !== sourceCommit
+      || candidate.admissionRequestSuspensionReceiptDigest !== receipt.activationEvidenceDigest
+      || census.sourceCommit !== sourceCommit || census.githubRunId !== receipt.runId
+      || Number(census.githubRunAttempt) !== receipt.runAttempt) fail();
+    projectLinuxCensus(census, sourceCommit, receipt.generatedAt);
+    const expected = Buffer.from(`${JSON.stringify(createRecoveryActivationBindingFromCandidate(`${JSON.stringify(candidate, null, 2)}\n`), null, 2)}\n`);
+    try { if (!expected.equals(artifactBytes)) fail(); } finally { expected.fill(0); }
+    bridgeBytes = state.privateState.read({ root: 'runtime', relativePath:
+      `bridge/activation-evidence/auth-bridge-suspension-${receipt.activationEvidenceDigest}.json` });
+    if (bridgeBytes.length > 256 * 1024 || createHash('sha256')
+      .update('warpkeep.sealed-realms.auth-bridge-suspension-g002-ptr-adoption-private-receipt.v1\n')
+      .update(bridgeBytes).digest('hex') !== receipt.activationEvidenceDigest) fail();
+    const bridgeSource = new TextDecoder('utf-8', { fatal: true }).decode(bridgeBytes), bridge = JSON.parse(bridgeSource);
+    if (`${JSON.stringify(bridge)}\n` !== bridgeSource || bridge.schemaVersion !== 5 || bridge.sourceCommit !== sourceCommit) fail();
+    const receiptDigests = [bridge.activationGate?.deploymentAuthorityDigest,
+      bridge.g002ExistingStateAdoptionReceiptDigest, bridge.ptrExistingStateAdoptionReceiptDigest];
+    if (!receiptDigests.every(value => typeof value === 'string' && SHA256.test(value))) fail();
+    return { receipt, envelope, bridge, binding: { subject: 'activation-evidence:0.4.0',
+      evidenceDigest: receipt.activationEvidenceDigest, receiptDigests, predecessorDigests: [receipt.activationChainDigest] },
+      hashes: { receipt: hash(receiptBytes), descriptor: hash(descriptorBytes), artifact: hash(artifactBytes), bridge: hash(bridgeBytes) } };
+  } finally { receiptBytes?.fill(0); descriptorBytes?.fill(0); artifactBytes?.fill(0); bridgeBytes?.fill(0); }
+}
+
+export function selectSealedRealmsProductionCompletedGeneration(input) {
+  const options = exactInput(input, ['privateState', 'authority']);
+  const snapshot = completedSelectionSnapshot(options), selection = Object.freeze({});
+  completedGenerationSelections.set(selection, Object.freeze({ ...options, snapshot: JSON.stringify(snapshot) }));
+  return selection;
+}
+
+export function readSealedRealmsProductionCompletedGenerationSelection(input) {
+  const options = exactInput(input, ['selection', 'privateState', 'authority']);
+  const state = completedGenerationSelections.get(options.selection);
+  if (!state || state.privateState !== options.privateState || state.authority !== options.authority) fail();
+  const current = completedSelectionSnapshot(state);
+  if (JSON.stringify(current) !== state.snapshot) fail();
+  return current;
+}
+
+function completedLinuxAuthority(state) {
+  const selected = readSealedRealmsProductionCompletedGenerationSelection({ selection: state.completedSelection,
+    privateState: state.privateState, authority: state.authority });
+  const common = { store: state.store, sourceAuthority: state.authority, kind: 'activation-evidence-inline', ...selected.binding };
+  if (state.reconciliation !== undefined) {
+    // This reader checks the actual store/private owner before reporting an
+    // unresolved scope. An active callback alone does not prove that ownership.
+    let unresolved = false;
+    try {
+      readSealedRealmsProductionContinuationCompletion({ store: state.store, privateState: state.privateState,
+        sourceAuthority: state.authority, kind: 'activation-evidence-inline', ...selected.binding });
+    } catch (error) {
+      if (error?.code !== 'SEALED_REALMS_CONTINUATION_MISSING') throw error;
+      unresolved = true;
+    }
+    if (!unresolved) fail();
+    assertSealedRealmsProductionContinuationReconciliation({ reconciliation: state.reconciliation, ...common,
+      claimRunId: selected.receipt.runId, claimRunAttempt: selected.receipt.runAttempt });
+  } else {
+    const completion = readSealedRealmsProductionContinuationCompletion({ store: state.store, privateState: state.privateState,
+      sourceAuthority: state.authority, kind: 'activation-evidence-inline', ...selected.binding });
+    if (completion.claimRunId !== selected.receipt.runId || completion.claimRunAttempt !== selected.receipt.runAttempt
+      || Date.parse(completion.terminalAt) < Date.parse(selected.receipt.generatedAt)) fail();
+  }
+  return selected;
+}
 
 const RECEIPT_MEMBERS = Object.freeze([
   'g001FreezePublishReceipt',
@@ -1476,6 +1571,7 @@ export function readSealedRealmsProductionG002ExistingStateAdoptionEvidence(inpu
 const retainedAdoptionForEvidence = (...args) => ptrAdoptionRuntime.retainedForEvidence(...args);
 
 function linuxRecoverySnapshot(state) {
+  const completed = state.completedSelection === undefined ? undefined : completedLinuxAuthority(state);
   assertSealedRealmsProductionPrivateState(state.privateState);
   if (sourceCommitFromSealedRealmsProductionAuthority(state.authority) !== state.sourceCommit
     || state.authority.mode !== 'S' || !['activation-evidence-inspect', 'activation-evidence-generate'].includes(state.authority.operation)) {
@@ -1495,8 +1591,10 @@ function linuxRecoverySnapshot(state) {
       fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
     }
   }
-  const census = state.censusEvidence === undefined ? readFixedLinuxG001CensusAttempt(state.attemptId, state.sourceCommit)
+  const census = completed !== undefined ? readFixedLinuxG001CensusAttempt(completed.envelope.g001LinuxCensusAttempt.attemptId, state.sourceCommit)
+    : state.censusEvidence === undefined ? readFixedLinuxG001CensusAttempt(state.attemptId, state.sourceCommit)
     : readFixedLinuxG001ActivationCensusEvidence(state.censusEvidence, { sourceAuthority: state.authority, workflowPermit: state.permit });
+  if (completed && JSON.stringify(census.receipt) !== JSON.stringify(completed.envelope.g001LinuxCensusAttempt)) fail();
   if (programs.sourceCommit !== state.sourceCommit) fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
   return { ptr, g002, programs, census };
 }
@@ -1525,6 +1623,24 @@ export async function authenticateSealedRealmsProductionLinuxRecoveryEvidence(in
   return capability;
 }
 
+/** Read-only completed output ownership; never a native execution or effect capability. */
+export function authenticateSealedRealmsProductionCompletedLinuxRecoveryEvidence(input) {
+  const options = exactInput(input, ['privateState', 'authority', 'store', 'selection',
+    ...(Object.hasOwn(input ?? {}, 'reconciliation') ? ['reconciliation'] : []),
+    'existingStateAdoption', 'g002ExistingStateAdoption', 'programArtifacts']);
+  const state = Object.freeze({ ...options, completedSelection: options.selection,
+    sourceCommit: sourceCommitFromSealedRealmsProductionAuthority(options.authority),
+    ptrSourceCommit: ptrAdoptionRuntime.sourceOf(options.existingStateAdoption),
+    g002SourceCommit: g002AdoptionRuntime.sourceOf(options.g002ExistingStateAdoption) });
+  const selected = completedLinuxAuthority(state), initial = linuxRecoverySnapshot(state);
+  projectLinuxCensus(initial.census.receipt, state.sourceCommit, selected.receipt.generatedAt);
+  const current = linuxRecoverySnapshot(state);
+  if (JSON.stringify(initial) !== JSON.stringify(current)) fail();
+  const capability = Object.freeze({});
+  linuxRecoveryOwners.set(capability, Object.freeze({ ...state, snapshot: JSON.stringify(current) }));
+  return capability;
+}
+
 /** Reopens the exact immutable census and both retained owners on every use. */
 export function readSealedRealmsProductionLinuxRecoveryEvidence(input) {
   const options = exactInput(input, ['evidence', 'privateState', 'sourceCommit']);
@@ -1541,6 +1657,10 @@ export function readSealedRealmsProductionLinuxRecoveryEvidence(input) {
 export function isSealedRealmsProductionInlineRecoveryEvidence(input) {
   readSealedRealmsProductionLinuxRecoveryEvidence(input);
   return linuxRecoveryOwners.get(input.evidence).censusEvidence !== undefined;
+}
+export function isSealedRealmsProductionCompletedRecoveryEvidence(input) {
+  readSealedRealmsProductionLinuxRecoveryEvidence(input);
+  return linuxRecoveryOwners.get(input.evidence).completedSelection !== undefined;
 }
 function linuxOwner(evidence, sourceCommit, privateState, ptr, g002) {
   const state = linuxRecoveryOwners.get(evidence);
@@ -1688,6 +1808,9 @@ function recoveryReceiptProjection(state, receipts, g001) {
 
 function readRecoveryReceiptCorpus(records, verificationTime) {
   const original = capabilityState(records);
+  const completedOwner = linuxRecoveryOwners.get(original.linuxRecoveryEvidence);
+  if (completedOwner?.completedSelection !== undefined
+    && verificationTime !== completedLinuxAuthority(completedOwner).receipt.generatedAt) fail('SEALED_REALMS_ACTIVATION_RECORDS_READ_CONTEXT_INVALID');
   if (original.sourceMode !== 'S' || original.sourceCommit !== original.preparationSourceCommit) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
   }
@@ -1757,6 +1880,20 @@ export function readSealedRealmsProductionRecoveryCandidateRecords(records, cont
   }) });
 }
 
+/** Only the active completed-family candidate callback may obtain its historical time. */
+export function readSealedRealmsProductionCompletedGenerationContext(input) {
+  const options = exactInput(input, ['records', 'privateState', 'authority', 'readContext']);
+  assertSealedRealmsProductionActivationRecordsAuthority({ records: options.records, privateState: options.privateState, authority: options.authority });
+  const state = capabilityState(options.records), scope = candidateReadContexts.get(options.readContext);
+  const owner = linuxRecoveryOwners.get(state.linuxRecoveryEvidence);
+  if (!scope || scope.records !== options.records || !owner?.completedSelection
+    || owner.authority !== options.authority || owner.privateState !== options.privateState) fail('SEALED_REALMS_ACTIVATION_RECORDS_READ_CONTEXT_INVALID');
+  const selected = completedLinuxAuthority(owner);
+  if (scope.verificationTime !== selected.receipt.generatedAt
+    || JSON.stringify(readCompletedGenerationBinding(options.records, scope.verificationTime)) !== JSON.stringify(scope.completion)) fail();
+  return Object.freeze({ generatedAt: selected.receipt.generatedAt, bindingCandidate: Object.freeze(selected.envelope.bindingCandidate) });
+}
+
 // Historical candidate reads are data inspection only. Their time must come from
 // the exact completed private family, never a timestamp supplied to a candidate.
 function readCompletedGenerationBinding(records, verificationTime) {
@@ -1810,6 +1947,9 @@ export function validateSealedRealmsProductionRecoveryActivationEvidence(envelop
   if (candidate.schemaVersion !== version) fail('SEALED_REALMS_ACTIVATION_RECORDS_INPUT_INVALID');
   const joined = version === 6 ? linuxOwner(linuxRecoveryEvidence, candidate.preparationSourceCommit, undefined,
     existingStateAdoption, g002ExistingStateAdoption) : undefined;
+  const linuxState = linuxRecoveryOwners.get(linuxRecoveryEvidence);
+  if (linuxState?.completedSelection !== undefined
+    && verificationTime !== completedLinuxAuthority(linuxState).receipt.generatedAt) fail('SEALED_REALMS_ACTIVATION_RECORDS_READ_CONTEXT_INVALID');
   if (joined && (candidate.preparationSourceTree !== joined.sourceTree
     || JSON.stringify(envelope.g001LinuxCensusAttempt) !== JSON.stringify(joined.census))) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
   const state = Object.freeze({

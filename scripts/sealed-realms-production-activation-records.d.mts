@@ -179,3 +179,24 @@ export function readSealedRealmsProductionLinuxRecoveryEvidence(input: Readonly<
 export function isSealedRealmsProductionInlineRecoveryEvidence(
   input: Parameters<typeof readSealedRealmsProductionLinuxRecoveryEvidence>[0],
 ): boolean;
+export function isSealedRealmsProductionCompletedRecoveryEvidence(input: Parameters<typeof readSealedRealmsProductionLinuxRecoveryEvidence>[0]): boolean;
+declare const completedSelectionBrand: unique symbol;
+export type SealedRealmsProductionCompletedGenerationSelection = Readonly<{ [completedSelectionBrand]: true }>;
+type CompletedOwner = Readonly<{ privateState: SealedRealmsProductionPrivateState; authority: SealedRealmsProductionSourceAuthority }>;
+export function selectSealedRealmsProductionCompletedGeneration(input: CompletedOwner): SealedRealmsProductionCompletedGenerationSelection;
+export function readSealedRealmsProductionCompletedGenerationSelection(input: CompletedOwner & Readonly<{
+  selection: SealedRealmsProductionCompletedGenerationSelection;
+}>): Readonly<{ receipt: ReturnType<typeof import('./sealed-realms-production-activation-generation-receipt.mjs').parseActivationGenerationReceipt>;
+  envelope: Readonly<Record<string, any>>; bridge: Readonly<Record<string, any>>;
+  binding: Readonly<{ subject: string; evidenceDigest: string; receiptDigests: readonly string[]; predecessorDigests: readonly string[] }>;
+  hashes: Readonly<{ receipt: string; descriptor: string; artifact: string; bridge: string }> }>;
+export function authenticateSealedRealmsProductionCompletedLinuxRecoveryEvidence(input: CompletedOwner & Readonly<{
+  store: SealedRealmsProductionContinuationStore; selection: SealedRealmsProductionCompletedGenerationSelection;
+  reconciliation?: import('./sealed-realms-production-continuation.mjs').SealedRealmsProductionContinuationReconciliation;
+  existingStateAdoption: SealedRealmsProductionPtrExistingStateAdoptionEvidence;
+  g002ExistingStateAdoption: SealedRealmsProductionG002ExistingStateAdoptionEvidence;
+  programArtifacts: import('./sealed-realms-production-recovery-program-artifacts.mjs').SealedRealmsProductionRecoveryProgramArtifacts;
+}>): SealedRealmsProductionLinuxRecoveryEvidence;
+export function readSealedRealmsProductionCompletedGenerationContext(input: CompletedOwner & Readonly<{
+  records: SealedRealmsProductionActivationRecords; readContext: SealedRealmsRecoveryCandidateReadContext;
+}>): Readonly<{ generatedAt: string; bindingCandidate: Readonly<Record<string, string | number | boolean | null>> }>;

@@ -8,6 +8,7 @@ import { assertRecoverySourceClosureSnapshot } from './recovery-source-closure.m
 import { verifySealedRealmsProductionRecoveryPreparationReceipt } from './sealed-realms-production-recovery-preparation-receipt.mjs';
 import { requestSealedRealmsProductionRecoveryPreparation, requestSealedRealmsProductionRecoveryPreparationObservation } from './sealed-realms-production-recovery-preparation-transport.mjs';
 import { verifySealedRealmsProductionRecoveryPreparationObservation } from './sealed-realms-production-recovery-preparation-observation-receipt.mjs';
+import { readSealedRealmsProductionCompletedGenerationContext } from './sealed-realms-production-activation-records.mjs';
 const owners = new WeakMap();
 const fail = () => { throw Error('SEALED_REALMS_RECOVERY_PREPARATION_INVALID'); };
 function capture(input, keys) {
@@ -120,6 +121,84 @@ export function readSealedRealmsProductionRecoveryPreparation(input) {
     const state = owners.get(capability);
     if (!state || state.privateState !== privateState || state.authority !== authority) fail();
     attest(state); const facts = retained(state); attest(state); fresh(state); return facts;
+  } catch { fail(); }
+}
+function readRetainedCompact(state, path) {
+  let bytes;
+  try {
+    bytes = state.privateState.read({ root: 'runtime', relativePath: path });
+    if (bytes.length < 2 || bytes.length > 16385) fail();
+    const source = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+    if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\n$/u.test(source)) fail();
+    return source.slice(0, -1);
+  } finally { bytes?.fill(0); }
+}
+function observationFacts(intent, observation) {
+  return Object.freeze({
+    recoveryAuthorizationRequestId: intent.requestId, recoveryAuthorizationEpoch: intent.authorizationEpoch,
+    recoveryAuthWorkerVersionId: observation.bridgeWorkerVersionId,
+    recoveryAuthWorkerSourceCommit: observation.bridgeSourceCommit,
+    recoveryAuthWorkerConfigIdentity: observation.bridgeConfigIdentity,
+    recoveryAuthWorkerConfigEpoch: observation.bridgeConfigEpoch,
+  });
+}
+/** Historical data for one genuine completed-family callback, never a fresh preparation capability. */
+export function readSealedRealmsProductionCompletedRecoveryPreparation(input) {
+  try {
+    if (arguments.length !== 1) fail();
+    const { privateState, authority, records, readContext } = capture(input, ['privateState', 'authority', 'records', 'readContext']);
+    const contextInput = { records, privateState, authority, readContext };
+    const context = readSealedRealmsProductionCompletedGenerationContext(contextInput);
+    const contextBytes = JSON.stringify(context), candidate = context.bindingCandidate;
+    const generatedTime = Date.parse(context.generatedAt), generatedAt = Math.floor(generatedTime / 1000);
+    if (!Number.isSafeInteger(generatedTime) || new Date(generatedTime).toISOString() !== context.generatedAt
+        || !Number.isSafeInteger(generatedAt) || generatedTime > Date.now()) fail();
+    const commit = owner(privateState, authority), root = realpathSync(process.cwd());
+    const state = { privateState, authority, commit, root, tree: treeAt(root, commit) };
+    const epoch = candidate.recoveryAuthorizationEpoch;
+    if (candidate.preparationSourceCommit !== commit || candidate.preparationSourceTree !== state.tree
+        || !Number.isSafeInteger(epoch) || epoch < 1) fail();
+    attest(state);
+    const path = `recovery-preparation/${commit}/${epoch}.jws`;
+    const compact = readRetainedCompact(state, path);
+    const intent = retainedIntent({ ...state, path, compact });
+    if (intent.authorizationEpoch !== epoch || intent.requestId !== candidate.recoveryAuthorizationRequestId
+        || intent.createdAt > generatedAt) fail();
+    const directory = `recovery-preparation/${commit}/${epoch}/observations`;
+    const names = privateState.list({ root: 'runtime', relativeDirectory: directory });
+    if (names.length < 1 || names.length > 256 || new Set(names).size !== names.length
+        || names.some(name => !/^[a-f0-9]{64}\.jws$/u.test(name))) fail();
+    let selected;
+    const retainedObservations = [];
+    for (const name of [...names].sort()) {
+      const observationPath = `${directory}/${name}`, observationCompact = readRetainedCompact(state, observationPath);
+      if (`${createHash('sha256').update(observationCompact).digest('hex')}.jws` !== name) fail();
+      // Verify every signature at its own signed issue time first. This separates
+      // legitimate old/future observations from malformed or foreign evidence.
+      // That time is never returned or used as completed-generation authority.
+      const issuedAt = JSON.parse(Buffer.from(observationCompact.split('.')[1], 'base64url').toString('utf8')).issuedAt;
+      const observation = verifySealedRealmsProductionRecoveryPreparationObservation(observationCompact, compact, issuedAt);
+      retainedObservations.push({ observationPath, observationCompact });
+      if (generatedAt < observation.issuedAt || generatedAt >= observation.expiresAt) continue;
+      const facts = observationFacts(intent, observation);
+      if (Object.entries(facts).some(([key, value]) => candidate[key] !== value)) fail();
+      selected ??= { facts, observationCompact };
+    }
+    if (!selected) fail();
+    verifySealedRealmsProductionRecoveryPreparationObservation(selected.observationCompact, compact, generatedAt);
+    // Reopen the whole bounded corpus so additions, replacements and removal
+    // cannot change support while the completed context is being checked.
+    attest(state);
+    if (JSON.stringify(readSealedRealmsProductionCompletedGenerationContext(contextInput)) !== contextBytes) fail();
+    readExact(state, path, compact);
+    for (const observation of retainedObservations) readExact(state, observation.observationPath, observation.observationCompact);
+    if (JSON.stringify(privateState.list({ root: 'runtime', relativeDirectory: directory })) !== JSON.stringify(names)) fail();
+    attest(state);
+    if (JSON.stringify(readSealedRealmsProductionCompletedGenerationContext(contextInput)) !== contextBytes) fail();
+    readExact(state, path, compact);
+    for (const observation of retainedObservations) readExact(state, observation.observationPath, observation.observationCompact);
+    if (JSON.stringify(privateState.list({ root: 'runtime', relativeDirectory: directory })) !== JSON.stringify(names)) fail();
+    return selected.facts;
   } catch { fail(); }
 }
 export function disposeSealedRealmsProductionRecoveryPreparation(capability) { owners.delete(capability); }

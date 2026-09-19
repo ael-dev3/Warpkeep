@@ -398,7 +398,7 @@ native-only Windows skips, and all 77 focused tests. The new connected adoption
 fixture passed with a different current bridge source/version and V6 descriptor
 and projection; three corpus-change races and stale-new-candidate rejection also
 passed. These private-source tests use synthetic retained data, not production
-census, adoption or provider deployment. Native verification follows publication.
+census, adoption or provider deployment. Native verification is recorded below.
 
 At published `f7e7ce5f`, all 202 tests in nine native Linux suites passed without
 skips, including the complete activation-records and connected V6 adoption
@@ -421,10 +421,24 @@ Independent review found no blocking issue in this bounded fresh-caller slice.
 Application types and its connected Windows regression passed, separating
 inspection from generation by more than ten minutes and using a different
 census. All 38 selected legacy bridge/generator tests also passed. Native actual
-inline dispatch and output generation remain to be run after publication.
+inline dispatch and output generation subsequently passed at published
+`c31bff9e`: the native connected case exercised the actual protected dispatcher,
+same-run claim and generated descriptor/public artifact. All 136 tests in the
+bridge-state and recovery-bridge runtime suites also passed without skips.
 Already-written V6 output still needs its separate completed-only retry path;
 that next repair must reuse original evidence at authenticated generation time
 without requesting a new census or signer observation.
+
+The next reviewed checkpoint adds data-only readers for that retry. They reopen
+the exact completed output family, native census and retained signed preparation
+at the original authenticated generation time. Copied contexts, foreign private
+stores and use as fresh generation evidence are rejected. Independent review
+found and repaired an ownership gap in the active reconciliation path; its
+regression uses a genuine alternate store and ambiguous claim. Preparation
+checks passed 36 direct, 19 signed-observation and 13 selected legacy cases on
+Windows, with application types and both selected connected cases passing.
+Native completed-context verification follows publication. The actual retry
+handle, workflow and lane wiring remain a separate unfinished checkpoint.
 
 ### Shipping estimate and next critical work
 

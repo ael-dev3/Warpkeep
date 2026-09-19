@@ -1711,6 +1711,69 @@ it('keeps inline inspection diagnostic and generates from its own later census a
       .resolves.toEqual({ operation: 'activation-evidence-generate', status: 'completed' });
     const generated = JSON.parse(readFileSync(join(f.f.runtime, 'public/activation-generation-receipt.json'), 'utf8'));
     expect(generated).toMatchObject({ artifactSchemaVersion: 6, runId: generateRun.runId });
+    const selection = adoptionWriter.selectSealedRealmsProductionCompletedGeneration({ privateState: f.input.privateState,
+      authority: generateRun.sourceAuthority });
+    const programs = Object.freeze({}); f.programOwners.set(programs, generateRun.sourceAuthority);
+    seams.census.mockImplementation((id, source) => {
+      if (id !== census.attemptId || source !== f.current) throw Error('wrong retained census');
+      return structuredClone({ receipt: census, selector: { ...f.selected.selector, attemptId: census.attemptId,
+        githubRunId: census.githubRunId, receiptDigest: census.receiptDigest, completedAt: census.completedAt } });
+    });
+    const completedInput = { privateState: f.input.privateState, authority: generateRun.sourceAuthority, store: bridge.store,
+      selection, existingStateAdoption: f.input.existingStateAdoption, g002ExistingStateAdoption: f.input.g002ExistingStateAdoption,
+      programArtifacts: programs as never };
+    const foreign = fixture(process.platform !== 'linux');
+    expect(() => adoptionWriter.authenticateSealedRealmsProductionCompletedLinuxRecoveryEvidence({ ...completedInput, store: foreign.store })).toThrow();
+    expect(() => adoptionWriter.authenticateSealedRealmsProductionCompletedLinuxRecoveryEvidence({ ...completedInput, privateState: foreign.privateState })).toThrow();
+    expect(() => adoptionWriter.authenticateSealedRealmsProductionCompletedLinuxRecoveryEvidence({ ...completedInput, selection: { ...selection } as never })).toThrow();
+    const selected = adoptionWriter.readSealedRealmsProductionCompletedGenerationSelection({ selection,
+      privateState: f.input.privateState, authority: generateRun.sourceAuthority });
+    const foreignCommon = { store: foreign.store, ...generateRun, kind: 'activation-evidence-inline' as const, ...selected.binding };
+    await issueSealedRealmsProductionContinuation(foreignCommon);
+    await expect(claimSealedRealmsProductionContinuation({ ...foreignCommon,
+      effect: () => { throw Error('Synthetic uncertain foreign-owner claim'); } })).rejects.toMatchObject({ code: 'SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS' });
+    const resumed = await bridge.run('activation-evidence-generate', '1004', new Set([generateRun.runId]));
+    const otherSelection = adoptionWriter.selectSealedRealmsProductionCompletedGeneration({ privateState: f.input.privateState,
+      authority: resumed.sourceAuthority });
+    const resumedPrograms = Object.freeze({}); f.programOwners.set(resumedPrograms, resumed.sourceAuthority);
+    let ownerError: unknown;
+    await expect(reconcileSealedRealmsProductionContinuation({ store: foreign.store, ...resumed,
+      kind: 'activation-evidence-inline', ...selected.binding, readOnlyReconcile: reconciliation => {
+        try {
+          adoptionWriter.authenticateSealedRealmsProductionCompletedLinuxRecoveryEvidence({ privateState: f.input.privateState,
+            authority: resumed.sourceAuthority, store: foreign.store, selection: otherSelection, reconciliation,
+            existingStateAdoption: f.input.existingStateAdoption, g002ExistingStateAdoption: f.input.g002ExistingStateAdoption,
+            programArtifacts: resumedPrograms as never });
+        } catch (error) { ownerError = error; throw error; }
+        throw Error('Foreign private owner unexpectedly authenticated');
+      } })).rejects.toMatchObject({ code: 'SEALED_REALMS_CONTINUATION_RECONCILIATION_AMBIGUOUS' });
+    expect(ownerError).toMatchObject({ code: 'SEALED_REALMS_CONTINUATION_STORE_INVALID' });
+    const completed = adoptionWriter.authenticateSealedRealmsProductionCompletedLinuxRecoveryEvidence(completedInput);
+    let completedContext: Parameters<typeof adoptionWriter.readSealedRealmsProductionCompletedGenerationContext>[0]['readContext'] | undefined;
+    let completedRecords: ReturnType<typeof createSealedRealmsProductionActivationRecords>;
+    completedRecords = createSealedRealmsProductionActivationRecords({ privateState: f.input.privateState, authority: generateRun.sourceAuthority,
+      readBindingCandidate: (_source, _projection, context) => {
+        completedContext = context;
+        const input = { records: completedRecords, privateState: f.input.privateState, authority: generateRun.sourceAuthority, readContext: context! };
+        const historical = adoptionWriter.readSealedRealmsProductionCompletedGenerationContext(input);
+        expect(historical.generatedAt).toBe(generated.generatedAt);
+        expect(() => adoptionWriter.readSealedRealmsProductionCompletedGenerationContext({ ...input, readContext: { ...context } as never })).toThrow();
+        expect(() => adoptionWriter.readSealedRealmsProductionCompletedGenerationContext({ ...input, records })).toThrow();
+        return `${JSON.stringify(historical.bindingCandidate, null, 2)}\n`;
+      }, existingStateAdoption: f.input.existingStateAdoption, g002ExistingStateAdoption: f.input.g002ExistingStateAdoption,
+      linuxRecoveryEvidence: completed });
+    // Completed data cannot produce a new candidate even while its original
+    // census is still fresh; the old generatedAt is the only permitted read.
+    expect(() => adoptionWriter.readSealedRealmsProductionRecoveryReceiptProjection(completedRecords)).toThrow();
+    expect(() => adoptionWriter.writeSealedRealmsProductionRecoveryActivationDescriptor({ records: completedRecords,
+      consumeDescriptor: () => { throw Error('must never receive a new descriptor'); } })).toThrow();
+    expect(adoptionWriter.inspectSealedRealmsProductionRecoveryActivationRecords(completedRecords, generated.generatedAt).schemaVersion).toBe(6);
+    expect(() => adoptionWriter.readSealedRealmsProductionCompletedGenerationContext({ records: completedRecords,
+      privateState: f.input.privateState, authority: generateRun.sourceAuthority, readContext: completedContext! })).toThrow();
+    const afterExpiry = later + 24 * 60 * 60 * 1000;
+    vi.setSystemTime(afterExpiry); f.f.observations.setNowSeconds(afterExpiry / 1000); f.g002.g002.observations.setNowSeconds(afterExpiry / 1000);
+    expect(adoptionWriter.inspectSealedRealmsProductionRecoveryActivationRecords(completedRecords, generated.generatedAt).schemaVersion).toBe(6);
+    vi.setSystemTime(later); f.f.observations.setNowSeconds(later / 1000); f.g002.g002.observations.setNowSeconds(later / 1000);
   } else {
     // Windows exercises the same private selection/candidate path; descriptor
     // issuance and complete protected dispatch are verified by this test on Linux.
