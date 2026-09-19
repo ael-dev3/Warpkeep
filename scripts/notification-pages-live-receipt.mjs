@@ -286,10 +286,11 @@ const MAX_GIT_TREE_INVENTORY_BYTES = 2 * 1024 * 1024;
 const MAX_GIT_TREE_ENTRIES = 8_192;
 const MAX_GIT_SOURCE_FILES = 4_096;
 const MAX_GIT_SOURCE_FILE_BYTES = 512 * 1024;
-// The whole tracked source inventory includes generated operation bundles (~575
-// KiB each; ~34 MiB total source at b4df426). Keep bounded growth room without
-// changing the separate 512 KiB presentation/source-parser limit above.
-const MAX_GIT_INVENTORY_SOURCE_FILE_BYTES = 1024 * 1024;
+// The whole tracked source inventory includes generated operation bundles
+// (currently just over 1 MiB each; ~34 MiB total source at b4df426). Keep a
+// bounded 2 MiB per-file ceiling without changing the separate 512 KiB
+// presentation/source-parser limit above.
+const MAX_GIT_INVENTORY_SOURCE_FILE_BYTES = 2 * 1024 * 1024;
 const MAX_GIT_SOURCE_AGGREGATE_BYTES = 64 * 1024 * 1024;
 const MAX_PRESENTATION_SOURCE_FILES = 512;
 const MAX_PRESENTATION_SOURCE_BYTES = 64 * 1024 * 1024;
