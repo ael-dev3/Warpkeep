@@ -491,6 +491,14 @@ was corrected to `warpkeep` (UID/GID 1000), and the bytes were rechecked. Run
 ordinary native Git, builds and tests as that account. No broad recursive
 ownership change, dependency installation or duplicate checkout was needed.
 
+The clean checked-in sealed-launch check then identified a stale static operation
+list: it omitted the already implemented `g001-freeze-census` caller. The verifier
+now includes that operation and its existing exact-membership regression checks
+that removing it still fails even after source pins are regenerated. All nine
+focused operation-membership cases passed on Windows (160 unrelated cases were
+not selected). The complete source-only family must be rederived for this source
+change before final checked-in verification and M1 integration.
+
 ### Shipping estimate and next critical work
 
 Planning estimate: **5–10 focused working days once operation-specific private

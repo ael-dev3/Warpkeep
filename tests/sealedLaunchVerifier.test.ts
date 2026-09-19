@@ -819,7 +819,7 @@ describe('0.4.0 sealed-launch verifier', () => {
       .toThrow('SEALED_LAUNCH_G002_PUBLISHER_CLI_INVALID');
   });
 
-  it.each(['valid', 'g002-update-inspect', 'g002-update-apply', 'ptr-update-inspect',
+  it.each(['valid', 'g001-freeze-census', 'g002-update-inspect', 'g002-update-apply', 'ptr-update-inspect',
     'ptr-update-apply', 'ptr-state-inspect', 'unknown-update', 'activated-update'])(
     'checks exact production operation membership after deriving current pins: %s', async mutation => {
       const fixtureRoot = mkdtempSync(resolve(tmpdir(), 'warpkeep-update-allowlist-'));
