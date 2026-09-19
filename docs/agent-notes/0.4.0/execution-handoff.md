@@ -476,6 +476,21 @@ checks. Boundary regressions use valid canonical documents at the limit and
 one byte above it. Generated family installation follows verification of this
 source repair; the compiled operation provenance is unchanged.
 
+At published `f4611936`, all three selected native manifest boundary cases
+passed. Source-only derivation verified 1,268 input files against their Git
+blobs and returned the fixed 16-output family, with 13 changed files. A fresh
+process reproduced every installed byte and verified the complete 1,258-member
+closure, manifest `9751f69a8b88531bb0dc7cd96257f6a1956716cae2fb360d7d156919a62e92bd`.
+The family was copied into the unchanged Windows source only after those checks.
+This is M1 source closure, not a compiled native preparation completion.
+
+The native reader also found three retained root-owned files: `verify.yml`,
+`local-fullstack-spacetime.mjs` and the recovery claim bundle. Their absolute
+paths, regular-file identity and exact Git bytes were checked; only ownership
+was corrected to `warpkeep` (UID/GID 1000), and the bytes were rechecked. Run
+ordinary native Git, builds and tests as that account. No broad recursive
+ownership change, dependency installation or duplicate checkout was needed.
+
 ### Shipping estimate and next critical work
 
 Planning estimate: **5–10 focused working days once operation-specific private
