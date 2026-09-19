@@ -1,6 +1,6 @@
 # Release engineering, CI and infrastructure audit
 
-## Current source and access checkpoint — 18 September 2026
+## Current source and access checkpoint — 19 September 2026
 
 The [execution handoff](execution-handoff.md) owns the dated protected source,
 active development branch and completed CI receipts. Inspect that record and
@@ -19,20 +19,21 @@ not supersede this current checkpoint.
 
 ### Confirmed delivery work, in dependency order
 
-The September 18 shipping pass rechecked actual source callers and provider
-presence. These are implementation and evidence boundaries, not a request for
-the owner to supply another collection of credentials.
+The September 19 shipping pass has published the Linux source repairs in
+[PR #301](https://github.com/ael-dev3/Warpkeep/pull/301). Integration, native
+preparation and real provider readback remain agent work. The table distinguishes
+that work from the exact inputs that may require the owner.
 
 | Boundary | Agent work and verification | Human-controlled dependency |
 | --- | --- | --- |
-| Initial recovery signer | Integrate the fixture-free preparation entry; verify service, ledger and epoch before initial provisioning. Its actual dry-run and service checks pass. Keep final recovery disabled. | GitHub requires renewed elevated authentication before opening the private release App form; browser sign-in and Git/CI access already work. |
-| PTR recovery compilation | Include the tracked shared `spacetimedb/gameplay04` namespace from the same authenticated commit as `spacetimedb/ptr`. Verify real Git-object extraction and imports, including negative cases. | None for the source repair. |
-| Existing-realm fixture provenance | Replace the producer's unconditional legacy-receipt requirement with a distinct authenticated adoption branch, preserving the legacy branch. Reopen genuine completion/terminal and continuation records in their native owner context. | Only ask about a specific retained private record if its authenticated producer cannot create the required current evidence. |
-| G001 native observations | Complete real Linux applicant/admitted collection, durable attempt/reconciliation handling and server-policy evidence consumers. Existing player access and timers remain enabled; admissions stay frozen. | Actual application authority must be checked at the selected caller after its implementation exists. Missing callbacks are not a login failure. |
+| Initial recovery signer | The fixture-free preparation entry is integrated and its dry-run/service checks pass. Finish the preserving bridge transition, then provision signer and gateway with the existing ledger and epoch. Keep final recovery disabled. | The App is registered and installed. Its generated PEM has not appeared in the configured Downloads or private root; the exact local file location is pending. No new general approval or GitHub login is required. |
+| PTR recovery compilation | Shared `spacetimedb/gameplay04` materialization and exact source extraction are implemented and tested. Integrate the source and build the complete native family from protected M1. | None for source integration or preparation. |
+| Existing-realm fixture provenance | The authenticated retained-adoption path and expired completed-output retry are implemented and tested, alongside the legacy path. Validate actual retained records through their native owner after integration. | Only ask about a specific retained private record if its authenticated producer cannot create the required current evidence. |
+| G001 native observations | The Linux census caller, completed-output retry and V6 consumers are implemented and tested. Execute the supported native operation after integration and verify actual server policy. Existing player access and timers remain enabled; admissions stay frozen. | Check the actual protected application authority at the selected caller; source and fixture tests do not prove its live availability. |
 | Protected integration and operations | Integrate source through checks, then derive and independently check one complete family from actual M1. Promote M2 and require its own successful main Verify before protected operations. | No recurring task or fresh Desktop package is needed. |
 | Acceptance | Verify provider deployment, recovery preserving later writes, owner PTR journey and measured mobile behavior against the selected source. | Real owner authentication/play and the prepared physical-device test. |
 
-The fixture-provenance repair spans the generator, fixed private host, WSL plan
+The implemented fixture-provenance repair spans the generator, fixed private host, WSL plan
 validator and native materializer under `services/release-recovery/scripts/`.
 Reuse the branded adoption authentication in
 `sealed-realms-production-activation-records.mjs`. A signed observation pair
@@ -43,16 +44,15 @@ plus `signatureVerified:true`. Bind rebuilt artifact SHA-256 and Keccak to genui
 completion evidence. Keep whole-repository `sourceTree` distinct from the module
 tree consumed by fixture materialization.
 
-G001's shared policy already enforces frozen admissions. The current census lane
-can persist its second sample before validating the stable pair, and a crash
-between second-sample and confirmation writes has no complete reconciliation
-path. Finish that persistence lifecycle before enabling native dispatch. Retain
-the existing 60–300 second stable window and confirmation lifetime; do not delete
-old evidence to retry. The admitted-player collector currently lacks an operating
-production caller. Authentication denial must not select an unsupported-query
-fallback. Use a new versioned Linux evidence path through adoption, activation,
-public binding and recovery consumers: Linux cannot attest historical launchctl,
-plist or Mac monitor state. Keep the legacy readers intact.
+G001's shared policy enforces frozen admissions. The native census caller
+validates the stable pair before retaining the second sample record and selects only
+complete authenticated attempts; interrupted attempts remain unselectable. The
+legacy second-census path can reconcile retained observations and complete missing
+confirmation metadata without recollecting. Both preserve the existing 60–300
+second window, confirmation lifetime and evidence. Authentication denial does not select the
+unsupported-query fallback. The V6 Linux evidence path now reaches adoption,
+activation, public binding and recovery consumers; legacy readers remain intact.
+Actual provider observations and preservation evidence are still required.
 
 Read-only Cloudflare inspection found the auth bridge present and the recovery
 signer/gateway absent. Successful CLI login, empty private stores and passing

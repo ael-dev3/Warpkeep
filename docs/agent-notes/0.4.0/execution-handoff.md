@@ -33,7 +33,8 @@ native contracts, both services, Linux checks and connected realm rehearsals.
 Active work continues on `codex/0.4-recovery-ptr-source-20260918` in
 `C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep`: recovery source
 materialization and G001 census restart handling. Inspect its current GitHub
-head and CI before integration. Native family preparation remains a separate
+head and CI in [source-only PR #301](https://github.com/ael-dev3/Warpkeep/pull/301)
+before integration. Native family preparation remains a separate
 requirement. `C:/Temp/warpkeep-0.4-next` tracks
 protected main. Consult the
 [checkout roles](../../operations/0.4.0-development-sync.md#start-from-the-actual-checkout-and-remote)
@@ -175,8 +176,11 @@ After the owner's action-time authorization, “Warpkeep Release Recovery” was
 registered as App `4995046` and installed as `162864794`, selecting only
 `ael-dev3/Warpkeep`. Its evidence-reader permissions are read-only Actions,
 Checks, Contents, Deployments, Metadata and Pages, with account-only installation
-and disabled webhooks. A key was generated; protected local retention and actual
-App-token verification remain pending. This reader does not replace or restrict
+and disabled webhooks. A key was generated, but its PEM is absent from the
+configured Downloads folder and the existing private bootstrap root. The pending
+request is for its local path only, so it can be retained privately and used to
+verify App-token access. No new registration, permission expansion or general
+approval is needed. This reader does not replace or restrict
 the existing GitHub write and provider deployment credentials.
 
 The existing local recovery bootstrap revalidated successfully. Its RPC secret
@@ -503,6 +507,15 @@ to manifest `ba727f2881dd88c7e6d24e4c47f2ea0bc5c12bbaa3a74edf75d086ac8a16504e`.
 App/test types also passed. Final clean checked-in verification and M1 integration
 follow this synchronized source family.
 
+At `5357d810`, the clean checked-in sealed-launch check passed in preparation
+phase with deployment disabled. Native verification passed 455 of 456 cases in
+ten affected suites. The remaining test expected two now-typed Linux modules to
+have no declaration in the closure; the actual derived graph correctly includes
+their declarations. The test's stale exception list is corrected, retaining the
+exact executable/declaration pairing assertion. Its focused native rerun follows
+publication. Independent static-source and current-documentation reviews passed;
+the handoff now distinguishes completed source work from pending provider setup.
+
 ### Shipping estimate and next critical work
 
 Planning estimate: **5–10 focused working days once operation-specific private
@@ -512,8 +525,8 @@ allowance, not a promised calendar date; it excludes unknown waits for retained
 private records or owner/device availability. A significant acceptance failure
 would require re-estimation. Source/test counts are not a completion percentage.
 
-Next: derive and integrate the reviewed source-only M1. The initial signer repair
-is already merged; bridge observation and activation retry source are published. Prepare
+Next: finish source-only PR #301 checks and merge M1. Its reviewed source closure
+is derived; the initial signer repair is already merged. Prepare
 and independently check the family from its actual M1, promote M2 and wait for
 that main Verify. Then use supported read-only inspections to identify each
 remaining private prerequisite and its existing producer. Missing implementation

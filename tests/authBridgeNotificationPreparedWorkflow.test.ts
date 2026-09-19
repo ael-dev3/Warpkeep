@@ -123,10 +123,8 @@ const RETAINED_TYPE_ONLY_DECLARATION_PATHS = Object.freeze([
 const G001_LINUX_DECLARATIONLESS_ENTRYPOINTS = Object.freeze([
   'scripts/genesis001-linux-policy-child.mjs',
   'scripts/genesis001-linux-policy-materializer.mjs',
-  'scripts/genesis001-linux-policy-native.mjs',
   'scripts/local-binding-native-ts-hooks.mjs',
   'scripts/auth-bridge-notification-prepared-linux-runner.mjs',
-  'scripts/sealed-realms-production-workflow-evidence.mjs',
 ]);
 const temporaryDirectories: string[] = [];
 
