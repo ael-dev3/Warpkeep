@@ -496,8 +496,12 @@ list: it omitted the already implemented `g001-freeze-census` caller. The verifi
 now includes that operation and its existing exact-membership regression checks
 that removing it still fails even after source pins are regenerated. All nine
 focused operation-membership cases passed on Windows (160 unrelated cases were
-not selected). The complete source-only family must be rederived for this source
-change before final checked-in verification and M1 integration.
+not selected). At published `88059172`, native derivation checked all 1,268 inputs
+against Git again; a fresh process reproduced all 16 outputs and passed the full
+policy/manifest check. Only the manifest and four workflow manifest pins changed,
+to manifest `ba727f2881dd88c7e6d24e4c47f2ea0bc5c12bbaa3a74edf75d086ac8a16504e`.
+App/test types also passed. Final clean checked-in verification and M1 integration
+follow this synchronized source family.
 
 ### Shipping estimate and next critical work
 
