@@ -15,6 +15,11 @@ export function createSealedRealmsProductionActivationWorkflowRuntime(input: Rea
   workflowInputSha: string;
 }>): Promise<ActivationWorkflowRuntime>;
 
+/** Fixed desktop read of authenticated retained history; no workflow/effect authority. */
+export function readSealedRealmsProductionRetainedFixtureSources(input: Readonly<{
+  operatingCommit: string; githubToken: Buffer | null;
+}>): Promise<Readonly<Record<string, unknown>>>;
+
 export function runSealedRealmsProductionActivationOperation(input: Readonly<{
   runtime: ActivationWorkflowRuntime;
   operation: SealedRealmsProductionActivationOperation;
