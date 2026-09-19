@@ -1843,8 +1843,11 @@ it.each([false, true])('keeps inline inspection diagnostic and generates from it
       privateState: f.input.privateState, authority: generateRun.sourceAuthority, readContext: completedContext! })).toThrow();
     const afterExpiry = later + 24 * 60 * 60 * 1000;
     vi.setSystemTime(afterExpiry); f.f.observations.setNowSeconds(afterExpiry / 1000); f.g002.g002.observations.setNowSeconds(afterExpiry / 1000);
+    foreign.observations.setNowSeconds(afterExpiry / 1000);
+    expect(Date.now()).toBe(afterExpiry);
     expect(adoptionWriter.inspectSealedRealmsProductionRecoveryActivationRecords(completedRecords, generated.generatedAt).schemaVersion).toBe(6);
     vi.setSystemTime(later); f.f.observations.setNowSeconds(later / 1000); f.g002.g002.observations.setNowSeconds(later / 1000);
+    foreign.observations.setNowSeconds(later / 1000);
   } else {
     // Windows exercises the same private selection/candidate path; descriptor
     // issuance and complete protected dispatch are verified by this test on Linux.

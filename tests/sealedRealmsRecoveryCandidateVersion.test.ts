@@ -6,7 +6,8 @@ import { realpathSync } from 'node:fs';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
 import { recoveryG002PtrAdoptionCandidate } from './fixtures/recoveryG002PtrAdoptionCandidate';
-const seams = vi.hoisted(() => ({ closure: vi.fn(), git: vi.fn(), corpus: vi.fn(), approvals: vi.fn(), bridge: vi.fn(), records: new WeakSet<object>() }));
+const seams = vi.hoisted(() => ({ closure: vi.fn(), git: vi.fn(), corpus: vi.fn(), approvals: vi.fn(), bridge: vi.fn(),
+  preparation: vi.fn(), completedBridge: vi.fn(), completedPreparation: vi.fn(), records: new WeakSet<object>() }));
 vi.mock('node:child_process', () => ({ execFileSync: seams.git }));
 // Isolate corpus/source I/O, not candidate policy or source authority validation.
 vi.mock('../scripts/sealed-realms-production-activation-records.mjs', () => ({
@@ -15,16 +16,22 @@ vi.mock('../scripts/sealed-realms-production-activation-records.mjs', () => ({
   },
   readSealedRealmsProductionRecoveryCandidateRecords: seams.corpus,
 }));
-vi.mock('../scripts/sealed-realms-production-auth-bridge-state.mjs', () => ({ readSealedRealmsProductionRecoveryBridgeFacts: seams.bridge }));
+vi.mock('../scripts/sealed-realms-production-auth-bridge-state.mjs', () => ({ readSealedRealmsProductionRecoveryBridgeFacts: seams.bridge,
+  readSealedRealmsProductionCompletedRecoveryBridgeFacts: seams.completedBridge }));
+// These facts are I/O seams only; signed/private-store acceptance belongs to the
+// preparation and completed-generation suites. Candidate assembly stays real.
+vi.mock('../scripts/sealed-realms-production-recovery-preparation.mjs', () => ({ readSealedRealmsProductionRecoveryPreparation: seams.preparation,
+  readSealedRealmsProductionCompletedRecoveryPreparation: seams.completedPreparation }));
 import { authenticateSealedRealmsProductionSourceAuthority } from '../scripts/sealed-realms-production-source-authority.mjs';
 import { inspectSealedRealmsProductionRecoveryCandidate, readSealedRealmsProductionRecoveryCandidate } from '../scripts/sealed-realms-production-recovery-candidate.mjs';
-import { RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3, RECOVERY_BINDING_KEYS_V4, RECOVERY_BINDING_KEYS_V5 } from '../scripts/recovery-binding-projection.mjs';
-import { validateRecoveryActivationCandidate, validateRecoveryActivationCandidateV3, validateRecoveryActivationCandidateV4, validateRecoveryActivationCandidateV5 } from '../scripts/recovery-activation-candidate.mjs';
+import { RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3, RECOVERY_BINDING_KEYS_V4, RECOVERY_BINDING_KEYS_V5, RECOVERY_BINDING_KEYS_V6 } from '../scripts/recovery-binding-projection.mjs';
+import { validateRecoveryActivationCandidate, validateRecoveryActivationCandidateV3, validateRecoveryActivationCandidateV4, validateRecoveryActivationCandidateV5, validateRecoveryActivationCandidateV6 } from '../scripts/recovery-activation-candidate.mjs';
 const encode = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
-beforeEach(() => { seams.closure.mockReset(); seams.git.mockReset(); seams.corpus.mockReset(); seams.bridge.mockReset(); });
-function fixture(version: 2 | 3 | 4 | 5) {
+beforeEach(() => { seams.closure.mockReset(); seams.git.mockReset(); seams.corpus.mockReset(); seams.bridge.mockReset();
+  seams.preparation.mockReset(); seams.completedBridge.mockReset(); seams.completedPreparation.mockReset(); });
+function fixture(version: 2 | 3 | 4 | 5 | 6, completed = false) {
   const old = recoveryBindingCandidate();
-  const keys = version === 5 ? RECOVERY_BINDING_KEYS_V5 : version === 4 ? RECOVERY_BINDING_KEYS_V4 : version === 3 ? RECOVERY_BINDING_KEYS_V3 : RECOVERY_BINDING_KEYS_V2;
+  const keys = version === 6 ? RECOVERY_BINDING_KEYS_V6 : version === 5 ? RECOVERY_BINDING_KEYS_V5 : version === 4 ? RECOVERY_BINDING_KEYS_V4 : version === 3 ? RECOVERY_BINDING_KEYS_V3 : RECOVERY_BINDING_KEYS_V2;
   // Public scalar fixtures isolate candidate composition; they grant no adoption authority.
   const values: Record<string, unknown> = { ...old, schemaVersion: version,
     profile: version === 4 ? 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4'
@@ -34,17 +41,26 @@ function fixture(version: 2 | 3 | 4 | 5) {
     ptrSealed: true, ptrPopulationGuardPassed: true, ptrSingletonOwnerCount: 1,
     ptrGeneralAdmissionCount: 0, ptrExpectedSealedStateHmacSha256: '7'.repeat(64),
     ptrExpectedOwnerInvariantHmacSha256: '6'.repeat(64) };
-  const candidate = version === 5 ? recoveryG002PtrAdoptionCandidate() : Object.fromEntries(keys.map(key => [key, values[key]]));
+  const linuxValues: Record<string, unknown> = { ...recoveryG002PtrAdoptionCandidate(), schemaVersion: 6,
+    profile: 'warpkeep-0.4.0-sealed-launch-g001-linux-freeze-v6',
+    g001AdmissionControlProfile: 'warpkeep-genesis-001-server-freeze-v1',
+    g001FreezeConfirmationReceiptDigest: '1'.repeat(64), g001FreezeConfirmationReceiptCommitment: null,
+    g001FreezeCurrentStateReceiptDigest: '2'.repeat(64), g001FreezeCurrentStateReceiptCommitment: null };
+  const candidate = version === 5 ? recoveryG002PtrAdoptionCandidate()
+    : Object.fromEntries(keys.map(key => [key, (version === 6 ? linuxValues : values)[key]]));
   const commit = String(old.preparationSourceCommit), tree = old.preparationSourceTree, blob = 'b'.repeat(40), body = Buffer.from('fixture bootstrap bytes');
-  const bootstrap = { preparationSourceCommit: commit, preparationSourceTree: tree, bootstrapBlob: blob,
-    bootstrapSha256: createHash('sha256').update(body).digest('hex') };
+  const bootstrap = version === 6 ? { profile: 'warpkeep-g001-linux-policy-observation-v1',
+    preparationSourceCommit: commit, preparationSourceTree: tree, operatorBlob: blob,
+    operatorSha256: createHash('sha256').update(body).digest('hex') }
+    : { preparationSourceCommit: commit, preparationSourceTree: tree, bootstrapBlob: blob,
+      bootstrapSha256: createHash('sha256').update(body).digest('hex') };
   const corpus = { bootstrap, projection: candidate };
   seams.approvals.mockReturnValue({g002PublicApprovalReceiptId:candidate.g002PublicApprovalReceiptId,ptrPublicApprovalReceiptId:candidate.ptrPublicApprovalReceiptId});
   seams.corpus.mockImplementation(() => structuredClone(corpus));
   seams.git.mockImplementation((_executable, argv) => {
     const args = argv.slice(6);
     if (args[0] === 'cat-file') return Buffer.from(body);
-    if (args[0] === 'ls-tree') return Buffer.from(`100644 blob ${blob}\tscripts/greater-realm-production-bootstrap.mjs\0`);
+    if (args[0] === 'ls-tree') return Buffer.from(`100644 blob ${blob}\t${version === 6 ? 'scripts/genesis001-linux-census-operator.ts' : 'scripts/greater-realm-production-bootstrap.mjs'}\0`);
     if (args[0] !== 'rev-parse') throw Error('Unexpected Git');
     return Buffer.from(args[1] === '--show-toplevel' ? `${realpathSync(process.cwd())}\n` : args[2] === `${commit}^{tree}` ? `${tree}\n` : `${commit}\n`);
   });
@@ -52,7 +68,21 @@ function fixture(version: 2 | 3 | 4 | 5) {
     readGit: () => `${commit}\n`, readBinding: () => ({schemaVersion:1,profile:'warpkeep-0.4.0-sealed-launch-v1',pagesDeploymentApproved:false,preparationSourceCommit:null}),
     verifyEvidence: verifiedSha => ({verifiedSha}) });
   const records = Object.freeze({}); seams.records.add(records);
-  return { input: {records: records as never, privateState: {} as never, authority}, corpus, candidate };
+  const completedGeneration = Object.freeze({}) as never, readContext = Object.freeze({}) as never;
+  const completedBridgeFacts = Object.fromEntries(['recoveryAuthWorkerVersionId', 'recoveryAuthWorkerSourceCommit',
+    'authBridgeSourceCommit', 'admissionRequestSuspensionReceiptDigest'].map(key => [key, candidate[key]]));
+  const completedPreparationFacts = Object.fromEntries(['recoveryAuthorizationRequestId', 'recoveryAuthorizationEpoch',
+    'recoveryAuthWorkerVersionId', 'recoveryAuthWorkerSourceCommit', 'recoveryAuthWorkerConfigIdentity',
+    'recoveryAuthWorkerConfigEpoch'].map(key => [key, candidate[key]]));
+  if (completed) {
+    corpus.projection = { ...candidate };
+    for (const key of [...Object.keys(completedBridgeFacts), ...Object.keys(completedPreparationFacts)]) delete corpus.projection[key];
+    seams.completedBridge.mockReturnValue(completedBridgeFacts);
+    seams.completedPreparation.mockReturnValue(completedPreparationFacts);
+  }
+  return { input: {records: records as never, privateState: {} as never, authority,
+    ...(completed ? { completedGeneration, readContext } : {})}, corpus, candidate,
+    completedGeneration, readContext, completedBridgeFacts, completedPreparationFacts };
 }
 it.each([2, 3, 4, 5] as const)('derives ordered V%i bytes through the actual reader and semantic validator', version => {
   const f=fixture(version); const source=readSealedRealmsProductionRecoveryCandidate(f.input);
@@ -176,27 +206,65 @@ it('merges source closure capability facts and rereads without permitting corpus
   expect(() => inspectSealedRealmsProductionRecoveryCandidate(options)).toThrow();
 });
 
-it('derives V6 through the actual reader using the census operator and rejects a policy-only producer', async () => {
-  const { RECOVERY_BINDING_KEYS_V6 } = await import('../scripts/recovery-binding-projection.mjs');
-  const { validateRecoveryActivationCandidateV6 } = await import('../scripts/recovery-activation-candidate.mjs');
-  const f = fixture(5), values = { ...f.candidate, schemaVersion: 6,
-    profile: 'warpkeep-0.4.0-sealed-launch-g001-linux-freeze-v6',
-    g001AdmissionControlProfile: 'warpkeep-genesis-001-server-freeze-v1',
-    g001FreezeConfirmationReceiptDigest: '1'.repeat(64), g001FreezeConfirmationReceiptCommitment: null,
-    g001FreezeCurrentStateReceiptDigest: '2'.repeat(64), g001FreezeCurrentStateReceiptCommitment: null };
-  const candidate = Object.fromEntries(RECOVERY_BINDING_KEYS_V6.map(key => [key, (values as Record<string, unknown>)[key]]));
-  const old = f.corpus.bootstrap;
-  (f.corpus as any).bootstrap = { profile: 'warpkeep-g001-linux-policy-observation-v1',
-    preparationSourceCommit: old.preparationSourceCommit, preparationSourceTree: old.preparationSourceTree,
-    operatorBlob: old.bootstrapBlob, operatorSha256: old.bootstrapSha256 };
-  f.corpus.projection = candidate;
+it('derives V6 through the actual reader using the census operator and rejects a policy-only producer', () => {
+  const f = fixture(6);
   const git = seams.git.getMockImplementation()!;
-  seams.git.mockImplementation((executable, argv) => argv.includes('ls-tree')
-    ? Buffer.from(`100644 blob ${old.bootstrapBlob}\tscripts/genesis001-linux-census-operator.ts\0`) : git(executable, argv));
   const source = readSealedRealmsProductionRecoveryCandidate(f.input);
-  expect(source).toBe(encode(candidate));
-  expect(validateRecoveryActivationCandidateV6(source)).toEqual(candidate);
+  expect(source).toBe(encode(f.candidate));
+  expect(validateRecoveryActivationCandidateV6(source)).toEqual(f.candidate);
   seams.git.mockImplementation((executable, argv) => argv.includes('ls-tree')
-    ? Buffer.from(`100644 blob ${old.bootstrapBlob}\tscripts/genesis001-linux-policy-operator.ts\0`) : git(executable, argv));
+    ? Buffer.from(`100644 blob ${f.corpus.bootstrap.operatorBlob}\tscripts/genesis001-linux-policy-operator.ts\0`) : git(executable, argv));
   expect(() => readSealedRealmsProductionRecoveryCandidate(f.input)).toThrow('SOURCE_INVALID');
+});
+
+it('assembles exact completed V6 bytes from retained bridge and preparation facts using the same callback context', () => {
+  const f = fixture(6, true);
+  const source = readSealedRealmsProductionRecoveryCandidate(f.input);
+  expect(source).toBe(encode(f.candidate));
+  expect(validateRecoveryActivationCandidateV6(source)).toEqual(f.candidate);
+  const common = { records: f.input.records, privateState: f.input.privateState, authority: f.input.authority, readContext: f.readContext };
+  expect(seams.completedBridge).toHaveBeenCalledTimes(2);
+  expect(seams.completedBridge).toHaveBeenNthCalledWith(1, { capability: f.completedGeneration, ...common });
+  expect(seams.completedBridge).toHaveBeenNthCalledWith(2, { capability: f.completedGeneration, ...common });
+  expect(seams.completedPreparation).toHaveBeenCalledTimes(2);
+  expect(seams.completedPreparation).toHaveBeenNthCalledWith(1, common);
+  expect(seams.completedPreparation).toHaveBeenNthCalledWith(2, common);
+  for (const [input] of [...seams.completedBridge.mock.calls, ...seams.completedPreparation.mock.calls]) {
+    expect(input.records).toBe(f.input.records); expect(input.privateState).toBe(f.input.privateState);
+    expect(input.authority).toBe(f.input.authority); expect(input.readContext).toBe(f.readContext);
+  }
+  for (const [input] of seams.completedBridge.mock.calls) expect(input.capability).toBe(f.completedGeneration);
+  expect(seams.corpus).toHaveBeenNthCalledWith(1, f.input.records, f.readContext);
+  expect(seams.corpus).toHaveBeenNthCalledWith(2, f.input.records, f.readContext);
+  for (const [records, context] of seams.corpus.mock.calls) {
+    expect(records).toBe(f.input.records); expect(context).toBe(f.readContext);
+  }
+  expect(seams.bridge).not.toHaveBeenCalled(); expect(seams.preparation).not.toHaveBeenCalled();
+});
+it.each(['bridge', 'preparation'] as const)('rejects retained %s facts that conflict with the other retained reader', reader => {
+  const f = fixture(6, true);
+  const mock = reader === 'bridge' ? seams.completedBridge : seams.completedPreparation;
+  const facts = reader === 'bridge' ? f.completedBridgeFacts : f.completedPreparationFacts;
+  mock.mockReturnValue({ ...facts, recoveryAuthWorkerSourceCommit: 'f'.repeat(40) });
+  expect(() => readSealedRealmsProductionRecoveryCandidate(f.input)).toThrow('SEALED_REALMS_RECOVERY_CANDIDATE_INVALID');
+});
+it.each(['bridge', 'preparation'] as const)('rejects retained %s facts that change during the candidate reread', reader => {
+  const f = fixture(6, true);
+  const mock = reader === 'bridge' ? seams.completedBridge : seams.completedPreparation;
+  const facts = reader === 'bridge' ? f.completedBridgeFacts : f.completedPreparationFacts;
+  mock.mockReturnValueOnce(facts).mockReturnValue({ ...facts, recoveryAuthWorkerSourceCommit: 'f'.repeat(40) });
+  expect(() => readSealedRealmsProductionRecoveryCandidate(f.input)).toThrow('SEALED_REALMS_RECOVERY_CANDIDATE_INVALID');
+  expect(mock).toHaveBeenCalledTimes(2);
+});
+it.each(['bridgeState', 'preparation'] as const)('rejects mixing completed generation with fresh %s before reading facts', key => {
+  const f = fixture(6, true);
+  expect(() => readSealedRealmsProductionRecoveryCandidate({ ...f.input, [key]: {} } as never)).toThrow('SEALED_REALMS_RECOVERY_CANDIDATE_INVALID');
+  expect(seams.corpus).not.toHaveBeenCalled(); expect(seams.completedBridge).not.toHaveBeenCalled();
+  expect(seams.completedPreparation).not.toHaveBeenCalled(); expect(seams.bridge).not.toHaveBeenCalled();
+  expect(seams.preparation).not.toHaveBeenCalled();
+});
+it('rejects completed generation without its callback context before selecting any retained route', () => {
+  const f = fixture(6, true), { readContext: _readContext, ...input } = f.input;
+  expect(() => readSealedRealmsProductionRecoveryCandidate(input)).toThrow('SEALED_REALMS_RECOVERY_CANDIDATE_INVALID');
+  expect(seams.completedBridge).not.toHaveBeenCalled(); expect(seams.completedPreparation).not.toHaveBeenCalled();
 });

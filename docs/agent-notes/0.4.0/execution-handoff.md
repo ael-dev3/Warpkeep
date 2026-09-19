@@ -455,7 +455,12 @@ exercises normal completion and an actual private-write interruption before
 terminal acknowledgement, followed by two retries 24 hours later. Its fixed
 Git/artifact candidate projection is an explicit fixture seam, so this is not
 full native release preparation or deployed acceptance. Native caller execution
-follows publication. The preparation runbook now consistently directs source-only
+is in progress at published `15a6a0cf`; all 158 native bridge/candidate compatibility
+tests and all 83 dispatcher tests already passed. Additional candidate assembly
+coverage passes 25 Windows cases, explicitly checking shared context identity,
+retained facts and rejection of mixed fresh/completed inputs. The connected
+fixture also now asserts the exact clock used by its final expiry read.
+The preparation runbook consistently directs source-only
 M1, native prepare/check from exact protected M1, then generated-only M2.
 
 ### Shipping estimate and next critical work
