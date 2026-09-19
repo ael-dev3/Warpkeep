@@ -454,9 +454,10 @@ and all 29 workflow lifecycle cases passed on Windows. The connected regression
 exercises normal completion and an actual private-write interruption before
 terminal acknowledgement, followed by two retries 24 hours later. Its fixed
 Git/artifact candidate projection is an explicit fixture seam, so this is not
-full native release preparation or deployed acceptance. Native caller execution
-is in progress at published `15a6a0cf`; all 158 native bridge/candidate compatibility
-tests and all 83 dispatcher tests already passed. Additional candidate assembly
+full native release preparation or deployed acceptance. Both native caller cases
+passed at published `15a6a0cf`, including two completed retries after expiry in
+each case; 35 unrelated cases were unselected. All 158 native bridge/candidate
+compatibility tests and all 83 dispatcher tests also passed. Additional candidate assembly
 coverage passes 25 Windows cases, explicitly checking shared context identity,
 retained facts and rejection of mixed fresh/completed inputs. The connected
 fixture also now asserts the exact clock used by its final expiry read.
@@ -472,8 +473,8 @@ allowance, not a promised calendar date; it excludes unknown waits for retained
 private records or owner/device availability. A significant acceptance failure
 would require re-estimation. Source/test counts are not a completion percentage.
 
-Next: finish the native callers and their activation integration. The initial
-signer repair is already merged; bridge observation source is published. Prepare
+Next: derive and integrate the reviewed source-only M1. The initial signer repair
+is already merged; bridge observation and activation retry source are published. Prepare
 and independently check the family from its actual M1, promote M2 and wait for
 that main Verify. Then use supported read-only inspections to identify each
 remaining private prerequisite and its existing producer. Missing implementation
