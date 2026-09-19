@@ -1,16 +1,23 @@
-import { createSealedRealmsProductionRecoveryProgramArtifacts, disposeSealedRealmsProductionRecoveryProgramArtifacts } from './sealed-realms-production-recovery-program-artifacts.mjs';
+import { createSealedRealmsProductionRecoveryProgramArtifacts, createSealedRealmsProductionRecoveryAdoptionProgramArtifacts, disposeSealedRealmsProductionRecoveryProgramArtifacts } from './sealed-realms-production-recovery-program-artifacts.mjs';
+export { readSealedRealmsProductionRetainedFixtureSources } from './sealed-realms-production-retained-fixture-source.mjs';
 import { createSealedRealmsProductionRecoverySourceClosure, disposeSealedRealmsProductionRecoverySourceClosure } from './sealed-realms-production-recovery-source-closure.mjs';
 import { createSealedRealmsProductionRecoveryPreparation, disposeSealedRealmsProductionRecoveryPreparation } from './sealed-realms-production-recovery-preparation.mjs';
 import { execFileSync } from 'node:child_process';
 import { types } from 'node:util';
+import { prepareFixedLinuxG001CensusObservation, executeFixedLinuxG001ActivationCensusObservation,
+  disposeFixedLinuxG001PolicyObservation } from './genesis001-linux-policy-native.mjs';
 import { createSealedRealmsProductionBridgeProvider } from './sealed-realms-production-bridge-provider.mjs';
 
 import {
   createSealedRealmsProductionAuthBridgeState,
   createSealedRealmsProductionActivationEvidenceGenerator,
+  createSealedRealmsProductionCompletedActivationGeneration,
 } from './sealed-realms-production-auth-bridge-state.mjs';
 import { createSealedRealmsProductionActivationRecords, authenticateSealedRealmsProductionPtrExistingStateAdoption,
-  authenticateSealedRealmsProductionG002ExistingStateAdoption } from './sealed-realms-production-activation-records.mjs';
+  authenticateSealedRealmsProductionG002ExistingStateAdoption, authenticateSealedRealmsProductionPtrHistoricalAdoption,
+  authenticateSealedRealmsProductionG002HistoricalAdoption, authenticateSealedRealmsProductionLinuxRecoveryEvidence,
+  selectSealedRealmsProductionCompletedGeneration } from './sealed-realms-production-activation-records.mjs';
+import { readPtrRetainedUpdateSourceCommit, readG002RetainedUpdateSourceCommit } from './ptr-production-existing-update-adapter.mjs';
 import { readSealedRealmsProductionRecoveryCandidate } from './sealed-realms-production-recovery-candidate.mjs';
 import {
   createSealedRealmsProductionActivationDispatchContext,
@@ -22,12 +29,16 @@ import {
 } from './sealed-realms-production-continuation.mjs';
 import {
   authenticateSealedRealmsProductionSourceAuthority,
+  authenticateSealedRealmsProductionRetainedSource,
 } from './sealed-realms-production-source-authority.mjs';
 import {
   createSealedRealmsProductionWorkflowEvidence,
   refreshSealedRealmsProductionWorkflowEvidence,
   revokeSealedRealmsProductionWorkflowEvidence,
   verifySealedRealmsProductionWorkflowEvidence,
+  createSealedRealmsProductionActivationRetainedEvidence,
+  refreshSealedRealmsProductionRetainedEvidence,
+  verifySealedRealmsProductionRetainedEvidence,
 } from './sealed-realms-production-workflow-evidence.mjs';
 import {
   resolveSealedRealmsProductionWorkflowPrivateState,
@@ -189,7 +200,63 @@ async function buildDispatcher(operation, workflowInputSha, evidence, lifecycle)
   if (hasG002Adoption && !hasPtrAdoption) fail('SEALED_REALMS_ACTIVATION_WORKFLOW_ADOPTION_INVALID');
   let existingStateAdoption;
   let g002ExistingStateAdoption;
-  if (hasPtrAdoption) {
+  let linuxRecoveryEvidence;
+  let bridgeProvider;
+  const censusAttempt = process.env.WARPKEEP_G001_CENSUS_ATTEMPT || undefined;
+  const completedSelection = operation === 'activation-evidence-generate' && censusAttempt === 'inline'
+    && retainedDirectories.some(name => name === 'public' || name === 'public.family.lock' || name.startsWith('public.stage.'))
+    ? selectSealedRealmsProductionCompletedGeneration({ privateState, authority }) : undefined;
+  if (completedSelection !== undefined) {
+    delete process.env.WARPKEEP_PRODUCTION_ADMIN_TOKEN;
+    delete process.env.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN;
+  }
+  if (censusAttempt !== undefined) {
+    const inline = censusAttempt === 'inline';
+    if ((!inline && !/^[a-f0-9]{32}$/u.test(censusAttempt)) || !hasPtrAdoption || !hasG002Adoption) fail('SEALED_REALMS_ACTIVATION_WORKFLOW_ADOPTION_INVALID');
+    if (inline && completedSelection === undefined) {
+      let adminSecret = process.env.WARPKEEP_PRODUCTION_ADMIN_TOKEN;
+      try {
+        // The existing provider captures and scrubs both ambient credentials.
+        // The native owner retains this one admin value only in process memory.
+        bridgeProvider = createSealedRealmsProductionBridgeProvider({ authority, privateState,
+          repositoryRoot: process.cwd(), fetchImpl: globalThis.fetch });
+        lifecycle.censusPreparation = await prepareFixedLinuxG001CensusObservation(adminSecret);
+      } finally { adminSecret = undefined; delete process.env.WARPKEEP_PRODUCTION_ADMIN_TOKEN; }
+    }
+    // Build before consuming the short census freshness window. These are
+    // current-source comparisons; neither build nor retained proof grants effects.
+    lifecycle.programArtifacts = await createSealedRealmsProductionRecoveryAdoptionProgramArtifacts({ privateState, authority });
+    if (operation === 'activation-evidence-generate') {
+      lifecycle.sourceClosure = await createSealedRealmsProductionRecoverySourceClosure({ privateState, authority });
+    }
+    const ptrCommit = readPtrRetainedUpdateSourceCommit({ privateState });
+    const g002Commit = readG002RetainedUpdateSourceCommit({ privateState });
+    if (![ptrCommit, g002Commit].every(value => typeof value === 'string' && COMMIT.test(value))) fail('SEALED_REALMS_ACTIVATION_WORKFLOW_ADOPTION_INVALID');
+    await refreshSealedRealmsProductionWorkflowEvidence(evidence);
+    lifecycle.retainedEvidence = await createSealedRealmsProductionActivationRetainedEvidence({ workflowEvidence: evidence,
+      sourceCommits: [...new Set([ptrCommit, g002Commit])] });
+    const retainedSource = (realm, commit) => authenticateSealedRealmsProductionRetainedSource({ realm,
+      operatingCommit: workflowInputSha, sourceCommit: commit,
+      sourceTree: readGit(['rev-parse', '--verify', `${commit}^{tree}`]).trimEnd(), readGit, readBinding,
+      verifyEvidence: source => verifySealedRealmsProductionRetainedEvidence(lifecycle.retainedEvidence, source) });
+    existingStateAdoption = await authenticateSealedRealmsProductionPtrHistoricalAdoption({ privateState,
+      retainedSource: retainedSource('ptr', ptrCommit), store: continuationStore });
+    g002ExistingStateAdoption = await authenticateSealedRealmsProductionG002HistoricalAdoption({ privateState,
+      retainedSource: retainedSource('g002', g002Commit), store: continuationStore });
+    let censusEvidence;
+    if (inline && completedSelection === undefined) censusEvidence = await executeFixedLinuxG001ActivationCensusObservation(lifecycle.censusPreparation,
+      { sourceAuthority: authority, workflowPermit: permit, workflowEvidence: evidence });
+    await refreshSealedRealmsProductionRetainedEvidence(lifecycle.retainedEvidence);
+    if (completedSelection === undefined) linuxRecoveryEvidence = await authenticateSealedRealmsProductionLinuxRecoveryEvidence({ privateState, authority, permit,
+      ...(inline ? { censusEvidence } : { attemptId: censusAttempt }),
+      existingStateAdoption, g002ExistingStateAdoption, programArtifacts: lifecycle.programArtifacts });
+    if (operation === 'activation-evidence-generate' && completedSelection === undefined) {
+      // The signed configuration observation has a shorter freshness window
+      // than census collection, so obtain it only after collection completes.
+      lifecycle.preparation = await createSealedRealmsProductionRecoveryPreparation({ privateState, authority });
+      await refreshSealedRealmsProductionRetainedEvidence(lifecycle.retainedEvidence);
+    }
+  } else if (hasPtrAdoption) {
     // This separate source authority only reopens the historical update. It does
     // not receive an update permit or construct a provider capable of applying it.
     const retainedRecords = createSealedRealmsProductionActivationRecords({ privateState, authority });
@@ -204,13 +271,23 @@ async function buildDispatcher(operation, workflowInputSha, evidence, lifecycle)
       });
     }
   }
+  if (completedSelection !== undefined) {
+    const completedGeneration = createSealedRealmsProductionCompletedActivationGeneration({ privateState, authority,
+      store: continuationStore, selection: completedSelection, existingStateAdoption, g002ExistingStateAdoption,
+      programArtifacts: lifecycle.programArtifacts, sourceClosure: lifecycle.sourceClosure });
+    const context = createSealedRealmsProductionActivationDispatchContext({ readGit, readBinding, verifyEvidence,
+      permit, continuationStore, runId, runAttempt, sourceAuthority: authority });
+    return createSealedRealmsProductionActivationDispatcher({ context,
+      lane: createSealedRealmsProductionActivationLane({ completedGeneration }) });
+  }
   const adoptionOptions = { ...(existingStateAdoption === undefined ? {} : { existingStateAdoption }),
-    ...(g002ExistingStateAdoption === undefined ? {} : { g002ExistingStateAdoption }) };
+    ...(g002ExistingStateAdoption === undefined ? {} : { g002ExistingStateAdoption }),
+    ...(linuxRecoveryEvidence === undefined ? {} : { linuxRecoveryEvidence }) };
   const bridgeState = createSealedRealmsProductionAuthBridgeState({
     authority,
     privateState,
     repositoryRoot: process.cwd(),
-    bridgeProvider: createSealedRealmsProductionBridgeProvider({
+    bridgeProvider: bridgeProvider ?? createSealedRealmsProductionBridgeProvider({
       authority, privateState, repositoryRoot: process.cwd(), fetchImpl: globalThis.fetch,
     }),
     fetchImpl: globalThis.fetch,
@@ -223,9 +300,9 @@ async function buildDispatcher(operation, workflowInputSha, evidence, lifecycle)
   // recovery/provider facts remain an explicit failure, never caller defaults.
   let records;
   if (operation === 'activation-evidence-generate') {
-    lifecycle.sourceClosure = await createSealedRealmsProductionRecoverySourceClosure({ privateState, authority });
-    lifecycle.programArtifacts = await createSealedRealmsProductionRecoveryProgramArtifacts({ privateState, authority });
-    lifecycle.preparation = await createSealedRealmsProductionRecoveryPreparation({ privateState, authority });
+    lifecycle.sourceClosure ??= await createSealedRealmsProductionRecoverySourceClosure({ privateState, authority });
+    lifecycle.programArtifacts ??= await createSealedRealmsProductionRecoveryProgramArtifacts({ privateState, authority });
+    lifecycle.preparation ??= await createSealedRealmsProductionRecoveryPreparation({ privateState, authority });
     records = createSealedRealmsProductionActivationRecords({ privateState, authority,
       readBindingCandidate: (_source, _projection, readContext) =>
         readSealedRealmsProductionRecoveryCandidate({ records, privateState, authority, bridgeState, readContext, sourceClosure: lifecycle.sourceClosure, programArtifacts: lifecycle.programArtifacts, preparation: lifecycle.preparation }), ...adoptionOptions });
@@ -268,9 +345,12 @@ export async function createSealedRealmsProductionActivationWorkflowRuntime(inpu
       sourceClosure: lifecycle.sourceClosure,
       preparation: lifecycle.preparation,
       programArtifacts: lifecycle.programArtifacts,
+      retainedEvidence: lifecycle.retainedEvidence,
+      censusPreparation: lifecycle.censusPreparation,
     }));
     return runtime;
   } catch (error) {
+    if (lifecycle.censusPreparation !== undefined) disposeFixedLinuxG001PolicyObservation(lifecycle.censusPreparation);
     if (lifecycle.preparation !== undefined) disposeSealedRealmsProductionRecoveryPreparation(lifecycle.preparation);
     if (lifecycle.programArtifacts !== undefined) disposeSealedRealmsProductionRecoveryProgramArtifacts(lifecycle.programArtifacts);
     if (lifecycle.sourceClosure !== undefined) disposeSealedRealmsProductionRecoverySourceClosure(lifecycle.sourceClosure);
@@ -297,9 +377,11 @@ export async function runSealedRealmsProductionActivationOperation(input) {
   runtimes.delete(options.runtime);
   consumedRuntimes.add(options.runtime);
   try {
-    await refreshSealedRealmsProductionWorkflowEvidence(member.evidence);
+    if (member.retainedEvidence) await refreshSealedRealmsProductionRetainedEvidence(member.retainedEvidence);
+    else await refreshSealedRealmsProductionWorkflowEvidence(member.evidence);
     return await member.dispatcher.dispatch(Object.freeze({ operation, workflowInputSha }));
   } finally {
+    if (member.censusPreparation !== undefined) disposeFixedLinuxG001PolicyObservation(member.censusPreparation);
     if (member.preparation !== undefined) disposeSealedRealmsProductionRecoveryPreparation(member.preparation);
     if (member.programArtifacts !== undefined) disposeSealedRealmsProductionRecoveryProgramArtifacts(member.programArtifacts);
     if (member.sourceClosure !== undefined) disposeSealedRealmsProductionRecoverySourceClosure(member.sourceClosure);

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { types } from "node:util";
-import { derivePreparedGenesisProgramArtifacts } from "./local-binding-runtime.mjs";
+import { derivePreparedGenesisProgramArtifacts, derivePreparedPtrLinuxBindings } from "./local-binding-runtime.mjs";
 import { assertRecoverySourceClosureSnapshot } from "./recovery-source-closure.mjs";
 import { assertSealedRealmsProductionPrivateState } from "./sealed-realms-production-private-state.mjs";
 import { sourceCommitFromSealedRealmsProductionAuthority } from "./sealed-realms-production-source-authority.mjs";
@@ -33,17 +33,17 @@ function capture(input, keys) {
     }),
   );
 }
-function owner(privateState, authority) {
+function owner(privateState, authority, adoption = false) {
   assertSealedRealmsProductionPrivateState(privateState);
   const commit = sourceCommitFromSealedRealmsProductionAuthority(authority);
   if (
     authority.mode !== "S" ||
-    authority.operation !== "activation-evidence-generate"
+    (authority.operation !== "activation-evidence-generate" && !(adoption && authority.operation === "activation-evidence-inspect"))
   )
     fail();
   return commit;
 }
-function treeAt(root, commit) {
+function treeAt(root, commit, path) {
   const nullPath =
     process.platform === "win32"
       ? "NUL"
@@ -74,7 +74,7 @@ function treeAt(root, commit) {
       "core.untrackedCache=false",
       "rev-parse",
       "--verify",
-      `${commit}^{tree}`,
+      path === undefined ? `${commit}^{tree}` : `${commit}:${path}`,
     ],
     {
       cwd: root,
@@ -101,7 +101,7 @@ function treeAt(root, commit) {
 }
 function attest(state) {
   if (
-    owner(state.privateState, state.authority) !== state.commit ||
+    owner(state.privateState, state.authority, state.adoption) !== state.commit ||
     process.cwd() !== state.root ||
     realpathSync(new URL("..", import.meta.url)) !== state.root
   )
@@ -172,15 +172,24 @@ export async function createSealedRealmsProductionRecoveryProgramArtifacts(
   input,
 ) {
   if (arguments.length !== 1) fail();
+  return createArtifacts(input, false);
+}
+/** A read-only comparison build. It never supplies provider or effect authority. */
+export async function createSealedRealmsProductionRecoveryAdoptionProgramArtifacts(input) {
+  if (arguments.length !== 1) fail();
+  return createArtifacts(input, true);
+}
+async function createArtifacts(input, adoption) {
   const { privateState, authority } = capture(input, [
     "privateState",
     "authority",
   ]);
-  const commit = owner(privateState, authority),
+  const commit = owner(privateState, authority, adoption),
     root = realpathSync(process.cwd());
   const state = {
     privateState,
     authority,
+    adoption,
     commit,
     root,
     tree: treeAt(root, commit),
@@ -203,10 +212,39 @@ export async function createSealedRealmsProductionRecoveryProgramArtifacts(
     fail();
   const genesis001 = artifact(captured.genesis001, "genesis001", state),
     genesis002 = artifact(captured.genesis002, "genesis002", state);
+  let ptr;
+  if (adoption) {
+    const result = await derivePreparedPtrLinuxBindings();
+    attest(state);
+    const value = capture(result, ["profile", "sourceCommit", "sourceTree", "bundleSha256", "dependencyClosureDigest", "bindings"]);
+    if (value.profile !== "warpkeep-spacetime-binding-final-preparation-linux-x64-v1"
+      || value.sourceCommit !== commit || value.sourceTree !== state.tree
+      || ![value.bundleSha256, value.dependencyClosureDigest].every(x => typeof x === "string" && /^[a-f0-9]{64}$/u.test(x))) fail();
+    ptr = Object.freeze({ programArtifactSha256: value.bundleSha256, dependencyClosureDigest: value.dependencyClosureDigest,
+      moduleTreeId: treeAt(root, commit, "spacetimedb/ptr") });
+  }
   attest(state);
   const capability = Object.freeze({});
-  owners.set(capability, Object.freeze({ ...state, genesis001, genesis002 }));
+  owners.set(capability, Object.freeze({ ...state, genesis001, genesis002, ptr }));
   return capability;
+}
+/** Fixed-source native facts and exact historical module graph equality only. */
+export function readSealedRealmsProductionRecoveryAdoptionProgramComparison(input) {
+  if (arguments.length !== 1) fail();
+  const options = capture(input, ["capability", "privateState", "authority", "ptrSourceCommit", "g002SourceCommit"]);
+  const state = owners.get(options.capability);
+  if (!state?.adoption || !state.ptr || state.privateState !== options.privateState || state.authority !== options.authority
+    || ![options.ptrSourceCommit, options.g002SourceCommit].every(x => typeof x === "string" && /^[a-f0-9]{40}$/u.test(x))) fail();
+  attest(state);
+  for (const [commit, path] of [[options.ptrSourceCommit, "spacetimedb/ptr"], [options.ptrSourceCommit, "spacetimedb/gameplay04"],
+    [options.g002SourceCommit, "spacetimedb/genesis002"], [options.g002SourceCommit, "spacetimedb/src"]]) {
+    if (treeAt(state.root, commit, path) !== treeAt(state.root, state.commit, path)) fail();
+  }
+  attest(state);
+  return Object.freeze({ sourceCommit: state.commit, sourceTree: state.tree,
+    g002: Object.freeze({ programArtifactSha256: state.genesis002.programArtifactSha256,
+      programKeccak256: state.genesis002.programKeccak256, moduleTreeId: state.genesis002.moduleTreeId,
+      dependencyClosureDigest: state.genesis002.dependencyClosureDigest }), ptr: state.ptr });
 }
 export function readSealedRealmsProductionRecoveryProgramArtifacts(input) {
   if (arguments.length !== 1 || types.isProxy(input) || !input) fail();
@@ -242,7 +280,7 @@ export function readSealedRealmsProductionRecoveryProgramArtifacts(input) {
     p.g001SourceBaselineCommit !== BASELINE ||
     p.g001PolicySourceCommit !== state.commit ||
     p.g001FreezePublishReceiptDigest !== null ||
-    p.g002ModuleSourceCommit !== g.moduleSourceCommit ||
+    (p.g001AdmissionControlProfile !== 'warpkeep-genesis-001-server-freeze-v1' && p.g002ModuleSourceCommit !== g.moduleSourceCommit) ||
     p.g002ModuleSha256 !== g.programArtifactSha256 ||
     p.g002ModuleTreeId !== g.moduleTreeId ||
     p.g002DependencyClosureDigest !== g.dependencyClosureDigest

@@ -57,6 +57,8 @@ function requiredGraphPaths(lane) {
       'scripts/generate-0.4.0-recovery-launch-activation.mjs',
       'scripts/verify-sealed-realms-public-activation-artifact.mjs',
     ]),
+    ...(lane === 'activation' ? ['scripts/sealed-realms-production-retained-fixture-source.mjs',
+      'scripts/sealed-realms-production-linux-preflight.mjs'] : []),
     ...(['g002', 'ptr'].includes(lane) ? ['scripts/sealed-realms-production-reconciliation.mjs'] : []),
   ].sort());
 }
@@ -70,6 +72,7 @@ const LANE_SPECS = Object.freeze({
     factoryFailureCode: 'SEALED_REALMS_ACTIVATION_WORKFLOW_INPUT_INVALID',
     exportNames: Object.freeze([
       'createSealedRealmsProductionActivationWorkflowRuntime',
+      'readSealedRealmsProductionRetainedFixtureSources',
       'runSealedRealmsProductionActivationOperation',
     ]),
   }),
@@ -149,7 +152,8 @@ function portablePath(path) {
   return path.split(sep).join('/');
 }
 
-const PATH_TRANSFORMS = Object.freeze({
+const PATH_TRANSFORMS = /* @__PURE__ */ Object.freeze({
+  'scripts/sealed-realms-production-linux-preflight.mjs': [['/home/warpkeep', 1], ['/usr/bin/git', 1], ['/usr/bin:/bin', 2], ['/dev/null', 4], ['core.hooksPath=/dev/null', 1]],
   'scripts/local-binding-runtime-core.mjs': [['core.hooksPath=/dev/null', 1], ['/home/warpkeep/.warpkeep/release-preparation-v1', 1], ['/usr/bin/git', 1], ['/dev/null', 2]],
   // The prepared recovery closure is part of the sealed operation graph. Keep
   // its fixed host paths out of the generated artifact while preserving the

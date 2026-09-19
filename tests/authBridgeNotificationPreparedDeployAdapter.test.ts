@@ -354,6 +354,38 @@ afterEach(() => {
 });
 
 describe('auth-bridge notification-prepared deploy adapter', () => {
+  it('adds only the initial observer configuration while preserving the retained seven-secret contract', () => {
+    const legacy = contract();
+    const observer = authBridgeNotificationPreparedVersionContract({
+      accountId: ACCOUNT_ID, zoneId: ZONE_ID, sourceCommit: SOURCE_COMMIT,
+      sourceDigest: SOURCE_DIGEST, beforeModes: BEFORE_MODES, recoveryObserver: true,
+    });
+    expect(observer).toEqual({
+      ...legacy,
+      variables: {
+        ...(legacy.variables as Record<string, string>),
+        GENESIS_002_SPACETIMEDB_DATABASE: 'c2003223f6e3c86e988775ddd458c3a45635d0d021e11131551471617c392194',
+        RELEASE_RECOVERY_BRIDGE_CONFIG_EPOCH: '1',
+        RELEASE_RECOVERY_BRIDGE_SOURCE_COMMIT: SOURCE_COMMIT,
+      },
+      secretBindingNames: [...legacy.secretBindingNames as string[],
+        'RELEASE_RECOVERY_CENSUS_PEPPER', 'RELEASE_RECOVERY_RPC_SECRET'].sort(),
+    });
+    for (const value of [legacy, observer]) {
+      expect(attestAuthBridgeNotificationPreparedVersion({ value: version(value), contract: value }))
+        .toEqual(version(value));
+    }
+    for (const [key, value] of [
+      ['GENESIS_002_SPACETIMEDB_DATABASE', '8'.repeat(64)],
+      ['RELEASE_RECOVERY_BRIDGE_CONFIG_EPOCH', '2'],
+      ['RELEASE_RECOVERY_BRIDGE_SOURCE_COMMIT', 'e'.repeat(40)],
+    ]) {
+      const hostile = { ...observer, variables: { ...observer.variables as object, [key]: value } };
+      expect(() => attestAuthBridgeNotificationPreparedVersion({ value: version(hostile), contract: hostile }))
+        .toThrow(/CONTRACT_MISMATCH/u);
+    }
+  });
+
   it('pins the exact Wrangler version, worker configuration, and preserved modes', () => {
     expect(contract()).toEqual({
       schemaVersion: 1,

@@ -11,6 +11,7 @@ type Input = Readonly<{ records: SealedRealmsProductionActivationRecords;
   programArtifacts?: SealedRealmsProductionRecoveryProgramArtifacts;
   preparation?: SealedRealmsProductionRecoveryPreparation;
   bridgeState?: SealedRealmsProductionAuthBridgeState;
+  completedGeneration?: import('./sealed-realms-production-auth-bridge-state.mjs').SealedRealmsProductionCompletedActivationGeneration;
   readContext?: SealedRealmsRecoveryCandidateReadContext }>;
 /** Data only. Selects V3 from exclusive update evidence and preserves V2 wire output.
  * Reopens the configured producer workspace; missing or invalid releases refuse inspection. */

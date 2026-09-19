@@ -1,6 +1,6 @@
 export const PRODUCTION_PLAYER_CANARY_ACTIVATION_LAUNCHER_PROFILE:
   'warpkeep-production-player-canary-activation-launcher-v1';
-export const EXPECTED_PROTECTED_SOURCE_CLOSURE_MEMBER_COUNT: 1216;
+export const EXPECTED_PROTECTED_SOURCE_CLOSURE_MEMBER_COUNT: 1258;
 
 export type ProductionPlayerCanaryActivationLaunch = Readonly<{
   schemaVersion: 1;

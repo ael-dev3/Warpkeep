@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
 import { recoveryG002PtrAdoptionCandidate } from './fixtures/recoveryG002PtrAdoptionCandidate';
 import { recoveryAuthorizationFixture } from './fixtures/recoveryAuthorizationFixture';
-import { createRecoveryActivationBindingFromCandidate } from '../scripts/recovery-activation-candidate.mjs';
+import { createRecoveryActivationBindingFromCandidate, recoveryActivationCandidatePolicyForVersion } from '../scripts/recovery-activation-candidate.mjs';
 import { recoveryBindingKeys } from '../scripts/recovery-binding-projection.mjs';
 import { verifySealedRealmsPublicActivationBytes } from '../scripts/verify-sealed-realms-public-activation-artifact.mjs';
 import { verifySealedLaunchPagesBuildEnvironment } from '../scripts/verify-0.4.0-sealed-launch.mjs';
@@ -21,7 +21,13 @@ function token(payload: unknown) {
   Buffer.from((s > order / 2n ? order - s : s).toString(16).padStart(64, '0'), 'hex').copy(signature, 32);
   return `${body}.${signature.toString('base64url')}`;
 }
-function createBinding(version: 3 | 4 | 5, receipt = '9'.repeat(64), adoption = '8'.repeat(64)) {
+function createBinding(version: 3 | 4 | 5 | 6, receipt = '9'.repeat(64), adoption = '8'.repeat(64), freeze = '5'.repeat(64)) {
+  if (version === 6) {
+    const values: Record<string, unknown> = { ...recoveryG002PtrAdoptionCandidate(), ...recoveryActivationCandidatePolicyForVersion(6),
+      ptrExistingUpdateReceiptDigest: receipt, ptrExistingStateAdoptionReceiptDigest: adoption,
+      g001FreezeConfirmationReceiptDigest: freeze, g001FreezeCurrentStateReceiptDigest: '4'.repeat(64) };
+    return createRecoveryActivationBindingFromCandidate(document(Object.fromEntries(recoveryBindingKeys(6).map(key => [key, values[key]]))));
+  }
   if (version === 5) return createRecoveryActivationBindingFromCandidate(document({ ...recoveryG002PtrAdoptionCandidate(),
     ptrExistingUpdateReceiptDigest: receipt, ptrExistingStateAdoptionReceiptDigest: adoption }));
   const values = { ...recoveryBindingCandidate(), schemaVersion: version,
@@ -39,7 +45,7 @@ beforeAll(async () => {
   vi.doMock('../scripts/recovery-public-key.mjs', () => ({ RECOVERY_KEY_ID: kid, RECOVERY_PUBLIC_JWK: jwk, RECOVERY_KEY_THUMBPRINT: thumbprint }));
   verify = (await import('../scripts/verify-recovery-authorization-jws.mjs')).verifyRecoveryAuthorization;
 });
-describe.each([3, 4, 5] as const)('public recovery consumers V%s', version => {
+describe.each([3, 4, 5, 6] as const)('public recovery consumers V%s', version => {
   const binding = (receipt?: string, adoption?: string) => createBinding(version, receipt, adoption);
   it('accepts an explicit update artifact through the actual public privacy validator', () => {
     const bytes = Buffer.from(document(binding()));
@@ -76,15 +82,27 @@ describe.each([3, 4, 5] as const)('public recovery consumers V%s', version => {
     expect(() => verifySealedRealmsPublicActivationBytes(Buffer.from(document({ ...binding(), ...change })))).toThrow();
   });
 
-  if (version === 4 || version === 5) it('rejects a different adoption envelope under the original signed authorization', () => {
+  if (version === 4 || version === 5 || version === 6) it('rejects a different adoption envelope under the original signed authorization', () => {
     const f = recoveryAuthorizationFixture(); const b = binding();
     const payload = { ...f.payload, recoveryAuthorizationCoreSha256: b.recoveryAuthorizationCoreSha256 };
     expect(() => verify(token(payload), document(binding(undefined, '7'.repeat(64))), JSON.stringify(f.context), 1100)).toThrow('RECOVERY_AUTHORIZATION_INVALID');
   });
-  if (version === 5) it('binds signed G002 adoption independently of the unchanged PTR adoption', () => {
+  if (version === 5 || version === 6) it('binds signed G002 adoption independently of the unchanged PTR adoption', () => {
     const f = recoveryAuthorizationFixture(), b = binding();
-    const changed = createRecoveryActivationBindingFromCandidate(document({ ...recoveryG002PtrAdoptionCandidate(), g002ExistingStateAdoptionReceiptDigest: '4'.repeat(64) }));
+    const candidate: Record<string, unknown> = { ...b, recoveryAuthorizationCoreSha256: null, g002ExistingStateAdoptionReceiptDigest: '4'.repeat(64) };
+    for (const key of Object.keys(candidate)) if (key.endsWith('Commitment')) candidate[key] = null;
+    const changed = createRecoveryActivationBindingFromCandidate(document(candidate));
     const payload = { ...f.payload, recoveryAuthorizationCoreSha256: b.recoveryAuthorizationCoreSha256 };
     expect(() => verify(token(payload), document(changed), JSON.stringify(f.context), 1100)).toThrow('RECOVERY_AUTHORIZATION_INVALID');
   });
+  if (version === 6) {
+    it('binds the Linux freeze pair to the signed core without accepting Mac monitor claims', () => {
+      const f = recoveryAuthorizationFixture(), b = binding();
+      const payload = { ...f.payload, recoveryAuthorizationCoreSha256: b.recoveryAuthorizationCoreSha256 };
+      expect(() => verify(token(payload), document(createBinding(6, undefined, undefined, '3'.repeat(64))), JSON.stringify(f.context), 1100))
+        .toThrow('RECOVERY_AUTHORIZATION_INVALID');
+      expect(Object.keys(b).filter(key => key.startsWith('admissionMonitor'))).toEqual([]);
+      expect(() => verifySealedRealmsPublicActivationBytes(Buffer.from(document({ ...b, admissionMonitorDisabled: true })))).toThrow();
+    });
+  }
 });

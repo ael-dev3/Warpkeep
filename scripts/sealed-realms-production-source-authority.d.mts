@@ -1,6 +1,7 @@
 export const SEALED_REALMS_OPERATIONS: readonly [
   'preflight',
   'g001-policy-observe',
+  'g001-freeze-census',
   'g001-census-first',
   'g001-census-second-inspect',
   'g001-census-second-suspend',
@@ -66,3 +67,20 @@ export function sourceCommitFromSealedRealmsProductionAuthority(
 export function preparationSourceCommitFromSealedRealmsProductionAuthority(
   authority: SealedRealmsProductionSourceAuthority,
 ): string;
+
+declare const retainedSourceBrand: unique symbol;
+/** Read-only history, deliberately incompatible with source/effect authority. */
+export type SealedRealmsProductionRetainedSource = Readonly<{ [retainedSourceBrand]: true }>;
+export function authenticateSealedRealmsProductionRetainedSource(input: Readonly<{
+  realm: 'g002' | 'ptr'; operatingCommit: string; sourceCommit: string; sourceTree: string;
+  readGit: (arguments_: readonly string[]) => Uint8Array | string;
+  readBinding: (commit: string) => Readonly<Record<string, unknown>>;
+  verifyEvidence: (commit: string) => Readonly<{ verifiedSha: string }>;
+}>): SealedRealmsProductionRetainedSource;
+export function readSealedRealmsProductionRetainedSource(
+  capability: SealedRealmsProductionRetainedSource, realm: 'g002' | 'ptr',
+): Readonly<{
+  realm: 'g002' | 'ptr'; operatingCommit: string; sourceCommit: string; sourceTree: string;
+  mode: 'S'; operation: 'g002-update-apply' | 'ptr-update-apply';
+  preparationSourceCommit: string; authorityDigest: string;
+}>;

@@ -11,6 +11,10 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_DATABASE_BINDING:
   'PTR_SPACETIMEDB_DATABASE';
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_OIDC_AUDIENCE:
   'warpkeep-ptr-spacetimedb';
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_RECOVERY_SECRET_BINDING_NAMES:
+  readonly ['RELEASE_RECOVERY_CENSUS_PEPPER', 'RELEASE_RECOVERY_RPC_SECRET'];
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_GENESIS_002_DATABASE:
+  'c2003223f6e3c86e988775ddd458c3a45635d0d021e11131551471617c392194';
 
 export class AuthBridgeNotificationPreparedDeployError extends Error {
   readonly code: string;
@@ -24,6 +28,8 @@ export function authBridgeNotificationPreparedVersionContract(
     zoneId: string;
     sourceCommit: string;
     sourceDigest: string;
+    /** Enable initial observer provisioning; omission preserves retained legacy contracts. */
+    recoveryObserver?: boolean;
     beforeModes: Readonly<{
       bridgeSourceCommit: string;
       publicAuthEnabled: boolean;

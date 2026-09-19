@@ -104,6 +104,7 @@ function github(input: Readonly<{
   driftRunRequest?: number;
   onRunRequest?: (requestNumber: number, runId: string) => void | Promise<void>;
   runStatus?: (runId: string) => 'in_progress' | 'completed';
+  runConclusion?: (runId: string) => 'success' | 'cancelled';
 }>) {
   let runRequests = 0;
   return vi.fn(async (request: string | URL | Request) => {
@@ -127,7 +128,7 @@ function github(input: Readonly<{
         run_attempt: input.runAttempt,
         event: 'workflow_dispatch',
         status,
-        conclusion: status === 'completed' ? 'success' : null,
+        conclusion: status === 'completed' ? (input.runConclusion?.(requestedRunId) ?? 'success') : null,
         head_branch: 'main',
         head_sha: input.sourceCommit,
         path: WORKFLOW_PATH,
@@ -147,6 +148,7 @@ async function workflowPermit(
     driftRunRequest?: number;
     onRunRequest?: (requestNumber: number, requestedRunId: string) => void | Promise<void>;
     runStatus?: (requestedRunId: string) => 'in_progress' | 'completed';
+    runConclusion?: (requestedRunId: string) => 'success' | 'cancelled';
   }> = {},
 ) {
   const sourceCommit = options.sourceCommit ?? S;
@@ -158,6 +160,7 @@ async function workflowPermit(
     driftRunRequest: options.driftRunRequest,
     onRunRequest: options.onRunRequest,
     runStatus: options.runStatus,
+    runConclusion: options.runConclusion,
   });
   const permit = await functionExport(
     workflow, 'issueSealedRealmsProductionWorkflowPermit',
@@ -238,6 +241,7 @@ const FIXED_KINDS = Object.freeze([
   { kind: 'activation-evidence', issue: 'activation-evidence-inspect', claim: 'activation-evidence-generate' },
   { kind: 'g002-update', issue: 'g002-update-inspect', claim: 'g002-update-apply' },
   { kind: 'ptr-update', issue: 'ptr-update-inspect', claim: 'ptr-update-apply' },
+  { kind: 'activation-evidence-inline', issue: 'activation-evidence-generate', claim: 'activation-evidence-generate' },
 ]);
 
 const BINDING = Object.freeze({
@@ -393,7 +397,8 @@ describe('sealed-realms durable continuation core', () => {
         expect(Object.keys(issued)).toEqual(['status']);
 
         now += 1_000;
-        const claimedRun = await workflowPermit(workflow, transition.claim, '2001');
+        const claimRunId = transition.kind === 'activation-evidence-inline' ? '1001' : '2001';
+        const claimedRun = await workflowPermit(workflow, transition.claim, claimRunId);
         let callbackClaim: object | undefined;
         const claimStore = store(continuation, fixture.state(), () => new Date(now));
         const effect = vi.fn(async (claim: object) => {
@@ -404,7 +409,7 @@ describe('sealed-realms durable continuation core', () => {
           expect(functionExport(
             continuation, 'assertSealedRealmsProductionContinuationClaim',
           )!(claimAssertionInput(
-            claim, claimStore, claimedRun, transition.kind, '2001',
+            claim, claimStore, claimedRun, transition.kind, claimRunId,
           ))).toBe(true);
         });
         const completed = await functionExport(
@@ -412,7 +417,7 @@ describe('sealed-realms durable continuation core', () => {
         )!({
           ...issueInput(
             claimStore,
-            claimedRun, transition.kind, '2001',
+            claimedRun, transition.kind, claimRunId,
           ),
           effect,
         });
@@ -424,7 +429,7 @@ describe('sealed-realms durable continuation core', () => {
         expect(() => functionExport(
           continuation, 'assertSealedRealmsProductionContinuationClaim',
         )!(claimAssertionInput(
-          callbackClaim, claimStore, claimedRun, transition.kind, '2001',
+          callbackClaim, claimStore, claimedRun, transition.kind, claimRunId,
         )))
           .toThrow(/SEALED_REALMS_CONTINUATION_CLAIM_INVALID/u);
         expect(JSON.stringify({ issued, completed })).not.toMatch(/[a-f0-9]{40,64}/u);
@@ -434,6 +439,287 @@ describe('sealed-realms durable continuation core', () => {
       }
     },
   );
+
+  it.each(['other-run', 'other-attempt', 'changed-evidence', 'changed-receipts', 'changed-predecessor'])(
+    'does not claim inline activation under %s', async scenario => {
+      const [workflow, continuation] = await Promise.all([loadWorkflow(), loadContinuation()]);
+      if (!requireModules(workflow, continuation)) return;
+      const fixture = privateFixture();
+      try {
+        const run = await workflowPermit(workflow, 'activation-evidence-generate', '1001');
+        const state = store(continuation, fixture.state(), () => new Date('2026-09-01T00:00:00.000Z'));
+        const input = issueInput(state, run, 'activation-evidence-inline', '1001');
+        await functionExport(continuation, 'issueSealedRealmsProductionContinuation')!(input);
+        const effect = vi.fn();
+        const changed = scenario === 'other-run' ? { runId: '2001' }
+          : scenario === 'other-attempt' ? { runAttempt: '2' }
+            : scenario === 'changed-evidence' ? { evidenceDigest: 'f'.repeat(64) }
+              : scenario === 'changed-receipts' ? { receiptDigests: ['f'.repeat(64)] }
+                : { predecessorDigests: ['f'.repeat(64)] };
+        await expect(functionExport(continuation, 'claimSealedRealmsProductionContinuation')!({
+          ...input, ...changed, effect,
+        })).rejects.toThrow(scenario.startsWith('other-') ? /RUN_INVALID/u : /BINDING_INVALID/u);
+        expect(effect).not.toHaveBeenCalled();
+        expect(recordNames(fixture.home).map(name => name.split('-')[0])).toEqual(['issued']);
+      } finally { fixture.cleanup(); }
+    });
+
+  it('keeps legacy inspection issuance separate from same-run inline issuance and claims', async () => {
+    const [workflow, continuation] = await Promise.all([loadWorkflow(), loadContinuation()]);
+    if (!requireModules(workflow, continuation)) return;
+    const fixture = privateFixture();
+    try {
+      const inspect = await workflowPermit(workflow, 'activation-evidence-inspect', '1001');
+      const generate = await workflowPermit(workflow, 'activation-evidence-generate', '1001');
+      const state = store(continuation, fixture.state(), () => new Date('2026-09-01T00:00:00.000Z'));
+      const issue = functionExport(continuation, 'issueSealedRealmsProductionContinuation')!;
+      await expect(issue(issueInput(state, inspect, 'activation-evidence-inline', '1001'))).rejects.toThrow(/OPERATION_INVALID/u);
+      await expect(issue(issueInput(state, generate, 'activation-evidence', '1001'))).rejects.toThrow(/OPERATION_INVALID/u);
+      await issue(issueInput(state, inspect, 'activation-evidence', '1001'));
+      const effect = vi.fn();
+      const claim = functionExport(continuation, 'claimSealedRealmsProductionContinuation')!;
+      await expect(claim({ ...issueInput(state, generate, 'activation-evidence-inline', '1001'), effect })).rejects.toThrow(/BINDING_INVALID/u);
+      await expect(claim({ ...issueInput(state, generate, 'activation-evidence', '1001'), effect })).rejects.toThrow(/RUN_INVALID/u);
+      expect(effect).not.toHaveBeenCalled();
+      expect(recordNames(fixture.home)).toHaveLength(1);
+    } finally { fixture.cleanup(); }
+  });
+
+  it.each(['activation-evidence', 'activation-evidence-inline'])(
+    'preserves the legacy scope and refuses the other mode when %s is already issued', async kind => {
+      const [workflow, continuation] = await Promise.all([loadWorkflow(), loadContinuation()]);
+      if (!requireModules(workflow, continuation)) return;
+      const fixture = privateFixture();
+      try {
+        const otherKind = kind === 'activation-evidence' ? 'activation-evidence-inline' : 'activation-evidence';
+        const issued = await workflowPermit(workflow, kind === 'activation-evidence' ? 'activation-evidence-inspect' : 'activation-evidence-generate', '1001');
+        const otherIssuer = await workflowPermit(workflow, otherKind === 'activation-evidence' ? 'activation-evidence-inspect' : 'activation-evidence-generate', '3001');
+        const claimant = await workflowPermit(workflow, 'activation-evidence-generate', otherKind === 'activation-evidence-inline' ? '1001' : '2001');
+        const state = store(continuation, fixture.state(), () => new Date('2026-09-01T00:00:00.000Z'));
+        const issue = functionExport(continuation, 'issueSealedRealmsProductionContinuation')!;
+        await issue(issueInput(state, issued, kind, '1001'));
+        const scope = issuedPath(fixture.home).directory.split(/[/\\]/u).at(-1);
+        expect(scope).toBe(createHash('sha256').update(`warpkeep.sealed-realms.continuation-scope.v1\n${issued.source.authorityDigest}\nactivation-evidence\n`).digest('hex'));
+        await expect(issue(issueInput(state, otherIssuer, otherKind, '3001'))).rejects.toThrow(/DUPLICATE/u);
+        const effect = vi.fn();
+        await expect(functionExport(continuation, 'claimSealedRealmsProductionContinuation')!({
+          ...issueInput(state, claimant, otherKind, otherKind === 'activation-evidence-inline' ? '1001' : '2001'), effect,
+        })).rejects.toThrow(/BINDING_INVALID/u);
+        expect(effect).not.toHaveBeenCalled(); expect(recordNames(fixture.home)).toHaveLength(1);
+      } finally { fixture.cleanup(); }
+    });
+
+  it.each([
+    ['activation-evidence', 'completed'], ['activation-evidence', 'effect-threw'],
+    ['activation-evidence-inline', 'completed'], ['activation-evidence-inline', 'effect-threw'],
+  ])('blocks cross-mode replay after %s becomes %s', async (kind, outcome) => {
+    const [workflow, continuation] = await Promise.all([loadWorkflow(), loadContinuation()]);
+    if (!requireModules(workflow, continuation)) return;
+    const fixture = privateFixture();
+    try {
+      const otherKind = kind === 'activation-evidence' ? 'activation-evidence-inline' : 'activation-evidence';
+      const issued = await workflowPermit(workflow, kind === 'activation-evidence' ? 'activation-evidence-inspect' : 'activation-evidence-generate', '1001');
+      const claimId = kind === 'activation-evidence-inline' ? '1001' : '2001';
+      const claimant = await workflowPermit(workflow, 'activation-evidence-generate', claimId);
+      const otherIssuer = await workflowPermit(workflow, otherKind === 'activation-evidence' ? 'activation-evidence-inspect' : 'activation-evidence-generate', '3001');
+      const state = store(continuation, fixture.state(), () => new Date('2026-09-01T00:00:00.000Z'));
+      const issue = functionExport(continuation, 'issueSealedRealmsProductionContinuation')!;
+      const claim = functionExport(continuation, 'claimSealedRealmsProductionContinuation')!;
+      await issue(issueInput(state, issued, kind, '1001'));
+      const effect = vi.fn(() => { if (outcome === 'effect-threw') throw Error('lost acknowledgment'); });
+      const first = claim({ ...issueInput(state, claimant, kind, claimId), effect });
+      if (outcome === 'completed') await expect(first).resolves.toEqual({ status: 'completed' });
+      else await expect(first).rejects.toThrow(/EFFECT_AMBIGUOUS/u);
+      const expected = outcome === 'completed' ? /TERMINAL/u : /AMBIGUOUS/u;
+      await expect(issue({ ...issueInput(state, otherIssuer, otherKind, '3001'), evidenceDigest: 'f'.repeat(64) })).rejects.toThrow(expected);
+      const otherClaimant = await workflowPermit(workflow, 'activation-evidence-generate', '3001');
+      await expect(claim({ ...issueInput(state, otherClaimant, otherKind, '3001'), effect })).rejects.toThrow(expected);
+      expect(effect).toHaveBeenCalledTimes(1);
+    } finally { fixture.cleanup(); }
+  });
+
+  it.each(['completed', 'effect-threw'])(
+    'does not replay an inline activation after %s or bypass its journal with fresh evidence', async outcome => {
+      const [workflow, continuation] = await Promise.all([loadWorkflow(), loadContinuation()]);
+      if (!requireModules(workflow, continuation)) return;
+      const fixture = privateFixture();
+      try {
+        const run = await workflowPermit(workflow, 'activation-evidence-generate', '1001');
+        const state = store(continuation, fixture.state(), () => new Date('2026-09-01T00:00:00.000Z'));
+        const input = issueInput(state, run, 'activation-evidence-inline', '1001');
+        const issue = functionExport(continuation, 'issueSealedRealmsProductionContinuation')!;
+        const claim = functionExport(continuation, 'claimSealedRealmsProductionContinuation')!;
+        await issue(input);
+        const effect = vi.fn(() => {
+          if (outcome === 'effect-threw') throw Error('lost effect acknowledgment');
+        });
+        const attempt = claim({ ...input, effect });
+        if (outcome === 'completed') await expect(attempt).resolves.toEqual({ status: 'completed' });
+        else await expect(attempt).rejects.toThrow(/EFFECT_AMBIGUOUS/u);
+        const expected = outcome === 'completed' ? /TERMINAL/u : /AMBIGUOUS/u;
+        await expect(claim({ ...input, effect })).rejects.toThrow(expected);
+        await expect(issue({ ...input, evidenceDigest: 'f'.repeat(64) })).rejects.toThrow(expected);
+        expect(effect).toHaveBeenCalledTimes(1);
+        const names = recordNames(fixture.home).map(name => name.split('-')[0]);
+        expect(names).toEqual(outcome === 'completed' ? ['claimed', 'issued', 'terminal'] : ['claimed', 'issued']);
+      } finally { fixture.cleanup(); }
+    });
+
+  it('recovers a cancelled issuance-only inline run, retains its truthful no-effect record and reads fresh completion', async () => {
+    const [workflow, continuation] = await Promise.all([loadWorkflow(), loadContinuation()]);
+    if (!requireModules(workflow, continuation)) return;
+    const fixture = privateFixture();
+    try {
+      const privateState = fixture.state();
+      const state = store(continuation, privateState, () => new Date('2026-09-01T00:00:00.000Z'));
+      const previous = await workflowPermit(workflow, 'activation-evidence-generate', '1001');
+      const issue = functionExport(continuation, 'issueSealedRealmsProductionContinuation')!;
+      await issue(issueInput(state, previous, 'activation-evidence-inline', '1001'));
+      const old = issuedPath(fixture.home), oldDigest = old.name.slice(7, -5);
+      const current = await workflowPermit(workflow, 'activation-evidence-generate', '2001', {
+        runStatus: id => id === '1001' ? 'completed' : 'in_progress',
+        runConclusion: () => 'cancelled',
+      });
+      const freshBinding = { ...BINDING, evidenceDigest: 'e'.repeat(64), receiptDigests: ['f'.repeat(64)] };
+      const input = { ...issueInput(state, current, 'activation-evidence-inline', '2001'), ...freshBinding };
+      await expect(issue(input)).resolves.toEqual({ status: 'issued' });
+      const oldTerminal = JSON.parse(readFileSync(join(old.directory, `terminal-${oldDigest}.json`), 'utf8'));
+      expect(oldTerminal.outcome).toBe('reconciled-no-effect');
+      expect(oldTerminal.terminalRunId).toBe('2001');
+      expect(oldTerminal.observationDigest).toBe(createHash('sha256')
+        .update(`warpkeep.sealed-realms.unclaimed-inline-no-effect.v1\n${oldDigest}\n`).digest('hex'));
+      expect(readdirSync(old.directory)).not.toContain(`claimed-${oldDigest}.json`);
+      const effect = vi.fn();
+      await functionExport(continuation, 'claimSealedRealmsProductionContinuation')!({ ...input, effect });
+      expect(effect).toHaveBeenCalledTimes(1);
+      const completed = functionExport(continuation, 'readSealedRealmsProductionContinuationCompletion')!({
+        store: state, privateState, sourceAuthority: current.source, kind: 'activation-evidence-inline', ...freshBinding,
+      });
+      expect(completed.outcome).toBe('completed'); expect(completed.claimRunId).toBe('2001');
+      expect(recordNames(fixture.home).map(name => name.split('-')[0])).toEqual(['claimed', 'issued', 'issued', 'terminal', 'terminal']);
+    } finally { fixture.cleanup(); }
+  });
+
+  it.each(['live-issuer', 'same-run-rerun', 'claim-during-attestation', 'effect-resolution-during-attestation', 'effect-resolution-at-final-attestation',
+    'failed-first-attestation', 'failed-final-attestation', 'issuer-live-at-final-attestation'])(
+    'does not recover an unclaimed inline issuance with %s', async scenario => {
+      const [workflow, continuation] = await Promise.all([loadWorkflow(), loadContinuation()]);
+      if (!requireModules(workflow, continuation)) return;
+      const fixture = privateFixture();
+      try {
+        const privateState = fixture.state();
+        const state = store(continuation, privateState, () => new Date('2026-09-01T00:00:00.000Z'));
+        const previous = await workflowPermit(workflow, 'activation-evidence-generate', '1001');
+        const issue = functionExport(continuation, 'issueSealedRealmsProductionContinuation')!;
+        const previousInput = issueInput(state, previous, 'activation-evidence-inline', '1001');
+        await issue(previousInput);
+        const old = issuedPath(fixture.home), oldDigest = old.name.slice(7, -5);
+        const scope = old.directory.split(/[/\\]/u).at(-1)!;
+        let oldReads = 0;
+        const currentId = scenario === 'same-run-rerun' ? '1001' : '2001';
+        const current = await workflowPermit(workflow, 'activation-evidence-generate', currentId, {
+          runStatus: id => id === '1001' && scenario !== 'live-issuer' && scenario !== 'same-run-rerun'
+            && !(scenario === 'issuer-live-at-final-attestation' && oldReads >= 2) ? 'completed' : 'in_progress',
+          onRunRequest: async (_count, id) => {
+            if (id !== '1001' || scenario === 'same-run-rerun') return;
+            oldReads++;
+            if ((oldReads === 1 && scenario === 'failed-first-attestation')
+              || (oldReads === 2 && scenario === 'failed-final-attestation')) throw Error('GitHub unavailable');
+            if (oldReads === 1 && scenario === 'claim-during-attestation') {
+              await expect(functionExport(continuation, 'claimSealedRealmsProductionContinuation')!({
+                ...previousInput, effect: () => { throw Error('effect acknowledgment missing'); },
+              })).rejects.toThrow(/EFFECT_AMBIGUOUS/u);
+            }
+            if (oldReads === 1 && scenario === 'effect-resolution-during-attestation') {
+              privateState.reserveContinuationResolution({ scopeDigest: scope, recordDigest: oldDigest, decision: 'effect' });
+            }
+            if (oldReads === 2 && scenario === 'effect-resolution-at-final-attestation') {
+              writeFileSync(join(old.directory, `resolution-${oldDigest}.lock`),
+                'warpkeep-sealed-realms-continuation-resolution-v1:effect\n', { mode: 0o600 });
+            }
+          },
+        });
+        await expect(issue({ ...issueInput(state, current, 'activation-evidence-inline', currentId),
+          ...(scenario === 'same-run-rerun' ? { runAttempt: '2' } : {}), evidenceDigest: 'e'.repeat(64),
+        })).rejects.toThrow();
+        expect(recordNames(fixture.home).filter(name => name.startsWith('issued-'))).toHaveLength(1);
+        expect(recordNames(fixture.home).some(name => name.startsWith('terminal-'))).toBe(false);
+        if (scenario === 'claim-during-attestation') expect(recordNames(fixture.home).some(name => name.startsWith('claimed-'))).toBe(true);
+        else expect(recordNames(fixture.home)).toHaveLength(1);
+      } finally { fixture.cleanup(); }
+    });
+
+  it.each(['missing-terminal', 'wrong-digest', 'wrong-outcome', 'missing-resolution', 'effect-resolution'])(
+    'rejects %s in retained issuance-only recovery evidence before any fresh effect', async scenario => {
+      const [workflow, continuation] = await Promise.all([loadWorkflow(), loadContinuation()]);
+      if (!requireModules(workflow, continuation)) return;
+      const fixture = privateFixture();
+      try {
+        const state = store(continuation, fixture.state(), () => new Date('2026-09-01T00:00:00.000Z'));
+        const previous = await workflowPermit(workflow, 'activation-evidence-generate', '1001');
+        const issue = functionExport(continuation, 'issueSealedRealmsProductionContinuation')!;
+        await issue(issueInput(state, previous, 'activation-evidence-inline', '1001'));
+        const old = issuedPath(fixture.home), oldDigest = old.name.slice(7, -5);
+        const current = await workflowPermit(workflow, 'activation-evidence-generate', '2001', {
+          runStatus: id => id === '1001' ? 'completed' : 'in_progress',
+        });
+        const input = { ...issueInput(state, current, 'activation-evidence-inline', '2001'), evidenceDigest: 'e'.repeat(64) };
+        await issue(input);
+        const terminalPath = join(old.directory, `terminal-${oldDigest}.json`);
+        const resolutionPath = join(old.directory, `resolution-${oldDigest}.lock`);
+        if (scenario === 'missing-terminal') rmSync(terminalPath);
+        else if (scenario === 'missing-resolution') rmSync(resolutionPath);
+        else if (scenario === 'effect-resolution') writeFileSync(resolutionPath, 'warpkeep-sealed-realms-continuation-resolution-v1:effect\n');
+        else {
+          const terminal = JSON.parse(readFileSync(terminalPath, 'utf8'));
+          if (scenario === 'wrong-digest') terminal.observationDigest = 'f'.repeat(64);
+          if (scenario === 'wrong-outcome') terminal.outcome = 'reconciled-effect-applied';
+          writeFileSync(terminalPath, `${JSON.stringify(terminal)}\n`);
+        }
+        const effect = vi.fn();
+        await expect(functionExport(continuation, 'claimSealedRealmsProductionContinuation')!({ ...input, effect })).rejects.toThrow();
+        expect(effect).not.toHaveBeenCalled();
+      } finally { fixture.cleanup(); }
+    });
+
+  it('reads inline completion after a genuine legacy no-effect generation with a different binding', async () => {
+    const [workflow, continuation] = await Promise.all([loadWorkflow(), loadContinuation()]);
+    if (!requireModules(workflow, continuation)) return;
+    const fixture = privateFixture();
+    try {
+      const privateState = fixture.state();
+      const state = store(continuation, privateState, () => new Date('2026-09-01T00:00:00.000Z'));
+      const inspect = await workflowPermit(workflow, 'activation-evidence-inspect', '1001');
+      const issue = functionExport(continuation, 'issueSealedRealmsProductionContinuation')!;
+      await issue(issueInput(state, inspect, 'activation-evidence', '1001'));
+      const stopped = await workflowPermit(workflow, 'activation-evidence-generate', '2001', { driftRunRequest: 3 });
+      const effect = vi.fn();
+      await expect(functionExport(continuation, 'claimSealedRealmsProductionContinuation')!({
+        ...issueInput(state, stopped, 'activation-evidence', '2001'), effect,
+      })).rejects.toThrow();
+      expect(effect).not.toHaveBeenCalled();
+      const current = await workflowPermit(workflow, 'activation-evidence-generate', '3001', {
+        runStatus: id => id === '2001' ? 'completed' : 'in_progress',
+      });
+      await functionExport(continuation, 'reconcileSealedRealmsProductionContinuation')!({
+        ...issueInput(state, current, 'activation-evidence', '3001'),
+        readOnlyReconcile: (reconciliation: object) => functionExport(continuation, 'classifySealedRealmsProductionContinuationNoEffect')!({
+          reconciliation, evidenceDigest: BINDING.evidenceDigest, observationDigest: '9'.repeat(64),
+        }),
+      });
+      const freshBinding = { ...BINDING, evidenceDigest: 'e'.repeat(64), receiptDigests: ['f'.repeat(64)] };
+      const input = { ...issueInput(state, current, 'activation-evidence-inline', '3001'), ...freshBinding };
+      await issue(input);
+      await functionExport(continuation, 'claimSealedRealmsProductionContinuation')!({ ...input, effect });
+      const completed = functionExport(continuation, 'readSealedRealmsProductionContinuationCompletion')!({
+        store: state, privateState, sourceAuthority: current.source, kind: 'activation-evidence-inline', ...freshBinding,
+      });
+      expect(completed.outcome).toBe('completed'); expect(completed.claimRunId).toBe('3001'); expect(effect).toHaveBeenCalledTimes(1);
+      expect(() => functionExport(continuation, 'readSealedRealmsProductionContinuationCompletion')!({
+        store: state, privateState, sourceAuthority: current.source, kind: 'activation-evidence', ...freshBinding,
+      })).toThrow(/BINDING_INVALID/u);
+    } finally { fixture.cleanup(); }
+  });
 
   it('rejects live reconciliation and cannot terminalize no-effect ahead of its claimant', async () => {
     const [workflow, continuation] = await Promise.all([

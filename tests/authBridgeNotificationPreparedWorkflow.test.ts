@@ -121,19 +121,10 @@ const RETAINED_TYPE_ONLY_DECLARATION_PATHS = Object.freeze([
   'scripts/production-player-canary-release-binding.d.mts',
 ]);
 const G001_LINUX_DECLARATIONLESS_ENTRYPOINTS = Object.freeze([
-  'scripts/genesis001-linux-policy-boundary.mjs',
   'scripts/genesis001-linux-policy-child.mjs',
   'scripts/genesis001-linux-policy-materializer.mjs',
-  'scripts/genesis001-linux-policy-native.mjs',
   'scripts/local-binding-native-ts-hooks.mjs',
-  'scripts/local-binding-runtime-cli-snapshot.mjs',
-  'scripts/local-binding-runtime-core.mjs',
-  'scripts/local-binding-runtime-process.mjs',
-  'scripts/local-program-artifact.mjs',
   'scripts/auth-bridge-notification-prepared-linux-runner.mjs',
-  'scripts/sealed-realms-production-workflow-evidence-json.mjs',
-  'scripts/sealed-realms-production-workflow-evidence.mjs',
-  'scripts/spacetime-binding-tree.mjs',
 ]);
 const temporaryDirectories: string[] = [];
 
@@ -444,7 +435,7 @@ function canonicalFixtureMember(relativePath: string, source: Buffer): Buffer {
   return Buffer.from(canonical, 'utf8');
 }
 
-function createPolicyFixture(): string {
+function createPolicyFixture(additionalSourcePaths: readonly string[] = []): string {
   const root = realpathSync(mkdtempSync(join(
     tmpdir(),
     'warpkeep-prepared-policy-',
@@ -455,7 +446,7 @@ function createPolicyFixture(): string {
     mkdirSync(dirname(destination), { recursive: true });
     cpSync(resolve(repositoryRoot, path), destination, { recursive: true });
   };
-  for (const path of AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS) {
+  for (const path of new Set([...AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS, ...additionalSourcePaths])) {
     copyTracked(path);
   }
   for (const path of RETAINED_TYPE_ONLY_DECLARATION_PATHS) {
@@ -1309,7 +1300,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         guardedRecoveryRequired: true,
         privateReceiptSinkRequired: true,
         installedToolchainByteAttestationRequired: true,
-        executableSecurityClosureMemberCount: 1216,
+        executableSecurityClosureMemberCount: 1258,
       });
   }, 180_000);
 
@@ -1327,7 +1318,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     });
     expect(paths).toEqual(manifest.members.map(member => member.path));
     expect(manifest.schemaVersion).toBe(2);
-    expect(paths).toHaveLength(1216);
+    expect(paths).toHaveLength(1258);
     expect(paths).toEqual(expect.arrayContaining([
       'scripts/auth-bridge-notification-prepared-deploy.mjs',
       'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
@@ -1405,7 +1396,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       repositoryRoot: root,
     })).toMatchObject({
         profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1',
-        memberCount: 1216,
+        memberCount: 1258,
         manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       });
   }, 180_000);
@@ -1755,6 +1746,38 @@ describe('notification-bridge-prepared protected workflow', () => {
     );
   }, 90_000);
 
+  it('closes the exact fixed local-build and Linux census entries and rejects altered dynamic loads', () => {
+    const paths = deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot });
+    expect(paths).toEqual(expect.arrayContaining([
+      'scripts/local-binding-runtime-core.mjs', 'scripts/local-binding-runtime-core.d.mts',
+      'scripts/local-binding-native-ts-hooks.mjs', 'scripts/local-operation-bundle-packages.ts',
+      'scripts/local-operation-bundle-noble-v1.mjs', 'scripts/spacetime-cli-attestation.mjs',
+      'scripts/spacetime-binding-tree.mjs', 'scripts/genesis001-linux-census-operator.ts',
+      'scripts/genesis001-linux-census-attempt.mjs', 'scripts/genesis001-linux-census-attempt.d.mts',
+    ]));
+    const root = createPolicyFixture(paths);
+    expect(deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot: root })).toEqual(paths);
+    const file = resolve(root, 'scripts/local-binding-runtime-core.mjs');
+    const original = readFileSync(file, 'utf8');
+    for (const [before, after, error] of [
+      ['import(/* @vite-ignore */ operationBundlePackagesSpecifier)', 'import(otherSpecifier)', 'IMPORT_INVALID'],
+      ['import(/* @vite-ignore */ operationBundlePackagesSpecifier)', 'import("./local-operation-bundle-packages.ts")', 'IMPORT_INVALID'],
+      ["join(source.root, 'scripts', 'spacetime-cli-attestation.mjs')", "join(source.root, 'scripts', 'different.mjs')", 'IMPORT_INVALID'],
+      ["require(join(namespace.root, '@noble', 'hashes', 'sha3.js'))", "require(otherPackage)", 'REQUIRE_FORBIDDEN'],
+      ["require(join(namespace.root, '@noble', 'hashes', 'sha3.js'))", "(require(join(namespace.root, '@noble', 'hashes', 'sha3.js')), require(join(namespace.root, '@noble', 'hashes', 'sha3.js')))", 'REQUIRE_FORBIDDEN'],
+    ]) {
+      expect(original.split(before)).toHaveLength(2);
+      writeFileSync(file, original.replace(before, after));
+      expect(() => deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot: root }))
+        .toThrow(`AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_${error}`);
+      writeFileSync(file, original);
+    }
+    const other = resolve(root, 'scripts/local-program-artifact.mjs');
+    writeFileSync(other, `${readFileSync(other, 'utf8')}\nrequire(join(namespace.root, '@noble', 'hashes', 'sha3.js'));\n`);
+    expect(() => deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot: root }))
+      .toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_REQUIRE_FORBIDDEN');
+  }, 180_000);
+
   it('rejects a physically missing imported member', () => {
     const physicallyMissing = createPolicyFixture();
     rmSync(resolve(
@@ -1846,7 +1869,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     )).toThrow('AUTH_BRIDGE_PREPARED_TOOLCHAIN_AUTHORITY_INVALID');
   });
 
-  it('accepts a valid source-closure manifest within the 256 KiB bound', () => {
+  it('accepts a valid source-closure manifest at 512 KiB and rejects the next byte', () => {
     const fixture = createInstalledToolchainFixture();
     const sourceManifestPath = resolve(
       fixture.root,
@@ -1862,27 +1885,29 @@ describe('notification-bridge-prepared protected workflow', () => {
         sha256: string;
       }>;
     };
-    let index = 0;
-    while (Buffer.byteLength(
-      `${JSON.stringify(sourceManifest, null, 2)}\n`,
-      'utf8',
-    ) <= 200 * 1_024) {
-      sourceManifest.members.push({
-        path: `zz-fixture/${index.toString().padStart(4, '0')}-${'a'.repeat(850)}`,
-        digestProfile: 'raw-file-sha256-v1',
-        sha256: 'f'.repeat(64),
-      });
-      index += 1;
+    const paddingMembers = Array.from({ length: 512 }, (_, index) => ({
+      path: `zz-fixture/${index.toString().padStart(4, '0')}-`,
+      digestProfile: 'raw-file-sha256-v1', sha256: 'f'.repeat(64),
+    }));
+    sourceManifest.members.push(...paddingMembers);
+    const remaining = 512 * 1_024 - Buffer.byteLength(`${JSON.stringify(sourceManifest, null, 2)}\n`, 'utf8');
+    for (const [index, member] of paddingMembers.entries()) {
+      member.path += 'a'.repeat(Math.floor(remaining / paddingMembers.length) + (index < remaining % paddingMembers.length ? 1 : 0));
     }
     const source = `${JSON.stringify(sourceManifest, null, 2)}\n`;
-    expect(Buffer.byteLength(source, 'utf8')).toBeGreaterThan(192 * 1_024);
-    expect(Buffer.byteLength(source, 'utf8')).toBeLessThanOrEqual(256 * 1_024);
+    expect(Buffer.byteLength(source, 'utf8')).toBe(512 * 1_024);
     writeFileSync(sourceManifestPath, source);
 
     expect(verifyInstalledToolchainFixture(fixture)).toMatchObject({
       profile:
         'warpkeep-auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1',
     });
+    sourceManifest.members[sourceManifest.members.length - 1]!.path += 'a';
+    const oversized = `${JSON.stringify(sourceManifest, null, 2)}\n`;
+    expect(Buffer.byteLength(oversized, 'utf8')).toBe(512 * 1_024 + 1);
+    writeFileSync(sourceManifestPath, oversized);
+    expect(() => verifyInstalledToolchainFixture(fixture))
+      .toThrow('AUTH_BRIDGE_PREPARED_TOOLCHAIN_SOURCE_MANIFEST_INVALID');
   });
 
   it('normalizes pnpm CI global virtual-store false to the existing manifest', () => {

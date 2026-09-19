@@ -6,6 +6,7 @@ import {
 import {
   preparationSourceCommitFromSealedRealmsProductionAuthority,
   sourceCommitFromSealedRealmsProductionAuthority,
+  readSealedRealmsProductionRetainedSource,
 } from './sealed-realms-production-source-authority.mjs';
 import {
   SEALED_REALMS_PRODUCTION_REPOSITORY,
@@ -24,6 +25,7 @@ export const SEALED_REALMS_PRODUCTION_CONTINUATION_KINDS = Object.freeze([
   'activation-evidence',
   'g002-update',
   'ptr-update',
+  'activation-evidence-inline',
 ]);
 
 const CONTINUATION_TTL_MILLISECONDS = 24 * 60 * 60 * 1_000;
@@ -71,6 +73,11 @@ const SPECS = Object.freeze({
   'ptr-update': Object.freeze({ issueOperation: 'ptr-update-inspect', claimOperation: 'ptr-update-apply', lane: 'ptr' }),
   'activation-evidence': Object.freeze({
     issueOperation: 'activation-evidence-inspect',
+    claimOperation: 'activation-evidence-generate',
+    lane: 'activation',
+  }),
+  'activation-evidence-inline': Object.freeze({
+    issueOperation: 'activation-evidence-generate',
     claimOperation: 'activation-evidence-generate',
     lane: 'activation',
   }),
@@ -189,7 +196,10 @@ function scopeDigest(authorityDigest, kind, evidenceDigest) {
     if (!SHA256.test(evidenceDigest ?? '')) fail('SEALED_REALMS_CONTINUATION_INPUT_INVALID');
     return digest('warpkeep.sealed-realms.update-continuation-scope.v1', authorityDigest, kind, evidenceDigest);
   }
-  return digest('warpkeep.sealed-realms.continuation-scope.v1', authorityDigest, kind);
+  // Both activation modes protect the same effect. Preserve the historical
+  // scope bytes so an unfinished or completed legacy claim cannot be bypassed.
+  const scopeKind = kind === 'activation-evidence-inline' ? 'activation-evidence' : kind;
+  return digest('warpkeep.sealed-realms.continuation-scope.v1', authorityDigest, scopeKind);
 }
 
 function workflowAuthorityDigest({
@@ -317,7 +327,7 @@ function validateClaim(record, issued) {
     || !Number.isSafeInteger(record.claimRunAttempt)
     || record.claimRunAttempt < 1
     || record.claimRunAttempt > 1_000
-    || record.claimRunId === issued.record.issuanceRunId
+    || !claimRunMatches(issued.record, record.claimRunId, record.claimRunAttempt)
     || !canonicalTimestamp(record.claimedAt)
     || Date.parse(record.claimedAt) < Date.parse(issued.record.issuedAt)
     || record.claimWorkflowAuthorityDigest !== workflowAuthorityDigest({
@@ -331,7 +341,16 @@ function validateClaim(record, issued) {
   return record;
 }
 
+function claimRunMatches(issued, runId, runAttempt) {
+  // Fresh inline census and bridge evidence belong to this exact live generate
+  // execution. Historical kinds keep their separate inspection/claim runs.
+  return issued.kind === 'activation-evidence-inline'
+    ? runId === issued.issuanceRunId && runAttempt === issued.issuanceRunAttempt
+    : runId !== issued.issuanceRunId;
+}
+
 function validateTerminal(record, issued, claim) {
+  const unclaimed = claim === undefined;
   const reconciled = record.outcome === 'reconciled-effect-applied'
     || record.outcome === 'reconciled-no-effect';
   if (
@@ -342,11 +361,14 @@ function validateTerminal(record, issued, claim) {
     || record.sourceAuthorityDigest !== issued.record.sourceAuthorityDigest
     || !['completed', 'reconciled-effect-applied', 'reconciled-no-effect']
       .includes(record.outcome)
+    || (unclaimed && (issued.record.kind !== 'activation-evidence-inline'
+      || record.outcome !== 'reconciled-no-effect'
+      || record.observationDigest !== unclaimedInlineObservation(issued)))
     || !RUN_ID.test(record.terminalRunId ?? '')
     || !Number.isSafeInteger(record.terminalRunAttempt)
     || record.terminalRunAttempt < 1
     || record.terminalRunAttempt > 1_000
-    || (reconciled && record.terminalRunId === claim.record.claimRunId)
+    || (reconciled && record.terminalRunId === (unclaimed ? issued.record.issuanceRunId : claim.record.claimRunId))
     || (!reconciled && (
       record.terminalRunId !== claim.record.claimRunId
       || record.terminalRunAttempt !== claim.record.claimRunAttempt
@@ -355,7 +377,7 @@ function validateTerminal(record, issued, claim) {
       ? !SHA256.test(record.observationDigest ?? '')
       : record.observationDigest !== null)
     || !canonicalTimestamp(record.terminalAt)
-    || Date.parse(record.terminalAt) < Date.parse(claim.record.claimedAt)
+    || Date.parse(record.terminalAt) < Date.parse(unclaimed ? issued.record.issuedAt : claim.record.claimedAt)
     || record.terminalWorkflowAuthorityDigest !== workflowAuthorityDigest({
       sourceCommit: issued.record.sourceCommit,
       authorityDigest: issued.record.sourceAuthorityDigest,
@@ -365,6 +387,10 @@ function validateTerminal(record, issued, claim) {
     })
   ) fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
   return record;
+}
+
+function unclaimedInlineObservation(issued) {
+  return digest('warpkeep.sealed-realms.unclaimed-inline-no-effect.v1', issued.recordDigest);
 }
 
 function inventory(state, scope) {
@@ -394,10 +420,14 @@ function inventory(state, scope) {
         fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
       }
       validateIssued(group.issued.record);
+      if (scopeDigest(group.issued.record.sourceAuthorityDigest, group.issued.record.kind,
+        group.issued.record.evidenceDigest) !== scope) fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
       if (group.claimed !== undefined) validateClaim(group.claimed.record, group.issued);
       if (group.terminal !== undefined) {
-        if (group.claimed === undefined) fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
         validateTerminal(group.terminal.record, group.issued, group.claimed);
+        if (group.claimed === undefined && resolution(state, scope, group.issued.recordDigest) !== 'reconcile') {
+          fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+        }
       }
     }
     const values = [...groups.values()];
@@ -471,9 +501,10 @@ function sameArray(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function requireBinding(issued, authority, binding) {
+function requireBinding(issued, authority, binding, kind) {
   if (
-    issued.sourceAuthorityDigest !== authority.authorityDigest
+    issued.kind !== kind
+    || issued.sourceAuthorityDigest !== authority.authorityDigest
     || issued.sourceMode !== authority.mode
     || issued.sourceCommit !== authority.sourceCommit
     || issued.preparationSourceCommit !== authority.preparationSourceCommit
@@ -482,6 +513,12 @@ function requireBinding(issued, authority, binding) {
     || !sameArray(issued.receiptDigests, binding.receiptDigests)
     || !sameArray(issued.predecessorDigests, binding.predecessorDigests)
   ) fail('SEALED_REALMS_CONTINUATION_BINDING_INVALID');
+}
+
+function requireScopeOwnership(issued, authority, binding) {
+  if (issued.sourceAuthorityDigest !== authority.authorityDigest || issued.sourceMode !== authority.mode
+    || issued.sourceCommit !== authority.sourceCommit || issued.preparationSourceCommit !== authority.preparationSourceCommit
+    || issued.subject !== binding.subject) fail('SEALED_REALMS_CONTINUATION_BINDING_INVALID');
 }
 
 function writeRecord(state, scope, stateName, recordDigest, record) {
@@ -563,6 +600,49 @@ const COMMON_KEYS = Object.freeze([
   'subject', 'evidenceDigest', 'receiptDigests', 'predecessorDigests',
 ]);
 
+async function recoverUnclaimedInline(state, scope, current, options, authority, run, binding) {
+  const issued = current.unresolved.issued;
+  if (run.id === issued.record.issuanceRunId) fail('SEALED_REALMS_CONTINUATION_RUN_INVALID');
+  requireScopeOwnership(issued.record, authority, binding);
+  const snapshot = JSON.stringify(current);
+  const unchanged = (reserved = false) => {
+    if (JSON.stringify(inventory(state, scope)) !== snapshot) fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+    const decision = resolution(state, scope, issued.recordDigest);
+    if ((reserved && decision !== 'reconcile') || (decision !== undefined && decision !== 'reconcile')) {
+      fail('SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS');
+    }
+  };
+  const attest = async phase => {
+    await attestSealedRealmsProductionWorkflowPermit({ permit: options.permit,
+      sourceAuthority: options.sourceAuthority, phase, runId: run.id, runAttempt: run.attempt,
+      // The existing attestation validates this exact old protected run as
+      // terminal. No claimed record is invented for an issuance-only journal.
+      claimRunId: issued.record.issuanceRunId, claimRunAttempt: issued.record.issuanceRunAttempt });
+  };
+  unchanged();
+  await attest('continuation-reconcile');
+  unchanged();
+  const reserved = reserveResolution(state, scope, issued.recordDigest, 'reconcile');
+  if (reserved.decision !== 'reconcile') fail('SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS');
+  await attest('continuation-reconcile-terminal');
+  unchanged(true);
+  const terminalAt = sampleClock(state);
+  if (terminalAt.getTime() < Date.parse(issued.record.issuedAt)) fail('SEALED_REALMS_CONTINUATION_CLOCK_INVALID');
+  writeRecord(state, scope, 'terminal', issued.recordDigest, Object.freeze({
+    schemaVersion: 1, profile: 'warpkeep-sealed-realms-continuation-terminal-v1',
+    recordDigest: issued.recordDigest, kind: 'activation-evidence-inline',
+    sourceAuthorityDigest: authority.authorityDigest, outcome: 'reconciled-no-effect',
+    terminalWorkflowAuthorityDigest: workflowAuthorityDigest({ sourceCommit: authority.sourceCommit,
+      authorityDigest: authority.authorityDigest, operation: authority.operation,
+      runId: run.id, runAttempt: run.attemptNumber }),
+    terminalRunId: run.id, terminalRunAttempt: run.attemptNumber,
+    observationDigest: unclaimedInlineObservation(issued), terminalAt: terminalAt.toISOString(),
+  }));
+  const reopened = inventory(state, scope);
+  if (reopened.unresolved !== undefined || reopened.sealed) fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+  return reopened;
+}
+
 export async function issueSealedRealmsProductionContinuation(input) {
   const options = exactInput(input, COMMON_KEYS);
   const state = storeState(options.store);
@@ -571,10 +651,14 @@ export async function issueSealedRealmsProductionContinuation(input) {
   const run = exactRun(options.runId, options.runAttempt);
   const binding = bindingFrom(options);
   const scope = scopeDigest(authority.authorityDigest, options.kind, binding.evidenceDigest);
-  const existing = inventory(state, scope);
+  let existing = inventory(state, scope);
   if (existing.sealed) fail('SEALED_REALMS_CONTINUATION_TERMINAL');
   if (existing.unresolved?.claimed !== undefined) {
     fail('SEALED_REALMS_CONTINUATION_AMBIGUOUS');
+  }
+  if (options.kind === 'activation-evidence-inline'
+    && existing.unresolved?.issued.record.kind === 'activation-evidence-inline') {
+    existing = await recoverUnclaimedInline(state, scope, existing, options, authority, run, binding);
   }
   if (existing.unresolved !== undefined) fail('SEALED_REALMS_CONTINUATION_DUPLICATE');
   await attestSealedRealmsProductionWorkflowPermit({
@@ -647,8 +731,8 @@ export async function claimSealedRealmsProductionContinuation(input) {
     fail('SEALED_REALMS_CONTINUATION_AMBIGUOUS');
   }
   const issued = current.unresolved.issued;
-  requireBinding(issued.record, authority, binding);
-  if (run.id === issued.record.issuanceRunId) {
+  requireBinding(issued.record, authority, binding, options.kind);
+  if (!claimRunMatches(issued.record, run.id, run.attemptNumber)) {
     fail('SEALED_REALMS_CONTINUATION_RUN_INVALID');
   }
   await attestSealedRealmsProductionWorkflowPermit({
@@ -832,7 +916,7 @@ export async function reconcileSealedRealmsProductionContinuation(input) {
   }
   const issued = current.unresolved.issued;
   const claimed = current.unresolved.claimed;
-  requireBinding(issued.record, authority, binding);
+  requireBinding(issued.record, authority, binding, options.kind);
   if (run.id === claimed.record.claimRunId) {
     fail('SEALED_REALMS_CONTINUATION_RUN_INVALID');
   }
@@ -1071,13 +1155,36 @@ export function readSealedRealmsProductionContinuationCompletion(input) {
     'store', 'privateState', 'sourceAuthority', 'kind', 'subject',
     'evidenceDigest', 'receiptDigests', 'predecessorDigests',
   ]);
+  const state = completionStore(options);
+  const spec = kindSpec(options.kind);
+  return readCompletion(options, authorityInfo(options.sourceAuthority, spec.claimOperation), state);
+}
+
+/** Separate historical entry; its capability cannot issue, claim or reconcile. */
+export function readSealedRealmsProductionRetainedContinuationCompletion(input) {
+  const options = exactInput(input, [
+    'store', 'privateState', 'retainedSource', 'kind', 'subject',
+    'evidenceDigest', 'receiptDigests', 'predecessorDigests',
+  ]);
+  const state = completionStore(options);
+  if (!['ptr-update', 'g002-update'].includes(options.kind)) {
+    fail('SEALED_REALMS_CONTINUATION_OPERATION_INVALID');
+  }
+  const authority = readSealedRealmsProductionRetainedSource(options.retainedSource,
+    options.kind === 'ptr-update' ? 'ptr' : 'g002');
+  return readCompletion(options, authority, state);
+}
+
+function completionStore(options) {
   const state = storeState(options.store);
   const privateState = assertSealedRealmsProductionPrivateState(options.privateState);
   if (state.privateState !== privateState) {
     fail('SEALED_REALMS_CONTINUATION_STORE_INVALID');
   }
-  const spec = kindSpec(options.kind);
-  const authority = authorityInfo(options.sourceAuthority, spec.claimOperation);
+  return state;
+}
+
+function readCompletion(options, authority, state) {
   const binding = bindingFrom(options);
   const scope = scopeDigest(authority.authorityDigest, options.kind, binding.evidenceDigest);
   const current = inventory(state, scope);
@@ -1085,9 +1192,9 @@ export function readSealedRealmsProductionContinuationCompletion(input) {
     fail('SEALED_REALMS_CONTINUATION_MISSING');
   }
   for (const group of current.groups) {
-    requireBinding(group.issued.record, authority, binding);
-    if (group.issued.record.kind !== options.kind) {
-      fail('SEALED_REALMS_CONTINUATION_BINDING_INVALID');
+    requireScopeOwnership(group.issued.record, authority, binding);
+    if (group.terminal?.record.outcome !== 'reconciled-no-effect') {
+      requireBinding(group.issued.record, authority, binding, options.kind);
     }
   }
   const completed = current.groups.filter(group =>

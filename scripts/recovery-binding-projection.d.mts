@@ -9,7 +9,12 @@ export function parseRecoveryBindingDocumentV2(source: string): Readonly<Record<
 export const RECOVERY_BINDING_KEYS_V3: readonly string[];
 export const RECOVERY_BINDING_KEYS_V4: readonly string[];
 export const RECOVERY_BINDING_KEYS_V5: readonly string[];
-export function recoveryBindingKeys(version: 2 | 3 | 4 | 5): readonly string[];
+export const RECOVERY_BINDING_KEYS_V6: readonly string[];
+export function recoveryBindingKeys(version: 2 | 3 | 4 | 5 | 6): readonly string[];
+/** Canonical V6 data only; no native freeze producer or deployment authority. */
+export function parseRecoveryBindingDocumentV6(source: string): Readonly<Record<string, string | number | boolean | null>>;
+export function recoveryReceiptCommitmentV6(commitmentKey: string, input: unknown): string;
+export function recoveryAuthorizationCoreSha256V6(input: unknown): string;
 /** Canonical V5 wire decoding only; no signed adoption authority. */
 export function parseRecoveryBindingDocumentV5(source: string): Readonly<Record<string, string | number | boolean | null>>;
 export function recoveryReceiptCommitmentV5(commitmentKey: string, input: unknown): string;

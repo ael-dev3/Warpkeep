@@ -7,12 +7,13 @@ import * as g002Publisher from "./genesis002-production-publisher.mjs";
 import * as credentials from "./ptr-update-provider-credentials.mjs";
 import * as definitions from "./ptr-update-definition-policy.mjs";
 import { assertSealedRealmsProductionPrivateState } from "./sealed-realms-production-private-state.mjs";
-import { sourceCommitFromSealedRealmsProductionAuthority } from "./sealed-realms-production-source-authority.mjs";
+import { sourceCommitFromSealedRealmsProductionAuthority, readSealedRealmsProductionRetainedSource } from "./sealed-realms-production-source-authority.mjs";
 import {
   readSealedRealmsProductionContinuationClaimBinding,
   assertSealedRealmsProductionContinuationReconciliation,
   classifySealedRealmsProductionContinuationNoEffect,
   readSealedRealmsProductionContinuationCompletion,
+  readSealedRealmsProductionRetainedContinuationCompletion,
 } from "./sealed-realms-production-continuation.mjs";
 import { attestSealedRealmsProductionWorkflowPermit } from "./sealed-realms-production-workflow-authority.mjs";
 import {
@@ -356,16 +357,18 @@ function createRealmUpdateRuntime(fixed) {
     });
   }
 
-  function readCompletedUpdateEvidence(state, current, store, expectedBinding) {
-    const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(current);
-    if (current.mode !== 'S' || current.operation !== `${LANE}-update-apply`) fail();
+  function readCompletedUpdateEvidence(state, current, store, expectedBinding, retained = false) {
+    const retainedInfo = retained ? readSealedRealmsProductionRetainedSource(current, LANE) : undefined;
+    const sourceCommit = retainedInfo?.sourceCommit ?? sourceCommitFromSealedRealmsProductionAuthority(current);
+    if (!retainedInfo && (current.mode !== 'S' || current.operation !== `${LANE}-update-apply`)) fail();
     const head = readUpdateInventory(state);
     if (!head || !head[1].completion
       || head[1].inspection.value.binding.sourceCommit !== sourceCommit
       || (expectedBinding !== undefined && !same(head[1].inspection.value.binding, expectedBinding))) fail();
     const [key, entry] = head;
-    const continuation = readSealedRealmsProductionContinuationCompletion({
-      store, privateState: state, sourceAuthority: current, kind: `${LANE}-update`,
+    const continuation = (retained ? readSealedRealmsProductionRetainedContinuationCompletion
+      : readSealedRealmsProductionContinuationCompletion)({
+      store, privateState: state, ...(retained ? { retainedSource: current } : { sourceAuthority: current }), kind: `${LANE}-update`,
       ...continuationSelection(key, entry),
     });
     if (continuation.claimRunId !== entry.submission.value.runId
@@ -927,6 +930,22 @@ function createRealmUpdateRuntime(fixed) {
     return readCompletedUpdateEvidence(state, authority, store);
   }
 
+  /** Discovery only: no supplied envelope and no source/effect authority is returned. */
+  function readRetainedSourceCommit(input) {
+    const { privateState } = inputRecord(input, ['privateState']);
+    const state = assertSealedRealmsProductionPrivateState(privateState);
+    const head = readUpdateInventory(state);
+    if (head === undefined) return null;
+    if (!head[1].completion) fail();
+    return head[1].inspection.value.binding.sourceCommit;
+  }
+
+  function readRetainedCompletion(input) {
+    const { retainedSource, privateState, store } = inputRecord(input, ['retainedSource', 'privateState', 'store']);
+    const state = assertSealedRealmsProductionPrivateState(privateState);
+    return readCompletedUpdateEvidence(state, retainedSource, store, undefined, true);
+  }
+
   /** Grants access only to one reopened completed update and its real terminal lineage. */
   function exportCompletion(input) {
     const { adapter, authority, store } = inputRecord(input, ['adapter', 'authority', 'store']);
@@ -971,7 +990,8 @@ function createRealmUpdateRuntime(fixed) {
     if (adapters.get(member.adapter) !== member.owner || updateDigest(envelope) !== member.digest) fail();
     return envelope;
   }
-  return Object.freeze({ createAdapter, isAdapter, readCompletionFromPrivateState, exportCompletion, readCompletion, captureAdoption, readAdoption });
+  return Object.freeze({ createAdapter, isAdapter, readCompletionFromPrivateState, readRetainedSourceCommit,
+    readRetainedCompletion, exportCompletion, readCompletion, captureAdoption, readAdoption });
 }
 
 const ptrRuntime = createRealmUpdateRuntime(Object.freeze({
@@ -1011,6 +1031,8 @@ const g002Runtime = createRealmUpdateRuntime(Object.freeze({
 export function createPtrProductionExistingUpdateAdapter(...args) { return ptrRuntime.createAdapter(...args); }
 export function isPtrProductionExistingUpdateAdapter(...args) { return ptrRuntime.isAdapter(...args); }
 export function readPtrExistingUpdateCompletionFromPrivateState(...args) { return ptrRuntime.readCompletionFromPrivateState(...args); }
+export function readPtrRetainedUpdateSourceCommit(...args) { return ptrRuntime.readRetainedSourceCommit(...args); }
+export function readPtrRetainedUpdateCompletion(...args) { return ptrRuntime.readRetainedCompletion(...args); }
 export function exportPtrExistingUpdateCompletion(...args) { return ptrRuntime.exportCompletion(...args); }
 export function readPtrExistingUpdateCompletion(...args) { return ptrRuntime.readCompletion(...args); }
 export function capturePtrExistingUpdateAdoption(...args) { return ptrRuntime.captureAdoption(...args); }
@@ -1021,6 +1043,8 @@ export function createG002ProductionExistingUpdateAdapter(...args) {
 }
 export function isG002ProductionExistingUpdateAdapter(...args) { return g002Runtime.isAdapter(...args); }
 export function readG002ExistingUpdateCompletionFromPrivateState(...args) { return g002Runtime.readCompletionFromPrivateState(...args); }
+export function readG002RetainedUpdateSourceCommit(...args) { return g002Runtime.readRetainedSourceCommit(...args); }
+export function readG002RetainedUpdateCompletion(...args) { return g002Runtime.readRetainedCompletion(...args); }
 export function exportG002ExistingUpdateCompletion(...args) { return g002Runtime.exportCompletion(...args); }
 export function readG002ExistingUpdateCompletion(...args) { return g002Runtime.readCompletion(...args); }
 export function captureG002ExistingUpdateAdoption(...args) { return g002Runtime.captureAdoption(...args); }

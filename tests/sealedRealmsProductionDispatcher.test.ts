@@ -9,6 +9,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -374,9 +375,10 @@ function githubResponse(url: string, value: unknown) {
   return response;
 }
 
-function workflowGithub(runId: string, completedRunIds: ReadonlySet<string>) {
+function workflowGithub(runId: string, completedRunIds: ReadonlySet<string>, beforeRead?: (url: string) => void) {
   return vi.fn(async (request: string | URL | Request) => {
     const url = String(request);
+    beforeRead?.(url);
     if (url.endsWith('/branches/main')) {
       return githubResponse(url, {
         name: 'main', protected: true, commit: { sha: SOURCE },
@@ -402,13 +404,14 @@ async function protectedG001Dispatcher(
   privateState: ReturnType<typeof createSealedRealmsProductionPrivateState>,
   runId: string,
   completedRunIds: ReadonlySet<string> = new Set(),
+  beforeRead?: (url: string) => void,
 ) {
   const permit = await issueSealedRealmsProductionWorkflowPermit({
     sourceAuthority: authority,
     githubToken: 'github-sealed-realms-owner-token',
     runId,
     runAttempt: '1',
-    fetchImpl: workflowGithub(runId, completedRunIds),
+    fetchImpl: workflowGithub(runId, completedRunIds, beforeRead),
   });
   const context = createSealedRealmsProductionG001DispatchContext({
     readGit: () => `${SOURCE}\n`,
@@ -503,8 +506,9 @@ async function censusScenario(input: Readonly<{
   admittedSecondFid?: string;
   firstApplicant?: Record<string, unknown>;
   now?: number;
+  testOnlyRace?: (phase: string, path: string) => void;
 }> = {}) {
-  const local = censusPrivateState();
+  const local = censusPrivateState(input.testOnlyRace);
   let clock = input.now ?? Date.parse('2026-08-30T00:01:00.000Z');
   const firstApplicant = input.firstApplicant ?? applicantCensusProof('20260830T000000Z', '1'.repeat(64));
   const secondApplicant = {
@@ -544,21 +548,22 @@ async function censusScenario(input: Readonly<{
   ];
   let collection = 0;
   const suspend = vi.fn(async () => {});
-  const censusAuthority = createSealedRealmsProductionG001CensusAuthority({
-    privateState: local.state,
-    collect: async () => samples[collection++]!,
-    suspend,
-    now: () => new Date(clock),
+  const createLane = () => g001PolicyLane({
+    censusAuthority: createSealedRealmsProductionG001CensusAuthority({
+      privateState: local.state,
+      collect: async () => samples[collection++]!,
+      suspend,
+      now: () => new Date(clock),
+    }),
+    runEnvelopeChild: async () => ({ status: 0, stdout: '', stderr: '' }),
   });
   return {
     local,
     suspend,
     setClock: (value: number) => { clock = value; },
     getCollection: () => collection,
-    lane: g001PolicyLane({
-      censusAuthority,
-      runEnvelopeChild: async () => ({ status: 0, stdout: '', stderr: '' }),
-    }),
+    lane: createLane(),
+    createLane,
   };
 }
 
@@ -575,6 +580,43 @@ async function issueCensusContinuations(scenario: Awaited<ReturnType<typeof cens
     secondRunId, new Set([firstRunId]),
   );
   return { first, second, secondRunId };
+}
+
+async function interruptedCensus(target: 'confirmation' | 'activation' | 'terminal', interruptions = 1) {
+  const writes: string[] = [];
+  let stopped = 0;
+  const scenario = await censusScenario({ testOnlyRace(phase, path) {
+    if (phase !== 'write-before-open') return;
+    const normalized = path.replaceAll('\\', '/');
+    writes.push(normalized);
+    const matches = target === 'confirmation' ? normalized.includes('/g001/census/confirmation/')
+      : target === 'activation' ? normalized.endsWith('/g001-census-privacy-safe-private-receipt.json')
+        : normalized.includes('/continuations/') && /\/terminal-[a-f0-9]+\.json$/u.test(normalized);
+    if (matches && stopped++ < interruptions) throw new Error('test-only interrupted census write');
+  } });
+  await expect(issueCensusContinuations(scenario)).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+  expect(scenario.getCollection()).toBe(2);
+  return { ...scenario, writes };
+}
+
+function censusRuntimePath(scenario: Awaited<ReturnType<typeof censusScenario>>, relativePath: string) {
+  return join(sealedRealmsPrivateBase(scenario.local.home), 'runtime', 'sealed-realms-v1', relativePath);
+}
+
+function censusRecord(scenario: Awaited<ReturnType<typeof censusScenario>>, kind: string) {
+  const names = scenario.local.state.list({ root: 'runtime', relativeDirectory: `g001/census/${kind}` });
+  expect(names).toHaveLength(1);
+  const relativePath = `g001/census/${kind}/${names[0]}`;
+  const bytes = scenario.local.state.read({ root: 'runtime', relativePath });
+  return { relativePath, bytes, value: JSON.parse(bytes.toString('utf8')),
+    path: censusRuntimePath(scenario, relativePath) };
+}
+
+async function withCensusWebSocket(run: () => Promise<void>) {
+  const original = globalThis.WebSocket;
+  Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: function WebSocket() {} });
+  try { await run(); }
+  finally { Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: original }); }
 }
 
 function g001PolicyLane(input: Readonly<{
@@ -1433,6 +1475,9 @@ describe('sealed-realms production dispatcher', () => {
         code: 'SEALED_REALMS_DISPATCH_LANE_FAILED',
       });
       expect(scenario.suspend).not.toHaveBeenCalled();
+      for (const kind of ['second', 'confirmation']) {
+        expect(scenario.local.state.list({ root: 'runtime', relativeDirectory: `g001/census/${kind}` })).toEqual([]);
+      }
       for (const basename of ['g001-census-privacy-safe-private-receipt.json', 'g001-admitted-player-census-private-receipt.json']) {
         expect(scenario.local.state.exists({
           root: 'runtime', relativePath: `activation-evidence/records/${basename}`,
@@ -1443,6 +1488,152 @@ describe('sealed-realms production dispatcher', () => {
       scenario.local.cleanup();
     }
   });
+
+  it.each(['confirmation', 'activation', 'terminal'] as const)(
+    'resumes a census interrupted before %s without recollecting or replacing evidence', target => withCensusWebSocket(async () => {
+      const scenario = await interruptedCensus(target);
+      const first = censusRecord(scenario, 'first');
+      const second = censusRecord(scenario, 'second');
+      const authority = g001Authority('g001-census-second-inspect');
+      await expect(dispatchProtectedG001(scenario.createLane(), 'g001-census-second-inspect',
+        authority, scenario.local.state, '6601', new Set(['6101', '6102']))).resolves.toEqual({
+        operation: 'g001-census-second-inspect', status: 'completed',
+      });
+      const confirmation = censusRecord(scenario, 'confirmation');
+      expect(confirmation.value.secondObservedAt).toBe('2026-08-30T00:01:00.000Z');
+      expect(confirmation.value.expiresAt).toBe('2026-08-30T00:06:00.000Z');
+      expect(readFileSync(first.path)).toEqual(first.bytes);
+      expect(readFileSync(second.path)).toEqual(second.bytes);
+      const activationPath = 'activation-evidence/records/g001-census-privacy-safe-private-receipt.json';
+      const activation = scenario.local.state.read({ root: 'runtime', relativePath: activationPath });
+      expect(JSON.parse(activation.toString('utf8')).receipt).toEqual({
+        first: first.value.applicant, second: second.value.applicant,
+      });
+      await expect(dispatchProtectedG001(scenario.createLane(), 'g001-census-second-inspect',
+        authority, scenario.local.state, '6602', new Set(['6101', '6102', '6601']))).rejects.toMatchObject({
+        code: 'SEALED_REALMS_DISPATCH_LANE_FAILED',
+      });
+      expect(censusRecord(scenario, 'confirmation').bytes).toEqual(confirmation.bytes);
+      expect(scenario.local.state.read({ root: 'runtime', relativePath: activationPath })).toEqual(activation);
+      expect(scenario.getCollection()).toBe(2);
+      expect(scenario.suspend).not.toHaveBeenCalled();
+    }),
+  );
+
+  it('resumes after reconciliation itself stopped, preserving expiry and rejecting late suspension', () => withCensusWebSocket(async () => {
+    const scenario = await interruptedCensus('confirmation', 2);
+    const authority = g001Authority('g001-census-second-inspect');
+    await expect(dispatchProtectedG001(scenario.createLane(), 'g001-census-second-inspect',
+      authority, scenario.local.state, '6611', new Set(['6101', '6102']))).rejects.toMatchObject({
+      code: 'SEALED_REALMS_DISPATCH_LANE_FAILED',
+    });
+    expect(scenario.local.state.list({ root: 'runtime', relativeDirectory: 'g001/census/confirmation' })).toEqual([]);
+    scenario.setClock(Date.parse('2026-08-30T00:06:00.000Z'));
+    await expect(dispatchProtectedG001(scenario.createLane(), 'g001-census-second-inspect',
+      authority, scenario.local.state, '6612', new Set(['6101', '6102', '6611']))).resolves.toMatchObject({ status: 'completed' });
+    expect(censusRecord(scenario, 'confirmation').value.expiresAt).toBe('2026-08-30T00:06:00.000Z');
+    await expect(dispatchProtectedG001(scenario.createLane(), 'g001-census-second-suspend',
+      g001Authority('g001-census-second-suspend'), scenario.local.state, '6613', new Set(['6612']))).rejects.toMatchObject({
+      code: 'SEALED_REALMS_DISPATCH_LANE_FAILED',
+    });
+    expect(scenario.getCollection()).toBe(2);
+    expect(scenario.suspend).not.toHaveBeenCalled();
+  }));
+
+  it.each([false, true])('refuses repair while the original census claim is live (terminal=%s)', terminal => withCensusWebSocket(async () => {
+    const scenario = await interruptedCensus('confirmation', terminal ? 2 : 1);
+    const authority = g001Authority('g001-census-second-inspect');
+    if (terminal) await expect(dispatchProtectedG001(scenario.createLane(), 'g001-census-second-inspect',
+      authority, scenario.local.state, '6621', new Set(['6101', '6102']))).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+    const writes = scenario.writes.length;
+    await expect(dispatchProtectedG001(scenario.createLane(), 'g001-census-second-inspect',
+      authority, scenario.local.state, '6622', new Set(['6101']))).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+    expect(scenario.writes).toHaveLength(writes);
+    expect(scenario.getCollection()).toBe(2);
+    expect(scenario.suspend).not.toHaveBeenCalled();
+  }));
+
+  it.each(['malformed', 'foreign-source', 'duplicate', 'wrong-confirmation', 'wrong-activation'] as const)(
+    'rejects %s retained census evidence before repair', damage => withCensusWebSocket(async () => {
+      const scenario = await interruptedCensus(damage === 'wrong-confirmation' ? 'activation'
+        : damage === 'wrong-activation' ? 'terminal' : 'confirmation');
+      const second = censusRecord(scenario, 'second');
+      if (damage === 'malformed') writeFileSync(second.path, '{}\n');
+      else if (damage === 'foreign-source') {
+        second.value.sourceCommit = SWAPPED_SOURCE;
+        const bytes = Buffer.from(`${JSON.stringify(second.value)}\n`);
+        const digest = createHash('sha256').update(bytes).digest('hex');
+        writeFileSync(second.path, bytes);
+        renameSync(second.path, censusRuntimePath(scenario,
+          `g001/census/second/census-second-${digest}.json`));
+      } else if (damage === 'duplicate') {
+        scenario.local.state.write({ root: 'runtime', relativePath: `g001/census/second/census-second-${'f'.repeat(64)}.json`, bytes: second.bytes });
+      } else if (damage === 'wrong-confirmation') writeFileSync(censusRecord(scenario, 'confirmation').path, '{}\n');
+      else writeFileSync(censusRuntimePath(scenario,
+        'activation-evidence/records/g001-census-privacy-safe-private-receipt.json'), '{}\n');
+      const writes = scenario.writes.length;
+      await expect(dispatchProtectedG001(scenario.createLane(), 'g001-census-second-inspect',
+        g001Authority('g001-census-second-inspect'), scenario.local.state, '6631', new Set(['6101', '6102']))).rejects.toMatchObject({
+        code: 'SEALED_REALMS_DISPATCH_LANE_FAILED',
+      });
+      expect(scenario.writes).toHaveLength(writes);
+      expect(scenario.getCollection()).toBe(2);
+      expect(scenario.suspend).not.toHaveBeenCalled();
+    }),
+  );
+
+  it('rejects a stable replacement second sample arriving during terminal re-attestation', () => withCensusWebSocket(async () => {
+    const scenario = await interruptedCensus('confirmation');
+    const second = censusRecord(scenario, 'second');
+    second.value.applicant = applicantCensusProof('20260830T000100Z', '5'.repeat(64));
+    second.value.admitted = await admittedCensusProof('2026-08-30T00:01:00.000Z', 6);
+    const changedBytes = Buffer.from(`${JSON.stringify(second.value)}\n`);
+    const digest = createHash('sha256').update(changedBytes).digest('hex');
+    let originalClaimReads = 0;
+    let replaced = false;
+    const dispatcher = await protectedG001Dispatcher(scenario.createLane(), 'g001-census-second-inspect',
+      g001Authority('g001-census-second-inspect'), scenario.local.state, '6641', new Set(['6101', '6102']), url => {
+        if (!url.endsWith('/actions/runs/6102') || ++originalClaimReads !== 2) return;
+        writeFileSync(second.path, changedBytes);
+        renameSync(second.path, censusRuntimePath(scenario,
+          `g001/census/second/census-second-${digest}.json`));
+        replaced = true;
+      });
+    await expect(dispatcher.dispatch({ operation: 'g001-census-second-inspect', workflowInputSha: SOURCE }))
+      .rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+    expect(originalClaimReads).toBe(2);
+    expect(replaced).toBe(true);
+    expect(censusRecord(scenario, 'second').bytes).toEqual(changedBytes);
+    expect(scenario.local.state.list({ root: 'runtime', relativeDirectory: 'g001/census/confirmation' })).toEqual([]);
+    expect(scenario.getCollection()).toBe(2);
+    expect(scenario.suspend).not.toHaveBeenCalled();
+  }));
+
+  it('rejects an unrelated observation digest in a retained terminal completion before repair', () => withCensusWebSocket(async () => {
+    const scenario = await interruptedCensus('confirmation', 2);
+    const authority = g001Authority('g001-census-second-inspect');
+    await expect(dispatchProtectedG001(scenario.createLane(), 'g001-census-second-inspect',
+      authority, scenario.local.state, '6651', new Set(['6101', '6102']))).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+    let changed = 0;
+    for (const scope of scenario.local.state.list({ root: 'runtime', relativeDirectory: 'continuations' })) {
+      for (const name of scenario.local.state.list({ root: 'runtime', relativeDirectory: `continuations/${scope}` })) {
+        if (!name.startsWith('terminal-')) continue;
+        const relativePath = `continuations/${scope}/${name}`;
+        const record = JSON.parse(scenario.local.state.read({ root: 'runtime', relativePath }).toString('utf8'));
+        if (record.kind !== 'g001-census-first-to-second') continue;
+        expect(record.outcome).toBe('reconciled-effect-applied');
+        record.observationDigest = 'f'.repeat(64);
+        writeFileSync(censusRuntimePath(scenario, relativePath), `${JSON.stringify(record)}\n`);
+        changed += 1;
+      }
+    }
+    expect(changed).toBe(1);
+    const writes = scenario.writes.length;
+    await expect(dispatchProtectedG001(scenario.createLane(), 'g001-census-second-inspect',
+      authority, scenario.local.state, '6652', new Set(['6101', '6102', '6651']))).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+    expect(scenario.writes).toHaveLength(writes);
+    expect(scenario.getCollection()).toBe(2);
+  }));
 
   it('rejects forged/cross-source census facts and equal-expiry evidence without release', async () => {
     const foreign = applicantCensusProof('20260830T000000Z', '1'.repeat(64));

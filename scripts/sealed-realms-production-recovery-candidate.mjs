@@ -1,7 +1,7 @@
 import { GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE, GENESIS_001_LINUX_POLICY_OPERATOR_PATH } from './genesis001-linux-policy-receipt.mjs';
 import { readSealedRealmsProductionRecoveryProgramArtifacts } from './sealed-realms-production-recovery-program-artifacts.mjs';
 import { readSealedRealmsProductionRecoverySourceClosure } from './sealed-realms-production-recovery-source-closure.mjs';
-import { readSealedRealmsProductionRecoveryPreparation } from './sealed-realms-production-recovery-preparation.mjs';
+import { readSealedRealmsProductionRecoveryPreparation, readSealedRealmsProductionCompletedRecoveryPreparation } from './sealed-realms-production-recovery-preparation.mjs';
 import { readSealedRealmsProductionRecoveryApprovalFacts } from './sealed-realms-production-recovery-approval-facts.ts';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -10,10 +10,10 @@ import { types } from 'node:util';
 import { assertSealedRealmsProductionActivationRecordsAuthority,
   readSealedRealmsProductionRecoveryCandidateRecords } from './sealed-realms-production-activation-records.mjs';
 import { sourceCommitFromSealedRealmsProductionAuthority } from './sealed-realms-production-source-authority.mjs';
-import { recoveryActivationCandidatePolicy, recoveryActivationCandidatePolicyForVersion, validateRecoveryActivationCandidate, validateRecoveryActivationCandidateV3, validateRecoveryActivationCandidateV4, validateRecoveryActivationCandidateV5 } from './recovery-activation-candidate.mjs';
-import { RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3, RECOVERY_BINDING_KEYS_V4, RECOVERY_BINDING_KEYS_V5 } from './recovery-binding-projection.mjs';
+import { recoveryActivationCandidatePolicy, recoveryActivationCandidatePolicyForVersion, validateRecoveryActivationCandidate, validateRecoveryActivationCandidateV3, validateRecoveryActivationCandidateV4, validateRecoveryActivationCandidateV5, validateRecoveryActivationCandidateV6 } from './recovery-activation-candidate.mjs';
+import { RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3, RECOVERY_BINDING_KEYS_V4, RECOVERY_BINDING_KEYS_V5, RECOVERY_BINDING_KEYS_V6 } from './recovery-binding-projection.mjs';
 
-import { readSealedRealmsProductionRecoveryBridgeFacts } from './sealed-realms-production-auth-bridge-state.mjs';
+import { readSealedRealmsProductionRecoveryBridgeFacts, readSealedRealmsProductionCompletedRecoveryBridgeFacts } from './sealed-realms-production-auth-bridge-state.mjs';
 
 const BOOTSTRAP = 'scripts/greater-realm-production-bootstrap.mjs';
 const GIT = String.fromCodePoint(47, 117, 115, 114, 47, 98, 105, 110, 47, 103, 105, 116);
@@ -35,7 +35,9 @@ function input(value) {
   if (types.isProxy(value) || value === null || typeof value !== 'object'
     || Object.getPrototypeOf(value) !== Object.prototype) fail();
   const descriptors = Object.getOwnPropertyDescriptors(value);
-  const keys = ['records', 'privateState', 'authority', ...(Object.hasOwn(descriptors, 'bridgeState') ? ['bridgeState'] : []), ...(Object.hasOwn(descriptors, 'readContext') ? ['readContext'] : []), ...(Object.hasOwn(descriptors, 'sourceClosure') ? ['sourceClosure'] : []), ...(Object.hasOwn(descriptors, 'preparation') ? ['preparation'] : []), ...(Object.hasOwn(descriptors, 'programArtifacts') ? ['programArtifacts'] : [])];
+  const keys = ['records', 'privateState', 'authority', ...(Object.hasOwn(descriptors, 'bridgeState') ? ['bridgeState'] : []), ...(Object.hasOwn(descriptors, 'completedGeneration') ? ['completedGeneration'] : []), ...(Object.hasOwn(descriptors, 'readContext') ? ['readContext'] : []), ...(Object.hasOwn(descriptors, 'sourceClosure') ? ['sourceClosure'] : []), ...(Object.hasOwn(descriptors, 'preparation') ? ['preparation'] : []), ...(Object.hasOwn(descriptors, 'programArtifacts') ? ['programArtifacts'] : [])];
+  if (Object.hasOwn(descriptors, 'completedGeneration')
+    && (Object.hasOwn(descriptors, 'bridgeState') || Object.hasOwn(descriptors, 'preparation') || !Object.hasOwn(descriptors, 'readContext'))) fail();
   if (Reflect.ownKeys(descriptors).length !== keys.length) fail();
   return Object.fromEntries(keys.map(key => {
     if (!descriptors[key]?.enumerable || !Object.hasOwn(descriptors[key], 'value')) fail();
@@ -56,7 +58,7 @@ function line(args) {
   catch { fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID'); }
   finally { bytes?.fill(0); }
 }
-function source(commit, linux) {
+function source(commit, linux, census = false) {
   let root;
   try { root = realpathSync(process.cwd()); }
   catch { fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID'); }
@@ -64,7 +66,7 @@ function source(commit, linux) {
     || line(['rev-parse', '--verify', 'refs/remotes/origin/main^{commit}']) !== `${commit}\n`
     || line(['rev-parse', '--show-toplevel']) !== `${root}\n`) fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID');
   const tree = line(['rev-parse', '--verify', `${commit}^{tree}`]).trimEnd();
-  const operatorPath = linux ? GENESIS_001_LINUX_POLICY_OPERATOR_PATH : BOOTSTRAP;
+  const operatorPath = census ? 'scripts/genesis001-linux-census-operator.ts' : linux ? GENESIS_001_LINUX_POLICY_OPERATOR_PATH : BOOTSTRAP;
   const entry = line(['ls-tree', '-z', commit, '--', operatorPath]);
   const match = /^100644 blob ([a-f0-9]{40})\t([^\0]+)\0$/u.exec(entry);
   if (match?.[2] !== operatorPath) fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID');
@@ -89,7 +91,10 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
   const commit = sourceCommitFromSealedRealmsProductionAuthority(options.authority);
   if (options.authority.mode !== 'S' || options.authority.operation !== 'activation-evidence-generate') fail();
   const corpus = readSealedRealmsProductionRecoveryCandidateRecords(options.records, options.readContext);
-  const readBridge = () => Object.hasOwn(options, 'bridgeState')
+  const readBridge = () => Object.hasOwn(options, 'completedGeneration')
+    ? readSealedRealmsProductionCompletedRecoveryBridgeFacts({ capability: options.completedGeneration, records: options.records,
+      privateState: options.privateState, authority: options.authority, readContext: options.readContext })
+    : Object.hasOwn(options, 'bridgeState')
     ? readSealedRealmsProductionRecoveryBridgeFacts({ bridgeState: options.bridgeState, privateState: options.privateState, authority: options.authority })
     : Object.freeze({});
   const bridge = readBridge();
@@ -97,7 +102,10 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
     ? readSealedRealmsProductionRecoverySourceClosure({ capability: options.sourceClosure, privateState: options.privateState, authority: options.authority })
     : Object.freeze({});
   const closure = readClosure();
-  const readPreparation = () => Object.hasOwn(options, 'preparation')
+  const readPreparation = () => Object.hasOwn(options, 'completedGeneration')
+    ? readSealedRealmsProductionCompletedRecoveryPreparation({ records: options.records, privateState: options.privateState,
+      authority: options.authority, readContext: options.readContext })
+    : Object.hasOwn(options, 'preparation')
     ? readSealedRealmsProductionRecoveryPreparation({ capability: options.preparation, privateState: options.privateState, authority: options.authority })
     : Object.freeze({});
   const preparation = readPreparation();
@@ -109,7 +117,9 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
     privateState: options.privateState, authority: options.authority, readContext: options.readContext });
   const approvals = readApprovals();
   const linux = corpus.bootstrap.profile === GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE;
-  const actual = source(commit, linux);
+  const census = corpus.projection.g001AdmissionControlProfile === 'warpkeep-genesis-001-server-freeze-v1';
+  if (census && !linux) fail();
+  const actual = source(commit, linux, census);
   if (JSON.stringify(corpus.bootstrap) !== JSON.stringify(actual)) fail('SEALED_REALMS_RECOVERY_CANDIDATE_SOURCE_INVALID');
   const update = Object.hasOwn(corpus.projection, 'ptrExistingUpdateReceiptDigest');
   if (update && Object.hasOwn(corpus.projection, 'ptrPublishReceiptDigest')) fail();
@@ -117,8 +127,9 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
   if (adoption && !update) fail();
   const g002Adoption = Object.hasOwn(corpus.projection, 'g002ExistingStateAdoptionReceiptDigest');
   if (g002Adoption && (!adoption || !Object.hasOwn(corpus.projection, 'g002ExistingUpdateReceiptDigest'))) fail();
-  const keys = g002Adoption ? RECOVERY_BINDING_KEYS_V5 : adoption ? RECOVERY_BINDING_KEYS_V4 : update ? RECOVERY_BINDING_KEYS_V3 : RECOVERY_BINDING_KEYS_V2;
-  const facts = { ...(g002Adoption ? recoveryActivationCandidatePolicyForVersion(5) : adoption ? recoveryActivationCandidatePolicyForVersion(4) : update ? recoveryActivationCandidatePolicyForVersion(3) : recoveryActivationCandidatePolicy()) };
+  if (census && !g002Adoption) fail();
+  const keys = census ? RECOVERY_BINDING_KEYS_V6 : g002Adoption ? RECOVERY_BINDING_KEYS_V5 : adoption ? RECOVERY_BINDING_KEYS_V4 : update ? RECOVERY_BINDING_KEYS_V3 : RECOVERY_BINDING_KEYS_V2;
+  const facts = { ...(census ? recoveryActivationCandidatePolicyForVersion(6) : g002Adoption ? recoveryActivationCandidatePolicyForVersion(5) : adoption ? recoveryActivationCandidatePolicyForVersion(4) : update ? recoveryActivationCandidatePolicyForVersion(3) : recoveryActivationCandidatePolicy()) };
   for (const projection of [corpus.projection, bridge, approvals, closure, preparation, programs, {
     preparationSourceCommit: actual.preparationSourceCommit, preparationSourceTree: actual.preparationSourceTree }]) {
     for (const [key, value] of Object.entries(projection)) {
@@ -131,7 +142,7 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
     || JSON.stringify(approvals) !== JSON.stringify(readApprovals())
     || JSON.stringify(closure) !== JSON.stringify(readClosure())
     || JSON.stringify(programs) !== JSON.stringify(readPrograms())
-    || JSON.stringify(actual) !== JSON.stringify(source(commit, linux))
+    || JSON.stringify(actual) !== JSON.stringify(source(commit, linux, census))
     || JSON.stringify(preparation) !== JSON.stringify(readPreparation())) fail();
   const ordered = Object.freeze(Object.fromEntries(keys
     .filter(key => Object.hasOwn(facts, key)).map(key => [key, facts[key]])));
@@ -145,7 +156,8 @@ export function readSealedRealmsProductionRecoveryCandidate(inputValue) {
   const derived = inspectSealedRealmsProductionRecoveryCandidate(inputValue);
   if (derived.missingFields.length !== 0) fail('SEALED_REALMS_RECOVERY_CANDIDATE_INPUTS_MISSING', derived.missingFields);
   const document = `${JSON.stringify(derived.facts, null, 2)}\n`;
-  if (derived.facts.schemaVersion === 5) validateRecoveryActivationCandidateV5(document);
+  if (derived.facts.schemaVersion === 6) validateRecoveryActivationCandidateV6(document);
+  else if (derived.facts.schemaVersion === 5) validateRecoveryActivationCandidateV5(document);
   else if (derived.facts.schemaVersion === 4) validateRecoveryActivationCandidateV4(document);
   else if (derived.facts.schemaVersion === 3) validateRecoveryActivationCandidateV3(document);
   else validateRecoveryActivationCandidate(document);

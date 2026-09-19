@@ -59,3 +59,18 @@ export function attestSealedRealmsProductionWorkflowPermit(input: Readonly<{
 export function assertSealedRealmsProductionWorkflowPermit(
   permit: unknown,
 ): SealedRealmsProductionWorkflowPermit;
+
+export function attestSealedRealmsProductionActivationRead(input: Readonly<{
+  permit: SealedRealmsProductionWorkflowPermit;
+  sourceAuthority: SealedRealmsProductionSourceAuthority;
+  runId: string;
+  runAttempt: string | number;
+}>): Promise<true>;
+
+/** Authenticates retained census provenance without issuing effect authority. */
+export function attestSealedRealmsProductionCompletedCensusRun(input: Readonly<{
+  permit: SealedRealmsProductionWorkflowPermit;
+  sourceAuthority: SealedRealmsProductionSourceAuthority;
+  censusRunId: string;
+  censusRunAttempt: string | number;
+}>): Promise<true>;

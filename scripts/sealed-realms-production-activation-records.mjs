@@ -1,4 +1,11 @@
 import { GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE, verifyGenesis001LinuxPolicyReceipt } from './genesis001-linux-policy-receipt.mjs';
+import { readFixedLinuxG001CensusAttempt, verifyGenesis001LinuxCensusAttempt } from './genesis001-linux-census-attempt.mjs';
+import { readFixedLinuxG001ActivationCensusEvidence } from './genesis001-linux-policy-native.mjs';
+import { projectGenesis001LinuxFreezeEvidence } from './genesis001-linux-freeze-receipt.mjs';
+import { attestSealedRealmsProductionCompletedCensusRun } from './sealed-realms-production-workflow-authority.mjs';
+import { readSealedRealmsProductionRecoveryAdoptionProgramComparison } from './sealed-realms-production-recovery-program-artifacts.mjs';
+import { assertSealedRealmsProductionContinuationReconciliation,
+  readSealedRealmsProductionContinuationCompletion } from './sealed-realms-production-continuation.mjs';
 import { createHash } from 'node:crypto';
 import { types } from 'node:util';
 
@@ -8,6 +15,7 @@ import {
 import {
   preparationSourceCommitFromSealedRealmsProductionAuthority,
   sourceCommitFromSealedRealmsProductionAuthority,
+  readSealedRealmsProductionRetainedSource,
 } from './sealed-realms-production-source-authority.mjs';
 import {
   genesis002ProductionImportReceiptDigest,
@@ -22,13 +30,16 @@ import {
   genesis001CensusOpaqueProofDigest,
   genesis001FreezePublishReceiptDigest,
   genesis001MonitorSuspensionReceiptDigest,
+  genesis001PolicyObservationBootstrapReceiptDigest,
 } from './genesis001-sealed-launch-adoption.mjs';
 import {
   verifyGenesis001AdmittedPlayerCensusReceipt,
+  projectGenesis001AdmittedPlayerCensusStablePair,
 } from './genesis001-admitted-player-census.mjs';
 import { createRecoveryActivationBindingFromCandidate, validateRecoveryActivationCandidateDocument } from './recovery-activation-candidate.mjs';
-import { parseActivationGenerationReceipt } from './sealed-realms-production-activation-generation-receipt.mjs';
-import { readPtrExistingUpdateCompletion, readPtrExistingStateAdoption, readPtrExistingUpdateCompletionFromPrivateState, readG002ExistingUpdateCompletion, readG002ExistingStateAdoption, readG002ExistingUpdateCompletionFromPrivateState } from './ptr-production-existing-update-adapter.mjs';
+import { parseActivationGenerationReceipt, activationGenerationReceiptBytes,
+  activationGenerationReceiptDigest } from './sealed-realms-production-activation-generation-receipt.mjs';
+import { readPtrExistingUpdateCompletion, readPtrExistingStateAdoption, readPtrExistingUpdateCompletionFromPrivateState, readPtrRetainedUpdateCompletion, readG002ExistingUpdateCompletion, readG002ExistingStateAdoption, readG002ExistingUpdateCompletionFromPrivateState, readG002RetainedUpdateCompletion } from './ptr-production-existing-update-adapter.mjs';
 import { updateCanonical, updateDigest } from './sealed-realms-existing-update-protocol.mjs';
 import { verifyPtrUpdateObservationPair, verifyG002UpdateObservationPair } from '../services/release-recovery/src/ptrObservation.ts';
 
@@ -40,6 +51,105 @@ const EVIDENCE_PROFILE = 'warpkeep-0.4.0-sealed-launch-activation-evidence-v1';
 const RECORD_DIRECTORY = 'activation-evidence/records';
 const recordsCapabilities = new WeakMap();
 const candidateReadContexts = new WeakMap();
+const linuxRecoveryOwners = new WeakMap();
+const completedGenerationSelections = new WeakMap();
+
+// These fixed bytes select retained data, never authorize a claim or a write.
+function completedSelectionSnapshot(state) {
+  assertSealedRealmsProductionPrivateState(state.privateState);
+  const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(state.authority);
+  if (state.authority.mode !== 'S' || state.authority.operation !== 'activation-evidence-generate') fail();
+  const root = state.privateState.list({ root: 'runtime' });
+  if (root.some(name => name === 'public.family.lock' || name.startsWith('public.stage.'))
+    || JSON.stringify(state.privateState.list({ root: 'runtime', relativeDirectory: 'public' }))
+      !== JSON.stringify(['0.4.0-sealed-launch.json', 'activation-generation-receipt.json'])) fail();
+  let receiptBytes, descriptorBytes, artifactBytes, bridgeBytes;
+  const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+  try {
+    receiptBytes = state.privateState.read({ root: 'runtime', relativePath: 'public/activation-generation-receipt.json' });
+    const receipt = parseActivationGenerationReceipt(receiptBytes);
+    descriptorBytes = state.privateState.readActivationDescriptor();
+    artifactBytes = state.privateState.read({ root: 'runtime', relativePath: 'public/0.4.0-sealed-launch.json' });
+    if (receipt.sourceCommit !== sourceCommit || receipt.sourceAuthorityDigest !== state.authority.authorityDigest
+      || receipt.artifactSchemaVersion !== 6 || Date.parse(receipt.generatedAt) > Date.now()
+      || receipt.descriptorSha256 !== hash(descriptorBytes) || receipt.artifactSha256 !== hash(artifactBytes)) fail();
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(descriptorBytes), envelope = JSON.parse(source);
+    if (`${JSON.stringify(envelope, null, 2)}\n` !== source) fail();
+    exactInput(envelope, ['schemaVersion', 'profile', 'bindingCandidate', ...RECOVERY_MEMBERS_V6]);
+    canonicalJsonTree(envelope);
+    if (envelope.schemaVersion !== 6 || envelope.profile !== RECOVERY_PROFILE_V6) fail();
+    const candidate = validateRecoveryActivationCandidateDocument(`${JSON.stringify(envelope.bindingCandidate, null, 2)}\n`);
+    const census = verifyGenesis001LinuxCensusAttempt(envelope.g001LinuxCensusAttempt);
+    if (candidate.schemaVersion !== 6 || candidate.preparationSourceCommit !== sourceCommit
+      || candidate.admissionRequestSuspensionReceiptDigest !== receipt.activationEvidenceDigest
+      || census.sourceCommit !== sourceCommit || census.githubRunId !== receipt.runId
+      || Number(census.githubRunAttempt) !== receipt.runAttempt) fail();
+    projectLinuxCensus(census, sourceCommit, receipt.generatedAt);
+    const expected = Buffer.from(`${JSON.stringify(createRecoveryActivationBindingFromCandidate(`${JSON.stringify(candidate, null, 2)}\n`), null, 2)}\n`);
+    try { if (!expected.equals(artifactBytes)) fail(); } finally { expected.fill(0); }
+    bridgeBytes = state.privateState.read({ root: 'runtime', relativePath:
+      `bridge/activation-evidence/auth-bridge-suspension-${receipt.activationEvidenceDigest}.json` });
+    if (bridgeBytes.length > 256 * 1024 || createHash('sha256')
+      .update('warpkeep.sealed-realms.auth-bridge-suspension-g002-ptr-adoption-private-receipt.v1\n')
+      .update(bridgeBytes).digest('hex') !== receipt.activationEvidenceDigest) fail();
+    const bridgeSource = new TextDecoder('utf-8', { fatal: true }).decode(bridgeBytes), bridge = JSON.parse(bridgeSource);
+    if (`${JSON.stringify(bridge)}\n` !== bridgeSource || bridge.schemaVersion !== 5 || bridge.sourceCommit !== sourceCommit) fail();
+    const receiptDigests = [bridge.activationGate?.deploymentAuthorityDigest,
+      bridge.g002ExistingStateAdoptionReceiptDigest, bridge.ptrExistingStateAdoptionReceiptDigest];
+    if (!receiptDigests.every(value => typeof value === 'string' && SHA256.test(value))) fail();
+    return { receipt, envelope, bridge, binding: { subject: 'activation-evidence:0.4.0',
+      evidenceDigest: receipt.activationEvidenceDigest, receiptDigests, predecessorDigests: [receipt.activationChainDigest] },
+      hashes: { receipt: hash(receiptBytes), descriptor: hash(descriptorBytes), artifact: hash(artifactBytes), bridge: hash(bridgeBytes) } };
+  } finally { receiptBytes?.fill(0); descriptorBytes?.fill(0); artifactBytes?.fill(0); bridgeBytes?.fill(0); }
+}
+
+export function selectSealedRealmsProductionCompletedGeneration(input) {
+  const options = exactInput(input, ['privateState', 'authority']);
+  const snapshot = completedSelectionSnapshot(options), selection = Object.freeze({});
+  completedGenerationSelections.set(selection, Object.freeze({ ...options, snapshot: JSON.stringify(snapshot) }));
+  return selection;
+}
+
+export function readSealedRealmsProductionCompletedGenerationSelection(input) {
+  const options = exactInput(input, ['selection', 'privateState', 'authority']);
+  const state = completedGenerationSelections.get(options.selection);
+  if (!state || state.privateState !== options.privateState || state.authority !== options.authority) fail();
+  const current = completedSelectionSnapshot(state);
+  if (JSON.stringify(current) !== state.snapshot) fail();
+  return current;
+}
+
+function completedLinuxAuthority(state) {
+  const selected = readSealedRealmsProductionCompletedGenerationSelection({ selection: state.completedSelection,
+    privateState: state.privateState, authority: state.authority });
+  const common = { store: state.store, sourceAuthority: state.authority, kind: 'activation-evidence-inline', ...selected.binding };
+  if (state.reconciliation !== undefined) {
+    // This reader checks the actual store/private owner before reporting an
+    // unresolved scope. An active callback alone does not prove that ownership.
+    let unresolved = false;
+    try {
+      readSealedRealmsProductionContinuationCompletion({ store: state.store, privateState: state.privateState,
+        sourceAuthority: state.authority, kind: 'activation-evidence-inline', ...selected.binding });
+    } catch (error) {
+      if (error?.code !== 'SEALED_REALMS_CONTINUATION_MISSING') throw error;
+      unresolved = true;
+    }
+    if (!unresolved) fail();
+    assertSealedRealmsProductionContinuationReconciliation({ reconciliation: state.reconciliation, ...common,
+      claimRunId: selected.receipt.runId, claimRunAttempt: selected.receipt.runAttempt });
+  } else {
+    const completion = readSealedRealmsProductionContinuationCompletion({ store: state.store, privateState: state.privateState,
+      sourceAuthority: state.authority, kind: 'activation-evidence-inline', ...selected.binding });
+    if (completion.claimRunId !== selected.receipt.runId || completion.claimRunAttempt !== selected.receipt.runAttempt
+      || Date.parse(completion.terminalAt) < Date.parse(selected.receipt.generatedAt)) fail();
+    if (completion.outcome === 'reconciled-effect-applied') {
+      const bytes = activationGenerationReceiptBytes(selected.receipt);
+      try { if (completion.observationDigest !== activationGenerationReceiptDigest(bytes)) fail(); }
+      finally { bytes.fill(0); }
+    }
+  }
+  return selected;
+}
 
 const RECEIPT_MEMBERS = Object.freeze([
   'g001FreezePublishReceipt',
@@ -105,6 +215,9 @@ const RECOVERY_MEMBERS_V5 = Object.freeze([...RECOVERY_MEMBERS_V4.filter(member 
   !['g002PublishReceipt', 'g002AtlasImportReceipt', 'g002SealedLiveReceipt'].includes(member)),
   'g002ExistingUpdateReceipt', 'g002ExistingStateAdoptionReceipt']);
 const RECOVERY_PROFILE_V5 = 'warpkeep-0.4.0-recovery-activation-evidence-g002-ptr-adoption-v1';
+const RECOVERY_MEMBERS_V6 = Object.freeze(['g001LinuxCensusAttempt', 'ptrExistingUpdateReceipt',
+  'ptrExistingStateAdoptionReceipt', 'g002ExistingUpdateReceipt', 'g002ExistingStateAdoptionReceipt']);
+const RECOVERY_PROFILE_V6 = 'warpkeep-0.4.0-recovery-activation-evidence-g001-linux-freeze-v1';
 const RECOVERY_PROFILE_V4 = 'warpkeep-0.4.0-recovery-activation-evidence-ptr-adoption-v1';
 const RECOVERY_PROFILE_V2 = 'warpkeep-0.4.0-recovery-activation-evidence-v1';
 const RECOVERY_PROFILE_V3 = 'warpkeep-0.4.0-recovery-activation-evidence-ptr-update-v1';
@@ -1003,7 +1116,7 @@ function validateReopenedCorpus(state, receipts, verificationTime) {
     const recovery = state.recoveryRecords || state.recoveryCandidate;
     const derive = recovery ? (verificationTime === undefined ? deriveGenesis001RecoveryLaunchEvidence
       : value => validateGenesis001RecoveryLaunchEvidenceAtTime(value, verificationTime)) : deriveGenesis001SealedLaunchEvidence;
-    projection = derive({
+    projection = state.linuxRecoveryEvidence ? projectLinuxCensus(receipts.g001LinuxCensusAttempt, state.preparationSourceCommit, verificationTime) : derive({
       preparationSourceCommit: state.preparationSourceCommit,
       ...(recovery ? {} : { freezePublishReceipt: receipts.g001FreezePublishReceipt }),
       policyObservationBootstrapReceipt: receipts.g001PolicyObservationBootstrapReceipt,
@@ -1127,10 +1240,13 @@ export function createSealedRealmsProductionActivationRecords(input) {
     && !isProxy(input) && Object.hasOwn(input, 'existingStateAdoption');
   const hasG002Adoption = input !== null && typeof input === 'object'
     && !isProxy(input) && Object.hasOwn(input, 'g002ExistingStateAdoption');
+  const hasLinux = input !== null && typeof input === 'object'
+    && !isProxy(input) && Object.hasOwn(input, 'linuxRecoveryEvidence');
   const options = exactInput(input, ['privateState', 'authority',
     ...(hasCandidateReader ? ['readBindingCandidate'] : []), ...(hasAdoption ? ['existingStateAdoption'] : []),
-    ...(hasG002Adoption ? ['g002ExistingStateAdoption'] : [])]);
+    ...(hasG002Adoption ? ['g002ExistingStateAdoption'] : []), ...(hasLinux ? ['linuxRecoveryEvidence'] : [])]);
   if (hasG002Adoption && !hasAdoption) fail('SEALED_REALMS_ACTIVATION_RECORDS_INPUT_INVALID');
+  if (hasLinux && !hasG002Adoption) fail('SEALED_REALMS_ACTIVATION_RECORDS_INPUT_INVALID');
   if (hasCandidateReader && (typeof options.readBindingCandidate !== 'function'
     || isProxy(options.readBindingCandidate))) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_INPUT_INVALID');
@@ -1144,9 +1260,11 @@ export function createSealedRealmsProductionActivationRecords(input) {
   } catch {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_INPUT_INVALID');
   }
-  const ptrAdoption = hasAdoption ? readSealedRealmsProductionPtrExistingStateAdoptionEvidence({
-    evidence: options.existingStateAdoption, privateState, sourceCommit: preparationSourceCommit }) : undefined;
-  if (hasG002Adoption) assertDualAdoptionScope(ptrAdoption, readSealedRealmsProductionG002ExistingStateAdoptionEvidence({
+  const joined = hasLinux ? linuxOwner(options.linuxRecoveryEvidence, preparationSourceCommit, privateState,
+    options.existingStateAdoption, options.g002ExistingStateAdoption) : undefined;
+  const ptrAdoption = joined?.ptr ?? (hasAdoption ? readSealedRealmsProductionPtrExistingStateAdoptionEvidence({
+    evidence: options.existingStateAdoption, privateState, sourceCommit: preparationSourceCommit }) : undefined);
+  if (hasG002Adoption) assertDualAdoptionScope(ptrAdoption, joined?.g002 ?? readSealedRealmsProductionG002ExistingStateAdoptionEvidence({
     evidence: options.g002ExistingStateAdoption, privateState, sourceCommit: preparationSourceCommit }));
   const records = Object.freeze({});
   recordsCapabilities.set(records, Object.freeze({
@@ -1158,6 +1276,7 @@ export function createSealedRealmsProductionActivationRecords(input) {
     readBindingCandidate: options.readBindingCandidate,
     ...(hasAdoption ? { existingStateAdoption: options.existingStateAdoption } : {}),
     ...(hasG002Adoption ? { g002ExistingStateAdoption: options.g002ExistingStateAdoption } : {}),
+    ...(hasLinux ? { linuxRecoveryEvidence: options.linuxRecoveryEvidence } : {}),
   }));
   return records;
 }
@@ -1182,6 +1301,9 @@ export function assertSealedRealmsProductionActivationRecordsAuthority(input) {
 /** Fixed lane policies retain separate registries and unchanged PTR wire bytes. */
 function createAdoptionRecordRuntime(policy) {
   const retainedAdoptions = new WeakMap();
+  // These owners are deliberately absent from recordsCapabilities: writers and
+  // activation/descriptor consumers must not accept a historical read owner.
+  const historicalOwners = new WeakMap();
   /** Only a live adapter-issued completion can create this fixed lane's update record. */
   function writeCompletion(input) {
     const options = exactInput(input, ['records', 'authority', 'completion']);
@@ -1270,6 +1392,16 @@ function createAdoptionRecordRuntime(policy) {
 
 
   function retainedAdoptionOwner(options) {
+    const historical = historicalOwners.get(options.records);
+    if (historical) {
+      const source = readSealedRealmsProductionRetainedSource(options.authority, policy.realm);
+      assertSealedRealmsProductionPrivateState(historical.privateState);
+      if (source.sourceCommit !== historical.sourceCommit || source.sourceTree !== historical.retainedSourceTree
+        || source.authorityDigest !== historical.sourceAuthorityDigest) {
+        fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+      }
+      return historical;
+    }
     const state = capabilityState(options.records);
     const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(options.authority);
     assertSealedRealmsProductionPrivateState(state.privateState);
@@ -1285,8 +1417,9 @@ function createAdoptionRecordRuntime(policy) {
   /** Reconstruct the original update through the same inventory owner as the producer. */
   function reopenRetainedAdoption(options) {
     const state = retainedAdoptionOwner(options);
-    const receipt = policy.readPrivateCompletion({ authority: options.authority,
-      privateState: state.privateState, store: options.store });
+    const receipt = historicalOwners.has(options.records)
+      ? policy.readRetainedCompletion({ retainedSource: options.authority, privateState: state.privateState, store: options.store })
+      : policy.readPrivateCompletion({ authority: options.authority, privateState: state.privateState, store: options.store });
     validateMemberReceipt(policy.member, receipt, state.sourceCommit);
     const updateBytes = state.privateState.read({ root: 'runtime',
       relativePath: receiptPath(policy.member) });
@@ -1309,6 +1442,7 @@ function createAdoptionRecordRuntime(policy) {
       if (`${JSON.stringify(envelope)}\n` !== text || envelope.schemaVersion !== policy.schemaVersion
         || envelope.profile !== policy.adoptionProfile
         || envelope.sourceCommit !== state.sourceCommit || !COMMIT.test(envelope.sourceTree)
+        || (state.retainedSourceTree !== undefined && envelope.sourceTree !== state.retainedSourceTree)
         || typeof envelope.preObservationJws !== 'string' || typeof envelope.postObservationJws !== 'string'
         || updateCanonical(envelope.completionReceipt) !== updateCanonical(receipt)) {
         fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
@@ -1366,6 +1500,18 @@ function createAdoptionRecordRuntime(policy) {
     return evidence;
   }
 
+  /** Same private/signature checks, with a separate ancestral read-only owner. */
+  async function authenticateHistorical(input) {
+    const options = exactInput(input, ['privateState', 'retainedSource', 'store']);
+    const privateState = assertSealedRealmsProductionPrivateState(options.privateState);
+    const source = readSealedRealmsProductionRetainedSource(options.retainedSource, policy.realm);
+    const records = Object.freeze({});
+    historicalOwners.set(records, Object.freeze({ privateState, sourceMode: 'S',
+      sourceCommit: source.sourceCommit, preparationSourceCommit: source.sourceCommit,
+      retainedSourceTree: source.sourceTree, sourceAuthorityDigest: source.authorityDigest }));
+    return authenticate({ records, authority: options.retainedSource, store: options.store });
+  }
+
   /** Synchronous consumers get only a branded, previously verified and freshly reopened baseline. */
   function readEvidence(input) {
     const options = exactInput(input, ['evidence', 'privateState', 'sourceCommit']);
@@ -1390,10 +1536,16 @@ function createAdoptionRecordRuntime(policy) {
     return Object.freeze({ result, envelope: member.envelope, privateState: member.state.privateState });
   }
 
-  return Object.freeze({ writeCompletion, writeAdoption, authenticate, readEvidence, retainedForEvidence });
+  function sourceOf(evidence) {
+    const member = retainedAdoptions.get(evidence);
+    if (!member) fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+    return member.result.sourceCommit;
+  }
+  return Object.freeze({ writeCompletion, writeAdoption, authenticate, authenticateHistorical, readEvidence, retainedForEvidence, sourceOf });
 }
 
 const PTR_ADOPTION_POLICY = Object.freeze({
+  realm: 'ptr', readRetainedCompletion: readPtrRetainedUpdateCompletion,
   operation: 'ptr-update-apply', member: 'ptrExistingUpdateReceipt',
   target: 'c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e',
   receiptProfile: 'warpkeep-ptr-existing-update-receipt-v1', definitionProfile: 'warpkeep-ptr-raw-v10-stable-row-schema-v1',
@@ -1402,6 +1554,7 @@ const PTR_ADOPTION_POLICY = Object.freeze({
   readAdoption: readPtrExistingStateAdoption, verifyPair: verifyPtrUpdateObservationPair,
 });
 const G002_ADOPTION_POLICY = Object.freeze({
+  realm: 'g002', readRetainedCompletion: readG002RetainedUpdateCompletion,
   operation: 'g002-update-apply', member: 'g002ExistingUpdateReceipt',
   target: 'c2003223f6e3c86e988775ddd458c3a45635d0d021e11131551471617c392194',
   receiptProfile: 'warpkeep-g002-existing-update-receipt-v1', definitionProfile: 'warpkeep-g002-raw-v10-stable-row-schema-v1',
@@ -1414,12 +1567,136 @@ const g002AdoptionRuntime = createAdoptionRecordRuntime(G002_ADOPTION_POLICY);
 export function writeSealedRealmsProductionPtrExistingUpdateRecord(input) { return ptrAdoptionRuntime.writeCompletion(input); }
 export function writeSealedRealmsProductionPtrExistingStateAdoptionRecord(input) { return ptrAdoptionRuntime.writeAdoption(input); }
 export function authenticateSealedRealmsProductionPtrExistingStateAdoption(input) { return ptrAdoptionRuntime.authenticate(input); }
+export function authenticateSealedRealmsProductionPtrHistoricalAdoption(input) { return ptrAdoptionRuntime.authenticateHistorical(input); }
 export function readSealedRealmsProductionPtrExistingStateAdoptionEvidence(input) { return ptrAdoptionRuntime.readEvidence(input); }
 export function writeSealedRealmsProductionG002ExistingUpdateRecord(input) { return g002AdoptionRuntime.writeCompletion(input); }
 export function writeSealedRealmsProductionG002ExistingStateAdoptionRecord(input) { return g002AdoptionRuntime.writeAdoption(input); }
 export function authenticateSealedRealmsProductionG002ExistingStateAdoption(input) { return g002AdoptionRuntime.authenticate(input); }
+export function authenticateSealedRealmsProductionG002HistoricalAdoption(input) { return g002AdoptionRuntime.authenticateHistorical(input); }
 export function readSealedRealmsProductionG002ExistingStateAdoptionEvidence(input) { return g002AdoptionRuntime.readEvidence(input); }
 const retainedAdoptionForEvidence = (...args) => ptrAdoptionRuntime.retainedForEvidence(...args);
+
+function linuxRecoverySnapshot(state) {
+  const completed = state.completedSelection === undefined ? undefined : completedLinuxAuthority(state);
+  assertSealedRealmsProductionPrivateState(state.privateState);
+  if (sourceCommitFromSealedRealmsProductionAuthority(state.authority) !== state.sourceCommit
+    || state.authority.mode !== 'S' || !['activation-evidence-inspect', 'activation-evidence-generate'].includes(state.authority.operation)) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+  }
+  const ptr = retainedAdoptionForEvidence(state.existingStateAdoption, state.ptrSourceCommit, state.privateState);
+  const g002 = g002AdoptionRuntime.retainedForEvidence(state.g002ExistingStateAdoption, state.g002SourceCommit, state.privateState);
+  assertDualAdoptionScope(ptr.result, g002.result);
+  const programs = readSealedRealmsProductionRecoveryAdoptionProgramComparison({ capability: state.programArtifacts,
+    privateState: state.privateState, authority: state.authority,
+    ptrSourceCommit: ptr.result.sourceCommit, g002SourceCommit: g002.result.sourceCommit });
+  for (const [realm, retained] of [['ptr', ptr], ['g002', g002]]) {
+    const binding = retained.result.completionReceipt.binding, built = programs[realm];
+    if (binding.candidateSha256 !== built.programArtifactSha256 || binding.moduleTreeId !== built.moduleTreeId
+      || binding.dependencyClosureDigest !== built.dependencyClosureDigest
+      || (realm === 'g002' && binding.candidateProgram !== built.programKeccak256)) {
+      fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+    }
+  }
+  const census = completed !== undefined ? readFixedLinuxG001CensusAttempt(completed.envelope.g001LinuxCensusAttempt.attemptId, state.sourceCommit)
+    : state.censusEvidence === undefined ? readFixedLinuxG001CensusAttempt(state.attemptId, state.sourceCommit)
+    : readFixedLinuxG001ActivationCensusEvidence(state.censusEvidence, { sourceAuthority: state.authority, workflowPermit: state.permit });
+  if (completed && JSON.stringify(census.receipt) !== JSON.stringify(completed.envelope.g001LinuxCensusAttempt)) fail();
+  if (programs.sourceCommit !== state.sourceCommit) fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+  return { ptr, g002, programs, census };
+}
+
+/** Joins authentic historical data to current activation ownership; grants no effects. */
+export async function authenticateSealedRealmsProductionLinuxRecoveryEvidence(input) {
+  const inline = input !== null && typeof input === 'object' && !isProxy(input) && Object.hasOwn(input, 'censusEvidence');
+  const options = exactInput(input, ['privateState', 'authority', 'permit', inline ? 'censusEvidence' : 'attemptId',
+    'existingStateAdoption', 'g002ExistingStateAdoption', 'programArtifacts']);
+  // Source coordinates come from the retained brands themselves, never copied envelopes.
+  const ptrOwner = ptrAdoptionRuntime.sourceOf(options.existingStateAdoption);
+  const g002Owner = g002AdoptionRuntime.sourceOf(options.g002ExistingStateAdoption);
+  const state = Object.freeze({ ...options, sourceCommit: sourceCommitFromSealedRealmsProductionAuthority(options.authority),
+    ptrSourceCommit: ptrOwner, g002SourceCommit: g002Owner });
+  const initial = linuxRecoverySnapshot(state);
+  if (!inline) await attestSealedRealmsProductionCompletedCensusRun({ permit: options.permit, sourceAuthority: options.authority,
+    censusRunId: initial.census.selector.githubRunId, censusRunAttempt: initial.census.selector.githubRunAttempt });
+  const current = linuxRecoverySnapshot(state);
+  if (JSON.stringify(initial) !== JSON.stringify(current)) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+  // Authentication is read-only. Fresh activation uses current time below;
+  // completed-generation reconciliation uses its authenticated receipt time.
+  projectLinuxCensus(current.census.receipt, state.sourceCommit, current.census.receipt.completedAt);
+  if (Date.parse(current.census.receipt.completedAt) > Date.now()) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+  const capability = Object.freeze({});
+  linuxRecoveryOwners.set(capability, Object.freeze({ ...state, snapshot: JSON.stringify(current) }));
+  return capability;
+}
+
+/** Read-only completed output ownership; never a native execution or effect capability. */
+export function authenticateSealedRealmsProductionCompletedLinuxRecoveryEvidence(input) {
+  const options = exactInput(input, ['privateState', 'authority', 'store', 'selection',
+    ...(Object.hasOwn(input ?? {}, 'reconciliation') ? ['reconciliation'] : []),
+    'existingStateAdoption', 'g002ExistingStateAdoption', 'programArtifacts']);
+  const state = Object.freeze({ ...options, completedSelection: options.selection,
+    sourceCommit: sourceCommitFromSealedRealmsProductionAuthority(options.authority),
+    ptrSourceCommit: ptrAdoptionRuntime.sourceOf(options.existingStateAdoption),
+    g002SourceCommit: g002AdoptionRuntime.sourceOf(options.g002ExistingStateAdoption) });
+  const selected = completedLinuxAuthority(state), initial = linuxRecoverySnapshot(state);
+  projectLinuxCensus(initial.census.receipt, state.sourceCommit, selected.receipt.generatedAt);
+  const current = linuxRecoverySnapshot(state);
+  if (JSON.stringify(initial) !== JSON.stringify(current)) fail();
+  const capability = Object.freeze({});
+  linuxRecoveryOwners.set(capability, Object.freeze({ ...state, snapshot: JSON.stringify(current) }));
+  return capability;
+}
+
+/** Reopens the exact immutable census and both retained owners on every use. */
+export function readSealedRealmsProductionLinuxRecoveryEvidence(input) {
+  const options = exactInput(input, ['evidence', 'privateState', 'sourceCommit']);
+  const state = linuxRecoveryOwners.get(options.evidence);
+  if (!state || options.privateState !== state.privateState || options.sourceCommit !== state.sourceCommit) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+  }
+  const current = linuxRecoverySnapshot(state);
+  if (JSON.stringify(current) !== state.snapshot) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+  return Object.freeze({ sourceCommit: state.sourceCommit, sourceTree: current.programs.sourceTree,
+    ptr: current.ptr.result, g002: current.g002.result, census: current.census.receipt });
+}
+/** The mode is derived only from the retained native execution owner. */
+export function isSealedRealmsProductionInlineRecoveryEvidence(input) {
+  readSealedRealmsProductionLinuxRecoveryEvidence(input);
+  return linuxRecoveryOwners.get(input.evidence).censusEvidence !== undefined;
+}
+export function isSealedRealmsProductionCompletedRecoveryEvidence(input) {
+  readSealedRealmsProductionLinuxRecoveryEvidence(input);
+  return linuxRecoveryOwners.get(input.evidence).completedSelection !== undefined;
+}
+function linuxOwner(evidence, sourceCommit, privateState, ptr, g002) {
+  const state = linuxRecoveryOwners.get(evidence);
+  if (!state || (ptr !== undefined && state.existingStateAdoption !== ptr)
+    || (g002 !== undefined && state.g002ExistingStateAdoption !== g002)) fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
+  return readSealedRealmsProductionLinuxRecoveryEvidence({ evidence, privateState: privateState ?? state.privateState, sourceCommit });
+}
+function projectLinuxCensus(value, sourceCommit, verificationTime = new Date().toISOString()) {
+  const receipt = verifyGenesis001LinuxCensusAttempt(value);
+  if (receipt.sourceCommit !== sourceCommit || Date.parse(receipt.completedAt) > Date.parse(verificationTime)) {
+    fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+  }
+  const policy = receipt.initialPolicyObservation, observation = policy.policyObservationReceipt;
+  const admitted = projectGenesis001AdmittedPlayerCensusStablePair({ first: receipt.first.record.admitted, second: receipt.second.record.admitted });
+  return Object.freeze({ g001DatabaseIdentity: observation.databaseIdentity,
+    g001SourceBaselineCommit: observation.policy.sourceBaselineCommit,
+    g001BaselineAbiSha256: 'cb7d69d2bed316702ffa1aa8696a4e1ca1934a775b8312129b305a9c33eb0e03',
+    g001FreezeReleaseNonce: observation.policy.freezeReleaseNonce, g001FreezePublishReceiptDigest: null,
+    g001PolicyReceiptDigest: observation.policyReceiptDigest,
+    g001PolicyObservationBootstrapReceiptDigest: genesis001PolicyObservationBootstrapReceiptDigest(policy),
+    g001PolicySourceCommit: sourceCommit, g001ReleaseVersion: observation.policy.releaseVersion,
+    g001PlayerAccessEnabled: observation.policy.playerAccessEnabled,
+    g001AdmissionStateMutationsEnabled: observation.policy.admissionStateMutationsEnabled,
+    g001AccessRequestSubmissionsEnabled: observation.policy.accessRequestSubmissionsEnabled,
+    g001CensusPrivacySafeReceiptProfile: 'warpkeep-genesis-001-census-export-privacy-safe-v1',
+    g001CensusPrivacySafeReceiptDigest: receipt.second.record.applicant.opaqueProofDigest,
+    g001AdmittedPlayerCensusReceiptProfile: admitted.profile, g001AdmittedPlayerCensusReceiptDigest: admitted.opaqueProofDigest,
+    ...projectGenesis001LinuxFreezeEvidence({ preparationSourceCommit: sourceCommit,
+      confirmationReceipt: receipt.freezeConfirmationReceipt, currentStateReceipt: receipt.freezeCurrentStateReceipt }, verificationTime) });
+}
 
 function assertDualAdoptionScope(ptr, g002) {
   if (!ptr || !g002 || ptr.sourceCommit !== g002.sourceCommit || ptr.sourceTree !== g002.sourceTree) {
@@ -1435,7 +1712,7 @@ function validateRetainedCorpusMember(state, retained, update, envelope, verific
   const deadline = verificationTime === undefined ? Date.now() : Date.parse(verificationTime);
   if (!Number.isFinite(deadline) || Date.parse(update.continuation.terminalAt) > deadline
     || retained.result.pair.post.observation.observedThrough * 1000 > deadline
-    || update.binding.sourceCommit !== state.preparationSourceCommit
+    || update.binding.sourceCommit !== (state.linuxRecoveryEvidence ? retained.result.sourceCommit : state.preparationSourceCommit)
     || JSON.stringify(update) !== JSON.stringify(retained.result.completionReceipt)
     || JSON.stringify(envelope) !== JSON.stringify(retained.envelope)) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
@@ -1484,7 +1761,7 @@ function recoveryReceiptProjection(state, receipts, g001) {
         'generalAdmissionCount', 'admissionsOpen', 'accessRequestsOpen']);
       projection.ptrExpectedSealedStateHmacSha256 = live.sealedStateHmacSha256;
       projection.ptrExpectedOwnerInvariantHmacSha256 = live.ownerInvariantHmacSha256;
-      Object.assign(projection, { preparationSourceTree: result.sourceTree,
+      if (!state.linuxRecoveryEvidence) Object.assign(projection, { preparationSourceTree: result.sourceTree,
         recoveryAuthWorker: observation.bridgeService, recoveryAuthWorkerVersion: observation.bridgeWorkerVersion,
         recoveryAuthWorkerVersionId: observation.bridgeWorkerVersionId,
         recoveryAuthWorkerSourceCommit: observation.bridgeSourceCommit,
@@ -1537,17 +1814,31 @@ function recoveryReceiptProjection(state, receipts, g001) {
 
 function readRecoveryReceiptCorpus(records, verificationTime) {
   const original = capabilityState(records);
+  const completedOwner = linuxRecoveryOwners.get(original.linuxRecoveryEvidence);
+  if (completedOwner?.completedSelection !== undefined
+    && verificationTime !== completedLinuxAuthority(completedOwner).receipt.generatedAt) fail('SEALED_REALMS_ACTIVATION_RECORDS_READ_CONTEXT_INVALID');
   if (original.sourceMode !== 'S' || original.sourceCommit !== original.preparationSourceCommit) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_AUTHORITY_INVALID');
   }
+  const joined = original.linuxRecoveryEvidence ? linuxOwner(original.linuxRecoveryEvidence, original.preparationSourceCommit,
+    original.privateState, original.existingStateAdoption, original.g002ExistingStateAdoption) : undefined;
   const names = original.privateState.list({ root: 'runtime', relativeDirectory: RECORD_DIRECTORY });
-  const version = original.g002ExistingStateAdoption ? 5 : original.existingStateAdoption ? 4 : names.includes(RECEIPT_BASENAMES.ptrExistingUpdateReceipt) ? 3 : 2;
-  const members = version === 5 ? RECOVERY_MEMBERS_V5 : version === 4 ? RECOVERY_MEMBERS_V4 : version === 3 ? RECOVERY_MEMBERS_V3 : RECOVERY_MEMBERS_V2;
+  const version = joined ? 6 : original.g002ExistingStateAdoption ? 5 : original.existingStateAdoption ? 4 : names.includes(RECEIPT_BASENAMES.ptrExistingUpdateReceipt) ? 3 : 2;
+  const members = version === 6 ? RECOVERY_MEMBERS_V6 : version === 5 ? RECOVERY_MEMBERS_V5 : version === 4 ? RECOVERY_MEMBERS_V4 : version === 3 ? RECOVERY_MEMBERS_V3 : RECOVERY_MEMBERS_V2;
   const retainedAdoption = version >= 4 ? retainedAdoptionForEvidence(original.existingStateAdoption,
-    original.preparationSourceCommit, original.privateState) : undefined;
-  const retainedG002Adoption = version === 5 ? g002AdoptionRuntime.retainedForEvidence(original.g002ExistingStateAdoption,
-    original.preparationSourceCommit, original.privateState) : undefined;
+    joined?.ptr.sourceCommit ?? original.preparationSourceCommit, original.privateState) : undefined;
+  const retainedG002Adoption = version >= 5 ? g002AdoptionRuntime.retainedForEvidence(original.g002ExistingStateAdoption,
+    joined?.g002.sourceCommit ?? original.preparationSourceCommit, original.privateState) : undefined;
   const state = Object.freeze({ ...original, recoveryRecords: true, recoveryVersion: version, retainedAdoption, retainedG002Adoption });
+  if (joined) {
+    // Legacy records may coexist. V6 consumes only the exact retained update
+    // owners and explicit immutable census attempt; it never guesses a newest record.
+    const receipts = { g001LinuxCensusAttempt: joined.census,
+      ptrExistingUpdateReceipt: retainedAdoption.result.completionReceipt, ptrExistingStateAdoptionReceipt: retainedAdoption.envelope,
+      g002ExistingUpdateReceipt: retainedG002Adoption.result.completionReceipt, g002ExistingStateAdoptionReceipt: retainedG002Adoption.envelope };
+    const g001 = validateReopenedCorpus(state, receipts, verificationTime);
+    return { state, receipts, projection: recoveryReceiptProjection(state, receipts, g001) };
+  }
   const storedMembers = members.filter(member => !['ptrExistingStateAdoptionReceipt', 'g002ExistingStateAdoptionReceipt'].includes(member));
   if (JSON.stringify(names) !== JSON.stringify(storedMembers.map(member => RECEIPT_BASENAMES[member]).sort())) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_INCOMPLETE');
@@ -1577,7 +1868,7 @@ export function readSealedRealmsProductionRecoveryCandidateRecords(records, cont
     }
   }
   const { receipts, projection } = readRecoveryReceiptCorpus(records, verificationTime);
-  const bootstrap = receipts.g001PolicyObservationBootstrapReceipt;
+  const bootstrap = receipts.g001LinuxCensusAttempt?.initialPolicyObservation ?? receipts.g001PolicyObservationBootstrapReceipt;
   if (bootstrap.profile === GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE) {
     return Object.freeze({ projection, bootstrap: Object.freeze({
       profile: GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE,
@@ -1595,6 +1886,20 @@ export function readSealedRealmsProductionRecoveryCandidateRecords(records, cont
   }) });
 }
 
+/** Only the active completed-family candidate callback may obtain its historical time. */
+export function readSealedRealmsProductionCompletedGenerationContext(input) {
+  const options = exactInput(input, ['records', 'privateState', 'authority', 'readContext']);
+  assertSealedRealmsProductionActivationRecordsAuthority({ records: options.records, privateState: options.privateState, authority: options.authority });
+  const state = capabilityState(options.records), scope = candidateReadContexts.get(options.readContext);
+  const owner = linuxRecoveryOwners.get(state.linuxRecoveryEvidence);
+  if (!scope || scope.records !== options.records || !owner?.completedSelection
+    || owner.authority !== options.authority || owner.privateState !== options.privateState) fail('SEALED_REALMS_ACTIVATION_RECORDS_READ_CONTEXT_INVALID');
+  const selected = completedLinuxAuthority(owner);
+  if (scope.verificationTime !== selected.receipt.generatedAt
+    || JSON.stringify(readCompletedGenerationBinding(options.records, scope.verificationTime)) !== JSON.stringify(scope.completion)) fail();
+  return Object.freeze({ generatedAt: selected.receipt.generatedAt, bindingCandidate: Object.freeze(selected.envelope.bindingCandidate) });
+}
+
 // Historical candidate reads are data inspection only. Their time must come from
 // the exact completed private family, never a timestamp supplied to a candidate.
 function readCompletedGenerationBinding(records, verificationTime) {
@@ -1610,14 +1915,14 @@ function readCompletedGenerationBinding(records, verificationTime) {
     const receipt = parseActivationGenerationReceipt(receiptBytes);
     if (receipt.generatedAt !== verificationTime || Date.parse(receipt.generatedAt) > Date.now()
       || receipt.sourceCommit !== state.preparationSourceCommit
-      || receipt.sourceAuthorityDigest !== state.sourceAuthorityDigest || ![2, 3, 4, 5].includes(receipt.artifactSchemaVersion)) fail();
+      || receipt.sourceAuthorityDigest !== state.sourceAuthorityDigest || ![2, 3, 4, 5, 6].includes(receipt.artifactSchemaVersion)) fail();
     descriptorBytes = state.privateState.readActivationDescriptor();
     artifactBytes = state.privateState.read({ root: 'runtime', relativePath: 'public/0.4.0-sealed-launch.json' });
     if (receipt.descriptorSha256 !== digest(descriptorBytes) || receipt.artifactSha256 !== digest(artifactBytes)) fail();
     const source = new TextDecoder('utf-8', { fatal: true }).decode(descriptorBytes);
     const envelope = JSON.parse(source);
     if (`${JSON.stringify(envelope, null, 2)}\n` !== source) fail();
-    const candidate = validateSealedRealmsProductionRecoveryActivationEvidence(envelope, receipt.generatedAt, state.existingStateAdoption, state.g002ExistingStateAdoption);
+    const candidate = validateSealedRealmsProductionRecoveryActivationEvidence(envelope, receipt.generatedAt, state.existingStateAdoption, state.g002ExistingStateAdoption, state.linuxRecoveryEvidence);
     if (candidate.schemaVersion !== receipt.artifactSchemaVersion
       || candidate.preparationSourceCommit !== state.preparationSourceCommit
       || receipt.activationEvidenceDigest !== candidate.admissionRequestSuspensionReceiptDigest) fail();
@@ -1633,27 +1938,35 @@ function readCompletedGenerationBinding(records, verificationTime) {
 }
 
 /** Validates canonical recovery evidence data; this does not mint receipt authority. */
-export function validateSealedRealmsProductionRecoveryActivationEvidence(envelope, verificationTime, existingStateAdoption, g002ExistingStateAdoption) {
+export function validateSealedRealmsProductionRecoveryActivationEvidence(envelope, verificationTime, existingStateAdoption, g002ExistingStateAdoption, linuxRecoveryEvidence) {
   const version = envelope !== null && typeof envelope === 'object' && !isProxy(envelope)
     ? Object.getOwnPropertyDescriptor(envelope, 'schemaVersion')?.value : undefined;
-  const members = version === 5 ? RECOVERY_MEMBERS_V5 : version === 4 ? RECOVERY_MEMBERS_V4 : version === 3 ? RECOVERY_MEMBERS_V3 : RECOVERY_MEMBERS_V2;
+  const members = version === 6 ? RECOVERY_MEMBERS_V6 : version === 5 ? RECOVERY_MEMBERS_V5 : version === 4 ? RECOVERY_MEMBERS_V4 : version === 3 ? RECOVERY_MEMBERS_V3 : RECOVERY_MEMBERS_V2;
   exactInput(envelope, ['schemaVersion', 'profile', 'bindingCandidate', ...members]);
   canonicalJsonTree(envelope);
-  if (![2, 3, 4, 5].includes(version) || (version >= 4) !== (existingStateAdoption !== undefined)
-    || (version === 5) !== (g002ExistingStateAdoption !== undefined)
-    || envelope.profile !== (version === 5 ? RECOVERY_PROFILE_V5 : version === 4 ? RECOVERY_PROFILE_V4 : version === 3 ? RECOVERY_PROFILE_V3 : RECOVERY_PROFILE_V2)) {
+  if (![2, 3, 4, 5, 6].includes(version) || (version >= 4) !== (existingStateAdoption !== undefined)
+    || (version >= 5) !== (g002ExistingStateAdoption !== undefined) || (version === 6) !== (linuxRecoveryEvidence !== undefined)
+    || envelope.profile !== (version === 6 ? RECOVERY_PROFILE_V6 : version === 5 ? RECOVERY_PROFILE_V5 : version === 4 ? RECOVERY_PROFILE_V4 : version === 3 ? RECOVERY_PROFILE_V3 : RECOVERY_PROFILE_V2)) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_INPUT_INVALID');
   }
   const candidate = validateRecoveryActivationCandidateDocument(`${JSON.stringify(envelope.bindingCandidate, null, 2)}\n`);
   if (candidate.schemaVersion !== version) fail('SEALED_REALMS_ACTIVATION_RECORDS_INPUT_INVALID');
+  const joined = version === 6 ? linuxOwner(linuxRecoveryEvidence, candidate.preparationSourceCommit, undefined,
+    existingStateAdoption, g002ExistingStateAdoption) : undefined;
+  const linuxState = linuxRecoveryOwners.get(linuxRecoveryEvidence);
+  if (linuxState?.completedSelection !== undefined
+    && verificationTime !== completedLinuxAuthority(linuxState).receipt.generatedAt) fail('SEALED_REALMS_ACTIVATION_RECORDS_READ_CONTEXT_INVALID');
+  if (joined && (candidate.preparationSourceTree !== joined.sourceTree
+    || JSON.stringify(envelope.g001LinuxCensusAttempt) !== JSON.stringify(joined.census))) fail('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
   const state = Object.freeze({
     preparationSourceCommit: candidate.preparationSourceCommit,
     recoveryCandidate: candidate,
-    retainedAdoption: version >= 4 ? retainedAdoptionForEvidence(existingStateAdoption, candidate.preparationSourceCommit) : undefined,
-    retainedG002Adoption: version === 5 ? g002AdoptionRuntime.retainedForEvidence(g002ExistingStateAdoption, candidate.preparationSourceCommit) : undefined,
+    linuxRecoveryEvidence,
+    retainedAdoption: version >= 4 ? retainedAdoptionForEvidence(existingStateAdoption, joined?.ptr.sourceCommit ?? candidate.preparationSourceCommit) : undefined,
+    retainedG002Adoption: version >= 5 ? g002AdoptionRuntime.retainedForEvidence(g002ExistingStateAdoption, joined?.g002.sourceCommit ?? candidate.preparationSourceCommit) : undefined,
   });
   const receipts = Object.fromEntries(members.map(member => {
-    if (member === 'ptrExistingStateAdoptionReceipt' || member === 'g002ExistingStateAdoptionReceipt') return [member, envelope[member]];
+    if (member === 'ptrExistingStateAdoptionReceipt' || member === 'g002ExistingStateAdoptionReceipt' || member === 'g001LinuxCensusAttempt') return [member, envelope[member]];
     const realm = member.startsWith('g002') ? 'g002' : member.startsWith('ptr') ? 'ptr' : undefined;
     return [member, validateMemberReceipt(member, envelope[member],
       realm === undefined ? state.preparationSourceCommit : candidate[`${realm}ModuleSourceCommit`],
@@ -1701,7 +2014,7 @@ function readRecoveryActivationEnvelope(records, verificationTime) {
   }
   return { state, envelope: {
     schemaVersion: state.recoveryVersion,
-    profile: state.recoveryVersion === 5 ? RECOVERY_PROFILE_V5 : state.recoveryVersion === 4 ? RECOVERY_PROFILE_V4 : state.recoveryVersion === 3 ? RECOVERY_PROFILE_V3 : RECOVERY_PROFILE_V2,
+    profile: state.recoveryVersion === 6 ? RECOVERY_PROFILE_V6 : state.recoveryVersion === 5 ? RECOVERY_PROFILE_V5 : state.recoveryVersion === 4 ? RECOVERY_PROFILE_V4 : state.recoveryVersion === 3 ? RECOVERY_PROFILE_V3 : RECOVERY_PROFILE_V2,
     bindingCandidate: candidate,
     ...receipts,
   } };
@@ -1710,7 +2023,7 @@ function readRecoveryActivationEnvelope(records, verificationTime) {
 /** Reopens authentic records without writing or exposing their private bodies. */
 export function inspectSealedRealmsProductionRecoveryActivationRecords(records, verificationTime) {
   const { state, envelope } = readRecoveryActivationEnvelope(records, verificationTime);
-  validateSealedRealmsProductionRecoveryActivationEvidence(envelope, verificationTime, state.existingStateAdoption, state.g002ExistingStateAdoption);
+  validateSealedRealmsProductionRecoveryActivationEvidence(envelope, verificationTime, state.existingStateAdoption, state.g002ExistingStateAdoption, state.linuxRecoveryEvidence);
   return Object.freeze({
     sourceCommit: state.preparationSourceCommit, schemaVersion: envelope.schemaVersion,
     descriptorSha256: createHash('sha256').update(`${JSON.stringify(envelope, null, 2)}\n`).digest('hex'),
@@ -1724,7 +2037,7 @@ export function writeSealedRealmsProductionRecoveryActivationDescriptor(input) {
     fail('SEALED_REALMS_ACTIVATION_RECORDS_INPUT_INVALID');
   }
   const { state, envelope } = readRecoveryActivationEnvelope(options.records);
-  validateSealedRealmsProductionRecoveryActivationEvidence(envelope, undefined, state.existingStateAdoption, state.g002ExistingStateAdoption);
+  validateSealedRealmsProductionRecoveryActivationEvidence(envelope, undefined, state.existingStateAdoption, state.g002ExistingStateAdoption, state.linuxRecoveryEvidence);
   let bytes;
   try {
     bytes = Buffer.from(`${JSON.stringify(envelope, null, 2)}\n`, 'utf8');

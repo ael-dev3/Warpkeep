@@ -1,7 +1,7 @@
 import type { SealedRealmsProductionContinuationStore } from './sealed-realms-production-continuation.mjs';
 import type { verifyPtrUpdateObservationPair, verifyG002UpdateObservationPair } from '../services/release-recovery/src/ptrObservation.ts';
 import type { SealedRealmsProductionPrivateState } from './sealed-realms-production-private-state.mjs';
-import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
+import type { SealedRealmsProductionSourceAuthority, SealedRealmsProductionRetainedSource } from './sealed-realms-production-source-authority.mjs';
 import type { PtrExistingUpdateCompletion, PtrExistingStateAdoption, PtrExistingUpdateReceipt, G002ExistingUpdateCompletion, G002ExistingStateAdoption, G002ExistingUpdateReceipt } from './ptr-production-existing-update-adapter.mjs';
 
 export class SealedRealmsProductionActivationRecordsError extends Error {
@@ -28,6 +28,7 @@ export function createSealedRealmsProductionActivationRecords(input: Readonly<{
   existingStateAdoption?: SealedRealmsProductionPtrExistingStateAdoptionEvidence;
   /** Schema 5 requires both authenticated realm adoptions. */
   g002ExistingStateAdoption?: SealedRealmsProductionG002ExistingStateAdoptionEvidence;
+  linuxRecoveryEvidence?: SealedRealmsProductionLinuxRecoveryEvidence;
   /** Required for descriptors; omitted for candidate-independent receipt reads. */
   readBindingCandidate?: (preparationSourceCommit: string,
     receiptProjection?: SealedRealmsProductionRecoveryReceiptProjection,
@@ -92,12 +93,13 @@ export function validateSealedRealmsProductionRecoveryActivationEvidence(
   verificationTime?: string,
   existingStateAdoption?: SealedRealmsProductionPtrExistingStateAdoptionEvidence,
   g002ExistingStateAdoption?: SealedRealmsProductionG002ExistingStateAdoptionEvidence,
+  linuxRecoveryEvidence?: SealedRealmsProductionLinuxRecoveryEvidence,
 ): Readonly<Record<string, unknown>>;
 
 export function inspectSealedRealmsProductionRecoveryActivationRecords(
   records: SealedRealmsProductionActivationRecords,
   verificationTime?: string,
-): Readonly<{ sourceCommit: string; schemaVersion: 2 | 3 | 4 | 5; descriptorSha256: string }>;
+): Readonly<{ sourceCommit: string; schemaVersion: 2 | 3 | 4 | 5 | 6; descriptorSha256: string }>;
 
 /** Reads a canonical candidate and its complete version-specific private receipt corpus. */
 export function writeSealedRealmsProductionRecoveryActivationDescriptor(input: Readonly<{
@@ -144,3 +146,57 @@ export function readSealedRealmsProductionG002ExistingStateAdoptionEvidence(inpu
   completionReceipt: G002ExistingUpdateReceipt;
   pair: Awaited<ReturnType<typeof verifyG002UpdateObservationPair>>;
 }>;
+
+/** Authenticates retained history without granting source, provider or writer authority. */
+export function authenticateSealedRealmsProductionPtrHistoricalAdoption(input: Readonly<{
+  privateState: SealedRealmsProductionPrivateState;
+  retainedSource: SealedRealmsProductionRetainedSource;
+  store: SealedRealmsProductionContinuationStore;
+}>): Promise<SealedRealmsProductionPtrExistingStateAdoptionEvidence>;
+export function authenticateSealedRealmsProductionG002HistoricalAdoption(
+  input: Parameters<typeof authenticateSealedRealmsProductionPtrHistoricalAdoption>[0],
+): Promise<SealedRealmsProductionG002ExistingStateAdoptionEvidence>;
+
+declare const linuxRecoveryBrand: unique symbol;
+/** Current activation ownership joined with exact retained data; never effect authority. */
+export type SealedRealmsProductionLinuxRecoveryEvidence = Readonly<{ [linuxRecoveryBrand]: true }>;
+export function authenticateSealedRealmsProductionLinuxRecoveryEvidence(input: Readonly<{
+  privateState: SealedRealmsProductionPrivateState;
+  authority: SealedRealmsProductionSourceAuthority;
+  permit: import('./sealed-realms-production-workflow-authority.mjs').SealedRealmsProductionWorkflowPermit;
+  existingStateAdoption: SealedRealmsProductionPtrExistingStateAdoptionEvidence;
+  g002ExistingStateAdoption: SealedRealmsProductionG002ExistingStateAdoptionEvidence;
+  programArtifacts: import('./sealed-realms-production-recovery-program-artifacts.mjs').SealedRealmsProductionRecoveryProgramArtifacts;
+}> & (Readonly<{ attemptId: string; censusEvidence?: never }> | Readonly<{
+  censusEvidence: import('./genesis001-linux-policy-native.mjs').FixedLinuxG001ActivationCensusEvidence; attemptId?: never;
+}>)): Promise<SealedRealmsProductionLinuxRecoveryEvidence>;
+export function readSealedRealmsProductionLinuxRecoveryEvidence(input: Readonly<{
+  evidence: SealedRealmsProductionLinuxRecoveryEvidence; privateState: SealedRealmsProductionPrivateState; sourceCommit: string;
+}>): Readonly<{ sourceCommit: string; sourceTree: string;
+  ptr: ReturnType<typeof readSealedRealmsProductionPtrExistingStateAdoptionEvidence>;
+  g002: ReturnType<typeof readSealedRealmsProductionG002ExistingStateAdoptionEvidence>;
+  census: ReturnType<typeof import('./genesis001-linux-census-attempt.mjs').verifyGenesis001LinuxCensusAttempt> }>;
+export function isSealedRealmsProductionInlineRecoveryEvidence(
+  input: Parameters<typeof readSealedRealmsProductionLinuxRecoveryEvidence>[0],
+): boolean;
+export function isSealedRealmsProductionCompletedRecoveryEvidence(input: Parameters<typeof readSealedRealmsProductionLinuxRecoveryEvidence>[0]): boolean;
+declare const completedSelectionBrand: unique symbol;
+export type SealedRealmsProductionCompletedGenerationSelection = Readonly<{ [completedSelectionBrand]: true }>;
+type CompletedOwner = Readonly<{ privateState: SealedRealmsProductionPrivateState; authority: SealedRealmsProductionSourceAuthority }>;
+export function selectSealedRealmsProductionCompletedGeneration(input: CompletedOwner): SealedRealmsProductionCompletedGenerationSelection;
+export function readSealedRealmsProductionCompletedGenerationSelection(input: CompletedOwner & Readonly<{
+  selection: SealedRealmsProductionCompletedGenerationSelection;
+}>): Readonly<{ receipt: ReturnType<typeof import('./sealed-realms-production-activation-generation-receipt.mjs').parseActivationGenerationReceipt>;
+  envelope: Readonly<Record<string, any>>; bridge: Readonly<Record<string, any>>;
+  binding: Readonly<{ subject: string; evidenceDigest: string; receiptDigests: readonly string[]; predecessorDigests: readonly string[] }>;
+  hashes: Readonly<{ receipt: string; descriptor: string; artifact: string; bridge: string }> }>;
+export function authenticateSealedRealmsProductionCompletedLinuxRecoveryEvidence(input: CompletedOwner & Readonly<{
+  store: SealedRealmsProductionContinuationStore; selection: SealedRealmsProductionCompletedGenerationSelection;
+  reconciliation?: import('./sealed-realms-production-continuation.mjs').SealedRealmsProductionContinuationReconciliation;
+  existingStateAdoption: SealedRealmsProductionPtrExistingStateAdoptionEvidence;
+  g002ExistingStateAdoption: SealedRealmsProductionG002ExistingStateAdoptionEvidence;
+  programArtifacts: import('./sealed-realms-production-recovery-program-artifacts.mjs').SealedRealmsProductionRecoveryProgramArtifacts;
+}>): SealedRealmsProductionLinuxRecoveryEvidence;
+export function readSealedRealmsProductionCompletedGenerationContext(input: CompletedOwner & Readonly<{
+  records: SealedRealmsProductionActivationRecords; readContext: SealedRealmsRecoveryCandidateReadContext;
+}>): Readonly<{ generatedAt: string; bindingCandidate: Readonly<Record<string, string | number | boolean | null>> }>;

@@ -14,6 +14,17 @@ export function createSealedRealmsProductionRecoveryProgramArtifacts(
     authority: SealedRealmsProductionSourceAuthority;
   }>,
 ): Promise<SealedRealmsProductionRecoveryProgramArtifacts>;
+export function createSealedRealmsProductionRecoveryAdoptionProgramArtifacts(
+  input: Parameters<typeof createSealedRealmsProductionRecoveryProgramArtifacts>[0],
+): Promise<SealedRealmsProductionRecoveryProgramArtifacts>;
+export function readSealedRealmsProductionRecoveryAdoptionProgramComparison(input: Readonly<{
+  capability: SealedRealmsProductionRecoveryProgramArtifacts;
+  privateState: SealedRealmsProductionPrivateState;
+  authority: SealedRealmsProductionSourceAuthority;
+  ptrSourceCommit: string; g002SourceCommit: string;
+}>): Readonly<{ sourceCommit: string; sourceTree: string;
+  g002: Readonly<{ programArtifactSha256: string; programKeccak256: string; moduleTreeId: string; dependencyClosureDigest: string }>;
+  ptr: Readonly<{ programArtifactSha256: string; moduleTreeId: string; dependencyClosureDigest: string }> }>;
 export function readSealedRealmsProductionRecoveryProgramArtifacts(
   input: Readonly<{
     capability: SealedRealmsProductionRecoveryProgramArtifacts;

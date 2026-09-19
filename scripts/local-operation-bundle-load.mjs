@@ -45,7 +45,8 @@ function readRequest() {
       || !isAbsolute(value.artifactPath ?? '') || difference === '' || difference === '..'
       || difference.startsWith(`..${sep}`) || isAbsolute(difference)
       || !/^[0-9a-f]{64}$/u.test(value.byteDigest ?? '')
-      || !Array.isArray(value.exportNames) || value.exportNames.length !== 2
+      || !Array.isArray(value.exportNames)
+      || value.exportNames.length !== (value.factoryExport === 'createSealedRealmsProductionActivationWorkflowRuntime' ? 3 : 2)
       || value.exportNames.some(name => typeof name !== 'string')
       || typeof value.factoryExport !== 'string' || !value.exportNames.includes(value.factoryExport)
       || typeof value.factoryFailureCode !== 'string') {

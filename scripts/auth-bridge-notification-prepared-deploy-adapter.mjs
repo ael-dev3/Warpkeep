@@ -52,11 +52,19 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_DATABASE_BINDING =
   'PTR_SPACETIMEDB_DATABASE';
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_OIDC_AUDIENCE =
   'warpkeep-ptr-spacetimedb';
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_RECOVERY_SECRET_BINDING_NAMES =
+  Object.freeze(['RELEASE_RECOVERY_CENSUS_PEPPER', 'RELEASE_RECOVERY_RPC_SECRET']);
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_GENESIS_002_DATABASE =
+  'c2003223f6e3c86e988775ddd458c3a45635d0d021e11131551471617c392194';
 const SECRET_BINDING_NAMES = Object.freeze([
   ...AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES.slice(0, 4),
   AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,
   ...AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES.slice(4),
 ]);
+const OBSERVER_SECRET_BINDING_NAMES = Object.freeze([
+  ...SECRET_BINDING_NAMES,
+  ...AUTH_BRIDGE_NOTIFICATION_PREPARED_RECOVERY_SECRET_BINDING_NAMES,
+].sort());
 const CONTRACT_KEYS = Object.freeze([
   'schemaVersion',
   'profile',
@@ -142,7 +150,7 @@ function booleanString(value, code) {
   return value ? 'true' : 'false';
 }
 
-function variables(sourceCommit, beforeModes) {
+function variables(sourceCommit, beforeModes, recoveryObserver) {
   return Object.freeze({
     ACCESS_EXPECTED_FID_REQUIRED: booleanString(
       beforeModes.accessExpectedFidRequired,
@@ -154,6 +162,9 @@ function variables(sourceCommit, beforeModes) {
     ENVIRONMENT: 'production',
     FARCASTER_DOMAIN: 'warpkeep.com',
     FARCASTER_SIWE_URI: 'https://warpkeep.com/',
+    ...(recoveryObserver ? {
+      GENESIS_002_SPACETIMEDB_DATABASE: AUTH_BRIDGE_NOTIFICATION_PREPARED_GENESIS_002_DATABASE,
+    } : {}),
     ISSUER: 'https://auth.warpkeep.com',
     MINIAPP_NOTIFICATION_CLIENTS:
       '9152=https://api.farcaster.xyz/v1/frame-notifications',
@@ -169,6 +180,10 @@ function variables(sourceCommit, beforeModes) {
     PTR_OIDC_AUDIENCE:
       AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_OIDC_AUDIENCE,
     QA_OBSERVER_ENABLED: 'false',
+    ...(recoveryObserver ? {
+      RELEASE_RECOVERY_BRIDGE_CONFIG_EPOCH: '1',
+      RELEASE_RECOVERY_BRIDGE_SOURCE_COMMIT: sourceCommit,
+    } : {}),
     SPACETIMEDB_DATABASE:
       'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
     SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
@@ -190,12 +205,14 @@ export function authBridgeNotificationPreparedVersionContract({
   sourceCommit,
   sourceDigest,
   beforeModes,
+  recoveryObserver = false,
 } = {}) {
   if (
     !exactPattern(accountId, ACCOUNT_ID)
     || !exactPattern(zoneId, ACCOUNT_ID)
     || !exactPattern(sourceCommit, SOURCE_COMMIT)
     || !exactPattern(sourceDigest, SHA256_HEX)
+    || typeof recoveryObserver !== 'boolean'
     || !isRecord(beforeModes)
     || JSON.stringify(Object.keys(beforeModes))
       !== JSON.stringify([
@@ -224,11 +241,11 @@ export function authBridgeNotificationPreparedVersionContract({
     sourceDigest,
     compatibilityDate: COMPATIBILITY_DATE,
     compatibilityFlags: COMPATIBILITY_FLAGS,
-    variables: variables(sourceCommit, beforeModes),
+    variables: variables(sourceCommit, beforeModes, recoveryObserver),
     protectedPlainTextBindingNames: Object.freeze([
       AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_DATABASE_BINDING,
     ]),
-    secretBindingNames: SECRET_BINDING_NAMES,
+    secretBindingNames: recoveryObserver ? OBSERVER_SECRET_BINDING_NAMES : SECRET_BINDING_NAMES,
     durableObjectBindings: DURABLE_OBJECT_BINDINGS,
     migrations: MIGRATIONS,
   });
@@ -250,6 +267,8 @@ function canonicalVersionContract(value) {
     zoneId: value.zoneId,
     sourceCommit: value.sourceCommit,
     sourceDigest: value.sourceDigest,
+    // Retained completed seven-secret contracts remain reconstructible.
+    recoveryObserver: Object.hasOwn(value.variables, 'GENESIS_002_SPACETIMEDB_DATABASE'),
     beforeModes: {
       bridgeSourceCommit: value.predecessorSourceCommit,
       publicAuthEnabled: value.variables.PUBLIC_AUTH_ENABLED === 'true',

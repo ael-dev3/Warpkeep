@@ -340,7 +340,9 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
 
   it.each(ENTRIES)('$lane entry exports only its fixed runtime factory/run pair', async entry => {
     const module = await loadEntry(entry.path);
-    expect(Object.keys(module).sort()).toEqual([entry.factory, entry.run].sort());
+    const expected = [entry.factory, entry.run,
+      ...(entry.lane === 'activation' ? ['readSealedRealmsProductionRetainedFixtureSources'] : [])];
+    expect(Object.keys(module).sort()).toEqual(expected.sort());
   });
 
   it.each(ENTRIES)('$lane entry composes its real same-graph core behind the two private resolvers', async entry => {

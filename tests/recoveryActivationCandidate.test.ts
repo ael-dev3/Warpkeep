@@ -1,9 +1,19 @@
 // @vitest-environment node
 import { expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
 import { validateRecoveryActivationCandidate, createRecoveryActivationBinding, parseRecoveryBindingV2 } from '../scripts/recovery-activation-candidate.mjs';
+import { recoveryActivationCandidatePolicyForVersion, createRecoveryActivationBindingFromCandidate,
+  validateRecoveryActivationCandidateV6, parseRecoveryBinding, parseRecoveryBindingV5 } from '../scripts/recovery-activation-candidate.mjs';
+import { recoveryBindingKeys, recoveryReceiptCommitmentV6 } from '../scripts/recovery-binding-projection.mjs';
 
 const encode = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
+function versionedCandidate(version: 2 | 3 | 4 | 5 | 6) {
+  const prior = recoveryBindingCandidate();
+  const policy = recoveryActivationCandidatePolicyForVersion(version);
+  return Object.fromEntries(recoveryBindingKeys(version).map(key => [key,
+    Object.hasOwn(policy, key) ? policy[key] : Object.hasOwn(prior, key) ? prior[key] : '93'.repeat(32)]));
+}
 it('accepts the complete synthetic candidate as data, not deployment authority', () => {
   const candidate = recoveryBindingCandidate();
   expect(validateRecoveryActivationCandidate(encode(candidate))).toEqual(candidate);
@@ -87,4 +97,55 @@ it.each(['g001PolicySourceCommit', 'authBridgeSourceCommit'])(
     const candidate = recoveryBindingCandidate();
     candidate[key] = 'c'.repeat(40);
     expect(() => createRecoveryActivationBinding(encode(candidate))).toThrow();
+  });
+
+// Recorded from the pre-V6 implementations. Protect exact legacy serialized
+// bindings and hash domains, including all generated commitments, from drift.
+it.each([
+  [2, 'b4bebd139415df9e25aebaee9d3639026cb58274d77172d68a566ceb0ba3f190'],
+  [3, 'b58e32c3d4aa8ecee4ab051c4f2d009a6de2036e45c8249e7b4fe2be7eb7b058'],
+  [4, '38e2cb621e58bcaebdf158ad303ffe00780851a9bfd4efcf605e44d118530dde'],
+  [5, 'f857390371839e5afef80f2999a7c97629f0a19663d50fa2bd99e3b507cd7503'],
+] as const)('preserves the exact V%s binding bytes', (version, expected) => {
+  const binding = createRecoveryActivationBindingFromCandidate(encode(versionedCandidate(version)));
+  expect(createHash('sha256').update(encode(binding)).digest('hex')).toBe(expected);
+});
+
+it('projects V6 server freeze evidence while preserving V5 dual adoption semantics', () => {
+  const candidate = versionedCandidate(6);
+  expect(validateRecoveryActivationCandidateV6(encode(candidate))).toEqual(candidate);
+  const binding = createRecoveryActivationBindingFromCandidate(encode(candidate));
+  expect(parseRecoveryBinding(encode(binding))).toEqual(binding);
+  expect(binding.g001AdmissionControlProfile).toBe('warpkeep-genesis-001-server-freeze-v1');
+  expect(binding.g001PlayerAccessEnabled).toBe(true);
+  expect(binding.g001AdmissionStateMutationsEnabled).toBe(false);
+  expect(binding.g001AccessRequestSubmissionsEnabled).toBe(false);
+  expect(binding.ptrSingletonOwnerCount).toBe(1);
+  expect(binding.g002PlayerCount).toBe(0);
+  expect(Object.keys(binding).filter(key => key.startsWith('admissionMonitor'))).toEqual([]);
+  expect(() => parseRecoveryBindingV5(encode(binding))).toThrow();
+  expect(() => recoveryReceiptCommitmentV6('admissionMonitorSuspensionReceiptCommitment', binding)).toThrow();
+});
+
+it.each([
+  ['g001AdmissionControlProfile', 'warpkeep-genesis001-admission-monitor-suspension-v1'],
+  ['g001PlayerAccessEnabled', false],
+  ['g001AdmissionStateMutationsEnabled', true],
+  ['g001AccessRequestSubmissionsEnabled', true],
+  ['g001FreezeConfirmationReceiptDigest', null],
+  ['g001FreezeCurrentStateReceiptDigest', null],
+  ['g001FreezeConfirmationReceiptCommitment', 'a'.repeat(64)],
+  ['admissionMonitorDisabled', true],
+  ['admissionMonitorLoaded', false],
+] as const)('rejects unsafe or fabricated V6 field %s', (key, value) => {
+  const candidate = versionedCandidate(6);
+  candidate[key] = value;
+  expect(() => validateRecoveryActivationCandidateV6(encode(candidate))).toThrow();
+});
+
+it.each(['g001FreezeConfirmationReceiptDigest', 'g001FreezeCurrentStateReceiptDigest'])(
+  'binds every V6 commitment to %s', key => {
+    const binding = { ...createRecoveryActivationBindingFromCandidate(encode(versionedCandidate(6))) };
+    binding[key] = '91'.repeat(32);
+    expect(() => parseRecoveryBinding(encode(binding))).toThrow();
   });

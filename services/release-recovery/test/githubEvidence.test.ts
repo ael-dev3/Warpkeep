@@ -6,8 +6,10 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import {
   RECOVERY_BINDING_KEYS_V2,
   RECOVERY_BINDING_KEYS_V5,
+  RECOVERY_BINDING_KEYS_V6,
   RECOVERY_RECEIPT_COMMITMENT_DIGESTS,
   RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V5,
+  RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V6,
   loadGitHubCandidateEvidence,
   mintGitHubInstallationToken,
   recheckGitHubEvidenceMetadata,
@@ -20,8 +22,8 @@ import {
 } from '../src/config.js'
 import { serializeExactObject, sha256Hex, type JsonValue } from '../src/protocol.js'
 import { RECOVERY_KEY_ID, RECOVERY_KEY_THUMBPRINT } from '../src/recoveryPublicKey.js'
-import { createRecoveryActivationBinding, createRecoveryActivationBindingV3, createRecoveryActivationBindingV4, createRecoveryActivationBindingV5, parseRecoveryBindingV2 } from '../../../scripts/recovery-activation-candidate.mjs'
-import { RECOVERY_BINDING_KEYS_V3 as ROOT_BINDING_KEYS_V3, RECOVERY_BINDING_KEYS_V4 as ROOT_BINDING_KEYS_V4, RECOVERY_BINDING_KEYS_V5 as ROOT_BINDING_KEYS_V5 } from '../../../scripts/recovery-binding-projection.mjs'
+import { createRecoveryActivationBinding, createRecoveryActivationBindingV3, createRecoveryActivationBindingV4, createRecoveryActivationBindingV5, createRecoveryActivationBindingV6, parseRecoveryBindingV2 } from '../../../scripts/recovery-activation-candidate.mjs'
+import { RECOVERY_BINDING_KEYS_V3 as ROOT_BINDING_KEYS_V3, RECOVERY_BINDING_KEYS_V4 as ROOT_BINDING_KEYS_V4, RECOVERY_BINDING_KEYS_V5 as ROOT_BINDING_KEYS_V5, RECOVERY_BINDING_KEYS_V6 as ROOT_BINDING_KEYS_V6 } from '../../../scripts/recovery-binding-projection.mjs'
 import { recoveryBindingCandidate } from '../../../tests/fixtures/recoveryBindingCandidate.js'
 
 const REPOSITORY = 'ael-dev3/Warpkeep'
@@ -382,7 +384,7 @@ function zip(body: Uint8Array): Uint8Array {
   return new Uint8Array([...local, ...body, ...central, ...eocd])
 }
 
-async function validBinding(useLocalGenerator: boolean | 3 | 4 | 5 = false, closure = CLOSURE): Promise<Readonly<{ bytes: Uint8Array; core: string }>> {
+async function validBinding(useLocalGenerator: boolean | 3 | 4 | 5 | 6 = false, closure = CLOSURE): Promise<Readonly<{ bytes: Uint8Array; core: string }>> {
   const binding: Record<string, JsonValue> = Object.create(null)
   for (const key of RECOVERY_BINDING_KEYS_V2) binding[key] = null
   Object.assign(binding, {
@@ -456,7 +458,16 @@ async function validBinding(useLocalGenerator: boolean | 3 | 4 | 5 = false, clos
       g002Sealed: true, g002PopulationGuardPassed: true, g002PlayerCount: 0, g002GeneralAdmissionCount: 0,
       g002AdmissionsOpen: false, g002AccessRequestsOpen: false,
     }
-    const generated = useLocalGenerator === 5
+    const v6Overrides: Record<string, JsonValue> = { ...v5Overrides,
+      schemaVersion: 6, profile: 'warpkeep-0.4.0-sealed-launch-g001-linux-freeze-v6',
+      g001AdmissionControlProfile: 'warpkeep-genesis-001-server-freeze-v1',
+      g001FreezeConfirmationReceiptDigest: 'a6'.repeat(32), g001FreezeCurrentStateReceiptDigest: 'a7'.repeat(32),
+    }
+    const generated = useLocalGenerator === 6
+      ? createRecoveryActivationBindingV6(`${JSON.stringify(Object.fromEntries(ROOT_BINDING_KEYS_V6.map(key => [key,
+        key.endsWith('Commitment') ? null : Object.hasOwn(v6Overrides, key) ? v6Overrides[key] : candidate[key],
+      ])), null, 2)}\n`)
+      : useLocalGenerator === 5
       ? createRecoveryActivationBindingV5(`${JSON.stringify(Object.fromEntries(ROOT_BINDING_KEYS_V5.map(key => [key,
         key.endsWith('Commitment') ? null : Object.hasOwn(v5Overrides, key) ? v5Overrides[key] : candidate[key],
       ])), null, 2)}\n`)
@@ -559,7 +570,7 @@ jobs:
 `)
 }
 
-async function makeFixture(useLocalGenerator: boolean | 3 | 4 | 5 = false): Promise<Readonly<{
+async function makeFixture(useLocalGenerator: boolean | 3 | 4 | 5 | 6 = false): Promise<Readonly<{
   state: State
   input: Parameters<typeof loadGitHubCandidateEvidence>[0]
   calls: string[]
@@ -827,13 +838,13 @@ async function makeFixture(useLocalGenerator: boolean | 3 | 4 | 5 = false): Prom
     bindingRequestId: REQUEST_ID,
     armed: {
       ...expectedRealmBinding(binding.core),
-      ...(useLocalGenerator === 4 || useLocalGenerator === 5 ? {
+      ...(useLocalGenerator === 4 || useLocalGenerator === 5 || useLocalGenerator === 6 ? {
         ptrStateEvidenceProfile: 'warpkeep-ptr-existing-state-adoption-v1' as const,
         ptrExistingStateAdoptionReceiptDigest: '94'.repeat(32),
         ptrExpectedSealedStateHmacSha256: '95'.repeat(32),
         ptrExpectedOwnerInvariantHmacSha256: '96'.repeat(32),
       } : {}),
-      ...(useLocalGenerator === 5 ? {
+      ...(useLocalGenerator === 5 || useLocalGenerator === 6 ? {
         g002StateEvidenceProfile: 'warpkeep-g002-existing-state-adoption-v1' as const,
         g002ExistingStateAdoptionReceiptDigest: 'a4'.repeat(32),
         g002ExpectedSealedStateHmacSha256: 'a5'.repeat(32),
@@ -1009,7 +1020,7 @@ describe('GitHub candidate evidence', () => {
       .export({ format: 'pem', type: 'pkcs1' }).toString()
   })
 
-  it.each([4, 5] as const)('loads the root-produced V%s adoption through the actual source, artifact and receiver chain', async version => {
+  it.each([4, 5, 6] as const)('loads the root-produced V%s adoption through the actual source, artifact and receiver chain', async version => {
     const fixture = await makeFixture(version)
     const evidence = await loadGitHubCandidateEvidence(fixture.input)
     expect(evidence.recoveryBindingBytes).toEqual(fixture.state.bindingBytes)
@@ -1025,16 +1036,65 @@ describe('GitHub candidate evidence', () => {
       ptrExistingStateAdoptionReceiptDigest: '94'.repeat(32),
       ptrExpectedSealedStateHmacSha256: '95'.repeat(32),
       ptrExpectedOwnerInvariantHmacSha256: '96'.repeat(32),
-      ...(version === 5 ? {
+      ...(version === 5 || version === 6 ? {
         g002StateEvidenceProfile: 'warpkeep-g002-existing-state-adoption-v1',
         g002ExistingStateAdoptionReceiptDigest: 'a4'.repeat(32),
         g002ExpectedSealedStateHmacSha256: 'a5'.repeat(32),
       } : {}),
     })
-    if (version === 5) for (const legacy of ['g002PublishReceiptDigest', 'g002FreshStatusDigest',
+    if (version === 5 || version === 6) for (const legacy of ['g002PublishReceiptDigest', 'g002FreshStatusDigest',
       'g002AtlasImportReceiptDigest', 'g002SealedLiveReceiptDigest', 'admissionNotificationsEnabled']) {
       expect(binding).not.toHaveProperty(legacy)
     }
+    if (version === 6) {
+      expect(binding.g001AdmissionControlProfile).toBe('warpkeep-genesis-001-server-freeze-v1')
+      expect(binding.g001FreezeConfirmationReceiptDigest).toBe('a6'.repeat(32))
+      expect(binding.g001FreezeCurrentStateReceiptDigest).toBe('a7'.repeat(32))
+      expect(Object.keys(binding).filter(key => key.startsWith('admissionMonitor'))).toEqual([])
+    }
+  })
+
+  it.each([
+    (binding: JsonObject) => { binding.g001FreezeConfirmationReceiptDigest = '97'.repeat(32) },
+    (binding: JsonObject) => { binding.g001FreezeCurrentStateReceiptDigest = '98'.repeat(32) },
+    (binding: JsonObject) => { delete binding.g001FreezeCurrentStateReceiptCommitment },
+    (binding: JsonObject) => { binding.admissionMonitorDisabled = true },
+    (binding: JsonObject) => { binding.admissionMonitorSuspensionReceiptDigest = '98'.repeat(32) },
+    (binding: JsonObject) => { binding.schemaVersion = 5 },
+    (binding: JsonObject) => { binding.profile = 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5' },
+    (binding: JsonObject) => { binding.ptrExistingStateAdoptionReceiptDigest = '97'.repeat(32) },
+    (binding: JsonObject) => { binding.g002ExistingStateAdoptionReceiptDigest = '97'.repeat(32) },
+  ])('rejects a substituted or mixed-version V6 Linux freeze binding %#', async mutate => {
+    const fixture = await makeFixture(6)
+    await replaceBinding(fixture, mutate)
+    await expect(loadGitHubCandidateEvidence(fixture.input)).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  })
+
+  it.each([
+    ['g001AdmissionControlProfile', 'warpkeep-genesis-001-admission-monitor-v1'],
+    ['g001SourceBaselineCommit', '1'.repeat(40)], ['g001BaselineAbiSha256', '2'.repeat(64)],
+    ['g001FreezeReleaseNonce', '3'.repeat(64)], ['g001PolicyReceiptDigest', '4'.repeat(64)],
+    ['g001ReleaseVersion', '0.4.0'], ['g001PlayerAccessEnabled', false],
+    ['g001AdmissionStateMutationsEnabled', true], ['g001AccessRequestSubmissionsEnabled', true],
+    ['g001PolicySourceCommit', '1'.repeat(40)],
+    ['g001CensusPrivacySafeReceiptProfile', 'wrong'], ['g001AdmittedPlayerCensusReceiptProfile', 'wrong'],
+    ['g002Sealed', false], ['ptrSealed', false],
+  ] as const)('rejects V6 unsafe %s with recomputed commitments and matching armed core', async (key, value) => {
+    const fixture = await makeFixture(6)
+    const binding = JSON.parse(new TextDecoder().decode(fixture.state.bindingBytes)) as Record<string, JsonValue>
+    binding[key] = value
+    const excluded = new Set(['g001FreezePublishReceiptCommitment', ...Object.keys(RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V6)])
+    const receiptKeys = RECOVERY_BINDING_KEYS_V6.filter(name => !excluded.has(name))
+    const receipt = Object.fromEntries(receiptKeys.map(name => [name, name === 'recoveryAuthorizationCoreSha256' ? null : binding[name]!]))
+    for (const name of Object.keys(RECOVERY_RECEIPT_COMMITMENT_DIGESTS_V6)) {
+      binding[name] = await sha256Hex(`warpkeep.0.4.0.recovery-sealed-launch.${name}.v6\n`,
+        serializeExactObject(receiptKeys, receipt as never))
+    }
+    binding.recoveryAuthorizationCoreSha256 = await sha256Hex('warpkeep.0.4.0.recovery-authorization-core.v6\n',
+      serializeExactObject(RECOVERY_BINDING_KEYS_V6, { ...binding, recoveryAuthorizationCoreSha256: null } as never))
+    await replaceBinding(fixture, target => { Object.assign(target, binding) })
+    await expect(loadGitHubCandidateEvidence({ ...fixture.input, armed: { ...fixture.input.armed,
+      recoveryAuthorizationCoreSha256: binding.recoveryAuthorizationCoreSha256 as string } })).rejects.toThrow('RECOVERY_GITHUB_EVIDENCE_INVALID')
   })
 
   it.each([

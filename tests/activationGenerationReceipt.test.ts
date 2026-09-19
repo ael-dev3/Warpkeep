@@ -98,3 +98,12 @@ describe('recovery public activation bytes', () => {
     expect(() => verifySealedRealmsPublicActivationBytes(Buffer.from(`${JSON.stringify(binding)}\n`))).toThrow();
   });
 });
+
+it('retains the V6 generated artifact profile without accepting another version or copied profile', () => {
+  const value = { ...receipt(), artifactSchemaVersion: 6, artifactProfile: 'warpkeep-0.4.0-sealed-launch-g001-linux-freeze-v6' } as const;
+  expect(parseActivationGenerationReceipt(activationGenerationReceiptBytes(value))).toEqual(value);
+  for (const artifactSchemaVersion of [1, 2, 3, 4, 5, 7]) {
+    expect(() => activationGenerationReceiptBytes({ ...value, artifactSchemaVersion } as never)).toThrow();
+  }
+  expect(() => activationGenerationReceiptBytes({ ...value, artifactProfile: 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5' } as never)).toThrow();
+});

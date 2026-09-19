@@ -1,6 +1,6 @@
 # 0.4 workflow sufficiency audit
 
-Updated 2026-09-18 (Europe/Budapest). Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
+Updated 2026-09-19 (Europe/Budapest). Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
 for the single dated source/CI checkpoint and the [release checklist](../../operations/0.4.0-release-checklist.md)
 for acceptance. Resolve current protected and development refs in that handoff;
 do not copy a moving source/run inventory into this verdict. Pages classification
@@ -32,10 +32,12 @@ No reliable calendar ETA is established.
 - The Keep04 gather → choose → build → benefit → return foundation, readable
   duration presentation and dispatch-return preview are implemented and
   protected by focused tests.
-- Source closure, generated pins, Linux, SpacetimeDB, native, recovery, auth,
-  analysis and CodeQL checks are green for the protected M2 source. The
-  documentation-only checkpoint in PR #289 passed its required checks and is
-  integrated into protected `main`.
+- The earlier protected M2 passed its source closure, generated pins, Linux,
+  SpacetimeDB, native, recovery, auth, analysis and CodeQL checks. The later Linux
+  repairs are in [PR #301](https://github.com/ael-dev3/Warpkeep/pull/301); its own
+  checks, protected M1 merge, exact-M1 native preparation/check and generated M2
+  must complete before the next protected operation. Historical success does
+  not validate those later sources.
 - The saved sync automation is paused and no scheduled GitHub workflow exists;
   manual publication remains the durable development rail.
 

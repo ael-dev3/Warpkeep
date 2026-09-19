@@ -40,9 +40,9 @@ const GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_FINALIZATION_SHA256 =
 // accepting decoy tokens or an early-return control-flow bypass before Task 7
 // freezes the complete dispatcher closure.
 const SEALED_REALMS_SOURCE_AUTHORITY_SOURCE_SHA256 =
-  '98f83a492b68d6e67888b83cdf8b0eb54c31d7bc0ef4ce8f27b7a4288ca85ce9';
+  '1bba7e11f5b7d1d7bba584d32f1e30f376fe00b07b7990b2175ffcad3114a09b';
 const SEALED_REALMS_SOURCE_AUTHORITY_DECLARATION_SHA256 =
-  '6b2f9b007bda2875bb18c495b7d2f234696af1d59d10b51e04e9f439458fcd18';
+  '098edc6f881d85438bfb15ca9fcadbcb6ee110691fc369f10f8d1d1294ef7005';
 const GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_SOURCE_SHA256 =
   'be9efaf1ecad13c2cd94bfb457353b8946f12b3304f47b34e8b9422041712c1a';
 const GENESIS_001_POLICY_OBSERVATION_SOURCE_SHA256 =
@@ -4095,6 +4095,7 @@ function verifySealedRealmsProductionSourceAuthority(sources) {
   const operations = [
     'preflight',
     'g001-policy-observe',
+    'g001-freeze-census',
     'g001-census-first',
     'g001-census-second-inspect',
     'g001-census-second-suspend',
@@ -4484,7 +4485,7 @@ export function createSealedLaunchActivationBinding(candidate) {
 
 function parseNativeSealedLaunchBinding(source) {
   const schema = parseJson(source, 'SEALED_LAUNCH_BINDING_INVALID')?.schemaVersion;
-  if (schema === 2 || schema === 3 || schema === 4 || schema === 5) return parseRecoveryBinding(source);
+  if (schema === 2 || schema === 3 || schema === 4 || schema === 5 || schema === 6) return parseRecoveryBinding(source);
   return parseBinding(source);
 }
 
@@ -4514,14 +4515,14 @@ export function verifySealedLaunchSources(sources, requestedPhase = 'checked-in'
     g001ReleaseVersion: binding.g001ReleaseVersion,
     g002DatabaseIdentity: binding.g002DatabaseIdentity,
     ptrDatabaseIdentity: binding.ptrDatabaseIdentity,
-    ...(binding.schemaVersion === 4 || binding.schemaVersion === 5 ? {} : { ptrPresentationEnabled: binding.ptrPresentationEnabled }),
+    ...(binding.schemaVersion === 4 || binding.schemaVersion === 5 || binding.schemaVersion === 6 ? {} : { ptrPresentationEnabled: binding.ptrPresentationEnabled }),
   });
 }
 
 export function classifySealedLaunchPagesSources(sources) {
   const result = verifySealedLaunchSources(sources, 'checked-in');
   if (result.phase !== 'activation') return 'sealed-launch-blocked';
-  return [2, 3, 4, 5].includes(result.schemaVersion) ? 'sealed-g002-recovery' : 'sealed-g002';
+  return [2, 3, 4, 5, 6].includes(result.schemaVersion) ? 'sealed-g002-recovery' : 'sealed-g002';
 }
 
 const FORBIDDEN_PTR_PAGES_ENVIRONMENT_KEYS = Object.freeze([
@@ -4541,7 +4542,7 @@ export function verifySealedLaunchPagesBuildEnvironment({
 }) {
   let binding;
   if (typeof bindingSource === 'string' && bindingSource.length <= 2 * 1024 * 1024
-      && [2, 3, 4, 5].includes(JSON.parse(bindingSource)?.schemaVersion)) {
+      && [2, 3, 4, 5, 6].includes(JSON.parse(bindingSource)?.schemaVersion)) {
     binding = parseRecoveryBinding(bindingSource);
   } else {
     binding = parseBinding(bindingSource);
@@ -5063,7 +5064,7 @@ export function classifySealedLaunchPagesDeployLane({
   try { schema = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bindingFile.body)).schemaVersion; }
   catch { fail('SEALED_LAUNCH_BINDING_INVALID'); }
   finally { bindingFile.body.fill(0); }
-  if (schema === 2 || schema === 3 || schema === 4 || schema === 5) {
+  if (schema === 2 || schema === 3 || schema === 4 || schema === 5 || schema === 6) {
     // Routing is not deployment authority. This verifies the complete versioned recovery binding
     // and exact committed activation child; the recovery job must additionally
     // authenticate current protected main, artifacts, live state and signed claim.
@@ -5072,7 +5073,8 @@ export function classifySealedLaunchPagesDeployLane({
     assertExactCheckout(repositoryRoot, candidatePagesSourceCommit);
     return Object.freeze({ profile: schema === 2 ? 'warpkeep-0.4.0-sealed-launch-v2'
       : schema === 3 ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3'
-        : schema === 4 ? 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4' : 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5', candidatePagesSourceCommit,
+        : schema === 4 ? 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4'
+          : schema === 5 ? 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5' : 'warpkeep-0.4.0-sealed-launch-g001-linux-freeze-v6', candidatePagesSourceCommit,
       mode: 'sealed-g002-recovery' });
   }
   const sources = readSources(repositoryRoot);

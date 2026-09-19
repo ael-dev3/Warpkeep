@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Current protected source checkpoint — 18 September 2026
+## Current protected source checkpoint — 19 September 2026
 
 This is the active source and operations record. The current pass is maintenance
 only: preserve the existing mechanics and visuals, correct concrete defects,
@@ -21,11 +21,21 @@ protected `main` **`4ca0b7d6f156cd6eaec06609ec8ffc83861614b9`**. Its final head
 and its tree exactly matches the tested head. The retained non-release tag
 `source-history/warpkeep-0.4-pr299-7c75b7359dbd` preserves the original source.
 
-Active work continues on `codex/0.4-recovery-preparation-entry-20260918` in
-`C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep`: the disabled
-signer's initial deployment entry, described below. Inspect its current GitHub
-head and CI before integration. Main's new push checks and native family
-preparation are separate requirements. `C:/Temp/warpkeep-0.4-next` tracks
+The disabled signer's initial deployment repair in
+[PR #300](https://github.com/ael-dev3/Warpkeep/pull/300) is merged at protected
+`main` **`68cfc9283637792e2d699b29492e5f8156c8030f`**. Its exact head
+`154ef694b490a4fa9afdcabae95ceb714c944add` passed Verify `35397802215` and CodeQL
+`35397802255`. The normal protected squash is signed and tree-identical to that
+tested head; `source-history/warpkeep-0.4-pr300-154ef694b490` retains its source.
+The preceding main `4ca0b7d6` also passed Verify `35397617123`. New protected
+main `68cfc928` passed Verify `35401799264` and CodeQL `35401799149`, including
+native contracts, both services, Linux checks and connected realm rehearsals.
+Active work continues on `codex/0.4-recovery-ptr-source-20260918` in
+`C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep`: the Linux recovery
+source, census path and their release contracts. Inspect its current GitHub
+head and CI in [source-only PR #301](https://github.com/ael-dev3/Warpkeep/pull/301)
+before integration. Native family preparation remains a separate
+requirement. `C:/Temp/warpkeep-0.4-next` tracks
 protected main. Consult the
 [checkout roles](../../operations/0.4.0-development-sync.md#start-from-the-actual-checkout-and-remote)
 before moving either copy; synchronization means equality with each checkout's
@@ -146,19 +156,371 @@ Linux recovery bootstrap are absent from their fixed roots. The retained Windows
 recovery key/secret bootstrap exists. Do not ask for another key or canary value
 without tracing the selected operation's actual protected input.
 
-Two source gaps still precede full operations: the fixture generator requires
-legacy G002/PTR receipts rather than consuming authenticated preserved-state
-adoption, and G001 census/current-state execution retains unavailable callbacks
-and historical macOS monitor evidence. These are agent implementation work.
+The current bridge deployment `ec7c0f41-1404-40f8-9330-3c531afae621` serves
+version `79dfceec-9810-4868-afca-5b794d08a9a5`. Its named handlers do not include
+`ReleaseRecoveryObservationEntrypoint`. Complete the existing prepared bridge
+transition and observer configuration before deploying the preparation signer,
+then the gateway. The prepared bridge path preserves production authentication
+and does not depend on a signer preparation receipt. Default bridge configuration
+is not an acceptable replacement for that transition.
+
+The initial audit found two source gaps: fixture generation depended on legacy
+G002/PTR receipts, and G001 census/current-state execution depended on unavailable
+callbacks and historical macOS monitor evidence. The repairs and remaining
+integration work are recorded below; these are agent implementation tasks.
 Never substitute Linux process absence for a historical monitor-suspension
 receipt, or synthesize old realm publication/import/provision records.
 
-GitHub's authenticated browser showed no registered Apps. Opening the release
-App form requires renewed elevated authentication; the GitHub Mobile request
-expired without a completed approval. Resume the open browser's own verification
-flow when the owner is available. No App or credential was created. A final
-reviewable App configuration must retain the source-required read-only repository
-permissions and installation scope; routine Git/CI access is already working.
+GitHub's renewed elevated browser authentication succeeded on September 19.
+After the owner's action-time authorization, “Warpkeep Release Recovery” was
+registered as App `4995046` and installed as `162864794`, selecting only
+`ael-dev3/Warpkeep`. Its evidence-reader permissions are read-only Actions,
+Checks, Contents, Deployments, Metadata and Pages, with account-only installation
+and disabled webhooks. A key was generated, but its PEM is absent from the
+configured Downloads folder and the existing private bootstrap root. The pending
+request is for its local path only, so it can be retained privately and used to
+verify App-token access. No new registration, permission expansion or general
+approval is needed. This reader does not replace or restrict
+the existing GitHub write and provider deployment credentials.
+
+The existing local recovery bootstrap revalidated successfully. Its RPC secret
+and census pepper were provisioned directly into the existing protected
+`notification-bridge-prepared` environment as
+`WARPKEEP_RELEASE_RECOVERY_RPC_SECRET` and
+`WARPKEEP_RELEASE_RECOVERY_CENSUS_PEPPER`; GitHub metadata confirms both names.
+Their bytes were passed through stdin without being printed or committed.
+The prepared bridge caller now consumes them in its existing preserving upload,
+alongside the source-fixed G002 identity and initial observer epoch. Its separate
+six-secret predecessor and nine-secret candidate contracts preserve existing
+authentication, Durable Objects and migration identity. Historical completed
+seven-secret recovery remains supported. The 56 focused Windows tests passed;
+at published `3ecf9d08`, all 179 tests in the four affected suites then passed
+on native Linux without skips. Generated closure refresh and deployment remain.
+This secret provisioning and source verification are not a Worker deployment.
+
+### PTR fixture source repair
+
+The recovery materializer omitted `spacetimedb/gameplay04` even though current
+PTR source imports those shared rules. It now extracts both fixed namespaces
+from the same authenticated commit. The fixed repository, module-tree identity,
+blob reads and path/link checks are preserved; untracked files and similarly
+named directories cannot supply missing source. Historical PTR commits without
+shared imports remain supported.
+
+Before the fix, the native shared import failed and omitted shared link/blob
+checks did not reject. Afterward all five native Git-object regression scenarios
+passed under pinned WSL Node 22.22.3, including legacy commits, missing namespace,
+symlink and missing blob. Windows passed three portable cases (five explicitly
+native-only cases skipped), 66 adjacent fixture/host/toolchain tests and service
+types. No full production fixture generation or provider operation ran. Existing
+adoption provenance still needs its separate authenticated producer path.
+
+### Retained adoption reader
+
+The recovery producer can now authenticate retained PTR/G002 updates after
+protected main advances, using a separate historical-read capability. It reopens
+the original private completion, successful continuation and signed observation
+pair; it cannot issue permits, claim operations, create adapters or write records.
+The full repository tree remains distinct from the realm module tree.
+
+Independent review found no blocking issue. Pinned Windows Node 22.22.3 passed
+54 tests across the source-authority and signed-update suites, with six native-only
+cases explicitly skipped; application typechecking passed. Added historical-entry
+regressions cover genuine foreign stores and adoption/completion/terminal changes
+during signature verification and after evidence creation. Native Linux then
+passed all 60 cases without skips at `32cde68c`.
+
+The fixed compiled reader now connects that historical evidence to the Windows
+fixture producer through the existing attested native bundle. Explicit
+`--evidence=existing-state` selects signed retained G002/PTR adoption data;
+legacy mode retains its original inputs and there is no automatic fallback.
+The producer proves each historical repository/module tree, rebuilds the installed
+module, compares both SHA256 and Keccak256, and reopens authenticated adoption
+after the build before publishing the unchanged fixture-manifest format.
+An existing authenticated `gh` session can supply the bounded GitHub reads through
+private stdin; no credential is written into a request, manifest or log.
+
+The combined Windows reader/producer checks passed 237 root tests with 44
+native-only skips, and 84 service tests with five native-only skips. Application
+and service typechecks passed. Independent review found no blocking issue.
+These tests include explicitly labeled host/private/HTTP emulation. Actual fixed
+native bundle preparation, private-corpus reading and fixture generation remain
+to be run from the integrated source; no production receipt was fabricated.
+
+### Census interruption repair
+
+The second census now validates the complete stable pair before persisting it.
+If collection succeeded but confirmation or activation metadata was interrupted,
+the retry authenticates the retained observation and the original workflow's
+terminal state before completing only those deterministic records. It preserves
+the original expiry and refuses conflicting bytes, a live original claim or
+an unrelated completion digest. No collection or suspension is repeated.
+
+Source review and syntax checks passed. The first native run exposed a missing
+version-directory segment in the new tests' direct fixture paths. After fixing
+the paths and requiring proof that the tamper hook actually replaced its target,
+all 83 dispatcher tests passed under native Linux Node 22.22.3 at `2df17464`.
+Fresh-first lifecycle
+recovery and duplicate downstream continuation issuance remain unsupported;
+this repair does not enable the unavailable Linux production census caller.
+
+### Linux freeze evidence format
+
+The pure V6 candidate/projection format replaces Mac monitor assertions with
+explicit server-freeze confirmation and current-state receipt commitments.
+Its codecs preserve the existing census framing and expiry, authenticate the
+shape of Linux policy provenance and require a distinct later observation.
+Producer/private-store authentication remains a separate required step.
+
+Independent review found no blocking issue. The focused root codec/candidate/
+policy suites and service projection suite passed, as did service types; fixed
+regression hashes preserve V2–V5 binding bytes and V1 is untouched. The final
+codec run passed 22 cases. This format checkpoint neither changes the G001 access
+policy nor suspends player timers. The subsequent producer/public-consumer
+integration follows below; private activation composition remains in progress.
+
+The native census producer now collects both stable samples in one authenticated
+read-only execution. It uses the existing admin session and aggregate-checked
+admission reader, waits the original stable interval, then observes confirmation
+and current policy in strictly increasing order. An immutable complete attempt
+is retained only after actual child cleanup and exact private-report/proof
+reopening. Interrupted attempts are not selected; no suspension, new continuation
+claim or provider mutation was introduced. Both observations can truthfully
+share one native execution while retaining their distinct observation digests.
+
+Independent review found no blocking defect; a small nested-record immutability
+issue was corrected without changing receipt bytes. The 64 focused tests passed
+on Windows with one POSIX-only private-retention case skipped; application types
+passed. The final attempt-only regression rerun passed 11 with that same single
+skip. Native Linux at `3bc1696b` subsequently passed all 65 census/attempt/freeze/
+lifecycle cases and all 38 descriptor/build/policy cases without skips. These
+checks do not claim a production census. Protected admin-token ingress and
+dispatch/activation integration remain required. The public
+result selects an explicit source/workflow/attempt/digest; it does not select the
+newest directory or assert a successful production census.
+
+### Protected Linux census and V6 consumers
+
+`g001-freeze-census` now routes through the existing protected read-only job.
+It reuses the protected admin secret, removes it from the process environment
+before the credential-free build, and passes it to the census child through an
+owned disposable file/descriptor. Cleanup removes that file. The result contains
+only an explicit completed-attempt selector. No persistent policy-token copy,
+Mac suspension receipt or new continuation approval is required.
+
+Activation's completed-run reader authenticates that exact source, workflow run,
+attempt, operation title, successful runner/job and successful execution step.
+It rechecks live activation and the latest census attempt after the intervening
+reads; failed/skipped/superseded runs cannot supply evidence. The private consumer
+must still reopen and compare the selected retained attempt after those reads.
+
+The signer receiver, JWS reader, Pages classifier, Git source authority and
+prepared-closure reader accept the native V6 format while preserving V1–V5
+contracts and the private bridge V5 receipt. The combined dispatch/workflow/source/
+census checks passed 174 Windows tests with 40 Linux-only cases skipped. App
+types passed. Public receiver/projection tests passed 346 cases, the actual
+Git/prepared-closure CLI passed 16, and focused V6 Git-history checks passed two.
+Independent source review found no remaining blocking issue in these slices.
+The live activation scope can now authenticate retained historical Verify
+evidence with its existing token internally, without another login or a new
+workflow identity. Fifteen focused cases pass, including expiry, revocation,
+changed source and an actual run stopping or rerunning during the historical
+reads. Private adoption composition still owns the data-to-current-release join.
+Native execution, private activation composition, regenerated family, protected
+main CI and provider execution remain separate steps; 0.4 is still unshipped.
+
+The fixed native `production-admin-v1/g001-policy-observation` directory was
+absent. It is now provisioned empty under the existing private root, with verified
+`warpkeep` ownership, mode `0700`, real parents and directory fsync. No token or
+receipt was created. The workflow will use its already provisioned protected
+secret for each disposable census execution.
+
+Actual pinned native builds at clean `3bc1696b` completed successfully: G001/G002
+program artifacts took 264.37 seconds and PTR bindings took 203.50 seconds. Both
+used the real locked build cycles; output bytes were discarded after validation
+and source remained unchanged. Their combined 7 minutes 48 seconds exceed the
+five-minute current-state freshness window before activation overhead. The
+external census-then-build sequence is therefore not an operable release path.
+The repair collects fresh census evidence inside the genuine activation run
+after expensive preparation; its integration is in progress. The selected
+external completed-attempt path remains useful for diagnostics but must not be
+presented as a reliably timed shipping sequence.
+
+Source-graph derivation also exposed previously unlisted fixed local-runtime
+imports now reached by activation. The closure policy now enumerates their
+existing attested expressions and the externally compiled census entry, without
+allowing arbitrary dynamic paths. Its focused regression and app types pass.
+Generated manifests/bundles still require their normal complete derivation.
+
+At published `7e86dbe9`, eight native Linux suites passed all 338 tests without
+skips, covering workflow evidence/authority, source, dispatch, census attempt,
+native lifecycle and workflow shell execution. The recovery service's full
+unit suite passed 1,346 tests with five native-only fixture cases skipped on
+Windows; that suite establishes code behavior, not a production deployment.
+
+The inline native producer now accepts the actual activation operation and
+existing live permit, collects after preparation, and returns same-process
+evidence bound to the reopened complete attempt. It never describes the live
+activation job as a completed census workflow. Independent review found no
+blocking issue; its four affected suites passed 80 tests on Windows with two
+Linux-only skips, and app types passed. The explicit dispatch value is
+`g001_census_attempt: inline`; private activation composition is still being
+integrated, and the generated family is not yet refreshed.
+
+At published `4a50c453`, all 82 tests in the four affected native Linux suites
+passed without skips. The full recovery-service check also passed application
+and Workerd types, Wrangler binding validation and all 66 Workerd tests; its
+1,346 passing unit tests retain the five explicitly native-only Windows skips
+noted above. These results do not establish production census or deployment.
+
+The inline activation continuation now shares the original activation scope,
+so it cannot bypass an older unresolved or completed effect. Its issuance and
+claim use the actual generation operation and exact same run and attempt. A
+fresh dispatch can recover an earlier terminal inline issuance that never
+claimed an effect, using the existing exclusive reconciliation reservation and
+an authenticated no-effect terminal. No claimed record is invented. The existing
+authority requires a different run ID: use a fresh dispatch after cancellation,
+not GitHub's rerun of that same run. Completed-record reads validate all history
+and the exact successful binding while allowing earlier no-effect evidence.
+
+Independent review identified and resolved both cross-mode replay and stranded
+issuance cases. The three-file checkpoint adds 30 regression cases and passes
+application types and source review; native continuation/completion execution
+remains required. The actual fresh-bridge/issue/claim caller is still being
+integrated. No new runtime gameplay features are part of this maintenance work.
+
+The private V6 corpus now joins authenticated historical PTR/G002 adoption with
+the current native program comparison and explicit Linux census. It preserves
+historical module provenance while deriving bridge configuration from the fresh
+current observation. It accepts the selected completed diagnostic attempt or
+the genuine inline capability; generation builds before collection and requests
+the short-lived preparation observation afterward. V2–V5 formats remain intact.
+The actual same-run bridge/continuation integration is still unfinished.
+
+This private checkpoint passed application types, 132 baseline tests with 15
+native-only Windows skips, and all 77 focused tests. The new connected adoption
+fixture passed with a different current bridge source/version and V6 descriptor
+and projection; three corpus-change races and stale-new-candidate rejection also
+passed. These private-source tests use synthetic retained data, not production
+census, adoption or provider deployment. Native verification is recorded below.
+
+At published `f7e7ce5f`, all 202 tests in nine native Linux suites passed without
+skips, including the complete activation-records and connected V6 adoption
+fixtures. At `cf1b713e`, all 58 continuation tests and six of seven completion
+tests passed. The remaining test caught error-order drift from the earlier
+historical-reader extraction: a forged store reached source validation first.
+Restoring store/owner validation before authority restores the established
+capability error; its targeted regression passes. At the published correction
+`2a90a872`, all 65 native continuation/completion tests passed without skips.
+
+The fresh inline caller now collects/selects its own immutable bridge receipt
+after the genuine census, then issues and claims within the same generation
+run. Diagnostic inline inspection retains its receipt without reserving the
+generation action. Existing diagnostic receipts remain unchanged; selection
+uses the exact newly written digest, never the newest file. Candidate assembly
+is deferred until that bridge evidence exists, with full validation at generation.
+Legacy inspection and separate-run generation retain their original behavior.
+
+Independent review found no blocking issue in this bounded fresh-caller slice.
+Application types and its connected Windows regression passed, separating
+inspection from generation by more than ten minutes and using a different
+census. All 38 selected legacy bridge/generator tests also passed. Native actual
+inline dispatch and output generation subsequently passed at published
+`c31bff9e`: the native connected case exercised the actual protected dispatcher,
+same-run claim and generated descriptor/public artifact. All 136 tests in the
+bridge-state and recovery-bridge runtime suites also passed without skips.
+Already-written V6 output uses the separate completed-only retry path described
+below, retaining original evidence at authenticated generation time without
+requesting a new census or signer observation.
+
+Published `11ad901d` adds data-only readers for that retry. They reopen
+the exact completed output family, native census and retained signed preparation
+at the original authenticated generation time. Copied contexts, foreign private
+stores and use as fresh generation evidence are rejected. Independent review
+found and repaired an ownership gap in the active reconciliation path; its
+regression uses a genuine alternate store and ambiguous claim. Preparation
+checks passed 36 direct, 19 signed-observation and 13 selected legacy cases on
+Windows, with application types and both selected connected cases passing.
+At that exact published source, all 82 preparation tests passed on native Linux.
+The selected connected completed-context case also passed, including the genuine
+foreign-owner reconciliation regression; 35 unrelated cases were unselected.
+
+The reviewed caller now selects an existing completed inline family before any
+new census, preparation request or bridge provider is constructed. The actual
+activation lane either reopens successful completion or reconciles the original
+uncertain claim after its run has terminated, then reopens the output before
+reporting success. Reconciled completion also binds the exact generation receipt
+to the journal's observation digest. Malformed or partial output is preserved
+and rejected. Fresh and legacy generation remain separate existing paths.
+
+Independent review passed after the receipt commitment repair. Application types
+and all 29 workflow lifecycle cases passed on Windows. The connected regression
+exercises normal completion and an actual private-write interruption before
+terminal acknowledgement, followed by two retries 24 hours later. Its fixed
+Git/artifact candidate projection is an explicit fixture seam, so this is not
+full native release preparation or deployed acceptance. Both native caller cases
+passed at published `15a6a0cf`, including two completed retries after expiry in
+each case; 35 unrelated cases were unselected. All 158 native bridge/candidate
+compatibility tests and all 83 dispatcher tests also passed. Additional candidate assembly
+coverage passes 25 Windows cases, explicitly checking shared context identity,
+retained facts and rejection of mixed fresh/completed inputs. The connected
+fixture also now asserts the exact clock used by its final expiry read.
+The preparation runbook consistently directs source-only
+M1, native prepare/check from exact protected M1, then generated-only M2.
+
+After ordinary integration of protected `68cfc928` into the development branch,
+published `7d18304f` passed all 15 selected native completed-candidate/retry cases,
+including the corrected expiry clock and earlier V4/V5 completion paths; 47
+unrelated cases were unselected. Source-only derivation then identified a real
+packaging limit: the complete canonical source manifest needs 263,411 bytes,
+exceeding the earlier 262,144-byte bound by 1,267 bytes. No output was installed
+by that failed derivation. The producer/parser and installed-toolchain reader
+now share a 512 KiB bound, preserving the exact member, canonical-byte and hash
+checks. Boundary regressions use valid canonical documents at the limit and
+one byte above it. Generated family installation follows verification of this
+source repair; the compiled operation provenance is unchanged.
+
+At published `f4611936`, all three selected native manifest boundary cases
+passed. Source-only derivation verified 1,268 input files against their Git
+blobs and returned the fixed 16-output family, with 13 changed files. A fresh
+process reproduced every installed byte and verified the complete 1,258-member
+closure, manifest `9751f69a8b88531bb0dc7cd96257f6a1956716cae2fb360d7d156919a62e92bd`.
+The family was copied into the unchanged Windows source only after those checks.
+This is M1 source closure, not a compiled native preparation completion.
+
+The native reader also found three retained root-owned files: `verify.yml`,
+`local-fullstack-spacetime.mjs` and the recovery claim bundle. Their absolute
+paths, regular-file identity and exact Git bytes were checked; only ownership
+was corrected to `warpkeep` (UID/GID 1000), and the bytes were rechecked. Run
+ordinary native Git, builds and tests as that account. No broad recursive
+ownership change, dependency installation or duplicate checkout was needed.
+
+The clean checked-in sealed-launch check then identified a stale static operation
+list: it omitted the already implemented `g001-freeze-census` caller. The verifier
+now includes that operation and its existing exact-membership regression checks
+that removing it still fails even after source pins are regenerated. All nine
+focused operation-membership cases passed on Windows (160 unrelated cases were
+not selected). At published `88059172`, native derivation checked all 1,268 inputs
+against Git again; a fresh process reproduced all 16 outputs and passed the full
+policy/manifest check. Only the manifest and four workflow manifest pins changed,
+to manifest `ba727f2881dd88c7e6d24e4c47f2ea0bc5c12bbaa3a74edf75d086ac8a16504e`.
+App/test types also passed. Final clean checked-in verification and M1 integration
+follow this synchronized source family.
+
+At `5357d810`, the clean checked-in sealed-launch check passed in preparation
+phase with deployment disabled. Native verification passed 455 of 456 cases in
+ten affected suites. The remaining test expected two now-typed Linux modules to
+have no declaration in the closure; the actual derived graph correctly includes
+their declarations. The test's stale exception list is corrected, retaining the
+exact executable/declaration pairing assertion. Its focused native rerun passed at
+the final source head. The V6 contract repair then corrected ambient-environment
+error precedence, marked V6 as supported in the older-version rejection tests,
+and allowed the retained-fixture reader in the activation entry surface. Four
+affected Windows suites passed 753/753; the native closure regression passed.
+At `bca105e5`, a fresh native derivation checked 1,268 Git inputs and reproduced
+all 16 outputs, with manifest `da2c2ab1beeb99e24d8abdff28122e74b74efccaca2c6a128c90d7ad45a01ccf`.
+Independent static-source and current-documentation reviews passed; the handoff
+now distinguishes completed source work from pending provider setup.
 
 ### Shipping estimate and next critical work
 
@@ -169,8 +531,8 @@ allowance, not a promised calendar date; it excludes unknown waits for retained
 private records or owner/device availability. A significant acceptance failure
 would require re-estimation. Source/test counts are not a completion percentage.
 
-Next: integrate the initial signer repair after its exact-head checks, then finish
-the identified native producer gaps. Prepare
+Next: finish source-only PR #301 checks and merge M1. Its reviewed source closure
+is derived; the initial signer repair is already merged. Prepare
 and independently check the family from its actual M1, promote M2 and wait for
 that main Verify. Then use supported read-only inspections to identify each
 remaining private prerequisite and its existing producer. Missing implementation

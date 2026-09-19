@@ -19,7 +19,10 @@ import {
 import {
   assertSealedRealmsProductionContinuationClaim,
   assertSealedRealmsProductionContinuationReconciliation,
+  readSealedRealmsProductionContinuationCompletion,
+  reconcileSealedRealmsProductionContinuation,
 } from './sealed-realms-production-continuation.mjs';
+import { attestSealedRealmsProductionActivationRead } from './sealed-realms-production-workflow-authority.mjs';
 import { types } from 'node:util';
 import {
   assertSealedRealmsProductionBridgeProvider,
@@ -31,9 +34,19 @@ import {
   readSealedRealmsProductionG002ExistingStateAdoptionEvidence,
   assertSealedRealmsProductionActivationRecordsAuthority,
   inspectSealedRealmsProductionRecoveryActivationRecords,
+  readSealedRealmsProductionRecoveryReceiptProjection,
   writeSealedRealmsProductionRecoveryActivationDescriptor,
+  createSealedRealmsProductionActivationRecords,
+  readSealedRealmsProductionCompletedGenerationSelection,
+  readSealedRealmsProductionCompletedGenerationContext,
+  authenticateSealedRealmsProductionCompletedLinuxRecoveryEvidence,
+  isSealedRealmsProductionCompletedRecoveryEvidence,
 } from './sealed-realms-production-activation-records.mjs';
+import { readSealedRealmsProductionRecoveryCandidate } from './sealed-realms-production-recovery-candidate.mjs';
 import { generateRecoveryLaunchActivationBindingFromDescriptor, validateRecoveryLaunchActivationProjection } from './generate-0.4.0-recovery-launch-activation.mjs';
+import { readSealedRealmsProductionLinuxRecoveryEvidence, isSealedRealmsProductionInlineRecoveryEvidence } from './sealed-realms-production-activation-records.mjs';
+import { projectGenesis001LinuxFreezeEvidence } from './genesis001-linux-freeze-receipt.mjs';
+const joinedBridgeAdoptions = new WeakMap();
 import { verifySealedRealmsPublicActivationBytes } from './verify-sealed-realms-public-activation-artifact.mjs';
 import {
   ACTIVATION_GENERATION_RECEIPT_PROFILE,
@@ -75,6 +88,9 @@ const observations = new WeakMap();
 const bridgeStates = new WeakSet();
 const bridgeStateSources = new WeakMap();
 const bridgeFactReaders = new WeakMap();
+const bridgeLinuxOwners = new WeakMap();
+const completedGenerations = new WeakMap();
+const activeCompletedGenerations = new WeakMap();
 const testOnlyCapabilities = new WeakSet();
 const gateConfirmations = new WeakMap();
 const activationConfirmations = new WeakMap();
@@ -844,7 +860,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   const options = allowedObject(input, [
     'authority', 'privateState', 'repositoryRoot', 'reportedHome',
     'deploymentAttester', 'bindingAttester', 'fetchImpl', 'now', 'randomBytesImpl',
-    'bridgeProvider', 'existingStateAdoption', 'g002ExistingStateAdoption',
+    'bridgeProvider', 'existingStateAdoption', 'g002ExistingStateAdoption', 'linuxRecoveryEvidence',
     'inspectImportReceipt', 'authenticateImportResult', 'resolveOwnerProvisionReceipt',
     'testOnlyCapability', 'testOnlyResolvePreparedReceipt',
     'testOnlyResolveCompletedJournal',
@@ -893,21 +909,37 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   if (options.authority.mode !== 'S') {
     fail('SEALED_REALMS_AUTH_BRIDGE_SOURCE_MODE_INVALID');
   }
+  const readJoin = options.linuxRecoveryEvidence === undefined ? undefined : () => {
+    if (options.existingStateAdoption === undefined || options.g002ExistingStateAdoption === undefined) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
+    return readSealedRealmsProductionLinuxRecoveryEvidence({ evidence: options.linuxRecoveryEvidence, privateState, sourceCommit });
+  };
   const readAdoption = options.existingStateAdoption === undefined ? undefined : () => {
     try {
-      return readSealedRealmsProductionPtrExistingStateAdoptionEvidence({
-        evidence: options.existingStateAdoption, privateState, sourceCommit,
+      const joined = readJoin?.();
+      const adoption = readSealedRealmsProductionPtrExistingStateAdoptionEvidence({
+        evidence: options.existingStateAdoption, privateState, sourceCommit: joined?.ptr.sourceCommit ?? sourceCommit,
       });
+      if (joined) {
+        if (JSON.stringify(adoption) !== JSON.stringify(joined.ptr)) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
+        const wrapped = Object.freeze({ ...adoption });
+        joinedBridgeAdoptions.set(wrapped, readJoin);
+        return wrapped;
+      }
+      return adoption;
     } catch { fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID'); }
   };
   const readG002Adoption = options.g002ExistingStateAdoption === undefined ? undefined : () => {
     if (readAdoption === undefined) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
     try {
-      return readSealedRealmsProductionG002ExistingStateAdoptionEvidence({
-        evidence: options.g002ExistingStateAdoption, privateState, sourceCommit,
+      const joined = readJoin?.();
+      const adoption = readSealedRealmsProductionG002ExistingStateAdoptionEvidence({
+        evidence: options.g002ExistingStateAdoption, privateState, sourceCommit: joined?.g002.sourceCommit ?? sourceCommit,
       });
+      if (joined && JSON.stringify(adoption) !== JSON.stringify(joined.g002)) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
+      return adoption;
     } catch { fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID'); }
   };
+  readJoin?.();
   readAdoption?.();
   readG002Adoption?.();
   const now = options.now ?? (() => new Date());
@@ -2109,17 +2141,36 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     return Object.freeze({});
   };
 
-  const assertNoActivationReplay = () => {
+  let inlineSelectionDigest;
+  const activationInventory = () => {
     const existing = privateState.list({
       root: 'runtime', relativeDirectory: 'bridge/activation-evidence',
     });
-    if (
-      existing.some(name => !/^auth-bridge-suspension-[a-f0-9]{64}\.json$/u.test(name))
-      || existing.length !== 0
-    ) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_REPLAY');
+    if (existing.length > MAX_CHAIN_RECORDS || existing.some(name => !/^auth-bridge-suspension-[a-f0-9]{64}\.json$/u.test(name))) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_REPLAY');
+    }
+    return existing.map(name => {
+      const bytes = privateState.read({ root: 'runtime', relativePath: `bridge/activation-evidence/${name}` });
+      try { if (bytes.length > 256 * 1024) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_REPLAY'); return [name, digest(bytes)]; }
+      finally { bytes.fill(0); }
+    });
   };
 
-  const inspectActivationEvidence = async () => {
+  // The append mode is reachable only through the guarded inline method below.
+  const inspectActivationEvidenceInternal = async (inline = false) => {
+    if (options.linuxRecoveryEvidence !== undefined && isSealedRealmsProductionCompletedRecoveryEvidence({
+      evidence: options.linuxRecoveryEvidence, privateState, sourceCommit })) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_REPLAY');
+    const initialInventory = activationInventory();
+    if ((!inline && initialInventory.length !== 0) || initialInventory.length === MAX_CHAIN_RECORDS) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_REPLAY');
+    const assertInventory = () => {
+      if (JSON.stringify(activationInventory()) !== JSON.stringify(initialInventory)) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_REPLAY');
+    };
+    const assertFreshCensus = () => {
+      const joined = readJoin?.();
+      if (joined) projectGenesis001LinuxFreezeEvidence({ preparationSourceCommit: sourceCommit,
+        confirmationReceipt: joined.census.freezeConfirmationReceipt, currentStateReceipt: joined.census.freezeCurrentStateReceipt }, currentTime(now).toISOString());
+    };
+    assertFreshCensus();
     const established = await establish();
     const chain = established.chain;
     const adoption = readAdoption?.();
@@ -2129,7 +2180,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     if (g002Adoption !== undefined) assertG002AdoptionBridgeScope(g002Adoption, adoption, chain);
     const facts = await resolveFacts();
     const authority = assertFactsMatchAuthority(facts, chain);
-    assertNoActivationReplay();
+    assertInventory();
     const observation = await inspectSealedRealmsAdmissionSuspension({ fetchImpl: options.fetchImpl });
     const privateObservation = privateSuspensionObservation(observation);
     const finalFacts = await resolveFacts();
@@ -2201,7 +2252,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
       } : { ptrExistingStateAdoptionReceiptDigest: adoption.adoptionReceiptDigest }),
       activationGate,
     });
-    assertNoActivationReplay();
+    assertInventory();
     const bytes = canonicalJsonBytes(
       receipt,
       256 * 1_024,
@@ -2222,6 +2273,8 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
           fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
         }
       }
+      assertFreshCensus();
+      assertInventory();
       privateState.write({ root: 'runtime', relativePath, bytes });
     } catch (error) {
       if (error?.code !== 'SEALED_REALMS_PRIVATE_STATE_FILE_EXISTS') throw error;
@@ -2252,6 +2305,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     }));
     return Object.freeze({ confirmation });
   };
+  const inspectActivationEvidence = () => inspectActivationEvidenceInternal();
 
   const activationContinuationBinding = (member) => Object.freeze({
     subject: 'activation-evidence:0.4.0',
@@ -2270,16 +2324,32 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     return activationContinuationBinding(member);
   };
 
+  const inspectInlineActivationEvidenceForContinuation = async input => {
+    const supplied = captureGenerationInput(input, ['generator', 'authority']);
+    if (readSealedRealmsProductionActivationGenerationKind({ generator: supplied.generator, bridgeState: state,
+      authority: supplied.authority }) !== 'activation-evidence-inline') fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
+    if (inlineSelectionDigest !== undefined) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_REPLAY');
+    const inspected = await inspectActivationEvidenceInternal(true);
+    readSealedRealmsProductionActivationGenerationKind({ generator: supplied.generator, bridgeState: state, authority: supplied.authority });
+    const member = activationConfirmations.get(inspected.confirmation);
+    if (!member) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+    activationConfirmations.delete(inspected.confirmation);
+    inlineSelectionDigest = member.receiptDigest;
+    const binding = activationContinuationBinding(member);
+    activationSelections.set(binding, member);
+    return binding;
+  };
+
   const readActivationContinuationSnapshot = () => {
     const names = privateState.list({
       root: 'runtime', relativeDirectory: 'bridge/activation-evidence',
     });
     if (
-      names.length !== 1
-      || !/^auth-bridge-suspension-[a-f0-9]{64}\.json$/u.test(names[0])
+      (inlineSelectionDigest === undefined ? names.length !== 1 : !names.includes(`auth-bridge-suspension-${inlineSelectionDigest}.json`))
+      || names.length > MAX_CHAIN_RECORDS || names.some(name => !/^auth-bridge-suspension-[a-f0-9]{64}\.json$/u.test(name))
     ) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
-    const receiptDigest = names[0].slice('auth-bridge-suspension-'.length, -'.json'.length);
-    const receiptPath = `bridge/activation-evidence/${names[0]}`;
+    const receiptDigest = inlineSelectionDigest ?? names[0].slice('auth-bridge-suspension-'.length, -'.json'.length);
+    const receiptPath = `bridge/activation-evidence/auth-bridge-suspension-${receiptDigest}.json`;
     const bytes = privateState.read({ root: 'runtime', relativePath: receiptPath });
     let receipt;
     try {
@@ -2376,7 +2446,8 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
 
   const consumeActivationEvidenceForContinuation = async (input = {}) => {
     const options = captureGenerationInput(input, [...GENERATION_CLAIM_KEYS, 'generator']);
-    requireContinuationClaim(options, 'activation-evidence', 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+    const kind = readSealedRealmsProductionActivationGenerationKind({ generator: options.generator, bridgeState: state, authority: options.sourceAuthority });
+    requireContinuationClaim(options, kind, 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
     const generator = requireActivationGenerator(options.generator, privateState, sourceCommit);
     const member = await reopenActivationContinuationMember();
     requireGenerationBinding(options, member);
@@ -2395,9 +2466,10 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     activationSelections.delete(options.selection);
     const generator = requireActivationGenerator(options.generator, privateState, sourceCommit);
     const completion = readGenerationCompletion(generator, member);
+    const kind = readSealedRealmsProductionActivationGenerationKind({ generator: options.generator, bridgeState: state, authority: options.sourceAuthority });
     assertSealedRealmsProductionContinuationReconciliation({
       reconciliation: options.reconciliation, store: options.store, sourceAuthority: options.sourceAuthority,
-      kind: 'activation-evidence', ...activationContinuationBinding(member),
+      kind, ...activationContinuationBinding(member),
       claimRunId: completion.receipt.runId, claimRunAttempt: completion.receipt.runAttempt,
     });
     if (options.sourceAuthority.authorityDigest !== completion.receipt.sourceAuthorityDigest) {
@@ -2425,6 +2497,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     inspectLiveEvidence,
     inspectActivationEvidence,
     inspectActivationEvidenceForContinuation,
+    inspectInlineActivationEvidenceForContinuation,
     reopenActivationEvidenceContinuation,
     consumeActivationEvidenceForContinuation,
     reconcileActivationEvidenceForContinuation,
@@ -2432,6 +2505,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   bridgeStates.add(state);
   bridgeStateSources.set(state, sourceCommit);
   bridgeFactReaders.set(state, { privateState, read: readRecoveryBridgeFacts });
+  if (options.linuxRecoveryEvidence !== undefined) bridgeLinuxOwners.set(state, options.linuxRecoveryEvidence);
   return state;
 }
 
@@ -2494,6 +2568,15 @@ function requireActivationChainPhase(chain, adoption, code, g002Adoption = false
 function assertAdoptionBridgeScope(adoption, chain) {
   const observation = adoption.pair.post.observation;
   const deployment = chain.deployment.value;
+  const readJoined = joinedBridgeAdoptions.get(adoption);
+  if (readJoined) {
+    const joined = readJoined();
+    if (JSON.stringify(joined.ptr) !== JSON.stringify(adoption) || deployment.sourceCommit !== joined.sourceCommit
+      || deployment.bridgeSourceCommit !== joined.sourceCommit || observation.ptr.databaseIdentity !== deployment.ptrDatabaseIdentity) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_ADOPTION_INVALID');
+    }
+    return;
+  }
   if (adoption.sourceCommit !== deployment.sourceCommit
     || observation.ptr.databaseIdentity !== deployment.ptrDatabaseIdentity
     || observation.bridgeWorkerVersionId !== deployment.workerVersionId
@@ -2746,29 +2829,40 @@ export function createSealedRealmsProductionActivationEvidenceGenerator(input) {
   const options = captureGenerationInput(input, ['records', 'privateState', 'authority',
     ...(Object.hasOwn(input, 'existingStateAdoption') ? ['existingStateAdoption'] : []),
     ...(Object.hasOwn(input, 'g002ExistingStateAdoption') ? ['g002ExistingStateAdoption'] : []),
+    ...(Object.hasOwn(input, 'linuxRecoveryEvidence') ? ['linuxRecoveryEvidence'] : []),
     ...(testing ? ['testOnlyCapability', 'testOnlyPreparationBootstrapAuthority'] : [])]);
   if (testing) assertSealedRealmsProductionAuthBridgeStateTestCapability(options.testOnlyCapability);
+  if (options.linuxRecoveryEvidence !== undefined && isSealedRealmsProductionCompletedRecoveryEvidence({
+    evidence: options.linuxRecoveryEvidence, privateState: options.privateState,
+    sourceCommit: sourceCommitFromSealedRealmsProductionAuthority(options.authority) })) fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
   assertSealedRealmsProductionActivationRecordsAuthority({ records: options.records, privateState: options.privateState, authority: options.authority });
   let completedAt;
   if (options.privateState.list({ root: 'runtime' }).includes('public')) {
     const bytes = options.privateState.read({ root: 'runtime', relativePath: `public/${GENERATION_RECEIPT}` });
     try { completedAt = parseActivationGenerationReceipt(bytes).generatedAt; } finally { bytes.fill(0); }
   }
-  inspectSealedRealmsProductionRecoveryActivationRecords(options.records, completedAt);
+  const inline = options.linuxRecoveryEvidence !== undefined && isSealedRealmsProductionInlineRecoveryEvidence({
+    evidence: options.linuxRecoveryEvidence, privateState: options.privateState,
+    sourceCommit: sourceCommitFromSealedRealmsProductionAuthority(options.authority) });
+  if (!inline || completedAt !== undefined) inspectSealedRealmsProductionRecoveryActivationRecords(options.records, completedAt);
+  else readSealedRealmsProductionRecoveryReceiptProjection(options.records);
   const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(options.authority);
   if (options.authority.mode !== 'S'
     || preparationSourceCommitFromSealedRealmsProductionAuthority(options.authority) !== sourceCommit) {
     fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
   }
+  const joined = options.linuxRecoveryEvidence === undefined ? undefined : readSealedRealmsProductionLinuxRecoveryEvidence({
+    evidence: options.linuxRecoveryEvidence, privateState: options.privateState, sourceCommit });
+  if (joined && (options.existingStateAdoption === undefined || options.g002ExistingStateAdoption === undefined)) fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
   if (options.existingStateAdoption !== undefined) {
     readSealedRealmsProductionPtrExistingStateAdoptionEvidence({
-      evidence: options.existingStateAdoption, privateState: options.privateState, sourceCommit,
+      evidence: options.existingStateAdoption, privateState: options.privateState, sourceCommit: joined?.ptr.sourceCommit ?? sourceCommit,
     });
   }
   if (options.g002ExistingStateAdoption !== undefined) {
     if (options.existingStateAdoption === undefined) fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
     readSealedRealmsProductionG002ExistingStateAdoptionEvidence({
-      evidence: options.g002ExistingStateAdoption, privateState: options.privateState, sourceCommit,
+      evidence: options.g002ExistingStateAdoption, privateState: options.privateState, sourceCommit: joined?.g002.sourceCommit ?? sourceCommit,
     });
   }
   const generator = Object.freeze({});
@@ -2779,6 +2873,30 @@ export function createSealedRealmsProductionActivationEvidenceGenerator(input) {
 export function assertSealedRealmsProductionActivationEvidenceGenerator(generator) {
   if (!activationGenerators.has(generator)) fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
   return generator;
+}
+
+/** A same-run kind is selected only by actual native census and matching owners. */
+export function isSealedRealmsProductionInlineActivationBridge(input) {
+  const options = captureGenerationInput(input, ['bridgeState', 'authority']);
+  assertSealedRealmsProductionAuthBridgeStateAuthority(options.bridgeState, options.authority);
+  const evidence = bridgeLinuxOwners.get(options.bridgeState);
+  if (evidence === undefined) return false;
+  return isSealedRealmsProductionInlineRecoveryEvidence({ evidence,
+    privateState: bridgeFactReaders.get(options.bridgeState).privateState,
+    sourceCommit: sourceCommitFromSealedRealmsProductionAuthority(options.authority) });
+}
+
+export function readSealedRealmsProductionActivationGenerationKind(input) {
+  const options = captureGenerationInput(input, ['generator', 'bridgeState', 'authority']);
+  assertSealedRealmsProductionAuthBridgeStateAuthority(options.bridgeState, options.authority);
+  const owner = bridgeFactReaders.get(options.bridgeState);
+  const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(options.authority);
+  if (options.authority.mode !== 'S' || options.authority.operation !== 'activation-evidence-generate') fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
+  const generator = requireActivationGenerator(options.generator, owner.privateState, sourceCommit);
+  if (generator.linuxRecoveryEvidence === undefined) return 'activation-evidence';
+  if (bridgeLinuxOwners.get(options.bridgeState) !== generator.linuxRecoveryEvidence) fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
+  return isSealedRealmsProductionInlineActivationBridge({ bridgeState: options.bridgeState,
+    authority: options.authority }) ? 'activation-evidence-inline' : 'activation-evidence';
 }
 
 /** Exercises a synchronous legacy verifier inside a genuine claim, only in tests. */
@@ -2845,7 +2963,7 @@ function readGenerationCompletion(generator, member) {
     const corpus = inspectSealedRealmsProductionRecoveryActivationRecords(generator.records, receipt.generatedAt);
     const bridge = reopenGenerationBridgeEvidence(member);
     const expected = validateRecoveryLaunchActivationProjection(
-      JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(descriptorBytes)), bridge, receipt.generatedAt, generator.existingStateAdoption, generator.g002ExistingStateAdoption,
+      JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(descriptorBytes)), bridge, receipt.generatedAt, generator.existingStateAdoption, generator.g002ExistingStateAdoption, generator.linuxRecoveryEvidence,
     );
     const artifact = JSON.parse(Buffer.from(artifactBytes).toString('utf8'));
     if (receipt.sourceCommit !== member.sourceCommit
@@ -2868,6 +2986,103 @@ function readGenerationCompletion(generator, member) {
     artifactBytes?.fill(0);
     descriptorBytes?.fill(0);
   }
+}
+
+/** Fixed completed-output route; the selector itself grants no continuation authority. */
+export function createSealedRealmsProductionCompletedActivationGeneration(input) {
+  const options = captureGenerationInput(input, ['privateState', 'authority', 'store', 'selection',
+    'existingStateAdoption', 'g002ExistingStateAdoption', 'programArtifacts', 'sourceClosure']);
+  readSealedRealmsProductionCompletedGenerationSelection({ selection: options.selection,
+    privateState: options.privateState, authority: options.authority });
+  const capability = Object.freeze({}); completedGenerations.set(capability, options); return capability;
+}
+export function assertSealedRealmsProductionCompletedActivationGeneration(capability) {
+  if (!completedGenerations.has(capability)) fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
+  return capability;
+}
+
+function completedBridgeMember(state, selected, evidence) {
+  const readJoin = () => readSealedRealmsProductionLinuxRecoveryEvidence({ evidence,
+    privateState: state.privateState, sourceCommit: selected.receipt.sourceCommit });
+  const readAdoption = () => {
+    const joined = readJoin(), adoption = Object.freeze({ ...joined.ptr });
+    joinedBridgeAdoptions.set(adoption, readJoin); return adoption;
+  };
+  const joined = readJoin(), bridge = selected.bridge;
+  const chainDigest = authorityChainDigest(bridge.deploymentAuthority);
+  if (chainDigest !== selected.receipt.activationChainDigest) fail('SEALED_REALMS_ACTIVATION_GENERATION_AMBIGUOUS');
+  const member = Object.freeze({ sourceCommit: selected.receipt.sourceCommit, privateState: state.privateState,
+    receiptDigest: selected.receipt.activationEvidenceDigest, chainDigest, relativePath: chainPath(chainDigest),
+    observedAt: bridge.activationGate.observedAt, deploymentDigest: activationRecordDigest(bridge.deploymentAuthority),
+    adoptionReceiptDigest: joined.ptr.adoptionReceiptDigest, g002AdoptionReceiptDigest: joined.g002.adoptionReceiptDigest,
+    readAdoption, readG002Adoption: () => readJoin().g002, memberCommitment: bridge.activationGate.confirmationDigest });
+  const reopened = reopenGenerationBridgeEvidence(member);
+  if (JSON.stringify(reopened) !== JSON.stringify(bridge)) fail('SEALED_REALMS_ACTIVATION_GENERATION_AMBIGUOUS');
+  return member;
+}
+
+/** Data-only bridge projection, available only inside a completed candidate callback. */
+export function readSealedRealmsProductionCompletedRecoveryBridgeFacts(input) {
+  const options = captureGenerationInput(input, ['capability', 'records', 'privateState', 'authority', 'readContext']);
+  const state = completedGenerations.get(options.capability), active = activeCompletedGenerations.get(options.capability);
+  if (!state || !active || state.privateState !== options.privateState || state.authority !== options.authority
+    || active.records !== options.records) fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
+  const context = readSealedRealmsProductionCompletedGenerationContext({ records: options.records, privateState: options.privateState,
+    authority: options.authority, readContext: options.readContext });
+  const selected = readSealedRealmsProductionCompletedGenerationSelection({ selection: state.selection,
+    privateState: state.privateState, authority: state.authority });
+  const member = completedBridgeMember(state, selected, active.evidence), bridge = reopenGenerationBridgeEvidence(member);
+  if (context.generatedAt !== selected.receipt.generatedAt
+    || context.bindingCandidate.admissionRequestSuspensionReceiptDigest !== member.receiptDigest) fail();
+  return Object.freeze({ recoveryAuthWorkerVersionId: bridge.deploymentAuthority.workerVersionId,
+    recoveryAuthWorkerSourceCommit: bridge.deploymentAuthority.bridgeSourceCommit, authBridgeSourceCommit: bridge.sourceCommit,
+    admissionRequestSuspensionReceiptDigest: member.receiptDigest });
+}
+
+export async function reconcileSealedRealmsProductionCompletedActivationGeneration(input) {
+  const options = captureGenerationInput(input, ['capability', 'sourceAuthority', 'permit', 'store', 'runId', 'runAttempt']);
+  const state = completedGenerations.get(options.capability);
+  if (!state || state.authority !== options.sourceAuthority || state.store !== options.store
+    || activeCompletedGenerations.has(options.capability)) fail('SEALED_REALMS_ACTIVATION_GENERATOR_INPUT_INVALID');
+  const select = () => readSealedRealmsProductionCompletedGenerationSelection({ selection: state.selection,
+    privateState: state.privateState, authority: state.authority });
+  const selected = select(), common = { store: state.store, permit: options.permit, sourceAuthority: state.authority,
+    kind: 'activation-evidence-inline', runId: options.runId, runAttempt: options.runAttempt, ...selected.binding };
+  const verify = reconciliation => {
+    const evidence = authenticateSealedRealmsProductionCompletedLinuxRecoveryEvidence({ privateState: state.privateState,
+      authority: state.authority, store: state.store, selection: state.selection,
+      ...(reconciliation === undefined ? {} : { reconciliation }), existingStateAdoption: state.existingStateAdoption,
+      g002ExistingStateAdoption: state.g002ExistingStateAdoption, programArtifacts: state.programArtifacts });
+    let records;
+    records = createSealedRealmsProductionActivationRecords({ privateState: state.privateState, authority: state.authority,
+      readBindingCandidate: (_source, _projection, readContext) => readSealedRealmsProductionRecoveryCandidate({
+        records, privateState: state.privateState, authority: state.authority, readContext,
+        completedGeneration: options.capability, sourceClosure: state.sourceClosure, programArtifacts: state.programArtifacts }),
+      existingStateAdoption: state.existingStateAdoption, g002ExistingStateAdoption: state.g002ExistingStateAdoption,
+      linuxRecoveryEvidence: evidence });
+    activeCompletedGenerations.set(options.capability, { records, evidence });
+    try {
+      const member = completedBridgeMember(state, selected, evidence);
+      const completed = readGenerationCompletion({ ...state, records, linuxRecoveryEvidence: evidence }, member);
+      if (JSON.stringify(select()) !== JSON.stringify(selected)) fail('SEALED_REALMS_ACTIVATION_GENERATION_AMBIGUOUS');
+      return Object.freeze({ outcome: 'effect-applied', observationDigest: completed.digest });
+    } finally { activeCompletedGenerations.delete(options.capability); }
+  };
+  let terminal;
+  try { terminal = readSealedRealmsProductionContinuationCompletion({ store: state.store, privateState: state.privateState,
+    sourceAuthority: state.authority, kind: 'activation-evidence-inline', ...selected.binding }); }
+  catch (error) { if (error?.code !== 'SEALED_REALMS_CONTINUATION_MISSING') throw error; }
+  if (terminal !== undefined) {
+    const attest = () => attestSealedRealmsProductionActivationRead({ permit: options.permit, sourceAuthority: state.authority,
+      runId: options.runId, runAttempt: options.runAttempt });
+    await attest(); verify(); await attest(); verify();
+  } else {
+    await reconcileSealedRealmsProductionContinuation({ ...common, readOnlyReconcile: verify });
+    // The core reattests the run after the callback. Reopen the now-terminal
+    // family once more before reporting a completed operation to the caller.
+    verify();
+  }
+  return Object.freeze({});
 }
 
 function reopenGenerationBridgeEvidence(member) {
@@ -2907,7 +3122,7 @@ async function generateActivationEvidence(confirmation, generator, options, memb
         const binding = generateRecoveryLaunchActivationBindingFromDescriptor(descriptor, opaqueMember,
           options.sourceAuthority, generator.testOnlyCapability === undefined ? undefined : {
             capability: generator.testOnlyCapability, facts: generator.testOnlyPreparationBootstrapAuthority,
-          }, generator.existingStateAdoption, generator.g002ExistingStateAdoption);
+          }, generator.existingStateAdoption, generator.g002ExistingStateAdoption, generator.linuxRecoveryEvidence);
         artifactBytes = verifySealedRealmsPublicActivationBytes(Buffer.from(`${JSON.stringify(binding, null, 2)}\n`));
       },
     });

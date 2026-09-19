@@ -73,6 +73,8 @@ export function resolveAuthBridgeNotificationPreparedOriginalUploadAuthority(
   workerVersionId: string;
   sourceDigest: string;
   uploadRecordDigest: string;
+  /** Present only for an authenticated completed nine-secret observer contract. */
+  recoveryObserver?: true;
   /** Original deployment completion, before any read-only recovery heads. */
   completedJournalHeadDigest: string;
   /** Latest completed deployment or canonical recovery descendant. */

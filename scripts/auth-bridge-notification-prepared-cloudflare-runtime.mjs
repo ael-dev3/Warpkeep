@@ -16,10 +16,12 @@ import { types as utilTypes } from 'node:util';
 
 import {
   AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_PROFILE,
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_GENESIS_002_DATABASE,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_DATABASE_BINDING,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_OIDC_AUDIENCE,
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_RECOVERY_SECRET_BINDING_NAMES,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_WRANGLER_VERSION,
   authBridgeNotificationPreparedVersionContract,
@@ -350,16 +352,32 @@ function assertContract(contract) {
     || !exactJson(contract.protectedPlainTextBindingNames, [
       AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_DATABASE_BINDING,
     ])
-    || !exactJson(contract.secretBindingNames, [
+    || !exactJson(contract.secretBindingNames, (Object.hasOwn(contract.variables,
+      'GENESIS_002_SPACETIMEDB_DATABASE') ? [
+      ...AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES,
+      AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,
+      ...AUTH_BRIDGE_NOTIFICATION_PREPARED_RECOVERY_SECRET_BINDING_NAMES,
+    ].sort() : [
       ...AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES
         .slice(0, 4),
       AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,
       ...AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES
         .slice(4),
-    ])
+    ]))
     || !Array.isArray(contract.durableObjectBindings)
     || !Array.isArray(contract.migrations)
   ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_CONTRACT_INVALID');
+  const expected = authBridgeNotificationPreparedVersionContract({
+    accountId: contract.accountId, zoneId: contract.zoneId,
+    sourceCommit: contract.sourceCommit, sourceDigest: contract.sourceDigest,
+    recoveryObserver: Object.hasOwn(contract.variables, 'GENESIS_002_SPACETIMEDB_DATABASE'),
+    beforeModes: {
+      bridgeSourceCommit: contract.predecessorSourceCommit,
+      publicAuthEnabled: contract.variables.PUBLIC_AUTH_ENABLED === 'true',
+      accessExpectedFidRequired: contract.variables.ACCESS_EXPECTED_FID_REQUIRED === 'true',
+    },
+  });
+  if (!exactJson(contract, expected)) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_CONTRACT_INVALID');
   return contract;
 }
 
@@ -1050,12 +1068,42 @@ function contentTypeFromBody(body) {
   return `multipart/form-data; boundary=${first.slice(2)}`;
 }
 
+function observerSecretBindings(contract, rpcSecret, censusPepper) {
+  if (!Object.hasOwn(contract.variables, 'GENESIS_002_SPACETIMEDB_DATABASE')) {
+    if (rpcSecret !== undefined || censusPepper !== undefined) {
+      fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_OBSERVER_SECRETS_INVALID');
+    }
+    return [];
+  }
+  if (rpcSecret === censusPepper) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_OBSERVER_SECRETS_INVALID');
+  for (const value of [rpcSecret, censusPepper]) {
+    if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{43}$/u.test(value)) {
+      fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_OBSERVER_SECRETS_INVALID');
+    }
+    const bytes = Buffer.from(value, 'base64url');
+    try {
+      if (bytes.length !== 32 || bytes.toString('base64url') !== value) {
+        fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_OBSERVER_SECRETS_INVALID');
+      }
+    } finally { bytes.fill(0); }
+  }
+  return [
+    { name: 'RELEASE_RECOVERY_CENSUS_PEPPER', type: 'secret_text', text: censusPepper },
+    { name: 'RELEASE_RECOVERY_RPC_SECRET', type: 'secret_text', text: rpcSecret },
+  ];
+}
+
 function exactMultipartMetadata(
   metadata,
   contract,
   candidate,
 ) {
   const candidateExpected = candidate !== undefined;
+  const candidateSecrets = candidateExpected ? [
+    { name: AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,
+      type: 'secret_text', text: candidate.playerCanaryOwnerFid },
+    ...observerSecretBindings(contract, candidate.recoveryRpcSecret, candidate.recoveryCensusPepper),
+  ] : [];
   if (
     !isRecord(metadata)
     || typeof metadata.main_module !== 'string'
@@ -1075,9 +1123,8 @@ function exactMultipartMetadata(
         !candidateExpected
         || !isRecord(binding)
         || Object.keys(binding).sort().join(',') !== 'name,text,type'
-        || binding.name
-          !== AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING
-        || binding.text !== candidate.playerCanaryOwnerFid
+        || !candidateSecrets.some(expected => binding.name === expected.name
+          && binding.text === expected.text)
       ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_MULTIPART_METADATA_MISMATCH');
       return Object.freeze({
         name: binding.name,
@@ -1103,11 +1150,8 @@ function exactMultipartMetadata(
       type: 'durable_object_namespace',
       className: binding.className,
     })),
+    ...candidateSecrets,
     ...(candidateExpected ? [{
-      name: AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,
-      type: 'secret_text',
-      text: candidate.playerCanaryOwnerFid,
-    }, {
       name: AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_DATABASE_BINDING,
       type: 'plain_text',
       text: candidate.ptrSpacetimeDbDatabase,
@@ -1124,6 +1168,8 @@ export function attestAuthBridgeNotificationPreparedCandidateMultipartMetadata({
   contract,
   playerCanaryOwnerFid,
   ptrSpacetimeDbDatabase,
+  recoveryRpcSecret,
+  recoveryCensusPepper,
 } = {}) {
   if (
     !POSITIVE_FID.test(playerCanaryOwnerFid ?? '')
@@ -1134,6 +1180,8 @@ export function attestAuthBridgeNotificationPreparedCandidateMultipartMetadata({
   exactMultipartMetadata(metadata, assertContract(contract), Object.freeze({
     playerCanaryOwnerFid,
     ptrSpacetimeDbDatabase,
+    recoveryRpcSecret,
+    recoveryCensusPepper,
   }));
   return true;
 }
@@ -2304,6 +2352,7 @@ export async function inspectAuthBridgeNotificationPreparedRecoverySource(input)
   const contract = authBridgeNotificationPreparedVersionContract({
     accountId: supplied.accountId, zoneId: supplied.zoneId,
     sourceCommit: supplied.sourceCommit, sourceDigest: supplied.sourceDigest,
+    recoveryObserver: Object.hasOwn(supplied.variables, 'GENESIS_002_SPACETIMEDB_DATABASE'),
     beforeModes: {
       bridgeSourceCommit: supplied.predecessorSourceCommit,
       publicAuthEnabled: supplied.variables.PUBLIC_AUTH_ENABLED === 'true',
@@ -2431,6 +2480,8 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
   apiToken,
   playerCanaryOwnerFid,
   ptrSpacetimeDbDatabase,
+  recoveryRpcSecret,
+  recoveryCensusPepper,
   repositoryRoot,
   serviceRoot,
   nodeExecutable,
@@ -2470,12 +2521,14 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
     || BigInt(playerCanaryOwnerFid) > BigInt(Number.MAX_SAFE_INTEGER)
     || !SPACETIMEDB_DATABASE_IDENTITY.test(ptrSpacetimeDbDatabase ?? '')
     || ptrSpacetimeDbDatabase === PRODUCTION_SPACETIMEDB_DATABASE
+    || ptrSpacetimeDbDatabase === AUTH_BRIDGE_NOTIFICATION_PREPARED_GENESIS_002_DATABASE
     || !Number.isSafeInteger(requestTimeoutMilliseconds)
     || requestTimeoutMilliseconds < 1_000
     || requestTimeoutMilliseconds > 30_000
     || !isRecord(journal)
     || typeof journal.inspect !== 'function'
   ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_RUNTIME_INVALID');
+  const observerBindings = observerSecretBindings(contract, recoveryRpcSecret, recoveryCensusPepper);
   const api = createApi({ apiToken, fetchImpl, requestTimeoutMilliseconds });
   let preparedMultipart;
   let preparedPredecessorDeploymentId;
@@ -2910,6 +2963,7 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
           text: playerCanaryOwnerFid,
           type: 'secret_text',
         }),
+        ...observerBindings,
         Object.freeze({
           name: AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_DATABASE_BINDING,
           text: ptrSpacetimeDbDatabase,
@@ -2920,6 +2974,8 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
     exactMultipartMetadata(metadata, contract, Object.freeze({
       playerCanaryOwnerFid,
       ptrSpacetimeDbDatabase,
+      recoveryRpcSecret,
+      recoveryCensusPepper,
     }));
     const body = multipartWithMetadata(source.body, source.contentType, metadata);
     try {
@@ -2944,9 +3000,11 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
           mutation: true,
           forbiddenResponseSubstrings: Object.freeze([
             playerCanaryOwnerFid,
+            ...observerBindings.map(binding => binding.text),
           ]),
           rejectionForbiddenResponseSubstrings: Object.freeze([
             playerCanaryOwnerFid,
+            ...observerBindings.map(binding => binding.text),
             ptrSpacetimeDbDatabase,
           ]),
           protectedPlainTextResponseBinding: Object.freeze({

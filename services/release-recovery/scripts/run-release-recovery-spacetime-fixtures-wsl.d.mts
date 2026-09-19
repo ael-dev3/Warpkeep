@@ -31,5 +31,7 @@ export class RecoveryFixtureInputError extends Error {
 }
 
 export function validateWslFixturePlan(value: unknown): unknown
+/** Validates the data shape; this does not confer authenticated source authority. */
+export function validateAuthenticatedAdoptionSource(value: unknown): Readonly<Record<string, string>>
 export function validateWslFixtureResult(value: unknown): unknown
 export function runReleaseRecoverySpacetimeFixturesWsl(input: unknown): Promise<unknown>

@@ -1,5 +1,6 @@
 import type { SealedRealmsProductionPrivateState } from './sealed-realms-production-private-state.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
+import type { SealedRealmsProductionActivationRecords, SealedRealmsRecoveryCandidateReadContext } from './sealed-realms-production-activation-records.mjs';
 declare const preparationBrand: unique symbol;
 export type SealedRealmsProductionRecoveryPreparation = Readonly<{ [preparationBrand]: true }>;
 type Owner = Readonly<{ privateState: SealedRealmsProductionPrivateState; authority: SealedRealmsProductionSourceAuthority }>;
@@ -10,5 +11,10 @@ export function readSealedRealmsProductionRecoveryPreparation(input: Owner & Rea
   recoveryAuthWorkerVersionId: string; recoveryAuthWorkerSourceCommit: string;
   recoveryAuthWorkerConfigIdentity: string; recoveryAuthWorkerConfigEpoch: number;
 }>;
+/** Fixed retained signatures at the genuine completed family's generation time; data only, not fresh-generation authority. */
+export function readSealedRealmsProductionCompletedRecoveryPreparation(input: Owner & Readonly<{
+  records: SealedRealmsProductionActivationRecords;
+  readContext: SealedRealmsRecoveryCandidateReadContext;
+}>): ReturnType<typeof readSealedRealmsProductionRecoveryPreparation>;
 /** Revokes in-process access; keeps immutable private evidence for an authenticated service retry. */
 export function disposeSealedRealmsProductionRecoveryPreparation(capability: SealedRealmsProductionRecoveryPreparation): void;

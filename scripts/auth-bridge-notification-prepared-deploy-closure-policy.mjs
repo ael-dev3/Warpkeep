@@ -92,6 +92,12 @@ const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
 // Resource bound, not the generated inventory's exact member count.
 const MAX_MEMBERS = 2048;
 const SCRIPT_GRAPH_ROOTS = Object.freeze([
+  // Fixed entries loaded by the byte-attested local build runtime and census
+  // materializer. Their targets are source constants, not caller module paths.
+  'scripts/local-operation-bundle-packages.ts',
+  'scripts/spacetime-cli-attestation.mjs',
+  'scripts/spacetime-binding-tree.mjs',
+  'scripts/genesis001-linux-census-operator.ts',
   // External runtime imports of the fixed compiled recovery claim entrypoint.
   'scripts/recovery-workflow-run-context.mjs',
   'scripts/recovery-attestation-source.mjs',
@@ -140,6 +146,7 @@ const SEALED_LAUNCH_SOURCE_GRAPH_ROOTS = Object.freeze(
   )),
 );
 const DECLARATION_OPTIONAL_GRAPH_MEMBERS = new Set([
+  'scripts/local-binding-native-ts-hooks.mjs',
   'scripts/farcaster-miniapp-contract.mjs',
   'scripts/validate-pages-deploy-config.mjs',
   'scripts/verify-alpha-production.mjs',
@@ -306,6 +313,19 @@ const ATTESTED_DYNAMIC_IMPORT_EXPRESSIONS = new Map([
   ['scripts/greater-realm-production-bootstrap.mjs', new Set([
     'yamlUrl.href',
   ])],
+  ['scripts/local-binding-runtime-core.mjs', new Set([
+    '/* @vite-ignore */ operationBundlePackagesSpecifier',
+    "pathToFileURL(\n      join(source.root, 'scripts', 'spacetime-cli-attestation.mjs'),\n    ).href",
+    "pathToFileURL(\n      join(source.root, 'scripts', 'spacetime-binding-tree.mjs'),\n    ).href",
+  ])],
+]);
+// The existing runtime materializes and reattests this exact locked package
+// before and after loading its hash implementation. No other variable require
+// is admitted, including a duplicate of this expression.
+const ATTESTED_DYNAMIC_REQUIRE_EXPRESSIONS = new Map([
+  ['scripts/local-binding-runtime-core.mjs', new Set([
+    "join(namespace.root, '@noble', 'hashes', 'sha3.js')",
+  ])],
 ]);
 
 function fail(code) {
@@ -431,6 +451,7 @@ function sourceModuleSpecifiers(value, memberPath, parser) {
   const parsed = parseSourceFile(value, memberPath, parser);
   const specifiers = [];
   const dynamicImportExpressions = new Set();
+  const dynamicRequireExpressions = new Set();
   const sourceRequires = new Set();
   let failed = false;
   try {
@@ -468,11 +489,18 @@ function sourceModuleSpecifiers(value, memberPath, parser) {
         && isIdentifier(node.expression)
         && node.expression.text === 'require'
       ) {
-        if (
-          node.arguments.length !== 1
-          || !isStringLiteral(node.arguments[0])
-        ) {
+        if (node.arguments.length !== 1) {
           fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_REQUIRE_FORBIDDEN');
+        }
+        if (!isStringLiteral(node.arguments[0])) {
+          const expression = value.slice(node.arguments[0].pos, node.arguments[0].end).trim();
+          if (dynamicRequireExpressions.has(expression)
+            || !ATTESTED_DYNAMIC_REQUIRE_EXPRESSIONS.get(memberPath)?.has(expression)) {
+            fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_REQUIRE_FORBIDDEN');
+          }
+          dynamicRequireExpressions.add(expression);
+          node.forEachChild(visit);
+          return;
         }
         const specifier = node.arguments[0].text;
         if (ATTESTED_SOURCE_REQUIRES.get(memberPath)?.has(specifier)
@@ -494,6 +522,10 @@ function sourceModuleSpecifiers(value, memberPath, parser) {
     ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_IMPORT_INVALID');
     if (JSON.stringify([...sourceRequires].sort())
         !== JSON.stringify([...(ATTESTED_SOURCE_REQUIRES.get(memberPath) ?? [])].sort())) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_REQUIRE_FORBIDDEN');
+    }
+    if (JSON.stringify([...dynamicRequireExpressions].sort())
+        !== JSON.stringify([...(ATTESTED_DYNAMIC_REQUIRE_EXPRESSIONS.get(memberPath) ?? [])].sort())) {
       fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_REQUIRE_FORBIDDEN');
     }
     return Object.freeze(specifiers);

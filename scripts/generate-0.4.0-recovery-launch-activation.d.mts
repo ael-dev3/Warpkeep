@@ -1,6 +1,6 @@
 import type { SealedRealmsActivationEvidenceMember, SealedRealmsProductionAuthBridgeStateTestCapability } from './sealed-realms-production-auth-bridge-state.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
-import type { SealedRealmsProductionPtrExistingStateAdoptionEvidence, SealedRealmsProductionG002ExistingStateAdoptionEvidence } from './sealed-realms-production-activation-records.mjs';
+import type { SealedRealmsProductionPtrExistingStateAdoptionEvidence, SealedRealmsProductionG002ExistingStateAdoptionEvidence, SealedRealmsProductionLinuxRecoveryEvidence } from './sealed-realms-production-activation-records.mjs';
 export type RecoveryActivationBootstrapFacts = Readonly<{
   preparationSourceCommit: string; moduleTreeId: string; bootstrapBlob: string; bootstrapSha256: string;
 }>;
@@ -15,19 +15,24 @@ export function validateRecoveryLaunchActivationProjection(
   envelope: unknown, bridge: unknown, verificationTime?: string,
   existingStateAdoption?: SealedRealmsProductionPtrExistingStateAdoptionEvidence,
   g002ExistingStateAdoption?: SealedRealmsProductionG002ExistingStateAdoptionEvidence,
+  linuxRecoveryEvidence?: SealedRealmsProductionLinuxRecoveryEvidence,
 ): Readonly<Record<string, unknown>>;
 export function createRecoveryLaunchActivationBindingFromEvidence(
   envelope: unknown, member: SealedRealmsActivationEvidenceMember,
   authority: SealedRealmsProductionSourceAuthority, testOnly?: TestOnlyBootstrapInput | Readonly<{ capability: SealedRealmsProductionAuthBridgeStateTestCapability; facts: RecoveryActivationLinuxPolicyFacts }>,
   existingStateAdoption?: SealedRealmsProductionPtrExistingStateAdoptionEvidence,
   g002ExistingStateAdoption?: SealedRealmsProductionG002ExistingStateAdoptionEvidence,
+  linuxRecoveryEvidence?: SealedRealmsProductionLinuxRecoveryEvidence,
 ): Readonly<Record<string, unknown>>;
 export function generateRecoveryLaunchActivationBindingFromDescriptor(
   descriptor: number, member: SealedRealmsActivationEvidenceMember,
   authority: SealedRealmsProductionSourceAuthority, testOnly?: TestOnlyBootstrapInput | Readonly<{ capability: SealedRealmsProductionAuthBridgeStateTestCapability; facts: RecoveryActivationLinuxPolicyFacts }>,
   existingStateAdoption?: SealedRealmsProductionPtrExistingStateAdoptionEvidence,
   g002ExistingStateAdoption?: SealedRealmsProductionG002ExistingStateAdoptionEvidence,
+  linuxRecoveryEvidence?: SealedRealmsProductionLinuxRecoveryEvidence,
 ): Readonly<Record<string, unknown>>;
 
 export type RecoveryActivationLinuxPolicyFacts = Readonly<{ preparationSourceCommit: string; moduleTreeId: string; operatorBlob: string; operatorSha256: string }>;
 export function readRecoveryActivationLinuxPolicyAuthority(authority: SealedRealmsProductionSourceAuthority, testOnly?: Readonly<{ capability: SealedRealmsProductionAuthBridgeStateTestCapability; facts: RecoveryActivationLinuxPolicyFacts }>): RecoveryActivationLinuxPolicyFacts;
+
+export function readRecoveryActivationLinuxCensusAuthority(authority: SealedRealmsProductionSourceAuthority, testOnly?: Readonly<{ capability: SealedRealmsProductionAuthBridgeStateTestCapability; facts: RecoveryActivationLinuxPolicyFacts }>): RecoveryActivationLinuxPolicyFacts;

@@ -13,7 +13,7 @@ import { AUTH_BRIDGE_RELEASE_TRANSITION_FIXTURE_PATHS, canonicalAuthBridgeReleas
 import { recoveryBindingCandidate } from './fixtures/recoveryBindingCandidate';
 import { recoveryG002PtrAdoptionCandidate } from './fixtures/recoveryG002PtrAdoptionCandidate';
 import { recoveryBindingKeys } from '../scripts/recovery-binding-projection.mjs';
-import { createRecoveryActivationBindingFromCandidate } from '../scripts/recovery-activation-candidate.mjs';
+import { createRecoveryActivationBindingFromCandidate, recoveryActivationCandidatePolicyForVersion } from '../scripts/recovery-activation-candidate.mjs';
 
 const bindingPath = 'config/releases/0.4.0-sealed-launch.json';
 const verifierPath = 'scripts/auth-bridge-notification-prepared-deploy-closure.mjs';
@@ -55,7 +55,7 @@ function invoke(preload?: string) {
   ], { cwd: root, encoding: 'utf8', windowsHide: true, timeout: 30000,
     env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, LANG: 'C', LC_ALL: 'C', TZ: 'UTC' } });
 }
-function activation(version: 2 | 3 | 4 | 5) {
+function activation(version: 2 | 3 | 4 | 5 | 6) {
   git('checkout', '--quiet', '--detach', '--force', preparation);
   const values: Record<string, string | number | boolean | null> = { ...recoveryBindingCandidate(),
     schemaVersion: version,
@@ -65,7 +65,9 @@ function activation(version: 2 | 3 | 4 | 5) {
     ptrExistingStateAdoptionReceiptDigest: '8'.repeat(64), ptrExistingStateAdoptionReceiptCommitment: null,
     ptrSealed: true, ptrPopulationGuardPassed: true, ptrSingletonOwnerCount: 1, ptrGeneralAdmissionCount: 0,
     ptrExpectedSealedStateHmacSha256: '7'.repeat(64), ptrExpectedOwnerInvariantHmacSha256: '6'.repeat(64),
-    ...(version === 5 ? recoveryG002PtrAdoptionCandidate() : {}),
+    ...(version === 5 || version === 6 ? recoveryG002PtrAdoptionCandidate() : {}),
+    ...(version === 6 ? { ...recoveryActivationCandidatePolicyForVersion(6),
+      g001FreezeConfirmationReceiptDigest: '5'.repeat(64), g001FreezeCurrentStateReceiptDigest: '4'.repeat(64) } : {}),
     preparationSourceCommit: preparation, preparationSourceTree: preparationTree,
     g001PolicySourceCommit: preparation, authBridgeSourceCommit: preparation,
   };
@@ -105,7 +107,7 @@ it('keeps the exact V1 preparation manifest accepted by the actual closure CLI',
   const result = invoke();
   expect({ status: result.status, stderr: result.stderr }).toEqual({ status: 0, stderr: '' });
 });
-it.each([2, 3, 4, 5] as const)('verifies real V%i S→A through the actual Pages closure CLI with unchanged S manifest', version => {
+it.each([2, 3, 4, 5, 6] as const)('verifies real V%i S→A through the actual Pages closure CLI with unchanged S manifest', version => {
   activation(version);
   const result = invoke();
   expect({ status: result.status, stderr: result.stderr }).toEqual({ status: 0, stderr: '' });
@@ -162,6 +164,16 @@ it.each(['mixed-profile', 'wrong-core', 'extra-package-change'] as const)('rejec
   if (kind === 'wrong-core') value.recoveryAuthorizationCoreSha256 = '0'.repeat(64);
   if (kind === 'extra-package-change') value.description = 'Unreviewed activation source';
   write(path, encode(value)); amend();
+  const result = invoke();
+  expect(result.status).toBe(1);
+  expect(result.stderr).toBe('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RECOVERY_SOURCE_INVALID\n');
+}, 30000);
+
+it('rejects a V6 freeze receipt changed after the activation was committed', () => {
+  activation(6);
+  const value = JSON.parse(readFileSync(join(root, bindingPath), 'utf8'));
+  value.g001FreezeCurrentStateReceiptDigest = '0'.repeat(64);
+  write(bindingPath, encode(value)); amend();
   const result = invoke();
   expect(result.status).toBe(1);
   expect(result.stderr).toBe('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RECOVERY_SOURCE_INVALID\n');

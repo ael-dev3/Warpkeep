@@ -77,7 +77,7 @@ const PTR_OBSERVATION_SHARED_SOURCE_MEMBER_PATHS = new Set([
   'services/release-recovery/src/recoveryPublicKey.ts',
 ]);
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
-const MAX_MANIFEST_BYTES = 256 * 1_024;
+const MAX_MANIFEST_BYTES = 512 * 1_024;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
 const MAX_AGGREGATE_MEMBER_BYTES = 128 * 1_024 * 1_024;
 // Resource bound, independent of the exact frozen member list below.
@@ -368,9 +368,16 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/genesis001-frozen-publisher-core.ts',
     'scripts/genesis001-frozen-publisher-runtime.ts',
     'scripts/genesis001-frozen-publisher.ts',
+    'scripts/genesis001-linux-census-attempt.d.mts',
+    'scripts/genesis001-linux-census-attempt.mjs',
+    'scripts/genesis001-linux-census-operator.ts',
+    'scripts/genesis001-linux-freeze-receipt.d.mts',
+    'scripts/genesis001-linux-freeze-receipt.mjs',
+    'scripts/genesis001-linux-policy-boundary.d.mts',
     'scripts/genesis001-linux-policy-boundary.mjs',
     'scripts/genesis001-linux-policy-child.mjs',
     'scripts/genesis001-linux-policy-materializer.mjs',
+    'scripts/genesis001-linux-policy-native.d.mts',
     'scripts/genesis001-linux-policy-native.mjs',
     'scripts/genesis001-linux-policy-receipt.d.mts',
     'scripts/genesis001-linux-policy-receipt.mjs',
@@ -477,10 +484,19 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/local-binding-bounded-file.d.mts',
     'scripts/local-binding-bounded-file.mjs',
     'scripts/local-binding-native-ts-hooks.mjs',
+    'scripts/local-binding-runtime-cli-snapshot.d.mts',
     'scripts/local-binding-runtime-cli-snapshot.mjs',
+    'scripts/local-binding-runtime-core.d.mts',
     'scripts/local-binding-runtime-core.mjs',
+    'scripts/local-binding-runtime-process.d.mts',
     'scripts/local-binding-runtime-process.mjs',
     'scripts/local-binding-runtime-yaml-v1.json',
+    'scripts/local-binding-runtime.d.mts',
+    'scripts/local-binding-runtime.mjs',
+    'scripts/local-operation-bundle-noble-v1.d.mts',
+    'scripts/local-operation-bundle-noble-v1.mjs',
+    'scripts/local-operation-bundle-packages.ts',
+    'scripts/local-program-artifact.d.mts',
     'scripts/local-program-artifact.mjs',
     'scripts/notification-pages-build-release-validator.d.mts',
     'scripts/notification-pages-build-release-validator.mjs',
@@ -583,6 +599,10 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/recovery-claim-handoff.mjs',
     'scripts/recovery-public-key.d.mts',
     'scripts/recovery-public-key.mjs',
+    'scripts/recovery-source-closure-codec.d.mts',
+    'scripts/recovery-source-closure-codec.mjs',
+    'scripts/recovery-source-closure.d.mts',
+    'scripts/recovery-source-closure.mjs',
     'scripts/recovery-workflow-bundle-manifest-v1.json',
     'scripts/recovery-workflow-check-deployment.d.mts',
     'scripts/recovery-workflow-check-deployment.mjs',
@@ -619,6 +639,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/sealed-realms-production-auth-bridge-state.mjs',
     'scripts/sealed-realms-production-bridge-provider.d.mts',
     'scripts/sealed-realms-production-bridge-provider.mjs',
+    'scripts/sealed-realms-production-bundle-engine.d.mts',
+    'scripts/sealed-realms-production-bundle-engine.mjs',
     'scripts/sealed-realms-production-bundle-manifest-v1.json',
     'scripts/sealed-realms-production-continuation.d.mts',
     'scripts/sealed-realms-production-continuation.mjs',
@@ -626,18 +648,38 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/sealed-realms-production-g001-lane.bundle.mjs',
     'scripts/sealed-realms-production-g002-lane.bundle.d.mts',
     'scripts/sealed-realms-production-g002-lane.bundle.mjs',
+    'scripts/sealed-realms-production-linux-preflight.d.mts',
+    'scripts/sealed-realms-production-linux-preflight.mjs',
     'scripts/sealed-realms-production-private-state.d.mts',
     'scripts/sealed-realms-production-private-state.mjs',
     'scripts/sealed-realms-production-ptr-lane.bundle.d.mts',
     'scripts/sealed-realms-production-ptr-lane.bundle.mjs',
+    'scripts/sealed-realms-production-recovery-approval-facts.ts',
+    'scripts/sealed-realms-production-recovery-candidate.d.mts',
+    'scripts/sealed-realms-production-recovery-candidate.mjs',
+    'scripts/sealed-realms-production-recovery-preparation-observation-receipt.d.mts',
+    'scripts/sealed-realms-production-recovery-preparation-observation-receipt.mjs',
+    'scripts/sealed-realms-production-recovery-preparation-receipt.d.mts',
+    'scripts/sealed-realms-production-recovery-preparation-receipt.mjs',
+    'scripts/sealed-realms-production-recovery-preparation-transport.d.mts',
+    'scripts/sealed-realms-production-recovery-preparation-transport.mjs',
+    'scripts/sealed-realms-production-recovery-preparation.d.mts',
+    'scripts/sealed-realms-production-recovery-preparation.mjs',
+    'scripts/sealed-realms-production-recovery-program-artifacts.d.mts',
+    'scripts/sealed-realms-production-recovery-program-artifacts.mjs',
+    'scripts/sealed-realms-production-recovery-source-closure.d.mts',
+    'scripts/sealed-realms-production-recovery-source-closure.mjs',
     'scripts/sealed-realms-production-source-authority.d.mts',
     'scripts/sealed-realms-production-source-authority.mjs',
     'scripts/sealed-realms-production-workflow-authority.d.mts',
     'scripts/sealed-realms-production-workflow-authority.mjs',
+    'scripts/sealed-realms-production-workflow-evidence-json.d.mts',
     'scripts/sealed-realms-production-workflow-evidence-json.mjs',
+    'scripts/sealed-realms-production-workflow-evidence.d.mts',
     'scripts/sealed-realms-production-workflow-evidence.mjs',
     'scripts/spacetime-additive-migration-proof.d.mts',
     'scripts/spacetime-additive-migration-proof.mjs',
+    'scripts/spacetime-binding-tree.d.mts',
     'scripts/spacetime-binding-tree.mjs',
     'scripts/spacetime-cli-attestation.d.mts',
     'scripts/spacetime-cli-attestation.mjs',
@@ -1898,7 +1940,7 @@ function recoveryClosureSource(repository, manifest, manifestSha256, memberBodie
   try { binding = JSON.parse(reviewedReleaseSource(memberBodies.get(REVIEWED_RELEASE_SOURCE_PATHS.sealedLaunchBinding))); }
   catch { fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID'); }
   if (binding?.schemaVersion === 1) return undefined;
-  if (![2, 3, 4, 5].includes(binding?.schemaVersion)) {
+  if (![2, 3, 4, 5, 6].includes(binding?.schemaVersion)) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID');
   }
   // Before evaluating any recovery helper, anchor the manifest to the actual

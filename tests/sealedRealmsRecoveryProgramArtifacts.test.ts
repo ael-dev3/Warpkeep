@@ -8,18 +8,21 @@ import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const seam = vi.hoisted(() => ({
   build: vi.fn(),
+  ptr: vi.fn(),
+  git: vi.fn(),
   snapshot: vi.fn(),
   corpus: vi.fn(),
   records: new WeakSet<object>(),
 }));
 vi.mock("../scripts/local-binding-runtime.mjs", () => ({
   derivePreparedGenesisProgramArtifacts: seam.build,
+  derivePreparedPtrLinuxBindings: seam.ptr,
 }));
 vi.mock("../scripts/recovery-source-closure.mjs", () => ({
   assertRecoverySourceClosureSnapshot: seam.snapshot,
 }));
 vi.mock("node:child_process", () => ({
-  execFileSync: () => "b".repeat(40) + "\n",
+  execFileSync: seam.git,
 }));
 vi.mock("../scripts/sealed-realms-production-activation-records.mjs", () => ({
   assertSealedRealmsProductionActivationRecordsAuthority: ({
@@ -37,10 +40,14 @@ import {
   createSealedRealmsProductionRecoveryProgramArtifacts as create,
   readSealedRealmsProductionRecoveryProgramArtifacts as read,
   disposeSealedRealmsProductionRecoveryProgramArtifacts as dispose,
+  createSealedRealmsProductionRecoveryAdoptionProgramArtifacts as createComparison,
+  readSealedRealmsProductionRecoveryAdoptionProgramComparison as compare,
 } from "../scripts/sealed-realms-production-recovery-program-artifacts.mjs";
 const roots: string[] = [];
 beforeEach(() => {
   seam.build.mockReset();
+  seam.ptr.mockReset();
+  seam.git.mockReset().mockReturnValue('b'.repeat(40) + '\n');
   seam.snapshot.mockReset();
   seam.corpus.mockReset();
 });
@@ -226,4 +233,36 @@ it("refuses corpus mutation during reread and source revocation on a retained ca
   } finally {
     dispose(capability);
   }
+});
+
+it('compares fixed native PTR and G002 results to exact historical module trees under one owner', async () => {
+  const f = fixture();
+  seam.ptr.mockResolvedValue({ profile: 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1',
+    sourceCommit: 'a'.repeat(40), sourceTree: 'b'.repeat(40), bundleSha256: '3'.repeat(64),
+    dependencyClosureDigest: '4'.repeat(64), bindings: [] });
+  const capability = await createComparison({ privateState: f.privateState, authority: f.authority });
+  const input = { capability, privateState: f.privateState, authority: f.authority,
+    ptrSourceCommit: 'e'.repeat(40), g002SourceCommit: 'e'.repeat(40) };
+  expect(compare(input)).toMatchObject({ sourceCommit: 'a'.repeat(40), sourceTree: 'b'.repeat(40),
+    ptr: { programArtifactSha256: '3'.repeat(64), dependencyClosureDigest: '4'.repeat(64) },
+    g002: { programArtifactSha256: f.result.genesis002.programArtifactSha256, programKeccak256: '2'.repeat(64) } });
+  for (const changes of [{ capability: {} }, { privateState: fixture().privateState }, { authority: { ...f.authority } },
+    { ptrSourceCommit: '../HEAD' }]) expect(() => compare({ ...input, ...changes } as never)).toThrow();
+  const legacy = await create({ privateState: f.privateState, authority: f.authority });
+  expect(() => compare({ ...input, capability: legacy })).toThrow();
+  for (const path of ['spacetimedb/ptr', 'spacetimedb/gameplay04', 'spacetimedb/genesis002', 'spacetimedb/src']) {
+    seam.git.mockImplementation((_exe, args) => args.at(-1) === `${'e'.repeat(40)}:${path}` ? '9'.repeat(40) + '\n' : 'b'.repeat(40) + '\n');
+    expect(() => compare(input)).toThrow();
+  }
+  seam.git.mockReturnValue('b'.repeat(40) + '\n');
+  dispose(capability); expect(() => compare(input)).toThrow();
+});
+it('rejects PTR source or native result changes after the asynchronous build', async () => {
+  const f = fixture();
+  seam.ptr.mockResolvedValue({ profile: 'warpkeep-spacetime-binding-final-preparation-linux-x64-v1',
+    sourceCommit: '9'.repeat(40), sourceTree: 'b'.repeat(40), bundleSha256: '3'.repeat(64),
+    dependencyClosureDigest: '4'.repeat(64), bindings: [] });
+  await expect(createComparison({ privateState: f.privateState, authority: f.authority })).rejects.toThrow();
+  seam.ptr.mockImplementation(async () => { seam.snapshot.mockImplementation(() => { throw Error('source changed during PTR'); }); return {}; });
+  await expect(createComparison({ privateState: f.privateState, authority: f.authority })).rejects.toThrow('source changed during PTR');
 });
