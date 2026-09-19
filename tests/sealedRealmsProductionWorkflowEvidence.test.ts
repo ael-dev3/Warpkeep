@@ -107,7 +107,10 @@ function fixture(activated = false, includePolicy = false) {
     let value: unknown;
     if (url === API) value = repository();
     else if (url === `${API}/branches/main`) value = main;
-    else if (url === operation.url) value = operation;
+    else if (url === operation.url) {
+      operation.name = `${process.env.WARPKEEP_OPERATION} @ ${commit}`;
+      value = operation;
+    }
     else if (url.startsWith(`${API}/actions/workflows/verify.yml/runs?`)) {
       const source = new URL(url).searchParams.get('head_sha')!;
       const members = runs.get(source) ?? [];
