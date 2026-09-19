@@ -22,6 +22,7 @@ const seams = vi.hoisted(() => ({
   g002Artifacts: new WeakSet<object>(),
   census: vi.fn(),
   inlineCensus: vi.fn(),
+  completedCandidate: vi.fn(),
   comparison: vi.fn(),
 }));
 vi.mock('../scripts/genesis001-linux-census-attempt.mjs', async original => ({
@@ -29,6 +30,9 @@ vi.mock('../scripts/genesis001-linux-census-attempt.mjs', async original => ({
 }));
 vi.mock('../scripts/genesis001-linux-policy-native.mjs', async original => ({
   ...await original<object>(), readFixedLinuxG001ActivationCensusEvidence: seams.inlineCensus,
+}));
+vi.mock('../scripts/sealed-realms-production-recovery-candidate.mjs', async original => ({
+  ...await original<object>(), readSealedRealmsProductionRecoveryCandidate: seams.completedCandidate,
 }));
 vi.mock('../scripts/sealed-realms-production-recovery-program-artifacts.mjs', async original => ({
   ...await original<object>(), readSealedRealmsProductionRecoveryAdoptionProgramComparison: seams.comparison,
@@ -925,8 +929,8 @@ it('reopens pre bytes after asynchronous signature verification before submissio
   expect(f.records().map(value => value.kind).sort()).toEqual(['inspection', 'not-submitted']);
 }, 30000);
 
-async function retainedAdoption(observationOptions: ObservationOptions = {}) {
-  const f = fixture(process.platform !== 'linux', undefined, observationOptions), adapter = f.make();
+async function retainedAdoption(observationOptions: ObservationOptions = {}, race?: (phase: string, path: string) => void) {
+  const f = fixture(process.platform !== 'linux', race, observationOptions), adapter = f.make();
   await f.inspect(adapter);
   const run = await f.dispatcher('ptr-update-apply', adapter);
   await run.call();
@@ -1528,14 +1532,14 @@ it.skipIf(process.platform !== 'linux').each([4, 5] as const)('generates and reo
   if (joined.g002) expect(joined.g002.g002.state.puts).toBe(1);
 }, 60000);
 
-async function joinedLinuxRecoveryFixture() {
+async function joinedLinuxRecoveryFixture(race?: (phase: string, path: string) => void) {
   const { collectGenesis001AdmittedPlayerCensus } = await import('../scripts/genesis001-admitted-player-census.mjs');
   const { createGenesis001LinuxCensusSample, createGenesis001LinuxCensusAttempt } = await import('../scripts/genesis001-linux-census-attempt.mjs');
   const policyModule = await import('../scripts/genesis001-sealed-launch-adoption.mjs');
   const { linuxG001PolicyExecution } = await import('./fixtures/linuxG001PolicyReceipt');
   const start = Date.parse('2026-09-19T12:00:00.000Z'), current = 'e'.repeat(40);
   vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(start);
-  const retained = await retainedAdoption({ bridgeSourceCommit: SOURCE });
+  const retained = await retainedAdoption({ bridgeSourceCommit: SOURCE }, race);
   const { f } = retained;
   const g002 = await retainedG002ForPtrFixture(f, { bridgeSourceCommit: SOURCE });
   const ptrEvidence = await adoptionWriter.authenticateSealedRealmsProductionPtrHistoricalAdoption({ privateState: f.privateState,
@@ -1627,8 +1631,13 @@ async function joinedLinuxRecoveryFixture() {
     setDuringFetch: (callback: () => void) => { duringFetch = callback; } };
 }
 
-it('keeps inline inspection diagnostic and generates from its own later census and bridge receipt', async () => {
-  const f = await joinedLinuxRecoveryFixture();
+it.each([false, true])('keeps inline inspection diagnostic and generates from its own later census and bridge receipt (lost acknowledgment: %s)', async lostAcknowledgment => {
+  let interruptTerminal = false;
+  const f = await joinedLinuxRecoveryFixture((phase, path) => {
+    if (interruptTerminal && phase === 'write-before-open' && /[/\\]terminal-[a-f0-9]{64}\.json$/u.test(path)) {
+      interruptTerminal = false; throw Error('Synthetic process interruption after complete output but before terminal acknowledgment');
+    }
+  });
   const bridgeModule = await import('../scripts/sealed-realms-production-auth-bridge-state.mjs');
   const laneModule = await import('../scripts/sealed-realms-production-activation-lane-entry.mjs');
   const { createPtrAdoptionBridgeFixture } = await import('./helpers/ptrAdoptionBridgeFixture');
@@ -1707,8 +1716,10 @@ it('keeps inline inspection diagnostic and generates from its own later census a
   expect(() => bridgeModule.readSealedRealmsProductionActivationGenerationKind({ generator,
     bridgeState: bridge.bridgeState, authority: generateRun.sourceAuthority })).toThrow();
   if (process.platform === 'linux') {
-    await expect(dispatch(state, generateRun, generator).dispatch({ operation: 'activation-evidence-generate', workflowInputSha: f.current }))
-      .resolves.toEqual({ operation: 'activation-evidence-generate', status: 'completed' });
+    interruptTerminal = lostAcknowledgment;
+    const dispatched = dispatch(state, generateRun, generator).dispatch({ operation: 'activation-evidence-generate', workflowInputSha: f.current });
+    if (lostAcknowledgment) await expect(dispatched).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+    else await expect(dispatched).resolves.toEqual({ operation: 'activation-evidence-generate', status: 'completed' });
     const generated = JSON.parse(readFileSync(join(f.f.runtime, 'public/activation-generation-receipt.json'), 'utf8'));
     expect(generated).toMatchObject({ artifactSchemaVersion: 6, runId: generateRun.runId });
     const selection = adoptionWriter.selectSealedRealmsProductionCompletedGeneration({ privateState: f.input.privateState,
@@ -1719,6 +1730,62 @@ it('keeps inline inspection diagnostic and generates from its own later census a
       return structuredClone({ receipt: census, selector: { ...f.selected.selector, attemptId: census.attemptId,
         githubRunId: census.githubRunId, receiptDigest: census.receiptDigest, completedAt: census.completedAt } });
     });
+    // Synthetic source/artifact projection remains an external seam. The
+    // completed context, census, bridge, private output and continuation owners
+    // exercised through it are all the actual implementations.
+    seams.completedCandidate.mockReset().mockImplementation(input => {
+      const historical = adoptionWriter.readSealedRealmsProductionCompletedGenerationContext({ records: input.records,
+        privateState: input.privateState, authority: input.authority, readContext: input.readContext });
+      const facts = bridgeModule.readSealedRealmsProductionCompletedRecoveryBridgeFacts({ capability: input.completedGeneration,
+        records: input.records, privateState: input.privateState, authority: input.authority, readContext: input.readContext });
+      for (const [key, value] of Object.entries(facts)) expect(historical.bindingCandidate[key]).toBe(value);
+      return `${JSON.stringify(historical.bindingCandidate, null, 2)}\n`;
+    });
+    const outputBefore = readFileSync(join(f.f.runtime, 'public/0.4.0-sealed-launch.json'));
+    const descriptorBefore = f.input.privateState.readActivationDescriptor();
+    const originalReceipts = readdirSync(directory).map(name => [name, readFileSync(join(directory, name))] as const);
+    const expired = later + 24 * 60 * 60 * 1000;
+    vi.setSystemTime(expired); f.f.observations.setNowSeconds(expired / 1000); f.g002.g002.observations.setNowSeconds(expired / 1000);
+    for (const id of ['1005', '1006']) {
+      const retry = await bridge.run('activation-evidence-generate', id,
+        new Set(id === '1005' ? [generateRun.runId] : [generateRun.runId, '1005']));
+      const retrySelection = adoptionWriter.selectSealedRealmsProductionCompletedGeneration({ privateState: f.input.privateState,
+        authority: retry.sourceAuthority });
+      const retryPrograms = Object.freeze({}); f.programOwners.set(retryPrograms, retry.sourceAuthority);
+      const completedGeneration = bridgeModule.createSealedRealmsProductionCompletedActivationGeneration({
+        privateState: f.input.privateState, authority: retry.sourceAuthority, store: bridge.store, selection: retrySelection,
+        existingStateAdoption: f.input.existingStateAdoption, g002ExistingStateAdoption: f.input.g002ExistingStateAdoption,
+        programArtifacts: retryPrograms as never, sourceClosure: Object.freeze({}) as never });
+      expect(() => laneModule.createSealedRealmsProductionActivationLane({ completedGeneration: { ...completedGeneration } as never })).toThrow();
+      const context = laneModule.createSealedRealmsProductionActivationDispatchContext({ readGit: () => `${f.current}\n`,
+        readBinding, verifyEvidence, permit: retry.permit, continuationStore: bridge.store, runId: retry.runId,
+        runAttempt: retry.runAttempt, sourceAuthority: retry.sourceAuthority });
+      const dispatcher = laneModule.createSealedRealmsProductionActivationDispatcher({ context,
+        lane: laneModule.createSealedRealmsProductionActivationLane({ completedGeneration }) });
+      await expect(dispatcher.dispatch({ operation: 'activation-evidence-generate', workflowInputSha: f.current }))
+        .resolves.toEqual({ operation: 'activation-evidence-generate', status: 'completed' });
+    }
+    expect(readFileSync(join(f.f.runtime, 'public/0.4.0-sealed-launch.json'))).toEqual(outputBefore);
+    expect(f.input.privateState.readActivationDescriptor()).toEqual(descriptorBefore);
+    expect(readdirSync(directory)).toEqual(originalReceipts.map(([name]) => name));
+    for (const [name, bytes] of originalReceipts) expect(readFileSync(join(directory, name))).toEqual(bytes);
+    if (lostAcknowledgment) {
+      const path = join(f.f.runtime, 'public/activation-generation-receipt.json'), before = readFileSync(path);
+      const codec = await import('../scripts/sealed-realms-production-activation-generation-receipt.mjs');
+      try {
+        writeFileSync(path, codec.activationGenerationReceiptBytes({ ...codec.parseActivationGenerationReceipt(before),
+          generatedAt: new Date(Date.parse(generated.generatedAt) + 1).toISOString() }));
+        // The replacement remains canonical and within the original evidence
+        // window, but the genuine reconciliation journal committed other bytes.
+        const changed = adoptionWriter.selectSealedRealmsProductionCompletedGeneration({ privateState: f.input.privateState,
+          authority: generateRun.sourceAuthority });
+        expect(() => adoptionWriter.authenticateSealedRealmsProductionCompletedLinuxRecoveryEvidence({ privateState: f.input.privateState,
+          authority: generateRun.sourceAuthority, store: bridge.store, selection: changed,
+          existingStateAdoption: f.input.existingStateAdoption, g002ExistingStateAdoption: f.input.g002ExistingStateAdoption,
+          programArtifacts: programs as never })).toThrow();
+      } finally { writeFileSync(path, before); }
+    }
+    vi.setSystemTime(later); f.f.observations.setNowSeconds(later / 1000); f.g002.g002.observations.setNowSeconds(later / 1000);
     const completedInput = { privateState: f.input.privateState, authority: generateRun.sourceAuthority, store: bridge.store,
       selection, existingStateAdoption: f.input.existingStateAdoption, g002ExistingStateAdoption: f.input.g002ExistingStateAdoption,
       programArtifacts: programs as never };
@@ -1762,6 +1829,10 @@ it('keeps inline inspection diagnostic and generates from its own later census a
         return `${JSON.stringify(historical.bindingCandidate, null, 2)}\n`;
       }, existingStateAdoption: f.input.existingStateAdoption, g002ExistingStateAdoption: f.input.g002ExistingStateAdoption,
       linuxRecoveryEvidence: completed });
+    expect(() => bridgeModule.createSealedRealmsProductionActivationEvidenceGenerator({ records: completedRecords,
+      privateState: f.input.privateState, authority: generateRun.sourceAuthority,
+      existingStateAdoption: f.input.existingStateAdoption, g002ExistingStateAdoption: f.input.g002ExistingStateAdoption,
+      linuxRecoveryEvidence: completed })).toThrow();
     // Completed data cannot produce a new candidate even while its original
     // census is still fresh; the old generatedAt is the only permitted read.
     expect(() => adoptionWriter.readSealedRealmsProductionRecoveryReceiptProjection(completedRecords)).toThrow();
@@ -1789,7 +1860,7 @@ it('keeps inline inspection diagnostic and generates from its own later census a
     authority: generateRun.sourceAuthority }).admissionRequestSuspensionReceiptDigest).toBe(names.find(name => name !== oldName)!.slice(23, -5));
   await expect(state.inspectInlineActivationEvidenceForContinuation({ generator, authority: generateRun.sourceAuthority })).rejects.toThrow();
   await expect(bridge.bridgeState.reopenActivationEvidenceContinuation()).rejects.toThrow();
-}, 120000);
+}, 180000);
 
 it('joins genuine historical adoptions and selected Linux census to current activation without relabelling signed provenance', async () => {
   const f = await joinedLinuxRecoveryFixture(), requests = seams.request.mock.calls.length;

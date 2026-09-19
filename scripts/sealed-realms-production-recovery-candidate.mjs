@@ -1,7 +1,7 @@
 import { GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE, GENESIS_001_LINUX_POLICY_OPERATOR_PATH } from './genesis001-linux-policy-receipt.mjs';
 import { readSealedRealmsProductionRecoveryProgramArtifacts } from './sealed-realms-production-recovery-program-artifacts.mjs';
 import { readSealedRealmsProductionRecoverySourceClosure } from './sealed-realms-production-recovery-source-closure.mjs';
-import { readSealedRealmsProductionRecoveryPreparation } from './sealed-realms-production-recovery-preparation.mjs';
+import { readSealedRealmsProductionRecoveryPreparation, readSealedRealmsProductionCompletedRecoveryPreparation } from './sealed-realms-production-recovery-preparation.mjs';
 import { readSealedRealmsProductionRecoveryApprovalFacts } from './sealed-realms-production-recovery-approval-facts.ts';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -13,7 +13,7 @@ import { sourceCommitFromSealedRealmsProductionAuthority } from './sealed-realms
 import { recoveryActivationCandidatePolicy, recoveryActivationCandidatePolicyForVersion, validateRecoveryActivationCandidate, validateRecoveryActivationCandidateV3, validateRecoveryActivationCandidateV4, validateRecoveryActivationCandidateV5, validateRecoveryActivationCandidateV6 } from './recovery-activation-candidate.mjs';
 import { RECOVERY_BINDING_KEYS_V2, RECOVERY_BINDING_KEYS_V3, RECOVERY_BINDING_KEYS_V4, RECOVERY_BINDING_KEYS_V5, RECOVERY_BINDING_KEYS_V6 } from './recovery-binding-projection.mjs';
 
-import { readSealedRealmsProductionRecoveryBridgeFacts } from './sealed-realms-production-auth-bridge-state.mjs';
+import { readSealedRealmsProductionRecoveryBridgeFacts, readSealedRealmsProductionCompletedRecoveryBridgeFacts } from './sealed-realms-production-auth-bridge-state.mjs';
 
 const BOOTSTRAP = 'scripts/greater-realm-production-bootstrap.mjs';
 const GIT = String.fromCodePoint(47, 117, 115, 114, 47, 98, 105, 110, 47, 103, 105, 116);
@@ -35,7 +35,9 @@ function input(value) {
   if (types.isProxy(value) || value === null || typeof value !== 'object'
     || Object.getPrototypeOf(value) !== Object.prototype) fail();
   const descriptors = Object.getOwnPropertyDescriptors(value);
-  const keys = ['records', 'privateState', 'authority', ...(Object.hasOwn(descriptors, 'bridgeState') ? ['bridgeState'] : []), ...(Object.hasOwn(descriptors, 'readContext') ? ['readContext'] : []), ...(Object.hasOwn(descriptors, 'sourceClosure') ? ['sourceClosure'] : []), ...(Object.hasOwn(descriptors, 'preparation') ? ['preparation'] : []), ...(Object.hasOwn(descriptors, 'programArtifacts') ? ['programArtifacts'] : [])];
+  const keys = ['records', 'privateState', 'authority', ...(Object.hasOwn(descriptors, 'bridgeState') ? ['bridgeState'] : []), ...(Object.hasOwn(descriptors, 'completedGeneration') ? ['completedGeneration'] : []), ...(Object.hasOwn(descriptors, 'readContext') ? ['readContext'] : []), ...(Object.hasOwn(descriptors, 'sourceClosure') ? ['sourceClosure'] : []), ...(Object.hasOwn(descriptors, 'preparation') ? ['preparation'] : []), ...(Object.hasOwn(descriptors, 'programArtifacts') ? ['programArtifacts'] : [])];
+  if (Object.hasOwn(descriptors, 'completedGeneration')
+    && (Object.hasOwn(descriptors, 'bridgeState') || Object.hasOwn(descriptors, 'preparation') || !Object.hasOwn(descriptors, 'readContext'))) fail();
   if (Reflect.ownKeys(descriptors).length !== keys.length) fail();
   return Object.fromEntries(keys.map(key => {
     if (!descriptors[key]?.enumerable || !Object.hasOwn(descriptors[key], 'value')) fail();
@@ -89,7 +91,10 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
   const commit = sourceCommitFromSealedRealmsProductionAuthority(options.authority);
   if (options.authority.mode !== 'S' || options.authority.operation !== 'activation-evidence-generate') fail();
   const corpus = readSealedRealmsProductionRecoveryCandidateRecords(options.records, options.readContext);
-  const readBridge = () => Object.hasOwn(options, 'bridgeState')
+  const readBridge = () => Object.hasOwn(options, 'completedGeneration')
+    ? readSealedRealmsProductionCompletedRecoveryBridgeFacts({ capability: options.completedGeneration, records: options.records,
+      privateState: options.privateState, authority: options.authority, readContext: options.readContext })
+    : Object.hasOwn(options, 'bridgeState')
     ? readSealedRealmsProductionRecoveryBridgeFacts({ bridgeState: options.bridgeState, privateState: options.privateState, authority: options.authority })
     : Object.freeze({});
   const bridge = readBridge();
@@ -97,7 +102,10 @@ export function inspectSealedRealmsProductionRecoveryCandidate(inputValue) {
     ? readSealedRealmsProductionRecoverySourceClosure({ capability: options.sourceClosure, privateState: options.privateState, authority: options.authority })
     : Object.freeze({});
   const closure = readClosure();
-  const readPreparation = () => Object.hasOwn(options, 'preparation')
+  const readPreparation = () => Object.hasOwn(options, 'completedGeneration')
+    ? readSealedRealmsProductionCompletedRecoveryPreparation({ records: options.records, privateState: options.privateState,
+      authority: options.authority, readContext: options.readContext })
+    : Object.hasOwn(options, 'preparation')
     ? readSealedRealmsProductionRecoveryPreparation({ capability: options.preparation, privateState: options.privateState, authority: options.authority })
     : Object.freeze({});
   const preparation = readPreparation();

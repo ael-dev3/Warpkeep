@@ -14,6 +14,9 @@ export function createSealedRealmsProductionActivationDispatchContext(
   input: SealedRealmsProductionDispatchContextInput,
 ): SealedRealmsProductionActivationDispatchContext;
 export function createSealedRealmsProductionActivationLane(input: Readonly<{
+  completedGeneration: import('./sealed-realms-production-auth-bridge-state.mjs').SealedRealmsProductionCompletedActivationGeneration;
+}>): SealedRealmsProductionActivationLane;
+export function createSealedRealmsProductionActivationLane(input: Readonly<{
   bridgeState: SealedRealmsProductionAuthBridgeState;
   generator?: SealedRealmsProductionActivationEvidenceGenerator;
 }>): SealedRealmsProductionActivationLane;

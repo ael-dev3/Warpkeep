@@ -4,6 +4,8 @@ import {
   assertSealedRealmsProductionActivationEvidenceGenerator,
   readSealedRealmsProductionActivationGenerationKind,
   isSealedRealmsProductionInlineActivationBridge,
+  assertSealedRealmsProductionCompletedActivationGeneration,
+  reconcileSealedRealmsProductionCompletedActivationGeneration,
 } from './sealed-realms-production-auth-bridge-state.mjs';
 import {
   sourceCommitFromSealedRealmsProductionAuthority,
@@ -200,11 +202,13 @@ export function createSealedRealmsProductionActivationLane(input = {}) {
   if (
     isProxy(input) || input === null || typeof input !== 'object' || Array.isArray(input)
     || Object.getPrototypeOf(input) !== Object.prototype
-    || ![JSON.stringify(['bridgeState']), JSON.stringify(['bridgeState', 'generator'])].includes(JSON.stringify(Object.keys(input)))
+    || ![JSON.stringify(['bridgeState']), JSON.stringify(['bridgeState', 'generator']), JSON.stringify(['completedGeneration'])].includes(JSON.stringify(Object.keys(input)))
     || isProxy(input.bridgeState)
   ) fail('SEALED_REALMS_ACTIVATION_LANE_INPUT_INVALID');
   const { bridgeState } = input;
-  const state = assertSealedRealmsProductionAuthBridgeState(bridgeState);
+  const completedGeneration = Object.hasOwn(input, 'completedGeneration')
+    ? assertSealedRealmsProductionCompletedActivationGeneration(input.completedGeneration) : undefined;
+  const state = completedGeneration === undefined ? assertSealedRealmsProductionAuthBridgeState(bridgeState) : undefined;
   const generator = Object.hasOwn(input, 'generator')
     ? assertSealedRealmsProductionActivationEvidenceGenerator(input.generator) : undefined;
   const execute = async (input = {}) => {
@@ -221,8 +225,15 @@ export function createSealedRealmsProductionActivationLane(input = {}) {
     if (authority.operation !== operation) {
       fail('SEALED_REALMS_ACTIVATION_LANE_SOURCE_OPERATION_INVALID');
     }
-    assertSealedRealmsProductionAuthBridgeStateAuthority(state, authority);
     if (authority.mode !== 'S') fail('SEALED_REALMS_ACTIVATION_LANE_SOURCE_MODE_INVALID');
+    if (completedGeneration !== undefined) {
+      if (operation !== 'activation-evidence-generate') fail('SEALED_REALMS_ACTIVATION_LANE_OPERATION_INVALID');
+      await reconcileSealedRealmsProductionCompletedActivationGeneration({ capability: completedGeneration,
+        sourceAuthority: authority, permit: continuation.permit, store: continuation.store,
+        runId: continuation.runId, runAttempt: continuation.runAttempt });
+      return Object.freeze({ status: 'completed' });
+    }
+    assertSealedRealmsProductionAuthBridgeStateAuthority(state, authority);
     if (operation === 'activation-evidence-generate') {
       if (generator === undefined) return Object.freeze({ status: 'unavailable' });
       const kind = readSealedRealmsProductionActivationGenerationKind({ generator, bridgeState: state, authority });

@@ -309,6 +309,30 @@ export function isSealedRealmsProductionInlineActivationBridge(input: Readonly<{
   authority: SealedRealmsProductionSourceAuthority;
 }>): boolean;
 
+declare const completedGenerationBrand: unique symbol;
+export type SealedRealmsProductionCompletedActivationGeneration = Readonly<{ [completedGenerationBrand]: true }>;
+export function createSealedRealmsProductionCompletedActivationGeneration(input: Readonly<{
+  privateState: SealedRealmsProductionPrivateState; authority: SealedRealmsProductionSourceAuthority;
+  store: SealedRealmsProductionContinuationStore;
+  selection: import('./sealed-realms-production-activation-records.mjs').SealedRealmsProductionCompletedGenerationSelection;
+  existingStateAdoption: SealedRealmsProductionPtrExistingStateAdoptionEvidence;
+  g002ExistingStateAdoption: SealedRealmsProductionG002ExistingStateAdoptionEvidence;
+  programArtifacts: import('./sealed-realms-production-recovery-program-artifacts.mjs').SealedRealmsProductionRecoveryProgramArtifacts;
+  sourceClosure: import('./sealed-realms-production-recovery-source-closure.mjs').SealedRealmsProductionRecoverySourceClosure;
+}>): SealedRealmsProductionCompletedActivationGeneration;
+export function assertSealedRealmsProductionCompletedActivationGeneration(capability: unknown): SealedRealmsProductionCompletedActivationGeneration;
+export function readSealedRealmsProductionCompletedRecoveryBridgeFacts(input: Readonly<{
+  capability: SealedRealmsProductionCompletedActivationGeneration; records: SealedRealmsProductionActivationRecords;
+  privateState: SealedRealmsProductionPrivateState; authority: SealedRealmsProductionSourceAuthority;
+  readContext: import('./sealed-realms-production-activation-records.mjs').SealedRealmsRecoveryCandidateReadContext;
+}>): Readonly<{ recoveryAuthWorkerVersionId: string; recoveryAuthWorkerSourceCommit: string;
+  authBridgeSourceCommit: string; admissionRequestSuspensionReceiptDigest: string }>;
+export function reconcileSealedRealmsProductionCompletedActivationGeneration(input: Readonly<{
+  capability: SealedRealmsProductionCompletedActivationGeneration; sourceAuthority: SealedRealmsProductionSourceAuthority;
+  permit: import('./sealed-realms-production-workflow-authority.mjs').SealedRealmsProductionWorkflowPermit;
+  store: SealedRealmsProductionContinuationStore; runId: string; runAttempt: string | number;
+}>): Promise<Readonly<Record<never, never>>>;
+
 export function consumeSealedRealmsProductionActivationEvidenceForTesting(
   input: SealedRealmsProductionBridgeContinuationClaim & Readonly<{
     confirmation: SealedRealmsActivationEvidenceConfirmation;

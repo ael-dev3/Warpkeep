@@ -37,7 +37,8 @@ import {
   projectGenesis001AdmittedPlayerCensusStablePair,
 } from './genesis001-admitted-player-census.mjs';
 import { createRecoveryActivationBindingFromCandidate, validateRecoveryActivationCandidateDocument } from './recovery-activation-candidate.mjs';
-import { parseActivationGenerationReceipt } from './sealed-realms-production-activation-generation-receipt.mjs';
+import { parseActivationGenerationReceipt, activationGenerationReceiptBytes,
+  activationGenerationReceiptDigest } from './sealed-realms-production-activation-generation-receipt.mjs';
 import { readPtrExistingUpdateCompletion, readPtrExistingStateAdoption, readPtrExistingUpdateCompletionFromPrivateState, readPtrRetainedUpdateCompletion, readG002ExistingUpdateCompletion, readG002ExistingStateAdoption, readG002ExistingUpdateCompletionFromPrivateState, readG002RetainedUpdateCompletion } from './ptr-production-existing-update-adapter.mjs';
 import { updateCanonical, updateDigest } from './sealed-realms-existing-update-protocol.mjs';
 import { verifyPtrUpdateObservationPair, verifyG002UpdateObservationPair } from '../services/release-recovery/src/ptrObservation.ts';
@@ -141,6 +142,11 @@ function completedLinuxAuthority(state) {
       sourceAuthority: state.authority, kind: 'activation-evidence-inline', ...selected.binding });
     if (completion.claimRunId !== selected.receipt.runId || completion.claimRunAttempt !== selected.receipt.runAttempt
       || Date.parse(completion.terminalAt) < Date.parse(selected.receipt.generatedAt)) fail();
+    if (completion.outcome === 'reconciled-effect-applied') {
+      const bytes = activationGenerationReceiptBytes(selected.receipt);
+      try { if (completion.observationDigest !== activationGenerationReceiptDigest(bytes)) fail(); }
+      finally { bytes.fill(0); }
+    }
   }
   return selected;
 }

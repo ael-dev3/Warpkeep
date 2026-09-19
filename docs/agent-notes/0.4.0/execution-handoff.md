@@ -425,11 +425,11 @@ inline dispatch and output generation subsequently passed at published
 `c31bff9e`: the native connected case exercised the actual protected dispatcher,
 same-run claim and generated descriptor/public artifact. All 136 tests in the
 bridge-state and recovery-bridge runtime suites also passed without skips.
-Already-written V6 output still needs its separate completed-only retry path;
-that next repair must reuse original evidence at authenticated generation time
-without requesting a new census or signer observation.
+Already-written V6 output uses the separate completed-only retry path described
+below, retaining original evidence at authenticated generation time without
+requesting a new census or signer observation.
 
-The next reviewed checkpoint adds data-only readers for that retry. They reopen
+Published `11ad901d` adds data-only readers for that retry. They reopen
 the exact completed output family, native census and retained signed preparation
 at the original authenticated generation time. Copied contexts, foreign private
 stores and use as fresh generation evidence are rejected. Independent review
@@ -437,8 +437,26 @@ found and repaired an ownership gap in the active reconciliation path; its
 regression uses a genuine alternate store and ambiguous claim. Preparation
 checks passed 36 direct, 19 signed-observation and 13 selected legacy cases on
 Windows, with application types and both selected connected cases passing.
-Native completed-context verification follows publication. The actual retry
-handle, workflow and lane wiring remain a separate unfinished checkpoint.
+At that exact published source, all 82 preparation tests passed on native Linux.
+The selected connected completed-context case also passed, including the genuine
+foreign-owner reconciliation regression; 35 unrelated cases were unselected.
+
+The reviewed caller now selects an existing completed inline family before any
+new census, preparation request or bridge provider is constructed. The actual
+activation lane either reopens successful completion or reconciles the original
+uncertain claim after its run has terminated, then reopens the output before
+reporting success. Reconciled completion also binds the exact generation receipt
+to the journal's observation digest. Malformed or partial output is preserved
+and rejected. Fresh and legacy generation remain separate existing paths.
+
+Independent review passed after the receipt commitment repair. Application types
+and all 29 workflow lifecycle cases passed on Windows. The connected regression
+exercises normal completion and an actual private-write interruption before
+terminal acknowledgement, followed by two retries 24 hours later. Its fixed
+Git/artifact candidate projection is an explicit fixture seam, so this is not
+full native release preparation or deployed acceptance. Native caller execution
+follows publication. The preparation runbook now consistently directs source-only
+M1, native prepare/check from exact protected M1, then generated-only M2.
 
 ### Shipping estimate and next critical work
 

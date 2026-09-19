@@ -40,6 +40,10 @@ const f = vi.hoisted(() => ({
   authenticationRecords: Object.freeze({}),
   createRecords: vi.fn(),
   createGenerator: vi.fn(),
+  selectCompleted: vi.fn(),
+  completedSelection: Object.freeze({}),
+  createCompleted: vi.fn(),
+  completedGeneration: Object.freeze({}),
   records: Object.freeze({}),
   context: Object.freeze({}),
   read: vi.fn(),
@@ -87,6 +91,7 @@ vi.mock("../scripts/sealed-realms-production-bridge-provider.mjs", () => ({
 vi.mock("../scripts/sealed-realms-production-auth-bridge-state.mjs", () => ({
   createSealedRealmsProductionAuthBridgeState: f.createBridge,
   createSealedRealmsProductionActivationEvidenceGenerator: f.createGenerator,
+  createSealedRealmsProductionCompletedActivationGeneration: f.createCompleted,
 }));
 vi.mock("../scripts/sealed-realms-production-activation-records.mjs", () => ({
   createSealedRealmsProductionActivationRecords: f.createRecords,
@@ -95,6 +100,7 @@ vi.mock("../scripts/sealed-realms-production-activation-records.mjs", () => ({
   authenticateSealedRealmsProductionPtrHistoricalAdoption: f.authenticateAdoption,
   authenticateSealedRealmsProductionG002HistoricalAdoption: f.authenticateG002Adoption,
   authenticateSealedRealmsProductionLinuxRecoveryEvidence: f.join,
+  selectSealedRealmsProductionCompletedGeneration: f.selectCompleted,
 }));
 vi.mock("../scripts/sealed-realms-production-recovery-candidate.mjs", () => ({
   readSealedRealmsProductionRecoveryCandidate: f.read,
@@ -154,6 +160,8 @@ beforeEach(() => {
   f.join.mockReset().mockResolvedValue(f.joined);
   f.censusPrepare.mockReset().mockResolvedValue(f.censusHandle);
   f.censusExecute.mockReset().mockResolvedValue(f.censusEvidence);
+  f.selectCompleted.mockReset().mockReturnValue(f.completedSelection);
+  f.createCompleted.mockReset().mockReturnValue(f.completedGeneration);
 });
 afterEach(() => vi.unstubAllEnvs());
 vi.mock('../scripts/sealed-realms-production-recovery-preparation.mjs', () => ({
@@ -452,4 +460,34 @@ it('does not fall back from a malformed explicit census selection', async () => 
   f.state.list.mockReturnValue(['ptr-existing-state-adoptions-v4', 'g002-existing-state-adoptions-v1']);
   await expect(createSealedRealmsProductionActivationWorkflowRuntime({ operation: 'activation-evidence-inspect', workflowInputSha: 'a'.repeat(40) })).rejects.toThrow('ADOPTION_INVALID');
   expect(f.programs).not.toHaveBeenCalled(); expect(f.createProvider).not.toHaveBeenCalled(); expect(f.authenticateAdoption).not.toHaveBeenCalled();
+});
+it('selects an existing inline family before builds and reopens it without new census, preparation or provider access', async () => {
+  vi.stubEnv('WARPKEEP_G001_CENSUS_ATTEMPT', 'inline');
+  vi.stubEnv('WARPKEEP_PRODUCTION_ADMIN_TOKEN', 'synthetic-unused-admin-credential');
+  vi.stubEnv('WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN', 'synthetic-unused-provider-credential');
+  f.state.list.mockReturnValue(['ptr-existing-state-adoptions-v4', 'g002-existing-state-adoptions-v1', 'public']);
+  f.programs.mockImplementationOnce(async () => {
+    expect(f.selectCompleted).toHaveBeenCalledExactlyOnceWith({ privateState: f.state, authority: f.authority });
+    expect(process.env.WARPKEEP_PRODUCTION_ADMIN_TOKEN).toBeUndefined();
+    expect(process.env.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN).toBeUndefined();
+    return f.programArtifacts;
+  });
+  const operation = 'activation-evidence-generate';
+  const runtime = await createSealedRealmsProductionActivationWorkflowRuntime({ operation, workflowInputSha: 'a'.repeat(40) });
+  expect(f.createCompleted).toHaveBeenCalledExactlyOnceWith({ privateState: f.state, authority: f.authority,
+    store: f.store, selection: f.completedSelection, existingStateAdoption: f.adoption,
+    g002ExistingStateAdoption: f.g002Adoption, programArtifacts: f.programArtifacts, sourceClosure: f.sourceClosure });
+  for (const mock of [f.censusPrepare, f.censusExecute, f.prepare, f.createProvider, f.createBridge, f.createGenerator, f.join]) expect(mock).not.toHaveBeenCalled();
+  await runSealedRealmsProductionActivationOperation({ runtime, operation, workflowInputSha: 'a'.repeat(40) });
+  expect(f.disposePrograms).toHaveBeenCalledExactlyOnceWith(f.programArtifacts);
+  expect(f.dispose).toHaveBeenCalledExactlyOnceWith(f.sourceClosure);
+  expect(f.disposePreparation).not.toHaveBeenCalled();
+});
+it.each(['public', 'public.family.lock', 'public.stage.interrupted'])('does not rebuild or replace invalid completed family %s', async member => {
+  vi.stubEnv('WARPKEEP_G001_CENSUS_ATTEMPT', 'inline');
+  f.state.list.mockReturnValue(['ptr-existing-state-adoptions-v4', 'g002-existing-state-adoptions-v1', member]);
+  f.selectCompleted.mockImplementationOnce(() => { throw Error('invalid retained family'); });
+  await expect(createSealedRealmsProductionActivationWorkflowRuntime({ operation: 'activation-evidence-generate', workflowInputSha: 'a'.repeat(40) }))
+    .rejects.toThrow('invalid retained family');
+  for (const mock of [f.programs, f.censusPrepare, f.censusExecute, f.prepare, f.createProvider, f.createBridge, f.dispatch]) expect(mock).not.toHaveBeenCalled();
 });

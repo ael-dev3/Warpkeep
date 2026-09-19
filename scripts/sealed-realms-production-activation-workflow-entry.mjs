@@ -11,10 +11,12 @@ import { createSealedRealmsProductionBridgeProvider } from './sealed-realms-prod
 import {
   createSealedRealmsProductionAuthBridgeState,
   createSealedRealmsProductionActivationEvidenceGenerator,
+  createSealedRealmsProductionCompletedActivationGeneration,
 } from './sealed-realms-production-auth-bridge-state.mjs';
 import { createSealedRealmsProductionActivationRecords, authenticateSealedRealmsProductionPtrExistingStateAdoption,
   authenticateSealedRealmsProductionG002ExistingStateAdoption, authenticateSealedRealmsProductionPtrHistoricalAdoption,
-  authenticateSealedRealmsProductionG002HistoricalAdoption, authenticateSealedRealmsProductionLinuxRecoveryEvidence } from './sealed-realms-production-activation-records.mjs';
+  authenticateSealedRealmsProductionG002HistoricalAdoption, authenticateSealedRealmsProductionLinuxRecoveryEvidence,
+  selectSealedRealmsProductionCompletedGeneration } from './sealed-realms-production-activation-records.mjs';
 import { readPtrRetainedUpdateSourceCommit, readG002RetainedUpdateSourceCommit } from './ptr-production-existing-update-adapter.mjs';
 import { readSealedRealmsProductionRecoveryCandidate } from './sealed-realms-production-recovery-candidate.mjs';
 import {
@@ -201,10 +203,17 @@ async function buildDispatcher(operation, workflowInputSha, evidence, lifecycle)
   let linuxRecoveryEvidence;
   let bridgeProvider;
   const censusAttempt = process.env.WARPKEEP_G001_CENSUS_ATTEMPT || undefined;
+  const completedSelection = operation === 'activation-evidence-generate' && censusAttempt === 'inline'
+    && retainedDirectories.some(name => name === 'public' || name === 'public.family.lock' || name.startsWith('public.stage.'))
+    ? selectSealedRealmsProductionCompletedGeneration({ privateState, authority }) : undefined;
+  if (completedSelection !== undefined) {
+    delete process.env.WARPKEEP_PRODUCTION_ADMIN_TOKEN;
+    delete process.env.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN;
+  }
   if (censusAttempt !== undefined) {
     const inline = censusAttempt === 'inline';
     if ((!inline && !/^[a-f0-9]{32}$/u.test(censusAttempt)) || !hasPtrAdoption || !hasG002Adoption) fail('SEALED_REALMS_ACTIVATION_WORKFLOW_ADOPTION_INVALID');
-    if (inline) {
+    if (inline && completedSelection === undefined) {
       let adminSecret = process.env.WARPKEEP_PRODUCTION_ADMIN_TOKEN;
       try {
         // The existing provider captures and scrubs both ambient credentials.
@@ -235,13 +244,13 @@ async function buildDispatcher(operation, workflowInputSha, evidence, lifecycle)
     g002ExistingStateAdoption = await authenticateSealedRealmsProductionG002HistoricalAdoption({ privateState,
       retainedSource: retainedSource('g002', g002Commit), store: continuationStore });
     let censusEvidence;
-    if (inline) censusEvidence = await executeFixedLinuxG001ActivationCensusObservation(lifecycle.censusPreparation,
+    if (inline && completedSelection === undefined) censusEvidence = await executeFixedLinuxG001ActivationCensusObservation(lifecycle.censusPreparation,
       { sourceAuthority: authority, workflowPermit: permit, workflowEvidence: evidence });
     await refreshSealedRealmsProductionRetainedEvidence(lifecycle.retainedEvidence);
-    linuxRecoveryEvidence = await authenticateSealedRealmsProductionLinuxRecoveryEvidence({ privateState, authority, permit,
+    if (completedSelection === undefined) linuxRecoveryEvidence = await authenticateSealedRealmsProductionLinuxRecoveryEvidence({ privateState, authority, permit,
       ...(inline ? { censusEvidence } : { attemptId: censusAttempt }),
       existingStateAdoption, g002ExistingStateAdoption, programArtifacts: lifecycle.programArtifacts });
-    if (operation === 'activation-evidence-generate') {
+    if (operation === 'activation-evidence-generate' && completedSelection === undefined) {
       // The signed configuration observation has a shorter freshness window
       // than census collection, so obtain it only after collection completes.
       lifecycle.preparation = await createSealedRealmsProductionRecoveryPreparation({ privateState, authority });
@@ -261,6 +270,15 @@ async function buildDispatcher(operation, workflowInputSha, evidence, lifecycle)
         records: retainedRecords, authority: g002UpdateAuthority, store: continuationStore,
       });
     }
+  }
+  if (completedSelection !== undefined) {
+    const completedGeneration = createSealedRealmsProductionCompletedActivationGeneration({ privateState, authority,
+      store: continuationStore, selection: completedSelection, existingStateAdoption, g002ExistingStateAdoption,
+      programArtifacts: lifecycle.programArtifacts, sourceClosure: lifecycle.sourceClosure });
+    const context = createSealedRealmsProductionActivationDispatchContext({ readGit, readBinding, verifyEvidence,
+      permit, continuationStore, runId, runAttempt, sourceAuthority: authority });
+    return createSealedRealmsProductionActivationDispatcher({ context,
+      lane: createSealedRealmsProductionActivationLane({ completedGeneration }) });
   }
   const adoptionOptions = { ...(existingStateAdoption === undefined ? {} : { existingStateAdoption }),
     ...(g002ExistingStateAdoption === undefined ? {} : { g002ExistingStateAdoption }),
