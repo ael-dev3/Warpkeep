@@ -213,17 +213,17 @@ function canonicalDirectory(path, code) {
 }
 
 function copyAndScrubEnvironment(environment) {
+  for (const name of FORBIDDEN_ENVIRONMENT) {
+    if (environment[name] !== undefined) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_ENVIRONMENT_FORBIDDEN');
+    }
+  }
   const values = {};
   for (const name of REQUIRED_ENVIRONMENT) {
     if (typeof environment[name] !== 'string') {
       fail('AUTH_BRIDGE_PREPARED_DEPLOY_ENVIRONMENT_INVALID');
     }
     values[name] = environment[name];
-  }
-  for (const name of FORBIDDEN_ENVIRONMENT) {
-    if (environment[name] !== undefined) {
-      fail('AUTH_BRIDGE_PREPARED_DEPLOY_ENVIRONMENT_FORBIDDEN');
-    }
   }
   for (const name of [
     'GITHUB_TOKEN',

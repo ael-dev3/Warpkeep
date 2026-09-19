@@ -167,7 +167,7 @@ describe('explicit PTR preserved-state adoption binding v4', () => {
     for (const changed of [source.trimEnd(), source.replace('"schemaVersion": 4,', '"schemaVersion": 4, "schemaVersion": 4,'), source.replaceAll('\n', '\r\n')]) {
       expect(() => projection.parseRecoveryBindingDocument(changed)).toThrow();
     }
-    expect(() => projection.recoveryBindingKeys(6 as 4)).toThrow();
-    expect(() => activation.recoveryActivationCandidatePolicyForVersion(6 as 4)).toThrow();
+    expect(() => projection.recoveryBindingKeys(7 as 4)).toThrow();
+    expect(() => activation.recoveryActivationCandidatePolicyForVersion(7 as 4)).toThrow();
   });
 });
