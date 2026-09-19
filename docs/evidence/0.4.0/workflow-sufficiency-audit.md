@@ -1,31 +1,23 @@
 # 0.4 workflow sufficiency audit
 
-Updated 2026-09-19 (Europe/Budapest). Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
-for the single dated source/CI checkpoint and the [release checklist](../../operations/0.4.0-release-checklist.md)
-for acceptance. Resolve current protected and development refs in that handoff;
-do not copy a moving source/run inventory into this verdict. Pages classification
-does not prove that build, deployment, recovery or live verification ran.
-0.4 remains unshipped. The sync
-automation is paused and no new Desktop files are permitted.
+Updated 2026-09-19 (Europe/Budapest). Protected `main` is
+`71458ff8ccf058b1565e864bf6c3f8fe0aad0f75`; PRs #304 and #305 are merged.
+Main Verify `35464076932`, CodeQL `35464076940` and exact-source preflight
+`35467008164` passed. Pages `35466975662` classified only and skipped all live
+work. The sync automation is paused and no new Desktop files are permitted.
 
-The 0.4 foundation remains strong: the Keep04 gather → choose → build → benefit
-→ return rail, first-journey cue, mobile Verdant Citadel composition, focused
-accessibility and contract coverage have recorded passing results. Local
-full-stack probes and synthetic captures remain bound to their recorded source.
-The release still requires private activation authority,
-G001 observation, PTR observer/readback, provider deployment/recovery,
-owner-only PTR play, physical-device performance and final release freeze.
 ## Verdict
 
-The workflow supports reviewed development, native preparation, protected
-integration, generated-family promotion, fresh main verification and sealed
-preflight. It is not
-yet sufficient to ship 0.4: operation-specific private and owner authority, real
-deployment and recovery/readback, G001 preservation, sealed G002 denial,
-owner-only PTR play, physical-device performance, hosting and final deployment
-remain open. Use source-bound acceptance evidence to assess progress; a past
-completion estimate does not measure later source or close a release gate.
-No reliable calendar ETA is established.
+The workflow is sufficient for reviewed source integration, native
+prepare/check, generated-family promotion, protected verification and exact
+preflight. It is not sufficient to ship 0.4: operation-specific private
+producers/retained state, G001 preservation, PTR observer/readback, provider
+deployment/recovery, sealed G002 denial, actual-owner PTR play,
+physical-device performance and final hosting/freeze remain open. The current
+G001 current-state choice is also exposed in the dispatch menu while routed to
+the explicit unwired-operation guard; preserve that as a tracked rail defect
+rather than treating the failed run as live evidence. No calendar ETA is valid
+until the private producers are available.
 
 ## What is working
 

@@ -1,26 +1,22 @@
 # Warpkeep 0.4 recovery evidence
 
-## Current checkpoint supersession — 18 September 2026
+## Current checkpoint supersession — 19 September 2026
 
-The active protected runtime source family is M2
-`fa9927bb9a8701e182f63eac1206e2f1425c4522`. This record pins the docs-only
-checkpoint `74e021a9b25417e2c77fcbaf7f764eba03474f77`; its post-merge Verify
-`35301960822`, CodeQL `35301960847` and Pages classification `35304999434`
-passed. Pages classification passed, with deployment skipped while
-`pagesDeploymentApproved:false` is in force. PR #290's bounded Linux cleanup
-retry passed Verify `35287561293` and CodeQL `35287561395`. The last
-runtime-bearing checkpoint `b4e1e0dcc07a9f0e7ea52bad435054391fb1ad0a` and its
-receipts remain historical. These are dated receipts, not a moving runtime
-head; resolve live `main` before a new dispatch. Documentation-only commits do
-not change the runtime source family. The
-native `WarpkeepRunner` checkout is kept clean and synchronized
-to the resolved live `main` before an operation; the pinned runtime source and
-moving documentation head are separate. Read-only activation inspection `35110519489`, G001 policy observation
-`35110808078` and PTR observer inspection `35114630482` failed closed because
-the retained activation chain, G001 observation secret and live PTR observer
-inputs are not present. No provider mutation or release claim follows from
-those probes. The historical recovery records below remain source-bound
-rehearsals and do not supersede this checkpoint.
+The active protected runtime source family is M2 at
+`71458ff8ccf058b1565e864bf6c3f8fe0aad0f75`. Main Verify `35464076932`, CodeQL
+`35464076940` and exact-source preflight `35467008164` passed. Native prepare/check
+converged on the family, closure and scanner hashes recorded in the execution
+handoff; `finalReleasePrepared:false` remains explicit. Pages `35466975662`
+classified only and skipped deployment/recovery/live verification.
+
+The follow-up protected read-only probes were intentionally run once each after
+preflight. G001 policy `35467071307`, PTR state `35467179746`, activation
+inspection `35467228823`, G002 update inspection `35467287821` and PTR update
+inspection `35467324123` failed closed before any provider or realm mutation.
+G001 current-state `35467146636` reached the workflow's explicit unwired guard.
+These are current evidence of missing/unusable operation-specific private
+producers or retained state; historical recovery rehearsals below do not
+supersede them. Keep sync automation paused and create no Desktop files.
 
 ## Historical accepted-main M2 context — 13 September 2026
 
