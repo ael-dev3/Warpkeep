@@ -189,7 +189,8 @@ async function load(state) {
     const identity = state.parentScope ? activationParent(state).identity : state.identity;
     const [branch, raw] = await Promise.all([request('/branches/main'), request(`/actions/runs/${identity.runId}`)]);
     if (branch.name !== 'main' || branch.protected !== true || record(branch.commit).sha !== state.commit) fail();
-    const run = runIdentity(raw, state.commit, WORKFLOW_PATH, 'Sealed Realms Production', 'workflow_dispatch');
+    const run = runIdentity(raw, state.commit, WORKFLOW_PATH,
+      `${identity.operation} @ ${state.commit}`, 'workflow_dispatch');
     if (run.id !== identity.runId || run.run_attempt !== identity.runAttempt
       || run.status !== 'in_progress' || run.conclusion !== null) fail();
   };
