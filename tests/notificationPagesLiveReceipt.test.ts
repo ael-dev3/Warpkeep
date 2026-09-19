@@ -1024,12 +1024,12 @@ describe('notification Pages ongoing live receipt', () => {
 
     // Unreachable source still belongs to the authenticated whole-tree inventory.
     const tooLarge = descendantCommitWithSources(HEAD_COMMIT, {
-      'tests/fixtures/oversize-inventory.mjs': `//${'x'.repeat(1024 * 1024 - 1)}`,
+      'tests/fixtures/oversize-inventory.mjs': `//${'x'.repeat(2 * 1024 * 1024 - 1)}`,
     });
     expect(() => deriveNotificationPagesLivePresentationSourceClosure({ sourceCommit: tooLarge }))
       .toThrow('NOTIFICATION_PAGES_LIVE_PRESENTATION_SOURCE_CLOSURE_INVALID');
     const aggregate = descendantCommitWithSources(HEAD_COMMIT, Object.fromEntries(Array.from({ length: 32 }, (_, index) => [
-      `tests/fixtures/inventory-growth-${index}.mjs`, `//${'x'.repeat(1024 * 1024 - 2)}`,
+      `tests/fixtures/inventory-growth-${index}.mjs`, `//${'x'.repeat(2 * 1024 * 1024 - 2)}`,
     ])));
     expect(() => deriveNotificationPagesLivePresentationSourceClosure({ sourceCommit: aggregate }))
       .toThrow('NOTIFICATION_PAGES_LIVE_PRESENTATION_SOURCE_CLOSURE_INVALID');
