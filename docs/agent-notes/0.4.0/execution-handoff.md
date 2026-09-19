@@ -31,8 +31,8 @@ The preceding main `4ca0b7d6` also passed Verify `35397617123`. New protected
 main `68cfc928` passed Verify `35401799264` and CodeQL `35401799149`, including
 native contracts, both services, Linux checks and connected realm rehearsals.
 Active work continues on `codex/0.4-recovery-ptr-source-20260918` in
-`C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep`: recovery source
-materialization and G001 census restart handling. Inspect its current GitHub
+`C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep`: the Linux recovery
+source, census path and their release contracts. Inspect its current GitHub
 head and CI in [source-only PR #301](https://github.com/ael-dev3/Warpkeep/pull/301)
 before integration. Native family preparation remains a separate
 requirement. `C:/Temp/warpkeep-0.4-next` tracks
@@ -512,9 +512,15 @@ phase with deployment disabled. Native verification passed 455 of 456 cases in
 ten affected suites. The remaining test expected two now-typed Linux modules to
 have no declaration in the closure; the actual derived graph correctly includes
 their declarations. The test's stale exception list is corrected, retaining the
-exact executable/declaration pairing assertion. Its focused native rerun follows
-publication. Independent static-source and current-documentation reviews passed;
-the handoff now distinguishes completed source work from pending provider setup.
+exact executable/declaration pairing assertion. Its focused native rerun passed at
+the final source head. The V6 contract repair then corrected ambient-environment
+error precedence, marked V6 as supported in the older-version rejection tests,
+and allowed the retained-fixture reader in the activation entry surface. Four
+affected Windows suites passed 753/753; the native closure regression passed.
+At `bca105e5`, a fresh native derivation checked 1,268 Git inputs and reproduced
+all 16 outputs, with manifest `da2c2ab1beeb99e24d8abdff28122e74b74efccaca2c6a128c90d7ad45a01ccf`.
+Independent static-source and current-documentation reviews passed; the handoff
+now distinguishes completed source work from pending provider setup.
 
 ### Shipping estimate and next critical work
 
