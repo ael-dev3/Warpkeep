@@ -2,17 +2,17 @@
 
 Status: **0.4 source and protected rails are merged; final release freeze remains open**.
 
-The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) records the
-accepted baseline, passed Verify/CodeQL and fresh successful read-only preflight.
-The earlier empty-provider-input failure diagnosis was incorrect; preflight
-requires no provider secrets. Pages classification deliberately skips deployment.
-The recorded live baseline remains Genesis because
-`pagesDeploymentApproved:false` is still explicit in the release
-configuration; `finalReleasePrepared:false` remains explicit for preparation
-families. Provider and owner authority, real deployment and recovery/readback,
-G001 preservation, sealed G002 denial, owner-only PTR play, physical-device
-acceptance and final hosting remain open. Keep sync automation paused and create
-no Desktop output.
+The exact protected source is `71458ff8ccf058b1565e864bf6c3f8fe0aad0f75`.
+Main Verify `35464076932`, CodeQL `35464076940` and preflight `35467008164`
+passed. Pages classification `35466975662` skipped deployment and live checks.
+The final native preparation/check converged on family
+`f1f742db463257c253bab1d332d1528ba63a90e6ca7bded71fd3ffbd219dbac5`, closure
+`b618494bfd0a7bb4a69ac3cb9b2f8d1e8fe3a86c96cc8fdcebeeeb2f27a75631`, and
+scanner manifest `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+`finalReleasePrepared:false` remains explicit. Provider/private authority,
+G001 preservation, sealed G002 denial, PTR owner play, physical-device
+acceptance, hosting and recovery/readback are still open. No provider mutation
+occurred. Keep sync automation paused and create no Desktop output.
 
 ## Historical prepared family — 2026-09-12
 

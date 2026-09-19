@@ -2,62 +2,35 @@
 
 ## Current source and access checkpoint — 19 September 2026
 
-The [execution handoff](execution-handoff.md) owns the dated protected source,
-active development branch and completed CI receipts. Inspect that record and
-live refs rather than maintaining another moving SHA here. Pages classification
-can succeed while build, deployment, recovery and live verification are skipped;
+The [execution handoff](execution-handoff.md) owns the moving protected source
+and receipts. Protected `main` is `71458ff8ccf058b1565e864bf6c3f8fe0aad0f75`.
+PRs #304 and #305 are merged; main Verify `35464076932` and CodeQL
+`35464076940` passed. The exact protected preflight `35467008164` passed, while
+Pages `35466975662` classified only and skipped deployment/live verification.
 0.4 remains unshipped.
 
-Cloudflare production-profile reads and the owner's `ael-dev3` SpacetimeDB
-publisher login work; they do not provide retained activation authority,
-application-owner PTR access or release acceptance. The September 16 inspection
-found empty sealed private runtime/audit stores; recheck the required producer
-before treating that dated observation as a current access diagnosis. Provider-backed deployment, G001
-preservation, recovery/readback, owner play, device acceptance and final freeze
-remain open. Historical observations below retain their original scope and do
-not supersede this current checkpoint.
+The native Linux authority is installed and passed the source-bound M1
+prepare/check and M2 promotion. Its current private operation lanes are not
+populated enough to establish live release evidence: G001 policy observation,
+PTR state/update observation, activation inspection and G002 update inspection
+all failed closed after exact checkout. The G001 current-state choice is present
+in the dispatcher/source contracts but is currently sent to the explicit
+unwired-operation guard by the workflow, so it is not evidence of a live read.
+No provider or realm mutation occurred in these probes.
+
+The current human dependency is operation-specific private producer state and
+retained authority for G001 preservation, G002 sealed readback, PTR observer and
+recovery/activation. Do not manufacture receipts, reuse historical live claims,
+or dispatch an apply operation until its read-only producer succeeds. Keep sync
+automation paused and create no Desktop files.
 
 ### Confirmed delivery work, in dependency order
 
-The September 19 shipping pass has published the Linux source repairs in
-[PR #301](https://github.com/ael-dev3/Warpkeep/pull/301). Integration, native
-preparation and real provider readback remain agent work. The table distinguishes
-that work from the exact inputs that may require the owner.
-
-| Boundary | Agent work and verification | Human-controlled dependency |
-| --- | --- | --- |
-| Initial recovery signer | The fixture-free preparation entry is integrated and its dry-run/service checks pass. Finish the preserving bridge transition, then provision signer and gateway with the existing ledger and epoch. Keep final recovery disabled. | The App is registered and installed. Its generated PEM has not appeared in the configured Downloads or private root; the exact local file location is pending. No new general approval or GitHub login is required. |
-| PTR recovery compilation | Shared `spacetimedb/gameplay04` materialization and exact source extraction are implemented and tested. Integrate the source and build the complete native family from protected M1. | None for source integration or preparation. |
-| Existing-realm fixture provenance | The authenticated retained-adoption path and expired completed-output retry are implemented and tested, alongside the legacy path. Validate actual retained records through their native owner after integration. | Only ask about a specific retained private record if its authenticated producer cannot create the required current evidence. |
-| G001 native observations | The Linux census caller, completed-output retry and V6 consumers are implemented and tested. Execute the supported native operation after integration and verify actual server policy. Existing player access and timers remain enabled; admissions stay frozen. | Check the actual protected application authority at the selected caller; source and fixture tests do not prove its live availability. |
-| Protected integration and operations | Integrate source through checks, then derive and independently check one complete family from actual M1. Promote M2 and require its own successful main Verify before protected operations. | No recurring task or fresh Desktop package is needed. |
-| Acceptance | Verify provider deployment, recovery preserving later writes, owner PTR journey and measured mobile behavior against the selected source. | Real owner authentication/play and the prepared physical-device test. |
-
-The implemented fixture-provenance repair spans the generator, fixed private host, WSL plan
-validator and native materializer under `services/release-recovery/scripts/`.
-Reuse the branded adoption authentication in
-`sealed-realms-production-activation-records.mjs`. A signed observation pair
-alone does not authenticate private completion/claim records: the signer treats
-the request's record digests as correlation data. Cross the Windows/native host
-boundary with an authenticated fixed read-only producer, never a copied envelope
-plus `signatureVerified:true`. Bind rebuilt artifact SHA-256 and Keccak to genuine
-completion evidence. Keep whole-repository `sourceTree` distinct from the module
-tree consumed by fixture materialization.
-
-G001's shared policy enforces frozen admissions. The native census caller
-validates the stable pair before retaining the second sample record and selects only
-complete authenticated attempts; interrupted attempts remain unselectable. The
-legacy second-census path can reconcile retained observations and complete missing
-confirmation metadata without recollecting. Both preserve the existing 60–300
-second window, confirmation lifetime and evidence. Authentication denial does not select the
-unsupported-query fallback. The V6 Linux evidence path now reaches adoption,
-activation, public binding and recovery consumers; legacy readers remain intact.
-Actual provider observations and preservation evidence are still required.
-
-Read-only Cloudflare inspection found the auth bridge present and the recovery
-signer/gateway absent. Successful CLI login, empty private stores and passing
-unit tests do not establish deployment. The execution handoff records current
-publication and checks; the sections below retain older findings for context.
+The source repair and generated family are now integrated. The remaining work
+is provider-backed acceptance: populate/re-attest the private producers, run the
+supported read-only inspections, then complete preserved-state deployment,
+recovery/readback, owner play and device/performance gates. No recurring task or
+fresh Desktop package is needed.
 
 ## Historical source checkpoint — 2026-09-12
 

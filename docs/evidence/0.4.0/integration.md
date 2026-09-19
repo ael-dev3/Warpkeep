@@ -1,15 +1,19 @@
 # 0.4.0 integration evidence
 
-The September 16 [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
-records the accepted baseline and completed Verify, CodeQL and read-only
-preflight. Later repairs require their own source-bound checks. Pages policy
-still skips deployment; owner/device, provider, recovery and final-freeze
-acceptance remain open.
+The current protected integration is `71458ff8ccf058b1565e864bf6c3f8fe0aad0f75`.
+PR #304 (source workflow-evidence repair) and PR #305 (native-prepared generated
+family) merged through protection. Main Verify `35464076932` and CodeQL
+`35464076940` passed; the Pages run `35466975662` classified only and skipped
+build/deployment/recovery/live verification because `pagesDeploymentApproved:false`.
+The protected preflight `35467008164` passed against the exact main SHA.
 
-All entries below are historical observations for their stated source/date.
-Their pending jobs, failures and old branch instructions do not describe the
-current baseline. Reconcile against the handoff and live GitHub state before
-resuming a task.
+Native M1 preparation/check converged before M2 promotion on the recorded family,
+closure and scanner hashes in the execution handoff. Windows and native WSL are
+clean and equal to this protected main. The follow-up production probes failed
+closed before mutation because operation-specific private producers/retained
+state are not available; their run IDs and phases are recorded in the handoff.
+No provider deployment, recovery activation, live realm mutation, owner play or
+physical-device acceptance is inferred from source CI or preflight.
 
 ## Placement and workflow review — 2026-09-12
 

@@ -2,68 +2,51 @@
 
 ## Current protected source checkpoint — 19 September 2026
 
-This is the active source and operations record. The current pass is maintenance
-only: preserve the existing mechanics and visuals, correct concrete defects,
-and do not add new runtime features.
+This is the active source and operations record. The maintenance pass corrected
+concrete defects and promoted the verified prepared family; it did not add new
+runtime features. Protected `main` is **`71458ff8ccf058b1565e864bf6c3f8fe0aad0f75`**.
 
-Protected `main` at the start of the maintenance audit was
-**`74365a19a8377f60891d418f28b290908d96b028`**, the signed squash of PR #298.
-Its construction-feedback change passed PR Verify `35366945754`, CodeQL
-`35366945733`, main Verify `35372473023` and main CodeQL `35372472714`.
-Pages run `35377095473` succeeded only in `classify`; private toolchain, build,
-deployment, recovery and live verification were all skipped. No 0.4 deployment
-is established by that result.
+The source-only repair in [PR #304](https://github.com/ael-dev3/Warpkeep/pull/304)
+fixed workflow evidence to accept the committed `run-name` (`operation @ source`)
+and merged through protection. The generated-family promotion in
+[PR #305](https://github.com/ael-dev3/Warpkeep/pull/305) then merged the exact
+native-prepared outputs. Main Verify `35464076932` and main CodeQL
+`35464076940` both passed. The Pages run `35466975662` passed only its
+classification job; build, private toolchain, deployment, recovery and live
+verification were skipped because `pagesDeploymentApproved:false` remains
+explicit. No 0.4 deployment is established by those runs.
 
-[PR #299](https://github.com/ael-dev3/Warpkeep/pull/299) is now integrated at
-protected `main` **`4ca0b7d6f156cd6eaec06609ec8ffc83861614b9`**. Its final head
-`7c75b7359dbd36315f9aab2fcebdfb51fe97cfb4` passed every Verify check in
-`35392630351` and CodeQL `35392630348`. The normal protected squash is signed
-and its tree exactly matches the tested head. The retained non-release tag
-`source-history/warpkeep-0.4-pr299-7c75b7359dbd` preserves the original source.
+Native preparation and independent check were run from this exact main source
+under the existing `warpkeep` Linux authority. Both converged on source tree
+`c98e6ec0c6e5fc292894dd10bdf1fa552371328d`, transaction
+`d4eac942c1e22d6e65e56ccffbb76d79`, journal
+`854c9a457042b0f0a5f5f15972188c8612eb7ed7c660e01bc621bdaaf6f0b9af`, family
+`f1f742db463257c253bab1d332d1528ba63a90e6ca7bded71fd3ffbd219dbac5`, closure
+`b618494bfd0a7bb4a69ac3cb9b2f8d1e8fe3a86c96cc8fdcebeeeb2f27a75631`, and
+scanner manifest `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+The candidate checked 3,248 source/candidate files, 624 bundle inputs, 7
+recovery inputs and 102 generated outputs; `finalReleasePrepared:false` remains
+intentional. The exact outgoing range passed pinned Gitleaks with no findings.
 
-The disabled signer's initial deployment repair in
-[PR #300](https://github.com/ael-dev3/Warpkeep/pull/300) is merged at protected
-`main` **`68cfc9283637792e2d699b29492e5f8156c8030f`**. Its exact head
-`154ef694b490a4fa9afdcabae95ceb714c944add` passed Verify `35397802215` and CodeQL
-`35397802255`. The normal protected squash is signed and tree-identical to that
-tested head; `source-history/warpkeep-0.4-pr300-154ef694b490` retains its source.
-The preceding main `4ca0b7d6` also passed Verify `35397617123`. New protected
-main `68cfc928` passed Verify `35401799264` and CodeQL `35401799149`, including
-native contracts, both services, Linux checks and connected realm rehearsals.
-Active work continues on `codex/0.4-recovery-ptr-source-20260918` in
-`C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep`: the Linux recovery
-source, census path and their release contracts. Inspect its current GitHub
-head and CI in [source-only PR #301](https://github.com/ael-dev3/Warpkeep/pull/301)
-before integration. Native family preparation remains a separate
-requirement. `C:/Temp/warpkeep-0.4-next` tracks
-protected main. Consult the
-[checkout roles](../../operations/0.4.0-development-sync.md#start-from-the-actual-checkout-and-remote)
-before moving either copy; synchronization means equality with each checkout's
-intended published ref, not forcing every copy onto the same branch.
+The final protected preflight `35467008164` succeeded against this SHA and
+returned `{"operation":"preflight","status":"preflight-inspected"}`. It
+performed no provider or realm mutation. Follow-up read-only probes were run
+once each and failed closed before any mutation: G001 policy observation
+`35467071307` (workflow phase), the listed G001 current-state choice
+`35467146636` (currently routed to the explicit unwired-operation guard), PTR
+state observation `35467179746` (operation phase), activation evidence
+inspection `35467228823` (operation phase, with configured bridge/database inputs),
+G002 update inspection `35467287821` (workflow phase), and PTR update inspection
+`35467324123` (workflow phase). These results establish the current blocker as
+missing or unusable operation-specific private producers/retained state, not a
+GitHub checkout, source, runner or preflight problem.
 
-The first PR #299 Verify (`35377225774`) failed because the extracted
-`constructionProgress04.ts` was absent from the deployment source inventory.
-The repair derives a 1,216-member manifest and all four workflow bootstrap
-bodies together. Independent in-memory regeneration matched their committed
-bytes exactly. The corrected hosted Linux suite passed. A prior direct Windows
-run of POSIX deployment tests is not acceptance evidence: UID/mode, symlink and
-`/usr/bin/git` fixtures require native Linux. Preserve those checks.
-
-On this verified development source, pinned Windows Node 22.22.3 passed 219
-tests across twelve Keep04 presentation, accessibility, placement, lifecycle
-and visual-contract suites. The complete production build also passed its
-type, generated dressing, asset, public-boundary, DEV-exclusion and Mini App
-checks. Vite retains a large-chunk warning; that warning is not a measured
-performance failure or a physical-device pass. Earlier full-stack and Inner
-Keep probes remain historical evidence for their recorded source.
-
-Keep the sync automation paused and create no Desktop siblings. The most
-recent live observation remains the older 0.3.43 bundle. Source CI, a publisher
-login and synthetic presentation do not close owner play, provider deployment,
-recovery/readback, G001 preservation, G002 denial, physical-device performance
-or final release freeze. Later runtime edits also require preparation/check
-of the complete family from the actual integrated M1 before M2 or protected
-operations; do not dispatch against stale generated bundles.
+Windows and native WSL checkouts are clean, detached at this protected SHA, and
+`origin/main` resolves to the same object. Keep the sync automation paused and
+create no Desktop siblings. The live site remains the older 0.3.43 bundle, and
+0.4 remains unshipped until provider deployment/recovery, G001 preservation,
+sealed G002 denial, actual-owner PTR play, physical-device performance, hosting
+and the final release ledger are complete.
 
 ### September 18 deep maintenance review
 
