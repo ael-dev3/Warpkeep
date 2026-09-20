@@ -152,7 +152,7 @@ export const GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS = Object.freeze([
 // the current 0.4 source. A later helper change must move this checkpoint and
 // be reviewed as a new source refreeze; it cannot silently widen the exception.
 const GENESIS_001_OPERATOR_REFREEZE_SOURCE_COMMIT =
-  'f6036cb93711f1358eda9c7a5804457665a864c9';
+  '0cdf74495ef5024f262f893d8c900ce157e80ae2';
 const GENESIS_001_OPERATOR_REFREEZE_PROJECTION_PATHS = Object.freeze([
   'scripts/greater-realm-production-provenance.ts',
   'scripts/greater-realm-production-transport.ts',

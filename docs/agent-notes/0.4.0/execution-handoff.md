@@ -60,11 +60,15 @@ The native source-closure/workflow review passed 201 tests without skips, and th
 Git-context repair passed 66 native tests without skips. PR #312 contains this
 source-only M1 repair; resolve its latest head/checks before integration. The
 protected-main reference checkout was fast-forwarded cleanly to `9806187a`.
-Source checkpoint `0cdf7449` includes the runner fix. Its refreshed source
-manifest is `0b5c08368a2b69d5d0e43cdb25fa6452aca5572714a3834d78301d5ec5df7a8e`;
-all tracked native inputs matched their Git blobs and a fresh full derivation
-matched every installed output. This remains a source-only family, not a newly
-compiled release candidate. Required PR checks and protected promotion remain.
+Source checkpoint `0cdf7449` includes the runner fix and owns the new reviewed
+operator-helper refreeze. Only the four-line provenance change differs from
+the previous helper checkpoint; the other three helpers and every non-helper
+G001 adoption path are unchanged. Retention tag
+`source-history/warpkeep-0.4-pr312-0cdf74495ef5` preserves that input across squash.
+All tracked native inputs matched their Git blobs and a fresh full derivation
+matched every installed source-family output. Read the committed closure manifest
+for its final digest. This is not a newly compiled release candidate; required
+PR checks and protected M1/M2 promotion remain.
 
 The recovery App key generated during the earlier registration is still absent
 from the known Downloads/private-bootstrap locations. The owner has been asked
