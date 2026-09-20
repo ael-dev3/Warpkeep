@@ -119,20 +119,49 @@ jobs:
           # A persistent self-hosted workspace can retain checkout internals
           # that actions/checkout does not remove. They are never part of the
           # selected source and would invalidate the fixed Git provenance gate.
-          for path in \
-            .git/config.worktree \
-            .git/info/grafts \
-            .git/info/attributes \
-            .git/objects/info/alternates \
-            .git/shallow; do
-            if test -L "$path" || test -d "$path"; then
-              echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2
-              exit 1
-            fi
-            if test -f "$path"; then
-              test "$(/usr/bin/stat -c '%u' -- "$path")" = '1000'
-              /usr/bin/rm -- "$path"
-            fi
+          git_path() {
+            /usr/bin/env -i PATH=/usr/bin:/bin HOME=/dev/null LANG=C LC_ALL=C \
+              GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+              GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null GIT_TERMINAL_PROMPT=0 \
+              /usr/bin/git --no-replace-objects --no-optional-locks \
+              -c core.fsmonitor=false -c core.untrackedCache=false -c core.hooksPath=/dev/null \
+              rev-parse --path-format=absolute "$1"
+          }
+          git_dir="$(git_path --git-dir 2>/dev/null)"
+          git_common_dir="$(git_path --git-common-dir 2>/dev/null)"
+          workspace_root="$(/usr/bin/realpath -- "$PWD")"
+          test "$workspace_root" = '/home/warpkeep/actions-runner/_work/Warpkeep/Warpkeep'
+          case "$git_dir" in
+            "$workspace_root/.git"|"$workspace_root/.git/worktrees/"*) ;;
+            *) echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2; exit 1 ;;
+          esac
+          case "$git_common_dir" in
+            "$workspace_root/.git") ;;
+            *) echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2; exit 1 ;;
+          esac
+          for base in "$git_dir" "$git_common_dir"; do
+            test -d "$base" && test ! -L "$base"
+            test "$(/usr/bin/realpath -- "$base")" = "$base"
+            IFS=: read -r owner mode < <(/usr/bin/stat -c '%u:%a' -- "$base")
+            test "$owner" = '1000'
+            [[ "$mode" =~ ^[0-7]{3,4}$ ]]
+            test "$((8#$mode & 0022))" = '0'
+            for relative in \
+              config.worktree \
+              info/grafts \
+              info/attributes \
+              objects/info/alternates \
+              shallow; do
+              path="$base/$relative"
+              if test -L "$path" || test -d "$path"; then
+                echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2
+                exit 1
+              fi
+              if test -f "$path"; then
+                test "$(/usr/bin/stat -c '%u' -- "$path")" = '1000'
+                /usr/bin/rm -- "$path"
+              fi
+            done
           done
           /usr/bin/git config --local --unset-all user.name || true
           /usr/bin/git config --local --unset-all user.email || true
@@ -310,20 +339,49 @@ jobs:
           # A persistent self-hosted workspace can retain checkout internals
           # that actions/checkout does not remove. They are never part of the
           # selected source and would invalidate the fixed Git provenance gate.
-          for path in \
-            .git/config.worktree \
-            .git/info/grafts \
-            .git/info/attributes \
-            .git/objects/info/alternates \
-            .git/shallow; do
-            if test -L "$path" || test -d "$path"; then
-              echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2
-              exit 1
-            fi
-            if test -f "$path"; then
-              test "$(/usr/bin/stat -c '%u' -- "$path")" = '1000'
-              /usr/bin/rm -- "$path"
-            fi
+          git_path() {
+            /usr/bin/env -i PATH=/usr/bin:/bin HOME=/dev/null LANG=C LC_ALL=C \
+              GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+              GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null GIT_TERMINAL_PROMPT=0 \
+              /usr/bin/git --no-replace-objects --no-optional-locks \
+              -c core.fsmonitor=false -c core.untrackedCache=false -c core.hooksPath=/dev/null \
+              rev-parse --path-format=absolute "$1"
+          }
+          git_dir="$(git_path --git-dir 2>/dev/null)"
+          git_common_dir="$(git_path --git-common-dir 2>/dev/null)"
+          workspace_root="$(/usr/bin/realpath -- "$PWD")"
+          test "$workspace_root" = '/home/warpkeep/actions-runner/_work/Warpkeep/Warpkeep'
+          case "$git_dir" in
+            "$workspace_root/.git"|"$workspace_root/.git/worktrees/"*) ;;
+            *) echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2; exit 1 ;;
+          esac
+          case "$git_common_dir" in
+            "$workspace_root/.git") ;;
+            *) echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2; exit 1 ;;
+          esac
+          for base in "$git_dir" "$git_common_dir"; do
+            test -d "$base" && test ! -L "$base"
+            test "$(/usr/bin/realpath -- "$base")" = "$base"
+            IFS=: read -r owner mode < <(/usr/bin/stat -c '%u:%a' -- "$base")
+            test "$owner" = '1000'
+            [[ "$mode" =~ ^[0-7]{3,4}$ ]]
+            test "$((8#$mode & 0022))" = '0'
+            for relative in \
+              config.worktree \
+              info/grafts \
+              info/attributes \
+              objects/info/alternates \
+              shallow; do
+              path="$base/$relative"
+              if test -L "$path" || test -d "$path"; then
+                echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2
+                exit 1
+              fi
+              if test -f "$path"; then
+                test "$(/usr/bin/stat -c '%u' -- "$path")" = '1000'
+                /usr/bin/rm -- "$path"
+              fi
+            done
           done
           /usr/bin/git config --local --unset-all user.name || true
           /usr/bin/git config --local --unset-all user.email || true
@@ -495,20 +553,49 @@ jobs:
           # A persistent self-hosted workspace can retain checkout internals
           # that actions/checkout does not remove. They are never part of the
           # selected source and would invalidate the fixed Git provenance gate.
-          for path in \
-            .git/config.worktree \
-            .git/info/grafts \
-            .git/info/attributes \
-            .git/objects/info/alternates \
-            .git/shallow; do
-            if test -L "$path" || test -d "$path"; then
-              echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2
-              exit 1
-            fi
-            if test -f "$path"; then
-              test "$(/usr/bin/stat -c '%u' -- "$path")" = '1000'
-              /usr/bin/rm -- "$path"
-            fi
+          git_path() {
+            /usr/bin/env -i PATH=/usr/bin:/bin HOME=/dev/null LANG=C LC_ALL=C \
+              GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+              GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null GIT_TERMINAL_PROMPT=0 \
+              /usr/bin/git --no-replace-objects --no-optional-locks \
+              -c core.fsmonitor=false -c core.untrackedCache=false -c core.hooksPath=/dev/null \
+              rev-parse --path-format=absolute "$1"
+          }
+          git_dir="$(git_path --git-dir 2>/dev/null)"
+          git_common_dir="$(git_path --git-common-dir 2>/dev/null)"
+          workspace_root="$(/usr/bin/realpath -- "$PWD")"
+          test "$workspace_root" = '/home/warpkeep/actions-runner/_work/Warpkeep/Warpkeep'
+          case "$git_dir" in
+            "$workspace_root/.git"|"$workspace_root/.git/worktrees/"*) ;;
+            *) echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2; exit 1 ;;
+          esac
+          case "$git_common_dir" in
+            "$workspace_root/.git") ;;
+            *) echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2; exit 1 ;;
+          esac
+          for base in "$git_dir" "$git_common_dir"; do
+            test -d "$base" && test ! -L "$base"
+            test "$(/usr/bin/realpath -- "$base")" = "$base"
+            IFS=: read -r owner mode < <(/usr/bin/stat -c '%u:%a' -- "$base")
+            test "$owner" = '1000'
+            [[ "$mode" =~ ^[0-7]{3,4}$ ]]
+            test "$((8#$mode & 0022))" = '0'
+            for relative in \
+              config.worktree \
+              info/grafts \
+              info/attributes \
+              objects/info/alternates \
+              shallow; do
+              path="$base/$relative"
+              if test -L "$path" || test -d "$path"; then
+                echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2
+                exit 1
+              fi
+              if test -f "$path"; then
+                test "$(/usr/bin/stat -c '%u' -- "$path")" = '1000'
+                /usr/bin/rm -- "$path"
+              fi
+            done
           done
           /usr/bin/git config --local --unset-all user.name || true
           /usr/bin/git config --local --unset-all user.email || true
@@ -686,20 +773,49 @@ jobs:
           # A persistent self-hosted workspace can retain checkout internals
           # that actions/checkout does not remove. They are never part of the
           # selected source and would invalidate the fixed Git provenance gate.
-          for path in \
-            .git/config.worktree \
-            .git/info/grafts \
-            .git/info/attributes \
-            .git/objects/info/alternates \
-            .git/shallow; do
-            if test -L "$path" || test -d "$path"; then
-              echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2
-              exit 1
-            fi
-            if test -f "$path"; then
-              test "$(/usr/bin/stat -c '%u' -- "$path")" = '1000'
-              /usr/bin/rm -- "$path"
-            fi
+          git_path() {
+            /usr/bin/env -i PATH=/usr/bin:/bin HOME=/dev/null LANG=C LC_ALL=C \
+              GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+              GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null GIT_TERMINAL_PROMPT=0 \
+              /usr/bin/git --no-replace-objects --no-optional-locks \
+              -c core.fsmonitor=false -c core.untrackedCache=false -c core.hooksPath=/dev/null \
+              rev-parse --path-format=absolute "$1"
+          }
+          git_dir="$(git_path --git-dir 2>/dev/null)"
+          git_common_dir="$(git_path --git-common-dir 2>/dev/null)"
+          workspace_root="$(/usr/bin/realpath -- "$PWD")"
+          test "$workspace_root" = '/home/warpkeep/actions-runner/_work/Warpkeep/Warpkeep'
+          case "$git_dir" in
+            "$workspace_root/.git"|"$workspace_root/.git/worktrees/"*) ;;
+            *) echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2; exit 1 ;;
+          esac
+          case "$git_common_dir" in
+            "$workspace_root/.git") ;;
+            *) echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2; exit 1 ;;
+          esac
+          for base in "$git_dir" "$git_common_dir"; do
+            test -d "$base" && test ! -L "$base"
+            test "$(/usr/bin/realpath -- "$base")" = "$base"
+            IFS=: read -r owner mode < <(/usr/bin/stat -c '%u:%a' -- "$base")
+            test "$owner" = '1000'
+            [[ "$mode" =~ ^[0-7]{3,4}$ ]]
+            test "$((8#$mode & 0022))" = '0'
+            for relative in \
+              config.worktree \
+              info/grafts \
+              info/attributes \
+              objects/info/alternates \
+              shallow; do
+              path="$base/$relative"
+              if test -L "$path" || test -d "$path"; then
+                echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2
+                exit 1
+              fi
+              if test -f "$path"; then
+                test "$(/usr/bin/stat -c '%u' -- "$path")" = '1000'
+                /usr/bin/rm -- "$path"
+              fi
+            done
           done
           /usr/bin/git config --local --unset-all user.name || true
           /usr/bin/git config --local --unset-all user.email || true
@@ -872,20 +988,49 @@ jobs:
           # A persistent self-hosted workspace can retain checkout internals
           # that actions/checkout does not remove. They are never part of the
           # selected source and would invalidate the fixed Git provenance gate.
-          for path in \
-            .git/config.worktree \
-            .git/info/grafts \
-            .git/info/attributes \
-            .git/objects/info/alternates \
-            .git/shallow; do
-            if test -L "$path" || test -d "$path"; then
-              echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2
-              exit 1
-            fi
-            if test -f "$path"; then
-              test "$(/usr/bin/stat -c '%u' -- "$path")" = '1000'
-              /usr/bin/rm -- "$path"
-            fi
+          git_path() {
+            /usr/bin/env -i PATH=/usr/bin:/bin HOME=/dev/null LANG=C LC_ALL=C \
+              GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+              GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null GIT_TERMINAL_PROMPT=0 \
+              /usr/bin/git --no-replace-objects --no-optional-locks \
+              -c core.fsmonitor=false -c core.untrackedCache=false -c core.hooksPath=/dev/null \
+              rev-parse --path-format=absolute "$1"
+          }
+          git_dir="$(git_path --git-dir 2>/dev/null)"
+          git_common_dir="$(git_path --git-common-dir 2>/dev/null)"
+          workspace_root="$(/usr/bin/realpath -- "$PWD")"
+          test "$workspace_root" = '/home/warpkeep/actions-runner/_work/Warpkeep/Warpkeep'
+          case "$git_dir" in
+            "$workspace_root/.git"|"$workspace_root/.git/worktrees/"*) ;;
+            *) echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2; exit 1 ;;
+          esac
+          case "$git_common_dir" in
+            "$workspace_root/.git") ;;
+            *) echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2; exit 1 ;;
+          esac
+          for base in "$git_dir" "$git_common_dir"; do
+            test -d "$base" && test ! -L "$base"
+            test "$(/usr/bin/realpath -- "$base")" = "$base"
+            IFS=: read -r owner mode < <(/usr/bin/stat -c '%u:%a' -- "$base")
+            test "$owner" = '1000'
+            [[ "$mode" =~ ^[0-7]{3,4}$ ]]
+            test "$((8#$mode & 0022))" = '0'
+            for relative in \
+              config.worktree \
+              info/grafts \
+              info/attributes \
+              objects/info/alternates \
+              shallow; do
+              path="$base/$relative"
+              if test -L "$path" || test -d "$path"; then
+                echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2
+                exit 1
+              fi
+              if test -f "$path"; then
+                test "$(/usr/bin/stat -c '%u' -- "$path")" = '1000'
+                /usr/bin/rm -- "$path"
+              fi
+            done
           done
           /usr/bin/git config --local --unset-all user.name || true
           /usr/bin/git config --local --unset-all user.email || true
