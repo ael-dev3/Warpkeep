@@ -2060,7 +2060,8 @@ describe('sealed-realms production dispatcher', () => {
 });
 
 describe.sequential('Linux policy dispatch with explicit native-result fixture', () => {
-  it.each(['success', 'source-drift', 'native-failure', 'record-race'])('preserves authenticated private evidence on %s', async scenario => {
+  it.each(['success', 'source-drift', 'native-failure', 'native-diagnostic', 'native-private-diagnostic',
+    'native-diagnostic-getter', 'record-race'])('preserves authenticated private evidence on %s', async scenario => {
     const local = censusPrivateState(scenario === 'record-race' ? phase => { if (phase === 'read-after-open') throw Error('fixture record read refused'); } : undefined);
     const native = linuxG001PolicyExecution(policyObservationReceipt());
     const operatorBytes = Buffer.from('reviewed fixture operator');
@@ -2073,7 +2074,19 @@ describe.sequential('Linux policy dispatch with explicit native-result fixture',
       throw Error('unexpected Git fixture request');
     } });
     nativePolicyFixture.execute.mockReset();
+    let diagnosticGetterCalled = false;
+    const privateSentinel = 'PRIVATE_NATIVE_DIAGNOSTIC_DO_NOT_COPY';
     if (scenario === 'native-failure') nativePolicyFixture.execute.mockRejectedValue(Error('native refused'));
+    else if (scenario.startsWith('native-')) {
+      const error = Object.assign(Error('G001_LINUX_POLICY_NATIVE_FAILED'), {
+        diagnostic: scenario === 'native-private-diagnostic' ? privateSentinel : 'g001-observation',
+        cause: Error(privateSentinel), privatePath: privateSentinel,
+      });
+      if (scenario === 'native-diagnostic-getter') Object.defineProperty(error, 'diagnostic', {
+        get: () => { diagnosticGetterCalled = true; return privateSentinel; },
+      });
+      nativePolicyFixture.execute.mockRejectedValue(error);
+    }
     else nativePolicyFixture.execute.mockResolvedValue(native);
     const envelope = vi.fn(async () => { throw Error('Darwin envelope must not execute'); });
     const lane = g001PolicyLane({ launchAuthority, runEnvelopeChild: envelope, linuxPolicyPreparation: nativePolicyFixture.preparation, linuxPolicyEvidence: nativePolicyFixture.evidence });
@@ -2089,6 +2102,14 @@ describe.sequential('Linux policy dispatch with explicit native-result fixture',
         expect(record.receipt.profile).toBe('warpkeep-g001-linux-policy-observation-v1');
         expect(record.receipt).not.toHaveProperty('bootstrapBlob');
         expect(record.sourceAuthorityDigest).toBe(g001PolicyAuthority().authorityDigest);
+      } else if (scenario.startsWith('native-') && scenario !== 'native-failure') {
+        const error = await result.then(() => { throw Error('native refusal unexpectedly succeeded'); }, failure => failure);
+        expect(error.message).toBe('G001_LINUX_POLICY_NATIVE_FAILED');
+        if (scenario === 'native-diagnostic') expect(error.diagnostic).toBe('g001-observation');
+        else expect(error).not.toHaveProperty('diagnostic');
+        expect(error).not.toHaveProperty('cause');
+        expect(`${String(error)}${JSON.stringify(error)}`).not.toContain(privateSentinel);
+        expect(diagnosticGetterCalled).toBe(false);
       } else await expect(result).rejects.toThrow();
       expect(envelope).not.toHaveBeenCalled();
       expect(nativePolicyFixture.execute).toHaveBeenCalledExactlyOnceWith(nativePolicyFixture.preparation, nativePolicyFixture.evidence);

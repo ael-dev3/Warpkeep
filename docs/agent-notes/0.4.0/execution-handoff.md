@@ -45,6 +45,10 @@ The diagnostic/materializer follow-up passed 91 tests, with 44 privileged native
 cases skipped; final build-mode TypeScript checks also passed. Public-boundary,
 production-exclusion, runtime-asset, file-size and Mini App checks passed.
 Native execution of the repaired release source remains to be established.
+The real policy-observation dispatcher now retains the same bounded diagnostics;
+dispatcher/preflight/native lifecycle suites passed 166 tests with 45 skips.
+The initial source checkpoint `39bb1dd0` was scanned, pushed and verified equal
+on GitHub; the idle native checkout was synchronized before source derivation.
 
 Next: validate and publish these source repairs, complete their source-bound
 M1/M2 preparation, then repeat the supported census and prepared bridge path.
