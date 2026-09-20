@@ -307,6 +307,7 @@ function productionGitContext(repositoryRoot: string) {
     || name === 'core.precomposeunicode'
     || name === 'remote.origin.url'
     || name === 'remote.origin.fetch'
+    || name === 'gc.auto'
     || name === 'extensions.worktreeconfig'
     || name === 'gpg.format'
     || name === 'user.signingkey'
@@ -325,6 +326,8 @@ function productionGitContext(repositoryRoot: string) {
     read(['config', '--local', '--get', 'core.repositoryformatversion']) ?? '',
   );
   const fileMode = exactSingleLine(read(['config', '--local', '--get', 'core.filemode']) ?? '');
+  // Actions checkout disables automatic GC. Accept only that exact single value.
+  const automaticGc = read(['config', '--local', '--get-all', 'gc.auto'], true);
   const topLevel = exactSingleLine(read(['rev-parse', '--show-toplevel']) ?? '');
   const absoluteGitDirectory = exactSingleLine(
     read(['rev-parse', '--path-format=absolute', '--git-dir']) ?? '',
@@ -340,6 +343,7 @@ function productionGitContext(repositoryRoot: string) {
     || (worktreeConfigEnabled !== undefined && worktreeConfigEnabled !== 'true')
     || repositoryFormat !== '0'
     || fileMode !== 'true'
+    || (automaticGc !== undefined && automaticGc !== '0\n')
     || bare !== 'false'
     || topLevel !== root
     || absoluteGitDirectory !== gitDirectory

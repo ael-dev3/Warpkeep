@@ -22,6 +22,13 @@ The correction uses the owning module. Read-only census run `35499384780` failed
 at `workflow` before this repair; no successful census or provider mutation is
 claimed. The private build roots exist with the required ownership and modes.
 
+The installed Actions checkout also contains `gc.auto=0`, while the production
+Git-context validator rejected that key. A real native repository regression
+reproduced the rejection and now passes with absence-or-single-canonical-zero
+support. Other configuration restrictions and before/after source attestation
+are unchanged. This is another source compatibility defect, not a login failure;
+the old generic workflow result does not establish which prerequisite failed first.
+
 `g001-current-state` is a legacy macOS admission-monitor inspection. PR #309
 wired only its outer Linux route; the workflow-evidence map still rejects it,
 and its operator requires Darwin/LaunchAgents. The Linux workflow now offers
@@ -49,6 +56,10 @@ The real policy-observation dispatcher now retains the same bounded diagnostics;
 dispatcher/preflight/native lifecycle suites passed 166 tests with 45 skips.
 The initial source checkpoint `39bb1dd0` was scanned, pushed and verified equal
 on GitHub; the idle native checkout was synchronized before source derivation.
+The native source-closure/workflow review passed 201 tests without skips, and the
+Git-context repair passed 66 native tests without skips. PR #312 contains this
+source-only M1 repair; resolve its latest head/checks before integration. The
+protected-main reference checkout was fast-forwarded cleanly to `9806187a`.
 
 Next: validate and publish these source repairs, complete their source-bound
 M1/M2 preparation, then repeat the supported census and prepared bridge path.
