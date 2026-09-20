@@ -28,7 +28,7 @@ const command = (args: string[], cwd: string) => execFileSync('/usr/bin/git', ['
   '-c', 'commit.gpgsign=false', '-c', 'user.name=Preflight Fixture', '-c', 'user.email=fixture@example.invalid',
   ...args], { cwd, encoding: 'utf8' }).trim();
 
-it.each(['g002-update-inspect', 'g002-update-apply'] as const)('recognizes fixed %s before enforcing native runtime authority', async operation => {
+it.each(['g002-update-inspect', 'g002-update-apply', 'g001-current-state'] as const)('recognizes fixed %s before enforcing native runtime authority', async operation => {
   await expect(runSealedRealmsProductionLinuxOperation({ operation, workflowInputSha: 'a'.repeat(40) } as never))
     .rejects.toMatchObject({ phase: 'runtime' });
 });
