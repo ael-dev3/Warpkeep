@@ -11,7 +11,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const fixture = vi.hoisted(() => ({
   home: '', materializedRoot: '', yamlRoot: '', compiler: '', operator: '',
   source: { sourceCommit: 'a'.repeat(40), sourceTree: 'b'.repeat(40), operatorBlob: 'c'.repeat(40), operatorSha256: 'd'.repeat(64) },
-  compilerCalls: 0, hookDisposals: 0, compilerFailure: false,
+  compilerCalls: 0, outfiles: [] as string[], hookDisposals: 0, compilerFailure: false,
 }));
 
 vi.mock('../scripts/genesis001-linux-policy-boundary.mjs', () => ({
@@ -74,6 +74,7 @@ vi.mock('node:child_process', async original => {
     if (fixture.compilerFailure) return { error: undefined, signal: null, status: 1,
       stdout: Buffer.alloc(0), stderr: Buffer.from('synthetic compiler failure') };
     const outfile = args.find(value => value.startsWith('--outfile='))!.slice('--outfile='.length);
+    fixture.outfiles.push(outfile);
     const metafile = args.find(value => value.startsWith('--metafile='))!.slice('--metafile='.length);
     writeFileSync(outfile, 'export const fixture = true;\n', { mode: 0o600 });
     writeFileSync(metafile, JSON.stringify({ inputs: { [fixture.operator]: {} },
@@ -91,7 +92,7 @@ beforeEach(() => {
   fixture.yamlRoot = join(fixture.home, '.warpkeep', 'release-preparation-v1', 'toolchain', 'yaml-2.9.0', 'package');
   fixture.compiler = join(fixture.materializedRoot, 'spacetimedb', 'genesis002', 'node_modules',
     '.pnpm', '@esbuild+linux-x64@0.25.12', 'node_modules', '@esbuild', 'linux-x64', 'bin', 'esbuild');
-  fixture.compilerCalls = 0; fixture.hookDisposals = 0; fixture.compilerFailure = false;
+  fixture.compilerCalls = 0; fixture.outfiles = []; fixture.hookDisposals = 0; fixture.compilerFailure = false;
   for (const path of [fixture.yamlRoot, dirname(fixture.compiler), join(temporary, 'operation'),
     join(fixture.materializedRoot, 'scripts'),
     join(fixture.materializedRoot, 'spacetimedb', 'genesis002', 'node_modules', 'spacetimedb')]) {
@@ -124,6 +125,8 @@ it.each(['policy', 'census'] as const)('compiles %s twice from the owning Genesi
   expect(result).toMatchObject({ bundleBytes: 29, dependencyClosureSha256: 'e'.repeat(64),
     bundleSha256: expect.stringMatching(/^[a-f0-9]{64}$/u), sourceClosureSha256: expect.stringMatching(/^[a-f0-9]{64}$/u) });
   expect(fixture.compilerCalls).toBe(2);
+  expect(fixture.outfiles[0]).toBe(join(fixture.materializedRoot, 'spacetimedb', 'genesis002', 'dist', 'bundle.js'));
+  expect(fixture.outfiles[1]).toBe(join(temporary, 'operation', 'second.mjs'));
   expect(fixture.hookDisposals).toBe(1);
   expect(existsSync(join(fixture.materializedRoot, 'node_modules'))).toBe(false);
   expect(existsSync(fixture.compiler)).toBe(true);
