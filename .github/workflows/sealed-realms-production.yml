@@ -112,6 +112,31 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Clear stale checkout Git metadata
+        shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          # A persistent self-hosted workspace can retain checkout internals
+          # that actions/checkout does not remove. They are never part of the
+          # selected source and would invalidate the fixed Git provenance gate.
+          for path in \
+            .git/config.worktree \
+            .git/info/grafts \
+            .git/info/attributes \
+            .git/objects/info/alternates \
+            .git/shallow; do
+            if test -L "$path" || test -d "$path"; then
+              echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2
+              exit 1
+            fi
+            if test -f "$path"; then
+              test "$(/usr/bin/stat -c '%u' -- "$path")" = '1000'
+              /usr/bin/rm -- "$path"
+            fi
+          done
+          /usr/bin/git config --local --unset-all user.name || true
+          /usr/bin/git config --local --unset-all user.email || true
+
       - name: Attest runtime and execute authenticated operation
         env:
           WARPKEEP_SOURCE_COMMIT: ${{ inputs.source_commit }}
@@ -278,6 +303,31 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Clear stale checkout Git metadata
+        shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          # A persistent self-hosted workspace can retain checkout internals
+          # that actions/checkout does not remove. They are never part of the
+          # selected source and would invalidate the fixed Git provenance gate.
+          for path in \
+            .git/config.worktree \
+            .git/info/grafts \
+            .git/info/attributes \
+            .git/objects/info/alternates \
+            .git/shallow; do
+            if test -L "$path" || test -d "$path"; then
+              echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2
+              exit 1
+            fi
+            if test -f "$path"; then
+              test "$(/usr/bin/stat -c '%u' -- "$path")" = '1000'
+              /usr/bin/rm -- "$path"
+            fi
+          done
+          /usr/bin/git config --local --unset-all user.name || true
+          /usr/bin/git config --local --unset-all user.email || true
+
       - name: Attest runtime and execute authenticated operation
         env:
           WARPKEEP_SOURCE_COMMIT: ${{ inputs.source_commit }}
@@ -437,6 +487,31 @@ jobs:
           ref: ${{ inputs.source_commit }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Clear stale checkout Git metadata
+        shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          # A persistent self-hosted workspace can retain checkout internals
+          # that actions/checkout does not remove. They are never part of the
+          # selected source and would invalidate the fixed Git provenance gate.
+          for path in \
+            .git/config.worktree \
+            .git/info/grafts \
+            .git/info/attributes \
+            .git/objects/info/alternates \
+            .git/shallow; do
+            if test -L "$path" || test -d "$path"; then
+              echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2
+              exit 1
+            fi
+            if test -f "$path"; then
+              test "$(/usr/bin/stat -c '%u' -- "$path")" = '1000'
+              /usr/bin/rm -- "$path"
+            fi
+          done
+          /usr/bin/git config --local --unset-all user.name || true
+          /usr/bin/git config --local --unset-all user.email || true
 
       - name: Attest runtime and execute authenticated operation
         env:
@@ -604,6 +679,31 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Clear stale checkout Git metadata
+        shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          # A persistent self-hosted workspace can retain checkout internals
+          # that actions/checkout does not remove. They are never part of the
+          # selected source and would invalidate the fixed Git provenance gate.
+          for path in \
+            .git/config.worktree \
+            .git/info/grafts \
+            .git/info/attributes \
+            .git/objects/info/alternates \
+            .git/shallow; do
+            if test -L "$path" || test -d "$path"; then
+              echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2
+              exit 1
+            fi
+            if test -f "$path"; then
+              test "$(/usr/bin/stat -c '%u' -- "$path")" = '1000'
+              /usr/bin/rm -- "$path"
+            fi
+          done
+          /usr/bin/git config --local --unset-all user.name || true
+          /usr/bin/git config --local --unset-all user.email || true
+
       - name: Attest runtime and execute authenticated operation
         env:
           WARPKEEP_SOURCE_COMMIT: ${{ inputs.source_commit }}
@@ -764,6 +864,31 @@ jobs:
           ref: ${{ inputs.source_commit }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Clear stale checkout Git metadata
+        shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          # A persistent self-hosted workspace can retain checkout internals
+          # that actions/checkout does not remove. They are never part of the
+          # selected source and would invalidate the fixed Git provenance gate.
+          for path in \
+            .git/config.worktree \
+            .git/info/grafts \
+            .git/info/attributes \
+            .git/objects/info/alternates \
+            .git/shallow; do
+            if test -L "$path" || test -d "$path"; then
+              echo 'SEALED_REALMS_GIT_METADATA_INVALID' >&2
+              exit 1
+            fi
+            if test -f "$path"; then
+              test "$(/usr/bin/stat -c '%u' -- "$path")" = '1000'
+              /usr/bin/rm -- "$path"
+            fi
+          done
+          /usr/bin/git config --local --unset-all user.name || true
+          /usr/bin/git config --local --unset-all user.email || true
 
       - name: Attest runtime and execute authenticated operation
         env:
