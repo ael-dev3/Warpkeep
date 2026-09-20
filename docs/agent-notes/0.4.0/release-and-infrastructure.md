@@ -3,20 +3,20 @@
 ## Current source and access checkpoint — 20 September 2026
 
 The [execution handoff](execution-handoff.md) owns the moving protected source
-and receipts. Protected `main` is `f2167fab3c43307e3796c8efbfec6a5c449cb07f`.
-PRs #304 and #305 are merged; main Verify `35476063706` and CodeQL
-`35476063612` passed. The exact protected preflight `35478504320` passed, while
-Pages `35478469951` classified only and skipped deployment/live verification.
+and receipts. Protected `main` is `5870717bdb41d00f8b67039022640e03a675d84a`.
+PRs #309 and #310 are merged; main Verify `35494158124` and CodeQL
+`35494158121` passed. The exact protected preflight `35496632288` passed and
+returned `{"operation":"preflight","status":"preflight-inspected"}`.
 0.4 remains unshipped.
 
 The native Linux authority is installed and passed the source-bound M1
 prepare/check and M2 promotion. Its current private operation lanes are not
 populated enough to establish live release evidence: G001 policy observation,
 PTR state/update observation, activation inspection and G002 update inspection
-all failed closed after exact checkout. The G001 current-state choice is present
-in the dispatcher/source contracts but is currently sent to the explicit
-unwired-operation guard by the workflow, so it is not evidence of a live read.
-No provider or realm mutation occurred in these probes.
+all failed closed after exact checkout. The G001 current-state choice is now
+wired through the readonly dispatcher and workflow contracts, but no private
+producer/readback has been supplied, so it is not evidence of a live read. No
+provider or realm mutation occurred in these probes.
 
 The current human dependency is operation-specific private producer state and
 retained authority for G001 preservation, G002 sealed readback, PTR observer and
