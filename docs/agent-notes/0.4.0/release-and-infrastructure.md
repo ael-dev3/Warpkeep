@@ -1,12 +1,12 @@
 # Release engineering, CI and infrastructure audit
 
-## Current source and access checkpoint — 19 September 2026
+## Current source and access checkpoint — 20 September 2026
 
 The [execution handoff](execution-handoff.md) owns the moving protected source
-and receipts. Protected `main` is `1ef2e59f0c97231096f49f4d0ebb9c51770ec5f8`.
-PRs #304 and #305 are merged; main Verify `35470772505` and CodeQL
-`35470772567` passed. The exact protected preflight `35473363540` passed, while
-Pages `35473333765` classified only and skipped deployment/live verification.
+and receipts. Protected `main` is `f2167fab3c43307e3796c8efbfec6a5c449cb07f`.
+PRs #304 and #305 are merged; main Verify `35476063706` and CodeQL
+`35476063612` passed. The exact protected preflight `35478504320` passed, while
+Pages `35478469951` classified only and skipped deployment/live verification.
 0.4 remains unshipped.
 
 The native Linux authority is installed and passed the source-bound M1

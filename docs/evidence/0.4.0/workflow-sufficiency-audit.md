@@ -1,9 +1,9 @@
 # 0.4 workflow sufficiency audit
 
-Updated 2026-09-19 (Europe/Budapest). Protected `main` is
-`1ef2e59f0c97231096f49f4d0ebb9c51770ec5f8`; PRs #304 and #305 are merged.
-Main Verify `35470772505`, CodeQL `35470772567` and exact-source preflight
-`35473363540` passed. Pages `35473333765` classified only and skipped all live
+Updated 2026-09-20 (Europe/Budapest). Protected `main` is
+`f2167fab3c43307e3796c8efbfec6a5c449cb07f`; PRs #304 and #305 are merged.
+Main Verify `35476063706`, CodeQL `35476063612` and exact-source preflight
+`35478504320` passed. Pages `35478469951` classified only and skipped all live
 work. The sync automation is paused and no new Desktop files are permitted.
 
 ## Verdict

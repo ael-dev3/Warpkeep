@@ -2,9 +2,9 @@
 
 Status: **0.4 source and protected rails are merged; final release freeze remains open**.
 
-The exact protected source is `1ef2e59f0c97231096f49f4d0ebb9c51770ec5f8`.
-Main Verify `35470772505`, CodeQL `35470772567` and preflight `35473363540`
-passed. Pages classification `35473333765` skipped deployment and live checks.
+The exact protected source is `f2167fab3c43307e3796c8efbfec6a5c449cb07f`.
+Main Verify `35476063706`, CodeQL `35476063612` and preflight `35478504320`
+passed. Pages classification `35478469951` skipped deployment and live checks.
 The final native preparation/check converged on family
 `f1f742db463257c253bab1d332d1528ba63a90e6ca7bded71fd3ffbd219dbac5`, closure
 `b618494bfd0a7bb4a69ac3cb9b2f8d1e8fe3a86c96cc8fdcebeeeb2f27a75631`, and

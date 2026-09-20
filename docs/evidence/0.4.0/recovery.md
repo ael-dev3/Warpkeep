@@ -1,16 +1,16 @@
 # Warpkeep 0.4 recovery evidence
 
-## Current checkpoint supersession — 19 September 2026
+## Current checkpoint supersession — 20 September 2026
 
 The active protected runtime source family is M2 at
-`1ef2e59f0c97231096f49f4d0ebb9c51770ec5f8`. Main Verify `35470772505`, CodeQL
-`35470772567` and exact-source preflight `35473363540` passed. Native prepare/check
+`f2167fab3c43307e3796c8efbfec6a5c449cb07f`. Main Verify `35476063706`, CodeQL
+`35476063612` and exact-source preflight `35478504320` passed. Native prepare/check
 converged on the family, closure and scanner hashes recorded in the execution
-handoff; `finalReleasePrepared:false` remains explicit. Pages `35473333765`
+handoff; `finalReleasePrepared:false` remains explicit. Pages `35478469951`
 classified only and skipped deployment/recovery/live verification.
 
 The follow-up protected read-only probes were intentionally run once each after
-preflight. G001 policy `35467071307`, PTR state `35467179746`, activation
+preflight. G001 policy `35478595766`, PTR state `35467179746`, activation
 inspection `35467228823`, G002 update inspection `35467287821` and PTR update
 inspection `35467324123` failed closed before any provider or realm mutation.
 G001 current-state `35467146636` reached the workflow's explicit unwired guard.
