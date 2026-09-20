@@ -70,6 +70,7 @@ describe('sealed-realms production workflow authority', () => {
     name,
   );
   const guardName = 'Require installed Linux operation authority';
+  const cleanupName = 'Clear stale checkout Git metadata';
   const executeName = 'Attest runtime and execute authenticated operation';
   const refusalName = 'Refuse unwired provider operations';
 
@@ -79,7 +80,7 @@ describe('sealed-realms production workflow authority', () => {
     for(const name of ['operate_readonly','observe_ptr','operate']) {
       const job=document.jobs[name];for(const expression of common)expect(job.if).toContain(expression);
       expect(job).toMatchObject({environment:'notification-bridge-prepared','runs-on':['self-hosted','Linux','X64','warpkeep-production-admin','warpkeep-repository-exclusive']});
-      expect(job.steps.map(step=>step.name)).toEqual([guardName,'Checkout exact selected authority',executeName]);
+      expect(job.steps.map(step=>step.name)).toEqual([guardName, 'Checkout exact selected authority', cleanupName, executeName]);
       expect(job.steps[1]).toMatchObject({with:{ref:'${{ inputs.source_commit }}','fetch-depth':0,'persist-credentials':false}});
       expect(job.env).toEqual({WARPKEEP_OPERATION:'${{ inputs.operation }}'});
       for(const step of job.steps.filter(step=>step.run))expect(step.shell).toBe(hardenedShell);
@@ -133,7 +134,7 @@ describe('sealed-realms production workflow authority', () => {
       'timeout-minutes': 120,
       env: { WARPKEEP_OPERATION: '${{ inputs.operation }}' },
     });
-    expect(job.steps.map(step => step.name)).toEqual([guardName, 'Checkout exact selected authority', executeName]);
+    expect(job.steps.map(step => step.name)).toEqual([guardName, 'Checkout exact selected authority', cleanupName, executeName]);
     expect(job.steps[1]).toMatchObject({
       with: { ref: '${{ inputs.source_commit }}', 'fetch-depth': 0, 'persist-credentials': false },
     });
