@@ -1,17 +1,17 @@
 # Continue Warpkeep 0.4
 
-## Current protected source checkpoint — 19 September 2026
+## Current protected source checkpoint — 20 September 2026
 
 This is the active source and operations record. The maintenance pass corrected
 concrete defects and promoted the verified prepared family; it did not add new
-runtime features. Protected `main` is **`1ef2e59f0c97231096f49f4d0ebb9c51770ec5f8`**.
+runtime features. Protected `main` is **`f2167fab3c43307e3796c8efbfec6a5c449cb07f`**.
 
 The source-only repair in [PR #304](https://github.com/ael-dev3/Warpkeep/pull/304)
 fixed workflow evidence to accept the committed `run-name` (`operation @ source`)
 and merged through protection. The generated-family promotion in
 [PR #305](https://github.com/ael-dev3/Warpkeep/pull/305) then merged the exact
-native-prepared outputs. Main Verify `35470772505` and main CodeQL
-`35470772567` both passed. The Pages run `35473333765` passed only its
+native-prepared outputs. Main Verify `35476063706` and main CodeQL
+`35476063612` both passed. The Pages run `35478469951` passed only its
 classification job; build, private toolchain, deployment, recovery and live
 verification were skipped because `pagesDeploymentApproved:false` remains
 explicit. No 0.4 deployment is established by those runs.
@@ -28,11 +28,11 @@ The candidate checked 3,248 source/candidate files, 624 bundle inputs, 7
 recovery inputs and 102 generated outputs; `finalReleasePrepared:false` remains
 intentional. The exact outgoing range passed pinned Gitleaks with no findings.
 
-The final protected preflight `35473363540` succeeded against this SHA and
+The final protected preflight `35478504320` succeeded against this SHA and
 returned `{"operation":"preflight","status":"preflight-inspected"}`. It
 performed no provider or realm mutation. Follow-up read-only probes were run
 once each and failed closed before any mutation: G001 policy observation
-`35467071307` (workflow phase), the listed G001 current-state choice
+`35478595766` (workflow phase on current main; no mutation), the listed G001 current-state choice
 `35467146636` (currently routed to the explicit unwired-operation guard), PTR
 state observation `35467179746` (operation phase), activation evidence
 inspection `35467228823` (operation phase, with configured bridge/database inputs),

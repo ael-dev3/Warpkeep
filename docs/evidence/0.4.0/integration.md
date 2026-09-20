@@ -1,11 +1,11 @@
 # 0.4.0 integration evidence
 
-The current protected integration is `1ef2e59f0c97231096f49f4d0ebb9c51770ec5f8`.
+The current protected integration is `f2167fab3c43307e3796c8efbfec6a5c449cb07f`.
 PR #304 (source workflow-evidence repair) and PR #305 (native-prepared generated
-family) merged through protection. Main Verify `35470772505` and CodeQL
-`35470772567` passed; the Pages run `35473333765` classified only and skipped
+family) merged through protection. Main Verify `35476063706` and CodeQL
+`35476063612` passed; the Pages run `35478469951` classified only and skipped
 build/deployment/recovery/live verification because `pagesDeploymentApproved:false`.
-The protected preflight `35473363540` passed against the exact main SHA.
+The protected preflight `35478504320` passed against the exact main SHA.
 
 Native M1 preparation/check converged before M2 promotion on the recorded family,
 closure and scanner hashes in the execution handoff. Windows and native WSL are
