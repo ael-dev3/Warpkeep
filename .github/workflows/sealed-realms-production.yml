@@ -9,7 +9,7 @@ on:
         required: true
         type: string
       operation:
-        description: One authenticated sealed-realms operation
+        description: One supported Linux sealed-realms operation
         required: true
         default: preflight
         type: choice
@@ -17,22 +17,6 @@ on:
           - preflight
           - g001-policy-observe
           - g001-freeze-census
-          - g001-census-first
-          - g001-census-second-inspect
-          - g001-census-second-suspend
-          - g001-current-state
-          - g002-publish-inspect
-          - g002-publish-apply
-          - g002-import-inspect
-          - g002-import-apply
-          - g002-live-inspect
-          - ptr-publish-inspect
-          - ptr-publish-apply
-          - ptr-import-inspect
-          - ptr-import-apply
-          - ptr-owner-provision-inspect
-          - ptr-owner-provision
-          - ptr-live-inspect
           - activation-evidence-inspect
           - activation-evidence-generate
           - g002-update-inspect
@@ -60,7 +44,7 @@ jobs:
       github.repository == 'ael-dev3/Warpkeep' &&
       github.ref == 'refs/heads/main' &&
       github.sha == inputs.source_commit &&
-      contains(fromJSON('["preflight","activation-evidence-inspect","g001-policy-observe","g001-freeze-census","g001-current-state"]'), inputs.operation)
+      contains(fromJSON('["preflight","activation-evidence-inspect","g001-policy-observe","g001-freeze-census"]'), inputs.operation)
     environment: notification-bridge-prepared
     runs-on:
       - self-hosted
@@ -870,7 +854,7 @@ jobs:
       github.repository == 'ael-dev3/Warpkeep' &&
       github.ref == 'refs/heads/main' &&
       github.sha == inputs.source_commit &&
-      !contains(fromJSON('["preflight","activation-evidence-inspect","activation-evidence-generate","g001-policy-observe","g001-freeze-census","g001-current-state","ptr-update-inspect","ptr-update-apply","g002-update-inspect","g002-update-apply","ptr-state-inspect"]'), inputs.operation)
+      !contains(fromJSON('["preflight","activation-evidence-inspect","activation-evidence-generate","g001-policy-observe","g001-freeze-census","ptr-update-inspect","ptr-update-apply","g002-update-inspect","g002-update-apply","ptr-state-inspect"]'), inputs.operation)
     runs-on: [self-hosted, Linux, X64, warpkeep-production-admin, warpkeep-repository-exclusive]
     timeout-minutes: 5
     steps:

@@ -164,7 +164,8 @@ it('submits the explicitly selected idle ordinal and eight-hour duration', async
   expect(screen.queryByText(/food site at .* ·/)).toBeNull();
   const preview = screen.getByText(/^Dispatch preview:/i);
   expect(preview).toBeVisible();
-  expect(preview).toHaveTextContent('gathering completes in 1 min; projected yield: 60. Travel is route-dependent');
+  expect(preview).toHaveTextContent('gather for 1 min after arrival; projected yield: 60. Travel is route-dependent');
+  expect(preview).toHaveTextContent('Resources become spendable after the Realm confirms the Worker has returned.');
   fireEvent.change(screen.getByRole('combobox', { name: 'Idle Worker' }), { target: { value: '2' } });
   fireEvent.click(screen.getByRole('button', { name: '8 hours' }));
   fireEvent.click(screen.getByRole('button', { name: 'Dispatch Worker 3' }));

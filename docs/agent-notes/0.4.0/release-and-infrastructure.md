@@ -9,19 +9,21 @@ PRs #309 and #310 are merged; main Verify `35494158124` and CodeQL
 returned `{"operation":"preflight","status":"preflight-inspected"}`.
 0.4 remains unshipped.
 
-The native Linux authority is installed and passed the source-bound M1
-prepare/check and M2 promotion. Its current private operation lanes are not
-populated enough to establish live release evidence: G001 policy observation,
-PTR state/update observation, activation inspection and G002 update inspection
-all failed closed after exact checkout. The G001 current-state choice is now
-wired through the readonly dispatcher and workflow contracts, but no private
-producer/readback has been supplied, so it is not evidence of a live read. No
-provider or realm mutation occurred in these probes.
+The native Linux authority passed source-bound preparation and M2 preflight.
+The subsequent shipping audit found a concrete G001 materializer dependency-path
+bug, now corrected on the development branch. Its Linux builder installs below
+`spacetimedb/genesis002/node_modules`; the operator had looked in the parent module.
+It also found that `g001-current-state` calls the legacy Darwin admission monitor
+and is unsupported on Linux despite the earlier outer-route wiring. The workflow
+now lists implemented Linux operations; use `g001-freeze-census` for native evidence.
 
-The current human dependency is operation-specific private producer state and
-retained authority for G001 preservation, G002 sealed readback, PTR observer and
-recovery/activation. Do not manufacture receipts, reuse historical live claims,
-or dispatch an apply operation until its read-only producer succeeds. Keep sync
+Read-only census run `35499384780` failed at the workflow phase before the repair.
+Fresh provider reads confirm publisher login and realm identities, the existing
+B0 bridge, and the absent recovery signer. Do not classify these agent-owned
+build/deployment tasks as missing owner permission. The execution handoff records
+the next source preparation, bridge transition and disabled signer setup sequence.
+Private retained evidence and owner/device acceptance remain open; their precise
+human dependencies must be established through the supported caller. Keep sync
 automation paused and create no Desktop files.
 
 ### Confirmed delivery work, in dependency order

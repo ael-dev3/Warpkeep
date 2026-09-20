@@ -6,7 +6,8 @@ import { chmodSync, chownSync, copyFileSync, existsSync, lchownSync, lstatSync, 
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { runSealedRealmsProductionLinuxOperation, runSealedRealmsProductionLinuxPreflight } from '../scripts/sealed-realms-production-linux-preflight.mjs';
+import { describeSealedRealmsProductionLinuxFailure, runSealedRealmsProductionLinuxOperation, runSealedRealmsProductionLinuxPreflight } from '../scripts/sealed-realms-production-linux-preflight.mjs';
+import { policyFail } from '../scripts/genesis001-linux-policy-boundary.mjs';
 import { deriveSealedRealmOperationBundleSourceClosureDigest } from '../scripts/sealed-realms-production-bundle-engine.mjs';
 
 const root = process.cwd();
@@ -28,7 +29,9 @@ const command = (args: string[], cwd: string) => execFileSync('/usr/bin/git', ['
   '-c', 'commit.gpgsign=false', '-c', 'user.name=Preflight Fixture', '-c', 'user.email=fixture@example.invalid',
   ...args], { cwd, encoding: 'utf8' }).trim();
 
-it.each(['g002-update-inspect', 'g002-update-apply', 'g001-current-state'] as const)('recognizes fixed %s before enforcing native runtime authority', async operation => {
+it.each(['preflight', 'g001-policy-observe', 'g001-freeze-census', 'activation-evidence-inspect',
+  'activation-evidence-generate', 'ptr-state-inspect', 'ptr-update-inspect', 'ptr-update-apply',
+  'g002-update-inspect', 'g002-update-apply'] as const)('recognizes fixed %s before enforcing native runtime authority', async operation => {
   await expect(runSealedRealmsProductionLinuxOperation({ operation, workflowInputSha: 'a'.repeat(40) } as never))
     .rejects.toMatchObject({ phase: 'runtime' });
 });
@@ -38,8 +41,8 @@ it.each(['g001-policy-observe', 'g002-publish-apply', 'ptr-owner-provision', 'ac
     await expect(runSealedRealmsProductionLinuxPreflight({ operation, workflowInputSha: 'a'.repeat(40) } as never))
       .rejects.toMatchObject({ phase: 'input' });
   });
-it.each(['g002-publish-inspect', 'g002-import-inspect', 'g002-live-inspect'])(
-  'keeps unsupported G002 dispatch outside the native preflight caller: %s', async operation => {
+it.each(['g002-publish-inspect', 'g002-import-inspect', 'g002-live-inspect', 'g001-current-state'])(
+  'keeps unsupported dispatch outside the native preflight caller: %s', async operation => {
     await expect(runSealedRealmsProductionLinuxOperation({ operation, workflowInputSha: 'a'.repeat(40) } as never))
       .rejects.toMatchObject({ phase: 'input' });
   });
@@ -55,6 +58,48 @@ it('the executable returns one bounded public input failure without echoing argu
     { encoding: 'utf8', env: {}, timeout: 20_000 });
   expect(child.status).toBe(1); expect(child.stdout).toBe('');
   expect(child.stderr).toBe('{"operation":"preflight","status":"failed","phase":"input"}\n');
+});
+
+it.each(['g001-credential', 'g001-host', 'g001-source', 'g001-closure', 'g001-private-root',
+  'g001-materialization', 'g001-prepared-verification', 'g001-authority', 'g001-credential-descriptor',
+  'g001-observation', 'g001-receipt', 'g001-cleanup'] as const)(
+  'projects only the fixed native diagnostic %s through the public failure contract', diagnostic => {
+    let nativeError: Error & { diagnostic?: string };
+    try { policyFail(diagnostic); } catch (error) { nativeError = error as typeof nativeError; }
+    expect(nativeError!.message).toBe('G001_LINUX_POLICY_NATIVE_FAILED');
+    expect(nativeError!.diagnostic).toBe(diagnostic);
+    for (const phase of ['workflow', 'operation']) {
+      const failure = Object.assign(Error('SEALED_REALMS_LINUX_PREFLIGHT_FAILED'), { phase, diagnostic,
+        cause: Error('PRIVATE_DIAGNOSTIC_DO_NOT_COPY'), path: '/private/fixture', body: 'private provider response' });
+      expect(describeSealedRealmsProductionLinuxFailure('g001-freeze-census', failure))
+        .toEqual({ operation: 'g001-freeze-census', status: 'failed', phase, diagnostic });
+    }
+  });
+
+it('omits arbitrary diagnostics, getters, proxies, inherited fields and private exception text', () => {
+  let invoked = false;
+  const message = 'SEALED_REALMS_LINUX_PREFLIGHT_FAILED';
+  const secret = 'PRIVATE_DIAGNOSTIC_DO_NOT_COPY';
+  const failures = [
+    Object.assign(Error(message), { phase: 'workflow', diagnostic: secret }),
+    Object.assign(Error(message), { phase: 'source', diagnostic: 'g001-source' }),
+    Object.assign(Error(secret), { phase: 'workflow', diagnostic: 'g001-source' }),
+    Object.defineProperty(Error(message), 'diagnostic', { get: () => { invoked = true; return secret; } }),
+    new Proxy({}, { ownKeys: () => { invoked = true; throw Error(secret); } }),
+    Object.create({ message, phase: 'workflow', diagnostic: 'g001-source' }),
+  ];
+  for (const error of failures) {
+    const result = describeSealedRealmsProductionLinuxFailure('g001-freeze-census', error);
+    expect(result).not.toHaveProperty('diagnostic');
+    expect(JSON.stringify(result)).not.toContain(secret);
+  }
+  expect(describeSealedRealmsProductionLinuxFailure(secret, Error(secret)))
+    .toEqual({ operation: 'preflight', status: 'failed', phase: 'result' });
+  expect(invoked).toBe(false);
+  try { Reflect.apply(policyFail, undefined, [secret]); } catch (error) {
+    expect(error).not.toHaveProperty('diagnostic');
+    expect(String(error)).not.toContain(secret);
+  }
 });
 
 // Real UID1000, Node, filesystem and immutable compiled bundle in an isolated

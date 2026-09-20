@@ -9,8 +9,9 @@ import {
   type PtrGameplay04Capability, type PtrRealmConnectionBuilder, type PtrRealmConnectionLike,
 } from '../src/ptr/ptrRealmConnection';
 import { classifyGameplay04Error, Gameplay04ClientError } from '../src/ptr/gameplay04/ptrGameplay04Errors';
+import { createGameplay04Controller } from '../src/ptr/gameplay04/createGameplay04Controller';
 import type { Mutation04, ReadWire04, ResultWire04 } from '../src/ptr/gameplay04/ptrGameplay04Types';
-import { EMPTY_WIRE04 } from './fixtures/gameplay04Client';
+import { EMPTY_WIRE04, freshWire04 } from './fixtures/gameplay04Client';
 
 const NOW = 1_788_000_000_000;
 const DATABASE_IDENTITY = 'd'.repeat(64);
@@ -95,9 +96,113 @@ function invoke(capability: PtrGameplay04Capability, command: Mutation04 | undef
 }
 
 beforeEach(() => { vi.spyOn(Date, 'now').mockReturnValue(NOW); });
-afterEach(() => { vi.restoreAllMocks(); });
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe('isolated PTR gameplay capability', () => {
+  it.each(operations)('bounds a stalled $name without claiming rejection or disconnecting current authority', async ({ command }) => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const flight = Promise.withResolvers<ReadWire04 | ResultWire04>();
+    const { capability, controller, connection } = await setup(() => flight.promise);
+    const signal = new AbortController().signal;
+    const removeCommand = vi.spyOn(signal, 'removeEventListener');
+    const removeSession = vi.spyOn(controller.signal, 'removeEventListener');
+    let outcome: unknown = 'pending';
+    const work = invoke(capability, command, signal).catch(error => { outcome = error; });
+    await vi.advanceTimersByTimeAsync(29_999);
+    expect(outcome).toBe('pending');
+    await vi.advanceTimersByTimeAsync(1);
+    expect(outcome).toMatchObject({ kind: 'uncertain', code: undefined });
+    await work;
+    expect(removeCommand).toHaveBeenCalledWith('abort', expect.any(Function));
+    expect(removeSession).toHaveBeenCalledWith('abort', expect.any(Function));
+    expect(vi.getTimerCount()).toBe(0);
+    expect(capability.isCurrent()).toBe(true);
+    expect(connection.disconnect).not.toHaveBeenCalled();
+    flight.reject(new Error(SDK_TOKEN));
+    await Promise.resolve();
+  });
+
+  it('lets a controller recover a stalled read and ignores its late obsolete snapshot', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const flight = Promise.withResolvers<ReadWire04>();
+    const current = freshWire04(); current.revision = 2n;
+    let reads = 0;
+    const { capability } = await setup(() => ++reads === 1 ? flight.promise : Promise.resolve(current));
+    const controller = createGameplay04Controller({ capability, now: Date.now, nonce: () => 'a'.repeat(32) });
+    const firstRead = controller.refresh();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(controller.getSnapshot()).toMatchObject({ phase: 'failed', problem: 'unknown', view: null });
+    await firstRead;
+    await controller.refresh();
+    expect(controller.getSnapshot()).toMatchObject({ phase: 'ready', view: { state: { revision: 2n } } });
+    const recovered = controller.getSnapshot();
+    flight.resolve(freshWire04());
+    await Promise.resolve();
+    expect(controller.getSnapshot()).toBe(recovered);
+    expect(reads).toBe(2);
+    expect(vi.getTimerCount()).toBe(0);
+    controller.dispose();
+  });
+
+  it('preserves expired authority over a pending response deadline', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const flight = Promise.withResolvers<ReadWire04>();
+    const { capability } = await setup(() => flight.promise);
+    vi.mocked(Date.now).mockReturnValue(NOW + 115_000);
+    const result = capability.read(new AbortController().signal).catch(error => error);
+    vi.mocked(Date.now).mockReturnValue(NOW + 145_000);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(await result).toMatchObject({ kind: 'authority', code: undefined });
+    expect(capability.isCurrent()).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+    flight.resolve(freshWire04());
+    await Promise.resolve();
+  });
+
+  it.each(['resolve', 'reject'] as const)('keeps exact retry identity after a committed request times out, ignoring late %s', async late => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const flight = Promise.withResolvers<ResultWire04>();
+    const current = freshWire04();
+    const received: unknown[] = [];
+    const { capability } = await setup((name, input) => {
+      if (name === 'getGameplay04KeepV1') return Promise.resolve(structuredClone(current));
+      received.push(input);
+      const command = input as { sequence: bigint; expectedRevision: bigint };
+      current.revision = command.expectedRevision + 1n;
+      current.lastAcceptedSequence = command.sequence;
+      return received.length === 1 ? flight.promise : Promise.resolve({
+        sequence: current.lastAcceptedSequence, revision: current.revision,
+      });
+    });
+    const nonce = vi.fn(() => 'a'.repeat(32));
+    const controller = createGameplay04Controller({ capability, now: Date.now, nonce });
+    await controller.refresh(); controller.setAtlas({ atlasId: 'test', revision: 1n });
+    const intent = { kind: 'recall', workerOrdinal: 0, atlasRevision: 1n } as const;
+    const command = controller.submit(intent);
+    expect(controller.getSnapshot().phase).toBe('pending');
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(controller.getSnapshot()).toMatchObject({ phase: 'uncertain', problem: 'unknown' });
+    await command;
+    // An advanced read cannot prove which request consumed the sequence.
+    await controller.refresh();
+    expect(controller.getSnapshot()).toMatchObject({ phase: 'uncertain', view: { state: { revision: 2n } } });
+    await controller.submit(intent);
+    expect(received).toHaveLength(1);
+    await controller.retryPending();
+    expect(controller.getSnapshot()).toMatchObject({ phase: 'ready', problem: 'none', view: { state: { revision: 2n } } });
+    expect(received).toHaveLength(2);
+    expect(received[1]).toBe(received[0]);
+    expect(Object.isFrozen(received[0])).toBe(true);
+    expect(nonce).toHaveBeenCalledOnce();
+    const recovered = controller.getSnapshot();
+    if (late === 'resolve') flight.resolve({ sequence: 2n, revision: 2n });
+    else flight.reject(new Error(SDK_TOKEN));
+    await Promise.resolve();
+    expect(controller.getSnapshot()).toBe(recovered);
+    expect(vi.getTimerCount()).toBe(0);
+    controller.dispose();
+  });
+
   it('rejects a late read and structural capability clones', async () => {
     const readDeferred = Promise.withResolvers<ReadWire04>();
     const { capability, session, authority } = await setup(() => readDeferred.promise);
@@ -166,6 +271,7 @@ describe('isolated PTR gameplay capability', () => {
 
   it.each(operations.flatMap(operation => ['command', 'session'].map(abort => ({ ...operation, abort }))))
    ('suppresses $name on $abort abort and removes listeners', async ({ command, abort }) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
       const flight = Promise.withResolvers<ReadWire04 | ResultWire04>();
       const { capability, controller, connection } = await setup(() => flight.promise);
       const commandController = new AbortController();
@@ -178,6 +284,7 @@ describe('isolated PTR gameplay capability', () => {
       await Promise.resolve();
       expect(removeCommand).toHaveBeenCalledWith('abort', expect.any(Function));
       expect(removeSession).toHaveBeenCalledWith('abort', expect.any(Function));
+      expect(vi.getTimerCount()).toBe(0);
       expect(connection.disconnect).not.toHaveBeenCalled();
     });
 
@@ -225,6 +332,7 @@ describe('isolated PTR gameplay capability', () => {
   });
 
   it('removes listeners on success and definitive rejection without retiring the session', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     let rejected = false;
     const { capability, session, authority, controller, connection } = await setup(() => rejected
       ? Promise.reject('GAMEPLAY04_INPUT_INVALID') : Promise.resolve(EMPTY_WIRE04));
@@ -232,10 +340,12 @@ describe('isolated PTR gameplay capability', () => {
     const commandRemove = vi.spyOn(signal, 'removeEventListener');
     const sessionRemove = vi.spyOn(controller.signal, 'removeEventListener');
     await capability.read(signal);
+    expect(vi.getTimerCount()).toBe(0);
     rejected = true;
     await expect(capability.read(signal)).rejects.toMatchObject({ kind: 'rejected', code: 'GAMEPLAY04_INPUT_INVALID' });
     expect(commandRemove).toHaveBeenCalledTimes(2);
     expect(sessionRemove).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
     expect(isCurrentPtrRealmConnectionSession(session, authority)).toBe(true);
     expect(connection.disconnect).not.toHaveBeenCalled();
   });

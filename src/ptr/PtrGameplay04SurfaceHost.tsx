@@ -204,7 +204,7 @@ function WorldWorkerPanel({ snapshot, controller, selection, validateSelection, 
         {view?.workers.map(worker => <option key={worker.ordinal} value={worker.ordinal} disabled={worker.phase !== 'idle'}>Worker {worker.ordinal + 1} · {worker.phase}</option>)}
       </select></label>
       <div role="group" aria-label="Gathering duration">{DURATIONS.map(([label, micros]) => <button type="button" key={label} aria-pressed={duration === micros} onClick={() => setDuration(micros)}>{label}</button>)}</div>
-      <p>Dispatch preview: gathering completes in {formatKeep04Duration(duration)}; projected yield: {rate === null ? 'unknown' : (rate * (duration / 10_000_000n)).toString()}. Travel is route-dependent, so the Realm confirms the exact return deadline after dispatch. Reserved resources unlock only after that confirmation.</p>
+      <p>Dispatch preview: gather for {formatKeep04Duration(duration)} after arrival; projected yield: {rate === null ? 'unknown' : (rate * (duration / 10_000_000n)).toString()}. Travel is route-dependent, so the Realm confirms the exact return deadline after dispatch. Resources become spendable after the Realm confirms the Worker has returned.</p>
       <button type="button" disabled={!enabled} onClick={() => {
         if (!selection || !selection.target || !validateSelection(selection)) return;
         const current = controller.getSnapshot();

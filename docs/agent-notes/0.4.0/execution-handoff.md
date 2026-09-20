@@ -1,15 +1,69 @@
 # Continue Warpkeep 0.4
 
-## Current protected source checkpoint — 20 September 2026
+## Shipping reliability audit — 20 September 2026
+
+Active work: `codex/0.4-shipping-reliability-audit`, in the maintained Windows
+development checkout. PR #311 passed all checks and merged as `9806187a`.
+The operationally verified source below remains `5870717b`; the docs merge is
+not a new provider acceptance result. Resolve the live ref before dispatch.
+
+Fresh access checks confirmed the GitHub account, online Linux runner, correct
+SpacetimeDB publisher and all three immutable realm identities. Cloudflare's
+production profile reads the live B0 bridge version `79dfceec-9810-4868-afca-5b794d08a9a5`;
+the recovery signer Worker is absent (provider code 10007). The protected
+environment contains the expected admin/bridge secret names. Their presence
+does not establish successful authenticated observation.
+
+The earlier diagnosis that all remaining failures require owner-supplied private
+state was too broad. This audit found an agent-owned build defect: the native
+G001 materializer looked for SDK/compiler dependencies in `spacetimedb/node_modules`,
+but its Genesis 002 builder installs them in `spacetimedb/genesis002/node_modules`.
+The correction uses the owning module. Read-only census run `35499384780` failed
+at `workflow` before this repair; no successful census or provider mutation is
+claimed. The private build roots exist with the required ownership and modes.
+
+`g001-current-state` is a legacy macOS admission-monitor inspection. PR #309
+wired only its outer Linux route; the workflow-evidence map still rejects it,
+and its operator requires Darwin/LaunchAgents. The Linux workflow now offers
+only implemented Linux operations. Use `g001-freeze-census` for native freeze
+and current-state evidence; do not reinterpret a Mac monitor receipt.
+
+The player reliability repair bounds unanswered gameplay calls to 30 seconds,
+retains exact mutation identity for explicit retry, and ignores late responses.
+Worker previews now distinguish gathering after arrival from the full trip and
+make resource availability depend on the confirmed return. No new mechanics.
+The Linux failure output now identifies fixed native G001 preparation/execution
+stages without exposing raw errors, credentials or private records.
+
+Verification before publication: capability/controller/connection suites passed
+147 cases; workflow/preflight/preview suites passed 75, with 82 native-only skips;
+closure/materializer/lifecycle suites passed 56. Both TypeScript projects and the
+production Vite build passed. Synthetic browser review at 390×844 and 568×320
+confirmed catalog/Worker navigation, focus return, no horizontal overflow and the
+graphics fallback; these are browser checks, not physical-device or owner play.
+The diagnostic/materializer follow-up passed 91 tests, with 44 privileged native
+cases skipped; final build-mode TypeScript checks also passed. Public-boundary,
+production-exclusion, runtime-asset, file-size and Mini App checks passed.
+Native execution of the repaired release source remains to be established.
+
+Next: validate and publish these source repairs, complete their source-bound
+M1/M2 preparation, then repeat the supported census and prepared bridge path.
+The bridge transition must precede initial disabled signer/gateway provisioning,
+realm update/readback and actual-owner/device acceptance. These are agent-owned
+tasks until an exact unavailable input or interactive owner step is demonstrated.
+Keep automation paused and create no Desktop output.
+
+## Last operationally verified source — 20 September 2026
 
 This is the active source and operations record. The maintenance pass corrected
 the G001 current-state route and promoted the exact native-prepared family; it
-did not add new runtime features. Protected `main` is
+did not add new runtime features. The protected source verified at this checkpoint is
 **`5870717bdb41d00f8b67039022640e03a675d84a`**.
 
 The source-only repair in [PR #309](https://github.com/ael-dev3/Warpkeep/pull/309)
-added the supported `g001-current-state` readonly operation to the workflow,
-preflight and contract tests. The generated-family promotion in
+added an outer `g001-current-state` readonly route to the workflow,
+preflight and contract tests. The audit above found the inner caller remained
+incompatible with Linux. The generated-family promotion in
 [PR #310](https://github.com/ael-dev3/Warpkeep/pull/310) then merged the exact
 native-prepared outputs. Main Verify `35494158124` and main CodeQL
 `35494158121` both passed. The exact protected preflight `35496632288` also
@@ -32,12 +86,11 @@ intentional. The candidate handle is
 
 The earlier exact preflight `35490374334` failed closed at the bundle phase
 because the generated family was stale for M1; PR #310 corrected that diagnosis.
-The current preflight is green. Operation-specific read-only probes and live
-deployment remain blocked by missing or unusable private producers/retained
-state, not by a GitHub checkout, source, runner or preflight problem.
+That preflight is green. It does not establish that each operation can build or
+reach its provider; the shipping audit above identifies the subsequent failures.
 
-Windows and native WSL checkouts are clean on `main` at this protected SHA, and
-`origin/main` resolves to the same object. Keep the sync automation paused and
+Windows and native WSL checkouts were clean and synchronized to this SHA at the
+end of that checkpoint. Resolve their current roles before moving them. Keep the sync automation paused and
 create no Desktop siblings. The live site remains the older 0.3.43 bundle, and
 0.4 remains unshipped until provider deployment/recovery, G001 preservation,
 sealed G002 denial, actual-owner PTR play, physical-device performance, hosting

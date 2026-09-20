@@ -6,7 +6,10 @@ export const G001_POLICY_OPERATOR: 'scripts/genesis001-policy-observation-receip
 export const G001_CENSUS_OPERATOR: 'scripts/genesis001-linux-census-operator.ts';
 export const G001_POLICY_ENV: Readonly<Record<string, string>>;
 export function policyOperator(kind?: 'policy' | 'census'): string;
-export function policyFail(): never;
+export type G001LinuxPolicyDiagnostic = 'g001-credential' | 'g001-host' | 'g001-source' | 'g001-closure'
+  | 'g001-private-root' | 'g001-materialization' | 'g001-prepared-verification' | 'g001-authority'
+  | 'g001-credential-descriptor' | 'g001-observation' | 'g001-receipt' | 'g001-cleanup';
+export function policyFail(diagnostic?: G001LinuxPolicyDiagnostic): never;
 export function policyPrivateAncestors(path: string): void;
 export function policyDirectory(path: string, mode?: number): Readonly<Record<string, string>>;
 export function policyDigest(bytes: Uint8Array): string;
