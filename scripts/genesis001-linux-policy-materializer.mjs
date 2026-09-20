@@ -69,7 +69,15 @@ export async function materializeFixedLinuxG001Policy(request) {
           let first;
           for (const cycle of ['first', 'second']) {
             attestPolicyHost(host, true); attestPolicySource(source, root, kind);
-            const destination = join(request.operationRoot, `${cycle}.mjs`);
+            // The locked-source builder requires one transient bundle at its
+            // canonical profile path before it can attest and remove the
+            // materialization. Keep the second independent compiler output in
+            // the private operation root so both cycles remain byte-comparable
+            // without retaining a release artifact.
+            const destination = cycle === 'first'
+              ? join(context.materializedRoot, 'spacetimedb', 'genesis002', 'dist', 'bundle.js')
+              : join(request.operationRoot, `${cycle}.mjs`);
+            if (cycle === 'first') mkdirSync(dirname(destination), { mode: 0o700, recursive: true });
             const metafile = join(request.operationRoot, `${cycle}.json`);
             // Compiler and SDK bytes are enclosed by the existing locked-source
             // materializer's complete before/after archive and tree attestation.
