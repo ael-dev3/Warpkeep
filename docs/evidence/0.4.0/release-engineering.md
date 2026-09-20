@@ -12,6 +12,31 @@ real deployment, recovery/readback, G001 preservation, sealed G002 denial,
 physical-device acceptance and final deployment remain open. Each dated section
 below retains its original source and scope; green protected CI does not certify
 production.
+
+## Current M2 generated-family and preflight evidence — 2026-09-20
+
+M1 source `e42aa15ae907e8914de47149cb0ee0b4b6f20145` was prepared and
+independently checked under the native `warpkeep` authority. Both runs converged
+on source tree `379053a6b46aef6b3b0a811c8ed5d6717ad67a9e`, transaction
+`24c88a0c67ab07d06efb6b502925cbbc`, journal
+`984e7e1e2e9c8e60dd2826ef839aff32b2803884278e7f18a6d7d3554fcca2d8`, family
+`311a2cdbf2f749f852dc473e11d77a3f71e03bbc7b44666fce9807c67dec6b20`, closure
+`77c41fa2f1b275e8759323f2aaad2210aafafc10ae4ca22644a181568b7bb434`, and
+scanner manifest `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+The candidate handle is `release-workspace-f65dd11eb22d74179e30b4be4e1efb98`;
+it checked 3,248 source/candidate files, 624 bundle inputs, 7 recovery inputs
+and 102 generated outputs. `finalReleasePrepared:false` remains explicit.
+
+The generated-only promotion merged through [PR #310](https://github.com/ael-dev3/Warpkeep/pull/310)
+to protected main `5870717bdb41d00f8b67039022640e03a675d84a`. Main Verify
+`35494158124` and CodeQL `35494158121` passed. Exact protected preflight
+`35496632288` passed with `{"operation":"preflight","status":"preflight-inspected"}`.
+The earlier preflight `35490374334` stopped at the bundle phase because the
+generated family was stale for M1; the M2 promotion corrected that source/family
+identity mismatch. These results prove source, runner, family and preflight
+acceptance only. Provider deployment, retained-state readback, G001 preservation,
+sealed G002 denial, PTR owner play, physical-device measurements, hosting and
+final release freeze remain open.
 ## Verified observation source family — 2026-09-13
 
 Full-stack review found one scanner coverage gap: two already-permitted update

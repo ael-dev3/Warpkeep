@@ -3,43 +3,38 @@
 ## Current protected source checkpoint — 20 September 2026
 
 This is the active source and operations record. The maintenance pass corrected
-concrete defects and promoted the verified prepared family; it did not add new
-runtime features. Protected `main` is **`f2167fab3c43307e3796c8efbfec6a5c449cb07f`**.
+the G001 current-state route and promoted the exact native-prepared family; it
+did not add new runtime features. Protected `main` is
+**`5870717bdb41d00f8b67039022640e03a675d84a`**.
 
-The source-only repair in [PR #304](https://github.com/ael-dev3/Warpkeep/pull/304)
-fixed workflow evidence to accept the committed `run-name` (`operation @ source`)
-and merged through protection. The generated-family promotion in
-[PR #305](https://github.com/ael-dev3/Warpkeep/pull/305) then merged the exact
-native-prepared outputs. Main Verify `35476063706` and main CodeQL
-`35476063612` both passed. The Pages run `35478469951` passed only its
-classification job; build, private toolchain, deployment, recovery and live
-verification were skipped because `pagesDeploymentApproved:false` remains
-explicit. No 0.4 deployment is established by those runs.
+The source-only repair in [PR #309](https://github.com/ael-dev3/Warpkeep/pull/309)
+added the supported `g001-current-state` readonly operation to the workflow,
+preflight and contract tests. The generated-family promotion in
+[PR #310](https://github.com/ael-dev3/Warpkeep/pull/310) then merged the exact
+native-prepared outputs. Main Verify `35494158124` and main CodeQL
+`35494158121` both passed. The exact protected preflight `35496632288` also
+passed and returned `{"operation":"preflight","status":"preflight-inspected"}`.
+No provider or realm mutation occurred and no 0.4 deployment is established.
 
-Native preparation and independent check were run from this exact main source
-under the existing `warpkeep` Linux authority. Both converged on source tree
-`c98e6ec0c6e5fc292894dd10bdf1fa552371328d`, transaction
-`d4eac942c1e22d6e65e56ccffbb76d79`, journal
-`854c9a457042b0f0a5f5f15972188c8612eb7ed7c660e01bc621bdaaf6f0b9af`, family
-`f1f742db463257c253bab1d332d1528ba63a90e6ca7bded71fd3ffbd219dbac5`, closure
-`b618494bfd0a7bb4a69ac3cb9b2f8d1e8fe3a86c96cc8fdcebeeeb2f27a75631`, and
+Native preparation and independent check were run from M1 source
+`e42aa15ae907e8914de47149cb0ee0b4b6f20145` under the existing `warpkeep` Linux
+authority. Both converged on source tree
+`379053a6b46aef6b3b0a811c8ed5d6717ad67a9e`, transaction
+`24c88a0c67ab07d06efb6b502925cbbc`, journal
+`984e7e1e2e9c8e60dd2826ef839aff32b2803884278e7f18a6d7d3554fcca2d8`, family
+`311a2cdbf2f749f852dc473e11d77a3f71e03bbc7b44666fce9807c67dec6b20`, closure
+`77c41fa2f1b275e8759323f2aaad2210aafafc10ae4ca22644a181568b7bb434`, and
 scanner manifest `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
 The candidate checked 3,248 source/candidate files, 624 bundle inputs, 7
 recovery inputs and 102 generated outputs; `finalReleasePrepared:false` remains
-intentional. The exact outgoing range passed pinned Gitleaks with no findings.
+intentional. The candidate handle is
+`release-workspace-f65dd11eb22d74179e30b4be4e1efb98`.
 
-The final protected preflight `35478504320` succeeded against this SHA and
-returned `{"operation":"preflight","status":"preflight-inspected"}`. It
-performed no provider or realm mutation. Follow-up read-only probes were run
-once each and failed closed before any mutation: G001 policy observation
-`35478595766` (workflow phase on current main; no mutation), the listed G001 current-state choice
-`35467146636` (currently routed to the explicit unwired-operation guard), PTR
-state observation `35467179746` (operation phase), activation evidence
-inspection `35467228823` (operation phase, with configured bridge/database inputs),
-G002 update inspection `35467287821` (workflow phase), and PTR update inspection
-`35467324123` (workflow phase). These results establish the current blocker as
-missing or unusable operation-specific private producers/retained state, not a
-GitHub checkout, source, runner or preflight problem.
+The earlier exact preflight `35490374334` failed closed at the bundle phase
+because the generated family was stale for M1; PR #310 corrected that diagnosis.
+The current preflight is green. Operation-specific read-only probes and live
+deployment remain blocked by missing or unusable private producers/retained
+state, not by a GitHub checkout, source, runner or preflight problem.
 
 Windows and native WSL checkouts are clean on `main` at this protected SHA, and
 `origin/main` resolves to the same object. Keep the sync automation paused and
