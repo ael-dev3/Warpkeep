@@ -69,6 +69,10 @@ All tracked native inputs matched their Git blobs and a fresh full derivation
 matched every installed source-family output. Read the committed closure manifest
 for its final digest. This is not a newly compiled release candidate; required
 PR checks and protected M1/M2 promotion remain.
+At final functional source `cfb23a62`, clean checked-in release verification
+passed on Windows and native Linux. The complete sealed-launch verifier suite
+passed 168 tests with one platform skip. GitHub's full required checks are pending;
+these local results do not establish their eventual outcome or a live release.
 
 The recovery App key generated during the earlier registration is still absent
 from the known Downloads/private-bootstrap locations. The owner has been asked
