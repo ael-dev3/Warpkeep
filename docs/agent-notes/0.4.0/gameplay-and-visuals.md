@@ -1,5 +1,20 @@
 # Gameplay and visual implementation notes
 
+## Stalled response recovery — September 20, 2026
+
+An open PTR socket could leave a gameplay procedure unanswered and hold the
+controller busy until the session lease expired. Gameplay calls now stop waiting
+after 30 seconds. The existing authority check still wins if the session expired;
+otherwise a timed-out mutation remains uncertain and retains its exact frozen
+request for explicit retry. Late responses cannot overwrite a recovered view.
+Tests exercise the real capability/controller composition, advanced readback,
+exact retry, expiry and timer/listener cleanup. This is local failure recovery
+evidence, not authenticated owner play.
+
+The Worker dispatch preview now labels the chosen duration as gathering time
+after arrival. It distinguishes the Realm's confirmed trip deadline from the
+confirmed return that makes resources spendable.
+
 ## Maintenance review — September 16, 2026
 
 The existing owner-session path correctly discards old atlas authority after

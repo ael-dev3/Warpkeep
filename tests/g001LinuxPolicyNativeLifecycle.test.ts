@@ -11,23 +11,34 @@ const fixture = vi.hoisted(() => {
     censusMismatch: false, retainedChanged: false, complete: undefined as any,
     authority: { mode: 'S', operation: 'activation-evidence-inspect' }, permit: Object.freeze({}),
     refreshes: 0, liveAttestations: 0, failAttestation: 0, revoked: false,
+    prepareFailure: '',
     afterCollection: undefined as undefined | (() => void), changeRetainedDigest: false,
     source: { sourceCommit: 'a'.repeat(40), sourceTree: 'b'.repeat(40), operatorBlob: 'c'.repeat(40), operatorSha256: 'd'.repeat(64) } };
 });
-vi.mock('../scripts/genesis001-linux-policy-boundary.mjs', () => ({
+vi.mock('../scripts/genesis001-linux-policy-boundary.mjs', async original => ({
   G001_POLICY_ENV: { HOME: fixture.home }, G001_POLICY_HOME: fixture.home,
   G001_POLICY_ROOT: fixture.privateRoot, G001_POLICY_NODE: 'fixed-node', G001_POLICY_NODE_SHA: 'e'.repeat(64),
-  attestPolicyHost: () => ({}), attestPolicySource: () => { if (fixture.sourceChanged) throw Error('source changed'); return fixture.source; },
-  policyFail: () => { throw Error('G001_LINUX_POLICY_NATIVE_FAILED'); },
-  policyDirectory: (path: string) => ({ path }), policyPrivateAncestors: () => {}, policyOwnedRun: () => {},
+  attestPolicyHost: () => { if (fixture.prepareFailure === 'host') throw Error('PRIVATE_DIAGNOSTIC_DO_NOT_COPY'); return {}; },
+  attestPolicySource: () => { if (fixture.sourceChanged || fixture.prepareFailure === 'source') throw Error('PRIVATE_DIAGNOSTIC_DO_NOT_COPY'); return fixture.source; },
+  policyFail: (await original<typeof import('../scripts/genesis001-linux-policy-boundary.mjs')>()).policyFail,
+  policyDirectory: (path: string) => ({ path }),
+  policyPrivateAncestors: () => { if (fixture.prepareFailure === 'private-root') throw Error('PRIVATE_DIAGNOSTIC_DO_NOT_COPY'); },
+  policyOwnedRun: () => {},
   policyDigest: () => 'f'.repeat(64), policyGit: () => Buffer.from('source fixture'),
   cleanupPolicyRun: (_root: string, runId: string) => { fixture.cleanup++; return { outcome: 'cleaned', runId, namespaceInventorySha256: 'f'.repeat(64) }; },
 }));
 vi.mock('../scripts/local-binding-bounded-file.mjs', () => ({
-  readLocalBindingBoundedFile: () => { if (fixture.advanceDuringAttestation) fixture.clock = 30001; return { body: Buffer.from('attested fixture'), identity: {} }; },
+  readLocalBindingBoundedFile: (path: string) => {
+    if (path.endsWith('first.mjs') && fixture.prepareFailure === 'prepared-verification') throw Error('PRIVATE_DIAGNOSTIC_DO_NOT_COPY');
+    if (fixture.advanceDuringAttestation) fixture.clock = 30001;
+    return { body: Buffer.from('attested fixture'), identity: {} };
+  },
 }));
 vi.mock('../scripts/auth-bridge-notification-prepared-deploy-closure.mjs', () => ({
-  verifyAuthBridgeNotificationPreparedDeployClosure: () => ({}),
+  verifyAuthBridgeNotificationPreparedDeployClosure: () => {
+    if (fixture.prepareFailure === 'closure') throw Error('PRIVATE_DIAGNOSTIC_DO_NOT_COPY');
+    return {};
+  },
 }));
 vi.mock('../scripts/genesis001-linux-census-attempt.mjs', () => ({
   verifyGenesis001LinuxCensusRetainedSamples: () => {
@@ -93,6 +104,7 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
     expect(JSON.stringify({ args, env: options.env, request: options.fd3 })).not.toContain('synthetic-credential');
     if (args[0] === '--experimental-vm-modules') {
       fixture.calls.push('build'); expect(fixture.opened).toBe(0); expect(options.inheritedFd4).toBeUndefined();
+      if (fixture.prepareFailure === 'materialization') throw Error('PRIVATE_DIAGNOSTIC_DO_NOT_COPY');
       return { stdout: JSON.stringify({ bundleSha256: '1'.repeat(64), bundleBytes: 100,
         sourceClosureSha256: '2'.repeat(64), dependencyClosureSha256: '3'.repeat(64) }) + '\n', stderr: '' };
     }
@@ -128,6 +140,7 @@ describe('opaque policy preparation and final descriptor boundary', () => {
     fixture.censusMismatch = false; fixture.retainedChanged = false;
     fixture.complete = undefined; fixture.refreshes = 0; fixture.liveAttestations = 0; fixture.failAttestation = 0;
     fixture.revoked = false; fixture.afterCollection = undefined; fixture.changeRetainedDigest = false;
+    fixture.prepareFailure = '';
     fixture.authority.operation = 'activation-evidence-inspect';
     mkdirSync(fixture.privateRoot, { recursive: true });
     writeFileSync(join(fixture.privateRoot, 'admin-token'), 'synthetic-credential-for-test-only-000000', { mode: 0o600 });
@@ -153,17 +166,18 @@ describe('opaque policy preparation and final descriptor boundary', () => {
   });
   it('refuses changed source before opening a descriptor and cleans the authentic preparation', async () => {
     const handle = await prepareFixedLinuxG001PolicyObservation(); fixture.sourceChanged = true;
-    await expect(executeFixedLinuxG001PolicyObservation(handle, fixture.source as never)).rejects.toThrow();
+    await expect(executeFixedLinuxG001PolicyObservation(handle, fixture.source as never)).rejects.toMatchObject({ diagnostic: 'g001-prepared-verification' });
     expect(fixture.opened).toBe(0); expect(fixture.cleanup).toBe(1);
   });
   it.each(['childFailed', 'secretChanged'] as const)('closes the parent descriptor and emits no receipt after %s', async mode => {
     const handle = await prepareFixedLinuxG001PolicyObservation(); fixture[mode] = true;
-    await expect(executeFixedLinuxG001PolicyObservation(handle, fixture.source as never)).rejects.toThrow();
+    await expect(executeFixedLinuxG001PolicyObservation(handle, fixture.source as never)).rejects.toMatchObject({
+      diagnostic: mode === 'childFailed' ? 'g001-observation' : 'g001-receipt' });
     expect(fixture.cleanup).toBe(1); expect(() => fstatSync(fixture.fd!)).toThrow();
   });
   it('refuses evidence that expires during expensive attestation before opening the credential', async () => {
     const handle = await prepareFixedLinuxG001PolicyObservation(); fixture.advanceDuringAttestation = true;
-    await expect(executeFixedLinuxG001PolicyObservation(handle, fixture.source as never)).rejects.toThrow();
+    await expect(executeFixedLinuxG001PolicyObservation(handle, fixture.source as never)).rejects.toMatchObject({ diagnostic: 'g001-authority' });
     expect(fixture.clock).toBe(30001); expect(fixture.opened).toBe(0);
     expect(fixture.calls).toEqual(['build']); expect(fixture.cleanup).toBe(1);
   });
@@ -212,9 +226,22 @@ describe('opaque policy preparation and final descriptor boundary', () => {
   });
   it.each(['', 'short', 'x'.repeat(513), `x${'y'.repeat(31)}\n`])('rejects an invalid copied protected credential before building', async secret => {
     vi.stubEnv('WARPKEEP_OPERATION', 'g001-freeze-census');
-    await expect(prepareFixedLinuxG001CensusObservation(secret)).rejects.toThrow();
+    await expect(prepareFixedLinuxG001CensusObservation(secret)).rejects.toMatchObject({
+      message: 'G001_LINUX_POLICY_NATIVE_FAILED', diagnostic: 'g001-credential' });
     expect(fixture.calls).toEqual([]); expect(fixture.opened).toBe(0);
   });
+
+  it.each(['host', 'source', 'closure', 'private-root', 'materialization', 'prepared-verification'])(
+    'identifies failed native preparation at %s without exposing its private error', async stage => {
+      fixture.prepareFailure = stage;
+      vi.stubEnv('WARPKEEP_OPERATION', 'g001-freeze-census');
+      const failure = await prepareFixedLinuxG001CensusObservation('synthetic-workflow-census-credential-000000')
+        .then(() => { throw Error('preparation unexpectedly succeeded'); }, error => error);
+      expect(failure).toMatchObject({ message: 'G001_LINUX_POLICY_NATIVE_FAILED', diagnostic: `g001-${stage}` });
+      expect(failure.cause).toBeUndefined();
+      expect(`${String(failure)}${JSON.stringify(failure)}`).not.toMatch(/PRIVATE_DIAGNOSTIC|synthetic-workflow|\/home|\\private/);
+      expect(fixture.opened).toBe(0);
+    });
 
   function activation(operation = 'activation-evidence-inspect') {
     fixture.authority.operation = operation;

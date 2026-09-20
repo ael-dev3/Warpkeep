@@ -46,8 +46,14 @@ describe('sealed-realms production workflow authority', () => {
       required: true,
       default: 'preflight',
       type: 'choice',
-      options: SEALED_REALMS_OPERATIONS,
+      options: [
+        'preflight', 'g001-policy-observe', 'g001-freeze-census',
+        'activation-evidence-inspect', 'activation-evidence-generate',
+        'g002-update-inspect', 'g002-update-apply',
+        'ptr-update-inspect', 'ptr-update-apply', 'ptr-state-inspect',
+      ],
     });
+    expect(inputs.operation.options?.every(operation => SEALED_REALMS_OPERATIONS.includes(operation as never))).toBe(true);
     expect(document.permissions).toEqual({ actions: 'read', contents: 'read' });
   });
 
@@ -84,7 +90,7 @@ describe('sealed-realms production workflow authority', () => {
     expect(document.jobs.observe_ptr['timeout-minutes']).toBe(10);
     expect(document.jobs.operate.if).toContain("inputs.operation == 'activation-evidence-generate'");
     expect(document.jobs.operate_readonly.permissions).toBeUndefined();
-    expect(document.jobs.operate_readonly.if).toContain('["preflight","activation-evidence-inspect","g001-policy-observe","g001-freeze-census","g001-current-state"]');
+    expect(document.jobs.operate_readonly.if).toContain('["preflight","activation-evidence-inspect","g001-policy-observe","g001-freeze-census"]');
     expect(document.jobs.operate_ptr.permissions).toEqual({actions:'read',contents:'read','id-token':'write'});
     expect(document.jobs.operate_ptr.if).toContain('["ptr-update-inspect","ptr-update-apply"]');
     expect(document.jobs.operate_g002.if).toContain('["g002-update-inspect","g002-update-apply"]');
@@ -92,7 +98,10 @@ describe('sealed-realms production workflow authority', () => {
     expect(document.jobs.unsupported.steps[0].run).toContain('SEALED_REALMS_LINUX_OPERATION_UNAVAILABLE');
     expect(document.jobs.unsupported.if).toContain('"ptr-update-inspect","ptr-update-apply"');
     expect(document.jobs.unsupported.if).toContain('"ptr-state-inspect"');
-    expect(document.jobs.unsupported.if).toContain('"g001-current-state"');
+    // A legacy macOS monitor probe is not a Linux realm observation. Keep API
+    // submissions on the explicit unsupported path, outside the readonly job.
+    expect(document.jobs.operate_readonly.if).not.toContain('"g001-current-state"');
+    expect(document.jobs.unsupported.if).not.toContain('"g001-current-state"');
     const source=workflow('sealed-realms-production.yml');
     expect(source).not.toMatch(/(?:npm|pnpm|npx|tsx) (?:ci|install|run)/u);
     expect(source).not.toMatch(/console\.log|set -x|printenv|^\s*env\s*$/mu);

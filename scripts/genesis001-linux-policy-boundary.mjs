@@ -25,7 +25,14 @@ export const G001_POLICY_ENV = Object.freeze({ PATH: `${posix.join('/', 'usr', '
   LANG: 'C', LC_ALL: 'C', TZ: 'UTC', GIT_CONFIG_GLOBAL: NULL_PATH, GIT_CONFIG_SYSTEM: NULL_PATH,
   GIT_CONFIG_NOSYSTEM: '1', GIT_NO_REPLACE_OBJECTS: '1', GIT_GRAFT_FILE: NULL_PATH, GIT_TERMINAL_PROMPT: '0' });
 export const policyDigest = bytes => createHash('sha256').update(bytes).digest('hex');
-export function policyFail() { throw Error('G001_LINUX_POLICY_NATIVE_FAILED'); }
+const DIAGNOSTICS = new Set(['g001-credential', 'g001-host', 'g001-source', 'g001-closure',
+  'g001-private-root', 'g001-materialization', 'g001-prepared-verification', 'g001-authority',
+  'g001-credential-descriptor', 'g001-observation', 'g001-receipt', 'g001-cleanup']);
+export function policyFail(diagnostic) {
+  const error = Error('G001_LINUX_POLICY_NATIVE_FAILED');
+  if (DIAGNOSTICS.has(diagnostic)) error.diagnostic = diagnostic;
+  throw error;
+}
 export function readPolicyRequest() {
   const buffer = Buffer.alloc(8193);
   let count = 0;

@@ -15,25 +15,33 @@ Configuration files do not prove that either Worker, its keys, control state or
 release-specific authorization has been deployed and armed.
 
 The [Pages workflow](../../.github/workflows/deploy-pages.yml) implements the
-protected Linux `deploy-recovery` caller at `c51bb00`. It builds and attests the
-exact artifact before claim preparation, then runs the fresh deployment boundary,
-pinned Pages deployment and mandatory postflight. On 2026-09-08, repository
-runner 22, `warpkeep-wsl-production-01`, was verified online and idle with the
-required Linux/X64 labels. Its persistent service runs as UID 1001, and the
-owner-only `/home/runner/.warpkeep-recovery-v1` directory is provisioned. See the
-[runner operations guide](../../docs/operations/0.4.0-linux-runner.md). This is
-runner infrastructure, not populated claim state or live signer authorization.
+protected Linux `deploy-recovery` caller. It builds and attests the exact artifact
+before claim preparation, then runs the fresh deployment boundary, pinned Pages
+deployment and mandatory postflight. The supported production runner is
+`WarpkeepRunner`, account `warpkeep` (UID/GID 1000), with private recovery state
+under `/home/warpkeep/.warpkeep-recovery-v1`. See the
+[runner operations guide](../../docs/operations/0.4.0-linux-runner.md) for current
+metadata and the separate historical installations. Runner connectivity does not
+establish populated claim state or live signer authorization.
 
-The fixed V2 activation generator, generation receipt, atomic publication and
-read-only reconciliation path are implemented at `772d3a4`. The record reader at
-`f558bd5` validates the exact source-bound receipt corpus before deriving scalar
-candidate facts and reopens it to reject replacement. The operating
+The fixed activation generator, generation receipt, atomic publication and
+read-only reconciliation path are implemented. The record reader validates the
+exact source-bound receipt corpus before deriving scalar candidate facts and
+reopens it to reject replacement. The operating
 [activation workflow](../../scripts/sealed-realms-production-activation-workflow-entry.mjs)
-still lacks its authenticated canonical recovery-candidate and provider evidence
-adapters. The current source's complete generated family and genuine activation
-inputs must be installed and reviewed; signer keys, control/ledger state and
-live authorization acceptance remain separate requirements. No recovery job or
-production deployment was exercised by registering the runner.
+connects the canonical recovery candidate and preserved G002/PTR update evidence.
+Its legacy fresh-import callbacks remain separate from that existing-state path.
+The current source's complete generated family and genuine activation inputs
+must be installed and verified; signer keys, control/ledger state and live
+authorization acceptance remain separate requirements.
+
+Initial service provisioning uses
+[wrangler.preparation-signer.toml](wrangler.preparation-signer.toml) after the
+prepared auth-bridge transition. It exposes authenticated preparation and realm
+observation while recovery stays disabled, avoiding a dependency on final fixtures
+that those observations must help produce. Follow the
+[bootstrap sequence](../../docs/operations/0.4.0-recovery-bootstrap.md#initial-signer-deployment);
+do not deploy this initial configuration over an existing full signer.
 
 Read the [architecture](../../docs/technical-architecture.md),
 [0.4 handoff](../../docs/agent-notes/0.4.0/README.md),

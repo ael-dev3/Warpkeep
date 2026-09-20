@@ -57,13 +57,14 @@ export async function materializeFixedLinuxG001Policy(request) {
       operation(context) {
         const modules = join(context.materializedRoot, 'node_modules');
         mkdirSync(modules, { mode: 0o700 });
-        const sdk = realpathSync(join(context.materializedRoot, 'spacetimedb', 'node_modules', 'spacetimedb'));
+        const dependencyRoot = join(context.materializedRoot, 'spacetimedb', 'genesis002', 'node_modules');
+        const sdk = realpathSync(join(dependencyRoot, 'spacetimedb'));
         const links = [join(modules, 'spacetimedb'), join(modules, 'yaml')];
         const created = [];
         try {
           symlinkSync(sdk, links[0]); created.push(links[0]);
           symlinkSync(yamlRoot, links[1]); created.push(links[1]);
-          const compiler = realpathSync(join(context.materializedRoot, 'spacetimedb', 'node_modules',
+          const compiler = realpathSync(join(dependencyRoot,
             '.pnpm', '@esbuild+linux-x64@0.25.12', 'node_modules', '@esbuild', 'linux-x64', 'bin', 'esbuild'));
           let first;
           for (const cycle of ['first', 'second']) {

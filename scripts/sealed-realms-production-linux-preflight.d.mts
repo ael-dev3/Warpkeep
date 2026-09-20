@@ -1,4 +1,9 @@
 declare const retainedFixtureRuntime: unique symbol;
+/** Sanitized public output only; this projection grants no operating authority. */
+export function describeSealedRealmsProductionLinuxFailure(operation: unknown, error: unknown): Readonly<{
+  operation: string; status: 'failed'; phase: string;
+  diagnostic?: import('./genesis001-linux-policy-boundary.mjs').G001LinuxPolicyDiagnostic;
+}>;
 export type SealedRealmsProductionRetainedFixtureRuntime = Readonly<{ [retainedFixtureRuntime]: true }>;
 export function createSealedRealmsProductionRetainedFixtureRuntime(input: Readonly<{
   operatingCommit: string;

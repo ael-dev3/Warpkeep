@@ -131,19 +131,23 @@ export async function prepareFixedLinuxG001PolicyObservation() {
 export async function prepareFixedLinuxG001CensusObservation(adminSecret) {
   if (arguments.length !== 1 || typeof adminSecret !== 'string'
     || Buffer.byteLength(adminSecret, 'utf8') < 32 || Buffer.byteLength(adminSecret, 'utf8') > 512
-    || /[\u0000-\u0020\u007f]/u.test(adminSecret)) policyFail();
+    || /[\u0000-\u0020\u007f]/u.test(adminSecret)) policyFail('g001-credential');
   return prepare('census', adminSecret);
 }
 async function prepare(kind, adminSecret) {
   if (active || pending !== undefined) policyFail();
   active = true;
   let operationRoot, runId, retained = false;
+  let diagnostic = 'g001-host';
   try {
     const host = attestPolicyHost();
     const context = operationContext(kind);
+    diagnostic = 'g001-source';
     const source = attestPolicySource(undefined, process.cwd(), kind);
     if (source.sourceCommit !== process.env.GITHUB_SHA) policyFail();
+    diagnostic = 'g001-closure';
     checkBootstrap(source);
+    diagnostic = 'g001-private-root';
     policyPrivateAncestors(G001_POLICY_ROOT);
     const runs = join(G001_POLICY_ROOT, 'runs');
     if (!existsSync(runs)) mkdirSync(runs, { mode: 0o700 });
@@ -151,6 +155,7 @@ async function prepare(kind, adminSecret) {
     runId = randomBytes(16).toString('hex'); operationRoot = join(runs, runId);
     mkdirSync(operationRoot, { mode: 0o700 }); policyOwnedRun(operationRoot, runId);
     const request = { runId, operationRoot, source, ...(kind === 'census' ? { kind } : {}) };
+    diagnostic = 'g001-materialization';
     const materialization = await runLocalBindingBoundedProcess(G001_POLICY_NODE,
       ['--experimental-vm-modules', join(process.cwd(), MATERIALIZER)], {
         cwd: process.cwd(), env: G001_POLICY_ENV, fd3: JSON.stringify(request),
@@ -161,12 +166,13 @@ async function prepare(kind, adminSecret) {
       || !['bundleSha256', 'sourceClosureSha256', 'dependencyClosureSha256'].every(key => /^[a-f0-9]{64}$/u.test(built[key]))
       || !Number.isSafeInteger(built.bundleBytes) || built.bundleBytes < 1 || built.bundleBytes > 16 * 1024 * 1024) policyFail();
     const state = { host, source, operationRoot, runId, built, kind, context, adminSecret, status: 'prepared', cleanup: undefined };
+    diagnostic = 'g001-prepared-verification';
     sameOperation(state);
     verifyPreparation(state);
     const handle = Object.freeze({});
     preparations.set(handle, state); pending = handle; retained = true;
     return handle;
-  } catch { policyFail(); }
+  } catch { policyFail(diagnostic); }
   finally {
     try {
       if (!retained && operationRoot !== undefined) {
@@ -239,9 +245,11 @@ async function execute(handle, evidence, kind) {
   state.status = 'consuming'; active = true;
   const { source, operationRoot, runId, built } = state;
   let secretFd;
+  let diagnostic = 'g001-prepared-verification';
   try {
     sameOperation(state);
     verifyPreparation(state);
+    diagnostic = 'g001-private-root';
     const githubRunId = process.env.GITHUB_RUN_ID, githubRunAttempt = process.env.GITHUB_RUN_ATTEMPT;
     const attemptRoot = join(G001_POLICY_ROOT, 'attempts', runId);
     if (kind === 'census') {
@@ -254,7 +262,9 @@ async function execute(handle, evidence, kind) {
     const secretRoot = kind === 'census' ? operationRoot : G001_POLICY_ROOT;
     const parents = capturePrivateParents(secretRoot);
     const secretPath = join(secretRoot, 'admin-token');
+    diagnostic = 'g001-authority';
     verifySealedRealmsProductionWorkflowEvidence(evidence, source.sourceCommit);
+    diagnostic = 'g001-credential-descriptor';
     if (kind === 'census') {
       // The ingress copied and scrubbed the existing protected workflow secret.
       // Only the credential-free build has run so far. This one owned file is
@@ -271,7 +281,9 @@ async function execute(handle, evidence, kind) {
     secretFd = openSync(secretPath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
     if (JSON.stringify(secretStatus(secretPath, secretFd)) !== JSON.stringify(before)
       || JSON.stringify(capturePrivateParents(secretRoot)) !== JSON.stringify(parents)) policyFail();
+    diagnostic = 'g001-authority';
     verifySealedRealmsProductionWorkflowEvidence(evidence, source.sourceCommit);
+    diagnostic = 'g001-observation';
     const observed = await runLocalBindingBoundedProcess(G001_POLICY_NODE, [join(process.cwd(), CHILD)], {
       cwd: process.cwd(), env: G001_POLICY_ENV,
       fd3: JSON.stringify({ runId, operationRoot, source, bundleSha256: built.bundleSha256, bundleBytes: built.bundleBytes,
@@ -279,6 +291,7 @@ async function execute(handle, evidence, kind) {
       inheritedFd4: secretFd, containProcessGroup: true, timeout: kind === 'census' ? 600000 : 180000,
       maxOutput: kind === 'census' ? 4 * 1024 * 1024 : 32768,
     });
+    diagnostic = 'g001-receipt';
     if (JSON.stringify(secretStatus(secretPath, secretFd)) !== JSON.stringify(before)
       || JSON.stringify(secretStatus(secretPath)) !== JSON.stringify(before)
       || JSON.stringify(capturePrivateParents(secretRoot)) !== JSON.stringify(parents)) policyFail();
@@ -294,7 +307,9 @@ async function execute(handle, evidence, kind) {
       verifyGenesis001LinuxCensusRetainedSamples(attemptRoot, receipt.first, receipt.second, source.sourceCommit);
     }
     verifyPreparation(state);
+    diagnostic = 'g001-cleanup';
     state.cleanup = cleanupPolicyRun(operationRoot, runId);
+    diagnostic = 'g001-receipt';
     const execution = Object.freeze({ profile: 'warpkeep-g001-linux-policy-execution-v1', ...source,
       runtime: Object.freeze({ profile: 'warpkeep-g001-policy-observation-linux-x64-v1',
         nodeVersion: 'v22.22.3', nodeSha256: G001_POLICY_NODE_SHA }),
@@ -310,7 +325,7 @@ async function execute(handle, evidence, kind) {
     return Object.freeze({ profile: 'warpkeep-g001-linux-census-completed-v1', sourceCommit: source.sourceCommit,
       attemptId: runId, githubRunId, githubRunAttempt, receiptDigest: complete.receiptDigest,
       completedAt: complete.completedAt, mutationSubmitted: false });
-  } catch { policyFail(); }
+  } catch { policyFail(diagnostic); }
   finally {
     try {
       if (secretFd !== undefined) closeSync(secretFd);

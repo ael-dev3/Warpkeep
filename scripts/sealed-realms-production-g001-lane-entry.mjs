@@ -1,4 +1,5 @@
 import { executeFixedLinuxG001PolicyObservation, assertFixedLinuxG001PolicyPreparation } from './genesis001-linux-policy-native.mjs';
+import { policyFail } from './genesis001-linux-policy-boundary.mjs';
 import { createGenesis001LinuxPolicyReceipt, verifyGenesis001LinuxPolicyReceipt, GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE, GENESIS_001_LINUX_POLICY_OPERATOR_PATH } from './genesis001-linux-policy-receipt.mjs';
 import { createHash } from 'node:crypto';
 import { userInfo } from 'node:os';
@@ -2159,6 +2160,15 @@ export function createSealedRealmsProductionG001Dispatcher(input) {
         ({ invocation, operation } = createInvocation(prepared, lane));
         result = await consumeInvocation(invocation, prepared, lane);
       } catch (error) {
+        if (operation === 'g001-policy-observe' && process.platform === 'linux'
+          && !isProxy(error) && error !== null && typeof error === 'object') {
+          const fields = Object.getOwnPropertyDescriptors(error);
+          if (fields.message?.value === 'G001_LINUX_POLICY_NATIVE_FAILED') {
+            // Recreate only the native boundary's fixed diagnostic. Its error
+            // text, private cause, getters and arbitrary fields never escape.
+            policyFail(fields.diagnostic?.value);
+          }
+        }
         rejectSealedRealmsProductionLaneFailure(error);
       }
       return completeSealedRealmsProductionDispatch(operation, result);

@@ -23,7 +23,6 @@ const OPERATIONS = Object.freeze({
   preflight: Object.freeze({ lane: 'g001', job: 'operate_readonly', run: 'runSealedRealmsProductionG001Operation', status: 'preflight-inspected' }),
   'g001-policy-observe': Object.freeze({ lane: 'g001', job: 'operate_readonly', run: 'runSealedRealmsProductionG001Operation', status: 'completed' }),
   'g001-freeze-census': Object.freeze({ lane: 'g001', job: 'operate_readonly', run: 'runSealedRealmsProductionG001Operation', status: 'completed' }),
-  'g001-current-state': Object.freeze({ lane: 'g001', job: 'operate_readonly', run: 'runSealedRealmsProductionG001Operation', status: 'current-state-inspected' }),
   'activation-evidence-inspect': Object.freeze({ lane: 'activation', job: 'operate_readonly', run: 'runSealedRealmsProductionActivationOperation', status: 'activation-evidence-inspected' }),
   'activation-evidence-generate': Object.freeze({ lane: 'activation', job: 'operate', run: 'runSealedRealmsProductionActivationOperation', status: 'completed' }),
   'g002-update-inspect': Object.freeze({ lane: 'g002', job: 'operate_g002', run: 'runSealedRealmsProductionG002Operation', status: 'update-inspected' }),
@@ -46,14 +45,33 @@ const GIT_ENV = Object.freeze({ GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTE
   GIT_CONFIG_NOSYSTEM: '1', GIT_NO_REPLACE_OBJECTS: '1', GIT_GRAFT_FILE: '/dev/null',
   GIT_TERMINAL_PROMPT: '0', HOME: '/dev/null', PATH: '/usr/bin:/bin', LANG: 'C', LC_ALL: 'C' });
 const PHASES = new Set(['input', 'runtime', 'source', 'bundle', 'workflow', 'operation', 'result']);
+// This boundary deliberately duplicates the fixed native labels rather than
+// importing additional executable source before runtime/source attestation.
+const G001_DIAGNOSTICS = new Set(['g001-credential', 'g001-host', 'g001-source', 'g001-closure',
+  'g001-private-root', 'g001-materialization', 'g001-prepared-verification', 'g001-authority',
+  'g001-credential-descriptor', 'g001-observation', 'g001-receipt', 'g001-cleanup']);
 const forbiddenEnvironment = /^(?:NODE_|ESBUILD_|TS_NODE_|BUN_|LD_|DYLD_|GIT_(?!HUB)|BASH_ENV$|ENV$|OPENSSL_CONF$|SSL_CERT_|PYTHONPATH$|VITEST$)/u;
 let active = false;
 const retainedReadRuntimes = new WeakMap();
 
-function fail(phase) {
+function failureFields(error) {
+  if (types.isProxy(error) || error === null || typeof error !== 'object') return {};
+  const fields = Object.getOwnPropertyDescriptors(error);
+  return { message: fields.message?.value, phase: fields.phase?.value, diagnostic: fields.diagnostic?.value };
+}
+function fail(phase, diagnostic) {
   const error = new Error('SEALED_REALMS_LINUX_PREFLIGHT_FAILED');
   error.phase = PHASES.has(phase) ? phase : 'result';
+  if (['workflow', 'operation'].includes(error.phase) && G001_DIAGNOSTICS.has(diagnostic)) error.diagnostic = diagnostic;
   throw error;
+}
+/** Bounded public failure projection; never expose exception text or causes. */
+export function describeSealedRealmsProductionLinuxFailure(operation, error) {
+  const fields = failureFields(error);
+  const selected = typeof operation === 'string' && Object.hasOwn(OPERATIONS, operation) ? operation : 'preflight';
+  const phase = fields.message === 'SEALED_REALMS_LINUX_PREFLIGHT_FAILED' && PHASES.has(fields.phase) ? fields.phase : 'result';
+  const diagnostic = ['workflow', 'operation'].includes(phase) && G001_DIAGNOSTICS.has(fields.diagnostic) ? fields.diagnostic : undefined;
+  return Object.freeze({ operation: selected, status: 'failed', phase, ...(diagnostic === undefined ? {} : { diagnostic }) });
 }
 function exact(value, keys, phase) {
   if (types.isProxy(value) || value === null || typeof value !== 'object'
@@ -349,7 +367,11 @@ export async function runSealedRealmsProductionLinuxOperation(input) {
       return Object.freeze({ operation, status: selectedOperation.status, censusAttempt: Object.freeze({ ...selector }) });
     }
     return Object.freeze({ operation, status: selectedOperation.status });
-  } catch (error) { fail(error?.message === 'SEALED_REALMS_LINUX_PREFLIGHT_FAILED' ? error.phase : phase); }
+  } catch (error) {
+    const fields = failureFields(error);
+    fail(fields.message === 'SEALED_REALMS_LINUX_PREFLIGHT_FAILED' ? fields.phase : phase,
+      fields.message === 'G001_LINUX_POLICY_NATIVE_FAILED' ? fields.diagnostic : undefined);
+  }
   finally { active = false; }
 }
 
@@ -374,7 +396,7 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(resolve(p
   if (options) runSealedRealmsProductionLinuxOperation(options).then(value => {
     process.stdout.write(`${JSON.stringify(value)}\n`);
   }).catch(error => {
-    process.stderr.write(`${JSON.stringify({ operation: options.operation, status: 'failed', phase: error.phase })}\n`);
+    process.stderr.write(`${JSON.stringify(describeSealedRealmsProductionLinuxFailure(options.operation, error))}\n`);
     process.exitCode = 1;
   });
 }

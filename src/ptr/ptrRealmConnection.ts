@@ -453,19 +453,28 @@ function assertLiveGameplayInvocation(
   return details;
 }
 
-/** Abort suppresses delivery only: the transaction may already have committed. */
+// Leave recovery time inside the 120-second PTR lease if an open socket stops
+// delivering responses. A deadline says nothing about whether a mutation committed.
+const GAMEPLAY_RESPONSE_TIMEOUT_MILLISECONDS = 30_000;
+
+/** Abort and timeout suppress delivery only: the transaction may already have committed. */
 function awaitGameplayInvocation<T>(operation: Promise<T>, signals: readonly AbortSignal[]): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const finish = (callback: () => void) => {
       if (settled) return;
       settled = true;
+      if (timer !== undefined) clearTimeout(timer);
       for (const signal of signals) signal.removeEventListener('abort', abort);
       callback();
     };
     const abort = () => finish(() => reject(new Gameplay04ClientError('authority')));
+    timer = setTimeout(() => finish(() => reject(new Gameplay04ClientError('uncertain'))),
+      GAMEPLAY_RESPONSE_TIMEOUT_MILLISECONDS);
     for (const signal of signals) signal.addEventListener('abort', abort, { once: true });
-    // Always observe late rejection, even if the SDK synchronously aborted a signal.
+    // Observe late rejection after a deadline or synchronous SDK abort without
+    // delivering a late result into a newer read or exact-request retry.
     void Promise.resolve(operation).then(
       value => finish(() => resolve(value)),
       error => finish(() => reject(error)),
