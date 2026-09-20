@@ -60,6 +60,17 @@ The native source-closure/workflow review passed 201 tests without skips, and th
 Git-context repair passed 66 native tests without skips. PR #312 contains this
 source-only M1 repair; resolve its latest head/checks before integration. The
 protected-main reference checkout was fast-forwarded cleanly to `9806187a`.
+Source checkpoint `0cdf7449` includes the runner fix. Its refreshed source
+manifest is `0b5c08368a2b69d5d0e43cdb25fa6452aca5572714a3834d78301d5ec5df7a8e`;
+all tracked native inputs matched their Git blobs and a fresh full derivation
+matched every installed output. This remains a source-only family, not a newly
+compiled release candidate. Required PR checks and protected promotion remain.
+
+The recovery App key generated during the earlier registration is still absent
+from the known Downloads/private-bootstrap locations. The owner has been asked
+only for its local `.pem` path, never its contents. Preserve the existing App,
+installation, service keys and general GitHub/provider access; do not repeat
+registration or treat this missing App-key file as a failed owner login.
 
 Next: validate and publish these source repairs, complete their source-bound
 M1/M2 preparation, then repeat the supported census and prepared bridge path.
