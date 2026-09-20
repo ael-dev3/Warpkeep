@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
   "profile": "warpkeep-spacetime-binding-final-preparation-linux-x64-v1",
-  "sourceCommit": "75786f6bee8b6314d4263bcdd6989ed1bda141e3",
-  "sourceTree": "c98e6ec0c6e5fc292894dd10bdf1fa552371328d",
+  "sourceCommit": "e42aa15ae907e8914de47149cb0ee0b4b6f20145",
+  "sourceTree": "379053a6b46aef6b3b0a811c8ed5d6717ad67a9e",
   "bundles": [
     {
       "lane": "activation",
       "path": "scripts/sealed-realms-production-activation-lane.bundle.mjs",
-      "byteLength": 1199130,
-      "sha256": "81d533d162284d6c3c76dae97ad9c85bcde876c2c14ea663d8b5ed7763b8380d",
-      "sourceClosureDigest": "62be83753fbd5640ebfb233eb97f01112ca17c81ada9aea5cf75ad78281a0106",
+      "byteLength": 1199281,
+      "sha256": "3be8d7522e9333273a05e3bb0edab733b2f736ad3095e39cba3e378c55e138de",
+      "sourceClosureDigest": "d26b8f09b69b30659657ebf5db4e95650f666e3fca2ddb57fc8fbd8dd5b8a21c",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -813,8 +813,8 @@
         },
         {
           "path": "scripts/sealed-realms-production-linux-preflight.mjs",
-          "byteLength": 25148,
-          "sha256": "7553b10e1cba26b55905feeea5301d31de5755510d226bd707d135db82937591"
+          "byteLength": 25312,
+          "sha256": "c74a762f33f32c0e90d18285457c5d891e266d6c84ccb45339e59d2da8240925"
         },
         {
           "path": "scripts/sealed-realms-production-private-state.mjs",
@@ -1013,9 +1013,9 @@
     {
       "lane": "g001",
       "path": "scripts/sealed-realms-production-g001-lane.bundle.mjs",
-      "byteLength": 354941,
-      "sha256": "f4b2ae352b9cf5bb040d093724d6e397f3d8c3fd92693d4521f4228b3d40f854",
-      "sourceClosureDigest": "8c46966b1ecd3ad7b19afc902b093fed4a228e61b158680d4d1aa09cabc2bd6a",
+      "byteLength": 355092,
+      "sha256": "4bfb155ae8f3bb16b0f4616c7a6342739e51d808aba7c803674ea2e4809e520f",
+      "sourceClosureDigest": "7fdc99b0822992f25e675058c869609794b8fcb74b1bf4568c0a61af767bc675",
       "graphManifest": [
         {
           "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
@@ -1119,8 +1119,8 @@
         },
         {
           "path": "scripts/sealed-realms-production-linux-preflight.mjs",
-          "byteLength": 25148,
-          "sha256": "7553b10e1cba26b55905feeea5301d31de5755510d226bd707d135db82937591"
+          "byteLength": 25312,
+          "sha256": "c74a762f33f32c0e90d18285457c5d891e266d6c84ccb45339e59d2da8240925"
         },
         {
           "path": "scripts/sealed-realms-production-private-state.mjs",
@@ -1168,9 +1168,9 @@
     {
       "lane": "g002",
       "path": "scripts/sealed-realms-production-g002-lane.bundle.mjs",
-      "byteLength": 1137111,
-      "sha256": "bb6aa1fd89997bb1ac26361f064361c2440f8b57df516b90ba437ca019afa9f3",
-      "sourceClosureDigest": "5a7f1a1b76a5aef2687ceb71ba25dddc0dd28ac9f8e8731cc121b66bcf32e84c",
+      "byteLength": 1137262,
+      "sha256": "c823186589c61e4700cf5d4ea33699e1f95e32aa25f60354be546b185c06e147",
+      "sourceClosureDigest": "a1c9cfc9bd9d567fdcceb70d76f2622e47078e5764dbe8e6f4a38ef14c60a08b",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -1979,8 +1979,8 @@
         },
         {
           "path": "scripts/sealed-realms-production-linux-preflight.mjs",
-          "byteLength": 25148,
-          "sha256": "7553b10e1cba26b55905feeea5301d31de5755510d226bd707d135db82937591"
+          "byteLength": 25312,
+          "sha256": "c74a762f33f32c0e90d18285457c5d891e266d6c84ccb45339e59d2da8240925"
         },
         {
           "path": "scripts/sealed-realms-production-private-state.mjs",
@@ -2188,9 +2188,9 @@
     {
       "lane": "ptr",
       "path": "scripts/sealed-realms-production-ptr-lane.bundle.mjs",
-      "byteLength": 1134648,
-      "sha256": "5a84cb58cc2b15b0b0737db92f17878ebf6ab3be7c1ce7b5e781ed8e6f386e87",
-      "sourceClosureDigest": "bd55c7c27dcdc6a1a6eb617d4b568115d4749953b6c1576596cf0e3526a93ad7",
+      "byteLength": 1134799,
+      "sha256": "5886997e086015b289f9beab0d0e880963bca7d8ad7e3fb273530471c8284ff8",
+      "sourceClosureDigest": "c9f0e2ed6e87485a2d42daff2f02dd34902fadf2eee7f1456ef1c6f1359c5dff",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -2989,8 +2989,8 @@
         },
         {
           "path": "scripts/sealed-realms-production-linux-preflight.mjs",
-          "byteLength": 25148,
-          "sha256": "7553b10e1cba26b55905feeea5301d31de5755510d226bd707d135db82937591"
+          "byteLength": 25312,
+          "sha256": "c74a762f33f32c0e90d18285457c5d891e266d6c84ccb45339e59d2da8240925"
         },
         {
           "path": "scripts/sealed-realms-production-private-state.mjs",
