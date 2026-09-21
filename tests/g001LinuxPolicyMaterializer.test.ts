@@ -9,7 +9,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 const fixture = vi.hoisted(() => ({
-  home: '', materializedRoot: '', yamlRoot: '', compiler: '', operator: '',
+  home: '', materializedRoot: '', yamlRoot: '', typescriptRoot: '', compiler: '', operator: '',
   source: { sourceCommit: 'a'.repeat(40), sourceTree: 'b'.repeat(40), operatorBlob: 'c'.repeat(40), operatorSha256: 'd'.repeat(64) },
   compilerCalls: 0, outfiles: [] as string[], hookDisposals: 0, compilerFailure: false,
 }));
@@ -58,6 +58,7 @@ vi.mock('warpkeep:genesis002-binding-entry', () => ({
     // root node_modules tree is intentionally absent, as in the native builder.
     const result = input.operation({ materializedRoot: fixture.materializedRoot });
     expect(existsSync(join(fixture.materializedRoot, 'node_modules'))).toBe(false);
+    expect(existsSync(join(fixture.materializedRoot, 'services', 'auth-bridge', 'node_modules'))).toBe(false);
     return { result, moduleTreeId: fixture.source.sourceTree, dependencyClosureDigest: 'e'.repeat(64) };
   },
 }));
@@ -70,6 +71,9 @@ vi.mock('node:child_process', async original => {
     expect(options.cwd).toBe(fixture.materializedRoot);
     expect(readFileSync(join(options.cwd, 'node_modules', 'spacetimedb', 'index.js'), 'utf8')).toBe('locked SDK fixture');
     expect(realpathSync(join(options.cwd, 'node_modules', 'yaml'))).toBe(fixture.yamlRoot);
+    expect(realpathSync(join(options.cwd, 'services', 'auth-bridge', 'node_modules', 'yaml'))).toBe(fixture.yamlRoot);
+    expect(realpathSync(join(options.cwd, 'services', 'auth-bridge', 'node_modules', 'typescript')))
+      .toBe(fixture.typescriptRoot);
     expect(args[0]).toBe(fixture.operator);
     if (fixture.compilerFailure) return { error: undefined, signal: null, status: 1,
       stdout: Buffer.alloc(0), stderr: Buffer.from('synthetic compiler failure') };
@@ -90,15 +94,20 @@ beforeEach(() => {
   fixture.home = join(temporary, 'home');
   fixture.materializedRoot = join(temporary, 'source');
   fixture.yamlRoot = join(fixture.home, '.warpkeep', 'release-preparation-v1', 'toolchain', 'yaml-2.9.0', 'package');
+  fixture.typescriptRoot = join(fixture.home, '.warpkeep', 'release-preparation-v1', 'toolchain',
+    'typescript-7.0.2-linux-x64', 'node_modules', 'typescript');
   fixture.compiler = join(fixture.materializedRoot, 'spacetimedb', 'genesis002', 'node_modules',
     '.pnpm', '@esbuild+linux-x64@0.25.12', 'node_modules', '@esbuild', 'linux-x64', 'bin', 'esbuild');
   fixture.compilerCalls = 0; fixture.outfiles = []; fixture.hookDisposals = 0; fixture.compilerFailure = false;
   for (const path of [fixture.yamlRoot, dirname(fixture.compiler), join(temporary, 'operation'),
     join(fixture.materializedRoot, 'scripts'),
+    join(fixture.materializedRoot, 'services', 'auth-bridge'),
+    fixture.typescriptRoot,
     join(fixture.materializedRoot, 'spacetimedb', 'genesis002', 'node_modules', 'spacetimedb')]) {
     mkdirSync(path, { recursive: true, mode: 0o700 });
   }
   fixture.yamlRoot = realpathSync(fixture.yamlRoot);
+  fixture.typescriptRoot = realpathSync(fixture.typescriptRoot);
   writeFileSync(fixture.compiler, 'locked compiler fixture', { mode: 0o600 });
   writeFileSync(join(fixture.materializedRoot, 'spacetimedb', 'genesis002', 'node_modules', 'spacetimedb', 'index.js'),
     'locked SDK fixture', { mode: 0o600 });
@@ -130,6 +139,7 @@ it.each(['policy', 'census'] as const)('compiles %s twice from the owning Genesi
   expect(readFileSync(join(temporary, 'operation', 'first.mjs'), 'utf8')).toBe('export const fixture = true;\n');
   expect(fixture.hookDisposals).toBe(1);
   expect(existsSync(join(fixture.materializedRoot, 'node_modules'))).toBe(false);
+  expect(existsSync(join(fixture.materializedRoot, 'services', 'auth-bridge', 'node_modules'))).toBe(false);
   expect(existsSync(fixture.compiler)).toBe(true);
 });
 
@@ -139,5 +149,6 @@ it('removes its resolution links and releases hooks after compiler refusal', asy
   expect(fixture.compilerCalls).toBe(1);
   expect(fixture.hookDisposals).toBe(1);
   expect(existsSync(join(fixture.materializedRoot, 'node_modules'))).toBe(false);
+  expect(existsSync(join(fixture.materializedRoot, 'services', 'auth-bridge', 'node_modules'))).toBe(false);
   expect(existsSync(fixture.compiler)).toBe(true);
 });
