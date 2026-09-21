@@ -1735,7 +1735,7 @@
     {
       "path": "scripts/recovery-workflow-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "693b6d3308117ed8d877aa920189ea59cd1f893e0f8fee6d64bfaff8960385c3"
+      "sha256": "04e5602fe32304efaf557874aacfc2df787f64be2924c8b3f2b2eebc9c4f7d97"
     },
     {
       "path": "scripts/recovery-workflow-check-deployment.d.mts",
@@ -1880,7 +1880,7 @@
     {
       "path": "scripts/sealed-realms-production-activation-lane.bundle.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c4f3f840a15dc0dfc91ec03507befcf257f3952ac5f8a4c794b5a944154193f0"
+      "sha256": "b6e632493fec887d465fff77303f41fb3b2c557fba19855e8d877de5982dd3f4"
     },
     {
       "path": "scripts/sealed-realms-production-activation-records.d.mts",
@@ -1925,7 +1925,7 @@
     {
       "path": "scripts/sealed-realms-production-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9dad7c5e0c7a8747d1de9d962a553c2022f35ccbea5f75da2e338681ae13cd24"
+      "sha256": "93fa37e4d343c75adb7ae81663500961026295dd2ecb42d97892ff19f44357dc"
     },
     {
       "path": "scripts/sealed-realms-production-continuation.d.mts",
@@ -1955,7 +1955,7 @@
     {
       "path": "scripts/sealed-realms-production-g002-lane.bundle.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d7c8f7621bcdd91b89a9d39aacbabd151cd534ff3c6ce2b2c216e71bfdbf0b77"
+      "sha256": "4468fd55bf2c477198138d87855b48f397bac4d85ea003805d0f7e4a13516494"
     },
     {
       "path": "scripts/sealed-realms-production-linux-preflight.d.mts",
@@ -1985,7 +1985,7 @@
     {
       "path": "scripts/sealed-realms-production-ptr-lane.bundle.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f7374e8b0ba0327e8f6c6f4bb2dfe083f3eb5151bb399cb73c5706b43aea1775"
+      "sha256": "3c35a0c32d31a65ff8e4d6e0e3350974804a322159e7eae96a221029abdc48dd"
     },
     {
       "path": "scripts/sealed-realms-production-recovery-approval-facts.ts",
@@ -2570,7 +2570,7 @@
     {
       "path": "services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "305140595dbbade9535b366500835db1edd00bed1b857beccb376c7196ca8ced"
+      "sha256": "4f0d9648ad7b2ea8aa115305d96c92af77c2c58e51807c58740c8f66737fe7e2"
     },
     {
       "path": "services/release-recovery/src/config.ts",
