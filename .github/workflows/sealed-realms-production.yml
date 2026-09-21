@@ -263,6 +263,7 @@ jobs:
       inputs.operation == 'ptr-state-inspect'
     permissions:
       actions: read
+      checks: read
       contents: read
       id-token: write
     environment: notification-bridge-prepared
@@ -477,6 +478,7 @@ jobs:
       inputs.operation == 'activation-evidence-generate'
     permissions:
       actions: read
+      checks: read
       contents: read
       id-token: write
     environment: notification-bridge-prepared
@@ -697,6 +699,7 @@ jobs:
       contains(fromJSON('["ptr-update-inspect","ptr-update-apply"]'), inputs.operation)
     permissions:
       actions: read
+      checks: read
       contents: read
       id-token: write
     environment: notification-bridge-prepared
@@ -912,6 +915,7 @@ jobs:
       contains(fromJSON('["g002-update-inspect","g002-update-apply"]'), inputs.operation)
     permissions:
       actions: read
+      checks: read
       contents: read
       id-token: write
     environment: notification-bridge-prepared

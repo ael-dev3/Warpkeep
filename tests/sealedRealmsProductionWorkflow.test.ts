@@ -85,14 +85,14 @@ describe('sealed-realms production workflow authority', () => {
       expect(job.env).toEqual({WARPKEEP_OPERATION:'${{ inputs.operation }}'});
       for(const step of job.steps.filter(step=>step.run))expect(step.shell).toBe(hardenedShell);
     }
-    expect(document.jobs.operate.permissions).toEqual({actions:'read',contents:'read','id-token':'write'});
-    expect(document.jobs.observe_ptr.permissions).toEqual({actions:'read',contents:'read','id-token':'write'});
+    expect(document.jobs.operate.permissions).toEqual({actions:'read',checks:'read',contents:'read','id-token':'write'});
+    expect(document.jobs.observe_ptr.permissions).toEqual({actions:'read',checks:'read',contents:'read','id-token':'write'});
     expect(document.jobs.observe_ptr.if).toContain("inputs.operation == 'ptr-state-inspect'");
     expect(document.jobs.observe_ptr['timeout-minutes']).toBe(10);
     expect(document.jobs.operate.if).toContain("inputs.operation == 'activation-evidence-generate'");
     expect(document.jobs.operate_readonly.permissions).toBeUndefined();
     expect(document.jobs.operate_readonly.if).toContain('["preflight","activation-evidence-inspect","g001-policy-observe","g001-freeze-census"]');
-    expect(document.jobs.operate_ptr.permissions).toEqual({actions:'read',contents:'read','id-token':'write'});
+    expect(document.jobs.operate_ptr.permissions).toEqual({actions:'read',checks:'read',contents:'read','id-token':'write'});
     expect(document.jobs.operate_ptr.if).toContain('["ptr-update-inspect","ptr-update-apply"]');
     expect(document.jobs.operate_g002.if).toContain('["g002-update-inspect","g002-update-apply"]');
     expect(document.jobs.unsupported.if).toContain('"g002-update-inspect","g002-update-apply"');
@@ -128,7 +128,7 @@ describe('sealed-realms production workflow authority', () => {
       "github.ref == 'refs/heads/main'", 'github.sha == inputs.source_commit'];
     for (const expression of common) expect(job.if).toContain(expression);
     expect(job).toMatchObject({
-      permissions: { actions: 'read', contents: 'read', 'id-token': 'write' },
+      permissions: { actions: 'read', checks: 'read', contents: 'read', 'id-token': 'write' },
       environment: 'notification-bridge-prepared',
       'runs-on': ['self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive'],
       'timeout-minutes': 120,

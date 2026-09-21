@@ -5,6 +5,7 @@ import { bytesToHex } from '@noble/hashes/utils.js'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { GitHubAppEnvironment } from '../src/config.js'
+import type { GitHubEvidenceEnvironment } from '../src/githubEvidence.js'
 import { githubEvidenceMetadataSha256, type GitHubEvidenceMetadata } from '../src/githubEvidenceMetadata.js'
 import type { LedgerSignerClaimProjection } from '../src/ledgerV2.js'
 import { createDeploymentReconciliationProofReader } from '../src/reconciliationEvidence.js'
@@ -127,6 +128,8 @@ jobs:
     permissions:
       contents: read
       actions: read
+      checks: read
+      deployments: read
       pages: write
       id-token: write
     environment:
@@ -475,7 +478,8 @@ type Fixture = {
 
 const UNSETTLED = Symbol('unsettled')
 
-async function makeFixture(outcome: 'completed' | 'not-deployed' = 'completed'): Promise<Fixture> {
+async function makeFixture(outcome: 'completed' | 'not-deployed' = 'completed',
+  environment: GitHubEvidenceEnvironment = githubApp): Promise<Fixture> {
   const attestationText = JSON.stringify(canonicalAttestation())
   const publicBytes = encoder.encode(attestationText)
   const artifactName = `github-pages-recovery-${RUN_ID}-${RUN_ATTEMPT}`
@@ -624,7 +628,9 @@ async function makeFixture(outcome: 'completed' | 'not-deployed' = 'completed'):
     }
 
     const authorization = new Headers(init?.headers).get('authorization')
-    if (url.startsWith('https://api.github.com/') && authorization !== 'Bearer installation-token') {
+    const expectedToken = 'GITHUB_WORKFLOW_TOKEN' in environment
+      ? environment.GITHUB_WORKFLOW_TOKEN : 'installation-token'
+    if (url.startsWith('https://api.github.com/') && authorization !== `Bearer ${expectedToken}`) {
       return jsonResponse(url, { message: 'denied' }, 401)
     }
     if (url === API) return jsonResponse(url, state.repository)
@@ -722,7 +728,7 @@ async function makeFixture(outcome: 'completed' | 'not-deployed' = 'completed'):
     projection,
     calls,
     requestInits,
-    reader: createDeploymentReconciliationProofReader({ githubApp, fetch: fetchImplementation }),
+    reader: createDeploymentReconciliationProofReader({ githubApp: environment, fetch: fetchImplementation }),
     settleNonSettling: (response = jsonResponse(state.nonSettlingUrl ?? API, {})) => {
       settleNonSettling(response)
     },
@@ -789,11 +795,39 @@ describe('read-only V2 deployment reconciliation evidence', () => {
     expect(fixture.calls).not.toContain(PUBLIC_ATTESTATION_URL)
   })
 
-  it('returns exactly ambiguous without fetching for a non-reconciliation projection', async () => {
-    const fixture = await makeFixture()
-    const claimed = { ...fixture.projection, state: 'claimed' } as LedgerSignerClaimProjection
+  it('uses a transient workflow token without minting an App token or sending it to the public site', async () => {
+    const token = `ghs_${'a'.repeat(36)}`
+    const fixture = await makeFixture('completed', { GITHUB_WORKFLOW_TOKEN: token })
+    await expect(fixture.reader(fixture.projection)).resolves.toMatchObject({ outcome: 'completed' })
+    expect(fixture.calls).not.toContain(INSTALLATION_URL)
+    for (const [index, url] of fixture.calls.entries()) {
+      expect(new Headers(fixture.requestInits[index]!.headers).get('authorization')).toBe(
+        url.startsWith('https://api.github.com/') ? `Bearer ${token}` : null,
+      )
+    }
+  })
 
+  it('proves a successful live claim before its deadline instead of requiring reconciliation first', async () => {
+    const fixture = await makeFixture()
+    const claimed = { ...fixture.projection, state: 'claimed', claim: {
+      ...fixture.projection.claim, claimedAt: NOW - 1_050, claimDeadline: NOW + 150,
+    } } as LedgerSignerClaimProjection
+    await expect(fixture.reader(claimed)).resolves.toMatchObject({ outcome: 'completed' })
+  })
+
+  it('does not prove not-deployed before the durable claim deadline', async () => {
+    const fixture = await makeFixture('not-deployed')
+    const claimed = { ...fixture.projection, state: 'claimed', claim: {
+      ...fixture.projection.claim, claimedAt: NOW - 1_050, claimDeadline: NOW + 150,
+    } } as LedgerSignerClaimProjection
     await expect(fixture.reader(claimed)).resolves.toEqual({ outcome: 'ambiguous' })
+  })
+
+  it('returns exactly ambiguous without fetching for an unrelated projection state', async () => {
+    const fixture = await makeFixture()
+    const unrelated = { ...fixture.projection, state: 'issued' } as unknown as LedgerSignerClaimProjection
+
+    await expect(fixture.reader(unrelated)).resolves.toEqual({ outcome: 'ambiguous' })
     expect(fixture.calls).toEqual([])
   })
 

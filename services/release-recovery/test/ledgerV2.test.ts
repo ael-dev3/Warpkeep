@@ -646,6 +646,16 @@ describe('recovery ledger v2 lifecycle and signer projection', () => {
     await expect(applyLedgerV2Event(record, {
       type: 'reconcile', proof: { outcome: 'ambiguous' }, now: record.lastTransitionAt! + 1,
     })).rejects.toThrow('RECOVERY_LEDGER_RECONCILIATION_EXHAUSTED')
+    const now = record.lastTransitionAt! + 1
+    await expect(applyLedgerV2Event(record, {
+      type: 'reconcile-proven', proof: { outcome: 'ambiguous' } as never, now,
+    })).rejects.toThrow('RECOVERY_LEDGER_COMPLETION_NOT_PROVEN')
+    await expect(applyLedgerV2Event(record, {
+      type: 'reconcile-proven', proof: completedProof(record, { rowBindingDigest: '0'.repeat(64) }), now,
+    })).rejects.toThrow('RECOVERY_LEDGER_ROW_BINDING_MISMATCH')
+    await expect(applyLedgerV2Event(record, {
+      type: 'reconcile-proven', proof: completedProof(record), now,
+    })).resolves.toMatchObject({ state: 'completed', completedAt: now })
   })
 
   it('preserves v1 control, issue, and fixed-deadline state transitions under v2-only names', async () => {

@@ -17,6 +17,26 @@ const post = (path: string, body: string | Uint8Array = JSON.stringify(issue), h
   { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: body as BodyInit })
 afterEach(() => vi.useRealTimers())
 
+it('forwards an ephemeral API credential separately from OIDC and never logs or returns it', async () => {
+  const { gateway, signer, log } = fixture()
+  const response = await gateway.fetch(post('/v1/recovery/issue', JSON.stringify(issue), {
+    Authorization: 'Bearer test-only-current-workflow-token',
+  }))
+  expect(response.status).toBe(200)
+  expect(signer.issue).toHaveBeenCalledExactlyOnceWith(issue, 'test-only-current-workflow-token')
+  expect(await response.text()).not.toContain('test-only-current-workflow-token')
+  expect(JSON.stringify(log.mock.calls)).not.toContain('test-only-current-workflow-token')
+  expect(JSON.stringify(log.mock.calls)).not.toContain(issue.oidcToken)
+})
+
+it.each(['Basic wrong', 'Bearer two tokens', 'Bearer ', `Bearer ${'x'.repeat(32769)}`])(
+  'rejects malformed credential headers before private RPC: %#', async authorization => {
+    const { gateway, signer } = fixture()
+    expect((await gateway.fetch(post('/v1/recovery/issue', JSON.stringify(issue), { Authorization: authorization }))).status).toBe(400)
+    expect(signer.issue).not.toHaveBeenCalled()
+  },
+)
+
 it('routes exact nested PTR update context only to its separate private method without leaking it', async () => {
   const { gateway, signer, log } = fixture()
   const value = { oidcToken: 'private.opaque.token', sourceCommit: 'a'.repeat(40), requestId,

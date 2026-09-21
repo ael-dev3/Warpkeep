@@ -6,16 +6,16 @@ import { snapshotPtrObservationRequest, snapshotPtrUpdateObservationRequest, sna
 
 type Endpoint = 'g002-update-observation' | 'ptr-update-observation' | 'ptr-observation' | 'preparation-observation' | 'prepare' | 'status' | 'issue' | 'claim' | 'complete' | 'reconcile' | 'terminal'
 export type RecoverySignerService = Readonly<{
-  ptrObservation?(request: Readonly<Record<string, string>>): Promise<unknown>
-  ptrUpdateObservation?(request: PtrUpdateObservationRequest): Promise<unknown>
-  g002UpdateObservation?(request: G002UpdateObservationRequest): Promise<unknown>
-  preparationObservation?(request: Readonly<Record<string, string>>): Promise<unknown>
-  prepare?(request: Readonly<Record<string, string>>): Promise<unknown>
+  ptrObservation?(request: Readonly<Record<string, string>>, githubToken?: string): Promise<unknown>
+  ptrUpdateObservation?(request: PtrUpdateObservationRequest, githubToken?: string): Promise<unknown>
+  g002UpdateObservation?(request: G002UpdateObservationRequest, githubToken?: string): Promise<unknown>
+  preparationObservation?(request: Readonly<Record<string, string>>, githubToken?: string): Promise<unknown>
+  prepare?(request: Readonly<Record<string, string>>, githubToken?: string): Promise<unknown>
   status(): Promise<unknown>
-  issue(request: Readonly<Record<string, string>>): Promise<unknown>
-  claim(request: Readonly<Record<string, string>>): Promise<unknown>
-  complete(request: Readonly<Record<string, string>>): Promise<unknown>
-  reconcile(request: Readonly<Record<string, string>>): Promise<unknown>
+  issue(request: Readonly<Record<string, string>>, githubToken?: string): Promise<unknown>
+  claim(request: Readonly<Record<string, string>>, githubToken?: string): Promise<unknown>
+  complete(request: Readonly<Record<string, string>>, githubToken?: string): Promise<unknown>
+  reconcile(request: Readonly<Record<string, string>>, githubToken?: string): Promise<unknown>
   terminal(request: Readonly<Record<string, string>>): Promise<unknown>
 }>
 export type RecoverySafeLogEvent = Readonly<{
@@ -120,6 +120,15 @@ export function createRecoveryGateway(input: Readonly<{ signer: Partial<Recovery
       }
       const get = endpoint === 'status' || endpoint === 'terminal'
       if (request.method !== (get ? 'GET' : 'POST')) throw new Rejected(405)
+      // The credential is transient API-read access, separate from signed OIDC
+      // authorization in the body. It never enters receipts, logs or a ledger.
+      const authorization = request.headers.get('Authorization')
+      let credential: [] | [string] = []
+      if (authorization !== null) {
+        const match = /^Bearer ([\x21-\x7e]{1,4096})$/u.exec(authorization)
+        if (get || match === null) throw new Rejected(400)
+        credential = [match[1]!]
+      }
       let parsed: Readonly<Record<string, string>> | undefined
       let updateRequest: PtrUpdateObservationRequest | undefined
       if (get) {
@@ -147,12 +156,12 @@ export function createRecoveryGateway(input: Readonly<{ signer: Partial<Recovery
       // already-validated string fields; never spread unvalidated request data.
       const rpcRequest = parsed === undefined ? undefined : Object.freeze({ ...parsed })
       const result = await boundedRpc(() => selected === 'status' ? (input.signer.status?.() ?? Promise.reject(new Error(UNAVAILABLE.status)))
-        : selected === 'g002-update-observation' ? (input.signer.g002UpdateObservation?.(updateRequest!) ?? Promise.reject(new Error('RECOVERY_G002_UPDATE_OBSERVATION_UNAVAILABLE')))
-        : selected === 'ptr-update-observation' ? (input.signer.ptrUpdateObservation?.(updateRequest!) ?? Promise.reject(new Error('RECOVERY_PTR_UPDATE_OBSERVATION_UNAVAILABLE')))
-          : selected === 'ptr-observation' ? (input.signer.ptrObservation?.(rpcRequest!) ?? Promise.reject(new Error('RECOVERY_PTR_OBSERVATION_UNAVAILABLE')))
-          : selected === 'preparation-observation' ? (input.signer.preparationObservation?.(rpcRequest!) ?? Promise.reject(new Error('RECOVERY_PREPARATION_OBSERVATION_UNAVAILABLE')))
-            : selected === 'prepare' ? (input.signer.prepare?.(rpcRequest!) ?? Promise.reject(new Error('RECOVERY_PREPARATION_UNAVAILABLE')))
-              : (input.signer[selected]?.(rpcRequest!) ?? Promise.reject(new Error(UNAVAILABLE[selected]))), selected)
+        : selected === 'g002-update-observation' ? (input.signer.g002UpdateObservation?.(updateRequest!, ...credential) ?? Promise.reject(new Error('RECOVERY_G002_UPDATE_OBSERVATION_UNAVAILABLE')))
+        : selected === 'ptr-update-observation' ? (input.signer.ptrUpdateObservation?.(updateRequest!, ...credential) ?? Promise.reject(new Error('RECOVERY_PTR_UPDATE_OBSERVATION_UNAVAILABLE')))
+          : selected === 'ptr-observation' ? (input.signer.ptrObservation?.(rpcRequest!, ...credential) ?? Promise.reject(new Error('RECOVERY_PTR_OBSERVATION_UNAVAILABLE')))
+          : selected === 'preparation-observation' ? (input.signer.preparationObservation?.(rpcRequest!, ...credential) ?? Promise.reject(new Error('RECOVERY_PREPARATION_OBSERVATION_UNAVAILABLE')))
+            : selected === 'prepare' ? (input.signer.prepare?.(rpcRequest!, ...credential) ?? Promise.reject(new Error('RECOVERY_PREPARATION_UNAVAILABLE')))
+              : (input.signer[selected]?.(rpcRequest!, ...credential) ?? Promise.reject(new Error(UNAVAILABLE[selected]))), selected)
       const key = KEYS[selected]
       const response = rpcResponse(result, key)
       const compact = response[key]

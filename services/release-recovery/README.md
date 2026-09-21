@@ -14,6 +14,15 @@ binding, durable ledger and Worker-runtime tests are implemented. Checked-in
 Configuration files do not prove that either Worker, its keys, control state or
 release-specific authorization has been deployed and armed.
 
+The shipping workflow uses its existing short-lived GitHub Actions token for
+evidence reads, alongside independently verified GitHub OIDC identity. The
+gateway forwards that token only for the current private RPC; it is not stored
+in Worker configuration, receipts or the ledger. No additional GitHub App key
+is required. Reuse the established recovery signing key and RPC material.
+Legacy App credentials remain compatible with existing installations. Expired
+jobs require fresh authenticated reconciliation of the retained claim; ambiguous
+readback never authorizes another deployment.
+
 The [Pages workflow](../../.github/workflows/deploy-pages.yml) implements the
 protected Linux `deploy-recovery` caller. It builds and attests the exact artifact
 before claim preparation, then runs the fresh deployment boundary, pinned Pages

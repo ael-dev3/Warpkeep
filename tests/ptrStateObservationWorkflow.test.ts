@@ -9,7 +9,7 @@ it('scopes PTR observation and update OIDC to their protected jobs', () => {
   const job = workflow.jobs.observe_ptr;
   expect(job).toBeDefined();
   expect(job.environment).toBe('notification-bridge-prepared');
-  expect(job.permissions).toEqual({ 'actions': 'read', 'contents': 'read', 'id-token': 'write' });
+  expect(job.permissions).toEqual({ 'actions': 'read', 'checks': 'read', 'contents': 'read', 'id-token': 'write' });
   expect(job['runs-on']).toEqual(['self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive']);
   expect(job.if).toContain("github.ref == 'refs/heads/main'");
   expect(job.if).toContain('github.sha == inputs.source_commit');
@@ -23,7 +23,7 @@ it('scopes PTR observation and update OIDC to their protected jobs', () => {
   expect(workflow.jobs.operate_readonly.permissions?.['id-token']).not.toBe('write');
   // Updates obtain signed pre/post observations in their existing protected job.
   const update = workflow.jobs.operate_ptr;
-  expect(update.permissions).toEqual({ 'actions': 'read', 'contents': 'read', 'id-token': 'write' });
+  expect(update.permissions).toEqual({ 'actions': 'read', 'checks': 'read', 'contents': 'read', 'id-token': 'write' });
   expect(update.environment).toBe('notification-bridge-prepared');
   expect(update['runs-on']).toEqual(['self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive']);
   expect(update.if.replace(/\s+/gu, ' ').trim()).toBe([

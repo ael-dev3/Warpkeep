@@ -7,7 +7,8 @@ export const preparationPolicy = { schemaVersion: 1, profile: 'warpkeep-recovery
 export const preparationPrivateJwk = { kty: 'EC', crv: 'P-256', x: 'WH7HKo4O4eNz7FE1vrGVNDAOMZ4y15Hz5UhLwBZQMUE',
   y: 'nqmP_QGGfKiOK99bEqu6_r9cKtcn4pYdmiDiKsBD2AA', d: '3Cfq7fh3QQUIL6yuWLcD7fYN4-26tQgG07i-8nj462o' }
 export async function preparationFixture(options: Readonly<{
-  now?: number; claims?: Record<string, unknown>; mutate?: (url: string, value: Record<string, unknown>) => void
+  now?: number; claims?: Record<string, unknown>; jobCount?: number
+  mutate?: (url: string, value: Record<string, unknown>) => void
 }> = {}) {
   const now = options.now ?? Math.floor(Date.now() / 1000)
   const sha = 'c'.repeat(40), tree = 'd'.repeat(40)
@@ -22,14 +23,24 @@ export async function preparationFixture(options: Readonly<{
     repository_id: '1273513252', repository_owner_id: '183124839', ref: 'refs/heads/main', sha,
     ref_protected: 'true', workflow: 'Sealed Realms Production', workflow_ref: PREPARATION_WORKFLOW_REF,
     workflow_sha: sha, environment: PREPARATION_ENVIRONMENT, event_name: 'workflow_dispatch', runner_environment: 'self-hosted',
-    check_run_id: '9007199254740993', run_id: '9007199254740995', run_attempt: '2',
+    run_id: '9007199254740995', run_attempt: '2',
     jti: '123e4567-e89b-42d3-a456-426614174000', iat: now - 5, nbf: now - 5, exp: now + 300, ...options.claims }
   const encoder = new TextEncoder()
   const unsigned = `${base64UrlEncode(encoder.encode(JSON.stringify({ alg: 'RS256', kid: 'fixture', typ: 'JWT' })))}.${base64UrlEncode(encoder.encode(JSON.stringify(claims)))}`
   const token = `${unsigned}.${base64UrlEncode(new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', pair.privateKey, encoder.encode(unsigned))))}`
   const calls: string[] = []
   const api = 'https://api.github.com/repos/ael-dev3/Warpkeep'
-  const checkUrl = `${api}/check-runs/${claims.check_run_id}`
+  const checkUrl = `${api}/check-runs/9007199254740993`
+  const jobCount = options.jobCount ?? 5
+  const jobs = Array.from({ length: jobCount }, (_, index) => index === jobCount - 1
+    ? { id: '__CHECK__', run_id: '__RUN__', run_attempt: 2, head_sha: sha, name: 'operate',
+        status: 'in_progress', conclusion: null, check_run_url: checkUrl,
+        labels: ['self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive'],
+        runner_name: 'warpkeep-wsl-production-01', runner_group_name: 'Default', runner_id: 1, runner_group_id: 1 }
+    : { id: index + 1, run_id: '__RUN__', run_attempt: 2, head_sha: sha, name: `skipped-${index}`,
+        status: 'completed', conclusion: 'skipped', check_run_url: `${api}/check-runs/${index + 1}`,
+        labels: ['self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive'],
+        runner_name: null, runner_group_name: null, runner_id: null, runner_group_id: null })
   const fakeFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     calls.push(url)
@@ -48,10 +59,10 @@ export async function preparationFixture(options: Readonly<{
       if (new Headers(init?.headers).get('authorization') !== 'Bearer installation-token') throw new Error('unauthenticated metadata')
       if (url === checkUrl) body = { id: '__CHECK__', head_sha: sha, name: 'operate', status: 'in_progress', conclusion: null,
         url: checkUrl, app: { id: 15368, slug: 'github-actions' }, check_suite: { id: 77 } }
-      else if (url.endsWith('/jobs?per_page=100')) body = { total_count: 1, jobs: [{ id: '__CHECK__', run_id: '__RUN__', run_attempt: 2,
-        head_sha: sha, name: 'operate', status: 'in_progress', conclusion: null, check_run_url: checkUrl,
-        labels: ['self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive'],
-        runner_name: 'warpkeep-wsl-production-01', runner_group_name: 'Default', runner_id: 1, runner_group_id: 1 }] }
+      else if (url.includes('/jobs?per_page=100&page=')) {
+        const page = Number(new URL(url).searchParams.get('page'))
+        body = { total_count: jobCount, jobs: jobs.slice((page - 1) * 100, page * 100) }
+      }
       else if (url.endsWith('/attempts/2')) body = { id: '__RUN__', run_attempt: 2, head_sha: sha, head_branch: 'main',
         event: 'workflow_dispatch', status: 'in_progress', conclusion: null, name: 'Sealed Realms Production',
         path: '.github/workflows/sealed-realms-production.yml', workflow_id: 42, check_suite_id: 77,

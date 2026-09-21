@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
@@ -9,6 +10,18 @@ const manifestPath =
   'scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json';
 
 describe('prepared Linux production workflow', () => {
+  it('parses every production shell step before credentials or provider work', () => {
+    const workflow = parse(readFileSync(workflowPath, 'utf8'));
+    const bash = process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : '/bin/bash';
+    const scripts = Object.values(workflow.jobs).flatMap((job: any) => job.steps)
+      .filter((step: any) => typeof step.run === 'string');
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const step of scripts) {
+      expect(() => execFileSync(bash, ['--noprofile', '--norc', '-n'], {
+        input: step.run, encoding: 'utf8', windowsHide: true,
+      }), step.name).not.toThrow();
+    }
+  });
   it('reads the public PTR identity from configuration while preserving private credentials', () => {
     const workflow = parse(readFileSync(workflowPath, 'utf8')) as {
       jobs: Record<string, { steps: { name?: string; env?: Record<string, string> }[] }>;

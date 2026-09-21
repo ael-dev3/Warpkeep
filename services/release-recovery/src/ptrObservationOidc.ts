@@ -1,6 +1,6 @@
 import { types } from 'node:util'
-import { commit, githubFail, snapshotExactDataObject, type GitHubAppEnvironment } from './config.js'
-import { mintGitHubInstallationToken } from './githubEvidence.js'
+import { commit, githubFail, snapshotExactDataObject, type GitHubEvidenceEnvironment } from './config.js'
+import { resolveGitHubEvidenceToken } from './githubEvidence.js'
 import { verifyGitHubOidcSignature } from './githubOidc.js'
 import { json, type GitHubJsonObject } from './http.js'
 import { PTR_OBSERVATION_AUDIENCE, PTR_OBSERVATION_JOB, snapshotPtrObservationIdentity,
@@ -45,7 +45,7 @@ export async function verifyPtrObservationWorkflowIdentity(input: Readonly<{
   token: string
   sourceCommit: string
   requestId: string
-  environment: GitHubAppEnvironment
+  environment: GitHubEvidenceEnvironment
   fetch: typeof fetch
   nowSeconds: number
 }>): Promise<Readonly<{ identity: PtrObservationIdentity; expiresAt: number }>> {
@@ -100,7 +100,7 @@ async function verifyObservationWorkflowIdentity(input: Parameters<typeof verify
     || now - (claims.iat as number) > 600 || (claims.exp as number) - (claims.iat as number) > 600
     || (claims.nbf as number) > (claims.iat as number) || (claims.nbf as number) < (claims.iat as number) - 600) githubFail(CODE)
 
-  const installationToken = await mintGitHubInstallationToken(source.environment as GitHubAppEnvironment, fetcher, now)
+  const installationToken = await resolveGitHubEvidenceToken(source.environment as GitHubEvidenceEnvironment, fetcher, now)
   const init = { headers: { accept: 'application/vnd.github+json', authorization: `Bearer ${installationToken}`,
     'x-github-api-version': '2022-11-28' } }
   const runUrl = `${API}/actions/runs/${claims.run_id}`

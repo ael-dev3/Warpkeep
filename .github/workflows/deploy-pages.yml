@@ -512,8 +512,10 @@ jobs:
     runs-on: [self-hosted, Linux, X64, warpkeep-production-admin, warpkeep-repository-exclusive]
     timeout-minutes: 45
     permissions:
-      contents: read
       actions: read
+      checks: read
+      contents: read
+      deployments: read
       pages: write
       id-token: write
     environment:
@@ -902,7 +904,9 @@ jobs:
     timeout-minutes: 20
     permissions:
       actions: read
+      checks: read
       contents: read
+      deployments: read
       pages: write
       id-token: write
     environment:

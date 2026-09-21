@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { requestRecovery } from '../scripts/recovery-authorization-client.mjs';
 const origin = 'https://release-auth.warpkeep.com/v1/recovery/';
 const locator = { requestId: '123e4567-e89b-42d3-a456-426614174000', candidateCommit: 'a'.repeat(40),
@@ -8,7 +8,8 @@ function response(url: string, source: string, headers: Record<string, string> =
   const result = new Response(source, { headers: { 'content-type': 'application/json', 'cache-control': 'no-store', ...headers } });
   Object.defineProperty(result, 'url', { value: url }); return result;
 }
-afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+beforeEach(() => vi.stubEnv('GITHUB_TOKEN', 'test-only-current-workflow-token'));
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 it.each([
   ['status', {}, 'statusJws', 'status'], ['issue', locator, 'authorizationJws', 'issue'],
   ['claim', { ...locator, authorizationJws: 'test.authorization.jws' }, 'claimReceiptJws', 'claim'],
@@ -20,12 +21,20 @@ it.each([
     expect(url).toBe(origin + path); expect(init.redirect).toBe('error'); expect(init.cache).toBe('no-store');
     expect(new Headers(init.headers).get('accept-encoding')).toBe('identity');
     expect(init.method).toBe(endpoint === 'status' || endpoint === 'terminal' ? 'GET' : 'POST');
+    expect(new Headers(init.headers).get('authorization')).toBe(endpoint === 'status' || endpoint === 'terminal'
+      ? null : 'Bearer test-only-current-workflow-token');
     expect(init.body).toBe(endpoint === 'status' || endpoint === 'terminal' ? undefined : JSON.stringify(request));
     return response(url, JSON.stringify({ [field]: 'test.signed.object' }));
   });
   vi.stubGlobal('fetch', fetcher);
   await expect(requestRecovery(endpoint, JSON.stringify(request))).resolves.toEqual({ [field]: 'test.signed.object' });
   expect(fetcher).toHaveBeenCalledTimes(1);
+});
+it.each(['', 'invalid token', 'x'.repeat(32769)])('rejects missing or malformed workflow API credential before sending a request', async token => {
+  vi.stubEnv('GITHUB_TOKEN', token);
+  const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);
+  await expect(requestRecovery('issue', JSON.stringify(locator))).rejects.toThrow('RECOVERY_CLIENT_INVALID');
+  expect(fetcher).not.toHaveBeenCalled();
 });
 it('never retries a failed request or exposes its error', async () => {
   const fetcher = vi.fn().mockRejectedValue(new Error('private-sentinel')); vi.stubGlobal('fetch', fetcher);

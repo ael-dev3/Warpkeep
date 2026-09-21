@@ -44,7 +44,7 @@ const PAGES_RUN_ID = 41
 const G001 = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
 const G002 = '70'.repeat(32)
 const PTR = '80'.repeat(32)
-const CLOSURE = '29a7641a130d49809d9368dbd67500fede63bbacf317d37c35c49d1baaf4f054'
+const CLOSURE = 'b6a31b1ae390503a2040a2c93544404eab3a3e23bf47c3e517a34ba57c45ef64'
 const BRIDGE_VERSION = 'warpkeep-auth-bridge-release-recovery-v1'
 const BRIDGE_VERSION_ID = '123e4567-e89b-42d3-a456-426614174002'
 const BRIDGE_SOURCE_COMMIT = '1'.repeat(40)
@@ -533,6 +533,8 @@ jobs:
     permissions:
       contents: read
       actions: read
+      checks: read
+      deployments: read
       pages: write
       id-token: write
     steps:
@@ -1020,6 +1022,27 @@ describe('GitHub candidate evidence', () => {
       .export({ format: 'pem', type: 'pkcs1' }).toString()
   })
 
+  it('loads and rechecks complete evidence with a transient job credential without minting an App token', async () => {
+    const fixture = await makeFixture()
+    const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const headers = new Headers(init?.headers)
+      if (url.startsWith('https://api.github.com/')) {
+        expect(url).not.toContain('/app/installations/')
+        expect(init?.method ?? 'GET').toBe('GET')
+        expect(headers.get('authorization')).toBe('Bearer workflow-token')
+      } else {
+        expect(headers.has('authorization')).toBe(false)
+      }
+      return fixture.input.fetch(input, init)
+    }) as typeof fetch
+    const environment = { GITHUB_WORKFLOW_TOKEN: 'workflow-token' }
+    const evidence = await loadGitHubCandidateEvidence({ ...fixture.input, environment, fetch: fetcher })
+    await expect(recheckGitHubEvidenceMetadata({ githubMetadata: evidence.githubMetadata,
+      githubMetadataSha256: evidence.githubMetadataSha256, environment, fetch: fetcher })).resolves.toBeUndefined()
+    expect(fixture.calls.some(url => url.includes('/app/installations/'))).toBe(false)
+  })
+
   it.each([4, 5, 6] as const)('loads the root-produced V%s adoption through the actual source, artifact and receiver chain', async version => {
     const fixture = await makeFixture(version)
     const evidence = await loadGitHubCandidateEvidence(fixture.input)
@@ -1438,6 +1461,7 @@ describe('GitHub candidate evidence', () => {
 
   it('rejects malformed and oversized PKCS#1 app keys with a stable evidence error', async () => {
     const fixture = await makeFixture()
+    if (!('GITHUB_APP_ID' in fixture.input.environment)) throw new Error('expected legacy App fixture')
     for (const pem of [
       '-----BEGIN RSA PRIVATE KEY-----\nAAAA\n-----END RSA PRIVATE KEY-----',
       `-----BEGIN RSA PRIVATE KEY-----\n${'A'.repeat(32_769)}\n-----END RSA PRIVATE KEY-----`,
@@ -1724,6 +1748,8 @@ describe('GitHub candidate evidence', () => {
     ['elevated contents permission', (source: string) => source.replace('contents: read', 'contents: write')],
     ['extra permission', (source: string) => source.replace('contents: read', 'contents: read\n      packages: write')],
     ['missing OIDC permission', (source: string) => source.replace('      id-token: write\n', '')],
+    ['missing check evidence permission', (source: string) => source.replace('      checks: read\n', '')],
+    ['missing deployment evidence permission', (source: string) => source.replace('      deployments: read\n', '')],
     ['cancelled production lock', (source: string) => source.replace('cancel-in-progress: false', 'cancel-in-progress: true')],
     ['different production lock', (source: string) => source.replace('group: warpkeep-production-state', 'group: other')],
     ['job lock override', (source: string) => source.replace('    environment:', '    concurrency: other\n    environment:')],

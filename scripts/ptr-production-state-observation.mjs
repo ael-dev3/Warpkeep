@@ -215,7 +215,7 @@ async function requestProductionUpdateObservation(input, policy) {
     if (Buffer.byteLength(json) > 32768) fail();
     await reattest();
     compact = singleString(await request(policy.endpoint, { method: 'POST',
-      headers: { 'content-type': 'application/json' }, body: json }, 16384, 120000),
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${githubToken}` }, body: json }, 16384, 120000),
     policy.responseKey);
     oidcToken = undefined;
     await reattest();
@@ -305,7 +305,7 @@ export async function observePtrProductionState(input) {
     const json = JSON.stringify(body);
     if (Buffer.byteLength(json) > 32768) fail();
     compact = singleString(await request(ENDPOINT, { method: 'POST',
-      headers: { 'content-type': 'application/json' }, body: json }, 16384, 120000), 'ptrObservationJws');
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${githubToken}` }, body: json }, 16384, 120000), 'ptrObservationJws');
     oidcToken = undefined;
     await verifyFresh(compact);
     await reattest();

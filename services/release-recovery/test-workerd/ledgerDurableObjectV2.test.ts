@@ -630,7 +630,7 @@ describe('ReleaseRecoveryAuthorizationLedgerV2 Workerd adapter', () => {
     })
   })
 
-  it('accepts not-deployed only through the alarm reader and exposes no public reconcile RPC', async () => {
+  it('accepts not-deployed through the configured alarm reader', async () => {
     const { request } = await issueAndClaim()
     const alarmAt = NOW + 2 + 1_200
     vi.setSystemTime(alarmAt * 1_000)
@@ -647,8 +647,23 @@ describe('ReleaseRecoveryAuthorizationLedgerV2 Workerd adapter', () => {
     await expect(request.status()).resolves.toMatchObject({
       state: 'not-deployed', terminal: { outcome: 'not-deployed', completedAt: alarmAt }, revision: 5,
     })
-    await runInDurableObject(request, instance => {
-      expect('reconcile' in instance).toBe(false)
+  })
+
+  it('accepts a signer-proven original outcome after its claim deadline without storing a job token', async () => {
+    const { request } = await issueAndClaim()
+    const projection = await request.readClaimedProjection({ requestId: REQUEST_ID })
+    const proof = { outcome: 'not-deployed' as const, rowBindingDigest: projection.rowBindingDigest,
+      authoritativeTerminalRun: true as const, pagesDeployStepStarted: false as const,
+      matchingPagesDeploymentAbsent: true as const }
+    await expect(runInDurableObject(request, instance => instance.reconcile({ requestId: REQUEST_ID, proof,
+      now: projection.claim.claimDeadline - 1 })))
+      .rejects.toThrow('RECOVERY_LEDGER_ALARM_NOT_DUE')
+    await expect(request.status()).resolves.toMatchObject({ state: 'claimed', revision: 3 })
+    await expect(request.reconcile({ requestId: REQUEST_ID, proof, now: projection.claim.claimDeadline }))
+      .resolves.toMatchObject({ state: 'not-deployed', revision: 5 })
+    await evictDurableObject(request)
+    await expect(request.readTerminalProjection({ requestId: REQUEST_ID })).resolves.toMatchObject({
+      state: 'not-deployed', rowBindingDigest: projection.rowBindingDigest,
     })
   })
 
@@ -721,5 +736,19 @@ describe('ReleaseRecoveryAuthorizationLedgerV2 Workerd adapter', () => {
     await expect(request.status()).resolves.toMatchObject({
       state: 'reconciliation-required', reconciliationAttempts: 5, nextReconcileAt: null,
     })
+    const projection = await request.readClaimedProjection({ requestId: REQUEST_ID })
+    const proof = { outcome: 'completed' as const, rowBindingDigest: projection.rowBindingDigest,
+      deployStepConclusion: 'success' as const, matchingPagesDeployment: true as const,
+      deploymentAttestationMatches: true as const }
+    const observedAt = callbacks.at(-1)!.at + 1
+    await expect(runInDurableObject(request, instance => instance.reconcile({ requestId: REQUEST_ID,
+      proof: { outcome: 'ambiguous' } as never,
+      now: observedAt }))).rejects.toThrow('RECOVERY_LEDGER_COMPLETION_NOT_PROVEN')
+    await expect(runInDurableObject(request, instance => instance.reconcile({ requestId: REQUEST_ID,
+      proof: { ...proof, rowBindingDigest: '0'.repeat(64) },
+      now: observedAt }))).rejects.toThrow('RECOVERY_LEDGER_ROW_BINDING_MISMATCH')
+    await expect(request.status()).resolves.toMatchObject({ state: 'reconciliation-required', revision: 9 })
+    await expect(request.reconcile({ requestId: REQUEST_ID, proof, now: observedAt }))
+      .resolves.toMatchObject({ state: 'completed', revision: 10 })
   })
 })

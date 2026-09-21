@@ -1,9 +1,11 @@
 import { validateRecoverySourceClosureArtifact } from './recoverySourceClosure.js'
+import { types } from 'node:util'
 import {
   GITHUB_REPOSITORY,
   recoveryRealmBindingProjectionKeys,
   RecoveryGitHubError,
   type GitHubAppEnvironment,
+  type GitHubEvidenceEnvironment,
   type RecoveryArmingTuple,
   type RecoveryRealmBindingProjection,
   commit,
@@ -42,6 +44,7 @@ import { parseDocument } from 'yaml'
 export {
   RECOVERY_REALM_BINDING_PROJECTION_KEYS,
   type GitHubAppEnvironment,
+  type GitHubEvidenceEnvironment,
   type RecoveryArmingTuple,
   type RecoveryRealmBindingProjection,
 } from './config.js'
@@ -336,6 +339,28 @@ function environment(value: GitHubAppEnvironment): GitHubAppEnvironment {
     GITHUB_APP_INSTALLATION_ID: source.GITHUB_APP_INSTALLATION_ID,
     GITHUB_APP_PRIVATE_KEY_PEM: source.GITHUB_APP_PRIVATE_KEY_PEM,
   })
+}
+
+/** Snapshot one credential source without evaluating accessors or mixing authorities. */
+export function snapshotGitHubEvidenceEnvironment(value: unknown): GitHubEvidenceEnvironment {
+  if (types.isProxy(value) || value === null || typeof value !== 'object') githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  if (!Object.hasOwn(value, 'GITHUB_WORKFLOW_TOKEN')) return environment(value as GitHubAppEnvironment)
+  const source = snapshotExactDataObject(value, ['GITHUB_WORKFLOW_TOKEN'], 'RECOVERY_GITHUB_EVIDENCE_INVALID')
+  if (typeof source.GITHUB_WORKFLOW_TOKEN !== 'string'
+    || !/^[\x21-\x7e]{1,4096}$/u.test(source.GITHUB_WORKFLOW_TOKEN)) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  return Object.freeze({ GITHUB_WORKFLOW_TOKEN: source.GITHUB_WORKFLOW_TOKEN })
+}
+
+/** The caller authenticates signed OIDC first. This credential only reads fixed GitHub evidence;
+ * it is not stored or renewed and an expired job token fails through the normal API checks. */
+export async function resolveGitHubEvidenceToken(input: GitHubEvidenceEnvironment,
+  fetchImplementation: typeof fetch, nowSeconds: number): Promise<string> {
+  const source = snapshotGitHubEvidenceEnvironment(input)
+  if (typeof fetchImplementation !== 'function' || !Number.isSafeInteger(nowSeconds) || nowSeconds < 1) {
+    githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  }
+  return 'GITHUB_WORKFLOW_TOKEN' in source ? source.GITHUB_WORKFLOW_TOKEN
+    : mintGitHubInstallationToken(source, fetchImplementation, nowSeconds)
 }
 
 function derLength(length: number): Uint8Array {
@@ -1010,7 +1035,7 @@ export function validateRecoveryWorkflowSource(bytes: Uint8Array): void {
     const labels = job['runs-on']
     const requiredLabels = ['self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive']
     const permissions = job.permissions
-    const requiredPermissions = { contents: 'read', actions: 'read', pages: 'write', 'id-token': 'write' }
+    const requiredPermissions = { contents: 'read', actions: 'read', checks: 'read', deployments: 'read', pages: 'write', 'id-token': 'write' }
     const concurrency = rootObject.concurrency
     const environment = job.environment
     const environmentName = typeof environment === 'string' ? environment
@@ -1475,7 +1500,7 @@ export async function loadGitHubCandidateEvidence(input: Readonly<{
   sourceVerifyRunAttempt: string
   bindingRequestId: string
   armed: RecoveryArmingTuple
-  environment: GitHubAppEnvironment
+  environment: GitHubEvidenceEnvironment
   fetch: typeof fetch
 }>): Promise<GitHubCandidateEvidence> {
   try {
@@ -1501,8 +1526,8 @@ export async function loadGitHubCandidateEvidence(input: Readonly<{
     const armed = snapshotArmed(snapshot.armed)
     if (armed.requestId !== snapshot.bindingRequestId) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
 
-    const token = await mintGitHubInstallationToken(
-      snapshot.environment as GitHubAppEnvironment,
+    const token = await resolveGitHubEvidenceToken(
+      snapshot.environment as GitHubEvidenceEnvironment,
       fetchImplementation,
       Math.floor(Date.now() / 1_000),
     )
@@ -1624,7 +1649,7 @@ export async function loadGitHubCandidateEvidence(input: Readonly<{
 export async function recheckGitHubEvidenceMetadata(input: Readonly<{
   githubMetadata: GitHubEvidenceMetadata
   githubMetadataSha256: string
-  environment: GitHubAppEnvironment
+  environment: GitHubEvidenceEnvironment
   fetch: typeof fetch
 }>): Promise<void> {
   try {
@@ -1641,8 +1666,8 @@ export async function recheckGitHubEvidenceMetadata(input: Readonly<{
       || metadata.artifactName !== `github-pages-recovery-${metadata.pagesRunId}-${metadata.pagesRunAttempt}`
     ) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     const fetchImplementation = snapshot.fetch as typeof fetch
-    const token = await mintGitHubInstallationToken(
-      snapshot.environment as GitHubAppEnvironment,
+    const token = await resolveGitHubEvidenceToken(
+      snapshot.environment as GitHubEvidenceEnvironment,
       fetchImplementation,
       Math.floor(Date.now() / 1_000),
     )

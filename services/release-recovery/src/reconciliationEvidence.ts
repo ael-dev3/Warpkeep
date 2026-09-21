@@ -4,13 +4,17 @@ import { parseDocument } from 'yaml'
 
 import {
   GITHUB_REPOSITORY,
-  type GitHubAppEnvironment,
   commit,
   positive,
   sha,
   snapshotExactDataObject,
 } from './config.js'
-import { mintGitHubInstallationToken, validateRecoveryWorkflowSource } from './githubEvidence.js'
+import {
+  resolveGitHubEvidenceToken,
+  snapshotGitHubEvidenceEnvironment,
+  validateRecoveryWorkflowSource,
+  type GitHubEvidenceEnvironment,
+} from './githubEvidence.js'
 import {
   githubEvidenceMetadataSha256,
   snapshotGitHubEvidenceMetadata,
@@ -153,7 +157,7 @@ export type DeploymentReconciliationProofReader = (
 ) => Promise<LedgerV2ReconciliationProof>
 
 export type DeploymentReconciliationProofReaderInput = Readonly<{
-  githubApp: GitHubAppEnvironment
+  githubApp: GitHubEvidenceEnvironment
   fetch: typeof globalThis.fetch
 }>
 
@@ -162,6 +166,7 @@ export type DeploymentReconciliationProofReaderFactory = (
 ) => DeploymentReconciliationProofReader
 
 type ProjectionSnapshot = Readonly<{
+  state: 'claimed' | 'reconciliation-required'
   requestId: string
   authorization: LedgerV2AuthorizationSnapshot
   authorizationJwsSha256: string
@@ -266,33 +271,13 @@ function validateCommitActor(value: GitHubJsonValue | undefined): void {
   ) throw new Error(ERROR_CODE)
 }
 
-function copyGitHubApp(value: unknown): GitHubAppEnvironment {
-  const source = snapshotExactDataObject(
-    value,
-    ['GITHUB_APP_ID', 'GITHUB_APP_INSTALLATION_ID', 'GITHUB_APP_PRIVATE_KEY_PEM'],
-    ERROR_CODE,
-  )
-  if (
-    !positive(source.GITHUB_APP_ID)
-    || !positive(source.GITHUB_APP_INSTALLATION_ID)
-    || typeof source.GITHUB_APP_PRIVATE_KEY_PEM !== 'string'
-    || source.GITHUB_APP_PRIVATE_KEY_PEM.length < 64
-    || source.GITHUB_APP_PRIVATE_KEY_PEM.length > 32_768
-  ) throw new Error(ERROR_CODE)
-  return Object.freeze({
-    GITHUB_APP_ID: source.GITHUB_APP_ID,
-    GITHUB_APP_INSTALLATION_ID: source.GITHUB_APP_INSTALLATION_ID,
-    GITHUB_APP_PRIVATE_KEY_PEM: source.GITHUB_APP_PRIVATE_KEY_PEM,
-  })
-}
-
 function snapshotProjection(value: unknown): ProjectionSnapshot {
   const source = snapshotExactDataObject(value, [
     'state', 'requestId', 'authorization', 'authorizationJwsSha256', 'claim',
     'rowBindingDigest', 'revision',
   ], ERROR_CODE)
   if (
-    source.state !== 'reconciliation-required'
+    (source.state !== 'claimed' && source.state !== 'reconciliation-required')
     || typeof source.requestId !== 'string'
     || !UUID.test(source.requestId)
     || !sha(source.authorizationJwsSha256)
@@ -362,7 +347,9 @@ function snapshotProjection(value: unknown): ProjectionSnapshot {
     || claimSource.claimDeadline !== claimSource.claimedAt + RECOVERY_CLAIM_DEADLINE_SECONDS_V2
     || claimSource.claimedAt >= (authorizationSource.expiresAt as number)
     || claimSource.claimLiveInvariantDigest !== authorizationSource.liveInvariantDigest
-    || Date.now() < (claimSource.claimDeadline as number) * 1_000
+    || Date.now() < (claimSource.claimedAt as number) * 1_000
+    || (source.state === 'reconciliation-required'
+      && Date.now() < (claimSource.claimDeadline as number) * 1_000)
     || metadata.repository !== GITHUB_REPOSITORY
     || metadata.repositoryId !== REPOSITORY_ID
     || metadata.repositoryOwnerId !== REPOSITORY_OWNER_ID
@@ -388,6 +375,7 @@ function snapshotProjection(value: unknown): ProjectionSnapshot {
   }) as LedgerV2AuthorizationSnapshot
   const claim = Object.freeze({ ...claimSource }) as LedgerV2ClaimSnapshot
   return Object.freeze({
+    state: source.state,
     requestId: source.requestId,
     authorization,
     authorizationJwsSha256: source.authorizationJwsSha256,
@@ -1200,7 +1188,7 @@ async function loadPublicAttestation(
 
 async function readEvidence(
   projectionValue: LedgerSignerClaimProjection,
-  githubApp: GitHubAppEnvironment,
+  githubApp: GitHubEvidenceEnvironment,
   fetchImplementation: typeof globalThis.fetch,
 ): Promise<LedgerV2ReconciliationProof> {
   try {
@@ -1208,7 +1196,7 @@ async function readEvidence(
     if (await githubEvidenceMetadataSha256(projection.authorization.githubMetadata)
       !== projection.authorization.githubMetadataSha256) return AMBIGUOUS
 
-    const token = await mintGitHubInstallationToken(
+    const token = await resolveGitHubEvidenceToken(
       githubApp,
       fetchImplementation,
       Math.floor(Date.now() / 1_000),
@@ -1237,7 +1225,8 @@ async function readEvidence(
         deploymentAttestationMatches: true,
       })
     }
-    if (run.terminal && run.step === 'unstarted' && pages === 'absent') {
+    if (Date.now() >= projection.claim.claimDeadline * 1_000
+      && run.terminal && run.step === 'unstarted' && pages === 'absent') {
       return Object.freeze({
         outcome: 'not-deployed',
         rowBindingDigest: projection.rowBindingDigest,
@@ -1311,7 +1300,7 @@ export function createDeploymentReconciliationProofReader(
 ): DeploymentReconciliationProofReader {
   try {
     const source = snapshotExactDataObject(input, ['githubApp', 'fetch'], ERROR_CODE)
-    const githubApp = copyGitHubApp(source.githubApp)
+    const githubApp = snapshotGitHubEvidenceEnvironment(source.githubApp)
     if (typeof source.fetch !== 'function') throw new Error(ERROR_CODE)
     const suppliedFetch = source.fetch as typeof globalThis.fetch
     const ownedTransport = createOwnedTransport(suppliedFetch)

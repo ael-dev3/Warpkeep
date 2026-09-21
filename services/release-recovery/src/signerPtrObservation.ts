@@ -1,4 +1,5 @@
-import { githubFail, snapshotExactDataObject, type GitHubAppEnvironment } from './config.js'
+import { githubFail, snapshotExactDataObject } from './config.js'
+import { githubEvidenceFromBindings, type GitHubEvidenceBindings } from './signerWorkflowCredential.js'
 import { capturePtrBridgeObservation, signPtrObservation, snapshotPtrObservationRequest, verifyPtrObservation,
   captureG002BridgeObservation, signG002UpdateObservation, snapshotG002UpdateObservationRequest,
   verifyG002UpdateObservation, verifyHistoricalG002UpdateObservation,
@@ -14,7 +15,7 @@ const CODE = 'RECOVERY_PTR_OBSERVATION_UNAVAILABLE'
 const TOTAL_DEADLINE_MS = 100_000
 const OBSERVER_DEADLINE_MS = 80_000
 
-export type PtrObservationSignerEnvironment = GitHubAppEnvironment & Readonly<{
+export type PtrObservationSignerEnvironment = GitHubEvidenceBindings & Readonly<{
   RECOVERY_ENABLED: string
   RECOVERY_AUTHORIZATION_EPOCH: string
   RECOVERY_SIGNING_PRIVATE_JWK: string
@@ -44,8 +45,7 @@ export async function observePtrFromEnvironment(env: PtrObservationSignerEnviron
     const configured = deployment(env), configuredBytes = JSON.stringify(configured)
     const secrets = await validateSignerSecrets({ RECOVERY_SIGNING_PRIVATE_JWK: env.RECOVERY_SIGNING_PRIVATE_JWK,
       RELEASE_RECOVERY_RPC_SECRET: env.RELEASE_RECOVERY_RPC_SECRET })
-    const githubApp = { GITHUB_APP_ID: env.GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID: env.GITHUB_APP_INSTALLATION_ID,
-      GITHUB_APP_PRIVATE_KEY_PEM: env.GITHUB_APP_PRIVATE_KEY_PEM }
+    const githubApp = githubEvidenceFromBindings(env)
     const proof = await verifyPtrObservationWorkflowIdentity({ token: request.oidcToken,
       sourceCommit: request.sourceCommit, requestId: request.requestId, environment: githubApp,
       fetch: globalThis.fetch, nowSeconds: Math.floor(started / 1000) })
@@ -116,8 +116,7 @@ async function observeExistingUpdateFromEnvironment(env: PtrObservationSignerEnv
     const started = Date.now(), configured = deployment(env), configuredBytes = JSON.stringify(configured)
     const secrets = await validateSignerSecrets({ RECOVERY_SIGNING_PRIVATE_JWK: env.RECOVERY_SIGNING_PRIVATE_JWK,
       RELEASE_RECOVERY_RPC_SECRET: env.RELEASE_RECOVERY_RPC_SECRET })
-    const githubApp = { GITHUB_APP_ID: env.GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID: env.GITHUB_APP_INSTALLATION_ID,
-      GITHUB_APP_PRIVATE_KEY_PEM: env.GITHUB_APP_PRIVATE_KEY_PEM }
+    const githubApp = githubEvidenceFromBindings(env)
     const proof = await verifyIdentity({ token: request.oidcToken,
       sourceCommit: request.sourceCommit, requestId: request.requestId, environment: githubApp,
       fetch: globalThis.fetch, nowSeconds: Math.floor(started / 1000) })

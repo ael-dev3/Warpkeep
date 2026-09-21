@@ -6,17 +6,15 @@ import { parseSpacetimeProgramPins } from './spacetimeProgramPins.js'
 import { RAW_MODULE_DEF_V10_MAX_BYTES } from './rawModuleDefV10.js'
 import { githubFail } from './config.js'
 import { createSignerObservationService } from './signerObservationService.js'
+import { githubEvidenceFromBindings, type GitHubEvidenceBindings } from './signerWorkflowCredential.js'
 
-export interface RecoverySignerEnvironment {
+export interface RecoverySignerEnvironment extends GitHubEvidenceBindings {
   RECOVERY_PREPARATION_POLICY?: string
   RECOVERY_ENABLED: string
   RECOVERY_AUTHORIZATION_EPOCH: string
   RECOVERY_ARMING_MANIFEST: string
   RECOVERY_SIGNING_PRIVATE_JWK: string
   RELEASE_RECOVERY_RPC_SECRET: string
-  GITHUB_APP_ID: string
-  GITHUB_APP_INSTALLATION_ID: string
-  GITHUB_APP_PRIVATE_KEY_PEM: string
   AUTH_BRIDGE_OBSERVER: ReleaseRecoveryObservationService & PreparationConfigurationService
   RECOVERY_LEDGER_V2: DurableObjectNamespace<ReleaseRecoveryAuthorizationLedgerV2>
 }
@@ -34,8 +32,7 @@ export function signerFromEnvironment(env: RecoverySignerEnvironment, compiled: 
   const secrets = { RECOVERY_SIGNING_PRIVATE_JWK: env.RECOVERY_SIGNING_PRIVATE_JWK, RELEASE_RECOVERY_RPC_SECRET: env.RELEASE_RECOVERY_RPC_SECRET }
   const ledger = env.RECOVERY_LEDGER_V2.getByName('warpkeep-release-recovery-control-v2')
   return new RecoverySigner(control, secrets, ledger, () => Math.floor(Date.now() / 1000), {
-    githubApp: { GITHUB_APP_ID: env.GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID: env.GITHUB_APP_INSTALLATION_ID,
-      GITHUB_APP_PRIVATE_KEY_PEM: env.GITHUB_APP_PRIVATE_KEY_PEM },
+    get githubApp() { return githubEvidenceFromBindings(env) },
     fetch: globalThis.fetch,
     observation: { bridge: createSignerObservationService(env.AUTH_BRIDGE_OBSERVER), pins, expectedRawModuleDefV10Fixtures: schemas },
     requestLedger: requestId => env.RECOVERY_LEDGER_V2.getByName(requestId),

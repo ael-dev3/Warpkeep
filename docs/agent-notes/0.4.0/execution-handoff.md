@@ -2,6 +2,27 @@
 
 ## Active unblocking work — 21 September 2026
 
+**Current owner direction: no additional recovery keys.** The App-key download
+path is no longer a prerequisite. The owner completed GitHub Mobile confirmation,
+and App `4995046` was visible. An additional App key was generated before this
+direction, but no PEM was recovered or provisioned; do not generate another or
+repeat that request. The source follow-up uses the existing Actions job token
+for transient GitHub evidence reads after signed OIDC validation, while reusing
+the existing recovery signing key. Read the canonical
+[bootstrap workflow](../../operations/0.4.0-recovery-bootstrap.md#no-additional-recovery-keys).
+
+PR #324 initially published the detached-reader repair at `a230507c`. Subsequent
+source work also removes the App-key prerequisite and repairs the prepared
+bridge shell. Bridge workflow `35595876032` failed during shell parsing in
+`Re-attest detached source and Linux closure pins`, before provider credentials
+or calls. Three array-expansion quotes were missing. A regression now parses
+every shell step with Bash. These repairs still need protected CI, generated
+family preparation and live acceptance; do not report them as deployed.
+The first keyless source checkpoint covers gateway, request-local credential
+selection, OIDC/evidence validation and conservative ledger reconciliation.
+The explicit earlier-attempt workflow caller is still being completed separately;
+do not confuse the service's reconciliation support with a finished rerun path.
+
 Development branch: `codex/0.4-fix-native-g001-source-attestation` in the
 maintained Windows checkout. The last accepted generated-family main is
 `0ea473caa6634f96f828cdb5860d1cffad79a783` (PR #323), following source repair
@@ -111,9 +132,10 @@ passed on Windows and native Linux. The complete sealed-launch verifier suite
 passed 168 tests with one platform skip. GitHub's full required checks are pending;
 these local results do not establish their eventual outcome or a live release.
 
-The recovery App key generated during the earlier registration is still absent
+Historical App-key path, superseded by the September 21 no-additional-key direction:
+the recovery App key generated during the earlier registration was absent
 from the known Downloads/private-bootstrap locations. The owner has been asked
-only for its local `.pem` path, never its contents. Preserve the existing App,
+only for its local `.pem` path, never its contents. Do not repeat that request. Preserve the existing App,
 installation, service keys and general GitHub/provider access; do not repeat
 registration or treat this missing App-key file as a failed owner login.
 
