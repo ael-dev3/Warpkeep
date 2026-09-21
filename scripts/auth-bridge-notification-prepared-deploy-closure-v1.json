@@ -5,7 +5,7 @@
     {
       "path": ".github/workflows/deploy-pages.yml",
       "digestProfile": "reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1",
-      "sha256": "7b47bea63f601ad6991cea974546cac3415863f3ad7de54a002871c21019e1d3"
+      "sha256": "0505c9b764b850516c210cc7e8848145daf7854d6d755b41c3fc35643bac991b"
     },
     {
       "path": ".github/workflows/notification-bridge-b0.yml",
@@ -15,7 +15,7 @@
     {
       "path": ".github/workflows/notification-bridge-prepared-linux.yml",
       "digestProfile": "bootstrap-pin-projection-sha256-v1",
-      "sha256": "8c0b3c0c543cac5ff4f5bffc7e125fc0951adb71a3962a5f89e15a7f3dc0dce7"
+      "sha256": "9952099eae1dcfa24b2de0a79eb43e00f255bdcbb4570fc31998418cd192b232"
     },
     {
       "path": ".github/workflows/notification-bridge-prepared.yml",
@@ -1575,7 +1575,7 @@
     {
       "path": "scripts/ptr-production-state-observation.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9f838b1a985dcb24070c7d19848f4fde24b7b94d761f8ed2ca5a304014a84308"
+      "sha256": "0c933f4068bcdc06ae7072db6ee5650af9a70c83c30ffb963fc7fd59995304f0"
     },
     {
       "path": "scripts/ptr-production-transport.ts",
@@ -1670,7 +1670,7 @@
     {
       "path": "scripts/recovery-authorization-client.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "af96c4bfb91cc4855e934c9088c605b4877908c72df3f8242a74926ce3db33cb"
+      "sha256": "42cf899b0a9efa37385453759e1c16ff7ef68804ed33ae3bcb89c05118950c81"
     },
     {
       "path": "scripts/recovery-authorization-protocol.d.mts",
@@ -1695,12 +1695,12 @@
     {
       "path": "scripts/recovery-claim-handoff.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "afecf6745f36bf9865d321f98c8a8b9c4d7f1aa096343970c1ddaf79a738eeac"
+      "sha256": "dd1421bc828b6e38f7f3a448cb5fd80484a3438f08e3e953b45a2e5a861c54e5"
     },
     {
       "path": "scripts/recovery-claim-handoff.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "fe2d5a22240a62c5f196d61c01ef88c4b20883043968ebadd4ed6f93bbe716c4"
+      "sha256": "c7f2007513400158b260e282dff5eb95b46ccf075515608686e5ffaace63e7d4"
     },
     {
       "path": "scripts/recovery-public-key.d.mts",
@@ -1750,12 +1750,12 @@
     {
       "path": "scripts/recovery-workflow-current-context.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2663ac01dd03a4af6fc2fdbe51af0c06cc835aee3c7df2d322dbff5da3fecc57"
+      "sha256": "a8f9adb1cf7e25263b01d5409a90a22cfc58a5c3a457beb59839cee8c7d63e97"
     },
     {
       "path": "scripts/recovery-workflow-current-context.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "53a13fdab461ab6d5e3c8a0a1bb42084c6c0029d4a9b0f4f699287fd31e1cb7a"
+      "sha256": "2f641820dba39c89ee2bfbd75b75f331f3f28a12543a81a7fa72bd52fd192812"
     },
     {
       "path": "scripts/recovery-workflow-deployment-boundary.d.mts",
@@ -1805,12 +1805,12 @@
     {
       "path": "scripts/recovery-workflow-private-directory.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c6df70a576fff5b14448e30aa673c42a5bf8a020cf70a419437983ece91a9980"
+      "sha256": "d87ac288fc85790301e8c5c761a0efa357f910c1c4f428e7a2aa208e4126c4ec"
     },
     {
       "path": "scripts/recovery-workflow-private-directory.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "5fe13b0268b67bbff21ff79e3702849ceefb7fdd84aaf889cb2cb78f651916df"
+      "sha256": "cc737d9dd324299ba52b43a909d390fb9be02ba13994f799ad9bca514ed87ced"
     },
     {
       "path": "scripts/recovery-workflow-reconcile-current-run.d.mts",
@@ -1825,12 +1825,12 @@
     {
       "path": "scripts/recovery-workflow-reconciliation.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "95eaeabda2cb477ac05be947e4d901a126e0d070a147aa5b7629e9ba7d4a4dfd"
+      "sha256": "af8d324fbcdaa8262d4b092cbdebbe73a3f62c281f8d7ea69ef82d156c26cbc3"
     },
     {
       "path": "scripts/recovery-workflow-reconciliation.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d8b1d58d87c8eb523cd3f6d01d097079288a10bdac1e4730c587bd2f1d61372b"
+      "sha256": "aeec82a7828bb01741fce4135574a431d0745240245a9d74a34b415e0edbe383"
     },
     {
       "path": "scripts/recovery-workflow-run-context.d.mts",
@@ -1850,7 +1850,7 @@
     {
       "path": "scripts/recovery-workflow-session.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "26f0ec9577e357b39065a70f097b5c481e1229d5faf70550ef52080c7e2a167a"
+      "sha256": "2387d850492567710cfbe18ac309b52b0879dcb9c869755357d618d2ac3f1857"
     },
     {
       "path": "scripts/sealed-realms-existing-update-protocol.d.mts",
@@ -2030,7 +2030,7 @@
     {
       "path": "scripts/sealed-realms-production-recovery-preparation-transport.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a308d9b415dbc7a0e9ec30fb1c7c027886270f20c148273309f2cb1b256b6627"
+      "sha256": "71aa4a4305a4faa8cc4afa8030672e28ca7683ef063c5d9d8dae5fc1c1593184"
     },
     {
       "path": "scripts/sealed-realms-production-recovery-preparation.d.mts",
@@ -2235,12 +2235,12 @@
     {
       "path": "scripts/verify-recovery-claim-receipt.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "efd71c38097eee5698422288d3553a044097bb31e2149678a74806cc494624b3"
+      "sha256": "1d3b0eadfe2e133657abfa1b2fe70378fc8dcc113047c98d47014cc091fee0a0"
     },
     {
       "path": "scripts/verify-recovery-claim-receipt.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0ab86a4d3d8c44ed7b9d0633c332d4fa4d8cb46f93468d2bfce44952c3f2d9d2"
+      "sha256": "9b6cc469c979315c0d7e2fd28d3c925b993bf38915f241df8b164e067017b30a"
     },
     {
       "path": "scripts/verify-recovery-status.d.mts",
@@ -2575,7 +2575,7 @@
     {
       "path": "services/release-recovery/src/config.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ff3406283fe9949414ebb9d70dfc2c0b1e55df88ababb9f34d65c18348ea852a"
+      "sha256": "1fa4e9c7746127e686bca1181808c2e44efc2dcedb757ca499854cab7b0fe6ec"
     },
     {
       "path": "services/release-recovery/src/crypto.ts",
