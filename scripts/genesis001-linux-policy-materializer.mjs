@@ -10,17 +10,18 @@ import { attestPolicyHost, attestPolicySource, G001_POLICY_ENV, G001_POLICY_HOME
   policyOperator, policyDigest, policyFail, policyGit, policyOwnedRun, readPolicyRequest } from './genesis001-linux-policy-boundary.mjs';
 
 function inside(root, path) { return path === root || path.startsWith(`${root}${sep}`); }
-function captureGraph(root, yamlRoot, metadata, operatorPath) {
+function captureGraph(root, fixedRoots, metadata, operatorPath) {
   if (!metadata || !metadata.inputs || !metadata.outputs || Object.keys(metadata.outputs).length !== 1) policyFail();
   const output = Object.values(metadata.outputs)[0];
   if (output.imports.some(edge => edge.external !== true || !isBuiltin(edge.path))) policyFail();
   const records = [];
   for (const input of Object.keys(metadata.inputs).sort()) {
     const path = realpathSync(resolve(root, input));
-    if (!inside(root, path) && !inside(yamlRoot, path)) policyFail();
+    const fixed = fixedRoots.find(entry => inside(entry.root, path));
+    if (!inside(root, path) && fixed === undefined) policyFail();
     const opened = readLocalBindingBoundedFile(path, { maximumBytes: 16 * 1024 * 1024, expectedUid: 1000 });
     try { records.push({ path: inside(root, path) ? relative(root, path).split(sep).join('/')
-      : `fixed-yaml/${relative(yamlRoot, path).split(sep).join('/')}`, bytes: opened.body.length, sha256: policyDigest(opened.body) }); }
+      : `${fixed.label}/${relative(fixed.root, path).split(sep).join('/')}`, bytes: opened.body.length, sha256: policyDigest(opened.body) }); }
     finally { opened.body.fill(0); }
   }
   if (!records.some(record => record.path === operatorPath) || records.length > 4096) policyFail();
@@ -46,6 +47,12 @@ export async function materializeFixedLinuxG001Policy(request) {
     yaml = validateLocalBindingYamlManifest(committed.toString('utf8'));
   } finally { committed.fill(0); }
   const yamlRoot = join(G001_POLICY_HOME, '.warpkeep', 'release-preparation-v1', 'toolchain', 'yaml-2.9.0', 'package');
+  const typescriptRoot = join(G001_POLICY_HOME, '.warpkeep', 'release-preparation-v1', 'toolchain',
+    'typescript-7.0.2-linux-x64', 'node_modules', 'typescript');
+  const fixedRoots = Object.freeze([
+    Object.freeze({ root: realpathSync(yamlRoot), label: 'fixed-yaml' }),
+    Object.freeze({ root: realpathSync(typescriptRoot), label: 'fixed-typescript' }),
+  ]);
   const graph = deriveGenesis002LocalBindingSourceGraph(root);
   const hooks = installLocalBindingNativeTsHooks(graph, { root: yamlRoot, entry: yaml.entry, files: yaml.files });
   try {
@@ -59,11 +66,17 @@ export async function materializeFixedLinuxG001Policy(request) {
         mkdirSync(modules, { mode: 0o700 });
         const dependencyRoot = join(context.materializedRoot, 'spacetimedb', 'genesis002', 'node_modules');
         const sdk = realpathSync(join(dependencyRoot, 'spacetimedb'));
-        const links = [join(modules, 'spacetimedb'), join(modules, 'yaml')];
+        const serviceModules = join(context.materializedRoot, 'services', 'auth-bridge', 'node_modules');
+        mkdirSync(serviceModules, { mode: 0o700 });
+        const links = [
+          { path: join(modules, 'spacetimedb'), target: sdk },
+          { path: join(modules, 'yaml'), target: fixedRoots[0].root },
+          { path: join(serviceModules, 'yaml'), target: fixedRoots[0].root },
+          { path: join(serviceModules, 'typescript'), target: fixedRoots[1].root },
+        ];
         const created = [];
         try {
-          symlinkSync(sdk, links[0]); created.push(links[0]);
-          symlinkSync(yamlRoot, links[1]); created.push(links[1]);
+          for (const link of links) { symlinkSync(link.target, link.path); created.push(link); }
           const compiler = realpathSync(join(dependencyRoot,
             '.pnpm', '@esbuild+linux-x64@0.25.12', 'node_modules', '@esbuild', 'linux-x64', 'bin', 'esbuild'));
           let first;
@@ -102,20 +115,21 @@ export async function materializeFixedLinuxG001Policy(request) {
               // after the builder returns.
               if (cycle === 'first') writeFileSync(join(request.operationRoot, 'first.mjs'), bundle.body, { mode: 0o600 });
               result = { bundleSha256: policyDigest(bundle.body), bundleBytes: bundle.body.length,
-              sourceClosureSha256: captureGraph(context.materializedRoot, yamlRoot, JSON.parse(meta.body.toString('utf8')), operatorPath) }; }
+              sourceClosureSha256: captureGraph(context.materializedRoot, fixedRoots,
+                JSON.parse(meta.body.toString('utf8')), operatorPath) }; }
             finally { bundle.body.fill(0); meta.body.fill(0); }
             if (first && JSON.stringify(first) !== JSON.stringify(result)) policyFail();
             first = result;
           }
           return first;
         } finally {
-          for (const [index, path] of created.entries()) {
-            const target = index === 0 ? sdk : yamlRoot;
-            const state = lstatSync(path);
-            if (!state.isSymbolicLink() || realpathSync(path) !== target) policyFail();
-            unlinkSync(path);
+          for (const link of created) {
+            const state = lstatSync(link.path);
+            if (!state.isSymbolicLink() || realpathSync(link.path) !== link.target) policyFail();
+            unlinkSync(link.path);
           }
           rmdirSync(modules);
+          rmdirSync(serviceModules);
         }
       },
     });
