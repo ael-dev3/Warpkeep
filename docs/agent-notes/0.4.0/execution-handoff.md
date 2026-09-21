@@ -1,5 +1,38 @@
 # Continue Warpkeep 0.4
 
+## Reliability follow-up — 21 September 2026
+
+The owner requested prevention of repeat blockers and maintenance only, with no
+new features. Continue on PR #324's existing branch. Its source was synchronized
+at `6ddfc026` when this review began; resolve the live head rather than using that
+snapshot for an operation. Auto-merge was disabled during the follow-up so the
+reviewed source can be completed before integration.
+
+The [known blocker recovery paths](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths)
+now map the observed symptoms to their owning repair and confirmation. Both
+existing Desktop handoff files were updated in place with these routes and
+current local paths. Their corrupt historical suffixes were preserved exactly
+and remain historical. No new Desktop output or scheduled task was created.
+
+Fresh review of real GitHub Pages records found that successful deployment
+history includes multiple statuses and actor-attributed metadata. The earlier
+reader's single-status/bot-only fixture could reject a legitimate completion.
+Skipped jobs can also have reversed metadata timestamps, and a skipped deploy
+step can have equal non-null timestamps. These cases require focused reader
+repairs without relaxing original candidate/job/environment correlation.
+
+The claim caller also allocated an attempt directory before contacting the
+signer; failure before a claim returned could leave an empty directory that
+blocks every rerun. The follow-up defers allocation until an authenticated claim
+returns, retaining a nonmutating filesystem preflight before network work.
+A lost claim response or crash before receipt persistence still leaves genuine
+remote ambiguity. Do not delete an old empty attempt or create a new claim to
+assume that away; retain evidence and investigate the original operation.
+
+These follow-up changes are under review. Record their final source and test
+results before reenabling integration. The accepted prepared baseline, live
+service state and M1/M2 requirements below are unchanged by a source review.
+
 ## Active unblocking work — 21 September 2026
 
 **Current owner direction: no additional recovery keys.** The App-key download
