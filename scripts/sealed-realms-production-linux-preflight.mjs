@@ -50,6 +50,10 @@ const PHASES = new Set(['input', 'runtime', 'source', 'bundle', 'workflow', 'ope
 const G001_DIAGNOSTICS = new Set(['g001-credential', 'g001-host', 'g001-source', 'g001-closure',
   'g001-private-root', 'g001-materialization', 'g001-prepared-verification', 'g001-authority',
   'g001-credential-descriptor', 'g001-observation', 'g001-receipt', 'g001-cleanup']);
+for (const diagnostic of ['g001-admitted-identity', 'g001-admitted-aggregate',
+  'g001-admitted-enumeration', 'g001-admitted-status', 'g001-admitted-reconciliation']) {
+  G001_DIAGNOSTICS.add(diagnostic);
+}
 const forbiddenEnvironment = /^(?:NODE_|ESBUILD_|TS_NODE_|BUN_|LD_|DYLD_|GIT_(?!HUB)|BASH_ENV$|ENV$|OPENSSL_CONF$|SSL_CERT_|PYTHONPATH$|VITEST$)/u;
 let active = false;
 const retainedReadRuntimes = new WeakMap();

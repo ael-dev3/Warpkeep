@@ -22,7 +22,17 @@ import { attestPolicySource, G001_POLICY_ROOT, policyPrivateAncestors } from './
 import { createGenesis001LinuxCensusSample, validateGenesis001LinuxCensusPair,
   retainGenesis001LinuxCensusRecord } from './genesis001-linux-census-attempt.mjs';
 
-function fail(): never { throw Error('G001_LINUX_CENSUS_COLLECTION_FAILED'); }
+const ADMITTED_DIAGNOSTICS = new Set([
+  'g001-admitted-identity', 'g001-admitted-aggregate', 'g001-admitted-enumeration',
+  'g001-admitted-status', 'g001-admitted-reconciliation',
+]);
+function fail(diagnostic?: string): never {
+  const error = Error('G001_LINUX_CENSUS_COLLECTION_FAILED');
+  if (diagnostic !== undefined && ADMITTED_DIAGNOSTICS.has(diagnostic)) {
+    Object.defineProperty(error, 'diagnostic', { value: diagnostic, enumerable: false });
+  }
+  throw error;
+}
 const MAX_SQL_BYTES = 128 * 1024;
 const SQL_URL = `${GREATER_REALM_PRODUCTION_TRANSPORT_TARGET.uri}/v1/database/${GENESIS_001_DATABASE_IDENTITY}/sql?confirmed=true`;
 const COMMIT = /^[a-f0-9]{40}$/u, ID = /^[1-9][0-9]{0,19}$/u;
@@ -118,32 +128,55 @@ async function fixedFidQuery(connection: DbConnection, fetcher: typeof fetch): P
  * never a classification of an authentication, network or parsing failure. */
 export async function collectGenesis001LinuxAdmittedCensus(connection: DbConnection,
   sourceCommit: string, observedAt: string, fetcher: typeof fetch = fetch) {
-  const caller = identity(connection);
-  const result = await collectGenesis001AdmittedPlayerCensus({ preparationSourceCommit: sourceCommit, observedAt,
+  let caller: string;
+  try { caller = identity(connection); } catch { fail('g001-admitted-identity'); }
+  try {
+    const result = await collectGenesis001AdmittedPlayerCensus({ preparationSourceCommit: sourceCommit, observedAt,
     readAggregates: async () => {
-      const status = await withOperationTimeout(connection.procedures.adminGetAlphaStatusV3({}));
-      if (identity(connection) !== caller || typeof status.allowedFids !== 'bigint'
-        || typeof status.enabledAllowedFids !== 'bigint') fail();
-      return { allowedFids: status.allowedFids.toString(), enabledAllowedFids: status.enabledAllowedFids.toString() };
+      try {
+        const status = await withOperationTimeout(connection.procedures.adminGetAlphaStatusV3({}));
+        if (identity(connection) !== caller || typeof status.allowedFids !== 'bigint'
+          || typeof status.enabledAllowedFids !== 'bigint') fail('g001-admitted-aggregate');
+        return { allowedFids: status.allowedFids.toString(), enabledAllowedFids: status.enabledAllowedFids.toString() };
+      } catch (error) {
+        if (error instanceof Error && (error as Error & { diagnostic?: string }).diagnostic !== undefined) throw error;
+        fail('g001-admitted-aggregate');
+      }
     },
     queryPreferred: async sql => {
       if (sql !== GENESIS_001_ADMITTED_PLAYER_CENSUS_PREFERRED_SQL || identity(connection) !== caller) fail();
       return { outcome: 'unsupported-exact-query' };
     },
-    queryFallbackFids: sql => {
-      if (sql !== GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_SQL) fail();
-      return fixedFidQuery(connection, fetcher);
+    queryFallbackFids: async sql => {
+      if (sql !== GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_SQL) fail('g001-admitted-enumeration');
+      try { return await fixedFidQuery(connection, fetcher); }
+      catch (error) {
+        if (error instanceof Error && (error as Error & { diagnostic?: string }).diagnostic !== undefined) throw error;
+        fail('g001-admitted-enumeration');
+      }
     },
     readAdmissionStatus: async (procedure, fid) => {
-      if (procedure !== GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_PROCEDURE) fail();
-      const status = projectAccessRequestAdmissionStatus(await withOperationTimeout(
-        connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid: BigInt(fid) })));
-      if (identity(connection) !== caller) fail();
-      return status;
+      if (procedure !== GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_PROCEDURE) fail('g001-admitted-status');
+      try {
+        const status = projectAccessRequestAdmissionStatus(await withOperationTimeout(
+          connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid: BigInt(fid) })));
+        if (identity(connection) !== caller) fail('g001-admitted-identity');
+        return status;
+      } catch (error) {
+        if (error instanceof Error && (error as Error & { diagnostic?: string }).diagnostic !== undefined) throw error;
+        fail('g001-admitted-status');
+      }
     }, randomBytes,
-  });
-  if (identity(connection) !== caller) fail();
-  return result;
+    });
+    if (identity(connection) !== caller) fail('g001-admitted-identity');
+    return result;
+  } catch (error) {
+    if (error instanceof Error && (error as Error & { diagnostic?: string }).diagnostic !== undefined) throw error;
+    const code = error instanceof Error ? error.message : '';
+    if (code.includes('AGGREGATE')) fail('g001-admitted-reconciliation');
+    if (code.includes('FALLBACK')) fail('g001-admitted-status');
+    fail('g001-admitted-reconciliation');
+  }
 }
 
 type Session = ReturnType<typeof createGreaterRealmAdminTransportSession>;

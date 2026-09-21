@@ -5,6 +5,15 @@ import { pathToFileURL } from 'node:url';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { attestPolicyHost, attestPolicySource, policyFail, policyOwnedRun, readPolicyRequest } from './genesis001-linux-policy-boundary.mjs';
 
+const ADMITTED_DIAGNOSTICS = new Set([
+  'g001-admitted-identity', 'g001-admitted-aggregate', 'g001-admitted-enumeration',
+  'g001-admitted-status', 'g001-admitted-reconciliation',
+]);
+function nativeDiagnostic(error) {
+  const value = error && typeof error === 'object' ? error.diagnostic : undefined;
+  return typeof value === 'string' && ADMITTED_DIAGNOSTICS.has(value) ? value : undefined;
+}
+
 /** This process has no selectable operator, module URL, target, or secret path. */
 export async function runFixedLinuxG001PolicyChild(request) {
   let transferred = false, hooks;
@@ -65,5 +74,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   catch { try { closeSync(4); } catch { /* absent */ }
     process.stderr.write('G001_LINUX_POLICY_NATIVE_FAILED\n'); process.exitCode = 1; }
   if (request) runFixedLinuxG001PolicyChild(request).then(result => process.stdout.write(`${JSON.stringify(result)}\n`))
-    .catch(() => { process.stderr.write('G001_LINUX_POLICY_NATIVE_FAILED\n'); process.exitCode = 1; });
+    .catch(error => {
+      const diagnostic = nativeDiagnostic(error);
+      process.stderr.write(`G001_LINUX_POLICY_NATIVE_FAILED${diagnostic === undefined ? '' : `:${diagnostic}`}\n`);
+      process.exitCode = 1;
+    });
 }
