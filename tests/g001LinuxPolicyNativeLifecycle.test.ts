@@ -29,7 +29,10 @@ vi.mock('../scripts/genesis001-linux-policy-boundary.mjs', async original => ({
 }));
 vi.mock('../scripts/local-binding-bounded-file.mjs', () => ({
   readLocalBindingBoundedFile: (path: string) => {
-    if (path.endsWith('first.mjs') && fixture.prepareFailure === 'prepared-verification') throw Error('PRIVATE_DIAGNOSTIC_DO_NOT_COPY');
+    if ((path.endsWith('first.mjs') || path.endsWith('spacetimedb\\genesis002\\dist\\bundle.js')
+      || path.endsWith('spacetimedb/genesis002/dist/bundle.js')) && fixture.prepareFailure === 'prepared-verification') {
+      throw Error('PRIVATE_DIAGNOSTIC_DO_NOT_COPY');
+    }
     if (fixture.advanceDuringAttestation) fixture.clock = 30001;
     return { body: Buffer.from('attested fixture'), identity: {} };
   },

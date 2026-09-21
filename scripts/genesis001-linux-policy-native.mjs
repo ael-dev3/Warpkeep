@@ -95,6 +95,10 @@ function verifyPreparation(state) {
   const { host, source, operationRoot, runId, built, kind } = state;
   attestPolicyHost(host); attestPolicySource(source, process.cwd(), kind); checkBootstrap(source);
   policyOwnedRun(operationRoot, runId);
+  // The locked builder requires the first compiler pass at its canonical
+  // transient bundle path and removes that materialization before returning.
+  // The materializer retains a byte-identical private copy for both lifecycle
+  // checks, so preparation verification must read the retained copies only.
   for (const cycle of ['first', 'second']) readLocalBindingBoundedFile(join(operationRoot, `${cycle}.mjs`), {
     maximumBytes: 16 * 1024 * 1024, expectedBytes: built.bundleBytes,
     expectedSha256: built.bundleSha256, expectedUid: 1000, expectedMode: 0o600 }).body.fill(0);
