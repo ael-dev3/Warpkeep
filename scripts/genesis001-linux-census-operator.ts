@@ -13,13 +13,12 @@ import { collectGenesis001AdmittedPlayerCensus,
 import { executeGenesis001CensusPrivacySafeReceipt } from './genesis001-census-privacy-safe-receipt.mjs';
 import { GENESIS_001_DATABASE_IDENTITY, GENESIS_001_LIVE_POLICY_OBSERVATION_PROFILE,
   genesis001PolicyReceiptDigest } from './genesis001-sealed-launch-adoption.mjs';
-import { attestGreaterRealmProductionProtectedMain } from './greater-realm-production-provenance';
 import { createGreaterRealmAdminTransportSession, GREATER_REALM_PRODUCTION_TRANSPORT_TARGET,
   readGreaterRealmProductionAdminSecret } from './greater-realm-production-transport';
 import { withOperationTimeout } from './production-admin-connection';
 import { parseWorkflowEvidenceJson } from './sealed-realms-production-workflow-evidence-json.mjs';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
-import { G001_POLICY_ROOT, policyPrivateAncestors } from './genesis001-linux-policy-boundary.mjs';
+import { attestPolicySource, G001_POLICY_ROOT, policyPrivateAncestors } from './genesis001-linux-policy-boundary.mjs';
 import { createGenesis001LinuxCensusSample, validateGenesis001LinuxCensusPair,
   retainGenesis001LinuxCensusRecord } from './genesis001-linux-census-attempt.mjs';
 
@@ -179,7 +178,10 @@ async function sample(session: Session, scope: Scope, kind: 'first' | 'second') 
 
 const production: Dependencies = Object.freeze({ now: () => new Date(), wait: async ms => { await delay(ms); },
   createSession: adminSecret => createGreaterRealmAdminTransportSession({ adminSecret }),
-  attest: attestGreaterRealmProductionProtectedMain, collectSample: sample,
+  // The protected workflow checks out the selected main commit in detached
+  // state. Recheck that exact fixed Linux source, including origin/main and
+  // this census operator, without requiring a local branch named main.
+  attest: root => attestPolicySource(undefined, root, 'census').sourceCommit, collectSample: sample,
   retainSample: (scope, kind, value) => retainGenesis001LinuxCensusRecord(
     join(G001_POLICY_ROOT, 'attempts', scope.attemptId), `${kind}.json`, value),
 });

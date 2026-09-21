@@ -20,6 +20,7 @@ import {
   readGreaterRealmProductionAdminSecretFile,
   readGreaterRealmProductionAdminSecret,
 } from './greater-realm-production-transport.ts';
+import { attestPolicySource } from './genesis001-linux-policy-boundary.mjs';
 
 const REPOSITORY_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const BOOTSTRAP_PROFILE = 'warpkeep-greater-realm-production-bootstrap-v1';
@@ -156,6 +157,14 @@ const PRODUCTION_DEPENDENCIES = Object.freeze({
   now: () => new Date(),
 });
 
+// Actions checks out the verified main commit by SHA. Its native source
+// boundary binds clean bytes and origin/main without requiring a local branch.
+// Retain the historical branch attestation for the separate bootstrap entry.
+const LINUX_DESCRIPTOR_DEPENDENCIES = Object.freeze({
+  ...PRODUCTION_DEPENDENCIES,
+  attestProtectedMain: root => attestPolicySource(undefined, root, 'policy').sourceCommit,
+});
+
 export async function executeGenesis001PolicyObservation(input) {
   if (
     input === null
@@ -234,7 +243,7 @@ export async function executeGenesis001PolicyObservationFromDescriptor(input) {
       fail('GENESIS_001_POLICY_OBSERVATION_NATIVE_PROFILE_INVALID');
     }
     setGlobalLogLevel('error');
-    return await observePolicy(input, PRODUCTION_DEPENDENCIES, () => {
+    return await observePolicy(input, LINUX_DESCRIPTOR_DEPENDENCIES, () => {
       const before = fstatSync(4, { bigint: true });
       if (!before.isFile() || before.nlink !== 1n || (before.mode & 0o7777n) !== 0o600n
         || typeof process.getuid !== 'function' || before.uid !== BigInt(process.getuid())

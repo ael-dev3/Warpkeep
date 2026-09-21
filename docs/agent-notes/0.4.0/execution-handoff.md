@@ -1,5 +1,42 @@
 # Continue Warpkeep 0.4
 
+## Active unblocking work — 21 September 2026
+
+Development branch: `codex/0.4-fix-native-g001-source-attestation` in the
+maintained Windows checkout. The last accepted generated-family main is
+`0ea473caa6634f96f828cdb5860d1cffad79a783` (PR #323), following source repair
+PR #322 at `1fd0f1e636bdeb5aada9ce719a427baed3b14242`. Main Verify
+`35577074726` and exact preflight `35582135678` passed. Native prepare and
+independent check produced candidate `release-workspace-5bc40af94e7a293bf2b37b47a6619e33`,
+family `f8a0c2bc35e8b037bc1ba104c50d87570507d58ef5aecb795827fef8d621ae98`
+and closure `5e7853fda90b8a2763f664a99d748088f3e7d03603e85cd04cd3ee0d6db51f9d`.
+`finalReleasePrepared:false`; these are preparation results, not deployment.
+
+Census runs `35582210656` and `35582701454` failed at `g001-observation`.
+Their attempt directories contained no census samples. Their duration does not
+prove they reached the stability interval. The native operator invoked an older
+source checker that requires a named `main` branch, but Actions checks out the
+verified main SHA detached. That check runs before session creation. Both native
+G001 readers now use the existing Linux source boundary, preserving clean bytes,
+matching `origin/main` and operator checks. Descriptor regression tests cover
+rejection before transport and successful progression to observation. The real,
+clean detached Actions checkout also passed the boundary for both operator kinds.
+
+The earlier claim that `INVALID_ISSUER` from a publisher CLI admin call proved
+stale publisher login was incorrect. Application administration uses the
+Warpkeep auth bridge issuer, not the publisher token. The Linux publisher was
+restored through the already authenticated browser; its owner and all three
+immutable realm identities match. No owner login action is currently required.
+See the [access guide](../../operations/0.4.0-infra-access.md) before diagnosing
+another credential issue. No live census or provider mutation is claimed here.
+
+Next: publish and integrate this source repair, prepare/check its exact protected
+M1 source, promote generated M2, wait for exact main Verify, then repeat preflight
+and `g001-freeze-census`. Continue the prepared bridge, disabled signer/gateway,
+realm preservation/readback and owner/device acceptance from genuine results.
+Keep scheduled automation paused and create no Desktop output. The records below
+are historical and must not override this checkpoint or freshly resolved refs.
+
 ## Shipping reliability audit — 20 September 2026
 
 Active work: `codex/0.4-shipping-reliability-audit`, in the maintained Windows
@@ -89,7 +126,7 @@ Keep automation paused and create no Desktop output.
 
 ## Last operationally verified source — 20 September 2026
 
-This is the active source and operations record. The maintenance pass corrected
+This is a historical source and operations record. The maintenance pass corrected
 the G001 current-state route and promoted the exact native-prepared family; it
 did not add new runtime features. The protected source verified at this checkpoint is
 **`5870717bdb41d00f8b67039022640e03a675d84a`**.

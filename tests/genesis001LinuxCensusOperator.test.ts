@@ -1,8 +1,49 @@
 // @vitest-environment node
 import { createHash } from 'node:crypto';
 import { expect, it, vi } from 'vitest';
+const descriptorFixture = vi.hoisted(() => ({ active: false, source: 'a'.repeat(40),
+  sourceFailure: false, calls: [] as string[] }));
+vi.mock('node:fs', async original => {
+  const actual = await original<typeof import('node:fs')>();
+  return { ...actual,
+    fstatSync: (fd: number, options: any) => descriptorFixture.active && fd === 4
+      ? { isFile: () => true, nlink: 1n, uid: 1000n, gid: 1000n, mode: 0o100600n, size: 40n,
+        dev: 1n, ino: 2n, mtimeNs: 3n, ctimeNs: 4n }
+      : actual.fstatSync(fd, options),
+    closeSync: (fd: number) => {
+      if (descriptorFixture.active && fd === 4) descriptorFixture.calls.push('close-descriptor');
+      else actual.closeSync(fd);
+    },
+  };
+});
+vi.mock('../scripts/genesis001-linux-policy-boundary.mjs', async original => ({
+  ...await original<object>(),
+  attestPolicySource: (expected: unknown, root: string, kind: string) => {
+    expect(expected).toBeUndefined(); expect(root).toBe(process.cwd()); expect(kind).toBe('census');
+    descriptorFixture.calls.push('attest-fixed-source');
+    if (descriptorFixture.sourceFailure) throw Error('fixed source changed');
+    return { sourceCommit: descriptorFixture.source };
+  },
+}));
+vi.mock('../scripts/greater-realm-production-transport', async original => {
+  const actual = await original<typeof import('../scripts/greater-realm-production-transport')>();
+  return { ...actual,
+    readGreaterRealmProductionAdminSecret: (...args: Parameters<typeof actual.readGreaterRealmProductionAdminSecret>) => {
+      if (!descriptorFixture.active) return actual.readGreaterRealmProductionAdminSecret(...args);
+      expect(args).toEqual([{ WARPKEEP_ADMIN_TOKEN_SECRET_FD: '3' }, 4]);
+      descriptorFixture.calls.push('read-descriptor'); return 's'.repeat(40);
+    },
+    createGreaterRealmAdminTransportSession: (...args: Parameters<typeof actual.createGreaterRealmAdminTransportSession>) => {
+      if (!descriptorFixture.active) return actual.createGreaterRealmAdminTransportSession(...args);
+      expect(args).toEqual([{ adminSecret: 's'.repeat(40) }]); descriptorFixture.calls.push('create-session');
+      return { invalidate: async () => {},
+        inspect: async () => { descriptorFixture.calls.push('observe'); throw Error('synthetic transport boundary'); },
+        close: async () => { descriptorFixture.calls.push('close-session'); } };
+    },
+  };
+});
 import { collectGenesis001LinuxAdmittedCensus, executeGenesis001LinuxCensusForTesting,
-  parseGenesis001LinuxCensusFidSql } from '../scripts/genesis001-linux-census-operator';
+  executeGenesis001LinuxCensusFromDescriptor, parseGenesis001LinuxCensusFidSql } from '../scripts/genesis001-linux-census-operator';
 import { collectGenesis001AdmittedPlayerCensus } from '../scripts/genesis001-admitted-player-census.mjs';
 import { createGenesis001LinuxCensusSample } from '../scripts/genesis001-linux-census-attempt.mjs';
 import { GENESIS_001_DATABASE_IDENTITY, GENESIS_001_FREEZE_RELEASE_NONCE, GENESIS_001_SOURCE_BASELINE_COMMIT,
@@ -10,6 +51,26 @@ import { GENESIS_001_DATABASE_IDENTITY, GENESIS_001_FREEZE_RELEASE_NONCE, GENESI
 
 const SOURCE = 'a'.repeat(40), CALLER = '8'.repeat(64);
 const SQL_URL = `https://maincloud.spacetimedb.com/v1/database/${GENESIS_001_DATABASE_IDENTITY}/sql?confirmed=true`;
+it.each(['accepted', 'rejected', 'mismatched'])('checks fixed source before descriptor census transport: %s', async sourceState => {
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+  const uid = Object.getOwnPropertyDescriptor(process, 'getuid');
+  descriptorFixture.active = true; descriptorFixture.sourceFailure = sourceState === 'rejected'; descriptorFixture.calls = [];
+  descriptorFixture.source = sourceState === 'mismatched' ? 'b'.repeat(40) : SOURCE;
+  Object.defineProperty(process, 'platform', { ...platform, value: 'linux' });
+  Object.defineProperty(process, 'getuid', { configurable: true, value: () => 1000 });
+  try {
+    await expect(executeGenesis001LinuxCensusFromDescriptor({ sourceCommit: SOURCE, repositoryRoot: process.cwd(),
+      attemptId: '1'.repeat(32), githubRunId: '1234', githubRunAttempt: '1', descriptor: 4 }))
+      .rejects.toThrow(sourceState === 'rejected' ? 'fixed source changed'
+        : sourceState === 'mismatched' ? 'G001_LINUX_CENSUS_COLLECTION_FAILED' : 'synthetic transport boundary');
+    expect(descriptorFixture.calls).toEqual(['read-descriptor', 'close-descriptor', 'attest-fixed-source',
+      ...(sourceState === 'accepted' ? ['create-session', 'observe', 'close-session'] : [])]);
+  } finally {
+    descriptorFixture.active = false;
+    Object.defineProperty(process, 'platform', platform);
+    if (uid) Object.defineProperty(process, 'getuid', uid); else Reflect.deleteProperty(process, 'getuid');
+  }
+});
 function sql(rows: unknown[] = [[17]]) {
   return [{ schema: { elements: [{ name: { some: 'fid' }, algebraic_type: { U64: [] } }] },
     rows, total_duration_micros: 5, stats: { rows_inserted: 0, rows_deleted: 0, rows_updated: 0 } }];
