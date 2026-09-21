@@ -570,7 +570,7 @@
     {
       "path": "scripts/genesis001-linux-census-operator.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e848aca6f26dea4d76e1b8f650419c475b42c82cbf5f37a4a0fef8a91a523372"
+      "sha256": "228dc38a9a4714d77b16a7e6901341d7101fffa0fc9d750c8367039a340f5a01"
     },
     {
       "path": "scripts/genesis001-linux-freeze-receipt.d.mts",
@@ -630,7 +630,7 @@
     {
       "path": "scripts/genesis001-policy-observation-receipt.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "dc501aebb4150ca5eeeaf50fcbdb54e8c8743d7b47434ac607ba0756999746bf"
+      "sha256": "148cbeb227b4675a75a6ec067648876b79349b88e8a9c5d9f76ee34c71ab1285"
     },
     {
       "path": "scripts/genesis001-sealed-launch-adoption.d.mts",
@@ -2165,7 +2165,7 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8eb8d961fe7fd312f613e1624b033f90451800867dbfd8e7e3648ba0af1c114b"
+      "sha256": "d958d61cc4820d3664a86f668327692e5458e8df5f67fb21b35ca7bcf6321466"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",
