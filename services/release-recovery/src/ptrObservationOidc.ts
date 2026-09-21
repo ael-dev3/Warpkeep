@@ -92,7 +92,7 @@ async function verifyObservationWorkflowIdentity(input: Parameters<typeof verify
     || claims.job_workflow_ref !== undefined || claims.job_workflow_sha !== undefined
     || typeof claims.run_id !== 'string' || !ID.test(claims.run_id)
     || typeof claims.run_attempt !== 'string' || !ID.test(claims.run_attempt)
-    || claims.check_run_id !== undefined
+    || (claims.check_run_id !== undefined && (typeof claims.check_run_id !== 'string' || !ID.test(claims.check_run_id)))
     || typeof claims.jti !== 'string' || claims.jti !== source.requestId || !UUID.test(claims.jti)
     || !Number.isSafeInteger(claims.iat) || !Number.isSafeInteger(claims.nbf) || !Number.isSafeInteger(claims.exp)
     || (claims.iat as number) < 1 || (claims.nbf as number) < 1
@@ -136,7 +136,8 @@ async function verifyObservationWorkflowIdentity(input: Parameters<typeof verify
   if (targets.length !== 1) githubFail(CODE)
   const job = targets[0]!, observedLabels = job.labels, checkRunId = job.id as string
   const checkUrl = `${API}/check-runs/${checkRunId}`
-  if (job.name !== jobName || job.status !== 'in_progress' || job.conclusion !== null
+  if ((claims.check_run_id !== undefined && claims.check_run_id !== checkRunId)
+    || job.name !== jobName || job.status !== 'in_progress' || job.conclusion !== null
     || job.check_run_url !== checkUrl || job.runner_name !== 'warpkeep-wsl-production-01'
     || job.runner_group_name !== 'Default' || !Array.isArray(observedLabels)
     || observedLabels.length !== LABELS.length || new Set(observedLabels).size !== LABELS.length

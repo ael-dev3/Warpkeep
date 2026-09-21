@@ -30,11 +30,21 @@ function token(value: unknown = payload()) {
 let verify: typeof import('../scripts/verify-recovery-claim-receipt.mjs').verifyRecoveryClaimReceipt;
 let verifyInput: typeof import('../scripts/verify-recovery-claim-receipt.mjs').verifyRecoveryClaimReceiptFromStdin;
 let correlate: typeof import('../scripts/verify-recovery-claim-receipt.mjs').verifyRecoveryClaimCorrelation;
+let history: typeof import('../scripts/verify-recovery-claim-receipt.mjs').verifyRecoveryClaimHistory;
 beforeAll(async () => {
   vi.doMock('../scripts/recovery-public-key.mjs', () => ({ RECOVERY_KEY_ID: kid, RECOVERY_PUBLIC_JWK: jwk, RECOVERY_KEY_THUMBPRINT: thumbprint }));
   verify = (await import('../scripts/verify-recovery-claim-receipt.mjs')).verifyRecoveryClaimReceipt;
   verifyInput = (await import('../scripts/verify-recovery-claim-receipt.mjs')).verifyRecoveryClaimReceiptFromStdin;
   correlate = (await import('../scripts/verify-recovery-claim-receipt.mjs')).verifyRecoveryClaimCorrelation;
+  history = (await import('../scripts/verify-recovery-claim-receipt.mjs')).verifyRecoveryClaimHistory;
+});
+it('authenticates original history after the deadline without permitting deployment or mismatched claims', () => {
+  expect(history(token(), JSON.stringify(expected()), 86_400)).toEqual({ purpose: 'signed-history-only',
+    authorizationEpoch: 7, claimedAt: 1001, claimDeadline: 2201 });
+  expect(() => verify(token(), JSON.stringify(expected()), 86_400)).toThrow('RECOVERY_CLAIM_INVALID');
+  expect(() => history(token(), JSON.stringify({ ...expected(), artifactId: '999' }), 86_400)).toThrow('RECOVERY_CLAIM_INVALID');
+  expect(() => history(token({ ...payload(), claimDeadline: 2300 }), JSON.stringify(expected()), 86_400)).toThrow('RECOVERY_CLAIM_INVALID');
+  expect(() => history(token(), JSON.stringify(expected()), 1000)).toThrow('RECOVERY_CLAIM_INVALID');
 });
 it.each([1121, 1122, 2200])('allows only non-authorizing correlation after expiry at %s', now => {
   expect(correlate(token(), JSON.stringify(expected()), now)).toEqual({ purpose: 'reconciliation-only',

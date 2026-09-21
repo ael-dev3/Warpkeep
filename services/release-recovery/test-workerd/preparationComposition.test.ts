@@ -45,4 +45,36 @@ describe('gateway, actual preparation signer and SQLite control composition', ()
     expect(fixture.calls).toEqual([])
     expect(namespace.getByName).not.toHaveBeenCalled()
   })
+  it('uses a request credential through actual Worker RPC without any App credentials', async () => {
+    const fixture = await preparationFixture()
+    const jobToken = 'test-only-existing-workflow-token'
+    const evidenceCalls: string[] = []
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('https://api.github.com/')) {
+        expect(url).not.toContain('/app/installations/')
+        expect(new Headers(init?.headers).get('authorization')).toBe(`Bearer ${jobToken}`)
+        evidenceCalls.push(url)
+        const headers = new Headers(init?.headers)
+        headers.set('authorization', 'Bearer installation-token')
+        return fixture.fetch(input, { ...init, headers })
+      }
+      expect(new Headers(init?.headers).has('authorization')).toBe(false)
+      return fixture.fetch(input, init)
+    })
+    const logs: unknown[] = []
+    const gateway = createRecoveryGateway({ signer: {
+      prepare: (request: unknown, token: unknown) => env.RECOVERY_PREPARATION_ACTUAL_SIGNER.prepareWithoutApp(request, token),
+    } as never, log: entry => { logs.push(entry) } })
+    const response = await gateway.fetch(new Request('https://release-auth.warpkeep.com/v1/recovery/prepare', {
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${jobToken}` },
+      body: JSON.stringify({ oidcToken: fixture.token, preparationCommit: fixture.preparationCommit }),
+    }))
+    expect(response.status).toBe(200)
+    const body = await response.json() as { preparationReceiptJws: string }
+    const payload = JSON.parse(atob(body.preparationReceiptJws.split('.')[1]!.replace(/-/gu, '+').replace(/_/gu, '/')))
+    expect((await verifyPreparationReceipt(body.preparationReceiptJws, payload.intent)).preparationCommit).toBe(fixture.preparationCommit)
+    expect(evidenceCalls.length).toBeGreaterThan(0)
+    expect(JSON.stringify({ body, logs })).not.toContain(jobToken)
+  })
 })

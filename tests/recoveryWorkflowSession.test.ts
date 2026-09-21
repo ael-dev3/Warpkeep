@@ -9,7 +9,8 @@ vi.mock('../scripts/recovery-claim-handoff.mjs', () => ({ preflightRecoveryClaim
 vi.mock('../scripts/recovery-workflow-oidc.mjs', () => ({ requestFreshRecoveryOidc: mocks.oidc }));
 vi.mock('../scripts/recovery-authorization-client.mjs', () => ({ requestRecovery: mocks.request }));
 vi.mock('../scripts/verify-recovery-authorization-jws.mjs', () => ({ verifyRecoveryAuthorization: mocks.authorization }));
-vi.mock('../scripts/verify-recovery-claim-receipt.mjs', () => ({ verifyRecoveryClaimReceipt: mocks.claim, verifyRecoveryClaimCorrelation: mocks.correlation }));
+vi.mock('../scripts/verify-recovery-claim-receipt.mjs', () => ({ verifyRecoveryClaimReceipt: mocks.claim,
+  verifyRecoveryClaimCorrelation: mocks.correlation, verifyRecoveryClaimHistory: mocks.correlation }));
 vi.mock('../scripts/verify-recovery-status.mjs', () => ({ verifyRecoveryStatus: mocks.status }));
 vi.mock('../scripts/verify-recovery-terminal.mjs', () => ({ verifyRecoveryTerminal: mocks.terminal }));
 import { beginRecoveryWorkflowSession } from '../scripts/recovery-workflow-session.mjs';
@@ -101,7 +102,7 @@ it('does not send a terminal request after disposal during fresh OIDC acquisitio
   await expect(finishing).rejects.toThrow('RECOVERY_WORKFLOW_SESSION_INVALID');
   expect(mocks.request.mock.calls.map(call => call[0])).toEqual(['issue', 'claim', 'status', 'status']);
 });
-it('does not send terminal requests when the signed correlation deadline has elapsed', async () => {
+it('does not send immediate completion when the signed correlation deadline has elapsed', async () => {
   const session = await begin(); await session.checkDeploymentBoundary();
   mocks.correlation.mockImplementation(() => { throw new Error('deadline elapsed'); });
   await expect(session.finish('complete')).rejects.toThrow('RECOVERY_WORKFLOW_SESSION_INVALID');

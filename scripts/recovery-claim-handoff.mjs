@@ -1,6 +1,6 @@
 import { constants, openSync, closeSync, fstatSync, lstatSync, realpathSync, readSync, writeFileSync, fsyncSync, accessSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { verifyRecoveryClaimReceipt, verifyRecoveryClaimCorrelation } from './verify-recovery-claim-receipt.mjs';
+import { verifyRecoveryClaimReceipt, verifyRecoveryClaimCorrelation, verifyRecoveryClaimHistory } from './verify-recovery-claim-receipt.mjs';
 const NAME = 'recovery-claim-v1.json';
 const LIMIT = 65536;
 const KEYS = ['schemaVersion', 'profile', 'claimReceiptJws', 'expectedSource', 'claimDeadline'];
@@ -94,11 +94,12 @@ function read(root, contextSource, deployment, historyOnly = false) {
       const value = JSON.parse(source);
       if (!value || Array.isArray(value) || typeof value !== 'object' || Object.keys(value).join(',') !== KEYS.join(',')
           || JSON.stringify(value) !== source || value.schemaVersion !== 1 || value.profile !== 'warpkeep-recovery-claim-handoff-v1') fail();
-      const correlation = verifyRecoveryClaimCorrelation(value.claimReceiptJws, value.expectedSource, now());
+      const correlation = (deployment ? verifyRecoveryClaimCorrelation : verifyRecoveryClaimHistory)(
+        value.claimReceiptJws, value.expectedSource, now());
       if (correlation.claimDeadline !== value.claimDeadline) fail();
       const expected = JSON.parse(value.expectedSource);
       if (historyOnly) {
-        // Signature/schema/deadline verification above precedes projection.
+        // Signature/schema/original binding verification precedes projection.
         // Historical digests are NOT independently current deployment evidence.
         return Object.freeze({ purpose: 'signed-history-only', contextSource:
           JSON.stringify(Object.fromEntries(CONTEXT.map(key => [key, expected[key]]))) });

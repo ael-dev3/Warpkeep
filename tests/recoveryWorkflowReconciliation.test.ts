@@ -1,11 +1,12 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ read: vi.fn(), oidc: vi.fn(), request: vi.fn(), terminal: vi.fn() }));
+const mocks = vi.hoisted(() => ({ read: vi.fn(), prior: vi.fn(), oidc: vi.fn(), request: vi.fn(), terminal: vi.fn() }));
+vi.mock('../scripts/recovery-workflow-current-context.mjs', () => ({ readRecoveryWorkflowPriorContext: mocks.prior }));
 vi.mock('../scripts/recovery-claim-handoff.mjs', () => ({ readRecoveryClaimHandoffForReconciliation: mocks.read }));
 vi.mock('../scripts/recovery-workflow-oidc.mjs', () => ({ requestFreshRecoveryOidc: mocks.oidc }));
 vi.mock('../scripts/recovery-authorization-client.mjs', () => ({ requestRecovery: mocks.request }));
 vi.mock('../scripts/verify-recovery-terminal.mjs', () => ({ verifyRecoveryTerminal: mocks.terminal }));
-import { resumeRecoveryWorkflowReconciliation } from '../scripts/recovery-workflow-reconciliation.mjs';
+import { resumeRecoveryWorkflowReconciliation, reconcilePriorRecoveryWorkflowAttempt } from '../scripts/recovery-workflow-reconciliation.mjs';
 const expected = JSON.stringify({ requestId: 'synthetic-request', candidateCommit: 'a'.repeat(40), sourceVerifyRunId: '123', sourceVerifyRunAttempt: '1', artifactId: '456' });
 const result = { outcome: 'completed', completedAt: 1000, authorizationEpoch: 1, issuedAt: 1000, expiresAt: 1900 };
 beforeEach(() => {
@@ -13,6 +14,22 @@ beforeEach(() => {
   mocks.read.mockReturnValue({ claimReceiptJws: 'private-claim', expectedSource: expected });
   mocks.oidc.mockImplementation(async () => `fresh-${++sequence}`);
   mocks.request.mockResolvedValue({ terminalJws: 'terminal' }); mocks.terminal.mockReturnValue(result);
+  mocks.prior.mockResolvedValue({ privateRoot: '/private-root', contextSource: 'original-context' });
+});
+it('resumes a prior attempt exclusively through reconciliation and reports no new deployment', async () => {
+  await expect(reconcilePriorRecoveryWorkflowAttempt()).resolves.toEqual({ resumed: true, outcome: 'completed' });
+  expect(mocks.request.mock.calls.map(call => call[0])).toEqual(['reconcile']);
+});
+it('reports no resume without requesting credentials when no prior claim exists', async () => {
+  mocks.prior.mockResolvedValue(null);
+  await expect(reconcilePriorRecoveryWorkflowAttempt()).resolves.toEqual({ resumed: false });
+  expect(mocks.oidc).not.toHaveBeenCalled();
+  expect(mocks.request).not.toHaveBeenCalled();
+});
+it('never falls through to new deployment after ambiguous prior reconciliation', async () => {
+  mocks.request.mockRejectedValueOnce(new Error('ambiguous'));
+  await expect(reconcilePriorRecoveryWorkflowAttempt()).rejects.toThrow('RECOVERY_WORKFLOW_RECONCILIATION_INVALID');
+  expect(mocks.request.mock.calls.map(call => call[0])).toEqual(['reconcile']);
 });
 it('reopens and reconciles only the retained claim, without reissue or deployment', async () => {
   const session = resumeRecoveryWorkflowReconciliation('/private-root', 'context');
@@ -37,9 +54,9 @@ it('rejects handoff substitution while obtaining fresh OIDC', async () => {
   await expect(session.reconcile()).rejects.toThrow('RECOVERY_WORKFLOW_RECONCILIATION_INVALID');
   expect(mocks.request).not.toHaveBeenCalled();
 });
-it('rechecks deadline after obtaining OIDC', async () => {
+it('rechecks signed history and retained storage after obtaining OIDC', async () => {
   const session = resumeRecoveryWorkflowReconciliation('/private-root', 'context');
-  mocks.read.mockImplementationOnce(() => { throw new Error('deadline'); });
+  mocks.read.mockImplementationOnce(() => { throw new Error('invalid retained history'); });
   await expect(session.reconcile()).rejects.toThrow('RECOVERY_WORKFLOW_RECONCILIATION_INVALID');
   expect(mocks.request).not.toHaveBeenCalled();
 });

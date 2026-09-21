@@ -135,11 +135,27 @@ jobs:
     environment:
       name: github-pages
     steps:
+      - name: Reconcile a retained recovery attempt before any deployment
+        id: recovery-resume
+        shell: bash
+        env:
+          GITHUB_TOKEN: \${{ github.token }}
+        run: |
+          set -euo pipefail
+          result="$(node scripts/recovery-workflow-reconciliation.mjs)"
+          case "$result" in
+            '{"resumed":false}') printf '%s\\n' 'resumed=false' >> "$GITHUB_OUTPUT" ;;
+            '{"resumed":true,"outcome":"completed"}'|'{"resumed":true,"outcome":"not-deployed"}')
+              printf '%s\\n' 'resumed=true' >> "$GITHUB_OUTPUT" ;;
+            *) echo 'RECOVERY_WORKFLOW_RECONCILIATION_INVALID' >&2; exit 1 ;;
+          esac
       - name: Upload exact recovery artifact
+        if: \${{ steps.recovery-resume.outputs.resumed == 'false' }}
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
         with:
           name: github-pages-recovery-\${{ github.run_id }}-\${{ github.run_attempt }}
       - name: Prepare private recovery claim
+        if: \${{ steps.recovery-resume.outputs.resumed == 'false' }}
         id: recovery-claim
         shell: bash
         env:
@@ -147,6 +163,7 @@ jobs:
         run: |
           node scripts/recovery-workflow-prepare-claim.mjs
       - name: Check recovery deployment boundary
+        if: \${{ steps.recovery-resume.outputs.resumed == 'false' }}
         id: recovery-boundary
         shell: bash
         env:
@@ -154,6 +171,7 @@ jobs:
         run: |
           node scripts/recovery-workflow-check-deployment.mjs
       - name: ${DEPLOY_STEP}
+        if: \${{ steps.recovery-resume.outputs.resumed == 'false' }}
         id: recovery-deployment
         uses: ${DEPLOY_ACTION}
         with:
@@ -177,6 +195,13 @@ function repositoryResponse(): Record<string, unknown> {
     default_branch: 'main',
     archived: false,
     disabled: false,
+    url: API,
+    html_url: 'https://github.com/ael-dev3/Warpkeep',
+    private: false,
+    fork: false,
+    node_id: 'R_kgDOsynthetic',
+    branches_url: `${API}/branches{/branch}`,
+    contents_url: `${API}/contents/{+path}`,
     owner: { id: 183124839, login: 'ael-dev3' },
   }
 }
@@ -275,18 +300,20 @@ function runAttemptResponse(
     pull_requests: [],
     created_at: new Date((NOW - 2_000) * 1_000).toISOString(),
     updated_at: new Date((NOW - 1) * 1_000).toISOString(),
-    actor: { login: 'github-actions[bot]', id: 41898282, type: 'Bot' },
-    triggering_actor: { login: 'github-actions[bot]', id: 41898282, type: 'Bot' },
+    actor: { login: 'ael-dev3', id: 183124839, type: 'User', user_view_type: 'public',
+      html_url: 'https://github.com/ael-dev3', url: 'https://api.github.com/users/ael-dev3', site_admin: false },
+    triggering_actor: { login: 'ael-dev3', id: 183124839, type: 'User', user_view_type: 'public',
+      html_url: 'https://github.com/ael-dev3', url: 'https://api.github.com/users/ael-dev3', site_admin: false },
     run_attempt: Number(RUN_ATTEMPT),
     referenced_workflows: [],
     run_started_at: new Date((NOW - 2_000) * 1_000).toISOString(),
     jobs_url: `${runUrl}/attempts/${RUN_ATTEMPT}/jobs`,
-    logs_url: `${runUrl}/logs`,
+    logs_url: `${runUrl}/attempts/${RUN_ATTEMPT}/logs`,
     check_suite_url: `${API}/check-suites/77`,
     artifacts_url: `${runUrl}/artifacts`,
     cancel_url: `${runUrl}/cancel`,
     rerun_url: `${runUrl}/rerun`,
-    previous_attempt_url: null,
+    previous_attempt_url: `${runUrl}/attempts/${BigInt(RUN_ATTEMPT) - 1n}`,
     workflow_url: `${API}/actions/workflows/309643090`,
     head_commit: {
       id: CANDIDATE,
@@ -296,8 +323,8 @@ function runAttemptResponse(
       author: { name: 'Warpkeep', email: 'noreply@example.invalid' },
       committer: { name: 'Warpkeep', email: 'noreply@example.invalid' },
     },
-    repository: { id: 1273513252, name: 'Warpkeep', full_name: 'ael-dev3/Warpkeep' },
-    head_repository: { id: 1273513252, name: 'Warpkeep', full_name: 'ael-dev3/Warpkeep' },
+    repository: repositoryResponse(),
+    head_repository: repositoryResponse(),
   }
 }
 
@@ -753,6 +780,20 @@ async function expectOwnedTransportTimeout(fixture: Fixture, url: string): Promi
 }
 
 describe('read-only V2 deployment reconciliation evidence', () => {
+  it('accepts provider actor/repository metadata without treating display text as authority', async () => {
+    const fixture = await makeFixture();
+    fixture.state.run.display_title = 'Reconcile the retained Warpkeep release';
+    fixture.state.run.path = '.github/workflows/deploy-pages.yml';
+    await expect(fixture.reader(fixture.projection)).resolves.toMatchObject({ outcome: 'completed' });
+  });
+
+  it.each(['owner', 'repository-url', 'previous-attempt'])('rejects provider identity substitution: %s', async mutation => {
+    const fixture = await makeFixture();
+    if (mutation === 'owner') (fixture.state.run.repository as Record<string, unknown>).owner = { id: 1, login: 'other' };
+    if (mutation === 'repository-url') (fixture.state.run.head_repository as Record<string, unknown>).url = 'https://api.github.com/repos/other/Warpkeep';
+    if (mutation === 'previous-attempt') fixture.state.run.previous_attempt_url = `${API}/actions/runs/999/attempts/1`;
+    await expect(fixture.reader(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' });
+  });
   it('completes only from the exact pinned step, Pages deployment, and raw-SHA-bound public attestation', async () => {
     const fixture = await makeFixture('completed')
 

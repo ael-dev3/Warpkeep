@@ -1,4 +1,4 @@
-import { constants, openSync, closeSync, lstatSync, fstatSync, realpathSync, mkdirSync, fsyncSync } from 'node:fs';
+import { constants, openSync, closeSync, lstatSync, fstatSync, realpathSync, mkdirSync, fsyncSync, readdirSync } from 'node:fs';
 const ROOT = '/home/warpkeep/.warpkeep-recovery-v1';
 const fail = () => { throw new Error('RECOVERY_WORKFLOW_PRIVATE_DIRECTORY_INVALID'); };
 const valid = state => state.isDirectory() && state.uid === 1000n && (state.mode & 0o7777n) === 0o700n;
@@ -34,3 +34,25 @@ function directory(args, create) {
 export function createRecoveryWorkflowPrivateDirectory(...args) { return directory(args, true); }
 /** Existing directory only; receipt verification remains mandatory. */
 export function resolveRecoveryWorkflowPrivateDirectory(...args) { return directory(args, false); }
+/** Select only this independently verified Pages run's earlier private attempt.
+ * Multiple retained attempts are ambiguous; never choose by timestamp or delete. */
+export function findRecoveryWorkflowPriorDirectory(...args) {
+  let parent;
+  try {
+    if (args.length !== 2 || process.platform !== 'linux' || process.getuid() !== 1000
+      || args.some(value => typeof value !== 'string' || !/^[1-9][0-9]{0,15}$/u.test(value))) fail();
+    if (realpathSync(ROOT) !== ROOT) fail();
+    const before = lstatSync(ROOT, { bigint: true });
+    if (!valid(before)) fail();
+    parent = openSync(ROOT, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+    if (!same(before, fstatSync(parent, { bigint: true }))) fail();
+    const names = readdirSync(`/proc/self/fd/${parent}`);
+    if (names.length > 4096) fail();
+    const prefix = `pages-${args[0]}-`;
+    const attempts = names.filter(name => name.startsWith(prefix)).map(name => name.slice(prefix.length));
+    if (attempts.some(value => !/^[1-9][0-9]{0,15}$/u.test(value) || BigInt(value) >= BigInt(args[1]))) fail();
+    if (attempts.length > 1 || !same(before, lstatSync(ROOT, { bigint: true }))) fail();
+    return attempts.length === 0 ? null : directory([args[0], attempts[0]], false);
+  } catch { fail(); }
+  finally { if (parent !== undefined) closeSync(parent); }
+}

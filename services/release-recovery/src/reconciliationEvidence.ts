@@ -255,8 +255,7 @@ function terminalConclusion(value: unknown): value is string {
 function validateActor(value: GitHubJsonValue | undefined): void {
   const actor = objectValue(value)
   if (
-    !exactKeySet(actor, ['login', 'id', 'type'])
-    || !nonemptyString(actor.login, 256)
+    !nonemptyString(actor.login, 256)
     || !positive(actor.id)
     || !nonemptyString(actor.type, 64)
   ) throw new Error(ERROR_CODE)
@@ -732,8 +731,8 @@ function validateRun(
     || value.id !== runId
     || value.run_attempt !== runAttempt
     || value.name !== 'Deploy GitHub Pages'
-    || value.display_title !== 'Deploy GitHub Pages'
-    || value.path !== `${WORKFLOW_PATH}@main`
+    || !nonemptyString(value.display_title, 1_024)
+    || (value.path !== WORKFLOW_PATH && value.path !== `${WORKFLOW_PATH}@main`)
     || value.event !== 'workflow_run'
     || !nonemptyString(value.node_id)
     || !positive(value.run_number)
@@ -743,7 +742,7 @@ function validateRun(
     || value.url !== runUrl
     || value.html_url !== `https://github.com/${GITHUB_REPOSITORY}/actions/runs/${runId}`
     || value.jobs_url !== `${runUrl}/attempts/${runAttempt}/jobs`
-    || value.logs_url !== `${runUrl}/logs`
+    || value.logs_url !== `${runUrl}/attempts/${runAttempt}/logs`
     || value.artifacts_url !== `${runUrl}/artifacts`
     || value.cancel_url !== `${runUrl}/cancel`
     || value.rerun_url !== `${runUrl}/rerun`
@@ -760,7 +759,7 @@ function validateRun(
     || !Number.isFinite(updatedAt)
     || createdAt > startedAt
     || startedAt > updatedAt
-    || value.previous_attempt_url !== null
+    || value.previous_attempt_url !== (runAttempt === '1' ? null : `${runUrl}/attempts/${BigInt(runAttempt) - 1n}`)
     || !exactKeySet(headCommit, [
       'id', 'tree_id', 'message', 'timestamp', 'author', 'committer',
     ])
@@ -770,14 +769,20 @@ function validateRun(
     || headCommit.message.length < 1
     || headCommit.message.length > 64 * 1024
     || !validInstant(headCommit.timestamp)
-    || !exactKeySet(repository, ['id', 'name', 'full_name'])
     || repository.id !== REPOSITORY_ID
     || repository.name !== 'Warpkeep'
     || repository.full_name !== GITHUB_REPOSITORY
-    || !exactKeySet(headRepository, ['id', 'name', 'full_name'])
+    || objectValue(repository.owner).id !== REPOSITORY_OWNER_ID
+    || objectValue(repository.owner).login !== 'ael-dev3'
+    || repository.url !== API
+    || repository.html_url !== `https://github.com/${GITHUB_REPOSITORY}`
     || headRepository.id !== REPOSITORY_ID
     || headRepository.name !== 'Warpkeep'
     || headRepository.full_name !== GITHUB_REPOSITORY
+    || objectValue(headRepository.owner).id !== REPOSITORY_OWNER_ID
+    || objectValue(headRepository.owner).login !== 'ael-dev3'
+    || headRepository.url !== API
+    || headRepository.html_url !== `https://github.com/${GITHUB_REPOSITORY}`
   ) throw new Error(ERROR_CODE)
   return Object.freeze({ terminal })
 }
@@ -906,6 +911,7 @@ async function loadRunAndJobs(
   const runFields = [
     '/id', 'run_attempt', 'workflow_id', 'check_suite_id', 'run_number',
     '/actor/id', '/triggering_actor/id', '/repository/id', '/head_repository/id',
+    '/repository/owner/id', '/head_repository/owner/id',
   ]
   const firstRun = await jsonWithMetadata(
     fetchImplementation, attemptUrl, init, ERROR_CODE, 200, runFields, MAX_RUN_BYTES,
@@ -1005,7 +1011,9 @@ function validateGitHubActionsBot(value: GitHubJsonValue | undefined): void {
   const actor = objectValue(value)
   const apiUrl = 'https://api.github.com/users/github-actions%5Bbot%5D'
   if (
-    !exactKeySet(actor, GITHUB_USER_KEYS)
+    (!exactKeySet(actor, GITHUB_USER_KEYS)
+      && !exactKeySet(actor, [...GITHUB_USER_KEYS, 'user_view_type']))
+    || (actor.user_view_type !== undefined && actor.user_view_type !== 'public')
     || actor.login !== 'github-actions[bot]'
     || actor.id !== '41898282'
     || actor.node_id !== 'MDM6Qm90NDE4OTgyODI='

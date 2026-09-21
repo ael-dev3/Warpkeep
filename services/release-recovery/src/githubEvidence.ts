@@ -1058,11 +1058,31 @@ export function validateRecoveryWorkflowSource(bytes: Uint8Array): void {
     if (!Array.isArray(steps) || steps.length < 1 || steps.length > 100) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     const objects = steps.filter(step => step !== null && typeof step === 'object' && !Array.isArray(step)) as Record<string, unknown>[]
     if (objects.length !== steps.length) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const freshAttemptGuard = "${{ steps.recovery-resume.outputs.resumed == 'false' }}"
+    const resumeSteps = objects.filter(step => step.id === 'recovery-resume')
+    if (resumeSteps.length !== 1) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    const resume = resumeSteps[0]!, resumeEnv = resume.env
+    const resumeCommand = [
+      'set -euo pipefail',
+      'result="$(node scripts/recovery-workflow-reconciliation.mjs)"',
+      'case "$result" in',
+      '  \'{"resumed":false}\') printf \'%s\\n\' \'resumed=false\' >> "$GITHUB_OUTPUT" ;;',
+      '  \'{"resumed":true,"outcome":"completed"}\'|\'{"resumed":true,"outcome":"not-deployed"}\')',
+      '    printf \'%s\\n\' \'resumed=true\' >> "$GITHUB_OUTPUT" ;;',
+      '  *) echo \'RECOVERY_WORKFLOW_RECONCILIATION_INVALID\' >&2; exit 1 ;;',
+      'esac', '',
+    ].join('\n')
+    if (Object.keys(resume).length !== 5
+      || resume.name !== 'Reconcile a retained recovery attempt before any deployment'
+      || resume.shell !== 'bash' || resume.run !== resumeCommand
+      || resumeEnv === null || typeof resumeEnv !== 'object' || Array.isArray(resumeEnv)
+      || Object.keys(resumeEnv).length !== 1
+      || (resumeEnv as Record<string, unknown>).GITHUB_TOKEN !== '${{ github.token }}') githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     const preparationSteps = objects.filter(step => {
       const environment = step.env
       // The fixed helper owns fresh audience-bound OIDC acquisition. Shell
       // substrings (including comments or raw curl) do not prove that behavior.
-      return Object.keys(step).length === 5
+      return Object.keys(step).length === 6 && step.if === freshAttemptGuard
         && step.name === 'Prepare private recovery claim'
         && step.id === 'recovery-claim' && step.shell === 'bash'
         && environment !== null && typeof environment === 'object' && !Array.isArray(environment)
@@ -1078,10 +1098,11 @@ export function validateRecoveryWorkflowSource(bytes: Uint8Array): void {
         && (withValue as Record<string, unknown>).name === 'github-pages-recovery-${{ github.run_id }}-${{ github.run_attempt }}'
     })
     if (preparationSteps.length !== 1 || artifactSteps.length !== 1
+      || objects.indexOf(resume) >= objects.indexOf(artifactSteps[0]!)
       || objects.indexOf(artifactSteps[0]!) >= objects.indexOf(preparationSteps[0]!)) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     const boundarySteps = objects.filter(step => {
       const env = step.env
-      return Object.keys(step).length === 5 && step.name === 'Check recovery deployment boundary'
+      return Object.keys(step).length === 6 && step.if === freshAttemptGuard && step.name === 'Check recovery deployment boundary'
         && step.id === 'recovery-boundary' && step.shell === 'bash'
         && env !== null && typeof env === 'object' && !Array.isArray(env) && Object.keys(env).length === 1
         && (env as Record<string, unknown>).GITHUB_TOKEN === '${{ github.token }}'
@@ -1091,7 +1112,7 @@ export function validateRecoveryWorkflowSource(bytes: Uint8Array): void {
     if (boundarySteps.length !== 1 || deploySteps.length !== 1) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     const deploy = deploySteps[0]!
     const deployWith = deploy.with
-    if (Object.keys(deploy).length !== 4 || deploy.name !== 'Deploy recovery-authorized release to GitHub Pages'
+    if (Object.keys(deploy).length !== 5 || deploy.if !== freshAttemptGuard || deploy.name !== 'Deploy recovery-authorized release to GitHub Pages'
       || deploy.id !== 'recovery-deployment'
       || deploy.uses !== 'actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128'
       || deployWith === null || typeof deployWith !== 'object' || Array.isArray(deployWith)
@@ -1099,6 +1120,11 @@ export function validateRecoveryWorkflowSource(bytes: Uint8Array): void {
       || (deployWith as Record<string, unknown>).artifact_name !== 'github-pages-recovery-${{ github.run_id }}-${{ github.run_attempt }}'
       || objects.indexOf(boundarySteps[0]!) !== objects.indexOf(preparationSteps[0]!) + 1
       || objects.indexOf(deploy) !== objects.indexOf(boundarySteps[0]!) + 1) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    // A retained earlier claim is reconciled only: every build, artifact, claim
+    // and deploy step after the resume decision must be skipped on that path.
+    for (const step of objects.slice(objects.indexOf(resume) + 1, objects.indexOf(deploy) + 1)) {
+      if (step.if !== freshAttemptGuard) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+    }
     const postflights = objects.filter(step => step.id === 'recovery-postflight')
     if (postflights.length !== 1) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     const postflight = postflights[0]!

@@ -23,10 +23,19 @@ describe('existing PTR observation GitHub authentication', () => {
     { aud: 'https://release-auth.warpkeep.com/preparation' }, { environment: 'production' },
     { workflow_sha: 'e'.repeat(40) }, { ref_protected: 'false' }, { event_name: 'pull_request' },
     { jti: '223e4567-e89b-42d3-a456-426614174000' },
-    { check_run_id: '9007199254740993' },
+    { check_run_id: '9007199254740994' },
     { job_workflow_ref: 'ael-dev3/Warpkeep/.github/workflows/sealed-realms-production.yml@refs/heads/main' },
   ])('refuses another purpose, request or execution context: %j', claims => {
     return expect(verify({ claims })).rejects.toThrow()
+  })
+
+  it('accepts an optional check_run_id only when it matches the authenticated current job', async () => {
+    await expect(verify({ claims: { check_run_id: '9007199254740993' } }))
+      .resolves.toMatchObject({ identity: { checkRunId: '9007199254740993' } })
+  })
+
+  it.each(['0', '09007199254740993', 9007199254740993, null])('rejects a malformed optional check_run_id: %s', checkRunId => {
+    return expect(verify({ claims: { check_run_id: checkRunId } })).rejects.toThrow()
   })
 
   it.each(['job-name', 'runner', 'active-sibling', 'truncated', 'rerun', 'branch'])(

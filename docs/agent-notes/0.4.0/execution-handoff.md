@@ -18,10 +18,15 @@ bridge shell. Bridge workflow `35595876032` failed during shell parsing in
 or calls. Three array-expansion quotes were missing. A regression now parses
 every shell step with Bash. These repairs still need protected CI, generated
 family preparation and live acceptance; do not report them as deployed.
-The first keyless source checkpoint covers gateway, request-local credential
-selection, OIDC/evidence validation and conservative ledger reconciliation.
-The explicit earlier-attempt workflow caller is still being completed separately;
-do not confuse the service's reconciliation support with a finished rerun path.
+The keyless source covers gateway, request-local credential selection,
+OIDC/evidence validation and conservative ledger reconciliation. The explicit
+earlier-attempt caller is now implemented: rerunning the same Pages run verifies
+its retained signed claim and reconciles the original attempt before any build,
+upload, claim or deployment. A resolved terminal skips deployment; ambiguous or
+invalid evidence stops. No new claim is issued from the resume path. Real GitHub
+run metadata is accepted with correlated repository, actor, attempt and log URLs.
+The actual Worker RPC composition passes without App credentials. These are
+source/test results; hosted acceptance and deployment remain outstanding.
 
 Development branch: `codex/0.4-fix-native-g001-source-attestation` in the
 maintained Windows checkout. The last accepted generated-family main is

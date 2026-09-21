@@ -44,7 +44,7 @@ const PAGES_RUN_ID = 41
 const G001 = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
 const G002 = '70'.repeat(32)
 const PTR = '80'.repeat(32)
-const CLOSURE = 'b6a31b1ae390503a2040a2c93544404eab3a3e23bf47c3e517a34ba57c45ef64'
+const CLOSURE = '8233a49b97aafe82d26da7350e7ad94ded4daf3faee116c207b1f4162fc77f2f'
 const BRIDGE_VERSION = 'warpkeep-auth-bridge-release-recovery-v1'
 const BRIDGE_VERSION_ID = '123e4567-e89b-42d3-a456-426614174002'
 const BRIDGE_SOURCE_COMMIT = '1'.repeat(40)
@@ -538,11 +538,27 @@ jobs:
       pages: write
       id-token: write
     steps:
+      - name: Reconcile a retained recovery attempt before any deployment
+        id: recovery-resume
+        shell: bash
+        env:
+          GITHUB_TOKEN: \${{ github.token }}
+        run: |
+          set -euo pipefail
+          result="$(node scripts/recovery-workflow-reconciliation.mjs)"
+          case "$result" in
+            '{"resumed":false}') printf '%s\\n' 'resumed=false' >> "$GITHUB_OUTPUT" ;;
+            '{"resumed":true,"outcome":"completed"}'|'{"resumed":true,"outcome":"not-deployed"}')
+              printf '%s\\n' 'resumed=true' >> "$GITHUB_OUTPUT" ;;
+            *) echo 'RECOVERY_WORKFLOW_RECONCILIATION_INVALID' >&2; exit 1 ;;
+          esac
       - name: Upload exact recovery artifact
+        if: \${{ steps.recovery-resume.outputs.resumed == 'false' }}
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
         with:
           name: github-pages-recovery-\${{ github.run_id }}-\${{ github.run_attempt }}
       - name: Prepare private recovery claim
+        if: \${{ steps.recovery-resume.outputs.resumed == 'false' }}
         id: recovery-claim
         shell: bash
         env:
@@ -550,6 +566,7 @@ jobs:
         run: |
           node scripts/recovery-workflow-prepare-claim.mjs
       - name: Check recovery deployment boundary
+        if: \${{ steps.recovery-resume.outputs.resumed == 'false' }}
         id: recovery-boundary
         shell: bash
         env:
@@ -557,6 +574,7 @@ jobs:
         run: |
           node scripts/recovery-workflow-check-deployment.mjs
       - name: Deploy recovery-authorized release to GitHub Pages
+        if: \${{ steps.recovery-resume.outputs.resumed == 'false' }}
         id: recovery-deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128
         with:
@@ -1750,6 +1768,15 @@ describe('GitHub candidate evidence', () => {
     ['missing OIDC permission', (source: string) => source.replace('      id-token: write\n', '')],
     ['missing check evidence permission', (source: string) => source.replace('      checks: read\n', '')],
     ['missing deployment evidence permission', (source: string) => source.replace('      deployments: read\n', '')],
+    ['missing resume step', (source: string) => source.replace(/      - name: Reconcile a retained[\s\S]*?(?=      - name: Upload)/u, '')],
+    ['resume arguments', (source: string) => source.replace('node scripts/recovery-workflow-reconciliation.mjs', 'node scripts/recovery-workflow-reconciliation.mjs --override')],
+    ['conditional resume', (source: string) => source.replace('        id: recovery-resume', '        if: false\n        id: recovery-resume')],
+    ['ignored resume failure', (source: string) => source.replace('        id: recovery-resume', '        continue-on-error: true\n        id: recovery-resume')],
+    ['resume failure falls through', (source: string) => source.replace('exit 1 ;;', 'true ;;')],
+    ['resume outcome becomes new claim', (source: string) => source.replace("'resumed=true'", "'resumed=false'")],
+    ['unguarded artifact', (source: string) => source.replace("        if: ${{ steps.recovery-resume.outputs.resumed == 'false' }}\n", '')],
+    ['reversed resume guard', (source: string) => source.replace("steps.recovery-resume.outputs.resumed == 'false'", "steps.recovery-resume.outputs.resumed == 'true'")],
+    ['unguarded extra build', (source: string) => source.replace('      - name: Upload exact recovery artifact', '      - run: npm run build\n      - name: Upload exact recovery artifact')],
     ['cancelled production lock', (source: string) => source.replace('cancel-in-progress: false', 'cancel-in-progress: true')],
     ['different production lock', (source: string) => source.replace('group: warpkeep-production-state', 'group: other')],
     ['job lock override', (source: string) => source.replace('    environment:', '    concurrency: other\n    environment:')],

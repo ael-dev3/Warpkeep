@@ -4,7 +4,7 @@ export function writeRecoveryClaimHandoff(privateRoot: string, claimReceiptJws: 
 type PrivateClaim = Readonly<{ claimReceiptJws: string; expectedSource: string }>;
 /** Private return values. Context must be independently verified for the current run and artifact. */
 export function readRecoveryClaimHandoffForDeployment(privateRoot: string, contextSource: string): PrivateClaim;
-/** Non-authorizing reconciliation only; strict signed ledger deadline still applies. */
+/** Non-authorizing original signed history; fresh signer/provider reconciliation is mandatory. */
 export function readRecoveryClaimHandoffForReconciliation(privateRoot: string, contextSource: string): PrivateClaim;
 /** Signed historical data only, not current evidence or deployment authority. Keep private. */
 export function readRecoveryClaimHandoffHistory(privateRoot: string): Readonly<{
