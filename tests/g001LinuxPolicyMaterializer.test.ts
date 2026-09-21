@@ -127,6 +127,7 @@ it.each(['policy', 'census'] as const)('compiles %s twice from the owning Genesi
   expect(fixture.compilerCalls).toBe(2);
   expect(fixture.outfiles[0]).toBe(join(fixture.materializedRoot, 'spacetimedb', 'genesis002', 'dist', 'bundle.js'));
   expect(fixture.outfiles[1]).toBe(join(temporary, 'operation', 'second.mjs'));
+  expect(readFileSync(join(temporary, 'operation', 'first.mjs'), 'utf8')).toBe('export const fixture = true;\n');
   expect(fixture.hookDisposals).toBe(1);
   expect(existsSync(join(fixture.materializedRoot, 'node_modules'))).toBe(false);
   expect(existsSync(fixture.compiler)).toBe(true);

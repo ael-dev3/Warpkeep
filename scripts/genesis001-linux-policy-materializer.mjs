@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { chmodSync, lstatSync, mkdirSync, realpathSync, rmdirSync, symlinkSync, unlinkSync } from 'node:fs';
+import { chmodSync, lstatSync, mkdirSync, realpathSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -95,7 +95,13 @@ export async function materializeFixedLinuxG001Policy(request) {
             const meta = readLocalBindingBoundedFile(metafile, { maximumBytes: 4 * 1024 * 1024,
               expectedUid: 1000, expectedMode: 0o600 });
             let result;
-            try { result = { bundleSha256: policyDigest(bundle.body), bundleBytes: bundle.body.length,
+            try {
+              // The locked builder removes the canonical first-pass bundle as
+              // part of its own cleanup. Retain an exact private copy so the
+              // parent native boundary can independently verify both passes
+              // after the builder returns.
+              if (cycle === 'first') writeFileSync(join(request.operationRoot, 'first.mjs'), bundle.body, { mode: 0o600 });
+              result = { bundleSha256: policyDigest(bundle.body), bundleBytes: bundle.body.length,
               sourceClosureSha256: captureGraph(context.materializedRoot, yamlRoot, JSON.parse(meta.body.toString('utf8')), operatorPath) }; }
             finally { bundle.body.fill(0); meta.body.fill(0); }
             if (first && JSON.stringify(first) !== JSON.stringify(result)) policyFail();
